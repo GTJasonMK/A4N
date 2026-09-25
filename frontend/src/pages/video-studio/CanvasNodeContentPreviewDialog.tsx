@@ -4,6 +4,7 @@ import { LoadingSpinner } from "../../components/ui/LoadingSpinner";
 import { extractErrorMessage } from "../../api";
 import { loadVideoScrubPlaybackData } from "../../api/video";
 import { BookButton } from "../../components/ui/BookButton";
+import { ZoomableImage } from "../../components/ui/ImageLightbox";
 import { Modal } from "../../components/ui/Modal";
 import { copyTextToClipboard } from "../../utils/clipboard";
 import { toMediaSrc } from "../../utils/mediaSrc";
@@ -123,7 +124,7 @@ const CanvasNodeContentPreviewBody: React.FC<{ preview: CanvasNodeContentPreview
       ) : null}
       {preview.dataType === "image" && mediaSrc ? (
         <div className="flex min-h-[18rem] items-center justify-center rounded-xl border border-book-border bg-book-bg">
-          <img src={mediaSrc} alt={preview.title} className="max-h-[64vh] max-w-full object-contain" />
+          <ZoomableImage src={mediaSrc} alt={preview.title} className="max-h-[64vh] max-w-full object-contain" />
         </div>
       ) : null}
       {preview.dataType === "video" && (videoSrc || videoLoading || videoLoadError) ? (
@@ -237,7 +238,7 @@ function useCanvasVideoPreviewSource(preview: CanvasNodeContentPreview, t: Messa
 
     setVideoSrc("");
     setVideoLoadError(null);
-    if (preview.dataType !== "video" || !preview.filePath) {
+    if (preview.dataType !== "video" || (!preview.generatedVideoId && !preview.filePath)) {
       setVideoLoading(false);
       return () => {};
     }
@@ -287,6 +288,7 @@ function useCanvasVideoPreviewSource(preview: CanvasNodeContentPreview, t: Messa
 }
 
 function nodeContentGeneratedVideoId(node: StudioNode): number | null {
+  if (node.data.nodeKind === "VideoInputNode") return nodeGeneratedVideoRefId(node.data);
   const config = node.data.config;
   const output = configObject(config, "output");
   return (

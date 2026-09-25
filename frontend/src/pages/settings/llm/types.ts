@@ -9,10 +9,10 @@ export interface LlmForm {
   api_key: string;
   has_api_key: boolean;
   clear_api_key: boolean;
-  max_concurrent: number;
-  timeout_secs: number;
-  max_context_tokens: number;
-  max_output_tokens: number;
+  max_concurrent: string;
+  timeout_secs: string;
+  max_context_tokens: string;
+  max_output_tokens: string;
   extra_body_text: string;
   pricing: PricingPlan;
 }

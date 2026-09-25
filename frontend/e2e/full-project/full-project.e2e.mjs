@@ -717,9 +717,10 @@ async function optimizeWithDomainAgent(projectId) {
       const console = (await visibleElements(consoleSelector)).at(-1);
       if (!console) return false;
       const text = await console.getText();
+      if (await approvePendingProposal(console, text)) return false;
       // Content optimization now returns a reviewable patch proposal; it does
       // not write the chapter back until the user approves it in the editor.
-      return /已完成本章表达与节奏的复核|局部补丁提案|正文尚未写回/.test(text);
+      return /已完成本章表达与节奏的复核|局部补丁提案|正文尚未写回|Agent 任务失败|Agent 任务已中断/.test(text);
     } catch {
       return false;
     }
@@ -727,6 +728,17 @@ async function optimizeWithDomainAgent(projectId) {
   const console = (await visibleElements(consoleSelector)).at(-1);
   assert.ok(console, "领域 Agent 控制台未找到");
   assert.match(await console.getText(), /剧情事实和人物设定保持不变|局部补丁提案|正文尚未写回/);
+}
+
+async function approvePendingProposal(scope, text) {
+  if (!text.includes("edit_article")) return false;
+  for (const button of await visibleElements("button", scope)) {
+    if ((await button.getText()) === "批准" && await button.isEnabled()) {
+      await button.click();
+      return true;
+    }
+  }
+  return false;
 }
 
 async function generateImage(projectId) {
@@ -749,7 +761,7 @@ async function generateImage(projectId) {
 async function createDerivedProjects() {
   await browser.url("/");
   await waitForBodyText("创建项目");
-  let projectRow = await firstVisibleContaining('[role="button"]', "未命名小说项目");
+  let projectRow = await firstVisibleContaining('.a4n-project-row', "未命名小说项目");
   assert.ok(projectRow, "首页找不到文本项目行");
   const more = await projectRow.$("button[aria-label='更多操作']");
   await more.click();
@@ -772,7 +784,7 @@ async function createDerivedProjects() {
     ids[label] = Number(match[1]);
     await browser.url("/");
     await waitForBodyText("创建项目");
-    projectRow = await firstVisibleContaining('[role="button"]', "未命名小说项目");
+    projectRow = await firstVisibleContaining('.a4n-project-row', "未命名小说项目");
     assert.ok(projectRow, `${label} 创建后找不到根项目`);
     await (await projectRow.$("button[aria-label='更多操作']")).click();
   }
@@ -912,7 +924,10 @@ async function exerciseMainAgent(projectId) {
   await browser.waitUntil(async () => {
     const scopes = await visibleElements(domainSelector);
     const scope = scopes[0];
-    return scope ? /交付说明|复核/.test(await scope.getText()) : false;
+    if (!scope) return false;
+    const text = await scope.getText();
+    if (await approvePendingProposal(scope, text)) return false;
+    return text.includes("交付说明") && text.includes("Agent 已完成");
   }, { timeout: 480_000, interval: 1_000, timeoutMsg: "正文页领域 Agent follow-up 未完成" });
   await browser.url("/agents");
   await waitForBodyText("打开子线程");
@@ -922,10 +937,11 @@ async function exerciseMainAgent(projectId) {
 async function exportFamily() {
   await browser.url("/");
   await waitForBodyText("创建项目");
-  const row = await firstVisibleContaining('[role="button"]', "未命名小说项目");
+  const row = await firstVisibleContaining('.a4n-project-row', "未命名小说项目");
   assert.ok(row);
   await (await row.$("button[aria-label='更多操作']")).click();
   await clickButton("导出项目族");
+  await clickButton("包含派生项目", await currentDialog());
   const downloadDir = process.env.A4N_BROWSER_E2E_DOWNLOAD_DIR;
   assert.ok(downloadDir, "浏览器 E2E 缺少下载目录");
   await browser.waitUntil(async () => {

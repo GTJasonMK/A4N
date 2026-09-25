@@ -1,11 +1,16 @@
-use a4n_db_models::models::user::{role::validate_user_role, user};
+use a4n_db_models::models::user::{
+    role::{ROLE_ADMIN, validate_user_role},
+    user,
+};
 use a4n_error::AppError;
 use chrono::Utc;
-use sea_orm::{ActiveModelTrait, DatabaseConnection, Set};
+use sea_orm::{
+    ActiveModelTrait, ColumnTrait, ConnectionTrait, DatabaseConnection, DatabaseTransaction,
+    DbBackend, EntityTrait, PaginatorTrait, QueryFilter, QuerySelect, Set, Statement,
+    TransactionTrait,
+};
 
 use crate::auth::rules::validate_positive_user_id;
-
-use super::read::user_by_id;
 
 pub async fn update_user_role(
     db: &DatabaseConnection,
@@ -15,11 +20,55 @@ pub async fn update_user_role(
     validate_positive_user_id(user_id)?;
     validate_user_role(role)?;
 
-    let user = user_by_id(db, user_id).await?;
+    let tx = db.begin().await.map_err(AppError::Database)?;
+    let user = lock_administrator_membership(&tx, user_id, role != ROLE_ADMIN).await?;
     let mut active: user::ActiveModel = user.into();
     active.role = Set(role.to_string());
     active.updated_at = Set(Utc::now().naive_utc());
-    active.update(db).await.map_err(AppError::Database)
+    let updated = active.update(&tx).await.map_err(AppError::Database)?;
+    tx.commit().await.map_err(AppError::Database)?;
+    Ok(updated)
+}
+
+pub(crate) async fn lock_administrator_membership(
+    tx: &DatabaseTransaction,
+    user_id: i64,
+    removes_access: bool,
+) -> Result<user::Model, AppError> {
+    // ponytail: administrator membership changes are serialized per instance;
+    // use a tenant lock if administrator membership becomes tenant-scoped.
+    tx.query_one(Statement::from_string(
+        DbBackend::Postgres,
+        "SELECT pg_advisory_xact_lock(hashtextextended('a4n-auth-admin-membership', 0))",
+    ))
+    .await
+    .map_err(AppError::Database)?;
+    let user = user::Entity::find_by_id(user_id)
+        .lock_exclusive()
+        .one(tx)
+        .await
+        .map_err(AppError::Database)?
+        .ok_or_else(|| AppError::NotFound(format!("用户不存在: {user_id}")))?;
+    if removes_access
+        && user.role == ROLE_ADMIN
+        && user.is_active
+        && user.lifecycle_gate == crate::generation::USER_GATE_ACTIVE
+    {
+        let others = user::Entity::find()
+            .filter(user::Column::Id.ne(user_id))
+            .filter(user::Column::Role.eq(ROLE_ADMIN))
+            .filter(user::Column::IsActive.eq(true))
+            .filter(user::Column::LifecycleGate.eq(crate::generation::USER_GATE_ACTIVE))
+            .count(tx)
+            .await
+            .map_err(AppError::Database)?;
+        if others == 0 {
+            return Err(AppError::InvalidArgument(
+                "必须保留至少一位可用的管理员，请先将其他用户设为管理员".into(),
+            ));
+        }
+    }
+    Ok(user)
 }
 
 #[cfg(test)]

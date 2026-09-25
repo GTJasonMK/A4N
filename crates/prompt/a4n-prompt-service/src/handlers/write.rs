@@ -113,7 +113,10 @@ pub(crate) async fn update_many_prompts(
         .iter()
         .map(|update| (update.name.clone(), update.content.clone()))
         .collect::<Vec<_>>();
-    let result = state.engine.update_many(updates, &payload.author).await;
+    let result = state
+        .engine
+        .update_many(updates, &payload.author, payload.overwrite)
+        .await;
     Json(result_response(&request, result))
 }
 

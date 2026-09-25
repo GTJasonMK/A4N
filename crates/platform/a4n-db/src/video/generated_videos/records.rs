@@ -8,7 +8,7 @@ mod references;
 pub use metadata::{
     merge_video_provider_response_metadata, validate_video_metadata_update_preserves_system_fields,
 };
-pub use mutations::{update_generated_video_duration_record, update_generated_video_record};
+pub use mutations::update_generated_video_record;
 pub(in crate::video::generated_videos) use prompt_context::{
     prompt_for_generated_video_record, validate_generated_video_prompt_link_fields,
     validate_prompt_project_chapter_identity_fields,

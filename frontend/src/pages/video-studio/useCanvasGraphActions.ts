@@ -13,13 +13,12 @@ import { pickLocalFile, readFileAsBase64 } from "../../utils/fileUpload";
 import type { MessageTranslator } from "../../i18n";
 import type { StudioConfigOptionsByKind } from "./canvasConfig";
 import {
-  CANVAS_RUNTIME_CONFIG_KEYS,
   canvasNodePosition,
+  changeCanvasNodeReference,
   clearCanvasNodeRuntimeResult,
   defaultConfigForNode,
   mergeCanvasDocumentRuntimeResults,
   mergeStudioNodeRuntimeResults,
-  persistCanvasTextAssets,
   preserveSelectedItems,
   toCanvasGraphInput,
   toFlowEdge,
@@ -27,6 +26,7 @@ import {
 } from "./canvasGraphMapping";
 import {
   nextAssembleClipOrder,
+  renumberAssembleClipEdges,
   reorderAssembleClipEdges,
 } from "./canvasAssemblyEdges";
 import {
@@ -150,8 +150,11 @@ export function useCanvasGraphActions({
         );
       }
       if (allowedChanges.length > 0) applyEdgesChange(allowedChanges);
+      if (removedTargetIds.size > 0) {
+        setEdges((items) => renumberAssembleClipEdges(items, removedTargetIds));
+      }
     },
-    [applyEdgesChange, canvasWriteBusy, edges, setNodes],
+    [applyEdgesChange, canvasWriteBusy, edges, setEdges, setNodes],
   );
 
   const addNode = useCallback(
@@ -354,23 +357,28 @@ export function useCanvasGraphActions({
   const deleteCanvasNode = useCallback(
     (node: StudioNode) => {
       if (canvasMutationDisabled) return;
-      setNodes((items) => items.filter((item) => item.id !== node.id));
+      const affectedTargets = new Set(edges.filter((edge) => edge.source === node.id).map((edge) => edge.target));
+      const invalidatedNodeIds = downstreamNodeIds(affectedTargets, edges);
+      setNodes((items) => items.filter((item) => item.id !== node.id).map((item) =>
+        invalidatedNodeIds.has(item.id) ? clearCanvasNodeRuntimeResult(item) : item,
+      ));
       setEdges((items) =>
-        items.filter(
-          (edge) => edge.source !== node.id && edge.target !== node.id,
+        renumberAssembleClipEdges(
+          items.filter((edge) => edge.source !== node.id && edge.target !== node.id),
+          affectedTargets,
         ),
       );
       setDirty(true);
       addToast(t("video.deletedNode", { name: nodeDisplayTitle(node.data, t) }), "success");
     },
-    [addToast, canvasMutationDisabled, setEdges, setNodes, t],
+    [addToast, canvasMutationDisabled, edges, setEdges, setNodes, t],
   );
 
   const deleteCanvasEdge = useCallback(
     (edge: StudioEdge) => {
       if (canvasMutationDisabled) return;
       const invalidatedNodeIds = downstreamNodeIds(new Set([edge.target]), edges);
-      setEdges((items) => items.filter((item) => item.id !== edge.id));
+      setEdges((items) => renumberAssembleClipEdges(items.filter((item) => item.id !== edge.id), new Set([edge.target])));
       setNodes((items) =>
         items.map((item) =>
           invalidatedNodeIds.has(item.id)
@@ -386,29 +394,24 @@ export function useCanvasGraphActions({
 
   const updateSelectedConfig = (patch: Record<string, unknown>) => {
     if (!selectedNode || canvasMutationDisabled) return;
+    const invalidatesRuntimeResult =
+      selectedNode.data.config.canvas_runtime_result === true &&
+      Object.keys(patch).some((key) => key !== "title");
+    const base = invalidatesRuntimeResult ? clearCanvasNodeRuntimeResult(selectedNode) : selectedNode;
     const nextConfig = {
-      ...selectedNode.data.config,
+      ...base.data.config,
       ...patch,
     };
     for (const [key, value] of Object.entries(patch)) {
       if (value === undefined) delete nextConfig[key];
-    }
-    const invalidatesRuntimeResult =
-      selectedNode.data.config.canvas_runtime_result === true &&
-      Object.keys(patch).some((key) => key !== "title");
-    if (invalidatesRuntimeResult) {
-      for (const key of CANVAS_RUNTIME_CONFIG_KEYS) delete nextConfig[key];
     }
     const nextLabel =
       typeof patch.title === "string"
         ? patch.title.trim() || nodeKindMeta(selectedNode.data.nodeKind, t).label
         : selectedNode.data.label;
     const nextData = {
-      ...selectedNode.data,
+      ...base.data,
       label: nextLabel,
-      refType: invalidatesRuntimeResult ? null : selectedNode.data.refType,
-      refId: invalidatesRuntimeResult ? null : selectedNode.data.refId,
-      state: invalidatesRuntimeResult ? "ready" : selectedNode.data.state,
       config: nextConfig,
     };
     setNodes((items) =>
@@ -452,14 +455,7 @@ export function useCanvasGraphActions({
     setNodes((items) =>
       items.map((node) =>
         node.id === selectedNode.id
-          ? {
-              ...node,
-              data: {
-                ...node.data,
-                refType,
-                refId,
-              },
-            }
+          ? changeCanvasNodeReference(node, refType, refId)
           : node,
       ),
     );
@@ -486,16 +482,11 @@ export function useCanvasGraphActions({
     }
     setSaving(true);
     try {
-      const nodesWithTextAssets = await persistCanvasTextAssets(
-        projectId,
-        nodes,
-        t,
-      );
       const saved = await saveCanvasGraph(
         projectId,
         toCanvasGraphInput(
           document,
-          nodesWithTextAssets,
+          nodes,
           edges,
         ),
         document.graph.version,
@@ -503,7 +494,7 @@ export function useCanvasGraphActions({
       const savedEdges = saved.edges.map((edge) => toFlowEdge(edge, t));
       setDocument(saved);
       setNodes((current) =>
-        preserveSelectedItems(saved.nodes.map(toFlowNode), current),
+        preserveSelectedItems(saved.nodes.map(toFlowNode), current, saved.node_ids),
       );
       setEdges((current) => preserveSelectedItems(savedEdges, current));
       setDirty(false);
@@ -587,9 +578,7 @@ export function useCanvasGraphActions({
       );
       const savedEdges = saved.edges.map((edge) => toFlowEdge(edge, t));
       setDocument(saved);
-      setNodes((current) =>
-        preserveSelectedItems(saved.nodes.map(toFlowNode), current),
-      );
+      setNodes(preserveSelectedItems(saved.nodes.map(toFlowNode), nextNodes, saved.node_ids));
       setEdges((current) => preserveSelectedItems(savedEdges, current));
       setDirty(false);
       addToast(successMessage, "success");

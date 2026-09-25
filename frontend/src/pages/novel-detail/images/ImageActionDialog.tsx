@@ -6,6 +6,7 @@ import { Clipboard,
   Trash2, } from "lucide-react";
 import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
 import { BookButton } from "../../../components/ui/BookButton";
+import { ZoomableImage } from "../../../components/ui/ImageLightbox";
 import { Modal } from "../../../components/ui/Modal";
 import { SegmentedControl } from "../../../components/ui/SegmentedControl";
 import { useToast } from "../../../components/feedback/Toast";
@@ -187,11 +188,11 @@ export function ImageActionDialog({
       />
 
       {activeTab === "overview" ? (
-        <div className="grid gap-4 lg:grid-cols-[280px_minmax(0,1fr)]">
+        <div className="grid gap-4 md:grid-cols-[280px_minmax(0,1fr)]">
           <div className="min-w-0">
-            <div className="relative flex aspect-square w-full items-center justify-center overflow-hidden rounded-[14px] border border-book-border/50 bg-book-bg-tertiary text-xs text-book-text-muted">
+            <div className="relative mx-auto flex aspect-square w-full max-w-sm items-center justify-center overflow-hidden rounded-[14px] border border-book-border/50 bg-book-bg-tertiary text-xs text-book-text-muted">
               {src ? (
-                <img
+                <ZoomableImage
                   src={src}
                   alt={t("novel.imageLibrary.alt", { type: imageTypeLabel(image.image_type, t) })}
                   className="h-full w-full object-contain"

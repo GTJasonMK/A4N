@@ -29,7 +29,7 @@ describe("locale resolution", () => {
     expect(localeFromNavigator(["ja-JP", "en-GB"], "ja-JP")).toBe("en-US");
   });
 
-  it("prefers stored locale over navigator locale", () => {
+  it("prefers stored locale over navigator locale", async () => {
     const storage = new Map<string, string>();
     const localStorage = {
       get length() {
@@ -58,11 +58,11 @@ describe("locale resolution", () => {
       configurable: true,
       value: { localStorage, sessionStorage: localStorage },
     });
-    clearLocalePreference();
+    await clearLocalePreference();
     expect(resolveInitialLocale()).toBe("en-US");
-    writeLocalePreference("zh-CN");
+    await writeLocalePreference("zh-CN");
     expect(resolveInitialLocale()).toBe("zh-CN");
-    clearLocalePreference();
+    await clearLocalePreference();
     Object.defineProperty(globalThis, "navigator", {
       configurable: true,
       value: previousNavigator,

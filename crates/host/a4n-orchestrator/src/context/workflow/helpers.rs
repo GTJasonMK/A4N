@@ -21,9 +21,9 @@ pub(in crate::context) fn task_info_summary(
                 meta: progress.meta.clone(),
             }
         }),
-        created_at: info.created_at.to_string(),
-        started_at: info.started_at.map(|value| value.to_string()),
-        completed_at: info.completed_at.map(|value| value.to_string()),
+        created_at: info.created_at.and_utc().to_rfc3339(),
+        started_at: info.started_at.map(|value| value.and_utc().to_rfc3339()),
+        completed_at: info.completed_at.map(|value| value.and_utc().to_rfc3339()),
     }
 }
 
@@ -56,10 +56,12 @@ pub(in crate::context) fn active_task_lookup_record(
                 total: progress.total,
                 message: progress.message.clone(),
                 meta: progress.meta.clone(),
-                timestamp: progress
-                    .updated_at
-                    .clone()
-                    .unwrap_or_else(|| task.started_at.unwrap_or(task.created_at).to_string()),
+                timestamp: progress.updated_at.clone().unwrap_or_else(|| {
+                    task.started_at
+                        .unwrap_or(task.created_at)
+                        .and_utc()
+                        .to_rfc3339()
+                }),
             },
         )
         .into_iter()

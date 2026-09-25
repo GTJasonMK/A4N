@@ -171,9 +171,9 @@ fn pipeline_status_projects_only_the_canonical_wire_contract() {
                 "can_resume": true,
                 "resume_block_reason": "retry",
                 "error_message": "provider failed",
-                "created_at": "2026-08-20 10:00:00",
-                "updated_at": "2026-08-20 10:05:00",
-                "completed_at": "2026-08-20 10:06:00"
+                "created_at": "2026-08-20T10:00:00+00:00",
+                "updated_at": "2026-08-20T10:05:00+00:00",
+                "completed_at": "2026-08-20T10:06:00+00:00"
             },
             "checkpoints": [{
                 "id": 9,
@@ -183,9 +183,9 @@ fn pipeline_status_projects_only_the_canonical_wire_contract() {
                 "checkpoint_json": { "scene": 1 },
                 "artifacts_json": { "prompt_id": 12 },
                 "error_message": "provider failed",
-                "created_at": "2026-08-20 10:00:00",
-                "updated_at": "2026-08-20 10:05:00",
-                "completed_at": "2026-08-20 10:06:00"
+                "created_at": "2026-08-20T10:00:00+00:00",
+                "updated_at": "2026-08-20T10:05:00+00:00",
+                "completed_at": "2026-08-20T10:06:00+00:00"
             }]
         })
     );

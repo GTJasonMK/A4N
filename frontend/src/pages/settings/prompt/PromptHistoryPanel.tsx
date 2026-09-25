@@ -86,7 +86,7 @@ export const PromptHistoryPanel: React.FC<PromptHistoryPanelProps> = ({ prompt }
     setLoading(false);
     if (open) void loadHistory();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, prompt.name]);
+  }, [open, prompt.name, prompt.version]);
 
   const toggleDiffPick = (version: string) => {
     diffSeqRef.current += 1;

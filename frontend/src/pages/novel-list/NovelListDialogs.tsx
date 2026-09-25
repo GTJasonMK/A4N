@@ -9,6 +9,8 @@ import {
 } from "../../api/project";
 import { ImportsTab } from "../novel-detail/ImportsTab";
 import { useI18n, type MessageKey } from "../../i18n";
+import type { PackageId } from "../../api/generated/page";
+import { usePackagePreferences } from "../../store/packagePreferences";
 
 export type CreateMode = "ai" | "free" | "video_canvas";
 
@@ -24,9 +26,11 @@ const CREATE_MODE_OPTIONS: Array<{
   labelKey: MessageKey;
   descriptionKey: MessageKey;
   icon: React.ReactNode;
+  packageId?: PackageId;
 }> = [
   {
     id: "ai",
+    packageId: "ai-workflow",
     labelKey: "novel.createModeAi",
     descriptionKey: "novel.createModeAiDescription",
     icon: <Sparkles size={14} />,
@@ -39,6 +43,7 @@ const CREATE_MODE_OPTIONS: Array<{
   },
   {
     id: "video_canvas",
+    packageId: "canvas",
     labelKey: "novel.createModeCanvas",
     descriptionKey: "novel.createModeCanvasDescription",
     icon: <Film size={14} />,
@@ -52,6 +57,7 @@ export const ProjectCreationDialog: React.FC<ProjectCreationDialogProps> = ({
   onSelectMode,
 }) => {
   const { t } = useI18n();
+  const { isVisible } = usePackagePreferences();
 
   return (
     <Modal
@@ -67,7 +73,7 @@ export const ProjectCreationDialog: React.FC<ProjectCreationDialogProps> = ({
       showCloseButton={!creating}
     >
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-        {CREATE_MODE_OPTIONS.map((option) => (
+        {CREATE_MODE_OPTIONS.filter(option => !option.packageId || isVisible(option.packageId)).map((option) => (
           <button
             key={option.id}
             type="button"
@@ -174,11 +180,13 @@ export const ProjectImportDialog: React.FC<ProjectImportDialogProps> = ({
 
 interface ProjectTextImportDialogProps {
   projectId: number | null;
+  projectTitle?: string;
   onClose: () => void;
 }
 
 export const ProjectTextImportDialog: React.FC<ProjectTextImportDialogProps> = ({
   projectId,
+  projectTitle,
   onClose,
 }) => {
   const { t } = useI18n();
@@ -190,6 +198,7 @@ export const ProjectTextImportDialog: React.FC<ProjectTextImportDialogProps> = (
       isOpen={open}
       onClose={() => !writeBusy && onClose()}
       title={t("novel.importText")}
+      subtitle={projectTitle}
       maxWidthClassName="max-w-5xl"
       bodyClassName="p-0"
       closeOnBackdrop={!writeBusy}

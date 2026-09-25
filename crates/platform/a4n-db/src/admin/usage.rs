@@ -172,6 +172,6 @@ fn usage_log_summary(log: &llm_usage_log::Model) -> UsageLogSummary {
         latency_ms: log.latency_ms,
         is_success: log.is_success,
         error_message: log.error_message.clone(),
-        created_at: Some(log.created_at.to_string()),
+        created_at: Some(log.created_at.and_utc().to_rfc3339()),
     }
 }

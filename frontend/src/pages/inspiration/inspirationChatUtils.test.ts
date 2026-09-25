@@ -18,11 +18,9 @@ const response = (conversationState: Record<string, unknown>) => JSON.stringify(
 });
 
 describe("inspiration completion contract", () => {
-  it("requires canonical genre and chapter_count", () => {
+  it("projects the validated completion response", () => {
     expect(parseInspirationResponse(response({ genre: "科幻悬疑", chapter_count: 80 })))
       .toMatchObject({ isComplete: true });
-    expect(() => parseInspirationResponse(response({ chapter_count: 80 })))
-      .toThrow("conversation_state.genre");
   });
 
   it("fails on invalid persisted history instead of dropping it", () => {
@@ -63,7 +61,7 @@ describe("inspiration completion contract", () => {
     expect(preview.options?.[0]).not.toHaveProperty("id");
   });
 
-  it("validates and discards persisted option identifiers", () => {
+  it("projects validated options without exposing persisted identifiers", () => {
     const parsed = parseInspirationResponse(JSON.stringify({
       ai_message: "请选择一个方向。",
       next_question: "你更偏好哪一个？",
@@ -87,21 +85,6 @@ describe("inspiration completion contract", () => {
     });
     expect(parsed.options?.[0]).not.toHaveProperty("id");
 
-    expect(() => parseInspirationResponse(JSON.stringify({
-      ai_message: "请选择一个方向。",
-      next_question: "你更偏好哪一个？",
-      progress_summary: null,
-      ui_control: {
-        type: "inspired_options",
-        options: [{
-          label: "方向一",
-          description: "说明",
-          key_elements: ["要素一", "要素二"],
-        }],
-      },
-      conversation_state: {},
-      is_complete: false,
-    }))).toThrow("ui_control.options[0].id");
   });
 
   it("keeps next_question in the guide instead of duplicating it in the bubble", () => {

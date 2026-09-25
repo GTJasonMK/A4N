@@ -623,7 +623,7 @@ mod tests {
             .expect("chapter content worker entry");
         assert_eq!(chapter_content.kind, ProcessKind::StatefulWorker);
         assert_eq!(chapter_content.binary, "a4n-chapter-content-worker");
-        assert_eq!(chapter_content.contract_version, "chapter-content-v2");
+        assert_eq!(chapter_content.contract_version, "chapter-content-v3");
         assert_eq!(chapter_content.addr_env, "A4N_CHAPTER_CONTENT_WORKER_ADDR");
         assert_eq!(chapter_content.default_addr, "127.0.0.1:47671");
         assert_eq!(
@@ -773,7 +773,7 @@ mod tests {
         assert_eq!(worker.contract_version.as_deref(), Some("worker-schema-v6"));
         assert_eq!(
             worker.capability_version.as_deref(),
-            Some("agent-worker-v1")
+            Some("agent-worker-v2")
         );
     }
 

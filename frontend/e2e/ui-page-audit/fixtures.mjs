@@ -1,0 +1,119 @@
+import { readFile } from "node:fs/promises";
+import { visualFixtures } from "../ui-presentation/visual-fixtures.mjs";
+import { uiFixtures } from "../ui-presentation/fixtures.mjs";
+import { directorSnapshot } from "./home-agent-fixtures.mjs";
+
+const [novel, media, settings] = await Promise.all(["novel", "media", "settings"].map(async (name) =>
+  JSON.parse(await readFile(new URL(`./${name}-fixtures.json`, import.meta.url), "utf8")),
+));
+const byId = (...lists) => [...new Map(lists.flat().map((item) => [item.id, item])).values()];
+const runtime = JSON.parse(await readFile(new URL("./novel-runtime.json", import.meta.url), "utf8"));
+
+export async function seedLocalModels(browser) {
+  return browser.execute(async (models) => {
+    const local = await import("/src/api/localRuntimeSettings.ts");
+    for (const item of models.llm) if (!local.listLocalLlmConfigs().some((entry) => entry.name === item.name)) await local.createLocalLlmConfig(item);
+    for (const item of models.image) if (!local.listLocalImageConfigs().some((entry) => entry.name === item.name)) await local.createLocalImageConfig(item);
+    for (const item of models.video) if (!local.listLocalVideoConfigs().some((entry) => entry.name === item.name)) await local.createLocalVideoConfig(item);
+    for (const item of models.embedding) if (!local.listLocalEmbeddingConfigs().some((entry) => entry.name === item.name)) await local.createLocalEmbeddingConfig(item);
+    await local.updateLocalWebToolsConfig(models.webTools.search, models.webTools.fetch);
+    return {
+      llm: local.listLocalLlmConfigs().find((entry) => entry.name === models.llm[0].name).id,
+      image: local.listLocalImageConfigs().find((entry) => entry.name === models.image[1].name).id,
+      video: local.listLocalVideoConfigs().find((entry) => entry.name === models.video[0].name).id,
+    };
+  }, settings.localModels);
+}
+
+export async function buildPageFixtures(baseUrl) {
+  const data = structuredClone({
+    ...visualFixtures, ...settings.invoke, ...media.commands, ...novel.commands, ...runtime.commands,
+    [runtime.generation.blueprint.start_command]: runtime.generation.blueprint.handle,
+    generationTasks: { [runtime.generation.blueprint.handle.task_id]: runtime.generation.blueprint },
+    agentSnapshots: [...uiFixtures.agentSnapshots, runtime.agent.snapshot, directorSnapshot],
+    pageSessions: settings.rest.pageSessions,
+    get_current_user: settings.invoke.get_current_user,
+    projectRecords: byId(visualFixtures.projectRecords, novel.projectRecords),
+    byProject: media.byProject,
+    byChapter: Object.fromEntries(Object.keys(media.byChapter).map((id) => [id, {
+      ...novel.byChapter[id], ...media.byChapter[id],
+    }])),
+    byProfile: novel.byProfile,
+    byProfileChapter: novel.byProfileChapter,
+    bySnapshot: novel.bySnapshot,
+    byAssetNode: novel.byAssetNode,
+    assemblyPreviews: media.resources.assembly_preview_metadata_by_chapter,
+  });
+  data.list_projects = { items: data.projectRecords, page: 1, page_size: 20, total: data.projectRecords.length };
+  const images = byId(media.commands.list_images_by_projects, novel.commands.list_images_by_projects);
+  data.list_images_by_projects = images;
+  data.list_images_by_project = images;
+  data.list_images_by_chapter = images;
+  for (const [id, values] of Object.entries(data.byProject)) {
+    values.list_images_by_project = images.filter((image) => image.project_id === Number(id));
+    if (Number(id) === 1) {
+      values.list_profiles = novel.commands.list_profiles;
+      values.list_portraits_by_project = byId(media.commands.list_portraits_by_project, novel.commands.list_portraits_by_project);
+    }
+  }
+  for (const [id, values] of Object.entries(data.byChapter)) {
+    values.list_images_by_chapter = images.filter((image) => image.chapter_id === Number(id));
+  }
+  data.videoDurations = Object.fromEntries([
+    ...Object.values(data.byChapter).flatMap((values) => values.list_videos_by_chapter ?? []),
+    ...media.byProject[6].list_videos_by_project,
+  ].map((video) => [video.id, video.duration_secs]));
+  data.playbackData = {};
+  for (const duration of [6, 8, 10, 12, 24]) {
+    const bytes = await readFile(new URL(`./media/clip-${duration}.mp4`, import.meta.url));
+    data.playbackData[duration] = { mime_type: "video/mp4", data_base64: bytes.toString("base64"), file_size: bytes.length, scrub_frames: null };
+  }
+
+  const rewritten = JSON.parse(JSON.stringify(data), (_key, value) => {
+    if (typeof value === "string") return value
+      .replace(/https:\/\/ui\.invalid\/image-(\d+)\.png/g, `${baseUrl}/e2e/ui-page-audit/media/image-$1.svg`)
+      .replaceAll("https://ui.invalid/clip.mp4", `${baseUrl}/e2e/ui-page-audit/media/clip-6.mp4`)
+      .replaceAll("https://ui.invalid/audio.wav", `${baseUrl}/e2e/ui-page-audit/media/audio.wav`);
+    if (value?.duration_secs && value.file_path?.endsWith("/clip-6.mp4")) {
+      value.file_path = value.file_path.replace("clip-6.mp4", `clip-${value.duration_secs}.mp4`);
+    }
+    return value;
+  });
+
+  // Use the production fingerprint contract after replacing reference-media URLs.
+  await browser.url(`${baseUrl}/e2e/ui-presentation/controls.html`);
+  const modelIds = await seedLocalModels(browser);
+  for (const node of rewritten.byProject[6].get_canvas_graph.nodes) {
+    for (const kind of ["llm", "image", "video"]) {
+      if (`${kind}_config_id` in node.config_json) node.config_json[`${kind}_config_id`] = modelIds[kind];
+    }
+  }
+  return browser.execute(async (encoded) => {
+    const data = JSON.parse(decodeURIComponent(encoded));
+    const { videoSegmentRecipeFrameFingerprintJson: frame, videoSegmentRecipeGenerationFingerprintJson: generation } =
+      await import("/src/pages/novel-detail/video/videoSegmentPlan.ts");
+    const { sha256Hex } = await import("/src/utils/contentHash.ts");
+    const { GENERATION_START_PATHS } = await import("/src/api/generated/host.ts");
+    data.commandByPath = Object.fromEntries(Array.from(GENERATION_START_PATHS, ([command, path]) => [`/api${path}`, command]));
+    for (const chapter of Object.values(data.byChapter)) {
+      const plan = chapter.list_chapter_video_prompts.find((prompt) => prompt.prompt_type === "frame_segment_plan");
+      const fingerprints = new Map();
+      for (const recipe of plan.metadata_json.segment_recipes) {
+        fingerprints.set(recipe.segment_number, { generation: await sha256Hex(generation(recipe)), frame: await sha256Hex(frame(recipe)) });
+      }
+      for (const prompt of chapter.list_chapter_video_prompts) {
+        if (prompt.metadata_json?.source_prompt_type !== "frame_segment_plan") continue;
+        const identity = prompt.metadata_json.video_execution_identity;
+        identity.segment_recipe_fingerprint = fingerprints.get(identity.segment_number)[prompt.prompt_type === "video_prompt" ? "generation" : "frame"];
+      }
+      for (const video of chapter.list_videos_by_chapter) {
+        if (!["chapter_video", "reference_media_video"].includes(video.video_type)) continue;
+        const identity = video.metadata_json.video_execution_identity;
+        identity.segment_recipe_fingerprint = fingerprints.get(identity.segment_number).generation;
+        const snapshot = video.metadata_json.provider_request_snapshot;
+        if (snapshot) snapshot.video_execution_identity = { ...identity };
+      }
+    }
+    return data;
+  }, encodeURIComponent(JSON.stringify(rewritten)));
+}

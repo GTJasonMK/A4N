@@ -26,6 +26,18 @@ pub(crate) struct StoredConfig {
     pub(crate) ui_session_token: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub(crate) runtime_config_snapshot: Option<RuntimeConfigSnapshot>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(crate) pending_oauth: Option<PendingOAuth>,
+}
+
+#[derive(Clone, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct PendingOAuth {
+    pub(crate) provider: String,
+    pub(crate) state: String,
+    pub(crate) code_verifier: String,
+    pub(crate) redirect_uri: String,
+    pub(crate) expires_at: u64,
 }
 
 impl StoredConfig {
@@ -61,6 +73,7 @@ impl StoredConfig {
         self.agent_token = None;
         self.ui_session_id = None;
         self.ui_session_token = None;
+        self.pending_oauth = None;
     }
 }
 

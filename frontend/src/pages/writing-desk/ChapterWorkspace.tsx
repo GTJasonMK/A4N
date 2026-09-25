@@ -217,7 +217,7 @@ export const ChapterWorkspace: React.FC<ChapterWorkspaceProps> = ({
   }, [activeNumber, locale]);
 
   return (
-    <section aria-label={t("writing.editArea")} className="a4n-writing-workspace flex min-h-0 min-w-0 flex-col overflow-hidden p-2.5 sm:p-3">
+    <section aria-label={t("writing.editArea")} className="a4n-writing-workspace flex min-h-0 min-w-0 flex-col overflow-hidden p-3 sm:p-4">
       {activeNumber == null ? (
         <div className="a4n-empty-state a4n-empty-state--compact m-auto text-sm">
           {t("writing.chooseFromSidebar")}
@@ -225,7 +225,7 @@ export const ChapterWorkspace: React.FC<ChapterWorkspaceProps> = ({
       ) : (
         <>
           {bottomTab !== "visual_plan" && <div className="mb-2.5 flex min-w-0 shrink-0 flex-wrap items-center gap-2">
-            <h2 className="min-w-0 flex-1 truncate px-1 py-1 font-serif text-base font-semibold text-book-text-main">
+            <h2 className="min-w-0 flex-1 truncate px-1 py-1 font-serif text-xl font-semibold text-book-text-main">
               {selectedChapterTitle(activeChapter, activeOutline) || t("writing.chapterLabel", { number: activeNumber })}
             </h2>
             <div className="flex min-w-0 shrink-0 items-center gap-2">
@@ -381,7 +381,7 @@ export const ChapterWorkspace: React.FC<ChapterWorkspaceProps> = ({
                       : t("writing.chapterNotGenerated")
                   }
                   aria-label={t("writing.chapterBody")}
-                  className="book-control block h-full w-full resize-none rounded-xl px-4 py-3 font-serif text-sm leading-[2] !shadow-none sm:px-5 sm:py-4"
+                  className="a4n-writing-editor book-control block h-full w-full resize-none font-serif"
                 />
               )
             )}
@@ -403,7 +403,8 @@ export const ChapterWorkspace: React.FC<ChapterWorkspaceProps> = ({
                   canGenerate={
                     !activeChapterBusy &&
                     !!activeChapter.content.trim() &&
-                    !analysisBlockedReason
+                    !analysisBlockedReason &&
+                    activeChapter.analysis_sync_status !== "running"
                   }
                   onGenerate={onGenerateAnalysis}
                   onPreviewGenerate={onPreviewGenerateAnalysis}
@@ -411,7 +412,8 @@ export const ChapterWorkspace: React.FC<ChapterWorkspaceProps> = ({
                     !activeChapterBusy &&
                     !!activeChapter.content.trim() &&
                     !analysisBlockedReason &&
-                    activeChapter.analysis_sync_can_resume
+                    (activeChapter.analysis_sync_can_resume ||
+                      activeChapter.analysis_sync_status === "running")
                   }
                   onResumeSync={onResumeAnalysisSync}
                   onPreviewResumeSync={onPreviewResumeAnalysisSync}

@@ -93,6 +93,7 @@ pub struct PromptUpdatePayload {
 pub struct PromptUpdateManyPayload {
     pub updates: Vec<PromptBatchUpdate>,
     pub author: String,
+    pub overwrite: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

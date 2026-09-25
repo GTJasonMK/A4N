@@ -27,6 +27,11 @@ pub async fn dispatch_agent_host_command(
         )));
     }
     match command.as_str() {
+        "locate_writing_target" => {
+            let input = parse_arguments::<LocateWritingTargetInput>(arguments, &command)?;
+            serde_json::to_value(locate_writing_target(state, user_id, &scope, input).await?)
+                .map_err(AppError::from)
+        }
         "inspect_project_context" => {
             let project_id = scope
                 .project_id
@@ -250,12 +255,6 @@ impl RuntimeAgentToolExecutor {
         }
 
         let result = match name {
-            "locate_writing_target" => {
-                let input = parse_arguments::<LocateWritingTargetInput>(arguments, name)?;
-                serde_json::to_value(
-                    locate_writing_target(&self.state, user_id, scope, input).await?,
-                )
-            }
             "list_projects" => {
                 let input = parse_arguments::<ListProjectsToolInput>(arguments, name)?;
                 if scope.project_id.is_some() || scope.chapter_id.is_some() {

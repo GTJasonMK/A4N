@@ -6,6 +6,41 @@ use super::super::TeraPromptEngine;
 use super::support::{MemoryPromptVersionStore, make_entry, write_test_registry};
 
 #[test]
+fn batch_import_preserves_custom_prompts_unless_overwrite_is_requested() {
+    let engine = TeraPromptEngine::with_defaults(vec![
+        make_entry("custom", "原始内容"),
+        make_entry("default", "原始内容"),
+    ])
+    .unwrap();
+    let runtime = tokio::runtime::Runtime::new().unwrap();
+    runtime.block_on(async {
+        engine
+            .update("custom", "新的自定义".into(), "user")
+            .await
+            .unwrap();
+        let updates = vec![
+            ("custom".into(), "备份的旧内容".into()),
+            ("default".into(), "备份的默认项".into()),
+        ];
+        let imported = engine
+            .update_many(updates.clone(), "import", false)
+            .await
+            .unwrap();
+        assert_eq!(
+            imported
+                .iter()
+                .map(|entry| entry.name.as_str())
+                .collect::<Vec<_>>(),
+            vec!["default"]
+        );
+        assert_eq!(engine.get("custom").unwrap().content, "新的自定义");
+        assert_eq!(engine.get("default").unwrap().content, "备份的默认项");
+        engine.update_many(updates, "import", true).await.unwrap();
+        assert_eq!(engine.get("custom").unwrap().content, "备份的旧内容");
+    });
+}
+
+#[test]
 fn test_reset_to_original() {
     let tmp = tempfile::tempdir().unwrap();
     let md = "---\nname: test\n---\n原始内容";
@@ -125,6 +160,10 @@ fn with_git_store_rehydrates_latest_committed_prompt_content() {
         .block_on(engine.update("greeting", "新内容 {{ name }}".into(), "author"))
         .unwrap();
 
+    let before_restart = engine.version_history("greeting").unwrap();
+    assert_eq!(before_restart[0].version, "1.0.1");
+    assert_eq!(before_restart[0].content_snapshot, "新内容 {{ name }}");
+
     let restarted = TeraPromptEngine::with_defaults(vec![make_entry("greeting", "旧内容")])
         .unwrap()
         .with_git_store(store)
@@ -144,10 +183,10 @@ fn with_git_store_rehydrates_latest_committed_prompt_content() {
 
     let history = restarted.version_history("greeting").unwrap();
     assert_eq!(history.len(), 2);
-    assert_eq!(history[0].version, "1.0");
-    assert_eq!(history[0].content_snapshot, "旧内容");
-    assert_eq!(history[1].version, "1.0.1");
-    assert_eq!(history[1].content_snapshot, "新内容 {{ name }}");
+    assert_eq!(history[0].version, "1.0.1");
+    assert_eq!(history[0].content_snapshot, "新内容 {{ name }}");
+    assert_eq!(history[1].version, "1.0");
+    assert_eq!(history[1].content_snapshot, "旧内容");
 }
 
 #[test]
@@ -185,6 +224,13 @@ fn reset_with_git_store_survives_restart() {
 
     let history = restarted.version_history("greeting").unwrap();
     assert_eq!(history.len(), 3);
+    assert_eq!(
+        history
+            .iter()
+            .map(|item| item.version.as_str())
+            .collect::<Vec<_>>(),
+        vec!["1.0.2", "1.0.1", "1.0"]
+    );
     assert_eq!(history[0].content_snapshot, "旧内容");
     assert_eq!(history[1].content_snapshot, "新内容 {{ name }}");
     assert_eq!(history[2].content_snapshot, "旧内容");

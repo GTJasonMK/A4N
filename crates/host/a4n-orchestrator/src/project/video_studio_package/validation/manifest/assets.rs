@@ -108,19 +108,8 @@ pub(super) fn validate_asset_records(
         }
     }
     for asset in &package.media_assets {
-        if asset.project_id != package.project.id || asset.root_project_id != package.project.id {
-            return Err(format!(
-                "媒体资产不属于导入包 freeform 项目: media_asset_id={}",
-                asset.id
-            ));
-        }
+        validate_canvas_media_asset_owner(asset, package.project.id)?;
         validate_optional_file_size(asset.file_size, "media_asset", asset.id)?;
-        if asset.source_chapter_id.is_some() || asset.source_snapshot_chapter_id.is_some() {
-            return Err(format!(
-                "视频画布媒体资产不能绑定文本章节: media_asset_id={}",
-                asset.id
-            ));
-        }
         if !is_valid_media_kind(&asset.media_kind) {
             return Err(format!(
                 "媒体资产类型无效: media_asset_id={}, media_kind={}",
@@ -223,6 +212,28 @@ pub(super) fn validate_asset_records(
                 assembly_clip_ids: &ids.assembly_clip_ids,
             },
         )?;
+    }
+    Ok(())
+}
+
+pub(crate) fn validate_canvas_media_asset_owner(
+    asset: &a4n_db_models::models::media::media_asset::Model,
+    project_id: i64,
+) -> Result<(), String> {
+    if asset.project_id != project_id || asset.root_project_id != project_id {
+        return Err(format!(
+            "媒体资产不属于导入包 freeform 项目: media_asset_id={}",
+            asset.id
+        ));
+    }
+    if asset.source_snapshot_id.is_some()
+        || asset.source_chapter_id.is_some()
+        || asset.source_snapshot_chapter_id.is_some()
+    {
+        return Err(format!(
+            "视频画布媒体资产不能绑定文本快照或章节: media_asset_id={}",
+            asset.id
+        ));
     }
     Ok(())
 }

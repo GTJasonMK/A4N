@@ -24,8 +24,8 @@ pub use lifecycle::{
 pub use records::{
     generated_video_by_id, generated_videos_by_ids, generated_videos_by_provider_job_id,
     generated_videos_for_chapter, merge_video_provider_response_metadata,
-    missing_video_reference_project_ids, update_generated_video_duration_record,
-    update_generated_video_record, validate_video_metadata_update_preserves_system_fields,
+    missing_video_reference_project_ids, update_generated_video_record,
+    validate_video_metadata_update_preserves_system_fields,
 };
 
 #[derive(Debug, Clone)]

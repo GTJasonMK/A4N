@@ -94,7 +94,7 @@ export const ThemeCard: React.FC<ThemeCardProps> = ({
 
   return (
     <li className="a4n-flat-surface flex min-w-0 items-stretch overflow-hidden">
-      <div className="flex w-16 shrink-0 overflow-hidden sm:w-24" style={{ background: previewColors.bg }}>
+      <div className="flex w-8 shrink-0 overflow-hidden sm:w-12" style={{ background: previewColors.bg }}>
         <ColorBand color={previewColors.primary} label={t("settingsTheme.colorPrimary")} />
         <ColorBand color={previewColors.bg} label={t("settingsTheme.colorBackground")} />
         <ColorBand color={previewColors.bgPaper} label={t("settingsTheme.colorSurface")} />
@@ -104,7 +104,7 @@ export const ThemeCard: React.FC<ThemeCardProps> = ({
 
       <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-2 p-3">
         <div className="flex min-w-0 basis-full flex-1 items-center gap-3 sm:basis-0">
-          <span className="flex h-4 w-4 shrink-0 items-center justify-center">
+          {selectable ? <span className="flex h-4 w-4 shrink-0 items-center justify-center">
             <input
               type="checkbox"
               checked={selectable && selected}
@@ -122,7 +122,7 @@ export const ThemeCard: React.FC<ThemeCardProps> = ({
               }
               className="h-4 w-4 shrink-0"
             />
-          </span>
+          </span> : null}
           <div className="min-w-0 flex-1">
           {renaming ? (
             <div className="flex min-w-0 flex-wrap items-center gap-2">
@@ -185,13 +185,13 @@ export const ThemeCard: React.FC<ThemeCardProps> = ({
                     type="button"
                     onClick={onRenameStart}
                     disabled={mutationBusy}
-                    className="min-w-0 truncate text-left text-sm font-semibold text-book-text-main hover:text-book-primary disabled:cursor-not-allowed disabled:opacity-55"
+                    className="min-w-0 break-words text-left text-sm font-semibold text-book-text-main hover:text-book-primary disabled:cursor-not-allowed disabled:opacity-55"
                     title={t("settingsTheme.rename")}
                   >
                     {theme.name}
                   </button>
                 ) : (
-                  <span className="min-w-0 truncate text-sm font-semibold text-book-text-main">
+                  <span className="min-w-0 break-words text-sm font-semibold text-book-text-main">
                     {theme.name}
                   </span>
                 )}

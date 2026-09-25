@@ -119,7 +119,13 @@ async fn completed_generated_video_record(
         video.id,
         file_path,
         Some(thumbnail_path),
-        2048,
+        &a4n_domain::media::VideoFileProperties {
+            file_size: 2048,
+            width: video.width,
+            height: video.height,
+            duration_secs: video.duration_secs,
+            fps: video.fps,
+        },
         None,
         None,
     )

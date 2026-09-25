@@ -30,8 +30,13 @@ impl AgentApplication {
     ) -> Result<AgentMessageAccepted, AppError> {
         let thread_id = parse_id(&input.thread_id, "thread_id")?;
         let thread = self.owned_thread(user_id, thread_id).await?;
-        if let Some(source) = &input.editor_source {
-            validate_editor_source(source, &thread)?;
+        let mut scope: AgentScope =
+            from_json(thread.scope_json.clone(), "agent_thread.scope_json")?;
+        self.hydrate_scope_chapter_number(&mut scope).await?;
+        let mut editor_source = input.editor_source.clone();
+        if let Some(source) = editor_source.as_mut() {
+            source.chapter_number = scope.chapter_number;
+            validate_editor_source(source, &thread.profile_id, &scope)?;
         }
         let client_message_id = required_text(input.client_message_id, "client_message_id")?;
         let content = required_text(input.content, "content")?;
@@ -46,7 +51,7 @@ impl AgentApplication {
             .await
             .map_err(agent_db_error_to_app)?;
         if let Some(active) = runs.first() {
-            if let Some(source) = &input.editor_source {
+            if let Some(source) = &editor_source {
                 let turn = turn::Entity::find_by_id(active.turn_id)
                     .one(self.connection())
                     .await?
@@ -56,7 +61,7 @@ impl AgentApplication {
                     .map_err(agent_db_error_to_app)?
                     .and_then(|message| message.payload_json)
                     .and_then(|payload| payload.get("editor_source").cloned())
-                    .map(|value| parse_persisted_editor_source(value, &thread))
+                    .map(|value| parse_persisted_editor_source(value, &thread.profile_id, &scope))
                     .transpose()?;
                 if original
                     .as_ref()
@@ -187,9 +192,7 @@ impl AgentApplication {
                     client_message_id: Some(client_message_id),
                     content: content.clone(),
                     status: "complete".into(),
-                    payload_json: input
-                        .editor_source
-                        .map(|source| json!({"editor_source": source})),
+                    payload_json: editor_source.map(|source| json!({"editor_source": source})),
                 },
                 execution_mode: enum_value(input.execution_mode),
                 model_override_json,
@@ -297,6 +300,7 @@ impl AgentApplication {
                 thread_id: delegation.child_thread_id.to_string(),
                 action: input.action,
                 run_id: child_run_id.to_string(),
+                budget: None,
             },
         )
         .await
@@ -439,11 +443,12 @@ impl AgentApplication {
                 scope.resource_id = Some(resource.id.clone());
             }
         }
-        let (project_id, chapter_id) = self
+        let (project_id, chapter_id, chapter_number) = self
             .verify_thread_scope(user_id, &scope, bound_resource.as_ref())
             .await?;
         scope.project_id = scope.project_id.or(project_id);
         scope.chapter_id = scope.chapter_id.or(chapter_id);
+        scope.chapter_number = chapter_number;
         validate_subagent_resource(&capability, &scope, bound_resource.as_ref())?;
 
         apply_subagent_tool_policy(&capability, &mut scope)?;
@@ -466,11 +471,7 @@ impl AgentApplication {
                 },
             )
             .await?;
-        let budget = child_budget_within_parent(
-            input.budget.unwrap_or_default(),
-            &parent_budget,
-            &self.run_budget_snapshot(parent_run.id).await?.usage,
-        )?;
+        let budget = child_budget_for_delegation(input.budget.unwrap_or_default(), &parent_budget)?;
         let delegation_key = format!(
             "user-spawn:{}:{}",
             parent_run_id,
@@ -677,8 +678,13 @@ impl AgentApplication {
             .iter()
             .find(|row| row.id == run_id)
             .ok_or_else(|| AppError::NotFound("可控制的 Agent run 不存在".into()))?;
-        validate_control_transition(&current.status, input.action)?;
-        let (updated, status) = match input.action {
+        if input.budget.is_some() && input.action != AgentControlAction::Resume {
+            return Err(AppError::InvalidArgument("预算只能随 resume 调整".into()));
+        }
+        if input.action != AgentControlAction::Resume {
+            validate_control_transition(&current.status, input.action)?;
+        }
+        let (updated, _) = match input.action {
             AgentControlAction::Cancel => {
                 let cancelled = agent::cancel_run_tree(
                     self.connection(),
@@ -695,28 +701,36 @@ impl AgentApplication {
                     })?;
                 (updated, "cancelled")
             }
-            AgentControlAction::Pause => (
-                agent::update_run_state(
-                    self.connection(),
-                    current.id,
-                    None,
+            AgentControlAction::Pause => {
+                let paused = agent::pause_run_tree(self.connection(), current.id)
+                    .await
+                    .map_err(agent_db_error_to_app)?;
+                (
+                    paused
+                        .into_iter()
+                        .find(|row| row.id == current.id)
+                        .ok_or_else(|| {
+                            AppError::InvalidArgument("当前 Agent Run 不可暂停".into())
+                        })?,
                     "paused",
-                    Some("user"),
-                    None,
                 )
-                .await
-                .map_err(agent_db_error_to_app)?,
-                "paused",
-            ),
+            }
             // Resume always starts a fresh claim cycle.  Never preserve an old
             // worker lease or mark the run running from a user request.
             AgentControlAction::Resume => (
-                agent::update_run_state(self.connection(), current.id, None, "queued", None, None)
-                    .await
-                    .map_err(agent_db_error_to_app)?,
+                agent::resume_run(
+                    self.connection(),
+                    user_id,
+                    thread_id,
+                    current.id,
+                    input.budget.as_ref(),
+                )
+                .await
+                .map_err(agent_db_error_to_app)?,
                 "queued",
             ),
         };
+        let status = updated.status.clone();
         self.append_user_event(
             user_id,
             UserEventFields {
@@ -726,7 +740,7 @@ impl AgentApplication {
                 message_id: None,
             },
             "run_controlled",
-            status,
+            &status,
             match input.action {
                 AgentControlAction::Pause => "Agent run 已暂停",
                 AgentControlAction::Resume => "Agent run 已恢复",
@@ -734,7 +748,7 @@ impl AgentApplication {
             },
         )
         .await?;
-        run_view(updated)
+        self.show_run(user_id, &updated.id.to_string()).await
     }
 
     pub(crate) async fn events(

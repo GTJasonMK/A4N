@@ -304,20 +304,11 @@ export const useBlueprintWorkflow = ({
             : t("inspiration.blueprintGenerated"),
           error: null,
         }));
-        if (currentOperation === "generation") {
-          setStage("confirm");
+        if (currentOperation === "generation") setStage("confirm");
+        if (syncWarnings.length > 0) {
           addToast(
-            syncWarnings.length > 0
-              ? `${t("inspiration.blueprintGeneratedConfirm")}${t("common.summarySeparator")}${syncWarnings.join(t("common.summarySeparator"))}`
-              : t("inspiration.blueprintGeneratedConfirm"),
-            syncWarnings.length > 0 ? "info" : "success",
-          );
-        } else {
-          addToast(
-            syncWarnings.length > 0
-              ? `${t("inspiration.blueprintOptimized")}${t("common.summarySeparator")}${syncWarnings.join(t("common.summarySeparator"))}`
-              : t("inspiration.blueprintOptimized"),
-            syncWarnings.length > 0 ? "info" : "success",
+            `${t(currentOperation === "generation" ? "inspiration.blueprintGeneratedConfirm" : "inspiration.blueprintOptimized")}${t("common.summarySeparator")}${syncWarnings.join(t("common.summarySeparator"))}`,
+            "info",
           );
         }
         return;

@@ -3,8 +3,9 @@
 //! 持有 `DbHandle`，封装画布图读写、生成规格/提示词产物、媒体资产与 Video Studio 导入导出的数据库行为。
 
 use a4n_api_contract::canvas::{
-    CanvasEdgeSummary, CanvasGraphDocument, CanvasGraphInput, CanvasGraphSummary, CanvasJsonObject,
-    CanvasNodeSummary, CanvasTextAssetInput, CanvasTextAssetSummary,
+    CanvasEdgeSummary, CanvasGraphDocument, CanvasGraphInput, CanvasGraphSaveResult,
+    CanvasGraphSummary, CanvasJsonObject, CanvasNodeSummary, CanvasTextAssetInput,
+    CanvasTextAssetSummary,
 };
 use a4n_canvas_contract::{
     CanvasEditingNodeApplicationPort, CanvasEditingNodeHostPort,
@@ -22,11 +23,12 @@ use a4n_canvas_contract::{
 use a4n_db::DbHandle;
 use a4n_db::canvas::{
     CanvasAssemblyContractSyncInput, CanvasAssemblyContractSyncSummary, CanvasEdgeRecordInput,
-    CanvasGraphRecordDocument, CanvasGraphRecordInput, CanvasImageMediaAssetEnsureInput,
-    CanvasMediaAssetProbeRecord, CanvasNodeArtifactUpdateInput, CanvasNodeObservationUpdateInput,
-    CanvasNodeRecordInput, CanvasPromptArtifactUpsertInput, CanvasVideoMediaAssetEnsureInput,
-    FreeformCanvasGenerationSpecUpsertInput, VideoStudioProjectExportRows,
-    VideoStudioProjectImportMediaFileWriter, validate_canvas_record_document_edge_contract,
+    CanvasGraphRecordDocument, CanvasGraphRecordInput, CanvasGraphRecordSaveResult,
+    CanvasImageMediaAssetEnsureInput, CanvasMediaAssetProbeRecord, CanvasNodeArtifactUpdateInput,
+    CanvasNodeObservationUpdateInput, CanvasNodeRecordInput, CanvasPromptArtifactUpsertInput,
+    CanvasVideoMediaAssetEnsureInput, FreeformCanvasGenerationSpecUpsertInput,
+    VideoStudioProjectExportRows, VideoStudioProjectImportMediaFileWriter,
+    validate_canvas_record_document_edge_contract,
 };
 use a4n_db_models::models::{
     canvas::canvas_text_asset,
@@ -84,7 +86,7 @@ impl CanvasApplication {
         project_id: i64,
         input: CanvasGraphRecordInput,
         now: NaiveDateTime,
-    ) -> Result<CanvasGraphRecordDocument, AppError> {
+    ) -> Result<CanvasGraphRecordSaveResult, AppError> {
         a4n_db::canvas::save_canvas_graph_record(self.connection(), project_id, input, now)
             .await
             .map_err(canvas_db_error)
@@ -218,30 +220,6 @@ impl CanvasApplication {
         .await
         .map_err(video_studio_project_import_error)
     }
-
-    pub(super) async fn import_video_studio_package_into_existing<Writer>(
-        &self,
-        user_id: i64,
-        project_id: i64,
-        package: VideoStudioProjectPackage,
-        now: NaiveDateTime,
-        media_file_writer: &mut Writer,
-    ) -> Result<novel_project::Model, AppError>
-    where
-        Writer: VideoStudioProjectImportMediaFileWriter,
-    {
-        let rows = package.into_import_rows();
-        a4n_db::canvas::import_video_studio_project_record_into_existing(
-            self.connection(),
-            user_id,
-            project_id,
-            rows,
-            now,
-            media_file_writer,
-        )
-        .await
-        .map_err(video_studio_project_import_error)
-    }
 }
 
 impl OrchestratorContext {
@@ -279,6 +257,7 @@ impl OrchestratorContext {
         self.canvas
             .save_canvas_graph_record(project_id, input, now)
             .await
+            .map(|saved| saved.document)
     }
 
     pub(crate) async fn save_canvas_graph(
@@ -287,8 +266,8 @@ impl OrchestratorContext {
         expected_version: Option<i32>,
         input: CanvasGraphInput,
         now: NaiveDateTime,
-    ) -> Result<CanvasGraphDocument, AppError> {
-        let document = self
+    ) -> Result<CanvasGraphSaveResult, AppError> {
+        let saved = self
             .canvas
             .save_canvas_graph_record(
                 project_id,
@@ -296,7 +275,10 @@ impl OrchestratorContext {
                 now,
             )
             .await?;
-        canvas_graph_document(document)
+        Ok(CanvasGraphSaveResult {
+            document: canvas_graph_document(saved.document)?,
+            node_ids: saved.node_ids,
+        })
     }
 
     pub(crate) async fn upsert_canvas_text_asset_record(
@@ -513,7 +495,7 @@ impl a4n_api_contract::canvas::CanvasMutationApplicationPort for OrchestratorCon
         &self,
         user_id: i64,
         input: a4n_api_contract::canvas::SaveCanvasGraphInput,
-    ) -> Result<a4n_api_contract::canvas::CanvasGraphDocument, AppError> {
+    ) -> Result<a4n_api_contract::canvas::CanvasGraphSaveResult, AppError> {
         self.verify_project_permission(input.project_id, user_id, ProjectAccessRole::Editor)
             .await?;
         self.save_canvas_graph(

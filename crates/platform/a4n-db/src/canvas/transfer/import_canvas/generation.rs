@@ -12,7 +12,7 @@ use sea_orm::{
     sea_query::{Alias, CaseStatement, Expr},
 };
 
-pub(in crate::canvas::transfer) async fn import_video_studio_generation_specs<C>(
+pub(crate) async fn import_video_studio_generation_specs<C>(
     db: &C,
     project_id: i64,
     specs: &[generation_spec::Model],
@@ -87,7 +87,7 @@ where
     Ok(deferred_targets)
 }
 
-pub(in crate::canvas::transfer) async fn update_imported_generation_spec_metadata<C>(
+pub(crate) async fn update_imported_generation_spec_metadata<C>(
     db: &C,
     specs: &[generation_spec::Model],
     maps: &VideoStudioProjectImportIdMaps,
@@ -155,7 +155,7 @@ where
     Ok(())
 }
 
-pub(in crate::canvas::transfer) async fn import_video_studio_prompt_artifacts<C>(
+pub(crate) async fn import_video_studio_prompt_artifacts<C>(
     db: &C,
     artifacts: &[prompt_artifact::Model],
     maps: &mut VideoStudioProjectImportIdMaps,
@@ -202,7 +202,7 @@ where
     Ok(())
 }
 
-pub(in crate::canvas::transfer) async fn update_imported_generation_spec_targets<C>(
+pub(crate) async fn update_imported_generation_spec_targets<C>(
     db: &C,
     targets: &[DeferredVideoStudioImportGenerationSpecTarget],
     maps: &VideoStudioProjectImportIdMaps,

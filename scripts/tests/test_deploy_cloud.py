@@ -220,6 +220,111 @@ build_backend
                     self.assertIn(f"{temp / 'host-cargo/registry'}:/cargo-home/registry:ro", mounts)
                     self.assertIn(f"{temp / 'host-cargo/git'}:/cargo-home/git:ro", mounts)
 
+    def test_upload_uses_rsync_progress_and_atomic_replace(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="a4n-cloud-upload-") as directory:
+            temp = Path(directory)
+            package = temp / "package.tar.gz"
+            package.write_bytes(b"deployment-package")
+            package_sha256 = subprocess.check_output(["sha256sum", str(package)], text=True).split()[0]
+            package.with_name(f"{package.name}.sha256").write_text(
+                f"{package_sha256}  {package.name}\n", encoding="utf-8"
+            )
+            remote_dir = temp / "remote"
+            remote_dir.mkdir()
+            previous_package = remote_dir / "a4n-deploy.tar.gz"
+            previous_package.write_bytes(b"previous-deployment-package")
+            args_file = temp / "rsync.args"
+            basis_file = temp / "rsync.basis"
+            result = subprocess.run(
+                ["bash", "-c", r'''
+set -euo pipefail
+source "$1"
+PACKAGE_PATH="$2"
+REMOTE=fixture.invalid
+REMOTE_PACKAGE="$3/a4n-deploy.tar.gz"
+PACKAGE_SIZE=18K
+SSH_OPTS=()
+RSYNC_ARGS_FILE="$4"
+BASIS_FILE="$5"
+log_section() { :; }
+log_info() { printf '%s\n' "$*"; }
+log_ok() { :; }
+die() { printf '%s\n' "$*" >&2; exit 1; }
+ssh() {
+    local command="${!#}"
+    case "$command" in
+        "command -v rsync"*) return 0 ;;
+        *) bash -c "$command" ;;
+    esac
+}
+rsync() {
+    printf '%s\n' "$@" > "$RSYNC_ARGS_FILE"
+    local args=("$@")
+    local source="${args[${#args[@]}-2]}"
+    local destination="${args[${#args[@]}-1]}"
+    destination="${destination#fixture.invalid:}"
+    destination="${destination#\'}"
+    destination="${destination%\'}"
+    cat "$destination" > "$BASIS_FILE"
+    mkdir -p "$(dirname "$destination")"
+    cp "$source" "$destination"
+}
+upload_package
+test -f "$3/a4n-deploy.tar.gz"
+test ! -e "$3/a4n-deploy.tar.gz.part"
+grep -Fx -- '--info=progress2' "$4"
+grep -Fx -- '--partial' "$4"
+''', "test", str(CLOUD.parent / "deploy-cloud/build.sh"), str(package), str(remote_dir), str(args_file), str(basis_file)],
+                cwd=ROOT, text=True, capture_output=True, timeout=10,
+            )
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            self.assertIn("rsync", result.stdout)
+            self.assertEqual((temp / "rsync.basis").read_bytes(), b"previous-deployment-package")
+
+    def test_upload_falls_back_to_dd_with_atomic_replace(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="a4n-cloud-upload-dd-") as directory:
+            temp = Path(directory)
+            package = temp / "package.tar.gz"
+            package.write_bytes(b"deployment-package")
+            package_sha256 = subprocess.check_output(["sha256sum", str(package)], text=True).split()[0]
+            package.with_name(f"{package.name}.sha256").write_text(
+                f"{package_sha256}  {package.name}\n", encoding="utf-8"
+            )
+            remote_dir = temp / "remote"
+            remote_dir.mkdir()
+            result = subprocess.run(
+                ["bash", "-c", r'''
+set -euo pipefail
+source "$1"
+PACKAGE_PATH="$2"
+REMOTE=fixture.invalid
+REMOTE_PACKAGE="$3/a4n-deploy.tar.gz"
+PACKAGE_SIZE=18K
+SSH_OPTS=()
+log_section() { :; }
+log_info() { printf '%s\n' "$*"; }
+log_ok() { :; }
+die() { printf '%s\n' "$*" >&2; exit 1; }
+command() {
+    if [[ "${1:-}" == '-v' && "${2:-}" == rsync ]]; then
+        return 1
+    fi
+    builtin command "$@"
+}
+ssh() {
+    local command="${!#}"
+    bash -c "$command"
+}
+upload_package
+test -f "$3/a4n-deploy.tar.gz"
+test ! -e "$3/a4n-deploy.tar.gz.part"
+cmp "$2" "$3/a4n-deploy.tar.gz"
+''', "test", str(CLOUD.parent / "deploy-cloud/build.sh"), str(package), str(remote_dir)],
+                cwd=ROOT, text=True, capture_output=True, timeout=10,
+            )
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            self.assertIn("SSH", result.stdout)
+
 
 if __name__ == "__main__":
     unittest.main()

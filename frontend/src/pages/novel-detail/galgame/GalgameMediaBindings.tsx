@@ -1,5 +1,6 @@
 import { Music, X } from "lucide-react";
 import { BookButton } from "../../../components/ui/BookButton";
+import { ZoomableImage } from "../../../components/ui/ImageLightbox";
 import { MediaAssetIdBinder } from "./MediaAssetIdBinder";
 import { toMediaSrc } from "../../../utils/mediaSrc";
 import { useI18n } from "../../../i18n";
@@ -147,7 +148,7 @@ export const ImageBindingStrip: React.FC<{
               </div>
               <div className="aspect-video w-full overflow-hidden bg-book-bg">
                 {src ? (
-                  <img
+                  <ZoomableImage
                     src={src}
                     alt={title}
                     className="h-full w-full object-cover"

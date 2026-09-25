@@ -22,6 +22,8 @@ import { SegmentedControl } from "../../components/ui/SegmentedControl";
 import { PageHeader } from "../../components/shell/PageHeader";
 import { LoadingSpinner } from "../../components/ui/LoadingSpinner";
 import { useI18n } from "../../i18n";
+import { usePackagePreferences } from "../../store/packagePreferences";
+import type { PackageId } from "../../api/generated/page";
 
 export type RightPanel = "none" | "rag" | "optimize";
 
@@ -59,9 +61,10 @@ const PANEL_OPTIONS: ReadonlyArray<{
   id: Exclude<RightPanel, "none">;
   labelKey: "writing.rag" | "writing.writingAssistant";
   icon: React.ReactNode;
+  packageId: PackageId;
 }> = [
-  { id: "rag", labelKey: "writing.rag", icon: <Search size={11} /> },
-  { id: "optimize", labelKey: "writing.writingAssistant", icon: <Wand2 size={11} /> },
+  { id: "rag", labelKey: "writing.rag", icon: <Search size={16} />, packageId: "vector-rag" },
+  { id: "optimize", labelKey: "writing.writingAssistant", icon: <Wand2 size={16} />, packageId: "agent" },
 ];
 
 /**
@@ -97,6 +100,8 @@ export const WritingDeskHeader: React.FC<WritingDeskHeaderProps> = ({
   onSaveContent,
 }) => {
   const { t } = useI18n();
+  const { isVisible } = usePackagePreferences();
+  const visiblePanels = PANEL_OPTIONS.filter(panel => isVisible(panel.packageId));
   const panelLabels = new Map(PANEL_OPTIONS.map((panel) => [panel.id, t(panel.labelKey)]));
   const chapterLabels = useMemo(() => {
     const labels = new Map<number, string>();
@@ -211,7 +216,7 @@ export const WritingDeskHeader: React.FC<WritingDeskHeaderProps> = ({
             variant="secondary"
             size="sm"
           >
-            <ChevronLeft size={13} />
+            <ChevronLeft size={16} />
           </BookIconButton>
           <BookIconButton
             label={t("writing.nextChapter")}
@@ -221,7 +226,7 @@ export const WritingDeskHeader: React.FC<WritingDeskHeaderProps> = ({
             variant="secondary"
             size="sm"
           >
-            <ChevronRight size={13} />
+            <ChevronRight size={16} />
           </BookIconButton>
           <SegmentedControl
             ariaLabel={t("writing.writingPanels")}
@@ -230,7 +235,7 @@ export const WritingDeskHeader: React.FC<WritingDeskHeaderProps> = ({
             allowDeselect
             onDeselect={() => onRightPanelChange("none")}
             onChange={(id) => onRightPanelChange(id)}
-            options={PANEL_OPTIONS.map((panel) => ({
+            options={visiblePanels.map((panel) => ({
               id: panel.id,
               label: <span className="sr-only">{panelLabels.get(panel.id)}</span>,
               icon: panel.icon,
@@ -258,7 +263,7 @@ export const WritingDeskHeader: React.FC<WritingDeskHeaderProps> = ({
           variant="secondary"
           size="sm"
         >
-          <FileText size={13} />
+          <FileText size={16} />
         </BookIconButton>
         <BookIconButton
           label={leftSidebarVisible ? t("writing.hideLeftSidebar") : t("writing.showLeftSidebar")}
@@ -266,7 +271,7 @@ export const WritingDeskHeader: React.FC<WritingDeskHeaderProps> = ({
           variant="secondary"
           size="sm"
         >
-          {leftSidebarVisible ? <PanelLeftClose size={13} /> : <PanelLeftOpen size={13} />}
+          {leftSidebarVisible ? <PanelLeftClose size={16} /> : <PanelLeftOpen size={16} />}
         </BookIconButton>
       </>
     }
@@ -290,7 +295,7 @@ export const WritingDeskHeader: React.FC<WritingDeskHeaderProps> = ({
           variant="secondary"
           size="sm"
         >
-          <ChevronLeft size={13} />
+          <ChevronLeft size={16} />
         </BookIconButton>
         <BookIconButton
           label={t("writing.nextChapter")}
@@ -300,7 +305,7 @@ export const WritingDeskHeader: React.FC<WritingDeskHeaderProps> = ({
           variant="secondary"
           size="sm"
         >
-          <ChevronRight size={13} />
+          <ChevronRight size={16} />
         </BookIconButton>
 
         <SegmentedControl
@@ -310,7 +315,7 @@ export const WritingDeskHeader: React.FC<WritingDeskHeaderProps> = ({
           allowDeselect
           onDeselect={() => onRightPanelChange("none")}
           onChange={(id) => onRightPanelChange(id)}
-          options={PANEL_OPTIONS.map((panel) => ({
+          options={visiblePanels.map((panel) => ({
             id: panel.id,
             label: <span className="hidden sm:inline">{panelLabels.get(panel.id)}</span>,
             icon: panel.icon,

@@ -574,6 +574,9 @@ export const RUNTIME_CONFIG_POLICIES: Readonly<Record<string, RuntimeConfigPolic
   "web_search": "full",
 };
 
+export const CANVAS_MEDIA_INPUT_REF_TYPES: Readonly<Record<string, string>> = {"AudioInputNode":"media_asset","ImageInputNode":"generated_image","VideoInputNode":"generated_video"};
+export const CANVAS_MEDIA_INPUT_METADATA_KEYS = ["generated_image_id","generated_video_id","media_asset_id","file_path","thumbnail_path","width","height","duration_secs","fps","file_size","status","error_message","output","canvas_runtime_result"] as const;
+
 export const AGENT_API_PROTOCOL_VERSION = 1;
 export const AGENT_EVENTS_DEFAULT_LIMIT = 100;
 export const AGENT_EVENTS_MAX_LIMIT = 1000;
@@ -638,6 +641,7 @@ export interface AgentScope {
   allowed_capabilities: string[];
   allowed_tools: string[];
   chapter_id: number | null;
+  chapter_number: number | null;
   project_id: number | null;
   resource_id: string | null;
   resource_kind: string | null;
@@ -645,6 +649,7 @@ export interface AgentScope {
 
 export interface AgentEditorSource {
   chapter_id: number;
+  chapter_number: number | null;
   editor_revision: string;
   entity_id: string | null;
   keyframe_id: string | null;
@@ -713,15 +718,15 @@ export interface RespondAgentEditorInput {
 }
 
 export interface AgentBudget {
-  max_children: number | null;
-  max_cost_micros: number | null;
-  max_delegation_depth: number | null;
-  max_duration_seconds: number | null;
-  max_model_calls: number | null;
-  max_parallel_tools: number | null;
-  max_steps: number | null;
-  max_tokens: number | null;
-  max_tool_calls: number | null;
+  max_children?: number | null;
+  max_cost_micros?: number | null;
+  max_delegation_depth?: number | null;
+  max_duration_seconds?: number | null;
+  max_model_calls?: number | null;
+  max_parallel_tools?: number | null;
+  max_steps?: number | null;
+  max_tokens?: number | null;
+  max_tool_calls?: number | null;
 }
 
 export interface AgentResourceRef {
@@ -782,6 +787,7 @@ export interface AgentTurnView {
 export interface AgentRunView {
   attempt: number;
   budget: AgentBudget;
+  budget_limiting_run_id: string | null;
   context_capacity_tokens: number | null;
   context_input_tokens: number | null;
   cost_micros: number | null;
@@ -795,10 +801,12 @@ export interface AgentRunView {
   status: AgentRunStatus;
   steps_used: number;
   thread_id: string;
+  tokens_reserved: number;
   tokens_used: number;
   tool_calls_used: number;
   turn_id: string;
   updated_at: string;
+  usage_complete: boolean;
   waiting_reason: AgentWaitingReason | null;
 }
 
@@ -910,6 +918,15 @@ export interface ReadAgentExecutionResultInput {
   limit?: number | null;
   offset?: number;
   pointer?: string;
+}
+
+export interface ReadAgentHistoryInput {
+  before?: string | null;
+  limit?: number | null;
+}
+
+export interface RequestAgentInput {
+  question: string;
 }
 
 export interface AgentExecutionResultPage {
@@ -1177,6 +1194,7 @@ export interface SendAgentMessageInput {
 
 export interface ControlAgentRunInput {
   action: AgentControlAction;
+  budget?: AgentBudget | null;
   run_id: string;
   thread_id: string;
 }
@@ -1427,6 +1445,7 @@ export interface ImportChapterInput {
 export interface UpdateChapterContentInput {
   chapter_id: number;
   content: string;
+  expected_revision: string;
   title?: string | null;
 }
 
@@ -1464,6 +1483,7 @@ export interface ChapterSummary {
   derived_sync_error: string | null;
   derived_sync_status: string | null;
   derived_sync_workflow_run_id: number | null;
+  edit_revision: string;
   id: number;
   material_sync: ChapterMaterialSyncState;
   material_updates: ChapterMaterialUpdate[];
@@ -2877,6 +2897,13 @@ export interface CanvasEdgeSummary {
 export interface CanvasGraphDocument {
   edges: CanvasEdgeSummary[];
   graph: CanvasGraphSummary;
+  nodes: CanvasNodeSummary[];
+}
+
+export interface CanvasGraphSaveResult {
+  edges: CanvasEdgeSummary[];
+  graph: CanvasGraphSummary;
+  node_ids: Record<string, number>;
   nodes: CanvasNodeSummary[];
 }
 
@@ -4914,6 +4941,8 @@ export interface VisualPlanOutlineItem {
 export type VisualPlanProjection = { items: VisualPlanOutlineItem[]; kind: "outline"; next_offset?: number | null; total: number } | { kind: "point"; point: VisualPointV3 } | { kind: "segment"; points: VisualPointV3[]; segment: VisualSegmentV3 } | { kind: "source"; next_offset?: number | null; offset: number; text: string; total_chars: number };
 
 export interface ChapterVisualPlanReadResult {
+  chapter_id: number;
+  chapter_number: number;
   projection: VisualPlanProjection;
   resource: AgentResourceRef | null;
   source_hash: string;

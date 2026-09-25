@@ -286,6 +286,7 @@ impl AgentWorkerMessageApplicationPort for AgentWorkerMessageHostPort<'_> {
         claimed: &AgentWorkerRun,
         content: String,
         tool_calls: Value,
+        client_message_id: String,
     ) -> Result<AgentMessageSnapshot, AppError> {
         if claimed.run.id != self.claimed.run.id {
             return Err(AppError::InvalidState {
@@ -297,6 +298,7 @@ impl AgentWorkerMessageApplicationPort for AgentWorkerMessageHostPort<'_> {
             AgentWorkerMessageOperation::AppendAssistantTool {
                 content,
                 tool_calls,
+                client_message_id,
             },
             "写入 Agent assistant tool message",
         )

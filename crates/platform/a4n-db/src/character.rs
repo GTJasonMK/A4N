@@ -106,7 +106,7 @@ fn validate_chapter_number(chapter_number: i32) -> Result<(), CharacterDbError> 
     }
 }
 
-pub(self) fn validate_timeline_source_kind(source_kind: &str) -> Result<String, CharacterDbError> {
+fn validate_timeline_source_kind(source_kind: &str) -> Result<String, CharacterDbError> {
     let source_kind = source_kind.trim();
     if matches!(
         source_kind,

@@ -13,6 +13,7 @@ import {
   testImageConfig,
   updateImageConfig,
   updateServerImageConfig,
+  updateSystemDefaultImageKey,
 } from "../../api/image";
 import { ConfigListPanel, type ConfigItem } from "./ConfigListPanel";
 import { useConfigItems } from "./config-list/useConfigItems";
@@ -104,14 +105,20 @@ export const ImageTab: React.FC<ImageTabProps> = ({ scope = "local" }) => {
         />
       )}
       onCreate={async (f) => {
-        await (serverScope ? addServerImageConfig : addImageConfig)(
+        const created = await (serverScope ? addServerImageConfig : addImageConfig)(
           toCreateImageInput(f),
         );
+        return created.id;
       }}
       onUpdate={async (id, f) => {
+        const input = toUpdateImageInput(f);
+        if (!serverScope && id === SYSTEM_IMAGE_CONFIG_ID) {
+          await updateSystemDefaultImageKey({ api_key_encrypted: input.api_key_encrypted });
+          return;
+        }
         await (serverScope ? updateServerImageConfig : updateImageConfig)(
           id,
-          toUpdateImageInput(f),
+          input,
         );
       }}
       onDelete={serverScope ? removeServerImageConfig : removeImageConfig}

@@ -29,6 +29,7 @@ import {
   getProjectStudioRoute,
 } from "../utils/projectRouting";
 import { formatNumber, useI18n } from "../i18n";
+import { usePackagePreferences } from "../store/packagePreferences";
 
 const SourceSyncDialog = lazy(() =>
   import("./derived/SourceSyncDialog").then((module) => ({
@@ -37,6 +38,7 @@ const SourceSyncDialog = lazy(() =>
 );
 
 export const VideoProjectWorkspace: React.FC = () => {
+  const { isVisible: isPackageVisible } = usePackagePreferences();
   const { id } = useParams();
   const navigate = useNavigate();
   const { addToast } = useToast();
@@ -185,15 +187,15 @@ export const VideoProjectWorkspace: React.FC = () => {
                 <GitCompare size={14} />
               </BookIconButton>
             ) : null}
-            <BookButton
-              variant="primary"
+            {isPackageVisible("canvas") ? <BookButton
+              variant="secondary"
               size="sm"
               onClick={() => navigate(getProjectStudioRoute(projectId))}
               disabled={!project}
             >
               <Layers3 size={14} />
               {t("video.canvasMode")}
-            </BookButton>
+            </BookButton> : null}
           </>
         }
       />

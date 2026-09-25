@@ -374,7 +374,7 @@ export const RelationshipsTab: React.FC<{ projectId: number }> = ({
     : null;
 
   return (
-    <div className="content-wide flex h-full min-h-0 flex-col gap-3">
+    <div className="content-wide flex min-h-0 flex-col gap-3 lg:h-full">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="text-small leading-relaxed text-book-text-muted">
           {t("novel.relationships.beforeTimelineHint")}

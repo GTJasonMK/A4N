@@ -13,6 +13,136 @@ use super::support::{
 };
 
 #[tokio::test]
+async fn project_delete_removes_canvas_dependencies_only_in_its_project() {
+    use a4n_db_models::models::canvas::{
+        canvas_edge, canvas_graph, canvas_node, canvas_text_asset,
+    };
+    use sea_orm::{ActiveModelTrait, Set};
+    use serde_json::json;
+    let db = setup_db().await;
+    let (root, project) = super::support::root_with_video_derivative(&db).await;
+    let other = freeform_video_project(&db, "保留的画布").await;
+    let now = chrono::Utc::now().naive_utc();
+    let mut graphs = Vec::new();
+    for project_id in [project.id, other.id] {
+        graphs.push(
+            canvas_graph::ActiveModel {
+                project_id: Set(project_id),
+                name: Set("画布".into()),
+                graph_kind: Set("derived_video".into()),
+                version: Set(1),
+                viewport_json: Set(None),
+                created_at: Set(now),
+                updated_at: Set(now),
+                ..Default::default()
+            }
+            .insert(&db)
+            .await
+            .unwrap(),
+        );
+    }
+    let asset = canvas_text_asset::ActiveModel {
+        project_id: Set(project.id),
+        title: Set("原文".into()),
+        text_kind: Set("freeform".into()),
+        content: Set("测试正文".into()),
+        content_hash: Set(a4n_domain::source_text_hash("测试正文")),
+        created_at: Set(now),
+        updated_at: Set(now),
+        ..Default::default()
+    }
+    .insert(&db)
+    .await
+    .unwrap();
+    let mut nodes = Vec::new();
+    for node_kind in ["TextInputNode", "TextOutputNode"] {
+        nodes.push(
+            canvas_node::ActiveModel {
+                graph_id: Set(graphs[0].id),
+                node_kind: Set(node_kind.into()),
+                ref_type: Set(None),
+                ref_id: Set(None),
+                config_json: Set(json!({})),
+                position_json: Set(json!({"x":0,"y":0})),
+                state: Set("ready".into()),
+                created_at: Set(now),
+                updated_at: Set(now),
+                ..Default::default()
+            }
+            .insert(&db)
+            .await
+            .unwrap(),
+        );
+    }
+    let edge = canvas_edge::ActiveModel {
+        graph_id: Set(graphs[0].id),
+        source_node_id: Set(nodes[0].id),
+        source_port: Set("text".into()),
+        target_node_id: Set(nodes[1].id),
+        target_port: Set("text".into()),
+        role: Set("context".into()),
+        config_json: Set(json!({})),
+        ..Default::default()
+    }
+    .insert(&db)
+    .await
+    .unwrap();
+    set_project_gate(
+        &db,
+        &project,
+        a4n_domain::generation::ProjectLifecycleOperation::Delete,
+    )
+    .await;
+    delete_project_cascade_record(&db, project.id)
+        .await
+        .unwrap();
+    assert!(
+        canvas_edge::Entity::find_by_id(edge.id)
+            .one(&db)
+            .await
+            .unwrap()
+            .is_none()
+    );
+    for node in nodes {
+        assert!(
+            canvas_node::Entity::find_by_id(node.id)
+                .one(&db)
+                .await
+                .unwrap()
+                .is_none()
+        );
+    }
+    assert!(
+        canvas_graph::Entity::find_by_id(graphs[0].id)
+            .one(&db)
+            .await
+            .unwrap()
+            .is_none()
+    );
+    assert!(
+        canvas_text_asset::Entity::find_by_id(asset.id)
+            .one(&db)
+            .await
+            .unwrap()
+            .is_none()
+    );
+    assert!(
+        canvas_graph::Entity::find_by_id(graphs[1].id)
+            .one(&db)
+            .await
+            .unwrap()
+            .is_some()
+    );
+    assert!(
+        novel_project::Entity::find_by_id(root.id)
+            .one(&db)
+            .await
+            .unwrap()
+            .is_some()
+    );
+}
+
+#[tokio::test]
 async fn project_cascade_rolls_back_when_final_project_delete_fails() {
     let db = setup_db().await;
     let project = freeform_video_project(&db, "项目删除事务回滚测试").await;

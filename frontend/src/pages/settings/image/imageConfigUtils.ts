@@ -15,8 +15,8 @@ export const DEFAULT_IMAGE_FORM: ImageForm = {
   api_key: "",
   has_api_key: false,
   clear_api_key: false,
-  supported_sizes: DEFAULT_IMAGE_SIZES.map((size) => ({ ...size })),
-  max_concurrent: 1,
+  supported_sizes: DEFAULT_IMAGE_SIZES.map((size) => ({ width: String(size.width), height: String(size.height) })),
+  max_concurrent: "1",
   pricing: DEFAULT_PRICING_PLAN,
 };
 
@@ -29,23 +29,25 @@ export function validateImageForm(form: ImageForm, t: Translate): string | null 
   }
   const seen = new Set<string>();
   for (const size of form.supported_sizes) {
+    const width = Number(size.width);
+    const height = Number(size.height);
     if (
-      !Number.isSafeInteger(size.width) ||
-      !Number.isSafeInteger(size.height) ||
-      size.width <= 0 ||
-      size.height <= 0 ||
-      size.width > 2147483647 ||
-      size.height > 2147483647
+      !Number.isSafeInteger(width) ||
+      !Number.isSafeInteger(height) ||
+      width <= 0 ||
+      height <= 0 ||
+      width > 2147483647 ||
+      height > 2147483647
     ) {
       return t("settingsForm.imageSizeValueInvalid", {
         value: `${size.width}x${size.height}`,
       });
     }
-    const key = `${size.width}x${size.height}`;
+    const key = `${width}x${height}`;
     if (seen.has(key)) return t("settingsForm.imageSizeDuplicate", { value: key });
     seen.add(key);
   }
-  if (!Number.isInteger(form.max_concurrent) || form.max_concurrent <= 0) {
+  if (!Number.isInteger(Number(form.max_concurrent)) || Number(form.max_concurrent) <= 0) {
     return t("settingsForm.concurrencyPositive");
   }
   return null;
@@ -59,7 +61,7 @@ export function formatImageItem(config: ImageForm): {
   return {
     primary: config.name,
     secondary: `${config.provider} · ${config.model}`,
-    tertiary: config.supported_sizes.map(imageSizeLabel).join(" · "),
+    tertiary: config.supported_sizes.map((size) => imageSizeLabel({ width: Number(size.width), height: Number(size.height) })).join(" · "),
   };
 }
 
@@ -75,8 +77,8 @@ export function toImageItem(raw: ImageGenConfig): ConfigItem<ImageForm> {
       api_key: "",
       has_api_key: raw.has_api_key,
       clear_api_key: false,
-      supported_sizes: raw.supported_sizes.map((size) => ({ ...size })),
-      max_concurrent: raw.max_concurrent,
+      supported_sizes: raw.supported_sizes.map((size) => ({ width: String(size.width), height: String(size.height) })),
+      max_concurrent: String(raw.max_concurrent),
       pricing: clonePricingPlan(raw.pricing),
     },
   };
@@ -108,10 +110,10 @@ function buildImageConfigInput(
     backend: form.provider,
     base_url: form.api_base_url.trim(),
     model: form.model.trim(),
-    max_concurrent: form.max_concurrent,
+    max_concurrent: Number(form.max_concurrent),
     supported_sizes: form.supported_sizes.map((size) => ({
-      width: size.width,
-      height: size.height,
+      width: Number(size.width),
+      height: Number(size.height),
     })),
     pricing: form.pricing,
   };

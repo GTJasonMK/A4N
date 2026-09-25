@@ -34,6 +34,7 @@ import {
   type PendingAgentMessage,
 } from "../components/agent/AgentMessageList";
 import { AgentContextMeter } from "../components/agent/AgentContextMeter";
+import { AgentBudgetDialog } from "../components/agent/AgentBudgetDialog";
 import {
   ACTIVE_AGENT_RUN_STATUSES,
   activeAgentRun,
@@ -64,6 +65,7 @@ import { extractWritingTarget } from "./agentMonitorUtils";
 import {
   reduceAgentEvent,
   snapshotCursor,
+  loadAgentSnapshotWithEvents,
   streamedAgentMessageIds,
 } from "../utils/agentEventReducer";
 import { isImeCompositionActive } from "../utils/ime";
@@ -94,6 +96,9 @@ const STATUS_LABELS: Record<string, { zh: string; en: string }> = {
   archived: { zh: "已归档", en: "Archived" }, pending: { zh: "待处理", en: "Pending" }, claimed: { zh: "处理中", en: "Claimed" },
   approved: { zh: "已批准", en: "Approved" }, rejected: { zh: "已拒绝", en: "Rejected" },
   expired: { zh: "已过期", en: "Expired" }, consumed: { zh: "已处理", en: "Consumed" },
+  awaiting_user: { zh: "待确认", en: "Awaiting confirmation" },
+  succeeded: { zh: "已成功", en: "Succeeded" },
+  outcome_unknown: { zh: "结果待核实", en: "Outcome unknown" },
 };
 
 const labelFor = (value: string | null | undefined, locale: Locale): string => {
@@ -127,6 +132,7 @@ export const AgentMonitor: React.FC = () => {
   const [executionMode, setExecutionMode] = useState<AgentExecutionMode>("autonomous");
   const [sendingThreads, setSendingThreads] = useState<Record<string, boolean>>({});
   const [controlBusy, setControlBusy] = useState<AgentControlAction | null>(null);
+  const [budgetRun, setBudgetRun] = useState<AgentRunView | null>(null);
   const [approvalBusy, setApprovalBusy] = useState<string | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
   const [createTitle, setCreateTitle] = useState("");
@@ -137,6 +143,7 @@ export const AgentMonitor: React.FC = () => {
   const snapshotRef = useRef<AgentThreadSnapshot | null>(null);
   const eventCursorRef = useRef(0);
   const reloadInFlightRef = useRef(false);
+  const pendingEventsRef = useRef<AgentEvent[]>([]);
   const selectedThreadIdRef = useRef(selectedThreadId);
   const composingRef = useRef(false);
   const lastCompositionEndRef = useRef(0);
@@ -204,10 +211,11 @@ export const AgentMonitor: React.FC = () => {
     if (selectedThreadIdRef.current !== threadId) return null;
     const requestId = snapshotRequestRef.current + 1;
     snapshotRequestRef.current = requestId;
+    reloadInFlightRef.current = true;
     const isCurrent = () => selectedThreadIdRef.current === threadId && snapshotRequestRef.current === requestId;
     if (!quiet) setSnapshotLoading(true);
     try {
-      const next = await getAgentThread(threadId);
+      const next = await loadAgentSnapshotWithEvents(() => getAgentThread(threadId), pendingEventsRef.current, isCurrent);
       if (!isCurrent()) return null;
       snapshotRef.current = next;
       eventCursorRef.current = snapshotCursor(next);
@@ -218,7 +226,10 @@ export const AgentMonitor: React.FC = () => {
       if (isCurrent()) setError(extractErrorMessage(err, t("agent.loadFailed")));
       return null;
     } finally {
-      if (isCurrent()) setSnapshotLoading(false);
+      if (isCurrent()) {
+        reloadInFlightRef.current = false;
+        setSnapshotLoading(false);
+      }
     }
   }, [t]);
 
@@ -233,6 +244,7 @@ export const AgentMonitor: React.FC = () => {
       snapshotRef.current = null;
       eventCursorRef.current = 0;
       reloadInFlightRef.current = false;
+      pendingEventsRef.current = [];
       setSnapshot(null);
       setStreamedMessageIds(new Set());
       setPendingSubmission(null);
@@ -245,6 +257,7 @@ export const AgentMonitor: React.FC = () => {
     snapshotRef.current = null;
     eventCursorRef.current = 0;
     reloadInFlightRef.current = false;
+    pendingEventsRef.current = [];
     const connect = async () => {
       const initial = await loadSnapshot(selectedThreadId);
       if (!initial || stopped) return;
@@ -256,17 +269,16 @@ export const AgentMonitor: React.FC = () => {
             (event) => {
               if (event.thread_id !== selectedThreadId) return;
               rememberStreamedMessages([event]);
+              pendingEventsRef.current.push(event);
               if (reloadInFlightRef.current) return;
               const current = snapshotRef.current;
               if (!current || current.thread.id !== selectedThreadId) return;
               const reduction = reduceAgentEvent(current, event, eventCursorRef.current);
               if (reduction.needsReload) {
-                reloadInFlightRef.current = true;
-                void loadSnapshot(selectedThreadId, true).finally(() => {
-                  reloadInFlightRef.current = false;
-                });
+                void loadSnapshot(selectedThreadId, true);
                 return;
               }
+              pendingEventsRef.current.splice(0);
               snapshotRef.current = reduction.snapshot;
               eventCursorRef.current = reduction.cursor;
               setSnapshot(reduction.snapshot);
@@ -366,6 +378,10 @@ export const AgentMonitor: React.FC = () => {
 
   const control = async (action: AgentControlAction) => {
     if (!selectedThreadId || !currentRun || controlBusy) return;
+    if (action === "resume" && (currentRun.waiting_reason === "budget" || currentRun.budget_limiting_run_id)) {
+      setBudgetRun(currentRun);
+      return;
+    }
     setControlBusy(action);
     try {
       await controlAgentRun({ thread_id: selectedThreadId, run_id: currentRun.id, action });
@@ -426,13 +442,14 @@ export const AgentMonitor: React.FC = () => {
 
   return (
     <div className="agent-monitor-page flex h-full min-h-0 flex-col bg-book-bg">
+      {budgetRun ? <AgentBudgetDialog run={budgetRun} onClose={() => setBudgetRun(null)} onResumed={() => Promise.all([loadSnapshot(budgetRun.thread_id, true), refreshThreads()])} /> : null}
       <PageHeader
         className="agent-monitor-page-header"
         leading={<BackButton iconOnly title={t("nav.backToPrevious")} onClick={smartBack} />}
         icon={<span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-book-primary/10 text-book-primary"><Bot size={18} /></span>}
         eyebrow={t("agent.collaborationHub")}
         title={t("agent.workbench")}
-        subtitle={locale === "zh-CN" ? "主 Agent、子 Agent 与用户共享同一条持久运行轨迹。" : "One durable trail for the main Agent, sub-agents, and you."}
+        subtitle={locale === "zh-CN" ? "查看任务进度与待确认操作" : "Track progress and review pending actions"}
         meta={<span className={`inline-flex items-center gap-1.5 text-small ${connected ? "text-success" : "text-book-text-muted"}`}><span className={`h-1.5 w-1.5 rounded-full ${connected ? "bg-success" : "bg-book-text-muted/50"}`} />{connected ? (locale === "zh-CN" ? "事件流已连接" : "Event stream") : t("agent.polling")}</span>}
         actions={<BookIconButton label={t("agent.refresh")} onClick={() => void refreshThreads(true)} variant="secondary" size="sm" disabled={refreshing}><RefreshCw size={14} className={refreshing ? "animate-spin" : undefined} /></BookIconButton>}
       />
@@ -450,7 +467,22 @@ export const AgentMonitor: React.FC = () => {
               </div>
               <BookIconButton label={locale === "zh-CN" ? "新建子 Agent" : "New sub-agent"} onClick={() => setCreateOpen((open) => !open)} size="sm"><Plus size={14} /></BookIconButton>
             </div>
-            {createOpen ? <div className="agent-monitor-create-form"><input aria-label={locale === "zh-CN" ? "线程名称（可选）" : "Thread title (optional)"} value={createTitle} onChange={(event) => setCreateTitle(event.target.value)} placeholder={locale === "zh-CN" ? "线程名称（可选）" : "Thread title (optional)"} className="pyqt-input text-xs" /><input aria-label={locale === "zh-CN" ? "子 Agent 能力域" : "Sub-agent capability"} value={createCapability} onChange={(event) => setCreateCapability(event.target.value)} placeholder={locale === "zh-CN" ? "能力域，例如 content_optimization" : "Capability, e.g. content_optimization"} className="pyqt-input text-xs" /><div className="flex gap-2"><BookButton size="sm" className="flex-1" onClick={() => void createSubagent()}><Plus size={13} />{locale === "zh-CN" ? "创建" : "Create"}</BookButton><BookButton size="sm" variant="ghost" onClick={() => setCreateOpen(false)}>{locale === "zh-CN" ? "关闭" : "Close"}</BookButton></div></div> : null}
+            {createOpen ? (
+              <div className="agent-monitor-create-form">
+                <label className="flex min-w-0 flex-col gap-1 text-caption text-book-text-muted">
+                  {locale === "zh-CN" ? "线程名称（可选）" : "Thread title (optional)"}
+                  <input aria-label={locale === "zh-CN" ? "线程名称（可选）" : "Thread title (optional)"} value={createTitle} onChange={(event) => setCreateTitle(event.target.value)} placeholder={locale === "zh-CN" ? "线程名称（可选）" : "Thread title (optional)"} className="pyqt-input text-xs" />
+                </label>
+                <label className="flex min-w-0 flex-col gap-1 text-caption text-book-text-muted">
+                  {locale === "zh-CN" ? "能力域" : "Capability"}
+                  <input aria-label={locale === "zh-CN" ? "子 Agent 能力域" : "Sub-agent capability"} value={createCapability} onChange={(event) => setCreateCapability(event.target.value)} placeholder={locale === "zh-CN" ? "能力域，例如 content_optimization" : "Capability, e.g. content_optimization"} className="pyqt-input text-xs" />
+                </label>
+                <div className="flex gap-2">
+                  <BookButton size="sm" className="flex-1" onClick={() => void createSubagent()}><Plus size={13} />{locale === "zh-CN" ? "创建" : "Create"}</BookButton>
+                  <BookButton size="sm" variant="ghost" onClick={() => setCreateOpen(false)}>{locale === "zh-CN" ? "关闭" : "Close"}</BookButton>
+                </div>
+              </div>
+            ) : null}
             {loading ? <div className="flex min-h-28 items-center justify-center gap-2 text-xs text-book-text-muted"><LoadingSpinner size="sm" />{t("common.loading")}</div> : null}
             {!loading && threads.length === 0 ? <div className="a4n-empty-state a4n-empty-state--compact px-2"><Bot size={22} /><p className="text-xs">{locale === "zh-CN" ? "还没有持久线程" : "No durable threads yet"}</p></div> : null}
             <div className="agent-monitor-thread-list custom-scrollbar">
@@ -497,7 +529,7 @@ export const AgentMonitor: React.FC = () => {
                         locale={locale}
                         streamedMessageIds={streamedMessageIds}
                         pendingMessages={pendingSubmission ? [pendingSubmission.message] : []}
-                        activeRun={currentRun}
+                        activeRun={contextRun}
                       />
                       {snapshot?.messages.length === 0 && !snapshotLoading && !pendingSubmission && !currentRun ? <div className="a4n-empty-state a4n-empty-state--compact"><MessageSquare size={22} /><p className="text-xs">{locale === "zh-CN" ? "等待第一条消息" : "Waiting for the first message"}</p></div> : null}
                     </div>
@@ -551,19 +583,23 @@ export const AgentMonitor: React.FC = () => {
                           <ThemedSelect aria-label={locale === "zh-CN" ? "消息交付模式" : "Delivery mode"} value={deliveryMode} onChange={(selectedValue) => setDeliveryMode(selectedValue as AgentDeliveryMode)} className="agent-monitor-composer-select"><option value="followup">{locale === "zh-CN" ? "追加" : "Follow-up"}</option><option value="steer">{locale === "zh-CN" ? "转向" : "Steer"}</option><option value="inject">{locale === "zh-CN" ? "注入" : "Inject"}</option></ThemedSelect>
                         </div>
                         <AgentContextMeter run={contextRun} locale={locale} />
-                        {currentRun && ACTIVE_AGENT_RUN_STATUSES.has(currentRun.status) ? (
-                          <BookIconButton
-                            label={locale === "zh-CN" ? "取消运行" : "Cancel run"}
-                            title={locale === "zh-CN" ? "取消当前运行" : "Cancel current run"}
-                            variant="ghost"
-                            size="md"
-                            className="text-error hover:bg-error-bg hover:text-error"
-                            onClick={() => void control("cancel")}
-                            disabled={controlBusy != null || currentRun.status === "cancelling"}
-                          >
-                            {controlBusy === "cancel" ? <LoadingSpinner size="sm" /> : <Square size={15} />}
-                          </BookIconButton>
-                        ) : (
+                        {currentRun && (currentRun.waiting_reason === "budget" || currentRun.budget_limiting_run_id) ? (
+                          <BookButton size="sm" variant="warning" onClick={() => setBudgetRun(currentRun)}>{t("agent.budget.title")}</BookButton>
+                        ) : null}
+                        <div className="agent-monitor-composer-actions">
+                          {currentRun && ACTIVE_AGENT_RUN_STATUSES.has(currentRun.status) ? (
+                            <BookIconButton
+                              label={locale === "zh-CN" ? "取消运行" : "Cancel run"}
+                              title={locale === "zh-CN" ? "取消当前运行" : "Cancel current run"}
+                              variant="ghost"
+                              size="md"
+                              className="text-error hover:bg-error-bg hover:text-error"
+                              onClick={() => void control("cancel")}
+                              disabled={controlBusy != null || currentRun.status === "cancelling"}
+                            >
+                              {controlBusy === "cancel" ? <LoadingSpinner size="sm" /> : <Square size={15} />}
+                            </BookIconButton>
+                          ) : null}
                           <BookIconButton
                             label={locale === "zh-CN" ? "发送消息" : "Send message"}
                             title={locale === "zh-CN" ? "发送消息（⌘/Ctrl + Enter）" : "Send message (⌘/Ctrl + Enter)"}
@@ -574,7 +610,7 @@ export const AgentMonitor: React.FC = () => {
                           >
                             {sending ? <LoadingSpinner size="sm" /> : <Send size={15} />}
                           </BookIconButton>
-                        )}
+                        </div>
                       </div>
                     </div>
                   </div>

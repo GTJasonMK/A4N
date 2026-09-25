@@ -4,6 +4,7 @@ import {
   normalizeOptionalProviderConfigId,
   providerConfigIdOrSystem,
   rejectSystemDefaultMutation,
+  requireSystemDefaultKeyUpdate,
 } from "./shared";
 
 type Config = { id: number; is_default: boolean };
@@ -55,5 +56,7 @@ describe("provider config IDs", () => {
     expect(rejectSystemDefaultMutation).toThrow(
       "系统默认配置由管理员维护，不能在用户配置页编辑",
     );
+    expect(() => requireSystemDefaultKeyUpdate({ api_key_encrypted: "personal-key" })).not.toThrow();
+    expect(() => requireSystemDefaultKeyUpdate({ pricing: { currency: "CNY" } })).toThrow("系统默认配置由管理员维护");
   });
 });

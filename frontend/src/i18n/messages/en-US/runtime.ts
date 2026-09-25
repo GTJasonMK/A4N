@@ -125,6 +125,20 @@ export const errors = {
 } as const;
 
 export const agent = {
+  budget: {
+    title: "Adjust budget and continue",
+    apply: "Continue existing task",
+    explanation: "Enter new total limits. Existing usage is retained; child tasks and history summaries share this budget.",
+    parent: "This changes the parent task's shared budget. Approvals and other waiting conditions remain in place.",
+    usage: "{tokens} confirmed tokens",
+    reserved: "{tokens} additional reserved tokens; usage is not fully confirmed",
+    invalid: "Enter safe positive integers without lowering existing limits.",
+    max_steps: "Total model steps",
+    max_model_calls: "Total model calls",
+    max_tool_calls: "Total tool calls",
+    max_tokens: "Total token limit",
+    max_duration_seconds: "Total duration (seconds, including waits)",
+  },
   collaborationHub: "Collaboration hub",
   workbench: "Agent workbench",
   polling: "Polling mode",

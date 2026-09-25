@@ -239,6 +239,7 @@ export const config = {
         "--port",
         String(port),
         "--strictPort",
+        ...(process.env.A4N_UI_VITE_CONFIG ? ["--config", process.env.A4N_UI_VITE_CONFIG] : []),
       ],
       {
         cwd: frontendRoot,

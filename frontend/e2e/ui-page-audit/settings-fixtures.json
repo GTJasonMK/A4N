@@ -1,0 +1,783 @@
+{
+  "schemaVersion": 1,
+  "fixtureDate": "2026-09-25T08:30:00Z",
+  "rest": {
+    "pageSessions": {
+      "createResponse": {
+        "lease_seconds": 30,
+        "session": {
+          "active_tab": null,
+          "agent_id": null,
+          "chapter_id": null,
+          "client": "a4n-web",
+          "context_revision": 0,
+          "created_at": "2026-09-25T08:30:00Z",
+          "dirty_state": false,
+          "expires_at": "2026-09-25T08:30:30Z",
+          "last_operation": null,
+          "last_seen_at": "2026-09-25T08:30:00Z",
+          "local_state": {},
+          "mode": "page",
+          "operation_id": null,
+          "page_kind": null,
+          "project_id": null,
+          "protocol_version": 1,
+          "route": null,
+          "selected_ids": {},
+          "status": "awaiting_attach",
+          "tab_id": "ui-page-audit-tab-0002",
+          "ui_session_id": "a4d00000-0000-4000-8000-000000000002",
+          "updated_at": "2026-09-25T08:30:00Z"
+        },
+        "ui_session_token": "ui-page-audit-token-not-a-real-credential"
+      },
+      "authorizationResponse": {
+        "authorization_code": "UI-PAGE-AUDIT-ONLY-0002",
+        "expires_in": 120,
+        "ui_session_id": "a4d00000-0000-4000-8000-000000000002"
+      },
+      "context": {
+        "active_tab": "about",
+        "chapter_id": null,
+        "context_revision": 1,
+        "dirty_state": false,
+        "local_state": {},
+        "page_kind": "settings",
+        "project_id": null,
+        "route": "/settings#about",
+        "selected_ids": {}
+      },
+      "events": []
+    }
+  },
+  "invoke": {
+    "list_model_provider_catalog": {
+      "llm": [
+        { "id": "openai", "display_name": "OpenAI · Chat Completions", "default_base_url": "https://api.openai.com/v1", "protocol": "OpenAI Chat Completions" },
+        { "id": "openai-responses", "display_name": "OpenAI · Responses", "default_base_url": "https://api.openai.com/v1", "protocol": "OpenAI Responses" },
+        { "id": "anthropic", "display_name": "Anthropic Claude", "default_base_url": "https://api.anthropic.com", "protocol": "Anthropic Messages" },
+        { "id": "gemini", "display_name": "Google Gemini", "default_base_url": "https://generativelanguage.googleapis.com/v1beta", "protocol": "Gemini GenerateContent" },
+        { "id": "deepseek", "display_name": "DeepSeek", "default_base_url": "https://api.deepseek.com/v1", "protocol": "OpenAI Chat Completions" },
+        { "id": "qwen", "display_name": "通义千问", "default_base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1", "protocol": "OpenAI Chat Completions" },
+        { "id": "moonshot", "display_name": "Moonshot / Kimi", "default_base_url": "https://api.moonshot.cn/v1", "protocol": "OpenAI Chat Completions" },
+        { "id": "zhipu", "display_name": "智谱 GLM", "default_base_url": "https://open.bigmodel.cn/api/paas/v4", "protocol": "OpenAI Chat Completions" },
+        { "id": "doubao", "display_name": "豆包 / 火山方舟", "default_base_url": "https://ark.cn-beijing.volces.com/api/v3", "protocol": "OpenAI Chat Completions" },
+        { "id": "siliconflow", "display_name": "硅基流动", "default_base_url": "https://api.siliconflow.cn/v1", "protocol": "OpenAI Chat Completions" },
+        { "id": "ollama", "display_name": "Ollama 本地", "default_base_url": "http://127.0.0.1:11434/v1", "protocol": "OpenAI Chat Completions" },
+        { "id": "custom-chat-completions", "display_name": "自定义 · Chat Completions", "default_base_url": "", "protocol": "OpenAI Chat Completions" },
+        { "id": "custom-responses", "display_name": "自定义 · Responses", "default_base_url": "", "protocol": "OpenAI Responses" },
+        { "id": "custom-anthropic", "display_name": "自定义 · Anthropic Messages", "default_base_url": "", "protocol": "Anthropic Messages" },
+        { "id": "custom-gemini", "display_name": "自定义 · Gemini", "default_base_url": "", "protocol": "Gemini GenerateContent" }
+      ],
+      "image": [
+        { "id": "openai-compatible-image", "display_name": "OpenAI 兼容图像", "requires_api_key": true },
+        { "id": "openai-compatible-image-edit", "display_name": "OpenAI 兼容图像编辑", "requires_api_key": true },
+        { "id": "openai-chat-image", "display_name": "Chat Completions 图像", "requires_api_key": true },
+        { "id": "cliproxy-image", "display_name": "CLIProxy / Grok 图片", "requires_api_key": true },
+        { "id": "stable-diffusion", "display_name": "Stable Diffusion WebUI", "requires_api_key": false },
+        { "id": "comfyui", "display_name": "ComfyUI", "requires_api_key": false }
+      ],
+      "video": [
+        { "id": "openai-compatible-video", "display_name": "OpenAI 兼容视频", "min_duration_secs": 1, "max_duration_secs": 60 },
+        { "id": "newapi-video", "display_name": "New API 视频", "min_duration_secs": 1, "max_duration_secs": 60 },
+        { "id": "gemini-veo-video", "display_name": "Gemini Veo 视频", "min_duration_secs": 1, "max_duration_secs": 60 },
+        { "id": "seedance2-video", "display_name": "Seedance 2.0 视频", "min_duration_secs": 4, "max_duration_secs": 15 },
+        { "id": "cliproxy-openai-video", "display_name": "CLIProxy / Grok 视频", "min_duration_secs": 1, "max_duration_secs": 15 },
+        { "id": "openai-chat-video", "display_name": "Chat Completions 视频", "min_duration_secs": 1, "max_duration_secs": 60 }
+      ],
+      "embedding": [
+        { "id": "api", "display_name": "OpenAI 兼容 API" },
+        { "id": "fastembed", "display_name": "FastEmbed 本地模型" },
+        { "id": "local_hash", "display_name": "本地哈希（开发）" }
+      ]
+    },
+    "list_llm_config": [
+      {
+        "id": 101, "name": "公共默认 · 雾港长篇创作", "provider": "deepseek", "agent_protocol": "native_tool_calling",
+        "base_url": "https://ui.invalid/models/llm/v1", "model": "ui-deepseek-chat", "has_api_key": false, "is_default": true,
+        "max_concurrent": 4, "timeout_secs": 300, "max_context_tokens": 128000, "max_output_tokens": 8192,
+        "extra_body_json": { "top_p": 0.9 },
+        "pricing": { "currency": "CNY", "llm_input_per_million": "2", "llm_output_per_million": "8", "llm_cache_read_per_million": "0.2", "llm_cache_write_per_million": null, "embedding_input_per_million": null, "image_per_generation": null, "video_per_second": null }
+      },
+      {
+        "id": 102, "name": "公共备用 · 结构化章节分析与人物关系校对", "provider": "openai", "agent_protocol": "native_tool_calling",
+        "base_url": "https://ui.invalid/models/analysis/v1", "model": "ui-structured-model-long-context", "has_api_key": true, "is_default": false,
+        "max_concurrent": 2, "timeout_secs": 240, "max_context_tokens": 196608, "max_output_tokens": 16384, "extra_body_json": null,
+        "pricing": { "currency": "USD", "llm_input_per_million": "1.5", "llm_output_per_million": "6", "llm_cache_read_per_million": "0.75", "llm_cache_write_per_million": null, "embedding_input_per_million": null, "image_per_generation": null, "video_per_second": null }
+      },
+      {
+        "id": 103, "name": "公共兼容 · 文本润色", "provider": "anthropic", "agent_protocol": "json_compat",
+        "base_url": "https://ui.invalid/models/anthropic", "model": "ui-claude-editor", "has_api_key": false, "is_default": false,
+        "max_concurrent": 1, "timeout_secs": 180, "max_context_tokens": 200000, "max_output_tokens": 8192,
+        "extra_body_json": { "top_p": 0.95 },
+        "pricing": { "currency": "USD", "llm_input_per_million": "3", "llm_output_per_million": "15", "llm_cache_read_per_million": "0.3", "llm_cache_write_per_million": "3.75", "embedding_input_per_million": null, "image_per_generation": null, "video_per_second": null }
+      }
+    ],
+    "list_image_configs": [
+      {
+        "id": 201, "name": "公共默认 · 角色与场景素材", "backend": "openai-compatible-image", "base_url": "https://ui.invalid/models/image/v1", "model": "ui-image-editor", "has_api_key": true, "is_default": true, "max_concurrent": 2,
+        "supported_sizes": [{ "width": 1024, "height": 1024 }, { "width": 1024, "height": 1536 }, { "width": 1536, "height": 1024 }],
+        "pricing": { "currency": "USD", "llm_input_per_million": null, "llm_output_per_million": null, "llm_cache_read_per_million": null, "llm_cache_write_per_million": null, "embedding_input_per_million": null, "image_per_generation": "0.04", "video_per_second": null }
+      },
+      {
+        "id": 202, "name": "公共横幅 · 雾港旧码头夜景与人物关系参考图", "backend": "stable-diffusion", "base_url": "https://ui.invalid/models/stable-diffusion", "model": "ui-sdxl-book-illustration", "has_api_key": false, "is_default": false, "max_concurrent": 1,
+        "supported_sizes": [{ "width": 1920, "height": 1080 }, { "width": 1024, "height": 768 }],
+        "pricing": { "currency": "CNY", "llm_input_per_million": null, "llm_output_per_million": null, "llm_cache_read_per_million": null, "llm_cache_write_per_million": null, "embedding_input_per_million": null, "image_per_generation": "0", "video_per_second": null }
+      },
+      {
+        "id": 203, "name": "公共流程 · 漫画线稿", "backend": "comfyui", "base_url": "https://ui.invalid/models/comfyui", "model": "ui-manga-lineart", "has_api_key": false, "is_default": false, "max_concurrent": 1,
+        "supported_sizes": [{ "width": 768, "height": 1024 }, { "width": 1080, "height": 1920 }],
+        "pricing": { "currency": "CNY", "llm_input_per_million": null, "llm_output_per_million": null, "llm_cache_read_per_million": null, "llm_cache_write_per_million": null, "embedding_input_per_million": null, "image_per_generation": null, "video_per_second": null }
+      }
+    ],
+    "list_video_configs": [
+      {
+        "id": 301, "name": "公共默认 · 连续镜头生成", "backend": "openai-compatible-video", "base_url": "https://ui.invalid/models/video/v1", "model": "ui-video-continuity",
+        "has_api_key": false, "is_default": true, "max_concurrent": 2, "default_width": 1280, "default_height": 720, "default_duration_secs": 6, "default_fps": 24, "duration_mode": "range", "min_duration_secs": 1, "max_duration_secs": 60, "supported_durations_json": null,
+        "pricing": { "currency": "USD", "llm_input_per_million": null, "llm_output_per_million": null, "llm_cache_read_per_million": null, "llm_cache_write_per_million": null, "embedding_input_per_million": null, "image_per_generation": null, "video_per_second": "0.12" }
+      },
+      {
+        "id": 302, "name": "公共竖屏 · 三段式固定时长预告片", "backend": "newapi-video", "base_url": "https://ui.invalid/models/newapi/v1", "model": "ui-video-fixed-length",
+        "has_api_key": false, "is_default": false, "max_concurrent": 1, "default_width": 720, "default_height": 1280, "default_duration_secs": 6, "default_fps": 30, "duration_mode": "fixed", "min_duration_secs": 4, "max_duration_secs": 8, "supported_durations_json": [4, 6, 8],
+        "pricing": { "currency": "CNY", "llm_input_per_million": null, "llm_output_per_million": null, "llm_cache_read_per_million": null, "llm_cache_write_per_million": null, "embedding_input_per_million": null, "image_per_generation": null, "video_per_second": "0.8" }
+      },
+      {
+        "id": 303, "name": "公共高精度 · 对话与表演", "backend": "seedance2-video", "base_url": "https://ui.invalid/models/seedance2", "model": "ui-seedance-dialogue",
+        "has_api_key": false, "is_default": false, "max_concurrent": 1, "default_width": 1920, "default_height": 1080, "default_duration_secs": 8, "default_fps": 24, "duration_mode": "range", "min_duration_secs": 4, "max_duration_secs": 15, "supported_durations_json": null,
+        "pricing": { "currency": "CNY", "llm_input_per_million": null, "llm_output_per_million": null, "llm_cache_read_per_million": null, "llm_cache_write_per_million": null, "embedding_input_per_million": null, "image_per_generation": null, "video_per_second": "1.2" }
+      }
+    ],
+    "list_embedding_config": [
+      {
+        "id": 401, "name": "公共默认 · 中文知识库", "backend": "fastembed", "base_url": null, "model": "BGESmallZHV15", "dimension": 512, "batch_size": 32, "local_model_path": null, "has_api_key": false, "is_default": true,
+        "pricing": { "currency": "CNY", "llm_input_per_million": null, "llm_output_per_million": null, "llm_cache_read_per_million": null, "llm_cache_write_per_million": null, "embedding_input_per_million": "0", "image_per_generation": null, "video_per_second": null }
+      },
+      {
+        "id": 402, "name": "公共 API · 长篇素材与角色关系检索", "backend": "api", "base_url": "https://ui.invalid/models/embedding/v1", "model": "ui-text-embedding-small", "dimension": 1536, "batch_size": 64, "local_model_path": null, "has_api_key": true, "is_default": false,
+        "pricing": { "currency": "USD", "llm_input_per_million": null, "llm_output_per_million": null, "llm_cache_read_per_million": null, "llm_cache_write_per_million": null, "embedding_input_per_million": "0.02", "image_per_generation": null, "video_per_second": null }
+      },
+      {
+        "id": 403, "name": "公共开发 · 哈希向量", "backend": "local_hash", "base_url": null, "model": "local-sha256-hash", "dimension": 384, "batch_size": 100, "local_model_path": null, "has_api_key": false, "is_default": false,
+        "pricing": { "currency": "CNY", "llm_input_per_million": null, "llm_output_per_million": null, "llm_cache_read_per_million": null, "llm_cache_write_per_million": null, "embedding_input_per_million": null, "image_per_generation": null, "video_per_second": null }
+      }
+    ],
+    "list_local_embedding_models": [
+      { "name": "BGESmallZHV15", "model_code": "BAAI/bge-small-zh-v1.5", "description": "适用于中文角色资料、章节摘要与世界观条目的本地检索。512 维，模型已下载。", "dimension": 512, "downloaded": true, "size_bytes": 95000000 },
+      { "name": "AllMiniLML6V2", "model_code": "sentence-transformers/all-MiniLM-L6-v2", "description": "轻量英文与多语种短文本语义检索模型，等待下载。", "dimension": 384, "downloaded": false, "size_bytes": 0 },
+      { "name": "BGEBaseENV15", "model_code": "BAAI/bge-base-en-v1.5", "description": "用于较长英文参考资料与跨章节线索检索，目录有缓存但下载尚未完成。", "dimension": 768, "downloaded": false, "size_bytes": 60000000 }
+    ],
+    "get_embedding_model_download_info": { "model_name": "AllMiniLML6V2", "model_code": "sentence-transformers/all-MiniLM-L6-v2", "total_size_bytes": 90000000, "downloaded_size_bytes": 0, "missing_size_bytes": 90000000 },
+    "detect_llm_config_models": { "models": [{ "id": "ui-deepseek-chat", "name": "长篇创作", "owned_by": "ui-fixture" }, { "id": "ui-structured-model-long-context", "name": "结构化分析与长上下文", "owned_by": "ui-fixture" }, { "id": "ui-local-qwen-editor", "name": "本地文本润色", "owned_by": "ui-fixture" }] },
+    "detect_image_config_models": { "models": [{ "id": "ui-image-editor", "name": "角色与场景素材", "owned_by": "ui-fixture" }, { "id": "ui-manga-lineart", "name": "漫画线稿", "owned_by": null }] },
+    "detect_video_config_models": { "models": [{ "id": "ui-video-continuity", "name": "连续镜头", "owned_by": "ui-fixture" }, { "id": "ui-video-fixed-length", "name": "固定时长预告片", "owned_by": null }] },
+    "get_current_user": { "id": 1, "username": "林知微", "email": "lin.zhiwei.editor@example.invalid", "role": "admin", "is_active": true, "page_cli_enabled": false, "avatar_url": "https://ui.invalid/image-1.png", "created_at": "2026-08-01T03:00:00Z", "updated_at": "2026-09-25T08:00:00Z", "last_login_at": "2026-09-25T08:00:00Z", "oauth_provider": null, "oauth_subject": null },
+    "list_all_users": [
+      { "id": 1, "username": "林知微", "email": "lin.zhiwei.editor@example.invalid", "role": "admin", "is_active": true, "page_cli_enabled": false, "avatar_url": "https://ui.invalid/image-1.png", "created_at": "2026-08-01T03:00:00Z", "updated_at": "2026-09-25T08:00:00Z", "last_login_at": "2026-09-25T08:00:00Z", "oauth_provider": null, "oauth_subject": null },
+      { "id": 2, "username": "陈望舟 · 雾港故事协作作者", "email": "chen.wangzhou.long-form.collaboration@example.invalid", "role": "user", "is_active": true, "page_cli_enabled": true, "avatar_url": null, "created_at": "2026-08-10T09:00:00Z", "updated_at": "2026-09-24T10:15:00Z", "last_login_at": "2026-09-24T10:15:00Z", "oauth_provider": null, "oauth_subject": null },
+      { "id": 3, "username": "顾遥", "email": "gu.yao.proofreader@example.invalid", "role": "read_only", "is_active": true, "page_cli_enabled": false, "avatar_url": null, "created_at": "2026-09-20T02:00:00Z", "updated_at": "2026-09-20T02:00:00Z", "last_login_at": null, "oauth_provider": null, "oauth_subject": null }
+    ],
+    "list_sessions": [
+      { "id": "ui-session-current", "created_at": "2026-09-25T08:00:00Z", "expires_at": "2026-10-25T08:00:00Z", "last_used_at": "2026-09-25T08:29:00Z", "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 A4N-UI-Fixture" },
+      { "id": "ui-session-phone", "created_at": "2026-09-23T12:00:00Z", "expires_at": "2026-10-23T12:00:00Z", "last_used_at": "2026-09-24T21:16:00Z", "user_agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 Mobile/15E148 Safari/604.1 A4N-UI-Fixture" },
+      { "id": "ui-session-expired", "created_at": "2026-08-01T03:00:00Z", "expires_at": "2026-09-01T03:00:00Z", "last_used_at": "2026-08-29T07:30:00Z", "user_agent": "A4N Desktop UI Fixture / Windows 11" }
+    ],
+    "list_invite_codes": [
+      { "id": 11, "code": "UI-DEMO-INVITE-UNUSED", "created_by_user_id": 1, "created_at": "2026-09-24T06:00:00Z", "used_at": null, "used_by_user_id": null },
+      { "id": 12, "code": "UI-DEMO-INVITE-USED", "created_by_user_id": 1, "created_at": "2026-08-10T08:00:00Z", "used_at": "2026-08-10T09:00:00Z", "used_by_user_id": 2 }
+    ],
+    "get_token_summary": { "total_calls": 68, "total_prompt_tokens": 54400, "total_completion_tokens": 13600, "total_tokens": 68000, "success_count": 64, "fail_count": 4 },
+    "get_user_usage": [
+      { "id": 601, "user_id": 1, "project_id": 1, "operation": "writing", "model": "ui-deepseek-chat", "prompt_tokens": 3200, "completion_tokens": 1600, "total_tokens": 4800, "latency_ms": 12500, "is_success": true, "error_message": null, "created_at": "2026-09-25T08:12:00Z" },
+      { "id": 602, "user_id": 1, "project_id": 1, "operation": "chapter_analysis", "model": "ui-structured-model-long-context", "prompt_tokens": 2800, "completion_tokens": 0, "total_tokens": 2800, "latency_ms": 300000, "is_success": false, "error_message": "章节分析请求超时；已保留正文与此前分析结果，可重试。", "created_at": "2026-09-25T07:40:00Z" },
+      { "id": 603, "user_id": 1, "project_id": 1, "operation": "blueprint_generation", "model": "ui-deepseek-chat", "prompt_tokens": 4800, "completion_tokens": 2200, "total_tokens": 7000, "latency_ms": 28400, "is_success": true, "error_message": null, "created_at": "2026-09-24T10:30:00Z" },
+      { "id": 604, "user_id": 1, "project_id": 1, "operation": "character_sync", "model": "ui-structured-model-long-context", "prompt_tokens": 1900, "completion_tokens": 850, "total_tokens": 2750, "latency_ms": 8400, "is_success": true, "error_message": null, "created_at": "2026-09-24T09:20:00Z" }
+    ],
+    "get_admin_overview": { "total_users": 3, "daily_active_users": 2, "total_projects": 1, "total_chapters": 12, "task_queue_count": 4, "pending_tasks": 2, "running_tasks": 2, "total_llm_calls": 252, "llm_config_count": 3, "embedding_config_count": 3, "image_gen_config_count": 3, "active_theme": { "id": 12, "mode": "light", "name": "暖书房 · 我的写作桌" } },
+    "health_check": {
+      "runtime_profile": "sidecar",
+      "services": [
+        { "name": "PostgreSQL", "mode": "remote", "url": "postgresql://ui.invalid:5432/a4n_ui_fixture", "binary": null, "pid": null, "healthy": true, "service_version": "16.4", "protocol_version": 1, "capability_version": "ui-v1", "error_message": null },
+        { "name": "LLM Gateway", "mode": "sidecar", "url": "http://ui.invalid:19111", "binary": "/ui-fixtures/bin/a4n-llm-gateway", "pid": 7101, "healthy": true, "service_version": "0.1.0-ui", "protocol_version": 1, "capability_version": "ui-v1", "error_message": null },
+        { "name": "Video Service", "mode": "sidecar", "url": "http://ui.invalid:19112", "binary": "/ui-fixtures/bin/a4n-video-service", "pid": 7102, "healthy": false, "service_version": "0.1.0-ui", "protocol_version": 1, "capability_version": "ui-v1", "error_message": "视频执行服务在检查窗口内未响应；现有视频文件仍可查看，请检查服务状态后重试。此行用于验证长错误换行。" },
+        { "name": "Qdrant", "mode": "remote", "url": "http://ui.invalid:16333", "binary": null, "pid": null, "healthy": true, "service_version": "1.12.0-ui", "protocol_version": 1, "capability_version": "ui-v1", "error_message": null },
+        { "name": "External Import", "mode": "disabled", "url": null, "binary": null, "pid": null, "healthy": true, "service_version": null, "protocol_version": null, "capability_version": null, "error_message": null }
+      ]
+    },
+    "list_all_projects": [
+      { "id": 1, "title": "雾港来信：在失踪航线尽头追索旧日承诺的长篇小说计划", "user_id": 1, "project_type": "novel_long", "project_kind": "text", "status": "writing", "target_chapters": 24, "total_chapters": 24, "current_chapter": 12 }
+    ],
+    "list_projects": {
+      "page": 1, "page_size": 100, "total": 1,
+      "items": [{
+        "id": 1, "title": "雾港来信：在失踪航线尽头追索旧日承诺的长篇小说计划", "description": "年轻修船师沿着一封迟到二十年的来信，追查雾港失踪航线与父亲留下的秘密。",
+        "project_type": "novel_long", "project_kind": "text", "status": "writing", "lifecycle_gate": "active", "source_mode": "self", "source_sync_status": "current",
+        "root_project_id": null, "root_project_title": null, "collaboration_root_project_id": 1, "derived_chapter_scope": null,
+        "target_chapters": 24, "total_chapters": 24, "current_chapter": 12, "chapters_per_part": 6,
+        "my_role": "owner", "owner_username": "林知微", "member_count": 3, "pending_invite_count": 0,
+        "progress": { "label": "正文写作", "detail": "已完成 12 / 24 章；第 13 章正在检查人物行动与时间线。" },
+        "updated_at": "2026-09-25T08:12:00Z"
+      }]
+    },
+    "get_usage_trends": [
+      { "date": "2026-08-27", "total_calls": 8, "total_tokens": 8000, "success_count": 8, "fail_count": 0 },
+      { "date": "2026-08-28", "total_calls": 8, "total_tokens": 8000, "success_count": 8, "fail_count": 0 },
+      { "date": "2026-08-29", "total_calls": 8, "total_tokens": 8000, "success_count": 8, "fail_count": 0 },
+      { "date": "2026-08-30", "total_calls": 8, "total_tokens": 8000, "success_count": 8, "fail_count": 0 },
+      { "date": "2026-08-31", "total_calls": 8, "total_tokens": 8000, "success_count": 8, "fail_count": 0 },
+      { "date": "2026-09-01", "total_calls": 8, "total_tokens": 8000, "success_count": 8, "fail_count": 0 },
+      { "date": "2026-09-02", "total_calls": 8, "total_tokens": 8000, "success_count": 8, "fail_count": 0 },
+      { "date": "2026-09-03", "total_calls": 8, "total_tokens": 8000, "success_count": 8, "fail_count": 0 },
+      { "date": "2026-09-04", "total_calls": 8, "total_tokens": 8000, "success_count": 8, "fail_count": 0 },
+      { "date": "2026-09-05", "total_calls": 8, "total_tokens": 8000, "success_count": 8, "fail_count": 0 },
+      { "date": "2026-09-06", "total_calls": 8, "total_tokens": 8000, "success_count": 8, "fail_count": 0 },
+      { "date": "2026-09-07", "total_calls": 8, "total_tokens": 8000, "success_count": 8, "fail_count": 0 },
+      { "date": "2026-09-08", "total_calls": 8, "total_tokens": 8000, "success_count": 8, "fail_count": 0 },
+      { "date": "2026-09-09", "total_calls": 8, "total_tokens": 8000, "success_count": 8, "fail_count": 0 },
+      { "date": "2026-09-10", "total_calls": 8, "total_tokens": 8000, "success_count": 8, "fail_count": 0 },
+      { "date": "2026-09-11", "total_calls": 8, "total_tokens": 8000, "success_count": 8, "fail_count": 0 },
+      { "date": "2026-09-12", "total_calls": 8, "total_tokens": 8000, "success_count": 8, "fail_count": 0 },
+      { "date": "2026-09-13", "total_calls": 8, "total_tokens": 8000, "success_count": 8, "fail_count": 0 },
+      { "date": "2026-09-14", "total_calls": 8, "total_tokens": 8000, "success_count": 8, "fail_count": 0 },
+      { "date": "2026-09-15", "total_calls": 8, "total_tokens": 8000, "success_count": 8, "fail_count": 0 },
+      { "date": "2026-09-16", "total_calls": 8, "total_tokens": 8000, "success_count": 8, "fail_count": 0 },
+      { "date": "2026-09-17", "total_calls": 8, "total_tokens": 8000, "success_count": 8, "fail_count": 0 },
+      { "date": "2026-09-18", "total_calls": 8, "total_tokens": 8000, "success_count": 8, "fail_count": 0 },
+      { "date": "2026-09-19", "total_calls": 8, "total_tokens": 8000, "success_count": 8, "fail_count": 0 },
+      { "date": "2026-09-20", "total_calls": 8, "total_tokens": 8000, "success_count": 8, "fail_count": 0 },
+      { "date": "2026-09-21", "total_calls": 20, "total_tokens": 20000, "success_count": 18, "fail_count": 2 },
+      { "date": "2026-09-22", "total_calls": 8, "total_tokens": 8000, "success_count": 8, "fail_count": 0 },
+      { "date": "2026-09-23", "total_calls": 8, "total_tokens": 8000, "success_count": 8, "fail_count": 0 },
+      { "date": "2026-09-24", "total_calls": 8, "total_tokens": 8000, "success_count": 8, "fail_count": 0 },
+      { "date": "2026-09-25", "total_calls": 8, "total_tokens": 8000, "success_count": 6, "fail_count": 2 }
+    ],
+    "get_package_overview": [
+      { "package_id": "platform", "required": true, "installation": "installed", "host_state": "enabled", "health": "healthy", "status_version": 4, "lifecycle": null },
+      { "package_id": "novel-management", "required": true, "installation": "installed", "host_state": "enabled", "health": "healthy", "status_version": 4, "lifecycle": null },
+      { "package_id": "ai-workflow", "required": false, "installation": "installed", "host_state": "enabled", "health": "healthy", "status_version": 6, "lifecycle": null },
+      { "package_id": "manga", "required": false, "installation": "installed", "host_state": "disabled", "health": "healthy", "status_version": 8, "lifecycle": { "operation_id": "ui-package-manga-disabled", "action": "disable", "state": "completed", "requested_version": null, "status_version": 8, "reason_code": null, "error": null } },
+      { "package_id": "video", "required": false, "installation": "installed", "host_state": "disabling", "health": "unhealthy", "status_version": 9, "lifecycle": { "operation_id": "ui-package-video-draining", "action": "disable", "state": "waiting_external", "requested_version": null, "status_version": 9, "reason_code": "operation_in_progress", "error": null } },
+      { "package_id": "galgame", "required": false, "installation": "installed", "host_state": "enabled", "health": "healthy", "status_version": 5, "lifecycle": { "operation_id": "ui-package-galgame-conflict", "action": "disable", "state": "failed", "requested_version": null, "status_version": 5, "reason_code": "version_conflict", "error": "功能包状态已被另一位管理员更新，请刷新后重新选择操作。" } },
+      { "package_id": "external-import", "required": false, "installation": "missing", "host_state": "disabled", "health": "unknown", "status_version": 1, "lifecycle": null }
+    ],
+    "get_package_preferences": { "host_scope": "ui-fixture-host", "hidden_package_ids": ["manga"] },
+    "get_package_operation": { "operation_id": "ui-package-video-draining", "action": "disable", "state": "waiting_external", "requested_version": null, "status_version": 9, "reason_code": "operation_in_progress", "error": null },
+    "get_storage_paths": {
+      "application_home": "/ui-fixtures/a4n", "backups_dir": "/ui-fixtures/a4n/backups", "cache_dir": "/ui-fixtures/a4n/cache",
+      "config_file": "/ui-fixtures/a4n/config.json", "data_dir": "/ui-fixtures/a4n/data", "database_url": "postgresql://ui.invalid:5432/a4n_ui_fixture",
+      "embedding_models_dir": "/ui-fixtures/a4n/models/embedding", "exports_dir": "/ui-fixtures/a4n/exports", "frontend_state_file": "/ui-fixtures/a4n/frontend-state.json",
+      "log_dir": "/ui-fixtures/a4n/logs", "projects_dir": "/ui-fixtures/a4n/data/projects", "prompts_git_dir": "/ui-fixtures/a4n/prompt-history",
+      "qdrant_collection": "ui_fixture_knowledge", "qdrant_url": "http://ui.invalid:16333", "temp_dir": "/ui-fixtures/a4n/tmp", "webview_dir": "/ui-fixtures/a4n/webview"
+    },
+    "list_orphan_project_data_dirs": { "items": [], "total_count": 0, "total_size_bytes": 0 },
+    "list_agent_skills": {
+      "profiles": [
+        { "capability": "main", "skills": [
+          { "id": "ui-story-planning", "name": "故事规划", "version": "1.0.0", "description": "从创作目标整理可以逐步执行的计划，保留用户指定的人物、主题与叙事边界。", "enabled": true, "capabilities": ["main"], "source": "builtin", "content_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" },
+          { "id": "ui-context-research", "name": "资料与上下文检索", "version": "1.2.0", "description": "查找项目已有资料与公开参考，给出可追溯的来源，避免覆盖已有设定。", "enabled": true, "capabilities": ["main"], "source": "builtin", "content_hash": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb" },
+          { "id": "ui-task-summary", "name": "多步骤任务结果检查与交接", "version": "1.1.0", "description": "在较长的生成任务结束时核对产物、未解决的问题及下一步动作，适合跨章节连续创作。", "enabled": false, "capabilities": ["main"], "source": "builtin", "content_hash": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc" }
+        ]},
+        { "capability": "general", "skills": [
+          { "id": "ui-general-research", "name": "通用资料研究", "version": "1.0.0", "description": "整理资料并区分事实、推断与待确认内容。", "enabled": true, "capabilities": ["general"], "source": "builtin", "content_hash": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd" },
+          { "id": "ui-general-edit", "name": "文本整理", "version": "1.0.0", "description": "改善表达与结构，保留原文信息和作者语气。", "enabled": true, "capabilities": ["general"], "source": "builtin", "content_hash": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee" },
+          { "id": "ui-general-check", "name": "结果复核", "version": "1.0.0", "description": "检查引用和格式要求，列出可以定位的差异。", "enabled": false, "capabilities": ["general"], "source": "builtin", "content_hash": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff" }
+        ]},
+        { "capability": "content_optimization", "skills": [
+          { "id": "ui-causal-edit", "name": "情节因果与人物动机检查", "version": "1.1.0", "description": "逐段核对人物选择、行动代价和后续结果，优先修复断裂的因果链。", "enabled": true, "capabilities": ["content_optimization"], "source": "builtin", "content_hash": "1111111111111111111111111111111111111111111111111111111111111111" },
+          { "id": "ui-prose-rhythm", "name": "叙述节奏", "version": "1.0.0", "description": "改善场景节奏与段落呼吸，保留情绪转折和信息揭示顺序。", "enabled": true, "capabilities": ["content_optimization"], "source": "builtin", "content_hash": "2222222222222222222222222222222222222222222222222222222222222222" },
+          { "id": "ui-proofreading", "name": "术语与细节校对", "version": "1.0.0", "description": "核对时间、称谓、地点和道具是否符合项目已保存的设定。", "enabled": false, "capabilities": ["content_optimization"], "source": "builtin", "content_hash": "3333333333333333333333333333333333333333333333333333333333333333" }
+        ]},
+        { "capability": "canvas", "skills": [
+          { "id": "ui-canvas-plan", "name": "画布流程规划", "version": "1.0.0", "description": "将创作步骤整理为有输入和产出的画布节点。", "enabled": true, "capabilities": ["canvas"], "source": "builtin", "content_hash": "4444444444444444444444444444444444444444444444444444444444444444" },
+          { "id": "ui-canvas-media", "name": "素材衔接", "version": "1.0.0", "description": "检查图像、提示词与片段之间的依赖和引用关系。", "enabled": true, "capabilities": ["canvas"], "source": "builtin", "content_hash": "5555555555555555555555555555555555555555555555555555555555555555" },
+          { "id": "ui-canvas-check", "name": "节点输出检查", "version": "1.0.0", "description": "定位缺少输入、未完成和需要重新运行的节点。", "enabled": false, "capabilities": ["canvas"], "source": "builtin", "content_hash": "6666666666666666666666666666666666666666666666666666666666666666" }
+        ]},
+        { "capability": "director", "skills": [
+          { "id": "ui-shot-design", "name": "镜头与场面调度", "version": "1.2.0", "description": "把人物行动、视线和空间关系转成可剪辑的镜头安排。", "enabled": true, "capabilities": ["director"], "source": "builtin", "content_hash": "7777777777777777777777777777777777777777777777777777777777777777" },
+          { "id": "ui-continuity", "name": "连续性复核", "version": "1.0.0", "description": "逐个镜头检查动作、服装、道具和首尾帧衔接，避免生成片段之间的跳变。", "enabled": true, "capabilities": ["director"], "source": "builtin", "content_hash": "8888888888888888888888888888888888888888888888888888888888888888" },
+          { "id": "ui-sound-plan", "name": "声音设计", "version": "1.0.0", "description": "规划对白、环境声与静默，让声音和视觉承担清楚的叙事任务。", "enabled": false, "capabilities": ["director"], "source": "builtin", "content_hash": "9999999999999999999999999999999999999999999999999999999999999999" }
+        ]}
+      ]
+    },
+    "prompt_list_categories": [
+      { "key": "inspiration", "label": "构思", "description": "灵感对话与项目上下文", "order": 1 },
+      { "key": "blueprint", "label": "蓝图", "description": "故事概念、世界观与角色规划", "order": 2 },
+      { "key": "outline", "label": "大纲", "description": "分部与章节结构", "order": 3 },
+      { "key": "writing", "label": "写作", "description": "章节正文与内容优化", "order": 4 },
+      { "key": "analysis", "label": "分析", "description": "章节分析与事实提取", "order": 5 },
+      { "key": "manga", "label": "漫画", "description": "漫画分镜与画面生成", "order": 6 },
+      { "key": "protagonist", "label": "主角", "description": "人物发现、属性和行为", "order": 7 },
+      { "key": "video", "label": "视频", "description": "镜头规划、首尾帧与视频提示词", "order": 8 },
+      { "key": "galgame", "label": "Galgame", "description": "剧本改编、分支与演出素材", "order": 9 }
+    ],
+    "prompt_list": [
+      {
+        "name": "inspiration", "title": "灵感对话", "description": "与作者一起把模糊想法整理为可以继续写作的故事概念，保留已确定的人物目标与核心矛盾。", "category": "inspiration",
+        "content": "# 灵感对话\n\n项目：{{ project_title }}\n\n先确认作者最希望读者记住的一个瞬间，再围绕人物目标、阻碍与代价继续追问。每次只推进一个关键问题，不替作者做未经确认的重大选择。\n\n## 当前故事材料\n年轻修船师在雾港收到一封迟到二十年的来信。寄件人使用父亲失踪前的笔迹，却提到了昨天才沉没的船。她必须在潮汐改变航道之前决定是否出海。\n\n## 输出要求\n用简洁的语言给出两条可继续发展的方向。分别说明人物为什么行动、行动会改变什么，以及哪条线索仍然缺少证据。不要把暂时的猜测写成世界观事实。",
+        "dependencies": [], "is_modified": false, "path": "prompts/novel/01_inspiration/inspiration.md", "tags": ["inspiration", "dialogue"], "used_by": ["OrchestratorContext.prepare_inspiration_request_validated"], "version": "ui-v1"
+      },
+      {
+        "name": "blueprint", "title": "蓝图生成 · 世界观、人物与主线", "description": "根据灵感对话记录生成完整蓝图，重点保持雾港航线规则、家庭关系与主角选择之间的因果一致。", "category": "blueprint",
+        "content": "# 故事蓝图\n\n项目：{{ project_title }}\n主角目标：{{ protagonist_goal }}\n\n## 必须保持的事实\n1. 雾港每天只有两个小时可以安全出航。\n2. 主角只见过信件，没有亲眼见过寄件人。\n3. 父亲留下的海图缺少最后一段航线。\n\n## 世界观\n描述航道、潮汐、港务制度与沿海居民日常生活之间的联系。规则必须能在人物行动中产生约束，不要增加无法在故事中验证的百科设定。\n\n## 人物\n每个人物都需要明确的欲望、误判与代价。为主角、同行者和阻碍者各设计一个能够改变关系的选择。\n\n## 剧情\n依次说明起因、第一次行动、信息反转、关系破裂、最终选择与结果。每个转折必须来自此前的行动或线索。\n\n## 交付\n按既有结构输出，不增加新字段。无法确认的信息写为待定，并说明需要哪条素材才能作出判断。",
+        "dependencies": ["inspiration"], "is_modified": true, "path": "prompts/novel/02_blueprint/blueprint.md", "tags": ["blueprint", "worldbuilding", "character"], "used_by": ["OrchestratorContext.run_blueprint_generation_task"], "version": "ui-v3"
+      },
+      {
+        "name": "outline", "title": "章节大纲生成", "description": "将主线拆成具体章节，每章包含目标、冲突、转折和交给下一章的问题。", "category": "outline",
+        "content": "# 章节大纲\n\n项目：{{ project_title }}\n本章摘要：{{ chapter_summary }}\n\n先写出本章中主角做出的选择，再描述选择导致的阻碍、发现与关系变化。以可以拍摄或写成场景的行动表述，避免只写情绪和抽象主题。\n\n结尾留下一个明确的未解问题，并说明它如何从本章已经发生的事件中产生。",
+        "dependencies": ["blueprint"], "is_modified": false, "path": "prompts/novel/03_outline/outline.md", "tags": ["outline", "chapter"], "used_by": ["OutlineService.generate_chapter_outlines"], "version": "ui-v1"
+      },
+      {
+        "name": "writing", "title": "章节正文生成", "description": "把章节大纲扩写为有动作、对话和环境细节的正文；保持视角、人物口吻与既有事实。", "category": "writing",
+        "content": "# 章节写作\n\n项目：{{ project_title }}\n本章摘要：{{ chapter_summary }}\n主角目标：{{ protagonist_goal }}\n\n从人物正在做的事情进入场景。环境描写应改变人物的行动方式，避免把背景信息集中堆在开头。\n\n对白要服务于试探、隐瞒或推动选择，同一段中不要替双方解释所有动机。保留重要动作发生前的犹豫，但不要让内心独白反复复述已知信息。\n\n结尾兑现本章的行动结果，并为下一章留下具体的新局面。\n\n完成后核对人物称谓、伤势、随身道具与时间线。",
+        "dependencies": ["outline"], "is_modified": true, "path": "prompts/novel/04_writing/writing.md", "tags": ["writing", "prose"], "used_by": ["ChapterGenerationService.generate"], "version": "ui-v2"
+      },
+      {
+        "name": "chapter_analysis", "title": "章节分析 · 因果、人物与线索", "description": "提取正文中的已发生事件、人物变化和可追溯证据，不把推测写成事实。", "category": "analysis",
+        "content": "# 章节分析\n\n阅读 {{ chapter_summary }}，分别整理事件、人物行动、获得的信息与未解决的问题。\n\n每条结论都附上能在正文中定位的依据；信息不足时明确写出缺少什么。",
+        "dependencies": ["writing"], "is_modified": false, "path": "prompts/novel/05_analysis/chapter_analysis.md", "tags": ["analysis", "evidence"], "used_by": ["ChapterAnalysisService.analyze"], "version": "ui-v1"
+      },
+      {
+        "name": "manga_page_drawing_prompt", "title": "漫画页绘制提示词", "description": "保持角色、道具与空间关系，明确每格画面的主体和阅读顺序。", "category": "manga",
+        "content": "# 漫画页\n\n项目：{{ project_title }}\n按照已保存分镜描述构图、角色动作、镜头角度和光线。\n\n同一角色在各格中保持服装与外形；不要把字幕绘制为无法编辑的长段文字。",
+        "dependencies": ["outline"], "is_modified": false, "path": "prompts/manga/page_drawing_prompt.md", "tags": ["manga", "drawing"], "used_by": ["MangaService.generatePage"], "version": "ui-v1"
+      },
+      {
+        "name": "character_discovery", "title": "人物发现与身份核对", "description": "识别新出现的人物及其称谓，避免将同一人物的别名拆成多个角色。", "category": "protagonist",
+        "content": "# 人物发现\n\n检查 {{ chapter_summary }} 中出现的人名、称谓和代词指代。\n\n优先与已有角色匹配，给出新人物判断的证据。无法确定身份时保留候选关系，不直接合并。",
+        "dependencies": ["chapter_analysis"], "is_modified": true, "path": "prompts/character/character_discovery.md", "tags": ["character", "identity"], "used_by": ["CharacterService.discover"], "version": "ui-v2"
+      },
+      {
+        "name": "chapter_video_segment_plan", "title": "章节视频分段规划", "description": "按可见的动作与情绪转折规划镜头，保证每段具有可衔接的首尾状态。", "category": "video",
+        "content": "# 视频片段规划\n\n项目：{{ project_title }}\n根据 {{ chapter_summary }} 拆分镜头。\n\n逐镜头说明景别、人物动作、视线方向、持续时间与声音。主角走向码头时先建立方位，再给信件特写，最后回到人物做出选择的动作。",
+        "dependencies": ["outline", "character_discovery"], "is_modified": true, "path": "prompts/video/chapter_video_segment_plan.md", "tags": ["video", "continuity"], "used_by": ["VideoPlanningService.plan"], "version": "ui-v3"
+      },
+      {
+        "name": "galgame_script_adaptation", "title": "Galgame 剧本改编", "description": "把章节行动转为角色对白、演出提示与有后果的玩家选择。", "category": "galgame",
+        "content": "# 互动剧本改编\n\n项目：{{ project_title }}\n从 {{ chapter_summary }} 提取一个需要玩家做决定的场景。\n\n每个选项都应改变后续信息或人物关系。保留叙事线索的一致性，不把同一句话换一种语气当成不同分支。",
+        "dependencies": ["writing", "character_discovery"], "is_modified": false, "path": "prompts/galgame/script_adaptation.md", "tags": ["galgame", "branch"], "used_by": ["GalgameService.adapt"], "version": "ui-v1"
+      }
+    ],
+    "prompt_version_history": [
+      { "version": "ui-commit-003", "author": "林知微", "timestamp": "2026-09-25T06:10:00Z", "message": "补充人物目标、航道限制与最后一段航线的线索约束" },
+      { "version": "ui-commit-002", "author": "陈望舟", "timestamp": "2026-09-24T10:20:00Z", "message": "调整蓝图阶段输出顺序，保留已经确定的家庭关系" },
+      { "version": "ui-commit-001", "author": "系统模板", "timestamp": "2026-08-01T03:00:00Z", "message": "初始模板" }
+    ],
+    "prompt_version_diff": "--- ui-commit-001\n+++ ui-commit-003\n@@ -1,3 +1,5 @@\n 项目：{{ project_title }}\n-根据灵感生成故事蓝图。\n+主角目标：{{ protagonist_goal }}\n+每个转折必须来自此前的行动或线索。\n+无法确认的信息写为待定，不替作者决定重大设定。",
+    "prompt_list_project_overrides": [
+      { "prompt_name": "blueprint", "updated_at": "2026-09-24T10:20:00Z" },
+      { "prompt_name": "writing", "updated_at": "2026-09-25T06:10:00Z" }
+    ],
+    "prompt_validate_variables": ["protagonist_goal"],
+    "prompt_render": "# 故事蓝图\n\n项目：雾港来信\n主角目标：查明父亲失踪的真相，并决定是否驶向海图缺失的航线。\n\n主角得到的是一封信，而不是已经证实的答案。她先向港务处核对寄件时间，发现登记记录与潮汐表不符。为了确认信件来源，她必须进入旧船坞，面对不愿再次提起往事的修船师。\n\n每个转折都由一次行动带来新信息：核对登记、寻找旧船、修复罗盘、最终出海。对航线终点暂不下定论，保留作者进一步选择的空间。",
+    "prompt_render_ab": {
+      "current": "当前已保存模板：项目《雾港来信》。主角先核对信件与潮汐表，再进入旧船坞寻找证据。每个转折都由人物行动产生，未知的航线终点保持待定。\n\n人物必须承担出海选择的代价；不要用突然出现的外部信息解决最后的冲突。",
+      "original": "原始模板：根据项目《雾港来信》的灵感对话生成故事蓝图，包含世界观、角色、主线、主题与结局设想。\n\n输出按现有蓝图结构组织。"
+    },
+    "get_queue_stats": {
+      "llm_queue": { "running": 1, "waiting": 1 }, "image_queue": { "running": 0, "waiting": 1 }, "video_queue": { "running": 1, "waiting": 0 },
+      "embedding_queue": { "running": 0, "waiting": 0 }, "background_queue": { "running": 0, "waiting": 0 },
+      "high_priority_waiting": 1, "medium_priority_waiting": 1, "low_priority_waiting": 0
+    },
+    "list_pending_tasks": [
+      { "id": "ui-task-writing", "task_type": "chapter_generation", "status": "running", "priority": "high", "project_id": 1, "root_project_id": 1, "source_snapshot_id": null, "task_scope": "chapter", "dag_id": "ui-dag-writing", "payload": { "project_id": 1, "chapter_id": 1 }, "progress": { "current": 3, "total": 6, "message": "正在生成正文" }, "error_message": null, "created_at": "2026-09-25T08:20:00Z", "started_at": "2026-09-25T08:21:00Z", "completed_at": null },
+      { "id": "ui-task-video", "task_type": "video_generation", "status": "running", "priority": "medium", "project_id": 1, "root_project_id": 1, "source_snapshot_id": 1, "task_scope": "video", "dag_id": "ui-dag-video", "payload": { "project_id": 1, "chapter_id": 1 }, "progress": { "current": 2, "total": 8, "message": "等待模型服务完成第 3 个视频片段" }, "error_message": null, "created_at": "2026-09-25T08:18:00Z", "started_at": "2026-09-25T08:19:00Z", "completed_at": null },
+      { "id": "ui-task-image", "task_type": "image_generation", "status": "pending", "priority": "high", "project_id": 1, "root_project_id": 1, "source_snapshot_id": 1, "task_scope": "chapter", "dag_id": null, "payload": { "project_id": 1, "chapter_id": 1 }, "progress": null, "error_message": null, "created_at": "2026-09-25T08:22:00Z", "started_at": null, "completed_at": null },
+      { "id": "ui-task-rag", "task_type": "rag_ingestion", "status": "pending", "priority": "medium", "project_id": 1, "root_project_id": 1, "source_snapshot_id": null, "task_scope": "project", "dag_id": null, "payload": { "project_id": 1 }, "progress": null, "error_message": null, "created_at": "2026-09-25T08:23:00Z", "started_at": null, "completed_at": null }
+    ],
+    "get_task_history": [
+      {
+        "id": "ui-task-writing", "task_type": "chapter_generation", "status": "running", "priority": "high", "root_project_id": 1, "source_snapshot_id": null, "task_scope": "chapter",
+        "created_at": "2026-09-25T08:20:00Z", "started_at": "2026-09-25T08:21:00Z", "completed_at": null,
+        "progress": { "current": 3, "total": 6, "message": "正在生成正文", "meta": { "phaseKind": "model_stream", "stageCode": "writing.model_stream", "stageLabel": "生成章节正文", "detail": "雾港来信 · 第 13 章：主角带着海图进入旧船坞，与最后一位知情者核对失踪航线。", "estimated": false, "persistent": true, "severity": "info", "taskKind": "chapter_generation", "itemIndex": 3, "itemTotal": 6, "parentStageCode": null, "unitLabel": "段" } }
+      },
+      {
+        "id": "ui-task-video", "task_type": "video_generation", "status": "running", "priority": "medium", "root_project_id": 1, "source_snapshot_id": 1, "task_scope": "video",
+        "created_at": "2026-09-25T08:18:00Z", "started_at": "2026-09-25T08:19:00Z", "completed_at": null,
+        "progress": { "current": 2, "total": 8, "message": "等待视频片段", "meta": { "phaseKind": "model_wait", "stageCode": "video.provider_wait", "stageLabel": "等待视频模型", "detail": "第 3 / 8 个片段正在处理，已生成的前两个片段保持可用。", "estimated": true, "persistent": true, "severity": "info", "taskKind": "video_generation", "itemIndex": 3, "itemTotal": 8, "parentStageCode": null, "unitLabel": "片段" } }
+      },
+      { "id": "ui-task-image", "task_type": "image_generation", "status": "pending", "priority": "high", "root_project_id": 1, "source_snapshot_id": 1, "task_scope": "chapter", "created_at": "2026-09-25T08:22:00Z", "started_at": null, "completed_at": null, "progress": { "current": 0, "total": 3, "message": "等待图像生成空闲槽位", "meta": null } },
+      { "id": "ui-task-rag", "task_type": "rag_ingestion", "status": "pending", "priority": "medium", "root_project_id": 1, "source_snapshot_id": null, "task_scope": "project", "created_at": "2026-09-25T08:23:00Z", "started_at": null, "completed_at": null, "progress": null },
+      {
+        "id": "ui-task-analysis-failed", "task_type": "llm_call", "status": "failed", "priority": "high", "root_project_id": 1, "source_snapshot_id": null, "task_scope": "chapter",
+        "created_at": "2026-09-25T07:35:00Z", "started_at": "2026-09-25T07:35:05Z", "completed_at": "2026-09-25T07:40:05Z",
+        "progress": { "current": 7, "total": 8, "message": "分析结果未通过证据校验", "meta": { "phaseKind": "validate", "stageCode": "analysis.validate", "stageLabel": "校验章节分析", "detail": "未找到人物离开码头的原文证据。系统保留了本章正文与已经完成的分析步骤，请补齐证据后继续；此长错误用于窄屏查看完整原因。", "estimated": false, "persistent": true, "severity": "error", "taskKind": "llm_call", "itemIndex": 8, "itemTotal": 8, "parentStageCode": null, "unitLabel": "步骤" } }
+      },
+      { "id": "ui-task-export-done", "task_type": "export_generation", "status": "completed", "priority": "low", "root_project_id": 1, "source_snapshot_id": null, "task_scope": "project", "created_at": "2026-09-24T10:00:00Z", "started_at": "2026-09-24T10:00:01Z", "completed_at": "2026-09-24T10:00:22Z", "progress": { "current": 24, "total": 24, "message": "已生成 24 章校对稿", "meta": null } },
+      { "id": "ui-task-download-cancelled", "task_type": "embedding_download", "status": "cancelled", "priority": "low", "root_project_id": 1, "source_snapshot_id": null, "task_scope": "project", "created_at": "2026-09-24T09:00:00Z", "started_at": "2026-09-24T09:00:01Z", "completed_at": "2026-09-24T09:00:18Z", "progress": { "current": 60000000, "total": 438000000, "message": "下载已停止，缓存将供下次继续下载使用", "meta": null } }
+    ],
+    "list_active_workflows": [
+      {
+        "task_id": "ui-task-writing", "task_scope": "chapter", "root_project_id": 1, "source_snapshot_id": null,
+        "progress": { "current": 3, "total": 6, "message": "正在生成章节正文", "meta": { "phaseKind": "model_stream", "stageCode": "writing.model_stream", "stageLabel": "生成章节正文", "detail": "第 13 章 · 旧船坞的来信", "estimated": false, "persistent": true, "severity": "info", "taskKind": "chapter_generation", "itemIndex": 3, "itemTotal": 6, "parentStageCode": null, "unitLabel": "段" } },
+        "progress_events": [
+          { "id": "ui-write-event-1", "timestamp": "2026-09-25T08:21:00Z", "current": 1, "total": 6, "message": "读取章节大纲与人物状态", "meta": null },
+          { "id": "ui-write-event-2", "timestamp": "2026-09-25T08:21:04Z", "current": 2, "total": 6, "message": "已完成上下文准备", "meta": null },
+          { "id": "ui-write-event-3", "timestamp": "2026-09-25T08:21:15Z", "current": 3, "total": 6, "message": "主角推开船坞的木门，认出了父亲海图上的标记。", "meta": null }
+        ]
+      },
+      {
+        "task_id": "ui-task-video", "task_scope": "video", "root_project_id": 1, "source_snapshot_id": 1,
+        "progress": { "current": 2, "total": 8, "message": "等待第 3 个片段", "meta": { "phaseKind": "model_wait", "stageCode": "video.provider_wait", "stageLabel": "等待视频模型", "detail": "已保存前两个片段；第 3 段保持人物从画面左侧走向码头的动作方向。", "estimated": true, "persistent": true, "severity": "info", "taskKind": "video_generation", "itemIndex": 3, "itemTotal": 8, "parentStageCode": null, "unitLabel": "片段" } },
+        "progress_events": [
+          { "id": "ui-video-event-1", "timestamp": "2026-09-25T08:19:00Z", "current": 1, "total": 8, "message": "第 1 个片段已完成", "meta": null },
+          { "id": "ui-video-event-2", "timestamp": "2026-09-25T08:20:30Z", "current": 2, "total": 8, "message": "第 2 个片段已完成", "meta": null },
+          { "id": "ui-video-event-3", "timestamp": "2026-09-25T08:21:00Z", "current": 2, "total": 8, "message": "第 3 个片段等待提供方返回结果", "meta": null }
+        ]
+      }
+    ],
+    "list_workflow_runs": [
+      { "id": 501, "workflow_kind": "chapter_analysis", "business_key": "chapter:1:analysis:revision:3", "project_id": 1, "root_project_id": 1, "chapter_id": 1, "source_snapshot_id": null, "scope_id": 1, "scope_table": "chapters", "mode": "full", "status": "failed", "can_resume": true, "resume_block_reason": null, "active_task_id": null, "current_step_key": "analysis_save", "input_fingerprint_json": { "project_id": 1, "chapter_id": 1, "content_revision": 3 }, "error_message": "第 8 步校验发现人物行动缺少原文证据；前 7 步已保留，可继续运行。", "progress": { "current": 7, "total": 8, "percent": 87.5, "message": "等待修正分析结果", "meta": null, "updated_at": "2026-09-25T07:40:05Z" }, "created_at": "2026-09-25T07:35:00Z", "updated_at": "2026-09-25T07:40:05Z", "completed_at": "2026-09-25T07:40:05Z" },
+      { "id": 502, "workflow_kind": "video_provider_job", "business_key": "project:1:video:segment:3", "project_id": 1, "root_project_id": 1, "chapter_id": 1, "source_snapshot_id": 1, "scope_id": 1, "scope_table": "video_segments", "mode": "boundary_frames", "status": "running", "can_resume": false, "resume_block_reason": null, "active_task_id": "ui-task-video", "current_step_key": "provider_wait", "input_fingerprint_json": { "project_id": 1, "chapter_id": 1 }, "error_message": null, "progress": { "current": 2, "total": 8, "percent": 25, "message": "等待第 3 个视频片段", "meta": null, "updated_at": "2026-09-25T08:21:00Z" }, "created_at": "2026-09-25T08:18:00Z", "updated_at": "2026-09-25T08:21:00Z", "completed_at": null },
+      { "id": 503, "workflow_kind": "video_canvas_graph", "business_key": "project:1:canvas:main", "project_id": 1, "root_project_id": 1, "chapter_id": null, "source_snapshot_id": 1, "scope_id": 1, "scope_table": "canvas_workflows", "mode": "resume", "status": "paused", "can_resume": true, "resume_block_reason": null, "active_task_id": null, "current_step_key": "canvas_join", "input_fingerprint_json": { "project_id": 1 }, "error_message": null, "progress": { "current": 4, "total": 7, "percent": 57.14, "message": "等待作者在画布中确认片段排列", "meta": null, "updated_at": "2026-09-24T11:10:00Z" }, "created_at": "2026-09-24T10:40:00Z", "updated_at": "2026-09-24T11:10:00Z", "completed_at": null },
+      { "id": 504, "workflow_kind": "blueprint_generation", "business_key": "project:1:blueprint:initial", "project_id": 1, "root_project_id": 1, "chapter_id": null, "source_snapshot_id": null, "scope_id": 1, "scope_table": "novel_projects", "mode": "fresh", "status": "completed", "can_resume": false, "resume_block_reason": null, "active_task_id": null, "current_step_key": "save_blueprint", "input_fingerprint_json": { "project_id": 1 }, "error_message": null, "progress": { "current": 5, "total": 5, "percent": 100, "message": "蓝图已保存", "meta": null, "updated_at": "2026-09-24T10:35:00Z" }, "created_at": "2026-09-24T10:30:00Z", "updated_at": "2026-09-24T10:35:00Z", "completed_at": "2026-09-24T10:35:00Z" },
+      { "id": 505, "workflow_kind": "blueprint_refine", "business_key": "project:1:blueprint:refine:2", "project_id": 1, "root_project_id": 1, "chapter_id": null, "source_snapshot_id": null, "scope_id": 1, "scope_table": "novel_projects", "mode": "retry", "status": "blocked", "can_resume": false, "resume_block_reason": "本次运行使用的模型配置已删除；请在项目页面重新选择模型后发起优化。", "active_task_id": null, "current_step_key": "resolve_model", "input_fingerprint_json": { "project_id": 1 }, "error_message": "所需模型配置不可用。", "progress": { "current": 0, "total": 4, "percent": 0, "message": "等待模型配置", "meta": null, "updated_at": "2026-09-23T09:00:00Z" }, "created_at": "2026-09-23T08:59:00Z", "updated_at": "2026-09-23T09:00:00Z", "completed_at": null }
+    ],
+    "get_workflow_run_detail": {
+      "run": { "id": 501, "workflow_kind": "chapter_analysis", "business_key": "chapter:1:analysis:revision:3", "project_id": 1, "root_project_id": 1, "chapter_id": 1, "source_snapshot_id": null, "scope_id": 1, "scope_table": "chapters", "mode": "full", "status": "failed", "can_resume": true, "resume_block_reason": null, "active_task_id": null, "current_step_key": "analysis_save", "input_fingerprint_json": { "project_id": 1, "chapter_id": 1, "content_revision": 3 }, "error_message": "第 8 步校验发现人物行动缺少原文证据；前 7 步已保留，可继续运行。", "progress": { "current": 7, "total": 8, "percent": 87.5, "message": "等待修正分析结果", "meta": null, "updated_at": "2026-09-25T07:40:05Z" }, "created_at": "2026-09-25T07:35:00Z", "updated_at": "2026-09-25T07:40:05Z", "completed_at": "2026-09-25T07:40:05Z" },
+      "checkpoints": [
+        { "id": 6001, "workflow_run_id": 501, "step_key": "context_load", "step_order": 1, "status": "completed", "input_fingerprint_json": { "project_id": 1, "chapter_id": 1 }, "input_fingerprint_sha256": null, "checkpoint_json": { "summary": "上下文准备完成" }, "artifacts_json": [], "generation_run_ids_json": [7001], "error_message": null, "created_at": "2026-09-25T07:35:00Z", "updated_at": "2026-09-25T07:35:10Z", "completed_at": "2026-09-25T07:35:10Z" },
+        { "id": 6002, "workflow_run_id": 501, "step_key": "scene_analysis", "step_order": 2, "status": "completed", "input_fingerprint_json": { "project_id": 1, "chapter_id": 1 }, "input_fingerprint_sha256": null, "checkpoint_json": { "summary": "已识别 3 个场景" }, "artifacts_json": [], "generation_run_ids_json": [7002, 7003], "error_message": null, "created_at": "2026-09-25T07:35:10Z", "updated_at": "2026-09-25T07:35:40Z", "completed_at": "2026-09-25T07:35:40Z" },
+        { "id": 6003, "workflow_run_id": 501, "step_key": "character_analysis", "step_order": 3, "status": "completed", "input_fingerprint_json": { "project_id": 1, "chapter_id": 1 }, "input_fingerprint_sha256": null, "checkpoint_json": { "summary": "人物状态已整理" }, "artifacts_json": [], "generation_run_ids_json": [7004], "error_message": null, "created_at": "2026-09-25T07:35:40Z", "updated_at": "2026-09-25T07:36:00Z", "completed_at": "2026-09-25T07:36:00Z" },
+        { "id": 6004, "workflow_run_id": 501, "step_key": "event_analysis", "step_order": 4, "status": "completed", "input_fingerprint_json": { "project_id": 1, "chapter_id": 1 }, "input_fingerprint_sha256": null, "checkpoint_json": { "summary": "事件因果已提取" }, "artifacts_json": [], "generation_run_ids_json": [7005], "error_message": null, "created_at": "2026-09-25T07:36:00Z", "updated_at": "2026-09-25T07:36:30Z", "completed_at": "2026-09-25T07:36:30Z" },
+        { "id": 6005, "workflow_run_id": 501, "step_key": "relationship_analysis", "step_order": 5, "status": "completed", "input_fingerprint_json": { "project_id": 1, "chapter_id": 1 }, "input_fingerprint_sha256": null, "checkpoint_json": { "summary": "人物关系变化已核对" }, "artifacts_json": [], "generation_run_ids_json": [7006, 7007], "error_message": null, "created_at": "2026-09-25T07:36:30Z", "updated_at": "2026-09-25T07:37:00Z", "completed_at": "2026-09-25T07:37:00Z" },
+        { "id": 6006, "workflow_run_id": 501, "step_key": "timeline_analysis", "step_order": 6, "status": "completed", "input_fingerprint_json": { "project_id": 1, "chapter_id": 1 }, "input_fingerprint_sha256": null, "checkpoint_json": { "summary": "潮汐与行动时间线一致" }, "artifacts_json": [], "generation_run_ids_json": [7008], "error_message": null, "created_at": "2026-09-25T07:37:00Z", "updated_at": "2026-09-25T07:37:40Z", "completed_at": "2026-09-25T07:37:40Z" },
+        { "id": 6007, "workflow_run_id": 501, "step_key": "evidence_validation", "step_order": 7, "status": "completed", "input_fingerprint_json": { "project_id": 1, "chapter_id": 1 }, "input_fingerprint_sha256": null, "checkpoint_json": { "summary": "原文引用已整理" }, "artifacts_json": [], "generation_run_ids_json": [7009], "error_message": null, "created_at": "2026-09-25T07:37:40Z", "updated_at": "2026-09-25T07:38:10Z", "completed_at": "2026-09-25T07:38:10Z" },
+        { "id": 6008, "workflow_run_id": 501, "step_key": "analysis_save", "step_order": 8, "status": "failed", "input_fingerprint_json": { "project_id": 1, "chapter_id": 1 }, "input_fingerprint_sha256": null, "checkpoint_json": { "summary": "等待补齐人物离开码头的原文证据" }, "artifacts_json": [], "generation_run_ids_json": [7010], "error_message": "保存前校验失败：人物行动缺少可定位的原文证据。", "created_at": "2026-09-25T07:38:10Z", "updated_at": "2026-09-25T07:40:05Z", "completed_at": "2026-09-25T07:40:05Z" }
+      ],
+      "generation_runs": [
+        { "id": 7001, "workflow_run_id": 501, "workflow": "chapter_analysis", "step_key": "context_load", "call_key": "context-1", "title": "整理章节上下文", "model_kind": "llm", "provider": "deepseek", "model": "ui-deepseek-chat", "status": "completed", "attempt": 1, "input_fingerprint_json": { "project_id": 1, "chapter_id": 1 }, "input_fingerprint_sha256": null, "raw_response_json": null, "parsed_output_json": { "summary": "上下文完成" }, "response_summary_json": { "text": "已读取大纲和人物状态" }, "validation_json": { "valid": true, "errors": [] }, "artifact_refs_json": [], "error_message": null, "created_at": "2026-09-25T07:35:00Z", "completed_at": "2026-09-25T07:35:10Z" },
+        { "id": 7002, "workflow_run_id": 501, "workflow": "chapter_analysis", "step_key": "scene_analysis", "call_key": "scene-1", "title": "识别场景与人物出入", "model_kind": "llm", "provider": "deepseek", "model": "ui-deepseek-chat", "status": "completed", "attempt": 1, "input_fingerprint_json": { "project_id": 1, "chapter_id": 1 }, "input_fingerprint_sha256": null, "raw_response_json": null, "parsed_output_json": { "summary": "识别码头、旧船坞和灯塔三处场景" }, "response_summary_json": null, "validation_json": { "valid": true, "errors": [] }, "artifact_refs_json": [], "error_message": null, "created_at": "2026-09-25T07:35:10Z", "completed_at": "2026-09-25T07:35:25Z" },
+        { "id": 7003, "workflow_run_id": 501, "workflow": "chapter_analysis", "step_key": "scene_analysis", "call_key": "scene-2", "title": "复核场景转换顺序", "model_kind": "llm", "provider": "deepseek", "model": "ui-deepseek-chat", "status": "completed", "attempt": 2, "input_fingerprint_json": { "project_id": 1, "chapter_id": 1 }, "input_fingerprint_sha256": null, "raw_response_json": null, "parsed_output_json": { "summary": "场景时间顺序一致" }, "response_summary_json": null, "validation_json": { "valid": true, "errors": [] }, "artifact_refs_json": [], "error_message": null, "created_at": "2026-09-25T07:35:25Z", "completed_at": "2026-09-25T07:35:40Z" },
+        { "id": 7004, "workflow_run_id": 501, "workflow": "chapter_analysis", "step_key": "character_analysis", "call_key": "character-1", "title": "提取人物状态变化", "model_kind": "llm", "provider": "openai", "model": "ui-structured-model-long-context", "status": "completed", "attempt": 1, "input_fingerprint_json": { "project_id": 1, "chapter_id": 1 }, "input_fingerprint_sha256": null, "raw_response_json": null, "parsed_output_json": { "summary": "主角获得新的航线信息" }, "response_summary_json": null, "validation_json": { "valid": true, "errors": [] }, "artifact_refs_json": [], "error_message": null, "created_at": "2026-09-25T07:35:40Z", "completed_at": "2026-09-25T07:36:00Z" },
+        { "id": 7005, "workflow_run_id": 501, "workflow": "chapter_analysis", "step_key": "event_analysis", "call_key": "event-1", "title": "整理事件因果", "model_kind": "llm", "provider": "openai", "model": "ui-structured-model-long-context", "status": "completed", "attempt": 1, "input_fingerprint_json": { "project_id": 1, "chapter_id": 1 }, "input_fingerprint_sha256": null, "raw_response_json": null, "parsed_output_json": { "summary": "核对信件引出旧船坞线索" }, "response_summary_json": null, "validation_json": { "valid": true, "errors": [] }, "artifact_refs_json": [], "error_message": null, "created_at": "2026-09-25T07:36:00Z", "completed_at": "2026-09-25T07:36:30Z" },
+        { "id": 7006, "workflow_run_id": 501, "workflow": "chapter_analysis", "step_key": "relationship_analysis", "call_key": "relationship-1", "title": "分析人物信任关系", "model_kind": "llm", "provider": "openai", "model": "ui-structured-model-long-context", "status": "completed", "attempt": 1, "input_fingerprint_json": { "project_id": 1, "chapter_id": 1 }, "input_fingerprint_sha256": null, "raw_response_json": null, "parsed_output_json": { "summary": "同行者开始怀疑信件来源" }, "response_summary_json": null, "validation_json": { "valid": true, "errors": [] }, "artifact_refs_json": [], "error_message": null, "created_at": "2026-09-25T07:36:30Z", "completed_at": "2026-09-25T07:36:45Z" },
+        { "id": 7007, "workflow_run_id": 501, "workflow": "chapter_analysis", "step_key": "relationship_analysis", "call_key": "relationship-2", "title": "检查关系变化证据", "model_kind": "llm", "provider": "openai", "model": "ui-structured-model-long-context", "status": "completed", "attempt": 1, "input_fingerprint_json": { "project_id": 1, "chapter_id": 1 }, "input_fingerprint_sha256": null, "raw_response_json": null, "parsed_output_json": { "summary": "已定位两段对白" }, "response_summary_json": null, "validation_json": { "valid": true, "errors": [] }, "artifact_refs_json": [], "error_message": null, "created_at": "2026-09-25T07:36:45Z", "completed_at": "2026-09-25T07:37:00Z" },
+        { "id": 7008, "workflow_run_id": 501, "workflow": "chapter_analysis", "step_key": "timeline_analysis", "call_key": "timeline-1", "title": "核对潮汐与行动时间线", "model_kind": "llm", "provider": "deepseek", "model": "ui-deepseek-chat", "status": "completed", "attempt": 1, "input_fingerprint_json": { "project_id": 1, "chapter_id": 1 }, "input_fingerprint_sha256": null, "raw_response_json": null, "parsed_output_json": { "summary": "时间线无矛盾" }, "response_summary_json": null, "validation_json": { "valid": true, "errors": [] }, "artifact_refs_json": [], "error_message": null, "created_at": "2026-09-25T07:37:00Z", "completed_at": "2026-09-25T07:37:40Z" },
+        { "id": 7009, "workflow_run_id": 501, "workflow": "chapter_analysis", "step_key": "evidence_validation", "call_key": "evidence-1", "title": "整理全部原文引用", "model_kind": "llm", "provider": "openai", "model": "ui-structured-model-long-context", "status": "completed", "attempt": 1, "input_fingerprint_json": { "project_id": 1, "chapter_id": 1 }, "input_fingerprint_sha256": null, "raw_response_json": null, "parsed_output_json": { "summary": "原文引用已整理" }, "response_summary_json": null, "validation_json": { "valid": true, "errors": [] }, "artifact_refs_json": [], "error_message": null, "created_at": "2026-09-25T07:37:40Z", "completed_at": "2026-09-25T07:38:10Z" },
+        { "id": 7010, "workflow_run_id": 501, "workflow": "chapter_analysis", "step_key": "analysis_save", "call_key": "save-validation-1", "title": "保存前的第十次调用：验证人物离开码头的原文依据", "model_kind": "llm", "provider": "openai", "model": "ui-structured-model-long-context", "status": "failed", "attempt": 2, "input_fingerprint_json": { "project_id": 1, "chapter_id": 1 }, "input_fingerprint_sha256": null, "raw_response_json": { "message": "人物离开码头前往灯塔。" }, "parsed_output_json": null, "response_summary_json": { "text": "缺少原文依据" }, "validation_json": { "valid": false, "errors": ["未找到人物离开码头的原文证据。"] }, "artifact_refs_json": [], "error_message": "保存前校验失败：人物行动缺少可定位的原文证据。", "created_at": "2026-09-25T07:38:10Z", "completed_at": "2026-09-25T07:40:05Z" }
+      ]
+    },
+    "get_workflow_progress_events": {
+      "events": [
+        { "id": "ui-progress-1", "timestamp": "2026-09-25T08:21:00Z", "current": 1, "total": 6, "message": "读取章节大纲与人物状态", "meta": null },
+        { "id": "ui-progress-2", "timestamp": "2026-09-25T08:21:04Z", "current": 2, "total": 6, "message": "已完成上下文准备", "meta": null },
+        { "id": "ui-progress-3", "timestamp": "2026-09-25T08:21:15Z", "current": 3, "total": 6, "message": "正在生成正文", "meta": null }
+      ],
+      "stream_text": "她把信纸折回原样，推开了旧船坞的木门。海图上的缺口第一次有了可以追问的人。"
+    },
+    "get_generation_call_analytics": {
+      "days": 30, "since_at": "2026-08-27T00:00:00Z", "generated_at": "2026-09-25T08:30:00Z",
+      "overview": [
+        { "kind": "llm", "calls": 252, "success": 246, "failed": 4, "pending": 2, "avg_duration_ms": 14200, "prompt_tokens": 201600, "completion_tokens": 50400, "total_tokens": 252000, "prompt_cache_hit_tokens": 31500, "prompt_cache_miss_tokens": 170100, "prompt_cache_write_tokens": 12600, "prompt_cache_hit_ratio": 0.15625 },
+        { "kind": "image", "calls": 62, "success": 60, "failed": 1, "pending": 1, "avg_duration_ms": 16400, "prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0, "prompt_cache_hit_tokens": 0, "prompt_cache_miss_tokens": 0, "prompt_cache_write_tokens": null, "prompt_cache_hit_ratio": null },
+        { "kind": "video", "calls": 31, "success": 29, "failed": 1, "pending": 1, "avg_duration_ms": 57000, "prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0, "prompt_cache_hit_tokens": 0, "prompt_cache_miss_tokens": 0, "prompt_cache_write_tokens": null, "prompt_cache_hit_ratio": null }
+      ],
+      "daily": [
+        { "date": "2026-08-27", "llm_calls": 8, "image_calls": 2, "video_calls": 1, "llm_total_tokens": 8000, "llm_prompt_cache_hit_tokens": 1000, "llm_prompt_cache_miss_tokens": 5400, "llm_prompt_cache_write_tokens": 400 },
+        { "date": "2026-08-28", "llm_calls": 8, "image_calls": 2, "video_calls": 1, "llm_total_tokens": 8000, "llm_prompt_cache_hit_tokens": 1000, "llm_prompt_cache_miss_tokens": 5400, "llm_prompt_cache_write_tokens": 400 },
+        { "date": "2026-08-29", "llm_calls": 8, "image_calls": 2, "video_calls": 1, "llm_total_tokens": 8000, "llm_prompt_cache_hit_tokens": 1000, "llm_prompt_cache_miss_tokens": 5400, "llm_prompt_cache_write_tokens": 400 },
+        { "date": "2026-08-30", "llm_calls": 8, "image_calls": 2, "video_calls": 1, "llm_total_tokens": 8000, "llm_prompt_cache_hit_tokens": 1000, "llm_prompt_cache_miss_tokens": 5400, "llm_prompt_cache_write_tokens": 400 },
+        { "date": "2026-08-31", "llm_calls": 8, "image_calls": 2, "video_calls": 1, "llm_total_tokens": 8000, "llm_prompt_cache_hit_tokens": 1000, "llm_prompt_cache_miss_tokens": 5400, "llm_prompt_cache_write_tokens": 400 },
+        { "date": "2026-09-01", "llm_calls": 8, "image_calls": 2, "video_calls": 1, "llm_total_tokens": 8000, "llm_prompt_cache_hit_tokens": 1000, "llm_prompt_cache_miss_tokens": 5400, "llm_prompt_cache_write_tokens": 400 },
+        { "date": "2026-09-02", "llm_calls": 8, "image_calls": 2, "video_calls": 1, "llm_total_tokens": 8000, "llm_prompt_cache_hit_tokens": 1000, "llm_prompt_cache_miss_tokens": 5400, "llm_prompt_cache_write_tokens": 400 },
+        { "date": "2026-09-03", "llm_calls": 8, "image_calls": 2, "video_calls": 1, "llm_total_tokens": 8000, "llm_prompt_cache_hit_tokens": 1000, "llm_prompt_cache_miss_tokens": 5400, "llm_prompt_cache_write_tokens": 400 },
+        { "date": "2026-09-04", "llm_calls": 8, "image_calls": 2, "video_calls": 1, "llm_total_tokens": 8000, "llm_prompt_cache_hit_tokens": 1000, "llm_prompt_cache_miss_tokens": 5400, "llm_prompt_cache_write_tokens": 400 },
+        { "date": "2026-09-05", "llm_calls": 8, "image_calls": 2, "video_calls": 1, "llm_total_tokens": 8000, "llm_prompt_cache_hit_tokens": 1000, "llm_prompt_cache_miss_tokens": 5400, "llm_prompt_cache_write_tokens": 400 },
+        { "date": "2026-09-06", "llm_calls": 8, "image_calls": 2, "video_calls": 1, "llm_total_tokens": 8000, "llm_prompt_cache_hit_tokens": 1000, "llm_prompt_cache_miss_tokens": 5400, "llm_prompt_cache_write_tokens": 400 },
+        { "date": "2026-09-07", "llm_calls": 8, "image_calls": 2, "video_calls": 1, "llm_total_tokens": 8000, "llm_prompt_cache_hit_tokens": 1000, "llm_prompt_cache_miss_tokens": 5400, "llm_prompt_cache_write_tokens": 400 },
+        { "date": "2026-09-08", "llm_calls": 8, "image_calls": 2, "video_calls": 1, "llm_total_tokens": 8000, "llm_prompt_cache_hit_tokens": 1000, "llm_prompt_cache_miss_tokens": 5400, "llm_prompt_cache_write_tokens": 400 },
+        { "date": "2026-09-09", "llm_calls": 8, "image_calls": 2, "video_calls": 1, "llm_total_tokens": 8000, "llm_prompt_cache_hit_tokens": 1000, "llm_prompt_cache_miss_tokens": 5400, "llm_prompt_cache_write_tokens": 400 },
+        { "date": "2026-09-10", "llm_calls": 8, "image_calls": 2, "video_calls": 1, "llm_total_tokens": 8000, "llm_prompt_cache_hit_tokens": 1000, "llm_prompt_cache_miss_tokens": 5400, "llm_prompt_cache_write_tokens": 400 },
+        { "date": "2026-09-11", "llm_calls": 8, "image_calls": 2, "video_calls": 1, "llm_total_tokens": 8000, "llm_prompt_cache_hit_tokens": 1000, "llm_prompt_cache_miss_tokens": 5400, "llm_prompt_cache_write_tokens": 400 },
+        { "date": "2026-09-12", "llm_calls": 8, "image_calls": 2, "video_calls": 1, "llm_total_tokens": 8000, "llm_prompt_cache_hit_tokens": 1000, "llm_prompt_cache_miss_tokens": 5400, "llm_prompt_cache_write_tokens": 400 },
+        { "date": "2026-09-13", "llm_calls": 8, "image_calls": 2, "video_calls": 1, "llm_total_tokens": 8000, "llm_prompt_cache_hit_tokens": 1000, "llm_prompt_cache_miss_tokens": 5400, "llm_prompt_cache_write_tokens": 400 },
+        { "date": "2026-09-14", "llm_calls": 8, "image_calls": 2, "video_calls": 1, "llm_total_tokens": 8000, "llm_prompt_cache_hit_tokens": 1000, "llm_prompt_cache_miss_tokens": 5400, "llm_prompt_cache_write_tokens": 400 },
+        { "date": "2026-09-15", "llm_calls": 8, "image_calls": 2, "video_calls": 1, "llm_total_tokens": 8000, "llm_prompt_cache_hit_tokens": 1000, "llm_prompt_cache_miss_tokens": 5400, "llm_prompt_cache_write_tokens": 400 },
+        { "date": "2026-09-16", "llm_calls": 8, "image_calls": 2, "video_calls": 1, "llm_total_tokens": 8000, "llm_prompt_cache_hit_tokens": 1000, "llm_prompt_cache_miss_tokens": 5400, "llm_prompt_cache_write_tokens": 400 },
+        { "date": "2026-09-17", "llm_calls": 8, "image_calls": 2, "video_calls": 1, "llm_total_tokens": 8000, "llm_prompt_cache_hit_tokens": 1000, "llm_prompt_cache_miss_tokens": 5400, "llm_prompt_cache_write_tokens": 400 },
+        { "date": "2026-09-18", "llm_calls": 8, "image_calls": 2, "video_calls": 1, "llm_total_tokens": 8000, "llm_prompt_cache_hit_tokens": 1000, "llm_prompt_cache_miss_tokens": 5400, "llm_prompt_cache_write_tokens": 400 },
+        { "date": "2026-09-19", "llm_calls": 8, "image_calls": 2, "video_calls": 1, "llm_total_tokens": 8000, "llm_prompt_cache_hit_tokens": 1000, "llm_prompt_cache_miss_tokens": 5400, "llm_prompt_cache_write_tokens": 400 },
+        { "date": "2026-09-20", "llm_calls": 8, "image_calls": 2, "video_calls": 1, "llm_total_tokens": 8000, "llm_prompt_cache_hit_tokens": 1000, "llm_prompt_cache_miss_tokens": 5400, "llm_prompt_cache_write_tokens": 400 },
+        { "date": "2026-09-21", "llm_calls": 20, "image_calls": 4, "video_calls": 2, "llm_total_tokens": 20000, "llm_prompt_cache_hit_tokens": 2500, "llm_prompt_cache_miss_tokens": 13500, "llm_prompt_cache_write_tokens": 1000 },
+        { "date": "2026-09-22", "llm_calls": 8, "image_calls": 2, "video_calls": 1, "llm_total_tokens": 8000, "llm_prompt_cache_hit_tokens": 1000, "llm_prompt_cache_miss_tokens": 5400, "llm_prompt_cache_write_tokens": 400 },
+        { "date": "2026-09-23", "llm_calls": 8, "image_calls": 2, "video_calls": 1, "llm_total_tokens": 8000, "llm_prompt_cache_hit_tokens": 1000, "llm_prompt_cache_miss_tokens": 5400, "llm_prompt_cache_write_tokens": 400 },
+        { "date": "2026-09-24", "llm_calls": 8, "image_calls": 2, "video_calls": 1, "llm_total_tokens": 8000, "llm_prompt_cache_hit_tokens": 1000, "llm_prompt_cache_miss_tokens": 5400, "llm_prompt_cache_write_tokens": 400 },
+        { "date": "2026-09-25", "llm_calls": 8, "image_calls": 2, "video_calls": 1, "llm_total_tokens": 8000, "llm_prompt_cache_hit_tokens": 1000, "llm_prompt_cache_miss_tokens": 5400, "llm_prompt_cache_write_tokens": 400 }
+      ],
+      "llm_by_workflow": [
+        { "workflow": "chapter_generation", "step_key": "writing", "calls": 180, "success": 180, "failed": 0, "pending": 0, "avg_duration_ms": 12500, "prompt_tokens": 144000, "completion_tokens": 36000, "total_tokens": 180000, "prompt_cache_hit_tokens": 22500, "prompt_cache_miss_tokens": 121500, "prompt_cache_write_tokens": 9000, "prompt_cache_hit_ratio": 0.15625, "avg_estimated_input_tokens": 830, "avg_stable_prefix_tokens": 500, "avg_dynamic_delta_tokens": 330, "dropped_optional_pack_count": 2, "context_over_budget_failure_count": 0, "estimated_vs_actual_prompt_tokens_ratio": 1.0375 },
+        { "workflow": "chapter_analysis", "step_key": "analysis_save", "calls": 50, "success": 46, "failed": 4, "pending": 0, "avg_duration_ms": 24600, "prompt_tokens": 40000, "completion_tokens": 10000, "total_tokens": 50000, "prompt_cache_hit_tokens": 6250, "prompt_cache_miss_tokens": 33750, "prompt_cache_write_tokens": 2500, "prompt_cache_hit_ratio": 0.15625, "avg_estimated_input_tokens": 920, "avg_stable_prefix_tokens": 600, "avg_dynamic_delta_tokens": 320, "dropped_optional_pack_count": 4, "context_over_budget_failure_count": 1, "estimated_vs_actual_prompt_tokens_ratio": 1.15 },
+        { "workflow": "blueprint_generation", "step_key": "worldbuilding_and_characters", "calls": 22, "success": 20, "failed": 0, "pending": 2, "avg_duration_ms": 28400, "prompt_tokens": 17600, "completion_tokens": 4400, "total_tokens": 22000, "prompt_cache_hit_tokens": 2750, "prompt_cache_miss_tokens": 14850, "prompt_cache_write_tokens": 1100, "prompt_cache_hit_ratio": 0.15625, "avg_estimated_input_tokens": 880, "avg_stable_prefix_tokens": 400, "avg_dynamic_delta_tokens": 480, "dropped_optional_pack_count": 0, "context_over_budget_failure_count": 0, "estimated_vs_actual_prompt_tokens_ratio": 1.1 }
+      ],
+      "media_by_workflow": [
+        { "kind": "image", "workflow": "character_portrait_generation", "step_key": "generate_image", "calls": 62, "success": 60, "failed": 1, "pending": 1, "avg_duration_ms": 16400 },
+        { "kind": "video", "workflow": "chapter_video", "step_key": "generate_segment", "calls": 31, "success": 29, "failed": 1, "pending": 1, "avg_duration_ms": 57000 }
+      ],
+      "recent_llm_calls": [
+        { "id": 8001, "workflow": "chapter_generation", "step_key": "writing", "model": "ui-deepseek-chat", "provider": "deepseek", "status": "completed", "streamed": true, "created_at": "2026-09-25T08:12:00Z", "duration_ms": 12500, "prompt_tokens": 3200, "completion_tokens": 1600, "total_tokens": 4800, "prompt_cache_hit_tokens": 1600, "prompt_cache_miss_tokens": 1600, "prompt_cache_write_tokens": 0, "prompt_cache_hit_ratio": 0.5, "estimated_input_tokens": 3300, "stable_prefix_tokens": 2800, "dynamic_delta_tokens": 500, "dropped_optional_pack_count": 0, "finish_reason": "stop", "error_kind": null },
+        { "id": 8002, "workflow": "chapter_analysis", "step_key": "analysis_save", "model": "ui-structured-model-long-context", "provider": "openai", "status": "failed", "streamed": false, "created_at": "2026-09-25T07:35:05Z", "duration_ms": 300000, "prompt_tokens": null, "completion_tokens": null, "total_tokens": null, "prompt_cache_hit_tokens": null, "prompt_cache_miss_tokens": null, "prompt_cache_write_tokens": null, "prompt_cache_hit_ratio": null, "estimated_input_tokens": 2800, "stable_prefix_tokens": 2000, "dynamic_delta_tokens": 800, "dropped_optional_pack_count": 0, "finish_reason": null, "error_kind": "provider_timeout" },
+        { "id": 8003, "workflow": "blueprint_generation", "step_key": "worldbuilding_and_characters", "model": "ui-deepseek-chat", "provider": "deepseek", "status": "completed", "streamed": true, "created_at": "2026-09-24T10:30:00Z", "duration_ms": 28400, "prompt_tokens": 4800, "completion_tokens": 2200, "total_tokens": 7000, "prompt_cache_hit_tokens": 1200, "prompt_cache_miss_tokens": 3600, "prompt_cache_write_tokens": 400, "prompt_cache_hit_ratio": 0.25, "estimated_input_tokens": 4900, "stable_prefix_tokens": 3000, "dynamic_delta_tokens": 1900, "dropped_optional_pack_count": 1, "finish_reason": "stop", "error_kind": null },
+        { "id": 8004, "workflow": "character_sync", "step_key": "resolve_identity", "model": "ui-structured-model-long-context", "provider": "openai", "status": "completed", "streamed": false, "created_at": "2026-09-24T09:20:00Z", "duration_ms": 8400, "prompt_tokens": 1900, "completion_tokens": 850, "total_tokens": 2750, "prompt_cache_hit_tokens": 0, "prompt_cache_miss_tokens": 1900, "prompt_cache_write_tokens": 0, "prompt_cache_hit_ratio": 0, "estimated_input_tokens": 2000, "stable_prefix_tokens": 1200, "dynamic_delta_tokens": 800, "dropped_optional_pack_count": 0, "finish_reason": "stop", "error_kind": null },
+        { "id": 8005, "workflow": "chapter_analysis", "step_key": "evidence_validation", "model": "ui-structured-model-long-context", "provider": "openai", "status": "failed", "streamed": false, "created_at": "2026-09-23T09:15:00Z", "duration_ms": 22800, "prompt_tokens": 2400, "completion_tokens": 1000, "total_tokens": 3400, "prompt_cache_hit_tokens": 800, "prompt_cache_miss_tokens": 1600, "prompt_cache_write_tokens": null, "prompt_cache_hit_ratio": 0.333333, "estimated_input_tokens": 2500, "stable_prefix_tokens": 1800, "dynamic_delta_tokens": 700, "dropped_optional_pack_count": 2, "finish_reason": "stop", "error_kind": "validation_failed" },
+        { "id": 8006, "workflow": "chapter_generation", "step_key": "prose_polish", "model": "ui-local-qwen-editor", "provider": "ollama", "status": "completed", "streamed": true, "created_at": "2026-09-23T08:10:00Z", "duration_ms": 6100, "prompt_tokens": null, "completion_tokens": null, "total_tokens": null, "prompt_cache_hit_tokens": null, "prompt_cache_miss_tokens": null, "prompt_cache_write_tokens": null, "prompt_cache_hit_ratio": null, "estimated_input_tokens": 1600, "stable_prefix_tokens": 400, "dynamic_delta_tokens": 1200, "dropped_optional_pack_count": 0, "finish_reason": "stop", "error_kind": null }
+      ],
+      "recent_media_calls": [
+        { "id": 8101, "kind": "image", "workflow": "character_portrait_generation", "step_key": "generate_image", "title": "主角林知微 · 旧船坞场景立绘", "model": "ui-image-editor", "provider": "openai-compatible-image", "status": "completed", "created_at": "2026-09-25T08:00:00Z", "completed_at": "2026-09-25T08:00:16Z", "duration_ms": 16400 },
+        { "id": 8102, "kind": "video", "workflow": "chapter_video", "step_key": "generate_segment", "title": "第 13 章 · 主角沿码头走向旧船坞的连续镜头", "model": "ui-video-continuity", "provider": "openai-compatible-video", "status": "failed", "created_at": "2026-09-25T07:55:00Z", "completed_at": "2026-09-25T07:56:30Z", "duration_ms": 90000 },
+        { "id": 8103, "kind": "video", "workflow": "chapter_video", "step_key": "generate_segment", "title": "第 13 章 · 第三个片段", "model": "ui-video-continuity", "provider": "openai-compatible-video", "status": "running", "created_at": "2026-09-25T08:21:00Z", "completed_at": null, "duration_ms": null }
+      ]
+    },
+    "get_model_usage_report": {
+      "projectId": null, "since": "2026-08-27T00:00:00Z", "until": "2026-09-25T08:30:00Z", "partialCalls": 1, "unpricedCalls": 1, "unsettledCalls": 1,
+      "totals": [
+        { "currency": "USD", "amountMicros": "774400", "pricedCalls": 3, "partialCalls": 0, "unpricedCalls": 0 },
+        { "currency": "CNY", "amountMicros": "4000", "pricedCalls": 0, "partialCalls": 1, "unpricedCalls": 1 }
+      ],
+      "capabilities": [
+        { "capability": "llm", "currency": "USD", "amountMicros": "14400", "calls": 1 },
+        { "capability": "image", "currency": "USD", "amountMicros": "40000", "calls": 1 },
+        { "capability": "video", "currency": "USD", "amountMicros": "720000", "calls": 2 },
+        { "capability": "llm", "currency": "CNY", "amountMicros": "4000", "calls": 1 },
+        { "capability": "embedding", "currency": "CNY", "amountMicros": "0", "calls": 1 }
+      ],
+      "recent": [
+        { "id": 9001, "requestId": "ui-cost-llm-1", "capability": "llm", "provider": "openai", "model": "ui-structured-model-long-context", "source": "provider", "status": "completed", "confidence": "exact", "currency": "USD", "amountMicros": "14400", "meter": { "input_tokens": 3200, "output_tokens": 1600, "cache_read_tokens": 0, "cache_write_tokens": 0, "image_count": null, "duration_seconds": null, "estimated": false }, "errorKind": null, "errorMessage": null, "startedAt": "2026-09-25T08:12:00Z", "completedAt": "2026-09-25T08:12:12Z" },
+        { "id": 9002, "requestId": "ui-cost-image-1", "capability": "image", "provider": "openai-compatible-image", "model": "ui-image-editor", "source": "provider", "status": "completed", "confidence": "exact", "currency": "USD", "amountMicros": "40000", "meter": { "input_tokens": null, "output_tokens": null, "cache_read_tokens": null, "cache_write_tokens": null, "image_count": 1, "duration_seconds": null, "estimated": false }, "errorKind": null, "errorMessage": null, "startedAt": "2026-09-25T08:00:00Z", "completedAt": "2026-09-25T08:00:16Z" },
+        { "id": 9003, "requestId": "ui-cost-video-1", "capability": "video", "provider": "openai-compatible-video", "model": "ui-video-continuity", "source": "request", "status": "completed", "confidence": "estimated", "currency": "USD", "amountMicros": "720000", "meter": { "input_tokens": null, "output_tokens": null, "cache_read_tokens": null, "cache_write_tokens": null, "image_count": null, "duration_seconds": "6", "estimated": true }, "errorKind": null, "errorMessage": null, "startedAt": "2026-09-25T07:50:00Z", "completedAt": "2026-09-25T07:50:57Z" },
+        { "id": 9004, "requestId": "ui-cost-partial-1", "capability": "llm", "provider": "deepseek", "model": "ui-deepseek-chat", "source": "provider", "status": "failed", "confidence": "partial", "currency": "CNY", "amountMicros": "4000", "meter": { "input_tokens": 2000, "output_tokens": null, "cache_read_tokens": null, "cache_write_tokens": null, "image_count": null, "duration_seconds": null, "estimated": false }, "errorKind": "provider_timeout", "errorMessage": "请求超时，只返回了部分用量。", "startedAt": "2026-09-25T07:35:05Z", "completedAt": "2026-09-25T07:40:05Z" },
+        { "id": 9005, "requestId": "ui-cost-unpriced-1", "capability": "embedding", "provider": "fastembed", "model": "BGESmallZHV15", "source": "local", "status": "completed", "confidence": "unpriced", "currency": "CNY", "amountMicros": null, "meter": { "input_tokens": 1850, "output_tokens": null, "cache_read_tokens": null, "cache_write_tokens": null, "image_count": null, "duration_seconds": null, "estimated": true }, "errorKind": null, "errorMessage": null, "startedAt": "2026-09-24T10:15:00Z", "completedAt": "2026-09-24T10:15:01Z" },
+        { "id": 9006, "requestId": "ui-cost-pending-1", "capability": "video", "provider": "openai-compatible-video", "model": "ui-video-continuity", "source": null, "status": "running", "confidence": "unknown", "currency": "USD", "amountMicros": null, "meter": { "input_tokens": null, "output_tokens": null, "cache_read_tokens": null, "cache_write_tokens": null, "image_count": null, "duration_seconds": null, "estimated": false }, "errorKind": null, "errorMessage": null, "startedAt": "2026-09-25T08:21:00Z", "completedAt": null }
+      ]
+    },
+    "preview_test_llm_config_request": {
+      "title": "语言模型连接测试请求", "workflow": "test_llm_config", "ready_step_count": 1, "total_chars": 23,
+      "steps": [{
+        "key": "llm-connectivity", "kind": "llm", "title": "测试已保存的语言模型配置", "state": "ready", "note": "此为界面审查样本，调用仅由模拟响应处理。", "prompt_name": null, "total_chars": 23,
+        "system_prompt": "你是小说写作助手。", "user_prompt": "请续写《雾港来信》第十三章。",
+        "messages": [{ "role": "system", "content": "你是小说写作助手。" }, { "role": "user", "content": "请续写《雾港来信》第十三章。" }],
+        "request": { "model": "ui-deepseek-chat", "messages": [{ "role": "system", "content": "你是小说写作助手。" }, { "role": "user", "content": "请续写《雾港来信》第十三章。" }], "max_tokens": 64, "stream": false },
+        "char_counts": { "system": 9, "user": 14 },
+        "context_plan": { "estimated_input_tokens": 24, "available_input_tokens": 12000, "stable_prefix_tokens": 12, "dynamic_delta_tokens": 12, "dropped_optional_pack_ids": [] },
+        "context_pack_refs": [{ "kind": "chapter_outline", "project_id": 1, "chapter_id": 1 }],
+        "context_manifest": { "project_id": 1, "chapter_id": 1, "template_source": "ui-fixture" }
+      }]
+    },
+    "preview_test_image_config_request": {
+      "title": "图像模型连接测试请求", "workflow": "test_image_config", "ready_step_count": 1, "total_chars": 16,
+      "steps": [
+        { "key": "image-connectivity", "kind": "image", "title": "生成场景测试图", "state": "ready", "note": "使用已保存的模型、端点与尺寸；样本不包含密钥。", "prompt_name": null, "total_chars": 16, "system_prompt": null, "user_prompt": "雾港清晨，旧船坞与一封泛黄的信。", "messages": [], "request": { "model": "ui-image-editor", "prompt": "雾港清晨，旧船坞与一封泛黄的信。", "size": "1024x1024" }, "char_counts": { "prompt": 16 }, "context_plan": null, "context_pack_refs": [], "context_manifest": null },
+        { "key": "image-followup", "kind": "image", "title": "依赖前图的参考构图", "state": "deferred", "note": "下一步依赖第一张图片返回；此步骤用于验证未就绪请求的说明与状态。", "prompt_name": null, "total_chars": 0, "system_prompt": null, "user_prompt": null, "messages": [], "request": null, "char_counts": null, "context_plan": null, "context_pack_refs": [], "context_manifest": null }
+      ]
+    },
+    "preview_test_embedding_config_request": {
+      "title": "向量模型连接测试请求", "workflow": "test_embedding_config", "ready_step_count": 1, "total_chars": 11,
+      "steps": [{ "key": "embedding-connectivity", "kind": "embedding", "title": "将短文本转换为向量", "state": "ready", "note": null, "prompt_name": null, "total_chars": 11, "system_prompt": null, "user_prompt": "雾港来信的主角与航线。", "messages": [], "request": { "model": "ui-text-embedding-small", "input": ["雾港来信的主角与航线。"] }, "char_counts": { "input": 11 }, "context_plan": null, "context_pack_refs": [], "context_manifest": null }]
+    },
+    "get_log_dir": "/ui-fixtures/a4n/logs",
+    "read_recent_logs": {
+      "file_path": "/ui-fixtures/a4n/logs/a4n.2026-09-25.log", "total_lines": 12, "returned_lines": 12,
+      "lines": [
+        "2026-09-25T07:35:00.000Z INFO a4n::workflow: UI fixture chapter analysis started project_id=1 workflow_run_id=501",
+        "2026-09-25T07:35:10.000Z DEBUG a4n::context: Loaded chapter outline and character state project_id=1 chapter_id=1",
+        "2026-09-25T07:35:40.000Z INFO a4n::analysis: Scene analysis checkpoint completed checkpoint_id=6002",
+        "2026-09-25T07:37:00.000Z INFO a4n::analysis: Relationship analysis checkpoint completed checkpoint_id=6005",
+        "2026-09-25T07:38:10.000Z WARN a4n::validation: Evidence reference missing for a character transition; retrying the validation step",
+        "2026-09-25T07:40:05.000Z ERROR a4n::analysis: 保存前校验失败：人物离开码头的行动缺少可定位的原文证据。此前七个检查点已经保存，修正输入后可以从当前步骤继续。",
+        "    workflow_run_id=501 checkpoint_id=6008 generation_run_id=7010 attempt=2",
+        "    cause: validation_failed; no source paragraph supports the proposed transition",
+        "2026-09-25T08:19:00.000Z INFO a4n::video: UI fixture video workflow started project_id=1 segment_count=8",
+        "2026-09-25T08:20:30.000Z INFO a4n::video: Segment completed segment_index=2 elapsed_ms=57000",
+        "2026-09-25T08:21:00.000Z INFO a4n::video: Waiting for provider result segment_index=3",
+        "2026-09-25T08:21:15.000Z DEBUG a4n::writing: Streaming chapter text; UI fixture output remains local to this browser"
+      ]
+    },
+    "get_theme_preference": { "appearance": "light", "user_id": 1 },
+    "list_themes": [
+      {
+        "id": 11, "user_id": null, "name": "暖书房 · 系统默认", "mode": "light", "is_active": false, "is_system_default": true, "resources": [],
+        "document": {
+          "version": 1, "backgrounds": {}, "stream_display": { "enabled": true, "mode": "adaptive", "rate": 48 },
+          "tokens": {
+            "--color-primary": "151 72 29", "--color-primary-light": "177 93 48", "--color-primary-dark": "116 52 20", "--color-primary-pale": "249 234 222",
+            "--color-accent": "183 116 61", "--color-accent-light": "205 143 83", "--color-accent-dark": "148 83 38", "--color-accent-pale": "251 242 231",
+            "--color-text-primary": "44 24 16", "--color-text-secondary": "93 64 55", "--color-text-tertiary": "109 101 96", "--color-text-placeholder": "141 133 128", "--color-text-disabled": "176 168 160",
+            "--color-bg-primary": "241 238 232", "--color-bg-secondary": "255 252 245", "--color-bg-tertiary": "234 228 219", "--color-bg-card-hover": "248 242 233", "--color-bg-muted": "234 228 219", "--color-bg-accent": "229 214 193",
+            "--color-border": "205 194 181", "--color-border-light": "229 221 211", "--color-border-dark": "182 166 150",
+            "--status-success": "38 120 73", "--status-success-bg": "240 249 244", "--status-error": "168 84 72", "--status-error-bg": "253 243 242", "--status-warning": "132 84 18", "--status-warning-bg": "253 248 240", "--status-info": "38 103 139", "--status-info-bg": "240 246 250",
+            "--color-button-text": "255 251 240", "--color-button-text-secondary": "44 24 16"
+          }
+        }
+      },
+      {
+        "id": 12, "user_id": 1, "name": "暖书房 · 我的写作桌", "mode": "light", "is_active": true, "is_system_default": false, "resources": [],
+        "document": {
+          "version": 1, "backgrounds": {}, "stream_display": { "enabled": true, "mode": "adaptive", "rate": 48 },
+          "tokens": {
+            "--color-primary": "151 72 29", "--color-primary-light": "177 93 48", "--color-primary-dark": "116 52 20", "--color-primary-pale": "249 234 222",
+            "--color-accent": "183 116 61", "--color-accent-light": "205 143 83", "--color-accent-dark": "148 83 38", "--color-accent-pale": "251 242 231",
+            "--color-text-primary": "44 24 16", "--color-text-secondary": "93 64 55", "--color-text-tertiary": "109 101 96", "--color-text-placeholder": "141 133 128", "--color-text-disabled": "176 168 160",
+            "--color-bg-primary": "241 238 232", "--color-bg-secondary": "255 252 245", "--color-bg-tertiary": "234 228 219", "--color-bg-card-hover": "248 242 233", "--color-bg-muted": "234 228 219", "--color-bg-accent": "229 214 193",
+            "--color-border": "205 194 181", "--color-border-light": "229 221 211", "--color-border-dark": "182 166 150",
+            "--status-success": "38 120 73", "--status-success-bg": "240 249 244", "--status-error": "168 84 72", "--status-error-bg": "253 243 242", "--status-warning": "132 84 18", "--status-warning-bg": "253 248 240", "--status-info": "38 103 139", "--status-info-bg": "240 246 250",
+            "--color-button-text": "255 251 240", "--color-button-text-secondary": "44 24 16",
+            "--pyqt-radius-xs": "6px", "--pyqt-radius-sm": "10px", "--pyqt-radius-md": "12px", "--pyqt-radius-lg": "16px", "--pyqt-radius-xl": "22px",
+            "--a4n-workspace-opacity": "0.78", "--a4n-panel-opacity": "0.82", "--a4n-toolbar-opacity": "0.8", "--a4n-card-opacity": "0.9", "--a4n-control-opacity": "0.48", "--a4n-dialog-opacity": "0.94", "--a4n-surface-blur": "0px", "--a4n-shadow-strength": "1",
+            "--font-sans": "'DM Sans', system-ui, 'Noto Sans SC', 'Noto Sans CJK SC', 'Microsoft YaHei', sans-serif", "--font-serif": "'Noto Serif SC', 'Noto Serif CJK SC', 'Songti SC', 'STSong', 'SimSun', serif", "--font-mono": "'JetBrains Mono', ui-monospace, 'SFMono-Regular', Consolas, 'Liberation Mono', monospace",
+            "--shadow-card": "0 1px 2px rgb(61 43 28 / calc(0.04 * var(--a4n-shadow-strength))), 0 12px 26px -16px rgb(61 43 28 / calc(0.18 * var(--a4n-shadow-strength)))", "--shadow-card-hover": "0 5px 10px rgb(61 43 28 / calc(0.06 * var(--a4n-shadow-strength))), 0 18px 38px -16px rgb(61 43 28 / calc(0.22 * var(--a4n-shadow-strength)))", "--shadow-overlay": "0 26px 64px -20px rgb(61 43 28 / calc(0.3 * var(--a4n-shadow-strength))), 0 10px 22px -8px rgb(61 43 28 / calc(0.14 * var(--a4n-shadow-strength)))"
+          }
+        }
+      },
+      {
+        "id": 13, "user_id": 1, "name": "暖书房 · 雾港背景与长篇写作专用布局", "mode": "light", "is_active": false, "is_system_default": false,
+        "resources": [
+          { "id": 1301, "theme_id": 13, "resource_key": "global", "file_name": "雾港晨光.png", "mime_type": "image/png", "file_path": "https://ui.invalid/image-1.png", "byte_size": 245760 },
+          { "id": 1302, "theme_id": 13, "resource_key": "writing_desk", "file_name": "书桌与海图.png", "mime_type": "image/png", "file_path": "https://ui.invalid/image-1.png", "byte_size": 245760 }
+        ],
+        "document": {
+          "version": 1,
+          "backgrounds": {
+            "global": { "resource_key": "global", "opacity": 0.22, "overlay": "#000000", "overlay_opacity": 0.16, "blur_px": 0, "position": "center", "size": "cover" },
+            "writing_desk": { "resource_key": "writing_desk", "opacity": 0.18, "overlay": "#2C1810", "overlay_opacity": 0.12, "blur_px": 2, "position": "top", "size": "cover" }
+          },
+          "stream_display": { "enabled": true, "mode": "fixed", "rate": 36 },
+          "tokens": {
+            "--color-primary": "151 72 29", "--color-primary-light": "177 93 48", "--color-primary-dark": "116 52 20", "--color-primary-pale": "249 234 222",
+            "--color-accent": "183 116 61", "--color-accent-light": "205 143 83", "--color-accent-dark": "148 83 38", "--color-accent-pale": "251 242 231",
+            "--color-text-primary": "44 24 16", "--color-text-secondary": "93 64 55", "--color-text-tertiary": "109 101 96", "--color-text-placeholder": "141 133 128", "--color-text-disabled": "176 168 160",
+            "--color-bg-primary": "241 238 232", "--color-bg-secondary": "255 252 245", "--color-bg-tertiary": "234 228 219", "--color-bg-card-hover": "248 242 233", "--color-bg-muted": "234 228 219", "--color-bg-accent": "229 214 193",
+            "--color-border": "205 194 181", "--color-border-light": "229 221 211", "--color-border-dark": "182 166 150",
+            "--status-success": "38 120 73", "--status-success-bg": "240 249 244", "--status-error": "168 84 72", "--status-error-bg": "253 243 242", "--status-warning": "132 84 18", "--status-warning-bg": "253 248 240", "--status-info": "38 103 139", "--status-info-bg": "240 246 250",
+            "--color-button-text": "255 251 240", "--color-button-text-secondary": "44 24 16"
+          }
+        }
+      },
+      {
+        "id": 14, "user_id": 1, "name": "深木书房 · 夜间校稿", "mode": "dark", "is_active": false, "is_system_default": false, "resources": [],
+        "document": {
+          "version": 1, "backgrounds": {}, "stream_display": { "enabled": false, "mode": "adaptive", "rate": 48 },
+          "tokens": {
+            "--color-primary": "232 155 108", "--color-primary-light": "240 176 136", "--color-primary-dark": "212 132 90", "--color-primary-pale": "42 37 32",
+            "--color-accent": "212 132 90", "--color-accent-light": "232 155 108", "--color-accent-dark": "184 110 72", "--color-accent-pale": "45 33 24",
+            "--color-text-primary": "232 223 212", "--color-text-secondary": "196 179 162", "--color-text-tertiary": "172 154 136", "--color-text-placeholder": "137 121 105", "--color-text-disabled": "104 91 78",
+            "--color-bg-primary": "28 23 20", "--color-bg-secondary": "37 30 25", "--color-bg-tertiary": "61 51 43", "--color-bg-card-hover": "45 37 32", "--color-bg-muted": "61 51 43", "--color-bg-accent": "50 43 36",
+            "--color-border": "74 63 53", "--color-border-light": "61 51 43", "--color-border-dark": "90 77 64",
+            "--status-success": "103 192 137", "--status-success-bg": "26 47 34", "--status-error": "168 84 72", "--status-error-bg": "45 31 28", "--status-warning": "240 181 94", "--status-warning-bg": "45 37 24", "--status-info": "120 188 227", "--status-info-bg": "26 37 48",
+            "--color-button-text": "28 23 20", "--color-button-text-secondary": "232 223 212"
+          }
+        }
+      }
+    ]
+  },
+  "localModels": {
+    "llm": [
+      {
+        "name": "本机主用 · 雾港正文创作", "provider": "deepseek", "agent_protocol": "native_tool_calling", "base_url": "https://ui.invalid/local/llm/v1", "api_key_encrypted": null, "model": "ui-deepseek-chat",
+        "max_concurrent": 4, "timeout_secs": 300, "max_context_tokens": 128000, "max_output_tokens": 8192, "extra_body_json": { "top_p": 0.9 },
+        "pricing": { "currency": "CNY", "llm_input_per_million": "2", "llm_output_per_million": "8", "llm_cache_read_per_million": "0.2", "llm_cache_write_per_million": null, "embedding_input_per_million": null, "image_per_generation": null, "video_per_second": null }
+      },
+      {
+        "name": "本机分析 · 长上下文人物关系与章节因果复核", "provider": "openai", "agent_protocol": "native_tool_calling", "base_url": "https://ui.invalid/local/analysis/v1", "api_key_encrypted": null, "model": "ui-structured-model-long-context",
+        "max_concurrent": 2, "timeout_secs": 240, "max_context_tokens": 196608, "max_output_tokens": 16384, "extra_body_json": null,
+        "pricing": { "currency": "USD", "llm_input_per_million": "1.5", "llm_output_per_million": "6", "llm_cache_read_per_million": "0.75", "llm_cache_write_per_million": null, "embedding_input_per_million": null, "image_per_generation": null, "video_per_second": null }
+      },
+      {
+        "name": "本机离线 · 快速润色", "provider": "ollama", "agent_protocol": "json_compat", "base_url": "https://ui.invalid/local/ollama/v1", "api_key_encrypted": null, "model": "ui-local-qwen-editor",
+        "max_concurrent": 1, "timeout_secs": 120, "max_context_tokens": 32768, "max_output_tokens": 4096, "extra_body_json": { "top_p": 0.85 },
+        "pricing": { "currency": "CNY", "llm_input_per_million": "0", "llm_output_per_million": "0", "llm_cache_read_per_million": null, "llm_cache_write_per_million": null, "embedding_input_per_million": null, "image_per_generation": null, "video_per_second": null }
+      }
+    ],
+    "image": [
+      {
+        "name": "本机主用 · 角色立绘与场景参考", "backend": "openai-compatible-image", "base_url": "https://ui.invalid/local/image/v1", "api_key_encrypted": null, "model": "ui-image-editor", "max_concurrent": 2,
+        "supported_sizes": [{ "width": 1024, "height": 1024 }, { "width": 1024, "height": 1536 }, { "width": 1536, "height": 1024 }],
+        "pricing": { "currency": "USD", "llm_input_per_million": null, "llm_output_per_million": null, "llm_cache_read_per_million": null, "llm_cache_write_per_million": null, "embedding_input_per_million": null, "image_per_generation": "0.04", "video_per_second": null }
+      },
+      {
+        "name": "本机横幅 · 雾港旧码头夜景与群像关系参考图", "backend": "stable-diffusion", "base_url": "https://ui.invalid/local/stable-diffusion", "api_key_encrypted": null, "model": "ui-sdxl-book-illustration", "max_concurrent": 1,
+        "supported_sizes": [{ "width": 1920, "height": 1080 }, { "width": 1024, "height": 768 }],
+        "pricing": { "currency": "CNY", "llm_input_per_million": null, "llm_output_per_million": null, "llm_cache_read_per_million": null, "llm_cache_write_per_million": null, "embedding_input_per_million": null, "image_per_generation": "0", "video_per_second": null }
+      },
+      {
+        "name": "本机流程 · 漫画线稿", "backend": "comfyui", "base_url": "https://ui.invalid/local/comfyui", "api_key_encrypted": null, "model": "ui-manga-lineart", "max_concurrent": 1,
+        "supported_sizes": [{ "width": 768, "height": 1024 }, { "width": 1080, "height": 1920 }],
+        "pricing": { "currency": "CNY", "llm_input_per_million": null, "llm_output_per_million": null, "llm_cache_read_per_million": null, "llm_cache_write_per_million": null, "embedding_input_per_million": null, "image_per_generation": null, "video_per_second": null }
+      }
+    ],
+    "video": [
+      {
+        "name": "本机主用 · 连续镜头与人物行动", "backend": "openai-compatible-video", "base_url": "https://ui.invalid/local/video/v1", "api_key_encrypted": null, "model": "ui-video-continuity", "max_concurrent": 2,
+        "default_width": 1280, "default_height": 720, "default_duration_secs": 6, "default_fps": 24, "duration_mode": "range", "min_duration_secs": 1, "max_duration_secs": 60, "supported_durations_json": null,
+        "pricing": { "currency": "USD", "llm_input_per_million": null, "llm_output_per_million": null, "llm_cache_read_per_million": null, "llm_cache_write_per_million": null, "embedding_input_per_million": null, "image_per_generation": null, "video_per_second": "0.12" }
+      },
+      {
+        "name": "本机竖屏 · 三段式固定时长预告片", "backend": "newapi-video", "base_url": "https://ui.invalid/local/newapi/v1", "api_key_encrypted": null, "model": "ui-video-fixed-length", "max_concurrent": 1,
+        "default_width": 720, "default_height": 1280, "default_duration_secs": 6, "default_fps": 30, "duration_mode": "fixed", "min_duration_secs": 4, "max_duration_secs": 8, "supported_durations_json": [4, 6, 8],
+        "pricing": { "currency": "CNY", "llm_input_per_million": null, "llm_output_per_million": null, "llm_cache_read_per_million": null, "llm_cache_write_per_million": null, "embedding_input_per_million": null, "image_per_generation": null, "video_per_second": "0.8" }
+      },
+      {
+        "name": "本机高精度 · 对话表演与首尾帧衔接", "backend": "seedance2-video", "base_url": "https://ui.invalid/local/seedance2", "api_key_encrypted": null, "model": "ui-seedance-dialogue", "max_concurrent": 1,
+        "default_width": 1920, "default_height": 1080, "default_duration_secs": 8, "default_fps": 24, "duration_mode": "range", "min_duration_secs": 4, "max_duration_secs": 15, "supported_durations_json": null,
+        "pricing": { "currency": "CNY", "llm_input_per_million": null, "llm_output_per_million": null, "llm_cache_read_per_million": null, "llm_cache_write_per_million": null, "embedding_input_per_million": null, "image_per_generation": null, "video_per_second": "1.2" }
+      }
+    ],
+    "embedding": [
+      {
+        "name": "本机中文 · 人物资料与章节摘要", "backend": "fastembed", "base_url": null, "api_key_encrypted": null, "model": "BGESmallZHV15", "dimension": 512, "batch_size": 32, "local_model_path": null,
+        "pricing": { "currency": "CNY", "llm_input_per_million": null, "llm_output_per_million": null, "llm_cache_read_per_million": null, "llm_cache_write_per_million": null, "embedding_input_per_million": "0", "image_per_generation": null, "video_per_second": null }
+      },
+      {
+        "name": "本机 API · 长篇参考材料和跨章节线索检索", "backend": "api", "base_url": "https://ui.invalid/local/embedding/v1", "api_key_encrypted": null, "model": "ui-text-embedding-small", "dimension": 1536, "batch_size": 64, "local_model_path": null,
+        "pricing": { "currency": "USD", "llm_input_per_million": null, "llm_output_per_million": null, "llm_cache_read_per_million": null, "llm_cache_write_per_million": null, "embedding_input_per_million": "0.02", "image_per_generation": null, "video_per_second": null }
+      },
+      {
+        "name": "本机轻量 · 等待下载的英文检索模型", "backend": "fastembed", "base_url": null, "api_key_encrypted": null, "model": "AllMiniLML6V2", "dimension": 384, "batch_size": 32, "local_model_path": null,
+        "pricing": { "currency": "CNY", "llm_input_per_million": null, "llm_output_per_million": null, "llm_cache_read_per_million": null, "llm_cache_write_per_million": null, "embedding_input_per_million": null, "image_per_generation": null, "video_per_second": null }
+      }
+    ],
+    "webTools": {
+      "search": { "protocol": "tavily", "provider": "tavily", "base_url": "https://ui.invalid/search", "model": "search", "max_results": 6, "max_uses": 4, "max_tokens": 4096, "timeout_secs": 60, "api_key_encrypted": null },
+      "fetch": { "enabled": true, "timeout_secs": 30, "max_redirects": 5, "max_response_bytes": 2000000, "max_body_chars": 50000, "max_output_chars": 80000 }
+    }
+  },
+  "variants": {
+    "analyticsOlderDaily": [
+      { "date": "2026-08-12", "llm_calls": 8, "image_calls": 2, "video_calls": 1, "llm_total_tokens": 8000, "llm_prompt_cache_hit_tokens": 1000, "llm_prompt_cache_miss_tokens": 5400, "llm_prompt_cache_write_tokens": 400 },
+      { "date": "2026-08-13", "llm_calls": 8, "image_calls": 2, "video_calls": 1, "llm_total_tokens": 8000, "llm_prompt_cache_hit_tokens": 1000, "llm_prompt_cache_miss_tokens": 5400, "llm_prompt_cache_write_tokens": 400 },
+      { "date": "2026-08-14", "llm_calls": 8, "image_calls": 2, "video_calls": 1, "llm_total_tokens": 8000, "llm_prompt_cache_hit_tokens": 1000, "llm_prompt_cache_miss_tokens": 5400, "llm_prompt_cache_write_tokens": 400 },
+      { "date": "2026-08-15", "llm_calls": 8, "image_calls": 2, "video_calls": 1, "llm_total_tokens": 8000, "llm_prompt_cache_hit_tokens": 1000, "llm_prompt_cache_miss_tokens": 5400, "llm_prompt_cache_write_tokens": 400 },
+      { "date": "2026-08-16", "llm_calls": 8, "image_calls": 2, "video_calls": 1, "llm_total_tokens": 8000, "llm_prompt_cache_hit_tokens": 1000, "llm_prompt_cache_miss_tokens": 5400, "llm_prompt_cache_write_tokens": 400 },
+      { "date": "2026-08-17", "llm_calls": 8, "image_calls": 2, "video_calls": 1, "llm_total_tokens": 8000, "llm_prompt_cache_hit_tokens": 1000, "llm_prompt_cache_miss_tokens": 5400, "llm_prompt_cache_write_tokens": 400 },
+      { "date": "2026-08-18", "llm_calls": 8, "image_calls": 2, "video_calls": 1, "llm_total_tokens": 8000, "llm_prompt_cache_hit_tokens": 1000, "llm_prompt_cache_miss_tokens": 5400, "llm_prompt_cache_write_tokens": 400 },
+      { "date": "2026-08-19", "llm_calls": 8, "image_calls": 2, "video_calls": 1, "llm_total_tokens": 8000, "llm_prompt_cache_hit_tokens": 1000, "llm_prompt_cache_miss_tokens": 5400, "llm_prompt_cache_write_tokens": 400 },
+      { "date": "2026-08-20", "llm_calls": 8, "image_calls": 2, "video_calls": 1, "llm_total_tokens": 8000, "llm_prompt_cache_hit_tokens": 1000, "llm_prompt_cache_miss_tokens": 5400, "llm_prompt_cache_write_tokens": 400 },
+      { "date": "2026-08-21", "llm_calls": 8, "image_calls": 2, "video_calls": 1, "llm_total_tokens": 8000, "llm_prompt_cache_hit_tokens": 1000, "llm_prompt_cache_miss_tokens": 5400, "llm_prompt_cache_write_tokens": 400 },
+      { "date": "2026-08-22", "llm_calls": 8, "image_calls": 2, "video_calls": 1, "llm_total_tokens": 8000, "llm_prompt_cache_hit_tokens": 1000, "llm_prompt_cache_miss_tokens": 5400, "llm_prompt_cache_write_tokens": 400 },
+      { "date": "2026-08-23", "llm_calls": 8, "image_calls": 2, "video_calls": 1, "llm_total_tokens": 8000, "llm_prompt_cache_hit_tokens": 1000, "llm_prompt_cache_miss_tokens": 5400, "llm_prompt_cache_write_tokens": 400 },
+      { "date": "2026-08-24", "llm_calls": 8, "image_calls": 2, "video_calls": 1, "llm_total_tokens": 8000, "llm_prompt_cache_hit_tokens": 1000, "llm_prompt_cache_miss_tokens": 5400, "llm_prompt_cache_write_tokens": 400 },
+      { "date": "2026-08-25", "llm_calls": 8, "image_calls": 2, "video_calls": 1, "llm_total_tokens": 8000, "llm_prompt_cache_hit_tokens": 1000, "llm_prompt_cache_miss_tokens": 5400, "llm_prompt_cache_write_tokens": 400 },
+      { "date": "2026-08-26", "llm_calls": 8, "image_calls": 2, "video_calls": 1, "llm_total_tokens": 8000, "llm_prompt_cache_hit_tokens": 1000, "llm_prompt_cache_miss_tokens": 5400, "llm_prompt_cache_write_tokens": 400 }
+    ],
+    "analytics90Days": {
+      "days": 90, "since_at": "2026-06-28T00:00:00Z",
+      "overview": [
+        { "kind": "llm", "calls": 372, "success": 366, "failed": 4, "pending": 2, "avg_duration_ms": 14200, "prompt_tokens": 297600, "completion_tokens": 74400, "total_tokens": 372000, "prompt_cache_hit_tokens": 46500, "prompt_cache_miss_tokens": 251100, "prompt_cache_write_tokens": 18600, "prompt_cache_hit_ratio": 0.15625 },
+        { "kind": "image", "calls": 92, "success": 90, "failed": 1, "pending": 1, "avg_duration_ms": 16400, "prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0, "prompt_cache_hit_tokens": 0, "prompt_cache_miss_tokens": 0, "prompt_cache_write_tokens": null, "prompt_cache_hit_ratio": null },
+        { "kind": "video", "calls": 46, "success": 44, "failed": 1, "pending": 1, "avg_duration_ms": 57000, "prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0, "prompt_cache_hit_tokens": 0, "prompt_cache_miss_tokens": 0, "prompt_cache_write_tokens": null, "prompt_cache_hit_ratio": null }
+      ],
+      "llm_by_workflow": [
+        { "workflow": "chapter_generation", "step_key": "writing", "calls": 300, "success": 300, "failed": 0, "pending": 0, "avg_duration_ms": 12500, "prompt_tokens": 240000, "completion_tokens": 60000, "total_tokens": 300000, "prompt_cache_hit_tokens": 37500, "prompt_cache_miss_tokens": 202500, "prompt_cache_write_tokens": 15000, "prompt_cache_hit_ratio": 0.15625, "avg_estimated_input_tokens": 830, "avg_stable_prefix_tokens": 500, "avg_dynamic_delta_tokens": 330, "dropped_optional_pack_count": 2, "context_over_budget_failure_count": 0, "estimated_vs_actual_prompt_tokens_ratio": 1.0375 },
+        { "workflow": "chapter_analysis", "step_key": "analysis_save", "calls": 50, "success": 46, "failed": 4, "pending": 0, "avg_duration_ms": 24600, "prompt_tokens": 40000, "completion_tokens": 10000, "total_tokens": 50000, "prompt_cache_hit_tokens": 6250, "prompt_cache_miss_tokens": 33750, "prompt_cache_write_tokens": 2500, "prompt_cache_hit_ratio": 0.15625, "avg_estimated_input_tokens": 920, "avg_stable_prefix_tokens": 600, "avg_dynamic_delta_tokens": 320, "dropped_optional_pack_count": 4, "context_over_budget_failure_count": 1, "estimated_vs_actual_prompt_tokens_ratio": 1.15 },
+        { "workflow": "blueprint_generation", "step_key": "worldbuilding_and_characters", "calls": 22, "success": 20, "failed": 0, "pending": 2, "avg_duration_ms": 28400, "prompt_tokens": 17600, "completion_tokens": 4400, "total_tokens": 22000, "prompt_cache_hit_tokens": 2750, "prompt_cache_miss_tokens": 14850, "prompt_cache_write_tokens": 1100, "prompt_cache_hit_ratio": 0.15625, "avg_estimated_input_tokens": 880, "avg_stable_prefix_tokens": 400, "avg_dynamic_delta_tokens": 480, "dropped_optional_pack_count": 0, "context_over_budget_failure_count": 0, "estimated_vs_actual_prompt_tokens_ratio": 1.1 }
+      ],
+      "media_by_workflow": [
+        { "kind": "image", "workflow": "character_portrait_generation", "step_key": "generate_image", "calls": 92, "success": 90, "failed": 1, "pending": 1, "avg_duration_ms": 16400 },
+        { "kind": "video", "workflow": "chapter_video", "step_key": "generate_segment", "calls": 46, "success": 44, "failed": 1, "pending": 1, "avg_duration_ms": 57000 }
+      ]
+    },
+    "orphanScan": { "items": [{ "project_id": 1, "path": "/ui-fixtures/retired-root/projects/1", "size_bytes": 187432960 }], "total_count": 1, "total_size_bytes": 187432960 },
+    "logsEmpty": { "file_path": "/ui-fixtures/a4n/logs/a4n.2026-09-25.log", "total_lines": 0, "returned_lines": 0, "lines": [] },
+    "authFailure": { "status": 401, "body": { "code": "unauthorized", "message": "用户名或密码不匹配，请检查后重试。", "retryable": false, "trace_id": "ui-auth-failure", "details": {} } },
+    "readFailure": { "status": 503, "body": { "code": "unavailable", "message": "此为界面审查用的模拟读取失败。请重试；已有内容与草稿保持不变。", "retryable": true, "trace_id": "ui-read-failure", "details": {} } },
+    "permissionFailure": { "status": 403, "body": { "code": "forbidden", "message": "当前账户没有管理权限。", "retryable": false, "trace_id": "ui-permission-failure", "details": {} } },
+    "modelTestFailure": { "status": 502, "body": { "code": "provider_error", "message": "连接测试未通过：模拟模型服务在 300 秒内未返回响应。请核对端点、模型名称与服务可用状态后重试。", "retryable": true, "trace_id": "ui-model-test-failure", "details": {} } }
+  }
+}

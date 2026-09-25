@@ -1,7 +1,7 @@
 use crate::auth::{
     bootstrap_first_admin, change_password, create_session, create_user, current_user,
-    current_user_summary, disable_user, list_sessions, list_users, login_user, register_user,
-    rotate_session_refresh_token, update_profile, update_user_role, user_by_id,
+    current_user_summary, disable_user, list_sessions, list_users, login_user, login_with_oauth2,
+    register_user, rotate_session_refresh_token, update_profile, update_user_role, user_by_id,
     verify_session_refresh_token,
 };
 use a4n_error::AppError;
@@ -70,6 +70,10 @@ async fn list_users_returns_ordered_summaries() {
     assert_eq!(users[1].username, "second");
     assert_eq!(users[1].role, "read_only");
     assert!(users.iter().all(|user| user.is_active));
+    let created_at =
+        chrono::DateTime::parse_from_rfc3339(users[0].created_at.as_deref().expect("created_at"))
+            .expect("public timestamps must identify their timezone");
+    assert_eq!(created_at.naive_utc(), first.created_at);
 }
 
 #[tokio::test]
@@ -85,6 +89,59 @@ async fn update_user_role_rejects_unknown_role_without_update() {
 
     assert!(matches!(err, AppError::InvalidArgument(_)));
     assert_eq!(user_by_id(db.as_ref(), user.id).await.unwrap().role, "user");
+}
+
+#[tokio::test]
+async fn administrator_removal_preserves_one_available_admin_under_concurrency() {
+    let db = setup().await;
+    let first = create_user(
+        db.as_ref(),
+        "first-admin",
+        "first-admin@example.com",
+        "pw",
+        "admin",
+    )
+    .await
+    .unwrap();
+    let error = update_user_role(db.as_ref(), first.id, "user")
+        .await
+        .unwrap_err();
+    assert!(error.to_string().contains("至少一位可用的管理员"));
+    let second = create_user(
+        db.as_ref(),
+        "second-admin",
+        "second-admin@example.com",
+        "pw",
+        "admin",
+    )
+    .await
+    .unwrap();
+    let (a, b) = tokio::join!(
+        update_user_role(db.as_ref(), first.id, "user"),
+        update_user_role(db.as_ref(), second.id, "user"),
+    );
+    assert_ne!(a.is_ok(), b.is_ok());
+    let remaining = list_users(db.as_ref())
+        .await
+        .unwrap()
+        .into_iter()
+        .find(|user| user.role == "admin")
+        .unwrap();
+    let other_id = if remaining.id == first.id {
+        second.id
+    } else {
+        first.id
+    };
+    let error = crate::generation::begin_user_disable_gate(db.as_ref(), other_id, remaining.id)
+        .await
+        .unwrap_err();
+    assert!(error.to_string().contains("至少一位可用的管理员"));
+    assert!(
+        user_by_id(db.as_ref(), remaining.id)
+            .await
+            .unwrap()
+            .is_active
+    );
 }
 
 #[tokio::test]
@@ -121,17 +178,27 @@ async fn bootstrap_first_admin_only_creates_on_empty_user_table() {
 }
 
 #[tokio::test]
-async fn change_password_rejects_blank_new_password_without_update() {
+async fn change_password_rejects_invalid_input_without_update_or_session_loss() {
     let db = setup().await;
     let user = register_user(db.as_ref(), "alice", "alice@example.com", "old-password")
         .await
         .unwrap();
 
-    let err = change_password(db.as_ref(), user.id, "old-password", "")
+    let session = create_session(db.as_ref(), user.id, "refresh-password-edit", None)
         .await
-        .expect_err("blank new password must be rejected");
+        .unwrap();
 
-    assert!(matches!(err, AppError::InvalidArgument(_)));
+    for (current, next) in [("old-password", ""), ("wrong-password", "new-password")] {
+        let err = change_password(db.as_ref(), user.id, current, next)
+            .await
+            .expect_err("invalid password input must not invalidate the authenticated session");
+        assert!(matches!(err, AppError::InvalidArgument(_)));
+    }
+
+    verify_session_refresh_token(db.as_ref(), user.id, &session.id, "refresh-password-edit")
+        .await
+        .unwrap();
+
     let logged_in = login_user(db.as_ref(), "alice", "old-password")
         .await
         .unwrap();
@@ -157,7 +224,7 @@ async fn verify_session_refresh_token_rejects_disabled_user() {
         .await
         .expect_err("disabled user must not refresh session");
 
-    assert!(matches!(err, AppError::Forbidden(_)));
+    assert!(matches!(err, AppError::Unauthorized(_)));
 }
 
 #[tokio::test]
@@ -230,12 +297,31 @@ async fn get_current_user_rejects_disabled_user_without_breaking_raw_get() {
         .await
         .expect_err("disabled user must not be restored as current user");
 
-    assert!(matches!(err, AppError::Forbidden(_)));
+    assert!(matches!(err, AppError::Unauthorized(_)));
 
     let summary_err = current_user_summary(db.as_ref(), user.id)
         .await
         .expect_err("disabled user summary must be rejected");
-    assert!(matches!(summary_err, AppError::Forbidden(_)));
+    assert!(matches!(summary_err, AppError::Unauthorized(_)));
+    assert!(matches!(
+        login_user(db.as_ref(), "alice", "old-password").await,
+        Err(AppError::Unauthorized(_))
+    ));
+    assert!(matches!(
+        login_with_oauth2(
+            db.as_ref(),
+            "google",
+            "disabled-subject",
+            Some("alice@example.com"),
+            Some("alice"),
+            None,
+        )
+        .await,
+        Err(AppError::Unauthorized(_))
+    ));
+    let after = user_by_id(db.as_ref(), user.id).await.unwrap();
+    assert_eq!(after.oauth_provider, None);
+    assert_eq!(after.last_login_at, raw.last_login_at);
 }
 
 #[tokio::test]
@@ -257,7 +343,7 @@ async fn update_profile_rejects_disabled_user_without_update() {
     .await
     .expect_err("disabled user must not update profile");
 
-    assert!(matches!(err, AppError::Forbidden(_)));
+    assert!(matches!(err, AppError::Unauthorized(_)));
     let after = user_by_id(db.as_ref(), user.id).await.unwrap();
     assert_eq!(after.email, "alice@example.com");
     assert_eq!(after.avatar_url, None);
@@ -277,7 +363,7 @@ async fn change_password_rejects_disabled_user_without_update() {
         .await
         .expect_err("disabled user must not change password");
 
-    assert!(matches!(err, AppError::Forbidden(_)));
+    assert!(matches!(err, AppError::Unauthorized(_)));
     set_user_active(&db, user.id, true).await;
     assert_eq!(
         login_user(db.as_ref(), "alice", "old-password")
@@ -306,7 +392,7 @@ async fn create_session_rejects_disabled_user_before_insert() {
         .await
         .expect_err("disabled user must not create a new session");
 
-    assert!(matches!(err, AppError::Forbidden(_)));
+    assert!(matches!(err, AppError::Unauthorized(_)));
     assert_eq!(session_count(&db).await, 0);
 }
 
@@ -327,6 +413,6 @@ async fn list_sessions_rejects_disabled_user() {
         .await
         .expect_err("disabled user must not list sessions");
 
-    assert!(matches!(err, AppError::Forbidden(_)));
+    assert!(matches!(err, AppError::Unauthorized(_)));
     assert_eq!(session_count(&db).await, 1);
 }

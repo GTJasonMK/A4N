@@ -5,8 +5,6 @@ pub enum GalgameAssetPlanSpecRecordError {
     #[error("{0}")]
     InvalidArgument(String),
     #[error(transparent)]
-    Serialization(#[from] serde_json::Error),
-    #[error(transparent)]
     Database(#[from] DbErr),
 }
 

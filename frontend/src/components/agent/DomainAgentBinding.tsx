@@ -111,6 +111,7 @@ export function scopeForBinding(binding: DomainAgentBinding): AgentScope {
     resource_id: binding.resourceId,
     project_id: binding.projectId,
     chapter_id: binding.chapterId,
+    chapter_number: null,
     // The runtime derives the authoritative domain tool catalog from the
     // capability. Keeping this list empty avoids a second frontend tool source.
     allowed_capabilities: [binding.capability],

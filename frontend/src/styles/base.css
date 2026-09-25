@@ -1,6 +1,79 @@
-/* ============================================================================
-   基础层
-   ============================================================================ */
+/* 应用画布与浏览器基线；主题文件只维护 token。 */
+html,
+body,
+#root {
+  height: 100%;
+  min-height: 0;
+  overflow: clip;
+}
+
+html,
+body {
+  overscroll-behavior: none;
+}
+
+/* Tauri/WebKit 的不透明画布底色，避免窗口合成时透出桌面。 */
+#root {
+  background-color: rgb(var(--color-bg-primary));
+}
+
+body {
+  @apply font-sans antialiased;
+  margin: 0;
+  color: rgb(var(--color-text-primary));
+  background-color: rgb(var(--color-bg-primary));
+  font-size: 15px;
+  line-height: 1.55;
+  text-rendering: optimizeLegibility;
+}
+
+.a4n-app-shell {
+  isolation: isolate;
+  box-sizing: border-box;
+  padding-top: env(safe-area-inset-top, 0px);
+  background-color: transparent;
+}
+
+.a4n-route-stage > * {
+  background-color: rgb(var(--color-bg-primary) / var(--a4n-workspace-opacity));
+}
+
+.a4n-theme-background {
+  position: fixed;
+  z-index: -1;
+  pointer-events: none;
+  inset: 0;
+  overflow: hidden;
+  background: rgb(var(--color-bg-primary));
+}
+
+.a4n-theme-background::before,
+.a4n-theme-background::after {
+  position: absolute;
+  content: "";
+  inset: -8%;
+}
+
+.a4n-theme-background::before {
+  background-image: var(--a4n-theme-bg-image);
+  background-position: var(--a4n-theme-bg-position);
+  background-repeat: no-repeat;
+  background-size: var(--a4n-theme-bg-size);
+  filter: blur(var(--a4n-theme-bg-blur));
+  opacity: var(--a4n-theme-bg-opacity);
+  transform: scale(1.04);
+  transition: opacity var(--a4n-motion) var(--a4n-ease-out);
+}
+
+.a4n-theme-background::after {
+  background: var(--a4n-theme-bg-overlay);
+  opacity: var(--a4n-theme-bg-overlay-opacity);
+}
+
+::selection {
+  background: rgb(var(--color-primary) / 0.18);
+  color: rgb(var(--color-text-primary));
+}
 
 @layer base {
   html {
@@ -31,13 +104,23 @@
   [role="button"]:focus-visible,
   a:focus-visible,
   summary:focus-visible {
-    outline: 2px solid rgb(var(--color-primary) / 0.38);
+    outline: 2px solid rgb(var(--color-primary));
     outline-offset: 2px;
+  }
+
+  input:focus-visible,
+  textarea:focus-visible,
+  select:focus-visible {
+    outline-color: rgb(var(--color-primary));
   }
 
   input,
   textarea {
     caret-color: rgb(var(--color-primary));
+  }
+
+  .lucide {
+    flex-shrink: 0;
   }
 
   input::placeholder,
@@ -83,7 +166,3 @@
     background: rgb(var(--color-bg-tertiary) / var(--a4n-control-opacity));
   }
 }
-
-/* ============================================================================
-   组件层
-   ============================================================================ */

@@ -353,7 +353,7 @@ command_specs! {
     "run_galgame_asset_generation" => args_run_galgame_asset_generation, result_run_galgame_asset_generation, "galgame", context(NO_CONTEXT), execution("task"), secrets(RUNTIME_SECRET_POINTERS), references(REFERENCES_GENERATION_SPEC_IDS_MEDIA_ASSET_IDS), capabilities(CAPABILITIES_PROMPT_IMAGE), runtime(RuntimeConfigPolicy::Full);
     "run_import_project_analysis" => args_project_id, result_import_analysis_summary, "import", context(PROJECT_CONTEXT), secrets(RUNTIME_SECRET_POINTERS), capabilities(CAPABILITIES_IMPORT), runtime(RuntimeConfigPolicy::Full);
     "save_blueprint" => args_save_blueprint, result_blueprint_mutation, "blueprint", context(NO_CONTEXT), secrets(RUNTIME_SECRET_POINTERS), runtime(RuntimeConfigPolicy::Full);
-    "save_canvas_graph" => args_save_canvas_graph, result_get_canvas_graph, "canvas", context(NO_CONTEXT);
+    "save_canvas_graph" => args_save_canvas_graph, result_save_canvas_graph, "canvas", context(NO_CONTEXT);
     "save_canvas_text_asset" => args_save_canvas_text_asset, result_save_canvas_text_asset, "canvas", context(NO_CONTEXT);
     "save_chapter_outline" => args_save_chapter_outline, result_save_chapter_outline, "outline", context(NO_CONTEXT), secrets(RUNTIME_SECRET_POINTERS), runtime(RuntimeConfigPolicy::Full);
     "save_chapter_visual_plan_draft" => args_save_chapter_visual_plan_draft, result_chapter_visual_plan, "chapter", references(REFERENCES_PROJECT_IDS);
@@ -570,7 +570,7 @@ fn descriptor(spec: &CommandSpec) -> CommandDescriptor {
         kind: "host_api".into(),
         domain: spec.domain.into(),
         summary: match spec.name {
-            "read_chapter_visual_plan" => "Read the timeline outline, an image point, a shot segment, or bounded source text. Points own images and time; segments can span several points. Pin record_id and expected_revision. Does not read an editor's unsaved draft.".into(),
+            "read_chapter_visual_plan" => "Read the timeline outline, an image point, a shot segment, or bounded source text. source_chapter_id is the database chapter primary key, while chapter_number in the result is the user-facing chapter sequence; never substitute one for the other. Points own images and time; segments can span several points. Pin record_id and expected_revision. Does not read an editor's unsaved draft.".into(),
             "review_agent_delegation" => "Explicitly accept a child's delivered resources or request revision, recording the reason and exact inspected versions. Acceptance requires successful parent read/verification executions for every delivered resource; delegate results and child completion text are not evidence. A final reply alone never accepts a delegation.".into(),
             "read_canvas_graph" => "Read a paged graph index, or selected node IDs with incident edges and neighbor IDs. Use expected_version when continuing a read. Never creates a graph; node configs are returned only when requested.".into(),
             "edit_canvas_graph" => "Apply 1..20 typed node-config or connection edits at expected_version. Reuses graph/port/reference validation and transactional CAS. Unrelated nodes and edges keep their IDs; returns actual changed records and the saved version. Does not run the graph.".into(),

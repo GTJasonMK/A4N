@@ -18,9 +18,15 @@ pub(super) struct HttpLlmProvider {
     extra_body: Option<Map<String, Value>>,
     caps: ModelCapabilities,
     protocol: LlmProtocolKind,
+    replay_reasoning: bool,
 }
 
 impl HttpLlmProvider {
+    pub(super) fn with_reasoning_replay(mut self, enabled: bool) -> Self {
+        self.replay_reasoning = enabled;
+        self
+    }
+
     pub(super) fn with_protocol(mut self, protocol: LlmProtocolKind) -> Self {
         self.protocol = protocol;
         self

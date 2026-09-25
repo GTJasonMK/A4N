@@ -1548,15 +1548,14 @@ def seed_fixtures(
     descriptors: dict[str, dict[str, Any]],
     run_id: str,
     provider_url: str,
+    state: dict[str, Any],
+    records: list[dict[str, Any]],
     allow_destructive: bool = False,
     current_username: str | None = None,
     collaborator_username: str | None = None,
     collaborator_password: str | None = None,
     refresh_runtime: Callable[[dict[str, Any]], None] | None = None,
-) -> tuple[dict[str, Any], list[dict[str, Any]]]:
-    state: dict[str, Any] = {}
-    records: list[dict[str, Any]] = []
-
+) -> None:
     def call(
         command: str,
         payload: dict[str, Any],
@@ -1874,6 +1873,9 @@ def seed_fixtures(
     if not isinstance(director_scene_id, int) or director_scene_id <= 0:
         raise RunnerError("director fixture requires a real scene profile")
     visual_plan = chapter_visual_plan_fixture(director_scene_id)
+    # This path adapts novel evidence into Galgame lines. Quote actual source
+    # text so the shooting script retains real source anchors.
+    visual_plan["segments"][0]["prompt"] = chapter_body_response().split("\n\n")[0]
     visual_plan["frame"] = {"width": 1920, "height": 1080}
     visual_plan["points"][-1]["at_ms"] = 6000
     visual_draft = call(
@@ -2466,7 +2468,6 @@ def seed_fixtures(
         finally:
             collaborator_config.unlink(missing_ok=True)
             collaborator_config.with_name(collaborator_config.name + ".lock").unlink(missing_ok=True)
-    return state, records
 
 
 def main() -> int:
@@ -2545,11 +2546,13 @@ def main() -> int:
             fixture_map = load_map(args.fixture_map)
             descriptors = {descriptor["name"]: descriptor for descriptor in manifest["commands"]}
             if args.execute_writes:
-                fixture_state, fixture_results = seed_fixtures(
+                seed_fixtures(
                     cli,
                     descriptors,
                     run_id,
                     provider.base_url,
+                    fixture_state,
+                    fixture_results,
                     allow_destructive=args.allow_destructive,
                     current_username=args.username,
                     collaborator_username=args.collaborator_username,
@@ -2663,6 +2666,11 @@ def main() -> int:
         not manifest_probe_enabled
         or (len(results) == manifest_count and not missing and not real_failures)
     )
+    if args.execute_writes:
+        fixture_paths = fixture_path_coverage(
+            fixture_results,
+            collaborator_enabled=bool(args.collaborator_username and collaborator_password),
+        )
     fixture_success = not args.execute_writes or fixture_paths.get("complete") is True
     classification_names = (
         "business_success",

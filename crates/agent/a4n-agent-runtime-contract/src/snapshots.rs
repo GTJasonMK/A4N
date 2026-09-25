@@ -3,6 +3,7 @@
 use super::*;
 
 const MAX_CONTEXT_SUMMARY_BYTES: usize = 256 * 1024;
+pub const AGENT_CONTEXT_SUMMARY_VERSION: u32 = 2;
 
 /// Stable worker-facing projection of a durable Agent run.
 #[derive(Debug, Clone)]
@@ -26,6 +27,7 @@ pub struct AgentRunSnapshot {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 pub struct AgentContextSummary {
+    pub schema_version: u32,
     pub current_goal: String,
     pub constraints: Vec<String>,
     pub decisions: Vec<String>,
@@ -33,12 +35,16 @@ pub struct AgentContextSummary {
     pub completed: Vec<String>,
     pub pending: Vec<String>,
     pub tool_state: Vec<String>,
+    /// Durable message ID, never an event sequence or an estimated watermark.
     pub covered_through_sequence: i64,
 }
 
 impl AgentContextSummary {
     pub fn validate(&self) -> Result<(), AppError> {
-        if self.covered_through_sequence < 0 || self.current_goal.chars().count() > 4_000 {
+        if self.schema_version != AGENT_CONTEXT_SUMMARY_VERSION
+            || self.covered_through_sequence < 0
+            || self.current_goal.chars().count() > 4_000
+        {
             return Err(AppError::InvalidState {
                 current: "Agent context_summary 的目标或覆盖序列无效".into(),
                 operation: "校验 Agent context_summary".into(),
@@ -70,62 +76,6 @@ impl AgentContextSummary {
         }
         Ok(())
     }
-}
-
-pub fn deterministic_context_summary(
-    previous: Option<&Value>,
-    goal: Option<&str>,
-    source: &str,
-    covered_through_sequence: i64,
-) -> Result<AgentContextSummary, AppError> {
-    let strings = |name: &str| {
-        previous
-            .and_then(|value| value.get(name))
-            .and_then(Value::as_array)
-            .map(|values| {
-                values
-                    .iter()
-                    .filter_map(Value::as_str)
-                    .map(|value| bound_summary_text(value, 1_000))
-                    .take(64)
-                    .collect::<Vec<_>>()
-            })
-            .unwrap_or_default()
-    };
-    let current_goal = previous
-        .and_then(|value| value.get("current_goal"))
-        .and_then(Value::as_str)
-        .filter(|value| !value.trim().is_empty())
-        .or_else(|| goal.filter(|value| !value.trim().is_empty()))
-        .unwrap_or("未提供显式目标")
-        .to_string();
-    let mut facts_resources = strings("facts_resources");
-    if !source.trim().is_empty() {
-        facts_resources.push(bound_summary_text(source, 2_000));
-    }
-    let mut tool_state = strings("tool_state");
-    tool_state.push(format!(
-        "上下文已确定性压缩，覆盖到事件序列 {covered_through_sequence}"
-    ));
-    let summary = AgentContextSummary {
-        current_goal: bound_summary_text(&current_goal, 4_000),
-        constraints: strings("constraints"),
-        decisions: strings("decisions"),
-        facts_resources,
-        completed: strings("completed"),
-        pending: strings("pending"),
-        tool_state,
-        covered_through_sequence,
-    };
-    summary.validate()?;
-    Ok(summary)
-}
-
-fn bound_summary_text(value: &str, max_chars: usize) -> String {
-    if value.chars().count() <= max_chars {
-        return value.to_string();
-    }
-    value.chars().take(max_chars).collect()
 }
 
 pub fn parse_agent_context_summary(raw: Option<&str>) -> Result<Option<Value>, AppError> {
@@ -177,6 +127,7 @@ pub struct AgentMessageSnapshot {
     pub turn_id: Option<i64>,
     pub run_id: Option<i64>,
     pub role: String,
+    pub client_message_id: Option<String>,
     pub content: String,
     pub payload_json: Option<Value>,
 }
@@ -375,6 +326,7 @@ impl From<AgentWorkerMessageSnapshotWire> for AgentMessageSnapshot {
             turn_id: snapshot.turn_id,
             run_id: snapshot.run_id,
             role: snapshot.role,
+            client_message_id: snapshot.client_message_id,
             content: snapshot.content,
             payload_json: snapshot.payload_json,
         }
@@ -389,6 +341,7 @@ impl From<AgentMessageSnapshot> for AgentWorkerMessageSnapshotWire {
             turn_id: snapshot.turn_id,
             run_id: snapshot.run_id,
             role: snapshot.role,
+            client_message_id: snapshot.client_message_id,
             content: snapshot.content,
             payload_json: snapshot.payload_json,
         }

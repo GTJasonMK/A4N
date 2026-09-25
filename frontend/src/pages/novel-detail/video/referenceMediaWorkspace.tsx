@@ -11,6 +11,7 @@ import {
 } from "../../../api/video";
 import type { ReferenceMediaUploadInput } from "../../../api/generated/generationContracts";
 import { Dropdown } from "../../../components/ui/Dropdown";
+import { ImageZoomButton, ZoomableImage } from "../../../components/ui/ImageLightbox";
 import { Modal } from "../../../components/ui/Modal";
 import { toMediaSrc } from "../../../utils/mediaSrc";
 import { readFileAsBase64 } from "../../../utils/fileUpload";
@@ -572,13 +573,13 @@ export const VideoReferenceInputSlots: React.FC<{
               explicitLibraryIdSet.has(imageId) ? t("video.reference.libraryButton") : null,
             ].filter((value): value is string => value != null);
             return (
+              <div key={imageId} className="relative min-w-0">
               <button
-                key={imageId}
                 type="button"
                 onClick={() => setOpen(true)}
                 disabled={disabled}
                 aria-label={t("video.reference.manage", { id: imageId })}
-                className={`group min-w-0 overflow-hidden rounded-xl border text-left transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-book-primary disabled:cursor-not-allowed disabled:opacity-60 ${
+                className={`group w-full min-w-0 overflow-hidden rounded-xl border text-left transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-book-primary disabled:cursor-not-allowed disabled:opacity-60 ${
                   image
                     ? "border-book-border/55 bg-book-bg-paper/45 hover:border-book-primary/60"
                     : "border-error/45 bg-error-bg"
@@ -606,6 +607,8 @@ export const VideoReferenceInputSlots: React.FC<{
                   </span>
                 </span>
               </button>
+              {src ? <ImageZoomButton src={src} alt={image?.prompt ?? ""} className="absolute right-2 top-2" /> : null}
+              </div>
             );
           })}
           {canAdd ? (
@@ -735,7 +738,7 @@ export const VideoReferenceInputSlots: React.FC<{
                 >
                   <div className="relative flex aspect-[4/3] items-center justify-center overflow-hidden bg-book-bg-tertiary text-caption text-book-text-muted">
                     {src ? (
-                      <img
+                      <ZoomableImage
                         src={src}
                         alt=""
                         className="h-full w-full object-cover"
@@ -759,6 +762,9 @@ export const VideoReferenceInputSlots: React.FC<{
                     )}
                   </div>
                   <div className="space-y-1 p-1.5">
+                    <p className="line-clamp-2 text-small leading-relaxed text-book-text-main" title={image.prompt}>
+                      {image.prompt || t("video.reference.imageNumber", { id: image.id })}
+                    </p>
                     <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-1 text-caption">
                       <span className="min-w-0 truncate text-book-text-sub">
                         {scopeLabel}
@@ -772,6 +778,7 @@ export const VideoReferenceInputSlots: React.FC<{
                         type="button"
                         onClick={() => toggleVideoLibraryImage(image)}
                         disabled={disabled || autoLibrary}
+                        aria-pressed={libraryActive}
                         data-active={libraryActive ? "1" : undefined}
                         className={[
                           "inline-flex min-h-9 items-center justify-center gap-1 rounded-xl border px-1 text-caption font-medium transition-colors focus-visible:outline focus-visible:outline-1 focus-visible:outline-book-primary sm:min-h-8",
@@ -791,6 +798,7 @@ export const VideoReferenceInputSlots: React.FC<{
                         type="button"
                         onClick={() => toggleGenerationReference(image.id)}
                         disabled={disabled}
+                        aria-pressed={generationActive}
                         data-active={generationActive ? "1" : undefined}
                         className={[
                           "inline-flex min-h-9 items-center justify-center gap-1 rounded-xl border px-1 text-caption font-medium transition-colors focus-visible:outline focus-visible:outline-1 focus-visible:outline-book-primary sm:min-h-8",
@@ -1063,9 +1071,6 @@ export const ReferenceMediaWorkspace: React.FC<{
             );
           })}
         </div>
-        {uploadError && (
-          <div className="mt-2 text-caption text-error">{uploadError}</div>
-        )}
       </section>
     );
   };
@@ -1100,9 +1105,12 @@ export const ReferenceMediaWorkspace: React.FC<{
                 placeholder={t("video.reference.basePromptPlaceholder")}
               />
             </label>
-            {renderMediaRows("image")}
-            {renderMediaRows("video")}
-            {renderMediaRows("audio")}
+            <div className="grid min-w-0 gap-3 lg:grid-cols-3">
+              {renderMediaRows("image")}
+              {renderMediaRows("video")}
+              {renderMediaRows("audio")}
+            </div>
+            {uploadError ? <p role="alert" className="text-caption text-error">{uploadError}</p> : null}
             <div className="border-t border-book-border/35 pt-2 text-small text-book-text-sub">
               {t("video.reference.planParameters", { duration: durationSecs, aspectRatio })}
               <div className="mt-1 text-caption text-book-text-muted">

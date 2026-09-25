@@ -1,18 +1,27 @@
 import {
+  CANVAS_MEDIA_INPUT_METADATA_KEYS,
   CANVAS_PROMPT_KIND,
   CANVAS_TEXT_OUTPUT_KIND_SHOT_SCRIPT,
-  saveCanvasTextAsset,
   type CanvasGraphDocument,
   type CanvasGraphInput,
 } from "../../api/canvas";
 import type { MessageTranslator } from "../../i18n";
 import { edgeRoleLabel } from "./StudioCanvasNode";
 import {
-  configText,
-  firstLine,
   type StudioConfigOption,
 } from "./canvasConfig";
 import type { StudioEdge, StudioNode } from "./types";
+import type { Viewport } from "@xyflow/react";
+import { isInputNodeKind } from "./canvasNodeKinds";
+import { defaultRefTypeForNode } from "./canvasNodeRefs";
+
+export function canvasGraphViewport(value: unknown): Viewport | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
+  const { x, y, zoom } = value as Record<string, unknown>;
+  if (typeof x !== "number" || typeof y !== "number" || typeof zoom !== "number"
+    || !Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(zoom) || zoom <= 0) return undefined;
+  return { x, y, zoom };
+}
 
 export function toFlowNode(node: CanvasGraphDocument["nodes"][number]): StudioNode {
   return {
@@ -60,8 +69,8 @@ export function mergeCanvasDocumentRuntimeResults(
   const freshNodesById = new Map(fresh.nodes.map((node) => [node.id, node]));
   return {
     ...current,
-    graph: fresh.graph,
     nodes: current.nodes.map((node) => {
+      if (isInputNodeKind(node.node_kind)) return node;
       const freshNode = freshNodesById.get(node.id);
       if (!freshNode) return node;
       return {
@@ -69,7 +78,7 @@ export function mergeCanvasDocumentRuntimeResults(
         ref_type: freshNode.ref_type,
         ref_id: freshNode.ref_id,
         state: freshNode.state,
-        config_json: mergeRuntimeConfig(node.config_json, freshNode.config_json),
+        config_json: mergeRuntimeConfig(node.node_kind, node.config_json, freshNode.config_json),
       };
     }),
   };
@@ -81,9 +90,10 @@ export function mergeStudioNodeRuntimeResults(
 ): StudioNode[] {
   const freshNodesById = new Map(freshNodes.map((node) => [String(node.id), node]));
   return current.map((node) => {
+    if (isInputNodeKind(node.data.nodeKind)) return node;
     const freshNode = freshNodesById.get(node.id);
     if (!freshNode) return node;
-    const config = mergeRuntimeConfig(node.data.config, freshNode.config_json);
+    const config = mergeRuntimeConfig(node.data.nodeKind, node.data.config, freshNode.config_json);
     if (
       node.data.refType === freshNode.ref_type &&
       node.data.refId === freshNode.ref_id &&
@@ -108,7 +118,7 @@ export function mergeStudioNodeRuntimeResults(
 export function clearCanvasNodeRuntimeResult(node: StudioNode): StudioNode {
   if (node.data.config.canvas_runtime_result !== true) return node;
   const config = { ...node.data.config };
-  for (const key of CANVAS_RUNTIME_CONFIG_KEYS) delete config[key];
+  for (const key of runtimeConfigKeysForNode(node.data.nodeKind)) delete config[key];
   return {
     ...node,
     data: {
@@ -121,13 +131,26 @@ export function clearCanvasNodeRuntimeResult(node: StudioNode): StudioNode {
   };
 }
 
+export function changeCanvasNodeReference(node: StudioNode, refType: string | null, refId: number | null): StudioNode {
+  if (node.data.refType === refType && node.data.refId === refId) return node;
+  const config = { ...node.data.config };
+  if (defaultRefTypeForNode(node.data.nodeKind)) {
+    for (const key of CANVAS_MEDIA_INPUT_METADATA_KEYS) delete config[key];
+    delete config.missing_reason;
+    delete config.missing_ref_type;
+    delete config.missing_ref_id;
+  }
+  return { ...node, data: { ...node.data, refType, refId, state: "ready", config } };
+}
+
 function mergeRuntimeConfig(
+  nodeKind: string,
   current: Record<string, unknown>,
   fresh: Record<string, unknown>,
 ): Record<string, unknown> {
   let changed = false;
   const next = { ...current };
-  for (const key of CANVAS_RUNTIME_CONFIG_KEYS) {
+  for (const key of runtimeConfigKeysForNode(nodeKind)) {
     if (!Object.prototype.hasOwnProperty.call(fresh, key)) continue;
     const value = fresh[key];
     if (JSON.stringify(next[key]) !== JSON.stringify(value)) {
@@ -136,6 +159,10 @@ function mergeRuntimeConfig(
     }
   }
   return changed ? next : current;
+}
+
+function runtimeConfigKeysForNode(nodeKind: string) {
+  return CANVAS_RUNTIME_CONFIG_KEYS.filter(key => nodeKind !== "GenerateVideoNode" || key !== "duration_secs");
 }
 
 export function defaultConfigForNode(
@@ -186,8 +213,8 @@ export function toFlowEdge(edge: CanvasGraphDocument["edges"][number], t: Messag
   };
 }
 
-export function preserveSelectedItems<T extends { id: string; selected?: boolean }>(next: T[], current: T[]): T[] {
-  const selectedIds = new Set(current.filter((item) => item.selected).map((item) => item.id));
+export function preserveSelectedItems<T extends { id: string; selected?: boolean }>(next: T[], current: T[], nodeIds?: Readonly<Record<string, number>>): T[] {
+  const selectedIds = new Set(current.filter((item) => item.selected).map((item) => nodeIds ? String(nodeIds[item.id]) : item.id));
   if (selectedIds.size === 0) return next;
   return next.map((item) => ({ ...item, selected: selectedIds.has(item.id) }));
 }
@@ -212,53 +239,6 @@ export function canvasNodePosition(index: number): { x: number; y: number } {
   };
 }
 
-export async function persistCanvasTextAssets(projectId: number, nodes: StudioNode[], t: MessageTranslator): Promise<StudioNode[]> {
-  const updates = await Promise.all(
-    nodes.flatMap((node) => {
-      if (node.data.nodeKind !== "TextInputNode") return [];
-      const content = configText(node.data.config, "content").trim();
-      if (!content) return [];
-      const textKind = configText(node.data.config, "text_kind") || "freeform";
-      const title =
-        configText(node.data.config, "title") ||
-        firstLine(content) ||
-        node.data.label ||
-        t("video.canvas.inspector.text");
-      const existingId =
-        node.data.refType === "canvas_text_asset" ? node.data.refId : null;
-      return [
-        saveCanvasTextAsset(projectId, {
-          id: existingId,
-          title,
-          text_kind: textKind,
-          content,
-        }).then((asset) => ({ nodeId: node.id, title, asset })),
-      ];
-    }),
-  );
-  if (updates.length === 0) return nodes;
-  const updatesByNodeId = new Map(updates.map((update) => [update.nodeId, update]));
-  return nodes.map((node) => {
-    const update = updatesByNodeId.get(node.id);
-    if (!update) return node;
-    return {
-      ...node,
-      data: {
-        ...node.data,
-        label: update.title,
-        refType: "canvas_text_asset",
-        refId: update.asset.id,
-        config: {
-          ...node.data.config,
-          title: update.title,
-          text_kind: update.asset.text_kind,
-          content: update.asset.content,
-        },
-      },
-    };
-  });
-}
-
 export function toCanvasGraphInput(
   document: CanvasGraphDocument,
   nodes: StudioNode[],
@@ -272,8 +252,8 @@ export function toCanvasGraphInput(
     nodes: nodes.map((node) => ({
       client_id: node.id,
       node_kind: node.data.nodeKind,
-      ref_type: node.data.refType,
-      ref_id: node.data.refId,
+      ref_type: hasInlineTextInput(node) ? null : node.data.refType,
+      ref_id: hasInlineTextInput(node) ? null : node.data.refId,
       config_json: canvasNodeConfigForSave(node),
       position_json: node.position,
       state: node.data.state,
@@ -289,9 +269,14 @@ export function toCanvasGraphInput(
   };
 }
 
+function hasInlineTextInput(node: StudioNode): boolean {
+  return node.data.nodeKind === "TextInputNode" && typeof node.data.config.content === "string";
+}
+
 function canvasNodeConfigForSave(node: StudioNode): Record<string, unknown> {
   const config = { ...node.data.config };
   const hasRuntimeResult = config.canvas_runtime_result === true;
+  if (hasInlineTextInput(node)) delete config.canvas_text_asset_id;
   if (node.data.nodeKind === "RenderTextNode") {
     delete config.prompt;
     delete config.template_text;

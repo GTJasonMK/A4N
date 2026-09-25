@@ -146,6 +146,22 @@ pub async fn cancel_run_tree(
     root_run_id: i64,
     error_message: Option<&str>,
 ) -> Result<Vec<run::Model>, AgentDbError> {
+    control_run_tree(db, root_run_id, error_message, false).await
+}
+
+pub async fn pause_run_tree(
+    db: &DatabaseConnection,
+    root_run_id: i64,
+) -> Result<Vec<run::Model>, AgentDbError> {
+    control_run_tree(db, root_run_id, Some("用户暂停 Agent run"), true).await
+}
+
+async fn control_run_tree(
+    db: &DatabaseConnection,
+    root_run_id: i64,
+    error_message: Option<&str>,
+    pause: bool,
+) -> Result<Vec<run::Model>, AgentDbError> {
     let root = run::Entity::find_by_id(root_run_id)
         .one(db)
         .await?
@@ -268,7 +284,7 @@ pub async fn cancel_run_tree(
         .collect::<HashSet<_>>();
     if locked_visited != visited || !locked_thread_ids.is_subset(&lock_thread_ids) {
         tx.rollback().await?;
-        return Box::pin(cancel_run_tree(db, root_run_id, error_message)).await;
+        return Box::pin(control_run_tree(db, root_run_id, error_message, pause)).await;
     }
     let mut lock_run_ids = visited.clone();
     lock_run_ids.extend(boundary_parent_run_ids.iter().copied());
@@ -302,7 +318,7 @@ pub async fn cancel_run_tree(
         != delegation_ids.iter().copied().collect::<HashSet<_>>()
     {
         tx.rollback().await?;
-        return Box::pin(cancel_run_tree(db, root_run_id, error_message)).await;
+        return Box::pin(control_run_tree(db, root_run_id, error_message, pause)).await;
     }
     let locked_delegations = lock_delegations_on(&tx, locked_delegation_ids).await?;
     if !rows.iter().any(|row| row.id == root.id) {
@@ -311,6 +327,55 @@ pub async fn cancel_run_tree(
         )));
     }
     let timestamp = now();
+    if pause {
+        let mut paused = Vec::new();
+        for row in rows {
+            if !row.is_active || matches!(row.status.as_str(), "paused" | "pausing") {
+                continue;
+            }
+            let updated = update_run_state_on(
+                &tx,
+                row.id,
+                None,
+                "paused",
+                row.waiting_reason.as_deref(),
+                None,
+            )
+            .await?;
+            let mut usage = updated.usage_json.clone();
+            usage["paused_by_run_id"] = json!(root_run_id.to_string());
+            let mut active: run::ActiveModel = updated.into();
+            active.usage_json = Set(usage);
+            let updated = active.update(&tx).await?;
+            terminate_executions_on(
+                &tx,
+                [row.id],
+                ExecutionTermination::Paused,
+                error_message,
+                timestamp,
+            )
+            .await?;
+            interrupt_streaming_messages_on(&tx, [row.id], error_message).await?;
+            append_run_event_on(
+                &tx,
+                &updated,
+                "run_paused",
+                "paused",
+                "Agent run 已暂停",
+                None,
+                None,
+                None,
+                None,
+            )
+            .await?;
+            paused.push(updated);
+        }
+        for thread_id in thread_ids {
+            refresh_thread_status_on(&tx, thread_id).await?;
+        }
+        tx.commit().await?;
+        return Ok(paused);
+    }
     let mut cancelled = Vec::with_capacity(rows.len());
     let mut turn_ids = HashSet::new();
     let mut tree_run_ids = Vec::with_capacity(rows.len());
@@ -496,7 +561,7 @@ pub async fn cancel_run_tree(
                     inbox_kind: "child_result".into(),
                     delivery_mode: "followup".into(),
                     priority: 20,
-                    dedupe_key: format!("child-cancelled:{}", delegation.id),
+                    dedupe_key: format!("child-cancelled:{}:{}", delegation.id, child_run.id),
                     content: format!("Child Agent cancelled: {reason}"),
                     payload_json: Some(inbox_payload),
                     available_at: None,

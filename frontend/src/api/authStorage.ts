@@ -1,11 +1,12 @@
 import {
   readPortableItem,
-  removePortableItem,
-  writePortableItem,
+  removePortableItems,
+  writePortableItems,
 } from "../utils/portableStorage";
+import type { AuthResult, TokenPairSummary } from "./generated/auth";
 
 const CURRENT_USER_ID_KEY = "a4n:current_user_id";
-const CURRENT_SESSION_ID_KEY = "a4n:current_session_id";
+export const CURRENT_SESSION_ID_KEY = "a4n:current_session_id";
 const CURRENT_ACCESS_TOKEN_KEY = "a4n:current_access_token";
 const CURRENT_REFRESH_TOKEN_KEY = "a4n:current_refresh_token";
 
@@ -23,28 +24,10 @@ export const requireCurrentUserId = (): number => {
   return id;
 };
 
-export const writeCurrentUserId = (id: number | null): void => {
-  if (typeof window === "undefined") return;
-  if (id == null) {
-    removePortableItem(CURRENT_USER_ID_KEY);
-  } else {
-    if (!Number.isSafeInteger(id) || id <= 0) {
-      throw new Error("当前用户 ID 必须是正整数");
-    }
-    writePortableItem(CURRENT_USER_ID_KEY, String(id));
-  }
-};
-
 export const readCurrentSessionId = (): string | null => {
   if (typeof window === "undefined") return null;
   const raw = readPortableItem(CURRENT_SESSION_ID_KEY);
   return raw && raw.trim() ? raw : null;
-};
-
-export const writeCurrentSessionId = (id: string | null): void => {
-  if (typeof window === "undefined") return;
-  if (!id) removePortableItem(CURRENT_SESSION_ID_KEY);
-  else writePortableItem(CURRENT_SESSION_ID_KEY, id);
 };
 
 export const readCurrentAccessToken = (): string | null => {
@@ -53,27 +36,34 @@ export const readCurrentAccessToken = (): string | null => {
   return raw && raw.trim() ? raw : null;
 };
 
-export const writeCurrentAccessToken = (token: string | null): void => {
-  if (typeof window === "undefined") return;
-  if (!token) removePortableItem(CURRENT_ACCESS_TOKEN_KEY);
-  else writePortableItem(CURRENT_ACCESS_TOKEN_KEY, token);
-};
-
 export const readCurrentRefreshToken = (): string | null => {
   if (typeof window === "undefined") return null;
   const raw = readPortableItem(CURRENT_REFRESH_TOKEN_KEY);
   return raw && raw.trim() ? raw : null;
 };
 
-export const writeCurrentRefreshToken = (token: string | null): void => {
-  if (typeof window === "undefined") return;
-  if (!token) removePortableItem(CURRENT_REFRESH_TOKEN_KEY);
-  else writePortableItem(CURRENT_REFRESH_TOKEN_KEY, token);
+const tokenEntries = (tokens: TokenPairSummary): Record<string, string> => ({
+  [CURRENT_SESSION_ID_KEY]: tokens.session_id,
+  [CURRENT_ACCESS_TOKEN_KEY]: tokens.access_token,
+  [CURRENT_REFRESH_TOKEN_KEY]: tokens.refresh_token,
+});
+
+export const writeCurrentTokens = (tokens: TokenPairSummary): Promise<void> =>
+  writePortableItems(tokenEntries(tokens));
+
+export const writeCurrentAuth = (result: AuthResult): Promise<void> => {
+  if (!Number.isSafeInteger(result.user.id) || result.user.id <= 0) {
+    throw new Error("当前用户 ID 必须是正整数");
+  }
+  return writePortableItems({
+    ...tokenEntries(result.tokens),
+    [CURRENT_USER_ID_KEY]: String(result.user.id),
+  });
 };
 
-export const clearCurrentAuth = (): void => {
-  writeCurrentUserId(null);
-  writeCurrentSessionId(null);
-  removePortableItem(CURRENT_ACCESS_TOKEN_KEY);
-  removePortableItem(CURRENT_REFRESH_TOKEN_KEY);
-};
+export const clearCurrentAuth = (): Promise<void> => removePortableItems([
+  CURRENT_USER_ID_KEY,
+  CURRENT_SESSION_ID_KEY,
+  CURRENT_ACCESS_TOKEN_KEY,
+  CURRENT_REFRESH_TOKEN_KEY,
+]);

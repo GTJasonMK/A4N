@@ -3,8 +3,13 @@ import {
   nodeGeneratedImageRefId,
   nodeGeneratedVideoRefId,
   nodeMediaAssetRefId,
+  defaultRefTypeForNode,
 } from "./canvasNodeRefs";
 import type { StudioNode } from "./types";
+
+export function isInputNodeKind(kind: string): boolean {
+  return kind === "TextInputNode" || defaultRefTypeForNode(kind) !== null;
+}
 
 export function isProbeNodeKind(kind: string): boolean {
   return kind === "TextProbeNode" || kind === "ImageProbeNode" || kind === "VideoProbeNode" || kind === "AudioProbeNode";

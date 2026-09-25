@@ -83,10 +83,10 @@ pub struct CanvasVideoFileInput<'a> {
     pub format: &'a str,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct CanvasVideoPersistedFile {
     pub relative_path: String,
-    pub file_size: i64,
+    pub properties: a4n_video_host_contract::VideoFileProperties,
 }
 
 #[async_trait]
@@ -114,7 +114,7 @@ pub trait CanvasVideoGenerationHostPort: CanvasVideoPreviewHostPort + Send + Syn
         job_id: &str,
     ) -> Result<VideoJobState, AppError>;
 
-    fn persist_canvas_video_file(
+    async fn persist_canvas_video_file(
         &self,
         input: CanvasVideoFileInput<'_>,
     ) -> Result<CanvasVideoPersistedFile, AppError>;

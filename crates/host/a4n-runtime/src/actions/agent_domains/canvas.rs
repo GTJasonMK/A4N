@@ -2,8 +2,9 @@ use crate::AppState;
 use a4n_api_contract::{
     agent::AgentScope,
     canvas::{
-        CanvasGraphDocument, CanvasNodeContract, CanvasRunSummary, GetCanvasGraphInput,
-        GetCanvasNodeContractsInput, RunCanvasGraphInput, RunCanvasNodeInput, SaveCanvasGraphInput,
+        CanvasGraphDocument, CanvasGraphSaveResult, CanvasNodeContract, CanvasRunSummary,
+        GetCanvasGraphInput, GetCanvasNodeContractsInput, RunCanvasGraphInput, RunCanvasNodeInput,
+        SaveCanvasGraphInput,
     },
     workflow::{GetWorkflowRunInput, WorkflowRunDetailSummary},
 };
@@ -42,7 +43,7 @@ pub(crate) async fn save_graph(
     user_id: i64,
     scope: &AgentScope,
     input: SaveCanvasGraphInput,
-) -> Result<CanvasGraphDocument, AppError> {
+) -> Result<CanvasGraphSaveResult, AppError> {
     super::super::agent_runtime::ensure_project_scope(scope, input.project_id)?;
     validate_save_version(&input)?;
     crate::actions::canvas_workflow::save_canvas_graph(state, user_id, input)

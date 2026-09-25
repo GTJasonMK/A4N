@@ -100,6 +100,211 @@ fn budget_execution(run_id: i64, key: &str, model: bool) -> AgentExecutionInput 
 }
 
 #[tokio::test]
+async fn budget_one_admits_one_call_and_extension_resumes_the_same_run() {
+    use a4n_db::agent::{resume_run, run_budget_snapshot, wait_run_for_lease};
+    use a4n_domain::agent::AgentBudget;
+    let db = setup_db().await;
+    let thread = create_test_thread(&db, "main").await;
+    let (_, run) = create_test_run(&db, thread.id, "user").await;
+    let mut active: run::ActiveModel = run.into();
+    active.budget_json = Set(json!({"max_model_calls": 1}));
+    active.update(&db).await.unwrap();
+    let run = claim_runnable_run(&db, "budget-test")
+        .await
+        .unwrap()
+        .unwrap();
+    let token = run.lease_token.as_deref().unwrap();
+    update_run_usage(
+        &db,
+        run.id,
+        token,
+        json!({"steps_used": 1, "model_calls_used": 1}),
+    )
+    .await
+    .unwrap();
+    assert_eq!(
+        run_budget_snapshot(&db, run.id)
+            .await
+            .unwrap()
+            .remaining
+            .max_model_calls,
+        Some(1)
+    );
+    let execution =
+        create_execution_for_run_lease(&db, budget_execution(run.id, "model-call:1", true), token)
+            .await
+            .unwrap();
+    assert!(matches!(
+        create_execution_for_run_lease(&db, budget_execution(run.id, "model-call:2", true), token)
+            .await,
+        Err(AgentDbError::BudgetExhausted(_))
+    ));
+    update_execution_for_run_lease(
+        &db,
+        run.id,
+        token,
+        execution.id,
+        "succeeded",
+        Some(json!({"usage": null})),
+        None,
+        None,
+        None,
+    )
+    .await
+    .unwrap();
+    let usage = run_budget_snapshot(&db, run.id).await.unwrap().usage;
+    assert_eq!(usage["usage_complete"], false);
+    assert!(usage["tokens_reserved"].as_u64().unwrap() > 0);
+    wait_run_for_lease(&db, run.id, token, "budget")
+        .await
+        .unwrap();
+    assert!(resume_run(&db, 1, thread.id, run.id, None).await.is_err());
+    let resumed = resume_run(
+        &db,
+        1,
+        thread.id,
+        run.id,
+        Some(&AgentBudget {
+            max_model_calls: Some(2),
+            ..AgentBudget::default()
+        }),
+    )
+    .await
+    .unwrap();
+    assert_eq!(resumed.id, run.id);
+    assert_eq!(resumed.started_at, run.started_at);
+    assert_eq!(resumed.usage_json["model_calls_used"], 1);
+    let reclaimed = claim_runnable_run(&db, "budget-test")
+        .await
+        .unwrap()
+        .unwrap();
+    assert_ne!(reclaimed.lease_token, run.lease_token);
+    create_execution_for_run_lease(
+        &db,
+        budget_execution(run.id, "model-call:2", true),
+        reclaimed.lease_token.as_deref().unwrap(),
+    )
+    .await
+    .unwrap();
+}
+
+#[tokio::test]
+async fn approved_delegation_creates_one_child_and_consumes_approval_atomically() {
+    use a4n_db::agent::{
+        AgentChildDelegationInput, create_child_delegation, resolve_approval_for_run,
+    };
+    let db = setup_db().await;
+    let parent_thread = create_test_thread(&db, "main").await;
+    let child_thread = create_test_thread(&db, "general").await;
+    let (_, parent) = create_test_run(&db, parent_thread.id, "user").await;
+    let claimed = claim_runnable_run(&db, "delegate-test")
+        .await
+        .unwrap()
+        .unwrap();
+    let execution = create_execution_for_run_lease(
+        &db,
+        AgentExecutionInput {
+            run_id: parent.id,
+            execution_key: "tool-call:delegate-approved".into(),
+            execution_kind: "delegation".into(),
+            status: "prepared".into(),
+            tool_name: Some("delegate".into()),
+            effect: Some("write".into()),
+            replay_policy: Some("idempotent".into()),
+            arguments_json: Some(json!({"capability": "general", "task": "检查结果"})),
+            resource_preconditions_json: None,
+        },
+        claimed.lease_token.as_deref().unwrap(),
+    )
+    .await
+    .unwrap();
+    let (grant, _, _) = request_approval_for_run_lease(
+        &db,
+        claimed.lease_token.as_deref().unwrap(),
+        AgentApprovalInput {
+            thread_id: parent_thread.id,
+            run_id: parent.id,
+            execution_id: execution.id,
+            operation_digest: "delegate-approved".into(),
+            operation_json: json!({"command": "delegate"}),
+            resource_preconditions_json: None,
+            expires_at: None,
+        },
+    )
+    .await
+    .unwrap();
+    resolve_approval_for_run(&db, grant.id, 1, true, None)
+        .await
+        .unwrap();
+    let claimed = claim_runnable_run(&db, "delegate-test")
+        .await
+        .unwrap()
+        .unwrap();
+    let input = AgentChildDelegationInput {
+        parent_lease_token: claimed.lease_token,
+        delegation: AgentDelegationInput {
+            parent_thread_id: parent_thread.id,
+            parent_run_id: parent.id,
+            parent_execution_id: Some(execution.id),
+            child_thread_id: child_thread.id,
+            child_turn_id: None,
+            child_run_id: None,
+            delegation_key: "approved-child".into(),
+            capability: "general".into(),
+            objective: "检查结果".into(),
+            success_criteria_json: json!(["提交证据"]),
+            scope_json: json!({}),
+            budget_json: json!({}),
+            status: "pending".into(),
+        },
+        child_turn: AgentTurnInput {
+            thread_id: child_thread.id,
+            client_message_id: "approved-child".into(),
+            message: AgentMessageInput {
+                thread_id: child_thread.id,
+                turn_id: None,
+                run_id: None,
+                role: "user".into(),
+                sender_kind: "agent".into(),
+                sender_thread_id: Some(parent_thread.id),
+                client_message_id: Some("approved-child".into()),
+                content: "检查结果".into(),
+                status: "complete".into(),
+                payload_json: None,
+            },
+            execution_mode: "review_writes".into(),
+            model_override_json: None,
+            budget_json: json!({}),
+            runtime_snapshot_required: false,
+            trigger: "delegation".into(),
+            goal: Some("检查结果".into()),
+        },
+    };
+    let (_, _, child, _) = create_child_delegation(&db, input.clone()).await.unwrap();
+    let (_, _, replayed, _) = create_child_delegation(&db, input).await.unwrap();
+    assert_eq!(child.id, replayed.id);
+    assert_eq!(child.parent_run_id, Some(parent.id));
+    assert_eq!(
+        approval::Entity::find_by_id(grant.id)
+            .one(&db)
+            .await
+            .unwrap()
+            .unwrap()
+            .status,
+        "consumed"
+    );
+    assert_eq!(
+        execution::Entity::find_by_id(execution.id)
+            .one(&db)
+            .await
+            .unwrap()
+            .unwrap()
+            .status,
+        "running"
+    );
+}
+
+#[tokio::test]
 async fn generation_ownership_fences_attempts_and_keeps_cancelled_call_cost() {
     use a4n_db::agent::{
         AgentOwnedTask, AgentTaskExecutionInput, create_task_execution, generation_owner,
@@ -381,15 +586,18 @@ async fn shared_budget_serializes_siblings_and_counts_replay_once() {
         .await
         .is_err()
     );
+    let persisted = run::Entity::find_by_id(root.id)
+        .one(&db)
+        .await
+        .unwrap()
+        .unwrap()
+        .usage_json;
     assert_eq!(
-        run::Entity::find_by_id(root.id)
-            .one(&db)
-            .await
-            .unwrap()
-            .unwrap()
-            .usage_json,
-        root.usage_json
+        persisted["runtime_snapshot_required"],
+        root.usage_json["runtime_snapshot_required"]
     );
+    assert!(persisted.get("model_calls_used").is_none());
+    assert!(persisted.get("tokens_used").is_none());
 }
 
 #[tokio::test]
@@ -496,6 +704,9 @@ async fn delegation_review_requires_matching_observed_versions_and_is_not_implic
         reason: "核查了指定版本".into(),
         reviewed_refs: refs,
     };
+    update_run_state(&db, child.id, None, "completed", None, None)
+        .await
+        .unwrap();
     assert!(
         review_delegation(&db, review(ids[0], "accepted", vec![ref1.clone()]))
             .await
@@ -523,7 +734,7 @@ async fn delegation_review_requires_matching_observed_versions_and_is_not_implic
     )
     .await
     .unwrap();
-    finish_run_with_message(
+    let premature = finish_run_with_message(
         &db,
         parent.id,
         token,
@@ -542,8 +753,8 @@ async fn delegation_review_requires_matching_observed_versions_and_is_not_implic
         None,
         turn.input_message_id,
     )
-    .await
-    .unwrap();
+    .await;
+    assert!(matches!(premature, Err(AgentDbError::CompletionBlocked(_))));
     assert_eq!(
         delegation::Entity::find_by_id(ids[0])
             .one(&db)
@@ -579,12 +790,260 @@ async fn delegation_review_requires_matching_observed_versions_and_is_not_implic
             .id,
         accepted.id
     );
+    let revised = review_delegation(&db, review(ids[1], "revision_requested", vec![]))
+        .await
+        .unwrap();
+    assert_eq!(revised.status, "running");
+    assert_ne!(revised.child_run_id, Some(child.id));
+    let revision_run = run::Entity::find_by_id(revised.child_run_id.unwrap())
+        .one(&db)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(revision_run.parent_run_id, Some(parent.id));
+    assert_eq!(revision_run.root_run_id, Some(parent.id));
+    assert_eq!(revision_run.thread_id, child.thread_id);
     assert_eq!(
         review_delegation(&db, review(ids[1], "revision_requested", vec![]))
             .await
             .unwrap()
+            .child_run_id,
+        revised.child_run_id
+    );
+}
+
+#[tokio::test]
+async fn question_commits_receipt_before_question_and_fast_reply_never_sleeps() {
+    use a4n_db::agent::{AgentQuestionInput, messages_by_run, request_user_input};
+    let db = setup_db().await;
+    let thread = create_test_thread(&db, "main").await;
+    let (_, owner) = create_test_run(&db, thread.id, "user").await;
+    let claimed = claim_runnable_run(&db, "question").await.unwrap().unwrap();
+    let token = claimed.lease_token.as_deref().unwrap();
+    let mut input = budget_execution(owner.id, "tool-call:ask", false);
+    input.tool_name = Some("request_agent_input".into());
+    input.arguments_json = Some(json!({"question":"请选择结尾"}));
+    let execution = create_execution_for_run_lease(&db, input, token)
+        .await
+        .unwrap();
+    enqueue_test_inbox(&db, thread.id, owner.turn_id, owner.id).await;
+    let input = || AgentQuestionInput {
+        run_id: owner.id,
+        lease_token: token.into(),
+        execution_id: execution.id,
+        question: "请选择结尾".into(),
+        observation: json!({"waiting_for_user":true}),
+    };
+    let question = request_user_input(&db, input()).await.unwrap();
+    assert_eq!(
+        request_user_input(&db, input()).await.unwrap().id,
+        question.id
+    );
+    let messages = messages_by_run(&db, owner.id).await.unwrap();
+    let tool = messages
+        .iter()
+        .find(|message| message.role == "tool")
+        .unwrap();
+    assert!(tool.id < question.id);
+    assert_eq!(
+        messages
+            .iter()
+            .filter(|message| message.client_message_id.as_deref()
+                == Some(format!("agent-notice:{}", execution.id).as_str()))
+            .count(),
+        1
+    );
+    assert_eq!(
+        run::Entity::find_by_id(owner.id)
+            .one(&db)
+            .await
+            .unwrap()
+            .unwrap()
             .status,
-        "revision_requested"
+        "queued"
+    );
+}
+
+#[tokio::test]
+async fn parent_budget_extension_wakes_descendants_on_both_sides_of_wait_race() {
+    use a4n_db::agent::{resume_run, wait_run_for_lease};
+    use a4n_domain::agent::AgentBudget;
+    let db = setup_db().await;
+    let parent_thread = create_test_thread(&db, "main").await;
+    let (_, root) = create_test_run(&db, parent_thread.id, "user").await;
+    let parent = claim_runnable_run(&db, "root").await.unwrap().unwrap();
+    let mut active: run::ActiveModel = parent.clone().into();
+    active.budget_json = Set(json!({"max_model_calls":1}));
+    active.update(&db).await.unwrap();
+    create_execution_for_run_lease(
+        &db,
+        budget_execution(root.id, "model-call:1", true),
+        parent.lease_token.as_deref().unwrap(),
+    )
+    .await
+    .unwrap();
+    update_run_state(
+        &db,
+        root.id,
+        Some(parent.lease_token.as_deref().unwrap()),
+        "waiting",
+        Some("child"),
+        None,
+    )
+    .await
+    .unwrap();
+    for (index, wait_first) in [false, true].into_iter().enumerate() {
+        let thread = create_test_thread(&db, "general").await;
+        let (_, child) = create_test_run(&db, thread.id, "delegation").await;
+        let mut active: run::ActiveModel = child.clone().into();
+        active.parent_run_id = Set(Some(root.id));
+        active.root_run_id = Set(Some(root.id));
+        active.update(&db).await.unwrap();
+        let child = claim_runnable_run(&db, "child").await.unwrap().unwrap();
+        let token = child.lease_token.as_deref().unwrap();
+        assert!(matches!(
+            create_execution_for_run_lease(
+                &db,
+                budget_execution(child.id, "model-call:1", true),
+                token
+            )
+            .await,
+            Err(AgentDbError::BudgetExhausted(_))
+        ));
+        if wait_first {
+            wait_run_for_lease(&db, child.id, token, "budget")
+                .await
+                .unwrap();
+        }
+        resume_run(
+            &db,
+            1,
+            parent_thread.id,
+            root.id,
+            Some(&AgentBudget {
+                max_model_calls: Some(index as u32 + 2),
+                ..Default::default()
+            }),
+        )
+        .await
+        .unwrap();
+        if !wait_first {
+            wait_run_for_lease(&db, child.id, token, "budget")
+                .await
+                .unwrap();
+        }
+        let child = claim_runnable_run(&db, "resumed-child")
+            .await
+            .unwrap()
+            .unwrap();
+        create_execution_for_run_lease(
+            &db,
+            budget_execution(child.id, "model-call:1", true),
+            child.lease_token.as_deref().unwrap(),
+        )
+        .await
+        .unwrap();
+        update_run_state(
+            &db,
+            child.id,
+            child.lease_token.as_deref(),
+            "completed",
+            None,
+            None,
+        )
+        .await
+        .unwrap();
+    }
+}
+
+#[tokio::test]
+async fn pause_tree_resumes_only_its_own_pauses() {
+    use a4n_db::agent::{pause_run_tree, resume_run};
+    let db = setup_db().await;
+    let root_thread = create_test_thread(&db, "main").await;
+    let (_, root) = create_test_run(&db, root_thread.id, "user").await;
+    let mut children = Vec::new();
+    for _ in 0..2 {
+        let thread = create_test_thread(&db, "general").await;
+        let (_, child) = create_test_run(&db, thread.id, "delegation").await;
+        let mut active: run::ActiveModel = child.clone().into();
+        active.parent_run_id = Set(Some(root.id));
+        active.root_run_id = Set(Some(root.id));
+        active.update(&db).await.unwrap();
+        children.push(child);
+    }
+    pause_run_tree(&db, children[1].id).await.unwrap();
+    let paused = pause_run_tree(&db, root.id).await.unwrap();
+    assert_eq!(paused.len(), 2);
+    assert!(
+        paused
+            .iter()
+            .all(|run| run.status == "paused" && run.lease_token.is_none())
+    );
+    resume_run(&db, 1, root_thread.id, root.id, None)
+        .await
+        .unwrap();
+    assert_eq!(
+        run::Entity::find_by_id(children[0].id)
+            .one(&db)
+            .await
+            .unwrap()
+            .unwrap()
+            .status,
+        "queued"
+    );
+    assert_eq!(
+        run::Entity::find_by_id(children[1].id)
+            .one(&db)
+            .await
+            .unwrap()
+            .unwrap()
+            .status,
+        "paused"
+    );
+}
+
+#[tokio::test]
+async fn original_history_paginates_beyond_one_thousand_messages_without_context_gaps() {
+    use a4n_db::agent::{messages_before, messages_for_context};
+    let db = setup_db().await;
+    let thread = create_test_thread(&db, "main").await;
+    let (_, owner) = create_test_run(&db, thread.id, "user").await;
+    let mut first = 0;
+    for index in 0..1005 {
+        let message = append_message(
+            &db,
+            AgentMessageInput {
+                thread_id: thread.id,
+                turn_id: Some(owner.turn_id),
+                run_id: Some(owner.id),
+                role: "assistant".into(),
+                sender_kind: "agent".into(),
+                sender_thread_id: None,
+                client_message_id: None,
+                content: format!("original-{index}"),
+                status: "complete".into(),
+                payload_json: None,
+            },
+        )
+        .await
+        .unwrap();
+        if index == 0 {
+            first = message.id;
+        }
+    }
+    let latest = messages_before(&db, thread.id, None, 1000).await.unwrap();
+    let old = messages_before(&db, thread.id, Some(latest[0].id), 100)
+        .await
+        .unwrap();
+    assert_eq!(old.len(), 6);
+    assert!(old.iter().any(|message| message.id == first));
+    assert_eq!(
+        messages_for_context(&db, thread.id, owner.id, 0)
+            .await
+            .unwrap()
+            .len(),
+        1006
     );
 }
 

@@ -79,9 +79,9 @@ fn task_summary(task: &task_queue::Model) -> TaskQueueSummary {
         progress: task.progress.clone(),
         error_message: task.error_message.clone(),
         dag_id: task.dag_id.clone(),
-        created_at: Some(task.created_at.to_string()),
-        started_at: task.started_at.map(|value| value.to_string()),
-        completed_at: task.completed_at.map(|value| value.to_string()),
+        created_at: Some(task.created_at.and_utc().to_rfc3339()),
+        started_at: task.started_at.map(|value| value.and_utc().to_rfc3339()),
+        completed_at: task.completed_at.map(|value| value.and_utc().to_rfc3339()),
     }
 }
 

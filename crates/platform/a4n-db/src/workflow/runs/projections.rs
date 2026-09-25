@@ -39,9 +39,9 @@ pub(in crate::workflow) fn workflow_run_summary(
         can_resume: run.can_resume,
         resume_block_reason: run.resume_block_reason,
         error_message: run.error_message,
-        created_at: run.created_at.to_string(),
-        updated_at: run.updated_at.to_string(),
-        completed_at: run.completed_at.map(|value| value.to_string()),
+        created_at: run.created_at.and_utc().to_rfc3339(),
+        updated_at: run.updated_at.and_utc().to_rfc3339(),
+        completed_at: run.completed_at.map(|value| value.and_utc().to_rfc3339()),
     })
 }
 
@@ -60,9 +60,11 @@ pub(super) fn workflow_checkpoint_summary(
         artifacts_json: checkpoint.artifacts_json,
         generation_run_ids_json: checkpoint.generation_run_ids_json,
         error_message: checkpoint.error_message,
-        created_at: checkpoint.created_at.to_string(),
-        updated_at: checkpoint.updated_at.to_string(),
-        completed_at: checkpoint.completed_at.map(|value| value.to_string()),
+        created_at: checkpoint.created_at.and_utc().to_rfc3339(),
+        updated_at: checkpoint.updated_at.and_utc().to_rfc3339(),
+        completed_at: checkpoint
+            .completed_at
+            .map(|value| value.and_utc().to_rfc3339()),
     }
 }
 
@@ -157,6 +159,6 @@ pub(super) fn workflow_progress_event_summary(
         message: event.message,
         percent: event.percent,
         meta,
-        timestamp: event.created_at.to_string(),
+        timestamp: event.created_at.and_utc().to_rfc3339(),
     })
 }

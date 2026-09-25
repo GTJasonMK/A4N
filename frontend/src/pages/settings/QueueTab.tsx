@@ -10,11 +10,9 @@ import {
 } from "../../api/task";
 import {
   cancelWorkflow,
-  getWorkflowRunDetail,
   listActiveWorkflows,
   listWorkflowRuns,
   resumeWorkflowRun,
-  type WorkflowRunDetailSummary,
   type WorkflowRunSummary,
   type WorkflowStateSummary,
 } from "../../api/streaming";
@@ -46,15 +44,6 @@ export const QueueTab: React.FC = () => {
   const [cancellingTaskIds, setCancellingTaskIds] = useState<Set<string>>(() => new Set());
   const [workflows, setWorkflows] = useState<WorkflowStateSummary[]>([]);
   const [workflowRuns, setWorkflowRuns] = useState<WorkflowRunSummary[]>([]);
-  const [workflowRunDetails, setWorkflowRunDetails] = useState<Map<number, WorkflowRunDetailSummary>>(
-    () => new Map(),
-  );
-  const [expandedWorkflowRunIds, setExpandedWorkflowRunIds] = useState<Set<number>>(
-    () => new Set(),
-  );
-  const [loadingWorkflowRunDetailIds, setLoadingWorkflowRunDetailIds] = useState<Set<number>>(
-    () => new Set(),
-  );
   const [resumingWorkflowRunIds, setResumingWorkflowRunIds] = useState<Set<number>>(() => new Set());
   const [cancellingWorkflowIds, setCancellingWorkflowIds] = useState<Set<string>>(() => new Set());
   const mountedRef = useRef(true);
@@ -63,9 +52,6 @@ export const QueueTab: React.FC = () => {
   const cancellingTaskIdsRef = useRef(cancellingTaskIds);
   const cancellingWorkflowIdsRef = useRef(cancellingWorkflowIds);
   const resumingWorkflowRunIdsRef = useRef(resumingWorkflowRunIds);
-  const workflowRunDetailsRef = useRef(workflowRunDetails);
-  const expandedWorkflowRunIdsRef = useRef(expandedWorkflowRunIds);
-  const loadingWorkflowRunDetailIdsRef = useRef(loadingWorkflowRunDetailIds);
   const refreshSeqRef = useRef(0);
   const refreshBusyRef = useRef(false);
 
@@ -74,9 +60,6 @@ export const QueueTab: React.FC = () => {
   cancellingTaskIdsRef.current = cancellingTaskIds;
   cancellingWorkflowIdsRef.current = cancellingWorkflowIds;
   resumingWorkflowRunIdsRef.current = resumingWorkflowRunIds;
-  workflowRunDetailsRef.current = workflowRunDetails;
-  expandedWorkflowRunIdsRef.current = expandedWorkflowRunIds;
-  loadingWorkflowRunDetailIdsRef.current = loadingWorkflowRunDetailIds;
 
   useEffect(() => {
     mountedRef.current = true;
@@ -174,44 +157,6 @@ export const QueueTab: React.FC = () => {
     next.delete(runId);
     resumingWorkflowRunIdsRef.current = next;
     setResumingWorkflowRunIds(next);
-  };
-
-  const setWorkflowRunDetailLoading = (runId: number, loading: boolean) => {
-    const next = new Set(loadingWorkflowRunDetailIdsRef.current);
-    if (loading) next.add(runId);
-    else next.delete(runId);
-    loadingWorkflowRunDetailIdsRef.current = next;
-    setLoadingWorkflowRunDetailIds(next);
-  };
-
-  const handleToggleWorkflowRunDetail = async (run: WorkflowRunSummary) => {
-    const expanded = new Set(expandedWorkflowRunIdsRef.current);
-    if (expanded.has(run.id)) {
-      expanded.delete(run.id);
-      expandedWorkflowRunIdsRef.current = expanded;
-      setExpandedWorkflowRunIds(expanded);
-      return;
-    }
-    expanded.add(run.id);
-    expandedWorkflowRunIdsRef.current = expanded;
-    setExpandedWorkflowRunIds(expanded);
-    if (workflowRunDetailsRef.current.has(run.id) || loadingWorkflowRunDetailIdsRef.current.has(run.id)) {
-      return;
-    }
-    setWorkflowRunDetailLoading(run.id, true);
-    try {
-      const detail = await getWorkflowRunDetail(run.id, true);
-      if (!mountedRef.current) return;
-      const next = new Map(workflowRunDetailsRef.current);
-      next.set(run.id, detail);
-      workflowRunDetailsRef.current = next;
-      setWorkflowRunDetails(next);
-    } catch (err) {
-      if (!mountedRef.current) return;
-      addToast(extractErrorMessage(err, t("settingsQueue.loadWorkflowFailed")), "error");
-    } finally {
-      if (mountedRef.current) setWorkflowRunDetailLoading(run.id, false);
-    }
   };
 
   const handleCancel = async (taskId: string) => {
@@ -325,11 +270,7 @@ export const QueueTab: React.FC = () => {
         runs={workflowRuns}
         loading={loading}
         resumingRunIds={resumingWorkflowRunIds}
-        expandedRunIds={expandedWorkflowRunIds}
-        loadingDetailRunIds={loadingWorkflowRunDetailIds}
-        details={workflowRunDetails}
         onResume={(run) => void handleResumeWorkflowRun(run)}
-        onToggleDetail={(run) => void handleToggleWorkflowRunDetail(run)}
       />
 
       <QueueInfoCard />

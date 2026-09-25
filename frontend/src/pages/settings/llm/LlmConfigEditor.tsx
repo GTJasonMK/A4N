@@ -63,7 +63,7 @@ export const LlmConfigEditor: React.FC<LlmConfigEditorProps> = ({
         />
       </FormField>
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+      <div className="a4n-config-form-grid">
         <FormField label={t("settingsForm.providerPreset")} hint={t("settingsForm.providerPresetHint")}>
           <ThemedSelect
             value={form.provider}
@@ -165,7 +165,7 @@ export const LlmConfigEditor: React.FC<LlmConfigEditorProps> = ({
         />
       ) : null}
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+      <div className="a4n-config-form-grid">
         <FormField
           label={t("settingsForm.concurrencyLimit")}
           hint={t("settingsForm.concurrencyHint")}
@@ -175,9 +175,9 @@ export const LlmConfigEditor: React.FC<LlmConfigEditorProps> = ({
             min={1}
             max={32}
             step={1}
-            value={String(form.max_concurrent)}
+            value={form.max_concurrent}
             onChange={(event) =>
-              setForm({ ...form, max_concurrent: Number(event.target.value) })
+              setForm({ ...form, max_concurrent: event.target.value })
             }
             disabled={structureDisabled}
           />
@@ -192,16 +192,16 @@ export const LlmConfigEditor: React.FC<LlmConfigEditorProps> = ({
             min={1}
             max={1800}
             step={1}
-            value={String(form.timeout_secs)}
+            value={form.timeout_secs}
             onChange={(event) =>
-              setForm({ ...form, timeout_secs: Number(event.target.value) })
+              setForm({ ...form, timeout_secs: event.target.value })
             }
             disabled={structureDisabled}
           />
         </FormField>
       </div>
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+      <div className="a4n-config-form-grid">
         <FormField
           label={t("settingsForm.contextWindow")}
           hint={t("settingsForm.contextWindowHint")}
@@ -211,11 +211,11 @@ export const LlmConfigEditor: React.FC<LlmConfigEditorProps> = ({
             min={1024}
             max={1048576}
             step={1024}
-            value={String(form.max_context_tokens)}
+            value={form.max_context_tokens}
             onChange={(event) =>
               setForm({
                 ...form,
-                max_context_tokens: Number(event.target.value),
+                max_context_tokens: event.target.value,
               })
             }
             disabled={structureDisabled}
@@ -228,13 +228,13 @@ export const LlmConfigEditor: React.FC<LlmConfigEditorProps> = ({
           <BookInput
             type="number"
             min={1}
-            max={Math.max(1, form.max_context_tokens - 1)}
+            max={Math.max(1, Number(form.max_context_tokens) - 1)}
             step={256}
-            value={String(form.max_output_tokens)}
+            value={form.max_output_tokens}
             onChange={(event) =>
               setForm({
                 ...form,
-                max_output_tokens: Number(event.target.value),
+                max_output_tokens: event.target.value,
               })
             }
             disabled={structureDisabled}
@@ -242,11 +242,11 @@ export const LlmConfigEditor: React.FC<LlmConfigEditorProps> = ({
         </FormField>
       </div>
 
-      <FormField
-        label={t("settingsForm.advancedParams")}
-        hint={t("settingsForm.advancedParamsHint")}
-      >
+      <details className="border-y border-book-border/35 py-2" open={Boolean(form.extra_body_text.trim())}>
+        <summary className="cursor-pointer text-sm font-semibold text-book-text-main">{t("settingsForm.advancedParams")}</summary>
+        <p className="my-2 text-small text-book-text-muted">{t("settingsForm.advancedParamsHint")}</p>
         <BookTextarea
+          aria-label={t("settingsForm.advancedParams")}
           rows={6}
           value={form.extra_body_text}
           onChange={(event) =>
@@ -256,11 +256,12 @@ export const LlmConfigEditor: React.FC<LlmConfigEditorProps> = ({
           spellCheck={false}
           disabled={structureDisabled}
         />
-      </FormField>
+      </details>
       <PricingPlanFields
+        kind="llm"
         value={form.pricing}
         onChange={(pricing) => setForm({ ...form, pricing })}
-        readonly={readonly}
+        readonly={structureDisabled}
       />
     </>
   );

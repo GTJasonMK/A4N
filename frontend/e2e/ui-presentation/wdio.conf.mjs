@@ -2,7 +2,7 @@ import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { config as browserConfig } from "../video-mode-switch/wdio.conf.mjs";
 
-const port = 4187;
+const port = Number(process.env.A4N_UI_PORT ?? 4187);
 const baseUrl = `http://127.0.0.1:${port}`;
 let server;
 let output = "";
@@ -10,9 +10,11 @@ let output = "";
 export const config = {
   ...browserConfig,
   baseUrl,
-  specs: ["./ui-presentation.e2e.mjs", "./ui-controls.e2e.mjs"],
+  specs: ["./ui-presentation.e2e.mjs", "./ui-controls.e2e.mjs", "./ui-visual.e2e.mjs"],
   onPrepare: async () => {
-    server = spawn(process.execPath, ["./node_modules/vite/bin/vite.js", "--port", String(port), "--strictPort"], {
+    server = spawn(process.execPath, ["./node_modules/vite/bin/vite.js", "--port", String(port), "--strictPort",
+      ...(process.env.A4N_UI_VITE_CONFIG ? ["--config", process.env.A4N_UI_VITE_CONFIG] : []),
+    ], {
       cwd: fileURLToPath(new URL("../..", import.meta.url)),
       stdio: ["ignore", "pipe", "pipe"],
     });

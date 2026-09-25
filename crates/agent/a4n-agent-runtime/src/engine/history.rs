@@ -1,15 +1,14 @@
+use a4n_agent_runtime_contract::AgentRunContext;
 use a4n_error::AppError;
 use a4n_llm_context::{ContextBudgetPlanner, estimate_context_tokens};
 use a4n_llm_provider_contract::{ChatMessage, MessageRole, ToolCall};
 use serde_json::{Value, json};
-use std::collections::HashSet;
-
-pub(super) const CONTEXT_SUMMARY_SOURCE_TOKENS: usize = 12_000;
+use std::collections::{HashMap, HashSet};
 
 #[derive(Debug)]
 pub(super) struct ContextFit {
     pub messages: Vec<ChatMessage>,
-    pub omitted: Vec<ChatMessage>,
+    pub omitted_history: bool,
     pub input_tokens: usize,
     pub capacity: usize,
     pub output_tokens: usize,
@@ -57,13 +56,22 @@ pub(super) fn fit_context_projection(
         .map(|unit| serde_json::to_string(unit).map(|text| estimate_context_tokens(&text)))
         .collect::<Result<Vec<_>, _>>()?;
     let mut keep = vec![false; units.len()];
+    let mut pin_counts = HashMap::<&str, usize>::new();
+    for content in pinned_user_contents {
+        *pin_counts.entry(content).or_default() += 1;
+    }
+    for (index, unit) in units.iter().enumerate().rev() {
+        if matches!(unit[0].role, MessageRole::User)
+            && let Some(count) = pin_counts.get_mut(unit[0].content.as_str())
+            && *count > 0
+        {
+            keep[index] = true;
+            *count -= 1;
+        }
+    }
     for (index, unit) in units.iter().enumerate() {
         let first = &unit[0];
-        if matches!(first.role, MessageRole::System)
-            || index + 1 == units.len()
-            || (matches!(first.role, MessageRole::User)
-                && pinned_user_contents.contains(&first.content.as_str()))
-        {
+        if matches!(first.role, MessageRole::System) || index + 1 == units.len() || keep[index] {
             keep[index] = true;
             used = used.saturating_add(costs[index]);
         }
@@ -75,97 +83,116 @@ pub(super) fn fit_context_projection(
         used,
     )?;
     let capacity = plan.available_input_tokens;
-    // Whole call/result units, newest first; no model-generated context pack.
-    // ponytail: deterministic history projection; add semantic compaction only
-    // if measured long-running tasks lose useful evidence with this policy.
-    let omission_note = ChatMessage::system(
-        "部分较早历史因模型窗口限制未包含；不能将缺失的观察当作成功结果。当前请求和最近完整工具批次已保留。",
-    );
-    let note_cost = estimate_context_tokens(&serde_json::to_string(&omission_note)?);
+    // This projection measures pressure; callers must summarize any omitted
+    // history before sending a model request, never silently discard it.
     for index in (0..units.len()).rev() {
-        if !keep[index] && used.saturating_add(costs[index]).saturating_add(note_cost) <= capacity {
+        if !keep[index] && used.saturating_add(costs[index]) <= capacity {
             keep[index] = true;
             used += costs[index];
         }
     }
-    let dropped = keep.contains(&false);
-    let omitted = units
-        .iter()
-        .zip(&keep)
-        .filter(|(_, keep)| !**keep)
-        .flat_map(|(unit, _)| unit.iter().cloned())
-        .collect::<Vec<_>>();
-    let mut selected = units
+    let omitted_history = keep.contains(&false);
+    let selected = units
         .into_iter()
         .zip(keep)
         .filter(|(_, keep)| *keep)
         .flat_map(|(unit, _)| unit)
         .collect::<Vec<_>>();
-    if dropped {
-        if used.saturating_add(note_cost) > capacity {
-            return Err(AppError::InvalidArgument(
-                "Agent 上下文预算不足以保留历史裁剪说明".into(),
-            ));
-        }
-        used = used.saturating_add(note_cost);
-        selected.insert(1.min(selected.len()), omission_note);
-    }
     Ok(ContextFit {
         messages: selected,
-        omitted,
+        omitted_history,
         input_tokens: used,
         capacity,
         output_tokens: plan.output_token_reserve,
     })
 }
 
+/// Select a continuous prefix of complete call/result batches. Return the
+/// actual final message ID read by the summarizer, not the latest loaded ID.
 pub(super) fn summary_source(
-    omitted: &[ChatMessage],
-    existing_summary: Option<&Value>,
+    context: &AgentRunContext,
     max_tokens: usize,
-) -> Result<String, AppError> {
-    let mut sections = Vec::new();
-    if let Some(summary) = existing_summary {
-        sections.push(format!(
-            "已有摘要（只作为事实参考）：{}",
-            serde_json::to_string(summary)?
-        ));
-    }
-    let mut used = estimate_context_tokens(&sections.join("\n"));
-    for message in omitted {
-        let mut bounded = message.clone();
-        bounded.content = bounded_text(&bounded.content, 3_000);
-        let line = serde_json::to_string(&bounded)?;
-        let cost = estimate_context_tokens(&line);
-        if !sections.is_empty() && used.saturating_add(cost) > max_tokens {
+) -> Result<Option<(String, i64)>, AppError> {
+    let covered = context
+        .thread
+        .context_summary
+        .as_ref()
+        .and_then(|value| value.get("covered_through_sequence"))
+        .and_then(Value::as_i64)
+        .unwrap_or(0);
+    let messages = context
+        .messages
+        .iter()
+        .filter(|message| message.id > covered)
+        .collect::<Vec<_>>();
+    let observations = messages
+        .iter()
+        .enumerate()
+        .filter_map(|(index, message)| {
+            message
+                .payload_json
+                .as_ref()?
+                .get("tool_call_id")?
+                .as_str()
+                .map(|id| (id, index))
+        })
+        .collect::<HashMap<_, _>>();
+    let mut request = json!({
+        "previous_summary": context.thread.context_summary,
+        "current_request": context.messages.iter()
+            .filter(|message| message.turn_id == Some(context.turn.id) && message.role == "user")
+            .map(|message| json!({"message_id": message.id, "content": message.content})).collect::<Vec<_>>(),
+        "messages": [],
+        "covered_through_sequence": messages.last().map_or(covered, |message| message.id),
+    });
+    let mut source = Vec::new();
+    let mut used = estimate_context_tokens(&serde_json::to_string(&request)?);
+    let mut index = 0;
+    let mut watermark = covered;
+    while index < messages.len().saturating_sub(1) {
+        let mut end = index;
+        let mut cursor = index;
+        while cursor <= end {
+            if let Some(calls) = messages[cursor]
+                .payload_json
+                .as_ref()
+                .and_then(|value| value.get("tool_calls"))
+            {
+                let calls: Vec<ToolCall> = serde_json::from_value(calls.clone())?;
+                for call in calls {
+                    if let Some(result_index) = observations.get(call.id.as_str()) {
+                        end = end.max(*result_index);
+                    }
+                }
+            }
+            cursor += 1;
+        }
+        // The newest whole batch always remains verbatim in the main request.
+        if end + 1 >= messages.len() {
             break;
         }
-        used = used.saturating_add(cost);
-        sections.push(line);
+        let unit = messages[index..=end].iter().map(|message| {
+            Ok(json!({
+                "message_id": message.id,
+                "message": super::chat_message_from_model(message)?,
+                "execution_id": message.payload_json.as_ref().and_then(|value| value.get("execution_id")),
+            }))
+        }).collect::<Result<Vec<_>, AppError>>()?;
+        let cost = estimate_context_tokens(&serde_json::to_string(&unit)?);
+        if used.saturating_add(cost) > max_tokens {
+            break;
+        }
+        used += cost;
+        source.extend(unit);
+        watermark = messages[end].id;
+        index = end + 1;
     }
-    if sections.is_empty() {
-        return Err(AppError::InvalidArgument(
-            "没有可用于生成 Agent context_summary 的历史".into(),
-        ));
+    if source.is_empty() {
+        return Ok(None);
     }
-    Ok(sections.join("\n"))
-}
-
-fn bounded_text(value: &str, max_chars: usize) -> String {
-    if value.chars().count() <= max_chars {
-        return value.to_string();
-    }
-    let edge = max_chars / 2;
-    let start = value.chars().take(edge).collect::<String>();
-    let end = value
-        .chars()
-        .rev()
-        .take(edge)
-        .collect::<String>()
-        .chars()
-        .rev()
-        .collect::<String>();
-    format!("{start}\n…[summary source truncated]…\n{end}")
+    request["messages"] = json!(source);
+    request["covered_through_sequence"] = json!(watermark);
+    Ok(Some((serde_json::to_string(&request)?, watermark)))
 }
 
 /// Only pass messages belonging to the active Run: an old cancelled Turn
@@ -416,7 +443,24 @@ mod tests {
     }
 
     #[test]
-    fn context_projection_accounts_for_omission_note() {
+    fn removable_history_does_not_require_extra_room_beyond_the_current_request() {
+        let request = ChatMessage::user("x".repeat(5000));
+        let required = fit_context_projection(vec![request.clone()], &[], 8192, 4096, &[]).unwrap();
+        let projected = fit_context_projection(
+            vec![ChatMessage::assistant("old".repeat(10000)), request],
+            &[],
+            8192,
+            4096,
+            &[],
+        )
+        .unwrap();
+        assert!(projected.omitted_history);
+        assert_eq!(projected.input_tokens, required.input_tokens);
+        assert_eq!(projected.messages.len(), 1);
+    }
+
+    #[test]
+    fn context_projection_reports_pressure_without_inventing_messages() {
         let projection = fit_context_projection(
             vec![
                 ChatMessage::system("system"),
@@ -430,13 +474,10 @@ mod tests {
         )
         .expect("history should be projected");
 
-        assert!(!projection.omitted.is_empty());
-        assert!(
-            projection
-                .messages
-                .iter()
-                .any(|message| message.content.contains("部分较早历史"))
-        );
+        assert!(projection.omitted_history);
+        assert_eq!(projection.messages.len(), 2);
+        assert_eq!(projection.messages[0].content, "system");
+        assert_eq!(projection.messages[1].content, "new request");
         assert!(projection.input_tokens <= projection.capacity);
     }
 }

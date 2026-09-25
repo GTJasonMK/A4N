@@ -3,9 +3,11 @@ use a4n_error::AppError;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-use super::{ChatRequest, LlmProtocolKind, MessageRole};
+use super::{ChatRequest, LlmProtocolKind, LlmProviderCapabilities, MessageRole};
 
 const MAX_CACHE_WRITES: usize = 4;
+pub const PROMPT_CACHE_OPTIONS_FIELD: &str = "prompt_cache_options";
+pub const PROMPT_CACHE_MODE_FIELD: &str = "mode";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -24,13 +26,12 @@ pub struct PromptCacheBreakpoint {
 /// Validate native cache options at both configuration and dispatch boundaries.
 pub fn validate_prompt_cache_options(
     provider: &str,
-    model: &str,
     options: Option<&Value>,
 ) -> Result<Option<PromptCacheMode>, AppError> {
-    let Some(options) = options.and_then(|value| value.get("prompt_cache_options")) else {
+    let Some(options) = options.and_then(|value| value.get(PROMPT_CACHE_OPTIONS_FIELD)) else {
         return Ok(None);
     };
-    if !uses_openai_prompt_cache(provider) {
+    if !provider_supports_prompt_cache_options(provider) {
         return Err(AppError::ConfigError(format!(
             "prompt_cache_options 仅适用于 OpenAI Chat Completions/Responses，当前 provider 为 {provider}"
         )));
@@ -38,27 +39,17 @@ pub fn validate_prompt_cache_options(
     let options = options
         .as_object()
         .ok_or_else(|| AppError::ConfigError("prompt_cache_options 必须是对象".into()))?;
-    if openai_generation(model).is_some_and(|version| version < (5, 6)) {
-        return Err(AppError::ConfigError(
-            "当前 OpenAI 模型不支持显式缓存选项".into(),
-        ));
-    }
-    match options.get("mode") {
+    match options.get(PROMPT_CACHE_MODE_FIELD) {
         None => Ok(None),
-        Some(Value::String(mode)) if mode == "explicit" => Ok(Some(PromptCacheMode::Explicit)),
-        Some(Value::String(mode)) if mode == "implicit" => Ok(Some(PromptCacheMode::Implicit)),
-        Some(_) => Err(AppError::ConfigError(
-            "prompt_cache_options.mode 必须为 explicit 或 implicit".into(),
-        )),
+        Some(mode) => serde_json::from_value(mode.clone()).map(Some).map_err(|_| {
+            AppError::ConfigError("prompt_cache_options.mode 必须为 explicit 或 implicit".into())
+        }),
     }
 }
 
-fn uses_openai_prompt_cache(provider: &str) -> bool {
-    LlmProtocolKind::for_provider(provider) == Some(LlmProtocolKind::OpenAiResponses)
-        || matches!(
-            provider.trim().to_ascii_lowercase().as_str(),
-            "openai" | "custom-chat-completions"
-        )
+fn provider_supports_prompt_cache_options(provider: &str) -> bool {
+    LlmProviderCapabilities::for_provider(provider)
+        .is_some_and(|capabilities| capabilities.supports_prompt_cache_options)
 }
 
 impl ChatRequest {
@@ -85,22 +76,15 @@ impl ChatRequest {
     ) -> Result<(), AppError> {
         let protocol = LlmProtocolKind::for_provider(provider)
             .ok_or_else(|| AppError::ConfigError(format!("不支持的 LLM provider: {provider}")))?;
-        let configured_mode = validate_prompt_cache_options(provider, model, options)?;
-        self.cache_breakpoints = self.effective_cache_breakpoints()?;
-        self.cache_system_prefix = false;
-        self.cache_user_prefix_len = None;
+        let configured_mode = validate_prompt_cache_options(provider, options)?;
+        self.cache_breakpoints = self.normalized_cache_breakpoints()?;
         self.cache_scope_key = None;
         self.cache_mode = None;
 
-        let openai = uses_openai_prompt_cache(provider);
-        let cache_options = options.and_then(|value| value.get("prompt_cache_options"));
-        let generation = openai_generation(model);
-        // Native Claude supports block caching regardless of its model alias.
-        // OpenAI cache_options also allow an explicit capability declaration for
-        // proxy aliases, while known older models retain their automatic cache.
-        let explicit_openai =
-            openai && generation.map_or(cache_options.is_some(), |version| version >= (5, 6));
-        if !openai && protocol != LlmProtocolKind::AnthropicMessages {
+        let cache_options = options.and_then(|value| value.get(PROMPT_CACHE_OPTIONS_FIELD));
+        let openai_cache_enabled =
+            provider_supports_prompt_cache_options(provider) && cache_options.is_some();
+        if !openai_cache_enabled && protocol != LlmProtocolKind::AnthropicMessages {
             self.cache_breakpoints.clear();
             return Ok(());
         }
@@ -111,10 +95,6 @@ impl ChatRequest {
                 "a4n:project:{project_id}:m{}",
                 &source_text_hash(model)[..12]
             ));
-        }
-        if openai && !explicit_openai {
-            self.cache_breakpoints.clear();
-            return Ok(());
         }
         let has_stable_user_prefix = self
             .cache_breakpoints
@@ -132,7 +112,7 @@ impl ChatRequest {
                 });
             }
         }
-        if explicit_openai {
+        if openai_cache_enabled {
             // A system boundary alone does not make the user's task disposable:
             // native Agent calls must cache it before their first tool round.
             self.cache_mode = Some(configured_mode.unwrap_or(
@@ -180,7 +160,7 @@ impl ChatRequest {
             .messages
             .get(message_index)
             .ok_or_else(|| AppError::InvalidArgument("缓存断点引用不存在的消息".into()))?;
-        let points = self.effective_cache_breakpoints()?;
+        let points = self.normalized_cache_breakpoints()?;
         let mut parts = Vec::new();
         let mut start = 0;
         for point in points
@@ -196,33 +176,10 @@ impl ChatRequest {
         Ok(parts)
     }
 
-    fn effective_cache_breakpoints(&self) -> Result<Vec<PromptCacheBreakpoint>, AppError> {
+    pub(super) fn normalized_cache_breakpoints(
+        &self,
+    ) -> Result<Vec<PromptCacheBreakpoint>, AppError> {
         let mut points = self.cache_breakpoints.clone();
-        if self.cache_system_prefix {
-            points.extend(
-                self.messages
-                    .iter()
-                    .enumerate()
-                    .filter_map(|(index, message)| {
-                        (matches!(message.role, MessageRole::System) && !message.content.is_empty())
-                            .then_some(PromptCacheBreakpoint {
-                                message_index: index,
-                                byte_offset: message.content.len(),
-                            })
-                    }),
-            );
-        }
-        if let Some(byte_offset) = self.cache_user_prefix_len {
-            let message_index = self
-                .messages
-                .iter()
-                .rposition(|message| matches!(message.role, MessageRole::User))
-                .ok_or_else(|| AppError::InvalidArgument("旧缓存断点缺少 user 消息".into()))?;
-            points.push(PromptCacheBreakpoint {
-                message_index,
-                byte_offset,
-            });
-        }
         for point in &points {
             self.validate_cache_breakpoint(*point)?;
         }
@@ -249,15 +206,6 @@ impl ChatRequest {
     }
 }
 
-fn openai_generation(model: &str) -> Option<(u32, u32)> {
-    let model = model.rsplit('/').next()?.strip_prefix("gpt-")?;
-    let version = model.split('-').next()?;
-    let mut parts = version.split('.');
-    let major = parts.next()?.parse().ok()?;
-    let minor = parts.next().map(str::parse).transpose().ok()?.unwrap_or(0);
-    parts.next().is_none().then_some((major, minor))
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -266,12 +214,12 @@ mod tests {
 
     #[test]
     fn native_dialogue_caches_the_initial_task_before_history_exists() {
+        let options = json!({"prompt_cache_options": {}});
         for provider in ["openai", "openai-responses"] {
             let task = "长任务资料\n".repeat(2000);
             let mut request = ChatRequest::system_user("agent rules", &task, None, None);
-            request.cache_system_prefix = true;
             request
-                .configure_prompt_cache(provider, "gpt-5.6-luna", None, Some(7))
+                .configure_prompt_cache(provider, "proxy-alias", Some(&options), Some(7))
                 .unwrap();
             assert_eq!(request.cache_mode, Some(PromptCacheMode::Implicit));
             assert_eq!(request.messages[1].content, task);
@@ -282,7 +230,7 @@ mod tests {
                 ChatMessage::user("继续"),
             ]);
             request
-                .configure_prompt_cache(provider, "gpt-5.6-luna", None, Some(7))
+                .configure_prompt_cache(provider, "proxy-alias", Some(&options), Some(7))
                 .unwrap();
             assert_eq!(request.cache_mode, Some(PromptCacheMode::Implicit));
             assert_eq!(request.cache_scope_key, routing_key);
@@ -313,39 +261,38 @@ mod tests {
             "deepseek",
         ] {
             assert!(
-                validate_prompt_cache_options(provider, "alias", Some(&options))
+                validate_prompt_cache_options(provider, Some(&options))
                     .unwrap_err()
                     .to_string()
                     .contains("仅适用于 OpenAI")
             );
         }
-        for (model, options) in [
-            ("gpt-5.5", options.clone()),
-            ("gpt-5.6-luna", json!({"prompt_cache_options": []})),
-            (
-                "gpt-5.6-luna",
-                json!({"prompt_cache_options": {"mode": "invalid"}}),
-            ),
-        ] {
-            assert!(validate_prompt_cache_options("openai", model, Some(&options)).is_err());
-        }
         assert_eq!(
-            validate_prompt_cache_options("custom-responses", "alias", Some(&options)).unwrap(),
+            validate_prompt_cache_options("openai", Some(&options)).unwrap(),
             Some(PromptCacheMode::Explicit)
         );
+        for options in [
+            json!({"prompt_cache_options": []}),
+            json!({"prompt_cache_options": {"mode": "invalid"}}),
+        ] {
+            assert!(validate_prompt_cache_options("openai", Some(&options)).is_err());
+        }
         assert_eq!(
-            validate_prompt_cache_options("gemini", "alias", None).unwrap(),
-            None
+            validate_prompt_cache_options("custom-responses", Some(&options)).unwrap(),
+            Some(PromptCacheMode::Explicit)
         );
+        assert_eq!(validate_prompt_cache_options("gemini", None).unwrap(), None);
     }
 
     #[test]
-    fn protocols_and_model_capabilities_control_cache_metadata() {
+    fn cache_metadata_requires_explicit_configuration_for_openai_protocols() {
         for (provider, model, expected) in [
             ("anthropic", "claude-sonnet", true),
             ("custom-anthropic", "proxy-alias", true),
-            ("openai-responses", "openai/gpt-5.6-luna", true),
-            ("openai", "gpt-6-astra", true),
+            ("openai-responses", "openai/gpt-5.6-luna", false),
+            ("openai", "gpt-6-astra", false),
+            ("openai", "gpt-6-luna", false),
+            ("custom-chat-completions", "gpt-6-luna", false),
             ("openai", "gpt-5.5", false),
             ("deepseek", "deepseek-chat", false),
             ("gemini", "gemini-2.5-pro", false),
@@ -360,28 +307,32 @@ mod tests {
                 "{provider}/{model}"
             );
         }
-        let mut request = ChatRequest::system_user("rules", "task", None, None);
-        request
-            .configure_prompt_cache(
-                "custom-responses",
-                "alias",
-                Some(&json!({"prompt_cache_options":{"mode":"explicit"}})),
-                Some(7),
-            )
-            .unwrap();
-        assert_eq!(request.cache_mode, Some(PromptCacheMode::Explicit));
-        assert!(!request.cache_breakpoints.is_empty());
+        let options = json!({"prompt_cache_options": {"mode": "explicit"}});
+        for provider in [
+            "openai",
+            "openai-responses",
+            "custom-chat-completions",
+            "custom-responses",
+        ] {
+            let mut request = ChatRequest::system_user("rules", "task", None, None);
+            request
+                .configure_prompt_cache(provider, "gpt-6-luna", Some(&options), Some(7))
+                .unwrap();
+            assert_eq!(request.cache_mode, Some(PromptCacheMode::Explicit));
+            assert!(!request.cache_breakpoints.is_empty());
+        }
     }
 
     #[test]
     fn layered_prefixes_preserve_text_and_routing_across_context_changes() {
+        let options = json!({"prompt_cache_options": {"mode": "explicit"}});
         let mut request = ChatRequest::system_user("rules", "共享章节\n阶段一\n任务", None, None);
         request.add_cache_breakpoint(1, "共享章节".len()).unwrap();
         request
             .add_cache_breakpoint(1, "共享章节\n阶段一".len())
             .unwrap();
         request
-            .configure_prompt_cache("openai", "gpt-5.6-luna", None, Some(7))
+            .configure_prompt_cache("openai", "proxy-alias", Some(&options), Some(7))
             .unwrap();
         let key = request.cache_scope_key.clone();
         assert_eq!(request.cache_breakpoints.len(), 3);
@@ -401,7 +352,7 @@ mod tests {
         );
         request.messages[1].content = "共享章节\n阶段二\n任务".into();
         request
-            .configure_prompt_cache("openai", "gpt-5.6-luna", None, Some(7))
+            .configure_prompt_cache("openai", "proxy-alias", Some(&options), Some(7))
             .unwrap();
         assert_eq!(request.cache_scope_key, key);
         assert!(request.add_cache_breakpoint(1, 1).is_err());

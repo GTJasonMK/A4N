@@ -1,5 +1,4 @@
 mod helpers;
-pub(super) mod urlencoding;
 
 use a4n_error::AppError;
 use async_trait::async_trait;
@@ -26,10 +25,10 @@ pub struct OAuth2UserInfo {
 #[async_trait]
 pub trait OAuth2Provider: Send + Sync {
     /// 生成授权 URL（用户浏览器跳转到此地址授权）
-    fn authorize_url(&self, state: &str) -> String;
+    fn authorize_url(&self, state: &str, code_challenge: &str) -> String;
 
     /// 用授权码交换访问令牌
-    async fn exchange_token(&self, code: &str) -> Result<String, AppError>;
+    async fn exchange_token(&self, code: &str, code_verifier: &str) -> Result<String, AppError>;
 
     /// 获取用户信息
     async fn get_user_info(&self, access_token: &str) -> Result<OAuth2UserInfo, AppError>;

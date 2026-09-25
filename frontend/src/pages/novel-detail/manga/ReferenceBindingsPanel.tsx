@@ -9,6 +9,7 @@ import type { GeneratedImage } from "../../../api/image";
 import type { BindMangaReferenceImageInput } from "../../../api/manga";
 import type { Portrait } from "../../../api/portrait";
 import { BookButton } from "../../../components/ui/BookButton";
+import { ZoomableImage } from "../../../components/ui/ImageLightbox";
 import { toMediaSrc } from "../../../utils/mediaSrc";
 import { useI18n } from "../../../i18n";
 import {
@@ -71,7 +72,7 @@ export const ReferenceBindingsPanel: React.FC<{
           : "";
         const selectedKey = selectedCandidateByCharacter[bindingKey] ?? boundKey;
         const selected = candidates.find((candidate) => candidate.key === selectedKey);
-        const boundSrc = toMediaSrc(binding.boundAsset?.image_path);
+        const previewSrc = toMediaSrc(selected?.imagePath ?? binding.boundAsset?.image_path);
         const bindDisabled =
           chapterLocked ||
           assetsLoading ||
@@ -86,9 +87,9 @@ export const ReferenceBindingsPanel: React.FC<{
           >
             <div className="flex items-start gap-2">
               <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-book-border/50 bg-book-bg-tertiary text-caption text-book-text-muted">
-                {boundSrc ? (
-                  <img
-                    src={boundSrc}
+                {previewSrc ? (
+                  <ZoomableImage
+                    src={previewSrc}
                     alt={binding.characterName}
                     className="h-full w-full object-cover"
                   />
@@ -103,10 +104,10 @@ export const ReferenceBindingsPanel: React.FC<{
                   </span>
                   <span
                     className={`text-caption ${
-                      binding.boundAsset ? "text-success" : "text-warning"
+                      binding.boundAsset && selectedKey === boundKey ? "text-success" : "text-warning"
                     }`}
                   >
-                    {binding.boundAsset
+                    {binding.boundAsset && selectedKey === boundKey
                       ? t("comic.prompt.bound")
                       : t("comic.prompt.pendingBinding")}
                   </span>
@@ -116,6 +117,7 @@ export const ReferenceBindingsPanel: React.FC<{
 
             <div className="mt-2 grid grid-cols-[minmax(0,1fr)_auto] gap-1.5">
               <ThemedSelect
+                aria-label={`${binding.characterName} · ${t("comic.prompt.selectAsset")}`}
                 value={selectedKey}
                 onChange={(selectedValue) => onSelectCandidate(bindingKey, selectedValue)}
                 className="pyqt-input h-8 min-w-0 !px-2 !py-1 text-xs"

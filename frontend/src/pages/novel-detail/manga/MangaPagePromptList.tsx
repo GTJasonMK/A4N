@@ -1,6 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { FileText,
-  Image,
   ImagePlus,
   Link2,
   MessageSquareText,
@@ -23,13 +22,9 @@ import type {
 } from "../../../api/manga";
 import { BookButton } from "../../../components/ui/BookButton";
 import { Dropdown, type DropdownItem } from "../../../components/ui/Dropdown";
-import { Modal } from "../../../components/ui/Modal";
 import { SegmentedControl } from "../../../components/ui/SegmentedControl";
 import { EmptyHint } from "../shared";
-import {
-  MangaPageImagePreview,
-  type ImagePreviewTarget,
-} from "./MangaPageImagePreview";
+import { MangaPageImagePreview } from "./MangaPageImagePreview";
 import {
   LayoutSummaryGrid,
   statusLabel,
@@ -140,14 +135,12 @@ export const MangaPagePromptList: React.FC<MangaPagePromptListProps> = ({
     [currentContentHash, pagePromptLabels, prompts],
   );
   const [selectedPage, setSelectedPage] = useState<number | null>(null);
-  const [detailView, setDetailView] = useState<MangaPageDetailView>("prompt");
-  const [editingPromptId, setEditingPromptId] = useState<number | null>(null);
-  const [promptDraft, setPromptDraft] = useState("");
+  const [detailView, setDetailView] = useState<MangaPageDetailView | null>(null);
+  const [promptDrafts, setPromptDrafts] = useState<Record<number, string>>({});
   const [promptSaving, setPromptSaving] = useState(false);
   const [selectedCandidateByCharacter, setSelectedCandidateByCharacter] = useState<
     Record<string, string>
   >({});
-  const [imagePreview, setImagePreview] = useState<ImagePreviewTarget | null>(null);
   const promptScopeKey = useMemo(
     () => prompts.map((prompt) => `${prompt.id}:${prompt.page_number}`).join("|"),
     [prompts],
@@ -168,6 +161,17 @@ export const MangaPagePromptList: React.FC<MangaPagePromptListProps> = ({
 
   const activePage =
     pagePrompts.find((page) => page.pageNumber === selectedPage) ?? pagePrompts[0] ?? null;
+  const activeDetailView = detailView ?? (activePage?.prompt.generated_image_id != null ? "image" : "prompt");
+  const editingPromptId = activePage && promptDrafts[activePage.prompt.id] !== undefined ? activePage.prompt.id : null;
+  const promptDraft = editingPromptId == null ? "" : promptDrafts[editingPromptId];
+  const setPromptDraft = (value: string) => {
+    if (activePage) setPromptDrafts((current) => ({ ...current, [activePage.prompt.id]: value }));
+  };
+  const discardPromptDraft = (id: number) => setPromptDrafts((current) => {
+    const next = { ...current };
+    delete next[id];
+    return next;
+  });
   const hasMultiplePages = pagePrompts.length > 1;
   const activePageImage = useMemo(
     () => findGeneratedPageImage(activePage, projectImages),
@@ -175,27 +179,12 @@ export const MangaPagePromptList: React.FC<MangaPagePromptListProps> = ({
   );
 
   useEffect(() => {
-    setDetailView(activePage?.prompt.generated_image_id != null ? "image" : "prompt");
-  }, [activePage?.pageNumber, activePage?.prompt.generated_image_id]);
-
-  useEffect(() => {
-    setEditingPromptId(null);
-    setPromptDraft("");
-    setPromptSaving(false);
-  }, [activePage?.prompt.id]);
-
-  useEffect(() => {
-    setImagePreview(null);
     setSelectedCandidateByCharacter({});
-    setEditingPromptId(null);
-    setPromptDraft("");
-    setPromptSaving(false);
   }, [promptScopeKey]);
 
   useEffect(() => {
     if (!canEditManga) {
-      setEditingPromptId(null);
-      setPromptDraft("");
+      setPromptDrafts({});
       setPromptSaving(false);
     }
   }, [canEditManga]);
@@ -279,19 +268,17 @@ export const MangaPagePromptList: React.FC<MangaPagePromptListProps> = ({
 
   const beginPromptEdit = (page: MangaPagePrompt) => {
     if (!canEditManga) return;
-    setEditingPromptId(page.prompt.id);
-    setPromptDraft(page.prompt.image_prompt);
+    setDetailView("prompt");
+    setPromptDrafts((current) => ({ ...current, [page.prompt.id]: page.prompt.image_prompt }));
   };
 
   const cancelPromptEdit = () => {
-    setEditingPromptId(null);
-    setPromptDraft("");
+    if (editingPromptId != null) discardPromptDraft(editingPromptId);
   };
 
   const savePromptEdit = async (page: MangaPagePrompt) => {
     if (!canEditManga) {
-      setEditingPromptId(null);
-      setPromptDraft("");
+      setPromptDrafts({});
       setPromptSaving(false);
       return;
     }
@@ -300,8 +287,7 @@ export const MangaPagePromptList: React.FC<MangaPagePromptListProps> = ({
     setPromptSaving(true);
     try {
       await onUpdatePrompt(page.prompt.id, nextPrompt);
-      setEditingPromptId(null);
-      setPromptDraft("");
+      discardPromptDraft(page.prompt.id);
     } catch {
       // 调用方负责 toast；这里保留编辑状态，方便继续修改后重试。
     } finally {
@@ -401,7 +387,6 @@ export const MangaPagePromptList: React.FC<MangaPagePromptListProps> = ({
   return (
     <div className="flex h-full min-h-0 flex-col">
         <div className="mb-3 shrink-0">
-          <h2 className="text-sm font-semibold text-book-text-main">{t("comic.prompt.pageTitle")}</h2>
           <p
             className={`mt-1 text-small leading-relaxed ${
               pipelineFailed > 0 || staleCount > 0
@@ -438,6 +423,8 @@ export const MangaPagePromptList: React.FC<MangaPagePromptListProps> = ({
                     page.prompt.status !== "completed" && page.prompt.status !== "pending" ? pageStatus : "",
                     page.promptCount > 1 ? t("comic.prompt.recordCount", { count: page.promptCount }) : "",
                     page.sourceStale ? t("comic.prompt.staleStatus") : "",
+                    promptDrafts[page.prompt.id] !== undefined && promptDrafts[page.prompt.id] !== page.prompt.image_prompt
+                      ? t("common.unsavedChangesTitle") : "",
                   ].filter(Boolean);
                   return (
                     <button
@@ -470,8 +457,8 @@ export const MangaPagePromptList: React.FC<MangaPagePromptListProps> = ({
             {activePage ? (
               <article className="a4n-flat-surface min-w-0 overflow-hidden">
                 <header className="border-b border-book-border/40 p-3">
-                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                    <div className="min-w-0">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="min-w-0 flex-1 basis-32">
                       <h3 className="text-sm font-semibold text-book-text-main">
                         {t("comic.prompt.pageHeading", { page: activePage.pageNumber })}
                       </h3>
@@ -504,7 +491,7 @@ export const MangaPagePromptList: React.FC<MangaPagePromptListProps> = ({
                 <div className="border-b border-book-border/40 px-3 py-2">
                   <SegmentedControl
                     ariaLabel={t("comic.prompt.pageTitle")}
-                    value={detailView}
+                    value={activeDetailView}
                     onChange={setDetailView}
                     options={[
                       { id: "prompt", label: t("comic.prompt.promptAndReferences") },
@@ -514,20 +501,19 @@ export const MangaPagePromptList: React.FC<MangaPagePromptListProps> = ({
                 </div>
 
                 <div className="p-3">
-                  {detailView === "image" ? (
+                  {activeDetailView === "image" ? (
                     <MangaPageImagePreview
                       page={activePage}
                       image={activePageImage}
                       loading={assetsLoading}
-                      onOpenImage={setImagePreview}
                     />
                   ) : (
-                    <div className="grid grid-cols-1 gap-5 2xl:grid-cols-[minmax(0,1.08fr)_minmax(320px,0.92fr)]">
+                    <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1.08fr)_minmax(280px,0.92fr)]">
                     <section className="min-w-0">
                       <div className="mb-2 flex items-center justify-between gap-2">
                         <h3 className="flex items-center gap-1.5 text-xs font-semibold text-book-text-main">
                           <FileText size={12} className="text-book-primary" />
-                          {t("comic.prompt.pageTitle")}
+                          {t("comic.pipelineStages.pagePrompt")}
                         </h3>
                         {canEditManga && editingPromptId === activePage.prompt.id ? (
                           <div className="flex items-center gap-1.5">
@@ -566,6 +552,7 @@ export const MangaPagePromptList: React.FC<MangaPagePromptListProps> = ({
                       </div>
                       {canEditManga && editingPromptId === activePage.prompt.id ? (
                         <textarea
+                          aria-label={t("comic.prompt.pageLabel", { page: activePage.pageNumber })}
                           value={promptDraft}
                           onChange={(event) => setPromptDraft(event.target.value)}
                           className="pyqt-input min-h-[260px] max-h-[52vh] w-full resize-y font-mono text-body-sm leading-relaxed"
@@ -640,29 +627,6 @@ export const MangaPagePromptList: React.FC<MangaPagePromptListProps> = ({
             ) : null}
           </section>
         </div>
-        <Modal
-          isOpen={imagePreview != null}
-          onClose={() => setImagePreview(null)}
-          title={imagePreview ? t("comic.prompt.pageHeading", { page: imagePreview.pageNumber }) : t("comic.prompt.imageView")}
-          subtitle={
-            imagePreview
-              ? `${imagePreview.image.width}×${imagePreview.image.height}`
-              : null
-          }
-          icon={<Image size={15} />}
-          maxWidthClassName="max-w-6xl"
-          bodyClassName="bg-book-bg-tertiary p-0"
-        >
-          {imagePreview ? (
-            <div className="flex min-h-[60vh] items-center justify-center p-3 sm:p-5">
-              <img
-                src={imagePreview.src}
-                alt={t("comic.prompt.alt", { page: imagePreview.pageNumber })}
-                className="max-h-[78vh] w-full object-contain"
-              />
-            </div>
-          ) : null}
-        </Modal>
     </div>
   );
 };

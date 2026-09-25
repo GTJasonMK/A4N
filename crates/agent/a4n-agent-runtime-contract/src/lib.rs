@@ -30,10 +30,10 @@ use a4n_worker_contract::{
     AgentWorkerInboxPersistSnapshotWire, AgentWorkerInboxSnapshotWire, AgentWorkerMemoryRequest,
     AgentWorkerMessageRequest, AgentWorkerMessageSnapshotWire, AgentWorkerRecoveryRequest,
     AgentWorkerResultRefsRequest, AgentWorkerResultRefsSnapshotWire, AgentWorkerRunContextWire,
-    AgentWorkerRunLeaseRequest, AgentWorkerRunSnapshotWire, AgentWorkerRunStatusSnapshotWire,
-    AgentWorkerRunWaitRequest, AgentWorkerRunWire, AgentWorkerSkillLoadRequest,
-    AgentWorkerSkillSearchRequest, AgentWorkerThreadSnapshotWire, AgentWorkerTurnSnapshotWire,
-    AgentWorkerUsageRequest, WorkerEnvelope,
+    AgentWorkerRunLeaseRequest, AgentWorkerRunSnapshotWire, AgentWorkerRunWaitRequest,
+    AgentWorkerRunWire, AgentWorkerSkillLoadRequest, AgentWorkerSkillSearchRequest,
+    AgentWorkerThreadSnapshotWire, AgentWorkerTurnSnapshotWire, AgentWorkerUsageRequest,
+    WorkerEnvelope,
 };
 use chrono::NaiveDateTime;
 use serde::{Deserialize, Serialize};
@@ -57,7 +57,7 @@ mod tests {
     use serde_json::json;
 
     #[test]
-    fn child_budget_is_capped_by_parent_remaining_usage() {
+    fn child_budget_preserves_explicit_limits_without_copying_parent_consumption() {
         let parent = AgentBudget {
             max_steps: Some(10),
             max_model_calls: Some(8),
@@ -73,36 +73,67 @@ mod tests {
             ..AgentBudget::default()
         };
 
-        let capped = child_budget_within_parent(
-            child,
-            &parent,
-            &json!({
-                "steps_used": 3,
-                "model_calls_used": 2,
-                "tokens_used": 250
-            }),
-        )
-        .expect("child budget must be capped");
-        assert_eq!(capped.max_steps, Some(7));
-        assert_eq!(capped.max_model_calls, Some(6));
-        assert_eq!(capped.max_tokens, Some(750));
-        assert_eq!(capped.max_delegation_depth, Some(1));
+        let capped =
+            child_budget_for_delegation(child, &parent).expect("child budget must be capped");
+        assert_eq!(capped.max_steps, Some(99));
+        assert_eq!(capped.max_model_calls, Some(99));
+        assert_eq!(capped.max_tokens, Some(9_999));
+        assert_eq!(capped.max_delegation_depth, Some(2));
+        assert!(enforce_delegation_limits(&[], 2, 1, &capped).is_ok());
+        assert!(enforce_delegation_limits(&[], 3, 2, &capped).is_err());
 
-        let exhausted = child_budget_within_parent(
-            AgentBudget::default(),
-            &AgentBudget {
-                max_steps: Some(3),
-                ..AgentBudget::default()
-            },
-            &json!({"steps_used": 3}),
-        )
-        .expect_err("an exhausted parent budget must reject another child");
-        assert!(exhausted.to_string().contains("max_steps"));
+        let inherited = child_budget_for_delegation(AgentBudget::default(), &parent).unwrap();
+        assert_eq!(inherited.max_steps, None);
+        assert_eq!(inherited.max_tokens, None);
+    }
+
+    #[test]
+    fn budget_extension_is_absolute_and_never_resets_other_limits() {
+        let budget = AgentBudget {
+            max_tokens: Some(100),
+            ..AgentBudget::default()
+        };
+        let extended = budget
+            .extended(
+                &AgentBudget {
+                    max_steps: Some(64),
+                    max_tokens: Some(200),
+                    ..AgentBudget::default()
+                },
+                true,
+            )
+            .unwrap();
+        assert_eq!(extended.max_steps, Some(64));
+        assert_eq!(extended.max_tokens, Some(200));
+        assert!(
+            budget
+                .extended(
+                    &AgentBudget {
+                        max_tokens: Some(99),
+                        ..AgentBudget::default()
+                    },
+                    true
+                )
+                .is_err()
+        );
+        assert!(
+            budget
+                .extended(
+                    &AgentBudget {
+                        max_steps: Some(1),
+                        ..AgentBudget::default()
+                    },
+                    true
+                )
+                .is_err()
+        );
+        assert!(budget.extended(&AgentBudget::default(), true).is_err());
     }
 
     #[test]
     fn context_summary_rejects_invalid_input() {
         let invalid = json!({
+            "schema_version": AGENT_CONTEXT_SUMMARY_VERSION,
             "current_goal": "goal",
             "constraints": [],
             "decisions": [],
@@ -115,6 +146,7 @@ mod tests {
         assert!(parse_agent_context_summary(Some(&invalid.to_string())).is_err());
 
         let valid = AgentContextSummary {
+            schema_version: AGENT_CONTEXT_SUMMARY_VERSION,
             current_goal: "goal".into(),
             constraints: vec!["keep the contract stable".into()],
             decisions: Vec::new(),
@@ -128,29 +160,12 @@ mod tests {
     }
 
     #[test]
-    fn deterministic_context_summary_preserves_shape_without_model_output() {
-        let summary = deterministic_context_summary(
-            Some(&json!({
-                "current_goal": "继续阅读正文",
-                "constraints": ["保持人物声音"],
-                "pending": ["读取下一段"],
-            })),
-            Some("fallback goal"),
-            "{\"tool\":\"read_project_context\",\"result\":true}",
-            12,
-        )
-        .expect("deterministic summary must validate");
-
-        assert_eq!(summary.current_goal, "继续阅读正文");
-        assert_eq!(summary.constraints, ["保持人物声音"]);
-        assert_eq!(summary.pending, ["读取下一段"]);
-        assert_eq!(summary.covered_through_sequence, 12);
-        assert!(
-            summary
-                .tool_state
-                .iter()
-                .any(|value| value.contains("确定性压缩"))
-        );
+    fn persisted_summary_requires_a_current_version() {
+        let legacy = json!({"current_goal": "旧目标", "facts_resources": vec!["截断事实"; 65], "covered_through_sequence": 9999});
+        assert!(parse_agent_context_summary(Some(&legacy.to_string())).is_err());
+        assert!(parse_agent_context_summary(Some("not json")).is_err());
+        let future = json!({"schema_version": 999});
+        assert!(parse_agent_context_summary(Some(&future.to_string())).is_err());
     }
 
     #[test]

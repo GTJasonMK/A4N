@@ -42,6 +42,7 @@ import { NovelListSidebar } from "./novel-list/NovelListSidebar";
 import type { CreateMode } from "./novel-list/NovelListDialogs";
 import { ProjectListPanel } from "./novel-list/ProjectListPanel";
 import { createProjectActions } from "./novel-list/projectActions";
+import { usePackagePreferences } from "../store/packagePreferences";
 import {
   getRecentProjectFamilies,
   groupProjectFamiliesByTitle,
@@ -91,6 +92,7 @@ interface NovelListProps {
 type DerivedProjectKind = Exclude<ProjectKind, "text">;
 
 export const NovelList: React.FC<NovelListProps> = () => {
+  const { isVisible: isPackageVisible } = usePackagePreferences();
   const navigate = useNavigate();
   const { addToast } = useToast();
   const { locale, t } = useI18n();
@@ -182,7 +184,6 @@ export const NovelList: React.FC<NovelListProps> = () => {
       ) {
         const message = extractErrorMessage(err, t("novel.projectLoadFailed"));
         setLoadError(message);
-        addToast(message, "error");
       }
     } finally {
       if (
@@ -716,7 +717,7 @@ export const NovelList: React.FC<NovelListProps> = () => {
       onExport: (item) => void handleExport(item),
       onImportText: (item) => setImportTextProjectId(item.id),
       onDelete: (item) => void handleDelete(item),
-    }, t);
+    }, t, isPackageVisible);
 
   return (
     <div className="a4n-home-page relative h-full w-full overflow-y-auto overflow-x-hidden bg-book-bg md:overflow-hidden">
@@ -743,6 +744,7 @@ export const NovelList: React.FC<NovelListProps> = () => {
           onCreateProject={() => setCreateDialogOpen(true)}
           onImportProject={() => setImportDialogOpenState(true)}
           onOpenSettings={() => navigate("/settings")}
+          onRetry={() => void refresh()}
           onAccessScopeChange={handleAccessScopeChange}
           onProjectKindFilterChange={handleProjectKindFilterChange}
           onAcceptInvite={(invite) => void handleAcceptInvite(invite)}
@@ -774,6 +776,7 @@ export const NovelList: React.FC<NovelListProps> = () => {
         ) : null}
         {importTextProjectId != null ? (
           <ProjectTextImportDialog
+            projectTitle={projects.find((project) => project.id === importTextProjectId)?.title}
             projectId={importTextProjectId}
             onClose={() => setImportTextProjectId(null)}
           />

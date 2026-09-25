@@ -251,6 +251,30 @@ fn response_requires_status_consistent_error_payload_and_pagination() {
 }
 
 #[test]
+fn response_distinguishes_null_results_from_missing_payloads() {
+    let mut wire = serde_json::to_value(valid_response(WorkerOperationStatus::Completed))
+        .expect("response should serialize");
+    wire["payload"] = serde_json::Value::Null;
+    let nullable: WorkerResponse<Option<String>> =
+        serde_json::from_value(wire.clone()).expect("null business result");
+    assert_eq!(nullable.payload, Some(None));
+    assert_eq!(serde_json::to_value(&nullable).unwrap(), wire);
+    let unit: WorkerResponse<()> = serde_json::from_value(wire.clone()).expect("void result");
+    assert_eq!(unit.payload, Some(()));
+    assert!(serde_json::from_value::<WorkerResponse<String>>(wire.clone()).is_err());
+
+    wire["payload"] = serde_json::json!("saved");
+    let value: WorkerResponse<Option<String>> =
+        serde_json::from_value(wire.clone()).expect("non-null result");
+    assert_eq!(value.payload, Some(Some("saved".into())));
+
+    wire.as_object_mut().unwrap().remove("payload");
+    let missing: WorkerResponse<Option<String>> =
+        serde_json::from_value(wire).expect("absent result stays absent");
+    assert_eq!(missing.payload, None);
+}
+
+#[test]
 fn revision_and_response_round_trip_with_zero_rejected() {
     let revision = WorkerRevision::new(4).expect("positive revision should validate");
     let encoded = serde_json::to_string(&revision).expect("revision should serialize");

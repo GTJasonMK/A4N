@@ -3,9 +3,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import {
   ImagePlus,
   RotateCcw,
-  Save,
   Trash2,
-  X,
 } from "lucide-react";
 import {
   type Theme,
@@ -33,7 +31,7 @@ import {
 import { parseCssRgb } from "../../../utils/cssColor";
 import { pickLocalFile } from "../../../utils/fileUpload";
 import { toMediaSrc } from "../../../utils/mediaSrc";
-import { useI18n } from "../../../i18n";
+import { useI18n, type MessageTranslator, type MessageKey } from "../../../i18n";
 import { StreamDisplaySettingsPanel } from "../advanced/StreamDisplaySettingsPanel";
 import {
   DEFAULT_STREAM_DISPLAY_SETTINGS,
@@ -56,6 +54,7 @@ const SUPPORTED_THEME_IMAGE_TYPES = [
   "image/webp",
   "image/gif",
 ];
+export const THEME_EDITOR_FORM_ID = "theme-editor-form";
 
 interface ThemeEditorPanelProps {
   theme: Theme;
@@ -65,7 +64,6 @@ interface ThemeEditorPanelProps {
     pendingFiles: Record<string, File>,
     deleteResourceIds: number[],
   ) => Promise<Theme | null>;
-  onCancel: () => void;
   onDirtyChange?: (dirty: boolean) => void;
 }
 
@@ -125,8 +123,8 @@ function hexColor(value: string | undefined): string {
   return `#${raw.slice(0, 6)}`;
 }
 
-function tokenLabel(token: string): string {
-  return token.replace(/^--/, "").replace(/-/g, " ");
+function tokenLabel(token: string, t: MessageTranslator): string {
+  return t(`settingsTheme.tokenLabels.${token.slice(2)}` as MessageKey);
 }
 
 function draftPreviewTheme(
@@ -160,7 +158,6 @@ export const ThemeEditorPanel: React.FC<ThemeEditorPanelProps> = ({
   theme,
   saving,
   onSave,
-  onCancel,
   onDirtyChange,
 }) => {
   const { t } = useI18n();
@@ -357,11 +354,6 @@ export const ThemeEditorPanel: React.FC<ThemeEditorPanelProps> = ({
     setError(null);
   };
 
-  const handleCancel = async () => {
-    if (!(await confirmDiscardDraft(t("settingsTheme.cancel")))) return;
-    onCancel();
-  };
-
   const handleSave = async () => {
     const trimmedName = name.trim();
     if (!trimmedName) {
@@ -393,31 +385,15 @@ export const ThemeEditorPanel: React.FC<ThemeEditorPanelProps> = ({
   };
 
   return (
-    <section
-      className="a4n-flat-surface min-w-0 overflow-hidden"
-      aria-labelledby="theme-editor-title"
+    <form
+      id={THEME_EDITOR_FORM_ID}
+      className="min-w-0"
+      aria-label={t("settingsTheme.editorTitle")}
       data-settings-dirty={isDirty ? "true" : undefined}
+      onSubmit={(event) => { event.preventDefault(); void handleSave(); }}
     >
-      <div className="flex min-w-0 flex-wrap items-center gap-2 border-b border-book-border/35 px-3 py-3 sm:px-4">
-        <div className="min-w-0 flex-1">
-          <h2 id="theme-editor-title" className="truncate text-sm font-semibold text-book-text-main">
-            {t("settingsTheme.editorTitle")}: {theme.name}
-          </h2>
-          <p className="mt-0.5 text-small text-book-text-muted">{t("settingsTheme.editorHint")}</p>
-        </div>
-        <div className="flex shrink-0 flex-wrap items-center gap-1.5">
-          <BookButton variant="primary" size="sm" onClick={handleSave} disabled={saving}>
-            {saving ? <LoadingSpinner size="sm" /> : <Save size={13} />}
-            {t("common.save")}
-          </BookButton>
-          <BookButton variant="ghost" size="sm" onClick={() => void handleCancel()} disabled={saving}>
-            <X size={13} /> {t("settingsTheme.cancel")}
-          </BookButton>
-        </div>
-      </div>
-
-      <div className="grid min-w-0 gap-4 p-3 sm:p-4">
-        <div className="grid min-w-0 gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
+      <div className="grid min-w-0 gap-4">
+        <div id="theme-editor-title" className="grid min-w-0 gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
           <BookInput
             label={t("settingsTheme.name")}
             value={name}
@@ -435,17 +411,11 @@ export const ThemeEditorPanel: React.FC<ThemeEditorPanelProps> = ({
           />
         </div>
 
-        <StreamDisplaySettingsPanel
-          value={streamDisplay}
-          disabled={saving}
-          onChange={updateStreamDisplay}
-        />
-
         <section aria-labelledby="theme-editor-colors">
           <h3 id="theme-editor-colors" className="mb-2 text-xs font-semibold text-book-text-main">
             {t("settingsTheme.colors")}
           </h3>
-          <div className="grid min-w-0 grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-3">
+          <div className="grid min-w-0 grid-cols-1 gap-2 sm:grid-cols-2">
             {THEME_COLOR_TOKEN_NAMES.map((token) => (
               <label key={token} className="flex min-w-0 items-center gap-2 rounded-[var(--pyqt-radius-sm)] border border-book-border/25 bg-book-bg-tertiary/25 px-2 py-1.5">
                 <input
@@ -453,12 +423,12 @@ export const ThemeEditorPanel: React.FC<ThemeEditorPanelProps> = ({
                   value={tokenToHex(document.tokens[token])}
                   onChange={(event) => updateToken(token, hexToToken(event.target.value) ?? "")}
                   disabled={saving}
-                  aria-label={tokenLabel(token)}
+                  aria-label={tokenLabel(token, t)}
                   title={tokenToHex(document.tokens[token]).toUpperCase()}
                   className="h-8 w-9 shrink-0 cursor-pointer rounded border-0 bg-transparent p-0"
                 />
-                <span className="min-w-0 flex-1 truncate font-mono text-[0.68rem] text-book-text-sub" title={token}>
-                  {tokenLabel(token)}
+                <span className="min-w-0 flex-1 text-xs text-book-text-sub" title={token}>
+                  {tokenLabel(token, t)}
                 </span>
                 <code className="shrink-0 font-mono text-[0.65rem] text-book-text-muted">
                   {tokenToHex(document.tokens[token]).toUpperCase()}
@@ -586,12 +556,12 @@ export const ThemeEditorPanel: React.FC<ThemeEditorPanelProps> = ({
               disabled={saving}
             >
               {THEME_ROUTE_FAMILIES.map((route) => (
-                <option key={route} value={route}>{route}</option>
+                <option key={route} value={route}>{t(`settingsTheme.routeLabels.${route}` as MessageKey)}</option>
               ))}
             </ThemedSelect>
           </div>
           <div className="grid min-w-0 gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(15rem,0.8fr)]">
-            <div className="a4n-theme-editor-preview relative min-h-36 overflow-hidden rounded-[var(--pyqt-radius-md)] border border-book-border/35 bg-book-bg-tertiary/35">
+            <div className="a4n-theme-editor-preview relative aspect-video w-full self-start overflow-hidden rounded-[var(--pyqt-radius-md)] border border-book-border/35 bg-book-bg-tertiary/35">
               {currentBackgroundUrl ? (
                 <span
                   className="absolute -inset-8 bg-center bg-no-repeat"
@@ -677,7 +647,7 @@ export const ThemeEditorPanel: React.FC<ThemeEditorPanelProps> = ({
                   className="pyqt-input !min-h-8 w-full !px-2 text-xs"
                 >
                   {(["center", "top", "bottom", "left", "right"] as const).map((position) => (
-                    <option key={position} value={position}>{position}</option>
+                    <option key={position} value={position}>{t(`settingsTheme.positionLabels.${position}` as MessageKey)}</option>
                   ))}
                 </ThemedSelect>
               </label>
@@ -690,7 +660,7 @@ export const ThemeEditorPanel: React.FC<ThemeEditorPanelProps> = ({
                   className="pyqt-input !min-h-8 w-full !px-2 text-xs"
                 >
                   {(["cover", "contain", "auto"] as const).map((size) => (
-                    <option key={size} value={size}>{size}</option>
+                    <option key={size} value={size}>{t(`settingsTheme.sizeLabels.${size}` as MessageKey)}</option>
                   ))}
                 </ThemedSelect>
               </label>
@@ -719,8 +689,13 @@ export const ThemeEditorPanel: React.FC<ThemeEditorPanelProps> = ({
           </div>
         </section>
 
+        <details>
+          <summary className="cursor-pointer py-2 text-xs font-semibold text-book-text-main">{t("settingsTheme.streamDisplay")}</summary>
+          <StreamDisplaySettingsPanel value={streamDisplay} disabled={saving} onChange={updateStreamDisplay} />
+        </details>
+
         <details className="min-w-0 rounded-[var(--pyqt-radius-md)] border border-book-border/30 bg-book-bg-tertiary/15">
-          <summary className="cursor-pointer list-none px-3 py-2 text-xs font-semibold text-book-text-main [&::-webkit-details-marker]:hidden">
+          <summary className="cursor-pointer px-3 py-2 text-xs font-semibold text-book-text-main">
             {t("settingsTheme.advancedTokens")}
           </summary>
           <div className="grid min-w-0 gap-2 border-t border-book-border/25 p-3 sm:grid-cols-2">
@@ -751,13 +726,9 @@ export const ThemeEditorPanel: React.FC<ThemeEditorPanelProps> = ({
           <BookButton variant="ghost" onClick={() => void resetDraft()} disabled={saving}>
             <RotateCcw size={13} /> {t("settingsTheme.reset")}
           </BookButton>
-          <BookButton variant="primary" onClick={handleSave} disabled={saving}>
-            {saving ? <LoadingSpinner size="sm" /> : <Save size={13} />}
-            {saving ? t("settingsTheme.saving") : t("common.save")}
-          </BookButton>
         </div>
       </div>
-    </section>
+    </form>
   );
 };
 

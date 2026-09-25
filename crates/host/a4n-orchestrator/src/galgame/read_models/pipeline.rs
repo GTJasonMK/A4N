@@ -27,9 +27,9 @@ pub(in crate::galgame) fn galgame_pipeline_status_summary(
             can_resume: run.can_resume,
             resume_block_reason: run.resume_block_reason,
             error_message: run.error_message,
-            created_at: run.created_at.to_string(),
-            updated_at: run.updated_at.to_string(),
-            completed_at: run.completed_at.map(|value| value.to_string()),
+            created_at: run.created_at.and_utc().to_rfc3339(),
+            updated_at: run.updated_at.and_utc().to_rfc3339(),
+            completed_at: run.completed_at.map(|value| value.and_utc().to_rfc3339()),
         }),
         checkpoints: checkpoints
             .into_iter()
@@ -41,9 +41,11 @@ pub(in crate::galgame) fn galgame_pipeline_status_summary(
                 checkpoint_json: checkpoint.checkpoint_json,
                 artifacts_json: checkpoint.artifacts_json,
                 error_message: checkpoint.error_message,
-                created_at: checkpoint.created_at.to_string(),
-                updated_at: checkpoint.updated_at.to_string(),
-                completed_at: checkpoint.completed_at.map(|value| value.to_string()),
+                created_at: checkpoint.created_at.and_utc().to_rfc3339(),
+                updated_at: checkpoint.updated_at.and_utc().to_rfc3339(),
+                completed_at: checkpoint
+                    .completed_at
+                    .map(|value| value.and_utc().to_rfc3339()),
             })
             .collect(),
     }

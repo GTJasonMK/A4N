@@ -33,16 +33,17 @@ use a4n_api_contract::{
         ArchiveAgentThreadInput, ControlAgentRunInput, ControlChildAgentInput,
         CreateAgentThreadInput, DescribeAgentToolInput, EnsureMainAgentThreadInput,
         ForkAgentThreadInput, ListAgentMessagesInput, ListAgentThreadsInput, LoadAgentSkillInput,
-        LocateWritingTargetInput, ReadAgentExecutionResultInput, ReadAgentMemoryInput,
-        ReadEditorDraftInput, ResolveAgentApprovalInput, RespondAgentEditorInput,
-        RetractAgentMemoryInput, ReviewAgentDelegationInput, SaveEditorDraftInput,
-        SearchAgentSkillsInput, SearchAgentToolsInput, SendAgentMessageInput,
+        LocateWritingTargetInput, ReadAgentExecutionResultInput, ReadAgentHistoryInput,
+        ReadAgentMemoryInput, ReadEditorDraftInput, RequestAgentInput, ResolveAgentApprovalInput,
+        RespondAgentEditorInput, RetractAgentMemoryInput, ReviewAgentDelegationInput,
+        SaveEditorDraftInput, SearchAgentSkillsInput, SearchAgentToolsInput, SendAgentMessageInput,
         SendAgentMessageToChildInput, SpawnAgentInput, UpdateAgentSkillConfigurationInput,
         UpdateAgentThreadInput, WritingTargetView,
     },
     auth::{
-        AuthResult, ChangePasswordInput, LoginInput, RefreshTokenInput, RegisterInput,
-        RevokeSessionInput, SessionSummary, TokenPairSummary, UpdateProfileInput, UserSummary,
+        AuthResult, ChangePasswordInput, LoginInput, OAuth2AuthorizeInput, OAuth2BrowserInput,
+        OAuth2CallbackInput, RefreshTokenInput, RegisterInput, RevokeSessionInput, SessionSummary,
+        TokenPairSummary, UpdateProfileInput, UserSummary,
     },
     blueprint::{
         BlueprintDiffSummary, BlueprintMutationResult, BlueprintSummary, BlueprintVersionSummary,
@@ -53,8 +54,8 @@ use a4n_api_contract::{
     canvas::{
         CanvasEdgeInput, CanvasEdgeSummary, CanvasGraphDocument, CanvasGraphEditOperation,
         CanvasGraphEditResult, CanvasGraphInput, CanvasGraphProjection, CanvasGraphReadResult,
-        CanvasGraphSummary, CanvasMediaAssetSummary, CanvasNodeContract, CanvasNodeIndex,
-        CanvasNodeInput, CanvasNodeSummary, CanvasPortContract, CanvasRunSummary,
+        CanvasGraphSaveResult, CanvasGraphSummary, CanvasMediaAssetSummary, CanvasNodeContract,
+        CanvasNodeIndex, CanvasNodeInput, CanvasNodeSummary, CanvasPortContract, CanvasRunSummary,
         CanvasTextAssetInput, CanvasTextAssetSummary, EditCanvasGraphInput, GetCanvasGraphInput,
         GetCanvasNodeContractsInput, ImportCanvasMediaInput, ImportedCanvasMedia,
         PreviewCanvasNodeRequestInput, ReadCanvasGraphInput, RunCanvasGraphInput,
@@ -405,7 +406,8 @@ fn typescript_interface<T: JsonSchema>(name: &str) -> String {
                 .collect::<std::collections::BTreeSet<_>>()
         })
         .unwrap_or_default();
-    let force_nullable_fields_required = !name.ends_with("Input");
+    // AgentBudget is also the nested partial payload for a budget extension.
+    let force_nullable_fields_required = !name.ends_with("Input") && name != "AgentBudget";
 
     let mut output = format!("export interface {name} {{\n");
     if let Some(properties) = properties {

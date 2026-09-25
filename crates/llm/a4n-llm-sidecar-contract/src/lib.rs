@@ -7,7 +7,7 @@ use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::Value;
 
 pub const LLM_SERVICE_NAME: &str = "llm";
-pub const LLM_CHAT_CAPABILITY_VERSION: &str = "llm-chat-v7";
+pub const LLM_CHAT_CAPABILITY_VERSION: &str = "llm-chat-v8";
 pub const LLM_SERVICE_ADDR_ENV: &str = "A4N_LLM_GATEWAY_ADDR";
 pub const LLM_SERVICE_DEFAULT_ADDR: &str = "127.0.0.1:47642";
 
@@ -94,10 +94,6 @@ pub struct LlmChatRequest {
     pub cache_breakpoints: Vec<LlmPromptCacheBreakpoint>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub cache_mode: Option<LlmPromptCacheMode>,
-    #[serde(default, skip_serializing_if = "is_false")]
-    pub cache_system_prefix: bool,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub cache_user_prefix_len: Option<usize>,
     pub tools: Option<Vec<Value>>,
     pub tool_choice: Option<String>,
     pub stop_sequences: Option<Vec<String>>,
@@ -324,8 +320,6 @@ mod tests {
                 byte_offset: 6,
             }],
             cache_mode: Some(LlmPromptCacheMode::Explicit),
-            cache_system_prefix: true,
-            cache_user_prefix_len: Some(4),
             tools: Some(vec![json!({"type": "function"})]),
             tool_choice: Some("auto".to_string()),
             stop_sequences: Some(vec!["DONE".to_string()]),

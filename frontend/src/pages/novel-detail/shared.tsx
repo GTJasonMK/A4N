@@ -214,8 +214,8 @@ export function NumberField({
         type="number"
         min={min}
         max={max}
-        value={value}
-        onChange={(event) => onChange(Number(event.target.value) || min)}
+        value={Number.isNaN(value) ? "" : value}
+        onChange={(event) => onChange(event.target.valueAsNumber)}
         className="pyqt-input !px-2 !py-1 text-xs"
       />
     </label>

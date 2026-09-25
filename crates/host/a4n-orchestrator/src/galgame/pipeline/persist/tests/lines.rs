@@ -79,6 +79,7 @@ fn rejects_persist_plan_when_dialogue_has_no_profile() {
         id: "s1".to_string(),
         text_anchor_id: 100,
         source_snapshot_chapter_id: 20,
+        chapter_number: 1,
     }];
 
     let err = build_galgame_script_persist_plan(

@@ -11,6 +11,7 @@ from unittest.mock import patch
 
 from mock_openai.fixtures.story import chapter_body_response
 from run_cli_contract_e2e import (
+    RunnerError,
     classify,
     completion_flags,
     provider_log_summary,
@@ -46,6 +47,22 @@ from run_all_workflows_e2e import (
 
 
 class CliContractRunnerTest(unittest.TestCase):
+    def test_fixture_failure_keeps_completed_operations_and_failure_record(self) -> None:
+        commands = ("create_project", "create_freeform_video_project")
+        state, records = {}, []
+        with patch("run_all_workflows_e2e.invoke", side_effect=[
+            {"ok": True, "classification": "business_success", "duration_ms": 1, "data": {"id": 12}},
+            {"ok": False, "duration_ms": 1, "error": {"message": "write rejected"}},
+        ]), self.assertRaisesRegex(RunnerError, "create_freeform_video_project"):
+            seed_fixtures(
+                object(), {name: {} for name in commands}, "audit", "http://127.0.0.1:1/v1",
+                state, records,
+            )
+        self.assertEqual(state["project_id"], 12)
+        self.assertEqual([record["command"] for record in records], list(commands))
+        self.assertEqual([record["ok"] for record in records], [True, False])
+        self.assertEqual(records[1]["classification"], "real_failure")
+
     def test_classify_reports_uncovered_stale_and_conflicting_entries(self) -> None:
         coverage = classify(
             {
@@ -638,11 +655,14 @@ class CliContractRunnerTest(unittest.TestCase):
         with patch("run_all_workflows_e2e.invoke", side_effect=fake_invoke), patch(
             "run_all_workflows_e2e._watch_seed_task", side_effect=fake_watch
         ):
-            state, records = seed_fixtures(
+            state, records = {}, []
+            seed_fixtures(
                 object(),
                 descriptors,
                 "manifest-test",
                 "http://127.0.0.1:1/v1",
+                state,
+                records,
                 allow_destructive=True,
                 current_username="admin",
             )

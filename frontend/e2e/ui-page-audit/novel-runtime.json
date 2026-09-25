@@ -1,0 +1,315 @@
+{
+  "schema_version": 1,
+  "coverage": "Synthetic UI replay only: blueprint completion and an idle chapter-bound optimizer with existing messages. No provider, persistence, approval, cancellation or recovery result is claimed.",
+  "commands": {
+    "sync_blueprint_materials": { "warnings": [] }
+  },
+  "generation": {
+    "blueprint": {
+      "start_command": "start_blueprint_generation",
+      "handle": {
+        "event_schema_version": 1,
+        "task_id": "47d42181-57ba-4c51-b570-2cd2e3100932",
+        "attempt": 1,
+        "status": "reserved"
+      },
+      "events": [
+        {
+          "schema_version": 1,
+          "task_id": "47d42181-57ba-4c51-b570-2cd2e3100932",
+          "attempt": 1,
+          "sequence": 1,
+          "emitted_at_ms": 1790294400001,
+          "event": {
+            "kind": "started",
+            "data": {
+              "delivery_mode": "stream",
+              "root_task_id": "47d42181-57ba-4c51-b570-2cd2e3100932",
+              "task_kind": "llm_call",
+              "project_id": 1,
+              "root_project_id": 1,
+              "target": { "kind": "blueprint_generation", "id": "1" }
+            }
+          }
+        },
+        {
+          "schema_version": 1,
+          "task_id": "47d42181-57ba-4c51-b570-2cd2e3100932",
+          "attempt": 1,
+          "sequence": 2,
+          "emitted_at_ms": 1790294400002,
+          "event": {
+            "kind": "text_delta",
+            "data": {
+              "stream_id": "reasoning",
+              "chunk_index": 0,
+              "offset": 0,
+              "delta": "林岚以信件、旧车票和缺齿怀表核验父亲留下的线索；周衡通过行动修复信任，前三章在第三站台完成一次主动选择。"
+            }
+          }
+        },
+        {
+          "schema_version": 1,
+          "task_id": "47d42181-57ba-4c51-b570-2cd2e3100932",
+          "attempt": 1,
+          "sequence": 3,
+          "emitted_at_ms": 1790294400003,
+          "event": {
+            "kind": "completed",
+            "data": {
+              "final_text_hashes": [
+                {
+                  "stream_id": "reasoning",
+                  "utf8_bytes": 156,
+                  "sha256": "ae94f14e646100989ebf46d7a537159c336852d5040d8d6b30d290192c9a3430"
+                }
+              ],
+              "result_ref": { "kind": "novel_blueprint", "id": "1", "revision": "3" }
+            }
+          }
+        }
+      ],
+      "summary": {
+        "handle": {
+          "event_schema_version": 1,
+          "task_id": "47d42181-57ba-4c51-b570-2cd2e3100932",
+          "attempt": 1,
+          "status": "completed"
+        },
+        "started": {
+          "delivery_mode": "stream",
+          "root_task_id": "47d42181-57ba-4c51-b570-2cd2e3100932",
+          "task_kind": "llm_call",
+          "project_id": 1,
+          "root_project_id": 1,
+          "target": { "kind": "blueprint_generation", "id": "1" }
+        },
+        "updated_at_ms": 1790294400003,
+        "result_ref": { "kind": "novel_blueprint", "id": "1", "revision": "3" },
+        "snapshot_state": "available",
+        "terminal_event": {
+          "schema_version": 1,
+          "task_id": "47d42181-57ba-4c51-b570-2cd2e3100932",
+          "attempt": 1,
+          "sequence": 3,
+          "emitted_at_ms": 1790294400003,
+          "event": {
+            "kind": "completed",
+            "data": {
+              "final_text_hashes": [
+                {
+                  "stream_id": "reasoning",
+                  "utf8_bytes": 156,
+                  "sha256": "ae94f14e646100989ebf46d7a537159c336852d5040d8d6b30d290192c9a3430"
+                }
+              ],
+              "result_ref": { "kind": "novel_blueprint", "id": "1", "revision": "3" }
+            }
+          }
+        }
+      },
+      "snapshot": {
+        "schema_version": 1,
+        "task_id": "47d42181-57ba-4c51-b570-2cd2e3100932",
+        "attempt": 1,
+        "covers_through_sequence": 3,
+        "status": "completed",
+        "started": {
+          "delivery_mode": "stream",
+          "root_task_id": "47d42181-57ba-4c51-b570-2cd2e3100932",
+          "task_kind": "llm_call",
+          "project_id": 1,
+          "root_project_id": 1,
+          "target": { "kind": "blueprint_generation", "id": "1" }
+        },
+        "cancel_reason": null,
+        "progress": null,
+        "streams": [
+          {
+            "stream_id": "reasoning",
+            "text": "林岚以信件、旧车票和缺齿怀表核验父亲留下的线索；周衡通过行动修复信任，前三章在第三站台完成一次主动选择。",
+            "next_offset": 156,
+            "sha256": "ae94f14e646100989ebf46d7a537159c336852d5040d8d6b30d290192c9a3430"
+          }
+        ],
+        "artifacts": [],
+        "usage": null,
+        "latest_checkpoint": null,
+        "terminal_event": {
+          "schema_version": 1,
+          "task_id": "47d42181-57ba-4c51-b570-2cd2e3100932",
+          "attempt": 1,
+          "sequence": 3,
+          "emitted_at_ms": 1790294400003,
+          "event": {
+            "kind": "completed",
+            "data": {
+              "final_text_hashes": [
+                {
+                  "stream_id": "reasoning",
+                  "utf8_bytes": 156,
+                  "sha256": "ae94f14e646100989ebf46d7a537159c336852d5040d8d6b30d290192c9a3430"
+                }
+              ],
+              "result_ref": { "kind": "novel_blueprint", "id": "1", "revision": "3" }
+            }
+          }
+        },
+        "updated_at_ms": 1790294400003
+      }
+    }
+  },
+  "agent": {
+    "thread_list": [
+      {
+        "bound_resource": { "kind": "chapter", "id": "1", "label": "雨夜来信", "revision": null, "hash": null },
+        "capability": "content_optimization",
+        "context_summary": null,
+        "created_at": "2026-09-24T20:00:00Z",
+        "updated_at": "2026-09-24T20:05:00Z",
+        "default_model_config_id": null,
+        "id": "36a21754-0e73-4b50-a3cf-e65914080b04",
+        "kind": "subagent",
+        "next_event_sequence": 1,
+        "next_turn_sequence": 1,
+        "owner_user_id": 1,
+        "protocol_version": 1,
+        "revision": 1,
+        "scope": {
+          "resource_kind": "chapter",
+          "resource_id": "1",
+          "project_id": 1,
+          "chapter_id": 1,
+          "chapter_number": 1,
+          "allowed_capabilities": ["content_optimization"],
+          "allowed_tools": []
+        },
+        "status": "active",
+        "title": "雨夜来信 · 正文优化"
+      }
+    ],
+    "snapshot": {
+      "protocol_version": 1,
+      "thread": {
+        "bound_resource": { "kind": "chapter", "id": "1", "label": "雨夜来信", "revision": null, "hash": null },
+        "capability": "content_optimization",
+        "context_summary": null,
+        "created_at": "2026-09-24T20:00:00Z",
+        "updated_at": "2026-09-24T20:05:00Z",
+        "default_model_config_id": null,
+        "id": "36a21754-0e73-4b50-a3cf-e65914080b04",
+        "kind": "subagent",
+        "next_event_sequence": 1,
+        "next_turn_sequence": 1,
+        "owner_user_id": 1,
+        "protocol_version": 1,
+        "revision": 1,
+        "scope": {
+          "resource_kind": "chapter",
+          "resource_id": "1",
+          "project_id": 1,
+          "chapter_id": 1,
+          "chapter_number": 1,
+          "allowed_capabilities": ["content_optimization"],
+          "allowed_tools": []
+        },
+        "status": "active",
+        "title": "雨夜来信 · 正文优化"
+      },
+      "messages": [
+        {
+          "content": "先讨论第一章的修改方向。林岚返乡后的不安应该来自柜台、铜铃和周衡的动作，避免连续几段都在解释她的心情。",
+          "created_at": "2026-09-24T20:00:00Z",
+          "id": "optimizer-message-1",
+          "metadata": null,
+          "role": "user",
+          "run_id": null,
+          "source_id": null,
+          "source_kind": null,
+          "status": "complete",
+          "thread_id": "36a21754-0e73-4b50-a3cf-e65914080b04",
+          "turn_id": null,
+          "updated_at": null
+        },
+        {
+          "content": "可以把目标收紧为三个可观察的动作：她先辨认柜台旧痕，再发现墙钟停在九点十七分，最后看见周衡把信推过来。每个动作只承担一次信息变化。\n\n保留她尚未理解的部分，让疑问推动下一步核验。先讨论结构，正文暂时保持原样。",
+          "created_at": "2026-09-24T20:01:00Z",
+          "id": "optimizer-message-2",
+          "metadata": null,
+          "role": "assistant",
+          "run_id": null,
+          "source_id": null,
+          "source_kind": null,
+          "status": "complete",
+          "thread_id": "36a21754-0e73-4b50-a3cf-e65914080b04",
+          "turn_id": null,
+          "updated_at": null
+        },
+        {
+          "content": "怀表和墙钟不能合并成一个物件。信里的第三站台也只是一条待核验线索，不要让林岚立刻推断出父亲的去向。",
+          "created_at": "2026-09-24T20:02:00Z",
+          "id": "optimizer-message-3",
+          "metadata": null,
+          "role": "user",
+          "run_id": null,
+          "source_id": null,
+          "source_kind": null,
+          "status": "complete",
+          "thread_id": "36a21754-0e73-4b50-a3cf-e65914080b04",
+          "turn_id": null,
+          "updated_at": null
+        },
+        {
+          "content": "这两件道具承担不同作用：墙钟建立房间里的时间矛盾，缺齿怀表成为之后可携带、可交接的证据。第三站台可以先出现在信件与旧车票的对应处。\n\n人物此时能确认的是文字、方向和物件特征；父亲为何留下这些线索仍应保留为空白。",
+          "created_at": "2026-09-24T20:03:00Z",
+          "id": "optimizer-message-4",
+          "metadata": null,
+          "role": "assistant",
+          "run_id": null,
+          "source_id": null,
+          "source_kind": null,
+          "status": "complete",
+          "thread_id": "36a21754-0e73-4b50-a3cf-e65914080b04",
+          "turn_id": null,
+          "updated_at": null
+        },
+        {
+          "content": "下一次先给我开场段的局部建议，保留原有视角和克制语气。对话必须能接上林岚核对信封日期的动作。",
+          "created_at": "2026-09-24T20:04:00Z",
+          "id": "optimizer-message-5",
+          "metadata": null,
+          "role": "user",
+          "run_id": null,
+          "source_id": null,
+          "source_kind": null,
+          "status": "complete",
+          "thread_id": "36a21754-0e73-4b50-a3cf-e65914080b04",
+          "turn_id": null,
+          "updated_at": null
+        },
+        {
+          "content": "修改范围可以限定在开场到拆信之前：删去重复说明，把不安留在她停顿、观察和追问的顺序中；周衡的回答只补足眼前事实。\n\n当前停在讨论阶段，尚未提交或应用正文修改。你可以继续补充范围，再决定是否生成具体建议。",
+          "created_at": "2026-09-24T20:05:00Z",
+          "id": "optimizer-message-6",
+          "metadata": null,
+          "role": "assistant",
+          "run_id": null,
+          "source_id": null,
+          "source_kind": null,
+          "status": "complete",
+          "thread_id": "36a21754-0e73-4b50-a3cf-e65914080b04",
+          "turn_id": null,
+          "updated_at": null
+        }
+      ],
+      "approvals": [],
+      "delegations": [],
+      "events": [],
+      "executions": [],
+      "inbox": [],
+      "memories": [],
+      "runs": [],
+      "turns": []
+    }
+  }
+}

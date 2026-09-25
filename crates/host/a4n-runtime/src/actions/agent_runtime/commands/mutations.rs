@@ -180,7 +180,11 @@ pub async fn control_run(
         .agent_run_mutation_application()
         .control_run(user_id, input)
         .await?;
-    if action == a4n_api_contract::agent::AgentControlAction::Cancel {
+    if matches!(
+        action,
+        a4n_api_contract::agent::AgentControlAction::Cancel
+            | a4n_api_contract::agent::AgentControlAction::Pause
+    ) {
         let run_id = result
             .id
             .parse::<i64>()
@@ -189,8 +193,10 @@ pub async fn control_run(
                 operation: "取消 Agent runtime worker".into(),
             })?;
         state.cancel_agent_run_tree(run_id).await;
-        state.remove_agent_runtime_snapshot_tree(run_id).await;
-        task_wait::cancel_stopped_owned_tasks(state).await?;
+        if action == a4n_api_contract::agent::AgentControlAction::Cancel {
+            state.remove_agent_runtime_snapshot_tree(run_id).await;
+            task_wait::cancel_stopped_owned_tasks(state).await?;
+        }
     }
     state.trigger_agent_worker();
     Ok(result)

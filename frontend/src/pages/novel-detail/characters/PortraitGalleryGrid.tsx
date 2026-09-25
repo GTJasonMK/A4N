@@ -2,9 +2,11 @@ import React, { useMemo } from "react";
 import { Star } from "lucide-react";
 import type { CharacterProfile } from "../../../api/character";
 import type { Portrait } from "../../../api/portrait";
+import { ImageZoomButton } from "../../../components/ui/ImageLightbox";
 import { toMediaSrc } from "../../../utils/mediaSrc";
 import { EmptyHint } from "../shared";
 import { useI18n } from "../../../i18n";
+import { portraitTypeLabel } from "./characterUtils";
 
 interface PortraitGalleryGridProps {
   portraits: Portrait[];
@@ -43,12 +45,12 @@ export const PortraitGalleryGrid: React.FC<PortraitGalleryGridProps> = ({
         const imageSrc = toMediaSrc(portrait.image_path);
 
         return (
+          <div key={portrait.id} className="relative min-w-0">
           <button
-            key={portrait.id}
             type="button"
             onClick={() => onOpenActions(portrait)}
             disabled={busy}
-            className="group min-w-0 overflow-hidden rounded-[14px] border border-book-border/55 bg-book-bg-paper/45 text-left transition-colors hover:border-book-primary/45 disabled:cursor-wait disabled:opacity-60"
+            className="group w-full min-w-0 overflow-hidden rounded-[14px] border border-book-border/55 bg-book-bg-paper/45 text-left transition-colors hover:border-book-primary/45 disabled:cursor-wait disabled:opacity-60"
             title={t("characterDetail.portrait.manage")}
           >
             <div className="relative flex aspect-square w-full items-center justify-center overflow-hidden bg-book-bg-tertiary text-xs text-book-text-muted">
@@ -79,23 +81,10 @@ export const PortraitGalleryGrid: React.FC<PortraitGalleryGridProps> = ({
               </div>
             </div>
           </button>
+          {imageSrc ? <ImageZoomButton src={imageSrc} alt={profile?.name ?? ""} className="absolute left-2 top-2" /> : null}
+          </div>
         );
       })}
     </div>
   );
 };
-
-function portraitTypeLabel(type: string, t: ReturnType<typeof useI18n>["t"]): string {
-  switch (type) {
-    case "full_body":
-      return t("characterDetail.portrait.typeFullBody");
-    case "half_body":
-      return t("characterDetail.portrait.typeHalfBody");
-    case "face":
-      return t("characterDetail.portrait.typeFace");
-    case "chibi":
-      return t("characterDetail.portrait.typeChibi");
-    default:
-      return type;
-  }
-}

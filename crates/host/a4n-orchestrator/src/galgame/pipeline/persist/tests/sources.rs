@@ -143,11 +143,13 @@ fn rejects_persist_plan_when_line_source_span_crosses_scene_chapter() {
             id: "s1".to_string(),
             text_anchor_id: 100,
             source_snapshot_chapter_id: 20,
+            chapter_number: 1,
         },
         GalgamePipelineSourceSpan {
             id: "s2".to_string(),
             text_anchor_id: 101,
             source_snapshot_chapter_id: 21,
+            chapter_number: 2,
         },
     ];
 
@@ -165,6 +167,30 @@ fn rejects_persist_plan_when_line_source_span_crosses_scene_chapter() {
             .contains("行 source_span_id 不属于当前场 source_snapshot_chapter")
     );
     assert!(err.to_string().contains("source_span_id=s2"));
+}
+
+#[test]
+fn director_scene_without_text_spans_uses_its_declared_source_chapter() {
+    let mut scenes = single_shooting_script_projection();
+    scenes.scenes[0].source_span_ids.clear();
+    for beat in &mut scenes.scenes[0].beats {
+        beat.source_span_ids.clear();
+    }
+    let scenes = shooting_script_projection_from_value(
+        serde_json::to_value(scenes).unwrap(),
+        "director scene",
+    )
+    .expect("director scenes may be based on user additions");
+    let plan = build_galgame_script_persist_plan(
+        &scenes,
+        &single_narration_staging(),
+        &single_visual_plan(),
+        &empty_branch_design(),
+        &single_source_span(),
+    )
+    .expect("line evidence belongs to the declared chapter");
+    assert_eq!(plan.scenes[0].source_snapshot_chapter_id, 20);
+    assert_eq!(plan.scenes[0].lines[0].text_anchor_id, Some(100));
 }
 
 #[test]

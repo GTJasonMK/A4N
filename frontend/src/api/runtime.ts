@@ -38,6 +38,8 @@ const NATIVE_TAURI_COMMANDS = new Set([
   "refresh_token",
   "oauth2_authorize_url",
   "oauth2_callback",
+  "oauth2_browser_login",
+  "cancel_oauth2_browser_login",
   "local_list_embedding_models",
   "local_get_embedding_model_download_info",
   "local_download_embedding_model",

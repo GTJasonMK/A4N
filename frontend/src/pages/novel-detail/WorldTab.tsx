@@ -320,6 +320,7 @@ export const WorldTab: React.FC<WorldTabProps> = ({
             onOpenDetail={() => setDetailOpen(true)}
           />
           <WorldReadPanel
+            onOpenDetail={() => setDetailOpen(true)}
             hasBlueprint={Boolean(displayBlueprint)}
             hasWorldContent={displayHasWorldContent}
             normalizedWorld={displayNormalizedWorld}

@@ -12,10 +12,10 @@ type LocalDraft = {
 };
 
 const WRITING_DRAFT_PREFIX = "a4n:writing_draft:";
-const projectDraftIndex = new Map<string, Set<number>>();
-
+export const getWritingDraftProjectPrefix = (projectId: string) =>
+  `${WRITING_DRAFT_PREFIX}${projectId}:`;
 export const getWritingDraftKey = (projectId: string, chapterNumber: number) =>
-  `${WRITING_DRAFT_PREFIX}${projectId}:${chapterNumber}`;
+  `${getWritingDraftProjectPrefix(projectId)}${chapterNumber}`;
 
 const parseWritingDraftKey = (
   key: string,
@@ -33,30 +33,12 @@ const parseWritingDraftKey = (
   return { projectId, chapterNumber };
 };
 
-const updateProjectDraftIndex = (key: string, present: boolean) => {
-  const parsed = parseWritingDraftKey(key);
-  if (!parsed) return;
-
-  const existing = projectDraftIndex.get(parsed.projectId);
-  if (!existing) return;
-
-  if (present) {
-    existing.add(parsed.chapterNumber);
-    return;
-  }
-
-  existing.delete(parsed.chapterNumber);
-};
-
 /** 获取指定项目中存在草稿的章节编号集合 */
 export const getProjectWritingDraftSet = (
   projectId: string,
 ): ReadonlySet<number> => {
   const normalizedProjectId = String(projectId || "").trim();
   if (!normalizedProjectId) return new Set<number>();
-
-  const cached = projectDraftIndex.get(normalizedProjectId);
-  if (cached) return cached;
 
   const chapterNumbers = new Set<number>();
   for (const key of listPortableKeys(WRITING_DRAFT_PREFIX)) {
@@ -65,7 +47,6 @@ export const getProjectWritingDraftSet = (
     chapterNumbers.add(parsed.chapterNumber);
   }
 
-  projectDraftIndex.set(normalizedProjectId, chapterNumbers);
   return chapterNumbers;
 };
 
@@ -88,15 +69,13 @@ export const readWritingDraft = (key: string): LocalDraft | null => {
 };
 
 /** 保存写作草稿到便携数据目录 */
-export const writeWritingDraft = (key: string, content: string): boolean => {
+export const writeWritingDraft = async (key: string, content: string): Promise<boolean> => {
   const payload: LocalDraft = { content, updatedAt: new Date().toISOString() };
-  const saved = writePortableItem(key, JSON.stringify(payload));
-  updateProjectDraftIndex(key, true);
+  const saved = await writePortableItem(key, JSON.stringify(payload));
   return saved;
 };
 
 /** 删除写作草稿 */
-export const removeWritingDraft = (key: string): void => {
-  removePortableItem(key);
-  updateProjectDraftIndex(key, false);
+export const removeWritingDraft = async (key: string): Promise<void> => {
+  await removePortableItem(key);
 };

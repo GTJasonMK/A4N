@@ -1,24 +1,23 @@
 use crate::AppState;
 use a4n_agent_runtime::engine::{
-    action_budget_exhausted, collect_scope_ids, ensure_argument_scope, enum_string, json_u64,
+    append_tool_observation, collect_scope_ids, ensure_argument_scope, enum_string,
     parse_arguments, should_request_approval, tool_descriptor, tool_result_refs,
 };
 pub(crate) use a4n_agent_runtime::engine::{ensure_chapter_scope, ensure_project_scope};
 use a4n_agent_runtime_contract::{
     AgentExecutionSnapshot, AgentExternalTaskWaitSnapshot, AgentRunContext, AgentWorkerRun,
-    WorkerExecutionUpdate, ensure_agent_scope_allows_tool, validate_agent_budget,
+    WorkerExecutionUpdate, ensure_agent_scope_allows_tool,
 };
 use a4n_api_contract::agent::{
-    AgentApprovalView, AgentBudget, AgentEvent, AgentEventsInput, AgentMemoryInput,
-    AgentMemoryScopeKind, AgentMemoryView, AgentMessageAccepted, AgentRunView, AgentScope,
-    AgentSkillContent, AgentSkillSearchResult, AgentThreadSnapshot, AgentThreadView,
-    AgentToolDescriptor, AgentToolSearchResult, ArchiveAgentThreadInput, ControlAgentRunInput,
-    ControlChildAgentInput, CreateAgentThreadInput, DescribeAgentToolInput,
-    EnsureMainAgentThreadInput, ForkAgentThreadInput, ListAgentMessagesInput,
-    ListAgentThreadsInput, LoadAgentSkillInput, LocateWritingTargetInput,
-    ResolveAgentApprovalInput, RetractAgentMemoryInput, SearchAgentSkillsInput,
-    SearchAgentToolsInput, SendAgentMessageInput, SendAgentMessageToChildInput, SpawnAgentInput,
-    UpdateAgentThreadInput, WritingTargetView,
+    AgentApprovalView, AgentEvent, AgentEventsInput, AgentMemoryInput, AgentMemoryScopeKind,
+    AgentMemoryView, AgentMessageAccepted, AgentRunView, AgentScope, AgentSkillContent,
+    AgentSkillSearchResult, AgentThreadSnapshot, AgentThreadView, AgentToolDescriptor,
+    AgentToolSearchResult, ArchiveAgentThreadInput, ControlAgentRunInput, ControlChildAgentInput,
+    CreateAgentThreadInput, DescribeAgentToolInput, EnsureMainAgentThreadInput,
+    ForkAgentThreadInput, ListAgentMessagesInput, ListAgentThreadsInput, LoadAgentSkillInput,
+    LocateWritingTargetInput, ResolveAgentApprovalInput, RetractAgentMemoryInput,
+    SearchAgentSkillsInput, SearchAgentToolsInput, SendAgentMessageInput,
+    SendAgentMessageToChildInput, SpawnAgentInput, UpdateAgentThreadInput, WritingTargetView,
 };
 use a4n_api_contract::canvas::{
     GetCanvasGraphInput, RunCanvasGraphInput, RunCanvasNodeInput, SaveCanvasGraphInput,
@@ -34,7 +33,7 @@ use a4n_api_contract::web_fetch::WebFetchInput;
 use a4n_api_contract::web_search::WebSearchInput;
 use a4n_domain::agent::AgentWorkflowOrigin;
 use a4n_error::AppError;
-use a4n_llm_provider_contract::provider::{ChatChunk, ChatMessage, ChatRequest, ToolCall};
+use a4n_llm_provider_contract::provider::{ChatChunk, ChatRequest, ToolCall};
 use a4n_worker_contract::{
     AGENT_RUN_OPERATION, AgentRunPayload, AgentWorkerApprovalCheckRequest,
     AgentWorkerApprovalCheckSnapshotWire, AgentWorkerApprovalExpiryRequest,
@@ -57,9 +56,9 @@ use a4n_worker_contract::{
     AgentWorkerInboxPersistSnapshotWire, AgentWorkerInboxSnapshotWire, AgentWorkerMemoryRequest,
     AgentWorkerMessageRequest, AgentWorkerMessageSnapshotWire, AgentWorkerRecoveryRequest,
     AgentWorkerResultRefsRequest, AgentWorkerResultRefsSnapshotWire, AgentWorkerRunContextWire,
-    AgentWorkerRunLeaseRequest, AgentWorkerRunStatusSnapshotWire, AgentWorkerRunWaitRequest,
-    AgentWorkerSkillLoadRequest, AgentWorkerSkillSearchRequest, AgentWorkerToolDescribeRequest,
-    AgentWorkerToolSearchRequest, AgentWorkerUsageRequest, AgentWorkerWorkflowCancelScanRequest,
+    AgentWorkerRunLeaseRequest, AgentWorkerRunWaitRequest, AgentWorkerSkillLoadRequest,
+    AgentWorkerSkillSearchRequest, AgentWorkerToolDescribeRequest, AgentWorkerToolSearchRequest,
+    AgentWorkerUsageRequest, AgentWorkerWorkflowCancelScanRequest,
     AgentWorkerWorkflowCancelSnapshotWire, WORKER_SCHEMA_VERSION, WorkerEnvelope, WorkerLease,
     WorkerPrincipal, WorkerPrincipalKind,
 };
@@ -177,7 +176,13 @@ pub(crate) async fn run_worker(state: AppState, cancel: CancellationToken, notif
         state,
     ));
     let runtime = a4n_agent_runtime::AgentRuntimeState::with_shared(host, shared);
-    a4n_agent_runtime::engine::run_worker(runtime, cancel, notify).await;
+    a4n_agent_runtime::engine::run_worker(
+        runtime,
+        cancel,
+        notify,
+        format!("a4n-agent:{}", std::process::id()),
+    )
+    .await;
 }
 
 pub fn project_agent_editor_draft(
@@ -205,31 +210,4 @@ fn workflow_origin(
             .clone()
             .ok_or_else(|| AppError::InvalidArgument("Canvas 启动缺少 Agent lease".into()))?,
     })
-}
-
-async fn append_tool_observation(
-    message_application: &dyn a4n_agent_runtime_contract::AgentWorkerMessageApplicationPort,
-    claimed: &AgentWorkerRun,
-    execution: &AgentExecutionSnapshot,
-    call: &ToolCall,
-    value: Value,
-    messages: &mut Vec<ChatMessage>,
-) -> Result<(), AppError> {
-    let value = a4n_agent_runtime::engine::bounded_observation(execution.id, value)?;
-    message_application
-        .append_tool_message(
-            claimed,
-            execution.id,
-            &call.name,
-            Some(&call.id),
-            value.clone(),
-        )
-        .await?;
-    let mut message = ChatMessage::new(
-        a4n_llm_provider_contract::provider::MessageRole::Tool,
-        serde_json::to_string(&value)?,
-    );
-    message.tool_call_id = Some(call.id.clone());
-    messages.push(message);
-    Ok(())
 }

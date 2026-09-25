@@ -13,23 +13,22 @@ impl VideoRecordCompletionApplicationPort for crate::OrchestratorContext {
             record_id,
             output_path,
             thumbnail_path,
-            file_size,
+            properties,
             prompt_id,
             metadata_json,
-            duration_secs,
         } = input;
-        match self
+        let record = match self
             .mark_generated_video_completed_and_link_prompt(
                 record_id,
                 &output_path,
                 thumbnail_path.as_deref(),
-                file_size,
+                &properties,
                 metadata_json,
                 prompt_id,
             )
             .await
         {
-            Ok(_) => {}
+            Ok(record) => record,
             Err(error) => {
                 let can_adopt = crate::video::can_adopt_authoritative_video_completion(&error);
                 let authoritative = match self.generated_video_by_id(record_id).await {
@@ -59,15 +58,6 @@ impl VideoRecordCompletionApplicationPort for crate::OrchestratorContext {
                     }),
                     lookup_error: None,
                 });
-            }
-        };
-        let record = match self
-            .update_generated_video_duration_record(record_id, duration_secs)
-            .await
-        {
-            Ok(record) => record,
-            Err(error) => {
-                return Err(VideoRecordCompletionError::DurationWriteback { error });
             }
         };
         Ok(VideoRecordCompletion {

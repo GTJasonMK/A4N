@@ -20,6 +20,7 @@ import {
 import type { ToastType } from "../../../components/feedback/Toast";
 import { BookButton } from "../../../components/ui/BookButton";
 import { Dropdown } from "../../../components/ui/Dropdown";
+import { ZoomableImage } from "../../../components/ui/ImageLightbox";
 import { asJsonRecord as asRecord } from "../../../utils/jsonRecord";
 import { readFileAsBase64 } from "../../../utils/fileUpload";
 import {
@@ -792,7 +793,7 @@ export const VideoPostProcessWorkspace: React.FC<
       </section>
 
       <div className="min-h-0 space-y-3 overflow-y-auto pb-6 pr-1 custom-scrollbar xl:grid xl:grid-rows-[minmax(0,1fr)_auto] xl:gap-3 xl:space-y-0 xl:overflow-hidden xl:pb-0">
-        <section className="a4n-flat-surface flex min-h-[clamp(380px,58vh,640px)] flex-col p-3 xl:min-h-0">
+        <section className="a4n-flat-surface flex min-h-0 flex-col p-3">
           <div className="mb-2 flex min-w-0 flex-wrap items-center gap-2 border-b border-book-border/35 pb-2">
             <div className="min-w-0 flex-1">
               <h3 className="text-sm font-medium text-book-text-main">
@@ -840,7 +841,7 @@ export const VideoPostProcessWorkspace: React.FC<
             )}
           </div>
 
-          <div className="relative min-h-0 flex-1 overflow-hidden rounded-2xl border border-book-border/50 bg-black">
+          <div className="relative min-h-0 overflow-hidden rounded-2xl border border-book-border/50 bg-black xl:flex-1">
             {videoPlaybackSrc ? (
               <video
                 key={videoPlaybackSrc}
@@ -850,7 +851,7 @@ export const VideoPostProcessWorkspace: React.FC<
                 playsInline
                 preload="auto"
                 src={videoPlaybackSrc}
-                className="h-full min-h-[280px] w-full bg-black object-contain"
+                className="block h-auto max-h-[32vh] min-h-44 w-full bg-black object-contain xl:h-full xl:max-h-none"
                 onLoadStart={() => {
                   // Keep an uncommitted target across a source retry.
                   draggingScrubRef.current = false;
@@ -896,7 +897,7 @@ export const VideoPostProcessWorkspace: React.FC<
                 }}
               />
             ) : (
-              <div className="flex h-full min-h-[280px] items-center justify-center bg-book-bg-tertiary">
+              <div className="flex h-full min-h-44 items-center justify-center bg-book-bg-tertiary">
                 <EmptyHint
                   text={
                     currentVideo ? t("video.postprocess.loadingVideo") : t("video.postprocess.noPushVideo")
@@ -905,14 +906,14 @@ export const VideoPostProcessWorkspace: React.FC<
               </div>
             )}
             {videoPlaybackSrc ? (
-              <img
+              <ZoomableImage
                 ref={scrubFrameImageRef}
                 alt=""
                 aria-hidden="true"
                 data-scrub-preview-visible={
                   scrubPreviewVisible ? "true" : "false"
                 }
-                className={`pointer-events-none absolute inset-0 z-[2] h-full min-h-[280px] w-full bg-black object-contain transition-none ${
+                className={`pointer-events-none absolute inset-0 z-[2] h-full min-h-44 w-full bg-black object-contain transition-none ${
                   scrubPreviewVisible ? "opacity-100" : "opacity-0"
                 }`}
               />

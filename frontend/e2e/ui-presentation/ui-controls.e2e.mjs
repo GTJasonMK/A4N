@@ -169,13 +169,21 @@ describe("nested editor and input contracts", () => {
     assert.equal(await $('[data-outline-actions]').getText(), '["actions"]');
   });
 
-  it("keeps quick tools reachable by keyboard while yielding to content", async () => {
+  it("keeps quick tools clickable and reachable by keyboard", async () => {
     const orb = await $(".a4n-status-bar-orb");
-    await browser.waitUntil(async () => (await orb.getAttribute("data-over-control")) === "true");
+    assert.equal(await $("#a4n-status-bar-panel").isExisting(), false);
+    await orb.waitForClickable();
+    await orb.click();
+    assert.equal(await orb.getAttribute("aria-expanded"), "true");
+    assert.equal(await $("#a4n-status-bar-panel").isFocused(), true);
+    await browser.keys("Tab");
+    assert.equal(await $('button[aria-label="主题设置"]').isFocused(), true);
+    await browser.keys("Escape");
+    assert.equal(await $("#a4n-status-bar-panel").isExisting(), false);
+    assert.equal(await orb.isFocused(), true);
     await $("#under-orb").execute((element) => element.focus());
     await browser.keys("Tab");
     assert.equal(await orb.isFocused(), true);
-    assert.equal(await orb.getCSSProperty("transform").then((property) => property.value), "none");
   });
 
 });

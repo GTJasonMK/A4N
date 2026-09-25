@@ -100,7 +100,7 @@ pub(super) fn recent_llm_call(call: llm_call_trace::Model) -> RecentLlmCall {
     let context_metrics = llm_context_plan_metrics(&call);
     RecentLlmCall {
         id: call.id,
-        created_at: call.created_at.to_string(),
+        created_at: call.created_at.and_utc().to_rfc3339(),
         workflow: call.workflow,
         step_key: call.step_key,
         provider: call.provider,
@@ -136,8 +136,8 @@ pub(super) fn recent_media_call(run: generation_run::Model) -> RecentMediaCall {
     let duration_ms = media_duration_ms(&run);
     RecentMediaCall {
         id: run.id,
-        created_at: run.created_at.to_string(),
-        completed_at: run.completed_at.map(|value| value.to_string()),
+        created_at: run.created_at.and_utc().to_rfc3339(),
+        completed_at: run.completed_at.map(|value| value.and_utc().to_rfc3339()),
         kind: run.model_kind,
         workflow: run.workflow,
         step_key: run.step_key,

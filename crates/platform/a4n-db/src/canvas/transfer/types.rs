@@ -29,7 +29,7 @@ pub enum VideoStudioProjectImportError {
     Database(#[from] DbErr),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct VideoStudioProjectExportRows {
     pub canvas_graphs: Vec<canvas_graph::Model>,
     pub canvas_nodes: Vec<canvas_node::Model>,
@@ -79,24 +79,24 @@ pub trait VideoStudioProjectImportMediaFileWriter {
 }
 
 #[derive(Default)]
-pub(super) struct VideoStudioProjectImportIdMaps {
-    pub(super) image_ids: HashMap<i64, i64>,
-    pub(super) image_file_paths: HashMap<i64, String>,
-    pub(super) video_ids: HashMap<i64, i64>,
-    pub(super) video_file_paths: HashMap<i64, Option<String>>,
-    pub(super) video_thumbnail_paths: HashMap<i64, Option<String>>,
-    pub(super) text_asset_ids: HashMap<i64, i64>,
-    pub(super) graph_ids: HashMap<i64, i64>,
-    pub(super) node_ids: HashMap<i64, i64>,
-    pub(super) generation_spec_ids: HashMap<i64, i64>,
-    pub(super) prompt_artifact_ids: HashMap<i64, i64>,
-    pub(super) media_asset_ids: HashMap<i64, i64>,
-    pub(super) video_segment_ids: HashMap<i64, i64>,
-    pub(super) assembly_timeline_ids: HashMap<i64, i64>,
-    pub(super) assembly_clip_ids: HashMap<i64, i64>,
+pub(crate) struct VideoStudioProjectImportIdMaps {
+    pub(crate) image_ids: HashMap<i64, i64>,
+    pub(crate) image_file_paths: HashMap<i64, String>,
+    pub(crate) video_ids: HashMap<i64, i64>,
+    pub(crate) video_file_paths: HashMap<i64, Option<String>>,
+    pub(crate) video_thumbnail_paths: HashMap<i64, Option<String>>,
+    pub(crate) text_asset_ids: HashMap<i64, i64>,
+    pub(crate) graph_ids: HashMap<i64, i64>,
+    pub(crate) node_ids: HashMap<i64, i64>,
+    pub(crate) generation_spec_ids: HashMap<i64, i64>,
+    pub(crate) prompt_artifact_ids: HashMap<i64, i64>,
+    pub(crate) media_asset_ids: HashMap<i64, i64>,
+    pub(crate) video_segment_ids: HashMap<i64, i64>,
+    pub(crate) assembly_timeline_ids: HashMap<i64, i64>,
+    pub(crate) assembly_clip_ids: HashMap<i64, i64>,
 }
 
-pub(super) struct DeferredVideoStudioImportGenerationSpecTarget {
+pub(crate) struct DeferredVideoStudioImportGenerationSpecTarget {
     pub(super) new_spec_id: i64,
     pub(super) target_entity_kind: String,
     pub(super) old_target_entity_id: i64,

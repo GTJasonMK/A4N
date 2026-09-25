@@ -12,8 +12,12 @@ use super::context::GenerationReferenceContext;
 pub(super) fn validate_generation_specs(
     package: &ProjectFamilyPackage,
     refs: &GenerationReferenceContext<'_>,
+    validated_canvas_specs: &std::collections::HashSet<i64>,
 ) -> Result<(), String> {
     for spec in &package.generation_specs {
+        if validated_canvas_specs.contains(&spec.id) {
+            continue;
+        }
         let source_snapshot_id = required_generation_spec_source_snapshot_id(spec)?;
         let snapshot = refs
             .source_snapshots

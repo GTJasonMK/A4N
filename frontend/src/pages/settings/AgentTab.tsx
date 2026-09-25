@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { Check, RefreshCw, Save, Sparkles } from "lucide-react";
+import { RefreshCw, Save, Sparkles } from "lucide-react";
 import { extractErrorMessage } from "../../api";
 import {
   listAgentSkills,
@@ -10,6 +10,7 @@ import {
 } from "../../api/agent";
 import { useToast } from "../../components/feedback/Toast";
 import { BookButton, BookIconButton } from "../../components/ui/BookButton";
+import { ThemedSelect } from "../../components/ui/ThemedSelect";
 import { useI18n } from "../../i18n";
 
 function profileLabel(
@@ -44,10 +45,14 @@ export const AgentTab: React.FC = () => {
   const [activeCapability, setActiveCapability] = useState<string>("main");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [dirty, setDirty] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const dirty = useMemo(() => settings?.profiles.some((profile) =>
+    profile.skills.some((skill) => skill.enabled !== draft[profile.capability]?.has(skill.id)),
+  ) ?? false, [draft, settings]);
 
   const refresh = useCallback(async () => {
     setLoading(true);
+    setLoadError(null);
     try {
       const next = await listAgentSkills();
       setSettings(next);
@@ -57,13 +62,12 @@ export const AgentTab: React.FC = () => {
           ? current
           : next.profiles[0]?.capability ?? "",
       );
-      setDirty(false);
     } catch (error) {
-      addToast(extractErrorMessage(error, t("settingsAgent.loadFailed")), "error");
+      setLoadError(extractErrorMessage(error, t("settingsAgent.loadFailed")));
     } finally {
       setLoading(false);
     }
-  }, [addToast, t]);
+  }, [t]);
 
   useEffect(() => {
     void refresh();
@@ -80,18 +84,18 @@ export const AgentTab: React.FC = () => {
     if (next.has(skill.id)) next.delete(skill.id);
     else next.add(skill.id);
     setDraft((current) => ({ ...current, [activeCapability]: next }));
-    setDirty(true);
   };
 
   const save = async () => {
     if (!settings || !dirty || saving) return;
     const profile = settings.profiles.find((item) => item.capability === activeCapability);
     if (!profile) return;
+    const submitted = activeEnabled;
     setSaving(true);
     try {
       const updated = await updateAgentSkillConfiguration({
         capability: activeCapability,
-        enabled_skill_ids: [...activeEnabled],
+        enabled_skill_ids: [...submitted],
       });
       setSettings((current) =>
         current
@@ -102,13 +106,13 @@ export const AgentTab: React.FC = () => {
             }
           : current,
       );
-      setDraft((current) => ({
+      // 保存期间仍允许调整；旧回包不能覆盖更新的选择。
+      setDraft((current) => current[updated.capability] !== submitted ? current : ({
         ...current,
         [updated.capability]: new Set(
           updated.skills.filter((skill) => skill.enabled).map((skill) => skill.id),
         ),
       }));
-      setDirty(false);
       addToast(t("settingsAgent.saved"), "success");
     } catch (error) {
       addToast(extractErrorMessage(error, t("settingsAgent.saveFailed")), "error");
@@ -126,7 +130,7 @@ export const AgentTab: React.FC = () => {
         <div className="min-w-0">
           <div className="mb-1 flex items-center gap-2">
             <Sparkles size={16} className="text-book-primary" aria-hidden="true" />
-            <h2 className="font-serif text-lg font-semibold text-book-text-main">
+            <h2 className="a4n-section-heading">
               {t("settingsAgent.title")}
             </h2>
           </div>
@@ -144,20 +148,27 @@ export const AgentTab: React.FC = () => {
           >
             <RefreshCw size={14} className={loading ? "animate-spin" : undefined} />
           </BookIconButton>
-          <BookButton
-            variant="primary"
-            onClick={() => void save()}
-            disabled={!dirty || saving || loading}
-          >
-            <Save size={14} />
-            {saving ? t("settingsAgent.saving") : t("common.save")}
-          </BookButton>
         </div>
       </header>
 
-      <div className="grid min-h-0 gap-4 md:grid-cols-[11rem_minmax(0,1fr)] md:flex-1">
+      {loadError ? (
+        <div role="alert" className="a4n-context-bar text-sm text-book-text-main">
+          <span className="min-w-0 flex-1">{loadError}</span>
+          <BookButton variant="secondary" size="sm" onClick={() => void refresh()} disabled={loading}>{t("common.retry")}</BookButton>
+        </div>
+      ) : null}
+      <div className="grid min-h-0 gap-4 md:grid-cols-[11rem_minmax(0,1fr)] md:grid-rows-[minmax(0,1fr)] md:flex-1">
         <nav aria-label={t("settingsAgent.agentTypes")} className="min-w-0">
-          <div className="flex gap-1 overflow-x-auto pb-1 md:block md:space-y-1 md:overflow-visible">
+          <div className="md:hidden">
+            <ThemedSelect aria-label={t("settingsAgent.agentTypes")} value={activeCapability} onChange={setActiveCapability} className="w-full">
+              {(settings?.profiles ?? []).map((profile) => (
+                <option key={profile.capability} value={profile.capability} disabled={dirty && profile.capability !== activeCapability}>
+                  {profileLabel(profile.capability, t)} · {draft[profile.capability]?.size ?? 0}/{profile.skills.length}
+                </option>
+              ))}
+            </ThemedSelect>
+          </div>
+          <div className="hidden md:block md:space-y-1">
             {(settings?.profiles ?? []).map((profile) => {
               const capability = profile.capability;
               const enabledCount = draft[capability]?.size ?? 0;
@@ -184,7 +195,7 @@ export const AgentTab: React.FC = () => {
           </div>
         </nav>
 
-        <section className="min-w-0 overflow-y-auto rounded-md border border-book-border/60 bg-book-bg-paper/55 px-3 py-3 md:px-4">
+        <section className="a4n-flat-surface min-h-0 max-h-full min-w-0 self-start overflow-y-auto px-3 py-3 md:px-4">
           {loading ? (
             <div className="py-12 text-center text-xs text-book-text-muted">
               {t("settingsAgent.loading")}
@@ -223,30 +234,32 @@ export const AgentTab: React.FC = () => {
                       />
                       <span className="min-w-0 flex-1">
                         <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                          <span className="text-xs font-semibold text-book-text-main">
+                          <span className="text-sm font-semibold text-book-text-main">
                             {skill.name}
                           </span>
-                          <span className="text-[10px] text-book-text-muted">
-                            {skill.id} · v{skill.version}
-                          </span>
-                          {enabled && (
-                            <Check size={12} className="text-book-success" aria-label={t("common.enabled")} />
-                          )}
                         </span>
                         <span className="mt-1 block text-xs leading-5 text-book-text-sub">
                           {skill.description}
                         </span>
+                        <span className="mt-1 block text-caption text-book-text-muted">{skill.id} · v{skill.version}</span>
                       </span>
                     </label>
                   );
                 })}
               </div>
+              <div className="mt-3 flex justify-end gap-2 border-t border-book-border/40 pt-3">
+                <BookButton variant="ghost" onClick={() => settings && setDraft(cloneProfiles(settings))} disabled={!dirty || saving || loading}>{t("common.cancel")}</BookButton>
+                <BookButton onClick={() => void save()} disabled={!dirty || saving || loading}>
+                  <Save size={14} />
+                  {saving ? t("settingsAgent.saving") : t("common.save")}
+                </BookButton>
+              </div>
             </>
-          ) : (
+          ) : !loadError ? (
             <div className="py-12 text-center text-xs text-book-text-muted">
               {t("settingsAgent.noSkills")}
             </div>
-          )}
+          ) : null}
         </section>
       </div>
     </div>

@@ -3,6 +3,7 @@ pub(super) const GRAPH_KIND_VIDEO_STUDIO: &str = "video_studio";
 mod context;
 mod document;
 mod graph_write;
+mod media_inputs;
 mod save;
 mod text_assets;
 mod topology;

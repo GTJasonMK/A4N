@@ -10,7 +10,7 @@ interface QueueStatsGridProps {
 export const QueueStatsGrid: React.FC<QueueStatsGridProps> = ({ stats }) => {
   const { locale, t } = useI18n();
   return (
-    <section className="a4n-flat-surface overflow-hidden">
+    <section className="a4n-flat-surface shrink-0 overflow-hidden">
       <div className="flex items-center gap-3 border-b border-book-border/35 px-3 py-2.5">
         <h3 className="text-xs font-semibold text-book-text-main">{t("settingsQueue.queueLoad")}</h3>
         <span className="flex-1" />

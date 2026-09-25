@@ -55,6 +55,7 @@ export const ChaptersTab: React.FC<ChaptersTabProps> = ({ projectId, canEditChap
   const { locale, t } = useI18n();
   const navigate = useNavigate();
   const [chapters, setChapters] = useState<ChapterSummary[]>([]);
+  const [previewChapterId, setPreviewChapterId] = useState<number | null>(null);
   const [importOpen, setImportOpen] = useState(false);
   const [importForm, setImportForm] = useState({
     chapter_number: 1,
@@ -99,6 +100,7 @@ export const ChaptersTab: React.FC<ChaptersTabProps> = ({ projectId, canEditChap
     importingRef.current = false;
     setImportOpen(false);
     setImporting(false);
+    setPreviewChapterId(null);
   }, [projectId]);
 
   useEffect(() => {
@@ -192,6 +194,7 @@ export const ChaptersTab: React.FC<ChaptersTabProps> = ({ projectId, canEditChap
   };
 
   const displayChapters = loadedProjectId === projectId ? chapters : [];
+  const previewChapter = displayChapters.find((chapter) => chapter.id === previewChapterId);
   const displayLoading = loading || loadedProjectId !== projectId;
   const importReady =
     Number.isInteger(importForm.chapter_number) &&
@@ -250,13 +253,29 @@ export const ChaptersTab: React.FC<ChaptersTabProps> = ({ projectId, canEditChap
                 onOpen={
                   canEditChapters
                     ? () => openWritingDesk(c.chapter_number)
-                    : undefined
+                    : () => setPreviewChapterId(c.id)
                 }
               />
             ))}
           </ul>
         )}
       </section>
+
+      {previewChapter && (
+        <Modal
+          isOpen
+          onClose={() => setPreviewChapterId(null)}
+          title={previewChapter.title || t("novel.chapterRangeSingle", { number: previewChapter.chapter_number })}
+          maxWidthClassName="max-w-3xl"
+        >
+          <article
+            aria-label={t("novel.chapterBody")}
+            className="whitespace-pre-wrap break-words font-serif text-sm leading-relaxed text-book-text-main"
+          >
+            {previewChapter.content}
+          </article>
+        </Modal>
+      )}
 
       {importOpen && (
         <Modal
@@ -338,7 +357,7 @@ export const ChaptersTab: React.FC<ChaptersTabProps> = ({ projectId, canEditChap
 
 const ChapterRow: React.FC<{
   chapter: ChapterSummary;
-  onOpen?: () => void;
+  onOpen: () => void;
 }> = ({ chapter, onOpen }) => {
   const { locale, t } = useI18n();
   const status = chapterStatusLabel(chapter.status, locale);
@@ -368,31 +387,23 @@ const ChapterRow: React.FC<{
           ) : null}
         </div>
       </div>
-      {onOpen ? (
-        <ChevronRight
-          size={14}
-          className="shrink-0 text-book-text-muted"
-          aria-hidden
-        />
-      ) : null}
+      <ChevronRight
+        size={14}
+        className="shrink-0 text-book-text-muted"
+        aria-hidden
+      />
     </>
   );
 
   return (
     <li>
-      {onOpen ? (
-        <button
-          type="button"
-          onClick={onOpen}
-          className="flex min-h-14 w-full items-center gap-3 px-3 py-3 text-left transition-colors hover:bg-book-bg-tertiary/55 focus-visible:bg-book-bg-tertiary/55 focus-visible:outline-none sm:px-4"
-        >
-          {content}
-        </button>
-      ) : (
-        <div className="flex min-h-14 items-center gap-3 px-3 py-3 sm:px-4">
-          {content}
-        </div>
-      )}
+      <button
+        type="button"
+        onClick={onOpen}
+        className="flex min-h-14 w-full items-center gap-3 px-3 py-3 text-left transition-colors hover:bg-book-bg-tertiary/55 focus-visible:bg-book-bg-tertiary/55 focus-visible:outline-none sm:px-4"
+      >
+        {content}
+      </button>
     </li>
   );
 };

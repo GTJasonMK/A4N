@@ -3,14 +3,12 @@ import { isTauriRuntime } from "./runtimeMode";
 
 const A4N_KEY_RE = /^a4n[:-]/;
 const LOCAL_RUNTIME_SETTINGS_KEY = "a4n:local-runtime-settings:v1";
-const pendingWrites = new Map<string, string | null>();
 const entries = new Map<string, string>();
 
 let initialized = false;
 let backendAvailable = false;
 let desktopRuntime = false;
-let flushTimer: number | null = null;
-let flushPromise: Promise<void> | null = null;
+let writePromise: Promise<void> = Promise.resolve();
 
 const isBrowser = (): boolean => typeof window !== "undefined";
 
@@ -55,13 +53,11 @@ const removeBrowserItem = (key: string) => {
   window.sessionStorage.removeItem(key);
 };
 
-const scheduleFlush = () => {
-  if (!desktopRuntime) return;
-  if (flushTimer !== null) window.clearTimeout(flushTimer);
-  flushTimer = window.setTimeout(() => {
-    flushTimer = null;
-    void flushPortableStorage();
-  }, 100);
+const persistDesktop = (write: () => Promise<void>): Promise<void> => {
+  // Each caller receives its own write failure. A later explicit write may run,
+  // but never replays a failed write or publishes it to the committed cache.
+  writePromise = writePromise.then(write, write);
+  return writePromise;
 };
 
 export const initializePortableStorage = async (): Promise<void> => {
@@ -77,19 +73,16 @@ export const initializePortableStorage = async (): Promise<void> => {
   const backendEntries = await invoke<Record<string, string>>(
     "get_all_frontend_state",
   );
-  for (const [key, value] of Object.entries(backendEntries || {})) {
+  for (const [key, value] of Object.entries(backendEntries)) {
     if (isA4nKey(key) && typeof value === "string") entries.set(key, value);
-  }
-
-  const browserSettings = readBrowserItem(LOCAL_RUNTIME_SETTINGS_KEY);
-  if (!entries.has(LOCAL_RUNTIME_SETTINGS_KEY) && browserSettings !== null) {
-    entries.set(LOCAL_RUNTIME_SETTINGS_KEY, browserSettings);
-    pendingWrites.set(LOCAL_RUNTIME_SETTINGS_KEY, browserSettings);
   }
 
   backendAvailable = true;
   initialized = true;
-  await flushPortableStorage();
+  const browserSettings = readBrowserItem(LOCAL_RUNTIME_SETTINGS_KEY);
+  if (!entries.has(LOCAL_RUNTIME_SETTINGS_KEY) && browserSettings !== null) {
+    await writePortableItem(LOCAL_RUNTIME_SETTINGS_KEY, browserSettings);
+  }
 };
 
 export const readPortableItem = (key: string): string | null => {
@@ -104,35 +97,49 @@ export const readPortableItem = (key: string): string | null => {
   return readBrowserItem(key);
 };
 
-export const writePortableItem = (key: string, value: string): boolean => {
+export const writePortableItem = async (key: string, value: string): Promise<boolean> => {
   if (!isA4nKey(key)) return false;
+  await writePortableItems({ [key]: value });
+  return true;
+};
+
+export const writePortableItems = async (values: Record<string, string>): Promise<void> => {
+  if (Object.keys(values).some((key) => !isA4nKey(key))) {
+    throw new Error("前端状态包含非法存储键");
+  }
   if (isDesktopRuntime()) {
     desktopRuntime = true;
     if (!backendAvailable) {
       throw new Error("frontend_state 后端尚未初始化，无法写入桌面持久化状态");
     }
-    entries.set(key, value);
-    pendingWrites.set(key, value);
-    scheduleFlush();
-    return true;
+    return persistDesktop(async () => {
+      await invoke("set_frontend_state_many", { entries: values });
+      for (const [key, value] of Object.entries(values)) entries.set(key, value);
+    });
   }
-  writeBrowserItem(key, value);
-  return true;
+  for (const [key, value] of Object.entries(values)) writeBrowserItem(key, value);
 };
 
-export const removePortableItem = (key: string): void => {
+export const removePortableItem = async (key: string): Promise<void> => {
   if (!isA4nKey(key)) return;
+  await removePortableItems([key]);
+};
+
+export const removePortableItems = async (keys: string[]): Promise<void> => {
+  if (keys.some((key) => !isA4nKey(key))) {
+    throw new Error("前端状态包含非法存储键");
+  }
   if (isDesktopRuntime()) {
     desktopRuntime = true;
     if (!backendAvailable) {
       throw new Error("frontend_state 后端尚未初始化，无法删除桌面持久化状态");
     }
-    entries.delete(key);
-    pendingWrites.set(key, null);
-    scheduleFlush();
-    return;
+    return persistDesktop(async () => {
+      await invoke("remove_frontend_state_many", { keys });
+      for (const key of keys) entries.delete(key);
+    });
   }
-  removeBrowserItem(key);
+  for (const key of keys) removeBrowserItem(key);
 };
 
 export const listPortableKeys = (prefix?: string): string[] => {
@@ -159,46 +166,4 @@ export const listPortableKeys = (prefix?: string): string[] => {
   }
 
   return Array.from(keys);
-};
-
-export const flushPortableStorage = async (): Promise<void> => {
-  if (!isDesktopRuntime() || pendingWrites.size === 0) {
-    return flushPromise ?? Promise.resolve();
-  }
-  if (!backendAvailable) {
-    throw new Error("frontend_state 后端尚未初始化，无法刷新桌面持久化状态");
-  }
-  if (flushPromise) {
-    await flushPromise;
-    if (pendingWrites.size === 0) return;
-    return flushPortableStorage();
-  }
-
-  flushPromise = (async () => {
-    while (pendingWrites.size > 0) {
-      const flushedEntries = Array.from(pendingWrites.entries());
-      const writes: Record<string, string> = {};
-      const removals: string[] = [];
-      for (const [key, value] of flushedEntries) {
-        if (value === null) removals.push(key);
-        else writes[key] = value;
-      }
-
-      if (Object.keys(writes).length > 0) {
-        await invoke("set_frontend_state_many", { entries: writes });
-      }
-      if (removals.length > 0) {
-        await invoke("remove_frontend_state_many", { keys: removals });
-      }
-      for (const [key, value] of flushedEntries) {
-        if (pendingWrites.get(key) === value) {
-          pendingWrites.delete(key);
-        }
-      }
-    }
-  })().finally(() => {
-    flushPromise = null;
-  });
-
-  return flushPromise;
 };

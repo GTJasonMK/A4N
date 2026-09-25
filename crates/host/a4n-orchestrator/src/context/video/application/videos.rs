@@ -94,20 +94,6 @@ impl VideoApplication {
             .map_err(video_db_error)
     }
 
-    pub(in crate::context) async fn update_generated_video_duration_record(
-        &self,
-        video_id: i64,
-        duration_secs: f32,
-    ) -> Result<generated_video::Model, AppError> {
-        a4n_db::video::update_generated_video_duration_record(
-            self.connection(),
-            video_id,
-            duration_secs,
-        )
-        .await
-        .map_err(video_db_error)
-    }
-
     pub(in crate::context) async fn delete_generated_video_record_with_cleanup(
         &self,
         video_id: i64,
@@ -206,7 +192,7 @@ impl VideoApplication {
         video_id: i64,
         file_path: &str,
         thumbnail_path: Option<&str>,
-        file_size: i64,
+        properties: &a4n_domain::media::VideoFileProperties,
         metadata_json: Option<Value>,
         prompt_id: Option<i64>,
     ) -> Result<generated_video::Model, AppError> {
@@ -215,7 +201,7 @@ impl VideoApplication {
             video_id,
             file_path,
             thumbnail_path,
-            file_size,
+            properties,
             metadata_json,
             prompt_id,
         )

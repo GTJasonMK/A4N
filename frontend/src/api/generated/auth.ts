@@ -70,3 +70,22 @@ export interface RefreshTokenInput {
   session_id: string;
 }
 
+export interface OAuth2AuthorizeInput {
+  code_challenge: string;
+  provider: string;
+  redirect_uri?: string | null;
+  state: string;
+}
+
+export interface OAuth2CallbackInput {
+  code: string;
+  code_verifier: string;
+  provider: string;
+  redirect_uri: string;
+}
+
+export interface OAuth2BrowserInput {
+  authorization_url: string;
+  redirect_uri: string;
+}
+

@@ -217,13 +217,13 @@ const ProjectRow: React.FC<{
   ];
 
   return (
-    <li className="group a4n-flat-surface">
+    <li className="group a4n-project-list-entry">
       <div
         data-project-relation={relation}
         onContextMenu={menu.handle(fullItems)}
         onMouseEnter={() => prefetchProjectRouteByStatus(project, { immediate: true })}
         onFocus={() => prefetchProjectRouteByStatus(project, { immediate: true })}
-        className="a4n-project-row relative w-full rounded-[var(--pyqt-radius-lg)] px-3 py-3 text-left transition-colors hover:bg-book-bg-tertiary/55 sm:px-4"
+        className="a4n-project-row relative w-full px-3 py-4 text-left sm:px-4"
       >
         <BookCardAction label={`${project.title} · ${entryLabel}`} onClick={() => onOpen(project)} />
         <div className="flex items-start gap-3">
@@ -235,7 +235,7 @@ const ProjectRow: React.FC<{
             <ProjectKindIcon size={17} strokeWidth={1.8} />
           </span>
           <div className="min-w-0 flex-1">
-            <h3 className="text-body-lg font-semibold text-book-text-main sm:text-base">
+            <h3 className="text-base font-semibold text-book-text-main sm:text-lg">
               <span className="block truncate">{project.title}</span>
             </h3>
             <p className="mt-1 truncate text-small text-book-text-muted">

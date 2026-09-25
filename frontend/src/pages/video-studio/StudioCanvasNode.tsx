@@ -23,6 +23,7 @@ import {
   Wand2,
 } from "lucide-react";
 import { toMediaSrc } from "../../utils/mediaSrc";
+import { ImageZoomButton } from "../../components/ui/ImageLightbox";
 import { formatNumber, useI18n, type Locale, type MessageTranslator } from "../../i18n";
 import type { StudioNode, StudioNodeData, StudioTemplateIcon } from "./types";
 import { configNumber, configObject, configPositiveNumber, configText } from "./canvasConfig";
@@ -146,8 +147,9 @@ const StudioCanvasNode: React.FC<NodeProps<StudioNode>> = ({ id, data, selected,
       </div>
 
       {previewSrc ? (
-        <div className="h-[76px] bg-book-bg">
+        <div className="relative h-[76px] bg-book-bg">
           <img src={previewSrc} alt="" className="h-full w-full object-cover" />
+          <ImageZoomButton src={previewSrc} alt={nodeDisplayTitle(data, t)} className="nodrag nopan absolute right-1 top-1" />
         </div>
       ) : videoPreview ? (
         <StudioNodeVideoPreview preview={videoPreview} />
@@ -401,9 +403,9 @@ function nodeVideoPreview(data: StudioNodeData, t: MessageTranslator): StudioNod
   ]);
   if (!filePath || !/\.(mp4|mov|webm|m4v|mkv)$/i.test(filePath)) return null;
   const generatedVideoId =
+    nodeGeneratedVideoRefId(data) ??
     configPositiveNumber(data.config, "generated_video_id") ??
-    configPositiveNumber(output, "generated_video_id") ??
-    nodeGeneratedVideoRefId(data);
+    configPositiveNumber(output, "generated_video_id");
   return {
     filePath,
     generatedVideoId,
@@ -438,6 +440,7 @@ function frameKindLabel(value: string, t: MessageTranslator): string {
 function nodeBodyPreview(data: StudioNodeData, t: MessageTranslator): string {
   const operationPreview = operationNodeBodyPreview(data, t);
   if (operationPreview) return operationPreview;
+  if (data.nodeKind === "TextOutputNode" && typeof data.config.text === "string") return data.config.text;
   const observedText = configText(data.config, "observed_text").trim();
   if (observedText) return observedText;
   const renderedPrompt = configText(data.config, "prompt_text").trim();

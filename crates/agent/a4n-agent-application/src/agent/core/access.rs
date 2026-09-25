@@ -24,9 +24,10 @@ impl AgentApplication {
         user_id: i64,
         scope: &AgentScope,
         bound_resource: Option<&AgentResourceRef>,
-    ) -> Result<(Option<i64>, Option<i64>), AppError> {
+    ) -> Result<(Option<i64>, Option<i64>, Option<i32>), AppError> {
         let mut project_id = scope.project_id;
         let mut chapter_id = scope.chapter_id;
+        let mut chapter_number = None;
         if let (Some(kind), Some(id)) = (&scope.resource_kind, &scope.resource_id) {
             collect_scoped_resource(kind, id, &mut project_id, &mut chapter_id)?;
         }
@@ -43,6 +44,7 @@ impl AgentApplication {
                 .await?
                 .ok_or_else(|| AppError::NotFound(format!("章节不存在: {chapter_id}")))?;
             merge_scope_id(&mut project_id, chapter.project_id, "project_id")?;
+            chapter_number = Some(chapter.chapter_number);
         }
         if (scope.resource_kind.is_some() || bound_resource.is_some()) && project_id.is_none() {
             return Err(AppError::InvalidArgument(
@@ -59,7 +61,31 @@ impl AgentApplication {
             .await
             .map_err(collaboration_db_error_to_app)?;
         }
-        Ok((project_id, chapter_id))
+        Ok((project_id, chapter_id, chapter_number))
+    }
+
+    pub(crate) async fn hydrate_scope_chapter_number(
+        &self,
+        scope: &mut AgentScope,
+    ) -> Result<(), AppError> {
+        let Some(chapter_id) = scope.chapter_id else {
+            scope.chapter_number = None;
+            return Ok(());
+        };
+        let chapter = a4n_db::project::chapter_by_id(self.connection(), chapter_id)
+            .await?
+            .ok_or_else(|| AppError::NotFound(format!("章节不存在: {chapter_id}")))?;
+        if scope
+            .project_id
+            .is_some_and(|project_id| project_id != chapter.project_id)
+        {
+            return Err(AppError::Forbidden(format!(
+                "章节 {chapter_id} 不属于 Agent scope 项目 {}",
+                scope.project_id.expect("checked Some")
+            )));
+        }
+        scope.chapter_number = Some(chapter.chapter_number);
+        Ok(())
     }
 
     /// Validates chapter identifiers found inside a dynamically discovered

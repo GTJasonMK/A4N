@@ -249,7 +249,7 @@ export const WorldObjectView: React.FC<{ obj: WorldObject }> = ({ obj }) => {
   );
 };
 
-export const WorldSummaryView: React.FC<{ obj: WorldObject }> = ({ obj }) => {
+export const WorldSummaryView: React.FC<{ obj: WorldObject; onOpenDetail: () => void }> = ({ obj, onOpenDetail }) => {
   const { t } = useI18n();
   const premise = pickFirst(obj, PREMISE_KEYS);
   const core = pickFirst(obj, CORE_KEYS);
@@ -270,8 +270,8 @@ export const WorldSummaryView: React.FC<{ obj: WorldObject }> = ({ obj }) => {
           {valueToText(core?.[1], t) || t("novel.world.coreEmpty")}
         </div>
       </section>
-      <WorldMiniList title={t("novel.world.locations")} items={locations} emptyText={t("novel.world.locationsEmpty")} />
-      <WorldMiniList title={t("novel.world.factions")} items={factions} emptyText={t("novel.world.factionsEmpty")} />
+      <WorldMiniList title={t("novel.world.locations")} items={locations} emptyText={t("novel.world.locationsEmpty")} onOpenDetail={onOpenDetail} />
+      <WorldMiniList title={t("novel.world.factions")} items={factions} emptyText={t("novel.world.factionsEmpty")} onOpenDetail={onOpenDetail} />
     </div>
   );
 };
@@ -280,7 +280,8 @@ const WorldMiniList: React.FC<{
   title: string;
   items: WorldListItem[];
   emptyText: string;
-}> = ({ title, items, emptyText }) => {
+  onOpenDetail: () => void;
+}> = ({ title, items, emptyText, onOpenDetail }) => {
   const { locale, t } = useI18n();
   return (
     <section className="a4n-flat-surface min-w-0 p-4">
@@ -316,11 +317,11 @@ const WorldMiniList: React.FC<{
         </ul>
       )}
       {items.length > 3 ? (
-        <div className="mt-2 text-caption text-book-text-muted">
+        <button type="button" onClick={onOpenDetail} className="mt-2 text-left text-caption text-book-primary underline-offset-4 hover:underline">
           {t("novel.world.moreItems", {
             count: formatNumber(items.length - 3, locale),
           })}
-        </div>
+        </button>
       ) : null}
     </section>
   );

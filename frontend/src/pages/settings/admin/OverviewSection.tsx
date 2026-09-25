@@ -1,5 +1,5 @@
 import React, { useCallback, useState } from "react";
-import { AlertTriangle, CheckCircle2, RefreshCw } from "lucide-react";
+import { AlertTriangle, CheckCircle2, CirclePause, RefreshCw } from "lucide-react";
 import type { MessageKey } from "../../../i18n";
 import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
 import {
@@ -28,7 +28,7 @@ export const OverviewSection: React.FC = () => {
     },
     [],
   );
-  const { loading, load } = useAdminSectionLoader(
+  const { loading, error, load } = useAdminSectionLoader(
     "admin-overview",
     loadOverview,
     applyOverview,
@@ -38,7 +38,8 @@ export const OverviewSection: React.FC = () => {
   return (
     <div className="flex flex-col gap-3">
       <OverviewSummary overview={overview} loading={loading} onRefresh={load} />
-      <ServiceHealthPanel health={health} loading={loading} />
+      {error ? <p role="alert" className="text-xs text-error">{error}</p> : null}
+      {health || !error ? <ServiceHealthPanel health={health} loading={loading} /> : null}
     </div>
   );
 };
@@ -171,11 +172,12 @@ const ServiceHealthRow: React.FC<{ service: AdminServiceHealth }> = ({ service }
     >
       <div className="flex min-w-0 items-center gap-3">
         <div className="min-w-0 flex-1 font-medium text-book-text-main">{service.name}</div>
-        <span className={`inline-flex shrink-0 items-center gap-1 text-small ${service.healthy ? "text-success" : "text-error"}`}>
-          {service.healthy ? <CheckCircle2 size={11} /> : <AlertTriangle size={11} />}
-          {service.healthy ? t("settingsAdmin.healthy") : t("settingsAdmin.unhealthy")}
+        <span className={`inline-flex shrink-0 items-center gap-1 text-small ${service.mode === "disabled" ? "text-book-text-muted" : service.healthy ? "text-success" : "text-error"}`}>
+          {service.mode === "disabled" ? <CirclePause size={11} /> : service.healthy ? <CheckCircle2 size={11} /> : <AlertTriangle size={11} />}
+          {service.mode === "disabled" ? t("settingsAdmin.disabled") : service.healthy ? t("settingsAdmin.healthy") : t("settingsAdmin.unhealthy")}
         </span>
       </div>
+      {service.error_message ? <p className="mt-2 break-words text-error">{service.error_message}</p> : null}
       <details className="group mt-1.5 text-small text-book-text-muted">
         <summary className="w-fit cursor-pointer select-none rounded px-1 py-0.5 transition-colors hover:bg-book-bg-tertiary hover:text-book-text-main">
           {t("settingsAdmin.diagnostics")}
@@ -198,11 +200,9 @@ const ServiceHealthRow: React.FC<{ service: AdminServiceHealth }> = ({ service }
           </div>
           <div className="min-w-0">
             <div className="mb-0.5 text-book-text-muted">{t("settingsAdmin.errorsAndPrograms")}</div>
-            {service.error_message ? (
-              <div className="break-words text-error">{service.error_message}</div>
-            ) : (
+            {!service.error_message ? (
               <div className="text-book-text-sub">{t("settingsAdmin.noErrors")}</div>
-            )}
+            ) : null}
             {service.binary ? (
               <div className="mt-1 truncate font-mono text-book-text-muted" title={service.binary}>
                 {service.binary}

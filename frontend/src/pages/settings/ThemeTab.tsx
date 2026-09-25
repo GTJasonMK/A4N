@@ -8,7 +8,8 @@ import {
   SingleThemeImportPanel,
   ThemePackagePanel,
 } from "./theme/ThemeConfigPanels";
-import { ThemeEditorPanel } from "./theme/ThemeEditorPanel";
+import { THEME_EDITOR_FORM_ID, ThemeEditorPanel } from "./theme/ThemeEditorPanel";
+import { BookButton } from "../../components/ui/BookButton";
 import { ThemeListSection } from "./theme/ThemeListSection";
 import { useThemeTabController } from "./theme/useThemeTabController";
 import { useI18n } from "../../i18n";
@@ -106,7 +107,6 @@ export const ThemeTab: React.FC = () => {
     <ThemeEditorPanel
       theme={editingTheme}
       saving={themeTab.editorSaving}
-      onCancel={closeEditor}
       onDirtyChange={reportEditorDirty}
       onSave={(input, pendingFiles, deleteResourceIds) =>
         themeTab.handleEditorSave(
@@ -183,6 +183,14 @@ export const ThemeTab: React.FC = () => {
         closeOnBackdrop={!themeTab.editorSaving}
         closeOnEscape={!themeTab.editorSaving}
         showCloseButton={!themeTab.editorSaving}
+        footer={(
+          <>
+            <BookButton variant="secondary" onClick={() => void handleEditorClose()} disabled={themeTab.editorSaving}>{t("settingsTheme.cancel")}</BookButton>
+            <BookButton type="submit" form={THEME_EDITOR_FORM_ID} disabled={themeTab.editorSaving}>
+              {themeTab.editorSaving ? t("settingsTheme.saving") : t("common.save")}
+            </BookButton>
+          </>
+        )}
       >
         {editorPanel}
       </Modal>

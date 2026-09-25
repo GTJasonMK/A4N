@@ -95,7 +95,20 @@ pub(in crate::optimize) async fn read_project_context(
             read_all_chapter(value, &include, input.cursor.as_deref())?
         }
         (OptimizationContextSelection::Paragraphs { indexes }, "current_chapter") => {
-            read_chapter_paragraphs(value, indexes, &include)?
+            if indexes.contains(&0) {
+                return Err(AppError::InvalidArgument(
+                    "paragraph index 必须从 1 开始".into(),
+                ));
+            }
+            let start = paragraph_cursor(input.cursor.as_deref())?;
+            let mut indexes = indexes
+                .iter()
+                .copied()
+                .filter(|index| *index >= start)
+                .collect::<Vec<_>>();
+            indexes.sort_unstable();
+            indexes.dedup();
+            read_chapter_paragraphs(value, &indexes, &include)?
         }
         (OptimizationContextSelection::Paths { paths }, _) => read_paths(value, paths, &include)?,
         (OptimizationContextSelection::Items { indexes }, _) => read_items(value, indexes)?,
@@ -227,11 +240,7 @@ fn inspect_source(source: &str, value: &Value, cursor: Option<&str>) -> Result<V
             .and_then(Value::as_str)
             .ok_or_else(|| AppError::InvalidArgument("current_chapter 缺少正文".into()))?;
         let all_paragraphs = paragraph_ranges(content);
-        let start = cursor
-            .and_then(|cursor| cursor.strip_prefix("paragraph:"))
-            .map(parse_index)
-            .transpose()?
-            .unwrap_or(1);
+        let start = paragraph_cursor(cursor)?;
         let mut paragraphs = Vec::new();
         for (offset, (start_byte, end_byte)) in all_paragraphs
             .iter()
@@ -256,7 +265,7 @@ fn inspect_source(source: &str, value: &Value, cursor: Option<&str>) -> Result<V
             .last()
             .and_then(|value| value.get("index"))
             .and_then(Value::as_u64)
-            .unwrap_or(0);
+            .unwrap_or(u64::from(start.saturating_sub(1)));
         let next_cursor = all_paragraphs
             .iter()
             .enumerate()
@@ -308,11 +317,7 @@ fn read_all_chapter(
         .get("content")
         .and_then(Value::as_str)
         .ok_or_else(|| AppError::InvalidArgument("current_chapter 缺少正文".into()))?;
-    let start = cursor
-        .and_then(|cursor| cursor.strip_prefix("paragraph:"))
-        .map(parse_index)
-        .transpose()?
-        .unwrap_or(1);
+    let start = paragraph_cursor(cursor)?;
     let indexes = (start..=paragraph_ranges(content).len() as u32).collect::<Vec<_>>();
     read_chapter_paragraphs(value, &indexes, include)
 }
@@ -375,7 +380,13 @@ fn read_chapter_paragraphs(
         paragraphs.push(paragraph);
         let candidate = json!({"paragraphs": paragraphs});
         if serde_json::to_vec(&candidate)?.len() > CONTEXT_RESULT_BYTES {
-            paragraphs.pop();
+            // Always make progress for an oversized single paragraph. The
+            // Agent execution owner stores the complete result and exposes its
+            // existing Unicode result reader; do not create a second pager or
+            // return an empty page with the same cursor forever.
+            if paragraphs.len() > 1 {
+                paragraphs.pop();
+            }
             break;
         }
     }
@@ -396,6 +407,24 @@ fn read_chapter_paragraphs(
         "complete": next.is_none(),
         "next_cursor": next,
     }))
+}
+
+fn paragraph_cursor(cursor: Option<&str>) -> Result<u32, AppError> {
+    match cursor {
+        None => Ok(1),
+        Some(cursor) => {
+            let index = cursor
+                .strip_prefix("paragraph:")
+                .ok_or_else(|| AppError::InvalidArgument("paragraph cursor 无效".into()))?;
+            let index = parse_index(index)?;
+            if index == 0 {
+                return Err(AppError::InvalidArgument(
+                    "paragraph cursor 必须从 1 开始".into(),
+                ));
+            }
+            Ok(index)
+        }
+    }
 }
 
 fn read_paths(value: &Value, paths: &[String], include: &[&str]) -> Result<Value, AppError> {
@@ -640,6 +669,19 @@ mod tests {
                 .as_str()
                 .is_some_and(|value| value.starts_with("paragraph:"))
         );
+    }
+
+    #[test]
+    fn oversized_paragraph_makes_progress_and_history_cursor_never_rewinds() {
+        let text = format!("{}末尾约束", "长段落。".repeat(4000));
+        let value = json!({"chapter_number": 1, "content": text});
+        let page = read_chapter_paragraphs(&value, &[1], &["content", "source_spans"]).unwrap();
+        assert_eq!(page["paragraphs"][0]["content"], value["content"]);
+        assert_eq!(page["complete"], true);
+        let end = inspect_source("current_chapter", &value, Some("paragraph:2")).unwrap();
+        assert_eq!(end["complete"], true);
+        assert!(end["next_cursor"].is_null());
+        assert!(inspect_source("current_chapter", &value, Some("invalid")).is_err());
     }
 
     #[test]

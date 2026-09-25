@@ -1,9 +1,10 @@
 import React from "react";
 import { createRoot } from "react-dom/client";
 import { I18nProvider } from "../../src/i18n";
+import { ImageLightboxProvider } from "../../src/components/ui/ImageLightbox";
 import { VideoPostProcessWorkspace } from "../../src/pages/novel-detail/video/VideoPostProcessWorkspace";
 import { VideoAssemblyWorkspace } from "../../src/pages/novel-detail/video/VideoAssemblyWorkspace";
-import { writeCurrentUserId } from "../../src/api/authStorage";
+import { writeFixtureAuth } from "../fixtureAuth";
 import { initializePortableStorage } from "../../src/utils/portableStorage";
 import "../../src/index.css";
 
@@ -180,26 +181,28 @@ const mountHarness = async () => {
   }
 
   await initializePortableStorage();
-  if (nativeTauriRuntime) writeCurrentUserId(1);
+  if (nativeTauriRuntime) await writeFixtureAuth("video-scrub-fixture");
   const Workspace = assemblyScenario ? VideoAssemblyWorkspace : VideoPostProcessWorkspace;
 
   createRoot(document.getElementById("root")).render(
     <div className="flex min-h-0 flex-col" style={{ height: "100vh", padding: 16 }}>
       <I18nProvider initialLocale="zh-CN">
-        <Workspace
-          projectId={1}
-          chapter={{
-            id: 2,
-            chapter_number: 1,
-            title: "剪辑预览测试",
-            status: "completed",
-          }}
-          videos={videos}
-          timeline={null}
-          adoptedVideoIds={new Set()}
-          onToast={() => undefined}
-          onRefresh={() => undefined}
-        />
+        <ImageLightboxProvider>
+          <Workspace
+            projectId={1}
+            chapter={{
+              id: 2,
+              chapter_number: 1,
+              title: "剪辑预览测试",
+              status: "completed",
+            }}
+            videos={videos}
+            timeline={null}
+            adoptedVideoIds={new Set()}
+            onToast={() => undefined}
+            onRefresh={() => undefined}
+          />
+        </ImageLightboxProvider>
       </I18nProvider>
     </div>,
   );

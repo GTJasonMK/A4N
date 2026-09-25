@@ -70,7 +70,7 @@ pub(in crate::actions::video_records) async fn complete_video_record(
     metadata_json: Option<Value>,
     failure_prefix: &str,
 ) -> Result<GeneratedVideoSummary, String> {
-    let duration_secs = match canonicalize_data_file_path(
+    let properties = match canonicalize_data_file_path(
         state.data_dir(),
         output_path_str,
         &format!("{failure_prefix}输出文件"),
@@ -79,12 +79,12 @@ pub(in crate::actions::video_records) async fn complete_video_record(
         Ok(output_path) => {
             probe_video_properties(state, &output_path, MediaRoot::Data, failure_prefix)
                 .await
-                .map(|properties| properties.duration_secs)
+                .map(|properties| properties.file_properties(file_size))
                 .map_err(|error| format!("{failure_prefix}：{error}"))
         }
     };
-    let duration_secs = match duration_secs {
-        Ok(duration_secs) => duration_secs,
+    let properties = match properties {
+        Ok(properties) => properties,
         Err(error) => {
             let cleanup_error = enqueue_unadopted_video_file_cleanup(
                 state,
@@ -107,10 +107,9 @@ pub(in crate::actions::video_records) async fn complete_video_record(
             record_id,
             output_path: output_path_str.to_string(),
             thumbnail_path: thumbnail_path.map(str::to_string),
-            file_size,
+            properties,
             prompt_id,
             metadata_json,
-            duration_secs,
         })
         .await
     {
@@ -132,9 +131,6 @@ pub(in crate::actions::video_records) async fn complete_video_record(
                 );
             }
             Ok(completion.summary)
-        }
-        Err(VideoRecordCompletionError::DurationWriteback { error }) => {
-            Err(format!("{failure_prefix}实际时长回写失败：{error}"))
         }
         Err(VideoRecordCompletionError::Submission {
             error,

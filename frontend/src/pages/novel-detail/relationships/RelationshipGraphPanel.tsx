@@ -2,7 +2,6 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import "@xyflow/react/dist/style.css";
 import {
   Background,
-  Controls,
   MarkerType,
   Position,
   ReactFlow,
@@ -15,8 +14,11 @@ import {
 } from "@xyflow/react";
 import { RefreshCcw, Users } from "lucide-react";
 import { BookButton } from "../../../components/ui/BookButton";
+import { FlowControls } from "../../../components/ui/FlowControls";
 import { Dropdown } from "../../../components/ui/Dropdown";
 import { Modal } from "../../../components/ui/Modal";
+import { useToast } from "../../../components/feedback/Toast";
+import { extractErrorMessage } from "../../../api";
 import { EmptyHint } from "../shared";
 import {
   readPortableItem,
@@ -93,6 +95,9 @@ export const CurrentRelationshipsCard: React.FC<{
   onOpen: (relationship: CurrentRelationship) => void;
 }> = ({ projectId, relationships, onOpen }) => {
   const { locale, t } = useI18n();
+  const reportStorageError = useCallback((error: unknown) => {
+    useToast.getState().addToast(extractErrorMessage(error, t("errors.saveFailed")), "error");
+  }, [t]);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [charactersOpen, setCharactersOpen] = useState(false);
   const [hoveredRelationship, setHoveredRelationship] =
@@ -119,18 +124,21 @@ export const CurrentRelationshipsCard: React.FC<{
     const nodeIds = new Set(graph.nodes.map((node) => node.id));
     const positions = pruneRelationshipNodePositions(stored, nodeIds);
     if (Object.keys(positions).length !== Object.keys(stored).length) {
-      saveRelationshipNodePositions(projectId, positions);
+      void saveRelationshipNodePositions(projectId, positions).catch(reportStorageError);
     }
     setFixedNodeCount(Object.keys(positions).length);
-    setNodes(buildRelationshipFlowNodes(graph, positions, layoutSize, t, locale));
+    setNodes((current) => preserveRelationshipMeasurements(current, buildRelationshipFlowNodes(graph, positions, layoutSize, t, locale)));
     setSelectedNodeId((current) =>
       current && nodeIds.has(current) ? current : null,
     );
+  }, [graph, layoutSize, locale, projectId, reportStorageError, setNodes, t]);
+
+  useEffect(() => {
     const frame = window.requestAnimationFrame(() => {
       void flowInstance?.fitView({ padding: 0.22, maxZoom: 1.15 });
     });
     return () => window.cancelAnimationFrame(frame);
-  }, [flowInstance, graph, layoutSize, locale, projectId, setNodes, t]);
+  }, [flowInstance, graph, layoutSize]);
 
   useEffect(() => {
     setCharactersOpen(false);
@@ -170,22 +178,22 @@ export const CurrentRelationshipsCard: React.FC<{
         new Set(graph.nodes.map((item) => item.id)),
       );
       positions[node.id] = relationshipNodePosition(node.position, layoutSize);
-      saveRelationshipNodePositions(projectId, positions);
+      void saveRelationshipNodePositions(projectId, positions).catch(reportStorageError);
       setFixedNodeCount(Object.keys(positions).length);
     },
-    [graph.nodes, layoutSize, projectId],
+    [graph.nodes, layoutSize, projectId, reportStorageError],
   );
 
   const resetNodeLayout = useCallback(() => {
-    clearRelationshipNodePositions(projectId);
+    void clearRelationshipNodePositions(projectId).catch(reportStorageError);
     setFixedNodeCount(0);
-    setNodes(buildRelationshipFlowNodes(graph, {}, layoutSize, t, locale));
+    setNodes((current) => preserveRelationshipMeasurements(current, buildRelationshipFlowNodes(graph, {}, layoutSize, t, locale)));
     setSelectedNodeId(null);
     setHoveredRelationship(null);
     window.requestAnimationFrame(() => {
       void flowInstance?.fitView({ padding: 0.22, maxZoom: 1.15 });
     });
-  }, [flowInstance, graph, layoutSize, locale, projectId, setNodes, t]);
+  }, [flowInstance, graph, layoutSize, locale, projectId, reportStorageError, setNodes, t]);
 
   if (relationships.length === 0) {
     return (
@@ -200,25 +208,13 @@ export const CurrentRelationshipsCard: React.FC<{
       <section className="a4n-flat-surface flex min-h-0 flex-col overflow-hidden p-0 lg:flex-1">
         <div className="flex min-h-12 items-center justify-between gap-2 border-b border-book-border/60 bg-book-bg-paper px-3 py-2">
           <div className="min-w-0 flex-1">
-            <div className="flex min-w-0 items-baseline gap-2 lg:hidden">
+            <div className="flex min-w-0 items-baseline gap-2">
               <div className="truncate text-body font-semibold text-book-text-main">
                 {t("novel.relationships.title")}
               </div>
               <div className="min-w-0 truncate text-small text-book-text-muted">
                 {formatNumber(graph.nodes.length, locale)}{" "}
-                {t("novel.relationships.characters")} ·{" "}
-                {t("novel.relationships.relationshipCount", {
-                  count: formatNumber(graph.edges.length, locale),
-                })}
-              </div>
-            </div>
-            <div className="hidden min-w-0 items-baseline gap-2 lg:flex">
-              <div className="text-body font-semibold text-book-text-main">
-                {t("novel.relationships.title")}
-              </div>
-              <div className="text-small text-book-text-muted">
-                {formatNumber(graph.nodes.length, locale)}{" "}
-                {t("novel.relationships.characters")} ·{" "}
+                {t("novel.characters")} ·{" "}
                 {t("novel.relationships.relationshipCount", {
                   count: formatNumber(graph.edges.length, locale),
                 })}
@@ -291,7 +287,7 @@ export const CurrentRelationshipsCard: React.FC<{
               className="a4n-relationship-flow"
               aria-label={t("novel.relationships.graphAria")}
             >
-              <Controls showInteractive={false} className="a4n-flow-controls" />
+              <FlowControls showInteractive={false} />
               <Background
                 color="rgb(var(--color-text-tertiary) / 0.2)"
                 gap={28}
@@ -300,15 +296,18 @@ export const CurrentRelationshipsCard: React.FC<{
             </ReactFlow>
           </div>
 
-          <div className="hidden min-h-0 min-w-0 lg:block">
+          <div className="order-first min-h-0 min-w-0 lg:order-none">
             <RelationshipGraphPanel
               graph={graph}
               hoveredRelationship={hoveredRelationship}
               selectedNode={selectedNode}
               selectedRelationships={selectedRelationships}
               selectedNodeId={selectedNodeId}
-              className="h-full min-h-0 overflow-y-auto border-l border-book-border bg-book-bg-paper custom-scrollbar"
-              onSelectNode={setSelectedNodeId}
+              className="max-h-72 min-h-0 overflow-y-auto border-b border-book-border bg-book-bg-paper custom-scrollbar lg:h-full lg:max-h-none lg:border-b-0 lg:border-l"
+              onSelectNode={(id) => {
+                setSelectedNodeId(id);
+                if (window.matchMedia("(max-width: 1023px)").matches) setCharactersOpen(true);
+              }}
               onOpen={onOpen}
             />
           </div>
@@ -319,7 +318,7 @@ export const CurrentRelationshipsCard: React.FC<{
         isOpen={charactersOpen}
         onClose={() => setCharactersOpen(false)}
         title={t("novel.relationships.allCharacters")}
-        subtitle={`${formatNumber(graph.nodes.length, locale)} ${t("novel.relationships.characters")}`}
+        subtitle={`${formatNumber(graph.nodes.length, locale)} ${t("novel.characters")}`}
         icon={<Users size={15} />}
         maxWidthClassName="max-w-md"
         bodyClassName="min-h-0 flex-1 overflow-y-auto px-2 py-2 custom-scrollbar sm:px-3 sm:py-3"
@@ -556,6 +555,12 @@ function automaticRelationshipNodeCenter(
   };
 }
 
+function preserveRelationshipMeasurements(current: RelationshipFlowNode[], next: RelationshipFlowNode[]): RelationshipFlowNode[] {
+  const previous = new Map(current.map((node) => [node.id, node]));
+  // 固定尺寸节点保留测量结果，刷新或恢复布局不应清空连线锚点。
+  return next.map((node) => ({ ...previous.get(node.id), ...node }));
+}
+
 function buildRelationshipFlowNodes(
   graph: RelationshipGraphData,
   positions: RelationshipNodePositions,
@@ -710,15 +715,14 @@ function loadRelationshipNodePositions(
   return parsed;
 }
 
-function saveRelationshipNodePositions(
+async function saveRelationshipNodePositions(
   projectId: number,
   positions: RelationshipNodePositions,
 ) {
   if (Object.keys(positions).length === 0) {
-    clearRelationshipNodePositions(projectId);
-    return;
+    return clearRelationshipNodePositions(projectId);
   }
-  const saved = writePortableItem(
+  const saved = await writePortableItem(
     relationshipLayoutStorageKey(projectId),
     JSON.stringify({ positions }),
   );
@@ -728,7 +732,7 @@ function saveRelationshipNodePositions(
 }
 
 function clearRelationshipNodePositions(projectId: number) {
-  removePortableItem(relationshipLayoutStorageKey(projectId));
+  return removePortableItem(relationshipLayoutStorageKey(projectId));
 }
 
 function pruneRelationshipNodePositions(

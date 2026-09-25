@@ -244,25 +244,31 @@ pub async fn update_task_execution(
             "Generation execution 不属于本任务 attempt".into(),
         ));
     }
-    let late_receipt = row.status == "outcome_unknown" && (result.is_some() || error.is_some());
+    let late_receipt = (row.status == "outcome_unknown"
+        || (matches!(row.status.as_str(), "cancelled" | "failed")
+            && row.started_at.is_some()
+            && row.result_json.is_none()))
+        && (result.is_some() || error.is_some());
     if is_execution_terminal(&row.status) && !late_receipt {
         return Err(AgentDbError::Conflict(
             "Generation execution 已结束，不能覆盖回执".into(),
         ));
     }
-    let status = if error.is_some() {
-        "failed"
+    let status = if late_receipt && row.status != "outcome_unknown" {
+        row.status.clone()
+    } else if error.is_some() {
+        "failed".into()
     } else if result.is_some() {
-        "succeeded"
+        "succeeded".into()
     } else {
-        "running"
+        "running".into()
     };
     let timestamp = now();
     let started_at = row
         .started_at
         .or((status == "running").then_some(timestamp));
     let mut active: execution::ActiveModel = row.into();
-    active.status = Set(status.into());
+    active.status = Set(status.clone());
     active.result_json = Set(result);
     active.result_refs_json = Set(refs);
     active.error_message = Set(error);

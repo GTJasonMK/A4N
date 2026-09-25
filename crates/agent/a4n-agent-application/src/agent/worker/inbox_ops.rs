@@ -67,11 +67,13 @@ impl AgentApplication {
                 thread_id: row.thread_id,
                 turn_id: row.turn_id,
                 run_id: row.run_id,
-                role: "user".into(),
+                role: if row.source_kind == "user" { "user" } else { "assistant" }.into(),
                 sender_kind: row.source_kind.clone(),
                 sender_thread_id: row.source_thread_id,
                 client_message_id: Some(format!("agent-inbox:{}", row.id)),
-                content: row.content.clone(),
+                content: if row.source_kind == "user" { row.content.clone() } else {
+                    serde_json::to_string(&json!({"source_kind": row.source_kind, "inbox_kind": row.inbox_kind, "content": row.content, "payload": row.payload_json}))?
+                },
                 status: "complete".into(),
                 payload_json: Some(json!({
                     "inbox_id": row.id.to_string(),

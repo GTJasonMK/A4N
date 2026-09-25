@@ -9,6 +9,7 @@ pub(in crate::oauth_provider::google) async fn exchange_token(
     client_secret: &str,
     code: &str,
     redirect_uri: &str,
+    code_verifier: &str,
 ) -> Result<String, AppError> {
     let response = client
         .post("https://oauth2.googleapis.com/token")
@@ -18,6 +19,7 @@ pub(in crate::oauth_provider::google) async fn exchange_token(
             ("code", code),
             ("grant_type", "authorization_code"),
             ("redirect_uri", redirect_uri),
+            ("code_verifier", code_verifier),
         ])
         .send()
         .await

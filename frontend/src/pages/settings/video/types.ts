@@ -12,12 +12,12 @@ export interface VideoForm {
   has_api_key: boolean;
   clear_api_key: boolean;
   size: string;
-  duration_secs: number;
-  min_duration_secs: number;
-  max_duration_secs: number;
+  duration_secs: string;
+  min_duration_secs: string;
+  max_duration_secs: string;
   duration_mode: VideoDurationMode;
   supported_durations_text: string;
-  fps: number;
-  max_concurrent: number;
+  fps: string;
+  max_concurrent: string;
   pricing: PricingPlan;
 }

@@ -1,6 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import type { Dispatch, SetStateAction } from "react";
 import { readPortableItem, writePortableItem } from "../utils/portableStorage";
+import { extractErrorMessage } from "../api";
+import { useToast } from "../components/feedback/Toast";
+import { getActiveLocale, translateMessage } from "../i18n";
 
 type UsePersistedStateOptions<T> = {
   parse?: (raw: string) => T;
@@ -52,7 +55,12 @@ export const usePersistedState = <T>(
       skipNextWriteKeyRef.current = null;
       return;
     }
-    writePortableItem(storageKey, serializeRef.current(value));
+    void writePortableItem(storageKey, serializeRef.current(value)).catch((error) => {
+      useToast.getState().addToast(
+        extractErrorMessage(error, translateMessage(getActiveLocale(), "errors.saveFailed")),
+        "error",
+      );
+    });
   }, [storageKey, value]);
 
   return [value, setValue];

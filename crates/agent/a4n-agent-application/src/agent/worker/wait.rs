@@ -130,14 +130,18 @@ impl AgentApplication {
             .and_then(|event| event.payload_json)
             .and_then(|payload| payload.get("editor_request").cloned())
             .ok_or_else(|| AppError::InvalidArgument("Run 没有待响应的编辑器请求".into()))?;
-        let request: a4n_api_contract::agent::AgentEditorRequest =
+        let mut request: a4n_api_contract::agent::AgentEditorRequest =
             from_json(payload, "editor_request")?;
         if request.execution_id != input.execution_id
             || request.source.view_instance_id != input.view_instance_id
         {
             return Err(AppError::Forbidden("响应与原始视图或执行不匹配".into()));
         }
-        validate_editor_source(&request.source, &thread)?;
+        let mut scope: AgentScope =
+            from_json(thread.scope_json.clone(), "agent_thread.scope_json")?;
+        self.hydrate_scope_chapter_number(&mut scope).await?;
+        request.source.chapter_number = scope.chapter_number;
+        validate_editor_source(&request.source, &thread.profile_id, &scope)?;
         let run = agent::claim_editor_execution(self.connection(), user_id, run_id, execution_id)
             .await
             .map_err(agent_db_error_to_app)?;

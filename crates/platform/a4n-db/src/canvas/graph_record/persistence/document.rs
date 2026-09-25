@@ -6,6 +6,7 @@ use sea_orm::{
 use super::context::{
     CanvasProjectIdentity, default_canvas_record_graph_kind, require_canvas_project_record,
 };
+use super::media_inputs::populate_media_input_metadata;
 use crate::canvas::{CanvasDbError, CanvasGraphRecordDocument};
 
 pub async fn get_or_create_canvas_graph_record<C>(
@@ -99,9 +100,10 @@ where
             .order_by_desc(canvas_text_asset::Column::UpdatedAt)
             .all(db),
     );
-    let nodes = nodes_result?;
+    let mut nodes = nodes_result?;
     let edges = edges_result?;
     let text_assets = text_assets_result?;
+    populate_media_input_metadata(db, graph.project_id, &mut nodes).await?;
     Ok(CanvasGraphRecordDocument {
         graph,
         nodes,

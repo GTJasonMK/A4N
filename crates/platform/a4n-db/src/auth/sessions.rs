@@ -65,7 +65,7 @@ pub async fn verify_active_session(
         .map_err(AppError::Database)?
         .ok_or_else(|| AppError::Unauthorized("会话不存在或已失效".into()))?;
     if !user.is_active {
-        return Err(AppError::Forbidden("账户已被禁用".into()));
+        return Err(AppError::Unauthorized("账户已被禁用".into()));
     }
     Ok(session)
 }

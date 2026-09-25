@@ -19,6 +19,8 @@ use crate::config::{
 };
 use crate::routing;
 
+mod oauth;
+
 pub(crate) struct ApiClient {
     pub(super) http: reqwest::Client,
     pub(super) api_base: String,
@@ -357,25 +359,6 @@ impl ApiClient {
             .await;
         self.clear_auth()?;
         result.map(|_| ())
-    }
-
-    pub(crate) async fn oauth2_callback(
-        &mut self,
-        provider: String,
-        code: String,
-    ) -> Result<AuthResult> {
-        self.reject_environment_auth_mutation("OAuth2 登录")?;
-        let secrets = [code.clone()];
-        let value = self
-            .send_json(routing::command_request(
-                "oauth2_callback",
-                json!({ "input": { "provider": provider, "code": code } }),
-            )?)
-            .await
-            .map_err(|error| redact_error_values(error, &secrets))?;
-        let auth: AuthResult = serde_json::from_value(value).context("OAuth2 登录响应合同无效")?;
-        self.store_tokens(&auth.tokens)?;
-        Ok(auth)
     }
 
     pub(crate) async fn refresh(&mut self) -> Result<TokenPairSummary> {
@@ -781,6 +764,7 @@ impl ApiClient {
             ui_session_id: self.stored.ui_session_id.clone(),
             ui_session_token: self.stored.ui_session_token.clone(),
             runtime_config_snapshot: self.stored.runtime_config_snapshot.clone(),
+            pending_oauth: None,
         }
     }
 

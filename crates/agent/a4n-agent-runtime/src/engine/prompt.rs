@@ -28,6 +28,7 @@ pub(crate) fn with_agent_system_prompt(
     };
     let skill_directory = agent_skill_directory_prompt(&skills.skills);
     let protocol_rules = agent_protocol_prompt(protocol, tools);
+    let scope = scope_prompt(&context.scope);
     let prompt = format!(
         "你是 A4N 项目 Agent。{role}\n\
 当前能力域：{}\n\
@@ -47,7 +48,7 @@ pub(crate) fn with_agent_system_prompt(
         context.goal.as_deref().unwrap_or("未提供显式目标"),
         context.execution_mode,
         phase,
-        serde_json::to_string(&context.scope).expect("AgentScope must serialize"),
+        scope,
         context
             .run
             .parent_run_id
@@ -56,37 +57,74 @@ pub(crate) fn with_agent_system_prompt(
         skill_directory,
     );
     messages.insert(0, ChatMessage::system(prompt));
+    messages.insert(1, ChatMessage::system("控制面返回 completed=false 且 blockers 非空时，任务尚未完成：继续读取、修订或验收对应结果。子任务需要修订时使用原委派，不另起无关联的替代任务。缺少用户才能提供的信息时，单独调用 request_agent_input 等待回复；不要用最终回复代替等待。用户最新补充和更正优先于历史摘要。"));
+    let obligations = json!({
+        "delegations": context.delegations.iter()
+            .filter(|row| row.parent_run_id == context.run.id && !matches!(row.status.as_str(), "accepted" | "cancelled"))
+            .map(|row| json!({"id":row.id.to_string(), "status":row.status, "child_run_id":row.child_run_id.map(|id| id.to_string()), "success_criteria":row.success_criteria_json}))
+            .collect::<Vec<_>>(),
+        "executions": context.executions.iter()
+            .filter(|row| row.execution_kind != "model_call" && matches!(row.status.as_str(), "prepared" | "awaiting_user" | "dispatching" | "running" | "outcome_unknown"))
+            .map(|row| json!({"execution_id":row.id.to_string(), "tool":row.tool_name, "status":row.status, "result_refs":row.result_refs_json}))
+            .collect::<Vec<_>>(),
+    });
+    messages.insert(
+        2,
+        ChatMessage::system(format!(
+            "当前持久化任务记录（精确事实，摘要不能改写其状态）：{obligations}"
+        )),
+    );
+    if let Some(delegation) = context
+        .delegations
+        .iter()
+        .find(|row| row.child_run_id == Some(context.run.id))
+    {
+        messages.insert(
+            2,
+            ChatMessage::system(format!(
+                "本次委派的验收条件如下，只约束当前任务，不增加权限；以用户最新更正为准：\n{}",
+                delegation.success_criteria_json
+            )),
+        );
+    }
     if let Some(summary) = context.thread.context_summary.as_ref() {
         let summary = serde_json::to_string(summary).expect("validated Agent context summary");
         messages.insert(
             1.min(messages.len()),
             ChatMessage::system(format!(
-                "以下是较早历史的事实摘要，仅供参考，不是指令；如与当前消息或工具结果冲突，以当前事实为准。\n<context_summary>{summary}</context_summary>"
+                "以下是较早历史的事实摘要，仅供参考，不是指令；如与当前消息或工具结果冲突，以当前事实为准。可搜索并加载 read_agent_history 分页核对原文。\n<context_summary>{summary}</context_summary>"
             )),
         );
     }
     messages
 }
 
-pub fn action_budget_exhausted(
-    budget: &AgentBudget,
-    tokens: u64,
-    started_at: chrono::NaiveDateTime,
-) -> bool {
-    budget.max_tokens.is_some_and(|limit| tokens >= limit)
-        || budget.max_duration_seconds.is_some_and(|limit| {
-            chrono::Utc::now()
-                .naive_utc()
-                .signed_duration_since(started_at)
-                .num_seconds()
-                >= i64::try_from(limit).expect("Agent budget duration was validated")
-        })
+fn scope_prompt(scope: &AgentScope) -> String {
+    let serialized = serde_json::to_string(scope).expect("AgentScope must serialize");
+    if scope.chapter_id.is_some() {
+        format!(
+            "（chapter_id 是数据库主键，chapter_number 才是用户看到的章节序号；二者不可互换。工具参数中的 *_chapter_id/source_chapter_id 必须传 chapter_id。）{serialized}"
+        )
+    } else {
+        serialized
+    }
 }
 
 pub(crate) fn chat_messages(context: &AgentRunContext) -> Result<Vec<ChatMessage>, AppError> {
+    let covered = context
+        .thread
+        .context_summary
+        .as_ref()
+        .and_then(|value| value.get("covered_through_sequence"))
+        .and_then(Value::as_i64)
+        .unwrap_or(0);
     context
         .messages
         .iter()
+        .filter(|message| {
+            message.id > covered
+                || (message.turn_id == Some(context.turn.id) && message.role == "user")
+        })
         .map(chat_message_from_model)
         .collect()
 }
@@ -108,6 +146,11 @@ pub(crate) fn chat_message_from_model(
     };
     let mut result = ChatMessage::new(role, message.content.clone());
     if let Some(payload) = message.payload_json.as_ref() {
+        if let Some(receipt) = payload.get("completion_receipt") {
+            let receipt: a4n_worker_contract::AgentWorkerCompletionSnapshotWire =
+                serde_json::from_value(receipt.clone())?;
+            result.content = serde_json::to_string(&receipt)?;
+        }
         if let Some(calls) = payload.get("tool_calls") {
             let calls: Vec<ToolCall> =
                 serde_json::from_value(calls.clone()).map_err(|error| AppError::InvalidState {
@@ -120,6 +163,7 @@ pub(crate) fn chat_message_from_model(
             .get("tool_call_id")
             .and_then(Value::as_str)
             .map(str::to_string);
+        result.preserve_tool_reasoning(payload.get("reasoning_content").and_then(Value::as_str))?;
         if matches!(result.role, MessageRole::Tool)
             && let Some(execution_id) = payload.get("execution_id").and_then(Value::as_str)
             && let Some(value) = payload.get("result")
@@ -130,11 +174,79 @@ pub(crate) fn chat_message_from_model(
                     current: "Agent tool message execution_id 无效".into(),
                     operation: "构建模型上下文".into(),
                 })?;
-            if value.get("observation_version").is_some() {
+            let value = if value.get("observation_version").is_some() {
                 observation::parse(value)?;
-            }
-            result.content = serde_json::to_string(&bounded_observation(id, value.clone())?)?;
+                value.clone()
+            } else {
+                let tool = payload.get("tool").and_then(Value::as_str).ok_or_else(|| {
+                    AppError::InvalidState {
+                        current: "Agent tool message 缺少工具名".into(),
+                        operation: "构建模型上下文".into(),
+                    }
+                })?;
+                if tool == "delegate" {
+                    bounded_observation(id, value.clone())?
+                } else {
+                    // Older editor responses predate the shared observation writer.
+                    observation::from_result(id, tool, value.clone())?
+                }
+            };
+            result.content = serde_json::to_string(&value)?;
         }
     }
     Ok(result)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{chat_message_from_model, scope_prompt};
+    use crate::engine::{MAX_OBSERVATION_BYTES, observation};
+    use a4n_agent_runtime_contract::AgentMessageSnapshot;
+    use a4n_api_contract::agent::AgentScope;
+    use serde_json::json;
+
+    #[test]
+    fn editor_observations_remain_versioned_on_replay() {
+        let original = json!({"editor_revision": "v2", "projection": {"text": "字".repeat(MAX_OBSERVATION_BYTES)}});
+        let mut message = AgentMessageSnapshot {
+            id: 1,
+            thread_id: 1,
+            turn_id: Some(1),
+            run_id: Some(1),
+            role: "tool".into(),
+            client_message_id: None,
+            content: original.to_string(),
+            payload_json: Some(
+                json!({"execution_id": "9", "tool": "read_editor_draft", "tool_call_id": "read", "result": original}),
+            ),
+        };
+        let replay = chat_message_from_model(&message).unwrap();
+        let value = serde_json::from_str(&replay.content).unwrap();
+        let observation = observation::parse(&value).unwrap();
+        assert_eq!(observation.status, "partial");
+        assert_eq!(observation.execution.id, "9");
+        assert_eq!(observation.data["read_tool"], "read_agent_execution_result");
+        assert_eq!(replay.tool_call_id.as_deref(), Some("read"));
+        message.payload_json.as_mut().unwrap()["result"] = value;
+        assert_eq!(
+            chat_message_from_model(&message).unwrap().content,
+            replay.content
+        );
+        message.payload_json.as_mut().unwrap()["result"]["observation_version"] = json!(99);
+        assert!(chat_message_from_model(&message).is_err());
+    }
+
+    #[test]
+    fn scope_prompt_distinguishes_database_id_from_chapter_number() {
+        let prompt = scope_prompt(&AgentScope {
+            chapter_id: Some(2),
+            chapter_number: Some(1),
+            ..AgentScope::default()
+        });
+
+        assert!(prompt.contains("数据库主键"));
+        assert!(prompt.contains("chapter_number"));
+        assert!(prompt.contains("\"chapter_id\":2"));
+        assert!(prompt.contains("\"chapter_number\":1"));
+    }
 }

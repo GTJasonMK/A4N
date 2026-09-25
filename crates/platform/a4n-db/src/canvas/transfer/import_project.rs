@@ -11,9 +11,7 @@ pub(super) use generated_media::{
 use super::types::{VideoStudioProjectImportIdMaps, VideoStudioProjectImportMediaFileWriter};
 use sea_orm::ConnectionTrait;
 
-pub use orchestration::{
-    import_video_studio_project_record, import_video_studio_project_record_into_existing,
-};
+pub use orchestration::import_video_studio_project_record;
 
 pub(super) struct VideoStudioProjectImportMediaRowsContext<'a, C, Writer>
 where

@@ -32,6 +32,7 @@ const visibleAttributeEntries = (
     ...characterAttributeEntries(profile, "implicit"),
     ...characterAttributeEntries(profile, "social"),
   ]
+    .filter(([key]) => !["gender", "age", "personality"].includes(key))
     .map(([key, value]) => [attributeKeyLabel(key, t), characterAttributeValueText(value)] as [string, string])
     .filter(([, value]) => value && !value.trim().startsWith("{") && !value.trim().startsWith("["))
     .slice(0, 3);

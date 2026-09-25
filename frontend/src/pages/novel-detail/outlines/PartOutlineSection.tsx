@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Eye, Plus, SlidersHorizontal } from "lucide-react";
+import { ChevronRight, Eye, Plus, SlidersHorizontal } from "lucide-react";
 import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
 import { BookButton, BookIconButton } from "../../../components/ui/BookButton";
 import { BookCardAction } from "../../../components/ui/BookCard";
@@ -92,6 +92,7 @@ export function PartOutlineSection({
           <summary className="flex cursor-pointer items-center justify-between gap-3 py-1 text-xs font-medium text-book-text-sub">
             <span>{generationActionLabel}</span>
             <span className="text-caption font-normal text-book-text-muted">{t("outline.partSection.settingsHint")}</span>
+            <ChevronRight size={13} className="shrink-0 transition-transform group-open:rotate-90" />
           </summary>
           <div className="mt-3 grid grid-cols-1 items-end gap-3 border-t border-book-border/35 pt-3 md:grid-cols-[minmax(10rem,1fr)_minmax(10rem,1fr)_auto]">
             <label className="flex min-w-0 flex-col gap-1 text-small text-book-text-muted">
@@ -182,6 +183,7 @@ export function PartOutlineSection({
                   </p>
                 ) : null}
               </div>
+              <ChevronRight size={14} className="mt-1 shrink-0 text-book-text-muted" />
             </li>
           ))}
         </ul>

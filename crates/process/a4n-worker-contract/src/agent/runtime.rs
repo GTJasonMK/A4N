@@ -9,12 +9,6 @@ use crate::wire::{
     WorkerContractError, WorkerEnvelope, validate_non_blank, validate_positive_optional_id,
 };
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct AgentWorkerRunStatusSnapshotWire {
-    pub terminal: bool,
-}
-
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 pub struct AgentRunPayload {
@@ -185,6 +179,8 @@ pub struct AgentWorkerMessageSnapshotWire {
     pub turn_id: Option<i64>,
     pub run_id: Option<i64>,
     pub role: String,
+    #[serde(default)]
+    pub client_message_id: Option<String>,
     pub content: String,
     pub payload_json: Option<serde_json::Value>,
 }
@@ -194,6 +190,8 @@ pub struct AgentWorkerMessageSnapshotWire {
 pub struct AgentWorkerHistorySnapshotWire {
     pub user_messages: Vec<AgentWorkerMessageSnapshotWire>,
     pub latest_model_input_message_id: Option<i64>,
+    #[serde(default)]
+    pub page: Option<Vec<a4n_api_contract::agent::AgentMessageView>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

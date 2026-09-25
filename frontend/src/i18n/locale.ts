@@ -51,10 +51,10 @@ export const resolveInitialLocale = (): Locale => {
   );
 };
 
-export const writeLocalePreference = (locale: Locale): void => {
-  writePortableItem(LOCALE_STORAGE_KEY, locale);
+export const writeLocalePreference = async (locale: Locale): Promise<void> => {
+  await writePortableItem(LOCALE_STORAGE_KEY, locale);
 };
 
-export const clearLocalePreference = (): void => {
-  removePortableItem(LOCALE_STORAGE_KEY);
+export const clearLocalePreference = (): Promise<void> => {
+  return removePortableItem(LOCALE_STORAGE_KEY);
 };

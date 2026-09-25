@@ -5,6 +5,7 @@ import { getBlueprint, type Blueprint } from "../../api/blueprint";
 import { listProfiles, type CharacterProfile } from "../../api/character";
 import { getPrimaryPortrait, type Portrait } from "../../api/portrait";
 import { useToast } from "../../components/feedback/Toast";
+import { ImageZoomButton } from "../../components/ui/ImageLightbox";
 import { Modal } from "../../components/ui/Modal";
 import { characterAttributeText } from "../../utils/characterAttributes";
 import { toMediaSrc } from "../../utils/mediaSrc";
@@ -154,10 +155,11 @@ export const WritingContextCards: React.FC<WritingContextCardsProps> = ({
           )}
         </button>
 
+        <div className="relative">
         <button
           type="button"
           onClick={onOpenProfiles}
-          className="a4n-flat-surface flex w-full items-center gap-2.5 px-3 py-2.5 text-left text-small text-book-text-sub transition-colors hover:border-book-primary/35 hover:bg-book-bg-tertiary/45 focus-visible:outline-2 focus-visible:outline-book-primary/35 disabled:cursor-default disabled:hover:border-book-border disabled:hover:bg-transparent"
+          className="a4n-flat-surface flex w-full items-center gap-2.5 px-3 py-2.5 pr-12 text-left text-small text-book-text-sub transition-colors hover:border-book-primary/35 hover:bg-book-bg-tertiary/45 focus-visible:outline-2 focus-visible:outline-book-primary/35 disabled:cursor-default disabled:hover:border-book-border disabled:hover:bg-transparent"
           disabled={!onOpenProfiles}
           title={t("writing.openProfilesWorkspace")}
         >
@@ -197,6 +199,8 @@ export const WritingContextCards: React.FC<WritingContextCardsProps> = ({
           </div>
           <ChevronRight size={13} className="shrink-0 text-book-text-muted" />
         </button>
+        {primaryPortraitSrc ? <ImageZoomButton src={primaryPortraitSrc} alt={primaryProfile?.name ?? ""} className="absolute right-2 top-1/2 -translate-y-1/2" /> : null}
+        </div>
       </div>
 
       <Modal

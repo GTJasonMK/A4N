@@ -281,10 +281,14 @@ function extractParseErrorMessage(err: unknown): string {
 }
 
 function requiredPositiveInt(value: unknown, field: string): number {
-  if (!Number.isInteger(value) || Number(value) <= 0) {
+  if (!Number.isSafeInteger(value) || Number(value) <= 0) {
     throw new Error(`${field} 必须为正整数`);
   }
   return Number(value);
+}
+
+function requiredPositiveI32(value: unknown, field: string): number {
+  return requiredIntRange(value, field, 1, 2 ** 31 - 1);
 }
 
 function requiredIntRange(
@@ -293,7 +297,7 @@ function requiredIntRange(
   min: number,
   max: number,
 ): number {
-  if (!Number.isInteger(value) || Number(value) < min || Number(value) > max) {
+  if (!Number.isSafeInteger(value) || Number(value) < min || Number(value) > max) {
     throw new Error(`${field} 必须在 ${min}-${max} 之间`);
   }
   return Number(value);
@@ -410,10 +414,10 @@ function normalizeSettings(
   if (normalized.embedding.length === 0) {
     throw new Error("本机运行时设置 embedding 必须至少包含一个配置");
   }
-  ensureSingleDefault(normalized.llm, "llm");
-  ensureSingleDefault(normalized.embedding, "embedding");
-  ensureSingleDefault(normalized.image, "image");
-  ensureSingleDefault(normalized.video, "video");
+  ensureSingleDefault(normalized.llm, "llm", normalized.default_source.llm === "local");
+  ensureSingleDefault(normalized.embedding, "embedding", true);
+  ensureSingleDefault(normalized.image, "image", normalized.default_source.image === "local");
+  ensureSingleDefault(normalized.video, "video", normalized.default_source.video === "local");
   const maxId = maxExistingId(normalized);
   if (normalized.next_id <= maxId) {
     throw new Error(`本机运行时设置 next_id 必须大于当前最大配置 ID ${maxId}`);
@@ -479,11 +483,11 @@ export function normalizeLocalLlmConfig(value: unknown): LocalLlmConfig {
     item.api_key_encrypted,
     `本机 LLM 配置 ${label} api_key_encrypted`,
   );
-  const max_context_tokens = requiredPositiveInt(
+  const max_context_tokens = requiredPositiveI32(
     item.max_context_tokens,
     `本机 LLM 配置 ${label} max_context_tokens`,
   );
-  const max_output_tokens = requiredPositiveInt(
+  const max_output_tokens = requiredPositiveI32(
     item.max_output_tokens,
     `本机 LLM 配置 ${label} max_output_tokens`,
   );
@@ -516,11 +520,11 @@ export function normalizeLocalLlmConfig(value: unknown): LocalLlmConfig {
     ),
     api_key_encrypted: apiKey,
     model: requiredTrimmedString(item.model, `本机 LLM 配置 ${label} model`),
-    max_concurrent: requiredPositiveInt(
+    max_concurrent: requiredPositiveI32(
       item.max_concurrent,
       `本机 LLM 配置 ${label} max_concurrent`,
     ),
-    timeout_secs: requiredPositiveInt(
+    timeout_secs: requiredPositiveI32(
       item.timeout_secs,
       `本机 LLM 配置 ${label} timeout_secs`,
     ),
@@ -584,11 +588,11 @@ export function normalizeLocalEmbeddingConfig(
       item.model,
       `本机 Embedding 配置 ${label} model`,
     ),
-    dimension: requiredPositiveInt(
+    dimension: requiredPositiveI32(
       item.dimension,
       `本机 Embedding 配置 ${label} dimension`,
     ),
-    batch_size: requiredPositiveInt(
+    batch_size: requiredPositiveI32(
       item.batch_size,
       `本机 Embedding 配置 ${label} batch_size`,
     ),
@@ -626,7 +630,7 @@ export function normalizeLocalImageConfig(value: unknown): ImageGenConfig {
     api_key_encrypted: apiKey,
     has_api_key: Boolean(apiKey),
     model: requiredTrimmedString(item.model, `本机图片配置 ${label} model`),
-    max_concurrent: requiredPositiveInt(
+    max_concurrent: requiredPositiveI32(
       item.max_concurrent,
       `本机图片配置 ${label} max_concurrent`,
     ),
@@ -681,11 +685,11 @@ export function normalizeLocalVideoConfig(value: unknown): VideoGenConfig {
       1,
       8,
     ),
-    default_width: requiredPositiveInt(
+    default_width: requiredPositiveI32(
       item.default_width,
       `本机视频配置 ${label} default_width`,
     ),
-    default_height: requiredPositiveInt(
+    default_height: requiredPositiveI32(
       item.default_height,
       `本机视频配置 ${label} default_height`,
     ),
@@ -932,11 +936,15 @@ function normalizeSupportedDurations(value: unknown, label: string): number[] {
 function ensureSingleDefault<T extends { is_default: boolean }>(
   items: T[],
   section: string,
+  required: boolean,
 ): void {
   if (items.length === 0) return;
   const defaultCount = items.filter((item) => item.is_default).length;
-  if (defaultCount !== 1) {
+  if (required && defaultCount !== 1) {
     throw new Error(`本机运行时设置 ${section} 必须有且仅有一个默认配置`);
+  }
+  if (defaultCount > 1) {
+    throw new Error(`本机运行时设置 ${section} 最多只能有一个默认配置`);
   }
 }
 

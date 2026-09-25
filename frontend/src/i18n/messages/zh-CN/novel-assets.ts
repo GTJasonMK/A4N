@@ -132,6 +132,10 @@ export const novelAssets = {
     viewObject: "查看物体详情",
     diagnostics: "诊断信息",
     structuredField: {
+      lighting: "光线",
+      weather: "天气",
+      accessibility: "通行情况",
+      chapterNumber: "章节",
       description: "说明",
       direction: "方向",
       condition: "条件",
@@ -600,6 +604,7 @@ export const novelAssets = {
     favorite: "收藏",
     scopeAria: "图像范围",
     favoritesOnly: "仅看收藏",
+    noFavorites: "暂无收藏的图像。关闭“仅看收藏”可查看全部图像。",
     refreshing: "正在刷新…",
     refresh: "刷新图库",
     importing: "正在导入…",

@@ -27,8 +27,8 @@ use a4n_worker_contract::{
     AgentWorkerInboxPersistRequest, AgentWorkerInboxPersistSnapshotWire, AgentWorkerMemoryRequest,
     AgentWorkerMessageOperation, AgentWorkerMessageRequest, AgentWorkerRecoveryRequest,
     AgentWorkerResultRefsRequest, AgentWorkerResultRefsSnapshotWire, AgentWorkerRunLeaseRequest,
-    AgentWorkerRunStatusSnapshotWire, AgentWorkerRunWaitRequest, AgentWorkerSkillLoadRequest,
-    AgentWorkerSkillSearchRequest, AgentWorkerUsageRequest, WorkerEnvelope, WorkerLease,
+    AgentWorkerRunWaitRequest, AgentWorkerSkillLoadRequest, AgentWorkerSkillSearchRequest,
+    AgentWorkerUsageRequest, WorkerEnvelope, WorkerLease,
 };
 use serde_json::Value;
 use std::collections::{HashMap, HashSet};
@@ -44,7 +44,6 @@ mod snapshot;
 pub(super) use cancellation::is_descendant;
 pub(crate) use ports::worker_delegation_result_from_wire;
 pub use shared::AgentRuntimeShared;
-pub(crate) use shared::{AgentRunCancellation, AgentRuntimeSnapshot};
 
 #[derive(Clone)]
 pub struct AgentRuntimeState {
@@ -135,12 +134,36 @@ impl AgentRuntimeState {
         let request = AgentWorkerHistoryRequest {
             run_id: claimed.run.id,
             lease: self.agent_worker_lease_request(claimed)?.lease,
+            page: None,
         };
         request.validate().map_err(|error| AppError::InvalidState {
             current: format!("Agent worker history request 无效: {error}"),
             operation: "读取 Agent worker history".into(),
         })?;
         self.host.read_worker_history(&request).await
+    }
+
+    pub async fn read_agent_history(
+        &self,
+        claimed: &AgentWorkerRun,
+        page: a4n_api_contract::agent::ReadAgentHistoryInput,
+    ) -> Result<Vec<a4n_api_contract::agent::AgentMessageView>, AppError> {
+        let request = AgentWorkerHistoryRequest {
+            run_id: claimed.run.id,
+            lease: self.agent_worker_lease_request(claimed)?.lease,
+            page: Some(page),
+        };
+        request
+            .validate()
+            .map_err(|error| AppError::InvalidArgument(error.to_string()))?;
+        self.host
+            .read_worker_history(&request)
+            .await?
+            .page
+            .ok_or_else(|| AppError::InvalidState {
+                current: "历史读取缺少结果页".into(),
+                operation: "读取 Agent 历史".into(),
+            })
     }
 
     pub async fn mark_agent_recovery_required(
@@ -302,7 +325,8 @@ impl AgentRuntimeState {
         result_summary: String,
         result_refs_json: Option<Value>,
         observed_input_message_id: i64,
-    ) -> Result<bool, AppError> {
+        source_execution_id: i64,
+    ) -> Result<AgentWorkerCompletionSnapshotWire, AppError> {
         let request = AgentWorkerCompletionRequest {
             run_id: claimed.run.id,
             lease: self.agent_worker_lease_request(claimed)?.lease,
@@ -310,15 +334,42 @@ impl AgentRuntimeState {
             result_summary,
             result_refs_json,
             observed_input_message_id,
+            source_execution_id,
         };
         request.validate().map_err(|error| AppError::InvalidState {
             current: format!("Agent completion request 无效: {error}"),
             operation: "完成 Agent worker run".into(),
         })?;
+        let receipt = self.host.complete_worker_run(&request).await?;
+        if receipt.completed {
+            self.take_agent_runtime_snapshot(claimed.run.id).await;
+        }
+        Ok(receipt)
+    }
+
+    pub(crate) async fn append_question(
+        &self,
+        claimed: &AgentWorkerRun,
+        execution_id: i64,
+        content: String,
+        observation: Value,
+    ) -> Result<AgentMessageSnapshot, AppError> {
         self.host
-            .complete_worker_run(&request)
-            .await
-            .map(|snapshot: AgentWorkerCompletionSnapshotWire| snapshot.completed)
+            .apply_message_request(&AgentWorkerMessageRequest {
+                run_id: claimed.run.id,
+                lease: self.agent_worker_lease_request(claimed)?.lease,
+                operation: AgentWorkerMessageOperation::AppendQuestion {
+                    execution_id,
+                    content,
+                    observation,
+                },
+            })
+            .await?
+            .map(Into::into)
+            .ok_or_else(|| AppError::InvalidState {
+                current: "Agent 问题未持久化".into(),
+                operation: "询问用户".into(),
+            })
     }
 
     async fn approved_agent_execution(
@@ -387,7 +438,27 @@ impl AgentRuntimeState {
             current: format!("Agent delegation review request 无效: {error}"),
             operation: "审阅 Agent delegation".into(),
         })?;
-        self.host.review_delegation(&request).await
+        let _admission = self.lock_agent_admission().await;
+        let result = self.host.review_delegation(&request).await?;
+        if request.input.decision
+            == a4n_api_contract::agent::AgentDelegationReviewDecision::RequestRevision
+            && let Some(child_id) = &result.child_run_id
+            && let Some(snapshot) = self
+                .agent_runtime_snapshot(worker_request.payload.run_id)
+                .await
+        {
+            let child_id = child_id.parse().map_err(|_| AppError::InvalidState {
+                current: "修订 child Run ID 无效".into(),
+                operation: "恢复委派配置".into(),
+            })?;
+            self.store_agent_runtime_snapshot(
+                child_id,
+                Some(worker_request.payload.run_id),
+                snapshot,
+            )
+            .await;
+        }
+        Ok(result)
     }
 
     pub async fn ensure_agent_canonical_subagent_thread(
@@ -605,17 +676,6 @@ impl AgentRuntimeState {
             operation: "加载 Agent inbox message".into(),
         })?;
         self.host.load_inbox_message(&request).await.map(Into::into)
-    }
-
-    pub async fn agent_worker_run_is_terminal(
-        &self,
-        claimed: &AgentWorkerRun,
-    ) -> Result<bool, AppError> {
-        let request = self.agent_worker_lease_request(claimed)?;
-        self.host
-            .run_is_terminal(&request)
-            .await
-            .map(|snapshot: AgentWorkerRunStatusSnapshotWire| snapshot.terminal)
     }
 
     pub async fn wait_agent_worker_run(
@@ -880,6 +940,7 @@ impl AgentRuntimeState {
     pub async fn shutdown(&self) {
         self.agent_worker_cancel.cancel();
         self.agent_worker_notify.notify_waiters();
+        self.shared.runs.write().await.clear();
     }
 
     pub(crate) fn worker_approval_application<'a>(
@@ -941,11 +1002,17 @@ mod tests {
         let grandchild = shared.register_agent_run_cancellation(12, Some(11)).await;
         let sibling = shared.register_agent_run_cancellation(20, None).await;
 
+        shared.unregister_agent_run_cancellation(11).await;
+
         shared.cancel_agent_run_tree(10).await;
 
         assert!(root.is_cancelled());
-        assert!(child.is_cancelled());
+        assert!(!child.is_cancelled());
         assert!(grandchild.is_cancelled());
         assert!(!sibling.is_cancelled());
+        shared.remove_agent_runtime_snapshot_tree(10).await;
+        shared.unregister_agent_run_cancellation(10).await;
+        shared.unregister_agent_run_cancellation(12).await;
+        assert_eq!(shared.runs.read().await.len(), 1);
     }
 }

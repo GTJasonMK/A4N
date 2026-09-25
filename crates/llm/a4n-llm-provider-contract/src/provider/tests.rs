@@ -120,15 +120,21 @@ fn chat_request_serialization_skips_internal_trace_fields() {
             context_pack_refs_json: None,
         });
     request.cache_scope_key = Some("a4n:workflow_run:7".to_string());
-    request.cache_system_prefix = true;
-    request.cache_user_prefix_len = Some(5);
+    request
+        .cache_breakpoints
+        .push(super::PromptCacheBreakpoint {
+            message_index: 0,
+            byte_offset: 5,
+        });
 
     let value = serde_json::to_value(&request).expect("request serializes");
     assert!(value.get("trace_context").is_none());
     assert_eq!(value["stream_include_usage"], json!(true));
     assert_eq!(value["cache_scope_key"], "a4n:workflow_run:7");
-    assert_eq!(value["cache_system_prefix"], true);
-    assert_eq!(value["cache_user_prefix_len"], 5);
+    assert_eq!(value["cache_breakpoints"][0]["message_index"], 0);
+    assert_eq!(value["cache_breakpoints"][0]["byte_offset"], 5);
+    assert!(value.get("cache_system_prefix").is_none());
+    assert!(value.get("cache_user_prefix_len").is_none());
     assert!(value.get("context_manifest_json").is_none());
 }
 
@@ -200,6 +206,53 @@ fn chat_request_snapshot_round_trips_internal_context() {
         restored.context_manifest_json,
         Some(json!({"packs": ["thread"]}))
     );
+}
+
+#[test]
+fn chat_request_snapshot_migrates_legacy_cache_prefixes_once() {
+    let legacy = json!({
+        "messages": [
+            {"role": "system", "content": "rules"},
+            {"role": "user", "content": "hello"}
+        ],
+        "temperature": null,
+        "max_tokens": null,
+        "cache_system_prefix": true,
+        "cache_user_prefix_len": 5,
+        "tools": null,
+        "tool_choice": null,
+        "stop_sequences": null
+    });
+
+    let mut request =
+        ChatRequest::from_snapshot_value(legacy).expect("legacy cache prefixes should migrate");
+    assert_eq!(
+        request.cache_breakpoints,
+        vec![super::PromptCacheBreakpoint {
+            message_index: 1,
+            byte_offset: 5,
+        }]
+    );
+    request
+        .configure_prompt_cache(
+            "openai",
+            "alias",
+            Some(&json!({"prompt_cache_options": {}})),
+            Some(1),
+        )
+        .expect("migrated request should configure caching");
+    assert!(
+        request
+            .cache_breakpoints
+            .contains(&super::PromptCacheBreakpoint {
+                message_index: 0,
+                byte_offset: 5,
+            })
+    );
+
+    let snapshot = request.snapshot_value().expect("snapshot serializes");
+    assert!(snapshot.get("cache_system_prefix").is_none());
+    assert!(snapshot.get("cache_user_prefix_len").is_none());
 }
 
 #[test]

@@ -39,8 +39,8 @@ pub type VideoGenerationInput = VideoGenerationRequest<VideoMediaSource>;
 pub fn validate_video_image_artifact(artifact: &ArtifactRef) -> Result<&str, String> {
     if artifact.ownership != ArtifactOwnership::Host
         || artifact.artifact_kind != "generated_image"
-        || !artifact.owner_user_id.is_some_and(|id| id > 0)
-        || !artifact.project_id.is_some_and(|id| id > 0)
+        || artifact.owner_user_id.is_none_or(|id| id <= 0)
+        || artifact.project_id.is_none_or(|id| id <= 0)
     {
         return Err("视频图片引用必须是带用户和项目范围的 Host 图片".into());
     }

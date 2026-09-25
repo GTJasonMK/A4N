@@ -90,6 +90,29 @@ fn validates_environment_segment_without_fake_character() {
 }
 
 #[test]
+fn director_constrained_followup_shot_keeps_repeat_context_non_empty() {
+    let mut segment = valid_segments().remove(0);
+    let mut visual_plan = a4n_domain::chapter_visual_plan::ChapterVisualPlanV3::starter();
+    visual_plan.segments[0].prompt = "导演约束起点画面".to_string();
+    visual_plan.segments[0].scene_binding =
+        Some(a4n_domain::chapter_visual_plan::SceneBindingV3::Scene {
+            scene_profile_id: 1,
+        });
+    segment.segment_number = 2;
+    segment.director_constraints = Some(visual_plan.project().unwrap().remove(0));
+    let segments = vec![segment];
+    let raw = response_from_shots(vec![valid_shot_value(2)]);
+
+    let shots = parse_video_prompt_shots(&raw, &segment_map(&segments), PromptOutputLanguage::ZhCn)
+        .expect("director-constrained follow-up shot should validate");
+
+    assert_eq!(
+        shots[0].self_contained_context["must_repeat_from_previous"],
+        json!(["不自动复述上一片段尾态；以导演编排提供的当前起点画面和约束为准"])
+    );
+}
+
+#[test]
 fn participant_segment_still_requires_character_actions() {
     let mut script = crate::video::tests::test_chapter_shooting_script("ch1:s1:f1");
     script.scenes[0].shots.truncate(1);

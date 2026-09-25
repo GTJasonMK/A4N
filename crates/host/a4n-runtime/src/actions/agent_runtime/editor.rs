@@ -127,15 +127,17 @@ async fn resolve_claimed_editor(
         resolve_response(state, &context, &request, &call, response, &worker_request).await;
     let (status, value, saved_draft, error_message) = match outcome {
         Ok((value, saved)) => (AgentExecutionStatus::Succeeded, value, saved, None),
-        Err(error) => {
+        Err(error) if a4n_agent_runtime::engine::is_correctable_tool_error(&error) => {
+            let code = a4n_agent_runtime::engine::tool_error_code(&error);
             let error = error.to_string();
             (
                 AgentExecutionStatus::Failed,
-                json!({"error": error}),
+                json!({"error": error, "code": code}),
                 None,
                 Some(error),
             )
         }
+        Err(error) => return Err(error),
     };
     execution_application
         .update_worker_execution(WorkerExecutionUpdate {
@@ -143,7 +145,7 @@ async fn resolve_claimed_editor(
             lease_token: claimed.lease_token.clone(),
             execution_id: execution.id,
             status: enum_string(status),
-            result_json: error_message.is_none().then(|| value.clone()),
+            result_json: Some(value.clone()),
             result_summary: error_message.is_none().then(|| "原编辑器请求已完成".into()),
             result_refs_json: if error_message.is_none() {
                 Some(serde_json::to_value(tool_result_refs(&call.name, &value)?)?)
@@ -181,13 +183,11 @@ async fn resolve_response(
     response: AgentEditorResponse,
     worker_request: &WorkerEnvelope<AgentRunPayload>,
 ) -> Result<(Value, Option<ChapterVisualPlanView>), AppError> {
-    let budget: AgentBudget = serde_json::from_value(context.budget.clone())?;
-    validate_agent_budget(&budget)?;
-    if action_budget_exhausted(
-        &budget,
-        json_u64(&context.usage, "tokens_used")?,
-        context.run.started_at.unwrap_or(context.run.created_at),
-    ) {
+    let budget = state
+        .agent_worker_budget_application()
+        .worker_budget_snapshot(context.run.id)
+        .await?;
+    if budget.max_tokens == Some(0) || budget.max_duration_seconds == Some(0) {
         return Err(AppError::InvalidArgument(
             "Agent 预算已耗尽，编辑器操作未执行".into(),
         ));
@@ -245,9 +245,9 @@ async fn resolve_response(
                 "save_chapter_visual_plan_draft",
             )
             .await?;
-            let saved =
-                crate::actions::chapter_visual_plan_records::save_chapter_visual_plan_draft(
-                    state,
+            let saved = state
+                .chapter_visual_plan_record_persistence_application()
+                .save_draft(
                     context.owner_user_id,
                     SaveChapterVisualPlanDraftInput {
                         project_id: request.source.project_id,
@@ -260,8 +260,7 @@ async fn resolve_response(
                         editor_revision: None,
                     },
                 )
-                .await
-                .map_err(AppError::InvalidArgument)?;
+                .await?;
             let resource = tool_result_refs(
                 "save_chapter_visual_plan_draft",
                 &serde_json::to_value(&saved)?,

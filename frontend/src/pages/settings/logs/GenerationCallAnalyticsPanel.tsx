@@ -19,7 +19,7 @@ import {
 } from "../../../api/generationAnalytics";
 import { useAuthStore } from "../../../store/auth";
 import { logger } from "../../../utils/logger";
-import { formatNumber, useI18n } from "../../../i18n";
+import { formatDateTime, formatNumber, useI18n } from "../../../i18n";
 
 const CHART_WIDTH = 720;
 const CHART_HEIGHT = 164;
@@ -336,6 +336,8 @@ const OverviewRow: React.FC<{
           calls: formatInteger(item?.calls ?? 0, locale),
           tokens: formatCompact(item?.total_tokens ?? 0, locale),
           cache: formatPercent(item?.prompt_cache_hit_ratio ?? null, locale),
+          failure: formatInteger(item?.failed ?? 0, locale),
+          pending: formatInteger(item?.pending ?? 0, locale),
         })
       : t("settingsLogs.mediaOverview", {
           calls: formatInteger(item?.calls ?? 0, locale),
@@ -417,7 +419,8 @@ const CacheSummary: React.FC<{
 
 const DailyCallsChart: React.FC<{ rows: DailyCallMetric[] }> = ({ rows }) => {
   const { t, locale } = useI18n();
-  const visibleRows = rows.slice(-30);
+  const visibleRows = rows;
+  const chartWidth = Math.max(CHART_WIDTH, visibleRows.length * 20 + 46);
   const maxCalls = Math.max(
     1,
     ...visibleRows.map(
@@ -428,7 +431,7 @@ const DailyCallsChart: React.FC<{ rows: DailyCallMetric[] }> = ({ rows }) => {
   const leftPad = 34;
   const bottomPad = 24;
   const topPad = 10;
-  const plotWidth = CHART_WIDTH - leftPad - 12;
+  const plotWidth = chartWidth - leftPad - 12;
   const plotHeight = CHART_HEIGHT - topPad - bottomPad;
   const barWidth = Math.max(
     3,
@@ -437,17 +440,20 @@ const DailyCallsChart: React.FC<{ rows: DailyCallMetric[] }> = ({ rows }) => {
   );
 
   return (
-    <div className="w-full overflow-x-auto">
+    <div className="min-w-0">
+      <div className="custom-scrollbar overflow-x-auto" tabIndex={0} role="region" aria-label={t("settingsLogs.dailyGenerationCalls")}>
       <svg
-        viewBox={`0 0 ${CHART_WIDTH} ${CHART_HEIGHT}`}
-        className="h-44 w-full sm:min-w-[520px]"
+        viewBox={`0 0 ${chartWidth} ${CHART_HEIGHT}`}
+        width={chartWidth}
+        height={CHART_HEIGHT}
+        className="block max-w-none"
         role="img"
         aria-label={t("settingsLogs.dailyGenerationCalls")}
       >
         <line
           x1={leftPad}
           y1={topPad + plotHeight}
-          x2={CHART_WIDTH - 8}
+          x2={chartWidth - 8}
           y2={topPad + plotHeight}
           className="stroke-book-border"
         />
@@ -469,7 +475,8 @@ const DailyCallsChart: React.FC<{ rows: DailyCallMetric[] }> = ({ rows }) => {
           const showLabel =
             index === 0 || index === visibleRows.length - 1 || index % 6 === 0;
           return (
-            <g key={row.date}>
+            <g key={row.date} data-chart-date={row.date}>
+              <title>{`${row.date}: ${row.llm_calls + row.image_calls + row.video_calls}`}</title>
               <rect
                 x={x}
                 y={llmY}
@@ -505,7 +512,8 @@ const DailyCallsChart: React.FC<{ rows: DailyCallMetric[] }> = ({ rows }) => {
           );
         })}
       </svg>
-      <div className="flex flex-wrap items-center gap-3 text-small text-book-text-muted">
+      </div>
+      <div className="mt-2 flex flex-wrap items-center gap-3 text-small text-book-text-muted">
         <Legend colorClass="bg-info" label="LLM" />
         <Legend colorClass="bg-success" label={t("settingsAdmin.image")} />
         <Legend colorClass="bg-warning" label={t("settingsAdmin.video")} />
@@ -610,11 +618,16 @@ const RecentLlmCalls: React.FC<{
         {rows.map((row) => (
           <div
             key={row.id}
-            className="grid grid-cols-[minmax(0,1fr)_auto] gap-2 py-1.5 border-b border-book-border/60 last:border-b-0 text-xs"
+            className="grid grid-cols-1 gap-2 py-2.5 border-b border-book-border/60 last:border-b-0 text-xs sm:grid-cols-[minmax(0,1fr)_auto]"
           >
-            <WorkflowLabel workflow={row.workflow} />
-            <div className="text-right tabular-nums">
-                <div>{formatTokenValue(row.total_tokens, locale, t)}</div>
+            <div className="min-w-0">
+              <WorkflowLabel workflow={row.workflow} />
+              <div className="mt-1 break-words text-small text-book-text-muted">{row.model} · {formatDateTime(row.created_at, locale)}</div>
+              {row.error_kind ? <div className="mt-1 break-words text-small text-error">{row.error_kind}</div> : null}
+            </div>
+            <div className="min-w-0 text-left tabular-nums sm:text-right">
+              <div className={row.status === "failed" ? "text-error" : undefined}>{statusLabel(row.status, t)}</div>
+              <div>{formatTokenValue(row.total_tokens, locale, t)}</div>
               <div className="text-small text-book-text-muted">
                 {t("settingsLogs.inputOutput", {
                   input: formatOptionalCompact(row.prompt_tokens, locale),

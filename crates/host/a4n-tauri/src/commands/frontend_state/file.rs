@@ -2,6 +2,7 @@ use super::rules::{validate_key, validate_value};
 use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
+use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
 
@@ -63,7 +64,18 @@ pub(super) fn write_state_file(path: &Path, file: &FrontendStateFile) -> Result<
 
     let content =
         serde_json::to_string_pretty(file).map_err(|e| format!("序列化前端状态失败：{e}"))?;
-    std::fs::write(path, content).map_err(|e| format!("写入前端状态失败：{e}"))
+    let parent = path
+        .parent()
+        .ok_or_else(|| "前端状态文件缺少父目录".to_string())?;
+    let mut temporary = tempfile::NamedTempFile::new_in(parent)
+        .map_err(|e| format!("创建前端状态临时文件失败：{e}"))?;
+    temporary
+        .write_all(content.as_bytes())
+        .map_err(|e| format!("写入前端状态失败：{e}"))?;
+    temporary
+        .persist(path)
+        .map_err(|e| format!("提交前端状态失败：{}", e.error))?;
+    Ok(())
 }
 
 fn ensure_state_path_is_file(path: &Path) -> Result<(), String> {

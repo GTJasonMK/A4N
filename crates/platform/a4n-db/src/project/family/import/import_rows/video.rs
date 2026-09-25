@@ -524,11 +524,12 @@ pub(super) async fn insert_assembly_rows(
             )?);
         }
     );
-    insert_import_rows!(
+    insert_mapped_import_rows!(
         txn,
         &package.assembly_clips,
         clip,
         assembly_clip::ActiveModel,
+        maps.assembly_clip_ids,
         "导入成片 clip 失败",
         |active| {
             active.timeline_id = Set(map_required(
@@ -559,7 +560,8 @@ pub(super) async fn update_generation_spec_deferred_targets(
     let mut target_entity_id_case = CaseStatement::new();
     let mut spec_ids = Vec::new();
     for spec in &package.generation_specs {
-        if !matches!(spec.target_entity_kind.as_str(), "segment" | "assembly")
+        if spec.source_context_kind.as_deref() == Some(generation_spec::SOURCE_CONTEXT_FREEFORM)
+            || !matches!(spec.target_entity_kind.as_str(), "segment" | "assembly")
             || spec.target_entity_id.is_none()
         {
             continue;

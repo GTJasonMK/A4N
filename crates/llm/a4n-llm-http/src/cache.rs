@@ -1,5 +1,5 @@
 use a4n_error::AppError;
-use a4n_llm_provider_contract::ChatRequest;
+use a4n_llm_provider_contract::{ChatRequest, PROMPT_CACHE_MODE_FIELD, PROMPT_CACHE_OPTIONS_FIELD};
 use serde_json::{Map, Value, json};
 
 pub(super) fn openai_text_content(
@@ -84,12 +84,12 @@ pub(super) fn apply_openai_cache_options(
     }
     if let Some(mode) = request.cache_mode {
         let options = body
-            .entry("prompt_cache_options")
+            .entry(PROMPT_CACHE_OPTIONS_FIELD)
             .or_insert_with(|| json!({}));
         let options = options
             .as_object_mut()
             .ok_or_else(|| AppError::ConfigError("prompt_cache_options 必须是对象".into()))?;
-        options.insert("mode".into(), json!(mode));
+        options.insert(PROMPT_CACHE_MODE_FIELD.into(), json!(mode));
     }
     Ok(())
 }

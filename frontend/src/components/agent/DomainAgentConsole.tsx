@@ -29,6 +29,7 @@ import {
   type PendingAgentMessage,
 } from "./AgentMessageList";
 import { AgentContextMeter } from "./AgentContextMeter";
+import { AgentBudgetDialog } from "./AgentBudgetDialog";
 import {
   pendingContentDiffForSnapshot,
   type PendingContentDiff,
@@ -52,6 +53,7 @@ import {
   type AgentExecutionMode,
   type AgentThreadSnapshot,
   type AgentThreadView,
+  type AgentRunView,
 } from "../../api/agent";
 import { BookButton, BookIconButton } from "../ui/BookButton";
 import { FollowLatestButton } from "../ui/FollowLatestButton";
@@ -64,6 +66,7 @@ import { useI18n } from "../../i18n";
 import {
   reduceAgentEvent,
   snapshotCursor,
+  loadAgentSnapshotWithEvents,
   streamedAgentMessageIds,
 } from "../../utils/agentEventReducer";
 import {
@@ -152,6 +155,7 @@ export const DomainAgentConsole: React.FC<DomainAgentConsoleProps> = ({
     null,
   );
   const [approvalBusy, setApprovalBusy] = useState<string | null>(null);
+  const [budgetRun, setBudgetRun] = useState<AgentRunView | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [connectionError, setConnectionError] = useState<string | null>(null);
   const [connected, setConnected] = useState(false);
@@ -161,6 +165,7 @@ export const DomainAgentConsole: React.FC<DomainAgentConsoleProps> = ({
   const snapshotRef = useRef<AgentThreadSnapshot | null>(null);
   const eventCursorRef = useRef(0);
   const reloadInFlightRef = useRef(false);
+  const pendingEventsRef = useRef<AgentEvent[]>([]);
   const clearingRef = useRef(false);
   const composingRef = useRef(false);
   const lastCompositionEndRef = useRef(0);
@@ -232,9 +237,10 @@ export const DomainAgentConsole: React.FC<DomainAgentConsoleProps> = ({
     ): Promise<AgentThreadSnapshot | null> => {
       const requestId = snapshotRequestRef.current + 1;
       snapshotRequestRef.current = requestId;
+      reloadInFlightRef.current = true;
       if (!quiet) setLoading(true);
       try {
-        const next = await getAgentThread(threadId);
+        const next = await loadAgentSnapshotWithEvents(() => getAgentThread(threadId), pendingEventsRef.current, () => snapshotRequestRef.current === requestId);
         if (snapshotRequestRef.current !== requestId) return null;
         commitSnapshot(next);
         setError(null);
@@ -245,6 +251,7 @@ export const DomainAgentConsole: React.FC<DomainAgentConsoleProps> = ({
         }
         return null;
       } finally {
+        if (snapshotRequestRef.current === requestId) reloadInFlightRef.current = false;
         if (snapshotRequestRef.current === requestId && !quiet) {
           setLoading(false);
         }
@@ -346,6 +353,7 @@ export const DomainAgentConsole: React.FC<DomainAgentConsoleProps> = ({
   useEffect(() => {
     if (!threadId) return undefined;
     const controller = new AbortController();
+    pendingEventsRef.current = [];
     let stopped = false;
     const initial = snapshotRef.current;
     const refreshTimer = window.setInterval(() => {
@@ -370,7 +378,9 @@ export const DomainAgentConsole: React.FC<DomainAgentConsoleProps> = ({
             (event) => {
               if (event.thread_id !== threadId) return;
               rememberStreamedMessages([event]);
-              if (reloadInFlightRef.current || clearingRef.current) return;
+              if (clearingRef.current) return;
+              pendingEventsRef.current.push(event);
+              if (reloadInFlightRef.current) return;
               const current = snapshotRef.current;
               if (!current || current.thread.id !== threadId) return;
               const reduction = reduceAgentEvent(
@@ -379,12 +389,10 @@ export const DomainAgentConsole: React.FC<DomainAgentConsoleProps> = ({
                 eventCursorRef.current,
               );
               if (reduction.needsReload) {
-                reloadInFlightRef.current = true;
-                void loadSnapshot(threadId, true).finally(() => {
-                  reloadInFlightRef.current = false;
-                });
+                void loadSnapshot(threadId, true);
                 return;
               }
+              pendingEventsRef.current.splice(0);
               snapshotRef.current = reduction.snapshot;
               eventCursorRef.current = reduction.cursor;
               setSnapshot(reduction.snapshot);
@@ -674,6 +682,10 @@ export const DomainAgentConsole: React.FC<DomainAgentConsoleProps> = ({
 
   const control = async (action: AgentControlAction) => {
     if (!thread || !currentRun || controlBusy || clearing) return;
+    if (action === "resume" && (currentRun.waiting_reason === "budget" || currentRun.budget_limiting_run_id)) {
+      setBudgetRun(currentRun);
+      return;
+    }
     setControlBusy(action);
     try {
       await controlAgentRun({
@@ -741,11 +753,12 @@ export const DomainAgentConsole: React.FC<DomainAgentConsoleProps> = ({
       aria-label={t("agent.domain.consoleLabel")}
       className={`a4n-flat-surface flex min-w-0 flex-col overflow-hidden ${shellClass} ${className}`}
     >
-      <header className="agent-console-header flex min-w-0 shrink-0 items-start gap-2.5 border-b border-book-border/50 bg-book-bg-paper/65 px-3 py-2.5">
+      {budgetRun ? <AgentBudgetDialog run={budgetRun} onClose={() => setBudgetRun(null)} onResumed={() => loadSnapshot(budgetRun.thread_id, true)} /> : null}
+      <header className="agent-console-header flex min-w-0 shrink-0 flex-wrap items-start gap-2.5 border-b border-book-border/50 bg-book-bg-paper/65 px-3 py-2.5">
         <span className="agent-console-icon inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-book-primary/10 text-book-primary">
           {icon}
         </span>
-        <div className="agent-console-heading min-w-0 flex-1">
+        <div className="agent-console-heading min-w-0 flex-1 basis-40">
           <div className="agent-console-title-row flex min-w-0 flex-wrap items-center gap-1.5">
             <h2 className="agent-console-title min-w-0 truncate text-xs font-semibold text-book-text-main">
               {title}
@@ -769,7 +782,7 @@ export const DomainAgentConsole: React.FC<DomainAgentConsoleProps> = ({
             {subtitle}
           </p>
         </div>
-        <div className="agent-console-actions flex shrink-0 items-center gap-1">
+        <div className="agent-console-actions ml-auto flex shrink-0 items-center gap-1">
           <span
             className={`agent-console-connection hidden items-center gap-1 text-[10px] sm:inline-flex ${
               connected ? "text-success" : "text-book-text-muted"
@@ -913,7 +926,7 @@ export const DomainAgentConsole: React.FC<DomainAgentConsoleProps> = ({
                   pendingMessages={
                     pendingSubmission ? [pendingSubmission.message] : []
                   }
-                  activeRun={currentRun}
+                  activeRun={contextRun}
                   compactAssistantMessages
                 />
               ) : null}
@@ -997,6 +1010,9 @@ export const DomainAgentConsole: React.FC<DomainAgentConsoleProps> = ({
                 </ThemedSelect>
               </label>
               <AgentContextMeter run={contextRun} locale={locale} />
+              {currentRun && (currentRun.waiting_reason === "budget" || currentRun.budget_limiting_run_id) ? (
+                <BookButton size="sm" variant="warning" onClick={() => setBudgetRun(currentRun)}>{t("agent.budget.title")}</BookButton>
+              ) : null}
             </div>
             <form
               className="flex min-w-0 items-end gap-2"

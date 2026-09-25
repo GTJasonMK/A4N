@@ -97,6 +97,9 @@ pub struct RefreshTokenInput {
 #[serde(deny_unknown_fields)]
 pub struct OAuth2AuthorizeInput {
     pub provider: String,
+    pub redirect_uri: Option<String>,
+    pub state: String,
+    pub code_challenge: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
@@ -104,6 +107,15 @@ pub struct OAuth2AuthorizeInput {
 pub struct OAuth2CallbackInput {
     pub provider: String,
     pub code: String,
+    pub redirect_uri: String,
+    pub code_verifier: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct OAuth2BrowserInput {
+    pub authorization_url: String,
+    pub redirect_uri: String,
 }
 
 /// Authentication read boundary used by Hosts and Runtime.

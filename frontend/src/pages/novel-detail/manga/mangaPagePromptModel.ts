@@ -68,6 +68,7 @@ type ReferenceCandidate = {
   key: string;
   assetKind: MangaReferenceAssetKind;
   assetId: number;
+  imagePath: string;
   label: string;
   subLabel: string;
   rank: number;
@@ -219,6 +220,7 @@ export const buildReferenceCandidates = (
         key: mangaReferenceAssetKey("character_portrait", portrait.id),
         assetKind: "character_portrait",
         assetId: portrait.id,
+        imagePath: portrait.image_path,
         label: name,
         subLabel: `${portrait.portrait_type || t("comic.prompt.otherPortrait")}${portrait.is_primary ? ` · ${t("comic.prompt.primaryPortrait")}` : ""}`,
         rank: candidateMatchRank(binding, text, portrait.is_primary ? 10 : 0),
@@ -238,6 +240,7 @@ export const buildReferenceCandidates = (
         key: mangaReferenceAssetKey("generated_image", image.id),
         assetKind: "generated_image",
         assetId: image.id,
+        imagePath: image.file_path,
         label: imageTypeLabel(image.image_type, t),
         subLabel: image.is_favorite ? `${t("comic.prompt.projectImage")} · ${t("comic.prompt.favorite")}` : t("comic.prompt.projectImage"),
         rank: candidateMatchRank(binding, text, image.is_favorite ? 8 : 0),

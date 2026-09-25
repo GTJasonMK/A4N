@@ -1,11 +1,78 @@
 use super::*;
-use a4n_domain::agent::{AGENT_DEFAULT_MAX_STEPS, AGENT_DEFAULT_MAX_TOOLS, AgentBudget};
+use a4n_domain::agent::AgentBudget;
 use sea_orm::{DatabaseBackend, Statement};
 use std::collections::HashMap;
 
 pub struct AgentBudgetSnapshot {
     pub usage: Value,
     pub remaining: AgentBudget,
+}
+
+#[derive(serde::Serialize, serde::Deserialize)]
+pub(super) struct BudgetDemand {
+    execution_kind: String,
+    tokens: u64,
+}
+
+impl BudgetDemand {
+    pub(super) fn for_execution(input: &AgentExecutionInput) -> Result<Self, AgentDbError> {
+        let tokens = if input.execution_kind == "model_call" {
+            let request = input
+                .arguments_json
+                .as_ref()
+                .ok_or_else(|| AgentDbError::InvalidArgument("模型调用缺少预算请求参数".into()))?;
+            a4n_domain::agent::agent_model_token_reservation(request)
+        } else {
+            0
+        };
+        Ok(Self {
+            execution_kind: input.execution_kind.clone(),
+            tokens,
+        })
+    }
+
+    fn fits(&self, remaining: &AgentBudget) -> bool {
+        remaining.max_duration_seconds != Some(0)
+            && (self.execution_kind == "wait" || remaining.max_tokens != Some(0))
+            && if self.execution_kind == "model_call" {
+                remaining.max_steps != Some(0)
+                    && remaining.max_model_calls != Some(0)
+                    && remaining
+                        .max_tokens
+                        .is_none_or(|limit| self.tokens <= limit)
+            } else {
+                remaining.max_tool_calls != Some(0)
+            }
+    }
+}
+
+pub(super) async fn lock_budget_tree_on<C: ConnectionTrait>(
+    db: &C,
+    run_id: i64,
+) -> Result<run::Model, AgentDbError> {
+    let row = run_by_id(db, run_id)
+        .await?
+        .ok_or_else(|| AgentDbError::NotFound("Agent Run 不存在".into()))?;
+    db.execute(Statement::from_sql_and_values(
+        DatabaseBackend::Postgres,
+        "SELECT pg_advisory_xact_lock(hashtextextended('a4n-agent-budget:' || $1::text, 0))",
+        [row.root_run_id.unwrap_or(row.id).into()],
+    ))
+    .await?;
+    Ok(row)
+}
+
+pub(super) async fn budget_wait_can_resume<C: ConnectionTrait>(
+    db: &C,
+    row: &run::Model,
+) -> Result<bool, AgentDbError> {
+    let remaining = run_budget_snapshot(db, row.id).await?.remaining;
+    match row.usage_json.get("budget_wait") {
+        Some(value) => Ok(serde_json::from_value::<BudgetDemand>(value.clone())
+            .map_err(|error| AgentDbError::InvalidArgument(format!("预算等待参数无效：{error}")))?
+            .fits(&remaining)),
+        None => Ok(!has_exhausted_limit(&remaining)),
+    }
 }
 
 /// Derive totals from the existing Run/Execution facts; never copy child usage
@@ -65,14 +132,9 @@ pub async fn run_budget_snapshot<C: ConnectionTrait>(
         "tokens_used",
     ];
     for row in &rows {
-        let usage = own.entry(row.id).or_default();
-        for (index, key) in keys.iter().enumerate() {
-            if let Some(value) = row.usage_json.get(key) {
-                usage[index] = usage[index].max(value.as_u64().ok_or_else(|| {
-                    AgentDbError::InvalidArgument(format!("Agent usage.{key} 无效"))
-                })?);
-            }
-        }
+        // Only durable reservations/receipts count. Worker progress projections
+        // may describe a request still being prepared and are not consumption.
+        own.entry(row.id).or_default();
     }
     let mut totals: HashMap<i64, [u64; 5]> = HashMap::new();
     for row in &rows {
@@ -93,68 +155,264 @@ pub async fn run_budget_snapshot<C: ConnectionTrait>(
         }
     }
     let mut remaining = AgentBudget::default();
+    let mut limiting_run_id = None;
+    let mut token_budget_run_id = None;
+    let mut deadline_ms: Option<i64> = None;
     let mut ancestor = Some(run_id);
     while let Some(id) = ancestor {
         let row = by_id
             .get(&id)
             .ok_or_else(|| AgentDbError::Conflict("Agent budget lineage 缺失".into()))?;
-        let budget: AgentBudget = serde_json::from_value(row.budget_json.clone())
-            .map_err(|e| AgentDbError::InvalidArgument(e.to_string()))?;
+        let budget = serde_json::from_value::<AgentBudget>(row.budget_json.clone())
+            .map_err(|e| AgentDbError::InvalidArgument(e.to_string()))?
+            .effective_for_run(row.parent_run_id.is_none());
         let used = totals[&id];
-        cap_u32(
-            &mut remaining.max_steps,
-            budget.max_steps.unwrap_or(AGENT_DEFAULT_MAX_STEPS),
-            used[0],
-        );
-        cap_u32(
-            &mut remaining.max_model_calls,
-            budget.max_model_calls.unwrap_or(AGENT_DEFAULT_MAX_STEPS),
-            used[1],
-        );
-        cap_u32(
-            &mut remaining.max_tool_calls,
-            budget.max_tool_calls.unwrap_or(AGENT_DEFAULT_MAX_TOOLS),
-            used[2],
-        );
+        let mut exhausted_here = false;
+        for (target, limit, used) in [
+            (&mut remaining.max_steps, budget.max_steps, used[0]),
+            (
+                &mut remaining.max_model_calls,
+                budget.max_model_calls,
+                used[1],
+            ),
+            (
+                &mut remaining.max_tool_calls,
+                budget.max_tool_calls,
+                used[2],
+            ),
+        ] {
+            if let Some(limit) = limit {
+                cap_u32(target, limit, used);
+                exhausted_here |= used >= u64::from(limit);
+            }
+        }
         if let Some(limit) = budget.max_tokens {
+            let available = limit.saturating_sub(used[3].saturating_add(used[4]));
+            if remaining
+                .max_tokens
+                .is_none_or(|current| available <= current)
+            {
+                token_budget_run_id = Some(id);
+            }
             cap_u64(
                 &mut remaining.max_tokens,
                 limit,
                 used[3].saturating_add(used[4]),
             );
+            exhausted_here |= used[3].saturating_add(used[4]) >= limit;
         }
         if let Some(limit) = budget.max_duration_seconds {
-            let elapsed = now()
-                .signed_duration_since(row.started_at.unwrap_or(row.created_at))
-                .num_seconds()
-                .max(0) as u64;
+            let elapsed = row.started_at.map_or(0, |started| {
+                now().signed_duration_since(started).num_seconds().max(0) as u64
+            });
             cap_u64(&mut remaining.max_duration_seconds, limit, elapsed);
+            exhausted_here |= elapsed >= limit;
+            if let Some(started) = row.started_at {
+                let deadline = i64::try_from(limit)
+                    .ok()
+                    .and_then(Duration::try_seconds)
+                    .and_then(|duration| started.checked_add_signed(duration))
+                    .ok_or_else(|| {
+                        AgentDbError::InvalidArgument("Agent 时长预算超出时钟范围".into())
+                    })?
+                    .and_utc()
+                    .timestamp_millis();
+                deadline_ms = Some(deadline_ms.map_or(deadline, |current| current.min(deadline)));
+            }
+        }
+        if exhausted_here {
+            limiting_run_id = Some(id);
         }
         ancestor = row.parent_run_id;
     }
     let mut usage = current.usage_json;
+    if !usage.is_object() {
+        return Err(AgentDbError::InvalidArgument(
+            "Agent usage_json 必须是对象".into(),
+        ));
+    }
     for (i, key) in keys.iter().enumerate() {
         usage[*key] = json!(totals[&run_id][i]);
     }
     usage["tokens_reserved"] = json!(totals[&run_id][4]);
+    usage["usage_complete"] = json!(totals[&run_id][4] == 0);
+    if limiting_run_id.is_none() && current.waiting_reason.as_deref() == Some("budget") {
+        limiting_run_id = token_budget_run_id;
+    }
+    usage["budget_limiting_run_id"] = json!(limiting_run_id.map(|id| id.to_string()));
+    usage["duration_deadline_unix_ms"] = json!(deadline_ms);
     Ok(AgentBudgetSnapshot { usage, remaining })
+}
+
+/// Extends a paused/waiting Run without replacing its execution history.
+pub async fn resume_run(
+    db: &DatabaseConnection,
+    user_id: i64,
+    thread_id: i64,
+    run_id: i64,
+    extension: Option<&AgentBudget>,
+) -> Result<run::Model, AgentDbError> {
+    let tx = db.begin().await?;
+    let identity = lock_budget_tree_on(&tx, run_id).await?;
+    let root = identity.root_run_id.unwrap_or(identity.id);
+    let family = run::Entity::find()
+        .filter(
+            sea_orm::Condition::any()
+                .add(run::Column::Id.eq(root))
+                .add(run::Column::RootRunId.eq(root)),
+        )
+        .all(&tx)
+        .await?;
+    lock_threads_on(&tx, family.iter().map(|run| run.thread_id)).await?;
+    lock_runs_on(&tx, family.iter().map(|run| run.id)).await?;
+    let owner = thread::Entity::find_by_id(thread_id)
+        .lock_exclusive()
+        .one(&tx)
+        .await?
+        .filter(|thread| thread.owner_user_id == user_id)
+        .ok_or_else(|| AgentDbError::NotFound("Agent Thread 不存在或无权访问".into()))?;
+    let row = run::Entity::find_by_id(run_id)
+        .lock_exclusive()
+        .one(&tx)
+        .await?
+        .filter(|run| run.thread_id == owner.id)
+        .ok_or_else(|| AgentDbError::NotFound("Agent Run 不属于当前 Thread".into()))?;
+    let was_paused = matches!(row.status.as_str(), "paused" | "pausing");
+    let keep_waiting = (row.status == "waiting"
+        && matches!(
+            row.waiting_reason.as_deref(),
+            Some("approval" | "child" | "external" | "reconcile")
+        ))
+        || (was_paused
+            && matches!(
+                row.waiting_reason.as_deref(),
+                Some("external" | "reconcile")
+            ));
+    if !(was_paused
+        || keep_waiting && extension.is_some()
+        || row.status == "waiting"
+            && matches!(
+                row.waiting_reason.as_deref(),
+                Some("budget" | "user" | "backoff")
+            ))
+    {
+        return Err(AgentDbError::Conflict(
+            "当前 Agent 状态不可继续；审批、子任务及对账须先完成".into(),
+        ));
+    }
+    if let Some(extension) = extension {
+        let current: AgentBudget = serde_json::from_value(row.budget_json.clone())
+            .map_err(|error| AgentDbError::InvalidArgument(error.to_string()))?;
+        let next = current
+            .extended(extension, row.parent_run_id.is_none())
+            .map_err(AgentDbError::InvalidArgument)?;
+        let mut active: run::ActiveModel = row.clone().into();
+        active.budget_json = Set(serde_json::to_value(next)
+            .map_err(|error| AgentDbError::InvalidArgument(error.to_string()))?);
+        active.update(&tx).await?;
+    }
+    let snapshot = run_budget_snapshot(&tx, run_id).await?;
+    if !keep_waiting && !budget_wait_can_resume(&tx, &row).await? {
+        let limiting = snapshot.usage["budget_limiting_run_id"]
+            .as_str()
+            .unwrap_or("current");
+        return Err(AgentDbError::BudgetExhausted(format!(
+            "Run {limiting} 仍无剩余额度，请提高对应预算"
+        )));
+    }
+    let mut resumed = if keep_waiting {
+        update_run_state_on(
+            &tx,
+            run_id,
+            None,
+            "waiting",
+            row.waiting_reason.as_deref(),
+            None,
+        )
+        .await?
+    } else {
+        update_run_state_on(&tx, run_id, None, "queued", None, None).await?
+    };
+    refresh_thread_status_on(&tx, thread_id).await?;
+    if extension.is_some() || was_paused {
+        let parents: HashMap<_, _> = family
+            .iter()
+            .map(|run| (run.id, run.parent_run_id))
+            .collect();
+        for child in &family {
+            let mut ancestor = child.parent_run_id;
+            let mut seen = HashSet::new();
+            let mut descendant = false;
+            while let Some(id) = ancestor {
+                if !seen.insert(id) {
+                    return Err(AgentDbError::Conflict("Agent lineage 存在环".into()));
+                }
+                if id == run_id {
+                    descendant = true;
+                    break;
+                }
+                ancestor = parents.get(&id).copied().flatten();
+            }
+            if !descendant {
+                continue;
+            }
+            let parent_paused = was_paused
+                && child.status == "paused"
+                && child
+                    .usage_json
+                    .get("paused_by_run_id")
+                    .and_then(Value::as_str)
+                    == Some(run_id.to_string().as_str());
+            let budget_wait =
+                child.status == "waiting" && child.waiting_reason.as_deref() == Some("budget");
+            if parent_paused {
+                let reason = child
+                    .waiting_reason
+                    .as_deref()
+                    .filter(|reason| matches!(*reason, "external" | "reconcile"));
+                let reason = if reason.is_none() && !budget_wait_can_resume(&tx, child).await? {
+                    Some("budget")
+                } else {
+                    reason
+                };
+                update_run_state_on(
+                    &tx,
+                    child.id,
+                    None,
+                    if reason.is_some() {
+                        "waiting"
+                    } else {
+                        "queued"
+                    },
+                    reason,
+                    None,
+                )
+                .await?;
+                refresh_thread_status_on(&tx, child.thread_id).await?;
+            } else if budget_wait && budget_wait_can_resume(&tx, child).await? {
+                update_run_state_on(&tx, child.id, None, "queued", None, None).await?;
+                refresh_thread_status_on(&tx, child.thread_id).await?;
+            }
+        }
+    }
+    tx.commit().await?;
+    resumed.usage_json = snapshot.usage;
+    Ok(resumed)
+}
+
+fn has_exhausted_limit(remaining: &AgentBudget) -> bool {
+    remaining.max_steps == Some(0)
+        || remaining.max_model_calls == Some(0)
+        || remaining.max_tool_calls == Some(0)
+        || remaining.max_tokens == Some(0)
+        || remaining.max_duration_seconds == Some(0)
 }
 
 pub(super) async fn reserve_budget_on<C: ConnectionTrait>(
     db: &C,
     input: &AgentExecutionInput,
 ) -> Result<(), AgentDbError> {
-    let run = run::Entity::find_by_id(input.run_id)
-        .one(db)
-        .await?
-        .ok_or_else(|| AgentDbError::NotFound("Agent Run 不存在".into()))?;
-    // Namespace the advisory lock; all descendants share this admission lock.
-    db.execute(Statement::from_sql_and_values(
-        DatabaseBackend::Postgres,
-        "SELECT pg_advisory_xact_lock(hashtextextended('a4n-agent-budget:' || $1::text, 0))",
-        [run.root_run_id.unwrap_or(run.id).into()],
-    ))
-    .await?;
+    let run = lock_budget_tree_on(db, input.run_id).await?;
     if execution::Entity::find()
         .filter(execution::Column::RunId.eq(run.id))
         .filter(execution::Column::ExecutionKey.eq(&input.execution_key))
@@ -165,28 +423,10 @@ pub(super) async fn reserve_budget_on<C: ConnectionTrait>(
         return Ok(());
     }
     let remaining = run_budget_snapshot(db, run.id).await?.remaining;
-    let exhausted = (input.execution_kind != "wait" && remaining.max_tokens == Some(0))
-        || remaining.max_duration_seconds == Some(0)
-        || if input.execution_kind == "model_call" {
-            remaining.max_steps == Some(0) || remaining.max_model_calls == Some(0)
-        } else {
-            remaining.max_tool_calls == Some(0)
-        };
-    if exhausted {
-        return Err(AgentDbError::BudgetExhausted(run.id.to_string()));
-    }
-    if input.execution_kind == "model_call"
-        && let Some(limit) = remaining.max_tokens
-    {
-        let request = input
-            .arguments_json
-            .as_ref()
-            .ok_or_else(|| AgentDbError::InvalidArgument("模型调用缺少预算请求参数".into()))?;
-        if a4n_domain::agent::agent_model_token_reservation(request) > limit {
-            return Err(AgentDbError::BudgetExhausted(
-                "剩余额度不足以覆盖模型输入和输出".into(),
-            ));
-        }
+    if !BudgetDemand::for_execution(input)?.fits(&remaining) {
+        return Err(AgentDbError::BudgetExhausted(
+            "剩余额度不足以执行当前请求".into(),
+        ));
     }
     Ok(())
 }

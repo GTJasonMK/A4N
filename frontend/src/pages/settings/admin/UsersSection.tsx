@@ -25,6 +25,7 @@ import { Dropdown, type DropdownItem } from "../../../components/ui/Dropdown";
 import { Modal } from "../../../components/ui/Modal";
 import { useAdminSectionLoader } from "./useAdminSectionLoader";
 import { formatDateTime, formatNumber, useI18n, type MessageKey } from "../../../i18n";
+import { useAuthStore } from "../../../store/auth";
 
 const emptyCreateUserForm: CreateUserInput = {
   username: "",
@@ -119,7 +120,7 @@ export const UsersSection: React.FC<{ currentUserId: number }> = ({
     },
     [],
   );
-  const { loading, load, isCurrentScope: isCurrentUser } =
+  const { loading, error, load, isCurrentScope: isCurrentUser } =
     useAdminSectionLoader(
       currentUserId,
       loadUsers,
@@ -288,9 +289,13 @@ export const UsersSection: React.FC<{ currentUserId: number }> = ({
         addToast(t("settingsAdmin.invalidRole"), "error");
         return;
       }
-      await updateUserRole(u.id, role);
+      const updated = await updateUserRole(u.id, role);
       if (!isCurrentUser(requestCurrentUserId)) return;
       addToast(t("settingsAdmin.roleUpdated"), "success");
+      if (updated.id === requestCurrentUserId) {
+        useAuthStore.setState({ user: updated });
+        if (updated.role !== "admin") return;
+      }
       await load();
     } catch (err) {
       if (!isCurrentUser(requestCurrentUserId)) return;
@@ -484,13 +489,14 @@ export const UsersSection: React.FC<{ currentUserId: number }> = ({
           ]}
         />
       </div>
+      {error ? <p role="alert" className="text-xs text-error">{error}</p> : null}
       <ul className="space-y-2.5">
         {loading && users.length === 0 ? (
           <li className="a4n-flat-surface inline-flex w-full items-center gap-1.5 p-3 text-xs text-book-text-muted">
             <LoadingSpinner size="sm" />
             {t("settingsAdmin.loadingUsers")}
           </li>
-        ) : users.length === 0 ? (
+        ) : error && users.length === 0 ? null : users.length === 0 ? (
           <li className="a4n-empty-state a4n-empty-state--framed p-3 text-xs text-book-text-muted">
             {t("settingsAdmin.noUsers")}
           </li>
@@ -532,7 +538,7 @@ export const UsersSection: React.FC<{ currentUserId: number }> = ({
               <LoadingSpinner size="sm" />
               {t("settingsAdmin.loadingInviteCodes")}
             </li>
-          ) : inviteCodes.length === 0 ? (
+          ) : error && inviteCodes.length === 0 ? null : inviteCodes.length === 0 ? (
             <li className="p-3 text-xs text-book-text-muted">{t("settingsAdmin.noInviteCodes")}</li>
           ) : (
             inviteCodes.map((code) => (
@@ -575,14 +581,19 @@ export const UsersSection: React.FC<{ currentUserId: number }> = ({
         footer={
           <BookButton
             variant="primary"
-            onClick={() => void handleCreate()}
+            type="submit"
+            form="admin-create-user-form"
             disabled={createBusy || !createReady}
           >
             {createBusy ? t("settingsAdmin.creating") : t("settingsAdmin.createUser")}
           </BookButton>
         }
       >
-        <div className="grid gap-3 text-xs">
+        <form
+          id="admin-create-user-form"
+          className="grid gap-3 text-xs"
+          onSubmit={(event) => { event.preventDefault(); void handleCreate(); }}
+        >
           <label className="grid gap-1">
             <span className="text-book-text-muted">{t("settingsAdmin.username")}</span>
             <input
@@ -629,7 +640,7 @@ export const UsersSection: React.FC<{ currentUserId: number }> = ({
               ))}
             </ThemedSelect>
           </label>
-        </div>
+        </form>
       </Modal>
     </div>
   );

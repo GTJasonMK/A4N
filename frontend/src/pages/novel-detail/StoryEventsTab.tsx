@@ -120,13 +120,18 @@ export const StoryEventsTab: React.FC<StoryEventsTabProps> = ({
         onRefresh={() => void load()}
       />
 
-      <ForeshadowingIndexCard
+      <details className="min-w-0">
+        <summary className="mb-2 cursor-pointer text-sm font-medium text-book-text-main">
+          {t("novel.foreshadowing.title")} · {displayForeshadowing.length}
+        </summary>
+        <ForeshadowingIndexCard
         projectId={projectId}
         records={displayForeshadowing}
         canEdit={canOpenWritingDesk}
         loading={loading}
         onReload={() => load({ silent: true, force: true })}
       />
+      </details>
 
       <StoryEventsListCard
         chaptersCount={displayChapters.length}

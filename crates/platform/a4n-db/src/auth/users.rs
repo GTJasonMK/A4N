@@ -6,6 +6,7 @@ mod registration;
 pub use account::{change_password, login_user, update_profile};
 #[cfg(test)]
 pub use admin::disable_user;
+pub(crate) use admin::lock_administrator_membership;
 pub use admin::update_user_role;
 pub use read::{current_user, current_user_summary, list_users, user_by_id};
 #[cfg(test)]

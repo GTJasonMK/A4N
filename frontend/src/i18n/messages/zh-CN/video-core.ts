@@ -138,7 +138,7 @@ export const videoCore = {
   nodeLibrary: "节点库",
   nodeLibraryHint: "拖入画布编排 · {count} 种节点",
   addToCanvas: "添加到当前画布视图中心",
-  dragToCanvas: "拖入画布",
+  dragToCanvas: "点击添加，或拖入画布",
   edgeProperties: "连线属性",
   nodeProperties: "节点属性",
   editAfterSelect: "选择节点或连线后编辑",

@@ -9,7 +9,7 @@ use crate::agent::{
 };
 use crate::package::{PackageCommandCategory, PackageId};
 
-pub const COMMAND_MANIFEST_VERSION: u32 = 19;
+pub const COMMAND_MANIFEST_VERSION: u32 = 20;
 pub const HOST_IDENTITY: &str = "a4n-server";
 pub const RUNTIME_EQUIVALENTS: &[(&str, &str)] = &[
     ("get_generation_task_snapshot", "task snapshot"),

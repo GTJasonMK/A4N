@@ -33,7 +33,7 @@ export const InspirationChatHeader: React.FC<InspirationChatHeaderProps> = ({
     className="a4n-app-page-header--detail h-auto shrink-0 !px-3 py-2 sm:!px-[var(--a4n-content-gutter)]"
     leading={<BackButton iconOnly title={t("nav.backToPrevious")} />}
     title={t("novel.inspiration")}
-    subtitle={projectTitle}
+    subtitle={<span className="line-clamp-2" title={projectTitle}>{projectTitle}</span>}
     actions={showConversationControls ? (
       <>
         <div className="lg:hidden">

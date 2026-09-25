@@ -23,12 +23,6 @@ pub struct ChatRequest {
     pub cache_breakpoints: Vec<PromptCacheBreakpoint>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub cache_mode: Option<PromptCacheMode>,
-    // Read old durable requests; configure_prompt_cache migrates and clears
-    // these legacy hints before dispatch. New callers declare exact boundaries.
-    #[serde(default, skip_serializing_if = "is_false")]
-    pub cache_system_prefix: bool,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub cache_user_prefix_len: Option<usize>,
     #[serde(skip)]
     pub trace_context: Option<LlmTraceContext>,
     #[serde(skip)]
@@ -54,8 +48,6 @@ impl ChatRequest {
             cache_scope_key: None,
             cache_breakpoints: Vec::new(),
             cache_mode: None,
-            cache_system_prefix: false,
-            cache_user_prefix_len: None,
             trace_context: None,
             context_manifest_json: None,
             tools: None,
@@ -113,11 +105,31 @@ impl ChatRequest {
         let object = value
             .as_object_mut()
             .ok_or_else(|| a4n_error::AppError::InvalidArgument("模型请求快照必须是对象".into()))?;
+        let legacy_user_prefix_len = object
+            .remove("cache_user_prefix_len")
+            .filter(|value| !value.is_null())
+            .map(serde_json::from_value::<usize>)
+            .transpose()?;
+        let _legacy_system_prefix = object
+            .remove("cache_system_prefix")
+            .map(serde_json::from_value::<bool>)
+            .transpose()?;
         let trace = object.remove("trace_context");
         let manifest = object
             .remove("context_manifest_json")
             .filter(|value| !value.is_null());
         let mut request: Self = serde_json::from_value(value)?;
+        if let Some(byte_offset) = legacy_user_prefix_len {
+            let message_index = request
+                .messages
+                .iter()
+                .rposition(|message| matches!(message.role, super::MessageRole::User))
+                .ok_or_else(|| {
+                    a4n_error::AppError::InvalidArgument("旧缓存断点缺少 user 消息".into())
+                })?;
+            request.add_cache_breakpoint(message_index, byte_offset)?;
+        }
+        request.cache_breakpoints = request.normalized_cache_breakpoints()?;
         request.trace_context = trace.map(serde_json::from_value).transpose()?.flatten();
         request.context_manifest_json = manifest;
         Ok(request)

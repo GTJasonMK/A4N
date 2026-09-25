@@ -171,6 +171,8 @@ const SceneListItem: React.FC<SceneListItemProps> = ({
         <button
           type="button"
           onClick={() => onToggleExpand(scene.id)}
+          aria-expanded={isExpanded}
+          aria-label={`${t("scenes.sceneNumber", { number: scene.scene_number })} · ${nonEmptyText(scene.title) ?? t("scenes.unnamed")}`}
           className="mt-0.5 shrink-0 text-book-text-muted hover:text-book-text-main"
         >
           {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}

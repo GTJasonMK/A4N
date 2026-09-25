@@ -84,10 +84,9 @@ pub struct CompleteVideoRecordInput {
     pub record_id: i64,
     pub output_path: String,
     pub thumbnail_path: Option<String>,
-    pub file_size: i64,
+    pub properties: a4n_domain::media::VideoFileProperties,
     pub prompt_id: Option<i64>,
     pub metadata_json: Option<Value>,
-    pub duration_secs: f32,
 }
 
 /// Result of committing a generated video record.
@@ -100,9 +99,6 @@ pub struct VideoRecordCompletion {
 /// Stable failure surface for generated video record completion.
 #[derive(Debug)]
 pub enum VideoRecordCompletionError {
-    DurationWriteback {
-        error: a4n_error::AppError,
-    },
     Submission {
         error: a4n_error::AppError,
         authoritative: Option<VideoRecordCompletion>,

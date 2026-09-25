@@ -56,6 +56,31 @@ pub struct ChatImage {
 }
 
 impl ChatMessage {
+    /// Preserve message-level thinking alongside the first tool call's opaque
+    /// replay state. Native adapters choose which protocol fields to send.
+    pub fn preserve_tool_reasoning(
+        &mut self,
+        reasoning: Option<&str>,
+    ) -> Result<(), a4n_error::AppError> {
+        let Some(reasoning) = reasoning else {
+            return Ok(());
+        };
+        let Some(first) = self.tool_calls.as_mut().and_then(|calls| calls.first_mut()) else {
+            return Ok(());
+        };
+        let metadata = first
+            .provider_metadata
+            .get_or_insert_with(|| serde_json::json!({}));
+        let object = metadata.as_object_mut().ok_or_else(|| {
+            a4n_error::AppError::InvalidArgument("工具回放元数据必须是 JSON 对象".into())
+        })?;
+        object.insert(
+            "reasoning_content".into(),
+            Value::String(reasoning.to_string()),
+        );
+        Ok(())
+    }
+
     pub fn system(content: impl Into<String>) -> Self {
         Self::new(MessageRole::System, content)
     }

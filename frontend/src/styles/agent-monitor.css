@@ -29,10 +29,10 @@
     min-height: 0;
     flex: 1 1 auto;
     flex-direction: column;
-    gap: 8px;
+    gap: 12px;
     overflow-x: hidden;
     overflow-y: auto;
-    padding: 8px clamp(10px, 2vw, 20px) 12px;
+    padding: 16px var(--a4n-content-gutter);
   }
 
   .agent-monitor-layout {
@@ -41,7 +41,7 @@
     min-height: 0;
     flex: 1 1 auto;
     grid-template-columns: minmax(12rem, 15rem) minmax(0, 1fr);
-    gap: 8px;
+    gap: 16px;
   }
 
   .agent-monitor-thread-rail,
@@ -182,7 +182,7 @@
     min-width: 0;
     overflow-x: hidden;
     overflow-y: auto;
-    padding: 14px clamp(14px, 4vw, 56px) 18px;
+    padding: 24px clamp(16px, 4vw, 56px);
     overscroll-behavior: contain;
     scrollbar-gutter: stable;
   }
@@ -200,7 +200,7 @@
     margin: 0 auto;
     padding: 7px 9px 8px;
     border: 1px solid rgb(var(--color-border) / 0.42);
-    border-radius: 18px;
+    border-radius: var(--pyqt-radius-lg);
     background: rgb(var(--color-bg-tertiary) / 0.48);
     box-shadow: var(--shadow-card);
     transition:
@@ -210,9 +210,9 @@
   }
 
   .agent-monitor-composer:focus-within {
-    border-color: rgb(var(--color-primary) / 0.38);
+    border-color: rgb(var(--color-primary));
     background: rgb(var(--color-bg-secondary) / 0.68);
-    box-shadow: 0 0 0 3px rgb(var(--color-primary) / 0.10), var(--shadow-card-hover);
+    box-shadow: 0 0 0 3px rgb(var(--color-primary) / 0.1);
   }
 
   .agent-monitor-composer-input {
@@ -229,6 +229,7 @@
   }
 
   .agent-monitor-composer-input:focus {
+    outline: none;
     border: 0 !important;
     background: transparent !important;
     box-shadow: none !important;
@@ -236,6 +237,7 @@
 
   .agent-monitor-composer-toolbar,
   .agent-monitor-composer-controls,
+  .agent-monitor-composer-actions,
   .agent-monitor-composer-mode {
     display: flex;
     min-width: 0;
@@ -255,6 +257,12 @@
     gap: 6px;
   }
 
+  .agent-monitor-composer-actions {
+    flex: none;
+    gap: 4px;
+    margin-left: auto;
+  }
+
   .agent-monitor-composer-mode {
     gap: 4px;
     color: rgb(var(--color-primary) / 0.82);
@@ -264,7 +272,7 @@
     height: 30px !important;
     min-height: 30px !important;
     max-width: 100%;
-    border-radius: 999px !important;
+    border-radius: var(--pyqt-radius-sm) !important;
     padding: 5px 2rem 5px 10px !important;
     font-size: 12px !important;
   }
@@ -300,36 +308,56 @@
   }
 
   @media (max-width: 1099px) {
+    .agent-monitor-workspace--activity-open {
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    .agent-monitor-workspace--activity-open .agent-monitor-conversation {
+      display: none;
+    }
+
     .agent-monitor-workspace--activity-open .agent-monitor-activity-pane {
-      position: absolute;
-      z-index: 10;
-      inset: 0 0 0 auto;
-      width: min(22rem, calc(100% - 20px));
-      box-shadow: var(--shadow-overlay);
+      border-left: 0;
+      background: rgb(var(--color-bg-secondary) / var(--a4n-dialog-opacity));
     }
   }
 
   @media (max-width: 899px) {
     .agent-monitor-body {
-      padding-inline: 10px;
+      padding: 8px 10px;
+      overflow: hidden;
     }
 
     .agent-monitor-layout {
-      flex: none;
+      flex: 1 1 auto;
       grid-template-columns: minmax(0, 1fr);
+      grid-template-rows: auto minmax(0, 1fr);
+      gap: 8px;
     }
 
     .agent-monitor-thread-rail {
-      max-height: 184px;
+      max-height: 160px;
+    }
+
+    .agent-monitor-thread-rail:has(.agent-monitor-create-form) {
+      max-height: min(44dvh, 300px);
+      overflow-y: auto;
     }
 
     .agent-monitor-session {
-      height: min(640px, calc(100dvh - 176px));
-      min-height: min(640px, calc(100dvh - 176px));
+      height: auto;
+      min-height: 0;
+    }
+
+    .agent-monitor-message-log {
+      min-height: 0;
+      padding-block: 16px;
     }
 
     .agent-monitor-session-header {
       grid-template-columns: auto minmax(0, 1fr);
+      row-gap: 4px;
+      padding-block: 4px;
     }
 
     .agent-monitor-session-tools {
@@ -339,6 +367,29 @@
   }
 
   @media (max-width: 560px) {
+    .agent-monitor-page-header .a4n-app-page-header__icon {
+      display: none;
+    }
+
+    .agent-monitor-page-header .a4n-app-page-header__identity {
+      flex: 1 1 0;
+    }
+
+    .agent-monitor-page-header .a4n-app-page-header__title-row {
+      flex-wrap: wrap;
+      row-gap: 2px;
+    }
+
+    .agent-monitor-page-header .a4n-app-page-header__title {
+      flex-basis: 100%;
+    }
+
+    .agent-monitor-page-header .a4n-app-page-header__subtitle {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
     .agent-monitor-session-header {
       padding-inline: 10px;
     }
@@ -352,12 +403,8 @@
     }
 
     .agent-monitor-composer {
-      border-radius: 15px;
+      border-radius: var(--pyqt-radius-lg);
       padding-inline: 8px;
-    }
-
-    .agent-monitor-composer-controls {
-      max-width: calc(100% - 46px);
     }
 
     .agent-monitor-composer-select {
@@ -365,6 +412,7 @@
     }
 
     .agent-context-meter {
+      order: 1;
       max-width: 100%;
       flex-basis: 100%;
     }

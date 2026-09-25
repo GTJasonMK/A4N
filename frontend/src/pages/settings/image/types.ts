@@ -1,4 +1,3 @@
-import type { ImageSize } from "../../../api/image";
 import type { PricingPlan } from "../../../api/generated/config";
 
 export type ImageProvider = string;
@@ -11,7 +10,7 @@ export interface ImageForm {
   api_key: string;
   has_api_key: boolean;
   clear_api_key: boolean;
-  supported_sizes: ImageSize[];
-  max_concurrent: number;
+  supported_sizes: { width: string; height: string }[];
+  max_concurrent: string;
   pricing: PricingPlan;
 }

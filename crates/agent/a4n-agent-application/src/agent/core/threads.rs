@@ -56,11 +56,12 @@ impl AgentApplication {
         }
         validate_scope(&input.scope)?;
         let mut scope = input.scope;
-        let (project_id, chapter_id) = self
+        let (project_id, chapter_id, chapter_number) = self
             .verify_thread_scope(user_id, &scope, bound_resource.as_ref())
             .await?;
         scope.project_id = scope.project_id.or(project_id);
         scope.chapter_id = scope.chapter_id.or(chapter_id);
+        scope.chapter_number = chapter_number;
         if input.kind == AgentThreadKind::Subagent {
             validate_subagent_resource(&capability, &scope, bound_resource.as_ref())?;
             apply_subagent_capability_policy(&capability, &mut scope)?;
@@ -303,11 +304,12 @@ impl AgentApplication {
         if let Some(resource) = bound_resource.as_ref() {
             validate_resource_ref(resource)?;
         }
-        let (project_id, chapter_id) = self
+        let (project_id, chapter_id, chapter_number) = self
             .verify_thread_scope(user_id, &scope, bound_resource.as_ref())
             .await?;
         scope.project_id = scope.project_id.or(project_id);
         scope.chapter_id = scope.chapter_id.or(chapter_id);
+        scope.chapter_number = chapter_number;
         validate_subagent_resource(&capability, &scope, bound_resource.as_ref())?;
         let requested_scope = serde_json::to_value(&scope)?;
         if let Some(existing) = agent::thread_by_canonical_binding(self.connection(), user_id, &key)
@@ -420,43 +422,53 @@ impl AgentApplication {
         thread_id: &str,
     ) -> Result<AgentThreadHistorySnapshot, AppError> {
         let thread_id = parse_id(thread_id, "thread_id")?;
-        let thread_row = self.owned_thread(user_id, thread_id).await?;
-        let messages = agent::messages_by_thread(self.connection(), thread_id, SNAPSHOT_LIMIT)
+        self.owned_thread(user_id, thread_id).await?;
+        let tx = self
+            .connection()
+            .begin_with_config(
+                Some(sea_orm::IsolationLevel::RepeatableRead),
+                Some(sea_orm::AccessMode::ReadOnly),
+            )
+            .await?;
+        let thread_row = agent::thread_by_id(&tx, thread_id)
+            .await
+            .map_err(agent_db_error_to_app)?
+            .ok_or_else(|| AppError::NotFound("Agent Thread 不存在".into()))?;
+        let messages = agent::messages_by_thread(&tx, thread_id, SNAPSHOT_LIMIT)
             .await
             .map_err(agent_db_error_to_app)?;
-        let turns = agent::turns_by_thread(self.connection(), thread_id, SNAPSHOT_LIMIT)
+        let turns = agent::turns_by_thread(&tx, thread_id, SNAPSHOT_LIMIT)
             .await
             .map_err(agent_db_error_to_app)?;
-        let mut runs = agent::runs_by_thread(self.connection(), thread_id, SNAPSHOT_LIMIT)
+        let mut runs = agent::runs_by_thread(&tx, thread_id, SNAPSHOT_LIMIT)
             .await
             .map_err(agent_db_error_to_app)?;
-        let executions =
-            agent::executions_by_runs(self.connection(), runs.iter().map(|row| row.id).collect())
+        let executions = agent::executions_by_runs(&tx, runs.iter().map(|row| row.id).collect())
+            .await
+            .map_err(agent_db_error_to_app)?;
+        let delegations = agent::delegations_by_thread(&tx, thread_id)
+            .await
+            .map_err(agent_db_error_to_app)?;
+        let approvals = agent::approvals_by_thread(&tx, thread_id)
+            .await
+            .map_err(agent_db_error_to_app)?;
+        let inbox = agent::inbox_by_thread(&tx, thread_id)
+            .await
+            .map_err(agent_db_error_to_app)?;
+        let memories =
+            agent::list_memory(&tx, user_id, Some("thread"), Some(&thread_id.to_string()))
                 .await
                 .map_err(agent_db_error_to_app)?;
-        let delegations = agent::delegations_by_thread(self.connection(), thread_id)
-            .await
-            .map_err(agent_db_error_to_app)?;
-        let approvals = agent::approvals_by_thread(self.connection(), thread_id)
-            .await
-            .map_err(agent_db_error_to_app)?;
-        let inbox = agent::inbox_by_thread(self.connection(), thread_id)
-            .await
-            .map_err(agent_db_error_to_app)?;
-        let memories = agent::list_memory(
-            self.connection(),
-            user_id,
-            Some("thread"),
-            Some(&thread_id.to_string()),
-        )
-        .await
-        .map_err(agent_db_error_to_app)?;
-        let events = agent::latest_events_by_thread(self.connection(), thread_id, SNAPSHOT_LIMIT)
+        let events = agent::latest_events_by_thread(&tx, thread_id, SNAPSHOT_LIMIT)
             .await
             .map_err(agent_db_error_to_app)?;
         for run in &mut runs {
-            run.usage_json = self.run_budget_snapshot(run.id).await?.usage;
+            run.usage_json = agent::run_budget_snapshot(&tx, run.id)
+                .await
+                .map_err(agent_db_error_to_app)?
+                .usage;
         }
+        tx.commit().await?;
 
         Ok(AgentThreadHistorySnapshot {
             protocol_version: AGENT_API_PROTOCOL_VERSION,
@@ -507,13 +519,14 @@ impl AgentApplication {
             SNAPSHOT_LIMIT as u32,
             "limit",
         )? as usize;
-        let mut rows = agent::messages_by_thread(self.connection(), thread_id, SNAPSHOT_LIMIT)
+        let before = input
+            .before
+            .as_deref()
+            .map(|before| parse_id(before, "before"))
+            .transpose()?;
+        let rows = agent::messages_before(self.connection(), thread_id, before, limit as u64)
             .await
             .map_err(agent_db_error_to_app)?;
-        if let Some(before) = input.before {
-            let before_id = parse_id(&before, "before")?;
-            rows.retain(|row| row.id < before_id);
-        }
         rows.into_iter()
             .rev()
             .take(limit)

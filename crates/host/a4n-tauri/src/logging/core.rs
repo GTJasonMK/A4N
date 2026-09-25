@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 use std::sync::OnceLock;
 
-use a4n_runtime::host_api::logging::LogFilterReloader;
+use a4n_runtime::host_api::logging::{LOG_FILE_PREFIX, LogFilterReloader};
 use tracing_appender::non_blocking::WorkerGuard;
 use tracing_appender::rolling;
 use tracing_subscriber::{fmt, prelude::*};
@@ -19,7 +19,7 @@ pub(super) static FILTER_RELOADER: LogFilterReloader = LogFilterReloader::new();
 pub fn init(log_dir: PathBuf) -> Result<(), Box<dyn std::error::Error>> {
     std::fs::create_dir_all(&log_dir)?;
 
-    let file_appender = rolling::daily(&log_dir, "a4n.log");
+    let file_appender = rolling::daily(&log_dir, LOG_FILE_PREFIX);
     let (file_writer, guard) = tracing_appender::non_blocking(file_appender);
     let env_filter = a4n_runtime::host_api::logging::build_log_filter_from_env(DEFAULT_LOG_FILTER)
         .map_err(invalid_log_filter)?;

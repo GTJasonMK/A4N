@@ -443,7 +443,9 @@ export const AnalysisSubTab: React.FC<AnalysisSubTabProps> = ({
   const hasForeshadowing =
     planted.length > 0 || resolved.length > 0 || tensions.length > 0;
   const secondaryActions: React.ComponentProps<typeof Dropdown>["items"] = [
-    ...(canResumeSync && analysisSyncHasSavedAnalysis
+    ...(canResumeSync &&
+      analysisSyncHasSavedAnalysis &&
+      analysisSyncStatus !== "running"
       ? [
           {
             label: t("writing.analysisDetails.previewSyncRequest"),

@@ -37,16 +37,18 @@ pub(super) fn regenerate_scene_decision_payload() -> Value {
             "chapter_number": 1,
             "shooting_scene_index": 1,
             "beats": [{
+                "shot_index": 1,
                 "beat_index": 1,
-                "beat_kind": "action",
                 "coverage": "must_show",
+                "required": true,
                 "objective": "确认下一步",
                 "obstacle": "信息不足",
-                "story_action": "角色抬头观察雨后的街道",
+                "visible_action": "角色抬头观察雨后的街道",
                 "reaction": "同伴停下等待",
                 "audience_question": "他们会去哪里？",
                 "answer_or_delay": "暂缓回答",
-                "attention_focus": "角色视线与街道出口",
+                "entry_state": "站在街道入口",
+                "exit_state": "确认街道出口",
                 "source_span_ids": ["ch1:ta702"]
             }]
         }]
@@ -56,7 +58,7 @@ pub(super) fn regenerate_scene_decision_payload() -> Value {
             "scene_index": 1,
             "lines": [{
                 "index": 1,
-                "beat_ref": {"scene_index": 1, "beat_index": 1},
+                "beat_ref": {"scene_index": 1, "shot_index": 1, "beat_index": 1},
                 "line_type": "narration",
                 "text": "雨停了。",
                 "source_span_ids": ["ch1:ta702"]
@@ -69,7 +71,7 @@ pub(super) fn regenerate_scene_decision_payload() -> Value {
             "scene_index": 1,
             "lines": [{
                 "index": 1,
-                "beat_ref": {"scene_index": 1, "beat_index": 1},
+                "beat_ref": {"scene_index": 1, "shot_index": 1, "beat_index": 1},
                 "line_type": "dialogue",
                 "speaker_profile_id": 601,
                 "text": "雨停了。",

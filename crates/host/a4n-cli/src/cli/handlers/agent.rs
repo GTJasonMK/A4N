@@ -87,6 +87,7 @@ async fn run_agent(
             run_id,
             action,
             thread_id,
+            budget,
         } => {
             validate_non_empty(&run_id, "run_id")?;
             validate_non_empty(&thread_id, "thread_id")?;
@@ -94,6 +95,13 @@ async fn run_agent(
                 thread_id,
                 action: action.into(),
                 run_id,
+                budget: budget
+                    .as_deref()
+                    .map(read_json_source)
+                    .transpose()?
+                    .map(serde_json::from_value)
+                    .transpose()
+                    .context("budget 合同无效")?,
             };
             let value = runtime
                 .client
@@ -820,4 +828,3 @@ fn agent_update_body(
         "chapter_id": chapter_id,
     }))
 }
-

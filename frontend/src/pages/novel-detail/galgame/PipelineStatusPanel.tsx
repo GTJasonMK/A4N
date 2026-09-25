@@ -36,14 +36,19 @@ function pipelineStatusLabel(status: string, t: MessageTranslator): string {
 function pipelineStepLabel(stepKey: string, t: MessageTranslator): string {
   switch (stepKey) {
     case "shooting_script_projection":
+    case "scenes":
       return t("workflow.shootingScriptProjection");
     case "script_adaptation":
+    case "lines_draft":
       return t("workflow.scriptAdaptation");
     case "character_staging":
+    case "lines_staged":
       return t("workflow.characterStaging");
     case "visual_planning":
+    case "visual_plan":
       return t("workflow.visualPlanning");
     case "branch_design":
+    case "branch_plan":
       return t("workflow.branchDesign");
     case "persist_script":
       return t("workflow.persistScript");

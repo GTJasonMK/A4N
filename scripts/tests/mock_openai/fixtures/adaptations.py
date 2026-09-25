@@ -252,7 +252,7 @@ def galgame_character_staging_response(combined: str) -> dict[str, Any]:
 def galgame_visual_planning_response(combined: str) -> dict[str, Any]:
     scene = galgame_shared_step(combined, "shooting_script_projection")["scenes"][0]
     staged_scene = galgame_shared_step(combined, "character_staging")["scene_lines"][0]
-    source_span_ids = scene["source_span_ids"]
+    source_span_ids = staged_scene["lines"][0]["source_span_ids"]
     cg_line = staged_scene["lines"][-1]
     return {
         "backgrounds": [

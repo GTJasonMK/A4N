@@ -4,19 +4,35 @@ pub(crate) async fn complete_run(
     state: &AgentRuntimeState,
     claimed: &AgentWorkerRun,
     content: String,
-    observed_input_message_id: i64,
-) -> Result<(), AppError> {
+    source: &AgentExecutionSnapshot,
+    messages: &mut Vec<ChatMessage>,
+) -> Result<RunProgress, AppError> {
     let refs = state.result_refs_for_run(claimed).await?;
-    state
+    let receipt = state
         .complete_agent_worker_run(
             claimed,
             content.clone(),
             content,
             Some(refs),
-            observed_input_message_id,
+            execution_input_message_id(source)?,
+            source.id,
         )
         .await?;
-    Ok(())
+    if receipt.blockers.is_empty() {
+        return Ok(RunProgress::Released);
+    }
+    if let Some(client_message_id) = stream_client_message_id(claimed.run.id, source) {
+        state
+            .worker_message_application(claimed)
+            .interrupt_assistant_streaming_message(
+                claimed,
+                client_message_id,
+                Some("仍有未完成事项，继续执行".into()),
+            )
+            .await?;
+    }
+    messages.push(ChatMessage::system(serde_json::to_string(&receipt)?));
+    Ok(RunProgress::Continue)
 }
 
 pub(crate) async fn consume_model_stream(

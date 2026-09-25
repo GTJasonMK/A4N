@@ -5,7 +5,6 @@ import {
   IMAGE_TYPE_VIDEO_KEY_FRAME,
   IMAGE_TYPE_VIDEO_START_FRAME,
   IMAGE_TYPE_VIDEO_STORYBOARD_FRAME,
-  type ImageSize,
 } from "../../../api/image";
 import {
   VIDEO_WORKFLOW_MODE_BOUNDARY_FRAMES,
@@ -38,25 +37,6 @@ export const VIDEO_ASPECT_RATIOS = [
   "9:16",
 ] as const;
 export type VideoAspectRatio = (typeof VIDEO_ASPECT_RATIOS)[number];
-
-export function videoAspectRatiosForImageSizes(
-  sizes: readonly Pick<ImageSize, "width" | "height">[],
-): VideoAspectRatio[] {
-  const supported = new Set(
-    sizes.flatMap(({ width, height }) => {
-      if (width <= 0 || height <= 0) return [];
-      let left = width;
-      let right = height;
-      while (right !== 0) {
-        const remainder = left % right;
-        left = right;
-        right = remainder;
-      }
-      return [`${width / left}:${height / left}`];
-    }),
-  );
-  return VIDEO_ASPECT_RATIOS.filter((ratio) => supported.has(ratio));
-}
 
 export interface VideoGenOptions {
   style: string;

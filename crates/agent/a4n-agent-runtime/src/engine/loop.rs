@@ -10,32 +10,79 @@ pub(crate) enum RunProgress {
 ///
 /// Worker 持有 durable run driver 的生命周期；领取、恢复和状态机转移仍由
 /// `AgentApplication` 负责，确保 Runtime 不复制控制平面规则。
-pub async fn run_worker(state: AgentRuntimeState, cancel: CancellationToken, notify: Arc<Notify>) {
+pub async fn run_worker(
+    state: AgentRuntimeState,
+    cancel: CancellationToken,
+    notify: Arc<Notify>,
+    worker_id: String,
+) {
+    let maintenance_cancel = cancel.child_token();
+    let maintenance_state = state.clone();
+    let maintenance_token = maintenance_cancel.clone();
+    let maintenance = tokio::spawn(async move {
+        let mut tick = tokio::time::interval(WORKER_POLL_INTERVAL);
+        tick.set_missed_tick_behavior(MissedTickBehavior::Delay);
+        loop {
+            tokio::select! {
+                _ = maintenance_token.cancelled() => break,
+                _ = async {
+                    tick.tick().await;
+                    maintain_agent_worker(&maintenance_state).await;
+                } => {}
+            }
+        }
+    });
+    let mut tasks = tokio::task::JoinSet::new();
     let mut interval = tokio::time::interval(WORKER_POLL_INTERVAL);
     interval.set_missed_tick_behavior(MissedTickBehavior::Delay);
-    // interval 的第一次 tick 立即就绪，启动时主动扫描一次，避免错过启动前已排队的 Run。
-    interval.tick().await;
-    drain_runnable_runs(&state).await;
-
     loop {
         tokio::select! {
             _ = cancel.cancelled() => break,
+            result = tasks.join_next(), if !tasks.is_empty() => {
+                if let Some(Err(error)) = result {
+                    tracing::error!(%error, "Agent execution task terminated unexpectedly");
+                }
+                fill_available_runs(&state, &worker_id, &cancel, &mut tasks).await;
+            }
             _ = notify.notified() => {
-                drain_runnable_runs(&state).await;
+                fill_available_runs(&state, &worker_id, &cancel, &mut tasks).await;
             }
             _ = interval.tick() => {
-                drain_runnable_runs(&state).await;
+                fill_available_runs(&state, &worker_id, &cancel, &mut tasks).await;
             }
         }
     }
+    maintenance_cancel.cancel();
+    state.shutdown().await;
+    if tokio::time::timeout(Duration::from_secs(10), async {
+        while let Some(result) = tasks.join_next().await {
+            if let Err(error) = result {
+                tracing::error!(%error, "Agent task shutdown failed");
+            }
+        }
+    })
+    .await
+    .is_err()
+    {
+        tasks.shutdown().await;
+        tracing::error!("Agent shutdown deadline elapsed; outstanding leases require recovery");
+    }
+    if let Err(error) = maintenance.await {
+        tracing::error!(%error, "Agent maintenance task shutdown failed");
+    }
 }
 
-async fn drain_runnable_runs(state: &AgentRuntimeState) {
-    let worker_id = format!("a4n-agent:{}", std::process::id());
-    maintain_agent_worker(state).await;
-
-    for _ in 0..WORKER_MAX_CLAIMS_PER_WAKEUP {
-        let request = match claim_agent_worker_request(state, &worker_id).await {
+async fn fill_available_runs(
+    state: &AgentRuntimeState,
+    worker_id: &str,
+    cancel: &CancellationToken,
+    tasks: &mut tokio::task::JoinSet<()>,
+) {
+    while tasks.len() < WORKER_MAX_CONCURRENT_RUNS && !cancel.is_cancelled() {
+        let request = match tokio::select! {
+            _ = cancel.cancelled() => break,
+            result = claim_agent_worker_request(state, worker_id) => result,
+        } {
             Ok(Some(request)) => request,
             Ok(None) => break,
             Err(error) => {
@@ -51,9 +98,12 @@ async fn drain_runnable_runs(state: &AgentRuntimeState) {
             }
         };
         let run_id = claimed.run.id;
-        if let Err(error) = execute_claimed_worker_run(state, claimed, request).await {
-            tracing::error!(run_id, error = %error, "Agent worker run failed");
-        }
+        let state = state.clone();
+        tasks.spawn(async move {
+            if let Err(error) = execute_claimed_worker_run(&state, claimed, request).await {
+                tracing::error!(run_id, error = %error, "Agent worker run failed");
+            }
+        });
     }
 }
 
@@ -105,10 +155,14 @@ pub async fn claim_agent_worker_request(
     let Some(mut request) = state.host().claim_worker(&request).await? else {
         return Ok(None);
     };
-    if request.payload.runtime_config_snapshot.is_none()
-        && let Some(snapshot) = state.agent_runtime_snapshot(request.payload.run_id).await
-    {
-        request.payload.runtime_config_snapshot = Some(serde_json::to_value(snapshot)?);
+    if request.payload.runtime_config_snapshot.is_none() {
+        let mut snapshot = state.agent_runtime_snapshot(request.payload.run_id).await;
+        if snapshot.is_none()
+            && let Some(parent_id) = request.payload.worker_run.run.parent_run_id
+        {
+            snapshot = state.agent_runtime_snapshot(parent_id).await;
+        }
+        request.payload.runtime_config_snapshot = snapshot.map(serde_json::to_value).transpose()?;
     }
     Ok(Some(request))
 }
@@ -140,7 +194,8 @@ async fn process_claimed_run_request(
     let run_cancel = state
         .register_agent_run_cancellation(claimed.run.id, claimed.run.parent_run_id)
         .await;
-    let renew_cancel = CancellationToken::new();
+    let worker_cancel = state.cancel_token();
+    let renew_cancel = worker_cancel.child_token();
     let renew_token = renew_cancel.clone();
     let lost_lease = run_cancel.clone();
     let renew_claim = claimed.clone();
@@ -166,18 +221,14 @@ async fn process_claimed_run_request(
     let outcome: Result<_, AppError> = async {
         let budget: AgentBudget = serde_json::from_value(claimed.run.budget_json.clone())?;
         validate_agent_budget(&budget)?;
-        let deadline = agent_duration_deadline(
-            &budget,
-            claimed.run.started_at.unwrap_or(claimed.run.created_at),
-        )?;
         Ok(tokio::select! {
             biased;
-            _ = async {
-                match deadline {
-                    Some(deadline) => tokio::time::sleep_until(deadline).await,
-                    None => std::future::pending::<()>().await,
-                }
-            } => None,
+            _ = worker_cancel.cancelled() => Some(Err(AppError::Cancelled)),
+            _ = run_cancel.cancelled() => Some(Ok(())),
+            elapsed = wait_for_duration_budget(state, &claimed) => match elapsed {
+                Ok(()) => None,
+                Err(error) => Some(Err(error)),
+            },
             result = Box::pin(process_claimed_run_inner(
                 state,
                 &claimed,
@@ -196,12 +247,32 @@ async fn process_claimed_run_request(
     };
     renew_cancel.cancel();
     renew_handle.abort();
+    if let Err(error) = renew_handle.await
+        && !error.is_cancelled()
+    {
+        tracing::error!(run_id = claimed.run.id, %error, "Agent lease task failed");
+    }
     state
         .unregister_agent_run_cancellation(claimed.run.id)
         .await;
     let mut terminal = false;
+    if worker_cancel.is_cancelled() {
+        match state
+            .mark_agent_recovery_required(
+                &claimed,
+                "Agent worker 已关闭，保留执行记录供恢复/对账".into(),
+            )
+            .await
+        {
+            Ok(()) => terminal = true,
+            Err(error) => {
+                tracing::warn!(run_id = claimed.run.id, %error, "Agent shutdown could not persist recovery state")
+            }
+        }
+    }
     if let Err(error) = &result
         && !run_cancel.is_cancelled()
+        && !worker_cancel.is_cancelled()
     {
         match failure_application
             .fail_child_run(&claimed, error.to_string())
@@ -213,33 +284,45 @@ async fn process_claimed_run_request(
             }
         }
     }
-    if result.is_ok()
-        && let Ok(is_terminal) = state.agent_worker_run_is_terminal(&claimed).await
-    {
-        terminal = is_terminal;
-    }
     if terminal {
         let _ = state.take_agent_runtime_snapshot(claimed.run.id).await;
     }
     result
 }
 
-fn agent_duration_deadline(
-    budget: &AgentBudget,
-    started_at: chrono::NaiveDateTime,
-) -> Result<Option<tokio::time::Instant>, AppError> {
-    let Some(seconds) = budget.max_duration_seconds else {
-        return Ok(None);
-    };
-    let elapsed = chrono::Utc::now()
-        .naive_utc()
-        .signed_duration_since(started_at)
-        .to_std()
-        .unwrap_or_default();
-    tokio::time::Instant::now()
-        .checked_add(Duration::from_secs(seconds).saturating_sub(elapsed))
-        .map(Some)
-        .ok_or_else(|| AppError::InvalidArgument("Agent max_duration_seconds 超出时钟范围".into()))
+async fn wait_for_duration_budget(
+    state: &AgentRuntimeState,
+    claimed: &AgentWorkerRun,
+) -> Result<(), AppError> {
+    loop {
+        let budget = state
+            .worker_budget_application(claimed)
+            .worker_budget_snapshot(claimed.run.id)
+            .await?;
+        if budget.max_duration_seconds == Some(0) {
+            return Ok(());
+        }
+        let Some(deadline) = budget
+            .usage
+            .get("duration_deadline_unix_ms")
+            .filter(|value| !value.is_null())
+        else {
+            return std::future::pending().await;
+        };
+        let deadline = deadline.as_i64().ok_or_else(|| AppError::InvalidState {
+            current: "Agent 预算截止时间无效".into(),
+            operation: "执行时长预算".into(),
+        })?;
+        let millis = deadline
+            .saturating_sub(chrono::Utc::now().timestamp_millis())
+            .max(1) as u64;
+        let wake = tokio::time::Instant::now()
+            .checked_add(Duration::from_millis(millis))
+            .ok_or_else(|| AppError::InvalidArgument("Agent 时长预算超出时钟范围".into()))?;
+        tokio::time::sleep_until(wake).await;
+        // An explicit parent extension may have changed this deadline while
+        // the request was streaming. Recheck without dropping a valid stream.
+    }
 }
 
 async fn suspend_agent_at_duration_limit(
@@ -330,34 +413,10 @@ async fn process_claimed_run_inner(
         })?;
     validate_agent_budget(&budget)?;
     let mut usage = usage_object(&context.usage)?;
-    let mut steps = json_u32(&usage, "steps_used")?;
-    let mut model_calls = json_u32(&usage, "model_calls_used")?;
-    let mut tool_calls = json_u32(&usage, "tool_calls_used")?;
-    let mut tokens = json_u64(&usage, "tokens_used")?;
     if usage.get("phase").and_then(Value::as_str).is_none() {
         usage["phase"] = json!(a4n_api_contract::agent::AGENT_PHASE_DISCOVER);
         usage["phase_revision"] = json!(0);
     }
-    let model_executions = context
-        .executions
-        .iter()
-        .filter(|execution| execution.execution_kind == "model_call")
-        .collect::<Vec<_>>();
-    model_calls = model_calls.max(u32::try_from(model_executions.len()).map_err(|_| {
-        AppError::InvalidState {
-            current: "Agent 模型执行计数超出 u32".into(),
-            operation: "恢复模型计数".into(),
-        }
-    })?);
-    steps = steps.max(model_calls);
-    let mut recorded_tokens = 0_u64;
-    for execution in model_executions {
-        if execution.status == "succeeded" {
-            recorded_tokens = recorded_tokens.saturating_add(execution_total_tokens(execution)?);
-        }
-    }
-    tokens = tokens.max(recorded_tokens);
-    let started_at = context.run.started_at.unwrap_or(context.run.created_at);
     let config_id = context
         .turn
         .model_override_json
@@ -380,48 +439,27 @@ async fn process_claimed_run_inner(
             )?;
         }
     }
-    for execution in &context.executions {
-        if execution.status == "succeeded"
-            && let Some(tool_name) = execution.tool_name.as_deref()
-        {
-            extend_discovered_tools(
-                &mut discovered_tools,
-                discovered_tool_names(tool_name, &execution.result_json)?,
-                &context.scope,
-            )?;
-        }
-    }
-    let mut prepared_calls = context
-        .executions
-        .iter()
-        .filter_map(|execution| execution.execution_key.strip_prefix("tool-call:"))
-        .map(str::to_string)
-        .collect::<HashSet<_>>();
     let discovery_cache = Arc::new(Mutex::new(successful_discovery_cache(&context.executions)));
     let retry_counts = Arc::new(Mutex::new(observation::restored_retry_counts(
         &context.executions,
     )?));
-    tool_calls = tool_calls.max(u32::try_from(prepared_calls.len()).map_err(|_| {
-        AppError::InvalidState {
-            current: "Agent 工具执行计数超出 u32".into(),
-            operation: "恢复 Agent 工具执行".into(),
-        }
-    })?);
     let executor = RuntimeAgentToolExecutor::new(state.clone(), request.clone());
 
-    if let Some((content, input_message_id)) = recovered_final {
-        persist_usage(
-            state,
-            claimed,
-            &usage,
-            steps,
-            model_calls,
-            tool_calls,
-            tokens,
-        )
-        .await?;
-        complete_run(state, claimed, content, input_message_id).await?;
-        return Ok(());
+    if let Some((content, source_execution_id)) = recovered_final {
+        persist_usage(state, claimed, &usage).await?;
+        let source = context
+            .executions
+            .iter()
+            .find(|execution| execution.id == source_execution_id)
+            .ok_or_else(|| AppError::InvalidState {
+                current: "恢复的完成决定缺少模型执行".into(),
+                operation: "恢复 Agent".into(),
+            })?;
+        if complete_run(state, claimed, content, source, &mut messages).await?
+            == RunProgress::Released
+        {
+            return Ok(());
+        }
     }
 
     // Approval/child completion requeues this Run. Resume its original calls
@@ -440,16 +478,11 @@ async fn process_claimed_run_inner(
                 context: &context,
                 executor: &executor,
                 budget: &budget,
-                prepared_calls: &mut prepared_calls,
                 discovery_cache: &discovery_cache,
                 retry_counts: &retry_counts,
                 discovered_tools: &mut discovered_tools,
                 messages: &mut messages,
                 usage: &mut usage,
-                tool_calls: &mut tool_calls,
-                steps,
-                model_calls,
-                tokens,
             },
             calls,
         )
@@ -472,44 +505,25 @@ async fn process_claimed_run_inner(
             &mut pinned_user_contents,
         )
         .await?;
-        if steps >= budget.max_steps.unwrap_or(WORKER_MAX_STEPS)
-            || model_calls >= budget.max_model_calls.unwrap_or(WORKER_MAX_STEPS)
-            || action_budget_exhausted(&budget, tokens, started_at)
-        {
-            persist_usage(
-                state,
-                claimed,
-                &usage,
-                steps,
-                model_calls,
-                tool_calls,
-                tokens,
-            )
-            .await?;
-            state.wait_agent_worker_run(claimed, "budget").await?;
-            return Ok(());
-        }
-        steps = steps.saturating_add(1);
-        model_calls = model_calls.saturating_add(1);
-        usage["steps_used"] = json!(steps);
-        usage["model_calls_used"] = json!(model_calls);
-        let model_execution_key = format!("model-call:{model_calls}");
+        context = state.load_agent_run_context(request).await?;
+        *retry_counts.lock().await = observation::restored_retry_counts(&context.executions)?;
+        messages = chat_messages(&context)?;
+        loaded_message_ids.extend(context.messages.iter().map(|message| message.id));
+        pinned_user_contents = context
+            .messages
+            .iter()
+            .filter(|message| message.turn_id == Some(context.turn.id) && message.role == "user")
+            .map(|message| message.content.clone())
+            .collect();
+        let model_execution_key = model::next_model_execution_key(&context.executions)?;
         let existing_model_execution = state
             .worker_execution_by_key(claimed, &model_execution_key)
             .await?;
         let request = if let Some(existing) = existing_model_execution.as_ref() {
             model_execution_request(existing)?
         } else {
-            let tool_window = available_runtime_tools(
-                &context.profile_id,
-                &context.scope,
-                usage
-                    .get("phase")
-                    .and_then(Value::as_str)
-                    .unwrap_or(a4n_api_contract::agent::AGENT_PHASE_DISCOVER),
-                &discovered_tools,
-                &context.executions,
-            )?;
+            let tool_window =
+                available_runtime_tools(&context.profile_id, &context.scope, &discovered_tools)?;
             usage["tool_window"] = json!({
                 "schema_limit": MAX_AGENT_TOOL_SCHEMAS,
                 "dropped_optional": tool_window.dropped_optional,
@@ -535,28 +549,13 @@ async fn process_claimed_run_inner(
             {
                 Ok(capabilities) => capabilities,
                 Err(error) => {
-                    record_provider_failure(
-                        state,
-                        claimed,
-                        &mut usage,
-                        UsageCounters {
-                            steps,
-                            model_calls,
-                            tool_calls,
-                            tokens,
-                        },
-                        &error,
-                    )
-                    .await?;
+                    record_provider_failure(state, claimed, &mut usage, &error).await?;
                     return Err(error);
                 }
             };
             let capabilities = llm_capabilities.model;
             let requested_output_tokens = validated_model_output_tokens(&capabilities)?;
-            let protocol = match snapshot.as_ref() {
-                Some(snapshot) => agent_protocol_for_snapshot(Some(snapshot), config_id)?,
-                None => llm_capabilities.agent_protocol,
-            };
+            let protocol = llm_capabilities.agent_protocol;
             let base_messages = with_agent_system_prompt(
                 history::pair_tool_messages(&messages)?,
                 &context,
@@ -568,7 +567,7 @@ async fn process_claimed_run_inner(
                     .and_then(Value::as_str)
                     .unwrap_or(a4n_api_contract::agent::AGENT_PHASE_DISCOVER),
             );
-            let projection = history::fit_context_projection(
+            let mut projection = history::fit_context_projection(
                 base_messages,
                 &tools,
                 capabilities.max_context_tokens,
@@ -578,93 +577,63 @@ async fn process_claimed_run_inner(
                     .map(String::as_str)
                     .collect::<Vec<_>>(),
             )?;
-            let mut context_input_tokens = projection.input_tokens;
-            let mut context_capacity_tokens = projection.capacity;
             let latest_message_sequence = loaded_message_ids.iter().copied().max().unwrap_or(0);
-            let summary_covered_sequence = context
-                .thread
-                .context_summary
-                .as_ref()
-                .and_then(|summary| summary.get("covered_through_sequence"))
-                .and_then(Value::as_i64)
-                .unwrap_or(-1);
-            let can_spend_summary_call = budget.max_steps.is_none_or(|limit| model_calls < limit)
-                && budget
-                    .max_model_calls
-                    .is_none_or(|limit| model_calls < limit);
-            let mut output_tokens = projection.output_tokens;
-            let mut request_messages = projection.messages;
-            if projection.input_tokens.saturating_mul(100) >= projection.capacity.saturating_mul(80)
-                && !projection.omitted.is_empty()
-                && latest_message_sequence > summary_covered_sequence
-                && can_spend_summary_call
+            while projection.omitted_history
+                || projection.input_tokens.saturating_mul(100)
+                    >= projection.capacity.saturating_mul(80)
             {
-                let source = history::summary_source(
-                    &projection.omitted,
-                    context.thread.context_summary.as_ref(),
-                    history::CONTEXT_SUMMARY_SOURCE_TOKENS,
-                )?;
+                let source_budget = capabilities.max_context_tokens.saturating_mul(65) / 100;
+                let Some((source, covered)) = history::summary_source(&context, source_budget)?
+                else {
+                    if projection.omitted_history {
+                        return Err(AppError::InvalidArgument(
+                            "完整历史批次无法装入摘要请求；原始记录已保留，请使用更大上下文的模型"
+                                .into(),
+                        ));
+                    }
+                    break;
+                };
                 let outcome = compact_context(
                     state,
                     claimed,
                     &mut context,
-                    latest_message_sequence,
+                    covered,
                     source,
+                    config_id,
+                    capabilities.max_context_tokens,
+                    requested_output_tokens,
                 )
                 .await?;
-                if outcome.applied {
-                    if let Some(summary_tokens) = outcome.new_tokens {
-                        steps = steps.saturating_add(1);
-                        model_calls = model_calls.saturating_add(1);
-                        tokens = tokens.saturating_add(summary_tokens);
-                        usage["steps_used"] = json!(steps);
-                        usage["model_calls_used"] = json!(model_calls);
-                        usage["tokens_used"] = json!(tokens);
-                    }
-                    let post_compaction = history::fit_context_projection(
-                        with_agent_system_prompt(
-                            history::pair_tool_messages(&messages)?,
-                            &context,
-                            &skills,
-                            &tools,
-                            &protocol,
-                            usage
-                                .get("phase")
-                                .and_then(Value::as_str)
-                                .unwrap_or(a4n_api_contract::agent::AGENT_PHASE_DISCOVER),
-                        ),
-                        &tools,
-                        capabilities.max_context_tokens,
-                        requested_output_tokens,
-                        &pinned_user_contents
-                            .iter()
-                            .map(String::as_str)
-                            .collect::<Vec<_>>(),
-                    )?;
-                    context_input_tokens = post_compaction.input_tokens;
-                    context_capacity_tokens = post_compaction.capacity;
-                    output_tokens = post_compaction.output_tokens;
-                    request_messages = post_compaction.messages;
+                if outcome == RunProgress::Released {
+                    return Ok(());
                 }
+                messages = chat_messages(&context)?;
+                projection = history::fit_context_projection(
+                    with_agent_system_prompt(
+                        history::pair_tool_messages(&messages)?,
+                        &context,
+                        &skills,
+                        &tools,
+                        &protocol,
+                        usage
+                            .get("phase")
+                            .and_then(Value::as_str)
+                            .unwrap_or(a4n_api_contract::agent::AGENT_PHASE_DISCOVER),
+                    ),
+                    &tools,
+                    capabilities.max_context_tokens,
+                    requested_output_tokens,
+                    &pinned_user_contents
+                        .iter()
+                        .map(String::as_str)
+                        .collect::<Vec<_>>(),
+                )?;
             }
-            usage["context_input_tokens"] = json!(context_input_tokens);
-            usage["context_capacity_tokens"] = json!(context_capacity_tokens);
-            persist_usage(
-                state,
-                claimed,
-                &usage,
-                steps,
-                model_calls,
-                tool_calls,
-                tokens,
-            )
-            .await?;
-            let context_manifest_json = Some(serde_json::to_value(context::build_manifest(
-                &context,
-                &request_messages,
-                &skills,
-                latest_message_sequence,
-            )?)?);
+            let output_tokens = projection.output_tokens;
+            let request_messages = projection.messages;
+            usage["context_input_tokens"] = json!(projection.input_tokens);
+            usage["context_capacity_tokens"] = json!(projection.capacity);
+            persist_usage(state, claimed, &usage).await?;
             let mut request = ChatRequest {
                 messages: request_messages,
                 vision_images: Vec::new(),
@@ -675,21 +644,28 @@ async fn process_claimed_run_inner(
                 cache_scope_key: Some(format!("agent-thread:{}", context.thread.id)),
                 cache_breakpoints: Vec::new(),
                 cache_mode: None,
-                cache_system_prefix: true,
-                cache_user_prefix_len: None,
                 trace_context: Some(LlmTraceContext {
                     project_id: context.scope.project_id,
                     root_project_id: None,
                     workflow: "agent".into(),
-                    step_key: format!("run:{}:model:{model_calls}", claimed.run.id),
+                    step_key: format!("run:{}:{}", claimed.run.id, model_execution_key),
                     generation_run_id: None,
                     workflow_run_id: None,
-                    call_key: Some(format!("model-call:{model_calls}")),
+                    call_key: Some(model_execution_key.clone()),
                     input_fingerprint_sha256: None,
-                    context_plan_json: None,
+                    context_plan_json: Some(json!({
+                        "owner": "agent-runtime",
+                        "history_message_id": latest_message_sequence,
+                        "summary_message_id": context.thread.context_summary.as_ref().and_then(|value| value.get("covered_through_sequence")),
+                        "input_tokens": projection.input_tokens,
+                        "capacity_tokens": projection.capacity,
+                    })),
                     context_pack_refs_json: None,
                 }),
-                context_manifest_json,
+                // Agent history is already projected as complete immutable
+                // batches. The single-user manifest renderer must not rewrite
+                // an old user instruction or insert a second context owner.
+                context_manifest_json: None,
                 tools: None,
                 tool_choice: None,
                 stop_sequences: None,
@@ -705,11 +681,10 @@ async fn process_claimed_run_inner(
                     &serde_json::to_value(&request)?,
                 );
                 let input_tokens = reserved.saturating_sub(output_tokens as u64);
-                if remaining <= input_tokens {
-                    state.wait_agent_worker_run(claimed, "budget").await?;
-                    return Ok(());
+                if remaining > input_tokens {
+                    request.max_tokens =
+                        Some(output_tokens.min((remaining - input_tokens) as usize));
                 }
-                request.max_tokens = Some(output_tokens.min((remaining - input_tokens) as usize));
             }
             let snapshot = state.agent_runtime_snapshot(claimed.run.id).await;
             request = state
@@ -749,7 +724,7 @@ async fn process_claimed_run_inner(
         let replayed_model_execution = model_execution.status == "succeeded";
         let request_protocol =
             agent_protocol_from_request_snapshot(&request.snapshot_value()?).to_string();
-        let response: ChatResponse = if replayed_model_execution {
+        let mut response: ChatResponse = if replayed_model_execution {
             serde_json::from_value(model_execution.result_json.clone().ok_or_else(|| {
                 AppError::InvalidState {
                     current: format!(
@@ -773,7 +748,12 @@ async fn process_claimed_run_inner(
                 })
                 .await?;
             let stream_client_message_id =
-                format!("agent-stream:{}:{}", claimed.run.id, model_calls);
+                stream_client_message_id(claimed.run.id, &model_execution).ok_or_else(|| {
+                    AppError::InvalidState {
+                        current: "主模型执行缺少流身份".into(),
+                        operation: "启动模型流".into(),
+                    }
+                })?;
             let snapshot = state.agent_runtime_snapshot(claimed.run.id).await;
             let call = state.host().chat_stream(
                 context.owner_user_id,
@@ -790,12 +770,6 @@ async fn process_claimed_run_inner(
                             state,
                             claimed,
                             &mut usage,
-                            UsageCounters {
-                                steps,
-                                model_calls,
-                                tool_calls,
-                                tokens,
-                            },
                             &error,
                         )
                         .await?;
@@ -803,7 +777,7 @@ async fn process_claimed_run_inner(
                     }
                 },
             };
-            let response = match consume_model_stream(
+            match consume_model_stream(
                 stream,
                 &state.worker_message_application(claimed),
                 claimed,
@@ -814,37 +788,19 @@ async fn process_claimed_run_inner(
             {
                 Ok(response) => response,
                 Err(error) => {
-                    record_provider_failure(
-                        state,
-                        claimed,
-                        &mut usage,
-                        UsageCounters {
-                            steps,
-                            model_calls,
-                            tool_calls,
-                            tokens,
-                        },
-                        &error,
-                    )
-                    .await?;
+                    record_provider_failure(state, claimed, &mut usage, &error).await?;
                     return Err(error);
                 }
-            };
-            response
+            }
         };
-        let decision = decode_agent_response(&response, &request_protocol, model_execution.id)
-            .and_then(|decision| {
-                if budget.max_tokens.is_some() && response.usage.is_none() {
-                    return Err(AppError::InvalidState {
-                        current: format!(
-                            "Agent run {} 的模型响应缺少 usage，无法执行 max_tokens 预算",
-                            claimed.run.id
-                        ),
-                        operation: "执行 Agent model call".into(),
-                    });
+        let decision = decode_agent_response(&response, &request_protocol, model_execution.id).map(
+            |mut decision| {
+                if !replayed_model_execution {
+                    model::namespace_tool_calls(&mut response, &mut decision, model_execution.id);
                 }
-                Ok(decision)
-            });
+                decision
+            },
+        );
         if !replayed_model_execution {
             execution_application
                 .update_worker_execution(WorkerExecutionUpdate {
@@ -871,25 +827,6 @@ async fn process_claimed_run_inner(
                 })
                 .await?;
         }
-        // A succeeded durable execution is a replay after a worker restart;
-        // its usage was already persisted before the crash. Counting it
-        // again would let retries silently exceed token budgets.
-        if !replayed_model_execution {
-            if let Some(info) = response.usage.as_ref() {
-                tokens = tokens.saturating_add(info.total_tokens as u64);
-            }
-        }
-        usage["tokens_used"] = json!(tokens);
-        persist_usage(
-            state,
-            claimed,
-            &usage,
-            steps,
-            model_calls,
-            tool_calls,
-            tokens,
-        )
-        .await?;
         let decision = decision?;
         let (assistant_content, calls, is_final) = match decision {
             AgentModelDecision::Final { reply } => (reply, Vec::new(), true),
@@ -898,26 +835,21 @@ async fn process_claimed_run_inner(
         };
         if is_final {
             usage["phase"] = json!(a4n_api_contract::agent::AGENT_PHASE_FINAL);
-            usage["tokens_used"] = json!(tokens);
-            usage["tool_calls_used"] = json!(tool_calls);
-            persist_usage(
-                state,
-                claimed,
-                &usage,
-                steps,
-                model_calls,
-                tool_calls,
-                tokens,
-            )
-            .await?;
-            complete_run(
+            persist_usage(state, claimed, &usage).await?;
+            if complete_run(
                 state,
                 claimed,
                 assistant_content,
-                execution_input_message_id(&model_execution)?,
+                &model_execution,
+                &mut messages,
             )
-            .await?;
-            return Ok(());
+            .await?
+                == RunProgress::Released
+            {
+                return Ok(());
+            }
+            usage["phase"] = json!(a4n_api_contract::agent::AGENT_PHASE_VERIFY);
+            continue;
         }
         let mut assistant = ChatMessage::assistant(assistant_content.clone());
         assistant.tool_calls = (!calls.is_empty()).then_some(calls.clone());
@@ -941,7 +873,12 @@ async fn process_claimed_run_inner(
         };
         if finalized.is_none() {
             message_application
-                .append_assistant_tool_message(claimed, assistant_content, tool_calls_payload)
+                .append_assistant_tool_message(
+                    claimed,
+                    assistant_content,
+                    tool_calls_payload,
+                    format!("agent-decision:{}", model_execution.id),
+                )
                 .await?;
         }
         messages.push(assistant);
@@ -952,16 +889,11 @@ async fn process_claimed_run_inner(
                 context: &context,
                 executor: &executor,
                 budget: &budget,
-                prepared_calls: &mut prepared_calls,
                 discovery_cache: &discovery_cache,
                 retry_counts: &retry_counts,
                 discovered_tools: &mut discovered_tools,
                 messages: &mut messages,
                 usage: &mut usage,
-                tool_calls: &mut tool_calls,
-                steps,
-                model_calls,
-                tokens,
             },
             calls,
         )
@@ -970,8 +902,6 @@ async fn process_claimed_run_inner(
         {
             return Ok(());
         }
-        usage["tool_calls_used"] = json!(tool_calls);
-        usage["tokens_used"] = json!(tokens);
         state
             .update_agent_worker_usage(claimed, usage.clone())
             .await?;

@@ -62,7 +62,7 @@ export const EmbeddingConfigEditor: React.FC<EmbeddingConfigEditorProps> = ({
         />
       </FormField>
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+      <div className="a4n-config-form-grid">
         <FormField label={t("settingsForm.backend")}>
           <ThemedSelect
             value={form.backend}
@@ -82,12 +82,12 @@ export const EmbeddingConfigEditor: React.FC<EmbeddingConfigEditorProps> = ({
                 clear_api_key: backend === "api" ? form.clear_api_key : false,
                 dimension:
                   backend === "local_hash"
-                    ? 384
+                    ? "384"
                     : backend === "fastembed"
-                      ? fastembedModel?.dimension ?? DEFAULT_FASTEMBED_DIMENSION
+                      ? String(fastembedModel?.dimension ?? DEFAULT_FASTEMBED_DIMENSION)
                       : form.dimension,
                 batch_size:
-                  backend === "fastembed" && form.batch_size === 100 ? 32 : form.batch_size,
+                  backend === "fastembed" && form.batch_size === "100" ? "32" : form.batch_size,
               });
             }}
             className="pyqt-input w-full"
@@ -118,7 +118,7 @@ export const EmbeddingConfigEditor: React.FC<EmbeddingConfigEditorProps> = ({
                 setForm({
                   ...form,
                   model: modelName,
-                  dimension: localModel?.dimension ?? form.dimension,
+                  dimension: localModel ? String(localModel.dimension) : form.dimension,
                 });
               }}
               className="pyqt-input w-full"
@@ -203,7 +203,7 @@ export const EmbeddingConfigEditor: React.FC<EmbeddingConfigEditorProps> = ({
         </>
       )}
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+      <div className="a4n-config-form-grid">
         <FormField
           label={t("settingsForm.dimension")}
           required
@@ -213,9 +213,9 @@ export const EmbeddingConfigEditor: React.FC<EmbeddingConfigEditorProps> = ({
             type="number"
             min={32}
             max={8192}
-            value={String(form.dimension)}
+            value={form.dimension}
             disabled={readonly || form.backend === "fastembed"}
-            onChange={(e) => setForm({ ...form, dimension: Number(e.target.value) })}
+            onChange={(e) => setForm({ ...form, dimension: e.target.value })}
           />
         </FormField>
         <FormField label={t("settingsForm.batchSize")} required>
@@ -223,13 +223,14 @@ export const EmbeddingConfigEditor: React.FC<EmbeddingConfigEditorProps> = ({
             type="number"
             min={1}
             max={2048}
-            value={String(form.batch_size)}
-            onChange={(e) => setForm({ ...form, batch_size: Number(e.target.value) })}
+            value={form.batch_size}
+            onChange={(e) => setForm({ ...form, batch_size: e.target.value })}
             disabled={readonly}
           />
         </FormField>
       </div>
       <PricingPlanFields
+        kind="embedding"
         value={form.pricing}
         onChange={(pricing) => setForm({ ...form, pricing })}
         readonly={readonly}

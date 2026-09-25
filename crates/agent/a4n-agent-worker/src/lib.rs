@@ -10,8 +10,6 @@ use sea_orm::Database;
 use std::{env, net::SocketAddr, sync::Arc, time::Duration};
 use tokio::sync::oneshot;
 
-const POLL_INTERVAL: Duration = Duration::from_secs(2);
-const MAINTENANCE_INTERVAL: Duration = Duration::from_secs(2);
 const WORKER_ID_ENV: &str = "A4N_AGENT_WORKER_ID";
 
 pub fn run() -> anyhow::Result<()> {
@@ -36,10 +34,12 @@ async fn async_main() -> anyhow::Result<()> {
     let client = Client::builder()
         .connect_timeout(Duration::from_secs(5))
         .build()?;
-    let host = Arc::new(
-        HttpAgentRuntimeHost::new(client, control_base_url.clone(), worker_token.clone())
-            .with_application(application.clone()),
-    );
+    let host = Arc::new(HttpAgentRuntimeHost::new(
+        client,
+        control_base_url.clone(),
+        worker_token.clone(),
+        application.clone(),
+    ));
     let runtime = Arc::new(AgentRuntimeState::new(host));
     let listener = tokio::net::TcpListener::bind(worker_address).await?;
     let (shutdown_sender, shutdown_receiver) = oneshot::channel();
@@ -48,7 +48,8 @@ async fn async_main() -> anyhow::Result<()> {
         health::router(
             worker_id.clone(),
             worker_token.clone(),
-            Some(application.clone()),
+            application.clone(),
+            runtime.clone(),
         ),
         shutdown_receiver,
     ));
@@ -59,32 +60,28 @@ async fn async_main() -> anyhow::Result<()> {
         health = %worker_address,
         "A4N Agent worker started"
     );
-    let mut poll = tokio::time::interval(POLL_INTERVAL);
-    let mut maintenance = tokio::time::interval(MAINTENANCE_INTERVAL);
-    poll.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
-    maintenance.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
+    let mut driver = Box::pin(engine::run_worker(
+        runtime.as_ref().clone(),
+        runtime.cancel_token(),
+        runtime.notify(),
+        worker_id,
+    ));
+    let mut driver_stopped = false;
     let mut shutdown = Box::pin(shutdown_signal());
 
     let mut health_server_result = None;
-    loop {
-        tokio::select! {
-            _ = &mut shutdown => break,
-            result = &mut health_server => {
-                health_server_result = Some(result);
-                break;
-            }
-            _ = poll.tick() => {
-                if let Err(error) = poll_and_execute(
-                    &runtime,
-                    &worker_id,
-                ).await {
-                    tracing::warn!(error = %error, "A4N Agent worker poll failed");
-                }
-            }
-            _ = maintenance.tick() => engine::maintain_agent_worker(runtime.as_ref()).await,
+    tokio::select! {
+        _ = &mut shutdown => {}
+        result = &mut health_server => {
+            health_server_result = Some(result);
         }
+        _ = &mut driver => { driver_stopped = true; }
     }
 
+    runtime.shutdown().await;
+    if !driver_stopped {
+        driver.await;
+    }
     let _ = shutdown_sender.send(());
     let health_result = match health_server_result {
         Some(result) => match result {
@@ -101,18 +98,10 @@ async fn async_main() -> anyhow::Result<()> {
             .map_err(|error| anyhow::anyhow!("A4N Agent worker health server task failed: {error}"))
             .and_then(|result| result),
     };
-    runtime.shutdown().await;
+    if driver_stopped {
+        anyhow::bail!("A4N Agent driver stopped unexpectedly");
+    }
     health_result
-}
-
-async fn poll_and_execute(runtime: &Arc<AgentRuntimeState>, worker_id: &str) -> anyhow::Result<()> {
-    let Some(request) = engine::claim_agent_worker_request(runtime.as_ref(), worker_id).await?
-    else {
-        return Ok(());
-    };
-    let claimed = engine::agent_worker_run_from_wire(request.payload.worker_run.clone())?;
-    engine::execute_claimed_worker_run(runtime.as_ref(), claimed, request).await?;
-    Ok(())
 }
 
 fn control_addr() -> anyhow::Result<SocketAddr> {

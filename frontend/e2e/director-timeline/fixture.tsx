@@ -4,14 +4,13 @@ import { I18nProvider } from "../../src/i18n";
 import { ConfirmDialogHost } from "../../src/components/feedback/ConfirmDialog";
 import { ToastContainer } from "../../src/components/feedback/Toast";
 import { ChapterWorkspace, type BottomTab } from "../../src/pages/writing-desk/ChapterWorkspace";
-import { writeCurrentAccessToken, writeCurrentUserId } from "../../src/api/authStorage";
+import { writeFixtureAuth } from "../fixtureAuth";
 import type { ChapterVisualPlanV3 } from "../../src/api/chapterVisualPlan";
 import type { ChapterSummary } from "../../src/api/chapter";
 import "../../src/index.css";
 
 // UI transport fixture only. Domain edits and persistence are tested against Rust/CLI separately.
-writeCurrentUserId(1);
-writeCurrentAccessToken("director-browser-fixture");
+await writeFixtureAuth("director-browser-fixture");
 const commands: Array<{ command: string; input: unknown }> = [];
 Object.assign(window, { directorCommands: commands });
 let revision = 1;

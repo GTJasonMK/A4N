@@ -728,7 +728,7 @@ impl crate::OrchestratorContext {
                 video.id,
                 &persisted.file_path,
                 persisted.thumbnail_path.as_deref(),
-                persisted.file_size,
+                &persisted.properties,
                 persisted.metadata_json.clone(),
                 prompt_id,
             )

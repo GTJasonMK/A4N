@@ -1,8 +1,8 @@
 use super::query::galgame_generation_specs_by_canonical_key;
 use super::references::replace_galgame_generation_spec_ref_records;
 use super::upsert::{
-    galgame_generation_spec_content_changed, galgame_generation_spec_source_hash_for_value,
-    new_galgame_generation_spec_model, updated_galgame_generation_spec_model,
+    galgame_generation_spec_content_changed, new_galgame_generation_spec_model,
+    updated_galgame_generation_spec_model,
 };
 use crate::galgame::{
     GalgameAssetPlanSpecRecordError, GalgameAssetPlanSpecRecordInput,
@@ -10,11 +10,12 @@ use crate::galgame::{
     GalgameGenerationSpecTextAnchorRefRecordInput, GalgameGenerationSpecUpsert,
     GalgameGenerationSpecUpsertOutcome,
 };
-use a4n_db_models::models::generation::generation_spec;
+use a4n_db_models::models::{generation::generation_spec, project::project_source_snapshot};
 use chrono::Utc;
 use sea_orm::sea_query::{CaseStatement, Expr};
 use sea_orm::{
-    ColumnTrait, DatabaseConnection, EntityTrait, NotSet, QueryFilter, TransactionTrait,
+    ColumnTrait, DatabaseConnection, EntityTrait, NotSet, QueryFilter, QuerySelect,
+    TransactionTrait,
 };
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -31,6 +32,27 @@ pub async fn upsert_galgame_asset_plan_spec_records_transaction(
     let mut ref_inputs = Vec::with_capacity(inputs.len());
     let mut pending_inserts = BTreeMap::<String, generation_spec::Model>::new();
     let mut pending_updates = BTreeMap::<i64, generation_spec::Model>::new();
+    let snapshots = project_source_snapshot::Entity::find()
+        .select_only()
+        .columns([
+            project_source_snapshot::Column::Id,
+            project_source_snapshot::Column::RootProjectId,
+            project_source_snapshot::Column::SourceVersionHash,
+        ])
+        .filter(
+            project_source_snapshot::Column::Id.is_in(
+                inputs
+                    .iter()
+                    .map(|input| input.spec.source_snapshot_id)
+                    .collect::<BTreeSet<_>>(),
+            ),
+        )
+        .into_tuple::<(i64, i64, String)>()
+        .all(&tx)
+        .await?
+        .into_iter()
+        .map(|(id, root, hash)| (id, (root, hash)))
+        .collect::<BTreeMap<_, _>>();
 
     for input in inputs {
         if input.spec.project_id != project_id {
@@ -49,7 +71,16 @@ pub async fn upsert_galgame_asset_plan_spec_records_transaction(
         let entity_profile_id = input.entity_profile_id;
         let spec = input.spec;
         let canonical_key = spec.canonical_key.clone();
-        let source_version_hash = galgame_generation_spec_source_hash_for_value(&spec.params_json)?;
+        let (_, source_version_hash) = snapshots
+            .get(&spec.source_snapshot_id)
+            .filter(|(root, _)| *root == spec.root_project_id)
+            .ok_or_else(|| {
+                GalgameAssetPlanSpecRecordError::InvalidArgument(format!(
+                    "Galgame 资产生成意图的源快照不属于根项目: snapshot_id={}, root_project_id={}",
+                    spec.source_snapshot_id, spec.root_project_id
+                ))
+            })?;
+        let source_version_hash = source_version_hash.clone();
         let now = Utc::now().naive_utc();
         let (model, outcome) = if let Some(existing) =
             existing_specs_by_canonical_key.get(&canonical_key).cloned()

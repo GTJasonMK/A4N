@@ -1,12 +1,13 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Plus, Trash2 } from "lucide-react";
+import { ChevronRight, Plus, Trash2 } from "lucide-react";
 import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
 import { Dropdown } from "../../../components/ui/Dropdown";
 import { ThemedCombobox } from "../../../components/ui/ThemedCombobox";
 import { ThemedSelect } from "../../../components/ui/ThemedSelect";
+import { BookInput, BookTextarea } from "../../../components/ui/BookInput";
 import { MediaAssetIdBinder } from "./MediaAssetIdBinder";
 import { presentationCgNote, updatePresentationJson, type PresentationPatch } from "./presentation";
-import { ChoiceEditor } from "./GalgameChoiceEditor";
+import { ChoiceEditor, type ChoiceDraft } from "./GalgameChoiceEditor";
 import {
   ImageBindingStrip,
   LineMediaBindings,
@@ -15,7 +16,6 @@ import { useI18n } from "../../../i18n";
 import type { SourceSnapshotChapterSummary } from "../../../api/project";
 import type {
   GalgameCgImportance,
-  GalgameChoice,
   GalgameLine,
   GalgameLinePresentationDocumentV2,
   GalgameLineType,
@@ -49,7 +49,8 @@ interface LineEditorProps {
   sourceAnchor: GalgameTextAnchorSummary | null;
   sourceChapter: SourceSnapshotChapterSummary | null;
   mediaBindings: GalgameMediaBindingSummary[];
-  choices: GalgameChoice[];
+  choiceDrafts: ChoiceDraft[];
+  onChoiceDraftsChange: (drafts: ChoiceDraft[]) => void;
   scenes: GalgameSceneDetail[];
   sceneById: Map<number, GalgameSceneDetail>;
   disabled: boolean;
@@ -142,8 +143,10 @@ export const SceneMetaEditor: React.FC<{
 
   return (
     <div className="grid gap-3 border-b border-book-border bg-book-bg px-4 py-3 text-xs lg:grid-cols-[minmax(0,1fr)_220px]">
-      <div className="grid gap-2 md:grid-cols-[1.2fr_0.8fr_0.8fr]">
-        <input
+      <div className="grid grid-cols-2 content-start items-start gap-2 md:grid-cols-[1.2fr_0.8fr_0.8fr]">
+        <div className="col-span-2 md:col-span-1">
+        <BookInput
+          label={t("galgame.sceneTitle")}
           className="pyqt-input text-book-text-main"
           value={draft.title}
           disabled={disabled}
@@ -152,7 +155,9 @@ export const SceneMetaEditor: React.FC<{
           }
           onBlur={() => commit("title", draft.title)}
         />
-        <input
+        </div>
+        <BookInput
+          label={t("galgame.location")}
           className="pyqt-input text-book-text-main"
           value={draft.location}
           disabled={disabled}
@@ -165,7 +170,8 @@ export const SceneMetaEditor: React.FC<{
           }
           onBlur={() => commit("location", draft.location)}
         />
-        <input
+        <BookInput
+          label={t("galgame.time")}
           className="pyqt-input text-book-text-main"
           value={draft.time_of_day}
           disabled={disabled}
@@ -178,8 +184,10 @@ export const SceneMetaEditor: React.FC<{
           }
           onBlur={() => commit("time_of_day", draft.time_of_day)}
         />
-        <textarea
-          className="pyqt-input min-h-16 text-book-text-main md:col-span-3"
+        <div className="col-span-2 md:col-span-3">
+        <BookTextarea
+          label={t("galgame.backgroundNeed")}
+          className="min-h-16 text-book-text-main"
           value={draft.background_note}
           disabled={disabled}
           placeholder={t("galgame.backgroundNeed")}
@@ -191,8 +199,12 @@ export const SceneMetaEditor: React.FC<{
           }
           onBlur={() => commit("background_note", draft.background_note)}
         />
+        </div>
+        <div className="col-span-2 md:col-span-3">
+        <div className="mb-1.5 text-xs font-semibold text-book-text-sub">{t("galgame.nextScene")}</div>
         <ThemedSelect
-          className="pyqt-input text-book-text-main md:col-span-3"
+          aria-label={t("galgame.nextScene")}
+          className="pyqt-input text-book-text-main"
           value={draft.next_scene_id}
           disabled={disabled}
           onChange={(value) => {
@@ -216,8 +228,9 @@ export const SceneMetaEditor: React.FC<{
             </option>
           ))}
         </ThemedSelect>
+        </div>
       </div>
-      <details className="rounded-xl border border-book-border/40 bg-book-bg-paper/45 p-2.5">
+      <details className="self-start rounded-xl border border-book-border/40 bg-book-bg-paper/45 p-2.5">
         <summary className="cursor-pointer text-small font-medium text-book-text-main">
           {t("galgame.background")} ·{" "}
           {backgroundBindings.length
@@ -252,7 +265,8 @@ export const LineEditor: React.FC<LineEditorProps> = ({
   sourceAnchor,
   sourceChapter,
   mediaBindings,
-  choices,
+  choiceDrafts,
+  onChoiceDraftsChange,
   scenes,
   sceneById,
   disabled,
@@ -291,6 +305,8 @@ export const LineEditor: React.FC<LineEditorProps> = ({
   }, [line.pose, line.text]);
 
   const firstSpeakerId = speakerProfiles[0]?.id ?? null;
+  const expressionLabel = EXPRESSIONS.find((item) => item.value === expressionValue);
+  const transitionLabel = TRANSITION_OPTIONS.find((item) => item.value === line.presentation_json.transition);
 
   return (
     <article className="py-4 first:pt-0 last:pb-0">
@@ -458,6 +474,7 @@ export const LineEditor: React.FC<LineEditorProps> = ({
         </div>
       </div>
       <textarea
+        aria-label={`${t("galgame.lineNumber", { number: line.line_index })} · ${t("galgame.lineText")}`}
         className="pyqt-input min-h-20 w-full resize-y px-3 py-2 text-xs leading-relaxed text-book-text-main"
         value={text}
         disabled={disabled}
@@ -467,8 +484,23 @@ export const LineEditor: React.FC<LineEditorProps> = ({
         }}
       />
       {!isChoiceLine ? (
-        <div className="mt-2 grid gap-2 md:grid-cols-2">
+        <details className="group/performance mt-2" open={line.presentation_json.cg === true}>
+          <summary className="flex cursor-pointer list-none items-center gap-2 py-2 text-small text-book-text-sub [&::-webkit-details-marker]:hidden">
+            <ChevronRight size={13} className="shrink-0 transition-transform group-open/performance:rotate-90" />
+            <span>{t("galgame.performance")}</span>
+            <span className="min-w-0 flex-1 truncate text-book-text-muted">
+              {[expressionValue && expressionLabel ? t(expressionLabel.labelKey) : null,
+                pose ? poseDisplayValue(pose, t) : null,
+                line.presentation_json.cg ? "CG" : null,
+                transitionLabel ? t(transitionLabel.labelKey) : line.presentation_json.transition,
+              ].filter(Boolean).join(" · ")}
+            </span>
+          </summary>
+          <div className="grid gap-2 md:grid-cols-2">
+          <div>
+          <div className="mb-1.5 text-xs text-book-text-sub">{t("galgame.expressionLabel")}</div>
           <ThemedSelect
+            aria-label={t("galgame.expressionLabel")}
             className="pyqt-input text-xs text-book-text-main"
             value={expressionValue}
             disabled={disabled}
@@ -486,6 +518,9 @@ export const LineEditor: React.FC<LineEditorProps> = ({
               </option>
             ))}
           </ThemedSelect>
+          </div>
+          <div>
+          <div className="mb-1.5 text-xs text-book-text-sub">{t("galgame.posePlaceholder")}</div>
           <ThemedCombobox
             value={poseDisplayValue(pose, t)}
             options={POSE_SUGGESTIONS.map((item) => ({
@@ -502,6 +537,7 @@ export const LineEditor: React.FC<LineEditorProps> = ({
                 onPatch({ pose: storedPose || null });
             }}
           />
+          </div>
           <PresentationEditor
             line={line}
             disabled={disabled}
@@ -509,11 +545,13 @@ export const LineEditor: React.FC<LineEditorProps> = ({
               onPatch({ presentation_json: presentationJson })
             }
           />
-        </div>
+          </div>
+        </details>
       ) : (
         <ChoiceEditor
           line={line}
-          choices={choices}
+          drafts={choiceDrafts}
+          onDraftsChange={onChoiceDraftsChange}
           scenes={scenes}
           sceneById={sceneById}
           disabled={disabled}
@@ -599,6 +637,7 @@ const PresentationEditor: React.FC<{
         </button>
         {cgEnabled ? (
           <ThemedSelect
+            aria-label={t("galgame.selectCgImportance")}
             className="pyqt-input text-xs text-book-text-main"
             value={cgImportance}
             disabled={disabled}
@@ -619,6 +658,7 @@ const PresentationEditor: React.FC<{
           </ThemedSelect>
         ) : null}
         <ThemedSelect
+          aria-label={t("galgame.transitionLabel")}
           className="pyqt-input text-xs text-book-text-main"
           value={transition}
           disabled={disabled}
@@ -637,6 +677,7 @@ const PresentationEditor: React.FC<{
       </div>
       {cgEnabled ? (
         <textarea
+          aria-label={t("galgame.cgDescriptionPlaceholder")}
           className="min-h-16 w-full resize-y rounded-xl border border-book-border/55 bg-book-bg px-2.5 py-2 text-xs leading-relaxed text-book-text-main outline-none focus:border-book-primary"
           value={cgNote}
           disabled={disabled}

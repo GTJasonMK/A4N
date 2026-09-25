@@ -5,12 +5,24 @@ import { FormField } from "../ConfigListPanel";
 import { useI18n } from "../../../i18n";
 
 interface PricingPlanFieldsProps {
+  kind: "llm" | "image" | "video" | "embedding";
   value: PricingPlan;
   onChange: (value: PricingPlan) => void;
   readonly?: boolean;
 }
 
+const pricingFields = [
+  ["llm", "llm_input_per_million", "settingsForm.pricingLlmInput"],
+  ["llm", "llm_output_per_million", "settingsForm.pricingLlmOutput"],
+  ["llm", "llm_cache_read_per_million", "settingsForm.pricingCacheRead"],
+  ["llm", "llm_cache_write_per_million", "settingsForm.pricingCacheWrite"],
+  ["embedding", "embedding_input_per_million", "settingsForm.pricingEmbedding"],
+  ["image", "image_per_generation", "settingsForm.pricingImage"],
+  ["video", "video_per_second", "settingsForm.pricingVideo"],
+] as const;
+
 export const PricingPlanFields: React.FC<PricingPlanFieldsProps> = ({
+  kind,
   value,
   onChange,
   readonly = false,
@@ -18,11 +30,17 @@ export const PricingPlanFields: React.FC<PricingPlanFieldsProps> = ({
   const { t } = useI18n();
   const set = (key: keyof PricingPlan, next: string) =>
     onChange({ ...value, [key]: next.trim() ? next : null });
+  const fields = (primary: boolean) => pricingFields
+    .filter(([group]) => (group === kind) === primary)
+    .map(([, key, label]) => (
+      <PricingInput key={key} label={t(label)} value={value[key]} onChange={(next) => set(key, next)} disabled={readonly} />
+    ));
 
   return (
-    <details className="border-y border-book-border/35 py-2" open>
+    <details className="border-y border-book-border/35 py-2">
       <summary className="cursor-pointer text-sm font-semibold text-book-text-main">
         {t("settingsForm.pricingTitle")}
+        <span className="ml-2 text-xs font-normal text-book-text-muted">{value.currency}</span>
       </summary>
       <div className="mt-3 space-y-3">
         <FormField label={t("settingsForm.pricingCurrency")} hint={t("settingsForm.pricingCurrencyHint")}>
@@ -35,50 +53,13 @@ export const PricingPlanFields: React.FC<PricingPlanFieldsProps> = ({
             disabled={readonly}
           />
         </FormField>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <PricingInput
-            label={t("settingsForm.pricingLlmInput")}
-            value={value.llm_input_per_million}
-            onChange={(next) => set("llm_input_per_million", next)}
-            disabled={readonly}
-          />
-          <PricingInput
-            label={t("settingsForm.pricingLlmOutput")}
-            value={value.llm_output_per_million}
-            onChange={(next) => set("llm_output_per_million", next)}
-            disabled={readonly}
-          />
-          <PricingInput
-            label={t("settingsForm.pricingCacheRead")}
-            value={value.llm_cache_read_per_million}
-            onChange={(next) => set("llm_cache_read_per_million", next)}
-            disabled={readonly}
-          />
-          <PricingInput
-            label={t("settingsForm.pricingCacheWrite")}
-            value={value.llm_cache_write_per_million}
-            onChange={(next) => set("llm_cache_write_per_million", next)}
-            disabled={readonly}
-          />
-          <PricingInput
-            label={t("settingsForm.pricingEmbedding")}
-            value={value.embedding_input_per_million}
-            onChange={(next) => set("embedding_input_per_million", next)}
-            disabled={readonly}
-          />
-          <PricingInput
-            label={t("settingsForm.pricingImage")}
-            value={value.image_per_generation}
-            onChange={(next) => set("image_per_generation", next)}
-            disabled={readonly}
-          />
-          <PricingInput
-            label={t("settingsForm.pricingVideo")}
-            value={value.video_per_second}
-            onChange={(next) => set("video_per_second", next)}
-            disabled={readonly}
-          />
+        <div className="a4n-config-form-grid">
+          {fields(true)}
         </div>
+        <details>
+          <summary className="cursor-pointer text-xs text-book-text-sub">{t("settingsForm.pricingOtherCapabilities")}</summary>
+          <div className="a4n-config-form-grid mt-3">{fields(false)}</div>
+        </details>
       </div>
     </details>
   );

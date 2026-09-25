@@ -33,7 +33,7 @@ export interface ConfigListPanelProps<C> {
   items: ConfigItem<C>[];
   loading: boolean;
   onRefresh: () => Promise<void>;
-  onCreate: (config: C) => Promise<void>;
+  onCreate: (config: C) => Promise<number>;
   onUpdate: (id: number, config: C) => Promise<void>;
   onDelete: (id: number) => Promise<void>;
   onActivate: (id: number) => Promise<void>;

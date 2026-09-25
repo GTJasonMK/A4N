@@ -195,8 +195,11 @@ export const WritingDesk: React.FC = () => {
   projectIdRef.current = projectId;
 
   useEffect(() => {
-    if (agentRequested && rightPanel === "none") setRightPanel("optimize");
-  }, [agentRequested, rightPanel, setRightPanel]);
+    if (!agentRequested) return;
+    // 显式助手链接决定本次入口，之后仍允许用户切换或关闭面板。
+    setBottomTab("content");
+    setRightPanel("optimize");
+  }, [agentRequested, projectIdKey, setBottomTab, setRightPanel]);
 
   const handleRightPanelChange = useCallback(
     (panel: RightPanel) => {
@@ -320,6 +323,7 @@ export const WritingDesk: React.FC = () => {
   const generationWordCountError = parsedWordCountRange.error;
   const {
     editorContent,
+    editorRevisionRef,
     dirty,
     dirtyRef,
     activeNumberRef,
@@ -571,6 +575,17 @@ export const WritingDesk: React.FC = () => {
     return promise;
   }, [projectId, addToast, outlines, activeNumberRef, setActiveNumber]);
 
+  const handleRefreshChapters = useCallback(async () => {
+    const chapterNumber = activeNumberRef.current;
+    if (!(await confirmCurrentEdit(t("common.refresh")))) return;
+    const next = await reloadChapters({ force: true });
+    if (!next || activeNumberRef.current !== chapterNumber) return;
+    const refreshed = next.find((chapter) => chapter.chapter_number === chapterNumber);
+    if (!refreshed) return;
+    setEditorState(refreshed.content, false);
+    editorRevisionRef.current = refreshed.edit_revision;
+  }, [activeNumberRef, confirmCurrentEdit, editorRevisionRef, reloadChapters, setEditorState, t]);
+
   const reloadOutlines = useCallback(async () => {
     const requestProjectId = projectId;
     try {
@@ -717,7 +732,7 @@ export const WritingDesk: React.FC = () => {
     addToast,
   });
 
-  const clearResetProjectState = useCallback(() => {
+  const clearResetProjectState = useCallback(async () => {
     clearStreamState(null);
     setChapters([]);
     setOutlines([]);
@@ -730,7 +745,7 @@ export const WritingDesk: React.FC = () => {
     setBottomTab("content");
     setEditorState("", false);
     resetDraftTracking();
-    clearProjectDrafts();
+    await clearProjectDrafts();
     setProfilesRefreshKey((value) => value + 1);
   }, [
     clearProjectDrafts,
@@ -749,12 +764,12 @@ export const WritingDesk: React.FC = () => {
       if (checking) return;
       checking = true;
       void getProject(projectId)
-        .then((nextProject) => {
+        .then(async (nextProject) => {
           if (!mountedRef.current || projectIdRef.current !== projectId) return;
           if (nextProject.lifecycle_gate !== "active") return;
           window.clearInterval(timer);
           setProject(nextProject);
-          clearResetProjectState();
+          await clearResetProjectState();
           addToast(t("novel.resetFinishingComplete"), "success");
         })
         .catch((error) => {
@@ -795,7 +810,7 @@ export const WritingDesk: React.FC = () => {
       if (!updated || activeChapter?.id !== chapterId) return;
 
       if (dirtyRef.current) {
-        saveLocalDraftForCurrent();
+        await saveLocalDraftForCurrent();
         addToast(
           t("writing.optimizedBodyNotOverwritten"),
           "info",
@@ -911,6 +926,7 @@ export const WritingDesk: React.FC = () => {
     activeChapterBusy,
     activeChapterGeneratingMessage,
     editorContent,
+    editorRevisionRef,
     saveContentBusyRef,
     activeNumberRef,
     addToast,
@@ -1071,7 +1087,7 @@ export const WritingDesk: React.FC = () => {
         onChapterQueryChange: setChapterQuery,
         onClearChapterQuery: () => setChapterQuery(""),
         onOpenProfiles: () => setProfilesOpen(true),
-        onRefreshChapters: reloadChapters,
+        onRefreshChapters: handleRefreshChapters,
         onCreateChapter: handleCreateChapter,
         onSelectChapter: safeSelectChapter,
       }}

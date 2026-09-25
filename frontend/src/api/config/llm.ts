@@ -32,6 +32,7 @@ import {
   providerConfigIdOrSystem,
   requireSystemDefaultProviderConfig,
   rejectSystemDefaultMutation,
+  requireSystemDefaultKeyUpdate,
   systemDefaultProviderConfig,
 } from "./shared";
 
@@ -139,14 +140,19 @@ export async function updateLlmConfig(
   input: UpdateLlmInput,
 ): Promise<LlmConfigSummary> {
   if (isSystemDefaultLlmConfigId(configId)) {
-    if (!usesLocalRuntimeSettings()) rejectSystemDefaultMutation();
-    updateSystemDefaultLlmApiKey(input.api_key_encrypted);
-    return requiredSystemDefaultLlmConfig(await listServerLlmConfig());
+    rejectSystemDefaultMutation();
   }
   if (usesLocalRuntimeSettings()) {
     return updateLocalLlmConfig(llmConfigId(configId), input);
   }
   return updateServerLlmConfig(configId, input);
+}
+
+export async function updateSystemDefaultLlmKey(input: Pick<UpdateLlmInput, "api_key_encrypted">): Promise<LlmConfigSummary> {
+  if (!usesLocalRuntimeSettings()) rejectSystemDefaultMutation();
+  requireSystemDefaultKeyUpdate(input);
+  await updateSystemDefaultLlmApiKey(input.api_key_encrypted);
+  return requiredSystemDefaultLlmConfig(await listServerLlmConfig());
 }
 
 export async function setDefaultServerLlmConfig(configId: Id): Promise<void> {
@@ -158,12 +164,10 @@ export async function setDefaultServerLlmConfig(configId: Id): Promise<void> {
 export async function setDefaultLlmConfig(configId: Id): Promise<void> {
   if (usesLocalRuntimeSettings() && isSystemDefaultLlmConfigId(configId)) {
     requiredSystemDefaultLlmConfig(await listServerLlmConfig());
-    setSystemDefaultLlmConfig();
-    return;
+    return setSystemDefaultLlmConfig();
   }
   if (usesLocalRuntimeSettings()) {
-    setDefaultLocalLlmConfig(llmConfigId(configId));
-    return;
+    return setDefaultLocalLlmConfig(llmConfigId(configId));
   }
   return setDefaultServerLlmConfig(configId);
 }
@@ -177,8 +181,7 @@ export async function deleteServerLlmConfig(configId: Id): Promise<void> {
 export async function deleteLlmConfig(configId: Id): Promise<void> {
   if (isSystemDefaultLlmConfigId(configId)) rejectSystemDefaultMutation();
   if (usesLocalRuntimeSettings()) {
-    deleteLocalLlmConfig(llmConfigId(configId));
-    return;
+    return deleteLocalLlmConfig(llmConfigId(configId));
   }
   return deleteServerLlmConfig(configId);
 }

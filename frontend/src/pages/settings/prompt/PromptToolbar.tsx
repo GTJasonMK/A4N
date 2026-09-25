@@ -32,6 +32,7 @@ export const PromptToolbar: React.FC<PromptToolbarProps> = ({
         className="absolute left-2.5 top-1/2 -translate-y-1/2 text-book-text-muted pointer-events-none"
       />
       <BookInput
+        aria-label={t("settingsPrompt.searchPlaceholder")}
         value={keyword}
         onChange={(event) => onKeywordChange(event.target.value)}
         placeholder={t("settingsPrompt.searchPlaceholder")}

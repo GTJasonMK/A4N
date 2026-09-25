@@ -69,15 +69,20 @@ pub(super) fn validate_model_override_json(value: Option<&Value>) -> Result<(), 
 
 pub(super) fn validate_editor_source(
     source: &a4n_api_contract::agent::AgentEditorSource,
-    thread: &thread::Model,
+    capability: &str,
+    scope: &AgentScope,
 ) -> Result<(), AppError> {
-    let scope: AgentScope = from_json(thread.scope_json.clone(), "agent_thread.scope_json")?;
-    if thread.profile_id != a4n_api_contract::agent::DIRECTOR_AGENT_CAPABILITY
+    if capability != a4n_api_contract::agent::DIRECTOR_AGENT_CAPABILITY
         || scope.project_id != Some(source.project_id)
         || scope.chapter_id != Some(source.chapter_id)
     {
         return Err(AppError::Forbidden(
             "编辑器来源必须属于当前导演 Agent 绑定的项目和章节".into(),
+        ));
+    }
+    if source.chapter_number.is_some_and(|number| number <= 0) {
+        return Err(AppError::InvalidArgument(
+            "编辑器来源 chapter_number 无效".into(),
         ));
     }
     for value in [
@@ -100,37 +105,14 @@ pub(super) fn validate_editor_source(
 
 pub(super) fn parse_persisted_editor_source(
     value: Value,
-    thread: &thread::Model,
+    capability: &str,
+    scope: &AgentScope,
 ) -> Result<a4n_api_contract::agent::AgentEditorSource, AppError> {
-    let scope: AgentScope = from_json(thread.scope_json.clone(), "agent_thread.scope_json")?;
-    let value = normalize_legacy_editor_source(value, scope.chapter_id)?;
-    let source = from_json(value, "agent_message.editor_source")?;
-    validate_editor_source(&source, thread)?;
+    let mut source: a4n_api_contract::agent::AgentEditorSource =
+        from_json(value, "agent_message.editor_source")?;
+    source.chapter_number = scope.chapter_number;
+    validate_editor_source(&source, capability, scope)?;
     Ok(source)
-}
-
-pub(super) fn normalize_legacy_editor_source(
-    mut value: Value,
-    fallback_chapter_id: Option<i64>,
-) -> Result<Value, AppError> {
-    let object = value
-        .as_object_mut()
-        .ok_or_else(|| AppError::InvalidState {
-            current: "agent_message.editor_source 必须是 object".into(),
-            operation: "恢复历史 Agent 编辑器来源".into(),
-        })?;
-    if !object.contains_key("chapter_id") {
-        let chapter_id = fallback_chapter_id
-            .filter(|chapter_id| *chapter_id > 0)
-            .ok_or_else(|| AppError::InvalidState {
-                current:
-                    "历史 agent_message.editor_source 缺少 chapter_id，且线程 scope 未绑定章节"
-                        .into(),
-                operation: "恢复历史 Agent 编辑器来源".into(),
-            })?;
-        object.insert("chapter_id".into(), json!(chapter_id));
-    }
-    Ok(value)
 }
 
 pub(super) fn parse_id(value: &str, field: &str) -> Result<i64, AppError> {
@@ -161,6 +143,11 @@ pub(super) fn optional_text(
 pub(super) fn validate_scope(scope: &AgentScope) -> Result<(), AppError> {
     if scope.project_id.is_some_and(|id| id <= 0) || scope.chapter_id.is_some_and(|id| id <= 0) {
         return Err(AppError::InvalidArgument("Agent scope 中的 id 无效".into()));
+    }
+    if scope.chapter_number.is_some_and(|number| number <= 0) {
+        return Err(AppError::InvalidArgument(
+            "Agent scope 中的 chapter_number 无效".into(),
+        ));
     }
     if scope.resource_kind.is_some() != scope.resource_id.is_some() {
         return Err(AppError::InvalidArgument(
@@ -673,11 +660,21 @@ pub(super) fn run_view(row: run::Model) -> Result<AgentRunView, AppError> {
             .transpose()?,
         lease_owner: row.worker_id,
         lease_expires_at: row.lease_expires_at.map(|value| value.to_string()),
-        budget: from_json(row.budget_json, "agent_run.budget_json")?,
+        budget: from_json::<AgentBudget>(row.budget_json, "agent_run.budget_json")?
+            .effective_for_run(row.parent_run_id.is_none()),
         steps_used: json_u32(usage, "steps_used")?,
         model_calls_used: json_u32(usage, "model_calls_used")?,
         tool_calls_used: json_u32(usage, "tool_calls_used")?,
         tokens_used: json_u64(usage, "tokens_used")?,
+        tokens_reserved: json_u64(usage, "tokens_reserved")?,
+        usage_complete: usage
+            .get("usage_complete")
+            .and_then(Value::as_bool)
+            .unwrap_or(false),
+        budget_limiting_run_id: usage
+            .get("budget_limiting_run_id")
+            .and_then(Value::as_str)
+            .map(str::to_string),
         context_input_tokens: json_optional_u64(usage, "context_input_tokens")?,
         context_capacity_tokens: json_optional_u64(usage, "context_capacity_tokens")?,
         cost_micros: json_optional_u64(usage, "cost_micros")?,
@@ -1026,6 +1023,10 @@ parse_enum!(parse_memory_status, AgentMemoryStatus, {"proposed" => AgentMemorySt
 
 pub(super) fn agent_db_error_to_app(error: AgentDbError) -> AppError {
     match error {
+        AgentDbError::CompletionBlocked(blockers) => AppError::InvalidState {
+            current: format!("Agent 尚有未完成事项: {blockers:?}"),
+            operation: "完成 Agent".into(),
+        },
         AgentDbError::BudgetExhausted(message) => AppError::InvalidState {
             current: format!("Agent 共享预算已耗尽: {message}"),
             operation: "预留执行额度".into(),

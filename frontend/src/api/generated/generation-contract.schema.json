@@ -1465,6 +1465,105 @@
       ],
       "type": "object"
     },
+    "InspirationControlKind": {
+      "enum": [
+        "single_choice",
+        "text_input",
+        "info_display",
+        "inspired_options"
+      ],
+      "type": "string"
+    },
+    "InspirationOption": {
+      "additionalProperties": false,
+      "properties": {
+        "description": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "key_elements": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "label": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "label",
+        "description",
+        "key_elements"
+      ],
+      "type": "object"
+    },
+    "InspirationResponse": {
+      "additionalProperties": false,
+      "properties": {
+        "ai_message": {
+          "type": "string"
+        },
+        "conversation_state": {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        "is_complete": {
+          "type": "boolean"
+        },
+        "next_question": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "progress_summary": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "ui_control": {
+          "$ref": "#/$defs/InspirationUiControl"
+        }
+      },
+      "required": [
+        "ai_message",
+        "next_question",
+        "progress_summary",
+        "ui_control",
+        "conversation_state",
+        "is_complete"
+      ],
+      "type": "object"
+    },
+    "InspirationUiControl": {
+      "additionalProperties": false,
+      "properties": {
+        "options": {
+          "items": {
+            "$ref": "#/$defs/InspirationOption"
+          },
+          "type": "array"
+        },
+        "placeholder": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "type": {
+          "$ref": "#/$defs/InspirationControlKind"
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "type": "object"
+    },
     "InterruptedEvent": {
       "additionalProperties": false,
       "properties": {
@@ -3337,6 +3436,9 @@
     "host_error": {
       "$ref": "#/$defs/HostErrorResponse"
     },
+    "inspiration_response": {
+      "$ref": "#/$defs/InspirationResponse"
+    },
     "snapshot": {
       "$ref": "#/$defs/GenerationTaskSnapshot"
     },
@@ -3408,6 +3510,7 @@
     "host_error",
     "start_chapter_generation",
     "start_inspiration_generation",
+    "inspiration_response",
     "start_optimize_analysis_generation",
     "start_optimize_chat_generation",
     "start_optimize_patch_generation",

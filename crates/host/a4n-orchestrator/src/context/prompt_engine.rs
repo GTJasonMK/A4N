@@ -65,8 +65,9 @@ impl OrchestratorContext {
         &self,
         updates: Vec<(String, String)>,
         author: &str,
+        overwrite: bool,
     ) -> Result<Vec<PromptEntry>, AppError> {
-        self.engine.update_many(updates, author).await
+        self.engine.update_many(updates, author, overwrite).await
     }
 
     pub(crate) async fn prompt_reset_entry(&self, name: &str) -> Result<(), AppError> {

@@ -21,7 +21,7 @@ pub async fn login_user(
         .ok_or_else(|| AppError::Unauthorized("用户名或密码错误".into()))?;
 
     if !user.is_active {
-        return Err(AppError::Forbidden("账户已被禁用".into()));
+        return Err(AppError::Unauthorized("账户已被禁用".into()));
     }
     if !verify_password(password, &user.password_hash)? {
         return Err(AppError::Unauthorized("用户名或密码错误".into()));
@@ -68,7 +68,7 @@ pub async fn change_password(
 ) -> Result<(), AppError> {
     let user = active_user(db, user_id).await?;
     if !verify_password(old_password, &user.password_hash)? {
-        return Err(AppError::Unauthorized("原密码错误".into()));
+        return Err(AppError::InvalidArgument("原密码错误".into()));
     }
     validate_password_for_storage(new_password)?;
     let mut active: user::ActiveModel = user.into();

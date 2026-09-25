@@ -427,9 +427,9 @@ pub(super) fn auth_user_summary(user: &user::Model) -> a4n_api_contract::auth::U
         avatar_url: user.avatar_url.clone(),
         page_cli_enabled: user.page_cli_enabled,
         is_active: user.is_active,
-        created_at: Some(user.created_at.to_string()),
-        updated_at: Some(user.updated_at.to_string()),
-        last_login_at: user.last_login_at.map(|value| value.to_string()),
+        created_at: Some(user.created_at.and_utc().to_rfc3339()),
+        updated_at: Some(user.updated_at.and_utc().to_rfc3339()),
+        last_login_at: user.last_login_at.map(|value| value.and_utc().to_rfc3339()),
     }
 }
 
@@ -437,8 +437,10 @@ fn auth_session_summary(session: &user_session::Model) -> a4n_api_contract::auth
     a4n_api_contract::auth::SessionSummary {
         id: session.id.clone(),
         user_agent: session.user_agent.clone(),
-        created_at: session.created_at.to_string(),
-        expires_at: session.expires_at.to_string(),
-        last_used_at: session.last_used_at.map(|value| value.to_string()),
+        created_at: session.created_at.and_utc().to_rfc3339(),
+        expires_at: session.expires_at.and_utc().to_rfc3339(),
+        last_used_at: session
+            .last_used_at
+            .map(|value| value.and_utc().to_rfc3339()),
     }
 }

@@ -74,7 +74,7 @@ export function ConfigEditorPanel<C>({
 
   return (
     <section
-      className={`a4n-flat-surface flex min-h-0 flex-col overflow-visible p-3 sm:p-4 md:overflow-hidden ${
+      className={`a4n-config-editor a4n-flat-surface flex min-h-0 min-w-0 flex-col overflow-visible p-3 sm:p-4 md:overflow-hidden ${
         empty ? "min-h-[180px] self-start md:w-full" : ""
       }`}
     >
@@ -98,8 +98,8 @@ export function ConfigEditorPanel<C>({
         </div>
       ) : (
         <div className="flex min-h-0 flex-1 flex-col">
-          <div className="mb-4 flex min-w-0 items-start gap-3 border-b border-book-border/60 pb-3">
-            <div className="min-w-0 flex-1">
+          <div className="mb-4 flex min-w-0 flex-wrap items-start gap-3 border-b border-book-border/60 pb-3">
+            <div className="min-w-0 flex-1 basis-40">
               <h3 className="text-sm font-semibold text-book-text-main">
                 {creating ? t("settings.newConfig", { name: title }) : t("settings.editConfig", { name: title })}
               </h3>
@@ -287,26 +287,11 @@ function ConfigEditorActions<C>({
   const readonly = selectedItem.readonly === true;
   const moreItems: DropdownItem[] = [];
 
-  if (canTest && !readonly && !actionBusy) {
-    moreItems.push({
-      label: t("settings.testConnection"),
-      icon: <Zap size={12} />,
-      onClick: () => void onTest(selectedItem.id),
-    });
-  }
   if (canPreviewTest && !readonly && !actionBusy) {
     moreItems.push({
       label: t("settings.viewModelRequest"),
       icon: <Eye size={12} />,
       onClick: () => void onPreviewTest(selectedItem.id),
-    });
-  }
-  if (!readonly && !selectedItem.isActive && !mutationBusy) {
-    if (moreItems.length > 0) moreItems.push({ type: "divider" });
-    moreItems.push({
-      label: activateText,
-      icon: <Check size={12} />,
-      onClick: () => void onActivate(selectedItem.id),
     });
   }
   if (!readonly && !selectedItem.isActive && !selectedItem.deleteDisabled && !mutationBusy) {
@@ -320,7 +305,17 @@ function ConfigEditorActions<C>({
   }
 
   return (
-    <div className="flex min-h-8 items-center justify-end">
+    <div className="flex min-h-8 flex-wrap items-center gap-2">
+      {canTest && !readonly ? (
+        <BookButton variant="secondary" size="sm" onClick={() => void onTest(selectedItem.id)} disabled={actionBusy}>
+          <Zap size={12} />{t("settings.testSavedConnection")}
+        </BookButton>
+      ) : null}
+      {!readonly && !selectedItem.isActive ? (
+        <BookButton variant="secondary" size="sm" onClick={() => void onActivate(selectedItem.id)} disabled={mutationBusy}>
+          <Check size={12} />{activateText}
+        </BookButton>
+      ) : null}
       {testing === selectedItem.id || previewing || activating === selectedItem.id ? (
         <LoadingSpinner size="sm" className="text-book-text-muted" />
       ) : deleting === selectedItem.id ? (

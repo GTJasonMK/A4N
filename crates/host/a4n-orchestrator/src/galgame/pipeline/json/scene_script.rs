@@ -44,7 +44,7 @@ pub fn shooting_script_projection_from_value(
         let source_span_ids = normalize_source_span_ids(
             scene.source_span_ids,
             &format!("{context}.scenes[].source_span_ids"),
-            true,
+            false,
         )?;
         let source_span_id_set = source_span_ids
             .iter()
@@ -79,7 +79,7 @@ pub fn shooting_script_projection_from_value(
             let beat_source_span_ids = normalize_source_span_ids(
                 beat.source_span_ids,
                 &format!("{context}.scenes[].beats[].source_span_ids"),
-                true,
+                false,
             )?;
             if let Some(unknown_span_id) = beat_source_span_ids
                 .iter()

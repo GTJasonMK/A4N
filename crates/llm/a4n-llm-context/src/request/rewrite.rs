@@ -35,7 +35,6 @@ pub fn replace_request_user_content_from_manifest(
     request
         .cache_breakpoints
         .retain(|point| point.message_index != user_index);
-    request.cache_user_prefix_len = None;
     for boundary in stable_prefix_lens {
         request.add_cache_breakpoint(user_index, boundary)?;
     }

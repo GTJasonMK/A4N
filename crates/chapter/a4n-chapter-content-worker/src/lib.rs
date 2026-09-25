@@ -259,6 +259,7 @@ impl WorkerState {
                 &tx,
                 EditChapterContentInput {
                     chapter_id: input.chapter_id,
+                    expected_revision: input.expected_revision,
                     content: input.content,
                     title: input.title,
                 },

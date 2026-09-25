@@ -68,6 +68,7 @@ pub(crate) use family_package::{
     assemble_project_family_export_package, family_media_package_path,
     validate_media_manifest as validate_family_media_manifest,
     validate_package_manifest as validate_family_package_manifest,
+    validate_package_manifest_with_canvas as validate_family_package_manifest_with_canvas,
 };
 pub(crate) use family_transfer::{
     imported_project_family_media_path, project_family_export_media_files,

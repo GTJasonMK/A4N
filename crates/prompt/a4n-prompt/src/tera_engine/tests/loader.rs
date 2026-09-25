@@ -278,6 +278,7 @@ fn missing_prompt_is_reported_as_not_found_across_engine_entrypoints() {
             .block_on(engine.update_many(
                 vec![("missing".to_string(), "新内容".to_string())],
                 "tester",
+                true,
             ))
             .expect_err("update_many should fail"),
         runtime

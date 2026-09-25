@@ -25,11 +25,9 @@
 @keyframes toastEnter {
   from {
     opacity: 0;
-    transform: translate3d(0, -6px, 0);
   }
   to {
     opacity: 1;
-    transform: translate3d(0, 0, 0);
   }
 }
 
@@ -223,4 +221,8 @@
   animation:
     inspirationOptionEnter 0.18s ease-out both,
     inspirationOptionPulse 1.2s ease-in-out 0.18s infinite;
+}
+
+.a4n-motion-header {
+  animation: pageEnter var(--a4n-motion) var(--a4n-ease-out) both;
 }

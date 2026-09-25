@@ -45,84 +45,69 @@ pub(super) async fn render_segment_plan_from_shooting_script_projection(
         cancel_token,
         ..
     } = shooting_script_projection;
-    let (script, identity, source_shot_order, source_complete) =
-        if let Some(narrative_unit_index) = target_narrative_unit_index {
-            let unit_progress = service
-                .current_chapter_shooting_script_unit_progress(
-                    crate::shooting_script::ChapterShootingScriptSourceInput {
-                        project_id,
-                        source_chapter_id: chapter_id,
-                        visual_plan_id: None,
-                    },
-                )
-                .await?
-                .ok_or_else(|| {
-                    AppError::InvalidArgument("当前章节没有可用的场景级拍摄设计".to_string())
-                })?;
-            let source_shot_order = shooting_script_shot_ids(&unit_progress.script);
-            let source_complete = unit_progress.resolved.is_some();
-            let scene = unit_progress
-                .script
-                .scenes
-                .iter()
-                .find(|scene| scene.narrative_unit_index == narrative_unit_index)
-                .cloned()
-                .ok_or_else(|| {
-                    AppError::InvalidArgument(format!(
-                        "拍摄场景 {narrative_unit_index} 尚未完成，不能生成片段规划"
-                    ))
-                })?;
-            let script = ChapterShootingScriptV1 {
-                schema_version: unit_progress.script.schema_version,
-                visual_plan_source: unit_progress.script.visual_plan_source,
-                user_additions: unit_progress.script.user_additions,
-                directing_statement: unit_progress.script.directing_statement,
-                scenes: vec![scene],
-            };
-            let script_json = serde_json::to_string(&script)?;
-            let revision = i32::try_from(unit_progress.completed_unit_count).map_err(|_| {
-                AppError::InvalidArgument("已完成拍摄场景数量超出 i32 范围".to_string())
+    let script_source = crate::shooting_script::ChapterShootingScriptSourceInput {
+        project_id,
+        source_chapter_id: chapter_id,
+        visual_plan_id: None,
+    };
+    let published = if target_narrative_unit_index.is_some() {
+        service
+            .current_chapter_shooting_script(script_source.clone())
+            .await?
+    } else {
+        Some(
+            service
+                .require_current_chapter_shooting_script(script_source.clone())
+                .await?,
+        )
+    };
+    let (script, identity, source_shot_order, source_complete) = if let Some(resolved) = published {
+        let record = &resolved.shooting_script.record;
+        let source_shot_order = shooting_script_shot_ids(&resolved.shooting_script.script);
+        (
+            scope_shooting_script(resolved.shooting_script.script, target_narrative_unit_index)?,
+            VideoShootingScriptIdentityV1 {
+                record_id: record.id,
+                revision: record.revision,
+                source_revision_key: record.source_revision_key.clone(),
+                source_content_sha256: record.source_content_sha256.clone(),
+                script_sha256: record.script_sha256.clone(),
+            },
+            source_shot_order,
+            true,
+        )
+    } else {
+        let narrative_unit_index = target_narrative_unit_index
+            .expect("whole-chapter planning requires a published script above");
+        let unit_progress = service
+            .current_chapter_shooting_script_unit_progress(script_source)
+            .await?
+            .ok_or_else(|| {
+                AppError::InvalidArgument("当前章节没有可用的场景级拍摄设计".to_string())
             })?;
-            (
-                script,
-                VideoShootingScriptIdentityV1 {
-                    record_id: unit_progress.workflow_run_id,
-                    revision,
-                    source_revision_key: format!(
-                        "workflow:{}:unit:{}",
-                        unit_progress.workflow_run_id, narrative_unit_index
-                    ),
-                    source_content_sha256: a4n_domain::source_text_hash(source.content),
-                    script_sha256: a4n_domain::source_text_hash(&script_json),
-                },
-                source_shot_order,
-                source_complete,
-            )
-        } else {
-            let resolved = service
-                .require_current_chapter_shooting_script(
-                    crate::shooting_script::ChapterShootingScriptSourceInput {
-                        project_id,
-                        source_chapter_id: chapter_id,
-                        visual_plan_id: None,
-                    },
-                )
-                .await?;
-            let record = &resolved.shooting_script.record;
-            let source_shot_order = shooting_script_shot_ids(&resolved.shooting_script.script);
-            (
-                resolved.shooting_script.script,
-                VideoShootingScriptIdentityV1 {
-                    record_id: record.id,
-                    revision: record.revision,
-                    source_revision_key: record.source_revision_key.clone(),
-                    source_content_sha256: record.source_content_sha256.clone(),
-                    script_sha256: record.script_sha256.clone(),
-                },
-                source_shot_order,
-                true,
-            )
-        };
+        let source_shot_order = shooting_script_shot_ids(&unit_progress.script);
+        let source_complete = unit_progress.resolved.is_some();
+        let script = scope_shooting_script(unit_progress.script, target_narrative_unit_index)?;
+        let script_json = serde_json::to_string(&script)?;
+        let revision = i32::try_from(unit_progress.completed_unit_count).map_err(|_| {
+            AppError::InvalidArgument("已完成拍摄场景数量超出 i32 范围".to_string())
+        })?;
+        (
+            script,
+            VideoShootingScriptIdentityV1 {
+                record_id: unit_progress.workflow_run_id,
+                revision,
+                source_revision_key: format!(
+                    "workflow:{}:unit:{}",
+                    unit_progress.workflow_run_id, narrative_unit_index
+                ),
+                source_content_sha256: a4n_domain::source_text_hash(source.content),
+                script_sha256: a4n_domain::source_text_hash(&script_json),
+            },
+            source_shot_order,
+            source_complete,
+        )
+    };
     let analysis = video_projection_from_shooting_script(&script, identity, duration_secs)?;
     let analysis_json = serde_json::to_value(&analysis).map_err(|error| {
         AppError::InvalidArgument(format!("拍摄剧本视频执行投影序列化失败: {error}"))
@@ -182,6 +167,23 @@ pub(super) async fn render_segment_plan_from_shooting_script_projection(
         source_shot_order,
         source_complete,
     })
+}
+
+fn scope_shooting_script(
+    mut script: ChapterShootingScriptV1,
+    target_narrative_unit_index: Option<u32>,
+) -> Result<ChapterShootingScriptV1, AppError> {
+    if let Some(index) = target_narrative_unit_index {
+        script
+            .scenes
+            .retain(|scene| scene.narrative_unit_index == index);
+        if script.scenes.is_empty() {
+            return Err(AppError::InvalidArgument(format!(
+                "拍摄场景 {index} 尚未完成，不能生成片段规划"
+            )));
+        }
+    }
+    Ok(script)
 }
 
 fn shooting_script_shot_ids(script: &ChapterShootingScriptV1) -> Vec<String> {

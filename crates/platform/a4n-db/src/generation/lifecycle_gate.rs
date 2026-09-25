@@ -12,7 +12,7 @@ use a4n_domain::generation::{
 pub const PROJECT_GATE_ACTIVE: &str = "active";
 pub(crate) const PROJECT_GATE_DELETING: &str = "deleting";
 pub(crate) const PROJECT_GATE_RESETTING: &str = "resetting";
-const USER_GATE_ACTIVE: &str = "active";
+pub(crate) const USER_GATE_ACTIVE: &str = "active";
 const USER_GATE_DISABLING: &str = "disabling";
 const USER_GATE_DISABLED: &str = "disabled";
 
@@ -260,6 +260,15 @@ pub async fn begin_user_disable_gate(
     }
 
     let tx = db.begin().await?;
+    crate::auth::lock_administrator_membership(&tx, user_id, true)
+        .await
+        .map_err(|error| match error {
+            a4n_error::AppError::Database(error) => GenerationLifecycleGateError::Database(error),
+            a4n_error::AppError::NotFound(message) => {
+                GenerationLifecycleGateError::NotFound(message)
+            }
+            error => GenerationLifecycleGateError::InvalidArgument(error.to_string()),
+        })?;
     let current = lock_user_gate(&tx, user_id).await?;
     let state = match current.as_str() {
         USER_GATE_ACTIVE => {

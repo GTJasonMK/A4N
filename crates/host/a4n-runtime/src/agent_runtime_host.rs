@@ -334,13 +334,6 @@ impl AgentRuntimeHost for NativeAgentRuntimeHost {
         crate::actions::agent_runtime::create_agent_child_run(&self.state, request).await
     }
 
-    async fn run_is_terminal(
-        &self,
-        request: &AgentWorkerRunLeaseRequest,
-    ) -> Result<AgentWorkerRunStatusSnapshotWire, AppError> {
-        crate::actions::agent_runtime::agent_worker_run_is_terminal(&self.state, request).await
-    }
-
     async fn execute_command(
         &self,
         user_id: i64,

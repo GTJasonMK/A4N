@@ -45,6 +45,7 @@ pub(super) fn single_source_span() -> Vec<GalgamePipelineSourceSpan> {
         id: "s1".to_string(),
         text_anchor_id: 100,
         source_snapshot_chapter_id: 20,
+        chapter_number: 1,
     }]
 }
 

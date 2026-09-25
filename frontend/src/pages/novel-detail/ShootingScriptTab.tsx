@@ -476,7 +476,7 @@ export const ShootingScriptTab: React.FC<ShootingScriptTabProps> = ({
 
   return (
     <section className="min-w-0 space-y-3">
-      <div className="flex min-w-0 flex-wrap items-center justify-between gap-2 px-1">
+      <div className={`flex min-w-0 flex-wrap items-center justify-between gap-2 px-1 ${editing ? "sticky top-0 z-10 bg-book-bg py-2" : ""}`}>
         <div className="text-small text-book-text-muted">
           {scriptLoading
             ? t("shootingScript.loading")
@@ -504,7 +504,7 @@ export const ShootingScriptTab: React.FC<ShootingScriptTabProps> = ({
                           : t("shootingScript.notGenerated")}
         </div>
         {canEdit ? (
-          <div className="ml-auto flex items-center gap-2">
+          <div className="ml-auto flex min-w-0 flex-wrap items-center gap-2">
             {view && draft ? (
               <>
                 <BookButton
@@ -535,7 +535,8 @@ export const ShootingScriptTab: React.FC<ShootingScriptTabProps> = ({
                 </BookButton>
                 <BookButton
                   size="sm"
-                  variant="danger"
+                  variant="ghost"
+                  className="text-error hover:bg-error-bg hover:text-error"
                   onClick={() => void remove()}
                   disabled={actionsDisabled}
                 >

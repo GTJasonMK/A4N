@@ -2,9 +2,7 @@ import {
   readCurrentAccessToken,
   readCurrentRefreshToken,
   readCurrentSessionId,
-  writeCurrentAccessToken,
-  writeCurrentRefreshToken,
-  writeCurrentSessionId,
+  writeCurrentTokens,
 } from "./authStorage";
 import {
   apiBaseUrl,
@@ -18,6 +16,8 @@ import {
 } from "./generated/host";
 import type { TokenPairSummary } from "./generated/auth";
 import { withRuntimeConfigSnapshot } from "./runtimeConfigSnapshot";
+
+export { extractErrorMessage } from "../utils/errorMessage";
 
 /**
  * Tauri 命令调用通用包装器。
@@ -77,17 +77,6 @@ export async function apiInvoke<T>(
     });
     throw err;
   }
-}
-
-/** 提取当前 Host 与浏览器错误消息。 */
-export function extractErrorMessage(err: unknown, defaultMessage: string): string {
-  if (typeof err === "string") return err || defaultMessage;
-  if (err instanceof Error) return err.message || defaultMessage;
-  if (err && typeof err === "object") {
-    const e = err as Record<string, unknown>;
-    if (typeof e.message === "string") return e.message || defaultMessage;
-  }
-  return defaultMessage;
 }
 
 /** 全局未授权事件名；store/auth 订阅后统一清理登录状态 */
@@ -164,30 +153,39 @@ async function webRequest<T>(
   path: string,
   options: { method: "GET" | "POST"; body?: Record<string, unknown>; auth: boolean },
 ): Promise<T> {
+  const sessionId = readCurrentSessionId();
   if (
     options.auth
     && !readCurrentAccessToken()
     && readCurrentRefreshToken()
     && readCurrentSessionId()
   ) {
-    const refreshed = await refreshWebAuthTokenOnce();
+    const refreshed = await refreshWebAuthTokenOnce(null, sessionId);
     if (!refreshed) {
       throwWebUnauthorized("登录已过期，请重新登录");
     }
   }
 
+  const accessToken = options.auth ? readCurrentAccessToken() : null;
+  if (options.auth) requireUnchangedSession(sessionId);
   let response = await fetchWebRequest(path, options);
   if (response.status === 401) {
-    const refreshed = options.auth ? await refreshWebAuthTokenOnce() : false;
+    requireUnchangedSession(sessionId);
+    const refreshed = options.auth ? await refreshWebAuthTokenOnce(accessToken, sessionId) : false;
     if (refreshed) {
+      requireUnchangedSession(sessionId);
       response = await fetchWebRequest(path, options);
-      if (response.status !== 401) {
-        return readWebResponse<T>(response);
-      }
     }
-    throwWebUnauthorized(await responseErrorMessage(response));
   }
-  return readWebResponse<T>(response);
+  if (response.status === 401) {
+    const message = await responseErrorMessage(response);
+    requireUnchangedSession(sessionId);
+    throwWebUnauthorized(message);
+  }
+  if (options.auth) requireUnchangedSession(sessionId);
+  const result = await readWebResponse<T>(response);
+  if (options.auth) requireUnchangedSession(sessionId);
+  return result;
 }
 
 /** Authenticated fetch for streaming endpoints that cannot use the JSON command wrapper. */
@@ -195,13 +193,17 @@ export async function authenticatedWebFetch(
   path: string,
   init: RequestInit = {},
 ): Promise<Response> {
+  const sessionId = readCurrentSessionId();
   if (!readCurrentAccessToken() && readCurrentRefreshToken() && readCurrentSessionId()) {
-    const refreshed = await refreshWebAuthTokenOnce();
+    const refreshed = await refreshWebAuthTokenOnce(null, sessionId);
     if (!refreshed) throwWebUnauthorized("登录已过期，请重新登录");
   }
 
+  let accessToken: string | null = null;
   const request = async (): Promise<Response> => {
+    requireUnchangedSession(sessionId);
     const token = readCurrentAccessToken();
+    accessToken = token;
     if (!token) throwWebUnauthorized("未登录");
     const headers = new Headers(init.headers);
     headers.set("Authorization", `Bearer ${token}`);
@@ -209,12 +211,16 @@ export async function authenticatedWebFetch(
   };
 
   let response = await request();
-  if (response.status === 401 && await refreshWebAuthTokenOnce()) {
+  requireUnchangedSession(sessionId);
+  if (response.status === 401 && await refreshWebAuthTokenOnce(accessToken, sessionId)) {
     response = await request();
   }
   if (response.status === 401) {
-    throwWebUnauthorized(await responseErrorMessage(response));
+    const message = await responseErrorMessage(response);
+    requireUnchangedSession(sessionId);
+    throwWebUnauthorized(message);
   }
+  requireUnchangedSession(sessionId);
   return response;
 }
 
@@ -253,9 +259,30 @@ async function readWebResponse<T>(response: Response): Promise<T> {
   return (await response.json()) as T;
 }
 
-async function refreshWebAuthTokenOnce(): Promise<boolean> {
+export async function refreshWebAuthentication(): Promise<void> {
+  if (!await refreshWebAuthTokenOnce(readCurrentAccessToken(), readCurrentSessionId())) {
+    throwWebUnauthorized("登录已过期，请重新登录");
+  }
+}
+
+function requireUnchangedSession(sessionId: string | null): void {
+  if (readCurrentSessionId() !== sessionId) {
+    throw new DOMException("登录会话已变更", "AbortError");
+  }
+}
+
+async function refreshWebAuthTokenOnce(accessToken: string | null, sessionId: string | null): Promise<boolean> {
+  requireUnchangedSession(sessionId);
   if (!webAuthRefreshPromise) {
-    webAuthRefreshPromise = refreshWebAuthToken().finally(() => {
+    if (!navigator.locks) {
+      throw new Error("当前环境不支持跨标签登录续期，请使用 HTTPS 或 localhost");
+    }
+    webAuthRefreshPromise = Promise.resolve(navigator.locks.request("a4n:auth-refresh", async () => {
+      requireUnchangedSession(sessionId);
+      const currentToken = readCurrentAccessToken();
+      if (currentToken && currentToken !== accessToken) return true;
+      return refreshWebAuthToken();
+    })).finally(() => {
       webAuthRefreshPromise = null;
     });
   }
@@ -275,8 +302,11 @@ async function refreshWebAuthToken(): Promise<boolean> {
     }),
   });
 
+  requireUnchangedSession(sessionId);
+
   if (response.status === 401 || response.status === 403) {
     await responseErrorMessage(response);
+    requireUnchangedSession(sessionId);
     return false;
   }
   if (!response.ok) {
@@ -284,9 +314,8 @@ async function refreshWebAuthToken(): Promise<boolean> {
   }
 
   const pair = (await response.json()) as TokenPairSummary;
-  writeCurrentSessionId(pair.session_id);
-  writeCurrentAccessToken(pair.access_token);
-  writeCurrentRefreshToken(pair.refresh_token);
+  requireUnchangedSession(sessionId);
+  await writeCurrentTokens(pair);
   return true;
 }
 

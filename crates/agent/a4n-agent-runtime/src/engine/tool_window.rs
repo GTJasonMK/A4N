@@ -8,89 +8,37 @@ pub(crate) struct RuntimeToolWindow {
 pub(crate) fn available_runtime_tools(
     capability: &str,
     scope: &AgentScope,
-    phase: &str,
     discovered_tools: &[String],
-    executions: &[AgentExecutionSnapshot],
 ) -> Result<RuntimeToolWindow, AppError> {
     let initial_tools = a4n_api_contract::agent::initial_agent_tools(capability);
-    let restricted = a4n_api_contract::agent::capability_has_restricted_tool_catalog(capability);
-    let initial_limit = if restricted {
-        usize::MAX
-    } else {
-        MAX_BASE_AGENT_TOOLS
-    };
-    let mut names = initial_tools
-        .iter()
-        .map(|name| (*name).to_string())
-        .take(initial_limit)
-        .collect::<Vec<_>>();
-    for tool in ["read_image", "web_search", "web_fetch"] {
-        if initial_tools.contains(&tool) && !names.iter().any(|name| name == tool) {
-            names.push(tool.into());
-        }
-    }
-    names.retain(|name| {
-        ensure_agent_scope_allows_tool(scope, name).is_ok()
-            && a4n_api_contract::agent::capability_allows_tool(capability, name)
-            && a4n_api_contract::agent::agent_phase_allows_tool(phase, name)
-    });
-    let pending = executions
-        .iter()
-        .filter(|execution| {
-            matches!(
-                execution.status.as_str(),
-                "prepared" | "awaiting_user" | "dispatching" | "running"
-            )
-        })
-        .filter_map(|execution| execution.tool_name.as_deref())
-        .filter(|name| ensure_agent_scope_allows_tool(scope, name).is_ok())
-        .collect::<Vec<_>>();
-    for name in pending.iter().copied() {
-        if !names.iter().any(|known| known == name) {
-            names.push(name.to_string());
-        }
-    }
-    if names.len() > MAX_AGENT_TOOL_SCHEMAS {
-        return Err(AppError::InvalidState {
-            current: format!(
-                "Agent capability {capability} 在 phase {phase} 需要 {} 个 mandatory 工具，但单次请求最多保留 {} 个工具 schema: {}",
-                names.len(),
-                MAX_AGENT_TOOL_SCHEMAS,
-                names.join(", ")
-            ),
-            operation: "构建 Agent 工具窗口".into(),
-        });
-    }
-    if restricted {
-        return names
-            .iter()
-            .map(|name| {
-                let descriptor = tool_descriptor(name)?;
-                Ok(json!({
-                    "type": "function",
-                    "function": {
-                        "name": descriptor.name,
-                        "description": descriptor.summary,
-                        "parameters": descriptor.args_schema,
-                    }
-                }))
-            })
-            .collect::<Result<Vec<_>, _>>()
-            .map(|schemas| RuntimeToolWindow {
-                schemas,
-                dropped_optional: Vec::new(),
-            });
-    }
+    let foundation = [
+        "request_agent_input",
+        "search_agent_tools",
+        "describe_agent_tool",
+        "search_agent_skills",
+        "load_agent_skill",
+        "read_agent_execution_result",
+    ];
+    let mut names = Vec::new();
+    let mut seen = HashSet::new();
     let mut dropped_optional = Vec::new();
-    for name in discovered_tools.iter().rev() {
-        if !names.iter().any(|known| known == name)
-            && ensure_agent_scope_allows_tool(scope, name).is_ok()
+    // Pending calls are resumed from their executions before another model
+    // request. Their schemas need no second, potentially stale, mandatory list.
+    for name in foundation
+        .into_iter()
+        .chain(discovered_tools.iter().rev().map(String::as_str))
+        .chain(initial_tools.iter().copied())
+    {
+        if !seen.insert(name)
+            || ensure_agent_scope_allows_tool(scope, name).is_err()
+            || !a4n_api_contract::agent::capability_allows_tool(capability, name)
         {
-            if names.len() == MAX_AGENT_TOOL_SCHEMAS {
-                dropped_optional.push(name.clone());
-                continue;
-            }
-            names.push(name.clone());
+            continue;
+        }
+        if names.len() == MAX_AGENT_TOOL_SCHEMAS {
+            dropped_optional.push(name.to_string());
+        } else {
+            names.push(name);
         }
     }
     names
@@ -119,16 +67,32 @@ pub(crate) async fn record_tool_failure(
     claimed: &AgentWorkerRun,
     execution: &AgentExecutionSnapshot,
     call: &ToolCall,
-    message: String,
+    error: AppError,
     messages: &mut Vec<ChatMessage>,
 ) -> Result<(RunProgress, Vec<String>), AppError> {
+    let message = error.to_string();
+    let value = json!({"error": message, "code": observation::tool_error_code(&error)});
+    if execution.status == "awaiting_user" {
+        execution_application
+            .update_worker_execution(WorkerExecutionUpdate {
+                run_id: claimed.run.id,
+                lease_token: claimed.lease_token.clone(),
+                execution_id: execution.id,
+                status: "dispatching".into(),
+                result_json: None,
+                result_summary: None,
+                result_refs_json: None,
+                error_message: None,
+            })
+            .await?;
+    }
     execution_application
         .update_worker_execution(WorkerExecutionUpdate {
             run_id: claimed.run.id,
             lease_token: claimed.lease_token.clone(),
             execution_id: execution.id,
             status: "failed".into(),
-            result_json: None,
+            result_json: Some(value.clone()),
             result_summary: Some(message.clone()),
             result_refs_json: None,
             error_message: Some(message.clone()),
@@ -139,7 +103,7 @@ pub(crate) async fn record_tool_failure(
         claimed,
         execution,
         call,
-        json!({"error": message}),
+        value,
         messages,
     )
     .await?;
@@ -153,7 +117,20 @@ pub(crate) fn discovered_tool_names(
     let Some(result) = result else {
         return Ok(Vec::new());
     };
-    if result.get("error").is_some() {
+    let observation = result
+        .get("observation_version")
+        .map(|_| observation::parse(result))
+        .transpose()?;
+    if observation
+        .as_ref()
+        .is_some_and(|observation| observation.error.is_some())
+    {
+        return Ok(Vec::new());
+    }
+    let result = observation
+        .as_ref()
+        .map_or(result, |observation| &observation.data);
+    if observation::error_value(result).is_some() {
         return Ok(Vec::new());
     }
     match tool_name {
@@ -188,10 +165,7 @@ pub(crate) fn is_discovery_tool(name: &str) -> bool {
 }
 
 pub(crate) fn discovery_key(name: &str, arguments: &Value) -> Option<String> {
-    is_discovery_tool(name)
-        .then(|| serde_json::to_string(arguments).ok())
-        .flatten()
-        .map(|arguments| format!("{name}:{arguments}"))
+    is_discovery_tool(name).then(|| format!("{name}:{arguments}"))
 }
 
 pub(crate) fn successful_discovery_cache(
@@ -252,13 +226,6 @@ pub(crate) fn usage_object(value: &Value) -> Result<Value, AppError> {
     }
 }
 
-pub(crate) fn json_u32(value: &Value, key: &str) -> Result<u32, AppError> {
-    u32::try_from(json_u64(value, key)?).map_err(|_| AppError::InvalidState {
-        current: format!("Agent usage.{key} 超出 u32"),
-        operation: "读取 Agent run".into(),
-    })
-}
-
 pub fn json_u64(value: &Value, key: &str) -> Result<u64, AppError> {
     match value.get(key) {
         None => Ok(0),
@@ -275,4 +242,82 @@ pub fn enum_string<T: serde::Serialize>(value: T) -> String {
         .as_str()
         .expect("Agent policy enum must serialize to a string")
         .to_string()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn discovery_restores_wrapped_observations_after_wait_or_restart() {
+        let descriptor = tool_descriptor("get_project").unwrap();
+        let mut raw = serde_json::to_value(&descriptor).unwrap();
+        let policy = raw["agent_policy"].take();
+        raw.as_object_mut()
+            .unwrap()
+            .extend(policy.as_object().unwrap().clone());
+        let wrapped = observation::from_result(7, "describe_agent_tool", raw.clone()).unwrap();
+        assert_eq!(
+            discovered_tool_names("describe_agent_tool", &Some(raw)).unwrap(),
+            ["get_project"]
+        );
+        assert_eq!(
+            discovered_tool_names("describe_agent_tool", &Some(wrapped)).unwrap(),
+            ["get_project"]
+        );
+        let failed =
+            observation::from_result(8, "describe_agent_tool", json!({"error":"not found"}))
+                .unwrap();
+        assert!(
+            discovered_tool_names("describe_agent_tool", &Some(failed))
+                .unwrap()
+                .is_empty()
+        );
+    }
+
+    #[test]
+    fn specialized_discovery_keeps_loaded_tools_and_resource_permissions() {
+        for capability in ["director", "canvas", "content_optimization"] {
+            let window = available_runtime_tools(capability, &AgentScope::default(), &[]).unwrap();
+            assert!(window.schemas.len() <= MAX_AGENT_TOOL_SCHEMAS);
+            assert!(
+                window
+                    .schemas
+                    .iter()
+                    .any(|schema| schema["function"]["name"] == "describe_agent_tool")
+            );
+            assert!(
+                window
+                    .schemas
+                    .iter()
+                    .any(|schema| schema["function"]["name"] == "load_agent_skill")
+            );
+        }
+        let discovered = vec!["start_image_generation".into(), "delete_project".into()];
+        let window =
+            available_runtime_tools("director", &AgentScope::default(), &discovered).unwrap();
+        assert!(
+            window
+                .schemas
+                .iter()
+                .any(|schema| schema["function"]["name"] == "start_image_generation")
+        );
+        assert!(
+            !window
+                .schemas
+                .iter()
+                .any(|schema| schema["function"]["name"] == "delete_project")
+        );
+        let restricted = AgentScope {
+            allowed_tools: vec!["read_chapter_visual_plan".into()],
+            ..AgentScope::default()
+        };
+        let window = available_runtime_tools("director", &restricted, &discovered).unwrap();
+        assert!(
+            !window
+                .schemas
+                .iter()
+                .any(|schema| schema["function"]["name"] == "start_image_generation")
+        );
+    }
 }

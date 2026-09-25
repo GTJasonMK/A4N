@@ -1,10 +1,7 @@
 use a4n_api_contract::agent::{
     AgentMemoryScopeKind, AgentScope, AgentSkillDescriptor, ReviewAgentDelegationInput,
 };
-use a4n_api_contract::runtime_config::RuntimeConfigSnapshot;
-use a4n_domain::agent::{
-    AGENT_PROTOCOL_JSON_COMPAT, AGENT_PROTOCOL_NATIVE_TOOL_CALLING, valid_agent_protocol,
-};
+use a4n_domain::agent::{AGENT_PROTOCOL_JSON_COMPAT, AGENT_PROTOCOL_NATIVE_TOOL_CALLING};
 use a4n_error::AppError;
 use a4n_llm_provider_contract::provider::{
     ChatRequest, ChatResponse, ModelCapabilities, ResponseFormat, ToolCall,
@@ -132,32 +129,6 @@ pub enum AgentModelDecision {
         content: String,
         calls: Vec<ToolCall>,
     },
-}
-
-pub fn agent_protocol_for_snapshot(
-    snapshot: Option<&RuntimeConfigSnapshot>,
-    config_id: Option<i64>,
-) -> Result<String, AppError> {
-    let Some(snapshot) = snapshot else {
-        return Ok(AGENT_PROTOCOL_NATIVE_TOOL_CALLING.to_string());
-    };
-    let config = match config_id {
-        Some(id) => snapshot
-            .llm
-            .as_ref()
-            .filter(|config| config.id == id)
-            .or_else(|| snapshot.llm_configs.iter().find(|config| config.id == id)),
-        None => snapshot.llm.as_ref(),
-    }
-    .ok_or_else(|| AppError::ConfigError("runtime_config_snapshot 缺少 Agent LLM 配置".into()))?;
-    let protocol = config.agent_protocol.trim();
-    if !valid_agent_protocol(protocol) {
-        return Err(AppError::ConfigError(format!(
-            "LLM 配置 {} 使用不支持的 agent_protocol: {}",
-            config.name, config.agent_protocol
-        )));
-    }
-    Ok(protocol.to_string())
 }
 
 pub fn configure_agent_request(request: &mut ChatRequest, protocol: &str, tools: Vec<Value>) {

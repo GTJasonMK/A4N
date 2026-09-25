@@ -850,14 +850,25 @@ export function MangaChapterDetailPanel({
         ) : (
           <>
             <header className="shrink-0 border-b border-book-border/55 pb-3">
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                <div className="min-w-0">
+              <div className="flex flex-wrap items-end gap-3">
+                <div className="min-w-0 flex-1 basis-64">
                   <h2 className="truncate text-sm font-semibold text-book-text-main">
                     {chapterHeading(selectedChapter, t)}
                   </h2>
                   <p className={`mt-1 text-small ${noticeClass[statusTone]}`}>
                     {[...chapterMeta, stageText].filter(Boolean).join(" · ")}
                   </p>
+                </div>
+                <div className="w-44 max-w-full">
+                  <ImageSizeSelect
+                    label={t("settingsForm.selectImageSize")}
+                    value={imageSize}
+                    sizes={imageSizes}
+                    loading={imageSizeLoading}
+                    error={imageSizeError}
+                    disabled={!canEditManga || detailBusy || selectedChapterGenerating}
+                    onChange={onImageSizeChange}
+                  />
                 </div>
                 {canEditManga ? (
                   <div className="flex items-center justify-end gap-2">
@@ -919,17 +930,6 @@ export function MangaChapterDetailPanel({
                 <span className="min-w-0 flex-1 whitespace-pre-wrap break-words leading-relaxed">
                   {notice.text}
                 </span>
-              </div>
-              <div className="mt-3 max-w-xs">
-                <ImageSizeSelect
-                  label={t("settingsForm.selectImageSize")}
-                  value={imageSize}
-                  sizes={imageSizes}
-                  loading={imageSizeLoading}
-                  error={imageSizeError}
-                  disabled={!canEditManga || detailBusy || selectedChapterGenerating}
-                  onChange={onImageSizeChange}
-                />
               </div>
             </header>
 

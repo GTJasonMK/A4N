@@ -318,6 +318,8 @@ class ProviderHandler(BaseHTTPRequestHandler):
             self.end_headers()
             if tool_calls:
                 events = []
+                if content:
+                    events.append({"choices": [{"index": 0, "delta": {"content": content}, "finish_reason": None}]})
                 for tool_index, tool_call in enumerate(tool_calls):
                     arguments = json.dumps(tool_call["arguments"], ensure_ascii=False, separators=(",", ":"))
                     split_at = max(1, len(arguments) // 2)
@@ -389,7 +391,7 @@ class ProviderHandler(BaseHTTPRequestHandler):
                             "index": 0,
                             "message": {
                                 "role": "assistant",
-                                "content": "",
+                                "content": content,
                                 "tool_calls": [
                                     {
                                         "id": tool_call["id"],

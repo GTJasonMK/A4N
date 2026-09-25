@@ -12,7 +12,7 @@ export const ProjectsSection: React.FC = () => {
   const { t } = useI18n();
   const [projects, setProjects] = useState<AdminProjectSummary[]>([]);
   const loadProjects = useCallback(() => listAllProjects(), []);
-  const { loading, load } = useAdminSectionLoader(
+  const { loading, error, load } = useAdminSectionLoader(
     "admin-projects",
     loadProjects,
     setProjects,
@@ -28,12 +28,13 @@ export const ProjectsSection: React.FC = () => {
           <RefreshCw size={14} className={loading ? "animate-spin" : undefined} />
         </BookIconButton>
       </div>
+      {error ? <p role="alert" className="text-xs text-error">{error}</p> : null}
       {loading && projects.length === 0 ? (
         <div className="a4n-empty-state a4n-empty-state--compact inline-flex items-center justify-center gap-1.5 text-xs">
           <LoadingSpinner size="sm" />
           {t("settingsAdmin.loadingProjects")}
         </div>
-      ) : projects.length === 0 ? (
+      ) : error && projects.length === 0 ? null : projects.length === 0 ? (
         <div className="a4n-empty-state a4n-empty-state--compact text-xs">
           {t("settingsAdmin.noProjects")}
         </div>

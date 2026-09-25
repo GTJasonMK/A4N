@@ -41,8 +41,10 @@ pub(in crate::video::prompts::json) fn video_prompt_shot_from_input(
 }
 
 fn derive_self_contained_context(segment: &VideoSegmentPlan) -> Value {
-    let repeat = if segment.segment_number == 1 || segment.director_constraints.is_some() {
+    let repeat = if segment.segment_number == 1 {
         json!([])
+    } else if segment.director_constraints.is_some() {
+        json!(["不自动复述上一片段尾态；以导演编排提供的当前起点画面和约束为准"])
     } else {
         json!(["承接上一片段尾态的人物身份、服装、空间锚点、道具状态、光源方向和镜头轴线"])
     };

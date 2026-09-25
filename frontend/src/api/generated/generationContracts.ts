@@ -86,6 +86,7 @@ export type ServiceErrorCode =
 export type InterruptionReason =
   "host_shutdown" | "host_restart_recovery" | "session_owner_lost" | "destructive_drain_timeout";
 export type GenerationSnapshotState = "available" | "expired" | "corrupt";
+export type InspirationControlKind = "single_choice" | "text_input" | "info_display" | "inspired_options";
 export type ImageGenerationOperation =
   | {
       kind: "visual_plan_point";
@@ -287,6 +288,7 @@ export interface GenerationContractBundle {
   history_page: GenerationTaskHistoryPage;
   history_query: GenerationTaskHistoryQuery;
   host_error: HostErrorResponse;
+  inspiration_response: InspirationResponse;
   snapshot: GenerationTaskSnapshot;
   snapshot_state: GenerationSnapshotState;
   start_blueprint_generation: StartBlueprintGenerationInput;
@@ -493,6 +495,27 @@ export interface HostErrorResponse {
   message: string;
   retryable: boolean;
   trace_id: string | null;
+}
+export interface InspirationResponse {
+  ai_message: string;
+  conversation_state: {
+    [k: string]: unknown;
+  };
+  is_complete: boolean;
+  next_question: string | null;
+  progress_summary: string | null;
+  ui_control: InspirationUiControl;
+}
+export interface InspirationUiControl {
+  options?: InspirationOption[];
+  placeholder?: string | null;
+  type: InspirationControlKind;
+}
+export interface InspirationOption {
+  description: string;
+  id: string;
+  key_elements: string[];
+  label: string;
 }
 export interface GenerationTaskSnapshot {
   /**

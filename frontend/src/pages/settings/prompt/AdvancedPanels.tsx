@@ -76,7 +76,7 @@ export const PromptAdvancedPanels: React.FC<{
     setAbResult(null);
     setRenderBusy(false);
     setRenderResult(null);
-  }, [prompt.name]);
+  }, [prompt.name, prompt.version]);
 
   const isCurrentScope = (target: { name: string; token: number }) =>
     mountedRef.current &&
@@ -277,6 +277,7 @@ export const PromptAdvancedPanels: React.FC<{
 
   return (
     <>
+      <p className="py-2 text-small leading-relaxed text-book-text-muted">{t("settingsPrompt.savedTemplateNotice")}</p>
       <details className="py-2.5">
         <summary className="cursor-pointer text-xs text-book-text-sub inline-flex items-center gap-1.5">
           <NetworkIcon size={11} /> {t("settingsPrompt.dependenciesPanel")}
@@ -316,6 +317,7 @@ export const PromptAdvancedPanels: React.FC<{
             {t("settingsPrompt.variableValidationHint")}
           </div>
           <textarea
+            aria-label={t("settingsPrompt.variableValidation")}
             value={varsInput}
             onChange={(e) => handleVarsInputChange(e.target.value)}
             className="pyqt-input w-full text-small h-16 resize-y font-mono"
@@ -331,7 +333,7 @@ export const PromptAdvancedPanels: React.FC<{
               {validateBusy ? <LoadingSpinner size="sm" /> : t("settingsPrompt.validate")}
             </BookButton>
             {missingVars !== null && missingVars.length === 0 && (
-              <span className="text-success">✓ {t("settingsPrompt.allVariablesCovered")}</span>
+              <span className="inline-flex items-center gap-1.5 text-success"><CheckCircle2 size={14} aria-hidden="true" />{t("settingsPrompt.allVariablesCovered")}</span>
             )}
           </div>
           {missingVars !== null && missingVars.length > 0 && (
@@ -359,6 +361,7 @@ export const PromptAdvancedPanels: React.FC<{
           </label>
           <div className="text-book-text-muted">{t("settingsPrompt.variableJson")}</div>
           <textarea
+            aria-label={t("settingsPrompt.variableJson")}
             value={abVarsJson}
             onChange={(e) => handleRenderVariablesChange(e.target.value)}
             className="pyqt-input w-full text-small h-20 resize-y font-mono"

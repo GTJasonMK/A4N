@@ -386,9 +386,9 @@ fn task_info_summary(info: &a4n_queue::priority::TaskInfo) -> TaskInfoSummary {
                 meta: progress.meta.clone(),
             }
         }),
-        created_at: info.created_at.to_string(),
-        started_at: info.started_at.map(|value| value.to_string()),
-        completed_at: info.completed_at.map(|value| value.to_string()),
+        created_at: info.created_at.and_utc().to_rfc3339(),
+        started_at: info.started_at.map(|value| value.and_utc().to_rfc3339()),
+        completed_at: info.completed_at.map(|value| value.and_utc().to_rfc3339()),
     }
 }
 

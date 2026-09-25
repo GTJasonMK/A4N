@@ -24,9 +24,9 @@ export const ConfigListToolbar: React.FC<ConfigListToolbarProps> = ({
   const { t } = useI18n();
   const createLabel = t("settings.createConfig", { name: title });
   return (
-    <div className="flex flex-wrap items-center gap-2 border-b border-book-border/60 pb-3 max-[360px]:items-start">
-      <div className="min-w-0 flex-1 max-[360px]:basis-full">
-        <h3 className="text-xs font-semibold text-book-text-main">{title}</h3>
+    <header className="flex flex-wrap items-center gap-3 border-b border-book-border/70 pb-4 max-sm:items-start">
+      <div className="min-w-0 flex-1 max-sm:basis-full">
+        <h2 className="a4n-section-heading">{title}</h2>
         <p className="mt-0.5 text-small text-book-text-muted">
           {itemCount > 0 ? t("settings.configCount", { count: itemCount }) : t("settings.noConfigYet")}
         </p>
@@ -35,20 +35,20 @@ export const ConfigListToolbar: React.FC<ConfigListToolbarProps> = ({
         type="button"
         onClick={onCreate}
         disabled={loading || busy}
-        className="a4n-touch-target pyqt-btn-primary !px-3 text-xs max-[360px]:flex-1"
+        className="a4n-touch-target pyqt-btn-primary px-3 text-sm max-sm:flex-1"
       >
-        <Plus size={14} />
+        <Plus size={16} />
         {createLabel}
       </button>
       <BookIconButton
         label={t("common.refresh")}
         variant="secondary"
-        size="sm"
+        size="md"
         onClick={() => void onRefresh()}
         disabled={loading || busy}
       >
-        <RefreshCw size={14} className={loading ? "animate-spin" : undefined} />
+        <RefreshCw size={16} className={loading ? "animate-spin" : undefined} />
       </BookIconButton>
-    </div>
+    </header>
   );
 };

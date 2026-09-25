@@ -222,6 +222,18 @@ class DeployPlanTest(unittest.TestCase):
         self.assertEqual(plan["build_packages"], [])
         self.assertEqual(plan["payloads"], ["static"])
 
+    def test_documentation_and_test_changes_do_not_force_deployment(self) -> None:
+        for relative in ("README.md", "docs/guide.md", "frontend/e2e/smoke.mjs", "scripts/tests/fixture.py"):
+            with self.subTest(relative=relative):
+                source = self.root / relative
+                source.parent.mkdir(parents=True, exist_ok=True)
+                source.write_text("fixture\n", encoding="utf-8")
+
+                plan = self.plan()
+
+                self.assertEqual(plan["mode"], "noop")
+                self.assertNotIn(relative, plan["changed_paths"])
+
     def test_unknown_inputs_are_recorded_even_outside_the_old_fingerprint_scope(self) -> None:
         source = self.root / "frontend/vite.config.ts"
         source.parent.mkdir(parents=True)

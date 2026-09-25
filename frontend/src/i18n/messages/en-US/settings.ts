@@ -95,6 +95,8 @@ export const settings = {
   testingSavedConfig: "Testing the currently saved configuration…",
   latestTest: "Latest test: {status}",
   testConnection: "Test connection",
+  testSavedConnection: "Test saved configuration",
+  webToolsSaveHint: "Save both search and web page reading settings.",
   viewModelRequest: "View model request",
   deleteConfig: "Delete configuration",
   deleteConfigTitle: "Delete {name}",
@@ -134,6 +136,7 @@ export const settingsAgent = {
 } as const;
 
 export const settingsForm = {
+  integerRequired: "Enter an integer for {label}",
   configName: "Configuration name",
   configNamePlaceholder: "For example: Default / Primary writing",
   videoModelPlaceholder: "For example: video-01 / kling-v1 / runway-gen3",
@@ -239,6 +242,7 @@ export const settingsForm = {
   imageSizesRequired: "Configure at least one image size",
   imageSizeUnavailable: "The active image configuration has no usable sizes; generation is unavailable",
   pricingTitle: "Model pricing",
+  pricingOtherCapabilities: "Pricing for other capabilities",
   pricingCurrency: "Currency",
   pricingCurrencyHint: "Use a 3-letter uppercase ISO code; currencies are reported separately without conversion",
   pricingLlmInput: "LLM input / million tokens",

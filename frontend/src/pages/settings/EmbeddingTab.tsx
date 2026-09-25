@@ -183,8 +183,8 @@ export const EmbeddingTab: React.FC<EmbeddingTabProps> = ({
       name: t("settingsEmbedding.localFastembed"),
       backend: "fastembed",
       model: model?.name ?? DEFAULT_FASTEMBED_MODEL,
-      dimension: model?.dimension ?? DEFAULT_FASTEMBED_DIMENSION,
-      batch_size: 32,
+      dimension: String(model?.dimension ?? DEFAULT_FASTEMBED_DIMENSION),
+      batch_size: "32",
       api_base_url: "",
       api_key: "",
       clear_api_key: false,
@@ -375,10 +375,10 @@ export const EmbeddingTab: React.FC<EmbeddingTabProps> = ({
             }
             if (!f.name.trim()) return t("settingsForm.nameRequired");
             if (!f.model.trim()) return t("settingsForm.modelRequired");
-            if (!Number.isInteger(f.dimension) || f.dimension <= 0) {
+            if (!Number.isInteger(Number(f.dimension)) || Number(f.dimension) <= 0) {
               return t("settingsForm.dimensionPositive");
             }
-            if (!Number.isInteger(f.batch_size) || f.batch_size <= 0) {
+            if (!Number.isInteger(Number(f.batch_size)) || Number(f.batch_size) <= 0) {
               return t("settingsForm.batchPositive");
             }
             if (f.backend === "api" && !f.api_base_url.trim()) {
@@ -387,7 +387,7 @@ export const EmbeddingTab: React.FC<EmbeddingTabProps> = ({
             if (f.backend === "fastembed") {
               const model = resolveLocalModel(f.model);
               if (!model) return t("settingsForm.selectFastembedModel");
-              if (f.dimension !== model.dimension) {
+              if (Number(f.dimension) !== model.dimension) {
                 return t("settingsEmbedding.modelDimensionMismatch", {
                   count: model.dimension,
                 });
@@ -419,21 +419,22 @@ export const EmbeddingTab: React.FC<EmbeddingTabProps> = ({
           )}
           onCreate={async (f) => {
             const apiKey = f.api_key.trim();
-            await createEmbeddingConfig(
+            const created = await createEmbeddingConfig(
               {
                 name: f.name,
                 backend: f.backend,
                 base_url: f.backend === "api" ? f.api_base_url : null,
                 api_key_encrypted: f.backend === "api" ? apiKey || null : null,
                 model: f.model,
-                dimension: f.dimension,
-                batch_size: f.batch_size,
+                dimension: Number(f.dimension),
+                batch_size: Number(f.batch_size),
                 local_model_path:
                   f.backend === "fastembed" ? f.local_model_path || null : null,
                 pricing: f.pricing,
               },
               scope,
             );
+            return created.id;
           }}
           onUpdate={async (id, f) => {
             const apiKey = f.api_key.trim();
@@ -450,8 +451,8 @@ export const EmbeddingTab: React.FC<EmbeddingTabProps> = ({
                       : apiKey || undefined
                     : null,
                 model: f.model,
-                dimension: f.dimension,
-                batch_size: f.batch_size,
+                dimension: Number(f.dimension),
+                batch_size: Number(f.batch_size),
                 local_model_path:
                   f.backend === "fastembed" ? f.local_model_path || null : null,
                 pricing: f.pricing,

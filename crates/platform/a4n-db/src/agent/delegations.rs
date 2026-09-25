@@ -406,13 +406,27 @@ pub(crate) async fn create_child_delegation_inner(
                     AgentDbError::NotFound(format!("Agent parent execution 不存在: {execution_id}"))
                 })?;
             if row.run_id != parent_run.id
-                || row.status != "prepared"
+                || !matches!(row.status.as_str(), "prepared" | "awaiting_user")
                 || row.execution_kind != "delegation"
             {
                 return Err(AgentDbError::Conflict(format!(
                     "Agent parent execution 不可用于委派: {execution_id} ({})",
                     row.status
                 )));
+            }
+            if row.status == "awaiting_user" {
+                let grant = approval::Entity::find()
+                    .filter(approval::Column::ExecutionId.eq(row.id))
+                    .lock_exclusive()
+                    .one(&tx)
+                    .await?
+                    .filter(|grant| grant.status == "approved")
+                    .ok_or_else(|| AgentDbError::Conflict("Agent 委派尚未获得审批".into()))?;
+                // The grant and the actual child creation commit together.
+                let mut grant: approval::ActiveModel = grant.into();
+                grant.status = Set("consumed".into());
+                grant.consumed_at = Set(Some(timestamp));
+                grant.update(&tx).await?;
             }
             Some(row)
         }
@@ -455,8 +469,10 @@ pub(crate) async fn create_child_delegation_inner(
         execution_active.completed_at = Set(None);
         execution_active.update(&tx).await?;
     }
+    let started_at = parent_run.started_at.or(Some(timestamp));
     let mut parent_active: run::ActiveModel = parent_run.into();
     parent_active.status = Set("waiting".to_string());
+    parent_active.started_at = Set(started_at);
     parent_active.waiting_reason = Set(Some("child".to_string()));
     parent_active.worker_id = Set(None);
     parent_active.lease_token = Set(None);
@@ -544,6 +560,10 @@ pub async fn complete_child_delegation(
     if requeue_for_new_input_on(&tx, &child_run, input.observed_input_message_id).await? {
         tx.commit().await?;
         return Ok(None);
+    }
+    let blockers = completion_blockers(&tx, child_run.id).await?;
+    if !blockers.is_empty() {
+        return Err(AgentDbError::CompletionBlocked(blockers));
     }
     let child_turn = turn::Entity::find_by_id(child_run.turn_id)
         .lock_exclusive()
@@ -677,7 +697,7 @@ pub async fn complete_child_delegation(
             inbox_kind: "child_result".to_string(),
             delivery_mode: "followup".to_string(),
             priority: 20,
-            dedupe_key: format!("child-result:{}", delegation.id),
+            dedupe_key: format!("child-result:{}:{}", delegation.id, child_run.id),
             content: result_summary,
             payload_json: Some(inbox_payload),
             available_at: None,
@@ -849,7 +869,10 @@ pub async fn fail_child_delegation(
     if child_run.status == "failed" && delegation.status == "failed" {
         let inbox_row = inbox_model::Entity::find()
             .filter(inbox_model::Column::ThreadId.eq(parent_run.thread_id))
-            .filter(inbox_model::Column::DedupeKey.eq(format!("child-failed:{}", delegation.id)))
+            .filter(
+                inbox_model::Column::DedupeKey
+                    .eq(format!("child-failed:{}:{}", delegation.id, child_run.id)),
+            )
             .one(&tx)
             .await?
             .ok_or_else(|| {
@@ -968,7 +991,7 @@ pub async fn fail_child_delegation(
             inbox_kind: "child_result".into(),
             delivery_mode: "followup".into(),
             priority: 20,
-            dedupe_key: format!("child-failed:{}", delegation.id),
+            dedupe_key: format!("child-failed:{}:{}", delegation.id, child_run.id),
             content: format!(
                 "Child Agent failed: {}",
                 inbox_payload["error"].as_str().unwrap_or("unknown error")

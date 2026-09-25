@@ -50,7 +50,7 @@ import { type VideoFrameImageIndexes } from "./videoImageUtils";
 import { directorSections } from "./videoGenerationDisplay";
 
 const MEDIA_SLOT_GRID_CLASS =
-  "grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5";
+  "grid max-w-lg grid-cols-2 gap-2 [&>*:only-child]:col-span-2 [&>*:only-child]:max-w-64";
 
 type FrameSlotRenderer = (
   label: string,
@@ -335,8 +335,8 @@ export const VideoGenerationEditor: React.FC<VideoGenerationEditorProps> = ({
     const ready = finalPromptBlockedReason == null;
 
     return (
-      <div className="min-h-0 flex-1 overflow-y-auto overflow-x-visible custom-scrollbar pr-2">
-        <div className="w-full space-y-3">
+      <div className="flex h-full min-h-0 flex-1 flex-col">
+        <div className="custom-scrollbar min-h-0 flex-1 space-y-3 overflow-y-auto pr-2">
           <section className="a4n-flat-surface p-4 sm:p-5">
             <div className="flex min-w-0 flex-wrap items-start gap-3">
               <div className="min-w-0 flex-1">
@@ -426,8 +426,8 @@ export const VideoGenerationEditor: React.FC<VideoGenerationEditorProps> = ({
           ) : null}
 
           {referenceInputs}
-
-          <section className="a4n-flat-surface flex flex-wrap items-center justify-between gap-3 p-3 sm:p-4">
+        </div>
+          <section className="mt-3 flex shrink-0 flex-wrap items-center justify-between gap-3 border-t border-book-border/40 pt-3">
             <span className="text-small text-book-text-muted">
               {t("video.chapter.generateAfterEdit")}
             </span>
@@ -442,7 +442,6 @@ export const VideoGenerationEditor: React.FC<VideoGenerationEditorProps> = ({
               {t("video.chapter.generateFinalPrompt")}
             </BookButton>
           </section>
-        </div>
       </div>
     );
   }
@@ -526,8 +525,7 @@ export const VideoGenerationEditor: React.FC<VideoGenerationEditorProps> = ({
   const showCopyPrimary = !showSavePrimary && chatVideoMode;
   const showGeneratePrimary =
     !showSavePrimary &&
-    !chatVideoMode &&
-    (videoGenerationInFlight || selectedGenerateBlockedReason == null);
+    !chatVideoMode;
   const editorMetadata = [
     t("video.chapter.seconds", { count: draft.duration_secs }),
     getOperationStatusLabel(selectedPrompt.status, locale),
@@ -540,11 +538,10 @@ export const VideoGenerationEditor: React.FC<VideoGenerationEditorProps> = ({
   const sections = directorSections(selectedPrompt.metadata_json, t);
   const selectedPromptSceneSummary = selectedPrompt.scene_summary?.trim() ?? "";
 
-  return (
-    <div className="min-h-0 flex-1 overflow-y-auto overflow-x-visible custom-scrollbar pr-2">
-      <div className="mb-3 flex min-w-0 flex-wrap items-center gap-2 border-b border-book-border/40 pb-3">
+  const actions = (
+      <footer className="mt-3 flex min-w-0 shrink-0 flex-wrap items-center gap-2 border-t border-book-border/40 pt-3">
         <span className="min-w-0 flex-1 text-small text-book-text-muted">
-          {editorMetadata.join(" · ")}
+          {selectedGenerateBlockedReason ?? editorMetadata.join(" · ")}
         </span>
         <div className="flex shrink-0 items-center gap-2">
           {showSavePrimary && (
@@ -583,7 +580,7 @@ export const VideoGenerationEditor: React.FC<VideoGenerationEditorProps> = ({
               variant="primary"
               size="sm"
               onClick={() => void onGenerateVideo()}
-              disabled={videoGenerationInFlight}
+              disabled={videoGenerationInFlight || selectedGenerateBlockedReason != null}
               title={selectedGenerateBlockedReason}
               className="!min-h-9 !px-3 sm:!min-h-7"
             >
@@ -662,7 +659,12 @@ export const VideoGenerationEditor: React.FC<VideoGenerationEditorProps> = ({
             ]}
           />
         </div>
-      </div>
+      </footer>
+  );
+
+  return (
+    <div className="flex h-full min-h-0 flex-1 flex-col">
+      <div className="custom-scrollbar min-h-0 flex-1 overflow-y-auto pr-2">
       {selectedPromptStale && (
         <div className="mb-2 text-small text-error">
           {staleVideoPromptMessage(frameStageLabel, t)}
@@ -694,8 +696,9 @@ export const VideoGenerationEditor: React.FC<VideoGenerationEditorProps> = ({
       ) : null}
       <fieldset
         disabled={selectedPromptRunning}
-        className="m-0 min-w-0 border-0 p-0"
+        className="m-0 grid min-w-0 gap-4 border-0 p-0 md:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)]"
       >
+        <div className="min-w-0">
         {chatVideoMode ? null : firstFrameChainMode ? (
           <div className="a4n-flat-surface mb-3 p-3">
             {renderFirstFrameSourceSelector()}
@@ -822,7 +825,7 @@ export const VideoGenerationEditor: React.FC<VideoGenerationEditorProps> = ({
                   className="grid min-w-0 gap-1 px-2.5 py-2 md:grid-cols-[110px_minmax(0,1fr)] md:gap-3"
                 >
                   <dt className="text-caption text-book-text-muted">{section.label}</dt>
-                  <dd className="line-clamp-4 whitespace-pre-wrap break-words text-small leading-relaxed text-book-text-sub">
+                  <dd className="whitespace-pre-wrap break-words text-small leading-relaxed text-book-text-sub">
                     {section.text}
                   </dd>
                 </div>
@@ -866,7 +869,8 @@ export const VideoGenerationEditor: React.FC<VideoGenerationEditorProps> = ({
           </details>
         )}
 
-        <div className="grid gap-3">
+        </div>
+        <div className="grid min-w-0 content-start gap-3">
           <label className="flex min-w-0 flex-col gap-1">
             <span className="text-xs text-book-text-muted">{t("video.chapter.videoDuration")}</span>
             {durationLimits.durationMode === "fixed" ? (
@@ -952,6 +956,8 @@ export const VideoGenerationEditor: React.FC<VideoGenerationEditorProps> = ({
           </label>
         </div>
       </fieldset>
+      </div>
+      {actions}
     </div>
   );
 };

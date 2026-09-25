@@ -61,6 +61,10 @@ pub fn chapter_summary(chapter: &chapter::Model) -> ChapterSummary {
         chapter_number: chapter.chapter_number,
         title: chapter.title.clone(),
         content: chapter.content.clone(),
+        edit_revision: a4n_domain::chapter::chapter_edit_revision(
+            &chapter.content,
+            chapter.title.as_deref(),
+        ),
         word_count: chapter.word_count,
         status: chapter.status.clone(),
         summary: chapter.summary.clone(),

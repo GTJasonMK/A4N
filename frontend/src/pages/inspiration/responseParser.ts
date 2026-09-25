@@ -1,5 +1,6 @@
 import type { MessageOption } from "./shared";
-import { isJsonRecord as isRecord, type JsonRecord } from "../../utils/jsonRecord";
+import type { InspirationOption, InspirationResponse } from "../../api/generated/generationContracts";
+import { isJsonRecord as isRecord } from "../../utils/jsonRecord";
 
 interface ParsedInspirationResponse {
   content: string;
@@ -24,9 +25,6 @@ const asString = (value: unknown): string | undefined => {
   return trimmed ? trimmed : undefined;
 };
 
-const isStringOrNull = (value: unknown): value is string | null =>
-  typeof value === "string" || value === null;
-
 const asStringArray = (value: unknown): string[] => {
   if (!Array.isArray(value)) return [];
   return value
@@ -34,22 +32,7 @@ const asStringArray = (value: unknown): string[] => {
     .filter(Boolean);
 };
 
-const rejectUnknownKeys = (source: JsonRecord, allowed: string[], context: string) => {
-  for (const key of Object.keys(source)) {
-    if (!allowed.includes(key)) {
-      throw new Error(`${context} 包含未支持字段 ${key}`);
-    }
-  }
-};
-
-const requireKey = (source: JsonRecord, key: string, context: string): unknown => {
-  if (!Object.prototype.hasOwnProperty.call(source, key)) {
-    throw new Error(`${context} 缺少字段 ${key}`);
-  }
-  return source[key];
-};
-
-const parseResponseObject = (raw: string): JsonRecord => {
+const parseResponseObject = (raw: string): InspirationResponse => {
   const trimmed = raw.trim();
   if (!trimmed.startsWith("{") || !trimmed.endsWith("}")) {
     throw new Error("灵感回复必须是完整 JSON 对象");
@@ -60,19 +43,9 @@ const parseResponseObject = (raw: string): JsonRecord => {
     throw new Error("灵感回复必须是 JSON 对象");
   }
 
-  rejectUnknownKeys(
-    parsed,
-    [
-      "ai_message",
-      "next_question",
-      "progress_summary",
-      "ui_control",
-      "conversation_state",
-      "is_complete",
-    ],
-    "灵感回复",
-  );
-  return parsed;
+  // Final responses and history share the server's inspiration validator.
+  // Streaming fragments use the separate preview projection below.
+  return parsed as unknown as InspirationResponse;
 };
 
 const normalizeStreamingOption = (raw: unknown): MessageOption | null => {
@@ -96,35 +69,10 @@ const normalizeStreamingOption = (raw: unknown): MessageOption | null => {
   };
 };
 
-const parseOption = (raw: unknown, index: number): MessageOption => {
-  if (!isRecord(raw)) {
-    throw new Error(`ui_control.options[${index}] 必须是 JSON 对象`);
-  }
-  rejectUnknownKeys(
-    raw,
-    ["id", "label", "description", "key_elements"],
-    `ui_control.options[${index}]`,
-  );
-
-  const optionId = asString(raw.id);
-  const label = asString(raw.label);
-  const description = asString(raw.description);
-  if (!optionId) throw new Error(`ui_control.options[${index}].id 不能为空`);
-  if (!Array.isArray(raw.key_elements)) {
-    throw new Error(`ui_control.options[${index}].key_elements 必须是数组`);
-  }
-  if (!label) throw new Error(`ui_control.options[${index}].label 不能为空`);
-  if (!description) throw new Error(`ui_control.options[${index}].description 不能为空`);
-
-  const keyElements = raw.key_elements.map((item, itemIndex) => {
-    if (typeof item !== "string" || !item.trim()) {
-      throw new Error(`ui_control.options[${index}].key_elements[${itemIndex}] 必须是非空字符串`);
-    }
-    return item.trim();
-  });
-  if (keyElements.length < 2 || keyElements.length > 3) {
-    throw new Error(`ui_control.options[${index}].key_elements 必须包含 2-3 个元素`);
-  }
+const parseOption = (raw: InspirationOption): MessageOption => {
+  const label = raw.label.trim();
+  const description = raw.description.trim();
+  const keyElements = raw.key_elements.map((item) => item.trim());
   const valueParts = [`选择：${label}`];
   valueParts.push(description);
   valueParts.push(`关键要素：${keyElements.join("、")}`);
@@ -137,28 +85,8 @@ const parseOption = (raw: unknown, index: number): MessageOption => {
   };
 };
 
-const extractOptions = (uiControl: JsonRecord): MessageOption[] | undefined => {
-  rejectUnknownKeys(uiControl, ["type", "options", "placeholder"], "ui_control");
-  const type = asString(uiControl.type);
-  if (
-    !type ||
-    !["single_choice", "text_input", "info_display", "inspired_options"].includes(type)
-  ) {
-    throw new Error("ui_control.type 无效");
-  }
-
-  const rawOptions = Array.isArray(uiControl.options) ? uiControl.options : undefined;
-  if (uiControl.options !== undefined && !Array.isArray(uiControl.options)) {
-    throw new Error("ui_control.options 必须是数组");
-  }
-  if (type === "inspired_options" && (!rawOptions || rawOptions.length === 0)) {
-    throw new Error("ui_control.options 不能为空");
-  }
-  if (!rawOptions) return undefined;
-
-  const options = rawOptions.map((item, index) => parseOption(item, index));
-
-  return options.length > 0 ? options : undefined;
+const extractOptions = (uiControl: InspirationResponse["ui_control"]): MessageOption[] | undefined => {
+  return uiControl.options?.length ? uiControl.options.map(parseOption) : undefined;
 };
 
 const normalizeTextBlock = (value: string): string =>
@@ -289,61 +217,16 @@ const extractPartialOptions = (
 
 export const parseInspirationResponse = (raw: string): ParsedInspirationResponse => {
   const root = parseResponseObject(raw);
-  const message = asString(root.ai_message);
-  if (!message) {
-    throw new Error("灵感回复缺少 ai_message");
-  }
-
-  const nextQuestionValue = requireKey(root, "next_question", "灵感回复");
-  const progressSummaryValue = requireKey(root, "progress_summary", "灵感回复");
-  if (!isStringOrNull(nextQuestionValue)) {
-    throw new Error("next_question 必须是字符串或 null");
-  }
-  if (!isStringOrNull(progressSummaryValue)) {
-    throw new Error("progress_summary 必须是字符串或 null");
-  }
-  const nextQuestion = nextQuestionValue?.trim() || undefined;
-  const progressSummary = progressSummaryValue?.trim() || undefined;
-
-  const isCompleteValue = requireKey(root, "is_complete", "灵感回复");
-  if (typeof isCompleteValue !== "boolean") {
-    throw new Error("is_complete 必须是布尔值");
-  }
-  const isComplete = isCompleteValue;
-  const conversationStateValue = requireKey(root, "conversation_state", "灵感回复");
-  if (!isRecord(conversationStateValue)) {
-    throw new Error("conversation_state 必须是 JSON 对象");
-  }
-  const conversationState = conversationStateValue;
-  if (isComplete) {
-    const chapterCount = conversationState.chapter_count;
-    if (
-      typeof chapterCount !== "number"
-      || !Number.isInteger(chapterCount)
-      || chapterCount < 5
-      || chapterCount > 10000
-    ) {
-      throw new Error("完成态 conversation_state.chapter_count 必须是 5-10000 的整数");
-    }
-    if (!asString(conversationState.genre)) {
-      throw new Error("完成态 conversation_state.genre 必须是非空字符串");
-    }
-  }
-  const uiControlValue = requireKey(root, "ui_control", "灵感回复");
-  if (!isRecord(uiControlValue)) {
-    throw new Error("ui_control 必须是 JSON 对象");
-  }
-  const uiControl = uiControlValue;
 
   return {
-    content: normalizeTextBlock(message),
+    content: normalizeTextBlock(root.ai_message),
     rawContent: raw,
-    options: extractOptions(uiControl),
-    isComplete,
-    conversationState,
-    progressSummary,
-    nextQuestion,
-    placeholder: asString(uiControl.placeholder),
+    options: extractOptions(root.ui_control),
+    isComplete: root.is_complete,
+    conversationState: root.conversation_state,
+    progressSummary: asString(root.progress_summary),
+    nextQuestion: asString(root.next_question),
+    placeholder: asString(root.ui_control.placeholder),
   };
 };
 

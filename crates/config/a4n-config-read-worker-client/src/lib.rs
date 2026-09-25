@@ -530,14 +530,19 @@ impl SettingsImportApplicationPort for ConfigReadWorkerClient {
                 input,
             )
             .await?;
-        let prompt_snapshots = host
+        let mut prompt_snapshots = host
             .prepare_prompt_import(&prepared.prompts_modified)
             .await?;
-        let prompt_imported = host
-            .import_prompts(prepared.prompts_modified.clone())
-            .await?;
+        let imported_names: std::collections::HashSet<_> = host
+            .import_prompts(prepared.prompts_modified.clone(), overwrite)
+            .await?
+            .into_iter()
+            .collect();
+        let prompt_imported = imported_names.len();
+        let prompt_skipped = prepared.prompts_modified.len() - prompt_imported;
+        prompt_snapshots.retain(|(name, _)| imported_names.contains(name));
         match self
-            .command(
+            .command::<_, Vec<String>>(
                 Self::user(caller_user_id)?,
                 CONFIG_SETTINGS_IMPORT_OPERATION,
                 SettingsImportCommand {
@@ -548,7 +553,12 @@ impl SettingsImportApplicationPort for ConfigReadWorkerClient {
             )
             .await
         {
-            Ok(details) => Ok(details),
+            Ok(mut details) => {
+                if prompt_skipped > 0 {
+                    details.push(format!("提示词：保留 {prompt_skipped} 个已有自定义"));
+                }
+                Ok(details)
+            }
             Err(error) => {
                 let db_error = error.to_string();
                 if prompt_snapshots.is_empty() {

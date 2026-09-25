@@ -18,6 +18,8 @@ import {
   type MessageKey,
   type MessageParams,
 } from "./translate";
+import { extractErrorMessage } from "../utils/errorMessage";
+import { useToast } from "../components/feedback/toastStore";
 
 export interface I18nContextValue {
   locale: Locale;
@@ -38,10 +40,17 @@ export const I18nProvider = ({
     () => initialLocale ?? resolveInitialLocale(),
   );
 
-  const setLocale = useCallback((nextLocale: Locale) => {
-    setLocaleState(nextLocale);
-    setActiveLocale(nextLocale);
-    writeLocalePreference(nextLocale);
+  const setLocale = useCallback(async (nextLocale: Locale) => {
+    try {
+      await writeLocalePreference(nextLocale);
+      setLocaleState(nextLocale);
+      setActiveLocale(nextLocale);
+    } catch (error) {
+      useToast.getState().addToast(
+        extractErrorMessage(error, translateMessage(nextLocale, "errors.saveFailed")),
+        "error",
+      );
+    }
   }, []);
 
   useEffect(() => {

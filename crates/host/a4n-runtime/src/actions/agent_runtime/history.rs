@@ -18,7 +18,14 @@ pub async fn claim_agent_worker_request(
     else {
         return Ok(None);
     };
-    let runtime_snapshot = state.agent_runtime_snapshot(claimed.run.id).await;
+    let mut runtime_snapshot = state.agent_runtime_snapshot(claimed.run.id).await;
+    if runtime_snapshot.is_none()
+        && let Some(parent_id) = claimed.run.parent_run_id
+    {
+        // Delegations inherit their parent's admitted configuration, including
+        // a revision queued by the user while the execution worker was idle.
+        runtime_snapshot = state.agent_runtime_snapshot(parent_id).await;
+    }
     match worker_request_for_claimed_run(&claimed, worker_id, runtime_snapshot) {
         Ok(request) => Ok(Some(request)),
         Err(error) => {
@@ -243,7 +250,12 @@ pub async fn mark_agent_worker_recovery_required(
     state
         .agent_worker_recovery_application()
         .mark_recovery_required_request(request)
-        .await
+        .await?;
+    state.cancel_agent_run_tree(request.run_id).await;
+    state
+        .remove_agent_runtime_snapshot_tree(request.run_id)
+        .await;
+    Ok(())
 }
 
 pub async fn wait_for_agent_editor(
@@ -388,7 +400,12 @@ pub async fn fail_agent_worker_run(
     state
         .agent_worker_failure_application()
         .fail_worker_run(request)
-        .await
+        .await?;
+    state.cancel_agent_run_tree(request.run_id).await;
+    state
+        .remove_agent_runtime_snapshot_tree(request.run_id)
+        .await;
+    Ok(())
 }
 
 pub async fn result_refs_for_agent_worker_run(
@@ -411,10 +428,16 @@ pub async fn complete_agent_worker_run(
     request
         .validate()
         .map_err(|error| AppError::InvalidArgument(format!("Agent completion 无效: {error}")))?;
-    state
+    let receipt = state
         .agent_worker_completion_application()
         .complete_worker_run_request(request)
-        .await
+        .await?;
+    if receipt.completed {
+        state
+            .remove_agent_runtime_snapshot_tree(request.run_id)
+            .await;
+    }
+    Ok(receipt)
 }
 
 pub async fn check_agent_worker_approval(
@@ -503,19 +526,6 @@ pub async fn create_agent_child_run(
     state
         .agent_worker_delegation_application()
         .create_child_run_request(request)
-        .await
-}
-
-pub async fn agent_worker_run_is_terminal(
-    state: &AppState,
-    request: &AgentWorkerRunLeaseRequest,
-) -> Result<AgentWorkerRunStatusSnapshotWire, AppError> {
-    request
-        .validate()
-        .map_err(|error| AppError::InvalidArgument(format!("Agent run status 无效: {error}")))?;
-    state
-        .agent_worker_completion_application()
-        .run_is_terminal_request(request)
         .await
 }
 

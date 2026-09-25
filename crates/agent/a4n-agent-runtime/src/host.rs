@@ -31,9 +31,9 @@ use a4n_worker_contract::{
     AgentWorkerInboxPersistSnapshotWire, AgentWorkerInboxSnapshotWire, AgentWorkerMemoryRequest,
     AgentWorkerMessageRequest, AgentWorkerMessageSnapshotWire, AgentWorkerRecoveryRequest,
     AgentWorkerResultRefsRequest, AgentWorkerResultRefsSnapshotWire, AgentWorkerRunContextWire,
-    AgentWorkerRunLeaseRequest, AgentWorkerRunStatusSnapshotWire, AgentWorkerRunWaitRequest,
-    AgentWorkerSkillLoadRequest, AgentWorkerSkillSearchRequest, AgentWorkerToolDescribeRequest,
-    AgentWorkerToolSearchRequest, AgentWorkerUsageRequest, AgentWorkerWorkflowCancelScanRequest,
+    AgentWorkerRunLeaseRequest, AgentWorkerRunWaitRequest, AgentWorkerSkillLoadRequest,
+    AgentWorkerSkillSearchRequest, AgentWorkerToolDescribeRequest, AgentWorkerToolSearchRequest,
+    AgentWorkerUsageRequest, AgentWorkerWorkflowCancelScanRequest,
     AgentWorkerWorkflowCancelSnapshotWire, WorkerEnvelope,
 };
 use async_trait::async_trait;
@@ -244,11 +244,6 @@ pub trait AgentRuntimeHost: Send + Sync {
         &self,
         request: &AgentWorkerDelegationStartRequest,
     ) -> Result<AgentWorkerDelegationStartSnapshotWire, AppError>;
-
-    async fn run_is_terminal(
-        &self,
-        request: &AgentWorkerRunLeaseRequest,
-    ) -> Result<AgentWorkerRunStatusSnapshotWire, AppError>;
 
     async fn execute_command(
         &self,

@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { ChevronDown,
   ChevronRight,
   RefreshCw, } from "lucide-react";
@@ -7,6 +7,8 @@ import type {
   WorkflowRunDetailSummary,
   WorkflowRunSummary,
 } from "../../../api/streaming";
+import { getWorkflowRunDetail } from "../../../api/streaming";
+import { extractErrorMessage } from "../../../api";
 import { Dropdown, type DropdownItem } from "../../../components/ui/Dropdown";
 import { progressDisplayModel } from "../../../utils/progressPresentation";
 import {
@@ -27,22 +29,14 @@ interface WorkflowRunsPanelProps {
   runs: WorkflowRunSummary[];
   loading: boolean;
   resumingRunIds: ReadonlySet<number>;
-  expandedRunIds: ReadonlySet<number>;
-  loadingDetailRunIds: ReadonlySet<number>;
-  details: ReadonlyMap<number, WorkflowRunDetailSummary>;
   onResume: (run: WorkflowRunSummary) => void;
-  onToggleDetail: (run: WorkflowRunSummary) => void;
 }
 
 export const WorkflowRunsPanel: React.FC<WorkflowRunsPanelProps> = ({
   runs,
   loading,
   resumingRunIds,
-  expandedRunIds,
-  loadingDetailRunIds,
-  details,
   onResume,
-  onToggleDetail,
 }) => {
   const { t } = useI18n();
   return (
@@ -70,11 +64,7 @@ export const WorkflowRunsPanel: React.FC<WorkflowRunsPanelProps> = ({
             key={run.id}
             run={run}
             resuming={resumingRunIds.has(run.id)}
-            expanded={expandedRunIds.has(run.id)}
-            detailLoading={loadingDetailRunIds.has(run.id)}
-            detail={details.get(run.id)}
             onResume={onResume}
-            onToggleDetail={onToggleDetail}
           />
         ))}
       </ul>
@@ -86,21 +76,33 @@ export const WorkflowRunsPanel: React.FC<WorkflowRunsPanelProps> = ({
 const WorkflowRunRow: React.FC<{
   run: WorkflowRunSummary;
   resuming: boolean;
-  expanded: boolean;
-  detailLoading: boolean;
-  detail?: WorkflowRunDetailSummary;
   onResume: (run: WorkflowRunSummary) => void;
-  onToggleDetail: (run: WorkflowRunSummary) => void;
 }> = ({
   run,
   resuming,
-  expanded,
-  detailLoading,
-  detail,
   onResume,
-  onToggleDetail,
 }) => {
   const { t, locale } = useI18n();
+  const [expanded, setExpanded] = useState(false);
+  const [detail, setDetail] = useState<WorkflowRunDetailSummary>();
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [detailError, setDetailError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!expanded) return;
+    let current = true;
+    setDetail(undefined);
+    setDetailError(null);
+    setDetailLoading(true);
+    void getWorkflowRunDetail(run.id, true).then((next) => {
+      if (current) setDetail(next);
+    }).catch((error: unknown) => {
+      if (current) setDetailError(extractErrorMessage(error, t("settingsQueue.loadWorkflowFailed")));
+    }).finally(() => {
+      if (current) setDetailLoading(false);
+    });
+    return () => { current = false; };
+  }, [expanded, run.id, run.updated_at, run.status, t]);
   const display = run.progress
       ? progressDisplayModel({
         ...run.progress,
@@ -140,7 +142,7 @@ const WorkflowRunRow: React.FC<{
     {
       label: expanded ? t("settingsQueue.collapseDetails") : t("settingsQueue.viewDetails"),
       icon: expanded ? <ChevronDown size={13} /> : <ChevronRight size={13} />,
-      onClick: () => onToggleDetail(run),
+      onClick: () => setExpanded((value) => !value),
     },
   ];
   if (canResumeFromPanel && !resuming) {
@@ -189,7 +191,7 @@ const WorkflowRunRow: React.FC<{
             {formatDateTime(detailText, locale, detailText)}
           </div>
         </div>
-        {detailLoading || resuming ? (
+        {resuming ? (
           <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center text-book-text-muted">
             <LoadingSpinner size="sm" />
           </span>
@@ -197,9 +199,9 @@ const WorkflowRunRow: React.FC<{
           <Dropdown items={menuItems} />
         )}
       </div>
-      {expanded && (
-        <WorkflowRunDetailBlock detail={detail} loading={detailLoading} />
-      )}
+      {expanded && (detailError
+        ? <p role="alert" className="mt-3 text-error">{detailError}</p>
+        : <WorkflowRunDetailBlock detail={detail} loading={detailLoading} />)}
     </li>
   );
 };
@@ -235,7 +237,7 @@ const WorkflowRunDetailBlock: React.FC<{
         <div>
           <div className="mb-1.5 font-medium text-book-text-sub">{t("settingsQueue.runProgress")}</div>
           <ol className="divide-y divide-book-border/25 rounded-xl bg-book-bg-tertiary/35 px-2.5">
-            {detail.checkpoints.slice(0, 6).map((checkpoint) => (
+            {detail.checkpoints.map((checkpoint) => (
               <li
                 key={checkpoint.id}
                 className="flex min-w-0 items-center gap-2 py-2"
@@ -255,7 +257,7 @@ const WorkflowRunDetailBlock: React.FC<{
         <div>
           <div className="mb-1.5 font-medium text-book-text-sub">{t("settingsQueue.generationCall")}</div>
           <ol className="divide-y divide-book-border/25 rounded-xl bg-book-bg-tertiary/35 px-2.5">
-            {detail.generation_runs.slice(0, 8).map((run, index) => (
+            {detail.generation_runs.map((run, index) => (
               <li
                 key={run.id}
                 className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 py-2"
@@ -302,7 +304,7 @@ const WorkflowRunDiagnostics: React.FC<{ detail: WorkflowRunDetailSummary }> = (
       </div>
       {detail.checkpoints.length > 0 ? (
         <div className="border-t border-book-border/30 pt-2">
-          {detail.checkpoints.slice(0, 6).map((checkpoint) => (
+          {detail.checkpoints.map((checkpoint) => (
             <div key={checkpoint.id} className="break-all">
               {t("settingsQueue.checkpoint", { id: checkpoint.id })} · {checkpoint.step_key} · {checkpoint.status}
             </div>
@@ -311,7 +313,7 @@ const WorkflowRunDiagnostics: React.FC<{ detail: WorkflowRunDetailSummary }> = (
       ) : null}
       {detail.generation_runs.length > 0 ? (
         <div className="border-t border-book-border/30 pt-2">
-          {detail.generation_runs.slice(0, 8).map((run) => (
+          {detail.generation_runs.map((run) => (
             <div key={run.id} className="break-all">
               {t("settingsQueue.generation", { id: run.id })} · {run.call_key ?? run.step_key} · {run.status}
               {run.raw_response_json != null ? ` · ${t("settingsQueue.raw")}` : ""}

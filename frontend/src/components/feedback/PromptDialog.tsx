@@ -159,6 +159,8 @@ export function PromptDialogHost() {
       maxWidthClassName={current.multiline ? "max-w-2xl" : "max-w-lg"}
       zIndexClassName="z-[121]"
       footer={
+        <>
+        <BookButton variant="secondary" size="sm" onClick={cancel}>{current.cancelText}</BookButton>
         <BookButton
           variant="primary"
           size="sm"
@@ -168,6 +170,7 @@ export function PromptDialogHost() {
         >
           {current.confirmText}
         </BookButton>
+        </>
       }
     >
       <div className="space-y-2">

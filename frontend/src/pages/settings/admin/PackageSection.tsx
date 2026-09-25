@@ -4,21 +4,19 @@ import { extractErrorMessage } from "../../../api";
 import {
   getPackageOverview,
   getPackageOperation,
-  getPackagePreferences,
   readPackageRejection,
   startPackageLifecycle,
-  updatePackagePreferences,
 } from "../../../api/package";
 import type {
   PackageId,
   PackageLifecycleState,
   PackageOverview,
   PackageLifecycleSummary,
-  PackagePreferencesSummary,
 } from "../../../api/generated/page";
 import { BookButton, BookIconButton } from "../../../components/ui/BookButton";
 import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
 import { useI18n } from "../../../i18n";
+import { usePackagePreferences, savePackagePreferences } from "../../../store/packagePreferences";
 
 const OPERATION_POLL_INTERVAL_MS = 1_000;
 const MAX_OPERATION_POLLS = 60;
@@ -56,7 +54,7 @@ export const PackageSection: React.FC<{ canManageLifecycle?: boolean }> = ({
 }) => {
   const { t } = useI18n();
   const [overview, setOverview] = useState<PackageOverview[]>([]);
-  const [preferences, setPreferences] = useState<PackagePreferencesSummary | null>(null);
+  const { preferences, refresh: refreshPreferences } = usePackagePreferences();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [busyPackage, setBusyPackage] = useState<string | null>(null);
@@ -77,15 +75,13 @@ export const PackageSection: React.FC<{ canManageLifecycle?: boolean }> = ({
   const load = useCallback(async (initial = false): Promise<PackageOverview[] | null> => {
     if (initial) setLoading(true);
     else setRefreshing(true);
-    setError(null);
     try {
-      const [nextOverview, nextPreferences] = await Promise.all([
+      const [nextOverview] = await Promise.all([
         getPackageOverview(),
-        getPackagePreferences(),
+        refreshPreferences(),
       ]);
       if (!mountedRef.current) return nextOverview;
       setOverview(nextOverview);
-      setPreferences(nextPreferences);
       setSnapshotStale(false);
       return nextOverview;
     } catch (nextError) {
@@ -93,7 +89,6 @@ export const PackageSection: React.FC<{ canManageLifecycle?: boolean }> = ({
       setSnapshotStale(true);
       if (initial) {
         setOverview([]);
-        setPreferences(null);
       }
       setError(formatPackageError(nextError, t("settingsAdmin.packageLoadFailed"), t));
       return null;
@@ -103,7 +98,7 @@ export const PackageSection: React.FC<{ canManageLifecycle?: boolean }> = ({
         setRefreshing(false);
       }
     }
-  }, [t]);
+  }, [refreshPreferences, t]);
 
   useEffect(() => {
     void load(true);
@@ -111,7 +106,6 @@ export const PackageSection: React.FC<{ canManageLifecycle?: boolean }> = ({
 
   const pollOperation = useCallback(async (initial: PackageLifecycleSummary, packageId: PackageId) => {
     let operation = initial;
-    let hadRefreshFailure = false;
     try {
       for (let attempt = 0; attempt < MAX_OPERATION_POLLS; attempt += 1) {
         if (!mountedRef.current || isTerminalLifecycleState(operation.state)) break;
@@ -119,10 +113,8 @@ export const PackageSection: React.FC<{ canManageLifecycle?: boolean }> = ({
         if (!mountedRef.current) return;
         try {
           operation = await getPackageOperation({ operation_id: operation.operation_id });
-          const refreshed = await load();
-          hadRefreshFailure = refreshed === null;
+          await load();
         } catch (nextError) {
-          hadRefreshFailure = true;
           if (mountedRef.current) {
             setSnapshotStale(true);
             setError(formatPackageError(nextError, t("settingsAdmin.packageActionFailed"), t));
@@ -138,8 +130,6 @@ export const PackageSection: React.FC<{ canManageLifecycle?: boolean }> = ({
         );
       } else if (!isTerminalLifecycleState(operation.state)) {
         setError(t("settingsAdmin.packageOperationStillRunning"));
-      } else if (!hadRefreshFailure) {
-        setError(null);
       }
     } finally {
       pollingOperationsRef.current.delete(initial.operation_id);
@@ -213,11 +203,7 @@ export const PackageSection: React.FC<{ canManageLifecycle?: boolean }> = ({
     setPreferenceBusy(true);
     setError(null);
     try {
-      setPreferences(
-        await updatePackagePreferences({
-          hidden_package_ids: [...nextHidden],
-        }),
-      );
+      await savePackagePreferences([...nextHidden]);
     } catch (nextError) {
       setError(formatPackageError(nextError, t("settingsAdmin.packagePreferenceFailed"), t));
     } finally {
@@ -248,7 +234,7 @@ export const PackageSection: React.FC<{ canManageLifecycle?: boolean }> = ({
         </div>
         <BookIconButton
           label={t("settingsAdmin.refresh")}
-          onClick={() => void load()}
+          onClick={() => { setError(null); void load(); }}
           disabled={loading || refreshing}
         >
           <RefreshCw size={14} className={loading || refreshing ? "animate-spin" : undefined} />

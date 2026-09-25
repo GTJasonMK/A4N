@@ -17,6 +17,7 @@ export function useAdminSectionLoader<T>(
 ) {
   const addToast = useToast((state) => state.addToast);
   const [loading, setLoading] = useState(false);
+  const [failure, setFailure] = useState<{ scope: AdminSectionScope; message: string } | null>(null);
   const { intervalMs } = options;
   const mountedRef = useRef(true);
   const activeScopeRef = useRef(scopeKey);
@@ -55,13 +56,16 @@ export function useAdminSectionLoader<T>(
     loadSeqRef.current = requestSeq;
     inFlightLoadRef.current = { scopeKey, loadData };
     setLoading(true);
+    setFailure(null);
     try {
       const data = await loadData();
       if (!isCurrentLoad(scopeKey, requestSeq)) return;
       applyData(data);
     } catch (err) {
       if (!isCurrentLoad(scopeKey, requestSeq)) return;
-      addToast(extractErrorMessage(err, errorMessage), "error");
+      const message = extractErrorMessage(err, errorMessage);
+      setFailure({ scope: scopeKey, message });
+      addToast(message, "error");
     } finally {
       if (isCurrentLoad(scopeKey, requestSeq)) {
         inFlightLoadRef.current = null;
@@ -79,5 +83,6 @@ export function useAdminSectionLoader<T>(
     return () => window.clearInterval(timer);
   }, [intervalMs, load]);
 
-  return { loading, load, isCurrentScope };
+  const error = failure && Object.is(failure.scope, scopeKey) ? failure.message : null;
+  return { loading, error, load, isCurrentScope };
 }

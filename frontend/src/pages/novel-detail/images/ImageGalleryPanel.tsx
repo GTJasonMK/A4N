@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import { BookButton } from "../../../components/ui/BookButton";
 import { Dropdown } from "../../../components/ui/Dropdown";
+import { ImageZoomButton } from "../../../components/ui/ImageLightbox";
 import { SegmentedControl } from "../../../components/ui/SegmentedControl";
 import type { GeneratedImage } from "../../../api/image";
 import { EmptyHint, type ChapterRow } from "../shared";
@@ -142,7 +143,7 @@ export function ImageGalleryPanel({
               <span>{t("novel.imageLibrary.noImage")}</span>
             )}
             {stale ? (
-              <span className="absolute left-1.5 top-1.5 inline-flex items-center gap-0.5 rounded-md bg-warning/90 px-1.5 py-0.5 text-caption text-white backdrop-blur-sm">
+              <span className="absolute bottom-1.5 left-1.5 inline-flex items-center gap-0.5 rounded-md bg-warning/90 px-1.5 py-0.5 text-caption text-white backdrop-blur-sm">
                 <AlertTriangle size={9} />
                 {t("novel.imageLibrary.stale")}
               </span>
@@ -160,6 +161,7 @@ export function ImageGalleryPanel({
             </div>
           </div>
         </button>
+        {src ? <ImageZoomButton src={src} alt={img.prompt.trim() || typeLabel} className="absolute left-1.5 top-1.5 z-10" /> : null}
         {canEditImages ? (
           <button
             type="button"
@@ -262,6 +264,8 @@ export function ImageGalleryPanel({
           text={
             loading
               ? t("novel.imageLibrary.loading")
+              : favOnly && stats.total > 0
+                ? t("novel.imageLibrary.noFavorites")
               : chapter
                 ? t("novel.imageLibrary.emptyChapter")
                 : t("novel.imageLibrary.emptyProject")

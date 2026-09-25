@@ -12,12 +12,11 @@ use super::limits::ensure_output_tokens_below_context;
 
 pub(super) fn normalize_llm_extra_body_json(
     provider: &str,
-    model: &str,
     value: Option<Value>,
 ) -> Result<Option<Value>, AppError> {
     normalize_extra_body_json(value)
         .and_then(|value| {
-            validate_prompt_cache_options(provider, model, value.as_ref())?;
+            validate_prompt_cache_options(provider, value.as_ref())?;
             Ok(value)
         })
         .map_err(|err| {
@@ -89,7 +88,7 @@ pub fn validate_llm_config(model: &super::contracts::LlmConfigSnapshot) -> Resul
             model.name, model.agent_protocol
         )));
     }
-    normalize_llm_extra_body_json(&model.provider, &model.model, model.extra_body_json.clone())?;
+    normalize_llm_extra_body_json(&model.provider, model.extra_body_json.clone())?;
     Ok(())
 }
 

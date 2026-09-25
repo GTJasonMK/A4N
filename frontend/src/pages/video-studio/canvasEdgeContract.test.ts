@@ -8,6 +8,18 @@ const t: MessageTranslator = (key, params) =>
   translateMessage("zh-CN", key, params);
 
 const contracts: StudioNodeContractMap = new Map([
+  ["VideoInputNode", {
+    kind: "VideoInputNode", label: "视频输入", category: "input", runnable: false, inputs: [],
+    outputs: [{ id: "video", label: "视频", direction: "output", data_type: "video", multiple: true, required: false }],
+  }],
+  ["VideoProbeNode", {
+    kind: "VideoProbeNode", label: "视频探针", category: "probe", runnable: true, outputs: [],
+    inputs: [{ id: "video", label: "视频", direction: "input", data_type: "video", multiple: false, required: true }],
+  }],
+  ["TrimVideoNode", {
+    kind: "TrimVideoNode", label: "裁剪", category: "operation", runnable: true, outputs: [],
+    inputs: [{ id: "video", label: "视频", direction: "input", data_type: "video", multiple: false, required: true }],
+  }],
   [
     "TextInputNode",
     {
@@ -81,6 +93,22 @@ const nodes: StudioNode[] = [
 ];
 
 describe("canvasGraphSaveValidationError", () => {
+  it("preserves server-supported context roles without rewriting them to the creation default", () => {
+    for (const role of ["context", "direct_content", "previous_context", "next_context"]) {
+      const edge: StudioEdge = { id: "edge", source: "1", target: "2", sourceHandle: "text", targetHandle: "text", data: { role, config: {} } };
+      expect(canvasGraphSaveValidationError(nodes, [edge], contracts, t)).toBeNull();
+      expect(edge.data?.role).toBe(role);
+    }
+  });
+
+  it("uses the target's video role instead of treating every video port as a trim source", () => {
+    const source: StudioNode = { ...nodes[0], id: "video", data: { ...nodes[0].data, nodeKind: "VideoInputNode" } };
+    for (const [kind, role] of [["VideoProbeNode", "context"], ["TrimVideoNode", "source_video"]]) {
+      const target: StudioNode = { ...nodes[1], id: kind, data: { ...nodes[1].data, nodeKind: kind } };
+      expect(validateCanvasConnection({ source: source.id, target: target.id, sourceHandle: "video", targetHandle: "video" }, [source, target], [], contracts, t)).toMatchObject({ role });
+    }
+  });
+
   it("rejects inferable legacy ports instead of rewriting them", () => {
     const edges: StudioEdge[] = [
       {

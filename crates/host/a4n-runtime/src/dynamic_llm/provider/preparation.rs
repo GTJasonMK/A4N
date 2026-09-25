@@ -42,16 +42,14 @@ impl DynamicLlmProvider {
         } else {
             prepare_dynamic_llm_trace_context(&self.facade, &model.planner(), &mut request).await?
         };
-        if !already_prepared {
-            request.configure_prompt_cache(
-                &model.model.provider,
-                model.model_name(),
-                model.model.extra_body_json.as_ref(),
-                trace
-                    .as_ref()
-                    .and_then(|trace| trace.root_project_id.or(trace.project_id)),
-            )?;
-        }
+        request.configure_prompt_cache(
+            &model.model.provider,
+            model.model_name(),
+            model.model.extra_body_json.as_ref(),
+            trace
+                .as_ref()
+                .and_then(|trace| trace.root_project_id.or(trace.project_id)),
+        )?;
         if self.sidecar_client.is_some() {
             require_sidecar_business_trace(trace.as_ref(), "LLM sidecar stream 请求")?;
         }

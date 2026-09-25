@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from "react";
+import React, { useLayoutEffect, useRef } from "react";
 import afnLogoUrl from "../../assets/afn-logo.svg";
 import { useI18n } from "../../i18n";
 
@@ -17,7 +17,8 @@ export const ParticleLogoWithSubtitle: React.FC = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const { t } = useI18n();
 
-  useEffect(() => {
+  // 缩窄侧栏或切换页面时，在 DOM 移除前同步停止绘制。
+  useLayoutEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
 

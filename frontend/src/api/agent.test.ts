@@ -91,6 +91,7 @@ describe("Agent API", () => {
         resource_id: null,
         project_id: 7,
         chapter_id: null,
+        chapter_number: null,
         allowed_capabilities: [],
         allowed_tools: [],
       },

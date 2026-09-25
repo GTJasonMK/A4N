@@ -1,4 +1,5 @@
 use a4n_db_models::models::{
+    canvas::{canvas_edge, canvas_graph, canvas_node, canvas_text_asset},
     galgame::{galgame_choice, galgame_line, galgame_scene, galgame_script},
     source_sync::{source_sync_conflict, source_sync_decision, source_sync_run},
     video_project::{assembly_clip, assembly_timeline, video_segment},
@@ -19,6 +20,35 @@ where
     delete_video_project_records(db, project_id).await?;
     delete_galgame_records(db, project_id).await?;
     project_db::delete_project_generation_media_graph(db, project_id).await?;
+    delete_canvas_project_records(db, project_id).await?;
+    Ok(())
+}
+
+async fn delete_canvas_project_records(
+    db: &impl ConnectionTrait,
+    project_id: i64,
+) -> Result<(), ProjectDeleteDbError> {
+    let graph_ids = canvas_graph::Entity::find()
+        .select_only()
+        .column(canvas_graph::Column::Id)
+        .filter(canvas_graph::Column::ProjectId.eq(project_id))
+        .into_query();
+    canvas_edge::Entity::delete_many()
+        .filter(canvas_edge::Column::GraphId.in_subquery(graph_ids.clone()))
+        .exec(db)
+        .await?;
+    canvas_node::Entity::delete_many()
+        .filter(canvas_node::Column::GraphId.in_subquery(graph_ids))
+        .exec(db)
+        .await?;
+    canvas_graph::Entity::delete_many()
+        .filter(canvas_graph::Column::ProjectId.eq(project_id))
+        .exec(db)
+        .await?;
+    canvas_text_asset::Entity::delete_many()
+        .filter(canvas_text_asset::Column::ProjectId.eq(project_id))
+        .exec(db)
+        .await?;
     Ok(())
 }
 

@@ -138,8 +138,8 @@ pub(super) fn build_generation_call_analytics(
 
     let recent_limit = recent_limit as usize;
     GenerationCallAnalytics {
-        generated_at: now.to_string(),
-        since_at: since.to_string(),
+        generated_at: now.and_utc().to_rfc3339(),
+        since_at: since.and_utc().to_rfc3339(),
         days,
         overview: overview
             .into_iter()

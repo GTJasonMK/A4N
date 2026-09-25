@@ -338,7 +338,7 @@ export const useChapterStreamGeneration = ({
             setEditorState(persisted.content, false);
           }
           if (projectIdKey && chapterNumber != null) {
-            removeWritingDraft(getWritingDraftKey(projectIdKey, chapterNumber));
+            await removeWritingDraft(getWritingDraftKey(projectIdKey, chapterNumber));
             onDraftRemoved();
           }
           const completionSummary =

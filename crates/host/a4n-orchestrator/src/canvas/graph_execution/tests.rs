@@ -115,24 +115,22 @@ fn canvas_graph_execution_scope_supports_full_graph_and_output_target() {
 }
 
 #[test]
-fn canvas_graph_execution_to_output_reuses_persisted_upstream_result() {
+fn canvas_graph_execution_to_output_runs_upstream_with_existing_results() {
+    let mut source = test_node(1, "TextInputNode");
+    source.config_json = json!({"content": "用户修改后的输入"});
     let mut video = test_node(2, "GenerateVideoNode");
     video.config_json = json!({
         "canvas_runtime_result": true,
         "generated_video_id": 91,
     });
     let document = test_graph_document(
-        vec![
-            test_node(1, "TextInputNode"),
-            video,
-            test_node(3, "VideoOutputNode"),
-        ],
+        vec![source, video, test_node(3, "VideoOutputNode")],
         vec![test_edge(1, 2), test_edge(2, 3)],
     );
 
     assert_eq!(
         runnable_canvas_node_ids(&document, Some(3)).unwrap(),
-        vec![3]
+        vec![2, 3]
     );
     assert_eq!(
         runnable_canvas_node_ids(&document, None).unwrap(),

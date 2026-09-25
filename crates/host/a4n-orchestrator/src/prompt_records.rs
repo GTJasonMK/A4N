@@ -85,9 +85,10 @@ impl OrchestratorContext {
         context: &PromptExecutionContext,
         updates: Vec<(String, String)>,
         author: &str,
+        overwrite: bool,
     ) -> Result<Vec<PromptEntry>, AppError> {
         let Some(client) = self.prompt_client_for_execution(context)? else {
-            return self.prompt_update_entries(updates, author).await;
+            return self.prompt_update_entries(updates, author, overwrite).await;
         };
         let payload = PromptUpdateManyPayload {
             updates: updates
@@ -95,6 +96,7 @@ impl OrchestratorContext {
                 .map(|(name, content)| PromptBatchUpdate { name, content })
                 .collect(),
             author: author.to_string(),
+            overwrite,
         };
         let response = client
             .update_many(prompt_service_request(context, None, None, payload)?)
@@ -219,7 +221,7 @@ impl OrchestratorContext {
                     .into_iter()
                     .map(|version| PromptVersionSummary {
                         version: version.version,
-                        timestamp: version.timestamp.to_string(),
+                        timestamp: version.timestamp.and_utc().to_rfc3339(),
                         author: version.author,
                         message: version.message,
                     })
@@ -828,8 +830,9 @@ impl PromptMutationApplicationPort for OrchestratorContext {
         context: &PromptExecutionContext,
         updates: Vec<(String, String)>,
         author: &str,
+        overwrite: bool,
     ) -> Result<Vec<PromptEntry>, AppError> {
-        self.update_many_prompt_records_validated(context, updates, author)
+        self.update_many_prompt_records_validated(context, updates, author, overwrite)
             .await
     }
 }
@@ -899,7 +902,7 @@ fn prompt_entry_summary(entry: &PromptEntry) -> PromptEntrySummary {
 fn prompt_version_summary(version: &PromptVersion) -> PromptVersionSummary {
     PromptVersionSummary {
         version: version.version.clone(),
-        timestamp: version.timestamp.to_string(),
+        timestamp: version.timestamp.and_utc().to_rfc3339(),
         author: version.author.clone(),
         message: version.message.clone(),
     }

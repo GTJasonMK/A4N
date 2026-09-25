@@ -124,6 +124,7 @@ impl OrchestratorContext {
                 Utc::now().naive_utc(),
             )
             .await?
+            .document
         } else {
             original.clone()
         };

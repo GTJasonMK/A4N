@@ -140,6 +140,8 @@ pub trait ProjectPackageTransferHostPort: Send + Sync {
 
     async fn rollback_imported_media_files(&mut self) -> Result<(), String>;
 
+    async fn rollback_imported_project(&self, user_id: i64, project_id: i64) -> Result<(), String>;
+
     async fn render_export_package(
         &self,
         input: ProjectPackageExportInput,

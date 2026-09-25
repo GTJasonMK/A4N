@@ -129,8 +129,8 @@ export const ForeshadowingIndexCard: React.FC<ForeshadowingIndexCardProps> = ({
 
   return (
     <section className="a4n-flat-surface overflow-hidden">
-      <header className="flex items-start gap-3 border-b border-book-border/40 px-3 py-3">
-        <div className="min-w-0 flex-1">
+      <header className="flex flex-wrap items-start gap-3 border-b border-book-border/40 px-3 py-3">
+        <div className="min-w-0 flex-1 basis-56">
           <h2 className="text-sm font-semibold text-book-text-main">{t("novel.foreshadowing.title")}</h2>
           <p className="mt-0.5 text-small leading-relaxed text-book-text-muted">
             {t("novel.foreshadowing.description")}
@@ -236,7 +236,7 @@ export const ForeshadowingIndexCard: React.FC<ForeshadowingIndexCardProps> = ({
           </>
         }
       >
-        <div className="grid gap-3">
+        <fieldset disabled={busyId != null} className="grid gap-3">
           <TextAreaField
             label={t("novel.foreshadowing.descriptionLabel")}
             value={draft.description}
@@ -283,7 +283,7 @@ export const ForeshadowingIndexCard: React.FC<ForeshadowingIndexCardProps> = ({
               setDraft((current) => ({ ...current, relatedCharacters }))
             }
           />
-        </div>
+        </fieldset>
       </Modal>
     </section>
   );

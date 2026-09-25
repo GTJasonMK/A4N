@@ -250,8 +250,8 @@ fn invite_code_summary(code: &invite_code::Model) -> InviteCodeSummary {
         code: code.code.clone(),
         created_by_user_id: code.created_by_user_id,
         used_by_user_id: code.used_by_user_id,
-        created_at: Some(code.created_at.to_string()),
-        used_at: code.used_at.map(|value| value.to_string()),
+        created_at: Some(code.created_at.and_utc().to_rfc3339()),
+        used_at: code.used_at.map(|value| value.and_utc().to_rfc3339()),
     }
 }
 

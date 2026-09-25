@@ -1,17 +1,12 @@
 import type { StudioNodeData } from "./types";
+import { CANVAS_MEDIA_INPUT_REF_TYPES } from "../../api/canvas";
 
 export const CANVAS_REF_TYPE_MEDIA_ASSET = "media_asset" as const;
 export const CANVAS_REF_TYPE_GENERATED_IMAGE = "generated_image" as const;
 export const CANVAS_REF_TYPE_GENERATED_VIDEO = "generated_video" as const;
 
-const CANVAS_INPUT_REF_TYPES: Record<string, string> = {
-  ImageInputNode: CANVAS_REF_TYPE_GENERATED_IMAGE,
-  VideoInputNode: CANVAS_REF_TYPE_GENERATED_VIDEO,
-  AudioInputNode: CANVAS_REF_TYPE_MEDIA_ASSET,
-};
-
 export function defaultRefTypeForNode(kind: string): string | null {
-  return CANVAS_INPUT_REF_TYPES[kind] ?? null;
+  return CANVAS_MEDIA_INPUT_REF_TYPES[kind] ?? null;
 }
 
 export function nodeMediaAssetRefId(data: StudioNodeData): number | null {
