@@ -83,6 +83,8 @@ pub struct ChapterVisualPlanSourceView {
 pub struct ConfirmedChapterVisualPlanView {
     pub visual_plan: ChapterVisualPlanView,
     pub invalidated_project_ids: Vec<i64>,
+    /// 拍摄剧本已随方案逐镜头变基；只有其中列出的镜头需要更新。没有拍摄剧本时为空。
+    pub shooting_script_sync: Option<a4n_domain::shooting_script::ShootingScriptPlanSyncV1>,
 }
 
 /// Read only the requested saved-plan projection. Pin record/revision when

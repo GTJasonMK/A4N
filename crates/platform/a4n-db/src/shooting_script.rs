@@ -3,6 +3,7 @@ mod contracts;
 mod deletion;
 mod editing;
 mod mutations;
+mod plan_rebase;
 mod progress;
 mod queries;
 mod validation;
@@ -15,6 +16,7 @@ pub use contracts::{
 pub use deletion::delete_chapter_shooting_script_and_invalidate;
 pub use editing::edit_chapter_shooting_script_and_invalidate;
 pub use mutations::{insert_chapter_shooting_script, update_chapter_shooting_script};
+pub(crate) use plan_rebase::rebase_chapter_shooting_script_onto_plan;
 pub use progress::edit_chapter_shooting_script_progress;
 pub use queries::{
     chapter_shooting_script_by_id, chapter_shooting_script_for_source,
