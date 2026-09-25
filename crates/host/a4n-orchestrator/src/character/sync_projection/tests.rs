@@ -13,6 +13,7 @@ fn pending_events_keep_chapter_and_stage_order() {
             "new_value": "落霞镇",
             "change_description": "抵达落霞镇",
             "event_cause": "赶路抵达",
+            "assertion": "observed",
             "evidence": "他终于看见落霞镇的牌坊"
         }),
         json!({
@@ -23,6 +24,7 @@ fn pending_events_keep_chapter_and_stage_order() {
             "new_value": "被主角保护过的陌生人",
             "change_description": "认识少女",
             "event_cause": "出手相助",
+            "assertion": "observed",
             "evidence": "少女怔怔看着他"
         }),
     ];
@@ -74,6 +76,7 @@ fn projection_applies_changes_in_given_chapter_order() {
             "new_value": "观察后行动",
             "change_description": "首次变化",
             "event_cause": "第1章行动",
+            "assertion": "inferred",
             "evidence": "原文1"
         }),
         json!({
@@ -84,6 +87,7 @@ fn projection_applies_changes_in_given_chapter_order() {
             "new_value": "果断行动",
             "change_description": "后续变化",
             "event_cause": "第2章行动",
+            "assertion": "inferred",
             "evidence": "原文2"
         }),
     ];

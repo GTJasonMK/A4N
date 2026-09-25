@@ -347,6 +347,7 @@ export const characterDetail = {
     unknownDecision: "未知建议",
     user: "用户记录",
     aiSync: "AI 同步",
+    textFact: "正文事实",
     legacyUnknown: "历史记录",
     unknownSource: "未知来源",
   },

@@ -8,7 +8,13 @@ use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOr
 pub async fn chapter_generation_reference_context_rows(
     db: &DatabaseConnection,
     project_id: i64,
+    chapter_number: i32,
 ) -> Result<ChapterGenerationReferenceContextRows, ProjectChapterContextError> {
+    if chapter_number <= 0 {
+        return Err(ProjectChapterContextError::InvalidArgument(
+            "目标章节号必须大于 0".into(),
+        ));
+    }
     let (blueprint, characters, relationships, protagonist_profiles) = futures::join!(
         async {
             novel_blueprint::Entity::find()
@@ -43,15 +49,67 @@ pub async fn chapter_generation_reference_context_rows(
                 .map_err(ProjectChapterContextError::Database)
         },
     );
-    let blueprint = blueprint?;
+    let mut blueprint = blueprint?;
+    if let Some(current) = blueprint.as_mut() {
+        current.world_setting = Some(
+            crate::fact_feedback::world_setting_before_chapter(db, current, chapter_number)
+                .await
+                .map_err(|error| ProjectChapterContextError::InvalidArgument(error.to_string()))?,
+        );
+    }
     let characters = characters?;
     let relationships = relationships?;
-    let protagonist_profiles = protagonist_profiles?;
+    let mut historical_profiles = Vec::new();
+    for mut profile in protagonist_profiles? {
+        if profile
+            .first_seen_chapter()
+            .is_some_and(|first| first >= chapter_number)
+        {
+            continue;
+        }
+        if profile.is_text_discovered()
+            && crate::text_anchor::earliest_current_profile_evidence_chapter(
+                db,
+                project_id,
+                a4n_domain::text_anchor::TextAnchorProfileKind::Character,
+                profile.id,
+            )
+            .await
+            .map_err(|error| ProjectChapterContextError::InvalidArgument(error.to_string()))?
+            .is_none_or(|first| first >= chapter_number)
+        {
+            continue;
+        }
+        let state = crate::character::replay_profile_state_through_chapter(
+            db,
+            &profile,
+            chapter_number - 1,
+        )
+        .await
+        .map_err(|error| match error {
+            crate::character::CharacterDbError::Database(error) => {
+                ProjectChapterContextError::Database(error)
+            }
+            error => ProjectChapterContextError::InvalidArgument(error.to_string()),
+        })?;
+        let fields = crate::character::profile_current_state_fields(state);
+        profile.gender = fields.gender;
+        profile.age = fields.age;
+        profile.appearance = fields.appearance;
+        profile.background = fields.background;
+        profile.personality = fields.personality;
+        profile.current_state = fields.current_state;
+        crate::fact_feedback::profile_enrichment_before_chapter(db, &mut profile, chapter_number)
+            .await
+            .map_err(|error| ProjectChapterContextError::InvalidArgument(error.to_string()))?;
+        profile.last_synced_chapter = profile.last_synced_chapter.min(chapter_number - 1);
+        historical_profiles.push(profile);
+    }
 
     Ok(ChapterGenerationReferenceContextRows {
         blueprint,
         characters,
         relationships,
-        protagonist_profiles,
+        protagonist_profiles: historical_profiles,
     })
 }

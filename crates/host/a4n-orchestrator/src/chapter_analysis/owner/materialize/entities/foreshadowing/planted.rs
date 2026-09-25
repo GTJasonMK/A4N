@@ -18,6 +18,7 @@ pub(super) fn materialize_planted_entry(
     reject_materialize_unknown_fields(
         object,
         &[
+            "id",
             "description",
             "original_text_span_id",
             "category",

@@ -390,6 +390,7 @@ export const ChapterWorkspace: React.FC<ChapterWorkspaceProps> = ({
                 <AnalysisSubTab
                   projectId={projectId}
                   chapterNumber={activeChapter.chapter_number}
+                  canEditProject={canEdit}
                   analysis={activeChapter.analysis_data}
                   materialSync={activeChapter.material_sync}
                   materialUpdates={activeChapter.material_updates}

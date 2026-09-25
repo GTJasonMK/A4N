@@ -314,12 +314,14 @@ fn merge_object_profile_record_input(
         existing.last_seen_chapter.max(input.last_seen_chapter)
     };
     let evidence_json = merge_profile_evidence_json(&existing.evidence_json, &input.evidence_json);
+    let aliases_json = merge_profile_evidence_json(&existing.aliases_json, &input.aliases_json);
     if existing.ownership_kind != PROFILE_OWNERSHIP_AI_SYNC {
         input = merge_user_object_profile_fields(existing, input);
     }
     input.first_seen_chapter = first_seen_chapter;
     input.last_seen_chapter = last_seen_chapter;
     input.evidence_json = evidence_json;
+    input.aliases_json = aliases_json;
     input
 }
 
@@ -331,20 +333,14 @@ fn merge_user_object_profile_fields(
     if existing.aliases_json.as_array().is_some_and(Vec::is_empty) {
         merged.aliases_json = incoming.aliases_json;
     }
-    fill_blank(&mut merged.object_type, incoming.object_type);
+    merged.object_type = incoming.object_type;
     fill_blank(&mut merged.importance, incoming.importance);
-    fill_blank(&mut merged.visual_description, incoming.visual_description);
-    fill_blank(&mut merged.material_and_state, incoming.material_and_state);
+    merged.visual_description = incoming.visual_description;
+    merged.material_and_state = incoming.material_and_state;
     fill_blank(&mut merged.story_usage, incoming.story_usage);
     fill_blank(&mut merged.visual_usage, incoming.visual_usage);
     fill_blank(&mut merged.generation_usage, incoming.generation_usage);
-    if merged
-        .location_context
-        .as_deref()
-        .map(str::trim)
-        .map(str::is_empty)
-        .unwrap_or(true)
-    {
+    if incoming.location_context.is_some() {
         merged.location_context = incoming.location_context;
     }
     fill_blank(&mut merged.image_prompt_seed, incoming.image_prompt_seed);
@@ -452,13 +448,17 @@ mod tests {
     }
 
     #[test]
-    fn profile_merge_preserves_user_fields_fills_blanks_and_extends_facts() {
+    fn profile_merge_updates_facts_and_preserves_manual_usage_and_prompts() {
         let mut existing = profile(PROFILE_OWNERSHIP_USER);
         existing.material_and_state.clear();
         let merged = merge_object_profile_record_input(&existing, discovery_input());
 
         assert_eq!(merged.name, existing.name);
-        assert_eq!(merged.visual_description, existing.visual_description);
+        assert_eq!(merged.visual_description, "AI 外观");
+        assert_eq!(merged.story_usage, existing.story_usage);
+        assert_eq!(merged.visual_usage, existing.visual_usage);
+        assert_eq!(merged.generation_usage, existing.generation_usage);
+        assert_eq!(merged.image_prompt_seed, existing.image_prompt_seed);
         assert_eq!(merged.material_and_state, "AI 状态");
         assert_eq!(merged.first_seen_chapter, 1);
         assert_eq!(merged.last_seen_chapter, 8);

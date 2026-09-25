@@ -622,6 +622,9 @@ fn project_reset_error(error: a4n_db::project::reset::ProjectResetDbError) -> Wo
 
 fn summary_error(error: a4n_project_read_core::ProjectSummaryError) -> WorkerFailure {
     match error {
+        a4n_project_read_core::ProjectSummaryError::Database(error) => {
+            WorkerFailure::unavailable(error.to_string())
+        }
         a4n_project_read_core::ProjectSummaryError::Progress(error) => match error {
             a4n_db::project::ProjectProgressReadError::InvalidArgument(message) => {
                 WorkerFailure::invalid_request(message)

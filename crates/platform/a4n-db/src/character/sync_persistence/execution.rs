@@ -72,12 +72,20 @@ where
     .await?;
 
     let write_steps = std::mem::take(&mut input.write_steps);
+    let retained_events = crate::character::attributes::attribute_events_by_profile_chapter_range(
+        &tx,
+        input.profile_id,
+        input.start_chapter,
+        input.target_chapter,
+    )
+    .await?;
     let write_summary = write_steps::apply_character_sync_write_steps_in(
         &tx,
         input.profile_id,
         baseline_profile,
         write_steps,
         &ownership,
+        &retained_events,
     )
     .await?;
     let stored_snapshots = snapshots::store_character_sync_snapshots_in(

@@ -38,6 +38,14 @@ impl OrchestratorContext {
             .foreshadowing_items_by_ids(project_id, foreshadowing_ids)
             .await
             .map_err(|error| format!("查询需更新的伏笔 RAG 失败: {error}"))?;
+        let removed: Vec<_> = foreshadowing_ids
+            .iter()
+            .copied()
+            .filter(|id| !items.iter().any(|item| item.id == *id))
+            .collect();
+        self.delete_foreshadowing_rag_by_ids(project_id, &removed)
+            .await
+            .map_err(|error| format!("清理已撤回的伏笔 RAG 失败: {error}"))?;
         if items.is_empty() {
             return Ok(());
         }

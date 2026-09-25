@@ -6,6 +6,7 @@ import type {
   ChapterMaterialSyncStatus,
 } from "../../api/chapter";
 import { LoadingSpinner } from "../../components/ui/LoadingSpinner";
+import { FactFeedbackPanel } from "../novel-detail/FactFeedbackPanel";
 import {
   listObjectProfiles,
   type ObjectProfile,
@@ -220,6 +221,7 @@ interface AnalysisSubTabProps {
   analysisBlockedReason: string | null;
   generating: boolean;
   canGenerate: boolean;
+  canEditProject: boolean;
   onGenerate: () => void | Promise<void>;
   onPreviewGenerate: () => void | Promise<void>;
   canResumeSync: boolean;
@@ -239,6 +241,7 @@ export const AnalysisSubTab: React.FC<AnalysisSubTabProps> = ({
   analysisBlockedReason,
   generating,
   canGenerate,
+  canEditProject,
   onGenerate,
   onPreviewGenerate,
   canResumeSync,
@@ -540,8 +543,26 @@ export const AnalysisSubTab: React.FC<AnalysisSubTabProps> = ({
       </div>
       <div className="mx-auto mb-2 w-full max-w-5xl">
         <MaterialSyncPanel state={materialSync} updates={materialUpdates} />
+        <div className="mt-2"><FactFeedbackPanel key={projectId} projectId={projectId} canEdit={canEditProject} refreshKey={`${analysisSyncStatus}:${JSON.stringify(asRecord(analysis)?._meta)}`} /></div>
       </div>
       <div className="mx-auto w-full max-w-5xl columns-1 gap-2 sm:columns-2">
+        {asArray(asRecord(analysis)?.world_facts).length > 0 ? (
+          <section className={ANALYSIS_CARD_CLASS}>
+            <h3 className="mb-2 text-small font-semibold text-book-text-main">{t("novel.factFeedback.world")}</h3>
+            <ul className="space-y-3">
+              {asArray(asRecord(analysis)?.world_facts).map((raw, index) => {
+                const fact = asRecord(raw);
+                if (!fact || typeof fact.statement !== "string") return null;
+                const assertion = fact.assertion === "observed" ? "novel.factFeedback.observed" : fact.assertion === "inferred" ? "novel.factFeedback.inferred" : fact.assertion === "reported" ? "novel.factFeedback.reported" : fact.assertion === "recollection" ? "novel.factFeedback.recollection" : "novel.factFeedback.hypothetical";
+                return <li key={index}>
+                  <p className="text-caption text-book-text-muted">{t(assertion)}</p>
+                  <p className="mt-1 whitespace-pre-wrap leading-relaxed">{fact.statement}</p>
+                  {analysisTextList(fact.evidence).map((quote, quoteIndex) => <blockquote key={quoteIndex} className="mt-1 border-l-2 border-book-border pl-2 text-caption text-book-text-muted">{quote}</blockquote>)}
+                </li>;
+              })}
+            </ul>
+          </section>
+        ) : null}
         {summary || keywords.length > 0 ? (
           <section className={ANALYSIS_CARD_CLASS}>
             <h3 className="mb-2 text-small font-semibold text-book-text-main">

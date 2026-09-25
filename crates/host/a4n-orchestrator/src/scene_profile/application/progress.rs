@@ -6,7 +6,6 @@ pub(crate) use a4n_scene_host_contract::SceneProfileSyncProgress;
 pub(crate) use a4n_scene_host_contract::SCENE_PROFILE_SYNC_PROGRESS_TOTAL;
 pub(super) const SCENE_PROFILE_SYNC_CHAPTER_START: u32 = 5;
 pub(super) const SCENE_PROFILE_SYNC_CHAPTER_END: u32 = 88;
-pub(super) const SCENE_PROFILE_SYNC_RAG_PROGRESS: u32 = 94;
 
 pub(super) const SCENE_CANDIDATE_PROGRESS_FIELDS: &[FieldMilestone] = &[
     FieldMilestone::new("scene_ref", "场景引用", 1),

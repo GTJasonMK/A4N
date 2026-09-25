@@ -23,6 +23,15 @@ pub(super) fn validate_attribute_change(index: usize, change: &Value) -> Result<
     if !change.is_object() {
         return Err(format!("attribute_changes[{index}] 必须是 JSON 对象"));
     }
+    let assertion = required_string(change, "assertion")?;
+    if assertion != "observed"
+        && !(assertion == "inferred"
+            && change.get("category").and_then(Value::as_str) == Some("implicit"))
+    {
+        return Err(
+            "角色当前状态只能应用明确事实，推断仅能更新隐性属性；传闻和回忆不能覆盖当前状态".into(),
+        );
+    }
     required_i32_at(
         change,
         "chapter_number",

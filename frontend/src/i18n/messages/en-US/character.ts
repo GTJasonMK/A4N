@@ -345,6 +345,7 @@ export const characterDetail = {
     unknownDecision: "Unknown recommendation",
     user: "User record",
     aiSync: "AI sync",
+    textFact: "Body text fact",
     legacyUnknown: "Legacy record",
     unknownSource: "Unknown source",
     characterArc: "Character arc",

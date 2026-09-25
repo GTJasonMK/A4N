@@ -47,6 +47,12 @@ async fn finish_chapter_derived_cleanup_inner(
         })?;
     }
 
+    if artifacts.blueprint_facts_changed {
+        crate::rag_ingest::sync_blueprint_material_rag_records(state, project_id).await?;
+    } else if artifacts.character_facts_changed {
+        crate::rag_ingest::sync_protagonist_rag_records(state, project_id).await?;
+    }
+
     for path in artifacts.media_file_paths {
         remove_data_file_in_data_dir(state.data_dir(), &path, "章节媒体文件")?;
     }

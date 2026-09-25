@@ -342,6 +342,7 @@ def character_sync_attribute_changes_response(combined: str) -> dict[str, Any]:
         return {
             "attribute_changes": [
                 {
+                    "assertion": "observed",
                     "chapter_number": 1,
                     "category": "explicit",
                     "key": "current_location",
@@ -352,6 +353,7 @@ def character_sync_attribute_changes_response(combined: str) -> dict[str, Any]:
                     "evidence_anchor_id": text_anchor_id(combined, "沿着封闭通道向地下走去"),
                 },
                 {
+                    "assertion": "observed",
                     "chapter_number": 1,
                     "category": "explicit",
                     "key": "current_goal",
@@ -367,6 +369,7 @@ def character_sync_attribute_changes_response(combined: str) -> dict[str, Any]:
         return {
             "attribute_changes": [
                 {
+                    "assertion": "observed",
                     "chapter_number": 1,
                     "category": "explicit",
                     "key": "current_location",
@@ -377,6 +380,7 @@ def character_sync_attribute_changes_response(combined: str) -> dict[str, Any]:
                     "evidence_anchor_id": text_anchor_id(combined, "修表师周衡提着工具箱从封闭通道里走出"),
                 },
                 {
+                    "assertion": "observed",
                     "chapter_number": 1,
                     "category": "explicit",
                     "key": "time_anomaly",
@@ -482,6 +486,7 @@ def chapter_analysis_facts_response(combined: str) -> dict[str, Any]:
     gear_mark = source_span_id(combined, "他看见信封角落的齿轮暗记")
     decision = source_span_id(combined, "沿着封闭通道向地下走去")
     return {
+        "world_facts": [],
         "characters": [
             {"name": "林岚", "source_span_ids": [lin_lan]},
             {"name": "周衡", "source_span_ids": [zhou_heng]},
@@ -566,6 +571,7 @@ def chapter_analysis_foreshadowing_response(combined: str) -> dict[str, Any]:
         raise ValueError("chapter analysis facts do not contain source span references")
     return {
         "foreshadowing": {
+            "progressed": [],
             "planted": [
                 {
                     "description": "周衡的影子没有随画面回退，暗示他与时间异常存在更深联系。",

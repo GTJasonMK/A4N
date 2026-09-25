@@ -18,6 +18,13 @@ where
     C: ConnectionTrait + TransactionTrait,
 {
     let mut artifacts = ChapterDerivedCleanupArtifacts::default();
+    let changed =
+        a4n_db::fact_feedback::invalidate_feedback_sources(db, project_id, chapter_number)
+            .await
+            .map_err(|error| owner_error("撤回失效正文事实", error))?;
+    artifacts.blueprint_facts_changed = changed.blueprint_changed;
+    artifacts.character_facts_changed = changed.characters_changed;
+    artifacts.changed_foreshadowing_ids = changed.foreshadowing_ids;
     a4n_db::chapter_visual_plan::invalidate_live_chapter_visual_plans_for_source_change(
         db, project_id, chapter_id,
     )
@@ -59,10 +66,11 @@ where
     .map_err(|error| owner_error("清理章节场景档案", error))?;
 
     if cleanup_foreshadowing {
-        artifacts.changed_foreshadowing_ids =
+        artifacts.changed_foreshadowing_ids.extend(
             a4n_db::project::cleanup_foreshadowing_for_chapter(db, project_id, chapter_number)
                 .await
-                .map_err(|error| owner_error("清理章节伏笔", error))?;
+                .map_err(|error| owner_error("清理章节伏笔", error))?,
+        );
     }
     a4n_db::workflow::invalidate_chapter_analysis_after_source_change(
         db,
@@ -115,31 +123,14 @@ where
 
     let mut artifacts = ChapterDerivedCleanupArtifacts::default();
     for profile in profiles {
-        if profile
-            .first_seen_chapter()
-            .is_some_and(|first_seen| first_seen >= chapter_number)
-        {
-            let deleted = a4n_db::character::delete_profile_cascade_transaction(db, profile.id)
-                .await
-                .map_err(|error| owner_error("删除章节新增角色档案", error))?;
-            artifacts.stale_profile_ids.push(deleted.profile_id);
-            artifacts
-                .stale_character_state_ids
-                .extend(deleted.state_index_ids);
-            artifacts
-                .stale_attribute_event_ids
-                .extend(deleted.attribute_event_ids);
-            artifacts.media_file_paths.extend(deleted.portrait_paths);
-            continue;
-        }
-
+        // Reanalysis invalidates observations, not the character identity or user-owned assets.
         let should_rewind = profile.last_synced_chapter >= chapter_number;
         let cleanup_to_chapter = if should_rewind {
             profile.last_synced_chapter
         } else {
             chapter_number
         };
-        let deleted = a4n_db::character::delete_timeline_artifacts_from_chapter_checked(
+        let deleted = a4n_db::character::delete_ai_timeline_artifacts_from_chapter_checked(
             db,
             profile.id,
             chapter_number,
@@ -160,9 +151,18 @@ where
                 restored_chapter,
                 snapshots.get(&profile.id),
             )?;
-            a4n_db::character::rewind_deletion_marks_after(db, profile.id, restored_chapter)
+            a4n_db::character::rewind_ai_deletion_marks_after(db, profile.id, restored_chapter)
                 .await
                 .map_err(AppError::Database)?;
+            let mut replay = profile.clone();
+            replay.current_state = restored_state;
+            let restored_state = a4n_db::character::replay_profile_state_through_chapter(
+                db,
+                &replay,
+                cleanup_to_chapter,
+            )
+            .await
+            .map_err(|error| owner_error("保留手工角色事件", error))?;
             let fields = a4n_db::character::profile_current_state_fields(restored_state);
             a4n_db::project::update_protagonist_profile_current_state(
                 db,

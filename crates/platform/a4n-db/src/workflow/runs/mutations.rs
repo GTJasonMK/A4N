@@ -13,6 +13,8 @@ use sea_orm::{Condition, DbErr};
 
 const CHAPTER_ANALYSIS_WORKFLOW_KIND: &str = "chapter_analysis";
 const CHAPTER_ANALYSIS_DERIVED_CHECKPOINTS: &[&str] = &[
+    a4n_domain::fact_feedback::CHAPTER_FACT_FEEDBACK_STEP,
+    a4n_domain::fact_feedback::CHAPTER_FACT_INDEX_STEP,
     "chapter_analysis.derived_sync",
     "chapter_analysis.outline_sync",
     "chapter_analysis.sync_outputs",
@@ -117,6 +119,13 @@ pub async fn resume_or_upsert_workflow_run(
 ) -> Result<workflow_run::Model, WorkflowWriteError> {
     validate_workflow_run_input(&input)?;
     let tx = db.begin().await.map_err(WorkflowWriteError::Database)?;
+    // A missing workflow row cannot be locked. Serialize project starts before checking the business key.
+    if let Some(project_id) = input.project_id {
+        crate::project::project_write_identity_for_update(&tx, project_id)
+            .await
+            .map_err(WorkflowWriteError::Database)?
+            .ok_or_else(|| WorkflowWriteError::NotFound(format!("项目不存在: {project_id}")))?;
+    }
     let existing =
         locked_latest_workflow_run_by_business_key_model(&tx, &input.business_key).await?;
     if let Some(existing) = existing.as_ref()

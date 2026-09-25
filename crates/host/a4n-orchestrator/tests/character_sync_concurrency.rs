@@ -72,21 +72,21 @@ async fn concurrent_character_sync_for_the_same_profile_and_chapter_is_rejected(
     let business_key = format!("character_profile_sync:{project_id}:3");
 
     // 两个并发请求读到同一份 profile，因此指纹完全一致。
-    let first = resume_or_upsert_workflow_run(
-        &db,
-        character_sync_run_input(project_id, &business_key, sync_fingerprint()),
-    )
-    .await
-    .expect("第一个角色同步必须能启动");
+    let results = tokio::join!(
+        resume_or_upsert_workflow_run(
+            &db,
+            character_sync_run_input(project_id, &business_key, sync_fingerprint()),
+        ),
+        resume_or_upsert_workflow_run(
+            &db,
+            character_sync_run_input(project_id, &business_key, sync_fingerprint()),
+        )
+    );
+    let (first, error) = match results {
+        (Ok(first), Err(error)) | (Err(error), Ok(first)) => (first, error),
+        other => panic!("相同来源只能有一个并发启动成功: {other:?}"),
+    };
     assert_eq!(first.status, WORKFLOW_STATUS_RUNNING);
-
-    // 第一个仍在 RUNNING（LLM 阶段耗时数十秒），第二个请求到达。
-    let error = resume_or_upsert_workflow_run(
-        &db,
-        character_sync_run_input(project_id, &business_key, sync_fingerprint()),
-    )
-    .await
-    .expect_err("并发同步必须在启动阶段就被拒绝，而不是跑完 LLM 再由乐观锁淘汰");
 
     assert!(
         matches!(

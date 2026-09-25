@@ -148,6 +148,7 @@ export const HOST_API_COMMANDS = [
   "get_project",
   "get_project_asset_dependency_graph",
   "get_project_asset_dependency_graph_node_detail",
+  "get_project_fact_feedback",
   "get_project_import_analysis_progress",
   "get_project_status_machine",
   "get_queue_stats",
@@ -266,6 +267,7 @@ export const HOST_API_COMMANDS = [
   "preview_object_profile_image_request",
   "preview_page_image_request",
   "preview_prepare_optimization_analysis_session_request",
+  "preview_project_fact_feedback_request",
   "preview_propose_optimization_patches_request",
   "preview_reference_media_video_request",
   "preview_refine_blueprint_request",
@@ -341,6 +343,7 @@ export const HOST_API_COMMANDS = [
   "run_canvas_node",
   "run_galgame_asset_generation",
   "run_import_project_analysis",
+  "run_project_fact_feedback",
   "save_blueprint",
   "save_canvas_graph",
   "save_canvas_text_asset",
@@ -504,6 +507,7 @@ export const RUNTIME_CONFIG_POLICIES: Readonly<Record<string, RuntimeConfigPolic
   "preview_object_profile_image_request": "without_secrets",
   "preview_page_image_request": "without_secrets",
   "preview_prepare_optimization_analysis_session_request": "without_secrets",
+  "preview_project_fact_feedback_request": "without_secrets",
   "preview_propose_optimization_patches_request": "without_secrets",
   "preview_reference_media_video_request": "without_secrets",
   "preview_refine_blueprint_request": "without_secrets",
@@ -539,6 +543,7 @@ export const RUNTIME_CONFIG_POLICIES: Readonly<Record<string, RuntimeConfigPolic
   "run_canvas_node": "full",
   "run_galgame_asset_generation": "full",
   "run_import_project_analysis": "full",
+  "run_project_fact_feedback": "full",
   "save_blueprint": "full",
   "save_chapter_outline": "full",
   "save_part_outline": "full",
@@ -1400,6 +1405,42 @@ export interface ProjectImportAnalysisProgress {
 export interface ImportProjectAnalysisSummary {
   analyzed_chapters: number;
   progress: ProjectImportAnalysisProgress;
+}
+
+export type FactFeedbackMode = "consolidate" | "rebuild";
+
+export interface RunProjectFactFeedbackInput {
+  mode: FactFeedbackMode;
+  project_id: number;
+  workflow_run_id?: number | null;
+}
+
+export interface MaterialFactChangeSummary {
+  after: unknown;
+  before: unknown;
+  created_at: string;
+  evidence: unknown;
+  field_path: string;
+  id: number;
+  material_kind: string;
+  reason: string;
+  status: string;
+  target_id: number | null;
+}
+
+export interface ProjectFactFeedbackSummary {
+  can_resume: boolean;
+  changes: MaterialFactChangeSummary[];
+  consolidated_chapters: number[];
+  error: string | null;
+  interval_chapters: number;
+  last_consolidated_at: string | null;
+  legacy_chapters: number[];
+  pending_chapters: number[];
+  project_id: number;
+  workflow_kind: string | null;
+  workflow_run_id: number | null;
+  workflow_status: string | null;
 }
 
 export const CHAPTER_ANALYSIS_PROGRESS_TOTAL = 100;
@@ -3361,6 +3402,7 @@ export interface ProjectSummary {
   current_chapter: number;
   derived_chapter_scope: unknown;
   description: string;
+  fact_feedback_interval_chapters: number;
   id: number;
   lifecycle_gate: string;
   member_count: number;
@@ -3429,6 +3471,7 @@ export interface DuplicateProjectInput {
 
 export interface UpdateProjectInput {
   description?: string | null;
+  fact_feedback_interval_chapters?: number | null;
   title?: string | null;
 }
 
@@ -4007,7 +4050,7 @@ export type CharacterAttributeCategory = "explicit" | "implicit" | "social";
 
 export type CharacterAttributeOperation = "add" | "modify" | "delete";
 
-export type CharacterTimelineSourceKind = "user" | "ai_sync" | "legacy_unknown";
+export type CharacterTimelineSourceKind = "user" | "ai_sync" | "text_fact" | "legacy_unknown";
 
 export type DeletionMarkStatus = "all" | "pending" | "ready" | "executed";
 

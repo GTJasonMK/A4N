@@ -130,16 +130,31 @@ impl OrchestratorContext {
                 });
             }
 
-            let artifacts = cleanup_chapter_derived_data_in(
-                &tx,
-                locked.project_id,
-                locked.id,
-                locked.chapter_number,
-                false,
-                false,
-                Some(workflow_run_id),
-            )
-            .await?;
+            let mut next_source = locked.clone();
+            next_source.analysis_data = Some(analysis.clone());
+            let next_revision = a4n_db::fact_feedback::source_revision(&next_source);
+            let facts_unchanged = next_revision.is_some()
+                && a4n_db::fact_feedback::source_revision(&locked) == next_revision
+                && a4n_db::fact_feedback::current_feedback_sources(&tx, locked.project_id)
+                    .await
+                    .map_err(crate::fact_feedback::feedback_error)?
+                    .iter()
+                    .any(|source| Some(&source.revision) == next_revision.as_ref());
+            // Repeated analysis with the same facts must not retract later chapters or create material versions.
+            let artifacts = if facts_unchanged {
+                Default::default()
+            } else {
+                cleanup_chapter_derived_data_in(
+                    &tx,
+                    locked.project_id,
+                    locked.id,
+                    locked.chapter_number,
+                    false,
+                    false,
+                    Some(workflow_run_id),
+                )
+                .await?
+            };
             host_port.validate_chapter_cleanup_artifacts(&artifacts)?;
 
             let updated = store_chapter_analysis_record(
@@ -185,6 +200,7 @@ impl OrchestratorContext {
                     input_fingerprint_json: Some(fingerprint),
                     checkpoint_json: Some(json!({
                         "completed": true,
+                        "facts_unchanged": facts_unchanged,
                         "cleanup_artifacts": artifacts,
                     })),
                     artifacts_json: None,

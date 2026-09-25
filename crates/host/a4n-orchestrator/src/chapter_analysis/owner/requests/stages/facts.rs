@@ -26,11 +26,11 @@ pub async fn build_chapter_fact_extraction_request(
         ch,
         prompt_renderer,
         CHAPTER_ANALYSIS_STAGE_FACTS,
-        "从章节正文抽取角色、地点、物品、关键事件和伏笔候选",
+        "从章节正文抽取角色、地点、物品、关键事件、伏笔候选和有来源的世界事实",
         input,
         json!({
             "format": "json_object",
-            "required_fields": ["characters", "locations", "items", "event_candidates", "foreshadowing_candidates"],
+            "required_fields": ["characters", "locations", "items", "event_candidates", "foreshadowing_candidates", "world_facts"],
             "source_span_rule": "所有 source_span_ids 和 original_text_span_id 必须来自稳定上下文 chapter_analysis_source.source_spans[].id"
         }),
     )

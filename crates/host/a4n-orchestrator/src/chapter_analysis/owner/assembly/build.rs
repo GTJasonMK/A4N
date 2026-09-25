@@ -13,6 +13,7 @@ pub fn assemble_staged_chapter_analysis(
     foreshadowing_events: Value,
 ) -> Result<Value, AppError> {
     let metadata = assemble_metadata(&facts, &summary)?;
+    let world_facts = required_stage_field(&facts, "chapter_fact_extraction", "world_facts")?;
     let summaries = required_stage_field(&summary, "chapter_summary_synthesis", "summaries")?;
     let character_states = required_stage_field(
         &character_states,
@@ -36,5 +37,6 @@ pub fn assemble_staged_chapter_analysis(
         "character_states": character_states,
         "foreshadowing": foreshadowing,
         "key_events": key_events,
+        "world_facts": world_facts,
     }))
 }
