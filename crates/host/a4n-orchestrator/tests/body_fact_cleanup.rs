@@ -123,12 +123,12 @@ async fn reanalysis_rewinds_observations_without_deleting_identity_or_manual_rec
     }
     let tx = db.begin().await.unwrap();
     let artifacts = a4n_chapter_content_core::cleanup_chapter_derived_data_in(
-        &tx, project.id, chapter.id, 1, false, false, None,
+        &tx, project.id, chapter.id, 1, None,
     )
     .await
     .unwrap();
     tx.commit().await.unwrap();
-    assert!(artifacts.stale_profile_ids.is_empty() && artifacts.media_file_paths.is_empty());
+    assert!(artifacts.character_facts_changed);
     assert_eq!(artifacts.stale_attribute_event_ids, [observed.id]);
     let restored = profile_by_id(&db, profile.id).await.unwrap().unwrap();
     assert_eq!(restored.last_synced_chapter, 0);

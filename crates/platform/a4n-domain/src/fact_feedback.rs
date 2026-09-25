@@ -11,6 +11,15 @@ pub const FACT_APPLY_STEP: &str = "project_fact_consolidation.apply";
 pub const CHAPTER_FACT_FEEDBACK_STEP: &str = "chapter_analysis.fact_feedback";
 pub const CHAPTER_FACT_INDEX_STEP: &str = "chapter_analysis.index_sync";
 
+/// Text-mode world settings participate in the same field updates as structured settings.
+pub fn world_setting_document(value: Option<&Value>) -> Value {
+    match value {
+        Some(Value::String(text)) => serde_json::json!({"premise": text}),
+        Some(value) if !value.is_null() => value.clone(),
+        _ => serde_json::json!({}),
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum FactAssertion {
@@ -290,6 +299,11 @@ mod tests {
 
     #[test]
     fn revision_fenced_partial_changes_preserve_unrelated_rules() {
+        assert_eq!(
+            world_setting_document(Some(&json!("记忆之城"))),
+            json!({"premise":"记忆之城"})
+        );
+        assert_eq!(world_setting_document(None), json!({}));
         let mut world = json!({"core_rules": ["原规则"], "factions": ["旧城议会"]});
         let mut change = FactMaterialChange {
             material_kind: FactMaterialKind::WorldSetting,

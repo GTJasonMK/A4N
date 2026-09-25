@@ -14,7 +14,7 @@ use serde_json::json;
 use super::context::RagSyncContext;
 use crate::rag::{
     chapter_rag_chunk_prefix, character_attribute_event_rag_chunk_id, character_state_rag_chunk_id,
-    foreshadowing_rag_chunk_id, protagonist_rag_chunk_id, protagonist_rag_chunk_prefix,
+    foreshadowing_rag_chunk_id, protagonist_rag_chunk_id,
 };
 use a4n_rag_core::{RagRecord, RagRecordSyncOutcome};
 
@@ -35,7 +35,6 @@ fn canonical_character_and_foreshadowing_ids_share_write_delete_identity() {
         "character_attribute_event:7:12"
     );
     assert_eq!(foreshadowing_rag_chunk_id(7, 13), "foreshadowing:7:13");
-    assert_eq!(protagonist_rag_chunk_prefix(7, 14), "protagonist:7:14:");
     assert_eq!(
         protagonist_rag_chunk_id(7, 14, "current_state"),
         "protagonist:7:14:current_state"

@@ -68,8 +68,7 @@ mod tests {
         let checkpoint = json!({
             "completed": true,
             "cleanup_artifacts": {
-                "stale_profile_ids": [7],
-                "media_file_paths": ["projects/1/old.png"],
+                "stale_attribute_event_ids": [7],
                 "scene_records_changed": true
             }
         });
@@ -77,8 +76,7 @@ mod tests {
         let artifacts = replacement_cleanup_artifacts_from_checkpoint(&checkpoint)
             .expect("valid replacement cleanup artifacts should restore");
 
-        assert_eq!(artifacts.stale_profile_ids, vec![7]);
-        assert_eq!(artifacts.media_file_paths, vec!["projects/1/old.png"]);
+        assert_eq!(artifacts.stale_attribute_event_ids, vec![7]);
         assert!(artifacts.scene_records_changed);
     }
 

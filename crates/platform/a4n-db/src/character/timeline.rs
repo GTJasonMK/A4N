@@ -12,10 +12,10 @@ pub(in crate::character) use contracts::CharacterStateIndexUpsertInput;
 pub use contracts::{
     CharacterConflictContextRows, CharacterProfileRollbackResult, CharacterTimelineDeletionSummary,
 };
-pub use projection::replay_profile_state_through_chapter;
 pub(in crate::character) use projection::{
     CharacterAttributeOwnership, character_attribute_ownership,
 };
+pub use projection::{replay_profile_state_through_chapter, retract_profile_chapter_facts};
 pub use records::behavior_records_before_chapter;
 pub(in crate::character) use records::upsert_state_index;
 pub use rollback::rollback_profile_to_chapter;

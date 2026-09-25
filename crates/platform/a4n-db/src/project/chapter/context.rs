@@ -10,13 +10,12 @@ pub use chapters::{
 };
 pub use contracts::{
     ChapterGenerationReferenceContextRows, ChapterObjectProfileContext, ChapterProfileEvidence,
-    ChapterSceneProfileContext, ProjectChapterContextError, ProtagonistProfileCurrentStateUpdate,
+    ChapterSceneProfileContext, ProjectChapterContextError,
 };
 pub use generation::chapter_generation_reference_context_rows;
-pub use mutations::{refresh_project_current_chapter, update_protagonist_profile_current_state};
+pub use mutations::refresh_project_current_chapter;
 pub use profiles::{
     character_states_for_profiles_before_chapter, object_profiles_before_chapter,
     protagonist_profiles_for_project, protagonist_profiles_for_project_in,
-    scene_profiles_before_chapter, snapshot_profile_ids_for_chapter,
-    snapshot_references_for_profiles_chapter,
+    scene_profiles_before_chapter,
 };

@@ -1,11 +1,10 @@
 //! PostgreSQL-backed chapter-content worker.
 
-use std::{collections::BTreeSet, env, net::SocketAddr, sync::Arc};
+use std::{env, net::SocketAddr, sync::Arc};
 
 use a4n_chapter_content_core::{
     CHAPTER_CONTENT_SYNC_WORKFLOW_KIND, attach_chapter_sync_state,
-    begin_chapter_content_sync_in_transaction, chapter_cleanup_requires_snapshot, chapter_summary,
-    validate_chapter_content_snapshot_preflight,
+    begin_chapter_content_sync_in_transaction, chapter_summary,
 };
 use a4n_chapter_content_worker_contract::{
     CHAPTER_CONTENT_CAPABILITY, CHAPTER_CONTENT_IMPORT_OPERATION, CHAPTER_CONTENT_LIST_OPERATION,
@@ -244,8 +243,6 @@ impl WorkerState {
         .map_err(chapter_error)?;
         self.verify_text_project_editor(existing.project_id, user_id, "更新章节正文")
             .await?;
-        self.validate_snapshot_preflight(existing.project_id, existing.chapter_number)
-            .await?;
 
         let input = request.payload;
         let tx = self
@@ -266,7 +263,7 @@ impl WorkerState {
             )
             .await
             .map_err(chapter_error)?;
-            let run = begin_chapter_content_sync_in_transaction(&tx, &chapter, |_| Ok(()))
+            let run = begin_chapter_content_sync_in_transaction(&tx, &chapter)
                 .await
                 .map_err(app_error)?;
             Ok(ChapterContentMutationResult {
@@ -291,8 +288,6 @@ impl WorkerState {
         }
         self.verify_text_project_editor(project_id, user_id, "导入章节正文")
             .await?;
-        self.validate_snapshot_preflight(project_id, input.chapter_number)
-            .await?;
 
         let tx = self
             .database
@@ -313,7 +308,7 @@ impl WorkerState {
             )
             .await
             .map_err(import_error)?;
-            let run = begin_chapter_content_sync_in_transaction(&tx, &chapter, |_| Ok(()))
+            let run = begin_chapter_content_sync_in_transaction(&tx, &chapter)
                 .await
                 .map_err(app_error)?;
             Ok(ChapterContentMutationResult {
@@ -377,39 +372,6 @@ impl WorkerState {
             )));
         }
         Ok(())
-    }
-
-    async fn validate_snapshot_preflight(
-        &self,
-        project_id: i64,
-        chapter_number: i32,
-    ) -> Result<(), WorkerFailure> {
-        let profiles = a4n_db::project::protagonist_profiles_for_project(
-            self.database.connection(),
-            project_id,
-        )
-        .await
-        .map_err(project_chapter_context_error)?;
-        let profile_ids = profiles
-            .iter()
-            .filter(|profile| chapter_cleanup_requires_snapshot(profile, chapter_number))
-            .map(|profile| profile.id)
-            .collect::<Vec<_>>();
-        let existing_snapshot_profile_ids = a4n_db::project::snapshot_profile_ids_for_chapter(
-            self.database.connection(),
-            &profile_ids,
-            chapter_number - 1,
-        )
-        .await
-        .map_err(project_chapter_context_error)?
-        .into_iter()
-        .collect::<BTreeSet<_>>();
-        validate_chapter_content_snapshot_preflight(
-            &profiles,
-            &existing_snapshot_profile_ids,
-            chapter_number,
-        )
-        .map_err(app_error)
     }
 
     async fn project_summaries(
@@ -606,22 +568,6 @@ fn project_error(error: a4n_db::project::ProjectMutationError) -> WorkerFailure 
             WorkerFailure::conflict(message)
         }
         a4n_db::project::ProjectMutationError::Database(error) => {
-            WorkerFailure::unavailable(error.to_string())
-        }
-    }
-}
-
-fn project_chapter_context_error(
-    error: a4n_db::project::ProjectChapterContextError,
-) -> WorkerFailure {
-    match error {
-        a4n_db::project::ProjectChapterContextError::InvalidArgument(message) => {
-            WorkerFailure::invalid_request(message)
-        }
-        a4n_db::project::ProjectChapterContextError::NotFound(message) => {
-            WorkerFailure::not_found(message)
-        }
-        a4n_db::project::ProjectChapterContextError::Database(error) => {
             WorkerFailure::unavailable(error.to_string())
         }
     }

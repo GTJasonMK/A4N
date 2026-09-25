@@ -1,13 +1,8 @@
-use super::contracts::{ProjectChapterContextError, ProtagonistProfileCurrentStateUpdate};
-use a4n_db_models::models::{
-    chapter::chapter, character::protagonist_profile, project::novel_project,
-};
+use super::contracts::ProjectChapterContextError;
+use a4n_db_models::models::{chapter::chapter, project::novel_project};
 use chrono::Utc;
 use sea_orm::sea_query::Expr;
-use sea_orm::{
-    ActiveModelTrait, ColumnTrait, ConnectionTrait, DatabaseConnection, EntityTrait, QueryFilter,
-    QueryOrder, QuerySelect, Set,
-};
+use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder, QuerySelect};
 
 pub async fn refresh_project_current_chapter(
     db: &DatabaseConnection,
@@ -61,30 +56,5 @@ pub async fn refresh_project_current_chapter(
             "项目不存在: project_id={project_id}"
         )));
     }
-    Ok(())
-}
-
-pub async fn update_protagonist_profile_current_state<C>(
-    db: &C,
-    profile: protagonist_profile::Model,
-    fields: ProtagonistProfileCurrentStateUpdate,
-    last_synced_chapter: i32,
-) -> Result<(), ProjectChapterContextError>
-where
-    C: ConnectionTrait,
-{
-    let mut active: protagonist_profile::ActiveModel = profile.into();
-    active.gender = Set(fields.gender);
-    active.age = Set(fields.age);
-    active.appearance = Set(fields.appearance);
-    active.background = Set(fields.background);
-    active.personality = Set(fields.personality);
-    active.current_state = Set(fields.current_state);
-    active.last_synced_chapter = Set(last_synced_chapter);
-    active.updated_at = Set(Utc::now().naive_utc());
-    active
-        .update(db)
-        .await
-        .map_err(ProjectChapterContextError::Database)?;
     Ok(())
 }

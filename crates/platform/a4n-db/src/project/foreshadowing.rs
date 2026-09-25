@@ -1,6 +1,3 @@
-mod cleanup;
-pub use cleanup::cleanup_foreshadowing_for_chapter;
-
 mod contracts;
 pub use contracts::{
     ForeshadowingAnalysisDraft, ForeshadowingAnalysisSyncResult, ForeshadowingDbError,

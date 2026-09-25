@@ -410,8 +410,6 @@ impl OrchestratorContext {
         };
         let completion_service = chapter_service.clone();
         let completion_chapter_session = Arc::clone(&chapter_session);
-        let completion_context = self.clone();
-        let completion_host_port = Arc::clone(&host_port);
         let completion = execution
             .terminal
             .complete_with(&session, move |tx| {
@@ -421,7 +419,6 @@ impl OrchestratorContext {
                 let source_outline = source_outline;
                 let outline_text = outline_text.clone();
                 let trace = trace.clone();
-                let context = completion_context.clone();
                 Box::pin(async move {
                     let chapter = chapter_service
                         .finish_generated_chapter_in_transaction(
@@ -433,11 +430,7 @@ impl OrchestratorContext {
                             tx,
                         )
                         .await?;
-                    let content_sync_run = context
-                        .begin_chapter_content_sync_in_transaction(tx, &chapter, &|artifacts| {
-                            completion_host_port.validate_chapter_cleanup_artifacts(artifacts)
-                        })
-                        .await?;
+                    let content_sync_run = a4n_chapter_content_core::begin_chapter_content_sync_in_transaction(tx, &chapter).await?;
                     chapter_id_slot.store(chapter.id, Ordering::Release);
                     content_sync_run_id_slot.store(content_sync_run.id, Ordering::Release);
                     let sha256 = format!("{:x}", Sha256::digest(chapter.content.as_bytes()));
@@ -678,10 +671,7 @@ impl OrchestratorContext {
             .await?;
         self.validate_chapter_generation_readiness(project_id, chapter_number)?;
         self.ensure_prior_chapter_analysis_replay_complete(project_id, chapter_number)
-            .await?;
-        self.preflight_chapter_content_change_validated(project_id, chapter_number)
             .await
-            .map_err(|error| error.to_string())
     }
 
     async fn ensure_prior_chapter_analysis_replay_complete(

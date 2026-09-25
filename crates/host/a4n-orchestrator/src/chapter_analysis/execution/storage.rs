@@ -12,10 +12,9 @@ use serde_json::json;
 
 use super::super::owner::chapter_analysis_storage_projection;
 use super::super::{
-    CHAPTER_ANALYSIS_REPLACEMENT_COMMIT_STEP, ChapterAnalysisHostPort, ChapterAnalysisInput,
-    ChapterAnalysisProgress, OrchestratorContext, chapter_analysis_phase_fingerprint,
-    chapter_analysis_run_input_matches, chapter_analysis_workflow_business_key,
-    chapter_analysis_workflow_run_input,
+    CHAPTER_ANALYSIS_REPLACEMENT_COMMIT_STEP, ChapterAnalysisInput, ChapterAnalysisProgress,
+    OrchestratorContext, chapter_analysis_phase_fingerprint, chapter_analysis_run_input_matches,
+    chapter_analysis_workflow_business_key, chapter_analysis_workflow_run_input,
 };
 use crate::chapter_content_edit_error_to_app_error;
 use crate::generation::generation_error;
@@ -67,7 +66,6 @@ impl OrchestratorContext {
     pub(crate) async fn analyze_and_store_chapter(
         &self,
         input: ChapterAnalysisInput<'_>,
-        host_port: &dyn ChapterAnalysisHostPort,
     ) -> Result<chapter::Model, AppError> {
         let ChapterAnalysisInput {
             chapter,
@@ -149,13 +147,10 @@ impl OrchestratorContext {
                     locked.project_id,
                     locked.id,
                     locked.chapter_number,
-                    false,
-                    false,
                     Some(workflow_run_id),
                 )
                 .await?
             };
-            host_port.validate_chapter_cleanup_artifacts(&artifacts)?;
 
             let updated = store_chapter_analysis_record(
                 &tx,

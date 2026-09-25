@@ -39,10 +39,10 @@ pub enum ChapterAnalysisOutputError {
         #[source]
         source: AppError,
     },
-    #[error("同步章节伏笔失败：回收伏笔 id 必须是正整数：chapter_id={chapter_id}, id={id}")]
+    #[error("同步章节伏笔失败：伏笔 id 必须是正整数：chapter_id={chapter_id}, id={id}")]
     InvalidForeshadowingResolutionId { chapter_id: i64, id: String },
     #[error(
-        "同步章节伏笔失败：同一章节重复回收伏笔：chapter_id={chapter_id}, foreshadowing_id={foreshadowing_id}"
+        "同步章节伏笔失败：同一章节重复更新伏笔：chapter_id={chapter_id}, foreshadowing_id={foreshadowing_id}"
     )]
     DuplicateForeshadowingResolution {
         chapter_id: i64,
@@ -164,23 +164,20 @@ pub fn chapter_analysis_foreshadowing_drafts(
         .collect()
 }
 
-fn chapter_analysis_foreshadowing_resolved_ids(
+fn chapter_analysis_foreshadowing_updates(
     chapter_id: i64,
     analysis: &Value,
-) -> Result<Vec<i64>, ChapterAnalysisOutputError> {
+    source_index: &a4n_domain::source_spans::SourceSpanIndex<'_>,
+) -> Result<Vec<a4n_db::project::ForeshadowingFactUpdate>, ChapterAnalysisOutputError> {
     let mut seen = HashSet::new();
-    analysis
-        .get("foreshadowing")
-        .and_then(|value| value.get("resolved"))
-        .and_then(Value::as_array)
-        .into_iter()
-        .flatten()
-        .map(|item| {
-            let raw_id = item
-                .get("id")
-                .and_then(Value::as_str)
-                .unwrap_or_default()
-                .trim();
+    let mut updates = Vec::new();
+    for (key, resolved) in [("resolved", true), ("progressed", false)] {
+        for item in analysis["foreshadowing"][key]
+            .as_array()
+            .into_iter()
+            .flatten()
+        {
+            let raw_id = item["id"].as_str().unwrap_or_default().trim();
             let foreshadowing_id =
                 raw_id
                     .parse::<i64>()
@@ -200,9 +197,52 @@ fn chapter_analysis_foreshadowing_resolved_ids(
                     },
                 );
             }
-            Ok(foreshadowing_id)
-        })
-        .collect()
+            let status = if resolved {
+                a4n_domain::character::ForeshadowingStatus::Resolved
+            } else {
+                item["status"]
+                    .as_str()
+                    .and_then(a4n_domain::character::ForeshadowingStatus::parse)
+                    .ok_or_else(|| {
+                        ChapterAnalysisOutputError::Persistence(AppError::InvalidArgument(
+                            "伏笔进展状态无效".into(),
+                        ))
+                    })?
+            };
+            let ids: Vec<String> = serde_json::from_value(item["source_span_ids"].clone())
+                .map_err(|error| {
+                    ChapterAnalysisOutputError::Persistence(AppError::InvalidArgument(format!(
+                        "伏笔更新缺少原文证据，需要重新分析：{error}"
+                    )))
+                })?;
+            a4n_domain::fact_feedback::validate_evidence_ids(&ids).map_err(|error| {
+                ChapterAnalysisOutputError::Persistence(AppError::InvalidArgument(error))
+            })?;
+            let evidence = ids
+                .iter()
+                .map(|id| source_index.resolve_text(id))
+                .collect::<Result<Vec<_>, _>>()
+                .map_err(|error| {
+                    ChapterAnalysisOutputError::Persistence(AppError::InvalidArgument(error))
+                })?;
+            let reason = item["resolution"]
+                .as_str()
+                .map(str::trim)
+                .filter(|reason| !reason.is_empty())
+                .ok_or_else(|| {
+                    ChapterAnalysisOutputError::Persistence(AppError::InvalidArgument(
+                        "伏笔进展缺少变化说明".into(),
+                    ))
+                })?;
+            updates.push(a4n_db::project::ForeshadowingFactUpdate {
+                id: foreshadowing_id,
+                status,
+                evidence,
+                reason: reason.to_string(),
+            });
+        }
+    }
+    Ok(updates)
 }
 
 pub(super) fn ensure_chapter_analysis_character_sync_completed(
@@ -235,69 +275,10 @@ impl OrchestratorContext {
             },
         )?;
         let drafts = chapter_analysis_foreshadowing_drafts(chapter.id, analysis)?;
-        let resolved_ids = chapter_analysis_foreshadowing_resolved_ids(chapter.id, analysis)?;
         let source_spans =
             a4n_domain::source_spans::source_spans_for_chapters(std::slice::from_ref(chapter));
         let source_index = a4n_domain::source_spans::SourceSpanIndex::new(&source_spans);
-        let mut updates = Vec::new();
-        for (key, resolved) in [("resolved", true), ("progressed", false)] {
-            for item in analysis["foreshadowing"][key]
-                .as_array()
-                .into_iter()
-                .flatten()
-            {
-                let id = item["id"]
-                    .as_str()
-                    .and_then(|id| id.parse::<i64>().ok())
-                    .filter(|id| *id > 0)
-                    .ok_or_else(|| {
-                        ChapterAnalysisOutputError::InvalidForeshadowingResolutionId {
-                            chapter_id: chapter.id,
-                            id: item["id"].to_string(),
-                        }
-                    })?;
-                let status = if resolved {
-                    a4n_domain::character::ForeshadowingStatus::Resolved
-                } else {
-                    item["status"]
-                        .as_str()
-                        .and_then(a4n_domain::character::ForeshadowingStatus::parse)
-                        .ok_or_else(|| {
-                            ChapterAnalysisOutputError::Persistence(AppError::InvalidArgument(
-                                "伏笔进展状态无效".into(),
-                            ))
-                        })?
-                };
-                let ids: Vec<String> = serde_json::from_value(item["source_span_ids"].clone())
-                    .map_err(|error| {
-                        ChapterAnalysisOutputError::Persistence(AppError::InvalidArgument(format!(
-                            "伏笔更新缺少原文证据，需要重新分析：{error}"
-                        )))
-                    })?;
-                let evidence = ids
-                    .iter()
-                    .map(|id| source_index.resolve_text(id))
-                    .collect::<Result<Vec<_>, _>>()
-                    .map_err(|error| {
-                        ChapterAnalysisOutputError::Persistence(AppError::InvalidArgument(error))
-                    })?;
-                updates.push(a4n_db::project::ForeshadowingFactUpdate {
-                    id,
-                    status,
-                    evidence,
-                    reason: item["resolution"].as_str().unwrap_or_default().to_string(),
-                });
-            }
-        }
-        debug_assert_eq!(
-            updates
-                .iter()
-                .filter(
-                    |update| update.status == a4n_domain::character::ForeshadowingStatus::Resolved
-                )
-                .count(),
-            resolved_ids.len()
-        );
+        let updates = chapter_analysis_foreshadowing_updates(chapter.id, analysis, &source_index)?;
         let synced = self
             .sync_chapter_analysis_foreshadowing(
                 a4n_db::project::ChapterSourceSnapshot::from(chapter),
@@ -351,30 +332,28 @@ mod tests {
     use super::*;
 
     #[test]
-    fn resolved_ids_are_positive_and_unique() {
+    fn updates_require_unique_positive_ids_reasons_and_current_evidence() {
+        let spans = a4n_domain::source_spans::source_spans_for_content(3, 1, "脚步声来自守门人。");
+        let index = a4n_domain::source_spans::SourceSpanIndex::new(&spans);
         let analysis = json!({
             "foreshadowing": {
-                "resolved": [
-                    {"id": "7", "resolution": "回收一"},
-                    {"id": "9", "resolution": "回收二"}
+                "resolved": [{"id": "7", "resolution": "回收一", "source_span_ids": ["ch1:s1:f1"]}],
+                "progressed": [
+                    {"id": "9", "status": "partially_revealed", "resolution": "部分揭示", "source_span_ids": ["ch1:s1:f1"]}
                 ]
             }
         });
+        let updates = chapter_analysis_foreshadowing_updates(3, &analysis, &index).unwrap();
         assert_eq!(
-            chapter_analysis_foreshadowing_resolved_ids(3, &analysis).unwrap(),
+            updates.iter().map(|update| update.id).collect::<Vec<_>>(),
             [7, 9]
         );
+        assert_eq!(updates[0].evidence, ["脚步声来自守门人"]);
 
-        let duplicate = json!({
-            "foreshadowing": {
-                "resolved": [
-                    {"id": "7", "resolution": "回收一"},
-                    {"id": "7", "resolution": "回收二"}
-                ]
-            }
-        });
+        let mut duplicate = analysis.clone();
+        duplicate["foreshadowing"]["progressed"][0]["id"] = json!("7");
         assert!(matches!(
-            chapter_analysis_foreshadowing_resolved_ids(3, &duplicate),
+            chapter_analysis_foreshadowing_updates(3, &duplicate, &index),
             Err(
                 ChapterAnalysisOutputError::DuplicateForeshadowingResolution {
                     chapter_id: 3,
@@ -383,13 +362,23 @@ mod tests {
             )
         ));
 
-        let invalid = json!({
-            "foreshadowing": {"resolved": [{"id": "0", "resolution": "无效"}]}
-        });
+        let mut invalid = analysis.clone();
+        invalid["foreshadowing"]["resolved"][0]["id"] = json!("0");
         assert!(matches!(
-            chapter_analysis_foreshadowing_resolved_ids(3, &invalid),
+            chapter_analysis_foreshadowing_updates(3, &invalid, &index),
             Err(ChapterAnalysisOutputError::InvalidForeshadowingResolutionId { chapter_id: 3, .. })
         ));
+        for (field, value) in [
+            ("resolution", Value::Null),
+            ("resolution", json!(" ")),
+            ("source_span_ids", json!([])),
+            ("source_span_ids", json!(["ch1:s1:f1", "ch1:s1:f1"])),
+            ("source_span_ids", json!(["ch2:s1:f1"])),
+        ] {
+            let mut invalid = analysis.clone();
+            invalid["foreshadowing"]["progressed"][0][field] = value;
+            assert!(chapter_analysis_foreshadowing_updates(3, &invalid, &index).is_err());
+        }
     }
 
     #[test]

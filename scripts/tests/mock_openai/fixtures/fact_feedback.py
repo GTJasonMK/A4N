@@ -1,6 +1,20 @@
 """Deterministic expository chapters for cadence and recovery tests."""
 import re
 from .reverse import embedded_json_objects
+from .entities import chapter_analysis_foreshadowing_response
+
+
+def identity_feedback_response(combined: str) -> dict:
+    result = chapter_analysis_foreshadowing_response(combined)
+    existing_ids = {item["id"] for item in embedded_json_objects(combined)
+                    if isinstance(item.get("id"), str) and item.get("setup_chapter") == 1
+                    and "影子" in item.get("description", "")}
+    if len(existing_ids) > 1:
+        raise ValueError("identity fixture expects one existing foreshadowing")
+    if existing_ids:
+        result["foreshadowing"]["planted"][0].update(
+            id=existing_ids.pop(), description="周衡影子的异常暗示他与时间裂缝有关。")
+    return result
 
 
 def fact_feedback_response(combined: str, invalid: bool = False) -> dict:

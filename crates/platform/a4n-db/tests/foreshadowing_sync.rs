@@ -1,8 +1,8 @@
 use a4n_db::project::{
     ChapterSourceSnapshot, CreateProjectRecordInput, ForeshadowingAnalysisDraft,
-    ForeshadowingDbError, ForeshadowingFactUpdate, cleanup_foreshadowing_for_chapter,
-    create_foreshadowing_record, create_project_record, delete_foreshadowing_record,
-    sync_chapter_analysis_foreshadowing, update_foreshadowing_record,
+    ForeshadowingDbError, ForeshadowingFactUpdate, create_foreshadowing_record,
+    create_project_record, delete_foreshadowing_record, sync_chapter_analysis_foreshadowing,
+    update_foreshadowing_record,
 };
 use a4n_db_models::models::{chapter::chapter, character::foreshadowing_index};
 use a4n_domain::character::{ForeshadowingRecordInput, ForeshadowingStatus};
@@ -350,32 +350,32 @@ async fn fact_updates_reject_foreign_future_and_unquoted_evidence() {
 }
 
 #[tokio::test]
-async fn cleanup_preserves_formal_setups_and_reopens_current_payoffs() {
+async fn cleanup_retracts_recorded_payoffs_and_preserves_manual_records() {
     let db = setup_db().await;
     let project_id = create_project(&db).await;
+    let chapter = insert_chapter(&db, project_id, 8).await;
     let current_setup =
         insert_foreshadowing(&db, project_id, "本章新伏笔", 8, None, "pending").await;
-    let current_payoff =
-        insert_foreshadowing(&db, project_id, "本章回收旧伏笔", 2, Some(8), "resolved").await;
-    let current_payoff_2 = insert_foreshadowing(
+    let manual_payoff =
+        insert_foreshadowing(&db, project_id, "作者回收旧伏笔", 2, Some(8), "resolved").await;
+    let automatic_payoff =
+        insert_foreshadowing(&db, project_id, "正文回收旧伏笔", 4, None, "pending").await;
+    sync_chapter_analysis_foreshadowing(
         &db,
-        project_id,
-        "本章回收另一旧伏笔",
-        4,
-        Some(8),
-        "resolved",
+        ChapterSourceSnapshot::from(&chapter),
+        vec![],
+        vec![resolved(automatic_payoff.id)],
     )
-    .await;
+    .await
+    .unwrap();
     let unrelated = insert_foreshadowing(&db, project_id, "其他章节伏笔", 3, None, "pending").await;
 
     let tx = db.begin().await.expect("transaction");
-    let result = cleanup_foreshadowing_for_chapter(&tx, project_id, 8)
+    let result = a4n_db::fact_feedback::invalidate_feedback_sources(&tx, project_id, 8)
         .await
         .expect("cleanup");
     tx.commit().await.expect("commit");
-    assert_eq!(result.len(), 2);
-    assert!(result.contains(&current_payoff.id));
-    assert!(result.contains(&current_payoff_2.id));
+    assert_eq!(result.foreshadowing_ids, [automatic_payoff.id]);
     assert!(
         foreshadowing_index::Entity::find_by_id(current_setup.id)
             .one(&db)
@@ -383,20 +383,20 @@ async fn cleanup_preserves_formal_setups_and_reopens_current_payoffs() {
             .expect("lookup")
             .is_some()
     );
-    let reopened = foreshadowing_index::Entity::find_by_id(current_payoff.id)
+    let reopened = foreshadowing_index::Entity::find_by_id(automatic_payoff.id)
         .one(&db)
         .await
         .expect("lookup")
         .expect("payoff");
     assert_eq!(reopened.status, "pending");
     assert_eq!(reopened.payoff_chapter, None);
-    let reopened = foreshadowing_index::Entity::find_by_id(current_payoff_2.id)
+    let preserved = foreshadowing_index::Entity::find_by_id(manual_payoff.id)
         .one(&db)
         .await
         .expect("lookup")
         .expect("second payoff");
-    assert_eq!(reopened.status, "pending");
-    assert_eq!(reopened.payoff_chapter, None);
+    assert_eq!(preserved.status, "resolved");
+    assert_eq!(preserved.payoff_chapter, Some(8));
     assert!(
         foreshadowing_index::Entity::find_by_id(unrelated.id)
             .one(&db)
@@ -404,6 +404,48 @@ async fn cleanup_preserves_formal_setups_and_reopens_current_payoffs() {
             .expect("lookup")
             .is_some()
     );
+}
+
+#[tokio::test]
+async fn ambiguous_evidence_requires_an_explicit_identity() {
+    let db = setup_db().await;
+    let project_id = create_project(&db).await;
+    let chapter = insert_chapter(&db, project_id, 1).await;
+    let draft = |description: &str| ForeshadowingAnalysisDraft {
+        existing_id: None,
+        description: description.into(),
+        evidence: "章节正文".into(),
+        related_characters: None,
+        importance: 3,
+    };
+    let result = sync_chapter_analysis_foreshadowing(
+        &db,
+        ChapterSourceSnapshot::from(&chapter),
+        vec![draft("门后的脚步声"), draft("窗外的影子")],
+        vec![],
+    )
+    .await
+    .unwrap();
+    let error = sync_chapter_analysis_foreshadowing(
+        &db,
+        ChapterSourceSnapshot::from(&chapter),
+        vec![draft("重述线索")],
+        vec![],
+    )
+    .await
+    .unwrap_err();
+    assert!(error.to_string().contains("对应多个伏笔"));
+    let mut identified = draft("门后的脚步声");
+    identified.existing_id = Some(result.created[0].id);
+    let repeated = sync_chapter_analysis_foreshadowing(
+        &db,
+        ChapterSourceSnapshot::from(&chapter),
+        vec![identified],
+        vec![],
+    )
+    .await
+    .unwrap();
+    assert_eq!(repeated.existing, [result.created[0].clone()]);
 }
 
 #[tokio::test]

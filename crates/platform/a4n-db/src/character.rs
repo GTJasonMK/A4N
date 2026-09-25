@@ -51,7 +51,7 @@ pub use timeline::{
     behavior_records_before_chapter, character_conflict_context_rows,
     delete_ai_timeline_artifacts_from_chapter_checked,
     delete_timeline_artifacts_from_chapter_checked, replay_profile_state_through_chapter,
-    rollback_profile_to_chapter,
+    retract_profile_chapter_facts, rollback_profile_to_chapter,
 };
 
 use sea_orm::DbErr;

@@ -31,12 +31,6 @@ struct UnusedMaterialIndex;
 
 #[async_trait]
 impl ChapterDerivedCleanupHostPort for UnusedMaterialIndex {
-    fn validate_chapter_cleanup_artifacts(
-        &self,
-        _: &ChapterDerivedCleanupArtifacts,
-    ) -> Result<(), AppError> {
-        unreachable!()
-    }
     async fn finish_chapter_derived_cleanup(
         &self,
         _: i64,

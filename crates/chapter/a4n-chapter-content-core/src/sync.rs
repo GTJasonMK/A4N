@@ -14,27 +14,10 @@ use crate::{CHAPTER_CONTENT_SYNC_WORKFLOW_KIND, cleanup_chapter_derived_data_in}
 pub const CHAPTER_CONTENT_SYNC_CLEANUP_STEP: &str = "chapter_content_sync.cleanup_plan";
 pub const CHAPTER_CONTENT_SYNC_EXTERNAL_STEP: &str = "chapter_content_sync.external_cleanup";
 
-pub async fn begin_chapter_content_sync_in_transaction<F>(
+pub async fn begin_chapter_content_sync_in_transaction(
     tx: &DatabaseTransaction,
     chapter: &chapter::Model,
-    validate_artifacts: F,
-) -> Result<workflow_run::Model, AppError>
-where
-    F: Fn(&ChapterDerivedCleanupArtifacts) -> Result<(), AppError>,
-{
-    begin_chapter_content_sync_in_transaction_with_artifacts(tx, chapter, validate_artifacts)
-        .await
-        .map(|(run, _)| run)
-}
-
-async fn begin_chapter_content_sync_in_transaction_with_artifacts<F>(
-    tx: &DatabaseTransaction,
-    chapter: &chapter::Model,
-    validate_artifacts: F,
-) -> Result<(workflow_run::Model, ChapterDerivedCleanupArtifacts), AppError>
-where
-    F: Fn(&ChapterDerivedCleanupArtifacts) -> Result<(), AppError>,
-{
+) -> Result<workflow_run::Model, AppError> {
     let business_key = chapter_content_sync_workflow_business_key(chapter.project_id, chapter.id);
     let previous =
         a4n_db::workflow::latest_workflow_run_by_business_key_for_update(tx, &business_key)
@@ -45,8 +28,6 @@ where
         chapter.project_id,
         chapter.id,
         chapter.chapter_number,
-        true,
-        false,
         None,
     )
     .await?;
@@ -70,7 +51,6 @@ where
             &checkpoint,
         )?);
     }
-    validate_artifacts(&artifacts)?;
 
     let input = chapter_content_sync_workflow_run_input(chapter);
     let run_fingerprint_json =
@@ -89,7 +69,7 @@ where
     a4n_db::workflow::upsert_workflow_checkpoint_in_transaction(tx, checkpoint)
         .await
         .map_err(workflow_write_error)?;
-    Ok((run, artifacts))
+    Ok(run)
 }
 
 pub fn chapter_content_sync_workflow_business_key(project_id: i64, chapter_id: i64) -> String {

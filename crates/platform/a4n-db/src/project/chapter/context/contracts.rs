@@ -51,13 +51,3 @@ pub struct ChapterGenerationReferenceContextRows {
     pub relationships: Vec<blueprint_relationship::Model>,
     pub protagonist_profiles: Vec<protagonist_profile::Model>,
 }
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct ProtagonistProfileCurrentStateUpdate {
-    pub gender: Option<String>,
-    pub age: Option<String>,
-    pub appearance: Option<String>,
-    pub background: Option<String>,
-    pub personality: Option<String>,
-    pub current_state: Value,
-}

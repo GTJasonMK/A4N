@@ -62,33 +62,16 @@ pub async fn sync_chapter_analysis_foreshadowing(
                 "伏笔重要度必须在 1 到 5 之间".into(),
             ));
         }
-        let id = draft
-            .existing_id
-            .or_else(|| {
-                history
-                    .iter()
-                    .find(|record| {
-                        record.target_id.is_some_and(|id| by_id.contains_key(&id))
-                            && record.evidence_json.as_array().is_some_and(|items| {
-                                items.iter().any(|item| {
-                                    item.get("quote").and_then(Value::as_str)
-                                        == Some(draft.evidence.as_str())
-                                })
-                            })
-                    })
-                    .and_then(|record| record.target_id)
-            })
-            .or_else(|| {
-                by_id
-                    .values()
-                    .find(|item| {
-                        item.setup_chapter == source.chapter_number
-                            && item.description == draft.description
-                    })
-                    .map(|item| item.id)
-            });
+        let id = resolve_draft_identity(&draft, source.chapter_number, &by_id, &history)?;
         let prior = id.and_then(|id| by_id.get(&id)).cloned();
-        if draft.existing_id.is_some() && prior.is_none() {
+        let withdrawn_origin = id.and_then(|id| {
+            history.iter().find(|record| {
+                record.target_id == Some(id)
+                    && record.status == "retracted"
+                    && record.before_json.is_null()
+            })
+        });
+        if id.is_some() && prior.is_none() && withdrawn_origin.is_none() {
             return Err(ForeshadowingDbError::InvalidArgument(
                 "伏笔 ID 不属于当前项目".into(),
             ));
@@ -105,6 +88,11 @@ pub async fn sync_chapter_analysis_foreshadowing(
             .as_ref()
             .map(foreshadowing_fact_snapshot)
             .unwrap_or(Value::Null);
+        let unchanged = prior.as_ref().filter(|item| {
+            item.description == draft.description
+                && item.related_characters == draft.related_characters
+                && item.importance == draft.importance
+        });
         let mut active =
             prior
                 .clone()
@@ -114,14 +102,21 @@ pub async fn sync_chapter_analysis_foreshadowing(
                     setup_chapter: Set(source.chapter_number),
                     payoff_chapter: Set(None),
                     status: Set(ForeshadowingStatus::Pending.as_str().into()),
-                    created_at: Set(Utc::now().naive_utc()),
+                    // Reanalysis may have just withdrawn the old observation. Its identity is
+                    // retained by the source journal, so restore that ID instead of inventing one.
+                    id: id.map(Set).unwrap_or(sea_orm::NotSet),
+                    created_at: Set(withdrawn_origin
+                        .map(|record| record.created_at)
+                        .unwrap_or_else(|| Utc::now().naive_utc())),
                     ..Default::default()
                 });
         active.description = Set(draft.description);
         active.related_characters = Set(draft.related_characters);
         active.importance = Set(draft.importance);
         active.updated_at = Set(Utc::now().naive_utc());
-        let item = if prior.is_some() {
+        let item = if let Some(unchanged) = unchanged {
+            unchanged.clone()
+        } else if prior.is_some() {
             active.update(&tx).await?
         } else {
             active.insert(&tx).await?
@@ -194,9 +189,7 @@ pub async fn sync_chapter_analysis_foreshadowing(
                 "伏笔进展缺少变化说明".into(),
             ));
         }
-        if update.status == ForeshadowingStatus::Resolved
-            && prior.status == ForeshadowingStatus::Resolved.as_str()
-        {
+        if prior.status == update.status.as_str() {
             result.existing.push(prior.clone());
             result.current.push(prior);
             continue;
@@ -231,6 +224,48 @@ pub async fn sync_chapter_analysis_foreshadowing(
     }
     tx.commit().await?;
     Ok(result)
+}
+
+fn resolve_draft_identity(
+    draft: &ForeshadowingAnalysisDraft,
+    chapter_number: i32,
+    current: &BTreeMap<i64, foreshadowing_index::Model>,
+    history: &[material_fact_change::Model],
+) -> Result<Option<i64>, ForeshadowingDbError> {
+    if let Some(id) = draft.existing_id {
+        return Ok(Some(id));
+    }
+    let withdrawn_ids: BTreeSet<_> = history
+        .iter()
+        .filter(|record| record.status == "retracted" && record.before_json.is_null())
+        .filter_map(|record| record.target_id)
+        .collect();
+    let candidates: BTreeSet<_> = history
+        .iter()
+        .filter(|record| {
+            record.evidence_json.as_array().is_some_and(|items| {
+                items.iter().any(|item| {
+                    item.get("quote").and_then(Value::as_str) == Some(draft.evidence.as_str())
+                })
+            })
+        })
+        .filter_map(|record| record.target_id)
+        .filter(|id| current.contains_key(id) || withdrawn_ids.contains(id))
+        .chain(
+            current
+                .values()
+                .filter(|item| {
+                    item.setup_chapter == chapter_number && item.description == draft.description
+                })
+                .map(|item| item.id),
+        )
+        .collect();
+    if candidates.len() > 1 {
+        return Err(ForeshadowingDbError::InvalidArgument(
+            "原文证据对应多个伏笔，请使用已有伏笔 ID 明确身份".into(),
+        ));
+    }
+    Ok(candidates.into_iter().next())
 }
 
 fn require_evidence(

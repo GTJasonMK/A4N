@@ -156,20 +156,6 @@ impl ProjectChapterContextApplication {
         .await
         .map_err(project_chapter_context_error_to_app_error)
     }
-
-    async fn snapshot_profile_ids_for_chapter(
-        &self,
-        profile_ids: &[i64],
-        chapter_number: i32,
-    ) -> Result<Vec<i64>, AppError> {
-        a4n_db::project::snapshot_profile_ids_for_chapter(
-            self.database.connection(),
-            profile_ids,
-            chapter_number,
-        )
-        .await
-        .map_err(project_chapter_context_error_to_app_error)
-    }
 }
 
 impl OrchestratorContext {
@@ -264,16 +250,6 @@ impl OrchestratorContext {
     ) -> Result<Vec<character_state_index::Model>, AppError> {
         self.project_chapter_context
             .character_states_before_chapter(profile_ids, chapter_number, limit)
-            .await
-    }
-
-    pub(crate) async fn snapshot_profile_ids_for_chapter(
-        &self,
-        profile_ids: &[i64],
-        chapter_number: i32,
-    ) -> Result<Vec<i64>, AppError> {
-        self.project_chapter_context
-            .snapshot_profile_ids_for_chapter(profile_ids, chapter_number)
             .await
     }
 }

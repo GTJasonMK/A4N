@@ -42,7 +42,7 @@ from mock_openai.fixtures.entities import (
     scene_profile_candidates_response,
     scene_transition_response,
 )
-from mock_openai.fixtures.fact_feedback import fact_feedback_response
+from mock_openai.fixtures.fact_feedback import fact_feedback_response, identity_feedback_response
 from mock_openai.fixtures.reverse import (
     cache_fixture_usage,
     message_text,
@@ -136,6 +136,8 @@ def response_for(body: dict[str, Any]) -> str:
         return "pong"
 
     prompt_name = current_task_prompt_name(combined)
+    if body.get("model") == "a4n-fact-feedback-identity" and "chapter_foreshadowing_events" in combined:
+        return json.dumps(identity_feedback_response(combined), ensure_ascii=False)
     if body.get("model") in {"a4n-fact-feedback", "a4n-fact-feedback-invalid"}:
         return json.dumps(fact_feedback_response(combined, body["model"].endswith("invalid")), ensure_ascii=False)
     if "project_fact_consolidation" in combined:

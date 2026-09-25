@@ -2,13 +2,16 @@ use std::collections::{HashMap, HashSet};
 
 use a4n_db_models::models::{
     character::{
-        attribute_event::{self, SOURCE_KIND_AI_SYNC},
+        attribute_event::{self, SOURCE_KIND_AI_SYNC, SOURCE_KIND_TEXT_FACT},
         protagonist_deletion_mark, protagonist_profile,
     },
     generation::{generation_run, generation_run_target},
     project::blueprint_character,
 };
-use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QueryOrder, QuerySelect};
+use sea_orm::{
+    ActiveModelTrait, ColumnTrait, ConnectionTrait, DatabaseTransaction, EntityTrait, QueryFilter,
+    QueryOrder, QuerySelect, Set,
+};
 use serde_json::Value;
 
 use crate::character::attributes::{apply_attribute_to_state, attribute_value_in_state};
@@ -49,16 +52,8 @@ pub(in crate::character) async fn character_attribute_ownership<C>(
 where
     C: ConnectionTrait,
 {
-    let (events_result, deletion_marks_result, base_attributes_result) = futures::join!(
-        attribute_events(db, profile.id),
-        protagonist_deletion_mark::Entity::find()
-            .filter(protagonist_deletion_mark::Column::ProfileId.eq(profile.id))
-            .all(db),
-        profile_base_attributes_are_ai_generated(db, profile),
-    );
-    let events = events_result?;
-    let deletion_marks = deletion_marks_result?;
-    let base_attributes_are_ai_generated = base_attributes_result?;
+    let (events, deletion_marks, base_attributes_are_ai_generated) =
+        profile_timeline_records(db, profile).await?;
     Ok(character_attribute_ownership_from_records(
         profile,
         &events,
@@ -81,16 +76,8 @@ where
             "角色状态重放截止章节不能小于 0".to_string(),
         ));
     }
-    let (events_result, deletion_marks_result, base_attributes_result) = futures::join!(
-        attribute_events(db, profile.id),
-        protagonist_deletion_mark::Entity::find()
-            .filter(protagonist_deletion_mark::Column::ProfileId.eq(profile.id))
-            .all(db),
-        profile_base_attributes_are_ai_generated(db, profile),
-    );
-    let events = events_result?;
-    let deletion_marks = deletion_marks_result?;
-    let base_attributes_are_ai_generated = base_attributes_result?;
+    let (events, deletion_marks, base_attributes_are_ai_generated) =
+        profile_timeline_records(db, profile).await?;
     let ownership = character_attribute_ownership_from_records(
         profile,
         &events,
@@ -98,6 +85,103 @@ where
         base_attributes_are_ai_generated,
     );
     replay_profile_state_from_records(profile, &events, chapter_number, &ownership)
+}
+
+async fn profile_timeline_records<C: ConnectionTrait>(
+    db: &C,
+    profile: &protagonist_profile::Model,
+) -> Result<
+    (
+        Vec<attribute_event::Model>,
+        Vec<protagonist_deletion_mark::Model>,
+        bool,
+    ),
+    CharacterDbError,
+> {
+    let (events, deletion_marks, base_attributes) = futures::join!(
+        attribute_events(db, profile.id),
+        protagonist_deletion_mark::Entity::find()
+            .filter(protagonist_deletion_mark::Column::ProfileId.eq(profile.id))
+            .all(db),
+        profile_base_attributes_are_ai_generated(db, profile),
+    );
+    Ok((events?, deletion_marks?, base_attributes?))
+}
+
+/// Retract observations while retaining the identity, manual history and assets.
+pub async fn retract_profile_chapter_facts(
+    db: &DatabaseTransaction,
+    project_id: i64,
+    profile_id: i64,
+    from_chapter: i32,
+) -> Result<super::contracts::CharacterTimelineDeletionSummary, CharacterDbError> {
+    crate::character::validate_chapter_number(from_chapter)?;
+    let profile = crate::character::profile::require_profile_for_update(db, profile_id).await?;
+    if profile.project_id != project_id {
+        return Err(CharacterDbError::InvalidArgument(
+            "角色事实不属于当前项目".into(),
+        ));
+    }
+    let (events, marks, generated) = profile_timeline_records(db, &profile).await?;
+    let ownership =
+        character_attribute_ownership_from_records(&profile, &events, &marks, generated);
+    // Classify untracked manual values before removing events, otherwise a deleted observation
+    // can be mistaken for a manual value and copied back into the current state.
+    let mut baseline = profile_state_baseline(&profile, &events)?;
+    let mut replay = profile.clone();
+    if generated
+        && profile
+            .first_seen_chapter()
+            .is_some_and(|first| first >= from_chapter)
+    {
+        // Keep untracked author edits in current state so they do not become an AI-owned baseline.
+        for (category, key, value) in attribute_entries(&profile.base_attributes) {
+            apply_attribute_to_state(
+                &mut replay.base_attributes,
+                &category,
+                &key,
+                "delete",
+                Value::Null,
+            )?;
+            if attribute_value_in_state(&baseline, &category, &key).as_ref() == Some(&value) {
+                apply_attribute_to_state(&mut baseline, &category, &key, "delete", Value::Null)?;
+            }
+        }
+    }
+    replay.current_state = baseline;
+    let retained: Vec<_> = events
+        .into_iter()
+        .filter(|event| {
+            event.chapter_number < from_chapter
+                || !matches!(
+                    event.source_kind.as_str(),
+                    SOURCE_KIND_AI_SYNC | SOURCE_KIND_TEXT_FACT
+                )
+        })
+        .collect();
+    let state = replay_profile_state_from_records(&replay, &retained, i32::MAX, &ownership)?;
+    let deleted = super::cleanup::delete_ai_timeline_artifacts_from_chapter_checked(
+        db,
+        profile_id,
+        from_chapter,
+        None,
+    )
+    .await?;
+    crate::character::attributes::rewind_ai_deletion_marks_after(db, profile_id, from_chapter - 1)
+        .await?;
+    let synced = profile.last_synced_chapter.min(from_chapter - 1);
+    if state != profile.current_state
+        || replay.base_attributes != profile.base_attributes
+        || synced != profile.last_synced_chapter
+    {
+        let mut active: protagonist_profile::ActiveModel = profile.into();
+        active.base_attributes = Set(replay.base_attributes);
+        crate::character::apply_profile_current_state(&mut active, state);
+        active.last_synced_chapter = Set(synced);
+        active.updated_at = Set(chrono::Utc::now().naive_utc());
+        active.update(db).await?;
+    }
+    Ok(deleted)
 }
 
 async fn attribute_events<C>(
@@ -201,11 +285,9 @@ fn character_attribute_ownership_from_records(
     ownership
 }
 
-fn replay_profile_state_from_records(
+fn profile_state_baseline(
     profile: &protagonist_profile::Model,
     events: &[attribute_event::Model],
-    chapter_number: i32,
-    ownership: &CharacterAttributeOwnership,
 ) -> Result<Value, CharacterDbError> {
     let mut state = profile.base_attributes.clone();
     let event_attributes = events
@@ -221,6 +303,16 @@ fn replay_profile_state_from_records(
         }
     }
 
+    Ok(state)
+}
+
+fn replay_profile_state_from_records(
+    profile: &protagonist_profile::Model,
+    events: &[attribute_event::Model],
+    chapter_number: i32,
+    ownership: &CharacterAttributeOwnership,
+) -> Result<Value, CharacterDbError> {
+    let mut state = profile_state_baseline(profile, events)?;
     for event in events
         .iter()
         .filter(|event| event.chapter_number <= chapter_number)

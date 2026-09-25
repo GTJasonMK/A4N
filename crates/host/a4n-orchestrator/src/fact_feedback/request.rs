@@ -1,5 +1,7 @@
 use a4n_db::fact_feedback::{FeedbackSource, current_feedback_sources, feedback_config};
-use a4n_domain::fact_feedback::{FactAssertion, FactSourceRevision, pending_fact_sources};
+use a4n_domain::fact_feedback::{
+    FactAssertion, FactSourceRevision, pending_fact_sources, world_setting_document,
+};
 use a4n_error::AppError;
 use a4n_llm_context::{
     COMPRESSION_FULL_RAW, LlmContextLedger, LlmContextLedgerPackDraft,
@@ -97,11 +99,7 @@ impl OrchestratorContext {
             json!({
                 "id": blueprint.id, "version": blueprint.current_version,
                 "full_synopsis": blueprint.full_synopsis,
-                "world_setting": match blueprint.world_setting.as_ref() {
-                    Some(Value::String(text)) => json!({"premise":text}),
-                    Some(value) if !value.is_null() => value.clone(),
-                    _ => json!({}),
-                },
+                "world_setting": world_setting_document(blueprint.world_setting.as_ref()),
             })
         });
         let material_data = json!({

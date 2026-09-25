@@ -5,7 +5,7 @@ use super::contracts::{
 use a4n_db_models::models::{
     asset::object_profile,
     chapter::chapter,
-    character::{character_state_index, protagonist_profile, snapshot_reference},
+    character::{character_state_index, protagonist_profile},
     project::{profile_evidence, text_anchor},
     scene::{scene_occurrence, scene_profile},
 };
@@ -224,44 +224,6 @@ pub async fn character_states_for_profiles_before_chapter(
         .filter(character_state_index::Column::ChapterNumber.lt(chapter_number))
         .order_by_desc(character_state_index::Column::ChapterNumber)
         .limit(limit)
-        .all(db)
-        .await
-        .map_err(ProjectChapterContextError::Database)
-}
-
-pub async fn snapshot_profile_ids_for_chapter(
-    db: &DatabaseConnection,
-    profile_ids: &[i64],
-    chapter_number: i32,
-) -> Result<Vec<i64>, ProjectChapterContextError> {
-    if profile_ids.is_empty() {
-        return Ok(Vec::new());
-    }
-    snapshot_reference::Entity::find()
-        .select_only()
-        .column(snapshot_reference::Column::ProfileId)
-        .filter(snapshot_reference::Column::ProfileId.is_in(profile_ids.iter().copied()))
-        .filter(snapshot_reference::Column::ChapterNumber.eq(chapter_number))
-        .into_tuple::<i64>()
-        .all(db)
-        .await
-        .map_err(ProjectChapterContextError::Database)
-}
-
-pub async fn snapshot_references_for_profiles_chapter<C>(
-    db: &C,
-    profile_ids: &[i64],
-    chapter_number: i32,
-) -> Result<Vec<snapshot_reference::Model>, ProjectChapterContextError>
-where
-    C: ConnectionTrait,
-{
-    if profile_ids.is_empty() {
-        return Ok(Vec::new());
-    }
-    snapshot_reference::Entity::find()
-        .filter(snapshot_reference::Column::ProfileId.is_in(profile_ids.iter().copied()))
-        .filter(snapshot_reference::Column::ChapterNumber.eq(chapter_number))
         .all(db)
         .await
         .map_err(ProjectChapterContextError::Database)

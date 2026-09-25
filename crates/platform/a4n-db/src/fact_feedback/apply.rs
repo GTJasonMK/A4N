@@ -6,7 +6,7 @@ use a4n_db_models::models::{
 use a4n_domain::{
     fact_feedback::{
         FactChangeOperation, FactMaterialChange, FactMaterialKind, FactSourceRevision,
-        apply_fact_json_change,
+        apply_fact_json_change, world_setting_document,
     },
     source_spans::source_spans_for_chapters,
 };
@@ -148,11 +148,12 @@ async fn apply_in(
                             "资料变更蓝图 ID 与当前项目不一致".into(),
                         ));
                     }
+                    let mut world = world_setting_document(current.world_setting.as_ref());
                     let appended_path = if change.operation == FactChangeOperation::Add
                         && change.path.ends_with("/-")
                     {
                         let parent = change.path.strip_suffix("/-").unwrap();
-                        world_document(current.world_setting.as_ref())
+                        world
                             .pointer(parent)
                             .and_then(Value::as_array)
                             .map(|items| format!("{parent}/{}", items.len()))
@@ -161,7 +162,7 @@ async fn apply_in(
                     };
                     let removed_array = if change.operation == FactChangeOperation::Remove {
                         change.path.rsplit_once('/').and_then(|(parent, _)| {
-                            world_document(current.world_setting.as_ref())
+                            world
                                 .pointer(parent)
                                 .filter(|value| value.is_array())
                                 .cloned()
@@ -170,20 +171,21 @@ async fn apply_in(
                     } else {
                         None
                     };
-                    let changed = apply_blueprint_change(current, &change)?;
+                    let changed = apply_fact_json_change(&mut world, &change)
+                        .map_err(FactFeedbackDbError::Invalid)?;
                     if let Some(path) = appended_path {
                         change.path = path;
                     }
                     if let Some((parent, before)) = removed_array {
-                        change.after = world_document(current.world_setting.as_ref())
-                            .pointer(&parent)
-                            .cloned()
-                            .ok_or_else(|| {
-                                FactFeedbackDbError::Invalid("移除后数组父节点不存在".into())
-                            })?;
+                        change.after = world.pointer(&parent).cloned().ok_or_else(|| {
+                            FactFeedbackDbError::Invalid("移除后数组父节点不存在".into())
+                        })?;
                         change.path = parent;
                         change.before = before;
                         change.operation = FactChangeOperation::Replace;
+                    }
+                    if changed {
+                        current.world_setting = Some(world);
                     }
                     blueprint_changed |= changed;
                     changed
@@ -200,13 +202,22 @@ async fn apply_in(
             FactMaterialKind::BlueprintSynopsis => {
                 // A free-form synopsis mixes established events and future intent; keep its rewrite reviewable.
                 proposal = true;
+                if !change.after.is_string() && !change.after.is_null() {
+                    return Err(FactFeedbackDbError::Invalid("蓝图梗概必须是文本".into()));
+                }
                 if let Some(current) = blueprint.as_ref() {
                     if change.target_id != Some(current.id) {
                         return Err(FactFeedbackDbError::Invalid(
                             "剧情梗概建议的蓝图 ID 与当前项目不一致".into(),
                         ));
                     }
-                    apply_blueprint_change(&mut current.clone(), &change)?
+                    let mut synopsis = current
+                        .full_synopsis
+                        .as_ref()
+                        .map(|text| json!(text))
+                        .unwrap_or(Value::Null);
+                    apply_fact_json_change(&mut synopsis, &change)
+                        .map_err(FactFeedbackDbError::Invalid)?
                 } else if change.target_id.is_some() {
                     return Err(FactFeedbackDbError::Invalid(
                         "项目没有蓝图，梗概建议不能引用蓝图 ID".into(),
@@ -301,43 +312,6 @@ fn validate_sources(
         .collect()
 }
 
-pub(super) fn world_document(value: Option<&Value>) -> Value {
-    match value {
-        Some(Value::String(text)) => json!({"premise": text}),
-        Some(value) if !value.is_null() => value.clone(),
-        _ => json!({}),
-    }
-}
-
-fn apply_blueprint_change(
-    blueprint: &mut novel_blueprint::Model,
-    change: &FactMaterialChange,
-) -> Result<bool, FactFeedbackDbError> {
-    if change.material_kind == FactMaterialKind::WorldSetting {
-        let mut world = world_document(blueprint.world_setting.as_ref());
-        let changed =
-            apply_fact_json_change(&mut world, change).map_err(FactFeedbackDbError::Invalid)?;
-        if changed {
-            blueprint.world_setting = Some(world);
-        }
-        return Ok(changed);
-    }
-    let mut synopsis = blueprint
-        .full_synopsis
-        .as_ref()
-        .map(|text| json!(text))
-        .unwrap_or(Value::Null);
-    if !change.after.is_string() && !change.after.is_null() {
-        return Err(FactFeedbackDbError::Invalid("蓝图梗概必须是文本".into()));
-    }
-    let changed =
-        apply_fact_json_change(&mut synopsis, change).map_err(FactFeedbackDbError::Invalid)?;
-    if changed {
-        blueprint.full_synopsis = synopsis.as_str().map(str::to_string);
-    }
-    Ok(changed)
-}
-
 async fn apply_character_change(
     tx: &DatabaseTransaction,
     project_id: i64,
@@ -352,16 +326,8 @@ async fn apply_character_change(
         .await?
         .filter(|profile| profile.project_id == project_id)
         .ok_or_else(|| FactFeedbackDbError::Invalid("角色不属于当前项目".into()))?;
-    let mut value = if change.material_kind == FactMaterialKind::CharacterVoice {
-        profile.voice_fingerprint.clone().unwrap_or(Value::Null)
-    } else {
-        profile
-            .character_arc
-            .as_ref()
-            .and_then(|arc| arc.get("observed_progress"))
-            .cloned()
-            .unwrap_or(Value::Null)
-    };
+    let kind = change.material_kind.as_str();
+    let mut value = character_enrichment(&profile, kind)?;
     if !change.after.is_object() && !change.after.is_null() {
         return Err(FactFeedbackDbError::Invalid(
             "角色说话特征和弧线进展必须是对象".into(),
@@ -372,24 +338,77 @@ async fn apply_character_change(
     if !changed {
         return Ok(false);
     }
-    let mut active: protagonist_profile::ActiveModel = profile.clone().into();
-    if change.material_kind == FactMaterialKind::CharacterVoice {
-        active.voice_fingerprint = Set((!value.is_null()).then_some(value));
-    } else {
-        let mut arc = profile.character_arc.unwrap_or_else(|| json!({}));
-        let object = arc.as_object_mut().ok_or_else(|| {
-            FactFeedbackDbError::Invalid("已有角色弧线不是结构化对象，请先核对资料".into())
-        })?;
-        if value.is_null() {
-            object.remove("observed_progress");
-        } else {
-            object.insert("observed_progress".into(), value);
-        }
-        active.character_arc = Set(Some(arc));
-    }
-    active.updated_at = Set(Utc::now().naive_utc());
-    active.update(tx).await?;
+    persist_character_enrichment(tx, profile, kind, value).await?;
     Ok(true)
+}
+
+pub(super) fn character_enrichment(
+    profile: &protagonist_profile::Model,
+    kind: &str,
+) -> Result<Value, FactFeedbackDbError> {
+    match kind {
+        "character_voice" => Ok(profile.voice_fingerprint.clone().unwrap_or(Value::Null)),
+        "character_arc_progress" => match profile.character_arc.as_ref() {
+            None => Ok(Value::Null),
+            Some(Value::Object(arc)) => {
+                Ok(arc.get("observed_progress").cloned().unwrap_or(Value::Null))
+            }
+            _ => Err(FactFeedbackDbError::Invalid("角色弧线结构无效".into())),
+        },
+        _ => Err(FactFeedbackDbError::Invalid(format!(
+            "未知角色资料类型: {kind}"
+        ))),
+    }
+}
+
+pub(super) fn set_character_enrichment(
+    profile: &mut protagonist_profile::Model,
+    kind: &str,
+    value: Value,
+) -> Result<(), FactFeedbackDbError> {
+    match kind {
+        "character_voice" => profile.voice_fingerprint = (!value.is_null()).then_some(value),
+        "character_arc_progress" => {
+            if value.is_null() && profile.character_arc.is_none() {
+                return Ok(());
+            }
+            let object = profile
+                .character_arc
+                .get_or_insert_with(|| json!({}))
+                .as_object_mut()
+                .ok_or_else(|| FactFeedbackDbError::Invalid("角色弧线结构无效".into()))?;
+            if value.is_null() {
+                object.remove("observed_progress");
+            } else {
+                object.insert("observed_progress".into(), value);
+            }
+        }
+        _ => {
+            return Err(FactFeedbackDbError::Invalid(format!(
+                "未知角色资料类型: {kind}"
+            )));
+        }
+    }
+    Ok(())
+}
+
+pub(super) async fn persist_character_enrichment(
+    tx: &DatabaseTransaction,
+    mut profile: protagonist_profile::Model,
+    kind: &str,
+    value: Value,
+) -> Result<(), FactFeedbackDbError> {
+    set_character_enrichment(&mut profile, kind, value)?;
+    protagonist_profile::ActiveModel {
+        id: Set(profile.id),
+        voice_fingerprint: Set(profile.voice_fingerprint),
+        character_arc: Set(profile.character_arc),
+        updated_at: Set(Utc::now().naive_utc()),
+        ..Default::default()
+    }
+    .update(tx)
+    .await?;
+    Ok(())
 }
 
 pub(super) async fn persist_blueprint<C: ConnectionTrait>(

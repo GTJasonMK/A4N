@@ -11,6 +11,7 @@ from pathlib import Path
 import zipfile
 
 from mock_openai.fixtures.reverse import message_text
+from mock_openai.fixtures.story import chapter_body_response
 from run_cli_contract_e2e import (
     Cli, RunnerError, checked, provider_log_entries, runtime_snapshot, secure_json,
 )
@@ -36,6 +37,8 @@ def main():
             password = env.pop(args.password_env)
             env.pop("A4N_ACCESS_TOKEN", None)
             cli = Cli(args.a4n, args.server, work / "cli.json", work / "context.json", 60, env)
+            checked(cli, ["health"], "health")
+            checked(cli, ["capabilities", "check"], "capabilities")
             checked(cli, ["auth", "login", "--username", args.username, "--password-stdin"], "login", password + "\n")
 
             def call(name, payload):
@@ -45,9 +48,9 @@ def main():
             def typed(name, value):
                 return call(name, {"input": value})
 
-            def model(invalid=False):
+            def model(name="a4n-fact-feedback"):
                 snapshot = runtime_snapshot(args.provider_url, embedding_dimension=args.embedding_dimension)
-                snapshot["llm"]["model"] = "a4n-fact-feedback-invalid" if invalid else "a4n-fact-feedback"
+                snapshot["llm"]["model"] = name
                 secure_json(work / "runtime.json", snapshot)
                 checked(cli, ["config", "runtime", "set", "--input", "@" + str(work / "runtime.json")], "runtime")
 
@@ -140,7 +143,7 @@ def main():
             assert len(versions()) == version_count
             report["checks"].append("project interval changes to 3; unchanged facts do not generate material versions")
 
-            model(invalid=True)
+            model("a4n-fact-feedback-invalid")
             chapter = import_chapter(9, "六")
             chapters.append(chapter)
             result = analyze(chapter["id"])
@@ -193,6 +196,54 @@ def main():
             assert copied_feedback["consolidated_chapters"] == [] and copied_feedback["legacy_chapters"] == list(range(1, 10)), copied_feedback
             assert len(consolidation_calls()) == calls_before
             report["checks"].append("family ZIP round-trip preserves source coverage and history; ordinary copy keeps interval and requests fresh analysis")
+
+            for command in ["list_profiles", "list_foreshadowing", "add_profile_attribute", "attribute_history"]:
+                checked(cli, ["capabilities", "describe", command], "describe " + command)
+            model("a4n-fact-feedback-identity")
+            identity_project = checked(cli, ["project", "create", "--title", "事实撤回身份回归", "--project-type", "novel_long", "--use-context"], "identity project")[0]["data"]
+            identity_id = identity_project["id"]
+            report["identity_project_id"] = identity_id
+            identity_chapter = checked(cli, ["chapter", "import", "--number", "1", "--title", "雨夜来信", "--content", chapter_body_response()], "identity chapter")[0]["data"]
+            result = analyze(identity_chapter["id"])
+            assert result["warnings"] == [], result
+            profiles = typed("list_profiles", {"project_id": identity_id})
+            profile_ids = {profile["id"] for profile in profiles}
+            lin = next(profile for profile in profiles if profile["name"] == "林岚")
+            assert lin["base_attributes"]["explicit_attributes"]["位置"]
+            typed("add_profile_attribute", {
+                "profile_id": lin["id"], "chapter_number": 1, "category": "explicit", "key": "author_note",
+                "value": "作者保留的设定", "cause": "作者设定", "evidence": "作者设定",
+            })
+            planted = typed("list_foreshadowing", {"project_id": identity_id})
+            assert len(planted) == 1, planted
+            result = analyze(identity_chapter["id"])
+            assert result["warnings"] == [], result
+            repeated = typed("list_foreshadowing", {"project_id": identity_id})
+            assert len(repeated) == 1 and repeated[0]["id"] == planted[0]["id"], repeated
+            assert repeated[0]["description"] != planted[0]["description"]
+            assert {profile["id"] for profile in typed("list_profiles", {"project_id": identity_id})} == profile_ids
+            report["checks"].append("changed reanalysis references the withdrawn foreshadowing ID and preserves character identities")
+
+            latest = call("list_chapters", {"projectId": identity_id})[0]
+            chat_calls_before = sum(entry.get("path", "").endswith("chat/completions") for entry in provider_log_entries(args.provider_log))
+            typed("update_chapter_content", {
+                "chapter_id": latest["id"], "expected_revision": latest["edit_revision"],
+                "content": "记忆城每年有七个季节。", "title": latest["title"],
+            })
+            assert sum(entry.get("path", "").endswith("chat/completions") for entry in provider_log_entries(args.provider_log)) == chat_calls_before
+            restored = typed("list_profiles", {"project_id": identity_id})
+            assert {profile["id"] for profile in restored} == profile_ids
+            for profile in restored:
+                expected = {"author_note": "作者保留的设定"} if profile["id"] == lin["id"] else {}
+                assert profile["current_state"] == {"explicit_attributes": expected, "implicit_attributes": {}, "social_attributes": {}}, profile
+                assert profile["last_synced_chapter"] == 0
+            assert typed("list_foreshadowing", {"project_id": identity_id}) == []
+            history = typed("attribute_history", {
+                "profile_id": lin["id"], "chapter_from": None, "chapter_to": None,
+                "category": None, "key": None, "operation": None, "limit": 100,
+            })
+            assert len(history) == 1 and history[0]["source_kind"] == "user", history
+            report["checks"].append("plain rewrite clears discovered baseline and chapter observations while preserving the manual event and stable profile IDs")
             report["success"] = True
     except (RunnerError, OSError, ValueError, TypeError, KeyError, AssertionError) as error:
         report["error"] = f"{type(error).__name__}: {error}"

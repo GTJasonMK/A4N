@@ -31,20 +31,13 @@ pub(crate) fn foreshadowing_rag_chunk_id(project_id: i64, foreshadowing_id: i64)
     rag_chunk_id(project_id, RagDataType::Foreshadowing, foreshadowing_id)
 }
 
-pub(crate) fn protagonist_rag_chunk_prefix(project_id: i64, profile_id: i64) -> String {
-    format!(
-        "{}{profile_id}:",
-        rag_project_prefix(project_id, RagDataType::Protagonist)
-    )
-}
-
 pub(crate) fn protagonist_rag_chunk_id(
     project_id: i64,
     profile_id: i64,
     dimension: &str,
 ) -> String {
     format!(
-        "{}{dimension}",
-        protagonist_rag_chunk_prefix(project_id, profile_id)
+        "{}{profile_id}:{dimension}",
+        rag_project_prefix(project_id, RagDataType::Protagonist)
     )
 }

@@ -15,7 +15,6 @@ use crate::{
     sidecar_clients::{scope_rag_operation_trace, workflow_rag_operation_trace_id},
     state::AppState,
 };
-use a4n_storage::deletable_data_file_path;
 
 pub(crate) struct RuntimeChapterAnalysisHostPort {
     state: AppState,
@@ -68,21 +67,6 @@ impl CharacterProfileTimelineMutationHostPort for RuntimeChapterAnalysisHostPort
 
 #[async_trait]
 impl ChapterDerivedCleanupHostPort for RuntimeChapterAnalysisHostPort {
-    fn validate_chapter_cleanup_artifacts(
-        &self,
-        artifacts: &ChapterDerivedCleanupArtifacts,
-    ) -> Result<(), AppError> {
-        for path in &artifacts.media_file_paths {
-            deletable_data_file_path(self.state.data_dir(), path, "章节媒体文件").map_err(
-                |error| AppError::InvalidState {
-                    current: error,
-                    operation: "清理章节派生媒体文件".to_string(),
-                },
-            )?;
-        }
-        Ok(())
-    }
-
     async fn finish_chapter_derived_cleanup(
         &self,
         project_id: i64,

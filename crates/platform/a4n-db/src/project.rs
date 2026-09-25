@@ -39,14 +39,12 @@ pub use blueprint_sync::{
 };
 pub use chapter::context::{
     ChapterGenerationReferenceContextRows, ChapterObjectProfileContext, ChapterProfileEvidence,
-    ChapterSceneProfileContext, ProjectChapterContextError, ProtagonistProfileCurrentStateUpdate,
-    chapter_by_id, chapter_generation_reference_context_rows, chapters_before_number,
+    ChapterSceneProfileContext, ProjectChapterContextError, chapter_by_id,
+    chapter_generation_reference_context_rows, chapters_before_number,
     character_states_for_profiles_before_chapter, character_sync_chapters,
     import_analysis_chapter_candidates, object_profiles_before_chapter,
     protagonist_profiles_for_project, protagonist_profiles_for_project_in,
     refresh_project_current_chapter, scene_profiles_before_chapter,
-    snapshot_profile_ids_for_chapter, snapshot_references_for_profiles_chapter,
-    update_protagonist_profile_current_state,
 };
 pub use chapter::scene::{
     ProjectChapterSceneRecordError, ProjectChapterSceneUpdateInput, ProjectChapterSceneWriteError,
@@ -97,9 +95,9 @@ pub use family::metadata::{
 pub(crate) use foreshadowing::restore_foreshadowing_fact;
 pub use foreshadowing::{
     ForeshadowingAnalysisDraft, ForeshadowingAnalysisSyncResult, ForeshadowingDbError,
-    ForeshadowingFactUpdate, cleanup_foreshadowing_for_chapter, create_foreshadowing_record,
-    delete_foreshadowing_record, foreshadowing_records_by_project,
-    sync_chapter_analysis_foreshadowing, update_foreshadowing_record,
+    ForeshadowingFactUpdate, create_foreshadowing_record, delete_foreshadowing_record,
+    foreshadowing_records_by_project, sync_chapter_analysis_foreshadowing,
+    update_foreshadowing_record,
 };
 pub(crate) use freeform_reset::FreeformGeneratedResetTargets;
 pub use freeform_reset::{

@@ -1,10 +1,6 @@
 mod blueprint_records;
 mod chapter_cleanup {
     mod execution;
-    mod plan;
-
-    #[cfg(test)]
-    mod tests;
 }
 mod chapter_records;
 mod character_profile_records;
@@ -30,8 +26,7 @@ pub use continuity_records::{
 };
 pub(crate) use keys::{
     chapter_rag_chunk_prefix, character_attribute_event_rag_chunk_id, character_state_rag_chunk_id,
-    foreshadowing_rag_chunk_id, protagonist_rag_chunk_id, protagonist_rag_chunk_prefix,
-    rag_chunk_id, rag_project_prefix,
+    foreshadowing_rag_chunk_id, protagonist_rag_chunk_id, rag_chunk_id, rag_project_prefix,
 };
 pub(crate) use outline_records::outline_rag_record_from_row;
 pub use outline_records::{outline_rag_record, part_outline_rag_record};

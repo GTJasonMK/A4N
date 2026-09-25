@@ -134,7 +134,6 @@ impl OrchestratorContext {
         if !content_sync_phase_completed(run, &checkpoints, CHAPTER_CONTENT_SYNC_EXTERNAL_STEP)? {
             self.mark_workflow_current_step(run.id, CHAPTER_CONTENT_SYNC_EXTERNAL_STEP)
                 .await?;
-            host_port.validate_chapter_cleanup_artifacts(&artifacts)?;
             host_port
                 .finish_chapter_derived_cleanup(
                     chapter.project_id,
@@ -342,8 +341,7 @@ mod tests {
     #[test]
     fn checkpoint_round_trips_cleanup_artifacts() {
         let artifacts = ChapterDerivedCleanupArtifacts {
-            stale_profile_ids: vec![1],
-            media_file_paths: vec!["projects/3/file.png".to_string()],
+            stale_attribute_event_ids: vec![1],
             scene_records_changed: true,
             ..Default::default()
         };
@@ -360,12 +358,7 @@ mod tests {
                 .expect("checkpoint artifacts should exist"),
         )
         .expect("checkpoint should parse");
-        assert_eq!(restored.stale_profile_ids, artifacts.stale_profile_ids);
-        assert_eq!(restored.media_file_paths, artifacts.media_file_paths);
-        assert_eq!(
-            restored.scene_records_changed,
-            artifacts.scene_records_changed
-        );
+        assert_eq!(restored, artifacts);
     }
 
     #[test]
@@ -432,21 +425,18 @@ mod tests {
     #[test]
     fn retry_plan_carries_forward_and_deduplicates_pending_cleanup() {
         let mut carried = ChapterDerivedCleanupArtifacts {
-            stale_profile_ids: vec![3, 1],
-            media_file_paths: vec!["projects/3/old.png".to_string()],
+            stale_attribute_event_ids: vec![3, 1],
             ..Default::default()
         };
         carried.merge(ChapterDerivedCleanupArtifacts {
-            stale_profile_ids: vec![3, 4],
+            stale_attribute_event_ids: vec![3, 4],
             stale_character_state_ids: vec![8],
-            media_file_paths: vec!["projects/3/old.png".to_string()],
             scene_records_changed: true,
             ..Default::default()
         });
 
-        assert_eq!(carried.stale_profile_ids, vec![1, 3, 4]);
+        assert_eq!(carried.stale_attribute_event_ids, vec![1, 3, 4]);
         assert_eq!(carried.stale_character_state_ids, vec![8]);
-        assert_eq!(carried.media_file_paths, vec!["projects/3/old.png"]);
         assert!(carried.scene_records_changed);
     }
 }

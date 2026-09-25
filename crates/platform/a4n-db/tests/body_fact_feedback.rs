@@ -348,6 +348,22 @@ async fn foreshadowing_keeps_identity_tracks_progress_and_retracts_removed_sourc
             .unwrap()
             .is_none()
     );
+    for existing_id in [Some(foreshadowing_id), None] {
+        let mut restored = draft("再次核对门后的线索");
+        restored.existing_id = existing_id;
+        let result = sync_chapter_analysis_foreshadowing(
+            &db,
+            ChapterSourceSnapshot::from(&setup),
+            vec![restored],
+            vec![],
+        )
+        .await
+        .unwrap();
+        assert_eq!(result.created[0].id, foreshadowing_id);
+        let tx = db.begin().await.unwrap();
+        invalidate_feedback_sources(&tx, id, 1).await.unwrap();
+        tx.commit().await.unwrap();
+    }
 }
 
 #[tokio::test]
@@ -434,6 +450,194 @@ async fn consolidation_rejects_unproven_or_invalidated_sources_and_keeps_plans_a
     .await
     .unwrap_err();
     assert!(error.to_string().contains("已失效"));
+}
+
+#[tokio::test]
+async fn field_removals_and_character_enrichment_retract_without_overwriting_manual_edits() {
+    use a4n_db_models::models::character::protagonist_profile;
+    let db = a4n_migration::test_support::connect_test_database().await;
+    let id = project(&db).await;
+    let mut source = chapter(&db, id, 1, "施法不再损失记忆，城市也废除了旧历法。").await;
+    source.analysis_data.as_mut().unwrap()["world_facts"]
+        .as_array_mut()
+        .unwrap()
+        .push(json!({
+            "field":"culture_and_society", "subject":"历法", "statement":"废除了旧历法",
+            "assertion":"observed", "source_span_ids":["ch1:s1:f2"]
+        }));
+    let mut active: chapter::ActiveModel = source.clone().into();
+    active.analysis_data = Set(source.analysis_data.clone());
+    active.update(&db).await.unwrap();
+    let run = workflow(&db, id, "remove-and-enrich").await;
+    let tx = db.begin().await.unwrap();
+    record_feedback_completion(&tx, &source, run).await.unwrap();
+    tx.commit().await.unwrap();
+    let original_world = json!({"core_rules":["施法损失记忆","公民平等"], "culture_and_society":{"calendar":"旧历"}, "factions":["议会"]});
+    let original = blueprint(&db, id, original_world.clone()).await;
+    let profile = a4n_db::character::create_profile(
+        &db,
+        id,
+        "林岚",
+        json!({
+            "explicit_attributes":{}, "implicit_attributes":{}, "social_attributes":{}
+        }),
+    )
+    .await
+    .unwrap();
+    protagonist_profile::ActiveModel {
+        id: Set(profile.id),
+        character_arc: Set(Some(json!({"planned_endpoint":"作者规划"}))),
+        ..Default::default()
+    }
+    .update(&db)
+    .await
+    .unwrap();
+    let change =
+        |kind, target_id, path: &str, before: Value, after: Value, span: &str| FactMaterialChange {
+            material_kind: kind,
+            target_id: Some(target_id),
+            path: path.into(),
+            operation: if after.is_null() {
+                FactChangeOperation::Remove
+            } else {
+                FactChangeOperation::Replace
+            },
+            before,
+            after,
+            reason: "正文确认的变化".into(),
+            source_span_ids: vec![span.into()],
+        };
+    let applied = apply_consolidation(
+        &db,
+        ConsolidationApplyInput {
+            project_id: id,
+            workflow_run_id: run,
+            expected_blueprint_version: Some(original.current_version.clone()),
+            sources: vec![source_revision(&source).unwrap()],
+            changes: vec![
+                change(
+                    FactMaterialKind::WorldSetting,
+                    original.id,
+                    "/core_rules/0",
+                    json!("施法损失记忆"),
+                    Value::Null,
+                    "ch1:s1:f1",
+                ),
+                change(
+                    FactMaterialKind::WorldSetting,
+                    original.id,
+                    "/culture_and_society/calendar",
+                    json!("旧历"),
+                    Value::Null,
+                    "ch1:s1:f2",
+                ),
+                change(
+                    FactMaterialKind::CharacterVoice,
+                    profile.id,
+                    "",
+                    Value::Null,
+                    json!({"tone":"简短"}),
+                    "ch1:s1:f1",
+                ),
+                change(
+                    FactMaterialKind::CharacterArcProgress,
+                    profile.id,
+                    "",
+                    Value::Null,
+                    json!({"stage":"开始反思"}),
+                    "ch1:s1:f1",
+                ),
+            ],
+        },
+    )
+    .await
+    .unwrap();
+    // Array removals are journaled once as a parent replacement; object removals keep their path.
+    assert_eq!(applied.changes[0].operation, "replace");
+    assert_eq!(applied.changes[0].field_path, "/core_rules");
+    let updated = novel_blueprint::Entity::find_by_id(original.id)
+        .one(&db)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        updated.world_setting.as_ref().unwrap()["core_rules"],
+        json!(["公民平等"])
+    );
+    assert_eq!(
+        world_setting_before_chapter(&db, &updated, 1)
+            .await
+            .unwrap(),
+        original_world
+    );
+    let mut historical = protagonist_profile::Entity::find_by_id(profile.id)
+        .one(&db)
+        .await
+        .unwrap()
+        .unwrap();
+    profile_enrichment_before_chapter(&db, &mut historical, 1)
+        .await
+        .unwrap();
+    assert!(historical.voice_fingerprint.is_none());
+    assert_eq!(
+        historical.character_arc,
+        Some(json!({"planned_endpoint":"作者规划"}))
+    );
+    historical.character_arc = Some(json!("损坏的资料结构"));
+    assert!(
+        profile_enrichment_before_chapter(&db, &mut historical, 1)
+            .await
+            .is_err()
+    );
+
+    let mut manual_world = updated.world_setting.unwrap();
+    manual_world["factions"] = json!(["作者新增的议会"]);
+    update_blueprint_world_setting_records_transaction(
+        &db,
+        UpdateBlueprintWorldSettingInput {
+            project_id: id,
+            world_setting: manual_world,
+            created_by: "user:1".into(),
+        },
+    )
+    .await
+    .unwrap();
+    protagonist_profile::ActiveModel {
+        id: Set(profile.id),
+        voice_fingerprint: Set(Some(json!({"tone":"作者修改的口吻"}))),
+        character_arc: Set(Some(
+            json!({"planned_endpoint":"作者修改的终点", "observed_progress":{"stage":"开始反思"}}),
+        )),
+        ..Default::default()
+    }
+    .update(&db)
+    .await
+    .unwrap();
+    let tx = db.begin().await.unwrap();
+    let result = invalidate_feedback_sources(&tx, id, 1).await.unwrap();
+    tx.commit().await.unwrap();
+    assert!(result.blueprint_changed && result.characters_changed);
+    let restored = novel_blueprint::Entity::find_by_id(original.id)
+        .one(&db)
+        .await
+        .unwrap()
+        .unwrap();
+    let mut expected = original_world;
+    expected["factions"] = json!(["作者新增的议会"]);
+    assert_eq!(restored.world_setting, Some(expected));
+    let restored = protagonist_profile::Entity::find_by_id(profile.id)
+        .one(&db)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        restored.voice_fingerprint,
+        Some(json!({"tone":"作者修改的口吻"}))
+    );
+    assert_eq!(
+        restored.character_arc,
+        Some(json!({"planned_endpoint":"作者修改的终点"}))
+    );
 }
 
 #[tokio::test]

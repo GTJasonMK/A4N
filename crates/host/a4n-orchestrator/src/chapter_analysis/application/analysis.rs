@@ -325,7 +325,6 @@ impl OrchestratorContext {
                         cancel_token: progress.cancel_token,
                         workflow_run_id: Some(workflow_run.id),
                     },
-                    host_port,
                 )
                 .await?;
             progress.report(45, "结构化分析已保存，正在读取章节")?;
@@ -355,6 +354,9 @@ impl OrchestratorContext {
         progress: ChapterAnalysisApplicationProgress<'_>,
         character_trace_port: Option<&dyn CharacterProfileSyncStageTracePort>,
     ) -> Result<(), AppError> {
+        if a4n_db::fact_feedback::source_revision(chapter).is_none() {
+            return Err(AppError::InvalidArgument("章节分析缺少当前事实合同，请重新分析正文".into()));
+        }
         self.mark_workflow_current_step(workflow_run_id, STEP_DERIVED_SYNC)
             .await?;
         let facts_unchanged = self.completed_chapter_analysis_phase(workflow_run_id, chapter, CHAPTER_ANALYSIS_REPLACEMENT_COMMIT_STEP).await?
@@ -842,7 +844,6 @@ impl OrchestratorContext {
                 current: "missing_chapter_analysis_replacement_commit".to_string(),
                 operation: "恢复章节分析替换后的外部清理".to_string(),
             })?;
-        host_port.validate_chapter_cleanup_artifacts(&artifacts)?;
         self.mark_workflow_current_step(workflow_run_id, CHAPTER_ANALYSIS_REPLACEMENT_CLEANUP_STEP)
             .await?;
         progress.report(47, "正在清理旧章节分析对应的外部资料")?;

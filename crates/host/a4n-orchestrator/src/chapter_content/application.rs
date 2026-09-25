@@ -1,44 +1,11 @@
-use std::collections::BTreeSet;
-
 use a4n_api_contract::chapter::{ChapterContentSyncApplicationPort, ChapterDerivedCleanupHostPort};
 use a4n_domain::project::ChapterDerivedCleanupArtifacts;
 use a4n_error::AppError;
 use async_trait::async_trait;
 
-use crate::{OrchestratorContext, project::validate_chapter_generation_number};
+use crate::OrchestratorContext;
 
 impl OrchestratorContext {
-    pub async fn preflight_chapter_content_change_validated(
-        &self,
-        project_id: i64,
-        chapter_number: i32,
-    ) -> Result<(), AppError> {
-        validate_chapter_generation_number(chapter_number).map_err(AppError::InvalidArgument)?;
-        let profiles = self.protagonist_profiles_for_project(project_id).await?;
-        let snapshot_chapter = chapter_number - 1;
-        let snapshot_profile_ids = profiles
-            .iter()
-            .filter(|profile| {
-                a4n_chapter_content_core::chapter_cleanup_requires_snapshot(profile, chapter_number)
-            })
-            .map(|profile| profile.id)
-            .collect::<Vec<_>>();
-        if snapshot_profile_ids.is_empty() {
-            return Ok(());
-        }
-
-        let existing_snapshot_profile_ids = self
-            .snapshot_profile_ids_for_chapter(&snapshot_profile_ids, snapshot_chapter)
-            .await?
-            .into_iter()
-            .collect::<BTreeSet<_>>();
-        a4n_chapter_content_core::validate_chapter_content_snapshot_preflight(
-            &profiles,
-            &existing_snapshot_profile_ids,
-            chapter_number,
-        )
-    }
-
     pub async fn postprocess_chapter_derived_data_validated(
         &self,
         host_port: &dyn ChapterDerivedCleanupHostPort,
@@ -47,11 +14,7 @@ impl OrchestratorContext {
         let chapter = self.chapter_by_id_for_analysis(chapter_id).await?;
         let lock = self.chapter_content_sync_lock(chapter.project_id, chapter.chapter_number);
         let _guard = lock.lock_owned().await;
-        let run = self
-            .begin_existing_chapter_content_sync(chapter_id, |artifacts| {
-                host_port.validate_chapter_cleanup_artifacts(artifacts)
-            })
-            .await?;
+        let run = self.begin_existing_chapter_content_sync(chapter_id).await?;
         self.settle_chapter_content_sync_run(host_port, &run)
             .await?;
         Ok(())

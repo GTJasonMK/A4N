@@ -293,12 +293,9 @@ impl OrchestratorContext {
             )
             .await
             .map_err(super::optimize_db_error)?;
-            let sync_run = a4n_chapter_content_core::begin_chapter_content_sync_in_transaction(
-                &tx,
-                &written,
-                |_| Ok(()),
-            )
-            .await?;
+            let sync_run =
+                a4n_chapter_content_core::begin_chapter_content_sync_in_transaction(&tx, &written)
+                    .await?;
             let content_hash = optimization_content_hash(&written.content);
             self.record_patches_applied(
                 &tx,

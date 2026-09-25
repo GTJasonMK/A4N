@@ -4,17 +4,21 @@ use a4n_db_models::models::{
 };
 use a4n_domain::fact_feedback::{
     FactChangeOperation, FactMaterialChange, FactMaterialKind, FactSourceRevision,
-    apply_fact_json_change,
+    apply_fact_json_change, world_setting_document,
 };
 use chrono::Utc;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QueryOrder, Set,
+    ActiveModelTrait, ColumnTrait, ConnectionTrait, DatabaseTransaction, EntityTrait, QueryFilter,
+    QueryOrder, QuerySelect, Select, Set,
 };
-use serde_json::{Value, json};
+use serde_json::Value;
 
 use super::{
     FactFeedbackDbError,
-    apply::{persist_blueprint, world_document},
+    apply::{
+        character_enrichment, persist_blueprint, persist_character_enrichment,
+        set_character_enrichment,
+    },
 };
 
 pub async fn world_setting_before_chapter<C: ConnectionTrait>(
@@ -22,13 +26,15 @@ pub async fn world_setting_before_chapter<C: ConnectionTrait>(
     blueprint: &novel_blueprint::Model,
     chapter_number: i32,
 ) -> Result<Value, FactFeedbackDbError> {
-    let mut world = world_document(blueprint.world_setting.as_ref());
-    let changes = applied_changes(db, blueprint.project_id).await?;
+    let mut world = world_setting_document(blueprint.world_setting.as_ref());
+    let changes = change_history(blueprint.project_id)
+        .filter(material_fact_change::Column::Status.eq("applied"))
+        .filter(material_fact_change::Column::MaterialKind.eq("world_setting"))
+        .filter(material_fact_change::Column::TargetId.eq(blueprint.id))
+        .all(db)
+        .await?;
     for change in changes {
-        if change.material_kind == "world_setting"
-            && change.target_id == Some(blueprint.id)
-            && sources_reach_chapter(&change, chapter_number)?
-        {
+        if sources_reach_chapter(&change, chapter_number)? {
             undo_value(&mut world, &change)?;
         }
     }
@@ -42,8 +48,8 @@ pub struct FeedbackInvalidation {
     pub foreshadowing_ids: Vec<i64>,
 }
 
-pub async fn invalidate_feedback_sources<C: ConnectionTrait>(
-    db: &C,
+pub async fn invalidate_feedback_sources(
+    db: &DatabaseTransaction,
     project_id: i64,
     from_chapter: i32,
 ) -> Result<FeedbackInvalidation, FactFeedbackDbError> {
@@ -53,7 +59,11 @@ pub async fn invalidate_feedback_sources<C: ConnectionTrait>(
     let mut result = FeedbackInvalidation::default();
     let mut blueprint = rows.blueprint;
     let mut blueprint_changed = false;
-    for change in applied_changes(db, project_id).await? {
+    let changes = change_history(project_id)
+        .filter(material_fact_change::Column::Status.ne("retracted"))
+        .all(db)
+        .await?;
+    for change in changes {
         if !sources_reach_chapter(&change, from_chapter)? {
             continue;
         }
@@ -65,34 +75,20 @@ pub async fn invalidate_feedback_sources<C: ConnectionTrait>(
         .then(|| change.clone());
         if change.status == "applied" {
             match change.material_kind.as_str() {
-                "world_setting" | "blueprint_synopsis" => {
+                "world_setting" => {
                     if let Some(current) = blueprint
                         .as_mut()
                         .filter(|blueprint| Some(blueprint.id) == change.target_id)
                     {
-                        let is_world = change.material_kind == "world_setting";
-                        let mut value = if is_world {
-                            world_document(current.world_setting.as_ref())
-                        } else {
-                            current
-                                .full_synopsis
-                                .as_ref()
-                                .map(|text| json!(text))
-                                .unwrap_or(Value::Null)
-                        };
+                        let mut value = world_setting_document(current.world_setting.as_ref());
                         if undo_value(&mut value, &change)? {
-                            if is_world {
-                                current.world_setting = Some(value);
-                            } else {
-                                current.full_synopsis = value.as_str().map(str::to_string);
-                            }
+                            current.world_setting = Some(value);
                             blueprint_changed = true;
                         }
                     }
                 }
                 "character_voice" | "character_arc_progress" => {
-                    undo_character(db, project_id, &change).await?;
-                    result.characters_changed = true;
+                    result.characters_changed |= undo_character(db, project_id, &change).await?;
                 }
                 "foreshadowing" => {
                     crate::project::restore_foreshadowing_fact(db, &change).await?;
@@ -100,7 +96,8 @@ pub async fn invalidate_feedback_sources<C: ConnectionTrait>(
                         result.foreshadowing_ids.push(id);
                     }
                 }
-                "chapter_feedback" | "planning" | "object_profile" | "scene_profile" => {}
+                "chapter_feedback" | "planning" | "blueprint_synopsis" | "object_profile"
+                | "scene_profile" => {}
                 other => {
                     return Err(FactFeedbackDbError::Invalid(format!(
                         "未知资料反馈类型: {other}"
@@ -128,50 +125,31 @@ pub async fn profile_enrichment_before_chapter<C: ConnectionTrait>(
     profile: &mut protagonist_profile::Model,
     chapter_number: i32,
 ) -> Result<(), FactFeedbackDbError> {
-    for change in applied_changes(db, profile.project_id).await? {
-        if change.target_id != Some(profile.id) || !sources_reach_chapter(&change, chapter_number)?
-        {
+    let changes = change_history(profile.project_id)
+        .filter(material_fact_change::Column::Status.eq("applied"))
+        .filter(
+            material_fact_change::Column::MaterialKind
+                .is_in(["character_voice", "character_arc_progress"]),
+        )
+        .filter(material_fact_change::Column::TargetId.eq(profile.id))
+        .all(db)
+        .await?;
+    for change in changes {
+        if !sources_reach_chapter(&change, chapter_number)? {
             continue;
         }
-        match change.material_kind.as_str() {
-            "character_voice" => {
-                let mut value = profile.voice_fingerprint.clone().unwrap_or(Value::Null);
-                if undo_value(&mut value, &change)? {
-                    profile.voice_fingerprint = (!value.is_null()).then_some(value);
-                }
-            }
-            "character_arc_progress" => {
-                if let Some(arc) = profile
-                    .character_arc
-                    .as_mut()
-                    .and_then(Value::as_object_mut)
-                {
-                    let mut value = arc.get("observed_progress").cloned().unwrap_or(Value::Null);
-                    if undo_value(&mut value, &change)? {
-                        if value.is_null() {
-                            arc.remove("observed_progress");
-                        } else {
-                            arc.insert("observed_progress".into(), value);
-                        }
-                    }
-                }
-            }
-            _ => {}
+        let mut value = character_enrichment(profile, &change.material_kind)?;
+        if undo_value(&mut value, &change)? {
+            set_character_enrichment(profile, &change.material_kind, value)?;
         }
     }
     Ok(())
 }
 
-async fn applied_changes<C: ConnectionTrait>(
-    db: &C,
-    project_id: i64,
-) -> Result<Vec<material_fact_change::Model>, FactFeedbackDbError> {
-    Ok(material_fact_change::Entity::find()
+fn change_history(project_id: i64) -> Select<material_fact_change::Entity> {
+    material_fact_change::Entity::find()
         .filter(material_fact_change::Column::ProjectId.eq(project_id))
-        .filter(material_fact_change::Column::Status.ne("retracted"))
         .order_by_desc(material_fact_change::Column::Id)
-        .all(db)
-        .await?)
 }
 
 fn sources_reach_chapter(
@@ -227,23 +205,6 @@ fn undo_value(
             )));
         }
     };
-    // Array removal shifts following indexes; reinsert at the original position while rewinding.
-    if operation == FactChangeOperation::Add {
-        if let Some((parent, key)) = record.field_path.rsplit_once('/') {
-            if let Some(items) = value.pointer_mut(parent).and_then(Value::as_array_mut) {
-                let index = key
-                    .parse::<usize>()
-                    .map_err(|_| FactFeedbackDbError::Invalid("撤回的数组索引无效".into()))?;
-                if index > items.len() {
-                    return Err(FactFeedbackDbError::Invalid(
-                        "撤回的数组位置已经变化".into(),
-                    ));
-                }
-                items.insert(index, after);
-                return Ok(true);
-            }
-        }
-    }
     apply_fact_json_change(
         value,
         &FactMaterialChange {
@@ -260,52 +221,30 @@ fn undo_value(
     .map_err(FactFeedbackDbError::Invalid)
 }
 
-async fn undo_character<C: ConnectionTrait>(
-    db: &C,
+async fn undo_character(
+    db: &DatabaseTransaction,
     project_id: i64,
     change: &material_fact_change::Model,
-) -> Result<(), FactFeedbackDbError> {
+) -> Result<bool, FactFeedbackDbError> {
     let Some(id) = change.target_id else {
         return Err(FactFeedbackDbError::Invalid("角色反馈缺少目标 ID".into()));
     };
-    let Some(profile) = protagonist_profile::Entity::find_by_id(id).one(db).await? else {
-        return Ok(());
+    let Some(profile) = protagonist_profile::Entity::find_by_id(id)
+        .lock_exclusive()
+        .one(db)
+        .await?
+    else {
+        return Ok(false);
     };
     if profile.project_id != project_id {
         return Err(FactFeedbackDbError::Invalid(
             "角色反馈目标项目不匹配".into(),
         ));
     }
-    let voice = change.material_kind == "character_voice";
-    let mut value = if voice {
-        profile.voice_fingerprint.clone().unwrap_or(Value::Null)
-    } else {
-        profile
-            .character_arc
-            .as_ref()
-            .and_then(|arc| arc.get("observed_progress"))
-            .cloned()
-            .unwrap_or(Value::Null)
-    };
+    let mut value = character_enrichment(&profile, &change.material_kind)?;
     if !undo_value(&mut value, change)? {
-        return Ok(());
+        return Ok(false);
     }
-    let mut active: protagonist_profile::ActiveModel = profile.clone().into();
-    if voice {
-        active.voice_fingerprint = Set((!value.is_null()).then_some(value));
-    } else {
-        let mut arc = profile.character_arc.unwrap_or_else(|| json!({}));
-        let object = arc
-            .as_object_mut()
-            .ok_or_else(|| FactFeedbackDbError::Invalid("角色弧线结构无效".into()))?;
-        if value.is_null() {
-            object.remove("observed_progress");
-        } else {
-            object.insert("observed_progress".into(), value);
-        }
-        active.character_arc = Set(Some(arc));
-    }
-    active.updated_at = Set(Utc::now().naive_utc());
-    active.update(db).await?;
-    Ok(())
+    persist_character_enrichment(db, profile, &change.material_kind, value).await?;
+    Ok(true)
 }

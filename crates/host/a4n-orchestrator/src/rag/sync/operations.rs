@@ -7,7 +7,7 @@ use crate::{
     OrchestratorContext,
     rag::{
         chapter_rag_chunk_prefix, character_attribute_event_rag_chunk_id,
-        character_state_rag_chunk_id, foreshadowing_rag_chunk_id, protagonist_rag_chunk_prefix,
+        character_state_rag_chunk_id, foreshadowing_rag_chunk_id,
     },
 };
 use a4n_rag_core::{
@@ -85,22 +85,6 @@ impl OrchestratorContext {
                 .map(|id| character_attribute_event_rag_chunk_id(project_id, *id))
                 .collect(),
             id_prefixes: Vec::new(),
-        })
-        .await
-    }
-
-    pub(crate) async fn delete_protagonist_rag_by_ids(
-        &self,
-        project_id: i64,
-        profile_ids: &[i64],
-    ) -> Result<usize, RagSyncError> {
-        self.delete_rag_records(DeleteRagRecordsInput {
-            project_id,
-            ids: Vec::new(),
-            id_prefixes: profile_ids
-                .iter()
-                .map(|id| protagonist_rag_chunk_prefix(project_id, *id))
-                .collect(),
         })
         .await
     }

@@ -3,7 +3,6 @@ use crate::chapter_content_edit_error_to_app_error;
 use a4n_api_contract::{chapter::ChapterSummary, collaboration::ProjectAccessRole};
 use a4n_db::DbHandle;
 use a4n_db_models::models::{chapter::chapter, generation::workflow_run};
-use a4n_domain::project::ChapterDerivedCleanupArtifacts;
 use a4n_error::AppError;
 use dashmap::DashMap;
 use regex::Regex;
@@ -54,14 +53,10 @@ impl ChapterContentApplication {
             .map_err(AppError::Database)
     }
 
-    async fn begin_existing_chapter_content_sync<F>(
+    async fn begin_existing_chapter_content_sync(
         &self,
         chapter_id: i64,
-        validate_artifacts: F,
-    ) -> Result<workflow_run::Model, AppError>
-    where
-        F: Fn(&ChapterDerivedCleanupArtifacts) -> Result<(), AppError>,
-    {
+    ) -> Result<workflow_run::Model, AppError> {
         let tx = self
             .database
             .connection()
@@ -72,30 +67,10 @@ impl ChapterContentApplication {
             let chapter = a4n_db::chapter_content::chapter_by_id_for_analysis(&tx, chapter_id)
                 .await
                 .map_err(chapter_content_edit_error_to_app_error)?;
-            let run = self
-                .begin_chapter_content_sync_in_transaction(&tx, &chapter, &validate_artifacts)
-                .await?;
-            Ok(run)
+            a4n_chapter_content_core::begin_chapter_content_sync_in_transaction(&tx, &chapter).await
         }
         .await;
         finish_chapter_content_transaction(tx, committed, "登记章节资料同步").await
-    }
-
-    async fn begin_chapter_content_sync_in_transaction<F>(
-        &self,
-        tx: &DatabaseTransaction,
-        chapter: &chapter::Model,
-        validate_artifacts: &F,
-    ) -> Result<workflow_run::Model, AppError>
-    where
-        F: Fn(&ChapterDerivedCleanupArtifacts) -> Result<(), AppError>,
-    {
-        a4n_chapter_content_core::begin_chapter_content_sync_in_transaction(
-            tx,
-            chapter,
-            validate_artifacts,
-        )
-        .await
     }
 
     async fn chapter_by_id_for_analysis(
@@ -213,30 +188,12 @@ impl OrchestratorContext {
         self.chapter_content.sync_lock(project_id, chapter_number)
     }
 
-    pub(crate) async fn begin_existing_chapter_content_sync<F>(
+    pub(crate) async fn begin_existing_chapter_content_sync(
         &self,
         chapter_id: i64,
-        validate_artifacts: F,
-    ) -> Result<workflow_run::Model, AppError>
-    where
-        F: Fn(&ChapterDerivedCleanupArtifacts) -> Result<(), AppError>,
-    {
+    ) -> Result<workflow_run::Model, AppError> {
         self.chapter_content
-            .begin_existing_chapter_content_sync(chapter_id, validate_artifacts)
-            .await
-    }
-
-    pub(crate) async fn begin_chapter_content_sync_in_transaction<F>(
-        &self,
-        tx: &DatabaseTransaction,
-        chapter: &chapter::Model,
-        validate_artifacts: &F,
-    ) -> Result<workflow_run::Model, AppError>
-    where
-        F: Fn(&ChapterDerivedCleanupArtifacts) -> Result<(), AppError>,
-    {
-        self.chapter_content
-            .begin_chapter_content_sync_in_transaction(tx, chapter, validate_artifacts)
+            .begin_existing_chapter_content_sync(chapter_id)
             .await
     }
 

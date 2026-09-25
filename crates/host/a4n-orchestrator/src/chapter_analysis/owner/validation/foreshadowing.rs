@@ -170,17 +170,15 @@ pub fn validate_chapter_foreshadowing_events(
                     "chapter_foreshadowing_events.foreshadowing.resolved[{index}].resolution 必须是非空字符串"
                 ))
             })?;
-        if facts.get("world_facts").is_some() || item.get("source_span_ids").is_some() {
-            let ids: Vec<String> =
-                serde_json::from_value(item.get("source_span_ids").cloned().unwrap_or(Value::Null))
-                    .map_err(|error| {
-                        analysis_materialize_error(format!("伏笔变化必须引用原文证据: {error}"))
-                    })?;
-            a4n_domain::fact_feedback::validate_evidence_ids(&ids)
-                .map_err(analysis_materialize_error)?;
-            if ids.iter().any(|id| !candidate_spans.contains(id.as_str())) {
-                return Err(analysis_materialize_error("伏笔变化证据不在事实候选中"));
-            }
+        let ids: Vec<String> =
+            serde_json::from_value(item.get("source_span_ids").cloned().unwrap_or(Value::Null))
+                .map_err(|error| {
+                    analysis_materialize_error(format!("伏笔变化必须引用原文证据: {error}"))
+                })?;
+        a4n_domain::fact_feedback::validate_evidence_ids(&ids)
+            .map_err(analysis_materialize_error)?;
+        if ids.iter().any(|id| !candidate_spans.contains(id.as_str())) {
+            return Err(analysis_materialize_error("伏笔变化证据不在事实候选中"));
         }
     }
     Ok(())
@@ -237,6 +235,15 @@ mod tests {
 
         validate_chapter_foreshadowing_events(&output, &facts, &pending)
             .expect("provided id should pass");
+
+        let mut missing_evidence = output.clone();
+        missing_evidence["foreshadowing"]["resolved"][0]
+            .as_object_mut()
+            .unwrap()
+            .remove("source_span_ids");
+        assert!(
+            validate_chapter_foreshadowing_events(&missing_evidence, &facts, &pending).is_err()
+        );
 
         output["foreshadowing"]["resolved"][0]["id"] = json!("8");
         assert!(

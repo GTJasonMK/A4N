@@ -3,7 +3,8 @@ use a4n_db::{
         CharacterDbError, CharacterSyncAttributeEventRecordInput, CharacterSyncPersistenceInput,
         CharacterSyncWriteStepRecordInput, add_profile_attribute,
         apply_character_sync_persistence_record, create_profile,
-        create_profile_with_generation_run, profile_by_id, update_initial_profile,
+        create_profile_with_generation_run, profile_by_id, retract_profile_chapter_facts,
+        update_initial_profile,
     },
     generation::RecordCompletedGenerationRunInput,
     project::{ChapterSourceSnapshot, CreateProjectRecordInput, create_project_record},
@@ -12,7 +13,8 @@ use a4n_db_models::models::{
     chapter::chapter,
     character::{
         attribute_event::{self, SOURCE_KIND_AI_SYNC, SOURCE_KIND_TEXT_FACT},
-        character_state_index, protagonist_behavior_record,
+        character_state_index, protagonist_behavior_record, protagonist_profile,
+        snapshot_reference,
     },
     generation::generation_run_target,
 };
@@ -21,7 +23,9 @@ use a4n_domain::character::{
     InsertBehaviorRecordInput,
 };
 use chrono::Duration;
-use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, Set};
+use sea_orm::{
+    ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, Set, TransactionTrait,
+};
 use serde_json::json;
 
 async fn insert_chapter(db: &sea_orm::DatabaseConnection, project_id: i64) -> chapter::Model {
@@ -66,6 +70,163 @@ fn generation_run(project_id: i64) -> RecordCompletedGenerationRunInput {
         response_summary_json: None,
         targets: vec![],
     }
+}
+
+#[tokio::test]
+async fn retraction_replays_without_snapshots_and_removes_only_observed_baseline() {
+    let db = a4n_migration::test_support::connect_test_database().await;
+    let project = create_project_record(
+        &db,
+        CreateProjectRecordInput {
+            user_id: 1,
+            title: "角色事实撤回".into(),
+            description: String::new(),
+            project_type: "novel_long".into(),
+        },
+    )
+    .await
+    .unwrap();
+    let mut origin = generation_run(project.id);
+    origin.workflow = "character_discovery".into();
+    let profile = create_profile_with_generation_run(
+        &db,
+        project.id,
+        "林岚",
+        json!({
+            "explicit_attributes": {"first_seen_chapter": 1, "appearance": "原文中的红衣"},
+            "implicit_attributes": {}, "social_attributes": {},
+        }),
+        origin,
+    )
+    .await
+    .unwrap();
+    let now = chrono::Utc::now().naive_utc();
+    for (number, source, key, value) in [
+        (2, SOURCE_KIND_AI_SYNC, "location", "旧仓库"),
+        (3, SOURCE_KIND_TEXT_FACT, "injury", "右臂受伤"),
+    ] {
+        attribute_event::ActiveModel {
+            profile_id: Set(profile.id),
+            chapter_number: Set(number),
+            source_kind: Set(source.into()),
+            timestamp: Set(now),
+            category: Set("explicit".into()),
+            key: Set(key.into()),
+            operation: Set("add".into()),
+            old_value: Set(serde_json::Value::Null),
+            new_value: Set(json!(value)),
+            change_description: Set("正文观察".into()),
+            cause: Set("正文".into()),
+            evidence: Set(value.into()),
+            ..Default::default()
+        }
+        .insert(&db)
+        .await
+        .unwrap();
+    }
+    add_profile_attribute(
+        &db,
+        CharacterAttributeValueChangeInput {
+            profile_id: profile.id,
+            chapter_number: 7,
+            category: "social".into(),
+            key: "沈默".into(),
+            value: json!("作者指定的盟友"),
+            change_description: None,
+            cause: "作者设定".into(),
+            evidence: "作者设定".into(),
+        },
+    )
+    .await
+    .unwrap();
+    let mut current = profile_by_id(&db, profile.id)
+        .await
+        .unwrap()
+        .unwrap()
+        .current_state;
+    current["explicit_attributes"]["location"] = json!("旧仓库");
+    current["explicit_attributes"]["injury"] = json!("右臂受伤");
+    current["explicit_attributes"]["signature"] = json!("未记录为事件的手工值");
+    protagonist_profile::ActiveModel {
+        id: Set(profile.id),
+        current_state: Set(current),
+        last_synced_chapter: Set(4),
+        ..Default::default()
+    }
+    .update(&db)
+    .await
+    .unwrap();
+    assert_eq!(
+        snapshot_reference::Entity::find()
+            .filter(snapshot_reference::Column::ProfileId.eq(profile.id))
+            .filter(snapshot_reference::Column::ChapterNumber.eq(2))
+            .count(&db)
+            .await
+            .unwrap(),
+        0
+    );
+
+    let tx = db.begin().await.unwrap();
+    let deleted = retract_profile_chapter_facts(&tx, project.id, profile.id, 3)
+        .await
+        .unwrap();
+    tx.commit().await.unwrap();
+    assert_eq!(deleted.deleted_attribute_events, 1);
+    let restored = profile_by_id(&db, profile.id).await.unwrap().unwrap();
+    assert_eq!(restored.last_synced_chapter, 2);
+    assert_eq!(restored.appearance.as_deref(), Some("原文中的红衣"));
+    assert_eq!(
+        restored.current_state["explicit_attributes"]["location"],
+        "旧仓库"
+    );
+    assert!(
+        restored.current_state["explicit_attributes"]
+            .get("injury")
+            .is_none()
+    );
+    assert_eq!(
+        restored.current_state["social_attributes"]["沈默"],
+        "作者指定的盟友"
+    );
+
+    let tx = db.begin().await.unwrap();
+    retract_profile_chapter_facts(&tx, project.id, profile.id, 1)
+        .await
+        .unwrap();
+    tx.commit().await.unwrap();
+    let restored = profile_by_id(&db, profile.id).await.unwrap().unwrap();
+    assert_eq!(restored.last_synced_chapter, 0);
+    assert!(restored.appearance.is_none());
+    assert!(
+        restored.base_attributes["explicit_attributes"]
+            .get("appearance")
+            .is_none()
+    );
+    assert!(
+        restored.current_state["explicit_attributes"]
+            .get("location")
+            .is_none()
+    );
+    assert_eq!(
+        restored.current_state["explicit_attributes"]["signature"],
+        "未记录为事件的手工值"
+    );
+    assert!(
+        restored.base_attributes["explicit_attributes"]
+            .get("signature")
+            .is_none()
+    );
+    assert_eq!(
+        restored.current_state["social_attributes"]["沈默"],
+        "作者指定的盟友"
+    );
+    let events = attribute_event::Entity::find()
+        .filter(attribute_event::Column::ProfileId.eq(profile.id))
+        .all(&db)
+        .await
+        .unwrap();
+    assert_eq!(events.len(), 1);
+    assert_eq!(events[0].source_kind, "user");
 }
 
 #[tokio::test]
