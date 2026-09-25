@@ -1,4 +1,5 @@
 use super::*;
+use std::sync::atomic::AtomicI64;
 
 /// Executes independent read-only calls with bounded concurrency while keeping
 /// write/delegation calls ordered. Every call still goes through the durable
@@ -14,6 +15,7 @@ pub(crate) struct ToolBatchContext<'a> {
     pub(crate) retry_counts: &'a Arc<Mutex<HashMap<String, u8>>>,
     pub(crate) discovered_tools: &'a mut Vec<String>,
     pub(crate) messages: &'a mut Vec<ChatMessage>,
+    pub(crate) latest_message_id: &'a AtomicI64,
     pub(crate) usage: &'a mut Value,
     pub(crate) tool_calls: &'a mut u32,
     pub(crate) steps: u32,
@@ -29,6 +31,7 @@ pub(crate) struct ToolCallContext<'a> {
     executor: &'a RuntimeAgentToolExecutor,
     discovery_cache: Arc<Mutex<HashMap<String, Value>>>,
     retry_counts: Arc<Mutex<HashMap<String, u8>>>,
+    latest_message_id: &'a AtomicI64,
     phase: &'static str,
 }
 
@@ -113,6 +116,7 @@ pub(crate) async fn execute_tool_calls(
                 executor: batch_context.executor,
                 discovery_cache: Arc::clone(batch_context.discovery_cache),
                 retry_counts: Arc::clone(batch_context.retry_counts),
+                latest_message_id: batch_context.latest_message_id,
                 phase: a4n_api_contract::agent::agent_phase_for_tool(&call.name),
             };
             Box::pin(async move {
@@ -199,6 +203,7 @@ pub(crate) async fn append_inbox_messages(
     claimed: &AgentWorkerRun,
     messages: &mut Vec<ChatMessage>,
     loaded_message_ids: &mut HashSet<i64>,
+    latest_message_id: &AtomicI64,
     pinned_user_contents: &mut Vec<String>,
 ) -> Result<(), AppError> {
     while let Some(row) = state.claim_agent_inbox(claimed).await? {
@@ -215,6 +220,7 @@ pub(crate) async fn append_inbox_messages(
             }
             messages.push(chat_message_from_model(&message)?);
             loaded_message_ids.insert(message.id);
+            history::advance_message_watermark(latest_message_id, message.id);
         } else {
             let (_, message) = state.persist_agent_inbox(claimed, &row).await?;
             if message.role == "user" {
@@ -222,6 +228,7 @@ pub(crate) async fn append_inbox_messages(
             }
             messages.push(chat_message_from_model(&message)?);
             loaded_message_ids.insert(message.id);
+            history::advance_message_watermark(latest_message_id, message.id);
         }
     }
     Ok(())
@@ -263,6 +270,7 @@ pub(crate) async fn execute_tool_call(
         executor,
         discovery_cache,
         retry_counts,
+        latest_message_id,
         phase,
     } = execution_context;
     let message_application = state.worker_message_application(claimed);
@@ -277,6 +285,7 @@ pub(crate) async fn execute_tool_call(
                 &call,
                 error.to_string(),
                 messages,
+                latest_message_id,
             )
             .await;
         }
@@ -293,6 +302,7 @@ pub(crate) async fn execute_tool_call(
                 context.profile_id, call.name
             ),
             messages,
+            latest_message_id,
         )
         .await;
     }
@@ -305,6 +315,7 @@ pub(crate) async fn execute_tool_call(
             &call,
             format!("Agent 当前阶段 {phase} 不允许工具 {}", call.name),
             messages,
+            latest_message_id,
         )
         .await;
     }
@@ -330,6 +341,7 @@ pub(crate) async fn execute_tool_call(
             &call,
             value,
             messages,
+            latest_message_id,
         )
         .await?;
         return Ok((RunProgress::Continue, Vec::new()));
@@ -356,6 +368,7 @@ pub(crate) async fn execute_tool_call(
             &call,
             value,
             messages,
+            latest_message_id,
         )
         .await?;
         return Ok((
@@ -375,6 +388,7 @@ pub(crate) async fn execute_tool_call(
             &call,
             value,
             messages,
+            latest_message_id,
         )
         .await?;
         return Ok((RunProgress::Continue, Vec::new()));
@@ -404,6 +418,7 @@ pub(crate) async fn execute_tool_call(
             &call,
             value,
             messages,
+            latest_message_id,
         )
         .await?;
         return Ok((RunProgress::Continue, discovered));
@@ -630,6 +645,7 @@ pub(crate) async fn execute_tool_call(
                     &call,
                     json!({"error": error}),
                     messages,
+                    latest_message_id,
                 )
                 .await?;
                 return Ok((RunProgress::Continue, Vec::new()));
@@ -743,6 +759,7 @@ pub(crate) async fn execute_tool_call(
         &call,
         value,
         messages,
+        latest_message_id,
     )
     .await?;
     Ok((RunProgress::Continue, discovered))
@@ -790,13 +807,14 @@ pub(crate) async fn append_tool_observation(
     call: &ToolCall,
     value: Value,
     messages: &mut Vec<ChatMessage>,
+    latest_message_id: &AtomicI64,
 ) -> Result<(), AppError> {
     let result_bytes = serde_json::to_vec(&value)?.len();
     let result_refs = tool_result_refs(&call.name, &value)?;
     let value = bounded_observation(execution.id, value)?;
     let value =
         observation::from_result(execution.id, &call.name, value, result_refs, result_bytes)?;
-    message_application
+    let persisted_message = message_application
         .append_tool_message(
             claimed,
             execution.id,
@@ -805,6 +823,7 @@ pub(crate) async fn append_tool_observation(
             value.clone(),
         )
         .await?;
+    history::advance_message_watermark(latest_message_id, persisted_message.id);
     let mut tool_message = ChatMessage::new(MessageRole::Tool, serde_json::to_string(&value)?);
     tool_message.tool_call_id = Some(call.id.clone());
     messages.push(tool_message);

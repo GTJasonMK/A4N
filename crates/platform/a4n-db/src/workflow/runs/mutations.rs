@@ -7,9 +7,11 @@ use super::validation::{
     requires_explicit_interrupted_resume, should_resume_existing_run, should_update_existing_run,
     validate_workflow_run_input, validate_workflow_status_fields, workflow_fingerprint_matches,
 };
-use a4n_db_models::models::chapter::chapter;
+use a4n_db_models::models::{
+    chapter::chapter, generation::generation_task_checkpoint, task::task_queue,
+};
 use sea_orm::sea_query::LockType;
-use sea_orm::{Condition, DbErr};
+use sea_orm::{Condition, DbBackend, DbErr, QuerySelect};
 
 const CHAPTER_ANALYSIS_WORKFLOW_KIND: &str = "chapter_analysis";
 const CHAPTER_ANALYSIS_DERIVED_CHECKPOINTS: &[&str] = &[
@@ -358,7 +360,84 @@ async fn resume_workflow_run_inner(
 ) -> Result<workflow_run::Model, WorkflowWriteError> {
     validate_positive_i64(workflow_run_id, "workflow_run_id")?;
     let tx = db.begin().await.map_err(WorkflowWriteError::Database)?;
+    let active_task = if let Some(active_task_id) = active_task_id {
+        let mut query = task_queue::Entity::find_by_id(active_task_id.to_string());
+        if tx.get_database_backend() != DbBackend::Sqlite {
+            query = query.lock_exclusive();
+        }
+        Some(
+            query
+                .one(&tx)
+                .await
+                .map_err(WorkflowWriteError::Database)?
+                .ok_or_else(|| {
+                    WorkflowWriteError::NotFound(format!(
+                        "恢复工作流的活动任务不存在: {active_task_id}"
+                    ))
+                })?,
+        )
+    } else {
+        None
+    };
     let run = locked_workflow_run_by_id(&tx, workflow_run_id).await?;
+    if let (Some(active_task_id), Some(task)) = (active_task_id, active_task.as_ref()) {
+        if !matches!(task.status.as_str(), "pending" | "running") {
+            return Err(WorkflowWriteError::StatusConflict {
+                current: format!("task_queue:{}", task.status),
+                operation: "恢复工作流并绑定活动任务".to_string(),
+            });
+        }
+        if task
+            .workflow_run_id
+            .is_some_and(|current| current != workflow_run_id)
+        {
+            return Err(WorkflowWriteError::StatusConflict {
+                current: format!("task_queue.workflow_run_id={:?}", task.workflow_run_id),
+                operation: format!("将活动任务 {active_task_id} 绑定到 workflow {workflow_run_id}"),
+            });
+        }
+        if generation_task_checkpoint::Entity::find_by_id(active_task_id.to_string())
+            .one(&tx)
+            .await
+            .map_err(WorkflowWriteError::Database)?
+            .is_some()
+        {
+            crate::generation::bind_generation_task_to_workflow(
+                &tx,
+                active_task_id,
+                workflow_run_id,
+            )
+            .await
+            .map_err(|error| match error {
+                crate::generation::GenerationTaskPersistenceError::Database(error) => {
+                    WorkflowWriteError::Database(error)
+                }
+                error => WorkflowWriteError::InvalidData(format!(
+                    "绑定 generation task {active_task_id} 到 workflow {workflow_run_id} 失败: {error}"
+                )),
+            })?;
+        } else {
+            crate::queue::bind_locked_task_queue_row_to_workflow(
+                &tx,
+                task.clone(),
+                workflow_run_id,
+            )
+            .await
+            .map_err(|error| match error {
+                crate::queue::TaskWorkflowBindingError::Conflict { current } => {
+                    WorkflowWriteError::StatusConflict {
+                        current: format!("task_queue.workflow_run_id={current}"),
+                        operation: format!(
+                            "将活动任务 {active_task_id} 绑定到 workflow {workflow_run_id}"
+                        ),
+                    }
+                }
+                crate::queue::TaskWorkflowBindingError::Database(error) => {
+                    WorkflowWriteError::Database(error)
+                }
+            })?;
+        }
+    }
     if run.status == WORKFLOW_STATUS_RUNNING {
         if active_task_id.is_some() && run.active_task_id.as_deref() == active_task_id {
             tx.commit().await.map_err(WorkflowWriteError::Database)?;

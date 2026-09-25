@@ -30,6 +30,7 @@ impl CanonicalSubagentBinding {
             resource_id,
             project_id: self.project_id,
             chapter_id: self.chapter_id,
+            chapter_number: None,
             allowed_capabilities,
             allowed_tools: Vec::new(),
         }

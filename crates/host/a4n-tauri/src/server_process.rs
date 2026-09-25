@@ -1,4 +1,6 @@
 use a4n_config::app_config::{AppConfig, portable_home_dir};
+use a4n_process_catalog::StatefulWorkerCatalogEntry;
+use a4n_worker_client::{HttpWorkerClient, WorkerHealthStatus};
 use reqwest::StatusCode;
 use std::net::SocketAddr;
 #[cfg(target_os = "linux")]
@@ -6,32 +8,267 @@ use std::os::unix::process::CommandExt;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::sync::Mutex;
-use std::time::Duration;
+use std::time::{Duration, Instant};
+use std::{io, net::TcpListener};
 use tauri::{AppHandle, Manager};
 
 const SERVER_BINARY_ENV: &str = "A4N_SERVER_BINARY";
 const CONTROL_BINARY_ENV: &str = "A4N_CONTROL_BINARY";
 const EDGE_BINARY_ENV: &str = "A4N_EDGE_BINARY";
-const AGENT_WORKER_BINARY_ENV: &str = "A4N_AGENT_WORKER_BINARY";
-const NOVEL_PLANNING_WORKER_BINARY_ENV: &str = "A4N_NOVEL_PLANNING_WORKER_BINARY";
-const ARTIFACT_MEDIA_WORKER_BINARY_ENV: &str = "A4N_ARTIFACT_MEDIA_WORKER_BINARY";
-const OUTLINE_WORKER_BINARY_ENV: &str = "A4N_OUTLINE_WORKER_BINARY";
-const BLUEPRINT_WORKER_BINARY_ENV: &str = "A4N_BLUEPRINT_WORKER_BINARY";
-const ASSET_GRAPH_WORKER_BINARY_ENV: &str = "A4N_ASSET_GRAPH_WORKER_BINARY";
-const FORESHADOWING_WORKER_BINARY_ENV: &str = "A4N_FORESHADOWING_WORKER_BINARY";
-const OBJECT_PROFILE_WORKER_BINARY_ENV: &str = "A4N_OBJECT_PROFILE_WORKER_BINARY";
-const SCENE_PROFILE_WORKER_BINARY_ENV: &str = "A4N_SCENE_PROFILE_WORKER_BINARY";
-const PROFILE_MATERIAL_WORKER_BINARY_ENV: &str = "A4N_PROFILE_MATERIAL_WORKER_BINARY";
-const PROJECT_STATUS_WORKER_BINARY_ENV: &str = "A4N_PROJECT_STATUS_WORKER_BINARY";
-const THEME_READ_WORKER_BINARY_ENV: &str = "A4N_THEME_READ_WORKER_BINARY";
-const PROJECT_READ_WORKER_BINARY_ENV: &str = "A4N_PROJECT_READ_WORKER_BINARY";
-const PORTRAIT_WORKER_BINARY_ENV: &str = "A4N_PORTRAIT_WORKER_BINARY";
-const SOURCE_SNAPSHOT_WORKER_BINARY_ENV: &str = "A4N_SOURCE_SNAPSHOT_WORKER_BINARY";
 const MIGRATION_BINARY_ENV: &str = "A4N_MIGRATION_BINARY";
+const NATIVE_WORKER_NAMES: [&str; 3] = [
+    "admin-worker",
+    "canvas-record-worker",
+    "workflow-lifecycle-worker",
+];
+const NATIVE_WORKER_READY_TIMEOUT: Duration = Duration::from_secs(30);
+const NATIVE_WORKER_RETRY_INTERVAL: Duration = Duration::from_millis(100);
 
 pub(crate) struct LocalServerProcess {
     child: Mutex<Option<Child>>,
     address_directory: tempfile::TempDir,
+}
+
+pub(crate) struct NativeWorkerSettings {
+    workers: Vec<NativeWorkerSettingsEntry>,
+    reservations: Vec<TcpListener>,
+}
+
+struct NativeWorkerSettingsEntry {
+    metadata: StatefulWorkerCatalogEntry,
+    address: SocketAddr,
+    url: String,
+    url_env: String,
+    token: String,
+    token_env: String,
+}
+
+#[derive(Default)]
+pub(crate) struct NativeWorkerProcesses {
+    children: Mutex<Vec<(String, Child)>>,
+}
+
+impl NativeWorkerSettings {
+    pub(crate) fn prepare() -> Result<Self, Box<dyn std::error::Error>> {
+        let catalog = a4n_process_catalog::stateful_worker_catalog()?;
+        let entries = select_native_worker_entries(&catalog)?;
+        let mut reservations = Vec::with_capacity(entries.len());
+        let mut workers = Vec::with_capacity(entries.len());
+
+        for metadata in entries {
+            if !metadata.local_only {
+                return Err(io::Error::other(format!(
+                    "Native worker {} 必须是 local-only",
+                    metadata.name
+                ))
+                .into());
+            }
+            if metadata.addr_env.trim().is_empty() {
+                return Err(io::Error::other(format!(
+                    "Native worker {} 缺少地址环境变量",
+                    metadata.name
+                ))
+                .into());
+            }
+            let url_env = metadata
+                .url_env
+                .as_deref()
+                .filter(|value| !value.trim().is_empty())
+                .ok_or_else(|| {
+                    io::Error::other(format!("Native worker {} 缺少 URL 环境变量", metadata.name))
+                })?;
+            let listener = TcpListener::bind("127.0.0.1:0")?;
+            let address = listener.local_addr()?;
+            reservations.push(listener);
+            workers.push(NativeWorkerSettingsEntry {
+                token_env: stateful_worker_env(&metadata.name, "TOKEN"),
+                url: format!("http://{address}"),
+                url_env: url_env.to_string(),
+                token: uuid::Uuid::new_v4().to_string(),
+                metadata: metadata.clone(),
+                address,
+            });
+        }
+
+        // SAFETY: `prepare` is called before Tauri, logging, and worker threads start.
+        for worker in &workers {
+            unsafe {
+                std::env::set_var(&worker.metadata.addr_env, worker.address.to_string());
+                std::env::set_var(&worker.url_env, &worker.url);
+                std::env::set_var(&worker.token_env, &worker.token);
+            }
+        }
+        Ok(Self {
+            workers,
+            reservations,
+        })
+    }
+
+    pub(crate) async fn start(
+        self,
+        app: &AppHandle,
+        config: &AppConfig,
+    ) -> Result<NativeWorkerProcesses, Box<dyn std::error::Error>> {
+        let processes = NativeWorkerProcesses::default();
+        let mut reservations = self.reservations.into_iter();
+        for worker in self.workers {
+            let binary_env = stateful_worker_binary_env(&worker.metadata.name);
+            let binary = resolve_binary(app, &worker.metadata.binary, &binary_env)?;
+            let mut command = Command::new(&binary);
+            command
+                .env(&worker.metadata.addr_env, worker.address.to_string())
+                .env(&worker.token_env, &worker.token)
+                .env("A4N_DATABASE_URL", &config.database_url)
+                .stdin(Stdio::null())
+                .stdout(Stdio::inherit())
+                .stderr(Stdio::inherit());
+            configure_parent_death_signal(&mut command);
+
+            // ponytail: release each reserved port immediately before bind; retry if a rare race occurs.
+            drop(reservations.next());
+            let mut child = command.spawn().map_err(|error| {
+                io::Error::other(format!(
+                    "启动 Native worker {} 失败（{}）: {error}",
+                    worker.metadata.name,
+                    binary.display()
+                ))
+            })?;
+            let client = HttpWorkerClient::new(&worker.url, &worker.metadata.name)
+                .with_auth_token(worker.token.clone());
+            if let Err(error) = wait_for_native_worker(&mut child, &client, &worker.metadata).await
+            {
+                if let Err(stop_error) = terminate_child(&mut child) {
+                    tracing::error!(
+                        worker = %worker.metadata.name,
+                        error = %stop_error,
+                        "Native worker readiness 失败后停止进程失败"
+                    );
+                }
+                return Err(error);
+            }
+            tracing::info!(
+                worker = %worker.metadata.name,
+                address = %worker.address,
+                "Native worker 启动并通过健康检查"
+            );
+            processes
+                .children
+                .lock()
+                .map_err(|_| io::Error::other("获取 Native worker 进程锁失败"))?
+                .push((worker.metadata.name, child));
+        }
+        Ok(processes)
+    }
+}
+
+impl NativeWorkerProcesses {
+    pub(crate) fn stop(&self) {
+        let Ok(mut children) = self.children.lock() else {
+            tracing::error!("获取 Native worker 进程锁失败");
+            return;
+        };
+        for (name, mut child) in children.drain(..) {
+            if let Err(error) = terminate_child(&mut child)
+                && error.kind() != io::ErrorKind::InvalidInput
+            {
+                tracing::warn!(worker = %name, %error, "停止 Native worker 失败");
+            }
+        }
+    }
+}
+
+impl Drop for NativeWorkerProcesses {
+    fn drop(&mut self) {
+        self.stop();
+    }
+}
+
+async fn wait_for_native_worker(
+    child: &mut Child,
+    client: &HttpWorkerClient,
+    metadata: &StatefulWorkerCatalogEntry,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let deadline = Instant::now() + NATIVE_WORKER_READY_TIMEOUT;
+    loop {
+        if let Some(status) = child.try_wait()? {
+            return Err(io::Error::other(format!(
+                "Native worker {} 提前退出: {status}",
+                metadata.name
+            ))
+            .into());
+        }
+        let last_error = match client.health().await {
+            Ok(health) if health.status == WorkerHealthStatus::Healthy => {
+                let capabilities = client.capabilities().await?;
+                validate_native_worker_capabilities(metadata, &capabilities)?;
+                return Ok(());
+            }
+            Ok(health) => format!("worker health status={:?}", health.status),
+            Err(error) => error.to_string(),
+        };
+        if Instant::now() >= deadline {
+            return Err(io::Error::other(format!(
+                "等待 Native worker {} 就绪超时: {last_error}",
+                metadata.name
+            ))
+            .into());
+        }
+        tokio::time::sleep(NATIVE_WORKER_RETRY_INTERVAL).await;
+    }
+}
+
+fn validate_native_worker_capabilities(
+    metadata: &StatefulWorkerCatalogEntry,
+    capabilities: &a4n_worker_client::WorkerCapabilities,
+) -> Result<(), io::Error> {
+    let missing = metadata.capabilities.iter().find(|expected| {
+        !capabilities.capabilities.iter().any(|reported| {
+            reported.name == expected.as_str()
+                && reported.enabled
+                && reported.version == metadata.capability_version.as_str()
+        })
+    });
+    if let Some(missing) = missing {
+        return Err(io::Error::other(format!(
+            "Native worker {} 未提供预期 capability {}@{}",
+            metadata.name, missing, metadata.capability_version
+        )));
+    }
+    Ok(())
+}
+
+fn select_native_worker_entries(
+    catalog: &[StatefulWorkerCatalogEntry],
+) -> Result<Vec<&StatefulWorkerCatalogEntry>, io::Error> {
+    let names = select_native_worker_names(catalog.iter().map(|entry| entry.name.as_str()))?;
+    names
+        .into_iter()
+        .map(|name| {
+            catalog
+                .iter()
+                .find(|entry| entry.name == name)
+                .ok_or_else(|| io::Error::other(format!("Native worker {name} 丢失目录元数据")))
+        })
+        .collect()
+}
+
+fn select_native_worker_names<'a>(
+    catalog_names: impl IntoIterator<Item = &'a str>,
+) -> Result<Vec<&'static str>, io::Error> {
+    let catalog_names = catalog_names.into_iter().collect::<Vec<_>>();
+    let selected = NATIVE_WORKER_NAMES
+        .iter()
+        .filter(|name| catalog_names.contains(*name))
+        .copied()
+        .collect::<Vec<_>>();
+    if selected.is_empty() || selected.len() == NATIVE_WORKER_NAMES.len() {
+        return Ok(selected);
+    }
+    Err(io::Error::other(format!(
+        "Native worker catalog 必须同时包含 {}；当前仅包含 {}",
+        NATIVE_WORKER_NAMES.join(", "),
+        selected.join(", ")
+    )))
 }
 
 impl LocalServerProcess {
@@ -51,62 +288,14 @@ impl LocalServerProcess {
         let server = resolve_binary(app, "a4n-server", SERVER_BINARY_ENV)?;
         let control = resolve_binary(app, "a4n-control", CONTROL_BINARY_ENV)?;
         let edge = resolve_binary(app, "a4n-edge", EDGE_BINARY_ENV)?;
-        let agent_worker = resolve_binary(app, "a4n-agent-worker", AGENT_WORKER_BINARY_ENV)?;
-        let novel_planning_worker = resolve_binary(
-            app,
-            "a4n-novel-planning-worker",
-            NOVEL_PLANNING_WORKER_BINARY_ENV,
-        )?;
-        let artifact_media_worker = resolve_binary(
-            app,
-            "a4n-artifact-media-worker",
-            ARTIFACT_MEDIA_WORKER_BINARY_ENV,
-        )?;
-        let outline_worker = resolve_binary(app, "a4n-outline-worker", OUTLINE_WORKER_BINARY_ENV)?;
-        let blueprint_worker =
-            resolve_binary(app, "a4n-blueprint-worker", BLUEPRINT_WORKER_BINARY_ENV)?;
-        let asset_graph_worker =
-            resolve_binary(app, "a4n-asset-graph-worker", ASSET_GRAPH_WORKER_BINARY_ENV)?;
-        let foreshadowing_worker = resolve_binary(
-            app,
-            "a4n-foreshadowing-worker",
-            FORESHADOWING_WORKER_BINARY_ENV,
-        )?;
-        let object_profile_worker = resolve_binary(
-            app,
-            "a4n-object-profile-worker",
-            OBJECT_PROFILE_WORKER_BINARY_ENV,
-        )?;
-        let scene_profile_worker = resolve_binary(
-            app,
-            "a4n-scene-profile-worker",
-            SCENE_PROFILE_WORKER_BINARY_ENV,
-        )?;
-        let profile_material_worker = resolve_binary(
-            app,
-            "a4n-profile-material-worker",
-            PROFILE_MATERIAL_WORKER_BINARY_ENV,
-        )?;
-        let project_status_worker = resolve_binary(
-            app,
-            "a4n-project-status-worker",
-            PROJECT_STATUS_WORKER_BINARY_ENV,
-        )?;
-        let theme_read_worker =
-            resolve_binary(app, "a4n-theme-read-worker", THEME_READ_WORKER_BINARY_ENV)?;
-        let project_read_worker = resolve_binary(
-            app,
-            "a4n-project-read-worker",
-            PROJECT_READ_WORKER_BINARY_ENV,
-        )?;
-        let portrait_worker =
-            resolve_binary(app, "a4n-portrait-worker", PORTRAIT_WORKER_BINARY_ENV)?;
-        let source_snapshot_worker = resolve_binary(
-            app,
-            "a4n-source-snapshot-worker",
-            SOURCE_SNAPSHOT_WORKER_BINARY_ENV,
-        )?;
         let migration = resolve_binary(app, "a4n-migration", MIGRATION_BINARY_ENV)?;
+        let worker_binaries = a4n_process_catalog::stateful_worker_catalog()?
+            .into_iter()
+            .map(|worker| {
+                let env_name = stateful_worker_binary_env(&worker.name);
+                resolve_binary(app, &worker.binary, &env_name).map(|binary| (env_name, binary))
+            })
+            .collect::<Result<Vec<_>, _>>()?;
         run_migration(&migration, &config.database_url)?;
 
         let mut command = Command::new(&server);
@@ -117,21 +306,6 @@ impl LocalServerProcess {
             )
             .env(CONTROL_BINARY_ENV, &control)
             .env(EDGE_BINARY_ENV, &edge)
-            .env(AGENT_WORKER_BINARY_ENV, &agent_worker)
-            .env(NOVEL_PLANNING_WORKER_BINARY_ENV, &novel_planning_worker)
-            .env(ARTIFACT_MEDIA_WORKER_BINARY_ENV, &artifact_media_worker)
-            .env(OUTLINE_WORKER_BINARY_ENV, &outline_worker)
-            .env(BLUEPRINT_WORKER_BINARY_ENV, &blueprint_worker)
-            .env(ASSET_GRAPH_WORKER_BINARY_ENV, &asset_graph_worker)
-            .env(FORESHADOWING_WORKER_BINARY_ENV, &foreshadowing_worker)
-            .env(OBJECT_PROFILE_WORKER_BINARY_ENV, &object_profile_worker)
-            .env(SCENE_PROFILE_WORKER_BINARY_ENV, &scene_profile_worker)
-            .env(PROFILE_MATERIAL_WORKER_BINARY_ENV, &profile_material_worker)
-            .env(PROJECT_STATUS_WORKER_BINARY_ENV, &project_status_worker)
-            .env(THEME_READ_WORKER_BINARY_ENV, &theme_read_worker)
-            .env(PROJECT_READ_WORKER_BINARY_ENV, &project_read_worker)
-            .env(PORTRAIT_WORKER_BINARY_ENV, &portrait_worker)
-            .env(SOURCE_SNAPSHOT_WORKER_BINARY_ENV, &source_snapshot_worker)
             .env("A4N_RUNTIME_PROFILE", "sidecar")
             .env("A4N_MANAGED_SIDECARS", "1")
             .env("A4N_PORTABLE_HOME", server_portable_home())
@@ -143,6 +317,9 @@ impl LocalServerProcess {
             .stdin(Stdio::null())
             .stdout(Stdio::inherit())
             .stderr(Stdio::inherit());
+        for (env_name, binary) in worker_binaries {
+            command.env(env_name, binary);
+        }
         if let Some(jwt_secret) = config.security.jwt_secret.as_deref() {
             command.env("A4N_JWT_SECRET", jwt_secret);
         }
@@ -346,6 +523,18 @@ fn resolve_binary(
     resolve_binary_in_directories(name, env_name, directories)
 }
 
+fn stateful_worker_binary_env(name: &str) -> String {
+    stateful_worker_env(name, "BINARY")
+}
+
+fn stateful_worker_env(name: &str, suffix: &str) -> String {
+    format!(
+        "A4N_{}_{}",
+        name.replace('-', "_").to_ascii_uppercase(),
+        suffix
+    )
+}
+
 fn resolve_binary_in_directories(
     name: &str,
     env_name: &str,
@@ -401,7 +590,11 @@ fn server_portable_home() -> PathBuf {
 
 #[cfg(test)]
 mod tests {
-    use super::{parse_local_server_address, read_server_address, resolve_binary_in_directories};
+    use super::{
+        NATIVE_WORKER_NAMES, parse_local_server_address, read_server_address,
+        resolve_binary_in_directories, select_native_worker_names, stateful_worker_binary_env,
+        stateful_worker_env,
+    };
 
     #[test]
     fn accepts_only_published_loopback_endpoints() {
@@ -431,27 +624,7 @@ mod tests {
     #[test]
     fn resolves_every_supervised_binary_from_one_bundle_directory() {
         let directory = tempfile::tempdir().expect("temporary directory should be created");
-        for name in [
-            "a4n-server",
-            "a4n-control",
-            "a4n-edge",
-            "a4n-agent-worker",
-            "a4n-novel-planning-worker",
-            "a4n-artifact-media-worker",
-            "a4n-outline-worker",
-            "a4n-blueprint-worker",
-            "a4n-asset-graph-worker",
-            "a4n-foreshadowing-worker",
-            "a4n-object-profile-worker",
-            "a4n-scene-profile-worker",
-            "a4n-profile-material-worker",
-            "a4n-project-status-worker",
-            "a4n-theme-read-worker",
-            "a4n-project-read-worker",
-            "a4n-portrait-worker",
-            "a4n-source-snapshot-worker",
-            "a4n-migration",
-        ] {
+        for name in ["a4n-server", "a4n-control", "a4n-edge", "a4n-migration"] {
             std::fs::write(directory.path().join(name), name).expect("binary fixture should write");
             let resolved = resolve_binary_in_directories(
                 name,
@@ -461,5 +634,41 @@ mod tests {
             .expect("bundle binary should resolve");
             assert_eq!(resolved, directory.path().join(name));
         }
+
+        for worker in a4n_process_catalog::stateful_worker_catalog().unwrap() {
+            let bundled_name = format!("{}-x86_64-unknown-linux-gnu", worker.binary);
+            std::fs::write(directory.path().join(&bundled_name), &bundled_name)
+                .expect("suffixed worker fixture should write");
+            let env_name = stateful_worker_binary_env(&worker.name);
+            let resolved = resolve_binary_in_directories(
+                &worker.binary,
+                &env_name,
+                [directory.path().to_path_buf()],
+            )
+            .expect("catalog worker binary should resolve");
+            assert_eq!(resolved, directory.path().join(bundled_name));
+        }
+        assert_eq!(
+            stateful_worker_binary_env("workflow-lifecycle-worker"),
+            "A4N_WORKFLOW_LIFECYCLE_WORKER_BINARY"
+        );
+        assert_eq!(
+            stateful_worker_env("workflow-lifecycle-worker", "TOKEN"),
+            "A4N_WORKFLOW_LIFECYCLE_WORKER_TOKEN"
+        );
+    }
+
+    #[test]
+    fn native_workers_are_optional_only_as_a_complete_catalog_set() {
+        assert!(
+            select_native_worker_names(std::iter::empty())
+                .unwrap()
+                .is_empty()
+        );
+        assert!(select_native_worker_names(["admin-worker"]).is_err());
+        assert_eq!(
+            select_native_worker_names(NATIVE_WORKER_NAMES).unwrap(),
+            NATIVE_WORKER_NAMES
+        );
     }
 }

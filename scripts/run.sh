@@ -462,6 +462,25 @@ build_local_server_targets() {
   "${build_command[@]}"
 }
 
+build_native_worker_targets() {
+  local directory package_count=0
+  local -a package_dirs=(
+    crates/admin/a4n-admin-worker
+    crates/canvas/a4n-canvas-record-worker
+    crates/workflow/a4n-workflow-lifecycle-worker
+  )
+  for directory in "${package_dirs[@]}"; do
+    [[ -f "$PROJECT_ROOT/$directory/Cargo.toml" ]] && package_count=$((package_count + 1))
+  done
+  ((package_count == 0)) && return 0
+  ((package_count == ${#package_dirs[@]})) || die "Native worker packages are incomplete"
+
+  local -a build_command=("$PROJECT_ROOT/scripts/cargo.sh" build)
+  $RELEASE && build_command+=(--release)
+  build_command+=(-p a4n-admin-worker -p a4n-canvas-record-worker -p a4n-workflow-lifecycle-worker)
+  "${build_command[@]}"
+}
+
 runtime_worker_watcher_pid=""
 start_runtime_worker_watcher() {
   $HOT_RELOAD || return 0
@@ -483,6 +502,8 @@ stop_runtime_worker_watcher() {
 
 if [[ "$MODE" == "local-server" && "$REMOTE_API" == false ]]; then
   build_local_server_targets
+elif [[ "$MODE" == "native" && "$REMOTE_API" == false ]]; then
+  build_native_worker_targets
 fi
 
 if $SERVER && ! $REMOTE_API; then

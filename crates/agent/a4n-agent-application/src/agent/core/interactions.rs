@@ -696,12 +696,13 @@ impl AgentApplication {
                 (updated, "cancelled")
             }
             AgentControlAction::Pause => (
-                agent::update_run_state(
+                agent::update_run_state_if_unchanged(
                     self.connection(),
-                    current.id,
+                    current,
                     None,
                     "paused",
                     Some("user"),
+                    None,
                     None,
                 )
                 .await
@@ -711,9 +712,17 @@ impl AgentApplication {
             // Resume always starts a fresh claim cycle.  Never preserve an old
             // worker lease or mark the run running from a user request.
             AgentControlAction::Resume => (
-                agent::update_run_state(self.connection(), current.id, None, "queued", None, None)
-                    .await
-                    .map_err(agent_db_error_to_app)?,
+                agent::update_run_state_if_unchanged(
+                    self.connection(),
+                    current,
+                    None,
+                    "queued",
+                    None,
+                    None,
+                    None,
+                )
+                .await
+                .map_err(agent_db_error_to_app)?,
                 "queued",
             ),
         };

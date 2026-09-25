@@ -377,6 +377,8 @@ pub(crate) async fn update_run_state_on<C>(
     status: &str,
     waiting_reason: Option<&str>,
     error_message: Option<&str>,
+    budget_json: Option<Value>,
+    expected: Option<&run::Model>,
 ) -> Result<run::Model, AgentDbError>
 where
     C: ConnectionTrait,
@@ -387,6 +389,15 @@ where
         .one(db)
         .await?
         .ok_or_else(|| AgentDbError::NotFound(format!("Agent run 不存在: {run_id}")))?;
+    if let Some(expected) = expected
+        && (row.status != expected.status
+            || row.waiting_reason != expected.waiting_reason
+            || row.updated_at != expected.updated_at)
+    {
+        return Err(AgentDbError::Conflict(format!(
+            "Agent run 状态已变化，拒绝应用过期控制请求: {run_id}"
+        )));
+    }
     if is_run_terminal(&row.status) && row.status != status {
         return Err(AgentDbError::Conflict(format!(
             "Agent run 已终止，不能从 {} 变为 {status}: {run_id}",
@@ -399,6 +410,9 @@ where
     let terminal = is_run_terminal(status);
     let timestamp = now();
     let mut active: run::ActiveModel = row.into();
+    if let Some(budget_json) = budget_json {
+        active.budget_json = Set(budget_json);
+    }
     active.status = Set(status.to_string());
     active.waiting_reason = Set(waiting_reason.map(str::to_string));
     active.last_error = Set(error_message.map(str::to_string));
@@ -444,7 +458,8 @@ where
             None,
             None,
             None,
-            None,
+            (status == "waiting")
+                .then(|| serde_json::json!({"waiting_reason": updated.waiting_reason.clone()})),
         )
         .await?;
     }
@@ -458,6 +473,51 @@ pub async fn update_run_state(
     status: &str,
     waiting_reason: Option<&str>,
     error_message: Option<&str>,
+) -> Result<run::Model, AgentDbError> {
+    update_run_state_inner(
+        db,
+        run_id,
+        lease_token,
+        status,
+        waiting_reason,
+        error_message,
+        None,
+        None,
+    )
+    .await
+}
+
+pub async fn update_run_state_if_unchanged(
+    db: &DatabaseConnection,
+    expected: &run::Model,
+    lease_token: Option<&str>,
+    status: &str,
+    waiting_reason: Option<&str>,
+    error_message: Option<&str>,
+    budget_json: Option<Value>,
+) -> Result<run::Model, AgentDbError> {
+    update_run_state_inner(
+        db,
+        expected.id,
+        lease_token,
+        status,
+        waiting_reason,
+        error_message,
+        budget_json,
+        Some(expected),
+    )
+    .await
+}
+
+async fn update_run_state_inner(
+    db: &DatabaseConnection,
+    run_id: i64,
+    lease_token: Option<&str>,
+    status: &str,
+    waiting_reason: Option<&str>,
+    error_message: Option<&str>,
+    budget_json: Option<Value>,
+    expected: Option<&run::Model>,
 ) -> Result<run::Model, AgentDbError> {
     validate_run_status(status)?;
     let current = run::Entity::find_by_id(run_id)
@@ -479,6 +539,8 @@ pub async fn update_run_state(
         status,
         waiting_reason,
         error_message,
+        budget_json,
+        expected,
     )
     .await?;
     let _ = refresh_thread_status_on(&tx, run_row.thread_id).await?;
@@ -991,7 +1053,17 @@ pub(crate) async fn requeue_for_new_input_on<C: ConnectionTrait>(
     {
         return Ok(false);
     }
-    update_run_state_on(db, row.id, row.lease_token.as_deref(), "queued", None, None).await?;
+    update_run_state_on(
+        db,
+        row.id,
+        row.lease_token.as_deref(),
+        "queued",
+        None,
+        None,
+        None,
+        None,
+    )
+    .await?;
     refresh_thread_status_on(db, row.thread_id).await?;
     Ok(true)
 }

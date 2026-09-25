@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type {
   AgentEvent,
   AgentMessageView,
+  AgentRunView,
   AgentThreadSnapshot,
 } from "../api/agent";
 import {
@@ -54,6 +55,26 @@ const snapshot = (): AgentThreadSnapshot => ({
   messages: [message("old")],
   runs: [],
   turns: [],
+});
+
+const run = (): AgentRunView => ({
+  id: "run-1",
+  thread_id: "thread-1",
+  turn_id: "turn-1",
+  attempt: 1,
+  status: "running",
+  waiting_reason: null,
+  lease_owner: null,
+  lease_expires_at: null,
+  budget: {} as AgentRunView["budget"],
+  steps_used: 0,
+  model_calls_used: 0,
+  tool_calls_used: 0,
+  tokens_used: 0,
+  context_input_tokens: null,
+  context_capacity_tokens: null,
+  cost_micros: null,
+  updated_at: "2026-09-12T00:00:00Z",
 });
 
 const event = (sequence: number, payload: unknown): AgentEvent => ({
@@ -118,6 +139,7 @@ describe("agent event reducer", () => {
             view_instance_id: "view-1",
             project_id: 1,
             chapter_id: 1,
+            chapter_number: null,
             editor_revision: "revision-1",
             scene_id: null,
             shot_id: null,
@@ -131,6 +153,41 @@ describe("agent event reducer", () => {
     );
     expect(result.needsReload).toBe(true);
     expect(result.snapshot.events).toHaveLength(0);
+  });
+
+  it("reloads after a new approval request", () => {
+    const result = reduceAgentEvent(
+      snapshot(),
+      {
+        ...event(1, { approval_id: "approval-1" }),
+        kind: "approval_requested",
+        message_id: null,
+      },
+      0,
+    );
+
+    expect(result.needsReload).toBe(true);
+    expect(result.cursor).toBe(0);
+    expect(result.snapshot.approvals).toHaveLength(0);
+  });
+
+  it("preserves the waiting reason from run_waiting events", () => {
+    const current = snapshot();
+    current.runs = [run()];
+
+    const result = reduceAgentEvent(
+      current,
+      {
+        ...event(1, { waiting_reason: "budget" }),
+        kind: "run_waiting",
+        message_id: null,
+      },
+      0,
+    );
+
+    expect(result.needsReload).toBe(false);
+    expect(result.snapshot.runs[0].status).toBe("waiting");
+    expect(result.snapshot.runs[0].waiting_reason).toBe("budget");
   });
 
   it("deduplicates events and detects sequence gaps or malformed projections", () => {

@@ -135,12 +135,7 @@ pub fn child_budget_within_parent(
     );
     cap_budget_u16(&mut child.max_parallel_tools, parent.max_parallel_tools);
     cap_budget_u16(&mut child.max_children, parent.max_children);
-    cap_budget_u8(
-        &mut child.max_delegation_depth,
-        parent
-            .max_delegation_depth
-            .map(|limit| limit.saturating_sub(1).max(1)),
-    );
+    cap_budget_u8(&mut child.max_delegation_depth, parent.max_delegation_depth);
     Ok(child)
 }
 

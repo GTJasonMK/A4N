@@ -301,6 +301,8 @@ fn projection_next_offset(
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
 pub struct ChapterVisualPlanReadResult {
+    pub chapter_id: i64,
+    pub chapter_number: i32,
     pub resource: Option<crate::agent::AgentResourceRef>,
     pub source_hash: String,
     pub projection: VisualPlanProjection,

@@ -240,17 +240,23 @@ impl AgentRegistry {
         input: UpdateAgentInput,
     ) -> Result<AgentView, ApiError> {
         self.expire();
+        let status_omitted = input.status.is_none();
         let view = {
             let mut records = self.records.write();
             let record = records
                 .get_mut(agent_id)
                 .ok_or_else(|| ApiError::not_found("Agent 不存在"))?;
             authorize_record(record, owner_user_id, token)?;
-            apply_update(&mut record.view, input)?;
-            record.view.updated_at = chrono::Utc::now().to_rfc3339();
-            record.view.last_heartbeat_at = record.view.updated_at.clone();
-            record.view.expires_at = lease_expiry();
-            record.view.clone()
+            let mut view = record.view.clone();
+            apply_update(&mut view, input)?;
+            if status_omitted && view.status == "offline" {
+                view.status = "idle".into();
+            }
+            view.updated_at = chrono::Utc::now().to_rfc3339();
+            view.last_heartbeat_at = view.updated_at.clone();
+            view.expires_at = lease_expiry();
+            record.view = view.clone();
+            view
         };
         let _ = self.events.send(AgentEvent {
             kind: "updated",
@@ -518,5 +524,71 @@ mod tests {
                 )
                 .is_err()
         );
+    }
+
+    #[test]
+    fn invalid_update_does_not_partially_change_agent() {
+        let registry = AgentRegistry::new();
+        let (agent_id, token) = registry.register_for_test(7, "test agent");
+        let before = registry.list(7).pop().expect("registered agent");
+
+        assert!(
+            registry
+                .update(
+                    7,
+                    &agent_id,
+                    &token,
+                    UpdateAgentInput {
+                        status: Some("running".into()),
+                        phase: None,
+                        summary: None,
+                        progress: Some(f32::NAN),
+                        current_task_id: None,
+                        project_id: None,
+                        chapter_id: None,
+                        metadata: None,
+                    },
+                )
+                .is_err()
+        );
+
+        let after = registry.list(7).pop().expect("registered agent");
+        assert_eq!(after.status, before.status);
+        assert_eq!(after.updated_at, before.updated_at);
+        assert_eq!(after.last_heartbeat_at, before.last_heartbeat_at);
+        assert_eq!(after.expires_at, before.expires_at);
+    }
+
+    #[test]
+    fn statusless_heartbeat_revives_expired_agent() {
+        let registry = AgentRegistry::new();
+        let (agent_id, token) = registry.register_for_test(7, "test agent");
+        {
+            let mut records = registry.records.write();
+            let record = records.get_mut(&agent_id).expect("registered agent");
+            record.view.status = "running".into();
+            record.view.expires_at = "2000-01-01T00:00:00+00:00".into();
+        }
+
+        let updated = registry
+            .update(
+                7,
+                &agent_id,
+                &token,
+                UpdateAgentInput {
+                    status: None,
+                    phase: None,
+                    summary: None,
+                    progress: None,
+                    current_task_id: None,
+                    project_id: None,
+                    chapter_id: None,
+                    metadata: None,
+                },
+            )
+            .expect("heartbeat must renew the expired lease");
+
+        assert_eq!(updated.status, "idle");
+        assert!(updated.expires_at > updated.last_heartbeat_at);
     }
 }

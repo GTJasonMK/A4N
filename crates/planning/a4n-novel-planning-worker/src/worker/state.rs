@@ -523,6 +523,8 @@ impl WorkerState {
             .map_err(projection_error)?,
         };
         Ok(ChapterVisualPlanReadResult {
+            chapter_id: source.source_chapter_id,
+            chapter_number: source.chapter_number,
             resource,
             source_hash: source.content_sha256,
             projection,

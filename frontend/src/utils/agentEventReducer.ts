@@ -65,6 +65,9 @@ export function reduceAgentEvent(
   if (event.editor_request) {
     return { snapshot, cursor, needsReload: true };
   }
+  if (event.kind === "approval_requested") {
+    return { snapshot, cursor, needsReload: true };
+  }
 
   const payload = objectPayload(event.payload);
   let next = snapshot;
@@ -90,10 +93,20 @@ export function reduceAgentEvent(
     if (index < 0 || typeof status !== "string") {
       return { snapshot, cursor, needsReload: true };
     }
+    const waitingReason = payload?.waiting_reason;
+    if (
+      event.kind === "run_waiting"
+      && (typeof waitingReason !== "string" || !WAITING_REASONS.has(waitingReason))
+    ) {
+      return { snapshot, cursor, needsReload: true };
+    }
     const run = snapshot.runs[index];
     const nextRun: AgentRunView = {
       ...run,
       status: status as AgentRunView["status"],
+      waiting_reason: event.kind === "run_waiting"
+        ? waitingReason as AgentRunView["waiting_reason"]
+        : null,
       error: typeof payload?.error === "string" ? payload.error : run.error,
     };
     const runs = [...snapshot.runs];
@@ -112,6 +125,16 @@ export function reduceAgentEvent(
   };
   return { snapshot: next, cursor: event.sequence, needsReload: false };
 }
+
+const WAITING_REASONS = new Set([
+  "user",
+  "approval",
+  "child",
+  "external",
+  "backoff",
+  "budget",
+  "reconcile",
+]);
 
 function objectPayload(value: unknown): Record<string, unknown> | null {
   return typeof value === "object" && value !== null && !Array.isArray(value)

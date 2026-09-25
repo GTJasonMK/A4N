@@ -85,7 +85,7 @@ fn restricted_tool_search_is_pinned_without_misreading_capability_as_domain() {
 }
 
 #[test]
-fn restricted_capabilities_start_with_operational_tools_only() {
+fn restricted_capabilities_include_skill_loading_without_tool_discovery() {
     for capability in [
         CONTENT_OPTIMIZATION_AGENT_CAPABILITY,
         CANVAS_AGENT_CAPABILITY,
@@ -94,7 +94,8 @@ fn restricted_capabilities_start_with_operational_tools_only() {
         let tools = initial_agent_tools(capability);
         assert!(!tools.is_empty());
         assert!(!tools.contains(&"describe_agent_tool"));
-        assert!(!tools.contains(&"load_agent_skill"));
+        assert!(tools.contains(&"search_agent_skills"));
+        assert!(tools.contains(&"load_agent_skill"));
         assert!(
             tools
                 .iter()

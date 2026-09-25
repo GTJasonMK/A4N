@@ -92,22 +92,31 @@ pub fn deterministic_context_summary(
             })
             .unwrap_or_default()
     };
-    let current_goal = previous
-        .and_then(|value| value.get("current_goal"))
-        .and_then(Value::as_str)
+    let current_goal = goal
         .filter(|value| !value.trim().is_empty())
-        .or_else(|| goal.filter(|value| !value.trim().is_empty()))
+        .or_else(|| {
+            previous
+                .and_then(|value| value.get("current_goal"))
+                .and_then(Value::as_str)
+                .filter(|value| !value.trim().is_empty())
+        })
         .unwrap_or("未提供显式目标")
         .to_string();
     let mut facts_resources = strings("facts_resources");
     if !source.trim().is_empty() {
+        if facts_resources.len() >= 64 {
+            facts_resources.remove(0);
+        }
         facts_resources.push(bound_summary_text(source, 2_000));
     }
     let mut tool_state = strings("tool_state");
+    if tool_state.len() >= 64 {
+        tool_state.remove(0);
+    }
     tool_state.push(format!(
         "上下文已确定性压缩，覆盖到事件序列 {covered_through_sequence}"
     ));
-    let summary = AgentContextSummary {
+    let mut summary = AgentContextSummary {
         current_goal: bound_summary_text(&current_goal, 4_000),
         constraints: strings("constraints"),
         decisions: strings("decisions"),
@@ -117,15 +126,47 @@ pub fn deterministic_context_summary(
         tool_state,
         covered_through_sequence,
     };
+    let mut summary_bytes = serde_json::to_vec(&summary)?.len();
+    while summary_bytes > MAX_CONTEXT_SUMMARY_BYTES {
+        let values = if !summary.completed.is_empty() {
+            &mut summary.completed
+        } else if summary.facts_resources.len() > 1 {
+            &mut summary.facts_resources
+        } else if summary.tool_state.len() > 1 {
+            &mut summary.tool_state
+        } else if !summary.decisions.is_empty() {
+            &mut summary.decisions
+        } else if !summary.pending.is_empty() {
+            &mut summary.pending
+        } else if !summary.constraints.is_empty() {
+            &mut summary.constraints
+        } else {
+            break;
+        };
+        let removed_bytes =
+            serde_json::to_vec(&values[0])?.len() + if values.len() > 1 { 1 } else { 0 };
+        summary_bytes -= removed_bytes;
+        values.remove(0);
+    }
     summary.validate()?;
     Ok(summary)
 }
 
 fn bound_summary_text(value: &str, max_chars: usize) -> String {
-    if value.chars().count() <= max_chars {
+    let chars = value.chars().collect::<Vec<_>>();
+    if chars.len() <= max_chars {
         return value.to_string();
     }
-    value.chars().take(max_chars).collect()
+    let marker = "…[内容省略]…";
+    let available = max_chars.saturating_sub(marker.chars().count());
+    if available == 0 {
+        return chars.into_iter().take(max_chars).collect();
+    }
+    let prefix_len = available / 2;
+    let suffix_len = available - prefix_len;
+    let prefix = chars[..prefix_len].iter().collect::<String>();
+    let suffix = chars[chars.len() - suffix_len..].iter().collect::<String>();
+    format!("{prefix}{marker}{suffix}")
 }
 
 pub fn parse_agent_context_summary(raw: Option<&str>) -> Result<Option<Value>, AppError> {

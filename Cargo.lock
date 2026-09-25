@@ -2791,11 +2791,13 @@ dependencies = [
  "a4n-host-assembly",
  "a4n-media",
  "a4n-migration",
+ "a4n-process-catalog",
  "a4n-runtime",
  "a4n-service-protocol",
  "a4n-storage",
  "a4n-task-runtime",
  "a4n-test-support",
+ "a4n-worker-client",
  "base64 0.22.1",
  "parking_lot",
  "reqwest 0.12.28",
@@ -2812,6 +2814,7 @@ dependencies = [
  "tracing",
  "tracing-appender",
  "tracing-subscriber",
+ "uuid",
 ]
 
 [[package]]

@@ -17,7 +17,10 @@ export function shouldUseHttpBackend(): boolean {
   const value = typeof transport === "string" ? transport.trim().toLowerCase() : "";
   if (["web", "http", "remote"].includes(value)) return true;
   if (["tauri", "desktop", "local"].includes(value)) return false;
-  return true;
+  return (
+    window.__A4N_API_BASE_URL__ !== undefined ||
+    import.meta.env.VITE_A4N_FORCE_WEB_API === "1"
+  );
 }
 
 export function apiBaseUrl(): string {

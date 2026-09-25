@@ -67,7 +67,7 @@ fn budget_validation_rejects_zero_limits_and_caps_child_budget() {
     assert_eq!(capped.max_steps, Some(7));
     assert_eq!(capped.max_model_calls, Some(6));
     assert_eq!(capped.max_tokens, Some(750));
-    assert_eq!(capped.max_delegation_depth, Some(1));
+    assert_eq!(capped.max_delegation_depth, Some(2));
 
     let exhausted = child_budget_within_parent(
         AgentBudget::default(),

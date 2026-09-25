@@ -86,7 +86,7 @@ pub async fn wake_external_task_wait(
             e.run_id == run_id && e.execution_kind == "wait" && e.status == "running"
         })
     {
-        update_run_state_on(&tx, run_id, None, "queued", None, None).await?;
+        update_run_state_on(&tx, run_id, None, "queued", None, None, None, None).await?;
         refresh_thread_status_on(&tx, row.thread_id).await?;
     }
     tx.commit().await?;

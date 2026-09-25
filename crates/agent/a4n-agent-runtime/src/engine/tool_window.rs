@@ -1,4 +1,5 @@
 use super::*;
+use std::sync::atomic::AtomicI64;
 
 pub(crate) struct RuntimeToolWindow {
     pub(crate) schemas: Vec<Value>,
@@ -121,6 +122,7 @@ pub(crate) async fn record_tool_failure(
     call: &ToolCall,
     message: String,
     messages: &mut Vec<ChatMessage>,
+    latest_message_id: &AtomicI64,
 ) -> Result<(RunProgress, Vec<String>), AppError> {
     execution_application
         .update_worker_execution(WorkerExecutionUpdate {
@@ -141,6 +143,7 @@ pub(crate) async fn record_tool_failure(
         call,
         json!({"error": message}),
         messages,
+        latest_message_id,
     )
     .await?;
     Ok((RunProgress::Continue, Vec::new()))

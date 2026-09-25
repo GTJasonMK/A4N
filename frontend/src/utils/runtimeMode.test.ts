@@ -24,6 +24,19 @@ it("does not use local runtime settings in native Tauri mode", async () => {
   expect(usesLocalRuntimeSettings()).toBe(false);
 });
 
+it("defaults to native APIs without transport or a bound HTTP endpoint", async () => {
+  vi.stubEnv("VITE_A4N_API_TRANSPORT", "");
+  vi.stubEnv("VITE_A4N_FORCE_WEB_API", "0");
+  vi.stubGlobal("window", { __TAURI_INTERNALS__: {} });
+
+  const { canUseLocalDesktopEmbedding, shouldUseHttpBackend, usesLocalRuntimeSettings } =
+    await import("./runtimeMode");
+
+  expect(shouldUseHttpBackend()).toBe(false);
+  expect(usesLocalRuntimeSettings()).toBe(false);
+  expect(canUseLocalDesktopEmbedding()).toBe(true);
+});
+
 it("uses local runtime settings in browser HTTP mode", async () => {
   vi.stubGlobal("window", {});
 

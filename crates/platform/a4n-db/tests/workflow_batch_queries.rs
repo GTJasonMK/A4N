@@ -6,18 +6,21 @@ use a4n_db::workflow::{
     latest_workflow_run_recovery_records_by_business_keys, latest_workflow_runs_by_business_keys,
     load_completed_llm_call_checkpoint, mark_workflow_status, persist_workflow_progress_snapshot,
     record_workflow_progress_event, resume_or_upsert_workflow_run,
-    save_completed_llm_call_checkpoint, upsert_workflow_checkpoint, upsert_workflow_run,
-    workflow_checkpoint_statuses_for_runs, workflow_checkpoint_step_statuses, workflow_run_detail,
-    workflow_run_model_by_id, workflow_run_models_by_ids, workflow_run_statuses_by_ids,
-    workflow_run_summary_by_id,
+    resume_workflow_run_with_active_task, save_completed_llm_call_checkpoint,
+    upsert_workflow_checkpoint, upsert_workflow_run, workflow_checkpoint_statuses_for_runs,
+    workflow_checkpoint_step_statuses, workflow_run_detail, workflow_run_model_by_id,
+    workflow_run_models_by_ids, workflow_run_statuses_by_ids, workflow_run_summary_by_id,
 };
-use a4n_db_models::models::generation::generation_run;
+use a4n_db_models::models::{
+    generation::{generation_run, workflow_run},
+    task::task_queue,
+};
 use a4n_domain::workflow::{
     WORKFLOW_STATUS_CANCELLED, WORKFLOW_STATUS_COMPLETED, WORKFLOW_STATUS_FAILED,
     WORKFLOW_STATUS_INTERRUPTED, WORKFLOW_STATUS_RUNNING,
 };
 use chrono::Utc;
-use sea_orm::{ActiveModelTrait, Set};
+use sea_orm::{ActiveModelTrait, EntityTrait, Set};
 use serde_json::json;
 
 fn workflow_input(business_key: &str, fingerprint: &str, status: &str) -> UpsertWorkflowRunInput {
@@ -242,6 +245,100 @@ async fn resume_or_upsert_reuses_matching_interrupted_run() {
     assert!(resumed.completed_at.is_none());
 }
 
+#[tokio::test]
+async fn resume_workflow_binds_unowned_task_and_rejects_completed_other_owner() {
+    let db = a4n_migration::test_support::connect_test_database().await;
+    let suffix = uuid::Uuid::new_v4();
+    let key = format!("workflow-resume-task:{suffix}");
+    let run = upsert_workflow_run(
+        &db,
+        workflow_input(&key, "fingerprint", WORKFLOW_STATUS_RUNNING),
+    )
+    .await
+    .expect("initial workflow must be inserted");
+    mark_workflow_status(
+        &db,
+        run.id,
+        WORKFLOW_STATUS_INTERRUPTED,
+        true,
+        Some("应用重启后中断"),
+    )
+    .await
+    .expect("workflow must become resumably interrupted");
+
+    let task_id = uuid::Uuid::new_v4().to_string();
+    task_queue::ActiveModel {
+        id: Set(task_id.clone()),
+        task_type: Set("llm_call".to_string()),
+        priority: Set("medium".to_string()),
+        status: Set("pending".to_string()),
+        project_id: Set(None),
+        root_project_id: Set(None),
+        source_snapshot_id: Set(None),
+        task_scope: Set(None),
+        workflow_run_id: Set(None),
+        payload: Set(None),
+        progress: Set(None),
+        error_message: Set(None),
+        dag_id: Set(None),
+        created_at: Set(Utc::now().naive_utc()),
+        started_at: Set(None),
+        completed_at: Set(None),
+    }
+    .insert(&db)
+    .await
+    .expect("task queue row must be inserted");
+
+    let resumed = resume_workflow_run_with_active_task(&db, run.id, &task_id)
+        .await
+        .expect("workflow must resume with its active task");
+    let task = task_queue::Entity::find_by_id(task_id)
+        .one(&db)
+        .await
+        .expect("task query must succeed")
+        .expect("task must exist");
+
+    assert_eq!(resumed.active_task_id.as_deref(), Some(task.id.as_str()));
+    assert_eq!(task.workflow_run_id, Some(run.id));
+
+    mark_workflow_status(
+        &db,
+        run.id,
+        WORKFLOW_STATUS_INTERRUPTED,
+        true,
+        Some("再次中断以验证任务所有权"),
+    )
+    .await
+    .expect("workflow must become resumably interrupted again");
+    let previous = upsert_workflow_run(
+        &db,
+        workflow_input(
+            &format!("workflow-previous-owner:{suffix}"),
+            "previous-owner",
+            WORKFLOW_STATUS_COMPLETED,
+        ),
+    )
+    .await
+    .expect("previous completed workflow must be inserted");
+    let mut owned_by_previous: task_queue::ActiveModel = task.into();
+    owned_by_previous.workflow_run_id = Set(Some(previous.id));
+    owned_by_previous.update(&db).await.unwrap();
+
+    let error = resume_workflow_run_with_active_task(&db, run.id, &task_id)
+        .await
+        .expect_err("an active task must not be stolen from another workflow");
+    assert!(matches!(error, WorkflowWriteError::StatusConflict { .. }));
+    let unchanged_task = task_queue::Entity::find_by_id(task_id)
+        .one(&db)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(unchanged_task.workflow_run_id, Some(previous.id));
+    let unchanged_run = workflow_run_model_by_id(&db, run.id).await.unwrap();
+    assert_eq!(unchanged_run.status, WORKFLOW_STATUS_INTERRUPTED);
+    assert!(unchanged_run.active_task_id.is_none());
+}
+
 fn completed_call(run_id: i64, call_key: &str) -> CompletedLlmCallCheckpointInput {
     CompletedLlmCallCheckpointInput {
         workflow_run_id: run_id,
@@ -263,12 +360,10 @@ async fn workflow_snapshot_survives_progress_reads_updates_and_cancellation() {
     let db = a4n_migration::test_support::connect_test_database().await;
     for with_progress in [false, true] {
         let key = format!("workflow-snapshot:{}", uuid::Uuid::new_v4());
-        let run = upsert_workflow_run(
-            &db,
-            workflow_input(&key, "snapshot", WORKFLOW_STATUS_RUNNING),
-        )
-        .await
-        .unwrap();
+        let active_task_id = uuid::Uuid::new_v4().to_string();
+        let mut input = workflow_input(&key, "snapshot", WORKFLOW_STATUS_RUNNING);
+        input.active_task_id = Some(active_task_id.clone());
+        let run = upsert_workflow_run(&db, input).await.unwrap();
         let event = WorkflowProgressEventInput {
             workflow_run_id: run.id,
             task_id: None,
@@ -339,13 +434,25 @@ async fn workflow_snapshot_survives_progress_reads_updates_and_cancellation() {
             .await
             .unwrap();
         assert!(!result.already_terminal);
+        assert_eq!(
+            result.active_task_id.as_deref(),
+            Some(active_task_id.as_str())
+        );
         let cancelled = workflow_run_summary_by_id(&db, run.id).await.unwrap();
         assert_eq!(cancelled.status, WORKFLOW_STATUS_CANCELLED);
         assert!(!cancelled.can_resume);
         assert!(cancelled.active_task_id.is_none());
         assert_eq!(cancelled.progress.unwrap().message, "用户取消工作流");
         let stored = workflow_run_model_by_id(&db, run.id).await.unwrap();
-        assert_eq!(stored.progress_json.unwrap()["snapshot"], snapshot);
+        let mut progress_json = stored.progress_json.clone().unwrap();
+        assert_eq!(progress_json["snapshot"], snapshot);
+        let _ = progress_json
+            .as_object_mut()
+            .unwrap()
+            .remove("cancellation_active_task_id");
+        let mut stored: workflow_run::ActiveModel = stored.into();
+        stored.progress_json = Set(Some(progress_json));
+        stored.update(&db).await.unwrap();
         assert!(matches!(
             persist_workflow_progress_snapshot(&db, run.id, snapshot).await,
             Err(WorkflowWriteError::StatusConflict { .. })
@@ -354,11 +461,13 @@ async fn workflow_snapshot_survives_progress_reads_updates_and_cancellation() {
             record_workflow_progress_event(&db, event).await,
             Err(WorkflowWriteError::StatusConflict { .. })
         ));
-        assert!(
-            cancel_workflow_run_persistence(&db, run.id, "用户取消工作流")
-                .await
-                .unwrap()
-                .already_terminal
+        let retried = cancel_workflow_run_persistence(&db, run.id, "用户取消工作流")
+            .await
+            .unwrap();
+        assert!(retried.already_terminal);
+        assert_eq!(
+            retried.active_task_id.as_deref(),
+            Some(active_task_id.as_str())
         );
     }
 }

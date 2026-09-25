@@ -47,7 +47,7 @@ const MAX_BASE_AGENT_TOOLS: usize = 8;
 const MAX_DISCOVERED_AGENT_TOOLS: usize = 8;
 // Restricted domains receive their complete operational window; main/general
 // profiles keep discovery room after the base tools.
-const MAX_AGENT_TOOL_SCHEMAS: usize = 15;
+const MAX_AGENT_TOOL_SCHEMAS: usize = 24;
 const AGENT_STREAM_PROJECTION_INTERVAL: Duration = Duration::from_millis(100);
 const AGENT_STREAM_PROJECTION_MAX_CHARS: usize = 256;
 pub(super) const MAX_OBSERVATION_BYTES: usize = 16 * 1024;
@@ -112,6 +112,7 @@ mod tests {
             resource_id: None,
             project_id: None,
             chapter_id: None,
+            chapter_number: None,
             allowed_capabilities: Vec::new(),
             allowed_tools: Vec::new(),
         };
@@ -137,6 +138,39 @@ mod tests {
         .expect("optional discovered tools should be trimmed");
         assert!(tools.schemas.len() <= MAX_AGENT_TOOL_SCHEMAS);
         assert!(tools.dropped_optional.len() <= discovered.len());
+    }
+
+    #[test]
+    fn restricted_tool_catalogs_fit_the_runtime_schema_window() {
+        let scope = AgentScope {
+            resource_kind: None,
+            resource_id: None,
+            project_id: None,
+            chapter_id: None,
+            chapter_number: None,
+            allowed_capabilities: Vec::new(),
+            allowed_tools: Vec::new(),
+        };
+        for capability in [
+            a4n_api_contract::agent::DIRECTOR_AGENT_CAPABILITY,
+            a4n_api_contract::agent::CANVAS_AGENT_CAPABILITY,
+            a4n_api_contract::agent::CONTENT_OPTIMIZATION_AGENT_CAPABILITY,
+        ] {
+            for phase in [
+                a4n_api_contract::agent::AGENT_PHASE_DISCOVER,
+                a4n_api_contract::agent::AGENT_PHASE_ANALYZE,
+            ] {
+                let tools = available_runtime_tools(capability, &scope, phase, &[], &[])
+                    .expect("restricted catalog should fit the runtime schema window");
+                assert!(tools.schemas.len() <= MAX_AGENT_TOOL_SCHEMAS);
+                if phase == a4n_api_contract::agent::AGENT_PHASE_ANALYZE {
+                    assert_eq!(
+                        tools.schemas.len(),
+                        a4n_api_contract::agent::initial_agent_tools(capability).len()
+                    );
+                }
+            }
+        }
     }
 
     #[test]
@@ -231,6 +265,7 @@ mod tests {
                 resource_id: Some("13".into()),
                 project_id: Some(11),
                 chapter_id: Some(13),
+                chapter_number: None,
                 allowed_capabilities: vec!["content_optimization".into()],
                 allowed_tools: Vec::new(),
             },

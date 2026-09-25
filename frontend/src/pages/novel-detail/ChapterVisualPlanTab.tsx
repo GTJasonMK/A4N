@@ -238,7 +238,7 @@ export function ChapterVisualPlanTab({ projectId, canEdit, chapter }: { projectI
   const getEditorSource = (): AgentEditorSource | null => {
     if (!plan || chapterId == null) return null;
     const owner = point ? segmentAt(plan, point.at_ms) : segment;
-    return { view_instance_id: model.viewInstanceId.current, project_id: projectId, chapter_id: chapterId,
+    return { view_instance_id: model.viewInstanceId.current, project_id: projectId, chapter_id: chapterId, chapter_number: chapter?.chapter_number ?? null,
       editor_revision: model.editorRevision.current, scene_id: null, shot_id: owner?.id ?? null,
       keyframe_id: point?.id ?? null, entity_id: null };
   };

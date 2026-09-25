@@ -68,8 +68,8 @@ mod runs;
 pub use runs::{
     claim_editor_execution, claim_runnable_run, expire_editor_requests, fail_run_for_lease,
     finish_run_with_message, mark_turn_active_for_run_lease, recovery_required_for_lease,
-    renew_run_lease, update_run_state, update_run_usage, wait_run_for_lease,
-    wait_run_for_lease_with_request, wake_waiting_run_for_reason,
+    renew_run_lease, update_run_state, update_run_state_if_unchanged, update_run_usage,
+    wait_run_for_lease, wait_run_for_lease_with_request, wake_waiting_run_for_reason,
 };
 pub(crate) use runs::{
     complete_turn, consume_observed_user_inbox_on, lock_delegations_on, lock_runs_on,
