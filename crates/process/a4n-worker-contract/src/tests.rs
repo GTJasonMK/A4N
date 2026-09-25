@@ -398,6 +398,15 @@ fn result_refs_request_validates_its_lease_and_snapshot_round_trips() {
 }
 
 #[test]
+fn run_status_snapshot_round_trips() {
+    let snapshot = AgentWorkerRunStatusSnapshotWire { terminal: true };
+    let encoded = serde_json::to_string(&snapshot).expect("run status should serialize");
+    let decoded: AgentWorkerRunStatusSnapshotWire =
+        serde_json::from_str(&encoded).expect("run status should deserialize");
+    assert!(decoded.terminal);
+}
+
+#[test]
 fn completion_request_requires_content_and_observed_message_boundary() {
     let request = AgentWorkerCompletionRequest {
         run_id: 7,
@@ -502,7 +511,7 @@ fn delegation_thread_request_validates_identity_fields() {
             resource_id: Some("7".into()),
             project_id: Some(3),
             chapter_id: Some(7),
-            chapter_number: Some(1),
+            chapter_number: None,
             allowed_capabilities: vec!["director".into()],
             allowed_tools: Vec::new(),
         },
@@ -561,7 +570,7 @@ fn delegation_start_request_validates_transaction_input() {
             resource_id: Some("7".into()),
             project_id: Some(3),
             chapter_id: Some(7),
-            chapter_number: Some(1),
+            chapter_number: None,
             allowed_capabilities: vec!["director".into()],
             allowed_tools: Vec::new(),
         },
@@ -828,7 +837,7 @@ fn editor_wait_request_validates_run_lease_and_execution() {
                 view_instance_id: "view-1".into(),
                 project_id: 7,
                 chapter_id: 8,
-                chapter_number: Some(1),
+                chapter_number: None,
                 editor_revision: "revision-1".into(),
                 scene_id: None,
                 shot_id: None,
