@@ -217,6 +217,7 @@ mod tests {
             scope: AgentScope {
                 project_id,
                 chapter_id: None,
+                chapter_number: None,
                 resource_kind: None,
                 resource_id: None,
                 allowed_capabilities: Vec::new(),

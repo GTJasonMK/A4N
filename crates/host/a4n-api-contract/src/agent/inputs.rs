@@ -117,6 +117,8 @@ pub struct AgentEditorSource {
     pub view_instance_id: String,
     pub project_id: i64,
     pub chapter_id: i64,
+    #[serde(default)]
+    pub chapter_number: Option<i32>,
     pub editor_revision: String,
     pub scene_id: Option<String>,
     pub shot_id: Option<String>,

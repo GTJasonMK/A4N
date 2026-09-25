@@ -118,6 +118,7 @@ describe("agent event reducer", () => {
             view_instance_id: "view-1",
             project_id: 1,
             chapter_id: 1,
+            chapter_number: null,
             editor_revision: "revision-1",
             scene_id: null,
             shot_id: null,

@@ -33,6 +33,7 @@ function thread(
       resource_id: "11",
       project_id: 7,
       chapter_id: 11,
+      chapter_number: null,
       allowed_capabilities: ["content_optimization"],
       allowed_tools: [],
     },

@@ -112,6 +112,7 @@ mod tests {
             resource_id: None,
             project_id: None,
             chapter_id: None,
+            chapter_number: None,
             allowed_capabilities: Vec::new(),
             allowed_tools: Vec::new(),
         };
@@ -231,6 +232,7 @@ mod tests {
                 resource_id: Some("13".into()),
                 project_id: Some(11),
                 chapter_id: Some(13),
+                chapter_number: None,
                 allowed_capabilities: vec!["content_optimization".into()],
                 allowed_tools: Vec::new(),
             },

@@ -638,6 +638,7 @@ export interface AgentScope {
   allowed_capabilities: string[];
   allowed_tools: string[];
   chapter_id: number | null;
+  chapter_number: number | null;
   project_id: number | null;
   resource_id: string | null;
   resource_kind: string | null;
@@ -645,6 +646,7 @@ export interface AgentScope {
 
 export interface AgentEditorSource {
   chapter_id: number;
+  chapter_number: number | null;
   editor_revision: string;
   entity_id: string | null;
   keyframe_id: string | null;
@@ -4914,6 +4916,8 @@ export interface VisualPlanOutlineItem {
 export type VisualPlanProjection = { items: VisualPlanOutlineItem[]; kind: "outline"; next_offset?: number | null; total: number } | { kind: "point"; point: VisualPointV3 } | { kind: "segment"; points: VisualPointV3[]; segment: VisualSegmentV3 } | { kind: "source"; next_offset?: number | null; offset: number; text: string; total_chars: number };
 
 export interface ChapterVisualPlanReadResult {
+  chapter_id: number;
+  chapter_number: number;
   projection: VisualPlanProjection;
   resource: AgentResourceRef | null;
   source_hash: string;
