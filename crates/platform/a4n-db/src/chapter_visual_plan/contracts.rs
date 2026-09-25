@@ -3,6 +3,7 @@ use a4n_domain::chapter_visual_plan::{
     ChapterVisualPlanAuthoringMode, ChapterVisualPlanStatus, ChapterVisualPlanV3,
     ExpectedVisualPlanDraft,
 };
+use a4n_domain::shooting_script::ShootingScriptPlanSyncV1;
 use sea_orm::DbErr;
 
 use a4n_domain::chapter::ResolvedChapterSource;
@@ -35,6 +36,8 @@ pub struct SaveChapterVisualPlanDraftInput {
 pub struct ConfirmChapterVisualPlanOutcome {
     pub visual_plan: ParsedChapterVisualPlan,
     pub invalidated_project_ids: Vec<i64>,
+    /// 同一正文版本的拍摄剧本变基到新方案后的逐镜头同步状态；没有拍摄剧本时为空。
+    pub shooting_script_sync: Option<ShootingScriptPlanSyncV1>,
 }
 
 #[derive(Debug, thiserror::Error)]

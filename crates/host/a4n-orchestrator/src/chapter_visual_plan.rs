@@ -8,11 +8,9 @@ use a4n_db::chapter_visual_plan::{
     ChapterVisualPlanDbError, ConfirmChapterVisualPlanOutcome, ParsedChapterVisualPlan,
 };
 use a4n_domain::{chapter::ResolvedChapterSource, chapter_visual_plan::ExpectedVisualPlanDraft};
-mod script_projection;
 use a4n_error::AppError;
-pub(crate) use script_projection::{
-    DirectorScriptPlan, DirectorScriptUnit, project_visual_plan_for_shooting_script,
-    segment_addition_id,
+pub(crate) use a4n_domain::shooting_script::{
+    DirectorScriptPlan, DirectorScriptUnit, segment_addition_id,
 };
 
 impl OrchestratorContext {
@@ -300,6 +298,14 @@ fn ensure_plan_belongs_to_source(
         ));
     }
     Ok(())
+}
+
+pub(crate) fn project_visual_plan_for_shooting_script(
+    plan: &a4n_domain::chapter_visual_plan::ChapterVisualPlanV3,
+    source_spans: &[a4n_domain::source_spans::SourceSpan],
+) -> Result<DirectorScriptPlan, AppError> {
+    a4n_domain::shooting_script::project_visual_plan_for_shooting_script(plan, source_spans)
+        .map_err(|error| AppError::InvalidArgument(error.to_string()))
 }
 
 pub(crate) fn visual_plan_db_error(error: ChapterVisualPlanDbError) -> AppError {

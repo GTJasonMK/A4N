@@ -159,13 +159,13 @@ fn director_constraints_reject_changed_identity_timing_and_images() {
     shot.planned_end_ms = Some(director.end_ms);
     shot.estimated_natural_seconds = 10.0;
     shot.visual_constraints = Some(director);
-    assert!(script.validate_director_plan(&plan).is_ok());
+    assert!(script.validate_director_plan(&plan, None).is_ok());
     let original = script.clone();
     script.scenes[0].shots[0].shot_id = "other-shot".into();
-    assert!(script.validate_director_plan(&plan).is_err());
+    assert!(script.validate_director_plan(&plan, None).is_err());
     script = original.clone();
     script.scenes[0].shots[0].estimated_natural_seconds = 9.0;
-    assert!(script.validate_director_plan(&plan).is_err());
+    assert!(script.validate_director_plan(&plan, None).is_err());
     script = original;
     script.scenes[0].shots[0]
         .visual_constraints
@@ -173,7 +173,7 @@ fn director_constraints_reject_changed_identity_timing_and_images() {
         .unwrap()
         .keyframes[0]
         .image_id = Some(8);
-    assert!(script.validate_director_plan(&plan).is_err());
+    assert!(script.validate_director_plan(&plan, None).is_err());
 }
 
 #[test]
