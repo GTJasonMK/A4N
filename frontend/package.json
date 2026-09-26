@@ -19,7 +19,8 @@
     "test:browser-full-project": "wdio run ./e2e/full-project/wdio.conf.mjs",
     "test:browser-package-lifecycle": "wdio run ./e2e/full-project/wdio.conf.mjs --spec ./e2e/package-lifecycle/package-lifecycle.e2e.mjs",
     "test:tauri-generation": "wdio run ./e2e/tauri-generation/wdio.conf.mjs",
-    "test:run": "vitest run --exclude \"e2e/**/*.test.mjs\"",
+    "test:run": "vitest run --exclude=e2e/**",
+    "test:browser-helpers": "node --test e2e/full-project/user-flow.test.mjs",
     "preview": "vite preview"
   },
   "dependencies": {

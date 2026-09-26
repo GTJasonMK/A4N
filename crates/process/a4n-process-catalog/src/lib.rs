@@ -533,7 +533,7 @@ mod tests {
             .expect("theme read worker entry");
         assert_eq!(theme_read.kind, ProcessKind::StatefulWorker);
         assert_eq!(theme_read.binary, "a4n-theme-read-worker");
-        assert_eq!(theme_read.contract_version, "theme-read-v1");
+        assert_eq!(theme_read.contract_version, "theme-read-v2");
         assert_eq!(theme_read.addr_env, "A4N_THEME_READ_WORKER_ADDR");
         assert_eq!(theme_read.default_addr, "127.0.0.1:47663");
         assert_eq!(
