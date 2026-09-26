@@ -29,8 +29,8 @@ impl OrchestratorContext {
         structured_progress: StructuredLlmProgress,
         progress_total: u32,
         progress: ShootingScriptProgressReporter<'_>,
-        stream_reporter: Option<ShootingScriptStreamReporter<'_>>,
-        cancel_token: Option<&CancellationToken>,
+        stream_reporter: ShootingScriptStreamReporter<'_>,
+        cancel_token: &CancellationToken,
         validate_output: impl Fn(&T) -> Result<(), AppError>,
     ) -> Result<ShootingScriptStageResult<T>, AppError>
     where

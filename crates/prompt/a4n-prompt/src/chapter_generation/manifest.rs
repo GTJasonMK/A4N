@@ -8,23 +8,6 @@ use super::message::{normalize_context_before_section, required_generation_outli
 mod context_before;
 mod outline;
 
-pub(super) fn compact_required_text(
-    text: &str,
-    head_char_limit: usize,
-    tail_char_limit: usize,
-) -> String {
-    let chars = text.trim().chars().collect::<Vec<_>>();
-    if chars.len() <= head_char_limit.saturating_add(tail_char_limit) {
-        return chars.into_iter().collect();
-    }
-    let head = chars.iter().take(head_char_limit).collect::<String>();
-    let tail = chars
-        .iter()
-        .skip(chars.len().saturating_sub(tail_char_limit))
-        .collect::<String>();
-    format!("{head}\n\n[中间内容已按模型上下文预算压缩]\n\n{tail}")
-}
-
 pub(super) fn build_chapter_generation_context_manifest(
     chapter_outline: &str,
     context_before: Option<&str>,

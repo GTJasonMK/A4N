@@ -12,7 +12,7 @@ use super::{
 
 pub async fn edit_chapter_shooting_script_and_invalidate(
     db: &sea_orm::DatabaseConnection,
-    input: EditStoredChapterShootingScriptInput,
+    mut input: EditStoredChapterShootingScriptInput,
 ) -> Result<EditChapterShootingScriptOutcome, ShootingScriptDbError> {
     let tx = db.begin().await?;
     let current = chapter_shooting_script_by_id(&tx, input.record_id).await?;
@@ -28,6 +28,18 @@ pub async fn edit_chapter_shooting_script_and_invalidate(
                 .to_string(),
         )
     })?;
+    if !input.rebind_shot_ids.is_empty() {
+        let plan = crate::chapter_visual_plan::chapter_visual_plan_by_id(&tx, visual_plan.id)
+            .await
+            .map_err(super::plan_rebase::visual_plan_error)?;
+        let projected =
+            a4n_domain::shooting_script::project_visual_plan_for_shooting_script(&plan.plan, &[])
+                .map_err(|error| ShootingScriptDbError::InvalidArgument(error.to_string()))?;
+        input
+            .script
+            .rebind_shots(&projected, &input.rebind_shot_ids)
+            .map_err(|error| ShootingScriptDbError::InvalidArgument(error.to_string()))?;
+    }
     let shooting_script = update_chapter_shooting_script(
         &tx,
         UpdateChapterShootingScriptInput {

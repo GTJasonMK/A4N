@@ -15,9 +15,11 @@ use super::required_json_string;
 
 pub(super) fn collect_portrait_asset_sample(
     context: &ProjectFamilyContext,
+    source_snapshot_id: i64,
+    scene_title: &str,
     line: &GalgameLine,
     scene_anchor_ids: &BTreeSet<i64>,
-    portrait_drafts: &mut BTreeMap<String, GalgamePortraitAssetDraft>,
+    portrait_drafts: &mut BTreeMap<(i64, String), GalgamePortraitAssetDraft>,
 ) {
     let Some(profile_id) = line.speaker_profile_id else {
         return;
@@ -30,7 +32,7 @@ pub(super) fn collect_portrait_asset_sample(
         context.project.id, profile_id, variant.key
     );
     let draft = portrait_drafts
-        .entry(canonical_key.clone())
+        .entry((source_snapshot_id, canonical_key.clone()))
         .or_insert_with(|| GalgamePortraitAssetDraft {
             canonical_key,
             profile_id,
@@ -40,17 +42,19 @@ pub(super) fn collect_portrait_asset_sample(
             position_samples: BTreeSet::new(),
             source_line_ids: BTreeSet::new(),
             text_anchor_ids: BTreeSet::new(),
+            source_labels: BTreeSet::new(),
         });
+    draft.source_labels.insert(scene_title.to_string());
     draft.add_line_sample(line, scene_anchor_ids);
 }
 
 pub(super) fn portrait_asset_plan_drafts(
     context: &ProjectFamilyContext,
-    portrait_drafts: BTreeMap<String, GalgamePortraitAssetDraft>,
+    portrait_drafts: BTreeMap<(i64, String), GalgamePortraitAssetDraft>,
 ) -> Result<Vec<GalgameAssetPlanItemDraft>, AppError> {
     portrait_drafts
-        .into_values()
-        .map(|draft| {
+        .into_iter()
+        .map(|((source_snapshot_id, _), draft)| {
             let params_json = draft.params_json();
             let canonical_key = required_json_string(&params_json, "canonical_key")?;
             galgame_asset_plan_item_draft(
@@ -59,7 +63,7 @@ pub(super) fn portrait_asset_plan_drafts(
                     canonical_key,
                     project_id: context.project.id,
                     root_project_id: context.root_project.id,
-                    source_snapshot_id: context.source_snapshot.id,
+                    source_snapshot_id,
                     source_chapter_id: None,
                     source_snapshot_chapter_id: None,
                     target_kind: GALGAME_TARGET_PORTRAIT_EXPRESSION,
@@ -71,6 +75,11 @@ pub(super) fn portrait_asset_plan_drafts(
                 true,
                 Some(draft.profile_id),
                 format!("角色 {} 差分 {}", draft.profile_id, draft.variant_key),
+                draft
+                    .source_labels
+                    .into_iter()
+                    .collect::<Vec<_>>()
+                    .join(" · "),
             )
         })
         .collect()

@@ -38,9 +38,9 @@ use super::{
     super::{
         super::{BatchImageExecutionItem, BatchImageGenerationApplicationInput},
         batch::rules::{
-            attach_video_frame_reference_image_ids, ensure_batch_image_item_shape,
-            ensure_batch_reference_image_backend, image_size_for_batch_item,
-            optional_json_i64_field, optional_json_string_field,
+            attach_video_frame_reference_image_ids, compose_batch_image_prompt,
+            ensure_batch_image_item_shape, ensure_batch_reference_image_backend,
+            image_size_for_batch_item, optional_json_i64_field, optional_json_string_field,
         },
     },
     contracts::{
@@ -68,6 +68,7 @@ struct DirectImagePlan {
     width: i32,
     height: i32,
     chapter_id: Option<i64>,
+    source_snapshot_id: Option<i64>,
     panel_id: Option<String>,
     metadata_json: Option<Value>,
     workflow_run_id: Option<i64>,

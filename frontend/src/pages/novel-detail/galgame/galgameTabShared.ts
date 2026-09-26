@@ -194,7 +194,7 @@ export function buildPortraitExpressionCells(
       `Galgame 资产规划 ${item.generation_spec_id} pose`,
     );
     return {
-      rowKey: `${profileId}:${pose}`,
+      rowKey: `${item.source_snapshot_id}:${profileId}:${pose}`,
       profileId,
       profileName,
       pose,

@@ -30,7 +30,8 @@ import {
   type EmbeddingModelDownloadInfo,
   type LocalEmbeddingModel,
 } from "../../api/config";
-import { ConfigItem, ConfigListPanel } from "./ConfigListPanel";
+import { ConfigListPanel } from "./ConfigListPanel";
+import { useConfigItems } from "./config-list/useConfigItems";
 import { EmbeddingConfigEditor } from "./embedding/EmbeddingConfigEditor";
 import {
   DEFAULT_FASTEMBED_DIMENSION,
@@ -46,7 +47,6 @@ import {
   assertCatalogProvider,
   listModelProviderCatalog,
 } from "../../api/providerCatalog";
-import type { ModelProviderCatalog } from "../../api/generated/config";
 import type { ModelConfigScope } from "../../api/modelDiscovery";
 import { useI18n } from "../../i18n";
 
@@ -75,11 +75,8 @@ export const EmbeddingTab: React.FC<EmbeddingTabProps> = ({
     ? t("settingsEmbedding.remoteServer")
     : t("settingsEmbedding.thisDevice");
   const { runProgressTask } = useProgressTask();
-  const [items, setItems] = useState<ConfigItem<EmbeddingForm>[]>([]);
-  const [catalog, setCatalog] = useState<ModelProviderCatalog | null>(null);
   const [localModels, setLocalModels] = useState<LocalEmbeddingModel[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [loadError, setLoadError] = useState<string | null>(null);
+  const [modelLoadError, setModelLoadError] = useState<string | null>(null);
   const [busyModel, setBusyModel] = useState<string | null>(null);
   const [downloadInfoByModel, setDownloadInfoByModel] = useState<
     Record<string, EmbeddingModelDownloadInfo>
@@ -110,54 +107,44 @@ export const EmbeddingTab: React.FC<EmbeddingTabProps> = ({
     return map;
   }, [localModels]);
 
-  const refresh = useCallback(async () => {
+  const loadConfigs = useCallback(async () => {
+    const [list, catalog] = await Promise.all([
+      listEmbeddingConfig(scope),
+      listModelProviderCatalog(),
+    ]);
+    for (const config of list) {
+      assertCatalogProvider("embedding", config.backend, catalog);
+    }
+    return { items: list.map(toItem), catalog };
+  }, [scope]);
+  const { items, setItems, catalog, loading, error: loadError, refresh: refreshConfigs } = useConfigItems(
+    loadConfigs,
+    t("settingsEmbedding.configLoadFailed", { host: modelHostLabel }),
+  );
+
+  const refreshModels = useCallback(async () => {
     const requestSeq = refreshSeqRef.current + 1;
     refreshSeqRef.current = requestSeq;
-    setLoading(true);
-    setLoadError(null);
+    setModelLoadError(null);
     try {
-      const [listResult, catalogResult] = await Promise.allSettled([
-        listEmbeddingConfig(scope),
-        listModelProviderCatalog(),
-      ]);
+      const models = await listLocalEmbeddingModels(scope);
       if (!isCurrentRefresh(requestSeq)) return;
-      if (listResult.status === "rejected") throw listResult.reason;
-      if (catalogResult.status === "rejected") throw catalogResult.reason;
-      const list = listResult.value;
-      const providerCatalog = catalogResult.value;
-      for (const config of list) {
-        assertCatalogProvider("embedding", config.backend, providerCatalog);
-      }
-      setItems(list.map(toItem));
-      setCatalog(providerCatalog);
-      setLoading(false);
-
-      // 模型目录是可选数据，不能阻塞配置列表首次显示。
-      void listLocalEmbeddingModels(scope)
-        .then((models) => {
-          if (!isCurrentRefresh(requestSeq)) return;
-          setLocalModels(models);
-        })
-        .catch(() => {
-          if (!isCurrentRefresh(requestSeq)) return;
-          setLocalModels([]);
-          setLoadError(
-            t("settingsEmbedding.directoryReadFailed", { host: modelHostLabel }),
-          );
-        });
-    } catch {
+      setLocalModels(models);
+    } catch (error) {
       if (!isCurrentRefresh(requestSeq)) return;
-      setLoadError(
-        t("settingsEmbedding.configLoadFailed", { host: modelHostLabel }),
+      setModelLoadError(
+        extractErrorMessage(error, t("settingsEmbedding.directoryReadFailed", { host: modelHostLabel })),
       );
-    } finally {
-      if (isCurrentRefresh(requestSeq)) setLoading(false);
     }
   }, [isCurrentRefresh, modelHostLabel, scope, t]);
 
   useEffect(() => {
-    void refresh();
-  }, [refresh]);
+    void refreshModels();
+  }, [refreshModels]);
+
+  const refresh = useCallback(async () => {
+    await Promise.all([refreshConfigs(), refreshModels()]);
+  }, [refreshConfigs, refreshModels]);
 
   const pickFastembedModel = () => preferredFastembedModel(localModels);
 
@@ -204,12 +191,6 @@ export const EmbeddingTab: React.FC<EmbeddingTabProps> = ({
       [info.model_name.toLowerCase()]: info,
       [info.model_code.toLowerCase()]: info,
     }));
-  };
-
-  const fetchDownloadInfo = async (model: string): Promise<EmbeddingModelDownloadInfo> => {
-    const info = await getEmbeddingModelDownloadInfo(model, scope);
-    rememberDownloadInfo(info);
-    return info;
   };
 
   const modelActionKey = (model: string) => model.trim().toLowerCase();
@@ -276,13 +257,6 @@ export const EmbeddingTab: React.FC<EmbeddingTabProps> = ({
               );
             },
           );
-          const latestInfo = await fetchDownloadInfo(model);
-          control.setProgress(
-            t("settingsEmbedding.refreshing", { host: modelHostLabel }),
-            latestInfo.downloaded_size_bytes,
-            latestInfo.total_size_bytes,
-          );
-          await refresh();
         },
       );
       addToast(t("settingsEmbedding.downloadedTo", { host: modelHostLabel }), "success");
@@ -295,7 +269,9 @@ export const EmbeddingTab: React.FC<EmbeddingTabProps> = ({
       }
     } finally {
       if (modelActionRef.current === actionKey && mountedRef.current) {
-        setBusyModel(null);
+        setDownloadInfoByModel({});
+        await refreshModels();
+        if (mountedRef.current) setBusyModel(null);
       }
       finishModelAction(actionKey);
     }
@@ -321,8 +297,8 @@ export const EmbeddingTab: React.FC<EmbeddingTabProps> = ({
 
       setBusyModel(model);
       await deleteLocalEmbeddingModel(model, scope);
-      await fetchDownloadInfo(model);
-      await refresh();
+      setDownloadInfoByModel({});
+      await refreshModels();
       addToast(t("settingsEmbedding.cacheDeleted", { host: modelHostLabel }), "success");
     } catch (err) {
       addToast(extractErrorMessage(err, t("settingsEmbedding.deleteFailed")), "error");
@@ -343,13 +319,13 @@ export const EmbeddingTab: React.FC<EmbeddingTabProps> = ({
             : t("settingsEmbedding.remoteEmbeddingOnly")}
         </div>
       )}
-      {loadError ? (
+      {modelLoadError ? (
         <div
           role="alert"
           className="flex flex-wrap items-center gap-2 rounded-xl border border-error/30 bg-error-bg px-3 py-2.5"
         >
           <p className="min-w-0 flex-1 text-small leading-relaxed text-book-text-main">
-            {loadError}
+            {modelLoadError}
           </p>
           <BookButton
             variant="secondary"
@@ -366,7 +342,9 @@ export const EmbeddingTab: React.FC<EmbeddingTabProps> = ({
         <ConfigListPanel<EmbeddingForm>
           title={t("settings.embeddingConfig")}
           items={items}
+          onItemsChange={setItems}
           loading={loading}
+          loadError={loadError}
           onRefresh={refresh}
           defaultForm={defaultEmbeddingForm}
           validate={(f) => {
@@ -434,11 +412,11 @@ export const EmbeddingTab: React.FC<EmbeddingTabProps> = ({
               },
               scope,
             );
-            return created.id;
+            return toItem(created);
           }}
           onUpdate={async (id, f) => {
             const apiKey = f.api_key.trim();
-            await updateEmbeddingConfig(
+            return toItem(await updateEmbeddingConfig(
               id,
               {
                 name: f.name,
@@ -458,7 +436,7 @@ export const EmbeddingTab: React.FC<EmbeddingTabProps> = ({
                 pricing: f.pricing,
               },
               scope,
-            );
+            ));
           }}
           onDelete={(id) => deleteEmbeddingConfig(id, scope)}
           onActivate={(id) => setDefaultEmbeddingConfig(id, scope)}

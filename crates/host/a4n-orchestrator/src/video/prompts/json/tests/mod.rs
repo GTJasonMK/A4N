@@ -8,7 +8,7 @@ include!("dialogue.rs");
 
 #[test]
 fn derives_environment_shot_source_spans_without_beats() {
-    let mut script = crate::video::tests::test_chapter_shooting_script("ch1:s1:f1");
+    let mut script = crate::video::tests::test_director_bound_shooting_script("ch1:s1:f1", 2);
     script.scenes[0].shots[0].performance_beats.clear();
     script.scenes[0].shots[0].estimated_natural_seconds = 2.0;
     let projection = crate::video::prompts::generation::video_projection_from_shooting_script(
@@ -19,8 +19,8 @@ fn derives_environment_shot_source_spans_without_beats() {
             source_revision_key: "revision-1".to_string(),
             source_content_sha256: "a".repeat(64),
             script_sha256: "b".repeat(64),
+            shot_fingerprints: Default::default(),
         },
-        5,
     )
     .expect("environment shot should project");
 
@@ -32,7 +32,7 @@ fn derives_environment_shot_source_spans_without_beats() {
 
 #[test]
 fn validates_environment_segment_without_fake_character() {
-    let mut script = crate::video::tests::test_chapter_shooting_script("ch1:s1:f1");
+    let mut script = crate::video::tests::test_director_bound_shooting_script("ch1:s1:f1", 6);
     script.scenes[0].shots.truncate(1);
     let mut projection = crate::video::prompts::generation::video_projection_from_shooting_script(
         &script,
@@ -42,8 +42,8 @@ fn validates_environment_segment_without_fake_character() {
             source_revision_key: "revision-1".to_string(),
             source_content_sha256: "a".repeat(64),
             script_sha256: "b".repeat(64),
+            shot_fingerprints: Default::default(),
         },
-        6,
     )
     .unwrap();
     projection.scenes[0].participants.clear();
@@ -57,6 +57,11 @@ fn validates_environment_segment_without_fake_character() {
     segment.covered_beat_ids.clear();
     segment.emotion_action_goals.clear();
     segment.performance_plan.action_script.clear();
+    segment.director_constraints = projection
+        .shot("shot-1")
+        .unwrap()
+        .director_constraints
+        .clone();
     let segment = validate_segment_plan(segment).unwrap();
     validate_segment_plan_against_shooting_script_projection(
         std::slice::from_ref(&segment),
@@ -114,7 +119,7 @@ fn director_constrained_followup_shot_keeps_repeat_context_non_empty() {
 
 #[test]
 fn participant_segment_still_requires_character_actions() {
-    let mut script = crate::video::tests::test_chapter_shooting_script("ch1:s1:f1");
+    let mut script = crate::video::tests::test_director_bound_shooting_script("ch1:s1:f1", 6);
     script.scenes[0].shots.truncate(1);
     let projection = crate::video::prompts::generation::video_projection_from_shooting_script(
         &script,
@@ -124,8 +129,8 @@ fn participant_segment_still_requires_character_actions() {
             source_revision_key: "revision-1".to_string(),
             source_content_sha256: "a".repeat(64),
             script_sha256: "b".repeat(64),
+            shot_fingerprints: Default::default(),
         },
-        6,
     )
     .unwrap();
     let mut segment = valid_segments().remove(0);
@@ -133,6 +138,11 @@ fn participant_segment_still_requires_character_actions() {
     segment.covered_beat_ids = vec!["beat-1".to_string(), "beat-2".to_string()];
     segment.emotion_action_goals.clear();
     segment.performance_plan.action_script.clear();
+    segment.director_constraints = projection
+        .shot("shot-1")
+        .unwrap()
+        .director_constraints
+        .clone();
     let segment = validate_segment_plan(segment).unwrap();
 
     let error = validate_segment_plan_against_shooting_script_projection(&[segment], &projection)

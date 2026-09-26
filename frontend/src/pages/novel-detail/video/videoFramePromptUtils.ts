@@ -1,5 +1,4 @@
 import {
-  IMAGE_TYPE_VIDEO_STORYBOARD_FRAME,
   type GeneratedImage,
   type VideoFramePromptImageGenerationSource,
   type VideoFramePromptImageType,
@@ -91,12 +90,6 @@ export function buildVideoFrameImageTraceMetadata(
     },
   };
 }
-
-const VIDEO_REAL_FRAME_IMAGE_PROMPT_GUARD =
-  "只生成单张真实小说画面。若提示词中出现参考图、素材图或参考图编号，它们只用于人物、场景、道具或风格一致性约束，不是画面内容，不是视频首帧/尾帧输入，不能放进 image 字段，不要画成参考板、拼贴图、多格排版、截图列表，也不要把任何参考图当作视频开头画面。";
-
-const VIDEO_STORYBOARD_FRAME_IMAGE_PROMPT_GUARD =
-  "生成一张完整的动态多格视频分镜板，不是单张电影剧照。画面内部必须包含 2 到 6 个清晰画格，按从左到右、从上到下阅读，用连续画格表达同一视频单元的状态变化。允许画格边界和分镜板版式；不要生成字幕、水印、乱码文字、文字编号、素材展示墙、无关拼贴或截图列表。参考图只用于人物、场景、道具、服装或风格一致性约束，不要把参考图画成画面内容。";
 
 function buildPreviousFrameReferencePromptNote(
   previousPrompt: ChapterVideoPrompt,
@@ -379,12 +372,9 @@ export function buildVideoFrameImageRequest(
   ) {
     throw new Error(t("video.chapter.invalidFrameAspectRatio"));
   }
-  const promptGuard =
-    imageType === IMAGE_TYPE_VIDEO_STORYBOARD_FRAME
-      ? VIDEO_STORYBOARD_FRAME_IMAGE_PROMPT_GUARD
-      : VIDEO_REAL_FRAME_IMAGE_PROMPT_GUARD;
   return {
-    prompt: `${promptWithReferenceNote}\n\n${promptGuard}`,
+    prompt: promptWithReferenceNote,
+    negative_prompt: asRecord(metadata.prompt_snapshot)?.negative_prompt ?? null,
     image_type: imageType,
     chapter_id: chapterId,
     aspect_ratio: aspectRatio,

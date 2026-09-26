@@ -41,7 +41,7 @@ name: scene_transition_extraction
 - `movement_type` 语义：进入某场景用 `enter`，离开当前场景且目标场景明确时用 `leave`，普通场景间移动或换地点用 `travel`，追逐用 `chase`，瞬移/传送用 `teleport`，暗道/秘密通道用 `hidden_passage`，叙事视角切到另一场景但没有人物实际移动用 `cutaway`。不要输出 `move`、`walk`、`go`、`switch` 或其他未列出的值。
 - `participants` 只能引用输入 `available_characters[].profile_id`。
 - `object_refs` 只能引用输入 `available_object_profiles[].object_profile_id`。
-- `source_anchor_ids` 必须来自输入 `text_anchors[].id`。
+- `source_anchor_ids` 必须选择 chapter.content 内 `⟦id⟧` 标记的 ID，不含括号。标记不属于原文。
 - 每个转场对象只输出上方示例中的字段；转场顺序由系统按数组顺序补齐。
 
 <!-- @include _partials/json_only_rule.md -->

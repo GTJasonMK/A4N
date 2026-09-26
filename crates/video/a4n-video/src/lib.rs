@@ -1,10 +1,10 @@
 pub use a4n_video_provider_contract::{
-    CLIPROXY_OPENAI_VIDEO_BACKEND, GEMINI_VEO_VIDEO_BACKEND, NEWAPI_VIDEO_BACKEND,
-    OPENAI_CHAT_VIDEO_BACKEND, OPENAI_COMPATIBLE_VIDEO_BACKEND, ProviderImageInputTransport,
-    SEEDANCE2_VIDEO_BACKEND, VIDEO_PROVIDER_CAPABILITIES, VideoGenerationResult,
-    VideoJobDeleteOutcome, VideoJobState, VideoJobStatus, VideoProvider, VideoProviderCapabilities,
-    validate_video_provider_duration, validate_video_provider_idempotency_key,
-    video_provider_capabilities,
+    CLIPROXY_OPENAI_VIDEO_BACKEND, GEMINI_VEO_VIDEO_BACKEND, MAX_CLIPROXY_VIDEO_PROMPT_BYTES,
+    NEWAPI_VIDEO_BACKEND, OPENAI_CHAT_VIDEO_BACKEND, OPENAI_COMPATIBLE_VIDEO_BACKEND,
+    ProviderImageInputTransport, SEEDANCE2_VIDEO_BACKEND, VIDEO_PROVIDER_CAPABILITIES,
+    VideoGenerationResult, VideoJobDeleteOutcome, VideoJobState, VideoJobStatus, VideoProvider,
+    VideoProviderCapabilities, validate_video_provider_duration,
+    validate_video_provider_idempotency_key, video_provider_capabilities, video_provider_prompt,
 };
 pub use a4n_video_sidecar_contract::VideoMediaSource;
 pub type VideoGenerationRequest = a4n_video_sidecar_contract::VideoGenerationInput;

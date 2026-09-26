@@ -2987,6 +2987,12 @@ fn task_watch_acknowledges_snapshot_and_reports_persisted_terminal_result() {
     let temp = TempDir::new().unwrap();
     let config = temp.path().join("cli.json");
     let task_id = "00000000-0000-4000-8000-000000000017";
+    let expired = || {
+        MockResponse {
+        status: "409 Conflict", content_type: "application/json", declared_length: None,
+        body: serde_json::to_vec(&json!({ "code": "generation_snapshot_required", "message": "replay cursor expired", "retryable": false, "trace_id": null, "details": {} })).unwrap(),
+    }
+    };
     let running = json!({
         "schema_version": 1, "task_id": task_id, "attempt": 1,
         "covers_through_sequence": 5, "status": "running",
@@ -3056,7 +3062,7 @@ fn task_watch_acknowledges_snapshot_and_reports_persisted_terminal_result() {
             "schema_version": 1, "task_id": task_id, "attempt": 1,
             "sequence": 6, "emitted_at_ms": 0, "event": {"kind": kind, "data": data}
         });
-        let (server, server_thread) = spawn_scripted_replies(vec![json_response(snapshot)]);
+        let (server, server_thread) = spawn_scripted_replies(vec![json_response(snapshot.clone())]);
         write_config(&config, &server);
         let output = cli(&temp, &config)
             .args(["task", "watch", task_id])
@@ -3076,7 +3082,44 @@ fn task_watch_acknowledges_snapshot_and_reports_persisted_terminal_result() {
             );
         }
         assert_eq!(server_thread.join().unwrap().len(), 1);
+        let (server, server_thread) = spawn_scripted_replies(vec![
+            json_response(running.clone()),
+            expired(),
+            json_response(snapshot),
+        ]);
+        write_config(&config, &server);
+        let output = cli(&temp, &config)
+            .args(["task", "watch", task_id])
+            .output()
+            .unwrap();
+        assert_eq!(
+            output.status.code(),
+            Some(expected_exit),
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        assert_eq!(
+            output_documents(&output).last().unwrap()["data"]["event"]["kind"],
+            kind
+        );
+        let requests = server_thread.join().unwrap();
+        assert_eq!(requests.len(), 3);
+        assert!(requests[2].starts_with(&format!(
+            "GET /api/generation-tasks/{task_id}/snapshot?attempt=1 "
+        )));
     }
+    let (server, server_thread) = spawn_scripted_replies(vec![expired()]);
+    write_config(&config, &server);
+    let output = cli(&temp, &config)
+        .args(["task", "watch", task_id, "--after-sequence", "5"])
+        .output()
+        .unwrap();
+    assert_eq!(output.status.code(), Some(6));
+    assert_eq!(
+        agent_error(&output)["error"]["code"],
+        "generation_snapshot_required"
+    );
+    assert_eq!(server_thread.join().unwrap().len(), 1);
 }
 
 #[test]

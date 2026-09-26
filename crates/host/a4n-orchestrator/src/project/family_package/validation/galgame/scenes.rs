@@ -36,9 +36,9 @@ pub(super) fn validate_galgame_scenes(
                     scene.id, scene.source_snapshot_chapter_id
                 )
             })?;
-        if snapshot_chapter.snapshot_id != script.source_snapshot_id {
+        if snapshot_chapter.root_project_id != script.root_project_id {
             return Err(format!(
-                "项目族导入包 Galgame 场源快照章节与剧本源快照不一致: scene_id={}",
+                "项目族导入包 Galgame 场源快照章节与剧本根项目不一致: scene_id={}",
                 scene.id
             ));
         }

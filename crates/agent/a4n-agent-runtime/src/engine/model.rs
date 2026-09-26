@@ -68,15 +68,23 @@ pub(crate) fn model_response(execution: &AgentExecutionSnapshot) -> Result<ChatR
 pub(crate) fn model_execution_request(
     execution: &AgentExecutionSnapshot,
 ) -> Result<ChatRequest, AppError> {
-    restore_model_request_wire(execution.arguments_json.clone().ok_or_else(|| {
-        AppError::InvalidState {
+    restore_model_request_wire(model_execution_snapshot(execution)?.clone())
+}
+
+pub(crate) fn model_execution_snapshot(
+    execution: &AgentExecutionSnapshot,
+) -> Result<&Value, AppError> {
+    execution
+        .arguments_json
+        .as_ref()
+        .filter(|value| value.is_object())
+        .ok_or_else(|| AppError::InvalidState {
             current: format!(
                 "Agent model execution {} 缺少原始 request snapshot",
                 execution.id
             ),
             operation: "恢复 Agent model execution request".into(),
-        }
-    })?)
+        })
 }
 
 pub(crate) fn stream_client_message_id(
@@ -92,6 +100,76 @@ pub(crate) fn stream_client_message_id(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn execution() -> AgentExecutionSnapshot {
+        AgentExecutionSnapshot {
+            id: 11,
+            run_id: 7,
+            execution_key: "model-call:1".into(),
+            execution_kind: "model_call".into(),
+            status: "succeeded".into(),
+            tool_name: None,
+            effect: Some("read".into()),
+            replay_policy: Some("safe".into()),
+            arguments_json: None,
+            resource_preconditions_json: None,
+            result_json: None,
+            result_summary: None,
+            result_refs_json: None,
+            error_message: None,
+        }
+    }
+
+    #[test]
+    fn model_replay_requires_the_original_request_snapshot() {
+        let mut execution = execution();
+        for missing in [None, Some(Value::Null), Some(json!("invalid"))] {
+            execution.arguments_json = missing;
+            assert!(model_execution_snapshot(&execution).is_err());
+            assert!(model_execution_request(&execution).is_err());
+        }
+        let request = ChatRequest::system_user("rules", "keep the user's constraints", None, None)
+            .with_json_response_format();
+        execution.arguments_json = Some(request.snapshot_value().unwrap());
+        let snapshot = model_execution_snapshot(&execution).unwrap();
+        assert_eq!(
+            agent_protocol_from_request_snapshot(snapshot),
+            a4n_domain::agent::AGENT_PROTOCOL_JSON_COMPAT
+        );
+        assert_eq!(
+            model_execution_request(&execution).unwrap().messages[1].content,
+            "keep the user's constraints"
+        );
+    }
+
+    #[test]
+    fn replay_preserves_tool_reasoning_and_opaque_provider_state() {
+        let mut execution = execution();
+        let mut message = ChatMessage::assistant("");
+        message.tool_calls = Some(vec![ToolCall {
+            id: "call_1".into(),
+            name: "get_project".into(),
+            arguments: json!({"projectId": 7}),
+            stream_index: None,
+            provider_metadata: Some(json!({"gemini": {"thought_signature": "opaque"}})),
+        }]);
+        execution.result_json = Some(
+            serde_json::to_value(ChatResponse {
+                message,
+                finish_reason: Some("tool_calls".into()),
+                usage: None,
+                reasoning_content: Some("saved reasoning".into()),
+            })
+            .unwrap(),
+        );
+        let response = model_response(&execution).unwrap();
+        let metadata = response.message.tool_calls.unwrap()[0]
+            .provider_metadata
+            .clone()
+            .unwrap();
+        assert_eq!(metadata["reasoning_content"], "saved reasoning");
+        assert_eq!(metadata["gemini"]["thought_signature"], "opaque");
+    }
 
     #[test]
     fn repeated_provider_ids_are_scoped_to_model_execution_and_replay_stably() {

@@ -124,6 +124,22 @@ def inspiration_response() -> dict[str, Any]:
     }
 
 
+def guided_inspiration_response(round_number: int) -> dict[str, Any]:
+    response = inspiration_response()
+    response["conversation_state"]["round"] = round_number
+    if round_number == 1:
+        response.update(ai_message="先选择故事方向。", next_question="想从哪条线索进入故事？", is_complete=False)
+        response["ui_control"] = {"type": "inspired_options", "options": [
+            {"id": "time", "label": "追查七分钟时间偏差", "description": "旧车站里出现时间异常。", "key_elements": ["旧车站", "七分钟"]},
+            {"id": "letter", "label": "追查未来来信", "description": "林岚收到来自未来的信。", "key_elements": ["未来来信", "林岚"]},
+            {"id": "watch", "label": "追查旧怀表", "description": "怀表留下逆行证据。", "key_elements": ["旧怀表", "逆行"]},
+        ]}
+    elif round_number == 2:
+        response.update(ai_message="方向已选择，请补充主角的决定。", next_question="林岚为什么进入钟楼？", is_complete=False)
+        response["ui_control"] = {"type": "text_input", "placeholder": "补充林岚的动机"}
+    return response
+
+
 def part_outline_response(part_number: int) -> dict[str, Any]:
     if part_number == 1:
         return {
@@ -205,5 +221,17 @@ def chapter_body_response() -> str:
         "“这个记号十年前就该被烧掉了。”周衡说。\n\n"
         "林岚没有把信交给他，只展开其中最后一页。纸上新浮出一行被雨水般的墨迹浸透的字：别相信替你校准时间的人。"
         "与此同时，钟楼顶端传来第二声钟鸣。站厅广告屏里的画面倒退七秒，周衡身后的影子却没有跟着移动。"
-        "林岚合上怀表，沿着封闭通道向地下走去。她知道信中的第一个预告已经发生，而距离午夜只剩十八分钟。"
+        "林岚合上怀表，沿着封闭通道向地下走去。她知道信中的第一个预告已经发生，而距离午夜只剩十八分钟。\n\n"
+        "通道里的灯没有完全熄灭。几盏应急灯隔着铁网，把墙面分成明暗相间的窄格。她没有贸然加快脚步，"
+        "而是先记住转角的位置，再确认身后的出口仍在视线之内。雨声隔着厚墙变得遥远，怀表却一直压在掌心，"
+        "冰冷的表壳提醒她，刚才发生的变化并不是疲惫造成的错觉。她把自己的呼吸放慢，努力分辨每一次回响来自哪里。\n\n"
+        "周衡没有马上跟来。他停在站厅和通道交界的地方，工具箱贴着裤腿，另一只手仍停在半空。林岚回头看了他一眼，"
+        "没有催促，也没有解释信上最后那句话。两人之间只隔着几步路，但谁都没有主动跨过这段距离。她需要知道，"
+        "这个看起来熟悉一切的人究竟是在害怕钟楼，还是在害怕她走到钟楼下面。\n\n"
+        "她把信纸折回原来的折痕，收进风衣内侧，确认纸角不会被雨水继续浸湿。随后，她用空出的手扶住墙面，"
+        "一步一步走过昏暗的转角。指尖碰到的是粗糙而潮湿的水泥，没有隐藏的门，也没有能够解释时间异常的机关。"
+        "这反而让她更加清醒：真正的线索还在前面，而不是任何一句听起来合理的解释里。\n\n"
+        "身后终于响起工具箱轻轻碰撞的声音。周衡向前走了两步，又在她停下时跟着停住。他们没有再交谈，"
+        "只借着应急灯确认彼此的位置。林岚始终让出口留在余光里，也始终没有放开怀表。午夜正在逼近，"
+        "但她已经作出决定：即使下一次钟声把时间再次推回原处，她也要带着现在记住的一切继续向前。"
     )

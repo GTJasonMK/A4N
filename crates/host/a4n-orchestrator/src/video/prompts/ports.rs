@@ -20,9 +20,8 @@ impl VideoPromptMutationApplicationPort for OrchestratorContext {
         user_id: i64,
         prompt_id: i64,
         input: UpdateChapterVideoSegmentPlanInput,
-        cleanup: &dyn VideoPromptDownstreamCleanupPort,
     ) -> Result<ChapterVideoPromptSummary, AppError> {
-        self.update_chapter_video_segment_plan_validated(user_id, prompt_id, input, cleanup)
+        self.update_chapter_video_segment_plan_validated(user_id, prompt_id, input)
             .await
     }
 

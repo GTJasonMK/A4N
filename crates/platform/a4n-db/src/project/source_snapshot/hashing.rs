@@ -23,3 +23,48 @@ pub(super) fn hash_json(value: &Value) -> String {
     hasher.update(&bytes);
     format!("{:x}", hasher.finalize())
 }
+
+pub(crate) fn shooting_script_source_hash(script: &Value) -> String {
+    let mut content = script.clone();
+    // 冻结来源会重新分配方案 ID/版本；内容指纹只跟随方案内容和剧本本身。
+    if let Some(source) = content
+        .get_mut("visual_plan_source")
+        .and_then(Value::as_object_mut)
+    {
+        source.remove("plan_id");
+        source.remove("plan_version");
+    }
+    hash_json(&content)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::shooting_script_source_hash;
+    use serde_json::json;
+
+    #[test]
+    fn shooting_source_hash_ignores_snapshot_identity_but_tracks_content() {
+        let live = json!({
+            "visual_plan_source": {"plan_id": 1, "plan_version": 1, "plan_sha256": "plan"},
+            "scenes": [{"title": "第一场"}],
+        });
+        let mut frozen = live.clone();
+        frozen["visual_plan_source"]["plan_id"] = json!(2);
+        frozen["visual_plan_source"]["plan_version"] = json!(3);
+        assert_eq!(
+            shooting_script_source_hash(&live),
+            shooting_script_source_hash(&frozen)
+        );
+        frozen["scenes"][0]["title"] = json!("修改后的场景");
+        assert_ne!(
+            shooting_script_source_hash(&live),
+            shooting_script_source_hash(&frozen)
+        );
+        frozen = live.clone();
+        frozen["visual_plan_source"]["plan_sha256"] = json!("new-plan");
+        assert_ne!(
+            shooting_script_source_hash(&live),
+            shooting_script_source_hash(&frozen)
+        );
+    }
+}

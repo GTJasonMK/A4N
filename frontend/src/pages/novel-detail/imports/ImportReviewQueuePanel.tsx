@@ -71,7 +71,7 @@ export const ImportReviewQueuePanel: React.FC<ImportReviewQueuePanelProps> = ({
 
   return (
     <section className="space-y-3">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="min-w-0">
           <h3 className="text-sm font-semibold text-book-text-main">{t("novel.importReview.queue.title")}</h3>
           {reviews.length > 0 ? (

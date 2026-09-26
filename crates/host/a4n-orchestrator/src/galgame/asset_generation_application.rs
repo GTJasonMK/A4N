@@ -185,6 +185,7 @@ async fn run_visual_spec(
             user_id,
             GenerateGalgameImageInput {
                 project_id: input.project_id,
+                source_snapshot_id: target_context.source_snapshot_id,
                 prompt: prompt.prompt_text.clone(),
                 image_type: plan.image_type.to_string(),
                 config_id: input.config_id,
@@ -476,15 +477,8 @@ async fn persist_visual_asset(
             generated.id
         )));
     }
-    let project = context
-        .project_by_id(spec.project_id)
-        .await?
-        .ok_or_else(|| AppError::NotFound(format!("项目不存在: {}", spec.project_id)))?;
-    let source_snapshot_id = project.source_snapshot_id.ok_or_else(|| {
-        AppError::InvalidArgument(format!("Galgame 项目缺少源文本快照: {}", project.id))
-    })?;
     let asset = context.create_media_asset(crate::media::CreateMediaAssetInput {
-        project_id: spec.project_id, root_project_id: spec.root_project_id, source_snapshot_id: Some(source_snapshot_id), source_chapter_id: spec.source_chapter_id, source_snapshot_chapter_id: spec.source_snapshot_chapter_id,
+        project_id: spec.project_id, root_project_id: spec.root_project_id, source_snapshot_id: spec.source_snapshot_id, source_chapter_id: spec.source_chapter_id, source_snapshot_chapter_id: spec.source_snapshot_chapter_id,
         media_kind: crate::media::MEDIA_KIND_IMAGE.to_string(), origin: crate::media::MEDIA_ORIGIN_GENERATED.to_string(), file_path: Some(generated_file_path.to_string()), thumbnail_path: None, width: Some(generated.width), height: Some(generated.height), duration_secs: None, fps: None, status: crate::media::MEDIA_STATUS_COMPLETED.to_string(), error_message: None,
         provenance: crate::media::CreateMediaProvenanceInput { generation_spec_id: Some(spec.id), prompt_artifact_id: Some(prompt.id), provider_job_id: None, source_media_asset_id: None, source_external_path: Some(a4n_domain::GeneratedMediaReference::Image(generated.id).to_string()), imported_from_user: false, request_snapshot_json: Some(json!({"source":"galgame_asset_generation","generated_image_id":generated.id,"image_type":generated.image_type,"model":generated.model,"prompt":generated.prompt,"metadata_json":generated.metadata_json,"target_kind":spec.target_kind,"target_entity_kind":spec.target_entity_kind,"target_entity_id":plan.target_entity_id})) },
     }).await?;

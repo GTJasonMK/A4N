@@ -33,6 +33,10 @@ impl SourceTextAnchor for text_anchor::Model {
     fn source_anchor_quote(&self) -> &str {
         &self.quote
     }
+
+    fn source_anchor_char_range(&self) -> (i32, i32) {
+        (self.start_offset, self.end_offset)
+    }
 }
 
 impl ChapterAnalysisSource for chapter::Model {

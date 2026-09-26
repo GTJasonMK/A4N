@@ -49,6 +49,7 @@ pub(super) fn validate_media_bindings(
             &context.galgame_scripts,
             &context.galgame_scenes,
             &context.galgame_lines,
+            &context.source_snapshot_chapters,
         )?;
     }
     Ok(())

@@ -35,10 +35,6 @@ pub(in crate::video::prompts::context::builders) fn frame_prompt_context(
         .collect::<Vec<_>>();
     json!({
         "relevant_segments": relevant_segments,
-        "previous_segment": current_frame.get("previous_segment").cloned().unwrap_or(Value::Null),
-        "next_segment": current_frame.get("next_segment").cloned().unwrap_or(Value::Null),
-        "previous_frame": current_frame.get("previous_frame").cloned().unwrap_or(Value::Null),
-        "previous_frame_image": current_frame.get("previous_frame_image").cloned().unwrap_or(Value::Null)
     })
 }
 

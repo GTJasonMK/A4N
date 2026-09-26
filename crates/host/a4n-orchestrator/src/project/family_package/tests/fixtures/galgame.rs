@@ -59,6 +59,7 @@ pub(in crate::project::family_package::tests) fn galgame_scene_record_with_id(
         id,
         script_id: 2101,
         source_snapshot_chapter_id,
+        shooting_scene_identity: None,
         scene_index: 1,
         title: "开场".to_string(),
         location: None,

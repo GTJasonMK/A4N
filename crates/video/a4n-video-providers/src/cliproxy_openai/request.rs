@@ -1,7 +1,7 @@
 use super::response::aspect_ratio_from_size;
 use a4n_domain::ProviderError as AppError;
 use a4n_video_provider_contract::{
-    CLIPROXY_OPENAI_VIDEO_BACKEND, validate_video_provider_duration,
+    CLIPROXY_OPENAI_VIDEO_BACKEND, validate_video_provider_duration, video_provider_prompt,
 };
 use a4n_video_sidecar_contract::VideoGenerationRequest;
 use serde_json::{Map, Value, json};
@@ -16,7 +16,17 @@ pub(super) fn request_body_for_route(
         .map_err(AppError::InvalidArgument)?;
     let mut body = Map::new();
     body.insert("model".into(), json!(req.model));
-    body.insert("prompt".into(), json!(req.prompt));
+    body.insert(
+        "prompt".into(),
+        json!(
+            video_provider_prompt(
+                CLIPROXY_OPENAI_VIDEO_BACKEND,
+                &req.prompt,
+                req.negative_prompt.as_deref()
+            )
+            .map_err(AppError::InvalidArgument)?
+        ),
+    );
     if openai_route {
         body.insert("seconds".into(), json!(req.duration_secs.to_string()));
     } else {

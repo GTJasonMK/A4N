@@ -1,0 +1,59 @@
+{
+  "scope": "Captured Mock Provider requests, including earlier attempts; text characters, not tokens.",
+  "phase_prefix_groups": [
+    {
+      "system_sha256": "97e4cd12e13c51318509d16788697d3cfeb87422dba1c00588a86e567463015d",
+      "calls": 9,
+      "system_chars": 1275,
+      "system_bytes": 2179,
+      "distinct_user_inputs": 9,
+      "user_chars_min": 2875,
+      "user_chars_max": 3639
+    },
+    {
+      "system_sha256": "191641237705be353561bc742171011c4277c2d743ef6c08a33fa87a9dac19b6",
+      "calls": 10,
+      "system_chars": 1425,
+      "system_bytes": 2645,
+      "distinct_user_inputs": 10,
+      "user_chars_min": 2234,
+      "user_chars_max": 2510
+    },
+    {
+      "system_sha256": "20f94781f1f1d89ddec1d3109965b1242752875ad95ab3dce2befc75ba089a65",
+      "calls": 10,
+      "system_chars": 6278,
+      "system_bytes": 8844,
+      "distinct_user_inputs": 10,
+      "user_chars_min": 2883,
+      "user_chars_max": 3476
+    },
+    {
+      "system_sha256": "2426301ee3d81077ebe793ac92a065447d4fe2b4297ba99df6f397bd28b9efda",
+      "calls": 7,
+      "system_chars": 6912,
+      "system_bytes": 13748,
+      "distinct_user_inputs": 7,
+      "user_chars_min": 7887,
+      "user_chars_max": 8488
+    },
+    {
+      "system_sha256": "3484b664dd0fc84cbf98999eaf0843fb3807b155168c6b9b7e34b184fec80c4c",
+      "calls": 3,
+      "system_chars": 4149,
+      "system_bytes": 8619,
+      "distinct_user_inputs": 3,
+      "user_chars_min": 11710,
+      "user_chars_max": 12535
+    }
+  ],
+  "negative_wire_verified": true,
+  "selected_continuity_source_wire_verified": true,
+  "cache_protocols_verified": [
+    "openai",
+    "openai-responses",
+    "anthropic",
+    "gemini"
+  ],
+  "cache_usage_is_synthetic": true
+}

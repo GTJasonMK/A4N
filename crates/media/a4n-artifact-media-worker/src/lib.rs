@@ -23,6 +23,7 @@ use a4n_artifact_media_contract::{
     ProjectPublicationRequest, PublishImageRequest, PublishedImageResponse,
 };
 use a4n_db::cleanup_outbox::FileArtifactCleanupPayload;
+use a4n_domain::EXTERNAL_IMPORT_MODEL;
 use a4n_domain::media::{
     IMAGE_PUBLICATION_STATUS_PENDING, IMAGE_PUBLICATION_STATUS_PUBLISHED,
     IMAGE_PUBLICATION_STATUS_RECLAIMING, ImagePublicationFileFacts, ImagePublicationRecoveryRecord,
@@ -71,11 +72,11 @@ impl WorkerState {
         request.validate().map_err(|error| error.to_string())?;
         let mut failures = Vec::new();
         let mut publications_examined = 0;
-        let publications = a4n_db::video::image_publications_for_recovery_for_image_type(
+        let publications = a4n_db::video::image_publications_for_recovery_for_model(
             self.db.connection(),
             usize::from(request.publication_limit),
             None,
-            Some("imported"),
+            Some(EXTERNAL_IMPORT_MODEL),
         )
         .await
         .map_err(|error| error.to_string())?;
@@ -119,7 +120,7 @@ impl WorkerState {
         else {
             return Ok(());
         };
-        if publication.image_type != "imported" {
+        if publication.model != EXTERNAL_IMPORT_MODEL {
             return Ok(());
         }
         let publication = recovery_record(publication);
@@ -528,8 +529,10 @@ impl WorkerState {
                 .await
                 .map_err(|error| error.to_string())?
                 .ok_or_else(|| format!("图片发布意图不存在: {}", request.publication_id))?;
-        if publication.project_id != request.project_id || publication.image_type != "imported" {
-            return Err("Artifact/Media Worker 只允许发布当前项目的 imported 图片".to_string());
+        if publication.project_id != request.project_id
+            || publication.model != EXTERNAL_IMPORT_MODEL
+        {
+            return Err("Artifact/Media Worker 只允许发布当前项目的外部导入图片".to_string());
         }
         let facts = inspect_data_file_facts(
             self.data_dir.as_path(),
@@ -1053,7 +1056,8 @@ mod tests {
             requested_by_user_id: 2,
             staging_path: "projects/1/a.part".to_string(),
             final_path: "projects/1/a.png".to_string(),
-            image_type: "imported".to_string(),
+            image_type: "project_reference".to_string(),
+            model: a4n_domain::EXTERNAL_IMPORT_MODEL.to_string(),
             expected_file_size: 3,
             expected_sha256: "abc".to_string(),
             file_size: None,

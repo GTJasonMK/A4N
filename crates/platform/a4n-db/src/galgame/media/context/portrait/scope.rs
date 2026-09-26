@@ -5,21 +5,19 @@ use crate::galgame::GalgameGenerationRecordError;
 pub(in crate::galgame) fn validate_galgame_portrait_spec_family_context(
     spec: &generation_spec::Model,
     root_project_id: i64,
-    source_snapshot_id: i64,
-) -> Result<(), GalgameGenerationRecordError> {
-    if spec.root_project_id != root_project_id
-        || spec.source_snapshot_id != Some(source_snapshot_id)
-    {
+) -> Result<i64, GalgameGenerationRecordError> {
+    if spec.root_project_id != root_project_id {
         return Err(GalgameGenerationRecordError::InvalidArgument(format!(
-            "Galgame 立绘差分生成意图项目族上下文与项目不一致: spec_id={}, spec_root_project_id={}, spec_source_snapshot_id={:?}, project_root_project_id={}, project_source_snapshot_id={}",
-            spec.id,
-            spec.root_project_id,
-            spec.source_snapshot_id,
-            root_project_id,
-            source_snapshot_id
+            "Galgame 立绘差分生成意图项目族上下文与项目不一致: spec_id={}, spec_root_project_id={}, project_root_project_id={}",
+            spec.id, spec.root_project_id, root_project_id
         )));
     }
-    Ok(())
+    spec.source_snapshot_id.filter(|id| *id > 0).ok_or_else(|| {
+        GalgameGenerationRecordError::InvalidArgument(format!(
+            "Galgame 立绘差分生成意图缺少有效 source_snapshot_id: spec_id={}",
+            spec.id
+        ))
+    })
 }
 
 pub(in crate::galgame) fn validate_galgame_portrait_spec_source_chapter(

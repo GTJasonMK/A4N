@@ -50,7 +50,7 @@ pub(super) async fn run(
                 "scene_ref 必须来自 input.previous_stages.scenes[].scene_ref",
                 SCENE_OCCURRENCE_COVERAGE_RULE,
                 SCENE_OCCURRENCE_TIMELINE_RULE,
-                "source_anchor_ids 必须来自 input.text_anchors[].id"
+                "source_anchor_ids 必须选择 chapter.content 内 ⟦id⟧ 标记的 ID，不含括号"
             ]
         }),
     )

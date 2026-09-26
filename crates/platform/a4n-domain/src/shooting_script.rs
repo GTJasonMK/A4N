@@ -4,6 +4,8 @@
 //! 第二套场景、镜头、表演节拍或连续性事实。
 
 mod contracts;
+mod director_projection;
+mod plan_sync;
 mod validation;
 
 pub use contracts::{
@@ -19,4 +21,9 @@ pub use contracts::{
     ShootingTransitionTypeV1, ShootingViewpointModeV1, ShootingViewpointV1,
     ShootingVisualConstraintsV3, ShootingVisualPlanSourceV1,
 };
+pub use director_projection::{
+    DirectorScriptPlan, DirectorScriptUnit, project_visual_plan_for_shooting_script,
+    segment_addition_id,
+};
+pub use plan_sync::ShootingScriptPlanSyncV1;
 pub use validation::ShootingScriptValidationError;

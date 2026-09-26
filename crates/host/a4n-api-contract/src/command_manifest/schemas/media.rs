@@ -127,9 +127,9 @@ pub(crate) fn args_edit_chapter_visual_plan_draft() -> Value {
 pub(crate) fn args_validate_chapter_visual_plan() -> Value {
     strict_typed_input_schema::<crate::chapter_visual_plan::ValidateChapterVisualPlanInput>()
 }
-pub(crate) fn args_generate_chapter_shooting_script() -> Value {
-    optional_task_runtime_typed_input_schema::<
-        crate::shooting_script::GenerateChapterShootingScriptInput,
+pub(crate) fn args_start_chapter_shooting_script_generation() -> Value {
+    strict_runtime_typed_input_schema::<
+        crate::shooting_script::StartChapterShootingScriptGenerationInput,
     >()
 }
 pub(crate) fn args_generate_object_profile_image_prompt() -> Value {
@@ -591,12 +591,6 @@ pub(crate) fn result_validate_chapter_visual_plan() -> Value {
 }
 pub(crate) fn result_confirmed_chapter_visual_plan() -> Value {
     typed_schema::<crate::chapter_visual_plan::ConfirmedChapterVisualPlanView>()
-}
-pub(crate) fn result_generate_chapter_shooting_script() -> Value {
-    typed_schema::<crate::shooting_script::ChapterShootingScriptView>()
-}
-pub(crate) fn result_generate_next_chapter_shooting_script_unit() -> Value {
-    typed_schema::<crate::shooting_script::ChapterShootingScriptUnitProgressView>()
 }
 pub(crate) fn result_get_canvas_graph() -> Value {
     typed_schema::<crate::canvas::CanvasGraphDocument>()

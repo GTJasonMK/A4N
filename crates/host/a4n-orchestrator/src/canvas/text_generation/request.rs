@@ -2,8 +2,8 @@ use a4n_db::canvas::CanvasGraphRecordDocument;
 use a4n_db_models::models::canvas::canvas_node;
 use a4n_domain::source_text_hash as source_content_sha256;
 use a4n_llm_context::{
-    COMPRESSION_FOCUSED_RAW, COMPRESSION_FULL_RAW, COMPRESSION_MINIMAL, LlmContextLedger,
-    LlmContextLedgerPackDraft, context_aware_system_user_request,
+    COMPRESSION_FULL_RAW, LlmContextLedger, LlmContextLedgerPackDraft,
+    context_aware_system_user_request,
 };
 use a4n_llm_provider_contract::provider::{ChatRequest, LlmTraceContext};
 use serde_json::json;
@@ -43,19 +43,30 @@ pub(super) fn build_canvas_llm_text_request(
     step_key: &str,
 ) -> Result<ChatRequest, String> {
     let node_config_hash = source_content_sha256(
-        &serde_json::to_string(&input.node.config_json)
-            .map_err(|error| format!("LlmTextNode 节点配置序列化失败: {error}"))?,
+        &serde_json::to_string(&json!({
+            "instruction": llm_input.instruction,
+            "output_kind": llm_input.output_kind,
+            "temperature": llm_input.temperature,
+            "max_tokens": llm_input.max_tokens,
+            "config_id": llm_input.config_id,
+        }))
+        .map_err(|error| format!("LlmTextNode 节点配置序列化失败: {error}"))?,
     );
     let source_context_hash = source_content_sha256(&llm_input.source_context);
     let node_config_pack = json!({
-        "node_kind": input.node.node_kind,
-        "node_id": input.node.id,
         "output_kind": llm_input.output_kind,
         "instruction": llm_input.instruction,
-        "config_id": llm_input.config_id,
-        "node_config_sha256": node_config_hash,
     });
     let mut ledger = LlmContextLedger::new();
+    ledger.add_pack(a4n_llm_context::LlmContextLedgerPackInput {
+        scope_kind: WORKFLOW_KIND_VIDEO_CANVAS_GRAPH.into(),
+        pack_kind: "canvas_upstream_text".into(),
+        source_refs_json: Some(json!({"source_context_sha256": source_context_hash})),
+        config_identity_json: json!({"ledger_version": "canvas_llm_transform_context_v2", "kind": "source"}),
+        required: true,
+        stable_prefix: true,
+        variants: vec![LlmContextLedgerPackDraft::new(COMPRESSION_FULL_RAW, json!({"text": llm_input.source_context}))],
+    }).map_err(|error| error.to_string())?;
     ledger
         .add_pack(a4n_llm_context::LlmContextLedgerPackInput {
             scope_kind: WORKFLOW_KIND_VIDEO_CANVAS_GRAPH.into(),
@@ -71,26 +82,16 @@ pub(super) fn build_canvas_llm_text_request(
             }),
             required: true,
             stable_prefix: true,
-            variants: vec![
-                LlmContextLedgerPackDraft::new(COMPRESSION_FULL_RAW, node_config_pack.clone()),
-                LlmContextLedgerPackDraft::new(COMPRESSION_FOCUSED_RAW, node_config_pack.clone()),
-                LlmContextLedgerPackDraft::new(COMPRESSION_MINIMAL, node_config_pack),
-            ],
+            variants: vec![LlmContextLedgerPackDraft::new(
+                COMPRESSION_FULL_RAW,
+                node_config_pack,
+            )],
         })
         .map_err(|error| error.to_string())?;
     let dynamic_payload = json!({
         "context_refs": {
             "node_config": "稳定上下文包 canvas_node_config:LlmTextNode",
-        },
-        "run": {
-            "mode": input.mode,
-            "graph_id": input.graph_id,
-            "node_id": input.node.id,
-            "source_node_ids": llm_input.source_node_ids,
-        },
-        "upstream_artifacts": {
-            "source_context_sha256": source_context_hash,
-            "text": llm_input.source_context,
+            "input_text": "稳定上下文包 canvas_upstream_text.text",
         },
         "output_contract": {
             "format": "plain_text",
@@ -104,7 +105,7 @@ pub(super) fn build_canvas_llm_text_request(
     });
     let dynamic_user_content = format!(
         "请执行当前画布 LLM 文本节点。只返回 output_contract 要求的纯文本。\n\n输入：\n{}",
-        serde_json::to_string_pretty(&dynamic_payload)
+        serde_json::to_string(&dynamic_payload)
             .map_err(|error| format!("LlmTextNode 动态输入序列化失败: {error}"))?
     );
     let manifest = ledger.into_manifest(

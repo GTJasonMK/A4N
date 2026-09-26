@@ -317,7 +317,7 @@ export const BlueprintVersionsPanel: React.FC<BlueprintVersionsPanelProps> = ({
                         {version.created_by}
                       </span>
                     </span>
-                    <span className="mt-0.5 block truncate text-small text-book-text-sub">
+                    <span className="mt-0.5 block break-words text-small text-book-text-sub">
                       {version.change_description}
                     </span>
                   </span>

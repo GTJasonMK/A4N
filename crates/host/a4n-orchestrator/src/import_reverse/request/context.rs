@@ -6,8 +6,7 @@ use serde_json::json;
 use a4n_api_contract::import_reverse::ReverseEngineeringTarget;
 use a4n_domain::source_text_hash as source_content_sha256;
 use a4n_llm_context::{
-    COMPRESSION_FOCUSED_RAW, COMPRESSION_FULL_RAW, COMPRESSION_MINIMAL, LlmContextLedger,
-    LlmContextLedgerPackDraft, LlmContextManifest,
+    COMPRESSION_FULL_RAW, LlmContextLedger, LlmContextLedgerPackDraft, LlmContextManifest,
 };
 
 use super::{build_reverse_engineer_user_message, reverse_engineer_source_artifact};
@@ -35,11 +34,10 @@ pub(super) fn build_reverse_engineer_context(
         }),
         required: true,
         stable_prefix: true,
-        variants: vec![
-            LlmContextLedgerPackDraft::new(COMPRESSION_FULL_RAW, source_artifact.clone()),
-            LlmContextLedgerPackDraft::new(COMPRESSION_FOCUSED_RAW, source_artifact.clone()),
-            LlmContextLedgerPackDraft::new(COMPRESSION_MINIMAL, source_artifact),
-        ],
+        variants: vec![LlmContextLedgerPackDraft::new(
+            COMPRESSION_FULL_RAW,
+            source_artifact,
+        )],
     })?;
     let manifest = ledger.into_manifest(
         build_reverse_engineer_user_message(target)?,

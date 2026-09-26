@@ -7,16 +7,24 @@ from typing import Any
 
 from mock_openai.fixtures.reverse import embedded_json_objects
 
+def annotated_source_pairs(combined: str) -> list[tuple[str, str]]:
+    pairs = []
+    for value in embedded_json_objects(combined):
+        content = value.get("content")
+        if not isinstance(content, str):
+            continue
+        markers = list(re.finditer(r"⟦(ch\d+:s\d+:f\d+|\d+)⟧", content))
+        for index, marker in enumerate(markers):
+            end = markers[index + 1].start() if index + 1 < len(markers) else len(content)
+            pairs.append((marker.group(1), content[marker.end():end]))
+    return list(dict.fromkeys(pairs))
+
 def source_span_pairs(combined: str) -> list[tuple[str, str]]:
-    return list(
-        dict.fromkeys(
-            re.findall(
-                r'"id"\s*:\s*"(ch\d+:s\d+:f\d+)"\s*,\s*'
-                r'"paragraph_index"\s*:\s*\d+\s*,\s*"text"\s*:\s*"([^"]+)"',
-                combined,
-            )
-        )
-    )
+    annotated = [(identifier, quote) for identifier, quote in annotated_source_pairs(combined) if identifier.startswith("ch")]
+    structured = [(value["id"], value["text"]) for value in embedded_json_objects(combined)
+                  if isinstance(value.get("id"), str) and re.fullmatch(r"ch\d+:s\d+:f\d+", value["id"])
+                  and isinstance(value.get("text"), str)]
+    return list(dict.fromkeys([*annotated, *structured]))
 
 
 def source_span_id(combined: str, phrase: str, fallback_index: int = 0) -> str:
@@ -30,6 +38,9 @@ def source_span_id(combined: str, phrase: str, fallback_index: int = 0) -> str:
 
 
 def text_anchor_id(combined: str, phrase: str) -> int:
+    for identifier, quote in annotated_source_pairs(combined):
+        if identifier.isdecimal() and phrase in quote:
+            return int(identifier)
     for value in embedded_json_objects(combined):
         anchor_id = value.get("id")
         quote = value.get("quote")

@@ -163,13 +163,25 @@ pub struct AssemblyPostprocessEditRecordInput {
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct UpdateGeneratedVideoInput {
-    #[serde(default, deserialize_with = "deserialize_non_null_update_field")]
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "deserialize_non_null_update_field"
+    )]
     #[schemars(with = "String")]
     pub prompt: Option<String>,
-    #[serde(default, deserialize_with = "deserialize_nullable_update_field")]
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "deserialize_nullable_update_field"
+    )]
     #[schemars(with = "Option<String>")]
     pub negative_prompt: Option<Option<String>>,
-    #[serde(default, deserialize_with = "deserialize_non_null_update_field")]
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "deserialize_non_null_update_field"
+    )]
     #[schemars(with = "bool")]
     pub is_favorite: Option<bool>,
 }

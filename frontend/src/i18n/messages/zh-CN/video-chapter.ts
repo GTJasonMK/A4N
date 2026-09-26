@@ -265,7 +265,7 @@ export const videoChapter = {
     stylePlaceholder: "描述视频的整体风格、氛围、细节要求…",
     savedPlanFailed: "加载已保存的片段规划失败：{error}",
     planningEmptyValidation: "当前场景的片段规划完整校验并保存后会显示在这里。",
-    needShootingScene: "请先生成至少一个拍摄场景。",
+    needShootingScene: "当前来源中还没有拍摄场景。请在文本工作台生成拍摄剧本，再点击“同步来源”获取最新结果。",
     selectSceneAndGenerate: "请选择已完成的拍摄场景并生成片段规划。",
     planEmpty: "片段规划中没有可展示的片段。",
     planningPromptTitle: "片段 {number}",

@@ -1,7 +1,7 @@
 use a4n_db_models::models::{
     galgame::{galgame_line, galgame_scene, galgame_script},
     generation::generation_spec,
-    project::source_snapshot_profile,
+    project::{source_snapshot_chapter, source_snapshot_profile},
 };
 use std::collections::HashMap;
 
@@ -17,6 +17,7 @@ use super::super::targets::validate_generation_spec_galgame_scene_context;
 pub(super) fn validate_galgame_cg_spec_params(
     spec: &generation_spec::Model,
     source_snapshot_id: i64,
+    snapshot_chapters: &HashMap<i64, &source_snapshot_chapter::Model>,
     snapshot_profiles: &HashMap<(i64, String), &source_snapshot_profile::Model>,
     galgame_scripts: &HashMap<i64, &galgame_script::Model>,
     galgame_scenes: &HashMap<i64, &galgame_scene::Model>,
@@ -63,6 +64,7 @@ pub(super) fn validate_galgame_cg_spec_params(
         source_snapshot_id,
         target_scene,
         galgame_scripts,
+        snapshot_chapters,
     )?;
     required_params_string(params, "cg_note", spec.id)?;
     validate_required_galgame_cg_importance(params, spec.id)?;

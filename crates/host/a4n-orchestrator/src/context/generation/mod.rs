@@ -147,7 +147,7 @@ pub enum GenerationTaskAccessError {
     Terminal(#[from] GenerationTerminalError),
     #[error("generation queue operation failed: {0}")]
     Queue(#[source] AppError),
-    #[error("generation project authorization failed: {0}")]
+    #[error("generation project request failed: {0}")]
     Project(#[source] AppError),
 }
 
@@ -166,6 +166,9 @@ impl GenerationTaskAccessError {
             Self::Project(AppError::Forbidden(_)) => "generation_task_forbidden",
             Self::Project(AppError::Unauthorized(_)) => "generation_task_unauthenticated",
             Self::Project(AppError::NotFound(_)) => "generation_task_not_found",
+            Self::Project(AppError::InvalidArgument(_) | AppError::InvalidState { .. }) => {
+                "generation_request_invalid"
+            }
             Self::Project(_) => "generation_persist_failed",
         }
     }
@@ -192,3 +195,23 @@ mod reservation;
 mod start;
 
 pub(crate) use execution::{GenerationTaskExecution, fail_generation_workflow_execution};
+
+#[cfg(test)]
+mod start_error_tests {
+    use super::*;
+
+    #[test]
+    fn project_input_errors_are_not_retryable_persistence_failures() {
+        for error in [
+            AppError::InvalidArgument("unknown shot".into()),
+            AppError::InvalidState {
+                current: "stale source".into(),
+                operation: "start generation".into(),
+            },
+        ] {
+            let error = GenerationTaskAccessError::Project(error).into_start_error();
+            assert_eq!(error.code(), "generation_request_invalid");
+            assert!(!error.retryable);
+        }
+    }
+}

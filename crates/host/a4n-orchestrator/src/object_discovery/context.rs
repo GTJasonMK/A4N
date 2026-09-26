@@ -1,27 +1,23 @@
 use a4n_db_models::models::{asset::object_profile, chapter::chapter, project::text_anchor};
-use a4n_domain::source_spans::text_anchor_prompt_values;
+use a4n_domain::source_spans::text_anchor_prompt_text;
+use a4n_error::AppError;
 use serde_json::{Value, json};
 
 pub(super) fn object_discovery_stable_context(
     existing_profiles: &[Value],
-    chapter_data: &[Value],
     chapters: &[chapter::Model],
     text_anchors: &[text_anchor::Model],
-) -> Value {
-    json!({
+) -> Result<Value, AppError> {
+    let chapter_data = chapters.iter().map(|chapter| {
+        Ok(json!({
+            "chapter_number": chapter.chapter_number,
+            "content": text_anchor_prompt_text(chapter, text_anchors).map_err(AppError::InvalidArgument)?,
+        }))
+    }).collect::<Result<Vec<_>, AppError>>()?;
+    Ok(json!({
         "existing_object_profiles": existing_profiles,
         "chapters": chapter_data,
-        "text_anchors": text_anchor_prompt_values(chapters, text_anchors),
-    })
-}
-
-pub(super) fn object_discovery_chapter_context(chapter: &chapter::Model) -> Value {
-    json!({
-        "chapter_number": chapter.chapter_number,
-        "chapter_title": chapter.title,
-        "content": chapter.content,
-        "analysis_data": chapter.analysis_data,
-    })
+    }))
 }
 
 pub(super) fn existing_object_profile_for_prompt(profile: &object_profile::Model) -> Value {

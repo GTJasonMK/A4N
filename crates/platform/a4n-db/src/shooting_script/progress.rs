@@ -1,16 +1,152 @@
-use a4n_db_models::models::generation::workflow_run;
+use a4n_db_models::models::{chapter::chapter_visual_plan, generation::workflow_run};
 use a4n_domain::shooting_script::{
-    ChapterShootingScriptUnitProgressCheckpoint, EditChapterShootingScriptProgressInput,
-    EditedChapterShootingScriptProgressView,
+    ChapterShootingScriptUnitProgressCheckpoint, ChapterShootingScriptUnitProgressView,
+    EditChapterShootingScriptProgressInput, EditedChapterShootingScriptProgressView,
 };
 use a4n_domain::source_text_hash;
-use a4n_domain::workflow::{WORKFLOW_STATUS_FAILED, WORKFLOW_STATUS_INTERRUPTED};
+use a4n_domain::workflow::{
+    WORKFLOW_STATUS_FAILED, WORKFLOW_STATUS_INTERRUPTED, WORKFLOW_STATUS_RUNNING,
+};
 use chrono::Utc;
-use sea_orm::{ActiveModelTrait, DatabaseConnection, Set, TransactionTrait};
+use sea_orm::{
+    ActiveModelTrait, ColumnTrait, Condition, ConnectionTrait, DatabaseConnection, EntityTrait,
+    QueryFilter, QueryOrder, QuerySelect, Set, TransactionTrait, sea_query::Expr,
+};
+use std::collections::HashMap;
 
 use super::mutations::validate_director_constraints;
-use super::validation::require_positive;
+use super::validation::{require_positive, validate_source};
 use super::{ChapterVisualPlanIdentity, ShootingScriptDbError};
+
+pub async fn chapter_shooting_script_progress_for_source<C: ConnectionTrait>(
+    db: &C,
+    source: &crate::project::ResolvedChapterSource,
+) -> Result<Option<ChapterShootingScriptUnitProgressView>, ShootingScriptDbError> {
+    validate_source(source)?;
+    let Some(confirmed) =
+        crate::chapter_visual_plan::confirmed_chapter_visual_plan_for_source(db, source)
+            .await
+            .map_err(super::plan_rebase::visual_plan_error)?
+    else {
+        return Ok(None);
+    };
+    Ok(chapter_shooting_script_progress_for_plans(
+        db,
+        source.requested_project_id,
+        &[&confirmed.record],
+    )
+    .await?
+    .remove(&source.source_chapter_id)
+    .map(|(_, progress)| progress))
+}
+
+/// Only progress owned by this project and the exact confirmed plan is eligible.
+/// Frozen projects acquire root progress by copying it during explicit source sync.
+pub(crate) async fn chapter_shooting_script_progress_for_plans<C: ConnectionTrait>(
+    db: &C,
+    project_id: i64,
+    plans: &[&chapter_visual_plan::Model],
+) -> Result<HashMap<i64, (String, ChapterShootingScriptUnitProgressView)>, ShootingScriptDbError> {
+    if plans.is_empty() {
+        return Ok(HashMap::new());
+    }
+    let plan_condition = plans.iter().fold(Condition::any(), |condition, plan| {
+        condition.add(
+            Condition::all()
+                .add(workflow_run::Column::ChapterId.eq(plan.source_chapter_id))
+                .add(Expr::cust_with_values(
+                    "input_fingerprint_json ->> 'visual_plan_id' = $1",
+                    [plan.id.to_string()],
+                )),
+        )
+    });
+    let plans_by_chapter = plans
+        .iter()
+        .map(|plan| (plan.source_chapter_id, *plan))
+        .collect::<HashMap<_, _>>();
+    let mut result = HashMap::new();
+    for run in workflow_run::Entity::find()
+        .filter(workflow_run::Column::ProjectId.eq(project_id))
+        .filter(workflow_run::Column::WorkflowKind.eq("chapter_shooting_script"))
+        .filter(workflow_run::Column::CanResume.eq(true))
+        .filter(workflow_run::Column::Status.is_in([
+            WORKFLOW_STATUS_RUNNING,
+            WORKFLOW_STATUS_INTERRUPTED,
+            WORKFLOW_STATUS_FAILED,
+        ]))
+        .filter(plan_condition)
+        .distinct_on([workflow_run::Column::ChapterId])
+        .order_by_asc(workflow_run::Column::ChapterId)
+        .order_by_desc(workflow_run::Column::UpdatedAt)
+        .order_by_desc(workflow_run::Column::Id)
+        .all(db)
+        .await?
+    {
+        let Some(snapshot) = run
+            .progress_json
+            .as_ref()
+            .and_then(|progress| progress.get("snapshot"))
+        else {
+            continue;
+        };
+        let checkpoint: ChapterShootingScriptUnitProgressCheckpoint =
+            serde_json::from_value(snapshot.clone()).map_err(|error| {
+                ShootingScriptDbError::InvalidState(format!("拍摄剧本 snapshot 无效: {error}"))
+            })?;
+        checkpoint
+            .validate_for_run(run.id)
+            .map_err(|error| ShootingScriptDbError::InvalidState(error.to_string()))?;
+        let chapter_id = run.chapter_id.ok_or_else(|| {
+            ShootingScriptDbError::InvalidState("拍摄剧本工作流缺少章节身份".into())
+        })?;
+        let plan = plans_by_chapter[&chapter_id];
+        let identity = checkpoint
+            .progress
+            .script
+            .visual_plan_source
+            .as_ref()
+            .ok_or_else(|| {
+                ShootingScriptDbError::InvalidState("拍摄剧本进度缺少导演编排身份".into())
+            })?;
+        if checkpoint.source_content_sha256 != plan.source_content_sha256
+            || identity.plan_id != plan.id
+            || identity.plan_version != plan.plan_version
+            || identity.plan_sha256 != plan.plan_sha256
+        {
+            continue;
+        }
+        let fingerprint = run.input_fingerprint_json.as_ref().ok_or_else(|| {
+            ShootingScriptDbError::InvalidState("拍摄剧本工作流缺少输入指纹".into())
+        })?;
+        let fingerprint = a4n_domain::generation::canonical_json_sha256(fingerprint)
+            .map_err(|error| ShootingScriptDbError::InvalidState(error.to_string()))?;
+        result.insert(chapter_id, (fingerprint, checkpoint.progress));
+    }
+    Ok(result)
+}
+
+pub(crate) async fn mark_shooting_progress_source_updated<C: ConnectionTrait>(
+    db: &C,
+    run: &workflow_run::Model,
+) -> Result<(), sea_orm::DbErr> {
+    if run.workflow_kind == "chapter_shooting_script"
+        && run
+            .progress_json
+            .as_ref()
+            .and_then(|value| value.get("snapshot"))
+            .is_some()
+        && let (Some(project_id), Some(chapter_id)) = (run.project_id, run.chapter_id)
+    {
+        crate::project::mark_derived_projects_root_updated_in_record(
+            db,
+            project_id,
+            Some(chapter_id),
+            run.updated_at,
+        )
+        .await?;
+    }
+    Ok(())
+}
 
 pub async fn edit_chapter_shooting_script_progress(
     db: &DatabaseConnection,
@@ -91,20 +227,15 @@ pub async fn edit_chapter_shooting_script_progress(
         serde_json::from_value(snapshot.clone()).map_err(|error| {
             ShootingScriptDbError::InvalidState(format!("拍摄剧本 snapshot 无效: {error}"))
         })?;
-    if checkpoint.version != 1
-        || checkpoint.progress.workflow_run_id != run.id
-        || checkpoint.source_content_sha256 != source.content_sha256
-        || checkpoint.progress.completed_record.is_some()
-    {
+    checkpoint
+        .validate_for_run(run.id)
+        .map_err(|error| ShootingScriptDbError::InvalidState(error.to_string()))?;
+    if checkpoint.source_content_sha256 != source.content_sha256 {
         return Err(ShootingScriptDbError::InvalidState(
             "拍摄剧本进度与当前来源不一致，请重新加载".into(),
         ));
     }
     let current = &checkpoint.progress;
-    current
-        .script
-        .validate_partial(current.completed_unit_count, current.total_unit_count)
-        .map_err(|error| ShootingScriptDbError::InvalidState(error.to_string()))?;
     if current.script != input.expected_script {
         return Err(ShootingScriptDbError::InvalidState(
             "拍摄剧本进度已发生变化，请重新加载后保存".into(),
@@ -159,6 +290,7 @@ pub async fn edit_chapter_shooting_script_progress(
             sha256: identity.plan_sha256.clone(),
         },
         &input.script,
+        Some(&current.script),
     )
     .await?;
     if input.script == current.script {
@@ -175,6 +307,15 @@ pub async fn edit_chapter_shooting_script_progress(
     active.progress_json = Set(Some(progress_json));
     active.updated_at = Set(Utc::now().naive_utc());
     active.update(&tx).await?;
+    if source.source_snapshot_id.is_none() {
+        crate::project::mark_derived_projects_root_updated_in_record(
+            &tx,
+            source.root_project_id,
+            Some(source.source_chapter_id),
+            Utc::now().naive_utc(),
+        )
+        .await?;
+    }
     let invalidated_project_ids = crate::project::projects_using_source_snapshot(
         &tx,
         source.root_project_id,

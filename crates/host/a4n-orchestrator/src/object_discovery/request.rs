@@ -12,10 +12,7 @@ use serde_json::{Value, json};
 
 use super::{
     OBJECT_DISCOVERY_CALL_KEY, OBJECT_DISCOVERY_KIND,
-    context::{
-        existing_object_profile_for_prompt, object_discovery_chapter_context,
-        object_discovery_stable_context,
-    },
+    context::{existing_object_profile_for_prompt, object_discovery_stable_context},
 };
 
 pub(super) async fn build_object_discovery_request(
@@ -30,19 +27,11 @@ pub(super) async fn build_object_discovery_request(
         .iter()
         .map(existing_object_profile_for_prompt)
         .collect::<Vec<_>>();
-    let chapter_data = chapters
-        .iter()
-        .map(object_discovery_chapter_context)
-        .collect::<Vec<_>>();
     let system_prompt = prompt_renderer
         .render_prompt(OBJECT_DISCOVERY_KIND, &HashMap::new(), Some(project_id))
         .await?;
-    let stable_context = object_discovery_stable_context(
-        &existing_prompt_profiles,
-        &chapter_data,
-        chapters,
-        text_anchors,
-    );
+    let stable_context =
+        object_discovery_stable_context(&existing_prompt_profiles, chapters, text_anchors)?;
     let chapter_ids = chapters
         .iter()
         .map(|chapter| chapter.id)
@@ -116,7 +105,7 @@ fn object_discovery_payload(input: Value) -> Value {
                 "只返回可解析的完整 JSON 对象，不要 Markdown 或解释文字",
                 "不要把纯地点、组织、能力、事件或人物当作物体",
                 "每个物体对象只允许输出 output_contract 列出的字段，不要添加额外字段",
-                "evidence_anchor_ids 中的每个 ID 必须来自稳定上下文包的 text_anchors[].id",
+                "evidence_anchor_ids 必须选择 chapters[].content 中 ⟦id⟧ 标记的 ID，不含括号",
                 "evidence_anchor_ids 是核验用选择题，优先选择物体名称、外观或状态短语对应的 text_anchor；不要自己抄写原文，不要输出省略号证据",
                 "location_context 只写简短位置语境文本；无法判断时输出 null，不要输出额外锚点 ID",
                 "章节范围和图片提示词种子由系统推导，模型不要输出",

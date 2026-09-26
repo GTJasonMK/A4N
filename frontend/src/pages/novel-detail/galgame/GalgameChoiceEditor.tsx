@@ -105,40 +105,47 @@ export const ChoiceEditor: React.FC<{
           return (
             <div key={`${line.id}:${index}`} className="space-y-1">
               <div className="grid gap-2 md:grid-cols-[minmax(0,1fr)_minmax(140px,220px)_auto]">
-                <input
-                  className="border border-book-border bg-book-bg px-2 py-1 text-xs text-book-text-main outline-none focus:border-book-primary"
-                  value={draft.option_text}
-                  disabled={disabled}
-                  placeholder={t("galgame.choicePlaceholder", { index: index + 1 })}
-                  onChange={(event) =>
-                    updateDraft(index, { option_text: event.target.value })
-                  }
-                />
-                <ThemedSelect
-                  className="pyqt-input text-xs text-book-text-main"
-                  value={draft.target_scene_id}
-                  disabled={disabled || scenes.length === 0}
-                  onChange={(selectedValue) =>
-                    updateDraft(index, { target_scene_id: selectedValue })
-                  }
-                >
-                  <option value="">
-                    {scenes.length === 0
-                      ? t("galgame.noTargetScene")
-                      : t("galgame.chooseTargetScene")}
-                  </option>
-                  {scenes.map((item) => (
-                    <option key={item.scene.id} value={item.scene.id}>
-                      {sceneSelectLabel(item.scene, t)}
+                <label className="flex min-w-0 flex-col gap-1 text-caption text-book-text-muted">
+                  {t("galgame.choicePlaceholder", { index: index + 1 })}
+                  <input
+                    className="pyqt-input text-xs text-book-text-main"
+                    value={draft.option_text}
+                    disabled={disabled}
+                    placeholder={t("galgame.choicePlaceholder", { index: index + 1 })}
+                    onChange={(event) =>
+                      updateDraft(index, { option_text: event.target.value })
+                    }
+                  />
+                </label>
+                <label className="flex min-w-0 flex-col gap-1 text-caption text-book-text-muted">
+                  {t("galgame.chooseTargetScene")}
+                  <ThemedSelect
+                    className="pyqt-input text-xs text-book-text-main"
+                    value={draft.target_scene_id}
+                    disabled={disabled || scenes.length === 0}
+                    onChange={(selectedValue) =>
+                      updateDraft(index, { target_scene_id: selectedValue })
+                    }
+                  >
+                    <option value="">
+                      {scenes.length === 0
+                        ? t("galgame.noTargetScene")
+                        : t("galgame.chooseTargetScene")}
                     </option>
-                  ))}
-                </ThemedSelect>
+                    {scenes.map((item) => (
+                      <option key={item.scene.id} value={item.scene.id}>
+                        {sceneSelectLabel(item.scene, t)}
+                      </option>
+                    ))}
+                  </ThemedSelect>
+                </label>
                 {drafts.length > 2 ? (
                   <BookButton
                     variant="secondary"
                     size="sm"
                     onClick={() => removeDraft(index)}
                     disabled={disabled}
+                    className="md:self-end"
                     aria-label={t("galgame.deleteChoice", { index: index + 1 })}
                   >
                     <Trash2 size={13} />

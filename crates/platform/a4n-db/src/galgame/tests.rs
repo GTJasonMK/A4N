@@ -212,19 +212,18 @@ fn galgame_media_asset_source_context_rejects_snapshot_chapter_without_source_ch
 fn galgame_portrait_spec_family_context_accepts_matching_project_context() {
     let spec = generation_spec_model();
 
-    validate_galgame_portrait_spec_family_context(&spec, 1, 20)
-        .expect("matching Galgame portrait spec family context should pass");
+    assert_eq!(
+        validate_galgame_portrait_spec_family_context(&spec, 1).unwrap(),
+        20
+    );
 }
 
 #[test]
-fn galgame_portrait_spec_family_context_rejects_snapshot_mismatch() {
-    let spec = generation_spec_model();
-
-    let err = validate_galgame_portrait_spec_family_context(&spec, 1, 21)
-        .expect_err("source snapshot mismatch must fail");
-
-    assert!(err.to_string().contains("项目族上下文与项目不一致"));
-    assert!(err.to_string().contains("project_source_snapshot_id=21"));
+fn galgame_portrait_spec_family_context_rejects_foreign_root_and_missing_snapshot() {
+    let mut spec = generation_spec_model();
+    assert!(validate_galgame_portrait_spec_family_context(&spec, 2).is_err());
+    spec.source_snapshot_id = None;
+    assert!(validate_galgame_portrait_spec_family_context(&spec, 1).is_err());
 }
 
 #[test]

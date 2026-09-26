@@ -12,7 +12,7 @@ name: chapter_video_first_frame_video_prompt
       "title": "镜头标题",
       "scene_summary": "剧情摘要",
       "visual_prompt": "按 constraints.prompt_required_sections 的顺序写完整主提示词，章节标题使用目标语言；内容覆盖实际起始输入画面或上一段尾态、参考图用途、前因后果、按镜头编号组织的镜头分镜、风格、连续性和限制。",
-      "motion_prompt": "按 constraints.prompt_output_language.motion_prompt_sections 的顺序写动作与运镜补充，章节标题使用目标语言；不得重复 visual_prompt 的镜头分镜。",
+      "motion_prompt": "按 constraints.motion_prompt_required_sections 的顺序写动作与运镜补充，章节标题使用目标语言；不得重复 visual_prompt 的镜头分镜。",
       "negative_prompt": "本镜头特有的避免项；没有特有项时写空字符串",
       "dialogue_cues": []
     }
@@ -22,7 +22,7 @@ name: chapter_video_first_frame_video_prompt
 要求：
 - 这是单段生成请求：`shots` 只能包含 1 条，不得输出其他片段。
 - 不要输出 `shot_number`、`duration_secs`、`aspect_ratio`、`reference_image_ids`、`self_contained_context`、`start_state`、`end_state`、`transition_in`、`blocking_plan`、`lighting_plan`、`emotion_action_beats`、`cinematography_plan`、`temporal_beats`、`reference_binding`、`continuity_check` 或 `chat_video`；这些字段由后端根据分段规划和输入帧补齐。
-- `visual_prompt`、`motion_prompt` 和 `negative_prompt` 的自然语言必须遵守输入 JSON 中 `constraints.prompt_output_language_instruction`；章节标题必须使用 `constraints.prompt_required_sections` 和 `constraints.prompt_output_language.motion_prompt_sections` 对应的目标语言版本。JSON key、结构化字段名、角色名、地名、专有名词、参考图标签、用户风格关键词和原文对白/台词短句不要擅自翻译。
+- `visual_prompt`、`motion_prompt` 和 `negative_prompt` 的自然语言必须遵守输入 JSON 中 `constraints.prompt_output_language.instruction`；章节标题必须使用 `constraints.prompt_required_sections` 和 `constraints.motion_prompt_required_sections` 对应的目标语言版本。JSON key、结构化字段名、角色名、地名、专有名词、参考图标签、用户风格关键词和原文对白/台词短句不要擅自翻译。
 - 这是串行首帧链：不得假设未来片段；严格按 `constraints.input_frame_usage` 决定开头和结尾来源。结尾写本段动作自然形成的可续接尾态，或写实际提供的结尾目标画面。
 - `visual_prompt` 的第一个镜头必须从 `constraints.input_frame_usage.opening_instruction` 指定的画面状态自然推进；若 `constraints.input_frame_usage.opening_source` 是 `previous_completed_shot`，第一个镜头直接复述上一段尾态的可见人物站位、姿态、道具、空间锚点和光源方向。最终提示词只写画面和动作，不写资源可用性、上传状态、内部图片槽位或缺项说明。
 - 严格遵守 `constraints.input_frame_usage.upload_status_rule`：`visual_prompt`、`motion_prompt` 和 `negative_prompt` 只能写实际画面、动作、参考图用途和连续性；如果没有实际输入帧，直接写当前片段的文字起点或上一段尾态画面。
@@ -32,7 +32,7 @@ name: chapter_video_first_frame_video_prompt
 - 每条提示词倾向低剧情推进密度：优先聚焦一个清晰导演目标，例如动作、发现、反应、空间建立、连续动作链或转场尾态。`[片段内容以及前因后果]` 只写服务当前片段的必要承接和导演重点，不复述整段剧情；把主要篇幅用于当前表演的姿态、视线、手部、呼吸、道具位置、光线和停顿。如果当前场景需要动作爆发或快速连续反应，可以保留必要推进，但不要提前写入下一片段剧情。
 - 如果本段有对白、催促、回答、告别、打断或被某人听见的说话意图，必须写清说话人和听者/被影响者的相对位置，并在 `visual_prompt` 或 `motion_prompt` 中给听者一个可见反应。例：主角对妈妈说“要迟到了”时，画面至少要表现妈妈在厨房、门口或餐桌旁回头、停下动作、担心注视、催促手势或短暂停顿；不要只拍主角说完并离开。
 - 后续片段承接 previous_completed_shot 时，开头必须复述上一尾态里最关键的可见状态：人物站位、手中物、门/桌/窗等空间锚点、对方视线、光线方向或未完成动作。结尾必须留下下一段能直接使用的姿态、视线、道具和空间关系。
-- `motion_prompt` 必须遵守 `constraints.prompt_density_rule`，只包含 `constraints.prompt_output_language.motion_prompt_sections` 指定的章节，不要写 `[连续性要求]` 或 `[Continuity Requirements]`，不要重复 `visual_prompt` 的镜头分镜章节、连续性尾态或限制避免项。
+- `motion_prompt` 必须遵守 `constraints.prompt_density_rule`，只包含 `constraints.motion_prompt_required_sections` 指定的章节，不要写 `[连续性要求]` 或 `[Continuity Requirements]`，不要重复 `visual_prompt` 的镜头分镜章节、连续性尾态或限制避免项。
 - 必须读取 `current_segment.video_intent`、`current_segment.emotional_arc`、`current_segment.material_coverage`，并把视觉重点、情绪弧线和参考图用途落实到自然语言提示词中。
 - 必须读取 `current_segment.performance_plan`，把其中的走位路径、身体变化、视线/手部、停顿反应、镜头关系和 `time_blocks/action_script` 压缩成最终可执行提示。不要逐字倾倒 JSON；只选最关键的 2-4 个微动作细节进入镜头编号分镜和运镜补充。
 - 遇到“走、转身、坐起、靠近、离开、拿起、放下、回头、停住”等动作时，必须写清方向、起点/终点、身体重心或姿态变化、手部/道具状态、视线落点和停顿；不要只写“走到某处”“自然过渡”。

@@ -725,10 +725,15 @@ impl WorkerState {
         )
         .await
         .map_err(database_error)?;
-        Ok(prompts
-            .iter()
-            .map(a4n_video::chapter_video_prompt_summary)
-            .collect())
+        let mut result = Vec::with_capacity(prompts.len());
+        for prompt in prompts {
+            let prompt =
+                a4n_db::video::with_video_plan_source_sync(self.database.connection(), prompt)
+                    .await
+                    .map_err(video_error)?;
+            result.push(a4n_video::chapter_video_prompt_summary(&prompt));
+        }
+        Ok(result)
     }
 
     async fn validate_source(

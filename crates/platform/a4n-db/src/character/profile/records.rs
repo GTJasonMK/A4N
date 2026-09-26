@@ -8,6 +8,38 @@ use crate::character::CharacterDbError;
 
 use super::types::CharacterProfileCurrentStateUpdate;
 
+pub(crate) async fn referenced_profile_ids<C: ConnectionTrait>(
+    db: &C,
+    project_id: i64,
+    profile_ids: &[i64],
+) -> Result<std::collections::BTreeSet<i64>, DbErr> {
+    if profile_ids.is_empty() {
+        return Ok(std::collections::BTreeSet::new());
+    }
+    db.query_all(sea_orm::Statement::from_sql_and_values(DbBackend::Postgres, r#"
+        SELECT profile.id FROM protagonist_profile profile
+        WHERE profile.project_id = $1
+          AND profile.id::text IN (SELECT jsonb_array_elements_text($2::jsonb))
+          AND (
+            EXISTS (SELECT 1 FROM source_snapshot_profile snapshot
+                WHERE snapshot.root_project_id = profile.project_id AND snapshot.profile_kind = 'character'
+                  AND snapshot.source_profile_id = profile.id)
+            OR EXISTS (SELECT 1 FROM galgame_scene scene JOIN galgame_script game ON game.id = scene.script_id
+                WHERE game.root_project_id = profile.project_id AND (
+                    scene.participants_json::jsonb @> jsonb_build_array(jsonb_build_object('character_profile_id', profile.id))
+                    OR EXISTS (SELECT 1 FROM galgame_line line WHERE line.scene_id = scene.id AND (
+                        line.speaker_profile_id = profile.id
+                        OR line.presentation_json::jsonb @> jsonb_build_object('visible_cast', jsonb_build_array(jsonb_build_object('character_profile_id', profile.id)))
+                        OR line.presentation_json::jsonb @> jsonb_build_object('enter', jsonb_build_array(profile.id))
+                        OR line.presentation_json::jsonb @> jsonb_build_object('exit', jsonb_build_array(profile.id))
+                        OR line.presentation_json ->> 'focus_character_profile_id' = profile.id::text
+                    ))
+                ))
+          )
+    "#, [project_id.into(), serde_json::json!(profile_ids).into()])).await?
+        .into_iter().map(|row| row.try_get("", "id")).collect()
+}
+
 pub(in crate::character) async fn require_profile<C>(
     db: &C,
     profile_id: i64,

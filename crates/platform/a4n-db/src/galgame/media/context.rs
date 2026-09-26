@@ -14,7 +14,6 @@ struct GalgameProjectIdentity {
     id: i64,
     project_kind: String,
     root_project_id: Option<i64>,
-    source_snapshot_id: Option<i64>,
 }
 
 async fn galgame_media_project_context<C>(
@@ -34,7 +33,6 @@ where
         .column(novel_project::Column::Id)
         .column(novel_project::Column::ProjectKind)
         .column(novel_project::Column::RootProjectId)
-        .column(novel_project::Column::SourceSnapshotId)
         .into_model::<GalgameProjectIdentity>()
         .one(db)
         .await

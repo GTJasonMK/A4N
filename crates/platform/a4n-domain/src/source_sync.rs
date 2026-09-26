@@ -3,6 +3,9 @@ use std::fmt;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
+pub const GALGAME_REGENERATABLE_ENTRY_KIND: crate::galgame::GalgameSceneEntryKind =
+    crate::galgame::GalgameSceneEntryKind::Main;
+
 macro_rules! source_sync_enum {
     ($name:ident { $($variant:ident => $value:literal),+ $(,)? }) => {
         #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema)]
@@ -75,6 +78,7 @@ source_sync_enum!(SourceSyncConflictStatus {
     Pending => "pending",
     Resolved => "resolved",
     Ignored => "ignored",
+    Obsolete => "obsolete",
 });
 
 source_sync_enum!(SourceSyncResolutionStrategy {

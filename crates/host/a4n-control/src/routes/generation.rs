@@ -193,6 +193,10 @@ async fn start_generation(
     }
 
     let result = match command {
+        "start_chapter_shooting_script_generation" => start_stable!(
+            a4n_api_contract::shooting_script::StartChapterShootingScriptGenerationInput,
+            a4n_runtime::host_api::shooting_script_records::start_chapter_shooting_script_generation
+        ),
         "start_visual_plan_prompt_generation" => start_stable!(
             a4n_api_contract::chapter_visual_plan::StartVisualPlanPromptGenerationInput,
             a4n_runtime::host_api::chapter_visual_plan_records::start_visual_plan_prompt_generation
@@ -298,6 +302,10 @@ macro_rules! generation_start_route {
 }
 
 generation_start_route!(start_chapter, "start_chapter_generation");
+generation_start_route!(
+    start_shooting_script,
+    "start_chapter_shooting_script_generation"
+);
 generation_start_route!(start_inspiration, "start_inspiration_generation");
 generation_start_route!(start_blueprint, "start_blueprint_generation");
 generation_start_route!(start_blueprint_refinement, "start_blueprint_refinement");

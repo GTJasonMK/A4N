@@ -265,7 +265,7 @@ export const videoChapter = {
     stylePlaceholder: "Describe the video's overall style, mood, and detail requirements…",
     savedPlanFailed: "Failed to load the saved segment plan: {error}",
     planningEmptyValidation: "The complete, validated plan for the current scene will appear here after it is saved.",
-    needShootingScene: "Generate at least one shooting scene first.",
+    needShootingScene: "This source has no shooting scenes yet. Generate the shooting script in the writing workspace, then use Sync source to load the latest results.",
     selectSceneAndGenerate: "Choose a completed shooting scene and generate a segment plan.",
     planEmpty: "No segments to display in the plan.",
     planningPromptTitle: "Segment {number}",

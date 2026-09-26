@@ -90,11 +90,12 @@ export const ImportToolsPanel: React.FC<ImportToolsPanelProps> = ({
         </summary>
         <div className="space-y-2 border-t border-book-border/45 p-4">
           <textarea
+            aria-label={t("novel.importReview.tools.dedupTitle")}
             value={dedupText}
             onChange={(e) => onDedupTextChange(e.target.value)}
             disabled={toolsBusy}
             placeholder={t("novel.importReview.tools.dedupPlaceholder")}
-            className="pyqt-input h-20 w-full resize-y"
+            className="pyqt-input h-36 w-full resize-y"
           />
           <div className="flex justify-end">
             <BookButton
@@ -148,6 +149,7 @@ export const ImportToolsPanel: React.FC<ImportToolsPanelProps> = ({
           </p>
           <div className="flex flex-wrap items-center gap-2">
             <ThemedSelect
+              aria-label={t("novel.importReview.tools.reverseTitle")}
               value={reverseType}
               disabled={toolsBusy}
               onChange={(selectedValue) =>
@@ -183,6 +185,7 @@ export const ImportToolsPanel: React.FC<ImportToolsPanelProps> = ({
             </button>
           </div>
           <textarea
+            aria-label={t("novel.importReview.tools.reverseTitle")}
             value={reverseSample}
             disabled={toolsBusy}
             onChange={(e) => onReverseSampleChange(e.target.value)}
@@ -191,7 +194,7 @@ export const ImportToolsPanel: React.FC<ImportToolsPanelProps> = ({
                 ? t("novel.importReview.tools.contextPlaceholder")
                 : t("novel.importReview.tools.samplePlaceholder")
             }
-            className="pyqt-input h-28 w-full resize-y"
+            className="pyqt-input h-36 w-full resize-y"
           />
           <div className="flex items-center justify-end gap-2">
             {reverseGenerating ? (
@@ -293,6 +296,8 @@ export const ImportToolsPanel: React.FC<ImportToolsPanelProps> = ({
 };
 
 const RESULT_LABEL_KEYS: Record<string, MessageKey> = {
+  is_duplicate: "novel.importReview.result.isDuplicate",
+  matched_chapter_id: "novel.importReview.result.matchedChapterId",
   original_count: "novel.importReview.result.originalCount",
   unique_count: "novel.importReview.result.uniqueCount",
   duplicate_count: "novel.importReview.result.duplicateCount",
@@ -335,7 +340,9 @@ const RESULT_LABEL_KEYS: Record<string, MessageKey> = {
 
 const ImportToolResult: React.FC<{ value: unknown }> = ({ value }) => {
   const { t } = useI18n();
-  const entries = isPlainRecord(value) ? Object.entries(value) : [];
+  const entries = isPlainRecord(value)
+    ? Object.entries(value).filter(([key]) => key !== "content_hash" && key !== "closest_distance")
+    : [];
   if (entries.length === 0) {
     return <div className="whitespace-pre-wrap break-words text-small leading-relaxed text-book-text-sub">{formatResultValue(value, t)}</div>;
   }

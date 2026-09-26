@@ -80,6 +80,7 @@ pub(in super::super) fn validate_generation_spec_target_entity(
                 source_snapshot_id,
                 scene,
                 galgame_scripts,
+                snapshot_chapters,
             )?;
         }
         "galgame_line" => {
@@ -100,6 +101,7 @@ pub(in super::super) fn validate_generation_spec_target_entity(
                 source_snapshot_id,
                 scene,
                 galgame_scripts,
+                snapshot_chapters,
             )?;
         }
         "segment" | "assembly" => {}

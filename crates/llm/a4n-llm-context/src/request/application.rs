@@ -2,8 +2,7 @@ use a4n_domain::source_text_hash;
 use serde_json::{Value, json};
 
 use super::super::{
-    COMPRESSION_FOCUSED_RAW, COMPRESSION_FULL_RAW, COMPRESSION_MINIMAL, LlmContextLedger,
-    LlmContextLedgerPackDraft, LlmContextLedgerPackInput,
+    COMPRESSION_FULL_RAW, LlmContextLedger, LlmContextLedgerPackDraft, LlmContextLedgerPackInput,
 };
 use super::context_aware_system_user_request;
 use a4n_llm_provider_contract::provider::{ChatRequest, LlmTraceContext};
@@ -50,23 +49,16 @@ pub fn context_aware_system_user_llm_request(
             config_identity_json: input.config_json,
             required: true,
             stable_prefix: true,
-            variants: vec![
-                LlmContextLedgerPackDraft::new(
-                    COMPRESSION_FULL_RAW,
-                    input.stable_context_json.clone(),
-                ),
-                LlmContextLedgerPackDraft::new(
-                    COMPRESSION_FOCUSED_RAW,
-                    input.stable_context_json.clone(),
-                ),
-                LlmContextLedgerPackDraft::new(COMPRESSION_MINIMAL, input.stable_context_json),
-            ],
+            variants: vec![LlmContextLedgerPackDraft::new(
+                COMPRESSION_FULL_RAW,
+                input.stable_context_json,
+            )],
         })
         .map_err(|error| error.to_string())?;
     let manifest = ledger.into_manifest(
         input.dynamic_user_prompt,
         Some(
-            "只返回当前任务要求的严格 JSON 对象，不要输出 Markdown、代码块、解释文字或额外字段。"
+            "只返回当前任务规定结构的合法 JSON，不要输出 Markdown、代码块、解释文字或额外字段。"
                 .to_string(),
         ),
     );
@@ -157,7 +149,17 @@ mod tests {
         );
         assert_eq!(
             manifest["packs"][0]["variants"].as_array().unwrap().len(),
-            3
+            1
+        );
+        assert!(
+            !manifest["output_contract"]
+                .as_str()
+                .unwrap()
+                .contains("JSON 对象")
+        );
+        assert!(
+            request.response_format.is_none(),
+            "普通构造器也允许任务要求 JSON 数组"
         );
         assert_eq!(trace.project_id, Some(7));
         assert_eq!(trace.workflow_run_id, Some(11));

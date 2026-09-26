@@ -162,6 +162,7 @@ pub struct ImagePublicationRecoveryRecord {
     pub staging_path: String,
     pub final_path: String,
     pub image_type: String,
+    pub model: String,
     pub expected_file_size: i64,
     pub expected_sha256: String,
     pub file_size: Option<i64>,

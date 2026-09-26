@@ -23,6 +23,8 @@ export const ComicProjectWorkspace: React.FC = () => {
   const navigate = useNavigate();
   const addToast = useToast((state) => state.addToast);
   const { t } = useI18n();
+  const translatorRef = useRef(t);
+  translatorRef.current = t;
   const projectId = Number(id);
 
   const subtitleLabels = useMemo(
@@ -49,14 +51,18 @@ export const ComicProjectWorkspace: React.FC = () => {
   const [project, setProject] = useState<NovelProject | null>(null);
   const [chapters, setChapters] = useState<SourceSnapshotChapterSummary[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [sourceSyncOpen, setSourceSyncOpen] = useState(false);
   const refreshRequestRef = useRef(0);
 
   const refresh = useCallback(async () => {
     const requestId = refreshRequestRef.current + 1;
     refreshRequestRef.current = requestId;
+    setLoadError(null);
     if (!Number.isFinite(projectId) || projectId <= 0) {
-      addToast(t("comic.projectInvalid"), "error");
+      const message = translatorRef.current("comic.projectInvalid");
+      setLoadError(message);
+      addToast(message, "error");
       setProject(null);
       setChapters([]);
       setLoading(false);
@@ -72,7 +78,7 @@ export const ComicProjectWorkspace: React.FC = () => {
       const item = projectResult.value;
       if (refreshRequestRef.current !== requestId) return;
       if (item.project_kind !== "comic") {
-        addToast(t("comic.notComicProject"), "error");
+        addToast(translatorRef.current("comic.notComicProject"), "error");
         navigate("/", { replace: true });
         return;
       }
@@ -83,14 +89,16 @@ export const ComicProjectWorkspace: React.FC = () => {
       setChapters(snapshotChapters);
     } catch (err) {
       if (refreshRequestRef.current === requestId) {
-        addToast(extractErrorMessage(err, t("comic.loadProjectFailed")), "error");
+        const message = extractErrorMessage(err, translatorRef.current("comic.loadProjectFailed"));
+        setLoadError(message);
+        addToast(message, "error");
       }
     } finally {
       if (refreshRequestRef.current === requestId) {
         setLoading(false);
       }
     }
-  }, [addToast, navigate, projectId, t]);
+  }, [addToast, navigate, projectId]);
 
   useEffect(() => {
     refreshRequestRef.current += 1;
@@ -119,7 +127,7 @@ export const ComicProjectWorkspace: React.FC = () => {
         subtitle={
           project
             ? getDerivedProjectSubtitle(project, subtitleLabels)
-            : t("video.sourceLoading")
+            : loading ? t("video.sourceLoading") : null
         }
         actions={
           <>
@@ -151,6 +159,7 @@ export const ComicProjectWorkspace: React.FC = () => {
       ) : null}
 
       <section aria-label={t("comic.workspace")} className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden a4n-page-container lg:overflow-hidden custom-scrollbar">
+        {loadError ? <p role="alert" className="mb-3 text-sm text-error">{loadError}</p> : null}
         {loading ? (
           <div className="inline-flex items-center gap-2 text-xs text-book-text-muted">
             <LoadingSpinner size="sm" />

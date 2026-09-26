@@ -13,6 +13,7 @@ pub(in crate::galgame) struct GalgamePortraitAssetDraft {
     pub(in crate::galgame) position_samples: BTreeSet<String>,
     pub(in crate::galgame) source_line_ids: BTreeSet<i64>,
     pub(in crate::galgame) text_anchor_ids: BTreeSet<i64>,
+    pub(in crate::galgame) source_labels: BTreeSet<String>,
 }
 
 impl GalgamePortraitAssetDraft {

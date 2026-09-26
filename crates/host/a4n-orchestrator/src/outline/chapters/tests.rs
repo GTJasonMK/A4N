@@ -44,6 +44,7 @@ async fn chapter_outline_request_moves_blueprint_and_parts_into_manifest() {
     let part = sample_part();
     let context = ChapterOutlineGenerationContext {
         blueprint_payload: json!({
+            "blueprint_available": true,
             "title": "星潮档案",
             "genre": "科幻",
             "one_sentence_summary": "调查星潮真相",

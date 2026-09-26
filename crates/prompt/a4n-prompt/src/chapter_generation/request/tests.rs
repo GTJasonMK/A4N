@@ -49,14 +49,15 @@ fn moves_outline_and_context_into_manifest() {
 }
 
 #[test]
-fn minimal_required_packs_keep_actual_outline_and_continuity_constraints() {
+fn required_story_context_is_preserved_or_rejected_instead_of_cutting_out_the_middle() {
     let outline = format!(
         "## 当前任务\n关键章纲起点\n{}\n章纲末尾约束",
         "章".repeat(12_000)
     );
     let context = format!(
-        "## 后续已写正文约束\n后续落点必须保留\n{}\n## 上一章结尾\n上一章结尾约束",
-        "文".repeat(16_000)
+        "## 后续已写正文约束\n后续落点必须保留\n{}\n中部世界观约束不能消失\n{}\n## 上一章结尾\n上一章结尾约束",
+        "文".repeat(8_000),
+        "文".repeat(8_000)
     );
     let mut request = build_chapter_generation_request(
         42,
@@ -99,11 +100,11 @@ fn minimal_required_packs_keep_actual_outline_and_continuity_constraints() {
                     .count()
             })
             .collect::<Vec<_>>();
-        assert!(lengths[0] > lengths[1]);
-        assert!(lengths[1] > lengths[2]);
+        assert_eq!(lengths.len(), 1, "不能按字符位置猜测哪些约束可以删除");
     }
 
-    let preview = preview_context_aware_chat_request(&mut request, 10_000, 2_000)
+    assert!(preview_context_aware_chat_request(&mut request.clone(), 10_000, 2_000).is_err());
+    let preview = preview_context_aware_chat_request(&mut request, 200_000, 2_000)
         .expect("context planning should succeed")
         .expect("context manifest should be planned");
     let selected_levels = preview.pack_refs_json["selected"]
@@ -118,7 +119,7 @@ fn minimal_required_packs_keep_actual_outline_and_continuity_constraints() {
         })
         .filter_map(|pack| pack["compression_level"].as_str())
         .collect::<Vec<_>>();
-    assert_eq!(selected_levels, vec!["minimal", "minimal"]);
+    assert_eq!(selected_levels, vec!["full_raw", "full_raw"]);
 
     let user_message = request
         .messages
@@ -130,8 +131,9 @@ fn minimal_required_packs_keep_actual_outline_and_continuity_constraints() {
     assert!(user_message.content.contains("## 后续已写正文约束"));
     assert!(user_message.content.contains("后续落点必须保留"));
     assert!(user_message.content.contains("上一章结尾约束"));
+    assert!(user_message.content.contains("中部世界观约束不能消失"));
     assert!(
-        user_message
+        !user_message
             .content
             .contains("中间内容已按模型上下文预算压缩")
     );

@@ -25,6 +25,24 @@ fn request() -> VideoGenerationRequest {
 }
 
 #[test]
+fn negative_constraints_reach_both_routes_and_count_towards_the_byte_limit() {
+    let mut req = request();
+    for openai_route in [false, true] {
+        let body = request_body_for_route(&req, openai_route).unwrap();
+        let prompt = body["prompt"].as_str().unwrap();
+        assert!(prompt.starts_with(&req.prompt));
+        assert_eq!(prompt.matches("noise").count(), 1);
+    }
+    req.prompt = "界".repeat(a4n_video_provider_contract::MAX_CLIPROXY_VIDEO_PROMPT_BYTES / 3);
+    assert!(
+        request_body_for_route(&req, false)
+            .unwrap_err()
+            .to_string()
+            .contains("含负面约束")
+    );
+}
+
+#[test]
 fn openai_route_uses_wrapper_fields_for_references() {
     let mut req = request();
     req.media =

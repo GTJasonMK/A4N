@@ -12,6 +12,7 @@ pub struct EditStoredChapterShootingScriptInput {
     pub record_id: i64,
     pub expected_revision: i32,
     pub script: ChapterShootingScriptV1,
+    pub rebind_shot_ids: Vec<String>,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
@@ -48,7 +49,6 @@ pub struct ChapterShootingScriptUnitProgressView {
     /// 已处理的生成单元数；手工删除场景不会让生成游标倒退。
     pub completed_unit_count: usize,
     pub total_unit_count: usize,
-    pub completed_record: Option<ChapterShootingScriptRecordSummary>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]

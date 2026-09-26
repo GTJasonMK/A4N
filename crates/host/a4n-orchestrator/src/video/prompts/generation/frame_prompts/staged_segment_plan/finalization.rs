@@ -14,7 +14,6 @@ pub(super) async fn finalize_staged_segment_plan(
     let FinalizeStagedSegmentPlanInput {
         service,
         workflow_run_id,
-        fingerprint_json,
         source_spans,
         shooting_script_projection,
         duration_secs,
@@ -34,27 +33,27 @@ pub(super) async fn finalize_staged_segment_plan(
         &segment_plan,
         shooting_script_projection,
     )?;
-    let new_segment_plan = exclude_reused_segment_plan_shots(
-        segment_plan.clone(),
-        &rendered_shots.reused_source_shot_ids,
-    );
     if cancel_token.is_some_and(tokio_util::sync::CancellationToken::is_cancelled) {
         return Err(AppError::Cancelled);
     }
     let stage_outputs = json!({ "segment_plan_per_shot": rendered_shots.stage_outputs });
+    // final 仅冻结草稿编辑；恢复始终逐镜头核对当前模板与来源，不再存一份可绕过校验的聚合结果。
     save_completed_video_workflow_checkpoint(
         service,
         workflow_run_id,
         "video_segment_plan.final".to_string(),
         299,
-        fingerprint_json,
         json!({
-            "segment_plan": segment_plan.clone(),
-            "stage_outputs": stage_outputs.clone(),
-            "reused_source_shot_ids": rendered_shots.reused_source_shot_ids.clone(),
+            "schema_version": 3,
+            "segment_plan_sha256": a4n_domain::source_text_hash(&serde_json::to_string(&segment_plan)?),
         }),
+        json!({"segment_count": segment_plan.len()}),
         None,
     )
     .await?;
-    Ok((rendered_shots.last_trace, new_segment_plan, stage_outputs))
+    Ok((
+        rendered_shots.last_trace,
+        exclude_reused_segment_plan_shots(segment_plan, &rendered_shots.reused_source_shot_ids),
+        stage_outputs,
+    ))
 }

@@ -51,7 +51,7 @@ pub(super) async fn run(
                 SCENE_TRANSITION_REFERENCE_RULE,
                 "occurrence_ref 必须来自 input.previous_stages.occurrences[].occurrence_ref 或 null",
                 SCENE_TRANSITION_MOVEMENT_TYPE_RULE,
-                "source_anchor_ids 必须来自 input.text_anchors[].id"
+                "source_anchor_ids 必须选择 chapter.content 内 ⟦id⟧ 标记的 ID，不含括号"
             ]
         }),
     )

@@ -5,7 +5,6 @@ use a4n_db::workflow::{
 use a4n_domain::workflow::WORKFLOW_STATUS_FAILED;
 use a4n_error::AppError;
 use a4n_llm_provider_contract::provider::ChatRequest;
-use serde::de::DeserializeOwned;
 use serde_json::{Value, json};
 
 use crate::workflow::workflow_checkpoint_contract_app_error;
@@ -144,22 +143,4 @@ pub(in crate::video::prompts::generation::frame_prompts) fn video_llm_call_trace
         )
         .map_err(workflow_checkpoint_contract_app_error)?,
     })
-}
-
-pub(in crate::video::prompts::generation::frame_prompts) fn checkpoint_field<
-    T: DeserializeOwned,
->(
-    checkpoint: &Value,
-    key: &str,
-    context: &str,
-) -> Result<T, AppError> {
-    let value = checkpoint
-        .get(key)
-        .cloned()
-        .ok_or_else(|| AppError::InvalidState {
-            current: "missing_checkpoint_field".to_string(),
-            operation: format!("{context} 缺少字段 {key}"),
-        })?;
-    serde_json::from_value(value)
-        .map_err(|err| AppError::InvalidArgument(format!("{context}.{key} 解析失败: {err}")))
 }

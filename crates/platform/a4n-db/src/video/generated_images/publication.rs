@@ -487,14 +487,14 @@ pub async fn image_publications_for_recovery<C>(
 where
     C: ConnectionTrait,
 {
-    image_publications_for_recovery_for_image_type(db, limit, published_after, None).await
+    image_publications_for_recovery_for_model(db, limit, published_after, None).await
 }
 
-pub async fn image_publications_for_recovery_for_image_type<C>(
+pub async fn image_publications_for_recovery_for_model<C>(
     db: &C,
     limit: usize,
     published_after: Option<&str>,
-    image_type: Option<&str>,
+    model: Option<&str>,
 ) -> Result<Vec<image_publication::Model>, VideoDbError>
 where
     C: ConnectionTrait,
@@ -508,8 +508,8 @@ where
         ]))
         .order_by_asc(image_publication::Column::UpdatedAt)
         .limit(limit);
-    if let Some(image_type) = image_type {
-        pending_query = pending_query.filter(image_publication::Column::ImageType.eq(image_type));
+    if let Some(model) = model {
+        pending_query = pending_query.filter(image_publication::Column::Model.eq(model));
     }
     let mut publications = pending_query
         .all(db)
@@ -521,9 +521,8 @@ where
             .filter(image_publication::Column::Status.eq(IMAGE_PUBLICATION_STATUS_PUBLISHED))
             .order_by_asc(image_publication::Column::PublicationId)
             .limit(published_limit as u64);
-        if let Some(image_type) = image_type {
-            published_query =
-                published_query.filter(image_publication::Column::ImageType.eq(image_type));
+        if let Some(model) = model {
+            published_query = published_query.filter(image_publication::Column::Model.eq(model));
         }
         let page_query = match published_after {
             Some(after) => published_query

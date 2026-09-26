@@ -60,7 +60,7 @@ export const LlmTab: React.FC<LlmTabProps> = ({ scope = "local" }) => {
     });
     return { items, catalog: providerCatalog };
   }, [serverScope, t]);
-  const { items, catalog, loading, refresh } = useConfigItems(
+  const { items, setItems, catalog, loading, error, refresh } = useConfigItems(
     loadItems,
     t("settings.loadConfigFailed", { name: t("settings.llmConfig") }),
   );
@@ -76,7 +76,9 @@ export const LlmTab: React.FC<LlmTabProps> = ({ scope = "local" }) => {
         <ConfigListPanel<LlmForm>
           title={t("settings.llmConfig")}
           items={items}
+          onItemsChange={setItems}
           loading={loading}
+          loadError={error}
           onRefresh={refresh}
           defaultForm={defaultForm}
           validate={(form) => validateLlmForm(form, t)}
@@ -98,18 +100,17 @@ export const LlmTab: React.FC<LlmTabProps> = ({ scope = "local" }) => {
           )}
           onCreate={async (form) => {
             const created = await (serverScope ? createServerLlmConfig : createLlmConfig)(toCreateLlmInput(form, t));
-            return created.id;
+            return toLlmItem(created);
           }}
           onUpdate={async (id, form) => {
             const input = toUpdateLlmInput(form, t);
             if (!serverScope && id === SYSTEM_LLM_CONFIG_ID) {
-              await updateSystemDefaultLlmKey({ api_key_encrypted: input.api_key_encrypted });
-              return;
+              return toLlmItem(await updateSystemDefaultLlmKey({ api_key_encrypted: input.api_key_encrypted }));
             }
-            await (serverScope ? updateServerLlmConfig : updateLlmConfig)(
+            return toLlmItem(await (serverScope ? updateServerLlmConfig : updateLlmConfig)(
               id,
               input,
-            );
+            ));
           }}
           onDelete={serverScope ? deleteServerLlmConfig : deleteLlmConfig}
           onActivate={serverScope ? setDefaultServerLlmConfig : setDefaultLlmConfig}

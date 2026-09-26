@@ -316,30 +316,51 @@ async fn watch_generation_task(
     output: &OutputOptions,
 ) -> Result<()> {
     let path = task_path(task_id, attempt, "/events")?;
-    if cursor.is_none() {
-        let value = client
-            .send_json(get_request(&task_path(task_id, attempt, "/snapshot")?))
-            .await?;
-        let snapshot: a4n_service_protocol::GenerationTaskSnapshot =
-            serde_json::from_value(value.clone()).context("generation snapshot 合同无效")?;
-        snapshot.validate().context("generation snapshot 合同无效")?;
-        if snapshot.task_id != task_id || snapshot.attempt != attempt {
-            bail!("generation snapshot task_id/attempt 与请求不一致");
-        }
-        if let Some(event) = snapshot.terminal_event {
-            let event = serde_json::to_value(event)?;
-            print_json(&event, output)?;
-            return finish_generation_task(event);
-        }
-        print_json(&value, output)?;
-        cursor = Some(snapshot.covers_through_sequence);
-    }
+    let refresh_expired_snapshot = cursor.is_none();
     let mut reconnect_attempt = 0_u32;
     loop {
+        if cursor.is_none() {
+            let value = client
+                .send_json(get_request(&task_path(task_id, attempt, "/snapshot")?))
+                .await?;
+            let snapshot: a4n_service_protocol::GenerationTaskSnapshot =
+                serde_json::from_value(value.clone()).context("generation snapshot 合同无效")?;
+            snapshot
+                .validate()
+                .context("generation snapshot 合同无效")?;
+            if snapshot.task_id != task_id || snapshot.attempt != attempt {
+                bail!("generation snapshot task_id/attempt 与请求不一致");
+            }
+            if let Some(event) = snapshot.terminal_event {
+                let event = serde_json::to_value(event)?;
+                print_json(&event, output)?;
+                return finish_generation_task(event);
+            }
+            print_json(&value, output)?;
+            cursor = Some(snapshot.covers_through_sequence);
+        }
         let last_event_id = cursor.map(|sequence| format!("{attempt}:{sequence}"));
-        let response = client
+        let response = match client
             .generation_stream(&path, last_event_id.as_deref())
-            .await?;
+            .await
+        {
+            Ok(response) => response,
+            Err(error)
+                if refresh_expired_snapshot
+                    && error
+                        .downcast_ref::<crate::client::ApiRequestError>()
+                        .is_some_and(|error| error.code == "generation_snapshot_required") =>
+            {
+                // 默认监听承认完整快照；显式回放游标仍保留过期错误，不能丢弃用户要求的历史。
+                cursor = None;
+                if output.mode == OutputMode::Human {
+                    eprintln!("warning: generation SSE 游标已过期，正在重新读取任务快照");
+                }
+                tokio::time::sleep(Duration::from_millis(200)).await;
+                continue;
+            }
+            Err(error) => return Err(error),
+        };
         match sse::consume_generation_events(response, |event| print_json(event, output)).await? {
             sse::StreamOutcome::Terminal(event) => {
                 return finish_generation_task(event);

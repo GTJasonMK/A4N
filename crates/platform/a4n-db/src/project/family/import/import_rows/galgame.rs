@@ -116,6 +116,11 @@ pub(super) async fn insert_galgame_rows(
                 line.speaker_profile_id,
                 "Galgame 行 speaker_profile_id",
             )?);
+            active.presentation_json = Set(remap_galgame_presentation_json(
+                &line.presentation_json,
+                maps,
+                "Galgame 行 presentation_json",
+            )?);
             active.text_anchor_id = Set(map_optional(
                 &maps.text_anchor_ids,
                 line.text_anchor_id,

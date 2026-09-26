@@ -156,12 +156,7 @@ pub async fn update_chapter_video_segment_plan(
 ) -> Result<ChapterVideoPromptSummary, String> {
     state
         .video_prompt_mutation_application()
-        .update_chapter_video_segment_plan(
-            user_id,
-            prompt_id,
-            input,
-            &RuntimeVideoPromptCleanup { state, user_id },
-        )
+        .update_chapter_video_segment_plan(user_id, prompt_id, input)
         .await
         .map_err(error_message)
 }

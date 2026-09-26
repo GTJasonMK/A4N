@@ -31,7 +31,7 @@ pub async fn build_chapter_fact_extraction_request(
         json!({
             "format": "json_object",
             "required_fields": ["characters", "locations", "items", "event_candidates", "foreshadowing_candidates", "world_facts"],
-            "source_span_rule": "所有 source_span_ids 和 original_text_span_id 必须来自稳定上下文 chapter_analysis_source.source_spans[].id"
+            "source_span_rule": "所有 source_span_ids 和 original_text_span_id 必须选择 chapter_analysis_source.content 中 ⟦id⟧ 标记的 ID，不包含括号"
         }),
     )
     .await

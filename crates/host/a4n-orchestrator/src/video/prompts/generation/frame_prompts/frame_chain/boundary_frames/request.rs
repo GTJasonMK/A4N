@@ -2,8 +2,8 @@ use a4n_error::AppError;
 
 use crate::video::library::available_video_image_ids;
 use crate::video::prompts::context::{
-    FramePromptContext, VIDEO_PREVIOUS_OUTPUT_SEGMENT_PLAN, VideoContextManifestInput,
-    VideoContextPreviousOutput, build_single_frame_prompt_user, build_video_context_manifest,
+    FramePromptContext, VideoContextManifestInput, build_single_frame_prompt_user,
+    build_video_context_manifest,
 };
 use crate::video::prompts::generation::frame_prompts::{
     available_assets_with_previous_boundary_frame, backend_frame_reference_ids,
@@ -57,22 +57,36 @@ pub(in crate::video::prompts::generation::frame_prompts::frame_chain) async fn p
         &current_frame,
     )
     .await?;
+    let numbers = current_frame["expected_segment_numbers"]
+        .as_array()
+        .ok_or_else(|| AppError::InvalidArgument("边界帧缺少来源片段编号".into()))?;
+    let selected_spans =
+        crate::video::prompts::generation::frame_prompts::checkpoint::source_spans_for_segments(
+            input.source_spans,
+            input.segment_plan.iter().filter(|segment| {
+                numbers
+                    .iter()
+                    .any(|number| number.as_i64() == Some(i64::from(segment.segment_number)))
+            }),
+        )?;
+    let source_text = a4n_domain::source_spans::source_span_context_excerpt(
+        input.source.content,
+        &selected_spans,
+    )
+    .map_err(AppError::InvalidArgument)?;
+    let scoped_source = crate::video::ChapterVideoSourceContext {
+        content: &source_text,
+        summary: input.source.summary,
+        analysis: input.source.analysis,
+    };
     let context_manifest = build_video_context_manifest(VideoContextManifestInput {
         prompt_renderer: input.prompt_renderer,
         project_id: input.project_id,
         variables: input.variables,
-        source: &input.source,
-        source_spans: input.source_spans,
+        source: &scoped_source,
         prompt_names: &["chapter_video_segment_plan", input.spec.frame_prompt_name],
-        previous_outputs: &[VideoContextPreviousOutput {
-            pack_kind: VIDEO_PREVIOUS_OUTPUT_SEGMENT_PLAN,
-            source_name: "chapter_video_segment_plan",
-            parsed_output: input.segment_json,
-            raw_output: None,
-            placeholder: false,
-        }],
+        previous_outputs: &[],
         project_context: input.project_context,
-        asset_context: Some(&prompt_available_assets),
         dynamic_user_content: frame_user,
     })
     .await?;
@@ -86,6 +100,7 @@ pub(in crate::video::prompts::generation::frame_prompts::frame_chain) async fn p
         serde_json::json!({
             "project_id": input.project_id,
             "chapter_id": input.chapter_id,
+            "source_span_ids": selected_spans.iter().map(|span| &span.id).collect::<Vec<_>>(),
             "frame_number": input.frame_number,
             "frame_prompt_type": input.spec.frame_prompt_type,
         }),

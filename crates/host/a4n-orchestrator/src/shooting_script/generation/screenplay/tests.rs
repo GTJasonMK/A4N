@@ -8,7 +8,7 @@ use a4n_domain::source_spans::source_spans_for_content;
 use crate::{
     shooting_script::contracts::{
         ChapterScreenplaySkeletonV1, PreparedChapterShootingScriptRequest,
-        ScreenplayLayoutUnitDetailV1, ScreenplayLayoutUnitV1, ScreenplayPerformanceFactV1,
+        ScreenplayLayoutUnitDetailV2, ScreenplayLayoutUnitV1, ScreenplayPerformanceFactV1,
         ScreenplaySkeletonUnitV1, ScreenplayUnitAdaptationV1,
     },
     structured_llm::parse_strict_json_response,
@@ -50,6 +50,7 @@ fn prepared() -> PreparedChapterShootingScriptRequest {
         existing: None,
         visual_plan,
         visual_plan_projection,
+        shot_ids: Vec::new(),
         scene_profiles: Vec::new(),
         layout_unit_system_prompt: String::new(),
         unit_adaptation_system_prompt: String::new(),
@@ -110,9 +111,10 @@ fn layout_assembly_keeps_skeleton_topology() {
         editing_mode: ShootingEditingModeV1::Intercut,
         source_span_ids: vec!["span-1".into()],
     };
-    let detail = ScreenplayLayoutUnitDetailV1 {
-        schema_version: "screenplay_layout_unit_detail_v1".into(),
+    let detail = ScreenplayLayoutUnitDetailV2 {
+        schema_version: "screenplay_layout_unit_detail_v2".into(),
         narrative_unit_index: 1,
+        source_span_ids: vec![],
         transition_contracts: Vec::new(),
         title: "回切教室".into(),
         slugline: "内景 教室 日".into(),
@@ -130,13 +132,18 @@ fn layout_assembly_keeps_skeleton_topology() {
     assert_eq!(unit.timeline_position, 2);
     assert_eq!(unit.intercut_group_id.as_deref(), Some("crosscut"));
     assert_eq!(unit.title, "回切教室");
+    assert!(
+        unit.source_span_ids.is_empty(),
+        "不应把全章候选重新填回已选择的来源"
+    );
 }
 
 #[test]
 fn layout_detail_rejects_transition_outside_skeleton() {
-    let output = ScreenplayLayoutUnitDetailV1 {
-        schema_version: "screenplay_layout_unit_detail_v1".into(),
+    let output = ScreenplayLayoutUnitDetailV2 {
+        schema_version: "screenplay_layout_unit_detail_v2".into(),
         narrative_unit_index: 1,
+        source_span_ids: vec![],
         transition_contracts: vec![ShootingTransitionContractV1 {
             to_narrative_unit_index: 3,
             transition_type: ShootingTransitionTypeV1::HardCut,
@@ -155,10 +162,17 @@ fn layout_detail_rejects_transition_outside_skeleton() {
         exit_state: "门内".into(),
     };
 
-    let error = validate_layout_unit_detail(&output, 1, 2)
+    let error = validate_layout_unit_detail(&output, 1, 2, &[])
         .expect_err("transition target outside skeleton must fail");
 
     assert!(error.to_string().contains("无效转场合同"));
+    let mut scoped = output;
+    scoped.transition_contracts.clear();
+    scoped.source_span_ids = vec!["known".into()];
+    assert!(validate_layout_unit_detail(&scoped, 1, 2, &["known".into()]).is_ok());
+    assert!(validate_layout_unit_detail(&scoped, 1, 2, &[]).is_err());
+    scoped.source_span_ids.push("known".into());
+    assert!(validate_layout_unit_detail(&scoped, 1, 2, &["known".into()]).is_err());
 }
 
 #[test]
@@ -246,8 +260,9 @@ fn adaptation_rejects_unusable_facts_before_shooting_design() {
 fn layout_detail_parser_rejects_string_for_preserved_knowledge_array() {
     let raw = r#"
     {
-      "schema_version": "screenplay_layout_unit_detail_v1",
+      "schema_version": "screenplay_layout_unit_detail_v2",
       "narrative_unit_index": 1,
+      "source_span_ids": [],
       "transition_contracts": [{
         "to_narrative_unit_index": 2,
         "transition_type": "hard_cut",
@@ -267,7 +282,7 @@ fn layout_detail_parser_rejects_string_for_preserved_knowledge_array() {
     }
     "#;
 
-    let error = parse_strict_json_response::<ScreenplayLayoutUnitDetailV1>(raw, "叙事单元布局")
+    let error = parse_strict_json_response::<ScreenplayLayoutUnitDetailV2>(raw, "叙事单元布局")
         .expect_err("string must not be accepted for preserved_knowledge");
 
     assert!(error.to_string().contains("expected a sequence"));

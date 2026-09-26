@@ -30,6 +30,9 @@ where
     delete_text_discovered_profiles(tx, project_id, &text_profile_ids).await?;
 
     if !retained_profiles.is_empty() {
+        let mut base_attributes = CaseStatement::new();
+        let mut character_arc = CaseStatement::new();
+        let mut voice_fingerprint = CaseStatement::new();
         let mut gender = CaseStatement::new();
         let mut age = CaseStatement::new();
         let mut appearance = CaseStatement::new();
@@ -37,7 +40,30 @@ where
         let mut personality = CaseStatement::new();
         let mut current_state = CaseStatement::new();
         for profile in &retained_profiles {
-            let fields = character::profile_current_state_fields(profile.base_attributes.clone());
+            let base = a4n_domain::character::profile_reset_base(
+                profile.base_attributes.clone(),
+                profile.is_text_discovered(),
+            )
+            .map_err(ProjectResetDbError::InvalidArgument)?;
+            base_attributes =
+                base_attributes.case(protagonist_profile::Column::Id.eq(profile.id), base.clone());
+            character_arc = character_arc.case(
+                protagonist_profile::Column::Id.eq(profile.id),
+                if profile.is_text_discovered() {
+                    None
+                } else {
+                    profile.character_arc.clone()
+                },
+            );
+            voice_fingerprint = voice_fingerprint.case(
+                protagonist_profile::Column::Id.eq(profile.id),
+                if profile.is_text_discovered() {
+                    None
+                } else {
+                    profile.voice_fingerprint.clone()
+                },
+            );
+            let fields = character::profile_current_state_fields(base);
             gender = gender.case(
                 protagonist_profile::Column::Id.eq(profile.id),
                 fields.gender,
@@ -61,6 +87,18 @@ where
             );
         }
         protagonist_profile::Entity::update_many()
+            .col_expr(
+                protagonist_profile::Column::BaseAttributes,
+                base_attributes.into(),
+            )
+            .col_expr(
+                protagonist_profile::Column::CharacterArc,
+                character_arc.into(),
+            )
+            .col_expr(
+                protagonist_profile::Column::VoiceFingerprint,
+                voice_fingerprint.into(),
+            )
             .col_expr(protagonist_profile::Column::Gender, gender.into())
             .col_expr(protagonist_profile::Column::Age, age.into())
             .col_expr(protagonist_profile::Column::Appearance, appearance.into())

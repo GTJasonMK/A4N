@@ -3,9 +3,15 @@ mod contracts;
 mod deletion;
 mod editing;
 mod mutations;
+mod plan_rebase;
 mod progress;
 mod queries;
 mod validation;
+
+pub(crate) use codec::parse_record;
+pub(crate) use progress::{
+    chapter_shooting_script_progress_for_plans, mark_shooting_progress_source_updated,
+};
 
 pub use contracts::{
     ChapterVisualPlanIdentity, DeleteStoredChapterShootingScriptInput,
@@ -15,7 +21,12 @@ pub use contracts::{
 pub use deletion::delete_chapter_shooting_script_and_invalidate;
 pub use editing::edit_chapter_shooting_script_and_invalidate;
 pub use mutations::{insert_chapter_shooting_script, update_chapter_shooting_script};
-pub use progress::edit_chapter_shooting_script_progress;
+pub use plan_rebase::chapter_shooting_script_plan_sync;
+pub(crate) use plan_rebase::rebase_chapter_shooting_script_onto_plan;
+pub(crate) use plan_rebase::shooting_script_director_plan;
+pub use progress::{
+    chapter_shooting_script_progress_for_source, edit_chapter_shooting_script_progress,
+};
 pub use queries::{
     chapter_shooting_script_by_id, chapter_shooting_script_for_source,
     chapter_shooting_scripts_for_sources,

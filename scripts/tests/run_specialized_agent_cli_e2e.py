@@ -400,10 +400,14 @@ def main():
                 "expected_revision": composed_draft["record"]["revision"],
             }, destructive=True)["visual_plan"]
             assert confirmed["record"]["status"] == "confirmed"
-            script = call("generate_chapter_shooting_script", {
+            handle = call("start_chapter_shooting_script_generation", {
                 **compose_resource,
                 "visual_plan_id": confirmed["record"]["id"],
+                "mode": "full",
+                "meta": {"start_request_id": str(uuid.uuid4())},
             })
+            checked(cli, ["task", "watch", handle["task_id"], "--attempt", str(handle["attempt"])], "shooting task")
+            script = call("get_chapter_shooting_script", compose_resource)
             shots = [shot for scene in script["script"]["scenes"] for shot in scene["shots"]]
             assert [shot["shot_id"] for shot in shots] == ["shot-1", "shot-2", "shot-3"]
             assert [shot["estimated_natural_seconds"] for shot in shots] == [3, 6, 3]

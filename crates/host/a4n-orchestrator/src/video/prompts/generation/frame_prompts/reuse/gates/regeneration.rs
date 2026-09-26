@@ -39,37 +39,6 @@ pub(in crate::video::prompts::generation::frame_prompts) async fn ensure_existin
     Ok(())
 }
 
-pub(in crate::video::prompts::generation::frame_prompts) async fn ensure_existing_segment_plans_can_regenerate(
-    service: &OrchestratorContext,
-    project_id: i64,
-    chapter_id: i64,
-    workflow_mode: PromptWorkflowMode,
-    prompt_type: &str,
-    ignored_downstream_prompt_types: &[&str],
-) -> Result<(), AppError> {
-    let ignored_prompt_ids = ignored_prompt_ids_by_types(
-        service,
-        project_id,
-        chapter_id,
-        ignored_downstream_prompt_types,
-        false,
-    )
-    .await?;
-    let rows = segment_plan_rows(
-        service,
-        project_id,
-        chapter_id,
-        workflow_mode,
-        prompt_type,
-        false,
-    )
-    .await?;
-    service
-        .ensure_prompt_stages_mutable_ignoring(&rows, "重新生成", &ignored_prompt_ids)
-        .await?;
-    Ok(())
-}
-
 pub(in crate::video::prompts::generation::frame_prompts) async fn ensure_segment_plan_generation_can_start(
     service: &OrchestratorContext,
     project_id: i64,

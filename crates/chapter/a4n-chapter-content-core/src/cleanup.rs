@@ -26,11 +26,9 @@ pub async fn cleanup_chapter_derived_data_in(
     )
     .await
     .map_err(|error| owner_error("失效章节视觉方案", error))?;
-    a4n_db::text_anchor::delete_chapter_content_profile_evidence_records(
-        db, project_id, chapter_id,
-    )
-    .await
-    .map_err(|error| owner_error("清理章节正文证据", error))?;
+    a4n_db::text_anchor::delete_chapter_content_anchor_records(db, project_id, &[chapter_id])
+        .await
+        .map_err(|error| owner_error("清理失效正文锚点及证据", error))?;
     a4n_db::project::delete_automatic_chapter_outlines_for_source_change(
         db,
         project_id,

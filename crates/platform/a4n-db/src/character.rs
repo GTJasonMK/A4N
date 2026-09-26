@@ -29,6 +29,7 @@ pub use portrait::{
 };
 pub(crate) use profile::apply_profile_current_state;
 pub(crate) use profile::delete_profiles_cascade_in;
+pub(crate) use profile::referenced_profile_ids;
 pub use profile::{
     CharacterProfileCreateError, CharacterProfileCurrentStateFields, CharacterProfileDeleteError,
     CharacterProfileDeletionSummary, create_profile, create_profile_with_generation_run,

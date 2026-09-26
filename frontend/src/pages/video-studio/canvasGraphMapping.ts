@@ -5,8 +5,6 @@ import {
   type CanvasGraphDocument,
   type CanvasGraphInput,
 } from "../../api/canvas";
-import type { MessageTranslator } from "../../i18n";
-import { edgeRoleLabel } from "./StudioCanvasNode";
 import {
   type StudioConfigOption,
 } from "./canvasConfig";
@@ -197,7 +195,7 @@ export function defaultConfigForNode(
   return {};
 }
 
-export function toFlowEdge(edge: CanvasGraphDocument["edges"][number], t: MessageTranslator): StudioEdge {
+export function toFlowEdge(edge: CanvasGraphDocument["edges"][number]): StudioEdge {
   return {
     id: String(edge.id),
     source: String(edge.source_node_id),
@@ -205,7 +203,6 @@ export function toFlowEdge(edge: CanvasGraphDocument["edges"][number], t: Messag
     sourceHandle: edge.source_port,
     targetHandle: edge.target_port,
     type: "smoothstep",
-    label: edgeRoleLabel(edge.role, t),
     className: "a4n-studio-edge",
     labelBgPadding: [6, 3],
     labelBgBorderRadius: 4,

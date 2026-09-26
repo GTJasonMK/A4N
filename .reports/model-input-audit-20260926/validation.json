@@ -1,0 +1,42 @@
+{
+  "backend_unique_tests_passed": 699,
+  "backend_by_crate": {
+    "a4n_domain": 118,
+    "a4n_orchestrator": 363,
+    "a4n_agent_runtime": 30,
+    "a4n_prompt": 79,
+    "a4n_video_providers": 82,
+    "a4n_llm_context": 24,
+    "a4n_video_provider_contract": 3
+  },
+  "frontend_tests_passed": 24,
+  "mock_provider_tests_passed": 27,
+  "browser_request_modes_passed": 3,
+  "core_cli_scenarios_passed": 13,
+  "director_cli_checks_passed": 17,
+  "cache_cli_checks_passed": 8,
+  "cache_usage_is_synthetic": true,
+  "typescript_check": "passed",
+  "api_and_generation_contract_check": "passed",
+  "cargo_fmt_all": "passed",
+  "task_scoped_rustfmt": "passed",
+  "git_diff_check": "passed",
+  "full_runtime_build": "passed",
+  "runtime_state": "stopped; isolated fixtures and request evidence retained",
+  "runtime": {
+    "api": "127.0.0.1:19190",
+    "mock": "127.0.0.1:19198",
+    "postgres_port": 32768,
+    "qdrant": "127.0.0.1:19194"
+  },
+  "fixture_corrections": [
+    "valid frozen shooting source identities",
+    "explicit OpenAI cache opt-in",
+    "6-second encoded video sample",
+    "provider API base URL includes /v1"
+  ],
+  "limitations": [
+    "No paid model quality A/B or real cache hit-rate measurement.",
+    "CLI suites cover the selected workflows, not every application command."
+  ]
+}

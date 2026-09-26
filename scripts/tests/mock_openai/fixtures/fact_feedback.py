@@ -1,7 +1,7 @@
 """Deterministic expository chapters for cadence and recovery tests."""
 import re
 from .reverse import embedded_json_objects
-from .entities import chapter_analysis_foreshadowing_response
+from .entities import chapter_analysis_foreshadowing_response, source_span_pairs
 
 
 def identity_feedback_response(combined: str) -> dict:
@@ -19,8 +19,7 @@ def identity_feedback_response(combined: str) -> dict:
 
 def fact_feedback_response(combined: str, invalid: bool = False) -> dict:
     objects = embedded_json_objects(combined)
-    spans = [item for item in objects if isinstance(item.get("id"), str)
-             and re.fullmatch(r"ch\d+:s\d+:f\d+", item["id"]) and isinstance(item.get("text"), str)]
+    spans = [{"id": identifier, "text": text} for identifier, text in source_span_pairs(combined)]
     if "project_fact_consolidation" in combined:
         materials = next(item for item in objects if "blueprint" in item and "part_outlines" in item)
         blueprint = materials["blueprint"]

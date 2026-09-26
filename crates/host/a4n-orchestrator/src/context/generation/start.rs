@@ -8,6 +8,30 @@ use super::fingerprints::{
 use super::*;
 
 impl OrchestratorContext {
+    pub(crate) async fn start_shooting_script_generation_task(
+        &self,
+        user_id: i64,
+        input: &a4n_api_contract::shooting_script::StartChapterShootingScriptGenerationInput,
+    ) -> Result<GenerationTaskStart, GenerationTaskAccessError> {
+        self.verify_project_or_derived_family_editor_validated(user_id, input.project_id)
+            .await
+            .map_err(GenerationTaskAccessError::Project)?;
+        crate::shooting_script::validate_shooting_generation_mode(input.mode, &input.shot_ids)
+            .map_err(GenerationTaskAccessError::Project)?;
+        let (workflow, _) = self
+            .prepare_shooting_script_workflow_input(input, None)
+            .await
+            .map_err(GenerationTaskAccessError::Project)?;
+        let fingerprint = serde_json::json!({
+            "source": workflow.input_fingerprint_json,
+            "mode": input.mode,
+            "model": self.llm_model_name(),
+        });
+        self.generation
+            .start_shooting_script_generation_task(user_id, input, fingerprint)
+            .await
+    }
+
     pub(crate) async fn start_chapter_generation_task(
         &self,
         user_id: i64,

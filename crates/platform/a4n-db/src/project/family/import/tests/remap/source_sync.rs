@@ -204,6 +204,12 @@ fn source_sync_decision_payload_remaps_regenerate_scene_stage_outputs() {
                                         "index": 1,
                                         "line_type": "dialogue",
                                         "speaker_profile_id": 51,
+                                        "presentation": {
+                                            "schema_version": "galgame_line_presentation_v2",
+                                            "visible_cast": [{"character_profile_id": 51, "expression": "neutral", "pose": "standing", "position": "left", "facing": "front", "layer": "front"}],
+                                            "enter": [51], "exit": [], "focus_character_profile_id": 51,
+                                            "hold": false, "player_knowledge": []
+                                        },
                                         "text": "台词",
                                         "source_span_ids": ["ch1:ta41"]
                                     }
@@ -231,6 +237,14 @@ fn source_sync_decision_payload_remaps_regenerate_scene_stage_outputs() {
 
     assert_eq!(remapped["galgame_scene_id"], json!(109));
     let stage_outputs = &remapped["result"]["stage_outputs"];
+    let presentation =
+        &stage_outputs["character_staging"]["scene_lines"][0]["lines"][0]["presentation"];
+    assert_eq!(
+        presentation["visible_cast"][0]["character_profile_id"],
+        json!(151)
+    );
+    assert_eq!(presentation["enter"], json!([151]));
+    assert_eq!(presentation["focus_character_profile_id"], json!(151));
     assert_eq!(
         stage_outputs["shooting_script_projection"]["scenes"][0]["source_snapshot_chapter_id"],
         json!(122)

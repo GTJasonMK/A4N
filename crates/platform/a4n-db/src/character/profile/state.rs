@@ -2,31 +2,8 @@ use a4n_db_models::models::character::protagonist_profile;
 use sea_orm::Set;
 use serde_json::Value;
 
-use crate::character::{CharacterDbError, attributes::category_storage_key};
-
-use super::types::CharacterProfileCurrentStateFields;
-
-fn optional_profile_text_field(attributes: &Value, category: &str, key: &str) -> Option<String> {
-    attributes
-        .get(category_storage_key(category))
-        .and_then(Value::as_object)
-        .and_then(|values| values.get(key))
-        .and_then(Value::as_str)
-        .map(str::trim)
-        .filter(|text| !text.is_empty())
-        .map(ToOwned::to_owned)
-}
-
-pub fn profile_current_state_fields(current_state: Value) -> CharacterProfileCurrentStateFields {
-    CharacterProfileCurrentStateFields {
-        gender: optional_profile_text_field(&current_state, "explicit", "gender"),
-        age: optional_profile_text_field(&current_state, "explicit", "age"),
-        appearance: optional_profile_text_field(&current_state, "explicit", "appearance"),
-        background: optional_profile_text_field(&current_state, "explicit", "background"),
-        personality: optional_profile_text_field(&current_state, "implicit", "personality"),
-        current_state,
-    }
-}
+use crate::character::CharacterDbError;
+pub use a4n_domain::character::profile_current_state_fields;
 
 pub(crate) fn apply_profile_current_state(
     active: &mut protagonist_profile::ActiveModel,

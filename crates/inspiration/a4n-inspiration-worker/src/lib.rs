@@ -208,7 +208,7 @@ impl WorkerState {
         let messages = a4n_db::inspiration::inspiration_messages(
             self.database.connection(),
             project_id,
-            a4n_db::inspiration::INSPIRATION_HISTORY_LIMIT,
+            Some(a4n_db::inspiration::INSPIRATION_HISTORY_LIMIT),
         )
         .await
         .map_err(inspiration_error)?;

@@ -34,6 +34,7 @@ pub(super) async fn render_segment_plan_from_shooting_script_projection(
         prompt_output_language,
         previous_segment_plan,
         previous_segment_recipes,
+        previous_script_identity,
         reuse_published_shots,
         duration_secs,
         aspect_ratio,
@@ -62,8 +63,44 @@ pub(super) async fn render_segment_plan_from_shooting_script_projection(
         )
     };
     let (script, identity, source_shot_order, source_complete) = if let Some(resolved) = published {
+        let confirmed = service
+            .confirmed_visual_plan_for_shooting_script(&resolved.source, None)
+            .await?;
+        let director = crate::chapter_visual_plan::project_visual_plan_for_shooting_script(
+            &confirmed.plan,
+            &[],
+        )?;
+        let sync = resolved.shooting_script.script.plan_sync(&director);
+        let scoped_ids = director
+            .narrative_units
+            .iter()
+            .enumerate()
+            .filter(|(offset, _)| {
+                target_narrative_unit_index.is_none_or(|index| *offset + 1 == index as usize)
+            })
+            .flat_map(|(_, unit)| unit.shots.iter().map(|shot| &shot.segment_id))
+            .collect::<std::collections::HashSet<_>>();
+        let stale = sync
+            .stale_shot_ids
+            .iter()
+            .chain(&sync.missing_shot_ids)
+            .filter(|id| scoped_ids.contains(id))
+            .collect::<Vec<_>>();
+        if !stale.is_empty() {
+            return Err(AppError::InvalidArgument(format!(
+                "请先更新这些镜头的拍摄剧本: {stale:?}"
+            )));
+        }
         let record = &resolved.shooting_script.record;
-        let source_shot_order = shooting_script_shot_ids(&resolved.shooting_script.script);
+        let source_fingerprints = resolved
+            .shooting_script
+            .script
+            .shot_content_fingerprints(&director)?;
+        let source_shot_order: Vec<String> = director
+            .narrative_units
+            .iter()
+            .flat_map(|unit| unit.shots.iter().map(|shot| shot.segment_id.clone()))
+            .collect();
         (
             scope_shooting_script(resolved.shooting_script.script, target_narrative_unit_index)?,
             VideoShootingScriptIdentityV1 {
@@ -72,21 +109,36 @@ pub(super) async fn render_segment_plan_from_shooting_script_projection(
                 source_revision_key: record.source_revision_key.clone(),
                 source_content_sha256: record.source_content_sha256.clone(),
                 script_sha256: record.script_sha256.clone(),
+                shot_fingerprints: source_fingerprints,
             },
             source_shot_order,
-            true,
+            sync.is_current(),
         )
     } else {
         let narrative_unit_index = target_narrative_unit_index
             .expect("whole-chapter planning requires a published script above");
         let unit_progress = service
-            .current_chapter_shooting_script_unit_progress(script_source)
+            .current_chapter_shooting_script_unit_progress(script_source.clone())
             .await?
             .ok_or_else(|| {
                 AppError::InvalidArgument("当前章节没有可用的场景级拍摄设计".to_string())
             })?;
-        let source_shot_order = shooting_script_shot_ids(&unit_progress.script);
-        let source_complete = unit_progress.resolved.is_some();
+        let (resolved_source, _) = service
+            .load_chapter_shooting_script_source_record(&script_source)
+            .await?;
+        let confirmed = service
+            .confirmed_visual_plan_for_shooting_script(&resolved_source, None)
+            .await?;
+        let director = crate::chapter_visual_plan::project_visual_plan_for_shooting_script(
+            &confirmed.plan,
+            &[],
+        )?;
+        let source_shot_order: Vec<String> = director
+            .narrative_units
+            .iter()
+            .flat_map(|unit| unit.shots.iter().map(|shot| shot.segment_id.clone()))
+            .collect();
+        let source_fingerprints = unit_progress.script.shot_content_fingerprints(&director)?;
         let script = scope_shooting_script(unit_progress.script, target_narrative_unit_index)?;
         let script_json = serde_json::to_string(&script)?;
         let revision = i32::try_from(unit_progress.completed_unit_count).map_err(|_| {
@@ -103,15 +155,13 @@ pub(super) async fn render_segment_plan_from_shooting_script_projection(
                 ),
                 source_content_sha256: a4n_domain::source_text_hash(source.content),
                 script_sha256: a4n_domain::source_text_hash(&script_json),
+                shot_fingerprints: source_fingerprints,
             },
             source_shot_order,
-            source_complete,
+            false,
         )
     };
-    let analysis = video_projection_from_shooting_script(&script, identity, duration_secs)?;
-    let analysis_json = serde_json::to_value(&analysis).map_err(|error| {
-        AppError::InvalidArgument(format!("拍摄剧本视频执行投影序列化失败: {error}"))
-    })?;
+    let analysis = video_projection_from_shooting_script(&script, identity)?;
     report_video_prompt_progress(
         progress,
         shooting_script_projection_span.end(),
@@ -130,7 +180,6 @@ pub(super) async fn render_segment_plan_from_shooting_script_projection(
             source_metadata,
             source_spans,
             project_context,
-            shooting_script_projection_json: &analysis_json,
             shooting_script_projection: &analysis,
             source_shot_order: &source_shot_order,
             source_complete,
@@ -139,6 +188,7 @@ pub(super) async fn render_segment_plan_from_shooting_script_projection(
             prompt_output_language,
             previous_segment_plan,
             previous_segment_recipes,
+            previous_script_identity,
             reuse_published_shots,
             duration_secs,
             context: segment_context,
@@ -184,12 +234,4 @@ fn scope_shooting_script(
         }
     }
     Ok(script)
-}
-
-fn shooting_script_shot_ids(script: &ChapterShootingScriptV1) -> Vec<String> {
-    script
-        .scenes
-        .iter()
-        .flat_map(|scene| scene.shots.iter().map(|shot| shot.shot_id.clone()))
-        .collect()
 }

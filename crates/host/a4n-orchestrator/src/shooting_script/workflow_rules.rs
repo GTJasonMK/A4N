@@ -36,6 +36,7 @@ fn chapter_shooting_script_workflow_fingerprint(
     visual_plan_id: i64,
     visual_plan_version: i32,
     visual_plan_sha256: &str,
+    shot_ids: &[String],
 ) -> Value {
     json!({
         "project_id": project_id,
@@ -43,6 +44,7 @@ fn chapter_shooting_script_workflow_fingerprint(
         "visual_plan_id": visual_plan_id,
         "visual_plan_version": visual_plan_version,
         "visual_plan_sha256": visual_plan_sha256,
+        "shot_ids": shot_ids,
     })
 }
 
@@ -54,6 +56,7 @@ pub(crate) fn chapter_shooting_script_workflow_run_input(
     visual_plan_id: i64,
     visual_plan_version: i32,
     visual_plan_sha256: &str,
+    shot_ids: &[String],
     active_task_id: Option<&str>,
 ) -> Result<UpsertWorkflowRunInput, String> {
     if visual_plan_id <= 0 {
@@ -87,6 +90,7 @@ pub(crate) fn chapter_shooting_script_workflow_run_input(
             visual_plan_id,
             visual_plan_version,
             visual_plan_sha256,
+            shot_ids,
         )),
         status: WORKFLOW_STATUS_RUNNING.to_string(),
         current_step_key: Some("screenplay_layout".to_string()),
@@ -118,6 +122,7 @@ mod tests {
             9,
             2,
             &"a".repeat(64),
+            &[],
             Some("shooting-task"),
         )
         .unwrap();

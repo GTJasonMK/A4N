@@ -112,8 +112,6 @@ export const HOST_API_COMMANDS = [
   "forward_project_status",
   "generate_chapter_analysis",
   "generate_chapter_scene",
-  "generate_chapter_shooting_script",
-  "generate_next_chapter_shooting_script_unit",
   "generate_object_profile_image_prompt",
   "generate_portrait_prompt",
   "generate_scene_profile_image_prompt",
@@ -361,6 +359,7 @@ export const HOST_API_COMMANDS = [
   "start_blueprint_generation",
   "start_blueprint_refinement",
   "start_chapter_generation",
+  "start_chapter_shooting_script_generation",
   "start_galgame_pipeline",
   "start_image_generation",
   "start_inspiration_generation",
@@ -439,6 +438,7 @@ export const GENERATION_START_PATHS: ReadonlyMap<string, string> = new Map<strin
   ["start_blueprint_generation", "/generation-tasks/blueprint"],
   ["start_blueprint_refinement", "/generation-tasks/blueprint-refinement"],
   ["start_chapter_generation", "/generation-tasks/chapter"],
+  ["start_chapter_shooting_script_generation", "/generation-tasks/shooting-script"],
   ["start_image_generation", "/generation-tasks/image"],
   ["start_visual_plan_prompt_generation", "/generation-tasks/director-prompt"],
   ["start_inspiration_generation", "/generation-tasks/inspiration"],
@@ -471,8 +471,6 @@ export const RUNTIME_CONFIG_POLICIES: Readonly<Record<string, RuntimeConfigPolic
   "discover_character_profiles": "full",
   "generate_chapter_analysis": "full",
   "generate_chapter_scene": "full",
-  "generate_chapter_shooting_script": "full",
-  "generate_next_chapter_shooting_script_unit": "full",
   "generate_portrait_prompt": "full",
   "import_chapter": "full",
   "optimize_chapter_video_prompt": "full",
@@ -550,6 +548,7 @@ export const RUNTIME_CONFIG_POLICIES: Readonly<Record<string, RuntimeConfigPolic
   "start_blueprint_generation": "full",
   "start_blueprint_refinement": "full",
   "start_chapter_generation": "full",
+  "start_chapter_shooting_script_generation": "full",
   "start_galgame_pipeline": "full",
   "start_image_generation": "full",
   "start_inspiration_generation": "full",
@@ -2614,6 +2613,8 @@ export interface GalgameAssetPlanItem {
   label: string;
   outcome: GalgameAssetPlanOutcome;
   params_json: unknown;
+  source_label: string;
+  source_snapshot_id: number;
   status: string;
   target_entity_id: number;
   target_entity_kind: GalgameTargetEntityKind;
@@ -5046,6 +5047,7 @@ export interface ChapterVisualPlanValidationResult {
 
 export interface ConfirmedChapterVisualPlanView {
   invalidated_project_ids: number[];
+  shooting_script_sync: ShootingScriptPlanSyncV1 | null;
   visual_plan: ChapterVisualPlanView;
 }
 
@@ -5248,8 +5250,13 @@ export interface ChapterShootingScriptSourceInput {
   visual_plan_id?: number | null;
 }
 
-export interface GenerateChapterShootingScriptInput {
+export type ShootingScriptGenerationMode = "full" | "next_scene";
+
+export interface StartChapterShootingScriptGenerationInput {
+  meta: GenerationStartRequestMeta;
+  mode: ShootingScriptGenerationMode;
   project_id: number;
+  shot_ids?: string[];
   source_chapter_id: number;
   visual_plan_id: number;
 }
@@ -5264,6 +5271,7 @@ export interface DeleteChapterShootingScriptInput {
 export interface EditChapterShootingScriptInput {
   expected_revision: number;
   project_id: number;
+  rebind_shot_ids?: string[];
   record_id: number;
   script: ChapterShootingScriptV1;
   source_chapter_id: number;
@@ -5285,13 +5293,18 @@ export interface ChapterShootingScriptRecordSummary {
   visual_plan_version: number | null;
 }
 
+export interface ShootingScriptPlanSyncV1 {
+  missing_shot_ids: string[];
+  stale_shot_ids: string[];
+}
+
 export interface ChapterShootingScriptView {
+  plan_sync: ShootingScriptPlanSyncV1;
   record: ChapterShootingScriptRecordSummary;
   script: ChapterShootingScriptV1;
 }
 
 export interface ChapterShootingScriptUnitProgressView {
-  completed_record: ChapterShootingScriptRecordSummary | null;
   completed_unit_count: number;
   script: ChapterShootingScriptV1;
   total_unit_count: number;
@@ -5318,7 +5331,7 @@ export type SourceSyncLocalStateKind = "user_edited" | "generated" | "imported" 
 
 export type SourceSyncConflictSeverity = "blocking" | "warning" | "info";
 
-export type SourceSyncConflictStatus = "pending" | "resolved" | "ignored";
+export type SourceSyncConflictStatus = "pending" | "resolved" | "ignored" | "obsolete";
 
 export type SourceSyncResolutionStrategy = "keep_local" | "adopt_source" | "rebuild_prompt" | "rebind_anchor" | "regenerate_scene" | "create_replacement" | "manual" | "detach" | "delete_local";
 
@@ -5361,6 +5374,7 @@ export interface SourceSyncConflictSummary {
   id: number;
   local_state_kind: SourceSyncLocalStateKind;
   local_summary_json: Record<string, unknown>;
+  regenerate_scene_id: number | null;
   resolution_strategy: SourceSyncResolutionStrategy | null;
   resolved_at: string | null;
   root_project_id: number;
@@ -5529,7 +5543,6 @@ export interface VideoSegmentPlanV2 {
 }
 
 export interface UpdateChapterVideoSegmentPlanInput {
-  downstream_strategy: DownstreamConflictStrategy;
   expected_updated_at: string;
   segments: VideoSegmentPlanV2[];
 }

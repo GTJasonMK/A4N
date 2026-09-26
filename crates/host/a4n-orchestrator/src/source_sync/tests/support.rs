@@ -10,6 +10,11 @@ pub(super) fn valid_regenerate_scene_apply_plan() -> GalgameSceneRegenerationPla
         scene: GalgamePersistScene {
             scene_index: 7,
             source_snapshot_chapter_id: 1010,
+            shooting_source: Some(crate::galgame::GalgameShootingSceneRef {
+                script_id: 99,
+                script_revision: 1,
+                scene_index: 1,
+            }),
             title: "雨夜重逢".to_string(),
             location: Some("旧车站".to_string()),
             time_of_day: Some("night".to_string()),

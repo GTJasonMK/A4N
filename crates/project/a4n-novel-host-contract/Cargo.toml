@@ -12,4 +12,3 @@ a4n-llm-provider-contract = { workspace = true }
 a4n-prompt-contract = { workspace = true }
 
 async-trait = { workspace = true }
-tokio-util = { workspace = true }

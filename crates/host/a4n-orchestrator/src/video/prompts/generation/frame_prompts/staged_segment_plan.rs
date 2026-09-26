@@ -1,7 +1,6 @@
 mod contracts;
 mod finalization;
 mod recipes;
-mod recovery;
 mod shots;
 
 use a4n_db::workflow;
@@ -11,9 +10,7 @@ use std::collections::HashSet;
 use crate::workflow::workflow_checkpoint_contract_app_error;
 
 pub(super) use self::contracts::StagedSegmentPlanInput;
-use self::contracts::{
-    CompletedSegmentPlanRecoveryInput, FinalizeStagedSegmentPlanInput, StagedSegmentPlanResult,
-};
+use self::contracts::{FinalizeStagedSegmentPlanInput, StagedSegmentPlanResult};
 use self::finalization::finalize_staged_segment_plan;
 use self::recipes::segment_plan_shot_recipe_artifacts;
 pub(super) use self::recipes::{
@@ -24,9 +21,7 @@ pub(in crate::video) use self::recipes::{
     update_video_segment_plan_draft_recipe_checkpoint,
     video_segment_recipes_from_draft_for_final_plan,
 };
-use self::recovery::reuse_completed_staged_segment_plan;
 use self::shots::render_segment_plan_shots;
-use super::video_final_segment_plan_fingerprint;
 
 fn exclude_reused_segment_plan_shots(
     segment_plan: Vec<super::VideoSegmentPlan>,
@@ -51,28 +46,6 @@ pub(super) async fn render_staged_segment_plan_with_duration(
         ));
     }
     let cancel_token = input.cancel_token;
-    let final_fingerprint_json = video_final_segment_plan_fingerprint(
-        input.project_id,
-        input.source,
-        input.shooting_script_projection_json,
-        input.style,
-        input.duration_secs,
-        input.default_aspect_ratio,
-    );
-    if let Some(result) = reuse_completed_staged_segment_plan(CompletedSegmentPlanRecoveryInput {
-        service: input.service,
-        workflow_run_id,
-        fingerprint_json: &final_fingerprint_json,
-        shooting_script_projection: input.shooting_script_projection,
-        progress_message: input.progress_message,
-        progress_span: input.progress_span,
-        progress: &mut *input.progress,
-    })
-    .await?
-    {
-        return Ok(result);
-    }
-
     let service = input.service;
     let source_spans = input.source_spans;
     let shooting_script_projection = input.shooting_script_projection;
@@ -82,7 +55,6 @@ pub(super) async fn render_staged_segment_plan_with_duration(
     finalize_staged_segment_plan(FinalizeStagedSegmentPlanInput {
         service,
         workflow_run_id,
-        fingerprint_json: final_fingerprint_json,
         source_spans,
         shooting_script_projection,
         duration_secs,

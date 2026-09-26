@@ -32,6 +32,18 @@ it("uses local runtime settings in browser HTTP mode", async () => {
   expect(usesLocalRuntimeSettings()).toBe(true);
 });
 
+it("uses the client embedding runtime only for a desktop attached to an HTTP backend", async () => {
+  const { canUseLocalDesktopEmbedding } = await import("./runtimeMode");
+  vi.stubGlobal("window", { __TAURI_INTERNALS__: {} });
+  vi.stubEnv("VITE_A4N_API_TRANSPORT", "web");
+  expect(canUseLocalDesktopEmbedding()).toBe(true);
+  vi.stubEnv("VITE_A4N_API_TRANSPORT", "tauri");
+  expect(canUseLocalDesktopEmbedding()).toBe(false);
+  vi.stubGlobal("window", {});
+  vi.stubEnv("VITE_A4N_API_TRANSPORT", "web");
+  expect(canUseLocalDesktopEmbedding()).toBe(false);
+});
+
 it("uses the bound desktop endpoint before a build-time API address", async () => {
   vi.stubEnv("VITE_A4N_API_BASE_URL", "http://127.0.0.1:8080/api");
   vi.stubGlobal("window", {

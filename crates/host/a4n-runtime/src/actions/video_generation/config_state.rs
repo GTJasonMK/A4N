@@ -4,6 +4,7 @@ use a4n_provider_contract::VideoProviderConfig;
 pub(in crate::actions) async fn resolve_video_config(
     settings: &dyn VideoProviderConfigPort,
     config_id: Option<i64>,
+    allow_host_config: bool,
 ) -> Result<VideoProviderConfig, String> {
     if let Some(config) = crate::runtime_config::current_video_provider_config_for_id(config_id) {
         return Ok(config);
@@ -18,7 +19,7 @@ pub(in crate::actions) async fn resolve_video_config(
             "runtime_config_snapshot.video_configs 不包含视频配置 #{id}"
         ));
     }
-    if crate::runtime_config::current_user_id().is_some() {
+    if !allow_host_config {
         return Err(match config_id {
             Some(id) => format!(
                 "远程用户请求不能直接使用服务器视频配置 #{id}；请在用户配置页使用个人视频配置快照"

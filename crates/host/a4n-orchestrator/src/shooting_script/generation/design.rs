@@ -28,10 +28,16 @@ pub(super) async fn generate_shooting_scene(
     unit_offset: usize,
     total_unit_count: usize,
     progress: ShootingScriptProgressReporter<'_>,
-    stream_reporter: Option<ShootingScriptStreamReporter<'_>>,
-    cancel_token: Option<&CancellationToken>,
+    stream_reporter: ShootingScriptStreamReporter<'_>,
+    cancel_token: &CancellationToken,
 ) -> Result<super::super::contracts::ShootingScriptStageResult<ShootingSceneV1>, AppError> {
     let planned_unit = prepared.visual_unit(unit.narrative_unit_index, &unit.scene_identity)?;
+    let planned_shots = planned_unit
+        .shots
+        .iter()
+        .filter(|shot| prepared.shot_ids.is_empty() || prepared.shot_ids.contains(&shot.segment_id))
+        .cloned()
+        .collect::<Vec<_>>();
     let unit_progress = design_unit_stream_progress(unit_offset, total_unit_count);
     progress(
         unit_progress.span.start(),
@@ -48,7 +54,7 @@ pub(super) async fn generate_shooting_scene(
         .take(unit_offset)
         .try_fold(0usize, |count, unit| count.checked_add(unit.shots.len()))
         .ok_or_else(|| AppError::InvalidArgument("拍摄镜头数量超出 usize 范围".into()))?;
-    for (shot_offset, planned_shot) in planned_unit.shots.iter().enumerate() {
+    for (shot_offset, planned_shot) in planned_shots.iter().enumerate() {
         let facts = unit
             .performance_facts
             .iter()
@@ -58,7 +64,7 @@ pub(super) async fn generate_shooting_scene(
             unit_offset,
             total_unit_count,
             shot_offset,
-            planned_unit.shots.len(),
+            planned_shots.len(),
         );
         let step_key = format!(
             "shooting_design_shot:{}:{}",
@@ -92,7 +98,7 @@ pub(super) async fn generate_shooting_scene(
                 unit_offset + 1,
                 total_unit_count,
                 shot_offset + 1,
-                planned_unit.shots.len(),
+                planned_shots.len(),
                 if stage.restored {
                     "已从断点恢复"
                 } else {
@@ -103,7 +109,14 @@ pub(super) async fn generate_shooting_scene(
     }
     let mut scene = scene.ok_or_else(|| AppError::InvalidArgument("拍摄设计单元无镜头".into()))?;
     scene.shots = shots;
-    validate_design_unit(&scene, unit, prepared)?;
+    validate_design_unit(&scene, unit, prepared, &planned_shots)?;
+    scene = super::super::assembly::assemble_scene(
+        unit_offset,
+        scene,
+        unit,
+        planned_unit,
+        &planned_shots,
+    )?;
     progress(
         unit_progress.span.end(),
         CHAPTER_SHOOTING_SCRIPT_PROGRESS_TOTAL,
@@ -132,6 +145,11 @@ fn design_shot_request(
     facts: &[&ScreenplayPerformanceFactV1],
 ) -> Result<ChatRequest, AppError> {
     let planned_unit = prepared.visual_unit(unit.narrative_unit_index, &unit.scene_identity)?;
+    let mut unit_context = serde_json::to_value(unit)?;
+    unit_context
+        .as_object_mut()
+        .expect("screenplay unit")
+        .remove("performance_facts");
     shooting_context_request(
         prepared,
         workflow_run_id,
@@ -141,11 +159,12 @@ fn design_shot_request(
             unit.narrative_unit_index, planned_shot.segment_id
         ),
         prepared.design_unit_system_prompt.clone(),
+        (&unit.source_span_ids, &planned_unit.scene_binding),
         Some((
             "shooting_visual_design_input",
             &serde_json::json!({
-                "screenplay_plan_unit": unit,
-                "locked_visual_unit": planned_unit,
+                "screenplay_plan_unit": unit_context,
+                "locked_visual_unit": super::super::context::visual_unit_prompt_context(planned_unit)?,
                 "target_shot": planned_shot,
                 "required_performance_facts": facts,
             }),
@@ -218,6 +237,7 @@ fn validate_design_unit(
     scene: &ShootingSceneV1,
     unit: &ScreenplayPlanUnit,
     prepared: &PreparedChapterShootingScriptRequest,
+    planned_shots: &[VisualSegmentProjectionV3],
 ) -> Result<(), AppError> {
     if scene.narrative_unit_index != unit.narrative_unit_index || scene.shots.is_empty() {
         return Err(AppError::InvalidArgument(format!(
@@ -226,15 +246,15 @@ fn validate_design_unit(
         )));
     }
     let planned = prepared.visual_unit(unit.narrative_unit_index, &unit.scene_identity)?;
-    if scene.shots.len() != planned.shots.len() {
+    if scene.shots.len() != planned_shots.len() {
         return Err(AppError::InvalidArgument(format!(
             "拍摄设计 unit {} 必须生成 {} 个视觉方案镜头，实际 {} 个",
             unit.narrative_unit_index,
-            planned.shots.len(),
+            planned_shots.len(),
             scene.shots.len()
         )));
     }
-    for (shot, expected) in scene.shots.iter().zip(&planned.shots) {
+    for (shot, expected) in scene.shots.iter().zip(planned_shots) {
         if shot.shot_id != expected.segment_id {
             return Err(AppError::InvalidArgument(format!(
                 "拍摄设计镜头 ID 或顺序偏离导演编排：期望 {}，实际 {}",

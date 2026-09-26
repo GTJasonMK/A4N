@@ -4,10 +4,12 @@
 //! state. Implementations can evolve behind these serialized contracts.
 
 mod contracts;
+mod segment_plan;
 mod segment_plan_draft;
 mod segment_recipe;
 
 pub use contracts::*;
+pub use segment_plan::*;
 pub use segment_plan_draft::*;
 pub use segment_recipe::*;
 

@@ -172,12 +172,6 @@ pub(in crate::video) struct VideoSegmentPlanResponse {
 
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub(in crate::video) struct StoredVideoSegmentPlanResponse {
-    pub(in crate::video) segments: Vec<VideoSegmentPlan>,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(deny_unknown_fields)]
 pub(in crate::video) struct StaticVideoFramePromptResponse {
     pub(in crate::video) frames: Vec<StaticVideoFramePromptInput>,
 }

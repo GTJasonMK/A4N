@@ -22,14 +22,20 @@ where
     let family_project_ids = std::iter::once(root_project_id)
         .chain(derived_project_ids.iter().copied())
         .collect::<Vec<_>>();
-    let (text_core, source_sync_runs) = futures::join!(
+    let (text_core, source_sync_runs, galgame_snapshot_ids) = futures::join!(
         project_family_export_text_core_rows(db, root_project_id),
         project_family_export_source_sync_runs(db, derived_project_ids),
+        project_family_export_galgame_snapshot_ids(db, derived_project_ids),
     );
     let text_core = text_core?;
     let source_sync_runs = source_sync_runs?;
+    let source_snapshot_ids = derived_source_snapshot_ids
+        .iter()
+        .copied()
+        .chain(galgame_snapshot_ids?)
+        .collect::<Vec<_>>();
     let snapshot_ids =
-        collect_project_family_export_snapshot_ids(derived_source_snapshot_ids, &source_sync_runs);
+        collect_project_family_export_snapshot_ids(&source_snapshot_ids, &source_sync_runs);
     let snapshot_id_set = snapshot_ids.iter().copied().collect::<HashSet<_>>();
     let (
         source_snapshots,
@@ -91,7 +97,16 @@ where
                 hash == &plan.source_content_sha256
             }),
     });
-    let chapter_shooting_scripts = chapter_shooting_scripts?;
+    let visual_plan_ids = chapter_visual_plans
+        .iter()
+        .map(|plan| plan.id)
+        .collect::<HashSet<_>>();
+    let mut chapter_shooting_scripts = chapter_shooting_scripts?;
+    chapter_shooting_scripts.retain(|script| {
+        script
+            .visual_plan_id
+            .is_none_or(|id| visual_plan_ids.contains(&id))
+    });
     let character_portraits = character_portraits?;
     let generated_images = generated_images?;
     let chapter_manga_prompts = chapter_manga_prompts?;

@@ -81,19 +81,17 @@ impl OrchestratorContext {
                 .filter(|source| pending_ids.contains(&source.chapter.id))
                 .collect()
         };
-        let spans = a4n_domain::source_spans::source_spans_for_chapters(
-            &selected
-                .iter()
-                .map(|source| source.chapter.clone())
-                .collect::<Vec<_>>(),
-        );
-        let source_data = json!({
-            "chapters": selected.iter().map(|source| json!({
+        let chapters = selected.iter().map(|source| {
+            let spans = a4n_domain::source_spans::source_spans_for_chapters(std::slice::from_ref(&source.chapter));
+            Ok(json!({
                 "id": source.chapter.id, "chapter_number": source.chapter.chapter_number,
-                "title": source.chapter.title, "analysis": source.chapter.analysis_data,
+                "title": source.chapter.title,
+                "content": a4n_domain::source_spans::source_span_prompt_text(&source.chapter.content, &spans).map_err(AppError::InvalidArgument)?,
                 "world_facts": source.world_facts,
-            })).collect::<Vec<_>>(),
-            "source_spans": spans.iter().map(|span| json!({"id":span.id,"chapter_id":span.chapter_id,"chapter_number":span.chapter_number,"text":span.text})).collect::<Vec<_>>(),
+            }))
+        }).collect::<Result<Vec<_>, AppError>>()?;
+        let source_data = json!({
+            "chapters": chapters,
         });
         let blueprint_data = rows.blueprint.as_ref().map(|blueprint| {
             json!({
@@ -107,15 +105,18 @@ impl OrchestratorContext {
             "characters": rows.character_profiles.iter().map(|profile| json!({
                 "id":profile.id,"name":profile.name,"current_state":profile.current_state,
                 "voice_fingerprint":profile.voice_fingerprint,"character_arc":profile.character_arc,
-                "observed_progress":profile.character_arc.as_ref().and_then(|arc|arc.get("observed_progress")),
             })).collect::<Vec<_>>(),
-            "part_outlines":rows.parts,
+            "part_outlines":rows.parts.iter().map(|part| json!({
+                "part_number": part.part_number, "start_chapter": part.start_chapter,
+                "end_chapter": part.end_chapter, "summary": part.summary,
+                "character_focus": part.character_focus, "key_events": part.key_events,
+            })).collect::<Vec<_>>(),
             "planning_rule":"未来剧情和人物终点只形成 planning 建议",
         });
         let mut ledger = LlmContextLedger::new();
         for (kind, value) in [
-            ("body_fact_sources", source_data),
             ("current_materials", material_data),
+            ("body_fact_sources", source_data),
         ] {
             ledger.add_pack(a4n_llm_context::LlmContextLedgerPackInput {
                 scope_kind: "project".into(),

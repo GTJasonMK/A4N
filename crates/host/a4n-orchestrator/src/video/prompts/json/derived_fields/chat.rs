@@ -2,7 +2,7 @@ use serde_json::{Value, json};
 
 use crate::video::prompts::json::contracts::VideoSegmentPlan;
 
-use super::summaries::{performance_summary, segment_end_summary};
+use super::summaries::performance_summary;
 
 pub(in crate::video::prompts::json) fn derive_chat_video(segment: &VideoSegmentPlan) -> Value {
     let input_images = segment
@@ -24,7 +24,7 @@ pub(in crate::video::prompts::json) fn derive_chat_video(segment: &VideoSegmentP
             "time": format!("0-{}秒", segment.duration_secs),
             "action": performance_summary(segment)
         }],
-        "continuity": segment_end_summary(segment),
+        "continuity": segment.emotional_arc.end,
         "input_images": input_images
     })
 }

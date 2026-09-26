@@ -18,13 +18,17 @@ pub(crate) fn source_sync_plan_summary(
         conflicts: plan
             .conflicts
             .into_iter()
-            .map(source_sync_conflict_summary)
+            .map(|conflict| {
+                let regenerate_scene_id = plan.regeneration_targets.get(&conflict.id).copied();
+                source_sync_conflict_summary(conflict, regenerate_scene_id)
+            })
             .collect::<Result<_, _>>()?,
     })
 }
 
 fn source_sync_conflict_summary(
     conflict: source_sync_conflict::Model,
+    regenerate_scene_id: Option<i64>,
 ) -> Result<SourceSyncConflictSummary, AppError> {
     let source_change_kind =
         SourceSyncChangeKind::parse(&conflict.source_change_kind).ok_or_else(|| {
@@ -59,6 +63,7 @@ fn source_sync_conflict_summary(
         severity,
         status,
         resolution_strategy,
+        regenerate_scene_id,
         source_summary_json: json_object(conflict.source_summary_json, "source_summary_json")?,
         local_summary_json: json_object(conflict.local_summary_json, "local_summary_json")?,
         affected_refs_json: json_object(conflict.affected_refs_json, "affected_refs_json")?,

@@ -4,8 +4,7 @@ use a4n_db::{
     shooting_script::ParsedChapterShootingScript,
 };
 use a4n_domain::shooting_script::{
-    ChapterShootingScriptV1, ShootingDirectingStatementV1, ShootingEditingModeV1,
-    ShootingTransitionContractV1,
+    ShootingDirectingStatementV1, ShootingEditingModeV1, ShootingTransitionContractV1,
 };
 use a4n_domain::source_spans::SourceSpan;
 use a4n_error::AppError;
@@ -16,10 +15,10 @@ pub(super) const CHAPTER_SCREENPLAY_UNIT_ADAPTATION_PROMPT: &str =
     "chapter_screenplay_unit_adaptation";
 pub(super) const CHAPTER_SHOOTING_DESIGN_UNIT_PROMPT: &str = "chapter_shooting_design_unit";
 pub(super) const CHAPTER_SHOOTING_SCRIPT_WORKFLOW: &str = "chapter_shooting_script";
-pub(in crate::shooting_script) use a4n_novel_host_contract::{
-    CHAPTER_SHOOTING_SCRIPT_PROGRESS_TOTAL, ShootingScriptProgressReporter,
-    ShootingScriptStreamReporter,
-};
+pub(super) const CHAPTER_SHOOTING_SCRIPT_PROGRESS_TOTAL: u32 = 100;
+pub(super) type ShootingScriptProgressReporter<'a> =
+    &'a (dyn Fn(u32, u32, &str) -> Result<(), AppError> + Send + Sync);
+pub(super) type ShootingScriptStreamReporter<'a> = &'a (dyn Fn(&str) + Send + Sync);
 
 pub(super) struct ShootingScriptStageResult<T> {
     pub(super) output: T,
@@ -48,9 +47,10 @@ pub(super) struct ScreenplaySkeletonUnitV1 {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields)]
-pub(super) struct ScreenplayLayoutUnitDetailV1 {
+pub(super) struct ScreenplayLayoutUnitDetailV2 {
     pub(super) schema_version: String,
     pub(super) narrative_unit_index: u32,
+    pub(super) source_span_ids: Vec<String>,
     pub(super) transition_contracts: Vec<ShootingTransitionContractV1>,
     pub(super) title: String,
     pub(super) slugline: String,
@@ -137,21 +137,13 @@ pub(super) struct RegenerateChapterShootingScriptInput {
     pub(super) source_chapter_id: i64,
     pub(super) workflow_run_id: i64,
     pub(super) visual_plan_id: i64,
+    pub(super) shot_ids: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct ResolvedChapterShootingScript {
     pub source: ResolvedChapterSource,
     pub shooting_script: ParsedChapterShootingScript,
-}
-
-#[derive(Debug, Clone)]
-pub struct ChapterShootingScriptUnitProgress {
-    pub workflow_run_id: i64,
-    pub script: ChapterShootingScriptV1,
-    pub completed_unit_count: usize,
-    pub total_unit_count: usize,
-    pub resolved: Option<ResolvedChapterShootingScript>,
 }
 
 #[derive(Debug, Clone)]
@@ -162,6 +154,7 @@ pub(super) struct PreparedChapterShootingScriptRequest {
     pub(super) existing: Option<ParsedChapterShootingScript>,
     pub(super) visual_plan: ParsedChapterVisualPlan,
     pub(super) visual_plan_projection: DirectorScriptPlan,
+    pub(super) shot_ids: Vec<String>,
     pub(super) scene_profiles: Vec<serde_json::Value>,
     pub(super) layout_unit_system_prompt: String,
     pub(super) unit_adaptation_system_prompt: String,

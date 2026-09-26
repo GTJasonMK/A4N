@@ -9,9 +9,6 @@ use super::super::boundary_frame_numbers_for_prompt;
 /// CLIProxy / Grok 参考图数量上限。
 pub const MAX_CLIPROXY_VIDEO_REFERENCE_IMAGES: usize = 7;
 
-/// CLIProxy / Grok 视频 prompt UTF-8 字节上限。
-pub const MAX_CLIPROXY_VIDEO_PROMPT_BYTES: usize = 4096;
-
 /// 应用内视频 provider 支持的工作流。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ProviderGenerationWorkflow {
@@ -192,9 +189,6 @@ pub fn required_video_execution_identity(
         ));
     }
     for key in [
-        "projection_sha256",
-        "segment_plan_sha256",
-        "unit_plan_sha256",
         "frame_set_sha256",
         "source_content_sha256",
         "style_sha256",
@@ -380,29 +374,11 @@ pub fn provider_image_binding_violation_messages(
     messages
 }
 
-/// CLIProxy prompt 超长时的错误文案；未超限返回 `None`。
-pub fn cliproxy_prompt_length_violation_message(
-    backend: &str,
-    prompt: &str,
-    cliproxy_backend: &str,
-) -> Option<String> {
-    if backend.trim() != cliproxy_backend {
-        return None;
-    }
-    let prompt_bytes = prompt.len();
-    if prompt_bytes <= MAX_CLIPROXY_VIDEO_PROMPT_BYTES {
-        return None;
-    }
-    let prompt_chars = prompt.chars().count();
-    Some(format!(
-        "CLIProxy/Grok 视频 prompt 超过 {MAX_CLIPROXY_VIDEO_PROMPT_BYTES} UTF-8 字节限制：实际 {prompt_chars} 字符 / {prompt_bytes} UTF-8 字节；请缩短 Visual/Motion Prompt 后再生成"
-    ))
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use a4n_db_models::models::chapter::chapter_video_prompt;
+    use a4n_video::{MAX_CLIPROXY_VIDEO_PROMPT_BYTES, video_provider_prompt};
     use serde_json::json;
 
     #[test]
@@ -465,23 +441,16 @@ mod tests {
             .is_empty()
         );
         assert!(
-            cliproxy_prompt_length_violation_message(
+            video_provider_prompt(
                 "cliproxy-openai-video",
                 &"x".repeat(MAX_CLIPROXY_VIDEO_PROMPT_BYTES + 1),
-                "cliproxy-openai-video",
+                None,
             )
-            .is_some()
+            .is_err()
         );
         let multibyte_prompt = "界".repeat(MAX_CLIPROXY_VIDEO_PROMPT_BYTES / 3 + 1);
         assert!(multibyte_prompt.chars().count() < MAX_CLIPROXY_VIDEO_PROMPT_BYTES);
-        assert!(
-            cliproxy_prompt_length_violation_message(
-                "cliproxy-openai-video",
-                &multibyte_prompt,
-                "cliproxy-openai-video",
-            )
-            .is_some()
-        );
+        assert!(video_provider_prompt("cliproxy-openai-video", &multibyte_prompt, None,).is_err());
     }
 
     #[test]
@@ -513,9 +482,6 @@ mod tests {
                 "source_content_sha256": "a".repeat(64),
                 "script_sha256": "b".repeat(64)
             },
-            "projection_sha256": "c".repeat(64),
-            "segment_plan_sha256": "d".repeat(64),
-            "unit_plan_sha256": "e".repeat(64),
             "frame_set_sha256": "f".repeat(64),
             "source_content_sha256": "a".repeat(64),
             "style_sha256": "1".repeat(64),

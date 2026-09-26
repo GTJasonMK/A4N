@@ -38,10 +38,14 @@ async fn project_generation_cleanup_removes_only_generated_target_bindings() {
     }
 
     let tx = db.begin().await.unwrap();
-    let cleanup =
-        delete_chapter_generation_outputs(&tx, project.id, GeneratedImageDeleteScope::Project)
-            .await
-            .unwrap();
+    let cleanup = delete_chapter_generation_outputs(
+        &tx,
+        project.id,
+        GeneratedImageDeleteScope::Project,
+        &crate::project::delete::RetainedSourceResources::default(),
+    )
+    .await
+    .unwrap();
     tx.commit().await.unwrap();
 
     assert_eq!(cleanup.deleted_generated_images, 1);

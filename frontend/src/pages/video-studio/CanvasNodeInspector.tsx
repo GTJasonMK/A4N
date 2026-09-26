@@ -43,6 +43,7 @@ import {
   nodeGeneratedImageRefId,
   nodeGeneratedVideoRefId,
   nodeMediaAssetRefId,
+  nodeRefId,
 } from "./canvasNodeRefs";
 import {
   parseGenerateVideoInputMode,
@@ -137,7 +138,7 @@ export const NodeInspector: React.FC<NodeInspectorProps> = ({
 };
 
 const InspectorSection: React.FC<{ title: string; children: React.ReactNode }> = ({ title, children }) => (
-  <section className="space-y-2 border-t border-book-border/70 pt-3 first:border-t-0 first:pt-0">
+  <section className="space-y-2 border-t border-book-border/70 pt-3 first:border-t-0 first:pt-0 has-[>h3:only-child]:hidden">
     <h3 className="text-small font-medium text-book-text-muted">{title}</h3>
     {children}
   </section>
@@ -211,7 +212,7 @@ const NodeOutputSummary: React.FC<{ node: StudioNode; onPreviewContent: (node: S
   const renderedPrompt = configText(node.data.config, "prompt_text").trim();
   const filePath = configText(node.data.config, "file_path").trim();
   const thumbnailPath = configText(node.data.config, "thumbnail_path").trim();
-  const reference = node.data.refType ? t("video.canvas.inspector.linked") : "";
+  const reference = nodeRefId(node.data) != null ? t("video.canvas.inspector.linked") : "";
   const mediaAssetId =
     configPositiveNumber(node.data.config, "media_asset_id") ??
     nodeMediaAssetRefId(node.data);
@@ -460,14 +461,16 @@ const NodeConfigEditor: React.FC<NodeConfigEditorProps> = ({
           disabled={disabled}
           onChange={(value) => onChange({ llm_config_id: value })}
         />
-        <label className="block text-caption text-book-text-muted">{t("video.canvas.inspector.instruction")}</label>
-        <textarea
-          value={configText(config, "instruction")}
-          onChange={(event) => onChange({ instruction: event.target.value, title: firstLine(event.target.value) || t("video.canvas.inspector.instruction") })}
-          disabled={disabled}
-          rows={5}
-          className={`${INSPECTOR_TEXTAREA_CLASS} !mt-0`}
-        />
+        <label className="block text-caption text-book-text-muted">
+          {t("video.canvas.inspector.instruction")}
+          <textarea
+            value={configText(config, "instruction")}
+            onChange={(event) => onChange({ instruction: event.target.value, title: firstLine(event.target.value) || t("video.canvas.inspector.instruction") })}
+            disabled={disabled}
+            rows={5}
+            className={INSPECTOR_TEXTAREA_CLASS}
+          />
+        </label>
         <label className="block text-caption text-book-text-muted">
           {t("video.canvas.inspector.outputType")}
           <ThemedSelect
@@ -512,14 +515,16 @@ const NodeConfigEditor: React.FC<NodeConfigEditorProps> = ({
             <option value="reference_images">{t("video.canvas.inspector.referenceImages")}</option>
           </ThemedSelect>
         </label>
-        <label className="block text-caption text-book-text-muted">{t("video.canvas.inspector.negativePrompt")}</label>
-        <textarea
-          value={configText(config, "negative_prompt")}
-          onChange={(event) => onChange({ negative_prompt: event.target.value })}
-          disabled={disabled}
-          rows={3}
-          className={`${INSPECTOR_TEXTAREA_CLASS} !mt-0`}
-        />
+        <label className="block text-caption text-book-text-muted">
+          {t("video.canvas.inspector.negativePrompt")}
+          <textarea
+            value={configText(config, "negative_prompt")}
+            onChange={(event) => onChange({ negative_prompt: event.target.value })}
+            disabled={disabled}
+            rows={3}
+            className={INSPECTOR_TEXTAREA_CLASS}
+          />
+        </label>
         <div className="grid grid-cols-2 gap-2">
           <NumberField label={t("video.canvas.inspector.width")} value={configNumber(config, "width")} disabled={disabled} onChange={(value) => onChange({ width: value })} />
           <NumberField label={t("video.canvas.inspector.height")} value={configNumber(config, "height")} disabled={disabled} onChange={(value) => onChange({ height: value })} />

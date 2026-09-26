@@ -1,6 +1,31 @@
 use super::*;
 
 #[test]
+fn obsolete_source_sync_records_keep_history_but_pending_records_require_live_targets() {
+    let mut conflict = handled_source_sync_conflict("obsolete");
+    conflict.target_id = 900_001;
+    conflict.local_summary_json = json!({"generation_spec_id":900_001,"status":"draft"});
+    let mut decision = source_sync_decision_record("keep_local");
+    decision.decision_payload_json = conflict.decision_json.clone().unwrap();
+    let mut package = package_with_source_sync_conflict(conflict);
+    package.source_sync_decisions.push(decision);
+    validate_package_manifest(&package)
+        .expect("obsolete IDs describe the recorded history, not current entities");
+    package.source_sync_decisions.clear();
+    let conflict = &mut package.source_sync_conflicts[0];
+    conflict.status = "pending".into();
+    conflict.resolution_strategy = None;
+    conflict.decision_json = None;
+    conflict.resolved_at = None;
+    let error = validate_package_manifest(&package)
+        .expect_err("pending comparisons cannot refer to removed targets");
+    assert!(
+        error.contains("generation_spec_id") && error.contains("不存在"),
+        "{error}"
+    );
+}
+
+#[test]
 fn validate_package_manifest_rejects_source_sync_conflict_run_context_mismatch() {
     let mut package = package_with_part_outlines(Vec::new());
     package.source_sync_runs = vec![source_sync_run_record()];

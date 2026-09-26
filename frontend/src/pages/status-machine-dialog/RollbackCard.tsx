@@ -84,13 +84,21 @@ export const RollbackCard: React.FC<RollbackCardProps> = ({
               <RollbackPreviewView preview={preview} />
             )}
             {preview ? (
-              <div className="mt-2 flex justify-end">
+              <div className="mt-2 flex justify-end gap-2">
+                <BookButton
+                  variant="secondary"
+                  size="sm"
+                  onClick={onCancel}
+                  disabled={actionBusy}
+                >
+                  {t("common.cancel")}
+                </BookButton>
                 <BookButton
                   variant="danger"
                   size="sm"
                   onClick={() => void onConfirm()}
                   disabled={actionBusy}
-                  className="!min-h-8 !text-xs"
+                  className="!text-xs"
                 >
                   {acting === actionKey ? (
                     <span className="inline-flex items-center gap-1.5">

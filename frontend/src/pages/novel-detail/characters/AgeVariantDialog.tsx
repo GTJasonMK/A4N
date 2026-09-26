@@ -23,12 +23,14 @@ import { useI18n } from "../../../i18n";
 
 interface AgeVariantDialogProps {
   portrait: Portrait;
+  profileName?: string;
   onClose: () => void;
   onCreated: () => void;
 }
 
 export const AgeVariantDialog: React.FC<AgeVariantDialogProps> = ({
   portrait,
+  profileName,
   onClose,
   onCreated,
 }) => {
@@ -188,6 +190,7 @@ export const AgeVariantDialog: React.FC<AgeVariantDialogProps> = ({
           if (!busy) onClose();
         }}
         title={t("characterDetail.portrait.ageTitle")}
+        subtitle={profileName}
         maxWidthClassName="max-w-sm"
         closeOnBackdrop={!busy}
         closeOnEscape={!busy}
@@ -236,15 +239,13 @@ export const AgeVariantDialog: React.FC<AgeVariantDialogProps> = ({
               onChange={setImageSize}
             />
           </div>
-          <div>
-            <label className="mb-1 block text-xs text-book-text-muted">{t("characterDetail.portrait.ageLabel")}</label>
-            <BookInput
-              value={age}
-              onChange={(event) => setAge(event.target.value)}
-              placeholder={t("characterDetail.portrait.agePlaceholder")}
-              autoFocus
-            />
-          </div>
+          <BookInput
+            label={t("characterDetail.portrait.ageLabel")}
+            value={age}
+            onChange={(event) => setAge(event.target.value)}
+            placeholder={t("characterDetail.portrait.agePlaceholder")}
+            autoFocus
+          />
         </div>
       </Modal>
       <RequestPreviewModal

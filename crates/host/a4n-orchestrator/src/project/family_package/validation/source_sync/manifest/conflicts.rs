@@ -80,7 +80,18 @@ pub(super) fn validate_source_sync_conflicts(
             "项目族导入包源同步冲突影响引用必须是 JSON 对象: source_sync_conflict_id={}",
             conflict.id
         );
-        validate_source_sync_conflict_json_refs(conflict, refs)?;
+        ensure_package!(
+            conflict.target_id > 0,
+            "源同步冲突 target_id 必须是正整数: {}",
+            conflict.id
+        );
+        if let Some(decision) = &conflict.decision_json {
+            ensure_package!(
+                decision.is_object(),
+                "源同步冲突 decision_json 必须是对象: {}",
+                conflict.id
+            );
+        }
         match status {
             SourceSyncConflictStatus::Pending
                 if conflict.resolution_strategy.is_some()
@@ -92,7 +103,9 @@ pub(super) fn validate_source_sync_conflicts(
                     conflict.id
                 ));
             }
-            SourceSyncConflictStatus::Resolved | SourceSyncConflictStatus::Ignored
+            SourceSyncConflictStatus::Resolved
+            | SourceSyncConflictStatus::Ignored
+            | SourceSyncConflictStatus::Obsolete
                 if conflict.resolution_strategy.is_none()
                     || conflict.decision_json.is_none()
                     || conflict.resolved_at.is_none() =>
@@ -111,6 +124,11 @@ pub(super) fn validate_source_sync_conflicts(
             )
         })?;
         validate_source_sync_conflict_run_context(conflict, run)?;
+        if status == SourceSyncConflictStatus::Obsolete {
+            // Retired comparisons are immutable history, with IDs from the recording workspace.
+            continue;
+        }
+        validate_source_sync_conflict_json_refs(conflict, refs)?;
         validate_source_sync_conflict_target_ref(conflict, refs)?;
         if let (Some(strategy), Some(payload)) = (
             conflict.resolution_strategy.as_deref(),

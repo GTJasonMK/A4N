@@ -3,11 +3,10 @@ use a4n_llm_context::LlmContextManifest;
 use a4n_llm_provider_contract::provider::{ChatRequest, LlmTraceContext};
 use serde_json::json;
 
-use super::super::context::optimization_context_manifest;
 use a4n_domain::source_text_hash as source_content_sha256;
 use a4n_llm_context::{
-    COMPRESSION_FOCUSED_RAW, COMPRESSION_FULL_RAW, COMPRESSION_MINIMAL, LlmContextLedger,
-    LlmContextLedgerPackDraft, context_aware_system_user_request,
+    COMPRESSION_FULL_RAW, LlmContextLedger, LlmContextLedgerPackDraft,
+    context_aware_system_user_request,
 };
 use a4n_llm_trace::context_aware_chat_request_trace_json;
 
@@ -81,23 +80,31 @@ fn build_content_optimization_patch_context_manifest(
         }),
         required: true,
         stable_prefix: true,
-        variants: vec![
-            LlmContextLedgerPackDraft::new(
-                COMPRESSION_FULL_RAW,
-                json!({"kind": "chapter_content", "content": chapter_content}),
-            ),
-            LlmContextLedgerPackDraft::new(
-                COMPRESSION_FOCUSED_RAW,
-                json!({"kind": "chapter_content", "content": chapter_content}),
-            ),
-            LlmContextLedgerPackDraft::new(
-                COMPRESSION_MINIMAL,
-                json!({"kind": "chapter_content", "content": chapter_content}),
-            ),
-        ],
+        variants: vec![LlmContextLedgerPackDraft::new(
+            COMPRESSION_FULL_RAW,
+            json!({"kind": "chapter_content", "content": chapter_content}),
+        )],
     })?;
 
-    let context_hash = source_content_sha256(&serde_json::to_string(project_context)?);
+    let mut project_context = project_context.clone();
+    if let Some(chapter) = project_context
+        .get_mut("current_chapter")
+        .and_then(serde_json::Value::as_object_mut)
+    {
+        // 问题证据已物化为原文；补丁定位使用前面的完整正文，不再发送一份分句正文。
+        chapter.remove("source_spans");
+    }
+    let has_blueprint = project_context.get("blueprint").is_some();
+    if let Some(project) = project_context
+        .get_mut("project_detail")
+        .and_then(serde_json::Value::as_object_mut)
+    {
+        project.remove("export_config");
+        if has_blueprint {
+            project.remove("raw_blueprint");
+        }
+    }
+    let context_hash = source_content_sha256(&serde_json::to_string(&project_context)?);
     ledger.add_pack(a4n_llm_context::LlmContextLedgerPackInput {
         scope_kind: ("chapter").into(),
         pack_kind: ("optimization_patch_project_context").into(),
@@ -111,23 +118,10 @@ fn build_content_optimization_patch_context_manifest(
         }),
         required: true,
         stable_prefix: true,
-        variants: vec![
-            LlmContextLedgerPackDraft::new(
-                COMPRESSION_FULL_RAW,
-                json!({"kind": "project_context", "context": project_context}),
-            ),
-            LlmContextLedgerPackDraft::new(
-                COMPRESSION_FOCUSED_RAW,
-                json!({"kind": "project_context", "context": project_context}),
-            ),
-            LlmContextLedgerPackDraft::new(
-                COMPRESSION_MINIMAL,
-                json!({
-                    "kind": "project_context_manifest",
-                    "manifest": optimization_context_manifest(project_context),
-                }),
-            ),
-        ],
+        variants: vec![LlmContextLedgerPackDraft::new(
+            COMPRESSION_FULL_RAW,
+            json!({"kind": "project_context", "context": project_context}),
+        )],
     })?;
 
     Ok(ledger.into_manifest(

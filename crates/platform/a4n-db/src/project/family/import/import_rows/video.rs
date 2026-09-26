@@ -20,7 +20,17 @@ where
     Importer: ProjectFamilyMediaFileImporter,
 {
     insert_video_prompts(txn, package, maps).await?;
-    insert_generated_videos(txn, package, maps, media_importer).await
+    insert_generated_videos(txn, package, maps, media_importer).await?;
+    for prompt in package.chapter_video_prompts.iter().filter(|prompt| {
+        prompt.workflow_mode == chapter_video_prompt::WORKFLOW_MODE_SHARED_SEGMENT_PLAN
+            && prompt.prompt_type == chapter_video_prompt::PROMPT_TYPE_FRAME_SEGMENT_PLAN
+    }) {
+        let metadata = prompt.metadata_json.as_ref().ok_or_else(|| {
+            ProjectFamilyImportError::invalid_package("共享片段规划缺少 metadata_json")
+        })?;
+        super::super::remap::collect_video_plan_fingerprints(metadata, maps)?;
+    }
+    Ok(())
 }
 
 pub(super) async fn update_video_generation_refs(

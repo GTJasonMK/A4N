@@ -182,13 +182,21 @@ function useProgressTaskController(): ProgressTaskController {
   const [cancelling, setCancelling] = useState(false);
   const cancelTaskRef = useRef<((taskId: string) => Promise<void>) | null>(null);
   const cancellingRef = useRef(false);
+  const activeRunRef = useRef<string | null>(null);
 
   const closeProgressTask = useCallback(() => {
+    activeRunRef.current = null;
+    cancelTaskRef.current = null;
+    cancellingRef.current = false;
+    setActiveTaskId(null);
+    setCancelling(false);
     setProgressTask(createProgressTaskState());
   }, []);
 
   const runProgressTask = useCallback<RunProgressTask>(async (options, task) => {
     const eventScope = `progress-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    activeRunRef.current = eventScope;
+    const isCurrentRun = () => activeRunRef.current === eventScope;
     let taskCurrent = 0;
     let taskTotal = validTotal(options.total);
 
@@ -228,7 +236,7 @@ function useProgressTaskController(): ProgressTaskController {
     });
 
     const setStreamText = (text: string) => {
-      if (!text.trim()) return;
+      if (!isCurrentRun() || !text.trim()) return;
       setProgressTask((prev) => prev.streamText === text
         ? prev
         : { ...prev, streamText: text });
@@ -236,7 +244,7 @@ function useProgressTaskController(): ProgressTaskController {
 
     const control: ProgressTaskControl = {
       setProgress: (message, current, nextTotal, meta) => {
-        if (cancellingRef.current) return;
+        if (!isCurrentRun() || cancellingRef.current) return;
         const timelineEvent = createEvent(
           "running",
           current ?? taskCurrent,
@@ -281,6 +289,7 @@ function useProgressTaskController(): ProgressTaskController {
             control.setStreamText,
           )
         : await taskPromise;
+      if (!isCurrentRun()) return result;
       const timelineEvent = createEvent("success", taskTotal, taskTotal, options.successMessage);
       taskCurrent = timelineEvent.current;
       taskTotal = timelineEvent.total;
@@ -300,6 +309,7 @@ function useProgressTaskController(): ProgressTaskController {
       );
       return result;
     } catch (err) {
+      if (!isCurrentRun()) throw err;
       const errorMessage = extractErrorMessage(err, options.errorMessage);
       const cancelled = isCancelledOperation(errorMessage);
       const timelineEvent = createEvent(
@@ -326,15 +336,19 @@ function useProgressTaskController(): ProgressTaskController {
       );
       throw err;
     } finally {
-      cancelTaskRef.current = null;
-      cancellingRef.current = false;
-      setActiveTaskId(null);
-      setCancelling(false);
+      if (isCurrentRun()) {
+        activeRunRef.current = null;
+        cancelTaskRef.current = null;
+        cancellingRef.current = false;
+        setActiveTaskId(null);
+        setCancelling(false);
+      }
     }
   }, []);
 
   const cancelProgressTask = useCallback(async () => {
     if (!activeTaskId || cancellingRef.current) return;
+    const requestedRun = activeRunRef.current;
     cancellingRef.current = true;
     setCancelling(true);
     setProgressTask((prev) => ({
@@ -350,6 +364,7 @@ function useProgressTaskController(): ProgressTaskController {
       }
       await cancelTask(activeTaskId);
     } catch (err) {
+      if (activeRunRef.current !== requestedRun) return;
       const errorMessage = extractErrorMessage(err, t("workflow.stopFailed"));
       setProgressTask((prev) => ({
         ...prev,

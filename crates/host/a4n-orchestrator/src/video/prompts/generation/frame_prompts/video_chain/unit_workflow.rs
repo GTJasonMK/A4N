@@ -19,6 +19,8 @@ pub(super) struct VideoPromptUnitWorkflowInput<'a, 'source> {
     pub project_id: i64,
     pub chapter_id: i64,
     pub source: &'a ChapterVideoSourceContext<'source>,
+    pub source_spans: &'a [a4n_domain::source_spans::SourceSpan],
+    pub continuity_source_context: Option<&'a Value>,
     pub prompt_renderer: &'a dyn PromptRenderer,
     pub vars: &'a HashMap<String, Value>,
     pub workflow_run_id: Option<i64>,
@@ -62,6 +64,8 @@ pub(super) async fn generate_video_prompt_units(
         project_id,
         chapter_id,
         source,
+        source_spans,
+        continuity_source_context,
         prompt_renderer,
         vars,
         workflow_run_id,
@@ -182,13 +186,29 @@ pub(super) async fn generate_video_prompt_units(
             continue;
         }
 
+        let selected_spans = super::super::checkpoint::source_spans_for_segments(
+            source_spans,
+            std::iter::once(segment),
+        )?;
+        let source_text =
+            a4n_domain::source_spans::source_span_context_excerpt(source.content, &selected_spans)
+                .map_err(AppError::InvalidArgument)?;
+        let scoped_source = ChapterVideoSourceContext {
+            content: &source_text,
+            summary: source.summary,
+            analysis: source.analysis,
+        };
+        let previous_shot = context_video_prompts
+            .last()
+            .map(|shot| shot.to_json_value())
+            .transpose()?;
         let executed = execute_video_prompt_unit(
             VideoPromptUnitExecutionInput {
                 service,
                 spec,
                 project_id,
                 chapter_id,
-                source,
+                source: &scoped_source,
                 prompt_renderer,
                 vars,
                 workflow_run_id,
@@ -197,7 +217,7 @@ pub(super) async fn generate_video_prompt_units(
                 segment_by_number,
                 video_segment_json,
                 frame_json,
-                previous_completed_shot: context_video_prompts.last(),
+                previous_completed_shot: continuity_source_context.or(previous_shot.as_ref()),
                 available_assets,
                 style,
                 prompt_output_language,

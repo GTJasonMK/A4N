@@ -1,9 +1,12 @@
+mod galgame;
 mod generation;
 mod json_ids;
 mod media;
 mod snapshots;
 mod source_sync;
 mod video;
+
+pub(super) use galgame::remap_galgame_presentation_json;
 
 pub(super) use generation::remap_generation_target_id;
 pub(super) use generation::{
@@ -28,6 +31,7 @@ pub(super) use source_sync::{
     remap_conflict_decision_json, remap_conflict_local_summary, remap_conflict_source_summary,
     remap_source_sync_target_id,
 };
+pub(super) use video::collect_video_plan_fingerprints;
 pub(super) use video::{remap_chapter_video_reference_image_ids, remap_video_metadata};
 
 pub(super) use super::remap_profile_id;

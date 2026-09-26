@@ -66,7 +66,9 @@ mod tests {
         .await
         .expect("message should render");
 
-        assert!(message.contains(r#""focus": "强化主角动机""#));
+        let payload = crate::request::json_user_message_payload(&message).expect("JSON payload");
+        let payload: serde_json::Value = serde_json::from_str(payload).unwrap();
+        assert_eq!(payload["focus"], "强化主角动机");
     }
 
     #[tokio::test]
@@ -144,5 +146,70 @@ mod tests {
             trace_context.call_key.as_deref(),
             Some("blueprint_refine:project:42")
         );
+    }
+
+    #[test]
+    fn refinement_keeps_middle_constraints_and_all_blueprint_facts() {
+        let mut messages = (0..30)
+            .map(|index| json!({"role": "user", "content": format!("要求 {index}")}))
+            .collect::<Vec<_>>();
+        messages[15]["content"] = json!(format!(
+            "{}主角不能失忆{}",
+            "前文".repeat(1500),
+            "后文".repeat(1500)
+        ));
+        let inspiration = json!({"messages": messages});
+        let blueprint = json!({
+            "blueprint": {"world_setting": {"rule": "死亡不可逆"}},
+            "characters": [{"name": "甲", "motivation": "保护乙"}],
+            "relationships": [{"character_a": "甲", "character_b": "乙", "description": "兄妹"}],
+        });
+        let manifest = context::build_blueprint_refine_context_manifest(
+            &blueprint,
+            &inspiration,
+            "当前精修任务".into(),
+        )
+        .unwrap();
+        assert_eq!(
+            manifest.packs[0].pack_kind,
+            "inspiration_conversation_context"
+        );
+        assert!(
+            manifest
+                .packs
+                .iter()
+                .all(|pack| pack.required && pack.variants.len() == 1)
+        );
+        assert_eq!(
+            manifest.packs[0].variants[0].canonical_content_json["conversation"],
+            inspiration
+        );
+        assert_eq!(
+            manifest.packs[1].variants[0].canonical_content_json["blueprint_context"],
+            blueprint
+        );
+        for invalid in [
+            json!(null),
+            json!({"blueprint": {}, "characters": {}, "relationships": []}),
+        ] {
+            assert!(
+                context::build_blueprint_refine_context_manifest(
+                    &invalid,
+                    &inspiration,
+                    "任务".into()
+                )
+                .is_err()
+            );
+        }
+        for invalid in [json!({}), json!({"messages": [{"role": "user"}]})] {
+            assert!(
+                context::build_blueprint_refine_context_manifest(
+                    &blueprint,
+                    &invalid,
+                    "任务".into()
+                )
+                .is_err()
+            );
+        }
     }
 }

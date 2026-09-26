@@ -43,6 +43,8 @@ export const VideoProjectWorkspace: React.FC = () => {
   const navigate = useNavigate();
   const { addToast } = useToast();
   const { locale, t } = useI18n();
+  const translatorRef = useRef(t);
+  translatorRef.current = t;
   const projectId = Number(id);
 
   const subtitleLabels = useMemo(
@@ -70,14 +72,18 @@ export const VideoProjectWorkspace: React.FC = () => {
   const [chapters, setChapters] = useState<SourceSnapshotChapterSummary[]>([]);
   const [selectedSourceChapterId, setSelectedSourceChapterId] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [sourceSyncOpen, setSourceSyncOpen] = useState(false);
   const refreshRequestRef = useRef(0);
 
   const refresh = useCallback(async () => {
     const requestId = refreshRequestRef.current + 1;
     refreshRequestRef.current = requestId;
+    setLoadError(null);
     if (!Number.isFinite(projectId) || projectId <= 0) {
-      addToast(t("video.projectInvalid"), "error");
+      const message = translatorRef.current("video.projectInvalid");
+      setLoadError(message);
+      addToast(message, "error");
       setProject(null);
       setChapters([]);
       setSelectedSourceChapterId(null);
@@ -94,7 +100,7 @@ export const VideoProjectWorkspace: React.FC = () => {
       const item = projectResult.value;
       if (refreshRequestRef.current !== requestId) return;
       if (item.project_kind !== "video") {
-        addToast(t("video.notVideoProject"), "error");
+        addToast(translatorRef.current("video.notVideoProject"), "error");
         navigate("/", { replace: true });
         return;
       }
@@ -118,14 +124,16 @@ export const VideoProjectWorkspace: React.FC = () => {
       });
     } catch (err) {
       if (refreshRequestRef.current === requestId) {
-        addToast(extractErrorMessage(err, t("video.loadProjectFailed")), "error");
+        const message = extractErrorMessage(err, translatorRef.current("video.loadProjectFailed"));
+        setLoadError(message);
+        addToast(message, "error");
       }
     } finally {
       if (refreshRequestRef.current === requestId) {
         setLoading(false);
       }
     }
-  }, [addToast, navigate, projectId, t]);
+  }, [addToast, navigate, projectId]);
 
   useEffect(() => {
     refreshRequestRef.current += 1;
@@ -172,7 +180,7 @@ export const VideoProjectWorkspace: React.FC = () => {
         subtitle={
           project
             ? getDerivedProjectSubtitle(project, subtitleLabels)
-            : t("video.sourceLoading")
+            : loading ? t("video.sourceLoading") : null
         }
         actions={
           <>
@@ -215,6 +223,7 @@ export const VideoProjectWorkspace: React.FC = () => {
       ) : null}
 
       <section aria-label={t("video.projectWorkspace")} className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden a4n-page-container md:overflow-hidden">
+        {loadError ? <p role="alert" className="mb-3 text-sm text-error">{loadError}</p> : null}
         {loading ? (
           <div className="inline-flex items-center gap-2 text-xs text-book-text-muted">
             <LoadingSpinner size="sm" />
@@ -291,6 +300,7 @@ export const VideoProjectWorkspace: React.FC = () => {
             ) : null}
             <section className="min-h-[60vh] overflow-hidden md:min-h-0">
               <VideoTab
+                key={`${project.id}:${chapters[0].snapshot_id}`}
                 projectId={project.id}
                 fixedChapter={selectedChapter}
                 imageProjectIds={imageProjectIds}
@@ -298,9 +308,9 @@ export const VideoProjectWorkspace: React.FC = () => {
               />
             </section>
           </div>
-        ) : (
+        ) : project ? (
           <EmptyHint text={t("video.noSourceChapter")} />
-        )}
+        ) : null}
       </section>
     </div>
   );

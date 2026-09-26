@@ -2,23 +2,18 @@ use std::collections::HashMap;
 
 use serde_json::Value;
 
-use super::{ChapterVideoSourceContext, PromptRenderer, SourceSpan};
+use super::{ChapterVideoSourceContext, PromptRenderer};
 
 pub(super) const VIDEO_CONTEXT_SCOPE: &str = "chapter";
 pub(super) const VIDEO_CONTEXT_LEDGER_VERSION: &str = "video_context_ledger_v1";
-pub(super) const VIDEO_BUILDER_RULES_TEMPLATE: &str = "chapter_video_builder_rules";
 
 pub(in crate::video) const VIDEO_PREVIOUS_OUTPUT_SHOOTING_SCRIPT: &str =
     "video_previous_output:shooting_script_projection";
-pub(in crate::video) const VIDEO_PREVIOUS_OUTPUT_SEGMENT_PLAN: &str =
-    "video_previous_output:segment_plan";
 
 pub(in crate::video) struct VideoContextPreviousOutput<'a> {
     pub pack_kind: &'a str,
     pub source_name: &'a str,
     pub parsed_output: &'a Value,
-    pub raw_output: Option<&'a str>,
-    pub placeholder: bool,
 }
 
 pub(in crate::video) struct VideoContextManifestInput<'a> {
@@ -26,10 +21,8 @@ pub(in crate::video) struct VideoContextManifestInput<'a> {
     pub project_id: i64,
     pub variables: &'a HashMap<String, Value>,
     pub source: &'a ChapterVideoSourceContext<'a>,
-    pub source_spans: &'a [SourceSpan],
     pub prompt_names: &'a [&'a str],
     pub previous_outputs: &'a [VideoContextPreviousOutput<'a>],
     pub project_context: Option<&'a Value>,
-    pub asset_context: Option<&'a Value>,
     pub dynamic_user_content: String,
 }

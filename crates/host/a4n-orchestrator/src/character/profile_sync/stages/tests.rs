@@ -115,24 +115,18 @@ fn stage_input(workflow_run_id: Option<i64>) -> CharacterProfileSyncStageInput {
         workflow_run_id,
         profile_id: 7,
         profile_name: "林夏".to_string(),
-        last_synced_chapter: 0,
         start_chapter: 1,
         target_chapter: 1,
         selected_chapter_numbers: vec![1],
         chapter_data: vec![json!({
             "chapter_number": 1,
-            "content": "林夏停在巷口观察后，快步挡在少女身前。",
+            "content": "⟦11⟧林夏停在巷口观察后，快步挡在少女身前。",
             "text_anchors": [{
                 "id": 11,
                 "quote": "林夏停在巷口观察后，快步挡在少女身前。"
             }]
         })],
         baseline_state: json!({
-            "explicit_attributes": {"位置": "城门"},
-            "implicit_attributes": {"谨慎": "行动前先观察"},
-            "social_attributes": {}
-        }),
-        base_attributes: json!({
             "explicit_attributes": {"位置": "城门"},
             "implicit_attributes": {"谨慎": "行动前先观察"},
             "social_attributes": {}
@@ -287,7 +281,7 @@ fn contracts_make_canonical_category_values_explicit() {
 }
 
 #[tokio::test]
-async fn stage_requests_share_cache_prefix_only_within_one_character_session() {
+async fn stage_requests_share_chapters_across_characters_and_keep_subjects_separate() {
     let input = stage_input(None);
     let evidence = build_character_profile_sync_stage_request(
         &input,
@@ -334,7 +328,20 @@ async fn stage_requests_share_cache_prefix_only_within_one_character_session() {
     .await
     .expect("other character request");
     let other_pack = &other.context_manifest_json.as_ref().unwrap()["packs"][0];
-    assert_ne!(evidence_pack["variants"], other_pack["variants"]);
+    assert_eq!(evidence_pack, other_pack, "共享章节必须能跨角色复用");
+    assert_ne!(
+        evidence.context_manifest_json.as_ref().unwrap()["packs"][1]["variants"],
+        other.context_manifest_json.as_ref().unwrap()["packs"][1]["variants"],
+        "当前角色信息必须独立"
+    );
+    let source = &evidence_pack["variants"][0]["canonical_content_json"];
+    assert!(source["chapters"][0].get("text_anchors").is_none());
+    assert!(
+        source["chapters"][0]["content"]
+            .as_str()
+            .unwrap()
+            .contains("⟦11⟧")
+    );
 }
 
 #[tokio::test]

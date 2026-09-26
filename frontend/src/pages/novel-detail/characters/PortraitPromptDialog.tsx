@@ -18,11 +18,13 @@ import { useI18n } from "../../../i18n";
 
 interface PortraitPromptDialogProps {
   portrait: Portrait;
+  profileName?: string;
   onClose: () => void;
 }
 
 export const PortraitPromptDialog: React.FC<PortraitPromptDialogProps> = ({
   portrait,
+  profileName,
   onClose,
 }) => {
   const addToast = useToast((state) => state.addToast);
@@ -125,6 +127,7 @@ export const PortraitPromptDialog: React.FC<PortraitPromptDialogProps> = ({
       isOpen
       onClose={onClose}
       title={t("characterDetail.portrait.promptTitle")}
+      subtitle={profileName}
       maxWidthClassName="max-w-2xl"
       footer={
         <div className="flex w-full items-center gap-2">

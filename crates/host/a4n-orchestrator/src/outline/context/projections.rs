@@ -46,7 +46,30 @@ pub(in crate::outline) fn outline_blueprint_context_json(
         json!(
             characters
                 .iter()
-                .map(blueprint_character_llm_context)
+                .map(|character| {
+                    let mut value = blueprint_character_llm_context(character);
+                    if let Some(profile) = formal_materials
+                        .get("character_profiles")
+                        .and_then(Value::as_array)
+                        .and_then(|profiles| {
+                            profiles.iter().find(|profile| {
+                                profile["name"].as_str() == Some(character.name.as_str())
+                            })
+                        })
+                    {
+                        let fields = value
+                            .as_object_mut()
+                            .expect("character projection is an object");
+                        for key in ["gender", "age", "appearance", "background", "personality"] {
+                            if profile.get(key).is_some_and(|existing| {
+                                !existing.is_null() && fields.get(key) == Some(existing)
+                            }) {
+                                fields.remove(key);
+                            }
+                        }
+                    }
+                    value
+                })
                 .collect::<Vec<_>>()
         ),
     );
@@ -122,32 +145,6 @@ pub(in crate::outline) fn part_context_json(part: &part_outline::Model) -> Value
     })
 }
 
-pub(in crate::outline) fn minimal_blueprint_context(blueprint_context: &Value) -> Value {
-    let Some(object) = blueprint_context.as_object() else {
-        return blueprint_context.clone();
-    };
-    let mut minimal = serde_json::Map::new();
-    for key in [
-        "blueprint_available",
-        "title",
-        "project_type",
-        "project_description",
-        "genre",
-        "style",
-        "tone",
-        "one_sentence_summary",
-        "full_synopsis",
-        "chapters_per_part",
-        "blueprint_chapters_per_part",
-        "formal_materials",
-    ] {
-        if let Some(value) = object.get(key) {
-            minimal.insert(key.to_string(), value.clone());
-        }
-    }
-    Value::Object(minimal)
-}
-
 fn character_profile_context_json(profile: &protagonist_profile::Model) -> Value {
     let mut value = serde_json::Map::new();
     insert_text(&mut value, "name", &profile.name);
@@ -156,7 +153,9 @@ fn character_profile_context_json(profile: &protagonist_profile::Model) -> Value
     insert_optional_text(&mut value, "appearance", profile.appearance.as_deref());
     insert_optional_text(&mut value, "background", profile.background.as_deref());
     insert_optional_text(&mut value, "personality", profile.personality.as_deref());
-    insert_json(&mut value, "base_attributes", &profile.base_attributes);
+    if profile.base_attributes != profile.current_state {
+        insert_json(&mut value, "base_attributes", &profile.base_attributes);
+    }
     insert_json(&mut value, "current_state", &profile.current_state);
     if let Some(character_arc) = profile.character_arc.as_ref() {
         insert_json(&mut value, "character_arc", character_arc);
@@ -290,28 +289,6 @@ fn is_meaningful_json(value: &Value) -> bool {
         Value::Object(values) => values.values().any(is_meaningful_json),
         Value::Bool(_) | Value::Number(_) => true,
     }
-}
-
-pub(in crate::outline) fn focused_part_context(part: &part_outline::Model) -> Value {
-    json!({
-        "part_number": part.part_number,
-        "title": part.title,
-        "start_chapter": part.start_chapter,
-        "end_chapter": part.end_chapter,
-        "summary": part.summary,
-        "theme": part.theme,
-        "key_events": part.key_events,
-    })
-}
-
-pub(in crate::outline) fn minimal_part_context(part: &part_outline::Model) -> Value {
-    json!({
-        "part_number": part.part_number,
-        "title": part.title,
-        "start_chapter": part.start_chapter,
-        "end_chapter": part.end_chapter,
-        "summary": part.summary,
-    })
 }
 
 pub(crate) fn chapter_outline_context_json(outline: &chapter_outline::Model) -> Value {

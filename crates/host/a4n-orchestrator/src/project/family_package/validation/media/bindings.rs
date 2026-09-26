@@ -6,6 +6,7 @@ pub(super) fn validate_galgame_media_binding_contract(
     galgame_scripts: &HashMap<i64, &galgame_script::Model>,
     galgame_scenes: &HashMap<i64, &galgame_scene::Model>,
     galgame_lines: &HashMap<i64, &galgame_line::Model>,
+    snapshot_chapters: &HashMap<i64, &source_snapshot_chapter::Model>,
 ) -> Result<(), String> {
     if !is_valid_galgame_media_binding_pair(&binding.target_kind, &binding.role) {
         return Err(format!(
@@ -45,7 +46,13 @@ pub(super) fn validate_galgame_media_binding_contract(
                     binding.id, binding.target_id
                 )
             })?;
-            validate_galgame_media_binding_project(binding, asset, scene, galgame_scripts)?;
+            validate_galgame_media_binding_project(
+                binding,
+                asset,
+                scene,
+                galgame_scripts,
+                snapshot_chapters,
+            )?;
         }
         "galgame_line" => {
             let line = galgame_lines.get(&binding.target_id).copied().ok_or_else(|| {
@@ -60,7 +67,13 @@ pub(super) fn validate_galgame_media_binding_contract(
                     binding.id, binding.target_id, line.scene_id
                 )
             })?;
-            validate_galgame_media_binding_project(binding, asset, scene, galgame_scripts)?;
+            validate_galgame_media_binding_project(
+                binding,
+                asset,
+                scene,
+                galgame_scripts,
+                snapshot_chapters,
+            )?;
         }
         _ => {}
     }
@@ -72,6 +85,7 @@ fn validate_galgame_media_binding_project(
     asset: &media_asset::Model,
     scene: &galgame_scene::Model,
     galgame_scripts: &HashMap<i64, &galgame_script::Model>,
+    snapshot_chapters: &HashMap<i64, &source_snapshot_chapter::Model>,
 ) -> Result<(), String> {
     let script = galgame_scripts.get(&scene.script_id).copied().ok_or_else(|| {
         format!(
@@ -85,10 +99,18 @@ fn validate_galgame_media_binding_project(
             binding.id, asset.id, asset.project_id, script.project_id
         ));
     }
-    if asset.source_snapshot_id != Some(script.source_snapshot_id) {
+    let chapter = snapshot_chapters
+        .get(&scene.source_snapshot_chapter_id)
+        .ok_or_else(|| {
+            format!(
+                "项目族导入包 Galgame 媒体绑定目标场源快照章节不存在: scene_id={}",
+                scene.id
+            )
+        })?;
+    if asset.source_snapshot_id != Some(chapter.snapshot_id) {
         return Err(format!(
             "项目族导入包 Galgame 媒体绑定资产源快照与目标不一致: media_binding_id={}, media_asset_id={}, asset_source_snapshot_id={:?}, target_source_snapshot_id={}",
-            binding.id, asset.id, asset.source_snapshot_id, script.source_snapshot_id
+            binding.id, asset.id, asset.source_snapshot_id, chapter.snapshot_id
         ));
     }
     if let Some(source_snapshot_chapter_id) = asset.source_snapshot_chapter_id

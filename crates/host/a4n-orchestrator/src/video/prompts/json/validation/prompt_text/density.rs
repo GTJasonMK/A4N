@@ -22,7 +22,7 @@ pub(in crate::video::prompts::json::validation) fn required_min_prompt_text(
 ) -> Result<String, AppError> {
     let text = required_text(value, field)?;
     validate_prompt_text_density(&text, field, prompt_output_language, kind)?;
-    validate_direct_prompt_text(&text, field)?;
+    validate_optional_prompt_text(&text, field)?;
     Ok(text)
 }
 
@@ -31,7 +31,7 @@ pub(in crate::video::prompts::json::validation) fn validate_optional_prompt_text
     field: &str,
 ) -> Result<(), AppError> {
     let text = value.trim();
-    if contains_structured_prompt_text(text) {
+    if crate::video::provider::prompt_text_rules::contains_dictionary_like_prompt_text(text) {
         return Err(AppError::InvalidArgument(format!(
             "{field} 不能包含 JSON、字典、数组或字段名片段"
         )));
@@ -80,21 +80,38 @@ fn provider_prompt_text(
     .map_err(AppError::InvalidArgument)
 }
 
+pub(in crate::video) fn prompt_density_rule(
+    language: PromptOutputLanguage,
+    kind: PromptTextKind,
+    field: &str,
+) -> String {
+    let minimum = format!("{field} 至少 {} 个字符", zh_min_chars(kind));
+    match language {
+        PromptOutputLanguage::ZhCn => minimum,
+        PromptOutputLanguage::En => format!(
+            "{minimum}，且至少 {} 个英文词或 {} 个字符",
+            english_min_words(kind),
+            english_min_chars(kind)
+        ),
+    }
+}
+
 fn validate_prompt_text_density(
     text: &str,
     field: &str,
     prompt_output_language: PromptOutputLanguage,
     kind: PromptTextKind,
 ) -> Result<(), AppError> {
-    match prompt_output_language {
-        PromptOutputLanguage::ZhCn => validate_min_chars(text, field, zh_min_chars(kind)),
-        PromptOutputLanguage::En => validate_min_english_density(
+    validate_min_chars(text, field, zh_min_chars(kind))?;
+    if prompt_output_language == PromptOutputLanguage::En {
+        validate_min_english_density(
             text,
             field,
             english_min_words(kind),
             english_min_chars(kind),
-        ),
+        )?;
     }
+    Ok(())
 }
 
 fn validate_min_chars(text: &str, field: &str, min_chars: usize) -> Result<(), AppError> {
@@ -128,8 +145,11 @@ fn validate_min_english_density(
 
 fn zh_min_chars(kind: PromptTextKind) -> usize {
     match kind {
-        PromptTextKind::VideoVisual | PromptTextKind::FramePrompt => 80,
-        PromptTextKind::VideoMotion => 45,
+        PromptTextKind::VideoVisual => crate::video::MIN_PROVIDER_VISUAL_PROMPT_CHARS,
+        PromptTextKind::VideoMotion => crate::video::MIN_PROVIDER_MOTION_PROMPT_CHARS,
+        PromptTextKind::FramePrompt => {
+            crate::video::provider::prompt_text_rules::MIN_FRAME_PROMPT_CHARS
+        }
         PromptTextKind::FrameNegative => 20,
     }
 }
@@ -151,11 +171,71 @@ fn english_min_chars(kind: PromptTextKind) -> usize {
     }
 }
 
-fn contains_structured_prompt_text(text: &str) -> bool {
-    text.contains('{')
-        || text.contains('}')
-        || text.contains("[{")
-        || text.contains("}]")
-        || text.contains("\":")
-        || text.contains("':")
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn generation_density_meets_provider_minimums_in_both_languages() {
+        for (kind, field, minimum) in [
+            (
+                PromptTextKind::VideoVisual,
+                "visual_prompt",
+                crate::video::MIN_PROVIDER_VISUAL_PROMPT_CHARS,
+            ),
+            (
+                PromptTextKind::VideoMotion,
+                "motion_prompt",
+                crate::video::MIN_PROVIDER_MOTION_PROMPT_CHARS,
+            ),
+            (
+                PromptTextKind::FramePrompt,
+                "frame_prompt",
+                crate::video::provider::prompt_text_rules::MIN_FRAME_PROMPT_CHARS,
+            ),
+        ] {
+            assert!(
+                validate_prompt_text_density(
+                    &"字".repeat(minimum - 1),
+                    field,
+                    PromptOutputLanguage::ZhCn,
+                    kind
+                )
+                .is_err()
+            );
+            assert!(
+                validate_prompt_text_density(
+                    &"字".repeat(minimum),
+                    field,
+                    PromptOutputLanguage::ZhCn,
+                    kind
+                )
+                .is_ok()
+            );
+            assert!(
+                prompt_density_rule(PromptOutputLanguage::ZhCn, kind, field)
+                    .contains(&minimum.to_string())
+            );
+        }
+        // 30 个单字母词只有 59 个字符，不能通过生成检查后再被 Provider 拒绝。
+        let words = vec!["a"; 30].join(" ");
+        assert!(
+            validate_prompt_text_density(
+                &words,
+                "motion_prompt",
+                PromptOutputLanguage::En,
+                PromptTextKind::VideoMotion
+            )
+            .is_err()
+        );
+        assert!(
+            validate_prompt_text_density(
+                &(words + "."),
+                "motion_prompt",
+                PromptOutputLanguage::En,
+                PromptTextKind::VideoMotion
+            )
+            .is_ok()
+        );
+    }
 }

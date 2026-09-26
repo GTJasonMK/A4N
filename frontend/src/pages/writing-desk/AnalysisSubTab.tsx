@@ -174,13 +174,13 @@ const MaterialSyncPanel: React.FC<{
           return (
             <div
               key={key}
-              className="min-w-0 rounded-lg bg-book-bg/55 px-2.5 py-2"
+              className="flex min-w-0 flex-wrap items-center justify-between gap-x-2 gap-y-1 rounded-lg bg-book-bg/55 px-2.5 py-2"
             >
-              <dt className="truncate text-caption text-book-text-muted">
+              <dt className="text-caption text-book-text-muted">
                 {t(label)}
               </dt>
               <dd
-                className={`mt-1 w-fit rounded-full px-2 py-0.5 text-caption font-medium ${presentation.className}`}
+                className={`w-fit shrink-0 rounded-full px-2 py-0.5 text-caption font-medium ${presentation.className}`}
               >
                 {t(presentation.label)}
               </dd>

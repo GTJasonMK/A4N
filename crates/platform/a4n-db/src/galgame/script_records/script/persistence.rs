@@ -44,6 +44,7 @@ where
         let crate::galgame::PersistGalgameSceneRecordInput {
             scene_index,
             source_snapshot_chapter_id,
+            shooting_scene_identity,
             title,
             location,
             time_of_day,
@@ -56,6 +57,7 @@ where
         scene_rows.push(galgame_scene::ActiveModel {
             script_id: Set(script.id),
             source_snapshot_chapter_id: Set(source_snapshot_chapter_id),
+            shooting_scene_identity: Set(shooting_scene_identity),
             scene_index: Set(scene_index),
             title: Set(title),
             location: Set(location),

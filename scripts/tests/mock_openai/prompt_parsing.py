@@ -7,7 +7,7 @@ import re
 from typing import Any
 def current_task_prompt_name(combined: str) -> str | None:
     matches = re.findall(
-        r'"task"\s*:\s*\{[^{}]*"prompt_name"\s*:\s*"([^"]+)"',
+        r'"task"\s*:\s*\{[^{}]*"(?:prompt_name|name)"\s*:\s*"([^"]+)"',
         combined,
     )
     return matches[-1] if matches else None

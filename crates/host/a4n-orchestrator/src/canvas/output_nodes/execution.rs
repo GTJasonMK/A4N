@@ -130,7 +130,8 @@ impl OrchestratorContext {
                     .upsert_canvas_text_asset_record(
                         project_id,
                         CanvasTextAssetRecordInput {
-                            id: source_canvas_text_asset_id(node),
+                            id: source_canvas_text_asset_id(node)
+                                .map_err(AppError::InvalidArgument)?,
                             title,
                             text_kind: "canvas_output".to_string(),
                             content: text.to_string(),

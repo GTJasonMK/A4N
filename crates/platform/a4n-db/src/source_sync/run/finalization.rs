@@ -10,6 +10,7 @@ use sea_orm::{
 };
 
 use super::contracts::FinalizeSourceSyncApplyRunInput;
+use super::loading::target_snapshot_matches_current_root;
 use crate::source_sync::{
     CONFLICT_STATUS_PENDING, SOURCE_SYNC_CONFLICT, SOURCE_SYNC_CURRENT, SOURCE_SYNC_DETACHED,
     SOURCE_SYNC_ROOT_UPDATED, SYNC_RUN_MODE_APPLY, SYNC_RUN_STATUS_APPLYING,
@@ -42,7 +43,7 @@ where
         SOURCE_SYNC_DETACHED
     } else if pending_blocking > 0 {
         SOURCE_SYNC_CONFLICT
-    } else if pending_any > 0 {
+    } else if pending_any > 0 || !target_snapshot_matches_current_root(db, &run).await? {
         SOURCE_SYNC_ROOT_UPDATED
     } else {
         SOURCE_SYNC_CURRENT

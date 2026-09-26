@@ -30,7 +30,7 @@ pub async fn upsert_galgame_asset_plan_spec_records_transaction(
     let mut upserts = Vec::with_capacity(inputs.len());
     let mut result_keys = Vec::with_capacity(inputs.len());
     let mut ref_inputs = Vec::with_capacity(inputs.len());
-    let mut pending_inserts = BTreeMap::<String, generation_spec::Model>::new();
+    let mut pending_inserts = BTreeMap::<(Option<i64>, String), generation_spec::Model>::new();
     let mut pending_updates = BTreeMap::<i64, generation_spec::Model>::new();
     let snapshots = project_source_snapshot::Entity::find()
         .select_only()
@@ -70,7 +70,7 @@ pub async fn upsert_galgame_asset_plan_spec_records_transaction(
         let replace_entity_refs = input.replace_entity_refs;
         let entity_profile_id = input.entity_profile_id;
         let spec = input.spec;
-        let canonical_key = spec.canonical_key.clone();
+        let canonical_key = (Some(spec.source_snapshot_id), spec.canonical_key.clone());
         let (_, source_version_hash) = snapshots
             .get(&spec.source_snapshot_id)
             .filter(|(root, _)| *root == spec.root_project_id)

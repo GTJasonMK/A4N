@@ -9,7 +9,7 @@ import {
   type UpdateValue,
   type ValuePath,
 } from "./StructuredScriptEditorControls";
-import React from "react";
+import React, { useEffect, useRef } from "react";
 import { ChevronRight, Plus, Trash2 } from "lucide-react";
 
 import type {
@@ -120,6 +120,7 @@ interface StructuredScriptEditorProps {
   script: ChapterShootingScriptV1;
   onChange: (script: ChapterShootingScriptV1) => void;
   disabled?: boolean;
+  focusShotId?: string | null;
 }
 
 const newEntryId = (prefix: string) => `${prefix}-${crypto.randomUUID()}`;
@@ -186,8 +187,19 @@ export const StructuredScriptEditor: React.FC<StructuredScriptEditorProps> = ({
   script,
   onChange,
   disabled = false,
+  focusShotId = null,
 }) => {
   const { t } = useI18n();
+  const editorRef = useRef<HTMLFieldSetElement>(null);
+  useEffect(() => {
+    if (!focusShotId) return;
+    const target = editorRef.current?.querySelector<HTMLElement>(`[data-shot-id="${CSS.escape(focusShotId)}"]`);
+    if (!target) return;
+    for (let details = target.closest("details"); details; details = details.parentElement?.closest("details") ?? null) {
+      details.open = true;
+    }
+    target.querySelector<HTMLElement>("textarea, input:not([readonly])")?.focus();
+  }, [focusShotId]);
   const update: UpdateValue = (path, value) => {
     const next = structuredClone(script);
     let cursor: object = next;
@@ -248,6 +260,7 @@ export const StructuredScriptEditor: React.FC<StructuredScriptEditorProps> = ({
 
   return (
     <fieldset
+      ref={editorRef}
       disabled={disabled}
       aria-busy={disabled || undefined}
       className="m-0 min-w-0 space-y-3 border-0 p-0"
@@ -838,7 +851,7 @@ const ShotEditor: React.FC<{
     });
   };
   return (
-    <details className="group">
+    <details className="group" data-shot-id={shot.shot_id}>
       <summary className="grid cursor-pointer list-none grid-cols-[minmax(0,1fr)_auto] items-center gap-3 py-3 [&::-webkit-details-marker]:hidden">
         <div className="min-w-0">
           <div className="truncate text-xs font-semibold text-book-text-main">

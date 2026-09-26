@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useMemo, useRef, useState } from "react";
 import { Bot,
   Brain,
   Film,
@@ -6,7 +6,6 @@ import { Bot,
   RefreshCw,
   ServerCog, } from "lucide-react";
 import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
-import { extractErrorMessage } from "../../../api";
 import {
   listEmbeddingConfig,
   listServerLlmConfig,
@@ -17,7 +16,6 @@ import { listServerVideoConfigs, type VideoGenConfig } from "../../../api/video"
 import { listModelProviderCatalog } from "../../../api/providerCatalog";
 import type { ModelProviderCatalog } from "../../../api/generated/config";
 import type { LlmConfigSummary } from "../../../api/generated/config";
-import { useToast } from "../../../components/feedback/Toast";
 import { confirmDialog } from "../../../components/feedback/ConfirmDialog";
 import { BookIconButton } from "../../../components/ui/BookButton";
 import { EmbeddingTab } from "../EmbeddingTab";
@@ -25,6 +23,7 @@ import { ImageTab } from "../ImageTab";
 import { LlmTab } from "../LlmTab";
 import { VideoTab } from "../VideoTab";
 import { useI18n, type MessageKey } from "../../../i18n";
+import { useAdminSectionLoader } from "./useAdminSectionLoader";
 
 type ApiConfigPanel = "overview" | "llm" | "image" | "video" | "embedding";
 
@@ -111,46 +110,18 @@ export const ApiConfigSection: React.FC = () => {
 };
 
 const ApiConfigOverview: React.FC = () => {
-  const addToast = useToast((state) => state.addToast);
   const { t } = useI18n();
   const [snapshot, setSnapshot] = useState<ApiConfigSnapshot | null>(null);
-  const [loading, setLoading] = useState(false);
-  const mountedRef = useRef(true);
-  const loadSeqRef = useRef(0);
-
-  useEffect(() => {
-    mountedRef.current = true;
-    return () => {
-      mountedRef.current = false;
-      loadSeqRef.current += 1;
-    };
+  const loadSnapshot = useCallback(async () => {
+    const [llm, image, video, embedding, providers] = await Promise.all([
+      listServerLlmConfig(), listServerImageConfigs(), listServerVideoConfigs(),
+      listEmbeddingConfig("server"), listModelProviderCatalog(),
+    ]);
+    return { llm, image, video, embedding, providers };
   }, []);
-
-  const load = useCallback(async () => {
-    const requestSeq = loadSeqRef.current + 1;
-    loadSeqRef.current = requestSeq;
-    setLoading(true);
-    try {
-      const [llm, image, video, embedding, providers] = await Promise.all([
-        listServerLlmConfig(),
-        listServerImageConfigs(),
-        listServerVideoConfigs(),
-        listEmbeddingConfig("server"),
-        listModelProviderCatalog(),
-      ]);
-      if (!mountedRef.current || loadSeqRef.current !== requestSeq) return;
-      setSnapshot({ llm, image, video, embedding, providers });
-    } catch (err) {
-      if (!mountedRef.current || loadSeqRef.current !== requestSeq) return;
-      addToast(extractErrorMessage(err, t("settingsAdmin.loadApiConfigFailed")), "error");
-    } finally {
-      if (mountedRef.current && loadSeqRef.current === requestSeq) setLoading(false);
-    }
-  }, [addToast]);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
+  const { loading, error, load } = useAdminSectionLoader(
+    "admin-api-defaults", loadSnapshot, setSnapshot, t("settingsAdmin.loadApiConfigFailed"),
+  );
 
   const defaults = useMemo(() => {
     const llm = snapshot?.llm.find((item) => item.is_default) ?? null;
@@ -179,12 +150,13 @@ const ApiConfigOverview: React.FC = () => {
         </span>
       </div>
 
+      {error ? <p role="alert" className="text-xs text-error">{error}</p> : null}
       {loading && snapshot == null ? (
         <div className="inline-flex items-center gap-2 py-10 text-xs text-book-text-muted">
           <LoadingSpinner size="sm" />
           {t("settingsAdmin.loadingConfig")}
         </div>
-      ) : (
+      ) : snapshot ? (
         <section className="grid grid-cols-1 items-start gap-3 xl:grid-cols-2" aria-label={t("settingsAdmin.sharedDefaults")}>
           <ApiSummaryCard
             icon={<Bot size={16} />}
@@ -312,7 +284,7 @@ const ApiConfigOverview: React.FC = () => {
           />
 
         </section>
-      )}
+      ) : null}
     </div>
   );
 };

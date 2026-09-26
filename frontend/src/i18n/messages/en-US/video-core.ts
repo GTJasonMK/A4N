@@ -117,7 +117,7 @@ export const videoCore = {
   notVideoProject: "This project is not a video project",
   loadProjectFailed: "Failed to load video project",
   sourceLoading: "Loading source text information",
-  syncSource: "Sync source text",
+  syncSource: "Sync source",
   canvasMode: "Canvas mode",
   projectWorkspace: "Video project workspace",
   loadingProject: "Loading video project",

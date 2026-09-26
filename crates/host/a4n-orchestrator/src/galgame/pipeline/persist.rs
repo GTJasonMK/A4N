@@ -8,7 +8,7 @@ mod visual;
 
 pub use contracts::{
     GalgamePersistChoice, GalgamePersistLine, GalgamePersistScene, GalgamePipelineSourceSpan,
-    GalgameScriptPersistPlan,
+    GalgameScriptPersistPlan, GalgameShootingSceneRef,
 };
 pub use plan::build_galgame_script_persist_plan;
 pub(in crate::galgame) use validation::{

@@ -56,6 +56,34 @@ pub const GEMINI_VEO_VIDEO_BACKEND: &str = "gemini-veo-video";
 pub const SEEDANCE2_VIDEO_BACKEND: &str = "seedance2-video";
 pub const CLIPROXY_OPENAI_VIDEO_BACKEND: &str = "cliproxy-openai-video";
 pub const OPENAI_CHAT_VIDEO_BACKEND: &str = "openai-chat-video";
+pub const MAX_CLIPROXY_VIDEO_PROMPT_BYTES: usize = 4096;
+
+/// 不支持独立 negative 字段的端点在最终文本中保留约束，并按实际文本校验长度。
+pub fn video_provider_prompt(
+    backend: &str,
+    prompt: &str,
+    negative_prompt: Option<&str>,
+) -> Result<String, String> {
+    let prompt = match (
+        backend,
+        negative_prompt
+            .map(str::trim)
+            .filter(|text| !text.is_empty()),
+    ) {
+        (CLIPROXY_OPENAI_VIDEO_BACKEND | SEEDANCE2_VIDEO_BACKEND, Some(negative)) => {
+            format!("{prompt}\n\nNegative constraints:\n{negative}")
+        }
+        _ => prompt.to_string(),
+    };
+    if backend == CLIPROXY_OPENAI_VIDEO_BACKEND && prompt.len() > MAX_CLIPROXY_VIDEO_PROMPT_BYTES {
+        return Err(format!(
+            "CLIProxy/Grok 视频 prompt 超过 {MAX_CLIPROXY_VIDEO_PROMPT_BYTES} UTF-8 字节限制：实际 {} 字符 / {} UTF-8 字节（含负面约束）；请缩短提示词后再生成",
+            prompt.chars().count(),
+            prompt.len()
+        ));
+    }
+    Ok(prompt)
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct VideoProviderCapabilities {

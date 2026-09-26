@@ -127,7 +127,8 @@ pub(super) fn shooting_script_projection() -> VideoShootingScriptProjection {
             "revision": 1,
             "source_revision_key": "test-revision",
             "source_content_sha256": "current-source",
-            "script_sha256": "test-script"
+            "script_sha256": "test-script",
+            "shot_fingerprints": {"shot-1": "shot-1-fingerprint", "shot-2": "shot-2-fingerprint", "shot-3": "shot-3-fingerprint"}
         },
         "directing_statement": {
             "central_dramatic_question": "测试问题",

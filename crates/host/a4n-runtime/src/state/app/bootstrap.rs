@@ -27,7 +27,9 @@ impl RuntimeBootstrap {
         runtime_profile.validate_build_capabilities()?;
         validate_runtime_config(&config)?;
         let data_dir_lock = match runtime_role {
-            RuntimeRole::Host => Some(Arc::new(acquire_data_dir_lock(&config.data_dir)?)),
+            RuntimeRole::Host | RuntimeRole::DesktopHost => {
+                Some(Arc::new(acquire_data_dir_lock(&config.data_dir)?))
+            }
             RuntimeRole::AgentWorker => None,
         };
 
@@ -36,13 +38,13 @@ impl RuntimeBootstrap {
             .map_err(a4n_error::AppError::Database)?;
         let db = Arc::new(db);
         let generation_owner_lock = match runtime_role {
-            RuntimeRole::Host => Some(Arc::new(
+            RuntimeRole::Host | RuntimeRole::DesktopHost => Some(Arc::new(
                 acquire_generation_owner_lock(&config.database_url).await?,
             )),
             RuntimeRole::AgentWorker => None,
         };
 
-        if runtime_role == RuntimeRole::Host {
+        if runtime_role.is_host() {
             run_startup_migrations(db.as_ref()).await?;
         }
 
@@ -141,7 +143,8 @@ impl RuntimeBootstrap {
         ),
         a4n_error::AppError,
     > {
-        let provider_facade = crate::provider_runtime::DynamicProviderFacade::new(provider_port);
+        let provider_facade =
+            crate::provider_runtime::DynamicProviderFacade::new(provider_port, self.runtime_role);
         let embedding = crate::sidecar_clients::create_embedding_provider(
             provider_facade.clone(),
             &self.config,
@@ -182,7 +185,7 @@ impl RuntimeBootstrap {
             .hydrate_overrides()
             .await?;
 
-        if runtime_role == RuntimeRole::Host {
+        if runtime_role.is_host() {
             application_ports
                 .package_mutation_application
                 .initialize_states()
@@ -229,7 +232,7 @@ impl RuntimeBootstrap {
             agent_host_dispatcher: Arc::new(tokio::sync::RwLock::new(None)),
         };
 
-        if runtime_role == RuntimeRole::Host {
+        if runtime_role.is_host() {
             let mut enabled_services = state.package_read_application().enabled_services().await?;
             include_runtime_sidecar_services(runtime_profile, &mut enabled_services);
             state

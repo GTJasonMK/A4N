@@ -59,7 +59,7 @@ export const VideoTab: React.FC<VideoTabProps> = ({ scope = "local" }) => {
     });
     return { items, catalog: providerCatalog };
   }, [serverScope, t]);
-  const { items, catalog, loading, refresh } = useConfigItems(
+  const { items, setItems, catalog, loading, error, refresh } = useConfigItems(
     loadItems,
     t("settings.loadConfigFailed", { name: t("settings.videoConfig") }),
   );
@@ -68,7 +68,9 @@ export const VideoTab: React.FC<VideoTabProps> = ({ scope = "local" }) => {
     <ConfigListPanel<VideoForm>
       title={t("settings.videoConfig")}
       items={items}
+      onItemsChange={setItems}
       loading={loading}
+      loadError={error}
       onRefresh={refresh}
       defaultForm={DEFAULT_VIDEO_FORM}
       validate={(form) =>
@@ -108,18 +110,17 @@ export const VideoTab: React.FC<VideoTabProps> = ({ scope = "local" }) => {
             t,
           ),
         );
-        return created.id;
+        return toVideoItem(created);
       }}
       onUpdate={async (id, form) => {
         const input = toUpdateVideoInput(form, catalog?.video.find((provider) => provider.id === form.provider), t);
         if (!serverScope && id === SYSTEM_VIDEO_CONFIG_ID) {
-          await updateSystemDefaultVideoKey({ api_key_encrypted: input.api_key_encrypted });
-          return;
+          return toVideoItem(await updateSystemDefaultVideoKey({ api_key_encrypted: input.api_key_encrypted }));
         }
-        await (serverScope ? updateServerVideoConfig : updateVideoConfig)(
+        return toVideoItem(await (serverScope ? updateServerVideoConfig : updateVideoConfig)(
           id,
           input,
-        );
+        ));
       }}
       onDelete={serverScope ? removeServerVideoConfig : removeVideoConfig}
       onActivate={async (id) => {

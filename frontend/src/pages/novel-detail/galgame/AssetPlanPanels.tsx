@@ -186,7 +186,7 @@ const AssetPlanList: React.FC<{
       <div className="space-y-1">
         {items.map((item) => (
           <div
-            key={item.canonical_key}
+            key={item.generation_spec_id}
             className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2"
           >
             <span className="min-w-0 truncate" title={item.label}>
@@ -275,6 +275,9 @@ export const PortraitExpressionMatrix: React.FC<{
                       >
                         {cell ? (
                           <div className="flex min-w-20 flex-col gap-1">
+                            <span className="text-book-text-muted">
+                              {cell.item.source_label}
+                            </span>
                             <span
                               className={`truncate ${
                                 cell.item.status === "failed"

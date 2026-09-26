@@ -30,7 +30,7 @@ pub enum ProviderPromptTextViolation {
     DirectPrompt(String),
 }
 
-const INTERNAL_VIDEO_PROMPT_TERMS: &[&str] = &[
+pub(in crate::video) const INTERNAL_VIDEO_PROMPT_TERMS: &[&str] = &[
     "首帧串联",
     "串联规则",
     "自动采集",
@@ -165,7 +165,7 @@ fn provider_prompt_text_error(
     }
 }
 
-fn contains_dictionary_like_prompt_text(text: &str) -> bool {
+pub(in crate::video) fn contains_dictionary_like_prompt_text(text: &str) -> bool {
     text.contains('{')
         || text.contains('}')
         || text.contains("[{")

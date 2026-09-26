@@ -2,7 +2,10 @@
 
 use thiserror::Error;
 
-use super::contracts::{ChapterShootingScriptV1, ShootingDirectingStatementV1, ShootingSceneV1};
+use super::contracts::{
+    ChapterShootingScriptUnitProgressCheckpoint, ChapterShootingScriptV1,
+    ShootingDirectingStatementV1, ShootingSceneV1,
+};
 
 mod rules;
 mod scene;
@@ -15,6 +18,24 @@ mod tests;
 pub struct ShootingScriptValidationError {
     pub path: String,
     pub message: String,
+}
+
+impl ChapterShootingScriptUnitProgressCheckpoint {
+    pub fn validate_for_run(
+        &self,
+        workflow_run_id: i64,
+    ) -> Result<(), ShootingScriptValidationError> {
+        if self.version != 1 || self.progress.workflow_run_id != workflow_run_id {
+            return Err(ShootingScriptValidationError {
+                path: "progress.snapshot".into(),
+                message: "生成进度的版本、工作流身份或完成状态无效".into(),
+            });
+        }
+        self.progress.script.validate_partial(
+            self.progress.completed_unit_count,
+            self.progress.total_unit_count,
+        )
+    }
 }
 
 impl ShootingDirectingStatementV1 {
@@ -45,9 +66,12 @@ impl ShootingSceneV1 {
 }
 
 impl ChapterShootingScriptV1 {
+    /// 逐镜头校验导演约束。与当前方案内容一致的镜头必须落在当前计划时间；内容已变化的
+    /// 过时镜头只能原样保留上一版本的约束，等待手动或模型辅助更新，不能被改写成其他约束。
     pub fn validate_director_plan(
         &self,
         plan: &crate::chapter_visual_plan::ChapterVisualPlanV3,
+        previous: Option<&ChapterShootingScriptV1>,
     ) -> Result<(), ShootingScriptValidationError> {
         let mut expected = plan
             .project()
@@ -56,6 +80,12 @@ impl ChapterShootingScriptV1 {
                 message: error.message,
             })?
             .into_iter();
+        let previous_shots = previous
+            .into_iter()
+            .flat_map(|script| &script.scenes)
+            .flat_map(|scene| &scene.shots)
+            .map(|shot| (shot.shot_id.as_str(), shot))
+            .collect::<std::collections::HashMap<_, _>>();
         let actual = self
             .scenes
             .iter()
@@ -69,21 +99,41 @@ impl ChapterShootingScriptV1 {
                     path: format!("shots[{}]", shot.shot_id),
                     message: "镜头必须来自导演时间线，且不能重复或改变顺序".into(),
                 })?;
-            if shot.visual_shot_id.as_deref() != Some(director.segment_id.as_str())
-                || shot.planned_start_ms != Some(director.start_ms)
-                || shot.planned_end_ms != Some(director.end_ms)
-                || shot.visual_constraints.as_ref() != Some(&director)
-            {
-                return Err(ShootingScriptValidationError {
+            let constraints = shot
+                .visual_constraints
+                .as_ref()
+                .filter(|_| shot.visual_shot_id.as_deref() == Some(director.segment_id.as_str()))
+                .filter(|constraints| {
+                    constraints.same_content(&director)
+                        || previous_shots
+                            .get(shot.shot_id.as_str())
+                            .and_then(|previous| previous.visual_constraints.as_ref())
+                            == Some(*constraints)
+                })
+                .ok_or_else(|| ShootingScriptValidationError {
                     path: format!("shots[{}].visual_constraints", shot.shot_id),
                     message: "拍摄剧本不能改变已确认的镜头边界、图片、场景和变化描述".into(),
+                })?;
+            let planned = if constraints.same_content(&director) {
+                (Some(director.start_ms), Some(director.end_ms))
+            } else {
+                let previous = previous_shots[shot.shot_id.as_str()];
+                (previous.planned_start_ms, previous.planned_end_ms)
+            };
+            let duration_ms = constraints.end_ms.saturating_sub(constraints.start_ms);
+            if (shot.planned_start_ms, shot.planned_end_ms) != planned
+                || planned
+                    .0
+                    .zip(planned.1)
+                    .and_then(|(start, end)| end.checked_sub(start))
+                    != Some(duration_ms)
+            {
+                return Err(ShootingScriptValidationError {
+                    path: format!("shots[{}].planned_start_ms", shot.shot_id),
+                    message: "镜头计划时间必须与导演编排一致".into(),
                 });
             }
-            if (shot.estimated_natural_seconds
-                - (director.end_ms - director.start_ms) as f64 / 1000.0)
-                .abs()
-                > 0.001
-            {
+            if (shot.estimated_natural_seconds - duration_ms as f64 / 1000.0).abs() > 0.001 {
                 return Err(ShootingScriptValidationError {
                     path: format!("shots[{}].estimated_natural_seconds", shot.shot_id),
                     message: "镜头时长必须与导演编排一致".into(),

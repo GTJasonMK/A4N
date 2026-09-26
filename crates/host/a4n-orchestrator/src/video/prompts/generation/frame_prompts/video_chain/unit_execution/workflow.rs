@@ -56,9 +56,6 @@ pub(in crate::video::prompts::generation::frame_prompts::video_chain) async fn e
     )
     .await?;
     let current_segment_json = json!(segment);
-    let previous_shot_json = previous_completed_shot
-        .map(|shot| shot.to_json_value())
-        .transpose()?;
     let generation_message = format!(
         "正在生成{}全章第 {} 段（共 {} 段），本批第 {}/{} 条",
         spec.video_prompt_label, current_index, total_segments, generation_number, generation_limit
@@ -83,7 +80,7 @@ pub(in crate::video::prompts::generation::frame_prompts::video_chain) async fn e
             segment_plan: video_segment_json,
             frame_prompts: frame_json,
             current_segment: &current_segment_json,
-            previous_completed_shot: previous_shot_json.as_ref(),
+            previous_completed_shot,
             available_assets,
             style,
             prompt_output_language,

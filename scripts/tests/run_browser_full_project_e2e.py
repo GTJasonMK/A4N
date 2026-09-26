@@ -186,24 +186,28 @@ def start_process(
 
 
 def stop_process(process: subprocess.Popen[bytes] | None, handle: object | None) -> None:
-    if process is not None and process.poll() is None:
-        try:
-            if os.name == "posix":
-                os.killpg(process.pid, signal.SIGTERM)
-            else:
-                process.terminate()
-            process.wait(timeout=10)
-        except (OSError, subprocess.TimeoutExpired):
+    try:
+        if process is None or process.poll() is not None:
+            return
+        for force in (False, True):
             try:
                 if os.name == "posix":
-                    os.killpg(process.pid, signal.SIGKILL)
-                else:
+                    os.killpg(process.pid, signal.SIGKILL if force else signal.SIGTERM)
+                elif force:
                     process.kill()
-                process.wait(timeout=10)
-            except (OSError, subprocess.TimeoutExpired):
+                else:
+                    process.terminate()
+            except ProcessLookupError:
                 pass
-    if handle is not None:
-        handle.close()
+            try:
+                process.wait(timeout=10)
+                return
+            except subprocess.TimeoutExpired:
+                if force:
+                    raise RunnerError(f"进程 {process.pid} 在强制停止后仍未退出")
+    finally:
+        if handle is not None:
+            handle.close()
 
 
 def wait_http(
@@ -558,7 +562,12 @@ def run(args: argparse.Namespace) -> int:
             (migration_process, migration_handle),
             (provider_process, provider_handle),
         ):
-            stop_process(process, handle)
+            try:
+                stop_process(process, handle)
+            except (OSError, RunnerError) as error:
+                result["success"] = False
+                result["exit_code"] = 1
+                result.setdefault("cleanup_errors", []).append(str(error))
         try:
             result.setdefault(
                 "provider",

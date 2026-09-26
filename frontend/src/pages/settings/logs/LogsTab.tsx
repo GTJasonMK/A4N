@@ -223,13 +223,13 @@ export const LogsTab: React.FC = () => {
           aria-label={t("settingsLogs.logsTab")}
         >
           <div className="flex min-h-8 flex-wrap items-center gap-2 text-xs">
-            <span className="text-book-text-muted">{t("settingsLogs.readRange")}</span>
+            <span className="basis-full text-book-text-muted sm:basis-auto">{t("settingsLogs.readRange")}</span>
             <ThemedSelect
               id="log-lines"
               aria-label={t("settingsLogs.logLines")}
               value={lines}
               onChange={(selectedValue) => setLines(Number(selectedValue))}
-              className="pyqt-input w-28 px-2 py-1"
+              className="pyqt-input w-44 px-2 py-1"
             >
               <option value={100}>{t("settingsLogs.recentLines", { count: "100" })}</option>
               <option value={500}>{t("settingsLogs.recentLines", { count: "500" })}</option>
@@ -241,7 +241,7 @@ export const LogsTab: React.FC = () => {
               aria-label={t("settingsLogs.logDate")}
               value={daysAgo}
               onChange={(selectedValue) => setDaysAgo(Number(selectedValue))}
-              className="pyqt-input w-24 px-2 py-1"
+              className="pyqt-input w-40 px-2 py-1"
             >
               <option value={0}>{t("settingsLogs.today")}</option>
               <option value={1}>{t("settingsLogs.yesterday")}</option>

@@ -50,6 +50,58 @@ def agent_observation(data):
 
 
 class MockOpenAIProviderTest(unittest.TestCase):
+    def test_fact_feedback_reads_current_annotated_and_structured_sources(self) -> None:
+        from mock_openai.fixtures.fact_feedback import fact_feedback_response
+        from mock_openai.fixtures.story import chapter_body_response
+
+        annotated = json.dumps({"content": "⟦ch1:s1:f1⟧记忆城每年有七个季节。"}, ensure_ascii=False)
+        result = fact_feedback_response("chapter_fact_extraction\n" + annotated)
+        self.assertEqual(result["world_facts"][0]["source_span_ids"], ["ch1:s1:f1"])
+        structured = json.dumps({"id": "ch2:s1:f1", "text": "记忆城每年有六个季节。"}, ensure_ascii=False)
+        result = fact_feedback_response("chapter_fact_extraction\n" + structured)
+        self.assertEqual(result["world_facts"][0]["source_span_ids"], ["ch2:s1:f1"])
+        self.assertGreater(len(chapter_body_response()), 800)
+
+    def test_creation_journey_exercises_all_inspiration_controls(self) -> None:
+        messages = [{"role": "system", "content": "小说概念大师·文思"}]
+        for round_number, kind in enumerate(("inspired_options", "text_input", "info_display"), 1):
+            messages.append({"role": "user", "content": "继续"})
+            response = response_for({"model": "a4n-creation-journey", "messages": messages})
+            value = json.loads(response)
+            self.assertEqual(value["ui_control"]["type"], kind)
+            self.assertEqual(value["is_complete"], round_number == 3)
+            messages.append({"role": "assistant", "content": response})
+
+    def test_blueprint_refinement_is_not_routed_by_inspiration_history(self) -> None:
+        from mock_openai.fixtures.story import inspiration_response
+
+        result = json.loads(response_for({"messages": [
+            {"role": "system", "content": "蓝图优化，只输出 full_synopsis 等允许字段。"},
+            {"role": "user", "content": json.dumps({"inspiration_conversation": inspiration_response()})},
+        ]}))
+        self.assertIn("full_synopsis", result)
+        self.assertNotIn("conversation_state", result)
+
+    def test_task_routing_does_not_depend_on_json_whitespace(self) -> None:
+        from mock_openai.prompt_parsing import current_task_prompt_name
+
+        for field in ("name", "prompt_name"):
+            for separators in ((",", ":"), (", ", ": ")):
+                payload = json.dumps({"task": {field: "chapter_scene_generation"}}, separators=separators)
+                self.assertEqual(current_task_prompt_name(payload), "chapter_scene_generation")
+                result = response_for({"messages": [{"role": "user", "content": payload}]})
+                self.assertIn("林岚", result)
+
+    def test_source_markers_are_read_from_actual_context_content(self) -> None:
+        from mock_openai.fixtures.entities import source_span_pairs, text_anchor_id
+
+        source = json.dumps({"content": "“⟦ch2:s3:f1⟧别走！”她说。\n⟦ch2:s4:f1⟧门关上了。"}, ensure_ascii=False)
+        self.assertEqual([identifier for identifier, _ in source_span_pairs(source)], ["ch2:s3:f1", "ch2:s4:f1"])
+        anchors = json.dumps({"content": "⟦41⟧林岚握住怀表。\n⟦42⟧周衡转身。"}, ensure_ascii=False)
+        self.assertEqual(text_anchor_id(anchors, "握住怀表"), 41)
+        with self.assertRaises(ValueError):
+            text_anchor_id(anchors, "不存在的剧情")
+
     def test_cache_content_blocks_and_immutable_loop_observations(self) -> None:
         self.assertEqual(response_for({"messages": [{"role": "user", "content": [
             {"type": "text", "text": "pi"}, {"type": "text", "text": "ng"}

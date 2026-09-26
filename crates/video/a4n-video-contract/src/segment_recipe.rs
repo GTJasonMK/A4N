@@ -136,7 +136,6 @@ pub fn carry_forward_video_segment_recipes(
         recipe.duration_secs = next.duration_secs;
         recipe.duration_secs_options = vec![next.duration_secs];
         recipe.aspect_ratio.clone_from(&next.aspect_ratio);
-        recipe.continuity_source_video_id = None;
         if matches!(
             recipe.workflow_mode,
             VideoSegmentWorkflowModeV1::ReferenceMedia | VideoSegmentWorkflowModeV1::ChatVideo
@@ -207,15 +206,7 @@ pub fn video_segment_recipes_for_plan_from_metadata(
     plan_style: &str,
 ) -> Result<Vec<VideoSegmentExecutionRecipeV1>, String> {
     let metadata = metadata.ok_or_else(|| "片段规划 metadata_json 必须为 JSON 对象".to_string())?;
-    let object = metadata
-        .as_object()
-        .ok_or_else(|| "片段规划 metadata_json 必须为 JSON 对象".to_string())?;
-    let segments = object
-        .get("segments")
-        .cloned()
-        .ok_or_else(|| "片段规划 metadata_json 缺少 segments".to_string())?;
-    let segments = serde_json::from_value::<Vec<VideoSegmentPlanV2>>(segments)
-        .map_err(|error| format!("片段规划 segments 无效：{error}"))?;
+    let segments = crate::video_segment_plan_from_metadata(metadata)?;
     let recipes = video_segment_recipes_from_metadata(Some(metadata))?;
     validate_video_segment_recipes_for_plan(&recipes, &segments, plan_style)?;
     Ok(recipes)
@@ -233,13 +224,18 @@ pub fn validate_video_segment_recipes_for_plan(
             recipes.len()
         ));
     }
-    let recipes_by_number = recipes.iter().fold(
-        HashMap::with_capacity(recipes.len()),
-        |mut by_number, recipe| {
-            by_number.entry(recipe.segment_number).or_insert(recipe);
-            by_number
-        },
-    );
+    let mut recipes_by_number = HashMap::with_capacity(recipes.len());
+    for recipe in recipes {
+        if recipes_by_number
+            .insert(recipe.segment_number, recipe)
+            .is_some()
+        {
+            return Err(format!(
+                "片段执行方案 segment_number {} 重复",
+                recipe.segment_number
+            ));
+        }
+    }
     for segment in segments {
         let recipe = recipes_by_number
             .get(&segment.segment_number)
@@ -269,13 +265,8 @@ pub fn resolve_video_segment_number(
         return Err("稳定片段目标必须提供镜头 ID 和正整数镜头内序号".to_string());
     }
     let metadata = metadata.ok_or_else(|| "片段规划缺少 metadata_json".to_string())?;
-    let segments = serde_json::from_value::<Vec<VideoSegmentPlanV2>>(
-        metadata
-            .get("segments")
-            .cloned()
-            .ok_or_else(|| "片段规划 metadata_json 缺少 segments".to_string())?,
-    )
-    .map_err(|error| format!("片段规划 segments 无效：{error}"))?;
+    ensure_video_segment_source_current(Some(metadata), source_shot_id)?;
+    let segments = crate::video_segment_plan_from_metadata(metadata)?;
     segments
         .into_iter()
         .find(|segment| {
@@ -288,22 +279,29 @@ pub fn resolve_video_segment_number(
         })
 }
 
+pub fn ensure_video_segment_source_current(
+    metadata: Option<&Value>,
+    shot_id: &str,
+) -> Result<(), String> {
+    if metadata
+        .and_then(|value| value.get("stale_source_shot_ids"))
+        .and_then(Value::as_array)
+        .is_some_and(|ids| ids.iter().any(|id| id.as_str() == Some(shot_id)))
+    {
+        return Err(format!(
+            "镜头 {shot_id} 的来源已更新，请先局部更新该镜头的片段规划"
+        ));
+    }
+    Ok(())
+}
+
 pub fn update_video_segment_recipe_metadata(
     metadata: Option<&Value>,
     plan_style: &str,
     mut recipe: VideoSegmentExecutionRecipeV1,
 ) -> Result<(Value, Vec<VideoSegmentExecutionRecipeV1>), String> {
     let metadata = metadata.ok_or_else(|| "片段规划缺少 metadata_json".to_string())?;
-    let object = metadata
-        .as_object()
-        .ok_or_else(|| "片段规划 metadata_json 必须为 JSON 对象".to_string())?;
-    let segments = serde_json::from_value::<Vec<VideoSegmentPlanV2>>(
-        object
-            .get("segments")
-            .cloned()
-            .ok_or_else(|| "片段规划 metadata_json 缺少 segments".to_string())?,
-    )
-    .map_err(|error| format!("片段规划 segments 无效：{error}"))?;
+    let segments = crate::video_segment_plan_from_metadata(metadata)?;
     let mut recipes = video_segment_recipes_from_metadata(Some(metadata))?;
     validate_video_segment_recipes_for_plan(&recipes, &segments, plan_style)?;
     let index = recipes
@@ -398,13 +396,32 @@ mod tests {
     }
 
     #[test]
+    fn stored_plan_rejects_duplicate_targets_and_incomplete_shot_groups() {
+        let first = segment(1);
+        let duplicate = segment(2);
+        assert!(
+            crate::video_segment_plan_from_metadata(
+                &serde_json::json!({"segments": [first, duplicate]})
+            )
+            .is_err()
+        );
+        let mut incomplete = segment(1);
+        incomplete.shot_segment_count = 2;
+        assert!(
+            crate::video_segment_plan_from_metadata(&serde_json::json!({"segments": [incomplete]}))
+                .is_err()
+        );
+    }
+
+    #[test]
     fn recipe_upsert_is_scoped_to_current_plan_segment() {
         assert_eq!(
             update_video_segment_recipe_metadata(None, "cinematic", recipe(1)).unwrap_err(),
             "片段规划缺少 metadata_json",
         );
         let segment_one = segment(1);
-        let segment_two = segment(2);
+        let mut segment_two = segment(2);
+        segment_two.source_shot_id = "shot-2".into();
         let metadata = serde_json::json!({
             "segments": [segment_one, segment_two],
             "segment_recipes": [recipe(1), recipe(2)]
@@ -541,7 +558,20 @@ mod tests {
 
         recipe.guidance_mode = VideoSegmentGuidanceModeV1::Continuity;
         recipe.continuity_source_video_id = Some(7);
+        recipe.adopted_video_id = Some(9);
         assert!(recipe.validate_generation_ready().is_ok());
+        let carried = carry_forward_video_segment_recipes(
+            std::slice::from_ref(&target_segment),
+            std::slice::from_ref(&recipe),
+            std::slice::from_ref(&target_segment),
+            "cinematic",
+            "zh_cn",
+        )
+        .unwrap();
+        assert_eq!(
+            carried[0], recipe,
+            "unchanged shots retain explicit continuity and adopted videos"
+        );
     }
 
     #[test]

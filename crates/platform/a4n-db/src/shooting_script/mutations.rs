@@ -39,6 +39,7 @@ where
         ),
         &input.visual_plan,
         &input.script,
+        None,
     )
     .await?;
     let (script_json, script_sha256) = serialize_script(&input.script)?;
@@ -65,6 +66,15 @@ where
     }
     .insert(db)
     .await?;
+    if record.source_snapshot_id.is_none() {
+        crate::project::mark_derived_projects_root_updated_in_record(
+            db,
+            record.root_project_id,
+            Some(record.source_chapter_id),
+            now,
+        )
+        .await?;
+    }
     parse_record(record)
 }
 
@@ -95,6 +105,8 @@ where
             record_id: input.record_id,
             expected_revision: input.expected_revision,
         })?;
+    let previous_record = parse_record(current.clone())?;
+    let previous = &previous_record.script;
     validate_director_constraints(
         db,
         (
@@ -105,6 +117,7 @@ where
         ),
         &input.visual_plan,
         &input.script,
+        Some(previous),
     )
     .await?;
     if current.script_sha256 == script_sha256
@@ -166,6 +179,15 @@ where
             expected_revision: input.expected_revision,
         });
     }
+    if current.source_snapshot_id.is_none() {
+        crate::project::mark_derived_projects_root_updated_in_record(
+            db,
+            current.root_project_id,
+            Some(current.source_chapter_id),
+            Utc::now().naive_utc(),
+        )
+        .await?;
+    }
     chapter_shooting_script_by_id(db, input.record_id).await
 }
 
@@ -185,15 +207,11 @@ pub(super) async fn validate_director_constraints<C: ConnectionTrait>(
     source: (i64, i64, Option<i64>, Option<i64>),
     identity: &super::contracts::ChapterVisualPlanIdentity,
     script: &a4n_domain::shooting_script::ChapterShootingScriptV1,
+    previous: Option<&a4n_domain::shooting_script::ChapterShootingScriptV1>,
 ) -> Result<(), ShootingScriptDbError> {
     let plan = crate::chapter_visual_plan::chapter_visual_plan_by_id(db, identity.id)
         .await
-        .map_err(|error| match error {
-            crate::chapter_visual_plan::ChapterVisualPlanDbError::Database(error) => {
-                ShootingScriptDbError::Database(error)
-            }
-            error => ShootingScriptDbError::InvalidArgument(error.to_string()),
-        })?;
+        .map_err(super::plan_rebase::visual_plan_error)?;
     if (
         plan.record.root_project_id,
         plan.record.source_chapter_id,
@@ -209,6 +227,6 @@ pub(super) async fn validate_director_constraints<C: ConnectionTrait>(
         ));
     }
     script
-        .validate_director_plan(&plan.plan)
+        .validate_director_plan(&plan.plan, previous)
         .map_err(|error| ShootingScriptDbError::InvalidArgument(error.to_string()))
 }

@@ -92,7 +92,7 @@ pub(in crate::galgame) fn validate_galgame_asset_generation_spec_query(
 pub(super) async fn galgame_generation_specs_by_canonical_key<C>(
     db: &C,
     project_id: i64,
-) -> Result<BTreeMap<String, generation_spec::Model>, DbErr>
+) -> Result<BTreeMap<(Option<i64>, String), generation_spec::Model>, DbErr>
 where
     C: ConnectionTrait,
 {
@@ -108,7 +108,7 @@ where
             continue;
         };
         specs_by_canonical_key
-            .entry(canonical_key.to_string())
+            .entry((row.source_snapshot_id, canonical_key.to_string()))
             .or_insert(row);
     }
     Ok(specs_by_canonical_key)

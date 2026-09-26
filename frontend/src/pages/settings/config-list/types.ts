@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import type { Dispatch, ReactNode, SetStateAction } from "react";
 import type { ModelRequestPreview } from "../../../api/requestPreview";
 
 export interface ConfigItem<C> {
@@ -31,10 +31,12 @@ export interface ConfigEditorRenderContext {
 export interface ConfigListPanelProps<C> {
   title: string;
   items: ConfigItem<C>[];
+  onItemsChange: Dispatch<SetStateAction<ConfigItem<C>[]>>;
   loading: boolean;
+  loadError?: string | null;
   onRefresh: () => Promise<void>;
-  onCreate: (config: C) => Promise<number>;
-  onUpdate: (id: number, config: C) => Promise<void>;
+  onCreate: (config: C) => Promise<ConfigItem<C>>;
+  onUpdate: (id: number, config: C) => Promise<ConfigItem<C>>;
   onDelete: (id: number) => Promise<void>;
   onActivate: (id: number) => Promise<void>;
   onTest?: (id: number) => Promise<void>;

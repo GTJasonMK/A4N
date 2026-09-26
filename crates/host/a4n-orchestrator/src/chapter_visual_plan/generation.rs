@@ -70,12 +70,17 @@ impl OrchestratorContext {
         Ok((plan, source))
     }
 
-    pub(crate) async fn visual_plan_scene_context(
+    pub(crate) async fn visual_plan_scene_context<'a>(
         &self,
-        plan: &ChapterVisualPlanV3,
+        bindings: impl IntoIterator<Item = &'a SceneBindingV3>,
         source: &ResolvedChapterSource,
     ) -> Result<Vec<Value>, AppError> {
-        let ids = plan.referenced_scene_ids().into_iter().collect::<Vec<_>>();
+        let ids = bindings
+            .into_iter()
+            .flat_map(|scene| [scene.entry_scene_id(), scene.exit_scene_id()])
+            .collect::<std::collections::BTreeSet<_>>()
+            .into_iter()
+            .collect::<Vec<_>>();
         let scenes =
             a4n_db::project::scene_profiles_for_source(self.database.connection(), source, &ids)
                 .await
@@ -127,11 +132,13 @@ impl OrchestratorContext {
             })
             .ok_or_else(|| AppError::InvalidArgument("图片点没有所属镜头段".into()))?;
         let scenes = self
-            .visual_plan_scene_context(&current.plan, &source)
+            .visual_plan_scene_context(segment.scene_binding.iter(), &source)
             .await?;
         let context = json!({
-            "chapter_title":source.title,"chapter_context":source.content,"frame":current.plan.frame,
-            "point":point,"segment":segment,"scenes":scenes,"user_description":options.user_description,
+            "frame":current.plan.frame,
+            "point_description":point.description,
+            "segment_description":segment.prompt,
+            "scenes":scenes,"user_description":options.user_description,
         });
         let aspect_ratio = current
             .plan
@@ -215,15 +222,17 @@ impl OrchestratorContext {
             .point(&segment.end_point_id)
             .expect("validated end");
         let points = current.plan.points.iter().filter(|point| point.at_ms >= start && point.at_ms < end.at_ms)
-            .map(|point| json!({"relative_at_ms":point.at_ms - start,"label":point.label,"description":point.description,"image_id":point.image_id})).collect::<Vec<_>>();
+            .map(|point| json!({"relative_at_ms":point.at_ms - start,"label":point.label,"description":point.description})).collect::<Vec<_>>();
         let scenes = self
-            .visual_plan_scene_context(&current.plan, &source)
+            .visual_plan_scene_context(segment.scene_binding.iter(), &source)
             .await?;
         let payload = json!({
-            "chapter_title":source.title,"chapter_context":source.content,
-            "duration_ms":end.at_ms-start,"existing_prompt":segment.prompt,"scene_binding":segment.scene_binding,
-            "keyframes":points,"explicit_end_frame":segment.use_end_point_image.then_some(end),
-            "scenes":scenes,"user_description":input.user_description,
+            "duration_ms":end.at_ms-start,
+            "existing_prompt":(segment.prompt.trim() != input.user_description.trim()).then_some(&segment.prompt),
+            "scene_binding":segment.scene_binding,
+            "keyframes":points,
+            "explicit_end_frame":segment.use_end_point_image.then(|| json!({"relative_at_ms":end.at_ms-start,"description":end.description})),
+            "user_description":input.user_description,
         });
         let system = self.prompt_render_template(
             DIRECTOR_SEGMENT_PROMPT,
@@ -231,6 +240,17 @@ impl OrchestratorContext {
             Some(input.project_id),
         )?;
         let mut ledger = LlmContextLedger::new();
+        ledger.add_pack(LlmContextLedgerPackInput {
+            scope_kind: "chapter".into(),
+            pack_kind: "director_scene_context".into(),
+            source_refs_json: Some(json!({"record_id": input.record_id})),
+            config_identity_json: json!({"contract": CHAPTER_VISUAL_PLAN_V3, "kind": "scene_context"}),
+            required: true,
+            stable_prefix: true,
+            variants: vec![LlmContextLedgerPackDraft::new(COMPRESSION_FULL_RAW, json!({
+                "chapter_title": source.title, "chapter_summary": source.summary, "scenes": scenes,
+            }))],
+        })?;
         ledger.add_pack(LlmContextLedgerPackInput {
             scope_kind: "chapter".into(),
             pack_kind: DIRECTOR_SEGMENT_PROMPT.into(),

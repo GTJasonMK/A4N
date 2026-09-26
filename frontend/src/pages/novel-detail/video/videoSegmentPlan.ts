@@ -13,6 +13,7 @@ import {
   type VideoSegmentWorkflowMode,
 } from "../../../api/video";
 import { asJsonRecord as asRecord } from "../../../utils/jsonRecord";
+import { canonicalJson } from "../../../utils/contentHash";
 import type { MessageTranslator } from "../../../i18n";
 import {
   DEFAULT_VIDEO_OPTIONS,
@@ -43,29 +44,14 @@ import { extractSourceContentHash, positiveIntegerOrNull } from "./videoTabShare
 export function videoSegmentRecipeGenerationFingerprintJson(
   recipe: VideoSegmentExecutionRecipe,
 ): string {
-  return JSON.stringify(
-    canonicalJsonValue(videoSegmentRecipeFingerprintValue(recipe, false)),
-  );
+  return canonicalJson(videoSegmentRecipeFingerprintValue(recipe, false));
 }
 
 export function videoSegmentRecipeFrameFingerprintJson(
   recipe: VideoSegmentExecutionRecipe,
 ): string {
-  return JSON.stringify(
-    canonicalJsonValue(videoSegmentRecipeFingerprintValue(recipe, true)),
-  );
+  return canonicalJson(videoSegmentRecipeFingerprintValue(recipe, true));
 }
-
-const canonicalJsonValue = (value: unknown): unknown => {
-  if (Array.isArray(value)) return value.map(canonicalJsonValue);
-  const object = asRecord(value);
-  if (!object) return value;
-  return Object.fromEntries(
-    Object.keys(object)
-      .sort()
-      .map((key) => [key, canonicalJsonValue(object[key])]),
-  );
-};
 
 const videoReferenceMediaBindingFingerprintValue = (
   row: NonNullable<

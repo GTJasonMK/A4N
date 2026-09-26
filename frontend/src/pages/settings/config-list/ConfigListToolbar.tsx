@@ -5,7 +5,7 @@ import { useI18n } from "../../../i18n";
 
 interface ConfigListToolbarProps {
   title: string;
-  itemCount: number;
+  itemCount: number | null;
   loading: boolean;
   busy: boolean;
   onCreate: () => void;
@@ -27,9 +27,9 @@ export const ConfigListToolbar: React.FC<ConfigListToolbarProps> = ({
     <header className="flex flex-wrap items-center gap-3 border-b border-book-border/70 pb-4 max-sm:items-start">
       <div className="min-w-0 flex-1 max-sm:basis-full">
         <h2 className="a4n-section-heading">{title}</h2>
-        <p className="mt-0.5 text-small text-book-text-muted">
+        {itemCount != null ? <p className="mt-0.5 text-small text-book-text-muted">
           {itemCount > 0 ? t("settings.configCount", { count: itemCount }) : t("settings.noConfigYet")}
-        </p>
+        </p> : null}
       </div>
       <button
         type="button"

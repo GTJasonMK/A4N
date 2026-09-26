@@ -24,15 +24,18 @@ pub(super) fn validate_galgame_scripts(
                 script.id
             ));
         }
-        if project.source_snapshot_id != Some(script.source_snapshot_id) {
+        if project.root_project_id != Some(script.root_project_id) {
             return Err(format!(
-                "项目族导入包 Galgame 剧本源快照与项目不一致: script_id={}, source_snapshot_id={}",
-                script.id, script.source_snapshot_id
+                "项目族导入包 Galgame 剧本根项目与项目不一致: script_id={}",
+                script.id
             ));
         }
-        if !snapshots.contains_key(&script.source_snapshot_id) {
+        if !snapshots
+            .get(&script.source_snapshot_id)
+            .is_some_and(|snapshot| snapshot.root_project_id == script.root_project_id)
+        {
             return Err(format!(
-                "项目族导入包 Galgame 剧本引用了不存在的源快照: script_id={}, source_snapshot_id={}",
+                "项目族导入包 Galgame 剧本初始源快照不存在或不属于根项目: script_id={}, source_snapshot_id={}",
                 script.id, script.source_snapshot_id
             ));
         }

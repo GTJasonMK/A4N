@@ -1,9 +1,11 @@
 use a4n_error::AppError;
 use serde_json::{Map, Value, json};
 
-use crate::video::prompts::json::VIDEO_PROMPT_DIALOGUE_BEAT_FIELDS;
+use crate::video::prompts::json::{
+    PromptTextKind, VIDEO_PROMPT_DIALOGUE_BEAT_FIELDS, prompt_density_rule,
+};
 
-use super::super::contracts::VideoPromptCommonConstraintInput;
+use super::super::contracts::{VideoPromptCommonConstraintInput, VideoPromptContractMode};
 use super::super::references::video_prompt_reference_slots;
 use super::selection::{
     video_prompt_dialogue_rule, video_prompt_duration_rule, video_prompt_shot_number_rule,
@@ -50,10 +52,6 @@ pub(in crate::video::prompts::context::builders) fn video_prompt_common_constrai
         "prompt_output_language".to_string(),
         prompt_output_language.to_prompt_json(),
     );
-    constraints.insert(
-        "prompt_output_language_instruction".to_string(),
-        json!(prompt_output_language.instruction()),
-    );
     constraints.insert("selected_duration_secs".to_string(), json!(duration_secs));
     constraints.insert(
         "duration_rule".to_string(),
@@ -92,10 +90,33 @@ pub(in crate::video::prompts::context::builders) fn video_prompt_common_constrai
         rules,
         "final_prompt_section_rule",
     )?;
-    constraints.insert(
-        "prompt_density_rule".to_string(),
-        json!(prompt_output_language.density_rule()),
-    );
+    let density = match mode {
+        VideoPromptContractMode::Api => {
+            constraints.insert(
+                "motion_prompt_required_sections".into(),
+                json!(prompt_output_language.motion_sections()),
+            );
+            format!(
+                "{}；{}",
+                prompt_density_rule(
+                    prompt_output_language,
+                    PromptTextKind::VideoVisual,
+                    "visual_prompt"
+                ),
+                prompt_density_rule(
+                    prompt_output_language,
+                    PromptTextKind::VideoMotion,
+                    "motion_prompt"
+                ),
+            )
+        }
+        VideoPromptContractMode::Chat => prompt_density_rule(
+            prompt_output_language,
+            PromptTextKind::VideoVisual,
+            "chat_prompt",
+        ),
+    };
+    constraints.insert("prompt_density_rule".into(), json!(density));
     insert_rule_value(
         &mut constraints,
         "action_load_rule",

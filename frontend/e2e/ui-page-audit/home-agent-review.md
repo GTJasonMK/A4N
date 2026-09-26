@@ -2,6 +2,14 @@
 
 当前结论：24 个工作面均有逐项独立看图记录；本组已发现的问题全部核销，没有仍需生产修复的阻塞项。
 
+使用频率按创作流程推定，不是用户遥测；每个工作面的任务与注意力顺序见下方逐项表。
+
+| 推定频率 | 工作面 |
+| --- | --- |
+| 高频 | H01-recent、A01-main、A03-activity |
+| 经常 | H02-all、H03-type-text、H03-type-comic、H03-type-video、H03-type-galgame、H04-access-owned、H04-access-collaborating、A02-child、A04-approvals、A05-executions、A12-delegation-entry |
+| 按需 | H05-invites、H06-create-options、H07-project-import、H08-text-import、A06-events、A07-thread-details、A08-create-input、A09-clear-confirm、A10-budget、A11-budget-invalid |
+
 图片在 `.dev-runtime/ui-pages/home-agent/`。下表 F=`home-agent-final`，C=`home-agent-closeout`，A=`agent-closeout`；三宽为 1440/900/390，首尾为 initial+last。F 首页45图已逐图查看，C另看12图核销首页改动，A全部60图已逐图查看。未重看 C 的其余首页图，不把自动化通过代替看图。
 
 自动化最终证据：首页 C 12项通过，Agent A 12项通过。中间 C 的 Agent 前置错误先等待已被活动栏隐藏的输入，现已改为先等线程、选择活动栏状态，再在聊天模式等输入。A10 显示按 Intl 格式化断言，四个输入精确值仍单独保留。

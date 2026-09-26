@@ -445,6 +445,7 @@ export const CharacterPortraitsPanel: React.FC<{ projectId: number }> = ({
       {showAge ? (
         <AgeVariantDialog
           portrait={showAge}
+          profileName={displayProfiles.find((profile) => profile.id === showAge.profile_id)?.name}
           onClose={() => setShowAge(null)}
           onCreated={() => {
             if (!isCurrentProject(projectId)) return;
@@ -455,12 +456,13 @@ export const CharacterPortraitsPanel: React.FC<{ projectId: number }> = ({
       ) : null}
 
       {showPrompt ? (
-        <PortraitPromptDialog portrait={showPrompt} onClose={() => setShowPrompt(null)} />
+        <PortraitPromptDialog portrait={showPrompt} profileName={displayProfiles.find((profile) => profile.id === showPrompt.profile_id)?.name} onClose={() => setShowPrompt(null)} />
       ) : null}
 
       {actionPortrait ? (
         <PortraitActionDialog
           portrait={actionPortrait}
+          profileName={displayProfiles.find((profile) => profile.id === actionPortrait.profile_id)?.name}
           busyId={busyId}
           imageSize={imageSize}
           imageSizes={imageSizes}

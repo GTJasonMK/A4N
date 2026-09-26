@@ -14,6 +14,7 @@ interface ThemeListSectionProps {
   themes: Theme[];
   scope: ThemeScope;
   loading: boolean;
+  loadError: string | null;
   hasUser: boolean;
   activatingId: number | null;
   deletingId: number | null;
@@ -44,6 +45,7 @@ export const ThemeListSection: React.FC<ThemeListSectionProps> = ({
   themes,
   scope,
   loading,
+  loadError,
   hasUser,
   activatingId,
   deletingId,
@@ -110,7 +112,7 @@ export const ThemeListSection: React.FC<ThemeListSectionProps> = ({
       <span className="min-w-0 flex-1 truncate text-small text-book-text-muted max-sm:flex-none max-sm:whitespace-nowrap">
         {loading
           ? t("settingsTheme.updating")
-          : selectedThemes.length > 0
+          : loadError && themes.length === 0 ? null : selectedThemes.length > 0
             ? `${t("settingsTheme.count", { count: themes.length })} · ${t("settingsTheme.selectedCount", { count: selectedThemes.length })}`
             : t("settingsTheme.count", { count: themes.length })}
       </span>
@@ -161,15 +163,16 @@ export const ThemeListSection: React.FC<ThemeListSectionProps> = ({
       </button>
     </div>
 
+    {loadError ? <p role="alert" className="mb-3 text-sm text-error">{loadError}</p> : null}
     {loading && themes.length === 0 ? (
       <div className="text-xs text-book-text-muted flex items-center gap-2">
         <LoadingSpinner size="sm" /> {t("settingsTheme.loading")}
       </div>
-    ) : themes.length === 0 ? (
+    ) : themes.length === 0 ? (loadError ? null : (
       <div className="a4n-empty-state a4n-empty-state--framed text-xs">
         {t("settingsTheme.empty")}
       </div>
-    ) : (
+    )) : (
       <ul className="grid grid-cols-1 items-start gap-2 xl:grid-cols-2">
         {themes.map((theme) => (
           <ThemeCard

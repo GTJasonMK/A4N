@@ -28,6 +28,20 @@ fn builds_text_only_request_body() {
 }
 
 #[test]
+fn negative_constraints_are_part_of_the_submitted_prompt() {
+    let mut req = request(VideoMediaInput::None);
+    req.negative_prompt = Some("不要改变角色服装".into());
+    let body = Seedance2VideoProvider::request_body(&req).unwrap();
+    assert!(
+        body["prompt"]
+            .as_str()
+            .unwrap()
+            .contains("不要改变角色服装")
+    );
+    assert!(body.get("negative_prompt").is_none());
+}
+
+#[test]
 fn builds_first_and_last_frame_request_body() {
     let body = Seedance2VideoProvider::request_body(&request(VideoMediaInput::Frames {
         first: "https://cdn.example.com/first.png".into(),

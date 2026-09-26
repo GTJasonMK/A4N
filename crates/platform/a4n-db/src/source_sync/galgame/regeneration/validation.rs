@@ -81,9 +81,12 @@ pub(super) fn validate_galgame_scene_regeneration_source_record(
             scene.id
         )));
     }
-    if old_snapshot_chapter.snapshot_id != run.from_snapshot_id {
+    if old_snapshot_chapter.root_project_id != run.root_project_id
+        || new_snapshot_chapter.root_project_id != run.root_project_id
+        || old_snapshot_chapter.source_chapter_id != new_snapshot_chapter.source_chapter_id
+    {
         return Err(SourceSyncDbError::InvalidArgument(format!(
-            "Galgame 场 {} 的源快照章节不属于本次同步起点",
+            "Galgame 场 {} 的新旧快照必须来自同一根项目章节",
             scene.id
         )));
     }

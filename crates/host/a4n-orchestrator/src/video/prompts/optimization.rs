@@ -1,9 +1,12 @@
 use super::super::VideoPromptDownstreamDependencies;
 use super::super::provider::prompt_text_rules::{
-    MIN_FRAME_PROMPT_CHARS, MIN_PROVIDER_MOTION_PROMPT_CHARS, validate_provider_model_text,
+    INTERNAL_VIDEO_PROMPT_TERMS, MIN_FRAME_PROMPT_CHARS, MIN_PROVIDER_MOTION_PROMPT_CHARS,
+    validate_provider_model_text,
 };
 use super::super::reference_media_rules::MIN_PROVIDER_VISUAL_PROMPT_CHARS;
-use super::json::{validate_chat_video_prompt_text, validate_direct_prompt_text};
+use super::json::{
+    API_PROMPT_UPLOAD_STATUS_TERMS, validate_chat_video_prompt_text, validate_direct_prompt_text,
+};
 use super::{records::expected_contract_version, store::PromptWorkflowMode};
 use crate::structured_llm::ensure_checkpoint_parsed_output_matches;
 use crate::{
@@ -28,8 +31,8 @@ use a4n_domain::{
 };
 use a4n_error::AppError;
 use a4n_llm_context::{
-    COMPRESSION_FOCUSED_RAW, COMPRESSION_FULL_RAW, COMPRESSION_MINIMAL, LlmContextLedger,
-    LlmContextLedgerPackDraft, context_aware_system_user_request,
+    COMPRESSION_FULL_RAW, LlmContextLedger, LlmContextLedgerPackDraft,
+    context_aware_system_user_request,
 };
 use a4n_llm_provider_contract::provider::{
     ChatRequest, LlmTraceContext, is_truncated_finish_reason,
@@ -451,12 +454,8 @@ async fn build_video_prompt_optimization_request(
     prompt_output_language: PromptOutputLanguage,
     prompt_kind: VideoPromptOptimizationKind,
 ) -> Result<ChatRequest, AppError> {
-    let dynamic_payload = build_video_prompt_optimization_dynamic_payload(
-        instruction,
-        prompt_output_language,
-        prompt_kind,
-    );
-    let payload = serde_json::to_string_pretty(&dynamic_payload)?;
+    let contract = build_video_prompt_optimization_contract(prompt_output_language, prompt_kind);
+    let payload = serde_json::to_string(&contract)?;
     let variables = HashMap::from([("payload".to_string(), json!(payload))]);
     let system_prompt = prompt_renderer
         .render_prompt(
@@ -473,8 +472,7 @@ async fn build_video_prompt_optimization_request(
         )
         .await?;
     build_video_prompt_optimization_request_with_prompts(
-        system_prompt.trim().to_string(),
-        user_prompt.trim().to_string(),
+        format!("{}\n\n{}", system_prompt.trim(), user_prompt.trim()),
         prompt,
         instruction,
         prompt_output_language,
@@ -483,7 +481,6 @@ async fn build_video_prompt_optimization_request(
 
 fn build_video_prompt_optimization_request_with_prompts(
     system_prompt: String,
-    user_prompt: String,
     prompt: &chapter_video_prompt::Model,
     instruction: &str,
     prompt_output_language: PromptOutputLanguage,
@@ -505,28 +502,14 @@ fn build_video_prompt_optimization_request_with_prompts(
         }),
         required: true,
         stable_prefix: true,
-        variants: vec![
-            LlmContextLedgerPackDraft::new(COMPRESSION_FULL_RAW, current_prompt.clone()),
-            LlmContextLedgerPackDraft::new(COMPRESSION_FOCUSED_RAW, current_prompt.clone()),
-            LlmContextLedgerPackDraft::new(
-                COMPRESSION_MINIMAL,
-                json!({
-                    "artifact_kind": "chapter_video_prompt",
-                    "prompt_id": prompt.id,
-                    "prompt_type": prompt.prompt_type.as_str(),
-                    "workflow_mode": prompt.workflow_mode.as_str(),
-                    "shot_number": prompt.shot_number,
-                    "title": prompt.title.as_deref(),
-                    "visual_prompt": &prompt.visual_prompt,
-                    "motion_prompt": prompt.motion_prompt.as_deref(),
-                    "negative_prompt": prompt.negative_prompt.as_deref(),
-                }),
-            ),
-        ],
+        variants: vec![LlmContextLedgerPackDraft::new(
+            COMPRESSION_FULL_RAW,
+            current_prompt,
+        )],
     })?;
     let manifest = ledger.into_manifest(
-        user_prompt,
-        Some("视频提示词优化必须保留稳定上下文包 source_artifact 中的事实、结构和素材约束，只按动态输入中的 instruction 修改表达。".to_string()),
+        serde_json::to_string(&json!({"instruction": instruction}))?,
+        None,
     );
     let fingerprint = source_content_sha256(&serde_json::to_string(&json!({
         "prompt_id": prompt.id,
@@ -561,7 +544,6 @@ fn video_prompt_optimization_source_artifact(prompt: &chapter_video_prompt::Mode
     json!({
         "artifact_kind": "chapter_video_prompt",
         "current_prompt": {
-            "prompt_id": prompt.id,
             "prompt_type": prompt.prompt_type.as_str(),
             "workflow_mode": prompt.workflow_mode.as_str(),
             "shot_number": prompt.shot_number,
@@ -576,8 +558,7 @@ fn video_prompt_optimization_source_artifact(prompt: &chapter_video_prompt::Mode
     })
 }
 
-fn build_video_prompt_optimization_dynamic_payload(
-    instruction: &str,
+fn build_video_prompt_optimization_contract(
     prompt_output_language: PromptOutputLanguage,
     prompt_kind: VideoPromptOptimizationKind,
 ) -> Value {
@@ -585,17 +566,18 @@ fn build_video_prompt_optimization_dynamic_payload(
         "context_refs": {
             "current_prompt": "稳定上下文包 source_artifact.current_prompt",
         },
-        "instruction": instruction,
-        "prompt_output_language": prompt_output_language.to_prompt_json(),
-        "prompt_output_language_instruction": prompt_output_language.instruction(),
+        "prompt_output_language": {
+            "code": prompt_output_language.as_str(),
+            "instruction": prompt_output_language.instruction(),
+        },
         "output_contract": {
             "format": "json_object",
             "required_fields": ["visual_prompt", "motion_prompt", "negative_prompt"],
             "asset_contract": optimized_prompt_asset_contract(prompt_kind, prompt_output_language),
             "field_rules": {
-                "visual_prompt": "优化后的画面/主体提示词，不能为空；自然语言必须遵守 prompt_output_language_instruction；原文对白、引号内台词和角色实际说出口的短句必须保留原文写法，不要把中文对白翻成英文",
-                "motion_prompt": "provider_video_prompt 必须返回完整非空字符串；chat_video_prompt 和 frame_prompt 必须返回 null；自然语言必须遵守 prompt_output_language_instruction；原文对白、引号内台词和角色实际说出口的短句必须保留原文写法，不要把中文对白翻成英文",
-                "negative_prompt": "最终负面提示词；需要保留原值时必须原样返回，最终不需要负面提示词时返回 null；不得用 null 表示沿用旧值；自然语言必须遵守 prompt_output_language_instruction",
+                "visual_prompt": "优化后的画面/主体提示词，不能为空，保留 asset_contract 指定的章节和顺序",
+                "motion_prompt": "按 asset_contract 返回完整字符串或 null",
+                "negative_prompt": "最终负面提示词；需要保留原值时必须原样返回，最终不需要时返回 null；不得用 null 表示沿用旧值",
             },
             "forbidden": [
                 "markdown",
@@ -626,8 +608,8 @@ fn optimized_prompt_asset_contract(
                 "motion_prompt_chars": MIN_PROVIDER_MOTION_PROMPT_CHARS,
             },
             "forbidden_terms": {
-                "upload_status_examples": ["无输入首帧", "没有输入尾帧"],
-                "internal_workflow_examples": ["首帧串联", "provider", "image 字段", "generated_image #"],
+                "upload_status": API_PROMPT_UPLOAD_STATUS_TERMS,
+                "internal_workflow": INTERNAL_VIDEO_PROMPT_TERMS,
             },
         }),
         VideoPromptOptimizationKind::ChatVideo => json!({
@@ -637,8 +619,8 @@ fn optimized_prompt_asset_contract(
             "motion_prompt_must_be_null": true,
             "required_avoidance_rule": "限制与避免项必须明确禁止背景音乐/配乐/BGM",
             "forbidden_terms": {
-                "upload_status_examples": ["无输入首帧", "没有输入尾帧"],
-                "internal_workflow_examples": ["首帧串联", "provider", "image 字段", "generated_image #"],
+                "upload_status": API_PROMPT_UPLOAD_STATUS_TERMS,
+                "internal_workflow": INTERNAL_VIDEO_PROMPT_TERMS,
             },
         }),
         VideoPromptOptimizationKind::Frame => json!({
@@ -648,7 +630,8 @@ fn optimized_prompt_asset_contract(
             "motion_prompt_must_be_null": true,
             "minimum_lengths": {"visual_prompt_chars": MIN_FRAME_PROMPT_CHARS},
             "forbidden_terms": {
-                "internal_workflow_examples": ["首帧串联", "provider", "image 字段", "generated_image #"],
+                "internal_workflow": INTERNAL_VIDEO_PROMPT_TERMS,
+                "upload_status": API_PROMPT_UPLOAD_STATUS_TERMS,
             },
         }),
     }
@@ -917,7 +900,7 @@ mod tests {
             chapter_video_prompt::WORKFLOW_MODE_BOUNDARY_FRAMES,
         );
 
-        let request = build_video_prompt_optimization_request(
+        let mut request = build_video_prompt_optimization_request(
             &engine,
             &prompt,
             "让镜头动作更具体，但不要改变空间关系",
@@ -929,7 +912,49 @@ mod tests {
 
         assert_eq!(request.messages.len(), 2);
         assert!(request.messages[1].content.contains("让镜头动作更具体"));
-        assert!(request.messages[1].content.contains("\"output_contract\""));
+        assert!(request.messages[0].content.contains("\"output_contract\""));
+        assert!(!request.messages[0].content.contains("density_rule"));
+        assert!(
+            !request.messages[0]
+                .content
+                .contains("frame_prompt_required_sections")
+        );
+        for term in INTERNAL_VIDEO_PROMPT_TERMS {
+            assert!(request.messages[0].content.contains(term));
+        }
+        let mut changed = prompt.clone();
+        changed.visual_prompt = "另一段画面".into();
+        let second = build_video_prompt_optimization_request(
+            &engine,
+            &changed,
+            "缩短背景介绍",
+            PromptOutputLanguage::ZhCn,
+            VideoPromptOptimizationKind::ProviderVideo,
+        )
+        .await
+        .unwrap();
+        assert_eq!(request.messages[0].content, second.messages[0].content);
+        a4n_llm_context::preview_context_aware_chat_request(&mut request, 100_000, 8192).unwrap();
+        assert_eq!(
+            request.messages[1]
+                .content
+                .matches("现有画面提示词")
+                .count(),
+            1
+        );
+        assert!(
+            request.messages[1]
+                .content
+                .contains("主角沿走廊前进并停在门前")
+        );
+        assert!(request.messages[1].content.contains("16:9"));
+        assert_eq!(
+            request.context_manifest_json.as_ref().unwrap()["packs"][0]["variants"]
+                .as_array()
+                .unwrap()
+                .len(),
+            1
+        );
         assert_eq!(
             request.context_manifest_json.as_ref().expect("manifest")["packs"][0]["source_refs_json"]
                 ["prompt_id"],

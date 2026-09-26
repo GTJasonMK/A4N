@@ -42,6 +42,7 @@ import {
 import {
   defaultRefTypeForNode,
   nodeGeneratedVideoRefId,
+  nodeRefId,
 } from "./canvasNodeRefs";
 import { videoPlaybackDataToDataUrl } from "../../utils/videoPlayback";
 
@@ -375,7 +376,7 @@ function nodeSubtitle(data: StudioNodeData, t: MessageTranslator): string {
   if (fileName) return fileName;
   const dimension = nodeDimensionLabel(data);
   if (dimension !== "-") return dimension;
-  if (data.refType) return t("video.canvas.body.bound", { type: canvasReferenceTypeLabel(data.refType, t) });
+  if (data.refType && nodeRefId(data) != null) return t("video.canvas.body.bound", { type: canvasReferenceTypeLabel(data.refType, t) });
   const prompt = configText(data.config, "prompt").trim();
   if (prompt) return prompt;
   const observedType = configText(data.config, "observed_data_type").trim();
@@ -513,7 +514,8 @@ export function nodeValidationIssues(data: StudioNodeData, t: MessageTranslator)
   if (data.state === "missing") {
     issues.push(configText(data.config, "missing_reason") || t("video.canvas.issue.missingAsset"));
   }
-  if (defaultRefTypeForNode(data.nodeKind) && !data.refId) {
+  const refType = defaultRefTypeForNode(data.nodeKind);
+  if (refType && nodeRefId(data, refType) == null) {
     issues.push(t("video.canvas.issue.missingMediaReference"));
   }
   return issues;

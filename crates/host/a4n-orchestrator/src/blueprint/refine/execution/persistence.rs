@@ -4,7 +4,6 @@ use a4n_db::blueprint::{
     insert_blueprint_version_record, next_blueprint_version_record,
     sync_project_after_blueprint_record,
 };
-use a4n_db::inspiration::INSPIRATION_HISTORY_LIMIT;
 use a4n_db::project::{
     blueprint_characters_for_project, blueprint_relationships_for_project,
     edit_blueprint_characters, edit_blueprint_relationships,
@@ -37,13 +36,10 @@ pub(super) async fn persist_blueprint_refinement_in_transaction(
             operation: "保存蓝图优化结果".to_string(),
         });
     }
-    let inspiration_history = a4n_db::inspiration::inspiration_messages_for_connection(
-        tx,
-        project_id,
-        INSPIRATION_HISTORY_LIMIT,
-    )
-    .await
-    .map_err(inspiration_db_error_to_app)?;
+    let inspiration_history =
+        a4n_db::inspiration::inspiration_messages_for_connection(tx, project_id, None)
+            .await
+            .map_err(inspiration_db_error_to_app)?;
     if blueprint_refine_source_snapshot(&locked_sources, &inspiration_history)
         != expected_source_snapshot
     {

@@ -20,7 +20,7 @@ name: character_discovery
 你会收到：
 - 已有角色档案列表
 - 本次分析的章节内容数组
-- `text_anchors`：后端从章节正文切出的连续原文锚点候选
+- 正文内的 `⟦id⟧` 标记：其后原文片段的 text_anchor ID，标记不属于原文
 
 ## 输出要求
 
@@ -51,7 +51,7 @@ name: character_discovery
 ## 重要规则
 
 1. 已有角色档案列表中的角色可以返回，但必须使用同一姓名；系统会归类为已存在并避免重复创建，不算发现失败。
-2. 不要输出 `evidence` 或自由原文证据；必须从输入 `text_anchors` 中选择 `evidence_anchor_id`。
+2. 不要输出 `evidence` 或自由原文证据；`evidence_anchor_id` 必须选择章节 content 内 `⟦id⟧` 标记的 ID，不含括号。
 3. 不要输出 `first_seen_chapter` 或 `latest_seen_chapter`；系统会根据 `evidence_anchor_id` 推导。
 4. 不要输出 `appearance`、`background` 或 `personality`；如果文本中有相关信息，放进对应的属性对象，系统会提炼成档案摘要。
 5. `evidence_anchor_id` 是选择题，优先选择角色首次出场或身份被确认的短 text_anchor，不要自己抄写原文，不要输出省略号证据。

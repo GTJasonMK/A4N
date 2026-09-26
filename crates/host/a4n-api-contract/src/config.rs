@@ -322,7 +322,11 @@ pub struct UpdateEmbeddingInput {
     pub backend: String,
     #[serde(deserialize_with = "deserialize_required_nullable_field")]
     pub base_url: Option<String>,
-    #[serde(default, deserialize_with = "deserialize_nullable_update_field")]
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "deserialize_nullable_update_field"
+    )]
     pub api_key_encrypted: Option<Option<String>>,
     pub model: String,
     pub dimension: i32,
@@ -367,7 +371,11 @@ pub struct UpdateImageConfigInput {
     pub name: String,
     pub backend: String,
     pub base_url: String,
-    #[serde(default, deserialize_with = "deserialize_nullable_update_field")]
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "deserialize_nullable_update_field"
+    )]
     pub api_key_encrypted: Option<Option<String>>,
     pub model: String,
     pub max_concurrent: i32,
@@ -433,7 +441,11 @@ pub struct UpdateLlmInput {
     pub name: String,
     pub provider: String,
     pub base_url: String,
-    #[serde(default, deserialize_with = "deserialize_nullable_update_field")]
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "deserialize_nullable_update_field"
+    )]
     pub api_key_encrypted: Option<Option<String>>,
     pub model: String,
     pub max_concurrent: i32,
@@ -500,7 +512,11 @@ pub struct UpdateVideoConfigInput {
     pub name: String,
     pub backend: String,
     pub base_url: String,
-    #[serde(default, deserialize_with = "deserialize_nullable_update_field")]
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "deserialize_nullable_update_field"
+    )]
     pub api_key_encrypted: Option<Option<String>>,
     pub model: String,
     pub max_concurrent: i32,
@@ -526,10 +542,52 @@ pub struct ImportAllConfigsInput {
 #[cfg(test)]
 mod tests {
     use super::{
-        ImportAllConfigsInput, ModelDiscoveryInput, UpdateEmbeddingInput, UpdateLlmInput,
-        VideoConfigInput, VideoDurationMode,
+        ImportAllConfigsInput, ModelDiscoveryInput, UpdateEmbeddingInput, UpdateImageConfigInput,
+        UpdateLlmInput, UpdateVideoConfigInput, VideoConfigInput, VideoDurationMode,
     };
     use serde_json::{Value, json};
+
+    fn assert_key_forwarding<T>(base: Value)
+    where
+        T: serde::Serialize + serde::de::DeserializeOwned + PartialEq + std::fmt::Debug,
+    {
+        for key in [None, Some(Value::Null), Some(json!("test-key"))] {
+            let mut input = base.clone();
+            if let Some(key) = key {
+                input["api_key_encrypted"] = key;
+            }
+            let parsed: T = serde_json::from_value(input.clone()).unwrap();
+            let forwarded = serde_json::to_value(&parsed).unwrap();
+            assert_eq!(
+                forwarded.get("api_key_encrypted"),
+                input.get("api_key_encrypted")
+            );
+            assert_eq!(serde_json::from_value::<T>(forwarded).unwrap(), parsed);
+        }
+    }
+
+    #[test]
+    fn config_key_intent_survives_host_to_worker_serialization() {
+        assert_key_forwarding::<UpdateLlmInput>(json!({
+            "name": "llm", "provider": "openai", "base_url": "https://example.invalid/v1",
+            "model": "model", "max_concurrent": 1, "timeout_secs": 30,
+            "max_context_tokens": 4096, "max_output_tokens": 1024, "extra_body_json": null
+        }));
+        assert_key_forwarding::<UpdateImageConfigInput>(json!({
+            "name": "image", "backend": "openai-compatible-image", "base_url": "https://example.invalid/v1",
+            "model": "model", "max_concurrent": 1, "supported_sizes": [{"width": 1024, "height": 1024}]
+        }));
+        assert_key_forwarding::<UpdateVideoConfigInput>(json!({
+            "name": "video", "backend": "openai-compatible-video", "base_url": "https://example.invalid/v1",
+            "model": "model", "max_concurrent": 1, "default_width": 1280, "default_height": 720,
+            "default_duration_secs": 5, "min_duration_secs": 1, "max_duration_secs": 60,
+            "duration_mode": "range", "supported_durations_json": null, "default_fps": 24
+        }));
+        assert_key_forwarding::<UpdateEmbeddingInput>(json!({
+            "name": "embedding", "backend": "api", "base_url": "https://example.invalid/v1",
+            "model": "model", "dimension": 8, "batch_size": 2, "local_model_path": null
+        }));
+    }
 
     #[test]
     fn config_updates_require_complete_fields_and_preserve_key_intent() {

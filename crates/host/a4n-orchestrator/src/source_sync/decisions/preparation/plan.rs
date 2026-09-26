@@ -50,17 +50,47 @@ pub(super) async fn build_prepared_galgame_scene_regeneration_plan(
         source_spans: source_spans.clone(),
     };
     let visual_plan = source_sync_visual_plan_identity(&source.new_snapshot_chapter)?;
+    let target_sources = a4n_db::project::resolve_snapshot_sources(
+        service.database.connection(),
+        run.derived_project_id,
+        run.root_project_id,
+        run.to_snapshot_id,
+        &[source.new_snapshot_chapter.source_chapter_id],
+    )
+    .await
+    .map_err(crate::shooting_script::errors::resolve_source_error)?;
     let shooting_script = service
-        .require_current_chapter_shooting_script(
-            crate::shooting_script::ChapterShootingScriptSourceInput {
-                project_id: run.derived_project_id,
-                source_chapter_id: source.new_snapshot_chapter.source_chapter_id,
-                visual_plan_id: Some(visual_plan.id),
-            },
-        )
-        .await?;
+        .require_current_chapter_shooting_scripts_for_resolved_sources(target_sources)
+        .await?
+        .pop()
+        .expect("one target source resolves one shooting script");
     let shooting_record = &shooting_script.shooting_script.record;
     ensure_source_sync_shooting_script_visual_plan(shooting_record, &visual_plan)?;
+    let source_identity = source
+        .scene
+        .shooting_scene_identity
+        .as_deref()
+        .ok_or_else(|| AppError::InvalidState {
+            current: format!("Galgame 场 {} 缺少可确认的拍摄场景来源", source.scene.id),
+            operation: "regenerate_scene".to_string(),
+        })?;
+    let target_scene_indices = shooting_script
+        .shooting_script
+        .script
+        .scenes
+        .iter()
+        .filter(|scene| scene.scene_identity == source_identity)
+        .map(|scene| scene.scene_index)
+        .collect::<Vec<_>>();
+    let [target_scene_index] = target_scene_indices.as_slice() else {
+        return Err(AppError::InvalidState {
+            current: format!(
+                "目标拍摄剧本无法唯一定位 Galgame 场 {} 的来源场景 {source_identity}",
+                source.scene.id
+            ),
+            operation: "regenerate_scene".to_string(),
+        });
+    };
     let projection = galgame_shooting_script_projection(&GalgamePipelinePromptContext {
         project_id: run.derived_project_id,
         root_project_id: run.root_project_id,
@@ -85,24 +115,10 @@ pub(super) async fn build_prepared_galgame_scene_regeneration_plan(
             script: shooting_script.shooting_script.script,
         }],
     })?;
-    let target_span_ids = source_spans
-        .iter()
-        .map(|span| span.id.as_str())
-        .collect::<BTreeSet<_>>();
     let directing_scene = projection
         .scenes
         .into_iter()
-        .map(|scene| {
-            let overlap = scene
-                .source_span_ids
-                .iter()
-                .filter(|id| target_span_ids.contains(id.as_str()))
-                .count();
-            (overlap, scene)
-        })
-        .max_by_key(|(overlap, _)| *overlap)
-        .filter(|(overlap, _)| *overlap > 0)
-        .map(|(_, scene)| scene)
+        .find(|scene| scene.shooting_scene_index == *target_scene_index)
         .ok_or_else(|| AppError::InvalidState {
             current: format!(
                 "galgame_directing_scene_not_found_for_source_sync_scene_{}",

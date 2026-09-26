@@ -48,7 +48,11 @@ pub(in crate::galgame::pipeline::run::pipeline) async fn persist_galgame_pipelin
     )?;
     let detail = execution
         .service
-        .persist_pipeline_script(execution.project_id, persist_plan)
+        .persist_pipeline_script(
+            execution.project_id,
+            persist_plan,
+            &execution.prompt_context.shooting_scripts,
+        )
         .await?;
     let line_count = detail
         .scenes

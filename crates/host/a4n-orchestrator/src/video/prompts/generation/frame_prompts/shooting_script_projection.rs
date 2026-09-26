@@ -2,7 +2,7 @@ use a4n_error::AppError;
 use std::collections::HashSet;
 
 use a4n_domain::shooting_script::{
-    ChapterShootingScriptV1, ShootingCoverageV1, ShootingViewpointModeV1,
+    ChapterShootingScriptV1, ShootingCoverageV1, ShootingShotV1, ShootingViewpointModeV1,
 };
 use a4n_video_contract::{
     VIDEO_EXECUTION_CONTRACT_EPOCH, VIDEO_EXECUTION_PROJECTION_V2, VideoActionLoadV1,
@@ -15,20 +15,12 @@ use a4n_video_contract::{
 pub(in crate::video) fn video_projection_from_shooting_script(
     script: &ChapterShootingScriptV1,
     identity: VideoShootingScriptIdentityV1,
-    segment_duration_secs: i32,
 ) -> Result<VideoExecutionProjectionV2, AppError> {
-    if segment_duration_secs <= 0 {
-        return Err(AppError::InvalidArgument(
-            "视频执行片段时长必须大于 0".to_string(),
-        ));
-    }
-
     let mut scenes = Vec::with_capacity(script.scenes.len());
     let mut total_seconds = 0.0;
     let mut total_beats = 0i32;
     let mut must_show_beats = 0i32;
     let mut total_recommended_segments = 0i32;
-    let mut total_minimum_readable_segments = 0i32;
     let mut risk_flags = Vec::new();
     let mut seen_shot_ids = HashSet::new();
     let mut previous_timeline_position = None;
@@ -50,12 +42,11 @@ pub(in crate::video) fn video_projection_from_shooting_script(
             let segment_duration_secs = shot
                 .visual_constraints
                 .as_ref()
-                .map(|plan| {
-                    plan.video_duration_secs()
-                        .map_err(AppError::InvalidArgument)
-                })
-                .transpose()?
-                .unwrap_or(segment_duration_secs);
+                .ok_or_else(|| {
+                    AppError::InvalidArgument(format!("拍摄镜头 {} 未绑定导演编排", shot.shot_id))
+                })?
+                .video_duration_secs()
+                .map_err(AppError::InvalidArgument)?;
             if previous_shot_index.is_some_and(|index| shot.shot_index <= index)
                 || !seen_shot_ids.insert(shot.shot_id.clone())
             {
@@ -100,51 +91,9 @@ pub(in crate::video) fn video_projection_from_shooting_script(
                 })
                 .collect::<Result<Vec<_>, AppError>>()?;
 
-            let recommended_segment_count = if shot.visual_constraints.is_some() {
-                1
-            } else {
-                segment_count_for_seconds(
-                    shot.estimated_natural_seconds,
-                    segment_duration_secs,
-                    &shot.shot_id,
-                    "estimated_natural_seconds",
-                )?
-            };
-            let required_seconds = action_beats
-                .iter()
-                .filter(|beat| beat.required)
-                .map(|beat| beat.natural_seconds)
-                .sum::<f64>();
-            let minimum_readable_segment_count = if shot.visual_constraints.is_some() {
-                1
-            } else if required_seconds > 0.0 {
-                segment_count_for_seconds(
-                    required_seconds,
-                    segment_duration_secs,
-                    &shot.shot_id,
-                    "required beat seconds",
-                )?
-            } else {
-                1
-            };
-            total_recommended_segments = checked_add(
-                total_recommended_segments,
-                recommended_segment_count,
-                "视频执行建议片段总数",
-            )?;
-            total_minimum_readable_segments = checked_add(
-                total_minimum_readable_segments,
-                minimum_readable_segment_count,
-                "视频执行最低可读片段总数",
-            )?;
+            total_recommended_segments =
+                checked_increment(total_recommended_segments, "视频执行片段总数")?;
             total_seconds += shot.estimated_natural_seconds;
-
-            if shot.source_span_ids.is_empty() && shot.visual_constraints.is_none() {
-                return Err(AppError::InvalidArgument(format!(
-                    "拍摄镜头 {} 缺少正文或导演编排来源",
-                    shot.shot_id
-                )));
-            }
             let source_span_range = shot
                 .source_span_ids
                 .first()
@@ -153,16 +102,11 @@ pub(in crate::video) fn video_projection_from_shooting_script(
                     start: start.clone(),
                     end: end.clone(),
                 });
-            let mut shot_risks = Vec::new();
-            if minimum_readable_segment_count > recommended_segment_count {
-                shot_risks.push(VideoExecutionRiskV1 {
-                    level: VideoExecutionRiskLevelV1::Warning,
-                    code: "required_beats_exceed_recommended_capacity".to_string(),
-                    source_shot_id: Some(shot.shot_id.clone()),
-                    message: "必拍节拍的自然耗时高于镜头总耗时推导出的建议容量".to_string(),
-                });
-            }
-            risk_flags.extend(shot_risks.iter().cloned());
+            let participants = shot_participants(shot);
+            let focal_character = scene
+                .focal_character
+                .clone()
+                .filter(|name| participants.contains(name));
             shots.push(VideoExecutionShotV2 {
                 director_constraints: shot.visual_constraints.clone(),
                 source_shot_id: shot.shot_id.clone(),
@@ -176,8 +120,8 @@ pub(in crate::video) fn video_projection_from_shooting_script(
                 coverage: shot.coverage,
                 narrative_purpose: shot.narrative_purpose.clone(),
                 subject: shot.subject.clone(),
-                participants: scene.participants.clone(),
-                focal_character: scene.focal_character.clone(),
+                participants,
+                focal_character,
                 viewpoint: scene.viewpoint.clone(),
                 editing_mode: scene.editing_mode,
                 intercut_group_id: scene.intercut_group_id.clone(),
@@ -209,10 +153,10 @@ pub(in crate::video) fn video_projection_from_shooting_script(
                 action_beats,
                 estimated_natural_seconds: shot.estimated_natural_seconds,
                 segment_duration_secs,
-                recommended_segment_count,
-                minimum_readable_segment_count,
-                action_load: action_load(shot.estimated_natural_seconds, recommended_segment_count),
-                risk_flags: shot_risks,
+                recommended_segment_count: 1,
+                minimum_readable_segment_count: 1,
+                action_load: action_load(shot.estimated_natural_seconds),
+                risk_flags: Vec::new(),
             });
         }
 
@@ -282,7 +226,7 @@ pub(in crate::video) fn video_projection_from_shooting_script(
         planning_quality: VideoExecutionQualityV2 {
             total_estimated_seconds: total_seconds,
             total_recommended_segments,
-            total_minimum_readable_segments,
+            total_minimum_readable_segments: total_recommended_segments,
             risk_flags,
             directing_audit: VideoDirectingAuditV2 {
                 total_directing_beats: total_beats,
@@ -293,6 +237,38 @@ pub(in crate::video) fn video_projection_from_shooting_script(
             },
         },
     })
+}
+
+fn shot_participants(shot: &ShootingShotV1) -> Vec<String> {
+    let mut seen = HashSet::new();
+    shot.performance_beats
+        .iter()
+        .filter_map(|beat| beat.actor.as_ref())
+        .chain(shot.dialogue_cues.iter().map(|cue| &cue.speaker))
+        .filter(|name| seen.insert(*name))
+        .cloned()
+        .collect()
+}
+
+#[cfg(test)]
+#[test]
+fn shot_participants_use_performers_and_speakers_without_scene_bystanders() {
+    let mut script = crate::video::tests::test_chapter_shooting_script("source");
+    script.scenes[0].participants.push("在别处的人".into());
+    let shot = &mut script.scenes[0].shots[0];
+    assert_eq!(shot_participants(shot), ["小宦官"]);
+    for beat in &mut shot.performance_beats {
+        beat.actor = None;
+    }
+    assert!(shot_participants(shot).is_empty());
+    shot.dialogue_cues
+        .push(a4n_domain::shooting_script::ShootingDialogueCueV1 {
+            beat_id: "voice".into(),
+            speaker: "画外音".into(),
+            line_or_intent: "停下".into(),
+            listener_reaction: None,
+        });
+    assert_eq!(shot_participants(shot), ["画外音"]);
 }
 
 fn scene_viewpoint_is_complete(scene: &a4n_domain::shooting_script::ShootingSceneV1) -> bool {
@@ -318,40 +294,14 @@ fn scene_audience_causality_is_complete(
         && !scene.exit_state.trim().is_empty()
 }
 
-fn segment_count_for_seconds(
-    seconds: f64,
-    duration_secs: i32,
-    shot_id: &str,
-    field: &str,
-) -> Result<i32, AppError> {
-    if !seconds.is_finite() || seconds <= 0.0 {
-        return Err(AppError::InvalidArgument(format!(
-            "拍摄镜头 {shot_id} {field} 必须大于 0"
-        )));
-    }
-    let count = (seconds / f64::from(duration_secs)).ceil().max(1.0);
-    if count > f64::from(i32::MAX) {
-        return Err(AppError::InvalidArgument(format!(
-            "拍摄镜头 {shot_id} 所需视频执行片段数量超出 i32 范围"
-        )));
-    }
-    Ok(count as i32)
-}
-
 fn checked_increment(value: i32, field: &str) -> Result<i32, AppError> {
     value
         .checked_add(1)
         .ok_or_else(|| AppError::InvalidArgument(format!("{field}超出 i32 范围")))
 }
 
-fn checked_add(value: i32, addition: i32, field: &str) -> Result<i32, AppError> {
-    value
-        .checked_add(addition)
-        .ok_or_else(|| AppError::InvalidArgument(format!("{field}超出 i32 范围")))
-}
-
-fn action_load(seconds: f64, segment_count: i32) -> VideoActionLoadV1 {
-    if segment_count > 1 || seconds > 8.0 {
+fn action_load(seconds: f64) -> VideoActionLoadV1 {
+    if seconds > 8.0 {
         VideoActionLoadV1::Heavy
     } else if seconds > 4.0 {
         VideoActionLoadV1::Medium

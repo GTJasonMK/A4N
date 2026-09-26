@@ -40,26 +40,6 @@ where
     else {
         return Ok(HashMap::new());
     };
-    let source_chapter_ids = changes
-        .iter()
-        .map(|change| change.source_chapter_id)
-        .collect::<Vec<_>>();
-    let old_snapshot_chapters = source_snapshot_chapter::Entity::find()
-        .select_only()
-        .column(source_snapshot_chapter::Column::Id)
-        .column(source_snapshot_chapter::Column::SourceChapterId)
-        .filter(source_snapshot_chapter::Column::SnapshotId.eq(run.from_snapshot_id))
-        .filter(source_snapshot_chapter::Column::SourceChapterId.is_in(source_chapter_ids))
-        .into_tuple::<(i64, i64)>()
-        .all(db)
-        .await?
-        .into_iter()
-        .map(|(id, source_chapter_id)| (source_chapter_id, id))
-        .collect::<HashMap<_, _>>();
-    if old_snapshot_chapters.is_empty() {
-        return Ok(HashMap::new());
-    }
-    let old_snapshot_chapter_ids = old_snapshot_chapters.values().copied().collect::<Vec<_>>();
     let scenes = galgame_scene::Entity::find()
         .select_only()
         .column(galgame_scene::Column::Id)
@@ -67,14 +47,32 @@ where
         .column(galgame_scene::Column::Title)
         .column(galgame_scene::Column::SourceSnapshotChapterId)
         .filter(galgame_scene::Column::ScriptId.eq(script_id))
-        .filter(
-            galgame_scene::Column::SourceSnapshotChapterId
-                .is_in(old_snapshot_chapter_ids.iter().copied()),
-        )
         .order_by_asc(galgame_scene::Column::SceneIndex)
         .into_tuple::<(i64, i32, String, i64)>()
         .all(db)
         .await?;
+    if scenes.is_empty() {
+        return Ok(HashMap::new());
+    }
+    let source_chapter_by_snapshot = source_snapshot_chapter::Entity::find()
+        .select_only()
+        .column(source_snapshot_chapter::Column::Id)
+        .column(source_snapshot_chapter::Column::SourceChapterId)
+        .filter(source_snapshot_chapter::Column::Id.is_in(scenes.iter().map(|scene| scene.3)))
+        .filter(source_snapshot_chapter::Column::RootProjectId.eq(run.root_project_id))
+        .filter(
+            source_snapshot_chapter::Column::SourceChapterId
+                .is_in(changes.iter().map(|change| change.source_chapter_id)),
+        )
+        .into_tuple::<(i64, i64)>()
+        .all(db)
+        .await?
+        .into_iter()
+        .collect::<HashMap<_, _>>();
+    let scenes = scenes
+        .into_iter()
+        .filter(|scene| source_chapter_by_snapshot.contains_key(&scene.3))
+        .collect::<Vec<_>>();
     if scenes.is_empty() {
         return Ok(HashMap::new());
     }
@@ -96,10 +94,6 @@ where
         }
     }
 
-    let source_chapter_by_snapshot = old_snapshot_chapters
-        .into_iter()
-        .map(|(source_chapter_id, snapshot_id)| (snapshot_id, source_chapter_id))
-        .collect::<HashMap<_, _>>();
     let mut records_by_chapter =
         HashMap::<i64, Vec<SourceSyncGalgameSceneConflictCandidateRecord>>::new();
     for (scene_id, scene_index, title, old_snapshot_chapter_id) in scenes {

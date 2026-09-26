@@ -6,8 +6,8 @@ use serde_json::{Value, json};
 
 use a4n_domain::source_text_hash as source_content_sha256;
 use a4n_llm_context::{
-    COMPRESSION_FOCUSED_RAW, COMPRESSION_FULL_RAW, COMPRESSION_MINIMAL, LlmContextLedger,
-    LlmContextLedgerPackDraft, LlmContextLedgerPackInput, context_aware_system_user_request,
+    COMPRESSION_FULL_RAW, LlmContextLedger, LlmContextLedgerPackDraft, LlmContextLedgerPackInput,
+    context_aware_system_user_request,
 };
 
 use a4n_api_contract::portrait::PortraitType;
@@ -71,11 +71,10 @@ pub async fn build_generate_prompt_request(
         }),
         required: true,
         stable_prefix: true,
-        variants: vec![
-            LlmContextLedgerPackDraft::new(COMPRESSION_FULL_RAW, stable_context.clone()),
-            LlmContextLedgerPackDraft::new(COMPRESSION_FOCUSED_RAW, stable_context.clone()),
-            LlmContextLedgerPackDraft::new(COMPRESSION_MINIMAL, stable_context),
-        ],
+        variants: vec![LlmContextLedgerPackDraft::new(
+            COMPRESSION_FULL_RAW,
+            stable_context,
+        )],
     })?;
     let manifest = ledger.into_manifest(
             user_prompt,

@@ -18,9 +18,18 @@ where
         .order_by_asc(protagonist_profile::Column::Id)
         .all(tx)
         .await?;
+    let referenced_ids = crate::character::referenced_profile_ids(
+        tx,
+        project_id,
+        &profiles
+            .iter()
+            .map(|profile| profile.id)
+            .collect::<Vec<_>>(),
+    )
+    .await?;
     let (text_discovered_profiles, retained_profiles): (Vec<_>, Vec<_>) = profiles
         .into_iter()
-        .partition(|profile| profile.is_text_discovered());
+        .partition(|profile| profile.is_text_discovered() && !referenced_ids.contains(&profile.id));
     let text_profile_ids = text_discovered_profiles
         .iter()
         .map(|profile| profile.id)

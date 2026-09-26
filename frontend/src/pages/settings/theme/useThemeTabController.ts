@@ -9,7 +9,6 @@ import {
   exportTheme,
   importTheme,
   importThemePackage,
-  getThemePreference,
   listThemes,
   updateTheme,
   uploadThemeResource,
@@ -24,9 +23,11 @@ import { useAuthStore } from "../../../store/auth";
 import {
   applyActiveTheme,
   applyThemePreview,
+  getThemeAppearance,
   notifyThemeChanged,
   persistThemeAppearance,
   restoreActiveTheme,
+  THEME_APPLIED_EVENT,
 } from "../../../theme/activeTheme";
 import { copyTextToClipboard } from "../../../utils/clipboard";
 import { downloadBase64ExportFile } from "../../../utils/downloadFile";
@@ -64,6 +65,7 @@ export const useThemeTabController = () => {
   const [themes, setThemes] = useState<Theme[]>([]);
   const [scope, setScope] = useState<ThemeScope>("all");
   const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [activating, setActivating] = useState<number | null>(null);
   const [deleting, setDeleting] = useState<number | null>(null);
   const [bulkDeleting, setBulkDeleting] = useState(false);
@@ -76,7 +78,7 @@ export const useThemeTabController = () => {
   const [exportingId, setExportingId] = useState<number | null>(null);
   const [importing, setImporting] = useState(false);
   const [importText, setImportText] = useState("");
-  const [appearance, setAppearance] = useState<ThemeAppearance>("system");
+  const [appearance, setAppearance] = useState(getThemeAppearance);
   const [appearanceSaving, setAppearanceSaving] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editorSaving, setEditorSaving] = useState(false);
@@ -123,12 +125,15 @@ export const useThemeTabController = () => {
       const requestSeq = refreshSeqRef.current + 1;
       refreshSeqRef.current = requestSeq;
       setLoading(true);
+      setLoadError(null);
       try {
         const data = user ? await listThemes() : [];
         if (isCurrentRefresh(requestUserKey, requestSeq)) setThemes(data);
       } catch (err) {
         if (isCurrentRefresh(requestUserKey, requestSeq)) {
-          addToast(extractErrorMessage(err, t("settingsTheme.loadFailed")), "error");
+          const message = extractErrorMessage(err, t("settingsTheme.loadFailed"));
+          setLoadError(message);
+          addToast(message, "error");
         }
       } finally {
         if (
@@ -148,22 +153,11 @@ export const useThemeTabController = () => {
   }, [refresh]);
 
   useEffect(() => {
-    if (!user) {
-      setAppearance("system");
-      return;
-    }
-    let current = true;
-    void getThemePreference()
-      .then((value) => {
-        if (current && value.user_id === user.id) setAppearance(value.appearance);
-      })
-      .catch((err) => {
-        if (current) addToast(extractErrorMessage(err, t("settingsTheme.preferenceLoadFailed")), "error");
-      });
-    return () => {
-      current = false;
-    };
-  }, [addToast, t, user]);
+    const syncAppearance = () => setAppearance(getThemeAppearance());
+    window.addEventListener(THEME_APPLIED_EVENT, syncAppearance);
+    syncAppearance();
+    return () => window.removeEventListener(THEME_APPLIED_EVENT, syncAppearance);
+  }, []);
 
   useEffect(() => {
     mutationInFlightRef.current = false;
@@ -171,6 +165,7 @@ export const useThemeTabController = () => {
     if (refreshInFlightUserRef.current !== userKey)
       refreshInFlightUserRef.current = null;
     setThemes([]);
+    setLoadError(null);
     setActivating(null);
     setDeleting(null);
     setBulkDeleting(false);
@@ -216,6 +211,19 @@ export const useThemeTabController = () => {
     return true;
   };
 
+  const commitThemes = (update: (current: Theme[]) => Theme[]) => {
+    refreshSeqRef.current += 1;
+    refreshInFlightUserRef.current = null;
+    setThemes(update);
+    setLoading(false);
+  };
+
+  const commitTheme = (saved: Theme) => {
+    commitThemes((current) => current.some((theme) => theme.id === saved.id)
+      ? current.map((theme) => theme.id === saved.id ? saved : theme)
+      : [saved, ...current]);
+  };
+
   const finishMutation = (requestUserKey: string) => {
     if (!isCurrentUser(requestUserKey)) return false;
     mutationInFlightRef.current = false;
@@ -259,12 +267,12 @@ export const useThemeTabController = () => {
     try {
       await deleteTheme(id);
       if (!isCurrentUser(requestUserKey)) return;
+      commitThemes((current) => current.filter((theme) => theme.id !== id));
       addToast(t("settingsTheme.deleted"), "success");
       if (editingId === id) {
         setEditingId(null);
         restoreActiveTheme();
       }
-      await refresh({ force: true });
     } catch (err) {
       if (isCurrentUser(requestUserKey)) {
         addToast(extractErrorMessage(err, t("settingsTheme.deleteFailed")), "error");
@@ -318,7 +326,7 @@ export const useThemeTabController = () => {
         setEditingId(null);
         restoreActiveTheme();
       }
-      await refresh({ force: true });
+      commitThemes((current) => current.filter((theme) => !deletedIds.has(theme.id)));
     } finally {
       if (finishMutation(requestUserKey)) setBulkDeleting(false);
     }
@@ -335,7 +343,7 @@ export const useThemeTabController = () => {
     const mode = newMode;
     setCreating(true);
     try {
-      await createTheme({
+      const created = await createTheme({
         name,
         mode,
         document: {
@@ -346,10 +354,10 @@ export const useThemeTabController = () => {
         },
       });
       if (!isCurrentUser(requestUserKey)) return;
+      commitTheme(created);
       addToast(t("settingsTheme.createdNamed", { name }), "success");
       setNewName("");
       setNewMode("light");
-      await refresh({ force: true });
     } catch (err) {
       if (isCurrentUser(requestUserKey)) {
         addToast(extractErrorMessage(err, t("settingsTheme.createFailed")), "error");
@@ -379,13 +387,13 @@ export const useThemeTabController = () => {
     const requestUserKey = userKey;
     setRenameSaving(true);
     try {
-      await updateTheme(themeId, { name });
+      const saved = await updateTheme(themeId, { name });
       if (!isCurrentUser(requestUserKey)) return;
+      commitTheme(saved);
       addToast(t("settingsTheme.renameSuccess"), "success");
       notifyThemeChanged();
       setRenamingId(null);
       setRenameValue("");
-      await refresh({ force: true });
     } catch (err) {
       if (isCurrentUser(requestUserKey)) {
         addToast(extractErrorMessage(err, t("settingsTheme.renameFailed")), "error");
@@ -432,12 +440,12 @@ export const useThemeTabController = () => {
     const requestUserKey = userKey;
     setImporting(true);
     try {
-      await importTheme(themeJson);
+      const imported = await importTheme(themeJson);
       if (!isCurrentUser(requestUserKey)) return;
+      commitTheme(imported);
       addToast(t("settingsTheme.importSuccess"), "success");
       notifyThemeChanged();
       setImportText("");
-      await refresh({ force: true });
     } catch (err) {
       if (isCurrentUser(requestUserKey)) {
         addToast(extractErrorMessage(err, t("settingsTheme.importFailed")), "error");
@@ -450,20 +458,16 @@ export const useThemeTabController = () => {
   const handleAppearanceChange = async (nextAppearance: ThemeAppearance) => {
     if (!user || appearanceSaving || !beginMutation()) return;
     const requestUserKey = userKey;
-    const previous = appearance;
-    setAppearance(nextAppearance);
     setAppearanceSaving(true);
     try {
-      const result = await persistThemeAppearance(
+      await persistThemeAppearance(
         nextAppearance,
         () => isCurrentUser(requestUserKey),
       );
       if (!isCurrentUser(requestUserKey)) return;
-      setAppearance(result.appearance);
       addToast(t("settingsTheme.preferenceSaved"), "success");
     } catch (err) {
       if (isCurrentUser(requestUserKey)) {
-        setAppearance(previous);
         addToast(extractErrorMessage(err, t("settingsTheme.preferenceSaveFailed")), "error");
       }
     } finally {
@@ -578,9 +582,9 @@ export const useThemeTabController = () => {
         data_base64: await readFileAsBase64(file),
       });
       if (!isCurrentUser(requestUserKey)) return;
+      commitTheme(theme);
       addToast(t("settingsTheme.packageImported", { name: theme.name }), "success");
       notifyThemeChanged();
-      await refresh({ force: true });
     } catch (err) {
       if (isCurrentUser(requestUserKey)) {
         addToast(extractErrorMessage(err, t("settingsTheme.packageImportFailed")), "error");
@@ -599,6 +603,7 @@ export const useThemeTabController = () => {
     themes: visibleThemes,
     scope,
     loading,
+    loadError,
     activating,
     deleting,
     bulkDeleting,

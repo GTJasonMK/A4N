@@ -1,0 +1,34 @@
+{
+  "evidence_kind": "saved-pack measurements and deterministic representation reconstruction",
+  "legacy_input_sha256": "87cbb11777d180952f7cf29a73e924c176521c0c01609c1474afb652d7b8654f",
+  "trace_rows_with_usage": 370,
+  "historical_input_tokens": 7175889,
+  "stored_pack_count": 476,
+  "stored_pack_corpus_compaction": {
+    "before_chars": 6890188,
+    "after_chars": 4120852,
+    "before_bytes": 9535169,
+    "after_bytes": 6765833,
+    "chars_removed_percent": 40.19
+  },
+  "video_source_pack_whole_chapter_upper_bound": {
+    "before_chars": 70008,
+    "after_chars": 6236,
+    "before_bytes": 94878,
+    "after_bytes": 17280,
+    "chars_removed_percent": 91.09
+  },
+  "source_representation_with_ids": {
+    "before_chars": 41332,
+    "after_chars": 13659,
+    "before_bytes": 62034,
+    "after_bytes": 27027,
+    "chars_removed_percent": 66.95
+  },
+  "limitations": [
+    "Corpus compaction measures stored packs, not full wire requests or billable tokens.",
+    "Video source reconstruction keeps the whole chapter; current task-specific paragraph selection may be shorter.",
+    "Historical source spans lack offsets; annotation is reconstructed in verified source order.",
+    "No remote model quality or cache hit-rate A/B was performed."
+  ]
+}

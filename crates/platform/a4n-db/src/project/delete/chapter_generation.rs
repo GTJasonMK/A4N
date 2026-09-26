@@ -4,6 +4,7 @@ pub(crate) async fn delete_chapter_generation_outputs<C>(
     db: &C,
     project_id: i64,
     image_scope: GeneratedImageDeleteScope,
+    retained: &RetainedSourceResources,
 ) -> Result<ChapterGenerationCleanupResult, ProjectDeleteDbError>
 where
     C: ConnectionTrait,
@@ -71,7 +72,9 @@ where
             image_query.filter(generated_image::Column::ChapterId.in_subquery(chapter_ids.clone()))
         }
     };
-    image_query = image_query.order_by_asc(generated_image::Column::Id);
+    image_query = image_query
+        .filter(generated_image::Column::Id.is_not_in(retained.image_ids.iter().copied()))
+        .order_by_asc(generated_image::Column::Id);
     if db.get_database_backend() != DbBackend::Sqlite {
         image_query = image_query.lock_exclusive();
     }
@@ -103,6 +106,16 @@ where
     candidate_media_paths.dedup();
 
     crate::chapter_visual_plan::ensure_visual_plan_images_unreferenced(db, &generated_image_ids)
+        .await?;
+    generated_image::Entity::update_many()
+        .col_expr(
+            generated_image::Column::ChapterId,
+            sea_orm::sea_query::Expr::value(Option::<i64>::None),
+        )
+        .filter(generated_image::Column::ProjectId.eq(project_id))
+        .filter(generated_image::Column::Id.is_in(retained.image_ids.iter().copied()))
+        .filter(generated_image::Column::ChapterId.in_subquery(chapter_ids.clone()))
+        .exec(db)
         .await?;
     crate::video::clear_generated_image_references_record(db, &generated_image_ids).await?;
     if !generated_image_ids.is_empty() {

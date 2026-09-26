@@ -175,6 +175,8 @@ const videoExecutionSegmentNumberInPlanMatching = (
   fields: readonly string[],
   identityIndex?: VideoExecutionSegmentIdentityIndex,
 ): number | null => {
+  const staleShotIds = asRecord(segmentPlanPrompt?.metadata_json)?.stale_source_shot_ids;
+  if (Array.isArray(staleShotIds) && staleShotIds.includes(actual?.source_shot_id)) return null;
   const planIdentity = videoExecutionIdentityOfPrompt(segmentPlanPrompt);
   if (
     !videoExecutionIdentityMatchesExpected(actual, planIdentity, fields) ||

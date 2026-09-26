@@ -47,6 +47,7 @@ const CONFLICT_STATUS_KEYS: Record<string, MessageKey> = {
   pending: "novel.sourceSyncDialog.conflictPending",
   resolved: "novel.sourceSyncDialog.conflictResolved",
   ignored: "novel.sourceSyncDialog.conflictIgnored",
+  obsolete: "novel.sourceSyncDialog.conflictObsolete",
 };
 
 const SOURCE_CHANGE_KEYS: Record<string, MessageKey> = {
@@ -69,6 +70,8 @@ const LOCAL_STATE_KEYS: Record<string, MessageKey> = {
 
 const SUMMARY_KEY_KEYS: Record<string, MessageKey> = {
   title: "novel.sourceSyncDialog.summaryTitle",
+  visual_plan_changed: "novel.sourceSyncDialog.summaryVisualPlanChanged",
+  shooting_script_changed: "novel.sourceSyncDialog.summaryShootingScriptChanged",
   text: "novel.sourceSyncDialog.summaryText",
   content: "novel.sourceSyncDialog.summaryText",
   summary: "novel.sourceSyncDialog.summarySummary",
@@ -107,6 +110,7 @@ export const SourceSyncDialog: React.FC<SourceSyncDialogProps> = ({
 }) => {
   const { addToast } = useToast();
   const { t } = useI18n();
+  const sourceSyncAvailable = sourceSyncStatus !== "detached";
   const [plan, setPlan] = useState<SourceSyncPlanSummary | null>(null);
   const [loading, setLoading] = useState(false);
   const [applying, setApplying] = useState(false);
@@ -190,6 +194,7 @@ export const SourceSyncDialog: React.FC<SourceSyncDialogProps> = ({
   const conflictCounts = useMemo(() => {
     const counts = { info: 0, warning: 0, blocking: 0 };
     for (const conflict of plan?.conflicts ?? []) {
+      if (conflict.status !== "pending") continue;
       if (conflict.severity in counts) {
         counts[conflict.severity as keyof typeof counts] += 1;
       }
@@ -353,7 +358,7 @@ export const SourceSyncDialog: React.FC<SourceSyncDialogProps> = ({
       return;
     }
     if (conflict.status !== "pending") return;
-    const sceneId = galgameSceneIdForConflict(conflict);
+    const sceneId = conflict.regenerate_scene_id;
     if (!sceneId) {
       addToast(t("novel.sourceSyncDialog.cannotLocateScene"), "error");
       return;
@@ -486,9 +491,9 @@ export const SourceSyncDialog: React.FC<SourceSyncDialogProps> = ({
       closeOnBackdrop={!busy}
       closeOnEscape={!busy}
       showCloseButton={!busy}
-      footer={canEditSourceSync ? (
+      footer={canEditSourceSync && sourceSyncAvailable ? (
         <div className="flex w-full items-center gap-2">
-          {!busy && sourceSyncStatus !== "detached" ? (
+          {!busy ? (
             <Dropdown
               items={[
                 {
@@ -575,7 +580,7 @@ export const SourceSyncDialog: React.FC<SourceSyncDialogProps> = ({
 
         {!plan ? (
           <p className="text-sm leading-relaxed text-book-text-muted">
-            {t("novel.sourceSyncDialog.explanation")}
+            {t(sourceSyncAvailable ? "novel.sourceSyncDialog.explanation" : "novel.sourceSyncDialog.detached")}
           </p>
         ) : plan.conflicts.length === 0 ? (
           <div className="rounded-[var(--pyqt-radius-lg)] border border-success/30 bg-success/10 px-4 py-4 text-sm text-book-text-main">
@@ -594,7 +599,7 @@ export const SourceSyncDialog: React.FC<SourceSyncDialogProps> = ({
                 <ConflictRow
                   key={conflict.id}
                   conflict={conflict}
-                  disabled={busy || !canEditSourceSync || !planCanResolveConflicts}
+                  disabled={busy || !canEditSourceSync || !sourceSyncAvailable || !planCanResolveConflicts}
                   applying={applyingConflictId === conflict.id}
                   onKeepLocal={() => handleKeepLocal(conflict)}
                   onRegenerateScene={() => handleRegenerateScene(conflict)}
@@ -646,7 +651,7 @@ const ConflictRow: React.FC<{
           </p>
         </div>
         <div className="flex shrink-0 items-center gap-2">
-          {canRegenerateGalgameScene(conflict) && conflict.status === "pending" && !disabled ? (
+          {conflict.regenerate_scene_id != null && conflict.status === "pending" && !disabled ? (
             <Dropdown
               items={[
                 {
@@ -680,6 +685,7 @@ const ConflictRow: React.FC<{
           {t("novel.sourceSyncDialog.diagnostics")}
         </summary>
         <div className="mt-2 space-y-2">
+          {conflict.status === "obsolete" ? <p>{t("novel.sourceSyncDialog.obsoleteReferences")}</p> : null}
           <dl className="grid grid-cols-[4.5rem_minmax(0,1fr)] gap-x-2 gap-y-1 font-mono">
             <dt>{t("novel.sourceSyncDialog.conflictScope")}</dt>
             <dd className="min-w-0 break-all">{conflict.conflict_scope}</dd>
@@ -703,18 +709,6 @@ const ConflictRow: React.FC<{
     </article>
   );
 };
-
-function canRegenerateGalgameScene(conflict: SourceSyncConflictSummary): boolean {
-  return galgameSceneIdForConflict(conflict) != null;
-}
-
-function galgameSceneIdForConflict(conflict: SourceSyncConflictSummary): number | null {
-  if (conflict.conflict_scope !== "text_anchor") return null;
-  if (conflict.target_kind === "galgame_scene") return conflict.target_id;
-  if (conflict.target_kind !== "galgame_line") return null;
-  const raw = conflict.affected_refs_json.galgame_scene_id;
-  return typeof raw === "number" && Number.isFinite(raw) ? raw : null;
-}
 
 const JsonSummary: React.FC<{ title: string; value: Record<string, unknown> }> = ({ title, value }) => {
   const { locale, t } = useI18n();
@@ -774,10 +768,10 @@ function formatValue(
     return t("novel.sourceSyncDialog.panelValue", { number: formatNumber(value, locale) });
   }
   if (key === "scene_index" && typeof value === "number") {
-    return t("novel.sourceSyncDialog.sceneValue", { number: formatNumber(value + 1, locale) });
+    return t("novel.sourceSyncDialog.sceneValue", { number: formatNumber(value, locale) });
   }
   if (key === "line_index" && typeof value === "number") {
-    return t("novel.sourceSyncDialog.lineValue", { number: formatNumber(value + 1, locale) });
+    return t("novel.sourceSyncDialog.lineValue", { number: formatNumber(value, locale) });
   }
   if (key === "segment_index" && typeof value === "number") {
     return t("novel.sourceSyncDialog.segmentValue", { number: formatNumber(value + 1, locale) });

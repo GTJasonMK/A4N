@@ -769,7 +769,7 @@ const invoke = async (command, args = {}) => {
         ? [referenceImage, storyboardImage]
         : [referenceImage];
     case "delete_image":
-      if (!storyboardImage || args.imageId !== storyboardImage.id) {
+      if (!storyboardImage || args.input?.image_id !== storyboardImage.id) {
         throw new Error("unexpected delete_image input");
       }
       storyboardImage = null;
@@ -802,7 +802,25 @@ const invoke = async (command, args = {}) => {
     case "get_chapter_shooting_script_unit_progress":
       return null;
     case "get_chapter_video_timeline":
-      return { id: 1, revision: 1, items: [] };
+      return {
+        id: 1,
+        revision: 1,
+        items: mixedAssemblyScenario
+          ? plan.metadata_json.segments.map((segment) => ({
+              id: 1000 + segment.segment_number,
+              kind: "native",
+              display_index: segment.segment_number,
+              segment_number: segment.segment_number,
+              source_shot_id: segment.source_shot_id,
+              plan_prompt_id: planId,
+              generated_video_id: plan.metadata_json.segment_recipes.find(
+                (item) => item.segment_number === segment.segment_number,
+              ).adopted_video_id,
+              status: "active",
+              title: segment.title,
+            }))
+          : [],
+      };
     case "list_videos_by_chapter":
       return chapterVideos();
     case "list_workflow_runs":

@@ -66,9 +66,13 @@ impl<'state> RuntimeVideoProviderHostPort<'state> {
         &self,
         config_id: Option<i64>,
     ) -> Result<VideoProviderConfig, AppError> {
-        resolve_video_config(self.state.video_provider_config(), config_id)
-            .await
-            .map_err(host_error)
+        resolve_video_config(
+            self.state.video_provider_config(),
+            config_id,
+            self.state.provider_runtime().allows_host_provider_config(),
+        )
+        .await
+        .map_err(host_error)
     }
 
     fn resolve_image_transport_setting(

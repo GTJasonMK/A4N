@@ -704,8 +704,12 @@ def start_provider(
 def runtime_snapshot(
     base_url: str,
     llm_provider: str = "openai",
-    embedding_dimension: int = 8,
+    embedding_dimension: int | None = None,
 ) -> dict[str, Any]:
+    if embedding_dimension is None:
+        embedding_dimension = int(os.environ.get("A4N_E2E_EMBEDDING_DIMENSION", "8"))
+    if embedding_dimension <= 0:
+        raise RunnerError("embedding dimension 必须为正整数")
     key = "a4n-e2e-provider-key"
     llm = {
         "id": 900001,
@@ -869,8 +873,8 @@ def run_watch(
     kind = spec["kind"]
     identifier = spec["id"] if "id" in spec else first_reference(envelope, kind)
     if kind == "task":
-        attempt = int(spec.get("attempt", 1))
-        if attempt <= 0:
+        attempt = spec["attempt"] if "attempt" in spec else json_pointer(envelope, "/data/attempt")
+        if type(attempt) is not int or attempt <= 0:
             raise RunnerError("task watch attempt 必须为正整数")
         parts = ["task", "watch", str(identifier), "--attempt", str(attempt)]
     else:

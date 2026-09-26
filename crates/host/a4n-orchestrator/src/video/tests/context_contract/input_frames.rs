@@ -29,7 +29,10 @@ fn chat_video_prompt_builder_leaves_input_frames_empty_when_absent() {
     assert!(!chat_prompt.contains("\"frame_prompt\":"));
     assert!(!chat_prompt.contains("\"blocking_state\":"));
     assert!(!chat_prompt.contains("\"lighting_state\":"));
-    assert!(chat_prompt.contains("\"input_frames\": {}"));
+    let payload: Value =
+        serde_json::from_str(a4n_prompt::request::json_user_message_payload(&chat_prompt).unwrap())
+            .unwrap();
+    assert_eq!(payload["input_frames"], json!({}));
     assert!(chat_prompt.contains("\"input_frame_usage\""));
     assert!(chat_prompt.contains("current_segment_end_state"));
     assert!(chat_prompt.contains("reference_image_ids"));
@@ -170,7 +173,11 @@ fn first_frame_video_prompt_builder_uses_only_present_input_frames() {
         ))
         .expect("first-frame second segment prompt builder should render");
 
-    assert!(second_prompt.contains("\"input_frames\": {}"));
+    let payload: Value = serde_json::from_str(
+        a4n_prompt::request::json_user_message_payload(&second_prompt).unwrap(),
+    )
+    .unwrap();
+    assert_eq!(payload["input_frames"], json!({}));
     assert!(!second_prompt.contains("\"start_frame\""));
     assert!(!second_prompt.contains("\"end_frame\""));
 }

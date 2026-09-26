@@ -11,7 +11,14 @@ pub enum RuntimeProfile {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RuntimeRole {
     Host,
+    DesktopHost,
     AgentWorker,
+}
+
+impl RuntimeRole {
+    pub(crate) fn is_host(self) -> bool {
+        matches!(self, Self::Host | Self::DesktopHost)
+    }
 }
 
 impl RuntimeProfile {

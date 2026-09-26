@@ -36,21 +36,6 @@ const compactValue = (value: unknown, t: MessageTranslator): string | null => {
 const clampText = (value: string, max = 72): string =>
   value.length > max ? `${value.slice(0, max)}...` : value;
 
-export const ProfileField: React.FC<{ label: string; value: string | null }> = ({
-  label,
-  value,
-}) => {
-  const text = nonEmptyText(value);
-  if (!text) return null;
-
-  return (
-    <div className="grid grid-cols-[48px_minmax(0,1fr)] gap-2 leading-relaxed">
-      <dt className="text-book-text-muted">{label}</dt>
-      <dd className="whitespace-pre-wrap text-book-text-sub">{text}</dd>
-    </div>
-  );
-};
-
 export const AttributePreview: React.FC<{
   label: string;
   category: CharacterAttributeCategory;

@@ -14,6 +14,9 @@ pub use types::{
     ProjectDeleteDbError,
 };
 
+mod resources;
+pub(crate) use resources::{RetainedSourceResources, retained_source_resources};
+
 mod chapter_generation;
 pub(crate) use chapter_generation::delete_chapter_generation_outputs;
 

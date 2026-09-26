@@ -5,7 +5,83 @@ use a4n_db_models::models::{
     project::{source_snapshot_chapter, text_anchor},
     source_sync::{source_sync_conflict, source_sync_run},
 };
+use a4n_domain::source_sync::GALGAME_REGENERATABLE_ENTRY_KIND;
 use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QueryOrder, QuerySelect};
+use std::collections::{HashMap, HashSet};
+
+pub(in crate::source_sync) async fn galgame_scene_regeneration_targets<C>(
+    db: &C,
+    project_id: i64,
+    conflicts: &[source_sync_conflict::Model],
+) -> Result<HashMap<i64, i64>, SourceSyncDbError>
+where
+    C: ConnectionTrait,
+{
+    let candidates = conflicts
+        .iter()
+        .filter(|conflict| {
+            conflict.status == crate::source_sync::CONFLICT_STATUS_PENDING
+                && conflict.conflict_scope == "text_anchor"
+                && matches!(
+                    conflict.target_kind.as_str(),
+                    "galgame_scene" | "galgame_line"
+                )
+        })
+        .collect::<Vec<_>>();
+    if candidates.is_empty() {
+        return Ok(HashMap::new());
+    }
+    let script_id = galgame_script::Entity::find()
+        .select_only()
+        .column(galgame_script::Column::Id)
+        .filter(galgame_script::Column::ProjectId.eq(project_id))
+        .into_tuple::<i64>()
+        .one(db)
+        .await?;
+    let Some(script_id) = script_id else {
+        return Ok(HashMap::new());
+    };
+    let scene_ids = galgame_scene::Entity::find()
+        .select_only()
+        .column(galgame_scene::Column::Id)
+        .filter(galgame_scene::Column::ScriptId.eq(script_id))
+        .filter(galgame_scene::Column::EntryKind.eq(GALGAME_REGENERATABLE_ENTRY_KIND.as_str()))
+        .filter(galgame_scene::Column::ShootingSceneIdentity.is_not_null())
+        .into_tuple::<i64>()
+        .all(db)
+        .await?
+        .into_iter()
+        .collect::<HashSet<_>>();
+    let line_scenes = galgame_line::Entity::find()
+        .select_only()
+        .column(galgame_line::Column::Id)
+        .column(galgame_line::Column::SceneId)
+        .filter(
+            galgame_line::Column::Id.is_in(
+                candidates
+                    .iter()
+                    .filter(|conflict| conflict.target_kind == "galgame_line")
+                    .map(|conflict| conflict.target_id),
+            ),
+        )
+        .filter(galgame_line::Column::SceneId.is_in(scene_ids.iter().copied()))
+        .into_tuple::<(i64, i64)>()
+        .all(db)
+        .await?
+        .into_iter()
+        .collect::<HashMap<_, _>>();
+    Ok(candidates
+        .into_iter()
+        .filter_map(|conflict| {
+            let scene_id = if conflict.target_kind == "galgame_scene" {
+                scene_ids.get(&conflict.target_id)
+            } else {
+                line_scenes.get(&conflict.target_id)
+            };
+            scene_id.map(|scene_id| (conflict.id, *scene_id))
+        })
+        .collect())
+}
 
 pub async fn galgame_scene_regeneration_source_record<C>(
     db: &C,
@@ -62,7 +138,7 @@ where
         .one(db)
         .await?
         .ok_or_else(|| SourceSyncDbError::NotFound(format!("Galgame 场不存在: {scene_id}")))?;
-    if scene.entry_kind != "main" {
+    if scene.entry_kind != GALGAME_REGENERATABLE_ENTRY_KIND.as_str() {
         return Err(SourceSyncDbError::InvalidArgument(format!(
             "regenerate_scene 当前只支持 main 场，Galgame 场 {} 是 {}",
             scene.id, scene.entry_kind
@@ -92,9 +168,9 @@ where
                     scene.source_snapshot_chapter_id
                 ))
             })?;
-    if old_snapshot_chapter.snapshot_id != run.from_snapshot_id {
+    if old_snapshot_chapter.root_project_id != run.root_project_id {
         return Err(SourceSyncDbError::InvalidArgument(format!(
-            "Galgame 场 {} 的源快照章节不属于本次同步起点",
+            "Galgame 场 {} 的源快照章节不属于本次根项目",
             scene.id
         )));
     }

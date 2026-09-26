@@ -29,12 +29,8 @@ impl InspirationApplication {
         self.database.connection()
     }
 
-    async fn inspiration_messages(
-        &self,
-        project_id: i64,
-        limit: u64,
-    ) -> Result<Vec<message::Model>, AppError> {
-        a4n_db::inspiration::inspiration_messages(self.connection(), project_id, limit)
+    async fn inspiration_messages(&self, project_id: i64) -> Result<Vec<message::Model>, AppError> {
+        a4n_db::inspiration::inspiration_messages(self.connection(), project_id, None)
             .await
             .map_err(inspiration_db_error_to_app)
     }
@@ -95,11 +91,8 @@ impl OrchestratorContext {
     pub(crate) async fn inspiration_messages(
         &self,
         project_id: i64,
-        limit: u64,
     ) -> Result<Vec<message::Model>, AppError> {
-        self.inspiration
-            .inspiration_messages(project_id, limit)
-            .await
+        self.inspiration.inspiration_messages(project_id).await
     }
 
     pub(crate) async fn inspiration_project_context_rows(

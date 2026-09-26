@@ -101,14 +101,19 @@ fn final_video_context_manifest_excludes_internal_source_fields() {
         manifest
             .packs
             .iter()
-            .any(|pack| pack.pack_kind == "video_chapter_source_public"),
+            .any(|pack| pack.pack_kind == "video_chapter_source"),
         "final video context should keep public chapter source for dialogue extraction"
     );
     assert!(
-        manifest
-            .packs
-            .iter()
-            .any(|pack| pack.pack_kind == "video_prompt_rule_hashes"),
-        "final video context should keep prompt hashes for checkpoint invalidation"
+        manifest.packs[0].source_refs_json.as_ref().unwrap()["prompt_dependencies"].is_array(),
+        "模板依赖保存在非模型元数据中，仍参与断点指纹"
+    );
+    let model_content = serde_json::to_string(&manifest.packs[0].variants).unwrap();
+    assert!(!model_content.contains("sha256"));
+    assert!(!model_content.contains("analysis"));
+    assert_eq!(
+        manifest.packs[0].variants.len(),
+        1,
+        "需要正文时不能降级成 hash"
     );
 }

@@ -299,6 +299,42 @@ async function canvasInspector() {
     ? dialog : 'section[aria-label="视频画布编辑区"] > aside:last-child';
 }
 
+async function openCanvasDraft(label) {
+  await openCanvas();
+  const library = await $('button[aria-label="打开节点库"]');
+  if (await library.isDisplayed()) {
+    await library.click();
+    await $(dialog).waitForDisplayed();
+  }
+  const template = await $(`//button[@draggable and normalize-space()=${JSON.stringify(label)}]`);
+  assert.equal((await reachByWheel(template)).reached, true, "The chosen template must be reached through its real node library");
+  await template.click();
+  await browser.waitUntil(async () => (await $$(".react-flow__node")).length === 18, {
+    timeout: 2500, timeoutMsg: "The library must create exactly one local draft beside the seventeen saved nodes",
+  });
+  const selected = await $$(".react-flow__node.selected");
+  assert.equal(selected.length, 1);
+  assert.match(await selected[0].getAttribute("data-id"), /^node-/);
+  const properties = await $('button[aria-label="打开属性面板"]');
+  if (await properties.isDisplayed()) {
+    await $(dialog).waitForExist({ reverse: true });
+    await properties.click();
+    await $(dialog).waitForDisplayed();
+  }
+  await ready();
+}
+
+async function inspectCanvasDraft(kind) {
+  const scope = await canvasInspector();
+  const identity = await $(scope).$('.//details[./div/span[normalize-space()="节点类型"]]');
+  assert.equal((await reachByWheel(await identity.$("summary"))).reached, true);
+  await identity.$("summary").click();
+  assert.equal(await identity.$('.//span[normalize-space()="节点类型"]/following-sibling::span[1]').getText(), kind);
+  assert.equal(await $(scope).$('.//button[normalize-space()="查看内容"]').isExisting(), false, "An unrun draft must not claim to contain an output");
+  assert.equal(await browser.execute(() => window.__uiAudit.commands.some(command => ["save_canvas_graph", "run_canvas_node", "run_canvas_graph"].includes(command))), false);
+  return { kind, nodes: 18, saved: false, executed: false, hasSavedContent: false };
+}
+
 async function openCanvasContent(nodeId, label) {
   await openCanvas(nodeId);
   const scope = await canvasInspector();
@@ -829,6 +865,83 @@ const cases = [
     assert.equal(await lock.$('svg.lucide-lock-keyhole-open').isExisting(), true);
     return { before, zoomedIn, zoomedOut, fitted, restoredDraggable: (await viewport()).draggable };
   }, note: "检查真实 viewport 与交互状态；fit 遵守现有最小缩放，不声称窄屏能同时容纳全部节点。结束时恢复可编辑。" },
+  { id: "MX24", title: "画布文本模板属性", task: "核对6002的完整模板并修改本地文本类型", frequency: "中", open: () => openCanvas(6002), widths: canvasWidths, expected: ["模板", "文本类型"], after: async () => {
+    const scope = await canvasInspector();
+    const source = fixtures.byProject[6].get_canvas_graph.nodes.find(node => node.id === 6002);
+    const template = await $(scope).$("textarea");
+    assert.equal(await template.getValue(), source.config_json.template);
+    const edited = `${source.config_json.template}\n保持最后一镜的信封朝向。`;
+    await template.setValue(edited);
+    await selectOption(await $(scope).$('button[role="combobox"]'), "视频文本");
+    await focusTextEnd(`${scope} textarea`);
+    assert.equal(await template.getValue(), edited);
+    assert.equal(await $(scope).$('button[role="combobox"]').getText(), "视频文本");
+    assert.equal(await browser.execute(() => window.__uiAudit.commands.some(command => ["save_canvas_graph", "run_canvas_node"].includes(command))), false);
+    return { nodeId: 6002, originalTemplateMatched: true, fullDraftMatched: true, outputKind: "video_prompt", saved: false };
+  }, note: "原17节点不变；模板全文与{{input}}保留，只产生本地草稿，不生成新的运行产物。" },
+  { id: "MX25", title: "画布图片输出属性", task: "核对6004当前成图、上游输入和保存资源身份", open: () => openCanvas(6004), widths: canvasWidths, expected: ["书店首帧", "输入", "输出", "查看内容"], images: 1, after: async () => {
+    const scope = await canvasInspector();
+    const source = fixtures.byProject[6].get_canvas_graph.nodes.find(node => node.id === 6004);
+    const image = await $(scope).$("img");
+    assert.equal(await image.execute(element => element.currentSrc), source.config_json.file_path);
+    assert.equal(await image.execute(element => element.complete && element.naturalWidth > 0), true);
+    await openDetails(`${scope} details`);
+    const details = await $(scope).$("details");
+    assert((await details.getText()).includes(`generated_image #${source.ref_id}`));
+    assert((await details.getText()).includes(source.config_json.file_path));
+    assert.equal((await reachByWheel(details)).reached, true);
+    return { nodeId: 6004, imageId: source.ref_id, imageMatches: true, resourcePathMatches: true };
+  }, note: "使用6004既有60001成图，不把旁边图片探针或缩略图当成这个输出节点的证据。" },
+  { id: "MX26", title: "画布音频输入属性", task: "核对6010的63001音频引用并播放真实3秒样本", open: async () => { await openCanvas(6010); await openDetails(`${await canvasInspector()} details`); }, widths: canvasWidths, expected: ["雨声环境", "音频资源编号"], after: async (record, width) => {
+    const scope = await canvasInspector();
+    const source = fixtures.byProject[6].get_canvas_graph.nodes.find(node => node.id === 6010);
+    const reference = await $(scope).$('input[type="number"]');
+    assert.equal(Number(await reference.getValue()), source.ref_id);
+    assert.equal((await reachByWheel(reference)).reached, true);
+    await $(scope).$('.//button[normalize-space()="查看内容"]').click();
+    await browser.waitUntil(async () => (await $(`${dialog} h3`).getText()) === "雨声环境 内容");
+    const audio = `${dialog} audio`;
+    await waitForPlayable(audio);
+    assert.equal(await $(audio).execute(element => element.currentSrc), source.config_json.file_path);
+    const playback = await provePlayback(audio);
+    assert(Math.abs(playback.duration - source.config_json.duration_secs) < 0.05);
+    assert.equal(source.config_json.duration_secs, 3);
+    record.content = await capture({ id: record.id, scope: dialog }, width, "-content");
+    return { nodeId: 6010, mediaAssetId: source.ref_id, declaredDuration: 3, ...playback };
+  }, note: "沿用实际3秒WAV、精确核对引用与解码时长，不改输入时长或伪造媒体结果。" },
+  { id: "MX27", title: "画布音频输出属性", task: "核对6012的上游雨声监听和已保存音频路径", open: () => openCanvas(6012), widths: canvasWidths, expected: ["环境声输出", "雨声监听", "输出", "查看内容"], after: async () => {
+    const scope = await canvasInspector();
+    const source = fixtures.byProject[6].get_canvas_graph.nodes.find(node => node.id === 6012);
+    await openDetails(`${scope} details`);
+    const details = await $(scope).$("details");
+    assert((await details.getText()).includes(String(source.config_json.media_asset_id)));
+    assert((await details.getText()).includes(source.config_json.file_path));
+    assert.equal((await reachByWheel(details)).reached, true);
+    return { nodeId: 6012, mediaAssetId: source.config_json.media_asset_id, resourcePathMatches: true };
+  }, note: "此输出本来没有可编辑参数；保留输入连接与已保存结果，不为审查添加假参数或时长字段。" },
+  { id: "MX28", title: "画布图片输入草稿", task: "从节点库新建image_input并核对空资源引用", frequency: "中", open: async () => { await openCanvasDraft("图片输入"); await openDetails(`${await canvasInspector()} details`); }, widths: canvasWidths, expected: ["图片输入", "图片资源编号"], after: async () => {
+    const scope = await canvasInspector();
+    const field = await $(scope).$('input[type="number"]');
+    assert.equal(await field.getValue(), "");
+    assert.equal((await reachByWheel(field)).reached, true);
+    await field.click();
+    assert.doesNotMatch(await $(scope).getText(), /已关联|已绑定/, "An empty resource ID must not be reported as linked");
+    assert.doesNotMatch(await $(".react-flow__node.selected").getText(), /已绑定/, "The canvas card must agree with its missing-reference warning");
+    return inspectCanvasDraft("ImageInputNode");
+  }, note: "真实节点库创建第18个本地节点，原17节点样本保留；空引用和未运行状态不伪装成导入成功。" },
+  { id: "MX29", title: "画布视频探针草稿", task: "从节点库新建video_probe并编辑标题和显示模式", frequency: "中", open: () => openCanvasDraft("视频探针"), widths: canvasWidths, expected: ["标题", "展示模式", "尚未观察到运行结果"], after: async () => {
+    const scope = await canvasInspector();
+    const title = await $(scope).$('input[type="text"]');
+    assert.equal(await title.getValue(), "");
+    await title.setValue("中间视频核验");
+    const mode = await $(scope).$('button[role="combobox"]');
+    await selectOption(mode, "详细");
+    assert.equal(await title.getValue(), "中间视频核验");
+    assert.equal(await mode.getText(), "详细");
+    assert((await $(scope).getText()).includes("尚未观察到运行结果"));
+    return inspectCanvasDraft("VideoProbeNode");
+  }, note: "真实修改探针草稿，保留尚未运行的说明，不注入视频、缩略图或观察数据。" },
+  { id: "MX30", title: "画布文本输出草稿", task: "从节点库新建text_output并核对终点输入与未运行结果", frequency: "中", open: () => openCanvasDraft("文本输出"), widths: canvasWidths, expected: ["文本输出", "输入", "输出", "运行后在这里显示最终交付结果"], after: () => inspectCanvasDraft("TextOutputNode"), note: "实际输出节点没有额外参数；检查其真实属性与未运行提示，不复用已有文本探针充当输出。" },
   ...[["MS01", 2, "漫画"], ["MS02", 3, "视频"], ["MS03", 5, "Galgame"]].map(([id, project, label]) => ({ id, title: `${label}来源同步冲突`, task: "比较三条来源变化与当前改编，关闭前不应用决定", frequency: "低", open: () => openSourceSync(project), scope: dialog, count: [`${dialog} article`, 3], expected: ["冲突清单", "源文本变化", "当前项目", "未寄出的信"], after: inspectSourceSyncEnd, note: "typed dry_run预览；真实滚到末条冲突并补充conflicts-end截图，不为应用/解绑提供假成功mutation。" })),
 ];
 

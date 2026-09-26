@@ -1,9 +1,57 @@
 use a4n_domain::{clear_canvas_transfer_runtime_identity, source_text_hash};
-use a4n_video_contract::VideoSegmentExecutionRecipeV1;
+use a4n_video_contract::{
+    VideoSegmentExecutionRecipeV1, VideoSegmentPlanV2, video_segment_content_fingerprint,
+};
 use serde_json::Value;
 
 use super::{json_object, remap_object_id, remap_profile_source_id};
 use crate::project::family::import::{ImportIdMaps, ProjectFamilyImportError, map_required};
+
+/// 先记录资源 ID 重映射前后的内容身份，再更新规划、提示词和媒体的引用。
+/// 只替换能在导入包中证明来源的指纹，过时产物不能借导入变成当前产物。
+pub(in crate::project::family::import) fn collect_video_plan_fingerprints(
+    metadata: &Value,
+    maps: &mut ImportIdMaps,
+) -> Result<(), ProjectFamilyImportError> {
+    let segments = a4n_video_contract::video_segment_plan_from_metadata(metadata)
+        .map_err(ProjectFamilyImportError::invalid_package)?;
+    a4n_video_contract::validate_video_segment_plan_identity(
+        &metadata["video_execution_identity"],
+        &segments,
+    )
+    .map_err(ProjectFamilyImportError::invalid_package)?;
+    for segment in segments {
+        let before = video_segment_content_fingerprint(&segment)
+            .map_err(ProjectFamilyImportError::invalid_package)?;
+        let mut value = serde_json::to_value(segment)
+            .map_err(|error| ProjectFamilyImportError::invalid_package(error.to_string()))?;
+        remap_reference_image_object(Some(&mut value), maps, "视频规划片段")?;
+        let remapped: VideoSegmentPlanV2 = serde_json::from_value(value)
+            .map_err(|error| ProjectFamilyImportError::invalid_package(error.to_string()))?;
+        let after = video_segment_content_fingerprint(&remapped)
+            .map_err(ProjectFamilyImportError::invalid_package)?;
+        maps.video_segment_fingerprints.insert(before, after);
+    }
+    for recipe in a4n_video_contract::video_segment_recipes_from_metadata(Some(metadata))
+        .map_err(ProjectFamilyImportError::invalid_package)?
+    {
+        let mut value = serde_json::to_value(&recipe)
+            .map_err(|error| ProjectFamilyImportError::invalid_package(error.to_string()))?;
+        remap_segment_recipe(Some(&mut value), maps, "视频规划执行方案")?;
+        let remapped: VideoSegmentExecutionRecipeV1 = serde_json::from_value(value)
+            .map_err(|error| ProjectFamilyImportError::invalid_package(error.to_string()))?;
+        for fingerprint in [
+            VideoSegmentExecutionRecipeV1::generation_fingerprint,
+            VideoSegmentExecutionRecipeV1::frame_generation_fingerprint,
+        ] {
+            maps.video_recipe_fingerprints.insert(
+                fingerprint(&recipe).map_err(ProjectFamilyImportError::invalid_package)?,
+                fingerprint(&remapped).map_err(ProjectFamilyImportError::invalid_package)?,
+            );
+        }
+    }
+    Ok(())
+}
 
 pub(in crate::project::family::import) fn remap_chapter_video_reference_image_ids(
     value: Option<&Value>,
@@ -224,6 +272,29 @@ fn remap_video_execution_identity(
         available_assets_sha256,
         "视频 metadata_json.video_execution_identity.generation_asset_fingerprint",
     )?;
+    let remap_fingerprint =
+        |value: &mut Value, replacements: &std::collections::HashMap<String, String>| {
+            if let Some(mapped) = value.as_str().and_then(|hash| replacements.get(hash)) {
+                *value = Value::String(mapped.clone());
+            }
+        };
+    if let Some(value) = object.get_mut("segment_sha256") {
+        remap_fingerprint(value, &maps.video_segment_fingerprints);
+    }
+    if let Some(value) = object.get_mut("segment_recipe_fingerprint") {
+        remap_fingerprint(value, &maps.video_recipe_fingerprints);
+    }
+    if let Some(identities) = object.get_mut("segment_identities") {
+        for identity in identities
+            .as_array_mut()
+            .ok_or_else(|| ProjectFamilyImportError::invalid_package("片段执行身份必须是数组"))?
+        {
+            let fingerprint = identity.get_mut("segment_sha256").ok_or_else(|| {
+                ProjectFamilyImportError::invalid_package("片段执行身份缺少 segment_sha256")
+            })?;
+            remap_fingerprint(fingerprint, &maps.video_segment_fingerprints);
+        }
+    }
     let Some(identity) = object.get_mut("shooting_script_identity") else {
         return Ok(());
     };
@@ -240,6 +311,27 @@ fn remap_video_execution_identity(
                 "视频 shooting_script_identity.record_id 缺失或不是整数",
             )
         })?;
+    {
+        let fingerprints = identity
+            .get_mut("shot_fingerprints")
+            .and_then(Value::as_object_mut)
+            .ok_or_else(|| {
+                ProjectFamilyImportError::invalid_package("视频镜头来源指纹必须是对象")
+            })?;
+        let remapped = maps
+            .shooting_script_shot_fingerprints
+            .get(&old_id)
+            .ok_or_else(|| {
+                ProjectFamilyImportError::invalid_package("视频引用的拍摄剧本尚未完成资源重映射")
+            })?;
+        for (shot_id, fingerprint) in fingerprints {
+            if let Some((old, new)) = remapped.get(shot_id)
+                && fingerprint.as_str() == Some(old.as_str())
+            {
+                *fingerprint = Value::String(new.clone());
+            }
+        }
+    }
     identity.insert(
         "record_id".to_string(),
         Value::from(map_required(

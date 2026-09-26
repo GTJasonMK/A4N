@@ -100,8 +100,10 @@ async fn llm_connectivity_uses_probe_without_chat_fallback() {
 
 #[tokio::test]
 async fn prepared_agent_request_is_stable_when_chat_preparation_runs_again() {
-    let facade =
-        crate::provider_runtime::DynamicProviderFacade::new(Arc::new(TestProviderPort::default()));
+    let facade = crate::provider_runtime::DynamicProviderFacade::new(
+        Arc::new(TestProviderPort::default()),
+        crate::RuntimeRole::Host,
+    );
     let provider = DynamicLlmProvider::new(facade);
     let mut request = test_chat_request();
     request.trace_context = Some(LlmTraceContext {
@@ -152,8 +154,10 @@ async fn prepared_agent_request_is_stable_when_chat_preparation_runs_again() {
 
 #[tokio::test]
 async fn already_prepared_requests_still_apply_provider_cache_capabilities() {
-    let facade =
-        crate::provider_runtime::DynamicProviderFacade::new(Arc::new(TestProviderPort::default()));
+    let facade = crate::provider_runtime::DynamicProviderFacade::new(
+        Arc::new(TestProviderPort::default()),
+        crate::RuntimeRole::Host,
+    );
     let provider = DynamicLlmProvider::new(facade);
     let mut config = test_llm_model();
     config.model = "gpt-6-luna".into();
@@ -290,7 +294,7 @@ async fn sidecar_chat_keeps_incremental_tool_calls_and_tail_usage() {
 
     let port = Arc::new(TestProviderPort::default());
     let provider = DynamicLlmProvider::new_with_sidecar_client(
-        crate::provider_runtime::DynamicProviderFacade::new(port.clone()),
+        crate::provider_runtime::DynamicProviderFacade::new(port.clone(), crate::RuntimeRole::Host),
         Arc::new(ToolStreamClient),
     );
     let response = provider
@@ -325,6 +329,7 @@ async fn remote_identity_without_snapshot_never_resolves_server_credentials() {
     let port = Arc::new(TestProviderPort::default());
     let provider = DynamicLlmProvider::new(crate::provider_runtime::DynamicProviderFacade::new(
         port.clone(),
+        crate::RuntimeRole::Host,
     ));
     let result = crate::runtime_config::request_scope(
         7,
@@ -340,11 +345,58 @@ async fn remote_identity_without_snapshot_never_resolves_server_credentials() {
 }
 
 #[tokio::test]
+async fn desktop_host_uses_its_persisted_model_for_authenticated_native_requests() {
+    let port = Arc::new(TestProviderPort::default());
+    let provider = DynamicLlmProvider::new(crate::provider_runtime::DynamicProviderFacade::new(
+        port.clone(),
+        crate::RuntimeRole::DesktopHost,
+    ));
+    crate::runtime_config::request_scope(7, None, async {
+        provider.capabilities_for_config_id(None).await.unwrap();
+        provider.capabilities_for_config_id(Some(1)).await.unwrap();
+    })
+    .await;
+    assert_eq!(
+        port.resolutions.load(std::sync::atomic::Ordering::SeqCst),
+        2
+    );
+}
+
+#[tokio::test]
+async fn client_claiming_local_tauri_cannot_enable_host_credentials_on_http_host() {
+    let port = Arc::new(TestProviderPort::default());
+    let provider = DynamicLlmProvider::new(crate::provider_runtime::DynamicProviderFacade::new(
+        port.clone(),
+        crate::RuntimeRole::Host,
+    ));
+    let snapshot = serde_json::from_value(json!({
+        "schema_version": 2,
+        "client_context": {
+            "frontend_kind": "tauri",
+            "backend_kind": "local_tauri",
+            "execution_location": "local"
+        }
+    }))
+    .unwrap();
+    let result = crate::runtime_config::request_scope(
+        7,
+        Some(snapshot),
+        provider.capabilities_for_config_id(None),
+    )
+    .await;
+    assert!(result.is_err());
+    assert_eq!(
+        port.resolutions.load(std::sync::atomic::Ordering::SeqCst),
+        0
+    );
+}
+
+#[tokio::test]
 async fn queue_cancellation_ends_a_sidecar_stream_as_cancelled() {
     use futures::StreamExt;
     let port = Arc::new(TestProviderPort::default());
     let provider = DynamicLlmProvider::new_with_sidecar_client(
-        crate::provider_runtime::DynamicProviderFacade::new(port.clone()),
+        crate::provider_runtime::DynamicProviderFacade::new(port.clone(), crate::RuntimeRole::Host),
         Arc::new(RecordingLlmClient::new(successful_probe_response())),
     );
     let mut request = test_chat_request();

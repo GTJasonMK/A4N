@@ -4,10 +4,6 @@ use a4n_api_contract::{
     chapter::{ChapterSceneProgressReporter, ChapterSceneSummary, GenerateChapterSceneInput},
     import_reverse::{ReverseEngineerInput, ReverseEngineeringCandidate},
     import_review::ImportReviewSummary,
-    shooting_script::{
-        ChapterShootingScriptUnitProgressView, ChapterShootingScriptView,
-        GenerateChapterShootingScriptInput,
-    },
 };
 use a4n_domain::import_review::ImportChapterDraft;
 use a4n_error::AppError;
@@ -15,7 +11,6 @@ use a4n_llm_provider_contract::provider::ChatRequest;
 use a4n_prompt_contract::rendering::PromptRenderer;
 use async_trait::async_trait;
 use std::{future::Future, pin::Pin};
-use tokio_util::sync::CancellationToken;
 
 #[derive(Debug)]
 pub struct ChapterSceneRequestPreview {
@@ -48,35 +43,23 @@ pub trait ChapterSceneGenerationApplicationPort: Send + Sync {
     ) -> Result<ChapterSceneSummary, AppError>;
 }
 
-pub const CHAPTER_SHOOTING_SCRIPT_PROGRESS_TOTAL: u32 = 100;
-pub type ShootingScriptProgressReporter<'a> =
-    &'a (dyn Fn(u32, u32, &str) -> Result<(), AppError> + Send + Sync);
-pub type ShootingScriptStreamReporter<'a> = &'a (dyn Fn(&str) + Send + Sync);
-
 #[async_trait]
-pub trait ShootingScriptFullGenerationApplicationPort: Send + Sync {
-    async fn generate(
+pub trait ShootingScriptGenerationApplicationPort: Send + Sync {
+    async fn start(
         &self,
         user_id: i64,
-        input: GenerateChapterShootingScriptInput,
-        progress: ShootingScriptProgressReporter<'_>,
-        stream_reporter: Option<ShootingScriptStreamReporter<'_>>,
-        cancel_token: Option<&CancellationToken>,
-        active_task_id: Option<&str>,
-    ) -> Result<ChapterShootingScriptView, AppError>;
-}
+        input: &a4n_api_contract::shooting_script::StartChapterShootingScriptGenerationInput,
+    ) -> Result<
+        a4n_api_contract::generation_tasks::GenerationTaskStart,
+        a4n_api_contract::generation_tasks::GenerationTaskStartError,
+    >;
 
-#[async_trait]
-pub trait ShootingScriptNextUnitGenerationApplicationPort: Send + Sync {
-    async fn generate_next(
+    async fn run(
         &self,
         user_id: i64,
-        input: GenerateChapterShootingScriptInput,
-        progress: ShootingScriptProgressReporter<'_>,
-        stream_reporter: Option<ShootingScriptStreamReporter<'_>>,
-        cancel_token: Option<&CancellationToken>,
-        active_task_id: Option<&str>,
-    ) -> Result<ChapterShootingScriptUnitProgressView, AppError>;
+        input: a4n_api_contract::shooting_script::StartChapterShootingScriptGenerationInput,
+        handle: a4n_api_contract::generation_tasks::GenerationTaskHandle,
+    ) -> Result<(), String>;
 }
 
 #[async_trait]

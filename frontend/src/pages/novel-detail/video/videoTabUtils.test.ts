@@ -418,9 +418,6 @@ describe("video execution generation chain", () => {
   const identity = {
     contract_epoch: 5,
     shooting_script_identity: "script-1",
-    projection_sha256: "projection-1",
-    segment_plan_sha256: "plan-1",
-    unit_plan_sha256: "unit-1",
     source_content_sha256: "source-1",
     style_sha256: "style-1",
     duration_secs: 6,
@@ -657,9 +654,6 @@ describe("video execution generation chain", () => {
     const expandedPlan: ChapterVideoPrompt = {
       ...prompt(40, "frame_segment_plan", "shared_segment_plan", {
         ...identity,
-        projection_sha256: "expanded-projection",
-        segment_plan_sha256: "expanded-plan",
-        unit_plan_sha256: "expanded-units",
         segment_identities: [
           {
             source_shot_id: "shot-1",
@@ -684,9 +678,6 @@ describe("video execution generation chain", () => {
         ],
         video_execution_identity: {
           ...identity,
-          projection_sha256: "expanded-projection",
-          segment_plan_sha256: "expanded-plan",
-          unit_plan_sha256: "expanded-units",
           segment_identities: [
             {
               source_shot_id: "shot-1",
@@ -743,6 +734,10 @@ describe("video execution generation chain", () => {
         "recipe-2",
       ),
     ).toBe(true);
+    expandedPlan.metadata_json = { ...expandedPlan.metadata_json as Record<string, unknown>, stale_source_shot_ids: ["shot-1"] };
+    expect(videoExecutionSegmentIdentityMatchesVideo(existingVideo, expandedPlan, 2, "recipe-2")).toBe(true);
+    expandedPlan.metadata_json = { ...expandedPlan.metadata_json as Record<string, unknown>, stale_source_shot_ids: ["shot-2"] };
+    expect(videoExecutionSegmentIdentityMatchesVideo(existingVideo, expandedPlan, 2, "recipe-2")).toBe(false);
   });
 });
 
@@ -771,9 +766,6 @@ describe("segment cards and recipes", () => {
       video_execution_identity: {
         contract_epoch: 5,
         shooting_script_identity: "script-1",
-        projection_sha256: "projection-1",
-        segment_plan_sha256: "plan-1",
-        unit_plan_sha256: "unit-1",
         source_content_sha256: "source-current",
         style_sha256: "style-1",
         duration_secs: 6,

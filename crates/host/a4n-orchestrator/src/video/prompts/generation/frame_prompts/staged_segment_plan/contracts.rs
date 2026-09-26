@@ -35,8 +35,6 @@ pub(in crate::video::prompts::generation::frame_prompts) struct StagedSegmentPla
     pub(in crate::video::prompts::generation::frame_prompts) source_metadata: &'a Value,
     pub(in crate::video::prompts::generation::frame_prompts) source_spans: &'a [SourceSpan],
     pub(in crate::video::prompts::generation::frame_prompts) project_context: Option<&'a Value>,
-    pub(in crate::video::prompts::generation::frame_prompts) shooting_script_projection_json:
-        &'a Value,
     pub(in crate::video::prompts::generation::frame_prompts) shooting_script_projection:
         &'a VideoShootingScriptProjection,
     pub(in crate::video::prompts::generation::frame_prompts) source_shot_order: &'a [String],
@@ -49,6 +47,8 @@ pub(in crate::video::prompts::generation::frame_prompts) struct StagedSegmentPla
     pub(in crate::video::prompts::generation::frame_prompts) previous_segment_recipes:
         Option<&'a [VideoSegmentExecutionRecipeV1]>,
     pub(in crate::video::prompts::generation::frame_prompts) reuse_published_shots: bool,
+    pub(in crate::video::prompts::generation::frame_prompts) previous_script_identity:
+        Option<&'a a4n_video_contract::VideoShootingScriptIdentityV1>,
     pub(in crate::video::prompts::generation::frame_prompts) duration_secs: i32,
     pub(in crate::video::prompts::generation::frame_prompts) context: &'a str,
     pub(in crate::video::prompts::generation::frame_prompts) progress_message: &'a str,
@@ -61,16 +61,6 @@ pub(in crate::video::prompts::generation::frame_prompts) struct StagedSegmentPla
         &'a mut Option<VideoPromptChunk<'chunk>>,
 }
 
-pub(super) struct CompletedSegmentPlanRecoveryInput<'a, 'progress> {
-    pub(super) service: &'a OrchestratorContext,
-    pub(super) workflow_run_id: i64,
-    pub(super) fingerprint_json: &'a Value,
-    pub(super) shooting_script_projection: &'a VideoShootingScriptProjection,
-    pub(super) progress_message: &'a str,
-    pub(super) progress_span: ProgressSpan,
-    pub(super) progress: &'a mut Option<VideoPromptProgress<'progress>>,
-}
-
 pub(super) struct RenderedSegmentPlanShots {
     pub(super) segment_inputs: Vec<Value>,
     pub(super) stage_outputs: Vec<Value>,
@@ -81,7 +71,6 @@ pub(super) struct RenderedSegmentPlanShots {
 pub(super) struct FinalizeStagedSegmentPlanInput<'a> {
     pub(super) service: &'a OrchestratorContext,
     pub(super) workflow_run_id: i64,
-    pub(super) fingerprint_json: Value,
     pub(super) source_spans: &'a [SourceSpan],
     pub(super) shooting_script_projection: &'a VideoShootingScriptProjection,
     pub(super) duration_secs: i32,

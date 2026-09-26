@@ -5,6 +5,7 @@ pub(super) fn validate_galgame_lines(
     package: &ProjectFamilyPackage,
     scripts: &HashMap<i64, &galgame_script::Model>,
     scenes: &HashMap<i64, &galgame_scene::Model>,
+    snapshot_chapters: &HashMap<i64, &source_snapshot_chapter::Model>,
     text_anchors: &HashMap<i64, &text_anchor::Model>,
     character_profile_ids: &HashSet<i64>,
 ) -> Result<(), String> {
@@ -38,7 +39,16 @@ pub(super) fn validate_galgame_lines(
                     line.id, scene.id, scene.script_id
                 )
             })?;
-            if anchor.source_snapshot_id != Some(script.source_snapshot_id)
+            let chapter = snapshot_chapters
+                .get(&scene.source_snapshot_chapter_id)
+                .ok_or_else(|| {
+                    format!(
+                        "项目族导入包 Galgame 场源快照章节不存在: scene_id={}",
+                        scene.id
+                    )
+                })?;
+            if anchor.project_id != script.root_project_id
+                || anchor.source_snapshot_id != Some(chapter.snapshot_id)
                 || anchor.source_snapshot_chapter_id != Some(scene.source_snapshot_chapter_id)
             {
                 return Err(format!(

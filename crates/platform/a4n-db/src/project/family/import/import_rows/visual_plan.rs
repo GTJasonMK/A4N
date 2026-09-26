@@ -201,6 +201,34 @@ pub(super) async fn remap_visual_plan_resources(
         let mut script: ChapterShootingScriptV1 =
             serde_json::from_value(original.script_json.clone())
                 .map_err(|error| ProjectFamilyImportError::invalid_package(error.to_string()))?;
+        let director = original
+            .visual_plan_id
+            .map(|id| {
+                let record = package
+                    .chapter_visual_plans
+                    .iter()
+                    .find(|plan| plan.id == id)
+                    .ok_or_else(|| {
+                        ProjectFamilyImportError::invalid_package(
+                            "拍摄剧本引用的导演编排不在导入包中",
+                        )
+                    })?;
+                let plan: ChapterVisualPlanV3 = serde_json::from_value(record.plan_json.clone())
+                    .map_err(|error| {
+                        ProjectFamilyImportError::invalid_package(error.to_string())
+                    })?;
+                a4n_domain::shooting_script::project_visual_plan_for_shooting_script(&plan, &[])
+                    .map_err(|error| ProjectFamilyImportError::invalid_package(error.to_string()))
+            })
+            .transpose()?;
+        let fingerprints = |script: &ChapterShootingScriptV1| match &director {
+            Some(director) => script
+                .shot_content_fingerprints(director)
+                .map_err(|error| ProjectFamilyImportError::invalid_package(error.to_string())),
+            // 历史未绑定剧本保留原数据，但不能为它证明可执行的视频来源。
+            None => Ok(Default::default()),
+        };
+        let original_shots = fingerprints(&script)?;
         for shot in script.scenes.iter_mut().flat_map(|scene| &mut scene.shots) {
             if let Some(constraints) = &mut shot.visual_constraints {
                 constraints
@@ -224,6 +252,20 @@ pub(super) async fn remap_visual_plan_resources(
             maps,
             "拍摄剧本导演来源",
         )?;
+        let remapped_shots = fingerprints(&script)?;
+        maps.shooting_script_shot_fingerprints.insert(
+            original.id,
+            original_shots
+                .into_iter()
+                .map(|(id, hash)| {
+                    let remapped = remapped_shots
+                        .get(&id)
+                        .expect("resource remapping preserves shot IDs")
+                        .clone();
+                    (id, (hash, remapped))
+                })
+                .collect(),
+        );
         let (json, hash) =
             crate::project::family::import::remap_shooting_script_visual_plan_source(
                 &serde_json::to_value(&script).map_err(|error| {

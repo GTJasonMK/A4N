@@ -142,7 +142,7 @@ const deletedImageIds = () =>
   browser.execute(() =>
     window.__A4N_VIDEO_MODE_E2E__.calls
       .filter((call) => call.command === "delete_image")
-      .map((call) => call.args.imageId),
+      .map((call) => call.args.input.image_id),
   );
 
 const draftRecipeUpdates = () =>
@@ -420,7 +420,7 @@ describe("video segment mode switching in Chromium", () => {
     assert.equal(await prompt.getValue(), "storyboard", "Read-only prompts must reject typing while an image exists");
     assert.equal(
       await frameDialog
-        .$('.//button[normalize-space()="导入图片"]')
+        .$('.//button[normalize-space()="导入 图片"]')
         .isEnabled(),
       false,
     );
@@ -438,16 +438,30 @@ describe("video segment mode switching in Chromium", () => {
     assert.equal((await framePromptMutations()).length, 0);
     await frameMenuItem(lockedMenu.menu, "删除分镜板图片").click();
     const deleteDialog = await $(
-      '//div[@role="dialog" and .//h3[normalize-space()="删除图片"]]',
+      '//div[@role="dialog" and .//h3[normalize-space()="删除素材图"]]',
     );
-    await deleteDialog.waitForExist();
+    await deleteDialog.waitForDisplayed();
+    await browser.waitUntil(async () => (await deleteDialog.getText()).includes("相关视频参考图会同步解除关联"), {
+      timeout: 2500, timeoutMsg: "The deletion confirmation must visibly explain the reference unlinking before confirmation",
+    });
+    assert.match(await deleteDialog.getText(), /相关视频参考图会同步解除关联/);
+    assert.deepEqual(await deletedImageIds(), [], "Opening the confirmation must not delete the image");
     await deleteDialog.$('.//button[normalize-space()="删除"]').click();
     await browser.waitUntil(async () => (await deletedImageIds()).length === 1);
+    assert.deepEqual(await deletedImageIds(), [179]);
     await deleteDialog.waitForExist({ reverse: true });
     await frameDialog.waitForExist();
-    await browser.waitUntil(async () => (await prompt.getProperty("readOnly")) === false);
+    try {
+      await browser.waitUntil(async () => (await prompt.getProperty("readOnly")) === false);
+    } catch (error) {
+      const state = await browser.execute(() => ({
+        commands: window.__A4N_VIDEO_MODE_E2E__.calls.map(call => call.command),
+        readOnly: document.querySelector('textarea[aria-label="分镜板图片提示词"]')?.readOnly,
+        alerts: [...document.querySelectorAll('[role="alert"]')].map(element => element.textContent),
+      }));
+      assert.fail(`Deleting image 179 did not unlock its saved prompt: ${error.message}; ${JSON.stringify(state)}`);
+    }
     assert.equal(await prompt.isEnabled(), true);
-    assert.deepEqual(await deletedImageIds(), [179]);
     const unlockedMenu = await openFrameMenu(frameDialog);
     assert.equal(
       await frameMenuItem(unlockedMenu.menu, "删除分镜板图片").isExisting(),
@@ -500,7 +514,7 @@ describe("video segment mode switching in Chromium", () => {
       async () => (await framePromptMutations()).length === 2,
     );
     await browser.waitUntil(async () =>
-      (await progressDialog.getText()).includes("提示词优化完成"),
+      (await progressDialog.getText()).includes("任务已完成"),
     );
     await progressDialog.$('.//button[normalize-space()="关闭"]').click();
     await progressDialog.waitForExist({ reverse: true });
@@ -508,9 +522,9 @@ describe("video segment mode switching in Chromium", () => {
       (await framePromptMutations())[1].args.input.instruction,
       "强化画面层次",
     );
-    await browser.waitUntil(async () =>
-      (await prompt.getValue()).includes("优化要求：强化画面层次"),
-    );
+    const optimized = `${edited}\n优化要求：强化画面层次`;
+    await browser.waitUntil(async () => (await prompt.getValue()) === optimized);
+    assert.equal(await prompt.getValue(), optimized, "Optimization must preserve the complete saved prompt and append the requested refinement");
   });
 
   it("confirms dirty prompt edits before closing and discards them only after confirmation", async () => {
@@ -753,10 +767,13 @@ describe("video segment mode switching in Chromium", () => {
   it("retains a saved segment after cancellation and resumes from the next shot", async () => {
     await browser.url("/e2e/video-mode-switch/?scenario=cancel-resume");
 
+    const planning = await $('section[aria-label="视频片段规划"]');
+    await planning.waitForExist();
     const generate = await $(
       '//button[contains(normalize-space(), "规划此场景")]',
     );
     await generate.waitForEnabled();
+    await revealByWheel(generate);
     await generate.click();
 
     const savedSegment = await $('//*[normalize-space()="片段 1"]');
@@ -773,6 +790,8 @@ describe("video segment mode switching in Chromium", () => {
     await resume.waitForEnabled();
     assert.match(await $("body").getText(), /50%.*已保存镜头 1.*1\/2 个镜头/s);
     assert.equal(await $('//*[normalize-space()="片段 1"]').isExisting(), true);
+    assert.equal((await planning.$$("ol > li")).length, 1);
+    assert.equal(await planning.$("ol > li p").getText(), "镜头 1 的已保存片段");
 
     const videoTab = await $(
       '//button[@role="tab" and normalize-space()="片段生成"]',
@@ -780,19 +799,18 @@ describe("video segment mode switching in Chromium", () => {
     await videoTab.waitForClickable();
     await videoTab.click();
     await browser.waitUntil(async () => (await videoTab.getAttribute("aria-selected")) === "true");
-    const { group: firstGroup } = await openSegmentConfig(1);
-    await firstGroup.$('.//button[normalize-space()="分镜"]').click();
-    await browser.waitUntil(
-      async () => (await draftRecipeUpdates()).length === 1,
-    );
-    assert.deepEqual(await draftRecipeUpdates(), ["storyboard"]);
-    assert.match(await segmentHeaderText(1), /分镜生成/);
-    await closeSegmentConfig(1);
+    await $('section[aria-label="视频结果"]').waitForExist();
+    // Cancelled drafts remain on the planning page until resumed or published.
+    assert.equal(await pageSegmentButton(1).isExisting(), false);
+    assert.deepEqual(await draftRecipeUpdates(), []);
 
     const planningTab = await $(
       '//button[@role="tab" and normalize-space()="片段规划"]',
     );
     await planningTab.click();
+    await browser.waitUntil(async () => (await planningTab.getAttribute("aria-selected")) === "true");
+    await planning.waitForExist();
+    assert.equal(await planning.$("ol > li p").getText(), "镜头 1 的已保存片段");
     resume = await $('//button[contains(normalize-space(), "继续生成")]');
     await resume.waitForExist();
 
@@ -803,9 +821,12 @@ describe("video segment mode switching in Chromium", () => {
     const configuration = await $(
       '//summary[contains(normalize-space(), "规划配置")]',
     );
+    await revealByWheel(configuration);
     await configuration.click();
     const style = await $('textarea[placeholder*="整体风格"]');
+    await revealByWheel(style);
     await style.setValue("不应进入恢复请求的当前表单风格");
+    await revealByWheel(resume);
     await resume.click();
 
     await browser.waitUntil(
@@ -831,6 +852,14 @@ describe("video segment mode switching in Chromium", () => {
     resume = await $('//button[contains(normalize-space(), "继续生成")]');
     await resume.waitForEnabled();
     assert.equal(await $('//*[normalize-space()="片段 1"]').isExisting(), true);
+    assert.equal((await planning.$$("ol > li")).length, 1);
+    assert.equal(await planning.$("ol > li p").getText(), "镜头 1 的已保存片段");
+    assert.deepEqual(await browser.execute(() => window.__A4N_VIDEO_MODE_E2E__.calls
+      .filter((call) => call.command === "cancel_generation_task")
+      .map((call) => call.args.input.task_id)), [
+      "00000000-0000-4000-8000-000000000001",
+      "00000000-0000-4000-8000-000000000002",
+    ]);
   });
 
   it("keeps published planning content visible while normal planning runs", async () => {

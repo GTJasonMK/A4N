@@ -29,8 +29,8 @@ impl OrchestratorContext {
         structured_progress: StructuredLlmProgress,
         progress_total: u32,
         progress: ShootingScriptProgressReporter<'_>,
-        stream_reporter: Option<super::super::contracts::ShootingScriptStreamReporter<'_>>,
-        cancel_token: Option<&CancellationToken>,
+        stream_reporter: super::super::contracts::ShootingScriptStreamReporter<'_>,
+        cancel_token: &CancellationToken,
     ) -> Result<RawCallResult, AppError> {
         self.mark_workflow_current_step(workflow_run_id, call_key)
             .await?;
@@ -47,14 +47,9 @@ impl OrchestratorContext {
         }
 
         let truncated_message = format!("{label}输出达到 max_tokens 上限，JSON 未完整闭合");
-        // 活体信号与字段级里程碑取自同一个 token 流，二者互补而非替代。
-        let mut streamed = String::new();
-        let mut stream_sink = stream_reporter.map(|reporter| {
-            move |delta: &str| {
-                streamed.push_str(delta);
-                reporter(&streamed);
-            }
-        });
+        // 保持 provider 的增量流；场景/调用之间仅插入分隔，避免反复复制累计文本。
+        stream_reporter("\n");
+        let mut stream_sink = |delta: &str| stream_reporter(delta);
         let result = self
             .chat_json_stream_result_with_sink(
                 ChatJsonStreamInput {
@@ -62,19 +57,17 @@ impl OrchestratorContext {
                     prompt_name: call_key,
                     truncated_message: &truncated_message,
                     structured_progress: Some(structured_progress),
-                    cancel_token,
+                    cancel_token: Some(cancel_token),
                     cancelled_message: "拍摄剧本生成已停止",
                 },
                 |current, message| {
                     progress(current, progress_total, message).map_err(|error| error.to_string())
                 },
-                stream_sink
-                    .as_mut()
-                    .map(|sink| sink as &mut (dyn FnMut(&str) + Send)),
+                Some(&mut stream_sink),
             )
             .await
             .map_err(|error| {
-                if cancel_token.is_some_and(CancellationToken::is_cancelled) {
+                if cancel_token.is_cancelled() {
                     AppError::Cancelled
                 } else {
                     AppError::LlmError(error)

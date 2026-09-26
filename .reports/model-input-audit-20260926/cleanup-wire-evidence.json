@@ -1,0 +1,9 @@
+{
+  "inspiration_calls": 41,
+  "append_only_prefix_checks": 39,
+  "blueprint_refinement_calls": 2,
+  "complete_history_messages_in_refinement": 82,
+  "first_constraint_occurs_once": true,
+  "stable_inspiration_prefix_utf8_bytes": 24538,
+  "provider_usage_is_synthetic": true
+}

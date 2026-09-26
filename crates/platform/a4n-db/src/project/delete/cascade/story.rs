@@ -7,7 +7,8 @@ use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter};
 
 use crate::project as project_db;
 use crate::project::delete::{
-    GeneratedImageDeleteScope, ProjectDeleteDbError, delete_chapter_generation_outputs,
+    GeneratedImageDeleteScope, ProjectDeleteDbError, RetainedSourceResources,
+    delete_chapter_generation_outputs,
 };
 
 pub(super) async fn delete_project_story_data<C>(
@@ -17,7 +18,13 @@ pub(super) async fn delete_project_story_data<C>(
 where
     C: ConnectionTrait,
 {
-    delete_chapter_generation_outputs(db, project_id, GeneratedImageDeleteScope::Project).await?;
+    delete_chapter_generation_outputs(
+        db,
+        project_id,
+        GeneratedImageDeleteScope::Project,
+        &RetainedSourceResources::default(),
+    )
+    .await?;
     chapter::Entity::delete_many()
         .filter(chapter::Column::ProjectId.eq(project_id))
         .exec(db)

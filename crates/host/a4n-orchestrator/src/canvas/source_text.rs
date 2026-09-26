@@ -21,12 +21,12 @@ pub(crate) fn collect_canvas_text_source_context(
 ) -> Result<CanvasTextSourceContext, String> {
     let mut source_parts = Vec::new();
     let mut source_node_ids = Vec::new();
-    let mut canvas_text_asset_id = source_canvas_text_asset_id(node);
+    let mut canvas_text_asset_id = source_canvas_text_asset_id(node)?;
 
     for edge in incoming_edges(document, node.id) {
         let source = source_node(document, edge.source_node_id)?;
         source_node_ids.push(source.id);
-        if let Some(asset_id) = source_canvas_text_asset_id(source)
+        if let Some(asset_id) = source_canvas_text_asset_id(source)?
             && canvas_text_asset_id.is_none()
         {
             canvas_text_asset_id = Some(asset_id);
@@ -63,7 +63,7 @@ pub(crate) fn source_text_value(
             .filter(|value| !value.is_empty())
             .map(str::to_string));
     }
-    if let Some(asset_id) = source_canvas_text_asset_id(node)
+    if let Some(asset_id) = source_canvas_text_asset_id(node)?
         && let Some(asset) = document
             .text_assets
             .iter()
@@ -79,22 +79,29 @@ pub(crate) fn source_text_value(
 pub(crate) fn first_canvas_text_asset_id(
     node: &canvas_node::Model,
     document: &CanvasGraphRecordDocument,
-) -> Option<i64> {
-    source_canvas_text_asset_id(node).or_else(|| {
-        incoming_edges(document, node.id)
-            .into_iter()
-            .find_map(|edge| {
-                source_node(document, edge.source_node_id)
-                    .ok()
-                    .and_then(source_canvas_text_asset_id)
-            })
-    })
+) -> Result<Option<i64>, String> {
+    if let Some(id) = source_canvas_text_asset_id(node)? {
+        return Ok(Some(id));
+    }
+    for edge in incoming_edges(document, node.id) {
+        if let Some(id) = source_canvas_text_asset_id(source_node(document, edge.source_node_id)?)?
+        {
+            return Ok(Some(id));
+        }
+    }
+    Ok(None)
 }
 
-pub(crate) fn source_canvas_text_asset_id(node: &canvas_node::Model) -> Option<i64> {
-    node.ref_type
+pub(crate) fn source_canvas_text_asset_id(
+    node: &canvas_node::Model,
+) -> Result<Option<i64>, String> {
+    if let Some(id) = node
+        .ref_type
         .as_deref()
         .filter(|value| *value == CanvasNodeRefKind::CanvasTextAsset.as_str())
         .and(node.ref_id)
-        .or_else(|| canvas_config_i64(&node.config_json, "canvas_text_asset_id"))
+    {
+        return Ok(Some(id));
+    }
+    canvas_config_i64(&node.config_json, "canvas_text_asset_id")
 }

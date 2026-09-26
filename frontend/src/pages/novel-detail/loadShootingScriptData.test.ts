@@ -20,7 +20,6 @@ describe("loadShootingScriptData", () => {
       script: { scenes: [] },
       completed_unit_count: 1,
       total_unit_count: 2,
-      completed_record: null,
     });
   });
 

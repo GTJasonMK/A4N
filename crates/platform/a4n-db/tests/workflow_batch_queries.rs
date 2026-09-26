@@ -42,6 +42,49 @@ fn workflow_input(business_key: &str, fingerprint: &str, status: &str) -> Upsert
 }
 
 #[tokio::test]
+async fn cancelling_a_failed_resumable_workflow_discards_its_progress() {
+    let db = a4n_migration::test_support::connect_test_database().await;
+    let run = upsert_workflow_run(
+        &db,
+        workflow_input(
+            &format!("discard-failed:{}", uuid::Uuid::new_v4()),
+            "source",
+            WORKFLOW_STATUS_RUNNING,
+        ),
+    )
+    .await
+    .unwrap();
+    let snapshot = json!({"completed_scenes": [1]});
+    persist_workflow_progress_snapshot(&db, run.id, snapshot.clone())
+        .await
+        .unwrap();
+    mark_workflow_status(
+        &db,
+        run.id,
+        WORKFLOW_STATUS_FAILED,
+        true,
+        Some("模型输出无效"),
+    )
+    .await
+    .unwrap();
+
+    let result = cancel_workflow_run_persistence(&db, run.id, "删除未完成生成")
+        .await
+        .unwrap();
+    assert!(!result.already_terminal);
+    let cancelled = workflow_run_model_by_id(&db, run.id).await.unwrap();
+    assert_eq!(cancelled.status, WORKFLOW_STATUS_CANCELLED);
+    assert!(!cancelled.can_resume);
+    assert_eq!(cancelled.progress_json.unwrap()["snapshot"], snapshot);
+    assert!(
+        cancel_workflow_run_persistence(&db, run.id, "重复删除")
+            .await
+            .unwrap()
+            .already_terminal
+    );
+}
+
+#[tokio::test]
 async fn latest_workflow_runs_by_business_keys_returns_one_latest_row_per_key() {
     let db = a4n_migration::test_support::connect_test_database().await;
     let suffix = uuid::Uuid::new_v4();

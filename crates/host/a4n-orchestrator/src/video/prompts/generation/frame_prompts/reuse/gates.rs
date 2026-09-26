@@ -9,6 +9,5 @@ pub(in crate::video::prompts::generation::frame_prompts) use queries::{
     segment_plan_rows, video_prompt_rows_for_workflow,
 };
 pub(in crate::video::prompts::generation::frame_prompts) use regeneration::{
-    ensure_existing_frame_prompts_can_regenerate, ensure_existing_segment_plans_can_regenerate,
-    ensure_segment_plan_generation_can_start,
+    ensure_existing_frame_prompts_can_regenerate, ensure_segment_plan_generation_can_start,
 };

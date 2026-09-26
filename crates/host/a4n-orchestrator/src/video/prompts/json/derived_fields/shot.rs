@@ -5,9 +5,8 @@ use crate::video::prompts::json::contracts::{
 };
 
 use super::summaries::{
-    action_goal_summary, character_summary, compact_reference_ids, emotional_end_summary,
-    first_action_goal, material_coverage_summary, performance_summary, segment_end_summary,
-    structured_arc_summary, video_intent_summary,
+    action_goal_summary, character_summary, compact_reference_ids, first_action_goal,
+    material_coverage_summary, performance_summary, structured_arc_summary, video_intent_summary,
 };
 
 pub(in crate::video::prompts::json) fn video_prompt_shot_from_input(
@@ -27,11 +26,11 @@ pub(in crate::video::prompts::json) fn video_prompt_shot_from_input(
         motion_prompt: input.motion_prompt,
         negative_prompt: input.negative_prompt,
         blocking_plan: derive_blocking_plan(segment),
-        lighting_plan: derive_lighting_plan(segment),
+        lighting_plan: derive_lighting_plan(),
         emotion_action_beats: derive_emotion_action_beats(segment),
         dialogue_beats: input.dialogue_cues,
         cinematography_plan: derive_cinematography_plan(segment),
-        temporal_beats: derive_temporal_beats(segment),
+        temporal_beats: json!(segment.performance_plan.time_blocks),
         reference_binding: derive_reference_binding(segment),
         continuity_check: derive_continuity_check(segment),
         duration_secs: segment.duration_secs,
@@ -68,7 +67,7 @@ fn derive_self_contained_context(segment: &VideoSegmentPlan) -> Value {
             "人物身份、服装、固定参照物、左右/前后关系、主要道具和光源方向必须连续",
             format!("参考图约束：{}", compact_reference_ids(&segment.reference_image_ids))
         ],
-        "handoff_to_next": segment_end_summary(segment),
+        "handoff_to_next": segment.emotional_arc.end,
         "omission_risks": [
             "省略分段规划中的空间锚点会造成段间站位跳变",
             performance_omission_risk
@@ -89,8 +88,8 @@ fn derive_start_state(segment: &VideoSegmentPlan) -> Value {
 fn derive_end_state(segment: &VideoSegmentPlan) -> Value {
     json!({
         "character": character_summary(segment),
-        "position": segment_end_summary(segment),
-        "pose": emotional_end_summary(segment),
+        "position": segment.emotional_arc.end,
+        "pose": segment.emotional_arc.end,
         "camera": "最后一个镜头稳定到 visual_prompt 的结尾构图",
         "lighting": "结尾保持与片段起点连续的光源方向和阴影状态"
     })
@@ -116,7 +115,7 @@ fn derive_blocking_plan(segment: &VideoSegmentPlan) -> Value {
     json!({
         "start": segment.blocking_summary,
         "movement": performance_summary(segment),
-        "end": segment_end_summary(segment),
+        "end": segment.emotional_arc.end,
         "spatial_anchors": segment.spatial_anchors,
         "do_not_change": [
             "固定参考物的相对位置",
@@ -125,7 +124,7 @@ fn derive_blocking_plan(segment: &VideoSegmentPlan) -> Value {
     })
 }
 
-fn derive_lighting_plan(_segment: &VideoSegmentPlan) -> Value {
+fn derive_lighting_plan() -> Value {
     json!({
         "key_light": "以 visual_prompt 中描述的主光为准",
         "direction": "全片段保持 visual_prompt 中声明的光源方向",
@@ -150,10 +149,6 @@ fn derive_cinematography_plan(segment: &VideoSegmentPlan) -> Value {
         "axis_rule": "保持片段规划中的左右/前后关系和空间锚点连续",
         "lens_hint": format!("画幅 {}，片段时长 {} 秒", segment.aspect_ratio, segment.duration_secs)
     })
-}
-
-fn derive_temporal_beats(segment: &VideoSegmentPlan) -> Value {
-    json!(segment.performance_plan.time_blocks)
 }
 
 fn derive_reference_binding(segment: &VideoSegmentPlan) -> Value {

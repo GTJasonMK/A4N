@@ -13,7 +13,7 @@ name: chapter_video_prompt
       "title": "镜头标题",
       "scene_summary": "剧情摘要",
       "visual_prompt": "按 constraints.prompt_required_sections 的顺序写完整主提示词，章节标题使用目标语言；内容覆盖实际边界帧参考图、素材参考图用途、前因后果、按镜头编号组织的镜头分镜、风格、连续性和限制。",
-      "motion_prompt": "按 constraints.prompt_output_language.motion_prompt_sections 的顺序写动作与运镜补充，章节标题使用目标语言；不得重复 visual_prompt 的镜头分镜。",
+      "motion_prompt": "按 constraints.motion_prompt_required_sections 的顺序写动作与运镜补充，章节标题使用目标语言；不得重复 visual_prompt 的镜头分镜。",
       "negative_prompt": "本镜头特有的避免项；没有特有项时写空字符串",
       "dialogue_cues": [
         {
@@ -32,7 +32,7 @@ name: chapter_video_prompt
 要求：
 - 这是单段生成请求：`shots` 只能包含 1 条，不得输出其他片段。
 - 不要输出 `shot_number`、`duration_secs`、`aspect_ratio`、`reference_image_ids`、`self_contained_context`、`start_state`、`end_state`、`transition_in`、`blocking_plan`、`lighting_plan`、`emotion_action_beats`、`cinematography_plan`、`temporal_beats`、`reference_binding`、`continuity_check` 或 `chat_video`；这些字段由后端根据 `current_segment`、输入帧和参考素材补齐。
-- `visual_prompt`、`motion_prompt` 和 `negative_prompt` 的自然语言必须遵守输入 JSON 中 `constraints.prompt_output_language_instruction`；章节标题必须使用 `constraints.prompt_required_sections` 和 `constraints.prompt_output_language.motion_prompt_sections` 对应的目标语言版本。JSON key、结构化字段名、角色名、地名、专有名词、参考图标签、用户风格关键词和原文对白/台词短句不要擅自翻译。
+- `visual_prompt`、`motion_prompt` 和 `negative_prompt` 的自然语言必须遵守输入 JSON 中 `constraints.prompt_output_language.instruction`；章节标题必须使用 `constraints.prompt_required_sections` 和 `constraints.motion_prompt_required_sections` 对应的目标语言版本。JSON key、结构化字段名、角色名、地名、专有名词、参考图标签、用户风格关键词和原文对白/台词短句不要擅自翻译。
 - 输入包含章节原文时，原文是事实依据；片段规划和实际存在的边界帧描述是结构约束。细节冲突时优先遵守原文，其次遵守已存在边界帧，最后才是摘要。
 - `current_segment.duration_secs` 是片段规划阶段选定的真实视频时长，只用于判断动作容量、镜头数量和节奏密度；`visual_prompt` 的 `[镜头分镜]` 必须写成“镜头 1 / 镜头 2 / 镜头 3”这类镜头编号分镜，不要机械写成 0-3 秒、3-6 秒的时间表。
 - 必须读取并执行 `current_segment.video_intent`：`hook` 决定本段视觉重点，`audience_effect` 决定氛围和表演方向，`rhythm` 决定时间节拍密度，`visual_priority` 必须落实到 `visual_prompt` 和 `motion_prompt`。
@@ -51,7 +51,7 @@ name: chapter_video_prompt
 - 主体定义与素材绑定章节只描述实际存在的边界帧参考图和素材参考图用途；若 `constraints.reference_slots` 中有边界帧槽位，必须按槽位顺序写“参考图 N 为起点边界帧/终点边界帧”，数字前必须保留空格，不要写成“输入首帧”“输入尾帧”或 provider 图片槽位。素材参考图只能写“参考图 N 用于人物、场景、道具或风格一致性约束”，不要把素材参考图误写成边界帧。
 - `[镜头分镜]` 必须使用“镜头 1：...；镜头 2：...；镜头 3：...”这类编号组织。每个镜头通常聚焦 1 个主要可见动作或连续动作链，必要时附带反应动作；最后一个镜头稳定到本段结尾状态；只有 `input_frames.end_frame` 存在时才写成收束到终点边界帧目标。每个镜头必须包含运镜或镜头切换方式、景别/机位、主体动作与表情、位置或空间变化，以及必要的对白、口型、环境声或静默。不要把镜头分镜写成纯时间码列表。
 - `[画面风格描述]` 要包含用户指定风格、光线、色彩、镜头质感、景别倾向和构图原则。如果用户指定风格中包含“风格模板”或“风格关键词”，必须保留其中的中文风格名和关键英文风格名，并吸收其光影、色彩、构图、镜头、材质、氛围、细节、运动表现和避免项。
-- `motion_prompt` 只做动作、运镜、对白和表演补充，必须遵守 `constraints.prompt_density_rule`，只包含 `constraints.prompt_output_language.motion_prompt_sections` 指定的章节，不得写 `[连续性要求]` 或 `[Continuity Requirements]`，不得重复 `visual_prompt` 的镜头分镜章节、连续性尾态或限制避免项，不得引入新剧情、新道具、新场景或更血腥的动作细节。每个片段只能有一个主要运镜意图，例如固定观察、缓慢推进、轻微后退、横移跟随、轻微摇摄或手持贴近；可以有自然微调，但不要堆叠推拉摇移升降环绕。运镜选择必须服务人物压力和观众理解：推进用于靠近反应，后退用于显露孤立或空间压迫，固定镜头用于停顿和无法逃避的关系，不能写装饰性空运镜。
+- `motion_prompt` 只做动作、运镜、对白和表演补充，必须遵守 `constraints.prompt_density_rule`，只包含 `constraints.motion_prompt_required_sections` 指定的章节，不得写 `[连续性要求]` 或 `[Continuity Requirements]`，不得重复 `visual_prompt` 的镜头分镜章节、连续性尾态或限制避免项，不得引入新剧情、新道具、新场景或更血腥的动作细节。每个片段只能有一个主要运镜意图，例如固定观察、缓慢推进、轻微后退、横移跟随、轻微摇摄或手持贴近；可以有自然微调，但不要堆叠推拉摇移升降环绕。运镜选择必须服务人物压力和观众理解：推进用于靠近反应，后退用于显露孤立或空间压迫，固定镜头用于停顿和无法逃避的关系，不能写装饰性空运镜。
 - 如果原文有对白，必须抽取推动剧情或情绪变化的关键短台词写入 `dialogue_cues`，短台词必须保留原文语言和原文写法，不要把中文对白翻成英文；并在 `motion_prompt` 中自然描述说话人、短台词、语气、口型/手势和听者反应。`listener_reaction` 不得空泛写“有反应”，必须写可见表演，如抬眼、停下手中动作、沉默半拍、后退、避开视线、抓紧衣角、皱眉或追随视线。`dialogue_cues[]` 每条只能包含 `speaker`、`line`、`delivery`、`visible_action`、`listener_reaction`、`timing`；不要输出任何内部溯源字段或额外字段。没有对白时 `dialogue_cues` 返回空数组。
 - `reference_asset_summaries` 只提供素材内容摘要，不能把素材摘要字段名、候选序号或任何数字图片 ID 写进 `visual_prompt`、`motion_prompt`、`negative_prompt` 的自然语言正文；自然语言只能使用 `constraints.reference_slots` 中的展示标签，例如“参考图 1”“参考图 2”，且数字前必须保留空格。
 - `negative_prompt` 只写本镜头特有的避免项；不要重复低质量、人体结构、身份一致性、空间关系、光影连续性、水印等通用负面词。没有特有项时写空字符串。

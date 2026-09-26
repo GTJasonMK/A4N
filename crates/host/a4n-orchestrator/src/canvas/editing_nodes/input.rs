@@ -56,7 +56,7 @@ fn build_extract_frame_input(
         video_id,
         frame_kind,
         at_secs,
-        canvas_text_asset_id: first_canvas_text_asset_id(node, document),
+        canvas_text_asset_id: first_canvas_text_asset_id(node, document)?,
         source_node_ids,
     })
 }
@@ -76,7 +76,7 @@ fn build_trim_video_input(
         video_id,
         start_secs,
         end_secs,
-        canvas_text_asset_id: first_canvas_text_asset_id(node, document),
+        canvas_text_asset_id: first_canvas_text_asset_id(node, document)?,
         source_node_ids,
     })
 }
@@ -128,7 +128,7 @@ fn build_assemble_video_input(
     Ok(CanvasAssembleVideoNodeInput {
         video_ids: clips.iter().map(|(_, video_id, _)| *video_id).collect(),
         title: canvas_config_string(&node.config_json, "title"),
-        canvas_text_asset_id: first_canvas_text_asset_id(node, document),
+        canvas_text_asset_id: first_canvas_text_asset_id(node, document)?,
         source_node_ids: clips
             .iter()
             .map(|(_, _, source_node_id)| *source_node_id)

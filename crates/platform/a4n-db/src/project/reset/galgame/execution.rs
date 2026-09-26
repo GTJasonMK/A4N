@@ -8,7 +8,9 @@ use super::super::types::ProjectResetDbError;
 use super::result::{GalgameResetOutcomeInput, galgame_reset_outcome};
 use crate::galgame::delete_galgame_script_records_for_project;
 use crate::project as project_db;
-use crate::project::delete::{GeneratedImageDeleteScope, delete_chapter_generation_outputs};
+use crate::project::delete::{
+    GeneratedImageDeleteScope, delete_chapter_generation_outputs, retained_source_resources,
+};
 
 pub(in crate::project::reset) async fn reset_galgame_generated_data_in_tx(
     tx: DatabaseTransaction,
@@ -26,9 +28,14 @@ pub(in crate::project::reset) async fn reset_galgame_generated_data_in_tx(
 
     let optimization_cleanup =
         project_db::delete_project_optimization_tree(&tx, project_id).await?;
-    let chapter_generation_cleanup =
-        delete_chapter_generation_outputs(&tx, project_id, GeneratedImageDeleteScope::Project)
-            .await?;
+    let retained = retained_source_resources(&tx, project_id).await?;
+    let chapter_generation_cleanup = delete_chapter_generation_outputs(
+        &tx,
+        project_id,
+        GeneratedImageDeleteScope::Project,
+        &retained,
+    )
+    .await?;
     let generation_media_cleanup =
         project_db::delete_project_generation_media_graph(&tx, project_id).await?;
     let galgame_cleanup = delete_galgame_script_records_for_project(&tx, project_id).await?;

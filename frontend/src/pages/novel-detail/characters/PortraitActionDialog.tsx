@@ -20,6 +20,7 @@ import { portraitTypeLabel } from "./characterUtils";
 
 interface PortraitActionDialogProps {
   portrait: Portrait;
+  profileName?: string;
   busyId: number | null;
   imageSize: ImageSize | null;
   imageSizes: readonly ImageSize[];
@@ -36,6 +37,7 @@ interface PortraitActionDialogProps {
 
 export const PortraitActionDialog: React.FC<PortraitActionDialogProps> = ({
   portrait,
+  profileName,
   busyId,
   imageSize,
   imageSizes,
@@ -53,7 +55,7 @@ export const PortraitActionDialog: React.FC<PortraitActionDialogProps> = ({
   const busy = busyId === portrait.id;
   const sizeUnavailable = imageSize == null || imageSizeLoading || imageSizeError != null;
   const imageSrc = toMediaSrc(portrait.image_path);
-  const metadata = [portraitTypeLabel(portrait.portrait_type, t), portrait.expression, portrait.pose]
+  const metadata = [profileName, portraitTypeLabel(portrait.portrait_type, t), portrait.expression, portrait.pose]
     .map((item) => item?.trim())
     .filter(Boolean)
     .join(" · ");

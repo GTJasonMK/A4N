@@ -31,6 +31,8 @@ pub(super) struct VideoChainPreparationInput<'a, 'source> {
 
 pub(super) struct PreparedVideoChainInputs {
     pub source_metadata: Value,
+    pub source_spans: Vec<a4n_domain::source_spans::SourceSpan>,
+    pub continuity_source_context: Option<Value>,
     pub regenerate_existing: bool,
     pub prompt_batch_size: usize,
     pub target_shot_number: Option<i32>,
@@ -69,6 +71,7 @@ pub(super) async fn prepare_video_chain_inputs(
     } = input;
     let PreparedVideoPromptInputs {
         source_metadata,
+        source_spans,
         regenerate_existing,
         prompt_batch_size,
         segment_plan_prompt_id,
@@ -81,7 +84,7 @@ pub(super) async fn prepare_video_chain_inputs(
         reference_image_ids,
         video_library_image_ids,
         available_assets,
-        vars,
+        mut vars,
         ..
     } = service
         .prepare_video_prompt_inputs(project_id, chapter_id, source, variables, options, false)
@@ -109,6 +112,29 @@ pub(super) async fn prepare_video_chain_inputs(
     segment_recipe
         .validate_director_generation(target_segment)
         .map_err(AppError::InvalidArgument)?;
+    let continuity_source_context = if segment_recipe.guidance_mode
+        == VideoSegmentGuidanceModeV1::Continuity
+    {
+        let video_id = segment_recipe
+            .continuity_source_video_id
+            .ok_or_else(|| AppError::InvalidArgument("续接片段缺少来源视频".into()))?;
+        let video = service
+            .completed_chapter_continuity_source(project_id, chapter_id, video_id)
+            .await?;
+        let prompt = a4n_domain::project::required_text(&video.prompt, "续接来源视频提示词")
+            .map_err(AppError::InvalidArgument)?;
+        vars.insert(
+            "continuity_source_video_id".into(),
+            serde_json::json!(video_id),
+        );
+        Some(serde_json::json!({
+            "generation_prompt": prompt,
+            "evidence_kind": "selected_video_generation_prompt",
+            "usage": "从该视频生成提示词的结尾描述提取衔接状态。它不是实际尾帧的视觉观察；视频的起点以绑定尾帧为准，不要强制重置人物姿态、道具或机位。",
+        }))
+    } else {
+        None
+    };
     let target = (
         target_segment.source_shot_id.as_str(),
         target_segment.segment_index_in_shot,
@@ -176,6 +202,8 @@ pub(super) async fn prepare_video_chain_inputs(
 
     Ok(PreparedVideoChainInputs {
         source_metadata,
+        source_spans,
+        continuity_source_context,
         regenerate_existing,
         prompt_batch_size,
         target_shot_number,

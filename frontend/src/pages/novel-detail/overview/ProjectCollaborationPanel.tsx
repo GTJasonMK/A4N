@@ -296,7 +296,7 @@ export const ProjectCollaborationPanel: React.FC<ProjectCollaborationPanelProps>
                   onChange={(selectedValue) =>
                     void handleRoleChange(member, selectedValue as ProjectMemberRole)
                   }
-                  className="pyqt-input h-8 w-24 text-small sm:w-28"
+                  className="pyqt-input h-8 w-32 text-small"
                 >
                   {memberRoleOptions.map((item) => (
                     <option key={item.value} value={item.value}>

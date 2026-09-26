@@ -66,7 +66,6 @@ where
     active_scene.update(db).await?;
 
     let mut active_script: galgame_script::ActiveModel = script.into();
-    active_script.source_snapshot_id = Set(run.to_snapshot_id);
     active_script.updated_at = Set(now);
     active_script.update(db).await?;
 

@@ -2,7 +2,6 @@ use std::collections::HashMap;
 
 use serde_json::{Value, json};
 
-use a4n_domain::source_spans::text_anchor_prompt_values;
 use a4n_error::AppError;
 use a4n_llm_context::{
     ContextAwareJsonLlmRequestInput, PACK_KIND_SCENE_PROFILE_SYNC_SOURCE_CONTEXT,
@@ -43,7 +42,7 @@ pub(in crate::scene_profile::application) async fn build_scene_profile_candidate
                 SCENE_CANDIDATE_ACTUAL_OCCURRENCE_RULE,
                 SCENE_TYPE_RULE,
                 "importance 只能是 primary/secondary/minor",
-                "evidence_anchor_ids 必须来自 input.text_anchors[].id",
+                "evidence_anchor_ids 必须选择 chapter.content 内 ⟦id⟧ 标记的 ID，不含括号",
                 "scene_profile_id 和 parent_scene_id 只能引用 input.existing_scene_profiles[].id 或 null"
             ]
         }),
@@ -84,8 +83,7 @@ pub(in crate::scene_profile::application) async fn build_scene_profile_stage_req
                 "existing_scene_profiles": format!("稳定上下文包 {PACK_KIND_SCENE_PROFILE_SYNC_SOURCE_CONTEXT}.existing_scene_profiles"),
                 "available_characters": format!("稳定上下文包 {PACK_KIND_SCENE_PROFILE_SYNC_SOURCE_CONTEXT}.available_characters"),
                 "available_object_profiles": format!("稳定上下文包 {PACK_KIND_SCENE_PROFILE_SYNC_SOURCE_CONTEXT}.available_object_profiles"),
-                "chapter": format!("稳定上下文包 {PACK_KIND_SCENE_PROFILE_SYNC_SOURCE_CONTEXT}.chapter"),
-                "text_anchors": format!("稳定上下文包 {PACK_KIND_SCENE_PROFILE_SYNC_SOURCE_CONTEXT}.text_anchors")
+                "chapter": format!("稳定上下文包 {PACK_KIND_SCENE_PROFILE_SYNC_SOURCE_CONTEXT}.chapter；正文内 ⟦id⟧ 是来源标记，不属于原文")
             },
             "previous_stages": previous_stages
         }
@@ -116,7 +114,7 @@ pub(in crate::scene_profile::application) async fn build_scene_profile_stage_req
                 "ledger_version": "scene_profile_sync_context_v1",
                 "chapter_id": context.chapter.id,
                 "chapter_number": context.chapter.chapter_number}),
-            stable_context_json: scene_profile_stage_stable_context(context),
+            stable_context_json: scene_profile_stage_stable_context(context)?,
             dynamic_user_prompt: user_prompt,
             temperature: Some(0.2),
             call_key: Some(format!(
@@ -128,13 +126,14 @@ pub(in crate::scene_profile::application) async fn build_scene_profile_stage_req
     .map_err(AppError::InvalidArgument)
 }
 
-fn scene_profile_stage_stable_context(context: &SceneProfileSyncRequestContext) -> Value {
-    json!({
+fn scene_profile_stage_stable_context(
+    context: &SceneProfileSyncRequestContext,
+) -> Result<Value, AppError> {
+    Ok(json!({
         "existing_scene_profiles": context.existing_scene_profiles.iter().map(existing_scene_profile_for_prompt).collect::<Vec<_>>(),
         "available_characters": context.character_profiles.iter().map(character_profile_for_prompt).collect::<Vec<_>>(),
         "available_object_profiles": context.object_profiles.iter().map(object_profile_for_prompt).collect::<Vec<_>>(),
-        "chapter": scene_profile_chapter_context(&context.chapter),
-        "text_anchors": text_anchor_prompt_values(std::slice::from_ref(&context.chapter), &context.text_anchors)})
+        "chapter": scene_profile_chapter_context(&context.chapter, &context.text_anchors)?}))
 }
 
 pub(super) fn scene_profile_stage_step_key(

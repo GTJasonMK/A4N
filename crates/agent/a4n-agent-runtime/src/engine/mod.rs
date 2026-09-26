@@ -82,7 +82,9 @@ pub use wire::agent_worker_run_from_wire;
 
 pub(super) use agent_loop::RunProgress;
 pub(super) use context::{compact_context, execution_input_message_id, recover_model_messages};
-pub(super) use model::{model_execution_request, model_response, stream_client_message_id};
+pub(super) use model::{
+    model_execution_request, model_execution_snapshot, model_response, stream_client_message_id,
+};
 pub(super) use prompt::{chat_message_from_model, chat_messages, with_agent_system_prompt};
 pub(super) use stream::{complete_run, consume_model_stream};
 pub(super) use tool_calls::{ToolBatchContext, append_inbox_messages, execute_tool_calls};
@@ -172,7 +174,7 @@ mod tests {
         }
     }
 
-    fn approval_context(execution_mode: &str) -> AgentRunContext {
+    pub(super) fn approval_context(execution_mode: &str) -> AgentRunContext {
         let now = chrono::Utc::now().naive_utc();
         AgentRunContext {
             run: a4n_agent_runtime_contract::AgentRunSnapshot {

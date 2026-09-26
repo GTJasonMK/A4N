@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use a4n_prompt::request::pretty_json_with_root_key_order;
+use a4n_prompt::request::compact_json_with_root_key_order;
 use serde_json::{Value, json};
 
 use a4n_error::AppError;
@@ -25,7 +25,7 @@ pub(super) async fn render_strict_json_user_prompt(
     instruction: &str,
     payload: &Value,
 ) -> Result<String, AppError> {
-    let payload = pretty_json_with_root_key_order(payload, VIDEO_PAYLOAD_ROOT_KEY_ORDER)?;
+    let payload = compact_json_with_root_key_order(payload, VIDEO_PAYLOAD_ROOT_KEY_ORDER)?;
     let mut variables = HashMap::new();
     variables.insert("instruction".to_string(), json!(instruction));
     variables.insert("payload".to_string(), json!(payload));
