@@ -133,7 +133,7 @@ impl OrchestratorContext {
             (None, None)
         };
         a4n_db::media::create_media_asset_with_provenance_record(
-            self.database.connection(),
+            &self.database,
             CreateMediaAssetRecordInput {
                 project_id: input.project_id,
                 root_project_id: input.root_project_id,
@@ -282,7 +282,7 @@ fn media_db_error(error: MediaDbError) -> AppError {
     match error {
         MediaDbError::NotFound(message) => AppError::NotFound(message),
         MediaDbError::InvalidArgument(message) => AppError::InvalidArgument(message),
-        MediaDbError::Database(error) => AppError::Database(error),
+        MediaDbError::Database(error) => AppError::database(error),
     }
 }
 

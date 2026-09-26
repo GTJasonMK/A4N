@@ -4,6 +4,6 @@ use a4n_error::AppError;
 pub fn optimize_db_error(error: OptimizeDbError) -> AppError {
     match error {
         OptimizeDbError::InvalidArgument(message) => AppError::InvalidArgument(message),
-        OptimizeDbError::Database(error) => AppError::Database(error),
+        OptimizeDbError::Database(error) => AppError::database(error),
     }
 }

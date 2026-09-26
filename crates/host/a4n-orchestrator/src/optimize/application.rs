@@ -25,7 +25,6 @@ use a4n_optimize_host_contract::{
 };
 use a4n_prompt::rendering::PromptRenderer;
 use async_trait::async_trait;
-use sea_orm::TransactionTrait;
 use std::collections::HashMap;
 
 use crate::OrchestratorContext;
@@ -282,7 +281,7 @@ impl OrchestratorContext {
             let word_count = i32::try_from(next_content.chars().count()).map_err(|_| {
                 AppError::InvalidArgument("应用补丁后的章节正文字符数超出 i32 范围".to_string())
             })?;
-            let tx = self.database.connection().begin().await?;
+            let tx = self.database.begin().await?;
             let written = a4n_db::optimize::write_optimization_chapter_patch_content(
                 &tx,
                 OptimizationChapterPatchWriteInput {
@@ -308,7 +307,7 @@ impl OrchestratorContext {
             .await?;
             self.mark_matching_patch_sets_applied(&tx, input.session_id, input.base_content_hash)
                 .await?;
-            tx.commit().await?;
+            a4n_db::commit_transaction(tx).await?;
             input
                 .host_port
                 .settle_chapter_content_sync(sync_run.id)
@@ -343,13 +342,11 @@ impl OrchestratorContext {
         user_id: i64,
         patch_set_id: i64,
     ) -> Result<(), AppError> {
-        let patch_set = a4n_db::optimize::optimization_patch_set_by_id(
-            self.database.connection(),
-            patch_set_id,
-        )
-        .await
-        .map_err(crate::optimize::optimize_db_error)?
-        .ok_or_else(|| AppError::NotFound(format!("优化补丁集不存在: {patch_set_id}")))?;
+        let patch_set =
+            a4n_db::optimize::optimization_patch_set_by_id(&self.database, patch_set_id)
+                .await
+                .map_err(crate::optimize::optimize_db_error)?
+                .ok_or_else(|| AppError::NotFound(format!("优化补丁集不存在: {patch_set_id}")))?;
         self.optimize_session_for_user(user_id, patch_set.session_id)
             .await?;
         self.discard_optimization_patch_set(patch_set.session_id, patch_set.id)
@@ -358,7 +355,7 @@ impl OrchestratorContext {
 
     async fn mark_matching_patch_sets_applied(
         &self,
-        tx: &sea_orm::DatabaseTransaction,
+        tx: &a4n_db::DbTransaction,
         session_id: i64,
         base_content_hash: &str,
     ) -> Result<(), AppError> {
@@ -543,24 +540,20 @@ impl OptimizeAgentToolApplicationPort for OrchestratorContext {
         };
         let permissions =
             crate::optimize::permissions::optimization_permissions_from_session(&session)?;
-        let turn = if let Some(existing) = a4n_db::optimize::optimization_turn_by_agent_turn_id(
-            self.database.connection(),
-            agent_turn_id,
-        )
-        .await
-        .map_err(crate::optimize::optimize_db_error)?
+        let turn = if let Some(existing) =
+            a4n_db::optimize::optimization_turn_by_agent_turn_id(&self.database, agent_turn_id)
+                .await
+                .map_err(crate::optimize::optimize_db_error)?
         {
             if existing.session_id != session.id {
                 return Err(AppError::InvalidArgument(
                     "Agent Turn 已绑定到其他内容优化会话".into(),
                 ));
             }
-            if let Some(patch_set) = a4n_db::optimize::optimization_patch_set_by_turn_id(
-                self.database.connection(),
-                existing.id,
-            )
-            .await
-            .map_err(crate::optimize::optimize_db_error)?
+            if let Some(patch_set) =
+                a4n_db::optimize::optimization_patch_set_by_turn_id(&self.database, existing.id)
+                    .await
+                    .map_err(crate::optimize::optimize_db_error)?
             {
                 return persisted_article_patch_result(self, patch_set).await;
             }
@@ -643,12 +636,9 @@ async fn persisted_article_patch_result(
     context: &OrchestratorContext,
     patch_set: a4n_db_models::models::ai::optimization_patch_set::Model,
 ) -> Result<serde_json::Value, AppError> {
-    let rows = a4n_db::optimize::optimization_patch_set_patches(
-        context.database.connection(),
-        patch_set.id,
-    )
-    .await
-    .map_err(crate::optimize::optimize_db_error)?;
+    let rows = a4n_db::optimize::optimization_patch_set_patches(&context.database, patch_set.id)
+        .await
+        .map_err(crate::optimize::optimize_db_error)?;
     let patches = rows
         .into_iter()
         .map(|patch| {

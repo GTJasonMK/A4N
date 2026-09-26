@@ -57,7 +57,7 @@ where
     }
     .insert(db)
     .await
-    .map_err(AppError::Database)
+    .map_err(AppError::database)
 }
 
 pub async fn finish_model_usage_record<C>(
@@ -76,7 +76,7 @@ where
     let record = model_usage_record::Entity::find_by_id(record_id)
         .one(db)
         .await
-        .map_err(AppError::Database)?
+        .map_err(AppError::database)?
         .ok_or_else(|| AppError::NotFound(format!("模型成本记录不存在: {record_id}")))?;
     let capability = parse_capability(&record.capability)?;
     let pricing: PricingPlan = serde_json::from_value(record.pricing_snapshot_json.clone())
@@ -93,7 +93,7 @@ where
     active.error_kind = Set(normalize_optional(input.error_kind));
     active.error_message = Set(normalize_optional(input.error_message));
     active.completed_at = Set(Some(Utc::now().naive_utc()));
-    active.update(db).await.map_err(AppError::Database)?;
+    active.update(db).await.map_err(AppError::database)?;
     Ok(())
 }
 
@@ -127,7 +127,7 @@ where
                 .or(model_usage_record::Column::RootProjectId.eq(project_id)),
         );
     }
-    query.all(db).await.map_err(AppError::Database)
+    query.all(db).await.map_err(AppError::database)
 }
 
 #[derive(Debug, FromQueryResult)]
@@ -196,7 +196,7 @@ where
         .into_model::<ModelUsageAggregate>()
         .all(db)
         .await
-        .map_err(AppError::Database)
+        .map_err(AppError::database)
 }
 
 fn validate_start(input: &ModelUsageRecordStart) -> Result<(), AppError> {

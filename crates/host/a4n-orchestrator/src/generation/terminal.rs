@@ -1,7 +1,7 @@
 use std::{future::Future, sync::Arc, time::Duration};
 
 use a4n_db::{
-    DbHandle,
+    DbHandle, DbTransaction,
     generation::{
         GenerationCorruptRecoveryState, GenerationTaskLifecycleError,
         GenerationTaskPersistenceError, PersistGenerationLifecycleInput,
@@ -23,7 +23,6 @@ use a4n_service_protocol::{
     TextStreamSnapshot,
 };
 use futures::future::BoxFuture;
-use sea_orm::{DatabaseTransaction, TransactionTrait};
 
 use super::artifacts::PreparedArtifactEvent;
 use super::events::{
@@ -55,6 +54,8 @@ pub enum GenerationTerminalError {
     Session(#[from] GenerationSessionError),
     #[error(transparent)]
     Persistence(#[from] GenerationTaskLifecycleError),
+    #[error(transparent)]
+    Database(#[from] AppError),
     #[error("generation task attempt 不匹配: expected={expected}, actual={actual}")]
     AttemptMismatch { expected: u32, actual: u32 },
     #[error("批量 generation task 的中断必须提供精确 batch_summary")]
@@ -72,6 +73,7 @@ impl GenerationTerminalError {
         match self {
             Self::Session(error) => error.code(),
             Self::Persistence(error) => error.code(),
+            Self::Database(_) => "generation_persist_failed",
             Self::AttemptMismatch { .. } => "generation_attempt_mismatch",
             Self::BatchSummaryRequired => "generation_event_invalid",
             Self::PersistenceUnavailable => "generation_terminal_persistence_unavailable",
@@ -158,10 +160,10 @@ impl GenerationTerminalCoordinator {
             public_snapshot: permit.snapshot().clone(),
         };
         let persisted = retry_terminal_persistence(session, || {
-            persist_generation_cancel_requested(self.database.connection(), input.clone())
+            persist_generation_cancel_requested(&self.database, input.clone())
         })
         .await?;
-        commit_or_rebuild(self.database.connection(), session, permit, persisted).await
+        commit_or_rebuild(&self.database, session, permit, persisted).await
     }
 
     pub(crate) async fn request_cancel_tree(
@@ -233,7 +235,7 @@ impl GenerationTerminalCoordinator {
         }
 
         let persisted = retry_terminal_persistence(requests[permits[0].0].0.as_ref(), || {
-            persist_generation_cancel_requested_batch(self.database.connection(), inputs.clone())
+            persist_generation_cancel_requested_batch(&self.database, inputs.clone())
         })
         .await?;
         if persisted.len() != permits.len() {
@@ -246,14 +248,7 @@ impl GenerationTerminalCoordinator {
         let mut outcome = GenerationTerminalWriteOutcome::Persisted;
         let mut first_error = None;
         for ((index, permit), persisted) in permits.into_iter().zip(persisted) {
-            match commit_or_rebuild(
-                self.database.connection(),
-                &requests[index].0,
-                permit,
-                persisted,
-            )
-            .await
-            {
+            match commit_or_rebuild(&self.database, &requests[index].0, permit, persisted).await {
                 Ok(GenerationTerminalWriteOutcome::RebuiltFromPersistedSnapshot) => {
                     outcome = GenerationTerminalWriteOutcome::RebuiltFromPersistedSnapshot;
                 }
@@ -293,7 +288,7 @@ impl GenerationTerminalCoordinator {
     ) -> Result<GenerationTerminalWriteOutcome, GenerationTerminalError>
     where
         F: for<'tx> FnOnce(
-            &'tx DatabaseTransaction,
+            &'tx DbTransaction,
         ) -> BoxFuture<'tx, Result<CompletionDescriptor, AppError>>,
     {
         self.complete_with_artifacts(session, Vec::new(), write_result)
@@ -312,7 +307,7 @@ impl GenerationTerminalCoordinator {
     ) -> Result<GenerationTerminalWriteOutcome, GenerationTerminalError>
     where
         F: for<'tx> FnOnce(
-            &'tx DatabaseTransaction,
+            &'tx DbTransaction,
         ) -> BoxFuture<
             'tx,
             Result<(CompletionDescriptor, Vec<ProgressEvent>), AppError>,
@@ -330,7 +325,7 @@ impl GenerationTerminalCoordinator {
     ) -> Result<GenerationTerminalWriteOutcome, GenerationTerminalError>
     where
         F: for<'tx> FnOnce(
-            &'tx DatabaseTransaction,
+            &'tx DbTransaction,
         ) -> BoxFuture<'tx, Result<CompletionDescriptor, AppError>>,
     {
         self.complete_with_progress_artifacts(session, artifacts, move |tx| {
@@ -349,7 +344,7 @@ impl GenerationTerminalCoordinator {
     ) -> Result<GenerationTerminalWriteOutcome, GenerationTerminalError>
     where
         F: for<'tx> FnOnce(
-            &'tx DatabaseTransaction,
+            &'tx DbTransaction,
         ) -> BoxFuture<
             'tx,
             Result<(CompletionDescriptor, Vec<ProgressEvent>), AppError>,
@@ -379,9 +374,11 @@ impl GenerationTerminalCoordinator {
             .into());
         }
 
-        let tx = self.database.connection().begin().await.map_err(|error| {
-            GenerationTerminalError::Persistence(GenerationTaskLifecycleError::Database(error))
-        })?;
+        let tx = self
+            .database
+            .begin()
+            .await
+            .map_err(GenerationTerminalError::Database)?;
         let locked = lock_generation_completion(
             &tx,
             &candidate.snapshot.task_id,
@@ -409,10 +406,10 @@ impl GenerationTerminalCoordinator {
             public_snapshot: permit.snapshot().clone(),
         };
         let persisted = persist_locked_generation_completion(&tx, locked, input).await?;
-        tx.commit().await.map_err(|error| {
-            GenerationTerminalError::Persistence(GenerationTaskLifecycleError::Database(error))
-        })?;
-        commit_or_rebuild(self.database.connection(), session, permit, persisted).await
+        a4n_db::commit_transaction(tx)
+            .await
+            .map_err(GenerationTerminalError::Database)?;
+        commit_or_rebuild(&self.database, session, permit, persisted).await
     }
 
     async fn persist_status_changed(
@@ -436,10 +433,10 @@ impl GenerationTerminalCoordinator {
             public_snapshot: permit.snapshot().clone(),
         };
         let persisted = retry_terminal_persistence(session, || {
-            persist_generation_status_changed(self.database.connection(), input.clone())
+            persist_generation_status_changed(&self.database, input.clone())
         })
         .await?;
-        commit_or_rebuild(self.database.connection(), session, permit, persisted).await
+        commit_or_rebuild(&self.database, session, permit, persisted).await
     }
 
     pub(crate) async fn fail(
@@ -535,10 +532,10 @@ impl GenerationTerminalCoordinator {
             public_snapshot: permit.snapshot().clone(),
         };
         let persisted = retry_terminal_persistence(session, || {
-            persist_generation_terminal(self.database.connection(), input.clone())
+            persist_generation_terminal(&self.database, input.clone())
         })
         .await?;
-        commit_or_rebuild(self.database.connection(), session, permit, persisted).await
+        commit_or_rebuild(&self.database, session, permit, persisted).await
     }
 
     async fn resolve_batch_summary(
@@ -547,11 +544,8 @@ impl GenerationTerminalCoordinator {
         mut batch_summary: Option<BatchSummary>,
     ) -> Result<Option<BatchSummary>, GenerationTerminalError> {
         if snapshot.started.batch_policy.is_some() && batch_summary.is_none() {
-            batch_summary = generation_interruption_batch_summary(
-                self.database.connection(),
-                &snapshot.task_id,
-            )
-            .await?;
+            batch_summary =
+                generation_interruption_batch_summary(&self.database, &snapshot.task_id).await?;
         }
         validate_batch_summary_presence(snapshot, batch_summary.as_ref())?;
         Ok(batch_summary)
@@ -571,10 +565,10 @@ impl GenerationTerminalCoordinator {
             public_snapshot: permit.snapshot().clone(),
         };
         let persisted = retry_terminal_persistence(session, || {
-            persist_generation_terminal(self.database.connection(), input.clone())
+            persist_generation_terminal(&self.database, input.clone())
         })
         .await?;
-        commit_or_rebuild(self.database.connection(), session, permit, persisted).await
+        commit_or_rebuild(&self.database, session, permit, persisted).await
     }
 
     pub(crate) async fn interrupt_persisted_task(
@@ -585,7 +579,7 @@ impl GenerationTerminalCoordinator {
         summary: Option<String>,
         mut batch_summary: Option<BatchSummary>,
     ) -> Result<GenerationTerminalWriteOutcome, GenerationTerminalError> {
-        let loaded = match load_generation_task(self.database.connection(), task_id).await {
+        let loaded = match load_generation_task(&self.database, task_id).await {
             Ok(loaded) => loaded,
             Err(GenerationTaskPersistenceError::Corrupt(details)) => {
                 return self.persist_corrupt_task(task_id, attempt, details).await;
@@ -612,12 +606,7 @@ impl GenerationTerminalCoordinator {
             return Ok(GenerationTerminalWriteOutcome::AlreadyTerminal);
         }
         if snapshot.started.batch_policy.is_some() && batch_summary.is_none() {
-            match generation_interruption_batch_summary(
-                self.database.connection(),
-                &snapshot.task_id,
-            )
-            .await
-            {
+            match generation_interruption_batch_summary(&self.database, &snapshot.task_id).await {
                 Ok(summary) => batch_summary = summary,
                 Err(GenerationTaskLifecycleError::Corrupt(details)) => {
                     return self.persist_corrupt_task(task_id, attempt, details).await;
@@ -666,8 +655,8 @@ impl GenerationTerminalCoordinator {
             expected_status,
             public_snapshot: snapshot,
         };
-        let persisted = persist_generation_terminal(self.database.connection(), input).await?;
-        let loaded = load_generation_task(self.database.connection(), task_id)
+        let persisted = persist_generation_terminal(&self.database, input).await?;
+        let loaded = load_generation_task(&self.database, task_id)
             .await
             .map_err(GenerationTaskLifecycleError::from)?;
         debug_assert_eq!(
@@ -685,11 +674,10 @@ impl GenerationTerminalCoordinator {
         details: String,
     ) -> Result<GenerationTerminalWriteOutcome, GenerationTerminalError> {
         tracing::error!(task_id, attempt, details = %details, "恢复损坏 generation checkpoint 为 failed terminal");
-        let recovery =
-            load_generation_corrupt_recovery_state(self.database.connection(), task_id).await?;
+        let recovery = load_generation_corrupt_recovery_state(&self.database, task_id).await?;
         let input = corrupt_failure_input(recovery, attempt)?;
-        persist_generation_corrupt_terminal(self.database.connection(), input).await?;
-        let loaded = load_generation_task(self.database.connection(), task_id)
+        persist_generation_corrupt_terminal(&self.database, input).await?;
+        let loaded = load_generation_task(&self.database, task_id)
             .await
             .map_err(GenerationTaskLifecycleError::from)?;
         let _ = self.restore_snapshot_only_session(&loaded)?;
@@ -784,7 +772,7 @@ fn corrupt_failure_input(
 }
 
 async fn commit_or_rebuild(
-    db: &a4n_db::DatabaseConnection,
+    db: &a4n_db::DbHandle,
     session: &Arc<GenerationTaskSession>,
     permit: super::events::CommittedEventPermit,
     persisted: PersistedGenerationCheckpoint,

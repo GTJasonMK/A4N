@@ -77,12 +77,12 @@ impl OrchestratorContext {
         }
 
         let choices = a4n_db::galgame::replace_galgame_choice_records_transaction(
-            self.database.connection(),
+            &self.database,
             line.id,
             normalized,
         )
         .await
-        .map_err(AppError::Database)?;
+        .map_err(AppError::database)?;
         Ok(choices)
     }
 }

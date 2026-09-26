@@ -26,7 +26,6 @@ use axum::{
     response::{IntoResponse, Response},
     routing::{get, post},
 };
-use sea_orm::{ConnectOptions, ConnectionTrait, Database, DatabaseConnection, Statement};
 use subtle::ConstantTimeEq;
 
 const WORKER_ADDR_ENV: &str = "A4N_IMPORT_REVIEW_READ_WORKER_ADDR";
@@ -55,13 +54,13 @@ struct WorkerFailure {
 
 impl ImportReviewWorker {
     pub fn new(
-        database: DatabaseConnection,
+        database: DbHandle,
         worker_id: impl Into<String>,
         auth_token: impl Into<String>,
     ) -> Self {
         Self {
             state: WorkerState {
-                database: DbHandle::new(Arc::new(database)),
+                database,
                 worker_id: Arc::<str>::from(worker_id.into()),
                 auth_token: Arc::<str>::from(auth_token.into()),
             },
@@ -101,12 +100,7 @@ async fn async_main() -> anyhow::Result<()> {
     a4n_config::validate_postgres_database_url(DATABASE_URL_ENV, &database_url)?;
     let auth_token = a4n_config::required_non_empty_env_string(WORKER_TOKEN_ENV)?;
     let address = worker_addr()?;
-    let mut options = ConnectOptions::new(database_url);
-    options
-        .max_connections(8)
-        .min_connections(1)
-        .connect_timeout(std::time::Duration::from_secs(5));
-    let database = Database::connect(options).await?;
+    let database = DbHandle::connect(database_url).await?;
     ImportReviewWorker::new(database, IMPORT_REVIEW_READ_WORKER_ID, auth_token)
         .serve(address)
         .await
@@ -127,16 +121,8 @@ async fn health(State(state): State<WorkerState>, headers: HeaderMap) -> Respons
     if !state.authorized(&headers) {
         return unauthorized();
     }
-    let status = match state
-        .database
-        .connection()
-        .execute(Statement::from_string(
-            sea_orm::DatabaseBackend::Postgres,
-            "SELECT 1",
-        ))
-        .await
-    {
-        Ok(_) => WorkerHealthStatus::Healthy,
+    let status = match state.database.ping().await {
+        Ok(()) => WorkerHealthStatus::Healthy,
         Err(_) => WorkerHealthStatus::Degraded,
     };
     Json(WorkerHealth {
@@ -234,7 +220,7 @@ impl WorkerState {
         let user_id = user_id(&request)?;
         let project_id = scoped_project_id(&request, request.payload.project_id)?;
         verify_editor(&self.database, project_id, user_id).await?;
-        a4n_db::import_review::import_reviews_by_project(self.database.connection(), project_id)
+        a4n_db::import_review::import_reviews_by_project(&self.database, project_id)
             .await
             .map_err(database_error)?
             .iter()
@@ -252,10 +238,9 @@ impl WorkerState {
         let project_id = scoped_project_id(&request, request.payload.project_id)?;
         let input = request.payload;
         verify_editor(&self.database, project_id, user_id).await?;
-        let chapters =
-            a4n_db::import_review::import_dedup_chapters(self.database.connection(), project_id)
-                .await
-                .map_err(database_error)?;
+        let chapters = a4n_db::import_review::import_dedup_chapters(&self.database, project_id)
+            .await
+            .map_err(database_error)?;
         calculate_dedup(&input.content, &chapters).map_err(app_error)
     }
 
@@ -266,7 +251,7 @@ impl WorkerState {
         validate_mutation_request(&request, IMPORT_REVIEW_DELETE_OPERATION)?;
         let user_id = user_id(&request)?;
         let review = review_for_editor(&self.database, user_id, request.payload.review_id).await?;
-        a4n_db::import_review::delete_import_review(self.database.connection(), review.id)
+        a4n_db::import_review::delete_import_review(&self.database, review.id)
             .await
             .map_err(mutation_error)
     }
@@ -278,10 +263,9 @@ impl WorkerState {
         validate_mutation_request(&request, IMPORT_REVIEW_REJECT_OPERATION)?;
         let user_id = user_id(&request)?;
         let review = review_for_editor(&self.database, user_id, request.payload.review_id).await?;
-        let review =
-            a4n_db::import_review::reject_import_review(self.database.connection(), review.id)
-                .await
-                .map_err(mutation_error)?;
+        let review = a4n_db::import_review::reject_import_review(&self.database, review.id)
+            .await
+            .map_err(mutation_error)?;
         a4n_import_review_core::summary_from_model(&review).map_err(app_error)
     }
 
@@ -298,7 +282,7 @@ async fn verify_editor(
     user_id: i64,
 ) -> Result<(), WorkerFailure> {
     a4n_db::collaboration::verify_project_permission(
-        database.connection(),
+        &database,
         project_id,
         user_id,
         ProjectAccessRole::Editor,
@@ -360,7 +344,7 @@ async fn review_for_editor(
     if review_id <= 0 {
         return Err(WorkerFailure::invalid_request("review_id 必须大于 0"));
     }
-    let review = a4n_db::import_review::import_review_by_id(database.connection(), review_id)
+    let review = a4n_db::import_review::import_review_by_id(database, review_id)
         .await
         .map_err(database_error)?
         .ok_or_else(|| {
@@ -401,7 +385,7 @@ fn collaboration_error(error: a4n_db::collaboration::CollaborationDbError) -> Wo
     }
 }
 
-fn database_error(error: sea_orm::DbErr) -> WorkerFailure {
+fn database_error(error: impl std::fmt::Display) -> WorkerFailure {
     WorkerFailure::unavailable(error.to_string())
 }
 

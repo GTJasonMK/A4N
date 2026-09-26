@@ -9,7 +9,7 @@ pub(super) async fn embedding_configs_exist(db: &DatabaseConnection) -> Result<b
         .into_tuple::<i64>()
         .one(db)
         .await
-        .map_err(AppError::Database)?
+        .map_err(AppError::database)?
         .is_some())
 }
 
@@ -20,7 +20,7 @@ pub async fn llm_configs_exist(db: &DatabaseConnection) -> Result<bool, AppError
         .into_tuple::<i64>()
         .one(db)
         .await
-        .map_err(AppError::Database)?
+        .map_err(AppError::database)?
         .is_some())
 }
 
@@ -31,7 +31,7 @@ pub async fn image_configs_exist(db: &DatabaseConnection) -> Result<bool, AppErr
         .into_tuple::<i64>()
         .one(db)
         .await
-        .map_err(AppError::Database)?
+        .map_err(AppError::database)?
         .is_some())
 }
 
@@ -42,6 +42,6 @@ pub async fn video_configs_exist(db: &DatabaseConnection) -> Result<bool, AppErr
         .into_tuple::<i64>()
         .one(db)
         .await
-        .map_err(AppError::Database)?
+        .map_err(AppError::database)?
         .is_some())
 }

@@ -9,7 +9,7 @@ async fn default_llm_config(db: &DatabaseConnection) -> Result<llm_config::Model
         .filter(llm_config::Column::IsDefault.eq(true))
         .one(db)
         .await
-        .map_err(AppError::Database)?
+        .map_err(AppError::database)?
         .ok_or_else(|| AppError::ConfigError("请先设置默认 LLM 配置".to_string()))
 }
 

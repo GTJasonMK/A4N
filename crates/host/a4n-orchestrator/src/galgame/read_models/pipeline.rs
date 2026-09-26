@@ -59,12 +59,12 @@ impl OrchestratorContext {
         validate_positive_id(project_id, "project_id")?;
         let context = self.load_galgame_context(project_id).await?;
         let record = a4n_db::galgame::galgame_pipeline_prompt_context_record(
-            self.database.connection(),
+            &self.database,
             context.root_project.id,
             context.source_snapshot.id,
         )
         .await
-        .map_err(AppError::Database)?;
+        .map_err(AppError::database)?;
         let root_project_id = context.root_project.id;
         let source_snapshot_id = context.source_snapshot.id;
         let mut context = galgame_pipeline_prompt_context_from_record(
@@ -79,7 +79,7 @@ impl OrchestratorContext {
             .map(|chapter| chapter.source_chapter_id)
             .collect::<Vec<_>>();
         let sources = a4n_db::project::resolve_snapshot_sources(
-            self.database.connection(),
+            &self.database,
             project_id,
             root_project_id,
             source_snapshot_id,

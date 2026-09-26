@@ -29,7 +29,6 @@ use axum::{
     response::{IntoResponse, Response},
     routing::{get, post},
 };
-use sea_orm::{ConnectOptions, ConnectionTrait, Database, DatabaseConnection, Statement};
 use subtle::ConstantTimeEq;
 
 const WORKER_ADDR_ENV: &str = "A4N_THEME_READ_WORKER_ADDR";
@@ -58,13 +57,13 @@ struct WorkerFailure {
 
 impl ThemeReadWorker {
     pub fn new(
-        database: DatabaseConnection,
+        database: DbHandle,
         worker_id: impl Into<String>,
         auth_token: impl Into<String>,
     ) -> Self {
         Self {
             state: WorkerState {
-                database: DbHandle::new(Arc::new(database)),
+                database,
                 worker_id: Arc::<str>::from(worker_id.into()),
                 auth_token: Arc::<str>::from(auth_token.into()),
             },
@@ -121,12 +120,7 @@ async fn async_main() -> anyhow::Result<()> {
     a4n_config::validate_postgres_database_url(DATABASE_URL_ENV, &database_url)?;
     let auth_token = a4n_config::required_non_empty_env_string(WORKER_TOKEN_ENV)?;
     let address = worker_addr()?;
-    let mut options = ConnectOptions::new(database_url);
-    options
-        .max_connections(8)
-        .min_connections(1)
-        .connect_timeout(std::time::Duration::from_secs(5));
-    let database = Database::connect(options).await?;
+    let database = DbHandle::connect(database_url).await?;
     ThemeReadWorker::new(database, THEME_READ_WORKER_ID, auth_token)
         .serve(address)
         .await
@@ -147,16 +141,8 @@ async fn health(State(state): State<WorkerState>, headers: HeaderMap) -> Respons
     if !state.authorized(&headers) {
         return unauthorized();
     }
-    let status = match state
-        .database
-        .connection()
-        .execute(Statement::from_string(
-            sea_orm::DatabaseBackend::Postgres,
-            "SELECT 1",
-        ))
-        .await
-    {
-        Ok(_) => WorkerHealthStatus::Healthy,
+    let status = match state.database.ping().await {
+        Ok(()) => WorkerHealthStatus::Healthy,
         Err(_) => WorkerHealthStatus::Degraded,
     };
     Json(WorkerHealth {
@@ -346,15 +332,13 @@ impl WorkerState {
     ) -> Result<Vec<ThemeSummary>, WorkerFailure> {
         validate_request(&request, THEME_LIST_OPERATION)?;
         let user_id = user_id(&request)?;
-        let themes =
-            a4n_db::config::list_themes_visible_to_user(self.database.connection(), user_id)
-                .await
-                .map_err(app_error)?;
+        let themes = a4n_db::config::list_themes_visible_to_user(&self.database, user_id)
+            .await
+            .map_err(app_error)?;
         let theme_ids = themes.iter().map(|theme| theme.id).collect::<Vec<_>>();
-        let resources =
-            a4n_db::config::list_theme_resources_for_themes(self.database.connection(), &theme_ids)
-                .await
-                .map_err(app_error)?;
+        let resources = a4n_db::config::list_theme_resources_for_themes(&self.database, &theme_ids)
+            .await
+            .map_err(app_error)?;
         let mut resources_by_theme = std::collections::HashMap::<i64, Vec<_>>::new();
         for resource in resources {
             resources_by_theme
@@ -384,7 +368,7 @@ impl WorkerState {
         let theme = self
             .require_theme_access(user_id, request.payload.theme_id)
             .await?;
-        let resources = a4n_db::config::list_theme_resources(self.database.connection(), theme.id)
+        let resources = a4n_db::config::list_theme_resources(&self.database, theme.id)
             .await
             .map_err(app_error)?;
         theme_summary_with_resources(theme, resources).map_err(app_error)
@@ -399,7 +383,7 @@ impl WorkerState {
         let theme = self
             .require_theme_access(user_id, request.payload.theme_id)
             .await?;
-        a4n_db::config::list_theme_resources(self.database.connection(), theme.id)
+        a4n_db::config::list_theme_resources(&self.database, theme.id)
             .await
             .map(|resources| resources.into_iter().map(theme_resource_record).collect())
             .map_err(app_error)
@@ -411,7 +395,7 @@ impl WorkerState {
     ) -> Result<ThemePreferenceSummary, WorkerFailure> {
         validate_request(&request, THEME_PREFERENCE_OPERATION)?;
         let user_id = user_id(&request)?;
-        let preference = a4n_db::config::theme_preference(self.database.connection(), user_id)
+        let preference = a4n_db::config::theme_preference(&self.database, user_id)
             .await
             .map_err(app_error)?;
         theme_preference_summary(user_id, preference).map_err(app_error)
@@ -430,7 +414,7 @@ impl WorkerState {
         self.require_user(user_id).await?;
         self.summary(
             a4n_db::config::create_theme(
-                self.database.connection(),
+                &self.database,
                 Some(user_id),
                 &name,
                 input.mode,
@@ -454,10 +438,9 @@ impl WorkerState {
         let changes =
             a4n_theme_core::theme_update_changes(request.payload.input, request.payload.resources)
                 .map_err(app_error)?;
-        let (theme, resources) =
-            a4n_db::config::update_theme(self.database.connection(), theme, changes)
-                .await
-                .map_err(app_error)?;
+        let (theme, resources) = a4n_db::config::update_theme(&self.database, theme, changes)
+            .await
+            .map_err(app_error)?;
         theme_summary_with_resources(theme, resources).map_err(app_error)
     }
 
@@ -478,7 +461,7 @@ impl WorkerState {
                 "正在使用的主题不能删除，请先激活其他主题",
             ));
         }
-        a4n_db::config::delete_theme(self.database.connection(), theme.id)
+        a4n_db::config::delete_theme(&self.database, theme.id)
             .await
             .map_err(app_error)
     }
@@ -492,7 +475,7 @@ impl WorkerState {
         self.require_owner(user_id, request.payload.theme_id)
             .await?;
         self.summary(
-            a4n_db::config::activate_theme(self.database.connection(), request.payload.theme_id)
+            a4n_db::config::activate_theme(&self.database, request.payload.theme_id)
                 .await
                 .map_err(app_error)?,
         )
@@ -508,14 +491,13 @@ impl WorkerState {
         self.require_user(user_id).await?;
         let mut input = request.payload;
         let base = normalize_name(input.name.clone())?;
-        let existing =
-            a4n_db::config::list_themes_visible_to_user(self.database.connection(), user_id)
-                .await
-                .map_err(app_error)?
-                .into_iter()
-                .filter(|theme| theme.user_id == Some(user_id))
-                .map(|theme| theme.name)
-                .collect::<std::collections::HashSet<_>>();
+        let existing = a4n_db::config::list_themes_visible_to_user(&self.database, user_id)
+            .await
+            .map_err(app_error)?
+            .into_iter()
+            .filter(|theme| theme.user_id == Some(user_id))
+            .map(|theme| theme.name)
+            .collect::<std::collections::HashSet<_>>();
         if existing.contains(&base) {
             let mut suffix = 1;
             let mut candidate = format!("{base} (导入)");
@@ -532,7 +514,7 @@ impl WorkerState {
             .map_err(WorkerFailure::invalid_request)?;
         self.summary(
             a4n_db::config::create_theme(
-                self.database.connection(),
+                &self.database,
                 Some(user_id),
                 &name,
                 input.mode,
@@ -553,7 +535,7 @@ impl WorkerState {
         let input = request.payload;
         self.require_owner(user_id, input.theme_id).await?;
         let resource = a4n_db::config::upsert_theme_resource(
-            self.database.connection(),
+            &self.database,
             input.theme_id,
             &input.resource_key,
             &input.file_name,
@@ -573,18 +555,15 @@ impl WorkerState {
     ) -> Result<ThemeResourceRecord, WorkerFailure> {
         validate_request(&request, THEME_RESOURCE_DELETE_OPERATION)?;
         let user_id = user_id(&request)?;
-        let resource = a4n_db::config::theme_resource_by_id(
-            self.database.connection(),
-            request.payload.resource_id,
-        )
-        .await
-        .map_err(app_error)?
-        .ok_or_else(|| WorkerFailure::not_found("主题资源不存在"))?;
-        self.require_owner(user_id, resource.theme_id).await?;
         let resource =
-            a4n_db::config::delete_theme_resource(self.database.connection(), resource.id)
+            a4n_db::config::theme_resource_by_id(&self.database, request.payload.resource_id)
                 .await
-                .map_err(app_error)?;
+                .map_err(app_error)?
+                .ok_or_else(|| WorkerFailure::not_found("主题资源不存在"))?;
+        self.require_owner(user_id, resource.theme_id).await?;
+        let resource = a4n_db::config::delete_theme_resource(&self.database, resource.id)
+            .await
+            .map_err(app_error)?;
         Ok(theme_resource_record(resource))
     }
 
@@ -596,7 +575,7 @@ impl WorkerState {
         let user_id = user_id(&request)?;
         self.require_user(user_id).await?;
         let preference = a4n_db::config::upsert_theme_preference(
-            self.database.connection(),
+            &self.database,
             user_id,
             request.payload.appearance,
         )
@@ -609,7 +588,7 @@ impl WorkerState {
         &self,
         theme: a4n_db_models::models::user::theme_config::Model,
     ) -> Result<ThemeSummary, WorkerFailure> {
-        let resources = a4n_db::config::list_theme_resources(self.database.connection(), theme.id)
+        let resources = a4n_db::config::list_theme_resources(&self.database, theme.id)
             .await
             .map_err(app_error)?;
         theme_summary_with_resources(theme, resources).map_err(app_error)
@@ -627,7 +606,7 @@ impl WorkerState {
         user_id: i64,
         theme_id: i64,
     ) -> Result<a4n_db_models::models::user::theme_config::Model, WorkerFailure> {
-        let theme = a4n_db::config::theme_by_id(self.database.connection(), theme_id)
+        let theme = a4n_db::config::theme_by_id(&self.database, theme_id)
             .await
             .map_err(app_error)?
             .ok_or_else(|| WorkerFailure::not_found("主题不存在"))?;
@@ -645,7 +624,7 @@ impl WorkerState {
         if theme_id <= 0 {
             return Err(WorkerFailure::invalid_request("theme_id 必须大于 0"));
         }
-        let theme = a4n_db::config::theme_by_id(self.database.connection(), theme_id)
+        let theme = a4n_db::config::theme_by_id(&self.database, theme_id)
             .await
             .map_err(app_error)?
             .ok_or_else(|| WorkerFailure::not_found("主题不存在"))?;

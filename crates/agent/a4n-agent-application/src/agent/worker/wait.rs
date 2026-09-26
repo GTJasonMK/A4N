@@ -139,12 +139,9 @@ impl AgentApplication {
             .map_err(agent_db_error_to_app)?
             .ok_or_else(|| AppError::NotFound("Agent Run 不存在".into()))?;
         let thread = self.owned_thread(user_id, run.thread_id).await?;
-        let payload = event::Entity::find()
-            .filter(event::Column::RunId.eq(run_id))
-            .filter(event::Column::Kind.eq("run_waiting"))
-            .order_by_desc(event::Column::Sequence)
-            .one(self.connection())
-            .await?
+        let payload = agent::latest_event_by_run_and_kind(self.connection(), run_id, "run_waiting")
+            .await
+            .map_err(agent_db_error_to_app)?
             .and_then(|event| event.payload_json)
             .and_then(|payload| payload.get("editor_request").cloned())
             .ok_or_else(|| AppError::InvalidArgument("Run 没有待响应的编辑器请求".into()))?;

@@ -164,12 +164,9 @@ impl AgentApplication {
         run_id: i64,
         key: &str,
     ) -> Result<Option<execution::Model>, AppError> {
-        execution::Entity::find()
-            .filter(execution::Column::RunId.eq(run_id))
-            .filter(execution::Column::ExecutionKey.eq(key))
-            .one(self.connection())
+        agent::execution_by_key(self.connection(), run_id, key)
             .await
-            .map_err(AppError::from)
+            .map_err(agent_db_error_to_app)
     }
 
     pub async fn worker_execution_by_key(

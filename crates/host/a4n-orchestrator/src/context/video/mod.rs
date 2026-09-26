@@ -24,7 +24,6 @@ use a4n_domain::video_timeline::{NativeVideoTimelineKey, VideoTimelineGap};
 use a4n_error::AppError;
 use a4n_video::validate_video_max_concurrent;
 use a4n_video_contract::VideoSegmentExecutionRecipeV1;
-use sea_orm::DatabaseConnection;
 use serde_json::{Value, json};
 use std::collections::BTreeSet;
 use std::sync::Arc;
@@ -63,8 +62,8 @@ impl VideoApplication {
         }
     }
 
-    fn connection(&self) -> &DatabaseConnection {
-        self.database.connection()
+    fn connection(&self) -> &DbHandle {
+        &self.database
     }
 }
 

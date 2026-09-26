@@ -63,12 +63,10 @@ impl OrchestratorContext {
             presentation_json,
             text_anchor_id: input.text_anchor_id,
         };
-        let inserted = a4n_db::galgame::insert_galgame_line_record_transaction(
-            self.database.connection(),
-            record_input,
-        )
-        .await
-        .map_err(galgame_line_record_error)?;
+        let inserted =
+            a4n_db::galgame::insert_galgame_line_record_transaction(&self.database, record_input)
+                .await
+                .map_err(galgame_line_record_error)?;
         Ok(inserted)
     }
 }

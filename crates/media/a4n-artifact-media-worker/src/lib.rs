@@ -41,7 +41,6 @@ use axum::{
     response::{IntoResponse, Response},
     routing::{get, post},
 };
-use sea_orm::{ConnectOptions, ConnectionTrait, Database, DatabaseBackend, Statement};
 use serde_json::{Value, json};
 use tokio::time::MissedTickBehavior;
 
@@ -73,7 +72,7 @@ impl WorkerState {
         let mut failures = Vec::new();
         let mut publications_examined = 0;
         let publications = a4n_db::video::image_publications_for_recovery_for_model(
-            self.db.connection(),
+            &self.db,
             usize::from(request.publication_limit),
             None,
             Some(EXTERNAL_IMPORT_MODEL),
@@ -89,10 +88,9 @@ impl WorkerState {
 
         let mut cleanups_processed = 0;
         while cleanups_processed < request.cleanup_limit {
-            let Some(claim) =
-                a4n_db::cleanup_outbox::claim_file_artifact_cleanup(self.db.connection(), None)
-                    .await
-                    .map_err(|error| error.to_string())?
+            let Some(claim) = a4n_db::cleanup_outbox::claim_file_artifact_cleanup(&self.db, None)
+                .await
+                .map_err(|error| error.to_string())?
             else {
                 break;
             };
@@ -114,7 +112,7 @@ impl WorkerState {
         requested: a4n_db_models::models::media::image_publication::Model,
     ) -> Result<(), String> {
         let Some(publication) =
-            a4n_db::video::image_publication_by_id(self.db.connection(), &requested.publication_id)
+            a4n_db::video::image_publication_by_id(&self.db, &requested.publication_id)
                 .await
                 .map_err(|error| error.to_string())?
         else {
@@ -225,7 +223,7 @@ impl WorkerState {
                             )
                             .await;
                     };
-                    a4n_db::video::generated_image_by_id(self.db.connection(), image_id)
+                    a4n_db::video::generated_image_by_id(&self.db, image_id)
                         .await
                         .map_err(|error| error.to_string())?
                         .is_none()
@@ -269,7 +267,7 @@ impl WorkerState {
         facts: &(PathBuf, i64, String),
     ) -> Result<(), String> {
         a4n_db::video::publish_image_publication(
-            self.db.connection(),
+            &self.db,
             &publication.publication_id,
             ImagePublicationFileFacts {
                 file_size: facts.1,
@@ -287,7 +285,7 @@ impl WorkerState {
         reason: &str,
     ) -> Result<(), String> {
         let publication = a4n_db::video::mark_image_publication_reclaiming(
-            self.db.connection(),
+            &self.db,
             &publication.publication_id,
             publication.version,
             reason.to_string(),
@@ -313,7 +311,7 @@ impl WorkerState {
         }
         if existing_paths.is_empty() {
             a4n_db::video::mark_image_publication_reclaimed(
-                self.db.connection(),
+                &self.db,
                 &publication.publication_id,
                 publication.version,
                 None,
@@ -324,12 +322,12 @@ impl WorkerState {
             return Ok(());
         }
         let unreferenced =
-            a4n_db::media::filter_unreferenced_media_paths(self.db.connection(), &existing_paths)
+            a4n_db::media::filter_unreferenced_media_paths(&self.db, &existing_paths)
                 .await
                 .map_err(|error| error.to_string())?;
         if unreferenced.len() < existing_paths.len() {
             a4n_db::video::mark_image_publication_reclaimed(
-                self.db.connection(),
+                &self.db,
                 &publication.publication_id,
                 publication.version,
                 Some("回收复核发现已有媒体引用，保留被引用文件".to_string()),
@@ -378,7 +376,7 @@ impl WorkerState {
         paths: Vec<String>,
     ) -> Result<(), String> {
         a4n_db::cleanup_outbox::insert_file_artifact_cleanup_intent(
-            self.db.connection(),
+            &self.db,
             dedupe_key,
             FileArtifactCleanupPayload::new(project_id, paths),
         )
@@ -397,21 +395,18 @@ impl WorkerState {
             .lease_token
             .as_deref()
             .ok_or_else(|| format!("cleanup outbox claim 缺少 lease token: id={id}"))?;
-        a4n_db::cleanup_outbox::renew_claimed_cleanup(self.db.connection(), id, lease_token)
+        a4n_db::cleanup_outbox::renew_claimed_cleanup(&self.db, id, lease_token)
             .await
             .map_err(|error| error.to_string())?;
-        let candidates = a4n_db::media::filter_unreferenced_media_paths(
-            self.db.connection(),
-            &claim.payload.paths,
-        )
-        .await
-        .map_err(|error| format!("复核文件 artifact 引用失败: {error}"))?;
         let candidates =
-            a4n_db::media::filter_unreferenced_media_paths(self.db.connection(), &candidates)
+            a4n_db::media::filter_unreferenced_media_paths(&self.db, &claim.payload.paths)
                 .await
-                .map_err(|error| format!("二次复核文件 artifact 引用失败: {error}"))?;
+                .map_err(|error| format!("复核文件 artifact 引用失败: {error}"))?;
+        let candidates = a4n_db::media::filter_unreferenced_media_paths(&self.db, &candidates)
+            .await
+            .map_err(|error| format!("二次复核文件 artifact 引用失败: {error}"))?;
         let protected = a4n_db::media::protected_image_publication_cleanup_paths(
-            self.db.connection(),
+            &self.db,
             claim.payload.project_id,
             &candidates,
         )
@@ -442,18 +437,14 @@ impl WorkerState {
         .await
         .map_err(|error| format!("文件 artifact cleanup 任务异常退出: {error}"))?;
         match remove_result {
-            Ok(()) => a4n_db::cleanup_outbox::complete_claimed_cleanup(
-                self.db.connection(),
-                id,
-                lease_token,
-            )
-            .await
-            .map_err(|error| error.to_string()),
+            Ok(()) => a4n_db::cleanup_outbox::complete_claimed_cleanup(&self.db, id, lease_token)
+                .await
+                .map_err(|error| error.to_string()),
             Err(error) => {
                 let retry_after =
                     a4n_cleanup_contract::cleanup_retry_after_seconds(claim.record.attempt_count);
                 a4n_db::cleanup_outbox::retry_claimed_cleanup(
-                    self.db.connection(),
+                    &self.db,
                     id,
                     lease_token,
                     error,
@@ -467,7 +458,7 @@ impl WorkerState {
 
     async fn unreferenced_paths(&self, request: MediaPathsRequest) -> Result<Vec<String>, String> {
         request.validate().map_err(|error| error.to_string())?;
-        a4n_db::media::filter_unreferenced_media_paths(self.db.connection(), &request.paths)
+        a4n_db::media::filter_unreferenced_media_paths(&self.db, &request.paths)
             .await
             .map_err(|error| error.to_string())
     }
@@ -477,12 +468,9 @@ impl WorkerState {
         request: MediaPathPrefixRequest,
     ) -> Result<bool, String> {
         request.validate().map_err(|error| error.to_string())?;
-        a4n_db::media::media_path_prefix_has_persisted_reference(
-            self.db.connection(),
-            &request.prefix,
-        )
-        .await
-        .map_err(|error| error.to_string())
+        a4n_db::media::media_path_prefix_has_persisted_reference(&self.db, &request.prefix)
+            .await
+            .map_err(|error| error.to_string())
     }
 
     async fn project_has_publication(
@@ -490,18 +478,15 @@ impl WorkerState {
         request: ProjectPublicationRequest,
     ) -> Result<bool, String> {
         request.validate().map_err(|error| error.to_string())?;
-        a4n_db::media::project_has_active_image_publication(
-            self.db.connection(),
-            request.project_id,
-        )
-        .await
-        .map_err(|error| error.to_string())
+        a4n_db::media::project_has_active_image_publication(&self.db, request.project_id)
+            .await
+            .map_err(|error| error.to_string())
     }
 
     async fn protected_paths(&self, request: ProjectPathsRequest) -> Result<Vec<String>, String> {
         request.validate().map_err(|error| error.to_string())?;
         let paths = a4n_db::media::protected_image_publication_cleanup_paths(
-            self.db.connection(),
+            &self.db,
             request.project_id,
             &request.paths,
         )
@@ -517,18 +502,17 @@ impl WorkerState {
     ) -> Result<PublishedImageResponse, String> {
         request.validate().map_err(|error| error.to_string())?;
         a4n_db::collaboration::verify_project_permission(
-            self.db.connection(),
+            &self.db,
             request.project_id,
             actor_user_id,
             a4n_db::collaboration::ProjectAccessRole::Editor,
         )
         .await
         .map_err(|error| error.to_string())?;
-        let publication =
-            a4n_db::video::image_publication_by_id(self.db.connection(), &request.publication_id)
-                .await
-                .map_err(|error| error.to_string())?
-                .ok_or_else(|| format!("图片发布意图不存在: {}", request.publication_id))?;
+        let publication = a4n_db::video::image_publication_by_id(&self.db, &request.publication_id)
+            .await
+            .map_err(|error| error.to_string())?
+            .ok_or_else(|| format!("图片发布意图不存在: {}", request.publication_id))?;
         if publication.project_id != request.project_id
             || publication.model != EXTERNAL_IMPORT_MODEL
         {
@@ -544,7 +528,7 @@ impl WorkerState {
             return Err("图片文件事实与发布请求不一致".to_string());
         }
         let image = a4n_db::video::publish_image_publication(
-            self.db.connection(),
+            &self.db,
             &request.publication_id,
             a4n_domain::media::ImagePublicationFileFacts {
                 file_size: facts.1,
@@ -553,11 +537,10 @@ impl WorkerState {
         )
         .await
         .map_err(|error| error.to_string())?;
-        let publication =
-            a4n_db::video::image_publication_by_id(self.db.connection(), &request.publication_id)
-                .await
-                .map_err(|error| error.to_string())?
-                .ok_or_else(|| "图片发布完成后找不到 publication".to_string())?;
+        let publication = a4n_db::video::image_publication_by_id(&self.db, &request.publication_id)
+            .await
+            .map_err(|error| error.to_string())?
+            .ok_or_else(|| "图片发布完成后找不到 publication".to_string())?;
         Ok(PublishedImageResponse {
             publication_id: publication.publication_id,
             image_id: image.id,
@@ -577,10 +560,9 @@ impl WorkerState {
         if request.image_id <= 0 {
             return Err("image_id must be positive".to_string());
         }
-        let Some(image) =
-            a4n_db::video::generated_image_by_id(self.db.connection(), request.image_id)
-                .await
-                .map_err(|error| error.to_string())?
+        let Some(image) = a4n_db::video::generated_image_by_id(&self.db, request.image_id)
+            .await
+            .map_err(|error| error.to_string())?
         else {
             return Ok(None);
         };
@@ -597,7 +579,7 @@ impl WorkerState {
             return Err("project_id must be positive".to_string());
         }
         verify_image_permission(&self.db, user_id, request.project_id, "viewer").await?;
-        a4n_db::video::generated_images_for_project(self.db.connection(), request.project_id)
+        a4n_db::video::generated_images_for_project(&self.db, request.project_id)
             .await
             .map(|images| images.iter().map(generated_image_summary).collect())
             .map_err(|error| error.to_string())
@@ -612,10 +594,9 @@ impl WorkerState {
         for project_id in &project_ids {
             verify_image_permission(&self.db, user_id, *project_id, "viewer").await?;
         }
-        let mut images =
-            a4n_db::video::generated_images_for_projects(self.db.connection(), &project_ids)
-                .await
-                .map_err(|error| error.to_string())?;
+        let mut images = a4n_db::video::generated_images_for_projects(&self.db, &project_ids)
+            .await
+            .map_err(|error| error.to_string())?;
         sort_images_by_project_order(&mut images, &project_ids);
         Ok(images.iter().map(generated_image_summary).collect())
     }
@@ -630,14 +611,14 @@ impl WorkerState {
         }
         verify_image_permission(&self.db, user_id, request.project_id, "viewer").await?;
         a4n_db::video::ensure_image_chapter_belongs_to_project_record(
-            self.db.connection(),
+            &self.db,
             request.project_id,
             request.chapter_id,
         )
         .await
         .map_err(|error| error.to_string())?;
         a4n_db::video::generated_images_for_chapter(
-            self.db.connection(),
+            &self.db,
             request.project_id,
             request.chapter_id,
         )
@@ -656,7 +637,7 @@ impl WorkerState {
         }
         verify_image_permission(&self.db, user_id, request.project_id, "viewer").await?;
         a4n_db::character::portrait_reference_images_by_ids(
-            self.db.connection(),
+            &self.db,
             request.project_id,
             &request.image_ids,
         )
@@ -673,13 +654,13 @@ impl WorkerState {
         if input.is_empty() {
             return Err("图片更新至少需要一个字段".to_string());
         }
-        let image = a4n_db::video::generated_image_by_id(self.db.connection(), input.image_id)
+        let image = a4n_db::video::generated_image_by_id(&self.db, input.image_id)
             .await
             .map_err(|error| error.to_string())?
             .ok_or_else(|| "图片不存在".to_string())?;
         verify_image_permission(&self.db, user_id, image.project_id, "editor").await?;
         let updated = a4n_db::video::update_generated_image_record(
-            self.db.connection(),
+            &self.db,
             input.image_id,
             a4n_domain::media::UpdateGeneratedImageRecordInput {
                 prompt: input.prompt,
@@ -702,17 +683,14 @@ impl WorkerState {
         if input.image_id <= 0 {
             return Err("image_id must be positive".to_string());
         }
-        let image = a4n_db::video::generated_image_by_id(self.db.connection(), input.image_id)
+        let image = a4n_db::video::generated_image_by_id(&self.db, input.image_id)
             .await
             .map_err(|error| error.to_string())?
             .ok_or_else(|| "图片不存在".to_string())?;
         verify_image_permission(&self.db, user_id, image.project_id, "editor").await?;
-        a4n_db::video::delete_generated_image_record_with_cleanup(
-            self.db.connection(),
-            input.image_id,
-        )
-        .await
-        .map_err(|error| error.to_string())
+        a4n_db::video::delete_generated_image_record_with_cleanup(&self.db, input.image_id)
+            .await
+            .map_err(|error| error.to_string())
     }
 }
 
@@ -733,9 +711,9 @@ async fn async_main() -> anyhow::Result<()> {
         a4n_artifact_media_contract::ARTIFACT_MEDIA_WORKER_TOKEN_ENV,
     )?;
     let addr = worker_addr()?;
-    let db = Database::connect(ConnectOptions::new(database_url)).await?;
+    let db = a4n_db::DbHandle::connect_with_default_options(database_url).await?;
     let state = WorkerState {
-        db: a4n_db::DbHandle::new(Arc::new(db)),
+        db,
         data_dir: Arc::new(data_dir),
         token: Arc::from(token),
     };
@@ -776,16 +754,8 @@ async fn health(State(state): State<WorkerState>, headers: HeaderMap) -> Respons
     if !authorized(&state, &headers) {
         return StatusCode::UNAUTHORIZED.into_response();
     }
-    let status = match state
-        .db
-        .connection()
-        .execute(Statement::from_string(
-            DatabaseBackend::Postgres,
-            "SELECT 1",
-        ))
-        .await
-    {
-        Ok(_) => WorkerHealthStatus::Healthy,
+    let status = match state.db.ping().await {
+        Ok(()) => WorkerHealthStatus::Healthy,
         Err(_) => WorkerHealthStatus::Degraded,
     };
     Json(WorkerHealth {

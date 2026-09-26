@@ -24,13 +24,23 @@ pub fn combine_optional_errors(
 
 /// Unified application error used at host and adapter boundaries.
 #[derive(Debug, Error)]
+#[error(transparent)]
+pub struct DatabaseError(anyhow::Error);
+
+impl DatabaseError {
+    pub fn new(error: impl Into<anyhow::Error>) -> Self {
+        Self(error.into())
+    }
+}
+
+/// Unified application error used at host and adapter boundaries.
+#[derive(Debug, Error)]
 pub enum AppError {
     #[error("内部错误：{0}")]
     Internal(anyhow::Error),
 
-    #[cfg(feature = "database")]
     #[error("数据库错误：{0}")]
-    Database(#[from] sea_orm::DbErr),
+    Database(#[from] DatabaseError),
 
     #[error("未找到：{0}")]
     NotFound(String),
@@ -70,6 +80,12 @@ pub enum AppError {
 
     #[error("序列化错误：{0}")]
     Serialization(#[from] serde_json::Error),
+}
+
+impl AppError {
+    pub fn database(error: impl Into<anyhow::Error>) -> Self {
+        Self::Database(DatabaseError::new(error))
+    }
 }
 
 impl From<anyhow::Error> for AppError {

@@ -69,7 +69,7 @@ impl OrchestratorContext {
             .await?;
         let now = Utc::now().naive_utc();
         let tx = lock_outline_generation_sources(
-            self.database.connection(),
+            &self.database,
             prepared.project_id,
             &prepared.context.source_snapshot,
         )
@@ -100,7 +100,7 @@ impl OrchestratorContext {
         };
         self.record_part_outline_generation_run(&tx, &updated, &generated, "重新生成分部大纲")
             .await?;
-        tx.commit().await.map_err(AppError::Database)?;
+        a4n_db::commit_transaction(tx).await?;
         Ok(updated)
     }
 }

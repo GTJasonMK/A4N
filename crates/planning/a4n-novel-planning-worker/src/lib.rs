@@ -16,6 +16,8 @@ use a4n_api_contract::shooting_script::{
     EditChapterShootingScriptProgressInput, EditedChapterShootingScriptProgressView,
     EditedChapterShootingScriptView, PublishChapterShootingScriptInput,
 };
+#[cfg(test)]
+use a4n_db::DatabaseConnection;
 use a4n_db::{DbHandle, chapter_visual_plan::ChapterVisualPlanDbError};
 use a4n_domain::collaboration::ProjectAccessRole;
 use a4n_novel_planning_worker_contract::{
@@ -43,7 +45,6 @@ use axum::{
     response::{IntoResponse, Response},
     routing::{get, post},
 };
-use sea_orm::{ConnectOptions, ConnectionTrait, Database, DatabaseConnection, Statement};
 use subtle::ConstantTimeEq;
 
 const WORKER_ADDR_ENV: &str = "A4N_NOVEL_PLANNING_WORKER_ADDR";
@@ -72,13 +73,13 @@ struct WorkerFailure {
 
 impl NovelPlanningWorker {
     pub fn new(
-        database: DatabaseConnection,
+        database: a4n_db::DbHandle,
         worker_id: impl Into<String>,
         auth_token: impl Into<String>,
     ) -> Self {
         Self {
             state: WorkerState {
-                database: DbHandle::new(Arc::new(database)),
+                database,
                 worker_id: Arc::<str>::from(worker_id.into()),
                 auth_token: Arc::<str>::from(auth_token.into()),
             },
@@ -167,7 +168,7 @@ mod tests {
 
     fn worker() -> NovelPlanningWorker {
         NovelPlanningWorker::new(
-            DatabaseConnection::Disconnected,
+            DbHandle::new(Arc::new(DatabaseConnection::Disconnected)),
             NOVEL_PLANNING_WORKER_ID,
             "worker-token",
         )

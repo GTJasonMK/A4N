@@ -17,7 +17,7 @@ where
         .order_by_asc(chapter::Column::ChapterNumber)
         .all(db)
         .await
-        .map_err(AppError::Database)?;
+        .map_err(AppError::database)?;
     Ok(chapters
         .into_iter()
         .filter(|chapter| {

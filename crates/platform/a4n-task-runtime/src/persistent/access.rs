@@ -10,7 +10,7 @@ mod tests;
 
 impl PersistentTaskQueue {
     pub async fn cancel_workflow_llm_calls(&self, workflow_run_id: i64) -> Result<(), AppError> {
-        let ids = a4n_db::queue::active_workflow_llm_task_ids(self.db.as_ref(), workflow_run_id)
+        let ids = a4n_db::queue::active_workflow_llm_task_ids(&self.db, workflow_run_id)
             .await
             .map_err(queue_db_error)?;
         for id in ids {
@@ -33,7 +33,7 @@ impl PersistentTaskQueue {
                 Ok(())
             }
             Err(AppError::NotFound(_)) => a4n_db::queue::update_task_status(
-                self.db.as_ref(),
+                &self.db,
                 task_id,
                 "cancelled",
                 Some("取消未绑定执行器的持久化队列任务"),

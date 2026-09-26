@@ -25,13 +25,9 @@ impl OrchestratorContext {
             progress,
             workflow_run_id,
         } = input;
-        let mut context = load_part_generation_context(
-            self.database.connection(),
-            project_id,
-            part_count,
-            chapters_per_part,
-        )
-        .await?;
+        let mut context =
+            load_part_generation_context(&self.database, project_id, part_count, chapters_per_part)
+                .await?;
         let batch = plan_next_parts(
             &context.parts,
             context.requested_part_count,
@@ -76,7 +72,7 @@ impl OrchestratorContext {
                 })
                 .await?;
             let tx = lock_outline_generation_sources(
-                self.database.connection(),
+                &self.database,
                 project_id,
                 &context.source_snapshot,
             )
@@ -93,9 +89,9 @@ impl OrchestratorContext {
             .await?;
             self.record_part_outline_generation_run(&tx, &part, &generated, "生成分部大纲")
                 .await?;
-            tx.commit().await.map_err(AppError::Database)?;
+            a4n_db::commit_transaction(tx).await?;
             context = load_part_generation_context(
-                self.database.connection(),
+                &self.database,
                 project_id,
                 Some(context.requested_part_count),
                 Some(context.chapters_per_part),

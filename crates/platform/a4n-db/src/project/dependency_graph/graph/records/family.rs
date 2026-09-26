@@ -80,11 +80,11 @@ pub(super) async fn load_family_asset_graph_records(
             .into_model::<GeneratedVideoGraphRow>()
             .all(db),
     );
-    let portraits = portraits_result.map_err(AppError::Database)?;
-    let manga_prompts = manga_prompts_result.map_err(AppError::Database)?;
-    let video_prompts = video_prompts_result.map_err(AppError::Database)?;
-    let generated_images = generated_images_result.map_err(AppError::Database)?;
-    let generated_videos = generated_videos_result.map_err(AppError::Database)?;
+    let portraits = portraits_result.map_err(AppError::database)?;
+    let manga_prompts = manga_prompts_result.map_err(AppError::database)?;
+    let video_prompts = video_prompts_result.map_err(AppError::database)?;
+    let generated_images = generated_images_result.map_err(AppError::database)?;
+    let generated_videos = generated_videos_result.map_err(AppError::database)?;
 
     Ok(FamilyAssetGraphRecords {
         portraits,

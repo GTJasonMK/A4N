@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use a4n_db::SharedDatabaseConnection;
+use a4n_db::DbHandle;
 use a4n_error::AppError;
 use a4n_queue::memory_queue::MemoryTaskQueue;
 
@@ -12,7 +12,7 @@ mod submission;
 
 impl PersistentTaskQueue {
     /// 创建并恢复未完成任务
-    pub async fn new(db: SharedDatabaseConnection) -> Result<Self, AppError> {
+    pub async fn new(db: DbHandle) -> Result<Self, AppError> {
         let limits = QueueConcurrencyLimits::load(&db).await?;
         let inner = Arc::new(MemoryTaskQueue::with_limits(
             limits.llm,

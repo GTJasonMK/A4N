@@ -11,7 +11,7 @@ async fn default_image_config(
         .filter(image_gen_config::Column::IsDefault.eq(true))
         .one(db)
         .await
-        .map_err(AppError::Database)?
+        .map_err(AppError::database)?
         .ok_or_else(|| AppError::ConfigError("请先设置默认图片配置".to_string()))
 }
 

@@ -30,9 +30,7 @@ impl OrchestratorContext {
             variables,
             workflow_run_id,
         } = input;
-        let context =
-            load_part_generation_context(self.database.connection(), project_id, None, None)
-                .await?;
+        let context = load_part_generation_context(&self.database, project_id, None, None).await?;
         validate_part_outline_request(part_number, start_chapter, end_chapter)?;
         ensure_continue_part_request(&context.parts, part_number, start_chapter)?;
         ensure_no_part_outline_conflict(
@@ -60,12 +58,9 @@ impl OrchestratorContext {
             })
             .await?;
         let now = Utc::now().naive_utc();
-        let tx = lock_outline_generation_sources(
-            self.database.connection(),
-            project_id,
-            &context.source_snapshot,
-        )
-        .await?;
+        let tx =
+            lock_outline_generation_sources(&self.database, project_id, &context.source_snapshot)
+                .await?;
         let part = insert_part_outline_from_json(
             &tx,
             project_id,
@@ -78,7 +73,7 @@ impl OrchestratorContext {
         .await?;
         self.record_part_outline_generation_run(&tx, &part, &generated, "续写分部大纲")
             .await?;
-        tx.commit().await.map_err(AppError::Database)?;
+        a4n_db::commit_transaction(tx).await?;
         Ok(part)
     }
 
@@ -91,9 +86,7 @@ impl OrchestratorContext {
         prompt_renderer: &dyn PromptRenderer,
         variables: &HashMap<String, serde_json::Value>,
     ) -> Result<ChatRequest, AppError> {
-        let context =
-            load_part_generation_context(self.database.connection(), project_id, None, None)
-                .await?;
+        let context = load_part_generation_context(&self.database, project_id, None, None).await?;
         validate_part_outline_request(part_number, start_chapter, end_chapter)?;
         ensure_continue_part_request(&context.parts, part_number, start_chapter)?;
         ensure_no_part_outline_conflict(

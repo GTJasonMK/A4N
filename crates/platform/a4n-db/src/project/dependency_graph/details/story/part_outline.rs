@@ -18,7 +18,7 @@ where
         .order_by_asc(part_outline::Column::PartNumber)
         .all(db)
         .await
-        .map_err(AppError::Database)?;
+        .map_err(AppError::database)?;
     Ok(parts
         .into_iter()
         .map(|part| AssetLineageRecord {

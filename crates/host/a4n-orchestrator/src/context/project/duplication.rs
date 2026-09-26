@@ -54,14 +54,9 @@ impl ProjectDuplicationApplication {
         user_id: i64,
         new_title: &str,
     ) -> Result<novel_project::Model, AppError> {
-        a4n_db::project::duplicate_text_project_record(
-            self.database.connection(),
-            original,
-            user_id,
-            new_title,
-        )
-        .await
-        .map_err(project_duplicate_error_to_app_error)
+        a4n_db::project::duplicate_text_project_record(&self.database, original, user_id, new_title)
+            .await
+            .map_err(project_duplicate_error_to_app_error)
     }
 
     async fn duplicate_derived<Copier>(
@@ -75,7 +70,7 @@ impl ProjectDuplicationApplication {
         Copier: ProjectMediaFileCopier,
     {
         a4n_db::project::duplicate_derived_project_record(
-            self.database.connection(),
+            &self.database,
             original,
             user_id,
             new_title,
@@ -96,7 +91,7 @@ impl ProjectDuplicationApplication {
         Copier: ProjectMediaFileCopier,
     {
         a4n_db::project::duplicate_freeform_project_record(
-            self.database.connection(),
+            &self.database,
             original,
             user_id,
             new_title,

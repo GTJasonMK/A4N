@@ -153,7 +153,7 @@ impl OrchestratorContext {
         .await?;
         if let Some(chapter_id) = input.chapter_id {
             a4n_db::video::ensure_image_chapter_belongs_to_project_record(
-                self.database.connection(),
+                &self.database,
                 input.project_id,
                 chapter_id,
             )
@@ -519,16 +519,15 @@ impl OrchestratorContext {
                 workflow.step_key, checkpoint_file_path, image.file_path
             )));
         }
-        let publication =
-            a4n_db::video::image_publication_by_image_id(self.database.connection(), image_id)
-                .await
-                .map_err(crate::video::video_db_error)?
-                .ok_or_else(|| {
-                    AppError::NotFound(format!(
-                        "{} checkpoint 图片缺少发布记录: {image_id}",
-                        workflow.step_key
-                    ))
-                })?;
+        let publication = a4n_db::video::image_publication_by_image_id(&self.database, image_id)
+            .await
+            .map_err(crate::video::video_db_error)?
+            .ok_or_else(|| {
+                AppError::NotFound(format!(
+                    "{} checkpoint 图片缺少发布记录: {image_id}",
+                    workflow.step_key
+                ))
+            })?;
         if publication.status != IMAGE_PUBLICATION_STATUS_PUBLISHED {
             return Err(AppError::InvalidState {
                 current: publication.status,

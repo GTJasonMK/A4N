@@ -22,11 +22,10 @@ impl OrchestratorContext {
         chapter_id: i64,
         prompt_id: i64,
     ) -> Result<chapter_video_prompt::Model, AppError> {
-        let prompt =
-            a4n_db::video::chapter_video_prompt_by_id(self.database.connection(), prompt_id)
-                .await
-                .map_err(video_db_error)?
-                .ok_or_else(|| AppError::NotFound(format!("视频提示词不存在: {prompt_id}")))?;
+        let prompt = a4n_db::video::chapter_video_prompt_by_id(&self.database, prompt_id)
+            .await
+            .map_err(video_db_error)?
+            .ok_or_else(|| AppError::NotFound(format!("视频提示词不存在: {prompt_id}")))?;
         validate_import_chapter_video_prompt(&prompt, project_id, chapter_id)
             .map_err(AppError::InvalidArgument)?;
         Ok(prompt)
@@ -40,7 +39,7 @@ impl OrchestratorContext {
         last_frame_number: i32,
     ) -> Result<Vec<a4n_db::video::ChapterVideoPromptCandidateRecord>, AppError> {
         a4n_db::video::chapter_video_boundary_frame_prompt_candidates(
-            self.database.connection(),
+            &self.database,
             project_id,
             chapter_id,
             first_frame_number,
@@ -56,7 +55,7 @@ impl OrchestratorContext {
         chapter_id: i64,
     ) -> Result<Vec<a4n_db::video::ChapterVideoPromptCandidateRecord>, AppError> {
         a4n_db::video::chapter_video_first_frame_prompt_candidates(
-            self.database.connection(),
+            &self.database,
             project_id,
             chapter_id,
         )
@@ -70,7 +69,7 @@ impl OrchestratorContext {
         chapter_id: i64,
     ) -> Result<Vec<a4n_db::video::ChapterVideoPromptCandidateRecord>, AppError> {
         a4n_db::video::chapter_video_first_frame_chain_prompt_candidates(
-            self.database.connection(),
+            &self.database,
             project_id,
             chapter_id,
         )
@@ -85,7 +84,7 @@ impl OrchestratorContext {
         shot_number: i32,
     ) -> Result<Vec<a4n_db::video::ChapterVideoPromptCandidateRecord>, AppError> {
         a4n_db::video::chapter_video_storyboard_prompt_candidates(
-            self.database.connection(),
+            &self.database,
             project_id,
             chapter_id,
             shot_number,

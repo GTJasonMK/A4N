@@ -20,13 +20,13 @@ pub async fn update_user_role(
     validate_positive_user_id(user_id)?;
     validate_user_role(role)?;
 
-    let tx = db.begin().await.map_err(AppError::Database)?;
+    let tx = db.begin().await.map_err(AppError::database)?;
     let user = lock_administrator_membership(&tx, user_id, role != ROLE_ADMIN).await?;
     let mut active: user::ActiveModel = user.into();
     active.role = Set(role.to_string());
     active.updated_at = Set(Utc::now().naive_utc());
-    let updated = active.update(&tx).await.map_err(AppError::Database)?;
-    tx.commit().await.map_err(AppError::Database)?;
+    let updated = active.update(&tx).await.map_err(AppError::database)?;
+    tx.commit().await.map_err(AppError::database)?;
     Ok(updated)
 }
 
@@ -42,12 +42,12 @@ pub(crate) async fn lock_administrator_membership(
         "SELECT pg_advisory_xact_lock(hashtextextended('a4n-auth-admin-membership', 0))",
     ))
     .await
-    .map_err(AppError::Database)?;
+    .map_err(AppError::database)?;
     let user = user::Entity::find_by_id(user_id)
         .lock_exclusive()
         .one(tx)
         .await
-        .map_err(AppError::Database)?
+        .map_err(AppError::database)?
         .ok_or_else(|| AppError::NotFound(format!("用户不存在: {user_id}")))?;
     if removes_access
         && user.role == ROLE_ADMIN
@@ -61,7 +61,7 @@ pub(crate) async fn lock_administrator_membership(
             .filter(user::Column::LifecycleGate.eq(crate::generation::USER_GATE_ACTIVE))
             .count(tx)
             .await
-            .map_err(AppError::Database)?;
+            .map_err(AppError::database)?;
         if others == 0 {
             return Err(AppError::InvalidArgument(
                 "必须保留至少一位可用的管理员，请先将其他用户设为管理员".into(),

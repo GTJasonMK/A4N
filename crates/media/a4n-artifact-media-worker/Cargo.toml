@@ -17,7 +17,6 @@ a4n-worker-contract = { workspace = true }
 anyhow = { workspace = true }
 axum = { workspace = true }
 chrono = { workspace = true }
-sea-orm = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 tokio = { workspace = true }

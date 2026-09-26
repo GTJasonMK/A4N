@@ -363,34 +363,29 @@ impl OrchestratorContext {
         project_id: i64,
         operation: ProjectLifecycleOperation,
     ) -> Result<(), GenerationLifecycleGateError> {
-        a4n_db::generation::restore_project_lifecycle_gate(
-            self.database.connection(),
-            project_id,
-            operation,
-        )
-        .await
+        a4n_db::generation::restore_project_lifecycle_gate(&self.database, project_id, operation)
+            .await
     }
 
     pub(crate) async fn restore_generation_user_lifecycle_gate(
         &self,
         user_id: i64,
     ) -> Result<(), GenerationLifecycleGateError> {
-        a4n_db::generation::restore_user_lifecycle_gate(self.database.connection(), user_id).await
+        a4n_db::generation::restore_user_lifecycle_gate(&self.database, user_id).await
     }
 
     pub(crate) async fn complete_generation_project_reset_gate(
         &self,
         project_id: i64,
     ) -> Result<(), GenerationLifecycleGateError> {
-        a4n_db::generation::complete_project_reset_gate(self.database.connection(), project_id)
-            .await
+        a4n_db::generation::complete_project_reset_gate(&self.database, project_id).await
     }
 
     pub(crate) async fn complete_generation_user_disable_gate(
         &self,
         user_id: i64,
     ) -> Result<(), GenerationLifecycleGateError> {
-        a4n_db::generation::complete_user_disable_gate(self.database.connection(), user_id).await
+        a4n_db::generation::complete_user_disable_gate(&self.database, user_id).await
     }
 
     pub(crate) async fn record_completed_generation_run(

@@ -64,10 +64,10 @@ pub async fn set_default_provider_config(
     kind: ProviderConfigKind,
     config_id: i64,
 ) -> Result<(), AppError> {
-    let txn = db.begin().await.map_err(AppError::Database)?;
+    let txn = db.begin().await.map_err(AppError::database)?;
     clear_provider_config_defaults(&txn, kind, Some(config_id))
         .await
-        .map_err(AppError::Database)?;
+        .map_err(AppError::database)?;
 
     let table = kind.table_name();
     let updated = txn
@@ -79,7 +79,7 @@ pub async fn set_default_provider_config(
             [config_id.into()],
         ))
         .await
-        .map_err(AppError::Database)?;
+        .map_err(AppError::database)?;
     if updated.rows_affected() != 1 {
         return Err(AppError::NotFound(format!(
             "{}不存在: {config_id}",
@@ -87,5 +87,5 @@ pub async fn set_default_provider_config(
         )));
     }
 
-    txn.commit().await.map_err(AppError::Database)
+    txn.commit().await.map_err(AppError::database)
 }

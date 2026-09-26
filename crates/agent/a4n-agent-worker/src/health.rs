@@ -982,7 +982,7 @@ mod tests {
 
     fn test_router() -> Router {
         let application = Arc::new(AgentApplication::new(a4n_db::DbHandle::new(Arc::new(
-            sea_orm::DatabaseConnection::Disconnected,
+            a4n_db::DatabaseConnection::Disconnected,
         ))));
         let host = Arc::new(crate::host::HttpAgentRuntimeHost::new(
             reqwest::Client::new(),

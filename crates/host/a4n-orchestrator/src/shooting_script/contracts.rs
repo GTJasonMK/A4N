@@ -251,10 +251,7 @@ pub(crate) fn visual_plan_fixture(source: &ResolvedChapterSource) -> ParsedChapt
 }
 
 #[cfg(test)]
-pub(crate) async fn seed_visual_plan_scene(
-    db: &sea_orm::DatabaseConnection,
-    project_id: i64,
-) -> i64 {
+pub(crate) async fn seed_visual_plan_scene(db: &a4n_db::DbHandle, project_id: i64) -> i64 {
     if let Some(scene) = a4n_db::scene_profile::maybe_scene_profile_by_normalized_name(
         db,
         project_id,

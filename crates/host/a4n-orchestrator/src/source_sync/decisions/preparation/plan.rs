@@ -30,7 +30,7 @@ pub(super) async fn build_prepared_galgame_scene_regeneration_plan(
     speaker_profiles: &[GalgameSpeakerProfile],
 ) -> Result<GalgameSceneRegenerationPlan, AppError> {
     let source = a4n_db::source_sync::galgame_scene_regeneration_source_record(
-        service.database.connection(),
+        &service.database,
         run,
         conflict,
         payload.galgame_scene_id,
@@ -51,7 +51,7 @@ pub(super) async fn build_prepared_galgame_scene_regeneration_plan(
     };
     let visual_plan = source_sync_visual_plan_identity(&source.new_snapshot_chapter)?;
     let target_sources = a4n_db::project::resolve_snapshot_sources(
-        service.database.connection(),
+        &service.database,
         run.derived_project_id,
         run.root_project_id,
         run.to_snapshot_id,

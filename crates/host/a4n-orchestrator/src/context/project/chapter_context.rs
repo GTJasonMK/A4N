@@ -30,7 +30,7 @@ impl ProjectChapterContextApplication {
         chapter_number: i32,
     ) -> Result<ChapterGenerationReferenceContextRows, AppError> {
         a4n_db::project::chapter_generation_reference_context_rows(
-            self.database.connection(),
+            &self.database,
             project_id,
             chapter_number,
         )
@@ -45,7 +45,7 @@ impl ProjectChapterContextApplication {
         updates: Vec<a4n_db::project::ForeshadowingFactUpdate>,
     ) -> Result<ForeshadowingAnalysisSyncResult, AppError> {
         a4n_db::project::sync_chapter_analysis_foreshadowing(
-            self.database.connection(),
+            &self.database,
             source,
             drafts,
             updates,
@@ -59,13 +59,9 @@ impl ProjectChapterContextApplication {
         project_id: i64,
         chapter_number: i32,
     ) -> Result<Vec<ChapterObjectProfileContext>, AppError> {
-        a4n_db::project::object_profiles_before_chapter(
-            self.database.connection(),
-            project_id,
-            chapter_number,
-        )
-        .await
-        .map_err(project_chapter_context_error_to_app_error)
+        a4n_db::project::object_profiles_before_chapter(&self.database, project_id, chapter_number)
+            .await
+            .map_err(project_chapter_context_error_to_app_error)
     }
 
     async fn scene_profiles_before_chapter(
@@ -73,20 +69,16 @@ impl ProjectChapterContextApplication {
         project_id: i64,
         chapter_number: i32,
     ) -> Result<Vec<ChapterSceneProfileContext>, AppError> {
-        a4n_db::project::scene_profiles_before_chapter(
-            self.database.connection(),
-            project_id,
-            chapter_number,
-        )
-        .await
-        .map_err(project_chapter_context_error_to_app_error)
+        a4n_db::project::scene_profiles_before_chapter(&self.database, project_id, chapter_number)
+            .await
+            .map_err(project_chapter_context_error_to_app_error)
     }
 
     async fn protagonist_profiles_for_project(
         &self,
         project_id: i64,
     ) -> Result<Vec<protagonist_profile::Model>, AppError> {
-        a4n_db::project::protagonist_profiles_for_project(self.database.connection(), project_id)
+        a4n_db::project::protagonist_profiles_for_project(&self.database, project_id)
             .await
             .map_err(project_chapter_context_error_to_app_error)
     }
@@ -98,7 +90,7 @@ impl ProjectChapterContextApplication {
         limit: u64,
     ) -> Result<Vec<character_state_index::Model>, AppError> {
         a4n_db::project::character_states_for_profiles_before_chapter(
-            self.database.connection(),
+            &self.database,
             profile_ids,
             chapter_number,
             limit,

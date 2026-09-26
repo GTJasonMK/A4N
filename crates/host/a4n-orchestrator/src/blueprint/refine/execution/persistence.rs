@@ -1,3 +1,4 @@
+use a4n_db::DbTransaction;
 use a4n_db::blueprint::{
     BlueprintRefinePatchInput, InsertBlueprintVersionInput, SyncProjectAfterBlueprintInput,
     apply_blueprint_refine_patch_record, blueprint_version_snapshot,
@@ -12,7 +13,6 @@ use a4n_db_models::models::project::novel_blueprint;
 use a4n_domain::project::ProjectStatus;
 use a4n_error::AppError;
 use chrono::Utc;
-use sea_orm::DatabaseTransaction;
 use serde_json::Value;
 
 use super::contracts::blueprint_refine_source_snapshot;
@@ -21,14 +21,15 @@ use crate::blueprint::{blueprint_db_error, blueprint_sync_error, character_profi
 use crate::context::inspiration_db_error_to_app;
 
 pub(super) async fn persist_blueprint_refinement_in_transaction(
-    tx: &DatabaseTransaction,
+    tx: &DbTransaction,
     project_id: i64,
     expected_source_snapshot: Value,
     parsed: a4n_domain::project::ParsedBlueprintOptimization,
 ) -> Result<novel_blueprint::Model, AppError> {
     let locked_sources =
         a4n_db::outline::load_outline_generation_source_rows_for_update(tx, project_id)
-            .await?
+            .await
+            .map_err(AppError::database)?
             .ok_or_else(|| AppError::NotFound(format!("项目不存在: {project_id}")))?;
     if locked_sources.project.lifecycle_gate != a4n_db::generation::PROJECT_GATE_ACTIVE {
         return Err(AppError::InvalidState {
@@ -88,8 +89,12 @@ pub(super) async fn persist_blueprint_refinement_in_transaction(
     a4n_db::character::sync_character_profiles_from_blueprint(tx, project_id, now)
         .await
         .map_err(character_profile_seed_error)?;
-    let updated_characters = blueprint_characters_for_project(tx, project_id).await?;
-    let updated_relationships = blueprint_relationships_for_project(tx, project_id).await?;
+    let updated_characters = blueprint_characters_for_project(tx, project_id)
+        .await
+        .map_err(AppError::database)?;
+    let updated_relationships = blueprint_relationships_for_project(tx, project_id)
+        .await
+        .map_err(AppError::database)?;
     let snapshot =
         blueprint_version_snapshot(&updated, &updated_characters, &updated_relationships);
     insert_blueprint_version_record(

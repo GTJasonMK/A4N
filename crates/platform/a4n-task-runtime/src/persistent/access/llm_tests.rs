@@ -14,7 +14,9 @@ use super::super::{PersistentTaskQueue, test_support::setup_db};
 #[tokio::test]
 async fn cancelling_a_workflow_stops_calls_and_rejects_late_admission() {
     let db = setup_db().await;
-    let queue = PersistentTaskQueue::new(db.clone()).await.unwrap();
+    let queue = PersistentTaskQueue::new(a4n_db::DbHandle::new(db.clone()))
+        .await
+        .unwrap();
     let parent = queue
         .submit_internal(
             TaskKind::TextGeneration,
@@ -127,7 +129,9 @@ async fn cancelling_a_workflow_stops_calls_and_rejects_late_admission() {
 #[tokio::test]
 async fn persisted_cancellation_wins_over_a_stale_memory_pending_task() {
     let db = setup_db().await;
-    let queue = PersistentTaskQueue::new(db.clone()).await.unwrap();
+    let queue = PersistentTaskQueue::new(a4n_db::DbHandle::new(db.clone()))
+        .await
+        .unwrap();
     let id = queue
         .submit_internal(TaskKind::LlmCall, TaskPriority::Medium, None, None, None)
         .await

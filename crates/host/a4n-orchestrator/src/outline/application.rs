@@ -675,7 +675,7 @@ impl OrchestratorContext {
     ) -> Result<Vec<OutlineRequestPreviewStep>, AppError> {
         let (parts_result, context_result) = futures::join!(
             self.load_unique_outline_parts(input.project_id, &input.part_ids),
-            load_chapter_outline_generation_context(self.database.connection(), input.project_id),
+            load_chapter_outline_generation_context(&self.database, input.project_id),
         );
         let parts = parts_result?;
         let context = context_result?;

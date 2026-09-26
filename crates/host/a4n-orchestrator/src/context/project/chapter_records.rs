@@ -21,9 +21,9 @@ impl ProjectChapterRecordsApplication {
     }
 
     async fn chapter_by_id(&self, chapter_id: i64) -> Result<Option<chapter::Model>, AppError> {
-        a4n_db::project::chapter_by_id(self.database.connection(), chapter_id)
+        a4n_db::project::chapter_by_id(&self.database, chapter_id)
             .await
-            .map_err(AppError::Database)
+            .map_err(AppError::database)
     }
 
     async fn chapter_by_project_number(
@@ -31,20 +31,16 @@ impl ProjectChapterRecordsApplication {
         project_id: i64,
         chapter_number: i32,
     ) -> Result<Option<chapter::Model>, AppError> {
-        a4n_db::project::chapter_by_project_number(
-            self.database.connection(),
-            project_id,
-            chapter_number,
-        )
-        .await
-        .map_err(project_chapter_scene_record_error_to_app_error)
+        a4n_db::project::chapter_by_project_number(&self.database, project_id, chapter_number)
+            .await
+            .map_err(project_chapter_scene_record_error_to_app_error)
     }
 
     async fn import_analysis_chapter_candidates(
         &self,
         project_id: i64,
     ) -> Result<Vec<chapter::Model>, AppError> {
-        a4n_db::project::import_analysis_chapter_candidates(self.database.connection(), project_id)
+        a4n_db::project::import_analysis_chapter_candidates(&self.database, project_id)
             .await
             .map_err(project_chapter_context_error_to_app_error)
     }
@@ -53,10 +49,9 @@ impl ProjectChapterRecordsApplication {
         &self,
         project_id: i64,
     ) -> Result<Vec<chapter::Model>, AppError> {
-        let chapters =
-            a4n_db::project::character_sync_chapters(self.database.connection(), project_id)
-                .await
-                .map_err(project_chapter_context_error_to_app_error)?;
+        let chapters = a4n_db::project::character_sync_chapters(&self.database, project_id)
+            .await
+            .map_err(project_chapter_context_error_to_app_error)?;
         Ok(chapters
             .into_iter()
             .filter(is_character_sync_available_chapter)
@@ -64,7 +59,7 @@ impl ProjectChapterRecordsApplication {
     }
 
     async fn refresh_project_current_chapter(&self, project_id: i64) -> Result<(), AppError> {
-        a4n_db::project::refresh_project_current_chapter(self.database.connection(), project_id)
+        a4n_db::project::refresh_project_current_chapter(&self.database, project_id)
             .await
             .map_err(project_chapter_context_error_to_app_error)
     }
@@ -74,13 +69,9 @@ impl ProjectChapterRecordsApplication {
         project_id: i64,
         chapter_number: i32,
     ) -> Result<Vec<chapter::Model>, AppError> {
-        a4n_db::project::chapters_before_number(
-            self.database.connection(),
-            project_id,
-            chapter_number,
-        )
-        .await
-        .map_err(project_chapter_context_error_to_app_error)
+        a4n_db::project::chapters_before_number(&self.database, project_id, chapter_number)
+            .await
+            .map_err(project_chapter_context_error_to_app_error)
     }
 
     async fn source_snapshot_chapter_content_by_snapshot_and_source(
@@ -89,7 +80,7 @@ impl ProjectChapterRecordsApplication {
         source_chapter_id: i64,
     ) -> Result<Option<String>, AppError> {
         a4n_db::project::source_snapshot_chapter_content_by_snapshot_and_source(
-            self.database.connection(),
+            &self.database,
             snapshot_id,
             source_chapter_id,
         )

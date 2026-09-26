@@ -13,7 +13,9 @@ use super::super::super::test_support::setup_db;
 #[tokio::test]
 async fn mark_done_updates_database_status() {
     let db = setup_db().await;
-    let queue = PersistentTaskQueue::new(db.clone()).await.unwrap();
+    let queue = PersistentTaskQueue::new(a4n_db::DbHandle::new(db.clone()))
+        .await
+        .unwrap();
     let task_id = queue
         .submit_internal(TaskKind::LlmCall, TaskPriority::High, None, None, None)
         .await
@@ -36,7 +38,9 @@ async fn mark_done_updates_database_status() {
 #[tokio::test]
 async fn mark_failed_records_error() {
     let db = setup_db().await;
-    let queue = PersistentTaskQueue::new(db.clone()).await.unwrap();
+    let queue = PersistentTaskQueue::new(a4n_db::DbHandle::new(db.clone()))
+        .await
+        .unwrap();
     let task_id = queue
         .submit_internal(TaskKind::LlmCall, TaskPriority::Medium, None, None, None)
         .await
@@ -59,7 +63,9 @@ async fn mark_failed_records_error() {
 #[tokio::test]
 async fn generation_task_status_and_workflow_owner_update_together() {
     let db = setup_db().await;
-    let queue = PersistentTaskQueue::new(db.clone()).await.unwrap();
+    let queue = PersistentTaskQueue::new(a4n_db::DbHandle::new(db.clone()))
+        .await
+        .unwrap();
     let workflow = upsert_workflow_run(
         db.as_ref(),
         UpsertWorkflowRunInput {
@@ -122,7 +128,9 @@ async fn generation_task_status_and_workflow_owner_update_together() {
 #[tokio::test]
 async fn missing_workflow_rolls_back_task_status_update() {
     let db = setup_db().await;
-    let queue = PersistentTaskQueue::new(db.clone()).await.unwrap();
+    let queue = PersistentTaskQueue::new(a4n_db::DbHandle::new(db.clone()))
+        .await
+        .unwrap();
     let task_id = queue
         .submit_internal(
             TaskKind::TextGeneration,

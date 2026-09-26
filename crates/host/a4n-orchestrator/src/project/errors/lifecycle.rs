@@ -10,14 +10,14 @@ pub(crate) fn project_mutation_error_to_app_error(error: ProjectMutationError) -
         ProjectMutationError::NotFound(message) => AppError::NotFound(message),
         ProjectMutationError::Forbidden(message) => AppError::Forbidden(message),
         ProjectMutationError::Internal(message) => AppError::Internal(anyhow::anyhow!(message)),
-        ProjectMutationError::Database(error) => AppError::Database(error),
+        ProjectMutationError::Database(error) => AppError::database(error),
     }
 }
 
 pub(crate) fn project_status_read_error_to_app_error(error: ProjectStatusReadError) -> AppError {
     match error {
         ProjectStatusReadError::InvalidArgument(message) => AppError::InvalidArgument(message),
-        ProjectStatusReadError::Database { source, .. } => AppError::Database(source),
+        ProjectStatusReadError::Database { source, .. } => AppError::database(source),
     }
 }
 
@@ -31,7 +31,7 @@ pub(crate) fn project_status_write_error_to_app_error(error: ProjectStatusWriteE
             current: actual,
             operation: format!("更新项目状态（期望当前状态 {expected}）"),
         },
-        ProjectStatusWriteError::Database { source } => AppError::Database(source),
+        ProjectStatusWriteError::Database { source } => AppError::database(source),
     }
 }
 
@@ -68,7 +68,7 @@ pub(crate) fn project_reset_error_to_app_error(error: ProjectResetDbError) -> Ap
         ProjectResetDbError::ProjectMutation { source } => {
             project_mutation_error_to_app_error(source)
         }
-        ProjectResetDbError::Database { source } => AppError::Database(source),
+        ProjectResetDbError::Database { source } => AppError::database(source),
     }
 }
 
@@ -81,7 +81,7 @@ pub(crate) fn project_duplicate_error_to_app_error(error: ProjectDuplicateError)
         ProjectDuplicateError::MediaCopy(error) => {
             AppError::Internal(anyhow::anyhow!("媒体文件复制失败：{error}"))
         }
-        ProjectDuplicateError::Database(error) => AppError::Database(error),
+        ProjectDuplicateError::Database(error) => AppError::database(error),
     }
 }
 

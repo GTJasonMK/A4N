@@ -142,7 +142,7 @@ impl OrchestratorContext {
             )?;
         }
         let tx = lock_outline_generation_sources(
-            self.database.connection(),
+            &self.database,
             project_id,
             &prepared.context.source_snapshot,
         )
@@ -155,7 +155,7 @@ impl OrchestratorContext {
             now,
         )
         .await?;
-        tx.commit().await.map_err(AppError::Database)?;
+        a4n_db::commit_transaction(tx).await?;
         Ok(outlines)
     }
 }

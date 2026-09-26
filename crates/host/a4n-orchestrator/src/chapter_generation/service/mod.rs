@@ -21,7 +21,7 @@ use dashmap::DashMap;
 use std::sync::Arc;
 use tokio::sync::Mutex as AsyncMutex;
 
-use a4n_db::SharedDatabaseConnection;
+use a4n_db::DbHandle;
 
 type ChapterGenerationKey = (i64, i32);
 type ChapterGenerationLock = Arc<AsyncMutex<()>>;
@@ -29,12 +29,12 @@ type ChapterGenerationLocks = DashMap<ChapterGenerationKey, ChapterGenerationLoc
 
 #[derive(Clone)]
 pub struct ChapterGenerationService {
-    db: SharedDatabaseConnection,
+    db: DbHandle,
     generation_locks: Arc<ChapterGenerationLocks>,
 }
 
 impl ChapterGenerationService {
-    pub fn new(db: SharedDatabaseConnection) -> Self {
+    pub fn new(db: DbHandle) -> Self {
         Self {
             db,
             generation_locks: Arc::new(DashMap::new()),

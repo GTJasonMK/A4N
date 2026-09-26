@@ -17,12 +17,12 @@ mod references;
 pub use create::create_generated_image_record;
 pub(crate) use publication::reclaim_image_publications_for_deleted_images;
 pub use publication::{
-    ImagePublicationRequest, create_image_publication_intent, image_publication_by_id,
-    image_publication_by_image_id, image_publications_for_recovery,
+    ImagePublicationRequest, active_image_publications_for_paths, create_image_publication_intent,
+    image_publication_by_id, image_publication_by_image_id, image_publications_for_recovery,
     image_publications_for_recovery_for_model, mark_image_publication_reclaimed,
-    mark_image_publication_reclaiming, publish_image_publication,
-    publish_image_publication_with_generation_run_checkpoint, update_image_publication_metadata,
-    validate_image_publication_request,
+    mark_image_publication_reclaiming, project_has_active_image_publication,
+    publish_image_publication, publish_image_publication_with_generation_run_checkpoint,
+    update_image_publication_metadata, validate_image_publication_request,
 };
 pub(crate) use records::clear_generated_image_references_record;
 pub(crate) use records::generated_images_for_chapter_by_id_desc;

@@ -18,7 +18,7 @@ fn project_delete_error_keeps_typed_app_error_mapping() {
     );
     assert!(matches!(
         database,
-        a4n_error::AppError::Database(sea_orm::DbErr::Custom(message))
+        a4n_error::AppError::database(sea_orm::DbErr::Custom(message))
             if message == "delete failed"
     ));
 
@@ -31,7 +31,7 @@ fn project_delete_error_keeps_typed_app_error_mapping() {
     );
     assert!(matches!(
         cleanup_database,
-        a4n_error::AppError::Database(sea_orm::DbErr::Custom(message))
+        a4n_error::AppError::database(sea_orm::DbErr::Custom(message))
             if message == "cleanup failed"
     ));
 }
@@ -62,7 +62,7 @@ fn freeform_generated_reset_error_keeps_typed_app_error_mapping() {
     );
     assert!(matches!(
         database,
-        a4n_error::AppError::Database(sea_orm::DbErr::Custom(message))
+        a4n_error::AppError::database(sea_orm::DbErr::Custom(message))
             if message == "reset failed"
     ));
 }

@@ -22,8 +22,8 @@ impl SourceSyncApplication {
         Self { database }
     }
 
-    fn connection(&self) -> &sea_orm::DatabaseConnection {
-        self.database.connection()
+    fn connection(&self) -> &a4n_db::DbHandle {
+        &self.database
     }
 
     async fn create_source_sync_preview_records(
@@ -44,7 +44,7 @@ impl SourceSyncApplication {
     ) -> Result<Option<source_sync_run::Model>, AppError> {
         a4n_db::source_sync::source_sync_run_by_id(self.connection(), sync_run_id)
             .await
-            .map_err(AppError::Database)
+            .map_err(AppError::database)
     }
 
     async fn detach_derived_project_record(&self, derived_project_id: i64) -> Result<(), AppError> {

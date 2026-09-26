@@ -40,19 +40,16 @@ impl ProjectFamilyApplication {
         &self,
         project_ids: &[i64],
     ) -> Result<Vec<i64>, AppError> {
-        a4n_db::project::primary_material_image_ids_for_projects(
-            self.database.connection(),
-            project_ids,
-        )
-        .await
-        .map_err(project_family_error_to_app_error)
+        a4n_db::project::primary_material_image_ids_for_projects(&self.database, project_ids)
+            .await
+            .map_err(project_family_error_to_app_error)
     }
 
     async fn derived_project_context(
         &self,
         project_id: i64,
     ) -> Result<ProjectFamilyContext, AppError> {
-        a4n_db::project::derived_project_family_context(self.database.connection(), project_id)
+        a4n_db::project::derived_project_family_context(&self.database, project_id)
             .await
             .map_err(project_family_error_to_app_error)
     }
@@ -61,19 +58,16 @@ impl ProjectFamilyApplication {
         &self,
         project_id: i64,
     ) -> Result<(i64, Option<i64>), AppError> {
-        a4n_db::project::project_or_derived_family_access_ids(
-            self.database.connection(),
-            project_id,
-        )
-        .await
-        .map_err(project_family_error_to_app_error)
+        a4n_db::project::project_or_derived_family_access_ids(&self.database, project_id)
+            .await
+            .map_err(project_family_error_to_app_error)
     }
 
     async fn manga_character_portrait_refs(
         &self,
         project_id: i64,
     ) -> Result<Vec<MangaCharacterPortraitRefSummary>, AppError> {
-        a4n_db::project::manga_character_portrait_refs(self.database.connection(), project_id)
+        a4n_db::project::manga_character_portrait_refs(&self.database, project_id)
             .await
             .map_err(project_family_error_to_app_error)
     }
@@ -85,7 +79,7 @@ impl ProjectFamilyApplication {
         require_content: bool,
     ) -> Result<ChapterMangaSourceSummary, AppError> {
         a4n_db::project::chapter_manga_source_by_id(
-            self.database.connection(),
+            &self.database,
             chapter_id,
             project_id,
             require_content,
@@ -101,7 +95,7 @@ impl ProjectFamilyApplication {
         require_content: bool,
     ) -> Result<ChapterMangaSourceSummary, AppError> {
         a4n_db::project::chapter_manga_source_by_number(
-            self.database.connection(),
+            &self.database,
             project_id,
             chapter_number,
             require_content,
@@ -116,7 +110,7 @@ impl ProjectFamilyApplication {
         include_derived_projects: bool,
     ) -> Result<ProjectFamilyExportSelection, AppError> {
         a4n_db::project::project_family_export_selection(
-            self.database.connection(),
+            &self.database,
             root_project_id,
             include_derived_projects,
         )
@@ -128,12 +122,9 @@ impl ProjectFamilyApplication {
         &self,
         derived_project_id: i64,
     ) -> Result<ProjectFamilyExportSelection, AppError> {
-        a4n_db::project::derived_project_export_selection(
-            self.database.connection(),
-            derived_project_id,
-        )
-        .await
-        .map_err(project_family_export_error_to_app_error)
+        a4n_db::project::derived_project_export_selection(&self.database, derived_project_id)
+            .await
+            .map_err(project_family_export_error_to_app_error)
     }
 
     pub(in crate::context) async fn export_rows(
@@ -143,7 +134,7 @@ impl ProjectFamilyApplication {
         derived_source_snapshot_ids: &[i64],
     ) -> Result<ProjectFamilyExportRows, AppError> {
         a4n_db::project::project_family_export_rows(
-            self.database.connection(),
+            &self.database,
             root_project_id,
             derived_project_ids,
             derived_source_snapshot_ids,
@@ -162,7 +153,7 @@ impl ProjectFamilyApplication {
         Importer: ProjectFamilyMediaFileImporter,
     {
         a4n_db::project::family::import::import_project_family_package_rows(
-            self.database.connection(),
+            &self.database,
             user_id,
             package,
             media_importer,
@@ -187,7 +178,7 @@ impl ProjectFamilyApplication {
         Importer: ProjectFamilyMediaFileImporter,
     {
         a4n_db::project::family::import::import_project_family_package_rows_with_mappings(
-            self.database.connection(),
+            &self.database,
             user_id,
             package,
             media_importer,
@@ -197,25 +188,19 @@ impl ProjectFamilyApplication {
     }
 
     async fn delete_project_cascade(&self, project_id: i64) -> Result<(), AppError> {
-        a4n_db::project::delete::delete_project_cascade_record(
-            self.database.connection(),
-            project_id,
-        )
-        .await
-        .map_err(crate::project_delete_error_to_app_error)
+        a4n_db::project::delete::delete_project_cascade_record(&self.database, project_id)
+            .await
+            .map_err(crate::project_delete_error_to_app_error)
     }
 
     async fn claim_project_deletion_cleanup(
         &self,
         project_id: Option<i64>,
     ) -> Result<Option<a4n_cleanup_contract::ProjectDeletionCleanupClaim>, AppError> {
-        a4n_db::cleanup_outbox::claim_project_deletion_cleanup(
-            self.database.connection(),
-            project_id,
-        )
-        .await
-        .map(|claim| claim.map(Into::into))
-        .map_err(AppError::Database)
+        a4n_db::cleanup_outbox::claim_project_deletion_cleanup(&self.database, project_id)
+            .await
+            .map(|claim| claim.map(Into::into))
+            .map_err(AppError::database)
     }
 
     async fn insert_file_artifact_cleanup_intent(
@@ -225,55 +210,51 @@ impl ProjectFamilyApplication {
         paths: Vec<String>,
     ) -> Result<(), AppError> {
         a4n_db::cleanup_outbox::insert_file_artifact_cleanup_intent(
-            self.database.connection(),
+            &self.database,
             dedupe_key,
             a4n_db::cleanup_outbox::FileArtifactCleanupPayload::new(project_id, paths),
         )
         .await
         .map(|_| ())
-        .map_err(AppError::Database)
+        .map_err(AppError::database)
     }
 
     async fn claim_file_artifact_cleanup(
         &self,
         project_id: Option<i64>,
     ) -> Result<Option<a4n_cleanup_contract::FileArtifactCleanupClaim>, AppError> {
-        a4n_db::cleanup_outbox::claim_file_artifact_cleanup(self.database.connection(), project_id)
+        a4n_db::cleanup_outbox::claim_file_artifact_cleanup(&self.database, project_id)
             .await
             .map(|claim| claim.map(Into::into))
-            .map_err(AppError::Database)
+            .map_err(AppError::database)
     }
 
     async fn claim_generation_cleanup(
         &self,
         project_id: Option<i64>,
     ) -> Result<Option<a4n_cleanup_contract::GenerationCleanupClaim>, AppError> {
-        a4n_db::cleanup_outbox::claim_generation_cleanup(self.database.connection(), project_id)
+        a4n_db::cleanup_outbox::claim_generation_cleanup(&self.database, project_id)
             .await
             .map(|claim| claim.map(Into::into))
-            .map_err(AppError::Database)
+            .map_err(AppError::database)
     }
 
     async fn project_ids_with_incomplete_cleanup(&self) -> Result<Vec<i64>, AppError> {
-        a4n_db::cleanup_outbox::project_ids_with_incomplete_cleanup(self.database.connection())
+        a4n_db::cleanup_outbox::project_ids_with_incomplete_cleanup(&self.database)
             .await
-            .map_err(AppError::Database)
+            .map_err(AppError::database)
     }
 
     async fn purge_completed_cleanup_audits(&self, limit: usize) -> Result<u64, AppError> {
-        a4n_db::cleanup_outbox::purge_completed_cleanup_audits(self.database.connection(), limit)
+        a4n_db::cleanup_outbox::purge_completed_cleanup_audits(&self.database, limit)
             .await
-            .map_err(AppError::Database)
+            .map_err(AppError::database)
     }
 
     async fn complete_claimed_cleanup(&self, id: i64, lease_token: &str) -> Result<(), AppError> {
-        a4n_db::cleanup_outbox::complete_claimed_cleanup(
-            self.database.connection(),
-            id,
-            lease_token,
-        )
-        .await
-        .map_err(AppError::Database)
+        a4n_db::cleanup_outbox::complete_claimed_cleanup(&self.database, id, lease_token)
+            .await
+            .map_err(AppError::database)
     }
 
     async fn complete_claimed_generation_cleanup(
@@ -283,13 +264,13 @@ impl ProjectFamilyApplication {
         outcome: a4n_cleanup_contract::GenerationCleanupOutcome,
     ) -> Result<(), AppError> {
         a4n_db::cleanup_outbox::complete_claimed_generation_cleanup(
-            self.database.connection(),
+            &self.database,
             id,
             lease_token,
             outcome,
         )
         .await
-        .map_err(AppError::Database)
+        .map_err(AppError::database)
     }
 
     async fn observe_claimed_generation_reconcile(
@@ -299,13 +280,13 @@ impl ProjectFamilyApplication {
         retry_after_seconds: i64,
     ) -> Result<a4n_cleanup_contract::GenerationCleanupObservationOutcome, AppError> {
         a4n_db::cleanup_outbox::observe_claimed_generation_reconcile(
-            self.database.connection(),
+            &self.database,
             id,
             lease_token,
             Duration::seconds(retry_after_seconds),
         )
         .await
-        .map_err(AppError::Database)
+        .map_err(AppError::database)
     }
 
     async fn schedule_provider_delete_from_reconcile(
@@ -314,19 +295,19 @@ impl ProjectFamilyApplication {
         lease_token: &str,
     ) -> Result<(), AppError> {
         a4n_db::cleanup_outbox::schedule_provider_delete_from_reconcile(
-            self.database.connection(),
+            &self.database,
             id,
             lease_token,
         )
         .await
         .map(|_| ())
-        .map_err(AppError::Database)
+        .map_err(AppError::database)
     }
 
     async fn renew_claimed_cleanup(&self, id: i64, lease_token: &str) -> Result<(), AppError> {
-        a4n_db::cleanup_outbox::renew_claimed_cleanup(self.database.connection(), id, lease_token)
+        a4n_db::cleanup_outbox::renew_claimed_cleanup(&self.database, id, lease_token)
             .await
-            .map_err(AppError::Database)
+            .map_err(AppError::database)
     }
 
     async fn retry_claimed_cleanup(
@@ -337,14 +318,14 @@ impl ProjectFamilyApplication {
         retry_after_seconds: i64,
     ) -> Result<(), AppError> {
         a4n_db::cleanup_outbox::retry_claimed_cleanup(
-            self.database.connection(),
+            &self.database,
             id,
             lease_token,
             error,
             Duration::seconds(retry_after_seconds),
         )
         .await
-        .map_err(AppError::Database)
+        .map_err(AppError::database)
     }
 
     async fn retry_or_fail_claimed_generation_cleanup(
@@ -354,52 +335,46 @@ impl ProjectFamilyApplication {
         error: String,
     ) -> Result<a4n_cleanup_contract::GenerationCleanupRetryOutcome, AppError> {
         a4n_db::cleanup_outbox::retry_or_fail_claimed_generation_cleanup(
-            self.database.connection(),
+            &self.database,
             id,
             lease_token,
             error,
         )
         .await
-        .map_err(AppError::Database)
+        .map_err(AppError::database)
     }
 
     async fn unreferenced_media_paths(&self, paths: &[String]) -> Result<Vec<String>, AppError> {
-        a4n_db::media::filter_unreferenced_media_paths(self.database.connection(), paths)
+        a4n_db::media::filter_unreferenced_media_paths(&self.database, paths)
             .await
-            .map_err(AppError::Database)
+            .map_err(AppError::database)
     }
 
     async fn media_path_prefix_has_persisted_reference(
         &self,
         prefix: &str,
     ) -> Result<bool, AppError> {
-        a4n_db::media::media_path_prefix_has_persisted_reference(self.database.connection(), prefix)
+        a4n_db::media::media_path_prefix_has_persisted_reference(&self.database, prefix)
             .await
-            .map_err(AppError::Database)
+            .map_err(AppError::database)
     }
 
     async fn reset_project_generated_data(
         &self,
         project_id: i64,
     ) -> Result<a4n_domain::project_reset::ProjectGeneratedDataResetOutcome, AppError> {
-        a4n_db::project::reset::reset_project_generated_data_record(
-            self.database.connection(),
-            project_id,
-        )
-        .await
-        .map_err(project_reset_error_to_app_error)
+        a4n_db::project::reset::reset_project_generated_data_record(&self.database, project_id)
+            .await
+            .map_err(project_reset_error_to_app_error)
     }
 
     pub(crate) async fn reset_freeform_video_generated_data_records(
         &self,
         project_id: i64,
     ) -> Result<a4n_domain::project_reset::FreeformVideoGeneratedDataResetResult, AppError> {
-        a4n_db::project::reset_freeform_video_generated_data_records(
-            self.database.connection(),
-            project_id,
-        )
-        .await
-        .map_err(crate::freeform_generated_reset_error_to_app_error)
+        a4n_db::project::reset_freeform_video_generated_data_records(&self.database, project_id)
+            .await
+            .map_err(crate::freeform_generated_reset_error_to_app_error)
     }
 }
 

@@ -21,8 +21,8 @@ impl TextAnchorApplication {
         Self { database }
     }
 
-    fn connection(&self) -> &sea_orm::DatabaseConnection {
-        self.database.connection()
+    fn connection(&self) -> &a4n_db::DbHandle {
+        &self.database
     }
 
     async fn ensure_chapter_content_anchor_records_batch(

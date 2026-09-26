@@ -41,7 +41,7 @@ impl GalgameApplication {
         limit: Option<usize>,
     ) -> Result<Vec<generation_spec::Model>, AppError> {
         a4n_db::galgame::galgame_asset_generation_specs(
-            self.database.connection(),
+            &self.database,
             project_id,
             target_kinds,
             generation_spec_ids,
@@ -55,7 +55,7 @@ impl GalgameApplication {
         &self,
         root_project_id: i64,
     ) -> Result<Vec<character_portrait::Model>, AppError> {
-        a4n_db::galgame::galgame_webgal_portraits(self.database.connection(), root_project_id)
+        a4n_db::galgame::galgame_webgal_portraits(&self.database, root_project_id)
             .await
             .map_err(galgame_generation_record_error)
     }
@@ -65,13 +65,9 @@ impl GalgameApplication {
         spec: &generation_spec::Model,
         input: &GalgamePortraitSpecTargetInput,
     ) -> Result<a4n_db::galgame::GalgamePortraitSpecTargetProfile, AppError> {
-        a4n_db::galgame::galgame_portrait_spec_target_profile(
-            self.database.connection(),
-            spec,
-            input,
-        )
-        .await
-        .map_err(galgame_generation_record_error)
+        a4n_db::galgame::galgame_portrait_spec_target_profile(&self.database, spec, input)
+            .await
+            .map_err(galgame_generation_record_error)
     }
 
     async fn completed_galgame_portrait_record(
@@ -82,7 +78,7 @@ impl GalgameApplication {
         pose: &str,
     ) -> Result<character_portrait::Model, AppError> {
         a4n_db::galgame::completed_galgame_portrait_record(
-            self.database.connection(),
+            &self.database,
             spec,
             profile_id,
             expression,
@@ -96,12 +92,9 @@ impl GalgameApplication {
         &self,
         profile: &a4n_db::galgame::GalgamePortraitSpecTargetProfile,
     ) -> Result<Vec<i64>, AppError> {
-        a4n_db::galgame::primary_galgame_portrait_reference_image_ids(
-            self.database.connection(),
-            profile,
-        )
-        .await
-        .map_err(galgame_generation_record_error)
+        a4n_db::galgame::primary_galgame_portrait_reference_image_ids(&self.database, profile)
+            .await
+            .map_err(galgame_generation_record_error)
     }
 
     async fn mark_galgame_generation_spec_status_record(
@@ -110,7 +103,7 @@ impl GalgameApplication {
         status: &str,
     ) -> Result<(), AppError> {
         a4n_db::galgame::mark_galgame_generation_spec_status_record(
-            self.database.connection(),
+            &self.database,
             generation_spec_id,
             status,
         )
@@ -123,7 +116,7 @@ impl GalgameApplication {
         generation_spec_id: i64,
     ) -> Result<Option<prompt_artifact::Model>, AppError> {
         a4n_db::galgame::galgame_prompt_artifact_by_generation_spec(
-            self.database.connection(),
+            &self.database,
             generation_spec_id,
         )
         .await
@@ -134,7 +127,7 @@ impl GalgameApplication {
         &self,
         input: GalgamePromptArtifactUpsertInput,
     ) -> Result<prompt_artifact::Model, AppError> {
-        a4n_db::galgame::upsert_galgame_prompt_artifact_record(self.database.connection(), input)
+        a4n_db::galgame::upsert_galgame_prompt_artifact_record(&self.database, input)
             .await
             .map_err(galgame_generation_record_error)
     }
@@ -146,7 +139,7 @@ impl GalgameApplication {
         target_id: i64,
     ) -> Result<GalgameTargetContext, AppError> {
         a4n_db::galgame::galgame_media_target_context(
-            self.database.connection(),
+            &self.database,
             project_id,
             target_kind,
             target_id,
@@ -160,13 +153,9 @@ impl GalgameApplication {
         image_id: i64,
         project_id: i64,
     ) -> Result<generated_image::Model, AppError> {
-        a4n_db::galgame::galgame_generated_image_by_id(
-            self.database.connection(),
-            image_id,
-            project_id,
-        )
-        .await
-        .map_err(galgame_generation_record_error)
+        a4n_db::galgame::galgame_generated_image_by_id(&self.database, image_id, project_id)
+            .await
+            .map_err(galgame_generation_record_error)
     }
 
     async fn bind_galgame_media_records(
@@ -179,7 +168,7 @@ impl GalgameApplication {
         required_media_kind: &str,
     ) -> Result<GalgameMediaBindingResult, AppError> {
         a4n_db::galgame::bind_galgame_media_records(
-            self.database.connection(),
+            &self.database,
             project_id,
             media_asset_id,
             target_kind,
@@ -200,7 +189,7 @@ impl GalgameApplication {
         media_asset_id: Option<i64>,
     ) -> Result<u64, AppError> {
         a4n_db::galgame::unbind_galgame_media_records(
-            self.database.connection(),
+            &self.database,
             project_id,
             target_kind,
             target_id,
@@ -219,7 +208,7 @@ impl GalgameApplication {
         role: &str,
     ) -> Result<CompletedGalgameVisualBindingRecords, AppError> {
         a4n_db::galgame::completed_galgame_visual_binding_records(
-            self.database.connection(),
+            &self.database,
             spec,
             target_entity_kind,
             target_entity_id,
@@ -233,12 +222,9 @@ impl GalgameApplication {
         &self,
         media_asset_id: i64,
     ) -> Result<(), AppError> {
-        a4n_db::galgame::delete_media_asset_with_provenance_records(
-            self.database.connection(),
-            media_asset_id,
-        )
-        .await
-        .map_err(galgame_media_record_error)
+        a4n_db::galgame::delete_media_asset_with_provenance_records(&self.database, media_asset_id)
+            .await
+            .map_err(galgame_media_record_error)
     }
 }
 

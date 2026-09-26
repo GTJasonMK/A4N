@@ -7,7 +7,6 @@ use a4n_domain::{
     workflow::{WORKFLOW_STATUS_COMPLETED, WORKFLOW_STATUS_RUNNING},
 };
 use a4n_error::AppError;
-use sea_orm::TransactionTrait;
 use serde_json::json;
 
 use super::super::owner::chapter_analysis_storage_projection;
@@ -32,12 +31,7 @@ impl OrchestratorContext {
         let input = chapter_analysis_workflow_run_input(chapter, current_step_key, active_task_id);
         crate::workflow::validate_begin_workflow_run_input(&input)
             .map_err(AppError::InvalidArgument)?;
-        let tx = self
-            .database
-            .connection()
-            .begin()
-            .await
-            .map_err(AppError::Database)?;
+        let tx = self.database.begin().await?;
         let started = async {
             lock_chapter_analysis_source(&tx, &source)
                 .await
@@ -49,15 +43,17 @@ impl OrchestratorContext {
         .await;
         match started {
             Ok(run) => {
-                tx.commit().await.map_err(AppError::Database)?;
+                a4n_db::commit_transaction(tx).await?;
                 Ok(run)
             }
             Err(error) => {
-                tx.rollback().await.map_err(|rollback_error| {
-                    AppError::Internal(anyhow::anyhow!(
-                        "启动章节分析失败：{error}；事务回滚失败：{rollback_error}"
-                    ))
-                })?;
+                a4n_db::rollback_transaction(tx)
+                    .await
+                    .map_err(|rollback_error| {
+                        AppError::Internal(anyhow::anyhow!(
+                            "启动章节分析失败：{error}；事务回滚失败：{rollback_error}"
+                        ))
+                    })?;
                 Err(error)
             }
         }
@@ -94,12 +90,7 @@ impl OrchestratorContext {
         let analysis = run.analysis;
         let projection = chapter_analysis_storage_projection(&chapter, &analysis);
 
-        let tx = self
-            .database
-            .connection()
-            .begin()
-            .await
-            .map_err(AppError::Database)?;
+        let tx = self.database.begin().await?;
         let replacement = async {
             let locked = lock_chapter_analysis_source(&tx, &source)
                 .await
@@ -212,15 +203,17 @@ impl OrchestratorContext {
 
         match replacement {
             Ok(updated) => {
-                tx.commit().await.map_err(AppError::Database)?;
+                a4n_db::commit_transaction(tx).await?;
                 Ok(updated)
             }
             Err(error) => {
-                tx.rollback().await.map_err(|rollback_error| {
-                    AppError::Internal(anyhow::anyhow!(
-                        "章节分析替换失败：{error}；事务回滚失败：{rollback_error}"
-                    ))
-                })?;
+                a4n_db::rollback_transaction(tx)
+                    .await
+                    .map_err(|rollback_error| {
+                        AppError::Internal(anyhow::anyhow!(
+                            "章节分析替换失败：{error}；事务回滚失败：{rollback_error}"
+                        ))
+                    })?;
                 Err(error)
             }
         }

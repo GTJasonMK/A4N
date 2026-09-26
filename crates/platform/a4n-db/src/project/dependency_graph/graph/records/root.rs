@@ -162,18 +162,18 @@ pub(super) async fn load_root_asset_graph_records(
             .into_model::<SceneProfileGraphRow>()
             .all(db),
     );
-    let conversations = conversations_result.map_err(AppError::Database)?;
-    let blueprints = blueprints_result.map_err(AppError::Database)?;
-    let blueprint_versions = blueprint_versions_result.map_err(AppError::Database)?;
-    let part_outlines = part_outlines_result.map_err(AppError::Database)?;
-    let chapter_outlines = chapter_outlines_result.map_err(AppError::Database)?;
-    let chapters = chapters_result.map_err(AppError::Database)?;
+    let conversations = conversations_result.map_err(AppError::database)?;
+    let blueprints = blueprints_result.map_err(AppError::database)?;
+    let blueprint_versions = blueprint_versions_result.map_err(AppError::database)?;
+    let part_outlines = part_outlines_result.map_err(AppError::database)?;
+    let chapter_outlines = chapter_outlines_result.map_err(AppError::database)?;
+    let chapters = chapters_result.map_err(AppError::database)?;
     let content_hashes = chapters
         .iter()
         .map(|chapter| (chapter.id, a4n_domain::source_text_hash(&chapter.content)))
         .collect::<std::collections::HashMap<_, _>>();
     let visual_plans = visual_plans_result
-        .map_err(AppError::Database)?
+        .map_err(AppError::database)?
         .into_iter()
         .filter(|plan| {
             plan.source_snapshot_id.is_some()
@@ -183,7 +183,7 @@ pub(super) async fn load_root_asset_graph_records(
         })
         .collect::<Vec<_>>();
     let shooting_scripts = shooting_scripts_result
-        .map_err(AppError::Database)?
+        .map_err(AppError::database)?
         .into_iter()
         .filter(|script| {
             script.source_snapshot_id.is_some()
@@ -192,9 +192,9 @@ pub(super) async fn load_root_asset_graph_records(
                     .is_some_and(|hash| hash == &script.source_content_sha256)
         })
         .collect::<Vec<_>>();
-    let character_profiles = character_profiles_result.map_err(AppError::Database)?;
-    let object_profiles = object_profiles_result.map_err(AppError::Database)?;
-    let scene_profiles = scene_profiles_result.map_err(AppError::Database)?;
+    let character_profiles = character_profiles_result.map_err(AppError::database)?;
+    let object_profiles = object_profiles_result.map_err(AppError::database)?;
+    let scene_profiles = scene_profiles_result.map_err(AppError::database)?;
 
     Ok(RootAssetGraphRecords {
         conversations,

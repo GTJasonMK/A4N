@@ -27,12 +27,11 @@ pub(super) async fn prepare_blueprint_refine(
     prompt_renderer: &dyn PromptRenderer,
     variables: &HashMap<String, Value>,
 ) -> Result<PreparedBlueprintRefine, AppError> {
-    let source_rows = a4n_db::outline::load_outline_generation_source_rows(
-        context.database.connection(),
-        project_id,
-    )
-    .await?
-    .ok_or_else(|| AppError::NotFound(format!("项目不存在: {project_id}")))?;
+    let source_rows =
+        a4n_db::outline::load_outline_generation_source_rows(&context.database, project_id)
+            .await
+            .map_err(AppError::database)?
+            .ok_or_else(|| AppError::NotFound(format!("项目不存在: {project_id}")))?;
     if source_rows.project.lifecycle_gate != a4n_db::generation::PROJECT_GATE_ACTIVE {
         return Err(AppError::InvalidState {
             current: source_rows.project.lifecycle_gate.clone(),

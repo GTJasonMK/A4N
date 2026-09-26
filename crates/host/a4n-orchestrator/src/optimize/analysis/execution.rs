@@ -26,12 +26,10 @@ impl OrchestratorContext {
                 }
                 .into());
             }
-            session = a4n_db::optimize::resume_optimization_analysis_session(
-                self.database.connection(),
-                session_id,
-            )
-            .await
-            .map_err(super::super::optimize_db_error)?;
+            session =
+                a4n_db::optimize::resume_optimization_analysis_session(&self.database, session_id)
+                    .await
+                    .map_err(super::super::optimize_db_error)?;
         }
 
         let session_messages = self.session_messages(session_id).await?;
@@ -64,7 +62,7 @@ impl OrchestratorContext {
             .await?;
         let permissions = optimization_permissions_from_session(&session)?;
         let mut analysis_context = build_content_optimization_context(
-            self.database.connection(),
+            &self.database,
             session.project_id,
             session.chapter_id,
             &permissions,

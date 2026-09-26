@@ -29,15 +29,17 @@ impl OrchestratorContext {
         force: bool,
         prompt_renderer: &dyn PromptRenderer,
     ) -> Result<Option<PreparedConsolidation>, AppError> {
-        let db = self.database.connection();
+        let db = &self.database;
         let (source_result, config_result, rows_result) = tokio::join!(
             current_feedback_sources(db, project_id),
             feedback_config(db, project_id),
             a4n_db::outline::load_outline_generation_source_rows(db, project_id),
         );
         let sources = source_result.map_err(feedback_error)?;
-        let config = config_result?;
-        let rows = rows_result?.ok_or_else(|| AppError::NotFound("项目不存在".into()))?;
+        let config = config_result.map_err(AppError::database)?;
+        let rows = rows_result
+            .map_err(AppError::database)?
+            .ok_or_else(|| AppError::NotFound("项目不存在".into()))?;
         if rows.project.lifecycle_gate != a4n_db::generation::PROJECT_GATE_ACTIVE
             || rows.project.project_kind != "text"
         {

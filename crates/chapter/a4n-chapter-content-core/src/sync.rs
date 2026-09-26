@@ -1,3 +1,4 @@
+use a4n_db::DbTransaction;
 use a4n_db::workflow::{UpsertWorkflowCheckpointInput, UpsertWorkflowRunInput};
 use a4n_db_models::models::{
     chapter::chapter,
@@ -5,7 +6,6 @@ use a4n_db_models::models::{
 };
 use a4n_domain::project::ChapterDerivedCleanupArtifacts;
 use a4n_error::AppError;
-use sea_orm::DatabaseTransaction;
 use serde_json::{Value, json};
 use uuid::Uuid;
 
@@ -15,7 +15,7 @@ pub const CHAPTER_CONTENT_SYNC_CLEANUP_STEP: &str = "chapter_content_sync.cleanu
 pub const CHAPTER_CONTENT_SYNC_EXTERNAL_STEP: &str = "chapter_content_sync.external_cleanup";
 
 pub async fn begin_chapter_content_sync_in_transaction(
-    tx: &DatabaseTransaction,
+    tx: &DbTransaction,
     chapter: &chapter::Model,
 ) -> Result<workflow_run::Model, AppError> {
     let business_key = chapter_content_sync_workflow_business_key(chapter.project_id, chapter.id);

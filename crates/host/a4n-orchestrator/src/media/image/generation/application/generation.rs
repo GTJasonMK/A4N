@@ -61,11 +61,12 @@ impl OrchestratorContext {
         self.require_image_project_editor(user_id, input.project_id)
             .await?;
         if !a4n_db::project::project_source_snapshot_allowed(
-            self.database.connection(),
+            &self.database,
             input.project_id,
             input.source_snapshot_id,
         )
-        .await?
+        .await
+        .map_err(AppError::database)?
         {
             return Err(AppError::InvalidArgument(
                 "Galgame 图片源快照不属于项目实际使用的来源".into(),

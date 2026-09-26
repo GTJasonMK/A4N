@@ -10,22 +10,19 @@ use a4n_db::outline::{
     OutlineGenerationSourceRows, load_outline_generation_source_rows,
     outline_generation_source_snapshot,
 };
+use a4n_db::{DbHandle, DbTransaction};
 use a4n_error::AppError;
-use sea_orm::{ConnectionTrait, DatabaseConnection, DatabaseTransaction};
 use serde_json::{Value, json};
 
-pub(in crate::outline) async fn load_part_generation_context<C>(
-    db: &C,
+pub(in crate::outline) async fn load_part_generation_context(
+    db: &DbHandle,
     project_id: i64,
     requested_part_count: Option<i32>,
     requested_chapters_per_part: Option<i32>,
-) -> Result<PartOutlineGenerationContext, AppError>
-where
-    C: ConnectionTrait,
-{
+) -> Result<PartOutlineGenerationContext, AppError> {
     let rows = load_outline_generation_source_rows(db, project_id)
         .await
-        .map_err(AppError::Database)?
+        .map_err(AppError::database)?
         .ok_or_else(|| AppError::NotFound(format!("项目不存在: {project_id}")))?;
     let formal_materials = outline_formal_materials_context_json(
         &rows.character_profiles,
@@ -65,16 +62,13 @@ where
     })
 }
 
-pub(in crate::outline) async fn load_chapter_outline_generation_context<C>(
-    db: &C,
+pub(in crate::outline) async fn load_chapter_outline_generation_context(
+    db: &DbHandle,
     project_id: i64,
-) -> Result<ChapterOutlineGenerationContext, AppError>
-where
-    C: ConnectionTrait,
-{
+) -> Result<ChapterOutlineGenerationContext, AppError> {
     let rows = load_outline_generation_source_rows(db, project_id)
         .await
-        .map_err(AppError::Database)?
+        .map_err(AppError::database)?
         .ok_or_else(|| AppError::NotFound(format!("项目不存在: {project_id}")))?;
     let formal_materials = outline_formal_materials_context_json(
         &rows.character_profiles,
@@ -109,10 +103,10 @@ where
 }
 
 pub(in crate::outline) async fn lock_outline_generation_sources(
-    db: &DatabaseConnection,
+    db: &DbHandle,
     project_id: i64,
     expected_source_snapshot: &Value,
-) -> Result<DatabaseTransaction, AppError> {
+) -> Result<DbTransaction, AppError> {
     a4n_db::outline::lock_outline_generation_sources(db, project_id, expected_source_snapshot)
         .await
         .map_err(crate::outline::outline_db_error)

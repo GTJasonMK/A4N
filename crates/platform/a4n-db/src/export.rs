@@ -18,7 +18,7 @@ async fn export_project_title(
         .into_tuple::<String>()
         .one(db)
         .await
-        .map_err(AppError::Database)?
+        .map_err(AppError::database)?
         .ok_or_else(|| AppError::NotFound(format!("项目不存在: {project_id}")))
 }
 
@@ -29,7 +29,7 @@ async fn ensure_export_project(db: &DatabaseConnection, project_id: i64) -> Resu
         .into_tuple::<i64>()
         .one(db)
         .await
-        .map_err(AppError::Database)?
+        .map_err(AppError::database)?
         .ok_or_else(|| AppError::NotFound(format!("项目不存在: {project_id}")))?;
     Ok(())
 }
@@ -49,7 +49,7 @@ async fn export_chapters(
         .into_tuple::<(i32, Option<String>, String)>()
         .all(db)
         .await
-        .map_err(AppError::Database)
+        .map_err(AppError::database)
 }
 
 async fn export_parts(
@@ -61,7 +61,7 @@ async fn export_parts(
         .order_by_asc(part_outline::Column::PartNumber)
         .all(db)
         .await
-        .map_err(AppError::Database)
+        .map_err(AppError::database)
 }
 
 async fn export_chapter_outlines(
@@ -73,7 +73,7 @@ async fn export_chapter_outlines(
         .order_by_asc(chapter_outline::Column::ChapterNumber)
         .all(db)
         .await
-        .map_err(AppError::Database)
+        .map_err(AppError::database)
 }
 
 pub async fn export_document(
@@ -141,7 +141,7 @@ pub async fn export_characters_json(
         .filter(protagonist_profile::Column::ProjectId.eq(project_id))
         .all(db)
         .await
-        .map_err(AppError::Database)?;
+        .map_err(AppError::database)?;
 
     Ok(serde_json::json!({
         "project_id": project_id,

@@ -19,7 +19,7 @@ pub(crate) fn canvas_db_error(error: a4n_db::canvas::CanvasDbError) -> AppError 
             ),
             operation: "保存画布".to_string(),
         },
-        a4n_db::canvas::CanvasDbError::Database(error) => AppError::Database(error),
+        a4n_db::canvas::CanvasDbError::Database(error) => AppError::database(error),
     }
 }
 
@@ -33,6 +33,6 @@ pub(crate) fn video_studio_project_import_error(error: VideoStudioProjectImportE
         }
         VideoStudioProjectImportError::ProjectInsert(error)
         | VideoStudioProjectImportError::TransactionCommit(error)
-        | VideoStudioProjectImportError::Database(error) => AppError::Database(error),
+        | VideoStudioProjectImportError::Database(error) => AppError::database(error),
     }
 }

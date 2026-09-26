@@ -122,7 +122,7 @@ pub(crate) fn generation_error(error: a4n_db::generation::GenerationDbError) -> 
             AppError::InvalidArgument(message)
         }
         a4n_db::generation::GenerationDbError::NotFound(message) => AppError::NotFound(message),
-        a4n_db::generation::GenerationDbError::Database(error) => AppError::Database(error),
+        a4n_db::generation::GenerationDbError::Database(error) => AppError::database(error),
     }
 }
 

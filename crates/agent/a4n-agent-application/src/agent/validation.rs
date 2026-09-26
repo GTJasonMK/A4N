@@ -115,14 +115,15 @@ pub(super) fn agent_scopes_match_except_chapter_number(
 }
 
 pub(super) async fn canonicalize_editor_source(
-    database: &sea_orm::DatabaseConnection,
+    database: &a4n_db::DbHandle,
     source: a4n_api_contract::agent::AgentEditorSource,
     thread: &thread::Model,
 ) -> Result<a4n_api_contract::agent::AgentEditorSource, AppError> {
     let scope: AgentScope = from_json(thread.scope_json.clone(), "agent_thread.scope_json")?;
     validate_editor_source(&source, &thread.profile_id, &scope)?;
     let chapter = a4n_db::project::chapter_by_id(database, source.chapter_id)
-        .await?
+        .await
+        .map_err(AppError::database)?
         .ok_or_else(|| AppError::NotFound(format!("章节不存在: {}", source.chapter_id)))?;
     if chapter.project_id != source.project_id {
         return Err(AppError::Forbidden("编辑器来源章节不属于声明的项目".into()));
@@ -134,7 +135,7 @@ pub(super) async fn canonicalize_editor_source(
 }
 
 pub(super) async fn parse_persisted_editor_source(
-    database: &sea_orm::DatabaseConnection,
+    database: &a4n_db::DbHandle,
     value: Value,
     thread: &thread::Model,
 ) -> Result<a4n_api_contract::agent::AgentEditorSource, AppError> {
@@ -1142,11 +1143,12 @@ pub(super) fn agent_db_error_to_app(error: AgentDbError) -> AppError {
         },
         AgentDbError::InvalidArgument(message) => AppError::InvalidArgument(message),
         AgentDbError::NotFound(message) => AppError::NotFound(message),
+        AgentDbError::Forbidden(message) => AppError::Forbidden(message),
         AgentDbError::Conflict(message) => AppError::InvalidState {
             current: message,
             operation: "执行 Agent 操作".into(),
         },
-        AgentDbError::Database(error) => AppError::Database(error),
+        AgentDbError::Database(error) => AppError::database(error),
     }
 }
 
@@ -1160,6 +1162,6 @@ pub(super) fn collaboration_db_error_to_app(error: CollaborationDbError) -> AppE
             operation: "校验 Agent 资源访问权限".into(),
         },
         CollaborationDbError::Internal(message) => AppError::Internal(anyhow::anyhow!(message)),
-        CollaborationDbError::Database(error) => AppError::Database(error),
+        CollaborationDbError::Database(error) => AppError::database(error),
     }
 }

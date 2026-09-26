@@ -14,7 +14,7 @@ impl OrchestratorContext {
         writable: bool,
     ) -> Result<ProjectChapterVideoSource, AppError> {
         let (project, chapter) = a4n_db::video::project_and_chapter_for_video_source(
-            self.database.connection(),
+            &self.database,
             project_id,
             chapter_id,
         )
@@ -57,7 +57,7 @@ impl OrchestratorContext {
                             operation: operation.to_string(),
                         })?;
                 let snapshot_chapter = a4n_db::video::source_snapshot_chapter_for_video_source(
-                    self.database.connection(),
+                    &self.database,
                     snapshot_id,
                     chapter_id,
                 )

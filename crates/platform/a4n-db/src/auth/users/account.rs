@@ -29,7 +29,7 @@ pub async fn login_user(
 
     let mut active: user::ActiveModel = user.clone().into();
     active.last_login_at = Set(Some(Utc::now().naive_utc()));
-    active.update(db).await.map_err(AppError::Database)
+    active.update(db).await.map_err(AppError::database)
 }
 
 pub async fn update_profile(
@@ -57,7 +57,7 @@ pub async fn update_profile(
         active.page_cli_enabled = Set(value);
     }
     active.updated_at = Set(Utc::now().naive_utc());
-    active.update(db).await.map_err(AppError::Database)
+    active.update(db).await.map_err(AppError::database)
 }
 
 pub async fn change_password(
@@ -74,6 +74,6 @@ pub async fn change_password(
     let mut active: user::ActiveModel = user.into();
     active.password_hash = Set(hash_password(new_password)?);
     active.updated_at = Set(Utc::now().naive_utc());
-    active.update(db).await.map_err(AppError::Database)?;
+    active.update(db).await.map_err(AppError::database)?;
     Ok(())
 }

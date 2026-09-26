@@ -16,7 +16,7 @@ pub(super) async fn persist_galgame_asset_plan(
         .map(|draft| draft.record_input.clone())
         .collect::<Vec<_>>();
     let upserts = a4n_db::galgame::upsert_galgame_asset_plan_spec_records_transaction(
-        service.database.connection(),
+        &service.database,
         project_id,
         record_inputs,
     )

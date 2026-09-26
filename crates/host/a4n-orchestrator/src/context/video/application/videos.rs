@@ -49,7 +49,7 @@ impl VideoApplication {
     ) -> Result<Vec<generated_video::Model>, AppError> {
         a4n_db::video::generated_videos_for_chapter(self.connection(), project_id, chapter_id)
             .await
-            .map_err(AppError::Database)
+            .map_err(AppError::database)
     }
 
     pub(in crate::context) async fn generated_video_by_id(
@@ -58,7 +58,7 @@ impl VideoApplication {
     ) -> Result<Option<generated_video::Model>, AppError> {
         a4n_db::video::generated_video_by_id(self.connection(), video_id)
             .await
-            .map_err(AppError::Database)
+            .map_err(AppError::database)
     }
 
     pub(in crate::context) async fn generated_videos_by_ids(
@@ -67,7 +67,7 @@ impl VideoApplication {
     ) -> Result<Vec<generated_video::Model>, AppError> {
         a4n_db::video::generated_videos_by_ids(self.connection(), video_ids)
             .await
-            .map_err(AppError::Database)
+            .map_err(AppError::database)
     }
 
     pub(in crate::context) async fn generated_videos_by_provider_job_id(
@@ -81,7 +81,7 @@ impl VideoApplication {
             provider_job_id,
         )
         .await
-        .map_err(AppError::Database)
+        .map_err(AppError::database)
     }
 
     pub(in crate::context) async fn update_generated_video_record(

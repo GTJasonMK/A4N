@@ -203,10 +203,9 @@ impl AgentApplication {
         child_scope.chapter_id = child_scope.chapter_id.or(chapter_id);
         child_scope.chapter_number = chapter_number;
         validate_subagent_resource(&capability, &child_scope, child_resource.as_ref())?;
-        let parent_turn = turn::Entity::find_by_id(claimed.run.turn_id)
-            .one(self.connection())
+        let parent_turn = agent::turn_by_id(self.connection(), claimed.run.turn_id)
             .await
-            .map_err(AppError::Database)?
+            .map_err(agent_db_error_to_app)?
             .ok_or_else(|| {
                 AppError::NotFound(format!("Agent parent turn 不存在: {}", claimed.run.turn_id))
             })?;

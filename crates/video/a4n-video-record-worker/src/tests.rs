@@ -115,7 +115,12 @@ async fn select_segment_rejects_stale_or_corrupt_plan_without_adopting_video() {
         "matching-lineage",
     )
     .await;
-    let state = VideoRecordWorker::new(db.clone(), VIDEO_RECORD_WORKER_ID, "test-token").state;
+    let state = VideoRecordWorker::new(
+        DbHandle::new(Arc::new(db.clone())),
+        VIDEO_RECORD_WORKER_ID,
+        "test-token",
+    )
+    .state;
 
     let failure = state
         .select_segment(selection_request(

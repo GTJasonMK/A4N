@@ -32,7 +32,7 @@ pub(in crate::source_sync) async fn prepare_decision_execution_context(
         .map(|decision| decision.conflict_id)
         .collect::<Vec<_>>();
     let conflicts = a4n_db::source_sync::source_sync_conflicts_for_decisions(
-        service.database.connection(),
+        &service.database,
         run.id,
         &regenerate_conflict_ids,
         "prepare_source_sync_decision",

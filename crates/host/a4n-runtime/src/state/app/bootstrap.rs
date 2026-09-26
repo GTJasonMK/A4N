@@ -5,14 +5,14 @@ pub struct RuntimeBootstrap {
     config: AppConfig,
     runtime_profile: RuntimeProfile,
     runtime_role: RuntimeRole,
-    db: Arc<sea_orm::DatabaseConnection>,
+    db: a4n_db::DbHandle,
     capabilities: RuntimeCapabilities,
     service_manager: Arc<a4n_service_manager::ServiceManager>,
     event_bus: Arc<BroadcastEventBus>,
     task_manager: Arc<a4n_task_runtime::channel::TaskManager>,
     prompt_engine: Arc<a4n_prompt::tera_engine::TeraPromptEngine>,
     rag_store: Arc<dyn a4n_rag_core::vector_store::VectorStore>,
-    generation_owner_lock: Option<Arc<sea_orm::DatabaseConnection>>,
+    generation_owner_lock: Option<a4n_db::DbHandle>,
     data_dir_lock: Option<Arc<File>>,
 }
 
@@ -31,19 +31,16 @@ impl RuntimeBootstrap {
             RuntimeRole::AgentWorker => None,
         };
 
-        let db = sea_orm::Database::connect(&config.database_url)
-            .await
-            .map_err(a4n_error::AppError::Database)?;
-        let db = Arc::new(db);
+        let db = a4n_db::DbHandle::connect_with_default_options(&config.database_url).await?;
         let generation_owner_lock = match runtime_role {
-            RuntimeRole::Host | RuntimeRole::DesktopHost => Some(Arc::new(
-                acquire_generation_owner_lock(&config.database_url).await?,
-            )),
+            RuntimeRole::Host | RuntimeRole::DesktopHost => {
+                Some(a4n_db::acquire_generation_owner_lock(&config.database_url).await?)
+            }
             RuntimeRole::AgentWorker => None,
         };
 
         if runtime_role.is_host() {
-            run_startup_migrations(db.as_ref()).await?;
+            run_startup_migrations(&db).await?;
         }
 
         let service_manager = Arc::new(
@@ -76,7 +73,7 @@ impl RuntimeBootstrap {
         })
     }
 
-    pub fn database(&self) -> Arc<sea_orm::DatabaseConnection> {
+    pub fn database(&self) -> a4n_db::DbHandle {
         self.db.clone()
     }
 

@@ -22,6 +22,12 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
+      - name: Check source file line limit
+        run: ./scripts/checks/check-source-file-lines.sh
+
+      - name: Check ORM dependency boundary
+        run: bash ./scripts/checks/check-orm-boundary.sh
+
       - name: Install Linux build dependencies
         run: |
           sudo apt-get update

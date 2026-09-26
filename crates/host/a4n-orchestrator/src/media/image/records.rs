@@ -8,11 +8,11 @@ use a4n_api_contract::image::{
     UpdateGeneratedImageInput, UploadImageInput,
 };
 use a4n_db_models::models::{ai::generated_image, media::image_publication};
+use a4n_domain::media::IMAGE_PUBLICATION_STATUS_PENDING;
 use a4n_domain::media::{
     CreateGeneratedImageRecordDraftInput, CreateImagePublicationIntentInput,
     ImagePublicationFileFacts, ImagePublicationRecoveryRecord, UpdateGeneratedImageRecordInput,
 };
-use a4n_domain::media::{IMAGE_PUBLICATION_STATUS_PENDING, IMAGE_PUBLICATION_STATUS_PUBLISHED};
 use a4n_domain::project::required_text;
 use a4n_domain::{
     EXTERNAL_IMPORT_MODEL,
@@ -25,7 +25,6 @@ use a4n_image_host_contract::{
 };
 use async_trait::async_trait;
 use chrono::Utc;
-use sea_orm::{ColumnTrait, Condition, EntityTrait, QueryFilter, QuerySelect};
 use serde_json::{Map, Value, json};
 use tokio::sync::OwnedMutexGuard;
 
@@ -75,20 +74,10 @@ impl OrchestratorContext {
         if paths.is_empty() {
             return Ok(HashSet::new());
         }
-        let publications = image_publication::Entity::find()
-            .filter(image_publication::Column::ProjectId.eq(project_id))
-            .filter(image_publication::Column::Status.is_in([
-                IMAGE_PUBLICATION_STATUS_PENDING,
-                IMAGE_PUBLICATION_STATUS_PUBLISHED,
-            ]))
-            .filter(
-                Condition::any()
-                    .add(image_publication::Column::StagingPath.is_in(paths.to_vec()))
-                    .add(image_publication::Column::FinalPath.is_in(paths.to_vec())),
-            )
-            .all(self.database.connection())
-            .await
-            .map_err(AppError::Database)?;
+        let publications =
+            a4n_db::video::active_image_publications_for_paths(&self.database, project_id, paths)
+                .await
+                .map_err(crate::video::video_db_error)?;
         let mut protected = HashSet::new();
         for publication in publications {
             if publication.status == IMAGE_PUBLICATION_STATUS_PENDING {
@@ -114,19 +103,9 @@ impl OrchestratorContext {
                 "图片 cleanup project_id 必须大于 0".to_string(),
             ));
         }
-        Ok(image_publication::Entity::find()
-            .select_only()
-            .column(image_publication::Column::PublicationId)
-            .filter(image_publication::Column::ProjectId.eq(project_id))
-            .filter(image_publication::Column::Status.is_in([
-                IMAGE_PUBLICATION_STATUS_PENDING,
-                IMAGE_PUBLICATION_STATUS_PUBLISHED,
-            ]))
-            .into_tuple::<String>()
-            .one(self.database.connection())
+        a4n_db::video::project_has_active_image_publication(&self.database, project_id)
             .await
-            .map_err(AppError::Database)?
-            .is_some())
+            .map_err(crate::video::video_db_error)
     }
 
     pub async fn create_image_publication_intent_for_user_validated(

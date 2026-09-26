@@ -1,10 +1,10 @@
 use super::model::PartOutlineDraft;
 use crate::outline::chapter_contract::{required_array, required_object, required_string};
 use crate::outline::outline_db_error;
+use a4n_db::DbTransaction;
 use a4n_db::outline::{self as outline_db, PartOutlineSyncDraft};
 use a4n_db_models::models::chapter::part_outline;
 use a4n_error::AppError;
-use sea_orm::ConnectionTrait;
 use serde_json::Value;
 
 pub fn part_outline_sync_draft_from_json(
@@ -52,15 +52,12 @@ pub fn part_outline_model_from_json(
     })
 }
 
-pub async fn sync_part_outlines_and_assign_chapters_in<C>(
-    db: &C,
+pub async fn sync_part_outlines_and_assign_chapters_in(
+    db: &DbTransaction,
     project_id: i64,
     drafts: Vec<PartOutlineDraft>,
     now: chrono::NaiveDateTime,
-) -> Result<Vec<part_outline::Model>, AppError>
-where
-    C: ConnectionTrait,
-{
+) -> Result<Vec<part_outline::Model>, AppError> {
     let mut parsed = Vec::with_capacity(drafts.len());
     for draft in drafts {
         parsed.push(part_outline_sync_draft_from_json(
@@ -75,18 +72,15 @@ where
         .map_err(outline_db_error)
 }
 
-pub async fn insert_part_outline_from_json<C>(
-    db: &C,
+pub async fn insert_part_outline_from_json(
+    db: &DbTransaction,
     project_id: i64,
     part_number: i32,
     start_chapter: i32,
     end_chapter: i32,
     part_json: &Value,
     now: chrono::NaiveDateTime,
-) -> Result<part_outline::Model, AppError>
-where
-    C: ConnectionTrait,
-{
+) -> Result<part_outline::Model, AppError> {
     let draft =
         part_outline_sync_draft_from_json(part_number, start_chapter, end_chapter, part_json)?;
     outline_db::insert_part_outline_record(db, project_id, &draft, now)
@@ -94,18 +88,15 @@ where
         .map_err(outline_db_error)
 }
 
-pub async fn update_part_outline_from_json<C>(
-    db: &C,
+pub async fn update_part_outline_from_json(
+    db: &DbTransaction,
     existing: part_outline::Model,
     part_number: i32,
     start_chapter: i32,
     end_chapter: i32,
     part_json: &Value,
     now: chrono::NaiveDateTime,
-) -> Result<part_outline::Model, AppError>
-where
-    C: ConnectionTrait,
-{
+) -> Result<part_outline::Model, AppError> {
     let draft =
         part_outline_sync_draft_from_json(part_number, start_chapter, end_chapter, part_json)?;
     outline_db::update_part_outline_record(db, existing, &draft, now)
@@ -113,8 +104,8 @@ where
         .map_err(outline_db_error)
 }
 
-pub async fn update_part_outline_and_rebind_chapters_in<C>(
-    db: &C,
+pub async fn update_part_outline_and_rebind_chapters_in(
+    db: &DbTransaction,
     project_id: i64,
     existing: part_outline::Model,
     part_number: i32,
@@ -122,10 +113,7 @@ pub async fn update_part_outline_and_rebind_chapters_in<C>(
     end_chapter: i32,
     part_json: &Value,
     now: chrono::NaiveDateTime,
-) -> Result<part_outline::Model, AppError>
-where
-    C: ConnectionTrait,
-{
+) -> Result<part_outline::Model, AppError> {
     let draft =
         part_outline_sync_draft_from_json(part_number, start_chapter, end_chapter, part_json)?;
     outline_db::update_part_outline_and_rebind_chapters_in(db, project_id, existing, draft, now)

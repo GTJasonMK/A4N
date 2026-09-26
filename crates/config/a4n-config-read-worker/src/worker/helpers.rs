@@ -343,7 +343,7 @@ fn positive_id(value: i64) -> Result<i64, WorkerFailure> {
 }
 
 async fn require_admin(database: &DbHandle, user_id: i64) -> Result<(), WorkerFailure> {
-    let user = a4n_db::auth::user_by_id(database.connection(), user_id)
+    let user = a4n_db::auth::user_by_id(&database, user_id)
         .await
         .map_err(app_error)?;
     if !user.is_active {

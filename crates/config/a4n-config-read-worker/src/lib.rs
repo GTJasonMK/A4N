@@ -71,7 +71,6 @@ use axum::{
     routing::{get, post},
 };
 use chrono::Utc;
-use sea_orm::{ConnectOptions, ConnectionTrait, Database, DatabaseConnection, Statement};
 use serde_json::Value;
 use subtle::ConstantTimeEq;
 
@@ -101,13 +100,13 @@ struct WorkerFailure {
 
 impl ConfigReadWorker {
     pub fn new(
-        database: DatabaseConnection,
+        database: DbHandle,
         worker_id: impl Into<String>,
         auth_token: impl Into<String>,
     ) -> Self {
         Self {
             state: WorkerState {
-                database: DbHandle::new(Arc::new(database)),
+                database,
                 worker_id: Arc::<str>::from(worker_id.into()),
                 auth_token: Arc::<str>::from(auth_token.into()),
             },

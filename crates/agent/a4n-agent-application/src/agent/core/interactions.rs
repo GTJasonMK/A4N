@@ -42,20 +42,19 @@ impl AgentApplication {
         let client_message_id = required_text(input.client_message_id, "client_message_id")?;
         let content = required_text(input.content, "content")?;
         validate_optional_positive_id(input.model_config_id, "model_config_id")?;
-        let tx = self.connection().begin().await?;
-        thread::Entity::find_by_id(thread_id)
-            .lock_exclusive()
-            .one(&tx)
-            .await?
+        let tx = self.database.begin().await?;
+        agent::lock_thread(&tx, thread_id)
+            .await
+            .map_err(agent_db_error_to_app)?
             .ok_or_else(|| AppError::NotFound("Agent Thread 不存在".into()))?;
         let runs = agent::active_runs_by_thread(&tx, thread_id)
             .await
             .map_err(agent_db_error_to_app)?;
         if let Some(active) = runs.first() {
             if let Some(source) = &editor_source {
-                let turn = turn::Entity::find_by_id(active.turn_id)
-                    .one(self.connection())
-                    .await?
+                let turn = agent::turn_by_id(self.connection(), active.turn_id)
+                    .await
+                    .map_err(agent_db_error_to_app)?
                     .ok_or_else(|| AppError::NotFound("Agent Turn 不存在".into()))?;
                 let original_source =
                     agent::message_by_id(self.connection(), turn.input_message_id)
@@ -135,7 +134,7 @@ impl AgentApplication {
             )
             .await
             .map_err(agent_db_error_to_app)?;
-            tx.commit().await?;
+            a4n_db::commit_transaction(tx).await?;
             let awakened = if let Some(reason) = waiting_reason {
                 agent::wake_waiting_run_for_reason(self.connection(), active.id, &reason)
                     .await
@@ -169,7 +168,7 @@ impl AgentApplication {
             );
         }
 
-        tx.commit().await?;
+        a4n_db::commit_transaction(tx).await?;
 
         admit_new_run_runtime_snapshot(
             runtime_snapshot_required,
@@ -347,10 +346,9 @@ impl AgentApplication {
                 operation: "创建 Agent child delegation".into(),
             });
         }
-        let parent_turn = turn::Entity::find_by_id(parent_run.turn_id)
-            .one(self.connection())
+        let parent_turn = agent::turn_by_id(self.connection(), parent_run.turn_id)
             .await
-            .map_err(AppError::Database)?
+            .map_err(agent_db_error_to_app)?
             .ok_or_else(|| {
                 AppError::NotFound(format!("Agent parent turn 不存在: {}", parent_run.turn_id))
             })?;
@@ -650,22 +648,9 @@ impl AgentApplication {
     ) -> Result<AgentMemoryView, AppError> {
         validate_user_id(user_id)?;
         let memory_id = parse_id(&input.memory_id, "memory_id")?;
-        let row = memory::Entity::find_by_id(memory_id)
-            .one(self.connection())
+        let row = agent::retract_memory(self.connection(), user_id, memory_id)
             .await
-            .map_err(AppError::Database)?
-            .ok_or_else(|| AppError::NotFound(format!("Agent memory 不存在: {memory_id}")))?;
-        if row.owner_user_id != user_id {
-            return Err(AppError::Forbidden("无权修改此 Agent memory".into()));
-        }
-        let mut active: memory::ActiveModel = row.into();
-        active.status = Set("retracted".into());
-        active.retracted_at = Set(Some(chrono::Utc::now().naive_utc()));
-        active.updated_at = Set(chrono::Utc::now().naive_utc());
-        let row = active
-            .update(self.connection())
-            .await
-            .map_err(AppError::Database)?;
+            .map_err(agent_db_error_to_app)?;
         memory_view(row)
     }
 
@@ -908,9 +893,9 @@ impl AgentApplication {
     ) -> Result<AgentDelegationView, AppError> {
         use a4n_api_contract::agent::AgentDelegationReviewDecision;
         let id = parse_id(&input.delegation_id, "delegation_id")?;
-        let row = delegation::Entity::find_by_id(id)
-            .one(self.connection())
-            .await?
+        let row = agent::delegation_by_id(self.connection(), id)
+            .await
+            .map_err(agent_db_error_to_app)?
             .ok_or_else(|| AppError::NotFound("Agent delegation 不存在".into()))?;
         self.owned_thread(user_id, row.parent_thread_id).await?;
         if parent_run_id.is_some_and(|run_id| row.parent_run_id != run_id) {

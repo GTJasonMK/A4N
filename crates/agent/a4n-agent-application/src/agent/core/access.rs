@@ -40,7 +40,8 @@ impl AgentApplication {
         }
         let chapter_number = if let Some(chapter_id) = chapter_id {
             let chapter = a4n_db::project::chapter_by_id(self.connection(), chapter_id)
-                .await?
+                .await
+                .map_err(AppError::database)?
                 .ok_or_else(|| AppError::NotFound(format!("章节不存在: {chapter_id}")))?;
             merge_scope_id(&mut project_id, chapter.project_id, "project_id")?;
             Some(chapter.chapter_number)
@@ -74,7 +75,8 @@ impl AgentApplication {
             return Ok(());
         };
         let chapter = a4n_db::project::chapter_by_id(self.connection(), chapter_id)
-            .await?
+            .await
+            .map_err(AppError::database)?
             .ok_or_else(|| AppError::NotFound(format!("章节不存在: {chapter_id}")))?;
         if scope
             .project_id
@@ -120,7 +122,8 @@ impl AgentApplication {
                 return Err(AppError::InvalidArgument("chapterId 无效".into()));
             }
             let chapter = a4n_db::project::chapter_by_id(self.connection(), *chapter_id)
-                .await?
+                .await
+                .map_err(AppError::database)?
                 .ok_or_else(|| AppError::NotFound(format!("章节不存在: {chapter_id}")))?;
             if chapter.project_id != project_id {
                 return Err(AppError::Forbidden(format!(

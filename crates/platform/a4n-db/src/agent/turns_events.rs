@@ -304,6 +304,23 @@ where
         .map_err(AgentDbError::Database)
 }
 
+pub async fn latest_event_by_run_and_kind<C>(
+    db: &C,
+    run_id: i64,
+    kind: &str,
+) -> Result<Option<event::Model>, AgentDbError>
+where
+    C: ConnectionTrait,
+{
+    event::Entity::find()
+        .filter(event::Column::RunId.eq(run_id))
+        .filter(event::Column::Kind.eq(kind))
+        .order_by_desc(event::Column::Sequence)
+        .one(db)
+        .await
+        .map_err(AgentDbError::Database)
+}
+
 pub async fn latest_events_by_thread<C>(
     db: &C,
     thread_id: i64,

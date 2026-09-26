@@ -25,13 +25,9 @@ impl OrchestratorContext {
         prompt_renderer: &dyn PromptRenderer,
         variables: &HashMap<String, serde_json::Value>,
     ) -> Result<Vec<OutlineRequestPreviewStep>, AppError> {
-        let mut context = load_part_generation_context(
-            self.database.connection(),
-            project_id,
-            part_count,
-            chapters_per_part,
-        )
-        .await?;
+        let mut context =
+            load_part_generation_context(&self.database, project_id, part_count, chapters_per_part)
+                .await?;
         validate_existing_parts_for_plan(&context.parts)?;
         let batch = if regenerate {
             context.requested_part_count =

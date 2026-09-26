@@ -11,7 +11,6 @@ use a4n_db_models::models::ai::{
 };
 use a4n_db_models::models::chapter::chapter;
 use a4n_error::AppError;
-use sea_orm::TransactionTrait;
 use std::collections::HashMap;
 
 use super::OrchestratorContext;
@@ -40,7 +39,7 @@ impl OptimizeApplication {
         project_id: i64,
         chapter_id: Option<i64>,
     ) -> Result<Vec<optimization_session::Model>, AppError> {
-        a4n_db::optimize::optimization_sessions(self.database.connection(), project_id, chapter_id)
+        a4n_db::optimize::optimization_sessions(&self.database, project_id, chapter_id)
             .await
             .map_err(optimize_db_error)
     }
@@ -49,7 +48,7 @@ impl OptimizeApplication {
         &self,
         session_id: i64,
     ) -> Result<Option<optimization_session::Model>, AppError> {
-        a4n_db::optimize::optimization_session_by_id(self.database.connection(), session_id)
+        a4n_db::optimize::optimization_session_by_id(&self.database, session_id)
             .await
             .map_err(optimize_db_error)
     }
@@ -58,7 +57,7 @@ impl OptimizeApplication {
         &self,
         input: OptimizationSessionMessageInsertInput,
     ) -> Result<optimization_session_message::Model, AppError> {
-        a4n_db::optimize::insert_optimization_session_message(self.database.connection(), input)
+        a4n_db::optimize::insert_optimization_session_message(&self.database, input)
             .await
             .map_err(optimize_db_error)
     }
@@ -67,19 +66,16 @@ impl OptimizeApplication {
         &self,
         session_id: i64,
     ) -> Result<u64, AppError> {
-        a4n_db::optimize::delete_optimization_session_with_messages(
-            self.database.connection(),
-            session_id,
-        )
-        .await
-        .map_err(optimize_db_error)
+        a4n_db::optimize::delete_optimization_session_with_messages(&self.database, session_id)
+            .await
+            .map_err(optimize_db_error)
     }
 
     async fn optimization_session_messages(
         &self,
         session_id: i64,
     ) -> Result<Vec<optimization_session_message::Model>, AppError> {
-        a4n_db::optimize::optimization_session_messages(self.database.connection(), session_id)
+        a4n_db::optimize::optimization_session_messages(&self.database, session_id)
             .await
             .map_err(optimize_db_error)
     }
@@ -88,7 +84,7 @@ impl OptimizeApplication {
         &self,
         chapter_id: i64,
     ) -> Result<Option<chapter::Model>, AppError> {
-        a4n_db::optimize::optimization_chapter_by_id(self.database.connection(), chapter_id)
+        a4n_db::optimize::optimization_chapter_by_id(&self.database, chapter_id)
             .await
             .map_err(optimize_db_error)
     }
@@ -97,7 +93,7 @@ impl OptimizeApplication {
         &self,
         session_id: i64,
     ) -> Result<Vec<optimization_patch_set::Model>, AppError> {
-        a4n_db::optimize::optimization_patch_sets(self.database.connection(), session_id)
+        a4n_db::optimize::optimization_patch_sets(&self.database, session_id)
             .await
             .map_err(optimize_db_error)
     }
@@ -106,19 +102,16 @@ impl OptimizeApplication {
         &self,
         patch_set_ids: &[i64],
     ) -> Result<Vec<optimization_patch::Model>, AppError> {
-        a4n_db::optimize::optimization_patch_set_patches_for_sets(
-            self.database.connection(),
-            patch_set_ids,
-        )
-        .await
-        .map_err(optimize_db_error)
+        a4n_db::optimize::optimization_patch_set_patches_for_sets(&self.database, patch_set_ids)
+            .await
+            .map_err(optimize_db_error)
     }
 
     async fn optimization_turns(
         &self,
         session_id: i64,
     ) -> Result<Vec<optimization_turn::Model>, AppError> {
-        a4n_db::optimize::optimization_turns(self.database.connection(), session_id)
+        a4n_db::optimize::optimization_turns(&self.database, session_id)
             .await
             .map_err(optimize_db_error)
     }
@@ -127,7 +120,7 @@ impl OptimizeApplication {
         &self,
         turn_ids: &[i64],
     ) -> Result<Vec<optimization_turn_event::Model>, AppError> {
-        a4n_db::optimize::optimization_turn_events_for_turns(self.database.connection(), turn_ids)
+        a4n_db::optimize::optimization_turn_events_for_turns(&self.database, turn_ids)
             .await
             .map_err(optimize_db_error)
     }
@@ -177,7 +170,7 @@ impl OrchestratorContext {
         &self,
         session_id: i64,
     ) -> Result<(), AppError> {
-        let transaction = self.database.connection().begin().await?;
+        let transaction = self.database.begin().await?;
         let patch_sets = a4n_db::optimize::pending_optimization_patch_sets(
             &transaction,
             session_id,
@@ -209,7 +202,7 @@ impl OrchestratorContext {
         )
         .await
         .map_err(optimize_db_error)?;
-        transaction.commit().await?;
+        a4n_db::commit_transaction(transaction).await?;
         Ok(())
     }
 
@@ -218,7 +211,7 @@ impl OrchestratorContext {
         session_id: i64,
         patch_set_id: i64,
     ) -> Result<(), AppError> {
-        let transaction = self.database.connection().begin().await?;
+        let transaction = self.database.begin().await?;
         let patch_set = a4n_db::optimize::optimization_patch_set_by_id(&transaction, patch_set_id)
             .await
             .map_err(optimize_db_error)?
@@ -252,7 +245,7 @@ impl OrchestratorContext {
         )
         .await
         .map_err(optimize_db_error)?;
-        transaction.commit().await?;
+        a4n_db::commit_transaction(transaction).await?;
         Ok(())
     }
 }

@@ -11,12 +11,7 @@ async fn async_main() -> anyhow::Result<()> {
     a4n_config::validate_postgres_database_url(DATABASE_URL_ENV, &database_url)?;
     let auth_token = a4n_config::required_non_empty_env_string(WORKER_TOKEN_ENV)?;
     let address = worker_addr()?;
-    let mut options = ConnectOptions::new(database_url);
-    options
-        .max_connections(8)
-        .min_connections(1)
-        .connect_timeout(std::time::Duration::from_secs(5));
-    let database = Database::connect(options).await?;
+    let database = a4n_db::DbHandle::connect(database_url).await?;
     ConfigReadWorker::new(database, CONFIG_READ_WORKER_ID, auth_token)
         .serve(address)
         .await

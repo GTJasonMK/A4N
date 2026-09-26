@@ -30,7 +30,7 @@ pub(in crate::chapter_generation) async fn save_completed_chapter_generation_che
         finish_reason,
     } = input;
     workflow::save_completed_llm_call_checkpoint(
-        service.db.as_ref(),
+        &service.db,
         CompletedLlmCallCheckpointInput {
             workflow_run_id,
             call_key,

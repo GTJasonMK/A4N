@@ -15,7 +15,7 @@ where
         .order_by_desc(llm_config::Column::UpdatedAt)
         .all(db)
         .await
-        .map_err(AppError::Database)
+        .map_err(AppError::database)
 }
 
 pub async fn llm_config_by_id<C>(db: &C, config_id: i64) -> Result<llm_config::Model, AppError>
@@ -25,7 +25,7 @@ where
     llm_config::Entity::find_by_id(config_id)
         .one(db)
         .await
-        .map_err(AppError::Database)?
+        .map_err(AppError::database)?
         .ok_or_else(|| AppError::NotFound(format!("LLM配置不存在: {config_id}")))
 }
 
@@ -69,7 +69,7 @@ where
     }
     .insert(db)
     .await
-    .map_err(AppError::Database)
+    .map_err(AppError::database)
 }
 
 pub async fn update_llm_config_record<C>(
@@ -96,7 +96,7 @@ where
     active.agent_protocol = Set(input.agent_protocol);
     active.pricing_json = Set(input.pricing_json);
     active.updated_at = Set(Utc::now().naive_utc());
-    active.update(db).await.map_err(AppError::Database)
+    active.update(db).await.map_err(AppError::database)
 }
 
 pub async fn delete_llm_config_record<C>(db: &C, config_id: i64) -> Result<(), AppError>
@@ -106,7 +106,7 @@ where
     llm_config::Entity::delete_by_id(config_id)
         .exec(db)
         .await
-        .map_err(AppError::Database)?;
+        .map_err(AppError::database)?;
     Ok(())
 }
 
@@ -122,7 +122,7 @@ where
     if let Some(config_id) = except_id {
         query = query.filter(llm_config::Column::Id.ne(config_id));
     }
-    let count = query.count(db).await.map_err(AppError::Database)?;
+    let count = query.count(db).await.map_err(AppError::database)?;
     if count > 0 {
         return Err(AppError::InvalidArgument(format!(
             "LLM配置名称已存在: {name}"

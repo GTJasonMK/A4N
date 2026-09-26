@@ -96,9 +96,9 @@ impl AgentApplication {
             .map_err(agent_db_error_to_app)?
             .ok_or_else(|| AppError::NotFound(format!("Agent thread 不存在: {}", run.thread_id)))?;
         if let Some(execution_id) = request.payload.execution_id {
-            let execution = execution::Entity::find_by_id(execution_id)
-                .one(self.connection())
-                .await?
+            let execution = agent::execution_by_id(self.connection(), execution_id)
+                .await
+                .map_err(agent_db_error_to_app)?
                 .ok_or_else(|| {
                     AppError::NotFound(format!("Agent execution 不存在: {execution_id}"))
                 })?;
@@ -234,10 +234,9 @@ impl AgentApplication {
             .ok_or_else(|| {
                 AppError::NotFound(format!("Agent thread 不存在: {}", run_row.thread_id))
             })?;
-        let turn_row = turn::Entity::find_by_id(run_row.turn_id)
-            .one(self.connection())
+        let turn_row = agent::turn_by_id(self.connection(), run_row.turn_id)
             .await
-            .map_err(AppError::Database)?
+            .map_err(agent_db_error_to_app)?
             .ok_or_else(|| AppError::NotFound(format!("Agent turn 不存在: {}", run_row.turn_id)))?;
         validate_model_override_json(turn_row.model_override_json.as_ref())?;
         let thread = thread_snapshot(thread_row.clone())?;
@@ -503,9 +502,9 @@ impl AgentApplication {
     ) -> Result<a4n_api_contract::agent::AgentExecutionResultPage, AppError> {
         let limit = bounded_limit(input.limit, 2_000, 2_000, "limit")? as usize;
         let execution_id = parse_id(&input.execution_id, "execution_id")?;
-        let execution = execution::Entity::find_by_id(execution_id)
-            .one(self.connection())
-            .await?
+        let execution = agent::execution_by_id(self.connection(), execution_id)
+            .await
+            .map_err(agent_db_error_to_app)?
             .filter(|execution| {
                 matches!(
                     execution.execution_kind.as_str(),

@@ -46,7 +46,7 @@ pub async fn user_by_id(db: &DatabaseConnection, user_id: i64) -> Result<user::M
     user::Entity::find_by_id(user_id)
         .one(db)
         .await
-        .map_err(AppError::Database)?
+        .map_err(AppError::database)?
         .ok_or_else(|| AppError::NotFound(format!("用户不存在: {user_id}")))
 }
 
@@ -75,7 +75,7 @@ pub async fn current_user_summary(
         .into_model::<CurrentUserSummaryRow>()
         .one(db)
         .await
-        .map_err(AppError::Database)?
+        .map_err(AppError::database)?
         .ok_or_else(|| AppError::NotFound(format!("用户不存在: {user_id}")))?;
     if !user.is_active {
         return Err(AppError::Unauthorized("账户已被禁用".into()));
@@ -87,7 +87,7 @@ pub async fn count_users(db: &DatabaseConnection) -> Result<u64, AppError> {
     user::Entity::find()
         .count(db)
         .await
-        .map_err(AppError::Database)
+        .map_err(AppError::database)
 }
 
 pub async fn list_users(db: &DatabaseConnection) -> Result<Vec<UserSummary>, AppError> {
@@ -109,7 +109,7 @@ pub async fn list_users(db: &DatabaseConnection) -> Result<Vec<UserSummary>, App
         .into_model::<CurrentUserSummaryRow>()
         .all(db)
         .await
-        .map_err(AppError::Database)
+        .map_err(AppError::database)
         .map(|users| {
             users
                 .into_iter()
@@ -140,7 +140,7 @@ where
         .filter(user::Column::Username.eq(username))
         .one(db)
         .await
-        .map_err(AppError::Database)
+        .map_err(AppError::database)
 }
 
 pub(in crate::auth) async fn find_by_email_on<C>(
@@ -154,5 +154,5 @@ where
         .filter(user::Column::Email.eq(email))
         .one(db)
         .await
-        .map_err(AppError::Database)
+        .map_err(AppError::database)
 }

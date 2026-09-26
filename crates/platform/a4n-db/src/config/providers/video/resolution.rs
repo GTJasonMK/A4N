@@ -9,6 +9,6 @@ pub async fn default_video_config(
         .filter(video_gen_config::Column::IsDefault.eq(true))
         .one(db)
         .await
-        .map_err(AppError::Database)?
+        .map_err(AppError::database)?
         .ok_or_else(|| AppError::ConfigError("请先设置默认视频配置".to_string()))
 }

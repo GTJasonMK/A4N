@@ -1,7 +1,7 @@
 impl WorkerState {
     async fn llm_exists(&self, request: WorkerEnvelope<EmptyInput>) -> Result<bool, WorkerFailure> {
         validate_service_request(&request, CONFIG_READ_LLM_EXISTS_OPERATION)?;
-        a4n_db::config::llm_configs_exist(self.database.connection())
+        a4n_db::config::llm_configs_exist(&self.database)
             .await
             .map_err(app_error)
     }
@@ -10,7 +10,7 @@ impl WorkerState {
         request: WorkerEnvelope<EmptyInput>,
     ) -> Result<bool, WorkerFailure> {
         validate_service_request(&request, CONFIG_READ_IMAGE_EXISTS_OPERATION)?;
-        a4n_db::config::image_configs_exist(self.database.connection())
+        a4n_db::config::image_configs_exist(&self.database)
             .await
             .map_err(app_error)
     }
@@ -19,7 +19,7 @@ impl WorkerState {
         request: WorkerEnvelope<EmptyInput>,
     ) -> Result<bool, WorkerFailure> {
         validate_service_request(&request, CONFIG_READ_VIDEO_EXISTS_OPERATION)?;
-        a4n_db::config::video_configs_exist(self.database.connection())
+        a4n_db::config::video_configs_exist(&self.database)
             .await
             .map_err(app_error)
     }
@@ -32,19 +32,19 @@ impl WorkerState {
         let config_id = positive_id(request.payload.config_id)?;
         let value = match request.payload.kind {
             ConfigProviderKindWire::Llm => {
-                a4n_db::config::llm_config_by_id(self.database.connection(), config_id)
+                a4n_db::config::llm_config_by_id(&self.database, config_id)
                     .await
                     .map_err(app_error)?
                     .api_key_encrypted
             }
             ConfigProviderKindWire::Image => {
-                a4n_db::config::image_config_by_id(self.database.connection(), config_id)
+                a4n_db::config::image_config_by_id(&self.database, config_id)
                     .await
                     .map_err(app_error)?
                     .api_key_encrypted
             }
             ConfigProviderKindWire::Video => {
-                a4n_db::config::video_config_by_id(self.database.connection(), config_id)
+                a4n_db::config::video_config_by_id(&self.database, config_id)
                     .await
                     .map_err(app_error)?
                     .api_key_encrypted
@@ -62,7 +62,7 @@ impl WorkerState {
         require_admin(&self.database, user_id(&request)?).await?;
         llm_provider_config(
             a4n_db::config::llm_config_by_id(
-                self.database.connection(),
+                &self.database,
                 positive_id(request.payload.config_id)?,
             )
             .await
@@ -78,7 +78,7 @@ impl WorkerState {
         require_admin(&self.database, user_id(&request)?).await?;
         embedding_provider_config(
             a4n_db::config::embedding_config_by_id(
-                self.database.connection(),
+                &self.database,
                 positive_id(request.payload.config_id)?,
             )
             .await
@@ -94,7 +94,7 @@ impl WorkerState {
         require_admin(&self.database, user_id(&request)?).await?;
         image_connectivity_config(
             a4n_db::config::image_config_by_id(
-                self.database.connection(),
+                &self.database,
                 positive_id(request.payload.config_id)?,
             )
             .await
@@ -107,7 +107,7 @@ impl WorkerState {
         request: WorkerEnvelope<EmptyInput>,
     ) -> Result<Vec<LlmConfigSummary>, WorkerFailure> {
         validate_service_request(&request, CONFIG_READ_LLM_LIST_OPERATION)?;
-        a4n_db::config::list_llm_config_records(self.database.connection())
+        a4n_db::config::list_llm_config_records(&self.database)
             .await
             .map_err(app_error)?
             .iter()
@@ -119,7 +119,7 @@ impl WorkerState {
         request: WorkerEnvelope<EmptyInput>,
     ) -> Result<Vec<ImageConfigSummary>, WorkerFailure> {
         validate_service_request(&request, CONFIG_READ_IMAGE_LIST_OPERATION)?;
-        a4n_db::config::list_image_config_records(self.database.connection())
+        a4n_db::config::list_image_config_records(&self.database)
             .await
             .map_err(app_error)?
             .iter()
@@ -131,7 +131,7 @@ impl WorkerState {
         request: WorkerEnvelope<EmptyInput>,
     ) -> Result<Vec<VideoConfigSummary>, WorkerFailure> {
         validate_service_request(&request, CONFIG_READ_VIDEO_LIST_OPERATION)?;
-        a4n_db::config::list_video_config_records(self.database.connection())
+        a4n_db::config::list_video_config_records(&self.database)
             .await
             .map_err(app_error)?
             .iter()
@@ -143,7 +143,7 @@ impl WorkerState {
         request: WorkerEnvelope<EmptyInput>,
     ) -> Result<Vec<EmbeddingConfigSummary>, WorkerFailure> {
         validate_service_request(&request, CONFIG_READ_EMBEDDING_LIST_OPERATION)?;
-        a4n_db::config::list_embedding_configs(self.database.connection())
+        a4n_db::config::list_embedding_configs(&self.database)
             .await
             .map_err(app_error)?
             .iter()
@@ -156,7 +156,7 @@ impl WorkerState {
         request: WorkerEnvelope<SettingsExportInput>,
     ) -> Result<String, WorkerFailure> {
         validate_admin_request(&request, CONFIG_SETTINGS_EXPORT_OPERATION, &self.database).await?;
-        let rows = a4n_db::config::settings_all_config_rows(self.database.connection())
+        let rows = a4n_db::config::settings_all_config_rows(&self.database)
             .await
             .map_err(app_error)?;
         serde_json::to_string_pretty(&AllConfigsExport {
@@ -188,7 +188,7 @@ impl WorkerState {
         validate_all_configs_export(&incoming).map_err(WorkerFailure::invalid_request)?;
         let config_import = settings_import_input(&incoming, request.payload.overwrite);
         a4n_db::config::validate_settings_all_config_import_defaults(
-            self.database.connection(),
+            &self.database,
             &config_import,
         )
         .await
@@ -216,13 +216,13 @@ impl WorkerState {
         }
         let config_import = settings_import_input(&incoming, request.payload.overwrite);
         a4n_db::config::validate_settings_all_config_import_defaults(
-            self.database.connection(),
+            &self.database,
             &config_import,
         )
         .await
         .map_err(settings_import_error)?;
         let counts =
-            a4n_db::config::import_settings_all_configs(self.database.connection(), config_import)
+            a4n_db::config::import_settings_all_configs(&self.database, config_import)
                 .await
                 .map_err(settings_import_error)?;
         Ok(import_details_from_counts(
@@ -236,7 +236,7 @@ impl WorkerState {
         request: WorkerEnvelope<EmptyInput>,
     ) -> Result<bool, WorkerFailure> {
         validate_service_request(&request, CONFIG_MUTATION_BASELINE_EMBEDDING_OPERATION)?;
-        a4n_db::config::insert_baseline_embedding_config_if_empty(self.database.connection())
+        a4n_db::config::insert_baseline_embedding_config_if_empty(&self.database)
             .await
             .map_err(app_error)
     }
@@ -247,7 +247,7 @@ impl WorkerState {
     ) -> Result<bool, WorkerFailure> {
         validate_service_request(&request, CONFIG_MUTATION_BASELINE_LLM_OPERATION)?;
         let input = llm_record_input(normalize_llm_input(request.payload.0).map_err(app_error)?);
-        a4n_db::config::insert_baseline_llm_config_if_empty(self.database.connection(), input)
+        a4n_db::config::insert_baseline_llm_config_if_empty(&self.database, input)
             .await
             .map_err(app_error)
     }
@@ -259,7 +259,7 @@ impl WorkerState {
         validate_service_request(&request, CONFIG_MUTATION_BASELINE_IMAGE_OPERATION)?;
         let (params, pricing) = image_params(request.payload.0).map_err(app_error)?;
         a4n_db::config::insert_baseline_image_config_if_empty(
-            self.database.connection(),
+            &self.database,
             image_record_input(params, pricing).map_err(app_error)?,
         )
         .await
@@ -273,7 +273,7 @@ impl WorkerState {
         validate_service_request(&request, CONFIG_MUTATION_BASELINE_VIDEO_OPERATION)?;
         let (params, pricing) = video_params(request.payload.0).map_err(app_error)?;
         a4n_db::config::insert_baseline_video_config_if_empty(
-            self.database.connection(),
+            &self.database,
             video_record_input(params, pricing),
         )
         .await
@@ -291,7 +291,7 @@ impl WorkerState {
         )
         .await?;
         let model = a4n_db::config::create_llm_config_record(
-            self.database.connection(),
+            &self.database,
             llm_record_input(normalize_llm_input(request.payload.0).map_err(app_error)?),
         )
         .await
@@ -310,7 +310,7 @@ impl WorkerState {
         )
         .await?;
         let existing = a4n_db::config::llm_config_by_id(
-            self.database.connection(),
+            &self.database,
             positive_id(request.payload.config_id)?,
         )
         .await
@@ -318,7 +318,7 @@ impl WorkerState {
         let input =
             normalize_update_llm_input(&existing, request.payload.input).map_err(app_error)?;
         let model = a4n_db::config::update_llm_config_record(
-            self.database.connection(),
+            &self.database,
             existing,
             llm_record_input(input),
         )
@@ -338,12 +338,12 @@ impl WorkerState {
         )
         .await?;
         let config_id = positive_id(request.payload.config_id)?;
-        let model = a4n_db::config::llm_config_by_id(self.database.connection(), config_id)
+        let model = a4n_db::config::llm_config_by_id(&self.database, config_id)
             .await
             .map_err(app_error)?;
         validate_llm_config(&llm_config_snapshot(&model)).map_err(app_error)?;
         a4n_db::config::set_default_provider_config(
-            self.database.connection(),
+            &self.database,
             ProviderConfigKind::Llm,
             config_id,
         )
@@ -362,11 +362,11 @@ impl WorkerState {
         )
         .await?;
         let config_id = positive_id(request.payload.config_id)?;
-        let model = a4n_db::config::llm_config_by_id(self.database.connection(), config_id)
+        let model = a4n_db::config::llm_config_by_id(&self.database, config_id)
             .await
             .map_err(app_error)?;
         ensure_default_config_delete_allowed(" LLM 配置", model.is_default).map_err(app_error)?;
-        a4n_db::config::delete_llm_config_record(self.database.connection(), config_id)
+        a4n_db::config::delete_llm_config_record(&self.database, config_id)
             .await
             .map_err(app_error)
     }
@@ -383,7 +383,7 @@ impl WorkerState {
         .await?;
         let (params, pricing) = image_params(request.payload.0).map_err(app_error)?;
         let model = a4n_db::config::create_image_config_record(
-            self.database.connection(),
+            &self.database,
             image_record_input(params, pricing).map_err(app_error)?,
         )
         .await
@@ -402,7 +402,7 @@ impl WorkerState {
         )
         .await?;
         let existing = a4n_db::config::image_config_by_id(
-            self.database.connection(),
+            &self.database,
             positive_id(request.payload.config_id)?,
         )
         .await
@@ -422,7 +422,7 @@ impl WorkerState {
         })
         .map_err(app_error)?;
         let model = a4n_db::config::update_image_config_record(
-            self.database.connection(),
+            &self.database,
             existing,
             image_record_input(params, pricing).map_err(app_error)?,
         )
@@ -442,12 +442,12 @@ impl WorkerState {
         )
         .await?;
         let config_id = positive_id(request.payload.config_id)?;
-        let model = a4n_db::config::image_config_by_id(self.database.connection(), config_id)
+        let model = a4n_db::config::image_config_by_id(&self.database, config_id)
             .await
             .map_err(app_error)?;
         a4n_db::config::validate_image_config_model(&model).map_err(app_error)?;
         a4n_db::config::set_default_provider_config(
-            self.database.connection(),
+            &self.database,
             ProviderConfigKind::Image,
             config_id,
         )
@@ -466,11 +466,11 @@ impl WorkerState {
         )
         .await?;
         let config_id = positive_id(request.payload.config_id)?;
-        let model = a4n_db::config::image_config_by_id(self.database.connection(), config_id)
+        let model = a4n_db::config::image_config_by_id(&self.database, config_id)
             .await
             .map_err(app_error)?;
         ensure_default_config_delete_allowed("图片配置", model.is_default).map_err(app_error)?;
-        a4n_db::config::delete_image_config_record(self.database.connection(), config_id)
+        a4n_db::config::delete_image_config_record(&self.database, config_id)
             .await
             .map_err(app_error)
     }
@@ -487,7 +487,7 @@ impl WorkerState {
         .await?;
         let (params, pricing) = video_params(request.payload.0).map_err(app_error)?;
         let model = a4n_db::config::create_video_config_record(
-            self.database.connection(),
+            &self.database,
             video_record_input(params, pricing),
         )
         .await
@@ -506,7 +506,7 @@ impl WorkerState {
         )
         .await?;
         let existing = a4n_db::config::video_config_by_id(
-            self.database.connection(),
+            &self.database,
             positive_id(request.payload.config_id)?,
         )
         .await
@@ -533,7 +533,7 @@ impl WorkerState {
         })
         .map_err(|error| app_error(a4n_error::AppError::InvalidArgument(error)))?;
         let model = a4n_db::config::update_video_config_record(
-            self.database.connection(),
+            &self.database,
             existing,
             video_record_input(params, pricing_json(input.pricing).map_err(app_error)?),
         )
@@ -553,12 +553,12 @@ impl WorkerState {
         )
         .await?;
         let config_id = positive_id(request.payload.config_id)?;
-        let model = a4n_db::config::video_config_by_id(self.database.connection(), config_id)
+        let model = a4n_db::config::video_config_by_id(&self.database, config_id)
             .await
             .map_err(app_error)?;
         validate_video_model(&model).map_err(app_error)?;
         a4n_db::config::set_default_provider_config(
-            self.database.connection(),
+            &self.database,
             ProviderConfigKind::Video,
             config_id,
         )
@@ -577,12 +577,12 @@ impl WorkerState {
         )
         .await?;
         let config_id = positive_id(request.payload.config_id)?;
-        let model = a4n_db::config::video_config_by_id(self.database.connection(), config_id)
+        let model = a4n_db::config::video_config_by_id(&self.database, config_id)
             .await
             .map_err(app_error)?;
         ensure_default_config_delete_allowed("视频配置", model.is_default).map_err(app_error)?;
         let active = a4n_db::config::active_generated_video_ids_for_config(
-            self.database.connection(),
+            &self.database,
             config_id,
         )
         .await
@@ -593,7 +593,7 @@ impl WorkerState {
                 active.len()
             )));
         }
-        a4n_db::config::delete_video_config_record(self.database.connection(), config_id)
+        a4n_db::config::delete_video_config_record(&self.database, config_id)
             .await
             .map_err(app_error)
     }
@@ -610,7 +610,7 @@ impl WorkerState {
         .await?;
         let (params, pricing) = embedding_params(request.payload.0).map_err(app_error)?;
         let model = a4n_db::config::create_embedding_config_record(
-            self.database.connection(),
+            &self.database,
             embedding_record_input(params, pricing),
         )
         .await
@@ -629,7 +629,7 @@ impl WorkerState {
         )
         .await?;
         let existing = a4n_db::config::embedding_config_by_id(
-            self.database.connection(),
+            &self.database,
             positive_id(request.payload.config_id)?,
         )
         .await
@@ -650,7 +650,7 @@ impl WorkerState {
         })
         .map_err(app_error)?;
         let model = a4n_db::config::update_embedding_config_record(
-            self.database.connection(),
+            &self.database,
             existing,
             embedding_record_input(params, pricing_json(input.pricing).map_err(app_error)?),
         )
@@ -670,12 +670,12 @@ impl WorkerState {
         )
         .await?;
         let config_id = positive_id(request.payload.config_id)?;
-        let model = a4n_db::config::embedding_config_by_id(self.database.connection(), config_id)
+        let model = a4n_db::config::embedding_config_by_id(&self.database, config_id)
             .await
             .map_err(app_error)?;
         a4n_db::config::validate_embedding_config_model(&model).map_err(app_error)?;
         a4n_db::config::set_default_provider_config(
-            self.database.connection(),
+            &self.database,
             ProviderConfigKind::Embedding,
             config_id,
         )
@@ -694,12 +694,12 @@ impl WorkerState {
         )
         .await?;
         let config_id = positive_id(request.payload.config_id)?;
-        let model = a4n_db::config::embedding_config_by_id(self.database.connection(), config_id)
+        let model = a4n_db::config::embedding_config_by_id(&self.database, config_id)
             .await
             .map_err(app_error)?;
         ensure_default_config_delete_allowed(" Embedding 配置", model.is_default)
             .map_err(app_error)?;
-        a4n_db::config::delete_embedding_config_record(self.database.connection(), config_id)
+        a4n_db::config::delete_embedding_config_record(&self.database, config_id)
             .await
             .map_err(app_error)
     }

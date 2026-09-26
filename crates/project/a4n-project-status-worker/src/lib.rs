@@ -27,7 +27,6 @@ use axum::{
     response::{IntoResponse, Response},
     routing::{get, post},
 };
-use sea_orm::{ConnectOptions, ConnectionTrait, Database, DatabaseConnection, Statement};
 use subtle::ConstantTimeEq;
 
 const WORKER_ADDR_ENV: &str = "A4N_PROJECT_STATUS_WORKER_ADDR";
@@ -56,13 +55,13 @@ struct WorkerFailure {
 
 impl ProjectStatusWorker {
     pub fn new(
-        database: DatabaseConnection,
+        database: DbHandle,
         worker_id: impl Into<String>,
         auth_token: impl Into<String>,
     ) -> Self {
         Self {
             state: WorkerState {
-                database: DbHandle::new(Arc::new(database)),
+                database,
                 worker_id: Arc::<str>::from(worker_id.into()),
                 auth_token: Arc::<str>::from(auth_token.into()),
             },
@@ -105,12 +104,7 @@ async fn async_main() -> anyhow::Result<()> {
     a4n_config::validate_postgres_database_url(DATABASE_URL_ENV, &database_url)?;
     let auth_token = a4n_config::required_non_empty_env_string(WORKER_TOKEN_ENV)?;
     let address = worker_addr()?;
-    let mut options = ConnectOptions::new(database_url);
-    options
-        .max_connections(8)
-        .min_connections(1)
-        .connect_timeout(std::time::Duration::from_secs(5));
-    let database = Database::connect(options).await?;
+    let database = DbHandle::connect(database_url).await?;
     ProjectStatusWorker::new(database, PROJECT_STATUS_WORKER_ID, auth_token)
         .serve(address)
         .await
@@ -131,16 +125,8 @@ async fn health(State(state): State<WorkerState>, headers: HeaderMap) -> Respons
     if !state.authorized(&headers) {
         return unauthorized();
     }
-    let status = match state
-        .database
-        .connection()
-        .execute(Statement::from_string(
-            sea_orm::DatabaseBackend::Postgres,
-            "SELECT 1",
-        ))
-        .await
-    {
-        Ok(_) => WorkerHealthStatus::Healthy,
+    let status = match state.database.ping().await {
+        Ok(()) => WorkerHealthStatus::Healthy,
         Err(_) => WorkerHealthStatus::Degraded,
     };
     Json(WorkerHealth {
@@ -249,12 +235,12 @@ impl WorkerState {
             .await?;
         let (artifacts, history) = tokio::join!(
             async {
-                a4n_db::project::project_status_artifacts(self.database.connection(), project_id)
+                a4n_db::project::project_status_artifacts(&self.database, project_id)
                     .await
                     .map_err(status_read_error)
             },
             async {
-                a4n_db::project::project_status_history(self.database.connection(), project_id)
+                a4n_db::project::project_status_history(&self.database, project_id)
                     .await
                     .map_err(status_read_error)
             },
@@ -295,13 +281,10 @@ impl WorkerState {
             )));
         }
         let actions = rollback_actions(current_status, input.target);
-        let impacts = a4n_db::project::project_rollback_impacts(
-            self.database.connection(),
-            project_id,
-            &actions,
-        )
-        .await
-        .map_err(rollback_impact_error)?;
+        let impacts =
+            a4n_db::project::project_rollback_impacts(&self.database, project_id, &actions)
+                .await
+                .map_err(rollback_impact_error)?;
         Ok(ProjectRollbackPreview {
             path: ProjectStatus::ALL
                 .into_iter()
@@ -327,10 +310,9 @@ impl WorkerState {
         )
         .await?;
         let (project, from) = self.project_with_status(project_id, "推进项目状态").await?;
-        let artifacts =
-            a4n_db::project::project_status_artifacts(self.database.connection(), project_id)
-                .await
-                .map_err(status_read_error)?;
+        let artifacts = a4n_db::project::project_status_artifacts(&self.database, project_id)
+            .await
+            .map_err(status_read_error)?;
         let target = request.payload.target;
         if from >= target {
             return Err(WorkerFailure::conflict(format!(
@@ -348,7 +330,7 @@ impl WorkerState {
         }
         let changed_at = chrono::Utc::now().naive_utc();
         let project = a4n_db::project::update_project_status_record(
-            self.database.connection(),
+            &self.database,
             project,
             target,
             changed_at,
@@ -390,7 +372,7 @@ impl WorkerState {
         }
         let changed_at = chrono::Utc::now().naive_utc();
         let outcome = a4n_db::project::reset::rollback_project_status_record(
-            self.database.connection(),
+            &self.database,
             project_id,
             from,
             target,
@@ -413,13 +395,9 @@ impl WorkerState {
         user_id: i64,
         project: &a4n_db_models::models::project::novel_project::Model,
     ) -> Result<a4n_api_contract::project::ProjectSummary, WorkerFailure> {
-        a4n_project_read_core::project_summary_for_user(
-            self.database.connection(),
-            user_id,
-            project,
-        )
-        .await
-        .map_err(summary_error)
+        a4n_project_read_core::project_summary_for_user(&self.database, user_id, project)
+            .await
+            .map_err(summary_error)
     }
 
     async fn project_with_status(
@@ -433,7 +411,7 @@ impl WorkerState {
         ),
         WorkerFailure,
     > {
-        let project = a4n_db::project::project_by_id_record(self.database.connection(), project_id)
+        let project = a4n_db::project::project_by_id_record(&self.database, project_id)
             .await
             .map_err(project_mutation_error)?
             .ok_or_else(|| WorkerFailure::not_found(format!("项目不存在: {project_id}")))?;
@@ -464,7 +442,7 @@ async fn verify_viewer(
     user_id: i64,
 ) -> Result<(), WorkerFailure> {
     a4n_db::collaboration::verify_project_permission(
-        database.connection(),
+        &database,
         project_id,
         user_id,
         a4n_domain::collaboration::ProjectAccessRole::Viewer,
@@ -480,15 +458,10 @@ async fn verify_permission(
     user_id: i64,
     required: ProjectAccessRole,
 ) -> Result<(), WorkerFailure> {
-    a4n_db::collaboration::verify_project_permission(
-        database.connection(),
-        project_id,
-        user_id,
-        required,
-    )
-    .await
-    .map(|_| ())
-    .map_err(collaboration_error)
+    a4n_db::collaboration::verify_project_permission(&database, project_id, user_id, required)
+        .await
+        .map(|_| ())
+        .map_err(collaboration_error)
 }
 
 fn validate_request<T: serde::Serialize>(

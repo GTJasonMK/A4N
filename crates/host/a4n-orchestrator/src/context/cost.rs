@@ -42,13 +42,13 @@ impl OrchestratorContext {
             .checked_sub_signed(Duration::days(i64::from(input.days)))
             .ok_or_else(|| AppError::InvalidArgument("模型成本报表时间范围无效".to_string()))?;
         let aggregates = a4n_db::model_usage::aggregate_model_usage_records(
-            self.database.connection(),
+            &self.database,
             input.project_id,
             since,
         )
         .await?;
         let records = a4n_db::model_usage::list_model_usage_records(
-            self.database.connection(),
+            &self.database,
             input.project_id,
             since,
             u64::from(input.limit),

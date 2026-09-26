@@ -107,7 +107,7 @@ impl OrchestratorContext {
         }
 
         let mut context =
-            load_chapter_outline_generation_context(self.database.connection(), project_id).await?;
+            load_chapter_outline_generation_context(&self.database, project_id).await?;
         validate_requested_part_context(&context.parts, start_chapter, end_chapter)?;
         ensure_focus_part_in_context(focus_part, &context.parts)?;
 
@@ -179,7 +179,7 @@ impl OrchestratorContext {
             let part_id =
                 requested_part_for_chapter(&context.parts, chapter_number)?.map(|part| part.id);
             let tx = lock_outline_generation_sources(
-                self.database.connection(),
+                &self.database,
                 project_id,
                 &context.source_snapshot,
             )
@@ -192,7 +192,7 @@ impl OrchestratorContext {
                 Utc::now().naive_utc(),
             )
             .await?;
-            tx.commit().await.map_err(AppError::Database)?;
+            a4n_db::commit_transaction(tx).await?;
             self.record_chapter_outline_generation_run(
                 &outline,
                 &generated.request,
@@ -202,9 +202,7 @@ impl OrchestratorContext {
             )
             .await?;
             results.push(outline);
-            context =
-                load_chapter_outline_generation_context(self.database.connection(), project_id)
-                    .await?;
+            context = load_chapter_outline_generation_context(&self.database, project_id).await?;
             report_progress(
                 progress,
                 current,

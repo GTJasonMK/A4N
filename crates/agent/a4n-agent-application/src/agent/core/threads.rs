@@ -115,7 +115,7 @@ impl AgentApplication {
                 let existing = agent::thread_by_canonical_binding(self.connection(), user_id, key)
                     .await
                     .map_err(agent_db_error_to_app)?
-                    .ok_or(AppError::Database(error))?;
+                    .ok_or(AppError::database(error))?;
                 self.reconcile_canonical_thread(
                     existing,
                     &capability,
@@ -181,11 +181,10 @@ impl AgentApplication {
     ) -> Result<AgentThreadView, AppError> {
         let thread_id = parse_id(&input.thread_id, "thread_id")?;
         validate_user_id(user_id)?;
-        let tx = self.connection().begin().await?;
-        let row = thread::Entity::find_by_id(thread_id)
-            .lock_exclusive()
-            .one(&tx)
-            .await?
+        let tx = self.database.begin().await?;
+        let row = agent::lock_thread(&tx, thread_id)
+            .await
+            .map_err(agent_db_error_to_app)?
             .ok_or_else(|| AppError::NotFound("Agent thread 不存在".into()))?;
         if row.owner_user_id != user_id {
             return Err(AppError::Forbidden(
@@ -231,23 +230,27 @@ impl AgentApplication {
             None
         };
         let current_revision = row.revision;
-        let mut active: thread::ActiveModel = row.into();
-        if let Some(scope) = scope {
-            active.scope_json = Set(scope);
-        }
-        if let Some(title) = input.title {
-            active.title = Set(optional_text(Some(title), "title")?);
-        }
         if let Some(model_config_id) = input.default_model_config_id {
             validate_optional_positive_id(Some(model_config_id), "default_model_config_id")?;
-            active.default_model_config_id = Set(Some(model_config_id));
         }
-        active.revision = Set(current_revision
+        let revision = current_revision
             .checked_add(1)
-            .ok_or_else(|| AppError::InvalidArgument("Agent thread revision 溢出".into()))?);
-        active.updated_at = Set(chrono::Utc::now().naive_utc());
-        let updated = active.update(&tx).await.map_err(AppError::Database)?;
-        tx.commit().await?;
+            .ok_or_else(|| AppError::InvalidArgument("Agent thread revision 溢出".into()))?;
+        let title = input
+            .title
+            .map(|title| optional_text(Some(title), "title"))
+            .transpose()?;
+        let updated = agent::update_thread_record(
+            &tx,
+            row,
+            scope,
+            title,
+            input.default_model_config_id,
+            revision,
+        )
+        .await
+        .map_err(agent_db_error_to_app)?;
+        a4n_db::commit_transaction(tx).await?;
         thread_view(updated)
     }
 
@@ -258,11 +261,10 @@ impl AgentApplication {
     ) -> Result<AgentThreadView, AppError> {
         let thread_id = parse_id(&input.thread_id, "thread_id")?;
         validate_user_id(user_id)?;
-        let tx = self.connection().begin().await?;
-        let row = thread::Entity::find_by_id(thread_id)
-            .lock_exclusive()
-            .one(&tx)
-            .await?
+        let tx = self.database.begin().await?;
+        let row = agent::lock_thread(&tx, thread_id)
+            .await
+            .map_err(agent_db_error_to_app)?
             .ok_or_else(|| AppError::NotFound(format!("Agent thread 不存在: {thread_id}")))?;
         if row.owner_user_id != user_id {
             return Err(AppError::Forbidden("无权访问此 Agent thread".into()));
@@ -276,16 +278,14 @@ impl AgentApplication {
                 operation: "归档 Agent thread".into(),
             });
         }
-        let current_revision = row.revision;
-        let mut active: thread::ActiveModel = row.into();
-        active.status = Set("archived".into());
-        active.archived_at = Set(Some(chrono::Utc::now().naive_utc()));
-        active.revision = Set(current_revision
+        let revision = row
+            .revision
             .checked_add(1)
-            .ok_or_else(|| AppError::InvalidArgument("Agent thread revision 溢出".into()))?);
-        active.updated_at = Set(chrono::Utc::now().naive_utc());
-        let updated = active.update(&tx).await.map_err(AppError::Database)?;
-        tx.commit().await?;
+            .ok_or_else(|| AppError::InvalidArgument("Agent thread revision 溢出".into()))?;
+        let updated = agent::archive_thread_record(&tx, row, revision)
+            .await
+            .map_err(agent_db_error_to_app)?;
+        a4n_db::commit_transaction(tx).await?;
         thread_view(updated)
     }
 
@@ -352,7 +352,7 @@ impl AgentApplication {
                 let existing = agent::thread_by_canonical_binding(self.connection(), user_id, &key)
                     .await
                     .map_err(agent_db_error_to_app)?
-                    .ok_or(AppError::Database(error))?;
+                    .ok_or(AppError::database(error))?;
                 self.reconcile_canonical_thread(
                     existing,
                     &capability,
@@ -430,13 +430,7 @@ impl AgentApplication {
     ) -> Result<AgentThreadHistorySnapshot, AppError> {
         let thread_id = parse_id(thread_id, "thread_id")?;
         self.owned_thread(user_id, thread_id).await?;
-        let tx = self
-            .connection()
-            .begin_with_config(
-                Some(sea_orm::IsolationLevel::RepeatableRead),
-                Some(sea_orm::AccessMode::ReadOnly),
-            )
-            .await?;
+        let tx = self.database.begin_read_only_repeatable_read().await?;
         let thread_row = agent::thread_by_id(&tx, thread_id)
             .await
             .map_err(agent_db_error_to_app)?
@@ -475,7 +469,7 @@ impl AgentApplication {
                 .map_err(agent_db_error_to_app)?
                 .usage;
         }
-        tx.commit().await?;
+        a4n_db::commit_transaction(tx).await?;
 
         Ok(AgentThreadHistorySnapshot {
             protocol_version: AGENT_API_PROTOCOL_VERSION,

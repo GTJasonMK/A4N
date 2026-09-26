@@ -25,8 +25,7 @@ impl OrchestratorContext {
             .iter()
             .map(|package| package.id.as_str().to_string())
             .collect::<Vec<_>>();
-        a4n_db::package::ensure_host_package_states(self.database.connection(), &package_ids)
-            .await?;
+        a4n_db::package::ensure_host_package_states(&self.database, &package_ids).await?;
         for package in catalog.packages {
             let installed = services_for_package(package.id).iter().all(|service| {
                 self.service_manager
@@ -35,7 +34,7 @@ impl OrchestratorContext {
                     .unwrap_or(false)
             });
             a4n_db::package::reconcile_package_installation_state(
-                self.database.connection(),
+                &self.database,
                 package.id.as_str(),
                 if installed {
                     a4n_db::package::INSTALLATION_INSTALLED
@@ -49,20 +48,19 @@ impl OrchestratorContext {
     }
 
     pub(crate) async fn package_overview(&self) -> Result<Vec<PackageOverview>, AppError> {
-        let states = a4n_db::package::list_host_package_states(self.database.connection()).await?;
+        let states = a4n_db::package::list_host_package_states(&self.database).await?;
         let mut overview = Vec::new();
         for definition in package_catalog().packages {
             let state = states
                 .iter()
                 .find(|state| state.package_id == definition.id.as_str());
             let lifecycle = match state {
-                Some(state) => a4n_db::package::latest_package_operation(
-                    self.database.connection(),
-                    &state.package_id,
-                )
-                .await?
-                .map(package_lifecycle_summary)
-                .transpose()?,
+                Some(state) => {
+                    a4n_db::package::latest_package_operation(&self.database, &state.package_id)
+                        .await?
+                        .map(package_lifecycle_summary)
+                        .transpose()?
+                }
                 None => None,
             };
             let (installation, host_state, status_version) = match state {
@@ -151,12 +149,12 @@ impl OrchestratorContext {
             })
             .transpose()?;
         let expected_version = requested_version.unwrap_or(i64::MAX);
-        if a4n_db::package::package_operation(self.database.connection(), &input.operation_id)
+        if a4n_db::package::package_operation(&self.database, &input.operation_id)
             .await?
             .is_some()
         {
             let operation = a4n_db::package::start_package_lifecycle(
-                self.database.connection(),
+                &self.database,
                 &input.operation_id,
                 input.package_id.as_str(),
                 action,
@@ -175,14 +173,12 @@ impl OrchestratorContext {
                 "必装功能包不可停用",
             ));
         }
-        let current = a4n_db::package::host_package_state(
-            self.database.connection(),
-            input.package_id.as_str(),
-        )
-        .await?
-        .ok_or_else(|| {
-            AppError::NotFound(format!("功能包状态不存在: {}", input.package_id.as_str()))
-        })?;
+        let current =
+            a4n_db::package::host_package_state(&self.database, input.package_id.as_str())
+                .await?
+                .ok_or_else(|| {
+                    AppError::NotFound(format!("功能包状态不存在: {}", input.package_id.as_str()))
+                })?;
         if input.action == PackageLifecycleAction::Enable
             && !matches!(
                 installation_state(&current.installation_state),
@@ -203,7 +199,7 @@ impl OrchestratorContext {
         }
         let expected_version = requested_version.unwrap_or(current.status_version);
         let operation = a4n_db::package::start_package_lifecycle(
-            self.database.connection(),
+            &self.database,
             &input.operation_id,
             input.package_id.as_str(),
             action,
@@ -222,10 +218,9 @@ impl OrchestratorContext {
         &self,
         operation_id: &str,
     ) -> Result<a4n_db_models::models::package::host_package_operation::Model, AppError> {
-        let operation =
-            a4n_db::package::package_operation(self.database.connection(), operation_id)
-                .await?
-                .ok_or_else(|| AppError::NotFound(format!("功能包操作不存在: {operation_id}")))?;
+        let operation = a4n_db::package::package_operation(&self.database, operation_id)
+            .await?
+            .ok_or_else(|| AppError::NotFound(format!("功能包操作不存在: {operation_id}")))?;
         if matches!(
             operation.state.as_str(),
             a4n_db::package::OPERATION_COMPLETED | a4n_db::package::OPERATION_FAILED
@@ -245,7 +240,7 @@ impl OrchestratorContext {
                 != PackageHealth::Healthy
             {
                 return a4n_db::package::finish_package_lifecycle(
-                    self.database.connection(),
+                    &self.database,
                     &operation.operation_id,
                     operation.status_version,
                     a4n_db::package::OPERATION_FAILED,
@@ -256,7 +251,7 @@ impl OrchestratorContext {
                 .await;
             }
             return a4n_db::package::finish_package_lifecycle(
-                self.database.connection(),
+                &self.database,
                 &operation.operation_id,
                 operation.status_version,
                 a4n_db::package::OPERATION_COMPLETED,
@@ -269,8 +264,7 @@ impl OrchestratorContext {
 
         let package_id = operation.package_id.clone();
         let workload =
-            a4n_db::package::package_workload_snapshot(self.database.connection(), &package_id)
-                .await?;
+            a4n_db::package::package_workload_snapshot(&self.database, &package_id).await?;
         for task in workload
             .generation_tasks
             .iter()
@@ -307,11 +301,10 @@ impl OrchestratorContext {
         }
 
         let remaining =
-            a4n_db::package::package_workload_snapshot(self.database.connection(), &package_id)
-                .await?;
+            a4n_db::package::package_workload_snapshot(&self.database, &package_id).await?;
         if remaining.is_empty() {
             return a4n_db::package::update_package_lifecycle_progress(
-                self.database.connection(),
+                &self.database,
                 &operation.operation_id,
                 operation.status_version,
                 a4n_db::package::OPERATION_DRAINING,
@@ -331,7 +324,7 @@ impl OrchestratorContext {
             Some(PackageReasonCode::MaintenanceUnavailable.as_str())
         };
         a4n_db::package::update_package_lifecycle_progress(
-            self.database.connection(),
+            &self.database,
             &operation.operation_id,
             operation.status_version,
             next_state,
@@ -348,10 +341,9 @@ impl OrchestratorContext {
         &self,
         operation_id: &str,
     ) -> Result<a4n_db_models::models::package::host_package_operation::Model, AppError> {
-        let operation =
-            a4n_db::package::package_operation(self.database.connection(), operation_id)
-                .await?
-                .ok_or_else(|| AppError::NotFound(format!("功能包操作不存在: {operation_id}")))?;
+        let operation = a4n_db::package::package_operation(&self.database, operation_id)
+            .await?
+            .ok_or_else(|| AppError::NotFound(format!("功能包操作不存在: {operation_id}")))?;
         if matches!(
             operation.state.as_str(),
             a4n_db::package::OPERATION_COMPLETED | a4n_db::package::OPERATION_FAILED
@@ -364,16 +356,14 @@ impl OrchestratorContext {
                 operation: "提交功能包停用终态".to_string(),
             });
         }
-        let remaining = a4n_db::package::package_workload_snapshot(
-            self.database.connection(),
-            &operation.package_id,
-        )
-        .await?;
+        let remaining =
+            a4n_db::package::package_workload_snapshot(&self.database, &operation.package_id)
+                .await?;
         if !remaining.is_empty() {
             return self.advance_package_lifecycle(operation_id).await;
         }
         a4n_db::package::finish_package_lifecycle(
-            self.database.connection(),
+            &self.database,
             &operation.operation_id,
             operation.status_version,
             a4n_db::package::OPERATION_COMPLETED,
@@ -413,8 +403,7 @@ impl OrchestratorContext {
         package_id: PackageId,
     ) -> Result<Option<PackageReasonCode>, AppError> {
         let Some(state) =
-            a4n_db::package::host_package_state(self.database.connection(), package_id.as_str())
-                .await?
+            a4n_db::package::host_package_state(&self.database, package_id.as_str()).await?
         else {
             return Ok(Some(PackageReasonCode::NotInstalled));
         };
@@ -444,11 +433,11 @@ impl OrchestratorContext {
     pub(crate) async fn pending_package_lifecycle_operations(
         &self,
     ) -> Result<Vec<a4n_db_models::models::package::host_package_operation::Model>, AppError> {
-        a4n_db::package::pending_package_operations(self.database.connection()).await
+        a4n_db::package::pending_package_operations(&self.database).await
     }
 
     pub(crate) async fn enabled_package_service_names(&self) -> Result<Vec<String>, AppError> {
-        let states = a4n_db::package::list_host_package_states(self.database.connection()).await?;
+        let states = a4n_db::package::list_host_package_states(&self.database).await?;
         let mut services = HashSet::new();
         for state in states {
             if state.installation_state != a4n_db::package::INSTALLATION_INSTALLED
@@ -470,7 +459,7 @@ impl OrchestratorContext {
         &self,
         package_id: &str,
     ) -> Result<a4n_db::package::PackageWorkloadSnapshot, AppError> {
-        a4n_db::package::package_workload_snapshot(self.database.connection(), package_id).await
+        a4n_db::package::package_workload_snapshot(&self.database, package_id).await
     }
 
     /// 返回可以安全停止的 managed service。任何其他包处于未知、过渡或
@@ -483,7 +472,7 @@ impl OrchestratorContext {
         if target_services.is_empty() {
             return Ok(Vec::new());
         }
-        let states = a4n_db::package::list_host_package_states(self.database.connection()).await?;
+        let states = a4n_db::package::list_host_package_states(&self.database).await?;
         let catalog = package_catalog();
         let safe_services = target_services
             .iter()
@@ -533,10 +522,9 @@ impl OrchestratorContext {
     ) -> Result<PackageLifecycleSummary, AppError> {
         self.require_admin_permission(user_id, AdminPermission::ManageSettings)
             .await?;
-        let operation =
-            a4n_db::package::package_operation(self.database.connection(), operation_id)
-                .await?
-                .ok_or_else(|| AppError::NotFound(format!("功能包操作不存在: {operation_id}")))?;
+        let operation = a4n_db::package::package_operation(&self.database, operation_id)
+            .await?
+            .ok_or_else(|| AppError::NotFound(format!("功能包操作不存在: {operation_id}")))?;
         package_lifecycle_summary(operation)
     }
 
@@ -544,12 +532,11 @@ impl OrchestratorContext {
         &self,
         user_id: i64,
     ) -> Result<PackagePreferencesSummary, AppError> {
-        let hidden_package_ids =
-            a4n_db::package::package_preference(self.database.connection(), user_id)
-                .await?
-                .map(|preference| parse_hidden_package_ids(preference.hidden_package_ids))
-                .transpose()?
-                .unwrap_or_default();
+        let hidden_package_ids = a4n_db::package::package_preference(&self.database, user_id)
+            .await?
+            .map(|preference| parse_hidden_package_ids(preference.hidden_package_ids))
+            .transpose()?
+            .unwrap_or_default();
         Ok(PackagePreferencesSummary {
             host_scope: a4n_api_contract::package::HOST_SCOPE.to_string(),
             hidden_package_ids,
@@ -573,7 +560,7 @@ impl OrchestratorContext {
             .filter(|package| requested.contains(package))
             .collect::<Vec<_>>();
         a4n_db::package::upsert_package_preference(
-            self.database.connection(),
+            &self.database,
             user_id,
             serde_json::to_value(
                 hidden_package_ids
@@ -591,11 +578,9 @@ impl OrchestratorContext {
         user_id: i64,
         descriptor: &CommandDescriptor,
     ) -> Result<PackageCommandAvailability, AppError> {
-        let state = a4n_db::package::host_package_state(
-            self.database.connection(),
-            descriptor.package_id.as_str(),
-        )
-        .await?;
+        let state =
+            a4n_db::package::host_package_state(&self.database, descriptor.package_id.as_str())
+                .await?;
         let status_version = state
             .as_ref()
             .map(|state| parse_status_version(state.status_version, "读取功能包命令状态"))
@@ -683,11 +668,8 @@ impl OrchestratorContext {
             return Ok(false);
         };
         for dependency in &definition.dependencies {
-            let Some(state) = a4n_db::package::host_package_state(
-                self.database.connection(),
-                dependency.as_str(),
-            )
-            .await?
+            let Some(state) =
+                a4n_db::package::host_package_state(&self.database, dependency.as_str()).await?
             else {
                 return Ok(false);
             };

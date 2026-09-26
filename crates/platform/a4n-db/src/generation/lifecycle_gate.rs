@@ -137,6 +137,8 @@ pub enum GenerationLifecycleGateError {
     Corrupt(String),
     #[error(transparent)]
     Database(#[from] DbErr),
+    #[error(transparent)]
+    ApplicationDatabase(a4n_error::DatabaseError),
 }
 
 impl GenerationLifecycleGateError {
@@ -147,6 +149,7 @@ impl GenerationLifecycleGateError {
             Self::Blocked(_) => "generation_owner_lifecycle_blocked",
             Self::Corrupt(_) => "generation_checkpoint_corrupt",
             Self::Database(_) => "generation_persist_failed",
+            Self::ApplicationDatabase(_) => "generation_persist_failed",
         }
     }
 }
@@ -263,7 +266,9 @@ pub async fn begin_user_disable_gate(
     crate::auth::lock_administrator_membership(&tx, user_id, true)
         .await
         .map_err(|error| match error {
-            a4n_error::AppError::Database(error) => GenerationLifecycleGateError::Database(error),
+            a4n_error::AppError::Database(error) => {
+                GenerationLifecycleGateError::ApplicationDatabase(error)
+            }
             a4n_error::AppError::NotFound(message) => {
                 GenerationLifecycleGateError::NotFound(message)
             }

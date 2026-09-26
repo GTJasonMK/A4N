@@ -47,12 +47,10 @@ impl OrchestratorContext {
         let source = self
             .resolve_visual_plan_source(project_id, chapter_id)
             .await?;
-        let plan = a4n_db::chapter_visual_plan::chapter_visual_plan_by_id(
-            self.database.connection(),
-            record_id,
-        )
-        .await
-        .map_err(visual_plan_db_error)?;
+        let plan =
+            a4n_db::chapter_visual_plan::chapter_visual_plan_by_id(&self.database, record_id)
+                .await
+                .map_err(visual_plan_db_error)?;
         ensure_plan_belongs_to_source(&plan, &source)?;
         if plan.record.revision != revision {
             return Err(visual_plan_db_error(
@@ -81,10 +79,9 @@ impl OrchestratorContext {
             .collect::<std::collections::BTreeSet<_>>()
             .into_iter()
             .collect::<Vec<_>>();
-        let scenes =
-            a4n_db::project::scene_profiles_for_source(self.database.connection(), source, &ids)
-                .await
-                .map_err(crate::shooting_script::errors::resolve_source_error)?;
+        let scenes = a4n_db::project::scene_profiles_for_source(&self.database, source, &ids)
+            .await
+            .map_err(crate::shooting_script::errors::resolve_source_error)?;
         Ok(scenes.into_iter().map(|scene| json!({"id":scene.id,"name":scene.name,"description":scene.base_description,"visual_description":scene.visual_description,"spatial_layout":scene.spatial_layout,"atmosphere":scene.atmosphere})).collect())
     }
 
@@ -393,7 +390,7 @@ impl OrchestratorContext {
                     .await);
             }
         };
-        let record = a4n_db::generation::record_completed_run_with_checkpoint_transaction(self.database.connection(), RecordCompletedGenerationRunWithCheckpointInput {
+        let record = a4n_db::generation::record_completed_run_with_checkpoint_transaction(&self.database, RecordCompletedGenerationRunWithCheckpointInput {
             run:RecordCompletedGenerationRunInput {
                 project_id:input.project_id,workflow:DIRECTOR_SEGMENT_PROMPT.into(),step_key:input.segment_id.clone(),title:"导演镜头段 prompt 候选".into(),model_kind:"llm".into(),provider:None,model:Some(candidate.model.clone()),
                 prompt_template_names_json:Some(json!([DIRECTOR_SEGMENT_PROMPT])),prompt_template_hashes_json:None,
@@ -444,11 +441,12 @@ impl OrchestratorContext {
         self.verify_project_or_derived_family_access_validated(user_id, input.project_id)
             .await?;
         let record = a4n_db::chapter_visual_plan::visual_plan_prompt_candidate_record(
-            self.database.connection(),
+            &self.database,
             input.project_id,
             input.generation_run_id,
         )
-        .await?
+        .await
+        .map_err(AppError::database)?
         .ok_or_else(|| AppError::NotFound("生成候选不存在".into()))?;
         let value = record
             .parsed_output_json

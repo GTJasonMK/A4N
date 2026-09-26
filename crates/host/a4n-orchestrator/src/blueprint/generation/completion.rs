@@ -1,3 +1,4 @@
+use a4n_db::DbTransaction;
 use a4n_db::blueprint::{
     NovelBlueprintUpsertInput, SyncProjectAfterBlueprintInput, blueprint_version_snapshot,
     next_blueprint_version_record, sync_project_after_blueprint_record,
@@ -24,7 +25,6 @@ use a4n_llm_trace::{
 use a4n_progress::{ProgressPhaseKind, ProgressSeverity};
 use a4n_service_protocol::ProgressEvent;
 use chrono::{NaiveDateTime, Utc};
-use sea_orm::DatabaseTransaction;
 use serde_json::{Value, json};
 
 use crate::blueprint::persistence::{blueprint_character_drafts, blueprint_relationship_drafts};
@@ -50,7 +50,7 @@ pub(super) struct BlueprintCompletionOutcome {
 }
 
 pub(super) async fn persist_generated_blueprint_in_transaction(
-    tx: &DatabaseTransaction,
+    tx: &DbTransaction,
     input: BlueprintGenerationCompletionInput,
 ) -> Result<(BlueprintCompletionOutcome, Vec<ProgressEvent>), AppError> {
     let BlueprintGenerationCompletionInput {
@@ -65,7 +65,8 @@ pub(super) async fn persist_generated_blueprint_in_transaction(
     let mut progress_events = Vec::with_capacity(4);
     let locked_sources =
         a4n_db::outline::load_outline_generation_source_rows_for_update(tx, project_id)
-            .await?
+            .await
+            .map_err(AppError::database)?
             .ok_or_else(|| AppError::NotFound(format!("项目不存在: {project_id}")))?;
     if locked_sources.project.lifecycle_gate != a4n_db::generation::PROJECT_GATE_ACTIVE {
         return Err(AppError::InvalidState {
@@ -142,8 +143,12 @@ pub(super) async fn persist_generated_blueprint_in_transaction(
     a4n_db::character::sync_character_profiles_from_blueprint(tx, project_id, now)
         .await
         .map_err(character_profile_seed_error)?;
-    let characters = blueprint_characters_for_project(tx, project_id).await?;
-    let relationships = blueprint_relationships_for_project(tx, project_id).await?;
+    let characters = blueprint_characters_for_project(tx, project_id)
+        .await
+        .map_err(AppError::database)?;
+    let relationships = blueprint_relationships_for_project(tx, project_id)
+        .await
+        .map_err(AppError::database)?;
     let snapshot = blueprint_version_snapshot(&blueprint, &characters, &relationships);
     progress_events.push(blueprint_persist_progress(
         12,

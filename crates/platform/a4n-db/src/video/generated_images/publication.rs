@@ -19,8 +19,8 @@ use a4n_domain::media::{
 use chrono::Utc;
 use sea_orm::sea_query::{Expr, OnConflict};
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QueryOrder,
-    QuerySelect, Set, TransactionTrait,
+    ActiveModelTrait, ColumnTrait, Condition, ConnectionTrait, EntityTrait, QueryFilter,
+    QueryOrder, QuerySelect, Set, TransactionTrait,
 };
 use serde_json::Value;
 
@@ -237,6 +237,55 @@ where
         .filter(image_publication::Column::ImageId.eq(image_id))
         .one(db)
         .await
+        .map_err(VideoDbError::Database)
+}
+
+pub async fn active_image_publications_for_paths<C>(
+    db: &C,
+    project_id: i64,
+    paths: &[String],
+) -> Result<Vec<image_publication::Model>, VideoDbError>
+where
+    C: ConnectionTrait,
+{
+    if paths.is_empty() {
+        return Ok(Vec::new());
+    }
+    image_publication::Entity::find()
+        .filter(image_publication::Column::ProjectId.eq(project_id))
+        .filter(image_publication::Column::Status.is_in([
+            IMAGE_PUBLICATION_STATUS_PENDING,
+            IMAGE_PUBLICATION_STATUS_PUBLISHED,
+        ]))
+        .filter(
+            Condition::any()
+                .add(image_publication::Column::StagingPath.is_in(paths.to_vec()))
+                .add(image_publication::Column::FinalPath.is_in(paths.to_vec())),
+        )
+        .all(db)
+        .await
+        .map_err(VideoDbError::Database)
+}
+
+pub async fn project_has_active_image_publication<C>(
+    db: &C,
+    project_id: i64,
+) -> Result<bool, VideoDbError>
+where
+    C: ConnectionTrait,
+{
+    image_publication::Entity::find()
+        .select_only()
+        .column(image_publication::Column::PublicationId)
+        .filter(image_publication::Column::ProjectId.eq(project_id))
+        .filter(image_publication::Column::Status.is_in([
+            IMAGE_PUBLICATION_STATUS_PENDING,
+            IMAGE_PUBLICATION_STATUS_PUBLISHED,
+        ]))
+        .into_tuple::<String>()
+        .one(db)
+        .await
+        .map(|publication| publication.is_some())
         .map_err(VideoDbError::Database)
 }
 

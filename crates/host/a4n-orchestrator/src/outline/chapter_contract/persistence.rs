@@ -1,9 +1,9 @@
 use super::fields::{optional_f32, optional_non_null, optional_positive_i32, required_string};
+use a4n_db::DbTransaction;
 use a4n_db::outline::{self as outline_db, OutlineDbError};
 use a4n_db_models::models::chapter::chapter_outline;
 use a4n_domain::chapter::ChapterOutlineSyncDraft;
 use a4n_error::AppError;
-use sea_orm::ConnectionTrait;
 use serde_json::Value;
 
 fn chapter_outline_sync_draft_from_json(
@@ -34,16 +34,13 @@ fn chapter_outline_number(chapter_json: &Value) -> Result<i32, AppError> {
         .map_err(|_| AppError::InvalidArgument("大纲字段 chapter_number 超出 i32 范围".to_string()))
 }
 
-pub(in crate::outline) async fn sync_chapter_outlines_by_number_in<C>(
-    db: &C,
+pub(in crate::outline) async fn sync_chapter_outlines_by_number_in(
+    db: &DbTransaction,
     project_id: i64,
     part_id: Option<i64>,
     chapters: Vec<Value>,
     now: chrono::NaiveDateTime,
-) -> Result<Vec<chapter_outline::Model>, AppError>
-where
-    C: ConnectionTrait,
-{
+) -> Result<Vec<chapter_outline::Model>, AppError> {
     let mut drafts = Vec::with_capacity(chapters.len());
     for chapter_json in &chapters {
         drafts.push(chapter_outline_sync_draft_from_json(chapter_json)?);
@@ -53,32 +50,26 @@ where
         .map_err(outline_db_error)
 }
 
-pub(in crate::outline) async fn insert_chapter_outline_from_json<C>(
-    db: &C,
+pub(in crate::outline) async fn insert_chapter_outline_from_json(
+    db: &DbTransaction,
     project_id: i64,
     part_id: Option<i64>,
     chapter_json: &Value,
     now: chrono::NaiveDateTime,
-) -> Result<chapter_outline::Model, AppError>
-where
-    C: ConnectionTrait,
-{
+) -> Result<chapter_outline::Model, AppError> {
     let draft = chapter_outline_sync_draft_from_json(chapter_json)?;
     outline_db::insert_chapter_outline_record(db, project_id, part_id, &draft, now)
         .await
         .map_err(outline_db_error)
 }
 
-pub(in crate::outline) async fn update_chapter_outline_from_json_in<C>(
-    db: &C,
+pub(in crate::outline) async fn update_chapter_outline_from_json_in(
+    db: &DbTransaction,
     existing: chapter_outline::Model,
     part_id: Option<i64>,
     chapter_json: &Value,
     now: chrono::NaiveDateTime,
-) -> Result<chapter_outline::Model, AppError>
-where
-    C: ConnectionTrait,
-{
+) -> Result<chapter_outline::Model, AppError> {
     let draft = chapter_outline_sync_draft_from_json(chapter_json)?;
     outline_db::update_chapter_outline_record(db, existing, part_id, &draft, now)
         .await
@@ -91,7 +82,7 @@ pub(in crate::outline) fn outline_db_error(error: OutlineDbError) -> AppError {
         OutlineDbError::InvalidState { current, operation } => {
             AppError::InvalidState { current, operation }
         }
-        OutlineDbError::Database(err) => AppError::Database(err),
+        OutlineDbError::Database(err) => AppError::database(err),
         OutlineDbError::Generation(err) => crate::generation::generation_error(err),
     }
 }

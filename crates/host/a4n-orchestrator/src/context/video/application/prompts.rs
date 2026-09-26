@@ -19,7 +19,7 @@ impl VideoApplication {
     ) -> Result<Vec<chapter_video_prompt::Model>, AppError> {
         a4n_db::video::chapter_video_prompts_for_chapter(self.connection(), project_id, chapter_id)
             .await
-            .map_err(AppError::Database)
+            .map_err(AppError::database)
     }
 
     pub(in crate::context) async fn chapter_video_prompt_timeline_records_for_chapter(
@@ -33,7 +33,7 @@ impl VideoApplication {
             chapter_id,
         )
         .await
-        .map_err(AppError::Database)
+        .map_err(AppError::database)
     }
 
     pub(in crate::context) async fn chapter_video_prompt_video_binding_records_for_chapter(
@@ -47,7 +47,7 @@ impl VideoApplication {
             chapter_id,
         )
         .await
-        .map_err(AppError::Database)
+        .map_err(AppError::database)
     }
 
     pub(in crate::context) async fn chapter_video_prompts_for_batch_generation(

@@ -21,7 +21,7 @@ where
         .filter(protagonist_profile::Column::ProjectId.eq(project_id))
         .one(db)
         .await
-        .map_err(AppError::Database)?
+        .map_err(AppError::database)?
         .ok_or_else(|| AppError::NotFound(format!("人物档案不存在: {profile_id}")))?;
     let text_discovered = profile.is_text_discovered() || profile.last_synced_chapter > 0;
     let mut source_refs = if text_discovered {

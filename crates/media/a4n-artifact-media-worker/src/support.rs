@@ -154,15 +154,10 @@ pub(super) async fn verify_image_permission(
         "editor" => a4n_domain::collaboration::ProjectAccessRole::Editor,
         _ => return Err(format!("unsupported image permission role: {role}")),
     };
-    a4n_db::collaboration::verify_project_permission(
-        database.connection(),
-        project_id,
-        user_id,
-        required,
-    )
-    .await
-    .map(|_| ())
-    .map_err(|error| error.to_string())
+    a4n_db::collaboration::verify_project_permission(&database, project_id, user_id, required)
+        .await
+        .map(|_| ())
+        .map_err(|error| error.to_string())
 }
 
 pub(super) fn recovery_record(

@@ -31,9 +31,12 @@ use axum::{
     response::{IntoResponse, Response},
     routing::{get, post},
 };
-use sea_orm::{ConnectOptions, ConnectionTrait, Database, DatabaseConnection, Statement};
 use serde_json::Value;
 use subtle::ConstantTimeEq;
+
+mod records;
+
+use records::{image_summary, verify_project_permission, video_summary};
 
 const WORKER_ADDR_ENV: &str = "A4N_VIDEO_RECORD_WORKER_ADDR";
 const DATABASE_URL_ENV: &str = "A4N_DATABASE_URL";
@@ -61,13 +64,13 @@ struct WorkerFailure {
 
 impl VideoRecordWorker {
     pub fn new(
-        database: DatabaseConnection,
+        database: DbHandle,
         worker_id: impl Into<String>,
         auth_token: impl Into<String>,
     ) -> Self {
         Self {
             state: WorkerState {
-                database: DbHandle::new(Arc::new(database)),
+                database,
                 worker_id: Arc::<str>::from(worker_id.into()),
                 auth_token: Arc::<str>::from(auth_token.into()),
             },
@@ -133,12 +136,7 @@ async fn async_main() -> anyhow::Result<()> {
     a4n_config::validate_postgres_database_url(DATABASE_URL_ENV, &database_url)?;
     let auth_token = a4n_config::required_non_empty_env_string(WORKER_TOKEN_ENV)?;
     let address = worker_addr()?;
-    let mut options = ConnectOptions::new(database_url);
-    options
-        .max_connections(8)
-        .min_connections(1)
-        .connect_timeout(std::time::Duration::from_secs(5));
-    let database = Database::connect(options).await?;
+    let database = DbHandle::connect(database_url).await?;
     VideoRecordWorker::new(database, VIDEO_RECORD_WORKER_ID, auth_token)
         .serve(address)
         .await
@@ -159,16 +157,8 @@ async fn health(State(state): State<WorkerState>, headers: HeaderMap) -> Respons
     if !state.authorized(&headers) {
         return unauthorized();
     }
-    let status = match state
-        .database
-        .connection()
-        .execute(Statement::from_string(
-            sea_orm::DatabaseBackend::Postgres,
-            "SELECT 1",
-        ))
-        .await
-    {
-        Ok(_) => WorkerHealthStatus::Healthy,
+    let status = match state.database.ping().await {
+        Ok(()) => WorkerHealthStatus::Healthy,
         Err(_) => WorkerHealthStatus::Degraded,
     };
     Json(WorkerHealth {
@@ -359,7 +349,7 @@ impl WorkerState {
             validate_video_source(&self.database, project_id, chapter_id, "采用片段视频", true)
                 .await?;
         let source_content_sha256 = a4n_domain::source_text_hash(&source_content);
-        let db = self.database.connection();
+        let db = &self.database;
         let (plan_result, video_result) = tokio::join!(
             a4n_db::video::chapter_video_prompt_by_id(db, input.input.segment_plan_prompt_id),
             a4n_db::video::generated_video_by_id(db, video_id),
@@ -459,12 +449,10 @@ impl WorkerState {
             ProjectAccessRole::Editor,
         )
         .await?;
-        let run = a4n_db::workflow::workflow_run_summary_by_id(
-            self.database.connection(),
-            input.workflow_run_id,
-        )
-        .await
-        .map_err(workflow_error)?;
+        let run =
+            a4n_db::workflow::workflow_run_summary_by_id(&self.database, input.workflow_run_id)
+                .await
+                .map_err(workflow_error)?;
         if run.workflow_kind != "video_segment_plan"
             || run.project_id != Some(input.project_id)
             || run.chapter_id != Some(input.chapter_id)
@@ -508,7 +496,7 @@ impl WorkerState {
             .filter(|style| !style.is_empty())
             .ok_or_else(|| WorkerFailure::conflict("片段规划 workflow 缺少 style"))?;
         let checkpoints = a4n_db::video::video_segment_plan_draft_checkpoints(
-            self.database.connection(),
+            &self.database,
             run.id,
             "video_segment_plan.shot.",
         )
@@ -579,7 +567,7 @@ impl WorkerState {
             .filter(|style| !style.trim().is_empty())
             .ok_or_else(|| WorkerFailure::conflict("片段规划 workflow 缺少 style"))?;
         a4n_workflow_core::update_video_segment_plan_draft_recipe_checkpoint(
-            self.database.connection(),
+            &self.database,
             input.workflow_run_id,
             &input.source_shot_id,
             input.segment_index_in_shot,
@@ -602,7 +590,7 @@ impl WorkerState {
         if input.input.is_empty() {
             return Err(WorkerFailure::invalid_request("视频更新内容不能为空"));
         }
-        let video = a4n_db::video::generated_video_by_id(self.database.connection(), video_id)
+        let video = a4n_db::video::generated_video_by_id(&self.database, video_id)
             .await
             .map_err(database_error)?
             .ok_or_else(|| WorkerFailure::not_found("视频不存在"))?;
@@ -627,7 +615,7 @@ impl WorkerState {
             None => (None, false),
         };
         let updated = a4n_db::video::update_generated_video_record(
-            self.database.connection(),
+            &self.database,
             video_id,
             a4n_domain::media::UpdateGeneratedVideoRecordInput {
                 prompt: input.input.prompt,
@@ -662,7 +650,7 @@ impl WorkerState {
             return Ok(false);
         };
         let rows = a4n_db::video::generated_videos_for_chapter(
-            self.database.connection(),
+            &self.database,
             video.project_id,
             chapter_id,
         )
@@ -730,7 +718,7 @@ impl WorkerState {
     ) -> Result<GeneratedVideoSummary, WorkerFailure> {
         validate_request(&request, VIDEO_RECORD_PLAYBACK_OPERATION)?;
         let video_id = positive(request.payload.video_id, "video_id")?;
-        let video = a4n_db::video::generated_video_by_id(self.database.connection(), video_id)
+        let video = a4n_db::video::generated_video_by_id(&self.database, video_id)
             .await
             .map_err(database_error)?
             .ok_or_else(|| WorkerFailure::not_found("视频不存在"))?;
@@ -763,14 +751,14 @@ impl WorkerState {
         )
         .await?;
         a4n_db::video::ensure_video_chapter_belongs_to_project_record(
-            self.database.connection(),
+            &self.database,
             input.project_id,
             input.chapter_id,
         )
         .await
         .map_err(video_error)?;
         a4n_db::video::generated_videos_for_chapter(
-            self.database.connection(),
+            &self.database,
             input.project_id,
             input.chapter_id,
         )
@@ -797,7 +785,7 @@ impl WorkerState {
         )
         .await?;
         let images = a4n_db::video::validated_video_reference_image_records(
-            self.database.connection(),
+            &self.database,
             input.project_id,
             input.chapter_id,
             input.reference_image_ids_json.as_ref(),
@@ -846,7 +834,7 @@ impl WorkerState {
         )
         .await?;
         let prompts = a4n_db::video::chapter_video_prompts_for_chapter(
-            self.database.connection(),
+            &self.database,
             input.project_id,
             input.chapter_id,
         )
@@ -854,10 +842,9 @@ impl WorkerState {
         .map_err(database_error)?;
         let mut result = Vec::with_capacity(prompts.len());
         for prompt in prompts {
-            let prompt =
-                a4n_db::video::with_video_plan_source_sync(self.database.connection(), prompt)
-                    .await
-                    .map_err(video_error)?;
+            let prompt = a4n_db::video::with_video_plan_source_sync(&self.database, prompt)
+                .await
+                .map_err(video_error)?;
             result.push(ChapterVideoPromptSummary::from(&prompt));
         }
         Ok(result)
@@ -888,78 +875,6 @@ impl WorkerState {
             .get(WORKER_AUTH_HEADER)
             .is_some_and(|value| bool::from(value.as_bytes().ct_eq(self.auth_token.as_bytes())))
     }
-}
-
-fn video_summary(
-    video: &a4n_db_models::models::ai::generated_video::Model,
-) -> GeneratedVideoSummary {
-    GeneratedVideoSummary {
-        id: video.id,
-        project_id: video.project_id,
-        chapter_id: video.chapter_id,
-        video_type: video.video_type.clone(),
-        workflow_mode: video.workflow_mode.clone(),
-        file_path: video.file_path.clone(),
-        thumbnail_path: video.thumbnail_path.clone(),
-        prompt: video.prompt.clone(),
-        negative_prompt: video.negative_prompt.clone(),
-        model: video.model.clone(),
-        width: video.width,
-        height: video.height,
-        duration_secs: video.duration_secs,
-        fps: video.fps,
-        file_size: video.file_size,
-        source_video_id: video.source_video_id,
-        source_image_id: video.source_image_id,
-        status: video.status.clone(),
-        provider_job_id: video.provider_job_id.clone(),
-        error_message: video.error_message.clone(),
-        metadata_json: video.metadata_json.clone(),
-        timeline_item_id: video.timeline_item_id,
-        is_favorite: video.is_favorite,
-        created_at: video.created_at.and_utc().to_rfc3339(),
-        updated_at: video.updated_at.and_utc().to_rfc3339(),
-    }
-}
-
-fn image_summary(
-    image: &a4n_db_models::models::ai::generated_image::Model,
-) -> GeneratedImageSummary {
-    GeneratedImageSummary {
-        id: image.id,
-        project_id: image.project_id,
-        image_type: image.image_type.clone(),
-        file_path: image.file_path.clone(),
-        prompt: image.prompt.clone(),
-        model: image.model.clone(),
-        width: image.width,
-        height: image.height,
-        file_size: image.file_size,
-        ai_score: image.ai_score,
-        is_favorite: image.is_favorite,
-        is_system_managed: a4n_domain::image::is_system_managed_image_type(&image.image_type),
-        chapter_id: image.chapter_id,
-        panel_id: image.panel_id.clone(),
-        metadata_json: image.metadata_json.clone(),
-        created_at: image.created_at.and_utc().to_rfc3339(),
-    }
-}
-
-async fn verify_project_permission(
-    database: &DbHandle,
-    project_id: i64,
-    user_id: i64,
-    role: ProjectAccessRole,
-) -> Result<(), WorkerFailure> {
-    a4n_db::collaboration::verify_project_permission(
-        database.connection(),
-        project_id,
-        user_id,
-        role,
-    )
-    .await
-    .map(|_| ())
-    .map_err(collaboration_error)
 }
 
 fn validate_request<T: serde::Serialize>(
@@ -1037,13 +952,10 @@ async fn validate_video_source(
     operation: &str,
     writable: bool,
 ) -> Result<String, WorkerFailure> {
-    let (project, chapter) = a4n_db::video::project_and_chapter_for_video_source(
-        database.connection(),
-        project_id,
-        chapter_id,
-    )
-    .await
-    .map_err(video_error)?;
+    let (project, chapter) =
+        a4n_db::video::project_and_chapter_for_video_source(database, project_id, chapter_id)
+            .await
+            .map_err(video_error)?;
     match project.project_kind.as_str() {
         "text" => {
             if chapter.project_id != project.id {
@@ -1069,7 +981,7 @@ async fn validate_video_source(
                 WorkerFailure::conflict(format!("missing_source_snapshot: {operation}"))
             })?;
             let snapshot_chapter = a4n_db::video::source_snapshot_chapter_for_video_source(
-                database.connection(),
+                database,
                 snapshot_id,
                 chapter_id,
             )
@@ -1090,7 +1002,7 @@ async fn validate_video_source(
     }
 }
 
-fn database_error(error: sea_orm::DbErr) -> WorkerFailure {
+fn database_error(error: impl std::fmt::Display) -> WorkerFailure {
     WorkerFailure::unavailable(error.to_string())
 }
 

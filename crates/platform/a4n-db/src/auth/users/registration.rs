@@ -105,5 +105,5 @@ where
     }
     .insert(db)
     .await
-    .map_err(AppError::Database)
+    .map_err(AppError::database)
 }

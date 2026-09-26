@@ -17,7 +17,7 @@ pub(in crate::video) async fn boundary_frame_rows_for_image_lookup(
         context,
     } = query;
     let rows = a4n_db::video::chapter_video_prompt_workflow_records(
-        service.database.connection(),
+        &service.database,
         project_id,
         chapter_id,
         context.prompt_type,
@@ -25,7 +25,7 @@ pub(in crate::video) async fn boundary_frame_rows_for_image_lookup(
         true,
     )
     .await
-    .map_err(AppError::Database)?;
+    .map_err(AppError::database)?;
 
     let mut by_frame = BTreeMap::<i32, chapter_video_prompt::Model>::new();
     for row in rows {

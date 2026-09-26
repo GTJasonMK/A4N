@@ -448,7 +448,7 @@ impl OrchestratorContext {
             operation: error.to_string(),
         })?;
         let outcome = a4n_db::project::upsert_retrospective_chapter_outline_checked(
-            self.database.connection(),
+            &self.database,
             input,
             a4n_db::project::chapter_source_snapshot_from_model(chapter),
         )
@@ -742,10 +742,9 @@ impl OrchestratorContext {
     }
 
     async fn record_chapter_fact_feedback(&self, chapter: &chapter::Model, workflow_run_id: i64) -> Result<(), AppError> {
-        use sea_orm::TransactionTrait;
         let step = crate::fact_feedback::CHAPTER_FEEDBACK_STEP;
         if self.completed_chapter_analysis_phase(workflow_run_id, chapter, step).await?.is_some() { return Ok(()); }
-        let tx = self.database.connection().begin().await?;
+        let tx = self.database.begin().await?;
         a4n_db::chapter_content::lock_chapter_analysis_source(
             &tx,
             &a4n_db::project::chapter_source_snapshot_from_model(chapter),
@@ -759,7 +758,7 @@ impl OrchestratorContext {
             checkpoint_json: Some(json!({"completed":true,"result":{"world_facts":chapter.analysis_data.as_ref().and_then(|analysis|analysis.get("world_facts"))}})),
             artifacts_json: None, generation_run_ids_json: None, error_message: None, completed: true,
         }).await.map_err(crate::workflow::workflow_write_app_error)?;
-        tx.commit().await?;
+        a4n_db::commit_transaction(tx).await?;
         Ok(())
     }
 

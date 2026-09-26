@@ -141,6 +141,39 @@ where
         .map_err(AgentDbError::Database)
 }
 
+pub async fn message_by_client_message_id<C>(
+    db: &C,
+    run_id: i64,
+    client_message_id: &str,
+) -> Result<Option<message::Model>, AgentDbError>
+where
+    C: ConnectionTrait,
+{
+    message::Entity::find()
+        .filter(message::Column::RunId.eq(run_id))
+        .filter(message::Column::ClientMessageId.eq(client_message_id))
+        .one(db)
+        .await
+        .map_err(AgentDbError::Database)
+}
+
+pub async fn user_message_after<C>(
+    db: &C,
+    run_id: i64,
+    message_id: i64,
+) -> Result<Option<message::Model>, AgentDbError>
+where
+    C: ConnectionTrait,
+{
+    message::Entity::find()
+        .filter(message::Column::RunId.eq(run_id))
+        .filter(message::Column::Role.eq("user"))
+        .filter(message::Column::Id.gt(message_id))
+        .one(db)
+        .await
+        .map_err(AgentDbError::Database)
+}
+
 pub async fn messages_by_run<C>(db: &C, run_id: i64) -> Result<Vec<message::Model>, AgentDbError>
 where
     C: ConnectionTrait,
@@ -261,6 +294,42 @@ where
         .map_err(AgentDbError::Database)
 }
 
+pub async fn execution_by_id<C>(db: &C, id: i64) -> Result<Option<execution::Model>, AgentDbError>
+where
+    C: ConnectionTrait,
+{
+    execution::Entity::find_by_id(id)
+        .one(db)
+        .await
+        .map_err(AgentDbError::Database)
+}
+
+pub async fn execution_by_key<C>(
+    db: &C,
+    run_id: i64,
+    key: &str,
+) -> Result<Option<execution::Model>, AgentDbError>
+where
+    C: ConnectionTrait,
+{
+    execution::Entity::find()
+        .filter(execution::Column::RunId.eq(run_id))
+        .filter(execution::Column::ExecutionKey.eq(key))
+        .one(db)
+        .await
+        .map_err(AgentDbError::Database)
+}
+
+pub async fn turn_by_id<C>(db: &C, id: i64) -> Result<Option<turn::Model>, AgentDbError>
+where
+    C: ConnectionTrait,
+{
+    turn::Entity::find_by_id(id)
+        .one(db)
+        .await
+        .map_err(AgentDbError::Database)
+}
+
 pub async fn delegations_by_thread<C>(
     db: &C,
     thread_id: i64,
@@ -317,6 +386,16 @@ where
         .filter(inbox_model::Column::ThreadId.eq(thread_id))
         .order_by_asc(inbox_model::Column::CreatedAt)
         .all(db)
+        .await
+        .map_err(AgentDbError::Database)
+}
+
+pub async fn inbox_by_id<C>(db: &C, id: i64) -> Result<Option<inbox_model::Model>, AgentDbError>
+where
+    C: ConnectionTrait,
+{
+    inbox_model::Entity::find_by_id(id)
+        .one(db)
         .await
         .map_err(AgentDbError::Database)
 }

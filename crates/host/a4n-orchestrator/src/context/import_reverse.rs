@@ -19,8 +19,8 @@ impl ImportReverseApplication {
         Self { database }
     }
 
-    fn connection(&self) -> &sea_orm::DatabaseConnection {
-        self.database.connection()
+    fn connection(&self) -> &a4n_db::DbHandle {
+        &self.database
     }
 
     async fn reverse_context_rows(

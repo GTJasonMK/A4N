@@ -207,7 +207,7 @@ impl OrchestratorContext {
             })
             .unwrap_or_else(default_permissions);
         let mut value = build_content_optimization_context(
-            self.database.connection(),
+            &self.database,
             project_id,
             chapter_id,
             &permissions,

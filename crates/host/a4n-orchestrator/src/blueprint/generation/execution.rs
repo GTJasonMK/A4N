@@ -495,12 +495,10 @@ async fn blueprint_generation_source_snapshot(
     context: &OrchestratorContext,
     project_id: i64,
 ) -> Result<Value, AppError> {
-    let rows = a4n_db::outline::load_outline_generation_source_rows(
-        context.database.connection(),
-        project_id,
-    )
-    .await?
-    .ok_or_else(|| AppError::NotFound(format!("项目不存在: {project_id}")))?;
+    let rows = a4n_db::outline::load_outline_generation_source_rows(&context.database, project_id)
+        .await
+        .map_err(AppError::database)?
+        .ok_or_else(|| AppError::NotFound(format!("项目不存在: {project_id}")))?;
     if rows.project.lifecycle_gate != a4n_db::generation::PROJECT_GATE_ACTIVE {
         return Err(AppError::InvalidState {
             current: rows.project.lifecycle_gate,

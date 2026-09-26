@@ -30,13 +30,9 @@ impl OrchestratorContext {
     ) -> Result<galgame_scene::Model, AppError> {
         validate_positive_id(project_id, "project_id")?;
         validate_positive_id(scene_id, "scene_id")?;
-        a4n_db::galgame::galgame_scene_in_project_record(
-            self.database.connection(),
-            project_id,
-            scene_id,
-        )
-        .await
-        .map_err(galgame_project_record_error)
+        a4n_db::galgame::galgame_scene_in_project_record(&self.database, project_id, scene_id)
+            .await
+            .map_err(galgame_project_record_error)
     }
 
     pub(in crate::galgame) async fn load_line_in_project(
@@ -46,13 +42,9 @@ impl OrchestratorContext {
     ) -> Result<galgame_line::Model, AppError> {
         validate_positive_id(project_id, "project_id")?;
         validate_positive_id(line_id, "line_id")?;
-        a4n_db::galgame::galgame_line_in_project_record(
-            self.database.connection(),
-            project_id,
-            line_id,
-        )
-        .await
-        .map_err(galgame_project_record_error)
+        a4n_db::galgame::galgame_line_in_project_record(&self.database, project_id, line_id)
+            .await
+            .map_err(galgame_project_record_error)
     }
 
     pub(in crate::galgame) async fn validate_speaker_profile(
@@ -62,7 +54,7 @@ impl OrchestratorContext {
     ) -> Result<(), AppError> {
         validate_positive_id(speaker_profile_id, "speaker_profile_id")?;
         a4n_db::galgame::validate_galgame_speaker_profile_in_root_project(
-            self.database.connection(),
+            &self.database,
             context.root_project.id,
             speaker_profile_id,
         )
@@ -78,7 +70,7 @@ impl OrchestratorContext {
     ) -> Result<(), AppError> {
         validate_positive_id(text_anchor_id, "text_anchor_id")?;
         a4n_db::galgame::validate_galgame_text_anchor_in_source_snapshot(
-            self.database.connection(),
+            &self.database,
             context.root_project.id,
             context.source_snapshot.id,
             text_anchor_id,

@@ -12,7 +12,9 @@ use super::super::test_support::setup_db;
 #[tokio::test]
 async fn dropped_pending_task_is_cancelled() {
     let db = setup_db().await;
-    let queue = PersistentTaskQueue::new(db.clone()).await.unwrap();
+    let queue = PersistentTaskQueue::new(a4n_db::DbHandle::new(db.clone()))
+        .await
+        .unwrap();
     let task_id = queue
         .submit_internal(TaskKind::LlmCall, TaskPriority::High, Some(11), None, None)
         .await
@@ -49,7 +51,9 @@ async fn dropped_pending_task_is_cancelled() {
 #[tokio::test]
 async fn dropped_pending_workflow_task_clears_active_task() {
     let db = setup_db().await;
-    let queue = PersistentTaskQueue::new(db.clone()).await.unwrap();
+    let queue = PersistentTaskQueue::new(a4n_db::DbHandle::new(db.clone()))
+        .await
+        .unwrap();
     let workflow = upsert_workflow_run(
         db.as_ref(),
         UpsertWorkflowRunInput {

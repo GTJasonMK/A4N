@@ -21,7 +21,7 @@ impl ProjectOutlineRecordsApplication {
         chapter_number: i32,
     ) -> Result<Option<chapter_outline::Model>, AppError> {
         a4n_db::project::chapter_outline_by_project_number(
-            self.database.connection(),
+            &self.database,
             project_id,
             chapter_number,
         )
@@ -35,19 +35,19 @@ impl ProjectOutlineRecordsApplication {
         chapter_number: i32,
     ) -> Result<Option<chapter_outline::Model>, AppError> {
         a4n_db::project::formal_chapter_outline_by_project_number(
-            self.database.connection(),
+            &self.database,
             project_id,
             chapter_number,
         )
         .await
-        .map_err(AppError::Database)
+        .map_err(AppError::database)
     }
 
     async fn chapter_outline_by_id(
         &self,
         outline_id: i64,
     ) -> Result<Option<chapter_outline::Model>, AppError> {
-        a4n_db::project::chapter_outline_by_id(self.database.connection(), outline_id)
+        a4n_db::project::chapter_outline_by_id(&self.database, outline_id)
             .await
             .map_err(project_outline_record_error_to_app_error)
     }
@@ -56,7 +56,7 @@ impl ProjectOutlineRecordsApplication {
         &self,
         project_id: i64,
     ) -> Result<Vec<chapter_outline::Model>, AppError> {
-        a4n_db::project::chapter_outlines_for_project(self.database.connection(), project_id)
+        a4n_db::project::chapter_outlines_for_project(&self.database, project_id)
             .await
             .map_err(project_outline_record_error_to_app_error)
     }

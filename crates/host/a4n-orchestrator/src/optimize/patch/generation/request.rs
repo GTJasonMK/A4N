@@ -76,7 +76,7 @@ impl OrchestratorContext {
         let selected_issues = select_optimization_issues(&base.session, issue_ids)?;
         let permissions = optimization_permissions_from_session(&base.session)?;
         let analysis_context = build_content_optimization_context(
-            self.database.connection(),
+            &self.database,
             base.session.project_id,
             base.session.chapter_id,
             &permissions,

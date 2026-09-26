@@ -20,8 +20,8 @@ impl AgentApplication {
         Self { database }
     }
 
-    pub(super) fn connection(&self) -> &sea_orm::DatabaseConnection {
-        self.database.connection()
+    pub(super) fn connection(&self) -> &a4n_db::DbHandle {
+        &self.database
     }
 
     pub(super) async fn reconcile_canonical_thread(
@@ -51,11 +51,10 @@ impl AgentApplication {
             return Ok(existing);
         }
 
-        let tx = self.connection().begin().await?;
-        let existing = thread::Entity::find_by_id(existing.id)
-            .lock_exclusive()
-            .one(&tx)
-            .await?
+        let tx = self.database.begin().await?;
+        let existing = agent::lock_thread(&tx, existing.id)
+            .await
+            .map_err(agent_db_error_to_app)?
             .ok_or_else(|| AppError::NotFound("Agent thread 不存在".into()))?;
         if existing.thread_kind != expected_kind || existing.profile_id != capability {
             return Err(AppError::InvalidState {
@@ -73,16 +72,16 @@ impl AgentApplication {
             ));
         }
         if existing_scope.chapter_number == requested.chapter_number {
-            tx.commit().await?;
+            a4n_db::commit_transaction(tx).await?;
             return Ok(existing);
         }
 
         existing_scope.chapter_number = requested.chapter_number;
-        let mut active: thread::ActiveModel = existing.into();
-        active.scope_json = Set(serde_json::to_value(existing_scope)?);
-        active.updated_at = Set(chrono::Utc::now().naive_utc());
-        let updated = active.update(&tx).await.map_err(AppError::Database)?;
-        tx.commit().await?;
+        let updated =
+            agent::update_thread_scope(&tx, existing, serde_json::to_value(existing_scope)?)
+                .await
+                .map_err(agent_db_error_to_app)?;
+        a4n_db::commit_transaction(tx).await?;
         Ok(updated)
     }
 }

@@ -12,6 +12,6 @@ pub(in crate::persistent) fn queue_db_error(err: a4n_db::queue::QueueDbError) ->
             current: format!("package_id={package_id} reason_code={reason_code}"),
             operation: "创建持久化任务".to_string(),
         },
-        a4n_db::queue::QueueDbError::Database(err) => AppError::Database(err),
+        a4n_db::queue::QueueDbError::Database(err) => AppError::database(err),
     }
 }

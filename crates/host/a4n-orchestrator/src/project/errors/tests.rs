@@ -18,7 +18,7 @@ fn blueprint_restore_error_mapping_preserves_structured_classification() {
                 "sync failed".to_string(),
             )),
         }),
-        AppError::Database(DbErr::Custom(message)) if message == "sync failed"
+        AppError::Database(error) if error.to_string() == "sync failed"
     ));
     assert!(matches!(
         blueprint_restore_error_to_app(BlueprintRestoreError::StatusWrite {

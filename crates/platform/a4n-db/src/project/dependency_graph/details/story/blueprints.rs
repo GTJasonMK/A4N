@@ -18,7 +18,7 @@ where
         .order_by_asc(novel_blueprint::Column::Id)
         .all(db)
         .await
-        .map_err(AppError::Database)?;
+        .map_err(AppError::database)?;
     Ok(blueprints
         .into_iter()
         .map(|blueprint| AssetLineageRecord {
@@ -64,7 +64,7 @@ where
         .order_by_asc(blueprint_version::Column::Id)
         .all(db)
         .await
-        .map_err(AppError::Database)?;
+        .map_err(AppError::database)?;
     Ok(versions
         .into_iter()
         .map(|version| AssetLineageRecord {

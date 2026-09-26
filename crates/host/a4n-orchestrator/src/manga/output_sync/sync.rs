@@ -36,7 +36,7 @@ impl OrchestratorContext {
             .collect::<Vec<_>>();
 
         let rows = sync_manga_page_prompts_by_chapter(
-            self.database.connection(),
+            &self.database,
             project_id,
             chapter_id,
             sync_drafts.iter().map(|(draft, _)| draft.clone()).collect(),

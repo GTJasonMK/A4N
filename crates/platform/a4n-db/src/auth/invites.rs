@@ -12,14 +12,14 @@ pub async fn register_user_with_invite(
     raw_invite_code: &str,
 ) -> Result<user::Model, AppError> {
     let code = normalize_invite_code(raw_invite_code)?;
-    let txn = db.begin().await.map_err(AppError::Database)?;
+    let txn = db.begin().await.map_err(AppError::database)?;
 
     let result = async {
         let invite = invite_code::Entity::find()
             .filter(invite_code::Column::Code.eq(code))
             .one(&txn)
             .await
-            .map_err(AppError::Database)?
+            .map_err(AppError::database)?
             .ok_or_else(|| AppError::InvalidArgument("邀请码无效".into()))?;
         if invite.used_at.is_some() || invite.used_by_user_id.is_some() {
             return Err(AppError::InvalidArgument("邀请码已被使用".into()));
@@ -38,7 +38,7 @@ pub async fn register_user_with_invite(
             .filter(invite_code::Column::UsedByUserId.is_null())
             .exec(&txn)
             .await
-            .map_err(AppError::Database)?;
+            .map_err(AppError::database)?;
         if updated.rows_affected != 1 {
             return Err(AppError::InvalidArgument("邀请码已被使用".into()));
         }
@@ -48,11 +48,11 @@ pub async fn register_user_with_invite(
 
     match result {
         Ok(user) => {
-            txn.commit().await.map_err(AppError::Database)?;
+            txn.commit().await.map_err(AppError::database)?;
             Ok(user)
         }
         Err(err) => {
-            txn.rollback().await.map_err(AppError::Database)?;
+            txn.rollback().await.map_err(AppError::database)?;
             Err(err)
         }
     }
@@ -74,7 +74,7 @@ pub async fn create_invite_code(
         .into_tuple::<i64>()
         .one(db)
         .await
-        .map_err(AppError::Database)?
+        .map_err(AppError::database)?
         .is_some()
     {
         return Err(AppError::InvalidArgument("邀请码已存在".into()));
@@ -90,7 +90,7 @@ pub async fn create_invite_code(
     }
     .insert(db)
     .await
-    .map_err(AppError::Database)
+    .map_err(AppError::database)
 }
 
 pub async fn list_invite_codes(
@@ -101,5 +101,5 @@ pub async fn list_invite_codes(
         .order_by_desc(invite_code::Column::Id)
         .all(db)
         .await
-        .map_err(AppError::Database)
+        .map_err(AppError::database)
 }

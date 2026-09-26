@@ -35,7 +35,6 @@ use axum::{
     response::{IntoResponse, Response},
     routing::{get, post},
 };
-use sea_orm::{ConnectOptions, ConnectionTrait, Database, DatabaseConnection, Statement};
 use subtle::ConstantTimeEq;
 
 const WORKER_ADDR_ENV: &str = "A4N_WORKFLOW_READ_WORKER_ADDR";
@@ -64,13 +63,13 @@ struct WorkerFailure {
 
 impl WorkflowReadWorker {
     pub fn new(
-        database: DatabaseConnection,
+        database: DbHandle,
         worker_id: impl Into<String>,
         auth_token: impl Into<String>,
     ) -> Self {
         Self {
             state: WorkerState {
-                database: DbHandle::new(Arc::new(database)),
+                database,
                 worker_id: Arc::<str>::from(worker_id.into()),
                 auth_token: Arc::<str>::from(auth_token.into()),
             },
@@ -124,12 +123,7 @@ async fn async_main() -> anyhow::Result<()> {
     a4n_config::validate_postgres_database_url(DATABASE_URL_ENV, &database_url)?;
     let auth_token = a4n_config::required_non_empty_env_string(WORKER_TOKEN_ENV)?;
     let address = worker_addr()?;
-    let mut options = ConnectOptions::new(database_url);
-    options
-        .max_connections(8)
-        .min_connections(1)
-        .connect_timeout(std::time::Duration::from_secs(5));
-    let database = Database::connect(options).await?;
+    let database = DbHandle::connect(database_url).await?;
     WorkflowReadWorker::new(database, WORKFLOW_READ_WORKER_ID, auth_token)
         .serve(address)
         .await
@@ -150,16 +144,8 @@ async fn health(State(state): State<WorkerState>, headers: HeaderMap) -> Respons
     if !state.authorized(&headers) {
         return unauthorized();
     }
-    let status = match state
-        .database
-        .connection()
-        .execute(Statement::from_string(
-            sea_orm::DatabaseBackend::Postgres,
-            "SELECT 1",
-        ))
-        .await
-    {
-        Ok(_) => WorkerHealthStatus::Healthy,
+    let status = match state.database.ping().await {
+        Ok(()) => WorkerHealthStatus::Healthy,
         Err(_) => WorkerHealthStatus::Degraded,
     };
     Json(WorkerHealth {
@@ -323,7 +309,7 @@ impl WorkerState {
             verify_project_editor(&self.database, project_id, user_id).await?;
         }
         let runs = a4n_db::workflow::list_workflow_runs(
-            self.database.connection(),
+            &self.database,
             a4n_db::workflow::ListWorkflowRunsInput {
                 project_id: input.project_id,
                 chapter_id: input.chapter_id,
@@ -344,7 +330,7 @@ impl WorkerState {
                 .filter_map(|run| run.project_id.or(run.root_project_id))
                 .collect::<Vec<_>>();
             let visible_project_ids = a4n_db::collaboration::project_ids_with_permission(
-                self.database.connection(),
+                &self.database,
                 &project_ids,
                 user_id,
                 ProjectAccessRole::Editor,
@@ -377,7 +363,7 @@ impl WorkerState {
         }
         let user_id = user_id(&request)?;
         let detail = a4n_db::workflow::workflow_run_detail(
-            self.database.connection(),
+            &self.database,
             a4n_db::workflow::GetWorkflowRunInput {
                 workflow_run_id: request.payload.workflow_run_id,
                 include_generation_runs: request.payload.include_generation_runs,
@@ -409,7 +395,7 @@ impl WorkerState {
             return Err(WorkerFailure::invalid_request("limit 必须大于 0"));
         }
         let tasks = a4n_db::workflow::persisted_task_history(
-            self.database.connection(),
+            &self.database,
             input.project_id,
             input.offset,
             input.limit,
@@ -428,12 +414,10 @@ impl WorkerState {
     ) -> Result<Option<TaskLookupRecord>, WorkerFailure> {
         validate_request(&request, TASK_LOOKUP_BY_ID_OPERATION)?;
         require_service_principal(&request.principal)?;
-        let persisted = a4n_db::workflow::persisted_task_by_id(
-            self.database.connection(),
-            &request.payload.task_id,
-        )
-        .await
-        .map_err(workflow_error)?;
+        let persisted =
+            a4n_db::workflow::persisted_task_by_id(&self.database, &request.payload.task_id)
+                .await
+                .map_err(workflow_error)?;
         Ok(persisted.map(|persisted| TaskLookupRecord {
             task_id: persisted.task.id,
             project_id: persisted.task.project_id,
@@ -449,10 +433,9 @@ impl WorkerState {
     ) -> Result<Vec<ActiveTaskLookupRecord>, WorkerFailure> {
         validate_request(&request, TASK_LOOKUP_ACTIVE_OPERATION)?;
         require_service_principal(&request.principal)?;
-        let persisted =
-            a4n_db::workflow::persisted_task_history(self.database.connection(), None, 0, 100)
-                .await
-                .map_err(workflow_error)?;
+        let persisted = a4n_db::workflow::persisted_task_history(&self.database, None, 0, 100)
+            .await
+            .map_err(workflow_error)?;
         Ok(persisted
             .into_iter()
             .map(active_task_lookup_record)
@@ -467,7 +450,7 @@ impl WorkerState {
         require_service_principal(&request.principal)?;
         Ok(
             a4n_db::workflow::workflow_run_access_record_by_active_task_id(
-                self.database.connection(),
+                &self.database,
                 &request.payload.task_id,
             )
             .await
@@ -487,7 +470,7 @@ impl WorkerState {
         validate_request(&request, WORKFLOW_READ_RESUME_RECORD_OPERATION)?;
         require_service_principal(&request.principal)?;
         let run = a4n_db::workflow::workflow_run_model_by_id(
-            self.database.connection(),
+            &self.database,
             request.payload.workflow_run_id,
         )
         .await
@@ -514,7 +497,7 @@ impl WorkerState {
         validate_request(&request, WORKFLOW_READ_SUMMARY_OPERATION)?;
         require_service_principal(&request.principal)?;
         a4n_db::workflow::workflow_run_summary_by_id(
-            self.database.connection(),
+            &self.database,
             request.payload.workflow_run_id,
         )
         .await
@@ -537,7 +520,7 @@ impl WorkerState {
             ));
         }
         a4n_db::workflow::workflow_progress_events(
-            self.database.connection(),
+            &self.database,
             workflow_run_id,
             request.payload.limit,
         )
@@ -679,7 +662,7 @@ async fn verify_project_editor(
     user_id: i64,
 ) -> Result<(), WorkerFailure> {
     a4n_db::collaboration::verify_project_permission(
-        database.connection(),
+        &database,
         project_id,
         user_id,
         ProjectAccessRole::Editor,
@@ -690,7 +673,7 @@ async fn verify_project_editor(
 }
 
 async fn is_active_admin(database: &DbHandle, user_id: i64) -> Result<bool, WorkerFailure> {
-    let user = a4n_db::auth::user_by_id(database.connection(), user_id)
+    let user = a4n_db::auth::user_by_id(&database, user_id)
         .await
         .map_err(app_error)?;
     if !user.is_active {

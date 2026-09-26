@@ -19,7 +19,7 @@ fn collaboration_db_error_to_app_error(error: CollaborationDbError) -> AppError 
             operation: "执行项目协作操作".to_string(),
         },
         CollaborationDbError::Internal(message) => AppError::Internal(anyhow::anyhow!(message)),
-        CollaborationDbError::Database(error) => AppError::Database(error),
+        CollaborationDbError::Database(error) => AppError::database(error),
     }
 }
 
@@ -38,7 +38,7 @@ impl CollaborationApplication {
         query: ProjectAccessInfoQuery,
         user_id: i64,
     ) -> Result<ProjectAccessInfo, AppError> {
-        a4n_db::collaboration::project_access_info(self.database.connection(), query, user_id)
+        a4n_db::collaboration::project_access_info(&self.database, query, user_id)
             .await
             .map_err(collaboration_db_error_to_app_error)
     }
@@ -47,7 +47,7 @@ impl CollaborationApplication {
         &self,
         project_id: i64,
     ) -> Result<CollaborationRootProject, AppError> {
-        a4n_db::collaboration::resolve_root_project(self.database.connection(), project_id)
+        a4n_db::collaboration::resolve_root_project(&self.database, project_id)
             .await
             .map_err(collaboration_db_error_to_app_error)
     }
@@ -59,7 +59,7 @@ impl CollaborationApplication {
         required: ProjectAccessRole,
     ) -> Result<ProjectAccessRole, AppError> {
         a4n_db::collaboration::verify_project_permission(
-            self.database.connection(),
+            &self.database,
             project_id,
             user_id,
             required,
@@ -75,7 +75,7 @@ impl CollaborationApplication {
         required: ProjectAccessRole,
     ) -> Result<(), AppError> {
         a4n_db::collaboration::verify_project_permissions(
-            self.database.connection(),
+            &self.database,
             project_ids,
             user_id,
             required,

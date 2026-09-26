@@ -1,5 +1,4 @@
 use a4n_error::AppError;
-use sea_orm::ConnectionTrait;
 
 use super::optimize_db_error;
 
@@ -11,15 +10,12 @@ fn required_session_name(name: &str) -> Result<String, AppError> {
     Ok(name.to_string())
 }
 
-pub(super) async fn required_available_session_name<C>(
-    db: &C,
+pub(super) async fn required_available_session_name(
+    db: &a4n_db::DbHandle,
     project_id: i64,
     chapter_id: i64,
     name: &str,
-) -> Result<String, AppError>
-where
-    C: ConnectionTrait,
-{
+) -> Result<String, AppError> {
     let name = required_session_name(name)?;
     let exists =
         a4n_db::optimize::optimization_session_name_exists(db, project_id, chapter_id, &name)

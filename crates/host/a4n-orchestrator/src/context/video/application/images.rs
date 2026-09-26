@@ -19,7 +19,7 @@ impl VideoApplication {
         reference_image_ids_json: Option<&Value>,
     ) -> Result<Vec<generated_image::Model>, AppError> {
         a4n_db::video::validated_video_reference_image_records(
-            self.database.connection(),
+            &self.database,
             project_id,
             chapter_id,
             reference_image_ids_json,
@@ -56,7 +56,7 @@ impl VideoApplication {
             chapter_id,
         )
         .await
-        .map_err(AppError::Database)
+        .map_err(AppError::database)
     }
 
     pub(in crate::context) async fn generated_images_by_ids(
@@ -83,7 +83,7 @@ impl VideoApplication {
     ) -> Result<Vec<generated_image::Model>, AppError> {
         a4n_db::video::generated_images_for_project(self.connection(), project_id)
             .await
-            .map_err(AppError::Database)
+            .map_err(AppError::database)
     }
 
     pub(in crate::context) async fn generated_images_for_projects(
@@ -102,7 +102,7 @@ impl VideoApplication {
     ) -> Result<Vec<generated_image::Model>, AppError> {
         a4n_db::video::generated_images_for_chapter(self.connection(), project_id, chapter_id)
             .await
-            .map_err(AppError::Database)
+            .map_err(AppError::database)
     }
 
     pub(in crate::context) async fn ensure_image_chapter_belongs_to_project(
@@ -139,7 +139,7 @@ impl VideoApplication {
     ) -> Result<Option<generated_image::Model>, AppError> {
         a4n_db::video::generated_image_by_id(self.connection(), image_id)
             .await
-            .map_err(AppError::Database)
+            .map_err(AppError::database)
     }
 
     pub(in crate::context) async fn update_generated_image_record(

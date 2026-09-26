@@ -58,3 +58,28 @@ where
     }
     query.all(db).await.map_err(AgentDbError::Database)
 }
+
+pub async fn retract_memory<C>(
+    db: &C,
+    owner_user_id: i64,
+    memory_id: i64,
+) -> Result<memory_model::Model, AgentDbError>
+where
+    C: ConnectionTrait,
+{
+    let row = memory_model::Entity::find_by_id(memory_id)
+        .one(db)
+        .await
+        .map_err(AgentDbError::Database)?
+        .ok_or_else(|| AgentDbError::NotFound(format!("Agent memory 不存在: {memory_id}")))?;
+    if row.owner_user_id != owner_user_id {
+        return Err(AgentDbError::Forbidden("无权修改此 Agent memory".into()));
+    }
+
+    let timestamp = now();
+    let mut active: memory_model::ActiveModel = row.into();
+    active.status = Set("retracted".into());
+    active.retracted_at = Set(Some(timestamp));
+    active.updated_at = Set(timestamp);
+    active.update(db).await.map_err(AgentDbError::Database)
+}

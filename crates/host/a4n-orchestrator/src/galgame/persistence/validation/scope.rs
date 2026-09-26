@@ -46,13 +46,13 @@ impl GalgamePersistValidationScope {
         }
 
         let read_model = a4n_db::galgame::galgame_persist_validation_scope_read_model(
-            service.database.connection(),
+            &service.database,
             &source_snapshot_chapter_ids.into_iter().collect::<Vec<_>>(),
             &speaker_profile_ids.into_iter().collect::<Vec<_>>(),
             &text_anchor_ids.into_iter().collect::<Vec<_>>(),
         )
         .await
-        .map_err(AppError::Database)?;
+        .map_err(AppError::database)?;
         Ok(Self::from_read_model(read_model))
     }
 

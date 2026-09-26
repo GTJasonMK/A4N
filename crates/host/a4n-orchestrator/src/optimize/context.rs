@@ -7,7 +7,6 @@ mod tests;
 use a4n_db::blueprint::context::blueprint_llm_context;
 use a4n_db::optimize::OptimizationContextReadInput;
 use a4n_error::AppError;
-use sea_orm::ConnectionTrait;
 use serde_json::Value;
 
 use super::{OptimizationAgentPermissions, optimize_db_error};
@@ -19,15 +18,12 @@ use projection::{
     optimization_outline_context, optimization_part_outline_context, optimization_project_context,
 };
 
-pub(super) async fn build_content_optimization_context<C>(
-    db: &C,
+pub(super) async fn build_content_optimization_context(
+    db: &a4n_db::DbHandle,
     project_id: i64,
     chapter_id: i64,
     permissions: &OptimizationAgentPermissions,
-) -> Result<Value, AppError>
-where
-    C: ConnectionTrait,
-{
+) -> Result<Value, AppError> {
     let rows = a4n_db::optimize::optimization_context_rows(
         db,
         OptimizationContextReadInput {

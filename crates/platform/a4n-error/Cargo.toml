@@ -6,11 +6,9 @@ license.workspace = true
 
 [features]
 default = []
-database = ["dep:sea-orm"]
 
 [dependencies]
 a4n-domain = { workspace = true }
 anyhow = { workspace = true }
-sea-orm = { workspace = true, optional = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }

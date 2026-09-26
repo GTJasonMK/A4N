@@ -30,7 +30,6 @@ use axum::{
     response::{IntoResponse, Response},
     routing::{get, post},
 };
-use sea_orm::{ConnectOptions, ConnectionTrait, Database, DatabaseConnection, Statement};
 use subtle::ConstantTimeEq;
 
 const WORKER_ADDR_ENV: &str = "A4N_MANGA_RECORD_WORKER_ADDR";
@@ -59,13 +58,13 @@ struct WorkerFailure {
 
 impl MangaRecordWorker {
     pub fn new(
-        database: DatabaseConnection,
+        database: DbHandle,
         worker_id: impl Into<String>,
         auth_token: impl Into<String>,
     ) -> Self {
         Self {
             state: WorkerState {
-                database: DbHandle::new(Arc::new(database)),
+                database,
                 worker_id: Arc::<str>::from(worker_id.into()),
                 auth_token: Arc::<str>::from(auth_token.into()),
             },
@@ -111,12 +110,7 @@ async fn async_main() -> anyhow::Result<()> {
     a4n_config::validate_postgres_database_url(DATABASE_URL_ENV, &database_url)?;
     let auth_token = a4n_config::required_non_empty_env_string(WORKER_TOKEN_ENV)?;
     let address = worker_addr()?;
-    let mut options = ConnectOptions::new(database_url);
-    options
-        .max_connections(8)
-        .min_connections(1)
-        .connect_timeout(std::time::Duration::from_secs(5));
-    let database = Database::connect(options).await?;
+    let database = DbHandle::connect(database_url).await?;
     MangaRecordWorker::new(database, MANGA_RECORD_WORKER_ID, auth_token)
         .serve(address)
         .await
@@ -137,16 +131,8 @@ async fn health(State(state): State<WorkerState>, headers: HeaderMap) -> Respons
     if !state.authorized(&headers) {
         return unauthorized();
     }
-    let status = match state
-        .database
-        .connection()
-        .execute(Statement::from_string(
-            sea_orm::DatabaseBackend::Postgres,
-            "SELECT 1",
-        ))
-        .await
-    {
-        Ok(_) => WorkerHealthStatus::Healthy,
+    let status = match state.database.ping().await {
+        Ok(()) => WorkerHealthStatus::Healthy,
         Err(_) => WorkerHealthStatus::Degraded,
     };
     Json(WorkerHealth {
@@ -259,7 +245,7 @@ impl WorkerState {
         positive(input.chapter_id, "chapter_id")?;
         verify_manga_viewer(&self.database, input.project_id, user_id).await?;
         let prompts = a4n_db::manga::manga_page_prompts_by_chapter(
-            self.database.connection(),
+            &self.database,
             input.project_id,
             input.chapter_id,
         )
@@ -317,7 +303,7 @@ impl WorkerState {
         )
         .await?;
         let source = a4n_db::project::chapter_manga_source_by_id(
-            self.database.connection(),
+            &self.database,
             input.chapter_id,
             input.project_id,
             false,
@@ -337,7 +323,7 @@ impl WorkerState {
             )));
         }
         let run = a4n_db::workflow::list_workflow_runs(
-            self.database.connection(),
+            &self.database,
             a4n_db::workflow::ListWorkflowRunsInput {
                 project_id: Some(input.project_id),
                 chapter_id: Some(input.chapter_id),
@@ -354,7 +340,7 @@ impl WorkerState {
         .next()
         .ok_or_else(|| WorkerFailure::conflict("no_running_manga_pipeline: 取消漫画流水线"))?;
         a4n_db::workflow::mark_workflow_status(
-            self.database.connection(),
+            &self.database,
             run.id,
             "cancelled",
             true,
@@ -362,13 +348,9 @@ impl WorkerState {
         )
         .await
         .map_err(workflow_write_error)?;
-        a4n_db::manga::cancel_manga_page_prompts(
-            self.database.connection(),
-            input.project_id,
-            input.chapter_id,
-        )
-        .await
-        .map_err(manga_pipeline_error)
+        a4n_db::manga::cancel_manga_page_prompts(&self.database, input.project_id, input.chapter_id)
+            .await
+            .map_err(manga_pipeline_error)
     }
 
     async fn pipeline_statuses_for(
@@ -405,7 +387,7 @@ impl WorkerState {
         let (prompt_statuses, runs) = tokio::try_join!(
             async {
                 a4n_db::manga::manga_page_prompt_statuses_by_chapters(
-                    self.database.connection(),
+                    &self.database,
                     project_id,
                     chapter_ids,
                 )
@@ -414,7 +396,7 @@ impl WorkerState {
             },
             async {
                 a4n_db::workflow::list_workflow_runs(
-                    self.database.connection(),
+                    &self.database,
                     a4n_db::workflow::ListWorkflowRunsInput {
                         project_id: Some(project_id),
                         chapter_id: None,
@@ -456,12 +438,10 @@ impl WorkerState {
             latest_runs.entry(chapter_id).or_insert(run);
         }
         let run_ids = latest_runs.values().map(|run| run.id).collect::<Vec<_>>();
-        let checkpoints = a4n_db::workflow::workflow_checkpoint_statuses_for_runs(
-            self.database.connection(),
-            &run_ids,
-        )
-        .await
-        .map_err(workflow_error)?;
+        let checkpoints =
+            a4n_db::workflow::workflow_checkpoint_statuses_for_runs(&self.database, &run_ids)
+                .await
+                .map_err(workflow_error)?;
         let completed_checkpoint_runs = checkpoints
             .into_iter()
             .filter_map(|(run_id, status)| (status == "completed").then_some(run_id))
@@ -477,7 +457,7 @@ impl WorkerState {
         let (sources, character_portraits) = tokio::try_join!(
             async {
                 a4n_db::project::chapter_manga_sources_by_ids(
-                    self.database.connection(),
+                    &self.database,
                     project_id,
                     &checkpoint_chapter_ids,
                     false,
@@ -489,12 +469,9 @@ impl WorkerState {
                 if checkpoint_chapter_ids.is_empty() {
                     Ok(Vec::new())
                 } else {
-                    a4n_db::project::manga_character_portrait_refs(
-                        self.database.connection(),
-                        project_id,
-                    )
-                    .await
-                    .map_err(project_family_error)
+                    a4n_db::project::manga_character_portrait_refs(&self.database, project_id)
+                        .await
+                        .map_err(project_family_error)
                 }
             },
         )?;
@@ -564,7 +541,7 @@ async fn verify_manga_viewer(
     user_id: i64,
 ) -> Result<(), WorkerFailure> {
     let (project_id, root_project_id) =
-        a4n_db::project::project_or_derived_family_access_ids(database.connection(), project_id)
+        a4n_db::project::project_or_derived_family_access_ids(database, project_id)
             .await
             .map_err(project_family_error)?;
     let project_ids = root_project_id
@@ -572,7 +549,7 @@ async fn verify_manga_viewer(
         .chain([project_id])
         .collect::<Vec<_>>();
     a4n_db::collaboration::verify_project_permissions(
-        database.connection(),
+        &database,
         &project_ids,
         user_id,
         ProjectAccessRole::Viewer,
@@ -588,15 +565,10 @@ async fn verify_project_permission(
     user_id: i64,
     role: ProjectAccessRole,
 ) -> Result<(), WorkerFailure> {
-    a4n_db::collaboration::verify_project_permission(
-        database.connection(),
-        project_id,
-        user_id,
-        role,
-    )
-    .await
-    .map(|_| ())
-    .map_err(collaboration_error)
+    a4n_db::collaboration::verify_project_permission(&database, project_id, user_id, role)
+        .await
+        .map(|_| ())
+        .map_err(collaboration_error)
 }
 
 fn validate_request<T: serde::Serialize>(

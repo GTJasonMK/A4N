@@ -10,7 +10,7 @@ impl WorkerState {
         let input = request.payload.0;
         verify_project_editor(&self.database, input.project_id, user_id).await?;
         let profile = a4n_db::character::create_profile(
-            self.database.connection(),
+            &self.database,
             input.project_id,
             input.name.trim(),
             input.base_attributes,
@@ -32,7 +32,7 @@ impl WorkerState {
         let input = request.payload.0;
         verify_project_editor(&self.database, input.project_id, user_id).await?;
         let profile = a4n_db::character::update_initial_profile(
-            self.database.connection(),
+            &self.database,
             input.project_id,
             input.profile_id,
             input.expected_current_state,
@@ -54,12 +54,9 @@ impl WorkerState {
         let user_id = user_id(&request)?;
         let profile =
             profile_for_editor(&self.database, user_id, request.payload.profile_id).await?;
-        a4n_db::character::delete_profile_cascade_transaction(
-            self.database.connection(),
-            profile.id,
-        )
-        .await
-        .map_err(character_profile_delete_error)?;
+        a4n_db::character::delete_profile_cascade_transaction(&self.database, profile.id)
+            .await
+            .map_err(character_profile_delete_error)?;
         Ok(CharacterProfileDeleteResult {
             warnings: Vec::new(),
         })
@@ -72,7 +69,7 @@ impl WorkerState {
         validate_request(&request, CHARACTER_OVERVIEW_PROJECT_OPERATION)?;
         let user_id = user_id(&request)?;
         let profile_id = positive(request.payload.profile_id, "profile_id")?;
-        let profile = a4n_db::character::profile_by_id(self.database.connection(), profile_id)
+        let profile = a4n_db::character::profile_by_id(&self.database, profile_id)
             .await
             .map_err(|error| WorkerFailure::unavailable(error.to_string()))?
             .ok_or_else(|| WorkerFailure::not_found(format!("角色档案不存在: {profile_id}")))?;
@@ -88,7 +85,7 @@ impl WorkerState {
         let user_id = user_id(&request)?;
         let project_id = positive(request.payload.project_id, "project_id")?;
         verify_project_editor(&self.database, project_id, user_id).await?;
-        a4n_db::character::profiles_with_timeline_state(self.database.connection(), project_id)
+        a4n_db::character::profiles_with_timeline_state(&self.database, project_id)
             .await
             .map_err(character_db_error)?
             .into_iter()
@@ -131,7 +128,7 @@ impl WorkerState {
         let input = request.payload;
         profile_for_editor(&self.database, user_id, input.profile_id).await?;
         let events = a4n_db::character::attribute_history(
-            self.database.connection(),
+            &self.database,
             input.profile_id,
             a4n_db::character::CharacterAttributeEventHistoryFilter {
                 chapter_from: input.chapter_from,
@@ -161,7 +158,7 @@ impl WorkerState {
         }
         profile_for_editor(&self.database, user_id, input.profile_id).await?;
         let records = a4n_db::character::behavior_records_by_profile(
-            self.database.connection(),
+            &self.database,
             input.profile_id,
             input.chapter_from,
             input.chapter_to,
@@ -181,7 +178,7 @@ impl WorkerState {
         let input = request.payload;
         profile_for_editor(&self.database, user_id, input.profile_id).await?;
         let marks = a4n_db::character::deletion_marks_by_profile(
-            self.database.connection(),
+            &self.database,
             input.profile_id,
             input.category.as_ref().map(|value| value.as_str()),
             input.status,
@@ -201,7 +198,7 @@ impl WorkerState {
         validate_snapshot_range(input.start_chapter, input.end_chapter)?;
         profile_for_editor(&self.database, user_id, input.profile_id).await?;
         let snapshots = a4n_db::character::snapshot_references_by_profile(
-            self.database.connection(),
+            &self.database,
             input.profile_id,
             input.start_chapter,
             input.end_chapter,
@@ -223,7 +220,7 @@ impl WorkerState {
         }
         profile_for_editor(&self.database, user_id, input.profile_id).await?;
         let snapshot = a4n_db::character::snapshot_reference_by_chapter(
-            self.database.connection(),
+            &self.database,
             input.profile_id,
             input.chapter_number,
         )
@@ -244,7 +241,7 @@ impl WorkerState {
         let input = request.payload;
         let profile = profile_for_editor(&self.database, user_id, input.profile_id).await?;
         let result = a4n_db::character::rollback_profile_to_chapter(
-            self.database.connection(),
+            &self.database,
             input.profile_id,
             input.chapter_number,
         )
@@ -273,8 +270,7 @@ impl WorkerState {
         if content_hash.is_empty() {
             return Err(WorkerFailure::invalid_request("快照哈希不能为空"));
         }
-        let snapshot_store =
-            a4n_db::character::Sha256SnapshotStore::new(self.database.shared_connection());
+        let snapshot_store = a4n_db::character::Sha256SnapshotStore::new(self.database.clone());
         let snapshot = snapshot_store
             .load_snapshot(content_hash)
             .await
@@ -301,19 +297,16 @@ impl WorkerState {
         let user_id = user_id(&request)?;
         let profile =
             profile_for_editor(&self.database, user_id, request.payload.profile_id).await?;
-        let chapters = a4n_db::project::character_sync_chapters(
-            self.database.connection(),
-            profile.project_id,
-        )
-        .await
-        .map_err(|error| WorkerFailure::unavailable(error.to_string()))?;
+        let chapters = a4n_db::project::character_sync_chapters(&self.database, profile.project_id)
+            .await
+            .map_err(|error| WorkerFailure::unavailable(error.to_string()))?;
         let max_available_chapter = chapters
             .iter()
             .map(|chapter| chapter.chapter_number)
             .max()
             .unwrap_or_default();
         let snapshots = a4n_db::character::snapshot_references_by_profile(
-            self.database.connection(),
+            &self.database,
             profile.id,
             None,
             Some(max_available_chapter),
@@ -351,7 +344,7 @@ impl WorkerState {
         }
         let profile = profile_for_editor(&self.database, user_id, input.profile_id).await?;
         let to_ref = a4n_db::character::snapshot_reference_by_chapter(
-            self.database.connection(),
+            &self.database,
             profile.id,
             input.to_chapter,
         )
@@ -364,14 +357,14 @@ impl WorkerState {
             None
         } else {
             a4n_db::character::snapshot_reference_by_chapter(
-                self.database.connection(),
+                &self.database,
                 profile.id,
                 input.from_chapter,
             )
             .await
             .map_err(|error| WorkerFailure::unavailable(error.to_string()))?
         };
-        let store = a4n_db::character::Sha256SnapshotStore::new(self.database.shared_connection());
+        let store = a4n_db::character::Sha256SnapshotStore::new(self.database.clone());
         let to_snapshot = store
             .load_snapshot(&to_ref.snapshot_hash)
             .await
@@ -409,7 +402,7 @@ impl WorkerState {
         let input = request.payload;
         let profile = profile_for_editor(&self.database, user_id, input.profile_id).await?;
         let result = a4n_db::character::add_profile_attribute(
-            self.database.connection(),
+            &self.database,
             CharacterAttributeValueChangeInput {
                 profile_id: input.profile_id,
                 chapter_number: input.chapter_number,
@@ -438,7 +431,7 @@ impl WorkerState {
         let input = request.payload;
         let profile = profile_for_editor(&self.database, user_id, input.profile_id).await?;
         let result = a4n_db::character::modify_profile_attribute(
-            self.database.connection(),
+            &self.database,
             CharacterAttributeValueChangeInput {
                 profile_id: input.profile_id,
                 chapter_number: input.chapter_number,
@@ -467,7 +460,7 @@ impl WorkerState {
         let input = request.payload;
         profile_for_editor(&self.database, user_id, input.profile_id).await?;
         let mark = a4n_db::character::request_attribute_deletion(
-            self.database.connection(),
+            &self.database,
             CharacterAttributeDeletionRequestInput {
                 profile_id: input.profile_id,
                 category: input.category.as_str().to_string(),
@@ -491,7 +484,7 @@ impl WorkerState {
         let input = request.payload;
         let profile = profile_for_editor(&self.database, user_id, input.profile_id).await?;
         let result = a4n_db::character::execute_ready_attribute_deletion(
-            self.database.connection(),
+            &self.database,
             CharacterAttributeDeletionExecutionInput {
                 profile_id: input.profile_id,
                 category: input.category.as_str().to_string(),
@@ -518,7 +511,7 @@ impl WorkerState {
         let input = request.payload;
         profile_for_editor(&self.database, user_id, input.profile_id).await?;
         a4n_db::character::reset_deletion_marks_in(
-            self.database.connection(),
+            &self.database,
             input.profile_id,
             input.category.as_str(),
             &input.key,

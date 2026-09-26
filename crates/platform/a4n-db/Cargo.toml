@@ -4,13 +4,18 @@ version = "0.1.0"
 edition = "2024"
 license.workspace = true
 
+[features]
+default = []
+migration = ["dep:a4n-migration"]
+
 [dependencies]
 a4n-config = { workspace = true }
 a4n-cleanup-contract = { workspace = true }
 a4n-db-models = { workspace = true }
 a4n-domain = { workspace = true }
 a4n-progress = { workspace = true }
-a4n-error = { workspace = true, features = ["database"], default-features = true }
+a4n-error = { workspace = true, default-features = true }
+a4n-migration = { workspace = true, optional = true }
 a4n-export-contract = { workspace = true }
 a4n-queue = { workspace = true }
 a4n-service-protocol = { workspace = true }
@@ -18,6 +23,7 @@ a4n-video-contract = { workspace = true }
 
 anyhow = { workspace = true }
 argon2 = { workspace = true }
+async-trait = { workspace = true }
 chrono = { workspace = true }
 futures = { workspace = true }
 sea-orm = { workspace = true }

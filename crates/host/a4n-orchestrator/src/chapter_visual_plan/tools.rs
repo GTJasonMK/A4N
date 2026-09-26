@@ -24,12 +24,10 @@ impl OrchestratorContext {
                 "原文版本已变化，不能提交基于旧原文的修改".into(),
             ));
         }
-        let mut current = a4n_db::chapter_visual_plan::chapter_visual_plan_by_id(
-            self.database.connection(),
-            input.record_id,
-        )
-        .await
-        .map_err(visual_plan_db_error)?;
+        let mut current =
+            a4n_db::chapter_visual_plan::chapter_visual_plan_by_id(&self.database, input.record_id)
+                .await
+                .map_err(visual_plan_db_error)?;
         ensure_plan_belongs_to_source(&current, &source)?;
         check_revision(&current, input.expected_revision)?;
         if current.status != ChapterVisualPlanStatus::Draft {
@@ -48,7 +46,7 @@ impl OrchestratorContext {
         }
         if !changes.is_empty() {
             current = a4n_db::chapter_visual_plan::save_chapter_visual_plan_draft(
-                self.database.connection(),
+                &self.database,
                 a4n_db::chapter_visual_plan::SaveChapterVisualPlanDraftInput {
                     source,
                     author_user_id: user_id,

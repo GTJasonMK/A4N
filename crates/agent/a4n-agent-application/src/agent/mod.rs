@@ -68,10 +68,6 @@ use a4n_worker_contract::{
     AgentWorkerMessageSnapshotWire, AgentWorkerResultRefsRequest,
     AgentWorkerResultRefsSnapshotWire, AgentWorkerRunLeaseRequest, WorkerEnvelope, WorkerLease,
 };
-use sea_orm::{
-    ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, QueryOrder, QuerySelect, Set,
-    TransactionTrait,
-};
 use serde::de::DeserializeOwned;
 use serde_json::{Value, json};
 use std::collections::HashSet;

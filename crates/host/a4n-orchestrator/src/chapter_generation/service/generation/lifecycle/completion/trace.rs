@@ -1,4 +1,5 @@
 use super::ChapterGenerationTrace;
+use a4n_db::DbTransaction;
 use a4n_db_models::models::chapter::{chapter, chapter_outline};
 use a4n_domain::generation::{GenerationRunTraceTarget, RecordCompletedGenerationRunInput};
 use a4n_error::AppError;
@@ -7,7 +8,6 @@ use a4n_llm_trace::{chat_request_messages_json, text_response_summary_json};
 use crate::chapter_generation::service::ChapterGenerationService;
 use crate::generation::generation_error;
 use a4n_llm_trace::context_aware_chat_request_trace_json;
-use sea_orm::DatabaseTransaction;
 
 impl ChapterGenerationService {
     pub(in crate::chapter_generation) async fn record_chapter_generation_trace(
@@ -17,7 +17,7 @@ impl ChapterGenerationService {
         chapter_outline: &str,
         content: &str,
         trace: ChapterGenerationTrace,
-        db: &DatabaseTransaction,
+        db: &DbTransaction,
     ) -> Result<(), AppError> {
         a4n_db::generation::record_completed_generation_run_in_transaction(
             db,

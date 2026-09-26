@@ -39,12 +39,12 @@ where
             .order_by_asc(generated_image::Column::Id)
             .all(db),
     );
-    let prompts = prompts_result.map_err(AppError::Database)?;
+    let prompts = prompts_result.map_err(AppError::database)?;
     let prompt_by_id = prompts
         .iter()
         .map(|prompt| (prompt.id, prompt))
         .collect::<HashMap<_, _>>();
-    let images = images_result.map_err(AppError::Database)?;
+    let images = images_result.map_err(AppError::database)?;
     let mut records = Vec::new();
     for image in images {
         if let Some(prompt_id) =

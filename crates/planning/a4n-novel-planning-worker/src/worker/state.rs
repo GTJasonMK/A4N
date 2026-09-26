@@ -13,7 +13,7 @@ impl WorkerState {
         validate_project_scope(&request, request.payload.project_id)?;
         let user_id = user_id(&request)?;
         verify_family_permission(
-            self.database.connection(),
+            &self.database,
             request.payload.project_id,
             user_id,
             ProjectAccessRole::Viewer,
@@ -34,7 +34,7 @@ impl WorkerState {
         validate_project_scope(&request, request.payload.project_id)?;
         let user_id = user_id(&request)?;
         verify_family_permission(
-            self.database.connection(),
+            &self.database,
             request.payload.project_id,
             user_id,
             ProjectAccessRole::Viewer,
@@ -47,7 +47,7 @@ impl WorkerState {
         )
         .await?;
         a4n_db::shooting_script::chapter_shooting_script_progress_for_source(
-            self.database.connection(),
+            &self.database,
             &source,
         )
         .await
@@ -63,7 +63,7 @@ impl WorkerState {
         validate_target_revision(&request, request.payload.expected_revision)?;
         let user_id = user_id(&request)?;
         verify_family_permission(
-            self.database.connection(),
+            &self.database,
             request.payload.project_id,
             user_id,
             ProjectAccessRole::Editor,
@@ -84,7 +84,7 @@ impl WorkerState {
             })?;
         ensure_record_id(current.record.id, request.payload.record_id)?;
         let outcome = a4n_db::shooting_script::edit_chapter_shooting_script_and_invalidate(
-            self.database.connection(),
+            &self.database,
             a4n_domain::shooting_script::EditStoredChapterShootingScriptInput {
                 record_id: request.payload.record_id,
                 expected_revision: request.payload.expected_revision,
@@ -108,14 +108,14 @@ impl WorkerState {
         validate_project_scope(&request, request.payload.project_id)?;
         let user_id = user_id(&request)?;
         verify_family_permission(
-            self.database.connection(),
+            &self.database,
             request.payload.project_id,
             user_id,
             ProjectAccessRole::Editor,
         )
         .await?;
         a4n_db::shooting_script::edit_chapter_shooting_script_progress(
-            self.database.connection(),
+            &self.database,
             request.payload,
         )
         .await
@@ -131,7 +131,7 @@ impl WorkerState {
         validate_optional_target_revision(&request, request.payload.expected_revision)?;
         let user_id = user_id(&request)?;
         verify_family_permission(
-            self.database.connection(),
+            &self.database,
             request.payload.project_id,
             user_id,
             ProjectAccessRole::Editor,
@@ -139,20 +139,20 @@ impl WorkerState {
         .await?;
 
         let source = a4n_db::project::resolve_chapter_source(
-            self.database.connection(),
+            &self.database,
             request.payload.project_id,
             request.payload.source_chapter_id,
         )
         .await
         .map_err(source_error)?;
         let existing = a4n_db::shooting_script::chapter_shooting_script_for_source(
-            self.database.connection(),
+            &self.database,
             &source,
         )
         .await
         .map_err(shooting_script_error)?;
         let confirmed = a4n_db::chapter_visual_plan::confirmed_chapter_visual_plan_for_source(
-            self.database.connection(),
+            &self.database,
             &source,
         )
         .await
@@ -181,7 +181,7 @@ impl WorkerState {
                     )));
                 }
                 a4n_db::shooting_script::update_chapter_shooting_script(
-                    self.database.connection(),
+                    &self.database,
                     a4n_db::shooting_script::UpdateChapterShootingScriptInput {
                         record_id: existing.record.id,
                         expected_revision,
@@ -195,7 +195,7 @@ impl WorkerState {
                 .map_err(shooting_script_error)?
             }
             (None, None) => a4n_db::shooting_script::insert_chapter_shooting_script(
-                self.database.connection(),
+                &self.database,
                 a4n_db::shooting_script::InsertChapterShootingScriptInput {
                     source,
                     input_fingerprint_sha256: request.payload.input_fingerprint_sha256,
@@ -230,7 +230,7 @@ impl WorkerState {
         validate_optional_target_revision(&request, request.payload.expected_revision)?;
         let user_id = user_id(&request)?;
         verify_family_permission(
-            self.database.connection(),
+            &self.database,
             request.payload.project_id,
             user_id,
             ProjectAccessRole::Editor,
@@ -257,7 +257,7 @@ impl WorkerState {
             }
         };
         let record = a4n_db::chapter_visual_plan::save_chapter_visual_plan_draft(
-            self.database.connection(),
+            &self.database,
             a4n_db::chapter_visual_plan::SaveChapterVisualPlanDraftInput {
                 source,
                 author_user_id: user_id,
@@ -281,7 +281,7 @@ impl WorkerState {
         validate_target_revision(&request, request.payload.expected_revision)?;
         let user_id = user_id(&request)?;
         verify_family_permission(
-            self.database.connection(),
+            &self.database,
             request.payload.project_id,
             user_id,
             ProjectAccessRole::Editor,
@@ -289,7 +289,7 @@ impl WorkerState {
         .await?;
         ensure_visual_plan_belongs_to_source(self, &request.payload).await?;
         let outcome = a4n_db::chapter_visual_plan::confirm_chapter_visual_plan(
-            self.database.connection(),
+            &self.database,
             a4n_domain::chapter_visual_plan::ConfirmChapterVisualPlanInput {
                 record_id: request.payload.record_id,
                 expected_revision: request.payload.expected_revision,
@@ -313,7 +313,7 @@ impl WorkerState {
         validate_target_revision(&request, request.payload.expected_revision)?;
         let user_id = user_id(&request)?;
         verify_family_permission(
-            self.database.connection(),
+            &self.database,
             request.payload.project_id,
             user_id,
             ProjectAccessRole::Editor,
@@ -321,7 +321,7 @@ impl WorkerState {
         .await?;
         ensure_visual_plan_belongs_to_source(self, &request.payload).await?;
         a4n_db::chapter_visual_plan::discard_chapter_visual_plan_draft(
-            self.database.connection(),
+            &self.database,
             a4n_domain::chapter_visual_plan::DiscardChapterVisualPlanDraftInput {
                 record_id: request.payload.record_id,
                 expected_revision: request.payload.expected_revision,
@@ -339,7 +339,7 @@ impl WorkerState {
         validate_project_scope(&request, request.payload.project_id)?;
         let user_id = user_id(&request)?;
         verify_family_permission(
-            self.database.connection(),
+            &self.database,
             request.payload.project_id,
             user_id,
             ProjectAccessRole::Viewer,
@@ -352,7 +352,7 @@ impl WorkerState {
         )
         .await?;
         let plans = a4n_db::chapter_visual_plan::chapter_visual_plans_for_source(
-            self.database.connection(),
+            &self.database,
             &source,
         )
         .await
@@ -379,7 +379,7 @@ impl WorkerState {
         validate_optional_target_revision(&request, request.payload.expected_revision)?;
         let user_id = user_id(&request)?;
         verify_family_permission(
-            self.database.connection(),
+            &self.database,
             request.payload.project_id,
             user_id,
             ProjectAccessRole::Viewer,
@@ -392,14 +392,14 @@ impl WorkerState {
         )
         .await?;
         let plans = a4n_db::chapter_visual_plan::chapter_visual_plans_for_source(
-            self.database.connection(),
+            &self.database,
             &source,
         )
         .await
         .map_err(visual_plan_error)?;
         let current = if let Some(record_id) = request.payload.record_id {
             let plan = a4n_db::chapter_visual_plan::chapter_visual_plan_by_id(
-                self.database.connection(),
+                &self.database,
                 record_id,
             )
             .await
@@ -469,7 +469,7 @@ impl WorkerState {
         validate_target_revision(&request, request.payload.expected_revision)?;
         let user_id = user_id(&request)?;
         verify_family_permission(
-            self.database.connection(),
+            &self.database,
             request.payload.project_id,
             user_id,
             ProjectAccessRole::Viewer,
@@ -482,7 +482,7 @@ impl WorkerState {
         )
         .await?;
         let plan = a4n_db::chapter_visual_plan::chapter_visual_plan_by_id(
-            self.database.connection(),
+            &self.database,
             request.payload.record_id,
         )
         .await
@@ -531,7 +531,7 @@ impl WorkerState {
         validate_target_revision(&request, request.payload.expected_revision)?;
         let user_id = user_id(&request)?;
         verify_family_permission(
-            self.database.connection(),
+            &self.database,
             request.payload.project_id,
             user_id,
             ProjectAccessRole::Editor,
@@ -552,7 +552,7 @@ impl WorkerState {
             })?;
         ensure_record_id(current.record.id, request.payload.record_id)?;
         a4n_db::shooting_script::delete_chapter_shooting_script_and_invalidate(
-            self.database.connection(),
+            &self.database,
             a4n_db::shooting_script::DeleteStoredChapterShootingScriptInput {
                 record_id: request.payload.record_id,
                 expected_revision: request.payload.expected_revision,
@@ -567,7 +567,7 @@ impl WorkerState {
         record: a4n_db::shooting_script::ParsedChapterShootingScript,
     ) -> Result<ChapterShootingScriptView, WorkerFailure> {
         let plan_sync = a4n_db::shooting_script::chapter_shooting_script_plan_sync(
-            self.database.connection(),
+            &self.database,
             &record,
         )
         .await
@@ -584,20 +584,20 @@ impl WorkerState {
         input: &ChapterShootingScriptSourceInput,
     ) -> Result<Option<a4n_db::shooting_script::ParsedChapterShootingScript>, WorkerFailure> {
         let source = a4n_db::project::resolve_chapter_source(
-            self.database.connection(),
+            &self.database,
             input.project_id,
             input.source_chapter_id,
         )
         .await
         .map_err(source_error)?;
         let existing = a4n_db::shooting_script::chapter_shooting_script_for_source(
-            self.database.connection(),
+            &self.database,
             &source,
         )
         .await
         .map_err(shooting_script_error)?;
         let confirmed = a4n_db::chapter_visual_plan::confirmed_chapter_visual_plan_for_source(
-            self.database.connection(),
+            &self.database,
             &source,
         )
         .await

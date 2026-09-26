@@ -2,7 +2,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use a4n_config::app_config::AppConfig;
-use a4n_db::{DatabaseConnection, DbHandle, SharedDatabaseConnection};
+use a4n_db::{DatabaseConnection, DbHandle};
 use a4n_embedding_provider_contract::EmbeddingProvider;
 use a4n_event::BroadcastEventBus;
 use a4n_llm_provider_contract::provider::LlmProvider;
@@ -33,7 +33,7 @@ pub(crate) async fn create_test_user(db: &DatabaseConnection) -> i64 {
 }
 
 pub(crate) struct TestOrchestratorBuilder {
-    db: SharedDatabaseConnection,
+    db: Arc<DatabaseConnection>,
     prompt_client: Option<Arc<dyn PromptClient>>,
     config: AppConfig,
     prompt_dir: PathBuf,
@@ -42,7 +42,7 @@ pub(crate) struct TestOrchestratorBuilder {
 }
 
 impl TestOrchestratorBuilder {
-    pub(crate) fn new(db: SharedDatabaseConnection) -> Self {
+    pub(crate) fn new(db: Arc<DatabaseConnection>) -> Self {
         Self {
             db,
             prompt_client: None,
@@ -74,13 +74,12 @@ impl TestOrchestratorBuilder {
     }
 
     pub(crate) async fn build(self) -> OrchestratorContext {
-        let db_connection = self.db.clone();
-        let db_handle = DbHandle::new(db_connection.clone());
+        let db_handle = DbHandle::new(self.db.clone());
         let event_bus = Arc::new(BroadcastEventBus::new(64));
         let task_manager = Arc::new(TaskManager::new());
         let rag_store: Arc<dyn VectorStore> = Arc::new(MemoryVectorStore::new());
         let task_queue = Arc::new(
-            PersistentTaskQueue::new(self.db.clone())
+            PersistentTaskQueue::new(db_handle.clone())
                 .await
                 .expect("test task queue should initialize"),
         );
@@ -94,7 +93,7 @@ impl TestOrchestratorBuilder {
         let llm = self.llm;
         let embedding = self.embedding;
         OrchestratorContext::bootstrap(
-            db_connection,
+            db_handle,
             self.prompt_client,
             Arc::new(
                 ServiceManager::new(Vec::new()).expect("empty service manager should initialize"),

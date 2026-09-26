@@ -17,9 +17,7 @@ use a4n_worker_contract::{
 use serde_json::Value;
 
 use super::application_ports::ApplicationPorts;
-use super::database::{
-    acquire_generation_owner_lock, run_startup_migrations, validate_runtime_config,
-};
+use super::database::{run_startup_migrations, validate_runtime_config};
 use super::profile::{RuntimeProfile, RuntimeRole};
 use super::prompt_engine::create_prompt_engine;
 use super::rag::create_rag_store;
@@ -69,7 +67,7 @@ pub struct AppState {
     destructive_lifecycle: Arc<
         crate::actions::generation_tasks::destructive_lifecycle::DestructiveLifecycleCoordinator,
     >,
-    _generation_owner_lock: Option<Arc<sea_orm::DatabaseConnection>>,
+    _generation_owner_lock: Option<a4n_db::DbHandle>,
     /// ponytail: 本地 data directory 只允许一个写入 Host；明确支持共享写存储时再升级为 artifact 级数据库 lease。
     _data_dir_lock: Option<Arc<File>>,
     managed_sidecars: Arc<tokio::sync::Mutex<Vec<a4n_service_manager::ManagedSidecarProcess>>>,

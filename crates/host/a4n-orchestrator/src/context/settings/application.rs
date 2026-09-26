@@ -7,7 +7,7 @@ impl ConfigApplication {
         &self,
         input: ModelUsageRecordStart,
     ) -> Result<a4n_db_models::models::generation::model_usage_record::Model, AppError> {
-        a4n_db::model_usage::start_model_usage_record(self.database.connection(), input).await
+        a4n_db::model_usage::start_model_usage_record(&self.database, input).await
     }
 
     pub(in crate::context) async fn finish_model_usage_record(
@@ -15,8 +15,7 @@ impl ConfigApplication {
         record_id: i64,
         input: ModelUsageRecordCompletion,
     ) -> Result<(), AppError> {
-        a4n_db::model_usage::finish_model_usage_record(self.database.connection(), record_id, input)
-            .await
+        a4n_db::model_usage::finish_model_usage_record(&self.database, record_id, input).await
     }
 
     pub(in crate::context) async fn set_default_provider_config(
@@ -24,22 +23,21 @@ impl ConfigApplication {
         kind: ProviderConfigKind,
         config_id: i64,
     ) -> Result<(), AppError> {
-        a4n_db::config::set_default_provider_config(self.database.connection(), kind, config_id)
-            .await
+        a4n_db::config::set_default_provider_config(&self.database, kind, config_id).await
     }
 
     pub(in crate::context) async fn list_themes_visible_to_user(
         &self,
         user_id: i64,
     ) -> Result<Vec<theme_config::Model>, AppError> {
-        a4n_db::config::list_themes_visible_to_user(self.database.connection(), user_id).await
+        a4n_db::config::list_themes_visible_to_user(&self.database, user_id).await
     }
 
     pub(in crate::context) async fn theme_by_id(
         &self,
         theme_id: i64,
     ) -> Result<Option<theme_config::Model>, AppError> {
-        a4n_db::config::theme_by_id(self.database.connection(), theme_id).await
+        a4n_db::config::theme_by_id(&self.database, theme_id).await
     }
 
     pub(in crate::context) async fn create_theme_record(
@@ -49,8 +47,7 @@ impl ConfigApplication {
         mode: ThemeMode,
         document: ThemeDocument,
     ) -> Result<theme_config::Model, AppError> {
-        a4n_db::config::create_theme(self.database.connection(), user_id, name, mode, document)
-            .await
+        a4n_db::config::create_theme(&self.database, user_id, name, mode, document).await
     }
 
     pub(in crate::context) async fn update_theme_record(
@@ -64,35 +61,35 @@ impl ConfigApplication {
         ),
         AppError,
     > {
-        a4n_db::config::update_theme(self.database.connection(), theme, changes).await
+        a4n_db::config::update_theme(&self.database, theme, changes).await
     }
 
     pub(in crate::context) async fn delete_theme_record(
         &self,
         theme_id: i64,
     ) -> Result<(), AppError> {
-        a4n_db::config::delete_theme(self.database.connection(), theme_id).await
+        a4n_db::config::delete_theme(&self.database, theme_id).await
     }
 
     pub(in crate::context) async fn activate_theme(
         &self,
         theme_id: i64,
     ) -> Result<theme_config::Model, AppError> {
-        a4n_db::config::activate_theme(self.database.connection(), theme_id).await
+        a4n_db::config::activate_theme(&self.database, theme_id).await
     }
 
     pub(in crate::context) async fn list_theme_resources(
         &self,
         theme_id: i64,
     ) -> Result<Vec<a4n_db_models::models::user::theme_resource::Model>, AppError> {
-        a4n_db::config::list_theme_resources(self.database.connection(), theme_id).await
+        a4n_db::config::list_theme_resources(&self.database, theme_id).await
     }
 
     pub(in crate::context) async fn theme_resource_by_id(
         &self,
         resource_id: i64,
     ) -> Result<Option<a4n_db_models::models::user::theme_resource::Model>, AppError> {
-        a4n_db::config::theme_resource_by_id(self.database.connection(), resource_id).await
+        a4n_db::config::theme_resource_by_id(&self.database, resource_id).await
     }
 
     pub(in crate::context) async fn upsert_theme_resource(
@@ -106,7 +103,7 @@ impl ConfigApplication {
         byte_size: i64,
     ) -> Result<a4n_db_models::models::user::theme_resource::Model, AppError> {
         a4n_db::config::upsert_theme_resource(
-            self.database.connection(),
+            &self.database,
             theme_id,
             resource_key,
             file_name,
@@ -122,7 +119,7 @@ impl ConfigApplication {
         &self,
         resource_id: i64,
     ) -> Result<a4n_db_models::models::user::theme_resource::Model, AppError> {
-        a4n_db::config::delete_theme_resource(self.database.connection(), resource_id).await
+        a4n_db::config::delete_theme_resource(&self.database, resource_id).await
     }
 
     pub(in crate::context) async fn upsert_theme_preference(
@@ -130,21 +127,20 @@ impl ConfigApplication {
         user_id: i64,
         appearance: a4n_domain::ThemeAppearance,
     ) -> Result<a4n_db_models::models::user::theme_preference::Model, AppError> {
-        a4n_db::config::upsert_theme_preference(self.database.connection(), user_id, appearance)
-            .await
+        a4n_db::config::upsert_theme_preference(&self.database, user_id, appearance).await
     }
 
     pub(in crate::context) async fn list_llm_config_records(
         &self,
     ) -> Result<Vec<llm_config::Model>, AppError> {
-        a4n_db::config::list_llm_config_records(self.database.connection()).await
+        a4n_db::config::list_llm_config_records(&self.database).await
     }
 
     pub(in crate::context) async fn llm_config_by_id(
         &self,
         config_id: i64,
     ) -> Result<llm_config::Model, AppError> {
-        a4n_db::config::llm_config_by_id(self.database.connection(), config_id).await
+        a4n_db::config::llm_config_by_id(&self.database, config_id).await
     }
 
     /// 规范化 LLM 创建输入后落库。
@@ -153,11 +149,7 @@ impl ConfigApplication {
         input: CreateLlmInput,
     ) -> Result<llm_config::Model, AppError> {
         let normalized = normalize_llm_config_input(input)?;
-        a4n_db::config::create_llm_config_record(
-            self.database.connection(),
-            llm_record_input(normalized),
-        )
-        .await
+        a4n_db::config::create_llm_config_record(&self.database, llm_record_input(normalized)).await
     }
 
     /// 读库、规范化更新并落库。
@@ -188,7 +180,7 @@ impl ConfigApplication {
         )?;
         normalized.pricing_json = pricing_json(input.pricing)?;
         a4n_db::config::update_llm_config_record(
-            self.database.connection(),
+            &self.database,
             existing,
             llm_record_input(normalized),
         )
@@ -213,27 +205,27 @@ impl ConfigApplication {
     ) -> Result<(), AppError> {
         let target = self.llm_config_by_id(config_id).await?;
         ensure_default_config_delete_allowed(" LLM 配置", target.is_default)?;
-        a4n_db::config::delete_llm_config_record(self.database.connection(), config_id).await
+        a4n_db::config::delete_llm_config_record(&self.database, config_id).await
     }
 
     pub(in crate::context) async fn resolve_llm_config(
         &self,
         config_id: Option<i64>,
     ) -> Result<llm_config::Model, AppError> {
-        a4n_db::config::resolve_llm_config(self.database.connection(), config_id).await
+        a4n_db::config::resolve_llm_config(&self.database, config_id).await
     }
 
     pub(in crate::context) async fn list_image_config_records(
         &self,
     ) -> Result<Vec<image_gen_config::Model>, AppError> {
-        a4n_db::config::list_image_config_records(self.database.connection()).await
+        a4n_db::config::list_image_config_records(&self.database).await
     }
 
     pub(in crate::context) async fn image_config_by_id(
         &self,
         config_id: i64,
     ) -> Result<image_gen_config::Model, AppError> {
-        a4n_db::config::image_config_by_id(self.database.connection(), config_id).await
+        a4n_db::config::image_config_by_id(&self.database, config_id).await
     }
 
     /// 校验图片配置参数后创建。
@@ -243,7 +235,7 @@ impl ConfigApplication {
     ) -> Result<image_gen_config::Model, AppError> {
         let (params, pricing) = image_config_params(input)?;
         a4n_db::config::create_image_config_record(
-            self.database.connection(),
+            &self.database,
             image_record_input(params, pricing),
         )
         .await
@@ -269,7 +261,7 @@ impl ConfigApplication {
             supported_sizes: input.supported_sizes,
         })?;
         a4n_db::config::update_image_config_record(
-            self.database.connection(),
+            &self.database,
             existing,
             image_record_input(params, pricing),
         )
@@ -294,41 +286,40 @@ impl ConfigApplication {
     ) -> Result<(), AppError> {
         let target = self.image_config_by_id(config_id).await?;
         ensure_default_config_delete_allowed("图片配置", target.is_default)?;
-        a4n_db::config::delete_image_config_record(self.database.connection(), config_id).await
+        a4n_db::config::delete_image_config_record(&self.database, config_id).await
     }
 
     pub(in crate::context) async fn resolve_image_config(
         &self,
         config_id: Option<i64>,
     ) -> Result<image_gen_config::Model, AppError> {
-        a4n_db::config::resolve_image_config(self.database.connection(), config_id).await
+        a4n_db::config::resolve_image_config(&self.database, config_id).await
     }
 
     pub(in crate::context) async fn video_config_by_id(
         &self,
         config_id: i64,
     ) -> Result<video_gen_config::Model, AppError> {
-        a4n_db::config::video_config_by_id(self.database.connection(), config_id).await
+        a4n_db::config::video_config_by_id(&self.database, config_id).await
     }
 
     pub(in crate::context) async fn list_video_config_records(
         &self,
     ) -> Result<Vec<video_gen_config::Model>, AppError> {
-        a4n_db::config::list_video_config_records(self.database.connection()).await
+        a4n_db::config::list_video_config_records(&self.database).await
     }
 
     pub(in crate::context) async fn default_video_config(
         &self,
     ) -> Result<video_gen_config::Model, AppError> {
-        a4n_db::config::default_video_config(self.database.connection()).await
+        a4n_db::config::default_video_config(&self.database).await
     }
 
     pub(in crate::context) async fn active_generated_video_ids_for_config(
         &self,
         config_id: i64,
     ) -> Result<Vec<i64>, AppError> {
-        a4n_db::config::active_generated_video_ids_for_config(self.database.connection(), config_id)
-            .await
+        a4n_db::config::active_generated_video_ids_for_config(&self.database, config_id).await
     }
 
     /// 校验视频配置参数后创建。
@@ -338,7 +329,7 @@ impl ConfigApplication {
     ) -> Result<video_gen_config::Model, AppError> {
         let (params, pricing) = video_config_params(input)?;
         a4n_db::config::create_video_config_record(
-            self.database.connection(),
+            &self.database,
             video_record_input(params, pricing),
         )
         .await
@@ -372,7 +363,7 @@ impl ConfigApplication {
         })
         .map_err(AppError::InvalidArgument)?;
         a4n_db::config::update_video_config_record(
-            self.database.connection(),
+            &self.database,
             existing,
             video_record_input(params, pricing),
         )
@@ -406,32 +397,32 @@ impl ConfigApplication {
                 active_video_ids.len()
             )));
         }
-        a4n_db::config::delete_video_config_record(self.database.connection(), config_id).await
+        a4n_db::config::delete_video_config_record(&self.database, config_id).await
     }
 
     pub(in crate::context) async fn default_embedding_config_optional(
         &self,
     ) -> Result<Option<embedding_config::Model>, AppError> {
-        a4n_db::config::default_embedding_config_optional(self.database.connection()).await
+        a4n_db::config::default_embedding_config_optional(&self.database).await
     }
 
     pub(in crate::context) async fn default_embedding_config(
         &self,
     ) -> Result<embedding_config::Model, AppError> {
-        a4n_db::config::default_embedding_config(self.database.connection()).await
+        a4n_db::config::default_embedding_config(&self.database).await
     }
 
     pub(in crate::context) async fn list_embedding_configs(
         &self,
     ) -> Result<Vec<embedding_config::Model>, AppError> {
-        a4n_db::config::list_embedding_configs(self.database.connection()).await
+        a4n_db::config::list_embedding_configs(&self.database).await
     }
 
     pub(in crate::context) async fn embedding_config_by_id(
         &self,
         config_id: i64,
     ) -> Result<embedding_config::Model, AppError> {
-        a4n_db::config::embedding_config_by_id(self.database.connection(), config_id).await
+        a4n_db::config::embedding_config_by_id(&self.database, config_id).await
     }
 
     /// 校验嵌入配置参数后创建。
@@ -441,7 +432,7 @@ impl ConfigApplication {
     ) -> Result<embedding_config::Model, AppError> {
         let (params, pricing) = embedding_config_params(input)?;
         a4n_db::config::create_embedding_config_record(
-            self.database.connection(),
+            &self.database,
             embedding_record_input(params, pricing),
         )
         .await
@@ -468,7 +459,7 @@ impl ConfigApplication {
             local_model_path: input.local_model_path,
         })?;
         a4n_db::config::update_embedding_config_record(
-            self.database.connection(),
+            &self.database,
             existing,
             embedding_record_input(params, pricing),
         )
@@ -493,25 +484,25 @@ impl ConfigApplication {
     ) -> Result<(), AppError> {
         let target = self.embedding_config_by_id(config_id).await?;
         ensure_default_config_delete_allowed(" Embedding 配置", target.is_default)?;
-        a4n_db::config::delete_embedding_config_record(self.database.connection(), config_id).await
+        a4n_db::config::delete_embedding_config_record(&self.database, config_id).await
     }
 
     pub(in crate::context) async fn llm_configs_exist(&self) -> Result<bool, AppError> {
-        a4n_db::config::llm_configs_exist(self.database.connection()).await
+        a4n_db::config::llm_configs_exist(&self.database).await
     }
 
     pub(in crate::context) async fn image_configs_exist(&self) -> Result<bool, AppError> {
-        a4n_db::config::image_configs_exist(self.database.connection()).await
+        a4n_db::config::image_configs_exist(&self.database).await
     }
 
     pub(in crate::context) async fn video_configs_exist(&self) -> Result<bool, AppError> {
-        a4n_db::config::video_configs_exist(self.database.connection()).await
+        a4n_db::config::video_configs_exist(&self.database).await
     }
 
     pub(in crate::context) async fn insert_baseline_embedding_config_if_empty(
         &self,
     ) -> Result<bool, AppError> {
-        a4n_db::config::insert_baseline_embedding_config_if_empty(self.database.connection()).await
+        a4n_db::config::insert_baseline_embedding_config_if_empty(&self.database).await
     }
 
     pub(in crate::context) async fn insert_baseline_llm_config_if_empty(
@@ -519,7 +510,7 @@ impl ConfigApplication {
         config: NormalizedLlmConfig,
     ) -> Result<bool, AppError> {
         a4n_db::config::insert_baseline_llm_config_if_empty(
-            self.database.connection(),
+            &self.database,
             llm_record_input(config),
         )
         .await
@@ -530,7 +521,7 @@ impl ConfigApplication {
         config: CreateImageConfigParams,
     ) -> Result<bool, AppError> {
         a4n_db::config::insert_baseline_image_config_if_empty(
-            self.database.connection(),
+            &self.database,
             image_record_input(config, serde_json::json!({})),
         )
         .await
@@ -541,7 +532,7 @@ impl ConfigApplication {
         config: VideoConfigParams,
     ) -> Result<bool, AppError> {
         a4n_db::config::insert_baseline_video_config_if_empty(
-            self.database.connection(),
+            &self.database,
             video_record_input(config, serde_json::json!({})),
         )
         .await

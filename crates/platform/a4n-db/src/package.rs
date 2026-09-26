@@ -90,7 +90,7 @@ pub async fn ensure_host_package_states(
     .exec_without_returning(db)
     .await
     .map(|_| ())
-    .map_err(AppError::Database)
+    .map_err(AppError::database)
 }
 
 pub async fn reconcile_package_installation_state(
@@ -106,17 +106,17 @@ pub async fn reconcile_package_installation_state(
             "未知功能包安装状态: {installation_state}"
         )));
     }
-    let tx = db.begin().await.map_err(AppError::Database)?;
+    let tx = db.begin().await.map_err(AppError::database)?;
     let current = host_package_state::Entity::find()
         .filter(host_package_state::Column::HostScope.eq(HOST_SCOPE))
         .filter(host_package_state::Column::PackageId.eq(package_id))
         .lock(LockType::Update)
         .one(&tx)
         .await
-        .map_err(AppError::Database)?
+        .map_err(AppError::database)?
         .ok_or_else(|| AppError::NotFound(format!("功能包状态不存在: {package_id}")))?;
     if current.installation_state == installation_state {
-        tx.commit().await.map_err(AppError::Database)?;
+        tx.commit().await.map_err(AppError::database)?;
         return Ok(());
     }
     let next_status_version =
@@ -139,8 +139,8 @@ pub async fn reconcile_package_installation_state(
     }
     active.status_version = Set(next_status_version);
     active.updated_at = Set(Utc::now().naive_utc());
-    active.update(&tx).await.map_err(AppError::Database)?;
-    tx.commit().await.map_err(AppError::Database)
+    active.update(&tx).await.map_err(AppError::database)?;
+    tx.commit().await.map_err(AppError::database)
 }
 
 pub async fn list_host_package_states(
@@ -151,7 +151,7 @@ pub async fn list_host_package_states(
         .order_by_asc(host_package_state::Column::PackageId)
         .all(db)
         .await
-        .map_err(AppError::Database)
+        .map_err(AppError::database)
 }
 
 pub async fn host_package_state(
@@ -163,7 +163,7 @@ pub async fn host_package_state(
         .filter(host_package_state::Column::PackageId.eq(package_id))
         .one(db)
         .await
-        .map_err(AppError::Database)
+        .map_err(AppError::database)
 }
 
 pub async fn latest_package_operation(
@@ -176,7 +176,7 @@ pub async fn latest_package_operation(
         .order_by_desc(host_package_operation::Column::UpdatedAt)
         .one(db)
         .await
-        .map_err(AppError::Database)
+        .map_err(AppError::database)
 }
 
 pub async fn package_operation(
@@ -187,7 +187,7 @@ pub async fn package_operation(
         .filter(host_package_operation::Column::HostScope.eq(HOST_SCOPE))
         .one(db)
         .await
-        .map_err(AppError::Database)
+        .map_err(AppError::database)
 }
 
 pub async fn pending_package_operations(
@@ -203,7 +203,7 @@ pub async fn pending_package_operations(
         .order_by_asc(host_package_operation::Column::UpdatedAt)
         .all(db)
         .await
-        .map_err(AppError::Database)
+        .map_err(AppError::database)
 }
 
 /// 读取一个功能包当前需要等待/取消的工作。
@@ -218,7 +218,7 @@ pub async fn package_workload_snapshot(
         .filter(generation_task_checkpoint::Column::Status.is_in(ACTIVE_GENERATION_STATUSES))
         .all(db)
         .await
-        .map_err(AppError::Database)?;
+        .map_err(AppError::database)?;
     let generation_ids = checkpoints
         .iter()
         .map(|row| row.task_id.clone())
@@ -255,7 +255,7 @@ pub async fn package_workload_snapshot(
         .filter(task_queue::Column::Status.is_in(ACTIVE_TASK_STATUSES))
         .all(db)
         .await
-        .map_err(AppError::Database)?;
+        .map_err(AppError::database)?;
     for task in tasks {
         if generation_ids.contains(&task.id) {
             continue;
@@ -269,7 +269,7 @@ pub async fn package_workload_snapshot(
 
     let provider_cleanups = crate::cleanup_outbox::pending_generation_provider_job_cleanups(db)
         .await
-        .map_err(AppError::Database)?;
+        .map_err(AppError::database)?;
     if !provider_cleanups.is_empty() {
         let cleanup_task_ids = provider_cleanups
             .iter()
@@ -279,7 +279,7 @@ pub async fn package_workload_snapshot(
             .filter(generation_task_checkpoint::Column::TaskId.is_in(cleanup_task_ids))
             .all(db)
             .await
-            .map_err(AppError::Database)?;
+            .map_err(AppError::database)?;
         let cleanup_checkpoints = cleanup_checkpoints
             .into_iter()
             .map(|checkpoint| (checkpoint.task_id.clone(), checkpoint))
@@ -316,7 +316,7 @@ pub async fn package_workload_snapshot(
             .into_tuple::<i64>()
             .all(db)
             .await
-            .map_err(AppError::Database)?;
+            .map_err(AppError::database)?;
     }
     snapshot.provider_job_ids.sort();
     snapshot.provider_job_ids.dedup();
@@ -423,12 +423,12 @@ pub async fn start_package_lifecycle(
             )));
         }
     };
-    let tx = db.begin().await.map_err(AppError::Database)?;
+    let tx = db.begin().await.map_err(AppError::database)?;
 
     if let Some(existing) = host_package_operation::Entity::find_by_id(operation_id.to_string())
         .one(&tx)
         .await
-        .map_err(AppError::Database)?
+        .map_err(AppError::database)?
     {
         validate_idempotent_package_operation(
             &existing,
@@ -436,7 +436,7 @@ pub async fn start_package_lifecycle(
             action,
             requested_version.as_deref(),
         )?;
-        tx.commit().await.map_err(AppError::Database)?;
+        tx.commit().await.map_err(AppError::database)?;
         return Ok(existing);
     }
 
@@ -446,7 +446,7 @@ pub async fn start_package_lifecycle(
         .lock(LockType::Update)
         .one(&tx)
         .await
-        .map_err(AppError::Database)?
+        .map_err(AppError::database)?
         .ok_or_else(|| AppError::NotFound(format!("功能包状态不存在: {package_id}")))?;
     // Every lifecycle path locks the package row before the operation row. The
     // second lookup closes the race where two retries observed a missing
@@ -455,7 +455,7 @@ pub async fn start_package_lifecycle(
         .lock(LockType::Update)
         .one(&tx)
         .await
-        .map_err(AppError::Database)?
+        .map_err(AppError::database)?
     {
         validate_idempotent_package_operation(
             &existing,
@@ -463,7 +463,7 @@ pub async fn start_package_lifecycle(
             action,
             requested_version.as_deref(),
         )?;
-        tx.commit().await.map_err(AppError::Database)?;
+        tx.commit().await.map_err(AppError::database)?;
         return Ok(existing);
     }
     if current.status_version != expected_status_version {
@@ -502,7 +502,7 @@ pub async fn start_package_lifecycle(
         state.host_state = Set(transitional_state.to_string());
         state.status_version = Set(next_status_version);
         state.updated_at = Set(now);
-        state.update(&tx).await.map_err(AppError::Database)?;
+        state.update(&tx).await.map_err(AppError::database)?;
     }
 
     host_package_operation::Entity::insert(host_package_operation::ActiveModel {
@@ -527,8 +527,8 @@ pub async fn start_package_lifecycle(
     })
     .exec_without_returning(&tx)
     .await
-    .map_err(AppError::Database)?;
-    tx.commit().await.map_err(AppError::Database)?;
+    .map_err(AppError::database)?;
+    tx.commit().await.map_err(AppError::database)?;
     package_operation(db, operation_id)
         .await?
         .ok_or_else(|| AppError::NotFound(format!("功能包操作不存在: {operation_id}")))
@@ -550,19 +550,19 @@ pub async fn update_package_lifecycle_progress(
             "未知功能包非终态: {operation_state}"
         )));
     }
-    let tx = db.begin().await.map_err(AppError::Database)?;
+    let tx = db.begin().await.map_err(AppError::database)?;
     let operation = host_package_operation::Entity::find_by_id(operation_id.to_string())
         .filter(host_package_operation::Column::HostScope.eq(HOST_SCOPE))
         .lock(LockType::Update)
         .one(&tx)
         .await
-        .map_err(AppError::Database)?
+        .map_err(AppError::database)?
         .ok_or_else(|| AppError::NotFound(format!("功能包操作不存在: {operation_id}")))?;
     if matches!(
         operation.state.as_str(),
         OPERATION_COMPLETED | OPERATION_FAILED
     ) {
-        tx.commit().await.map_err(AppError::Database)?;
+        tx.commit().await.map_err(AppError::database)?;
         return Ok(operation);
     }
     if operation.status_version != expected_operation_status_version {
@@ -586,8 +586,8 @@ pub async fn update_package_lifecycle_progress(
     active.reason_code = Set(reason_code.map(str::to_string));
     active.error = Set(error.map(str::to_string));
     active.updated_at = Set(Utc::now().naive_utc());
-    let updated = active.update(&tx).await.map_err(AppError::Database)?;
-    tx.commit().await.map_err(AppError::Database)?;
+    let updated = active.update(&tx).await.map_err(AppError::database)?;
+    tx.commit().await.map_err(AppError::database)?;
     Ok(updated)
 }
 
@@ -610,18 +610,18 @@ pub async fn finish_package_lifecycle(
             "未知功能包 Host 终态: {final_host_state}"
         )));
     }
-    let tx = db.begin().await.map_err(AppError::Database)?;
+    let tx = db.begin().await.map_err(AppError::database)?;
     let operation = host_package_operation::Entity::find_by_id(operation_id.to_string())
         .filter(host_package_operation::Column::HostScope.eq(HOST_SCOPE))
         .one(&tx)
         .await
-        .map_err(AppError::Database)?
+        .map_err(AppError::database)?
         .ok_or_else(|| AppError::NotFound(format!("功能包操作不存在: {operation_id}")))?;
     if matches!(
         operation.state.as_str(),
         OPERATION_COMPLETED | OPERATION_FAILED
     ) {
-        tx.commit().await.map_err(AppError::Database)?;
+        tx.commit().await.map_err(AppError::database)?;
         return Ok(operation);
     }
 
@@ -631,14 +631,14 @@ pub async fn finish_package_lifecycle(
         .lock(LockType::Update)
         .one(&tx)
         .await
-        .map_err(AppError::Database)?
+        .map_err(AppError::database)?
         .ok_or_else(|| AppError::NotFound(format!("功能包状态不存在: {}", operation.package_id)))?;
     let operation = host_package_operation::Entity::find_by_id(operation_id.to_string())
         .filter(host_package_operation::Column::HostScope.eq(HOST_SCOPE))
         .lock(LockType::Update)
         .one(&tx)
         .await
-        .map_err(AppError::Database)?
+        .map_err(AppError::database)?
         .ok_or_else(|| AppError::NotFound(format!("功能包操作不存在: {operation_id}")))?;
     if operation.status_version != expected_operation_status_version {
         return Err(AppError::InvalidState {
@@ -653,7 +653,7 @@ pub async fn finish_package_lifecycle(
         operation.state.as_str(),
         OPERATION_COMPLETED | OPERATION_FAILED
     ) {
-        tx.commit().await.map_err(AppError::Database)?;
+        tx.commit().await.map_err(AppError::database)?;
         return Ok(operation);
     }
     let expected_host_state = match operation.action.as_str() {
@@ -693,7 +693,7 @@ pub async fn finish_package_lifecycle(
     state.host_state = Set(final_host_state.to_string());
     state.status_version = Set(next_host_version);
     state.updated_at = Set(Utc::now().naive_utc());
-    state.update(&tx).await.map_err(AppError::Database)?;
+    state.update(&tx).await.map_err(AppError::database)?;
 
     let mut active: host_package_operation::ActiveModel = operation.into();
     active.state = Set(operation_state.to_string());
@@ -701,8 +701,8 @@ pub async fn finish_package_lifecycle(
     active.reason_code = Set(reason_code.map(str::to_string));
     active.error = Set(error.map(str::to_string));
     active.updated_at = Set(Utc::now().naive_utc());
-    let updated = active.update(&tx).await.map_err(AppError::Database)?;
-    tx.commit().await.map_err(AppError::Database)?;
+    let updated = active.update(&tx).await.map_err(AppError::database)?;
+    tx.commit().await.map_err(AppError::database)?;
     Ok(updated)
 }
 
@@ -733,7 +733,7 @@ pub async fn package_preference(
         .filter(user_package_preference::Column::HostScope.eq(HOST_SCOPE))
         .one(db)
         .await
-        .map_err(AppError::Database)
+        .map_err(AppError::database)
 }
 
 pub async fn upsert_package_preference(
@@ -760,7 +760,7 @@ pub async fn upsert_package_preference(
     )
     .exec_without_returning(db)
     .await
-    .map_err(AppError::Database)?;
+    .map_err(AppError::database)?;
     package_preference(db, user_id)
         .await?
         .ok_or_else(|| AppError::NotFound(format!("用户功能包偏好不存在: {user_id}")))

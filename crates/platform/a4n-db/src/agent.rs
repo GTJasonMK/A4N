@@ -41,7 +41,7 @@ pub use inbox::{
     supersede_inbox,
 };
 mod memory;
-pub use memory::{insert_memory, list_memory};
+pub use memory::{insert_memory, list_memory, retract_memory};
 mod messages;
 pub use messages::{
     append_message, append_message_for_run_lease,
@@ -58,9 +58,10 @@ mod queries;
 pub use queries::{
     active_runs_by_thread, approval_by_id, approvals_by_thread, create_thread,
     default_thread_by_owner, delegation_by_id, delegation_by_parent_and_key, delegations_by_thread,
-    executions_by_runs, inbox_by_thread, list_threads_by_owner, message_by_id, messages_before,
+    execution_by_id, execution_by_key, executions_by_runs, inbox_by_id, inbox_by_thread,
+    list_threads_by_owner, message_by_client_message_id, message_by_id, messages_before,
     messages_by_run, messages_by_thread, messages_for_context, run_by_id, runs_by_thread,
-    thread_by_canonical_binding, thread_by_id, turns_by_thread,
+    thread_by_canonical_binding, thread_by_id, turn_by_id, turns_by_thread, user_message_after,
 };
 mod recovery;
 pub use recovery::{cancel_run_tree, expired_running_runs, pause_run_tree, recover_expired_run};
@@ -80,7 +81,7 @@ pub(crate) use runs::{
 mod turns_events;
 pub use turns_events::{
     append_event, append_event_for_run_lease, create_turn_with_run, events_after,
-    latest_events_by_thread,
+    latest_event_by_run_and_kind, latest_events_by_thread,
 };
 pub(crate) use turns_events::{append_event_on, append_run_event_on, create_turn_with_run_on};
 mod review;
@@ -89,6 +90,8 @@ mod completion;
 pub use completion::{completion_blockers, request_user_input};
 mod task_wait;
 pub use task_wait::{external_task_wait, list_external_task_waits, wake_external_task_wait};
+mod threads;
+pub use threads::{archive_thread_record, lock_thread, update_thread_record, update_thread_scope};
 mod budget;
 pub use budget::{AgentBudgetSnapshot, resume_run, run_budget_snapshot};
 mod generation;
@@ -114,6 +117,8 @@ pub enum AgentDbError {
     InvalidArgument(String),
     #[error("{0}")]
     NotFound(String),
+    #[error("{0}")]
+    Forbidden(String),
     #[error("{0}")]
     Conflict(String),
     #[error(transparent)]

@@ -41,9 +41,9 @@ impl CharacterApplication {
         &self,
         profile_id: i64,
     ) -> Result<Option<protagonist_profile::Model>, AppError> {
-        a4n_db::character::profile_by_id(self.database.connection(), profile_id)
+        a4n_db::character::profile_by_id(&self.database, profile_id)
             .await
-            .map_err(AppError::Database)
+            .map_err(AppError::database)
     }
 
     async fn profile_by_project_name(
@@ -51,18 +51,18 @@ impl CharacterApplication {
         project_id: i64,
         name: &str,
     ) -> Result<Option<protagonist_profile::Model>, AppError> {
-        a4n_db::character::profile_by_project_name(self.database.connection(), project_id, name)
+        a4n_db::character::profile_by_project_name(&self.database, project_id, name)
             .await
-            .map_err(AppError::Database)
+            .map_err(AppError::database)
     }
 
     async fn missing_portrait_profiles(
         &self,
         project_id: i64,
     ) -> Result<Vec<protagonist_profile::Model>, AppError> {
-        a4n_db::character::missing_portrait_profiles(self.database.connection(), project_id)
+        a4n_db::character::missing_portrait_profiles(&self.database, project_id)
             .await
-            .map_err(AppError::Database)
+            .map_err(AppError::database)
     }
 
     // —— portraits ——
@@ -71,28 +71,25 @@ impl CharacterApplication {
         &self,
         portrait_id: i64,
     ) -> Result<Option<character_portrait::Model>, AppError> {
-        a4n_db::character::character_portrait_by_id(self.database.connection(), portrait_id)
+        a4n_db::character::character_portrait_by_id(&self.database, portrait_id)
             .await
-            .map_err(AppError::Database)
+            .map_err(AppError::database)
     }
 
     async fn character_portrait_records_by_project(
         &self,
         project_id: i64,
     ) -> Result<Vec<character_portrait::Model>, AppError> {
-        a4n_db::character::character_portrait_records_by_project(
-            self.database.connection(),
-            project_id,
-        )
-        .await
-        .map_err(AppError::Database)
+        a4n_db::character::character_portrait_records_by_project(&self.database, project_id)
+            .await
+            .map_err(AppError::database)
     }
 
     async fn create_character_portrait_for_profile(
         &self,
         input: CharacterPortraitCreateInput,
     ) -> Result<character_portrait::Model, AppError> {
-        a4n_db::character::create_character_portrait_for_profile(self.database.connection(), input)
+        a4n_db::character::create_character_portrait_for_profile(&self.database, input)
             .await
             .map_err(character_portrait_record_error)
     }
@@ -101,12 +98,9 @@ impl CharacterApplication {
         &self,
         portrait_id: i64,
     ) -> Result<(), AppError> {
-        a4n_db::character::set_primary_character_portrait_record(
-            self.database.connection(),
-            portrait_id,
-        )
-        .await
-        .map_err(character_portrait_record_error)
+        a4n_db::character::set_primary_character_portrait_record(&self.database, portrait_id)
+            .await
+            .map_err(character_portrait_record_error)
     }
 
     async fn portrait_prompt_profile_rows(
@@ -114,13 +108,9 @@ impl CharacterApplication {
         project_id: i64,
         profile_id: i64,
     ) -> Result<PortraitPromptProfileRows, AppError> {
-        a4n_db::character::portrait_prompt_profile_rows(
-            self.database.connection(),
-            project_id,
-            profile_id,
-        )
-        .await
-        .map_err(character_portrait_record_error)
+        a4n_db::character::portrait_prompt_profile_rows(&self.database, project_id, profile_id)
+            .await
+            .map_err(character_portrait_record_error)
     }
 
     async fn portrait_named_prompt_profile_rows(
@@ -129,7 +119,7 @@ impl CharacterApplication {
         character_name: &str,
     ) -> Result<PortraitNamedPromptProfileRows, AppError> {
         a4n_db::character::portrait_named_prompt_profile_rows(
-            self.database.connection(),
+            &self.database,
             project_id,
             character_name,
         )
@@ -142,13 +132,9 @@ impl CharacterApplication {
         project_id: i64,
         image_ids: &[i64],
     ) -> Result<Vec<generated_image::Model>, AppError> {
-        a4n_db::character::portrait_reference_images_by_ids(
-            self.database.connection(),
-            project_id,
-            image_ids,
-        )
-        .await
-        .map_err(character_portrait_record_error)
+        a4n_db::character::portrait_reference_images_by_ids(&self.database, project_id, image_ids)
+            .await
+            .map_err(character_portrait_record_error)
     }
 
     // —— attributes ——
@@ -157,16 +143,16 @@ impl CharacterApplication {
         &self,
         attribute_event_ids: &[i64],
     ) -> Result<Vec<attribute_event::Model>, AppError> {
-        a4n_db::character::attribute_events_by_ids(self.database.connection(), attribute_event_ids)
+        a4n_db::character::attribute_events_by_ids(&self.database, attribute_event_ids)
             .await
-            .map_err(AppError::Database)
+            .map_err(AppError::database)
     }
 
     async fn apply_implicit_review_decision_record(
         &self,
         input: CharacterImplicitReviewDecisionRecordInput,
     ) -> Result<AppliedCharacterImplicitDecisionRecord, AppError> {
-        a4n_db::character::apply_implicit_review_decision_record(self.database.connection(), input)
+        a4n_db::character::apply_implicit_review_decision_record(&self.database, input)
             .await
             .map_err(character_db_error)
     }
@@ -177,9 +163,9 @@ impl CharacterApplication {
         &self,
         profile_id: i64,
     ) -> Result<Vec<protagonist_behavior_record::Model>, AppError> {
-        a4n_db::character::implicit_review_behavior_records(self.database.connection(), profile_id)
+        a4n_db::character::implicit_review_behavior_records(&self.database, profile_id)
             .await
-            .map_err(AppError::Database)
+            .map_err(AppError::database)
     }
 
     async fn behavior_records_before_chapter(
@@ -188,12 +174,12 @@ impl CharacterApplication {
         start_chapter: i32,
     ) -> Result<Vec<protagonist_behavior_record::Model>, AppError> {
         a4n_db::character::behavior_records_before_chapter(
-            self.database.connection(),
+            &self.database,
             profile_id,
             start_chapter,
         )
         .await
-        .map_err(AppError::Database)
+        .map_err(AppError::database)
     }
 
     // —— snapshots / timeline ——
@@ -204,7 +190,7 @@ impl CharacterApplication {
         chapter_number: i32,
     ) -> Result<Value, AppError> {
         a4n_db::character::replay_profile_state_through_chapter(
-            self.database.connection(),
+            &self.database,
             profile,
             chapter_number,
         )
@@ -216,12 +202,9 @@ impl CharacterApplication {
         &self,
         input: CharacterSyncPersistenceInput,
     ) -> Result<AppliedCharacterSyncPersistenceRecord, AppError> {
-        a4n_db::character::apply_character_sync_persistence_record(
-            self.database.connection(),
-            input,
-        )
-        .await
-        .map_err(character_db_error)
+        a4n_db::character::apply_character_sync_persistence_record(&self.database, input)
+            .await
+            .map_err(character_db_error)
     }
 
     async fn character_conflict_context_rows(
@@ -232,7 +215,7 @@ impl CharacterApplication {
         end_chapter: Option<i32>,
     ) -> Result<CharacterConflictContextRows, AppError> {
         a4n_db::character::character_conflict_context_rows(
-            self.database.connection(),
+            &self.database,
             project_id,
             profile_id,
             start_chapter,

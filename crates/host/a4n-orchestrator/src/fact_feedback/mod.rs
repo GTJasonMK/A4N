@@ -20,7 +20,7 @@ pub(crate) use a4n_domain::fact_feedback::{
 
 pub(crate) fn feedback_error(error: a4n_db::fact_feedback::FactFeedbackDbError) -> AppError {
     match error {
-        a4n_db::fact_feedback::FactFeedbackDbError::Database(error) => AppError::Database(error),
+        a4n_db::fact_feedback::FactFeedbackDbError::Database(error) => AppError::database(error),
         a4n_db::fact_feedback::FactFeedbackDbError::Json(error) => AppError::Serialization(error),
         error => AppError::InvalidState {
             current: "body_fact_feedback".into(),
@@ -54,14 +54,14 @@ impl OrchestratorContext {
     ) -> Result<ProjectFactFeedbackSummary, AppError> {
         self.verify_project_permission(project_id, user_id, ProjectAccessRole::Viewer)
             .await?;
-        let db = self.database.connection();
+        let db = &self.database;
         let (config, sources, changes, chapters) = tokio::join!(
             a4n_db::fact_feedback::feedback_config(db, project_id),
             a4n_db::fact_feedback::current_feedback_sources(db, project_id),
             a4n_db::fact_feedback::feedback_changes(db, project_id),
             self.chapters_for_project(project_id),
         );
-        let config = config?;
+        let config = config.map_err(AppError::database)?;
         let sources = sources.map_err(feedback_error)?;
         let revisions: Vec<_> = sources
             .iter()
@@ -113,7 +113,8 @@ impl OrchestratorContext {
             workflow_kind: latest.as_ref().map(|run| run.workflow_kind.clone()),
             can_resume: latest.as_ref().is_some_and(|run| run.can_resume),
             error: latest.and_then(|run| run.error_message),
-            changes: changes?
+            changes: changes
+                .map_err(AppError::database)?
                 .into_iter()
                 .filter(|change| change.before_json != change.after_json)
                 .take(100)

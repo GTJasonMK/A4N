@@ -1,16 +1,16 @@
 //! Shared project summary projection for Host mutations and the project read worker.
 
 use a4n_api_contract::project::ProjectSummary;
+use a4n_db::DbHandle;
 use a4n_db::collaboration::ProjectAccessInfo;
 use a4n_db::project::ProjectFamilyMetadata;
 use a4n_db_models::models::project::novel_project;
 use a4n_domain::project::{ProjectKind, ProjectProgressSummary, ProjectSourceMode, ProjectStatus};
-use sea_orm::DatabaseConnection;
 
 #[derive(Debug, thiserror::Error)]
 pub enum ProjectSummaryError {
     #[error(transparent)]
-    Database(#[from] sea_orm::DbErr),
+    Database(Box<dyn std::error::Error + Send + Sync>),
     #[error(transparent)]
     Progress(#[from] a4n_db::project::ProjectProgressReadError),
     #[error(transparent)]
@@ -20,7 +20,7 @@ pub enum ProjectSummaryError {
 }
 
 pub async fn project_summary_for_user(
-    database: &DatabaseConnection,
+    database: &DbHandle,
     user_id: i64,
     project: &novel_project::Model,
 ) -> Result<ProjectSummary, ProjectSummaryError> {
@@ -34,22 +34,22 @@ pub async fn project_summary_for_user(
         async {
             a4n_db::project::project_progress_summary(database, progress_query)
                 .await
-                .map_err(ProjectSummaryError::from)
+                .map_err(ProjectSummaryError::Progress)
         },
         async {
             a4n_db::project::project_family_metadata(database, family_query)
                 .await
-                .map_err(ProjectSummaryError::from)
+                .map_err(ProjectSummaryError::Family)
         },
         async {
             a4n_db::collaboration::project_access_info(database, access_query, user_id)
                 .await
-                .map_err(ProjectSummaryError::from)
+                .map_err(ProjectSummaryError::Collaboration)
         },
         async {
             a4n_db::fact_feedback::feedback_interval(database, project.id)
                 .await
-                .map_err(ProjectSummaryError::from)
+                .map_err(database_error)
         },
     )?;
     Ok(project_summary_from_parts(
@@ -62,6 +62,10 @@ pub async fn project_summary_for_user(
         progress,
         interval,
     ))
+}
+
+fn database_error(error: impl std::error::Error + Send + Sync + 'static) -> ProjectSummaryError {
+    ProjectSummaryError::Database(Box::new(error))
 }
 
 pub fn project_summary_from_parts(

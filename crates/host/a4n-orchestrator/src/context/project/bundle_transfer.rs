@@ -160,12 +160,10 @@ impl OrchestratorContext {
             .collect::<HashSet<_>>()
             .into_iter()
             .collect::<Vec<_>>();
-        let history = a4n_db::project::bundle::export_project_bundle_history(
-            self.database.connection(),
-            &project_ids,
-        )
-        .await
-        .map_err(|error| InternalTransferError::Message(error.to_string()))?;
+        let history =
+            a4n_db::project::bundle::export_project_bundle_history(&self.database, &project_ids)
+                .await
+                .map_err(|error| InternalTransferError::Message(error.to_string()))?;
         let mut package = assemble_project_bundle(
             project.id,
             "project_bundle",
@@ -198,9 +196,9 @@ impl OrchestratorContext {
         package: &mut ProjectBundlePackage,
     ) -> Result<(), InternalTransferError> {
         let (llm, image, video) = tokio::try_join!(
-            list_llm_config_records(self.database.connection()),
-            list_image_config_records(self.database.connection()),
-            list_video_config_records(self.database.connection()),
+            list_llm_config_records(&self.database),
+            list_image_config_records(&self.database),
+            list_video_config_records(&self.database),
         )
         .map_err(|error| InternalTransferError::Message(error.to_string()))?;
 
@@ -441,7 +439,7 @@ impl OrchestratorContext {
             history_maps.project_ids = imported_project_ids.clone();
             history_maps.root_project_ids = root_project_ids;
             let history_summary = a4n_db::project::bundle::import_project_bundle_history(
-                self.database.connection(),
+                &self.database,
                 &package.history,
                 &history_maps,
                 &package.bundle_id,
@@ -506,9 +504,9 @@ impl OrchestratorContext {
         package: &ProjectBundlePackage,
     ) -> Result<HashMap<String, Option<i64>>, InternalTransferError> {
         let (llm, image, video) = tokio::try_join!(
-            list_llm_config_records(self.database.connection()),
-            list_image_config_records(self.database.connection()),
-            list_video_config_records(self.database.connection()),
+            list_llm_config_records(&self.database),
+            list_image_config_records(&self.database),
+            list_video_config_records(&self.database),
         )
         .map_err(|error| InternalTransferError::Message(error.to_string()))?;
         Ok(package

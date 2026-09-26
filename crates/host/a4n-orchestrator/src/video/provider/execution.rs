@@ -1,4 +1,4 @@
-use a4n_db::{SharedDatabaseConnection, generation::canonical_json_sha256};
+use a4n_db::{DbHandle, generation::canonical_json_sha256};
 use a4n_db_models::models::ai::generated_video;
 use a4n_error::AppError;
 use a4n_provider_contract::VideoProviderConfig;
@@ -159,10 +159,7 @@ struct ProviderCheckpointIdentity {
 }
 
 impl VideoGenerationCheckpointContext {
-    pub(crate) fn new(
-        session: Arc<GenerationTaskSession>,
-        database: SharedDatabaseConnection,
-    ) -> Self {
+    pub(crate) fn new(session: Arc<GenerationTaskSession>, database: DbHandle) -> Self {
         Self {
             session,
             writer: GenerationCheckpointWriter::new(database),

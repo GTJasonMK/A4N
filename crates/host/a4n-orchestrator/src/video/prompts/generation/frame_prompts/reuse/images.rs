@@ -50,12 +50,12 @@ pub(in crate::video) async fn boundary_frame_image_ids_by_number(
 
     let allowed_project_ids = service.video_asset_project_ids(project_id).await?;
     let images = a4n_db::video::generated_images_for_projects_chapter_by_id_desc(
-        service.database.connection(),
+        &service.database,
         &allowed_project_ids,
         chapter_id,
     )
     .await
-    .map_err(AppError::Database)?;
+    .map_err(AppError::database)?;
 
     let mut image_id_by_frame_number = HashMap::new();
     for image in images {
@@ -102,7 +102,7 @@ pub(in crate::video::prompts::generation::frame_prompts) async fn ensure_no_orph
     prompt_type: &str,
 ) -> Result<(), AppError> {
     let prompt_ids = a4n_db::video::chapter_video_prompt_workflow_records(
-        service.database.connection(),
+        &service.database,
         project_id,
         chapter_id,
         prompt_type,
@@ -110,17 +110,17 @@ pub(in crate::video::prompts::generation::frame_prompts) async fn ensure_no_orph
         false,
     )
     .await
-    .map_err(AppError::Database)?
+    .map_err(AppError::database)?
     .into_iter()
     .map(|row| row.id)
     .collect::<HashSet<_>>();
     let images = a4n_db::video::generated_images_for_projects_chapter_by_id_desc(
-        service.database.connection(),
+        &service.database,
         &[project_id],
         chapter_id,
     )
     .await
-    .map_err(AppError::Database)?;
+    .map_err(AppError::database)?;
     if let Some((image_id, prompt_id)) = images.into_iter().find_map(|image| {
         let metadata = image.metadata_json.as_ref();
         (image_generation_source(metadata)
@@ -153,12 +153,12 @@ pub(in crate::video) async fn storyboard_frame_image_ids_by_number(
 
     let allowed_project_ids = service.video_asset_project_ids(project_id).await?;
     let images = a4n_db::video::generated_images_for_projects_chapter_by_id_desc(
-        service.database.connection(),
+        &service.database,
         &allowed_project_ids,
         chapter_id,
     )
     .await
-    .map_err(AppError::Database)?;
+    .map_err(AppError::database)?;
 
     let mut image_id_by_frame_number = HashMap::new();
     for image in images {

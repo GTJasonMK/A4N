@@ -32,7 +32,7 @@ impl ProjectStatusApplication {
         project_id: i64,
         operation: &'static str,
     ) -> Result<(novel_project::Model, ProjectStatus), AppError> {
-        let project = a4n_db::project::project_by_id_record(self.database.connection(), project_id)
+        let project = a4n_db::project::project_by_id_record(&self.database, project_id)
             .await
             .map_err(project_mutation_error_to_app_error)?
             .ok_or_else(|| AppError::NotFound(format!("项目不存在: {project_id}")))?;
@@ -50,7 +50,7 @@ impl ProjectStatusApplication {
     }
 
     async fn artifacts(&self, project_id: i64) -> Result<ProjectStatusArtifacts, AppError> {
-        a4n_db::project::project_status_artifacts(self.database.connection(), project_id)
+        a4n_db::project::project_status_artifacts(&self.database, project_id)
             .await
             .map_err(project_status_read_error_to_app_error)
     }
@@ -85,7 +85,7 @@ impl ProjectStatusApplication {
 
         let changed_at = Utc::now().naive_utc();
         let _ = a4n_db::project::update_project_status_record(
-            self.database.connection(),
+            &self.database,
             project,
             target,
             changed_at,

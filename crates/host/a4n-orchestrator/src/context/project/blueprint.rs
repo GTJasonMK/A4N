@@ -25,14 +25,14 @@ impl ProjectBlueprintApplication {
         Self { database }
     }
 
-    fn connection(&self) -> &sea_orm::DatabaseConnection {
-        self.database.connection()
+    fn connection(&self) -> &a4n_db::DbHandle {
+        &self.database
     }
 
     async fn current(&self, project_id: i64) -> Result<Option<novel_blueprint::Model>, AppError> {
         a4n_db::project::novel_blueprint_for_project(self.connection(), project_id)
             .await
-            .map_err(AppError::Database)
+            .map_err(AppError::database)
     }
 
     async fn restore(
@@ -51,7 +51,7 @@ impl ProjectBlueprintApplication {
     ) -> Result<Vec<blueprint_character::Model>, AppError> {
         a4n_db::project::blueprint_characters_for_project(self.connection(), project_id)
             .await
-            .map_err(AppError::Database)
+            .map_err(AppError::database)
     }
 
     async fn blueprint_relationships_for_project(
@@ -60,7 +60,7 @@ impl ProjectBlueprintApplication {
     ) -> Result<Vec<blueprint_relationship::Model>, AppError> {
         a4n_db::project::blueprint_relationships_for_project(self.connection(), project_id)
             .await
-            .map_err(AppError::Database)
+            .map_err(AppError::database)
     }
 }
 

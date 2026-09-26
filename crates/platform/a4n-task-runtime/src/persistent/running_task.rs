@@ -1,11 +1,11 @@
-use a4n_db::SharedDatabaseConnection;
+use a4n_db::DbHandle;
 use a4n_error::AppError;
 use a4n_queue::priority::TaskPermit;
 
 use super::{queue_db_error, submitted_guard::persist_dropped_status};
 
 pub struct RunningTask {
-    db: SharedDatabaseConnection,
+    db: DbHandle,
     permit: Option<TaskPermit>,
 }
 
@@ -17,7 +17,7 @@ impl RunningTask {
             .cancellation_token()
     }
 
-    pub(in crate::persistent) fn new(db: SharedDatabaseConnection, permit: TaskPermit) -> Self {
+    pub(in crate::persistent) fn new(db: DbHandle, permit: TaskPermit) -> Self {
         Self {
             db,
             permit: Some(permit),
@@ -28,7 +28,7 @@ impl RunningTask {
         let permit = self.take_permit();
         let task_id = permit.task_id().to_string();
         permit.complete();
-        a4n_db::queue::update_task_status(self.db.as_ref(), &task_id, "completed", None)
+        a4n_db::queue::update_task_status(&self.db, &task_id, "completed", None)
             .await
             .map_err(queue_db_error)
     }
@@ -37,7 +37,7 @@ impl RunningTask {
         let permit = self.take_permit();
         let task_id = permit.task_id().to_string();
         permit.fail(error.to_string());
-        a4n_db::queue::update_task_status(self.db.as_ref(), &task_id, "failed", Some(error))
+        a4n_db::queue::update_task_status(&self.db, &task_id, "failed", Some(error))
             .await
             .map_err(queue_db_error)
     }
@@ -46,7 +46,7 @@ impl RunningTask {
         let permit = self.take_permit();
         let task_id = permit.task_id().to_string();
         permit.cancel();
-        a4n_db::queue::update_task_status(self.db.as_ref(), &task_id, "cancelled", None)
+        a4n_db::queue::update_task_status(&self.db, &task_id, "cancelled", None)
             .await
             .map_err(queue_db_error)
     }

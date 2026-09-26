@@ -21,7 +21,7 @@ where
         .filter(object_profile::Column::ProjectId.eq(project_id))
         .one(db)
         .await
-        .map_err(AppError::Database)?
+        .map_err(AppError::database)?
         .ok_or_else(|| AppError::NotFound(format!("物体档案不存在: {profile_id}")))?;
     Ok(vec![AssetLineageRecord {
         id: format!("object_profile:{}", profile.id),

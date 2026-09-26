@@ -76,7 +76,7 @@ impl OrchestratorContext {
     ) -> Result<Vec<OutlineRequestPreviewStep>, AppError> {
         let (part, context) = futures::join!(
             self.get_part(part_id),
-            load_chapter_outline_generation_context(self.database.connection(), project_id),
+            load_chapter_outline_generation_context(&self.database, project_id),
         );
         let part = part?;
         if part.project_id != project_id {
@@ -107,8 +107,7 @@ impl OrchestratorContext {
         prompt_renderer: &dyn PromptRenderer,
         variables: &HashMap<String, Value>,
     ) -> Result<Vec<OutlineRequestPreviewStep>, AppError> {
-        let context =
-            load_chapter_outline_generation_context(self.database.connection(), project_id).await?;
+        let context = load_chapter_outline_generation_context(&self.database, project_id).await?;
         self.preview_chapter_outline_sequence_requests_with_context(
             project_id,
             start_chapter,

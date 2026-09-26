@@ -43,8 +43,8 @@ impl GenerationApplication {
         }
     }
 
-    pub(super) fn connection(&self) -> &sea_orm::DatabaseConnection {
-        self.database.connection()
+    pub(super) fn connection(&self) -> &a4n_db::DbHandle {
+        &self.database
     }
 
     async fn initialize_reserved_task(

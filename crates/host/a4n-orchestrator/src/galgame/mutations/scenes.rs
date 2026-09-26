@@ -67,7 +67,7 @@ impl OrchestratorContext {
             next_scene_id,
         };
         let updated = a4n_db::galgame::update_galgame_scene_with_generation_cleanup_record(
-            self.database.connection(),
+            &self.database,
             context.project.id,
             record_input,
             background_generation_inputs_changed,

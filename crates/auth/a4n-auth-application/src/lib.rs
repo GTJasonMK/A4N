@@ -19,7 +19,7 @@ impl AuthApplication {
     }
 
     pub async fn auth_user_by_id(&self, user_id: i64) -> Result<UserSummary, AppError> {
-        let user = a4n_db::auth::user_by_id(self.database.connection(), user_id).await?;
+        let user = a4n_db::auth::user_by_id(&self.database, user_id).await?;
         Ok(user_summary(&user))
     }
 
@@ -31,8 +31,7 @@ impl AuthApplication {
         role: &str,
     ) -> Result<UserSummary, AppError> {
         let user =
-            a4n_db::auth::create_user(self.database.connection(), username, email, password, role)
-                .await?;
+            a4n_db::auth::create_user(&self.database, username, email, password, role).await?;
         Ok(user_summary(&user))
     }
 
@@ -42,17 +41,16 @@ impl AuthApplication {
         created_by_user_id: Option<i64>,
     ) -> Result<InviteCodeSummary, AppError> {
         let code =
-            a4n_db::auth::create_invite_code(self.database.connection(), code, created_by_user_id)
-                .await?;
+            a4n_db::auth::create_invite_code(&self.database, code, created_by_user_id).await?;
         Ok(invite_code_summary(&code))
     }
 
     pub async fn list_auth_users(&self) -> Result<Vec<UserSummary>, AppError> {
-        a4n_db::auth::list_users(self.database.connection()).await
+        a4n_db::auth::list_users(&self.database).await
     }
 
     pub async fn list_invite_code_records(&self) -> Result<Vec<InviteCodeSummary>, AppError> {
-        let codes = a4n_db::auth::list_invite_codes(self.database.connection()).await?;
+        let codes = a4n_db::auth::list_invite_codes(&self.database).await?;
         Ok(codes.iter().map(invite_code_summary).collect())
     }
 
@@ -61,8 +59,7 @@ impl AuthApplication {
         user_id: i64,
         role: &str,
     ) -> Result<UserSummary, AppError> {
-        let user =
-            a4n_db::auth::update_user_role(self.database.connection(), user_id, role).await?;
+        let user = a4n_db::auth::update_user_role(&self.database, user_id, role).await?;
         Ok(user_summary(&user))
     }
 }
@@ -70,12 +67,12 @@ impl AuthApplication {
 #[async_trait::async_trait]
 impl AuthReadApplicationPort for AuthApplication {
     async fn current_user(&self, user_id: i64) -> Result<UserSummary, AppError> {
-        a4n_db::auth::current_user_summary(self.database.connection(), user_id).await
+        a4n_db::auth::current_user_summary(&self.database, user_id).await
     }
 
     async fn list_sessions(&self, user_id: i64) -> Result<Vec<SessionSummary>, AppError> {
         let user_id = required_session_user_id(user_id, "列出会话")?;
-        let sessions = a4n_db::auth::list_sessions(self.database.connection(), user_id).await?;
+        let sessions = a4n_db::auth::list_sessions(&self.database, user_id).await?;
         Ok(sessions.iter().map(session_summary).collect())
     }
 
@@ -86,7 +83,7 @@ impl AuthReadApplicationPort for AuthApplication {
         refresh_token: &str,
     ) -> Result<(), AppError> {
         a4n_db::auth::verify_session_refresh_token(
-            self.database.connection(),
+            &self.database,
             user_id,
             session_id,
             refresh_token,
@@ -96,7 +93,7 @@ impl AuthReadApplicationPort for AuthApplication {
     }
 
     async fn verify_active_session(&self, user_id: i64, session_id: &str) -> Result<(), AppError> {
-        a4n_db::auth::verify_active_session(self.database.connection(), user_id, session_id)
+        a4n_db::auth::verify_active_session(&self.database, user_id, session_id)
             .await
             .map(|_| ())
     }
@@ -113,16 +110,12 @@ impl AuthMutationApplicationPort for AuthApplication {
             email,
             password,
         });
-        a4n_db::auth::require_existing_user_or_bootstrap_admin(
-            self.database.connection(),
-            bootstrap,
-        )
-        .await
+        a4n_db::auth::require_existing_user_or_bootstrap_admin(&self.database, bootstrap).await
     }
 
     async fn register_user(&self, input: RegisterInput) -> Result<UserSummary, AppError> {
         let user = a4n_db::auth::register_user_with_invite(
-            self.database.connection(),
+            &self.database,
             &input.username,
             &input.email,
             &input.password,
@@ -134,8 +127,7 @@ impl AuthMutationApplicationPort for AuthApplication {
 
     async fn login_user(&self, input: LoginInput) -> Result<UserSummary, AppError> {
         let user =
-            a4n_db::auth::login_user(self.database.connection(), &input.username, &input.password)
-                .await?;
+            a4n_db::auth::login_user(&self.database, &input.username, &input.password).await?;
         Ok(user_summary(&user))
     }
 
@@ -145,20 +137,16 @@ impl AuthMutationApplicationPort for AuthApplication {
         refresh_token: &str,
         user_agent: Option<&str>,
     ) -> Result<SessionSummary, AppError> {
-        let session = a4n_db::auth::create_session(
-            self.database.connection(),
-            user_id,
-            refresh_token,
-            user_agent,
-        )
-        .await?;
+        let session =
+            a4n_db::auth::create_session(&self.database, user_id, refresh_token, user_agent)
+                .await?;
         Ok(session_summary(&session))
     }
 
     async fn revoke_session(&self, user_id: i64, session_id: &str) -> Result<(), AppError> {
         let user_id = required_session_user_id(user_id, "撤销会话")?;
         let session_id = required_session_id(session_id, "撤销会话")?;
-        a4n_db::auth::revoke_session(self.database.connection(), user_id, &session_id).await
+        a4n_db::auth::revoke_session(&self.database, user_id, &session_id).await
     }
 
     async fn update_profile(
@@ -168,7 +156,7 @@ impl AuthMutationApplicationPort for AuthApplication {
     ) -> Result<UserSummary, AppError> {
         let avatar_url = input.avatar_url.as_ref().map(|value| value.as_deref());
         let user = a4n_db::auth::update_profile(
-            self.database.connection(),
+            &self.database,
             user_id,
             input.email.as_deref(),
             avatar_url,
@@ -184,7 +172,7 @@ impl AuthMutationApplicationPort for AuthApplication {
         input: ChangePasswordInput,
     ) -> Result<(), AppError> {
         a4n_db::auth::change_password(
-            self.database.connection(),
+            &self.database,
             user_id,
             &input.old_password,
             &input.new_password,
@@ -202,14 +190,14 @@ impl AuthMutationApplicationPort for AuthApplication {
         let user_id = required_session_user_id(user_id, "刷新令牌")?;
         let session_id = required_session_id(session_id, "刷新令牌")?;
         let session = a4n_db::auth::verify_session_refresh_token(
-            self.database.connection(),
+            &self.database,
             user_id,
             &session_id,
             old_refresh_token,
         )
         .await?;
         a4n_db::auth::rotate_session_refresh_token(
-            self.database.connection(),
+            &self.database,
             session,
             old_refresh_token,
             new_refresh_token,
@@ -227,7 +215,7 @@ impl AuthMutationApplicationPort for AuthApplication {
         avatar_url: Option<&str>,
     ) -> Result<UserSummary, AppError> {
         let user = a4n_db::auth::login_with_oauth2(
-            self.database.connection(),
+            &self.database,
             provider,
             provider_id,
             email,

@@ -4,7 +4,6 @@ use a4n_api_contract::character::{
 use a4n_db::text_anchor::EVIDENCE_ROLE_FIRST_SEEN;
 use a4n_domain::generation::RecordCompletedGenerationRunInput;
 use a4n_error::AppError;
-use sea_orm::TransactionTrait;
 use serde_json::{Value, json};
 use std::collections::BTreeMap;
 
@@ -54,18 +53,13 @@ impl OrchestratorContext {
             .map(a4n_db::project::chapter_source_snapshot_from_model)
             .collect::<Vec<_>>();
         let mut pending_evidence = BTreeMap::<(i64, i64), TextAnchorEvidenceInput>::new();
-        let tx = self
-            .database
-            .connection()
-            .begin()
-            .await
-            .map_err(AppError::Database)?;
+        let tx = self.database.begin().await?;
         if !a4n_db::chapter_content::chapter_source_snapshots_match_for_update(
             &tx,
             &source_chapters,
         )
         .await
-        .map_err(AppError::Database)?
+        .map_err(AppError::database)?
         {
             return Err(AppError::InvalidState {
                 current: "chapter_source_changed".to_string(),
@@ -166,7 +160,7 @@ impl OrchestratorContext {
                         &tx, project_id, &name,
                     )
                     .await
-                    .map_err(AppError::Database)?
+                    .map_err(AppError::database)?
                     .ok_or_else(|| {
                         AppError::NotFound(format!(
                             "角色档案已存在但无法重新读取: project_id={project_id}, name={name}"
@@ -209,7 +203,7 @@ impl OrchestratorContext {
             .await
             .map_err(text_anchor_db_error)?;
         }
-        tx.commit().await.map_err(AppError::Database)?;
+        a4n_db::commit_transaction(tx).await?;
 
         Ok(DiscoverCharacterProfilesResult {
             status: "discovered".into(),

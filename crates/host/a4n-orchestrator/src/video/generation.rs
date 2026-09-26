@@ -82,10 +82,8 @@ impl OrchestratorContext {
         let session = execution.session.clone();
         let cancel_token = execution.permit.cancellation_token();
         let operation_key = input.operation.generation_task_key();
-        let checkpoint_context = VideoGenerationCheckpointContext::new(
-            session.clone(),
-            self.database.shared_connection(),
-        );
+        let checkpoint_context =
+            VideoGenerationCheckpointContext::new(session.clone(), self.database.clone());
         let publisher = execution.publisher.clone();
         let checkpoint_writer = execution.checkpoint_writer.clone();
         let (progress_sender, progress_receiver) = mpsc::unbounded_channel();

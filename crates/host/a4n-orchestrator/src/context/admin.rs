@@ -25,43 +25,43 @@ impl AdminApplication {
         &self,
         input: UsageTrendsInput,
     ) -> Result<Vec<DailyUsagePoint>, AppError> {
-        a4n_db::admin::usage_trends(self.database.connection(), input)
+        a4n_db::admin::usage_trends(&self.database, input)
             .await
             .map_err(admin_db_error)
     }
 
     async fn overview(&self) -> Result<AdminOverviewSummary, AppError> {
-        a4n_db::admin::admin_overview_summary(self.database.connection())
+        a4n_db::admin::admin_overview_summary(&self.database)
             .await
             .map_err(admin_db_error)
     }
 
     async fn user_usage(&self, user_id: i64, limit: u64) -> Result<Vec<UsageLogSummary>, AppError> {
-        a4n_db::admin::usage_by_user(self.database.connection(), user_id, limit)
+        a4n_db::admin::usage_by_user(&self.database, user_id, limit)
             .await
             .map_err(admin_db_error)
     }
 
     async fn token_summary(&self, user_id: i64) -> Result<serde_json::Value, AppError> {
-        a4n_db::admin::token_summary(self.database.connection(), user_id)
+        a4n_db::admin::token_summary(&self.database, user_id)
             .await
             .map_err(admin_db_error)
     }
 
     async fn pending_tasks(&self) -> Result<Vec<TaskQueueSummary>, AppError> {
-        a4n_db::admin::pending_tasks(self.database.connection())
+        a4n_db::admin::pending_tasks(&self.database)
             .await
             .map_err(admin_db_error)
     }
 
     async fn all_project_summaries(&self) -> Result<Vec<AdminProjectSummary>, AppError> {
-        a4n_db::admin::all_project_summaries(self.database.connection())
+        a4n_db::admin::all_project_summaries(&self.database)
             .await
             .map_err(admin_db_error)
     }
 
     async fn check_database_health(&self) -> Result<(), AppError> {
-        a4n_db::admin::check_database_health(self.database.connection())
+        a4n_db::admin::check_database_health(&self.database)
             .await
             .map_err(admin_db_error)
     }
@@ -70,7 +70,7 @@ impl AdminApplication {
         &self,
         input: GenerationCallAnalyticsInput,
     ) -> Result<GenerationCallAnalytics, AppError> {
-        a4n_db::admin::generation_call_analytics(self.database.connection(), input)
+        a4n_db::admin::generation_call_analytics(&self.database, input)
             .await
             .map_err(admin_db_error)
     }
@@ -291,7 +291,7 @@ impl a4n_api_contract::admin::AdminMutationApplicationPort for OrchestratorConte
 fn admin_db_error(error: AdminDbError) -> AppError {
     match error {
         AdminDbError::InvalidArgument(message) => AppError::InvalidArgument(message),
-        AdminDbError::Database(error) => AppError::Database(error),
-        AdminDbError::DatabaseOperation { source, .. } => AppError::Database(source),
+        AdminDbError::Database(error) => AppError::database(error),
+        AdminDbError::DatabaseOperation { source, .. } => AppError::database(source),
     }
 }

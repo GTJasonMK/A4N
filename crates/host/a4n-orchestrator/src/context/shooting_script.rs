@@ -37,8 +37,8 @@ impl ShootingScriptApplication {
         }
     }
 
-    fn connection(&self) -> &sea_orm::DatabaseConnection {
-        self.database.connection()
+    fn connection(&self) -> &a4n_db::DbHandle {
+        &self.database
     }
 
     async fn load_chapter_shooting_script_source_record(
@@ -337,7 +337,7 @@ impl ShootingScriptRecordMutationApplicationPort for TestShootingScriptPublicati
         input: PublishChapterShootingScriptInput,
     ) -> Result<a4n_api_contract::shooting_script::ChapterShootingScriptView, AppError> {
         let source = a4n_db::project::resolve_chapter_source(
-            self.database.connection(),
+            &self.database,
             input.project_id,
             input.source_chapter_id,
         )
@@ -351,14 +351,14 @@ impl ShootingScriptRecordMutationApplicationPort for TestShootingScriptPublicati
         let record = match input.expected_revision {
             Some(expected_revision) => {
                 let existing = a4n_db::shooting_script::chapter_shooting_script_for_source(
-                    self.database.connection(),
+                    &self.database,
                     &source,
                 )
                 .await
                 .map_err(shooting_script_db_error)?
                 .ok_or_else(|| AppError::NotFound("测试拍摄剧本不存在".into()))?;
                 a4n_db::shooting_script::update_chapter_shooting_script(
-                    self.database.connection(),
+                    &self.database,
                     a4n_db::shooting_script::UpdateChapterShootingScriptInput {
                         record_id: existing.record.id,
                         expected_revision,
@@ -372,7 +372,7 @@ impl ShootingScriptRecordMutationApplicationPort for TestShootingScriptPublicati
                 .map_err(shooting_script_db_error)?
             }
             None => a4n_db::shooting_script::insert_chapter_shooting_script(
-                self.database.connection(),
+                &self.database,
                 a4n_db::shooting_script::InsertChapterShootingScriptInput {
                     source,
                     input_fingerprint_sha256: input.input_fingerprint_sha256,
@@ -384,12 +384,10 @@ impl ShootingScriptRecordMutationApplicationPort for TestShootingScriptPublicati
             .await
             .map_err(shooting_script_db_error)?,
         };
-        let plan_sync = a4n_db::shooting_script::chapter_shooting_script_plan_sync(
-            self.database.connection(),
-            &record,
-        )
-        .await
-        .map_err(shooting_script_db_error)?;
+        let plan_sync =
+            a4n_db::shooting_script::chapter_shooting_script_plan_sync(&self.database, &record)
+                .await
+                .map_err(shooting_script_db_error)?;
         Ok(
             a4n_api_contract::shooting_script::ChapterShootingScriptView {
                 record: a4n_api_contract::shooting_script::ChapterShootingScriptRecordSummary {

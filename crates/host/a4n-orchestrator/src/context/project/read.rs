@@ -26,7 +26,7 @@ impl ProjectReadApplication {
         &self,
         query: ProjectFamilyMetadataQuery,
     ) -> Result<ProjectFamilyMetadata, AppError> {
-        a4n_db::project::project_family_metadata(self.database.connection(), query)
+        a4n_db::project::project_family_metadata(&self.database, query)
             .await
             .map_err(project_family_metadata_read_error_to_app_error)
     }
@@ -35,13 +35,13 @@ impl ProjectReadApplication {
         &self,
         query: ProjectProgressQuery,
     ) -> Result<ProjectProgressSummary, AppError> {
-        a4n_db::project::project_progress_summary(self.database.connection(), query)
+        a4n_db::project::project_progress_summary(&self.database, query)
             .await
             .map_err(project_progress_read_error_to_app_error)
     }
 
     async fn kind(&self, project_id: i64) -> Result<String, AppError> {
-        a4n_db::project::project_kind(self.database.connection(), project_id)
+        a4n_db::project::project_kind(&self.database, project_id)
             .await
             .map_err(project_basic_record_error_to_app_error)
     }
@@ -50,7 +50,7 @@ impl ProjectReadApplication {
         &self,
         project_id: i64,
     ) -> Result<Option<novel_project::Model>, AppError> {
-        a4n_db::project::project_by_id_record(self.database.connection(), project_id)
+        a4n_db::project::project_by_id_record(&self.database, project_id)
             .await
             .map_err(project_mutation_error_to_app_error)
     }
@@ -59,7 +59,7 @@ impl ProjectReadApplication {
         &self,
         project_id: i64,
     ) -> Result<Option<novel_project::Model>, AppError> {
-        a4n_db::project::project_summary_by_id_record(self.database.connection(), project_id)
+        a4n_db::project::project_summary_by_id_record(&self.database, project_id)
             .await
             .map_err(project_mutation_error_to_app_error)
     }
@@ -87,9 +87,9 @@ impl OrchestratorContext {
                 user_id,
             ),
             async {
-                a4n_db::fact_feedback::feedback_interval(self.database.connection(), project_id)
+                a4n_db::fact_feedback::feedback_interval(&self.database, project_id)
                     .await
-                    .map_err(AppError::Database)
+                    .map_err(AppError::database)
             },
         )?;
         Ok(Some(project_summary_from_parts(

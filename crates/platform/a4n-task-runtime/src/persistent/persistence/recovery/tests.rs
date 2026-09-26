@@ -24,7 +24,9 @@ async fn interrupts_standalone_active_tasks() {
     insert_task_row(db.as_ref(), "recover-running", "running", None).await;
     insert_task_row(db.as_ref(), "recover-pending", "pending", None).await;
 
-    let _queue = PersistentTaskQueue::new(db.clone()).await.unwrap();
+    let _queue = PersistentTaskQueue::new(a4n_db::DbHandle::new(db.clone()))
+        .await
+        .unwrap();
 
     for task_id in ["recover-running", "recover-pending"] {
         let row = task_queue::Entity::find_by_id(task_id.to_string())
@@ -42,7 +44,9 @@ async fn interrupts_historical_dag_tasks() {
     let db = setup_db().await;
     insert_task_row(db.as_ref(), "dag-child", "pending", Some("historical-dag")).await;
 
-    let _queue = PersistentTaskQueue::new(db.clone()).await.unwrap();
+    let _queue = PersistentTaskQueue::new(a4n_db::DbHandle::new(db.clone()))
+        .await
+        .unwrap();
 
     let row = task_queue::Entity::find_by_id("dag-child".to_string())
         .one(db.as_ref())
@@ -83,7 +87,9 @@ async fn interrupts_stale_in_process_workflows() {
     .unwrap();
     bind_task_to_workflow(db.as_ref(), "unrelated-recovery-task", unrelated.id).await;
 
-    let _queue = PersistentTaskQueue::new(db.clone()).await.unwrap();
+    let _queue = PersistentTaskQueue::new(a4n_db::DbHandle::new(db.clone()))
+        .await
+        .unwrap();
 
     let chapter = workflow_run::Entity::find_by_id(chapter.id)
         .one(db.as_ref())
@@ -147,7 +153,9 @@ async fn interrupts_stale_video_before_provider_submission() {
     let stale_second = insert_video_with_run(db.as_ref(), project.id, None).await;
     let durable = insert_video_with_run(db.as_ref(), project.id, Some("provider-job")).await;
 
-    let _queue = PersistentTaskQueue::new(db.clone()).await.unwrap();
+    let _queue = PersistentTaskQueue::new(a4n_db::DbHandle::new(db.clone()))
+        .await
+        .unwrap();
 
     let stale = generated_video::Entity::find_by_id(stale.id)
         .one(db.as_ref())

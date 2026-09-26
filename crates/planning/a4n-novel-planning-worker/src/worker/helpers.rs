@@ -1,5 +1,5 @@
 async fn verify_family_permission(
-    db: &DatabaseConnection,
+    db: &a4n_db::DbHandle,
     project_id: i64,
     user_id: i64,
     required: ProjectAccessRole,
@@ -18,7 +18,12 @@ async fn verify_family_permission(
         .await
         .map_err(collaboration_error)?;
     } else {
-        a4n_db::collaboration::verify_project_permission(db, project_id, user_id, required)
+        a4n_db::collaboration::verify_project_permission(
+            db,
+            project_id,
+            user_id,
+            required,
+        )
             .await
             .map_err(collaboration_error)?;
     }
@@ -111,7 +116,7 @@ async fn resolve_source(
     source_chapter_id: i64,
 ) -> Result<a4n_domain::chapter::ResolvedChapterSource, WorkerFailure> {
     a4n_db::project::resolve_chapter_source(
-        state.database.connection(),
+        &state.database,
         project_id,
         source_chapter_id,
     )
@@ -125,7 +130,7 @@ async fn ensure_visual_plan_belongs_to_source(
 ) -> Result<(), WorkerFailure> {
     let source = resolve_source(state, input.project_id, input.source_chapter_id).await?;
     let plan = a4n_db::chapter_visual_plan::chapter_visual_plan_by_id(
-        state.database.connection(),
+        &state.database,
         input.record_id,
     )
     .await

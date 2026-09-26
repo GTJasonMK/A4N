@@ -28,13 +28,9 @@ impl OrchestratorContext {
             progress,
             workflow_run_id,
         } = input;
-        let mut context = load_part_generation_context(
-            self.database.connection(),
-            project_id,
-            None,
-            chapters_per_part,
-        )
-        .await?;
+        let mut context =
+            load_part_generation_context(&self.database, project_id, None, chapters_per_part)
+                .await?;
         validate_existing_parts_for_plan(&context.parts)?;
         context.requested_part_count =
             validate_replacement_part_sources(&context.parts, expected_parts)?;
@@ -109,12 +105,9 @@ impl OrchestratorContext {
                 },
             )
             .collect();
-        let tx = lock_outline_generation_sources(
-            self.database.connection(),
-            project_id,
-            &context.source_snapshot,
-        )
-        .await?;
+        let tx =
+            lock_outline_generation_sources(&self.database, project_id, &context.source_snapshot)
+                .await?;
         let results =
             sync_part_outlines_and_assign_chapters_in(&tx, project_id, drafts, now).await?;
         let mut generated_by_part_number = HashMap::with_capacity(generated_jsons.len());
@@ -129,7 +122,7 @@ impl OrchestratorContext {
                     .await?;
             }
         }
-        tx.commit().await.map_err(AppError::Database)?;
+        a4n_db::commit_transaction(tx).await?;
         Ok(results)
     }
 }

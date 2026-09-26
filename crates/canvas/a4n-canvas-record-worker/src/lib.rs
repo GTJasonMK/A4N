@@ -31,7 +31,6 @@ use axum::{
     routing::{get, post},
 };
 use chrono::Utc;
-use sea_orm::{ConnectOptions, ConnectionTrait, Database, DatabaseConnection, Statement};
 use serde::Serialize;
 use serde_json::Value;
 use subtle::ConstantTimeEq;
@@ -69,13 +68,13 @@ struct RequestMeta {
 
 impl CanvasRecordWorker {
     pub fn new(
-        database: DatabaseConnection,
+        database: DbHandle,
         worker_id: impl Into<String>,
         auth_token: impl Into<String>,
     ) -> Self {
         Self {
             state: WorkerState {
-                database: DbHandle::new(Arc::new(database)),
+                database,
                 worker_id: Arc::<str>::from(worker_id.into()),
                 auth_token: Arc::<str>::from(auth_token.into()),
             },
@@ -116,12 +115,7 @@ async fn async_main() -> anyhow::Result<()> {
     a4n_config::validate_postgres_database_url(DATABASE_URL_ENV, &database_url)?;
     let auth_token = a4n_config::required_non_empty_env_string(WORKER_TOKEN_ENV)?;
     let address = worker_addr()?;
-    let mut options = ConnectOptions::new(database_url);
-    options
-        .max_connections(8)
-        .min_connections(1)
-        .connect_timeout(std::time::Duration::from_secs(5));
-    let database = Database::connect(options).await?;
+    let database = DbHandle::connect(database_url).await?;
     CanvasRecordWorker::new(database, CANVAS_RECORD_WORKER_ID, auth_token)
         .serve(address)
         .await
@@ -142,16 +136,8 @@ async fn health(State(state): State<WorkerState>, headers: HeaderMap) -> Respons
     if !state.authorized(&headers) {
         return unauthorized();
     }
-    let status = match state
-        .database
-        .connection()
-        .execute(Statement::from_string(
-            sea_orm::DatabaseBackend::Postgres,
-            "SELECT 1",
-        ))
-        .await
-    {
-        Ok(_) => WorkerHealthStatus::Healthy,
+    let status = match state.database.ping().await {
+        Ok(()) => WorkerHealthStatus::Healthy,
         Err(_) => WorkerHealthStatus::Degraded,
     };
     Json(WorkerHealth {
@@ -302,7 +288,7 @@ impl WorkerState {
         )
         .await?;
         let document = a4n_db::canvas::get_or_create_canvas_graph_record(
-            self.database.connection(),
+            &self.database,
             request.payload.project_id,
             request.payload.graph_id,
             Utc::now().naive_utc(),
@@ -329,7 +315,7 @@ impl WorkerState {
             return Err(WorkerFailure::invalid_request("画布和版本必须是正整数"));
         }
         let document = a4n_db::canvas::get_or_create_canvas_graph_record(
-            self.database.connection(),
+            &self.database,
             input.project_id,
             Some(input.graph_id),
             Utc::now().naive_utc(),
@@ -354,7 +340,7 @@ impl WorkerState {
         let input = request.payload;
         let record_input = canvas_graph_record_input(input.graph, input.expected_version);
         let saved = a4n_db::canvas::save_canvas_graph_record(
-            self.database.connection(),
+            &self.database,
             input.project_id,
             record_input,
             Utc::now().naive_utc(),
@@ -389,7 +375,7 @@ impl WorkerState {
             ));
         }
         let original_record = a4n_db::canvas::get_or_create_canvas_graph_record(
-            self.database.connection(),
+            &self.database,
             input.project_id,
             Some(input.graph_id),
             Utc::now().naive_utc(),
@@ -407,7 +393,7 @@ impl WorkerState {
             let record_input =
                 canvas_graph_record_input(graph_input(edited), Some(input.expected_version));
             let document = a4n_db::canvas::save_canvas_graph_record(
-                self.database.connection(),
+                &self.database,
                 input.project_id,
                 record_input,
                 Utc::now().naive_utc(),
@@ -461,7 +447,7 @@ impl WorkerState {
         .await?;
         let input = request.payload;
         let record = a4n_db::canvas::upsert_canvas_text_asset_record(
-            self.database.connection(),
+            &self.database,
             input.project_id,
             CanvasTextAssetRecordInput {
                 id: input.text_asset.id,
@@ -486,15 +472,10 @@ impl WorkerState {
         user_id: i64,
         role: ProjectAccessRole,
     ) -> Result<(), WorkerFailure> {
-        a4n_db::collaboration::verify_project_permission(
-            self.database.connection(),
-            project_id,
-            user_id,
-            role,
-        )
-        .await
-        .map(|_| ())
-        .map_err(collaboration_error)
+        a4n_db::collaboration::verify_project_permission(&self.database, project_id, user_id, role)
+            .await
+            .map(|_| ())
+            .map_err(collaboration_error)
     }
 
     fn authorized(&self, headers: &HeaderMap) -> bool {

@@ -10,7 +10,7 @@ impl OrchestratorContext {
         &self,
         part_id: i64,
     ) -> Result<part_outline::Model, AppError> {
-        project_db::part_outline_by_id(self.database.connection(), part_id)
+        project_db::part_outline_by_id(&self.database, part_id)
             .await
             .map_err(crate::project::project_outline_record_error_to_app_error)?
             .ok_or_else(|| AppError::NotFound(format!("分部大纲不存在: {part_id}")))
@@ -20,7 +20,7 @@ impl OrchestratorContext {
         &self,
         part_ids: &[i64],
     ) -> Result<Vec<part_outline::Model>, AppError> {
-        project_db::part_outlines_by_ids(self.database.connection(), part_ids)
+        project_db::part_outlines_by_ids(&self.database, part_ids)
             .await
             .map_err(crate::project::project_outline_record_error_to_app_error)
     }

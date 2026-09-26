@@ -31,14 +31,15 @@ async fn initialize_runtime_with_ports(
     configure_ports: impl FnOnce(&mut ApplicationPorts),
 ) -> Result<AppState, AppError> {
     let bootstrap = RuntimeBootstrap::prepare(config, runtime_profile, runtime_role).await?;
-    let task_queue = Arc::new(PersistentTaskQueue::new(bootstrap.database()).await?);
+    let database = bootstrap.database();
+    let task_queue = Arc::new(PersistentTaskQueue::new(database.clone()).await?);
     let task_queue_application =
         Arc::new(task_queue::TaskQueueApplication::new(task_queue.clone()));
     let novel_planning_worker =
         Arc::new(a4n_novel_planning_worker_client::NovelPlanningWorkerClient::from_env());
     let mut provider_runtime = None;
     let orchestrator = Arc::new(OrchestratorContext::bootstrap(
-        bootstrap.database(),
+        database.clone(),
         bootstrap.prompt_client(),
         bootstrap.service_manager(),
         bootstrap.config().clone(),

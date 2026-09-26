@@ -24,13 +24,11 @@ impl OrchestratorContext {
         project_id: i64,
     ) -> Result<GalgameScriptDetail, AppError> {
         let context = self.load_galgame_context(project_id).await?;
-        let read_model = a4n_db::galgame::galgame_script_detail_read_model(
-            self.database.connection(),
-            context.project.id,
-        )
-        .await
-        .map_err(AppError::Database)?
-        .ok_or_else(|| AppError::NotFound(format!("Galgame 剧本不存在: {project_id}")))?;
+        let read_model =
+            a4n_db::galgame::galgame_script_detail_read_model(&self.database, context.project.id)
+                .await
+                .map_err(AppError::database)?
+                .ok_or_else(|| AppError::NotFound(format!("Galgame 剧本不存在: {project_id}")))?;
         galgame_script_detail_from_read_model(read_model)
     }
 }

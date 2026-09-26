@@ -50,12 +50,9 @@ impl OrchestratorContext {
             .await?;
         let part_id =
             requested_part_for_chapter(&context.parts, chapter_number)?.map(|part| part.id);
-        let tx = lock_outline_generation_sources(
-            self.database.connection(),
-            project_id,
-            &context.source_snapshot,
-        )
-        .await?;
+        let tx =
+            lock_outline_generation_sources(&self.database, project_id, &context.source_snapshot)
+                .await?;
         let updated = update_chapter_outline_from_json_in(
             &tx,
             old,
@@ -64,7 +61,7 @@ impl OrchestratorContext {
             Utc::now().naive_utc(),
         )
         .await?;
-        tx.commit().await.map_err(AppError::Database)?;
+        a4n_db::commit_transaction(tx).await?;
         self.record_chapter_outline_generation_run(
             &updated,
             &generated.request,
