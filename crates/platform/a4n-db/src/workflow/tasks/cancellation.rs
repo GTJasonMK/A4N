@@ -27,7 +27,7 @@ pub async fn cancel_workflow_run_persistence(
     let reason = required_text(reason.to_string(), "取消原因")?;
     let tx = db.begin().await.map_err(WorkflowWriteError::Database)?;
     let run = locked_workflow_run_by_id(&tx, workflow_run_id).await?;
-    if is_terminal_workflow_status(&run.status) {
+    if is_terminal_workflow_status(&run.status) && !run.can_resume {
         let (active_task_id, interrupted_generated_video_ids) =
             if run.status == WORKFLOW_STATUS_CANCELLED {
                 let checkpoints = workflow_checkpoint::Entity::find()
@@ -177,8 +177,11 @@ pub async fn cancel_workflow_run_persistence(
     active.progress_json = Set(Some(progress_json));
     active.updated_at = Set(now);
     active.completed_at = Set(Some(now));
-    active
+    let cancelled = active
         .update(&tx)
+        .await
+        .map_err(WorkflowWriteError::Database)?;
+    crate::shooting_script::mark_shooting_progress_source_updated(&tx, &cancelled)
         .await
         .map_err(WorkflowWriteError::Database)?;
 

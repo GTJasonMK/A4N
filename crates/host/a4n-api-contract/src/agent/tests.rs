@@ -112,7 +112,7 @@ fn restricted_tool_search_is_pinned_without_misreading_capability_as_domain() {
 }
 
 #[test]
-fn restricted_capabilities_include_skill_loading_without_tool_discovery() {
+fn restricted_capabilities_keep_discovery_inside_their_tool_catalog() {
     for capability in [
         CONTENT_OPTIMIZATION_AGENT_CAPABILITY,
         CANVAS_AGENT_CAPABILITY,
@@ -120,7 +120,10 @@ fn restricted_capabilities_include_skill_loading_without_tool_discovery() {
     ] {
         let tools = initial_agent_tools(capability);
         assert!(!tools.is_empty());
-        assert!(!tools.contains(&"describe_agent_tool"));
+        assert_eq!(
+            tools.contains(&"describe_agent_tool"),
+            capability == DIRECTOR_AGENT_CAPABILITY
+        );
         assert!(tools.contains(&"search_agent_skills"));
         assert!(tools.contains(&"load_agent_skill"));
         assert!(

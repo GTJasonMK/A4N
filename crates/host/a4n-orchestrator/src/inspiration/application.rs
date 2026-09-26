@@ -87,7 +87,7 @@ impl OrchestratorContext {
         prompt_renderer: &dyn PromptRenderer,
     ) -> Result<ChatRequest, AppError> {
         let (history_result, project_context_result) = futures::join!(
-            self.inspiration_messages(project_id, 20),
+            self.inspiration_messages(project_id),
             self.inspiration_project_context_rows(project_id),
         );
         let history = history_result?;

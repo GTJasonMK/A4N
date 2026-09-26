@@ -174,34 +174,14 @@ impl OrchestratorContext {
     pub(crate) async fn current_chapter_shooting_script_unit_progress(
         &self,
         source: ChapterShootingScriptSourceInput,
-    ) -> Result<Option<crate::shooting_script::ChapterShootingScriptUnitProgress>, AppError> {
+    ) -> Result<Option<a4n_domain::shooting_script::ChapterShootingScriptUnitProgressView>, AppError>
+    {
         let (source, _) = self
             .load_chapter_shooting_script_source_record(&source)
             .await?;
-        let progress = a4n_db::shooting_script::chapter_shooting_script_progress_for_source(
+        a4n_db::shooting_script::chapter_shooting_script_progress_for_source(
             self.shooting_script.connection(),
             &source,
-        )
-        .await
-        .map_err(shooting_script_db_error)?;
-        Ok(progress.map(
-            |progress| crate::shooting_script::ChapterShootingScriptUnitProgress {
-                workflow_run_id: progress.workflow_run_id,
-                script: progress.script,
-                completed_unit_count: progress.completed_unit_count,
-                total_unit_count: progress.total_unit_count,
-                resolved: None,
-            },
-        ))
-    }
-
-    pub(crate) async fn shooting_script_plan_sync(
-        &self,
-        script: &ParsedChapterShootingScript,
-    ) -> Result<a4n_domain::shooting_script::ShootingScriptPlanSyncV1, AppError> {
-        a4n_db::shooting_script::chapter_shooting_script_plan_sync(
-            self.shooting_script.connection(),
-            script,
         )
         .await
         .map_err(shooting_script_db_error)
@@ -305,7 +285,7 @@ fn require_current_chapter_shooting_script(
             shooting_script,
         }),
         None => Err(AppError::NotFound(format!(
-            "项目 {} 的第 {} 章（章节 ID {}）未找到与当前正文版本匹配的结构化拍摄剧本；请先在正文页的“剧本改编”标签中生成",
+            "项目 {} 的第 {} 章（章节 ID {}）未找到与当前来源版本匹配的拍摄剧本；请先在文本工作台的“拍摄剧本”中生成场景，派生项目还需同步来源",
             source.requested_project_id, source.chapter_number, source.source_chapter_id
         ))),
     }

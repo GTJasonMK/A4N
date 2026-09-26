@@ -27,10 +27,8 @@ pub struct ApplicationPorts {
         Arc<dyn a4n_api_contract::shooting_script::ShootingScriptUnitProgressReadApplicationPort>,
     pub shooting_script_record_mutation_application:
         Arc<dyn a4n_api_contract::shooting_script::ShootingScriptRecordMutationApplicationPort>,
-    pub shooting_script_full_generation_application:
-        Arc<dyn a4n_novel_host_contract::ShootingScriptFullGenerationApplicationPort>,
-    pub shooting_script_next_unit_generation_application:
-        Arc<dyn a4n_novel_host_contract::ShootingScriptNextUnitGenerationApplicationPort>,
+    pub shooting_script_generation_application:
+        Arc<dyn a4n_novel_host_contract::ShootingScriptGenerationApplicationPort>,
     /// Host-facing authentication read boundary. Passwords, sessions and ORM
     /// models remain owned by the authentication application.
     pub auth_read_application: Arc<dyn a4n_api_contract::auth::AuthReadApplicationPort>,

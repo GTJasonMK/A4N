@@ -46,20 +46,22 @@ pub async fn rollback_project_status_record(
     for action in actions {
         match action {
             CleanupAction::DeleteChapters => {
-                let cleanup = delete_chapter_generation_outputs(
-                    &tx,
-                    project_id,
-                    GeneratedImageDeleteScope::Chapters,
-                )
-                .await?;
-                candidate_media_paths.extend(cleanup.candidate_media_paths);
                 project_db::delete_project_chapter_adaptation_records(
                     &tx,
                     project_id,
                     project_db::ProjectChapterAdaptationDeleteScope::CurrentProjectContent,
                 )
                 .await?;
-                delete_project_profile_scene_data(&tx, project_id).await?;
+                let retained = retained_source_resources(&tx, project_id).await?;
+                let cleanup = delete_chapter_generation_outputs(
+                    &tx,
+                    project_id,
+                    GeneratedImageDeleteScope::Chapters,
+                    &retained,
+                )
+                .await?;
+                candidate_media_paths.extend(cleanup.candidate_media_paths);
+                delete_project_profile_scene_data(&tx, project_id, &retained).await?;
                 project_db::delete_project_task_queue_records(&tx, project_id).await?;
                 chapter::Entity::delete_many()
                     .filter(chapter::Column::ProjectId.eq(project_id))
@@ -84,7 +86,8 @@ pub async fn rollback_project_status_record(
         }
     }
     let updated = project_db::update_project_status_record_in(&tx, project, to, changed_at).await?;
-    project_db::mark_derived_projects_root_updated_in_record(&tx, project_id, changed_at).await?;
+    project_db::mark_derived_projects_root_updated_in_record(&tx, project_id, None, changed_at)
+        .await?;
     crate::media::schedule_unreferenced_media_cleanup(
         &tx,
         project_id,

@@ -274,7 +274,7 @@ export const VideoPlanningWorkspace: React.FC<VideoPlanningWorkspaceProps> = ({
     <section className="flex h-full min-h-0 flex-col" aria-label={t("video.chapter.planningAria")}>
       {/* 头部：标题 + 状态 + 主操作 */}
       <div className="mb-4 flex min-w-0 flex-wrap items-center gap-3 border-b border-book-border/60 pb-4">
-        <div className="min-w-0 flex-1">
+        <div className="min-w-0 flex-1 basis-full sm:basis-0">
           <div className="flex items-baseline gap-2">
             <h2 className="inline-flex items-center gap-1.5 text-base font-semibold text-book-text-main">
               <ListChecks size={16} className="text-book-primary" />

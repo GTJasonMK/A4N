@@ -6,25 +6,7 @@ pub struct Migration;
 
 mod profiles;
 
-#[sea_orm_migration::async_trait::async_trait]
-impl MigrationTrait for Migration {
-    async fn up(&self, manager: &SchemaManager) -> Result<(), DbErr> {
-        profiles::restore_snapshot_referenced_profiles(manager.get_connection()).await?;
-        if !manager
-            .has_column("galgame_scene", "shooting_scene_identity")
-            .await?
-        {
-            manager
-                .get_connection()
-                .execute_unprepared(
-                    "ALTER TABLE galgame_scene ADD COLUMN shooting_scene_identity TEXT",
-                )
-                .await?;
-        }
-        manager.get_connection().execute_unprepared(r#"
-ALTER TABLE galgame_scene ADD CONSTRAINT ck_galgame_scene_shooting_identity
-    CHECK (shooting_scene_identity IS NULL OR btrim(shooting_scene_identity) <> '');
-
+pub(super) const BACKFILL_FUNCTION_SQL: &str = r#"
 -- Legacy main scenes were emitted in chapter/scene order. Only complete,
 -- unchanged cohorts with one matching frozen script prove that correspondence.
 -- The same conversion runs once at the old-package import boundary.
@@ -69,8 +51,40 @@ RETURNS SETOF BIGINT LANGUAGE SQL AS $$
     FROM proven WHERE scene.id = proven.id AND scene.shooting_scene_identity IS NULL
     RETURNING scene.id
 $$;
-SELECT a4n_backfill_galgame_scene_sources(NULL::bigint);
-"#).await?;
+"#;
+
+#[sea_orm_migration::async_trait::async_trait]
+impl MigrationTrait for Migration {
+    async fn up(&self, manager: &SchemaManager) -> Result<(), DbErr> {
+        profiles::restore_snapshot_referenced_profiles(manager.get_connection()).await?;
+        if !manager
+            .has_column("galgame_scene", "shooting_scene_identity")
+            .await?
+        {
+            manager
+                .get_connection()
+                .execute_unprepared(
+                    "ALTER TABLE galgame_scene ADD COLUMN shooting_scene_identity TEXT",
+                )
+                .await?;
+        }
+        manager
+            .get_connection()
+            .execute_unprepared(
+                r#"
+ALTER TABLE galgame_scene ADD CONSTRAINT ck_galgame_scene_shooting_identity
+    CHECK (shooting_scene_identity IS NULL OR btrim(shooting_scene_identity) <> '');
+"#,
+            )
+            .await?;
+        manager
+            .get_connection()
+            .execute_unprepared(BACKFILL_FUNCTION_SQL)
+            .await?;
+        manager
+            .get_connection()
+            .execute_unprepared("SELECT a4n_backfill_galgame_scene_sources(NULL::bigint);")
+            .await?;
         Ok(())
     }
 

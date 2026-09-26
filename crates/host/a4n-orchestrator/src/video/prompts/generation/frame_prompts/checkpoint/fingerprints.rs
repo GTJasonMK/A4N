@@ -5,7 +5,6 @@ use serde_json::{Value, json};
 
 use a4n_llm_context::LlmContextManifest;
 
-use super::super::ChapterVideoSourceContext;
 use super::super::{VideoSegmentPlan, VideoShootingScriptProjection};
 
 pub(in crate::video::prompts::generation::frame_prompts) fn serialize_video_value<
@@ -28,28 +27,6 @@ pub(in crate::video::prompts::generation::frame_prompts) fn video_stage_fingerpr
         "prompt_name": prompt_name,
         "context_manifest": context_manifest,
         "extra": extra,
-    })
-}
-
-pub(in crate::video::prompts::generation::frame_prompts) fn video_final_segment_plan_fingerprint(
-    project_id: i64,
-    source: ChapterVideoSourceContext<'_>,
-    shooting_script_projection_json: &Value,
-    style: &str,
-    duration_secs: i32,
-    aspect_ratio: &str,
-) -> Value {
-    json!({
-        "schema_version": 2,
-        "kind": "video_segment_plan.final",
-        "project_id": project_id,
-        "source_sha256": source_content_sha256(source.content),
-        "source_summary": source.summary,
-        "source_analysis": source.analysis,
-        "shooting_script_projection": shooting_script_projection_json,
-        "style": style,
-        "duration_secs": duration_secs,
-        "aspect_ratio": aspect_ratio,
     })
 }
 

@@ -1728,7 +1728,6 @@ dependencies = [
  "a4n-llm-provider-contract",
  "a4n-prompt-contract",
  "async-trait",
- "tokio-util",
 ]
 
 [[package]]

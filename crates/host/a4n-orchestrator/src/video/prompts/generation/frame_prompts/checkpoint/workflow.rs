@@ -7,32 +7,6 @@ use serde_json::Value;
 
 use super::super::OrchestratorContext;
 
-pub(in crate::video::prompts::generation::frame_prompts) async fn load_completed_video_workflow_checkpoint(
-    service: &OrchestratorContext,
-    workflow_run_id: i64,
-    step_key: &str,
-    input_fingerprint_json: &Value,
-) -> Result<Option<Value>, AppError> {
-    let input_fingerprint_sha256 =
-        generation_checkpoint_fingerprint_sha256(input_fingerprint_json)?;
-    service
-        .completed_workflow_checkpoint_by_fingerprint(
-            workflow_run_id,
-            step_key,
-            &input_fingerprint_sha256,
-        )
-        .await?
-        .map(|checkpoint| {
-            checkpoint
-                .checkpoint_json
-                .ok_or_else(|| AppError::InvalidState {
-                    current: "missing_checkpoint_json".to_string(),
-                    operation: format!("读取视频工作流断点 {step_key}"),
-                })
-        })
-        .transpose()
-}
-
 pub(in crate::video::prompts::generation::frame_prompts) async fn save_completed_video_workflow_checkpoint(
     service: &OrchestratorContext,
     workflow_run_id: i64,

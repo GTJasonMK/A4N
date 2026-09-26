@@ -12,7 +12,6 @@ import type {
   EditChapterShootingScriptProgressInput,
   EditedChapterShootingScriptProgressView,
   EditedChapterShootingScriptView,
-  GenerateChapterShootingScriptInput,
   ShootingScriptGenerationMode,
   StartChapterShootingScriptGenerationInput,
 } from "./generated/host";
@@ -56,18 +55,6 @@ const sourceInput = (
   source_chapter_id: sourceChapterId,
 });
 
-const generationInput = (
-  projectId: number,
-  sourceChapterId: number,
-  visualPlanId: number,
-  shotIds: string[] = [],
-): GenerateChapterShootingScriptInput => ({
-  project_id: projectId,
-  source_chapter_id: sourceChapterId,
-  visual_plan_id: visualPlanId,
-  shot_ids: shotIds,
-});
-
 export const getChapterShootingScript = (
   projectId: number,
   sourceChapterId: number,
@@ -96,7 +83,8 @@ export const startChapterShootingScriptGeneration = (
 ) => generationClient.start((meta) => apiInvoke<GenerationTaskHandle>(
   "start_chapter_shooting_script_generation",
   { input: {
-    meta, mode, ...generationInput(projectId, sourceChapterId, visualPlanId, shotIds),
+    meta, mode, project_id: projectId, source_chapter_id: sourceChapterId,
+    visual_plan_id: visualPlanId, shot_ids: shotIds,
   } satisfies StartChapterShootingScriptGenerationInput },
 ));
 

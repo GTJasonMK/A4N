@@ -1,27 +1,28 @@
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { remote } from "webdriverio";
 import { createServer } from "vite";
 
 const frontend = fileURLToPath(new URL("../..", import.meta.url));
-const artifacts = path.resolve(frontend, "../data/shot-sync-e2e/browser");
-const tempRoot = path.resolve(process.env.TMPDIR ?? path.join(artifacts, "../tmp"));
+const artifacts = path.resolve(process.env.A4N_SHOT_SYNC_ARTIFACTS ?? path.join(frontend, "../data/shot-sync-e2e/browser"));
 const fixture = JSON.parse(await readFile(process.env.A4N_SHOT_SYNC_FIXTURE ?? path.join(artifacts, "../browser-fixture.json"), "utf8"));
 await mkdir(artifacts, { recursive: true });
-await mkdir(tempRoot, { recursive: true });
+const runtimeDir = path.resolve(process.env.TMPDIR ?? path.join(frontend, "../.dev-runtime"));
+await mkdir(runtimeDir, { recursive: true });
+const browserTemp = await mkdtemp(path.join(runtimeDir, "c-"));
 await writeFile(path.join(artifacts, "report.json"), JSON.stringify({ success: false, state: "running" }));
-const port = 48946;
-const driverPort = 48947;
+const port = Number(process.env.A4N_SHOT_SYNC_PORT ?? 48946);
+const driverPort = port + 1;
 const processes = [];
 const logs = [];
 const measurements = [];
 let browser;
 let vite;
 const launch = (command, args) => {
-  const child = spawn(command, args, { cwd: frontend, env: { ...process.env, TMPDIR: tempRoot }, stdio: ["ignore", "pipe", "pipe"] });
+  const child = spawn(command, args, { cwd: frontend, env: { ...process.env, TMPDIR: browserTemp }, stdio: ["ignore", "pipe", "pipe"] });
   child.stdout.on("data", (data) => logs.push(String(data)));
   child.stderr.on("data", (data) => logs.push(String(data)));
   processes.push(child);
@@ -48,13 +49,22 @@ async function measure(width, state) {
   measurements.push({ state, ...result });
   await browser.saveScreenshot(path.join(artifacts, `${state}-${width}.png`));
 }
+async function editComposition(sceneIndex, shotId, value) {
+  const scene = (await browser.$$('details[class~="group/scene"]'))[sceneIndex];
+  if (await scene.getAttribute("open") == null) await scene.$("summary").click();
+  const shot = await browser.$(`[data-shot-id="${shotId}"]`);
+  if (await shot.getAttribute("open") == null) await shot.$("summary").click();
+  const field = await shot.$('label*=构图').$("textarea");
+  await field.setValue(value);
+  return field;
+}
 try {
-  vite = await createServer({ root: frontend, cacheDir: path.join(artifacts, "vite-cache"), server: { host: "127.0.0.1", port, strictPort: true, hmr: false, watch: null } });
+  vite = await createServer({ root: frontend, cacheDir: path.join(artifacts, "vite-cache"), optimizeDeps: { entries: ["e2e/shot-sync/index.html"] }, server: { host: "127.0.0.1", port, strictPort: true, hmr: false, watch: null } });
   await vite.listen();
   const driver = launch("/usr/bin/chromedriver", [`--port=${driverPort}`]);
   await ready(driver, `http://127.0.0.1:${driverPort}/status`);
   browser = await remote({ hostname: "127.0.0.1", port: driverPort, logLevel: "error", capabilities: {
-    browserName: "chrome", "goog:chromeOptions": { binary: "/usr/bin/chromium", args: ["--headless=new", "--no-sandbox", "--disable-dev-shm-usage", `--user-data-dir=${path.join(artifacts, "chrome")}`] },
+    browserName: "chrome", "goog:chromeOptions": { binary: "/usr/bin/chromium", args: ["--headless=new", "--no-sandbox", "--disable-dev-shm-usage", `--user-data-dir=${path.join(browserTemp, "chrome")}`] },
   } });
   await browser.url(`http://127.0.0.1:${port}/e2e/shot-sync/bootstrap.html`);
   await browser.execute((value) => sessionStorage.setItem("shot-sync-fixture", value), JSON.stringify(fixture));
@@ -77,8 +87,10 @@ try {
   assert.deepEqual(manual.input.script.scenes.slice(0, 2), fixture.manual.before.script.scenes.slice(0, 2));
 
   await browser.url(`http://127.0.0.1:${port}/e2e/shot-sync/?mode=ai`);
-  await browser.$('[aria-label="AI 更新镜头 shot-3"]').waitForDisplayed();
-  await browser.$('[aria-label="AI 更新镜头 shot-3"]').click();
+  const aiUpdate = await browser.$('[aria-label="AI 更新镜头 shot-3"]');
+  await aiUpdate.waitForClickable();
+  await aiUpdate.execute((element) => element.focus());
+  await browser.keys("Enter");
   await browser.$('[aria-label="待更新镜头"]').waitForExist({ reverse: true });
   const model = await browser.execute(() => window.shotSyncCalls.find((call) => call.command === "start_chapter_shooting_script_generation"));
   assert.deepEqual(model.input.shot_ids, ["shot-3"]);
@@ -120,10 +132,32 @@ try {
     }
     assert.deepEqual(await browser.execute(() => window.shotSyncErrors), []);
   }
+  for (const mode of ["save-race", "partial-race"]) {
+    await browser.url(`http://127.0.0.1:${port}/e2e/shot-sync/?mode=${mode}`);
+    await browser.$('button=进入编辑').waitForClickable();
+    await browser.$('button=进入编辑').click();
+    const sceneIndex = mode === "partial-race" ? 0 : 2;
+    const shotId = mode === "partial-race" ? "shot-1" : "shot-3";
+    await editComposition(sceneIndex, shotId, "第一份保存中的草稿");
+    await browser.$(mode === "partial-race" ? 'button=生成全部剩余场景' : 'button=保存改编').click();
+    await browser.waitUntil(() => browser.execute(() => typeof window.releaseShotSyncSave === "function"));
+    await browser.execute((id) => window.selectShotSyncChapter(id), fixture.chapter.id + 10000);
+    await browser.$('button=进入编辑').waitForClickable();
+    await browser.execute((id) => window.selectShotSyncChapter(id), fixture.chapter.id);
+    await browser.$('button=进入编辑').waitForClickable();
+    await browser.$('button=进入编辑').click();
+    const field = await editComposition(sceneIndex, shotId, "返回章节后的新草稿");
+    await browser.execute(() => window.releaseShotSyncSave());
+    await browser.executeAsync((done) => requestAnimationFrame(() => requestAnimationFrame(done)));
+    assert.equal(await field.getValue(), "返回章节后的新草稿", `${mode}: a late reply must not replace the new draft`);
+    assert.equal(await browser.execute(() => window.shotSyncCalls.some((call) => call.command === "start_chapter_shooting_script_generation")), false,
+      "a save started in an obsolete chapter view must not launch generation after switching away and back");
+    assert.deepEqual(await browser.execute(() => window.shotSyncErrors), []);
+  }
   await writeFile(path.join(artifacts, "report.json"), JSON.stringify({ success: true, measurements, manualShotIds: manual.input.rebind_shot_ids, modelShotIds: model.input.shot_ids }, null, 2));
   console.log(JSON.stringify({ success: true, measurements }));
 } catch (error) {
-  const page = browser ? await browser.execute(() => ({ url: location.href, text: document.body.innerText, html: document.getElementById("root")?.innerHTML, errors: window.shotSyncErrors })) : null;
+  const page = browser ? await browser.execute(() => ({ url: location.href, text: document.body.innerText, html: document.getElementById("root")?.innerHTML, errors: window.shotSyncErrors, calls: window.shotSyncCalls })) : null;
   await writeFile(path.join(artifacts, "report.json"), JSON.stringify({ success: false, error: String(error), measurements, page }, null, 2));
   if (browser) await browser.saveScreenshot(path.join(artifacts, "failed.png"));
   throw error;
@@ -132,4 +166,5 @@ try {
   if (vite) await vite.close();
   for (const child of processes.reverse()) child.kill("SIGTERM");
   await writeFile(path.join(artifacts, "process.log"), logs.join(""));
+  await rm(browserTemp, { recursive: true, force: true });
 }

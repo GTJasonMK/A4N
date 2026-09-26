@@ -86,7 +86,7 @@ export const writing = {
   chapterGenerationResetBlocked: "有章节正在生成，不能重置项目数据",
   optimizedBodyNotOverwritten: "内容优化已写回章节正文；当前编辑器有未保存修改，未自动覆盖。",
   resetProjectData: "重置项目生成数据",
-  resetProjectDataMessage: "将删除当前蓝图、章节正文、分部/章节大纲、导入审核、优化会话、生成图片/视频、任务队列、RAG 索引、角色快照、角色当前同步态和正文派生角色档案。仍被来源快照或游戏剧本引用的角色会保留姓名，清空正文生成的属性。\n\n会保留项目本身、蓝图版本历史、非正文派生角色基础档案和提示词配置。重置后可以从蓝图版本恢复当前蓝图。\n\n此操作不可恢复，是否继续？",
+  resetProjectDataMessage: "将删除当前蓝图、章节正文、分部/章节大纲、导入审核、优化会话、生成图片/视频、任务队列、RAG 索引、角色快照、角色当前同步态和正文派生角色档案。仍被来源快照或游戏剧本引用的角色会保留姓名，清空正文生成的属性。冻结来源引用的图片、场景和物体基础档案会保留，场景和物体的正文同步状态会清空。\n\n会保留项目本身、蓝图版本历史、非正文派生角色基础档案和提示词配置。重置后可以从蓝图版本恢复当前蓝图。\n\n此操作不可恢复，是否继续？",
   resetProjectDataAccepted: "重置请求已接受，后台正在执行；完成前项目暂不可编辑{warnings}",
   resetProjectDataCommitted: "正式资料已重置，后台正在清理索引并恢复编辑权限{warnings}",
   resetProjectDataSummary: "已重置：删除 {chapters} 章、{outlines} 条章纲、{profiles} 个正文派生角色，保留 {versions} 个蓝图版本{warnings}。",

@@ -145,32 +145,6 @@ pub(in crate::outline) fn part_context_json(part: &part_outline::Model) -> Value
     })
 }
 
-pub(in crate::outline) fn minimal_blueprint_context(blueprint_context: &Value) -> Value {
-    let Some(object) = blueprint_context.as_object() else {
-        return blueprint_context.clone();
-    };
-    let mut minimal = serde_json::Map::new();
-    for key in [
-        "blueprint_available",
-        "title",
-        "project_type",
-        "project_description",
-        "genre",
-        "style",
-        "tone",
-        "one_sentence_summary",
-        "full_synopsis",
-        "chapters_per_part",
-        "blueprint_chapters_per_part",
-        "formal_materials",
-    ] {
-        if let Some(value) = object.get(key) {
-            minimal.insert(key.to_string(), value.clone());
-        }
-    }
-    Value::Object(minimal)
-}
-
 fn character_profile_context_json(profile: &protagonist_profile::Model) -> Value {
     let mut value = serde_json::Map::new();
     insert_text(&mut value, "name", &profile.name);
@@ -315,28 +289,6 @@ fn is_meaningful_json(value: &Value) -> bool {
         Value::Object(values) => values.values().any(is_meaningful_json),
         Value::Bool(_) | Value::Number(_) => true,
     }
-}
-
-pub(in crate::outline) fn focused_part_context(part: &part_outline::Model) -> Value {
-    json!({
-        "part_number": part.part_number,
-        "title": part.title,
-        "start_chapter": part.start_chapter,
-        "end_chapter": part.end_chapter,
-        "summary": part.summary,
-        "theme": part.theme,
-        "key_events": part.key_events,
-    })
-}
-
-pub(in crate::outline) fn minimal_part_context(part: &part_outline::Model) -> Value {
-    json!({
-        "part_number": part.part_number,
-        "title": part.title,
-        "start_chapter": part.start_chapter,
-        "end_chapter": part.end_chapter,
-        "summary": part.summary,
-    })
 }
 
 pub(crate) fn chapter_outline_context_json(outline: &chapter_outline::Model) -> Value {

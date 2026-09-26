@@ -185,6 +185,24 @@ async fn mixed_assembly_initializes_timeline_without_opening_the_video_page() {
     let db = a4n_migration::test_support::connect_test_database().await;
     let root = crate::video::insert_video_project(&db, "混合成片时间线初始化").await;
     let chapter = crate::video::insert_video_chapter_without_shooting_script(&db, root.id, 1).await;
+    let (director, script) = crate::video::tests::insert_confirmed_visual_plan_and_shooting_script(
+        &db, root.id, &chapter,
+    )
+    .await;
+    let projection =
+        a4n_domain::shooting_script::project_visual_plan_for_shooting_script(&director.plan, &[])
+            .unwrap();
+    let shooting_identity = a4n_video_contract::VideoShootingScriptIdentityV1 {
+        record_id: script.record.id,
+        revision: script.record.revision,
+        source_revision_key: script.record.source_revision_key,
+        source_content_sha256: script.record.source_content_sha256,
+        script_sha256: script.record.script_sha256,
+        shot_fingerprints: script
+            .script
+            .shot_content_fingerprints(&projection)
+            .unwrap(),
+    };
     let project = crate::video::insert_derived_video_project(
         std::sync::Arc::new(db.clone()),
         root.id,
@@ -252,7 +270,12 @@ async fn mixed_assembly_initializes_timeline_without_opening_the_video_page() {
         generated_video_id: sea_orm::Set(None),
         timeline_item_id: sea_orm::Set(None),
         metadata_json: sea_orm::Set(Some(json!({
-            "video_execution_identity": {"source_content_sha256": source_hash},
+            "video_execution_identity": {
+                "contract_epoch": a4n_video_contract::VIDEO_EXECUTION_CONTRACT_EPOCH,
+                "source_content_sha256": source_hash,
+                "shooting_script_identity": shooting_identity,
+                "segment_identities": a4n_video_contract::video_segment_identities(std::slice::from_ref(&segment)).unwrap(),
+            },
             "segments": [segment],
             "segment_recipes": [recipe]
         }))),

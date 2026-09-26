@@ -34,10 +34,7 @@ pub async fn build_blueprint_stage_request(
     let system_content = prompt_renderer
         .render_prompt(
             BLUEPRINT_STAGE_SYSTEM_PROMPT,
-            &HashMap::from([
-                ("base_prompt".to_string(), json!(base_prompt)),
-                ("stage_name".to_string(), json!(stage_name)),
-            ]),
+            &HashMap::from([("base_prompt".to_string(), json!(base_prompt))]),
             Some(project_id),
         )
         .await?;
@@ -46,8 +43,6 @@ pub async fn build_blueprint_stage_request(
         previous_context,
         user_content,
         stage_key,
-        stage_name,
-        &output_schema,
     )?;
     Ok(
         context_aware_system_user_request(system_content, manifest, Some(0.7), None)?

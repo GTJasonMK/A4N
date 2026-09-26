@@ -35,12 +35,6 @@ where
     let use_row_lock = lock_for_update && db.get_database_backend() != DbBackend::Sqlite;
     let (project, root_project_id) =
         super::galgame_media_project_context(db, project_id, use_row_lock).await?;
-    let source_snapshot_id = project.source_snapshot_id.ok_or_else(|| {
-        GalgameMediaRecordError::InvalidArgument(format!(
-            "Galgame 项目缺少源文本快照: {}",
-            project.id
-        ))
-    })?;
     let (scene_id, script_id, source_snapshot_chapter_id, line_id) = match target_kind {
         GALGAME_ENTITY_SCENE => {
             let mut scene_query = galgame_scene::Entity::find_by_id(target_id);
@@ -109,15 +103,14 @@ where
         .select_only()
         .column(galgame_script::Column::ProjectId)
         .column(galgame_script::Column::RootProjectId)
-        .column(galgame_script::Column::SourceSnapshotId)
-        .into_tuple::<(i64, i64, i64)>()
+        .into_tuple::<(i64, i64)>()
         .one(db)
         .await
         .map_err(GalgameMediaRecordError::Database)?
         .ok_or_else(|| {
             GalgameMediaRecordError::NotFound(format!("Galgame 剧本不存在: {script_id}"))
         })?;
-    if script.0 != project.id || script.1 != root_project_id || script.2 != source_snapshot_id {
+    if script.0 != project.id || script.1 != root_project_id {
         return Err(GalgameMediaRecordError::InvalidArgument(
             "Galgame 媒体目标不属于目标项目族上下文".to_string(),
         ));
@@ -131,7 +124,8 @@ where
         .select_only()
         .column(source_snapshot_chapter::Column::SnapshotId)
         .column(source_snapshot_chapter::Column::SourceChapterId)
-        .into_tuple::<(i64, i64)>()
+        .column(source_snapshot_chapter::Column::RootProjectId)
+        .into_tuple::<(i64, i64, i64)>()
         .one(db)
         .await
         .map_err(GalgameMediaRecordError::Database)?
@@ -141,15 +135,15 @@ where
                 source_snapshot_chapter_id
             ))
         })?;
-    if snapshot_chapter.0 != script.2 {
+    if snapshot_chapter.2 != root_project_id {
         return Err(GalgameMediaRecordError::InvalidArgument(
-            "Galgame 场源快照章节与剧本源快照不一致".to_string(),
+            "Galgame 场源快照章节不属于剧本根项目".to_string(),
         ));
     }
     Ok(GalgameTargetContext {
         project_id: project.id,
         root_project_id,
-        source_snapshot_id,
+        source_snapshot_id: snapshot_chapter.0,
         source_chapter_id: snapshot_chapter.1,
         source_snapshot_chapter_id,
         scene_id,

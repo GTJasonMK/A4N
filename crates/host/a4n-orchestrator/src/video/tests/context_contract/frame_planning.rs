@@ -44,6 +44,16 @@ fn frame_prompt_builders_require_sectioned_image_prompt_text() {
     assert!(!single_frame_prompt.contains("style_template_verbatim"));
     assert!(single_frame_prompt.contains("constraints.style"));
     assert!(!single_frame_prompt.contains("frame_number_rule"));
+    assert!(!single_frame_prompt.contains("visual_prompt_sections"));
+    assert!(!single_frame_prompt.contains("motion_prompt_sections"));
+    assert_eq!(
+        single_frame_prompt
+            .matches(PromptOutputLanguage::ZhCn.instruction())
+            .count(),
+        1
+    );
+    assert!(single_frame_prompt.contains("frame_prompt 至少 80 个字符"));
+    assert!(single_frame_prompt.contains("negative_prompt 至少 20 个字符"));
 
     let initial_frame_prompt =
         super::super::prompts::context::build_first_frame_prompt_user(frame_prompt_context!(

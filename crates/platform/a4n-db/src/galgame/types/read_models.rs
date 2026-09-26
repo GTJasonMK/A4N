@@ -114,7 +114,6 @@ pub struct GalgameScriptDetailReadModel {
 #[derive(Debug, Clone, FromQueryResult)]
 pub struct GalgameScriptDetailScriptRecord {
     pub id: i64,
-    pub source_snapshot_id: i64,
     pub root_project_id: i64,
     pub title: String,
 }
@@ -164,6 +163,7 @@ pub struct GalgameAssetPlanningSceneRecord {
 #[derive(Debug, Clone, FromQueryResult)]
 pub struct GalgameAssetPlanningSourceChapterRecord {
     pub id: i64,
+    pub snapshot_id: i64,
     pub source_chapter_id: i64,
     pub chapter_number: i32,
     pub content_hash: String,

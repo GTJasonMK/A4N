@@ -74,8 +74,8 @@ pub(in crate::shooting_script::generation) async fn generate_screenplay_layout_u
     unit_offset: usize,
     total_unit_count: usize,
     progress: ShootingScriptProgressReporter<'_>,
-    stream_reporter: Option<ShootingScriptStreamReporter<'_>>,
-    cancel_token: Option<&CancellationToken>,
+    stream_reporter: ShootingScriptStreamReporter<'_>,
+    cancel_token: &CancellationToken,
 ) -> Result<
     super::super::super::contracts::ShootingScriptStageResult<ScreenplayLayoutUnitV1>,
     AppError,

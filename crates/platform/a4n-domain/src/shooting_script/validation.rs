@@ -25,10 +25,7 @@ impl ChapterShootingScriptUnitProgressCheckpoint {
         &self,
         workflow_run_id: i64,
     ) -> Result<(), ShootingScriptValidationError> {
-        if self.version != 1
-            || self.progress.workflow_run_id != workflow_run_id
-            || self.progress.completed_record.is_some()
-        {
+        if self.version != 1 || self.progress.workflow_run_id != workflow_run_id {
             return Err(ShootingScriptValidationError {
                 path: "progress.snapshot".into(),
                 message: "生成进度的版本、工作流身份或完成状态无效".into(),

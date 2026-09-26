@@ -31,7 +31,7 @@ async fn text_project(db: &DatabaseConnection, title: &str) -> novel_project::Mo
 async fn history_requires_existing_project_without_creating_conversation() {
     let db = setup_db().await;
 
-    let error = inspiration_messages(&db, 999_999, 80)
+    let error = inspiration_messages(&db, 999_999, Some(80))
         .await
         .expect_err("missing project history must be rejected");
 
@@ -49,7 +49,7 @@ async fn empty_history_does_not_create_conversation() {
     let project = text_project(&db, "空灵感历史").await;
 
     assert!(
-        inspiration_messages(&db, project.id, 80)
+        inspiration_messages(&db, project.id, Some(80))
             .await
             .unwrap()
             .is_empty()
@@ -87,7 +87,7 @@ async fn insert_exchange_persists_user_then_assistant_and_updates_count() {
     assert_eq!(conversation.message_count, 2);
     let messages = message::Entity::find()
         .filter(message::Column::ConversationId.eq(conversation.id))
-        .order_by_asc(message::Column::CreatedAt)
+        .order_by_asc(message::Column::Id)
         .all(&db)
         .await
         .unwrap();
@@ -140,4 +140,55 @@ async fn context_rows_keep_recent_chapter_filter_semantics_with_projection() {
     assert_eq!(rows.recent_chapters[2].chapter_number, 3);
     assert!(!rows.recent_chapters[2].has_content);
     assert_eq!(rows.recent_chapters[2].summary.as_deref(), Some("摘要"));
+}
+
+#[tokio::test]
+async fn model_history_keeps_early_constraints_and_stable_message_order() {
+    let db = setup_db().await;
+    let project = text_project(&db, "完整灵感历史").await;
+    ensure_inspiration_conversation(&db, project.id)
+        .await
+        .unwrap();
+    let tx = db.begin().await.unwrap();
+    for index in 0..41 {
+        insert_inspiration_exchange_in_transaction(
+            &tx,
+            InspirationExchangeInsertInput {
+                project_id: project.id,
+                user_input: format!("要求 {index}"),
+                assistant_output: format!("回复 {index}"),
+            },
+        )
+        .await
+        .unwrap();
+    }
+    tx.commit().await.unwrap();
+    // 同一时间戳不能打乱成对的消息，也不能使下次请求的前缀漂移。
+    let conversation = conversation::Entity::find()
+        .filter(conversation::Column::ProjectId.eq(project.id))
+        .one(&db)
+        .await
+        .unwrap()
+        .unwrap();
+    message::Entity::update_many()
+        .col_expr(
+            message::Column::CreatedAt,
+            sea_orm::sea_query::Expr::value(chrono::Utc::now().naive_utc()),
+        )
+        .filter(message::Column::ConversationId.eq(conversation.id))
+        .exec(&db)
+        .await
+        .unwrap();
+    let all = inspiration_messages(&db, project.id, None).await.unwrap();
+    assert_eq!(all.len(), 82);
+    for (index, pair) in all.chunks_exact(2).enumerate() {
+        assert_eq!(pair[0].content, format!("要求 {index}"));
+        assert_eq!(pair[1].content, format!("回复 {index}"));
+        assert!(pair[0].id < pair[1].id);
+    }
+    let display = inspiration_messages(&db, project.id, Some(INSPIRATION_HISTORY_LIMIT))
+        .await
+        .unwrap();
+    assert_eq!(display.len(), 80);
+    assert_eq!(display[0].id, all[2].id);
 }

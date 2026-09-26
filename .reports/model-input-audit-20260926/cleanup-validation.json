@@ -1,0 +1,47 @@
+{
+  "branch": "debug",
+  "backend_unique_tests_passed": 514,
+  "backend_by_crate": {
+    "a4n_agent_runtime": 30,
+    "a4n_db": 6,
+    "a4n_domain": 119,
+    "a4n_llm_context": 24,
+    "a4n_orchestrator": 255,
+    "a4n_prompt": 80
+  },
+  "mock_provider_tests_passed": 29,
+  "cli_runner_tests_passed": 28,
+  "core_cli_scenarios_passed": 55,
+  "director_cli_checks_passed": 17,
+  "cache_cli_checks_passed": 8,
+  "wire": {
+    "inspiration_calls": 41,
+    "append_only_prefix_checks": 39,
+    "blueprint_refinement_calls": 2,
+    "complete_history_messages_in_refinement": 82,
+    "first_constraint_occurs_once": true,
+    "stable_inspiration_prefix_utf8_bytes": 24538,
+    "provider_usage_is_synthetic": true
+  },
+  "full_runtime_build": "passed with embedded-capabilities and project ONNX configuration",
+  "cargo_fmt_all": "passed",
+  "git_diff_check": "passed",
+  "scoped_diff": {
+    "files": 76,
+    "added": 676,
+    "deleted": 900
+  },
+  "runtime": "temporary services stopped; isolated fixtures retained",
+  "shared_build_target": "cleaned under exclusive build lock after binaries were copied",
+  "prior_failed_attempts": [
+    "PostgreSQL container port changed",
+    "outdated formatting/density assertions",
+    "missing ONNX link configuration",
+    "CLI runner assumed attempt 1",
+    "temporary ledger used absolute fixture paths"
+  ],
+  "limits": [
+    "No paid model quality A/B or real provider cache hit-rate measurement",
+    "CLI suites cover specified workflows; not the full 419-command manifest"
+  ]
+}

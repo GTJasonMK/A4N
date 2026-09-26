@@ -20,7 +20,25 @@ use a4n_db_models::models::project::{
     novel_project, project_source_snapshot, source_snapshot_chapter,
 };
 use sea_orm::sea_query::{Alias, Expr};
-use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, Linked, QueryFilter, QuerySelect};
+use sea_orm::{
+    ColumnTrait, ConnectionTrait, DbBackend, DbErr, EntityTrait, Linked, QueryFilter, QuerySelect,
+    Statement,
+};
+
+pub async fn project_source_snapshot_allowed<C: ConnectionTrait>(
+    db: &C,
+    project_id: i64,
+    source_snapshot_id: i64,
+) -> Result<bool, DbErr> {
+    Ok(db
+        .query_one(Statement::from_sql_and_values(
+            DbBackend::Postgres,
+            "SELECT 1 WHERE a4n_project_source_snapshot_allowed($1, $2)",
+            [project_id.into(), source_snapshot_id.into()],
+        ))
+        .await?
+        .is_some())
+}
 
 pub async fn derived_project_family_access_ids<C>(
     db: &C,
@@ -230,9 +248,9 @@ where
                 project.id, root_project.id
             )));
         }
-        if project.source_snapshot_id != Some(source_snapshot_id) {
+        if !project_source_snapshot_allowed(db, project.id, source_snapshot_id).await? {
             return Err(ProjectFamilyDbError::InvalidArgument(format!(
-                "派生项目 {} 未绑定源文本快照 {}",
+                "派生项目 {} 未使用源文本快照 {}",
                 project.id, source_snapshot_id
             )));
         }

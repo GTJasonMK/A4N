@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use a4n_db::blueprint::context::blueprint_llm_context;
-use a4n_db::inspiration::{INSPIRATION_HISTORY_LIMIT, inspiration_messages_llm_context};
+use a4n_db::inspiration::inspiration_messages_llm_context;
 use a4n_db::workflow::UpsertWorkflowRunInput;
 use a4n_domain::project::{
     BLUEPRINT_REFINEMENT_MODE, BLUEPRINT_REFINEMENT_WORKFLOW_KIND,
@@ -39,9 +39,7 @@ pub(super) async fn prepare_blueprint_refine(
             operation: "优化故事蓝图".to_string(),
         });
     }
-    let inspiration_history = context
-        .inspiration_messages(project_id, INSPIRATION_HISTORY_LIMIT)
-        .await?;
+    let inspiration_history = context.inspiration_messages(project_id).await?;
     let expected_source_snapshot =
         blueprint_refine_source_snapshot(&source_rows, &inspiration_history);
     let blueprint = source_rows

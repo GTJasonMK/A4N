@@ -1,7 +1,4 @@
-use a4n_llm_context::{
-    COMPRESSION_FOCUSED_RAW, COMPRESSION_FULL_RAW, COMPRESSION_MINIMAL, LlmContextLedgerPackDraft,
-    LlmContextLedgerPackInput,
-};
+use a4n_llm_context::{COMPRESSION_FULL_RAW, LlmContextLedgerPackDraft, LlmContextLedgerPackInput};
 
 use a4n_error::AppError;
 use serde_json::{Value, json};
@@ -32,10 +29,9 @@ pub(super) fn previous_stage_pack(
         }),
         required: true,
         stable_prefix: true,
-        variants: vec![
-            LlmContextLedgerPackDraft::new(COMPRESSION_FULL_RAW, previous_content.clone()),
-            LlmContextLedgerPackDraft::new(COMPRESSION_FOCUSED_RAW, previous_content.clone()),
-            LlmContextLedgerPackDraft::new(COMPRESSION_MINIMAL, previous_content),
-        ],
+        variants: vec![LlmContextLedgerPackDraft::new(
+            COMPRESSION_FULL_RAW,
+            previous_content,
+        )],
     })
 }

@@ -12,7 +12,7 @@ mod manifest;
 mod output_packs;
 mod source_packs;
 
-use contracts::{VIDEO_BUILDER_RULES_TEMPLATE, VIDEO_CONTEXT_LEDGER_VERSION, VIDEO_CONTEXT_SCOPE};
+use contracts::{VIDEO_CONTEXT_LEDGER_VERSION, VIDEO_CONTEXT_SCOPE};
 use dependencies::record_prompt_dependencies;
 use output_packs::{add_optional_value_pack, add_previous_output_pack};
 use source_packs::add_chapter_source_pack;

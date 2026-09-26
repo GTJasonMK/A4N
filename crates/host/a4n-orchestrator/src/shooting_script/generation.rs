@@ -20,163 +20,60 @@ use self::{
     },
 };
 use super::{
-    ChapterShootingScriptSourceInput, GenerateChapterShootingScriptInput,
+    ChapterShootingScriptSourceInput, ShootingScriptGenerationMode,
+    StartChapterShootingScriptGenerationInput,
     assembly::finish_generated_script,
     contracts::{
-        CHAPTER_SHOOTING_SCRIPT_PROGRESS_TOTAL, ChapterShootingScriptUnitProgress,
-        PreparedChapterShootingScriptRequest, RegenerateChapterShootingScriptInput,
-        ResolvedChapterShootingScript, ShootingScriptProgressReporter,
-        ShootingScriptStreamReporter,
+        CHAPTER_SHOOTING_SCRIPT_PROGRESS_TOTAL, PreparedChapterShootingScriptRequest,
+        RegenerateChapterShootingScriptInput, ResolvedChapterShootingScript,
+        ShootingScriptProgressReporter, ShootingScriptStreamReporter,
     },
 };
 
-enum ShootingScriptGenerationOutcome {
-    Partial {
-        script: Box<a4n_domain::shooting_script::ChapterShootingScriptV1>,
-        completed_unit_count: usize,
-        total_unit_count: usize,
-    },
-    Complete {
-        resolved: Box<ResolvedChapterShootingScript>,
-        total_unit_count: usize,
-    },
+pub(super) enum ShootingScriptGenerationOutcome {
+    Partial(ChapterShootingScriptUnitProgressView),
+    Complete(Box<ResolvedChapterShootingScript>),
 }
 
 impl OrchestratorContext {
-    pub async fn generate_chapter_shooting_script_for_user_validated(
+    pub(super) async fn generate_shooting_script_for_user(
         &self,
         user_id: i64,
-        source: GenerateChapterShootingScriptInput,
+        source: StartChapterShootingScriptGenerationInput,
         progress: ShootingScriptProgressReporter<'_>,
-        stream_reporter: Option<ShootingScriptStreamReporter<'_>>,
-        cancel_token: Option<&CancellationToken>,
-        active_task_id: Option<&str>,
-    ) -> Result<ResolvedChapterShootingScript, AppError> {
+        stream_reporter: ShootingScriptStreamReporter<'_>,
+        cancel_token: &CancellationToken,
+        active_task_id: &str,
+    ) -> Result<ShootingScriptGenerationOutcome, AppError> {
         self.verify_project_or_derived_family_editor_validated(user_id, source.project_id)
             .await?;
-        self.generate_chapter_shooting_script_with_progress(
-            user_id,
-            source,
-            progress,
-            stream_reporter,
-            cancel_token,
-            active_task_id,
-        )
-        .await
-    }
-
-    pub async fn generate_next_chapter_shooting_script_unit_for_user_validated(
-        &self,
-        user_id: i64,
-        source: GenerateChapterShootingScriptInput,
-        progress: ShootingScriptProgressReporter<'_>,
-        stream_reporter: Option<ShootingScriptStreamReporter<'_>>,
-        cancel_token: Option<&CancellationToken>,
-        active_task_id: Option<&str>,
-    ) -> Result<ChapterShootingScriptUnitProgress, AppError> {
-        self.verify_project_or_derived_family_editor_validated(user_id, source.project_id)
-            .await?;
-        super::validate_shooting_generation_mode(
-            a4n_api_contract::shooting_script::ShootingScriptGenerationMode::NextScene,
-            &source.shot_ids,
-        )?;
         let input = self
-            .begin_chapter_shooting_script_generation(&source, active_task_id)
+            .begin_chapter_shooting_script_generation(&source, Some(active_task_id))
             .await?;
         let workflow_run_id = input.workflow_run_id;
         let result = self
             .regenerate_chapter_shooting_script_units_with_progress(
                 user_id,
                 input,
-                true,
+                source.mode == ShootingScriptGenerationMode::NextScene,
                 progress,
                 stream_reporter,
                 cancel_token,
             )
             .await;
-        match result {
-            Ok(ShootingScriptGenerationOutcome::Partial {
-                script,
-                completed_unit_count,
-                total_unit_count,
-            }) => {
-                let reason = format!(
-                    "已在场景边界暂停：已完成 {completed_unit_count}/{total_unit_count} 个场景"
-                );
-                self.mark_workflow_status(
-                    workflow_run_id,
-                    WORKFLOW_STATUS_INTERRUPTED,
-                    true,
-                    Some(&reason),
-                )
-                .await?;
-                Ok(ChapterShootingScriptUnitProgress {
-                    workflow_run_id,
-                    script: *script,
-                    completed_unit_count,
-                    total_unit_count,
-                    resolved: None,
-                })
-            }
-            Ok(ShootingScriptGenerationOutcome::Complete {
-                resolved,
-                total_unit_count,
-            }) => {
-                let progress = ChapterShootingScriptUnitProgress {
-                    workflow_run_id,
-                    script: resolved.shooting_script.script.clone(),
-                    completed_unit_count: total_unit_count,
-                    total_unit_count,
-                    resolved: Some(*resolved),
-                };
-                self.finalize_shooting_script_result(
-                    workflow_run_id,
-                    Ok(progress),
-                    "章节拍摄剧本单元生成",
-                )
-                .await
-            }
-            Err(error) => {
-                self.finalize_shooting_script_result::<ChapterShootingScriptUnitProgress>(
-                    workflow_run_id,
-                    Err(error),
-                    "章节拍摄剧本单元生成",
-                )
-                .await
-            }
-        }
-    }
-
-    async fn generate_chapter_shooting_script_with_progress(
-        &self,
-        user_id: i64,
-        source: GenerateChapterShootingScriptInput,
-        progress: ShootingScriptProgressReporter<'_>,
-        stream_reporter: Option<ShootingScriptStreamReporter<'_>>,
-        cancel_token: Option<&CancellationToken>,
-        active_task_id: Option<&str>,
-    ) -> Result<ResolvedChapterShootingScript, AppError> {
-        let input = self
-            .begin_chapter_shooting_script_generation(&source, active_task_id)
-            .await?;
-        let workflow_run_id = input.workflow_run_id;
-        let result = self
-            .regenerate_chapter_shooting_script_units_with_progress(
-                user_id,
-                input,
-                false,
-                progress,
-                stream_reporter,
-                cancel_token,
+        if let Ok(ShootingScriptGenerationOutcome::Partial(progress)) = &result {
+            self.mark_workflow_status(
+                workflow_run_id,
+                WORKFLOW_STATUS_INTERRUPTED,
+                true,
+                Some(&format!(
+                    "已在场景边界暂停：已完成 {}/{} 个场景",
+                    progress.completed_unit_count, progress.total_unit_count,
+                )),
             )
-            .await
-            .and_then(|outcome| match outcome {
-                ShootingScriptGenerationOutcome::Complete { resolved, .. } => Ok(*resolved),
-                ShootingScriptGenerationOutcome::Partial { .. } => Err(AppError::InvalidState {
-                    current: "partial_shooting_script".to_string(),
-                    operation: "发布完整章节拍摄剧本".to_string(),
-                }),
-            });
+            .await?;
+            return result;
+        }
         self.finalize_shooting_script_result(workflow_run_id, result, "章节拍摄剧本生成")
             .await
     }
@@ -189,18 +86,12 @@ impl OrchestratorContext {
     ) -> Result<T, AppError> {
         if matches!(&result, Err(AppError::Cancelled)) {
             let run = self.workflow_run_model_by_id(workflow_run_id).await?;
-            if run.status == a4n_domain::workflow::WORKFLOW_STATUS_RUNNING
-                && run
-                    .progress_json
-                    .as_ref()
-                    .and_then(|value| value.get("snapshot"))
-                    .is_some()
-            {
+            if run.status == a4n_domain::workflow::WORKFLOW_STATUS_RUNNING {
                 self.mark_workflow_status(
                     workflow_run_id,
                     WORKFLOW_STATUS_INTERRUPTED,
                     true,
-                    Some("生成已停止，已完成场景已保存，可继续改编"),
+                    Some("生成已停止，已完成阶段已保存，可继续改编"),
                 )
                 .await?;
                 return result;
@@ -212,7 +103,7 @@ impl OrchestratorContext {
 
     async fn begin_chapter_shooting_script_generation(
         &self,
-        source: &GenerateChapterShootingScriptInput,
+        source: &StartChapterShootingScriptGenerationInput,
         active_task_id: Option<&str>,
     ) -> Result<RegenerateChapterShootingScriptInput, AppError> {
         let (workflow_input, shot_ids) = self
@@ -232,7 +123,7 @@ impl OrchestratorContext {
 
     pub(crate) async fn prepare_shooting_script_workflow_input(
         &self,
-        source: &GenerateChapterShootingScriptInput,
+        source: &StartChapterShootingScriptGenerationInput,
         active_task_id: Option<&str>,
     ) -> Result<(crate::workflow::UpsertWorkflowRunInput, Vec<String>), AppError> {
         let source_input = ChapterShootingScriptSourceInput {
@@ -300,8 +191,8 @@ impl OrchestratorContext {
         input: RegenerateChapterShootingScriptInput,
         stop_after_next_unit: bool,
         progress: ShootingScriptProgressReporter<'_>,
-        stream_reporter: Option<ShootingScriptStreamReporter<'_>>,
-        cancel_token: Option<&CancellationToken>,
+        stream_reporter: ShootingScriptStreamReporter<'_>,
+        cancel_token: &CancellationToken,
     ) -> Result<ShootingScriptGenerationOutcome, AppError> {
         let workflow_run_id = input.workflow_run_id;
         let progress_total = CHAPTER_SHOOTING_SCRIPT_PROGRESS_TOTAL;
@@ -409,7 +300,6 @@ impl OrchestratorContext {
                             script: script.clone(),
                             completed_unit_count: offset + 1,
                             total_unit_count,
-                            completed_record: None,
                         },
                     })?,
                 )
@@ -426,11 +316,14 @@ impl OrchestratorContext {
                         total_unit_count
                     ),
                 )?;
-                return Ok(ShootingScriptGenerationOutcome::Partial {
-                    completed_unit_count: offset + 1,
-                    total_unit_count,
-                    script: Box::new(script),
-                });
+                return Ok(ShootingScriptGenerationOutcome::Partial(
+                    ChapterShootingScriptUnitProgressView {
+                        workflow_run_id,
+                        completed_unit_count: offset + 1,
+                        total_unit_count,
+                        script,
+                    },
+                ));
             }
         }
 
@@ -471,10 +364,9 @@ impl OrchestratorContext {
             )
             .await?;
         progress(progress_total, progress_total, "结构化拍摄剧本已原子发布")?;
-        Ok(ShootingScriptGenerationOutcome::Complete {
-            resolved: Box::new(resolved),
-            total_unit_count,
-        })
+        Ok(ShootingScriptGenerationOutcome::Complete(Box::new(
+            resolved,
+        )))
     }
 
     async fn saved_shooting_script_progress(

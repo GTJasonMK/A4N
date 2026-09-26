@@ -2,7 +2,7 @@ use super::contracts::InspirationDbError;
 use super::project::ensure_inspiration_project_exists;
 use a4n_db_models::models::user::{conversation, message};
 use a4n_domain::inspiration::InspirationExchangeInsertInput;
-use chrono::{Duration, Utc};
+use chrono::Utc;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, DatabaseTransaction, EntityTrait,
     QueryFilter, QueryOrder, QuerySelect, Set,
@@ -11,6 +11,7 @@ use serde_json::{Value, json};
 
 const INSPIRATION_CONVERSATION_TYPE: &str = "inspiration";
 const INSPIRATION_CONVERSATION_TITLE: &str = "灵感对话";
+/// 界面历史列表上限；模型调用传 None，保留此前仍有效的用户约束。
 pub const INSPIRATION_HISTORY_LIMIT: u64 = 80;
 
 pub fn inspiration_messages_llm_context(messages: &[message::Model]) -> Vec<Value> {
@@ -81,7 +82,7 @@ pub async fn ensure_inspiration_conversation(
 pub async fn inspiration_messages(
     db: &DatabaseConnection,
     project_id: i64,
-    limit: u64,
+    limit: Option<u64>,
 ) -> Result<Vec<message::Model>, InspirationDbError> {
     ensure_inspiration_project_exists(db, project_id).await?;
     inspiration_messages_for_connection(db, project_id, limit).await
@@ -90,7 +91,7 @@ pub async fn inspiration_messages(
 pub async fn inspiration_messages_for_connection<C>(
     db: &C,
     project_id: i64,
-    limit: u64,
+    limit: Option<u64>,
 ) -> Result<Vec<message::Model>, InspirationDbError>
 where
     C: sea_orm::ConnectionTrait,
@@ -100,7 +101,7 @@ where
     };
     let mut rows = message::Entity::find()
         .filter(message::Column::ConversationId.eq(conversation.id))
-        .order_by_desc(message::Column::CreatedAt)
+        .order_by_desc(message::Column::Id)
         .limit(limit)
         .all(db)
         .await
@@ -152,7 +153,7 @@ pub async fn insert_inspiration_exchange_in_transaction(
         completion_tokens: Set(None),
         chapter_number: Set(None),
         is_important: Set(false),
-        created_at: Set(now + Duration::milliseconds(1)),
+        created_at: Set(now),
         ..Default::default()
     }
     .insert(tx)

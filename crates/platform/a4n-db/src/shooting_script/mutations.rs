@@ -66,6 +66,15 @@ where
     }
     .insert(db)
     .await?;
+    if record.source_snapshot_id.is_none() {
+        crate::project::mark_derived_projects_root_updated_in_record(
+            db,
+            record.root_project_id,
+            Some(record.source_chapter_id),
+            now,
+        )
+        .await?;
+    }
     parse_record(record)
 }
 
@@ -169,6 +178,15 @@ where
             record_id: input.record_id,
             expected_revision: input.expected_revision,
         });
+    }
+    if current.source_snapshot_id.is_none() {
+        crate::project::mark_derived_projects_root_updated_in_record(
+            db,
+            current.root_project_id,
+            Some(current.source_chapter_id),
+            Utc::now().naive_utc(),
+        )
+        .await?;
     }
     chapter_shooting_script_by_id(db, input.record_id).await
 }

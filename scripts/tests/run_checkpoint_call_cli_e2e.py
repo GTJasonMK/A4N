@@ -20,6 +20,7 @@ def main():
         parser.add_argument("--" + option, required=True)
     parser.add_argument("--password-env", default="A4N_PASSWORD")
     parser.add_argument("--provider-log", type=Path, required=True)
+    parser.add_argument("--embedding-dimension", type=int, default=384)
     parser.add_argument("--report", type=Path, required=True)
     args = parser.parse_args()
     args.report.parent.mkdir(parents=True, exist_ok=True)
@@ -55,7 +56,7 @@ def main():
                 return message
 
             def model(fault=None):
-                snapshot = runtime_snapshot(args.provider_url, embedding_dimension=384)
+                snapshot = runtime_snapshot(args.provider_url, embedding_dimension=args.embedding_dimension)
                 snapshot["llm"]["model"] = "a4n-checkpoint-fail-" + fault if fault else "a4n-checkpoint-valid"
                 secure_json(work / "runtime.json", snapshot)
                 checked(cli, ["config", "runtime", "set", "--input", "@" + str(work / "runtime.json")], "runtime")
@@ -76,6 +77,18 @@ def main():
                         return state
                     time.sleep(0.1)
                 raise RunnerError("fixture task did not terminate")
+
+            def shooting(source, expected=None):
+                state = task(call("start_chapter_shooting_script_generation", {
+                    **source, "mode": "full", "meta": {"start_request_id": str(uuid.uuid4())},
+                }), expected)
+                if expected:
+                    return state["terminal_event"]
+                result = call("get_chapter_shooting_script", {
+                    "project_id": source["project_id"], "source_chapter_id": source["source_chapter_id"],
+                })
+                assert state["result_ref"]["id"] == str(result["record"]["id"]), state
+                return result
 
             def new_project(title):
                 project = checked(cli, ["project", "create", "--title", title, "--project-type", "novel_long", "--use-context"], "project")[0]["data"]
@@ -117,13 +130,13 @@ def main():
                 source, _ = shooting_source(fault, 2)
                 model(fault)
                 before = len(calls())
-                error = reject("generate_chapter_shooting_script", source, expected)
+                error = shooting(source, expected)
                 assert len(calls()) - before == prefix + 1, (fault, len(calls()) - before)
                 failed = detail(source["project_id"], "chapter_shooting_script")
                 assert sum(item["status"] == "completed" for item in failed["checkpoints"]) == prefix, failed
                 model()
                 before = len(calls())
-                result = call("generate_chapter_shooting_script", source)
+                result = shooting(source)
                 assert len(result["script"]["scenes"]) == 2, result
                 assert len(calls()) - before == 6 - prefix, (fault, len(calls()) - before)
                 report["checks"].append({"fault": fault, "error": error, "reused_calls": prefix, "retry_calls": 6 - prefix})
@@ -131,7 +144,7 @@ def main():
             source, _ = shooting_source("shooting second-shot checkpoint", 1, shots_per_unit=3)
             model("shooting-design-second-shot")
             before = len(calls())
-            reject("generate_chapter_shooting_script", source, "lens_intent")
+            shooting(source, "lens_intent")
             assert len(calls()) - before == 4, len(calls()) - before
             failed = detail(source["project_id"], "chapter_shooting_script")
             assert {item["step_key"] for item in failed["checkpoints"] if item["status"] == "completed"} == {
@@ -139,13 +152,13 @@ def main():
             }, failed
             model()
             before = len(calls())
-            result = call("generate_chapter_shooting_script", source)
+            result = shooting(source)
             assert len(result["script"]["scenes"]) == 1 and len(result["script"]["scenes"][0]["shots"]) == 3, result
             assert len(calls()) - before == 2, len(calls()) - before
             report["checks"].append({"fault": "shooting-design-second-shot", "reused_calls": 3, "retry_calls": 2})
 
             video_source, video_chapter_id = shooting_source("video strict JSON checkpoint", 2)
-            call("generate_chapter_shooting_script", video_source)
+            shooting(video_source)
             video_request = {"project_id": video_source["project_id"], "operation": {
                 "kind": "prompt_segment_plan", "chapter_id": video_chapter_id, "options": {
                     "workflow_mode": "shared_segment_plan", "style": "电影感", "prompt_output_language": "zh_cn",
@@ -180,7 +193,7 @@ def main():
             report["checks"].append({"fault": "blueprint-characters", "reused_calls": 2, "retry_calls": 2})
 
             source, chapter_id = shooting_source("derived media checkpoint boundary", 1)
-            call("generate_chapter_shooting_script", source)
+            shooting(source)
             for name in ("林岚", "周衡"):
                 call("create_profile", {"project_id": source["project_id"], "name": name,
                     "base_attributes": {"explicit_attributes": {}, "implicit_attributes": {}, "social_attributes": {}}})
@@ -204,10 +217,15 @@ def main():
                 assert len(calls()) - before == 4 - prefix, (fault, len(calls()) - before)
                 report["checks"].append({"fault": fault, "error": error, "reused_calls": prefix, "retry_calls": 4 - prefix})
 
-            def manga_result(project_id, expected=None):
+            def manga_result(project_id, expected=None, previous=None):
                 deadline = time.monotonic() + 60
                 while time.monotonic() < deadline:
                     result = call("get_manga_pipeline_status", {"project_id": project_id, "chapter_id": chapter_id})
+                    # Terminal summaries clear task_id. Wait for the resumed run to replace its old state.
+                    if result == previous:
+                        time.sleep(0.1)
+                        continue
+                    previous = None
                     if result["pipeline_status"] in {"completed", "failed", "cancelled"}:
                         assert result["pipeline_status"] == ("failed" if expected else "completed"), result
                         if expected:
@@ -224,18 +242,18 @@ def main():
                 ("manga-drawing", 7, "image_prompt"),
             ]:
                 manga_source, chapter_id = shooting_source(fault, 1)
-                call("generate_chapter_shooting_script", manga_source)
+                shooting(manga_source)
                 project_id = manga_source["project_id"]
                 value = {"project_id": project_id, "chapter_number": 1}
                 model(fault)
                 before = len(calls())
                 call("start_manga_pipeline", value)
-                manga_result(project_id, expected)
+                failed = manga_result(project_id, expected)
                 assert len(calls()) - before == prefix + 1, (fault, len(calls()) - before)
                 model()
                 before = len(calls())
                 call("resume_manga_pipeline", value)
-                manga_result(project_id)
+                manga_result(project_id, previous=failed)
                 pages = call("list_manga_page_prompts", {"project_id": project_id, "chapter_id": chapter_id})
                 assert pages and len(calls()) - before == 6 + len(pages) - prefix, (fault, len(calls()) - before, len(pages))
                 report["checks"].append({"fault": fault, "reused_calls": prefix, "retry_calls": len(calls()) - before})

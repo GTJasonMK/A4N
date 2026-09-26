@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use a4n_db::blueprint::context::blueprint_llm_context;
-use a4n_db::inspiration::{INSPIRATION_HISTORY_LIMIT, inspiration_messages_llm_context};
+use a4n_db::inspiration::inspiration_messages_llm_context;
 use a4n_error::AppError;
 use a4n_llm_provider_contract::provider::ChatRequest;
 use a4n_prompt::blueprint_generation::build_blueprint_refine_request;
@@ -29,7 +29,7 @@ impl OrchestratorContext {
             self.load_blueprint(project_id),
             self.load_blueprint_characters(project_id),
             self.load_blueprint_relationships(project_id),
-            self.inspiration_messages(project_id, INSPIRATION_HISTORY_LIMIT),
+            self.inspiration_messages(project_id),
         );
         let blueprint = blueprint?.ok_or_else(|| AppError::NotFound("蓝图不存在".to_string()))?;
         let characters = characters?;

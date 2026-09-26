@@ -21,17 +21,10 @@ def annotated_source_pairs(combined: str) -> list[tuple[str, str]]:
 
 def source_span_pairs(combined: str) -> list[tuple[str, str]]:
     annotated = [(identifier, quote) for identifier, quote in annotated_source_pairs(combined) if identifier.startswith("ch")]
-    if annotated:
-        return annotated
-    return list(
-        dict.fromkeys(
-            re.findall(
-                r'"id"\s*:\s*"(ch\d+:s\d+:f\d+)"\s*,\s*'
-                r'"paragraph_index"\s*:\s*\d+\s*,\s*"text"\s*:\s*"([^"]+)"',
-                combined,
-            )
-        )
-    )
+    structured = [(value["id"], value["text"]) for value in embedded_json_objects(combined)
+                  if isinstance(value.get("id"), str) and re.fullmatch(r"ch\d+:s\d+:f\d+", value["id"])
+                  and isinstance(value.get("text"), str)]
+    return list(dict.fromkeys([*annotated, *structured]))
 
 
 def source_span_id(combined: str, phrase: str, fallback_index: int = 0) -> str:

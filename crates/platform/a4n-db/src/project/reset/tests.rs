@@ -200,85 +200,175 @@ async fn reset_returns_only_paths_unreferenced_after_transaction_cleanup() {
 #[tokio::test]
 async fn reset_deletes_scene_occurrences_before_chapters() {
     let db = setup_db().await;
-    let project = text_project(&db, "场景出场重置顺序测试").await;
-    let chapter = chapter_record(&db, project.id).await;
-    let scene_profile = crate::scene_profile::create_scene_profile_record(
-        &db,
-        project.id,
-        SceneProfileRecordInput {
-            name: "旧车站".to_string(),
-            normalized_name: "旧车站".to_string(),
-            aliases_json: json!([]),
-            scene_type: "location".to_string(),
-            importance: "primary".to_string(),
-            parent_scene_id: None,
-            base_description: "废弃站台".to_string(),
-            visual_description: "雨幕中的钟楼".to_string(),
-            spatial_layout: "站厅连接钟楼".to_string(),
-            atmosphere: "潮湿而紧张".to_string(),
-            entry_points_json: json!([]),
-            rules_json: json!([]),
-            first_seen_chapter: 1,
-            last_seen_chapter: 1,
-            evidence_json: json!([]),
-            image_prompt_seed: "雨夜旧车站".to_string(),
-        },
-        PROFILE_OWNERSHIP_AI_SYNC,
-    )
-    .await
-    .unwrap();
-    let now = Utc::now().naive_utc();
-    scene_occurrence::ActiveModel {
-        project_id: Set(project.id),
-        scene_profile_id: Set(scene_profile.id),
-        chapter_id: Set(chapter.id),
-        chapter_number: Set(1),
-        occurrence_order: Set(1),
-        timeline_position: Set(None),
-        summary: Set("林岚进入旧车站".to_string()),
-        mood: Set(None),
-        weather_or_lighting: Set(None),
-        source_span_ids_json: Set(json!([])),
-        evidence_json: Set(json!([])),
-        characters_json: Set(json!([])),
-        objects_json: Set(json!([])),
-        key_events_json: Set(json!([])),
-        entry_state_json: Set(json!({})),
-        exit_state_json: Set(json!({})),
-        created_at: Set(now),
-        updated_at: Set(now),
-        ..Default::default()
-    }
-    .insert(&db)
-    .await
-    .unwrap();
-
-    let project_id = project.id;
-    let mut gated_project: novel_project::ActiveModel = project.into();
-    gated_project.lifecycle_gate = Set(crate::generation::PROJECT_GATE_RESETTING.to_string());
-    gated_project.update(&db).await.unwrap();
-
-    let outcome = reset_project_generated_data_record(&db, project_id)
+    for preserve_source in [false, true] {
+        let project = text_project(&db, "场景出场重置顺序测试").await;
+        let chapter = chapter_record(&db, project.id).await;
+        let scene_profile = crate::scene_profile::create_scene_profile_record(
+            &db,
+            project.id,
+            SceneProfileRecordInput {
+                name: "旧车站".to_string(),
+                normalized_name: "旧车站".to_string(),
+                aliases_json: json!([]),
+                scene_type: "location".to_string(),
+                importance: "primary".to_string(),
+                parent_scene_id: None,
+                base_description: "废弃站台".to_string(),
+                visual_description: "雨幕中的钟楼".to_string(),
+                spatial_layout: "站厅连接钟楼".to_string(),
+                atmosphere: "潮湿而紧张".to_string(),
+                entry_points_json: json!([]),
+                rules_json: json!([]),
+                first_seen_chapter: 1,
+                last_seen_chapter: 1,
+                evidence_json: json!([]),
+                image_prompt_seed: "雨夜旧车站".to_string(),
+            },
+            PROFILE_OWNERSHIP_AI_SYNC,
+        )
+        .await
+        .unwrap();
+        let now = Utc::now().naive_utc();
+        scene_occurrence::ActiveModel {
+            project_id: Set(project.id),
+            scene_profile_id: Set(scene_profile.id),
+            chapter_id: Set(chapter.id),
+            chapter_number: Set(1),
+            occurrence_order: Set(1),
+            timeline_position: Set(None),
+            summary: Set("林岚进入旧车站".to_string()),
+            mood: Set(None),
+            weather_or_lighting: Set(None),
+            source_span_ids_json: Set(json!([])),
+            evidence_json: Set(json!([])),
+            characters_json: Set(json!([])),
+            objects_json: Set(json!([])),
+            key_events_json: Set(json!([])),
+            entry_state_json: Set(json!({})),
+            exit_state_json: Set(json!({})),
+            created_at: Set(now),
+            updated_at: Set(now),
+            ..Default::default()
+        }
+        .insert(&db)
         .await
         .unwrap();
 
-    assert_eq!(outcome.result.deleted_scene_occurrences, 1);
-    assert_eq!(
-        scene_occurrence::Entity::find()
-            .filter(scene_occurrence::Column::ProjectId.eq(project_id))
-            .count(&db)
+        let image = generated_image_record(
+            &db,
+            project.id,
+            Some(chapter.id),
+            &format!("projects/{}/images/frozen.png", project.id),
+        )
+        .await;
+        if preserve_source {
+            use crate::chapter_visual_plan::SaveChapterVisualPlanDraftInput;
+            use a4n_domain::chapter_visual_plan::{
+                ChapterVisualPlanAuthoringMode, ChapterVisualPlanV3, ConfirmChapterVisualPlanInput,
+                SceneBindingV3,
+            };
+            let mut plan = ChapterVisualPlanV3::starter();
+            plan.points[0].image_id = Some(image.id);
+            plan.segments[0].scene_binding = Some(SceneBindingV3::Scene {
+                scene_profile_id: scene_profile.id,
+            });
+            plan.segments[0].prompt = "林岚进入旧车站".into();
+            let saved = crate::chapter_visual_plan::save_chapter_visual_plan_draft(
+                &db,
+                SaveChapterVisualPlanDraftInput {
+                    source: crate::project::resolve_chapter_source(&db, project.id, chapter.id)
+                        .await
+                        .unwrap(),
+                    author_user_id: 1,
+                    authoring_mode: ChapterVisualPlanAuthoringMode::Manual,
+                    expected: None,
+                    expected_source_hash: None,
+                    plan,
+                },
+            )
             .await
-            .unwrap(),
-        0
-    );
-    assert_eq!(
-        chapter::Entity::find()
-            .filter(chapter::Column::ProjectId.eq(project_id))
-            .count(&db)
+            .unwrap();
+            crate::chapter_visual_plan::confirm_chapter_visual_plan(
+                &db,
+                ConfirmChapterVisualPlanInput {
+                    record_id: saved.record.id,
+                    expected_revision: saved.record.revision,
+                },
+            )
             .await
-            .unwrap(),
-        0
-    );
+            .unwrap();
+            crate::project::create_derived_project_record(
+                &db,
+                1,
+                crate::project::CreateDerivedProjectParams {
+                    root_project_id: project.id,
+                    derived_kind: "galgame".into(),
+                    title: "保留冻结导演资源".into(),
+                    description: String::new(),
+                    chapter_scope: crate::project::DerivedChapterScope {
+                        start_chapter: 1,
+                        end_chapter: 1,
+                    },
+                },
+            )
+            .await
+            .unwrap();
+        }
+        let project_id = project.id;
+        let mut gated_project: novel_project::ActiveModel = project.into();
+        gated_project.lifecycle_gate = Set(crate::generation::PROJECT_GATE_RESETTING.to_string());
+        gated_project.update(&db).await.unwrap();
+
+        let outcome = reset_project_generated_data_record(&db, project_id)
+            .await
+            .unwrap();
+
+        assert_eq!(outcome.result.deleted_scene_occurrences, 1);
+        assert_eq!(
+            outcome.result.deleted_scene_profiles,
+            u64::from(!preserve_source)
+        );
+        assert_eq!(
+            outcome.result.deleted_generated_images,
+            u64::from(!preserve_source)
+        );
+        let retained_profile =
+            a4n_db_models::models::scene::scene_profile::Entity::find_by_id(scene_profile.id)
+                .one(&db)
+                .await
+                .unwrap();
+        let retained_image = generated_image::Entity::find_by_id(image.id)
+            .one(&db)
+            .await
+            .unwrap();
+        assert_eq!(retained_profile.is_some(), preserve_source);
+        assert_eq!(retained_image.is_some(), preserve_source);
+        if preserve_source {
+            let profile = retained_profile.unwrap();
+            assert_eq!(profile.name, "旧车站");
+            assert_eq!(profile.first_seen_chapter, 0);
+            assert_eq!(profile.last_seen_chapter, 0);
+            assert_eq!(profile.current_state_json, json!({}));
+            assert_eq!(retained_image.unwrap().chapter_id, None);
+            assert!(!outcome.media_paths.contains(&image.file_path));
+        }
+        assert_eq!(
+            scene_occurrence::Entity::find()
+                .filter(scene_occurrence::Column::ProjectId.eq(project_id))
+                .count(&db)
+                .await
+                .unwrap(),
+            0
+        );
+        assert_eq!(
+            chapter::Entity::find()
+                .filter(chapter::Column::ProjectId.eq(project_id))
+                .count(&db)
+                .await
+                .unwrap(),
+            0
+        );
+    }
 }
 
 #[tokio::test]

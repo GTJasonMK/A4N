@@ -904,11 +904,12 @@ def fixture_payload(
             record_id=state.get("visual_plan_id", input_value.get("record_id")),
             expected_revision=state.get("visual_plan_revision", input_value.get("expected_revision")),
         )
-    elif command == "generate_chapter_shooting_script" and input_value is not None:
+    elif command == "start_chapter_shooting_script_generation" and input_value is not None:
         input_value.update(
             project_id=state.get("project_id", input_value.get("project_id")),
             source_chapter_id=state.get("chapter_id", input_value.get("source_chapter_id")),
             visual_plan_id=state.get("visual_plan_id", input_value.get("visual_plan_id")),
+            mode="full",
         )
     elif command == "start_manga_pipeline" and input_value is not None:
         input_value.update(
@@ -1344,7 +1345,7 @@ FIXTURE_PATHS: dict[str, tuple[str, ...]] = {
         "save_chapter_visual_plan_draft",
         "confirm_chapter_visual_plan",
         "get_chapter_visual_plan",
-        "generate_chapter_shooting_script",
+        "start_chapter_shooting_script_generation",
         "get_chapter_shooting_script",
     ),
     "profiles_and_materials": (
@@ -1928,23 +1929,25 @@ def seed_fixtures(
         "get_chapter_visual_plan",
         {"input": {"project_id": project_id, "source_chapter_id": chapter_id}},
     )
-    shooting_script = call(
-        "generate_chapter_shooting_script",
+    task(
+        "start_chapter_shooting_script_generation",
         {
             "input": {
                 "project_id": project_id,
                 "source_chapter_id": chapter_id,
                 "visual_plan_id": visual_plan_id,
+                "mode": "full",
+                "meta": {"start_request_id": str(uuid.uuid4())},
             }
         },
     )
-    shooting_data = shooting_script.get("data")
-    if not isinstance(shooting_data, dict) or not isinstance(shooting_data.get("script"), dict):
-        raise RunnerError("fixture generate_chapter_shooting_script 未返回 script")
-    call(
+    shooting_script = call(
         "get_chapter_shooting_script",
         {"input": {"project_id": project_id, "source_chapter_id": chapter_id, "visual_plan_id": visual_plan_id}},
     )
+    shooting_data = shooting_script.get("data")
+    if not isinstance(shooting_data, dict) or not isinstance(shooting_data.get("script"), dict):
+        raise RunnerError("fixture get_chapter_shooting_script 未返回 script")
 
     profile_name = f"CLI fixture character {run_id[-8:]}"
     co_profile_name = f"CLI fixture supporting character {run_id[-8:]}"

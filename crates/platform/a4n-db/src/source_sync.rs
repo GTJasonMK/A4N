@@ -107,6 +107,19 @@ pub enum SourceSyncDbError {
     Database(#[from] DbErr),
 }
 
+impl From<crate::project::ProjectMutationError> for SourceSyncDbError {
+    fn from(error: crate::project::ProjectMutationError) -> Self {
+        use crate::project::ProjectMutationError;
+        match error {
+            ProjectMutationError::InvalidArgument(message) => Self::InvalidArgument(message),
+            ProjectMutationError::NotFound(message) => Self::NotFound(message),
+            ProjectMutationError::Forbidden(message) => Self::Forbidden(message),
+            ProjectMutationError::Internal(message) => Self::Internal(message),
+            ProjectMutationError::Database(error) => Self::Database(error),
+        }
+    }
+}
+
 fn required_text<'a>(value: &'a str, label: &str) -> Result<&'a str, SourceSyncDbError> {
     let value = value.trim();
     if value.is_empty() {

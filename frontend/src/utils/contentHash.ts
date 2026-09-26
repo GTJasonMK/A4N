@@ -7,5 +7,22 @@ export async function sha256Hex(text: string): Promise<string | null> {
 }
 
 export function sha256Json(value: unknown): Promise<string | null> {
-  return sha256Hex(JSON.stringify(value));
+  return sha256Hex(canonicalJson(value));
+}
+
+/** Match the backend's RFC 8785 ordering and JavaScript number serialization. */
+export function canonicalJson(value: unknown): string {
+  // Normalize to JSON first so optional fields, arrays and toJSON keep their JSON semantics.
+  return encodeCanonicalJson(JSON.parse(JSON.stringify(value)));
+}
+
+function encodeCanonicalJson(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(encodeCanonicalJson).join(",")}]`;
+  if (value !== null && typeof value === "object") {
+    const object = value as Record<string, unknown>;
+    return `{${Object.keys(object).sort().map((key) =>
+      `${JSON.stringify(key)}:${encodeCanonicalJson(object[key])}`,
+    ).join(",")}}`;
+  }
+  return JSON.stringify(value);
 }

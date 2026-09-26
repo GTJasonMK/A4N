@@ -10,6 +10,7 @@ pub struct Model {
     pub id: i64,
     pub project_id: i64,
     pub root_project_id: i64,
+    /// Source of the full-script generation; each scene owns its current source.
     pub source_snapshot_id: i64,
     #[sea_orm(column_type = "Text")]
     pub title: String,

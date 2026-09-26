@@ -72,6 +72,9 @@ async fn generate_shared_segment_plan_stage_with_explicit_end_frame(
             segment["director_constraints"] = explicit_director_end_frame_for_test();
         }
     }
+    let segments = a4n_video_contract::video_segment_plan_from_metadata(&metadata).unwrap();
+    metadata["video_execution_identity"]["segment_identities"] =
+        a4n_video_contract::video_segment_identities(&segments).unwrap();
     let mut active: chapter_video_prompt::ActiveModel = plan.into();
     active.metadata_json = Set(Some(metadata));
     active.update(db).await.unwrap();

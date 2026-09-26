@@ -349,6 +349,8 @@ pub struct GalgameAssetPlanSummary {
 pub struct GalgameAssetPlanItem {
     pub canonical_key: String,
     pub label: String,
+    pub source_snapshot_id: i64,
+    pub source_label: String,
     pub target_kind: GalgameGenerationTargetKind,
     pub target_entity_kind: GalgameTargetEntityKind,
     pub target_entity_id: i64,

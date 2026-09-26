@@ -143,13 +143,16 @@ async fn deleting_script_is_revision_fenced_and_preserves_downstream_state() {
             .unwrap()
             .is_none()
     );
-    assert_eq!(
-        novel_project::Entity::find_by_id(downstream.id)
-            .one(&db)
-            .await
-            .unwrap(),
-        downstream_before
-    );
+    let mut downstream_after = novel_project::Entity::find_by_id(downstream.id)
+        .one(&db)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(downstream_after.source_sync_status, "root_updated");
+    let downstream_before = downstream_before.unwrap();
+    downstream_after.source_sync_status = downstream_before.source_sync_status.clone();
+    downstream_after.updated_at = downstream_before.updated_at;
+    assert_eq!(downstream_after, downstream_before);
     assert_eq!(
         generated_image::Entity::find_by_id(image.id)
             .one(&db)

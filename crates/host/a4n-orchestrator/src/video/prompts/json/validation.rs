@@ -10,6 +10,7 @@ mod shot;
 
 pub(super) use frame::validate_frame_prompt;
 pub(in crate::video) use prompt_text::direct_prompt_internal_reference_term;
+pub(in crate::video) use prompt_text::prompt_density_rule;
 use prompt_text::required_text;
 pub(super) use prompt_text::validate_inserted_segment_draft;
 pub use prompt_text::{
@@ -25,7 +26,7 @@ pub(in crate::video) use segment::validate_segment_plan;
 pub(super) use shot::{validate_model_shot, validate_shot};
 
 #[derive(Debug, Clone, Copy)]
-pub(super) enum PromptTextKind {
+pub(in crate::video) enum PromptTextKind {
     VideoVisual,
     VideoMotion,
     FramePrompt,

@@ -8,7 +8,7 @@ use super::{
     validation::validate_sha256,
 };
 
-pub(super) fn parse_record(
+pub(crate) fn parse_record(
     record: chapter_shooting_script::Model,
 ) -> Result<ParsedChapterShootingScript, ShootingScriptDbError> {
     if record.contract_version != CHAPTER_SHOOTING_SCRIPT_V1 {

@@ -43,6 +43,7 @@ import {
   guidanceModeForWorkflowChange,
   VIDEO_FRAME_IMAGE_PROMPT_MIN_CHARS,
   videoFrameImageContractForPromptType,
+  videoGuidanceConfigurationError,
 } from "./videoTabConstants";
 import { isDurationAllowed, promptLengthError } from "./videoOptionUtils";
 import {
@@ -359,7 +360,7 @@ export function useVideoTabActions(context: VideoTabActionInput) {
       return;
     }
     const guidanceMode = guidanceModeForWorkflowChange(mode, segmentNumber);
-    if (currentRecipe.workflow_mode === mode) {
+    if (currentRecipe.workflow_mode === mode && !videoGuidanceConfigurationError(mode, segmentNumber, currentRecipe.guidance_mode, t)) {
       await handleSelectSegment(segmentNumber);
       return;
     }

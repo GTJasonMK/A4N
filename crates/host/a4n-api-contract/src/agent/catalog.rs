@@ -202,7 +202,7 @@ pub fn agent_tools_for_capability(capability: &str) -> &'static [&'static str] {
 }
 
 /// Restricted capabilities receive their operational and skill tools up front.
-/// Only the main/general profiles use tool discovery to extend the window.
+/// Director discovery stays inside its capability catalog.
 pub fn initial_agent_tools(capability: &str) -> &'static [&'static str] {
     match capability.trim() {
         CONTENT_OPTIMIZATION_AGENT_CAPABILITY => &[

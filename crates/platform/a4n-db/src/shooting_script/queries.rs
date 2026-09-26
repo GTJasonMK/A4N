@@ -63,34 +63,14 @@ where
         .order_by_desc(chapter_shooting_script::Column::Id)
         .all(db)
         .await?;
-    let mut rows_by_source = HashMap::<SourceIdentity, chapter_shooting_script::Model>::new();
-    for row in rows {
-        let source_key = source_identity_from_record(&row);
-        rows_by_source.entry(source_key).or_insert(row);
-    }
-
-    let mut scripts_by_source =
-        HashMap::<SourceIdentity, Option<ParsedChapterShootingScript>>::new();
-    for source in sources {
-        let source_key = source_identity(source);
-        if scripts_by_source.contains_key(&source_key) {
-            continue;
-        }
-        let script = rows_by_source
-            .remove(&source_key)
-            .map(parse_record)
-            .transpose()?;
-        scripts_by_source.insert(source_key, script);
-    }
+    let scripts_by_source = rows
+        .into_iter()
+        .map(|row| Ok((source_identity_from_record(&row), parse_record(row)?)))
+        .collect::<Result<HashMap<_, _>, ShootingScriptDbError>>()?;
 
     Ok(sources
         .iter()
-        .map(|source| {
-            scripts_by_source
-                .get(&source_identity(source))
-                .cloned()
-                .unwrap_or_default()
-        })
+        .map(|source| scripts_by_source.get(&source_identity(source)).cloned())
         .collect())
 }
 

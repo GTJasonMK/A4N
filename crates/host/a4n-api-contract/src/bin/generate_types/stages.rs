@@ -865,9 +865,6 @@ pub(super) fn run() {
         &typescript_interface::<ChapterShootingScriptSourceInput>(
             "ChapterShootingScriptSourceInput",
         ),
-        &typescript_interface::<GenerateChapterShootingScriptInput>(
-            "GenerateChapterShootingScriptInput",
-        ),
         &typescript_type::<ShootingScriptGenerationMode>("ShootingScriptGenerationMode"),
         &typescript_interface::<StartChapterShootingScriptGenerationInput>(
             "StartChapterShootingScriptGenerationInput",

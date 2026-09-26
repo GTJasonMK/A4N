@@ -31,7 +31,7 @@ async fn legacy_scene_sources_require_one_complete_unchanged_frozen_cohort() {
             (1,1,11,4,'main',NULL),(2,1,11,9,'main',NULL),(3,1,11,10,'branch',NULL),
             (4,2,21,1,'main',NULL),(5,3,31,1,'main',NULL),(6,3,32,2,'main',NULL),
             (7,4,41,1,'main','unit:recorded'),(8,5,51,1,'main',NULL),(9,6,61,1,'main',NULL);
-        INSERT INTO source_sync_conflict VALUES (5,'resolved','regenerate_scene');
+        INSERT INTO source_sync_conflict VALUES (5,'obsolete','regenerate_scene');
         DISCARD PLANS;
         SELECT a4n_backfill_galgame_scene_sources(1);
         SELECT a4n_backfill_galgame_scene_sources(NULL::bigint);

@@ -5,8 +5,8 @@ mod types;
 mod validation;
 
 pub use current::{
-    ensure_chapter_content_anchor_records_batch, read_current_chapter_content_anchor_records_batch,
-    rebuild_chapter_content_anchor_records,
+    delete_chapter_content_anchor_records, ensure_chapter_content_anchor_records_batch,
+    read_current_chapter_content_anchor_records_batch, rebuild_chapter_content_anchor_records,
 };
 pub(crate) use evidence::delete_chapter_content_profile_evidence_records_batch;
 pub use evidence::{

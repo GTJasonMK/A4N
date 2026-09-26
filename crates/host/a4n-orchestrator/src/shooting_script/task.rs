@@ -1,13 +1,13 @@
-use std::sync::Mutex;
-
 use a4n_api_contract::{
     generation_tasks::GenerationTaskHandle,
-    shooting_script::{ShootingScriptGenerationMode, StartChapterShootingScriptGenerationInput},
+    shooting_script::StartChapterShootingScriptGenerationInput,
 };
 use a4n_error::AppError;
 use a4n_progress::ProgressPhaseKind;
 use a4n_service_protocol::{GenerationError, GenerationResultRef};
 use tokio::sync::mpsc;
+
+use super::generation::ShootingScriptGenerationOutcome;
 
 use crate::{
     OrchestratorContext,
@@ -86,62 +86,36 @@ impl OrchestratorContext {
             }
             Ok::<_, GenerationError>(())
         });
-        let previous = Mutex::new(String::new());
         let stream_cancel = cancellation.clone();
-        let stream_reporter = move |text: &str| {
-            let delta = stream_delta(
-                &mut previous.lock().expect("shooting stream mutex poisoned"),
-                text,
-            );
-            if !delta.is_empty() && stream_sender.send(delta).is_err() {
+        let stream_reporter = move |delta: &str| {
+            if !delta.is_empty() && stream_sender.send(delta.to_string()).is_err() {
                 // The publisher's error is reported below; stop the provider instead of losing output.
                 stream_cancel.cancel();
             }
         };
 
-        let result = match input.mode {
-            ShootingScriptGenerationMode::Full => self
-                .generate_chapter_shooting_script_for_user_validated(
-                    user_id,
-                    input.generation_input(),
-                    &reporter,
-                    Some(&stream_reporter),
-                    Some(&cancellation),
-                    Some(&handle.task_id),
-                )
-                .await
-                .map(|result| GenerationResultRef {
+        let result = self
+            .generate_shooting_script_for_user(
+                user_id,
+                input,
+                &reporter,
+                &stream_reporter,
+                &cancellation,
+                &handle.task_id,
+            )
+            .await
+            .and_then(|result| match result {
+                ShootingScriptGenerationOutcome::Complete(resolved) => Ok(GenerationResultRef {
                     kind: "chapter_shooting_script".into(),
-                    id: result.shooting_script.record.id.to_string(),
-                    revision: result.shooting_script.record.revision.to_string(),
+                    id: resolved.shooting_script.record.id.to_string(),
+                    revision: resolved.shooting_script.record.revision.to_string(),
                 }),
-            ShootingScriptGenerationMode::NextScene => self
-                .generate_next_chapter_shooting_script_unit_for_user_validated(
-                    user_id,
-                    input.generation_input(),
-                    &reporter,
-                    Some(&stream_reporter),
-                    Some(&cancellation),
-                    Some(&handle.task_id),
-                )
-                .await
-                .and_then(|result| {
-                    if let Some(resolved) = result.resolved {
-                        return Ok(GenerationResultRef {
-                            kind: "chapter_shooting_script".into(),
-                            id: resolved.shooting_script.record.id.to_string(),
-                            revision: resolved.shooting_script.record.revision.to_string(),
-                        });
-                    }
-                    Ok(GenerationResultRef {
-                        kind: "chapter_shooting_script_progress".into(),
-                        id: result.workflow_run_id.to_string(),
-                        revision: a4n_db::generation::canonical_json_sha256(
-                            &serde_json::to_value(result.script)?,
-                        )?,
-                    })
+                ShootingScriptGenerationOutcome::Partial(progress) => Ok(GenerationResultRef {
+                    kind: "chapter_shooting_script_progress".into(),
+                    id: progress.workflow_run_id.to_string(),
+                    revision: a4n_db::generation::canonical_json_sha256(&progress.script)?,
                 }),
-        };
+            });
         drop(reporter);
         drop(stream_reporter);
         let (progress_result, stream_result) = tokio::join!(progress_worker, stream_worker);
@@ -177,31 +151,5 @@ impl OrchestratorContext {
         execution
             .complete_with_result(OPERATION, result, "拍摄剧本已保存".into(), vec![], None)
             .await
-    }
-}
-
-// The existing workflow callback carries each call's cumulative text; generation streams append deltas.
-fn stream_delta(previous: &mut String, text: &str) -> String {
-    let delta = match text.strip_prefix(previous.as_str()) {
-        Some(delta) => delta.to_string(),
-        None => format!("\n{text}"),
-    };
-    previous.clear();
-    previous.push_str(text);
-    delta
-}
-
-#[cfg(test)]
-mod tests {
-    use super::stream_delta;
-
-    #[test]
-    fn cumulative_streams_preserve_unicode_and_separate_model_calls() {
-        let mut previous = String::new();
-        assert_eq!(stream_delta(&mut previous, "{\"场景\":"), "{\"场景\":");
-        assert_eq!(stream_delta(&mut previous, "{\"场景\":1}"), "1}");
-        assert_eq!(stream_delta(&mut previous, "{\"场景\":1}"), "");
-        assert_eq!(stream_delta(&mut previous, "{"), "\n{");
-        assert_eq!(stream_delta(&mut previous, "{\"场景\":2}"), "\"场景\":2}");
     }
 }

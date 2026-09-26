@@ -19,7 +19,7 @@ async fn build_video_prompt_request(
     prompt_name: &str,
     project_id: i64,
     variables: &HashMap<String, Value>,
-    mut manifest: LlmContextManifest,
+    manifest: LlmContextManifest,
     temperature: f32,
 ) -> Result<ChatRequest, AppError> {
     let stage = prompt_renderer
@@ -28,11 +28,8 @@ async fn build_video_prompt_request(
     let system = prompt_renderer
         .render_prompt("video_prompt_session", &HashMap::new(), Some(project_id))
         .await?;
-    manifest.dynamic_user_content = format!(
-        "[阶段指令]\n{}\n\n{}",
-        stage.trim(),
-        manifest.dynamic_user_content
-    );
+    // 来源已按镜头裁剪；较长的固定阶段规则应先于变化的段落，供同阶段复用。
+    let system = format!("{}\n\n[阶段指令]\n{}", system.trim(), stage.trim());
     Ok(
         context_aware_system_user_request(system, manifest, Some(temperature), None)?
             .with_json_response_format()
@@ -159,13 +156,13 @@ mod tests {
     use super::{AppError, ensure_video_output_not_truncated};
 
     #[tokio::test]
-    async fn stages_share_source_prefix_and_send_only_their_own_rules() {
+    async fn stage_rules_stay_cached_across_sources_and_are_never_duplicated() {
         use super::*;
         use crate::video::prompts::context::{
             VideoContextManifestInput, build_video_context_manifest,
         };
 
-        struct Renderer;
+        struct Renderer(&'static str);
         #[async_trait::async_trait]
         impl PromptRenderer for Renderer {
             async fn render_prompt(
@@ -174,42 +171,53 @@ mod tests {
                 _: &HashMap<String, Value>,
                 _: Option<i64>,
             ) -> Result<String, AppError> {
-                Ok(format!("rules:{name}"))
+                Ok(format!("rules:{name}:{}", self.0))
             }
         }
-        let source = crate::video::ChapterVideoSourceContext {
-            content: "当前镜头的唯一来源",
-            summary: None,
-            analysis: None,
-        };
         let vars = HashMap::new();
         let mut requests = Vec::new();
-        for name in ["stage_a", "stage_b"] {
+        for (name, content, version) in [
+            ("stage_a", "镜头甲原文", "v1"),
+            ("stage_a", "镜头乙原文", "v1"),
+            ("stage_b", "镜头甲原文", "v1"),
+            ("stage_a", "镜头甲原文", "v2"),
+        ] {
+            let renderer = Renderer(version);
+            let source = crate::video::ChapterVideoSourceContext {
+                content,
+                summary: None,
+                analysis: None,
+            };
             let manifest = build_video_context_manifest(VideoContextManifestInput {
-                prompt_renderer: &Renderer,
+                prompt_renderer: &renderer,
                 project_id: 1,
                 variables: &vars,
                 source: &source,
                 prompt_names: &[name],
                 previous_outputs: &[],
                 project_context: None,
-                asset_context: None,
                 dynamic_user_content: "当前任务参数".into(),
             })
             .await
             .unwrap();
-            let mut request = build_video_prompt_request(&Renderer, name, 1, &vars, manifest, 0.2)
+            let mut request = build_video_prompt_request(&renderer, name, 1, &vars, manifest, 0.2)
                 .await
                 .unwrap();
             a4n_llm_context::preview_context_aware_chat_request(&mut request, 100_000, 8192)
                 .unwrap();
             assert_eq!(
-                request.messages[1]
+                request.messages[0]
                     .content
                     .matches(&format!("rules:{name}"))
                     .count(),
                 1
             );
+            assert!(
+                !request.messages[1]
+                    .content
+                    .contains(&format!("rules:{name}"))
+            );
+            assert_eq!(request.messages[1].content.matches(content).count(), 1);
             assert!(
                 !request.messages[1]
                     .content
@@ -226,19 +234,16 @@ mod tests {
             serde_json::to_value(&requests[0].messages[0]).unwrap(),
             serde_json::to_value(&requests[1].messages[0]).unwrap()
         );
-        let prefix = |request: &ChatRequest| {
-            request.messages[1]
-                .content
-                .split("[当前任务]")
-                .next()
-                .unwrap()
-                .to_string()
-        };
-        assert_eq!(prefix(&requests[0]), prefix(&requests[1]));
+        assert_ne!(
+            requests[0].messages[0].content,
+            requests[2].messages[0].content
+        );
         let manifest =
             |index: usize| &requests[index].context_manifest_json.as_ref().unwrap()["packs"][0];
-        assert_ne!(manifest(0)["config_hash"], manifest(1)["config_hash"]);
-        assert_eq!(manifest(0)["variants"], manifest(1)["variants"]);
+        assert_ne!(manifest(0)["config_hash"], manifest(2)["config_hash"]);
+        assert_eq!(manifest(0)["variants"], manifest(2)["variants"]);
+        assert_ne!(manifest(0)["config_hash"], manifest(3)["config_hash"]);
+        assert_eq!(manifest(0)["variants"], manifest(3)["variants"]);
         assert!(!requests[0].messages[1].content.contains("rules:stage_b"));
     }
 

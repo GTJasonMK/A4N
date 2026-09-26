@@ -40,13 +40,13 @@ name: chapter_video_frame_prompts
 - 输入包含章节原文时，原文是最完整的信息来源；必须回看原文确定人物动作前后、物件位置、空间关系和情绪变化，不要只依赖片段摘要。
 - 输入必须包含 `current_frame`；这是增量单帧请求，必须只输出 1 条 `frames`。
 - 不要输出 `frame_number`、`segment_numbers`、`duration_secs`、`aspect_ratio` 或 `reference_image_ids`；这些字段由 `current_frame`、片段规划、上一帧实际图片和用户选择决定，后端会补齐。不得输出其他边界帧；如果 `current_frame` 缺失，说明调用方请求错误，不要自行补全其他边界帧。
-- `frame_prompt` 和 `negative_prompt` 的自然语言必须遵守输入 JSON 中 `constraints.prompt_output_language_instruction` 和 `constraints.prompt_density_rule`；`frame_prompt` 必须按 `constraints.frame_prompt_required_sections` 的顺序使用对应语言小节。JSON key、结构化字段名、角色名、地名、专有名词、参考图标签、用户风格关键词和原文对白/台词短句不要擅自翻译。
+- `frame_prompt` 和 `negative_prompt` 的自然语言必须遵守输入 JSON 中 `constraints.prompt_output_language.instruction` 和 `constraints.prompt_density_rule`；`frame_prompt` 必须按 `constraints.frame_prompt_required_sections` 的顺序使用对应语言小节。JSON key、结构化字段名、角色名、地名、专有名词、参考图标签、用户风格关键词和原文对白/台词短句不要擅自翻译。
 - U 个视频执行单元共享 U+1 张边界帧：第 1 张是链路起点，第 U+1 张是链路终点，中间边界帧同时服务相邻两个执行单元。
 - `current_frame.role` 只能是 `chain_start`、`shared_boundary` 或 `chain_end`。`shared_boundary` 同时是前一执行单元终点和后一执行单元起点，只表现双方共享的稳定状态；不要把后一单元核心动作提前。
 - `current_frame.expected_segment_numbers` 说明该边界帧关联的原始片段编号；action_bridge 前后的共享边界可能关联两个相邻片段。不要把该数组重复输出。
 - 每条 `frame_prompt` 只描述一张稳定图像，不能写成视频运动提示词；必须用 `constraints.frame_prompt_required_sections` 指定的小节把成图模型需要的信息列清楚：参考图约束要写每张参考图约束的人物、场景、道具或风格，画面主体要写人物身份/外观、静态姿态、表情和视线，空间与道具要写场景固定参照物、道具位置和左右/前后关系，构图光线风格要写构图景别、光源方向、色彩氛围和用户指定风格，一致性与避免项要写本帧不能变化的人脸、服装、道具、空间和光影。
 - 如果用户指定风格中包含“风格模板”或“风格关键词”，构图光线风格小节必须直接保留用户指定风格模板原文中的中文风格名、关键英文风格名、光影、色彩、构图、镜头、材质、氛围、细节、运动表现和避免项；不要自行精简、压缩或改写成“电影感”“动漫风格”“统一风格”等泛化词。
-- 每条 `negative_prompt` 必须遵守 `constraints.prompt_output_language_instruction` 和 `constraints.prompt_density_rule`，写清需要避免的画面问题。
+- 每条 `negative_prompt` 必须遵守 `constraints.prompt_output_language.instruction` 和 `constraints.prompt_density_rule`，写清需要避免的画面问题。
 - 每个边界帧必须是相邻执行单元能够共同使用的真实稳定状态：人物姿态、站位、表情、道具位置和场景光线必须可直接作为前一单元尾帧与后一单元首帧。
 - 每个边界帧必须服务相邻片段的 `video_intent` 和 `emotional_arc`；action_bridge 只允许承接 `preserved_action`，不要在边界帧里提前完成后一内容单元的核心动作。
 - 每个边界帧都要用静态画面暗示相邻片段的角色目标、阻力、关系变化或隐藏信息压力；只能通过姿态、视线、手势、人物距离、前景遮挡、道具位置、光影方向和空间压迫表达，不要在 `frame_prompt` 中写“导演想法”“潜台词压力”等内部分析词。

@@ -68,6 +68,7 @@ struct DirectImagePlan {
     width: i32,
     height: i32,
     chapter_id: Option<i64>,
+    source_snapshot_id: Option<i64>,
     panel_id: Option<String>,
     metadata_json: Option<Value>,
     workflow_run_id: Option<i64>,

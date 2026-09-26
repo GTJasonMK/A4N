@@ -43,5 +43,6 @@ pub(super) struct GalgameAssetPlanItemDraft {
     pub(super) group: GalgameAssetPlanGroup,
     pub(super) canonical_key: String,
     pub(super) label: String,
+    pub(super) source_label: String,
     pub(super) record_input: GalgameAssetPlanSpecRecordInput,
 }

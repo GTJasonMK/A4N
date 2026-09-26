@@ -19,7 +19,7 @@ impl OrchestratorContext {
         crate::shooting_script::validate_shooting_generation_mode(input.mode, &input.shot_ids)
             .map_err(GenerationTaskAccessError::Project)?;
         let (workflow, _) = self
-            .prepare_shooting_script_workflow_input(&input.generation_input(), None)
+            .prepare_shooting_script_workflow_input(input, None)
             .await
             .map_err(GenerationTaskAccessError::Project)?;
         let fingerprint = serde_json::json!({

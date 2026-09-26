@@ -7,7 +7,7 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 from mock_openai.fixtures.story import chapter_body_response
 from run_cli_contract_e2e import (
@@ -15,6 +15,7 @@ from run_cli_contract_e2e import (
     classify,
     completion_flags,
     provider_log_summary,
+    run_watch,
     scenario_execution_success,
 )
 from run_all_workflows_e2e import (
@@ -47,6 +48,21 @@ from run_all_workflows_e2e import (
 
 
 class CliContractRunnerTest(unittest.TestCase):
+    def test_task_watch_uses_the_returned_attempt_and_rejects_missing_or_invalid_attempts(self) -> None:
+        cli = Mock()
+        cli.run.return_value = {"exit_code": 0, "duration_ms": 1, "stdout_documents": [{"ok": True}]}
+        envelope = {"data": {"task_id": "task-2", "attempt": 2},
+                    "meta": {"references": {"task_ids": ["task-2"]}}}
+        self.assertEqual(run_watch(cli, "task", {}, envelope)["status"], "passed")
+        cli.run.assert_called_once_with(["task", "watch", "task-2", "--attempt", "2"])
+        for invalid in (None, True, 1.5, "2", 0):
+            envelope["data"]["attempt"] = invalid
+            with self.assertRaises(RunnerError):
+                run_watch(cli, "task", {}, envelope)
+        del envelope["data"]["attempt"]
+        with self.assertRaises(RunnerError):
+            run_watch(cli, "task", {}, envelope)
+
     def test_fixture_failure_keeps_completed_operations_and_failure_record(self) -> None:
         commands = ("create_project", "create_freeform_video_project")
         state, records = {}, []
@@ -484,7 +500,7 @@ class CliContractRunnerTest(unittest.TestCase):
             "save_chapter_visual_plan_draft",
             "confirm_chapter_visual_plan",
             "get_chapter_visual_plan",
-            "generate_chapter_shooting_script",
+            "start_chapter_shooting_script_generation",
             "get_chapter_shooting_script",
             "create_profile",
             "create_object_profile",
@@ -529,6 +545,7 @@ class CliContractRunnerTest(unittest.TestCase):
         ]
         descriptors = {name: {"name": name} for name in command_names}
         task_commands = {
+            "start_chapter_shooting_script_generation",
             "start_inspiration_generation",
             "start_blueprint_generation",
             "start_outline_generation",
@@ -590,7 +607,6 @@ class CliContractRunnerTest(unittest.TestCase):
             "rag_prepare_enhanced_search": {"query_texts": ["车站的钟每天少走七分钟"], "embedding_identity": {"backend": "fixture", "model": "fixture", "dimension": 3}},
             "rag_enhanced_search": {"results": [{"id": "chunk:1", "content": "车站的钟每天少走七分钟。", "score": 0.9, "metadata": {"chapter_number": 1}}], "queries": [{"label": "original", "query": "车站的钟每天少走七分钟"}], "candidate_count": 1},
             "get_chapter_visual_plan": {},
-            "generate_chapter_shooting_script": {"script": {}},
             "get_chapter_shooting_script": {"script": {}},
         }
         calls: list[str] = []
@@ -691,6 +707,7 @@ class CliContractRunnerTest(unittest.TestCase):
                 "start_outline_generation",
                 "start_outline_generation",
                 "start_chapter_generation",
+                "start_chapter_shooting_script_generation",
                 "start_video_generation",
                 "start_video_generation",
                 "start_video_generation",

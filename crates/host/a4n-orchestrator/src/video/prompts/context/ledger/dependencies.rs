@@ -3,9 +3,7 @@ use std::collections::{BTreeSet, HashMap};
 use a4n_error::AppError;
 use serde_json::{Value, json};
 
-use super::{
-    LlmContextManifest, PromptRenderer, VIDEO_BUILDER_RULES_TEMPLATE, source_content_sha256,
-};
+use super::{LlmContextManifest, PromptRenderer, source_content_sha256};
 
 /// 模板版本参与断点指纹，但 hash 和其他阶段的模板不是模型输入。
 pub(super) async fn record_prompt_dependencies(
@@ -18,7 +16,7 @@ pub(super) async fn record_prompt_dependencies(
     let names = prompt_names
         .iter()
         .copied()
-        .chain([VIDEO_BUILDER_RULES_TEMPLATE, "video_prompt_session"])
+        .chain(["video_prompt_session"])
         .collect::<BTreeSet<_>>();
     let mut dependencies = Vec::new();
     for name in names {

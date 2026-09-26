@@ -1,4 +1,5 @@
 use super::*;
+use a4n_domain::source_sync::SourceSyncConflictStatus;
 
 pub(super) async fn insert_source_sync_rows(
     txn: &DatabaseTransaction,
@@ -68,13 +69,21 @@ pub(super) async fn insert_source_sync_rows(
                 conflict.to_snapshot_id,
                 "同步冲突 to_snapshot_id",
             )?);
-            active.target_id = Set(remap_source_sync_target_id(conflict, maps)?);
-            active.source_summary_json = Set(remap_conflict_source_summary(conflict, maps)?);
-            active.local_summary_json = Set(remap_conflict_local_summary(conflict, maps)?);
-            active.affected_refs_json = Set(remap_conflict_affected_refs(conflict, maps)?);
-            active.decision_json = Set(remap_conflict_decision_json(conflict, maps)?);
+            if conflict.status != SourceSyncConflictStatus::Obsolete.as_str() {
+                active.target_id = Set(remap_source_sync_target_id(conflict, maps)?);
+                active.source_summary_json = Set(remap_conflict_source_summary(conflict, maps)?);
+                active.local_summary_json = Set(remap_conflict_local_summary(conflict, maps)?);
+                active.affected_refs_json = Set(remap_conflict_affected_refs(conflict, maps)?);
+                active.decision_json = Set(remap_conflict_decision_json(conflict, maps)?);
+            }
         }
     );
+    let obsolete_conflict_ids = package
+        .source_sync_conflicts
+        .iter()
+        .filter(|conflict| conflict.status == SourceSyncConflictStatus::Obsolete.as_str())
+        .map(|conflict| conflict.id)
+        .collect::<std::collections::HashSet<_>>();
     insert_import_rows!(
         txn,
         &package.source_sync_decisions,
@@ -87,12 +96,14 @@ pub(super) async fn insert_source_sync_rows(
                 decision.conflict_id,
                 "同步决策 conflict_id",
             )?);
-            active.decision_payload_json = Set(remap_source_sync_decision_payload(
-                &decision.strategy,
-                &decision.decision_payload_json,
-                maps,
-                "同步决策 decision_payload_json",
-            )?);
+            if !obsolete_conflict_ids.contains(&decision.conflict_id) {
+                active.decision_payload_json = Set(remap_source_sync_decision_payload(
+                    &decision.strategy,
+                    &decision.decision_payload_json,
+                    maps,
+                    "同步决策 decision_payload_json",
+                )?);
+            }
         }
     );
     Ok(())

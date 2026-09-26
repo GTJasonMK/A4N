@@ -11,7 +11,7 @@ name: chapter_video_chat_prompt
     {
       "title": "片段标题",
       "scene_summary": "片段摘要",
-      "chat_prompt": "按 output_contract.chat_prompt_required_sections 的顺序写完整可复制提示词，章节标题使用目标语言；内容覆盖建议上传图片用途、前因后果、按镜头编号组织的镜头分镜、风格、连续性和限制。",
+      "chat_prompt": "按 constraints.prompt_required_sections 的顺序写完整可复制提示词，章节标题使用目标语言；内容覆盖建议上传图片用途、前因后果、按镜头编号组织的镜头分镜、风格、连续性和限制。",
       "negative_prompt": "本片段需要避免的画面问题；没有特有项时写空字符串"
     }
   ]
@@ -20,7 +20,7 @@ name: chapter_video_chat_prompt
 要求：
 - 这是给外部 Chat 视频模型的最终提示词，不是 API 请求，不要写 provider 参数、字段名、JSON、代码块、应用内部工作流、模式名或素材库流程。
 - `shots` 只能包含 1 条，不要输出 `shot_number`、`duration_secs`、`aspect_ratio`、`reference_image_ids`、`chat_video` 或其他结构化审计字段；这些字段由后端根据 `current_segment` 和参考素材补齐。
-- `chat_prompt` 和 `negative_prompt` 的自然语言必须遵守输入 JSON 中 `constraints.prompt_output_language_instruction` 和 `constraints.prompt_density_rule`；`chat_prompt` 必须是完整自然语言，且包含 `output_contract.chat_prompt_required_sections` 指定的全部章节。JSON key、结构化字段名、角色名、地名、专有名词、参考图标签、用户风格关键词和原文对白/台词短句不要擅自翻译。
+- `chat_prompt` 和 `negative_prompt` 的自然语言必须遵守输入 JSON 中 `constraints.prompt_output_language.instruction` 和 `constraints.prompt_density_rule`；`chat_prompt` 必须是完整自然语言，且包含 `constraints.prompt_required_sections` 指定的全部章节。JSON key、结构化字段名、角色名、地名、专有名词、参考图标签、用户风格关键词和原文对白/台词短句不要擅自翻译。
 - `input_frames` 只包含本段实际可用的输入画面；严格按 `constraints.input_frame_usage` 决定开头和结尾来源。`chat_prompt` 只写实际画面、文字起点、上一段尾态或本段稳定结尾状态，不写资源可用性、上传状态、内部图片槽位或缺项说明。
 - 主体定义与素材绑定章节必须按建议上传顺序说明实际使用的图片；图片列表为空时，直接描述本段文字起点、上一段尾态或当前片段开场画面。自然语言只能写“第1张图片”“第2张图片”等上传顺序，不得写字段名、内部编号或带符号的参考图编号。
 - 必须读取 `current_segment.material_coverage`：已覆盖素材要在主体定义与素材绑定章节中说明用途；缺失或弱覆盖对象要转为文字约束，不要编造不存在的图片编号。

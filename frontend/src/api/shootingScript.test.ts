@@ -3,12 +3,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   apiInvoke: vi.fn(),
   start: vi.fn(),
-  hash: vi.fn(),
 }));
 
 vi.mock("./index", () => ({ apiInvoke: mocks.apiInvoke }));
 vi.mock("./generationTasks", () => ({ generationClient: { start: mocks.start } }));
-vi.mock("../utils/contentHash", () => ({ sha256Json: mocks.hash }));
 
 import {
   deleteChapterShootingScript,
@@ -22,7 +20,6 @@ describe("shootingScript API", () => {
     vi.clearAllMocks();
     mocks.apiInvoke.mockResolvedValue(null);
     mocks.start.mockImplementation((start) => start({ start_request_id: "request-id", retry_of_task_id: null }));
-    mocks.hash.mockResolvedValue("saved-script-hash");
   });
 
   it("does not send the project id as a visual plan id for progress reads", async () => {
@@ -85,11 +82,15 @@ describe("shootingScript API", () => {
       kind: "chapter_shooting_script", id: "8", revision: "3",
     })).rejects.toThrow("已变化");
 
-    const progress = { workflow_run_id: 42, script: { scenes: [] } };
+    const progress = { workflow_run_id: 42, script: {
+      schema_version: "chapter_shooting_script_v1",
+      scenes: [{ title: "第一场", scene_index: 1 }],
+      directing_statement: null,
+    } };
     mocks.apiInvoke.mockResolvedValue(progress);
-    const reference = { kind: "chapter_shooting_script_progress", id: "42", revision: "saved-script-hash" };
+    const reference = { kind: "chapter_shooting_script_progress", id: "42", revision: "2de1466746dd2acf7511ffab55717c69b8257dcad434b2083ad98ab8c96d5b31" };
     await expect(readChapterShootingScriptGenerationResult(26, 11, reference)).resolves.toEqual(progress);
-    mocks.hash.mockResolvedValue("a-newer-manual-edit");
+    progress.script.scenes[0].title = "a newer manual edit";
     await expect(readChapterShootingScriptGenerationResult(26, 11, reference)).rejects.toThrow("已变化");
     await expect(readChapterShootingScriptGenerationResult(26, 11, null)).rejects.toThrow("结果引用");
   });

@@ -11,7 +11,8 @@ use sea_orm::{
 use crate::character;
 use crate::generation;
 use crate::project::delete::{
-    GeneratedImageDeleteScope, delete_chapter_generation_outputs, delete_project_profile_scene_data,
+    GeneratedImageDeleteScope, delete_chapter_generation_outputs,
+    delete_project_profile_scene_data, retained_source_resources,
 };
 use crate::project::{self as project_db, PROJECT_KIND_TEXT, ProjectTextAnchorDeleteScope};
 
@@ -94,12 +95,18 @@ pub async fn reset_project_generated_data_record(
         project_db::ProjectChapterAdaptationDeleteScope::CurrentProjectContent,
     )
     .await?;
-    let chapter_generation_cleanup =
-        delete_chapter_generation_outputs(&tx, project_id, GeneratedImageDeleteScope::Project)
-            .await?;
+    let retained = retained_source_resources(&tx, project_id).await?;
+    let chapter_generation_cleanup = delete_chapter_generation_outputs(
+        &tx,
+        project_id,
+        GeneratedImageDeleteScope::Project,
+        &retained,
+    )
+    .await?;
     let generation_media_cleanup =
         project_db::delete_project_generation_media_graph(&tx, project_id).await?;
-    let profile_scene_cleanup = delete_project_profile_scene_data(&tx, project_id).await?;
+    let profile_scene_cleanup =
+        delete_project_profile_scene_data(&tx, project_id, &retained).await?;
     crate::fact_feedback::reset_feedback_coverage(&tx, project_id).await?;
 
     let deleted_chapters = chapter::Entity::delete_many()
@@ -153,7 +160,7 @@ pub async fn reset_project_generated_data_record(
     active.avatar_animal = Set(None);
     active.updated_at = Set(now);
     active.update(&tx).await?;
-    project_db::mark_derived_projects_root_updated_in_record(&tx, project_id, now).await?;
+    project_db::mark_derived_projects_root_updated_in_record(&tx, project_id, None, now).await?;
 
     if previous_status != ProjectStatus::Draft {
         project_db::insert_project_status_history(

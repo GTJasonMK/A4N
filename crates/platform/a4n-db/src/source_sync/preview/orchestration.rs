@@ -6,7 +6,7 @@ use super::{
     },
 };
 use crate::{
-    project::{ProjectFamilyDbError, ProjectMutationError},
+    project::ProjectFamilyDbError,
     source_sync::{
         SOURCE_SYNC_DETACHED, SourceSyncDbError, SourceSyncPlanRecord,
         UpdateSourceSyncDryRunSummaryInput, diff_source_snapshots,
@@ -36,6 +36,19 @@ where
             operation: "preview_source_sync".to_string(),
         });
     }
+    let applying_run = source_sync_run::Entity::find()
+        .filter(source_sync_run::Column::DerivedProjectId.eq(derived_project_id))
+        .filter(source_sync_run::Column::RootProjectId.eq(context.root_project.id))
+        .filter(source_sync_run::Column::ToSnapshotId.eq(context.source_snapshot.id))
+        .filter(source_sync_run::Column::Status.eq(crate::source_sync::SYNC_RUN_STATUS_APPLYING))
+        .order_by_desc(source_sync_run::Column::Id)
+        .one(&tx)
+        .await?;
+    if let Some(run) = applying_run {
+        let plan = source_sync_plan_record(&tx, run).await?;
+        tx.commit().await?;
+        return Ok(plan);
+    }
     let scope = source_sync_chapter_scope_for_derived_project(&tx, derived_project_id).await?;
     let to_snapshot = crate::project::create_source_snapshot_in_record(
         &tx,
@@ -43,25 +56,7 @@ where
         scope,
         Utc::now().naive_utc(),
     )
-    .await
-    .map_err(source_sync_project_error)?;
-    if context.source_snapshot.source_version_hash == to_snapshot.source_version_hash {
-        let applying_run = source_sync_run::Entity::find()
-            .filter(source_sync_run::Column::DerivedProjectId.eq(derived_project_id))
-            .filter(source_sync_run::Column::RootProjectId.eq(context.root_project.id))
-            .filter(source_sync_run::Column::ToSnapshotId.eq(context.source_snapshot.id))
-            .filter(
-                source_sync_run::Column::Status.eq(crate::source_sync::SYNC_RUN_STATUS_APPLYING),
-            )
-            .order_by_desc(source_sync_run::Column::Id)
-            .one(&tx)
-            .await?;
-        if let Some(run) = applying_run {
-            let plan = source_sync_plan_record(&tx, run).await?;
-            tx.commit().await?;
-            return Ok(plan);
-        }
-    }
+    .await?;
     let diff = diff_source_snapshots(&tx, context.source_snapshot.id, to_snapshot.id).await?;
     let chapter_change_count = diff.chapter_changes.len();
     let profile_change_count = diff.profile_changes.len();
@@ -137,17 +132,5 @@ fn source_sync_project_family_error(error: ProjectFamilyDbError) -> SourceSyncDb
         }
         ProjectFamilyDbError::NotFound(message) => SourceSyncDbError::NotFound(message),
         ProjectFamilyDbError::Database(error) => SourceSyncDbError::Database(error),
-    }
-}
-
-fn source_sync_project_error(error: ProjectMutationError) -> SourceSyncDbError {
-    match error {
-        ProjectMutationError::InvalidArgument(message) => {
-            SourceSyncDbError::InvalidArgument(message)
-        }
-        ProjectMutationError::NotFound(message) => SourceSyncDbError::NotFound(message),
-        ProjectMutationError::Forbidden(message) => SourceSyncDbError::Forbidden(message),
-        ProjectMutationError::Internal(message) => SourceSyncDbError::Internal(message),
-        ProjectMutationError::Database(error) => SourceSyncDbError::Database(error),
     }
 }

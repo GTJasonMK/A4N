@@ -42,7 +42,7 @@ pub(super) fn background_asset_plan_draft(
             canonical_key,
             project_id: context.project.id,
             root_project_id: context.root_project.id,
-            source_snapshot_id: context.source_snapshot.id,
+            source_snapshot_id: chapter.snapshot_id,
             source_chapter_id: Some(chapter.source_chapter_id),
             source_snapshot_chapter_id: Some(chapter.id),
             target_kind: GALGAME_TARGET_BACKGROUND,
@@ -54,5 +54,6 @@ pub(super) fn background_asset_plan_draft(
         false,
         None,
         format!("{} 背景", scene.title),
+        scene.title.clone(),
     )
 }

@@ -10,7 +10,8 @@ use a4n_domain::source_sync::{
 };
 use chrono::Utc;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder, Set,
+    ActiveModelTrait, ColumnTrait, ConnectionTrait, DatabaseConnection, EntityTrait, QueryFilter,
+    QueryOrder, Set, TransactionTrait,
 };
 use serde_json::json;
 
@@ -43,6 +44,38 @@ fn conflict_input() -> SourceSyncConflictRecordInput {
         local_summary_json: json!({}),
         affected_refs_json: json!({}),
     }
+}
+
+#[tokio::test]
+async fn recording_a_decision_does_not_revive_a_removed_target() {
+    use a4n_domain::source_sync::SourceSyncConflictStatus;
+    let db = a4n_migration::test_support::connect_test_database().await;
+    let tx = db.begin().await.unwrap();
+    tx.execute_unprepared("CREATE TEMP TABLE source_sync_conflict (LIKE source_sync_conflict INCLUDING DEFAULTS) ON COMMIT DROP").await.unwrap();
+    let original =
+        insert_source_sync_conflict_records(&tx, &source_sync_run_model(), vec![conflict_input()])
+            .await
+            .unwrap()
+            .remove(0);
+    let mut removed: source_sync_conflict::ActiveModel = original.clone().into();
+    removed.status = Set("obsolete".into());
+    removed.resolution_strategy = Set(Some("delete_local".into()));
+    removed.decision_json = Set(Some(json!({"system_action":"local_target_removed"})));
+    removed.resolved_at = Set(Some(Utc::now().naive_utc()));
+    removed.update(&tx).await.unwrap();
+    let payload = json!({"user_action":"delete_local"});
+    let recorded = crate::source_sync::resolve_source_sync_conflict_record(
+        &tx,
+        original,
+        SourceSyncResolutionStrategy::DeleteLocal,
+        SourceSyncConflictStatus::Resolved,
+        payload.clone(),
+    )
+    .await
+    .unwrap();
+    assert_eq!(recorded.status, "obsolete");
+    assert_eq!(recorded.decision_json, Some(payload));
+    tx.rollback().await.unwrap();
 }
 
 #[tokio::test]

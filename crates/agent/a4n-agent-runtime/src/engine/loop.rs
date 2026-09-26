@@ -647,7 +647,7 @@ async fn process_claimed_run_inner(
                 max_tokens: Some(output_tokens),
                 response_format: None,
                 stream_include_usage: true,
-                cache_scope_key: Some(format!("agent-thread:{}", context.thread.id)),
+                cache_scope_key: None,
                 cache_breakpoints: Vec::new(),
                 cache_mode: None,
                 trace_context: Some(LlmTraceContext {
@@ -729,17 +729,10 @@ async fn process_claimed_run_inner(
         let request = model_execution_request(&model_execution)?;
         let replayed_model_execution = model_execution.status == "succeeded";
         let request_protocol =
-            agent_protocol_from_request_snapshot(&request.snapshot_value()?).to_string();
+            agent_protocol_from_request_snapshot(model_execution_snapshot(&model_execution)?)
+                .to_string();
         let mut response: ChatResponse = if replayed_model_execution {
-            serde_json::from_value(model_execution.result_json.clone().ok_or_else(|| {
-                AppError::InvalidState {
-                    current: format!(
-                        "Agent model execution {} succeeded 但缺少 result_json",
-                        model_execution.id
-                    ),
-                    operation: "恢复 Agent model execution".into(),
-                }
-            })?)?
+            model_response(&model_execution)?
         } else {
             execution_application
                 .update_worker_execution(WorkerExecutionUpdate {

@@ -21,7 +21,6 @@ fn video_prompt_user_includes_action_load_and_temporal_capacity_rules() {
     assert!(user.contains("风格模板：京阿尼动画风格"));
     assert!(user.contains("不要配背景音乐"));
     assert!(user.contains("duration_secs 内自然完成且能被观众读懂的动作"));
-    assert!(user.contains("中文输出密度：视频 visual_prompt 至少 80 个字符"));
     assert!(user.contains("最后一个镜头必须稳定到本段结尾状态"));
     let payload = video_user_payload(&user);
     assert_eq!(payload["constraints"]["selected_duration_secs"], json!(10));

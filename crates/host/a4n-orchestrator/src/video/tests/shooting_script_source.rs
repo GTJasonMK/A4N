@@ -5,7 +5,34 @@ use sea_orm::{ActiveModelTrait, EntityTrait, Set};
 use super::*;
 
 #[tokio::test]
-async fn partial_shooting_scene_is_available_to_matching_source_snapshot() {
+async fn batched_shooting_script_reads_preserve_missing_and_duplicate_source_positions() {
+    let db = setup_db().await;
+    let root = insert_video_project(&db, "批量拍摄剧本读取").await;
+    let complete = insert_video_chapter(&db, root.id, 1).await;
+    let missing = insert_video_chapter_without_shooting_script(&db, root.id, 2).await;
+    let complete_source = a4n_db::project::resolve_chapter_source(&db, root.id, complete.id)
+        .await
+        .unwrap();
+    let missing_source = a4n_db::project::resolve_chapter_source(&db, root.id, missing.id)
+        .await
+        .unwrap();
+    let scripts = a4n_db::shooting_script::chapter_shooting_scripts_for_sources(
+        &db,
+        &[missing_source, complete_source.clone(), complete_source],
+    )
+    .await
+    .unwrap();
+    assert_eq!(scripts.len(), 3);
+    assert!(scripts[0].is_none());
+    assert_eq!(
+        scripts[1].as_ref().unwrap().record.source_chapter_id,
+        complete.id
+    );
+    assert_eq!(scripts[1], scripts[2]);
+}
+
+#[tokio::test]
+async fn source_snapshot_freezes_completed_scenes_without_following_live_progress() {
     use a4n_api_contract::shooting_script::{
         ChapterShootingScriptUnitProgressCheckpoint, ChapterShootingScriptUnitProgressView,
     };
@@ -38,6 +65,7 @@ async fn partial_shooting_scene_is_available_to_matching_source_snapshot() {
             "workflow_kind": "chapter_shooting_script",
             "project_id": root.id,
             "chapter_id": chapter.id,
+            "input_fingerprint_json": {"visual_plan_id": plan.record.id},
             "status": "running",
             "can_resume": true,
         }))
@@ -53,8 +81,7 @@ async fn partial_shooting_scene_is_available_to_matching_source_snapshot() {
             workflow_run_id: run.id,
             script: script.script.clone(),
             completed_unit_count: count,
-            total_unit_count: count + 1,
-            completed_record: None,
+            total_unit_count: count,
         },
     };
     persist_workflow_progress_snapshot(
@@ -70,20 +97,13 @@ async fn partial_shooting_scene_is_available_to_matching_source_snapshot() {
         source_chapter_id: chapter.id,
         visual_plan_id: None,
     };
-    let progress = service
-        .current_chapter_shooting_script_unit_progress(input.clone())
-        .await
-        .unwrap()
-        .expect("matching frozen source must expose completed scenes");
-    assert_eq!(progress.completed_unit_count, count);
-    assert_eq!(progress.script.scenes, script.script.scenes);
-    assert_eq!(
-        progress.script.visual_plan_source,
-        Some(ShootingVisualPlanSourceV1 {
-            plan_id: snapshot_plan.record.id,
-            plan_version: snapshot_plan.record.plan_version,
-            plan_sha256: snapshot_plan.record.plan_sha256,
-        })
+    assert!(
+        service
+            .current_chapter_shooting_script_unit_progress(input.clone())
+            .await
+            .unwrap()
+            .is_none(),
+        "an old snapshot must not borrow a live workflow"
     );
     let live = service
         .current_chapter_shooting_script_unit_progress(
@@ -98,6 +118,21 @@ async fn partial_shooting_scene_is_available_to_matching_source_snapshot() {
     assert_eq!(
         live.script.visual_plan_source,
         script.script.visual_plan_source
+    );
+
+    let frozen_project = insert_derived_video_project(db.clone(), root.id, "冻结已完成场景").await;
+    let frozen_input = crate::shooting_script::ChapterShootingScriptSourceInput {
+        project_id: frozen_project.id,
+        ..input.clone()
+    };
+    let frozen = service
+        .require_current_chapter_shooting_script(frozen_input.clone())
+        .await
+        .unwrap();
+    assert_eq!(frozen.shooting_script.script.scenes, script.script.scenes);
+    assert_ne!(
+        frozen.shooting_script.record.visual_plan_id,
+        Some(plan.record.id)
     );
 
     for changed_field in ["source_content_sha256", "plan_sha256"] {
@@ -122,13 +157,41 @@ async fn partial_shooting_scene_is_available_to_matching_source_snapshot() {
         .unwrap();
         assert!(
             service
-                .current_chapter_shooting_script_unit_progress(input.clone())
+                .current_chapter_shooting_script_unit_progress(
+                    crate::shooting_script::ChapterShootingScriptSourceInput {
+                        project_id: root.id,
+                        ..input.clone()
+                    }
+                )
                 .await
                 .unwrap()
                 .is_none(),
             "{changed_field} mismatch must remain stale"
         );
+        assert_eq!(
+            service
+                .require_current_chapter_shooting_script(frozen_input.clone())
+                .await
+                .unwrap()
+                .shooting_script,
+            frozen.shooting_script,
+            "frozen scenes must not change with root progress",
+        );
     }
+
+    let mut finished: a4n_db_models::models::generation::workflow_run::ActiveModel = run.into();
+    finished.status = Set("completed".into());
+    finished.can_resume = Set(false);
+    finished.update(db.as_ref()).await.unwrap();
+    assert_eq!(
+        service
+            .require_current_chapter_shooting_script(frozen_input)
+            .await
+            .unwrap()
+            .shooting_script,
+        frozen.shooting_script,
+        "completed root workflows must not make frozen scenes disappear",
+    );
 }
 
 #[tokio::test]

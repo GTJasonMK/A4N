@@ -142,7 +142,7 @@ async fn insert_video_chapter(
     chapter
 }
 
-async fn insert_confirmed_visual_plan_and_shooting_script(
+pub(super) async fn insert_confirmed_visual_plan_and_shooting_script(
     db: &DatabaseConnection,
     project_id: i64,
     chapter: &chapter::Model,

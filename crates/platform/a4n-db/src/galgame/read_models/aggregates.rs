@@ -32,6 +32,7 @@ pub async fn galgame_asset_planning_read_model(
         source_snapshot_chapter::Entity::find()
             .select_only()
             .column(source_snapshot_chapter::Column::Id)
+            .column(source_snapshot_chapter::Column::SnapshotId)
             .column(source_snapshot_chapter::Column::SourceChapterId)
             .column(source_snapshot_chapter::Column::ChapterNumber)
             .column(source_snapshot_chapter::Column::ContentHash)
@@ -97,7 +98,10 @@ pub async fn galgame_script_detail_read_model(
                     .column(text_anchor::Column::Quote)
                     .filter(text_anchor::Column::Id.is_in(text_anchor_ids.clone()))
                     .filter(text_anchor::Column::ProjectId.eq(script.root_project_id))
-                    .filter(text_anchor::Column::SourceSnapshotId.eq(script.source_snapshot_id))
+                    .filter(
+                        text_anchor::Column::SourceSnapshotChapterId
+                            .is_in(scenes.iter().map(|scene| scene.source_snapshot_chapter_id)),
+                    )
                     .order_by_asc(text_anchor::Column::Id)
                     .into_model::<GalgamePipelinePromptTextAnchorRecord>()
                     .all(db)
@@ -146,7 +150,6 @@ async fn galgame_script_detail_scene_lines(
     let Some(script) = galgame_script::Entity::find()
         .select_only()
         .column(galgame_script::Column::Id)
-        .column(galgame_script::Column::SourceSnapshotId)
         .column(galgame_script::Column::RootProjectId)
         .column(galgame_script::Column::Title)
         .filter(galgame_script::Column::ProjectId.eq(project_id))

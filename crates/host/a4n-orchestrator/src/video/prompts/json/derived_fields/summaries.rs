@@ -58,14 +58,6 @@ pub(super) fn first_action_goal(segment: &VideoSegmentPlan) -> String {
         .unwrap_or_else(|| "建立环境状态".to_string())
 }
 
-pub(super) fn segment_end_summary(segment: &VideoSegmentPlan) -> String {
-    segment.emotional_arc.end.clone()
-}
-
-pub(super) fn emotional_end_summary(segment: &VideoSegmentPlan) -> String {
-    segment.emotional_arc.end.clone()
-}
-
 pub(super) fn compact_reference_ids(ids: &[i64]) -> String {
     if ids.is_empty() {
         return "参考一致性由文字约束承担".to_string();

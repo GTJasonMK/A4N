@@ -87,7 +87,6 @@ pub(in crate::video::prompts::generation::frame_prompts::frame_chain) async fn p
         prompt_names: &["chapter_video_segment_plan", input.spec.frame_prompt_name],
         previous_outputs: &[],
         project_context: input.project_context,
-        asset_context: None,
         dynamic_user_content: frame_user,
     })
     .await?;

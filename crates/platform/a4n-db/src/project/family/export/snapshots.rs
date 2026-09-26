@@ -5,10 +5,33 @@ use a4n_db_models::models::{
     },
     source_sync::source_sync_run,
 };
-use sea_orm::{ColumnTrait, Condition, ConnectionTrait, EntityTrait, QueryFilter, QueryOrder};
+use sea_orm::{
+    ColumnTrait, Condition, ConnectionTrait, DbBackend, EntityTrait, QueryFilter, QueryOrder,
+    Statement,
+};
 use std::collections::BTreeSet;
 
 use super::types::ProjectFamilyExportError;
+
+pub(super) async fn project_family_export_galgame_snapshot_ids<C: ConnectionTrait>(
+    db: &C,
+    project_ids: &[i64],
+) -> Result<Vec<i64>, ProjectFamilyExportError> {
+    db.query_all(Statement::from_sql_and_values(
+        DbBackend::Postgres,
+        "SELECT source_snapshot_id AS id FROM galgame_script WHERE project_id = ANY($1)
+         UNION
+         SELECT chapter.snapshot_id AS id FROM galgame_script script
+         JOIN galgame_scene scene ON scene.script_id = script.id
+         JOIN source_snapshot_chapter chapter ON chapter.id = scene.source_snapshot_chapter_id
+         WHERE script.project_id = ANY($1)",
+        [project_ids.to_vec().into()],
+    ))
+    .await?
+    .into_iter()
+    .map(|row| row.try_get("", "id").map_err(Into::into))
+    .collect()
+}
 
 pub(super) fn collect_project_family_export_snapshot_ids(
     derived_source_snapshot_ids: &[i64],

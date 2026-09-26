@@ -33,6 +33,7 @@ pub(super) fn validate_galgame_generation_spec_params(
         ("galgame_cg", "galgame_line") => validate_galgame_cg_spec_params(
             spec,
             source_snapshot_id,
+            snapshot_chapters,
             snapshot_profiles,
             galgame_scripts,
             galgame_scenes,
@@ -41,6 +42,7 @@ pub(super) fn validate_galgame_generation_spec_params(
         ("portrait_expression", "character_profile") => validate_galgame_portrait_spec_params(
             spec,
             source_snapshot_id,
+            snapshot_chapters,
             snapshot_profiles,
             galgame_scripts,
             galgame_scenes,

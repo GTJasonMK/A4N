@@ -252,10 +252,19 @@ fn outline_context_without_blueprint_uses_sparse_formal_materials_without_fake_c
         &formal_materials,
         false
     ));
-    assert_eq!(
-        minimal_blueprint_context(&context)["formal_materials"]["objects"][0]["name"],
-        json!("旧钥匙")
+    let pack = blueprint_context_pack(&context).unwrap();
+    assert!(
+        !pack.source_refs_json.as_ref().unwrap()["blueprint_available"]
+            .as_bool()
+            .unwrap()
     );
+    assert_eq!(pack.variants.len(), 1);
+    assert_eq!(
+        pack.variants[0].canonical_content_json["blueprint"],
+        context
+    );
+    assert!(blueprint_context_pack(&json!({})).is_err());
+    assert!(blueprint_context_pack(&json!({"blueprint_available": "false"})).is_err());
 }
 
 #[test]

@@ -39,6 +39,7 @@ pub(in crate::video) use self::validation::API_PROMPT_UPLOAD_STATUS_TERMS;
 pub(in crate::video) use self::validation::direct_prompt_internal_reference_term;
 use self::validation::validate_frame_prompt;
 pub(in crate::video) use self::validation::validate_segment_plan;
+pub(in crate::video) use self::validation::{PromptTextKind, prompt_density_rule};
 pub use self::validation::{
     validate_direct_prompt_text, validate_reference_label_text,
     video_motion_prompt_has_temporal_storyboard,

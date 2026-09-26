@@ -83,8 +83,11 @@ fn chapter_fact_prompt_input_omits_system_derived_source_span_fields() {
     assert!(!message.contains(r#""char_start""#));
     assert!(!message.contains(r#""char_end""#));
     assert!(!message.contains(r#""long_text""#));
-    assert!(message.contains(r#""id": "ch3:s1:f1""#));
-    assert!(message.contains(r#""text": "林岚走进旧城""#));
+    let payload: serde_json::Value =
+        serde_json::from_str(a4n_prompt::request::json_user_message_payload(&message).unwrap())
+            .unwrap();
+    assert_eq!(payload["input"]["source_spans"][0]["id"], "ch3:s1:f1");
+    assert_eq!(payload["input"]["source_spans"][0]["text"], "林岚走进旧城");
 }
 
 #[tokio::test]

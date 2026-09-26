@@ -2,6 +2,63 @@ use super::support::*;
 use super::*;
 
 #[test]
+fn mixed_scene_sources_preserve_separate_portrait_intents() {
+    let mut package = package_with_galgame_project();
+    add_frozen_character_profile(&mut package, 601);
+    let mut newer = package.source_snapshots[0].clone();
+    newer.id = 902;
+    package.source_snapshots.push(newer);
+    let newer_chapters = package
+        .source_snapshot_chapters
+        .iter()
+        .cloned()
+        .map(|mut chapter| {
+            chapter.id += 10_000;
+            chapter.snapshot_id = 902;
+            chapter
+        })
+        .collect::<Vec<_>>();
+    package.source_snapshot_chapters.extend(newer_chapters);
+    let mut newer_profile = package.source_snapshot_profiles[0].clone();
+    newer_profile.id += 10_000;
+    newer_profile.snapshot_id = 902;
+    package.source_snapshot_profiles.push(newer_profile);
+    package
+        .projects
+        .iter_mut()
+        .find(|project| project.id == 2)
+        .unwrap()
+        .source_snapshot_id = Some(902);
+    package.galgame_scenes[0].source_snapshot_chapter_id = 11_001;
+    let mut old_scene = galgame_scene_record_with_id(2202, 1001, "main", None);
+    old_scene.scene_index = 2;
+    package.galgame_scenes.push(old_scene);
+    package
+        .galgame_lines
+        .push(galgame_line_record_with_id(2302, 2202));
+    for (index, snapshot_id) in [902, 901].into_iter().enumerate() {
+        set_galgame_speaker_line(&mut package.galgame_lines[index], 601, "smile", "left");
+        let mut spec = generation_spec_for_source_snapshot(snapshot_id);
+        spec.id += index as i64;
+        spec.project_id = 2;
+        spec.source_chapter_id = None;
+        spec.source_snapshot_chapter_id = None;
+        spec.target_kind = "portrait_expression".into();
+        spec.target_entity_kind = "character_profile".into();
+        spec.target_entity_id = Some(601);
+        spec.params_json =
+            galgame_portrait_params(2, 601, "smile", "standing", &[2301 + index as i64]);
+        package.generation_specs.push(spec);
+    }
+    validate_package_manifest(&package)
+        .expect("mixed scenes and equal canonical keys in distinct snapshots are valid");
+    package.generation_specs[0].params_json["source_line_ids"] = json!([2301, 2302]);
+    let error = validate_package_manifest(&package)
+        .expect_err("one portrait intent cannot mix scene snapshots");
+    assert!(error.contains("目标上下文不一致"), "{error}");
+}
+
+#[test]
 fn validate_package_manifest_rejects_galgame_cg_params_scene_line_mismatch() {
     let mut package = package_with_galgame_project();
     package

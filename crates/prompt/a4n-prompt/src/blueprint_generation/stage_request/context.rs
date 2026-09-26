@@ -13,8 +13,6 @@ pub(super) fn build_blueprint_stage_context_manifest(
     previous_context: Option<&Value>,
     dynamic_user_content: String,
     stage_key: &str,
-    _stage_name: &str,
-    _output_schema: &Value,
 ) -> Result<LlmContextManifest, AppError> {
     let source_input: Value = serde_json::from_str(user_payload_json)?;
     let mut ledger = LlmContextLedger::new();

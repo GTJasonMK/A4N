@@ -147,6 +147,7 @@ export const ThemeTab: React.FC = () => {
         themes={themeTab.themes}
         scope={themeTab.scope}
         loading={themeTab.loading}
+        loadError={themeTab.loadError}
         hasUser={themeTab.hasUser}
         activatingId={themeTab.activating}
         deletingId={themeTab.deleting}

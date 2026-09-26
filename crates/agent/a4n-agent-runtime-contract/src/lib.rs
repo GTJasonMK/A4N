@@ -239,7 +239,7 @@ mod tests {
         )
         .expect("deterministic summary must validate");
 
-        assert_eq!(summary.current_goal, "fallback goal");
+        assert_eq!(summary.current_goal, "继续阅读正文");
         assert_eq!(summary.constraints, ["保持人物声音"]);
         assert_eq!(summary.pending, ["读取下一段"]);
         assert_eq!(summary.covered_through_sequence, 12);
@@ -305,7 +305,7 @@ mod tests {
 
         assert_eq!(summary.current_goal, "new goal");
         assert!(summary.facts_resources[0].contains("recent fact marker"));
-        assert!(summary.facts_resources[0].contains("内容省略"));
+        assert!(summary.facts_resources[0].contains("[summary truncated]"));
         assert!(summary.facts_resources[0].chars().count() <= 2_000);
     }
 
@@ -338,6 +338,7 @@ mod tests {
     fn deterministic_context_summary_trims_old_entries_to_fit_byte_limit() {
         let repeated = || vec!["x".repeat(1_000); 64];
         let previous = json!({
+            "schema_version": AGENT_CONTEXT_SUMMARY_VERSION,
             "current_goal": "goal",
             "constraints": repeated(),
             "decisions": repeated(),

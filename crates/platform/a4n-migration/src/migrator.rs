@@ -131,6 +131,9 @@ impl MigratorTrait for Migrator {
             Box::new(crate::migrations::video_shot_source_identity::Migration),
             Box::new(crate::migrations::body_fact_feedback::Migration),
             Box::new(crate::migrations::galgame_scene_source_identity::Migration),
+            Box::new(crate::migrations::galgame_scene_snapshot_scope::Migration),
+            Box::new(crate::migrations::retire_stale_live_text_anchors::Migration),
+            Box::new(crate::migrations::source_sync_local_target_retirement::Migration),
         ]
     }
 }

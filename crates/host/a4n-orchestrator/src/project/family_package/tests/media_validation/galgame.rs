@@ -27,6 +27,24 @@ fn validate_media_manifest_accepts_galgame_line_binding_target() {
 }
 
 #[test]
+fn galgame_binding_uses_scene_snapshot_after_partial_regeneration() {
+    let mut package = package_with_valid_media_binding_target("galgame_line");
+    package.galgame_scripts[0].source_snapshot_id = 902;
+    let mut initial_snapshot = source_snapshot_record();
+    initial_snapshot.id = 902;
+    package.source_snapshots.push(initial_snapshot);
+    package.media_assets = vec![completed_media_asset_with_kind(MEDIA_KIND_IMAGE)];
+    package.media_bindings = vec![media_binding_record("galgame_line", "cg")];
+    let media_payload = media_payload_for_assets(&mut package);
+    validate_media_manifest(&package, &media_payload)
+        .expect("the target scene owns media source scope");
+    package.media_assets[0].source_snapshot_id = Some(902);
+    let error = validate_media_manifest(&package, &media_payload)
+        .expect_err("script provenance cannot replace scene provenance");
+    assert!(error.contains("源快照"), "{error}");
+}
+
+#[test]
 fn validate_media_manifest_rejects_invalid_galgame_binding_pair() {
     let mut package = package_with_valid_media_binding_target("galgame_scene");
     package.media_assets = vec![media_asset_with_kind(MEDIA_KIND_IMAGE)];

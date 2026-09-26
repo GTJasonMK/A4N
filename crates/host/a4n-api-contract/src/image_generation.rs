@@ -49,6 +49,7 @@ pub struct GenerateBatchImagesInput {
 #[serde(deny_unknown_fields)]
 pub struct GenerateGalgameImageInput {
     pub project_id: i64,
+    pub source_snapshot_id: i64,
     pub prompt: String,
     pub image_type: String,
     pub config_id: Option<i64>,

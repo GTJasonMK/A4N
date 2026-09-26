@@ -78,6 +78,7 @@ source_sync_enum!(SourceSyncConflictStatus {
     Pending => "pending",
     Resolved => "resolved",
     Ignored => "ignored",
+    Obsolete => "obsolete",
 });
 
 source_sync_enum!(SourceSyncResolutionStrategy {

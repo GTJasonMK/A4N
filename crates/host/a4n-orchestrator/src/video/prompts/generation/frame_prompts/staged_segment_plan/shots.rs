@@ -59,7 +59,6 @@ pub(super) async fn render_segment_plan_shots(
         source_metadata,
         source_spans,
         project_context,
-        shooting_script_projection_json: _,
         shooting_script_projection,
         source_shot_order,
         source_complete,
@@ -171,11 +170,8 @@ pub(super) async fn render_segment_plan_shots(
                     shooting_script_projection,
                     &shot.source_shot_id,
                 )?,
-                raw_output: None,
-                placeholder: false,
             }],
             project_context,
-            asset_context: None,
             dynamic_user_content: user_content.clone(),
         })
         .await?;

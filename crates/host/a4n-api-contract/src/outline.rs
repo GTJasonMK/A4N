@@ -256,16 +256,32 @@ pub struct UpdateChapterOutlineInput {
     pub outline_id: i64,
     #[schemars(length(min = 1, max = 64))]
     pub expected_updated_at: String,
-    #[serde(default, deserialize_with = "deserialize_optional_outline_title")]
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "deserialize_optional_outline_title"
+    )]
     #[schemars(with = "String", length(min = 1))]
     pub title: Option<String>,
-    #[serde(default, deserialize_with = "deserialize_optional_outline_summary")]
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "deserialize_optional_outline_summary"
+    )]
     #[schemars(with = "String", length(min = 1))]
     pub summary: Option<String>,
-    #[serde(default, deserialize_with = "deserialize_optional_outline_beats")]
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "deserialize_optional_outline_beats"
+    )]
     #[schemars(with = "Vec<Value>")]
     pub beats: Option<Value>,
-    #[serde(default, deserialize_with = "deserialize_optional_outline_key_scenes")]
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "deserialize_optional_outline_key_scenes"
+    )]
     #[schemars(with = "Vec<Value>")]
     pub key_scenes: Option<Value>,
 }
@@ -541,5 +557,23 @@ where
         _ => Err(de::Error::custom(format!(
             "章节大纲字段 {field} 必须是数组"
         ))),
+    }
+}
+
+#[cfg(test)]
+mod wire_roundtrip_tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn partial_outline_edit_survives_the_host_to_worker_hop() {
+        let wire = json!({"project_id": 1, "outline_id": 2, "expected_updated_at": "2026-09-26T00:00:00", "summary": "修改后的计划"});
+        let input: UpdateChapterOutlineInput = serde_json::from_value(wire.clone()).unwrap();
+        let forwarded = serde_json::to_value(input).unwrap();
+        assert_eq!(forwarded, wire);
+        serde_json::from_value::<UpdateChapterOutlineInput>(forwarded).unwrap();
+        let mut invalid = wire;
+        invalid["beats"] = Value::Null;
+        assert!(serde_json::from_value::<UpdateChapterOutlineInput>(invalid).is_err());
     }
 }

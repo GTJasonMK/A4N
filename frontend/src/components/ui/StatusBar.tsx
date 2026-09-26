@@ -1,4 +1,4 @@
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import React, { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { SlidersHorizontal, X } from "lucide-react";
 import { useI18n } from "../../i18n";
 import { BookIconButton } from "./BookButton";
@@ -13,12 +13,12 @@ import { BookIconButton } from "./BookButton";
 
 interface PermanentWidget {
   id: string;
-  content: React.ReactNode;
+  content: string;
 }
 
 interface StatusBarContextValue {
   permanent: PermanentWidget[];
-  addPermanent: (id: string, content: React.ReactNode) => void;
+  addPermanent: (id: string, content: string) => void;
   removePermanent: (id: string) => void;
   expanded: boolean;
   toggle: (trigger: HTMLButtonElement) => void;
@@ -40,7 +40,7 @@ export const StatusBarProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     triggerRef.current?.focus();
   }, []);
 
-  const addPermanent = useCallback((id: string, content: React.ReactNode) => {
+  const addPermanent = useCallback((id: string, content: string) => {
     setPermanent((prev) => {
       const next = prev.filter((w) => w.id !== id);
       next.push({ id, content });
@@ -71,12 +71,13 @@ export const useStatusBar = (): StatusBarContextValue => {
 /**
  * 注册一个持续显示的部件，组件卸载时自动移除。
  */
-export const useStatusBarPermanent = (id: string, content: React.ReactNode): void => {
+export const useStatusBarPermanent = (id: string, content: string): void => {
   const { addPermanent, removePermanent } = useStatusBar();
-  useEffect(() => {
+  // Update visual registration before paint; typing must not enqueue another passive update cycle.
+  useLayoutEffect(() => {
     addPermanent(id, content);
-    return () => removePermanent(id);
-  }, [id, content, addPermanent, removePermanent]);
+  }, [id, content, addPermanent]);
+  useLayoutEffect(() => () => removePermanent(id), [id, removePermanent]);
 };
 
 interface StatusBarProps {

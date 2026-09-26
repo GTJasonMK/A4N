@@ -72,7 +72,7 @@ pub(super) fn event_cg_asset_plan_draft(
             canonical_key,
             project_id: context.project.id,
             root_project_id: context.root_project.id,
-            source_snapshot_id: context.source_snapshot.id,
+            source_snapshot_id: chapter.snapshot_id,
             source_chapter_id: Some(chapter.source_chapter_id),
             source_snapshot_chapter_id: Some(chapter.id),
             target_kind: GALGAME_TARGET_CG,
@@ -84,6 +84,7 @@ pub(super) fn event_cg_asset_plan_draft(
         true,
         line.speaker_profile_id,
         format!("{} #{} CG", scene.title, line.line_index),
+        scene.title.clone(),
     )
     .map(Some)
 }

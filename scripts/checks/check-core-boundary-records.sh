@@ -393,15 +393,13 @@ if ! rg -n 'shooting_script_record_mutation_application\(\)' \
     exit 1
 fi
 
-if ! rg -n 'shooting_script_full_generation_application\(\)' \
-    crates/host/a4n-runtime/src/actions/shooting_script_records/generation.rs || \
-   ! rg -n 'shooting_script_next_unit_generation_application\(\)' \
+if ! rg -n 'shooting_script_generation_application\(\)' \
     crates/host/a4n-runtime/src/actions/shooting_script_records/generation.rs; then
-    printf 'Runtime shooting-script generation actions must route through worker-specific ports\n' >&2
+    printf 'Runtime shooting-script generation must route through its background task application port\n' >&2
     exit 1
 fi
 
-if ! rg -n 'pub trait ShootingScript(FullGeneration|NextUnitGeneration)ApplicationPort' \
+if ! rg -n 'pub trait ShootingScriptGenerationApplicationPort' \
     crates/project/a4n-novel-host-contract/src/lib.rs || \
    ! rg -n 'pub trait ShootingScript(UnitProgressRead|RecordMutation)ApplicationPort' \
     crates/host/a4n-api-contract/src/shooting_script.rs; then

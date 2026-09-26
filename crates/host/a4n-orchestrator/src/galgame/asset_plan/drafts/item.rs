@@ -14,6 +14,7 @@ pub(in crate::galgame::asset_plan) fn galgame_asset_plan_item_draft(
     replace_entity_refs: bool,
     entity_profile_id: Option<i64>,
     label: String,
+    source_label: String,
 ) -> Result<GalgameAssetPlanItemDraft, AppError> {
     if text_anchor_ids.is_empty() {
         return Err(AppError::InvalidArgument(
@@ -25,6 +26,7 @@ pub(in crate::galgame::asset_plan) fn galgame_asset_plan_item_draft(
         group,
         canonical_key,
         label,
+        source_label,
         record_input: GalgameAssetPlanSpecRecordInput {
             spec: input.into_record_input(),
             text_anchor_ids: text_anchor_ids.iter().copied().collect(),
@@ -38,8 +40,7 @@ pub(in crate::galgame::asset_plan) fn push_plan_item(
     items: &mut Vec<GalgameAssetPlanItem>,
     summary: &mut GalgameAssetPlanSummary,
     spec: GalgameGenerationSpecUpsert,
-    canonical_key: String,
-    label: String,
+    draft: GalgameAssetPlanItemDraft,
 ) -> Result<(), AppError> {
     let outcome = match spec.outcome {
         GalgameGenerationSpecUpsertOutcome::Created => GalgameAssetPlanOutcome::Created,
@@ -62,8 +63,10 @@ pub(in crate::galgame::asset_plan) fn push_plan_item(
             operation: "plan_galgame_assets".to_string(),
         })?;
     items.push(GalgameAssetPlanItem {
-        canonical_key,
-        label,
+        canonical_key: draft.canonical_key,
+        label: draft.label,
+        source_snapshot_id: draft.record_input.spec.source_snapshot_id,
+        source_label: draft.source_label,
         target_kind: a4n_domain::galgame::GalgameGenerationTargetKind::parse(
             &spec.model.target_kind,
         )

@@ -2568,6 +2568,7 @@
         },
         "shot_ids": {
           "default": [],
+          "description": "full 模式下仅更新所选镜头；为空时生成整章，next_scene 不接受此字段的非空值。",
           "items": {
             "type": "string"
           },

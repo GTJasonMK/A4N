@@ -31,6 +31,7 @@ pub(super) fn validate_galgame_background_spec_params(
         source_snapshot_id,
         target_scene,
         galgame_scripts,
+        snapshot_chapters,
     )?;
     let params = generation_spec_params_object(spec)?;
     let expected_key = format!("galgame:{}:background:scene:{target_id}", spec.project_id);

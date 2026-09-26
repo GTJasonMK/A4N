@@ -143,7 +143,6 @@ pub(super) async fn prepare_storyboard_frame_request(
         prompt_names: &["chapter_video_segment_plan", spec.frame_prompt_name],
         previous_outputs: &[],
         project_context,
-        asset_context: None,
         dynamic_user_content: frame_user.clone(),
     })
     .await?;

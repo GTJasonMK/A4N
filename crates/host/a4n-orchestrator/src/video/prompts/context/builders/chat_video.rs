@@ -52,10 +52,6 @@ pub(in crate::video) async fn build_chat_video_prompt_user(
         &rules,
         "chat_prompt_scope_rule",
     )?;
-    constraints.insert(
-        "required_sections".to_string(),
-        json!(prompt_output_language.visual_sections()),
-    );
     insert_rule_value(
         &mut constraints,
         "input_image_rule",
@@ -103,8 +99,7 @@ pub(in crate::video) async fn build_chat_video_prompt_user(
                 "scene_summary",
                 "chat_prompt",
                 "negative_prompt"
-            ],
-            "chat_prompt_required_sections": prompt_output_language.visual_sections()
+            ]
         }
     }));
     render_strict_json_user_prompt(prompt_renderer, project_id, &user_instruction, &payload).await

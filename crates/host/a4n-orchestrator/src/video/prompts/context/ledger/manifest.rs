@@ -20,7 +20,6 @@ pub(in crate::video) async fn build_video_context_manifest(
         prompt_names,
         previous_outputs,
         project_context,
-        asset_context,
         dynamic_user_content,
     } = input;
     let mut ledger = LlmContextLedger::new();
@@ -34,14 +33,6 @@ pub(in crate::video) async fn build_video_context_manifest(
             "video_project_context",
             json!({"ledger_version": VIDEO_CONTEXT_LEDGER_VERSION, "kind": "project_context"}),
             project_context,
-        )?;
-    }
-    if let Some(asset_context) = asset_context {
-        add_optional_value_pack(
-            &mut ledger,
-            "video_asset_bindings",
-            json!({"ledger_version": VIDEO_CONTEXT_LEDGER_VERSION, "kind": "asset_context"}),
-            asset_context,
         )?;
     }
     let mut manifest = ledger.into_manifest(dynamic_user_content, None);
@@ -64,16 +55,15 @@ pub(in crate::video) async fn build_final_video_context_manifest(
     prompt_names: &[&str],
     dynamic_user_content: String,
 ) -> Result<LlmContextManifest, AppError> {
-    let mut ledger = LlmContextLedger::new();
-    add_chapter_source_pack(&mut ledger, source)?;
-    let mut manifest = ledger.into_manifest(dynamic_user_content, None);
-    record_prompt_dependencies(
-        &mut manifest,
+    build_video_context_manifest(VideoContextManifestInput {
         prompt_renderer,
         project_id,
         variables,
+        source,
         prompt_names,
-    )
-    .await?;
-    Ok(manifest)
+        previous_outputs: &[],
+        project_context: None,
+        dynamic_user_content,
+    })
+    .await
 }

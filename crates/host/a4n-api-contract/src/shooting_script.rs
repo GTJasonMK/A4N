@@ -24,21 +24,6 @@ pub struct ChapterShootingScriptSourceInput {
     pub visual_plan_id: Option<i64>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
-#[serde(deny_unknown_fields)]
-pub struct GenerateChapterShootingScriptInput {
-    #[schemars(range(min = 1))]
-    pub project_id: i64,
-    #[schemars(range(min = 1))]
-    pub source_chapter_id: i64,
-    #[schemars(range(min = 1))]
-    pub visual_plan_id: i64,
-    /// 模型辅助局部更新：只替换这些镜头，其他镜头和场景内容原样保留。
-    /// 为空时重新生成整章。
-    #[serde(default)]
-    pub shot_ids: Vec<String>,
-}
-
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum ShootingScriptGenerationMode {
@@ -56,20 +41,10 @@ pub struct StartChapterShootingScriptGenerationInput {
     pub source_chapter_id: i64,
     #[schemars(range(min = 1))]
     pub visual_plan_id: i64,
+    /// full 模式下仅更新所选镜头；为空时生成整章，next_scene 不接受此字段的非空值。
     #[serde(default)]
     pub shot_ids: Vec<String>,
     pub mode: ShootingScriptGenerationMode,
-}
-
-impl StartChapterShootingScriptGenerationInput {
-    pub fn generation_input(&self) -> GenerateChapterShootingScriptInput {
-        GenerateChapterShootingScriptInput {
-            project_id: self.project_id,
-            source_chapter_id: self.source_chapter_id,
-            visual_plan_id: self.visual_plan_id,
-            shot_ids: self.shot_ids.clone(),
-        }
-    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]

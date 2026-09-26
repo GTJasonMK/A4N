@@ -23,18 +23,18 @@ fn build_json_user_message(
 ) -> Result<String, AppError> {
     let lead = sentence(lead, "JSON user message 缺少任务说明")?;
     let response_requirement = sentence(response_requirement, "JSON user message 缺少返回要求")?;
-    let payload = pretty_json_with_root_key_order(payload, DEFAULT_ROOT_KEY_ORDER)?;
+    let payload = compact_json_with_root_key_order(payload, DEFAULT_ROOT_KEY_ORDER)?;
     Ok(format!(
         "{lead}{response_requirement}{JSON_USER_MESSAGE_INPUT_MARKER}{payload}"
     ))
 }
 
-pub fn pretty_json_with_root_key_order(
+pub fn compact_json_with_root_key_order(
     value: &Value,
     root_key_order: &[&str],
 ) -> Result<String, AppError> {
     let Some(object) = value.as_object() else {
-        return serde_json::to_string_pretty(value).map_err(AppError::Serialization);
+        return serde_json::to_string(value).map_err(AppError::Serialization);
     };
     if object.is_empty() {
         return Ok("{}".to_string());
@@ -53,19 +53,16 @@ pub fn pretty_json_with_root_key_order(
         }
     }
 
-    let mut rendered = String::from("{\n");
+    let mut rendered = String::from("{");
     for (index, key) in keys.iter().enumerate() {
         let key_text = serde_json::to_string(key).map_err(AppError::Serialization)?;
-        let value_text =
-            serde_json::to_string_pretty(&object[*key]).map_err(AppError::Serialization)?;
-        rendered.push_str("  ");
+        let value_text = serde_json::to_string(&object[*key]).map_err(AppError::Serialization)?;
         rendered.push_str(&key_text);
-        rendered.push_str(": ");
-        rendered.push_str(&value_text.replace('\n', "\n  "));
+        rendered.push(':');
+        rendered.push_str(&value_text);
         if index + 1 < keys.len() {
             rendered.push(',');
         }
-        rendered.push('\n');
     }
     rendered.push('}');
     Ok(rendered)
@@ -112,15 +109,12 @@ mod tests {
 
         assert!(message.starts_with("请根据以下 JSON 输入执行测试任务。"));
         assert!(message.contains("只返回 output_contract 要求的严格 JSON 对象。"));
-        assert_eq!(
-            json_user_message_payload(&message),
-            Some("{\n  \"input\": 1\n}")
-        );
+        assert_eq!(json_user_message_payload(&message), Some("{\"input\":1}"));
     }
 
     #[test]
     fn orders_stable_root_keys_before_dynamic_input() {
-        let text = pretty_json_with_root_key_order(
+        let text = compact_json_with_root_key_order(
             &json!({
                 "input": {"chapter": "dynamic"},
                 "task": {"name": "step"},

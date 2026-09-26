@@ -11,8 +11,7 @@ use super::super::{
     fact_feedback::{
         get_project_fact_feedback, preview_project_fact_feedback_request, run_project_fact_feedback,
     },
-    forward_project_status, generate_chapter_analysis, generate_chapter_scene,
-    generate_chapter_shooting_script, generate_next_chapter_shooting_script_unit, get_blueprint,
+    forward_project_status, generate_chapter_analysis, generate_chapter_scene, get_blueprint,
     get_chapter_outlines_pacing, get_chapter_shooting_script,
     get_chapter_shooting_script_unit_progress, get_generation_progress, get_inspiration_history,
     get_optimize_session, get_profile_state_at_chapter, get_project,
@@ -170,12 +169,6 @@ async fn try_dispatch_content(
         "get_chapter_shooting_script" => get_chapter_shooting_script(state, user_id, args).await?,
         "get_chapter_shooting_script_unit_progress" => {
             get_chapter_shooting_script_unit_progress(state, user_id, args).await?
-        }
-        "generate_chapter_shooting_script" => {
-            generate_chapter_shooting_script(state, user_id, args).await?
-        }
-        "generate_next_chapter_shooting_script_unit" => {
-            generate_next_chapter_shooting_script_unit(state, user_id, args).await?
         }
         "edit_chapter_shooting_script" => {
             edit_chapter_shooting_script(state, user_id, args).await?

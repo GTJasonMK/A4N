@@ -7,7 +7,9 @@ use a4n_db_models::models::source_sync::{
 };
 use a4n_domain::source_sync::{SourceSyncConflictStatus, SourceSyncResolutionStrategy};
 use chrono::Utc;
-use sea_orm::{ActiveModelTrait, ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, Set};
+use sea_orm::{
+    ActiveModelTrait, ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, Set, sea_query::Expr,
+};
 use serde_json::Value;
 use std::collections::HashMap;
 
@@ -159,12 +161,37 @@ pub async fn resolve_source_sync_conflict_record<C>(
 where
     C: ConnectionTrait,
 {
-    let mut active: source_sync_conflict::ActiveModel = conflict.into();
-    active.status = Set(status.as_str().to_string());
-    active.resolution_strategy = Set(Some(strategy.as_str().to_string()));
-    active.decision_json = Set(Some(decision_json));
-    active.resolved_at = Set(Some(Utc::now().naive_utc()));
-    active.update(db).await.map_err(SourceSyncDbError::Database)
+    // Deleting the local target may already have retired this comparison in the same transaction.
+    // Record the user's decision without turning that historical reference back into a live one.
+    let mut updated = source_sync_conflict::Entity::update_many()
+        .col_expr(
+            source_sync_conflict::Column::Status,
+            Expr::case(
+                source_sync_conflict::Column::Status
+                    .eq(SourceSyncConflictStatus::Obsolete.as_str()),
+                SourceSyncConflictStatus::Obsolete.as_str(),
+            )
+            .finally(status.as_str())
+            .into(),
+        )
+        .col_expr(
+            source_sync_conflict::Column::ResolutionStrategy,
+            Expr::value(Some(strategy.as_str().to_string())),
+        )
+        .col_expr(
+            source_sync_conflict::Column::DecisionJson,
+            Expr::value(Some(decision_json)),
+        )
+        .col_expr(
+            source_sync_conflict::Column::ResolvedAt,
+            Expr::value(Some(Utc::now().naive_utc())),
+        )
+        .filter(source_sync_conflict::Column::Id.eq(conflict.id))
+        .exec_with_returning(db)
+        .await?;
+    updated
+        .pop()
+        .ok_or_else(|| SourceSyncDbError::NotFound(format!("源同步冲突不存在: {}", conflict.id)))
 }
 
 pub async fn insert_source_sync_decision_record<C>(

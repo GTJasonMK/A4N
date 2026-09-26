@@ -44,6 +44,7 @@ fn portrait_asset_draft_aggregates_line_samples() {
         position_samples: BTreeSet::new(),
         source_line_ids: BTreeSet::new(),
         text_anchor_ids: BTreeSet::new(),
+        source_labels: BTreeSet::new(),
     };
     let line_a = projected_line(10, Some(100), GalgameStagePositionV2::Left);
     let line_b = projected_line(11, None, GalgameStagePositionV2::Right);

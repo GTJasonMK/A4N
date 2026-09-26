@@ -12,7 +12,7 @@ use super::{
         validate_chapter_outline_generation_request, validate_requested_part_context,
     },
     context::{
-        chapter_outline_context_json, has_outline_generation_source, minimal_blueprint_context,
+        blueprint_context_pack, chapter_outline_context_json, has_outline_generation_source,
         outline_blueprint_context_json, outline_formal_materials_context_json,
     },
     ensure_response_not_truncated, order_parts_for_batch_generation,

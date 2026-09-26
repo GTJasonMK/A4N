@@ -32,6 +32,7 @@ interface ImageGalleryPanelProps {
   scopeMode: ImageScope;
   favOnly: boolean;
   loading: boolean;
+  loadError: string | null;
   importBusy: boolean;
   currentContentHash: string | null;
   busyId: number | null;
@@ -54,6 +55,7 @@ export function ImageGalleryPanel({
   scopeMode,
   favOnly,
   loading,
+  loadError,
   importBusy,
   currentContentHash,
   busyId,
@@ -259,7 +261,8 @@ export function ImageGalleryPanel({
         </div>
       </div>
 
-      {images.length === 0 ? (
+      {loadError ? <p role="alert" className="mb-3 text-sm text-error">{loadError}</p> : null}
+      {images.length === 0 ? (loadError ? null : (
         <EmptyHint
           text={
             loading
@@ -271,7 +274,7 @@ export function ImageGalleryPanel({
                 : t("novel.imageLibrary.emptyProject")
           }
         />
-      ) : (
+      )) : (
         chapterScoped ? (
           chapterGroupsAreSingleImages ? (
             <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">

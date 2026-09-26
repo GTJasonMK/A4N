@@ -1,5 +1,5 @@
 use a4n_db_models::models::{
-    chapter::{chapter_shooting_script, chapter_visual_plan},
+    chapter::chapter_visual_plan,
     project::{project_source_snapshot, source_snapshot_chapter},
 };
 use chrono::NaiveDateTime;
@@ -60,33 +60,6 @@ where
         .iter()
         .map(|chapter| chapter.id)
         .collect::<Vec<_>>();
-    let live_plans_by_chapter = chapter_visual_plan::Entity::find()
-        .filter(chapter_visual_plan::Column::RootProjectId.eq(root_project_id))
-        .filter(chapter_visual_plan::Column::SourceChapterId.is_in(chapter_ids.iter().copied()))
-        .filter(chapter_visual_plan::Column::SourceSnapshotId.is_null())
-        .filter(chapter_visual_plan::Column::SourceSnapshotChapterId.is_null())
-        .filter(chapter_visual_plan::Column::Status.eq("confirmed"))
-        .distinct_on([
-            chapter_visual_plan::Column::SourceChapterId,
-            chapter_visual_plan::Column::SourceContentSha256,
-        ])
-        .order_by_asc(chapter_visual_plan::Column::SourceChapterId)
-        .order_by_asc(chapter_visual_plan::Column::SourceContentSha256)
-        .order_by_desc(chapter_visual_plan::Column::UpdatedAt)
-        .order_by_desc(chapter_visual_plan::Column::Id)
-        .all(db)
-        .await
-        .map_err(ProjectMutationError::Database)?
-        .into_iter()
-        .fold(
-            HashMap::<(i64, String), chapter_visual_plan::Model>::new(),
-            |mut plans, plan| {
-                plans
-                    .entry((plan.source_chapter_id, plan.source_content_sha256.clone()))
-                    .or_insert(plan);
-                plans
-            },
-        );
     let latest_plan_version_by_chapter = chapter_visual_plan::Entity::find()
         .select_only()
         .column(chapter_visual_plan::Column::SourceChapterId)
@@ -107,47 +80,6 @@ where
             |mut versions, (source_chapter_id, version)| {
                 versions.entry(source_chapter_id).or_insert(version);
                 versions
-            },
-        );
-    let live_scripts_by_chapter = chapter_shooting_script::Entity::find()
-        .filter(chapter_shooting_script::Column::RootProjectId.eq(root_project_id))
-        .filter(chapter_shooting_script::Column::SourceChapterId.is_in(chapter_ids.iter().copied()))
-        .filter(chapter_shooting_script::Column::SourceSnapshotId.is_null())
-        .filter(chapter_shooting_script::Column::SourceSnapshotChapterId.is_null())
-        .distinct_on([
-            chapter_shooting_script::Column::SourceChapterId,
-            chapter_shooting_script::Column::SourceContentSha256,
-            chapter_shooting_script::Column::VisualPlanId,
-            chapter_shooting_script::Column::VisualPlanVersion,
-            chapter_shooting_script::Column::VisualPlanSha256,
-        ])
-        .order_by_asc(chapter_shooting_script::Column::SourceChapterId)
-        .order_by_asc(chapter_shooting_script::Column::SourceContentSha256)
-        .order_by_asc(chapter_shooting_script::Column::VisualPlanId)
-        .order_by_asc(chapter_shooting_script::Column::VisualPlanVersion)
-        .order_by_asc(chapter_shooting_script::Column::VisualPlanSha256)
-        .order_by_desc(chapter_shooting_script::Column::UpdatedAt)
-        .order_by_desc(chapter_shooting_script::Column::Id)
-        .all(db)
-        .await
-        .map_err(ProjectMutationError::Database)?
-        .into_iter()
-        .fold(
-            HashMap::<
-                (i64, String, Option<i64>, Option<i32>, Option<String>),
-                chapter_shooting_script::Model,
-            >::new(),
-            |mut scripts, script| {
-                scripts
-                    .entry((
-                        script.source_chapter_id,
-                        script.source_content_sha256.clone(),
-                        script.visual_plan_id,
-                        script.visual_plan_version,
-                        script.visual_plan_sha256.clone(),
-                    ))
-                    .or_insert(script);
-                scripts
             },
         );
 
@@ -206,9 +138,7 @@ where
                     chapter.id
                 ))
             })?;
-        if let Some(live_plan) =
-            live_plans_by_chapter.get(&(chapter.id, snapshot_chapter.content_hash.clone()))
-        {
+        if let Some(live_plan) = data.visual_plans.get(&chapter.id) {
             let source_revision_key = format!(
                 "snapshot:{}:chapter:{}:{}",
                 snapshot.id, snapshot_chapter.id, snapshot_chapter.content_hash
@@ -254,13 +184,7 @@ where
                 .update(db)
                 .await
                 .map_err(ProjectMutationError::Database)?;
-            if let Some(live_script) = live_scripts_by_chapter.get(&(
-                chapter.id,
-                snapshot_chapter.content_hash.clone(),
-                Some(live_plan.id),
-                Some(live_plan.plan_version),
-                Some(live_plan.plan_sha256.clone()),
-            )) {
+            if let Some(live_script) = data.shooting_scripts.get(&chapter.id) {
                 let mut script: a4n_domain::shooting_script::ChapterShootingScriptV1 =
                     serde_json::from_value(live_script.script_json.clone()).map_err(|error| {
                         ProjectMutationError::Internal(format!("解析源拍摄剧本失败: {error}"))
@@ -298,13 +222,7 @@ where
                         workflow_run_id: None,
                     },
                 )
-                .await
-                .map_err(|error| match error {
-                    crate::shooting_script::ShootingScriptDbError::Database(error) => {
-                        ProjectMutationError::Database(error)
-                    }
-                    other => ProjectMutationError::Internal(other.to_string()),
-                })?;
+                .await?;
             }
         }
         pending_anchors.push(PendingSnapshotAnchor {
@@ -335,7 +253,7 @@ where
     }
 
     freeze_outlines(db, snapshot.id, root_project_id, scope).await?;
-    freeze_profiles(db, snapshot.id, root_project_id).await?;
+    freeze_profiles(db, snapshot.id, root_project_id, data.profiles).await?;
 
     Ok(snapshot)
 }

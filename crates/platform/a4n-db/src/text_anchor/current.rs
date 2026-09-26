@@ -7,10 +7,27 @@ use super::{
 use a4n_db_models::models::{chapter::chapter, project::text_anchor};
 use a4n_domain::source_text_hash;
 use sea_orm::{
-    ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder, QuerySelect,
-    TransactionTrait,
+    ColumnTrait, ConnectionTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder,
+    QuerySelect, TransactionTrait,
 };
 use std::collections::{HashMap, HashSet};
+
+pub async fn delete_chapter_content_anchor_records<C: ConnectionTrait>(
+    db: &C,
+    project_id: i64,
+    chapter_ids: &[i64],
+) -> TextAnchorDbResult<()> {
+    super::delete_chapter_content_profile_evidence_records_batch(db, project_id, chapter_ids)
+        .await?;
+    text_anchor::Entity::delete_many()
+        .filter(text_anchor::Column::ProjectId.eq(project_id))
+        .filter(text_anchor::Column::SourceKind.eq(SOURCE_KIND_CHAPTER_CONTENT))
+        .filter(text_anchor::Column::SourceId.is_in(chapter_ids.iter().copied()))
+        .filter(text_anchor::Column::SourceSnapshotId.is_null())
+        .exec(db)
+        .await?;
+    Ok(())
+}
 
 pub async fn rebuild_chapter_content_anchor_records(
     db: &DatabaseConnection,
@@ -43,14 +60,7 @@ async fn rebuild_chapter_content_anchor_records_for_validated_project(
     }
 
     let tx = db.begin().await?;
-    super::delete_chapter_content_profile_evidence_records(&tx, project_id, chapter.id).await?;
-    text_anchor::Entity::delete_many()
-        .filter(text_anchor::Column::ProjectId.eq(project_id))
-        .filter(text_anchor::Column::SourceKind.eq(SOURCE_KIND_CHAPTER_CONTENT))
-        .filter(text_anchor::Column::SourceId.eq(chapter.id))
-        .filter(text_anchor::Column::SourceSnapshotId.is_null())
-        .exec(&tx)
-        .await?;
+    delete_chapter_content_anchor_records(&tx, project_id, &[chapter.id]).await?;
 
     let source_version_hash = source_text_hash(&chapter.content);
     let anchors = insert_content_anchor_records(
@@ -140,15 +150,7 @@ pub async fn ensure_chapter_content_anchor_records_batch(
         }
     }
 
-    super::delete_chapter_content_profile_evidence_records_batch(&tx, project_id, &pending_ids)
-        .await?;
-    text_anchor::Entity::delete_many()
-        .filter(text_anchor::Column::ProjectId.eq(project_id))
-        .filter(text_anchor::Column::SourceKind.eq(SOURCE_KIND_CHAPTER_CONTENT))
-        .filter(text_anchor::Column::SourceId.is_in(pending_ids.iter().copied()))
-        .filter(text_anchor::Column::SourceSnapshotId.is_null())
-        .exec(&tx)
-        .await?;
+    delete_chapter_content_anchor_records(&tx, project_id, &pending_ids).await?;
 
     let source_hashes = pending_rebuilds
         .iter()

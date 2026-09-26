@@ -58,6 +58,21 @@ where
             operation: "apply_source_sync_decisions".to_string(),
         });
     }
+    if run.status == SYNC_RUN_STATUS_PLANNED
+        && !target_snapshot_matches_current_root(db, &run).await?
+    {
+        return Err(SourceSyncDbError::InvalidState {
+            current: "root_changed_after_dry_run".to_string(),
+            operation: "apply_source_sync_decisions".to_string(),
+        });
+    }
+    Ok(run)
+}
+
+pub(super) async fn target_snapshot_matches_current_root<C: ConnectionTrait>(
+    db: &C,
+    run: &source_sync_run::Model,
+) -> Result<bool, SourceSyncDbError> {
     let target_snapshot = project_source_snapshot::Entity::find_by_id(run.to_snapshot_id)
         .select_only()
         .column(project_source_snapshot::Column::ChapterScopeJson)
@@ -70,11 +85,5 @@ where
         })?;
     let scope = parse_source_sync_chapter_scope(&target_snapshot.0)?;
     let current_hash = calculate_source_sync_version_hash(db, run.root_project_id, scope).await?;
-    if current_hash != target_snapshot.1 {
-        return Err(SourceSyncDbError::InvalidState {
-            current: "root_changed_after_dry_run".to_string(),
-            operation: "apply_source_sync_decisions".to_string(),
-        });
-    }
-    Ok(run)
+    Ok(current_hash == target_snapshot.1)
 }

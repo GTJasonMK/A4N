@@ -58,6 +58,7 @@ def main():
                 snapshot["llm"]["extra_body_json"] = {"a4n_test_cache_usage": True}
                 if protocol in {"openai", "openai-responses"}:
                     snapshot["llm"]["model"] = "gpt-5.6-luna"
+                    snapshot["llm"]["extra_body_json"]["prompt_cache_options"] = {}
                 secure_json(work / "runtime.json", snapshot)
                 checked(cli, ["config", "runtime", "set", "--input", "@" + str(work / "runtime.json")], "runtime")
                 before = len(provider_log_entries(args.provider_log))

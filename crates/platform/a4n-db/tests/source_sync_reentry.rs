@@ -3,14 +3,15 @@ use a4n_db::project::{
     create_derived_project_record, create_project_record,
 };
 use a4n_db::source_sync::{
-    PreparedSourceSyncDecisionRecordInput,
+    PreparedSourceSyncDecisionRecordInput, SourceSyncGalgameSceneLineWriteRecordInput,
+    SourceSyncGalgameSceneWriteRecordInput,
     apply_prepared_source_sync_decisions_records_transaction, create_source_sync_preview_records,
     galgame_scene_regeneration_source_record,
 };
 use a4n_db_models::models::{
     chapter::chapter,
     galgame::{galgame_scene, galgame_script},
-    project::source_snapshot_chapter,
+    project::{novel_project, source_snapshot_chapter},
 };
 use chrono::Utc;
 use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, Set};
@@ -172,6 +173,9 @@ async fn partial_sync_survives_recheck_and_kept_scenes_participate_in_later_upda
             identity.is_some()
         );
     }
+    let mut newer_root: chapter::ActiveModel = changed.clone().into();
+    newer_root.content = Set("计划尚未处理完时，根正文再次修改。".into());
+    newer_root.update(&db).await.unwrap();
     let rechecked = create_source_sync_preview_records(&db, derived.id)
         .await
         .unwrap();
@@ -196,6 +200,16 @@ async fn partial_sync_survives_recheck_and_kept_scenes_participate_in_later_upda
             .await
             .unwrap();
     assert_eq!(completed.run.status, "completed");
+    let after_completion = novel_project::Entity::find_by_id(derived.id)
+        .one(&db)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(after_completion.source_sync_status, "root_updated");
+    assert_eq!(
+        after_completion.source_snapshot_id,
+        Some(first.run.to_snapshot_id)
+    );
 
     let mut changed: chapter::ActiveModel = changed.into();
     changed.content = Set("第二次修改后的正文。".into());
@@ -227,4 +241,82 @@ async fn partial_sync_survives_recheck_and_kept_scenes_participate_in_later_upda
         regeneration.new_snapshot_chapter.source_chapter_id,
         chapter.id
     );
+    let target_chapter = regeneration.new_snapshot_chapter.id;
+    let target_anchor = regeneration.anchors.first().expect("target anchor").id;
+    let regenerated = apply_prepared_source_sync_decisions_records_transaction(
+        &db,
+        next.run.id,
+        vec![PreparedSourceSyncDecisionRecordInput::RegenerateScene {
+            conflict_id: main_conflict.id,
+            galgame_scene_id: scene_ids[0],
+            reason: None,
+            expected_scene_index: 1,
+            expected_source_snapshot_chapter_id: target_chapter,
+            generated_scene: SourceSyncGalgameSceneWriteRecordInput {
+                title: "更新后的主线".into(),
+                location: None,
+                time_of_day: None,
+                participants_json: json!([]),
+                background_note: None,
+                lines: vec![SourceSyncGalgameSceneLineWriteRecordInput {
+                    line_index: 1,
+                    line_type: "narration".into(),
+                    speaker_profile_id: None,
+                    text: "第二次修改后的新旁白。".into(),
+                    expression: None,
+                    pose: None,
+                    position: None,
+                    text_anchor_id: Some(target_anchor),
+                    presentation_json: json!({
+                        "schema_version": "galgame_line_presentation_v2",
+                        "visible_cast": [], "enter": [], "exit": [],
+                        "focus_character_profile_id": null, "hold": false,
+                        "player_knowledge": [], "cg": null, "cg_note": null,
+                        "cg_importance": null, "transition": null, "branch": null,
+                        "branch_id": null, "returns_to_scene_index": null, "after_beat_ref": null
+                    }),
+                }],
+            },
+            stage_outputs_json: json!({}),
+            decision_payload_json: json!({"user_action": "regenerate_scene"}),
+        }],
+    )
+    .await
+    .unwrap();
+    assert!(
+        regenerated
+            .conflicts
+            .iter()
+            .any(|conflict| conflict.id == main_conflict.id && conflict.status == "resolved")
+    );
+    let script_after = galgame_script::Entity::find_by_id(script.id)
+        .one(&db)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        script_after.source_snapshot_id, source.snapshot_id,
+        "script keeps initial provenance"
+    );
+    for (scene_id, snapshot_id) in [
+        (scene_ids[0], next.run.to_snapshot_id),
+        (scene_ids[1], source.snapshot_id),
+    ] {
+        let context = a4n_db::galgame::galgame_media_target_context(
+            &db,
+            derived.id,
+            "galgame_scene",
+            scene_id,
+        )
+        .await
+        .unwrap();
+        assert_eq!(context.source_snapshot_id, snapshot_id);
+    }
+    let detail = a4n_db::galgame::galgame_script_detail_read_model(&db, derived.id)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(detail.lines.len(), 1);
+    assert_eq!(detail.text_anchors[0].id, target_anchor);
+    assert_eq!(detail.lines[0].text, "第二次修改后的新旁白。");
 }

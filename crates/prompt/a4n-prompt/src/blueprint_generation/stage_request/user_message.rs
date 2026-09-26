@@ -24,7 +24,7 @@ pub(super) async fn build_blueprint_stage_manifest_user_message(
             "output_schema": output_schema,
         },
     });
-    let payload = serde_json::to_string_pretty(&payload)?;
+    let payload = serde_json::to_string(&payload)?;
     let variables = HashMap::from([
         ("stage_key".to_string(), json!(stage_key)),
         ("payload".to_string(), json!(payload)),

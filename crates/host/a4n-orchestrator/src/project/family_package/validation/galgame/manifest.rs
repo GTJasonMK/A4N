@@ -61,6 +61,7 @@ pub(in crate::project::family_package::validation) fn validate_galgame_manifest(
         package,
         &scripts,
         &scenes,
+        &snapshot_chapters,
         &text_anchors,
         &character_profile_ids,
     )?;

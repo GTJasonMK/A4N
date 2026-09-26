@@ -6,8 +6,7 @@ use a4n_domain::source_spans::SourceSpan;
 use a4n_domain::{
     chapter::ResolvedChapterSource,
     shooting_script::{
-        ChapterShootingScriptV1, ShootingDirectingStatementV1, ShootingEditingModeV1,
-        ShootingTransitionContractV1,
+        ShootingDirectingStatementV1, ShootingEditingModeV1, ShootingTransitionContractV1,
     },
 };
 use a4n_error::AppError;
@@ -18,10 +17,10 @@ pub(super) const CHAPTER_SCREENPLAY_UNIT_ADAPTATION_PROMPT: &str =
     "chapter_screenplay_unit_adaptation";
 pub(super) const CHAPTER_SHOOTING_DESIGN_UNIT_PROMPT: &str = "chapter_shooting_design_unit";
 pub(super) const CHAPTER_SHOOTING_SCRIPT_WORKFLOW: &str = "chapter_shooting_script";
-pub(in crate::shooting_script) use a4n_novel_host_contract::{
-    CHAPTER_SHOOTING_SCRIPT_PROGRESS_TOTAL, ShootingScriptProgressReporter,
-    ShootingScriptStreamReporter,
-};
+pub(super) const CHAPTER_SHOOTING_SCRIPT_PROGRESS_TOTAL: u32 = 100;
+pub(super) type ShootingScriptProgressReporter<'a> =
+    &'a (dyn Fn(u32, u32, &str) -> Result<(), AppError> + Send + Sync);
+pub(super) type ShootingScriptStreamReporter<'a> = &'a (dyn Fn(&str) + Send + Sync);
 
 pub(super) struct ShootingScriptStageResult<T> {
     pub(super) output: T,
@@ -147,15 +146,6 @@ pub(super) struct RegenerateChapterShootingScriptInput {
 pub struct ResolvedChapterShootingScript {
     pub source: ResolvedChapterSource,
     pub shooting_script: ParsedChapterShootingScript,
-}
-
-#[derive(Debug, Clone)]
-pub struct ChapterShootingScriptUnitProgress {
-    pub workflow_run_id: i64,
-    pub script: ChapterShootingScriptV1,
-    pub completed_unit_count: usize,
-    pub total_unit_count: usize,
-    pub resolved: Option<ResolvedChapterShootingScript>,
 }
 
 #[derive(Debug, Clone)]

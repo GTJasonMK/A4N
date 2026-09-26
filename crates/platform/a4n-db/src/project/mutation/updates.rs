@@ -2,12 +2,12 @@ use super::contracts::{
     ProjectMutationError, SOURCE_SYNC_CURRENT, SOURCE_SYNC_ROOT_UPDATED, UpdateProjectRecordInput,
 };
 use super::rules::required_project_title;
-use a4n_db_models::models::project::novel_project;
+use a4n_db_models::models::project::{novel_project, source_snapshot_chapter};
 use chrono::{NaiveDateTime, Utc};
 use sea_orm::sea_query::Expr;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, ConnectionTrait, DatabaseConnection, EntityTrait, QueryFilter,
-    QuerySelect, Set, TransactionTrait,
+    QuerySelect, QueryTrait, Set, TransactionTrait,
 };
 
 pub async fn update_project_record(
@@ -51,21 +51,30 @@ pub async fn update_project_record(
 pub(crate) async fn mark_derived_projects_root_updated_in_record<C>(
     db: &C,
     root_project_id: i64,
+    source_chapter_id: Option<i64>,
     now: NaiveDateTime,
-) -> Result<u64, ProjectMutationError>
+) -> Result<u64, sea_orm::DbErr>
 where
     C: ConnectionTrait,
 {
-    let result = novel_project::Entity::update_many()
+    let mut update = novel_project::Entity::update_many()
         .col_expr(
             novel_project::Column::SourceSyncStatus,
             Expr::value(SOURCE_SYNC_ROOT_UPDATED),
         )
         .col_expr(novel_project::Column::UpdatedAt, Expr::value(now))
         .filter(novel_project::Column::RootProjectId.eq(root_project_id))
-        .filter(novel_project::Column::SourceSyncStatus.eq(SOURCE_SYNC_CURRENT))
-        .exec(db)
-        .await
-        .map_err(ProjectMutationError::Database)?;
-    Ok(result.rows_affected)
+        .filter(novel_project::Column::SourceSyncStatus.eq(SOURCE_SYNC_CURRENT));
+    if let Some(source_chapter_id) = source_chapter_id {
+        update = update.filter(
+            novel_project::Column::SourceSnapshotId.in_subquery(
+                source_snapshot_chapter::Entity::find()
+                    .select_only()
+                    .column(source_snapshot_chapter::Column::SnapshotId)
+                    .filter(source_snapshot_chapter::Column::SourceChapterId.eq(source_chapter_id))
+                    .into_query(),
+            ),
+        );
+    }
+    Ok(update.exec(db).await?.rows_affected)
 }

@@ -610,6 +610,9 @@ export interface StartChapterShootingScriptGenerationInput {
   meta: GenerationStartRequestMeta;
   mode: ShootingScriptGenerationMode;
   project_id: number;
+  /**
+   * full 模式下仅更新所选镜头；为空时生成整章，next_scene 不接受此字段的非空值。
+   */
   shot_ids?: string[];
   source_chapter_id: number;
   visual_plan_id: number;

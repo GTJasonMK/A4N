@@ -59,17 +59,10 @@ impl AppState {
         self.shooting_script_record_mutation_application.as_ref()
     }
 
-    pub(crate) fn shooting_script_full_generation_application(
+    pub(crate) fn shooting_script_generation_application(
         &self,
-    ) -> &dyn a4n_novel_host_contract::ShootingScriptFullGenerationApplicationPort {
-        self.shooting_script_full_generation_application.as_ref()
-    }
-
-    pub(crate) fn shooting_script_next_unit_generation_application(
-        &self,
-    ) -> &dyn a4n_novel_host_contract::ShootingScriptNextUnitGenerationApplicationPort {
-        self.shooting_script_next_unit_generation_application
-            .as_ref()
+    ) -> &dyn a4n_novel_host_contract::ShootingScriptGenerationApplicationPort {
+        self.shooting_script_generation_application.as_ref()
     }
 
     pub(crate) fn rag_search(&self) -> &dyn a4n_rag_contract::RagSearchPort {

@@ -76,6 +76,7 @@ export const ImagesTab: React.FC<ImagesTabProps> = ({
   const chapter = fixedChapter ?? null;
   const [allImages, setAllImages] = useState<GeneratedImage[]>([]);
   const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [scopeMode, setScopeMode] = useState<ImageScope>(
     hasChapterContext ? "chapter" : "project",
   );
@@ -186,6 +187,24 @@ export const ImagesTab: React.FC<ImagesTabProps> = ({
     }
   }, []);
 
+  const commitImages = (images: GeneratedImage[]) => {
+    loadSeqRef.current += 1;
+    loadInFlightRef.current = null;
+    allImagesRef.current = images;
+    setAllImages(images);
+    setLoading(false);
+  };
+
+  const commitImage = (image: GeneratedImage) => {
+    const inScope = !chapterScoped || image.chapter_id === chapter?.id;
+    const exists = allImagesRef.current.some((row) => row.id === image.id);
+    const next = allImagesRef.current.flatMap((row) =>
+      row.id === image.id ? (inScope ? [image] : []) : [row],
+    );
+    commitImages(inScope && !exists ? [image, ...next] : next);
+    setActionImage((current) => current?.id === image.id ? (inScope ? image : null) : current);
+  };
+
   const closeRequestPreview = useCallback(() => {
     previewSeqRef.current += 1;
     previewBusyRef.current = false;
@@ -244,6 +263,7 @@ export const ImagesTab: React.FC<ImagesTabProps> = ({
     objectProfilesRef.current = [];
     setAllImages([]);
     setLoading(false);
+    setLoadError(null);
     setBusyId(null);
     setImportBusy(false);
     setGenBusy(false);
@@ -318,7 +338,10 @@ export const ImagesTab: React.FC<ImagesTabProps> = ({
         }
         return;
       }
-      if (isCurrentLoad(requestScope, requestSeq)) setLoading(true);
+      if (isCurrentLoad(requestScope, requestSeq)) {
+        setLoading(true);
+        setLoadError(null);
+      }
       try {
         let data: GeneratedImage[];
         if (requestChapterScoped && requestChapter) {
@@ -331,7 +354,9 @@ export const ImagesTab: React.FC<ImagesTabProps> = ({
         setAllImages(data);
       } catch (err) {
         if (isCurrentLoad(requestScope, requestSeq)) {
-          addToast(extractErrorMessage(err, t("novel.imageLibrary.loadFailed")), "error");
+          const message = extractErrorMessage(err, t("novel.imageLibrary.loadFailed"));
+          setLoadError(message);
+          addToast(message, "error");
         }
       } finally {
         if (isCurrentLoad(requestScope, requestSeq)) setLoading(false);
@@ -445,9 +470,9 @@ export const ImagesTab: React.FC<ImagesTabProps> = ({
         },
         async (task) => {
           ensureCurrentAction(requestScope, actionSeq);
-          await verifyImageGenerationResult(task, requestProjectId);
-          await load({ force: true });
+          const images = await verifyImageGenerationResult(task, requestProjectId);
           ensureCurrentAction(requestScope, actionSeq);
+          images.forEach(commitImage);
         },
       );
       if (!isCurrentAction(requestScope, actionSeq)) return;
@@ -631,9 +656,9 @@ export const ImagesTab: React.FC<ImagesTabProps> = ({
         },
         async (task) => {
           ensureCurrentAction(requestScope, actionSeq);
-          await verifyImageGenerationResult(task, requestProjectId);
-          await load({ force: true });
+          const images = await verifyImageGenerationResult(task, requestProjectId);
           ensureCurrentAction(requestScope, actionSeq);
+          images.forEach(commitImage);
           await loadObjectProfiles();
           ensureCurrentAction(requestScope, actionSeq);
         },
@@ -666,10 +691,9 @@ export const ImagesTab: React.FC<ImagesTabProps> = ({
     if (actionSeq == null) return;
     setBusyId(requestImage.id);
     try {
-      await updateImage(requestImage.id, { is_favorite: !requestImage.is_favorite });
+      const updated = await updateImage(requestImage.id, { is_favorite: !requestImage.is_favorite });
       if (!isCurrentAction(requestScope, actionSeq)) return;
-      await load({ force: true });
-      if (!isCurrentAction(requestScope, actionSeq)) return;
+      commitImage(updated);
       setActionImage(null);
     } catch (err) {
       if (isCurrentAction(requestScope, actionSeq)) {
@@ -728,7 +752,7 @@ export const ImagesTab: React.FC<ImagesTabProps> = ({
     try {
       const dataBase64 = await readFileAsBase64(file);
       if (!isCurrentAction(requestScope, actionSeq)) return;
-      await uploadImage(requestProjectId, {
+      const imported = await uploadImage(requestProjectId, {
         file_name: file.name,
         mime_type: file.type,
         data_base64: dataBase64,
@@ -741,8 +765,8 @@ export const ImagesTab: React.FC<ImagesTabProps> = ({
         },
       });
       if (!isCurrentAction(requestScope, actionSeq)) return;
+      commitImage(imported);
       addToast(t("novel.imageLibrary.imported"), "success");
-      await load({ force: true });
     } catch (err) {
       if (isCurrentAction(requestScope, actionSeq)) {
         addToast(extractErrorMessage(err, t("novel.imageLibrary.importFailed")), "error");
@@ -767,9 +791,8 @@ export const ImagesTab: React.FC<ImagesTabProps> = ({
     try {
       const updated = await updateImage(requestImage.id, input);
       if (!isCurrentAction(requestScope, actionSeq)) throw new Error("任务已停止");
-      setActionImage((current) => (current?.id === updated.id ? updated : current));
+      commitImage(updated);
       addToast(t("novel.imageLibrary.updateSuccess"), "success");
-      await load({ force: true });
     } catch (err) {
       if (isCurrentAction(requestScope, actionSeq)) {
         addToast(extractErrorMessage(err, t("novel.imageLibrary.updateFailed")), "error");
@@ -814,9 +837,8 @@ export const ImagesTab: React.FC<ImagesTabProps> = ({
     try {
       await deleteImage(requestImage.id);
       if (!isCurrentAction(requestScope, actionSeq)) return;
+      commitImages(allImagesRef.current.filter((image) => image.id !== requestImage.id));
       addToast(t("novel.imageLibrary.deleted"), "success");
-      await load({ force: true });
-      if (!isCurrentAction(requestScope, actionSeq)) return;
       setActionImage(null);
     } catch (err) {
       if (isCurrentAction(requestScope, actionSeq)) {
@@ -847,10 +869,8 @@ export const ImagesTab: React.FC<ImagesTabProps> = ({
     try {
       const updated = await updateImage(requestImage.id, { ai_score: score });
       if (!isCurrentAction(requestScope, actionSeq)) return;
-      setActionImage((current) => (current?.id === updated.id ? updated : current));
+      commitImage(updated);
       addToast(t("novel.imageLibrary.scoreSaved", { value: formatNumber(score, locale) }), "success");
-      await load({ force: true });
-      if (!isCurrentAction(requestScope, actionSeq)) return;
       setActionImage(null);
     } catch (err) {
       if (isCurrentAction(requestScope, actionSeq)) {
@@ -878,6 +898,7 @@ export const ImagesTab: React.FC<ImagesTabProps> = ({
   return (
     <div className="content-wide flex flex-col gap-4">
       <ImageGalleryPanel
+        loadError={loadError}
         allImages={allImages}
         chapter={chapter}
         hasChapterContext={hasChapterContext}

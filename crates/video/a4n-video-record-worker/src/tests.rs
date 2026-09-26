@@ -27,7 +27,7 @@ fn required_project_scope_rejects_missing_and_mismatched_scope() {
 }
 
 #[tokio::test]
-async fn select_segment_rejects_wrong_lineage_then_persists_matching_video() {
+async fn select_segment_rejects_stale_or_corrupt_plan_without_adopting_video() {
     let db = a4n_migration::test_support::connect_test_database().await;
     let owner = insert_user(&db).await;
     let project = a4n_db::project::create_project_record(
@@ -107,14 +107,6 @@ async fn select_segment_rejects_wrong_lineage_then_persists_matching_video() {
             }
         })
     };
-    let wrong_lineage_video = insert_completed_video(
-        &db,
-        project.id,
-        chapter.id,
-        video_identity("wrong-recipe-fingerprint"),
-        "wrong-lineage",
-    )
-    .await;
     let matching_video = insert_completed_video(
         &db,
         project.id,
@@ -123,58 +115,19 @@ async fn select_segment_rejects_wrong_lineage_then_persists_matching_video() {
         "matching-lineage",
     )
     .await;
-    let another_project = a4n_db::project::create_project_record(
-        &db,
-        a4n_db::project::CreateProjectRecordInput {
-            user_id: owner.id,
-            title: "其他项目".to_string(),
-            description: String::new(),
-            project_type: "novel_long".to_string(),
-        },
-    )
-    .await
-    .unwrap();
-    let another_chapter = insert_chapter(&db, another_project.id).await;
-    let cross_project_video = insert_completed_video(
-        &db,
-        another_project.id,
-        another_chapter.id,
-        video_identity(&recipe_fingerprint),
-        "cross-project",
-    )
-    .await;
     let state = VideoRecordWorker::new(db.clone(), VIDEO_RECORD_WORKER_ID, "test-token").state;
 
-    let cross_project_failure = state
+    let failure = state
         .select_segment(selection_request(
             owner.id,
             project.id,
             chapter.id,
             plan.id,
-            cross_project_video.id,
+            matching_video.id,
         ))
         .await
-        .expect_err("a video from another project must not be adopted");
-    assert!(
-        cross_project_failure
-            .message
-            .contains("不属于当前规划片段 2")
-    );
-
-    let failure = match state
-        .select_segment(selection_request(
-            owner.id,
-            project.id,
-            chapter.id,
-            plan.id,
-            wrong_lineage_video.id,
-        ))
-        .await
-    {
-        Err(failure) => failure,
-        Ok(_) => panic!("wrong video execution lineage must be rejected"),
-    };
-    assert!(failure.message.contains("不属于当前规划片段 2"));
+        .expect_err("legacy plans without proven shot sources must not accept videos");
+    assert!(failure.message.contains("来源已更新"), "{failure:?}");
     let unchanged = chapter_video_prompt::Entity::find_by_id(plan.id)
         .one(&db)
         .await
@@ -205,19 +158,6 @@ async fn select_segment_rejects_wrong_lineage_then_persists_matching_video() {
     restored.metadata_json = Set(unchanged.metadata_json);
     restored.update(&db).await.unwrap();
 
-    assert!(
-        state
-            .select_segment(selection_request(
-                owner.id,
-                project.id,
-                chapter.id,
-                plan.id,
-                matching_video.id,
-            ))
-            .await
-            .is_ok(),
-        "matching video execution lineage should be adopted"
-    );
     let updated = chapter_video_prompt::Entity::find_by_id(plan.id)
         .one(&db)
         .await
@@ -225,7 +165,7 @@ async fn select_segment_rejects_wrong_lineage_then_persists_matching_video() {
         .unwrap();
     assert_eq!(
         updated.metadata_json.unwrap()["segment_recipes"][1]["adopted_video_id"],
-        matching_video.id
+        Value::Null
     );
 }
 

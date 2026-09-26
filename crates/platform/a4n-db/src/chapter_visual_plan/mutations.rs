@@ -327,6 +327,15 @@ pub async fn confirm_chapter_visual_plan(
             .await?;
     }
     let visual_plan = chapter_visual_plan_by_id(&tx, current.record.id).await?;
+    if current.record.source_snapshot_id.is_none() {
+        crate::project::mark_derived_projects_root_updated_in_record(
+            &tx,
+            current.record.root_project_id,
+            Some(current.record.source_chapter_id),
+            now,
+        )
+        .await?;
+    }
     let rebased_script =
         crate::shooting_script::rebase_chapter_shooting_script_onto_plan(&tx, &visual_plan)
             .await

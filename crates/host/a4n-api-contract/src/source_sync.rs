@@ -53,6 +53,7 @@ pub struct SourceSyncConflictSummary {
     pub to_snapshot_id: i64,
     pub conflict_scope: String,
     pub target_kind: String,
+    /// Obsolete comparisons retain historical IDs; they are not references to current local rows.
     pub target_id: i64,
     pub source_change_kind: SourceSyncChangeKind,
     pub local_state_kind: SourceSyncLocalStateKind,

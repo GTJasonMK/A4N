@@ -1,5 +1,7 @@
 use serde_json::{Value, json};
 
+use crate::video::prompts::json::{PromptTextKind, prompt_density_rule};
+use a4n_domain::prompt_language::PromptOutputLanguage;
 use a4n_error::AppError;
 
 use super::{
@@ -56,7 +58,6 @@ pub(in crate::video) async fn build_single_frame_prompt_user(
         "constraints": {
             "style": style,
             "prompt_output_language": prompt_output_language.to_prompt_json(),
-            "prompt_output_language_instruction": prompt_output_language.instruction(),
             "frame_prompt_required_sections": prompt_output_language.frame_sections(),
             "aspect_ratio": aspect_ratio,
             "reference_slots": reference_slots,
@@ -69,7 +70,7 @@ pub(in crate::video) async fn build_single_frame_prompt_user(
             "reference_slot_order_rule": frame_reference_slot_order_rule(),
             "segment_directing_rule": rule_value(&rules, "single_frame_segment_directing_rule")?,
             "material_coverage_rule": rule_value(&rules, "material_coverage_rule")?,
-            "prompt_density_rule": prompt_output_language.density_rule()
+            "prompt_density_rule": frame_prompt_density_rule(prompt_output_language)
         },
         "output_contract": {
             "format": "json_object",
@@ -128,7 +129,6 @@ pub(in crate::video) async fn build_storyboard_prompt_user(
         "constraints": {
             "style": style,
             "prompt_output_language": prompt_output_language.to_prompt_json(),
-            "prompt_output_language_instruction": prompt_output_language.instruction(),
             "frame_prompt_required_sections": prompt_output_language.frame_sections(),
             "aspect_ratio": aspect_ratio,
             "reference_slots": reference_slots,
@@ -139,7 +139,7 @@ pub(in crate::video) async fn build_storyboard_prompt_user(
             "reference_slot_order_rule": frame_reference_slot_order_rule(),
             "segment_directing_rule": rule_value(&rules, "storyboard_segment_directing_rule")?,
             "material_coverage_rule": rule_value(&rules, "material_coverage_rule")?,
-            "prompt_density_rule": prompt_output_language.density_rule()
+            "prompt_density_rule": frame_prompt_density_rule(prompt_output_language)
         },
         "output_contract": {
             "format": "json_object",
@@ -198,7 +198,6 @@ pub(in crate::video) async fn build_first_frame_prompt_user(
         "constraints": {
             "style": style,
             "prompt_output_language": prompt_output_language.to_prompt_json(),
-            "prompt_output_language_instruction": prompt_output_language.instruction(),
             "frame_prompt_required_sections": prompt_output_language.frame_sections(),
             "aspect_ratio": aspect_ratio,
             "reference_slots": reference_slots,
@@ -209,7 +208,7 @@ pub(in crate::video) async fn build_first_frame_prompt_user(
             "segment_directing_rule": rule_value(&rules, "initial_frame_segment_directing_rule")?,
             "material_coverage_rule": rule_value(&rules, "material_coverage_rule")?,
             "reference_slot_order_rule": frame_reference_slot_order_rule(),
-            "prompt_density_rule": prompt_output_language.density_rule(),
+            "prompt_density_rule": frame_prompt_density_rule(prompt_output_language),
             "image_input_semantics_rule": rule_value(&rules, "initial_frame_image_input_semantics_rule")?
         },
         "output_contract": {
@@ -234,4 +233,12 @@ pub(in crate::video) async fn build_first_frame_prompt_user(
         }
     });
     render_strict_json_user_prompt(prompt_renderer, project_id, &user_instruction, &payload).await
+}
+
+fn frame_prompt_density_rule(language: PromptOutputLanguage) -> String {
+    format!(
+        "{}；{}",
+        prompt_density_rule(language, PromptTextKind::FramePrompt, "frame_prompt"),
+        prompt_density_rule(language, PromptTextKind::FrameNegative, "negative_prompt"),
+    )
 }

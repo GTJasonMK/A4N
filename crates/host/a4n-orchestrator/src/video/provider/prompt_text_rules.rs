@@ -165,7 +165,7 @@ fn provider_prompt_text_error(
     }
 }
 
-fn contains_dictionary_like_prompt_text(text: &str) -> bool {
+pub(in crate::video) fn contains_dictionary_like_prompt_text(text: &str) -> bool {
     text.contains('{')
         || text.contains('}')
         || text.contains("[{")

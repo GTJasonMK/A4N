@@ -154,23 +154,27 @@ fn source_span_excerpt(
     spans: &[SourceSpan],
     annotate: bool,
 ) -> Result<String, String> {
-    let offsets = content
-        .char_indices()
-        .map(|(offset, _)| offset)
-        .chain(std::iter::once(content.len()))
-        .collect::<Vec<_>>();
+    let ranges = validated_source_ranges(
+        content,
+        spans
+            .iter()
+            .map(|span| {
+                (
+                    span.id.clone(),
+                    span.char_start,
+                    span.char_end,
+                    span.text.as_str(),
+                )
+            })
+            .collect(),
+    )?;
     let mut windows = Vec::new();
-    for span in spans {
-        let Some((&start, &end)) = offsets.get(span.char_start).zip(offsets.get(span.char_end))
-        else {
-            return Err(format!("原文引用 {} 的字符范围无效", span.id));
-        };
-        if start >= end || &content[start..end] != span.text {
-            return Err(format!("原文引用 {} 已失效", span.id));
-        }
-        let start = content[..start].rfind('\n').map_or(0, |index| index + 1);
-        let end = content[end..]
-            .find('\n')
+    for (_, start, end) in &ranges {
+        let start = content[..*start]
+            .rfind(['\n', '\r'])
+            .map_or(0, |index| index + 1);
+        let end = content[*end..]
+            .find(['\n', '\r'])
             .map_or(content.len(), |index| end + index);
         windows.push((start, end));
     }
@@ -189,29 +193,11 @@ fn source_span_excerpt(
         .into_iter()
         .map(|(start, end)| {
             if !annotate {
-                return Ok(content[start..end].to_string());
+                return content[start..end].to_string();
             }
-            let char_start = offsets
-                .binary_search(&start)
-                .expect("paragraph starts at a character boundary");
-            let char_end = offsets
-                .binary_search(&end)
-                .expect("paragraph ends at a character boundary");
-            let ranges = spans
-                .iter()
-                .filter(|span| span.char_start >= char_start && span.char_end <= char_end)
-                .map(|span| {
-                    (
-                        span.id.clone(),
-                        span.char_start - char_start,
-                        span.char_end - char_start,
-                        span.text.as_str(),
-                    )
-                })
-                .collect();
-            annotate_source_ranges(&content[start..end], ranges)
+            annotate_byte_ranges(content, &ranges, start, end)
         })
-        .collect::<Result<Vec<_>, _>>()?;
+        .collect::<Vec<_>>();
     Ok(excerpts.join("\n\n[非当前任务段落已省略]\n\n"))
 }
 
@@ -235,15 +221,23 @@ pub fn text_anchor_prompt_text<C: SourceChapter, A: SourceTextAnchor>(
 
 fn annotate_source_ranges(
     content: &str,
-    mut ranges: Vec<(String, usize, usize, &str)>,
+    ranges: Vec<(String, usize, usize, &str)>,
 ) -> Result<String, String> {
+    let ranges = validated_source_ranges(content, ranges)?;
+    Ok(annotate_byte_ranges(content, &ranges, 0, content.len()))
+}
+
+fn validated_source_ranges(
+    content: &str,
+    mut ranges: Vec<(String, usize, usize, &str)>,
+) -> Result<Vec<(String, usize, usize)>, String> {
     let offsets = content
         .char_indices()
         .map(|(offset, _)| offset)
         .chain(std::iter::once(content.len()))
         .collect::<Vec<_>>();
     ranges.sort_by_key(|(_, start, end, _)| (*start, *end));
-    let mut result = String::with_capacity(content.len());
+    let mut validated = Vec::with_capacity(ranges.len());
     let mut cursor = 0;
     for (id, start, end, quote) in ranges {
         let bounds = offsets.get(start).zip(offsets.get(end));
@@ -253,13 +247,31 @@ fn annotate_source_ranges(
         if start < cursor || &content[start..end] != quote {
             return Err(format!("原文引用 {id} 已失效或与其他引用重叠"));
         }
-        result.push_str(&content[cursor..start]);
-        result.push_str(&format!("⟦{id}⟧"));
-        result.push_str(quote);
+        validated.push((id, start, end));
         cursor = end;
     }
-    result.push_str(&content[cursor..]);
-    Ok(result)
+    Ok(validated)
+}
+
+fn annotate_byte_ranges(
+    content: &str,
+    ranges: &[(String, usize, usize)],
+    start: usize,
+    end: usize,
+) -> String {
+    let mut result = String::with_capacity(end - start);
+    let mut cursor = start;
+    for (id, range_start, range_end) in ranges {
+        if *range_start < start || *range_end > end {
+            continue;
+        }
+        result.push_str(&content[cursor..*range_start]);
+        result.push_str(&format!("⟦{id}⟧"));
+        result.push_str(&content[*range_start..*range_end]);
+        cursor = *range_end;
+    }
+    result.push_str(&content[cursor..end]);
+    result
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -638,6 +650,27 @@ mod tests {
         );
         anchors[0].quote = "旧正文".into();
         assert!(text_anchor_prompt_text(&chapter, &anchors).is_err());
+    }
+
+    #[test]
+    fn excerpts_share_range_validation_and_respect_all_line_endings() {
+        for newline in ["\n", "\r", "\r\n"] {
+            let text = format!("前文。{newline}“别走！”她说。{newline}后文。");
+            let spans = source_spans_for_content(7, 2, &text);
+            let span = spans.iter().find(|span| span.text == "别走").unwrap();
+            let selected = std::slice::from_ref(span);
+            assert_eq!(
+                source_span_context_excerpt(&text, selected).unwrap(),
+                "“别走！”她说。"
+            );
+            assert_eq!(
+                source_span_prompt_excerpt(&text, selected).unwrap(),
+                format!("“⟦{}⟧别走！”她说。", span.id),
+            );
+            let overlapping = [span.clone(), span.clone()];
+            assert!(source_span_context_excerpt(&text, &overlapping).is_err());
+            assert!(source_span_prompt_excerpt(&text, &overlapping).is_err());
+        }
     }
 
     #[test]

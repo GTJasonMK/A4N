@@ -28,8 +28,8 @@ pub(super) async fn generate_shooting_scene(
     unit_offset: usize,
     total_unit_count: usize,
     progress: ShootingScriptProgressReporter<'_>,
-    stream_reporter: Option<ShootingScriptStreamReporter<'_>>,
-    cancel_token: Option<&CancellationToken>,
+    stream_reporter: ShootingScriptStreamReporter<'_>,
+    cancel_token: &CancellationToken,
 ) -> Result<super::super::contracts::ShootingScriptStageResult<ShootingSceneV1>, AppError> {
     let planned_unit = prepared.visual_unit(unit.narrative_unit_index, &unit.scene_identity)?;
     let planned_shots = planned_unit

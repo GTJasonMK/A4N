@@ -235,7 +235,6 @@ fn script_detail_read_model_groups_lines_choices_refs_and_media() {
     let read_model = GalgameScriptDetailReadModel {
         script: GalgameScriptDetailScriptRecord {
             id: 1,
-            source_snapshot_id: 20,
             root_project_id: 1,
             title: "测试 Galgame".to_string(),
         },

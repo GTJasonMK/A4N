@@ -30,7 +30,7 @@ pub(super) fn collect_galgame_asset_plan_drafts(
     }
 
     let mut item_drafts = Vec::new();
-    let mut portrait_drafts = BTreeMap::<String, GalgamePortraitAssetDraft>::new();
+    let mut portrait_drafts = BTreeMap::<(i64, String), GalgamePortraitAssetDraft>::new();
 
     for scene in read_model.scenes {
         let chapter = snapshot_chapters
@@ -64,6 +64,8 @@ pub(super) fn collect_galgame_asset_plan_drafts(
         for line in &scene_lines {
             portrait::collect_portrait_asset_sample(
                 context,
+                chapter.snapshot_id,
+                &scene.title,
                 line,
                 &scene_anchor_ids,
                 &mut portrait_drafts,

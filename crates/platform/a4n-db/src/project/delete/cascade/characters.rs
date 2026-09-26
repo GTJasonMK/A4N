@@ -6,7 +6,9 @@ use a4n_db_models::models::character::{
 use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QuerySelect, QueryTrait};
 
 use crate::generation;
-use crate::project::delete::{ProjectDeleteDbError, delete_project_profile_scene_data};
+use crate::project::delete::{
+    ProjectDeleteDbError, RetainedSourceResources, delete_project_profile_scene_data,
+};
 use crate::project::{self as project_db, ProjectTextAnchorDeleteScope};
 
 pub(super) async fn delete_project_character_data<C>(
@@ -67,7 +69,7 @@ where
         .filter(foreshadowing_index::Column::ProjectId.eq(project_id))
         .exec(db)
         .await?;
-    delete_project_profile_scene_data(db, project_id).await?;
+    delete_project_profile_scene_data(db, project_id, &RetainedSourceResources::default()).await?;
     project_db::delete_project_text_anchors(db, project_id, ProjectTextAnchorDeleteScope::Project)
         .await?;
     generation::delete_generation_run_targets_for(db, "protagonist_profile", &profile_id_values)

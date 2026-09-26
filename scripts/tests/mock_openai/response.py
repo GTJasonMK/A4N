@@ -65,6 +65,7 @@ from mock_openai.fixtures.story import (
     chapter_body_response,
     chapter_outline_response,
     inspiration_response,
+    guided_inspiration_response,
     part_outline_response,
 )
 from mock_openai.fixtures.reverse import agent_chat_fixture
@@ -130,6 +131,7 @@ def response_for(body: dict[str, Any]) -> str:
         return json.dumps(value, ensure_ascii=False)
     messages = body.get("messages") or []
     combined = "\n".join(message_text(message.get("content", "")) for message in messages)
+    system = "\n".join(message_text(message.get("content", "")) for message in messages if message.get("role") == "system")
     if "A4N_AGENT_CANVAS_INPUT" in combined:
         return "镜头：雨水沿钟楼的窗棂滑落。"
     if combined.strip() == "ping" or (len(messages) == 1 and "ping" in combined.lower()):
@@ -221,6 +223,8 @@ def response_for(body: dict[str, Any]) -> str:
     if "chapter_shooting_design_unit" in combined or "ShootingSceneV1" in combined:
         if model == "a4n-shooting-background-slow":
             time.sleep(6)
+        elif model == "a4n-shooting-background-browser":
+            time.sleep(20)
         return json.dumps(shooting_design_response(combined), ensure_ascii=False)
 
     if (
@@ -247,16 +251,16 @@ def response_for(body: dict[str, Any]) -> str:
     if "chapter_fact_extraction" in combined:
         return json.dumps(chapter_analysis_facts_response(combined), ensure_ascii=False)
 
-    if '"name": "object_discovery"' in combined:
+    if prompt_name == "object_discovery":
         return json.dumps(object_discovery_response(combined), ensure_ascii=False)
 
-    if '"name": "character_discovery"' in combined:
+    if prompt_name == "character_discovery":
         return json.dumps(character_discovery_response(combined), ensure_ascii=False)
 
-    if '"name": "scene_profile_candidates"' in combined:
+    if prompt_name == "scene_profile_candidates":
         return json.dumps(scene_profile_candidates_response(combined), ensure_ascii=False)
 
-    if '"name": "scene_occurrence_extraction"' in combined:
+    if prompt_name == "scene_occurrence_extraction":
         result = scene_occurrence_response(combined)
         timeline_fixtures = {
             "a4n-scene-sync-number": 1,
@@ -271,31 +275,31 @@ def response_for(body: dict[str, Any]) -> str:
             result["occurrences"] = result["occurrences"][:1]
         return json.dumps(result, ensure_ascii=False)
 
-    if '"name": "scene_transition_extraction"' in combined:
+    if prompt_name == "scene_transition_extraction":
         return json.dumps(scene_transition_response(combined), ensure_ascii=False)
 
-    if '"name": "scene_entity_state_extraction"' in combined:
+    if prompt_name == "scene_entity_state_extraction":
         return json.dumps(scene_entity_state_response(combined), ensure_ascii=False)
 
-    if '"name": "character_sync_evidence_events"' in combined:
+    if prompt_name == "character_sync_evidence_events":
         return json.dumps(character_sync_evidence_events_response(combined), ensure_ascii=False)
 
-    if '"name": "character_sync_attribute_changes"' in combined:
+    if prompt_name == "character_sync_attribute_changes":
         return json.dumps(character_sync_attribute_changes_response(combined), ensure_ascii=False)
 
-    if '"name": "character_sync_chapter_states"' in combined:
+    if prompt_name == "character_sync_chapter_states":
         if body.get("model") == "a4n-character-sync-cancel":
             # Leave a valid call in flight while the CLI cancels its owner.
             time.sleep(10)
         return json.dumps(character_sync_chapter_states_response(combined), ensure_ascii=False)
 
-    if '"name": "character_sync_behavior_records"' in combined:
+    if prompt_name == "character_sync_behavior_records":
         return json.dumps(character_sync_behaviors_response(combined), ensure_ascii=False)
 
-    if '"name": "character_sync_deletion_candidates"' in combined:
+    if prompt_name == "character_sync_deletion_candidates":
         return json.dumps({"deletion_candidates": []}, ensure_ascii=False)
 
-    if '"name": "implicit_classification"' in combined:
+    if prompt_name == "implicit_classification":
         return json.dumps(implicit_attribute_classification_response(combined), ensure_ascii=False)
 
     stage_match = re.search(r'"(?:stage_key|key)"\s*:\s*"(story_core|world|characters|relationships)"', combined)
@@ -324,7 +328,7 @@ def response_for(body: dict[str, Any]) -> str:
     if "## 正文字数要求" in combined and "不要输出 word_count" in combined:
         return chapter_body_response()
 
-    if '"name": "chapter_scene_generation"' in combined:
+    if prompt_name == "chapter_scene_generation":
         return chapter_body_response()
 
     if "content_optimization_chat_agent_loop" in combined:
@@ -336,7 +340,10 @@ def response_for(body: dict[str, Any]) -> str:
     if "content_optimization_patch" in combined and "old_text_must_match_once" in combined:
         return json.dumps(optimization_patch_response(), ensure_ascii=False)
 
-    if "小说概念大师·文思" in combined or "conversation_state" in combined and "inspired_options" in combined:
+    if "小说概念大师·文思" in system:
+        if model == "a4n-creation-journey":
+            round_number = 1 + sum(message.get("role") == "assistant" for message in messages)
+            return json.dumps(guided_inspiration_response(round_number), ensure_ascii=False)
         return json.dumps(inspiration_response(), ensure_ascii=False)
 
     if "蓝图优化" in combined and "full_synopsis" in combined:

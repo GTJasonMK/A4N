@@ -112,9 +112,6 @@ export const HOST_API_COMMANDS = [
   "forward_project_status",
   "generate_chapter_analysis",
   "generate_chapter_scene",
-  "generate_chapter_shooting_script",
-  "generate_next_chapter_shooting_script_unit",
-  "start_chapter_shooting_script_generation",
   "generate_object_profile_image_prompt",
   "generate_portrait_prompt",
   "generate_scene_profile_image_prompt",
@@ -362,6 +359,7 @@ export const HOST_API_COMMANDS = [
   "start_blueprint_generation",
   "start_blueprint_refinement",
   "start_chapter_generation",
+  "start_chapter_shooting_script_generation",
   "start_galgame_pipeline",
   "start_image_generation",
   "start_inspiration_generation",
@@ -473,8 +471,7 @@ export const RUNTIME_CONFIG_POLICIES: Readonly<Record<string, RuntimeConfigPolic
   "discover_character_profiles": "full",
   "generate_chapter_analysis": "full",
   "generate_chapter_scene": "full",
-  "generate_chapter_shooting_script": "full",
-  "generate_next_chapter_shooting_script_unit": "full",
+  "generate_portrait_prompt": "full",
   "import_chapter": "full",
   "optimize_chapter_video_prompt": "full",
   "optimize_manga_prompt": "full",
@@ -551,6 +548,7 @@ export const RUNTIME_CONFIG_POLICIES: Readonly<Record<string, RuntimeConfigPolic
   "start_blueprint_generation": "full",
   "start_blueprint_refinement": "full",
   "start_chapter_generation": "full",
+  "start_chapter_shooting_script_generation": "full",
   "start_galgame_pipeline": "full",
   "start_image_generation": "full",
   "start_inspiration_generation": "full",
@@ -2616,6 +2614,8 @@ export interface GalgameAssetPlanItem {
   label: string;
   outcome: GalgameAssetPlanOutcome;
   params_json: unknown;
+  source_label: string;
+  source_snapshot_id: number;
   status: string;
   target_entity_id: number;
   target_entity_kind: GalgameTargetEntityKind;
@@ -5251,13 +5251,6 @@ export interface ChapterShootingScriptSourceInput {
   visual_plan_id?: number | null;
 }
 
-export interface GenerateChapterShootingScriptInput {
-  project_id: number;
-  shot_ids?: string[];
-  source_chapter_id: number;
-  visual_plan_id: number;
-}
-
 export type ShootingScriptGenerationMode = "full" | "next_scene";
 
 export interface StartChapterShootingScriptGenerationInput {
@@ -5313,7 +5306,6 @@ export interface ChapterShootingScriptView {
 }
 
 export interface ChapterShootingScriptUnitProgressView {
-  completed_record: ChapterShootingScriptRecordSummary | null;
   completed_unit_count: number;
   script: ChapterShootingScriptV1;
   total_unit_count: number;
@@ -5340,7 +5332,7 @@ export type SourceSyncLocalStateKind = "user_edited" | "generated" | "imported" 
 
 export type SourceSyncConflictSeverity = "blocking" | "warning" | "info";
 
-export type SourceSyncConflictStatus = "pending" | "resolved" | "ignored";
+export type SourceSyncConflictStatus = "pending" | "resolved" | "ignored" | "obsolete";
 
 export type SourceSyncResolutionStrategy = "keep_local" | "adopt_source" | "rebuild_prompt" | "rebind_anchor" | "regenerate_scene" | "create_replacement" | "manual" | "detach" | "delete_local";
 

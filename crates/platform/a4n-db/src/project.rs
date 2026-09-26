@@ -76,7 +76,7 @@ pub use family::context::{
     ProjectFamilyDbError, chapter_manga_source_by_id, chapter_manga_source_by_number,
     chapter_manga_sources_by_ids, derived_project_family_access_ids,
     derived_project_family_context, manga_character_portrait_refs,
-    project_or_derived_family_access_ids,
+    project_or_derived_family_access_ids, project_source_snapshot_allowed,
 };
 pub(crate) use family::context::{
     validate_project_family_snapshot_chapter, validate_project_family_source_context,
@@ -140,12 +140,14 @@ pub use progress::{
     project_progress_summary,
 };
 pub use rollback_impact::{ProjectRollbackImpactReadError, project_rollback_impacts};
-pub(crate) use source_snapshot::create_source_snapshot_in_record;
 pub(crate) use source_snapshot::projects_using_source_snapshot;
 pub use source_snapshot::scene_profiles_for_source;
 pub use source_snapshot::{
     CreateDerivedProjectParams, DerivedChapterScope, create_derived_project_record,
     source_snapshot_chapter_content_by_snapshot_and_source, source_snapshot_chapters,
+};
+pub(crate) use source_snapshot::{
+    create_source_snapshot_in_record, shooting_script_source_hash, source_snapshot_version_hash,
 };
 pub(crate) use status::delete_project_status_history;
 pub use status::{

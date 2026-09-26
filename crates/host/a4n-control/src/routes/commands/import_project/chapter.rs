@@ -21,8 +21,7 @@ pub(in crate::routes::commands) use scenes::{
 };
 pub(in crate::routes::commands) use shooting_script::{
     delete_chapter_shooting_script, edit_chapter_shooting_script,
-    edit_chapter_shooting_script_progress, generate_chapter_shooting_script,
-    generate_next_chapter_shooting_script_unit, get_chapter_shooting_script,
+    edit_chapter_shooting_script_progress, get_chapter_shooting_script,
     get_chapter_shooting_script_unit_progress,
 };
 pub(in crate::routes::commands) use visual_plan::{

@@ -47,6 +47,7 @@ const CONFLICT_STATUS_KEYS: Record<string, MessageKey> = {
   pending: "novel.sourceSyncDialog.conflictPending",
   resolved: "novel.sourceSyncDialog.conflictResolved",
   ignored: "novel.sourceSyncDialog.conflictIgnored",
+  obsolete: "novel.sourceSyncDialog.conflictObsolete",
 };
 
 const SOURCE_CHANGE_KEYS: Record<string, MessageKey> = {
@@ -69,6 +70,8 @@ const LOCAL_STATE_KEYS: Record<string, MessageKey> = {
 
 const SUMMARY_KEY_KEYS: Record<string, MessageKey> = {
   title: "novel.sourceSyncDialog.summaryTitle",
+  visual_plan_changed: "novel.sourceSyncDialog.summaryVisualPlanChanged",
+  shooting_script_changed: "novel.sourceSyncDialog.summaryShootingScriptChanged",
   text: "novel.sourceSyncDialog.summaryText",
   content: "novel.sourceSyncDialog.summaryText",
   summary: "novel.sourceSyncDialog.summarySummary",
@@ -682,6 +685,7 @@ const ConflictRow: React.FC<{
           {t("novel.sourceSyncDialog.diagnostics")}
         </summary>
         <div className="mt-2 space-y-2">
+          {conflict.status === "obsolete" ? <p>{t("novel.sourceSyncDialog.obsoleteReferences")}</p> : null}
           <dl className="grid grid-cols-[4.5rem_minmax(0,1fr)] gap-x-2 gap-y-1 font-mono">
             <dt>{t("novel.sourceSyncDialog.conflictScope")}</dt>
             <dd className="min-w-0 break-all">{conflict.conflict_scope}</dd>

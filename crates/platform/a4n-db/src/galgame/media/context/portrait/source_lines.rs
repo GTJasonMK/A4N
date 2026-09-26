@@ -37,7 +37,6 @@ struct PortraitSourceScriptRecord {
     id: i64,
     project_id: i64,
     root_project_id: i64,
-    source_snapshot_id: i64,
 }
 
 #[derive(Debug, FromQueryResult)]
@@ -155,7 +154,6 @@ pub(in crate::galgame) async fn validate_galgame_portrait_spec_source_lines(
         .column(galgame_script::Column::Id)
         .column(galgame_script::Column::ProjectId)
         .column(galgame_script::Column::RootProjectId)
-        .column(galgame_script::Column::SourceSnapshotId)
         .filter(galgame_script::Column::Id.is_in(script_ids.iter().copied()))
         .into_model::<PortraitSourceScriptRecord>()
         .all(db)
@@ -181,20 +179,15 @@ pub(in crate::galgame) async fn validate_galgame_portrait_spec_source_lines(
         .zip(&ordered_scenes)
         .zip(&ordered_scripts)
     {
-        if script.project_id != project_id
-            || script.root_project_id != root_project_id
-            || script.source_snapshot_id != source_snapshot_id
-        {
+        if script.project_id != project_id || script.root_project_id != root_project_id {
             return Err(GalgameGenerationRecordError::InvalidArgument(format!(
-                "Galgame 立绘差分 source_line_ids 行上下文与项目不一致: spec_id={}, line_id={}, target_project_id={}, target_root_project_id={}, target_source_snapshot_id={}, spec_project_id={}, spec_root_project_id={}, spec_source_snapshot_id={:?}",
+                "Galgame 立绘差分 source_line_ids 行上下文与项目不一致: spec_id={}, line_id={}, target_project_id={}, target_root_project_id={}, spec_project_id={}, spec_root_project_id={}",
                 spec.id,
                 line.id,
                 script.project_id,
                 script.root_project_id,
-                script.source_snapshot_id,
                 spec.project_id,
-                spec.root_project_id,
-                spec.source_snapshot_id
+                spec.root_project_id
             )));
         }
         snapshot_chapter_ids.insert(scene.source_snapshot_chapter_id);

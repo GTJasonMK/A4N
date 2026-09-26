@@ -1,7 +1,9 @@
 use std::collections::HashMap;
 
 use a4n_db_models::models::source_sync::source_sync_conflict;
-use a4n_domain::source_sync::{SourceSyncDecisionActor, SourceSyncResolutionStrategy};
+use a4n_domain::source_sync::{
+    SourceSyncConflictStatus, SourceSyncDecisionActor, SourceSyncResolutionStrategy,
+};
 
 use super::super::super::ProjectFamilyPackage;
 use super::super::contracts::SourceSyncReferenceSets;
@@ -32,6 +34,9 @@ pub(super) fn validate_source_sync_decisions(
             decision.id
         );
         validate_source_sync_decision_conflict(decision, conflicts)?;
+        if conflicts[&decision.conflict_id].status == SourceSyncConflictStatus::Obsolete.as_str() {
+            continue;
+        }
         validate_source_sync_decision_payload(
             "source_sync_decision",
             decision.id,

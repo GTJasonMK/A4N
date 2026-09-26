@@ -117,7 +117,7 @@ export const videoCore = {
   notVideoProject: "当前项目不是视频项目",
   loadProjectFailed: "加载视频项目失败",
   sourceLoading: "加载源文本信息中",
-  syncSource: "同步源文本",
+  syncSource: "同步来源",
   canvasMode: "画布模式",
   projectWorkspace: "视频项目工作区",
   loadingProject: "加载视频项目",

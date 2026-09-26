@@ -40,7 +40,6 @@ pub(crate) async fn compact_context(
         )?;
         let mut request = request;
         request.max_tokens = Some(projection.output_tokens);
-        request.cache_scope_key = Some(format!("agent-summary:{}", context.thread.id));
         request.trace_context = Some(LlmTraceContext {
             project_id: context.scope.project_id,
             root_project_id: None,
@@ -191,11 +190,7 @@ pub(crate) async fn recover_model_messages(
             continue;
         }
         let response = model_response(execution)?;
-        let protocol = execution
-            .arguments_json
-            .as_ref()
-            .map(agent_protocol_from_request_snapshot)
-            .unwrap_or(a4n_domain::agent::AGENT_PROTOCOL_NATIVE_TOOL_CALLING);
+        let protocol = agent_protocol_from_request_snapshot(model_execution_snapshot(execution)?);
         let decision = decode_agent_response(&response, protocol, execution.id)?;
         let (content, calls, is_final) = match decision {
             AgentModelDecision::Final { reply } => (reply, Vec::new(), true),

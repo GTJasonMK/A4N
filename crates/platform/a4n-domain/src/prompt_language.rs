@@ -56,13 +56,6 @@ impl PromptOutputLanguage {
         }
     }
 
-    pub fn label(self) -> &'static str {
-        match self {
-            Self::ZhCn => "简体中文",
-            Self::En => "English",
-        }
-    }
-
     pub fn instruction(self) -> &'static str {
         match self {
             Self::ZhCn => {
@@ -121,26 +114,10 @@ impl PromptOutputLanguage {
         }
     }
 
-    pub fn density_rule(self) -> &'static str {
-        match self {
-            Self::ZhCn => {
-                "中文输出密度：视频 visual_prompt 至少 80 个字符，motion_prompt 至少 45 个字符；frame_prompt 至少 80 个字符，首尾帧 negative_prompt 至少 20 个字符。"
-            }
-            Self::En => {
-                "English output density: video visual_prompt at least 60 English words or 320 characters; motion_prompt at least 30 English words or 180 characters; frame_prompt at least 60 English words or 350 characters; frame negative_prompt at least 8 English words or 60 characters."
-            }
-        }
-    }
-
     pub fn to_prompt_json(self) -> Value {
         json!({
             "code": self.as_str(),
-            "label": self.label(),
             "instruction": self.instruction(),
-            "visual_prompt_sections": self.visual_sections(),
-            "motion_prompt_sections": self.motion_sections(),
-            "frame_prompt_sections": self.frame_sections(),
-            "density_rule": self.density_rule()
         })
     }
 }

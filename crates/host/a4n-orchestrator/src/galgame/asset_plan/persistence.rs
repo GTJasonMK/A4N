@@ -38,29 +38,12 @@ pub(super) async fn persist_galgame_asset_plan(
     let mut portrait_expressions = Vec::new();
     let mut event_cgs = Vec::new();
     for (draft, upsert) in item_drafts.into_iter().zip(upserts) {
-        match draft.group {
-            GalgameAssetPlanGroup::Background => push_plan_item(
-                &mut backgrounds,
-                &mut summary,
-                upsert,
-                draft.canonical_key,
-                draft.label,
-            )?,
-            GalgameAssetPlanGroup::PortraitExpression => push_plan_item(
-                &mut portrait_expressions,
-                &mut summary,
-                upsert,
-                draft.canonical_key,
-                draft.label,
-            )?,
-            GalgameAssetPlanGroup::EventCg => push_plan_item(
-                &mut event_cgs,
-                &mut summary,
-                upsert,
-                draft.canonical_key,
-                draft.label,
-            )?,
-        }
+        let items = match draft.group {
+            GalgameAssetPlanGroup::Background => &mut backgrounds,
+            GalgameAssetPlanGroup::PortraitExpression => &mut portrait_expressions,
+            GalgameAssetPlanGroup::EventCg => &mut event_cgs,
+        };
+        push_plan_item(items, &mut summary, upsert, draft)?;
     }
     summary.background_specs = backgrounds.len();
     summary.portrait_expression_specs = portrait_expressions.len();

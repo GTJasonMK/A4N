@@ -45,14 +45,13 @@ pub async fn galgame_portrait_spec_target_profile(
     input: &GalgamePortraitSpecTargetInput,
 ) -> Result<GalgamePortraitSpecTargetProfile, GalgameGenerationRecordError> {
     validate_galgame_portrait_spec_target_input(spec, input)?;
-    let (project_id, project_kind, root_project_id, source_snapshot_id) =
+    let (project_id, project_kind, root_project_id) =
         novel_project::Entity::find_by_id(spec.project_id)
             .select_only()
             .column(novel_project::Column::Id)
             .column(novel_project::Column::ProjectKind)
             .column(novel_project::Column::RootProjectId)
-            .column(novel_project::Column::SourceSnapshotId)
-            .into_tuple::<(i64, String, Option<i64>, Option<i64>)>()
+            .into_tuple::<(i64, String, Option<i64>)>()
             .one(db)
             .await
             .map_err(GalgameGenerationRecordError::Database)?
@@ -71,13 +70,17 @@ pub async fn galgame_portrait_spec_target_profile(
             project_id
         ))
     })?;
-    let source_snapshot_id = source_snapshot_id.ok_or_else(|| {
-        GalgameGenerationRecordError::InvalidArgument(format!(
-            "Galgame 项目缺少源文本快照: {}",
-            project_id
-        ))
-    })?;
-    validate_galgame_portrait_spec_family_context(spec, root_project_id, source_snapshot_id)?;
+    let source_snapshot_id = validate_galgame_portrait_spec_family_context(spec, root_project_id)?;
+    let allowed =
+        crate::project::project_source_snapshot_allowed(db, project_id, source_snapshot_id)
+            .await
+            .map_err(GalgameGenerationRecordError::Database)?;
+    if !allowed {
+        return Err(GalgameGenerationRecordError::InvalidArgument(format!(
+            "Galgame 立绘差分源快照不属于项目实际使用的来源: spec_id={}, source_snapshot_id={}",
+            spec.id, source_snapshot_id
+        )));
+    }
     validate_galgame_portrait_spec_source_chapter(spec)?;
     let profile = protagonist_profile::Entity::find_by_id(input.profile_id)
         .select_only()

@@ -60,6 +60,17 @@ impl OrchestratorContext {
         }
         self.require_image_project_editor(user_id, input.project_id)
             .await?;
+        if !a4n_db::project::project_source_snapshot_allowed(
+            self.database.connection(),
+            input.project_id,
+            input.source_snapshot_id,
+        )
+        .await?
+        {
+            return Err(AppError::InvalidArgument(
+                "Galgame 图片源快照不属于项目实际使用的来源".into(),
+            ));
+        }
         self.generate_direct_image(host, user_id, galgame_image_plan(input), progress)
             .await
     }
@@ -348,7 +359,12 @@ impl OrchestratorContext {
         plan.image_type = required_text(&plan.image_type, "image_type")?.to_string();
         plan.prompt = required_text(&plan.prompt, "prompt")?.to_string();
         let (chapter_id, source_metadata) = self
-            .resolve_image_chapter_binding(plan.project_id, plan.chapter_id, access)
+            .resolve_image_chapter_binding(
+                plan.project_id,
+                plan.chapter_id,
+                plan.source_snapshot_id,
+                access,
+            )
             .await?;
         let config = host.resolve_image_config(plan.config_id).await?;
         let supported_sizes = image_sizes_from_json(&config.supported_sizes_json)?;
@@ -557,6 +573,7 @@ impl OrchestratorContext {
         &self,
         project_id: i64,
         chapter_id: Option<i64>,
+        source_snapshot_id: Option<i64>,
         access: ImageChapterBindingAccess,
     ) -> Result<(Option<i64>, Option<Value>), AppError> {
         require_positive(project_id, "project_id")?;
@@ -564,8 +581,14 @@ impl OrchestratorContext {
             .project_by_id(project_id)
             .await?
             .ok_or_else(|| AppError::NotFound(format!("项目不存在: {project_id}")))?;
-        self.resolve_image_chapter_binding_for_project(project_id, &project, chapter_id, access)
-            .await
+        self.resolve_image_chapter_binding_for_project(
+            project_id,
+            &project,
+            chapter_id,
+            source_snapshot_id,
+            access,
+        )
+        .await
     }
 
     async fn resolve_image_chapter_binding_for_project(
@@ -573,6 +596,7 @@ impl OrchestratorContext {
         project_id: i64,
         project: &novel_project::Model,
         chapter_id: Option<i64>,
+        source_snapshot_id: Option<i64>,
         access: ImageChapterBindingAccess,
     ) -> Result<(Option<i64>, Option<Value>), AppError> {
         let Some(chapter_id) = chapter_id else {
@@ -611,9 +635,12 @@ impl OrchestratorContext {
                         chapter.id
                     )));
                 }
-                let snapshot_id = project.source_snapshot_id.ok_or_else(|| {
-                    AppError::InvalidArgument(format!("派生项目缺少源文本快照: {project_id}"))
-                })?;
+                // Galgame supplies its target scene's snapshot; other image paths use the project source.
+                let snapshot_id = source_snapshot_id
+                    .or(project.source_snapshot_id)
+                    .ok_or_else(|| {
+                        AppError::InvalidArgument(format!("派生项目缺少源文本快照: {project_id}"))
+                    })?;
                 self.source_snapshot_chapter_content_by_snapshot_and_source(snapshot_id, chapter.id)
                     .await?
                     .ok_or_else(|| {
@@ -699,6 +726,7 @@ impl OrchestratorContext {
                     project_id,
                     project.as_ref().expect("batch project is loaded"),
                     chapter_id,
+                    None,
                     if enforce_generation_locks {
                         ImageChapterBindingAccess::Writable
                     } else {

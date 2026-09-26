@@ -300,6 +300,7 @@ export const VideoProjectWorkspace: React.FC = () => {
             ) : null}
             <section className="min-h-[60vh] overflow-hidden md:min-h-0">
               <VideoTab
+                key={`${project.id}:${chapters[0].snapshot_id}`}
                 projectId={project.id}
                 fixedChapter={selectedChapter}
                 imageProjectIds={imageProjectIds}

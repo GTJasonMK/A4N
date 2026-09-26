@@ -47,7 +47,7 @@ export const ShootingScriptTab: React.FC<ShootingScriptTabProps> = ({
   const { runProgressTask } = useProgressTask();
   const chapterId = chapter?.id ?? null;
   const sourceKey = `${projectId}:${chapterId}`;
-  const sourceRef = useRef(sourceKey);
+  const sourceRef = useRef(0);
   const followingTask = useRef<string | null>(null);
   const dataVersion = useRef(0);
   const [view, setView] = useState<ChapterShootingScriptView | null>(null);
@@ -96,9 +96,10 @@ export const ShootingScriptTab: React.FC<ShootingScriptTabProps> = ({
   ) => {
     if (chapterId == null) return;
     const key = `${handle.task_id}:${handle.attempt}`;
+    const scope = sourceRef.current;
     if (followingTask.current === key) return;
     followingTask.current = key;
-    const isCurrent = () => sourceRef.current === sourceKey && followingTask.current === key;
+    const isCurrent = () => sourceRef.current === scope && followingTask.current === key;
     setGenerating(true);
     try {
       const generated = await runGenerationProgressTaskThen(
@@ -149,10 +150,12 @@ export const ShootingScriptTab: React.FC<ShootingScriptTabProps> = ({
   followGenerationRef.current = followGeneration;
 
   useEffect(() => {
-    sourceRef.current = sourceKey;
+    sourceRef.current += 1;
     followingTask.current = null;
     const initialVersion = ++dataVersion.current;
     setGenerating(false);
+    setSaving(false);
+    setDeleting(false);
     setRebindShotIds([]);
     setFocusShotId(null);
     setView(null);
@@ -194,24 +197,26 @@ export const ShootingScriptTab: React.FC<ShootingScriptTabProps> = ({
     });
     return () => {
       active = false;
-      sourceRef.current = "";
+      sourceRef.current += 1;
     };
   }, [addToast, chapterId, projectId]);
 
   const savePartialDraft = async () => {
     if (view || !unitProgress || !draft || chapterId == null || !isDirty) return;
+    const scope = sourceRef.current;
     const result = await editChapterShootingScriptProgress(
       projectId,
       chapterId,
       unitProgress,
       draft,
     );
+    if (sourceRef.current !== scope) return;
     setUnitProgress(result.progress);
     setDraft(structuredClone(result.progress.script));
     setInvalidatedProjectIds(result.invalidated_project_ids);
   };
 
-  const generate = async (shotIds: string[] = []) => {
+  const generate = async (mode: ShootingScriptGenerationMode, shotIds: string[] = []) => {
     if (
       chapterId == null ||
       confirmedVisualPlanId == null ||
@@ -221,7 +226,9 @@ export const ShootingScriptTab: React.FC<ShootingScriptTabProps> = ({
       scriptLoading
     )
       return;
-    if (view && (shotIds.length === 0 || isDirty)) {
+    const scope = sourceRef.current;
+    const keepEditing = mode === "next_scene" && editing;
+    if (mode === "full" && view && (shotIds.length === 0 || isDirty)) {
       const confirmed = await confirmDialog({
         title: t("shootingScript.regenerate"),
         message: isDirty
@@ -232,64 +239,27 @@ export const ShootingScriptTab: React.FC<ShootingScriptTabProps> = ({
       });
       if (!confirmed) return;
     }
-    if (followingTask.current != null || sourceRef.current !== sourceKey) return;
+    if (followingTask.current != null || sourceRef.current !== scope) return;
     const pendingKey = `starting:${sourceKey}`;
     followingTask.current = pendingKey;
     setGenerating(true);
     try {
       await savePartialDraft();
-      if (sourceRef.current !== sourceKey) return;
+      if (sourceRef.current !== scope) return;
       const handle = await startChapterShootingScriptGeneration(
-        projectId, chapterId, confirmedVisualPlanId, "full", shotIds,
+        projectId, chapterId, confirmedVisualPlanId, mode, shotIds,
       );
-      if (sourceRef.current !== sourceKey) return;
-      await followGeneration(handle);
+      if (sourceRef.current !== scope) return;
+      await followGeneration(handle, mode, keepEditing);
     } catch (error) {
-      if (sourceRef.current !== sourceKey) return;
+      if (sourceRef.current !== scope) return;
       const message = extractErrorMessage(error, t("shootingScript.failed"));
       addToast(
         isCancelledOperation(message) ? t("shootingScript.stopped") : message,
         isCancelledOperation(message) ? "info" : "error",
       );
     } finally {
-      if (sourceRef.current === sourceKey && followingTask.current === pendingKey) {
-        followingTask.current = null;
-        setGenerating(false);
-      }
-    }
-  };
-
-  const generateNextUnit = async () => {
-    if (
-      chapterId == null ||
-      confirmedVisualPlanId == null ||
-      generating ||
-      followingTask.current != null ||
-      saving ||
-      scriptLoading
-    )
-      return;
-    const wasEditing = editing;
-    const pendingKey = `starting:${sourceKey}`;
-    followingTask.current = pendingKey;
-    setGenerating(true);
-    try {
-      await savePartialDraft();
-      if (sourceRef.current !== sourceKey) return;
-      const handle = await startChapterShootingScriptGeneration(
-        projectId, chapterId, confirmedVisualPlanId, "next_scene",
-      );
-      if (sourceRef.current !== sourceKey) return;
-      await followGeneration(handle, "next_scene", wasEditing);
-    } catch (error) {
-      if (sourceRef.current !== sourceKey) return;
-      const message = extractErrorMessage(error, t("shootingScript.failed"));
-      addToast(
-        isCancelledOperation(message) ? t("shootingScript.stopped") : message,
-        isCancelledOperation(message) ? "info" : "error",
-      );
-    } finally {
-      if (sourceRef.current === sourceKey && followingTask.current === pendingKey) {
+      if (sourceRef.current === scope && followingTask.current === pendingKey) {
         followingTask.current = null;
         setGenerating(false);
       }
@@ -297,8 +267,9 @@ export const ShootingScriptTab: React.FC<ShootingScriptTabProps> = ({
   };
 
   const save = async () => {
+    const editable = view ?? unitProgress;
     if (
-      (!view && !unitProgress) ||
+      !editable ||
       !draft ||
       chapterId == null ||
       saving ||
@@ -306,19 +277,13 @@ export const ShootingScriptTab: React.FC<ShootingScriptTabProps> = ({
       scriptLoading
     )
       return;
+    const scope = sourceRef.current;
     setSaving(true);
     try {
-      const result = view
-        ? await editChapterShootingScript(projectId, chapterId, view, draft, rebindShotIds)
-        : unitProgress
-          ? await editChapterShootingScriptProgress(
-              projectId,
-              chapterId,
-              unitProgress,
-              draft,
-            )
-          : null;
-      if (!result) return;
+      const result = "record" in editable
+        ? await editChapterShootingScript(projectId, chapterId, editable, draft, rebindShotIds)
+        : await editChapterShootingScriptProgress(projectId, chapterId, editable, draft);
+      if (sourceRef.current !== scope) return;
       if ("shooting_script" in result) {
         setView(result.shooting_script);
         setUnitProgress(null);
@@ -338,12 +303,13 @@ export const ShootingScriptTab: React.FC<ShootingScriptTabProps> = ({
         "success",
       );
     } catch (error) {
+      if (sourceRef.current !== scope) return;
       addToast(
         extractErrorMessage(error, t("shootingScript.saveFailed")),
         "error",
       );
     } finally {
-      setSaving(false);
+      if (sourceRef.current === scope) setSaving(false);
     }
   };
 
@@ -358,6 +324,7 @@ export const ShootingScriptTab: React.FC<ShootingScriptTabProps> = ({
 
   const cancelEdit = async () => {
     if (!editing || actionsDisabled) return;
+    const scope = sourceRef.current;
     if (isDirty) {
       const confirmed = await confirmDialog({
         title: t("shootingScript.cancelEditTitle"),
@@ -367,6 +334,7 @@ export const ShootingScriptTab: React.FC<ShootingScriptTabProps> = ({
       });
       if (!confirmed) return;
     }
+    if (sourceRef.current !== scope) return;
     const source = view?.script ?? unitProgress?.script;
     setDraft(source ? structuredClone(source) : null);
     setEditing(false);
@@ -376,31 +344,34 @@ export const ShootingScriptTab: React.FC<ShootingScriptTabProps> = ({
   const removeProgress = async () => {
     if (!unitProgress || deleting || generating || saving || scriptLoading)
       return;
+    const scope = sourceRef.current;
     const confirmed = await confirmDialog({
       title: t("shootingScript.discardProgressTitle"),
       message: t("shootingScript.discardProgressMessage"),
       confirmText: t("shootingScript.discardProgress"),
       dialogType: "danger",
     });
-    if (!confirmed) return;
+    if (!confirmed || sourceRef.current !== scope) return;
     setDeleting(true);
     try {
       await cancelWorkflow({
         task_id: null,
         workflow_run_id: unitProgress.workflow_run_id,
       });
+      if (sourceRef.current !== scope) return;
       setUnitProgress(null);
       setDraft(null);
       setEditing(false);
       setInvalidatedProjectIds([]);
       addToast(t("shootingScript.discardProgressCompleted"), "success");
     } catch (error) {
+      if (sourceRef.current !== scope) return;
       addToast(
         extractErrorMessage(error, t("shootingScript.discardProgressFailed")),
         "error",
       );
     } finally {
-      setDeleting(false);
+      if (sourceRef.current === scope) setDeleting(false);
     }
   };
 
@@ -414,16 +385,18 @@ export const ShootingScriptTab: React.FC<ShootingScriptTabProps> = ({
       scriptLoading
     )
       return;
+    const scope = sourceRef.current;
     const confirmed = await confirmDialog({
       title: t("shootingScript.deleteTitle"),
       message: t("shootingScript.deleteMessage"),
       confirmText: t("shootingScript.delete"),
       dialogType: "danger",
     });
-    if (!confirmed) return;
+    if (!confirmed || sourceRef.current !== scope) return;
     setDeleting(true);
     try {
       await deleteChapterShootingScript(projectId, chapterId, view);
+      if (sourceRef.current !== scope) return;
       setView(null);
       setDraft(null);
       setUnitProgress(null);
@@ -431,12 +404,13 @@ export const ShootingScriptTab: React.FC<ShootingScriptTabProps> = ({
       setEditing(false);
       addToast(t("shootingScript.deleteCompleted"), "success");
     } catch (error) {
+      if (sourceRef.current !== scope) return;
       addToast(
         extractErrorMessage(error, t("shootingScript.deleteFailed")),
         "error",
       );
     } finally {
-      setDeleting(false);
+      if (sourceRef.current === scope) setDeleting(false);
     }
   };
 
@@ -493,7 +467,7 @@ export const ShootingScriptTab: React.FC<ShootingScriptTabProps> = ({
                 <BookButton
                   size="sm"
                   variant="secondary"
-                  onClick={() => void generate()}
+                  onClick={() => void generate("full")}
                   disabled={actionsDisabled}
                 >
                   {generating ? (
@@ -541,7 +515,7 @@ export const ShootingScriptTab: React.FC<ShootingScriptTabProps> = ({
                     <BookButton
                       size="sm"
                       variant="secondary"
-                      onClick={() => void generate()}
+                      onClick={() => void generate("full")}
                       disabled={actionsDisabled}
                     >
                       <RefreshCw size={13} />
@@ -591,7 +565,7 @@ export const ShootingScriptTab: React.FC<ShootingScriptTabProps> = ({
                 ) : null}
                 <BookButton
                   size="sm"
-                  onClick={() => void generateNextUnit()}
+                  onClick={() => void generate("next_scene")}
                   disabled={actionsDisabled || confirmedVisualPlanId == null}
                 >
                   {generating ? (
@@ -634,7 +608,7 @@ export const ShootingScriptTab: React.FC<ShootingScriptTabProps> = ({
             <section className="a4n-flat-surface space-y-3 p-3 sm:p-4" aria-label={t("shootingScript.needsUpdate")}>
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <p className="text-sm font-semibold text-warning">{t("shootingScript.updateCount", { count: affectedShotIds.length })}</p>
-                {canEdit ? <BookButton size="sm" onClick={() => void generate(affectedShotIds)} disabled={actionsDisabled || editing}>
+                {canEdit ? <BookButton size="sm" onClick={() => void generate("full", affectedShotIds)} disabled={actionsDisabled || editing}>
                   <Wand2 size={13} />{t("shootingScript.updateAffected")}
                 </BookButton> : null}
               </div>
@@ -655,7 +629,7 @@ export const ShootingScriptTab: React.FC<ShootingScriptTabProps> = ({
                         {t("shootingScript.manualUpdated", { id: planned?.title || id })}
                       </label> : !editing ? <>
                         {!missing ? <BookButton size="sm" variant="secondary" disabled={actionsDisabled} onClick={() => enterEdit(id)} aria-label={t("shootingScript.editShot", { id })}><Pencil size={13} />{t("shootingScript.manualUpdate")}</BookButton> : null}
-                        <BookButton size="sm" variant="secondary" disabled={actionsDisabled} onClick={() => void generate([id])} aria-label={t("shootingScript.generateShot", { id })}><Wand2 size={13} />{t("shootingScript.modelUpdate")}</BookButton>
+                        <BookButton size="sm" variant="secondary" disabled={actionsDisabled} onClick={() => void generate("full", [id])} aria-label={t("shootingScript.generateShot", { id })}><Wand2 size={13} />{t("shootingScript.modelUpdate")}</BookButton>
                       </> : null}
                     </div> : null}
                   </li>;
