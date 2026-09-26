@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Theme, ThemeMode } from "../api/theme";
 import { getThemePreference, listThemes, updateThemePreference } from "../api/theme";
-import { applyThemePreview, getThemeAppearance, loadAndApplyActiveTheme, persistThemeAppearance, setThemeAppearance } from "./activeTheme";
+import { applyActiveTheme, applyThemePreview, getThemeAppearance, loadAndApplyActiveTheme, persistThemeAppearance, setThemeAppearance } from "./activeTheme";
 
 vi.mock("../api/theme", () => ({
   getThemePreference: vi.fn(),
@@ -85,6 +85,19 @@ describe("applyThemePreview", () => {
 
     expect(variables.has("--a4n-surface-opacity")).toBe(false);
     expect(variables.has("--a4n-workspace-opacity")).toBe(false);
+  });
+
+  it("keeps a newly activated theme after changing modes while preserving the other mode", async () => {
+    const previous = makeTheme("light", "255 0 0");
+    const dark = { ...makeTheme("dark", "20 20 20"), id: 3 };
+    vi.mocked(listThemes).mockResolvedValue([previous, dark]);
+    vi.mocked(getThemePreference).mockResolvedValue({ user_id: 7, appearance: "light" });
+    await loadAndApplyActiveTheme(7);
+    applyActiveTheme({ ...makeTheme("light", "0 0 255"), id: 2 });
+    setThemeAppearance("dark");
+    expect(variables.get("--color-bg-primary")).toBe("20 20 20");
+    setThemeAppearance("light");
+    expect(variables.get("--color-bg-primary")).toBe("0 0 255");
   });
 
   it("keeps a saved appearance when an earlier theme read arrives later", async () => {

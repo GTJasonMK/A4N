@@ -83,7 +83,8 @@ fn validate_video_manifest_rejects_dangling_references() {
                 "revision": 1,
                 "source_revision_key": "revision:1",
                 "source_content_sha256": "content",
-                "script_sha256": "script"
+                "script_sha256": "script",
+                "shot_fingerprints": {"shot-1": "shot"}
             }
         }
     }));
@@ -124,7 +125,7 @@ fn validate_video_media_manifest_accepts_generated_video_files() {
 
 pub(in crate::project::family_package::tests) fn package_with_video_rows() -> ProjectFamilyPackage {
     let mut package = package_with_derived_project();
-    package.text_core.chapters = vec![chapter_record(11, 1, None)];
+    package.text_core.chapters.push(chapter_record(11, 1, None));
     package.generated_images = vec![generated_image::Model {
         id: 31,
         project_id: 2,

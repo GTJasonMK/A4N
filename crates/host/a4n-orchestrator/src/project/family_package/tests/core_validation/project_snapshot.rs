@@ -1,4 +1,19 @@
 use super::*;
+
+#[test]
+fn frozen_sources_require_retained_chapter_identity_after_reset() {
+    let mut package = package_with_derived_project();
+    package.text_core.chapters.push(chapter_record(42, 1, None));
+    validate_package_manifest(&package).expect("new content and retired source identities coexist");
+    let source_id = package.source_snapshot_chapters[0].source_chapter_id;
+    package
+        .text_core
+        .chapters
+        .retain(|chapter| chapter.id != source_id);
+    let error =
+        validate_package_manifest(&package).expect_err("frozen source identity must be present");
+    assert!(error.contains("源快照章节身份缺失或不一致"), "{error}");
+}
 use a4n_db::text_anchor::EVIDENCE_ROLE_FIRST_SEEN;
 
 #[test]

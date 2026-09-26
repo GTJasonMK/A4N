@@ -9,20 +9,8 @@ pub(in crate::project::family_package::tests) fn derived_galgame_project() -> no
 
 pub(in crate::project::family_package::tests) fn package_with_galgame_project()
 -> ProjectFamilyPackage {
-    let mut package = package_with_part_outlines(Vec::new());
-    let snapshot_chapters = (1..=10)
-        .map(source_snapshot_chapter_record)
-        .collect::<Vec<_>>();
-    let mut snapshot = source_snapshot_record();
-    snapshot.chapter_hashes_json = Value::Array(
-        snapshot_chapters
-            .iter()
-            .map(source_snapshot_chapter_hash_row)
-            .collect(),
-    );
-    package.projects.push(derived_galgame_project());
-    package.source_snapshots = vec![snapshot];
-    package.source_snapshot_chapters = snapshot_chapters;
+    let mut package = package_with_derived_project();
+    package.projects[1] = derived_galgame_project();
     package.galgame_scripts = vec![galgame_script_record()];
     package.galgame_scenes = vec![galgame_scene_record(1001)];
     package.galgame_lines = vec![galgame_line_record(2201)];

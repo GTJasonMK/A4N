@@ -19,7 +19,7 @@ pub async fn begin_chapter_generation_record<C>(
 where
     C: ConnectionTrait,
 {
-    let Some((chapter_id, status, title, summary)) = chapter::Entity::find()
+    let Some((chapter_id, status, title, summary)) = chapter::Entity::find_current()
         .filter(chapter::Column::ProjectId.eq(project_id))
         .filter(chapter::Column::ChapterNumber.eq(chapter_number))
         .select_only()

@@ -788,8 +788,8 @@ fn video_summary(
         metadata_json: video.metadata_json.clone(),
         timeline_item_id: video.timeline_item_id,
         is_favorite: video.is_favorite,
-        created_at: video.created_at.to_string(),
-        updated_at: video.updated_at.to_string(),
+        created_at: video.created_at.and_utc().to_rfc3339(),
+        updated_at: video.updated_at.and_utc().to_rfc3339(),
     }
 }
 
@@ -812,7 +812,7 @@ fn image_summary(
         chapter_id: image.chapter_id,
         panel_id: image.panel_id.clone(),
         metadata_json: image.metadata_json.clone(),
-        created_at: image.created_at.to_string(),
+        created_at: image.created_at.and_utc().to_rfc3339(),
     }
 }
 

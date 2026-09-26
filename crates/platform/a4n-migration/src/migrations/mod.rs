@@ -44,6 +44,7 @@ pub mod external_import_model_identity_cleanup;
 pub mod foreshadowing_index_integrity_contract;
 pub mod freeform_canonical_media;
 pub mod freeform_generation_context;
+pub mod frozen_chapter_identity;
 pub mod galgame_generation_spec_contract;
 pub mod galgame_generation_spec_source_hash;
 pub mod galgame_media_binding_contract;

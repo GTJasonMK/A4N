@@ -32,13 +32,15 @@ impl OrchestratorContext {
     pub(crate) async fn update_theme_record(
         &self,
         theme: theme_config::Model,
-        name: Option<String>,
-        mode: Option<ThemeMode>,
-        document: Option<ThemeDocument>,
-    ) -> Result<theme_config::Model, AppError> {
-        self.settings
-            .update_theme_record(theme, name.as_deref(), mode, document)
-            .await
+        changes: a4n_domain::theme_edit::ThemeUpdateChanges,
+    ) -> Result<
+        (
+            theme_config::Model,
+            Vec<a4n_db_models::models::user::theme_resource::Model>,
+        ),
+        AppError,
+    > {
+        self.settings.update_theme_record(theme, changes).await
     }
 
     pub(crate) async fn delete_theme_record(&self, theme_id: i64) -> Result<(), AppError> {

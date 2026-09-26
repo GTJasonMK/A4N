@@ -19,9 +19,9 @@ SELECT
 
 const CHAPTER_ROLLBACK_COUNTS_SQL: &str = r#"
 SELECT
-    (SELECT COUNT(*)::BIGINT FROM chapter WHERE project_id = $1) AS chapter_count,
-    (SELECT MIN(chapter_number) FROM chapter WHERE project_id = $1) AS chapter_start,
-    (SELECT MAX(chapter_number) FROM chapter WHERE project_id = $1) AS chapter_end,
+    (SELECT COUNT(*)::BIGINT FROM chapter WHERE project_id = $1 AND status <> 'deleted') AS chapter_count,
+    (SELECT MIN(chapter_number) FROM chapter WHERE project_id = $1 AND status <> 'deleted') AS chapter_start,
+    (SELECT MAX(chapter_number) FROM chapter WHERE project_id = $1 AND status <> 'deleted') AS chapter_end,
     (SELECT COUNT(*)::BIGINT
        FROM generated_image
       WHERE project_id = $1

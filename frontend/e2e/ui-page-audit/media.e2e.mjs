@@ -726,7 +726,30 @@ const cases = [
   ...[
     ["MX09", 6014, "文本核验", "text"], ["MX10", 6016, "尾帧核验", "image"],
     ["MX11", 6009, "成片输出", "video"], ["MX12", 6011, "雨声监听", "audio"],
-  ].map(([id, node, title, kind]) => ({ id, title: `画布${kind}内容`, task: `打开${title}的已有内容`, open: () => openCanvasContent(node, title), widths: canvasWidths, scope: dialog, expected: [title], images: kind === "image" ? 1 : 0, after: kind === "video" || kind === "audio" ? () => provePlayback(`${dialog} ${kind}`) : undefined, note: "使用真实内容与媒体解码，不能由节点占位缩略图替代。" })),
+  ].map(([id, node, title, kind]) => ({
+    id, title: `画布${kind}内容与属性`, task: `打开${title}的已有内容并返回节点属性`,
+    open: () => openCanvasContent(node, title), widths: canvasWidths, scope: dialog,
+    expected: [title], images: kind === "image" ? 1 : 0,
+    after: async (record, width) => {
+      const playback = kind === "video" || kind === "audio" ? await provePlayback(`${dialog} ${kind}`) : null;
+      await browser.keys("Escape");
+      await $(`//div[@role="dialog" and .//h3[normalize-space()="${title} 内容"]]`).waitForExist({ reverse: true });
+      const scope = await canvasInspector();
+      await ready();
+      const titleInput = await $(scope).$('input[type="text"]');
+      assert.equal((await reachByWheel(titleInput)).reached, true);
+      assert.equal(await titleInput.getValue(), title);
+      if (kind !== "video") {
+        const mode = fixtures.byProject[6].get_canvas_graph.nodes.find((item) => item.id === node).config_json.display_mode;
+        assert.equal(await $(scope).$('button[role="combobox"]').getText(), mode === "detail" ? "详细" : "摘要");
+      }
+      record.properties = await capture({ id, scope }, width, "-properties");
+      assert.equal(record.properties.overflow, 0);
+      assert.deepEqual(record.properties.unnamedFields, []);
+      return { playback, nodeId: node, title, propertiesRead: true };
+    },
+    note: "使用真实内容与媒体解码，另验属性本体及返回路径。",
+  })),
   { id: "MX13", title: "画布键盘添加", task: "用键盘从节点库添加文本输入", open: () => openCanvas(), widths: [1440], expected: ["节点库"], after: async () => { const before = (await $$(".react-flow__node")).length; const template = await $('button[draggable="true"]'); await template.execute(element => element.focus()); await browser.keys("Enter"); await browser.waitUntil(async () => (await $$(".react-flow__node")).length === before + 1, { timeout: 2500, timeoutMsg: "Desktop keyboard activation must add a node" }); return { before, after: before + 1 }; }, note: "保留拖动，同时要求按钮有键盘激活行为。" },
   { id: "MX14", title: "画布移动节点库", task: "在窄屏找到节点库并查看全部类别", open: async () => { await openCanvas(); await $('button[aria-label="打开节点库"]').click(); await $(dialog).waitForDisplayed(); }, widths: [390], scope: dialog, expected: ["节点库", "文本输入", "视频输出"], after: async () => {
     const templates = await $(dialog).$$('button[draggable]');
@@ -774,7 +797,7 @@ const cases = [
     assert.equal(await image.execute(element => element.complete && element.naturalWidth > 0), true);
     return { nodeId: 6006, videoId: source.ref_id, thumbnailMatches: true };
   }, note: "当前编号 34001 与当前真实缩略图必须同时匹配，不以参数标题代替内容身份。" },
-  { id: "MX19", title: "画布连线属性", task: "点击真实连线并核对两端端口", open: openCanvasEdge, widths: canvasWidths, expected: ["来源端口", "目标端口", "连接类型"], after: async () => {
+  { id: "MX19", title: "画布连线属性", task: "点击真实连线并核对两端节点与端口", open: openCanvasEdge, widths: canvasWidths, expected: ["从「雨夜的旧书店」传递到「镜头描述模板」", "来源端口", "目标端口", "连接类型"], after: async () => {
     const details = await $(await canvasInspector()).$('details');
     const values = await details.$('div').$$(':scope > span');
     const source = fixtures.byProject[6].get_canvas_graph.edges.find(edge => edge.id === 6801);

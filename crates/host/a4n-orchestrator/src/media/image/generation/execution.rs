@@ -765,7 +765,7 @@ pub fn generated_image_summary(image: &generated_image::Model) -> GeneratedImage
         chapter_id: image.chapter_id,
         panel_id: image.panel_id.clone(),
         metadata_json: image.metadata_json.clone(),
-        created_at: image.created_at.to_string(),
+        created_at: image.created_at.and_utc().to_rfc3339(),
     }
 }
 

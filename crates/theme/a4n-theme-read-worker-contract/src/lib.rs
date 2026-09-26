@@ -9,7 +9,7 @@ pub use a4n_worker_contract::{WorkerEnvelope, WorkerResponse};
 use serde::{Deserialize, Serialize};
 
 pub const THEME_READ_WORKER_ID: &str = "theme-read-worker";
-pub const THEME_READ_WORKER_CONTRACT_VERSION: &str = "theme-read-v1";
+pub const THEME_READ_WORKER_CONTRACT_VERSION: &str = "theme-read-v2";
 pub const THEME_LIST_OPERATION: &str = "theme.read.list";
 pub const THEME_EXPORT_OPERATION: &str = "theme.read.export";
 pub const THEME_RESOURCES_OPERATION: &str = "theme.read.resources";
@@ -40,6 +40,7 @@ pub struct ThemeIdInput {
 pub struct ThemeUpdateInput {
     pub theme_id: i64,
     pub input: a4n_api_contract::theme::UpdateThemeInput,
+    pub resources: Vec<PersistThemeResourceInput>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

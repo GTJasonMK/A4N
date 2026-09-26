@@ -202,6 +202,12 @@ export async function installUiFixtures(browser, overrides = {}) {
           if (!run) throw new Error(`Missing Agent run fixture: ${agentRunPath[1]}`);
           return Response.json(run);
         }
+        if (url.pathname === "/api/generation-tasks/active" && fixtures.generationTasks) {
+          const projectId = url.searchParams.get("project_id");
+          const tasks = Object.values(fixtures.generationTasks).map((task) => task.summary);
+          return Response.json(tasks.filter((task) => ["reserved", "running", "finalizing", "cancelling"].includes(task.handle.status)
+            && (projectId == null || task.started.project_id === Number(projectId))));
+        }
         const generationPath = url.pathname.match(/^\/api\/generation-tasks\/([0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12})(?:\/(snapshot|events))?$/i);
         if (generationPath && fixtures.generationTasks) {
           const task = fixtures.generationTasks[generationPath[1]];

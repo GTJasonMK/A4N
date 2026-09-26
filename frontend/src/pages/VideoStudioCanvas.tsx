@@ -650,7 +650,7 @@ export const VideoStudioCanvas: React.FC = () => {
       <div className={mobile ? "space-y-3" : "min-h-0 flex-1 overflow-y-auto pr-1 custom-scrollbar"}>
         {selectedEdge ? (
           <Suspense fallback={<CanvasInspectorFallback />}>
-            <EdgeInspector edge={selectedEdge} />
+            <EdgeInspector edge={selectedEdge} nodes={nodes} />
           </Suspense>
         ) : selectedNode ? (
           <Suspense fallback={<CanvasInspectorFallback />}>

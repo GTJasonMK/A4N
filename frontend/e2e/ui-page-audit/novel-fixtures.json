@@ -83,6 +83,57 @@
     }
   ],
   "commands": {
+    "get_project_fact_feedback": {
+      "project_id": 1,
+      "interval_chapters": 3,
+      "consolidated_chapters": [1, 2],
+      "pending_chapters": [3],
+      "legacy_chapters": [],
+      "last_consolidated_at": "2026-09-25T02:00:00Z",
+      "workflow_kind": null,
+      "workflow_run_id": null,
+      "workflow_status": null,
+      "can_resume": false,
+      "error": null,
+      "changes": [
+        {
+          "id": 81001,
+          "material_kind": "foreshadowing",
+          "target_id": null,
+          "field_path": "description",
+          "before": null,
+          "after": "父亲在车站地图背面留下关于出口的警告。",
+          "reason": "将正文中可直接核验的地图背面文字记录为伏笔。",
+          "status": "applied",
+          "created_at": "2026-09-25T02:00:00Z",
+          "evidence": [{ "chapter_number": 1, "quote": "图纸背面有父亲的签名，还有一句话：不要相信你第一次看见的出口。" }]
+        },
+        {
+          "id": 81002,
+          "material_kind": "planning",
+          "target_id": null,
+          "field_path": "suggestion",
+          "before": "继续调查书店。",
+          "after": "核对地图标记的储物柜及其与父亲来信的关系。",
+          "reason": "未来行动保留为作者可判断的建议，不替换既有大纲。",
+          "status": "proposal",
+          "created_at": "2026-09-25T02:00:00Z",
+          "evidence": [{ "chapter_number": 1, "quote": "里面没有解释，只有一张旧车站的平面图和一个用红线圈起的储物柜编号。" }]
+        },
+        {
+          "id": 81003,
+          "material_kind": "world_setting",
+          "target_id": null,
+          "field_path": "time_rule",
+          "before": "书店中所有计时工具都停在同一时刻。",
+          "after": null,
+          "reason": "撤回将人物观察扩大成世界规则的旧推断；怀表仍在走动。",
+          "status": "retracted",
+          "created_at": "2026-09-25T02:00:00Z",
+          "evidence": [{ "chapter_number": 1, "quote": "墙上的钟停在九点十七分，桌面却传来怀表清晰的滴答声，两种时间像在这间书店里各自等待。" }]
+        }
+      ]
+    },
     "get_project_asset_dependency_graph": {
       "edges": [
         {

@@ -86,7 +86,7 @@ where
             input.normalized_name = existing.normalized_name.clone();
         }
     }
-    let chapters = a4n_db_models::models::chapter::chapter::Entity::find()
+    let chapters = a4n_db_models::models::chapter::chapter::Entity::find_current()
         .filter(
             a4n_db_models::models::chapter::chapter::Column::Id
                 .is_in(source_chapters.iter().map(|source| source.chapter_id)),

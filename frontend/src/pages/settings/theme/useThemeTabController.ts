@@ -3,7 +3,6 @@ import { extractErrorMessage } from "../../../api";
 import {
   activateTheme,
   createTheme,
-  deleteThemeResource,
   deleteTheme,
   exportThemePackage,
   exportTheme,
@@ -11,7 +10,6 @@ import {
   importThemePackage,
   listThemes,
   updateTheme,
-  uploadThemeResource,
   type Theme,
   type ThemeAppearance,
   type ThemeDocument,
@@ -24,6 +22,7 @@ import {
   applyActiveTheme,
   applyThemePreview,
   getThemeAppearance,
+  mergeSavedTheme,
   notifyThemeChanged,
   persistThemeAppearance,
   restoreActiveTheme,
@@ -219,9 +218,7 @@ export const useThemeTabController = () => {
   };
 
   const commitTheme = (saved: Theme) => {
-    commitThemes((current) => current.some((theme) => theme.id === saved.id)
-      ? current.map((theme) => theme.id === saved.id ? saved : theme)
-      : [saved, ...current]);
+    commitThemes((current) => mergeSavedTheme(current, saved));
   };
 
   const finishMutation = (requestUserKey: string) => {
@@ -237,9 +234,7 @@ export const useThemeTabController = () => {
     try {
       const activated = await activateTheme(id);
       if (!isCurrentUser(requestUserKey)) return;
-      commitThemes((current) => [activated, ...current
-        .filter((theme) => theme.id !== activated.id)
-        .map((theme) => theme.user_id === activated.user_id ? { ...theme, is_active: false } : theme)]);
+      commitTheme(activated);
       applyActiveTheme(activated);
       notifyThemeChanged();
       addToast(t("settingsTheme.activated"), "success");
@@ -495,61 +490,25 @@ export const useThemeTabController = () => {
   ): Promise<Theme | null> => {
     if (!user || editorSaving || !beginMutation()) return null;
     const requestUserKey = userKey;
-    const existingResourceIds = new Set(
-      themes.find((theme) => theme.id === themeId)?.resources?.map((resource) => resource.id) ?? [],
-    );
-    const uploadedResourceIds: number[] = [];
-    let committed = false;
     setEditorSaving(true);
-    const cleanupUploadedResources = async () => {
-      for (const resourceId of uploadedResourceIds) {
-        if (existingResourceIds.has(resourceId)) continue;
-        try {
-          await deleteThemeResource(resourceId);
-        } catch (cleanupError) {
-          addToast(extractErrorMessage(cleanupError, t("settingsTheme.resourceDeleteFailed")), "error");
-        }
-      }
-    };
     try {
-      for (const [resourceKey, file] of Object.entries(pendingFiles)) {
-        const uploaded = await uploadThemeResource({
+      const uploads = await Promise.all(Object.entries(pendingFiles).map(async ([resourceKey, file]) => ({
           theme_id: themeId,
           resource_key: resourceKey,
           file_name: file.name,
           mime_type: file.type,
           data_base64: await readFileAsBase64(file),
-        });
-        uploadedResourceIds.push(uploaded.id);
-      }
-      if (!isCurrentUser(requestUserKey)) {
-        await cleanupUploadedResources();
-        return null;
-      }
-      const saved = await updateTheme(themeId, input);
-      if (!isCurrentUser(requestUserKey)) {
-        await cleanupUploadedResources();
-        return null;
-      }
-      committed = true;
-      const deletedResourceIds = new Set<number>();
-      for (const resourceId of deleteResourceIds) {
-        try {
-          await deleteThemeResource(resourceId);
-          deletedResourceIds.add(resourceId);
-        } catch (err) {
-          addToast(extractErrorMessage(err, t("settingsTheme.resourceDeleteFailed")), "error");
-        }
-      }
-      const savedTheme = { ...saved, resources: saved.resources?.filter((resource) => !deletedResourceIds.has(resource.id)) };
-      commitTheme(savedTheme);
-      if (savedTheme.is_active) applyActiveTheme(savedTheme);
-      else applyThemePreview(savedTheme);
+        })));
+      if (!isCurrentUser(requestUserKey)) return null;
+      const saved = await updateTheme(themeId, { ...input, resource_uploads: uploads, delete_resource_ids: deleteResourceIds });
+      if (!isCurrentUser(requestUserKey)) return null;
+      commitTheme(saved);
+      if (saved.is_active) applyActiveTheme(saved);
+      else applyThemePreview(saved);
       notifyThemeChanged();
       addToast(t("settingsTheme.editorSaved"), "success");
-      return savedTheme;
+      return saved;
     } catch (err) {
-      if (!committed) await cleanupUploadedResources();
       if (isCurrentUser(requestUserKey)) {
         addToast(extractErrorMessage(err, t("settingsTheme.editorSaveFailed")), "error");
       }
