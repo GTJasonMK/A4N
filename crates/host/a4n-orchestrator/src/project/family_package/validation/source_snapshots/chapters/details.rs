@@ -13,6 +13,12 @@ pub(in super::super) fn validate_source_snapshot_chapter_manifest(
         HashMap::new();
     let mut seen_numbers = HashSet::new();
     let mut seen_source_ids = HashSet::new();
+    let source_identities = package
+        .text_core
+        .chapters
+        .iter()
+        .map(|chapter| (chapter.id, (chapter.project_id, chapter.chapter_number)))
+        .collect::<HashMap<_, _>>();
     for chapter in &package.source_snapshot_chapters {
         let snapshot = snapshots.get(&chapter.snapshot_id).ok_or_else(|| {
             format!(
@@ -44,6 +50,14 @@ pub(in super::super) fn validate_source_snapshot_chapter_manifest(
             return Err(format!(
                 "项目族导入包源快照章节 source_chapter_id 重复: snapshot_id={}, source_chapter_id={}",
                 chapter.snapshot_id, chapter.source_chapter_id
+            ));
+        }
+        if source_identities.get(&chapter.source_chapter_id)
+            != Some(&(chapter.root_project_id, chapter.chapter_number))
+        {
+            return Err(format!(
+                "项目族导入包源快照章节身份缺失或不一致: source_snapshot_chapter_id={}, source_chapter_id={}",
+                chapter.id, chapter.source_chapter_id
             ));
         }
         let expected_content_hash = hash_text(&chapter.content);

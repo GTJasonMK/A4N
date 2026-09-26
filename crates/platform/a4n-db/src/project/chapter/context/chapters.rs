@@ -6,7 +6,10 @@ pub async fn chapter_by_id(
     db: &DatabaseConnection,
     chapter_id: i64,
 ) -> Result<Option<chapter::Model>, DbErr> {
-    chapter::Entity::find_by_id(chapter_id).one(db).await
+    chapter::Entity::find_current()
+        .filter(chapter::Column::Id.eq(chapter_id))
+        .one(db)
+        .await
 }
 
 pub async fn import_analysis_chapter_candidates(
@@ -26,7 +29,7 @@ pub async fn character_sync_chapters(
     db: &DatabaseConnection,
     project_id: i64,
 ) -> Result<Vec<chapter::Model>, ProjectChapterContextError> {
-    Ok(chapter::Entity::find()
+    Ok(chapter::Entity::find_current()
         .filter(chapter::Column::ProjectId.eq(project_id))
         .order_by_asc(chapter::Column::ChapterNumber)
         .all(db)
@@ -42,7 +45,7 @@ pub async fn chapters_before_number(
     project_id: i64,
     chapter_number: i32,
 ) -> Result<Vec<chapter::Model>, ProjectChapterContextError> {
-    chapter::Entity::find()
+    chapter::Entity::find_current()
         .filter(chapter::Column::ProjectId.eq(project_id))
         .filter(chapter::Column::ChapterNumber.lt(chapter_number))
         .order_by_asc(chapter::Column::ChapterNumber)

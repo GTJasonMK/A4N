@@ -11711,6 +11711,10 @@
         }
       },
       "get_chapter_shooting_script": {
+        "plan_sync": {
+          "missing_shot_ids": [],
+          "stale_shot_ids": []
+        },
         "record": {
           "id": 701,
           "revision": 1,
@@ -11848,7 +11852,7 @@
                   ],
                   "planned_end_ms": 6000,
                   "planned_start_ms": 0,
-                  "shot_id": "unit_1_shot_1",
+                  "shot_id": "s1",
                   "shot_index": 1,
                   "shot_size": "medium",
                   "sound": {
@@ -11998,7 +12002,7 @@
                   ],
                   "planned_end_ms": 12000,
                   "planned_start_ms": 6000,
-                  "shot_id": "unit_1_shot_2",
+                  "shot_id": "s2",
                   "shot_index": 2,
                   "shot_size": "medium",
                   "sound": {
@@ -12213,7 +12217,7 @@
                   ],
                   "planned_end_ms": 18000,
                   "planned_start_ms": 12000,
-                  "shot_id": "unit_2_shot_1",
+                  "shot_id": "s3",
                   "shot_index": 1,
                   "shot_size": "medium",
                   "sound": {
@@ -12363,7 +12367,7 @@
                   ],
                   "planned_end_ms": 24000,
                   "planned_start_ms": 18000,
-                  "shot_id": "unit_2_shot_2",
+                  "shot_id": "s4",
                   "shot_index": 2,
                   "shot_size": "medium",
                   "sound": {
@@ -12578,7 +12582,7 @@
                   ],
                   "planned_end_ms": 30000,
                   "planned_start_ms": 24000,
-                  "shot_id": "unit_3_shot_1",
+                  "shot_id": "s5",
                   "shot_index": 1,
                   "shot_size": "medium",
                   "sound": {
@@ -12728,7 +12732,7 @@
                   ],
                   "planned_end_ms": 36000,
                   "planned_start_ms": 30000,
-                  "shot_id": "unit_3_shot_2",
+                  "shot_id": "s6",
                   "shot_index": 2,
                   "shot_size": "medium",
                   "sound": {
@@ -18089,6 +18093,10 @@
         }
       },
       "get_chapter_shooting_script": {
+        "plan_sync": {
+          "missing_shot_ids": [],
+          "stale_shot_ids": []
+        },
         "record": {
           "id": 702,
           "revision": 1,
@@ -18226,7 +18234,7 @@
                   ],
                   "planned_end_ms": 6000,
                   "planned_start_ms": 0,
-                  "shot_id": "unit_1_shot_1",
+                  "shot_id": "s1",
                   "shot_index": 1,
                   "shot_size": "medium",
                   "sound": {
@@ -18376,7 +18384,7 @@
                   ],
                   "planned_end_ms": 12000,
                   "planned_start_ms": 6000,
-                  "shot_id": "unit_1_shot_2",
+                  "shot_id": "s2",
                   "shot_index": 2,
                   "shot_size": "medium",
                   "sound": {
@@ -18591,7 +18599,7 @@
                   ],
                   "planned_end_ms": 18000,
                   "planned_start_ms": 12000,
-                  "shot_id": "unit_2_shot_1",
+                  "shot_id": "s3",
                   "shot_index": 1,
                   "shot_size": "medium",
                   "sound": {
@@ -18741,7 +18749,7 @@
                   ],
                   "planned_end_ms": 24000,
                   "planned_start_ms": 18000,
-                  "shot_id": "unit_2_shot_2",
+                  "shot_id": "s4",
                   "shot_index": 2,
                   "shot_size": "medium",
                   "sound": {
@@ -18956,7 +18964,7 @@
                   ],
                   "planned_end_ms": 30000,
                   "planned_start_ms": 24000,
-                  "shot_id": "unit_3_shot_1",
+                  "shot_id": "s5",
                   "shot_index": 1,
                   "shot_size": "medium",
                   "sound": {
@@ -19106,7 +19114,7 @@
                   ],
                   "planned_end_ms": 36000,
                   "planned_start_ms": 30000,
-                  "shot_id": "unit_3_shot_2",
+                  "shot_id": "s6",
                   "shot_index": 2,
                   "shot_size": "medium",
                   "sound": {
@@ -24467,6 +24475,10 @@
         }
       },
       "get_chapter_shooting_script": {
+        "plan_sync": {
+          "missing_shot_ids": [],
+          "stale_shot_ids": []
+        },
         "record": {
           "id": 703,
           "revision": 1,
@@ -24604,7 +24616,7 @@
                   ],
                   "planned_end_ms": 6000,
                   "planned_start_ms": 0,
-                  "shot_id": "unit_1_shot_1",
+                  "shot_id": "s1",
                   "shot_index": 1,
                   "shot_size": "medium",
                   "sound": {
@@ -24754,7 +24766,7 @@
                   ],
                   "planned_end_ms": 12000,
                   "planned_start_ms": 6000,
-                  "shot_id": "unit_1_shot_2",
+                  "shot_id": "s2",
                   "shot_index": 2,
                   "shot_size": "medium",
                   "sound": {
@@ -24969,7 +24981,7 @@
                   ],
                   "planned_end_ms": 18000,
                   "planned_start_ms": 12000,
-                  "shot_id": "unit_2_shot_1",
+                  "shot_id": "s3",
                   "shot_index": 1,
                   "shot_size": "medium",
                   "sound": {
@@ -25119,7 +25131,7 @@
                   ],
                   "planned_end_ms": 24000,
                   "planned_start_ms": 18000,
-                  "shot_id": "unit_2_shot_2",
+                  "shot_id": "s4",
                   "shot_index": 2,
                   "shot_size": "medium",
                   "sound": {
@@ -25334,7 +25346,7 @@
                   ],
                   "planned_end_ms": 30000,
                   "planned_start_ms": 24000,
-                  "shot_id": "unit_3_shot_1",
+                  "shot_id": "s5",
                   "shot_index": 1,
                   "shot_size": "medium",
                   "sound": {
@@ -25484,7 +25496,7 @@
                   ],
                   "planned_end_ms": 36000,
                   "planned_start_ms": 30000,
-                  "shot_id": "unit_3_shot_2",
+                  "shot_id": "s6",
                   "shot_index": 2,
                   "shot_size": "medium",
                   "sound": {

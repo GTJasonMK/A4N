@@ -1,6 +1,8 @@
 use a4n_db_models::models::chapter::chapter::{self, STATUS_DRAFT};
 use chrono::Utc;
-use sea_orm::{ActiveModelTrait, DatabaseTransaction, EntityTrait, QuerySelect, Set};
+use sea_orm::{
+    ActiveModelTrait, ColumnTrait, DatabaseTransaction, EntityTrait, QueryFilter, QuerySelect, Set,
+};
 
 use super::{ChapterContentEditError, assign_chapter_content};
 use a4n_domain::chapter::{EditChapterContentInput, chapter_edit_revision};
@@ -19,6 +21,7 @@ pub async fn save_chapter_content_edit_record(
     })?;
 
     let current = chapter::Entity::find_by_id(input.chapter_id)
+        .filter(chapter::Column::Status.ne(chapter::STATUS_DELETED))
         .lock_exclusive()
         .one(db)
         .await

@@ -120,7 +120,7 @@ pub async fn current_feedback_sources<C: ConnectionTrait>(
     db: &C,
     project_id: i64,
 ) -> Result<Vec<FeedbackSource>, FactFeedbackDbError> {
-    let chapters = chapter::Entity::find()
+    let chapters = chapter::Entity::find_current()
         .filter(chapter::Column::ProjectId.eq(project_id))
         .order_by_asc(chapter::Column::ChapterNumber)
         .all(db)

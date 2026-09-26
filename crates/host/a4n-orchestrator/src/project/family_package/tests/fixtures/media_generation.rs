@@ -214,7 +214,7 @@ pub(in crate::project::family_package::tests) fn package_with_valid_media_bindin
             package.video_segments = vec![video_segment_record(201)];
         }
         "chapter" => {
-            package.text_core.chapters = vec![chapter_record(201, 1, None)];
+            package.text_core.chapters.push(chapter_record(201, 1, None));
         }
         "assembly_timeline" => {
             package.assembly_timelines = vec![assembly_timeline_record(201)];

@@ -17,7 +17,7 @@ pub async fn chapter_by_project_number(
             "chapter_number 必须大于 0".to_string(),
         ));
     }
-    chapter::Entity::find()
+    chapter::Entity::find_current()
         .filter(chapter::Column::ProjectId.eq(project_id))
         .filter(chapter::Column::ChapterNumber.eq(chapter_number))
         .one(db)

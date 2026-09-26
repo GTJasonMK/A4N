@@ -16,13 +16,7 @@ pub async fn upload_theme_resource_for_user(
     user_id: i64,
     input: ThemeResourceUploadInput,
 ) -> Result<ThemeResourceSummary, AppError> {
-    let extension =
-        validate_resource_metadata(&input.resource_key, &input.file_name, &input.mime_type)?;
-    if input.data_base64.trim().is_empty() {
-        return Err(AppError::InvalidArgument(
-            "主题图片内容不能为空".to_string(),
-        ));
-    }
+    let theme_id = input.theme_id;
     let previous_file_path = state
         .theme_read_application()
         .list_resources(user_id, input.theme_id)
@@ -30,6 +24,49 @@ pub async fn upload_theme_resource_for_user(
         .into_iter()
         .find(|resource| resource.resource_key == input.resource_key)
         .map(|resource| resource.file_path);
+    let (prepared, created_file) = prepare_theme_resource_file(state, input)?;
+    let relative_path = prepared.file_path.clone();
+    let resource = match state
+        .theme_mutation_application()
+        .upsert_resource(user_id, prepared)
+        .await
+    {
+        Ok(resource) => resource,
+        Err(error) => {
+            if created_file {
+                remove_theme_resource_file_if_unused(state, user_id, theme_id, &relative_path)
+                    .await
+                    .map_err(|cleanup| {
+                        AppError::Internal(anyhow::anyhow!(
+                            "{error}; 清理未保存主题资源失败: {cleanup}"
+                        ))
+                    })?;
+            }
+            return Err(error);
+        }
+    };
+    if let Some(previous_file_path) =
+        previous_file_path.filter(|file_path| file_path != &relative_path)
+        && let Err(error) =
+            remove_theme_resource_file_if_unused(state, user_id, theme_id, &previous_file_path)
+                .await
+    {
+        tracing::warn!(theme_id, file_path = previous_file_path, %error, "清理被替换的主题资源文件失败");
+    }
+    Ok(resource_to_summary(resource))
+}
+
+pub(super) fn prepare_theme_resource_file(
+    state: &AppState,
+    input: ThemeResourceUploadInput,
+) -> Result<(PersistThemeResourceInput, bool), AppError> {
+    let extension =
+        validate_resource_metadata(&input.resource_key, &input.file_name, &input.mime_type)?;
+    if input.data_base64.trim().is_empty() {
+        return Err(AppError::InvalidArgument(
+            "主题图片内容不能为空".to_string(),
+        ));
+    }
     let bytes = base64::engine::general_purpose::STANDARD
         .decode(input.data_base64.trim())
         .map_err(|error| AppError::InvalidArgument(format!("主题图片 base64 无效：{error}")))?;
@@ -48,48 +85,18 @@ pub async fn upload_theme_resource_for_user(
         write_new_data_file(state.data_dir(), &relative_path, &bytes, "主题背景图片")
             .map_err(AppError::InvalidArgument)?;
     }
-    let resource = match state
-        .theme_mutation_application()
-        .upsert_resource(
-            user_id,
-            PersistThemeResourceInput {
-                theme_id: input.theme_id,
-                resource_key: input.resource_key.clone(),
-                file_name: input.file_name.clone(),
-                mime_type: input.mime_type.clone(),
-                file_path: relative_path.clone(),
-                sha256: digest,
-                byte_size: bytes.len() as i64,
-            },
-        )
-        .await
-    {
-        Ok(resource) => resource,
-        Err(error) => {
-            if created_file {
-                let _ = std::fs::remove_file(&target);
-            }
-            return Err(error);
-        }
-    };
-    if let Some(previous_file_path) =
-        previous_file_path.filter(|file_path| file_path != &relative_path)
-        && let Err(error) = remove_theme_resource_file_if_unused(
-            state,
-            user_id,
-            input.theme_id,
-            &previous_file_path,
-        )
-        .await
-    {
-        tracing::warn!(
-            theme_id = input.theme_id,
-            file_path = previous_file_path,
-            %error,
-            "清理被替换的主题资源文件失败"
-        );
-    }
-    Ok(resource_to_summary(resource))
+    Ok((
+        PersistThemeResourceInput {
+            theme_id: input.theme_id,
+            resource_key: input.resource_key,
+            file_name: input.file_name,
+            mime_type: input.mime_type,
+            file_path: relative_path,
+            sha256: digest,
+            byte_size: bytes.len() as i64,
+        },
+        created_file,
+    ))
 }
 
 pub async fn delete_theme_resource_for_user(
@@ -105,7 +112,7 @@ pub async fn delete_theme_resource_for_user(
         .await
 }
 
-async fn remove_theme_resource_file_if_unused(
+pub(super) async fn remove_theme_resource_file_if_unused(
     state: &AppState,
     user_id: i64,
     theme_id: i64,

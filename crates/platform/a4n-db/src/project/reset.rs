@@ -41,7 +41,7 @@ pub async fn reset_project_generated_data_record(
     db: &DatabaseConnection,
     project_id: i64,
 ) -> Result<ProjectGeneratedDataResetOutcome, ProjectResetDbError> {
-    use a4n_db_models::models::chapter::{chapter, chapter_outline, part_outline};
+    use a4n_db_models::models::chapter::{chapter_outline, part_outline};
     use a4n_db_models::models::character::foreshadowing_index;
     use a4n_db_models::models::project::{blueprint_version, import_review_queue};
 
@@ -109,11 +109,8 @@ pub async fn reset_project_generated_data_record(
         delete_project_profile_scene_data(&tx, project_id, &retained).await?;
     crate::fact_feedback::reset_feedback_coverage(&tx, project_id).await?;
 
-    let deleted_chapters = chapter::Entity::delete_many()
-        .filter(chapter::Column::ProjectId.eq(project_id))
-        .exec(&tx)
-        .await?
-        .rows_affected;
+    let deleted_chapters =
+        crate::chapter_content::delete_project_chapter_content(&tx, project_id, now).await?;
     let deleted_chapter_outlines = chapter_outline::Entity::delete_many()
         .filter(chapter_outline::Column::ProjectId.eq(project_id))
         .exec(&tx)

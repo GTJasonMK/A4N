@@ -69,6 +69,10 @@ pub(in crate::project::family_package::tests) fn package_with_derived_project()
     );
     package.projects.push(derived_video_project());
     package.source_snapshots = vec![snapshot];
+    package.text_core.chapters = snapshot_chapters.iter().map(|source| chapter::Model {
+        content: String::new(), word_count: 0, title: None, status: chapter::STATUS_DELETED.into(),
+        ..chapter_record(source.source_chapter_id, source.chapter_number, None)
+    }).collect();
     package.source_snapshot_chapters = snapshot_chapters;
     package
 }

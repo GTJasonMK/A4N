@@ -123,9 +123,23 @@ describe("nested editor and input contracts", () => {
   });
 
   it("shows the available choices when opening a populated combobox", async () => {
-    await $('input[role="combobox"]').click();
+    const input = await $('input[role="combobox"]');
+    const geometry = () => input.execute((element) => {
+      const arrow = element.nextElementSibling;
+      const box = element.getBoundingClientRect(), icon = arrow.getBoundingClientRect();
+      return { offset: icon.top + icon.height / 2 - box.top - box.height / 2, direction: arrow.getScreenCTM().d };
+    });
+    assert.ok(Math.abs((await geometry()).offset) < 1, "The closed arrow must be centered");
+    await input.click();
     await $('[role="listbox"]').waitForDisplayed();
     assert.equal((await $$('[role="option"]')).length, 3);
+    await browser.pause(250);
+    const open = await geometry();
+    assert.ok(Math.abs(open.offset) < 1 && open.direction < 0, `The open arrow must point up without moving: ${JSON.stringify(open)}`);
+    await browser.keys("Escape");
+    await browser.pause(250);
+    const closed = await geometry();
+    assert.ok(Math.abs(closed.offset) < 1 && closed.direction > 0, "Closing must restore only the arrow direction");
   });
 
   it("keeps IME confirmation from committing a combobox suggestion", async () => {

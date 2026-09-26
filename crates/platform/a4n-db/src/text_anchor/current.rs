@@ -44,6 +44,7 @@ async fn rebuild_chapter_content_anchor_records_for_validated_project(
     chapter_id: i64,
 ) -> TextAnchorDbResult<Vec<text_anchor::Model>> {
     let chapter = chapter::Entity::find_by_id(chapter_id)
+        .filter(chapter::Column::Status.ne(chapter::STATUS_DELETED))
         .select_only()
         .column(chapter::Column::Id)
         .column(chapter::Column::ProjectId)
@@ -126,7 +127,7 @@ pub async fn ensure_chapter_content_anchor_records_batch(
         .map(|row| row.chapter.id)
         .collect::<Vec<_>>();
     let tx = db.begin().await?;
-    let latest_chapters = chapter::Entity::find()
+    let latest_chapters = chapter::Entity::find_current()
         .select_only()
         .column(chapter::Column::Id)
         .column(chapter::Column::ProjectId)
@@ -213,7 +214,7 @@ pub async fn read_current_chapter_content_anchor_records_batch(
         return Ok(Vec::new());
     }
     ensure_text_root_project(db, project_id).await?;
-    let chapters = chapter::Entity::find()
+    let chapters = chapter::Entity::find_current()
         .select_only()
         .column(chapter::Column::Id)
         .column(chapter::Column::ProjectId)

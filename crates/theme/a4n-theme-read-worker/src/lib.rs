@@ -451,27 +451,14 @@ impl WorkerState {
         let theme = self
             .require_owner(user_id, request.payload.theme_id)
             .await?;
-        let input = request.payload.input;
-        if input.is_empty() {
-            return Err(WorkerFailure::invalid_request("主题更新至少需要一个字段"));
-        }
-        let name = input.name.map(normalize_name).transpose()?;
-        if let Some(document) = input.document.as_ref() {
-            a4n_domain::validate_theme_document(document)
-                .map_err(WorkerFailure::invalid_request)?;
-        }
-        self.summary(
-            a4n_db::config::update_theme(
-                self.database.connection(),
-                theme,
-                name.as_deref(),
-                input.mode,
-                input.document,
-            )
-            .await
-            .map_err(app_error)?,
-        )
-        .await
+        let changes =
+            a4n_theme_core::theme_update_changes(request.payload.input, request.payload.resources)
+                .map_err(app_error)?;
+        let (theme, resources) =
+            a4n_db::config::update_theme(self.database.connection(), theme, changes)
+                .await
+                .map_err(app_error)?;
+        theme_summary_with_resources(theme, resources).map_err(app_error)
     }
 
     async fn delete_theme(

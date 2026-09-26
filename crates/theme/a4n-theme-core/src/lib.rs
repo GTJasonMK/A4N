@@ -7,6 +7,41 @@ use a4n_db_models::models::user::{theme_config, theme_preference, theme_resource
 use a4n_domain::{ThemeAppearance, ThemeDocument, ThemeMode};
 use a4n_error::AppError;
 
+pub fn theme_update_changes(
+    input: a4n_api_contract::theme::UpdateThemeInput,
+    resources: Vec<a4n_domain::theme_edit::PersistThemeResourceInput>,
+) -> Result<a4n_domain::theme_edit::ThemeUpdateChanges, AppError> {
+    if !input.resource_uploads.is_empty() {
+        return Err(AppError::InvalidArgument(
+            "主题资源必须先由 Runtime 准备".into(),
+        ));
+    }
+    if input.is_empty() && resources.is_empty() {
+        return Err(AppError::InvalidArgument("主题更新至少需要一个字段".into()));
+    }
+    let name = input
+        .name
+        .map(|name| {
+            let name = name.trim().to_string();
+            if name.is_empty() {
+                Err(AppError::InvalidArgument("主题名称不能为空".into()))
+            } else {
+                Ok(name)
+            }
+        })
+        .transpose()?;
+    if let Some(document) = &input.document {
+        a4n_domain::validate_theme_document(document).map_err(AppError::InvalidArgument)?;
+    }
+    Ok(a4n_domain::theme_edit::ThemeUpdateChanges {
+        name,
+        mode: input.mode,
+        document: input.document,
+        resources,
+        delete_resource_ids: input.delete_resource_ids,
+    })
+}
+
 pub fn theme_summary_with_resources(
     theme: theme_config::Model,
     resources: Vec<theme_resource::Model>,
