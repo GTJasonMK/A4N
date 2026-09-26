@@ -5,8 +5,8 @@ pub(crate) use a4n_db::project::family::import::{
 pub(crate) use a4n_db::project::{
     ChapterMangaSourceSummary, ForeshadowingAnalysisDraft, PROJECT_KIND_VIDEO,
     ProjectFamilyExportRows, ProjectFamilyExportSelection, ProjectFamilyTextCoreRows,
-    ProjectGeneratedChapterSceneSaveInput, SOURCE_SYNC_CURRENT, is_valid_source_sync_status,
-    normalize_derived_project_kind, normalize_project_kind, normalize_project_type,
+    SOURCE_SYNC_CURRENT, is_valid_source_sync_status, normalize_derived_project_kind,
+    normalize_project_kind, normalize_project_type,
 };
 pub(crate) use a4n_db::project::{
     ProjectFamilyContext, ProjectFamilyMetadata, ProjectFamilyMetadataQuery, ProjectProgressQuery,

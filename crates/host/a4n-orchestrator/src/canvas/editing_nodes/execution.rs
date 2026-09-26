@@ -4,9 +4,8 @@ use a4n_canvas_contract::{
 };
 use a4n_db::{
     canvas::{
-        CanvasAssemblyContractSyncInput, CanvasAssemblySourceVideoInput,
         CanvasImageMediaAssetEnsureInput, CanvasNodeArtifactUpdateInput,
-        CanvasVideoMediaAssetEnsureInput, FreeformCanvasGenerationSpecUpsertInput,
+        CanvasVideoMediaAssetEnsureInput,
     },
     generation::{
         GENERATION_SPEC_TARGET_ENTITY_KIND_CANVAS_NODE,
@@ -14,7 +13,13 @@ use a4n_db::{
         GENERATION_SPEC_TARGET_KIND_CANVAS_VIDEO,
     },
 };
-use a4n_domain::CanvasNodeRefKind;
+use a4n_domain::{
+    CanvasNodeRefKind,
+    canvas::{
+        CanvasAssemblyContractSyncInput, CanvasAssemblySourceVideoInput,
+        FreeformCanvasGenerationSpecUpsertInput,
+    },
+};
 use a4n_error::AppError;
 use serde_json::{Value, json};
 

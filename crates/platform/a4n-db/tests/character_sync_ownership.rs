@@ -6,8 +6,7 @@ use a4n_db::{
         create_profile_with_generation_run, profile_by_id, retract_profile_chapter_facts,
         update_initial_profile,
     },
-    generation::RecordCompletedGenerationRunInput,
-    project::{ChapterSourceSnapshot, CreateProjectRecordInput, create_project_record},
+    project::{CreateProjectRecordInput, create_project_record},
 };
 use a4n_db_models::models::{
     chapter::chapter,
@@ -18,9 +17,12 @@ use a4n_db_models::models::{
     },
     generation::generation_run_target,
 };
-use a4n_domain::character::{
-    CharacterAttributeValueChangeInput, CharacterSyncChapterStateRecordInput,
-    InsertBehaviorRecordInput,
+use a4n_domain::{
+    character::{
+        CharacterAttributeValueChangeInput, CharacterSyncChapterStateRecordInput,
+        InsertBehaviorRecordInput,
+    },
+    generation::RecordCompletedGenerationRunInput,
 };
 use chrono::Duration;
 use sea_orm::{
@@ -297,7 +299,7 @@ async fn character_sync_preserves_manual_values_for_inferences_but_accepts_obser
                 target_chapter: 1,
                 clear_to_chapter: Some(1),
                 selected_chapter_numbers: vec![1],
-                source_chapters: vec![ChapterSourceSnapshot::from(&chapter)],
+                source_chapters: vec![a4n_db::project::chapter_source_snapshot_from_model(&chapter)],
                 baseline_state: base,
                 write_steps: vec![
                     CharacterSyncWriteStepRecordInput::AttributeEvent(
@@ -436,7 +438,7 @@ async fn stale_chapter_source_rejects_entire_character_sync_transaction() {
     .await
     .expect("test project must be created");
     let chapter = insert_chapter(&db, project.id).await;
-    let source = ChapterSourceSnapshot::from(&chapter);
+    let source = a4n_db::project::chapter_source_snapshot_from_model(&chapter);
     let rewritten_at = source.updated_at + Duration::seconds(1);
     let base = json!({
         "explicit_attributes": {},

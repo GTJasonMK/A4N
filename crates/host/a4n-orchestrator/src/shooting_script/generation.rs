@@ -129,8 +129,12 @@ impl OrchestratorContext {
                     total_unit_count,
                     resolved: Some(*resolved),
                 };
-                self.finalize_shooting_script_result(workflow_run_id, Ok(progress), "章节拍摄剧本单元生成")
-                    .await
+                self.finalize_shooting_script_result(
+                    workflow_run_id,
+                    Ok(progress),
+                    "章节拍摄剧本单元生成",
+                )
+                .await
             }
             Err(error) => {
                 self.finalize_shooting_script_result::<ChapterShootingScriptUnitProgress>(
@@ -186,14 +190,24 @@ impl OrchestratorContext {
         if matches!(&result, Err(AppError::Cancelled)) {
             let run = self.workflow_run_model_by_id(workflow_run_id).await?;
             if run.status == a4n_domain::workflow::WORKFLOW_STATUS_RUNNING
-                && run.progress_json.as_ref().and_then(|value| value.get("snapshot")).is_some()
+                && run
+                    .progress_json
+                    .as_ref()
+                    .and_then(|value| value.get("snapshot"))
+                    .is_some()
             {
-                self.mark_workflow_status(workflow_run_id, WORKFLOW_STATUS_INTERRUPTED, true,
-                    Some("生成已停止，已完成场景已保存，可继续改编")).await?;
+                self.mark_workflow_status(
+                    workflow_run_id,
+                    WORKFLOW_STATUS_INTERRUPTED,
+                    true,
+                    Some("生成已停止，已完成场景已保存，可继续改编"),
+                )
+                .await?;
                 return result;
             }
         }
-        self.finalize_workflow_result(workflow_run_id, result, operation).await
+        self.finalize_workflow_result(workflow_run_id, result, operation)
+            .await
     }
 
     async fn begin_chapter_shooting_script_generation(
@@ -204,7 +218,9 @@ impl OrchestratorContext {
         let (workflow_input, shot_ids) = self
             .prepare_shooting_script_workflow_input(source, active_task_id)
             .await?;
-        let workflow = self.begin_or_resume_workflow_run_validated(workflow_input).await?;
+        let workflow = self
+            .begin_or_resume_workflow_run_validated(workflow_input)
+            .await?;
         Ok(RegenerateChapterShootingScriptInput {
             project_id: source.project_id,
             source_chapter_id: source.source_chapter_id,
@@ -383,8 +399,9 @@ impl OrchestratorContext {
                 // Publish completed scenes before starting another provider call. A failed connection
                 // or a stopped task must not hide work that has already passed scene validation.
                 finish_generated_script(&mut script, offset + 1, total_unit_count)?;
-                self.persist_workflow_progress_snapshot(workflow_run_id, serde_json::to_value(
-                    ChapterShootingScriptUnitProgressCheckpoint {
+                self.persist_workflow_progress_snapshot(
+                    workflow_run_id,
+                    serde_json::to_value(ChapterShootingScriptUnitProgressCheckpoint {
                         version: 1,
                         source_content_sha256: prepared.source.content_sha256.clone(),
                         progress: ChapterShootingScriptUnitProgressView {
@@ -394,8 +411,9 @@ impl OrchestratorContext {
                             total_unit_count,
                             completed_record: None,
                         },
-                    },
-                )?).await?;
+                    })?,
+                )
+                .await?;
             }
             if stop_after_next_unit && prepared.shot_ids.is_empty() && offset + 1 < total_unit_count
             {

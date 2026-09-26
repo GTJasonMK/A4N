@@ -125,7 +125,7 @@ export async function readChapterShootingScriptGenerationResult(
 export const editChapterShootingScript = (
   projectId: number,
   sourceChapterId: number,
-  view: ChapterShootingScriptView,
+  view: Pick<ChapterShootingScriptView, "record">,
   script: ChapterShootingScriptV1,
   rebindShotIds: string[] = [],
 ) =>
@@ -161,7 +161,7 @@ export const editChapterShootingScriptProgress = (
 export const deleteChapterShootingScript = (
   projectId: number,
   sourceChapterId: number,
-  view: ChapterShootingScriptView,
+  view: Pick<ChapterShootingScriptView, "record">,
 ) =>
   apiInvoke<void>("delete_chapter_shooting_script", {
     input: {

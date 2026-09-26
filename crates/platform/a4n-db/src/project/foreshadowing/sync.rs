@@ -14,7 +14,7 @@ use super::{
     ForeshadowingAnalysisDraft, ForeshadowingAnalysisSyncResult, ForeshadowingDbError,
     ForeshadowingFactUpdate,
 };
-use crate::project::ChapterSourceSnapshot;
+use a4n_domain::chapter::ChapterSourceSnapshot;
 
 pub async fn sync_chapter_analysis_foreshadowing(
     db: &DatabaseConnection,

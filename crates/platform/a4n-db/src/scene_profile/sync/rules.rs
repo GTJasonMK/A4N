@@ -1,6 +1,7 @@
 use serde_json::{Value, json};
 
-use super::super::{SceneProfileDbError, SceneProfileDbResult, SceneSyncRecordResult};
+use super::super::{SceneProfileDbError, SceneProfileDbResult};
+use a4n_domain::scene_profile::SceneSyncRecordResult;
 
 pub(super) fn validate_scene_sync_generation_run_scope(
     project_id: i64,

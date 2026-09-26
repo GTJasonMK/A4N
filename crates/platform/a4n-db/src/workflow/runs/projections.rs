@@ -72,6 +72,12 @@ pub(in crate::workflow) fn workflow_run_progress_summary(
     value: &Value,
 ) -> Result<Option<WorkflowRunProgressSummary>, WorkflowReadError> {
     let mut progress = value.clone();
+    if let Some(fields) = progress.as_object_mut() {
+        fields.remove("cancellation_active_task_id");
+    }
+    if progress.as_object().is_some_and(|fields| fields.is_empty()) {
+        return Ok(None);
+    }
     if let Some(fields) = progress.as_object_mut()
         && let Some(snapshot) = fields.remove("snapshot")
     {

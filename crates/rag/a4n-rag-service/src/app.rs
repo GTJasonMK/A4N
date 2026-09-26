@@ -43,7 +43,9 @@ impl RagServiceState {
         let _lock = self.mutation_lock.lock().await;
         let marker = RagMutationMarker::begin(&self.data_dir)?;
         let output = mutation.await;
-        marker.complete()?;
+        if output.is_ok() {
+            marker.complete()?;
+        }
         output
     }
 }
@@ -177,7 +179,7 @@ mod mutation_marker_tests {
     }
 
     #[tokio::test]
-    async fn handled_mutation_error_clears_marker() {
+    async fn failed_mutation_keeps_marker_for_explicit_recovery() {
         let data_dir = SidecarProcessTestDir::new("rag-mutation-error");
         let state = RagServiceState {
             store: Arc::new(MemoryVectorStore::new()),
@@ -191,6 +193,6 @@ mod mutation_marker_tests {
             .expect_err("mutation should fail");
 
         assert!(matches!(error, AppError::Configuration(message) if message == "expected"));
-        assert!(RagMutationMarker::require_clean(data_dir.path()).is_ok());
+        assert!(RagMutationMarker::require_clean(data_dir.path()).is_err());
     }
 }

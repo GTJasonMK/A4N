@@ -9,6 +9,7 @@ use super::create::{
     insert_generated_image_record, validate_create_generated_image_record_input,
 };
 use a4n_db_models::models::{ai::generated_image, media::image_publication};
+use a4n_domain::generation::GenerationRunTraceTarget;
 use a4n_domain::media::{
     CreateGeneratedImageRecordDraftInput, CreateImagePublicationIntentInput,
     IMAGE_PUBLICATION_STATUS_PENDING, IMAGE_PUBLICATION_STATUS_PUBLISHED,
@@ -361,7 +362,7 @@ where
         .await
         .map_err(VideoDbError::Database)?;
     if let Some(mut generation_run) = generation_run.take() {
-        let target = crate::generation::GenerationRunTraceTarget {
+        let target = GenerationRunTraceTarget {
             target_kind: image.image_type.clone(),
             target_table: "generated_image".to_string(),
             target_id: image.id,

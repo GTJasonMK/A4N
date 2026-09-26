@@ -26,51 +26,30 @@ VIDEO_SERVICE_PACKAGE="a4n-video-service"
 RAG_CORE_PACKAGE="a4n-rag-core"
 RAG_INDEX_PACKAGE="a4n-rag-index"
 RAG_SERVICE_PACKAGE="a4n-rag-service"
-STATEFUL_WORKER_PACKAGES=(
-    a4n-agent-worker
-    a4n-novel-planning-worker
-    a4n-artifact-media-worker
-    a4n-outline-worker
-    a4n-blueprint-worker
-    a4n-asset-graph-worker
-    a4n-foreshadowing-worker
-    a4n-object-profile-worker
-    a4n-scene-profile-worker
-    a4n-profile-material-worker
-    a4n-project-status-worker
-    a4n-theme-read-worker
-    a4n-project-read-worker
-    a4n-import-review-worker
-    a4n-inspiration-worker
-    a4n-project-access-worker
-    a4n-project-collaboration-worker
-    a4n-project-mutation-worker
-    a4n-chapter-scene-worker
-    a4n-portrait-worker
-    a4n-source-snapshot-worker
-)
-WORKER_CLIENT_PACKAGES=(
-    a4n-novel-planning-worker-client
-    a4n-artifact-media-client
-    a4n-outline-worker-client
-    a4n-blueprint-worker-client
-    a4n-asset-graph-worker-client
-    a4n-foreshadowing-worker-client
-    a4n-object-profile-worker-client
-    a4n-scene-profile-worker-client
-    a4n-profile-material-worker-client
-    a4n-project-status-worker-client
-    a4n-theme-read-worker-client
-    a4n-project-read-worker-client
-    a4n-import-review-worker-client
-    a4n-inspiration-worker-client
-    a4n-project-access-worker-client
-    a4n-project-collaboration-worker-client
-    a4n-project-mutation-worker-client
-    a4n-chapter-scene-worker-client
-    a4n-portrait-worker-client
-    a4n-source-snapshot-worker-client
-)
+worker_packages="$(stateful_worker_packages)" || {
+    echo "Unable to read stateful worker catalog" >&2
+    exit 1
+}
+worker_clients="$(worker_client_packages)" || {
+    echo "Unable to read Cargo worker-client package list" >&2
+    exit 1
+}
+[[ -n "$worker_packages" ]] || {
+    echo "Stateful worker catalog is empty" >&2
+    exit 1
+}
+[[ -n "$worker_clients" ]] || {
+    echo "Cargo worker-client package list is empty" >&2
+    exit 1
+}
+STATEFUL_WORKER_PACKAGES=()
+while IFS= read -r package; do
+    [[ -n "$package" ]] && STATEFUL_WORKER_PACKAGES+=("$package")
+done <<< "$worker_packages"
+WORKER_CLIENT_PACKAGES=()
+while IFS= read -r package; do
+    [[ -n "$package" ]] && WORKER_CLIENT_PACKAGES+=("$package")
+done <<< "$worker_clients"
 
 LEAF_PACKAGES=(
     "$IMAGE_PACKAGE" "$IMAGE_PROVIDER_PACKAGE" "$IMAGE_SERVICE_PACKAGE"
@@ -129,6 +108,10 @@ for package in "${STATEFUL_WORKER_PACKAGES[@]}"; do
 done
 for client in "${WORKER_CLIENT_PACKAGES[@]}"; do
     client_tree="$(cargo tree --locked -e normal,build -p "$client")"
+    if grep -Eq '(^|[[:space:]])(a4n-(db|db-models|migration|orchestrator)|sea-orm(-migration)?|sqlx)([[:space:]]|v|$)' <<<"$client_tree"; then
+        echo "$client dependency tree unexpectedly contains business persistence or orchestrator" >&2
+        exit 1
+    fi
     for package in "${STATEFUL_WORKER_PACKAGES[@]}"; do
         if grep -Eq "(^|[[:space:]])${package}([[:space:]]|v|$)" <<<"$client_tree"; then
             echo "$client dependency tree unexpectedly contains Worker implementation: $package" >&2

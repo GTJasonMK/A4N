@@ -1,4 +1,5 @@
 use super::*;
+use std::sync::atomic::{AtomicI64, Ordering};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum RunProgress {
@@ -384,7 +385,9 @@ async fn process_claimed_run_inner(
     )
     .await?;
     let mut messages = chat_messages(&context)?;
-    let mut loaded_message_ids = context.messages.iter().map(|message| message.id).collect();
+    let mut loaded_message_ids: HashSet<i64> =
+        context.messages.iter().map(|message| message.id).collect();
+    let latest_message_id = AtomicI64::new(loaded_message_ids.iter().copied().max().unwrap_or(0));
     let mut pinned_user_contents = context
         .messages
         .iter()
@@ -396,6 +399,7 @@ async fn process_claimed_run_inner(
         claimed,
         &mut messages,
         &mut loaded_message_ids,
+        &latest_message_id,
         &mut pinned_user_contents,
     )
     .await?;
@@ -482,6 +486,7 @@ async fn process_claimed_run_inner(
                 retry_counts: &retry_counts,
                 discovered_tools: &mut discovered_tools,
                 messages: &mut messages,
+                latest_message_id: &latest_message_id,
                 usage: &mut usage,
             },
             calls,
@@ -502,6 +507,7 @@ async fn process_claimed_run_inner(
             claimed,
             &mut messages,
             &mut loaded_message_ids,
+            &latest_message_id,
             &mut pinned_user_contents,
         )
         .await?;
@@ -577,7 +583,7 @@ async fn process_claimed_run_inner(
                     .map(String::as_str)
                     .collect::<Vec<_>>(),
             )?;
-            let latest_message_sequence = loaded_message_ids.iter().copied().max().unwrap_or(0);
+            let latest_message_sequence = latest_message_id.load(Ordering::Relaxed);
             while projection.omitted_history
                 || projection.input_tokens.saturating_mul(100)
                     >= projection.capacity.saturating_mul(80)
@@ -871,7 +877,9 @@ async fn process_claimed_run_inner(
         } else {
             None
         };
-        if finalized.is_none() {
+        let persisted_assistant = if let Some(message) = finalized {
+            message
+        } else {
             message_application
                 .append_assistant_tool_message(
                     claimed,
@@ -879,8 +887,9 @@ async fn process_claimed_run_inner(
                     tool_calls_payload,
                     format!("agent-decision:{}", model_execution.id),
                 )
-                .await?;
-        }
+                .await?
+        };
+        history::advance_message_watermark(&latest_message_id, persisted_assistant.id);
         messages.push(assistant);
         if execute_tool_calls(
             ToolBatchContext {
@@ -893,6 +902,7 @@ async fn process_claimed_run_inner(
                 retry_counts: &retry_counts,
                 discovered_tools: &mut discovered_tools,
                 messages: &mut messages,
+                latest_message_id: &latest_message_id,
                 usage: &mut usage,
             },
             calls,

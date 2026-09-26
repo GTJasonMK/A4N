@@ -4,16 +4,13 @@ mod tools;
 use a4n_api_contract::chapter_visual_plan::{
     ChapterVisualPlanRecordInput, SaveChapterVisualPlanDraftInput,
 };
-use a4n_db::{
-    chapter_visual_plan::{
-        ChapterVisualPlanDbError, ConfirmChapterVisualPlanOutcome, ExpectedVisualPlanDraft,
-        ParsedChapterVisualPlan,
-    },
-    project::ResolvedChapterSource,
+use a4n_db::chapter_visual_plan::{
+    ChapterVisualPlanDbError, ConfirmChapterVisualPlanOutcome, ParsedChapterVisualPlan,
 };
 pub(crate) use a4n_domain::shooting_script::{
     DirectorScriptPlan, DirectorScriptUnit, segment_addition_id,
 };
+use a4n_domain::{chapter::ResolvedChapterSource, chapter_visual_plan::ExpectedVisualPlanDraft};
 use a4n_error::AppError;
 
 impl OrchestratorContext {
@@ -62,7 +59,7 @@ impl OrchestratorContext {
         ensure_plan_belongs_to_source(&current, &source)?;
         a4n_db::chapter_visual_plan::confirm_chapter_visual_plan(
             self.database.connection(),
-            a4n_db::chapter_visual_plan::ConfirmChapterVisualPlanInput {
+            a4n_domain::chapter_visual_plan::ConfirmChapterVisualPlanInput {
                 record_id: input.record_id,
                 expected_revision: input.expected_revision,
             },
@@ -90,7 +87,7 @@ impl OrchestratorContext {
         ensure_plan_belongs_to_source(&current, &source)?;
         a4n_db::chapter_visual_plan::discard_chapter_visual_plan_draft(
             self.database.connection(),
-            a4n_db::chapter_visual_plan::DiscardChapterVisualPlanDraftInput {
+            a4n_domain::chapter_visual_plan::DiscardChapterVisualPlanDraftInput {
                 record_id: input.record_id,
                 expected_revision: input.expected_revision,
             },

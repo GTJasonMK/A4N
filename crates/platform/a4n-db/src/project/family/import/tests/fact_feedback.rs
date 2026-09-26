@@ -3,7 +3,7 @@ use crate::{
     character,
     fact_feedback::*,
     project::{
-        ChapterSourceSnapshot, CreateProjectRecordInput, ForeshadowingAnalysisDraft,
+        CreateProjectRecordInput, ForeshadowingAnalysisDraft,
         ProjectFamilyTextCoreRows, create_project_record, project_family_export_rows,
         sync_chapter_analysis_foreshadowing,
     },
@@ -50,7 +50,7 @@ async fn feedback_archive_remaps_sources_events_and_snapshot_hashes() {
     .unwrap();
     let foreshadowing = sync_chapter_analysis_foreshadowing(
         &db,
-        ChapterSourceSnapshot::from(&chapter),
+        crate::project::chapter_source_snapshot_from_model(&chapter),
         vec![ForeshadowingAnalysisDraft {
             existing_id: None,
             description: "门后的身份".into(),

@@ -1,4 +1,5 @@
 use a4n_db_models::models::chapter::{chapter, chapter_outline, chapter_outline_provenance};
+use a4n_domain::chapter::ChapterSourceSnapshot;
 use chrono::Utc;
 use sea_orm::sea_query::Expr;
 use sea_orm::{
@@ -8,7 +9,7 @@ use sea_orm::{
 use std::collections::HashMap;
 
 use super::contracts::{
-    ChapterSourceSnapshot, ProjectOutlineRecordError, RetrospectiveChapterOutlineAction,
+    ProjectOutlineRecordError, RetrospectiveChapterOutlineAction,
     RetrospectiveChapterOutlineUpsertInput, RetrospectiveChapterOutlineUpsertOutcome,
     chapter_source_snapshot_matches, chapter_source_snapshot_targets,
 };
@@ -474,11 +475,12 @@ where
 
 #[cfg(test)]
 mod source_contract_tests {
-    use super::{ChapterSourceSnapshot, chapter_source_query};
+    use super::chapter_source_query;
     use crate::project::outline_records::contracts::{
         chapter_source_snapshot_matches, chapter_source_snapshot_targets,
     };
     use a4n_db_models::models::chapter::chapter;
+    use a4n_domain::chapter::ChapterSourceSnapshot;
     use a4n_domain::source_text_hash;
     use chrono::Utc;
     use sea_orm::{DbBackend, QueryTrait};
@@ -527,7 +529,7 @@ mod source_contract_tests {
             created_at: now,
             updated_at: now,
         };
-        let snapshot = ChapterSourceSnapshot::from(&chapter);
+        let snapshot = crate::project::chapter_source_snapshot_from_model(&chapter);
         assert_eq!(snapshot.chapter_id, chapter.id);
         assert_eq!(snapshot.project_id, chapter.project_id);
         assert_eq!(snapshot.chapter_number, chapter.chapter_number);

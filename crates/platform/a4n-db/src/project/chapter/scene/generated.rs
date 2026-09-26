@@ -1,5 +1,6 @@
-use super::{ProjectChapterSceneWriteError, ProjectGeneratedChapterSceneSaveInput};
+use super::ProjectChapterSceneWriteError;
 use a4n_db_models::models::chapter::{chapter, chapter_scene};
+use a4n_domain::chapter::ProjectGeneratedChapterSceneSaveInput;
 use chrono::Utc;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QuerySelect, Set,

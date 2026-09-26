@@ -239,7 +239,7 @@ pub struct ControlAgentRunInput {
     pub action: AgentControlAction,
     pub run_id: String,
     /// Absolute increased limits for resume; omitted fields retain their caps.
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub budget: Option<AgentBudget>,
 }
 
@@ -361,11 +361,13 @@ pub struct SendAgentMessageToChildInput {
     pub runtime_config_snapshot: Option<RuntimeConfigSnapshot>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct ControlChildAgentInput {
     pub delegation_id: String,
     pub action: AgentControlAction,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub budget: Option<AgentBudget>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]

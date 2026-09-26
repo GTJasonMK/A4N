@@ -6,9 +6,33 @@ use a4n_db_models::models::{
 use a4n_domain::task_queue::PersistTaskQueueRecordInput;
 use chrono::Utc;
 use sea_orm::{
-    ColumnTrait, ConnectionTrait, DatabaseConnection, DbBackend, EntityTrait, QueryFilter,
-    QuerySelect, QueryTrait, Set, TransactionTrait,
+    ActiveModelTrait, ColumnTrait, ConnectionTrait, DatabaseConnection, DbBackend, DbErr,
+    EntityTrait, QueryFilter, QuerySelect, QueryTrait, Set, TransactionTrait,
 };
+
+#[derive(Debug, thiserror::Error)]
+pub(crate) enum TaskWorkflowBindingError {
+    #[error("任务已绑定其他 workflow: {current}")]
+    Conflict { current: i64 },
+    #[error(transparent)]
+    Database(#[from] DbErr),
+}
+
+pub(crate) async fn bind_locked_task_queue_row_to_workflow<C: ConnectionTrait>(
+    db: &C,
+    task: task_queue::Model,
+    workflow_run_id: i64,
+) -> Result<task_queue::Model, TaskWorkflowBindingError> {
+    match task.workflow_run_id {
+        Some(current) if current == workflow_run_id => Ok(task),
+        Some(current) => Err(TaskWorkflowBindingError::Conflict { current }),
+        None => {
+            let mut active: task_queue::ActiveModel = task.into();
+            active.workflow_run_id = Set(Some(workflow_run_id));
+            Ok(active.update(db).await?)
+        }
+    }
+}
 
 pub async fn recoverable_active_task_ids(
     db: &DatabaseConnection,

@@ -43,10 +43,13 @@ a4n-config = { workspace = true }
 a4n-error = { workspace = true, features = ["database"], default-features = true }
 a4n-host-assembly = { workspace = true }
 a4n-media = { workspace = true }
+a4n-process-catalog = { workspace = true }
+a4n-worker-client = { workspace = true }
 a4n-runtime = { workspace = true, default-features = false }
 a4n-service-protocol = { workspace = true }
 a4n-storage = { workspace = true }
 a4n-task-runtime = { workspace = true }
+uuid = { workspace = true }
 
 # 异步
 tokio = { workspace = true }

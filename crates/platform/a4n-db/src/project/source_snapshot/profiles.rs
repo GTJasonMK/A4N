@@ -6,13 +6,14 @@ use a4n_db_models::models::{
     asset::object_profile, character::protagonist_profile, project::source_snapshot_profile,
     scene::scene_profile,
 };
+use a4n_domain::chapter::ResolvedChapterSource;
 use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QueryOrder, Set};
 use serde::Serialize;
 use serde_json::{Value, json};
 
 pub async fn scene_profiles_for_source<C: ConnectionTrait>(
     db: &C,
-    source: &crate::project::ResolvedChapterSource,
+    source: &ResolvedChapterSource,
     profile_ids: &[i64],
 ) -> Result<Vec<scene_profile::Model>, crate::project::ResolveChapterSourceError> {
     use crate::project::ResolveChapterSourceError;

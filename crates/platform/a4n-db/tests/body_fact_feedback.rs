@@ -276,7 +276,7 @@ async fn partial_feedback_is_versioned_source_fenced_and_reversible() {
 #[tokio::test]
 async fn foreshadowing_keeps_identity_tracks_progress_and_retracts_removed_sources() {
     use a4n_db::project::{
-        ChapterSourceSnapshot, ForeshadowingAnalysisDraft, ForeshadowingFactUpdate,
+        ForeshadowingAnalysisDraft, ForeshadowingFactUpdate,
         sync_chapter_analysis_foreshadowing,
     };
     use a4n_db_models::models::character::foreshadowing_index;
@@ -293,7 +293,7 @@ async fn foreshadowing_keeps_identity_tracks_progress_and_retracts_removed_sourc
     };
     let first = sync_chapter_analysis_foreshadowing(
         &db,
-        ChapterSourceSnapshot::from(&setup),
+        a4n_db::project::chapter_source_snapshot_from_model(&setup),
         vec![draft("门后的疑影")],
         vec![],
     )
@@ -302,7 +302,7 @@ async fn foreshadowing_keeps_identity_tracks_progress_and_retracts_removed_sourc
     let foreshadowing_id = first.created[0].id;
     let repeated = sync_chapter_analysis_foreshadowing(
         &db,
-        ChapterSourceSnapshot::from(&setup),
+        a4n_db::project::chapter_source_snapshot_from_model(&setup),
         vec![draft("谁躲在门后")],
         vec![],
     )
@@ -313,7 +313,7 @@ async fn foreshadowing_keeps_identity_tracks_progress_and_retracts_removed_sourc
     let reveal = chapter(&db, id, 2, "门后的人戴着父亲的帽子。").await;
     let result = sync_chapter_analysis_foreshadowing(
         &db,
-        ChapterSourceSnapshot::from(&reveal),
+        a4n_db::project::chapter_source_snapshot_from_model(&reveal),
         vec![],
         vec![ForeshadowingFactUpdate {
             id: foreshadowing_id,
@@ -353,7 +353,7 @@ async fn foreshadowing_keeps_identity_tracks_progress_and_retracts_removed_sourc
         restored.existing_id = existing_id;
         let result = sync_chapter_analysis_foreshadowing(
             &db,
-            ChapterSourceSnapshot::from(&setup),
+            a4n_db::project::chapter_source_snapshot_from_model(&setup),
             vec![restored],
             vec![],
         )

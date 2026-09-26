@@ -77,6 +77,94 @@ pub fn child_budget_for_delegation(
     Ok(child)
 }
 
+pub fn child_budget_within_parent(
+    mut child: AgentBudget,
+    parent: &AgentBudget,
+    usage: &Value,
+) -> Result<AgentBudget, AppError> {
+    validate_agent_budget(&child)?;
+    let steps_used = budget_usage_u32(usage, "steps_used")?;
+    let model_calls_used = budget_usage_u32(usage, "model_calls_used")?;
+    let tool_calls_used = budget_usage_u32(usage, "tool_calls_used")?;
+    let tokens_used = budget_usage_u64(usage, "tokens_used")?;
+    ensure_budget_remaining_u32(parent.max_steps, steps_used, "max_steps")?;
+    ensure_budget_remaining_u32(parent.max_model_calls, model_calls_used, "max_model_calls")?;
+    ensure_budget_remaining_u32(parent.max_tool_calls, tool_calls_used, "max_tool_calls")?;
+    ensure_budget_remaining_u64(parent.max_tokens, tokens_used, "max_tokens")?;
+    cap_budget_u32(&mut child.max_steps, parent.max_steps, steps_used);
+    cap_budget_u32(
+        &mut child.max_model_calls,
+        parent.max_model_calls,
+        model_calls_used,
+    );
+    cap_budget_u32(
+        &mut child.max_tool_calls,
+        parent.max_tool_calls,
+        tool_calls_used,
+    );
+    cap_budget_u64(&mut child.max_tokens, parent.max_tokens, tokens_used);
+    cap_budget_u64(
+        &mut child.max_duration_seconds,
+        parent.max_duration_seconds,
+        0,
+    );
+    cap_budget_u16(&mut child.max_parallel_tools, parent.max_parallel_tools);
+    cap_budget_u16(&mut child.max_children, parent.max_children);
+    cap_budget_u8(&mut child.max_delegation_depth, parent.max_delegation_depth);
+    Ok(child)
+}
+
+fn ensure_budget_remaining_u32(limit: Option<u32>, used: u32, field: &str) -> Result<(), AppError> {
+    if limit.is_some_and(|limit| used >= limit) {
+        return Err(AppError::InvalidState {
+            current: format!("parent Agent budget {field} 已耗尽"),
+            operation: "创建 child Agent".into(),
+        });
+    }
+    Ok(())
+}
+
+fn ensure_budget_remaining_u64(limit: Option<u64>, used: u64, field: &str) -> Result<(), AppError> {
+    if limit.is_some_and(|limit| used >= limit) {
+        return Err(AppError::InvalidState {
+            current: format!("parent Agent budget {field} 已耗尽"),
+            operation: "创建 child Agent".into(),
+        });
+    }
+    Ok(())
+}
+
+fn cap_budget_u32(child: &mut Option<u32>, parent: Option<u32>, used: u32) {
+    if let Some(limit) = parent {
+        let remaining = limit.saturating_sub(used).max(1);
+        *child = Some(child.unwrap_or(remaining).min(remaining));
+    }
+}
+
+fn cap_budget_u64(child: &mut Option<u64>, parent: Option<u64>, used: u64) {
+    if let Some(limit) = parent {
+        let remaining = limit.saturating_sub(used).max(1);
+        *child = Some(child.unwrap_or(remaining).min(remaining));
+    }
+}
+
+fn budget_usage_u32(value: &Value, key: &str) -> Result<u32, AppError> {
+    u32::try_from(budget_usage_u64(value, key)?).map_err(|_| AppError::InvalidState {
+        current: format!("Agent usage.{key} 超出 u32"),
+        operation: "读取 Agent run budget usage".into(),
+    })
+}
+
+fn budget_usage_u64(value: &Value, key: &str) -> Result<u64, AppError> {
+    match value.get(key) {
+        None => Ok(0),
+        Some(value) => value.as_u64().ok_or_else(|| AppError::InvalidState {
+            current: format!("Agent usage.{key} 不是非负整数"),
+            operation: "读取 Agent run budget usage".into(),
+        }),
+    }
+}
+
 fn cap_budget_u16(child: &mut Option<u16>, parent: Option<u16>) {
     if let Some(limit) = parent {
         *child = Some(child.unwrap_or(limit).min(limit));

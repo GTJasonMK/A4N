@@ -27,7 +27,6 @@ impl AgentApplication {
     ) -> Result<(Option<i64>, Option<i64>, Option<i32>), AppError> {
         let mut project_id = scope.project_id;
         let mut chapter_id = scope.chapter_id;
-        let mut chapter_number = None;
         if let (Some(kind), Some(id)) = (&scope.resource_kind, &scope.resource_id) {
             collect_scoped_resource(kind, id, &mut project_id, &mut chapter_id)?;
         }
@@ -39,13 +38,15 @@ impl AgentApplication {
                 &mut chapter_id,
             )?;
         }
-        if let Some(chapter_id) = chapter_id {
+        let chapter_number = if let Some(chapter_id) = chapter_id {
             let chapter = a4n_db::project::chapter_by_id(self.connection(), chapter_id)
                 .await?
                 .ok_or_else(|| AppError::NotFound(format!("章节不存在: {chapter_id}")))?;
             merge_scope_id(&mut project_id, chapter.project_id, "project_id")?;
-            chapter_number = Some(chapter.chapter_number);
-        }
+            Some(chapter.chapter_number)
+        } else {
+            None
+        };
         if (scope.resource_kind.is_some() || bound_resource.is_some()) && project_id.is_none() {
             return Err(AppError::InvalidArgument(
                 "非项目/章节资源绑定必须在 scope.project_id 中声明所属项目".into(),

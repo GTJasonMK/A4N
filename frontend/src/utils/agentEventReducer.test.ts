@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type {
   AgentEvent,
   AgentMessageView,
+  AgentRunView,
   AgentThreadSnapshot,
 } from "../api/agent";
 import {
@@ -55,6 +56,42 @@ const snapshot = (): AgentThreadSnapshot => ({
   messages: [message("old")],
   runs: [],
   turns: [],
+});
+
+const run = (): AgentRunView => ({
+  attempt: 1,
+  budget: {
+    max_children: null,
+    max_cost_micros: null,
+    max_delegation_depth: null,
+    max_duration_seconds: null,
+    max_model_calls: null,
+    max_parallel_tools: null,
+    max_steps: null,
+    max_tokens: null,
+    max_tool_calls: null,
+  },
+  budget_limiting_run_id: null,
+  context_capacity_tokens: null,
+  context_input_tokens: null,
+  cost_micros: null,
+  created_at: "2026-09-12T00:00:00Z",
+  error: null,
+  id: "run-1",
+  lease_expires_at: null,
+  lease_owner: null,
+  model_calls_used: 0,
+  started_at: null,
+  status: "running",
+  steps_used: 0,
+  thread_id: "thread-1",
+  tokens_reserved: 0,
+  tokens_used: 0,
+  tool_calls_used: 0,
+  turn_id: "turn-1",
+  updated_at: "2026-09-12T00:00:00Z",
+  usage_complete: false,
+  waiting_reason: null,
 });
 
 const event = (sequence: number, payload: unknown): AgentEvent => ({
@@ -169,7 +206,7 @@ describe("agent event reducer", () => {
             view_instance_id: "view-1",
             project_id: 1,
             chapter_id: 1,
-            chapter_number: 1,
+            chapter_number: null,
             editor_revision: "revision-1",
             scene_id: null,
             shot_id: null,
@@ -183,6 +220,66 @@ describe("agent event reducer", () => {
     );
     expect(result.needsReload).toBe(true);
     expect(result.snapshot.events).toHaveLength(0);
+  });
+
+  it("reloads approval events and projects run waiting reasons", () => {
+    const current = snapshot();
+    current.runs = [run()];
+    const approval = reduceAgentEvent(
+      current,
+      {
+        ...event(1, { approval_id: "approval-1" }),
+        kind: "approval_requested",
+        message_id: null,
+      },
+      0,
+    );
+    expect(approval.needsReload).toBe(true);
+
+    const waiting = reduceAgentEvent(
+      current,
+      {
+        ...event(1, { waiting_reason: "budget" }),
+        kind: "run_waiting",
+        message_id: null,
+      },
+      0,
+    );
+    expect(waiting.needsReload).toBe(false);
+    expect(waiting.snapshot.runs[0].status).toBe("waiting");
+    expect(waiting.snapshot.runs[0].waiting_reason).toBe("budget");
+  });
+
+  it("reloads waiting events with an unknown reason", () => {
+    const current = snapshot();
+    current.runs = [run()];
+    const result = reduceAgentEvent(
+      current,
+      {
+        ...event(1, { waiting_reason: "future_reason" }),
+        kind: "run_waiting",
+        message_id: null,
+      },
+      0,
+    );
+    expect(result.needsReload).toBe(true);
+    expect(result.snapshot).toBe(current);
+  });
+
+  it("reloads run control events with an unknown status", () => {
+    const current = snapshot();
+    current.runs = [run()];
+    const result = reduceAgentEvent(
+      current,
+      {
+        ...event(1, { status: "future_status" }),
+        kind: "run_controlled",
+        message_id: null,
+      },
+      0,
+    );
+    expect(result.needsReload).toBe(true);
+    expect(result.snapshot).toBe(current);
   });
 
   it("deduplicates events and detects sequence gaps or malformed projections", () => {

@@ -19,14 +19,17 @@ pub(crate) fn load_config(app: &AppHandle) -> Result<AppConfig, AppError> {
     config::load_config(app)
 }
 
-/// 初始化应用
-///
-/// 按顺序执行：加载配置 → 创建目录 → 构建 AppState → 启动事件日志订阅。
-pub async fn initialize(app: &AppHandle) -> Result<AppState, AppError> {
+pub(crate) fn load_native_config(app: &AppHandle) -> Result<AppConfig, AppError> {
     #[cfg(target_os = "macos")]
     configure_bundled_sidecar_resources(app)?;
 
-    let config = config::load_config(app)?;
+    config::load_config(app)
+}
+
+/// 初始化应用
+///
+/// 按顺序执行：创建目录 → 构建 AppState → 启动事件日志订阅。
+pub async fn initialize(config: AppConfig) -> Result<AppState, AppError> {
     let app_paths = AppPaths::new(
         config.data_dir.clone(),
         config.cache_dir.clone(),

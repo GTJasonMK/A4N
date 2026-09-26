@@ -73,6 +73,13 @@ impl AgentApplication {
         claimed: &AgentWorkerRun,
         request: &a4n_api_contract::agent::AgentEditorRequest,
     ) -> Result<(), AppError> {
+        let thread = agent::thread_by_id(self.connection(), claimed.thread.id)
+            .await
+            .map_err(agent_db_error_to_app)?
+            .ok_or_else(|| AppError::NotFound("Agent thread 不存在".into()))?;
+        let mut request = request.clone();
+        request.source =
+            canonicalize_editor_source(self.connection(), request.source, &thread).await?;
         agent::wait_run_for_lease_with_request(
             self.connection(),
             claimed.run.id,
@@ -97,12 +104,23 @@ impl AgentApplication {
             lease: request.lease.clone(),
         })
         .await?;
+        let run = agent::run_by_id(self.connection(), request.run_id)
+            .await
+            .map_err(agent_db_error_to_app)?
+            .ok_or_else(|| AppError::NotFound("Agent Run 不存在".into()))?;
+        let thread = agent::thread_by_id(self.connection(), run.thread_id)
+            .await
+            .map_err(agent_db_error_to_app)?
+            .ok_or_else(|| AppError::NotFound("Agent thread 不存在".into()))?;
+        let mut editor_request = request.editor_request.clone();
+        editor_request.source =
+            canonicalize_editor_source(self.connection(), editor_request.source, &thread).await?;
         agent::wait_run_for_lease_with_request(
             self.connection(),
             request.run_id,
             &request.lease.fence_token,
             "external",
-            Some(serde_json::to_value(&request.editor_request)?),
+            Some(serde_json::to_value(&editor_request)?),
         )
         .await
         .map_err(agent_db_error_to_app)?;
@@ -137,11 +155,8 @@ impl AgentApplication {
         {
             return Err(AppError::Forbidden("响应与原始视图或执行不匹配".into()));
         }
-        let mut scope: AgentScope =
-            from_json(thread.scope_json.clone(), "agent_thread.scope_json")?;
-        self.hydrate_scope_chapter_number(&mut scope).await?;
-        request.source.chapter_number = scope.chapter_number;
-        validate_editor_source(&request.source, &thread.profile_id, &scope)?;
+        request.source =
+            canonicalize_editor_source(self.connection(), request.source, &thread).await?;
         let run = agent::claim_editor_execution(self.connection(), user_id, run_id, execution_id)
             .await
             .map_err(agent_db_error_to_app)?;

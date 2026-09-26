@@ -14,9 +14,6 @@ use a4n_worker_contract::{
     WorkerHealth, WorkerHealthStatus,
 };
 
-#[cfg(target_os = "linux")]
-use std::os::unix::process::CommandExt;
-
 mod config;
 #[cfg(feature = "test-embedded-processes")]
 mod embedded;
@@ -33,8 +30,6 @@ use health::*;
 use process::*;
 use types::*;
 use worker::catalog::*;
-use worker::poll::*;
-use worker::restarts::*;
-use worker::supervision::*;
+use worker::managed::*;
 
 pub(crate) use startup::run;

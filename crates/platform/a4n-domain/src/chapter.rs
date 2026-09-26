@@ -1,5 +1,36 @@
 //! Pure chapter input contracts used by chapter-analysis workflows.
 
+use chrono::NaiveDateTime;
+use serde::{Deserialize, Serialize};
+use serde_json::Value;
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct ResolvedChapterSource {
+    pub requested_project_id: i64,
+    pub root_project_id: i64,
+    pub source_chapter_id: i64,
+    pub source_snapshot_id: Option<i64>,
+    pub source_snapshot_chapter_id: Option<i64>,
+    pub chapter_number: i32,
+    pub title: Option<String>,
+    pub summary: Option<String>,
+    pub analysis_data_json: Option<Value>,
+    pub content: String,
+    pub content_sha256: String,
+    pub source_revision_key: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ChapterSourceSnapshot {
+    pub project_id: i64,
+    pub chapter_id: i64,
+    pub chapter_number: i32,
+    pub title: Option<String>,
+    pub content_sha256: String,
+    pub updated_at: NaiveDateTime,
+}
+
 pub trait ChapterAnalysisSource {
     fn has_available_analysis_content(&self) -> bool;
 }
@@ -7,6 +38,13 @@ pub trait ChapterAnalysisSource {
 pub fn chapter_edit_revision(content: &str, title: Option<&str>) -> String {
     crate::generation::canonical_json_sha256(&(content, title))
         .expect("chapter content and title are JSON strings")
+}
+
+#[derive(Debug, Clone)]
+pub struct StoreChapterAnalysisRecordInput {
+    pub analysis_data: Value,
+    pub summary: Option<String>,
+    pub style_tags: Option<Value>,
 }
 
 #[derive(Debug, Clone)]
@@ -23,6 +61,13 @@ pub struct EditChapterContentInput {
     pub expected_revision: String,
     pub content: String,
     pub title: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ProjectGeneratedChapterSceneSaveInput {
+    pub chapter_id: i64,
+    pub scene_number: i32,
+    pub content: String,
 }
 
 #[derive(Debug, Clone)]

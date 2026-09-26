@@ -1,29 +1,17 @@
 use a4n_db_models::models::chapter::{chapter, chapter_outline};
-use a4n_domain::source_text_hash;
+use a4n_domain::{chapter::ChapterSourceSnapshot, source_text_hash};
 use chrono::NaiveDateTime;
 use sea_orm::DbErr;
 use serde_json::Value;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ChapterSourceSnapshot {
-    pub project_id: i64,
-    pub chapter_id: i64,
-    pub chapter_number: i32,
-    pub title: Option<String>,
-    pub content_sha256: String,
-    pub updated_at: NaiveDateTime,
-}
-
-impl From<&chapter::Model> for ChapterSourceSnapshot {
-    fn from(chapter: &chapter::Model) -> Self {
-        Self {
-            project_id: chapter.project_id,
-            chapter_id: chapter.id,
-            chapter_number: chapter.chapter_number,
-            title: chapter.title.clone(),
-            content_sha256: source_text_hash(&chapter.content),
-            updated_at: chapter.updated_at,
-        }
+pub fn chapter_source_snapshot_from_model(chapter: &chapter::Model) -> ChapterSourceSnapshot {
+    ChapterSourceSnapshot {
+        project_id: chapter.project_id,
+        chapter_id: chapter.id,
+        chapter_number: chapter.chapter_number,
+        title: chapter.title.clone(),
+        content_sha256: source_text_hash(&chapter.content),
+        updated_at: chapter.updated_at,
     }
 }
 

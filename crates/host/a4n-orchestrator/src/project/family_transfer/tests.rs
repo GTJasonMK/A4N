@@ -962,7 +962,7 @@ async fn seed_manga_family_round_trip(
     .await
     .expect("round-trip 漫画派生项目应可写入");
 
-    let source = a4n_db::project::ResolvedChapterSource {
+    let source = a4n_domain::chapter::ResolvedChapterSource {
         requested_project_id: comic.id,
         root_project_id: root.id,
         source_chapter_id: chapter.id,
@@ -1009,7 +1009,7 @@ async fn seed_manga_family_round_trip(
     .expect("round-trip visual plan 草稿应可写入");
     let visual_plan = a4n_db::chapter_visual_plan::confirm_chapter_visual_plan(
         database,
-        a4n_db::chapter_visual_plan::ConfirmChapterVisualPlanInput {
+        a4n_domain::chapter_visual_plan::ConfirmChapterVisualPlanInput {
             record_id: draft.record.id,
             expected_revision: draft.record.revision,
         },

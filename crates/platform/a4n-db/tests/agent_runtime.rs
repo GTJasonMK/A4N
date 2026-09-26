@@ -6,7 +6,8 @@ use a4n_db::agent::{
     expired_running_runs, finish_run_with_message, latest_events_by_thread,
     mark_turn_active_for_run_lease, recover_expired_run, release_inbox_claim, renew_run_lease,
     request_approval_for_run_lease, supersede_inbox, update_delegation,
-    update_execution_for_run_lease, update_run_state, update_run_usage,
+    update_execution_for_run_lease, update_run_state, update_run_state_if_unchanged,
+    update_run_state_with_budget, update_run_usage,
 };
 use a4n_db_models::models::agent::{
     approval, delegation, event, execution, inbox, run, thread, turn,
@@ -1079,6 +1080,21 @@ async fn external_task_wait_wakes_only_its_live_execution() {
     wait_run_for_lease_with_request(&db, run.id, token, "external", None)
         .await
         .unwrap();
+    let waiting_event = event::Entity::find()
+        .filter(event::Column::RunId.eq(run.id))
+        .filter(event::Column::Kind.eq("run_waiting"))
+        .one(&db)
+        .await
+        .unwrap()
+        .expect("waiting event must be persisted");
+    assert_eq!(
+        waiting_event
+            .payload_json
+            .as_ref()
+            .and_then(|payload| payload.get("waiting_reason"))
+            .and_then(serde_json::Value::as_str),
+        Some("external")
+    );
     assert_eq!(list_external_task_waits(&db, 0).await.unwrap().len(), 1);
     wake_external_task_wait(&db, run.id, execution.id + 1)
         .await
@@ -1375,6 +1391,63 @@ async fn recovery_required_terminates_run_and_projects_thread_idle() {
         .expect("thread query must succeed")
         .expect("thread must exist");
     assert_eq!(thread.status, "idle");
+}
+
+#[tokio::test]
+async fn stale_resume_cannot_revoke_a_new_worker_lease() {
+    let db = setup_db().await;
+    let thread = create_test_thread(&db, "main").await;
+    let (_, run) = create_test_run(&db, thread.id, "user").await;
+    let paused = update_run_state(&db, run.id, None, "paused", Some("user"), None)
+        .await
+        .expect("run must pause");
+
+    update_run_state_if_unchanged(&db, &paused, None, "queued", None, None, None)
+        .await
+        .expect("current pause state must resume");
+    let claimed = claim_runnable_run(&db, "resume-race-worker")
+        .await
+        .expect("run claim must succeed")
+        .expect("resumed run must be claimable");
+    let lease_token = claimed.lease_token.clone().expect("lease must exist");
+
+    let stale_update =
+        update_run_state_if_unchanged(&db, &paused, None, "queued", None, None, None).await;
+    assert!(matches!(stale_update, Err(AgentDbError::Conflict(_))));
+
+    let current = a4n_db::agent::run_by_id(&db, run.id)
+        .await
+        .expect("run query must succeed")
+        .expect("run must exist");
+    assert_eq!(current.status, "running");
+    assert_eq!(current.lease_token.as_deref(), Some(lease_token.as_str()));
+}
+
+#[tokio::test]
+async fn waiting_lifecycle_event_includes_its_reason() {
+    let db = setup_db().await;
+    let thread = create_test_thread(&db, "main").await;
+    let (_, run) = create_test_run(&db, thread.id, "user").await;
+
+    update_run_state(&db, run.id, None, "waiting", Some("budget"), None)
+        .await
+        .expect("run must enter budget wait");
+    let events = latest_events_by_thread(&db, thread.id, 100)
+        .await
+        .expect("run events must load");
+    let waiting_event = events
+        .iter()
+        .find(|event| event.kind == "run_waiting")
+        .expect("waiting lifecycle event must exist");
+
+    assert_eq!(
+        waiting_event
+            .payload_json
+            .as_ref()
+            .and_then(|payload| payload.get("waiting_reason"))
+            .and_then(serde_json::Value::as_str),
+        Some("budget")
+    );
 }
 
 #[tokio::test]
@@ -1721,6 +1794,26 @@ async fn expired_worker_cannot_commit_execution_result() {
         .expect("execution must exist");
     assert_eq!(unchanged.status, "prepared");
     assert!(unchanged.result_json.is_none());
+}
+
+#[tokio::test]
+async fn budget_wait_can_resume_with_a_persisted_budget_update() {
+    let db = setup_db().await;
+    let thread = create_test_thread(&db, "main").await;
+    let (_, run) = create_test_run(&db, thread.id, "user").await;
+
+    update_run_state(&db, run.id, None, "waiting", Some("budget"), None)
+        .await
+        .expect("run must enter budget wait");
+    let budget = json!({"max_steps": 64});
+    let resumed =
+        update_run_state_with_budget(&db, run.id, None, "queued", None, None, budget.clone())
+            .await
+            .expect("budget update and requeue must succeed");
+
+    assert_eq!(resumed.status, "queued");
+    assert_eq!(resumed.waiting_reason, None);
+    assert_eq!(resumed.budget_json, budget);
 }
 
 #[tokio::test]

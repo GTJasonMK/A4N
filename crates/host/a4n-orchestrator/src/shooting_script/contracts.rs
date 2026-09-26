@@ -1,13 +1,15 @@
 use crate::chapter_visual_plan::DirectorScriptPlan;
 use a4n_db::{
-    chapter_visual_plan::ParsedChapterVisualPlan, project::ResolvedChapterSource,
-    shooting_script::ParsedChapterShootingScript,
-};
-use a4n_domain::shooting_script::{
-    ChapterShootingScriptV1, ShootingDirectingStatementV1, ShootingEditingModeV1,
-    ShootingTransitionContractV1,
+    chapter_visual_plan::ParsedChapterVisualPlan, shooting_script::ParsedChapterShootingScript,
 };
 use a4n_domain::source_spans::SourceSpan;
+use a4n_domain::{
+    chapter::ResolvedChapterSource,
+    shooting_script::{
+        ChapterShootingScriptV1, ShootingDirectingStatementV1, ShootingEditingModeV1,
+        ShootingTransitionContractV1,
+    },
+};
 use a4n_error::AppError;
 use serde::{Deserialize, Serialize};
 

@@ -1,14 +1,11 @@
 use a4n_db::{
-    canvas::{
-        CanvasImageMediaAssetEnsureInput, CanvasNodeArtifactUpdateInput,
-        FreeformCanvasGenerationSpecUpsertInput,
-    },
+    canvas::{CanvasImageMediaAssetEnsureInput, CanvasNodeArtifactUpdateInput},
     generation::{
         GENERATION_SPEC_TARGET_ENTITY_KIND_CANVAS_NODE, GENERATION_SPEC_TARGET_KIND_CANVAS_IMAGE,
     },
 };
-use a4n_domain::CanvasNodeRefKind;
 use a4n_domain::image::IMAGE_TYPE_CANVAS;
+use a4n_domain::{CanvasNodeRefKind, canvas::FreeformCanvasGenerationSpecUpsertInput};
 use a4n_error::AppError;
 use a4n_image_contract::ImageGenerationRequest;
 use serde_json::json;

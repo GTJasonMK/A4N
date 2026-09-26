@@ -74,7 +74,8 @@ impl TestOrchestratorBuilder {
     }
 
     pub(crate) async fn build(self) -> OrchestratorContext {
-        let db_handle = DbHandle::new(self.db.clone());
+        let db_connection = self.db.clone();
+        let db_handle = DbHandle::new(db_connection.clone());
         let event_bus = Arc::new(BroadcastEventBus::new(64));
         let task_manager = Arc::new(TaskManager::new());
         let rag_store: Arc<dyn VectorStore> = Arc::new(MemoryVectorStore::new());
@@ -93,7 +94,7 @@ impl TestOrchestratorBuilder {
         let llm = self.llm;
         let embedding = self.embedding;
         OrchestratorContext::bootstrap(
-            db_handle,
+            db_connection,
             self.prompt_client,
             Arc::new(
                 ServiceManager::new(Vec::new()).expect("empty service manager should initialize"),

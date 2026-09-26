@@ -3,11 +3,11 @@ use std::collections::HashMap;
 use a4n_api_contract::{chapter_visual_plan::*, generation_tasks::GenerationTaskHandle};
 use a4n_db::{
     chapter_visual_plan::ParsedChapterVisualPlan,
-    generation::{
-        GenerationRunCheckpointContext, GenerationRunTraceTarget,
-        RecordCompletedGenerationRunInput, RecordCompletedGenerationRunWithCheckpointInput,
-    },
-    project::ResolvedChapterSource,
+    generation::{GenerationRunCheckpointContext, RecordCompletedGenerationRunWithCheckpointInput},
+};
+use a4n_domain::{
+    chapter::ResolvedChapterSource,
+    generation::{GenerationRunTraceTarget, RecordCompletedGenerationRunInput},
 };
 use a4n_error::AppError;
 use a4n_llm_context::{

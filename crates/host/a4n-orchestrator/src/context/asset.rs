@@ -1,7 +1,10 @@
 use a4n_api_contract::profile::ObjectProfileInput;
 use a4n_db::{DbHandle, asset::ObjectProfileUpsertRecordResult};
 use a4n_db_models::models::asset::object_profile;
-use a4n_domain::object_profile::ObjectProfileEvidenceRecordInput;
+use a4n_domain::{
+    chapter::ChapterSourceSnapshot, generation::RecordCompletedGenerationRunInput,
+    object_profile::ObjectProfileEvidenceRecordInput,
+};
 use a4n_error::AppError;
 
 use super::OrchestratorContext;
@@ -41,9 +44,9 @@ impl AssetApplication {
         &self,
         project_id: i64,
         drafts: Vec<ObjectProfileInput>,
-        source_chapters: Vec<a4n_db::project::ChapterSourceSnapshot>,
+        source_chapters: Vec<ChapterSourceSnapshot>,
         profile_evidence: Vec<ObjectProfileEvidenceRecordInput>,
-        generation_run: a4n_db::generation::RecordCompletedGenerationRunInput,
+        generation_run: RecordCompletedGenerationRunInput,
     ) -> Result<ObjectProfileUpsertRecordResult, AppError> {
         let inputs = normalize_object_profile_record_inputs(drafts)?;
         a4n_db::asset::upsert_object_profiles_with_generation_run_record(
@@ -79,9 +82,9 @@ impl OrchestratorContext {
         &self,
         project_id: i64,
         drafts: Vec<ObjectProfileInput>,
-        source_chapters: Vec<a4n_db::project::ChapterSourceSnapshot>,
+        source_chapters: Vec<ChapterSourceSnapshot>,
         profile_evidence: Vec<ObjectProfileEvidenceRecordInput>,
-        generation_run: a4n_db::generation::RecordCompletedGenerationRunInput,
+        generation_run: RecordCompletedGenerationRunInput,
     ) -> Result<ObjectProfileUpsertRecordResult, AppError> {
         self.asset
             .upsert_object_profiles_from_drafts_validated(

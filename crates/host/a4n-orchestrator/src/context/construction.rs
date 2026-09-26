@@ -43,7 +43,7 @@ impl OrchestratorContext {
 
     /// 引导构造：仅用于初始化 LLM/embedding provider 的短暂阶段。
     pub fn bootstrap(
-        db: DbHandle,
+        db: Arc<sea_orm::DatabaseConnection>,
         prompt_client: Option<Arc<dyn PromptClient>>,
         service_manager: Arc<ServiceManager>,
         config: a4n_config::app_config::AppConfig,
@@ -66,6 +66,7 @@ impl OrchestratorContext {
             AppError,
         >,
     ) -> Result<Self, AppError> {
+        let db = DbHandle::new(db);
         let chapter =
             crate::chapter_generation::ChapterGenerationService::new(db.shared_connection());
         let admin = AdminApplication::new(db.clone());

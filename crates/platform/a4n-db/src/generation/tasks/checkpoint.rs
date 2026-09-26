@@ -1,4 +1,5 @@
 use super::*;
+use a4n_db_models::models::task::task_queue;
 pub async fn load_generation_task(
     db: &DatabaseConnection,
     task_id: &str,
@@ -35,6 +36,22 @@ pub async fn bind_generation_task_to_workflow(
 ) -> Result<(), GenerationTaskPersistenceError> {
     let task_id = canonical_uuid_v4(task_id, "task_id")?;
     validate_safe_id(workflow_run_id, "workflow_run_id")?;
+    if let Some(task) = task_queue::Entity::find_by_id(task_id.clone())
+        .lock_exclusive()
+        .one(tx)
+        .await?
+    {
+        crate::queue::bind_locked_task_queue_row_to_workflow(tx, task, workflow_run_id)
+            .await
+            .map_err(|error| match error {
+                crate::queue::TaskWorkflowBindingError::Conflict { current } => {
+                    GenerationTaskPersistenceError::Corrupt(format!(
+                        "generation task {task_id} 的 task_queue 已绑定 workflow {current}"
+                    ))
+                }
+                crate::queue::TaskWorkflowBindingError::Database(error) => error.into(),
+            })?;
+    }
     let Some(checkpoint) = generation_task_checkpoint::Entity::find_by_id(task_id.clone())
         .lock_exclusive()
         .one(tx)

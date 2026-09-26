@@ -4,10 +4,7 @@ pub(crate) use a4n_canvas_host_contract::{
     CanvasVideoFileInput, CanvasVideoGenerationHostPort, CanvasVideoProviderInput,
 };
 use a4n_db::{
-    canvas::{
-        CanvasGraphRecordDocument, CanvasNodeArtifactUpdateInput,
-        FreeformCanvasGenerationSpecUpsertInput,
-    },
+    canvas::{CanvasGraphRecordDocument, CanvasNodeArtifactUpdateInput},
     generation::{
         GENERATION_SPEC_TARGET_ENTITY_KIND_CANVAS_NODE, GENERATION_SPEC_TARGET_KIND_CANVAS_VIDEO,
     },
@@ -17,8 +14,8 @@ use a4n_db_models::models::{
     canvas::canvas_node,
     generation::{generation_spec, workflow_checkpoint},
 };
-use a4n_domain::CanvasNodeRefKind;
 use a4n_domain::video_workflow::WORKFLOW_MODE_CANVAS_VIDEO;
+use a4n_domain::{CanvasNodeRefKind, canvas::FreeformCanvasGenerationSpecUpsertInput};
 use a4n_error::AppError;
 use a4n_provider_contract::VideoProviderConfig;
 use a4n_video::{VideoGenerationRequest, VideoGenerationResult, VideoJobState};

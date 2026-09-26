@@ -3,8 +3,8 @@ use a4n_api_contract::portrait::{
     UploadPortraitInput,
 };
 use a4n_db::generation::{
-    GenerationRunCheckpointContext, GenerationRunTraceTarget, RecordCompletedGenerationRunInput,
-    RecordCompletedGenerationRunWithCheckpointInput, generation_checkpoint_fingerprint_sha256,
+    GenerationRunCheckpointContext, RecordCompletedGenerationRunWithCheckpointInput,
+    generation_checkpoint_fingerprint_sha256,
 };
 use a4n_db_models::models::{
     character::{character_portrait, protagonist_profile},
@@ -15,7 +15,11 @@ use a4n_domain::media::{
     IMAGE_PUBLICATION_STATUS_PENDING, IMAGE_PUBLICATION_STATUS_PUBLISHED,
     ImagePublicationFileFacts,
 };
-use a4n_domain::{character::CharacterPortraitCreateInput, image::validate_reference_image_ids};
+use a4n_domain::{
+    character::CharacterPortraitCreateInput,
+    generation::{GenerationRunTraceTarget, RecordCompletedGenerationRunInput},
+    image::validate_reference_image_ids,
+};
 use a4n_error::AppError;
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};

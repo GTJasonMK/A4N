@@ -23,7 +23,6 @@ pub use queries::{chapter_by_id_for_analysis, chapters_for_project};
 pub use types::{
     ChapterContentEditError, ChapterContentImportError, ChapterGenerationExistingRecord,
     ChapterGenerationLifecycleError, GeneratedChapterContentRecordInput,
-    StoreChapterAnalysisRecordInput,
 };
 
 pub(crate) fn assign_chapter_content(

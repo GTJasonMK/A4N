@@ -1,8 +1,6 @@
-use crate::galgame::{
-    GALGAME_SPEC_SOURCE_CONTEXT_SNAPSHOT_BACKED, GALGAME_SPEC_STATUS_DRAFT,
-    GalgameGenerationSpecUpsertInput,
-};
+use crate::galgame::{GALGAME_SPEC_SOURCE_CONTEXT_SNAPSHOT_BACKED, GALGAME_SPEC_STATUS_DRAFT};
 use a4n_db_models::models::generation::generation_spec;
+use a4n_domain::galgame::GalgameGenerationSpecUpsertInput;
 
 pub(super) fn new_galgame_generation_spec_model(
     input: GalgameGenerationSpecUpsertInput,

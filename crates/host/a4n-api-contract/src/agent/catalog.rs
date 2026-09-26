@@ -201,10 +201,13 @@ pub fn agent_tools_for_capability(capability: &str) -> &'static [&'static str] {
     }
 }
 
-/// Preferred operational tools for the first request, not an authorization list.
+/// Restricted capabilities receive their operational and skill tools up front.
+/// Only the main/general profiles use tool discovery to extend the window.
 pub fn initial_agent_tools(capability: &str) -> &'static [&'static str] {
     match capability.trim() {
         CONTENT_OPTIMIZATION_AGENT_CAPABILITY => &[
+            "search_agent_skills",
+            "load_agent_skill",
             "inspect_project_context",
             "read_project_context",
             "search_project_context",
@@ -219,6 +222,14 @@ pub fn initial_agent_tools(capability: &str) -> &'static [&'static str] {
             "wait_generation_task",
         ],
         DIRECTOR_AGENT_CAPABILITY => &[
+            "search_agent_skills",
+            "load_agent_skill",
+            "list_images_by_projects",
+            "preview_visual_plan_point_generation",
+            "read_visual_plan_prompt_candidate",
+            "start_visual_plan_prompt_generation",
+            "start_image_generation",
+            "wait_generation_task",
             "inspect_editor_target",
             "read_editor_draft",
             "save_editor_draft",
@@ -234,8 +245,12 @@ pub fn initial_agent_tools(capability: &str) -> &'static [&'static str] {
             "list_chapter_scenes",
             "web_search",
             "web_fetch",
+            "search_agent_tools",
+            "describe_agent_tool",
         ],
         CANVAS_AGENT_CAPABILITY => &[
+            "search_agent_skills",
+            "load_agent_skill",
             "read_agent_execution_result",
             "get_canvas_graph",
             "read_canvas_graph",

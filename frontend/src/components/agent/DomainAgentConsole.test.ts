@@ -33,7 +33,7 @@ function thread(
       resource_id: "11",
       project_id: 7,
       chapter_id: 11,
-      chapter_number: 1,
+      chapter_number: null,
       allowed_capabilities: ["content_optimization"],
       allowed_tools: [],
     },
@@ -48,7 +48,7 @@ describe("domain Agent binding", () => {
   it("matches editor requests after a same-resource view remount", () => {
     const source = {
       chapter_id: 11,
-      chapter_number: 1,
+      chapter_number: null,
       editor_revision: "revision-1",
       entity_id: null,
       keyframe_id: null,

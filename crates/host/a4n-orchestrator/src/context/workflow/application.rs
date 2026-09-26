@@ -3,15 +3,6 @@
 use super::*;
 
 impl WorkflowApplication {
-    pub(in crate::context) async fn workflow_runs(
-        &self,
-        input: ListWorkflowRunsInput,
-    ) -> Result<Vec<WorkflowRunSummary>, AppError> {
-        a4n_db::workflow::list_workflow_runs(self.database.connection(), input)
-            .await
-            .map_err(workflow_read_app_error)
-    }
-
     pub(in crate::context) async fn workflow_run_summary(
         &self,
         workflow_run_id: i64,
@@ -19,78 +10,6 @@ impl WorkflowApplication {
         a4n_db::workflow::workflow_run_summary_by_id(self.database.connection(), workflow_run_id)
             .await
             .map_err(workflow_read_app_error)
-    }
-
-    pub(in crate::context) async fn workflow_run_detail(
-        &self,
-        input: GetWorkflowRunInput,
-    ) -> Result<WorkflowRunDetailSummary, AppError> {
-        a4n_db::workflow::workflow_run_detail(self.database.connection(), input)
-            .await
-            .map_err(workflow_read_app_error)
-    }
-
-    pub(in crate::context) async fn workflow_progress_events(
-        &self,
-        workflow_run_id: i64,
-        limit: usize,
-    ) -> Result<Vec<TaskProgressEventSummary>, AppError> {
-        a4n_db::workflow::workflow_progress_events(
-            self.database.connection(),
-            workflow_run_id,
-            limit,
-        )
-        .await
-        .map_err(workflow_read_app_error)
-    }
-
-    pub(in crate::context) async fn persisted_task_history(
-        &self,
-        project_id: Option<i64>,
-        offset: u64,
-        limit: u64,
-    ) -> Result<Vec<PersistedTaskInfo>, AppError> {
-        a4n_db::workflow::persisted_task_history(
-            self.database.connection(),
-            project_id,
-            offset,
-            limit,
-        )
-        .await
-        .map_err(workflow_read_app_error)
-    }
-
-    pub(in crate::context) async fn task_history(
-        &self,
-        project_id: Option<i64>,
-        offset: u64,
-        limit: u64,
-    ) -> Result<Vec<a4n_api_contract::task::TaskInfoSummary>, AppError> {
-        Ok(self
-            .persisted_task_history(project_id, offset, limit)
-            .await?
-            .into_iter()
-            .map(|item| task_info_summary(&item.task))
-            .collect())
-    }
-
-    pub(in crate::context) async fn persisted_task_by_id(
-        &self,
-        task_id: &str,
-    ) -> Result<Option<PersistedTaskInfo>, AppError> {
-        a4n_db::workflow::persisted_task_by_id(self.database.connection(), task_id)
-            .await
-            .map_err(workflow_read_app_error)
-    }
-
-    pub(in crate::context) async fn active_tasks(
-        &self,
-    ) -> Result<Vec<ActiveTaskLookupRecord>, AppError> {
-        self.persisted_task_history(None, 0, 100)
-            .await?
-            .into_iter()
-            .map(active_task_lookup_record)
-            .collect()
     }
 
     pub(in crate::context) async fn workflow_run_models(
@@ -125,26 +44,6 @@ impl WorkflowApplication {
             .map_err(workflow_read_app_error)
     }
 
-    pub(in crate::context) async fn workflow_run_resume_record(
-        &self,
-        workflow_run_id: i64,
-    ) -> Result<WorkflowResumeRecord, AppError> {
-        let run = self.workflow_run_model_by_id(workflow_run_id).await?;
-        Ok(WorkflowResumeRecord {
-            id: run.id,
-            workflow_kind: run.workflow_kind,
-            project_id: run.project_id,
-            root_project_id: run.root_project_id,
-            chapter_id: run.chapter_id,
-            scope_table: run.scope_table,
-            scope_id: run.scope_id,
-            input_fingerprint_json: run.input_fingerprint_json,
-            status: run.status,
-            can_resume: run.can_resume,
-            resume_block_reason: run.resume_block_reason,
-        })
-    }
-
     pub(in crate::context) async fn workflow_run_status_record_by_id(
         &self,
         workflow_run_id: i64,
@@ -152,18 +51,6 @@ impl WorkflowApplication {
         a4n_db::workflow::workflow_run_status_record_by_id(
             self.database.connection(),
             workflow_run_id,
-        )
-        .await
-        .map_err(workflow_read_app_error)
-    }
-
-    pub(in crate::context) async fn workflow_run_access_record_by_active_task_id(
-        &self,
-        task_id: &str,
-    ) -> Result<Option<WorkflowRunAccessRecord>, AppError> {
-        a4n_db::workflow::workflow_run_access_record_by_active_task_id(
-            self.database.connection(),
-            task_id,
         )
         .await
         .map_err(workflow_read_app_error)

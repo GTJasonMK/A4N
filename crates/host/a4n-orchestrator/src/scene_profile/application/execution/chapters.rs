@@ -20,6 +20,7 @@ use crate::OrchestratorContext;
 
 pub(super) async fn sync_scene_profile_chapters(
     state: &OrchestratorContext,
+    user_id: i64,
     prompt_renderer: &dyn PromptRenderer,
     project_id: i64,
     workflow_run_id: i64,
@@ -83,6 +84,8 @@ pub(super) async fn sync_scene_profile_chapters(
         .await?;
         persist_scene_profile_sync_chapter(
             state,
+            host_port,
+            user_id,
             project_id,
             workflow_run_id,
             &context,

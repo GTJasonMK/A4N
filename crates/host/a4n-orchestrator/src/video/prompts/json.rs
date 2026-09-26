@@ -35,8 +35,8 @@ pub(in crate::video) use self::segment_parser::{
 pub(in crate::video) use self::shot_parser::{
     derived_prompt_shot_number, ordered_segment_numbers, parse_video_prompt_shots,
 };
-pub(in crate::video) use self::validation::direct_prompt_internal_reference_term;
 pub(in crate::video) use self::validation::API_PROMPT_UPLOAD_STATUS_TERMS;
+pub(in crate::video) use self::validation::direct_prompt_internal_reference_term;
 use self::validation::validate_frame_prompt;
 pub(in crate::video) use self::validation::validate_segment_plan;
 pub use self::validation::{

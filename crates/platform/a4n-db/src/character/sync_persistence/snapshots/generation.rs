@@ -1,10 +1,11 @@
+use a4n_domain::generation::{GenerationRunTraceTarget, RecordCompletedGenerationRunInput};
 use serde_json::{Map, Value, json};
 
 use super::super::CharacterSyncWriteSummary;
 use crate::character::CharacterDbError;
 
 pub(in crate::character::sync_persistence) fn enrich_character_sync_generation_run(
-    generation_run: &mut crate::generation::RecordCompletedGenerationRunInput,
+    generation_run: &mut RecordCompletedGenerationRunInput,
     project_id: i64,
     profile_id: i64,
     write_summary: &CharacterSyncWriteSummary,
@@ -20,7 +21,7 @@ pub(in crate::character::sync_persistence) fn enrich_character_sync_generation_r
             "角色同步 generation run 目标由 DB 层绑定，调用方不能预填 targets".to_string(),
         ));
     }
-    generation_run.targets = vec![crate::generation::GenerationRunTraceTarget {
+    generation_run.targets = vec![GenerationRunTraceTarget {
         target_kind: "character_profile_record".to_string(),
         target_table: "protagonist_profile".to_string(),
         target_id: profile_id,

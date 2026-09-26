@@ -24,3 +24,7 @@ serde = { workspace = true }
 subtle = { workspace = true }
 tokio = { workspace = true }
 tracing-subscriber = { workspace = true, features = ["env-filter", "fmt"] }
+
+[dev-dependencies]
+a4n-progress = { workspace = true }
+chrono = { workspace = true }

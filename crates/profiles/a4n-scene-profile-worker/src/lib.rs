@@ -13,9 +13,10 @@ use a4n_scene_profile_worker_contract::{
     CreateSceneProfileInput, DeleteSceneProfileInput, SCENE_PROFILE_CREATE_OPERATION,
     SCENE_PROFILE_DELETE_OPERATION, SCENE_PROFILE_LIST_OPERATION,
     SCENE_PROFILE_MUTATION_CAPABILITY, SCENE_PROFILE_READ_CAPABILITY,
+    SCENE_PROFILE_SYNC_CAPABILITY, SCENE_PROFILE_SYNC_RECORDS_OPERATION,
     SCENE_PROFILE_UPDATE_OPERATION, SCENE_PROFILE_WORKER_CONTRACT_VERSION, SCENE_PROFILE_WORKER_ID,
     SceneProfileDeleteWorkerResult, SceneProfileMutationWorkerResult, SceneProfileProjectInput,
-    UpdateSceneProfileInput,
+    SceneProfileSyncRecordsInput, SceneSyncRecordResult, UpdateSceneProfileInput,
 };
 use a4n_worker_client::WORKER_AUTH_HEADER;
 use a4n_worker_contract::{
@@ -80,6 +81,10 @@ impl SceneProfileWorker {
             .route("/v1/commands/profile.scene.create", post(create))
             .route("/v1/commands/profile.scene.update", post(update))
             .route("/v1/commands/profile.scene.delete", post(delete))
+            .route(
+                "/v1/commands/profile.scene.sync_records",
+                post(sync_records),
+            )
             .with_state(self.state.clone())
     }
 
@@ -170,6 +175,11 @@ async fn capabilities(State(state): State<WorkerState>, headers: HeaderMap) -> R
                 version: SCENE_PROFILE_WORKER_CONTRACT_VERSION.into(),
                 enabled: true,
             },
+            WorkerCapability {
+                name: SCENE_PROFILE_SYNC_CAPABILITY.into(),
+                version: SCENE_PROFILE_WORKER_CONTRACT_VERSION.into(),
+                enabled: true,
+            },
         ],
     })
     .into_response()
@@ -214,6 +224,17 @@ async fn delete(
     command_response(&state, &headers, request, |request| state.delete(request)).await
 }
 
+async fn sync_records(
+    State(state): State<WorkerState>,
+    headers: HeaderMap,
+    Json(request): Json<WorkerEnvelope<SceneProfileSyncRecordsInput>>,
+) -> Response {
+    command_response(&state, &headers, request, |request| {
+        state.sync_records(request)
+    })
+    .await
+}
+
 async fn command_response<T, O, F, Fut>(
     state: &WorkerState,
     headers: &HeaderMap,
@@ -237,6 +258,38 @@ where
 }
 
 impl WorkerState {
+    async fn sync_records(
+        &self,
+        request: WorkerEnvelope<SceneProfileSyncRecordsInput>,
+    ) -> Result<SceneSyncRecordResult, WorkerFailure> {
+        validate_request(&request, SCENE_PROFILE_SYNC_RECORDS_OPERATION)?;
+        let project_id = request.payload.project_id;
+        validate_required_project_scope(request.project_id, project_id)?;
+        let user_id = user_id(&request)?;
+        self.verify_editor(project_id, user_id).await?;
+        let SceneProfileSyncRecordsInput {
+            project_id,
+            chapter_id,
+            chapter_number,
+            source,
+            records,
+            profile_evidence,
+            generation_run,
+        } = request.payload;
+        a4n_db::scene_profile::replace_chapter_scene_sync_with_generation_run_records(
+            self.database.connection(),
+            project_id,
+            chapter_id,
+            chapter_number,
+            source,
+            records,
+            profile_evidence,
+            generation_run,
+        )
+        .await
+        .map_err(scene_profile_error)
+    }
+
     async fn create(
         &self,
         request: WorkerEnvelope<CreateSceneProfileInput>,
@@ -389,11 +442,7 @@ impl WorkerState {
     ) -> Result<Vec<SceneProfileSummary>, WorkerFailure> {
         validate_request(&request, SCENE_PROFILE_LIST_OPERATION)?;
         let project_id = request.payload.project_id;
-        if request.project_id != Some(project_id) || project_id <= 0 {
-            return Err(WorkerFailure::invalid_request(
-                "worker scope project_id 与 payload 不一致或无效",
-            ));
-        }
+        validate_required_project_scope(request.project_id, project_id)?;
         let user_id = user_id(&request)?;
         a4n_db::collaboration::verify_project_permission(
             self.database.connection(),
@@ -478,6 +527,18 @@ fn validate_project_scope<T>(
     if project_id <= 0 || request.project_id.is_some_and(|scope| scope != project_id) {
         return Err(WorkerFailure::invalid_request(
             "worker scope project_id 与资源 project_id 不一致或无效",
+        ));
+    }
+    Ok(())
+}
+
+fn validate_required_project_scope(
+    request_project_id: Option<i64>,
+    project_id: i64,
+) -> Result<(), WorkerFailure> {
+    if project_id <= 0 || request_project_id != Some(project_id) {
+        return Err(WorkerFailure::invalid_request(
+            "worker scope project_id 与 payload 不一致或无效",
         ));
     }
     Ok(())
@@ -687,7 +748,7 @@ fn init_tracing() {
 
 #[cfg(test)]
 mod tests {
-    use super::{WorkerEnvelope, validate_request};
+    use super::{WorkerEnvelope, validate_request, validate_required_project_scope};
     use a4n_scene_profile_worker_contract::{
         SCENE_PROFILE_LIST_OPERATION, SCENE_PROFILE_WORKER_ID, SceneProfileProjectInput,
     };
@@ -721,5 +782,13 @@ mod tests {
         };
         assert!(validate_request(&request, SCENE_PROFILE_LIST_OPERATION).is_err());
         assert_eq!(SCENE_PROFILE_LIST_OPERATION, "profile.scene.list");
+    }
+
+    #[test]
+    fn required_project_scope_must_match_the_payload() {
+        assert!(validate_required_project_scope(Some(7), 7).is_ok());
+        assert!(validate_required_project_scope(None, 7).is_err());
+        assert!(validate_required_project_scope(Some(8), 7).is_err());
+        assert!(validate_required_project_scope(Some(0), 0).is_err());
     }
 }

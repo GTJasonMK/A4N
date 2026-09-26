@@ -302,7 +302,10 @@ macro_rules! generation_start_route {
 }
 
 generation_start_route!(start_chapter, "start_chapter_generation");
-generation_start_route!(start_shooting_script, "start_chapter_shooting_script_generation");
+generation_start_route!(
+    start_shooting_script,
+    "start_chapter_shooting_script_generation"
+);
 generation_start_route!(start_inspiration, "start_inspiration_generation");
 generation_start_route!(start_blueprint, "start_blueprint_generation");
 generation_start_route!(start_blueprint_refinement, "start_blueprint_refinement");

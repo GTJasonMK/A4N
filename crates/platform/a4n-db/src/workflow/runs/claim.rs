@@ -18,6 +18,13 @@ pub async fn claim_exclusive_workflow_run(
     let (project_id, chapter_id) = validate_claim_input(&input)?;
     let tx = db.begin().await.map_err(WorkflowWriteError::Database)?;
     lock_video_generation_scope(db, &tx, project_id, chapter_id).await?;
+    if let Some(task_id) = input.run.active_task_id.as_deref() {
+        let mut query = task_queue::Entity::find_by_id(task_id.to_string());
+        if tx.get_database_backend() != DbBackend::Sqlite {
+            query = query.lock_exclusive();
+        }
+        let _ = query.one(&tx).await.map_err(WorkflowWriteError::Database)?;
+    }
     if let Some(running) = running_video_generation_workflow(&tx, project_id, chapter_id).await?
         && running_workflow_has_live_task(&tx, &running).await?
     {

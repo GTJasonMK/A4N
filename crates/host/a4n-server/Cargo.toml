@@ -7,6 +7,7 @@ license.workspace = true
 [features]
 default = []
 test-embedded-processes = [
+    "dep:a4n-admin-worker",
     "dep:a4n-agent-worker",
     "dep:a4n-artifact-media-worker",
     "dep:a4n-blueprint-worker",
@@ -29,10 +30,12 @@ test-embedded-processes = [
     "dep:a4n-chapter-scene-worker",
     "dep:a4n-chapter-content-worker",
     "dep:a4n-workflow-read-worker",
+    "dep:a4n-workflow-lifecycle-worker",
     "dep:a4n-config-read-worker",
     "dep:a4n-character-mutation-worker",
     "dep:a4n-video-record-worker",
     "dep:a4n-manga-record-worker",
+    "dep:a4n-canvas-record-worker",
     "dep:a4n-control",
     "dep:a4n-edge",
 ]
@@ -53,6 +56,7 @@ embedded-media-providers = [
 ]
 
 [dependencies]
+a4n-admin-worker = { workspace = true, optional = true }
 a4n-agent-worker = { workspace = true, optional = true }
 a4n-artifact-media-worker = { workspace = true, optional = true }
 a4n-blueprint-worker = { workspace = true, optional = true }
@@ -75,10 +79,12 @@ a4n-project-mutation-worker = { workspace = true, optional = true }
 a4n-chapter-scene-worker = { workspace = true, optional = true }
 a4n-chapter-content-worker = { workspace = true, optional = true }
 a4n-workflow-read-worker = { workspace = true, optional = true }
+a4n-workflow-lifecycle-worker = { workspace = true, optional = true }
 a4n-config-read-worker = { workspace = true, optional = true }
 a4n-character-mutation-worker = { workspace = true, optional = true }
 a4n-video-record-worker = { workspace = true, optional = true }
 a4n-manga-record-worker = { workspace = true, optional = true }
+a4n-canvas-record-worker = { workspace = true, optional = true }
 a4n-control = { workspace = true, optional = true }
 a4n-edge = { workspace = true, optional = true }
 a4n-process-catalog = { workspace = true }

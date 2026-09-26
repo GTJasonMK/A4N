@@ -1,11 +1,11 @@
 use a4n_chapter_analysis::ensure_chapter_has_analysis_content;
-use a4n_db::chapter_content::{
-    StoreChapterAnalysisRecordInput, lock_chapter_analysis_source, store_chapter_analysis_record,
-};
-use a4n_db::project::ChapterSourceSnapshot;
+use a4n_db::chapter_content::{lock_chapter_analysis_source, store_chapter_analysis_record};
 use a4n_db::workflow::UpsertWorkflowCheckpointInput;
 use a4n_db_models::models::{chapter::chapter, generation::workflow_run};
-use a4n_domain::workflow::{WORKFLOW_STATUS_COMPLETED, WORKFLOW_STATUS_RUNNING};
+use a4n_domain::{
+    chapter::StoreChapterAnalysisRecordInput,
+    workflow::{WORKFLOW_STATUS_COMPLETED, WORKFLOW_STATUS_RUNNING},
+};
 use a4n_error::AppError;
 use sea_orm::TransactionTrait;
 use serde_json::json;
@@ -28,7 +28,7 @@ impl OrchestratorContext {
         current_step_key: &str,
         active_task_id: Option<&str>,
     ) -> Result<workflow_run::Model, AppError> {
-        let source = ChapterSourceSnapshot::from(chapter);
+        let source = a4n_db::project::chapter_source_snapshot_from_model(chapter);
         let input = chapter_analysis_workflow_run_input(chapter, current_step_key, active_task_id);
         crate::workflow::validate_begin_workflow_run_input(&input)
             .map_err(AppError::InvalidArgument)?;
@@ -79,7 +79,7 @@ impl OrchestratorContext {
 
         let workflow_run_id = workflow_run_id
             .ok_or_else(|| AppError::InvalidArgument("章节分析缺少 workflow_run_id".to_string()))?;
-        let source = ChapterSourceSnapshot::from(&chapter);
+        let source = a4n_db::project::chapter_source_snapshot_from_model(&chapter);
         let mut progress = ChapterAnalysisProgress::new(progress, cancel_token)
             .with_stream_reporter(stream_reporter);
         let run = self

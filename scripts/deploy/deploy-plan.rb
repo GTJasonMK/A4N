@@ -217,7 +217,7 @@ def artifact_inventory(root)
   roles = {}
   workers.each do |entry|
     package = entry.fetch("binary")
-    artifacts[package] << "bin/services/#{package}"
+    artifacts[package] << "bin/#{package}"
     roles[package] = "stateful_worker"
   end
   services.each do |entry|

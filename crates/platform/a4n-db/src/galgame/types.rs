@@ -9,14 +9,11 @@ pub use self::errors::{
     GalgameLineRecordError, GalgameLineReorderRecordError, GalgameMediaRecordError,
     GalgameProjectRecordError, GalgameSceneRecordError, GalgameScriptRecordError,
 };
-pub use self::generation_specs::{
-    GalgameAssetPlanSpecRecordInput, GalgameGenerationSpecUpsert, GalgameGenerationSpecUpsertInput,
-    GalgameGenerationSpecUpsertOutcome,
-};
 pub(in crate::galgame) use self::generation_specs::{
     GalgameGenerationSpecEntityRefRecordInput, GalgameGenerationSpecRefsRecordInput,
     GalgameGenerationSpecTextAnchorRefRecordInput,
 };
+pub use self::generation_specs::{GalgameGenerationSpecUpsert, GalgameGenerationSpecUpsertOutcome};
 pub use self::read_models::{
     CompletedGalgameVisualBindingRecords, GalgameAssetPlanningReadModel,
     GalgameAssetPlanningSceneRecord, GalgameAssetPlanningSourceChapterRecord,
@@ -36,6 +33,5 @@ pub use self::script_records::{
     ReplaceGalgameChoiceRecordInput, UpdateGalgameLineRecordInput, UpdateGalgameSceneRecordInput,
 };
 pub use self::targets::{
-    GalgamePortraitSpecTargetInput, GalgamePortraitSpecTargetProfile,
-    GalgamePromptArtifactUpsertInput, GalgameTargetContext,
+    GalgamePortraitSpecTargetInput, GalgamePortraitSpecTargetProfile, GalgameTargetContext,
 };

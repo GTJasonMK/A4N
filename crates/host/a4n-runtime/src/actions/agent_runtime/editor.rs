@@ -2,6 +2,7 @@ use super::*;
 use a4n_api_contract::agent::*;
 use a4n_api_contract::chapter_visual_plan::ChapterVisualPlanView;
 use a4n_worker_contract::{AgentRunPayload, WorkerEnvelope};
+use std::sync::atomic::AtomicI64;
 
 pub fn respond_agent_editor(
     state: &AppState,
@@ -155,6 +156,7 @@ async fn resolve_claimed_editor(
             error_message: error_message.clone(),
         })
         .await?;
+    let latest_message_id = AtomicI64::new(0);
     append_tool_observation(
         state.agent_worker_message_application(),
         claimed,
@@ -162,6 +164,7 @@ async fn resolve_claimed_editor(
         &call,
         value,
         &mut Vec::new(),
+        &latest_message_id,
     )
     .await?;
     response_application

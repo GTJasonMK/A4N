@@ -1,6 +1,6 @@
 use std::collections::HashSet;
 use std::net::{SocketAddr, TcpListener};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use a4n_config::app_config::AppConfig;
 use a4n_config::{optional_non_empty_env_path, optional_non_empty_env_string};
@@ -52,34 +52,32 @@ pub(super) fn runtime_service_configs(
             .collect()),
         RuntimeProfile::Sidecar => {
             let managed_sidecars_enabled = managed_sidecars_enabled()?;
-            let selected_services = selected_service_names()?;
+            let manifest_path = std::env::var_os(RELEASE_MANIFEST_ENV).map(PathBuf::from);
+            let selected_services = selected_service_names(manifest_path.as_deref())?;
             let mut reserved_addrs = HashSet::new();
-            sidecar_service_specs()
-                .into_iter()
-                .map(|spec| {
-                    if !selected_services.contains(&spec.name) {
-                        return Ok(ManagedServiceConfig::disabled(spec.name));
-                    }
-                    if managed_sidecars_enabled {
-                        managed_sidecar_service(spec, config, &mut reserved_addrs)
-                    } else {
-                        remote_service(spec)
-                    }
-                })
-                .collect()
+            runtime_sidecar_service_configs(&selected_services, |spec| {
+                if managed_sidecars_enabled {
+                    let binary = sidecar_binary_path(&spec.binary)?;
+                    managed_sidecar_service(spec, config, &mut reserved_addrs, binary)
+                } else {
+                    remote_service(spec)
+                }
+            })
         }
     }
 }
 
-fn selected_service_names() -> Result<HashSet<String>, String> {
+pub(super) fn selected_service_names(
+    manifest_path: Option<&Path>,
+) -> Result<HashSet<String>, String> {
     let all = capability_service_names()
         .into_iter()
         .collect::<HashSet<_>>();
-    let Some(path) = std::env::var_os(RELEASE_MANIFEST_ENV).map(PathBuf::from) else {
+    let Some(path) = manifest_path else {
         return Ok(all);
     };
     let bytes =
-        std::fs::read(&path).map_err(|error| format!("读取 release manifest 失败: {error}"))?;
+        std::fs::read(path).map_err(|error| format!("读取 release manifest 失败: {error}"))?;
     let manifest: ReleaseManifest = serde_json::from_slice(&bytes)
         .map_err(|error| format!("解析 release manifest 失败: {error}"))?;
     if manifest.services.is_empty() {
@@ -93,13 +91,30 @@ fn selected_service_names() -> Result<HashSet<String>, String> {
     Ok(selected)
 }
 
-fn managed_sidecar_service(
+pub(super) fn runtime_sidecar_service_configs(
+    selected_services: &HashSet<String>,
+    mut configure_selected: impl FnMut(ServiceCatalogEntry) -> Result<ManagedServiceConfig, String>,
+) -> Result<Vec<ManagedServiceConfig>, String> {
+    sidecar_service_specs()
+        .into_iter()
+        .map(|spec| {
+            if selected_services.contains(&spec.name) {
+                configure_selected(spec)
+            } else {
+                Ok(ManagedServiceConfig::disabled(spec.name))
+            }
+        })
+        .collect()
+}
+
+pub(super) fn managed_sidecar_service(
     spec: ServiceCatalogEntry,
     app_config: &AppConfig,
     reserved_addrs: &mut HashSet<SocketAddr>,
+    binary: Option<PathBuf>,
 ) -> Result<ManagedServiceConfig, String> {
     let executable = sidecar_executable_name(&spec.binary);
-    let binary = sidecar_binary_path(&spec.binary)?.ok_or_else(|| {
+    let binary = binary.ok_or_else(|| {
         format!(
             "{MANAGED_SIDECARS_ENV}=1 需要可执行 sidecar 二进制，但未找到 {}；请设置 {SIDECAR_BIN_DIR_ENV} 或使用发布包 bin/services",
             executable

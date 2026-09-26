@@ -1,11 +1,12 @@
 use a4n_db_models::models::chapter::chapter_visual_plan;
 use a4n_domain::chapter_visual_plan::{
     ChapterVisualPlanAuthoringMode, ChapterVisualPlanStatus, ChapterVisualPlanV3,
+    ExpectedVisualPlanDraft,
 };
 use a4n_domain::shooting_script::ShootingScriptPlanSyncV1;
 use sea_orm::DbErr;
 
-use crate::project::ResolvedChapterSource;
+use a4n_domain::chapter::ResolvedChapterSource;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct ParsedChapterVisualPlan {
@@ -21,12 +22,6 @@ pub struct ChapterVisualPlanSet {
     pub confirmed: Option<ParsedChapterVisualPlan>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct ExpectedVisualPlanDraft {
-    pub record_id: i64,
-    pub revision: i32,
-}
-
 #[derive(Debug, Clone)]
 pub struct SaveChapterVisualPlanDraftInput {
     pub source: ResolvedChapterSource,
@@ -38,23 +33,11 @@ pub struct SaveChapterVisualPlanDraftInput {
 }
 
 #[derive(Debug, Clone)]
-pub struct ConfirmChapterVisualPlanInput {
-    pub record_id: i64,
-    pub expected_revision: i32,
-}
-
-#[derive(Debug, Clone)]
 pub struct ConfirmChapterVisualPlanOutcome {
     pub visual_plan: ParsedChapterVisualPlan,
     pub invalidated_project_ids: Vec<i64>,
     /// 同一正文版本的拍摄剧本变基到新方案后的逐镜头同步状态；没有拍摄剧本时为空。
     pub shooting_script_sync: Option<ShootingScriptPlanSyncV1>,
-}
-
-#[derive(Debug, Clone)]
-pub struct DiscardChapterVisualPlanDraftInput {
-    pub record_id: i64,
-    pub expected_revision: i32,
 }
 
 #[derive(Debug, thiserror::Error)]

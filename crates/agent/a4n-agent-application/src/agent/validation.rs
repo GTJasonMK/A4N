@@ -103,16 +103,69 @@ pub(super) fn validate_editor_source(
     Ok(())
 }
 
-pub(super) fn parse_persisted_editor_source(
-    value: Value,
-    capability: &str,
-    scope: &AgentScope,
+pub(super) fn agent_scopes_match_except_chapter_number(
+    left: &AgentScope,
+    right: &AgentScope,
+) -> bool {
+    let mut left = left.clone();
+    let mut right = right.clone();
+    left.chapter_number = None;
+    right.chapter_number = None;
+    left == right
+}
+
+pub(super) async fn canonicalize_editor_source(
+    database: &sea_orm::DatabaseConnection,
+    source: a4n_api_contract::agent::AgentEditorSource,
+    thread: &thread::Model,
 ) -> Result<a4n_api_contract::agent::AgentEditorSource, AppError> {
-    let mut source: a4n_api_contract::agent::AgentEditorSource =
-        from_json(value, "agent_message.editor_source")?;
-    source.chapter_number = scope.chapter_number;
-    validate_editor_source(&source, capability, scope)?;
-    Ok(source)
+    let scope: AgentScope = from_json(thread.scope_json.clone(), "agent_thread.scope_json")?;
+    validate_editor_source(&source, &thread.profile_id, &scope)?;
+    let chapter = a4n_db::project::chapter_by_id(database, source.chapter_id)
+        .await?
+        .ok_or_else(|| AppError::NotFound(format!("章节不存在: {}", source.chapter_id)))?;
+    if chapter.project_id != source.project_id {
+        return Err(AppError::Forbidden("编辑器来源章节不属于声明的项目".into()));
+    }
+    Ok(a4n_api_contract::agent::AgentEditorSource {
+        chapter_number: Some(chapter.chapter_number),
+        ..source
+    })
+}
+
+pub(super) async fn parse_persisted_editor_source(
+    database: &sea_orm::DatabaseConnection,
+    value: Value,
+    thread: &thread::Model,
+) -> Result<a4n_api_contract::agent::AgentEditorSource, AppError> {
+    let scope: AgentScope = from_json(thread.scope_json.clone(), "agent_thread.scope_json")?;
+    let value = normalize_legacy_editor_source(value, scope.chapter_id)?;
+    let source = from_json(value, "agent_message.editor_source")?;
+    canonicalize_editor_source(database, source, thread).await
+}
+
+pub(super) fn normalize_legacy_editor_source(
+    mut value: Value,
+    fallback_chapter_id: Option<i64>,
+) -> Result<Value, AppError> {
+    let object = value
+        .as_object_mut()
+        .ok_or_else(|| AppError::InvalidState {
+            current: "agent_message.editor_source 必须是 object".into(),
+            operation: "恢复历史 Agent 编辑器来源".into(),
+        })?;
+    if !object.contains_key("chapter_id") {
+        let chapter_id = fallback_chapter_id
+            .filter(|chapter_id| *chapter_id > 0)
+            .ok_or_else(|| AppError::InvalidState {
+                current:
+                    "历史 agent_message.editor_source 缺少 chapter_id，且线程 scope 未绑定章节"
+                        .into(),
+                operation: "恢复历史 Agent 编辑器来源".into(),
+            })?;
+        object.insert("chapter_id".into(), json!(chapter_id));
+    }
+    Ok(value)
 }
 
 pub(super) fn parse_id(value: &str, field: &str) -> Result<i64, AppError> {
@@ -515,11 +568,21 @@ pub(super) fn delivery_priority(delivery: AgentDeliveryMode) -> i32 {
 
 pub(super) fn validate_control_transition(
     status: &str,
+    waiting_reason: Option<&str>,
     action: AgentControlAction,
+    has_budget_update: bool,
 ) -> Result<(), AppError> {
+    if has_budget_update && action != AgentControlAction::Resume {
+        return Err(AppError::InvalidArgument(
+            "只能在恢复 Agent run 时调整预算".into(),
+        ));
+    }
     let allowed = match action {
         AgentControlAction::Pause => matches!(status, "queued" | "running" | "waiting"),
-        AgentControlAction::Resume => matches!(status, "paused" | "pausing"),
+        AgentControlAction::Resume => {
+            matches!(status, "paused" | "pausing")
+                || (status == "waiting" && waiting_reason == Some("budget"))
+        }
         AgentControlAction::Cancel => !matches!(
             status,
             "completed" | "failed" | "cancelled" | "interrupted" | "recovery_required"
@@ -532,6 +595,52 @@ pub(super) fn validate_control_transition(
             current: status.to_string(),
             operation: format!("{:?} Agent run", action).to_lowercase(),
         })
+    }
+}
+
+#[cfg(test)]
+mod control_transition_tests {
+    use super::validate_control_transition;
+    use a4n_api_contract::agent::AgentControlAction;
+
+    #[test]
+    fn budget_wait_can_resume_without_bypassing_the_existing_budget() {
+        assert!(
+            validate_control_transition(
+                "waiting",
+                Some("budget"),
+                AgentControlAction::Resume,
+                false,
+            )
+            .is_ok()
+        );
+        assert!(
+            validate_control_transition(
+                "paused",
+                Some("budget"),
+                AgentControlAction::Resume,
+                false,
+            )
+            .is_ok()
+        );
+        assert!(
+            validate_control_transition(
+                "waiting",
+                Some("budget"),
+                AgentControlAction::Resume,
+                true,
+            )
+            .is_ok()
+        );
+        assert!(
+            validate_control_transition(
+                "waiting",
+                Some("approval"),
+                AgentControlAction::Resume,
+                true,
+            )
+            .is_err()
+        );
     }
 }
 

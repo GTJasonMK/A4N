@@ -86,10 +86,7 @@ impl OrchestratorContext {
         let rows = self
             .finalize_workflow_result(prepared.workflow_run_id, result, "视频提示词生成")
             .await?;
-        Ok(rows
-            .iter()
-            .map(a4n_video::chapter_video_prompt_summary)
-            .collect())
+        Ok(rows.iter().map(ChapterVideoPromptSummary::from).collect())
     }
 
     async fn prepare_video_prompt_generation(
@@ -343,7 +340,7 @@ impl OrchestratorContext {
             .await?
         {
             let row = self.with_video_plan_source_sync(row).await?;
-            result.push(a4n_video::chapter_video_prompt_summary(&row));
+            result.push(ChapterVideoPromptSummary::from(&row));
         }
         Ok(result)
     }
@@ -546,7 +543,7 @@ impl OrchestratorContext {
                 plan.allow_downstream,
             )
             .await?;
-        Ok(a4n_video::chapter_video_prompt_summary(&row))
+        Ok(ChapterVideoPromptSummary::from(&row))
     }
 
     pub async fn update_chapter_video_segment_plan_validated(
@@ -599,7 +596,7 @@ impl OrchestratorContext {
             .map(|segment| segment.source_shot_id.clone())
             .collect::<std::collections::HashSet<_>>();
         if changed_shots.is_empty() {
-            return Ok(a4n_video::chapter_video_prompt_summary(&current));
+            return Ok(ChapterVideoPromptSummary::from(&current));
         }
 
         let resolved = self
@@ -743,7 +740,7 @@ impl OrchestratorContext {
         let row = self
             .update_chapter_video_segment_plan_metadata(prompt_id, prompt.updated_at, metadata)
             .await?;
-        Ok(a4n_video::chapter_video_prompt_summary(&row))
+        Ok(ChapterVideoPromptSummary::from(&row))
     }
 
     fn validate_segment_plan_edit_timestamp(
@@ -995,7 +992,7 @@ impl OrchestratorContext {
             cleanup,
         )
         .await
-        .map(|row| a4n_video::chapter_video_prompt_summary(&row))
+        .map(|row| ChapterVideoPromptSummary::from(&row))
     }
 
     async fn prepare_mutation_plan(

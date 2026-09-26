@@ -2,10 +2,10 @@ use super::super::status::update_generation_run_record;
 use super::creation::record_started_generation_run_with_checkpoint;
 use crate::generation::{
     GenerationDbError, GenerationRunCheckpointContext, RUN_STATUS_COMPLETED,
-    RecordCompletedGenerationRunInput, RecordCompletedGenerationRunWithCheckpointInput,
-    RecordStartedGenerationRunInput,
+    RecordCompletedGenerationRunWithCheckpointInput, RecordStartedGenerationRunInput,
 };
 use a4n_db_models::models::generation::generation_run;
+use a4n_domain::generation::RecordCompletedGenerationRunInput;
 use sea_orm::{ConnectionTrait, DatabaseConnection, DatabaseTransaction, TransactionTrait};
 
 pub async fn record_completed_generation_run(

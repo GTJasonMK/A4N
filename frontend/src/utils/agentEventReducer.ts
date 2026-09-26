@@ -1,6 +1,7 @@
 import type {
   AgentEvent,
   AgentMessageView,
+  AgentRunView,
   AgentThreadSnapshot,
 } from "../api/agent";
 
@@ -29,6 +30,39 @@ const MESSAGE_EVENT_KINDS = new Set([
   "message_interrupted",
 ]);
 
+const RUN_EVENT_STATUSES: Record<string, AgentRunView["status"]> = {
+  run_queued: "queued",
+  run_waiting: "waiting",
+  run_completed: "completed",
+  run_failed: "failed",
+  run_cancelled: "cancelled",
+  run_recovery_required: "recovery_required",
+};
+
+const RUN_STATUSES = new Set<AgentRunView["status"]>([
+  "queued",
+  "running",
+  "waiting",
+  "pausing",
+  "paused",
+  "cancelling",
+  "cancelled",
+  "completed",
+  "failed",
+  "interrupted",
+  "recovery_required",
+]);
+
+const WAITING_REASONS = new Set([
+  "user",
+  "approval",
+  "child",
+  "external",
+  "backoff",
+  "budget",
+  "reconcile",
+]);
+
 export function snapshotCursor(snapshot: AgentThreadSnapshot): number {
   const eventCursor = snapshot.events.reduce(
     (cursor, event) => Math.max(cursor, event.sequence),
@@ -52,7 +86,10 @@ export function reduceAgentEvent(
   // An editor request carries a live UI operation and an execution that may
   // have been created after this snapshot. Reload the authoritative snapshot
   // before the page decides whether it can answer the request.
-  if (event.editor_request || !MESSAGE_EVENT_KINDS.has(event.kind)) {
+  if (event.editor_request) {
+    return { snapshot, cursor, needsReload: true };
+  }
+  if (event.kind === "approval_requested") {
     return { snapshot, cursor, needsReload: true };
   }
 
@@ -67,6 +104,44 @@ export function reduceAgentEvent(
       ? snapshot.messages.map((item) => (item.id === message.id ? message : item))
       : [...snapshot.messages, message];
     next = { ...next, messages };
+  } else if (event.kind === "message_queued") {
+    // The event only carries the ID; the message projection is not safe to
+    // invent locally. The next snapshot also materializes a newly admitted run.
+    return { snapshot, cursor, needsReload: true };
+  } else if (!(event.kind in RUN_EVENT_STATUSES || event.kind === "run_controlled")) {
+    return { snapshot, cursor, needsReload: true };
+  } else {
+    if (!event.run_id) return { snapshot, cursor, needsReload: true };
+    const index = snapshot.runs.findIndex((run) => run.id === event.run_id);
+    const status = event.kind === "run_controlled"
+      ? payload?.status
+      : RUN_EVENT_STATUSES[event.kind];
+    if (
+      index < 0
+      || typeof status !== "string"
+      || !RUN_STATUSES.has(status as AgentRunView["status"])
+    ) {
+      return { snapshot, cursor, needsReload: true };
+    }
+    const run = snapshot.runs[index];
+    const waitingReason = event.kind === "run_waiting"
+      ? payload?.waiting_reason
+      : null;
+    if (
+      event.kind === "run_waiting"
+      && (typeof waitingReason !== "string" || !WAITING_REASONS.has(waitingReason))
+    ) {
+      return { snapshot, cursor, needsReload: true };
+    }
+    const nextRun: AgentRunView = {
+      ...run,
+      status: status as AgentRunView["status"],
+      waiting_reason: waitingReason as AgentRunView["waiting_reason"],
+      error: typeof payload?.error === "string" ? payload.error : run.error,
+    };
+    const runs = [...snapshot.runs];
+    runs[index] = nextRun;
+    next = { ...next, runs };
   }
 
   const events = [...snapshot.events, event].slice(-1_000);

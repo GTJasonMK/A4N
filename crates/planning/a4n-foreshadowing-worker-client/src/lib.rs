@@ -1,9 +1,15 @@
-//! Typed Host adapter for the foreshadowing read worker.
+//! Typed Host adapter for the foreshadowing records worker.
 
-use a4n_api_contract::profile::{ForeshadowingReadApplicationPort, ForeshadowingSummary};
+use a4n_api_contract::profile::{
+    CreateForeshadowingInput, DeleteForeshadowingInput, ForeshadowingMutationApplicationPort,
+    ForeshadowingRagSyncHostPort, ForeshadowingReadApplicationPort, ForeshadowingSummary,
+    ForeshadowingWriteResult, UpdateForeshadowingInput,
+};
 use a4n_error::AppError;
 use a4n_foreshadowing_worker_contract::{
-    FORESHADOWING_LIST_OPERATION, FORESHADOWING_WORKER_ID, ForeshadowingProjectInput,
+    CreateInput, DeleteInput, FORESHADOWING_CREATE_OPERATION, FORESHADOWING_DELETE_OPERATION,
+    FORESHADOWING_LIST_OPERATION, FORESHADOWING_UPDATE_OPERATION, FORESHADOWING_WORKER_ID,
+    ForeshadowingMutationResult, ForeshadowingProjectInput, UpdateInput,
 };
 use a4n_worker_client::{HttpWorkerClient, WorkerClientError};
 use a4n_worker_contract::{
@@ -128,8 +134,115 @@ impl ForeshadowingReadApplicationPort for ForeshadowingWorkerClient {
     }
 }
 
+#[async_trait::async_trait]
+impl ForeshadowingMutationApplicationPort for ForeshadowingWorkerClient {
+    async fn create(
+        &self,
+        user_id: i64,
+        host_port: &dyn ForeshadowingRagSyncHostPort,
+        input: CreateForeshadowingInput,
+    ) -> Result<ForeshadowingWriteResult, AppError> {
+        let result: ForeshadowingMutationResult = self
+            .command(
+                user_id,
+                input.project_id,
+                FORESHADOWING_CREATE_OPERATION,
+                CreateInput(input),
+            )
+            .await?;
+        Ok(sync_warning(
+            host_port
+                .sync_record(result.project_id, result.foreshadowing_id)
+                .await,
+            result.project_id,
+            result.foreshadowing_id,
+            "伏笔已保存，但检索索引更新失败，可稍后重试",
+        ))
+    }
+
+    async fn update(
+        &self,
+        user_id: i64,
+        host_port: &dyn ForeshadowingRagSyncHostPort,
+        input: UpdateForeshadowingInput,
+    ) -> Result<ForeshadowingWriteResult, AppError> {
+        let result: ForeshadowingMutationResult = self
+            .command(
+                user_id,
+                input.project_id,
+                FORESHADOWING_UPDATE_OPERATION,
+                UpdateInput(input),
+            )
+            .await?;
+        Ok(sync_warning(
+            host_port
+                .sync_record(result.project_id, result.foreshadowing_id)
+                .await,
+            result.project_id,
+            result.foreshadowing_id,
+            "伏笔已保存，但检索索引更新失败，可稍后重试",
+        ))
+    }
+
+    async fn delete(
+        &self,
+        user_id: i64,
+        host_port: &dyn ForeshadowingRagSyncHostPort,
+        input: DeleteForeshadowingInput,
+    ) -> Result<ForeshadowingWriteResult, AppError> {
+        let result: ForeshadowingMutationResult = self
+            .command(
+                user_id,
+                input.project_id,
+                FORESHADOWING_DELETE_OPERATION,
+                DeleteInput(input),
+            )
+            .await?;
+        Ok(sync_warning(
+            host_port
+                .delete_record(result.project_id, result.foreshadowing_id)
+                .await,
+            result.project_id,
+            result.foreshadowing_id,
+            "伏笔已删除，但检索索引清理失败，可稍后重试",
+        ))
+    }
+}
+
+fn sync_warning(
+    result: Result<(), AppError>,
+    project_id: i64,
+    foreshadowing_id: i64,
+    message: &str,
+) -> ForeshadowingWriteResult {
+    let warnings = match result {
+        Ok(()) => Vec::new(),
+        Err(error) => {
+            tracing::warn!(
+                project_id,
+                foreshadowing_id,
+                error = %error,
+                "{message}"
+            );
+            vec![message.to_string()]
+        }
+    };
+    ForeshadowingWriteResult { warnings }
+}
+
 fn worker_client_error(error: WorkerClientError) -> AppError {
-    AppError::ConfigError(format!("foreshadowing worker 请求失败: {error}"))
+    match error {
+        WorkerClientError::Timeout => {
+            AppError::Timeout("foreshadowing worker 请求超时".to_string())
+        }
+        WorkerClientError::Transport(error) => {
+            AppError::Timeout(format!("foreshadowing worker 请求失败: {error}"))
+        }
+        WorkerClientError::HttpStatus { status } if status >= 500 => {
+            AppError::Timeout(format!("foreshadowing worker 返回 HTTP {status}"))
+        }
+        error => AppError::ConfigError(format!("foreshadowing worker 请求失败: {error}")),
+    }
 }
 
 fn worker_response_error(error: &WorkerError, operation: &str) -> AppError {
@@ -141,6 +254,17 @@ fn worker_response_error(error: &WorkerError, operation: &str) -> AppError {
             current: error.message.clone(),
             operation: operation.to_string(),
         },
+        WorkerErrorCode::Unavailable | WorkerErrorCode::Timeout if error.retryable => {
+            AppError::Timeout(format!(
+                "foreshadowing worker {operation} 失败: {}",
+                error.message
+            ))
+        }
+        WorkerErrorCode::Cancelled => AppError::Cancelled,
+        WorkerErrorCode::Internal => AppError::Internal(anyhow::anyhow!(
+            "foreshadowing worker {operation} 失败: {}",
+            error.message
+        )),
         _ => AppError::ConfigError(format!(
             "foreshadowing worker {operation} 失败: {}",
             error.message
@@ -161,5 +285,50 @@ mod tests {
         let debug = format!("{client:?}");
         assert!(!debug.contains("foreshadowing-worker.example.test"));
         assert!(!debug.contains("foreshadowing-token"));
+    }
+
+    #[test]
+    fn sync_warning_preserves_committed_result_when_host_sync_fails() {
+        let result = sync_warning(
+            Err(AppError::InvalidArgument("索引服务不可用".into())),
+            1,
+            2,
+            "伏笔已保存，但检索索引更新失败，可稍后重试",
+        );
+
+        assert_eq!(
+            result.warnings,
+            vec!["伏笔已保存，但检索索引更新失败，可稍后重试"]
+        );
+    }
+
+    #[test]
+    fn retryable_worker_failures_remain_retryable() {
+        assert!(matches!(
+            worker_client_error(WorkerClientError::Timeout),
+            AppError::Timeout(_)
+        ));
+        assert!(matches!(
+            worker_response_error(
+                &WorkerError {
+                    code: WorkerErrorCode::Unavailable,
+                    message: "database unavailable".into(),
+                    retryable: true,
+                },
+                FORESHADOWING_CREATE_OPERATION,
+            ),
+            AppError::Timeout(_)
+        ));
+        assert!(matches!(
+            worker_response_error(
+                &WorkerError {
+                    code: WorkerErrorCode::Internal,
+                    message: "query failed".into(),
+                    retryable: false,
+                },
+                FORESHADOWING_CREATE_OPERATION,
+            ),
+            AppError::Internal(_)
+        ));
     }
 }

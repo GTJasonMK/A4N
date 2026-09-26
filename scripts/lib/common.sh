@@ -61,6 +61,28 @@ require_command() {
     command -v "$1" >/dev/null 2>&1 || die "未找到命令: $1"
 }
 
+stateful_worker_packages() {
+    require_command node
+    node -e '
+      for (const entry of JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"))) {
+        console.log(entry.binary);
+      }
+    ' "$PROJECT_ROOT/crates/process/a4n-process-catalog/worker-catalog.json"
+}
+
+worker_client_packages() {
+    require_command node
+    (cd "$PROJECT_ROOT" && cargo metadata --locked --no-deps --format-version 1) |
+        node -e '
+          const packages = JSON.parse(require("fs").readFileSync(0, "utf8")).packages;
+          packages
+            .map(({ name }) => name)
+            .filter((name) => name.endsWith("-worker-client") || name === "a4n-artifact-media-client")
+            .sort()
+            .forEach((name) => console.log(name));
+        '
+}
+
 sha256_file() {
     if command -v sha256sum >/dev/null 2>&1; then
         sha256sum "$1" | awk '{print $1}'

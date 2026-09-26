@@ -20,6 +20,7 @@ use super::{
 impl OrchestratorContext {
     pub async fn sync_scene_profiles_validated(
         &self,
+        user_id: i64,
         project_id: i64,
         chapter_number: Option<i32>,
         prompt_renderer: &dyn PromptRenderer,
@@ -48,6 +49,7 @@ impl OrchestratorContext {
         };
         let result = chapters::sync_scene_profile_chapters(
             self,
+            user_id,
             prompt_renderer,
             project_id,
             workflow_run_id,
@@ -79,6 +81,7 @@ impl OrchestratorContext {
 
     pub(crate) async fn resume_scene_profile_sync_workflow_run_validated(
         &self,
+        user_id: i64,
         requested_run: &workflow_run::Model,
         prompt_renderer: &dyn PromptRenderer,
         host_port: &dyn SceneProfileSyncHostPort,
@@ -137,6 +140,7 @@ impl OrchestratorContext {
             .await?;
         let result = self
             .sync_scene_profiles_validated(
+                user_id,
                 project_id,
                 chapter_number,
                 prompt_renderer,

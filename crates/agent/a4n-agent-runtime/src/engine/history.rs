@@ -4,6 +4,13 @@ use a4n_llm_context::{ContextBudgetPlanner, estimate_context_tokens};
 use a4n_llm_provider_contract::{ChatMessage, MessageRole, ToolCall};
 use serde_json::{Value, json};
 use std::collections::{HashMap, HashSet};
+use std::sync::atomic::{AtomicI64, Ordering};
+
+pub(super) const CONTEXT_SUMMARY_SOURCE_TOKENS: usize = 12_000;
+
+pub(super) fn advance_message_watermark(watermark: &AtomicI64, message_id: i64) {
+    watermark.fetch_max(message_id, Ordering::Relaxed);
+}
 
 #[derive(Debug)]
 pub(super) struct ContextFit {
@@ -288,6 +295,18 @@ pub(super) fn pair_tool_messages(messages: &[ChatMessage]) -> Result<Vec<ChatMes
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::atomic::{AtomicI64, Ordering};
+
+    #[test]
+    fn message_watermark_advances_monotonically_for_out_of_order_tool_results() {
+        let watermark = AtomicI64::new(20);
+
+        advance_message_watermark(&watermark, 30);
+        advance_message_watermark(&watermark, 25);
+
+        assert_eq!(watermark.load(Ordering::Relaxed), 30);
+    }
+
     use crate::engine::MAX_OBSERVATION_BYTES;
     use crate::engine::bounded_observation;
 

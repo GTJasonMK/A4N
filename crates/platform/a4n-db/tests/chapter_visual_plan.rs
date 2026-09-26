@@ -1,18 +1,22 @@
 use a4n_db::chapter_visual_plan::{
-    ExpectedVisualPlanDraft, SaveChapterVisualPlanDraftInput, chapter_visual_plan_by_id,
-    save_chapter_visual_plan_draft,
+    SaveChapterVisualPlanDraftInput, chapter_visual_plan_by_id, save_chapter_visual_plan_draft,
 };
 use a4n_db_models::models::chapter::chapter;
 use a4n_domain::chapter::ImportChapterContentInput;
-use a4n_domain::chapter_visual_plan::{ChapterVisualPlanAuthoringMode, ChapterVisualPlanV3};
+use a4n_domain::chapter_visual_plan::{
+    ChapterVisualPlanAuthoringMode, ChapterVisualPlanV3, ExpectedVisualPlanDraft,
+};
 use sea_orm::{ActiveModelTrait, Set, TransactionTrait};
 use std::time::Duration;
 
 #[tokio::test]
 async fn director_resources_are_family_scoped_and_survive_supersession() {
-    use a4n_db::chapter_visual_plan::{ConfirmChapterVisualPlanInput, confirm_chapter_visual_plan};
+    use a4n_db::chapter_visual_plan::confirm_chapter_visual_plan;
     use a4n_db_models::models::{ai::generated_image, scene::scene_profile};
-    use a4n_domain::{chapter_visual_plan::SceneBindingV3, scene_profile::SceneProfileRecordInput};
+    use a4n_domain::{
+        chapter_visual_plan::{ConfirmChapterVisualPlanInput, SceneBindingV3},
+        scene_profile::SceneProfileRecordInput,
+    };
     use sea_orm::EntityTrait;
 
     let db = a4n_migration::test_support::connect_test_database().await;

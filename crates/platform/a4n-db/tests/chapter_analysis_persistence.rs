@@ -1,11 +1,11 @@
 use a4n_db::{
     chapter_content::{
-        ChapterContentEditError, StoreChapterAnalysisRecordInput, lock_chapter_analysis_source,
-        store_chapter_analysis_record,
+        ChapterContentEditError, lock_chapter_analysis_source, store_chapter_analysis_record,
     },
-    project::{ChapterSourceSnapshot, CreateProjectRecordInput, create_project_record},
+    project::{CreateProjectRecordInput, create_project_record},
 };
 use a4n_db_models::models::chapter::chapter;
+use a4n_domain::chapter::StoreChapterAnalysisRecordInput;
 use chrono::{Duration, NaiveDate, NaiveDateTime};
 use sea_orm::{ActiveModelTrait, DatabaseConnection, Set};
 use serde_json::json;
@@ -81,7 +81,7 @@ async fn analysis_write_does_not_change_source_updated_at() {
 async fn stale_source_snapshot_rejects_analysis_write() {
     let db = setup_db().await;
     let chapter = insert_chapter(&db).await;
-    let source = ChapterSourceSnapshot::from(&chapter);
+    let source = a4n_db::project::chapter_source_snapshot_from_model(&chapter);
     let mut active: chapter::ActiveModel = chapter.into();
     active.content = Set("用户刚刚修改的正文".to_string());
     active.updated_at = Set(test_time() + Duration::seconds(1));

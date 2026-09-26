@@ -4,10 +4,7 @@ use a4n_db::admin::{
     GenerationCallAnalytics, GenerationCallAnalyticsInput, TaskQueueSummary, UsageLogSummary,
     UsageTrendsInput,
 };
-use a4n_db_models::models::user::{
-    invite_code,
-    role::{UserRole, parse_user_role},
-};
+use a4n_db_models::models::user::role::{UserRole, parse_user_role};
 use a4n_domain::admin::InviteCodeSummary;
 use a4n_error::AppError;
 
@@ -158,51 +155,90 @@ impl a4n_api_contract::admin::AdminReadApplicationPort for OrchestratorContext {
         OrchestratorContext::is_active_admin_user(self, user_id).await
     }
 
-    async fn user_usage(&self, user_id: i64, limit: u64) -> Result<Vec<UsageLogSummary>, AppError> {
+    async fn user_usage(
+        &self,
+        caller_user_id: i64,
+        user_id: i64,
+        limit: u64,
+    ) -> Result<Vec<UsageLogSummary>, AppError> {
+        self.require_admin_permission(caller_user_id, AdminPermission::ManageUsers)
+            .await?;
         OrchestratorContext::user_usage(self, user_id, limit).await
     }
 
-    async fn token_summary(&self, user_id: i64) -> Result<serde_json::Value, AppError> {
+    async fn token_summary(
+        &self,
+        caller_user_id: i64,
+        user_id: i64,
+    ) -> Result<serde_json::Value, AppError> {
+        self.require_admin_permission(caller_user_id, AdminPermission::ManageUsers)
+            .await?;
         OrchestratorContext::token_summary(self, user_id).await
     }
 
     async fn usage_trends(
         &self,
+        caller_user_id: i64,
         input: UsageTrendsInput,
     ) -> Result<Vec<DailyUsagePoint>, AppError> {
+        self.require_admin_permission(caller_user_id, AdminPermission::ManageUsers)
+            .await?;
         OrchestratorContext::admin_usage_trends(self, input).await
     }
 
-    async fn overview(&self) -> Result<AdminOverviewSummary, AppError> {
+    async fn overview(&self, caller_user_id: i64) -> Result<AdminOverviewSummary, AppError> {
+        self.require_admin_permission(caller_user_id, AdminPermission::ManageSettings)
+            .await?;
         OrchestratorContext::admin_overview(self).await
     }
 
-    async fn all_project_summaries(&self) -> Result<Vec<AdminProjectSummary>, AppError> {
+    async fn all_project_summaries(
+        &self,
+        caller_user_id: i64,
+    ) -> Result<Vec<AdminProjectSummary>, AppError> {
+        self.require_admin_permission(caller_user_id, AdminPermission::ManageUsers)
+            .await?;
         OrchestratorContext::all_project_summaries(self).await
     }
 
-    async fn pending_tasks(&self) -> Result<Vec<TaskQueueSummary>, AppError> {
+    async fn pending_tasks(&self, caller_user_id: i64) -> Result<Vec<TaskQueueSummary>, AppError> {
+        self.require_admin_permission(caller_user_id, AdminPermission::ManageSettings)
+            .await?;
         OrchestratorContext::pending_tasks(self).await
     }
 
     async fn generation_call_analytics(
         &self,
+        caller_user_id: i64,
         input: GenerationCallAnalyticsInput,
     ) -> Result<GenerationCallAnalytics, AppError> {
+        self.require_admin_permission(caller_user_id, AdminPermission::ManageSettings)
+            .await?;
         OrchestratorContext::generation_call_analytics(self, input).await
     }
 
-    async fn check_database_health(&self) -> Result<(), AppError> {
+    async fn check_database_health(&self, caller_user_id: i64) -> Result<(), AppError> {
+        self.require_admin_permission(caller_user_id, AdminPermission::ManageSettings)
+            .await?;
         OrchestratorContext::check_database_health(self).await
     }
 
-    async fn list_users(&self) -> Result<Vec<a4n_api_contract::auth::UserSummary>, AppError> {
+    async fn list_users(
+        &self,
+        caller_user_id: i64,
+    ) -> Result<Vec<a4n_api_contract::auth::UserSummary>, AppError> {
+        self.require_admin_permission(caller_user_id, AdminPermission::ManageUsers)
+            .await?;
         OrchestratorContext::list_auth_users(self).await
     }
 
-    async fn list_invite_codes(&self) -> Result<Vec<InviteCodeSummary>, AppError> {
-        let codes = OrchestratorContext::list_invite_code_records(self).await?;
-        Ok(codes.iter().map(invite_code_summary).collect())
+    async fn list_invite_codes(
+        &self,
+        caller_user_id: i64,
+    ) -> Result<Vec<InviteCodeSummary>, AppError> {
+        self.require_admin_permission(caller_user_id, AdminPermission::ManageUsers)
+            .await?;
+        OrchestratorContext::list_invite_code_records(self).await
     }
 }
 
@@ -210,8 +246,11 @@ impl a4n_api_contract::admin::AdminReadApplicationPort for OrchestratorContext {
 impl a4n_api_contract::admin::AdminMutationApplicationPort for OrchestratorContext {
     async fn create_user(
         &self,
+        caller_user_id: i64,
         input: a4n_api_contract::admin::CreateUserInput,
     ) -> Result<a4n_api_contract::auth::UserSummary, AppError> {
+        self.require_admin_permission(caller_user_id, AdminPermission::ManageUsers)
+            .await?;
         let user = OrchestratorContext::create_auth_user(
             self,
             &input.username,
@@ -220,7 +259,7 @@ impl a4n_api_contract::admin::AdminMutationApplicationPort for OrchestratorConte
             &input.role,
         )
         .await?;
-        Ok(super::auth::auth_user_summary(&user))
+        Ok(user)
     }
 
     async fn create_invite_code(
@@ -228,30 +267,24 @@ impl a4n_api_contract::admin::AdminMutationApplicationPort for OrchestratorConte
         caller_user_id: i64,
         input: a4n_api_contract::admin::CreateInviteCodeInput,
     ) -> Result<InviteCodeSummary, AppError> {
+        self.require_admin_permission(caller_user_id, AdminPermission::ManageUsers)
+            .await?;
         let code =
             OrchestratorContext::create_invite_code_record(self, &input.code, Some(caller_user_id))
                 .await?;
-        Ok(invite_code_summary(&code))
+        Ok(code)
     }
 
     async fn update_user_role(
         &self,
+        caller_user_id: i64,
         user_id: i64,
         input: a4n_api_contract::admin::UpdateUserRoleInput,
     ) -> Result<a4n_api_contract::auth::UserSummary, AppError> {
+        self.require_admin_permission(caller_user_id, AdminPermission::ManageUsers)
+            .await?;
         let user = OrchestratorContext::update_auth_user_role(self, user_id, &input.role).await?;
-        Ok(super::auth::auth_user_summary(&user))
-    }
-}
-
-fn invite_code_summary(code: &invite_code::Model) -> InviteCodeSummary {
-    InviteCodeSummary {
-        id: code.id,
-        code: code.code.clone(),
-        created_by_user_id: code.created_by_user_id,
-        used_by_user_id: code.used_by_user_id,
-        created_at: Some(code.created_at.and_utc().to_rfc3339()),
-        used_at: code.used_at.map(|value| value.and_utc().to_rfc3339()),
+        Ok(user)
     }
 }
 

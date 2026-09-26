@@ -3,6 +3,7 @@ mod foundation;
 mod lifecycle;
 mod remaining;
 mod state;
+mod supervision;
 
 use configuration::load;
 use foundation::start as start_foundation;
@@ -18,8 +19,8 @@ pub(crate) fn run() -> anyhow::Result<()> {
         configure_onnxruntime_environment()?;
     }
     let config = load()?;
-    let foundation = start_foundation(&config)?;
-    let runtime = start_remaining(config, foundation)?;
+    let workers = start_foundation(&config)?;
+    let runtime = start_remaining(config, workers)?;
     run_lifecycle(runtime)
 }
 

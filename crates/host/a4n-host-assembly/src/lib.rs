@@ -5,6 +5,7 @@
 
 #[cfg(test)]
 mod media_lifecycle_tests;
+mod task_queue;
 
 use std::collections::HashSet;
 use std::sync::Arc;
@@ -12,6 +13,7 @@ use std::sync::Arc;
 use a4n_error::AppError;
 use a4n_orchestrator::OrchestratorContext;
 use a4n_runtime::{AppState, ApplicationPorts, RuntimeBootstrap, RuntimeProfile, RuntimeRole};
+use a4n_task_runtime::persistent::PersistentTaskQueue;
 
 pub async fn initialize_runtime(
     config: a4n_config::app_config::AppConfig,
@@ -29,6 +31,9 @@ async fn initialize_runtime_with_ports(
     configure_ports: impl FnOnce(&mut ApplicationPorts),
 ) -> Result<AppState, AppError> {
     let bootstrap = RuntimeBootstrap::prepare(config, runtime_profile, runtime_role).await?;
+    let task_queue = Arc::new(PersistentTaskQueue::new(bootstrap.database()).await?);
+    let task_queue_application =
+        Arc::new(task_queue::TaskQueueApplication::new(task_queue.clone()));
     let novel_planning_worker =
         Arc::new(a4n_novel_planning_worker_client::NovelPlanningWorkerClient::from_env());
     let mut provider_runtime = None;
@@ -40,7 +45,7 @@ async fn initialize_runtime_with_ports(
         bootstrap.event_bus(),
         bootstrap.task_manager(),
         bootstrap.rag_store(),
-        bootstrap.task_queue(),
+        task_queue,
         bootstrap.prompt_engine(),
         bootstrap.document_export_renderer()?,
         novel_planning_worker.clone(),
@@ -50,6 +55,7 @@ async fn initialize_runtime_with_ports(
             Ok((llm, embedding))
         },
     )?);
+    let auth_application = Arc::new(orchestrator.auth_application());
     let agent_resource_access_application = orchestrator.agent_resource_access_application();
     let agent_worker_application = orchestrator.agent_worker_application();
 
@@ -65,6 +71,8 @@ async fn initialize_runtime_with_ports(
     let outline_worker = Arc::new(a4n_outline_worker_client::OutlineWorkerClient::from_env());
     let asset_graph_worker =
         Arc::new(a4n_asset_graph_worker_client::AssetGraphWorkerClient::from_env());
+    let canvas_record_worker =
+        Arc::new(a4n_canvas_record_worker_client::CanvasRecordWorkerClient::from_env());
     let foreshadowing_worker =
         Arc::new(a4n_foreshadowing_worker_client::ForeshadowingWorkerClient::from_env());
     let object_profile_worker =
@@ -89,6 +97,7 @@ async fn initialize_runtime_with_ports(
     let project_collaboration_worker = Arc::new(
         a4n_project_collaboration_worker_client::ProjectCollaborationWorkerClient::from_env(),
     );
+    let admin_worker = Arc::new(a4n_admin_worker_client::AdminWorkerClient::from_env());
     let project_mutation_worker =
         Arc::new(a4n_project_mutation_worker_client::ProjectMutationWorkerClient::from_env());
     let chapter_scene_worker =
@@ -106,6 +115,14 @@ async fn initialize_runtime_with_ports(
     });
     let workflow_read_worker =
         Arc::new(a4n_workflow_read_worker_client::WorkflowReadWorkerClient::from_env());
+    let workflow_lifecycle_worker =
+        Arc::new(a4n_workflow_lifecycle_worker_client::WorkflowLifecycleWorkerClient::from_env());
+    let workflow_cancellation_application: Arc<
+        dyn a4n_api_contract::workflow::WorkflowCancellationPort,
+    > = Arc::new(WorkflowCancellationAdapter {
+        lifecycle: workflow_lifecycle_worker,
+        side_effects: orchestrator.clone(),
+    });
     let config_read_worker =
         Arc::new(a4n_config_read_worker_client::ConfigReadWorkerClient::from_env());
     let character_mutation_worker =
@@ -172,11 +189,11 @@ async fn initialize_runtime_with_ports(
         shooting_script_record_mutation_application: novel_planning_worker.clone(),
         shooting_script_full_generation_application: orchestrator.clone(),
         shooting_script_next_unit_generation_application: orchestrator.clone(),
-        auth_read_application: orchestrator.clone(),
-        auth_mutation_application: orchestrator.clone(),
-        admin_read_application: orchestrator.clone(),
+        auth_read_application: auth_application.clone(),
+        auth_mutation_application: auth_application,
+        admin_read_application: admin_worker.clone(),
         model_usage_read_application: orchestrator.clone(),
-        admin_mutation_application: orchestrator.clone(),
+        admin_mutation_application: admin_worker,
         project_status_read_application: project_status_worker.clone(),
         project_status_mutation_application: project_status_worker,
         project_collaboration_application: project_collaboration_worker,
@@ -207,11 +224,16 @@ async fn initialize_runtime_with_ports(
         character_discovery_application: orchestrator.clone(),
         character_profile_sync_application: orchestrator.clone(),
         workflow_read_application: workflow_read_worker.clone(),
-        workflow_task_lookup_application: orchestrator.clone(),
+        workflow_task_lookup_application: workflow_read_worker.clone(),
         task_read_application: workflow_read_worker,
-        workflow_cancellation_application: orchestrator.clone(),
-        object_profile_read_application: object_profile_worker,
-        scene_profile_read_application: scene_profile_worker,
+        task_cancellation_application: task_queue_application.clone(),
+        task_queue_stats_application: task_queue_application,
+        workflow_cancellation_application,
+        object_profile_read_application: object_profile_worker.clone(),
+        object_profile_mutation_application: object_profile_worker,
+        scene_profile_read_application: scene_profile_worker.clone(),
+        scene_profile_mutation_application: scene_profile_worker.clone(),
+        scene_profile_record_sync_application: scene_profile_worker,
         character_profile_overview_read_application: character_mutation_worker.clone(),
         character_timeline_read_application: character_mutation_worker.clone(),
         character_profile_mutation_application: character_mutation_worker.clone(),
@@ -224,8 +246,8 @@ async fn initialize_runtime_with_ports(
         character_implicit_review_read_application: orchestrator.clone(),
         character_profile_deletion_application: character_mutation_worker,
         character_conflict_application: orchestrator.clone(),
-        foreshadowing_read_application: foreshadowing_worker,
-        foreshadowing_mutation_application: orchestrator.clone(),
+        foreshadowing_read_application: foreshadowing_worker.clone(),
+        foreshadowing_mutation_application: foreshadowing_worker,
         blueprint_read_application: blueprint_worker.clone(),
         blueprint_generation_preview_application: orchestrator.clone(),
         blueprint_refinement_preview_application: orchestrator.clone(),
@@ -269,8 +291,8 @@ async fn initialize_runtime_with_ports(
         agent_approval_application: agent_worker.clone(),
         agent_resource_access_application,
         agent_worker_application,
-        canvas_read_application: orchestrator.clone(),
-        canvas_mutation_application: orchestrator.clone(),
+        canvas_read_application: canvas_record_worker.clone(),
+        canvas_mutation_application: canvas_record_worker,
         canvas_render_text_application: orchestrator.clone(),
         canvas_llm_text_application: orchestrator.clone(),
         canvas_image_application: orchestrator.clone(),
@@ -398,6 +420,35 @@ struct ArtifactMediaImageReferenceAdapter {
     client: Arc<a4n_artifact_media_client::ArtifactMediaWorkerClient>,
 }
 
+struct WorkflowCancellationAdapter {
+    lifecycle: Arc<dyn a4n_api_contract::workflow::WorkflowLifecycleApplicationPort>,
+    side_effects: Arc<dyn a4n_api_contract::workflow::WorkflowCancellationSideEffectsPort>,
+}
+
+#[async_trait::async_trait]
+impl a4n_api_contract::workflow::WorkflowCancellationPort for WorkflowCancellationAdapter {
+    async fn mark_running(&self, workflow_run_id: i64) -> Result<(), AppError> {
+        self.lifecycle.mark_running(workflow_run_id).await
+    }
+
+    async fn cancel(&self, workflow_run_id: i64, reason: &str) -> Result<(), AppError> {
+        let cancellation = self.lifecycle.cancel(workflow_run_id, reason).await?;
+        self.side_effects
+            .apply_cancellation_side_effects(cancellation, reason)
+            .await
+    }
+
+    async fn resume_with_active_task(
+        &self,
+        workflow_run_id: i64,
+        active_task_id: &str,
+    ) -> Result<(), AppError> {
+        self.lifecycle
+            .resume_with_active_task(workflow_run_id, active_task_id)
+            .await
+    }
+}
+
 struct VideoRecordMutationAdapter {
     worker: Arc<a4n_video_record_worker_client::VideoRecordWorkerClient>,
     orchestrator: Arc<dyn a4n_api_contract::video::VideoRecordMutationApplicationPort>,
@@ -422,7 +473,7 @@ impl a4n_api_contract::video::VideoRecordMutationApplicationPort for VideoRecord
         video_id: i64,
         input: a4n_api_contract::video::SelectSegmentVideoInput,
     ) -> Result<a4n_api_contract::video::GeneratedVideoSummary, a4n_error::AppError> {
-        self.orchestrator
+        self.worker
             .select_segment(user_id, project_id, chapter_id, video_id, input)
             .await
     }

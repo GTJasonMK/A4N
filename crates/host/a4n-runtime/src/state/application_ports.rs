@@ -144,6 +144,11 @@ pub struct ApplicationPorts {
     /// Host-facing task history read boundary. Task access checks remain in
     /// Runtime; persistence and summary projection stay with the task owner.
     pub task_read_application: Arc<dyn a4n_api_contract::task::TaskReadApplicationPort>,
+    /// Queue cancellation and scheduler statistics are supplied by the Host
+    /// composition root, which owns the persistent queue adapter.
+    pub task_cancellation_application: Arc<dyn a4n_api_contract::task::TaskCancellationPort>,
+    pub task_queue_stats_application:
+        Arc<dyn a4n_api_contract::task::TaskQueueStatsApplicationPort>,
     /// Workflow cancellation remains owned by Orchestrator; workers receive
     /// only the narrow side-effecting operation.
     pub workflow_cancellation_application:
@@ -151,9 +156,15 @@ pub struct ApplicationPorts {
     /// Host-facing object profile read boundary.
     pub object_profile_read_application:
         Arc<dyn a4n_api_contract::profile::ObjectProfileReadApplicationPort>,
+    pub object_profile_mutation_application:
+        Arc<dyn a4n_api_contract::profile::ObjectProfileMutationApplicationPort>,
     /// Host-facing scene profile read boundary.
     pub scene_profile_read_application:
         Arc<dyn a4n_api_contract::profile::SceneProfileReadApplicationPort>,
+    pub scene_profile_mutation_application:
+        Arc<dyn a4n_api_contract::profile::SceneProfileMutationApplicationPort>,
+    pub scene_profile_record_sync_application:
+        Arc<dyn a4n_api_contract::profile::SceneProfileRecordSyncApplicationPort>,
     /// Narrow character overview reads are independently replaceable from
     /// timeline/history projections.
     pub character_profile_overview_read_application:

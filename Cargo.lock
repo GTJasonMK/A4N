@@ -3,6 +3,54 @@
 version = 4
 
 [[package]]
+name = "a4n-admin-worker"
+version = "0.1.0"
+dependencies = [
+ "a4n-admin-worker-contract",
+ "a4n-api-contract",
+ "a4n-config",
+ "a4n-db",
+ "a4n-db-models",
+ "a4n-error",
+ "a4n-worker-client",
+ "a4n-worker-contract",
+ "anyhow",
+ "axum 0.8.9",
+ "chrono",
+ "sea-orm",
+ "serde",
+ "serde_json",
+ "subtle",
+ "tokio",
+ "tracing-subscriber",
+]
+
+[[package]]
+name = "a4n-admin-worker-client"
+version = "0.1.0"
+dependencies = [
+ "a4n-admin-worker-contract",
+ "a4n-api-contract",
+ "a4n-error",
+ "a4n-worker-client",
+ "a4n-worker-contract",
+ "async-trait",
+ "serde",
+ "serde_json",
+ "uuid",
+]
+
+[[package]]
+name = "a4n-admin-worker-contract"
+version = "0.1.0"
+dependencies = [
+ "a4n-api-contract",
+ "a4n-worker-contract",
+ "schemars 1.2.1",
+ "serde",
+]
+
+[[package]]
 name = "a4n-agent-application"
 version = "0.1.0"
 dependencies = [
@@ -232,6 +280,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "a4n-auth-application"
+version = "0.1.0"
+dependencies = [
+ "a4n-api-contract",
+ "a4n-db",
+ "a4n-db-models",
+ "a4n-domain",
+ "a4n-error",
+ "async-trait",
+ "serde_json",
+]
+
+[[package]]
 name = "a4n-blueprint-contract"
 version = "0.1.0"
 dependencies = [
@@ -313,6 +374,54 @@ dependencies = [
  "a4n-video-sidecar-contract",
  "async-trait",
  "serde_json",
+]
+
+[[package]]
+name = "a4n-canvas-record-worker"
+version = "0.1.0"
+dependencies = [
+ "a4n-api-contract",
+ "a4n-canvas-record-worker-contract",
+ "a4n-config",
+ "a4n-db",
+ "a4n-db-models",
+ "a4n-domain",
+ "a4n-error",
+ "a4n-worker-client",
+ "a4n-worker-contract",
+ "anyhow",
+ "axum 0.8.9",
+ "chrono",
+ "sea-orm",
+ "serde",
+ "serde_json",
+ "subtle",
+ "tokio",
+ "tracing-subscriber",
+]
+
+[[package]]
+name = "a4n-canvas-record-worker-client"
+version = "0.1.0"
+dependencies = [
+ "a4n-api-contract",
+ "a4n-canvas-record-worker-contract",
+ "a4n-error",
+ "a4n-worker-client",
+ "a4n-worker-contract",
+ "anyhow",
+ "async-trait",
+ "serde",
+ "uuid",
+]
+
+[[package]]
+name = "a4n-canvas-record-worker-contract"
+version = "0.1.0"
+dependencies = [
+ "a4n-api-contract",
+ "a4n-worker-contract",
+ "serde",
 ]
 
 [[package]]
@@ -957,8 +1066,10 @@ dependencies = [
  "a4n-foreshadowing-worker-contract",
  "a4n-worker-client",
  "a4n-worker-contract",
+ "anyhow",
  "async-trait",
  "serde",
+ "tracing",
  "uuid",
 ]
 
@@ -1005,12 +1116,14 @@ dependencies = [
 name = "a4n-host-assembly"
 version = "0.1.0"
 dependencies = [
+ "a4n-admin-worker-client",
  "a4n-agent-worker-client",
  "a4n-api-contract",
  "a4n-artifact-media-client",
  "a4n-artifact-media-contract",
  "a4n-asset-graph-worker-client",
  "a4n-blueprint-worker-client",
+ "a4n-canvas-record-worker-client",
  "a4n-chapter-content-worker-client",
  "a4n-chapter-scene-worker-client",
  "a4n-character-mutation-worker-client",
@@ -1042,13 +1155,16 @@ dependencies = [
  "a4n-project-mutation-worker-client",
  "a4n-project-read-worker-client",
  "a4n-project-status-worker-client",
+ "a4n-queue",
  "a4n-runtime",
  "a4n-scene-profile-worker-client",
  "a4n-source-snapshot-worker-client",
+ "a4n-task-runtime",
  "a4n-theme-read-worker",
  "a4n-theme-read-worker-client",
  "a4n-theme-read-worker-contract",
  "a4n-video-record-worker-client",
+ "a4n-workflow-lifecycle-worker-client",
  "a4n-workflow-read-worker-client",
  "async-trait",
  "axum 0.8.9",
@@ -1727,6 +1843,7 @@ dependencies = [
  "a4n-agent-runtime-contract",
  "a4n-api-contract",
  "a4n-archive-core",
+ "a4n-auth-application",
  "a4n-blueprint-contract",
  "a4n-canvas-contract",
  "a4n-canvas-host-contract",
@@ -2479,7 +2596,6 @@ dependencies = [
  "a4n-model-discovery",
  "a4n-model-discovery-contract",
  "a4n-novel-host-contract",
- "a4n-object-profile-worker-client",
  "a4n-optimize-host-contract",
  "a4n-outline-contract",
  "a4n-portrait-host-contract",
@@ -2496,7 +2612,6 @@ dependencies = [
  "a4n-rag-index",
  "a4n-rag-sidecar-contract",
  "a4n-scene-host-contract",
- "a4n-scene-profile-worker-client",
  "a4n-service-client",
  "a4n-service-manager",
  "a4n-service-protocol",
@@ -2539,6 +2654,7 @@ name = "a4n-scene-host-contract"
 version = "0.1.0"
 dependencies = [
  "a4n-api-contract",
+ "a4n-domain",
  "a4n-error",
  "a4n-prompt-contract",
  "async-trait",
@@ -2585,6 +2701,7 @@ name = "a4n-scene-profile-worker-contract"
 version = "0.1.0"
 dependencies = [
  "a4n-api-contract",
+ "a4n-domain",
  "a4n-worker-contract",
  "serde",
 ]
@@ -2593,11 +2710,13 @@ dependencies = [
 name = "a4n-server"
 version = "0.1.0"
 dependencies = [
+ "a4n-admin-worker",
  "a4n-agent-worker",
  "a4n-api-contract",
  "a4n-artifact-media-worker",
  "a4n-asset-graph-worker",
  "a4n-blueprint-worker",
+ "a4n-canvas-record-worker",
  "a4n-chapter-content-worker",
  "a4n-chapter-scene-worker",
  "a4n-character-mutation-worker",
@@ -2630,6 +2749,7 @@ dependencies = [
  "a4n-video-record-worker",
  "a4n-worker-client",
  "a4n-worker-contract",
+ "a4n-workflow-lifecycle-worker",
  "a4n-workflow-read-worker",
  "anyhow",
  "axum 0.8.9",
@@ -2794,11 +2914,13 @@ dependencies = [
  "a4n-host-assembly",
  "a4n-media",
  "a4n-migration",
+ "a4n-process-catalog",
  "a4n-runtime",
  "a4n-service-protocol",
  "a4n-storage",
  "a4n-task-runtime",
  "a4n-test-support",
+ "a4n-worker-client",
  "axum 0.8.9",
  "base64 0.22.1",
  "parking_lot",
@@ -2816,6 +2938,7 @@ dependencies = [
  "tracing",
  "tracing-appender",
  "tracing-subscriber",
+ "uuid",
 ]
 
 [[package]]
@@ -2923,8 +3046,6 @@ dependencies = [
 name = "a4n-video"
 version = "0.1.0"
 dependencies = [
- "a4n-api-contract",
- "a4n-db-models",
  "a4n-domain",
  "a4n-video-provider-contract",
  "a4n-video-sidecar-contract",
@@ -3011,6 +3132,7 @@ dependencies = [
  "a4n-db-models",
  "a4n-domain",
  "a4n-error",
+ "a4n-migration",
  "a4n-video",
  "a4n-video-contract",
  "a4n-video-record-worker-contract",
@@ -3019,6 +3141,7 @@ dependencies = [
  "a4n-workflow-core",
  "anyhow",
  "axum 0.8.9",
+ "chrono",
  "sea-orm",
  "serde",
  "serde_json",
@@ -3120,6 +3243,49 @@ dependencies = [
 ]
 
 [[package]]
+name = "a4n-workflow-lifecycle-worker"
+version = "0.1.0"
+dependencies = [
+ "a4n-api-contract",
+ "a4n-config",
+ "a4n-db",
+ "a4n-worker-client",
+ "a4n-worker-contract",
+ "a4n-workflow-lifecycle-worker-contract",
+ "anyhow",
+ "axum 0.8.9",
+ "sea-orm",
+ "serde",
+ "subtle",
+ "tokio",
+ "tracing-subscriber",
+]
+
+[[package]]
+name = "a4n-workflow-lifecycle-worker-client"
+version = "0.1.0"
+dependencies = [
+ "a4n-api-contract",
+ "a4n-error",
+ "a4n-worker-client",
+ "a4n-worker-contract",
+ "a4n-workflow-lifecycle-worker-contract",
+ "async-trait",
+ "serde",
+ "uuid",
+]
+
+[[package]]
+name = "a4n-workflow-lifecycle-worker-contract"
+version = "0.1.0"
+dependencies = [
+ "a4n-api-contract",
+ "a4n-worker-contract",
+ "schemars 1.2.1",
+ "serde",
+]
+
+[[package]]
 name = "a4n-workflow-read-worker"
 version = "0.1.0"
 dependencies = [
@@ -3129,6 +3295,7 @@ dependencies = [
  "a4n-db-models",
  "a4n-domain",
  "a4n-error",
+ "a4n-progress",
  "a4n-queue",
  "a4n-worker-client",
  "a4n-worker-contract",
@@ -3136,6 +3303,7 @@ dependencies = [
  "a4n-workflow-read-worker-contract",
  "anyhow",
  "axum 0.8.9",
+ "chrono",
  "sea-orm",
  "serde",
  "subtle",
@@ -3163,6 +3331,8 @@ version = "0.1.0"
 dependencies = [
  "a4n-api-contract",
  "a4n-worker-contract",
+ "schemars 1.2.1",
+ "serde",
 ]
 
 [[package]]

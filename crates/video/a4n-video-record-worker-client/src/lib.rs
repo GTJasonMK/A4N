@@ -2,8 +2,8 @@
 
 use a4n_api_contract::image::GeneratedImageSummary;
 use a4n_api_contract::video::{
-    ChapterVideoPromptSummary, GeneratedVideoSummary, UpdateGeneratedVideoInput,
-    VideoPromptReadApplicationPort, VideoRecordReadApplicationPort,
+    ChapterVideoPromptSummary, GeneratedVideoSummary, SelectSegmentVideoInput,
+    UpdateGeneratedVideoInput, VideoPromptReadApplicationPort, VideoRecordReadApplicationPort,
 };
 use a4n_error::AppError;
 use a4n_video_record_worker_contract::{
@@ -12,8 +12,8 @@ use a4n_video_record_worker_contract::{
     VIDEO_PROMPT_DRAFT_UPDATE_OPERATION, VIDEO_PROMPT_LIST_OPERATION,
     VIDEO_PROMPT_VALIDATE_SOURCE_OPERATION, VIDEO_RECORD_LIST_OPERATION,
     VIDEO_RECORD_PLAYBACK_OPERATION, VIDEO_RECORD_REFERENCE_IMAGES_OPERATION,
-    VIDEO_RECORD_UPDATE_OPERATION, VIDEO_RECORD_WORKER_ID, VideoIdInput, VideoSourceInput,
-    VideoUpdateInput,
+    VIDEO_RECORD_SELECT_SEGMENT_OPERATION, VIDEO_RECORD_UPDATE_OPERATION, VIDEO_RECORD_WORKER_ID,
+    VideoIdInput, VideoSegmentSelectionInput, VideoSourceInput, VideoUpdateInput,
 };
 use a4n_worker_client::{HttpWorkerClient, WorkerClientError};
 use a4n_worker_contract::{
@@ -163,6 +163,28 @@ impl VideoRecordWorkerClient {
         .await
     }
 
+    pub async fn select_segment(
+        &self,
+        user_id: i64,
+        project_id: i64,
+        chapter_id: i64,
+        video_id: i64,
+        input: SelectSegmentVideoInput,
+    ) -> Result<GeneratedVideoSummary, AppError> {
+        self.command(
+            user_id,
+            Some(project_id),
+            VIDEO_RECORD_SELECT_SEGMENT_OPERATION,
+            VideoSegmentSelectionInput {
+                project_id,
+                chapter_id,
+                video_id,
+                input,
+            },
+        )
+        .await
+    }
+
     pub async fn load_video_segment_plan_draft(
         &self,
         user_id: i64,
@@ -290,7 +312,16 @@ impl VideoPromptReadApplicationPort for VideoRecordWorkerClient {
 }
 
 fn worker_client_error(error: WorkerClientError) -> AppError {
-    AppError::ConfigError(format!("video record worker 请求失败: {error}"))
+    match error {
+        WorkerClientError::Timeout => AppError::Timeout("video record worker 请求超时".into()),
+        WorkerClientError::Transport(error) => {
+            AppError::Timeout(format!("video record worker 请求失败: {error}"))
+        }
+        WorkerClientError::HttpStatus { status } if status >= 500 => {
+            AppError::Timeout(format!("video record worker 返回 HTTP {status}"))
+        }
+        error => AppError::ConfigError(format!("video record worker 请求失败: {error}")),
+    }
 }
 
 fn worker_response_error(error: &WorkerError, operation: &str) -> AppError {
@@ -298,10 +329,17 @@ fn worker_response_error(error: &WorkerError, operation: &str) -> AppError {
         WorkerErrorCode::InvalidRequest => AppError::InvalidArgument(error.message.clone()),
         WorkerErrorCode::Unauthorized => AppError::Forbidden(error.message.clone()),
         WorkerErrorCode::NotFound => AppError::NotFound(error.message.clone()),
-        WorkerErrorCode::Conflict => AppError::InvalidState {
+        WorkerErrorCode::Conflict | WorkerErrorCode::VersionMismatch => AppError::InvalidState {
             current: error.message.clone(),
             operation: operation.into(),
         },
+        WorkerErrorCode::Unavailable | WorkerErrorCode::Timeout if error.retryable => {
+            AppError::Timeout(format!(
+                "video record worker {operation} 失败: {}",
+                error.message
+            ))
+        }
+        WorkerErrorCode::Cancelled => AppError::Cancelled,
         _ => AppError::ConfigError(format!(
             "video record worker {operation} 失败: {}",
             error.message
@@ -322,5 +360,28 @@ mod tests {
         let debug = format!("{client:?}");
         assert!(!debug.contains("video-record-worker.example.test"));
         assert!(!debug.contains("video-record-token"));
+    }
+
+    #[test]
+    fn retryable_worker_failures_remain_retryable() {
+        assert!(matches!(
+            worker_client_error(WorkerClientError::Timeout),
+            AppError::Timeout(_)
+        ));
+        assert!(matches!(
+            worker_client_error(WorkerClientError::HttpStatus { status: 503 }),
+            AppError::Timeout(_)
+        ));
+        assert!(matches!(
+            worker_response_error(
+                &WorkerError {
+                    code: WorkerErrorCode::Unavailable,
+                    message: "database unavailable".into(),
+                    retryable: true,
+                },
+                VIDEO_RECORD_LIST_OPERATION,
+            ),
+            AppError::Timeout(_)
+        ));
     }
 }

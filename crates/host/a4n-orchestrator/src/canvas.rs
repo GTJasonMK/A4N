@@ -19,7 +19,6 @@ mod probe_nodes;
 mod source_checkpoint;
 mod source_text;
 mod text_generation;
-mod tools;
 mod video_generation;
 mod workflow_rules;
 

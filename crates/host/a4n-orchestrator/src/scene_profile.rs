@@ -61,6 +61,7 @@ impl SceneProfileSyncApplicationPort for OrchestratorContext {
         )
         .await?;
         self.sync_scene_profiles_validated(
+            user_id,
             input.project_id,
             input.chapter_number,
             prompt_renderer,
@@ -87,8 +88,13 @@ impl SceneProfileSyncApplicationPort for OrchestratorContext {
             a4n_domain::collaboration::ProjectAccessRole::Editor,
         )
         .await?;
-        self.resume_scene_profile_sync_workflow_run_validated(&run, prompt_renderer, host_port)
-            .await
+        self.resume_scene_profile_sync_workflow_run_validated(
+            user_id,
+            &run,
+            prompt_renderer,
+            host_port,
+        )
+        .await
     }
 }
 

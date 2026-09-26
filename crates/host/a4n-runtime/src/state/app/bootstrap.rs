@@ -10,10 +10,8 @@ pub struct RuntimeBootstrap {
     service_manager: Arc<a4n_service_manager::ServiceManager>,
     event_bus: Arc<BroadcastEventBus>,
     task_manager: Arc<a4n_task_runtime::channel::TaskManager>,
-    task_queue: Arc<PersistentTaskQueue>,
     prompt_engine: Arc<a4n_prompt::tera_engine::TeraPromptEngine>,
     rag_store: Arc<dyn a4n_rag_core::vector_store::VectorStore>,
-    snapshot_store: Arc<Sha256SnapshotStore>,
     generation_owner_lock: Option<Arc<sea_orm::DatabaseConnection>>,
     data_dir_lock: Option<Arc<File>>,
 }
@@ -57,7 +55,6 @@ impl RuntimeBootstrap {
                 .map_err(a4n_error::AppError::ConfigError)?;
         let event_bus = Arc::new(BroadcastEventBus::new(config.system.event_bus_capacity));
         let task_manager = Arc::new(a4n_task_runtime::channel::TaskManager::new());
-        let task_queue = Arc::new(PersistentTaskQueue::new(db.clone()).await?);
         let (prompt_engine_result, rag_store_result) = futures::join!(
             async { create_prompt_engine(&config) },
             create_rag_store(runtime_profile, capabilities.rag.clone()),
@@ -72,17 +69,15 @@ impl RuntimeBootstrap {
             service_manager,
             event_bus,
             task_manager,
-            task_queue,
             prompt_engine: Arc::new(prompt_engine_result?),
             rag_store: rag_store_result?,
-            snapshot_store: Arc::new(Sha256SnapshotStore::new(db)),
             generation_owner_lock,
             data_dir_lock,
         })
     }
 
-    pub fn database(&self) -> a4n_db::DbHandle {
-        a4n_db::DbHandle::new(self.db.clone())
+    pub fn database(&self) -> Arc<sea_orm::DatabaseConnection> {
+        self.db.clone()
     }
 
     pub fn config(&self) -> &AppConfig {
@@ -109,16 +104,8 @@ impl RuntimeBootstrap {
         self.rag_store.clone()
     }
 
-    pub fn task_queue(&self) -> Arc<PersistentTaskQueue> {
-        self.task_queue.clone()
-    }
-
     pub fn prompt_engine(&self) -> Arc<a4n_prompt::tera_engine::TeraPromptEngine> {
         self.prompt_engine.clone()
-    }
-
-    pub fn snapshot_store(&self) -> Arc<Sha256SnapshotStore> {
-        self.snapshot_store.clone()
     }
 
     pub fn document_export_renderer(
@@ -174,7 +161,6 @@ impl RuntimeBootstrap {
             service_manager,
             event_bus,
             task_manager,
-            task_queue,
             generation_owner_lock,
             data_dir_lock,
             ..
@@ -198,9 +184,6 @@ impl RuntimeBootstrap {
             .await?;
         }
 
-        let task_queue_application = Arc::new(crate::task_queue::TaskQueueApplication::new(
-            task_queue.clone(),
-        ));
         let managed_sidecars = Arc::new(tokio::sync::Mutex::new(Vec::new()));
         let state = AppState {
             config,
@@ -208,8 +191,6 @@ impl RuntimeBootstrap {
             service_health_application: Arc::new(
                 crate::service_health::ServiceHealthApplication::new(service_manager.clone()),
             ),
-            task_cancellation_application: task_queue_application.clone(),
-            task_queue_stats_application: task_queue_application,
             application_ports,
             capabilities,
             event_bus,

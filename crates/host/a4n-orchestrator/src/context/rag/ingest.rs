@@ -365,6 +365,35 @@ impl RagIngestPort for OrchestratorContext {
             .map_err(AppError::VectorStoreError)
     }
 
+    async fn sync_foreshadowing_record(
+        &self,
+        project_id: i64,
+        foreshadowing_id: i64,
+    ) -> Result<(), AppError> {
+        let record = self
+            .foreshadowing_items_by_ids(project_id, &[foreshadowing_id])
+            .await?
+            .into_iter()
+            .next()
+            .ok_or_else(|| {
+                AppError::NotFound(format!("项目 {project_id} 不存在伏笔 {foreshadowing_id}"))
+            })?;
+        self.sync_foreshadowing_rag(project_id, &record)
+            .await
+            .map_err(AppError::VectorStoreError)
+    }
+
+    async fn delete_foreshadowing_rag_record(
+        &self,
+        project_id: i64,
+        foreshadowing_id: i64,
+    ) -> Result<(), AppError> {
+        self.delete_foreshadowing_rag_by_ids(project_id, &[foreshadowing_id])
+            .await
+            .map(|_| ())
+            .map_err(map_sync_error)
+    }
+
     async fn sync_chapter_records(
         &self,
         project_id: i64,

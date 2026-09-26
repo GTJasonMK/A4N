@@ -6,12 +6,13 @@ use a4n_db_models::models::{
 };
 use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QuerySelect};
 
+use super::super::SceneProfileDbResult;
 use super::super::persistence::{
     delete_chapter_scene_records, ensure_chapter_in, insert_scene_entity_state_records,
     insert_scene_occurrence_records, insert_scene_transition_records,
     refresh_scene_profiles_after_occurrence_change, upsert_scene_profile_records,
 };
-use super::super::{SceneProfileDbResult, SceneSyncRecordInput, SceneSyncRecordResult};
+use a4n_domain::scene_profile::{SceneSyncRecordInput, SceneSyncRecordResult};
 
 pub async fn replace_chapter_scene_sync_records<C>(
     db: &C,

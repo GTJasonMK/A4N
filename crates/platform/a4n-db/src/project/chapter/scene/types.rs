@@ -32,13 +32,6 @@ impl ProjectChapterSceneRecordError {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ProjectGeneratedChapterSceneSaveInput {
-    pub chapter_id: i64,
-    pub scene_number: i32,
-    pub content: String,
-}
-
 #[derive(Debug, thiserror::Error)]
 pub enum ProjectChapterSceneWriteError {
     #[error("{0}")]

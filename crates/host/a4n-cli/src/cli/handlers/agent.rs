@@ -716,6 +716,7 @@ async fn run_agent_child(
             let input = ControlChildAgentInput {
                 delegation_id: delegation_id.clone(),
                 action: action.into(),
+                budget: None,
             };
             let value = client
                 .send_json(JsonRequest {

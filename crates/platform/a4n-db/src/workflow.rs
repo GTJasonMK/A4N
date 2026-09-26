@@ -80,7 +80,7 @@ mod tasks;
 pub(crate) use tasks::task_info_from_row;
 #[cfg(test)]
 pub(in crate::workflow) use tasks::{
-    WorkflowCheckpointVideoRefs, generated_video_ids_for_active_checkpoints,
+    WorkflowCheckpointVideoRefs, generated_video_ids_for_cancellation_checkpoints,
     persisted_task_info_from_row,
 };
 pub use tasks::{

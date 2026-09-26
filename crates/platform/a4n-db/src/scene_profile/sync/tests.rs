@@ -1,9 +1,10 @@
 use serde_json::json;
 
-use super::super::{SceneProfileDbError, SceneSyncRecordResult};
+use super::super::SceneProfileDbError;
 use super::rules::{
     scene_sync_generation_response_summary, validate_scene_sync_generation_run_scope,
 };
+use a4n_domain::scene_profile::SceneSyncRecordResult;
 
 fn result() -> SceneSyncRecordResult {
     SceneSyncRecordResult {

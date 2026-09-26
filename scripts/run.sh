@@ -446,10 +446,18 @@ preflight_runtime_dependencies
 
 build_local_server_targets() {
   local -a build_command=("$PROJECT_ROOT/scripts/cargo.sh" build)
-  local sidecar_package_lines package
+  local sidecar_package_lines worker_package_lines package
   local -a sidecar_packages=()
+  local -a worker_packages=()
   $RELEASE && build_command+=(--release)
-  build_command+=(-p a4n-migration -p a4n-control -p a4n-agent-worker -p a4n-novel-planning-worker -p a4n-artifact-media-worker -p a4n-outline-worker -p a4n-blueprint-worker -p a4n-asset-graph-worker -p a4n-foreshadowing-worker -p a4n-object-profile-worker -p a4n-scene-profile-worker -p a4n-profile-material-worker -p a4n-project-status-worker -p a4n-theme-read-worker -p a4n-project-read-worker -p a4n-import-review-worker -p a4n-inspiration-worker -p a4n-project-access-worker -p a4n-project-collaboration-worker -p a4n-project-mutation-worker -p a4n-chapter-scene-worker -p a4n-chapter-content-worker -p a4n-workflow-read-worker -p a4n-config-read-worker -p a4n-character-mutation-worker -p a4n-video-record-worker -p a4n-manga-record-worker -p a4n-portrait-worker -p a4n-source-snapshot-worker -p a4n-edge -p a4n-server)
+  build_command+=(-p a4n-migration -p a4n-control -p a4n-edge -p a4n-server)
+  worker_package_lines="$(stateful_worker_packages)" \
+    || die "读取 stateful worker catalog 失败"
+  mapfile -t worker_packages <<<"$worker_package_lines"
+  ((${#worker_packages[@]} > 0)) || die "stateful worker catalog 为空"
+  for package in "${worker_packages[@]}"; do
+    build_command+=(-p "$package")
+  done
   $SERVER && build_command+=(-p a4n-cli)
   if $MANAGED_SIDECARS && ! $FULL_HOST; then
     sidecar_package_lines="$(sidecar_catalog_binaries)"
@@ -459,6 +467,25 @@ build_local_server_targets() {
     done
   fi
   $FULL_HOST && build_command+=(--features a4n-server/embedded-capabilities)
+  "${build_command[@]}"
+}
+
+build_native_worker_targets() {
+  local directory package_count=0
+  local -a package_dirs=(
+    crates/admin/a4n-admin-worker
+    crates/canvas/a4n-canvas-record-worker
+    crates/workflow/a4n-workflow-lifecycle-worker
+  )
+  for directory in "${package_dirs[@]}"; do
+    [[ -f "$PROJECT_ROOT/$directory/Cargo.toml" ]] && package_count=$((package_count + 1))
+  done
+  ((package_count == 0)) && return 0
+  ((package_count == ${#package_dirs[@]})) || die "Native worker packages are incomplete"
+
+  local -a build_command=("$PROJECT_ROOT/scripts/cargo.sh" build)
+  $RELEASE && build_command+=(--release)
+  build_command+=(-p a4n-admin-worker -p a4n-canvas-record-worker -p a4n-workflow-lifecycle-worker)
   "${build_command[@]}"
 }
 
@@ -483,6 +510,8 @@ stop_runtime_worker_watcher() {
 
 if [[ "$MODE" == "local-server" && "$REMOTE_API" == false ]]; then
   build_local_server_targets
+elif [[ "$MODE" == "native" && "$REMOTE_API" == false ]]; then
+  build_native_worker_targets
 fi
 
 if $SERVER && ! $REMOTE_API; then

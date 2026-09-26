@@ -53,7 +53,7 @@ impl OrchestratorContext {
                     source,
                     author_user_id: user_id,
                     authoring_mode: ChapterVisualPlanAuthoringMode::Collaborative,
-                    expected: Some(a4n_db::chapter_visual_plan::ExpectedVisualPlanDraft {
+                    expected: Some(a4n_domain::chapter_visual_plan::ExpectedVisualPlanDraft {
                         record_id: input.record_id,
                         revision: input.expected_revision,
                     }),

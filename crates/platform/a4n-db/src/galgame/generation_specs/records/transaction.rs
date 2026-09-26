@@ -5,12 +5,12 @@ use super::upsert::{
     updated_galgame_generation_spec_model,
 };
 use crate::galgame::{
-    GalgameAssetPlanSpecRecordError, GalgameAssetPlanSpecRecordInput,
-    GalgameGenerationSpecEntityRefRecordInput, GalgameGenerationSpecRefsRecordInput,
-    GalgameGenerationSpecTextAnchorRefRecordInput, GalgameGenerationSpecUpsert,
-    GalgameGenerationSpecUpsertOutcome,
+    GalgameAssetPlanSpecRecordError, GalgameGenerationSpecEntityRefRecordInput,
+    GalgameGenerationSpecRefsRecordInput, GalgameGenerationSpecTextAnchorRefRecordInput,
+    GalgameGenerationSpecUpsert, GalgameGenerationSpecUpsertOutcome,
 };
 use a4n_db_models::models::{generation::generation_spec, project::project_source_snapshot};
+use a4n_domain::galgame::GalgameAssetPlanSpecRecordInput;
 use chrono::Utc;
 use sea_orm::sea_query::{CaseStatement, Expr};
 use sea_orm::{

@@ -533,11 +533,20 @@ impl SettingsImportApplicationPort for ConfigReadWorkerClient {
         let mut prompt_snapshots = host
             .prepare_prompt_import(&prepared.prompts_modified)
             .await?;
-        let imported_names: std::collections::HashSet<_> = host
+        let imported_names: std::collections::HashSet<_> = match host
             .import_prompts(prepared.prompts_modified.clone(), overwrite)
-            .await?
-            .into_iter()
-            .collect();
+            .await
+        {
+            Ok(names) => names.into_iter().collect(),
+            Err(error) => {
+                return Err(rollback_prompt_import_failure(
+                    host,
+                    prompt_snapshots,
+                    error.to_string(),
+                )
+                .await);
+            }
+        };
         let prompt_imported = imported_names.len();
         let prompt_skipped = prepared.prompts_modified.len() - prompt_imported;
         prompt_snapshots.retain(|(name, _)| imported_names.contains(name));
@@ -560,19 +569,24 @@ impl SettingsImportApplicationPort for ConfigReadWorkerClient {
                 Ok(details)
             }
             Err(error) => {
-                let db_error = error.to_string();
-                if prompt_snapshots.is_empty() {
-                    return Err(AppError::InvalidArgument(db_error));
-                }
-                match host.rollback_prompts(prompt_snapshots).await {
-                    Ok(()) => Err(AppError::InvalidArgument(format!(
-                        "{db_error}；已回滚本次提示词导入"
-                    ))),
-                    Err(rollback_error) => Err(AppError::InvalidArgument(format!(
-                        "{db_error}；提示词已更新但回滚失败：{rollback_error}"
-                    ))),
-                }
+                Err(rollback_prompt_import_failure(host, prompt_snapshots, error.to_string()).await)
             }
+        }
+    }
+}
+
+async fn rollback_prompt_import_failure(
+    host: &dyn SettingsAllHostPort,
+    snapshots: Vec<(String, String)>,
+    error: String,
+) -> AppError {
+    if snapshots.is_empty() {
+        return AppError::InvalidArgument(error);
+    }
+    match host.rollback_prompts(snapshots).await {
+        Ok(()) => AppError::InvalidArgument(format!("{error}；已回滚本次提示词导入")),
+        Err(rollback_error) => {
+            AppError::InvalidArgument(format!("{error}；提示词已更新但回滚失败：{rollback_error}"))
         }
     }
 }

@@ -1,8 +1,8 @@
-use a4n_db::{
-    asset::ObjectProfileUpsertRecordResult, generation::RecordCompletedGenerationRunInput,
-};
+use a4n_db::asset::ObjectProfileUpsertRecordResult;
 use a4n_db_models::models::asset::object_profile;
-use a4n_domain::object_profile::ObjectProfileEvidenceRecordInput;
+use a4n_domain::{
+    generation::RecordCompletedGenerationRunInput, object_profile::ObjectProfileEvidenceRecordInput,
+};
 use a4n_error::AppError;
 use serde_json::{Value, json};
 
@@ -51,7 +51,7 @@ impl OrchestratorContext {
             .collect::<Result<Vec<_>, AppError>>()?;
         let source_chapters = chapters
             .iter()
-            .map(a4n_db::project::ChapterSourceSnapshot::from)
+            .map(a4n_db::project::chapter_source_snapshot_from_model)
             .collect();
         let result = self
             .upsert_object_profiles_from_drafts_validated(

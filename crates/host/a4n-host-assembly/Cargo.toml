@@ -6,12 +6,14 @@ license.workspace = true
 
 [dependencies]
 a4n-api-contract = { workspace = true }
+a4n-admin-worker-client = { workspace = true }
 a4n-config = { workspace = true }
 a4n-error = { workspace = true, features = ["database"], default-features = true }
 a4n-artifact-media-client = { workspace = true }
 a4n-artifact-media-contract = { workspace = true }
 a4n-agent-worker-client = { workspace = true }
 a4n-asset-graph-worker-client = { workspace = true }
+a4n-canvas-record-worker-client = { workspace = true }
 a4n-blueprint-worker-client = { workspace = true }
 a4n-foreshadowing-worker-client = { workspace = true }
 a4n-object-profile-worker-client = { workspace = true }
@@ -30,15 +32,18 @@ a4n-project-mutation-worker-client = { workspace = true }
 a4n-chapter-scene-worker-client = { workspace = true }
 a4n-chapter-content-worker-client = { workspace = true }
 a4n-workflow-read-worker-client = { workspace = true }
+a4n-workflow-lifecycle-worker-client = { workspace = true }
 a4n-config-read-worker-client = { workspace = true }
 a4n-character-mutation-worker-client = { workspace = true }
 a4n-video-record-worker-client = { workspace = true }
 a4n-manga-record-worker-client = { workspace = true }
 a4n-scene-profile-worker-client = { workspace = true }
 a4n-runtime = { workspace = true, default-features = false }
+a4n-task-runtime = { workspace = true, features = ["persistent"] }
 a4n-source-snapshot-worker-client = { workspace = true }
 a4n-theme-read-worker-client = { workspace = true }
 
+a4n-queue = { workspace = true }
 async-trait = { workspace = true }
 tracing = { workspace = true }
 

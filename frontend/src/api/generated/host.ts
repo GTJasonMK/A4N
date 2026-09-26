@@ -1280,6 +1280,7 @@ export interface SendAgentMessageToChildInput {
 
 export interface ControlChildAgentInput {
   action: AgentControlAction;
+  budget?: AgentBudget | null;
   delegation_id: string;
 }
 

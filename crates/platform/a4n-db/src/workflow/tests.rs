@@ -239,7 +239,8 @@ fn workflow_run_progress_summary_prefers_explicit_percent() {
         "current": 2,
         "total": 4,
         "message": "处理中",
-        "percent": 42.5
+        "percent": 42.5,
+        "cancellation_active_task_id": "task-7"
     }))
     .expect("valid progress JSON should parse")
     .expect("progress fields are present");
@@ -408,8 +409,8 @@ fn task_info_from_row_keeps_failed_task_error_requirement() {
 }
 
 #[test]
-fn generated_video_ids_for_active_checkpoints_deduplicates_and_ignores_terminal() {
-    let ids = generated_video_ids_for_active_checkpoints(&[
+fn generated_video_ids_for_cancellation_checkpoints_keep_retry_targets() {
+    let ids = generated_video_ids_for_cancellation_checkpoints(&[
         checkpoint_video_refs(
             WORKFLOW_STATUS_RUNNING,
             Some(json!({ "generated_video_id": 9 })),
@@ -425,9 +426,14 @@ fn generated_video_ids_for_active_checkpoints_deduplicates_and_ignores_terminal(
             Some(json!({ "generated_video_id": 1 })),
             None,
         ),
+        checkpoint_video_refs(
+            WORKFLOW_STATUS_CANCELLED,
+            Some(json!({ "generated_video_id": 7 })),
+            None,
+        ),
     ]);
 
-    assert_eq!(ids, vec![3, 9]);
+    assert_eq!(ids, vec![3, 7, 9]);
 }
 
 #[test]

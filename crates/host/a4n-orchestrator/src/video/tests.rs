@@ -180,7 +180,7 @@ async fn insert_confirmed_visual_plan_and_shooting_script(
     .expect("video test visual plan should insert");
     let plan = a4n_db::chapter_visual_plan::confirm_chapter_visual_plan(
         db,
-        a4n_db::chapter_visual_plan::ConfirmChapterVisualPlanInput {
+        a4n_domain::chapter_visual_plan::ConfirmChapterVisualPlanInput {
             record_id: draft.record.id,
             expected_revision: draft.record.revision,
         },

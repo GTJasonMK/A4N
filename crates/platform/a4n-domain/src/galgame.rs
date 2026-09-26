@@ -217,6 +217,36 @@ impl fmt::Display for GalgameGenerationTargetKind {
     }
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GalgameGenerationSpecUpsertInput {
+    pub canonical_key: String,
+    pub project_id: i64,
+    pub root_project_id: i64,
+    pub source_snapshot_id: i64,
+    pub source_chapter_id: Option<i64>,
+    pub source_snapshot_chapter_id: Option<i64>,
+    pub target_kind: String,
+    pub target_entity_kind: String,
+    pub target_entity_id: Option<i64>,
+    pub params_json: serde_json::Value,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GalgameAssetPlanSpecRecordInput {
+    pub spec: GalgameGenerationSpecUpsertInput,
+    pub text_anchor_ids: Vec<i64>,
+    pub replace_entity_refs: bool,
+    pub entity_profile_id: Option<i64>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct GalgamePromptArtifactUpsertInput {
+    pub generation_spec_id: i64,
+    pub prompt_kind: String,
+    pub prompt_text: String,
+    pub renderer_version: String,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum GalgameTargetEntityKind {

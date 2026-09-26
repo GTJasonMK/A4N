@@ -10,76 +10,18 @@ use a4n_domain::prompt_language::metadata_matches_prompt_output_language;
 
 use super::super::contracts::PromptGenerationContextForWorkflow;
 
-const VIDEO_EXECUTION_BASE_IDENTITY_FIELDS: [&str; 5] = [
-    "contract_epoch",
-    "source_content_sha256",
-    "style_sha256",
-    "duration_secs",
-    "aspect_ratio",
-];
-const VIDEO_EXECUTION_LINEAGE_BASE_IDENTITY_FIELDS: [&str; 4] = [
-    "contract_epoch",
-    "source_content_sha256",
-    "style_sha256",
-    "aspect_ratio",
-];
-const VIDEO_EXECUTION_SEGMENT_IDENTITY_FIELDS: [&str; 5] = [
-    "segment_plan_prompt_id",
-    "source_shot_id",
-    "segment_index_in_shot",
-    "segment_sha256",
-    "segment_recipe_fingerprint",
-];
-
 pub(in crate::video) fn video_execution_segment_identity_matches(
     stored_metadata: Option<&Value>,
     expected_identity: &Value,
 ) -> bool {
-    video_execution_identity_fields_match(
-        stored_metadata,
-        expected_identity,
-        &VIDEO_EXECUTION_BASE_IDENTITY_FIELDS,
-    ) && video_execution_identity_fields_match(
-        stored_metadata,
-        expected_identity,
-        &VIDEO_EXECUTION_SEGMENT_IDENTITY_FIELDS,
-    )
+    a4n_video_contract::video_execution_segment_identity_matches(stored_metadata, expected_identity)
 }
 
 pub(in crate::video) fn video_execution_segment_lineage_matches(
     stored_metadata: Option<&Value>,
     expected_identity: &Value,
 ) -> bool {
-    video_execution_identity_fields_match(
-        stored_metadata,
-        expected_identity,
-        &VIDEO_EXECUTION_LINEAGE_BASE_IDENTITY_FIELDS,
-    ) && video_execution_identity_fields_match(
-        stored_metadata,
-        expected_identity,
-        &VIDEO_EXECUTION_SEGMENT_IDENTITY_FIELDS,
-    )
-}
-
-fn video_execution_identity_fields_match(
-    stored_metadata: Option<&Value>,
-    expected_identity: &Value,
-    fields: &[&str],
-) -> bool {
-    let Some(stored_identity) = stored_metadata
-        .and_then(|metadata| metadata.get("video_execution_identity"))
-        .and_then(Value::as_object)
-    else {
-        return false;
-    };
-    let Some(expected_identity) = expected_identity.as_object() else {
-        return false;
-    };
-    fields.iter().all(|field| {
-        expected_identity
-            .get(*field)
-            .is_some_and(|expected| stored_identity.get(*field) == Some(expected))
-    })
+    a4n_video_contract::video_execution_segment_lineage_matches(stored_metadata, expected_identity)
 }
 
 pub(in crate::video) fn reusable_rows_are_complete(

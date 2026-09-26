@@ -9,7 +9,7 @@ use super::{
     contracts::{ParsedChapterShootingScript, ShootingScriptDbError},
     validation::{require_positive, validate_source},
 };
-use crate::project::ResolvedChapterSource;
+use a4n_domain::chapter::ResolvedChapterSource;
 
 pub async fn chapter_shooting_script_for_source<C>(
     db: &C,

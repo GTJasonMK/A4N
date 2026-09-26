@@ -367,7 +367,8 @@ impl GenerationApplication {
                 id: format!("chapter:{}", input.source_chapter_id),
                 revision: Some(input.visual_plan_id.to_string()),
             },
-        }).await
+        })
+        .await
     }
 
     pub(crate) async fn start_outline_generation_task(

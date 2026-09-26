@@ -112,7 +112,7 @@ impl AgentApplication {
             from_json(thread.scope_json.clone(), "agent_thread.scope_json")?;
         self.hydrate_scope_chapter_number(&mut stored_scope).await?;
         let expected_scope = effective_agent_scope(&thread.profile_id, stored_scope)?;
-        if request.payload.scope != expected_scope {
+        if !agent_scopes_match_except_chapter_number(&request.payload.scope, &expected_scope) {
             return Err(AppError::Forbidden(
                 "Agent Host command 的 scope 与当前 Run 不一致".into(),
             ));
@@ -260,14 +260,18 @@ impl AgentApplication {
             from_json(thread_row.scope_json.clone(), "agent_thread.scope_json")?,
         )?;
         self.hydrate_scope_chapter_number(&mut scope).await?;
-        let editor_source = messages
+        let editor_source_value = messages
             .iter()
             .find(|message| message.id == turn_row.input_message_id)
             .and_then(|message| message.payload_json.as_ref())
             .and_then(|payload| payload.get("editor_source"))
-            .cloned()
-            .map(|value| parse_persisted_editor_source(value, &thread_row.profile_id, &scope))
-            .transpose()?;
+            .cloned();
+        let editor_source = match editor_source_value {
+            Some(value) => {
+                Some(parse_persisted_editor_source(self.connection(), value, &thread_row).await?)
+            }
+            None => None,
+        };
         let delegations = agent::delegations_by_thread(self.connection(), run_row.thread_id)
             .await
             .map_err(agent_db_error_to_app)?;

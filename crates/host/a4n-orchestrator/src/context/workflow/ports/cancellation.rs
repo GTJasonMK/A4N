@@ -26,3 +26,15 @@ impl WorkflowCancellationPort for OrchestratorContext {
             .map(|_| ())
     }
 }
+
+#[async_trait::async_trait]
+impl WorkflowCancellationSideEffectsPort for OrchestratorContext {
+    async fn apply_cancellation_side_effects(
+        &self,
+        cancellation: WorkflowCancellationResult,
+        reason: &str,
+    ) -> Result<(), AppError> {
+        self.apply_workflow_cancellation_side_effects(cancellation, reason)
+            .await
+    }
+}

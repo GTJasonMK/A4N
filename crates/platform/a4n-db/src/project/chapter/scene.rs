@@ -11,7 +11,6 @@ pub use records::{
 pub use reorder::{chapter_scene_reorder_project_id, reorder_chapter_scene_records};
 pub use types::{
     ProjectChapterSceneRecordError, ProjectChapterSceneUpdateInput, ProjectChapterSceneWriteError,
-    ProjectGeneratedChapterSceneSaveInput,
 };
 
 #[cfg(test)]

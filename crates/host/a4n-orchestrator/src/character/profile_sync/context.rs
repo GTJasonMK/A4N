@@ -1,9 +1,9 @@
 use std::collections::HashMap;
 
-use a4n_db::project::ChapterSourceSnapshot;
 use a4n_db_models::models::{
     chapter::chapter, character::protagonist_profile, project::text_anchor,
 };
+use a4n_domain::chapter::ChapterSourceSnapshot;
 use a4n_domain::source_spans::{text_anchor_prompt_text, text_anchor_prompt_values};
 use a4n_domain::text_anchor::TextAnchorProfileKind;
 use a4n_error::AppError;
@@ -199,7 +199,7 @@ impl OrchestratorContext {
         .map_err(AppError::InvalidArgument)?;
         let source_chapters = selected_chapters
             .iter()
-            .map(|chapter| ChapterSourceSnapshot::from(*chapter))
+            .map(|chapter| a4n_db::project::chapter_source_snapshot_from_model(*chapter))
             .collect::<Vec<_>>();
 
         let first_seen = effective_first_seen.unwrap_or(1);

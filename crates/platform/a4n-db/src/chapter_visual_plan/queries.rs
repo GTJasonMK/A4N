@@ -7,7 +7,7 @@ use super::{
     codec::parse_record,
     contracts::{ChapterVisualPlanDbError, ChapterVisualPlanSet, ParsedChapterVisualPlan},
 };
-use crate::project::ResolvedChapterSource;
+use a4n_domain::chapter::ResolvedChapterSource;
 
 pub async fn chapter_visual_plans_for_source<C>(
     db: &C,

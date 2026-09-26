@@ -152,7 +152,7 @@ pub(super) fn visual_unit_prompt_context(
 
 #[cfg(test)]
 mod tests {
-    use a4n_db::project::ResolvedChapterSource;
+    use a4n_domain::chapter::ResolvedChapterSource;
     use a4n_domain::source_spans::source_spans_for_content;
 
     use super::*;

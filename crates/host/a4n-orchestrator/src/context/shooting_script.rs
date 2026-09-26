@@ -10,9 +10,8 @@ use a4n_api_contract::shooting_script::{
 };
 use a4n_db::DbHandle;
 use a4n_db::chapter_visual_plan::ParsedChapterVisualPlan;
-use a4n_db::project::ResolvedChapterSource;
 use a4n_db::shooting_script::{ChapterVisualPlanIdentity, ParsedChapterShootingScript};
-use a4n_domain::shooting_script::ChapterShootingScriptV1;
+use a4n_domain::{chapter::ResolvedChapterSource, shooting_script::ChapterShootingScriptV1};
 use a4n_error::AppError;
 
 use super::OrchestratorContext;

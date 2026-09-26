@@ -26,6 +26,7 @@ use validation::{
 };
 
 mod types;
+pub(crate) use types::PromptArtifactInsertInput;
 pub(crate) use types::append_generation_artifact_target;
 pub use types::{
     AttachGenerationRunsToWorkflowInput, GENERATION_ENTITY_KINDS, GENERATION_ENTITY_ROLES,
@@ -36,8 +37,7 @@ pub use types::{
     GENERATION_SPEC_TARGET_KIND_CANVAS_ASSEMBLY, GENERATION_SPEC_TARGET_KIND_CANVAS_IMAGE,
     GENERATION_SPEC_TARGET_KIND_CANVAS_PROMPT, GENERATION_SPEC_TARGET_KIND_CANVAS_VIDEO,
     GENERATION_SPEC_TARGET_KINDS, GENERATION_TEXT_ANCHOR_ROLES, GenerationDbError,
-    GenerationRunCheckpointContext, GenerationRunTraceTarget, PromptArtifactInsertInput,
-    RecordCompletedGenerationRunInput, RecordCompletedGenerationRunWithCheckpointInput,
+    GenerationRunCheckpointContext, RecordCompletedGenerationRunWithCheckpointInput,
     RecordStartedGenerationRunInput, SPEC_STATUS_DRAFT, generation_checkpoint_fingerprint_sha256,
     is_valid_generation_entity_kind, is_valid_generation_entity_role,
     is_valid_generation_media_ref_role, is_valid_generation_spec_status,

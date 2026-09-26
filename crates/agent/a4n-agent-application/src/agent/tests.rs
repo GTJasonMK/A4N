@@ -55,10 +55,19 @@ fn budget_validation_rejects_zero_limits_and_caps_child_budget() {
         max_delegation_depth: Some(9),
         ..AgentBudget::default()
     };
-    let capped = child_budget_for_delegation(child, &parent).expect("child budget must be capped");
-    assert_eq!(capped.max_steps, Some(99));
-    assert_eq!(capped.max_model_calls, Some(99));
-    assert_eq!(capped.max_tokens, Some(9_999));
+    let capped = child_budget_within_parent(
+        child,
+        &parent,
+        &json!({
+            "steps_used": 3,
+            "model_calls_used": 2,
+            "tokens_used": 250
+        }),
+    )
+    .expect("child budget must be capped");
+    assert_eq!(capped.max_steps, Some(7));
+    assert_eq!(capped.max_model_calls, Some(6));
+    assert_eq!(capped.max_tokens, Some(750));
     assert_eq!(capped.max_delegation_depth, Some(2));
 
     let inherited = child_budget_for_delegation(AgentBudget::default(), &parent).unwrap();
@@ -223,12 +232,10 @@ fn generic_children_keep_nested_delegation_open_but_domains_do_not() {
 }
 
 #[test]
-fn editor_source_requires_a_database_id_and_uses_the_current_chapter_number() {
-    let mut value = json!({
+fn legacy_editor_source_uses_only_the_bound_chapter_as_fallback() {
+    let value = json!({
         "view_instance_id": "view-1",
         "project_id": 7,
-        "chapter_id": 11,
-        "chapter_number": 99,
         "editor_revision": "revision-1",
         "scene_id": null,
         "shot_id": null,
@@ -236,20 +243,16 @@ fn editor_source_requires_a_database_id_and_uses_the_current_chapter_number() {
         "entity_id": null
     });
 
-    let scope = AgentScope {
-        project_id: Some(7),
-        chapter_id: Some(11),
-        chapter_number: Some(1),
-        ..AgentScope::default()
-    };
-    let source = parse_persisted_editor_source(value.clone(), "director", &scope).unwrap();
-    assert_eq!(source.chapter_id, 11);
-    assert_eq!(source.chapter_number, Some(1));
-    assert!(parse_persisted_editor_source(value.clone(), "canvas", &scope).is_err());
-    value["chapter_id"] = json!(12);
-    assert!(parse_persisted_editor_source(value.clone(), "director", &scope).is_err());
-    value.as_object_mut().unwrap().remove("chapter_id");
-    assert!(parse_persisted_editor_source(value, "director", &scope).is_err());
+    let normalized = normalize_legacy_editor_source(value, Some(11))
+        .expect("legacy editor source should use the bound chapter");
+    assert_eq!(normalized["chapter_id"], 11);
+}
+
+#[test]
+fn legacy_editor_source_without_a_bound_chapter_is_rejected() {
+    let error = normalize_legacy_editor_source(json!({}), None)
+        .expect_err("chapter-less legacy editor source must be rejected");
+    assert!(error.to_string().contains("线程 scope 未绑定章节"));
 }
 
 #[tokio::test]
@@ -301,10 +304,84 @@ async fn remote_admission_rejects_before_persisting_turn_or_run() {
             .is_empty()
     );
     assert!(
-        agent::messages_by_thread(database.as_ref(), thread.id, SNAPSHOT_LIMIT)
+        agent::messages_by_thread(database.as_ref(), thread.id, None, SNAPSHOT_LIMIT)
             .await
             .expect("messages query")
             .is_empty()
+    );
+}
+
+#[tokio::test]
+async fn list_messages_paginates_past_the_snapshot_window() {
+    let database = std::sync::Arc::new(a4n_migration::test_support::connect_test_database().await);
+    let application = AgentApplication::new(DbHandle::new(database.clone()));
+    let thread = agent::create_thread(
+        database.as_ref(),
+        AgentThreadCreateInput {
+            owner_user_id: 1,
+            thread_kind: "main".into(),
+            profile_id: "main".into(),
+            title: Some("old message pagination test".into()),
+            project_id: None,
+            resource_type: None,
+            resource_id: None,
+            canonical_binding_key: Some(format!(
+                "agent-message-pagination:{}",
+                uuid::Uuid::new_v4()
+            )),
+            scope_json: serde_json::to_value(AgentScope::default()).unwrap(),
+            default_model_config_id: None,
+            is_default: false,
+        },
+    )
+    .await
+    .expect("thread must be created");
+    let mut message_ids = Vec::with_capacity(1_105);
+    for index in 0..1_105 {
+        let message = agent::append_message(
+            database.as_ref(),
+            AgentMessageInput {
+                thread_id: thread.id,
+                turn_id: None,
+                run_id: None,
+                role: "user".into(),
+                sender_kind: "user".into(),
+                sender_thread_id: None,
+                client_message_id: None,
+                content: format!("message-{index}"),
+                status: "complete".into(),
+                payload_json: None,
+            },
+        )
+        .await
+        .expect("message must be inserted");
+        message_ids.push(message.id);
+    }
+
+    let messages = application
+        .list_messages(
+            1,
+            ListAgentMessagesInput {
+                thread_id: thread.id.to_string(),
+                before: Some(message_ids[100].to_string()),
+                limit: Some(5),
+            },
+        )
+        .await
+        .expect("older messages must be listed");
+
+    assert_eq!(
+        messages
+            .iter()
+            .map(|message| message.content.as_str())
+            .collect::<Vec<_>>(),
+        [
+            "message-99",
+            "message-98",
+            "message-97",
+            "message-96",
+            "message-95"
+        ]
     );
 }
 

@@ -78,13 +78,16 @@ impl AgentApplication {
                     .await
                     .map_err(agent_db_error_to_app)?
         {
-            return thread_view(self.reconcile_canonical_thread(
-                existing,
-                &capability,
-                &enum_value(input.kind),
-                &requested_scope,
-                "创建 Agent thread",
-            )?);
+            return thread_view(
+                self.reconcile_canonical_thread(
+                    existing,
+                    &capability,
+                    &enum_value(input.kind),
+                    &requested_scope,
+                    "创建 Agent thread",
+                )
+                .await?,
+            );
         }
         let row = agent::create_thread(
             self.connection(),
@@ -119,7 +122,8 @@ impl AgentApplication {
                     &enum_value(input.kind),
                     &requested_scope,
                     "创建 Agent thread",
-                )?
+                )
+                .await?
             }
             Err(error) => return Err(agent_db_error_to_app(error)),
         };
@@ -317,13 +321,15 @@ impl AgentApplication {
             .map_err(agent_db_error_to_app)?
         {
             // Reusing a canonical thread must not change its explicit permissions.
-            return self.reconcile_canonical_thread(
-                existing,
-                &capability,
-                "subagent",
-                &requested_scope,
-                "获取 canonical Agent thread",
-            );
+            return self
+                .reconcile_canonical_thread(
+                    existing,
+                    &capability,
+                    "subagent",
+                    &requested_scope,
+                    "获取 canonical Agent thread",
+                )
+                .await;
         }
         let create = AgentThreadCreateInput {
             owner_user_id: user_id,
@@ -354,6 +360,7 @@ impl AgentApplication {
                     &requested_scope,
                     "获取 canonical Agent thread",
                 )
+                .await
             }
             Err(error) => Err(agent_db_error_to_app(error)),
         }
@@ -434,7 +441,7 @@ impl AgentApplication {
             .await
             .map_err(agent_db_error_to_app)?
             .ok_or_else(|| AppError::NotFound("Agent Thread 不存在".into()))?;
-        let messages = agent::messages_by_thread(&tx, thread_id, SNAPSHOT_LIMIT)
+        let messages = agent::messages_by_thread(&tx, thread_id, None, SNAPSHOT_LIMIT)
             .await
             .map_err(agent_db_error_to_app)?;
         let turns = agent::turns_by_thread(&tx, thread_id, SNAPSHOT_LIMIT)
@@ -519,19 +526,15 @@ impl AgentApplication {
             SNAPSHOT_LIMIT as u32,
             "limit",
         )? as usize;
-        let before = input
+        let before_id = input
             .before
             .as_deref()
             .map(|before| parse_id(before, "before"))
             .transpose()?;
-        let rows = agent::messages_before(self.connection(), thread_id, before, limit as u64)
+        let rows = agent::messages_by_thread(self.connection(), thread_id, before_id, limit as u64)
             .await
             .map_err(agent_db_error_to_app)?;
-        rows.into_iter()
-            .rev()
-            .take(limit)
-            .map(message_view)
-            .collect()
+        rows.into_iter().take(limit).map(message_view).collect()
     }
 
     /// Loads a message referenced by an inbox item for the durable worker.

@@ -281,7 +281,7 @@ impl OrchestratorContext {
         let updates = chapter_analysis_foreshadowing_updates(chapter.id, analysis, &source_index)?;
         let synced = self
             .sync_chapter_analysis_foreshadowing(
-                a4n_db::project::ChapterSourceSnapshot::from(chapter),
+                a4n_db::project::chapter_source_snapshot_from_model(chapter),
                 drafts,
                 updates,
             )

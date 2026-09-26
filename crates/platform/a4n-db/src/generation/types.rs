@@ -5,7 +5,6 @@ mod error;
 mod prompts;
 mod runs;
 
-pub use self::artifacts::GenerationRunTraceTarget;
 pub(crate) use self::artifacts::append_generation_artifact_target;
 pub use self::catalog::{
     GENERATION_ENTITY_KINDS, GENERATION_ENTITY_ROLES, GENERATION_MEDIA_REF_ROLES,
@@ -23,15 +22,16 @@ pub use self::checkpoint::{
 };
 pub use self::error::GenerationDbError;
 pub(super) use self::prompts::INTERNAL_PROMPT_TOKENS;
+pub(crate) use self::prompts::PromptArtifactInsertInput;
 pub use self::prompts::{
     GENERATION_PROMPT_KIND_CANVAS_PROMPT, GENERATION_PROMPT_KIND_CANVAS_SHOT_SCRIPT,
-    GENERATION_PROMPT_KIND_VIDEO_PROMPT, GENERATION_PROMPT_KINDS, PromptArtifactInsertInput,
+    GENERATION_PROMPT_KIND_VIDEO_PROMPT, GENERATION_PROMPT_KINDS,
 };
 pub(in crate::generation) use self::prompts::{
     GENERATION_PROMPT_KIND_IMAGE_PROMPT, VIDEO_PROMPT_REQUIRED_SECTIONS,
 };
 pub(super) use self::runs::CreateGenerationRunInput;
 pub use self::runs::{
-    AttachGenerationRunsToWorkflowInput, RecordCompletedGenerationRunInput,
-    RecordCompletedGenerationRunWithCheckpointInput, RecordStartedGenerationRunInput,
+    AttachGenerationRunsToWorkflowInput, RecordCompletedGenerationRunWithCheckpointInput,
+    RecordStartedGenerationRunInput,
 };
