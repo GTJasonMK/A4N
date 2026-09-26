@@ -6,6 +6,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use crate::serde_update::deserialize_non_null_update_field;
+pub use a4n_domain::theme_edit::PersistThemeResourceInput;
 
 pub use a4n_domain::{
     THEME_DOCUMENT_VERSION, THEME_GLOBAL_ROUTE_FAMILY, THEME_ROUTE_FAMILIES, THEME_TOKEN_NAMES,
@@ -46,11 +47,19 @@ pub struct UpdateThemeInput {
     )]
     #[schemars(with = "ThemeDocument")]
     pub document: Option<ThemeDocument>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub resource_uploads: Vec<ThemeResourceUploadInput>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub delete_resource_ids: Vec<i64>,
 }
 
 impl UpdateThemeInput {
     pub fn is_empty(&self) -> bool {
-        self.name.is_none() && self.mode.is_none() && self.document.is_none()
+        self.name.is_none()
+            && self.mode.is_none()
+            && self.document.is_none()
+            && self.resource_uploads.is_empty()
+            && self.delete_resource_ids.is_empty()
     }
 }
 
@@ -179,6 +188,7 @@ pub trait ThemeMutationApplicationPort: Send + Sync {
         user_id: i64,
         theme_id: i64,
         input: UpdateThemeInput,
+        resources: Vec<PersistThemeResourceInput>,
     ) -> Result<ThemeSummary, a4n_error::AppError>;
 
     async fn delete_theme(&self, user_id: i64, theme_id: i64) -> Result<(), a4n_error::AppError>;
@@ -212,18 +222,6 @@ pub trait ThemeMutationApplicationPort: Send + Sync {
         user_id: i64,
         input: UpdateThemePreferenceInput,
     ) -> Result<ThemePreferenceSummary, a4n_error::AppError>;
-}
-
-/// Persisted resource metadata supplied after Runtime has written the file.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub struct PersistThemeResourceInput {
-    pub theme_id: i64,
-    pub resource_key: String,
-    pub file_name: String,
-    pub mime_type: String,
-    pub file_path: String,
-    pub sha256: String,
-    pub byte_size: i64,
 }
 
 #[cfg(test)]

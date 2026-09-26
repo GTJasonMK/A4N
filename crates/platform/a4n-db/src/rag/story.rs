@@ -22,7 +22,7 @@ pub async fn chapters_for_rag_ingest(
     db: &impl ConnectionTrait,
     project_id: i64,
 ) -> Result<Vec<chapter::Model>, DbErr> {
-    chapter::Entity::find()
+    chapter::Entity::find_current()
         .filter(chapter::Column::ProjectId.eq(project_id))
         .all(db)
         .await

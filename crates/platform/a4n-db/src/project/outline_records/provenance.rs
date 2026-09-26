@@ -200,6 +200,7 @@ fn chapter_source_query(
     backend: DbBackend,
 ) -> sea_orm::Select<chapter::Entity> {
     let mut query = chapter::Entity::find_by_id(source.chapter_id)
+        .filter(chapter::Column::Status.ne(chapter::STATUS_DELETED))
         .filter(chapter::Column::ProjectId.eq(source.project_id));
     if backend != DbBackend::Sqlite {
         query = query.lock_exclusive();
@@ -349,7 +350,7 @@ where
         return Ok(());
     }
 
-    let Some((chapter_id, current_outline_id)) = chapter::Entity::find()
+    let Some((chapter_id, current_outline_id)) = chapter::Entity::find_current()
         .select_only()
         .column(chapter::Column::Id)
         .column(chapter::Column::OutlineId)
@@ -410,7 +411,7 @@ where
         .await?;
     if let Some(outline_id) = outline {
         link_chapter_to_outline_if_needed(db, project_id, chapter_number, outline_id).await?;
-    } else if let Some((chapter_id, outline_id)) = chapter::Entity::find()
+    } else if let Some((chapter_id, outline_id)) = chapter::Entity::find_current()
         .select_only()
         .column(chapter::Column::Id)
         .column(chapter::Column::OutlineId)
@@ -424,7 +425,7 @@ where
             .await?;
     }
 
-    Ok(chapter::Entity::find()
+    Ok(chapter::Entity::find_current()
         .filter(chapter::Column::ProjectId.eq(project_id))
         .filter(chapter::Column::ChapterNumber.eq(chapter_number))
         .select_only()

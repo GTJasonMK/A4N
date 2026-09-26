@@ -84,8 +84,8 @@ fn generated_video_projection_preserves_wire_fields() {
             "metadata_json": {"shot_number": 4},
             "timeline_item_id": 10,
             "is_favorite": true,
-            "created_at": "2026-08-20 10:11:12",
-            "updated_at": "2026-08-21 13:14:15",
+            "created_at": "2026-08-20T10:11:12+00:00",
+            "updated_at": "2026-08-21T13:14:15+00:00",
         })
     );
 }

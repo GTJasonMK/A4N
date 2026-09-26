@@ -238,12 +238,8 @@
     position: absolute;
     top: 50%;
     right: 12px;
-    transform: translateY(-50%);
-    transition: transform var(--a4n-motion-fast) var(--a4n-ease-out);
-  }
-
-  .a4n-themed-combobox__chevron.rotate-180 {
-    transform: translateY(-50%) rotate(180deg);
+    translate: 0 -50%;
+    transition: rotate var(--a4n-motion-fast) var(--a4n-ease-out);
   }
 
   .pyqt-tab {

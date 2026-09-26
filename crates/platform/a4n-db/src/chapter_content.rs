@@ -1,4 +1,5 @@
 mod analysis;
+mod delete;
 mod edit;
 mod generation;
 mod import;
@@ -13,6 +14,7 @@ pub use analysis::{
     chapter_source_snapshots_match_for_update, lock_chapter_analysis_source,
     store_chapter_analysis_record, update_chapter_style_tags_record,
 };
+pub(crate) use delete::delete_project_chapter_content;
 pub use edit::save_chapter_content_edit_record;
 pub use generation::{
     begin_chapter_generation_record, finish_generated_chapter_content_record_in_transaction,

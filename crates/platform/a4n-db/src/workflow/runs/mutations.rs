@@ -47,7 +47,7 @@ where
             "章节分析失效范围必须使用正 project_id 和 chapter_number".to_string(),
         ));
     }
-    let chapter_ids = chapter::Entity::find()
+    let chapter_ids = chapter::Entity::find_current()
         .select_only()
         .column(chapter::Column::Id)
         .filter(chapter::Column::ProjectId.eq(project_id))

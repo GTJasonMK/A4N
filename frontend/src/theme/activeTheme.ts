@@ -238,18 +238,17 @@ export function getThemeAppearance(): ThemeAppearance {
   return runtimeAppearance;
 }
 
+export function mergeSavedTheme(themes: Theme[], saved: Theme): Theme[] {
+  const next = themes.map((theme) => theme.id === saved.id ? saved
+    : saved.is_active && theme.user_id === saved.user_id && theme.mode === saved.mode
+      ? { ...theme, is_active: false } : theme);
+  return themes.some((theme) => theme.id === saved.id) ? next : [saved, ...next];
+}
+
 export function applyActiveTheme(theme: Theme): void {
   themeMutationSeq += 1;
   runtimeActiveTheme = theme;
-  runtimeThemes = runtimeThemes.some((item) => item.id === theme.id)
-    ? runtimeThemes.map((item) =>
-        item.id === theme.id
-          ? theme
-          : item.user_id === theme.user_id && item.mode === theme.mode
-            ? { ...item, is_active: false }
-            : item,
-      )
-    : [...runtimeThemes, theme];
+  runtimeThemes = mergeSavedTheme(runtimeThemes, theme);
   if (runtimeUserId != null) writeThemeCache(runtimeUserId, runtimeThemes, runtimeAppearance);
   if (preferredThemeMode(runtimeAppearance) === theme.mode) {
     applyThemeState(theme, theme.mode);

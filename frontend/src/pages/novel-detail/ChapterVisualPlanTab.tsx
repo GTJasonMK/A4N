@@ -453,7 +453,10 @@ export function ChapterVisualPlanTab({ projectId, canEdit, chapter }: { projectI
     </Modal>
     <Modal isOpen={modalPanel === "media"} title={point ? `${point.label || "图片点"} · 选择分镜与参考图` : "图片素材库"} onClose={closeModal} maxWidthClassName="max-w-5xl">
       {!point && <p className="director-context-line">在时间线上选中图片点后，可以绑定分镜与参考图。</p>}
-      <div className="director-media-grid">{images.map((image) => <article key={image.id}><ZoomableImage src={toMediaSrc(image.file_path)} alt={image.prompt || "图片素材"} loading="lazy" /><div className="director-inline-actions">
+      <div className="director-media-grid">{images.map((image) => <article key={image.id}>
+        <ZoomableImage src={toMediaSrc(image.file_path)} alt={image.prompt || "图片素材"} loading="lazy" />
+        <p className="mb-2 line-clamp-2 min-h-[2.5rem] text-small leading-relaxed text-book-text-sub">{image.prompt.trim() || "图片素材"}</p>
+        <div className="director-inline-actions">
         <BookButton variant="secondary" size="sm" disabled={!point || disabled} onClick={() => { if (point) void adoptImage(point.id, image).then(() => { closeModal(); setInspectorOpen(true); }).catch(model.report); }}>{point?.image_id === image.id ? "已绑定" : "选作分镜"}</BookButton>
         <BookButton variant="ghost" size="sm" disabled={!point || disabled} onClick={() => { if (point) updatePoint(point.id, { reference_image_ids: point.reference_image_ids.includes(image.id) ? point.reference_image_ids.filter((id) => id !== image.id) : [...point.reference_image_ids, image.id] }); }}>{point?.reference_image_ids.includes(image.id) ? "取消参考" : "选作参考"}</BookButton>
       </div></article>)}</div>{images.length === 0 && <p className="director-empty">暂无图片。可以在图片点属性中上传或生成分镜。</p>}

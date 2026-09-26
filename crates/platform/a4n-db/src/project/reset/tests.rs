@@ -361,13 +361,33 @@ async fn reset_deletes_scene_occurrences_before_chapters() {
             0
         );
         assert_eq!(
-            chapter::Entity::find()
+            chapter::Entity::find_current()
                 .filter(chapter::Column::ProjectId.eq(project_id))
                 .count(&db)
                 .await
                 .unwrap(),
             0
         );
+        let retained_chapter = chapter::Entity::find_by_id(chapter.id)
+            .one(&db)
+            .await
+            .unwrap();
+        assert_eq!(retained_chapter.is_some(), preserve_source);
+        if let Some(retained) = retained_chapter {
+            assert_eq!(retained.status, chapter::STATUS_DELETED);
+            assert!(retained.content.is_empty());
+            assert_eq!(retained.outline_id, None);
+            assert_eq!(retained.title, None);
+            assert_eq!(retained.analysis_data, None);
+            let replacement = chapter_record(&db, project_id).await;
+            assert_ne!(replacement.id, retained.id);
+            assert_eq!(
+                crate::chapter_content::chapters_for_project(&db, project_id)
+                    .await
+                    .unwrap(),
+                vec![replacement]
+            );
+        }
     }
 }
 

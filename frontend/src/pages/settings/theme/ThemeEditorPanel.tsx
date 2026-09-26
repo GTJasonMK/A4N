@@ -1,5 +1,5 @@
 import { ThemedSelect } from "../../../components/ui/ThemedSelect";
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useLayoutEffect, useMemo, useState } from "react";
 import {
   ImagePlus,
   RotateCcw,
@@ -182,10 +182,11 @@ export const ThemeEditorPanel: React.FC<ThemeEditorPanelProps> = ({
     applyThemePreview(preview);
   }, [deleteResourceIds, document, mode, pendingFiles, pendingUrls, theme]);
 
-  useEffect(() => {
-    const urls = Object.values(pendingUrls);
-    return () => urls.forEach((url) => URL.revokeObjectURL(url));
-  }, [pendingUrls]);
+  useLayoutEffect(() => {
+    const urls = Object.fromEntries(Object.entries(pendingFiles).map(([key, file]) => [key, URL.createObjectURL(file)]));
+    setPendingUrls(urls);
+    return () => Object.values(urls).forEach((url) => URL.revokeObjectURL(url));
+  }, [pendingFiles]);
 
   useEffect(() => () => restoreActiveTheme(), []);
 
@@ -202,7 +203,10 @@ export const ThemeEditorPanel: React.FC<ThemeEditorPanelProps> = ({
   );
   const removableResource =
     currentResource?.resource_key === backgroundRoute ? currentResource : undefined;
-  const currentPreviewUrl = pendingUrls[backgroundRoute];
+  const currentPreviewFile = currentBackground.resource_key
+    ? pendingFiles[currentBackground.resource_key] : undefined;
+  const currentPreviewUrl = currentBackground.resource_key
+    ? pendingUrls[currentBackground.resource_key] : undefined;
   const currentBackgroundUrl =
     currentPreviewUrl ??
     (currentResource && !deleteResourceIds.includes(currentResource.id)
@@ -272,9 +276,7 @@ export const ThemeEditorPanel: React.FC<ThemeEditorPanelProps> = ({
       setError(t("settingsTheme.resourceInvalid"));
       return;
     }
-    const nextUrl = URL.createObjectURL(file);
     setPendingFiles((current) => ({ ...current, [backgroundRoute]: file }));
-    setPendingUrls((current) => ({ ...current, [backgroundRoute]: nextUrl }));
     setDeleteResourceIds((current) =>
       current.filter((resourceId) => resourceId !== removableResource?.id),
     );
@@ -297,11 +299,6 @@ export const ThemeEditorPanel: React.FC<ThemeEditorPanelProps> = ({
 
   const handleRemoveBackground = () => {
     setPendingFiles((current) => {
-      const next = { ...current };
-      delete next[backgroundRoute];
-      return next;
-    });
-    setPendingUrls((current) => {
       const next = { ...current };
       delete next[backgroundRoute];
       return next;
@@ -335,7 +332,6 @@ export const ThemeEditorPanel: React.FC<ThemeEditorPanelProps> = ({
     setMode(theme.mode);
     setDocument(cloneDocument(theme));
     setPendingFiles({});
-    setPendingUrls({});
     setDeleteResourceIds([]);
     setError(null);
   };
@@ -349,7 +345,6 @@ export const ThemeEditorPanel: React.FC<ThemeEditorPanelProps> = ({
       stream_display: { ...DEFAULT_STREAM_DISPLAY_SETTINGS },
     });
     setPendingFiles({});
-    setPendingUrls({});
     setDeleteResourceIds(theme.resources.map((resource) => resource.id));
     setError(null);
   };
@@ -371,7 +366,6 @@ export const ThemeEditorPanel: React.FC<ThemeEditorPanelProps> = ({
       setMode(saved.mode);
       setDocument(cloneDocument(saved));
       setPendingFiles({});
-      setPendingUrls({});
       setDeleteResourceIds([]);
     }
   };
@@ -584,7 +578,7 @@ export const ThemeEditorPanel: React.FC<ThemeEditorPanelProps> = ({
                 }}
               />
               <div className="absolute inset-0 flex items-end bg-gradient-to-t from-black/65 via-black/10 to-transparent p-3 text-xs text-white">
-                {currentResource?.file_name ?? pendingFiles[backgroundRoute]?.name ?? t("settingsTheme.noBackground")}
+                {currentPreviewFile?.name ?? (currentBackgroundUrl ? currentResource?.file_name : undefined) ?? t("settingsTheme.noBackground")}
               </div>
             </div>
             <div className="grid min-w-0 gap-2 sm:grid-cols-2 lg:grid-cols-1">
@@ -674,7 +668,7 @@ export const ThemeEditorPanel: React.FC<ThemeEditorPanelProps> = ({
                   {pickingBackground ? <LoadingSpinner size="sm" /> : <ImagePlus size={13} />}
                   {t("settingsTheme.chooseBackground")}
                 </BookButton>
-                {currentResource || pendingFiles[backgroundRoute] ? (
+                {currentBackgroundUrl ? (
                   <BookButton
                     variant="ghost"
                     size="sm"

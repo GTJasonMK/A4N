@@ -144,6 +144,35 @@ describe("agent event reducer", () => {
     expect(pending).toEqual([]);
   });
 
+  it("reloads budget ownership and usage when a known run starts waiting", async () => {
+    const before = snapshot();
+    before.thread.next_event_sequence = 1;
+    before.runs = [run()];
+    const committed = snapshot();
+    committed.runs = [{
+      ...run(),
+      status: "waiting",
+      waiting_reason: "budget",
+      budget_limiting_run_id: "parent-run",
+      tokens_used: 800,
+      model_calls_used: 1,
+    }];
+    const pending = [{
+      ...event(1, { waiting_reason: "budget" }),
+      kind: "run_waiting",
+      message_id: null,
+    }];
+    let reads = 0;
+    const next = await loadAgentSnapshotWithEvents(
+      async () => ++reads === 1 ? before : committed,
+      pending,
+      () => true,
+    );
+    expect(next.runs).toEqual(committed.runs);
+    expect(reads).toBe(2);
+    expect(pending).toEqual([]);
+  });
+
   it("keeps buffered events when an older snapshot request is superseded", async () => {
     const pending = [event(1, { message: message("arrived during both reads") })];
     let current = 1;
@@ -222,7 +251,7 @@ describe("agent event reducer", () => {
     expect(result.snapshot.events).toHaveLength(0);
   });
 
-  it("reloads approval events and projects run waiting reasons", () => {
+  it("reloads approval and waiting events even for known runs", () => {
     const current = snapshot();
     current.runs = [run()];
     const approval = reduceAgentEvent(
@@ -245,9 +274,9 @@ describe("agent event reducer", () => {
       },
       0,
     );
-    expect(waiting.needsReload).toBe(false);
-    expect(waiting.snapshot.runs[0].status).toBe("waiting");
-    expect(waiting.snapshot.runs[0].waiting_reason).toBe("budget");
+    expect(waiting.needsReload).toBe(true);
+    expect(waiting.snapshot).toBe(current);
+    expect(waiting.cursor).toBe(0);
   });
 
   it("reloads waiting events with an unknown reason", () => {

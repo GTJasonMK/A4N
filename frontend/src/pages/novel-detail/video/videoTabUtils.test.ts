@@ -57,6 +57,8 @@ const t: MessageTranslator = (key, params) =>
 it("formats shared video durations with localized units", () => {
   expect(formatVideoDuration(5, "zh-CN", t)).toBe("5 秒");
   expect(formatVideoDuration(65, "zh-CN", t)).toBe("1 分 5 秒");
+  expect(formatVideoDuration(119.6, "zh-CN", t)).toBe("2 分 0 秒");
+  expect(formatVideoDuration(59.6, "zh-CN", t)).toBe("1 分 0 秒");
 });
 
 const videoConfigBase = {

@@ -96,3 +96,15 @@ it("keeps browser requests on their own origin", async () => {
   const { apiBaseUrl } = await import("./runtimeMode");
   expect(apiBaseUrl()).toBe("/api");
 });
+
+it("preserves the cloud deployment's same-origin API subpath", async () => {
+  vi.stubGlobal("window", {});
+  vi.stubEnv("VITE_A4N_API_BASE_URL", "/a4n/api/");
+  const { apiBaseUrl, workspaceContext } = await import("./runtimeMode");
+  expect(apiBaseUrl()).toBe("/a4n/api");
+  expect(workspaceContext().apiBaseUrl).toBe("/a4n/api");
+  for (const value of ["//other.example/api", "/\\other.example/api"]) {
+    vi.stubEnv("VITE_A4N_API_BASE_URL", value);
+    expect(() => apiBaseUrl()).toThrow();
+  }
+});

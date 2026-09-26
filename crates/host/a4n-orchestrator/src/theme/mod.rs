@@ -33,29 +33,14 @@ impl OrchestratorContext {
         user_id: i64,
         theme_id: i64,
         input: UpdateThemeInput,
-    ) -> Result<theme_config::Model, AppError> {
-        if input.is_empty() {
-            return Err(AppError::InvalidArgument(
-                "主题更新至少需要一个字段".to_string(),
-            ));
-        }
+        resources: Vec<PersistThemeResourceInput>,
+    ) -> Result<ThemeSummary, AppError> {
+        let changes = a4n_theme_core::theme_update_changes(input, resources)?;
         let theme = self
             .require_theme_owner(user_id, theme_id, "只能修改当前登录用户主题")
             .await?;
-        let name = input
-            .name
-            .as_ref()
-            .map(|value| normalize_theme_name(value.clone()))
-            .transpose()
-            .map_err(AppError::InvalidArgument)?;
-        if let Some(document) = input.document {
-            a4n_domain::validate_theme_document(&document).map_err(AppError::InvalidArgument)?;
-            self.update_theme_record(theme, name, input.mode, Some(document))
-                .await
-        } else {
-            self.update_theme_record(theme, name, input.mode, None)
-                .await
-        }
+        let (theme, resources) = self.update_theme_record(theme, changes).await?;
+        a4n_theme_core::theme_summary_with_resources(theme, resources)
     }
 
     pub async fn delete_theme_for_user_validated(
@@ -200,11 +185,10 @@ impl a4n_api_contract::theme::ThemeMutationApplicationPort for OrchestratorConte
         user_id: i64,
         theme_id: i64,
         input: UpdateThemeInput,
+        resources: Vec<PersistThemeResourceInput>,
     ) -> Result<ThemeSummary, AppError> {
-        let theme = self
-            .update_theme_for_user_validated(user_id, theme_id, input)
-            .await?;
-        self.theme_summary(theme).await
+        self.update_theme_for_user_validated(user_id, theme_id, input, resources)
+            .await
     }
 
     async fn delete_theme(&self, user_id: i64, theme_id: i64) -> Result<(), AppError> {

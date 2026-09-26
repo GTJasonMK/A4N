@@ -39,6 +39,10 @@ function normalizeHttpApiBaseUrl(value: unknown): string | null {
   if (typeof value !== "string") return null;
   const trimmed = value.trim();
   if (!trimmed || trimmed === "/api") return null;
+  // Web deployments can use an API path on the current origin.
+  if (!isTauriRuntime() && /^\/[^/\\]/.test(trimmed)) {
+    return trimmed.replace(/\/+$/, "");
+  }
   let parsed: URL;
   try {
     parsed = new URL(trimmed);

@@ -122,8 +122,8 @@ pub(crate) fn generated_video_summary(video: &generated_video::Model) -> Generat
         metadata_json: video.metadata_json.clone(),
         timeline_item_id: video.timeline_item_id,
         is_favorite: video.is_favorite,
-        created_at: video.created_at.to_string(),
-        updated_at: video.updated_at.to_string(),
+        created_at: video.created_at.and_utc().to_rfc3339(),
+        updated_at: video.updated_at.and_utc().to_rfc3339(),
     }
 }
 

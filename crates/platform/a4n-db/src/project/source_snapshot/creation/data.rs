@@ -35,7 +35,7 @@ pub(super) async fn build_source_snapshot_data<C>(
 where
     C: ConnectionTrait,
 {
-    let chapters = chapter::Entity::find()
+    let chapters = chapter::Entity::find_current()
         .filter(chapter::Column::ProjectId.eq(root_project_id))
         .filter(chapter::Column::ChapterNumber.gte(scope.start_chapter))
         .filter(chapter::Column::ChapterNumber.lte(scope.end_chapter))

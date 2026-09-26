@@ -694,7 +694,6 @@ export const ImagesTab: React.FC<ImagesTabProps> = ({
       const updated = await updateImage(requestImage.id, { is_favorite: !requestImage.is_favorite });
       if (!isCurrentAction(requestScope, actionSeq)) return;
       commitImage(updated);
-      setActionImage(null);
     } catch (err) {
       if (isCurrentAction(requestScope, actionSeq)) {
         addToast(extractErrorMessage(err, t("novel.imageLibrary.favoriteFailed")), "error");
@@ -871,7 +870,6 @@ export const ImagesTab: React.FC<ImagesTabProps> = ({
       if (!isCurrentAction(requestScope, actionSeq)) return;
       commitImage(updated);
       addToast(t("novel.imageLibrary.scoreSaved", { value: formatNumber(score, locale) }), "success");
-      setActionImage(null);
     } catch (err) {
       if (isCurrentAction(requestScope, actionSeq)) {
         addToast(extractErrorMessage(err, t("novel.imageLibrary.scoreFailed")), "error");

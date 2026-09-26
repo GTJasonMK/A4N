@@ -161,11 +161,16 @@ impl ThemeMutationApplicationPort for ThemeReadWorkerClient {
         user_id: i64,
         theme_id: i64,
         input: UpdateThemeInput,
+        resources: Vec<PersistThemeResourceInput>,
     ) -> Result<ThemeSummary, AppError> {
         self.command(
             user_id,
             THEME_UPDATE_OPERATION,
-            ThemeUpdateInput { theme_id, input },
+            ThemeUpdateInput {
+                theme_id,
+                input,
+                resources,
+            },
         )
         .await
     }

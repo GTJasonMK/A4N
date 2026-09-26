@@ -4,7 +4,7 @@ use a4n_db_models::models::{
     project::import_review_queue,
 };
 use chrono::Utc;
-use sea_orm::{ActiveModelTrait, ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, Set};
+use sea_orm::{ActiveModelTrait, ColumnTrait, ConnectionTrait, QueryFilter, Set};
 use serde_json::Value;
 
 fn json_string(value: &Value, key: &str) -> Option<String> {
@@ -88,7 +88,7 @@ where
     })?;
     let summary = json_string(analysis, "summary");
     let now = Utc::now().naive_utc();
-    let existing = chapter::Entity::find()
+    let existing = chapter::Entity::find_current()
         .filter(chapter::Column::ProjectId.eq(review.project_id))
         .filter(chapter::Column::ChapterNumber.eq(chapter_number))
         .one(db)

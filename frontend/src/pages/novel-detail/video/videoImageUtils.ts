@@ -181,13 +181,14 @@ export const formatVideoDuration = (
   if (!Number.isFinite(value) || value <= 0) {
     return t("video.postprocess.seconds", { count: formatNumber(0, locale) });
   }
-  if (value < 60) {
+  const secondsTotal = Math.round(value);
+  if (secondsTotal < 60) {
     return t("video.postprocess.seconds", {
-      count: formatNumber(Math.round(value), locale),
+      count: formatNumber(secondsTotal, locale),
     });
   }
-  const minutes = Math.floor(value / 60);
-  const seconds = Math.round(value - minutes * 60);
+  const minutes = Math.floor(secondsTotal / 60);
+  const seconds = secondsTotal % 60;
   return t("video.postprocess.minutesSeconds", {
     minutes: formatNumber(minutes, locale),
     seconds: formatNumber(seconds, locale),

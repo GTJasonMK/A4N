@@ -8,6 +8,7 @@ where
     C: ConnectionTrait,
 {
     chapter::Entity::find_by_id(chapter_id)
+        .filter(chapter::Column::Status.ne(chapter::STATUS_DELETED))
         .one(db)
         .await
         .map_err(OptimizeDbError::Database)
