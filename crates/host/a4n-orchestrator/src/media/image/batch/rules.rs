@@ -6,6 +6,7 @@ use serde_json::{Value, json};
 /// 批量图片项允许的字段白名单。
 pub const BATCH_IMAGE_ITEM_FIELDS: &[&str] = &[
     "prompt",
+    "negative_prompt",
     "image_type",
     "chapter_id",
     "panel_id",
@@ -16,6 +17,34 @@ pub const BATCH_IMAGE_ITEM_FIELDS: &[&str] = &[
     "height",
     "reference_image_ids",
 ];
+
+pub fn compose_batch_image_prompt(
+    prompt: &str,
+    image_type: &str,
+    negative: Option<&str>,
+) -> String {
+    use a4n_domain::image::{
+        IMAGE_TYPE_VIDEO_KEY_FRAME, IMAGE_TYPE_VIDEO_START_FRAME, IMAGE_TYPE_VIDEO_STORYBOARD_FRAME,
+    };
+    let mut prompt = prompt.to_string();
+    if let Some(negative) = negative.map(str::trim).filter(|value| !value.is_empty()) {
+        prompt.push_str(&format!("\n\n避免项：{negative}"));
+    }
+    let guard = match image_type {
+        IMAGE_TYPE_VIDEO_KEY_FRAME | IMAGE_TYPE_VIDEO_START_FRAME => {
+            "只生成单张剧情画面。参考图只用于人物、场景、道具、构图和风格一致性，不要画参考板、拼贴、多格排版、字幕或水印。"
+        }
+        IMAGE_TYPE_VIDEO_STORYBOARD_FRAME => {
+            "生成一张包含 2 到 6 个清晰画格的动态分镜板，按从左到右、从上到下表达同一视频单元的状态变化。参考图只约束主体和风格；不要画字幕、水印、文字编号或无关素材展示墙。"
+        }
+        _ => "",
+    };
+    if !guard.is_empty() {
+        prompt.push_str("\n\n");
+        prompt.push_str(guard);
+    }
+    prompt
+}
 
 /// 校验 batch 图片项对象形状与字段白名单。
 pub fn ensure_batch_image_item_shape(index: usize, item: &Value) -> Result<(), String> {
@@ -171,6 +200,28 @@ mod tests {
         IMAGE_GENERATION_SOURCE_VIDEO_FIRST_FRAME_PROMPT, IMAGE_TYPE_VIDEO_KEY_FRAME,
     };
     use serde_json::json;
+
+    #[test]
+    fn image_request_keeps_negative_constraints_and_the_correct_frame_mode() {
+        let prompt = compose_batch_image_prompt(
+            "角色站在窗边",
+            IMAGE_TYPE_VIDEO_KEY_FRAME,
+            Some("不要红色衣服"),
+        );
+        assert_eq!(prompt.matches("不要红色衣服").count(), 1);
+        assert!(prompt.contains("单张剧情画面"));
+        assert!(!prompt.contains("image 字段"));
+        let storyboard = compose_batch_image_prompt(
+            "抬手后转身",
+            a4n_domain::image::IMAGE_TYPE_VIDEO_STORYBOARD_FRAME,
+            None,
+        );
+        assert!(storyboard.contains("2 到 6"));
+        assert!(!storyboard.contains("不要画参考板"));
+        assert!(
+            optional_json_string_field(&json!({"negative_prompt": 1}), "negative_prompt").is_err()
+        );
+    }
 
     #[test]
     fn shape_rejects_unknown_fields_and_field_readers_reject_wrong_types() {

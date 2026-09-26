@@ -1,5 +1,5 @@
 use super::super::super::{ImportIdMaps, ProjectFamilyImportError, map_required};
-use super::super::{remap_object_id, remap_object_ids};
+use super::super::{remap_galgame_presentation_json, remap_object_id, remap_object_ids};
 use serde_json::Value;
 
 pub(super) fn remap_regenerate_scene_payload(
@@ -48,6 +48,15 @@ fn remap_galgame_stage_outputs(
 ) -> Result<(), ProjectFamilyImportError> {
     match value {
         Value::Object(object) => {
+            for key in ["presentation", "presentation_json"] {
+                if let Some(presentation) = object.get_mut(key) {
+                    *presentation = remap_galgame_presentation_json(
+                        presentation,
+                        maps,
+                        &format!("{label}.{key}"),
+                    )?;
+                }
+            }
             remap_object_ids(
                 object,
                 label,

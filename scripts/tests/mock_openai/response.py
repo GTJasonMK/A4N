@@ -88,7 +88,7 @@ def response_for(body: dict[str, Any]) -> str:
                 raise ValueError("checkpoint patch fixture requires unique original text")
             value["patches"][0]["old_text"] = old_text
             value["patches"][0]["new_text"] = old_text + "林岚把信封攥得更紧。"
-        if fault == "shooting-layout" and value.get("schema_version") == "screenplay_layout_unit_detail_v1":
+        if fault == "shooting-layout" and value.get("schema_version") == "screenplay_layout_unit_detail_v2":
             value["slugline"] = " "
         elif fault == "shooting-adaptation" and value.get("schema_version") == "screenplay_unit_adaptation_v1":
             value["performance_facts"][0]["actor"] = "不在参与者中的角色"
@@ -219,6 +219,8 @@ def response_for(body: dict[str, Any]) -> str:
         return "从起点画面开始，镜头缓缓推进；人物沿通道走向门口并停步，光线随开门动作逐渐改变。遵循已给定的内部关键帧和场景，不推断下一镜头的图片。"
 
     if "chapter_shooting_design_unit" in combined or "ShootingSceneV1" in combined:
+        if model == "a4n-shooting-background-slow":
+            time.sleep(6)
         return json.dumps(shooting_design_response(combined), ensure_ascii=False)
 
     if (
@@ -229,7 +231,7 @@ def response_for(body: dict[str, Any]) -> str:
 
     if (
         "chapter_screenplay_layout_unit" in combined
-        or "screenplay_layout_unit_detail_v1" in combined
+        or "screenplay_layout_unit_detail_v2" in combined
     ):
         return json.dumps(shooting_layout_response(combined), ensure_ascii=False)
 

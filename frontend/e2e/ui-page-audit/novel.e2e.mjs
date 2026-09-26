@@ -361,11 +361,11 @@ async function snapshot(id, width, stage, scope, evidence = {}) {
   report.push({ id, stage, file, task: current.task, ...state, evidence, findings, text: text.slice(0, 12000), textLength: text.length });
   return findings;
 }
-async function matrix(spec) {
-  current = { id: spec.id, task: spec.task, visited: [] };
+async function matrix(spec, selectedWidths = widths) {
+  current = { id: spec.id, task: spec.task, visited: [], plannedWidths: selectedWidths };
   const failures = [];
   try {
-    for (const width of widths) {
+    for (const width of selectedWidths) {
       current.width = width;
       current.evidence = undefined;
       await browser.setWindowSize(width, height);
@@ -430,7 +430,7 @@ afterEach(async function () {
       id: current?.id, file, outcome: "failed", ...state,
       error: current?.error ?? this.currentTest.err?.message,
       evidence: current?.evidence,
-      notCapturedWidths: widths.filter((width) => !current?.visited.includes(width)),
+      notCapturedWidths: (current?.plannedWidths ?? widths).filter((width) => !current?.visited.includes(width)),
     };
     report.push(failure);
     await writeFile(output + file.replace(/\.png$/, ".json"), JSON.stringify(failure, null, 2));
@@ -570,7 +570,29 @@ describe("Novel page audit - ordinary populated pages", function () {
     }, last: async (scope) => (await scope.$$("button")).at(-1) },
     { id: "N01-versions", task: "查看真实版本记录并找到比较入口", open: async () => {
       const scope = await project(); await press(await containing("蓝图版本", scope)); return dialog();
-    }, text: ["第一版蓝图", "第三站台"], last: async (scope) => (await scope.$$("li")).at(-1) },
+    }, text: ["第一版蓝图", "第三站台"], check: async (scope) => {
+      const descriptions = seed.commands.list_blueprint_versions.map((version) => version.change_description);
+      const clipped = await scope.execute((node, values) => [...node.querySelectorAll("li span")].filter((span) => values.includes(span.textContent) && span.scrollWidth > span.clientWidth + 1).map((span) => span.textContent), descriptions);
+      assert.deepEqual(clipped, [], "The version's change description must be readable before selecting or restoring it");
+      return { completeVersionDescriptions: descriptions.length };
+    }, last: async (scope) => (await scope.$$("li")).at(-1) },
+    { id: "N01-version-restore", task: "核对具体蓝图版本的覆盖说明并取消恢复", open: async (width) => {
+      const page = await project(); await press(await containing("蓝图版本", page));
+      const versions = await dialog("蓝图版本");
+      const showConfirmation = async () => {
+        await press(await (await versions.$$("li")).at(-1).$('button[aria-label="更多操作"]'));
+        await menuItem("恢复此版本");
+        return dialog("恢复蓝图版本");
+      };
+      const confirmation = await showConfirmation();
+      await waitText(confirmation, "当前蓝图会被覆盖");
+      assert.deepEqual(await snapshot("N01-version-restore", width, "before-cancel", confirmation), []);
+      await clickText("取消", confirmation);
+      await browser.waitUntil(async () => !await confirmation.isDisplayed(), { timeout });
+      assert.equal((await versions.$$("li")).length, seed.commands.list_blueprint_versions.length);
+      assert.equal(await browser.execute(() => window.__uiAudit.commands.includes("restore_blueprint_version")), false);
+      return showConfirmation();
+    }, text: ["版本 1", "历史"], last: async (scope) => textButton("取消", scope) },
     { id: "N01-version-compare", task: "选择第一版与第三版，阅读蓝图差异", open: async () => {
       const page = await project(); await press(await containing("蓝图版本", page));
       const scope = await dialog("蓝图版本");
@@ -585,12 +607,53 @@ describe("Novel page audit - ordinary populated pages", function () {
       assert.deepEqual(request, { project_id: 1, version_a: "1", version_b: "3" });
       return { comparedVersions: [request.version_a, request.version_b] };
     }, last: async (scope) => (await scope.$$(".whitespace-pre-wrap")).at(-1) },
-    { id: "N01-members", task: "核对成员角色与待接受邀请", open: () => openProjectAction("协作成员"), text: ["协作编辑", "待加入的正文协作者"], last: async (scope) => (await scope.$$("li")).at(-1) },
+    { id: "N01-members", task: "核对成员角色与待接受邀请", open: () => openProjectAction("协作成员"), text: ["协作编辑", "待加入的正文协作者"], check: async (scope) => {
+      const roles = await scope.execute((node) => [...node.querySelectorAll("li .a4n-themed-select__value")].map((value) => ({ text: value.textContent, width: value.clientWidth, contentWidth: value.scrollWidth })));
+      assert.ok(roles.some((role) => role.text === "只读成员"));
+      assert.ok(roles.every((role) => role.contentWidth <= role.width), "Member permissions must remain fully readable");
+      return { roles };
+    }, last: async (scope) => (await scope.$$("li")).at(-1) },
     { id: "N01-stage", task: "查看阶段历史和可选推进/回退动作", open: async () => {
       const scope = await openProjectAction("项目阶段");
       await press(await containing("状态变更历史", scope, "summary"));
       return scope;
     }, text: ["三部分结构", "开始前三章"] },
+    { id: "N01-stage-flow", task: "展开完整项目流程并阅读当前阶段至末端阶段", open: async () => {
+      const scope = await openProjectAction("项目阶段");
+      await press(await containing("查看完整流程", scope, "summary"));
+      return scope;
+    }, check: async (scope) => {
+      const flow = await scope.$('[aria-label="项目阶段摘要选项"]');
+      assert.equal((await flow.$$("li")).length, 6);
+      assert.equal((await flow.$$('[aria-current="step"]')).length, 1);
+      return { stages: 6, currentStage: await flow.$('[aria-current="step"]').getText() };
+    }, last: async (scope) => (await scope.$$('[aria-label="项目阶段摘要选项"] li')).at(-1) },
+    { id: "N01-rollback", task: "查看回滚的影响数量与章节范围，然后取消而不改动项目", open: async () => {
+      const scope = await openProjectAction("项目阶段");
+      await press(await containing("回滚到先前阶段", scope, "summary"));
+      await press(await scope.$('button[role="combobox"]'));
+      const targets = seed.commands.get_project_status_machine.rollback_targets;
+      const options = await $$('[role="option"]');
+      assert.equal(options.length, targets.length + 1);
+      await press(options[targets.indexOf("blueprint_ready") + 1]);
+      await waitText(scope, seed.commands.preview_rollback.impacts[0].title);
+      return scope;
+    }, check: async (scope, width) => {
+      const request = await browser.execute(() => window.__uiAudit.requests.findLast((item) => item.command === "preview_rollback")?.body);
+      assert.deepEqual(request, { projectId: 1, target: "blueprint_ready" });
+      for (const impact of seed.commands.preview_rollback.impacts) {
+        await waitText(scope, impact.title);
+        await waitText(scope, impact.note);
+        await waitText(scope, `第 ${impact.chapter_start}-${impact.chapter_end} 章`);
+      }
+      assert.ok((await wheelTo(await textButton("确认回滚", scope))).reached);
+      assert.deepEqual(await snapshot("N01-rollback", width, "impact-preview", scope, { request }), []);
+      await clickText("取消", scope);
+      assert.equal(await (await textButton("确认回滚", scope)).isExisting(), false);
+      assert.equal(await scope.$('button[role="combobox"]').getText(), "选择要恢复的阶段");
+      assert.equal(await browser.execute(() => window.__uiAudit.commands.includes("rollback_project_status")), false);
+      return { affectedGroups: seed.commands.preview_rollback.impacts.length, cancelledWithoutMutation: true };
+    } },
     { id: "N01-export", task: "找到格式、元数据和结构化导出选项", open: () => openProjectAction("导出小说"), text: ["导出"], check: async (scope, width) => {
       const format = await scope.$('button[role="combobox"]');
       for (const [value, label, metadata] of [["txt", "TXT 纯文本", false], ["markdown", "Markdown", true], ["epub", "EPUB 电子书", true], ["pdf", "PDF", false], ["batch", "TXT + Markdown", true]]) {
@@ -628,6 +691,9 @@ describe("Novel page audit - ordinary populated pages", function () {
       const viewer = await dialog("生成输入");
       assert.deepEqual(await snapshot("N01-lineage", width, "generation-inputs", viewer, { inputs: seed.byAssetNode[node.id].records[0].generation_inputs.length }), []);
       await closeDialog();
+      for (const summary of await detail.$$("details > summary")) {
+        if (await summary.execute((node) => !node.parentElement.open)) await press(summary);
+      }
       return { expectedNodes: seed.commands.get_project_asset_dependency_graph.nodes.length, selectedNodeId: node.id, inputViewerOpened: true };
     }, last: async (scope) => (await scope.$$("aside pre")).at(-1) },
     ...["结构化", "JSON", "纯文本"].map((mode, index) => ({
@@ -649,7 +715,7 @@ describe("Novel page audit - ordinary populated pages", function () {
       for (const key of ["key_locations", "factions"]) {
         const item = seed.commands.get_blueprint.world_setting[key].at(-1);
         const label = await scope.$('.//*[normalize-space(.)=' + literal(item.name) + ']');
-        const row = await label.$("ancestor::li[1]");
+        const row = await label.$("..");
         assert.ok((await reach(row)).reached, "The last world entry must be scrollable: " + item.name);
         assert.deepEqual(await snapshot("N02-detail", width, key + "-last", scope, { finalEntry: item.name }), []);
       }
@@ -667,6 +733,21 @@ describe("Novel page audit - ordinary populated pages", function () {
     }, last: async (scope) => (await scope.$$("button")).at(-1) },
     { id: "N03-arc", task: "阅读角色弧光与阶段", open: () => characterTab("弧光"), text: ["从等待答案到主动核验", "主动承担下一步行动"] },
     { id: "N03-voice", task: "阅读声音指纹和示例", open: () => characterTab("声音指纹"), text: ["以具体问题替代情绪指控", "这封信，你为什么留到今天"] },
+    { id: "N03-consistency", task: "检查角色一致性并对照具体章节的预期与实际证据", open: async () => {
+      const scope = await characterTab("一致性");
+      await browser.execute(() => { window.__uiAudit.fixtures.get_workflow_progress_events = { events: [], stream_text: null }; });
+      await clickText("开始检测", scope);
+      const progress = await dialog("角色一致性检查");
+      await waitText(progress, "任务已完成");
+      await closeDialog();
+      await waitText(scope, "第三章已抵达旧车站第三站台");
+      return scope;
+    }, check: async (scope) => {
+      const conflicts = seed.byProfile[1011].check_character_conflict;
+      assert.equal((await scope.$$("li")).length, conflicts.length);
+      for (const conflict of conflicts) for (const value of [conflict.expected, conflict.actual]) await waitText(scope, value);
+      return { profileId: 1011, conflicts: conflicts.length };
+    }, last: async (scope) => (await scope.$$("li")).at(-1) },
     { id: "N03-portraits", task: "查找已有立绘并区分主图与变体", open: portraits, text: ["林岚", "周衡"], check: async (scope) => {
       const cards = await scope.$$('button[title="管理人物三视图拆解"]');
       assert.equal(cards.length, 4, "Need the four populated portraits");
@@ -680,6 +761,55 @@ describe("Novel page audit - ordinary populated pages", function () {
       assert.equal(await $(".a4n-image-lightbox-panel").isDisplayed(), false, "Image center must open portrait details");
       return { imageCenterOpenedDetails: true };
     } },
+    { id: "N03-portrait-age", task: "基于明确人物填写年龄段，保留原立绘并取消生成", open: async () => {
+      const scope = await portraits();
+      await press(await scope.$('button[title="管理人物三视图拆解"] img'));
+      await press(await containing("生成年龄变体", await dialog("立绘详情")));
+      const form = await dialog("生成年龄变体");
+      const input = await form.$("input");
+      assert.equal(await input.execute((node) => node.labels?.[0]?.textContent?.trim()), "年龄段");
+      assert.equal(await (await textButton("生成变体", form)).isEnabled(), false);
+      await input.setValue("35 岁");
+      await (await textButton("生成变体", form)).waitForEnabled({ timeout });
+      return form;
+    }, text: ["林岚"], last: async (scope) => textButton("生成变体", scope) },
+    { id: "N03-portrait-prompt", task: "读取当前人物的完整立绘提示词，保留渲染和请求预览入口", open: async () => {
+      const scope = await portraits();
+      const picture = await scope.$('button[title="管理人物三视图拆解"] img');
+      const src = await picture.getAttribute("src");
+      const expected = await browser.execute((source) => window.__uiAudit.fixtures.byProject[1].list_portraits_by_project.find((item) => item.image_path === source), src);
+      assert.ok(expected?.prompt?.trim());
+      await press(picture);
+      await press(await containing("查看提示词", await dialog("立绘详情")));
+      const form = await dialog("人物三视图拆解提示词");
+      assert.equal(await form.$("pre").getText(), expected.prompt);
+      return form;
+    }, text: ["林岚", "当前提示词"], last: async (scope) => scope.$("pre") },
+    { id: "N03-portrait-upload", task: "为明确人物选择本地图片，区分重新选图与独立预览", open: async () => {
+      const scope = await portraits();
+      await press(await scope.$('button[aria-label="更多操作"]'));
+      await menuItem("上传立绘素材");
+      const form = await dialog("上传角色立绘");
+      assert.equal(await (await textButton("上传立绘", form)).isEnabled(), false);
+      const file = await form.$('input[type="file"]');
+      await file.setValue(fileURLToPath(new URL("../../resources/thelittleprince.png", import.meta.url)));
+      const preview = await form.$("label img");
+      await browser.waitUntil(async () => preview.execute((node) => node.complete && node.naturalWidth > 0), { timeout });
+      await file.execute((node) => {
+        window.__portraitFileClicks = 0;
+        node.addEventListener("click", (event) => { window.__portraitFileClicks++; event.preventDefault(); });
+      });
+      await press(preview);
+      assert.equal(await browser.execute(() => window.__portraitFileClicks), 1);
+      assert.equal(await $(".a4n-image-lightbox-panel").isDisplayed(), false);
+      const zoom = await ariaButton("图片预览", form);
+      await press(zoom); await lightbox(); await closeDialog(); await assertFocus(zoom);
+      assert.equal(await browser.execute(() => window.__portraitFileClicks), 1, "Independent preview must not open the file chooser");
+      await form.$("textarea").setValue("林岚在雨夜书店中的全身参考，保留风衣与右手怀表。");
+      assert.equal(await (await textButton("上传立绘", form)).isEnabled(), true);
+      assert.equal(await browser.execute(() => window.__uiAudit.commands.includes("upload_portrait")), false);
+      return form;
+    }, text: ["林岚", "thelittleprince.png"], last: async (scope) => scope.$('[role="switch"]') },
     { id: "N03-portrait-preview", task: "独立预览立绘并用 Escape 返回原按钮", open: async () => {
       const scope = await portraits();
       const card = await scope.$('button[title="管理人物三视图拆解"]').$("..");
@@ -723,6 +853,24 @@ describe("Novel page audit - ordinary populated pages", function () {
         return { records: (await scope.$$("li")).length, minimum };
       }, last: async (scope) => (await scope.$$("li")).at(-1),
     })),
+    { id: "N03-snapshot-compare", task: "比较第一章到第三章的角色状态并核对变化", open: async () => {
+      const scope = await characterTab("管理", "快照");
+      const summary = await containing("比较与回滚", scope, "summary");
+      await press(summary);
+      const tools = await summary.$("..");
+      const selects = await tools.$$('button[role="combobox"]');
+      for (const [index, chapter] of [[0, 1], [1, 3]]) {
+        await press(selects[index]);
+        await press(await $('//*[@role="option" and normalize-space(.)=' + literal(`第 ${chapter} 章`) + ']'));
+      }
+      await clickText("生成差异", tools);
+      await waitText(scope, "旧车站第三站台");
+      return scope;
+    }, check: async () => {
+      const request = await browser.execute(() => window.__uiAudit.requests.findLast((item) => item.command === "diff_profile_chapters")?.body.input);
+      assert.deepEqual(request, { profile_id: 1011, from_chapter: 1, to_chapter: 3 });
+      return { comparedChapters: [1, 3] };
+    }, last: async (scope) => scope.$(".//span[contains(normalize-space(.),'旧车站第三站台')]") },
     { id: "N03-snapshot-state", task: "从第一章快照读取并展开当章完整属性", open: async () => {
       const scope = await characterTab("管理", "快照");
       const row = await scope.$("li");
@@ -886,6 +1034,45 @@ describe("Novel page audit - ordinary populated pages", function () {
       assert.ok((await scope.$$("input")).length >= 3); assert.equal(await scope.$("textarea").isExisting(), true);
       return { manualPartInputs: true };
     }, last: async (scope) => (await scope.$$("button")).at(-1) },
+    ...[["part", "分部大纲", "追加分部", 2], ["chapter", "章节大纲", "追加章纲", 1]].map(([kind, tab, action, count]) => ({
+      id: "N08-append-" + kind, task: "展开" + tab + "追加范围并保留既有大纲",
+      open: async () => {
+        const page = await project("大纲"); await clickText(tab, page);
+        const summary = await containing(action, page, "summary"); await press(summary);
+        return summary.$("..");
+      }, check: async (scope) => {
+        const fields = await scope.$$('input[type="number"]');
+        assert.equal(fields.length, count);
+        for (const field of fields) assert.ok((await field.getValue()).length > 0);
+        assert.ok(await (await textButton(action, scope)).isEnabled());
+        return { numericFields: count, generated: false };
+      }, last: async (scope) => textButton(action, scope),
+    })),
+    { id: "N08-chapter-editor", task: "编辑已有章纲的标题和长摘要，保留保存与取消", open: async () => {
+      const page = await project("大纲"); await clickText("章节大纲", page);
+      await press(await page.$('button[aria-label="更多章纲操作"]'));
+      await press(await containing("编辑章纲", await dialog()));
+      const row = await page.$("li:has(textarea)");
+      await row.$("textarea").waitForDisplayed({ timeout });
+      assert.equal(await row.$("textarea").getValue(), seed.commands.list_chapter_outlines[0].summary);
+      return row;
+    }, text: ["保存", "取消"], last: async (scope) => textButton("保存", scope) },
+    { id: "N08-create-chapter", task: "以新章号手工录入标题与章纲，检查末端保存", open: async () => {
+      const page = await project("大纲"); await clickText("章节大纲", page); await clickText("直接录入", page);
+      const form = await dialog();
+      assert.equal(await form.$('input[type="number"]').getValue(), "10");
+      await form.$('input[type="text"]').setValue("归来后的新线索");
+      await form.$("textarea").setValue("保留旧书店与车站已有事实，用新的核验行动推动后续章节。");
+      return form;
+    }, last: async (scope) => (await scope.$$("button")).at(-1) },
+    { id: "N08-part-editor", task: "在原分部范围内编辑完整剧情，保留主题与取消入口", open: async () => {
+      const page = await project("大纲"); await clickText("分部大纲", page);
+      await press(await page.$('button[aria-label*="夜雨中的旧书店"]'));
+      await clickText("编辑正式分部", await dialog());
+      const form = await dialog("编辑第 1 部");
+      assert.ok((await form.$("textarea").getValue()).includes("林岚"));
+      return form;
+    }, last: async (scope) => (await scope.$$("textarea")).at(-1) },
     { id: "N08-advanced", task: "发现进度、节奏和维护工具", open: async () => {
       const scope = await project("大纲"); await clickText("分部大纲", scope);
       await press(await scope.$('button[aria-label="打开大纲高级工具"]')); return dialog();
@@ -954,6 +1141,51 @@ describe("Novel page audit - ordinary populated pages", function () {
       await main.waitForDisplayed({ timeout });
       return previewRoundTrip(await ariaButton("图片预览", await main.$("..")));
     }, check: async (scope) => ({ separatePreview: true, escapeFocusRestored: true, previewSource: await scope.$("img").getAttribute("src") }) },
+    ...["project", "chapter", "object"].map((mode) => ({
+      id: "N09-generate-" + mode,
+      task: mode === "object" ? "从完整物体档案选择素材并检查模型请求" : "填写" + (mode === "chapter" ? "本章" : "项目") + "图像提示词并检查模型请求",
+      open: async () => {
+        const scope = mode === "chapter" ? await writing("图像") : await project("图像");
+        await clickText("生成图片", scope);
+        const form = await dialog(mode === "chapter" ? "生成章节图像" : "生成项目图像");
+        if (mode === "object") {
+          await press(await form.$("summary"));
+          await press(await form.$("#object-image-profile"));
+          assert.equal((await $$('[role="option"]')).length, seed.commands.list_object_profiles.length + 1);
+          await press(await $('//*[@role="option" and normalize-space(.)="旧怀表"]'));
+        } else {
+          assert.equal(await (await textButton("开始生成", form)).isEnabled(), false);
+          await form.$("textarea").setValue(seed.commands.preview_scene_image_request.steps[0].user_prompt);
+        }
+        return form;
+      }, check: async (scope, width) => {
+        const id = "N09-generate-" + mode;
+        const section = await scope.$(mode === "object" ? "details[open] section" : "section");
+        const action = await textButton(mode === "object" ? "生成素材图" : "开始生成", section);
+        await action.waitForEnabled({ timeout });
+        assert.ok((await wheelTo(action)).reached);
+        assert.deepEqual(await snapshot(id, width, "filled-form", scope), []);
+        await press(await section.$('button[aria-label="更多操作"]'));
+        await menuItem("查看模型请求");
+        const command = mode === "object" ? "preview_object_profile_image_request" : "preview_scene_image_request";
+        const preview = await dialog(seed.commands[command].title);
+        const expected = seed.commands[command].steps[0];
+        await waitText(preview, expected.user_prompt);
+        const input = await browser.execute((name) => window.__uiAudit.requests.findLast((item) => item.command === name)?.body.input, command);
+        assert.equal(input.chapter_id, mode === "chapter" ? 1 : null);
+        assert.ok(input.width > 0 && input.height > 0);
+        if (mode === "object") assert.equal(input.object_profile_id, 2011);
+        else {
+          assert.equal(input.project_id, 1);
+          assert.equal(input.prompt, expected.user_prompt);
+        }
+        assert.deepEqual(await snapshot(id, width, "request-preview", preview, { input }), []);
+        await closeDialog();
+        if (mode === "object") assert.equal(await scope.$("#object-image-profile").getText(), "旧怀表");
+        else assert.equal(await scope.$("textarea").getValue(), expected.user_prompt);
+        return { chapterId: input.chapter_id, objectId: input.object_profile_id ?? null, requestPreviewAndDraftPreserved: true };
+      }, last: async (scope) => textButton(mode === "object" ? "生成素材图" : "开始生成", scope),
+    })),
     { id: "N10-review-detail", task: "展开候选的来源与结构化审核内容", open: async () => {
       const scope = await project("导入/归纳");
       await press(await scope.$('button[aria-label="查看 01-旧书店与车站调查补充材料.md 的审核详情"]'));
@@ -965,6 +1197,51 @@ describe("Novel page audit - ordinary populated pages", function () {
       assert.ok(value.includes('"chapter_title"') && value.includes('"content"'));
       return { reviewJsonLength: value.length };
     }, last: async (scope) => (await scope.$$("button")).at(-1) },
+    { id: "N10-dedup", task: "对照已有章节检查重复，阅读结论与完整诊断且保留输入", open: async (width) => {
+      const page = await project("导入/归纳");
+      const summary = await containing("重复内容检查", page, "summary"); await press(summary);
+      const scope = await summary.$("..");
+      const content = seed.commands.list_chapters[0].content;
+      // Explicit read-response fixture; this UI check does not run the SimHash implementation.
+      await browser.execute(() => { window.__uiAudit.fixtures.check_import_dedup = {
+        content_hash: "0000000000000000", is_duplicate: true, matched_chapter_id: 1, closest_distance: 0,
+      }; });
+      await scope.$("textarea").setValue(content);
+      assert.ok((await scope.$("textarea").getSize()).height >= 140);
+      assert.deepEqual(await snapshot("N10-dedup", width, "input", scope), []);
+      await clickText("检查", scope);
+      await press(await containing("查看去重结果", scope, "summary"));
+      await waitText(scope, "检测到重复内容");
+      return scope;
+    }, check: async (scope) => {
+      const request = await browser.execute(() => window.__uiAudit.requests.findLast((item) => item.command === "check_import_dedup")?.body.input);
+      assert.deepEqual(request, { project_id: 1, content: seed.commands.list_chapters[0].content.trim() });
+      assert.equal(await scope.$("textarea").getValue(), seed.commands.list_chapters[0].content);
+      assert.equal(await scope.$("dd").getText(), "是");
+      await press(await containing("诊断信息", scope, "summary"));
+      assert.deepEqual(JSON.parse(await scope.$("pre").getText()), { content_hash: "0000000000000000", is_duplicate: true, matched_chapter_id: 1, closest_distance: 0 });
+      return { inputPreserved: true, readOnlyCheck: true };
+    }, last: async (scope) => scope.$("pre") },
+    ...[["blueprint", "故事蓝图", "归纳正式蓝图"], ["outline", "章节大纲", "生成章节大纲候选"], ["part", "分部大纲", "生成分部大纲候选"]].map(([kind, target, action]) => ({
+      id: "N10-consolidate-" + kind, task: "检查" + target + "归纳的上下文、人工补充和写入说明",
+      open: async () => {
+        const page = await project("导入/归纳");
+        const summary = await containing("项目资料归纳", page, "summary"); await press(summary);
+        const scope = await summary.$("..");
+        await press(await scope.$('button[role="combobox"]'));
+        await press(await $('//*[@role="option" and normalize-space(.)=' + literal(target) + ']'));
+        const context = await scope.$('button[role="switch"]');
+        if (await context.getAttribute("aria-checked") === "true") await press(context);
+        await scope.$("textarea").setValue(seed.commands.list_chapters[0].content);
+        return scope;
+      }, check: async (scope) => {
+        assert.ok((await scope.$("textarea").getSize()).height >= 140);
+        assert.equal(await scope.$('button[role="switch"]').getAttribute("aria-checked"), "false");
+        assert.ok(await (await textButton(action, scope)).isEnabled());
+        await waitText(scope, kind === "blueprint" ? "直接成为正式蓝图" : "确认后才更新正式大纲");
+        return { target, contextFromEnteredContent: true, generationSubmitted: false };
+      }, last: async (scope) => textButton(action, scope),
+    })),
     { id: "N11-import", task: "发现手动导入章节的输入与确认动作", open: async () => {
       const scope = await project("章节"); await clickText("导入章节", scope); return dialog();
     }, text: ["确认导入"], check: async (scope) => {
@@ -1097,6 +1374,7 @@ describe("Novel page audit - ordinary populated pages", function () {
     { id: "W07-assistant", task: "查看生成要求、字数范围和上下文入口", open: async () => {
       const panel = await writingPanel("写作助手");
       await clickText("生成", panel);
+      await panel.$("textarea").setValue("保留林岚和周衡既有事实，用核对旧地图的动作推动下一幕。");
       await press(await containing("正文长度", panel, "summary"));
       return panel;
     }, text: ["最少字数", "最多字数"], last: async (scope) => (await scope.$$("summary")).at(-1) },
@@ -1120,7 +1398,11 @@ describe("Novel page audit - ordinary populated pages", function () {
       return dialog();
     }, text: ["林岚", "沈照"] },
   ];
-  for (const spec of inner) it(spec.id + " exercises its inner page", async () => matrix(spec));
+  for (const spec of inner) {
+    if (spec.id === "N01-lineage") {
+      for (const width of widths) it(`${spec.id}-${width} checks graph, sources and complete inputs`, async () => matrix(spec, [width]));
+    } else it(spec.id + " exercises its inner page", async () => matrix(spec));
+  }
 
   const inspirationPages = [
     { id: "I01-conversation", task: "阅读十轮灵感对话并到达最后一个建议", open: inspiration,

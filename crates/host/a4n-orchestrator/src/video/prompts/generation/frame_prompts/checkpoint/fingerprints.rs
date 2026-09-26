@@ -1,12 +1,12 @@
 use a4n_domain::source_text_hash as source_content_sha256;
 use a4n_error::AppError;
-use a4n_video_contract::{VideoSegmentExecutionRecipeV1, video_segment_content_fingerprint};
+use a4n_video_contract::{VideoSegmentExecutionRecipeV1, video_segment_identities};
 use serde_json::{Value, json};
 
 use a4n_llm_context::LlmContextManifest;
 
 use super::super::ChapterVideoSourceContext;
-use super::super::{VideoSegmentPlan, VideoShootingScriptProjection, video_units_for_segment_plan};
+use super::super::{VideoSegmentPlan, VideoShootingScriptProjection};
 
 pub(in crate::video::prompts::generation::frame_prompts) fn serialize_video_value<
     T: serde::Serialize,
@@ -60,33 +60,34 @@ pub(crate) fn video_execution_chain_identity(
     duration_secs: i32,
     aspect_ratio: &str,
 ) -> Result<Value, AppError> {
-    let projection_json = serde_json::to_string(projection)?;
-    let segment_plan_json = serde_json::to_string(segment_plan)?;
-    let unit_plan = video_units_for_segment_plan(segment_plan, duration_secs)?;
-    let unit_plan_json = serde_json::to_string(&unit_plan)?;
-    let segment_identities = segment_plan
-        .iter()
-        .map(|segment| {
-            Ok(json!({
-                "source_shot_id": segment.source_shot_id,
-                "segment_index_in_shot": segment.segment_index_in_shot,
-                "segment_sha256": video_segment_content_fingerprint(segment)
-                    .map_err(AppError::InvalidArgument)?,
-            }))
-        })
-        .collect::<Result<Vec<_>, AppError>>()?;
+    let segment_identities =
+        video_segment_identities(segment_plan).map_err(AppError::InvalidArgument)?;
     Ok(json!({
         "contract_epoch": a4n_video_contract::VIDEO_EXECUTION_CONTRACT_EPOCH,
         "shooting_script_identity": projection.shooting_script_identity,
-        "projection_sha256": source_content_sha256(&projection_json),
-        "segment_plan_sha256": source_content_sha256(&segment_plan_json),
-        "unit_plan_sha256": source_content_sha256(&unit_plan_json),
         "segment_identities": segment_identities,
         "source_content_sha256": projection.shooting_script_identity.source_content_sha256,
         "style_sha256": source_content_sha256(style),
         "duration_secs": duration_secs,
         "aspect_ratio": aspect_ratio,
     }))
+}
+
+pub(in crate::video::prompts::generation::frame_prompts) fn carry_forward_execution_sources(
+    identity: &mut Value,
+    previous: Option<&a4n_video_contract::VideoShootingScriptIdentityV1>,
+    updated_shot_ids: &std::collections::HashSet<String>,
+) -> Result<(), AppError> {
+    let Some(previous) = previous else {
+        return Ok(());
+    };
+    let mut source: a4n_video_contract::VideoShootingScriptIdentityV1 =
+        serde_json::from_value(identity["shooting_script_identity"].clone())?;
+    source
+        .carry_forward_sources(previous, updated_shot_ids)
+        .map_err(AppError::InvalidArgument)?;
+    identity["shooting_script_identity"] = serde_json::to_value(source)?;
+    Ok(())
 }
 
 pub(in crate::video) fn video_segment_execution_identity(

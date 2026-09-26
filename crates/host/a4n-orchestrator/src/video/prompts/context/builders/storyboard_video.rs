@@ -68,7 +68,6 @@ pub(in crate::video) async fn build_storyboard_video_prompt_user(
         "chapter": lightweight_chapter_context(chapter_summary, chapter_analysis),
         "previous_steps": {
             "focused_chapter_video_segment_plan": focused_segment_plan,
-            "focused_chapter_video_storyboard_prompts": storyboard_frame.clone(),
             "previous_completed_shot": previous_completed_shot
         },
         "current_segment": current_segment,

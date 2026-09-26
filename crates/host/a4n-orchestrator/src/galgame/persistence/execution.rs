@@ -2,8 +2,8 @@ use a4n_error::AppError;
 
 use super::{records::galgame_script_record_input, validation::GalgamePersistValidationScope};
 use crate::galgame::{
-    GalgameScriptDetail, GalgameScriptPersistPlan, OrchestratorContext,
-    galgame_script_record_error, parse_and_validate_presentation_projection,
+    GalgameChapterShootingScript, GalgameScriptDetail, GalgameScriptPersistPlan,
+    OrchestratorContext, galgame_script_record_error, parse_and_validate_presentation_projection,
     validate_line_semantics, validate_positive_id, validate_scene_entry_kind,
 };
 
@@ -12,6 +12,7 @@ impl OrchestratorContext {
         &self,
         project_id: i64,
         plan: GalgameScriptPersistPlan,
+        shooting_scripts: &[GalgameChapterShootingScript],
     ) -> Result<GalgameScriptDetail, AppError> {
         validate_positive_id(project_id, "project_id")?;
         if plan.scenes.is_empty() {
@@ -71,7 +72,7 @@ impl OrchestratorContext {
             }
         }
 
-        let record_input = galgame_script_record_input(&context, plan)?;
+        let record_input = galgame_script_record_input(&context, plan, shooting_scripts)?;
         a4n_db::galgame::replace_galgame_script_for_project_record(
             self.database.connection(),
             context.project.id,

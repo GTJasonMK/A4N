@@ -1,13 +1,10 @@
 use a4n_db_models::models::chapter::chapter;
 use a4n_domain::{
-    source_spans::{SourceSpan, source_span_prompt_values},
+    source_spans::{SourceSpan, source_span_prompt_text},
     source_text_hash,
 };
 use a4n_error::AppError;
-use a4n_llm_context::{
-    COMPRESSION_FOCUSED_RAW, COMPRESSION_FULL_RAW, COMPRESSION_MINIMAL, LlmContextLedger,
-    LlmContextLedgerPackDraft,
-};
+use a4n_llm_context::{COMPRESSION_FULL_RAW, LlmContextLedger, LlmContextLedgerPackDraft};
 use serde_json::json;
 
 use crate::chapter_analysis::owner::prompt::chapter_display_title;
@@ -36,39 +33,15 @@ pub fn add_chapter_analysis_source_pack(
         }),
         required: true,
         stable_prefix: true,
-        variants: vec![
-            LlmContextLedgerPackDraft::new(
-                COMPRESSION_FULL_RAW,
-                json!({
-                    "kind": "chapter_source",
-                    "chapter_id": ch.id,
-                    "chapter_number": ch.chapter_number,
-                    "chapter_title": chapter_title.as_str(),
-                    "content": ch.content,
-                    "source_spans": source_span_prompt_values(source_spans),
-                }),
-            ),
-            LlmContextLedgerPackDraft::new(
-                COMPRESSION_FOCUSED_RAW,
-                json!({
-                    "kind": "chapter_source",
-                    "chapter_id": ch.id,
-                    "chapter_number": ch.chapter_number,
-                    "chapter_title": chapter_title.as_str(),
-                    "source_spans": source_span_prompt_values(source_spans),
-                }),
-            ),
-            LlmContextLedgerPackDraft::new(
-                COMPRESSION_MINIMAL,
-                json!({
-                    "kind": "chapter_source",
-                    "chapter_id": ch.id,
-                    "chapter_number": ch.chapter_number,
-                    "chapter_title": chapter_title.as_str(),
-                    "content_sha256": content_sha256,
-                    "source_span_count": source_spans.len(),
-                }),
-            ),
-        ],
+        variants: vec![LlmContextLedgerPackDraft::new(
+            COMPRESSION_FULL_RAW,
+            json!({
+                "chapter_number": ch.chapter_number,
+                "chapter_title": chapter_title,
+                "content": source_span_prompt_text(&ch.content, source_spans)
+                    .map_err(AppError::InvalidArgument)?,
+                "source_reference_format": "⟦id⟧标注其后原文片段的来源 ID；标记不属于原文，标点和段落均保留。",
+            }),
+        )],
     })
 }

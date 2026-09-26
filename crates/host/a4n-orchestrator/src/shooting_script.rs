@@ -6,6 +6,7 @@ mod generation;
 mod preparation;
 mod progress;
 mod stage;
+mod task;
 mod workflow_rules;
 
 pub(crate) use a4n_api_contract::shooting_script::{
@@ -28,8 +29,40 @@ use a4n_novel_host_contract::{
 };
 use tokio_util::sync::CancellationToken;
 
+pub(crate) fn validate_shooting_generation_mode(
+    mode: a4n_api_contract::shooting_script::ShootingScriptGenerationMode,
+    shot_ids: &[String],
+) -> Result<(), AppError> {
+    if mode == a4n_api_contract::shooting_script::ShootingScriptGenerationMode::NextScene
+        && !shot_ids.is_empty()
+    {
+        return Err(AppError::InvalidArgument(
+            "局部镜头更新请使用 generate_chapter_shooting_script；逐场景续写不接受 shot_ids".into(),
+        ));
+    }
+    Ok(())
+}
+
 #[async_trait::async_trait]
 impl ShootingScriptFullGenerationApplicationPort for crate::OrchestratorContext {
+    async fn start(
+        &self,
+        user_id: i64,
+        input: &a4n_api_contract::shooting_script::StartChapterShootingScriptGenerationInput,
+    ) -> Result<a4n_api_contract::generation_tasks::GenerationTaskStart, a4n_api_contract::generation_tasks::GenerationTaskStartError> {
+        self.start_shooting_script_generation_task(user_id, input).await
+            .map_err(crate::GenerationTaskAccessError::into_start_error)
+    }
+
+    async fn run(
+        &self,
+        user_id: i64,
+        input: a4n_api_contract::shooting_script::StartChapterShootingScriptGenerationInput,
+        handle: a4n_api_contract::generation_tasks::GenerationTaskHandle,
+    ) -> Result<(), String> {
+        self.run_shooting_script_generation_task(user_id, input, handle).await
+    }
+
     async fn generate(
         &self,
         user_id: i64,
@@ -39,16 +72,24 @@ impl ShootingScriptFullGenerationApplicationPort for crate::OrchestratorContext 
         cancel_token: Option<&CancellationToken>,
         active_task_id: Option<&str>,
     ) -> Result<ChapterShootingScriptView, AppError> {
-        self.generate_chapter_shooting_script_for_user_validated(
-            user_id,
-            input,
-            progress,
-            stream_reporter,
-            cancel_token,
-            active_task_id,
-        )
-        .await
-        .map(chapter_shooting_script_view)
+        let resolved = self
+            .generate_chapter_shooting_script_for_user_validated(
+                user_id,
+                input,
+                progress,
+                stream_reporter,
+                cancel_token,
+                active_task_id,
+            )
+            .await?;
+        let plan_sync = self
+            .shooting_script_plan_sync(&resolved.shooting_script)
+            .await?;
+        Ok(ChapterShootingScriptView {
+            record: chapter_shooting_script_record_summary(resolved.shooting_script.record),
+            script: resolved.shooting_script.script,
+            plan_sync,
+        })
     }
 }
 
@@ -73,15 +114,6 @@ impl ShootingScriptNextUnitGenerationApplicationPort for crate::OrchestratorCont
         )
         .await
         .map(chapter_shooting_script_unit_progress_view)
-    }
-}
-
-fn chapter_shooting_script_view(
-    resolved: ResolvedChapterShootingScript,
-) -> ChapterShootingScriptView {
-    ChapterShootingScriptView {
-        record: chapter_shooting_script_record_summary(resolved.shooting_script.record),
-        script: resolved.shooting_script.script,
     }
 }
 

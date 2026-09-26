@@ -5,7 +5,7 @@ use a4n_error::AppError;
 
 use crate::shooting_script::contracts::{
     ChapterScreenplaySkeletonV1, PreparedChapterShootingScriptRequest,
-    ScreenplayLayoutUnitDetailV1, ScreenplayLayoutUnitV1, ScreenplayUnitAdaptationV1,
+    ScreenplayLayoutUnitDetailV2, ScreenplayLayoutUnitV1, ScreenplayUnitAdaptationV1,
 };
 
 pub(super) fn validate_skeleton(
@@ -94,15 +94,26 @@ pub(super) fn validate_skeleton(
 }
 
 pub(super) fn validate_layout_unit_detail(
-    output: &ScreenplayLayoutUnitDetailV1,
+    output: &ScreenplayLayoutUnitDetailV2,
     expected_index: u32,
     total_unit_count: usize,
+    allowed_source_ids: &[String],
 ) -> Result<(), AppError> {
-    if output.schema_version != "screenplay_layout_unit_detail_v1"
+    if output.schema_version != "screenplay_layout_unit_detail_v2"
         || output.narrative_unit_index != expected_index
     {
         return Err(AppError::InvalidArgument(format!(
             "叙事单元 {expected_index} 的布局细化合同无效"
+        )));
+    }
+    let mut selected = HashSet::new();
+    if output
+        .source_span_ids
+        .iter()
+        .any(|id| !allowed_source_ids.contains(id) || !selected.insert(id))
+    {
+        return Err(AppError::InvalidArgument(format!(
+            "叙事单元 {expected_index} 选择了重复或范围外的来源 ID"
         )));
     }
     for (field, text) in [

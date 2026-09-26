@@ -90,7 +90,7 @@ pub(crate) fn scene_profile_image_prompt(
     };
     let entry_points = compact_json_hint(&profile.entry_points_json, "未记录明确出入口");
     let rules = compact_json_hint(&profile.rules_json, "未记录特殊规则");
-    let current_state = compact_json_hint(&profile.current_state_json, "未记录当前状态变化");
+    let current_state = scene_visual_state_hint(&profile.current_state_json);
     format!(
         "主体：{name}\n素材定位：可复用的场景/地点设定图，只展示空间环境本身，不表现具体剧情动作。\n参考画面：{seed}\n场景基础：{base}\n视觉特征：{visual}\n空间布局：{layout}\n氛围与光线：{atmosphere}\n出入口与连接：{entry_points}\n场景规则：{rules}\n当前状态：{current_state}\n构图与比例：以空间关系、可行动线、入口出口、主体区域和关键环境物件为重点；不要让人物成为主体；背景不能空泛，适合作为后续视频参考素材。\n画面风格：{style}\n风格执行：如果画面风格中包含“风格模板”或“风格关键词”，必须保留其中的中文风格名和关键英文风格名，并体现对应光影、色彩、构图、镜头、材质、氛围、细节和避免项，不要只概括成统一风格。\n避免项：不要文字、不要水印、不要边框、不要纯抽象氛围图、不要把场景画成单个物体特写。",
         name = profile.name,
@@ -99,6 +99,16 @@ pub(crate) fn scene_profile_image_prompt(
         layout = profile.spatial_layout,
         atmosphere = profile.atmosphere
     )
+}
+
+fn scene_visual_state_hint(state: &Value) -> String {
+    ["summary", "weather_or_lighting", "mood"]
+        .into_iter()
+        .filter_map(|key| state.get(key).and_then(Value::as_str))
+        .map(str::trim)
+        .filter(|text| !text.is_empty())
+        .collect::<Vec<_>>()
+        .join("；")
 }
 
 pub(crate) fn object_profile_image_prompt(
@@ -593,6 +603,19 @@ fn compact_json_hint(value: &Value, empty_text: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn scene_image_hints_keep_visible_environment_without_entity_tracking() {
+        let hint = scene_visual_state_hint(&json!({
+            "summary": "门窗已被暴雨打坏", "weather_or_lighting": "阴天散射光", "mood": "安静",
+            "characters": [{"profile_id": 19}], "objects": [{"object_profile_id": 8}],
+            "entry_state": {"角色": "进入"}, "chapter_number": 4,
+        }));
+        assert!(hint.contains("门窗已被暴雨打坏"));
+        assert!(hint.contains("阴天散射光"));
+        assert!(!hint.contains("profile_id"));
+        assert!(!hint.contains("角色"));
+        assert_eq!(scene_visual_state_hint(&json!({})), "");
+    }
     #[test]
     fn profile_material_metadata_uses_canonical_fields() {
         let metadata = profile_material_metadata(

@@ -175,6 +175,7 @@ pub(super) fn recovery_record(
         staging_path: publication.staging_path,
         final_path: publication.final_path,
         image_type: publication.image_type,
+        model: publication.model,
         expected_file_size: publication.expected_file_size,
         expected_sha256: publication.expected_sha256,
         file_size: publication.file_size,

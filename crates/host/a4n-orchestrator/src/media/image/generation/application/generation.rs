@@ -671,6 +671,9 @@ impl OrchestratorContext {
                 .to_string();
             let chapter_id =
                 optional_json_i64_field(item, "chapter_id").map_err(AppError::InvalidArgument)?;
+            let negative_prompt = optional_json_string_field(item, "negative_prompt")
+                .map_err(AppError::InvalidArgument)?;
+            let prompt = compose_batch_image_prompt(prompt, &image_type, negative_prompt);
             let panel_id = optional_json_string_field(item, "panel_id")
                 .map_err(AppError::InvalidArgument)?
                 .map(str::trim)
@@ -778,7 +781,7 @@ impl OrchestratorContext {
                 execution: BatchImageExecutionItem {
                     index,
                     request: ImageGenerationRequest {
-                        prompt: prompt.to_string(),
+                        prompt,
                         width: size.width,
                         height: size.height,
                         model: config.model.clone(),

@@ -167,6 +167,11 @@ pub fn build_galgame_script_persist_plan(
         persist_scenes.push(GalgamePersistScene {
             scene_index: scene.index,
             source_snapshot_chapter_id,
+            shooting_source: Some(GalgameShootingSceneRef {
+                script_id: scene.shooting_script_id,
+                script_revision: scene.shooting_script_revision,
+                scene_index: scene.shooting_scene_index,
+            }),
             title: scene.title.clone(),
             location: scene.location.clone(),
             time_of_day: scene.time_of_day.clone(),

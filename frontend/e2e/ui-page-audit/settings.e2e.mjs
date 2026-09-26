@@ -134,6 +134,81 @@ describe("Settings pages with populated records", () => {
     }
   });
 
+  for (const [id, tab] of [["S01", "llm"], ["S02", "image"], ["S03", "video"]]) {
+    for (const width of [1440, 900, 390]) it(`${id}-discovery-${width} discovers, filters and recovers without replacing the selected model`, async () => {
+      await browser.setWindowSize(width, 1000);
+      await browser.url("/");
+      await browser.url(`/settings#${tab}`);
+      const selected = await $('.a4n-settings-content aside button[aria-current="true"]');
+      await selected.waitForDisplayed();
+      if (width < 768) await selected.click();
+      const editor = await $(".a4n-config-editor");
+      const input = await editor.$('input[role="combobox"]');
+      await input.waitForDisplayed();
+      const original = await input.getValue();
+      const detect = await editor.$('button[title="检测模型列表"]');
+      const command = `detect_${tab}_config_models`;
+      const models = [
+        { id: `ui-${tab}-draft`, name: "快速创作 · 草稿预览", owned_by: "UI Audit" },
+        { id: `ui-${tab}-balanced`, name: "完整创作 · 长篇结构与多场景一致性核验专用模型", owned_by: "UI Audit" },
+        { id: `ui-${tab}-final`, name: "最终交付 · 高质量输出", owned_by: "UI Audit" },
+      ];
+      await browser.execute((name) => window.__uiAudit.deferred.push(name), command);
+      const resolve = async (body, status = 200) => {
+        await browser.waitUntil(() => browser.execute((name) => window.__uiAudit.pending.some((item) => item.command === name), command));
+        await browser.execute((name, value, code) => {
+          const index = window.__uiAudit.pending.findIndex((item) => item.command === name);
+          const [request] = window.__uiAudit.pending.splice(index, 1);
+          request.resolve(Response.json(value, { status: code }));
+        }, command, body, status);
+      };
+      const capture = async (stage) => {
+        const state = await browser.execute(() => ({
+          overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+          unexpected: window.__uiAudit.unexpected, errors: window.__uiAudit.errors,
+          text: document.querySelector(".a4n-config-editor").innerText,
+        }));
+        const file = `${phase}-${id}-discovery-${width}-${stage}.png`;
+        await browser.saveScreenshot(`${output}/${file}`);
+        report.push({ id: `${id}-discovery`, width, stage, file, ...state });
+        assert.equal(state.overflow, 0);
+        assert.deepEqual(state.unexpected, []);
+        assert.deepEqual(state.errors, []);
+      };
+      await detect.click();
+      await browser.waitUntil(async () => !await detect.isEnabled());
+      await capture("loading");
+      await resolve({ models });
+      await browser.waitUntil(async () => (await editor.getText()).includes("已加载 3 个模型"));
+      assert.equal(await input.getValue(), original, "Discovery must preserve the selected model");
+      await input.click();
+      const list = await $('[role="listbox"]');
+      await list.waitForDisplayed();
+      await capture("catalog");
+      const clipping = await list.execute((node) => [...node.querySelectorAll('[role="option"] span')].filter((item) => item.scrollWidth > item.clientWidth + 1).map((item) => item.textContent));
+      assert.deepEqual(clipping, [], "Model names must remain readable in the picker");
+      await browser.keys(["Control", "a"]);
+      await browser.keys("balanced");
+      await browser.waitUntil(async () => (await $$('[role="option"]')).length === 1);
+      await browser.keys("Enter");
+      assert.equal(await input.getValue(), models[1].id);
+      await detect.click();
+      await resolve({ code: "unavailable", message: "模型目录暂时不可用，请重试", retryable: true, trace_id: null, details: {} }, 503);
+      await editor.$('[role="alert"]').waitForDisplayed();
+      assert.ok((await editor.getText()).includes("模型目录暂时不可用，请重试"));
+      assert.equal(await input.getValue(), models[1].id, "Failure must preserve the selected model");
+      await capture("failure");
+      await detect.click();
+      await resolve({ models: [] });
+      await browser.waitUntil(async () => (await editor.getText()).includes("未发现可用模型"));
+      await input.click();
+      await browser.keys(["Control", "a"]);
+      await browser.keys(`ui-${tab}-manual`);
+      assert.equal(await input.getValue(), `ui-${tab}-manual`);
+      await capture("manual-entry");
+    });
+  }
+
   it("S02-size-edit keeps focus while entering a complete image dimension", async () => {
     await browser.setWindowSize(1440, 1000);
     await browser.url("/");

@@ -79,8 +79,8 @@ name: chapter_video_segment_plan
 - 本次只处理输入 `current_shot`，不要为其他 `cinematic_shots` 生成片段。
 - `source_shot_id` 必须等于 `current_shot.source_shot_id`，并保持稳定字符串 ID 原样不变。
 - `covered_beat_ids` 使用 `current_shot.action_beats[].beat_id` 的稳定字符串 ID；必须按动作节拍顺序覆盖当前镜头内全部必需节拍。
-- 稳定上下文包 `chapter_shooting_script_video_projection` 是正文页结构化拍摄剧本面向视频执行的确定性投影，用于理解当前镜头及前后镜头连续性；动态请求只重复当前 `current_shot`，当前输出范围仍然只限该镜头。
-- 输入中的 `chapter.source_spans` 已按当前镜头裁剪；本步骤不要输出 `source_span_ids`，后端会根据 `source_shot_id` 和 `covered_beat_ids` 从拍摄剧本投影的动作节拍来源中推导。不要输出自由原文证据，不要自造 ID。
+- 稳定上下文中的 `chapter_shooting_script_video_projection` 提供当前场景和相邻镜头的起止状态；当前完整镜头只在动态 `current_shot` 中提供一次。只规划该镜头，不扩写相邻镜头的剧情。
+- `video_chapter_source.content` 只包含当前镜头涉及的原文段落。本步骤不要输出 `source_span_ids`，后端会根据 `source_shot_id` 和 `covered_beat_ids` 从拍摄剧本投影的动作节拍来源中推导。不要输出自由原文证据，不要自造 ID。
 - 一个 `segments[]` 条目就是一个表现单元，也是一次视频生成 API 调用；不要在 segment 内再设计更小业务层级，也不要把多个导演镜头拼成一个 segment。
 - 不要输出 `segment_number`、`segment_index_in_shot`、`shot_segment_count`、`source_span_ids`、`duration_secs`、`aspect_ratio` 或 `reference_image_ids`；后端会按全章数组顺序、拍摄剧本投影、用户选择时长和用户画幅推导结构字段。
 - 所有 `required=true` 的 action beat 必须且只能被一个 segment 覆盖；`required=false` 的 beat 可被覆盖或省略，但不得重复覆盖。

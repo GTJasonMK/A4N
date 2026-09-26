@@ -21,11 +21,20 @@ use tokio_util::sync::CancellationToken;
 #[derive(Clone)]
 pub struct DynamicProviderFacade {
     port: Arc<dyn ProviderRuntimePort>,
+    runtime_role: crate::RuntimeRole,
 }
 
 impl DynamicProviderFacade {
-    pub(crate) fn new(port: Arc<dyn ProviderRuntimePort>) -> Self {
-        Self { port }
+    pub(crate) fn new(
+        port: Arc<dyn ProviderRuntimePort>,
+        runtime_role: crate::RuntimeRole,
+    ) -> Self {
+        Self { port, runtime_role }
+    }
+
+    pub(crate) fn allows_host_provider_config(&self) -> bool {
+        self.runtime_role == crate::RuntimeRole::DesktopHost
+            || crate::runtime_config::current_user_id().is_none()
     }
 
     pub(crate) async fn resolve_llm_config(

@@ -19,12 +19,20 @@ async fn build_video_prompt_request(
     prompt_name: &str,
     project_id: i64,
     variables: &HashMap<String, Value>,
-    manifest: LlmContextManifest,
+    mut manifest: LlmContextManifest,
     temperature: f32,
 ) -> Result<ChatRequest, AppError> {
-    let system = prompt_renderer
+    let stage = prompt_renderer
         .render_prompt(prompt_name, variables, Some(project_id))
         .await?;
+    let system = prompt_renderer
+        .render_prompt("video_prompt_session", &HashMap::new(), Some(project_id))
+        .await?;
+    manifest.dynamic_user_content = format!(
+        "[阶段指令]\n{}\n\n{}",
+        stage.trim(),
+        manifest.dynamic_user_content
+    );
     Ok(
         context_aware_system_user_request(system, manifest, Some(temperature), None)?
             .with_json_response_format()
@@ -149,6 +157,86 @@ pub(super) async fn chat_with_video_cancel(
 #[cfg(test)]
 mod tests {
     use super::{AppError, ensure_video_output_not_truncated};
+
+    #[tokio::test]
+    async fn stages_share_source_prefix_and_send_only_their_own_rules() {
+        use super::*;
+        use crate::video::prompts::context::{
+            VideoContextManifestInput, build_video_context_manifest,
+        };
+
+        struct Renderer;
+        #[async_trait::async_trait]
+        impl PromptRenderer for Renderer {
+            async fn render_prompt(
+                &self,
+                name: &str,
+                _: &HashMap<String, Value>,
+                _: Option<i64>,
+            ) -> Result<String, AppError> {
+                Ok(format!("rules:{name}"))
+            }
+        }
+        let source = crate::video::ChapterVideoSourceContext {
+            content: "当前镜头的唯一来源",
+            summary: None,
+            analysis: None,
+        };
+        let vars = HashMap::new();
+        let mut requests = Vec::new();
+        for name in ["stage_a", "stage_b"] {
+            let manifest = build_video_context_manifest(VideoContextManifestInput {
+                prompt_renderer: &Renderer,
+                project_id: 1,
+                variables: &vars,
+                source: &source,
+                prompt_names: &[name],
+                previous_outputs: &[],
+                project_context: None,
+                asset_context: None,
+                dynamic_user_content: "当前任务参数".into(),
+            })
+            .await
+            .unwrap();
+            let mut request = build_video_prompt_request(&Renderer, name, 1, &vars, manifest, 0.2)
+                .await
+                .unwrap();
+            a4n_llm_context::preview_context_aware_chat_request(&mut request, 100_000, 8192)
+                .unwrap();
+            assert_eq!(
+                request.messages[1]
+                    .content
+                    .matches(&format!("rules:{name}"))
+                    .count(),
+                1
+            );
+            assert!(
+                !request.messages[1]
+                    .content
+                    .contains("video_prompt_rule_hashes")
+            );
+            assert!(
+                !request.messages[1]
+                    .content
+                    .contains("rules:chapter_video_builder_rules")
+            );
+            requests.push(request);
+        }
+        assert_eq!(
+            serde_json::to_value(&requests[0].messages[0]).unwrap(),
+            serde_json::to_value(&requests[1].messages[0]).unwrap()
+        );
+        let prefix = |request: &ChatRequest| {
+            request.messages[1]
+                .content
+                .split("[当前任务]")
+                .next()
+                .unwrap()
+                .to_string()
+        };
+        assert_eq!(prefix(&requests[0]), prefix(&requests[1]));
+        assert!(!requests[0].messages[1].content.contains("rules:stage_b"));
+    }
 
     #[test]
     fn detects_video_output_truncated_by_max_tokens() {

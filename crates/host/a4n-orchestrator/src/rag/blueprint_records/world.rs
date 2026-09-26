@@ -10,7 +10,7 @@ fn blueprint_world_setting_sections(
     blueprint: &novel_blueprint::Model,
 ) -> Result<Vec<(String, String)>, String> {
     let Some(world_setting) = blueprint.world_setting.as_ref() else {
-        return Err(format!("蓝图 {} 缺少世界观，跳过 RAG 入库", blueprint.id));
+        return Ok(Vec::new());
     };
     if world_setting.is_null() {
         return Err(format!("蓝图 {} 世界观为空，跳过 RAG 入库", blueprint.id));

@@ -1,89 +1,35 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Pencil, RefreshCw, Save, Trash2, Wand2, X } from "lucide-react";
 import { LoadingSpinner } from "../../components/ui/LoadingSpinner";
 
 import { extractErrorMessage } from "../../api";
 import type { ChapterSummary } from "../../api/chapter";
+import type { ChapterVisualPlanView } from "../../api/chapterVisualPlan";
 import {
   deleteChapterShootingScript,
   editChapterShootingScript,
   editChapterShootingScriptProgress,
-  generateChapterShootingScript,
-  generateNextChapterShootingScriptUnit,
+  readChapterShootingScriptGenerationResult,
+  startChapterShootingScriptGeneration,
   type ChapterShootingScriptUnitProgressView,
   type ChapterShootingScriptV1,
   type ChapterShootingScriptView,
+  type ShootingScriptGenerationMode,
 } from "../../api/shootingScript";
+import { generationClient } from "../../api/generationTasks";
+import type { GenerationTaskHandle } from "../../api/generated/generationContracts";
 import { useToast } from "../../components/feedback/Toast";
 import { confirmDialog } from "../../components/feedback/ConfirmDialog";
 import { BookButton } from "../../components/ui/BookButton";
-import { cancelWorkflow, cancelWorkflowTask } from "../../api/streaming";
-import {
-  createWorkflowTaskId,
-  useProgressTask,
-} from "../../hooks/useProgressTask";
+import { cancelWorkflow } from "../../api/streaming";
+import { useProgressTask } from "../../hooks/useProgressTask";
+import { runGenerationProgressTaskThen } from "../../hooks/runGenerationProgressTask";
 import { isCancelledOperation } from "../../utils/cancellation";
 import { ScriptContent } from "./shooting-script/ScriptContent";
 import { StructuredScriptEditor } from "./shooting-script/StructuredScriptEditor";
 import { EmptyHint } from "./shared";
 import { useI18n } from "../../i18n";
-import { loadShootingScriptData } from "./loadShootingScriptData";
-
-const mergePartialScriptEdits = (
-  generated: ChapterShootingScriptV1,
-  partial: ChapterShootingScriptV1,
-  completedUnitCount: number,
-): ChapterShootingScriptV1 => {
-  const partialScenes = new Map(
-    partial.scenes.map((scene) => [scene.scene_identity, scene]),
-  );
-  const presentNarrativeUnits = new Set(
-    partial.scenes.map((scene) => scene.narrative_unit_index),
-  );
-  const deletedNarrativeUnits = new Set(
-    Array.from({ length: completedUnitCount }, (_, index) => index + 1).filter(
-      (index) => !presentNarrativeUnits.has(index),
-    ),
-  );
-  const scenes = generated.scenes
-    .filter(
-      (scene) =>
-        !deletedNarrativeUnits.has(scene.narrative_unit_index) &&
-        (scene.narrative_unit_index > completedUnitCount ||
-          partialScenes.has(scene.scene_identity)),
-    )
-    .map((scene, index) => {
-      const edited = partialScenes.get(scene.scene_identity);
-      const editedShots = edited
-        ? new Map(edited.shots.map((item) => [item.shot_id, item]))
-        : null;
-      const merged = edited
-        ? {
-            ...scene,
-            ...structuredClone(edited),
-            shots: scene.shots.map(
-              (shot) => editedShots?.get(shot.shot_id) ?? shot,
-            ),
-          }
-        : scene;
-      return {
-        ...merged,
-        scene_index: index + 1,
-        sequence_index: index + 1,
-        timeline_position: index + 1,
-        transition_contracts: merged.transition_contracts.filter(
-          (transition) =>
-            !deletedNarrativeUnits.has(transition.to_narrative_unit_index),
-        ),
-      };
-    });
-  return {
-    ...generated,
-    directing_statement: structuredClone(partial.directing_statement),
-    user_additions: structuredClone(partial.user_additions),
-    scenes,
-  };
-};
+import { loadShootingScriptData, loadShootingScriptOrProgress } from "./loadShootingScriptData";
 
 interface ShootingScriptTabProps {
   projectId: number;
@@ -100,6 +46,10 @@ export const ShootingScriptTab: React.FC<ShootingScriptTabProps> = ({
   const { t } = useI18n();
   const { runProgressTask } = useProgressTask();
   const chapterId = chapter?.id ?? null;
+  const sourceKey = `${projectId}:${chapterId}`;
+  const sourceRef = useRef(sourceKey);
+  const followingTask = useRef<string | null>(null);
+  const dataVersion = useRef(0);
   const [view, setView] = useState<ChapterShootingScriptView | null>(null);
   const [unitProgress, setUnitProgress] =
     useState<ChapterShootingScriptUnitProgressView | null>(null);
@@ -108,9 +58,11 @@ export const ShootingScriptTab: React.FC<ShootingScriptTabProps> = ({
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [editing, setEditing] = useState(false);
-  const [confirmedVisualPlanId, setConfirmedVisualPlanId] = useState<
-    number | null
-  >(null);
+  const [confirmedVisualPlan, setConfirmedVisualPlan] = useState<ChapterVisualPlanView | null>(null);
+  const confirmedVisualPlanId = confirmedVisualPlan?.record.id ?? null;
+  const [rebindShotIds, setRebindShotIds] = useState<string[]>([]);
+  const [focusShotId, setFocusShotId] = useState<string | null>(null);
+  const affectedShotIds = view ? [...view.plan_sync.stale_shot_ids, ...view.plan_sync.missing_shot_ids] : [];
   const [draft, setDraft] = useState<ChapterShootingScriptV1 | null>(null);
   const [invalidatedProjectIds, setInvalidatedProjectIds] = useState<number[]>(
     [],
@@ -119,40 +71,107 @@ export const ShootingScriptTab: React.FC<ShootingScriptTabProps> = ({
     () =>
       draft != null &&
       (view != null || unitProgress != null) &&
-      JSON.stringify(view?.script ?? unitProgress?.script) !==
-        JSON.stringify(draft),
-    [draft, unitProgress, view],
+      (rebindShotIds.length > 0 || JSON.stringify(view?.script ?? unitProgress?.script) !==
+        JSON.stringify(draft)),
+    [draft, unitProgress, view, rebindShotIds],
   );
 
+  const applyScriptData = (
+    nextView: ChapterShootingScriptView | null,
+    nextProgress: ChapterShootingScriptUnitProgressView | null,
+  ) => {
+    dataVersion.current += 1;
+    setView(nextView);
+    setUnitProgress(nextView ? null : nextProgress);
+    const script = nextView?.script ?? nextProgress?.script;
+    setDraft(script ? structuredClone(script) : null);
+    setRebindShotIds([]);
+    setInvalidatedProjectIds([]);
+  };
+
+  const followGeneration = async (
+    handle: GenerationTaskHandle,
+    mode: ShootingScriptGenerationMode = "full",
+    keepEditing = false,
+  ) => {
+    if (chapterId == null) return;
+    const key = `${handle.task_id}:${handle.attempt}`;
+    if (followingTask.current === key) return;
+    followingTask.current = key;
+    const isCurrent = () => sourceRef.current === sourceKey && followingTask.current === key;
+    setGenerating(true);
+    try {
+      const generated = await runGenerationProgressTaskThen(
+        runProgressTask,
+        handle,
+        {
+          title: t(mode === "next_scene" ? "shootingScript.generateNextScene" : "shootingScript.generateStructured"),
+          startMessage: t("shootingScript.preparing"),
+          successMessage: t("shootingScript.completed"),
+          errorMessage: t("shootingScript.failed"),
+          cancelLabel: t("workflow.stop"),
+          runningHint: t("shootingScript.stopHint"),
+        },
+        (task) => readChapterShootingScriptGenerationResult(projectId, chapterId, task.resultRef),
+      );
+      if (!isCurrent()) return;
+      if ("record" in generated) {
+        applyScriptData(generated, null);
+        addToast(t("shootingScript.allScenesCompleted"), "success");
+      } else {
+        applyScriptData(null, generated);
+        addToast(t("shootingScript.sceneProgress", {
+          current: generated.completed_unit_count, total: generated.total_unit_count,
+        }), "success");
+      }
+      setEditing(keepEditing);
+    } catch (error) {
+      if (!isCurrent()) return;
+      // A stopped or failed task can still have durable completed scenes.
+      try {
+        const saved = await loadShootingScriptOrProgress(projectId, chapterId);
+        if (isCurrent()) applyScriptData(saved.view, saved.unitProgress);
+      } catch (readError) {
+        if (isCurrent()) addToast(extractErrorMessage(readError, t("shootingScript.loadFailed")), "error");
+      }
+      if (!isCurrent()) return;
+      const message = extractErrorMessage(error, t("shootingScript.failed"));
+      addToast(isCancelledOperation(message) ? t("shootingScript.stopped") : message,
+        isCancelledOperation(message) ? "info" : "error");
+    } finally {
+      if (isCurrent()) {
+        followingTask.current = null;
+        setGenerating(false);
+      }
+    }
+  };
+  const followGenerationRef = useRef(followGeneration);
+  followGenerationRef.current = followGeneration;
+
   useEffect(() => {
+    sourceRef.current = sourceKey;
+    followingTask.current = null;
+    const initialVersion = ++dataVersion.current;
+    setGenerating(false);
+    setRebindShotIds([]);
+    setFocusShotId(null);
+    setView(null);
+    setUnitProgress(null);
+    setDraft(null);
+    setEditing(false);
+    setInvalidatedProjectIds([]);
+    setConfirmedVisualPlan(null);
     if (chapterId == null) {
-      setView(null);
-      setUnitProgress(null);
-      setDraft(null);
-      setEditing(false);
-      setInvalidatedProjectIds([]);
-      setConfirmedVisualPlanId(null);
       setScriptLoading(false);
       return;
     }
     let active = true;
-    setView(null);
-    setEditing(false);
     setScriptLoading(true);
     void loadShootingScriptData(projectId, chapterId)
       .then(({ view: value, unitProgress: progress, visualPlan }) => {
         if (!active) return;
-        setView(value);
-        setUnitProgress(value ? null : progress);
-        setDraft(
-          value
-            ? structuredClone(value.script)
-            : progress
-              ? structuredClone(progress.script)
-              : null,
-        );
-        setInvalidatedProjectIds([]);
-        setConfirmedVisualPlanId(visualPlan.confirmed?.record.id ?? null);
+        if (dataVersion.current === initialVersion) applyScriptData(value, progress);
+        setConfirmedVisualPlan(visualPlan.confirmed);
       })
       .catch((error) => {
         if (active) {
@@ -165,24 +184,44 @@ export const ShootingScriptTab: React.FC<ShootingScriptTabProps> = ({
       .finally(() => {
         if (active) setScriptLoading(false);
       });
+    void generationClient.listActive(projectId).then((tasks) => {
+      if (!active || followingTask.current != null) return;
+      const task = tasks.find((task) => task.started.target?.kind === "chapter_shooting_script"
+        && task.started.target?.id === `chapter:${chapterId}`);
+      if (task) void followGenerationRef.current(task.handle);
+    }).catch((error) => {
+      if (active) addToast(extractErrorMessage(error, t("shootingScript.loadFailed")), "error");
+    });
     return () => {
       active = false;
+      sourceRef.current = "";
     };
   }, [addToast, chapterId, projectId]);
 
-  const generate = async () => {
+  const savePartialDraft = async () => {
+    if (view || !unitProgress || !draft || chapterId == null || !isDirty) return;
+    const result = await editChapterShootingScriptProgress(
+      projectId,
+      chapterId,
+      unitProgress,
+      draft,
+    );
+    setUnitProgress(result.progress);
+    setDraft(structuredClone(result.progress.script));
+    setInvalidatedProjectIds(result.invalidated_project_ids);
+  };
+
+  const generate = async (shotIds: string[] = []) => {
     if (
       chapterId == null ||
       confirmedVisualPlanId == null ||
       generating ||
+      followingTask.current != null ||
       saving ||
       scriptLoading
     )
       return;
-    const partialProgress = editing && !view ? unitProgress : null;
-    const partialDraft =
-      partialProgress && draft ? structuredClone(draft) : null;
-    if (view) {
+    if (view && (shotIds.length === 0 || isDirty)) {
       const confirmed = await confirmDialog({
         title: t("shootingScript.regenerate"),
         message: isDirty
@@ -193,55 +232,30 @@ export const ShootingScriptTab: React.FC<ShootingScriptTabProps> = ({
       });
       if (!confirmed) return;
     }
+    if (followingTask.current != null || sourceRef.current !== sourceKey) return;
+    const pendingKey = `starting:${sourceKey}`;
+    followingTask.current = pendingKey;
     setGenerating(true);
     try {
-      const taskId = createWorkflowTaskId("chapter-shooting-script", projectId);
-      const generated = await runProgressTask(
-        {
-          cancelTaskId: taskId,
-          cancelTask: cancelWorkflowTask,
-          pollTaskProgress: true,
-          streaming: true,
-          title: t("shootingScript.generateStructured"),
-          startMessage: t("shootingScript.preparing"),
-          successMessage: t("shootingScript.completed"),
-          errorMessage: t("shootingScript.failed"),
-          total: 100,
-          cancelLabel: t("workflow.stop"),
-          runningHint: t("shootingScript.stopHint"),
-        },
-        () =>
-          generateChapterShootingScript(
-            projectId,
-            chapterId,
-            taskId,
-            confirmedVisualPlanId,
-          ),
+      await savePartialDraft();
+      if (sourceRef.current !== sourceKey) return;
+      const handle = await startChapterShootingScriptGeneration(
+        projectId, chapterId, confirmedVisualPlanId, "full", shotIds,
       );
-      const script =
-        partialDraft && partialProgress
-          ? mergePartialScriptEdits(
-              generated.script,
-              partialDraft,
-              partialProgress.completed_unit_count,
-            )
-          : generated.script;
-      const completedView =
-        script === generated.script ? generated : { ...generated, script };
-      setView(completedView);
-      setUnitProgress(null);
-      setDraft(structuredClone(script));
-      setEditing(false);
-      setInvalidatedProjectIds([]);
-      addToast(t("shootingScript.completed"), "success");
+      if (sourceRef.current !== sourceKey) return;
+      await followGeneration(handle);
     } catch (error) {
+      if (sourceRef.current !== sourceKey) return;
       const message = extractErrorMessage(error, t("shootingScript.failed"));
       addToast(
         isCancelledOperation(message) ? t("shootingScript.stopped") : message,
         isCancelledOperation(message) ? "info" : "error",
       );
     } finally {
-      setGenerating(false);
+      if (sourceRef.current === sourceKey && followingTask.current === pendingKey) {
+        followingTask.current = null;
+        setGenerating(false);
+      }
     }
   };
 
@@ -250,81 +264,35 @@ export const ShootingScriptTab: React.FC<ShootingScriptTabProps> = ({
       chapterId == null ||
       confirmedVisualPlanId == null ||
       generating ||
+      followingTask.current != null ||
       saving ||
       scriptLoading
     )
       return;
     const wasEditing = editing;
-    const partialProgress = wasEditing ? unitProgress : null;
-    const partialDraft =
-      partialProgress && draft ? structuredClone(draft) : null;
+    const pendingKey = `starting:${sourceKey}`;
+    followingTask.current = pendingKey;
     setGenerating(true);
     try {
-      const taskId = createWorkflowTaskId(
-        "chapter-shooting-script-unit",
-        projectId,
+      await savePartialDraft();
+      if (sourceRef.current !== sourceKey) return;
+      const handle = await startChapterShootingScriptGeneration(
+        projectId, chapterId, confirmedVisualPlanId, "next_scene",
       );
-      const generated = await runProgressTask(
-        {
-          cancelTaskId: taskId,
-          cancelTask: cancelWorkflowTask,
-          pollTaskProgress: true,
-          streaming: true,
-          title: t("shootingScript.generateNextScene"),
-          startMessage: t("shootingScript.prepareScene"),
-          successMessage: t("shootingScript.nextSceneCompleted"),
-          errorMessage: t("shootingScript.failed"),
-          total: 100,
-          cancelLabel: t("workflow.stop"),
-          runningHint: t("shootingScript.nextSceneHint"),
-        },
-        () =>
-          generateNextChapterShootingScriptUnit(
-            projectId,
-            chapterId,
-            taskId,
-            confirmedVisualPlanId,
-          ),
-      );
-      const script =
-        partialDraft && partialProgress
-          ? mergePartialScriptEdits(
-              generated.script,
-              partialDraft,
-              partialProgress.completed_unit_count,
-            )
-          : generated.script;
-      if (generated.completed_record) {
-        const completedView = {
-          record: generated.completed_record,
-          script,
-        } satisfies ChapterShootingScriptView;
-        setView(completedView);
-        setUnitProgress(null);
-        setDraft(structuredClone(script));
-      } else {
-        setUnitProgress({ ...generated, script });
-        setDraft(structuredClone(script));
-      }
-      setEditing(wasEditing);
-      setInvalidatedProjectIds([]);
-      addToast(
-        generated.completed_record
-          ? t("shootingScript.allScenesCompleted")
-          : t("shootingScript.sceneProgress", {
-              current: generated.completed_unit_count,
-              total: generated.total_unit_count,
-            }),
-        "success",
-      );
+      if (sourceRef.current !== sourceKey) return;
+      await followGeneration(handle, "next_scene", wasEditing);
     } catch (error) {
+      if (sourceRef.current !== sourceKey) return;
       const message = extractErrorMessage(error, t("shootingScript.failed"));
       addToast(
         isCancelledOperation(message) ? t("shootingScript.stopped") : message,
         isCancelledOperation(message) ? "info" : "error",
       );
     } finally {
-      setGenerating(false);
+      if (sourceRef.current === sourceKey && followingTask.current === pendingKey) {
+        followingTask.current = null;
+        setGenerating(false);
+      }
     }
   };
 
@@ -341,7 +309,7 @@ export const ShootingScriptTab: React.FC<ShootingScriptTabProps> = ({
     setSaving(true);
     try {
       const result = view
-        ? await editChapterShootingScript(projectId, chapterId, view, draft)
+        ? await editChapterShootingScript(projectId, chapterId, view, draft, rebindShotIds)
         : unitProgress
           ? await editChapterShootingScriptProgress(
               projectId,
@@ -360,6 +328,7 @@ export const ShootingScriptTab: React.FC<ShootingScriptTabProps> = ({
         setDraft(structuredClone(result.progress.script));
       }
       setInvalidatedProjectIds(result.invalidated_project_ids);
+      setRebindShotIds([]);
       addToast(
         result.invalidated_project_ids.length > 0
           ? t("shootingScript.downstreamInvalidated", {
@@ -378,10 +347,12 @@ export const ShootingScriptTab: React.FC<ShootingScriptTabProps> = ({
     }
   };
 
-  const enterEdit = () => {
+  const enterEdit = (shotId: string | null = null) => {
     const source = view?.script ?? unitProgress?.script;
     if (!source || actionsDisabled) return;
     setDraft(structuredClone(source));
+    setRebindShotIds([]);
+    setFocusShotId(shotId);
     setEditing(true);
   };
 
@@ -399,6 +370,7 @@ export const ShootingScriptTab: React.FC<ShootingScriptTabProps> = ({
     const source = view?.script ?? unitProgress?.script;
     setDraft(source ? structuredClone(source) : null);
     setEditing(false);
+    setRebindShotIds([]);
   };
 
   const removeProgress = async () => {
@@ -476,7 +448,7 @@ export const ShootingScriptTab: React.FC<ShootingScriptTabProps> = ({
 
   return (
     <section className="min-w-0 space-y-3">
-      <div className={`flex min-w-0 flex-wrap items-center justify-between gap-2 px-1 ${editing ? "sticky top-0 z-10 bg-book-bg py-2" : ""}`}>
+      <div className={`flex min-w-0 flex-wrap items-center justify-between gap-2 px-1 ${editing ? "sticky top-0 z-10 bg-[rgb(var(--color-bg-primary))] py-2" : ""}`}>
         <div className="text-small text-book-text-muted">
           {scriptLoading
             ? t("shootingScript.loading")
@@ -658,11 +630,45 @@ export const ShootingScriptTab: React.FC<ShootingScriptTabProps> = ({
         </div>
       ) : view ? (
         <>
+          {affectedShotIds.length > 0 ? (
+            <section className="a4n-flat-surface space-y-3 p-3 sm:p-4" aria-label={t("shootingScript.needsUpdate")}>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="text-sm font-semibold text-warning">{t("shootingScript.updateCount", { count: affectedShotIds.length })}</p>
+                {canEdit ? <BookButton size="sm" onClick={() => void generate(affectedShotIds)} disabled={actionsDisabled || editing}>
+                  <Wand2 size={13} />{t("shootingScript.updateAffected")}
+                </BookButton> : null}
+              </div>
+              <p className="text-small text-book-text-muted">{editing ? t("shootingScript.manualUpdateHint") : t("shootingScript.localUpdateHint")}</p>
+              <ul className="divide-y divide-book-border/45">
+                {affectedShotIds.map((id) => {
+                  const planned = confirmedVisualPlan?.plan.segments.find((shot) => shot.id === id);
+                  const missing = view.plan_sync.missing_shot_ids.includes(id);
+                  return <li key={id} className="flex min-w-0 flex-wrap items-center justify-between gap-2 py-2">
+                    <div className="min-w-0 flex-1 basis-48">
+                      <p className="break-words text-xs font-medium">{planned?.title || id} · {missing ? t("shootingScript.missingShot") : t("shootingScript.staleShot")}</p>
+                      <p className="mt-1 break-words text-small text-book-text-muted">{planned?.prompt}</p>
+                    </div>
+                    {canEdit ? <div className="flex flex-wrap items-center gap-2">
+                      {editing && !missing ? <label className="flex cursor-pointer items-center gap-2 text-xs">
+                        <input type="checkbox" checked={rebindShotIds.includes(id)} disabled={actionsDisabled}
+                          onChange={(event) => setRebindShotIds((previous) => event.target.checked ? [...previous, id] : previous.filter((shotId) => shotId !== id))} />
+                        {t("shootingScript.manualUpdated", { id: planned?.title || id })}
+                      </label> : !editing ? <>
+                        {!missing ? <BookButton size="sm" variant="secondary" disabled={actionsDisabled} onClick={() => enterEdit(id)} aria-label={t("shootingScript.editShot", { id })}><Pencil size={13} />{t("shootingScript.manualUpdate")}</BookButton> : null}
+                        <BookButton size="sm" variant="secondary" disabled={actionsDisabled} onClick={() => void generate([id])} aria-label={t("shootingScript.generateShot", { id })}><Wand2 size={13} />{t("shootingScript.modelUpdate")}</BookButton>
+                      </> : null}
+                    </div> : null}
+                  </li>;
+                })}
+              </ul>
+            </section>
+          ) : null}
           {canEdit && editing && draft ? (
             <StructuredScriptEditor
               script={draft}
               onChange={setDraft}
               disabled={actionsDisabled}
+              focusShotId={focusShotId}
             />
           ) : (
             <ScriptContent script={view.script} />

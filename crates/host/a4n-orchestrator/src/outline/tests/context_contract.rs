@@ -82,7 +82,7 @@ fn outline_blueprint_context_is_compact_and_keeps_story_fields() {
         &[character],
         &[relationship],
         json!({
-            "character_profiles": [],
+            "character_profiles": [{"name": "林烬", "appearance": "灰色制服", "personality": "焦躁"}],
             "objects": [],
             "scenes": [],
             "foreshadowing": [],
@@ -97,6 +97,15 @@ fn outline_blueprint_context_is_compact_and_keeps_story_fields() {
     assert!(context.get("total_chapters").is_none());
     assert_eq!(context["characters"][0]["motivation"], json!("查明真相"));
     assert_eq!(context["relationships"][0]["strength"], json!(7));
+    assert!(context["characters"][0].get("appearance").is_none());
+    assert_eq!(
+        context["characters"][0]["personality"], "克制",
+        "不同的规划值不能当重复删除"
+    );
+    assert_eq!(
+        context["formal_materials"]["character_profiles"][0]["personality"],
+        "焦躁"
+    );
     assert!(!text.contains("\"project_id\""));
     assert!(!text.contains("\"created_at\""));
     assert!(!text.contains("\"updated_at\""));

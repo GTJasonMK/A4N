@@ -81,14 +81,17 @@ impl VideoApplication {
         expected_updated_at: chrono::NaiveDateTime,
         metadata_json: Value,
     ) -> Result<chapter_video_prompt::Model, AppError> {
-        a4n_db::video::prompts::consistency::update_chapter_video_segment_plan_metadata(
+        let row = a4n_db::video::prompts::consistency::update_chapter_video_segment_plan_metadata(
             self.connection(),
             prompt_id,
             expected_updated_at,
             metadata_json,
         )
         .await
-        .map_err(video_db_error)
+        .map_err(video_db_error)?;
+        a4n_db::video::with_video_plan_source_sync(self.connection(), row)
+            .await
+            .map_err(video_db_error)
     }
 
     pub(in crate::context) async fn update_chapter_video_segment_recipe(
@@ -220,22 +223,6 @@ impl VideoApplication {
             self.connection(),
             prompts,
             operation,
-        )
-        .await
-        .map_err(video_db_error)
-    }
-
-    pub(in crate::context) async fn ensure_chapter_video_prompt_stages_mutable_ignoring(
-        &self,
-        prompts: &[chapter_video_prompt::Model],
-        operation: &str,
-        ignored_prompt_ids: &BTreeSet<i64>,
-    ) -> Result<(), AppError> {
-        a4n_db::video::prompts::consistency::ensure_chapter_video_prompt_stages_mutable_ignoring(
-            self.connection(),
-            prompts,
-            operation,
-            ignored_prompt_ids,
         )
         .await
         .map_err(video_db_error)

@@ -24,8 +24,6 @@ pub(in crate::video) struct VideoPlanningPromptContext<'a> {
     pub prompt_renderer: &'a dyn PromptRenderer,
     pub project_id: i64,
     pub chapter_summary: Option<&'a str>,
-    pub chapter_analysis: Option<&'a Value>,
-    pub project_context: Option<&'a Value>,
     pub style: &'a str,
     pub duration_secs: i32,
     pub aspect_ratio: &'a str,

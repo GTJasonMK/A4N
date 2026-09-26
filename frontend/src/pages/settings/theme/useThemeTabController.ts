@@ -9,7 +9,6 @@ import {
   exportTheme,
   importTheme,
   importThemePackage,
-  getThemePreference,
   listThemes,
   updateTheme,
   uploadThemeResource,
@@ -24,9 +23,11 @@ import { useAuthStore } from "../../../store/auth";
 import {
   applyActiveTheme,
   applyThemePreview,
+  getThemeAppearance,
   notifyThemeChanged,
   persistThemeAppearance,
   restoreActiveTheme,
+  THEME_APPLIED_EVENT,
 } from "../../../theme/activeTheme";
 import { copyTextToClipboard } from "../../../utils/clipboard";
 import { downloadBase64ExportFile } from "../../../utils/downloadFile";
@@ -76,7 +77,7 @@ export const useThemeTabController = () => {
   const [exportingId, setExportingId] = useState<number | null>(null);
   const [importing, setImporting] = useState(false);
   const [importText, setImportText] = useState("");
-  const [appearance, setAppearance] = useState<ThemeAppearance>("system");
+  const [appearance, setAppearance] = useState(getThemeAppearance);
   const [appearanceSaving, setAppearanceSaving] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editorSaving, setEditorSaving] = useState(false);
@@ -148,22 +149,11 @@ export const useThemeTabController = () => {
   }, [refresh]);
 
   useEffect(() => {
-    if (!user) {
-      setAppearance("system");
-      return;
-    }
-    let current = true;
-    void getThemePreference()
-      .then((value) => {
-        if (current && value.user_id === user.id) setAppearance(value.appearance);
-      })
-      .catch((err) => {
-        if (current) addToast(extractErrorMessage(err, t("settingsTheme.preferenceLoadFailed")), "error");
-      });
-    return () => {
-      current = false;
-    };
-  }, [addToast, t, user]);
+    const syncAppearance = () => setAppearance(getThemeAppearance());
+    window.addEventListener(THEME_APPLIED_EVENT, syncAppearance);
+    syncAppearance();
+    return () => window.removeEventListener(THEME_APPLIED_EVENT, syncAppearance);
+  }, []);
 
   useEffect(() => {
     mutationInFlightRef.current = false;
@@ -450,20 +440,16 @@ export const useThemeTabController = () => {
   const handleAppearanceChange = async (nextAppearance: ThemeAppearance) => {
     if (!user || appearanceSaving || !beginMutation()) return;
     const requestUserKey = userKey;
-    const previous = appearance;
-    setAppearance(nextAppearance);
     setAppearanceSaving(true);
     try {
-      const result = await persistThemeAppearance(
+      await persistThemeAppearance(
         nextAppearance,
         () => isCurrentUser(requestUserKey),
       );
       if (!isCurrentUser(requestUserKey)) return;
-      setAppearance(result.appearance);
       addToast(t("settingsTheme.preferenceSaved"), "success");
     } catch (err) {
       if (isCurrentUser(requestUserKey)) {
-        setAppearance(previous);
         addToast(extractErrorMessage(err, t("settingsTheme.preferenceSaveFailed")), "error");
       }
     } finally {

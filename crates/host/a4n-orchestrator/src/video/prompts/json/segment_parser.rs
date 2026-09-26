@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 
 use a4n_error::AppError;
 use serde_json::Value;
@@ -7,12 +7,12 @@ use a4n_domain::source_spans::SourceSpan;
 use a4n_video_contract::VIDEO_SEGMENT_PLAN_V2;
 
 use super::contracts::{
-    StoredVideoSegmentPlanResponse, VideoSegmentPlan, VideoSegmentPlanDefaults,
-    VideoSegmentPlanInput, VideoSegmentPlanResponse, VideoShootingScriptProjection,
+    VideoSegmentPlan, VideoSegmentPlanDefaults, VideoSegmentPlanInput, VideoSegmentPlanResponse,
+    VideoShootingScriptProjection,
 };
 use super::{
-    derive_segment_source_span_ids, parse_strict_json_response, validate_continuous_ids,
-    validate_segment_plan, validate_source_span_ids,
+    derive_segment_source_span_ids, parse_strict_json_response, validate_segment_plan,
+    validate_source_span_ids,
 };
 
 pub(in crate::video) fn parse_video_segment_plan_response(
@@ -48,21 +48,12 @@ pub(in crate::video) fn video_segment_plan_input_values(
         .collect()
 }
 
-pub(in crate::video) fn parse_stored_video_segment_plan_for_reuse(
-    raw: &str,
+pub(in crate::video) fn validate_stored_video_segment_plan(
+    segments: Vec<VideoSegmentPlan>,
     source_spans: &[SourceSpan],
     expected_aspect_ratio: &str,
 ) -> Result<Vec<VideoSegmentPlan>, AppError> {
-    let response: StoredVideoSegmentPlanResponse = serde_json::from_str(raw.trim())?;
-    if response.segments.is_empty() {
-        return Err(AppError::InvalidArgument(
-            "已存视频分段规划必须包含至少一个 segments 条目".to_string(),
-        ));
-    }
-
-    let mut seen_numbers = HashSet::new();
-    let mut segments = Vec::with_capacity(response.segments.len());
-    for segment in response.segments {
+    segments.into_iter().map(|segment| {
         let segment_number = segment.segment_number;
         if segment.aspect_ratio != expected_aspect_ratio {
             return Err(AppError::InvalidArgument(format!(
@@ -89,20 +80,8 @@ pub(in crate::video) fn parse_stored_video_segment_plan_for_reuse(
             source_span_ids,
             ..segment
         };
-        let segment = validate_segment_plan(segment)?;
-        if !seen_numbers.insert(segment.segment_number) {
-            return Err(AppError::InvalidArgument(format!(
-                "已存视频分段规划 segment_number {} 重复",
-                segment.segment_number
-            )));
-        }
-        segments.push(segment);
-    }
-    validate_continuous_ids(
-        segments.iter().map(|segment| segment.segment_number),
-        "已存视频分段规划 segment_number",
-    )?;
-    Ok(segments)
+        validate_segment_plan(segment)
+    }).collect()
 }
 
 fn parse_video_segment_plan_inner(

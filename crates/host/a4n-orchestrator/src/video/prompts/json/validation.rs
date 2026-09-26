@@ -32,7 +32,7 @@ pub(super) enum PromptTextKind {
     FrameNegative,
 }
 
-pub(super) const API_PROMPT_UPLOAD_STATUS_TERMS: &[&str] = &[
+pub(in crate::video) const API_PROMPT_UPLOAD_STATUS_TERMS: &[&str] = &[
     "无输入首帧",
     "没有输入首帧",
     "无输入图片",

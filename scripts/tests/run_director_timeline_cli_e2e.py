@@ -10,6 +10,7 @@ import hashlib
 import io
 import json
 import os
+import subprocess
 import tempfile
 import time
 import traceback
@@ -177,7 +178,29 @@ def main():
             assert confirmed["record"]["status"] == "confirmed"
             call("delete_image", {"image_id": image["id"]}, destructive=True, failure="导演编排引用")
             call("delete_scene_profile", {"scene_profile_id": scenes[0]["id"], "downstream_strategy": "reject"}, destructive=True, failure="导演编排引用")
+            video_options = {"workflow_mode": "shared_segment_plan", "style": "电影感", "prompt_output_language": "zh_cn", "prompt_batch_size": 1,
+                "duration_secs": 6, "duration_secs_options": [6], "aspect_ratio": "16:9", "reference_image_ids": [], "video_library_image_ids": [], "regenerate_existing": False}
+            partial = call("generate_next_chapter_shooting_script_unit", {**resource, "visual_plan_id": confirmed["record"]["id"]})
+            assert partial["completed_unit_count"] == 1 and partial["total_unit_count"] == 3
+            browser_fixture = {"chapter": chapter, "partial": {"before": copy.deepcopy(partial), "plan": copy.deepcopy(confirmed)}}
+            partial_edit = copy.deepcopy(partial["script"])
+            partial_edit["scenes"][0]["title"] = "作者保留的场景标题"
+            partial_edit["scenes"][0]["shots"][0]["composition"] = "作者保存的构图：门框在左侧，人物在右侧。"
+            partial_edit["directing_statement"]["audience_experience"] = "作者保存的观众体验"
+            partial = call("edit_chapter_shooting_script_progress", {**resource, "workflow_run_id": partial["workflow_run_id"], "expected_script": partial["script"], "script": partial_edit})["progress"]
+            assert call("get_chapter_shooting_script_unit_progress", resource)["script"] == partial_edit
+            complete(call("start_video_generation", {"project_id": project_id, "meta": meta(), "operation": {"kind": "prompt_segment_plan", "chapter_id": chapter_id, "options": {**video_options, "target_narrative_unit_index": 1}}}))
+            partial_plan = next(row for row in call("list_chapter_video_prompts", {"projectId": project_id, "chapterId": chapter_id}, raw=True) if row["workflow_mode"] == "shared_segment_plan")
+            assert partial_plan["metadata_json"]["stale_source_shot_ids"] == []
+            before_resume = len(provider_log_entries(args.provider_log))
             script = call("generate_chapter_shooting_script", {**resource, "visual_plan_id": confirmed["record"]["id"]})
+            assert script["script"]["scenes"][0] == partial_edit["scenes"][0]
+            assert script["script"]["directing_statement"] == partial_edit["directing_statement"]
+            assert call("get_chapter_shooting_script", resource)["script"] == script["script"]
+            assert not any("target_shot_id=shot-1" in json.dumps(row.get("body", {}), ensure_ascii=False)
+                for row in provider_log_entries(args.provider_log)[before_resume:])
+            browser_fixture["partial"]["after"] = copy.deepcopy(script)
+            report["checks"].append("saved partial scene and directing edits survive full continuation and reread without regenerating completed shots")
             shots = [shot for scene in script["script"]["scenes"] for shot in scene["shots"]]
             assert [shot["shot_id"] for shot in shots] == ["shot-1", "shot-2", "shot-3"]
             assert [shot["estimated_natural_seconds"] for shot in shots] == [6, 4, 8]
@@ -185,12 +208,14 @@ def main():
             assert [point["at_ms"] for point in shots[0]["visual_constraints"]["keyframes"]] == [0, 2000, 4000]
             report["checks"].append("confirmation permits missing images; script preserves shot IDs, timing, internal points and explicit end-frame semantics")
 
-            video_options = {"workflow_mode": "shared_segment_plan", "style": "电影感", "prompt_output_language": "zh_cn", "prompt_batch_size": 1,
-                "duration_secs": 6, "duration_secs_options": [6], "aspect_ratio": "16:9", "reference_image_ids": [], "video_library_image_ids": [], "regenerate_existing": False}
             complete(call("start_video_generation", {"project_id": project_id, "meta": meta(), "operation": {"kind": "prompt_segment_plan", "chapter_id": chapter_id, "options": video_options}}))
             rows = call("list_chapter_video_prompts", {"projectId": project_id, "chapterId": chapter_id}, raw=True)
             shared = next(row for row in rows if row["workflow_mode"] == "shared_segment_plan")
             segments = shared["metadata_json"]["segments"]
+            assert shared["id"] == partial_plan["id"]
+            assert segments[0] == partial_plan["metadata_json"]["segments"][0]
+            assert shared["metadata_json"]["stale_source_shot_ids"] == []
+            report["checks"].append("video planning from a saved partial script remains current after later scenes are completed")
             assert [segment["duration_secs"] for segment in segments] == [6, 4, 8]
             assert [segment["source_shot_id"] for segment in segments] == ["shot-1", "shot-2", "shot-3"]
             recipe = shared["metadata_json"]["segment_recipes"][0]
@@ -219,6 +244,22 @@ def main():
             assert video["status"] == "completed" and video["file_path"] and video["duration_secs"] == 6
             report["video_id"] = video["id"]
             report["checks"].append("a director shot generates and persists a video through the real provider request and polling path")
+
+            shared = next(row for row in call("list_chapter_video_prompts", {"projectId": project_id, "chapterId": chapter_id}, raw=True) if row["id"] == shared["id"])
+            edited_segments = copy.deepcopy(shared["metadata_json"]["segments"])
+            edited_segments[2]["scene_summary"] = "作者手工修改：人物在机房停下，仔细观察纸条。"
+            preserved_recipes = copy.deepcopy(shared["metadata_json"]["segment_recipes"][:2])
+            edited_plan = call("update_chapter_video_segment_plan", {"promptId": shared["id"], "input": {"expected_updated_at": shared["updated_at"], "segments": edited_segments}}, raw=True)
+            assert edited_plan["metadata_json"]["segments"] == edited_segments
+            assert edited_plan["metadata_json"]["segment_recipes"][:2] == preserved_recipes
+            resume_options = {key: value for key, value in video_options.items() if key not in ("segment_plan_prompt_id", "target_segment")}
+            resume_options["workflow_mode"] = "shared_segment_plan"
+            complete(call("start_video_generation", {"project_id": project_id, "meta": meta(), "operation": {"kind": "prompt_segment_plan", "chapter_id": chapter_id, "options": resume_options}}))
+            shared = next(row for row in call("list_chapter_video_prompts", {"projectId": project_id, "chapterId": chapter_id}, raw=True) if row["id"] == shared["id"])
+            segments = shared["metadata_json"]["segments"]
+            assert segments == edited_segments
+            assert shared["metadata_json"]["segment_recipes"][:2] == preserved_recipes
+            report["checks"].append("manual segment edits persist and resume from metadata while preserving unrelated recipes and videos")
 
             exported = call("export_project_family_data", {"root_project_id": project_id, "include_derived_projects": True})
             imported = call("import_project_family_upload", {"file_name": exported["file_name"], "data_base64": exported["data_base64"]})
@@ -249,8 +290,100 @@ def main():
             assert new_director_images == [image_map[image["id"]], image_map[generated["id"]], None]
             report["checks"].append("real ZIP export/import remaps images, scene IDs and downstream plan/script hashes")
             report["imported_project_id"] = new_root["id"]
+            imported_rows = call("list_chapter_video_prompts", {"projectId": new_root["id"], "chapterId": new_script["source_chapter_id"]}, raw=True)
+            assert next(row for row in imported_rows if row["workflow_mode"] == "shared_segment_plan")["metadata_json"]["stale_source_shot_ids"] == []
+            imported_video = next(row for row in remapped["generated_videos"] if row["status"] == "completed")
+            selected = call("select_segment_video", {
+                "projectId": new_root["id"], "chapterId": new_script["source_chapter_id"], "videoId": imported_video["id"],
+                "input": {"segment_plan_prompt_id": new_video_plan["id"], "target_segment": {"source_shot_id": "shot-1", "segment_index_in_shot": 1}},
+            }, raw=True, destructive=True)
+            assert selected["id"] == imported_video["id"]
+            report["checks"].append("imported videos remain adoptable with remapped segment and recipe fingerprints")
+
+            def revise_shot(prompt):
+                nonlocal draft, confirmed
+                revised = copy.deepcopy(confirmed["plan"])
+                revised["segments"][2]["prompt"] = prompt
+                draft = call("save_chapter_visual_plan_draft", {**resource, "authoring_mode": "manual", "record_id": None, "expected_revision": None, "plan": revised})
+                outcome = call("confirm_chapter_visual_plan", record_input(), destructive=True)
+                confirmed = outcome["visual_plan"]
+                assert outcome["shooting_script_sync"]["stale_shot_ids"] == ["shot-3"], outcome
+                return call("get_chapter_shooting_script", resource)
+
+            baseline_script = copy.deepcopy(script)
+            baseline_segments = copy.deepcopy(segments)
+            if not os.environ.get("A4N_DATA_DIR"):
+                raise RunnerError("Media-byte regression requires A4N_DATA_DIR for the local test Host")
+            media_root = Path(os.environ["A4N_DATA_DIR"]).resolve()
+            video_path = (media_root / video["file_path"]).resolve()
+            assert video_path.is_relative_to(media_root), "test video must belong to the isolated data directory"
+            baseline_video_bytes = hashlib.sha256(video_path.read_bytes()).hexdigest()
+            script = revise_shot("林岚进入机房后俯身检查柜台上的纸条。")
+            browser_fixture["manual"] = {"before": copy.deepcopy(script), "plan": copy.deepcopy(confirmed)}
+            assert script["record"]["id"] == baseline_script["record"]["id"]
+            assert script["script"]["scenes"][:2] == baseline_script["script"]["scenes"][:2]
+            rows = call("list_chapter_video_prompts", {"projectId": project_id, "chapterId": chapter_id}, raw=True)
+            assert next(row for row in rows if row["id"] == shared["id"])["metadata_json"]["stale_source_shot_ids"] == ["shot-3"]
+            revised = copy.deepcopy(script["script"])
+            revised["scenes"][2]["shots"][0]["composition"] = "作者手动调整：人物位于画面右侧，纸条位于左侧。"
+            manual = call("edit_chapter_shooting_script", {**resource, "record_id": script["record"]["id"], "expected_revision": script["record"]["revision"], "script": revised, "rebind_shot_ids": ["shot-3"]})["shooting_script"]
+            assert manual["plan_sync"]["stale_shot_ids"] == []
+            browser_fixture["manual"]["after"] = copy.deepcopy(manual)
+            assert manual["script"]["scenes"][:2] == baseline_script["script"]["scenes"][:2]
+            call("edit_chapter_shooting_script", {**resource, "record_id": script["record"]["id"], "expected_revision": script["record"]["revision"], "script": revised, "rebind_shot_ids": ["shot-3"]}, failure="revision")
+            report["checks"].append("director confirmation and manual rebinding invalidate only shot-3 and reject revision conflicts")
+
+            script = revise_shot("林岚发现纸条后缓缓起身，回头看向通道。")
+            browser_fixture["ai"] = {"before": copy.deepcopy(script), "plan": copy.deepcopy(confirmed)}
+            before_local = len(provider_log_entries(args.provider_log))
+            script = call("generate_chapter_shooting_script", {**resource, "visual_plan_id": confirmed["record"]["id"], "shot_ids": ["shot-3"]})
+            assert script["plan_sync"]["stale_shot_ids"] == []
+            browser_fixture["ai"]["after"] = copy.deepcopy(script)
+            secure_json(args.report.parent / "browser-fixture.json", browser_fixture)
+            assert script["script"]["scenes"][:2] == baseline_script["script"]["scenes"][:2]
+            design_requests = [row for row in provider_log_entries(args.provider_log)[before_local:]
+                if "只设计 narrative_unit_index=" in json.dumps(row.get("body", {}), ensure_ascii=False)]
+            assert len(design_requests) == 1 and "target_shot_id=shot-3" in json.dumps(design_requests[0], ensure_ascii=False), design_requests
+            call("generate_chapter_shooting_script", {**resource, "visual_plan_id": confirmed["record"]["id"], "shot_ids": ["unknown-shot"]}, failure="镜头 ID")
+            call("generate_next_chapter_shooting_script_unit", {**resource, "visual_plan_id": confirmed["record"]["id"], "shot_ids": ["shot-3"]}, failure="局部镜头更新")
+            planning_options = {key: value for key, value in video_options.items() if key not in ("segment_plan_prompt_id", "target_segment")}
+            planning_options.update(workflow_mode="shared_segment_plan", target_narrative_unit_index=script["script"]["scenes"][2]["narrative_unit_index"], regenerate_existing=False)
+            complete(call("start_video_generation", {"project_id": project_id, "meta": meta(), "operation": {"kind": "prompt_segment_plan", "chapter_id": chapter_id, "options": planning_options}}))
+            rows = call("list_chapter_video_prompts", {"projectId": project_id, "chapterId": chapter_id}, raw=True)
+            updated_plan = next(row for row in rows if row["workflow_mode"] == "shared_segment_plan")
+            assert updated_plan["id"] == shared["id"]
+            assert updated_plan["metadata_json"]["segments"][:2] == baseline_segments[:2]
+            assert updated_plan["metadata_json"]["stale_source_shot_ids"] == []
+            assert any(row["id"] == final_prompt["id"] for row in rows)
+            assert any(row["id"] == video["id"] and row["status"] == "completed" for row in call("list_videos_by_chapter", {"projectId": project_id, "chapterId": chapter_id}, raw=True))
+            assert hashlib.sha256(video_path.read_bytes()).hexdigest() == baseline_video_bytes
+            report["checks"].append("AI updates one shooting shot and its segment plan; untouched plans, prompts and video bytes survive")
+
+            deletion_chapter = data(checked(cli, ["chapter", "import", "--number", "2", "--title", "删除场景后的续写", "--content", chapter["content"]], "deletion chapter")[0], "deletion chapter")
+            deletion_resource = {"project_id": project_id, "source_chapter_id": deletion_chapter["id"]}
+            deletion_plan = copy.deepcopy(confirmed["plan"])
+            for point in deletion_plan["points"]:
+                point["image_id"] = None
+                point["reference_image_ids"] = []
+            deletion_draft = call("save_chapter_visual_plan_draft", {**deletion_resource, "authoring_mode": "manual", "record_id": None, "expected_revision": None, "plan": deletion_plan})
+            deletion_confirmed = call("confirm_chapter_visual_plan", {**deletion_resource, "record_id": deletion_draft["record"]["id"], "expected_revision": deletion_draft["record"]["revision"]}, destructive=True)["visual_plan"]
+            deletion_input = {**deletion_resource, "visual_plan_id": deletion_confirmed["record"]["id"]}
+            call("generate_next_chapter_shooting_script_unit", deletion_input)
+            deletion_progress = call("generate_next_chapter_shooting_script_unit", deletion_input)
+            assert deletion_progress["completed_unit_count"] == 2
+            without_second = copy.deepcopy(deletion_progress["script"])
+            without_second["scenes"].pop()
+            without_second["scenes"][0]["title"] = "删除另一场景后仍保留的作者标题"
+            without_second["scenes"][0]["transition_contracts"] = [transition for transition in without_second["scenes"][0]["transition_contracts"] if transition["to_narrative_unit_index"] != 2]
+            call("edit_chapter_shooting_script_progress", {**deletion_resource, "workflow_run_id": deletion_progress["workflow_run_id"], "expected_script": deletion_progress["script"], "script": without_second})
+            finished = call("generate_next_chapter_shooting_script_unit", deletion_input)
+            assert finished["completed_record"] and finished["completed_unit_count"] == finished["total_unit_count"] == 3
+            assert [scene["narrative_unit_index"] for scene in finished["script"]["scenes"]] == [1, 3]
+            assert finished["script"]["scenes"][0] == without_second["scenes"][0]
+            assert call("get_chapter_shooting_script", deletion_resource)["script"] == finished["script"]
+            report["checks"].append("deleted completed scenes stay deleted on next-unit completion and the generation cursor remains accurate")
             report["success"] = True
-    except (RunnerError, OSError, ValueError, TypeError, KeyError, AssertionError, StopIteration) as error:
+    except (RunnerError, OSError, ValueError, TypeError, KeyError, AssertionError, StopIteration, subprocess.SubprocessError) as error:
         report["error"] = f"{type(error).__name__}: {error}"
         report["traceback"] = traceback.format_exc()
     finally:

@@ -128,6 +128,8 @@ export const VideoStudioCanvas: React.FC = () => {
   const navigate = useNavigate();
   const { addToast } = useToast();
   const { locale, t } = useI18n();
+  const translatorRef = useRef(t);
+  translatorRef.current = t;
   const contextMenu = useContextMenu();
   const projectId = Number(id);
   const [project, setProject] = useState<NovelProject | null>(null);
@@ -137,6 +139,7 @@ export const VideoStudioCanvas: React.FC = () => {
   const [nodes, setNodes, applyNodesChange] = useNodesState<StudioNode>([]);
   const [edges, setEdges, applyEdgesChange] = useEdgesState<StudioEdge>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [importing, setImporting] = useState(false);
@@ -255,10 +258,11 @@ export const VideoStudioCanvas: React.FC = () => {
   );
   const flowEdges = useMemo(
     () =>
-      edges.map((edge) =>
-        edgeWithRuntimeClasses(edge, selectedRunScope, workflowActiveScope),
-      ),
-    [edges, selectedRunScope, workflowActiveScope],
+      edges.map((edge) => ({
+        ...edgeWithRuntimeClasses(edge, selectedRunScope, workflowActiveScope),
+        label: edgeRoleLabel(edge.data!.role, t),
+      })),
+    [edges, selectedRunScope, workflowActiveScope, t],
   );
   const workflowSubmitting = workflowSubmissionLabel !== null;
   const canResumeCurrentCanvasRun = Boolean(
@@ -320,10 +324,11 @@ export const VideoStudioCanvas: React.FC = () => {
     const requestId = requestRef.current + 1;
     requestRef.current = requestId;
     if (!Number.isFinite(projectId) || projectId <= 0) {
-      addToast(t("video.projectInvalid"), "error");
+      setLoadError(translatorRef.current("video.projectInvalid"));
       setLoading(false);
       return;
     }
+    setLoadError(null);
     setLoading(true);
     try {
       const [
@@ -339,23 +344,23 @@ export const VideoStudioCanvas: React.FC = () => {
       ]);
       if (requestRef.current !== requestId) return;
       if (projectRecord.project_kind !== "video") {
-        addToast(t("video.notVideoProject"), "error");
+        addToast(translatorRef.current("video.notVideoProject"), "error");
         navigate("/", { replace: true });
         return;
       }
       const normalizedContracts =
         normalizeStudioNodeContracts(rawNodeContracts);
       if (normalizedContracts.length === 0) {
-        throw new Error(t("video.emptyNodeContract"));
+        throw new Error(translatorRef.current("video.emptyNodeContract"));
       }
       const loadedContractsByKind = studioNodeContractMap(normalizedContracts);
       const flowNodes = graphDocument.nodes.map(toFlowNode);
-      const flowEdges = graphDocument.edges.map((edge) => toFlowEdge(edge, t));
+      const flowEdges = graphDocument.edges.map(toFlowEdge);
       const loadedEdgeError = canvasGraphSaveValidationError(
         flowNodes,
         flowEdges,
         loadedContractsByKind,
-        t,
+        translatorRef.current,
       );
       if (loadedEdgeError) throw new Error(loadedEdgeError);
       setProject(projectRecord);
@@ -367,7 +372,7 @@ export const VideoStudioCanvas: React.FC = () => {
       setDirty(false);
     } catch (err) {
       if (requestRef.current === requestId) {
-        addToast(extractErrorMessage(err, t("video.canvasLoadFailed")), "error");
+        setLoadError(extractErrorMessage(err, translatorRef.current("video.canvasLoadFailed")));
       }
     } finally {
       if (requestRef.current === requestId) setLoading(false);
@@ -379,7 +384,6 @@ export const VideoStudioCanvas: React.FC = () => {
     projectId,
     setEdges,
     setNodes,
-    t,
   ]);
 
   useEffect(() => {
@@ -789,6 +793,7 @@ export const VideoStudioCanvas: React.FC = () => {
             </>
           }
         />
+        {loadError && document ? <p role="alert" className="px-4 py-2 text-sm text-error">{loadError}</p> : null}
         <section
           aria-label={t("video.canvasEditor")}
           aria-busy={canvasWriteBusy}
@@ -819,6 +824,8 @@ export const VideoStudioCanvas: React.FC = () => {
                 <LoadingSpinner size="sm" className="mr-2" />
                 {t("video.canvasLoading")}
               </div>
+            ) : loadError && !document ? (
+              <div role="alert" className="p-6 text-sm text-error">{loadError}</div>
             ) : (
               <>
                 <ReactFlow

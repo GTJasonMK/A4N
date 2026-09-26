@@ -42,7 +42,7 @@ async fn resolve_preview_llm_model_for_state(
         model.api_key = None;
         return Ok(model);
     }
-    if runtime_config::current_user_id().is_some() {
+    if !state.provider_runtime().allows_host_provider_config() {
         return Err(
             "LLM 请求预览需要用户 LLM 配置快照或系统默认模板；请先在用户配置页选择默认 LLM"
                 .to_string(),

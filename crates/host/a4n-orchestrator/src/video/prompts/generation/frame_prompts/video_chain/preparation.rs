@@ -31,6 +31,7 @@ pub(super) struct VideoChainPreparationInput<'a, 'source> {
 
 pub(super) struct PreparedVideoChainInputs {
     pub source_metadata: Value,
+    pub source_spans: Vec<a4n_domain::source_spans::SourceSpan>,
     pub regenerate_existing: bool,
     pub prompt_batch_size: usize,
     pub target_shot_number: Option<i32>,
@@ -69,6 +70,7 @@ pub(super) async fn prepare_video_chain_inputs(
     } = input;
     let PreparedVideoPromptInputs {
         source_metadata,
+        source_spans,
         regenerate_existing,
         prompt_batch_size,
         segment_plan_prompt_id,
@@ -176,6 +178,7 @@ pub(super) async fn prepare_video_chain_inputs(
 
     Ok(PreparedVideoChainInputs {
         source_metadata,
+        source_spans,
         regenerate_existing,
         prompt_batch_size,
         target_shot_number,

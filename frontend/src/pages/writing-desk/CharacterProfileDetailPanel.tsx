@@ -8,11 +8,7 @@ import {
   characterAttributeText,
   type CharacterAttributeCategory,
 } from "../../utils/characterAttributes";
-import {
-  AttributePreview,
-  ProfileField,
-  describeProfile,
-} from "./CharacterProfileDisplay";
+import { AttributePreview } from "./CharacterProfileDisplay";
 import { useI18n } from "../../i18n";
 
 export const CharacterProfileDetailPanel: React.FC<{
@@ -45,9 +41,6 @@ export const CharacterProfileDetailPanel: React.FC<{
 
   const gender = characterAttributeText(profile, "explicit", "gender");
   const age = characterAttributeText(profile, "explicit", "age");
-  const personality = characterAttributeText(profile, "implicit", "personality");
-  const background = characterAttributeText(profile, "explicit", "background");
-  const appearance = characterAttributeText(profile, "explicit", "appearance");
   const profileMeta = [
     gender,
     age,
@@ -88,16 +81,6 @@ export const CharacterProfileDetailPanel: React.FC<{
 
         <div className="min-h-0 flex-1 overflow-y-auto pr-1 text-xs custom-scrollbar">
           <div className="a4n-flat-surface divide-y divide-book-border/40 overflow-hidden">
-            {describeProfile(profile) ? (
-              <section className="px-3 py-3 sm:px-4">
-                <h3 className="mb-2 text-small font-semibold text-book-text-main">{t("characterDetail.profileOverview")}</h3>
-                <dl className="space-y-2">
-                  <ProfileField label={t("characterDetail.labels.personality")} value={personality} />
-                  <ProfileField label={t("characterDetail.labels.background")} value={background} />
-                  <ProfileField label={t("characterDetail.labels.appearance")} value={appearance} />
-                </dl>
-              </section>
-            ) : null}
             <AttributePreview
               label={t("characterDetail.labels.explicit")}
               category="explicit"

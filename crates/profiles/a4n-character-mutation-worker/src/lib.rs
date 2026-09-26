@@ -867,6 +867,11 @@ fn character_profile_delete_error(
     error: a4n_db::character::CharacterProfileDeleteError,
 ) -> WorkerFailure {
     match error {
+        a4n_db::character::CharacterProfileDeleteError::Referenced(profile_id) => {
+            WorkerFailure::invalid_request(format!(
+                "角色档案 {profile_id} 仍被来源快照或游戏剧本引用，不能删除"
+            ))
+        }
         a4n_db::character::CharacterProfileDeleteError::NotFound(message) => {
             WorkerFailure::not_found(message)
         }

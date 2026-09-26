@@ -114,6 +114,7 @@ export const HOST_API_COMMANDS = [
   "generate_chapter_scene",
   "generate_chapter_shooting_script",
   "generate_next_chapter_shooting_script_unit",
+  "start_chapter_shooting_script_generation",
   "generate_object_profile_image_prompt",
   "generate_portrait_prompt",
   "generate_scene_profile_image_prompt",
@@ -439,6 +440,7 @@ export const GENERATION_START_PATHS: ReadonlyMap<string, string> = new Map<strin
   ["start_blueprint_generation", "/generation-tasks/blueprint"],
   ["start_blueprint_refinement", "/generation-tasks/blueprint-refinement"],
   ["start_chapter_generation", "/generation-tasks/chapter"],
+  ["start_chapter_shooting_script_generation", "/generation-tasks/shooting-script"],
   ["start_image_generation", "/generation-tasks/image"],
   ["start_visual_plan_prompt_generation", "/generation-tasks/director-prompt"],
   ["start_inspiration_generation", "/generation-tasks/inspiration"],
@@ -473,7 +475,6 @@ export const RUNTIME_CONFIG_POLICIES: Readonly<Record<string, RuntimeConfigPolic
   "generate_chapter_scene": "full",
   "generate_chapter_shooting_script": "full",
   "generate_next_chapter_shooting_script_unit": "full",
-  "generate_portrait_prompt": "full",
   "import_chapter": "full",
   "optimize_chapter_video_prompt": "full",
   "optimize_manga_prompt": "full",
@@ -5046,6 +5047,7 @@ export interface ChapterVisualPlanValidationResult {
 
 export interface ConfirmedChapterVisualPlanView {
   invalidated_project_ids: number[];
+  shooting_script_sync: ShootingScriptPlanSyncV1 | null;
   visual_plan: ChapterVisualPlanView;
 }
 
@@ -5250,8 +5252,17 @@ export interface ChapterShootingScriptSourceInput {
 
 export interface GenerateChapterShootingScriptInput {
   project_id: number;
+  shot_ids?: string[];
   source_chapter_id: number;
   visual_plan_id: number;
+}
+
+export type ShootingScriptGenerationMode = "full" | "next_scene";
+
+export interface StartChapterShootingScriptGenerationInput {
+  meta: GenerationStartRequestMeta;
+  mode: ShootingScriptGenerationMode;
+  source: GenerateChapterShootingScriptInput;
 }
 
 export interface DeleteChapterShootingScriptInput {
@@ -5264,6 +5275,7 @@ export interface DeleteChapterShootingScriptInput {
 export interface EditChapterShootingScriptInput {
   expected_revision: number;
   project_id: number;
+  rebind_shot_ids?: string[];
   record_id: number;
   script: ChapterShootingScriptV1;
   source_chapter_id: number;
@@ -5285,7 +5297,13 @@ export interface ChapterShootingScriptRecordSummary {
   visual_plan_version: number | null;
 }
 
+export interface ShootingScriptPlanSyncV1 {
+  missing_shot_ids: string[];
+  stale_shot_ids: string[];
+}
+
 export interface ChapterShootingScriptView {
+  plan_sync: ShootingScriptPlanSyncV1;
   record: ChapterShootingScriptRecordSummary;
   script: ChapterShootingScriptV1;
 }
@@ -5361,6 +5379,7 @@ export interface SourceSyncConflictSummary {
   id: number;
   local_state_kind: SourceSyncLocalStateKind;
   local_summary_json: Record<string, unknown>;
+  regenerate_scene_id: number | null;
   resolution_strategy: SourceSyncResolutionStrategy | null;
   resolved_at: string | null;
   root_project_id: number;
@@ -5529,7 +5548,6 @@ export interface VideoSegmentPlanV2 {
 }
 
 export interface UpdateChapterVideoSegmentPlanInput {
-  downstream_strategy: DownstreamConflictStrategy;
   expected_updated_at: string;
   segments: VideoSegmentPlanV2[];
 }

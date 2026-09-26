@@ -5,7 +5,6 @@ use a4n_db_models::models::{ai::generated_image, chapter::chapter_video_prompt};
 use a4n_domain::video_prompt::ChapterVideoPromptRecordFields;
 use a4n_domain::video_prompt::ChapterVideoPromptSyncDraft;
 use a4n_domain::video_prompt::ChapterVideoPromptSyncPolicy;
-use a4n_video_contract::{VideoSegmentExecutionRecipeV1, VideoSegmentPlanV2};
 use std::collections::BTreeSet;
 
 pub(super) fn preserved_unmatched_prompt_ids_by_policy(
@@ -121,10 +120,10 @@ pub(super) fn prompt_sync_generation_fields_changed(
         )
 }
 
-pub(super) fn segment_plan_extension_preserves_existing(
+pub(super) fn segment_plan_update_preserves_outputs(
     existing: &chapter_video_prompt::Model,
     draft: &ChapterVideoPromptSyncDraft,
-) -> bool {
+) -> Result<bool, VideoDbError> {
     if existing.prompt_type != chapter_video_prompt::PROMPT_TYPE_FRAME_SEGMENT_PLAN
         || draft.fields.prompt_type != chapter_video_prompt::PROMPT_TYPE_FRAME_SEGMENT_PLAN
         || existing.workflow_mode != chapter_video_prompt::WORKFLOW_MODE_SHARED_SEGMENT_PLAN
@@ -133,90 +132,42 @@ pub(super) fn segment_plan_extension_preserves_existing(
         || existing.duration_secs != draft.fields.duration_secs
         || existing.aspect_ratio != draft.fields.aspect_ratio
     {
-        return false;
+        return Ok(false);
     }
-    let Some(existing_metadata) = existing.metadata_json.as_ref() else {
-        return false;
-    };
-    let Some(draft_metadata) = draft.fields.metadata_json.as_ref() else {
-        return false;
-    };
+    let existing_metadata = existing
+        .metadata_json
+        .as_ref()
+        .ok_or_else(|| VideoDbError::InvalidArgument("已有片段规划缺少 metadata_json".into()))?;
+    let draft_metadata = draft
+        .fields
+        .metadata_json
+        .as_ref()
+        .ok_or_else(|| VideoDbError::InvalidArgument("新片段规划缺少 metadata_json".into()))?;
     if existing_metadata.get("source") != draft_metadata.get("source")
         || existing_metadata.get("contract_version") != draft_metadata.get("contract_version")
     {
-        return false;
+        return Ok(false);
     }
-    let Some(existing_items) = segment_plan_items(existing_metadata) else {
-        return false;
-    };
-    let Some(draft_items) = segment_plan_items(draft_metadata) else {
-        return false;
-    };
-    existing_items.len() <= draft_items.len()
-        && existing_items.iter().all(|(key, (segment, recipe))| {
-            draft_items.get(key).is_some_and(|draft| {
-                plan_items_match_ignoring_display_number((segment, recipe), draft)
-            })
-        })
-}
-
-type StableSegmentKey = (String, i32);
-type SegmentPlanItem = (VideoSegmentPlanV2, VideoSegmentExecutionRecipeV1);
-
-fn segment_plan_items(metadata: &Value) -> Option<HashMap<StableSegmentKey, SegmentPlanItem>> {
-    let segments =
-        serde_json::from_value::<Vec<VideoSegmentPlanV2>>(metadata.get("segments")?.clone())
-            .ok()?;
-    let recipes = serde_json::from_value::<Vec<VideoSegmentExecutionRecipeV1>>(
-        metadata.get("segment_recipes")?.clone(),
-    )
-    .ok()?;
-    if segments.is_empty() || segments.len() != recipes.len() {
-        return None;
+    // 更新共享规划不会覆盖下游记录；各片段凭内容和来源指纹自行判定是否过时。
+    let style = existing
+        .style
+        .as_deref()
+        .filter(|value| !value.trim().is_empty())
+        .ok_or_else(|| VideoDbError::InvalidArgument("片段规划缺少 style".into()))?;
+    for metadata in [existing_metadata, draft_metadata] {
+        let segments = a4n_video_contract::video_segment_plan_from_metadata(metadata)
+            .map_err(VideoDbError::InvalidArgument)?;
+        let recipes = a4n_video_contract::video_segment_recipes_from_metadata(Some(metadata))
+            .map_err(VideoDbError::InvalidArgument)?;
+        a4n_video_contract::validate_video_segment_recipes_for_plan(&recipes, &segments, style)
+            .map_err(VideoDbError::InvalidArgument)?;
+        a4n_video_contract::validate_video_segment_plan_identity(
+            &metadata["video_execution_identity"],
+            &segments,
+        )
+        .map_err(VideoDbError::InvalidArgument)?;
     }
-    let mut recipes_by_number = HashMap::with_capacity(recipes.len());
-    for recipe in recipes {
-        recipe.validate().ok()?;
-        if recipes_by_number
-            .insert(recipe.segment_number, recipe)
-            .is_some()
-        {
-            return None;
-        }
-    }
-    let mut items = HashMap::with_capacity(segments.len());
-    for segment in segments {
-        if segment.segment_number <= 0
-            || segment.source_shot_id.trim().is_empty()
-            || segment.segment_index_in_shot <= 0
-        {
-            return None;
-        }
-        let recipe = recipes_by_number.remove(&segment.segment_number)?;
-        if items
-            .insert(
-                (
-                    segment.source_shot_id.clone(),
-                    segment.segment_index_in_shot,
-                ),
-                (segment, recipe),
-            )
-            .is_some()
-        {
-            return None;
-        }
-    }
-    recipes_by_number.is_empty().then_some(items)
-}
-
-fn plan_items_match_ignoring_display_number(
-    left: (&VideoSegmentPlanV2, &VideoSegmentExecutionRecipeV1),
-    right: &SegmentPlanItem,
-) -> bool {
-    let (mut segment, mut recipe) = (left.0.clone(), left.1.clone());
-    segment.segment_number = right.0.segment_number;
-    recipe.segment_number = right.1.segment_number;
-    segment == right.0 && recipe == right.1
+    Ok(true)
 }
 
 fn prompt_sync_metadata_generation_context_matches(
@@ -332,7 +283,16 @@ mod tests {
         );
     }
 
-    fn draft(metadata_json: Value) -> ChapterVideoPromptSyncDraft {
+    fn bind_identity(metadata: &mut Value) {
+        let segments = a4n_video_contract::video_segment_plan_from_metadata(metadata).unwrap();
+        metadata["video_execution_identity"] = json!({
+            "contract_epoch": a4n_video_contract::VIDEO_EXECUTION_CONTRACT_EPOCH,
+            "segment_identities": a4n_video_contract::video_segment_identities(&segments).unwrap(),
+        });
+    }
+
+    fn draft(mut metadata_json: Value) -> ChapterVideoPromptSyncDraft {
+        bind_identity(&mut metadata_json);
         ChapterVideoPromptSyncDraft {
             fields: ChapterVideoPromptRecordFields {
                 project_id: 1,
@@ -356,9 +316,9 @@ mod tests {
     }
 
     #[test]
-    fn segment_plan_extension_uses_stable_segment_identity() {
+    fn valid_segment_plan_updates_preserve_downstream_records() {
         let now = chrono::Utc::now().naive_utc();
-        let existing = chapter_video_prompt::Model {
+        let mut existing = chapter_video_prompt::Model {
             id: 3,
             project_id: 1,
             chapter_id: 2,
@@ -387,6 +347,7 @@ mod tests {
             created_at: now,
             updated_at: now,
         };
+        bind_identity(existing.metadata_json.as_mut().unwrap());
         let appended = draft(json!({
             "contract_version": "v1",
             "source": {"content_sha256": "same"},
@@ -400,22 +361,20 @@ mod tests {
             ],
             "plan_complete": true
         }));
-        assert!(segment_plan_extension_preserves_existing(
-            &existing, &appended
-        ));
+        assert!(segment_plan_update_preserves_outputs(&existing, &appended).unwrap());
 
         let mut changed = appended.clone();
         changed.fields.metadata_json.as_mut().unwrap()["segments"][1]["title"] = json!("changed");
-        assert!(!segment_plan_extension_preserves_existing(
-            &existing, &changed
-        ));
+        assert!(segment_plan_update_preserves_outputs(&existing, &changed).is_err());
+        bind_identity(changed.fields.metadata_json.as_mut().unwrap());
+        assert!(segment_plan_update_preserves_outputs(&existing, &changed).unwrap());
 
         let mut changed_recipe = appended;
         changed_recipe.fields.metadata_json.as_mut().unwrap()["segment_recipes"][1]["workflow_mode"] =
             json!("reference_media");
-        assert!(!segment_plan_extension_preserves_existing(
-            &existing,
-            &changed_recipe
-        ));
+        assert!(segment_plan_update_preserves_outputs(&existing, &changed_recipe).unwrap());
+        changed_recipe.fields.metadata_json.as_mut().unwrap()["segment_recipes"][1]["duration_secs"] =
+            json!(0);
+        assert!(segment_plan_update_preserves_outputs(&existing, &changed_recipe).is_err());
     }
 }

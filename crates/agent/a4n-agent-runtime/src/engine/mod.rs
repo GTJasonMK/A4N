@@ -172,7 +172,7 @@ mod tests {
         }
     }
 
-    fn approval_context(execution_mode: &str) -> AgentRunContext {
+    pub(super) fn approval_context(execution_mode: &str) -> AgentRunContext {
         let now = chrono::Utc::now().naive_utc();
         AgentRunContext {
             run: a4n_agent_runtime_contract::AgentRunSnapshot {

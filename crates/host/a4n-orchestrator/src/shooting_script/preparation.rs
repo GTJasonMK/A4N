@@ -46,7 +46,14 @@ impl OrchestratorContext {
                 &source_spans,
             )?;
         let scene_profiles = self
-            .visual_plan_scene_context(&visual_plan.plan, &source)
+            .visual_plan_scene_context(
+                visual_plan
+                    .plan
+                    .segments
+                    .iter()
+                    .filter_map(|segment| segment.scene_binding.as_ref()),
+                &source,
+            )
             .await?;
         let layout_unit_system_prompt = self.prompt_render_template(
             CHAPTER_SCREENPLAY_LAYOUT_UNIT_PROMPT,
@@ -79,6 +86,7 @@ impl OrchestratorContext {
         });
         let input_fingerprint_json = json!({
             "workflow": CHAPTER_SHOOTING_SCRIPT_WORKFLOW,
+            "shot_ids": &input.shot_ids,
             "stages": {
                 "screenplay_layout_unit": {
                     "prompt_name": CHAPTER_SCREENPLAY_LAYOUT_UNIT_PROMPT,
@@ -112,6 +120,7 @@ impl OrchestratorContext {
             existing,
             visual_plan,
             visual_plan_projection,
+            shot_ids: input.shot_ids,
             scene_profiles,
             layout_unit_system_prompt,
             unit_adaptation_system_prompt,

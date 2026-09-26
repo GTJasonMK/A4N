@@ -60,46 +60,6 @@ pub(super) fn portrait_prompt_payload_value(
         Value::String(portrait_type_text.to_string()),
     );
     payload.insert(
-        "appearance".to_string(),
-        spec.appearance
-            .map(str::trim)
-            .filter(|text| !text.is_empty())
-            .map(|text| Value::String(text.to_string()))
-            .unwrap_or(Value::Null),
-    );
-    payload.insert(
-        "gender".to_string(),
-        spec.gender
-            .map(str::trim)
-            .filter(|text| !text.is_empty())
-            .map(|text| Value::String(text.to_string()))
-            .unwrap_or(Value::Null),
-    );
-    payload.insert(
-        "age".to_string(),
-        spec.age
-            .map(str::trim)
-            .filter(|text| !text.is_empty())
-            .map(|text| Value::String(text.to_string()))
-            .unwrap_or(Value::Null),
-    );
-    payload.insert(
-        "personality".to_string(),
-        spec.personality
-            .map(str::trim)
-            .filter(|text| !text.is_empty())
-            .map(|text| Value::String(text.to_string()))
-            .unwrap_or(Value::Null),
-    );
-    payload.insert(
-        "background".to_string(),
-        spec.background
-            .map(str::trim)
-            .filter(|text| !text.is_empty())
-            .map(|text| Value::String(text.to_string()))
-            .unwrap_or(Value::Null),
-    );
-    payload.insert(
         "profile_context".to_string(),
         spec.profile_context
             .map(|_| json!("稳定上下文包 portrait_profile_project_context.profile_context"))

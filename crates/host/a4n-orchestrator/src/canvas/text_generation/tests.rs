@@ -246,6 +246,29 @@ fn canvas_text_input_and_render_rules_are_owned_by_orchestrator() {
     assert_eq!(llm_input.max_tokens, Some(800));
     assert!(llm_input.user_prompt.contains("雨夜追逐"));
     assert_eq!(request.max_tokens, Some(800));
+    let mut after_run = llm.clone();
+    after_run.config_json["output"] = json!("上次生成的文本");
+    after_run.config_json["llm_usage"] = json!({"prompt_tokens": 123});
+    let repeated = build_canvas_llm_text_request_for_preview(2, 1, &after_run, &document).unwrap();
+    assert_eq!(
+        request.context_manifest_json,
+        repeated.context_manifest_json
+    );
+    assert_eq!(
+        request
+            .trace_context
+            .as_ref()
+            .unwrap()
+            .input_fingerprint_sha256,
+        repeated
+            .trace_context
+            .as_ref()
+            .unwrap()
+            .input_fingerprint_sha256
+    );
+    let source = &request.context_manifest_json.as_ref().unwrap()["packs"][0];
+    assert_eq!(source["pack_kind"], "canvas_upstream_text");
+    assert!(request.messages[1].content.find("node_id").is_none());
     let trace = request.trace_context.expect("预览请求应携带 trace 上下文");
     assert_eq!(trace.workflow_run_id, None);
     assert_eq!(trace.step_key, "canvas_node:11");
@@ -358,6 +381,73 @@ async fn llm_text_application_persists_complete_trace() {
         checkpoints
             .iter()
             .any(|row| row.step_key == format!("canvas_node:{}:llm_transform", node.id))
+    );
+}
+
+#[tokio::test]
+async fn cancelled_llm_call_cancels_workflow_checkpoint_and_spec() {
+    struct CancelledLlmPort;
+    #[async_trait]
+    impl CanvasTextGenerationLlmPort for CancelledLlmPort {
+        async fn max_output_tokens(&self, _config_id: Option<i64>) -> Result<usize, AppError> {
+            Ok(4096)
+        }
+        async fn stream_complete(
+            &self,
+            _input: CanvasTextGenerationLlmCall,
+        ) -> Result<ChatResponse, AppError> {
+            Err(AppError::Cancelled)
+        }
+    }
+    let (database, context) = setup_context().await;
+    let (project_id, document) = insert_canvas(
+        database.as_ref(),
+        &context,
+        "LlmTextNode",
+        json!({
+            "instruction": "改写", "output_kind": GENERATION_PROMPT_KIND_CANVAS_SHOT_SCRIPT,
+        }),
+    )
+    .await;
+    let node = target_node(&document);
+    let summary = context
+        .run_llm_text(
+            CanvasLlmTextNodeApplicationInput {
+                user_id: 1,
+                project_id,
+                graph_id: document.graph.id,
+                node_id: node.id,
+                shared_run: None,
+                mode: "single_node".to_string(),
+            },
+            &CancelledLlmPort,
+        )
+        .await
+        .unwrap();
+    assert_eq!(summary.status, "cancelled");
+    let run = workflow_run::Entity::find_by_id(summary.workflow_run_id)
+        .one(database.as_ref())
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(run.status, "cancelled");
+    let spec = generation_spec::Entity::find()
+        .filter(generation_spec::Column::ProjectId.eq(project_id))
+        .one(database.as_ref())
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(spec.status, "cancelled");
+    let checkpoints = workflow_checkpoint::Entity::find()
+        .filter(workflow_checkpoint::Column::WorkflowRunId.eq(run.id))
+        .all(database.as_ref())
+        .await
+        .unwrap();
+    assert!(!checkpoints.is_empty());
+    assert!(
+        checkpoints
+            .iter()
+            .all(|checkpoint| checkpoint.status == "cancelled")
     );
 }
 

@@ -19,10 +19,10 @@ use a4n_prompt::rendering::PromptRenderer;
 
 use crate::video::prompts::generation::frame_prompts::{
     FirstFramePromptDraftsInput, FramePromptContext, RenderOrRestoreJsonWithValidationInput,
-    VIDEO_PREVIOUS_OUTPUT_SEGMENT_PLAN, VideoContextManifestInput, VideoContextPreviousOutput,
-    attach_generation_trace_to_all_drafts, build_first_frame_prompt_user,
-    build_video_context_manifest, ensure_existing_frame_prompts_can_regenerate,
-    first_frame_prompt_drafts, frame_prompt_available_assets_context, frame_prompt_progress_spec,
+    VideoContextManifestInput, attach_generation_trace_to_all_drafts,
+    build_first_frame_prompt_user, build_video_context_manifest,
+    ensure_existing_frame_prompts_can_regenerate, first_frame_prompt_drafts,
+    frame_prompt_available_assets_context, frame_prompt_progress_spec,
     parse_video_frame_prompts_with_defaults, render_or_restore_json_with_validation_with_context,
     report_video_prompt_item_committed, report_video_prompt_progress, serialize_video_value,
     validate_first_frame_prompts, video_prompt_generation_trace, video_stage_fingerprint,
@@ -126,23 +126,28 @@ pub(super) async fn generate_first_frame_workflow(
         aspect_ratio,
         reference_ids,
     };
-    let frame_user = build_first_frame_prompt_user(frame_prompt_context, source.content).await?;
+    let frame_user = build_first_frame_prompt_user(frame_prompt_context).await?;
+    let selected_spans = super::super::checkpoint::source_spans_for_segments(
+        source_spans,
+        segment_plan.iter().take(1),
+    )?;
+    let source_text =
+        a4n_domain::source_spans::source_span_context_excerpt(source.content, &selected_spans)
+            .map_err(AppError::InvalidArgument)?;
+    let scoped_source = ChapterVideoSourceContext {
+        content: &source_text,
+        summary: source.summary,
+        analysis: source.analysis,
+    };
     let frame_context_manifest = build_video_context_manifest(VideoContextManifestInput {
         prompt_renderer,
         project_id,
         variables: vars,
-        source: &source,
-        source_spans,
+        source: &scoped_source,
         prompt_names: &["chapter_video_segment_plan", spec.frame_prompt_name],
-        previous_outputs: &[VideoContextPreviousOutput {
-            pack_kind: VIDEO_PREVIOUS_OUTPUT_SEGMENT_PLAN,
-            source_name: "chapter_video_segment_plan",
-            parsed_output: segment_json,
-            raw_output: None,
-            placeholder: false,
-        }],
+        previous_outputs: &[],
         project_context,
-        asset_context: Some(&frame_prompt_available_assets),
+        asset_context: None,
         dynamic_user_content: frame_user.clone(),
     })
     .await?;
@@ -153,6 +158,7 @@ pub(super) async fn generate_first_frame_workflow(
         json!({
             "project_id": project_id,
             "chapter_id": chapter_id,
+            "source_span_ids": selected_spans.iter().map(|span| &span.id).collect::<Vec<_>>(),
             "frame_prompt_type": spec.frame_prompt_type,
             "expected_frame_count": expected_frame_count,
         }),

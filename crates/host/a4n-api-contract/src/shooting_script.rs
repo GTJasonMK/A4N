@@ -8,10 +8,10 @@ pub use a4n_domain::shooting_script::{
     EditedChapterShootingScriptProgressView, ShootingBlockingV1, ShootingCameraAngleV1,
     ShootingCameraHeightV1, ShootingCameraMovementV1, ShootingContinuityIntentV1,
     ShootingCoverageV1, ShootingDialogueCueV1, ShootingDirectingStatementV1, ShootingEditingModeV1,
-    ShootingPerformanceBeatV1, ShootingSceneV1, ShootingShotSizeV1, ShootingShotV1,
-    ShootingSoundDesignV1, ShootingSpatialContinuityV1, ShootingTransitionContractV1,
-    ShootingTransitionTypeV1, ShootingViewpointModeV1, ShootingViewpointV1,
-    ShootingVisualConstraintsV3, ShootingVisualPlanSourceV1,
+    ShootingPerformanceBeatV1, ShootingSceneV1, ShootingScriptPlanSyncV1, ShootingShotSizeV1,
+    ShootingShotV1, ShootingSoundDesignV1, ShootingSpatialContinuityV1,
+    ShootingTransitionContractV1, ShootingTransitionTypeV1, ShootingViewpointModeV1,
+    ShootingViewpointV1, ShootingVisualConstraintsV3, ShootingVisualPlanSourceV1,
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
@@ -33,6 +33,43 @@ pub struct GenerateChapterShootingScriptInput {
     pub source_chapter_id: i64,
     #[schemars(range(min = 1))]
     pub visual_plan_id: i64,
+    /// 模型辅助局部更新：只替换这些镜头，其他镜头和场景内容原样保留。
+    /// 为空时重新生成整章。
+    #[serde(default)]
+    pub shot_ids: Vec<String>,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum ShootingScriptGenerationMode {
+    Full,
+    NextScene,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct StartChapterShootingScriptGenerationInput {
+    pub meta: crate::generation_tasks::GenerationStartRequestMeta,
+    #[schemars(range(min = 1))]
+    pub project_id: i64,
+    #[schemars(range(min = 1))]
+    pub source_chapter_id: i64,
+    #[schemars(range(min = 1))]
+    pub visual_plan_id: i64,
+    #[serde(default)]
+    pub shot_ids: Vec<String>,
+    pub mode: ShootingScriptGenerationMode,
+}
+
+impl StartChapterShootingScriptGenerationInput {
+    pub fn generation_input(&self) -> GenerateChapterShootingScriptInput {
+        GenerateChapterShootingScriptInput {
+            project_id: self.project_id,
+            source_chapter_id: self.source_chapter_id,
+            visual_plan_id: self.visual_plan_id,
+            shot_ids: self.shot_ids.clone(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
@@ -69,6 +106,9 @@ pub struct EditChapterShootingScriptInput {
     #[schemars(range(min = 1))]
     pub expected_revision: i32,
     pub script: ChapterShootingScriptV1,
+    /// 手动更新：用户已按当前导演编排修订的过时镜头，保存时重新绑定到当前方案约束。
+    #[serde(default)]
+    pub rebind_shot_ids: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
@@ -88,6 +128,8 @@ pub struct DeleteChapterShootingScriptInput {
 pub struct ChapterShootingScriptView {
     pub record: ChapterShootingScriptRecordSummary,
     pub script: ChapterShootingScriptV1,
+    /// 相对当前已确认导演编排的逐镜头同步状态。
+    pub plan_sync: ShootingScriptPlanSyncV1,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]

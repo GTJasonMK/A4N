@@ -1,4 +1,5 @@
 pub mod prompts;
+pub use prompts::source_sync::with_video_plan_source_sync;
 use sea_orm::{ConnectionTrait, DbErr};
 
 pub use prompts::records::{
@@ -37,7 +38,7 @@ pub use generated_images::{
     generated_images_for_project, generated_images_for_projects,
     generated_images_for_projects_chapter_by_id_desc, image_publication_by_id,
     image_publication_by_image_id, image_publications_for_recovery,
-    image_publications_for_recovery_for_image_type, mark_image_publication_reclaimed,
+    image_publications_for_recovery_for_model, mark_image_publication_reclaimed,
     mark_image_publication_reclaiming, publish_image_publication,
     publish_image_publication_with_generation_run_checkpoint, update_generated_image_record,
     update_image_publication_metadata, validate_image_publication_request,

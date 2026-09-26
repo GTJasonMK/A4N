@@ -337,12 +337,15 @@ impl OrchestratorContext {
             .await?;
         self.project_chapter_video_source(project_id, chapter_id, "查看视频提示词", false)
             .await?;
-        Ok(self
+        let mut result = Vec::new();
+        for row in self
             .chapter_video_prompts_for_chapter(project_id, chapter_id)
             .await?
-            .iter()
-            .map(a4n_video::chapter_video_prompt_summary)
-            .collect())
+        {
+            let row = self.with_video_plan_source_sync(row).await?;
+            result.push(a4n_video::chapter_video_prompt_summary(&row));
+        }
+        Ok(result)
     }
 
     pub async fn load_video_segment_plan_draft_validated(
@@ -551,7 +554,6 @@ impl OrchestratorContext {
         user_id: i64,
         prompt_id: i64,
         input: UpdateChapterVideoSegmentPlanInput,
-        cleanup: &dyn VideoPromptDownstreamCleanupPort,
     ) -> Result<ChapterVideoPromptSummary, AppError> {
         let prompt = self.chapter_video_prompt(prompt_id).await?;
         self.verify_project_permission(prompt.project_id, user_id, ProjectAccessRole::Editor)
@@ -572,23 +574,33 @@ impl OrchestratorContext {
         let current_metadata = current.metadata_json.as_ref().ok_or_else(|| {
             AppError::InvalidArgument("当前片段规划缺少结构化 metadata_json，不能编辑".to_string())
         })?;
-        let current_segments_value =
-            current_metadata.get("segments").cloned().ok_or_else(|| {
-                AppError::InvalidArgument("当前片段规划缺少 segments，不能编辑".to_string())
-            })?;
         let current_segments =
-            serde_json::from_value::<Vec<VideoSegmentPlanV2>>(current_segments_value.clone())
-                .map_err(|error| {
-                    AppError::InvalidArgument(format!(
-                        "当前片段规划 segments 无效，不能编辑：{error}"
-                    ))
-                })?;
-        let segments = input
+            a4n_video_contract::video_segment_plan_from_metadata(current_metadata)
+                .map_err(AppError::InvalidArgument)?;
+        a4n_video_contract::validate_video_segment_plan_identity(
+            &current_metadata["video_execution_identity"],
+            &current_segments,
+        )
+        .map_err(AppError::InvalidArgument)?;
+        let mut segments = input
             .segments
             .into_iter()
             .map(validate_segment_plan)
             .collect::<Result<Vec<_>, _>>()?;
         validate_segment_plan_edit_identity(&current_segments, &segments)?;
+        let changed_shots = segments
+            .iter()
+            .filter(|segment| {
+                current_segments.iter().find(|old| {
+                    old.source_shot_id == segment.source_shot_id
+                        && old.segment_index_in_shot == segment.segment_index_in_shot
+                }) != Some(*segment)
+            })
+            .map(|segment| segment.source_shot_id.clone())
+            .collect::<std::collections::HashSet<_>>();
+        if changed_shots.is_empty() {
+            return Ok(a4n_video::chapter_video_prompt_summary(&current));
+        }
 
         let resolved = self
             .require_current_chapter_shooting_script(
@@ -600,7 +612,24 @@ impl OrchestratorContext {
             )
             .await?;
         let script_record = &resolved.shooting_script.record;
-        let projection = video_projection_from_shooting_script(
+        let confirmed = self
+            .confirmed_visual_plan_for_shooting_script(&resolved.source, None)
+            .await?;
+        let director = crate::chapter_visual_plan::project_visual_plan_for_shooting_script(
+            &confirmed.plan,
+            &[],
+        )?;
+        let plan_sync = resolved.shooting_script.script.plan_sync(&director);
+        if plan_sync
+            .stale_shot_ids
+            .iter()
+            .any(|id| changed_shots.contains(id))
+        {
+            return Err(AppError::InvalidArgument(
+                "请先更新目标镜头的拍摄剧本，再编辑其片段规划".into(),
+            ));
+        }
+        let mut projection = video_projection_from_shooting_script(
             &resolved.shooting_script.script,
             VideoShootingScriptIdentityV1 {
                 record_id: script_record.id,
@@ -608,10 +637,53 @@ impl OrchestratorContext {
                 source_revision_key: script_record.source_revision_key.clone(),
                 source_content_sha256: script_record.source_content_sha256.clone(),
                 script_sha256: script_record.script_sha256.clone(),
+                shot_fingerprints: resolved
+                    .shooting_script
+                    .script
+                    .shot_content_fingerprints(&director)?,
             },
-            current.duration_secs,
         )?;
-        validate_segment_plan_against_shooting_script_projection(&segments, &projection)?;
+        for segment in segments
+            .iter_mut()
+            .filter(|segment| changed_shots.contains(&segment.source_shot_id))
+        {
+            let shot = projection.shot(&segment.source_shot_id).ok_or_else(|| {
+                AppError::InvalidArgument(format!(
+                    "当前拍摄剧本不存在镜头 {}",
+                    segment.source_shot_id
+                ))
+            })?;
+            segment.director_constraints = shot.director_constraints.clone();
+            segment.duration_secs = shot.segment_duration_secs;
+            if let Some(director) = &shot.director_constraints {
+                segment.aspect_ratio = director
+                    .frame
+                    .aspect_ratio()
+                    .map_err(AppError::InvalidArgument)?;
+            }
+        }
+        let mut changed_projection = projection.clone();
+        for scene in &mut changed_projection.scenes {
+            scene
+                .shots
+                .retain(|shot| changed_shots.contains(&shot.source_shot_id));
+        }
+        let changed_segments = segments
+            .iter()
+            .filter(|segment| changed_shots.contains(&segment.source_shot_id))
+            .cloned()
+            .collect::<Vec<_>>();
+        validate_segment_plan_against_shooting_script_projection(
+            &changed_segments,
+            &changed_projection,
+        )?;
+        let previous_source = serde_json::from_value(
+            current_metadata["video_execution_identity"]["shooting_script_identity"].clone(),
+        )?;
+        projection
+            .shooting_script_identity
+            .carry_forward_sources(&previous_source, &changed_shots)
+            .map_err(AppError::InvalidArgument)?;
 
         let style = current
             .style
@@ -634,47 +706,42 @@ impl OrchestratorContext {
             current.duration_secs,
             aspect_ratio,
         )?;
-        let plan = self
-            .prepare_mutation_plan(
-                prompt_id,
-                input.downstream_strategy,
-                "编辑片段规划",
-                "该片段规划",
-            )
-            .await?;
-        self.apply_downstream_cleanup(cleanup, &plan).await?;
-        let mut metadata = current_metadata.clone();
-        let expected_updated_at = if plan.delete_dependencies.is_some() {
-            let after_cleanup = self.chapter_video_prompt(prompt_id).await?;
-            let after_segments = after_cleanup
-                .metadata_json
-                .as_ref()
-                .and_then(|metadata| metadata.get("segments"));
-            if after_segments != Some(&current_segments_value) {
-                return Err(AppError::InvalidState {
-                    current: format!(
-                        "segment_plan_updated_at_conflict:expected={},current={}",
-                        prompt.updated_at, after_cleanup.updated_at
-                    ),
-                    operation: "编辑片段规划".to_string(),
-                });
+        let mut recipes =
+            a4n_video_contract::video_segment_recipes_from_metadata(Some(current_metadata))
+                .map_err(AppError::InvalidArgument)?;
+        a4n_video_contract::validate_video_segment_recipes_for_plan(
+            &recipes,
+            &current_segments,
+            style,
+        )
+        .map_err(AppError::InvalidArgument)?;
+        let mut invalidated_adoptions = Vec::new();
+        for ((before, after), recipe) in current_segments.iter().zip(&segments).zip(&mut recipes) {
+            if before != after {
+                recipe.duration_secs = after.duration_secs;
+                recipe.duration_secs_options = vec![after.duration_secs];
+                recipe.aspect_ratio = after.aspect_ratio.clone();
+                invalidated_adoptions.push((recipe.segment_number, recipe.adopted_video_id.take()));
             }
-            metadata = after_cleanup.metadata_json.ok_or_else(|| {
-                AppError::InvalidArgument(
-                    "下游清理后当前片段规划缺少 metadata_json，不能保存".to_string(),
-                )
-            })?;
-            after_cleanup.updated_at
-        } else {
-            prompt.updated_at
-        };
+        }
+        for (number, adopted) in invalidated_adoptions {
+            a4n_video_contract::propagate_adopted_video_change(&mut recipes, number, adopted, None);
+        }
+        a4n_video_contract::validate_video_segment_recipes_for_plan(&recipes, &segments, style)
+            .map_err(AppError::InvalidArgument)?;
+        let mut metadata = current_metadata.clone();
         let root = metadata.as_object_mut().ok_or_else(|| {
             AppError::InvalidArgument("当前片段规划 metadata_json 必须是对象".to_string())
         })?;
         root.insert("segments".to_string(), serde_json::to_value(&segments)?);
+        root.insert(
+            "segment_recipes".to_string(),
+            serde_json::to_value(recipes)?,
+        );
         root.insert("video_execution_identity".to_string(), identity);
+        root.remove("stale_source_shot_ids");
         let row = self
-            .update_chapter_video_segment_plan_metadata(prompt_id, expected_updated_at, metadata)
+            .update_chapter_video_segment_plan_metadata(prompt_id, prompt.updated_at, metadata)
             .await?;
         Ok(a4n_video::chapter_video_prompt_summary(&row))
     }
@@ -715,7 +782,8 @@ impl OrchestratorContext {
         .await
         .map_err(video_db_error)?
         .ok_or_else(|| AppError::InvalidArgument("当前章节没有可用的共享片段规划".to_string()))?;
-        self.chapter_video_prompt(prompt_id).await
+        let row = self.chapter_video_prompt(prompt_id).await?;
+        self.with_video_plan_source_sync(row).await
     }
 
     pub(in crate::video) async fn current_shared_segment_plan_optional(
@@ -735,7 +803,10 @@ impl OrchestratorContext {
         .await
         .map_err(video_db_error)?;
         match prompt_id {
-            Some(prompt_id) => self.chapter_video_prompt(prompt_id).await.map(Some),
+            Some(prompt_id) => {
+                let row = self.chapter_video_prompt(prompt_id).await?;
+                self.with_video_plan_source_sync(row).await.map(Some)
+            }
             None => Ok(None),
         }
     }
@@ -758,7 +829,16 @@ impl OrchestratorContext {
             current_source_hash_result,
         )
         .await?;
-        Ok(prompt)
+        self.with_video_plan_source_sync(prompt).await
+    }
+
+    async fn with_video_plan_source_sync(
+        &self,
+        row: chapter_video_prompt::Model,
+    ) -> Result<chapter_video_prompt::Model, AppError> {
+        a4n_db::video::with_video_plan_source_sync(self.database.connection(), row)
+            .await
+            .map_err(video_db_error)
     }
 
     async fn validate_loaded_current_shared_segment_plan(

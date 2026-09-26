@@ -6,6 +6,51 @@ use serde_json::{Map, Value, json};
 
 pub const CHARACTER_DELETION_THRESHOLD: i32 = 5;
 
+#[derive(Debug, Clone, PartialEq)]
+pub struct CharacterProfileCurrentStateFields {
+    pub gender: Option<String>,
+    pub age: Option<String>,
+    pub appearance: Option<String>,
+    pub background: Option<String>,
+    pub personality: Option<String>,
+    pub current_state: Value,
+}
+
+fn optional_profile_text_field(attributes: &Value, category: &str, key: &str) -> Option<String> {
+    attributes
+        .get(category_storage_key(category))
+        .and_then(Value::as_object)
+        .and_then(|values| values.get(key))
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|text| !text.is_empty())
+        .map(ToOwned::to_owned)
+}
+
+pub fn profile_current_state_fields(current_state: Value) -> CharacterProfileCurrentStateFields {
+    CharacterProfileCurrentStateFields {
+        gender: optional_profile_text_field(&current_state, "explicit", "gender"),
+        age: optional_profile_text_field(&current_state, "explicit", "age"),
+        appearance: optional_profile_text_field(&current_state, "explicit", "appearance"),
+        background: optional_profile_text_field(&current_state, "explicit", "background"),
+        personality: optional_profile_text_field(&current_state, "implicit", "personality"),
+        current_state,
+    }
+}
+
+pub fn profile_reset_base(mut base: Value, text_discovered: bool) -> Result<Value, String> {
+    if text_discovered {
+        for category in ["explicit", "implicit", "social"] {
+            let key = category_storage_key(category);
+            base.get_mut(key)
+                .and_then(Value::as_object_mut)
+                .ok_or_else(|| format!("角色基础属性缺少对象字段 {key}"))?
+                .clear();
+        }
+    }
+    Ok(base)
+}
+
 pub fn initial_snapshot_data() -> Value {
     json!({
         "synced_chapter": 0,

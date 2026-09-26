@@ -17,13 +17,17 @@ pub async fn poll_video_job(
     let config = match target {
         VideoProviderPollTarget::Inactive => None,
         VideoProviderPollTarget::Active { config_id } => Some(
-            super::resolve_video_config(state.video_provider_config(), config_id)
-                .await
-                .map_err(|operation| AppError::InvalidState {
-                    current: "video_provider_config".to_string(),
-                    operation,
-                })
-                .map_err(crate::actions::app_error_message)?,
+            super::resolve_video_config(
+                state.video_provider_config(),
+                config_id,
+                state.provider_runtime().allows_host_provider_config(),
+            )
+            .await
+            .map_err(|operation| AppError::InvalidState {
+                current: "video_provider_config".to_string(),
+                operation,
+            })
+            .map_err(crate::actions::app_error_message)?,
         ),
     };
     state

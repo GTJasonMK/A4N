@@ -12,13 +12,11 @@ pub struct CharacterProfileSyncStageInput {
     pub workflow_run_id: Option<i64>,
     pub profile_id: i64,
     pub profile_name: String,
-    pub last_synced_chapter: i32,
     pub start_chapter: i32,
     pub target_chapter: i32,
     pub selected_chapter_numbers: Vec<i32>,
     pub chapter_data: Vec<Value>,
     pub baseline_state: Value,
-    pub base_attributes: Value,
 }
 
 #[derive(Debug, Clone, PartialEq)]

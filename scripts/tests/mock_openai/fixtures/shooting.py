@@ -21,9 +21,15 @@ def shooting_layout_response(combined: str) -> dict[str, Any]:
     indexes = re.findall(r"只细化 narrative_unit_index=(\d+)", combined)
     if not indexes:
         raise UnhandledPromptError("layout prompt contains no target unit index")
+    locked = next((value["locked_visual_unit"] for value in embedded_json_objects(combined)
+                   if isinstance(value.get("locked_visual_unit"), dict)), {})
+    directions = "\n".join(shot.get("prompt", "") for shot in locked.get("shots", []))
+    selected = [identifier for identifier, quote in source_span_pairs(combined)
+                if quote.strip().strip("。！？，、\n") and quote.strip().strip("。！？，、\n") in directions]
     return {
-        "schema_version": "screenplay_layout_unit_detail_v1",
+        "schema_version": "screenplay_layout_unit_detail_v2",
         "narrative_unit_index": int(indexes[-1]),
+        "source_span_ids": selected,
         "transition_contracts": [],
         "title": "封闭通道的七分钟",
         "slugline": "内景 旧车站封闭通道 夜",
@@ -71,7 +77,8 @@ def shooting_adaptation_response(combined: str) -> dict[str, Any]:
 
 
 def shooting_design_scene_template(combined: str) -> dict[str, Any]:
-    evidence = source_span_id(combined, "进入地下机房", len(shooting_span_ids(combined)) - 1)
+    source_ids = [identifier for identifier, _ in source_span_pairs(combined)]
+    evidence = source_span_id(combined, "进入地下机房", len(source_ids) - 1) if source_ids else None
     return {
         "scene_index": 1,
         "scene_identity": "station-passage-to-machine-room",
@@ -87,7 +94,7 @@ def shooting_design_scene_template(combined: str) -> dict[str, Any]:
         "time_of_day": "夜",
         "participants": ["林岚", "周衡"],
         "focal_character": "林岚",
-        "source_span_ids": shooting_span_ids(combined),
+        "source_span_ids": source_ids,
         "dramatic_question": "周衡究竟是异常的目击者还是参与者？",
         "scene_objective": "让林岚确认异常并决定继续深入调查。",
         "scene_obstacle": "周衡的影子与回退画面不一致，信任无法建立。",
@@ -115,7 +122,7 @@ def shooting_design_scene_template(combined: str) -> dict[str, Any]:
                 "shot_index": 1,
                 "shot_id": "ch1-sc1-sh1",
                 "title": "划下暗记并进入机房",
-                "source_span_ids": [evidence],
+                "source_span_ids": [evidence] if evidence else [],
                 "coverage": "must_show",
                 "narrative_purpose": "把怀疑转化为可见行动并推进到下一空间。",
                 "subject": "林岚",
@@ -135,7 +142,7 @@ def shooting_design_scene_template(combined: str) -> dict[str, Any]:
                     {
                         "beat_index": 1,
                         "beat_id": "ch1-sc1-sh1-b1",
-                        "source_span_ids": [evidence],
+                        "source_span_ids": [evidence] if evidence else [],
                         "actor": "林岚",
                         "objective": "用行动验证周衡是否可信。",
                         "obstacle": "异常证据仍无法解释。",
@@ -192,7 +199,8 @@ def shooting_design_input(combined: str) -> tuple[dict[str, Any], dict[str, Any]
 def shooting_design_response(combined: str) -> dict[str, Any]:
     locked, screenplay, target_id = shooting_design_input(combined)
     planned_shots = locked.get("shots")
-    facts = screenplay.get("performance_facts")
+    facts = next((value["required_performance_facts"] for value in embedded_json_objects(combined)
+                  if isinstance(value.get("required_performance_facts"), list)), screenplay.get("performance_facts"))
     if not isinstance(planned_shots, list) or not planned_shots:
         raise UnhandledPromptError("locked visual unit contains no shots")
     if not isinstance(facts, list):

@@ -20,7 +20,6 @@ fn video_user_prompt_forbids_markdown_fenced_json() {
 
 #[test]
 fn segment_plan_user_includes_time_budget_rule() {
-    let source_spans = source_spans_for_content(1, 1, "他推门进入，停住，低声问话。");
     let engine = prompt_renderer();
     let current_shot = json!({
         "source_shot_id": "scene-1-shot-1",
@@ -37,7 +36,6 @@ fn segment_plan_user_includes_time_budget_rule() {
     let user = build_segment_plan_for_shot_user(
         planning_context(&engine, "电影感写实", 10),
         &current_shot,
-        &source_spans,
     )
     .expect("segment plan user prompt should render");
 

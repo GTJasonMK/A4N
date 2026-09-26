@@ -893,20 +893,16 @@ fn build_canvas_video_node_input(
     Ok(CanvasVideoNodeInput {
         prompt,
         negative_prompt: crate::canvas::canvas_config_string(&node.config_json, "negative_prompt"),
-        config_id: crate::canvas::canvas_config_i64(&node.config_json, "video_config_id"),
-        width: crate::canvas::canvas_config_i64(&node.config_json, "width")
-            .and_then(crate::canvas::i64_to_i32),
-        height: crate::canvas::canvas_config_i64(&node.config_json, "height")
-            .and_then(crate::canvas::i64_to_i32),
-        duration_secs: crate::canvas::canvas_config_i64(&node.config_json, "duration_secs")
-            .and_then(crate::canvas::i64_to_i32),
-        fps: crate::canvas::canvas_config_i64(&node.config_json, "fps")
-            .and_then(crate::canvas::i64_to_i32),
+        config_id: crate::canvas::canvas_config_i64(&node.config_json, "video_config_id")?,
+        width: crate::canvas::canvas_config_i32(&node.config_json, "width")?,
+        height: crate::canvas::canvas_config_i32(&node.config_json, "height")?,
+        duration_secs: crate::canvas::canvas_config_i32(&node.config_json, "duration_secs")?,
+        fps: crate::canvas::canvas_config_i32(&node.config_json, "fps")?,
         first_frame_image_id,
         last_frame_image_id,
         reference_image_ids,
         source_node_ids,
-        canvas_text_asset_id: crate::canvas::first_canvas_text_asset_id(node, document),
+        canvas_text_asset_id: crate::canvas::first_canvas_text_asset_id(node, document)?,
     })
 }
 

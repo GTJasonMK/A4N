@@ -244,6 +244,13 @@ impl OrchestratorContext {
         lifecycle: CanvasNodeLifecycle,
         primary: AppError,
     ) -> Result<CanvasRunSummary, AppError> {
+        if matches!(&primary, AppError::Cancelled) {
+            self.cancel_workflow_run_and_interrupt_videos(
+                lifecycle.run.workflow_run_id,
+                &primary.to_string(),
+            )
+            .await?;
+        }
         let cancellation_reason = self
             .canvas_workflow_cancellation_reason(lifecycle.run.workflow_run_id)
             .await

@@ -44,7 +44,7 @@ import {
   importedVideoInputNode,
 } from "./canvasImportNodes";
 import { defaultRefTypeForNode } from "./canvasNodeRefs";
-import { edgeRoleLabel, nodeDisplayTitle, nodeKindMeta } from "./StudioCanvasNode";
+import { nodeDisplayTitle, nodeKindMeta } from "./StudioCanvasNode";
 import {
   studioNodeContract,
   studioNodeInputPortsForData,
@@ -297,7 +297,6 @@ export function useCanvasGraphActions({
             targetHandle: contract.targetPort,
             type: "smoothstep",
             animated: false,
-            label: edgeRoleLabel(contract.role, t),
             className: "a4n-studio-edge",
             labelBgPadding: [6, 3],
             labelBgBorderRadius: 4,
@@ -491,7 +490,7 @@ export function useCanvasGraphActions({
         ),
         document.graph.version,
       );
-      const savedEdges = saved.edges.map((edge) => toFlowEdge(edge, t));
+      const savedEdges = saved.edges.map(toFlowEdge);
       setDocument(saved);
       setNodes((current) =>
         preserveSelectedItems(saved.nodes.map(toFlowNode), current, saved.node_ids),
@@ -576,7 +575,7 @@ export function useCanvasGraphActions({
         toCanvasGraphInput(document, nextNodes, edges),
         document.graph.version,
       );
-      const savedEdges = saved.edges.map((edge) => toFlowEdge(edge, t));
+      const savedEdges = saved.edges.map(toFlowEdge);
       setDocument(saved);
       setNodes(preserveSelectedItems(saved.nodes.map(toFlowNode), nextNodes, saved.node_ids));
       setEdges((current) => preserveSelectedItems(savedEdges, current));

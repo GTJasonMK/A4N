@@ -78,6 +78,10 @@ pub(crate) fn character_profile_create_error(error: CharacterProfileCreateError)
 
 pub(crate) fn character_profile_delete_error(error: CharacterProfileDeleteError) -> AppError {
     match error {
+        CharacterProfileDeleteError::Referenced(profile_id) => AppError::InvalidState {
+            current: format!("角色档案 {profile_id} 仍被来源快照或游戏剧本引用"),
+            operation: "删除角色档案".to_string(),
+        },
         CharacterProfileDeleteError::NotFound(message) => AppError::NotFound(message),
         CharacterProfileDeleteError::Database(error) => AppError::Database(error),
         CharacterProfileDeleteError::Generation(error) => {

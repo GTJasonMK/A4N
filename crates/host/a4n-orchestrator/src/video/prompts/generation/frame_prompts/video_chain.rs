@@ -51,6 +51,7 @@ async fn generate_chapter_video_prompt_chain(
     let workflow_run_id = options.workflow_run_id;
     let PreparedVideoChainInputs {
         source_metadata,
+        source_spans,
         regenerate_existing,
         prompt_batch_size,
         target_shot_number,
@@ -134,6 +135,7 @@ async fn generate_chapter_video_prompt_chain(
             project_id,
             chapter_id,
             source: &source,
+            source_spans: &source_spans,
             prompt_renderer,
             vars: &vars,
             workflow_run_id,

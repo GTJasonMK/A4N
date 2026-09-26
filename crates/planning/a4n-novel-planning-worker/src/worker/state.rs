@@ -20,10 +20,10 @@ impl WorkerState {
         )
         .await?;
         let current = self.current_record(&request.payload).await?;
-        Ok(current.map(|record| ChapterShootingScriptView {
-            record: record_summary(record.record),
-            script: record.script,
-        }))
+        match current {
+            Some(record) => self.shooting_script_view(record).await.map(Some),
+            None => Ok(None),
+        }
     }
 
     async fn unit_progress(
@@ -46,79 +46,12 @@ impl WorkerState {
             request.payload.source_chapter_id,
         )
         .await?;
-        let runs = a4n_db::workflow::workflow_runs_by_project_kind(
-            self.database.connection(),
-            source.root_project_id,
-            SHOOTING_SCRIPT_WORKFLOW_KIND,
-        )
-        .await
-        .map_err(workflow_read_error)?;
-        let Some(run) = runs.into_iter().find(|run| {
-            run.chapter_id == Some(source.source_chapter_id)
-                && run.can_resume
-                && run.status != a4n_domain::workflow::WORKFLOW_STATUS_SUPERSEDED
-        }) else {
-            return Ok(None);
-        };
-        let Some(snapshot) = run
-            .progress_json
-            .as_ref()
-            .and_then(|progress| progress.get("snapshot"))
-        else {
-            return Ok(None);
-        };
-        let mut checkpoint: ChapterShootingScriptUnitProgressCheckpoint =
-            serde_json::from_value(snapshot.clone()).map_err(|error| {
-                WorkerFailure::invalid_request(format!("章节拍摄剧本进度 snapshot 无效: {error}"))
-            })?;
-        if checkpoint.version != 1 {
-            return Err(WorkerFailure::invalid_request(format!(
-                "不支持的章节拍摄剧本进度 snapshot 版本: {}",
-                checkpoint.version
-            )));
-        }
-        if checkpoint.source_content_sha256 != source.content_sha256 {
-            return Ok(None);
-        }
-        if checkpoint.progress.workflow_run_id != run.id
-            || checkpoint.progress.completed_unit_count == 0
-            || checkpoint.progress.completed_unit_count > checkpoint.progress.total_unit_count
-        {
-            return Err(WorkerFailure::invalid_request(
-                "章节拍摄剧本进度 snapshot 的场景数量不一致",
-            ));
-        }
-        let confirmed = a4n_db::chapter_visual_plan::confirmed_chapter_visual_plan_for_source(
+        a4n_db::shooting_script::chapter_shooting_script_progress_for_source(
             self.database.connection(),
             &source,
         )
         .await
-        .map_err(visual_plan_error)?
-        .ok_or_else(|| WorkerFailure::not_found("当前正文缺少 confirmed 导演编排方案"))?;
-        checkpoint
-            .progress
-            .script
-            .validate_partial(
-                checkpoint.progress.completed_unit_count,
-                checkpoint.progress.total_unit_count,
-            )
-            .map_err(|error| WorkerFailure::invalid_request(error.to_string()))?;
-        let Some(identity) = checkpoint.progress.script.visual_plan_source.as_mut() else {
-            return Err(WorkerFailure::invalid_request(
-                "章节拍摄剧本进度 snapshot 缺少视觉编排身份",
-            ));
-        };
-        if identity.plan_sha256 != confirmed.record.plan_sha256
-            || (source.source_snapshot_id.is_none()
-                && (identity.plan_id != confirmed.record.id
-                    || identity.plan_version != confirmed.record.plan_version))
-        {
-            return Ok(None);
-        }
-        // 与完整剧本的快照复制一致，使用快照自己的方案身份，不改写源工作流。
-        identity.plan_id = confirmed.record.id;
-        identity.plan_version = confirmed.record.plan_version;
-        Ok(Some(checkpoint.progress))
+        .map_err(shooting_script_error)
     }
 
     async fn edit(
@@ -156,15 +89,13 @@ impl WorkerState {
                 record_id: request.payload.record_id,
                 expected_revision: request.payload.expected_revision,
                 script: request.payload.script,
+                rebind_shot_ids: request.payload.rebind_shot_ids,
             },
         )
         .await
         .map_err(shooting_script_error)?;
         Ok(EditedChapterShootingScriptView {
-            shooting_script: ChapterShootingScriptView {
-                record: record_summary(outcome.shooting_script.record),
-                script: outcome.shooting_script.script,
-            },
+            shooting_script: self.shooting_script_view(outcome.shooting_script).await?,
             invalidated_project_ids: outcome.invalidated_project_ids,
         })
     }
@@ -287,10 +218,7 @@ impl WorkerState {
                 )));
             }
         };
-        Ok(ChapterShootingScriptView {
-            record: record_summary(record.record),
-            script: record.script,
-        })
+        self.shooting_script_view(record).await
     }
 
     async fn save_visual_plan_draft(
@@ -372,6 +300,7 @@ impl WorkerState {
         Ok(ConfirmedChapterVisualPlanView {
             visual_plan: visual_plan_view(outcome.visual_plan),
             invalidated_project_ids: outcome.invalidated_project_ids,
+            shooting_script_sync: outcome.shooting_script_sync,
         })
     }
 
@@ -631,6 +560,23 @@ impl WorkerState {
         )
         .await
         .map_err(shooting_script_error)
+    }
+
+    async fn shooting_script_view(
+        &self,
+        record: a4n_db::shooting_script::ParsedChapterShootingScript,
+    ) -> Result<ChapterShootingScriptView, WorkerFailure> {
+        let plan_sync = a4n_db::shooting_script::chapter_shooting_script_plan_sync(
+            self.database.connection(),
+            &record,
+        )
+        .await
+        .map_err(shooting_script_error)?;
+        Ok(ChapterShootingScriptView {
+            record: record_summary(record.record),
+            script: record.script,
+            plan_sync,
+        })
     }
 
     async fn current_record(

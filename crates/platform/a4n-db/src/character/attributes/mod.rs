@@ -25,7 +25,6 @@ pub use implicit_review::apply_implicit_review_decision_record;
 pub(in crate::character) use implicit_review::apply_implicit_review_decision_record_with_profile_from_source_in;
 pub(in crate::character) use state::apply_attribute_to_state;
 pub(in crate::character) use state::attribute_value_in_state;
-pub(super) use state::category_storage_key;
 pub use types::{
     AppliedCharacterImplicitDecisionAction, AppliedCharacterImplicitDecisionRecord,
     CharacterAttributeDeletionExecutionResult, CharacterAttributeEventHistoryFilter,

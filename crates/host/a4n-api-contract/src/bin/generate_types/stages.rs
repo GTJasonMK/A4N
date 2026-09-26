@@ -868,6 +868,10 @@ pub(super) fn run() {
         &typescript_interface::<GenerateChapterShootingScriptInput>(
             "GenerateChapterShootingScriptInput",
         ),
+        &typescript_type::<ShootingScriptGenerationMode>("ShootingScriptGenerationMode"),
+        &typescript_interface::<StartChapterShootingScriptGenerationInput>(
+            "StartChapterShootingScriptGenerationInput",
+        ),
         &typescript_interface::<DeleteChapterShootingScriptInput>(
             "DeleteChapterShootingScriptInput",
         ),
@@ -878,6 +882,7 @@ pub(super) fn run() {
         &typescript_interface::<ChapterShootingScriptRecordSummary>(
             "ChapterShootingScriptRecordSummary",
         ),
+        &typescript_interface::<ShootingScriptPlanSyncV1>("ShootingScriptPlanSyncV1"),
         &typescript_interface::<ChapterShootingScriptView>("ChapterShootingScriptView"),
         &typescript_interface::<ChapterShootingScriptUnitProgressView>(
             "ChapterShootingScriptUnitProgressView",

@@ -246,6 +246,7 @@ pub async fn confirm_chapter_visual_plan(
         return Ok(ConfirmChapterVisualPlanOutcome {
             visual_plan: current,
             invalidated_project_ids: Vec::new(),
+            shooting_script_sync: None,
         });
     }
     if current.status != ChapterVisualPlanStatus::Draft {
@@ -323,17 +324,27 @@ pub async fn confirm_chapter_visual_plan(
             .exec(&tx)
             .await?;
     }
-    let invalidated_project_ids = crate::project::projects_using_source_snapshot(
-        &tx,
-        current.record.root_project_id,
-        current.record.source_snapshot_id,
-    )
-    .await?;
     let visual_plan = chapter_visual_plan_by_id(&tx, current.record.id).await?;
+    let rebased_script =
+        crate::shooting_script::rebase_chapter_shooting_script_onto_plan(&tx, &visual_plan)
+            .await
+            .map_err(shooting_script_error)?;
+    // 展示元数据变化不影响产物；被删除的镜头也属于下游需要更新的内容。
+    let invalidated_project_ids = if rebased_script.as_ref().is_some_and(|(_, changed)| !changed) {
+        Vec::new()
+    } else {
+        crate::project::projects_using_source_snapshot(
+            &tx,
+            current.record.root_project_id,
+            current.record.source_snapshot_id,
+        )
+        .await?
+    };
     tx.commit().await?;
     Ok(ConfirmChapterVisualPlanOutcome {
         visual_plan,
         invalidated_project_ids,
+        shooting_script_sync: rebased_script.map(|(sync, _)| sync),
     })
 }
 
@@ -388,4 +399,15 @@ where
         .exec(db)
         .await?
         .rows_affected)
+}
+
+fn shooting_script_error(
+    error: crate::shooting_script::ShootingScriptDbError,
+) -> ChapterVisualPlanDbError {
+    match error {
+        crate::shooting_script::ShootingScriptDbError::Database(error) => {
+            ChapterVisualPlanDbError::Database(error)
+        }
+        error => ChapterVisualPlanDbError::InvalidState(error.to_string()),
+    }
 }

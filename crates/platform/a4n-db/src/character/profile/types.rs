@@ -12,15 +12,7 @@ pub(in crate::character) struct CharacterProfileCurrentStateUpdate {
     pub last_synced_chapter: Option<i32>,
 }
 
-#[derive(Debug, Clone, PartialEq)]
-pub struct CharacterProfileCurrentStateFields {
-    pub gender: Option<String>,
-    pub age: Option<String>,
-    pub appearance: Option<String>,
-    pub background: Option<String>,
-    pub personality: Option<String>,
-    pub current_state: Value,
-}
+pub use a4n_domain::character::CharacterProfileCurrentStateFields;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct CharacterProfileDeletionSummary {
@@ -45,6 +37,8 @@ pub enum CharacterProfileCreateError {
 
 #[derive(Debug, thiserror::Error)]
 pub enum CharacterProfileDeleteError {
+    #[error("角色档案 {0} 仍被来源快照或游戏剧本引用，不能删除")]
+    Referenced(i64),
     #[error("{0}")]
     NotFound(String),
     #[error(transparent)]

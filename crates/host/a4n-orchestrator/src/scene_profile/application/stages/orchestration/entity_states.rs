@@ -53,7 +53,7 @@ pub(super) async fn run(
                 SCENE_ENTITY_TYPE_RULE,
                 SCENE_ENTITY_STATE_KEY_RULE,
                 "实体显示名称由系统根据 entity_id 或动作描述生成，模型只需输出实体类型、ID 和状态变化",
-                "source_anchor_ids 必须来自 input.text_anchors[].id"
+                "source_anchor_ids 必须选择 chapter.content 内 ⟦id⟧ 标记的 ID，不含括号"
             ]
         }),
     )

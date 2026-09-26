@@ -21,6 +21,117 @@ pub struct VideoShootingScriptIdentityV1 {
     pub source_revision_key: String,
     pub source_content_sha256: String,
     pub script_sha256: String,
+    pub shot_fingerprints: std::collections::BTreeMap<String, String>,
+}
+
+impl VideoShootingScriptIdentityV1 {
+    pub fn matches_shot(
+        &self,
+        source_content_sha256: &str,
+        shot_id: &str,
+        fingerprint: Option<&String>,
+    ) -> bool {
+        self.source_content_sha256 == source_content_sha256
+            && fingerprint
+                .is_some_and(|expected| self.shot_fingerprints.get(shot_id) == Some(expected))
+    }
+
+    /// 增量发布时，尚未更新的片段继续引用自己的旧镜头来源。
+    pub fn carry_forward_sources(
+        &mut self,
+        previous: &Self,
+        updated_shot_ids: &std::collections::HashSet<String>,
+    ) -> Result<(), String> {
+        if self.source_content_sha256 != previous.source_content_sha256
+            && self
+                .shot_fingerprints
+                .keys()
+                .any(|id| !updated_shot_ids.contains(id))
+        {
+            return Err("不能合并不同正文来源的片段规划".into());
+        }
+        self.shot_fingerprints.retain(|id, fingerprint| {
+            if updated_shot_ids.contains(id) {
+                return true;
+            }
+            if let Some(old) = previous.shot_fingerprints.get(id) {
+                *fingerprint = old.clone();
+                true
+            } else {
+                false
+            }
+        });
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod source_identity_tests {
+    use super::VideoShootingScriptIdentityV1;
+
+    #[test]
+    fn source_revisions_do_not_invalidate_unchanged_shots_and_partial_updates_keep_old_sources() {
+        let previous = VideoShootingScriptIdentityV1 {
+            record_id: 1,
+            revision: 1,
+            source_revision_key: "source".into(),
+            source_content_sha256: "a".repeat(64),
+            script_sha256: "b".repeat(64),
+            shot_fingerprints: [
+                ("shot-1".into(), "old-1".into()),
+                ("shot-2".into(), "old-2".into()),
+            ]
+            .into(),
+        };
+        let mut current = previous.clone();
+        current.revision = 2;
+        current.script_sha256 = "c".repeat(64);
+        current
+            .shot_fingerprints
+            .insert("shot-2".into(), "new-2".into());
+        let matches = |saved: &VideoShootingScriptIdentityV1, id| {
+            saved.matches_shot(
+                &current.source_content_sha256,
+                id,
+                current.shot_fingerprints.get(id),
+            )
+        };
+        assert!(matches(&previous, "shot-1"));
+        assert!(!matches(&previous, "shot-2"));
+        let mut partial = current.clone();
+        partial
+            .carry_forward_sources(&previous, &["shot-1".into()].into())
+            .unwrap();
+        assert!(!matches(&partial, "shot-2"));
+        assert!(matches(&partial, "shot-1"));
+        let unknown = VideoShootingScriptIdentityV1 {
+            shot_fingerprints: Default::default(),
+            ..current.clone()
+        };
+        assert!(!matches(&unknown, "shot-1"));
+        let mut missing_fingerprints = serde_json::to_value(&previous).unwrap();
+        missing_fingerprints
+            .as_object_mut()
+            .unwrap()
+            .remove("shot_fingerprints");
+        assert!(
+            serde_json::from_value::<VideoShootingScriptIdentityV1>(missing_fingerprints).is_err()
+        );
+        current.source_content_sha256 = "d".repeat(64);
+        assert!(
+            current
+                .carry_forward_sources(&previous, &Default::default())
+                .is_err()
+        );
+        assert!(
+            current
+                .carry_forward_sources(
+                    &previous,
+                    &current.shot_fingerprints.keys().cloned().collect()
+                )
+                .is_ok()
+        );
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]

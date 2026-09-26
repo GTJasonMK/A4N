@@ -20,6 +20,11 @@ pub(super) async fn generate_video_prompt_draft(
     progress: &mut Option<VideoPromptProgress<'_>>,
     chunks: &mut Option<VideoPromptChunk<'_>>,
 ) -> Result<ExecutedVideoPromptUnit, AppError> {
+    let source_span_ids = context
+        .final_prompt_context
+        .current_segment
+        .get("source_span_ids")
+        .cloned();
     let prompt_user =
         build_video_prompt_user_for_spec(context.spec, context.final_prompt_context).await?;
     let prompt_context_manifest = build_final_video_context_manifest(
@@ -46,6 +51,7 @@ pub(super) async fn generate_video_prompt_draft(
             "project_id": context.project_id,
             "chapter_id": context.chapter_id,
             "shot_number": context.shot_number,
+            "source_span_ids": source_span_ids,
             "prompt_type": "video_prompt_draft",
             "output_contract_version": FINAL_VIDEO_PROMPT_OUTPUT_CONTRACT_VERSION,
         }),

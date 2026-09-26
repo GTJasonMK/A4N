@@ -14,17 +14,12 @@ fn blueprint_rag_text(blueprint: &novel_blueprint::Model) -> Result<String, Stri
         Some(&blueprint.genre),
         format!("蓝图 {} 缺少类型，跳过 RAG 入库", blueprint.id),
     )?;
-    let full_synopsis = required_rag_text(
-        blueprint.full_synopsis.as_deref(),
-        format!("蓝图 {} 缺少完整梗概，跳过 RAG 入库", blueprint.id),
-    )?;
-    let mut lines = vec![
-        format!("标题: {title}"),
-        format!("类型: {genre}"),
-        format!("完整梗概: {full_synopsis}"),
-    ];
+    let mut lines = vec![format!("标题: {title}"), format!("类型: {genre}")];
     if let Some(summary) = optional_rag_text(blueprint.one_sentence_summary.as_deref()) {
         lines.insert(2, format!("简述: {summary}"));
+    }
+    if let Some(full_synopsis) = optional_rag_text(blueprint.full_synopsis.as_deref()) {
+        lines.push(format!("完整梗概: {full_synopsis}"));
     }
     if let Some(world_setting) = optional_json_text(blueprint.world_setting.as_ref()) {
         lines.push(format!("世界观: {world_setting}"));

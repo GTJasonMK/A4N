@@ -237,22 +237,46 @@ pub struct ListVideoReferenceImagesInput {
 pub struct UpdateGeneratedImageInput {
     #[schemars(range(min = 1))]
     pub image_id: i64,
-    #[serde(default, deserialize_with = "deserialize_non_null_update_field")]
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "deserialize_non_null_update_field"
+    )]
     #[schemars(with = "String")]
     pub prompt: Option<String>,
-    #[serde(default, deserialize_with = "deserialize_non_null_update_field")]
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "deserialize_non_null_update_field"
+    )]
     #[schemars(with = "String")]
     pub image_type: Option<String>,
-    #[serde(default, deserialize_with = "deserialize_nullable_update_field")]
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "deserialize_nullable_update_field"
+    )]
     #[schemars(with = "Option<i64>")]
     pub chapter_id: Option<Option<i64>>,
-    #[serde(default, deserialize_with = "deserialize_nullable_update_field")]
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "deserialize_nullable_update_field"
+    )]
     #[schemars(with = "Option<String>")]
     pub panel_id: Option<Option<String>>,
-    #[serde(default, deserialize_with = "deserialize_nullable_update_field")]
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "deserialize_nullable_update_field"
+    )]
     #[schemars(with = "Option<f32>")]
     pub ai_score: Option<Option<f32>>,
-    #[serde(default, deserialize_with = "deserialize_non_null_update_field")]
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "deserialize_non_null_update_field"
+    )]
     #[schemars(with = "bool")]
     pub is_favorite: Option<bool>,
 }
@@ -300,6 +324,20 @@ mod tests {
 
     #[test]
     fn generated_image_update_has_one_strict_patch_contract() {
+        for payload in [
+            json!({"image_id": 1, "is_favorite": true}),
+            json!({"image_id": 1, "prompt": "new prompt", "image_type": "scene"}),
+            json!({"image_id": 1, "chapter_id": null, "panel_id": null, "ai_score": null}),
+            json!({"image_id": 1, "chapter_id": 2, "panel_id": "panel-2", "ai_score": 0.5}),
+        ] {
+            let input: UpdateGeneratedImageInput = serde_json::from_value(payload.clone()).unwrap();
+            let forwarded = serde_json::to_value(&input).unwrap();
+            assert_eq!(forwarded, payload);
+            assert_eq!(
+                serde_json::from_value::<UpdateGeneratedImageInput>(forwarded).unwrap(),
+                input
+            );
+        }
         let input: UpdateGeneratedImageInput = serde_json::from_value(json!({
             "image_id": 1,
             "chapter_id": null,

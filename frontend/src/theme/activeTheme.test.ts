@@ -1,6 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Theme, ThemeMode } from "../api/theme";
-import { applyThemePreview, setThemeAppearance } from "./activeTheme";
+import { getThemePreference, listThemes, updateThemePreference } from "../api/theme";
+import { applyThemePreview, getThemeAppearance, loadAndApplyActiveTheme, persistThemeAppearance, setThemeAppearance } from "./activeTheme";
+
+vi.mock("../api/theme", () => ({
+  getThemePreference: vi.fn(),
+  listThemes: vi.fn(),
+  updateThemePreference: vi.fn(),
+}));
 
 function makeTheme(
   mode: ThemeMode,
@@ -47,7 +54,12 @@ describe("applyThemePreview", () => {
       dataset: {} as DOMStringMap,
     };
     vi.stubGlobal("document", { documentElement: root });
-    vi.stubGlobal("window", { dispatchEvent: vi.fn() });
+    vi.stubGlobal("window", {
+      dispatchEvent: vi.fn(),
+      addEventListener: vi.fn(),
+      matchMedia: vi.fn(() => ({ matches: false, addEventListener: vi.fn() })),
+    });
+    vi.stubGlobal("localStorage", { getItem: vi.fn(() => null), setItem: vi.fn() });
     vi.stubGlobal("Event", class {});
     setThemeAppearance("dark");
   });
@@ -73,5 +85,25 @@ describe("applyThemePreview", () => {
 
     expect(variables.has("--a4n-surface-opacity")).toBe(false);
     expect(variables.has("--a4n-workspace-opacity")).toBe(false);
+  });
+
+  it("keeps a saved appearance when an earlier theme read arrives later", async () => {
+    let resolveRead!: (value: { user_id: number; appearance: "light" }) => void;
+    const theme = makeTheme("dark", "28 23 20");
+    vi.mocked(listThemes).mockResolvedValue([theme]);
+    vi.mocked(getThemePreference).mockReturnValueOnce(new Promise((resolve) => { resolveRead = resolve; }));
+    vi.mocked(updateThemePreference).mockResolvedValue({ user_id: 7, appearance: "dark" });
+
+    const pendingRead = loadAndApplyActiveTheme(7);
+    await persistThemeAppearance("dark");
+    resolveRead({ user_id: 7, appearance: "light" });
+    await pendingRead;
+
+    expect(getThemeAppearance()).toBe("dark");
+    expect(classes.has("dark")).toBe(true);
+    expect(variables.get("--color-bg-primary")).toBe("28 23 20");
+    expect(localStorage.setItem).toHaveBeenLastCalledWith(
+      "a4n:theme-runtime:v2:7", JSON.stringify({ appearance: "dark", themes: [theme] }),
+    );
   });
 });

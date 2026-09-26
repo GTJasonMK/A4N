@@ -40,7 +40,7 @@ name: object_discovery
 - `visual_usage`: 它在画面连续性中的用途，例如固定角色手部动作、空间锚点、服装配饰延续
 - `generation_usage`: 它在图像/视频生成提示词中的用途，例如需要保持的外观、状态、绑定对象或使用场景
 - `location_context`: 出现位置或与地点关系的简短文本，无法判断时为 null
-- `evidence_anchor_ids`: 原文证据 text_anchor id 数组，至少 1 条，每条必须来自输入的 `text_anchors`
+- `evidence_anchor_ids`: 原文证据 ID 数组，至少 1 条，选择章节 content 内 `⟦id⟧` 标记的 ID，不含括号；标记不属于原文
 
 如果没有有效物体，返回 `{"objects":[]}`。
 

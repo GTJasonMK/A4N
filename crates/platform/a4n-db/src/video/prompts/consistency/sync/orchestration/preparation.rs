@@ -6,7 +6,7 @@ use super::super::{
     preservation::{
         generated_frame_image_prompt_ids, is_sync_frame_prompt_type,
         preserved_unmatched_prompt_ids_by_policy, prompt_sync_draft_fields_match,
-        segment_plan_extension_preserves_existing, should_preserve_existing_prompt,
+        segment_plan_update_preserves_outputs, should_preserve_existing_prompt,
     },
     validate_prompt_sync_draft,
     validation::{validate_prompt_output_language_metadata, validate_prompt_workflow_mode},
@@ -182,7 +182,7 @@ where
             );
             if !preserve_existing
                 && !prompt_sync_draft_fields_match(&existing, &draft)
-                && !segment_plan_extension_preserves_existing(&existing, &draft)
+                && !segment_plan_update_preserves_outputs(&existing, &draft)?
             {
                 mutable_existing_prompt_ids.insert(existing.id);
             }

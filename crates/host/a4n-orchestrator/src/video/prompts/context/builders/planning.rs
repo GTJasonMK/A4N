@@ -2,17 +2,14 @@ use serde_json::{Value, json};
 
 use a4n_error::AppError;
 
-use a4n_domain::source_spans::{SourceSpan, source_span_prompt_values};
-
 use super::{
-    VideoPlanningPromptContext, chapter_analysis_context, render_strict_json_user_prompt,
-    rule_text, rule_value, video_builder_rules, video_prompt_task,
+    VideoPlanningPromptContext, render_strict_json_user_prompt, rule_text, rule_value,
+    video_builder_rules, video_prompt_task,
 };
 
 pub(in crate::video) async fn build_segment_plan_for_shot_user(
     context: VideoPlanningPromptContext<'_>,
     current_shot: &Value,
-    source_spans: &[SourceSpan],
 ) -> Result<String, AppError> {
     let rules = video_builder_rules(context.prompt_renderer, context.project_id).await?;
     let task = video_prompt_task(
@@ -35,11 +32,8 @@ pub(in crate::video) async fn build_segment_plan_for_shot_user(
     let mut payload = json!({
         "task": task,
         "chapter": {
-            "source_spans": source_span_prompt_values(source_spans),
             "summary": context.chapter_summary.map(str::trim).filter(|s| !s.is_empty()),
-            "analysis": chapter_analysis_context(context.chapter_analysis)
         },
-        "project_context": context.project_context,
         "current_shot": current_shot,
         "constraints": {
             "style": context.style,
@@ -84,6 +78,16 @@ pub(in crate::video) async fn build_segment_plan_for_shot_user(
             "performance_action_script_rule": "当 current_shot.participants 非空时，emotion_action_goals 和 performance_plan.action_script 都必须非空，character 必须来自 participants；action_script 每个对象必须同时包含 character、body、movement、hands、gaze、timing 六个非空字符串字段，禁止空字符串、null、对象、数组或省略字段。hands 没有明显动作时也要写“手未接触道具”或“双手保持稳定”等可见静止状态。仅当 participants 为空的纯环境镜头时，这两个数组必须都返回 []，不要把场景、地点、天气或光影伪装成人物；环境动态写入 performance_plan.time_blocks。"
         }
     });
+    if let Some(shot) = payload["current_shot"].as_object_mut() {
+        shot.remove("source_span_ids");
+        if let Some(beats) = shot.get_mut("action_beats").and_then(Value::as_array_mut) {
+            for beat in beats {
+                if let Some(beat) = beat.as_object_mut() {
+                    beat.remove("source_span_ids");
+                }
+            }
+        }
+    }
     if directed.is_some() {
         payload["output_contract"]["segment_count_rule"] = json!(
             "当前镜头由导演编排固定，只能输出一个 segment；不能拆分、合并或改变时长。完整保留 director_constraints 中的 prompt、场景关系与关键帧约束。"

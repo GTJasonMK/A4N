@@ -29,13 +29,14 @@ pub(in crate::video) use self::frame_parser::{
     parse_storyboard_frame_prompts_with_defaults, parse_video_frame_prompts_with_defaults,
 };
 pub(in crate::video) use self::segment_parser::{
-    parse_stored_video_segment_plan_for_reuse, parse_video_segment_plan_response,
+    parse_video_segment_plan_response, validate_stored_video_segment_plan,
     video_segment_plan_input_values,
 };
 pub(in crate::video) use self::shot_parser::{
     derived_prompt_shot_number, ordered_segment_numbers, parse_video_prompt_shots,
 };
 pub(in crate::video) use self::validation::direct_prompt_internal_reference_term;
+pub(in crate::video) use self::validation::API_PROMPT_UPLOAD_STATUS_TERMS;
 use self::validation::validate_frame_prompt;
 pub(in crate::video) use self::validation::validate_segment_plan;
 pub use self::validation::{
@@ -136,29 +137,6 @@ pub(in crate::video) fn validate_source_span_ids(
         normalized.push(id.to_string());
     }
     Ok(normalized)
-}
-
-pub(in crate::video) fn validate_continuous_ids<I>(ids: I, label: &str) -> Result<(), AppError>
-where
-    I: IntoIterator<Item = i32>,
-{
-    for (index, id) in ids.into_iter().enumerate() {
-        let expected = i32::try_from(index)
-            .map_err(|_| {
-                AppError::InvalidArgument(format!("{label} 连续编号索引超过 i32 范围：{index}"))
-            })?
-            .checked_add(1)
-            .ok_or_else(|| AppError::InvalidArgument(format!("{label} 连续编号超过 i32 范围")))?;
-        if id != expected {
-            return Err(AppError::InvalidArgument(format!(
-                "{label} 必须从 1 连续编号，位置 {} 应为 {}，实际为 {}",
-                index + 1,
-                expected,
-                id
-            )));
-        }
-    }
-    Ok(())
 }
 
 pub(in crate::video) fn derive_segment_source_span_ids(

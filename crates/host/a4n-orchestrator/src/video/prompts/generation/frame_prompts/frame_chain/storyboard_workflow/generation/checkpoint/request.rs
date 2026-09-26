@@ -10,8 +10,7 @@ use serde_json::{Value, json};
 
 use crate::video::ChapterVideoSourceContext;
 use crate::video::prompts::generation::frame_prompts::{
-    FramePromptContext, FramePromptGenerationSpec, VIDEO_PREVIOUS_OUTPUT_SEGMENT_PLAN,
-    VideoContextManifestInput, VideoContextPreviousOutput, VideoUnitPlan,
+    FramePromptContext, FramePromptGenerationSpec, VideoContextManifestInput, VideoUnitPlan,
     build_storyboard_prompt_user, build_video_context_manifest, video_stage_fingerprint,
 };
 use crate::video::prompts::json::VideoSegmentPlan;
@@ -94,6 +93,21 @@ pub(super) async fn prepare_storyboard_frame_request(
             ),
         };
     let expected_segment_numbers = unit.source_segment_numbers();
+    let selected_spans =
+        crate::video::prompts::generation::frame_prompts::checkpoint::source_spans_for_segments(
+            source_spans,
+            segment_plan
+                .iter()
+                .filter(|segment| expected_segment_numbers.contains(&segment.segment_number)),
+        )?;
+    let source_text =
+        a4n_domain::source_spans::source_span_context_excerpt(source.content, &selected_spans)
+            .map_err(AppError::InvalidArgument)?;
+    let scoped_source = ChapterVideoSourceContext {
+        content: &source_text,
+        summary: source.summary,
+        analysis: source.analysis,
+    };
     let current_frame = json!({
         "frame_number": frame_number,
         "total_frame_count": expected_frame_count,
@@ -125,18 +139,11 @@ pub(super) async fn prepare_storyboard_frame_request(
         prompt_renderer,
         project_id,
         variables,
-        source: &source,
-        source_spans,
+        source: &scoped_source,
         prompt_names: &["chapter_video_segment_plan", spec.frame_prompt_name],
-        previous_outputs: &[VideoContextPreviousOutput {
-            pack_kind: VIDEO_PREVIOUS_OUTPUT_SEGMENT_PLAN,
-            source_name: "chapter_video_segment_plan",
-            parsed_output: segment_json,
-            raw_output: None,
-            placeholder: false,
-        }],
+        previous_outputs: &[],
         project_context,
-        asset_context: Some(frame_prompt_available_assets),
+        asset_context: None,
         dynamic_user_content: frame_user.clone(),
     })
     .await?;
@@ -147,6 +154,7 @@ pub(super) async fn prepare_storyboard_frame_request(
         json!({
             "project_id": project_id,
             "chapter_id": chapter_id,
+            "source_span_ids": selected_spans.iter().map(|span| &span.id).collect::<Vec<_>>(),
             "frame_number": frame_number,
             "frame_prompt_type": spec.frame_prompt_type,
         }),

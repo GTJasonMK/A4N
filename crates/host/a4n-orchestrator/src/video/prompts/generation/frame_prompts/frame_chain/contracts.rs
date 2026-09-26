@@ -48,6 +48,7 @@ pub(in crate::video::prompts::generation::frame_prompts) struct ShootingScriptPr
     pub prompt_output_language: &'a str,
     pub previous_segment_plan: Option<&'a [VideoSegmentPlan]>,
     pub previous_segment_recipes: Option<&'a [VideoSegmentExecutionRecipeV1]>,
+    pub previous_script_identity: Option<&'a a4n_video_contract::VideoShootingScriptIdentityV1>,
     pub reuse_published_shots: bool,
     pub duration_secs: i32,
     pub aspect_ratio: &'a str,

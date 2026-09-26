@@ -4,7 +4,7 @@ use a4n_db::project::ChapterSourceSnapshot;
 use a4n_db_models::models::{
     chapter::chapter, character::protagonist_profile, project::text_anchor,
 };
-use a4n_domain::source_spans::text_anchor_prompt_values;
+use a4n_domain::source_spans::{text_anchor_prompt_text, text_anchor_prompt_values};
 use a4n_domain::text_anchor::TextAnchorProfileKind;
 use a4n_error::AppError;
 use serde_json::Value;
@@ -49,13 +49,11 @@ impl PreparedCharacterProfileSync {
             workflow_run_id,
             profile_id: self.profile.id,
             profile_name: self.profile.name.clone(),
-            last_synced_chapter: self.profile.last_synced_chapter,
             start_chapter: self.start_chapter,
             target_chapter: self.target_chapter,
             selected_chapter_numbers: self.selected_chapter_numbers.clone(),
             chapter_data: self.chapter_data.clone(),
             baseline_state: self.baseline_state.clone(),
-            base_attributes: self.profile.base_attributes.clone(),
         }
     }
 }
@@ -255,7 +253,7 @@ impl OrchestratorContext {
             .collect::<Result<Vec<_>, _>>()?;
         let mut chapter_data = Vec::with_capacity(selected_chapters.len());
         for (chapter, anchors) in selected_chapters.iter().zip(anchor_groups) {
-            chapter_data.push(character_profile_sync_chapter_context(chapter, &anchors));
+            chapter_data.push(character_profile_sync_chapter_context(chapter, &anchors)?);
         }
 
         Ok(PreparedCharacterProfileSync {
@@ -288,9 +286,15 @@ impl OrchestratorContext {
 fn character_profile_sync_chapter_context(
     chapter: &chapter::Model,
     anchors: &[text_anchor::Model],
-) -> Value {
+) -> Result<Value, AppError> {
     let mut context = character_llm_chapter_context(chapter);
     if let Some(object) = context.as_object_mut() {
+        object.insert(
+            "content".to_string(),
+            Value::String(
+                text_anchor_prompt_text(chapter, anchors).map_err(AppError::InvalidArgument)?,
+            ),
+        );
         object.insert(
             "text_anchors".to_string(),
             Value::Array(text_anchor_prompt_values(
@@ -299,5 +303,5 @@ fn character_profile_sync_chapter_context(
             )),
         );
     }
-    context
+    Ok(context)
 }

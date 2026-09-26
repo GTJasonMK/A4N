@@ -37,7 +37,8 @@ pub async fn initialize(app: &AppHandle) -> Result<AppState, AppError> {
 
     let runtime_profile = runtime_profile_for_tauri_host()?;
     let state =
-        a4n_host_assembly::initialize_runtime(config, runtime_profile, RuntimeRole::Host).await?;
+        a4n_host_assembly::initialize_runtime(config, runtime_profile, RuntimeRole::DesktopHost)
+            .await?;
     event_logger::spawn_event_logger(&state);
 
     Ok(state)

@@ -55,6 +55,22 @@ pub type ShootingScriptStreamReporter<'a> = &'a (dyn Fn(&str) + Send + Sync);
 
 #[async_trait]
 pub trait ShootingScriptFullGenerationApplicationPort: Send + Sync {
+    async fn start(
+        &self,
+        user_id: i64,
+        input: &a4n_api_contract::shooting_script::StartChapterShootingScriptGenerationInput,
+    ) -> Result<
+        a4n_api_contract::generation_tasks::GenerationTaskStart,
+        a4n_api_contract::generation_tasks::GenerationTaskStartError,
+    >;
+
+    async fn run(
+        &self,
+        user_id: i64,
+        input: a4n_api_contract::shooting_script::StartChapterShootingScriptGenerationInput,
+        handle: a4n_api_contract::generation_tasks::GenerationTaskHandle,
+    ) -> Result<(), String>;
+
     async fn generate(
         &self,
         user_id: i64,

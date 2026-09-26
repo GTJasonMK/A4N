@@ -1,4 +1,4 @@
-use a4n_domain::source_spans::source_span_prompt_values;
+use a4n_domain::{chapter_visual_plan::SceneBindingV3, source_spans::source_span_prompt_excerpt};
 use a4n_error::AppError;
 use a4n_llm_context::{
     COMPRESSION_FULL_RAW, LlmContextLedger, LlmContextLedgerPackDraft, LlmContextLedgerPackInput,
@@ -16,10 +16,13 @@ pub(super) fn shooting_context_request<T: Serialize>(
     prompt_name: &str,
     call_key: String,
     system_prompt: String,
+    source_scope: (&[String], &SceneBindingV3),
     shared_plan: Option<(&str, &T)>,
     dynamic_task: String,
 ) -> Result<ChatRequest, AppError> {
-    let manifest = shooting_context_manifest(prepared, shared_plan, dynamic_task)?;
+    let dynamic_task = format!("[阶段指令]\n{system_prompt}\n\n{dynamic_task}");
+    let manifest = shooting_context_manifest(prepared, source_scope, shared_plan, dynamic_task)?;
+    let system_prompt = "你负责将已确认导演编排细化为拍摄剧本。只完成当前阶段与当前单元，保留镜头身份、时间和场景约束。原文内 ⟦id⟧ 是其后片段的引用 ID，不属于正文；只能引用本次提供的 ID。导演新增事实使用明确的 director:<segment_id> 来源。只返回当前阶段要求的 JSON。";
     Ok(
         context_aware_system_user_request(system_prompt, manifest, Some(0.2), None)?
             .with_json_response_format()
@@ -40,9 +43,26 @@ pub(super) fn shooting_context_request<T: Serialize>(
 
 pub(super) fn shooting_context_manifest<T: Serialize>(
     prepared: &PreparedChapterShootingScriptRequest,
+    source_scope: (&[String], &SceneBindingV3),
     shared_plan: Option<(&str, &T)>,
     dynamic_task: String,
 ) -> Result<LlmContextManifest, AppError> {
+    let (source_ids, scene_binding) = source_scope;
+    let allowed = source_ids
+        .iter()
+        .map(String::as_str)
+        .collect::<std::collections::HashSet<_>>();
+    let spans = prepared
+        .source_spans
+        .iter()
+        .filter(|span| allowed.contains(span.id.as_str()))
+        .cloned()
+        .collect::<Vec<_>>();
+    if allowed.len() != source_ids.len() || spans.len() != allowed.len() {
+        return Err(AppError::InvalidArgument(
+            "拍摄剧本上下文包含重复或失效的来源 ID".into(),
+        ));
+    }
     let mut ledger = LlmContextLedger::new();
     ledger.add_pack(LlmContextLedgerPackInput {
         scope_kind: "chapter".into(),
@@ -57,34 +77,11 @@ pub(super) fn shooting_context_manifest<T: Serialize>(
         variants: vec![LlmContextLedgerPackDraft::new(
             COMPRESSION_FULL_RAW,
             json!({
-                "root_project_id": prepared.source.root_project_id,
-                "source_chapter_id": prepared.source.source_chapter_id,
                 "chapter_number": prepared.source.chapter_number,
                 "title": prepared.source.title,
                 "summary": prepared.source.summary,
-                "analysis": prepared.source.analysis_data_json,
-                "content_sha256": prepared.source.content_sha256,
-                "source_revision_key": prepared.source.source_revision_key,
+                "directing_statement": prepared.visual_plan_projection.directing_statement,
             }),
-        )],
-    })?;
-    ledger.add_pack(LlmContextLedgerPackInput {
-        scope_kind: "chapter".into(),
-        pack_kind: "confirmed_chapter_visual_plan".into(),
-        source_refs_json: Some(json!({
-            "visual_plan_id": prepared.visual_plan.record.id,
-            "visual_plan_version": prepared.visual_plan.record.plan_version,
-            "visual_plan_sha256": prepared.visual_plan.record.plan_sha256,
-        })),
-        config_identity_json: json!({
-            "contract":"chapter_visual_plan_v3",
-            "kind":"confirmed_visual_plan"
-        }),
-        required: true,
-        stable_prefix: true,
-        variants: vec![LlmContextLedgerPackDraft::new(
-            COMPRESSION_FULL_RAW,
-            json!({"plan": prepared.visual_plan.plan, "scene_profiles": prepared.scene_profiles}),
         )],
     })?;
     ledger.add_pack(LlmContextLedgerPackInput {
@@ -92,14 +89,35 @@ pub(super) fn shooting_context_manifest<T: Serialize>(
         pack_kind: "shooting_source_spans".into(),
         source_refs_json: Some(json!({
             "source_revision_key": prepared.source.source_revision_key,
-            "span_count": prepared.source_spans.len(),
+            "source_span_ids": source_ids,
         })),
-        config_identity_json: json!({"contract":"shooting_context_v1","kind":"source_spans"}),
+        config_identity_json: json!({
+            "contract":"shooting_context_v2",
+            "kind":"source_excerpt"
+        }),
         required: true,
         stable_prefix: true,
         variants: vec![LlmContextLedgerPackDraft::new(
             COMPRESSION_FULL_RAW,
-            json!({"source_spans": source_span_prompt_values(&prepared.source_spans)}),
+            json!({"content": source_span_prompt_excerpt(&prepared.source.content, &spans).map_err(AppError::InvalidArgument)?}),
+        )],
+    })?;
+    ledger.add_pack(LlmContextLedgerPackInput {
+        scope_kind: "chapter".into(),
+        pack_kind: "shooting_scene_profiles".into(),
+        source_refs_json: Some(json!({
+            "visual_plan_id": prepared.visual_plan.record.id,
+            "scene_binding": scene_binding,
+        })),
+        config_identity_json: json!({"contract":"shooting_context_v2","kind":"scene_profiles"}),
+        required: true,
+        stable_prefix: true,
+        variants: vec![LlmContextLedgerPackDraft::new(
+            COMPRESSION_FULL_RAW,
+            json!({"scene_profiles": prepared.scene_profiles.iter().filter(|scene| {
+                scene.get("id").and_then(serde_json::Value::as_i64)
+                    .is_some_and(|id| id == scene_binding.entry_scene_id() || id == scene_binding.exit_scene_id())
+            }).collect::<Vec<_>>()}),
         )],
     })?;
     if let Some((pack_kind, plan)) = shared_plan {
@@ -119,6 +137,17 @@ pub(super) fn shooting_context_manifest<T: Serialize>(
         })?;
     }
     Ok(ledger.into_manifest(dynamic_task, None))
+}
+
+pub(super) fn visual_unit_prompt_context(
+    unit: &crate::chapter_visual_plan::DirectorScriptUnit,
+) -> Result<serde_json::Value, AppError> {
+    let mut value = serde_json::to_value(unit)?;
+    value
+        .as_object_mut()
+        .expect("director unit serializes as an object")
+        .remove("context_source_span_ids");
+    Ok(value)
 }
 
 #[cfg(test)]
@@ -159,6 +188,7 @@ mod tests {
             existing: None,
             visual_plan,
             visual_plan_projection,
+            shot_ids: Vec::new(),
             scene_profiles: Vec::new(),
             layout_unit_system_prompt: "layout".into(),
             unit_adaptation_system_prompt: "adaptation".into(),
@@ -170,14 +200,17 @@ mod tests {
     fn unit_requests_change_only_dynamic_task_after_stable_packs() {
         let prepared = prepared();
         let skeleton = serde_json::json!({"units":[1,2]});
+        let unit = &prepared.visual_plan_projection.narrative_units[0];
         let first = shooting_context_manifest(
             &prepared,
+            (&unit.source_span_ids, &unit.scene_binding),
             Some(("shooting_layout_skeleton", &skeleton)),
             "unit=1".into(),
         )
         .expect("first manifest");
         let second = shooting_context_manifest(
             &prepared,
+            (&unit.source_span_ids, &unit.scene_binding),
             Some(("shooting_layout_skeleton", &skeleton)),
             "unit=2".into(),
         )

@@ -128,7 +128,9 @@ impl MigratorTrait for Migrator {
             Box::new(crate::migrations::optimization_turn_agent_idempotency::Migration),
             Box::new(crate::migrations::agent_history_contract_canonicalization::Migration),
             Box::new(crate::migrations::galgame_generation_spec_source_hash::Migration),
+            Box::new(crate::migrations::video_shot_source_identity::Migration),
             Box::new(crate::migrations::body_fact_feedback::Migration),
+            Box::new(crate::migrations::galgame_scene_source_identity::Migration),
         ]
     }
 }

@@ -3,9 +3,8 @@ use a4n_domain::shooting_script::{
     ShootingCameraAngleV1, ShootingCameraHeightV1, ShootingCameraMovementV1,
     ShootingContinuityIntentV1, ShootingCoverageV1, ShootingDirectingStatementV1,
     ShootingEditingModeV1, ShootingPerformanceBeatV1, ShootingSceneV1, ShootingShotSizeV1,
-    ShootingShotV1, ShootingSoundDesignV1, ShootingSpatialContinuityV1,
-    ShootingViewpointModeV1, ShootingViewpointV1,
-    ShootingVisualPlanSourceV1,
+    ShootingShotV1, ShootingSoundDesignV1, ShootingSpatialContinuityV1, ShootingViewpointModeV1,
+    ShootingViewpointV1, ShootingVisualPlanSourceV1,
 };
 
 pub(in crate::video) fn test_chapter_shooting_script(
@@ -160,6 +159,51 @@ pub(in crate::video) fn test_chapter_shooting_script(
             ],
         }],
     }
+}
+
+pub(in crate::video) fn test_director_bound_shooting_script(
+    source_span_id: &str,
+    duration_secs: i32,
+) -> ChapterShootingScriptV1 {
+    use a4n_domain::chapter_visual_plan::{ChapterVisualPlanV3, SceneBindingV3, VisualPointV3};
+    let mut script = test_chapter_shooting_script(source_span_id);
+    let mut plan = ChapterVisualPlanV3::starter();
+    let duration_ms = duration_secs as u64 * 1000;
+    plan.points[1].at_ms = duration_ms * 2;
+    plan.points.insert(
+        1,
+        VisualPointV3 {
+            id: "middle".into(),
+            at_ms: duration_ms,
+            label: "切点".into(),
+            image_id: None,
+            description: "门口".into(),
+            reference_image_ids: Vec::new(),
+        },
+    );
+    plan.segments[0].end_point_id = "middle".into();
+    plan.segments[0].prompt = "进入房间".into();
+    plan.segments[0].scene_binding = Some(SceneBindingV3::Scene {
+        scene_profile_id: 1,
+    });
+    let mut second = plan.segments[0].clone();
+    second.id = "shot-2".into();
+    second.start_point_id = "middle".into();
+    second.end_point_id = "end".into();
+    plan.segments.push(second);
+    for (shot, planned) in script.scenes[0]
+        .shots
+        .iter_mut()
+        .zip(plan.project().unwrap())
+    {
+        shot.bind_director_constraints(&planned).unwrap();
+    }
+    script.visual_plan_source = Some(ShootingVisualPlanSourceV1 {
+        plan_id: 1,
+        plan_version: 1,
+        plan_sha256: a4n_domain::generation::canonical_json_sha256(&plan).unwrap(),
+    });
+    script
 }
 
 fn test_segment_performance_plan(

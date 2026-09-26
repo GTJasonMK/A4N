@@ -6,10 +6,14 @@ use serde_json::{Value, json};
 
 use crate::video::prompts::json::VIDEO_PROMPT_DIALOGUE_BEAT_FIELDS;
 use a4n_domain::prompt_language::PromptOutputLanguage;
-use a4n_domain::source_spans::source_spans_for_content;
 use a4n_prompt::rendering::PromptRenderer;
 
-use super::{FinalVideoPromptContext, FramePromptContext, VideoPlanningPromptContext, build_boundary_video_prompt_user, build_first_frame_video_prompt_user, build_segment_plan_for_shot_user, build_single_frame_prompt_user, render_strict_json_user_prompt};
+use super::{
+    FinalVideoPromptContext, FramePromptContext, VideoPlanningPromptContext,
+    build_boundary_video_prompt_user, build_first_frame_video_prompt_user,
+    build_segment_plan_for_shot_user, build_single_frame_prompt_user,
+    render_strict_json_user_prompt,
+};
 
 const PROJECT_ID: i64 = 1;
 
@@ -40,8 +44,6 @@ fn planning_context<'a>(
         prompt_renderer,
         project_id: PROJECT_ID,
         chapter_summary: None,
-        chapter_analysis: None,
-        project_context: None,
         style,
         duration_secs,
         aspect_ratio: "16:9",

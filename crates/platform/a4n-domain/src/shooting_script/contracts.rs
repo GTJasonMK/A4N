@@ -12,6 +12,7 @@ pub struct EditStoredChapterShootingScriptInput {
     pub record_id: i64,
     pub expected_revision: i32,
     pub script: ChapterShootingScriptV1,
+    pub rebind_shot_ids: Vec<String>,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]

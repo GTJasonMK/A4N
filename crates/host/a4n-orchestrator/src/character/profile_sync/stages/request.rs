@@ -2,10 +2,10 @@ use std::collections::HashMap;
 
 use a4n_error::AppError;
 use a4n_llm_context::{
-    ContextAwareJsonLlmRequestInput, PACK_KIND_PROFILE_SYNC_SOURCE_CONTEXT,
-    context_aware_system_user_json_llm_request,
+    COMPRESSION_FULL_RAW, LlmContextLedger, LlmContextLedgerPackDraft, LlmContextLedgerPackInput,
+    PACK_KIND_PROFILE_SYNC_SOURCE_CONTEXT, context_aware_system_user_request,
 };
-use a4n_llm_provider_contract::provider::ChatRequest;
+use a4n_llm_provider_contract::provider::{ChatRequest, LlmTraceContext};
 use a4n_llm_trace::context_aware_chat_request_trace_json;
 use a4n_prompt::{rendering::PromptRenderer, request::build_json_task_user_message};
 use serde_json::{Value, json};
@@ -18,6 +18,7 @@ use crate::{
 use super::contracts::{CharacterProfileSyncStage, CharacterProfileSyncStageInput};
 
 pub(super) const CHARACTER_PROFILE_SYNC_SESSION_PROMPT: &str = "character_sync_session";
+const PROFILE_SYNC_CHAPTERS: &str = "profile_sync_chapters";
 
 pub(super) struct PreparedCharacterProfileSyncStageCall {
     pub(super) request: ChatRequest,
@@ -44,28 +45,61 @@ pub(super) async fn build_character_profile_sync_stage_request(
     let user_prompt = build_character_profile_sync_stage_user_prompt(stage, previous_steps)
         .map_err(AppError::InvalidArgument)?;
     let user_prompt = format!("[阶段指令]\n{}\n\n{user_prompt}", stage_prompt.trim());
-    context_aware_system_user_json_llm_request(
-        system_prompt,
-        ContextAwareJsonLlmRequestInput {
-            project_id: input.project_id,
-            workflow_run_id: None,
-            workflow: "character_sync".to_string(),
-            step_key: stage.key().to_string(),
+    let chapters = input
+        .chapter_data
+        .iter()
+        .map(|chapter| {
+            let content = chapter
+                .get("content")
+                .and_then(Value::as_str)
+                .ok_or_else(|| {
+                    AppError::InvalidArgument("角色同步章节缺少带来源标记的 content".to_string())
+                })?;
+            Ok(json!({"chapter_number": chapter["chapter_number"], "content": content}))
+        })
+        .collect::<Result<Vec<_>, AppError>>()?;
+    let mut ledger = LlmContextLedger::new();
+    for (pack_kind, content) in [
+        (PROFILE_SYNC_CHAPTERS, json!({"chapters": chapters})),
+        (
+            PACK_KIND_PROFILE_SYNC_SOURCE_CONTEXT,
+            character_profile_sync_stage_stable_context(input),
+        ),
+    ] {
+        ledger.add_pack(LlmContextLedgerPackInput {
             scope_kind: "profile_sync".to_string(),
-            pack_kind: PACK_KIND_PROFILE_SYNC_SOURCE_CONTEXT.to_string(),
+            pack_kind: pack_kind.to_string(),
             source_refs_json: Some(json!({
-                "profile_id": input.profile_id,
-                "profile_name": input.profile_name,
-                "start_chapter": input.start_chapter,
-                "target_chapter": input.target_chapter,
                 "input_chapter_numbers": input.selected_chapter_numbers,
             })),
-            config_json: json!({
-                "ledger_version": "character_sync_context_v1",
+            config_identity_json: json!({
+                "ledger_version": "character_sync_context_v2",
             }),
-            stable_context_json: character_profile_sync_stage_stable_context(input),
-            dynamic_user_prompt: user_prompt,
-            temperature: Some(stage.temperature()),
+            required: true,
+            stable_prefix: true,
+            variants: vec![LlmContextLedgerPackDraft::new(
+                COMPRESSION_FULL_RAW,
+                content,
+            )],
+        })?;
+    }
+    let manifest = ledger.into_manifest(user_prompt, None);
+    let fingerprint = a4n_domain::source_text_hash(&serde_json::to_string(&manifest)?);
+    Ok(
+        context_aware_system_user_request(
+            system_prompt,
+            manifest,
+            Some(stage.temperature()),
+            None,
+        )?
+        .with_json_response_format()
+        .with_trace_context(LlmTraceContext {
+            project_id: Some(input.project_id),
+            root_project_id: None,
+            workflow_run_id: None,
+            generation_run_id: None,
+            workflow: "character_sync".to_string(),
+            step_key: stage.key().to_string(),
             call_key: Some(
                 character_profile_sync_stage_call_key(
                     input.profile_id,
@@ -74,9 +108,11 @@ pub(super) async fn build_character_profile_sync_stage_request(
                 )
                 .map_err(AppError::InvalidArgument)?,
             ),
-        },
+            input_fingerprint_sha256: Some(fingerprint),
+            context_plan_json: None,
+            context_pack_refs_json: None,
+        }),
     )
-    .map_err(AppError::InvalidArgument)
 }
 
 pub(super) async fn prepare_character_profile_sync_stage_call(
@@ -98,7 +134,6 @@ pub(super) async fn prepare_character_profile_sync_stage_call(
         "profile_id": input.profile_id,
         "start_chapter": input.start_chapter,
         "target_chapter": input.target_chapter,
-        "previous_steps": previous_steps,
     });
     let input_fingerprint_sha256 =
         workflow::llm_call_checkpoint_fingerprint_sha256(&input_fingerprint_json)
@@ -119,9 +154,28 @@ fn build_character_profile_sync_stage_user_prompt(
     stage: CharacterProfileSyncStage,
     previous_steps: &Value,
 ) -> Result<String, String> {
+    let dependencies: &[&str] = match stage {
+        CharacterProfileSyncStage::EvidenceEvents => &[],
+        CharacterProfileSyncStage::AttributeChanges
+        | CharacterProfileSyncStage::BehaviorRecords => &["character_sync_evidence_events"],
+        CharacterProfileSyncStage::ChapterStates
+        | CharacterProfileSyncStage::DeletionCandidates => &[
+            "character_sync_evidence_events",
+            "character_sync_attribute_changes",
+        ],
+    };
+    let previous_steps = dependencies
+        .iter()
+        .filter_map(|key| {
+            previous_steps
+                .get(*key)
+                .map(|value| (key.to_string(), value.clone()))
+        })
+        .collect::<serde_json::Map<_, _>>();
     let payload = json!({
         "context_refs": {
-            "source": format!("稳定上下文包 {PACK_KIND_PROFILE_SYNC_SOURCE_CONTEXT}"),
+            "chapters": format!("稳定上下文包 {PROFILE_SYNC_CHAPTERS}.chapters，正文内 ⟦id⟧ 为来源 ID"),
+            "subject": format!("稳定上下文包 {PACK_KIND_PROFILE_SYNC_SOURCE_CONTEXT}"),
         },
         "task": {
             "name": stage.key(),
@@ -141,9 +195,7 @@ fn build_character_profile_sync_stage_user_prompt(
 fn character_profile_sync_stage_stable_context(input: &CharacterProfileSyncStageInput) -> Value {
     json!({
         "character": {
-            "profile_id": input.profile_id,
             "profile_name": input.profile_name,
-            "last_synced_chapter": input.last_synced_chapter,
         },
         "sync_range": {
             "start_chapter": input.start_chapter,
@@ -151,8 +203,6 @@ fn character_profile_sync_stage_stable_context(input: &CharacterProfileSyncStage
             "input_chapter_numbers": input.selected_chapter_numbers,
         },
         "baseline_state": input.baseline_state,
-        "base_attributes": input.base_attributes,
-        "chapters": input.chapter_data,
     })
 }
 
@@ -165,7 +215,7 @@ pub(super) fn character_profile_sync_stage_contract(stage: CharacterProfileSyncS
             "rules": [
                 "只抽取当前角色在本次章节中的事实事件、状态变化线索、关键行为线索和可能失效线索",
                 "chapter_number 必须来自 input_chapter_numbers",
-                "evidence_anchor_id 必须来自对应章节 chapters[].text_anchors[].id",
+                "evidence_anchor_id 必须来自对应章节 content 内的 ⟦id⟧ 标记，只填 ID",
                 "related_characters 没有时输出 []"
             ]
         }),

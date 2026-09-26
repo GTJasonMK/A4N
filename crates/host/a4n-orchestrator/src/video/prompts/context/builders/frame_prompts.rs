@@ -55,7 +55,6 @@ pub(in crate::video) async fn build_single_frame_prompt_user(
         "available_assets": available_assets,
         "constraints": {
             "style": style,
-            "style_template_verbatim": style,
             "prompt_output_language": prompt_output_language.to_prompt_json(),
             "prompt_output_language_instruction": prompt_output_language.instruction(),
             "frame_prompt_required_sections": prompt_output_language.frame_sections(),
@@ -128,7 +127,6 @@ pub(in crate::video) async fn build_storyboard_prompt_user(
         "available_assets": available_assets,
         "constraints": {
             "style": style,
-            "style_template_verbatim": style,
             "prompt_output_language": prompt_output_language.to_prompt_json(),
             "prompt_output_language_instruction": prompt_output_language.instruction(),
             "frame_prompt_required_sections": prompt_output_language.frame_sections(),
@@ -161,7 +159,6 @@ pub(in crate::video) async fn build_storyboard_prompt_user(
 
 pub(in crate::video) async fn build_first_frame_prompt_user(
     context: FramePromptContext<'_>,
-    chapter_content: &str,
 ) -> Result<String, AppError> {
     let FramePromptContext {
         prompt_renderer,
@@ -183,20 +180,23 @@ pub(in crate::video) async fn build_first_frame_prompt_user(
     )?;
     let reference_slots = frame_reference_slots(reference_ids, None)?;
     let user_instruction = rule_text(&rules, "user_instruction_chapter_video_first_frame_prompts")?;
+    let first_segment = segment_plan
+        .get("segments")
+        .and_then(Value::as_array)
+        .and_then(|segments| segments.first())
+        .ok_or_else(|| AppError::InvalidArgument("首帧生成缺少首个视频片段".to_string()))?;
     let payload = json!({
         "task": task,
         "chapter": {
-            "content": chapter_content,
             "summary": chapter_summary.map(str::trim).filter(|s| !s.is_empty()),
             "analysis": chapter_analysis_context(chapter_analysis)
         },
         "previous_steps": {
-            "chapter_video_segment_plan": segment_plan
+            "chapter_video_segment_plan": {"segments": [first_segment]}
         },
         "available_assets": available_assets,
         "constraints": {
             "style": style,
-            "style_template_verbatim": style,
             "prompt_output_language": prompt_output_language.to_prompt_json(),
             "prompt_output_language_instruction": prompt_output_language.instruction(),
             "frame_prompt_required_sections": prompt_output_language.frame_sections(),

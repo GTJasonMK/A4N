@@ -25,12 +25,10 @@ impl PromptRenderer for ChapterSessionPromptRenderer {
 
 #[tokio::test]
 async fn chapter_analysis_preview_builds_only_the_exact_initial_request() {
-    let step = build_chapter_analysis_initial_request(
-        &sample_chapter(),
-        &ChapterSessionPromptRenderer,
-    )
-    .await
-    .expect("initial request");
+    let step =
+        build_chapter_analysis_initial_request(&sample_chapter(), &ChapterSessionPromptRenderer)
+            .await
+            .expect("initial request");
 
     assert_eq!(step.key, "chapter_fact_extraction");
     assert_eq!(step.prompt_name, "chapter_fact_extraction");
@@ -129,6 +127,15 @@ async fn chapter_analysis_stages_share_one_source_prefix_without_losing_stage_pr
     ];
     let first_system = &requests[0].messages[0].content;
     let first_pack = &requests[0].context_manifest_json.as_ref().unwrap()["packs"][0];
+    let variants = first_pack["variants"].as_array().unwrap();
+    assert_eq!(variants.len(), 1, "不能选择无正文的压缩变体");
+    let source = &variants[0]["canonical_content_json"];
+    assert!(source.get("source_spans").is_none(), "正文只发送一份");
+    let mut restored = source["content"].as_str().unwrap().to_string();
+    for span in &spans {
+        restored = restored.replace(&format!("⟦{}⟧", span.id), "");
+    }
+    assert_eq!(restored, chapter.content);
 
     for request in &requests[1..] {
         assert_eq!(&request.messages[0].content, first_system);

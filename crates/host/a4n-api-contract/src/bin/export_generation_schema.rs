@@ -40,6 +40,8 @@ struct GenerationContractBundle {
     cancel_input: CancelGenerationTaskInput,
     host_error: HostErrorResponse,
     start_chapter_generation: StartChapterGenerationInput,
+    start_chapter_shooting_script_generation:
+        a4n_api_contract::shooting_script::StartChapterShootingScriptGenerationInput,
     start_inspiration_generation: StartInspirationGenerationInput,
     inspiration_response: InspirationResponse,
     start_optimize_analysis_generation: StartOptimizeAnalysisGenerationInput,

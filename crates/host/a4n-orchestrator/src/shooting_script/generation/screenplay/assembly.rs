@@ -1,11 +1,11 @@
 use crate::shooting_script::contracts::{
-    ScreenplayLayoutUnitDetailV1, ScreenplayLayoutUnitV1, ScreenplayPlanUnit,
+    ScreenplayLayoutUnitDetailV2, ScreenplayLayoutUnitV1, ScreenplayPlanUnit,
     ScreenplaySkeletonUnitV1, ScreenplayUnitAdaptationV1,
 };
 
 pub(in crate::shooting_script::generation) fn assemble_screenplay_layout_unit(
     unit: &ScreenplaySkeletonUnitV1,
-    detail: ScreenplayLayoutUnitDetailV1,
+    detail: ScreenplayLayoutUnitDetailV2,
 ) -> ScreenplayLayoutUnitV1 {
     ScreenplayLayoutUnitV1 {
         scene_identity: unit.scene_identity.clone(),
@@ -17,7 +17,7 @@ pub(in crate::shooting_script::generation) fn assemble_screenplay_layout_unit(
         transition_contracts: detail.transition_contracts,
         title: detail.title,
         slugline: detail.slugline,
-        source_span_ids: unit.source_span_ids.clone(),
+        source_span_ids: detail.source_span_ids,
         participants: detail.participants,
         dramatic_question: detail.dramatic_question,
         scene_objective: detail.scene_objective,

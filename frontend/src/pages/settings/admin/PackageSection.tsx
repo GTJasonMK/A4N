@@ -57,12 +57,21 @@ export const PackageSection: React.FC<{ canManageLifecycle?: boolean }> = ({
   const { preferences, refresh: refreshPreferences } = usePackagePreferences();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [busyPackage, setBusyPackage] = useState<string | null>(null);
+  const [busyPackages, setBusyPackages] = useState<ReadonlySet<PackageId>>(new Set());
   const [preferenceBusy, setPreferenceBusy] = useState(false);
   const [snapshotStale, setSnapshotStale] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const mountedRef = useRef(true);
   const pollingOperationsRef = useRef(new Set<string>());
+
+  const setPackageBusy = useCallback((packageId: PackageId, busy: boolean) => {
+    setBusyPackages((current) => {
+      const next = new Set(current);
+      if (busy) next.add(packageId);
+      else next.delete(packageId);
+      return next;
+    });
+  }, []);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -134,19 +143,19 @@ export const PackageSection: React.FC<{ canManageLifecycle?: boolean }> = ({
     } finally {
       pollingOperationsRef.current.delete(initial.operation_id);
       if (mountedRef.current) {
-        setBusyPackage((current) => current === packageId ? null : current);
+        setPackageBusy(packageId, false);
       }
     }
-  }, [load, t]);
+  }, [load, setPackageBusy, t]);
 
   const ensureOperationPolling = useCallback((item: PackageOverview, operation: PackageLifecycleSummary) => {
     if (isTerminalLifecycleState(operation.state) || pollingOperationsRef.current.has(operation.operation_id)) {
       return;
     }
     pollingOperationsRef.current.add(operation.operation_id);
-    setBusyPackage(item.package_id);
+    setPackageBusy(item.package_id, true);
     void pollOperation(operation, item.package_id);
-  }, [pollOperation]);
+  }, [pollOperation, setPackageBusy]);
 
   useEffect(() => {
     for (const item of overview) {
@@ -159,6 +168,7 @@ export const PackageSection: React.FC<{ canManageLifecycle?: boolean }> = ({
   const toggleLifecycle = async (item: PackageOverview) => {
     if (
       !canManageLifecycle ||
+      busyPackages.has(item.package_id) ||
       snapshotStale ||
       item.required ||
       !["enabled", "disabled"].includes(item.host_state) ||
@@ -166,7 +176,7 @@ export const PackageSection: React.FC<{ canManageLifecycle?: boolean }> = ({
     ) {
       return;
     }
-    setBusyPackage(item.package_id);
+    setPackageBusy(item.package_id, true);
     setError(null);
     let operationTracked = false;
     try {
@@ -191,7 +201,7 @@ export const PackageSection: React.FC<{ canManageLifecycle?: boolean }> = ({
     } catch (nextError) {
       setError(formatPackageError(nextError, t("settingsAdmin.packageActionFailed"), t));
     } finally {
-      if (!operationTracked) setBusyPackage(null);
+      if (!operationTracked) setPackageBusy(item.package_id, false);
     }
   };
 
@@ -262,7 +272,7 @@ export const PackageSection: React.FC<{ canManageLifecycle?: boolean }> = ({
               hidden={preferences?.hidden_package_ids.includes(item.package_id) ?? false}
               canManageLifecycle={canManageLifecycle}
               snapshotStale={snapshotStale}
-              busy={busyPackage === item.package_id}
+              busy={busyPackages.has(item.package_id)}
               preferenceBusy={preferenceBusy}
               onToggle={() => void toggleLifecycle(item)}
               onHiddenChange={(hidden) => void toggleHidden(item.package_id, hidden)}

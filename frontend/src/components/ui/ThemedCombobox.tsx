@@ -208,7 +208,7 @@ export function ThemedCombobox({
             }}
             onClick={() => commit(index)}
           >
-            <span className="min-w-0 flex-1 truncate">{option.label}</span>
+            <span className="min-w-0 flex-1 break-words">{option.label}</span>
           </div>
         ))}
       </div>,

@@ -26,7 +26,7 @@ pub(crate) async fn resolve_image_provider_config(
             "runtime_config_snapshot.image_configs 不包含图片配置 #{id}"
         ));
     }
-    if crate::runtime_config::current_user_id().is_some() {
+    if !state.provider_runtime().allows_host_provider_config() {
         return Err(match config_id {
             Some(id) => format!(
                 "远程用户请求不能直接使用服务器图片配置 #{id}；请在用户配置页使用个人图片配置快照"

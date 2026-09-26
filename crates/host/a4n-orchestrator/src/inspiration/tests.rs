@@ -3,7 +3,7 @@ use a4n_error::AppError;
 use chrono::NaiveDate;
 
 use super::context::optional_trimmed_string;
-use super::request::build_inspiration_dynamic_user_content;
+use super::request::build_inspiration_conversation_messages;
 use super::validation::{required_message_content, validate_inspiration_response_json};
 
 fn sample_message(id: i64) -> message::Model {
@@ -34,7 +34,7 @@ fn optional_trimmed_string_omits_blank_values() {
 }
 
 #[test]
-fn inspiration_dynamic_user_content_keeps_history_dynamic_and_context_referenced() {
+fn inspiration_history_is_an_unchanged_prefix_before_the_latest_user_message() {
     let mut assistant = sample_message(4);
     assistant.role = "assistant".to_string();
     assistant.content = "可以从时间循环切入。".to_string();
@@ -42,15 +42,21 @@ fn inspiration_dynamic_user_content_keeps_history_dynamic_and_context_referenced
     user.role = "user".to_string();
     user.content = "我想写校园悬疑。".to_string();
 
-    let content = build_inspiration_dynamic_user_content(&[assistant, user], "继续深化主角")
-        .expect("dynamic inspiration input should serialize");
-
-    assert!(content.contains("inspiration_project_context"));
-    assert!(content.contains("可以从时间循环切入。"));
-    assert!(content.contains("我想写校园悬疑。"));
-    assert!(content.contains("继续深化主角"));
-    assert!(content.contains("strict_json_object"));
-    assert!(!content.contains("project_context_json"));
+    let history = [assistant, user];
+    let first = build_inspiration_conversation_messages(&history, "继续深化主角").unwrap();
+    let next = build_inspiration_conversation_messages(&history, "调整冲突").unwrap();
+    assert_eq!(
+        serde_json::to_value(&first[..2]).unwrap(),
+        serde_json::to_value(&next[..2]).unwrap()
+    );
+    assert_eq!(first[0].content, "可以从时间循环切入。");
+    assert_eq!(first[1].content, "我想写校园悬疑。");
+    assert_eq!(first[2].content, "继续深化主角");
+    assert_eq!(next[2].content, "调整冲突");
+    assert!(matches!(
+        first[0].role,
+        a4n_llm_provider_contract::provider::MessageRole::Assistant
+    ));
 }
 
 #[test]

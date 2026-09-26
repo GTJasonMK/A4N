@@ -69,7 +69,7 @@ export const ImageTab: React.FC<ImageTabProps> = ({ scope = "local" }) => {
     });
     return { items, catalog: providerCatalog };
   }, [serverScope, t]);
-  const { items, catalog, loading, refresh } = useConfigItems(
+  const { items, setItems, catalog, loading, error, refresh } = useConfigItems(
     loadItems,
     t("settings.loadConfigFailed", { name: t("settings.imageConfig") }),
   );
@@ -78,7 +78,9 @@ export const ImageTab: React.FC<ImageTabProps> = ({ scope = "local" }) => {
     <ConfigListPanel<ImageForm>
       title={t("settings.imageConfig")}
       items={items}
+      onItemsChange={setItems}
       loading={loading}
+      loadError={error}
       onRefresh={refresh}
       defaultForm={DEFAULT_IMAGE_FORM}
       validate={(form) => validateImageForm(form, t)}
@@ -108,18 +110,17 @@ export const ImageTab: React.FC<ImageTabProps> = ({ scope = "local" }) => {
         const created = await (serverScope ? addServerImageConfig : addImageConfig)(
           toCreateImageInput(f),
         );
-        return created.id;
+        return toImageItem(created);
       }}
       onUpdate={async (id, f) => {
         const input = toUpdateImageInput(f);
         if (!serverScope && id === SYSTEM_IMAGE_CONFIG_ID) {
-          await updateSystemDefaultImageKey({ api_key_encrypted: input.api_key_encrypted });
-          return;
+          return toImageItem(await updateSystemDefaultImageKey({ api_key_encrypted: input.api_key_encrypted }));
         }
-        await (serverScope ? updateServerImageConfig : updateImageConfig)(
+        return toImageItem(await (serverScope ? updateServerImageConfig : updateImageConfig)(
           id,
           input,
-        );
+        ));
       }}
       onDelete={serverScope ? removeServerImageConfig : removeImageConfig}
       onActivate={async (id) => {

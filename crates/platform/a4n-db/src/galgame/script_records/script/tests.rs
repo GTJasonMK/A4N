@@ -116,6 +116,7 @@ async fn persist_script_writes_scene_line_choice_graph_in_one_contract() {
                 crate::galgame::PersistGalgameSceneRecordInput {
                     scene_index: 1,
                     source_snapshot_chapter_id: snapshot_chapter.id,
+                    shooting_scene_identity: Some("unit:shot-1".to_string()),
                     title: "序幕".to_string(),
                     location: Some("大厅".to_string()),
                     time_of_day: None,
@@ -163,6 +164,7 @@ async fn persist_script_writes_scene_line_choice_graph_in_one_contract() {
                 },
                 crate::galgame::PersistGalgameSceneRecordInput {
                     scene_index: 2,
+                    shooting_scene_identity: None,
                     source_snapshot_chapter_id: snapshot_chapter.id,
                     title: "回收".to_string(),
                     location: Some("走廊".to_string()),

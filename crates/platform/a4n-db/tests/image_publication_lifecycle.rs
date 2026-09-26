@@ -14,8 +14,8 @@ use a4n_db::project::delete::delete_project_cascade_record;
 use a4n_db::project::{CreateProjectRecordInput, create_project_record};
 use a4n_db::video::{
     create_image_publication_intent, delete_generated_image_record_with_cleanup,
-    image_publications_for_recovery, mark_image_publication_reclaimed,
-    mark_image_publication_reclaiming, publish_image_publication,
+    image_publications_for_recovery, image_publications_for_recovery_for_model,
+    mark_image_publication_reclaimed, mark_image_publication_reclaiming, publish_image_publication,
 };
 use a4n_db_models::models::{
     ai::generated_image, media::image_publication, project::novel_project, task::cleanup_outbox,
@@ -175,6 +175,51 @@ async fn recovery_cursor_visits_later_publications_and_wraps_without_changing_re
     .await
     .unwrap();
     assert_eq!(mixed, vec![pending, published[2].clone()]);
+}
+
+#[tokio::test]
+async fn imported_recovery_uses_provenance_for_pending_and_published_images() {
+    let fixture = fixture().await;
+    for (index, (image_type, model)) in [
+        ("project_reference", a4n_domain::EXTERNAL_IMPORT_MODEL),
+        ("project_reference", a4n_domain::EXTERNAL_IMPORT_MODEL),
+        ("imported", "test"),
+        ("project_reference", "test"),
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        let mut input = fixture.intent_input();
+        input.publication_id = format!("provenance-{index}");
+        input.staging_path = format!("projects/{}/images/{index}.part", fixture.project_id);
+        input.final_path = format!("projects/{}/images/{index}.png", fixture.project_id);
+        input.image.file_path = input.final_path.clone();
+        input.image.image_type = image_type.to_string();
+        input.image.model = model.to_string();
+        let publication = create_image_publication_intent(&fixture.db, input)
+            .await
+            .unwrap();
+        if index % 2 == 1 {
+            publish_image_publication(
+                &fixture.db,
+                &publication.publication_id,
+                fixture.file_facts(),
+            )
+            .await
+            .unwrap();
+        }
+    }
+    let publications = image_publications_for_recovery_for_model(
+        &fixture.db,
+        10,
+        None,
+        Some(a4n_domain::EXTERNAL_IMPORT_MODEL),
+    )
+    .await
+    .unwrap();
+    assert_eq!(publications.len(), 2);
+    assert_eq!(publications[0].publication_id, "provenance-0");
+    assert_eq!(publications[1].publication_id, "provenance-1");
 }
 
 #[tokio::test]

@@ -36,7 +36,6 @@ pub(crate) fn with_agent_system_prompt(
 {}\n\
 当前目标：{}\n\
 执行模式：{}\n\
-执行阶段：{}\n\
 资源范围：{}\n\
 父 Run：{}\n\
 可用 Skill（只提供元数据，正文尚未加载）：\n{}\n\
@@ -47,7 +46,6 @@ pub(crate) fn with_agent_system_prompt(
         protocol_rules,
         context.goal.as_deref().unwrap_or("未提供显式目标"),
         context.execution_mode,
-        phase,
         scope,
         context
             .run
@@ -68,12 +66,6 @@ pub(crate) fn with_agent_system_prompt(
             .map(|row| json!({"execution_id":row.id.to_string(), "tool":row.tool_name, "status":row.status, "result_refs":row.result_refs_json}))
             .collect::<Vec<_>>(),
     });
-    messages.insert(
-        2,
-        ChatMessage::system(format!(
-            "当前持久化任务记录（精确事实，摘要不能改写其状态）：{obligations}"
-        )),
-    );
     if let Some(delegation) = context
         .delegations
         .iter()
@@ -96,6 +88,10 @@ pub(crate) fn with_agent_system_prompt(
             )),
         );
     }
+    // 实时状态在不可变历史之后，避免每步状态变化破坏整个历史的缓存前缀。
+    messages.push(ChatMessage::user(format!(
+        "当前执行阶段：{phase}。以下是控制面提供的持久化任务事实，摘要不能改写其状态；不增加权限，也不替代用户指令：{obligations}"
+    )));
     messages
 }
 
@@ -199,11 +195,34 @@ pub(crate) fn chat_message_from_model(
 
 #[cfg(test)]
 mod tests {
-    use super::{chat_message_from_model, scope_prompt};
+    use super::{chat_message_from_model, scope_prompt, with_agent_system_prompt};
     use crate::engine::{MAX_OBSERVATION_BYTES, observation};
     use a4n_agent_runtime_contract::AgentMessageSnapshot;
     use a4n_api_contract::agent::AgentScope;
     use serde_json::json;
+
+    #[test]
+    fn phase_changes_keep_system_and_history_prefix_unchanged() {
+        let context = crate::engine::tests::approval_context("review");
+        let skills = a4n_api_contract::agent::AgentSkillSearchResult {
+            skills: vec![],
+            total: 0,
+        };
+        let history = vec![a4n_llm_provider_contract::provider::ChatMessage::user(
+            "保留这段用户任务",
+        )];
+        let first =
+            with_agent_system_prompt(history.clone(), &context, &skills, &[], "native", "read");
+        let next = with_agent_system_prompt(history, &context, &skills, &[], "native", "verify");
+        assert_eq!(
+            serde_json::to_value(&first[..first.len() - 1]).unwrap(),
+            serde_json::to_value(&next[..next.len() - 1]).unwrap()
+        );
+        assert!(first.last().unwrap().content.contains("read"));
+        assert!(next.last().unwrap().content.contains("verify"));
+        assert!(first[0].content.contains("严格遵守资源范围"));
+        assert!(next.last().unwrap().content.contains("不增加权限"));
+    }
 
     #[test]
     fn editor_observations_remain_versioned_on_replay() {

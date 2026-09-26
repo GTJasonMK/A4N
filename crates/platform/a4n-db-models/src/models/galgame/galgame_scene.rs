@@ -10,6 +10,8 @@ pub struct Model {
     pub id: i64,
     pub script_id: i64,
     pub source_snapshot_chapter_id: i64,
+    #[sea_orm(column_type = "Text", nullable)]
+    pub shooting_scene_identity: Option<String>,
     pub scene_index: i32,
     #[sea_orm(column_type = "Text")]
     pub title: String,

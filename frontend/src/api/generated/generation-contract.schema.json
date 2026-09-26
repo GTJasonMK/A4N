@@ -335,6 +335,40 @@
       ],
       "type": "object"
     },
+    "GenerateChapterShootingScriptInput": {
+      "additionalProperties": false,
+      "properties": {
+        "project_id": {
+          "format": "int64",
+          "minimum": 1,
+          "type": "integer"
+        },
+        "shot_ids": {
+          "default": [],
+          "description": "模型辅助局部更新：只替换这些镜头，其他镜头和场景内容原样保留。\n为空时重新生成整章。",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "source_chapter_id": {
+          "format": "int64",
+          "minimum": 1,
+          "type": "integer"
+        },
+        "visual_plan_id": {
+          "format": "int64",
+          "minimum": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "project_id",
+        "source_chapter_id",
+        "visual_plan_id"
+      ],
+      "type": "object"
+    },
     "GenerationArtifactRef": {
       "additionalProperties": false,
       "properties": {
@@ -2387,6 +2421,13 @@
       ],
       "type": "string"
     },
+    "ShootingScriptGenerationMode": {
+      "enum": [
+        "full",
+        "next_scene"
+      ],
+      "type": "string"
+    },
     "StartBlueprintGenerationInput": {
       "additionalProperties": false,
       "description": "Start a structured blueprint generation through the canonical generation task path.",
@@ -2542,6 +2583,26 @@
         "meta",
         "project_id",
         "chapter_number"
+      ],
+      "type": "object"
+    },
+    "StartChapterShootingScriptGenerationInput": {
+      "additionalProperties": false,
+      "properties": {
+        "meta": {
+          "$ref": "#/$defs/GenerationStartRequestMeta"
+        },
+        "mode": {
+          "$ref": "#/$defs/ShootingScriptGenerationMode"
+        },
+        "source": {
+          "$ref": "#/$defs/GenerateChapterShootingScriptInput"
+        }
+      },
+      "required": [
+        "meta",
+        "source",
+        "mode"
       ],
       "type": "object"
     },
@@ -3454,6 +3515,9 @@
     "start_chapter_generation": {
       "$ref": "#/$defs/StartChapterGenerationInput"
     },
+    "start_chapter_shooting_script_generation": {
+      "$ref": "#/$defs/StartChapterShootingScriptGenerationInput"
+    },
     "start_image_generation": {
       "$ref": "#/$defs/StartImageGenerationInput"
     },
@@ -3509,6 +3573,7 @@
     "cancel_input",
     "host_error",
     "start_chapter_generation",
+    "start_chapter_shooting_script_generation",
     "start_inspiration_generation",
     "inspiration_response",
     "start_optimize_analysis_generation",

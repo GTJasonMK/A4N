@@ -49,6 +49,8 @@ pub(in crate::video::prompts::generation::frame_prompts) struct StagedSegmentPla
     pub(in crate::video::prompts::generation::frame_prompts) previous_segment_recipes:
         Option<&'a [VideoSegmentExecutionRecipeV1]>,
     pub(in crate::video::prompts::generation::frame_prompts) reuse_published_shots: bool,
+    pub(in crate::video::prompts::generation::frame_prompts) previous_script_identity:
+        Option<&'a a4n_video_contract::VideoShootingScriptIdentityV1>,
     pub(in crate::video::prompts::generation::frame_prompts) duration_secs: i32,
     pub(in crate::video::prompts::generation::frame_prompts) context: &'a str,
     pub(in crate::video::prompts::generation::frame_prompts) progress_message: &'a str,

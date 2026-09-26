@@ -453,9 +453,6 @@ async fn insert_reference_media_segment_plan(
             "video_execution_identity": {
                 "contract_epoch": a4n_video_contract::VIDEO_EXECUTION_CONTRACT_EPOCH,
                 "shooting_script_identity": {},
-                "projection_sha256": "projection",
-                "segment_plan_sha256": "segment-plan",
-                "unit_plan_sha256": "unit-plan",
                 "source_content_sha256": source_content_sha256,
                 "style_sha256": "style",
                 "duration_secs": 8,
@@ -578,9 +575,6 @@ async fn insert_ready_segment_plan(
             "video_execution_identity": {
                 "contract_epoch": a4n_video_contract::VIDEO_EXECUTION_CONTRACT_EPOCH,
                 "shooting_script_identity": {},
-                "projection_sha256": "projection",
-                "segment_plan_sha256": "segment-plan",
-                "unit_plan_sha256": "unit-plan",
                 "frame_set_sha256": "frame-set",
                 "source_content_sha256": source_content_sha256,
                 "style_sha256": "style",

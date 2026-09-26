@@ -32,7 +32,7 @@ pub(super) async fn recover_image_publications(
         if publication.status == IMAGE_PUBLICATION_STATUS_PUBLISHED {
             *published_after = Some(publication.publication_id.clone());
         }
-        if should_skip_image_type(&publication.image_type, skip_imported) {
+        if should_skip_imported_model(&publication.model, skip_imported) {
             continue;
         }
         if let Err(error) = recover_image_publication(state, publication.clone()).await {
@@ -415,18 +415,24 @@ fn should_reclaim_after_publish_error(error: &AppError) -> bool {
     )
 }
 
-fn should_skip_image_type(image_type: &str, skip_imported: bool) -> bool {
-    skip_imported && image_type == "imported"
+fn should_skip_imported_model(model: &str, skip_imported: bool) -> bool {
+    skip_imported && model == a4n_domain::EXTERNAL_IMPORT_MODEL
 }
 
 #[cfg(test)]
 mod tests {
-    use super::should_skip_image_type;
+    use super::should_skip_imported_model;
 
     #[test]
     fn artifact_worker_only_removes_imported_recovery_from_host() {
-        assert!(should_skip_image_type("imported", true));
-        assert!(!should_skip_image_type("object_material", true));
-        assert!(!should_skip_image_type("imported", false));
+        assert!(should_skip_imported_model(
+            a4n_domain::EXTERNAL_IMPORT_MODEL,
+            true
+        ));
+        assert!(!should_skip_imported_model("generated-image-model", true));
+        assert!(!should_skip_imported_model(
+            a4n_domain::EXTERNAL_IMPORT_MODEL,
+            false
+        ));
     }
 }

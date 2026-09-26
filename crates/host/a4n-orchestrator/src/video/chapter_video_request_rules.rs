@@ -13,8 +13,7 @@ use super::{
     CLIPROXY_OPENAI_VIDEO_BACKEND, GEMINI_VEO_VIDEO_BACKEND, MIN_PROVIDER_MOTION_PROMPT_CHARS,
     MIN_PROVIDER_VISUAL_PROMPT_CHARS, NEWAPI_VIDEO_BACKEND, OPENAI_CHAT_VIDEO_BACKEND,
     OPENAI_COMPATIBLE_VIDEO_BACKEND, ProviderGenerationWorkflow, SEEDANCE2_VIDEO_BACKEND,
-    cliproxy_prompt_length_violation_message, provider_image_binding_violation_messages,
-    validate_provider_model_text,
+    provider_image_binding_violation_messages, validate_provider_model_text,
 };
 
 const CHAPTER_VIDEO_PROVIDER_PROMPT_NAME: &str = "chapter_video_provider_prompt";
@@ -71,11 +70,9 @@ pub fn append_provider_input_note(note: &mut Option<String>, addition: impl AsRe
 pub(crate) fn enforce_provider_prompt_length_contract(
     backend: &str,
     prompt: &str,
+    negative_prompt: Option<&str>,
 ) -> Result<(), String> {
-    match cliproxy_prompt_length_violation_message(backend, prompt, CLIPROXY_OPENAI_VIDEO_BACKEND) {
-        Some(message) => Err(message),
-        None => Ok(()),
-    }
+    a4n_video::video_provider_prompt(backend, prompt, negative_prompt).map(|_| ())
 }
 
 pub(crate) fn enforce_provider_image_binding_contract(

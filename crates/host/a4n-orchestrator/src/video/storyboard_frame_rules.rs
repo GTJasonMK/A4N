@@ -84,9 +84,6 @@ mod tests {
                 "video_execution_identity": {
                     "contract_epoch": VIDEO_EXECUTION_CONTRACT_EPOCH,
                     "shooting_script_identity": "script",
-                    "projection_sha256": "projection",
-                    "segment_plan_sha256": "segment",
-                    "unit_plan_sha256": "unit",
                     "source_content_sha256": "source",
                     "style_sha256": "style",
                     "duration_secs": 4,

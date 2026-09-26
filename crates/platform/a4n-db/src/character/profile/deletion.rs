@@ -16,6 +16,7 @@ use sea_orm::{
 
 use crate::character::portrait;
 
+use super::records::referenced_profile_ids;
 use super::types::{CharacterProfileDeleteError, CharacterProfileDeletionSummary};
 
 pub(crate) async fn delete_profile_cascade_in<C>(
@@ -46,6 +47,12 @@ where
             .await?;
     }
 
+    if referenced_profile_ids(db, profile, &[profile_id])
+        .await?
+        .contains(&profile_id)
+    {
+        return Err(CharacterProfileDeleteError::Referenced(profile_id));
+    }
     let state_index_ids = character_state_index::Entity::find()
         .select_only()
         .column(character_state_index::Column::Id)
@@ -215,6 +222,10 @@ where
             .ok_or_else(|| CharacterProfileDeleteError::NotFound("项目不存在".into()))?;
     }
 
+    let referenced = referenced_profile_ids(db, project_id, profile_ids).await?;
+    if let Some(profile_id) = referenced.first() {
+        return Err(CharacterProfileDeleteError::Referenced(*profile_id));
+    }
     let mut portraits_query = character_portrait::Entity::find()
         .select_only()
         .column(character_portrait::Column::Id)

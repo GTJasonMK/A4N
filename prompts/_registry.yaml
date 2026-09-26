@@ -709,6 +709,17 @@ prompts:
     description: "检查角色档案、状态时间线、属性事件与章节上下文是否存在事实或状态矛盾"
 
   # ============= 08 视频 =============
+  video_prompt_session:
+    path: "novel/08_video/video_prompt_session.md"
+    title: "视频提示词共享会话"
+    category: "video"
+    tags: ["video", "session", "cache"]
+    version: "1.0"
+    used_by:
+      - "video::prompts::generation::llm_chat::build_video_prompt_request"
+    dependencies: []
+    description: "视频各生成阶段共享稳定系统前缀，具体阶段模板只在当前任务中出现一次"
+
   director_segment_prompt:
     path: "novel/08_video/director_segment_prompt.md"
     title: "导演镜头段变化描述"

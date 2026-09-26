@@ -59,6 +59,7 @@ pub struct SourceSyncConflictSummary {
     pub severity: SourceSyncConflictSeverity,
     pub status: SourceSyncConflictStatus,
     pub resolution_strategy: Option<SourceSyncResolutionStrategy>,
+    pub regenerate_scene_id: Option<i64>,
     pub source_summary_json: Map<String, Value>,
     pub local_summary_json: Map<String, Value>,
     pub affected_refs_json: Map<String, Value>,

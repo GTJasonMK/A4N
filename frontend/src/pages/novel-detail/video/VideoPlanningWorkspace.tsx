@@ -231,10 +231,12 @@ export const VideoPlanningWorkspace: React.FC<VideoPlanningWorkspaceProps> = ({
       new Set(
         segments
           .map((segment) => textValue(segment.source_shot_id))
+          .filter((id) => !asArray(asJsonRecord(prompt?.metadata_json)?.stale_source_shot_ids).includes(id))
           .filter((value): value is string => value != null),
       ),
-    [segments],
+    [segments, prompt?.metadata_json],
   );
+  const staleShotIds = asArray(asJsonRecord(prompt?.metadata_json)?.stale_source_shot_ids);
   const draftTarget = draft?.resumeOptions.target_narrative_unit_index;
   const [selectedUnitIndex, setSelectedUnitIndex] = useState<number | null>(null);
   useEffect(() => {
@@ -254,6 +256,8 @@ export const VideoPlanningWorkspace: React.FC<VideoPlanningWorkspaceProps> = ({
     selectedScene != null &&
     selectedScene.shots.length > 0 &&
     selectedScene.shots.every((shot) => plannedShotIds.has(shot.shot_id));
+  const selectedSceneStale = (selectedScene?.shots.some((shot) => staleShotIds.includes(shot.shot_id)) ?? false)
+    || staleShotIds.some((id) => !shootingScenes.some((scene) => scene.shots.some((shot) => shot.shot_id === id)));
   const needsLoadRetry = Boolean(loadError && !prompt);
   const shotProgress =
     draft && draft.completedShotCount > 0
@@ -290,6 +294,7 @@ export const VideoPlanningWorkspace: React.FC<VideoPlanningWorkspaceProps> = ({
               {loadError && <span className="text-error">{t("video.chapter.planningLoadFailed", { error: loadError })}</span>}
             </div>
           )}
+          {staleShotIds.length > 0 ? <p className="mt-1 text-small text-warning">{t("shootingScript.videoUpdateHint", { count: staleShotIds.length })}</p> : null}
         </div>
         <div className="flex flex-wrap items-center justify-end gap-2">
           {canEditPlan ? (
@@ -349,7 +354,7 @@ export const VideoPlanningWorkspace: React.FC<VideoPlanningWorkspaceProps> = ({
                 ? onRetryLoad()
                 : selectedUnitIndex == null
                   ? undefined
-                  : onGenerate(selectedUnitIndex, selectedScenePlanned))
+                  : onGenerate(selectedUnitIndex, selectedScenePlanned && !selectedSceneStale))
             }
             disabled={
               busy ||
@@ -362,7 +367,7 @@ export const VideoPlanningWorkspace: React.FC<VideoPlanningWorkspaceProps> = ({
             {busy || loading ? <LoadingSpinner size="sm" /> : selectedScenePlanned || needsLoadRetry ? <RotateCcw size={14} /> : <Wand2 size={14} />}
             {canContinueDraft
               ? selectedScenePlanned ? t("video.chapter.continueReplan") : t("video.chapter.continueGenerate")
-              : selectedScenePlanned ? t("video.chapter.replanScene") : needsLoadRetry ? t("video.chapter.retryLoad") : t("video.chapter.planScene")}
+              : selectedSceneStale ? t("shootingScript.updateVideoPlan") : selectedScenePlanned ? t("video.chapter.replanScene") : needsLoadRetry ? t("video.chapter.retryLoad") : t("video.chapter.planScene")}
           </BookButton>
           {prompt ? (
             <BookButton

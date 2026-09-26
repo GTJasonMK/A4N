@@ -9,7 +9,7 @@ import { ConfigEditorPanel } from "./config-list/ConfigEditorPanel";
 import { ConfigListSidebar } from "./config-list/ConfigListSidebar";
 import { ConfigListToolbar } from "./config-list/ConfigListToolbar";
 import { FormField } from "./config-list/FormField";
-import type { ConfigListPanelProps, ConfigTestResult } from "./config-list/types";
+import type { ConfigItem, ConfigListPanelProps, ConfigTestResult } from "./config-list/types";
 import { useI18n } from "../../i18n";
 
 export type { ConfigItem } from "./config-list/types";
@@ -23,7 +23,9 @@ export { FormField };
 export function ConfigListPanel<C>({
   title,
   items,
+  onItemsChange,
   loading,
+  loadError,
   onRefresh,
   onCreate,
   onUpdate,
@@ -259,13 +261,13 @@ export function ConfigListPanel<C>({
     setSaving(true);
     try {
       if (requestCreating) {
-        const createdId = await onCreate(requestForm);
-        await onRefresh();
+        const created = await onCreate(requestForm);
         if (!mountedRef.current || saveSeqRef.current !== requestSeq) return;
+        onItemsChange((current) => mergeSavedConfigItem(current, created));
         if (editorScope() === requestScope && editVersionRef.current === requestEditVersion) {
           addToast(t("settings.configCreated", { name: title }), "success");
           setCreating(false);
-          setSelectedId(createdId);
+          setSelectedId(created.id);
           setMobileEditorOpen(false);
           markClean();
         } else if (editorScope() === requestScope) {
@@ -273,8 +275,9 @@ export function ConfigListPanel<C>({
         }
         return;
       } else if (requestSelectedItem) {
-        await onUpdate(requestSelectedItem.id, requestForm);
+        const updated = await onUpdate(requestSelectedItem.id, requestForm);
         if (!mountedRef.current || saveSeqRef.current !== requestSeq) return;
+        onItemsChange((current) => mergeSavedConfigItem(current, updated));
         setTestResults((prev) => {
           const next = { ...prev };
           delete next[requestSelectedItem.id];
@@ -287,7 +290,6 @@ export function ConfigListPanel<C>({
           addToast(t("settings.configUpdatedWithDraft", { name: title }), "success");
         }
       }
-      await onRefresh();
     } catch (err) {
       if (!mountedRef.current || saveSeqRef.current !== requestSeq) return;
       addToast(extractErrorMessage(err, t("settings.saveFailed")), "error");
@@ -356,8 +358,8 @@ export function ConfigListPanel<C>({
     try {
       await onActivate(id);
       if (!mountedRef.current || activateSeqRef.current !== requestSeq || !hasItem(id)) return;
+      onItemsChange((current) => current.map((item) => ({ ...item, isActive: item.id === id })));
       addToast(resolvedActivateSuccessMessage, "success");
-      await onRefresh();
     } catch (err) {
       if (!mountedRef.current || activateSeqRef.current !== requestSeq) return;
       addToast(extractErrorMessage(err, resolvedActivateErrorMessage), "error");
@@ -409,6 +411,7 @@ export function ConfigListPanel<C>({
     try {
       await onDelete(id);
       if (!mountedRef.current || deleteSeqRef.current !== requestSeq) return;
+      onItemsChange((current) => current.filter((item) => item.id !== id));
       addToast(t("settings.configDeleted"), "success");
       if (selectedIdRef.current === id) {
         setSelectedId(null);
@@ -421,7 +424,6 @@ export function ConfigListPanel<C>({
         delete next[id];
         return next;
       });
-      await onRefresh();
     } catch (err) {
       if (!mountedRef.current || deleteSeqRef.current !== requestSeq) return;
       addToast(extractErrorMessage(err, t("settings.deleteFailed")), "error");
@@ -586,12 +588,14 @@ export function ConfigListPanel<C>({
     >
       <ConfigListToolbar
         title={title}
-        itemCount={items.length}
+        itemCount={loadError && items.length === 0 ? null : items.length}
         loading={loading}
         busy={itemActionBusy}
         onCreate={() => void handleStartCreate()}
         onRefresh={handleRefresh}
       />
+
+      {loadError ? <p role="alert" className="text-xs text-error">{loadError}</p> : null}
 
       <div
         className={`grid min-h-0 gap-3 md:flex-1 md:grid-rows-1 ${
@@ -613,7 +617,7 @@ export function ConfigListPanel<C>({
           />
         ) : null}
 
-        {!mobileEditorMode ? editorPanel : null}
+        {!mobileEditorMode && (!loadError || items.length > 0 || creating) ? editorPanel : null}
       </div>
       {mobileEditorMode ? (
         <Modal
@@ -648,3 +652,11 @@ export function ConfigListPanel<C>({
 
 const configFormsEqual = <C,>(left: C, right: C): boolean =>
   JSON.stringify(left) === JSON.stringify(right);
+
+function mergeSavedConfigItem<C>(items: ConfigItem<C>[], saved: ConfigItem<C>): ConfigItem<C>[] {
+  const existing = items.find((item) => item.id === saved.id);
+  const updated = items.map((item) => item.id === saved.id
+    ? { ...item, ...saved }
+    : saved.isActive ? { ...item, isActive: false } : item);
+  return existing ? updated : [...updated, saved];
+}

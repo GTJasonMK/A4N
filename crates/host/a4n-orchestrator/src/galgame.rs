@@ -65,7 +65,7 @@ pub(crate) use pipeline::json::{
 use pipeline::json::{GalgamePipelineSceneLineDraft, GalgamePipelineSceneLineStaged};
 pub(crate) use pipeline::persist::{
     GalgamePersistChoice, GalgamePersistLine, GalgamePersistScene, GalgamePipelineSourceSpan,
-    GalgameScriptPersistPlan, build_galgame_script_persist_plan,
+    GalgameScriptPersistPlan, GalgameShootingSceneRef, build_galgame_script_persist_plan,
 };
 pub(crate) use pipeline::prompt::{
     GalgamePipelinePromptChapter, GalgamePipelinePromptSourceSpan,

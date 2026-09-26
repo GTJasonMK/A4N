@@ -172,6 +172,22 @@ pub struct VisualSegmentProjectionV3 {
 }
 
 impl VisualSegmentProjectionV3 {
+    /// 镜头内容身份：绝对起点与标题只决定位置和展示，可按新方案确定性改写，不使下游过时。
+    pub fn same_content(&self, other: &Self) -> bool {
+        self.content_view() == other.content_view()
+    }
+
+    pub fn content_view(&self) -> Self {
+        let mut view = self.clone();
+        view.end_ms = self.end_ms.saturating_sub(self.start_ms);
+        view.start_ms = 0;
+        view.title.clear();
+        for point in view.keyframes.iter_mut().chain(view.end_frame.iter_mut()) {
+            point.label.clear();
+        }
+        view
+    }
+
     pub fn remap_resources(
         &mut self,
         mut image: impl FnMut(i64) -> Result<i64, String>,

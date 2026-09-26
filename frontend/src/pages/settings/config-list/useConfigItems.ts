@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type SetStateAction } from "react";
 import { extractErrorMessage } from "../../../api";
 import { useToast } from "../../../components/feedback/Toast";
 import type { ModelProviderCatalog } from "../../../api/generated/config";
@@ -14,11 +14,18 @@ export function useConfigItems<C>(
   loadErrorMessage: string,
 ) {
   const addToast = useToast((state) => state.addToast);
-  const [items, setItems] = useState<ConfigItem<C>[]>([]);
+  const [items, setLoadedItems] = useState<ConfigItem<C>[]>([]);
   const [catalog, setCatalog] = useState<ModelProviderCatalog | null>(null);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const mountedRef = useRef(true);
   const refreshSeqRef = useRef(0);
+
+  const setItems = useCallback((update: SetStateAction<ConfigItem<C>[]>) => {
+    refreshSeqRef.current += 1;
+    setLoading(false);
+    setLoadedItems(update);
+  }, []);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -32,14 +39,17 @@ export function useConfigItems<C>(
     const requestSeq = refreshSeqRef.current + 1;
     refreshSeqRef.current = requestSeq;
     setLoading(true);
+    setError(null);
     try {
       const loaded = await loadItems();
       if (!mountedRef.current || refreshSeqRef.current !== requestSeq) return;
-      setItems(loaded.items);
+      setLoadedItems(loaded.items);
       setCatalog(loaded.catalog);
     } catch (error) {
       if (!mountedRef.current || refreshSeqRef.current !== requestSeq) return;
-      addToast(extractErrorMessage(error, loadErrorMessage), "error");
+      const message = extractErrorMessage(error, loadErrorMessage);
+      setError(message);
+      addToast(message, "error");
     } finally {
       if (mountedRef.current && refreshSeqRef.current === requestSeq) {
         setLoading(false);
@@ -51,5 +61,5 @@ export function useConfigItems<C>(
     void refresh();
   }, [refresh]);
 
-  return { items, catalog, loading, refresh };
+  return { items, setItems, catalog, loading, error, refresh };
 }

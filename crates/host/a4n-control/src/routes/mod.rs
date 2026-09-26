@@ -152,6 +152,7 @@ pub fn api_router(state: ServerState) -> Router {
             post(commands::invoke).layer(DefaultBodyLimit::max(COMMAND_BODY_LIMIT_BYTES)),
         )
         .route("/generation-tasks/chapter", post(generation::start_chapter))
+        .route("/generation-tasks/shooting-script", post(generation::start_shooting_script))
         .route(
             "/generation-tasks/inspiration",
             post(generation::start_inspiration),

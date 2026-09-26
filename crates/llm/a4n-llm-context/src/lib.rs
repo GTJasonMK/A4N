@@ -57,7 +57,7 @@ pub struct LlmContextManifestPackVariant {
 }
 
 pub fn canonical_json_text(value: &Value) -> Result<String, AppError> {
-    serde_json::to_string_pretty(value).map_err(AppError::Serialization)
+    serde_json::to_string(value).map_err(AppError::Serialization)
 }
 
 #[cfg(test)]
@@ -70,7 +70,7 @@ mod core_tests {
         assert_eq!(estimate_context_tokens("你好 world"), "你好 world".len());
         assert_eq!(
             canonical_json_text(&json!({"name": "A4N"})).expect("json should serialize"),
-            "{\n  \"name\": \"A4N\"\n}"
+            "{\"name\":\"A4N\"}"
         );
     }
 

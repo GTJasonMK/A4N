@@ -23,8 +23,6 @@ import {
   type InsertedSegmentGenerationOptions,
 } from "../../../api/video";
 import type { ChapterRow } from "../shared";
-import { chooseDownstreamConflictStrategy } from "../dependencyConflict";
-import { videoPromptDownstreamCount } from "./useVideoRecordActions";
 import { runGenerationProgressTaskThen } from "../../../hooks/runGenerationProgressTask";
 import { copyTextToClipboard } from "../../../utils/clipboard";
 import { readFileAsBase64 } from "../../../utils/fileUpload";
@@ -129,7 +127,6 @@ export function useVideoTabActions(context: VideoTabActionInput) {
     beginVideoAction,
     isCurrentVideoActionScope,
     finishVideoAction,
-    prompts,
     setPrompts,
     setTimeline,
     frameSegmentPlanPromptForCards,
@@ -174,19 +171,7 @@ export function useVideoTabActions(context: VideoTabActionInput) {
     async (segments: VideoSegmentPlanV2[]): Promise<boolean> => {
       const prompt = frameSegmentPlanPromptForCards;
       if (!prompt || prompt.status === "running" || acting != null) return false;
-      const downstreamStrategy = await chooseDownstreamConflictStrategy({
-        title: t("video.actions.downstreamTitle"),
-        assetLabel: `${prompt.title ?? t("video.actions.segmentPlanLabel")} #${prompt.id}`,
-        downstreamLabel: t("video.actions.downstreamLabel"),
-        downstreamCount: videoPromptDownstreamCount(
-          prompt,
-          prompts,
-          videoFrameImages,
-        ),
-        operation: t("video.chapter.savePlan"),
-        t,
-      });
-      if (downstreamStrategy == null || !beginVideoAction(`edit-segment-plan-${prompt.id}`)) {
+      if (!beginVideoAction(`edit-segment-plan-${prompt.id}`)) {
         return false;
       }
       const actionKey = `edit-segment-plan-${prompt.id}`;
@@ -194,7 +179,6 @@ export function useVideoTabActions(context: VideoTabActionInput) {
         const updated = await updateChapterVideoSegmentPlan(prompt.id, {
           expected_updated_at: prompt.updated_at,
           segments,
-          downstream_strategy: downstreamStrategy,
         });
         setPrompts((previous) =>
           previous.map((item) => (item.id === updated.id ? updated : item)),
@@ -219,9 +203,7 @@ export function useVideoTabActions(context: VideoTabActionInput) {
       finishVideoAction,
       frameSegmentPlanPromptForCards,
       loadAll,
-      prompts,
       t,
-      videoFrameImages,
     ],
   );
 

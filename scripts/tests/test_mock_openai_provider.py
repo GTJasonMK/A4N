@@ -50,6 +50,16 @@ def agent_observation(data):
 
 
 class MockOpenAIProviderTest(unittest.TestCase):
+    def test_source_markers_are_read_from_actual_context_content(self) -> None:
+        from mock_openai.fixtures.entities import source_span_pairs, text_anchor_id
+
+        source = json.dumps({"content": "“⟦ch2:s3:f1⟧别走！”她说。\n⟦ch2:s4:f1⟧门关上了。"}, ensure_ascii=False)
+        self.assertEqual([identifier for identifier, _ in source_span_pairs(source)], ["ch2:s3:f1", "ch2:s4:f1"])
+        anchors = json.dumps({"content": "⟦41⟧林岚握住怀表。\n⟦42⟧周衡转身。"}, ensure_ascii=False)
+        self.assertEqual(text_anchor_id(anchors, "握住怀表"), 41)
+        with self.assertRaises(ValueError):
+            text_anchor_id(anchors, "不存在的剧情")
+
     def test_cache_content_blocks_and_immutable_loop_observations(self) -> None:
         self.assertEqual(response_for({"messages": [{"role": "user", "content": [
             {"type": "text", "text": "pi"}, {"type": "text", "text": "ng"}

@@ -31,6 +31,9 @@ let runtimeRouteFamily: ThemeRouteFamily = THEME_GLOBAL_ROUTE_FAMILY;
 let syncChannel: BroadcastChannel | null = null;
 let systemMediaQuery: MediaQueryList | null = null;
 let syncStorageListenerInstalled = false;
+let themeSyncSeq = 0;
+let themeMutationSeq = 0;
+let appearanceMutationSeq = 0;
 
 function dispatchThemeApplied(): void {
   window.dispatchEvent(new Event(THEME_APPLIED_EVENT));
@@ -186,15 +189,22 @@ function applyRuntimeTheme(): void {
   applyThemeState(runtimeActiveTheme, mode);
 }
 
+async function readRuntimeTheme(userId: number): Promise<void> {
+  const requestSeq = ++themeSyncSeq;
+  const themesVersion = themeMutationSeq;
+  const appearanceVersion = appearanceMutationSeq;
+  const [themes, preference] = await Promise.all([listThemes(), getThemePreference()]);
+  if (requestSeq !== themeSyncSeq || runtimeUserId !== userId || preference.user_id !== userId) return;
+  if (themesVersion === themeMutationSeq) runtimeThemes = themes;
+  if (appearanceVersion === appearanceMutationSeq) runtimeAppearance = preference.appearance;
+  writeThemeCache(userId, runtimeThemes, runtimeAppearance);
+  applyRuntimeTheme();
+}
+
 async function reloadRuntimeTheme(): Promise<void> {
   if (runtimeUserId == null) return;
   try {
-    const [themes, preference] = await Promise.all([listThemes(), getThemePreference()]);
-    if (preference.user_id !== runtimeUserId) return;
-    runtimeThemes = themes;
-    runtimeAppearance = preference.appearance;
-    writeThemeCache(runtimeUserId, themes, preference.appearance);
-    applyRuntimeTheme();
+    await readRuntimeTheme(runtimeUserId);
   } catch (error) {
     console.error("Failed to reload the active theme after a cross-tab update", error);
   }
@@ -224,7 +234,12 @@ export function getActiveThemeStreamDisplaySettings(): ThemeStreamDisplaySetting
   return normalizeStreamDisplaySettings(runtimeAppliedTheme?.document.stream_display);
 }
 
+export function getThemeAppearance(): ThemeAppearance {
+  return runtimeAppearance;
+}
+
 export function applyActiveTheme(theme: Theme): void {
+  themeMutationSeq += 1;
   runtimeActiveTheme = theme;
   runtimeThemes = runtimeThemes.some((item) => item.id === theme.id)
     ? runtimeThemes.map((item) =>
@@ -235,6 +250,7 @@ export function applyActiveTheme(theme: Theme): void {
             : item,
       )
     : [...runtimeThemes, theme];
+  if (runtimeUserId != null) writeThemeCache(runtimeUserId, runtimeThemes, runtimeAppearance);
   if (preferredThemeMode(runtimeAppearance) === theme.mode) {
     applyThemeState(theme, theme.mode);
   } else {
@@ -256,7 +272,9 @@ export function restoreActiveTheme(): void {
 }
 
 export function setThemeAppearance(appearance: ThemeAppearance): void {
+  appearanceMutationSeq += 1;
   runtimeAppearance = appearance;
+  if (runtimeUserId != null) writeThemeCache(runtimeUserId, runtimeThemes, runtimeAppearance);
   applyRuntimeTheme();
 }
 
@@ -277,6 +295,7 @@ export function notifyThemeChanged(): void {
 }
 
 export async function loadAndApplyActiveTheme(userId: number | null): Promise<void> {
+  themeSyncSeq += 1;
   ensureSyncListeners();
   runtimeUserId = userId;
   runtimeThemes = [];
@@ -295,10 +314,5 @@ export async function loadAndApplyActiveTheme(userId: number | null): Promise<vo
   } else {
     applyThemeState(null, preferredThemeMode(runtimeAppearance));
   }
-  const [themes, preference] = await Promise.all([listThemes(), getThemePreference()]);
-  if (runtimeUserId !== userId || preference.user_id !== userId) return;
-  runtimeThemes = themes;
-  runtimeAppearance = preference.appearance;
-  writeThemeCache(userId, themes, preference.appearance);
-  applyRuntimeTheme();
+  await readRuntimeTheme(userId);
 }

@@ -341,8 +341,12 @@ impl OrchestratorContext {
             )
             .map_err(AppError::InvalidArgument)?,
         };
-        enforce_provider_prompt_length_contract(&config.backend, &request.prompt)
-            .map_err(AppError::InvalidArgument)?;
+        enforce_provider_prompt_length_contract(
+            &config.backend,
+            &request.prompt,
+            request.negative_prompt.as_deref(),
+        )
+        .map_err(AppError::InvalidArgument)?;
         Ok(PreparedChapterVideoGeneration {
             user_id,
             project_id,
@@ -681,6 +685,11 @@ impl OrchestratorContext {
             .shared_segment_plans
             .get(&plan_id)
             .expect("shared segment plan is loaded");
+        a4n_video_contract::ensure_video_segment_source_current(
+            plan.metadata_json.as_ref(),
+            source_shot_id,
+        )
+        .map_err(AppError::InvalidArgument)?;
         let segment_number = match cache.shared_segment_indexes.get(&plan_id) {
             Some(index) => {
                 let segment_number =

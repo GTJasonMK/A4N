@@ -87,6 +87,7 @@ export type InterruptionReason =
   "host_shutdown" | "host_restart_recovery" | "session_owner_lost" | "destructive_drain_timeout";
 export type GenerationSnapshotState = "available" | "expired" | "corrupt";
 export type InspirationControlKind = "single_choice" | "text_input" | "info_display" | "inspired_options";
+export type ShootingScriptGenerationMode = "full" | "next_scene";
 export type ImageGenerationOperation =
   | {
       kind: "visual_plan_point";
@@ -294,6 +295,7 @@ export interface GenerationContractBundle {
   start_blueprint_generation: StartBlueprintGenerationInput;
   start_blueprint_refinement: StartBlueprintRefinementInput;
   start_chapter_generation: StartChapterGenerationInput;
+  start_chapter_shooting_script_generation: StartChapterShootingScriptGenerationInput;
   start_image_generation: StartImageGenerationInput;
   start_inspiration_generation: StartInspirationGenerationInput;
   start_optimize_analysis_generation: StartOptimizeAnalysisGenerationInput;
@@ -603,6 +605,21 @@ export interface EmbeddingModelIdentity {
   backend: string;
   dimension: number;
   model: string;
+}
+export interface StartChapterShootingScriptGenerationInput {
+  meta: GenerationStartRequestMeta;
+  mode: ShootingScriptGenerationMode;
+  source: GenerateChapterShootingScriptInput;
+}
+export interface GenerateChapterShootingScriptInput {
+  project_id: number;
+  /**
+   * 模型辅助局部更新：只替换这些镜头，其他镜头和场景内容原样保留。
+   * 为空时重新生成整章。
+   */
+  shot_ids?: string[];
+  source_chapter_id: number;
+  visual_plan_id: number;
 }
 /**
  * 图片生产生成的唯一启动合同。

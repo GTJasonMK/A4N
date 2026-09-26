@@ -1,10 +1,11 @@
 mod design;
 mod screenplay;
 
-use std::collections::HashSet;
-
 use a4n_api_contract::shooting_script::{
     ChapterShootingScriptUnitProgressCheckpoint, ChapterShootingScriptUnitProgressView,
+};
+use a4n_domain::shooting_script::{
+    ChapterShootingScriptSchemaVersion, ChapterShootingScriptV1, ShootingVisualPlanSourceV1,
 };
 use a4n_error::AppError;
 use tokio_util::sync::CancellationToken;
@@ -14,17 +15,16 @@ use crate::{OrchestratorContext, workflow::WORKFLOW_STATUS_INTERRUPTED};
 use self::{
     design::generate_shooting_scene,
     screenplay::{
-        assemble_screenplay_layout_unit, assemble_screenplay_plan_unit,
-        generate_screenplay_adaptation_unit, generate_screenplay_layout_unit,
-        generate_screenplay_skeleton,
+        assemble_screenplay_plan_unit, generate_screenplay_adaptation_unit,
+        generate_screenplay_layout_unit, generate_screenplay_skeleton,
     },
 };
 use super::{
     ChapterShootingScriptSourceInput, GenerateChapterShootingScriptInput,
-    assembly::{assemble_available_shooting_script, assemble_chapter_shooting_script},
+    assembly::finish_generated_script,
     contracts::{
-        CHAPTER_SHOOTING_SCRIPT_PROGRESS_TOTAL, CHAPTER_SHOOTING_SCRIPT_WORKFLOW,
-        ChapterShootingScriptUnitProgress, RegenerateChapterShootingScriptInput,
+        CHAPTER_SHOOTING_SCRIPT_PROGRESS_TOTAL, ChapterShootingScriptUnitProgress,
+        PreparedChapterShootingScriptRequest, RegenerateChapterShootingScriptInput,
         ResolvedChapterShootingScript, ShootingScriptProgressReporter,
         ShootingScriptStreamReporter,
     },
@@ -35,104 +35,14 @@ enum ShootingScriptGenerationOutcome {
         script: Box<a4n_domain::shooting_script::ChapterShootingScriptV1>,
         completed_unit_count: usize,
         total_unit_count: usize,
-        source_content_sha256: String,
     },
-    Complete(Box<ResolvedChapterShootingScript>),
+    Complete {
+        resolved: Box<ResolvedChapterShootingScript>,
+        total_unit_count: usize,
+    },
 }
 
 impl OrchestratorContext {
-    pub(crate) async fn current_chapter_shooting_script_unit_progress(
-        &self,
-        source: ChapterShootingScriptSourceInput,
-    ) -> Result<Option<ChapterShootingScriptUnitProgress>, AppError> {
-        let source = ChapterShootingScriptSourceInput {
-            visual_plan_id: None,
-            ..source
-        };
-        let (requested_source, _) = self
-            .load_chapter_shooting_script_source_record(&source)
-            .await?;
-        let run = self
-            .workflow_runs_by_project_kind(
-                requested_source.root_project_id,
-                CHAPTER_SHOOTING_SCRIPT_WORKFLOW,
-            )
-            .await?
-            .into_iter()
-            .find(|run| {
-                run.chapter_id == Some(requested_source.source_chapter_id)
-                    && run.can_resume
-                    && run.status != crate::workflow::WORKFLOW_STATUS_SUPERSEDED
-            });
-        let Some(run) = run else {
-            return Ok(None);
-        };
-        let Some(snapshot) = run
-            .progress_json
-            .as_ref()
-            .and_then(|progress| progress.get("snapshot"))
-        else {
-            return Ok(None);
-        };
-        let mut checkpoint: ChapterShootingScriptUnitProgressCheckpoint =
-            serde_json::from_value(snapshot.clone()).map_err(|error| {
-                AppError::InvalidArgument(format!("章节拍摄剧本进度 snapshot 无效: {error}"))
-            })?;
-        if checkpoint.version != 1 {
-            return Err(AppError::InvalidArgument(format!(
-                "不支持的章节拍摄剧本进度 snapshot 版本: {}",
-                checkpoint.version
-            )));
-        }
-        if checkpoint.progress.workflow_run_id != run.id
-            || checkpoint.progress.completed_unit_count == 0
-            || checkpoint.progress.completed_unit_count > checkpoint.progress.total_unit_count
-        {
-            return Err(AppError::InvalidArgument(
-                "章节拍摄剧本进度 snapshot 的生成游标无效".into(),
-            ));
-        }
-        if checkpoint.source_content_sha256 != requested_source.content_sha256 {
-            return Ok(None);
-        }
-        checkpoint
-            .progress
-            .script
-            .validate_partial(
-                checkpoint.progress.completed_unit_count,
-                checkpoint.progress.total_unit_count,
-            )
-            .map_err(|error| AppError::InvalidArgument(error.to_string()))?;
-        let visual_plan = self
-            .confirmed_visual_plan_for_shooting_script(&requested_source, None)
-            .await?;
-        let identity = checkpoint
-            .progress
-            .script
-            .visual_plan_source
-            .as_mut()
-            .ok_or_else(|| {
-                AppError::InvalidArgument("章节拍摄剧本进度 snapshot 缺少视觉编排身份".into())
-            })?;
-        if identity.plan_sha256 != visual_plan.record.plan_sha256
-            || (requested_source.source_snapshot_id.is_none()
-                && (identity.plan_id != visual_plan.record.id
-                    || identity.plan_version != visual_plan.record.plan_version))
-        {
-            return Ok(None);
-        }
-        // 源快照复制了导演方案；内容相同时，把场景投影到快照自身的方案身份。
-        identity.plan_id = visual_plan.record.id;
-        identity.plan_version = visual_plan.record.plan_version;
-        Ok(Some(ChapterShootingScriptUnitProgress {
-            workflow_run_id: run.id,
-            script: checkpoint.progress.script,
-            completed_unit_count: checkpoint.progress.completed_unit_count,
-            total_unit_count: checkpoint.progress.total_unit_count,
-            resolved: None,
-        }))
-    }
-
     pub async fn generate_chapter_shooting_script_for_user_validated(
         &self,
         user_id: i64,
@@ -166,6 +76,10 @@ impl OrchestratorContext {
     ) -> Result<ChapterShootingScriptUnitProgress, AppError> {
         self.verify_project_or_derived_family_editor_validated(user_id, source.project_id)
             .await?;
+        super::validate_shooting_generation_mode(
+            a4n_api_contract::shooting_script::ShootingScriptGenerationMode::NextScene,
+            &source.shot_ids,
+        )?;
         let input = self
             .begin_chapter_shooting_script_generation(&source, active_task_id)
             .await?;
@@ -185,7 +99,6 @@ impl OrchestratorContext {
                 script,
                 completed_unit_count,
                 total_unit_count,
-                source_content_sha256,
             }) => {
                 let reason = format!(
                     "已在场景边界暂停：已完成 {completed_unit_count}/{total_unit_count} 个场景"
@@ -197,22 +110,6 @@ impl OrchestratorContext {
                     Some(&reason),
                 )
                 .await?;
-                let checkpoint = ChapterShootingScriptUnitProgressCheckpoint {
-                    version: 1,
-                    source_content_sha256,
-                    progress: ChapterShootingScriptUnitProgressView {
-                        workflow_run_id,
-                        script: (*script).clone(),
-                        completed_unit_count,
-                        total_unit_count,
-                        completed_record: None,
-                    },
-                };
-                self.persist_workflow_progress_snapshot(
-                    workflow_run_id,
-                    serde_json::to_value(checkpoint)?,
-                )
-                .await?;
                 Ok(ChapterShootingScriptUnitProgress {
                     workflow_run_id,
                     script: *script,
@@ -221,8 +118,10 @@ impl OrchestratorContext {
                     resolved: None,
                 })
             }
-            Ok(ShootingScriptGenerationOutcome::Complete(resolved)) => {
-                let total_unit_count = resolved.shooting_script.script.scenes.len();
+            Ok(ShootingScriptGenerationOutcome::Complete {
+                resolved,
+                total_unit_count,
+            }) => {
                 let progress = ChapterShootingScriptUnitProgress {
                     workflow_run_id,
                     script: resolved.shooting_script.script.clone(),
@@ -230,11 +129,11 @@ impl OrchestratorContext {
                     total_unit_count,
                     resolved: Some(*resolved),
                 };
-                self.finalize_workflow_result(workflow_run_id, Ok(progress), "章节拍摄剧本单元生成")
+                self.finalize_shooting_script_result(workflow_run_id, Ok(progress), "章节拍摄剧本单元生成")
                     .await
             }
             Err(error) => {
-                self.finalize_workflow_result::<ChapterShootingScriptUnitProgress>(
+                self.finalize_shooting_script_result::<ChapterShootingScriptUnitProgress>(
                     workflow_run_id,
                     Err(error),
                     "章节拍摄剧本单元生成",
@@ -268,14 +167,33 @@ impl OrchestratorContext {
             )
             .await
             .and_then(|outcome| match outcome {
-                ShootingScriptGenerationOutcome::Complete(resolved) => Ok(*resolved),
+                ShootingScriptGenerationOutcome::Complete { resolved, .. } => Ok(*resolved),
                 ShootingScriptGenerationOutcome::Partial { .. } => Err(AppError::InvalidState {
                     current: "partial_shooting_script".to_string(),
                     operation: "发布完整章节拍摄剧本".to_string(),
                 }),
             });
-        self.finalize_workflow_result(workflow_run_id, result, "章节拍摄剧本生成")
+        self.finalize_shooting_script_result(workflow_run_id, result, "章节拍摄剧本生成")
             .await
+    }
+
+    async fn finalize_shooting_script_result<T>(
+        &self,
+        workflow_run_id: i64,
+        result: Result<T, AppError>,
+        operation: &str,
+    ) -> Result<T, AppError> {
+        if matches!(&result, Err(AppError::Cancelled)) {
+            let run = self.workflow_run_model_by_id(workflow_run_id).await?;
+            if run.status == a4n_domain::workflow::WORKFLOW_STATUS_RUNNING
+                && run.progress_json.as_ref().and_then(|value| value.get("snapshot")).is_some()
+            {
+                self.mark_workflow_status(workflow_run_id, WORKFLOW_STATUS_INTERRUPTED, true,
+                    Some("生成已停止，已完成场景已保存，可继续改编")).await?;
+                return result;
+            }
+        }
+        self.finalize_workflow_result(workflow_run_id, result, operation).await
     }
 
     async fn begin_chapter_shooting_script_generation(
@@ -283,6 +201,24 @@ impl OrchestratorContext {
         source: &GenerateChapterShootingScriptInput,
         active_task_id: Option<&str>,
     ) -> Result<RegenerateChapterShootingScriptInput, AppError> {
+        let (workflow_input, shot_ids) = self
+            .prepare_shooting_script_workflow_input(source, active_task_id)
+            .await?;
+        let workflow = self.begin_or_resume_workflow_run_validated(workflow_input).await?;
+        Ok(RegenerateChapterShootingScriptInput {
+            project_id: source.project_id,
+            source_chapter_id: source.source_chapter_id,
+            workflow_run_id: workflow.id,
+            visual_plan_id: source.visual_plan_id,
+            shot_ids,
+        })
+    }
+
+    pub(crate) async fn prepare_shooting_script_workflow_input(
+        &self,
+        source: &GenerateChapterShootingScriptInput,
+        active_task_id: Option<&str>,
+    ) -> Result<(crate::workflow::UpsertWorkflowRunInput, Vec<String>), AppError> {
         let source_input = ChapterShootingScriptSourceInput {
             project_id: source.project_id,
             source_chapter_id: source.source_chapter_id,
@@ -297,6 +233,24 @@ impl OrchestratorContext {
                 Some(source.visual_plan_id),
             )
             .await?;
+        let director = crate::chapter_visual_plan::project_visual_plan_for_shooting_script(
+            &visual_plan.plan,
+            &[],
+        )?;
+        director
+            .validate_shot_ids(&source.shot_ids)
+            .map_err(|error| AppError::InvalidArgument(error.to_string()))?;
+        if !source.shot_ids.is_empty()
+            && existing
+                .as_ref()
+                .is_none_or(|script| script.record.visual_plan_id != Some(visual_plan.record.id))
+        {
+            return Err(AppError::InvalidArgument(
+                "局部更新需要已绑定当前导演编排的拍摄剧本".into(),
+            ));
+        }
+        let mut shot_ids = source.shot_ids.clone();
+        shot_ids.sort();
         let target_revision =
             match existing {
                 Some(existing) => existing.record.revision.checked_add(1).ok_or_else(|| {
@@ -317,18 +271,11 @@ impl OrchestratorContext {
             visual_plan.record.id,
             visual_plan.record.plan_version,
             &visual_plan.record.plan_sha256,
+            &shot_ids,
             active_task_id,
         )
         .map_err(AppError::InvalidArgument)?;
-        let workflow = self
-            .begin_or_resume_workflow_run_validated(workflow_input)
-            .await?;
-        Ok(RegenerateChapterShootingScriptInput {
-            project_id: source.project_id,
-            source_chapter_id: source.source_chapter_id,
-            workflow_run_id: workflow.id,
-            visual_plan_id: visual_plan.record.id,
-        })
+        Ok((workflow_input, shot_ids))
     }
 
     async fn regenerate_chapter_shooting_script_units_with_progress(
@@ -344,16 +291,39 @@ impl OrchestratorContext {
         let progress_total = CHAPTER_SHOOTING_SCRIPT_PROGRESS_TOTAL;
         progress(0, progress_total, "正在读取章节正文和来源锚点")?;
         let prepared = self.prepare_chapter_shooting_script_request(input).await?;
-        let deleted_unit_indices = self
-            .deleted_shooting_script_unit_indices(workflow_run_id)
+        let saved_progress = self
+            .saved_shooting_script_progress(workflow_run_id, &prepared)
             .await?;
         let skeleton = generate_screenplay_skeleton(&prepared, progress)?;
         let total_unit_count = skeleton.units.len();
-        let mut plan_units = Vec::with_capacity(total_unit_count);
-        let mut scenes = Vec::with_capacity(total_unit_count);
+        let completed_unit_count = saved_progress
+            .as_ref()
+            .map_or(0, |progress| progress.completed_unit_count);
+        // 已保存的进度是作者可编辑的事实来源；LLM 断点只恢复尚未完成的单元。
+        let mut script = saved_progress
+            .map(|progress| progress.script)
+            .unwrap_or_else(|| ChapterShootingScriptV1 {
+                schema_version: ChapterShootingScriptSchemaVersion::V1,
+                visual_plan_source: Some(ShootingVisualPlanSourceV1 {
+                    plan_id: prepared.visual_plan.record.id,
+                    plan_version: prepared.visual_plan.record.plan_version,
+                    plan_sha256: prepared.visual_plan.record.plan_sha256.clone(),
+                }),
+                user_additions: prepared.visual_plan_projection.user_additions.clone(),
+                directing_statement: Some(skeleton.directing_statement.clone()),
+                scenes: Vec::with_capacity(total_unit_count),
+            });
 
-        for offset in 0..total_unit_count {
+        for offset in completed_unit_count..total_unit_count {
             let skeleton_unit = &skeleton.units[offset];
+            if !prepared.shot_ids.is_empty()
+                && !prepared.visual_plan_projection.narrative_units[offset]
+                    .shots
+                    .iter()
+                    .any(|shot| prepared.shot_ids.contains(&shot.segment_id))
+            {
+                continue;
+            }
             let layout_stage = generate_screenplay_layout_unit(
                 self,
                 workflow_run_id,
@@ -367,7 +337,7 @@ impl OrchestratorContext {
                 cancel_token,
             )
             .await?;
-            let layout_unit = assemble_screenplay_layout_unit(skeleton_unit, layout_stage.output);
+            let layout_unit = layout_stage.output;
             let adaptation_stage = generate_screenplay_adaptation_unit(
                 self,
                 workflow_run_id,
@@ -393,21 +363,42 @@ impl OrchestratorContext {
                 cancel_token,
             )
             .await?;
-            let generated_unit =
-                !layout_stage.restored || !adaptation_stage.restored || !design_stage.restored;
-            if !deleted_unit_indices.contains(&skeleton_unit.narrative_unit_index) {
-                plan_units.push(plan_unit);
-                scenes.push(design_stage.output);
+            let mut scene = design_stage.output;
+            scene.scene_index = u32::try_from(script.scenes.len() + 1)
+                .map_err(|_| AppError::InvalidArgument("拍摄场景数量超出 u32 范围".into()))?;
+            scene.timeline_position = scene.scene_index;
+            for addition in &prepared.visual_plan_projection.user_additions {
+                if scene.user_addition_ids.contains(&addition.id)
+                    && !script
+                        .user_additions
+                        .iter()
+                        .any(|saved| saved.id == addition.id)
+                {
+                    script.user_additions.push(addition.clone());
+                }
             }
+            script.scenes.push(scene);
 
-            if stop_after_next_unit && generated_unit && offset + 1 < total_unit_count {
-                let script = assemble_available_shooting_script(
-                    &skeleton.directing_statement,
-                    &plan_units,
-                    scenes,
-                    &prepared.visual_plan,
-                    &prepared.visual_plan_projection,
-                )?;
+            if prepared.shot_ids.is_empty() {
+                // Publish completed scenes before starting another provider call. A failed connection
+                // or a stopped task must not hide work that has already passed scene validation.
+                finish_generated_script(&mut script, offset + 1, total_unit_count)?;
+                self.persist_workflow_progress_snapshot(workflow_run_id, serde_json::to_value(
+                    ChapterShootingScriptUnitProgressCheckpoint {
+                        version: 1,
+                        source_content_sha256: prepared.source.content_sha256.clone(),
+                        progress: ChapterShootingScriptUnitProgressView {
+                            workflow_run_id,
+                            script: script.clone(),
+                            completed_unit_count: offset + 1,
+                            total_unit_count,
+                            completed_record: None,
+                        },
+                    },
+                )?).await?;
+            }
+            if stop_after_next_unit && prepared.shot_ids.is_empty() && offset + 1 < total_unit_count
+            {
                 progress(
                     92,
                     progress_total,
@@ -421,30 +412,24 @@ impl OrchestratorContext {
                     completed_unit_count: offset + 1,
                     total_unit_count,
                     script: Box::new(script),
-                    source_content_sha256: prepared.source.content_sha256.clone(),
                 });
             }
         }
 
-        let script = if deleted_unit_indices.is_empty() {
-            assemble_chapter_shooting_script(
-                &skeleton.directing_statement,
-                &plan_units,
-                scenes,
-                &prepared.visual_plan,
-                &prepared.visual_plan_projection,
-            )?
+        let script = if !prepared.shot_ids.is_empty() {
+            prepared
+                .existing
+                .as_ref()
+                .ok_or_else(|| AppError::InvalidArgument("局部更新的拍摄剧本已不存在".into()))?
+                .script
+                .with_updated_shots(
+                    &prepared.visual_plan_projection,
+                    script.scenes,
+                    &prepared.shot_ids,
+                )
+                .map_err(|error| AppError::InvalidArgument(error.to_string()))?
         } else {
-            let script = assemble_available_shooting_script(
-                &skeleton.directing_statement,
-                &plan_units,
-                scenes,
-                &prepared.visual_plan,
-                &prepared.visual_plan_projection,
-            )?;
-            script
-                .validate_partial(total_unit_count, total_unit_count)
-                .map_err(|error| AppError::InvalidArgument(error.to_string()))?;
+            finish_generated_script(&mut script, total_unit_count, total_unit_count)?;
             script
         };
         progress(
@@ -468,54 +453,46 @@ impl OrchestratorContext {
             )
             .await?;
         progress(progress_total, progress_total, "结构化拍摄剧本已原子发布")?;
-        Ok(ShootingScriptGenerationOutcome::Complete(Box::new(
-            resolved,
-        )))
+        Ok(ShootingScriptGenerationOutcome::Complete {
+            resolved: Box::new(resolved),
+            total_unit_count,
+        })
     }
 
-    async fn deleted_shooting_script_unit_indices(
+    async fn saved_shooting_script_progress(
         &self,
         workflow_run_id: i64,
-    ) -> Result<HashSet<u32>, AppError> {
+        prepared: &PreparedChapterShootingScriptRequest,
+    ) -> Result<Option<ChapterShootingScriptUnitProgressView>, AppError> {
         let run = self.workflow_run_model_by_id(workflow_run_id).await?;
         let Some(snapshot) = run
             .progress_json
             .and_then(|progress| progress.get("snapshot").cloned())
         else {
-            return Ok(HashSet::new());
+            return Ok(None);
         };
         let checkpoint: ChapterShootingScriptUnitProgressCheckpoint =
             serde_json::from_value(snapshot).map_err(|error| {
                 AppError::InvalidArgument(format!("章节拍摄剧本进度 snapshot 无效: {error}"))
             })?;
-        if checkpoint.version != 1 {
-            return Err(AppError::InvalidArgument(format!(
-                "不支持的章节拍摄剧本进度 snapshot 版本: {}",
-                checkpoint.version
-            )));
-        }
-        if checkpoint.progress.workflow_run_id != workflow_run_id {
+        checkpoint
+            .validate_for_run(workflow_run_id)
+            .map_err(|error| AppError::InvalidArgument(error.to_string()))?;
+        if checkpoint.source_content_sha256 != prepared.source.content_sha256
+            || checkpoint.progress.total_unit_count
+                != prepared.visual_plan_projection.narrative_units.len()
+            || checkpoint.progress.script.visual_plan_source.as_ref()
+                != Some(&ShootingVisualPlanSourceV1 {
+                    plan_id: prepared.visual_plan.record.id,
+                    plan_version: prepared.visual_plan.record.plan_version,
+                    plan_sha256: prepared.visual_plan.record.plan_sha256.clone(),
+                })
+            || !prepared.shot_ids.is_empty()
+        {
             return Err(AppError::InvalidArgument(
-                "章节拍摄剧本进度 snapshot 不属于当前工作流".into(),
+                "章节拍摄剧本进度 snapshot 与当前生成来源不一致".into(),
             ));
         }
-        checkpoint
-            .progress
-            .script
-            .validate_partial(
-                checkpoint.progress.completed_unit_count,
-                checkpoint.progress.total_unit_count,
-            )
-            .map_err(|error| AppError::InvalidArgument(error.to_string()))?;
-        let present = checkpoint
-            .progress
-            .script
-            .scenes
-            .iter()
-            .map(|scene| scene.narrative_unit_index)
-            .collect::<HashSet<_>>();
-        Ok((1..=checkpoint.progress.completed_unit_count as u32)
-            .filter(|index| !present.contains(index))
-            .collect())
+        Ok(Some(checkpoint.progress))
     }
 }

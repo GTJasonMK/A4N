@@ -173,6 +173,7 @@ pub(super) fn choice_line_and_branch_scenes(
                 })
                 .collect::<Result<Vec<_>, AppError>>()?;
             branch_scenes.push(GalgamePersistScene {
+                shooting_source: None,
                 scene_index: branch_scene_index,
                 source_snapshot_chapter_id: context.source_snapshot_chapter_id,
                 title: option.branch_title.clone(),

@@ -16,12 +16,12 @@ pub use execution::{
 pub use remap::snapshot_profile_key;
 use remap::{
     remap_chapter_hashes_json, remap_chapter_video_reference_image_ids,
-    remap_conflict_affected_refs, remap_generation_spec_params_json,
-    remap_generation_spec_source_version_hash, remap_manga_generated_image_metadata,
-    remap_manga_page_layout, remap_media_request_snapshot, remap_media_source_external_path,
-    remap_profile_hashes_json, remap_source_snapshot_outline_payload,
-    remap_source_snapshot_profile_payload, remap_source_sync_decision_payload,
-    remap_video_metadata,
+    remap_conflict_affected_refs, remap_galgame_presentation_json,
+    remap_generation_spec_params_json, remap_generation_spec_source_version_hash,
+    remap_manga_generated_image_metadata, remap_manga_page_layout, remap_media_request_snapshot,
+    remap_media_source_external_path, remap_profile_hashes_json,
+    remap_source_snapshot_outline_payload, remap_source_snapshot_profile_payload,
+    remap_source_sync_decision_payload, remap_video_metadata,
 };
 use remap::{
     remap_conflict_decision_json, remap_conflict_local_summary, remap_conflict_source_summary,

@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use a4n_db_models::models::{
     chapter::chapter, character::protagonist_profile, project::text_anchor,
 };
-use a4n_domain::source_spans::text_anchor_prompt_values;
+use a4n_domain::source_spans::text_anchor_prompt_text;
 use a4n_error::AppError;
 use a4n_llm_context::{
     ContextAwareJsonLlmRequestInput, PACK_KIND_PROFILE_SYNC_SOURCE_CONTEXT,
@@ -14,8 +14,7 @@ use a4n_prompt::{rendering::PromptRenderer, request::build_json_task_user_messag
 use serde_json::{Value, json};
 
 use super::{
-    CHARACTER_DISCOVERY_CALL_KEY, CHARACTER_DISCOVERY_KIND, context::character_llm_chapter_context,
-    identity::existing_profile_for_prompt,
+    CHARACTER_DISCOVERY_CALL_KEY, CHARACTER_DISCOVERY_KIND, identity::existing_profile_for_prompt,
 };
 
 pub(super) async fn build_character_discovery_request(
@@ -31,19 +30,11 @@ pub(super) async fn build_character_discovery_request(
         .map(existing_profile_for_prompt)
         .collect::<Result<Vec<_>, _>>()
         .map_err(AppError::InvalidArgument)?;
-    let chapter_data = chapters
-        .iter()
-        .map(character_llm_chapter_context)
-        .collect::<Vec<_>>();
     let system_prompt = prompt_renderer
         .render_prompt(CHARACTER_DISCOVERY_KIND, &HashMap::new(), Some(project_id))
         .await?;
-    let stable_context = character_discovery_stable_context(
-        &existing_prompt_profiles,
-        &chapter_data,
-        chapters,
-        text_anchors,
-    );
+    let stable_context =
+        character_discovery_stable_context(&existing_prompt_profiles, chapters, text_anchors)?;
     let user_prompt = build_character_discovery_manifest_user_prompt()?;
     let chapter_ids = chapters
         .iter()
@@ -91,15 +82,19 @@ pub(super) fn build_character_discovery_manifest_user_prompt() -> Result<String,
 
 pub(super) fn character_discovery_stable_context(
     existing_profiles: &[Value],
-    chapter_data: &[Value],
     chapters: &[chapter::Model],
     text_anchors: &[text_anchor::Model],
-) -> Value {
-    json!({
+) -> Result<Value, AppError> {
+    let chapter_data = chapters.iter().map(|chapter| {
+        Ok(json!({
+            "chapter_number": chapter.chapter_number,
+            "content": text_anchor_prompt_text(chapter, text_anchors).map_err(AppError::InvalidArgument)?,
+        }))
+    }).collect::<Result<Vec<_>, AppError>>()?;
+    Ok(json!({
         "existing_profiles": existing_profiles,
         "chapters": chapter_data,
-        "text_anchors": text_anchor_prompt_values(chapters, text_anchors),
-    })
+    }))
 }
 
 fn character_discovery_payload(input: Value) -> Value {
@@ -127,7 +122,7 @@ fn character_discovery_payload(input: Value) -> Value {
             "strict_rules": [
                 "只返回可解析的完整 JSON 对象，不要 Markdown 或解释文字",
                 "字段要短，属性只保留身份、关系、关键状态等最能区分角色的信息",
-                "不要输出 evidence 或 evidence_span_id 字段；必须输出 evidence_anchor_id，并且 ID 必须来自稳定上下文包的 text_anchors[].id",
+                "不要输出 evidence 或 evidence_span_id 字段；evidence_anchor_id 必须选择 chapters[].content 中 ⟦id⟧ 标记的 ID，不含括号",
                 "不要输出 first_seen_chapter 或 latest_seen_chapter；系统会从 evidence_anchor_id 推导",
                 "不要输出 appearance、background、personality；系统会从三类属性对象中提炼摘要",
                 "evidence_anchor_id 只选择最能证明角色首次出场或身份的一个 text_anchor；不要自己抄写原文，不要输出省略号证据",

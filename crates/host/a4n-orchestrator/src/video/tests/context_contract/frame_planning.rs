@@ -1,6 +1,7 @@
 #[test]
 fn frame_prompt_builders_require_sectioned_image_prompt_text() {
-    let segment_plan = json!({"segments": []});
+    let segment_plan =
+        json!({"segments": [{"segment_number": 1, "scene_summary": "角色推门进入暗室。"}]});
     let available_assets = json!([]);
     let reference_ids = json!([]);
     let engine = prompt_engine();
@@ -40,11 +41,12 @@ fn frame_prompt_builders_require_sectioned_image_prompt_text() {
     assert!(single_frame_prompt.contains("current_frame"));
     assert!(single_frame_prompt.contains("只输出 frames 数组中的 1 条"));
     assert!(single_frame_prompt.contains("previous_frame"));
-    assert!(single_frame_prompt.contains("style_template_verbatim"));
+    assert!(!single_frame_prompt.contains("style_template_verbatim"));
+    assert!(single_frame_prompt.contains("constraints.style"));
     assert!(!single_frame_prompt.contains("frame_number_rule"));
 
-    let initial_frame_prompt = super::super::prompts::context::build_first_frame_prompt_user(
-        frame_prompt_context!(
+    let initial_frame_prompt =
+        super::super::prompts::context::build_first_frame_prompt_user(frame_prompt_context!(
             &engine,
             &segment_plan,
             &available_assets,
@@ -52,26 +54,22 @@ fn frame_prompt_builders_require_sectioned_image_prompt_text() {
             PromptOutputLanguage::ZhCn,
             "16:9",
             &reference_ids,
-        ),
-        "角色推门进入暗室。",
-    )
-    .expect("initial first-frame prompt builder should render");
+        ))
+        .expect("initial first-frame prompt builder should render");
     assert!(initial_frame_prompt.contains("【参考图约束】"));
     assert!(initial_frame_prompt.contains("【一致性与避免项】"));
-    assert!(initial_frame_prompt.contains("style_template_verbatim"));
+    assert!(!initial_frame_prompt.contains("style_template_verbatim"));
+    assert!(initial_frame_prompt.contains("电影感写实"));
     assert!(initial_frame_prompt.contains("不要自行精简、概括"));
 }
 
 #[test]
 fn planning_prompt_builders_include_safe_visual_rewrite_rule() {
-    let source_spans = Vec::new();
     let engine = prompt_engine();
     let context = super::super::prompts::context::VideoPlanningPromptContext {
         prompt_renderer: &engine,
         project_id: PROMPT_PROJECT_ID,
         chapter_summary: None,
-        chapter_analysis: None,
-        project_context: None,
         style: "电影感写实",
         duration_secs: 5,
         aspect_ratio: "16:9",
@@ -88,12 +86,9 @@ fn planning_prompt_builders_include_safe_visual_rewrite_rule() {
             }
         ]
     });
-    let segment_prompt = super::super::prompts::context::build_segment_plan_for_shot_user(
-        context,
-        &current_shot,
-        &source_spans,
-    )
-    .expect("segment plan prompt builder should render");
+    let segment_prompt =
+        super::super::prompts::context::build_segment_plan_for_shot_user(context, &current_shot)
+            .expect("segment plan prompt builder should render");
     assert!(segment_prompt.contains("safe_visual_rewrite_rule"));
     assert!(segment_prompt.contains("非血腥痕迹"));
     assert!(segment_prompt.contains("video_intent.hook"));

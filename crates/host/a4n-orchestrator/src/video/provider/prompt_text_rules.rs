@@ -30,7 +30,7 @@ pub enum ProviderPromptTextViolation {
     DirectPrompt(String),
 }
 
-const INTERNAL_VIDEO_PROMPT_TERMS: &[&str] = &[
+pub(in crate::video) const INTERNAL_VIDEO_PROMPT_TERMS: &[&str] = &[
     "首帧串联",
     "串联规则",
     "自动采集",

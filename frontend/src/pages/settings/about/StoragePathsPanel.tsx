@@ -46,9 +46,11 @@ export const StoragePathsPanel: React.FC<StoragePathsPanelProps> = ({
   const { t, locale } = useI18n();
   const [paths, setPaths] = useState<StoragePathsSummary | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [orphanSummary, setOrphanSummary] =
     useState<OrphanProjectDataDirsSummary | null>(null);
   const [orphanLoading, setOrphanLoading] = useState(false);
+  const [orphanError, setOrphanError] = useState<string | null>(null);
   const [orphanCleaning, setOrphanCleaning] = useState(false);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const mountedRef = useRef(true);
@@ -80,6 +82,7 @@ export const StoragePathsPanel: React.FC<StoragePathsPanelProps> = ({
     if (!isAdmin) {
       refreshInFlightRef.current = false;
       setPaths(null);
+      setLoadError(null);
       setLoading(false);
       return;
     }
@@ -88,13 +91,16 @@ export const StoragePathsPanel: React.FC<StoragePathsPanelProps> = ({
     const requestSeq = refreshSeqRef.current + 1;
     refreshSeqRef.current = requestSeq;
     setLoading(true);
+    setLoadError(null);
     try {
       const nextPaths = await getStoragePaths();
       if (!mountedRef.current || refreshSeqRef.current !== requestSeq) return;
       setPaths(nextPaths);
     } catch (err) {
       if (!mountedRef.current || refreshSeqRef.current !== requestSeq) return;
-      addToast(extractErrorMessage(err, t("settingsAbout.loadStoragePathsFailed")), "error");
+      const message = extractErrorMessage(err, t("settingsAbout.loadStoragePathsFailed"));
+      setLoadError(message);
+      addToast(message, "error");
     } finally {
       if (mountedRef.current && refreshSeqRef.current === requestSeq) {
         setLoading(false);
@@ -139,13 +145,16 @@ export const StoragePathsPanel: React.FC<StoragePathsPanelProps> = ({
     const requestSeq = orphanSeqRef.current + 1;
     orphanSeqRef.current = requestSeq;
     setOrphanLoading(true);
+    setOrphanError(null);
     try {
       const summary = await listOrphanProjectDataDirs();
       if (!mountedRef.current || orphanSeqRef.current !== requestSeq) return;
       setOrphanSummary(summary);
     } catch (err) {
       if (!mountedRef.current || orphanSeqRef.current !== requestSeq) return;
-      addToast(extractErrorMessage(err, t("settingsAbout.scanOrphansFailed")), "error");
+      const message = extractErrorMessage(err, t("settingsAbout.scanOrphansFailed"));
+      setOrphanError(message);
+      addToast(message, "error");
     } finally {
       if (orphanSeqRef.current === requestSeq) {
         orphanScanningRef.current = false;
@@ -182,6 +191,7 @@ export const StoragePathsPanel: React.FC<StoragePathsPanelProps> = ({
     }
     const requestSeq = orphanSeqRef.current + 1;
     orphanSeqRef.current = requestSeq;
+    setOrphanError(null);
     try {
       const summary = await cleanupOrphanProjectDataDirs();
       if (!mountedRef.current || orphanSeqRef.current !== requestSeq) return;
@@ -192,7 +202,9 @@ export const StoragePathsPanel: React.FC<StoragePathsPanelProps> = ({
       );
     } catch (err) {
       if (!mountedRef.current || orphanSeqRef.current !== requestSeq) return;
-      addToast(extractErrorMessage(err, t("settingsAbout.cleanupOrphansFailed")), "error");
+      const message = extractErrorMessage(err, t("settingsAbout.cleanupOrphansFailed"));
+      setOrphanError(message);
+      addToast(message, "error");
     } finally {
       if (orphanSeqRef.current === requestSeq) {
         orphanCleaningRef.current = false;
@@ -244,11 +256,12 @@ export const StoragePathsPanel: React.FC<StoragePathsPanelProps> = ({
           </BookIconButton>
         </div>
 
+        {loadError ? <p role="alert" className="text-error">{loadError}</p> : null}
         {loading && !paths ? (
           <div className="inline-flex items-center gap-1.5 text-book-text-muted">
             <LoadingSpinner size="sm" /> {t("settingsAbout.loading")}
           </div>
-        ) : (
+        ) : paths ? (
           <details className="border-t border-book-border/35 pt-2">
             <summary className="flex cursor-pointer list-none items-center gap-2 py-1 text-book-text-sub [&::-webkit-details-marker]:hidden">
               <span>{t("settingsAbout.viewStorageLocation")}</span>
@@ -286,7 +299,7 @@ export const StoragePathsPanel: React.FC<StoragePathsPanelProps> = ({
               </div>
             )}
           </details>
-        )}
+        ) : null}
       </section>
 
       {isAdmin && (
@@ -309,7 +322,7 @@ export const StoragePathsPanel: React.FC<StoragePathsPanelProps> = ({
                   ? orphanSummary.total_count > 0
                     ? t("settingsAbout.orphanSummary", { count: orphanSummary.total_count, size: formatBytes(orphanSummary.total_size_bytes, locale) })
                     : t("settingsAbout.noOrphans")
-                  : t("settingsAbout.notScanned")}
+                  : orphanError ? t("settingsAbout.scanOrphansFailed") : t("settingsAbout.notScanned")}
               </div>
             </div>
             <BookButton
@@ -340,6 +353,7 @@ export const StoragePathsPanel: React.FC<StoragePathsPanelProps> = ({
             ) : null}
           </div>
 
+          {orphanError ? <p role="alert" className="text-error">{orphanError}</p> : null}
           {orphanSummary && orphanSummary.items.length > 0 ? (
             <details className="border-t border-book-border/35 pt-2 text-caption text-book-text-muted">
               <summary className="w-fit cursor-pointer hover:text-book-text-main">

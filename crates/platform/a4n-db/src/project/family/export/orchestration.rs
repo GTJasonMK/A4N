@@ -91,7 +91,12 @@ where
                 hash == &plan.source_content_sha256
             }),
     });
-    let chapter_shooting_scripts = chapter_shooting_scripts?;
+    let mut chapter_shooting_scripts = chapter_shooting_scripts?;
+    chapter_shooting_scripts.retain(|script| {
+        script
+            .source_snapshot_id
+            .is_none_or(|id| snapshot_id_set.contains(&id))
+    });
     let character_portraits = character_portraits?;
     let generated_images = generated_images?;
     let chapter_manga_prompts = chapter_manga_prompts?;

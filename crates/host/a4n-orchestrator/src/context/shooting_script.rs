@@ -172,6 +172,42 @@ impl ShootingScriptApplication {
 }
 
 impl OrchestratorContext {
+    pub(crate) async fn current_chapter_shooting_script_unit_progress(
+        &self,
+        source: ChapterShootingScriptSourceInput,
+    ) -> Result<Option<crate::shooting_script::ChapterShootingScriptUnitProgress>, AppError> {
+        let (source, _) = self
+            .load_chapter_shooting_script_source_record(&source)
+            .await?;
+        let progress = a4n_db::shooting_script::chapter_shooting_script_progress_for_source(
+            self.shooting_script.connection(),
+            &source,
+        )
+        .await
+        .map_err(shooting_script_db_error)?;
+        Ok(progress.map(
+            |progress| crate::shooting_script::ChapterShootingScriptUnitProgress {
+                workflow_run_id: progress.workflow_run_id,
+                script: progress.script,
+                completed_unit_count: progress.completed_unit_count,
+                total_unit_count: progress.total_unit_count,
+                resolved: None,
+            },
+        ))
+    }
+
+    pub(crate) async fn shooting_script_plan_sync(
+        &self,
+        script: &ParsedChapterShootingScript,
+    ) -> Result<a4n_domain::shooting_script::ShootingScriptPlanSyncV1, AppError> {
+        a4n_db::shooting_script::chapter_shooting_script_plan_sync(
+            self.shooting_script.connection(),
+            script,
+        )
+        .await
+        .map_err(shooting_script_db_error)
+    }
+
     pub(crate) async fn load_chapter_shooting_script_source_record(
         &self,
         input: &ChapterShootingScriptSourceInput,
@@ -369,6 +405,12 @@ impl ShootingScriptRecordMutationApplicationPort for TestShootingScriptPublicati
             .await
             .map_err(shooting_script_db_error)?,
         };
+        let plan_sync = a4n_db::shooting_script::chapter_shooting_script_plan_sync(
+            self.database.connection(),
+            &record,
+        )
+        .await
+        .map_err(shooting_script_db_error)?;
         Ok(
             a4n_api_contract::shooting_script::ChapterShootingScriptView {
                 record: a4n_api_contract::shooting_script::ChapterShootingScriptRecordSummary {
@@ -379,6 +421,7 @@ impl ShootingScriptRecordMutationApplicationPort for TestShootingScriptPublicati
                     visual_plan_sha256: record.record.visual_plan_sha256,
                 },
                 script: record.script,
+                plan_sync,
             },
         )
     }

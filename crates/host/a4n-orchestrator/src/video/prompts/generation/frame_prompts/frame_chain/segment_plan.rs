@@ -12,12 +12,12 @@ use crate::video::prompts::generation::ProgressSpan;
 use crate::video::prompts::generation::frame_prompts::{
     PreparedVideoPromptInputs, ReusableSharedSegmentPlanQuery, SHARED_SEGMENT_PLAN_CONTEXT,
     SHARED_SEGMENT_PLAN_CONTRACT_VERSION, SHARED_SEGMENT_PLAN_PROGRESS, SHARED_SEGMENT_PLAN_TITLE,
-    VideoPromptChunk, VideoPromptProgress, ensure_existing_segment_plans_can_regenerate,
-    ensure_no_existing_segment_plan_before_new_planning, ensure_segment_plan_generation_can_start,
-    load_previous_shared_segment_recipe_state, load_video_segment_plan_draft_checkpoints,
-    load_video_segment_plan_draft_recipe_state, report_video_prompt_progress,
-    reusable_shared_segment_plan, select_video_segment_recipe_state_by_shots,
-    video_execution_chain_identity, video_segment_recipes_from_draft_for_final_plan,
+    VideoPromptChunk, VideoPromptProgress, ensure_no_existing_segment_plan_before_new_planning,
+    ensure_segment_plan_generation_can_start, load_previous_shared_segment_recipe_state,
+    load_video_segment_plan_draft_checkpoints, load_video_segment_plan_draft_recipe_state,
+    report_video_prompt_progress, reusable_shared_segment_plan,
+    select_video_segment_recipe_state_by_shots, video_execution_chain_identity,
+    video_segment_recipes_from_draft_for_final_plan,
 };
 use crate::video::prompts::store::{
     NewChapterVideoPrompt, NewChapterVideoPromptInput, PromptWorkflowMode,
@@ -115,17 +115,6 @@ pub(in crate::video::prompts::generation::frame_prompts) async fn generate_share
     let segment_storage_context = SHARED_SEGMENT_PLAN_CONTEXT;
     let segment_storage_progress = SHARED_SEGMENT_PLAN_PROGRESS;
     let incremental_unit = target_narrative_unit_index.is_some();
-    if regenerate_existing {
-        ensure_existing_segment_plans_can_regenerate(
-            service,
-            project_id,
-            chapter_id,
-            segment_storage_workflow_mode,
-            segment_storage_prompt_type,
-            &[],
-        )
-        .await?;
-    }
     let reusable_segment = if regenerate_existing || incremental_unit {
         None
     } else {
@@ -192,11 +181,14 @@ pub(in crate::video::prompts::generation::frame_prompts) async fn generate_share
                     prompt_output_language: prompt_output_language.as_str(),
                     previous_segment_plan: previous_recipe_state
                         .as_ref()
-                        .map(|(segments, _)| segments.as_slice()),
+                        .map(|(segments, _, _)| segments.as_slice()),
                     previous_segment_recipes: previous_recipe_state
                         .as_ref()
-                        .map(|(_, recipes)| recipes.as_slice()),
-                    reuse_published_shots: incremental_unit && !regenerate_existing,
+                        .map(|(_, recipes, _)| recipes.as_slice()),
+                    previous_script_identity: previous_recipe_state
+                        .as_ref()
+                        .map(|(_, _, source)| source),
+                    reuse_published_shots: !regenerate_existing,
                     duration_secs,
                     aspect_ratio: &aspect_ratio,
                     prompt_renderer,
@@ -218,13 +210,25 @@ pub(in crate::video::prompts::generation::frame_prompts) async fn generate_share
             return Err(AppError::Cancelled);
         }
         let new_segment_plan = prepared.segment_plan;
+        let updated_source_shots = new_segment_plan
+            .iter()
+            .map(|segment| segment.source_shot_id.clone())
+            .collect::<HashSet<_>>();
         let (segment_plan, segment_recipes) = if new_segment_plan.is_empty() {
-            previous_recipe_state
-                .clone()
-                .ok_or_else(|| AppError::InvalidState {
-                    current: "missing_previous_segment_plan".to_string(),
-                    operation: "复用已完成场景的片段规划".to_string(),
-                })?
+            let previous =
+                previous_recipe_state
+                    .as_ref()
+                    .ok_or_else(|| AppError::InvalidState {
+                        current: "missing_previous_segment_plan".to_string(),
+                        operation: "复用已完成场景的片段规划".to_string(),
+                    })?;
+            merge_incremental_segment_plan(
+                Some((&previous.0, &previous.1)),
+                Vec::new(),
+                Vec::new(),
+                &style,
+                &prepared.source_shot_order,
+            )?
         } else {
             let workflow_run_id = workflow_run_id.ok_or_else(|| {
                 AppError::InvalidArgument("视频片段规划缺少 workflow_run_id".to_string())
@@ -250,11 +254,11 @@ pub(in crate::video::prompts::generation::frame_prompts) async fn generate_share
                 &style,
                 prompt_output_language.as_str(),
             )?;
-            if incremental_unit {
+            if previous_recipe_state.is_some() {
                 merge_incremental_segment_plan(
                     previous_recipe_state
                         .as_ref()
-                        .map(|(segments, recipes)| (segments.as_slice(), recipes.as_slice())),
+                        .map(|(segments, recipes, _)| (segments.as_slice(), recipes.as_slice())),
                     new_segment_plan,
                     new_segment_recipes,
                     &style,
@@ -266,12 +270,17 @@ pub(in crate::video::prompts::generation::frame_prompts) async fn generate_share
         };
         let plan_complete = prepared.source_complete
             && segment_plan_covers_required_shots(&segment_plan, &prepared.source_shot_order);
-        let execution_identity = video_execution_chain_identity(
+        let mut execution_identity = video_execution_chain_identity(
             &prepared.shooting_script_projection,
             &segment_plan,
             &style,
             duration_secs,
             &aspect_ratio,
+        )?;
+        super::super::checkpoint::carry_forward_execution_sources(
+            &mut execution_identity,
+            previous_recipe_state.as_ref().map(|(_, _, source)| source),
+            &updated_source_shots,
         )?;
         segment_plan_draft(SegmentPlanDraftInput {
             project_id,
@@ -359,6 +368,9 @@ pub(in crate::video::prompts::generation::frame_prompts) fn merge_incremental_se
     let mut inserted_new = false;
     if let Some((previous_segments, _)) = previous {
         for segment in previous_segments {
+            if !source_shot_order.contains(&segment.source_shot_id) {
+                continue;
+            }
             if replaced_shots.contains(segment.source_shot_id.as_str()) {
                 if !inserted_new {
                     pairs.extend(new_pairs.iter().cloned());
@@ -529,6 +541,21 @@ mod tests {
         assert_eq!(replaced[0].source_shot_id, "shot-1");
         assert_eq!(replaced[0].title, "replacement");
         assert_eq!(replaced[1].source_shot_id, "shot-2");
+        let (remaining, _) = merge_incremental_segment_plan(
+            Some((&previous_segments, &previous_recipes)),
+            Vec::new(),
+            Vec::new(),
+            "cinematic",
+            &["shot-2".to_string()],
+        )
+        .unwrap();
+        assert_eq!(remaining.len(), 1);
+        assert_eq!(remaining[0].source_shot_id, "shot-2");
+        assert_eq!(remaining[0].segment_number, 1);
+        assert_eq!(
+            a4n_video_contract::video_segment_content_fingerprint(&remaining[0]).unwrap(),
+            a4n_video_contract::video_segment_content_fingerprint(&previous_segments[1]).unwrap()
+        );
 
         let unknown = segment(3);
         let unknown_recipes =

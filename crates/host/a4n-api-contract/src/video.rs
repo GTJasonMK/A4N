@@ -445,7 +445,6 @@ pub struct UpdateChapterVideoSegmentPlanInput {
     pub expected_updated_at: String,
     #[schemars(length(min = 1))]
     pub segments: Vec<VideoSegmentPlanV2>,
-    pub downstream_strategy: DownstreamConflictStrategy,
 }
 
 /// 参考媒体视频请求；提示词、URL 槽、时长和画幅由当前片段 recipe 决定。
@@ -585,7 +584,6 @@ pub trait VideoPromptMutationApplicationPort: Send + Sync {
         user_id: i64,
         prompt_id: i64,
         input: UpdateChapterVideoSegmentPlanInput,
-        cleanup: &dyn VideoPromptDownstreamCleanupPort,
     ) -> Result<ChapterVideoPromptSummary, a4n_error::AppError>;
 
     async fn update_chapter_video_segment_recipe(
@@ -1027,6 +1025,19 @@ mod tests {
 
     #[test]
     fn generated_video_update_has_one_strict_patch_contract() {
+        for payload in [
+            json!({"is_favorite": true}),
+            json!({"prompt": "new prompt", "negative_prompt": null}),
+            json!({"negative_prompt": "blur"}),
+        ] {
+            let input: UpdateGeneratedVideoInput = serde_json::from_value(payload.clone()).unwrap();
+            let forwarded = serde_json::to_value(&input).unwrap();
+            assert_eq!(forwarded, payload);
+            assert_eq!(
+                serde_json::from_value::<UpdateGeneratedVideoInput>(forwarded).unwrap(),
+                input
+            );
+        }
         let input: UpdateGeneratedVideoInput = serde_json::from_value(json!({
             "prompt": "new prompt",
             "negative_prompt": null,

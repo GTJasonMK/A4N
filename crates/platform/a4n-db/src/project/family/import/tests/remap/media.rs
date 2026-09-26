@@ -152,6 +152,35 @@ fn media_request_snapshot_rejects_target_id_without_kind() {
 }
 
 #[test]
+fn imported_video_fingerprints_follow_remapped_resources_without_rebinding_stale_outputs() {
+    let mut maps = ImportIdMaps::default();
+    maps.video_segment_fingerprints
+        .insert("old-segment".into(), "new-segment".into());
+    maps.video_recipe_fingerprints
+        .insert("old-recipe".into(), "new-recipe".into());
+    let remapped = remap_video_metadata(Some(&json!({
+        "video_execution_identity": {
+            "segment_sha256": "old-segment", "segment_recipe_fingerprint": "old-recipe",
+            "segment_identities": [
+                {"source_shot_id": "shot-1", "segment_index_in_shot": 1, "segment_sha256": "old-segment"},
+                {"source_shot_id": "shot-2", "segment_index_in_shot": 1, "segment_sha256": "stale-segment"}
+            ]
+        }
+    })), &maps).unwrap().unwrap();
+    let identity = &remapped["video_execution_identity"];
+    assert_eq!(identity["segment_sha256"], "new-segment");
+    assert_eq!(identity["segment_recipe_fingerprint"], "new-recipe");
+    assert_eq!(
+        identity["segment_identities"][0]["segment_sha256"],
+        "new-segment"
+    );
+    assert_eq!(
+        identity["segment_identities"][1]["segment_sha256"],
+        "stale-segment"
+    );
+}
+
+#[test]
 fn video_refs_remap_metadata_provenance_binding_and_runtime_identity() {
     let mut maps = ImportIdMaps::default();
     maps.project_ids.insert(1, 101);

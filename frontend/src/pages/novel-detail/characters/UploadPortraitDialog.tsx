@@ -8,7 +8,7 @@ import { uploadPortrait, type PortraitType } from "../../../api/portrait";
 import { useToast } from "../../../components/feedback/Toast";
 import { BookButton } from "../../../components/ui/BookButton";
 import { BookInput, BookTextarea } from "../../../components/ui/BookInput";
-import { ZoomableImage } from "../../../components/ui/ImageLightbox";
+import { ImageZoomButton } from "../../../components/ui/ImageLightbox";
 import { Modal } from "../../../components/ui/Modal";
 import { readFileAsBase64 } from "../../../utils/fileUpload";
 import {
@@ -198,6 +198,7 @@ export const UploadPortraitDialog: React.FC<UploadPortraitDialogProps> = ({
         <div>
           <label className="mb-1 block text-xs text-book-text-muted">{t("characterDetail.portrait.profile")}</label>
           <ThemedSelect
+            aria-label={t("characterDetail.portrait.profile")}
             value={profileId}
             onChange={(selectedValue) => setProfileId(Number(selectedValue))}
             className="pyqt-input w-full"
@@ -214,6 +215,7 @@ export const UploadPortraitDialog: React.FC<UploadPortraitDialogProps> = ({
         <div>
           <label className="mb-1 block text-xs text-book-text-muted">{t("characterDetail.portrait.type")}</label>
           <ThemedSelect
+            aria-label={t("characterDetail.portrait.type")}
             value={portraitType}
             onChange={(selectedValue) => setPortraitType(selectedValue as PortraitType)}
             className="pyqt-input w-full"
@@ -227,42 +229,45 @@ export const UploadPortraitDialog: React.FC<UploadPortraitDialogProps> = ({
           </ThemedSelect>
         </div>
 
-        <label
-          className={[
-            "flex min-h-[168px] cursor-pointer flex-col items-center justify-center gap-2 rounded-[14px] border border-dashed border-book-border/70 bg-book-bg-paper/35 p-3 text-center text-xs text-book-text-muted transition-[border-color,background-color,transform] duration-150 ease-out hover:border-book-primary/55 hover:bg-book-bg-paper/60 active:scale-[0.995]",
-            busy ? "pointer-events-none opacity-60" : "",
-          ].join(" ")}
-        >
-          {previewUrl ? (
-            <ZoomableImage
-              src={previewUrl}
-              alt=""
-              className="max-h-56 max-w-full rounded-[12px] border border-book-border/50 object-contain"
-              tabIndex={-1}
+        <div className="relative">
+          <label
+            className={[
+              "flex min-h-[168px] cursor-pointer flex-col items-center justify-center gap-2 rounded-[14px] border border-dashed border-book-border/70 bg-book-bg-paper/35 p-3 text-center text-xs text-book-text-muted transition-[border-color,background-color,transform] duration-150 ease-out hover:border-book-primary/55 hover:bg-book-bg-paper/60 focus-within:outline focus-within:outline-2 focus-within:outline-book-primary active:scale-[0.995]",
+              busy ? "pointer-events-none opacity-60" : "",
+            ].join(" ")}
+          >
+            {previewUrl ? (
+              <img
+                src={previewUrl}
+                alt=""
+                className="max-h-56 max-w-full rounded-[12px] border border-book-border/50 object-contain"
+              />
+            ) : (
+              <>
+                <Upload size={18} />
+                <span>{t("characterDetail.portrait.chooseImage")}</span>
+              </>
+            )}
+            {file ? (
+              <span className="max-w-full truncate text-small text-book-text-sub">
+                {t("characterDetail.portrait.selectedFile", { name: file.name })}
+              </span>
+            ) : null}
+            <input
+              type="file"
+              aria-label={t("characterDetail.portrait.chooseImage")}
+              accept={supportedImageAccept()}
+              className="sr-only"
+              disabled={busy}
+              onChange={(event) => {
+                const nextFile = event.currentTarget.files?.[0] ?? null;
+                event.currentTarget.value = "";
+                void handleFileChange(nextFile);
+              }}
             />
-          ) : (
-            <>
-              <Upload size={18} />
-              <span>{t("characterDetail.portrait.chooseImage")}</span>
-            </>
-          )}
-          {file ? (
-            <span className="max-w-full truncate text-small text-book-text-sub">
-              {t("characterDetail.portrait.selectedFile", { name: file.name })}
-            </span>
-          ) : null}
-          <input
-            type="file"
-            accept={supportedImageAccept()}
-            className="hidden"
-            disabled={busy}
-            onChange={(event) => {
-              const nextFile = event.currentTarget.files?.[0] ?? null;
-              event.currentTarget.value = "";
-              void handleFileChange(nextFile);
-            }}
-          />
-        </label>
+          </label>
+          {previewUrl ? <ImageZoomButton src={previewUrl} alt={selectedProfile?.name ?? ""} className="absolute right-3 top-3" /> : null}
+        </div>
 
         <BookTextarea
           label={t("characterDetail.portrait.promptLabel")}

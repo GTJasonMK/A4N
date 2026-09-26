@@ -1,5 +1,6 @@
 use a4n_db_models::models::source_sync::{source_sync_conflict, source_sync_run};
 use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QueryOrder};
+use std::collections::HashMap;
 
 use super::SourceSyncDbError;
 
@@ -7,6 +8,7 @@ use super::SourceSyncDbError;
 pub struct SourceSyncPlanRecord {
     pub run: source_sync_run::Model,
     pub conflicts: Vec<source_sync_conflict::Model>,
+    pub regeneration_targets: HashMap<i64, i64>,
 }
 
 pub(super) async fn source_sync_plan_record<C>(
@@ -21,5 +23,12 @@ where
         .order_by_asc(source_sync_conflict::Column::Id)
         .all(db)
         .await?;
-    Ok(SourceSyncPlanRecord { run, conflicts })
+    let regeneration_targets =
+        super::galgame::galgame_scene_regeneration_targets(db, run.derived_project_id, &conflicts)
+            .await?;
+    Ok(SourceSyncPlanRecord {
+        run,
+        conflicts,
+        regeneration_targets,
+    })
 }

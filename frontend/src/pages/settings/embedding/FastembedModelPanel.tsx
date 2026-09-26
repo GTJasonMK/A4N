@@ -77,13 +77,14 @@ export const FastembedModelPanel: React.FC<FastembedModelPanelProps> = ({
             <LoadingSpinner size="sm" />
             {t("common.deleting")}
           </span>
-        ) : model?.downloaded ? (
+        ) : model && model.size_bytes > 0 ? (
           <Dropdown
             items={[
               {
                 label: t("settingsEmbedding.deleteCache"),
                 icon: <Trash2 size={12} />,
                 danger: true,
+                disabled: busy,
                 onClick: onDelete,
               },
             ]}

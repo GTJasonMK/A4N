@@ -176,8 +176,12 @@ export function ChapterOutlineSection({
               >
                 {isEditing ? (
                   <div className="flex flex-1 flex-col gap-2">
+                    <span className="text-small font-medium text-book-text-muted">
+                      {t("outline.chapterSection.chapter", { chapter: outline.chapter_number })}
+                    </span>
                     <input
                       type="text"
+                      aria-label={t("outline.chapterSection.titlePlaceholder")}
                       value={editForm.title}
                       onChange={(event) =>
                         onEditFormChange({ ...editForm, title: event.target.value })
@@ -187,35 +191,38 @@ export function ChapterOutlineSection({
                       className="pyqt-input !py-1 text-sm"
                     />
                     <textarea
+                      aria-label={t("outline.chapterSection.summaryPlaceholder")}
                       value={editForm.summary}
                       onChange={(event) =>
                         onEditFormChange({ ...editForm, summary: event.target.value })
                       }
                       disabled={disabled || savingId === outline.id}
                       placeholder={t("outline.chapterSection.summaryPlaceholder")}
-                      className="book-control min-h-[80px] resize-y p-2 text-xs leading-relaxed"
+                      className="book-control min-h-40 resize-y p-2 text-xs leading-relaxed"
                     />
                     <div className="flex flex-wrap items-center justify-end gap-1.5">
-                      <button
+                      <BookButton
                         type="button"
+                        variant="secondary"
+                        size="sm"
                         onClick={onCancelEdit}
                         disabled={disabled || savingId === outline.id}
-                        className="pyqt-btn-secondary !min-h-9 !px-2.5 text-small sm:!min-h-[26px]"
                       >
                         {t("outline.chapterSection.cancel")}
-                      </button>
-                      <button
+                      </BookButton>
+                      <BookButton
                         type="button"
+                        variant="primary"
+                        size="sm"
                         onClick={() => onSave(outline)}
                         disabled={disabled || savingId === outline.id}
-                        className="pyqt-btn-primary !min-h-9 !px-2.5 text-small sm:!min-h-[26px]"
                       >
                         {savingId === outline.id ? (
                           <LoadingSpinner size="sm" />
                         ) : (
                           t("outline.chapterSection.save")
                         )}
-                      </button>
+                      </BookButton>
                     </div>
                   </div>
                 ) : (

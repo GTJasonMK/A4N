@@ -1,11 +1,13 @@
 use a4n_db_models::models::chapter::chapter_video_prompt;
 use a4n_error::AppError;
-use a4n_video_contract::VideoShootingScriptIdentityV1;
+use a4n_video_contract::{
+    VideoShootingScriptIdentityV1, validate_video_segment_plan_identity,
+    video_segment_plan_from_metadata,
+};
 use serde_json::{Value, json};
-use std::collections::HashSet;
 
 use crate::video::OrchestratorContext;
-use crate::video::prompts::json::parse_stored_video_segment_plan_for_reuse;
+use crate::video::prompts::json::validate_stored_video_segment_plan;
 use crate::video::prompts::store::{
     NewChapterVideoPromptInput, PromptWorkflowMode, new_prompt_draft,
 };
@@ -31,7 +33,7 @@ pub(in crate::video::prompts::generation::frame_prompts) async fn load_shared_se
     let metadata = row
         .metadata_json
         .as_ref()
-        .and_then(Value::as_object)
+        .filter(|value| value.is_object())
         .ok_or_else(|| AppError::InvalidArgument("共享片段规划 metadata_json 无效".to_string()))?;
     if metadata.get("contract_version").and_then(Value::as_str)
         != Some(SHARED_SEGMENT_PLAN_CONTRACT_VERSION)
@@ -41,76 +43,17 @@ pub(in crate::video::prompts::generation::frame_prompts) async fn load_shared_se
         )));
     }
     let segment_plan =
-        serde_json::from_value::<Vec<crate::video::prompts::json::VideoSegmentPlan>>(
-            metadata.get("segments").cloned().ok_or_else(|| {
-                AppError::InvalidArgument("共享片段规划缺少 segments".to_string())
-            })?,
-        )
-        .map_err(|error| {
-            AppError::InvalidArgument(format!("共享片段规划 segments 无效：{error}"))
-        })?;
-    if segment_plan.is_empty() {
-        return Err(AppError::InvalidArgument(
-            "共享片段规划必须包含至少一个片段".to_string(),
-        ));
-    }
+        video_segment_plan_from_metadata(metadata).map_err(AppError::InvalidArgument)?;
     let execution_identity = metadata
         .get("video_execution_identity")
         .cloned()
         .ok_or_else(|| AppError::InvalidArgument("共享片段规划缺少执行身份".to_string()))?;
-    validate_segment_plan_execution_identity(&execution_identity, &segment_plan)?;
+    validate_video_segment_plan_identity(&execution_identity, &segment_plan)
+        .map_err(AppError::InvalidArgument)?;
     Ok(LoadedSharedSegmentPlan {
         segment_plan,
         execution_identity,
     })
-}
-
-fn validate_segment_plan_execution_identity(
-    identity: &Value,
-    segment_plan: &[crate::video::prompts::json::VideoSegmentPlan],
-) -> Result<(), AppError> {
-    if identity.get("contract_epoch").and_then(Value::as_u64)
-        != Some(a4n_video_contract::VIDEO_EXECUTION_CONTRACT_EPOCH.into())
-    {
-        return Err(AppError::InvalidArgument(format!(
-            "共享片段规划执行身份已过期，当前需要合同 {}；请重新生成该片段规划",
-            a4n_video_contract::VIDEO_EXECUTION_CONTRACT_EPOCH
-        )));
-    }
-    let segment_identities = identity
-        .get("segment_identities")
-        .and_then(Value::as_array)
-        .filter(|items| items.len() == segment_plan.len())
-        .ok_or_else(|| {
-            AppError::InvalidArgument(
-                "共享片段规划执行身份不完整；请重新生成该片段规划".to_string(),
-            )
-        })?;
-    let identity_keys = segment_identities
-        .iter()
-        .filter_map(|item| {
-            let item = item.as_object()?;
-            let source_shot_id = item.get("source_shot_id").and_then(Value::as_str)?;
-            let segment_index = item.get("segment_index_in_shot").and_then(Value::as_i64)?;
-            item.get("segment_sha256")
-                .and_then(Value::as_str)
-                .filter(|value| !value.is_empty())?;
-            Some((source_shot_id, segment_index))
-        })
-        .collect::<HashSet<_>>();
-    for segment in segment_plan {
-        let matched = identity_keys.contains(&(
-            segment.source_shot_id.as_str(),
-            i64::from(segment.segment_index_in_shot),
-        ));
-        if !matched {
-            return Err(AppError::InvalidArgument(format!(
-                "共享片段规划执行身份缺少镜头 {} 的第 {} 个片段；请重新生成该片段规划",
-                segment.source_shot_id, segment.segment_index_in_shot
-            )));
-        }
-    }
-    Ok(())
 }
 
 pub(in crate::video::prompts::generation::frame_prompts) async fn ensure_no_existing_segment_plan_before_new_planning(
@@ -263,7 +206,7 @@ pub(in crate::video::prompts::generation::frame_prompts) fn reusable_segment_pla
             row.shot_number
         ))
     })?;
-    let metadata = metadata_json.as_object_mut().ok_or_else(|| {
+    let metadata = metadata_json.as_object().ok_or_else(|| {
         AppError::InvalidArgument(format!(
             "已保存{context} #{} 元数据格式无效",
             row.shot_number
@@ -307,8 +250,11 @@ pub(in crate::video::prompts::generation::frame_prompts) fn reusable_segment_pla
             row.shot_number
         )));
     }
-    let segment_plan =
-        parse_stored_video_segment_plan_for_reuse(&row.visual_prompt, source_spans, aspect_ratio)?;
+    let segment_plan = validate_stored_video_segment_plan(
+        video_segment_plan_from_metadata(&metadata_json).map_err(AppError::InvalidArgument)?,
+        source_spans,
+        aspect_ratio,
+    )?;
     let expected_identity = video_execution_chain_identity(
         shooting_script_projection,
         &segment_plan,
@@ -322,14 +268,48 @@ pub(in crate::video::prompts::generation::frame_prompts) fn reusable_segment_pla
             row.shot_number
         ))
     })?;
-    if saved_identity != &expected_identity {
+    validate_video_segment_plan_identity(saved_identity, &segment_plan)
+        .map_err(AppError::InvalidArgument)?;
+    if [
+        "contract_epoch",
+        "source_content_sha256",
+        "style_sha256",
+        "duration_secs",
+        "aspect_ratio",
+    ]
+    .iter()
+    .any(|field| saved_identity.get(*field) != expected_identity.get(*field))
+    {
         return Err(AppError::InvalidArgument(format!(
             "已保存{context} #{} 的拍摄剧本、投影、片段或视频单元身份已变化，不能用于续跑",
             row.shot_number
         )));
     }
+    let saved_source: VideoShootingScriptIdentityV1 =
+        serde_json::from_value(saved_identity["shooting_script_identity"].clone())?;
+    let plan_complete = plan_complete
+        && segment_plan.iter().all(|segment| {
+            saved_source.matches_shot(
+                &shooting_script_projection
+                    .shooting_script_identity
+                    .source_content_sha256,
+                &segment.source_shot_id,
+                shooting_script_projection
+                    .shooting_script_identity
+                    .shot_fingerprints
+                    .get(&segment.source_shot_id),
+            )
+        })
+        && shooting_script_projection.shots().all(|shot| {
+            segment_plan
+                .iter()
+                .any(|segment| segment.source_shot_id == shot.source_shot_id)
+        });
     let segment_json = json!({ "segments": &segment_plan });
     let canonical_segment_out = segment_json.to_string();
+    let metadata = metadata_json
+        .as_object_mut()
+        .expect("metadata object validated above");
     metadata.insert("contract_version".to_string(), json!(contract_version));
     metadata.insert("video_execution_identity".to_string(), expected_identity);
     metadata.insert("segments".to_string(), json!(segment_plan));
@@ -370,10 +350,9 @@ pub(in crate::video::prompts::generation::frame_prompts) async fn reusable_share
         duration_secs,
         aspect_ratio,
     } = query;
-    let shooting_script_projection =
-        current_video_shooting_script_projection(service, project_id, chapter_id, duration_secs)
-            .await?;
-    reusable_segment_plan_for_resume(ReusableSegmentPlanQuery {
+    let (shooting_script_projection, source_current) =
+        current_video_shooting_script_projection(service, project_id, chapter_id).await?;
+    let mut reused = reusable_segment_plan_for_resume(ReusableSegmentPlanQuery {
         service,
         project_id,
         chapter_id,
@@ -388,15 +367,18 @@ pub(in crate::video::prompts::generation::frame_prompts) async fn reusable_share
         contract_version: super::super::SHARED_SEGMENT_PLAN_CONTRACT_VERSION,
         context: super::super::SHARED_SEGMENT_PLAN_CONTEXT,
     })
-    .await
+    .await?;
+    if let Some(plan) = &mut reused {
+        plan.plan_complete &= source_current;
+    }
+    Ok(reused)
 }
 
 async fn current_video_shooting_script_projection(
     service: &OrchestratorContext,
     project_id: i64,
     chapter_id: i64,
-    duration_secs: i32,
-) -> Result<VideoShootingScriptProjection, AppError> {
+) -> Result<(VideoShootingScriptProjection, bool), AppError> {
     let resolved = service
         .require_current_chapter_shooting_script(
             crate::shooting_script::ChapterShootingScriptSourceInput {
@@ -407,7 +389,17 @@ async fn current_video_shooting_script_projection(
         )
         .await?;
     let record = &resolved.shooting_script.record;
-    video_projection_from_shooting_script(
+    let confirmed = service
+        .confirmed_visual_plan_for_shooting_script(&resolved.source, None)
+        .await?;
+    let director =
+        crate::chapter_visual_plan::project_visual_plan_for_shooting_script(&confirmed.plan, &[])?;
+    let source_current = resolved
+        .shooting_script
+        .script
+        .plan_sync(&director)
+        .is_current();
+    let projection = video_projection_from_shooting_script(
         &resolved.shooting_script.script,
         VideoShootingScriptIdentityV1 {
             record_id: record.id,
@@ -415,9 +407,13 @@ async fn current_video_shooting_script_projection(
             source_revision_key: record.source_revision_key.clone(),
             source_content_sha256: record.source_content_sha256.clone(),
             script_sha256: record.script_sha256.clone(),
+            shot_fingerprints: resolved
+                .shooting_script
+                .script
+                .shot_content_fingerprints(&director)?,
         },
-        duration_secs,
-    )
+    )?;
+    Ok((projection, source_current))
 }
 
 pub(in crate::video::prompts::generation::frame_prompts) fn prompt_resume_context_matches(
@@ -470,7 +466,14 @@ mod tests {
             "16:9",
         )
         .unwrap();
-        validate_segment_plan_execution_identity(&valid_identity, &segment_plan).unwrap();
+        validate_video_segment_plan_identity(&valid_identity, &segment_plan).unwrap();
+
+        let mut forged = valid_identity.clone();
+        forged["segment_identities"][0]["segment_sha256"] = json!("wrong-content");
+        assert!(validate_video_segment_plan_identity(&forged, &segment_plan).is_err());
+        let mut edited_segments = segment_plan.clone();
+        edited_segments[0].scene_summary = "已经手工修改".into();
+        assert!(validate_video_segment_plan_identity(&valid_identity, &edited_segments).is_err());
 
         let mut stale_identity = valid_identity;
         stale_identity
@@ -478,7 +481,7 @@ mod tests {
             .unwrap()
             .remove("segment_identities");
         assert!(
-            validate_segment_plan_execution_identity(&stale_identity, &segment_plan)
+            validate_video_segment_plan_identity(&stale_identity, &segment_plan)
                 .unwrap_err()
                 .to_string()
                 .contains("执行身份不完整")

@@ -18,6 +18,7 @@ pub trait SourceTextAnchor {
     fn source_anchor_id(&self) -> i64;
     fn source_anchor_chapter_id(&self) -> Option<i64>;
     fn source_anchor_quote(&self) -> &str;
+    fn source_anchor_char_range(&self) -> (i32, i32);
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -118,6 +119,147 @@ pub fn source_span_prompt_value(span: &SourceSpan) -> Value {
         "paragraph_index": span.paragraph_index,
         "text": span.text,
     })
+}
+
+/// 在原文上标注引用 ID，保留引号、标点、空白和段落，避免另发一份分句正文。
+pub fn source_span_prompt_text(content: &str, spans: &[SourceSpan]) -> Result<String, String> {
+    annotate_source_ranges(
+        content,
+        spans
+            .iter()
+            .map(|span| {
+                (
+                    span.id.clone(),
+                    span.char_start,
+                    span.char_end,
+                    span.text.as_str(),
+                )
+            })
+            .collect(),
+    )
+}
+
+/// 仅提供被选中引用所在的完整段落；段落内仍保留原标点、引号和引用身份。
+pub fn source_span_prompt_excerpt(content: &str, spans: &[SourceSpan]) -> Result<String, String> {
+    source_span_excerpt(content, spans, true)
+}
+
+/// 不需要模型选择引用 ID 的任务只接收所选段落原文。
+pub fn source_span_context_excerpt(content: &str, spans: &[SourceSpan]) -> Result<String, String> {
+    source_span_excerpt(content, spans, false)
+}
+
+fn source_span_excerpt(
+    content: &str,
+    spans: &[SourceSpan],
+    annotate: bool,
+) -> Result<String, String> {
+    let offsets = content
+        .char_indices()
+        .map(|(offset, _)| offset)
+        .chain(std::iter::once(content.len()))
+        .collect::<Vec<_>>();
+    let mut windows = Vec::new();
+    for span in spans {
+        let Some((&start, &end)) = offsets.get(span.char_start).zip(offsets.get(span.char_end))
+        else {
+            return Err(format!("原文引用 {} 的字符范围无效", span.id));
+        };
+        if start >= end || &content[start..end] != span.text {
+            return Err(format!("原文引用 {} 已失效", span.id));
+        }
+        let start = content[..start].rfind('\n').map_or(0, |index| index + 1);
+        let end = content[end..]
+            .find('\n')
+            .map_or(content.len(), |index| end + index);
+        windows.push((start, end));
+    }
+    windows.sort_unstable();
+    let mut merged: Vec<(usize, usize)> = Vec::new();
+    for (start, end) in windows {
+        if let Some(last) = merged.last_mut()
+            && (start <= last.1 || content[last.1..start].trim().is_empty())
+        {
+            last.1 = last.1.max(end);
+        } else {
+            merged.push((start, end));
+        }
+    }
+    let excerpts = merged
+        .into_iter()
+        .map(|(start, end)| {
+            if !annotate {
+                return Ok(content[start..end].to_string());
+            }
+            let char_start = offsets
+                .binary_search(&start)
+                .expect("paragraph starts at a character boundary");
+            let char_end = offsets
+                .binary_search(&end)
+                .expect("paragraph ends at a character boundary");
+            let ranges = spans
+                .iter()
+                .filter(|span| span.char_start >= char_start && span.char_end <= char_end)
+                .map(|span| {
+                    (
+                        span.id.clone(),
+                        span.char_start - char_start,
+                        span.char_end - char_start,
+                        span.text.as_str(),
+                    )
+                })
+                .collect();
+            annotate_source_ranges(&content[start..end], ranges)
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(excerpts.join("\n\n[非当前任务段落已省略]\n\n"))
+}
+
+pub fn text_anchor_prompt_text<C: SourceChapter, A: SourceTextAnchor>(
+    chapter: &C,
+    anchors: &[A],
+) -> Result<String, String> {
+    let ranges = anchors
+        .iter()
+        .filter(|anchor| anchor.source_anchor_chapter_id() == Some(chapter.source_chapter_id()))
+        .map(|anchor| {
+            let id = anchor.source_anchor_id().to_string();
+            let (start, end) = anchor.source_anchor_char_range();
+            let start = usize::try_from(start).map_err(|_| format!("原文锚点 {id} 起点无效"))?;
+            let end = usize::try_from(end).map_err(|_| format!("原文锚点 {id} 终点无效"))?;
+            Ok((id, start, end, anchor.source_anchor_quote()))
+        })
+        .collect::<Result<Vec<_>, String>>()?;
+    annotate_source_ranges(chapter.source_content(), ranges)
+}
+
+fn annotate_source_ranges(
+    content: &str,
+    mut ranges: Vec<(String, usize, usize, &str)>,
+) -> Result<String, String> {
+    let offsets = content
+        .char_indices()
+        .map(|(offset, _)| offset)
+        .chain(std::iter::once(content.len()))
+        .collect::<Vec<_>>();
+    ranges.sort_by_key(|(_, start, end, _)| (*start, *end));
+    let mut result = String::with_capacity(content.len());
+    let mut cursor = 0;
+    for (id, start, end, quote) in ranges {
+        let bounds = offsets.get(start).zip(offsets.get(end));
+        let Some((&start, &end)) = bounds.filter(|(start, end)| start < end) else {
+            return Err(format!("原文引用 {id} 的字符范围无效"));
+        };
+        if start < cursor || &content[start..end] != quote {
+            return Err(format!("原文引用 {id} 已失效或与其他引用重叠"));
+        }
+        result.push_str(&content[cursor..start]);
+        result.push_str(&format!("⟦{id}⟧"));
+        result.push_str(quote);
+        cursor = end;
+    }
+    result.push_str(&content[cursor..]);
+    Ok(result)
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -407,6 +549,10 @@ mod tests {
         fn source_anchor_quote(&self) -> &str {
             &self.quote
         }
+
+        fn source_anchor_char_range(&self) -> (i32, i32) {
+            (0, self.quote.chars().count() as i32)
+        }
     }
 
     #[test]
@@ -419,6 +565,79 @@ mod tests {
         let spans = source_spans_for_chapters(&[chapter]);
         assert!(spans.iter().any(|span| span.text == "地上有一把军用匕首"));
         assert!(spans.iter().all(|span| span.char_start < span.char_end));
+    }
+
+    #[test]
+    fn annotated_source_preserves_original_text_and_rejects_stale_ranges() {
+        let content = "“别走！”她说。\n\n雨落下来，🌧️打湿窗台。";
+        let mut spans = source_spans_for_content(7, 3, content);
+        let annotated = source_span_prompt_text(content, &spans).expect("valid source");
+        let restored = spans.iter().fold(annotated.clone(), |text, span| {
+            text.replace(&format!("⟦{}⟧", span.id), "")
+        });
+        assert_eq!(restored, content);
+        assert!(annotated.contains("！”"));
+        assert!(annotated.contains("\n\n"));
+        assert!(
+            annotated.len()
+                < serde_json::to_string(&source_span_prompt_values(&spans))
+                    .unwrap()
+                    .len()
+        );
+        spans[0].text = "已变更".to_string();
+        assert!(source_span_prompt_text(content, &spans).is_err());
+        spans[0].char_end = usize::MAX;
+        assert!(source_span_prompt_text(content, &spans).is_err());
+    }
+
+    #[test]
+    fn scoped_excerpt_keeps_quoted_paragraphs_without_unrelated_story() {
+        let text = "“别走！”她说。\n\n不相关的往事。\n\n🌧️雨落下来，门关上了。";
+        let spans = source_spans_for_content(7, 2, text);
+        let selected = spans
+            .iter()
+            .filter(|span| span.text == "别走" || span.text.contains("雨落下来"))
+            .cloned()
+            .collect::<Vec<_>>();
+        let excerpt = source_span_prompt_excerpt(text, &selected).unwrap();
+        assert!(excerpt.contains("！”她说。"));
+        assert!(excerpt.contains("门关上了。"));
+        assert!(!excerpt.contains("不相关的往事"));
+        let plain = source_span_context_excerpt(text, &selected).unwrap();
+        assert!(plain.contains("“别走！”她说。"));
+        assert!(!plain.contains("⟦"));
+        assert!(!plain.contains("不相关的往事"));
+        for span in &selected {
+            assert_eq!(excerpt.matches(&format!("⟦{}⟧", span.id)).count(), 1);
+        }
+        assert_eq!(source_span_prompt_excerpt(text, &[]).unwrap(), "");
+    }
+
+    #[test]
+    fn annotated_anchor_content_uses_only_current_chapter_and_valid_quotes() {
+        let chapter = Chapter {
+            id: 10,
+            number: 3,
+            content: "潮汐城。\n".into(),
+        };
+        let mut anchors = vec![
+            Anchor {
+                id: 20,
+                chapter_id: Some(10),
+                quote: "潮汐城".into(),
+            },
+            Anchor {
+                id: 21,
+                chapter_id: Some(11),
+                quote: "其他章节".into(),
+            },
+        ];
+        assert_eq!(
+            text_anchor_prompt_text(&chapter, &anchors).unwrap(),
+            "⟦20⟧潮汐城。\n"
+        );
+        anchors[0].quote = "旧正文".into();
+        assert!(text_anchor_prompt_text(&chapter, &anchors).is_err());
     }
 
     #[test]

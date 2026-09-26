@@ -363,19 +363,6 @@ fn project_family_error(error: a4n_db::project::ProjectFamilyDbError) -> WorkerF
     }
 }
 
-fn workflow_read_error(error: a4n_db::workflow::WorkflowReadError) -> WorkerFailure {
-    match error {
-        a4n_db::workflow::WorkflowReadError::InvalidArgument(message)
-        | a4n_db::workflow::WorkflowReadError::InvalidData(message) => {
-            WorkerFailure::invalid_request(message)
-        }
-        a4n_db::workflow::WorkflowReadError::NotFound(message) => WorkerFailure::not_found(message),
-        a4n_db::workflow::WorkflowReadError::Database(error) => {
-            WorkerFailure::unavailable(error.to_string())
-        }
-    }
-}
-
 fn collaboration_error(error: a4n_db::collaboration::CollaborationDbError) -> WorkerFailure {
     match error {
         a4n_db::collaboration::CollaborationDbError::InvalidArgument(message) => {

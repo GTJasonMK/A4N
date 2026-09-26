@@ -48,9 +48,10 @@ pub(super) struct ScreenplaySkeletonUnitV1 {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields)]
-pub(super) struct ScreenplayLayoutUnitDetailV1 {
+pub(super) struct ScreenplayLayoutUnitDetailV2 {
     pub(super) schema_version: String,
     pub(super) narrative_unit_index: u32,
+    pub(super) source_span_ids: Vec<String>,
     pub(super) transition_contracts: Vec<ShootingTransitionContractV1>,
     pub(super) title: String,
     pub(super) slugline: String,
@@ -137,6 +138,7 @@ pub(super) struct RegenerateChapterShootingScriptInput {
     pub(super) source_chapter_id: i64,
     pub(super) workflow_run_id: i64,
     pub(super) visual_plan_id: i64,
+    pub(super) shot_ids: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -162,6 +164,7 @@ pub(super) struct PreparedChapterShootingScriptRequest {
     pub(super) existing: Option<ParsedChapterShootingScript>,
     pub(super) visual_plan: ParsedChapterVisualPlan,
     pub(super) visual_plan_projection: DirectorScriptPlan,
+    pub(super) shot_ids: Vec<String>,
     pub(super) scene_profiles: Vec<serde_json::Value>,
     pub(super) layout_unit_system_prompt: String,
     pub(super) unit_adaptation_system_prompt: String,

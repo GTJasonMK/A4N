@@ -1,6 +1,37 @@
 use super::*;
 
 #[test]
+fn resume_uses_edited_metadata_instead_of_display_prompt_json() {
+    let mut row = segment_plan_row(14, Some("current-source"));
+    row.visual_prompt = "旧显示文本，不是可执行规划".into();
+    let metadata = row.metadata_json.as_mut().unwrap();
+    metadata["segments"][0]["scene_summary"] = json!("作者手工修改后的场景");
+    let segments: Vec<VideoSegmentPlan> =
+        serde_json::from_value(metadata["segments"].clone()).unwrap();
+    let projection = shooting_script_projection();
+    metadata["video_execution_identity"] =
+        video_execution_chain_identity(&projection, &segments, "测试风格", 5, "16:9").unwrap();
+    let source_metadata = json!({"content_sha256": "current-source"});
+    let source_spans = vec![source_span("s1", 1)];
+    let reused = reusable_segment_plan_from_row(ReusableSegmentPlanFromRowInput {
+        row,
+        source_metadata: &source_metadata,
+        source_spans: &source_spans,
+        style: "测试风格",
+        duration_secs: 5,
+        aspect_ratio: "16:9",
+        shooting_script_projection: &projection,
+        contract_version: FRAME_SEGMENT_PLAN_CONTRACT_VERSION,
+        context: "视频片段规划",
+        draft_workflow_mode: PromptWorkflowMode::SharedSegmentPlan,
+        draft_prompt_type: "frame_segment_plan",
+        draft_title: "视频片段规划",
+    })
+    .unwrap();
+    assert!(reused.plan_complete);
+}
+
+#[test]
 fn partial_segment_plan_is_validated_without_being_treated_as_complete() {
     let mut row = segment_plan_row(14, Some("current-source"));
     row.metadata_json.as_mut().unwrap()["plan_complete"] = json!(false);

@@ -58,6 +58,13 @@ pub struct ProjectBundleHistoryImportSummary {
     pub generation_runs_imported: usize,
 }
 
+fn selected_project_scope<C: ColumnTrait>(project_id: C, project_ids: &[i64]) -> Condition {
+    // Root lineage must not pull an excluded derived project's history into the bundle.
+    Condition::any()
+        .add(project_id.is_null())
+        .add(project_id.is_in(project_ids.iter().copied()))
+}
+
 pub async fn export_project_bundle_history<C>(
     db: &C,
     project_ids: &[i64],
@@ -93,6 +100,10 @@ where
         .add(workflow_run::Column::RootProjectId.is_in(project_ids.clone()));
     let workflow_runs = workflow_run::Entity::find()
         .filter(project_condition)
+        .filter(selected_project_scope(
+            workflow_run::Column::ProjectId,
+            &project_ids,
+        ))
         .order_by_asc(workflow_run::Column::Id)
         .all(db)
         .await?;
@@ -130,6 +141,10 @@ where
     };
     let generation_runs = generation_run::Entity::find()
         .filter(generation_condition)
+        .filter(selected_project_scope(
+            generation_run::Column::ProjectId,
+            &project_ids,
+        ))
         .order_by_asc(generation_run::Column::Id)
         .all(db)
         .await?;
@@ -161,13 +176,17 @@ where
     };
     let llm_call_traces = llm_call_trace::Entity::find()
         .filter(llm_trace_condition)
+        .filter(selected_project_scope(
+            llm_call_trace::Column::ProjectId,
+            &project_ids,
+        ))
         .order_by_asc(llm_call_trace::Column::Id)
         .all(db)
         .await?;
 
     let usage_condition = Condition::any()
         .add(model_usage_record::Column::ProjectId.is_in(project_ids.clone()))
-        .add(model_usage_record::Column::RootProjectId.is_in(project_ids));
+        .add(model_usage_record::Column::RootProjectId.is_in(project_ids.clone()));
     let usage_condition = if workflow_ids.is_empty() {
         usage_condition
     } else {
@@ -180,6 +199,10 @@ where
     };
     let model_usage_records = model_usage_record::Entity::find()
         .filter(usage_condition)
+        .filter(selected_project_scope(
+            model_usage_record::Column::ProjectId,
+            &project_ids,
+        ))
         .order_by_asc(model_usage_record::Column::Id)
         .all(db)
         .await?;
@@ -626,6 +649,42 @@ mod tests {
     use std::collections::HashMap;
 
     use super::{ProjectBundleEntityIdMaps, imported_status, remap_workflow_scope};
+
+    #[tokio::test]
+    async fn history_project_scope_excludes_unselected_descendants() {
+        use super::{selected_project_scope, workflow_run};
+        use sea_orm::{
+            ColumnTrait, Condition, ConnectionTrait, EntityTrait, QueryFilter, QueryOrder,
+            QuerySelect, TransactionTrait,
+        };
+        let db = a4n_migration::test_support::connect_test_database().await;
+        let tx = db.begin().await.unwrap();
+        tx.execute_unprepared(r#"
+            CREATE TEMP TABLE workflow_run (id bigint, project_id bigint, root_project_id bigint) ON COMMIT DROP;
+            INSERT INTO workflow_run VALUES (1, 10, 10), (2, 20, 10), (3, NULL, 10), (4, 30, 30);
+        "#).await.unwrap();
+        for (projects, expected) in [(vec![10], vec![1, 3]), (vec![10, 20], vec![1, 2, 3])] {
+            let rows = workflow_run::Entity::find()
+                .select_only()
+                .column(workflow_run::Column::Id)
+                .filter(
+                    Condition::any()
+                        .add(workflow_run::Column::ProjectId.is_in(projects.clone()))
+                        .add(workflow_run::Column::RootProjectId.is_in(projects.clone())),
+                )
+                .filter(selected_project_scope(
+                    workflow_run::Column::ProjectId,
+                    &projects,
+                ))
+                .order_by_asc(workflow_run::Column::Id)
+                .into_tuple::<i64>()
+                .all(&tx)
+                .await
+                .unwrap();
+            assert_eq!(rows, expected);
+        }
+        tx.rollback().await.unwrap();
+    }
 
     #[test]
     fn running_history_is_imported_as_resumable_interrupted() {

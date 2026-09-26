@@ -4333,19 +4333,25 @@
     ],
     "diff_profile_chapters": {
       "delta": {
-        "explicit_attributes": {
-          "current_location": {
-            "old": "旧书店",
-            "new": "旧车站第三站台"
-          }
+        "attributes": {
+          "explicit": {
+            "added": {},
+            "modified": { "current_location": { "from": "旧书店", "to": "旧车站第三站台" } },
+            "deleted": {}
+          },
+          "implicit": { "added": {}, "modified": {}, "deleted": {} },
+          "social": { "added": {}, "modified": {}, "deleted": {} }
         },
-        "social_attributes": {
-          "周衡": {
-            "old": "有未说明的疑问",
-            "new": "通过共同承担行动建立信任"
-          }
-        },
-        "summary": "由第1章到第3章，位置与协作状态发生明确变化。"
+        "summary": {
+          "from_chapter": 1,
+          "to_chapter": 3,
+          "from_state_summary": "第1章：林岚开始把猜测和观察分开。",
+          "to_state_summary": "第3章：林岚留下记号后进入通道。",
+          "from_changes_in_chapter": 2,
+          "to_changes_in_chapter": 2,
+          "from_behaviors_in_chapter": 2,
+          "to_behaviors_in_chapter": 2
+        }
       }
     },
     "list_snapshots": [
@@ -13055,19 +13061,25 @@
       ],
       "diff_profile_chapters": {
         "delta": {
-          "explicit_attributes": {
-            "current_location": {
-              "old": "旧书店",
-              "new": "旧车站第三站台"
-            }
+          "attributes": {
+            "explicit": {
+              "added": {},
+              "modified": { "current_location": { "from": "旧书店", "to": "旧车站第三站台" } },
+              "deleted": {}
+            },
+            "implicit": { "added": {}, "modified": {}, "deleted": {} },
+            "social": { "added": {}, "modified": {}, "deleted": {} }
           },
-          "social_attributes": {
-            "周衡": {
-              "old": "有未说明的疑问",
-              "new": "通过共同承担行动建立信任"
-            }
-          },
-          "summary": "由第1章到第3章，位置与协作状态发生明确变化。"
+          "summary": {
+            "from_chapter": 1,
+            "to_chapter": 3,
+            "from_state_summary": "第1章：林岚开始把猜测和观察分开。",
+            "to_state_summary": "第3章：林岚留下记号后进入通道。",
+            "from_changes_in_chapter": 2,
+            "to_changes_in_chapter": 2,
+            "from_behaviors_in_chapter": 2,
+            "to_behaviors_in_chapter": 2
+          }
         }
       },
       "list_snapshots": [
@@ -13634,19 +13646,25 @@
       ],
       "diff_profile_chapters": {
         "delta": {
-          "explicit_attributes": {
-            "current_location": {
-              "old": "旧书店",
-              "new": "旧车站第三站台"
-            }
+          "attributes": {
+            "explicit": {
+              "added": {},
+              "modified": { "current_location": { "from": "旧书店", "to": "旧车站第三站台" } },
+              "deleted": {}
+            },
+            "implicit": { "added": {}, "modified": {}, "deleted": {} },
+            "social": { "added": {}, "modified": {}, "deleted": {} }
           },
-          "social_attributes": {
-            "林岚": {
-              "old": "有未说明的疑问",
-              "new": "通过共同承担行动建立信任"
-            }
-          },
-          "summary": "由第1章到第3章，位置与协作状态发生明确变化。"
+          "summary": {
+            "from_chapter": 1,
+            "to_chapter": 3,
+            "from_state_summary": "第1章：周衡逐步承认曾经的退缩。",
+            "to_state_summary": "第3章：周衡持怀表见证同伴出发。",
+            "from_changes_in_chapter": 2,
+            "to_changes_in_chapter": 2,
+            "from_behaviors_in_chapter": 2,
+            "to_behaviors_in_chapter": 2
+          }
         }
       },
       "list_snapshots": [

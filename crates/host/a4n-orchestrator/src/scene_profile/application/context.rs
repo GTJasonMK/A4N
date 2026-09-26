@@ -155,13 +155,20 @@ pub(super) fn existing_scene_profile_for_prompt(profile: &scene_profile::Model) 
 }
 
 pub(super) fn character_profile_for_prompt(profile: &protagonist_profile::Model) -> Value {
-    json!({"profile_id": profile.id, "name": profile.name, "appearance": profile.appearance, "current_state": profile.current_state, "last_synced_chapter": profile.last_synced_chapter})
+    json!({"profile_id": profile.id, "name": profile.name, "appearance": profile.appearance})
 }
 
 pub(super) fn object_profile_for_prompt(profile: &object_profile::Model) -> Value {
     json!({"object_profile_id": profile.id, "name": profile.name, "object_type": profile.object_type, "visual_description": profile.visual_description, "material_and_state": profile.material_and_state, "location_context": profile.location_context, "last_seen_chapter": profile.last_seen_chapter})
 }
 
-pub(super) fn scene_profile_chapter_context(chapter: &chapter::Model) -> Value {
-    json!({"chapter_id": chapter.id, "chapter_number": chapter.chapter_number, "chapter_title": chapter.title, "content": chapter.content, "analysis_data": chapter.analysis_data})
+pub(super) fn scene_profile_chapter_context(
+    chapter: &chapter::Model,
+    anchors: &[text_anchor::Model],
+) -> Result<Value, AppError> {
+    Ok(json!({
+        "chapter_number": chapter.chapter_number,
+        "chapter_title": chapter.title,
+        "content": a4n_domain::source_spans::text_anchor_prompt_text(chapter, anchors).map_err(AppError::InvalidArgument)?,
+    }))
 }

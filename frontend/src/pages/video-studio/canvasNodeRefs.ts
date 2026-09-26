@@ -21,8 +21,9 @@ export function nodeGeneratedVideoRefId(data: StudioNodeData): number | null {
   return nodeRefId(data, CANVAS_REF_TYPE_GENERATED_VIDEO);
 }
 
-function nodeRefId(data: StudioNodeData, refType: string): number | null {
-  return data.refType === refType && typeof data.refId === "number"
+export function nodeRefId(data: StudioNodeData, refType: string | null = data.refType): number | null {
+  return refType && data.refType === refType && typeof data.refId === "number"
+    && Number.isSafeInteger(data.refId) && data.refId > 0
     ? data.refId
     : null;
 }

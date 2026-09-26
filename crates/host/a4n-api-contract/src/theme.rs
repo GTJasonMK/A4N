@@ -25,13 +25,25 @@ pub struct CreateThemeInput {
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct UpdateThemeInput {
-    #[serde(default, deserialize_with = "deserialize_non_null_update_field")]
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "deserialize_non_null_update_field"
+    )]
     #[schemars(with = "String")]
     pub name: Option<String>,
-    #[serde(default, deserialize_with = "deserialize_non_null_update_field")]
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "deserialize_non_null_update_field"
+    )]
     #[schemars(with = "ThemeMode")]
     pub mode: Option<ThemeMode>,
-    #[serde(default, deserialize_with = "deserialize_non_null_update_field")]
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "deserialize_non_null_update_field"
+    )]
     #[schemars(with = "ThemeDocument")]
     pub document: Option<ThemeDocument>,
 }
@@ -250,6 +262,15 @@ mod tests {
 
     #[test]
     fn update_input_rejects_null_and_empty_update_is_explicit() {
+        for payload in [json!({"name": "renamed theme"}), json!({"mode": "dark"})] {
+            let input: UpdateThemeInput = serde_json::from_value(payload.clone()).unwrap();
+            let forwarded = serde_json::to_value(&input).unwrap();
+            assert_eq!(forwarded, payload);
+            assert_eq!(
+                serde_json::from_value::<UpdateThemeInput>(forwarded).unwrap(),
+                input
+            );
+        }
         assert!(serde_json::from_value::<UpdateThemeInput>(json!({"document": null})).is_err());
         let empty: UpdateThemeInput = serde_json::from_value(json!({})).unwrap();
         assert!(empty.is_empty());

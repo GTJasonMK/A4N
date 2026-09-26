@@ -28,9 +28,17 @@ pub(super) struct GalgameBranchSceneContext<'a> {
 }
 
 #[derive(Debug, Clone, PartialEq)]
+pub struct GalgameShootingSceneRef {
+    pub script_id: i64,
+    pub script_revision: i32,
+    pub scene_index: u32,
+}
+
+#[derive(Debug, Clone, PartialEq)]
 pub struct GalgamePersistScene {
     pub scene_index: i32,
     pub source_snapshot_chapter_id: i64,
+    pub shooting_source: Option<GalgameShootingSceneRef>,
     pub title: String,
     pub location: Option<String>,
     pub time_of_day: Option<String>,

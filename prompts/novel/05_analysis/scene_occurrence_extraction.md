@@ -47,7 +47,7 @@ name: scene_occurrence_extraction
 - `scene_ref` 必须来自输入 `scenes[].scene_ref`。
 - 必须覆盖输入 `scenes[]` 中的每一个 `scene_ref`；不得因为场景不重要、重复出现或只需概括而省略。
 - 每个 `scene_ref` 至少输出一条 `occurrences`；同一场景多次出场时可按时间顺序输出多条。
-- `source_anchor_ids` 必须来自输入 `text_anchors[].id`。
+- `source_anchor_ids` 必须选择 chapter.content 内 `⟦id⟧` 标记的 ID，不含括号。标记不属于原文。
 - `characters[].profile_id` 只能引用输入 `available_characters[].profile_id`。
 - `objects[].object_profile_id` 只能引用输入 `available_object_profiles[].object_profile_id`。
 - 每个出场对象只输出上方示例中的字段；出场顺序由系统按数组顺序补齐。

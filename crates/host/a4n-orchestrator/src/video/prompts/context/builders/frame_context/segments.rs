@@ -25,7 +25,6 @@ pub(in crate::video::prompts::context::builders) fn focused_segment_plan(
 
     Ok(json!({
         "segment_count": items.len(),
-        "current_segment": current_segment,
         "previous_segment": previous_segment,
         "next_segment": next_segment
     }))

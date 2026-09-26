@@ -1,4 +1,7 @@
 import { apiInvoke } from "./index";
+import { generationClient } from "./generationTasks";
+import type { GenerationResultRef, GenerationTaskHandle } from "./generated/generationContracts";
+import { sha256Json } from "../utils/contentHash";
 import type {
   ChapterShootingScriptSourceInput,
   ChapterShootingScriptUnitProgressView,
@@ -10,6 +13,8 @@ import type {
   EditedChapterShootingScriptProgressView,
   EditedChapterShootingScriptView,
   GenerateChapterShootingScriptInput,
+  ShootingScriptGenerationMode,
+  StartChapterShootingScriptGenerationInput,
 } from "./generated/host";
 
 export type {
@@ -31,6 +36,8 @@ export type {
   ShootingEditingModeV1,
   ShootingPerformanceBeatV1,
   ShootingSceneV1,
+  ShootingScriptPlanSyncV1,
+  ShootingScriptGenerationMode,
   ShootingShotSizeV1,
   ShootingShotV1,
   ShootingSoundDesignV1,
@@ -53,10 +60,12 @@ const generationInput = (
   projectId: number,
   sourceChapterId: number,
   visualPlanId: number,
+  shotIds: string[] = [],
 ): GenerateChapterShootingScriptInput => ({
   project_id: projectId,
   source_chapter_id: sourceChapterId,
   visual_plan_id: visualPlanId,
+  shot_ids: shotIds,
 });
 
 export const getChapterShootingScript = (
@@ -78,36 +87,47 @@ export const getChapterShootingScriptUnitProgress = (
     },
   );
 
-export const generateChapterShootingScript = (
+export const startChapterShootingScriptGeneration = (
   projectId: number,
   sourceChapterId: number,
-  taskId: string,
   visualPlanId: number,
-) =>
-  apiInvoke<ChapterShootingScriptView>("generate_chapter_shooting_script", {
-    input: generationInput(projectId, sourceChapterId, visualPlanId),
-    taskId,
-  });
+  mode: ShootingScriptGenerationMode,
+  shotIds: string[] = [],
+) => generationClient.start((meta) => apiInvoke<GenerationTaskHandle>(
+  "start_chapter_shooting_script_generation",
+  { input: {
+    meta, mode, ...generationInput(projectId, sourceChapterId, visualPlanId, shotIds),
+  } satisfies StartChapterShootingScriptGenerationInput },
+));
 
-export const generateNextChapterShootingScriptUnit = (
+export async function readChapterShootingScriptGenerationResult(
   projectId: number,
   sourceChapterId: number,
-  taskId: string,
-  visualPlanId: number,
-) =>
-  apiInvoke<ChapterShootingScriptUnitProgressView>(
-    "generate_next_chapter_shooting_script_unit",
-    {
-      input: generationInput(projectId, sourceChapterId, visualPlanId),
-      taskId,
-    },
-  );
+  result: GenerationResultRef | null | undefined,
+): Promise<ChapterShootingScriptView | ChapterShootingScriptUnitProgressView> {
+  if (result?.kind === "chapter_shooting_script") {
+    const view = await getChapterShootingScript(projectId, sourceChapterId);
+    if (!view || String(view.record.id) !== result.id || String(view.record.revision) !== result.revision) {
+      throw new Error("拍摄剧本生成结果已变化，请重新加载");
+    }
+    return view;
+  }
+  if (result?.kind === "chapter_shooting_script_progress") {
+    const progress = await getChapterShootingScriptUnitProgress(projectId, sourceChapterId);
+    if (!progress || String(progress.workflow_run_id) !== result.id || await sha256Json(progress.script) !== result.revision) {
+      throw new Error("拍摄剧本场景进度已变化，请重新加载");
+    }
+    return progress;
+  }
+  throw new Error("拍摄剧本任务缺少有效的生成结果引用");
+}
 
 export const editChapterShootingScript = (
   projectId: number,
   sourceChapterId: number,
   view: ChapterShootingScriptView,
   script: ChapterShootingScriptV1,
+  rebindShotIds: string[] = [],
 ) =>
   apiInvoke<EditedChapterShootingScriptView>("edit_chapter_shooting_script", {
     input: {
@@ -115,6 +135,7 @@ export const editChapterShootingScript = (
       record_id: view.record.id,
       expected_revision: view.record.revision,
       script,
+      rebind_shot_ids: rebindShotIds,
     } satisfies EditChapterShootingScriptInput,
   });
 

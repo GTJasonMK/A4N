@@ -184,21 +184,6 @@ impl OrchestratorContext {
             .await
     }
 
-    pub(crate) async fn ensure_prompt_stages_mutable_ignoring(
-        &self,
-        prompts: &[chapter_video_prompt::Model],
-        operation: &str,
-        ignored_prompt_ids: &BTreeSet<i64>,
-    ) -> Result<(), AppError> {
-        self.video
-            .ensure_chapter_video_prompt_stages_mutable_ignoring(
-                prompts,
-                operation,
-                ignored_prompt_ids,
-            )
-            .await
-    }
-
     pub(crate) async fn ensure_prompt_stages_mutable_skipping_generated_images(
         &self,
         prompts: &[chapter_video_prompt::Model],

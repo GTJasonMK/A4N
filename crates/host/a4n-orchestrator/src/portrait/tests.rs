@@ -30,6 +30,44 @@ fn prompt_spec(profile_name: &str, portrait_type: PortraitType) -> PortraitPromp
     }
 }
 
+#[tokio::test]
+async fn portrait_variants_share_identity_and_send_appearance_once() {
+    let engine = prompt_engine();
+    let variables = std::collections::HashMap::new();
+    let mut first_pack = None;
+    for expression in ["calm", "smile"] {
+        let mut request = super::prompt_generation::build_generate_prompt_request(
+            super::prompt_generation::PortraitPromptRequestInput {
+                project_id: 1,
+                spec: PortraitPromptSpec {
+                    appearance: Some("独特的灰色制服"),
+                    expression: Some(expression),
+                    ..prompt_spec("林岚", PortraitType::FullBody)
+                },
+                prompt_renderer: &engine,
+                variables: &variables,
+            },
+        )
+        .await
+        .unwrap();
+        let pack = request.context_manifest_json.as_ref().unwrap()["packs"][0].clone();
+        if let Some(first) = &first_pack {
+            assert_eq!(&pack, first);
+        } else {
+            first_pack = Some(pack);
+        }
+        a4n_llm_context::preview_context_aware_chat_request(&mut request, 1_000_000, 8192).unwrap();
+        assert_eq!(
+            request.messages[1]
+                .content
+                .matches("独特的灰色制服")
+                .count(),
+            1
+        );
+        assert!(request.messages[1].content.contains(expression));
+    }
+}
+
 #[test]
 fn portrait_prompt_request_requires_chinese_prompt() {
     let engine = prompt_engine();
@@ -87,8 +125,8 @@ fn portrait_prompt_request_omits_missing_appearance() {
     assert!(prompt.contains(
         r#""portrait_type": "人物三视图与拆解设定图（正面、侧面、背面，全身，含服饰配饰拆解）""#
     ));
-    assert!(prompt.contains(r#""appearance": null"#));
-    assert!(prompt.contains(r#""gender": null"#));
+    assert!(!prompt.contains(r#""appearance": "#));
+    assert!(!prompt.contains(r#""gender": "#));
     assert!(!prompt.contains(r#""appearance": "外观描述""#));
 }
 
@@ -106,13 +144,13 @@ fn portrait_prompt_request_omits_blank_appearance() {
     )
     .expect("prompt should serialize");
 
-    assert!(prompt.contains(r#""appearance": null"#));
-    assert!(prompt.contains(r#""gender": null"#));
+    assert!(!prompt.contains(r#""appearance": "#));
+    assert!(!prompt.contains(r#""gender": "#));
     assert!(!prompt.contains(r#""appearance": "外观描述""#));
 }
 
 #[test]
-fn portrait_prompt_request_includes_explicit_appearance() {
+fn portrait_task_refers_to_identity_and_keeps_variant_settings() {
     let engine = prompt_engine();
     let profile_context = json!({"current_state":{"explicit_attributes":{"衣着":"青色官袍"}}});
     let project_context = json!({"genre":"历史穿越","tone":"紧张克制"});
@@ -139,11 +177,9 @@ fn portrait_prompt_request_includes_explicit_appearance() {
     assert!(prompt.contains(
         r#""portrait_type": "人物三视图与拆解设定图（正面、侧面、背面，重点拆解服饰层级与配饰细节）""#
     ));
-    assert!(prompt.contains(r#""appearance": "灰色制服""#));
-    assert!(prompt.contains(r#""gender": "男""#));
-    assert!(prompt.contains(r#""age": "二十岁""#));
-    assert!(prompt.contains(r#""personality": "冷静克制""#));
-    assert!(prompt.contains(r#""background": "东宫书吏""#));
+    assert!(!prompt.contains("灰色制服"));
+    assert!(!prompt.contains("冷静克制"));
+    assert!(!prompt.contains("东宫书吏"));
     assert!(prompt.contains(r#""profile_context""#));
     assert!(prompt.contains("portrait_profile_project_context.profile_context"));
     assert!(!prompt.contains("青色官袍"));

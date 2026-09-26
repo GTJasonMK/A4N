@@ -342,6 +342,34 @@ impl GenerationApplication {
         }).await
     }
 
+    pub(crate) async fn start_shooting_script_generation_task(
+        &self,
+        user_id: i64,
+        input: &a4n_api_contract::shooting_script::StartChapterShootingScriptGenerationInput,
+        fingerprint: Value,
+    ) -> Result<GenerationTaskStart, GenerationTaskAccessError> {
+        self.reserve_root_generation_task(RootGenerationTaskReservationInput {
+            requested_by_user_id: user_id,
+            meta: &input.meta,
+            business_key_json: serde_json::json!({
+                "version": 1, "task_kind": "chapter_shooting_script",
+                "project_id": input.project_id, "source_chapter_id": input.source_chapter_id,
+            }),
+            input_fingerprint_json: fingerprint,
+            task_kind: TaskKind::LlmCall,
+            priority: TaskPriority::High,
+            delivery_mode: GenerationDeliveryMode::Stream,
+            batch_policy: None,
+            project_id: input.project_id,
+            task_scope: "chapter_shooting_script",
+            target: GenerationTargetRef {
+                kind: "chapter_shooting_script".into(),
+                id: format!("chapter:{}", input.source_chapter_id),
+                revision: Some(input.visual_plan_id.to_string()),
+            },
+        }).await
+    }
+
     pub(crate) async fn start_outline_generation_task(
         &self,
         user_id: i64,

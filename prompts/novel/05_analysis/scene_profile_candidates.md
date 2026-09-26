@@ -43,7 +43,7 @@ name: scene_profile_candidates
 - 每个输出的 `scene_ref` 后续必须能生成至少一条场景出场记录；不能为没有本章出场证据的地点建立场景档案候选。
 - `scene_type` 只能从以下枚举中选择：`room`、`building`、`street`、`city`、`wilderness`、`route`、`landmark`、`other`。
 - `scene_type` 语义：室内房间或可进入的具体室内空间用 `room`；整栋建筑/设施用 `building`；街道、巷道、广场等城市开放空间用 `street`；城区、城镇、街区等较大聚落范围用 `city`；森林、山地、河流、荒野、公园等自然或野外空间用 `wilderness`；走廊、通道、楼梯、电梯、道路、小路等连接路径用 `route`，不要输出 `corridor`、`hallway`、`road`；纪念碑、大门、桥、标志性景点等用 `landmark`；无法归类才用 `other`。
-- `evidence_anchor_ids` 必须来自输入 `text_anchors[].id`。
+- `evidence_anchor_ids` 必须选择 chapter.content 内 `⟦id⟧` 标记的 ID，不含括号。标记不属于原文。
 - 每个场景对象只输出上方示例中的字段；章节范围、素材图提示词种子和后续阶段产物由系统或后续阶段生成。
 - 不要把人物、物体、组织、事件或心理状态当作场景。
 

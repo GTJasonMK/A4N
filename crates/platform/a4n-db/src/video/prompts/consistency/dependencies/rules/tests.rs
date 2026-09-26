@@ -53,9 +53,6 @@ fn source_metadata(
     let mut identity = json!({
         "contract_epoch": 5,
         "shooting_script_identity": "script-1",
-        "projection_sha256": "projection-1",
-        "segment_plan_sha256": "plan-1",
-        "unit_plan_sha256": "unit-1",
         "source_content_sha256": source_hash,
         "style_sha256": "style-1",
         "duration_secs": 6,

@@ -28,6 +28,8 @@ export const GalgameProjectWorkspace: React.FC = () => {
   const navigate = useNavigate();
   const { addToast } = useToast();
   const { t } = useI18n();
+  const translatorRef = useRef(t);
+  translatorRef.current = t;
   const projectId = Number(id);
 
   const subtitleLabels = useMemo(
@@ -54,6 +56,7 @@ export const GalgameProjectWorkspace: React.FC = () => {
   const [project, setProject] = useState<NovelProject | null>(null);
   const [chapters, setChapters] = useState<SourceSnapshotChapterSummary[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [sourceSyncOpen, setSourceSyncOpen] = useState(false);
   const [resetting, setResetting] = useState(false);
   const [workspaceVersion, setWorkspaceVersion] = useState(0);
@@ -63,8 +66,11 @@ export const GalgameProjectWorkspace: React.FC = () => {
   const refresh = useCallback(async () => {
     const requestId = refreshRequestRef.current + 1;
     refreshRequestRef.current = requestId;
+    setLoadError(null);
     if (!Number.isFinite(projectId) || projectId <= 0) {
-      addToast(t("galgame.projectInvalid"), "error");
+      const message = translatorRef.current("galgame.projectInvalid");
+      setLoadError(message);
+      addToast(message, "error");
       setProject(null);
       setChapters([]);
       setLoading(false);
@@ -80,7 +86,7 @@ export const GalgameProjectWorkspace: React.FC = () => {
       const item = projectResult.value;
       if (refreshRequestRef.current !== requestId) return;
       if (item.project_kind !== "galgame") {
-        addToast(t("galgame.notProject"), "error");
+        addToast(translatorRef.current("galgame.notProject"), "error");
         navigate("/", { replace: true });
         return;
       }
@@ -91,7 +97,9 @@ export const GalgameProjectWorkspace: React.FC = () => {
       setChapters(snapshotChapters);
     } catch (err) {
       if (refreshRequestRef.current === requestId) {
-        addToast(extractErrorMessage(err, t("galgame.loadFailed")), "error");
+        const message = extractErrorMessage(err, translatorRef.current("galgame.loadFailed"));
+        setLoadError(message);
+        addToast(message, "error");
       }
     } finally {
       if (refreshRequestRef.current === requestId) setLoading(false);
@@ -238,7 +246,7 @@ export const GalgameProjectWorkspace: React.FC = () => {
         subtitle={
           project
             ? getDerivedProjectSubtitle(project, subtitleLabels)
-            : t("video.sourceLoading")
+            : loading ? t("video.sourceLoading") : null
         }
         actions={
           <>
@@ -301,6 +309,7 @@ export const GalgameProjectWorkspace: React.FC = () => {
       ) : null}
 
       <section aria-label={t("galgame.workspace")} className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden a4n-page-container lg:overflow-hidden custom-scrollbar">
+        {loadError ? <p role="alert" className="mb-3 text-sm text-error">{loadError}</p> : null}
         {loading && !project ? (
           <div className="inline-flex items-center gap-2 text-xs text-book-text-muted">
             <LoadingSpinner size="sm" />

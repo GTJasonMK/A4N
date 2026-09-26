@@ -18,6 +18,7 @@ pub(in crate::source_sync) use conflicts::resolve_related_galgame_scene_conflict
 pub(in crate::source_sync) use regeneration::apply_galgame_scene_regeneration_record;
 pub(in crate::source_sync) use regeneration::validate_prepared_galgame_scene_regeneration_record;
 pub use source::galgame_scene_regeneration_source_record;
+pub(in crate::source_sync) use source::galgame_scene_regeneration_targets;
 pub use types::{
     SourceSyncGalgameAnchorConflictCandidateRecord, SourceSyncGalgameAnchorConflictLineRecord,
     SourceSyncGalgameAnchorRecord, SourceSyncGalgameSceneConflictCandidateRecord,

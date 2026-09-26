@@ -68,7 +68,7 @@ impl DynamicLlmProvider {
                 "runtime_config_snapshot.llm_configs 不包含 LLM 配置 #{id}"
             )));
         }
-        if runtime_config::current_user_id().is_some() {
+        if !self.facade.allows_host_provider_config() {
             return Err(AppError::ConfigError(match config_id {
                 Some(id) => format!(
                     "远程用户请求不能直接使用服务器 LLM 配置 #{id}；请在用户配置页使用个人 LLM 配置快照"

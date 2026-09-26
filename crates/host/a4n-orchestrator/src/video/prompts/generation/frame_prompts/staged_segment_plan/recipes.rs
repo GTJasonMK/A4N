@@ -5,7 +5,7 @@ use a4n_db_models::models::chapter::chapter_video_prompt;
 use a4n_video_contract::{
     VIDEO_SEGMENT_RECIPES_METADATA_KEY, VideoSegmentExecutionRecipeV1, VideoSegmentPlanV2,
     carry_forward_video_segment_recipes, default_video_segment_recipes,
-    validate_video_segment_recipes_for_plan, video_segment_recipes_for_plan_from_metadata,
+    validate_video_segment_recipes_for_plan, video_segment_recipes_from_metadata,
     video_segments_share_recipe_anchor,
 };
 use serde_json::{Value, json};
@@ -23,7 +23,14 @@ pub(in crate::video::prompts::generation::frame_prompts) async fn load_previous_
     project_id: i64,
     chapter_id: i64,
     load_existing: bool,
-) -> Result<Option<(Vec<VideoSegmentPlan>, Vec<VideoSegmentExecutionRecipeV1>)>, AppError> {
+) -> Result<
+    Option<(
+        Vec<VideoSegmentPlan>,
+        Vec<VideoSegmentExecutionRecipeV1>,
+        a4n_video_contract::VideoShootingScriptIdentityV1,
+    )>,
+    AppError,
+> {
     if !load_existing {
         return Ok(None);
     }
@@ -44,14 +51,13 @@ pub(in crate::video::prompts::generation::frame_prompts) async fn load_previous_
             let metadata = row.metadata_json.as_ref().ok_or_else(|| {
                 AppError::InvalidArgument("已有共享片段规划缺少 metadata_json".to_string())
             })?;
-            let previous_segments = serde_json::from_value::<Vec<VideoSegmentPlan>>(
-                metadata.get("segments").cloned().ok_or_else(|| {
-                    AppError::InvalidArgument("已有共享片段规划缺少 segments".to_string())
-                })?,
+            let previous_segments = a4n_video_contract::video_segment_plan_from_metadata(metadata)
+                .map_err(AppError::InvalidArgument)?;
+            a4n_video_contract::validate_video_segment_plan_identity(
+                &metadata["video_execution_identity"],
+                &previous_segments,
             )
-            .map_err(|error| {
-                AppError::InvalidArgument(format!("已有共享片段规划 segments 无效：{error}"))
-            })?;
+            .map_err(AppError::InvalidArgument)?;
             let previous_style = row
                 .style
                 .as_deref()
@@ -60,10 +66,21 @@ pub(in crate::video::prompts::generation::frame_prompts) async fn load_previous_
                 .ok_or_else(|| {
                     AppError::InvalidArgument("已有共享片段规划缺少 style".to_string())
                 })?;
-            let previous_recipes =
-                video_segment_recipes_for_plan_from_metadata(Some(metadata), previous_style)
-                    .map_err(AppError::InvalidArgument)?;
-            Ok((previous_segments, previous_recipes))
+            let previous_recipes = video_segment_recipes_from_metadata(Some(metadata))
+                .map_err(AppError::InvalidArgument)?;
+            validate_video_segment_recipes_for_plan(
+                &previous_recipes,
+                &previous_segments,
+                previous_style,
+            )
+            .map_err(AppError::InvalidArgument)?;
+            let source = serde_json::from_value(
+                metadata["video_execution_identity"]["shooting_script_identity"].clone(),
+            )
+            .map_err(|error| {
+                AppError::InvalidArgument(format!("已有片段规划的拍摄剧本来源无效: {error}"))
+            })?;
+            Ok((previous_segments, previous_recipes, source))
         })
         .transpose()
 }
