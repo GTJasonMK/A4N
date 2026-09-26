@@ -91,3 +91,33 @@ fn segment_plan_user_includes_time_budget_rule() {
         "hands rule should require visible idle hand state when there is no obvious hand action"
     );
 }
+
+#[test]
+fn locked_director_shot_has_one_count_rule_and_no_split_instructions() {
+    use a4n_domain::chapter_visual_plan::{ChapterVisualPlanV3, SceneBindingV3};
+    let mut plan = ChapterVisualPlanV3::starter();
+    plan.segments[0].prompt = "人物停在门边".into();
+    plan.segments[0].scene_binding = Some(SceneBindingV3::Scene {
+        scene_profile_id: 1,
+    });
+    let director = plan.project().unwrap().remove(0);
+    let engine = prompt_renderer();
+    let user = build_segment_plan_for_shot_user(
+        planning_context(&engine, "电影感写实", 10),
+        &json!({"source_shot_id": director.segment_id, "segment_duration_secs": 5,
+            "director_constraints": director, "action_beats": []}),
+    )
+    .expect("fixed shot request");
+    let payload = video_user_payload(&user);
+    assert_eq!(payload["constraints"]["selected_duration_secs"], 5);
+    assert!(payload["constraints"]["time_budget_rule"].is_null());
+    assert!(payload["constraints"]["duration_selection_rule"].is_null());
+    assert_eq!(user.matches("人物停在门边").count(), 1);
+    assert!(!user.contains("1 个或多个"));
+    assert!(
+        payload["output_contract"]["segment_count_rule"]
+            .as_str()
+            .unwrap()
+            .contains("只能输出一个")
+    );
+}

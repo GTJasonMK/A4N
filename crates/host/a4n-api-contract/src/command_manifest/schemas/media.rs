@@ -133,7 +133,9 @@ pub(crate) fn args_generate_chapter_shooting_script() -> Value {
     >()
 }
 pub(crate) fn args_start_chapter_shooting_script_generation() -> Value {
-    strict_runtime_typed_input_schema::<crate::shooting_script::StartChapterShootingScriptGenerationInput>()
+    strict_runtime_typed_input_schema::<
+        crate::shooting_script::StartChapterShootingScriptGenerationInput,
+    >()
 }
 pub(crate) fn args_generate_object_profile_image_prompt() -> Value {
     strict_typed_input_schema::<crate::image_generation::ObjectProfileImageInput>()

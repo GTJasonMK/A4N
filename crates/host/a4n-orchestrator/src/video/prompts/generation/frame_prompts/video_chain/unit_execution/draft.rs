@@ -52,6 +52,7 @@ pub(super) async fn generate_video_prompt_draft(
             "chapter_id": context.chapter_id,
             "shot_number": context.shot_number,
             "source_span_ids": source_span_ids,
+            "continuity_source_video_id": context.vars.get("continuity_source_video_id"),
             "prompt_type": "video_prompt_draft",
             "output_contract_version": FINAL_VIDEO_PROMPT_OUTPUT_CONTRACT_VERSION,
         }),

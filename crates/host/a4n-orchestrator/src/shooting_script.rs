@@ -49,8 +49,12 @@ impl ShootingScriptFullGenerationApplicationPort for crate::OrchestratorContext 
         &self,
         user_id: i64,
         input: &a4n_api_contract::shooting_script::StartChapterShootingScriptGenerationInput,
-    ) -> Result<a4n_api_contract::generation_tasks::GenerationTaskStart, a4n_api_contract::generation_tasks::GenerationTaskStartError> {
-        self.start_shooting_script_generation_task(user_id, input).await
+    ) -> Result<
+        a4n_api_contract::generation_tasks::GenerationTaskStart,
+        a4n_api_contract::generation_tasks::GenerationTaskStartError,
+    > {
+        self.start_shooting_script_generation_task(user_id, input)
+            .await
             .map_err(crate::GenerationTaskAccessError::into_start_error)
     }
 
@@ -60,7 +64,8 @@ impl ShootingScriptFullGenerationApplicationPort for crate::OrchestratorContext 
         input: a4n_api_contract::shooting_script::StartChapterShootingScriptGenerationInput,
         handle: a4n_api_contract::generation_tasks::GenerationTaskHandle,
     ) -> Result<(), String> {
-        self.run_shooting_script_generation_task(user_id, input, handle).await
+        self.run_shooting_script_generation_task(user_id, input, handle)
+            .await
     }
 
     async fn generate(

@@ -4,7 +4,9 @@ use super::super::provider::prompt_text_rules::{
     validate_provider_model_text,
 };
 use super::super::reference_media_rules::MIN_PROVIDER_VISUAL_PROMPT_CHARS;
-use super::json::{API_PROMPT_UPLOAD_STATUS_TERMS, validate_chat_video_prompt_text, validate_direct_prompt_text};
+use super::json::{
+    API_PROMPT_UPLOAD_STATUS_TERMS, validate_chat_video_prompt_text, validate_direct_prompt_text,
+};
 use super::{records::expected_contract_version, store::PromptWorkflowMode};
 use crate::structured_llm::ensure_checkpoint_parsed_output_matches;
 use crate::{
@@ -29,8 +31,8 @@ use a4n_domain::{
 };
 use a4n_error::AppError;
 use a4n_llm_context::{
-    COMPRESSION_FULL_RAW, LlmContextLedger,
-    LlmContextLedgerPackDraft, context_aware_system_user_request,
+    COMPRESSION_FULL_RAW, LlmContextLedger, LlmContextLedgerPackDraft,
+    context_aware_system_user_request,
 };
 use a4n_llm_provider_contract::provider::{
     ChatRequest, LlmTraceContext, is_truncated_finish_reason,
@@ -500,7 +502,10 @@ fn build_video_prompt_optimization_request_with_prompts(
         }),
         required: true,
         stable_prefix: true,
-        variants: vec![LlmContextLedgerPackDraft::new(COMPRESSION_FULL_RAW, current_prompt)],
+        variants: vec![LlmContextLedgerPackDraft::new(
+            COMPRESSION_FULL_RAW,
+            current_prompt,
+        )],
     })?;
     let manifest = ledger.into_manifest(
         serde_json::to_string(&json!({"instruction": instruction}))?,
@@ -616,7 +621,6 @@ fn optimized_prompt_asset_contract(
             "forbidden_terms": {
                 "upload_status": API_PROMPT_UPLOAD_STATUS_TERMS,
                 "internal_workflow": INTERNAL_VIDEO_PROMPT_TERMS,
-                "upload_status": API_PROMPT_UPLOAD_STATUS_TERMS,
             },
         }),
         VideoPromptOptimizationKind::Frame => json!({
@@ -626,7 +630,8 @@ fn optimized_prompt_asset_contract(
             "motion_prompt_must_be_null": true,
             "minimum_lengths": {"visual_prompt_chars": MIN_FRAME_PROMPT_CHARS},
             "forbidden_terms": {
-                "internal_workflow_examples": ["首帧串联", "provider", "image 字段", "generated_image #"],
+                "internal_workflow": INTERNAL_VIDEO_PROMPT_TERMS,
+                "upload_status": API_PROMPT_UPLOAD_STATUS_TERMS,
             },
         }),
     }
@@ -895,7 +900,7 @@ mod tests {
             chapter_video_prompt::WORKFLOW_MODE_BOUNDARY_FRAMES,
         );
 
-        let request = build_video_prompt_optimization_request(
+        let mut request = build_video_prompt_optimization_request(
             &engine,
             &prompt,
             "让镜头动作更具体，但不要改变空间关系",
@@ -907,7 +912,49 @@ mod tests {
 
         assert_eq!(request.messages.len(), 2);
         assert!(request.messages[1].content.contains("让镜头动作更具体"));
-        assert!(request.messages[1].content.contains("\"output_contract\""));
+        assert!(request.messages[0].content.contains("\"output_contract\""));
+        assert!(!request.messages[0].content.contains("density_rule"));
+        assert!(
+            !request.messages[0]
+                .content
+                .contains("frame_prompt_required_sections")
+        );
+        for term in INTERNAL_VIDEO_PROMPT_TERMS {
+            assert!(request.messages[0].content.contains(term));
+        }
+        let mut changed = prompt.clone();
+        changed.visual_prompt = "另一段画面".into();
+        let second = build_video_prompt_optimization_request(
+            &engine,
+            &changed,
+            "缩短背景介绍",
+            PromptOutputLanguage::ZhCn,
+            VideoPromptOptimizationKind::ProviderVideo,
+        )
+        .await
+        .unwrap();
+        assert_eq!(request.messages[0].content, second.messages[0].content);
+        a4n_llm_context::preview_context_aware_chat_request(&mut request, 100_000, 8192).unwrap();
+        assert_eq!(
+            request.messages[1]
+                .content
+                .matches("现有画面提示词")
+                .count(),
+            1
+        );
+        assert!(
+            request.messages[1]
+                .content
+                .contains("主角沿走廊前进并停在门前")
+        );
+        assert!(request.messages[1].content.contains("16:9"));
+        assert_eq!(
+            request.context_manifest_json.as_ref().unwrap()["packs"][0]["variants"]
+                .as_array()
+                .unwrap()
+                .len(),
+            1
+        );
         assert_eq!(
             request.context_manifest_json.as_ref().expect("manifest")["packs"][0]["source_refs_json"]
                 ["prompt_id"],

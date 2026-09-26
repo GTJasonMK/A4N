@@ -30,7 +30,7 @@ pub(super) struct VideoPromptUnitExecutionInput<'a, 'source> {
     pub(super) segment_by_number: &'a HashMap<i32, &'a VideoSegmentPlan>,
     pub(super) video_segment_json: &'a Value,
     pub(super) frame_json: &'a Value,
-    pub(super) previous_completed_shot: Option<&'a GeneratedVideoPromptShot>,
+    pub(super) previous_completed_shot: Option<&'a Value>,
     pub(super) available_assets: &'a Value,
     pub(super) style: &'a str,
     pub(super) prompt_output_language: PromptOutputLanguage,

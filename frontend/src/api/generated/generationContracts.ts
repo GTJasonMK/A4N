@@ -609,14 +609,7 @@ export interface EmbeddingModelIdentity {
 export interface StartChapterShootingScriptGenerationInput {
   meta: GenerationStartRequestMeta;
   mode: ShootingScriptGenerationMode;
-  source: GenerateChapterShootingScriptInput;
-}
-export interface GenerateChapterShootingScriptInput {
   project_id: number;
-  /**
-   * 模型辅助局部更新：只替换这些镜头，其他镜头和场景内容原样保留。
-   * 为空时重新生成整章。
-   */
   shot_ids?: string[];
   source_chapter_id: number;
   visual_plan_id: number;

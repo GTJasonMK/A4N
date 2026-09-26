@@ -12,7 +12,10 @@ pub const GENERATION_START_ROUTES: &[(&str, &str)] = &[
         "/generation-tasks/blueprint-refinement",
     ),
     ("start_chapter_generation", "/generation-tasks/chapter"),
-    ("start_chapter_shooting_script_generation", "/generation-tasks/shooting-script"),
+    (
+        "start_chapter_shooting_script_generation",
+        "/generation-tasks/shooting-script",
+    ),
     ("start_image_generation", "/generation-tasks/image"),
     (
         "start_visual_plan_prompt_generation",

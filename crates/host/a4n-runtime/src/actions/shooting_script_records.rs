@@ -12,7 +12,8 @@ pub use a4n_api_contract::shooting_script::{
 pub use delete::delete_chapter_shooting_script;
 pub use edit::{edit_chapter_shooting_script, edit_chapter_shooting_script_progress};
 pub use generation::{
-    generate_chapter_shooting_script, generate_next_chapter_shooting_script_unit, start_chapter_shooting_script_generation,
+    generate_chapter_shooting_script, generate_next_chapter_shooting_script_unit,
+    start_chapter_shooting_script_generation,
 };
 pub use read::{get_chapter_shooting_script, get_chapter_shooting_script_unit_progress};
 
