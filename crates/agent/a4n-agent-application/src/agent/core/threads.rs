@@ -534,7 +534,11 @@ impl AgentApplication {
         let rows = agent::messages_by_thread(self.connection(), thread_id, before_id, limit as u64)
             .await
             .map_err(agent_db_error_to_app)?;
-        rows.into_iter().take(limit).map(message_view).collect()
+        rows.into_iter()
+            .rev()
+            .take(limit)
+            .map(message_view)
+            .collect()
     }
 
     /// Loads a message referenced by an inbox item for the durable worker.

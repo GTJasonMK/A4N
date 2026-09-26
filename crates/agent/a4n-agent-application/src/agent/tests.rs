@@ -313,6 +313,8 @@ async fn remote_admission_rejects_before_persisting_turn_or_run() {
 
 #[tokio::test]
 async fn list_messages_paginates_past_the_snapshot_window() {
+    use sea_orm::ActiveModelTrait;
+
     let database = std::sync::Arc::new(a4n_migration::test_support::connect_test_database().await);
     let application = AgentApplication::new(DbHandle::new(database.clone()));
     let thread = agent::create_thread(
@@ -357,6 +359,16 @@ async fn list_messages_paginates_past_the_snapshot_window() {
         .expect("message must be inserted");
         message_ids.push(message.id);
     }
+
+    // A cursor based on IDs must not lose a message when its timestamp moves back.
+    a4n_db_models::models::agent::message::ActiveModel {
+        id: sea_orm::Set(message_ids[98]),
+        created_at: sea_orm::Set(chrono::Utc::now().naive_utc() - chrono::Duration::days(1)),
+        ..Default::default()
+    }
+    .update(database.as_ref())
+    .await
+    .expect("fixture timestamp must be updated");
 
     let messages = application
         .list_messages(

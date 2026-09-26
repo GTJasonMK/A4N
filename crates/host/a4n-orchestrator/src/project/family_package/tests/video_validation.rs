@@ -83,7 +83,8 @@ fn validate_video_manifest_rejects_dangling_references() {
                 "revision": 1,
                 "source_revision_key": "revision:1",
                 "source_content_sha256": "content",
-                "script_sha256": "script"
+                "script_sha256": "script",
+                "shot_fingerprints": {"shot-1": "shot"}
             }
         }
     }));

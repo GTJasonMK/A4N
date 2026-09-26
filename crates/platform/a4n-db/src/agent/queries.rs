@@ -121,7 +121,6 @@ pub async fn messages_before<C: ConnectionTrait>(
 ) -> Result<Vec<message::Model>, AgentDbError> {
     let mut query = message::Entity::find()
         .filter(message::Column::ThreadId.eq(thread_id))
-        .order_by_desc(message::Column::CreatedAt)
         .order_by_desc(message::Column::Id)
         .limit(limit);
     if let Some(before) = before {
