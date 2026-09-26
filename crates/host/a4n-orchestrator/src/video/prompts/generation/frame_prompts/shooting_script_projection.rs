@@ -2,7 +2,7 @@ use a4n_error::AppError;
 use std::collections::HashSet;
 
 use a4n_domain::shooting_script::{
-    ChapterShootingScriptV1, ShootingCoverageV1, ShootingViewpointModeV1,
+    ChapterShootingScriptV1, ShootingCoverageV1, ShootingShotV1, ShootingViewpointModeV1,
 };
 use a4n_video_contract::{
     VIDEO_EXECUTION_CONTRACT_EPOCH, VIDEO_EXECUTION_PROJECTION_V2, VideoActionLoadV1,
@@ -102,6 +102,11 @@ pub(in crate::video) fn video_projection_from_shooting_script(
                     start: start.clone(),
                     end: end.clone(),
                 });
+            let participants = shot_participants(shot);
+            let focal_character = scene
+                .focal_character
+                .clone()
+                .filter(|name| participants.contains(name));
             shots.push(VideoExecutionShotV2 {
                 director_constraints: shot.visual_constraints.clone(),
                 source_shot_id: shot.shot_id.clone(),
@@ -115,8 +120,8 @@ pub(in crate::video) fn video_projection_from_shooting_script(
                 coverage: shot.coverage,
                 narrative_purpose: shot.narrative_purpose.clone(),
                 subject: shot.subject.clone(),
-                participants: scene.participants.clone(),
-                focal_character: scene.focal_character.clone(),
+                participants,
+                focal_character,
                 viewpoint: scene.viewpoint.clone(),
                 editing_mode: scene.editing_mode,
                 intercut_group_id: scene.intercut_group_id.clone(),
@@ -232,6 +237,38 @@ pub(in crate::video) fn video_projection_from_shooting_script(
             },
         },
     })
+}
+
+fn shot_participants(shot: &ShootingShotV1) -> Vec<String> {
+    let mut seen = HashSet::new();
+    shot.performance_beats
+        .iter()
+        .filter_map(|beat| beat.actor.as_ref())
+        .chain(shot.dialogue_cues.iter().map(|cue| &cue.speaker))
+        .filter(|name| seen.insert(*name))
+        .cloned()
+        .collect()
+}
+
+#[cfg(test)]
+#[test]
+fn shot_participants_use_performers_and_speakers_without_scene_bystanders() {
+    let mut script = crate::video::tests::test_chapter_shooting_script("source");
+    script.scenes[0].participants.push("在别处的人".into());
+    let shot = &mut script.scenes[0].shots[0];
+    assert_eq!(shot_participants(shot), ["小宦官"]);
+    for beat in &mut shot.performance_beats {
+        beat.actor = None;
+    }
+    assert!(shot_participants(shot).is_empty());
+    shot.dialogue_cues
+        .push(a4n_domain::shooting_script::ShootingDialogueCueV1 {
+            beat_id: "voice".into(),
+            speaker: "画外音".into(),
+            line_or_intent: "停下".into(),
+            listener_reaction: None,
+        });
+    assert_eq!(shot_participants(shot), ["画外音"]);
 }
 
 fn scene_viewpoint_is_complete(scene: &a4n_domain::shooting_script::ShootingSceneV1) -> bool {

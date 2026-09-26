@@ -395,6 +395,7 @@ impl OrchestratorContext {
 
     async fn rebuild_facts(
         &self,
+        user_id: i64,
         input: &RunProjectFactFeedbackInput,
         prompt_renderer: &dyn PromptRenderer,
         host_port: &dyn ChapterAnalysisHostPort,
@@ -447,6 +448,7 @@ impl OrchestratorContext {
                     return Err(AppError::Cancelled);
                 }
                 self.run_chapter_analysis_validated(
+                    user_id,
                     chapter.id,
                     prompt_renderer,
                     host_port,
@@ -563,6 +565,7 @@ impl ProjectFactFeedbackApplicationPort for OrchestratorContext {
             }
             FactFeedbackMode::Rebuild => {
                 self.rebuild_facts(
+                    user_id,
                     &input,
                     prompt_renderer,
                     host_port,

@@ -6,9 +6,11 @@ mod sources;
 mod validation;
 mod visual;
 
+#[cfg(test)]
+pub use contracts::GalgameShootingSceneRef;
 pub use contracts::{
     GalgamePersistChoice, GalgamePersistLine, GalgamePersistScene, GalgamePipelineSourceSpan,
-    GalgameScriptPersistPlan, GalgameShootingSceneRef,
+    GalgameScriptPersistPlan,
 };
 pub use plan::build_galgame_script_persist_plan;
 pub(in crate::galgame) use validation::{

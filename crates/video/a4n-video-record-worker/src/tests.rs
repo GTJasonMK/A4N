@@ -6,8 +6,8 @@ use a4n_db_models::models::{
 };
 use a4n_domain::media::CreateGeneratedVideoRecordDraftInput;
 use a4n_video_contract::{
-    VIDEO_EXECUTION_CONTRACT_EPOCH, VideoSegmentPlanV2, default_video_segment_recipes,
-    video_segment_content_fingerprint,
+    VIDEO_EXECUTION_CONTRACT_EPOCH, VideoSegmentPlanV2, VideoShootingScriptIdentityV1,
+    default_video_segment_recipes, video_segment_content_fingerprint,
 };
 use a4n_worker_contract::{WorkerLease, WorkerPrincipal, WorkerPrincipalKind};
 use chrono::Utc;
@@ -62,6 +62,14 @@ async fn select_segment_rejects_wrong_lineage_then_persists_matching_video() {
             "video_execution_identity": {
                 "contract_epoch": VIDEO_EXECUTION_CONTRACT_EPOCH,
                 "source_content_sha256": source_content_sha256,
+                "shooting_script_identity": VideoShootingScriptIdentityV1 {
+                    record_id: 1,
+                    revision: 1,
+                    source_revision_key: "legacy-source".into(),
+                    source_content_sha256: source_content_sha256.clone(),
+                    script_sha256: "a".repeat(64),
+                    shot_fingerprints: Default::default(),
+                },
                 "style_sha256": style_sha256,
                 "duration_secs": 6,
                 "aspect_ratio": "16:9",
@@ -173,9 +181,29 @@ async fn select_segment_rejects_wrong_lineage_then_persists_matching_video() {
         .unwrap()
         .unwrap();
     assert_eq!(
-        unchanged.metadata_json.unwrap()["segment_recipes"][1]["adopted_video_id"],
+        unchanged.metadata_json.as_ref().unwrap()["segment_recipes"][1]["adopted_video_id"],
         Value::Null
     );
+
+    let mut metadata = unchanged.metadata_json.clone().unwrap();
+    metadata["segments"][1]["scene_summary"] = json!("内容已变化但执行指纹未更新");
+    let mut tampered: chapter_video_prompt::ActiveModel = unchanged.clone().into();
+    tampered.metadata_json = Set(Some(metadata));
+    tampered.update(&db).await.unwrap();
+    let failure = state
+        .select_segment(selection_request(
+            owner.id,
+            project.id,
+            chapter.id,
+            plan.id,
+            matching_video.id,
+        ))
+        .await
+        .expect_err("adoption must validate the stored plan content before accepting its video");
+    assert!(failure.message.contains("内容指纹"));
+    let mut restored: chapter_video_prompt::ActiveModel = unchanged.clone().into();
+    restored.metadata_json = Set(unchanged.metadata_json);
+    restored.update(&db).await.unwrap();
 
     assert!(
         state

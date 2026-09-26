@@ -6,8 +6,6 @@ use serde_json::{Value, json};
 use std::collections::{HashMap, HashSet};
 use std::sync::atomic::{AtomicI64, Ordering};
 
-pub(super) const CONTEXT_SUMMARY_SOURCE_TOKENS: usize = 12_000;
-
 pub(super) fn advance_message_watermark(watermark: &AtomicI64, message_id: i64) {
     watermark.fetch_max(message_id, Ordering::Relaxed);
 }

@@ -13,7 +13,7 @@ use a4n_api_contract::video::{
     GenerateChapterVideoInput, GenerateReferenceMediaVideoInput, ReferenceMediaVideoInput,
 };
 use a4n_db_models::models::{ai::generated_video, generation::generation_run, user::user};
-use a4n_domain::{media::GeneratedMediaArtifactFile, source_text_hash};
+use a4n_domain::media::GeneratedMediaArtifactFile;
 use a4n_provider_contract::VideoProviderConfig;
 use a4n_video::{
     ProviderImageInputTransport, VideoGenerationRequest, VideoGenerationResult, VideoJobState,
@@ -388,19 +388,45 @@ fn reference_media_segment() -> a4n_video_contract::VideoSegmentPlanV2 {
     .expect("参考媒体测试片段应符合当前合同")
 }
 
+async fn current_shooting_identity(
+    db: &a4n_db::DatabaseConnection,
+    project_id: i64,
+    chapter_id: i64,
+) -> a4n_video_contract::VideoShootingScriptIdentityV1 {
+    let source = a4n_db::project::resolve_chapter_source(db, project_id, chapter_id)
+        .await
+        .unwrap();
+    let parsed = a4n_db::shooting_script::chapter_shooting_script_for_source(db, &source)
+        .await
+        .unwrap()
+        .expect("fixture shooting script");
+    let plan = a4n_db::chapter_visual_plan::chapter_visual_plan_by_id(
+        db,
+        parsed.record.visual_plan_id.expect("fixture visual plan"),
+    )
+    .await
+    .unwrap();
+    let director =
+        a4n_domain::shooting_script::project_visual_plan_for_shooting_script(&plan.plan, &[])
+            .unwrap();
+    a4n_video_contract::VideoShootingScriptIdentityV1 {
+        record_id: parsed.record.id,
+        revision: parsed.record.revision,
+        source_revision_key: parsed.record.source_revision_key,
+        source_content_sha256: parsed.record.source_content_sha256,
+        script_sha256: parsed.record.script_sha256,
+        shot_fingerprints: parsed.script.shot_content_fingerprints(&director).unwrap(),
+    }
+}
+
 async fn insert_reference_media_segment_plan(
     db: &a4n_db::DatabaseConnection,
     project_id: i64,
     chapter_id: i64,
 ) -> chapter_video_prompt::Model {
     let now = fixed_time(3);
-    let source_content = chapter::Entity::find_by_id(chapter_id)
-        .one(db)
-        .await
-        .expect("查询参考媒体测试章节")
-        .expect("参考媒体测试章节应存在")
-        .content;
-    let source_content_sha256 = a4n_domain::source_text_hash(&source_content);
+    let shooting_identity = current_shooting_identity(db, project_id, chapter_id).await;
+    let source_content_sha256 = shooting_identity.source_content_sha256.clone();
     let segment = reference_media_segment();
     let segment_sha256 = a4n_video_contract::video_segment_content_fingerprint(&segment)
         .expect("参考媒体测试片段应可计算指纹");
@@ -452,7 +478,7 @@ async fn insert_reference_media_segment_plan(
         metadata_json: Set(Some(json!({
             "video_execution_identity": {
                 "contract_epoch": a4n_video_contract::VIDEO_EXECUTION_CONTRACT_EPOCH,
-                "shooting_script_identity": {},
+                "shooting_script_identity": shooting_identity,
                 "source_content_sha256": source_content_sha256,
                 "style_sha256": "style",
                 "duration_secs": 8,
@@ -543,16 +569,12 @@ async fn insert_ready_segment_plan(
     chapter_id: i64,
 ) -> chapter_video_prompt::Model {
     let now = fixed_time(3);
-    let source_content = chapter::Entity::find_by_id(chapter_id)
-        .one(db)
-        .await
-        .expect("查询可用视频测试章节")
-        .expect("可用视频测试章节应存在")
-        .content;
-    let source_content_sha256 = source_text_hash(&source_content);
+    let shooting_identity = current_shooting_identity(db, project_id, chapter_id).await;
+    let source_content_sha256 = shooting_identity.source_content_sha256.clone();
     let segment = reference_media_segment();
     let mut segment = segment;
     segment.duration_secs = 6;
+    let segment_sha256 = a4n_video_contract::video_segment_content_fingerprint(&segment).unwrap();
     let recipe = ready_segment_recipe();
     chapter_video_prompt::ActiveModel {
         project_id: Set(project_id),
@@ -574,7 +596,7 @@ async fn insert_ready_segment_plan(
             "contract_version": FRAME_SEGMENT_PLAN_CONTRACT_VERSION,
             "video_execution_identity": {
                 "contract_epoch": a4n_video_contract::VIDEO_EXECUTION_CONTRACT_EPOCH,
-                "shooting_script_identity": {},
+                "shooting_script_identity": shooting_identity,
                 "frame_set_sha256": "frame-set",
                 "source_content_sha256": source_content_sha256,
                 "style_sha256": "style",
@@ -584,7 +606,7 @@ async fn insert_ready_segment_plan(
                 "segment_identities": [{
                     "source_shot_id": "shot-1",
                     "segment_index_in_shot": 1,
-                    "segment_sha256": "segment-hash"
+                    "segment_sha256": segment_sha256
                 }],
                 "generation_asset_fingerprint": {}
             },

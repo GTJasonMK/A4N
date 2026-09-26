@@ -5263,7 +5263,10 @@ export type ShootingScriptGenerationMode = "full" | "next_scene";
 export interface StartChapterShootingScriptGenerationInput {
   meta: GenerationStartRequestMeta;
   mode: ShootingScriptGenerationMode;
-  source: GenerateChapterShootingScriptInput;
+  project_id: number;
+  shot_ids?: string[];
+  source_chapter_id: number;
+  visual_plan_id: number;
 }
 
 export interface DeleteChapterShootingScriptInput {

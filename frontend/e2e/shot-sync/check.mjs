@@ -8,8 +8,10 @@ import { createServer } from "vite";
 
 const frontend = fileURLToPath(new URL("../..", import.meta.url));
 const artifacts = path.resolve(frontend, "../data/shot-sync-e2e/browser");
+const tempRoot = path.resolve(process.env.TMPDIR ?? path.join(artifacts, "../tmp"));
 const fixture = JSON.parse(await readFile(process.env.A4N_SHOT_SYNC_FIXTURE ?? path.join(artifacts, "../browser-fixture.json"), "utf8"));
 await mkdir(artifacts, { recursive: true });
+await mkdir(tempRoot, { recursive: true });
 await writeFile(path.join(artifacts, "report.json"), JSON.stringify({ success: false, state: "running" }));
 const port = 48946;
 const driverPort = 48947;
@@ -19,7 +21,7 @@ const measurements = [];
 let browser;
 let vite;
 const launch = (command, args) => {
-  const child = spawn(command, args, { cwd: frontend, env: { ...process.env, TMPDIR: path.join(artifacts, "../tmp") }, stdio: ["ignore", "pipe", "pipe"] });
+  const child = spawn(command, args, { cwd: frontend, env: { ...process.env, TMPDIR: tempRoot }, stdio: ["ignore", "pipe", "pipe"] });
   child.stdout.on("data", (data) => logs.push(String(data)));
   child.stderr.on("data", (data) => logs.push(String(data)));
   processes.push(child);
@@ -78,7 +80,7 @@ try {
   await browser.$('[aria-label="AI 更新镜头 shot-3"]').waitForDisplayed();
   await browser.$('[aria-label="AI 更新镜头 shot-3"]').click();
   await browser.$('[aria-label="待更新镜头"]').waitForExist({ reverse: true });
-  const model = await browser.execute(() => window.shotSyncCalls.find((call) => call.command === "generate_chapter_shooting_script"));
+  const model = await browser.execute(() => window.shotSyncCalls.find((call) => call.command === "start_chapter_shooting_script_generation"));
   assert.deepEqual(model.input.shot_ids, ["shot-3"]);
   await browser.keys("Escape");
   await browser.$('[role="dialog"]').waitForExist({ reverse: true });
@@ -107,13 +109,13 @@ try {
       await browser.$('[role="dialog"]').waitForExist({ reverse: true });
       const calls = await browser.execute(() => window.shotSyncCalls);
       const savedIndex = calls.findIndex((call) => call.command === "edit_chapter_shooting_script_progress");
-      const generatedIndex = calls.findIndex((call) => call.command === "generate_chapter_shooting_script");
+      const generatedIndex = calls.findIndex((call) => call.command === "start_chapter_shooting_script_generation");
       assert.ok(savedIndex < generatedIndex, "continuation saves the edited snapshot before generating");
       assert.equal(calls[savedIndex].input.script.scenes[0].shots[0].composition, composition);
       await measure(390, "continued");
     } else {
       await browser.waitUntil(async () => (await browser.$("body").getText()).includes("进度保存冲突"));
-      assert.equal(await browser.execute(() => window.shotSyncCalls.some((call) => call.command === "generate_chapter_shooting_script")), false);
+      assert.equal(await browser.execute(() => window.shotSyncCalls.some((call) => call.command === "start_chapter_shooting_script_generation")), false);
       assert.equal(await browser.$('[data-shot-id="shot-1"]').$('label*=构图').$('textarea').getValue(), composition);
     }
     assert.deepEqual(await browser.execute(() => window.shotSyncErrors), []);

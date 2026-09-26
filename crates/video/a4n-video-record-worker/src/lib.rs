@@ -380,6 +380,9 @@ impl WorkerState {
                 "目标片段规划不是当前章节已完成的共享片段规划",
             ));
         }
+        let plan = a4n_db::video::with_video_plan_source_sync(db, plan)
+            .await
+            .map_err(video_error)?;
         let target = &input.input.target_segment;
         let segment_number = a4n_video_contract::resolve_video_segment_number(
             plan.metadata_json.as_ref(),

@@ -3,9 +3,8 @@ use crate::{
     character,
     fact_feedback::*,
     project::{
-        CreateProjectRecordInput, ForeshadowingAnalysisDraft,
-        ProjectFamilyTextCoreRows, create_project_record, project_family_export_rows,
-        sync_chapter_analysis_foreshadowing,
+        CreateProjectRecordInput, ForeshadowingAnalysisDraft, ProjectFamilyTextCoreRows,
+        create_project_record, project_family_export_rows, sync_chapter_analysis_foreshadowing,
     },
 };
 use a4n_db_models::models::{

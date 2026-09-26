@@ -3,6 +3,7 @@ use a4n_error::AppError;
 use a4n_progress::ProgressSpan;
 use a4n_prompt::rendering::PromptRenderer;
 
+use super::super::SceneProfileSyncHostPort;
 use super::super::context::{
     build_scene_profile_sync_request, load_scene_profile_sync_anchor_context,
     load_scene_profile_sync_stable_context,
@@ -22,6 +23,7 @@ pub(super) async fn sync_scene_profile_chapters(
     state: &OrchestratorContext,
     user_id: i64,
     prompt_renderer: &dyn PromptRenderer,
+    host_port: &dyn SceneProfileSyncHostPort,
     project_id: i64,
     workflow_run_id: i64,
     chapters: Vec<chapter::Model>,

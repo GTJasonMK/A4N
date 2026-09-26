@@ -956,6 +956,31 @@ impl OrchestratorContext {
         })
     }
 
+    pub(in crate::video) async fn completed_chapter_continuity_source(
+        &self,
+        project_id: i64,
+        chapter_id: i64,
+        source_video_id: i64,
+    ) -> Result<generated_video::Model, AppError> {
+        let source_video = self
+            .generated_video_by_id(source_video_id)
+            .await?
+            .ok_or_else(|| {
+                invalid_argument(format!(
+                    "连续性来源视频 #{source_video_id} 已不存在，请重新选择"
+                ))
+            })?;
+        if source_video.project_id != project_id
+            || source_video.chapter_id != Some(chapter_id)
+            || source_video.status != a4n_domain::video_workflow::VIDEO_STATUS_COMPLETED
+        {
+            return Err(invalid_argument(format!(
+                "连续性来源视频 #{source_video_id} 不再是当前章节的已完成视频，请重新选择"
+            )));
+        }
+        Ok(source_video)
+    }
+
     async fn first_frame_chain_start_image_id_for_prompt(
         &self,
         project_id: i64,
@@ -990,22 +1015,8 @@ impl OrchestratorContext {
             let source_video_id = recipe.continuity_source_video_id.ok_or_else(|| {
                 invalid_argument("首帧续接提示词缺少已冻结的 continuity_source_video_id")
             })?;
-            let source_video = self
-                .generated_video_by_id(source_video_id)
-                .await?
-                .ok_or_else(|| {
-                    invalid_argument(format!(
-                        "连续性来源视频 #{source_video_id} 已不存在，请重新选择"
-                    ))
-                })?;
-            if source_video.project_id != project_id
-                || source_video.chapter_id != Some(chapter_id)
-                || source_video.status != a4n_domain::video_workflow::VIDEO_STATUS_COMPLETED
-            {
-                return Err(invalid_argument(format!(
-                    "连续性来源视频 #{source_video_id} 不再是当前章节的已完成视频，请重新选择"
-                )));
-            }
+            self.completed_chapter_continuity_source(project_id, chapter_id, source_video_id)
+                .await?;
             let images = self
                 .generated_images_for_video_prompt_references(project_id, chapter_id)
                 .await?;

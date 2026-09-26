@@ -20,6 +20,7 @@ pub(super) struct VideoPromptUnitWorkflowInput<'a, 'source> {
     pub chapter_id: i64,
     pub source: &'a ChapterVideoSourceContext<'source>,
     pub source_spans: &'a [a4n_domain::source_spans::SourceSpan],
+    pub continuity_source_context: Option<&'a Value>,
     pub prompt_renderer: &'a dyn PromptRenderer,
     pub vars: &'a HashMap<String, Value>,
     pub workflow_run_id: Option<i64>,
@@ -64,6 +65,7 @@ pub(super) async fn generate_video_prompt_units(
         chapter_id,
         source,
         source_spans,
+        continuity_source_context,
         prompt_renderer,
         vars,
         workflow_run_id,
@@ -196,6 +198,10 @@ pub(super) async fn generate_video_prompt_units(
             summary: source.summary,
             analysis: source.analysis,
         };
+        let previous_shot = context_video_prompts
+            .last()
+            .map(|shot| shot.to_json_value())
+            .transpose()?;
         let executed = execute_video_prompt_unit(
             VideoPromptUnitExecutionInput {
                 service,
@@ -211,7 +217,7 @@ pub(super) async fn generate_video_prompt_units(
                 segment_by_number,
                 video_segment_json,
                 frame_json,
-                previous_completed_shot: context_video_prompts.last(),
+                previous_completed_shot: continuity_source_context.or(previous_shot.as_ref()),
                 available_assets,
                 style,
                 prompt_output_language,

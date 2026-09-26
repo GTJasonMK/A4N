@@ -87,6 +87,7 @@ impl CanvasApplication {
     ) -> Result<CanvasGraphRecordDocument, AppError> {
         a4n_db::canvas::save_canvas_graph_record(self.connection(), project_id, input, now)
             .await
+            .map(|saved| saved.document)
             .map_err(canvas_db_error)
     }
 

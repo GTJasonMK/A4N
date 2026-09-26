@@ -158,7 +158,7 @@ mod tests {
     use super::*;
 
     fn prepared() -> PreparedChapterShootingScriptRequest {
-        let content = "甲进入教室。乙抬头看他。".to_string();
+        let content = "甲进入教室。\n\n乙抬头看他。".to_string();
         let source = ResolvedChapterSource {
             requested_project_id: 1,
             root_project_id: 1,
@@ -220,5 +220,33 @@ mod tests {
         assert!(first.packs.iter().all(|pack| pack.stable_prefix));
         assert_eq!(first.dynamic_user_content, "unit=1");
         assert_eq!(second.dynamic_user_content, "unit=2");
+    }
+
+    #[test]
+    fn source_scope_keeps_selected_paragraph_and_rejects_missing_or_duplicate_ids() {
+        let prepared = prepared();
+        let binding = &prepared.visual_plan_projection.narrative_units[0].scene_binding;
+        let id = prepared.source_spans[0].id.clone();
+        let manifest = shooting_context_manifest::<serde_json::Value>(
+            &prepared,
+            (&[id.clone()], binding),
+            None,
+            "当前单元".into(),
+        )
+        .unwrap();
+        let source = serde_json::to_string(&manifest.packs[1].variants).unwrap();
+        assert!(source.contains("甲进入教室"));
+        assert!(!source.contains("乙抬头看他"));
+        for ids in [vec![id.clone(), "missing".into()], vec![id.clone(), id]] {
+            assert!(
+                shooting_context_manifest::<serde_json::Value>(
+                    &prepared,
+                    (&ids, binding),
+                    None,
+                    "当前单元".into(),
+                )
+                .is_err()
+            );
+        }
     }
 }

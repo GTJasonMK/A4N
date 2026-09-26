@@ -276,8 +276,7 @@ async fn partial_feedback_is_versioned_source_fenced_and_reversible() {
 #[tokio::test]
 async fn foreshadowing_keeps_identity_tracks_progress_and_retracts_removed_sources() {
     use a4n_db::project::{
-        ForeshadowingAnalysisDraft, ForeshadowingFactUpdate,
-        sync_chapter_analysis_foreshadowing,
+        ForeshadowingAnalysisDraft, ForeshadowingFactUpdate, sync_chapter_analysis_foreshadowing,
     };
     use a4n_db_models::models::character::foreshadowing_index;
     use a4n_domain::character::ForeshadowingStatus;

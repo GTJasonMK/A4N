@@ -235,6 +235,10 @@ mod tests {
                 .to_string()
         };
         assert_eq!(prefix(&requests[0]), prefix(&requests[1]));
+        let manifest =
+            |index: usize| &requests[index].context_manifest_json.as_ref().unwrap()["packs"][0];
+        assert_ne!(manifest(0)["config_hash"], manifest(1)["config_hash"]);
+        assert_eq!(manifest(0)["variants"], manifest(1)["variants"]);
         assert!(!requests[0].messages[1].content.contains("rules:stage_b"));
     }
 

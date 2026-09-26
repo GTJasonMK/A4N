@@ -51,6 +51,7 @@ impl OrchestratorContext {
             self,
             user_id,
             prompt_renderer,
+            host_port,
             project_id,
             workflow_run_id,
             chapters,

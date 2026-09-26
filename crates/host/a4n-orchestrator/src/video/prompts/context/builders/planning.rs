@@ -92,8 +92,14 @@ pub(in crate::video) async fn build_segment_plan_for_shot_user(
         payload["output_contract"]["segment_count_rule"] = json!(
             "当前镜头由导演编排固定，只能输出一个 segment；不能拆分、合并或改变时长。完整保留 director_constraints 中的 prompt、场景关系与关键帧约束。"
         );
-        payload["constraints"]["director_constraints"] =
-            directed.cloned().expect("directed constraint");
+        payload["output_contract"]["segment_number_rule"] = json!(
+            "只为 current_shot 输出 1 个 segment，source_shot_id 原样保留，covered_beat_ids 按顺序覆盖本镜头必需节拍且不得重复；不要输出 derived_segment_fields 或 reference_image_ids。"
+        );
+        let constraints = payload["constraints"]
+            .as_object_mut()
+            .expect("constraints object");
+        constraints.remove("time_budget_rule");
+        constraints.remove("duration_selection_rule");
         let director: a4n_domain::chapter_visual_plan::VisualSegmentProjectionV3 =
             serde_json::from_value(directed.cloned().expect("directed constraint"))?;
         payload["constraints"]["aspect_ratio"] = json!(

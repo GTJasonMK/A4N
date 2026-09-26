@@ -299,7 +299,9 @@ async fn character_sync_preserves_manual_values_for_inferences_but_accepts_obser
                 target_chapter: 1,
                 clear_to_chapter: Some(1),
                 selected_chapter_numbers: vec![1],
-                source_chapters: vec![a4n_db::project::chapter_source_snapshot_from_model(&chapter)],
+                source_chapters: vec![a4n_db::project::chapter_source_snapshot_from_model(
+                    &chapter,
+                )],
                 baseline_state: base,
                 write_steps: vec![
                     CharacterSyncWriteStepRecordInput::AttributeEvent(

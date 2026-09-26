@@ -17,7 +17,7 @@ use super::{ChapterVisualPlanIdentity, ShootingScriptDbError};
 
 pub async fn chapter_shooting_script_progress_for_source<C: ConnectionTrait>(
     db: &C,
-    source: &crate::project::ResolvedChapterSource,
+    source: &a4n_domain::chapter::ResolvedChapterSource,
 ) -> Result<Option<ChapterShootingScriptUnitProgressView>, ShootingScriptDbError> {
     let run = workflow_run::Entity::find()
         .filter(
