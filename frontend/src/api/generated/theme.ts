@@ -43,9 +43,11 @@ export interface CreateThemeInput {
 }
 
 export interface UpdateThemeInput {
+  delete_resource_ids?: number[];
   document?: ThemeDocument;
   mode?: ThemeMode;
   name?: string;
+  resource_uploads?: ThemeResourceUploadInput[];
 }
 
 export interface ThemeResourceSummary {

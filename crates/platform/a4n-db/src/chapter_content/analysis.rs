@@ -33,7 +33,7 @@ where
         .iter()
         .map(|source| source.chapter_id)
         .collect::<Vec<_>>();
-    let mut query = chapter::Entity::find()
+    let mut query = chapter::Entity::find_current()
         .filter(chapter::Column::Id.is_in(chapter_ids))
         .order_by_asc(chapter::Column::Id);
     if db.get_database_backend() != DbBackend::Sqlite {
@@ -70,6 +70,7 @@ where
     C: ConnectionTrait,
 {
     let mut query = chapter::Entity::find_by_id(source.chapter_id)
+        .filter(chapter::Column::Status.ne(chapter::STATUS_DELETED))
         .filter(chapter::Column::ProjectId.eq(source.project_id));
     if db.get_database_backend() != DbBackend::Sqlite {
         query = query.lock_exclusive();

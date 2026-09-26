@@ -1,7 +1,7 @@
 use super::super::ChapterContentImportError;
 use super::ImportChapterContentTarget;
 use a4n_db_models::models::chapter::chapter;
-use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter};
+use sea_orm::{ColumnTrait, ConnectionTrait, QueryFilter};
 
 pub(super) async fn prepare_import_chapter_content<C>(
     db: &C,
@@ -12,7 +12,7 @@ pub(super) async fn prepare_import_chapter_content<C>(
 where
     C: ConnectionTrait,
 {
-    let existing = chapter::Entity::find()
+    let existing = chapter::Entity::find_current()
         .filter(chapter::Column::ProjectId.eq(project_id))
         .filter(chapter::Column::ChapterNumber.eq(chapter_number))
         .one(db)

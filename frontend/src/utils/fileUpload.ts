@@ -23,26 +23,9 @@ export function readFileAsBase64(file: File): Promise<string> {
 export function pickLocalFile(accept: string): Promise<File | null> {
   return new Promise((resolve) => {
     const input = document.createElement("input");
-    let resolved = false;
-    let focusTimer: number | null = null;
-    const cleanup = () => {
-      if (focusTimer != null) {
-        window.clearTimeout(focusTimer);
-        focusTimer = null;
-      }
-      window.removeEventListener("focus", handleFocus);
-      input.remove();
-    };
     const finish = (file: File | null) => {
-      if (resolved) return;
-      resolved = true;
-      cleanup();
+      input.remove();
       resolve(file);
-    };
-    const handleFocus = () => {
-      focusTimer = window.setTimeout(() => {
-        finish(input.files?.[0] ?? null);
-      }, 250);
     };
     input.type = "file";
     input.accept = accept;
@@ -51,8 +34,8 @@ export function pickLocalFile(accept: string): Promise<File | null> {
     input.onchange = () => {
       finish(input.files?.[0] ?? null);
     };
+    input.addEventListener("cancel", () => finish(null));
     document.body.appendChild(input);
-    window.addEventListener("focus", handleFocus);
     input.click();
   });
 }

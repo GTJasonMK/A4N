@@ -36,7 +36,7 @@ pub async fn chapter_manga_source_by_number(
     let project = project_family_access_row(db, project_id).await?;
     match ProjectKind::parse(&project.project_kind) {
         Some(ProjectKind::Text) => {
-            let chapter = chapter::Entity::find()
+            let chapter = chapter::Entity::find_current()
                 .select_only()
                 .column(chapter::Column::Id)
                 .column(chapter::Column::ChapterNumber)
@@ -96,7 +96,7 @@ pub async fn chapter_manga_sources_by_ids(
     let mut sources = HashMap::with_capacity(chapter_ids.len());
     match ProjectKind::parse(&project.project_kind) {
         Some(ProjectKind::Text) => {
-            let chapters = chapter::Entity::find()
+            let chapters = chapter::Entity::find_current()
                 .select_only()
                 .column(chapter::Column::Id)
                 .column(chapter::Column::ChapterNumber)
@@ -170,6 +170,7 @@ async fn text_chapter_manga_source_by_id(
     require_content: bool,
 ) -> Result<ChapterMangaSourceSummary, ProjectFamilyDbError> {
     let chapter = chapter::Entity::find_by_id(chapter_id)
+        .filter(chapter::Column::Status.ne(chapter::STATUS_DELETED))
         .select_only()
         .column(chapter::Column::Id)
         .column(chapter::Column::ProjectId)

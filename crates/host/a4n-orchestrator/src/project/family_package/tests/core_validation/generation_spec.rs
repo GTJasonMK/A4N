@@ -130,7 +130,7 @@ fn validate_package_manifest_rejects_generation_spec_source_version_hash_mismatc
 fn validate_package_manifest_accepts_generation_refs_matching_source_snapshot() {
     let mut package = package_with_derived_project();
     let root_chapter_id = package.source_snapshot_chapters[0].source_chapter_id;
-    package.text_core.chapters = vec![chapter_record(root_chapter_id, 1, None)];
+    package.text_core.chapters[0] = chapter_record(root_chapter_id, 1, None);
     package.text_core.character_profiles = vec![character_profile_record(601)];
     let mut snapshot_profile = source_snapshot_profile_record("character");
     snapshot_profile.source_profile_id = 601;

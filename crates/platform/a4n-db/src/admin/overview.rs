@@ -47,7 +47,7 @@ pub async fn admin_overview_summary(
     ) = futures::try_join!(
         count_rows!(user::Entity::find()),
         count_rows!(novel_project::Entity::find()),
-        count_rows!(chapter::Entity::find()),
+        count_rows!(chapter::Entity::find_current()),
         count_rows!(task_queue::Entity::find()),
         count_rows!(task_queue::Entity::find().filter(task_queue::Column::Status.eq("pending"))),
         count_rows!(task_queue::Entity::find().filter(task_queue::Column::Status.eq("running"))),

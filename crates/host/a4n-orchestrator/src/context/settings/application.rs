@@ -56,11 +56,15 @@ impl ConfigApplication {
     pub(in crate::context) async fn update_theme_record(
         &self,
         theme: theme_config::Model,
-        name: Option<&str>,
-        mode: Option<ThemeMode>,
-        document: Option<ThemeDocument>,
-    ) -> Result<theme_config::Model, AppError> {
-        a4n_db::config::update_theme(self.database.connection(), theme, name, mode, document).await
+        changes: a4n_domain::theme_edit::ThemeUpdateChanges,
+    ) -> Result<
+        (
+            theme_config::Model,
+            Vec<a4n_db_models::models::user::theme_resource::Model>,
+        ),
+        AppError,
+    > {
+        a4n_db::config::update_theme(self.database.connection(), theme, changes).await
     }
 
     pub(in crate::context) async fn delete_theme_record(

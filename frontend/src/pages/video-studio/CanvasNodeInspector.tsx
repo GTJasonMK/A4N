@@ -329,13 +329,18 @@ const FunctionalNodeOutputSummary: React.FC<{
   );
 };
 
-export const EdgeInspector: React.FC<{ edge: StudioEdge }> = ({ edge }) => {
+export const EdgeInspector: React.FC<{ edge: StudioEdge; nodes: StudioNode[] }> = ({ edge, nodes }) => {
   const { t } = useI18n();
+  const source = nodes.find((node) => node.id === edge.source);
+  const target = nodes.find((node) => node.id === edge.target);
   return (
     <div className="space-y-2 text-xs">
       <div className="border-b border-book-border/70 pb-3">
         <div className="text-sm font-semibold text-book-text-main">{edgeRoleLabel(edge.data?.role ?? "", t)}</div>
-        <div className="mt-1 text-small text-book-text-muted">{t("video.canvas.inspector.edgeDescription")}</div>
+        <div className="mt-1 break-words text-small leading-relaxed text-book-text-main">{t("video.canvas.inspector.edgeDescription", {
+          source: source ? nodeDisplayTitle(source.data, t) : edge.source,
+          target: target ? nodeDisplayTitle(target.data, t) : edge.target,
+        })}</div>
       </div>
       <details className="rounded-xl border border-book-border/65 bg-book-bg-paper/65">
         <summary className="cursor-pointer px-2.5 py-2 text-small text-book-text-muted">{t("video.canvas.inspector.diagnostics")}</summary>

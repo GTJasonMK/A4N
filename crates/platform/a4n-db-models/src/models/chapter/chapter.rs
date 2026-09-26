@@ -1,6 +1,7 @@
 //! 章节实体
 
 use sea_orm::entity::prelude::*;
+use sea_orm::{QueryFilter, Select};
 use serde::{Deserialize, Serialize};
 
 pub const STATUS_DRAFT: &str = "draft";
@@ -87,6 +88,13 @@ pub enum Relation {
 }
 
 impl ActiveModelBehavior for ActiveModel {}
+
+impl Entity {
+    /// Deleted rows retain frozen-source identity, but are not current project content.
+    pub fn find_current() -> Select<Self> {
+        Self::find().filter(Column::Status.ne(STATUS_DELETED))
+    }
+}
 
 impl Related<super::super::project::novel_project::Entity> for Entity {
     fn to() -> RelationDef {

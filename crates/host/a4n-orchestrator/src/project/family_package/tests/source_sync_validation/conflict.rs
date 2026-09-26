@@ -388,7 +388,8 @@ fn validate_package_manifest_rejects_source_sync_conflict_snapshot_source_chapte
         "galgame_scene_id": 2201
     });
     let mut package = package_with_source_sync_conflict(conflict);
-    package.text_core.chapters = vec![chapter_record(2001, 1, None), chapter_record(2002, 2, None)];
+    package.text_core.chapters[0] = chapter_record(2001, 1, None);
+    package.text_core.chapters[1] = chapter_record(2002, 2, None);
 
     let err = validate_package_manifest(&package)
         .expect_err("source sync conflict source chapter must match snapshot chapter");

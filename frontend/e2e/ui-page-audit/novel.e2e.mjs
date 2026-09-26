@@ -307,7 +307,7 @@ async function wheelTo(element, atEnd = false) {
       label: node.getAttribute("aria-label") || node.getAttribute("title") || node.innerText?.trim().slice(0, 100),
       rect: { x: r.x, y: r.y, width: r.width, height: r.height, bottom: r.bottom, right: r.right },
       inViewport, reached, clip, axis, scrollable: Boolean(surface), origin,
-      delta: Math.round(Math.max(-span / 2, Math.min(span / 2, distance))),
+      delta: Math.round(Math.max(-span, Math.min(span, distance))),
       enabled: !node.matches(":disabled") && node.getAttribute("aria-disabled") !== "true",
     };
   }, atEnd);
@@ -408,6 +408,11 @@ before(async function () {
     });
   });
   await home();
+  const activeTasks = await browser.execute(async () => {
+    const { generationClient } = await import("/src/api/generationTasks.ts");
+    return generationClient.listActive(1);
+  });
+  assert.deepEqual(activeTasks, [], "The completed blueprint fixture must not appear as an active task");
   const models = await seedLocalModels(browser);
   await browser.execute(async (id) => {
     const local = await import("/src/api/localRuntimeSettings.ts");
@@ -549,13 +554,34 @@ describe("Novel page audit - ordinary populated pages", function () {
       assert.equal(end.caret, end.length);
       return { longChapterEnd: end, longChapterEndSamples: samples };
     } : undefined,
-    last: tab === "拍摄剧本" ? async (scope) => {
-      await press(await scope.$('details[class~="group/scene"] > summary'));
-      return openScriptScene(scope, -1);
+    last: ["拍摄剧本", "分析", "图像"].includes(tab) ? async (scope) => {
+      if (tab === "拍摄剧本") {
+        await press(await scope.$('details[class~="group/scene"] > summary'));
+        return openScriptScene(scope, -1);
+      }
+      if (tab === "分析") {
+        const tension = seed.commands.list_chapters[0].analysis_data.foreshadowing.tensions.at(-1);
+        return scope.$('.//li[normalize-space(.)=' + literal(tension) + ']');
+      }
+      return (await scope.$$("li img")).at(-1);
     } : undefined,
   }));
 
   const inner = [
+    { id: "N01-fact-feedback", task: "区分已更新、待采用和已撤回的事实变化，核对正文证据", open: async () => {
+      const page = await project();
+      const scope = await page.$('.//section[./header/h3[normalize-space()="正文事实反馈"]]');
+      await waitText(scope, "已归纳 2 章 · 待归纳 1/3 章");
+      await press(await scope.$("summary"));
+      return scope;
+    }, text: ["已更新", "待采用", "来源已撤回"], check: async (scope) => {
+      const changes = seed.commands.get_project_fact_feedback.changes;
+      assert.equal((await scope.$$("ol > li")).length, changes.length);
+      assert.equal(await scope.$('input[type="number"]').getValue(), "3");
+      const quotes = await scope.$$("blockquote");
+      for (const [index, change] of changes.entries()) assert.ok((await quotes[index].getText()).includes(change.evidence[0].quote));
+      return { changes: changes.length, states: changes.map((change) => change.status), evidenceMatchesChapter: true };
+    }, last: async (scope) => (await scope.$$("blockquote")).at(-1) },
     { id: "N01-synopsis", task: "阅读完整梗概而非卡片截断内容", open: async () => {
       const scope = await project(); await clickText("查看完整", scope); return dialog();
     }, text: ["第三部分让缺齿暗记"], last: async (scope) => scope.$(".whitespace-pre-wrap") },
@@ -1274,6 +1300,9 @@ describe("Novel page audit - ordinary populated pages", function () {
       await writing("导演编排"); await press(await ariaButton("素材库")); return dialog(`${directorPlan.points[0].label} · 选择分镜与参考图`);
     }, check: async (scope) => {
       await browser.waitUntil(async () => (await scope.$$(".director-media-grid article")).length >= 12, { timeout });
+      const captions = await scope.$$(".director-media-grid article > p");
+      assert.equal(captions.length, (await scope.$$(".director-media-grid article")).length);
+      assert.equal(await captions[0].getText(), (await scope.$(".director-media-grid img").getAttribute("alt")).trim());
       assert.equal(await (await textButton("选作参考", scope)).isEnabled(), true);
       return { images: (await scope.$$(".director-media-grid article")).length };
     }, last: async (scope) => (await scope.$$(".director-media-grid article")).at(-1) },

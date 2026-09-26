@@ -5,7 +5,7 @@ pub(super) fn package_with_regenerate_scene_decision(
 ) -> ProjectFamilyPackage {
     let mut package = package_with_galgame_project();
     let snapshot_chapter = package.source_snapshot_chapters[0].clone();
-    package.text_core.chapters = vec![chapter_record(snapshot_chapter.source_chapter_id, 1, None)];
+    package.text_core.chapters[0] = chapter_record(snapshot_chapter.source_chapter_id, 1, None);
     package.text_core.character_profiles = vec![character_profile_record(601)];
     package.text_core.scene_profiles = vec![scene_profile_record(701)];
     package.text_anchors = vec![snapshot_text_anchor_record(&snapshot_chapter)];

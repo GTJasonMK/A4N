@@ -10,6 +10,7 @@ import { ZoomableImage } from "../../../components/ui/ImageLightbox";
 import { Modal } from "../../../components/ui/Modal";
 import { SegmentedControl } from "../../../components/ui/SegmentedControl";
 import { useToast } from "../../../components/feedback/Toast";
+import { confirmDialog } from "../../../components/feedback/ConfirmDialog";
 import { extractErrorMessage } from "../../../api";
 import type { GeneratedImage, UpdateImageInput } from "../../../api/image";
 import { copyTextToClipboard } from "../../../utils/clipboard";
@@ -72,6 +73,7 @@ export function ImageActionDialog({
   const [editType, setEditType] = useState("");
   const [editPanelId, setEditPanelId] = useState("");
   const [savingEdit, setSavingEdit] = useState(false);
+  const [scoreEdited, setScoreEdited] = useState(false);
   const savingEditRef = useRef(false);
   const rawJson = useMemo(() => (image ? imageMetadataRawJson(image) : ""), [image]);
   const visibleTabs = useMemo(
@@ -83,6 +85,7 @@ export function ImageActionDialog({
   useEffect(() => {
     savingEditRef.current = false;
     setSavingEdit(false);
+    setScoreEdited(false);
     if (!image) {
       setEditPrompt("");
       setEditType("");
@@ -131,6 +134,19 @@ export function ImageActionDialog({
     scoreValid &&
     (image.ai_score == null || Math.abs(scoreValue - image.ai_score) > 0.000_001);
 
+  const requestClose = async () => {
+    if (busy) return;
+    if ((editDirty || (scoreEdited && (!scoreValid || scoreDirty))) && !(await confirmDialog({
+      title: t("common.unsavedChangesTitle"),
+      message: t("common.unsavedChangesMessage", {
+        name: imageTypeLabel(image.image_type, t), action: t("common.close"),
+      }),
+      confirmText: t("common.discardDraft"),
+      dialogType: "warning",
+    }))) return;
+    onClose();
+  };
+
   const copyRawJson = async () => {
     try {
       await copyTextToClipboard(rawJson);
@@ -169,7 +185,7 @@ export function ImageActionDialog({
   return (
     <Modal
       isOpen
-      onClose={onClose}
+      onClose={() => void requestClose()}
       title={imageTypeLabel(image.image_type, t)}
       subtitle={`${image.width} × ${image.height}${image.is_favorite ? ` · ${t("novel.imageLibrary.favorite")}` : ""}`}
       icon={<ImageIcon size={15} />}
@@ -364,7 +380,10 @@ export function ImageActionDialog({
                   inputMode="decimal"
                   aria-label={t("novel.imageLibrary.scoreAria")}
                   value={scoreInput}
-                  onChange={(event) => onScoreInputChange(event.target.value)}
+                  onChange={(event) => {
+                    setScoreEdited(true);
+                    onScoreInputChange(event.target.value);
+                  }}
                   placeholder={t("novel.imageLibrary.scorePlaceholder")}
                   className="pyqt-input min-w-0 flex-1 !px-3 !py-1 text-xs sm:max-w-40"
                 />

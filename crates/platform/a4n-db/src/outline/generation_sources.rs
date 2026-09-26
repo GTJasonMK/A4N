@@ -133,7 +133,7 @@ where
             parts_result,
             chapter_outlines_result,
         ) = futures::join!(
-            chapter::Entity::find()
+            chapter::Entity::find_current()
                 .filter(chapter::Column::ProjectId.eq(project_id))
                 .order_by_asc(chapter::Column::ChapterNumber)
                 .order_by_asc(chapter::Column::Id)
@@ -216,7 +216,7 @@ where
         }));
     }
     let chapters = maybe_lock(
-        chapter::Entity::find()
+        chapter::Entity::find_current()
             .filter(chapter::Column::ProjectId.eq(project_id))
             .order_by_asc(chapter::Column::ChapterNumber)
             .order_by_asc(chapter::Column::Id),

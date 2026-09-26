@@ -1,12 +1,13 @@
 use a4n_db_models::models::user::{
     theme_config, theme_preference as theme_preference_entity, theme_resource,
 };
+use a4n_domain::theme_edit::ThemeUpdateChanges;
 use a4n_domain::{ThemeAppearance, ThemeDocument, ThemeMode};
 use a4n_error::AppError;
 use chrono::Utc;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, Condition, DatabaseConnection, EntityTrait, QueryFilter,
-    QueryOrder, Set, TransactionTrait,
+    ActiveModelTrait, ColumnTrait, Condition, ConnectionTrait, DatabaseConnection, EntityTrait,
+    QueryFilter, QueryOrder, QuerySelect, Set, TransactionTrait,
 };
 
 pub async fn list_themes_visible_to_user(
@@ -62,16 +63,21 @@ pub async fn create_theme(
 pub async fn update_theme(
     db: &DatabaseConnection,
     theme: theme_config::Model,
-    name: Option<&str>,
-    mode: Option<ThemeMode>,
-    document: Option<ThemeDocument>,
-) -> Result<theme_config::Model, AppError> {
-    let next_mode = mode.map(|value| value.to_string());
+    changes: ThemeUpdateChanges,
+) -> Result<(theme_config::Model, Vec<theme_resource::Model>), AppError> {
     let txn = db.begin().await.map_err(AppError::Database)?;
+    let current = theme_config::Entity::find_by_id(theme.id)
+        .lock_exclusive()
+        .one(&txn)
+        .await?
+        .ok_or_else(|| AppError::NotFound("主题不存在".into()))?;
+    if current.user_id != theme.user_id {
+        return Err(AppError::Forbidden("主题所有者已变化".into()));
+    }
+    let theme = current;
+    let next_mode = changes.mode.map(|value| value.to_string());
     if theme.is_active
-        && next_mode
-            .as_deref()
-            .is_some_and(|value| value != theme.mode)
+        && let Some(mode) = next_mode.as_deref().filter(|mode| *mode != theme.mode)
     {
         let mut clear_scope = theme_config::Entity::update_many()
             .col_expr(
@@ -84,27 +90,76 @@ pub async fn update_theme(
             )
             .filter(theme_config::Column::IsActive.eq(true))
             .filter(theme_config::Column::Id.ne(theme.id))
-            .filter(theme_config::Column::Mode.eq(next_mode.as_deref().unwrap_or_default()));
+            .filter(theme_config::Column::Mode.eq(mode));
         clear_scope = match theme.user_id {
             Some(user_id) => clear_scope.filter(theme_config::Column::UserId.eq(user_id)),
             None => clear_scope.filter(theme_config::Column::UserId.is_null()),
         };
         clear_scope.exec(&txn).await.map_err(AppError::Database)?;
     }
+    let theme_id = theme.id;
     let mut active: theme_config::ActiveModel = theme.into();
-    if let Some(value) = name {
-        active.name = Set(value.to_string());
+    if let Some(value) = changes.name {
+        active.name = Set(value);
     }
     if let Some(value) = next_mode {
         active.mode = Set(value);
     }
-    if let Some(value) = document {
+    if let Some(value) = changes.document {
         active.theme_document = Set(serde_json::to_value(value)?);
     }
     active.updated_at = Set(Utc::now().naive_utc());
     let updated = active.update(&txn).await.map_err(AppError::Database)?;
+    let mut keys = std::collections::HashSet::new();
+    for resource in changes.resources {
+        if resource.theme_id != theme_id || !keys.insert(resource.resource_key.clone()) {
+            return Err(AppError::InvalidArgument(
+                "主题资源归属不一致或资源键重复".into(),
+            ));
+        }
+        upsert_theme_resource(
+            &txn,
+            theme_id,
+            &resource.resource_key,
+            &resource.file_name,
+            &resource.mime_type,
+            &resource.file_path,
+            &resource.sha256,
+            resource.byte_size,
+        )
+        .await?;
+    }
+    let deleted_ids = changes
+        .delete_resource_ids
+        .into_iter()
+        .collect::<std::collections::HashSet<_>>();
+    if !deleted_ids.is_empty() {
+        let deleted = theme_resource::Entity::delete_many()
+            .filter(theme_resource::Column::ThemeId.eq(theme_id))
+            .filter(theme_resource::Column::Id.is_in(deleted_ids.iter().copied()))
+            .exec(&txn)
+            .await?;
+        if deleted.rows_affected != deleted_ids.len() as u64 {
+            return Err(AppError::InvalidArgument(
+                "待删除主题资源不存在或不属于该主题".into(),
+            ));
+        }
+    }
+    let resources = list_theme_resources(&txn, theme_id).await?;
+    let document: ThemeDocument = serde_json::from_value(updated.theme_document.clone())?;
+    for background in document.backgrounds.values() {
+        if let Some(key) = &background.resource_key
+            && !resources
+                .iter()
+                .any(|resource| &resource.resource_key == key)
+        {
+            return Err(AppError::InvalidArgument(format!(
+                "主题背景引用了不存在的资源: {key}"
+            )));
+        }
+    }
     txn.commit().await.map_err(AppError::Database)?;
-    Ok(updated)
+    Ok((updated, resources))
 }
 
 pub async fn delete_theme(db: &DatabaseConnection, theme_id: i64) -> Result<(), AppError> {
@@ -153,7 +208,7 @@ pub async fn activate_theme(
 }
 
 pub async fn list_theme_resources(
-    db: &DatabaseConnection,
+    db: &impl ConnectionTrait,
     theme_id: i64,
 ) -> Result<Vec<theme_resource::Model>, AppError> {
     theme_resource::Entity::find()
@@ -191,7 +246,7 @@ pub async fn theme_resource_by_id(
 }
 
 pub async fn upsert_theme_resource(
-    db: &DatabaseConnection,
+    db: &impl ConnectionTrait,
     theme_id: i64,
     resource_key: &str,
     file_name: &str,
@@ -283,8 +338,126 @@ pub async fn upsert_theme_preference(
 
 #[cfg(test)]
 mod tests {
-    use super::{create_theme, list_theme_resources_for_themes, upsert_theme_resource};
+    use super::{
+        create_theme, list_theme_resources, list_theme_resources_for_themes, theme_by_id,
+        update_theme, upsert_theme_resource,
+    };
     use a4n_domain::{ThemeDocument, ThemeMode};
+
+    #[tokio::test]
+    async fn theme_document_and_resource_changes_commit_together() {
+        use a4n_domain::theme_edit::{PersistThemeResourceInput, ThemeUpdateChanges};
+        let db = a4n_migration::test_support::connect_test_database().await;
+        let theme = create_theme(
+            &db,
+            None,
+            "原主题",
+            ThemeMode::Light,
+            ThemeDocument::default(),
+        )
+        .await
+        .unwrap();
+        let resource = upsert_theme_resource(
+            &db,
+            theme.id,
+            "global",
+            "red.png",
+            "image/png",
+            "themes/red.png",
+            "red",
+            10,
+        )
+        .await
+        .unwrap();
+        let replacement = PersistThemeResourceInput {
+            theme_id: theme.id,
+            resource_key: "global".into(),
+            file_name: "blue.png".into(),
+            mime_type: "image/png".into(),
+            file_path: "themes/blue.png".into(),
+            sha256: "blue".into(),
+            byte_size: 20,
+        };
+        let mut document = ThemeDocument::default();
+        document.backgrounds.insert(
+            "global".into(),
+            a4n_domain::ThemeBackgroundSettings {
+                resource_key: Some("global".into()),
+                ..Default::default()
+            },
+        );
+        let error = update_theme(
+            &db,
+            theme.clone(),
+            ThemeUpdateChanges {
+                name: Some("不应保存".into()),
+                mode: None,
+                document: Some(document.clone()),
+                resources: vec![replacement.clone()],
+                delete_resource_ids: vec![i64::MAX],
+            },
+        )
+        .await
+        .unwrap_err();
+        assert!(error.to_string().contains("待删除主题资源"));
+        assert_eq!(theme_by_id(&db, theme.id).await.unwrap().unwrap(), theme);
+        assert_eq!(
+            list_theme_resources(&db, theme.id).await.unwrap(),
+            vec![resource.clone()]
+        );
+        let (saved, resources) = update_theme(
+            &db,
+            theme.clone(),
+            ThemeUpdateChanges {
+                name: Some("新主题".into()),
+                mode: None,
+                document: Some(document.clone()),
+                resources: vec![replacement],
+                delete_resource_ids: vec![],
+            },
+        )
+        .await
+        .unwrap();
+        assert_eq!(saved.name, "新主题");
+        assert_eq!(resources[0].id, resource.id);
+        assert_eq!(resources[0].file_path, "themes/blue.png");
+        assert!(
+            update_theme(
+                &db,
+                saved.clone(),
+                ThemeUpdateChanges {
+                    name: None,
+                    mode: None,
+                    document: None,
+                    resources: vec![],
+                    delete_resource_ids: vec![resource.id],
+                }
+            )
+            .await
+            .unwrap_err()
+            .to_string()
+            .contains("引用了不存在的资源")
+        );
+        assert_eq!(
+            list_theme_resources(&db, theme.id).await.unwrap(),
+            resources
+        );
+        document.backgrounds.get_mut("global").unwrap().resource_key = None;
+        let (_, resources) = update_theme(
+            &db,
+            saved,
+            ThemeUpdateChanges {
+                name: None,
+                mode: None,
+                document: Some(document),
+                resources: vec![],
+                delete_resource_ids: vec![resource.id],
+            },
+        )
+        .await
+        .unwrap();
+        assert!(resources.is_empty());
+    }
 
     #[tokio::test]
     async fn list_theme_resources_for_themes_returns_grouped_rows_in_order() {

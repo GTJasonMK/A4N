@@ -10,7 +10,7 @@ pub async fn chapters_for_project<C>(
 where
     C: ConnectionTrait,
 {
-    chapter::Entity::find()
+    chapter::Entity::find_current()
         .filter(chapter::Column::ProjectId.eq(project_id))
         .order_by_asc(chapter::Column::ChapterNumber)
         .all(db)
@@ -26,6 +26,7 @@ where
     C: ConnectionTrait,
 {
     chapter::Entity::find_by_id(chapter_id)
+        .filter(chapter::Column::Status.ne(chapter::STATUS_DELETED))
         .one(db)
         .await
         .map_err(ChapterContentEditError::database)?

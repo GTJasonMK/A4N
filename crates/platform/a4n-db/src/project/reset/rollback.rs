@@ -8,7 +8,7 @@ pub async fn rollback_project_status_record(
     to: ProjectStatus,
     changed_at: NaiveDateTime,
 ) -> Result<ProjectStatusRollbackOutcome, ProjectResetDbError> {
-    use a4n_db_models::models::chapter::{chapter, chapter_outline, part_outline};
+    use a4n_db_models::models::chapter::{chapter_outline, part_outline};
 
     let tx = db.begin().await?;
     let project = project_db::project_by_id_for_update(&tx, project_id)
@@ -63,9 +63,7 @@ pub async fn rollback_project_status_record(
                 candidate_media_paths.extend(cleanup.candidate_media_paths);
                 delete_project_profile_scene_data(&tx, project_id, &retained).await?;
                 project_db::delete_project_task_queue_records(&tx, project_id).await?;
-                chapter::Entity::delete_many()
-                    .filter(chapter::Column::ProjectId.eq(project_id))
-                    .exec(&tx)
+                crate::chapter_content::delete_project_chapter_content(&tx, project_id, changed_at)
                     .await?;
             }
             CleanupAction::DeleteChapterOutlines => {

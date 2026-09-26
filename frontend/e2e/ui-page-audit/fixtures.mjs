@@ -1,3 +1,4 @@
+import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { visualFixtures } from "../ui-presentation/visual-fixtures.mjs";
 import { uiFixtures } from "../ui-presentation/fixtures.mjs";
@@ -8,6 +9,15 @@ const [novel, media, settings] = await Promise.all(["novel", "media", "settings"
 ));
 const byId = (...lists) => [...new Map(lists.flat().map((item) => [item.id, item])).values()];
 const runtime = JSON.parse(await readFile(new URL("./novel-runtime.json", import.meta.url), "utf8"));
+
+// Current script responses use stable director shot IDs; frozen media snapshots stay unchanged.
+for (const chapter of Object.values(media.byChapter)) {
+  const view = chapter.get_chapter_shooting_script;
+  const shots = view.script.scenes.flatMap((scene) => scene.shots);
+  assert.deepEqual(view.plan_sync, { missing_shot_ids: [], stale_shot_ids: [] });
+  assert.deepEqual(shots.map((shot) => shot.shot_id), chapter.get_chapter_visual_plan.confirmed.plan.segments.map((segment) => segment.id));
+  assert.ok(shots.every((shot) => shot.shot_id === shot.visual_shot_id && shot.shot_id === shot.visual_constraints.segment_id));
+}
 
 export async function seedLocalModels(browser) {
   return browser.execute(async (models) => {

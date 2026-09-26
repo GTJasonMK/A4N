@@ -5,7 +5,7 @@ fn validate_package_manifest_rejects_generation_text_anchor_outside_snapshot() {
     let mut package = package_with_derived_project();
     let chapter = chapter_record(201, 1, None);
     let live_anchor = chapter_text_anchor_record(&chapter);
-    package.text_core.chapters = vec![chapter];
+    package.text_core.chapters.push(chapter);
     package.text_anchors = vec![live_anchor];
     package.generation_specs = vec![generation_spec_for_source_snapshot(901)];
     let mut anchor_ref = generation_text_anchor_ref("context");
