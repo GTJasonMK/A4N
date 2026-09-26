@@ -174,6 +174,20 @@ mod tests {
     }
 
     #[test]
+    fn delegation_depth_counts_descendant_edges_from_the_root() {
+        let parent = AgentBudget {
+            max_delegation_depth: Some(2),
+            ..AgentBudget::default()
+        };
+        let child = child_budget_within_parent(AgentBudget::default(), &parent, &json!({}))
+            .expect("child budget must preserve the absolute depth limit");
+
+        assert_eq!(child.max_delegation_depth, Some(2));
+        assert!(enforce_delegation_limits(&[], 2, 1, &child).is_ok());
+        assert!(enforce_delegation_limits(&[], 3, 2, &child).is_err());
+    }
+
+    #[test]
     fn context_summary_rejects_invalid_input() {
         let invalid = json!({
             "schema_version": AGENT_CONTEXT_SUMMARY_VERSION,
@@ -225,7 +239,7 @@ mod tests {
         )
         .expect("deterministic summary must validate");
 
-        assert_eq!(summary.current_goal, "继续阅读正文");
+        assert_eq!(summary.current_goal, "fallback goal");
         assert_eq!(summary.constraints, ["保持人物声音"]);
         assert_eq!(summary.pending, ["读取下一段"]);
         assert_eq!(summary.covered_through_sequence, 12);
@@ -280,6 +294,74 @@ mod tests {
         let long_goal = deterministic_context_summary(None, Some(&"x".repeat(5_000)), "", 14)
             .expect("truncated goal must remain within the validation limit");
         assert_eq!(long_goal.current_goal.chars().count(), 4_000);
+    }
+
+    #[test]
+    fn deterministic_context_summary_uses_new_goal_and_keeps_recent_source() {
+        let previous = json!({ "current_goal": "old goal" });
+        let source = format!("{}recent fact marker", "x".repeat(2_000));
+        let summary = deterministic_context_summary(Some(&previous), Some("new goal"), &source, 2)
+            .expect("summary must keep the current goal and bounded source");
+
+        assert_eq!(summary.current_goal, "new goal");
+        assert!(summary.facts_resources[0].contains("recent fact marker"));
+        assert!(summary.facts_resources[0].contains("内容省略"));
+        assert!(summary.facts_resources[0].chars().count() <= 2_000);
+    }
+
+    #[test]
+    fn deterministic_context_summary_rolls_old_facts_at_the_limit() {
+        let mut previous = None;
+        for sequence in 1..=80 {
+            previous = Some(
+                serde_json::to_value(
+                    deterministic_context_summary(
+                        previous.as_ref(),
+                        None,
+                        &format!("fact {sequence}"),
+                        sequence,
+                    )
+                    .expect("long-running summaries must remain valid"),
+                )
+                .expect("summary must serialize"),
+            );
+        }
+
+        let summary: AgentContextSummary =
+            serde_json::from_value(previous.unwrap()).expect("final summary must deserialize");
+        assert_eq!(summary.facts_resources.len(), 64);
+        assert!(summary.facts_resources.last().unwrap().contains("fact 80"));
+        assert_eq!(summary.tool_state.len(), 64);
+    }
+
+    #[test]
+    fn deterministic_context_summary_trims_old_entries_to_fit_byte_limit() {
+        let repeated = || vec!["x".repeat(1_000); 64];
+        let previous = json!({
+            "current_goal": "goal",
+            "constraints": repeated(),
+            "decisions": repeated(),
+            "facts_resources": [],
+            "completed": repeated(),
+            "pending": repeated(),
+            "tool_state": vec!["x".repeat(1_000); 5],
+            "covered_through_sequence": 1
+        });
+        let previous_summary: AgentContextSummary =
+            serde_json::from_value(previous.clone()).expect("previous summary must deserialize");
+        previous_summary
+            .validate()
+            .expect("previous summary must be at the byte limit but valid");
+
+        let source = "y".repeat(2_000);
+        let summary = deterministic_context_summary(Some(&previous), None, &source, 2)
+            .expect("deterministic compaction must trim to the byte limit");
+
+        assert!(summary.validate().is_ok());
+        assert_eq!(
+            summary.facts_resources.last().map(String::as_str),
+            Some(source.as_str())
+        );
     }
 
     #[test]

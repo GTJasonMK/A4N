@@ -83,14 +83,13 @@ export function reduceAgentEvent(
     return { snapshot, cursor, needsReload: false };
   }
 
-  if (event.kind === "approval_requested") {
-    return { snapshot, cursor, needsReload: true };
-  }
-
   // An editor request carries a live UI operation and an execution that may
   // have been created after this snapshot. Reload the authoritative snapshot
   // before the page decides whether it can answer the request.
   if (event.editor_request) {
+    return { snapshot, cursor, needsReload: true };
+  }
+  if (event.kind === "approval_requested") {
     return { snapshot, cursor, needsReload: true };
   }
 

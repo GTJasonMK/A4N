@@ -198,9 +198,9 @@ impl ChapterShootingScriptV1 {
                 .iter()
                 .map(|shot| segment_addition_id(&shot.shot_id))
                 .collect::<HashSet<_>>();
-            scene.user_addition_ids.retain(|id| {
-                !id.starts_with("director:") || present.contains(id)
-            });
+            scene
+                .user_addition_ids
+                .retain(|id| !id.starts_with("director:") || present.contains(id));
             scene.scene_index = index(scenes.len())?;
             scene.timeline_position = scene.scene_index;
             scene.sequence_index = unit.sequence_index;
@@ -234,13 +234,16 @@ impl ChapterShootingScriptV1 {
         let referenced = scenes
             .iter()
             .flat_map(|scene| {
-                scene.user_addition_ids.iter().chain(scene.shots.iter().flat_map(|shot| {
-                    shot.user_addition_ids.iter().chain(
-                        shot.performance_beats
-                            .iter()
-                            .flat_map(|beat| &beat.user_addition_ids),
-                    )
-                }))
+                scene
+                    .user_addition_ids
+                    .iter()
+                    .chain(scene.shots.iter().flat_map(|shot| {
+                        shot.user_addition_ids.iter().chain(
+                            shot.performance_beats
+                                .iter()
+                                .flat_map(|beat| &beat.user_addition_ids),
+                        )
+                    }))
             })
             .collect::<HashSet<_>>();
         let mut user_additions = plan.user_additions.clone();

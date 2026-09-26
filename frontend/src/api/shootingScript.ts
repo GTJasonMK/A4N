@@ -106,7 +106,7 @@ export const generateNextChapterShootingScriptUnit = (
 export const editChapterShootingScript = (
   projectId: number,
   sourceChapterId: number,
-  view: ChapterShootingScriptView,
+  view: Pick<ChapterShootingScriptView, "record">,
   script: ChapterShootingScriptV1,
 ) =>
   apiInvoke<EditedChapterShootingScriptView>("edit_chapter_shooting_script", {
@@ -140,7 +140,7 @@ export const editChapterShootingScriptProgress = (
 export const deleteChapterShootingScript = (
   projectId: number,
   sourceChapterId: number,
-  view: ChapterShootingScriptView,
+  view: Pick<ChapterShootingScriptView, "record">,
 ) =>
   apiInvoke<void>("delete_chapter_shooting_script", {
     input: {

@@ -209,7 +209,9 @@ fn script(plan: &ChapterVisualPlanV3) -> ChapterShootingScriptV1 {
         scenes,
     };
     script.validate().expect("fixture script");
-    script.validate_director_plan(plan, None).expect("fixture binds plan");
+    script
+        .validate_director_plan(plan, None)
+        .expect("fixture binds plan");
     script
 }
 
@@ -219,7 +221,9 @@ fn rebase(
 ) -> (ChapterShootingScriptV1, ShootingScriptPlanSyncV1) {
     let projected = project_visual_plan_for_shooting_script(plan, &[]).unwrap();
     let rebased = script.rebased_onto(&projected, source(2)).expect("rebase");
-    rebased.validate().expect("rebased script keeps the stored contract");
+    rebased
+        .validate()
+        .expect("rebased script keeps the stored contract");
     rebased
         .validate_director_plan(plan, Some(script))
         .expect("rebased script binds the new plan");
@@ -291,7 +295,10 @@ fn retimed_shot_with_same_duration_stays_current_without_rewriting_constraints()
 
     assert_eq!(sync.stale_shot_ids, ids(&["shot-2", "shot-4"]));
     let moved = shot_of(&rebased, "shot-3");
-    assert_eq!((moved.planned_start_ms, moved.planned_end_ms), (Some(9_000), Some(13_000)));
+    assert_eq!(
+        (moved.planned_start_ms, moved.planned_end_ms),
+        (Some(9_000), Some(13_000))
+    );
     assert_eq!(
         moved.visual_constraints,
         shot_of(&script, "shot-3").visual_constraints,
@@ -407,7 +414,10 @@ fn manual_rebind_resolves_only_the_confirmed_shot() {
         .rebind_shots(&projected, &ids(&["shot-3", "shot-4"]))
         .unwrap();
     assert!(rebased.plan_sync(&projected).is_current());
-    assert_eq!(shot_of(&rebased, "shot-3").narrative_purpose, "主角翻窗而入");
+    assert_eq!(
+        shot_of(&rebased, "shot-3").narrative_purpose,
+        "主角翻窗而入"
+    );
     assert_eq!(shot_of(&rebased, "shot-4"), shot_of(&before, "shot-4"));
     rebased.validate().unwrap();
     rebased

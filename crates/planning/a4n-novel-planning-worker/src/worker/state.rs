@@ -20,9 +20,14 @@ impl WorkerState {
         )
         .await?;
         let current = self.current_record(&request.payload).await?;
-        Ok(current.map(|record| ChapterShootingScriptView {
+        let Some(record) = current else {
+            return Ok(None);
+        };
+        let plan_sync = self.plan_sync_for_record(&request.payload, &record).await?;
+        Ok(Some(ChapterShootingScriptView {
             record: record_summary(record.record),
             script: record.script,
+            plan_sync,
         }))
     }
 
@@ -160,10 +165,21 @@ impl WorkerState {
         )
         .await
         .map_err(shooting_script_error)?;
+        let plan_sync = self
+            .plan_sync_for_record(
+                &ChapterShootingScriptSourceInput {
+                    project_id: request.payload.project_id,
+                    source_chapter_id: request.payload.source_chapter_id,
+                    visual_plan_id: None,
+                },
+                &outcome.shooting_script,
+            )
+            .await?;
         Ok(EditedChapterShootingScriptView {
             shooting_script: ChapterShootingScriptView {
                 record: record_summary(outcome.shooting_script.record),
                 script: outcome.shooting_script.script,
+                plan_sync,
             },
             invalidated_project_ids: outcome.invalidated_project_ids,
         })
@@ -287,9 +303,20 @@ impl WorkerState {
                 )));
             }
         };
+        let plan_sync = self
+            .plan_sync_for_record(
+                &ChapterShootingScriptSourceInput {
+                    project_id: request.payload.project_id,
+                    source_chapter_id: request.payload.source_chapter_id,
+                    visual_plan_id: Some(request.payload.visual_plan_id),
+                },
+                &record,
+            )
+            .await?;
         Ok(ChapterShootingScriptView {
             record: record_summary(record.record),
             script: record.script,
+            plan_sync,
         })
     }
 
@@ -372,6 +399,7 @@ impl WorkerState {
         Ok(ConfirmedChapterVisualPlanView {
             visual_plan: visual_plan_view(outcome.visual_plan),
             invalidated_project_ids: outcome.invalidated_project_ids,
+            shooting_script_sync: outcome.shooting_script_sync,
         })
     }
 
@@ -674,5 +702,32 @@ impl WorkerState {
                 && record.record.visual_plan_sha256.as_deref()
                     == Some(confirmed.record.plan_sha256.as_str())
         }))
+    }
+
+    async fn plan_sync_for_record(
+        &self,
+        input: &ChapterShootingScriptSourceInput,
+        record: &a4n_db::shooting_script::ParsedChapterShootingScript,
+    ) -> Result<a4n_domain::shooting_script::ShootingScriptPlanSyncV1, WorkerFailure> {
+        let source = a4n_db::project::resolve_chapter_source(
+            self.database.connection(),
+            input.project_id,
+            input.source_chapter_id,
+        )
+        .await
+        .map_err(source_error)?;
+        let confirmed = a4n_db::chapter_visual_plan::confirmed_chapter_visual_plan_for_source(
+            self.database.connection(),
+            &source,
+        )
+        .await
+        .map_err(visual_plan_error)?
+        .ok_or_else(|| WorkerFailure::not_found("当前正文缺少 confirmed 导演编排方案"))?;
+        let director = a4n_domain::shooting_script::project_visual_plan_for_shooting_script(
+            &confirmed.plan,
+            &[],
+        )
+        .map_err(|error| WorkerFailure::invalid_request(error.to_string()))?;
+        Ok(record.script.plan_sync(&director))
     }
 }

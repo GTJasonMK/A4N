@@ -6,7 +6,9 @@ use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QueryOrder
 
 use super::{
     codec::{parse_record, stored_visual_plan_identity},
-    contracts::{ChapterVisualPlanIdentity, ShootingScriptDbError, UpdateChapterShootingScriptInput},
+    contracts::{
+        ChapterVisualPlanIdentity, ShootingScriptDbError, UpdateChapterShootingScriptInput,
+    },
     mutations::update_chapter_shooting_script,
 };
 use crate::chapter_visual_plan::ParsedChapterVisualPlan;
@@ -26,8 +28,7 @@ where
         .filter(chapter_shooting_script::Column::RootProjectId.eq(plan.record.root_project_id))
         .filter(chapter_shooting_script::Column::SourceChapterId.eq(plan.record.source_chapter_id))
         .filter(
-            chapter_shooting_script::Column::SourceRevisionKey
-                .eq(&plan.record.source_revision_key),
+            chapter_shooting_script::Column::SourceRevisionKey.eq(&plan.record.source_revision_key),
         )
         .filter(
             chapter_shooting_script::Column::SourceContentSha256

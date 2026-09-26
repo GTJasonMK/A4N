@@ -7,11 +7,11 @@ use a4n_api_contract::chapter_visual_plan::{
 use a4n_db::chapter_visual_plan::{
     ChapterVisualPlanDbError, ConfirmChapterVisualPlanOutcome, ParsedChapterVisualPlan,
 };
-use a4n_domain::{chapter::ResolvedChapterSource, chapter_visual_plan::ExpectedVisualPlanDraft};
-use a4n_error::AppError;
 pub(crate) use a4n_domain::shooting_script::{
     DirectorScriptPlan, DirectorScriptUnit, segment_addition_id,
 };
+use a4n_domain::{chapter::ResolvedChapterSource, chapter_visual_plan::ExpectedVisualPlanDraft};
+use a4n_error::AppError;
 
 impl OrchestratorContext {
     pub(crate) async fn save_chapter_visual_plan_draft_for_user_validated(
@@ -234,6 +234,7 @@ impl a4n_api_contract::chapter_visual_plan::ChapterVisualPlanMutationApplication
             a4n_api_contract::chapter_visual_plan::ConfirmedChapterVisualPlanView {
                 visual_plan: chapter_visual_plan_view(outcome.visual_plan),
                 invalidated_project_ids: outcome.invalidated_project_ids,
+                shooting_script_sync: outcome.shooting_script_sync,
             },
         )
     }

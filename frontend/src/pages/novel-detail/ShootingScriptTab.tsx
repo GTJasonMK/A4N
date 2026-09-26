@@ -85,6 +85,8 @@ const mergePartialScriptEdits = (
   };
 };
 
+type ShootingScriptTabView = Pick<ChapterShootingScriptView, "record" | "script">;
+
 interface ShootingScriptTabProps {
   projectId: number;
   canEdit: boolean;
@@ -100,7 +102,7 @@ export const ShootingScriptTab: React.FC<ShootingScriptTabProps> = ({
   const { t } = useI18n();
   const { runProgressTask } = useProgressTask();
   const chapterId = chapter?.id ?? null;
-  const [view, setView] = useState<ChapterShootingScriptView | null>(null);
+  const [view, setView] = useState<ShootingScriptTabView | null>(null);
   const [unitProgress, setUnitProgress] =
     useState<ChapterShootingScriptUnitProgressView | null>(null);
   const [scriptLoading, setScriptLoading] = useState(false);
@@ -298,7 +300,7 @@ export const ShootingScriptTab: React.FC<ShootingScriptTabProps> = ({
         const completedView = {
           record: generated.completed_record,
           script,
-        } satisfies ChapterShootingScriptView;
+        } satisfies ShootingScriptTabView;
         setView(completedView);
         setUnitProgress(null);
         setDraft(structuredClone(script));

@@ -74,10 +74,11 @@ pub fn project_visual_plan_for_shooting_script(
             last.shots.push(shot);
             continue;
         }
-        let index = u32::try_from(units.len() + 1).map_err(|_| ChapterVisualPlanValidationError {
-            path: "segments".into(),
-            message: "镜头数量超出 u32 范围".into(),
-        })?;
+        let index =
+            u32::try_from(units.len() + 1).map_err(|_| ChapterVisualPlanValidationError {
+                path: "segments".into(),
+                message: "镜头数量超出 u32 范围".into(),
+            })?;
         units.push(DirectorScriptUnit {
             id: format!("unit:{}", shot.segment_id),
             title: shot.title.clone(),

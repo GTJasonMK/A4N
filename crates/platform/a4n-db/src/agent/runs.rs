@@ -381,12 +381,47 @@ pub(crate) async fn update_run_state_on<C>(
 where
     C: ConnectionTrait,
 {
+    update_run_state_on_with_options(
+        db,
+        run_id,
+        lease_token,
+        status,
+        waiting_reason,
+        error_message,
+        None,
+        None,
+    )
+    .await
+}
+
+async fn update_run_state_on_with_options<C>(
+    db: &C,
+    run_id: i64,
+    lease_token: Option<&str>,
+    status: &str,
+    waiting_reason: Option<&str>,
+    error_message: Option<&str>,
+    budget_json: Option<Value>,
+    expected: Option<&run::Model>,
+) -> Result<run::Model, AgentDbError>
+where
+    C: ConnectionTrait,
+{
     validate_run_status(status)?;
     let row = run::Entity::find_by_id(run_id)
         .lock_exclusive()
         .one(db)
         .await?
         .ok_or_else(|| AgentDbError::NotFound(format!("Agent run 不存在: {run_id}")))?;
+    if let Some(expected) = expected
+        && (row.status != expected.status
+            || row.waiting_reason != expected.waiting_reason
+            || row.updated_at != expected.updated_at)
+    {
+        return Err(AgentDbError::Conflict(format!(
+            "Agent run 状态已变化，拒绝应用过期控制请求: {run_id}"
+        )));
+    }
     if is_run_terminal(&row.status) && row.status != status {
         return Err(AgentDbError::Conflict(format!(
             "Agent run 已终止，不能从 {} 变为 {status}: {run_id}",
@@ -406,6 +441,9 @@ where
     }
     let mut active: run::ActiveModel = row.into();
     active.usage_json = Set(usage);
+    if let Some(budget_json) = budget_json {
+        active.budget_json = Set(budget_json);
+    }
     active.status = Set(status.to_string());
     active.waiting_reason = Set(waiting_reason.map(str::to_string));
     active.last_error = Set(error_message.map(str::to_string));
@@ -451,7 +489,8 @@ where
             None,
             None,
             None,
-            waiting_reason.map(|reason| json!({ "waiting_reason": reason })),
+            (status == "waiting")
+                .then(|| serde_json::json!({"waiting_reason": updated.waiting_reason.clone()})),
         )
         .await?;
     }
@@ -474,6 +513,7 @@ pub async fn update_run_state(
         waiting_reason,
         error_message,
         None,
+        None,
     )
     .await
 }
@@ -495,6 +535,29 @@ pub async fn update_run_state_with_budget(
         waiting_reason,
         error_message,
         Some(budget_json),
+        None,
+    )
+    .await
+}
+
+pub async fn update_run_state_if_unchanged(
+    db: &DatabaseConnection,
+    expected: &run::Model,
+    lease_token: Option<&str>,
+    status: &str,
+    waiting_reason: Option<&str>,
+    error_message: Option<&str>,
+    budget_json: Option<Value>,
+) -> Result<run::Model, AgentDbError> {
+    update_run_state_inner(
+        db,
+        expected.id,
+        lease_token,
+        status,
+        waiting_reason,
+        error_message,
+        budget_json,
+        Some(expected),
     )
     .await
 }
@@ -507,6 +570,7 @@ async fn update_run_state_inner(
     waiting_reason: Option<&str>,
     error_message: Option<&str>,
     budget_json: Option<Value>,
+    expected: Option<&run::Model>,
 ) -> Result<run::Model, AgentDbError> {
     validate_run_status(status)?;
     let current = run::Entity::find_by_id(run_id)
@@ -521,20 +585,17 @@ async fn update_run_state_inner(
         .ok_or_else(|| {
             AgentDbError::NotFound(format!("Agent thread 不存在: {}", current.thread_id))
         })?;
-    let mut run_row = update_run_state_on(
+    let run_row = update_run_state_on_with_options(
         &tx,
         run_id,
         lease_token,
         status,
         waiting_reason,
         error_message,
+        budget_json,
+        expected,
     )
     .await?;
-    if let Some(budget_json) = budget_json {
-        let mut active: run::ActiveModel = run_row.into();
-        active.budget_json = Set(budget_json);
-        run_row = active.update(&tx).await.map_err(AgentDbError::Database)?;
-    }
     let _ = refresh_thread_status_on(&tx, run_row.thread_id).await?;
     tx.commit().await?;
     Ok(run_row)

@@ -4,10 +4,10 @@ use a4n_db::cleanup_outbox::{
 };
 use a4n_db::generation::{
     GenerationTaskPersistenceError, PersistGenerationCheckpointInput, ReserveGenerationTaskInput,
-    begin_project_lifecycle_gate, canonical_json_sha256, expire_generation_snapshot_bodies,
-    extend_generation_sequence_lease, list_active_generation_task_checkpoints,
-    list_generation_task_history_checkpoints, load_generation_task,
-    persist_generation_cancel_requested_batch, persist_generation_checkpoint,
+    begin_project_lifecycle_gate, bind_generation_task_to_workflow, canonical_json_sha256,
+    expire_generation_snapshot_bodies, extend_generation_sequence_lease,
+    list_active_generation_task_checkpoints, list_generation_task_history_checkpoints,
+    load_generation_task, persist_generation_cancel_requested_batch, persist_generation_checkpoint,
     persist_generation_status_changed, persist_generation_terminal,
     purge_expired_generation_task_trees, reserve_generation_task, restore_project_lifecycle_gate,
 };
@@ -34,7 +34,7 @@ use a4n_service_protocol::{
 use chrono::Utc;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, ConnectionTrait, DatabaseConnection, DbBackend, EntityTrait,
-    QueryFilter, Set, Statement,
+    QueryFilter, Set, Statement, TransactionTrait,
 };
 use serde_json::json;
 use uuid::Uuid;
@@ -256,6 +256,21 @@ async fn generation_reservation_resolves_derived_project_root() {
         bound_task.public_snapshot.unwrap().started.workflow_run_id,
         Some(workflow.id)
     );
+
+    let mut unlinked_task: task_queue::ActiveModel = queue_task.into();
+    unlinked_task.workflow_run_id = Set(None);
+    unlinked_task.update(&db).await.unwrap();
+    let tx = db.begin().await.unwrap();
+    bind_generation_task_to_workflow(&tx, &task_id, workflow.id)
+        .await
+        .unwrap();
+    tx.commit().await.unwrap();
+    let repaired_task = task_queue::Entity::find_by_id(task_id.clone())
+        .one(&db)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(repaired_task.workflow_run_id, Some(workflow.id));
 
     mark_workflow_status(&db, workflow.id, WORKFLOW_STATUS_COMPLETED, false, None)
         .await

@@ -6,6 +6,16 @@ use a4n_storage::paths::AppPaths;
 use tauri::Manager;
 
 pub(crate) fn run() {
+    let native_worker_settings = match environment::api_mode() {
+        Ok(environment::ApiMode::Native) => match server_process::NativeWorkerSettings::prepare() {
+            Ok(settings) => Some(settings),
+            Err(error) => {
+                eprintln!("准备 Native worker 配置失败: {error}");
+                return;
+            }
+        },
+        _ => None,
+    };
     let early_log_dir = environment::early_log_dir().expect("日志目录配置无效");
     logging::init(early_log_dir).expect("日志系统初始化失败");
 
@@ -29,10 +39,14 @@ pub(crate) fn run() {
                 );
             }
         })
-        .setup(|app| {
+        .setup(move |app| {
             install_signal_exit(app.handle())?;
             match environment::api_mode().map_err(std::io::Error::other)? {
-                environment::ApiMode::Native => setup_local_runtime(app)?,
+                environment::ApiMode::Native => setup_local_runtime(
+                    app,
+                    native_worker_settings
+                        .ok_or_else(|| std::io::Error::other("Native worker 配置未在启动前准备"))?,
+                )?,
                 environment::ApiMode::Http { remote_only } => setup_http_mode(app, remote_only)?,
             }
             Ok(())
@@ -63,6 +77,9 @@ pub(crate) fn run() {
                     tauri::async_runtime::block_on(state.shutdown_managed_sidecars())
             {
                 tracing::error!(%error, "停止 managed sidecars 失败");
+            }
+            if let Some(workers) = app_handle.try_state::<server_process::NativeWorkerProcesses>() {
+                workers.stop();
             }
         }
         _ => {}
@@ -116,8 +133,14 @@ fn configure_local_server_runtime() {
     }
 }
 
-fn setup_local_runtime(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
-    let app_state = tauri::async_runtime::block_on(crate::setup::initialize(app.handle()))?;
+fn setup_local_runtime(
+    app: &mut tauri::App,
+    worker_settings: server_process::NativeWorkerSettings,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let config = setup::load_native_config(app.handle())?;
+    let workers = tauri::async_runtime::block_on(worker_settings.start(app.handle(), &config))?;
+    app.manage(workers);
+    let app_state = tauri::async_runtime::block_on(crate::setup::initialize(config))?;
     let app_state = std::sync::Arc::new(app_state);
     a4n_control::install_agent_host_dispatcher(&app_state)?;
     tauri::async_runtime::block_on(app_state.spawn_agent_worker())?;

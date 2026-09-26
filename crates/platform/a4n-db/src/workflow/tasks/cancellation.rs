@@ -61,6 +61,7 @@ pub async fn cancel_workflow_run_persistence(
                     .await
                     .map_err(WorkflowWriteError::Database)?
                     .flatten();
+                let fallback_task_id = cancellation_task_id_from_run(&tx, &run).await?;
                 let active_task_id = run
                     .progress_json
                     .as_ref()
@@ -68,6 +69,7 @@ pub async fn cancel_workflow_run_persistence(
                     .and_then(serde_json::Value::as_str)
                     .and_then(|task_id| (!task_id.trim().is_empty()).then(|| task_id.to_string()))
                     .or(historical_task_id)
+                    .or(fallback_task_id)
                     .or_else(|| run.active_task_id.clone());
                 (
                     active_task_id,
@@ -110,9 +112,10 @@ pub async fn cancel_workflow_run_persistence(
         .all(&tx)
         .await
         .map_err(WorkflowWriteError::Database)?;
+    let active_task_id = cancellation_task_id_from_run(&tx, &run).await?;
     let result = CancelWorkflowRunPersistenceResult {
         workflow_run_id,
-        active_task_id: run.active_task_id.clone(),
+        active_task_id,
         interrupted_generated_video_ids: generated_video_ids_for_cancellation_checkpoints(
             &checkpoints,
         ),
@@ -210,4 +213,39 @@ pub async fn cancel_workflow_run_persistence(
     trim_workflow_progress_events(&tx, workflow_run_id).await?;
     tx.commit().await.map_err(WorkflowWriteError::Database)?;
     Ok(result)
+}
+
+async fn cancellation_task_id_from_run(
+    tx: &sea_orm::DatabaseTransaction,
+    run: &workflow_run::Model,
+) -> Result<Option<String>, WorkflowWriteError> {
+    let active_task_id = run
+        .progress_json
+        .as_ref()
+        .and_then(|progress| progress.get("cancellation_active_task_id"))
+        .and_then(serde_json::Value::as_str)
+        .or(run.active_task_id.as_deref())
+        .map(str::trim)
+        .filter(|task_id| !task_id.is_empty());
+    if let Some(task_id) = active_task_id {
+        return Ok(Some(task_id.to_string()));
+    }
+    let cancellation_message = run.error_message.as_deref().or_else(|| {
+        run.progress_json
+            .as_ref()
+            .and_then(|progress| progress.get("message"))
+            .and_then(serde_json::Value::as_str)
+    });
+    let Some(cancellation_message) = cancellation_message else {
+        return Ok(None);
+    };
+    Ok(workflow_progress_event::Entity::find()
+        .filter(workflow_progress_event::Column::WorkflowRunId.eq(run.id))
+        .filter(workflow_progress_event::Column::Message.eq(cancellation_message))
+        .order_by_desc(workflow_progress_event::Column::EventIndex)
+        .one(tx)
+        .await
+        .map_err(WorkflowWriteError::Database)?
+        .and_then(|event| event.task_id)
+        .filter(|task_id| !task_id.trim().is_empty()))
 }

@@ -82,6 +82,7 @@ fn chapter_shooting_script_view(
     ChapterShootingScriptView {
         record: chapter_shooting_script_record_summary(resolved.shooting_script.record),
         script: resolved.shooting_script.script,
+        plan_sync: resolved.plan_sync,
     }
 }
 

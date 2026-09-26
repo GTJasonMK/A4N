@@ -7,10 +7,11 @@ use super::validation::{
     requires_explicit_interrupted_resume, should_resume_existing_run, should_update_existing_run,
     validate_workflow_run_input, validate_workflow_status_fields, workflow_fingerprint_matches,
 };
-use a4n_db_models::models::chapter::chapter;
-use a4n_db_models::models::{generation::generation_task_checkpoint, task::task_queue};
+use a4n_db_models::models::{
+    chapter::chapter, generation::generation_task_checkpoint, task::task_queue,
+};
 use sea_orm::sea_query::LockType;
-use sea_orm::{Condition, DbBackend, DbErr};
+use sea_orm::{Condition, DbBackend, DbErr, QuerySelect};
 
 const CHAPTER_ANALYSIS_WORKFLOW_KIND: &str = "chapter_analysis";
 const CHAPTER_ANALYSIS_DERIVED_CHECKPOINTS: &[&str] = &[
@@ -315,12 +316,31 @@ pub async fn mark_workflow_status(
         return Ok(run);
     }
     let now = Utc::now().naive_utc();
+    let mut progress_json = run.progress_json.clone();
+    if status == WORKFLOW_STATUS_INTERRUPTED
+        && let Some(active_task_id) = run
+            .active_task_id
+            .as_deref()
+            .map(str::trim)
+            .filter(|task_id| !task_id.is_empty())
+    {
+        let mut progress = progress_json.unwrap_or_else(|| serde_json::json!({}));
+        let fields = progress.as_object_mut().ok_or_else(|| {
+            WorkflowWriteError::InvalidData("progress_json 必须是 JSON object".to_string())
+        })?;
+        fields.insert(
+            "cancellation_active_task_id".to_string(),
+            serde_json::json!(active_task_id),
+        );
+        progress_json = Some(progress);
+    }
     let mut active: workflow_run::ActiveModel = run.into();
     active.status = Set(status.to_string());
     active.can_resume = Set(can_resume);
     active.resume_block_reason = Set((!can_resume).then(|| error_message.clone()).flatten());
     active.error_message = Set(error_message);
     active.active_task_id = Set(None);
+    active.progress_json = Set(progress_json);
     active.updated_at = Set(now);
     active.completed_at = Set(completed_at_for_status_value(status, now));
     let updated = active
@@ -453,6 +473,22 @@ async fn validate_and_bind_active_task(
                 error => WorkflowWriteError::InvalidData(format!(
                     "绑定 generation task {active_task_id} 到 workflow {workflow_run_id} 失败: {error}"
                 )),
+            })?;
+    } else {
+        crate::queue::bind_locked_task_queue_row_to_workflow(tx, task.clone(), workflow_run_id)
+            .await
+            .map_err(|error| match error {
+                crate::queue::TaskWorkflowBindingError::Conflict { current } => {
+                    WorkflowWriteError::StatusConflict {
+                        current: format!("task_queue.workflow_run_id={current}"),
+                        operation: format!(
+                            "将活动任务 {active_task_id} 绑定到 workflow {workflow_run_id}"
+                        ),
+                    }
+                }
+                crate::queue::TaskWorkflowBindingError::Database(error) => {
+                    WorkflowWriteError::Database(error)
+                }
             })?;
     }
     Ok(())

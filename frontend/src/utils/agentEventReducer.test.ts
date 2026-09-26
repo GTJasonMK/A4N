@@ -71,6 +71,7 @@ const run = (): AgentRunView => ({
     max_tokens: null,
     max_tool_calls: null,
   },
+  budget_limiting_run_id: null,
   context_capacity_tokens: null,
   context_input_tokens: null,
   cost_micros: null,
@@ -84,10 +85,12 @@ const run = (): AgentRunView => ({
   status: "running",
   steps_used: 0,
   thread_id: "thread-1",
+  tokens_reserved: 0,
   tokens_used: 0,
   tool_calls_used: 0,
   turn_id: "turn-1",
   updated_at: "2026-09-12T00:00:00Z",
+  usage_complete: false,
   waiting_reason: null,
 });
 
@@ -224,7 +227,11 @@ describe("agent event reducer", () => {
     current.runs = [run()];
     const approval = reduceAgentEvent(
       current,
-      { ...event(1, { approval_id: "approval-1" }), kind: "approval_requested" },
+      {
+        ...event(1, { approval_id: "approval-1" }),
+        kind: "approval_requested",
+        message_id: null,
+      },
       0,
     );
     expect(approval.needsReload).toBe(true);

@@ -166,6 +166,7 @@ impl ShootingScriptApplication {
         Ok(ResolvedChapterShootingScript {
             source,
             shooting_script,
+            plan_sync: Default::default(),
         })
     }
 }
@@ -244,6 +245,7 @@ impl OrchestratorContext {
             shooting_script.map(|shooting_script| ResolvedChapterShootingScript {
                 source,
                 shooting_script,
+                plan_sync: Default::default(),
             }),
         )
     }
@@ -267,6 +269,7 @@ fn require_current_chapter_shooting_script(
         Some(shooting_script) => Ok(ResolvedChapterShootingScript {
             source,
             shooting_script,
+            plan_sync: Default::default(),
         }),
         None => Err(AppError::NotFound(format!(
             "项目 {} 的第 {} 章（章节 ID {}）未找到与当前正文版本匹配的结构化拍摄剧本；请先在正文页的“剧本改编”标签中生成",
@@ -378,6 +381,7 @@ impl ShootingScriptRecordMutationApplicationPort for TestShootingScriptPublicati
                     visual_plan_sha256: record.record.visual_plan_sha256,
                 },
                 script: record.script,
+                plan_sync: Default::default(),
             },
         )
     }

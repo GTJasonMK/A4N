@@ -284,9 +284,9 @@ use a4n_api_contract::{
         ShootingCoverageV1, ShootingDialogueCueV1, ShootingDirectingStatementV1,
         ShootingEditingModeV1, ShootingPerformanceBeatV1, ShootingSceneV1,
         ShootingScriptPlanSyncV1, ShootingShotSizeV1, ShootingShotV1, ShootingSoundDesignV1,
-        ShootingSpatialContinuityV1,
-        ShootingTransitionContractV1, ShootingTransitionTypeV1, ShootingViewpointModeV1,
-        ShootingViewpointV1, ShootingVisualConstraintsV3, ShootingVisualPlanSourceV1,
+        ShootingSpatialContinuityV1, ShootingTransitionContractV1, ShootingTransitionTypeV1,
+        ShootingViewpointModeV1, ShootingViewpointV1, ShootingVisualConstraintsV3,
+        ShootingVisualPlanSourceV1,
     },
     source_sync::{
         ApplySourceSyncInput, SourceSyncChangeKind, SourceSyncConflictSeverity,

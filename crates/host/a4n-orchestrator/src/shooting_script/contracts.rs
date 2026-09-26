@@ -7,7 +7,7 @@ use a4n_domain::{
     chapter::ResolvedChapterSource,
     shooting_script::{
         ChapterShootingScriptV1, ShootingDirectingStatementV1, ShootingEditingModeV1,
-        ShootingTransitionContractV1,
+        ShootingScriptPlanSyncV1, ShootingTransitionContractV1,
     },
 };
 use a4n_error::AppError;
@@ -145,6 +145,7 @@ pub(super) struct RegenerateChapterShootingScriptInput {
 pub struct ResolvedChapterShootingScript {
     pub source: ResolvedChapterSource,
     pub shooting_script: ParsedChapterShootingScript,
+    pub plan_sync: ShootingScriptPlanSyncV1,
 }
 
 #[derive(Debug, Clone)]

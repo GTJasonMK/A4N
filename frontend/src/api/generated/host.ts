@@ -5004,6 +5004,7 @@ export interface ChapterVisualPlanValidationResult {
 
 export interface ConfirmedChapterVisualPlanView {
   invalidated_project_ids: number[];
+  shooting_script_sync: ShootingScriptPlanSyncV1 | null;
   visual_plan: ChapterVisualPlanView;
 }
 
@@ -5209,6 +5210,7 @@ export interface ChapterShootingScriptSourceInput {
 export interface GenerateChapterShootingScriptInput {
   project_id: number;
   source_chapter_id: number;
+  unit_ids?: string[];
   visual_plan_id: number;
 }
 
@@ -5222,6 +5224,7 @@ export interface DeleteChapterShootingScriptInput {
 export interface EditChapterShootingScriptInput {
   expected_revision: number;
   project_id: number;
+  rebind_shot_ids?: string[];
   record_id: number;
   script: ChapterShootingScriptV1;
   source_chapter_id: number;
@@ -5243,7 +5246,14 @@ export interface ChapterShootingScriptRecordSummary {
   visual_plan_version: number | null;
 }
 
+export interface ShootingScriptPlanSyncV1 {
+  missing_shot_ids: string[];
+  stale_shot_ids: string[];
+  stale_unit_ids: string[];
+}
+
 export interface ChapterShootingScriptView {
+  plan_sync: ShootingScriptPlanSyncV1;
   record: ChapterShootingScriptRecordSummary;
   script: ChapterShootingScriptV1;
 }
