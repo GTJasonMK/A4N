@@ -379,16 +379,22 @@ impl WorkerState {
         project_id: i64,
         chapters: Vec<a4n_db_models::models::chapter::chapter::Model>,
     ) -> Result<Vec<ChapterSummary>, WorkerFailure> {
+        let chapter_ids = chapters
+            .iter()
+            .map(|chapter| chapter.id)
+            .collect::<Vec<_>>();
         let (analysis_runs, content_runs) = tokio::try_join!(
-            a4n_db::workflow::workflow_runs_by_project_kind(
+            a4n_db::workflow::latest_workflow_runs_for_chapters(
                 self.database.connection(),
                 project_id,
                 "chapter_analysis",
+                &chapter_ids,
             ),
-            a4n_db::workflow::workflow_runs_by_project_kind(
+            a4n_db::workflow::latest_workflow_runs_for_chapters(
                 self.database.connection(),
                 project_id,
                 CHAPTER_CONTENT_SYNC_WORKFLOW_KIND,
+                &chapter_ids,
             ),
         )
         .map_err(workflow_error)?;
@@ -409,7 +415,7 @@ impl WorkerState {
             &mut summaries,
             &analysis_runs,
             &content_runs,
-            &checkpoints,
+            checkpoints,
         )
         .map_err(app_error)?;
         Ok(summaries)

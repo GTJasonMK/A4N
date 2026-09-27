@@ -1,10 +1,14 @@
 use a4n_error::AppError;
 use reqwest::{Client, header::CONTENT_ENCODING};
+use std::collections::VecDeque;
 use std::error::Error;
+use std::sync::Mutex;
 use std::time::Duration;
 
 pub(super) const MIN_CONNECT_TIMEOUT_SECS: u64 = 10;
 pub(super) const MAX_CONNECT_TIMEOUT_SECS: u64 = 60;
+const HTTP_CLIENT_PROFILE_LIMIT: usize = 16;
+static HTTP_CLIENTS: Mutex<VecDeque<((u64, u64), Client)>> = Mutex::new(VecDeque::new());
 
 pub(super) fn internal_error(message: impl Into<String>) -> AppError {
     AppError::Internal(anyhow::anyhow!(message.into()))
@@ -89,11 +93,33 @@ pub(super) fn elapsed_seconds_text(duration: Duration) -> String {
 }
 
 pub(super) fn build_http_client(timeout_secs: u64, connect_timeout_secs: u64) -> Client {
-    Client::builder()
+    // Providers carry per-request credentials; only their transport is shared.
+    // reqwest owns idle-read/connect timeouts on Client, so both identify a pool.
+    let profile = (timeout_secs, connect_timeout_secs);
+    if let Some((_, client)) = HTTP_CLIENTS
+        .lock()
+        .expect("HTTP client pool lock poisoned")
+        .iter()
+        .find(|(key, _)| *key == profile)
+    {
+        return client.clone();
+    }
+
+    // TLS trust-store loading must not block requests using an existing profile.
+    let client = Client::builder()
         .connect_timeout(Duration::from_secs(connect_timeout_secs))
         .read_timeout(Duration::from_secs(timeout_secs))
         .build()
-        .expect("创建 HTTP 客户端失败")
+        .expect("创建 HTTP 客户端失败");
+    let mut clients = HTTP_CLIENTS.lock().expect("HTTP client pool lock poisoned");
+    if let Some((_, existing)) = clients.iter().find(|(key, _)| *key == profile) {
+        return existing.clone();
+    }
+    if clients.len() == HTTP_CLIENT_PROFILE_LIMIT {
+        clients.pop_front();
+    }
+    clients.push_back((profile, client.clone()));
+    client
 }
 
 pub(super) fn response_meta(resp: &reqwest::Response) -> String {
@@ -151,4 +177,23 @@ pub(super) fn response_preview(body: &str, max_chars: usize) -> String {
         preview.push('…');
     }
     preview
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn http_transport_profiles_are_bounded_and_unique() {
+        for timeout in 10_000..10_000 + HTTP_CLIENT_PROFILE_LIMIT as u64 + 3 {
+            build_http_client(timeout, 10);
+        }
+        let clients = HTTP_CLIENTS.lock().unwrap();
+        assert!(clients.len() <= HTTP_CLIENT_PROFILE_LIMIT);
+        let profiles = clients
+            .iter()
+            .map(|(profile, _)| *profile)
+            .collect::<std::collections::HashSet<_>>();
+        assert_eq!(profiles.len(), clients.len());
+    }
 }

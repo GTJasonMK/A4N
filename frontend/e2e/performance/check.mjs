@@ -13,7 +13,13 @@ const artifacts = path.resolve(process.env.A4N_PERF_ARTIFACTS ?? path.join(front
 const port = Number(process.env.A4N_PERF_PORT ?? 48966);
 const outDir = path.join(artifacts, "dist");
 const baselineRef = process.env.A4N_PERF_BASELINE_REF;
-const baselineSources = new Map(baselineRef ? ["src/hooks/usePacedStreamText.ts", "src/i18n/format.ts", "src/components/ui/MarkdownText.tsx"].map((file) => [
+const scenario = process.env.A4N_PERF_CASE ?? "core";
+assert.ok(["core", "sidebar"].includes(scenario));
+const entry = scenario === "sidebar" ? "sidebar.html" : "index.html";
+const sourceFiles = scenario === "sidebar"
+  ? ["src/pages/writing-desk/ChapterSidebar.tsx", "src/pages/writing-desk/ChapterCard.tsx"]
+  : ["src/hooks/usePacedStreamText.ts", "src/i18n/format.ts", "src/components/ui/MarkdownText.tsx"];
+const baselineSources = new Map(baselineRef ? sourceFiles.map((file) => [
   path.join(frontend, file),
   execFileSync("git", ["show", `${baselineRef}:frontend/${file}`], { cwd: frontend, encoding: "utf8" }),
 ]) : []);
@@ -31,7 +37,7 @@ try {
     name: "performance-baseline", enforce: "pre", load: (id) => baselineSources.get(id),
   }], build: {
     outDir, emptyOutDir: true,
-    rollupOptions: { input: path.join(frontend, "e2e/performance/index.html") },
+    rollupOptions: { input: path.join(frontend, "e2e/performance", entry) },
   } });
   server = await preview({ root: frontend, build: { outDir }, preview: { host: "127.0.0.1", port, strictPort: true } });
   driver = spawn(process.env.A4N_WDIO_CHROMEDRIVER_BINARY ?? "/usr/bin/chromedriver", [`--port=${port + 1}`, `--log-path=${path.join(artifacts, "chromedriver.log")}`], {
@@ -58,22 +64,45 @@ try {
     },
   } });
   await browser.setTimeout({ script: 60_000 });
-  await browser.url(`http://127.0.0.1:${port}/e2e/performance/`);
+  await browser.url(`http://127.0.0.1:${port}/e2e/performance/${entry}`);
   await browser.waitUntil(() => browser.execute(() => window.performanceReady === true));
-  const traces = [];
-  for (const width of [1440, 390]) {
-    await browser.setViewport({ width, height: 900 });
-    traces.push(await browser.execute(() => window.verifyStream()));
-    assert.equal(await browser.execute(() => document.documentElement.scrollWidth - document.documentElement.clientWidth), 0);
+  let report;
+  if (scenario === "sidebar") {
+    const traces = [];
+    for (const width of [1440, 390]) {
+      await browser.setViewport({ width, height: 900 });
+      const trace = [];
+      for (const locale of ["zh-CN", "en-US"]) {
+        trace.push(await browser.execute((locale) => window.verifySidebar(locale), locale));
+        await browser.execute(() => document.querySelectorAll(".a4n-chapter-card")[0].focus());
+        await browser.keys("Enter");
+        assert.deepEqual(await browser.execute(() => window.sidebarSelection()), [1002]);
+      }
+      traces.push(trace);
+      assert.equal(await browser.execute(() => document.documentElement.scrollWidth - document.documentElement.clientWidth), 0);
+      await browser.saveScreenshot(path.join(artifacts, `sidebar-${width}.png`));
+    }
+    assert.deepEqual(traces[0], traces[1]);
+    const sidebar = [];
+    for (const count of [100, 1000]) sidebar.push(await browser.execute((count) => window.measureSidebar(count, 4000), count));
+    report = { success: true, scenario, baselineRef: baselineRef ?? null, browser: browser.capabilities.browserVersion,
+      viewports: [1440, 390], trace: traces[0], sidebar };
+  } else {
+    const traces = [];
+    for (const width of [1440, 390]) {
+      await browser.setViewport({ width, height: 900 });
+      traces.push(await browser.execute(() => window.verifyStream()));
+      assert.equal(await browser.execute(() => document.documentElement.scrollWidth - document.documentElement.clientWidth), 0);
+    }
+    assert.deepEqual(traces[0], traces[1]);
+    const streams = [];
+    for (const characters of [1000, 10000, 50000]) {
+      streams.push(await browser.execute((count) => window.measureStream(count), characters));
+    }
+    const formatting = await browser.execute(() => window.measureFormatting());
+    const markdown = await browser.execute(() => window.measureMarkdown());
+    report = { success: true, baselineRef: baselineRef ?? null, browser: browser.capabilities.browserVersion, viewports: [1440, 390], trace: traces[0], streams, formatting, markdown };
   }
-  assert.deepEqual(traces[0], traces[1]);
-  const streams = [];
-  for (const characters of [1000, 10000, 50000]) {
-    streams.push(await browser.execute((count) => window.measureStream(count), characters));
-  }
-  const formatting = await browser.execute(() => window.measureFormatting());
-  const markdown = await browser.execute(() => window.measureMarkdown());
-  const report = { success: true, baselineRef: baselineRef ?? null, browser: browser.capabilities.browserVersion, viewports: [1440, 390], trace: traces[0], streams, formatting, markdown };
   await writeFile(path.join(artifacts, "report.json"), JSON.stringify(report, null, 2));
   console.log(JSON.stringify({ ...report, trace: undefined }, null, 2));
 } catch (error) {

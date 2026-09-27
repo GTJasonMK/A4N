@@ -77,8 +77,12 @@ export const ChapterSidebar: React.FC<ChapterSidebarProps> = ({
 }) => {
   const { t } = useI18n();
   const [outlineDetailOpen, setOutlineDetailOpen] = useState(false);
+  // Saved body counts change with chapter data; typing only recounts the active body.
   const chaptersByNumber = useMemo(
-    () => new Map(chapters.map((chapter) => [chapter.chapter_number, chapter])),
+    () => new Map(chapters.map((chapter) => [chapter.chapter_number, {
+      chapter,
+      wordCount: countChapterBodyCharacters(chapter.content),
+    }])),
     [chapters],
   );
   const outlinesByNumber = useMemo(
@@ -173,12 +177,15 @@ export const ChapterSidebar: React.FC<ChapterSidebarProps> = ({
         <div className="custom-scrollbar mt-2 min-h-0 min-w-0 overflow-y-auto pr-1">
           <ul className="a4n-motion-stagger a4n-flat-surface divide-y divide-book-border/40 overflow-hidden">
             {filteredChapterNumbers.map((chapterNumber) => {
-              const chapter = chaptersByNumber.get(chapterNumber);
+              const entry = chaptersByNumber.get(chapterNumber);
+              const chapter = entry?.chapter;
               const outline = outlinesByNumber.get(chapterNumber);
               const bodyContent =
                 chapterNumber === activeNumber ? activeEditorContent : chapter?.content;
               const wordCount =
-                bodyContent == null ? null : countChapterBodyCharacters(bodyContent);
+                bodyContent == null ? null : chapterNumber === activeNumber
+                  ? countChapterBodyCharacters(bodyContent)
+                  : entry?.wordCount ?? null;
               return (
                 <li key={chapterNumber}>
                   <ChapterCard
@@ -189,7 +196,7 @@ export const ChapterSidebar: React.FC<ChapterSidebarProps> = ({
                     materialSync={chapter?.material_sync}
                     hasDraft={draftSet.has(chapterNumber)}
                     selected={chapterNumber === activeNumber}
-                    onClick={() => void onSelectChapter(chapterNumber)}
+                    onSelect={onSelectChapter}
                   />
                 </li>
               );

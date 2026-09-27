@@ -45,6 +45,17 @@ impl OrchestratorContext {
             .await
     }
 
+    pub(crate) async fn latest_workflow_runs_for_chapters(
+        &self,
+        project_id: i64,
+        workflow_kind: &str,
+        chapter_ids: &[i64],
+    ) -> Result<Vec<workflow_run::Model>, AppError> {
+        self.workflow
+            .latest_workflow_runs_for_chapters(project_id, workflow_kind, chapter_ids)
+            .await
+    }
+
     pub(crate) async fn workflow_run_model_by_id(
         &self,
         workflow_run_id: i64,

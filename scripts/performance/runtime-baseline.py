@@ -3,6 +3,7 @@
 
 import argparse
 from concurrent.futures import ThreadPoolExecutor
+import hashlib
 import http.client
 import json
 import math
@@ -28,6 +29,9 @@ def arguments():
     parser.add_argument("--report-dir", type=Path, required=True)
     parser.add_argument("--database-url-env", default="A4N_PERF_DATABASE_URL")
     parser.add_argument("--postgres-container", default="debug-postgres-1")
+    parser.add_argument("--qdrant-url", default="http://127.0.0.1:6334", help="loopback Qdrant gRPC endpoint")
+    parser.add_argument("--chapter-history", type=int, default=0, help="completed content-sync runs per fixture chapter")
+    parser.add_argument("--cli-checks", action="store_true", help="run existing CLI/Mock Provider suites after measurement; use a separate disposable database")
     return parser.parse_args()
 
 
@@ -75,8 +79,53 @@ def command(connection, name, args, token=None):
     return json.loads(payload), elapsed_ms, len(payload)
 
 
+def cli_checks(binaries, output, env, server_url, credentials):
+    from run_cli_contract_e2e import start_provider
+
+    temporary = output / "tmp"
+    temporary.mkdir()
+    cli_env = {**env, "A4N_PERF_PASSWORD": credentials["password"], "TMPDIR": str(temporary)}
+    common = ["--a4n", str(binaries / "a4n"), "--server", server_url, "--username", credentials["username"],
+              "--password-env", "A4N_PERF_PASSWORD"]
+    checks = []
+    try:
+        for name, dimension, arguments in [
+            ("run_cli_contract_e2e", 8, ["--ledger", str(ROOT / "scripts/tests/cli_contract_core_workflow.json"),
+                                         "--report-dir", str(output / "cli-core"), "--command-timeout", "60", "--fail-fast"]),
+            # Scene import uses the project's default 384-dimensional embedding before its model scenarios.
+            ("run_scene_sync_cli_e2e", 384, ["--embedding-dimension", "384", "--report", str(output / "cli-scene.json")]),
+            ("run_llm_lifecycle_cli_e2e", 384, ["--report", str(output / "cli-llm.json")]),
+        ]:
+            provider, provider_log = start_provider(argparse.Namespace(
+                provider_url=None, provider_host="127.0.0.1", provider_port=0, embedding_dimension=dimension,
+                provider_script=ROOT / "scripts/tests/mock_openai_provider.py", provider_start_timeout=10,
+            ), output, name)
+            if name != "run_cli_contract_e2e":
+                arguments += ["--provider-log", str(provider_log)]
+            cli_env["A4N_E2E_EMBEDDING_DIMENSION"] = str(dimension)
+            try:
+                started = time.perf_counter()
+                with (output / f"{name}.log").open("w") as log:
+                    result = subprocess.run([sys.executable, str(ROOT / "scripts/tests" / (name + ".py")),
+                                             *common, "--provider-url", provider.base_url, *arguments],
+                                            env=cli_env, stdout=log, stderr=subprocess.STDOUT, timeout=360)
+            finally:
+                provider.stop()
+            checks.append({"suite": name, "exit_code": result.returncode, "elapsed_ms": (time.perf_counter() - started) * 1000})
+            if result.returncode:
+                raise RuntimeError(f"{name} failed: exit {result.returncode}; see its log")
+        return checks
+    finally:
+        (output / "cli-checks.json").write_text(json.dumps(checks, indent=2))
+
+
 def main():
     args = arguments()
+    if not 0 <= args.chapter_history <= 20:
+        raise RuntimeError("chapter-history must be between 0 and 20")
+    qdrant_url = urlsplit(args.qdrant_url)
+    if qdrant_url.scheme != "http" or qdrant_url.hostname != "127.0.0.1" or not qdrant_url.port:
+        raise RuntimeError("Requires a loopback Qdrant gRPC endpoint")
     database_url = os.environ[args.database_url_env]
     database = urlsplit(database_url)
     if database.hostname != "127.0.0.1" or database.port != 5432 or not database.path.startswith("/a4n_perf_"):
@@ -100,7 +149,8 @@ def main():
         credentials_path.chmod(0o600)
 
     workers = json.loads((ROOT / "crates/process/a4n-process-catalog/worker-catalog.json").read_text())
-    web_port, control_port, *worker_ports = free_ports(len(workers) + 2)
+    services = json.loads((ROOT / "crates/process/a4n-process-catalog/service-catalog.json").read_text())
+    web_port, control_port, *ports = free_ports(len(workers) + len(services) + 2)
     env = {key: value for key, value in os.environ.items()
            if not key.startswith("A4N_") and key.lower() not in {"http_proxy", "https_proxy", "all_proxy"}}
     env.update({
@@ -111,11 +161,16 @@ def main():
         "A4N_CONTROL_BINARY": str(binaries / "a4n-control"),
         "A4N_EDGE_BINARY": str(binaries / "a4n-edge"),
         "A4N_RUNTIME_PROFILE": "sidecar",
-        "A4N_MANAGED_SIDECARS": "0",
+        "A4N_MANAGED_SIDECARS": "1",
+        "A4N_SIDECAR_BIN_DIR": str(binaries),
         "A4N_SIDECAR_AUTH_TOKEN": secrets.token_urlsafe(32),
         "A4N_PORTABLE_HOME": str(state / "portable"),
         "A4N_FRONTEND_DIST": str(ROOT / "frontend/dist"),
         "A4N_PROMPT_SERVICE_PROMPTS_DIR": str(ROOT / "prompts"),
+        "A4N_ONNXRUNTIME_ROOT": str(Path.home() / ".local/share/a4n/onnxruntime" / (ROOT / "tools/onnxruntime/VERSION").read_text().strip()),
+        "A4N_QDRANT_URL": args.qdrant_url,
+        "A4N_QDRANT_COLLECTION": database.path[1:],
+        "A4N_RAG_SERVICE_DATA_DIR": str(state / "data/rag"),
         "A4N_BOOTSTRAP_ADMIN_USERNAME": credentials["username"],
         "A4N_BOOTSTRAP_ADMIN_PASSWORD": credentials["password"],
         "A4N_BOOTSTRAP_ADMIN_EMAIL": "performance-audit@example.invalid",
@@ -125,13 +180,16 @@ def main():
         directory = state / kind.lower()
         directory.mkdir(exist_ok=True)
         env[f"A4N_{kind}_DIR"] = str(directory)
-    for worker, port in zip(workers, worker_ports):
+    for worker, port in zip(workers, ports):
         env[worker["addr_env"]] = f"127.0.0.1:{port}"
         prefix = "A4N_" + worker["name"].replace("-", "_").upper()
         env[prefix + "_BINARY"] = str(binaries / worker["binary"])
         env[prefix + "_TOKEN"] = secrets.token_urlsafe(24)
+    for service, port in zip(services, ports[len(workers):]):
+        env[service["addr_env"]] = f"127.0.0.1:{port}"
 
-    report = {"success": False, "database": database.path[1:], "catalog_workers": len(workers), "metrics": []}
+    report = {"success": False, "database": database.path[1:], "catalog_workers": len(workers),
+              "configured_services": len(services), "metrics": []}
     server = None
     try:
         migration = start_process("migration", [str(binaries / "a4n-migration")], env=env, cwd=state, log_path=output / "migration.log")
@@ -187,12 +245,69 @@ WHERE NOT EXISTS (SELECT 1 FROM chapter WHERE project_id = :'project_id'::bigint
                                 input=sql, text=True, capture_output=True, timeout=60)
         if seeded.returncode:
             raise RuntimeError(seeded.stderr)
+        report["project_id"] = project_id
+        report["chapter_history"] = args.chapter_history
+        if args.chapter_history:
+            history_sql = """
+INSERT INTO workflow_run (business_key, workflow_kind, project_id, chapter_id,
+    input_fingerprint_json, status, current_step_key, can_resume, created_at, updated_at, completed_at)
+SELECT 'perf-content-sync:' || c.id || ':' || revision, 'chapter_content_sync', c.project_id, c.id,
+    jsonb_build_object('schema_version', 3, 'workflow_kind', 'chapter_content_sync',
+      'sync_revision', 'perf-' || revision,
+      'source_fingerprint', jsonb_build_object('schema_version', 1, 'workflow_kind', 'chapter_content_sync',
+        'project_id', c.project_id, 'chapter_id', c.id, 'chapter_number', c.chapter_number,
+        'title', c.title, 'content_sha256', encode(sha256(convert_to(c.content, 'UTF8')), 'hex'))),
+    'completed', 'chapter_content_sync.current_rag', false,
+    now() - (:'history'::integer - revision + 1) * interval '1 day',
+    now() - (:'history'::integer - revision + 1) * interval '1 day', now()
+FROM chapter c CROSS JOIN generate_series(1, :'history'::integer) revision
+WHERE c.project_id = :'project_id'::bigint
+  AND NOT EXISTS (SELECT 1 FROM workflow_run w WHERE w.business_key = 'perf-content-sync:' || c.id || ':' || revision);
+INSERT INTO workflow_checkpoint (workflow_run_id, step_key, step_order, status, checkpoint_json, created_at, updated_at, completed_at)
+SELECT w.id, step.key, step.ordinal, 'completed',
+       jsonb_build_object('completed', true, 'result', jsonb_build_object(),
+          'context', (SELECT string_agg(md5(i::text), '') FROM generate_series(1, 2000) i)), now(), now(), now()
+FROM workflow_run w CROSS JOIN (VALUES ('chapter_content_sync.current_rag', 1), ('llm.persisted.call', 2)) AS step(key, ordinal)
+WHERE w.project_id = :'project_id'::bigint AND w.business_key LIKE 'perf-content-sync:%'
+  AND NOT EXISTS (SELECT 1 FROM workflow_checkpoint c WHERE c.workflow_run_id = w.id AND c.step_key = step.key);
+"""
+            seeded = subprocess.run(["docker", "exec", "-i", args.postgres_container, "psql", "-U", database.username,
+                                     "-d", database.path[1:], "-v", "ON_ERROR_STOP=1", "-v", f"project_id={project_id}",
+                                     "-v", f"history={args.chapter_history}"], input=history_sql, text=True,
+                                    capture_output=True, timeout=60)
+            if seeded.returncode:
+                raise RuntimeError(seeded.stderr)
+        fixture_sql = """
+WITH runs AS (SELECT id, workflow_kind FROM workflow_run WHERE project_id = :'project_id'::bigint
+              AND workflow_kind IN ('chapter_analysis', 'chapter_content_sync'))
+SELECT json_build_object(
+    'content_sync_runs', (SELECT count(*) FROM runs WHERE workflow_kind = 'chapter_content_sync'),
+    'analysis_runs', (SELECT count(*) FROM runs WHERE workflow_kind = 'chapter_analysis'),
+    'checkpoints', (SELECT count(*) FROM workflow_checkpoint WHERE workflow_run_id IN (SELECT id FROM runs)),
+    'checkpoint_json_bytes', (SELECT coalesce(sum(octet_length(checkpoint_json::text)), 0)
+                             FROM workflow_checkpoint WHERE workflow_run_id IN (SELECT id FROM runs)));
+"""
+        fixture_result = subprocess.run(["docker", "exec", "-i", args.postgres_container, "psql", "-At", "-U", database.username,
+                                         "-d", database.path[1:], "-v", "ON_ERROR_STOP=1", "-v", f"project_id={project_id}"],
+                                        input=fixture_sql, text=True, capture_output=True, timeout=60)
+        if fixture_result.returncode:
+            raise RuntimeError(fixture_result.stderr)
+        report["fixture"] = json.loads(fixture_result.stdout)
+        if (report["fixture"]["content_sync_runs"] != 100 * args.chapter_history
+                or report["fixture"]["analysis_runs"] != 0
+                or report["fixture"]["checkpoints"] != 200 * args.chapter_history):
+            raise RuntimeError("Fixture history differs from --chapter-history; use a fresh isolated database")
         connection.close()
         cases = [
             ("get_current_user", {}, lambda value: value["username"] == credentials["username"]),
             ("list_projects", listing, lambda value: value["total"] == 20 and len(value["items"]) == 20),
             ("get_project", {"projectId": project_id}, lambda value: value["id"] == project_id),
-            ("list_chapters", {"projectId": project_id}, lambda value: len(value) == 100 and all(item["content"] == "章节性能内容。" * 512 for item in value)),
+            ("list_chapters", {"projectId": project_id}, lambda value: len(value) == 100
+             and [item["chapter_number"] for item in value] == list(range(1, 101))
+             and all(item["content"] == "章节性能内容。" * 512
+                     and (not args.chapter_history or (item["derived_sync_status"] == "completed"
+                          and item["derived_sync_workflow_run_id"] > 0
+                          and item["material_sync"]["content_index"] == "completed")) for item in value)),
         ]
         for name, payload, check in cases:
             for concurrency in [1, 4, 8]:
@@ -204,7 +319,8 @@ WHERE NOT EXISTS (SELECT 1 FROM chapter WHERE project_id = :'project_id'::bigint
                             value, elapsed, size = command(client, name, payload, token)
                             assert check(value), name
                             if index >= 5:
-                                measurements.append({"elapsed_ms": elapsed, "bytes": size})
+                                digest = hashlib.sha256(json.dumps(value, sort_keys=True, ensure_ascii=False).encode()).hexdigest() if name == "list_chapters" else None
+                                measurements.append({"elapsed_ms": elapsed, "bytes": size, "response_sha256": digest})
                     finally:
                         client.close()
                     return measurements
@@ -218,6 +334,8 @@ WHERE NOT EXISTS (SELECT 1 FROM chapter WHERE project_id = :'project_id'::bigint
                 (output / "report.json").write_text(json.dumps(report, ensure_ascii=False, indent=2))
                 print(name, concurrency, "p95", round(metric["p95_ms"], 2), "ms", flush=True)
         report["after_load"] = resources(server.process.pid)
+        if args.cli_checks:
+            report["cli_checks"] = cli_checks(binaries, output, env, f"http://127.0.0.1:{web_port}", credentials)
         report["success"] = True
     except BaseException as error:
         report["error"] = str(error)

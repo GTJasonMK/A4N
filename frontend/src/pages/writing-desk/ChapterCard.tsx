@@ -14,7 +14,7 @@ interface ChapterCardProps {
   materialSync?: ChapterMaterialSyncState | null;
   hasDraft?: boolean;
   selected: boolean;
-  onClick: () => void;
+  onSelect: (chapterNumber: number) => void | Promise<unknown>;
 }
 
 const STATUS_ICON: Record<string, { Icon: LucideIcon; tone: string; title: MessageKey }> = {
@@ -35,7 +35,7 @@ const materialSyncLabel = (state: ChapterMaterialSyncState | null | undefined): 
   return "writing.materialSynced";
 };
 
-export const ChapterCard: React.FC<ChapterCardProps> = ({
+export const ChapterCard = React.memo(function ChapterCard({
   chapterNumber,
   title,
   wordCount,
@@ -43,8 +43,8 @@ export const ChapterCard: React.FC<ChapterCardProps> = ({
   materialSync,
   hasDraft = false,
   selected,
-  onClick,
-}) => {
+  onSelect,
+}: ChapterCardProps) {
   const { t, locale } = useI18n();
   const iconInfo = status ? STATUS_ICON[status] : null;
   const StatusIcon = iconInfo?.Icon;
@@ -65,7 +65,7 @@ export const ChapterCard: React.FC<ChapterCardProps> = ({
   return (
     <button
       type="button"
-      onClick={onClick}
+      onClick={() => void onSelect(chapterNumber)}
       aria-current={selected ? "page" : undefined}
       className={`a4n-chapter-card w-full px-3 py-3 text-left transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-book-primary ${containerClass}`}
       data-selected={selected ? "true" : undefined}
@@ -100,4 +100,4 @@ export const ChapterCard: React.FC<ChapterCardProps> = ({
       </div>
     </button>
   );
-};
+});

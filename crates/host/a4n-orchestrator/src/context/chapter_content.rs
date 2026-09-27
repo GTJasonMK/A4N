@@ -240,11 +240,16 @@ pub(crate) async fn chapter_summaries_with_sync_state(
     let Some(project_id) = chapters.first().map(|chapter| chapter.project_id) else {
         return Ok(Vec::new());
     };
+    let chapter_ids = chapters
+        .iter()
+        .map(|chapter| chapter.id)
+        .collect::<Vec<_>>();
     let (analysis_runs_result, content_runs_result) = futures::join!(
-        state.workflow_runs_by_project_kind(project_id, "chapter_analysis"),
-        state.workflow_runs_by_project_kind(
+        state.latest_workflow_runs_for_chapters(project_id, "chapter_analysis", &chapter_ids),
+        state.latest_workflow_runs_for_chapters(
             project_id,
             a4n_chapter_content_core::CHAPTER_CONTENT_SYNC_WORKFLOW_KIND,
+            &chapter_ids,
         ),
     );
     let analysis_runs = analysis_runs_result?;
@@ -261,7 +266,7 @@ pub(crate) async fn chapter_summaries_with_sync_state(
         &mut summaries,
         &analysis_runs,
         &content_runs,
-        &checkpoints,
+        checkpoints,
     )?;
     Ok(summaries)
 }

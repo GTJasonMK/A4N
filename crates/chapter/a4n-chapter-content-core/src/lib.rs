@@ -224,14 +224,14 @@ pub fn attach_chapter_sync_state(
     summaries: &mut [ChapterSummary],
     analysis_runs: &[workflow_run::Model],
     content_runs: &[workflow_run::Model],
-    checkpoints: &[workflow_checkpoint::Model],
+    checkpoints: Vec<workflow_checkpoint::Model>,
 ) -> Result<(), AppError> {
     let mut checkpoints_by_run = HashMap::<i64, Vec<workflow_checkpoint::Model>>::new();
     for checkpoint in checkpoints {
         checkpoints_by_run
             .entry(checkpoint.workflow_run_id)
             .or_default()
-            .push(checkpoint.clone());
+            .push(checkpoint);
     }
     attach_chapter_content_sync_state(chapters, summaries, content_runs, &checkpoints_by_run)?;
 
@@ -675,7 +675,7 @@ mod tests {
             std::slice::from_mut(&mut summary),
             std::slice::from_ref(&run),
             &[],
-            &[],
+            Vec::new(),
         )
         .expect("replay status should project");
 

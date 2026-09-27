@@ -35,6 +35,22 @@ impl WorkflowApplication {
         .map_err(workflow_read_app_error)
     }
 
+    pub(in crate::context) async fn latest_workflow_runs_for_chapters(
+        &self,
+        project_id: i64,
+        workflow_kind: &str,
+        chapter_ids: &[i64],
+    ) -> Result<Vec<workflow_run::Model>, AppError> {
+        a4n_db::workflow::latest_workflow_runs_for_chapters(
+            self.database.connection(),
+            project_id,
+            workflow_kind,
+            chapter_ids,
+        )
+        .await
+        .map_err(workflow_read_app_error)
+    }
+
     pub(in crate::context) async fn workflow_run_model_by_id(
         &self,
         workflow_run_id: i64,

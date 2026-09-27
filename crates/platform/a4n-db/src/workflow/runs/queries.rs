@@ -109,11 +109,43 @@ pub async fn workflow_runs_by_project_kind(
     project_id: i64,
     workflow_kind: &str,
 ) -> Result<Vec<workflow_run::Model>, WorkflowReadError> {
+    workflow_runs_for_project(project_id, workflow_kind)?
+        .order_by_desc(workflow_run::Column::UpdatedAt)
+        .order_by_desc(workflow_run::Column::Id)
+        .all(db)
+        .await
+        .map_err(WorkflowReadError::Database)
+}
+
+fn workflow_runs_for_project(
+    project_id: i64,
+    workflow_kind: &str,
+) -> Result<sea_orm::Select<workflow_run::Entity>, WorkflowReadError> {
     validate_positive_i64(project_id, "project_id")?;
     let workflow_kind = required_text(workflow_kind.to_string(), "workflow_kind")?;
-    workflow_run::Entity::find()
+    Ok(workflow_run::Entity::find()
         .filter(workflow_run::Column::ProjectId.eq(project_id))
-        .filter(workflow_run::Column::WorkflowKind.eq(workflow_kind))
+        .filter(workflow_run::Column::WorkflowKind.eq(workflow_kind)))
+}
+
+/// Same latest-run ordering as the chapter summary projection, bounded to its chapters.
+pub async fn latest_workflow_runs_for_chapters(
+    db: &DatabaseConnection,
+    project_id: i64,
+    workflow_kind: &str,
+    chapter_ids: &[i64],
+) -> Result<Vec<workflow_run::Model>, WorkflowReadError> {
+    let query = workflow_runs_for_project(project_id, workflow_kind)?;
+    for chapter_id in chapter_ids {
+        validate_positive_i64(*chapter_id, "chapter_id")?;
+    }
+    if chapter_ids.is_empty() {
+        return Ok(Vec::new());
+    }
+    query
+        .filter(workflow_run::Column::ChapterId.is_in(chapter_ids.iter().copied()))
+        .distinct_on([workflow_run::Column::ChapterId])
+        .order_by_asc(workflow_run::Column::ChapterId)
         .order_by_desc(workflow_run::Column::UpdatedAt)
         .order_by_desc(workflow_run::Column::Id)
         .all(db)
