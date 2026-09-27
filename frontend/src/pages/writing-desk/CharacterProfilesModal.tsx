@@ -41,7 +41,7 @@ interface CharacterProfilesModalProps {
   currentChapterNumber?: number | null;
   refreshKey?: number;
   aiActionBlockedReason: string | null;
-  onMaterialSync: (projectId: number) => void | Promise<void>;
+  onMaterialSync: (projectId: number) => boolean | void | Promise<boolean | void>;
 }
 
 export const CharacterProfilesModal: React.FC<CharacterProfilesModalProps> = ({
@@ -316,6 +316,7 @@ export const CharacterProfilesModal: React.FC<CharacterProfilesModalProps> = ({
     const requestSeq = discoverSeqRef.current + 1;
     discoverSeqRef.current = requestSeq;
     const taskId = createWorkflowTaskId("character-discover", requestProjectId);
+    let profileRefreshAttempted = false;
     setDiscovering(true);
     try {
       const result = await runProgressTask(
@@ -331,7 +332,14 @@ export const CharacterProfilesModal: React.FC<CharacterProfilesModalProps> = ({
           cancelLabel: t("characterDetail.stopDiscovery"),
           runningHint: t("characterDetail.discoveryRunningHint"),
         },
-        () => discoverCharacterProfiles(requestProjectId, activeChapterNumber, taskId),
+        async () => {
+          const next = await discoverCharacterProfiles(requestProjectId, activeChapterNumber, taskId);
+          profileRefreshAttempted = true;
+          if (!await load(next.created[0]?.id ?? selectedId)) {
+            throw new Error(t("characterDetail.discoveryFailed"));
+          }
+          return next;
+        },
       );
       if (!isCurrentWorkspace(requestProjectId) || discoverSeqRef.current !== requestSeq) return;
       const createdCount = result.created.length;
@@ -342,13 +350,12 @@ export const CharacterProfilesModal: React.FC<CharacterProfilesModalProps> = ({
         created: createdCount,
         existing: existingCount,
       });
-      if (!await load(result.created[0]?.id ?? selectedId)) return;
       addToast(discoverMessage, createdCount > 0 ? "success" : "info");
     } catch (err) {
       if (!isCurrentWorkspace(requestProjectId) || discoverSeqRef.current !== requestSeq) return;
       const message = extractErrorMessage(err, t("characterDetail.discoveryFailed"));
       addToast(message, isCancelledOperation(message) ? "info" : "error");
-      await load(selectedId);
+      if (!profileRefreshAttempted) await load(selectedId);
     } finally {
       if (isCurrentWorkspace(requestProjectId) && discoverSeqRef.current === requestSeq) {
         setDiscovering(false);
@@ -422,6 +429,8 @@ export const CharacterProfilesModal: React.FC<CharacterProfilesModalProps> = ({
     if (!beginAction(actionKey)) return;
     const requestProjectId = projectId;
     let requestSeq: number | null = null;
+    let profileRefreshAttempted = false;
+    let materialSyncAttempted = false;
     try {
       const ok = await confirmDialog({
         title: t("characterDetail.syncAllTitle"),
@@ -449,7 +458,18 @@ export const CharacterProfilesModal: React.FC<CharacterProfilesModalProps> = ({
           cancelLabel: t("characterDetail.stopSync"),
           runningHint: t("characterDetail.taskDataKept"),
         },
-        () => syncAllCharacterProfiles(requestProjectId, activeChapterNumber, taskId),
+        async () => {
+          const next = await syncAllCharacterProfiles(requestProjectId, activeChapterNumber, taskId);
+          profileRefreshAttempted = true;
+          if (!await load(selectedId)) {
+            throw new Error(t("characterDetail.syncAllFailed"));
+          }
+          materialSyncAttempted = true;
+          if (await onMaterialSync(requestProjectId) === false) {
+            throw new Error(t("characterDetail.syncAllFailed"));
+          }
+          return next;
+        },
       );
       if (!isCurrentWorkspace(requestProjectId) || syncSeqRef.current !== requestSeq) return;
       const syncedItems = result.synced;
@@ -496,7 +516,6 @@ export const CharacterProfilesModal: React.FC<CharacterProfilesModalProps> = ({
             more: moreNames(rewoundCount),
           })
         : "";
-      if (!await load(selectedId)) return;
       addToast(
         t("characterDetail.syncAllSummary", {
           synced: syncedCount,
@@ -522,7 +541,7 @@ export const CharacterProfilesModal: React.FC<CharacterProfilesModalProps> = ({
       if (!isCurrentWorkspace(requestProjectId) || syncSeqRef.current !== requestSeq) return;
       const message = extractErrorMessage(err, t("characterDetail.syncAllFailed"));
       addToast(message, isCancelledOperation(message) ? "info" : "error");
-      await load(selectedId);
+      if (!profileRefreshAttempted) await load(selectedId);
     } finally {
       if (
         requestSeq != null &&
@@ -532,7 +551,7 @@ export const CharacterProfilesModal: React.FC<CharacterProfilesModalProps> = ({
         setSyncingAll(false);
       }
       finishAction(actionKey);
-      if (requestSeq != null) {
+      if (requestSeq != null && !materialSyncAttempted) {
         await onMaterialSync(requestProjectId);
       }
     }

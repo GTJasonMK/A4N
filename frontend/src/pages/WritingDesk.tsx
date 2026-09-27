@@ -594,16 +594,18 @@ export const WritingDesk: React.FC = () => {
     editorRevisionRef.current = refreshed.edit_revision;
   }, [activeNumberRef, confirmCurrentEdit, editorRevisionRef, reloadChapters, setEditorState, t]);
 
-  const reloadOutlines = useCallback(async () => {
+  const reloadOutlines = useCallback(async (): Promise<boolean> => {
     const requestProjectId = projectId;
     try {
       const next = await listChapterOutlines(requestProjectId);
-      if (!mountedRef.current || projectIdRef.current !== requestProjectId) return;
+      if (!mountedRef.current || projectIdRef.current !== requestProjectId) return false;
       setOutlines(next);
+      return true;
     } catch (err) {
       if (mountedRef.current && projectIdRef.current === requestProjectId) {
         addToast(extractErrorMessage(err, t("writing.refreshOutlinesFailed")), "error");
       }
+      return false;
     }
   }, [addToast, projectId]);
 
@@ -632,7 +634,7 @@ export const WritingDesk: React.FC = () => {
     derivedSyncBusyRef.current = true;
     try {
       await resumeWorkflowRun(workflowRunId);
-      await reloadChapters({ force: true });
+      if (!await reloadChapters({ force: true })) return;
       addToast(t("writing.derivedMaterialsSynced"), "success");
     } catch (error) {
       await reloadChapters({ force: true });

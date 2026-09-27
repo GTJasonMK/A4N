@@ -48,7 +48,7 @@ interface UseChapterAnalysisActionsParams {
   dirtyRef: { current: boolean };
   addToast: AddToast;
   reloadChapters: (options?: { force?: boolean }) => Promise<ChapterSummary[] | null>;
-  reloadOutlines: () => Promise<void>;
+  reloadOutlines: () => Promise<boolean>;
   setChapters: Dispatch<SetStateAction<ChapterSummary[]>>;
   refreshProfiles: () => void;
 }
@@ -208,6 +208,7 @@ export function useChapterAnalysisActions({
       return;
     }
     analysisActionRef.current = "generate";
+    let readModelRefreshAttempted = false;
     try {
       const chapter = requireSavedAnalyzableChapter("generate");
       if (!chapter) return;
@@ -228,20 +229,24 @@ export function useChapterAnalysisActions({
           cancelLabel: t("writing.analysisStop"),
           runningHint: t("writing.analysisRunningHint"),
         },
-        () =>
-          generateChapterAnalysis(
+        async () => {
+          const result = await generateChapterAnalysis(
             {
               chapter_id: chapter.id,
             },
             taskId,
-          ),
+          );
+          readModelRefreshAttempted = true;
+          if (!(await reloadChapters({ force: true })) || !(await reloadOutlines())) {
+            throw new Error(t("writing.analysisFailed"));
+          }
+          return result;
+        },
       );
       const updated = mutation.chapter;
       setChapters((prev) =>
         prev.map((item) => (item.id === updated.id ? updated : item)),
       );
-      await reloadChapters({ force: true });
-      await reloadOutlines();
       refreshProfiles();
       if (mutation.warnings.length > 0) {
         addToast(
@@ -255,9 +260,13 @@ export function useChapterAnalysisActions({
       }
     } catch (err) {
       const errorMessage = extractErrorMessage(err, t("writing.analysisFailed"));
-      const refreshed = await reloadChapters({ force: true });
-      await reloadOutlines();
-      refreshProfiles();
+      const refreshed = readModelRefreshAttempted
+        ? null
+        : await reloadChapters({ force: true });
+      if (!readModelRefreshAttempted) {
+        await reloadOutlines();
+        refreshProfiles();
+      }
       const refreshedChapter =
         refreshed?.find((item) => item.id === activeChapterIdRef.current) ?? null;
       if (isCancelledOperation(errorMessage)) {
@@ -300,6 +309,7 @@ export function useChapterAnalysisActions({
       return;
     }
     analysisActionRef.current = "resume";
+    let readModelRefreshAttempted = false;
     try {
       const chapter = requireSavedAnalyzableChapter("resume");
       if (!chapter) return;
@@ -356,15 +366,19 @@ export function useChapterAnalysisActions({
           prev.map((item) => (item.id === updated.id ? updated : item)),
         );
       }
-      await reloadChapters({ force: true });
-      await reloadOutlines();
+      readModelRefreshAttempted = true;
+      if (!(await reloadChapters({ force: true })) || !(await reloadOutlines())) {
+        throw new Error(t("writing.resumeAnalysisFailed"));
+      }
       refreshProfiles();
       addToast(t("writing.resumeAnalysisComplete"), "success");
     } catch (err) {
       const errorMessage = extractErrorMessage(err, t("writing.resumeAnalysisFailed"));
-      void reloadChapters({ force: true });
-      void reloadOutlines();
-      refreshProfiles();
+      if (!readModelRefreshAttempted) {
+        void reloadChapters({ force: true });
+        void reloadOutlines();
+        refreshProfiles();
+      }
       addToast(
         isCancelledOperation(errorMessage) ? t("writing.resumeAnalysisStopped") : errorMessage,
         isCancelledOperation(errorMessage) ? "info" : "error",

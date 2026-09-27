@@ -355,6 +355,7 @@ export function useVideoRecordActions({
             });
           }
           refreshSucceeded = await loadAll();
+          if (!refreshSucceeded) throw new Error(t("video.actions.optimizeFailed"));
           return result;
         },
       );

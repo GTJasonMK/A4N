@@ -187,7 +187,9 @@ export const SceneProfilesTab: React.FC<{
           if (!isCurrentAction(requestProjectId, requestSeq)) {
             throw new Error("任务已停止");
           }
-          await load({ silent: true, force: true, projectId: requestProjectId });
+          if (!await load({ silent: true, force: true, projectId: requestProjectId })) {
+            throw new Error(t("novel.profile.syncError"));
+          }
         },
       );
       if (!isCurrentAction(requestProjectId, requestSeq)) return;
@@ -248,7 +250,9 @@ export const SceneProfilesTab: React.FC<{
             throw new Error("任务已停止");
           }
           await verifyImageGenerationResult(task, requestProjectId);
-          await load({ silent: true, force: true, projectId: requestProjectId });
+          if (!await load({ silent: true, force: true, projectId: requestProjectId })) {
+            throw new Error(t("novel.profile.generateError", { name: t("novel.profile.scene") }));
+          }
         },
       );
       if (!isCurrentAction(requestProjectId, requestSeq)) return;

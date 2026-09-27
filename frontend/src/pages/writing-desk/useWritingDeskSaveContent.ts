@@ -114,6 +114,7 @@ export const useWritingDeskSaveContent = ({
         title,
       });
       const nextChapters = await reloadChapters({ force: true });
+      if (!nextChapters) throw new Error(t("writing.refreshChaptersFailed"));
       const created = nextChapters?.find(
         (chapter) => chapter.chapter_number === chapterNumber,
       );

@@ -41,7 +41,7 @@ export function useProjectProfileCollection<T extends ProjectProfile>({
   const loadInFlightRef = useRef<{
     projectId: number;
     token: symbol;
-    promise: Promise<void>;
+    promise: Promise<boolean>;
   } | null>(null);
   const actionSeqRef = useRef(0);
   const actionBusyRef = useRef(false);
@@ -80,7 +80,7 @@ export function useProjectProfileCollection<T extends ProjectProfile>({
   }, []);
 
   const load = useCallback(
-    async (options: ProfileLoadOptions = {}) => {
+    async (options: ProfileLoadOptions = {}): Promise<boolean> => {
       const requestProjectId = options.projectId ?? projectId;
       const silent = options.silent ?? false;
       if (!options.force && loadInFlightRef.current?.projectId === requestProjectId) {
@@ -93,16 +93,18 @@ export function useProjectProfileCollection<T extends ProjectProfile>({
         if (!silent) setLoading(true);
         try {
           const nextProfiles = await listProfiles(requestProjectId);
-          if (!isCurrentProject(requestProjectId) || loadSeqRef.current !== requestSeq) return;
+          if (!isCurrentProject(requestProjectId) || loadSeqRef.current !== requestSeq) return false;
           if (nextProfiles.some((profile) => profile.project_id !== requestProjectId)) {
             throw new Error(t("novel.profile.foreignProjectData", { name: entityLabel }));
           }
           profilesRef.current = nextProfiles;
           setProfiles(nextProfiles);
+          return true;
         } catch (err) {
           if (isCurrentProject(requestProjectId) && loadSeqRef.current === requestSeq) {
             addToast(extractErrorMessage(err, t("novel.profile.loadFailed", { name: entityLabel })), "error");
           }
+          return false;
         } finally {
           if (!silent && isCurrentProject(requestProjectId) && loadSeqRef.current === requestSeq) {
             setLoading(false);
