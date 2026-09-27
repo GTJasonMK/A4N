@@ -103,11 +103,8 @@ export const ChatBubble: React.FC<ChatBubbleProps> = ({
   }
 
   // 流式期间用 streamingOptions；完成后用 options
-  const displayOptions = streamDisplaying
-    ? streamingPreview?.options
-    : message.options;
-  const showPendingSkeleton = pacedStream.isStreamDisplayEnabled
-    && Boolean(message.streaming && streamingPreview?.optionsPending);
+  const displayOptions = message.streaming ? message.streamingOptions : message.options;
+  const showPendingSkeleton = Boolean(message.streaming && message.optionsPending);
 
   return (
     <div className={`flex min-w-0 flex-col gap-1.5 ${isUser ? "items-end" : "items-start"}`}>
