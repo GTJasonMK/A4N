@@ -1,18 +1,25 @@
 build_frontend() {
     log_section "构建前端"
     ensure_frontend_dependencies
+    # frontend/dist is shared with local app builds; package an isolated snapshot.
+    mkdir -p "$CACHE_ROOT"
+    local build_dist
+    build_dist="$(cd "$CACHE_ROOT" && pwd)/frontend-dist"
+    rm -rf -- "$build_dist"
+    mkdir -p "$build_dist"
     (
         cd "$FRONTEND_DIR"
         VITE_A4N_BASE_PATH="$PUBLIC_BASE_PATH" \
         VITE_A4N_API_BASE_URL="$API_BASE_URL" \
-        npm run build
+        npm run build -- --outDir "$build_dist"
     )
 
-    [[ -f "$FRONTEND_DIST/index.html" ]] || die "前端构建后未找到 index.html"
-    if ! grep -q "$PUBLIC_BASE_PATH/assets/" "$FRONTEND_DIST/index.html"; then
+    [[ -f "$build_dist/index.html" ]] || die "前端构建后未找到 index.html"
+    if ! grep -q "$PUBLIC_BASE_PATH/assets/" "$build_dist/index.html"; then
         die "前端资源路径未使用 $PUBLIC_BASE_PATH/assets，请检查 Vite base 配置"
     fi
-    log_ok "前端 dist 已生成: $FRONTEND_DIST"
+    FRONTEND_PACKAGE_DIST="$build_dist"
+    log_ok "前端部署产物已生成: $build_dist"
 }
 plan_has_payload() {
     local requested="$1" payload
@@ -158,14 +165,13 @@ build_all() {
         while IFS= read -r binary; do
             [[ -x "$binary" ]] || die "未找到后端二进制: $binary"
         done < <(required_binary_paths)
-        [[ -f "$FRONTEND_DIST/index.html" ]] || die "未找到前端 dist: $FRONTEND_DIST"
         return
     fi
 
     if [[ "$DEPLOY_MODE" == full ]] || plan_has_payload static; then
         build_frontend
     else
-        log_info "前端未变化，复用现有 frontend/dist"
+        log_info "前端未变化，跳过静态资源构建"
     fi
     if ((${#BUILD_PACKAGES[@]} > 0)); then
         build_backend
@@ -192,7 +198,18 @@ prepare_package() {
         cp "$BUILD_TARGET_DIR/release/$binary" "$PACKAGE_DIR/bin/services/$binary"
     done
     cp -L "$A4N_ONNXRUNTIME_ROOT/lib/libonnxruntime.so" "$PACKAGE_DIR/bin/services/libonnxruntime.so.1"
-    cp -a "$FRONTEND_DIST/." "$PACKAGE_DIR/static/"
+    if [[ "$DEPLOY_MODE" == full ]] || plan_has_payload static; then
+        [[ -f "$FRONTEND_PACKAGE_DIST/index.html" ]] \
+            || die "未找到前端部署产物: $FRONTEND_PACKAGE_DIST"
+        cp -a "$FRONTEND_PACKAGE_DIST/." "$PACKAGE_DIR/static/"
+        cmp -s "$FRONTEND_PACKAGE_DIST/index.html" "$PACKAGE_DIR/static/index.html" \
+            || die "部署包中的 static/index.html 与前端部署产物不一致"
+        local packaged_asset_path
+        packaged_asset_path="$(grep -m1 -oE 'src=\"[^\"]+\.js\"' "$PACKAGE_DIR/static/index.html" \
+            | sed -n 's/^src=\"\([^\"]*\)\"$/\1/p')"
+        [[ "$packaged_asset_path" == "$PUBLIC_BASE_PATH/assets/"* ]] \
+            || die "部署包 JS asset 路径不是 $PUBLIC_BASE_PATH/assets: ${packaged_asset_path:-<missing>}"
+    fi
     cp -a "$PROMPTS_DIR/." "$PACKAGE_DIR/prompts/"
     find "$PACKAGE_DIR/bin" -type f -exec chmod 755 {} +
 
@@ -254,23 +271,54 @@ upload_package() {
     local local_sum
     local remote_sum
     local rsync_ssh
+    local remote_rsync=false
+    local ssh_status
+    local probe_attempt
+    local upload_attempt
     remote_partial_arg="$(remote_shell_quote "$remote_partial")"
     remote_package_arg="$(remote_shell_quote "$REMOTE_PACKAGE")"
     local_sum="$(cut -d' ' -f1 "$PACKAGE_PATH.sha256")"
 
     log_info "上传大小: ${PACKAGE_SIZE:-$(du -h "$PACKAGE_PATH" | cut -f1)}"
-    if command -v rsync >/dev/null 2>&1 \
-        && ssh "${SSH_OPTS[@]}" "$REMOTE" "command -v rsync >/dev/null 2>&1"; then
+    if command -v rsync >/dev/null 2>&1; then
+        for probe_attempt in 1 2 3; do
+            if ssh "${SSH_OPTS[@]}" "$REMOTE" "command -v rsync >/dev/null 2>&1 || exit 42"; then
+                remote_rsync=true
+                break
+            else
+                ssh_status=$?
+            fi
+            [[ "$ssh_status" == 42 ]] && break
+            if ((probe_attempt == 3)); then
+                die "SSH 检查远端 rsync 失败（退出码 $ssh_status），停止上传"
+            fi
+            log_warn "SSH 检查远端 rsync 失败（退出码 $ssh_status），5 秒后重试 $probe_attempt/3"
+            sleep 5
+        done
+    fi
+
+    if [[ "$remote_rsync" == true ]]; then
         printf -v rsync_ssh '%q ' ssh "${SSH_OPTS[@]}"
         ssh "${SSH_OPTS[@]}" "$REMOTE" \
             "if [[ ! -e $remote_partial_arg && -f $remote_package_arg ]]; then cp -a -- $remote_package_arg $remote_partial_arg; fi"
         log_info "上传方式: rsync（复用上次部署包，支持断点续传；下面显示实时进度）"
-        rsync \
-            --human-readable \
-            --info=progress2 \
-            --partial \
-            --rsh="$rsync_ssh" \
-            "$PACKAGE_PATH" "$REMOTE:$remote_partial"
+        for upload_attempt in 1 2 3; do
+            if rsync \
+                --human-readable \
+                --info=progress2 \
+                --partial \
+                --rsh="$rsync_ssh" \
+                "$PACKAGE_PATH" "$REMOTE:$remote_partial"; then
+                break
+            else
+                ssh_status=$?
+            fi
+            if ((upload_attempt == 3)); then
+                return "$ssh_status"
+            fi
+            log_warn "rsync 上传中断（退出码 $ssh_status），5 秒后重试 $upload_attempt/3"
+            sleep 5
+        done
     else
         log_info "上传方式: SSH 流式传输（下面显示已传输字节数）"
         dd if="$PACKAGE_PATH" bs=4M status=progress \

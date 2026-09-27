@@ -8,7 +8,7 @@ smoke_test() {
     fi
 
     log_section "公网 Smoke Test"
-    local app_status app_html health temp_media_status asset_path asset_status root_status redirect_status
+    local app_status app_html health temp_media_status asset_path asset_src asset_status root_status redirect_status
 
     app_status="$(http_status "$PUBLIC_APP_URL/")"
     [[ "$app_status" == "200" ]] || die "$PUBLIC_APP_URL/ 预期 200，实际 $app_status"
@@ -27,9 +27,12 @@ smoke_test() {
     log_ok "$PUBLIC_APP_URL -> $redirect_status"
 
     app_html="$(curl -fsS "$PUBLIC_APP_URL/")"
-    asset_path="$(grep -m1 -o "$PUBLIC_BASE_PATH/assets/[^\" ]*\\.js" <<< "$app_html")" \
-        || die "未从线上 index.html 找到 JS asset 路径"
-    asset_path="${asset_path%%$'\n'*}"
+    asset_src="$(grep -m1 -oE 'src=\"[^\"]+\.js\"' <<< "$app_html" \
+        | sed -n 's/^src=\"\([^\"]*\)\"$/\1/p')"
+    [[ -n "$asset_src" ]] || die "线上 index.html 没有 JS asset script src"
+    [[ "$asset_src" == "$PUBLIC_BASE_PATH/assets/"* ]] \
+        || die "线上 index.html 的 JS asset 路径不匹配 $PUBLIC_BASE_PATH/assets: $asset_src"
+    asset_path="$asset_src"
     asset_status="$(http_status "$PUBLIC_ORIGIN$asset_path")"
     [[ "$asset_status" == "200" ]] || die "$PUBLIC_ORIGIN$asset_path 预期 200，实际 $asset_status"
     log_ok "$PUBLIC_ORIGIN$asset_path -> 200"

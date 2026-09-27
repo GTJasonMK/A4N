@@ -99,7 +99,9 @@ write_deploy_record_json() {
         --remote "$REMOTE" \
         --remote-dir "$REMOTE_DIR" \
         --service "$REMOTE_SERVICE" \
-        --public-app-url "$PUBLIC_APP_URL"
+        --public-app-url "$PUBLIC_APP_URL" \
+        --public-base-path "$PUBLIC_BASE_PATH" \
+        --api-base-url "$API_BASE_URL"
     )
     [[ -n "$RELEASE_ID" ]] && record_args+=(--release-id "$RELEASE_ID")
     [[ -n "$BUILD_ELAPSED_SECONDS" ]] && record_args+=(--build-elapsed-seconds "$BUILD_ELAPSED_SECONDS")
@@ -306,6 +308,9 @@ SSH_OPTS=(
     -i "$SSH_KEY"
     -o "StrictHostKeyChecking=${A4N_DEPLOY_STRICT_HOST_KEY_CHECKING:-yes}"
     -o "UserKnownHostsFile=${A4N_DEPLOY_KNOWN_HOSTS:-$HOME/.ssh/known_hosts}"
+    -o ConnectTimeout=15
+    -o ServerAliveInterval=30
+    -o ServerAliveCountMax=6
 )
 
 REMOTE="$DEPLOY_USER@$DEPLOY_HOST"

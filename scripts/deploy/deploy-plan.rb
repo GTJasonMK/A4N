@@ -14,6 +14,7 @@ IGNORED_DEPLOY_PATHS = [
   %r{\A\.deploy\.env\z},
   %r{\Ascripts/deploy/deploy-cloud\.env\z},
   %r{\Ascripts/deploy/},
+  %r{\Ascripts/dev/},
   %r{\Ascripts/lib/},
   %r{\Ascripts/tests/},
   %r{\Adocs/},

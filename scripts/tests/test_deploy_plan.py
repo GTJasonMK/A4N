@@ -235,6 +235,16 @@ class DeployPlanTest(unittest.TestCase):
                 self.assertEqual(plan["mode"], "noop")
                 self.assertNotIn(relative, plan["changed_paths"])
 
+    def test_development_script_changes_do_not_force_cloud_deployment(self) -> None:
+        watcher = self.root / "scripts/dev/watch-runtime-workers.sh"
+        watcher.parent.mkdir(parents=True)
+        watcher.write_text("echo development-only\\n", encoding="utf-8")
+
+        plan = self.plan()
+
+        self.assertEqual(plan["mode"], "noop")
+        self.assertNotIn(str(watcher.relative_to(self.root)), plan["changed_paths"])
+
     def test_unknown_inputs_are_recorded_even_outside_the_old_fingerprint_scope(self) -> None:
         source = self.root / "frontend/vite.config.ts"
         source.parent.mkdir(parents=True)

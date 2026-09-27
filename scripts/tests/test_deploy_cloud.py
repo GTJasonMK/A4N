@@ -18,6 +18,41 @@ REMOTE = CLOUD.parent / "deploy-cloud/remote.sh"
 
 
 class DeployCloudTest(unittest.TestCase):
+    def test_frontend_build_uses_an_isolated_package_directory(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="a4n-cloud-frontend-") as directory:
+            temp = Path(directory)
+            frontend = temp / "frontend"
+            shared_dist = frontend / "dist"
+            shared_dist.mkdir(parents=True)
+            (shared_dist / "index.html").write_text("shared output\n", encoding="utf-8")
+            cache = temp / "target/deploy-cloud"
+            result = subprocess.run(
+                ["bash", "-c", r'''
+set -euo pipefail
+source "$1"
+FRONTEND_DIR="$2"
+CACHE_ROOT="$3"
+PUBLIC_BASE_PATH=/a4n
+API_BASE_URL=/a4n/api
+ensure_frontend_dependencies() { :; }
+log_section() { :; }
+log_ok() { :; }
+die() { printf '%s\\n' "$*" >&2; exit 1; }
+npm() {
+    [[ "$*" == "run build -- --outDir $CACHE_ROOT/frontend-dist" ]]
+    [[ "$VITE_A4N_BASE_PATH" == /a4n && "$VITE_A4N_API_BASE_URL" == /a4n/api ]]
+    mkdir -p "$CACHE_ROOT/frontend-dist"
+    printf '<script src="/a4n/assets/app.js"></script>\\n' > "$CACHE_ROOT/frontend-dist/index.html"
+}
+build_frontend
+[[ "$FRONTEND_PACKAGE_DIST" == "$CACHE_ROOT/frontend-dist" ]]
+grep -Fq '/a4n/assets/' "$FRONTEND_PACKAGE_DIST/index.html"
+[[ "$(cat "$FRONTEND_DIR/dist/index.html")" == "shared output" ]]
+''', "test", str(CLOUD.parent / "deploy-cloud/build.sh"), str(frontend), str(cache)],
+                cwd=ROOT, text=True, capture_output=True, timeout=10,
+            )
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
     def test_smoke_checks_served_assets_without_local_frontend_output(self) -> None:
         with tempfile.TemporaryDirectory(prefix="a4n-cloud-smoke-") as directory:
             requests = Path(directory) / "requests"
@@ -58,6 +93,46 @@ smoke_test
             urls = requests.read_text().splitlines()
             self.assertIn("https://fixture.invalid/a4n/assets/served.js", urls)
             self.assertNotIn("https://fixture.invalid/a4n/assets/second.js", urls)
+
+    def test_smoke_rejects_served_asset_with_wrong_base_path(self) -> None:
+        result = subprocess.run(
+            ["bash", "-c", r'''
+set -euo pipefail
+source "$1"
+RUN_SMOKE=true
+PUBLIC_ORIGIN=https://fixture.invalid
+PUBLIC_BASE_PATH=/a4n
+PUBLIC_APP_URL="$PUBLIC_ORIGIN$PUBLIC_BASE_PATH"
+ROOT_EXPECTED_STATUS=any
+log_section() { :; }
+log_ok() { :; }
+die() { printf '%s\n' "$*" >&2; exit 1; }
+curl() {
+    if [[ "$*" == *'%{http_code}'* ]]; then
+        if [[ "$*" == *temp-media* ]]; then
+            printf 404
+        elif [[ "$*" == *fixture.invalid/a4n ]]; then
+            printf 308
+        else
+            printf 200
+        fi
+    elif [[ "$*" == */api/health* ]]; then
+        printf ok
+    else
+        printf '<script type="module" src="/assets/served.js"></script>'
+    fi
+}
+if (smoke_test); then
+    exit 1
+else
+    status=$?
+fi
+[[ "$status" == 1 ]]
+''', "test", str(CLOUD.parent / "deploy-cloud/finalize.sh")],
+            cwd=ROOT, text=True, capture_output=True, timeout=10,
+        )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn("JS asset 路径不匹配 /a4n/assets", result.stderr)
 
     def test_help_and_lock_conflicts_leave_another_build_untouched(self) -> None:
         with tempfile.TemporaryDirectory(prefix="a4n-deploy-lock-") as directory:
@@ -280,6 +355,40 @@ grep -Fx -- '--partial' "$4"
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
             self.assertIn("rsync", result.stdout)
             self.assertEqual((temp / "rsync.basis").read_bytes(), b"previous-deployment-package")
+
+    def test_upload_does_not_stream_after_ssh_probe_failure(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="a4n-cloud-upload-ssh-failure-") as directory:
+            temp = Path(directory)
+            package = temp / "package.tar.gz"
+            package.write_bytes(b"deployment-package")
+            package.with_name(f"{package.name}.sha256").write_text(
+                f"{subprocess.check_output(['sha256sum', str(package)], text=True).split()[0]}  {package.name}\n",
+                encoding="utf-8",
+            )
+            stream_marker = temp / "stream-started"
+            result = subprocess.run(
+                ["bash", "-c", r'''
+set -euo pipefail
+source "$1"
+PACKAGE_PATH="$2"
+REMOTE=fixture.invalid
+REMOTE_PACKAGE=/unused/a4n-deploy.tar.gz
+SSH_OPTS=()
+log_section() { :; }
+log_info() { :; }
+log_warn() { :; }
+die() { printf '%s\\n' "$*" >&2; exit 1; }
+ssh() { return 255; }
+sleep() { :; }
+dd() { : > "$STREAM_MARKER"; }
+STREAM_MARKER="$3"
+upload_package
+''', "test", str(CLOUD.parent / "deploy-cloud/build.sh"), str(package), str(stream_marker)],
+                cwd=ROOT, text=True, capture_output=True, timeout=10,
+            )
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("SSH 检查远端 rsync 失败", result.stderr)
+            self.assertFalse(stream_marker.exists())
 
     def test_upload_falls_back_to_dd_with_atomic_replace(self) -> None:
         with tempfile.TemporaryDirectory(prefix="a4n-cloud-upload-dd-") as directory:

@@ -101,7 +101,6 @@ prepare_deploy_plan() {
                 break
             fi
         done < <(required_binary_paths)
-        [[ -f "$FRONTEND_DIST/index.html" ]] || reusable=false
         if ! $reusable; then
             FORCE_FULL=true
             log_warn "本地缺少未变化的基线产物，回退全量构建"
