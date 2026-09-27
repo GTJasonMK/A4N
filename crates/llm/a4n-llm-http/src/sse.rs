@@ -178,17 +178,18 @@ pub(super) fn drain_sse_lines(
     queue: &mut VecDeque<Result<ChatChunk, AppError>>,
 ) -> SseDrainOutcome {
     let mut outcome = SseDrainOutcome::default();
-    while let Some(pos) = buffer.iter().position(|b| *b == b'\n') {
-        let mut line = buffer.drain(..=pos).collect::<Vec<_>>();
-        if line.last() == Some(&b'\n') {
-            line.pop();
-        }
-        outcome.observe(parse_sse_data_line(&line), queue);
+    let mut consumed = 0;
+    while let Some(pos) = buffer[consumed..].iter().position(|b| *b == b'\n') {
+        let end = consumed + pos;
+        outcome.observe(parse_sse_data_line(&buffer[consumed..end]), queue);
+        consumed = end + 1;
         if outcome.done {
-            buffer.clear();
+            consumed = buffer.len();
             break;
         }
     }
+    // Compact the unfinished tail once, instead of moving it after every line.
+    buffer.drain(..consumed);
     outcome
 }
 

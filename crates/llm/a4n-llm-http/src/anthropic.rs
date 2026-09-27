@@ -322,15 +322,19 @@ where
 }
 
 fn drain_anthropic_lines(state: &mut AnthropicStreamState) {
-    while let Some(pos) = state.bytes.iter().position(|byte| *byte == b'\n') {
-        let mut line = state.bytes.drain(..=pos).collect::<Vec<_>>();
-        line.pop();
-        parse_anthropic_line(&line, state);
+    let mut bytes = std::mem::take(&mut state.bytes);
+    let mut consumed = 0;
+    while let Some(pos) = bytes[consumed..].iter().position(|byte| *byte == b'\n') {
+        let end = consumed + pos;
+        parse_anthropic_line(&bytes[consumed..end], state);
+        consumed = end + 1;
         if state.finished {
-            state.bytes.clear();
+            consumed = bytes.len();
             break;
         }
     }
+    bytes.drain(..consumed);
+    state.bytes = bytes;
 }
 
 fn parse_anthropic_line(line: &[u8], state: &mut AnthropicStreamState) {
@@ -654,5 +658,82 @@ mod tests {
         assert_eq!(usage.total_tokens, 10600);
         assert_eq!(usage.prompt_cache_miss_tokens, Some(1500));
         assert_eq!(usage.prompt_cache_write_tokens, Some(500));
+    }
+
+    #[test]
+    #[ignore = "manual performance measurement; run with --release --ignored --nocapture"]
+    fn performance_anthropic_batches() {
+        use std::{hint::black_box, time::Instant};
+
+        for count in [1, 32, 256, 2048] {
+            let line = "data: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":\"故事🙂\"}}\n\n";
+            let bytes = line.repeat(count).into_bytes();
+            let iterations = (8192 / count).max(16);
+            let mut samples = Vec::new();
+            for _ in 0..9 {
+                let start = Instant::now();
+                for _ in 0..iterations {
+                    let mut state = AnthropicStreamState {
+                        bytes: bytes.clone(),
+                        ..Default::default()
+                    };
+                    drain_anthropic_lines(&mut state);
+                    assert_eq!(state.queued.len(), count);
+                    assert!(state.bytes.is_empty());
+                    assert!(state.queued.iter().all(Result::is_ok));
+                    black_box(state);
+                }
+                samples.push(start.elapsed().as_secs_f64() * 1e6 / iterations as f64);
+            }
+            samples.sort_by(f64::total_cmp);
+            println!(
+                "PERF anthropic events={count} bytes={} median_us={:.3}",
+                bytes.len(),
+                samples[4]
+            );
+        }
+    }
+
+    #[test]
+    fn anthropic_batches_preserve_fragmented_unicode_errors_and_stop() {
+        let bytes = concat!(
+            ": keepalive\r\n\n",
+            "data: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":\"故事🙂\"}}\r\n\n",
+            "data: {invalid}\n\n",
+            "data: {\"type\":\"message_stop\"}\n\n",
+            "data: {ignored}\n\n"
+        ).as_bytes();
+        for split in 0..=bytes.len() {
+            let mut state = AnthropicStreamState::default();
+            for part in [&bytes[..split], &bytes[split..]] {
+                if state.finished {
+                    break;
+                }
+                state.bytes.extend_from_slice(part);
+                drain_anthropic_lines(&mut state);
+            }
+            assert!(state.finished, "split={split}");
+            assert!(state.bytes.is_empty());
+            assert_eq!(state.queued.len(), 2);
+            assert_eq!(
+                state
+                    .queued
+                    .pop_front()
+                    .unwrap()
+                    .unwrap()
+                    .content
+                    .as_deref(),
+                Some("故事🙂")
+            );
+            assert!(
+                state
+                    .queued
+                    .pop_front()
+                    .unwrap()
+                    .unwrap_err()
+                    .to_string()
+                    .contains("JSON")
+            );
+        }
     }
 }

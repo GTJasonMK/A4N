@@ -2,6 +2,15 @@ import type { Locale } from "./locale";
 
 export type UiDateInput = string | number | Date | null | undefined;
 
+const numberFormatters = {
+  "zh-CN": new Intl.NumberFormat("zh-CN"),
+  "en-US": new Intl.NumberFormat("en-US"),
+};
+const relativeTimeFormatters = {
+  "zh-CN": new Intl.RelativeTimeFormat("zh-CN", { numeric: "auto" }),
+  "en-US": new Intl.RelativeTimeFormat("en-US", { numeric: "auto" }),
+};
+
 const parseDate = (value: UiDateInput): Date | null => {
   if (value == null || value === "") return null;
   const date = value instanceof Date ? value : new Date(value);
@@ -61,7 +70,9 @@ export const formatNumber = (
   value: number | bigint,
   locale: Locale,
   options?: Intl.NumberFormatOptions,
-): string => new Intl.NumberFormat(locale, options).format(value);
+): string => (options === undefined
+  ? numberFormatters[locale]
+  : new Intl.NumberFormat(locale, options)).format(value);
 
 export const formatRelativeTime = (
   value: UiDateInput,
@@ -74,7 +85,7 @@ export const formatRelativeTime = (
   const absolute = Math.abs(seconds);
   const unit = absolute < 60 ? "second" : absolute < 3600 ? "minute" : absolute < 86400 ? "hour" : "day";
   const divisor = unit === "second" ? 1 : unit === "minute" ? 60 : unit === "hour" ? 3600 : 86400;
-  return new Intl.RelativeTimeFormat(locale, { numeric: "auto" }).format(
+  return relativeTimeFormatters[locale].format(
     Math.round(seconds / divisor),
     unit,
   );

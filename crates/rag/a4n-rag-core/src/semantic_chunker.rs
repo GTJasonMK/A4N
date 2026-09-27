@@ -85,7 +85,7 @@ fn chunk_sentences_with_embeddings(
         config.gate_threshold,
         config.alpha,
     );
-    let prefix = compute_prefix_sum(&enhanced_matrix, sentences.len());
+    let prefix = compute_prefix_sum(enhanced_matrix, sentences.len());
     let path = dynamic_programming(&prefix, &sentences, config)?;
     let cut_points = backtrack_cut_points(sentences.len(), &path);
     Ok(generate_chunks(&sentences, &cut_points))

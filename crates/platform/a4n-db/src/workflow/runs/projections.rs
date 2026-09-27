@@ -71,26 +71,29 @@ pub(super) fn workflow_checkpoint_summary(
 pub(in crate::workflow) fn workflow_run_progress_summary(
     value: &Value,
 ) -> Result<Option<WorkflowRunProgressSummary>, WorkflowReadError> {
-    let mut progress = value.clone();
-    if let Some(fields) = progress.as_object_mut() {
-        fields.remove("cancellation_active_task_id");
-    }
-    if progress.as_object().is_some_and(|fields| fields.is_empty()) {
-        return Ok(None);
-    }
-    if let Some(fields) = progress.as_object_mut()
-        && let Some(snapshot) = fields.remove("snapshot")
-    {
-        if !snapshot.is_object() {
+    let progress = if let Some(fields) = value.as_object() {
+        if fields
+            .get("snapshot")
+            .is_some_and(|snapshot| !snapshot.is_object())
+        {
             return Err(WorkflowReadError::InvalidData(
                 "progress_json.snapshot 必须是 JSON object".to_string(),
             ));
         }
+        // Recovery snapshots can dwarf public progress; never clone data we discard.
+        let fields: serde_json::Map<String, Value> = fields
+            .iter()
+            .filter(|(key, _)| !matches!(key.as_str(), "snapshot" | "cancellation_active_task_id"))
+            .map(|(key, value)| (key.clone(), value.clone()))
+            .collect();
         // 恢复快照可以先于首条进度事件保存，此时没有公开进度。
         if fields.is_empty() {
             return Ok(None);
         }
-    }
+        Value::Object(fields)
+    } else {
+        value.clone()
+    };
     let persisted = serde_json::from_value::<PersistedWorkflowProgress>(progress)
         .map_err(|error| WorkflowReadError::InvalidData(format!("progress_json 无效: {error}")))?;
     if persisted.total == 0 {

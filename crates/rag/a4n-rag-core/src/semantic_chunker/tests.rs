@@ -66,6 +66,65 @@ fn semantic_config() -> SemanticChunkConfig {
 }
 
 #[test]
+fn semantic_prefix_reuses_allocation_and_preserves_block_scores() {
+    let embeddings = vec![vec![1.0, 0.0], vec![0.0, 1.0], vec![1.0, 0.0]];
+    let matrix = build_similarity_matrix(&embeddings);
+    let allocation = matrix.as_ptr();
+    let matrix = apply_structure_enhancement(matrix, 3, 0.3, 0.0);
+    let prefix = compute_prefix_sum(matrix, 3);
+    assert_eq!(prefix.as_ptr(), allocation);
+    assert_eq!(
+        prefix,
+        vec![
+            0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 2.0, 0.0, 1.0, 2.0, 3.0, 0.0, 2.0, 3.0, 5.0
+        ]
+    );
+    assert_eq!(matrix::block_score(&prefix, 3, 0, 3, 0.0), 5.0);
+    assert_eq!(matrix::block_score(&prefix, 3, 1, 3, 0.0), 2.0);
+    let zero = build_similarity_matrix(&[vec![0.0], vec![1.0]]);
+    assert_eq!(
+        compute_prefix_sum(zero, 2),
+        vec![0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
+    );
+    assert_eq!(
+        compute_prefix_sum(build_similarity_matrix(&[]), 0),
+        vec![0.0]
+    );
+}
+
+#[test]
+#[ignore = "manual CPU/RSS measurement; run alone with --release --ignored --nocapture"]
+fn performance_semantic_chunking() {
+    let count: usize = std::env::var("A4N_PERF_SENTENCES")
+        .unwrap_or_else(|_| "1600".into())
+        .parse()
+        .expect("A4N_PERF_SENTENCES must be an integer");
+    assert!(count > 0);
+    let sentences = (0..count)
+        .map(|index| format!("第{index}句描写星门附近的人物与环境。"))
+        .collect::<Vec<_>>();
+    let expected_text = sentences.join("");
+    let embeddings = (0..count)
+        .map(|row| {
+            (0..768)
+                .map(|col| ((row * 31 + col * 17) % 101) as f32 / 50.0 - 1.0)
+                .collect::<Vec<_>>()
+        })
+        .collect();
+    let start = std::time::Instant::now();
+    let chunks =
+        chunk_sentences_with_embeddings(sentences, embeddings, &SemanticChunkConfig::chapter())
+            .expect("semantic chunking");
+    let elapsed = start.elapsed();
+    assert_eq!(chunks.concat(), expected_text);
+    let lengths = chunks.iter().map(String::len).collect::<Vec<_>>();
+    println!(
+        "PERF semantic sentences={count} dimensions=768 elapsed_ms={:.3} chunk_bytes={lengths:?}",
+        elapsed.as_secs_f64() * 1000.0
+    );
+}
+
+#[test]
 fn splits_novel_sentences_with_quotes_and_long_sentence_secondary_boundaries() {
     let text = "他说：「星门开了。」她没有回答……只是看向远处。\n这是一个很长的句子，带着许多逗号，继续描述星门边缘的光，继续描述风声，继续描述人群，继续描述远处城墙，继续描述未完成的预兆，继续描述暗线，继续描述疑问。";
 

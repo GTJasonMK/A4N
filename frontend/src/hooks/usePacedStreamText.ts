@@ -60,11 +60,11 @@ export const usePacedStreamText = (
   const { enabled, rate, mode } = useThemeStreamDisplaySettings();
   const [displayedText, setDisplayedText] = useState(() => (initiallyPaced ? "" : sourceText));
   const [drainRequested, setDrainRequested] = useState(0);
-  const initialSourceChars = Array.from(sourceText);
+  const targetCharsRef = useRef<string[] | null>(null);
+  const initialSourceChars = targetCharsRef.current ??= Array.from(sourceText);
   const displayedTextRef = useRef(initiallyPaced ? "" : sourceText);
   const displayedCharCountRef = useRef(initiallyPaced ? 0 : initialSourceChars.length);
   const targetTextRef = useRef(sourceText);
-  const targetCharsRef = useRef(initialSourceChars);
   const sampleRef = useRef({
     sourceText,
     sourceLength: initialSourceChars.length,
@@ -193,7 +193,7 @@ export const usePacedStreamText = (
       if (!active && drainWhenInactive && displayedTextRef.current === targetTextRef.current) {
         return;
       }
-      const nextChar = targetCharsRef.current[displayedCharCountRef.current];
+      const nextChar = targetCharsRef.current![displayedCharCountRef.current];
       if (nextChar != null) {
         const next = `${displayedTextRef.current}${nextChar}`;
         displayedTextRef.current = next;

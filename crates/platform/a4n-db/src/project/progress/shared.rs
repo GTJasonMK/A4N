@@ -7,6 +7,7 @@ use a4n_db_models::models::{chapter::chapter_video_prompt, generation::workflow_
 use sea_orm::{
     ColumnTrait, DatabaseConnection, EntityTrait, FromQueryResult, QueryFilter, QueryOrder,
     QuerySelect,
+    sea_query::{Expr, extension::postgres::PgExpr},
 };
 use serde_json::Value;
 use std::collections::HashMap;
@@ -88,7 +89,7 @@ struct PipelineWorkflowProgressRow {
     id: i64,
     project_id: Option<i64>,
     status: String,
-    progress_json: Option<Value>,
+    progress_message: Option<Value>,
     error_message: Option<String>,
 }
 
@@ -106,7 +107,10 @@ pub(super) async fn latest_pipeline_states_by_project(
         .column(workflow_run::Column::Id)
         .column(workflow_run::Column::ProjectId)
         .column(workflow_run::Column::Status)
-        .column(workflow_run::Column::ProgressJson)
+        .column_as(
+            Expr::col(workflow_run::Column::ProgressJson).get_json_field("message"),
+            "progress_message",
+        )
         .column(workflow_run::Column::ErrorMessage)
         .distinct_on([workflow_run::Column::BusinessKey])
         .filter(workflow_run::Column::ProjectId.is_in(project_ids.iter().copied()))
@@ -176,9 +180,8 @@ fn pipeline_state_from_workflow_run(
         .filter(|message| !message.is_empty())
         .map(str::to_string)
         .or_else(|| {
-            run.progress_json
+            run.progress_message
                 .as_ref()
-                .and_then(|progress| progress.get("message"))
                 .and_then(Value::as_str)
                 .map(str::trim)
                 .filter(|message| !message.is_empty())
@@ -206,6 +209,9 @@ pub(super) fn progress_count_detail(
 }
 
 #[cfg(test)]
+mod database_tests;
+
+#[cfg(test)]
 mod tests {
     use super::*;
 
@@ -214,7 +220,7 @@ mod tests {
             id: 9,
             project_id: Some(3),
             status: status.to_string(),
-            progress_json: None,
+            progress_message: None,
             error_message: None,
         }
     }

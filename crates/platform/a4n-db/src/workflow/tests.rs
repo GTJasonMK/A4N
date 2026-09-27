@@ -234,6 +234,43 @@ fn workflow_run_progress_summary_uses_calculated_percent_when_missing() {
 }
 
 #[test]
+#[ignore = "manual performance measurement; run with --release --ignored --nocapture"]
+fn performance_workflow_progress_projection() {
+    use std::{hint::black_box, time::Instant};
+
+    for units in [0, 100, 1000] {
+        let value = json!({
+            "current": 2,
+            "total": 4,
+            "message": "处理中",
+            "snapshot": {
+                "completed_units": (0..units).map(|id| json!({
+                    "id": id, "content": "已冻结的镜头正文。".repeat(40)
+                })).collect::<Vec<_>>()
+            }
+        });
+        let mut samples = Vec::new();
+        for _ in 0..9 {
+            let start = Instant::now();
+            for _ in 0..200 {
+                let progress = workflow_run_progress_summary(black_box(&value))
+                    .expect("valid snapshot and progress")
+                    .expect("public progress");
+                assert_eq!(progress.percent, 50.0);
+                black_box(progress);
+            }
+            samples.push(start.elapsed().as_secs_f64() * 1e6 / 200.0);
+        }
+        samples.sort_by(f64::total_cmp);
+        println!(
+            "PERF workflow_progress units={units} json_bytes={} median_us={:.3}",
+            value.to_string().len(),
+            samples[4]
+        );
+    }
+}
+
+#[test]
 fn workflow_run_progress_summary_prefers_explicit_percent() {
     let summary = workflow_run_progress_summary(&json!({
         "current": 2,
@@ -276,6 +313,9 @@ fn workflow_run_progress_summary_rejects_missing_or_out_of_range_fields() {
 
 #[test]
 fn workflow_run_summary_accepts_snapshot_with_or_without_progress() {
+    for value in [json!({}), json!({"cancellation_active_task_id": "task-7"})] {
+        assert!(workflow_run_progress_summary(&value).unwrap().is_none());
+    }
     for with_progress in [false, true] {
         let mut value = json!({"snapshot": {"version": 1, "completed_units": [7]}});
         if with_progress {
@@ -316,7 +356,6 @@ fn workflow_run_progress_summary_rejects_malformed_snapshot_and_progress() {
         json!({"snapshot": {}, "current": 0, "total": 1, "message": "", "legacy": true}),
         json!({"snapshot": {}, "current": 0, "total": 0, "message": ""}),
         json!({"snapshot": {}, "current": 0, "total": 1, "message": "", "percent": 101}),
-        json!({}),
         json!(null),
     ] {
         let error = workflow_run_progress_summary(&value)

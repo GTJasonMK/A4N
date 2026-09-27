@@ -11,7 +11,9 @@ pub(super) fn build_similarity_matrix(embeddings: &[Vec<f32>]) -> Vec<f64> {
         .collect::<Vec<_>>();
 
     let n = embeddings.len();
-    let mut matrix = vec![0.0; n * n];
+    // Reserve the prefix-sum border now so the same allocation serves both stages.
+    let width = n + 1;
+    let mut matrix = vec![0.0; width * width];
     for i in 0..n {
         for j in i..n {
             let score = if norms[i] == 0.0 || norms[j] == 0.0 {
@@ -24,8 +26,8 @@ pub(super) fn build_similarity_matrix(embeddings: &[Vec<f32>]) -> Vec<f64> {
                     .sum::<f64>()
                     / (norms[i] * norms[j])
             };
-            matrix[matrix_index(n, i, j)] = score;
-            matrix[matrix_index(n, j, i)] = score;
+            matrix[matrix_index(width, i + 1, j + 1)] = score;
+            matrix[matrix_index(width, j + 1, i + 1)] = score;
         }
     }
     matrix
@@ -37,32 +39,32 @@ pub(super) fn apply_structure_enhancement(
     gate_threshold: f64,
     alpha: f64,
 ) -> Vec<f64> {
-    for i in 0..n {
-        for j in (i + 1)..n {
-            let score = sim_matrix[matrix_index(n, i, j)];
+    let width = n + 1;
+    for i in 1..=n {
+        for j in (i + 1)..=n {
+            let score = sim_matrix[matrix_index(width, i, j)];
             if score > gate_threshold {
                 let distance = (j - i) as f64;
                 let adjusted = score + score * alpha * distance.ln_1p();
-                sim_matrix[matrix_index(n, i, j)] = adjusted;
-                sim_matrix[matrix_index(n, j, i)] = adjusted;
+                sim_matrix[matrix_index(width, i, j)] = adjusted;
+                sim_matrix[matrix_index(width, j, i)] = adjusted;
             }
         }
     }
     sim_matrix
 }
 
-pub(super) fn compute_prefix_sum(matrix: &[f64], n: usize) -> Vec<f64> {
+pub(super) fn compute_prefix_sum(mut matrix: Vec<f64>, n: usize) -> Vec<f64> {
     let width = n + 1;
-    let mut prefix = vec![0.0; width * width];
     for i in 1..=n {
         for j in 1..=n {
-            prefix[matrix_index(width, i, j)] = matrix[matrix_index(n, i - 1, j - 1)]
-                + prefix[matrix_index(width, i - 1, j)]
-                + prefix[matrix_index(width, i, j - 1)]
-                - prefix[matrix_index(width, i - 1, j - 1)];
+            matrix[matrix_index(width, i, j)] = matrix[matrix_index(width, i, j)]
+                + matrix[matrix_index(width, i - 1, j)]
+                + matrix[matrix_index(width, i, j - 1)]
+                - matrix[matrix_index(width, i - 1, j - 1)];
         }
     }
-    prefix
+    matrix
 }
 
 pub(super) fn block_score(prefix: &[f64], n: usize, start: usize, end: usize, gamma: f64) -> f64 {

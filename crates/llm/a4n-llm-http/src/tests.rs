@@ -282,6 +282,37 @@ fn drain_sse_lines_stops_at_done_and_records_terminal_chunk() {
 }
 
 #[test]
+#[ignore = "manual performance measurement; run with --release --ignored --nocapture"]
+fn performance_sse_batches() {
+    use std::{collections::VecDeque, hint::black_box, time::Instant};
+
+    for count in [1, 32, 256, 2048] {
+        let line = "data: {\"choices\":[{\"index\":0,\"delta\":{\"content\":\"故事🙂\"},\"finish_reason\":null}]}\n\n";
+        let bytes = line.repeat(count).into_bytes();
+        let iterations = (8192 / count).max(16);
+        let mut samples = Vec::new();
+        for _ in 0..9 {
+            let start = Instant::now();
+            for _ in 0..iterations {
+                let mut buffer = bytes.clone();
+                let mut queue = VecDeque::new();
+                let outcome = drain_sse_lines(&mut buffer, &mut queue);
+                assert_eq!(outcome.parsed_chunks, count);
+                assert!(buffer.is_empty());
+                black_box(queue);
+            }
+            samples.push(start.elapsed().as_secs_f64() * 1e6 / iterations as f64);
+        }
+        samples.sort_by(f64::total_cmp);
+        println!(
+            "PERF sse events={count} bytes={} median_us={:.3}",
+            bytes.len(),
+            samples[4]
+        );
+    }
+}
+
+#[test]
 fn parse_sse_data_line_rejects_empty_choices() {
     let err =
         parse_data_line(r#"data: {"choices":[]}"#).expect_err("empty choices should be rejected");
@@ -289,6 +320,43 @@ fn parse_sse_data_line_rejects_empty_choices() {
     let message = err.to_string();
     assert!(message.contains("choices"));
     assert!(message.contains("响应片段"));
+}
+
+#[test]
+fn sse_batches_preserve_fragmented_unicode_errors_and_done() {
+    let bytes = concat!(
+        ": keepalive\r\n\n",
+        "data: {\"choices\":[{\"index\":0,\"delta\":{\"content\":\"故事🙂\"},\"finish_reason\":\"stop\"}]}\r\n\n",
+        "data: {invalid}\n\n",
+        "data: [DONE]\n\n",
+        "data: {ignored}\n\n"
+    ).as_bytes();
+    for split in 0..=bytes.len() {
+        let mut buffer = Vec::new();
+        let mut queue = std::collections::VecDeque::new();
+        let mut done = false;
+        for part in [&bytes[..split], &bytes[split..]] {
+            if done {
+                break;
+            }
+            buffer.extend_from_slice(part);
+            done = drain_sse_lines(&mut buffer, &mut queue).done;
+        }
+        assert!(done, "split={split}");
+        assert!(buffer.is_empty());
+        assert_eq!(queue.len(), 2);
+        let chunk = queue.pop_front().unwrap().unwrap();
+        assert_eq!(chunk.content.as_deref(), Some("故事🙂"));
+        assert_eq!(chunk.finish_reason.as_deref(), Some("stop"));
+        assert!(
+            queue
+                .pop_front()
+                .unwrap()
+                .unwrap_err()
+                .to_string()
+                .contains("JSON")
+        );
+    }
 }
 
 #[test]
