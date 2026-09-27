@@ -370,18 +370,20 @@ export const SessionManager: React.FC = () => {
     };
   }, []);
 
-  const load = async () => {
+  const load = async (): Promise<boolean> => {
     setLoading(true);
     setLoadError(null);
     try {
       const nextSessions = await listSessions();
-      if (!mountedRef.current) return;
+      if (!mountedRef.current) return false;
       setSessions(nextSessions);
+      return true;
     } catch (err) {
-      if (!mountedRef.current) return;
+      if (!mountedRef.current) return false;
       const message = extractErrorMessage(err, t("settingsAbout.loadSessionsFailed"));
       setLoadError(message);
       addToast(message, "error");
+      return false;
     } finally {
       if (mountedRef.current) setLoading(false);
     }
@@ -399,7 +401,7 @@ export const SessionManager: React.FC = () => {
     try {
       await refreshToken();
       if (!mountedRef.current) return;
-      await load();
+      if (!await load()) return;
       if (!mountedRef.current) return;
       addToast(t("settingsAbout.credentialUpdated"), "success");
     } catch (err) {

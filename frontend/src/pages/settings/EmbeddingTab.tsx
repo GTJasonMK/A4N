@@ -131,19 +131,21 @@ export const EmbeddingTab: React.FC<EmbeddingTabProps> = ({
     t("settingsEmbedding.configLoadFailed", { host: modelHostLabel }),
   );
 
-  const refreshModels = useCallback(async () => {
+  const refreshModels = useCallback(async (): Promise<boolean> => {
     const requestSeq = refreshSeqRef.current + 1;
     refreshSeqRef.current = requestSeq;
     setModelLoadError(null);
     try {
       const models = await listLocalEmbeddingModels(scope);
-      if (!isCurrentRefresh(requestSeq)) return;
+      if (!isCurrentRefresh(requestSeq)) return false;
       setLocalModels(models);
+      return true;
     } catch (error) {
-      if (!isCurrentRefresh(requestSeq)) return;
+      if (!isCurrentRefresh(requestSeq)) return false;
       setModelLoadError(
         extractErrorMessage(error, t("settingsEmbedding.directoryReadFailed", { host: modelHostLabel })),
       );
+      return false;
     }
   }, [isCurrentRefresh, modelHostLabel, scope, t]);
 
@@ -268,6 +270,7 @@ export const EmbeddingTab: React.FC<EmbeddingTabProps> = ({
           );
         },
       );
+      if (!await refreshModels()) return;
       addToast(t("settingsEmbedding.downloadedTo", { host: modelHostLabel }), "success");
     } catch (err) {
       const message = extractErrorMessage(err, t("settingsEmbedding.downloadFailed"));
@@ -307,7 +310,7 @@ export const EmbeddingTab: React.FC<EmbeddingTabProps> = ({
       setBusyModel(model);
       await deleteLocalEmbeddingModel(model, scope);
       setDownloadInfoByModel({});
-      await refreshModels();
+      if (!await refreshModels()) return;
       addToast(t("settingsEmbedding.cacheDeleted", { host: modelHostLabel }), "success");
     } catch (err) {
       addToast(extractErrorMessage(err, t("settingsEmbedding.deleteFailed")), "error");

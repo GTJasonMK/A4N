@@ -693,10 +693,10 @@ export function useCanvasWorkflowActions({
         task_id: taskId,
         workflow_run_id: workflowRunId,
       });
-      addToast(t("video.cancelRunRequested"), "info");
       if (workflowRunId) {
-        await loadWorkflowStatus(workflowRunId);
+        if (!await loadWorkflowStatus(workflowRunId)) return;
       }
+      addToast(t("video.cancelRunRequested"), "info");
     } catch (err) {
       addToast(extractErrorMessage(err, t("video.cancelRunFailed")), "error");
     } finally {

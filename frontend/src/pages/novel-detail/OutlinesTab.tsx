@@ -313,6 +313,7 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
       ? t("outline.partsAppended", { count: requestedPartCount })
       : t("outline.partsGenerated", { count: requestedPartCount });
     setGeneratingParts(true);
+    let refreshOk = true;
     try {
       const warnings = await runOutlineGeneration(
         {
@@ -335,11 +336,12 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
         async (control) => {
           if (!isActionCurrent(requestProjectId, actionSeq)) throw new Error("任务已停止");
           control.setProgress(t("outline.refreshing"), 2);
-          await load({ showLoading: false });
+          refreshOk = await load({ showLoading: false });
           if (!isActionCurrent(requestProjectId, actionSeq)) throw new Error("任务已停止");
         },
       );
       if (!isActionCurrent(requestProjectId, actionSeq)) return;
+      if (!refreshOk) return;
       addOutlineMutationToast(successMessage, warnings);
     } catch (err) {
       if (isActionCurrent(requestProjectId, actionSeq)) {
@@ -410,6 +412,7 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
     const actionSeq = beginAction(requestProjectId);
     if (actionSeq == null) return;
     setGeneratingOutlines(true);
+    let refreshOk = true;
     try {
       const startChapter =
         outlinesRef.current.reduce((max, outline) => Math.max(max, outline.chapter_number), 0) + 1;
@@ -438,11 +441,12 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
         async (control) => {
           if (!isActionCurrent(requestProjectId, actionSeq)) throw new Error("任务已停止");
           control.setProgress(t("outline.refreshing"), 2);
-          await load({ showLoading: false });
+          refreshOk = await load({ showLoading: false });
           if (!isActionCurrent(requestProjectId, actionSeq)) throw new Error("任务已停止");
         },
       );
       if (!isActionCurrent(requestProjectId, actionSeq)) return;
+      if (!refreshOk) return;
       addOutlineMutationToast(t("outline.chaptersGenerated", { count: requestedChapterCount }), warnings);
     } catch (err) {
       if (isActionCurrent(requestProjectId, actionSeq)) {
@@ -699,6 +703,7 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
     const actionSeq = beginAction(requestProjectId);
     if (actionSeq == null) return;
     setRegenId(o.id);
+    let refreshOk = true;
     try {
       const direction = await requestOptimizationDirection(
         t("outline.dialogs.refineChapter", { chapter: o.chapter_number }),
@@ -724,11 +729,12 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
         async (control) => {
           if (!isActionCurrent(requestProjectId, actionSeq)) throw new Error("任务已停止");
           control.setProgress(t("outline.refreshing"), 2);
-          await load({ showLoading: false });
+          refreshOk = await load({ showLoading: false });
           if (!isActionCurrent(requestProjectId, actionSeq)) throw new Error("任务已停止");
         },
       );
       if (!isActionCurrent(requestProjectId, actionSeq)) return;
+      if (!refreshOk) return;
       addOutlineMutationToast(t("outline.regeneratedChapter", { chapter: o.chapter_number }), warnings);
     } catch (err) {
       if (isActionCurrent(requestProjectId, actionSeq)) {
@@ -754,6 +760,7 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
     const actionSeq = beginAction(requestProjectId);
     if (actionSeq == null) return;
     setPartRegenId(part.id);
+    let refreshOk = true;
     try {
       const direction = await requestOptimizationDirection(
         t("outline.dialogs.refinePart", { part: part.part_number }),
@@ -778,11 +785,12 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
         async (control) => {
           if (!isActionCurrent(requestProjectId, actionSeq)) throw new Error("任务已停止");
           control.setProgress(t("outline.refreshing"), 2);
-          await load({ showLoading: false });
+          refreshOk = await load({ showLoading: false });
           if (!isActionCurrent(requestProjectId, actionSeq)) throw new Error("任务已停止");
         },
       );
       if (!isActionCurrent(requestProjectId, actionSeq)) return;
+      if (!refreshOk) return;
       addOutlineMutationToast(t("outline.refinedPart", { part: part.part_number }), warnings);
     } catch (err) {
       if (isActionCurrent(requestProjectId, actionSeq)) {
@@ -985,11 +993,11 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
     try {
       const result = await deleteLatestChapterOutlines(requestProjectId, targets);
       if (!isActionCurrent(requestProjectId, actionSeq)) return;
+      if (!await load()) return;
       addOutlineMutationToast(
         t("outline.deletedOutlines", { count: requestChapterCount }),
         result.warnings,
       );
-      await load();
     } catch (err) {
       if (isActionCurrent(requestProjectId, actionSeq)) {
         addToast(extractErrorMessage(err, t("outline.saveFailed")), "error");
@@ -1009,6 +1017,7 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
     const actionSeq = beginAction(requestProjectId);
     if (actionSeq == null) return;
     setRegenLastPart(true);
+    let refreshOk = true;
     try {
       const warnings = await runOutlineGeneration(
         {
@@ -1027,11 +1036,12 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
         async (control) => {
           if (!isActionCurrent(requestProjectId, actionSeq)) throw new Error("任务已停止");
           control.setProgress(t("outline.refreshing"), 2);
-          await load({ showLoading: false });
+          refreshOk = await load({ showLoading: false });
           if (!isActionCurrent(requestProjectId, actionSeq)) throw new Error("任务已停止");
         },
       );
       if (!isActionCurrent(requestProjectId, actionSeq)) return;
+      if (!refreshOk) return;
       addOutlineMutationToast(t("outline.regeneratedLastPart"), warnings);
     } catch (err) {
       if (isActionCurrent(requestProjectId, actionSeq)) {
