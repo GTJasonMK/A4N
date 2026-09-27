@@ -144,7 +144,7 @@ export const GalgameProjectWorkspace: React.FC = () => {
         .then(async (nextProject) => {
           if (nextProject.lifecycle_gate !== "active") return;
           window.clearInterval(timer);
-          await refresh();
+          if (!await refresh()) return;
           setWorkspaceVersion((value) => value + 1);
           addToast(t("galgame.resetCompleted"), "success");
         })

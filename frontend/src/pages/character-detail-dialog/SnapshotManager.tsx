@@ -440,6 +440,7 @@ export const SnapshotManager: React.FC<{
       if (!isCurrentRequest(requestProfileId, rollbackSeqRef, requestSeq))
         return;
       if (!await load()) return;
+      if (await onChanged?.() === false) return;
       addToast(
         t("characterDetail.snapshot.rollbackSummary", {
           events: r.deleted_events,
@@ -455,7 +456,6 @@ export const SnapshotManager: React.FC<{
       );
       if (!isCurrentRequest(requestProfileId, rollbackSeqRef, requestSeq))
         return;
-      await onChanged?.();
     } catch (err) {
       if (!isCurrentRequest(requestProfileId, rollbackSeqRef, requestSeq))
         return;

@@ -332,6 +332,7 @@ export const ImplicitReviewManager: React.FC<{
       if (!isCurrentProfile(requestProfileId) || applySeqRef.current !== requestSeq) return;
 
       if (!await load()) return;
+      if (await onChanged?.() === false) return;
       if (result.action === "modify") {
         addToast(t("characterDetail.implicit.applied"), "success");
       } else if (result.action === "mark_deletion" && result.deletion_mark) {
@@ -354,7 +355,6 @@ export const ImplicitReviewManager: React.FC<{
         return next;
       });
       if (!isCurrentProfile(requestProfileId) || applySeqRef.current !== requestSeq) return;
-      await onChanged?.();
     } catch (err) {
       if (!isCurrentProfile(requestProfileId) || applySeqRef.current !== requestSeq) return;
       addToast(extractErrorMessage(err, t("characterDetail.implicit.applyFailed")), "error");

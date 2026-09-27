@@ -326,6 +326,7 @@ export const DeletionManager: React.FC<{
       });
       if (!isCurrentProfile(requestProfileId) || executeSeqRef.current !== requestSeq) return;
       if (!await load()) return;
+      if (await onChanged?.() === false) return;
       addToast(
         t("characterDetail.deletion.executeSuccess", {
           attribute: attributeKeyLabel(mark.key, t),
@@ -333,7 +334,6 @@ export const DeletionManager: React.FC<{
         "success",
       );
       if (!isCurrentProfile(requestProfileId) || executeSeqRef.current !== requestSeq) return;
-      await onChanged?.();
     } catch (err) {
       if (!isCurrentProfile(requestProfileId) || executeSeqRef.current !== requestSeq) return;
       addToast(extractErrorMessage(err, t("characterDetail.deletion.executeFailed")), "error");

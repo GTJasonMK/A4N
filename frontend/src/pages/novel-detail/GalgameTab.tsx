@@ -549,7 +549,7 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
           : scene),
       }));
       if (patch.line_type != null && patch.line_type !== "choice") clearChoiceDraft(line.id);
-      await load();
+      if (!await load()) return false;
       return true;
     } catch (err) {
       addToast(extractErrorMessage(err, t("galgame.saveLineFailed")), "error");
@@ -579,7 +579,7 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
         ...current,
         scenes: current.scenes.map((item) => item.scene.id === saved.id ? { ...item, scene: saved } : item),
       }));
-      await load();
+      if (!await load()) return;
     } catch (err) {
       addToast(extractErrorMessage(err, t("galgame.saveSceneFailed")), "error");
     } finally {
@@ -614,7 +614,7 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
         presentation: emptyGalgamePresentation(),
         text_anchor_id: null,
       });
-      await load();
+      if (!await load()) return;
     } catch (err) {
       addToast(extractErrorMessage(err, t("galgame.insertLineFailed")), "error");
     } finally {
@@ -629,7 +629,7 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
       await deleteGalgameLine(projectId, { line_id: line.id });
       clearChoiceDraft(line.id);
       clearCgDraft(line.id);
-      await load();
+      if (!await load()) return;
     } catch (err) {
       addToast(extractErrorMessage(err, t("galgame.deleteLineFailed")), "error");
     } finally {
@@ -654,7 +654,7 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
         scene_id: scene.scene.id,
         line_ids: lineIds,
       });
-      await load();
+      if (!await load()) return;
     } catch (err) {
       addToast(extractErrorMessage(err, t("galgame.reorderLineFailed")), "error");
     } finally {
@@ -674,7 +674,7 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
         line_id: line.id,
         choices,
       });
-      await load();
+      if (!await load()) return;
       acceptChoiceDraft(line.id, submittedDraft);
     } catch (err) {
       addToast(extractErrorMessage(err, t("galgame.saveChoicesFailed")), "error");

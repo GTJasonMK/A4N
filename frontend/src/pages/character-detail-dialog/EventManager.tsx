@@ -286,13 +286,13 @@ export const EventManager: React.FC<{
         ? t("characterDetail.event.added")
         : t("characterDetail.event.modified");
       if (!await load()) return;
+      if (await onChanged?.() === false) return;
       addToast(successMessage, "success");
       setKey("");
       setValueText("");
       setCause("");
       setEvidence("");
       if (!isCurrentProfile(requestProfileId) || saveSeqRef.current !== requestSeq) return;
-      await onChanged?.();
     } catch (err) {
       if (!isCurrentProfile(requestProfileId) || saveSeqRef.current !== requestSeq) return;
       addToast(

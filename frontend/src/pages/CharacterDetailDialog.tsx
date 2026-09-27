@@ -514,6 +514,7 @@ export const CharacterDetailDialog: React.FC<CharacterDetailDialogProps> = ({
         },
       );
       if (!isCurrentCharacterScope(requestScope) || syncSeqRef.current !== requestSeq) return;
+      if (await onChanged?.() === false) return;
       if (result.status === "skipped") {
         addToast(t("characterDetail.noSyncNeeded"), "info");
       } else {
@@ -560,7 +561,6 @@ export const CharacterDetailDialog: React.FC<CharacterDetailDialogProps> = ({
       setArc(null);
       setVoice(null);
       setConflicts(null);
-      await onChanged?.();
       if (!isCurrentCharacterScope(requestScope) || syncSeqRef.current !== requestSeq) return;
       if (!isCurrentDialogScope(requestScope)) return;
       if (tab === "arc") {
