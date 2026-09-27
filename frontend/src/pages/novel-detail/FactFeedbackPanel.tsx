@@ -95,22 +95,28 @@ export const FactFeedbackPanel = ({ projectId, canEdit, refreshKey, onChanged }:
     setBusy(true);
     const requestProject = projectId;
     const taskId = crypto.randomUUID();
+    let refreshAttempted = false;
     try {
       const result = await runProgressTask({
         title: t(mode === "rebuild" ? "novel.factFeedback.rebuild" : "novel.factFeedback.consolidate"),
         startMessage: t("novel.factFeedback.running"), successMessage: t("novel.factFeedback.finished"),
         errorMessage: t("novel.factFeedback.runFailed"), total: 100,
         cancelTaskId: taskId, cancelTask: cancelWorkflowTask,
-      }, () => runProjectFactFeedback({ project_id: requestProject, mode, workflow_run_id: resume ? data?.workflow_run_id ?? null : null }, taskId));
+      }, async () => {
+        const next = await runProjectFactFeedback({ project_id: requestProject, mode, workflow_run_id: resume ? data?.workflow_run_id ?? null : null }, taskId);
+        if (!mounted.current || currentProject.current !== requestProject) return next;
+        refreshAttempted = onChanged != null;
+        if (await onChanged?.() === false) throw new Error(t("novel.factFeedback.loadFailed"));
+        return next;
+      });
       if (!mounted.current || currentProject.current !== requestProject) return;
       setData(result);
       setError(null);
       if (result.error) addToast(result.error, "error");
-      if (await onChanged?.() === false) return;
     } catch (cause) {
       if (mounted.current && currentProject.current === requestProject) {
         setError(extractErrorMessage(cause, t("novel.factFeedback.runFailed")));
-        await load();
+        if (!refreshAttempted) await load();
       }
     } finally {
       operationBusy.current = false;
