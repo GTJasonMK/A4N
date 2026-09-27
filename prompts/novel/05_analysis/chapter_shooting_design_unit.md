@@ -18,6 +18,7 @@ name: chapter_shooting_design_unit
 - `participants`、`source_span_ids`、`audience_knowledge_before`、`audience_knowledge_after`、`withheld_information`：string[]，即使只有一句话也必须写成 `["一句话"]`，没有内容时写 `[]`，禁止直接输出 string。
 - `transition_contracts`、`shots`：object[]。
 - `transition_contracts[].to_narrative_unit_index`：正整数；`transition_type`：只能是 `continuous`、`hard_cut`、`match_cut`、`whip_pan`、`action_wipe`、`sound_bridge`、`dissolve`、`fade`、`focus_transition`、`morph`；`preserved_action`、`preserved_sound`、`required_cut_point`：string|null。
+- `transition_contracts[].preserved_sound` 是单个 string|null；多个延续声音写在同一个字符串里，不要输出数组。只有 `shots[].sound.*` 声音轨道字段是 string[]。
 - `transition_contracts[].preserved_knowledge`、`shots[].source_span_ids`、`shots[].spatial_anchors`、`shots[].continuity_requirements`：string[]。
 - `shots[].performance_beats`、`shots[].dialogue_cues`：object[]。
 - `shots[].performance_beats[].source_span_ids`、`shots[].performance_beats[].knowledge_delta`：string[]。
