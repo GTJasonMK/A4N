@@ -4,8 +4,8 @@ use a4n_db::admin::{
     GenerationCallAnalytics, GenerationCallAnalyticsInput, TaskQueueSummary, UsageLogSummary,
     UsageTrendsInput,
 };
-use a4n_db_models::models::user::role::{UserRole, parse_user_role};
 use a4n_domain::admin::InviteCodeSummary;
+use a4n_domain::auth::{UserRole, parse_user_role};
 use a4n_error::AppError;
 
 use super::OrchestratorContext;

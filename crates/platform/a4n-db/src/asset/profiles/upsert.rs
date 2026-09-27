@@ -500,7 +500,7 @@ mod tests {
             "object_profile_batch_insert",
             "object-profile-batch-insert@example.invalid",
             "object-profile-batch-insert-password",
-            a4n_db_models::models::user::role::ROLE_USER,
+            a4n_domain::auth::ROLE_USER,
         )
         .await
         .unwrap();
@@ -549,7 +549,7 @@ mod tests {
             "object_profile_batch_update",
             "object-profile-batch-update@example.invalid",
             "object-profile-batch-update-password",
-            a4n_db_models::models::user::role::ROLE_USER,
+            a4n_domain::auth::ROLE_USER,
         )
         .await
         .unwrap();

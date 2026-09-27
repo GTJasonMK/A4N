@@ -17,7 +17,8 @@ use a4n_api_contract::admin::AdminPermission;
 #[cfg(test)]
 use a4n_db::DatabaseConnection;
 use a4n_db::DbHandle;
-use a4n_db_models::models::user::{invite_code, role::parse_user_role};
+use a4n_db_models::models::user::invite_code;
+use a4n_domain::auth::{UserRole, parse_user_role};
 use a4n_error::AppError;
 use a4n_worker_client::WORKER_AUTH_HEADER;
 use a4n_worker_contract::{
@@ -322,9 +323,7 @@ impl WorkerState {
         let user = a4n_db::auth::user_by_id(&self.database, caller)
             .await
             .map_err(app_error)?;
-        Ok(user.is_active
-            && parse_user_role(&user.role).map_err(app_error)?
-                == a4n_db_models::models::user::role::UserRole::Admin)
+        Ok(user.is_active && parse_user_role(&user.role).map_err(app_error)? == UserRole::Admin)
     }
 
     async fn user_usage(
@@ -557,9 +556,7 @@ impl WorkerState {
                 "用户 {caller_user_id} 已停用"
             )));
         }
-        if parse_user_role(&user.role).map_err(app_error)?
-            != a4n_db_models::models::user::role::UserRole::Admin
-        {
+        if parse_user_role(&user.role).map_err(app_error)? != UserRole::Admin {
             return Err(WorkerFailure::forbidden("当前用户不是管理员"));
         }
         Ok(())
@@ -606,8 +603,8 @@ fn admin_error(error: a4n_db::admin::AdminDbError) -> WorkerFailure {
     }
 }
 
-fn app_error(error: AppError) -> WorkerFailure {
-    match error {
+fn app_error(error: impl Into<AppError>) -> WorkerFailure {
+    match error.into() {
         AppError::InvalidArgument(message) => WorkerFailure::invalid_request(message),
         AppError::Forbidden(message) | AppError::Unauthorized(message) => {
             WorkerFailure::forbidden(message)
