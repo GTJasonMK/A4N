@@ -140,8 +140,8 @@ export const ImplicitReviewManager: React.FC<{
     setRequestPreviewData(null);
   }, []);
 
-  const load = useCallback(async () => {
-    if (loadingRef.current) return;
+  const load = useCallback(async (): Promise<boolean> => {
+    if (loadingRef.current) return false;
     const requestProfileId = profileId;
     const requestWindow = windowChaptersRef.current;
     const requestThreshold = thresholdRef.current;
@@ -165,18 +165,20 @@ export const ImplicitReviewManager: React.FC<{
         !isCurrentParams(requestProfileId, requestWindow, requestThreshold) ||
         loadSeqRef.current !== requestSeq
       ) {
-        return;
+        return false;
       }
       setReview(nextReview);
       setLoadedScopeKey(requestScopeKey);
+      return true;
     } catch (err) {
       if (
         !isCurrentParams(requestProfileId, requestWindow, requestThreshold) ||
         loadSeqRef.current !== requestSeq
       ) {
-        return;
+        return false;
       }
       addToast(extractErrorMessage(err, t("characterDetail.implicit.loadFailed")), "error");
+      return false;
     } finally {
       if (
         isCurrentParams(requestProfileId, requestWindow, requestThreshold) &&
@@ -329,6 +331,7 @@ export const ImplicitReviewManager: React.FC<{
       });
       if (!isCurrentProfile(requestProfileId) || applySeqRef.current !== requestSeq) return;
 
+      if (!await load()) return;
       if (result.action === "modify") {
         addToast(t("characterDetail.implicit.applied"), "success");
       } else if (result.action === "mark_deletion" && result.deletion_mark) {
@@ -350,7 +353,6 @@ export const ImplicitReviewManager: React.FC<{
         delete next[decision.attribute_key];
         return next;
       });
-      await load();
       if (!isCurrentProfile(requestProfileId) || applySeqRef.current !== requestSeq) return;
       await onChanged?.();
     } catch (err) {

@@ -575,8 +575,8 @@ export const NovelDetail: React.FC = () => {
         try {
           await updateProject(requestProjectId, { title: next.trim() });
           if (!isCurrentAction(requestProjectId, titleSeqRef, requestSeq)) return;
+          if (!await refresh(requestProjectId)) return;
           addToast(t("novel.projectTitleUpdated"), "success");
-          await refresh(requestProjectId);
         } catch (err) {
           if (isCurrentAction(requestProjectId, titleSeqRef, requestSeq)) {
             addToast(extractErrorMessage(err, t("novel.updateTitleFailed")), "error");

@@ -15,7 +15,7 @@ export const CharacterProfileList: React.FC<{
   syncingAll: boolean;
   canSyncAll: boolean;
   aiActionBlockedReason: string | null;
-  onRefresh: () => void | Promise<void>;
+  onRefresh: () => boolean | void | Promise<boolean | void>;
   onCreate: () => void;
   onPreviewDiscover: () => void | Promise<void>;
   onDiscover: () => void | Promise<void>;

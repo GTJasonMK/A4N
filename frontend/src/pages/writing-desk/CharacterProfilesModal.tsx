@@ -130,18 +130,18 @@ export const CharacterProfilesModal: React.FC<CharacterProfilesModalProps> = ({
     return false;
   };
 
-  const load = async (preferredId?: number | null) => {
+  const load = async (preferredId?: number | null): Promise<boolean> => {
     const requestProjectId = projectId;
     const requestPreferredId = preferredId ?? null;
     const requestKey = `${requestProjectId}:${requestPreferredId ?? ""}`;
-    if (loadInFlightKeyRef.current === requestKey) return;
+    if (loadInFlightKeyRef.current === requestKey) return false;
     loadInFlightKeyRef.current = requestKey;
     const requestSeq = loadSeqRef.current + 1;
     loadSeqRef.current = requestSeq;
     setLoading(true);
     try {
       const rows = await listProfiles(requestProjectId);
-      if (!isCurrentWorkspace(requestProjectId) || loadSeqRef.current !== requestSeq) return;
+      if (!isCurrentWorkspace(requestProjectId) || loadSeqRef.current !== requestSeq) return false;
       setProfiles(rows);
       setDetailFor((current) => {
         if (!current) return null;
@@ -153,9 +153,11 @@ export const CharacterProfilesModal: React.FC<CharacterProfilesModalProps> = ({
         if (target && rows.some((profile) => profile.id === target)) return target;
         return rows[0]?.id ?? null;
       });
+      return true;
     } catch (err) {
-      if (!isCurrentWorkspace(requestProjectId) || loadSeqRef.current !== requestSeq) return;
+      if (!isCurrentWorkspace(requestProjectId) || loadSeqRef.current !== requestSeq) return false;
       addToast(extractErrorMessage(err, t("characterDetail.profileLoadFailed")), "error");
+      return false;
     } finally {
       if (isCurrentWorkspace(requestProjectId) && loadSeqRef.current === requestSeq) {
         setLoading(false);
@@ -252,6 +254,7 @@ export const CharacterProfilesModal: React.FC<CharacterProfilesModalProps> = ({
         base_attributes: profileFormBaseAttributes(form),
       });
       if (!isCurrentWorkspace(requestProjectId) || saveSeqRef.current !== requestSeq) return;
+      if (!await load(result.profile_id)) return;
       addToast(
         result.warnings.length > 0
           ? t("characterDetail.profileCreatedWithWarnings", {
@@ -262,7 +265,6 @@ export const CharacterProfilesModal: React.FC<CharacterProfilesModalProps> = ({
         result.warnings.length > 0 ? "info" : "success",
       );
       setEditorOpen(false);
-      await load(result.profile_id);
     } catch (err) {
       if (!isCurrentWorkspace(requestProjectId) || saveSeqRef.current !== requestSeq) return;
       addToast(extractErrorMessage(err, t("characterDetail.profileSaveFailed")), "error");
@@ -288,6 +290,7 @@ export const CharacterProfilesModal: React.FC<CharacterProfilesModalProps> = ({
       if (!ok || !isCurrentWorkspace(requestProjectId)) return;
       const result = await deleteProfile(profile.id);
       if (!isCurrentWorkspace(requestProjectId)) return;
+      if (!await load(selectedId === profile.id ? null : selectedId)) return;
       addToast(
         result.warnings.length > 0
           ? t("characterDetail.profileDeletedWithWarnings", {
@@ -297,7 +300,6 @@ export const CharacterProfilesModal: React.FC<CharacterProfilesModalProps> = ({
           : t("characterDetail.profileDeleted", { name: profile.name }),
         result.warnings.length > 0 ? "info" : "success",
       );
-      await load(selectedId === profile.id ? null : selectedId);
     } catch (err) {
       if (!isCurrentWorkspace(requestProjectId)) return;
       addToast(extractErrorMessage(err, t("characterDetail.profileDeleteFailed")), "error");
@@ -340,8 +342,8 @@ export const CharacterProfilesModal: React.FC<CharacterProfilesModalProps> = ({
         created: createdCount,
         existing: existingCount,
       });
+      if (!await load(result.created[0]?.id ?? selectedId)) return;
       addToast(discoverMessage, createdCount > 0 ? "success" : "info");
-      await load(result.created[0]?.id ?? selectedId);
     } catch (err) {
       if (!isCurrentWorkspace(requestProjectId) || discoverSeqRef.current !== requestSeq) return;
       const message = extractErrorMessage(err, t("characterDetail.discoveryFailed"));
@@ -494,6 +496,7 @@ export const CharacterProfilesModal: React.FC<CharacterProfilesModalProps> = ({
             more: moreNames(rewoundCount),
           })
         : "";
+      if (!await load(selectedId)) return;
       addToast(
         t("characterDetail.syncAllSummary", {
           synced: syncedCount,
@@ -509,7 +512,6 @@ export const CharacterProfilesModal: React.FC<CharacterProfilesModalProps> = ({
             ? "info"
             : "success",
       );
-      await load(selectedId);
     } catch (err) {
       if (requestSeq == null) {
         if (isCurrentWorkspace(requestProjectId)) {
