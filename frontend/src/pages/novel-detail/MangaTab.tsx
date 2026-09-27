@@ -280,19 +280,24 @@ export const MangaTab: React.FC<MangaTabProps> = ({
     };
   }, [resetInteractionLocks]);
 
-  const refreshPipelineTarget = (
+  const refreshPipelineTarget = async (
     chapterId: number,
     requestProjectId = projectId,
-  ) => {
-    if (!isProjectCurrent(requestProjectId)) return;
-    void loadSingleStatus(chapterId, requestProjectId).catch((err) =>
-      addToast(extractErrorMessage(err, t("comic.loadPipelineStatusFailed")), "error"),
-    );
-    if (!isChapterCurrent(requestProjectId, chapterId)) return;
-    void loadPagePrompts(chapterId, requestProjectId, { showLoading: false }).catch(
-      (err) =>
-        addToast(extractErrorMessage(err, t("comic.loadPagePromptsFailed")), "error"),
-    );
+  ): Promise<boolean> => {
+    if (!isProjectCurrent(requestProjectId)) return false;
+    const [statusOk, promptsOk] = await Promise.all([
+      loadSingleStatus(chapterId, requestProjectId).catch((err) => {
+        addToast(extractErrorMessage(err, t("comic.loadPipelineStatusFailed")), "error");
+        return false;
+      }),
+      isChapterCurrent(requestProjectId, chapterId)
+        ? loadPagePrompts(chapterId, requestProjectId, { showLoading: false }).catch((err) => {
+            addToast(extractErrorMessage(err, t("comic.loadPagePromptsFailed")), "error");
+            return false;
+          })
+        : Promise.resolve(false),
+    ]);
+    return statusOk && promptsOk;
   };
 
   /** 漫画统一 workflow 状态经 getMangaPipelineStatus 投影，禁止订阅旧 Host 进度通道。 */
@@ -319,7 +324,15 @@ export const MangaTab: React.FC<MangaTabProps> = ({
             setPipelineTaskId(null);
             setPipelineChapterId(null);
             setPipelineCancelling(false);
-            refreshPipelineTarget(chapterId, requestProjectId);
+            const refreshed = await refreshPipelineTarget(chapterId, requestProjectId);
+            if (!refreshed && isPipelineWatchCurrent(requestProjectId, requestWatchSeq)) {
+              setPipelineProgress((prev) => ({
+                ...prev,
+                status: "error",
+                message: t("comic.pipelineFailed"),
+                error: t("comic.loadPagePromptsFailed"),
+              }));
+            }
             return;
           }
         }
@@ -336,7 +349,7 @@ export const MangaTab: React.FC<MangaTabProps> = ({
   const loadCharacterAssets = async (
     requestProjectId = projectId,
     requestAssetProjectId = characterAssetProjectId,
-  ) => {
+  ): Promise<boolean> => {
     const requestSeq = characterAssetsLoadSeqRef.current + 1;
     characterAssetsLoadSeqRef.current = requestSeq;
     if (
@@ -360,7 +373,7 @@ export const MangaTab: React.FC<MangaTabProps> = ({
           requestSeq,
         )
       )
-        return;
+        return false;
       if (profilesResult.status === "fulfilled") {
         setProfiles(profilesResult.value);
       } else {
@@ -377,6 +390,7 @@ export const MangaTab: React.FC<MangaTabProps> = ({
           "error",
         );
       }
+      return profilesResult.status === "fulfilled" && portraitsResult.status === "fulfilled";
     } finally {
       if (
         isCharacterAssetsCurrent(
@@ -394,7 +408,7 @@ export const MangaTab: React.FC<MangaTabProps> = ({
     requestProjectId = projectId,
     requestImageSourceProjectIds = imageSourceProjectIds,
     requestImageSourceKey = imageSourceKey,
-  ) => {
+  ): Promise<boolean> => {
     const requestSeq = projectImagesLoadSeqRef.current + 1;
     projectImagesLoadSeqRef.current = requestSeq;
     if (
@@ -418,10 +432,11 @@ export const MangaTab: React.FC<MangaTabProps> = ({
           requestSeq,
         )
       )
-        return;
+        return false;
       const byId = new Map<number, GeneratedImage>();
       for (const image of images) byId.set(image.id, image);
       setProjectImages([...byId.values()]);
+      return true;
     } catch (err) {
       if (
         isProjectImagesCurrent(
@@ -432,6 +447,7 @@ export const MangaTab: React.FC<MangaTabProps> = ({
       ) {
         addToast(extractErrorMessage(err, t("comic.loadProjectImagesFailed")), "error");
       }
+      return false;
     } finally {
       if (
         isProjectImagesCurrent(
@@ -472,7 +488,7 @@ export const MangaTab: React.FC<MangaTabProps> = ({
   const loadSingleStatus = async (
     chapterId: number,
     requestProjectId = projectId,
-  ) => {
+  ): Promise<boolean> => {
     const requestSeq = statusLoadSeqRef.current + 1;
     statusLoadSeqRef.current = requestSeq;
     const status = await getMangaPipelineStatus(requestProjectId, chapterId);
@@ -480,8 +496,9 @@ export const MangaTab: React.FC<MangaTabProps> = ({
       !isProjectCurrent(requestProjectId) ||
       statusLoadSeqRef.current !== requestSeq
     )
-      return;
+      return false;
     setStatuses((current) => ({ ...current, [chapterId]: status }));
+    return true;
   };
 
   const loadChapters = async (requestProjectId = projectId) => {
@@ -639,7 +656,7 @@ export const MangaTab: React.FC<MangaTabProps> = ({
     chapterId: number,
     requestProjectId = projectId,
     options: { showLoading?: boolean } = {},
-  ) => {
+  ): Promise<boolean> => {
     const showLoading = options.showLoading ?? true;
     const requestSeq = pagePromptsLoadSeqRef.current + 1;
     pagePromptsLoadSeqRef.current = requestSeq;
@@ -652,9 +669,10 @@ export const MangaTab: React.FC<MangaTabProps> = ({
         !isChapterCurrent(requestProjectId, chapterId) ||
         pagePromptsLoadSeqRef.current !== requestSeq
       ) {
-        return;
+        return false;
       }
       setPagePrompts(data);
+      return true;
     } finally {
       if (
         isChapterCurrent(requestProjectId, chapterId) &&
@@ -729,7 +747,7 @@ export const MangaTab: React.FC<MangaTabProps> = ({
       }
       if (!isActionCurrent(requestProjectId, actionSeq)) return;
       if (targetChapterId) {
-        await Promise.all([
+        const [promptsOk, statusOk] = await Promise.all([
           isChapterCurrent(requestProjectId, targetChapterId)
             ? loadPagePrompts(targetChapterId, requestProjectId, {
                 showLoading: false,
@@ -737,15 +755,18 @@ export const MangaTab: React.FC<MangaTabProps> = ({
                 if (isActionCurrent(requestProjectId, actionSeq)) {
                   addToast(extractErrorMessage(err, t("comic.loadPagePromptsFailed")), "error");
                 }
+                return false;
               })
-            : Promise.resolve(),
+            : Promise.resolve(false),
           loadSingleStatus(targetChapterId, requestProjectId).catch((err) => {
             if (isActionCurrent(requestProjectId, actionSeq)) {
               addToast(extractErrorMessage(err, t("comic.loadPipelineStatusFailed")), "error");
             }
+            return false;
           }),
         ]);
         if (!isActionCurrent(requestProjectId, actionSeq)) return;
+        if (!promptsOk || !statusOk) return;
         window.setTimeout(() => {
           if (isActionCurrent(requestProjectId, actionSeq)) {
             refreshPipelineTarget(targetChapterId, requestProjectId);
@@ -939,7 +960,7 @@ export const MangaTab: React.FC<MangaTabProps> = ({
         loadSingleStatus(chapterId, requestProjectId),
         isChapterCurrent(requestProjectId, chapterId)
           ? loadPagePrompts(chapterId, requestProjectId, { showLoading: false })
-          : Promise.resolve(),
+          : Promise.resolve(false),
       ]);
       if (!isActionCurrent(requestProjectId, actionSeq)) return;
       if (statusResult.status === "rejected") {
@@ -947,6 +968,21 @@ export const MangaTab: React.FC<MangaTabProps> = ({
       }
       if (promptsResult.status === "rejected") {
         addToast(extractErrorMessage(promptsResult.reason, t("comic.loadPagePromptsFailed")), "error");
+      }
+      if (
+        statusResult.status === "rejected" ||
+        promptsResult.status === "rejected" ||
+        statusResult.value === false ||
+        promptsResult.value === false
+      ) {
+        setPipelineProgress((prev) => ({
+          ...prev,
+          status: "error",
+          message: t("comic.pipelineCancelFailed"),
+          error: t("comic.loadPagePromptsFailed"),
+        }));
+        setPipelineCancelling(false);
+        return;
       }
       setPipelineProgress((prev) => ({
         ...prev,
@@ -1004,7 +1040,9 @@ export const MangaTab: React.FC<MangaTabProps> = ({
           const generated = await verifyPortraitGenerationResult(task, requestAssetProjectId);
           if (!isActionCurrent(requestProjectId, actionSeq))
             throw new Error("任务已停止");
-          await loadCharacterAssets(requestProjectId, requestAssetProjectId);
+          if (!await loadCharacterAssets(requestProjectId, requestAssetProjectId)) {
+            throw new Error(t("comic.loadCharacterAssetsFailed"));
+          }
           if (!isActionCurrent(requestProjectId, actionSeq))
             throw new Error("任务已停止");
           return generated.length;
@@ -1190,19 +1228,19 @@ export const MangaTab: React.FC<MangaTabProps> = ({
           })();
         }}
         onPagePromptsChanged={async () => {
-          await Promise.all([
+          const [promptsOk, imagesOk] = await Promise.all([
             selectedChapter
-              ? loadPagePrompts(selectedChapter.id, projectId, {
-                  showLoading: false,
-                }).catch((err) =>
-                  addToast(
-                    extractErrorMessage(err, t("comic.loadPagePromptsFailed")),
-                    "error",
-                  ),
-                )
-              : Promise.resolve(),
-            loadProjectImages(),
+              ? loadPagePrompts(selectedChapter.id, projectId, { showLoading: false }).catch((err) => {
+                  addToast(extractErrorMessage(err, t("comic.loadPagePromptsFailed")), "error");
+                  return false;
+                })
+              : Promise.resolve(false),
+            loadProjectImages().catch((err) => {
+              addToast(extractErrorMessage(err, t("comic.loadProjectImagesFailed")), "error");
+              return false;
+            }),
           ]);
+          return promptsOk && imagesOk;
         }}
       />
       <ProgressDialog

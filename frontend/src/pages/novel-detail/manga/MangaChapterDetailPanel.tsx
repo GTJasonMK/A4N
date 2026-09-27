@@ -82,7 +82,7 @@ interface MangaChapterDetailPanelProps {
   onGenerateMissingPortraits: () => void;
   onCancelPipeline: () => void;
   onDeleteManga: () => void;
-  onPagePromptsChanged: () => Promise<void>;
+  onPagePromptsChanged: () => Promise<boolean>;
 }
 
 type NoticeTone = "ok" | "warning" | "danger" | "muted";
@@ -395,8 +395,8 @@ export function MangaChapterDetailPanel({
         },
       );
       if (!isCurrentAction(requestScope, actionSeq)) return;
+      if (!await onPagePromptsChanged()) return;
       addToast(t("comic.image.generated", { page: pageNumber }), "success");
-      await onPagePromptsChanged();
     } catch (err) {
       if (!isCurrentAction(requestScope, actionSeq)) return;
       const message = extractErrorMessage(err, t("comic.image.failed"));
@@ -508,8 +508,8 @@ export function MangaChapterDetailPanel({
         downstream_strategy: downstreamStrategy,
       });
       if (!isCurrentAction(requestScope, actionSeq)) return;
+      if (!await onPagePromptsChanged()) return;
       addToast(t("comic.prompt.savedReference"), "success");
-      await onPagePromptsChanged();
     } catch (err) {
       if (isCurrentAction(requestScope, actionSeq)) {
         addToast(extractErrorMessage(err, t("comic.prompt.bindFailed")), "error");
@@ -577,8 +577,8 @@ export function MangaChapterDetailPanel({
       });
       if (!isCurrentAction(requestScope, actionSeq))
         throw new Error("任务已停止");
+      if (!await onPagePromptsChanged()) return;
       addToast(t("comic.prompt.saved"), "success");
-      await onPagePromptsChanged();
     } catch (err) {
       if (isCurrentAction(requestScope, actionSeq)) {
         const message = extractErrorMessage(err, t("comic.prompt.saveFailed"));
@@ -660,8 +660,8 @@ export function MangaChapterDetailPanel({
         downstream_strategy: downstreamStrategy,
       });
       if (!isCurrentAction(requestScope, actionSeq)) return;
+      if (!await onPagePromptsChanged()) return;
       addToast(t("comic.prompt.optimized"), "success");
-      await onPagePromptsChanged();
     } catch (err) {
       if (isCurrentAction(requestScope, actionSeq)) {
         addToast(extractErrorMessage(err, t("comic.prompt.optimizeFailed")), "error");
@@ -726,8 +726,8 @@ export function MangaChapterDetailPanel({
       }
       await deleteMangaPrompt(requestPrompt.id, downstreamStrategy);
       if (!isCurrentAction(requestScope, actionSeq)) return;
+      if (!await onPagePromptsChanged()) return;
       addToast(t("comic.prompt.deleted"), "success");
-      await onPagePromptsChanged();
     } catch (err) {
       if (isCurrentAction(requestScope, actionSeq)) {
         addToast(extractErrorMessage(err, t("comic.prompt.deleteFailed")), "error");
