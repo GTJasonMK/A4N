@@ -1,7 +1,9 @@
 use a4n_db_models::models::user::{
     theme_config, theme_preference as theme_preference_entity, theme_resource,
 };
-use a4n_domain::theme_edit::ThemeUpdateChanges;
+use a4n_domain::theme_edit::{
+    ThemePreferenceRecord, ThemeRecord, ThemeResourceRecord, ThemeUpdateChanges,
+};
 use a4n_domain::{ThemeAppearance, ThemeDocument, ThemeMode};
 use a4n_error::AppError;
 use chrono::Utc;
@@ -13,7 +15,7 @@ use sea_orm::{
 pub async fn list_themes_visible_to_user(
     db: &DatabaseConnection,
     user_id: i64,
-) -> Result<Vec<theme_config::Model>, AppError> {
+) -> Result<Vec<ThemeRecord>, AppError> {
     theme_config::Entity::find()
         .filter(
             Condition::any()
@@ -23,16 +25,18 @@ pub async fn list_themes_visible_to_user(
         .order_by_asc(theme_config::Column::Name)
         .all(db)
         .await
+        .map(|rows| rows.into_iter().map(theme_record).collect())
         .map_err(AppError::database)
 }
 
 pub async fn theme_by_id(
     db: &DatabaseConnection,
     theme_id: i64,
-) -> Result<Option<theme_config::Model>, AppError> {
+) -> Result<Option<ThemeRecord>, AppError> {
     theme_config::Entity::find_by_id(theme_id)
         .one(db)
         .await
+        .map(|row| row.map(theme_record))
         .map_err(AppError::database)
 }
 
@@ -42,7 +46,7 @@ pub async fn create_theme(
     name: &str,
     mode: ThemeMode,
     document: ThemeDocument,
-) -> Result<theme_config::Model, AppError> {
+) -> Result<ThemeRecord, AppError> {
     let now = Utc::now().naive_utc();
     theme_config::ActiveModel {
         user_id: Set(user_id),
@@ -57,14 +61,15 @@ pub async fn create_theme(
     }
     .insert(db)
     .await
+    .map(theme_record)
     .map_err(AppError::database)
 }
 
 pub async fn update_theme(
     db: &DatabaseConnection,
-    theme: theme_config::Model,
+    theme: ThemeRecord,
     changes: ThemeUpdateChanges,
-) -> Result<(theme_config::Model, Vec<theme_resource::Model>), AppError> {
+) -> Result<(ThemeRecord, Vec<ThemeResourceRecord>), AppError> {
     let txn = db.begin().await.map_err(AppError::database)?;
     let current = theme_config::Entity::find_by_id(theme.id)
         .lock_exclusive()
@@ -161,7 +166,7 @@ pub async fn update_theme(
         }
     }
     txn.commit().await.map_err(AppError::database)?;
-    Ok((updated, resources))
+    Ok((theme_record(updated), resources))
 }
 
 pub async fn delete_theme(db: &DatabaseConnection, theme_id: i64) -> Result<(), AppError> {
@@ -175,7 +180,7 @@ pub async fn delete_theme(db: &DatabaseConnection, theme_id: i64) -> Result<(), 
 pub async fn activate_theme(
     db: &DatabaseConnection,
     theme_id: i64,
-) -> Result<theme_config::Model, AppError> {
+) -> Result<ThemeRecord, AppError> {
     let txn = db.begin().await.map_err(AppError::database)?;
     let target = theme_config::Entity::find_by_id(theme_id)
         .one(&txn)
@@ -206,25 +211,26 @@ pub async fn activate_theme(
     active.updated_at = Set(now);
     let updated = active.update(&txn).await.map_err(AppError::database)?;
     txn.commit().await.map_err(AppError::database)?;
-    Ok(updated)
+    Ok(theme_record(updated))
 }
 
 pub async fn list_theme_resources(
     db: &impl ConnectionTrait,
     theme_id: i64,
-) -> Result<Vec<theme_resource::Model>, AppError> {
+) -> Result<Vec<ThemeResourceRecord>, AppError> {
     theme_resource::Entity::find()
         .filter(theme_resource::Column::ThemeId.eq(theme_id))
         .order_by_asc(theme_resource::Column::ResourceKey)
         .all(db)
         .await
+        .map(|rows| rows.into_iter().map(theme_resource_record).collect())
         .map_err(AppError::database)
 }
 
 pub async fn list_theme_resources_for_themes(
     db: &DatabaseConnection,
     theme_ids: &[i64],
-) -> Result<Vec<theme_resource::Model>, AppError> {
+) -> Result<Vec<ThemeResourceRecord>, AppError> {
     if theme_ids.is_empty() {
         return Ok(Vec::new());
     }
@@ -234,16 +240,18 @@ pub async fn list_theme_resources_for_themes(
         .order_by_asc(theme_resource::Column::ResourceKey)
         .all(db)
         .await
+        .map(|rows| rows.into_iter().map(theme_resource_record).collect())
         .map_err(AppError::database)
 }
 
 pub async fn theme_resource_by_id(
     db: &DatabaseConnection,
     resource_id: i64,
-) -> Result<Option<theme_resource::Model>, AppError> {
+) -> Result<Option<ThemeResourceRecord>, AppError> {
     theme_resource::Entity::find_by_id(resource_id)
         .one(db)
         .await
+        .map(|row| row.map(theme_resource_record))
         .map_err(AppError::database)
 }
 
@@ -256,7 +264,7 @@ pub async fn upsert_theme_resource(
     file_path: &str,
     sha256: &str,
     byte_size: i64,
-) -> Result<theme_resource::Model, AppError> {
+) -> Result<ThemeResourceRecord, AppError> {
     let existing = theme_resource::Entity::find()
         .filter(theme_resource::Column::ThemeId.eq(theme_id))
         .filter(theme_resource::Column::ResourceKey.eq(resource_key))
@@ -272,7 +280,11 @@ pub async fn upsert_theme_resource(
         active.sha256 = Set(sha256.to_string());
         active.byte_size = Set(byte_size);
         active.updated_at = Set(now);
-        return active.update(db).await.map_err(AppError::database);
+        return active
+            .update(db)
+            .await
+            .map(theme_resource_record)
+            .map_err(AppError::database);
     }
     theme_resource::ActiveModel {
         theme_id: Set(theme_id),
@@ -288,13 +300,14 @@ pub async fn upsert_theme_resource(
     }
     .insert(db)
     .await
+    .map(theme_resource_record)
     .map_err(AppError::database)
 }
 
 pub async fn delete_theme_resource(
     db: &DatabaseConnection,
     resource_id: i64,
-) -> Result<theme_resource::Model, AppError> {
+) -> Result<ThemeResourceRecord, AppError> {
     let resource = theme_resource_by_id(db, resource_id)
         .await?
         .ok_or_else(|| AppError::NotFound("主题资源不存在".to_string()))?;
@@ -308,10 +321,11 @@ pub async fn delete_theme_resource(
 pub async fn theme_preference(
     db: &DatabaseConnection,
     user_id: i64,
-) -> Result<Option<theme_preference_entity::Model>, AppError> {
+) -> Result<Option<ThemePreferenceRecord>, AppError> {
     theme_preference_entity::Entity::find_by_id(user_id)
         .one(db)
         .await
+        .map(|row| row.map(theme_preference_record))
         .map_err(AppError::database)
 }
 
@@ -319,13 +333,21 @@ pub async fn upsert_theme_preference(
     db: &DatabaseConnection,
     user_id: i64,
     appearance: ThemeAppearance,
-) -> Result<theme_preference_entity::Model, AppError> {
+) -> Result<ThemePreferenceRecord, AppError> {
     let now = Utc::now().naive_utc();
-    if let Some(existing) = theme_preference(db, user_id).await? {
+    if let Some(existing) = theme_preference_entity::Entity::find_by_id(user_id)
+        .one(db)
+        .await
+        .map_err(AppError::database)?
+    {
         let mut active: theme_preference_entity::ActiveModel = existing.into();
         active.appearance = Set(appearance.to_string());
         active.updated_at = Set(now);
-        return active.update(db).await.map_err(AppError::database);
+        return active
+            .update(db)
+            .await
+            .map(theme_preference_record)
+            .map_err(AppError::database);
     }
     theme_preference_entity::ActiveModel {
         user_id: Set(user_id),
@@ -335,7 +357,40 @@ pub async fn upsert_theme_preference(
     }
     .insert(db)
     .await
+    .map(theme_preference_record)
     .map_err(AppError::database)
+}
+
+fn theme_record(row: theme_config::Model) -> ThemeRecord {
+    ThemeRecord {
+        id: row.id,
+        user_id: row.user_id,
+        name: row.name,
+        mode: row.mode,
+        theme_document: row.theme_document,
+        is_system_default: row.is_system_default,
+        is_active: row.is_active,
+    }
+}
+
+fn theme_resource_record(row: theme_resource::Model) -> ThemeResourceRecord {
+    ThemeResourceRecord {
+        id: row.id,
+        theme_id: row.theme_id,
+        resource_key: row.resource_key,
+        file_name: row.file_name,
+        mime_type: row.mime_type,
+        file_path: row.file_path,
+        sha256: row.sha256,
+        byte_size: row.byte_size,
+    }
+}
+
+fn theme_preference_record(row: theme_preference_entity::Model) -> ThemePreferenceRecord {
+    ThemePreferenceRecord {
+        user_id: row.user_id,
+        appearance: row.appearance,
+    }
 }
 
 #[cfg(test)]

@@ -6,14 +6,11 @@ impl OrchestratorContext {
     pub(crate) async fn list_themes_visible_to_user(
         &self,
         user_id: i64,
-    ) -> Result<Vec<theme_config::Model>, AppError> {
+    ) -> Result<Vec<ThemeRecord>, AppError> {
         self.settings.list_themes_visible_to_user(user_id).await
     }
 
-    pub(crate) async fn theme_by_id(
-        &self,
-        theme_id: i64,
-    ) -> Result<Option<theme_config::Model>, AppError> {
+    pub(crate) async fn theme_by_id(&self, theme_id: i64) -> Result<Option<ThemeRecord>, AppError> {
         self.settings.theme_by_id(theme_id).await
     }
 
@@ -23,7 +20,7 @@ impl OrchestratorContext {
         name: String,
         mode: ThemeMode,
         document: ThemeDocument,
-    ) -> Result<theme_config::Model, AppError> {
+    ) -> Result<ThemeRecord, AppError> {
         self.settings
             .create_theme_record(Some(user_id), &name, mode, document)
             .await
@@ -31,15 +28,9 @@ impl OrchestratorContext {
 
     pub(crate) async fn update_theme_record(
         &self,
-        theme: theme_config::Model,
+        theme: ThemeRecord,
         changes: a4n_domain::theme_edit::ThemeUpdateChanges,
-    ) -> Result<
-        (
-            theme_config::Model,
-            Vec<a4n_db_models::models::user::theme_resource::Model>,
-        ),
-        AppError,
-    > {
+    ) -> Result<(ThemeRecord, Vec<ThemeResourceRecord>), AppError> {
         self.settings.update_theme_record(theme, changes).await
     }
 
@@ -47,24 +38,21 @@ impl OrchestratorContext {
         self.settings.delete_theme_record(theme_id).await
     }
 
-    pub(crate) async fn activate_theme(
-        &self,
-        theme_id: i64,
-    ) -> Result<theme_config::Model, AppError> {
+    pub(crate) async fn activate_theme(&self, theme_id: i64) -> Result<ThemeRecord, AppError> {
         self.settings.activate_theme(theme_id).await
     }
 
     pub(crate) async fn list_theme_resources(
         &self,
         theme_id: i64,
-    ) -> Result<Vec<a4n_db_models::models::user::theme_resource::Model>, AppError> {
+    ) -> Result<Vec<ThemeResourceRecord>, AppError> {
         self.settings.list_theme_resources(theme_id).await
     }
 
     pub(crate) async fn theme_resource_by_id(
         &self,
         resource_id: i64,
-    ) -> Result<Option<a4n_db_models::models::user::theme_resource::Model>, AppError> {
+    ) -> Result<Option<ThemeResourceRecord>, AppError> {
         self.settings.theme_resource_by_id(resource_id).await
     }
 
@@ -77,7 +65,7 @@ impl OrchestratorContext {
         file_path: &str,
         sha256: &str,
         byte_size: i64,
-    ) -> Result<a4n_db_models::models::user::theme_resource::Model, AppError> {
+    ) -> Result<ThemeResourceRecord, AppError> {
         self.settings
             .upsert_theme_resource(
                 theme_id,
@@ -94,7 +82,7 @@ impl OrchestratorContext {
     pub(crate) async fn delete_theme_resource(
         &self,
         resource_id: i64,
-    ) -> Result<a4n_db_models::models::user::theme_resource::Model, AppError> {
+    ) -> Result<ThemeResourceRecord, AppError> {
         self.settings.delete_theme_resource(resource_id).await
     }
 
@@ -102,7 +90,7 @@ impl OrchestratorContext {
         &self,
         user_id: i64,
         appearance: a4n_domain::ThemeAppearance,
-    ) -> Result<a4n_db_models::models::user::theme_preference::Model, AppError> {
+    ) -> Result<ThemePreferenceRecord, AppError> {
         self.settings
             .upsert_theme_preference(user_id, appearance)
             .await
