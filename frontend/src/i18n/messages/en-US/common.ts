@@ -53,6 +53,7 @@ export const common = {
   },
   unsavedChangesTitle: "Unsaved changes",
   discardDraft: "Discard draft",
+  switchTab: "switching pages",
   deleteConfirm: "Delete {name}? This cannot be undone.",
   unsavedChangesMessage: "The {name} form has unsaved changes. {action} will discard the current draft. Continue?",
   downstreamMessage: "{asset} has {count} derived {downstream}.\n\nYou can delete these downstream assets before {operation}, or {operation} only the source asset and keep them. If you keep them, they may no longer match the new source content and may need to be regenerated or cleaned up later.",

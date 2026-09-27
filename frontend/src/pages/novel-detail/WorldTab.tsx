@@ -26,6 +26,7 @@ import { nonEmptyText } from "../../utils/text";
 import { useProgressTask } from "../../hooks/useProgressTask";
 import { runBlueprintRefinementWithProgress } from "./blueprintRefinement";
 import { useI18n } from "../../i18n";
+import { useNovelDetailDirty } from "./novelDetailDirty";
 
 interface WorldTabProps {
   projectId: number;
@@ -85,6 +86,12 @@ export const WorldTab: React.FC<WorldTabProps> = ({
     if (isRecord(normalizedWorld)) return Object.keys(normalizedWorld).length > 0;
     return true;
   }, [normalizedWorld]);
+  const editDirty = editing && (
+    editMode !== editBaselineRef.current.mode ||
+    jsonDraft !== editBaselineRef.current.json ||
+    textDraft !== editBaselineRef.current.text
+  );
+  useNovelDetailDirty(`world:${projectId}`, editDirty);
 
   const load = useCallback(async (): Promise<boolean> => {
     const requestProjectId = projectId;
@@ -148,10 +155,7 @@ export const WorldTab: React.FC<WorldTabProps> = ({
 
   const handleCancelEdit = async () => {
     if (!editing || saving) return;
-    const dirty = editMode !== editBaselineRef.current.mode ||
-      jsonDraft !== editBaselineRef.current.json ||
-      textDraft !== editBaselineRef.current.text;
-    if (dirty && !(await confirmDialog({
+    if (editDirty && !(await confirmDialog({
       title: t("common.unsavedChangesTitle"),
       message: t("common.unsavedChangesMessage", { name: t("novel.world.title"), action: t("common.close") }),
       confirmText: t("common.discardDraft"),

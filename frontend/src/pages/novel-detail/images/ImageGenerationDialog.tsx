@@ -1,5 +1,5 @@
 import { ThemedSelect } from "../../../components/ui/ThemedSelect";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Boxes,
   Camera,
   ChevronRight,
@@ -12,9 +12,11 @@ import type { ObjectProfile } from "../../../api/objectProfiles";
 import { BookButton } from "../../../components/ui/BookButton";
 import { Dropdown } from "../../../components/ui/Dropdown";
 import { Modal } from "../../../components/ui/Modal";
+import { confirmDialog } from "../../../components/feedback/ConfirmDialog";
 import { StyleTemplatePicker } from "../StyleTemplatePicker";
 import type { ChapterRow } from "../shared";
-import { VISUAL_STYLE_TEMPLATES } from "../styleTemplates";
+import { DEFAULT_IMAGE_STYLE, VISUAL_STYLE_TEMPLATES } from "../styleTemplates";
+import { useNovelDetailDirty } from "../novelDetailDirty";
 import { formatNumber, useI18n } from "../../../i18n";
 
 interface ImageGenerationDialogProps {
@@ -73,19 +75,42 @@ export function ImageGenerationDialog({
 }: ImageGenerationDialogProps) {
   const { locale, t } = useI18n();
   const [objectToolsOpen, setObjectToolsOpen] = useState(false);
+  const baselineRef = useRef({ prompt: "", profileId: null as number | null, style: DEFAULT_IMAGE_STYLE });
   const hasObjectProfiles = objectProfiles.length > 0;
   const busy = genBusy || objectImageBusy || objectPromptCopying;
   const promptReady = genPrompt.trim().length > 0;
 
   useEffect(() => {
     if (!open) return;
+    baselineRef.current = {
+      prompt: genPrompt,
+      profileId: selectedObjectProfileId,
+      style: objectImageStyle,
+    };
     setObjectToolsOpen(chapterGenerateLocked && hasObjectProfiles);
-  }, [chapter?.id, chapterGenerateLocked, hasObjectProfiles, open]);
+  }, [chapter?.id, open]);
+
+  const draftDirty = open && (
+    genPrompt !== baselineRef.current.prompt ||
+    selectedObjectProfileId !== baselineRef.current.profileId ||
+    objectImageStyle !== baselineRef.current.style
+  );
+  useNovelDetailDirty("image-generation-editor", draftDirty);
+  const close = async () => {
+    if (busy) return;
+    if (draftDirty && !(await confirmDialog({
+      title: t("common.unsavedChangesTitle"),
+      message: t("common.unsavedChangesMessage", { name: t("novel.imageLibrary.prompt"), action: t("common.close") }),
+      confirmText: t("common.discardDraft"),
+      dialogType: "warning",
+    }))) return;
+    onClose();
+  };
 
   return (
     <Modal
       isOpen={open}
-      onClose={onClose}
+      onClose={() => void close()}
       title={chapter ? t("novel.imageLibrary.chapterTitle") : t("novel.imageLibrary.projectTitle")}
       subtitle={
         chapter

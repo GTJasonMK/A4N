@@ -26,6 +26,7 @@ import {
 } from "./imageMetadata";
 import { imageTypeLabel } from "./imageTabUtils";
 import { useI18n } from "../../../i18n";
+import { useNovelDetailDirty } from "../novelDetailDirty";
 
 type ImageDialogTab = "overview" | "metadata" | "manage";
 
@@ -96,6 +97,14 @@ export function ImageActionDialog({
     setEditType(image.image_type);
     setEditPanelId(image.panel_id ?? "");
   }, [image?.id]);
+
+  const imageDraftDirty = image != null && (
+    editPrompt.trim() !== image.prompt.trim() ||
+    (!image.is_system_managed && editType.trim() !== image.image_type.trim()) ||
+    (!image.is_system_managed && editPanelId.trim() !== (image.panel_id ?? "")) ||
+    scoreEdited
+  );
+  useNovelDetailDirty("image-action-editor", imageDraftDirty);
 
   useEffect(() => {
     if (!canEditImages && tab === "manage") setTab("overview");

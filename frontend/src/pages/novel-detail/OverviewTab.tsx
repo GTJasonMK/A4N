@@ -26,6 +26,7 @@ import { nonEmptyText } from "../../utils/text";
 import { useProgressTask } from "../../hooks/useProgressTask";
 import { runBlueprintRefinementWithProgress } from "./blueprintRefinement";
 import { useI18n } from "../../i18n";
+import { useNovelDetailDirty } from "./novelDetailDirty";
 
 const ProjectCollaborationPanel = lazy(() =>
   import("./overview/ProjectCollaborationPanel").then((module) => ({
@@ -246,6 +247,7 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
     blueprintDraft.fullSynopsis.trim() !== (displayBlueprint?.full_synopsis ?? "").trim() ||
     blueprintDraft.totalChapters.trim() !== String(displayBlueprint?.total_chapters ?? project.total_chapters ?? ""),
   );
+  useNovelDetailDirty(`overview:${project.id}`, blueprintDraftDirty);
   const closeBlueprintEditor = async () => {
     if (blueprintSaving) return;
     if (blueprintDraftDirty && !(await confirmDialog({

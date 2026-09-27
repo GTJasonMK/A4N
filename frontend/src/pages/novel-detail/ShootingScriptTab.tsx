@@ -30,6 +30,7 @@ import { StructuredScriptEditor } from "./shooting-script/StructuredScriptEditor
 import { EmptyHint } from "./shared";
 import { useI18n } from "../../i18n";
 import { loadShootingScriptData, loadShootingScriptOrProgress } from "./loadShootingScriptData";
+import { useNovelDetailDirty } from "./novelDetailDirty";
 
 interface ShootingScriptTabProps {
   projectId: number;
@@ -75,6 +76,7 @@ export const ShootingScriptTab: React.FC<ShootingScriptTabProps> = ({
         JSON.stringify(draft)),
     [draft, unitProgress, view, rebindShotIds],
   );
+  useNovelDetailDirty(`shooting-script:${projectId}:${chapterId ?? "none"}`, isDirty);
 
   const applyScriptData = (
     nextView: ChapterShootingScriptView | null,

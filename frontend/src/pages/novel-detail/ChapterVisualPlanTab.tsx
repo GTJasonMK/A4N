@@ -22,6 +22,7 @@ import { DirectorGeneration } from "./visual-plan/DirectorGeneration";
 import { DirectorScrubber, DirectorTimeline } from "./visual-plan/DirectorTimeline";
 import { useDirectorPlan } from "./visual-plan/useDirectorPlan";
 import { useDirectorPlayback, type DirectorPlayback } from "./visual-plan/playback";
+import { useNovelDetailDirty } from "./novelDetailDirty";
 import { durationMs, formatTime, pointAt, segmentAt, segmentTimes, type DirectorSelection } from "./visual-plan/timeline";
 import "./visual-plan/director.css";
 
@@ -98,6 +99,10 @@ export function ChapterVisualPlanTab({ projectId, canEdit, chapter }: { projectI
   const disabled = !model.editable || model.busy;
   const agentSidebarOpen = modalPanel === "agent" && !narrow && inspectorOpen;
   const hasModal = Boolean(split || merge || (modalPanel && !agentSidebarOpen) || (narrow && inspectorOpen));
+  useNovelDetailDirty(
+    `visual-plan:${projectId}:${chapterId ?? "none"}`,
+    Boolean(model.dirty || split?.dirty || merge?.dirty),
+  );
   const openModal = (next: ModalPanel) => {
     setModalPanel(next);
     if (next === "agent" && !narrow) {

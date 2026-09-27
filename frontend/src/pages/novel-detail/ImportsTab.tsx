@@ -53,6 +53,7 @@ import {
 } from "./imports/importTabUtils";
 import { readFileAsBase64 } from "../../utils/fileUpload";
 import { formatNumber, useI18n } from "../../i18n";
+import { useNovelDetailDirty } from "./novelDetailDirty";
 
 interface ImportsTabProps {
   projectId: number;
@@ -142,6 +143,10 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({
   const [importFileName, setImportFileName] = useState("");
   const [importUploadFile, setImportUploadFile] = useState<File | null>(null);
   const importFileInputRef = useRef<HTMLInputElement | null>(null);
+  useNovelDetailDirty(
+    `imports:${projectId}`,
+    activeReviewJsonDirty || Boolean(importFileName.trim() || dedupText.trim() || reverseSample.trim()),
+  );
 
   useEffect(() => {
     onBusyChange?.(writeBusy);

@@ -17,6 +17,7 @@ import type {
 import { toMediaSrc } from "../../../utils/mediaSrc";
 import { MAX_REFERENCE_IMAGES, VIDEO_ASPECT_RATIOS, type VideoAspectRatio } from "./videoTabConstants";
 import { useI18n, type MessageTranslator } from "../../../i18n";
+import { useNovelDetailDirty } from "../novelDetailDirty";
 
 export interface InsertedSegmentGap {
   previous_item_id: number | null;
@@ -231,6 +232,18 @@ export const InsertedSegmentTimelinePanel = React.forwardRef<
         edit.negative_prompt.trim() !==
           (editingPrompt.negative_prompt ?? "").trim()),
     );
+    const formDirty = Boolean(
+      form && (
+        form.user_prompt.trim() ||
+        form.style !== defaultStyle ||
+        form.prompt_output_language !== defaultPromptOutputLanguage ||
+        form.duration_secs !== defaultDurationSecs ||
+        form.aspect_ratio !== defaultAspectRatio ||
+        form.reference_image_ids.length > 0 ||
+        form.allow_without_visual_anchor
+      ),
+    );
+    useNovelDetailDirty("video-inserted-segment", formDirty || draft != null || editingPromptDirty);
 
     const openCreate = (nextGap: InsertedSegmentGap) => {
       if (
@@ -265,17 +278,6 @@ export const InsertedSegmentTimelinePanel = React.forwardRef<
 
     const closeModal = async () => {
       if (acting != null) return;
-      const formDirty = Boolean(
-        form && (
-          form.user_prompt.trim() ||
-          form.style !== defaultStyle ||
-          form.prompt_output_language !== defaultPromptOutputLanguage ||
-          form.duration_secs !== defaultDurationSecs ||
-          form.aspect_ratio !== defaultAspectRatio ||
-          form.reference_image_ids.length > 0 ||
-          form.allow_without_visual_anchor
-        ),
-      );
       if (formDirty || draft != null || editingPromptDirty) {
         if (!(await confirmDialog({
           title: t("common.unsavedChangesTitle"),

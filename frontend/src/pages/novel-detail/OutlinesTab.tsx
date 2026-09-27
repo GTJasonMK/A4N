@@ -39,6 +39,7 @@ import {
 } from "./outlines/useOutlineTabGuards";
 import { useI18n } from "../../i18n";
 import { OutlinesTabView } from "./outlines/OutlinesTabView";
+import { useNovelDetailDirty } from "./novelDetailDirty";
 
 type OutlineView = "parts" | "chapters";
 
@@ -140,6 +141,16 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
     previewBusyRef,
     confirmBusyRef,
   });
+  const editingOutline = editingId == null
+    ? null
+    : outlines.find((outline) => outline.id === editingId) ?? null;
+  useNovelDetailDirty(
+    `outlines:${projectId}`,
+    editingOutline != null && (
+      editForm.title !== editingOutline.title ||
+      editForm.summary !== editingOutline.summary
+    ),
+  );
 
   const closeRequestPreview = useCallback(() => {
     invalidatePreview();

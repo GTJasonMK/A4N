@@ -40,6 +40,7 @@ import {
   type MangaPagePrompt,
 } from "./mangaPagePromptModel";
 import { useI18n } from "../../../i18n";
+import { useNovelDetailDirty } from "../novelDetailDirty";
 
 interface MangaPagePromptListProps {
   prompts: MangaPagePromptSummary[];
@@ -164,6 +165,11 @@ export const MangaPagePromptList: React.FC<MangaPagePromptListProps> = ({
   const activeDetailView = detailView ?? (activePage?.prompt.generated_image_id != null ? "image" : "prompt");
   const editingPromptId = activePage && promptDrafts[activePage.prompt.id] !== undefined ? activePage.prompt.id : null;
   const promptDraft = editingPromptId == null ? "" : promptDrafts[editingPromptId];
+  const promptDraftDirty = Object.entries(promptDrafts).some(([id, value]) => {
+    const prompt = prompts.find((item) => item.id === Number(id));
+    return prompt != null && value !== prompt.image_prompt;
+  });
+  useNovelDetailDirty(`manga-prompts:${prompts.map((prompt) => prompt.id).join(",")}`, promptDraftDirty);
   const setPromptDraft = (value: string) => {
     if (activePage) setPromptDrafts((current) => ({ ...current, [activePage.prompt.id]: value }));
   };

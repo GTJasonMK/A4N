@@ -18,6 +18,7 @@ import {
   type SourceSnapshotChapterSummary,
 } from "../api/project";
 import { extractErrorMessage } from "../api";
+import { confirmDialog } from "../components/feedback/ConfirmDialog";
 import { useToast } from "../components/feedback/Toast";
 import { BookButton, BookIconButton } from "../components/ui/BookButton";
 import { BackButton } from "../components/ui/BackButton";
@@ -30,6 +31,7 @@ import {
 } from "../utils/projectRouting";
 import { formatNumber, useI18n } from "../i18n";
 import { usePackagePreferences } from "../store/packagePreferences";
+import { useNovelDetailDirtyRegistry } from "./novel-detail/novelDetailDirty";
 
 const SourceSyncDialog = lazy(() =>
   import("./derived/SourceSyncDialog").then((module) => ({
@@ -43,6 +45,7 @@ export const VideoProjectWorkspace: React.FC = () => {
   const navigate = useNavigate();
   const { addToast } = useToast();
   const { locale, t } = useI18n();
+  const dirtyRegistry = useNovelDetailDirtyRegistry();
   const translatorRef = useRef(t);
   translatorRef.current = t;
   const projectId = Number(id);
@@ -74,6 +77,7 @@ export const VideoProjectWorkspace: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [sourceSyncOpen, setSourceSyncOpen] = useState(false);
+  const [videoDirty, setVideoDirty] = useState(false);
   const refreshRequestRef = useRef(0);
 
   const refresh = useCallback(async (): Promise<boolean> => {
@@ -180,11 +184,20 @@ export const VideoProjectWorkspace: React.FC = () => {
   const canEditProject =
     project?.my_role === "owner" || project?.my_role === "manager" || project?.my_role === "editor";
   const showChapterNavigation = chapters.length > 1;
+  const handleBack = async () => {
+    if ((videoDirty || dirtyRegistry.hasDirty()) && !(await confirmDialog({
+      title: t("common.unsavedChangesTitle"),
+      message: t("common.unsavedChangesMessage", { name: t("video.projectWorkspace"), action: t("common.back") }),
+      confirmText: t("common.discardDraft"),
+      dialogType: "warning",
+    }))) return;
+    navigate("/");
+  };
 
   return (
     <div className="h-full min-h-0 flex flex-col bg-book-bg">
       <DerivedProjectHeader
-        leading={<BackButton iconOnly title={t("a11y.back")} onClick={() => navigate("/")} />}
+        leading={<BackButton iconOnly title={t("a11y.back")} onClick={() => void handleBack()} />}
         icon={<Film size={15} />}
         title={project?.title || t("novel.videoProject")}
         subtitle={
@@ -315,6 +328,7 @@ export const VideoProjectWorkspace: React.FC = () => {
                 fixedChapter={selectedChapter}
                 imageProjectIds={imageProjectIds}
                 materialProjectId={project.root_project_id ?? project.id}
+                onDirtyChange={setVideoDirty}
               />
             </section>
           </div>

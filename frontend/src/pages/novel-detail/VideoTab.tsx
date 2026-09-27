@@ -1,6 +1,7 @@
 import React, {
   lazy,
   Suspense,
+  useEffect,
   useMemo,
 } from "react";
 import {
@@ -46,6 +47,11 @@ import { useVideoTabLoading } from "./video/useVideoTabLoading";
 import { useVideoTabViewState } from "./video/useVideoTabViewState";
 import { VideoWorkspaceHeader } from "./video/VideoWorkspaceHeader";
 import { useVideoTabActions } from "./video/useVideoTabActions";
+import {
+  useNovelDetailDirty,
+  useNovelDetailDirtyRegistry,
+} from "./novelDetailDirty";
+import { confirmDialog } from "../../components/feedback/ConfirmDialog";
 
 const VideoMaterialWorkspace = lazy(() =>
   import("./video/VideoMaterialWorkspace").then((module) => ({
@@ -78,6 +84,7 @@ interface VideoTabProps {
   fixedChapter?: ChapterRow | null;
   imageProjectIds?: number[];
   materialProjectId?: number;
+  onDirtyChange?: (dirty: boolean) => void;
 }
 
 export const VideoTab: React.FC<VideoTabProps> = ({
@@ -85,9 +92,11 @@ export const VideoTab: React.FC<VideoTabProps> = ({
   fixedChapter,
   imageProjectIds,
   materialProjectId,
+  onDirtyChange,
 }) => {
   const { addToast } = useToast();
   const { locale, t } = useI18n();
+  const dirtyRegistry = useNovelDetailDirtyRegistry();
   const workspaceTabs = useMemo(
     () => [
       { id: "materials" as const, label: t("video.chapter.tabMaterials"), icon: <ImagePlus size={13} /> },
@@ -129,6 +138,7 @@ export const VideoTab: React.FC<VideoTabProps> = ({
     t,
     addToast,
   });
+  const [segmentPlanDirty, setSegmentPlanDirty] = React.useState(false);
   const {
     planningOptionsState,
     planningOptions,
@@ -298,6 +308,29 @@ export const VideoTab: React.FC<VideoTabProps> = ({
     handleActivateSegment,
     handleCloseSegmentConfig,
   } = viewState;
+
+  useEffect(() => {
+    const dirty = selectedPromptDirty || referenceMediaDraftDirty || segmentPlanDirty;
+    onDirtyChange?.(dirty);
+    return () => onDirtyChange?.(false);
+  }, [onDirtyChange, referenceMediaDraftDirty, segmentPlanDirty, selectedPromptDirty]);
+  useNovelDetailDirty(
+    `video:${projectId}:${chapterId ?? "none"}`,
+    selectedPromptDirty || referenceMediaDraftDirty || segmentPlanDirty,
+  );
+  const handleWorkspaceTabChange = async (nextTab: typeof workspaceTab) => {
+    if (nextTab === workspaceTab) return;
+    if (dirtyRegistry.hasDirty() && !(await confirmDialog({
+      title: t("common.unsavedChangesTitle"),
+      message: t("common.unsavedChangesMessage", {
+        name: t("video.workspace"),
+        action: t("common.switchTab"),
+      }),
+      confirmText: t("common.discardDraft"),
+      dialogType: "warning",
+    }))) return;
+    setWorkspaceTab(nextTab);
+  };
 
   const clearInvalidGenerationReferences = async () => {
     if (invalidGenerationReferenceIds.length === 0) return;
@@ -551,7 +584,7 @@ export const VideoTab: React.FC<VideoTabProps> = ({
         <VideoWorkspaceHeader
           tabs={workspaceTabs}
           activeTab={workspaceTab}
-          onTabChange={setWorkspaceTab}
+          onTabChange={(nextTab) => void handleWorkspaceTabChange(nextTab)}
         >
           {workflowMode == null ? (
             <span>{t("video.chapter.noExecutionRecipeSelected")}</span>
@@ -603,6 +636,7 @@ export const VideoTab: React.FC<VideoTabProps> = ({
                 }}
                 onDelete={(prompt) => void handleDeletePromptRow(prompt)}
                 onSavePlan={handleSaveSegmentPlan}
+                onDirtyChange={setSegmentPlanDirty}
               />
             </Suspense>
           ) : (

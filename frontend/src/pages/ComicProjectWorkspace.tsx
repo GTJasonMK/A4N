@@ -17,12 +17,15 @@ import { MangaTab } from "./novel-detail/MangaTab";
 import { SourceSyncDialog } from "./derived/SourceSyncDialog";
 import { getDerivedProjectSubtitle } from "../utils/projectRouting";
 import { useI18n } from "../i18n";
+import { confirmDialog } from "../components/feedback/ConfirmDialog";
+import { useNovelDetailDirtyRegistry } from "./novel-detail/novelDetailDirty";
 
 export const ComicProjectWorkspace: React.FC = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const addToast = useToast((state) => state.addToast);
   const { t } = useI18n();
+  const dirtyRegistry = useNovelDetailDirtyRegistry();
   const translatorRef = useRef(t);
   translatorRef.current = t;
   const projectId = Number(id);
@@ -130,7 +133,15 @@ export const ComicProjectWorkspace: React.FC = () => {
   return (
     <div className="h-full min-h-0 flex flex-col bg-book-bg">
       <DerivedProjectHeader
-        leading={<BackButton iconOnly title={t("a11y.back")} onClick={() => navigate("/")} />}
+        leading={<BackButton iconOnly title={t("a11y.back")} onClick={() => void (async () => {
+          if (dirtyRegistry.hasDirty() && !(await confirmDialog({
+            title: t("common.unsavedChangesTitle"),
+            message: t("common.unsavedChangesMessage", { name: t("comic.projectWorkspace"), action: t("common.back") }),
+            confirmText: t("common.discardDraft"),
+            dialogType: "warning",
+          }))) return;
+          navigate("/");
+        })()} />}
         icon={<PanelsTopLeft size={15} />}
         title={project?.title || t("novel.comicProject")}
         subtitle={

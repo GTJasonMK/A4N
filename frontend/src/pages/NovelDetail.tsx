@@ -34,7 +34,7 @@ import {
   getProjectProgressText,
 } from "../utils/projectStatus";
 import { usePersistedTab } from "../hooks/usePersistedTab";
-import { BackButton } from "../components/ui/BackButton";
+import { BackButton, useSmartBack } from "../components/ui/BackButton";
 import { Modal } from "../components/ui/Modal";
 import { BookButton } from "../components/ui/BookButton";
 import { PageHeader } from "../components/shell/PageHeader";
@@ -46,6 +46,10 @@ import { getScrollRailCue, scrollRailItemIntoView } from "../utils/scrollRail";
 import { formatNumber, useI18n, type Locale, type MessageKey, type MessageTranslator } from "../i18n";
 import { usePackagePreferences } from "../store/packagePreferences";
 import { runBlueprintRefinementWithProgress } from "./novel-detail/blueprintRefinement";
+import {
+  NovelDetailDirtyProvider,
+  useNovelDetailDirtyRegistry,
+} from "./novel-detail/novelDetailDirty";
 
 const AssetDependencyGraphDialog = lazy(() =>
   import("./novel-detail/asset-graph/AssetDependencyGraphDialog").then(
@@ -169,6 +173,8 @@ export const NovelDetail: React.FC = () => {
   const { addToast } = useToast();
   const { runProgressTask } = useProgressTask();
   const { locale, t } = useI18n();
+  const dirtyRegistry = useNovelDetailDirtyRegistry();
+  const smartBack = useSmartBack();
   const { isVisible: isPackageVisible } = usePackagePreferences();
   const tabs = TABS.filter(item => item.id !== "imports" || isPackageVisible("external-import")).map((item) => ({
     id: item.id,
@@ -379,6 +385,27 @@ export const NovelDetail: React.FC = () => {
     : tabs.filter(
         (item) => item.id !== "characters" && item.id !== "relationships" && item.id !== "imports",
       );
+  const confirmDirtyNavigation = async (action: string): Promise<boolean> => {
+    if (!dirtyRegistry.hasDirty()) return true;
+    return confirmDialog({
+      title: t("common.unsavedChangesTitle"),
+      message: t("common.unsavedChangesMessage", {
+        name: t("novel.detailTabs"),
+        action,
+      }),
+      confirmText: t("common.discardDraft"),
+      dialogType: "warning",
+    });
+  };
+  const handleTabChange = async (nextTab: Tab) => {
+    if (nextTab === tab) return;
+    if (!(await confirmDirtyNavigation(t("common.switchTab")))) return;
+    setTab(nextTab);
+  };
+  const guardNavigation = async (action: () => void) => {
+    if (!(await confirmDirtyNavigation(t("common.back")))) return;
+    action();
+  };
   const workspaceRoute = getProjectWorkspaceRoute(project);
   const workspaceLabel = getProjectWorkspaceLabel(project, t);
   const showHomeEntryButton =
@@ -605,11 +632,12 @@ export const NovelDetail: React.FC = () => {
   };
 
   return (
-    <div className="h-full w-full flex flex-col bg-book-bg">
+    <NovelDetailDirtyProvider>
+      <div className="h-full w-full flex flex-col bg-book-bg">
       {/* 项目身份、当前进度和高频入口；维护操作统一收进更多菜单。 */}
       <PageHeader
         className="a4n-app-page-header--detail h-auto shrink-0 py-2 sm:flex-nowrap sm:py-0"
-        leading={<BackButton iconOnly title={t("novel.backToPreviousPage")} />}
+        leading={<BackButton iconOnly title={t("novel.backToPreviousPage")} onClick={() => void guardNavigation(smartBack)} />}
         title={project.title}
         subtitle={getProjectProgressText(project, t)}
         actions={
@@ -618,7 +646,7 @@ export const NovelDetail: React.FC = () => {
               <BookButton
                 variant="secondary"
                 size="sm"
-                onClick={() => navigate(homeEntryRoute)}
+                onClick={() => void guardNavigation(() => navigate(homeEntryRoute))}
                 title={homeEntryLabel}
                 className="!min-h-8 !px-2.5 !text-xs"
               >
@@ -630,7 +658,7 @@ export const NovelDetail: React.FC = () => {
               <BookButton
                 variant="primary"
                 size="sm"
-                onClick={() => navigate(workspaceRoute)}
+                onClick={() => void guardNavigation(() => navigate(workspaceRoute))}
                 title={workspaceLabel}
                 aria-label={workspaceLabel}
                 className="!min-h-8 !px-3 !text-xs"
@@ -681,7 +709,7 @@ export const NovelDetail: React.FC = () => {
               type="button"
               role="tab"
               aria-selected={tab === t.id}
-              onClick={() => setTab(t.id)}
+              onClick={() => void handleTabChange(t.id)}
               onFocus={(event) =>
                 scrollRailItemIntoView(
                   tabListRef.current,
@@ -718,14 +746,14 @@ export const NovelDetail: React.FC = () => {
             <OverviewTab
               project={project}
               onRefresh={refresh}
-              onOpenImports={() => setTab("imports")}
+              onOpenImports={() => void handleTabChange("imports")}
             />
           )}
           {tab === "world" && (
             <WorldTab
               projectId={projectId}
               canEditWorld={canEditProject}
-              onCreateBlueprint={() => setTab("overview")}
+              onCreateBlueprint={() => void handleTabChange("overview")}
             />
           )}
           {tab === "characters" && canEditProject && <CharactersTab projectId={projectId} />}
@@ -819,7 +847,7 @@ export const NovelDetail: React.FC = () => {
                   description={t("novel.inspirationDescription")}
                   onClick={() => {
                     setActionsOpen(false);
-                    navigate(`/inspiration/${projectId}`);
+                    void guardNavigation(() => navigate(`/inspiration/${projectId}`));
                   }}
                 />
               ) : null}
@@ -912,7 +940,8 @@ export const NovelDetail: React.FC = () => {
           />
         </Suspense>
       ) : null}
-    </div>
+      </div>
+    </NovelDetailDirtyProvider>
   );
 };
 

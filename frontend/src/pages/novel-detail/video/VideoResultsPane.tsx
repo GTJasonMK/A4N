@@ -38,6 +38,7 @@ import { useVideoPlaybackSource } from "./useVideoPlaybackSource";
 import { formatVideoCreatedAt } from "./videoImageUtils";
 import { promptCharCount } from "./videoOptionUtils";
 import { videoProviderRequestPreviewBlockedReason } from "./videoAssemblyUtils";
+import { useNovelDetailDirty } from "../novelDetailDirty";
 
 interface VideoResultsPaneProps {
   selectedVideo: GeneratedVideo | null;
@@ -183,6 +184,7 @@ export const VideoResultsPane: React.FC<VideoResultsPaneProps> = ({
     selectedVideoRecord != null &&
     (promptDraft.trim() !== selectedVideoRecord.prompt.trim() ||
       negativePromptDraft.trim() !== (selectedVideoRecord.negative_prompt ?? "").trim());
+  useNovelDetailDirty("video-result-prompt", promptOpen && promptEditing && promptRecordDirty);
   const promptActionBusy = promptSaving || acting != null;
   const selectedPromptChars = promptCharCount(selectedVideoRecord?.prompt);
   const selectedVideoAdopted = selectedVideoRecord?.id === adoptedVideoId;

@@ -17,6 +17,7 @@ import { useNovelDetailLoader } from "./useNovelDetailLoader";
 import { nonEmptyText } from "../../utils/text";
 import { getOperationStatusLabel } from "../../utils/workflowPresentation";
 import { formatNumber, useI18n, type Locale } from "../../i18n";
+import { useNovelDetailDirty } from "./novelDetailDirty";
 
 const chapterWordCount = (chapter: ChapterSummary): number => {
   return chapter.word_count == null ? 0 : chapter.word_count;
@@ -69,6 +70,12 @@ export const ChaptersTab: React.FC<ChaptersTabProps> = ({ projectId, canEditChap
   const activeProjectIdRef = useRef(projectId);
   const importSeqRef = useRef(0);
   const importingRef = useRef(false);
+  const importDraftDirty = importOpen && Boolean(
+    importForm.title.trim() ||
+    importForm.content.trim() ||
+    importForm.chapter_number !== nextImportChapterNumber(chapters),
+  );
+  useNovelDetailDirty(`chapters:${projectId}`, importDraftDirty);
 
   const loadChapters = useCallback(async (isCurrent: () => boolean) => {
     try {

@@ -39,6 +39,7 @@ interface VideoPlanningWorkspaceProps {
   onRetryLoad: () => void | Promise<void>;
   onDelete: (prompt: ChapterVideoPrompt) => void | Promise<void>;
   onSavePlan?: (segments: VideoSegmentPlanV2[]) => Promise<boolean>;
+  onDirtyChange?: (dirty: boolean) => void;
 }
 
 const textValue = (value: unknown): string | null =>
@@ -148,6 +149,7 @@ export const VideoPlanningWorkspace: React.FC<VideoPlanningWorkspaceProps> = ({
   onRetryLoad,
   onDelete,
   onSavePlan,
+  onDirtyChange,
 }) => {
   const { locale, t } = useI18n();
   const persistedSegments = useMemo(
@@ -183,6 +185,10 @@ export const VideoPlanningWorkspace: React.FC<VideoPlanningWorkspaceProps> = ({
   const planDirty =
     planDraft != null &&
     JSON.stringify(planDraft) !== JSON.stringify(editableSegments);
+  useEffect(() => {
+    onDirtyChange?.(planDirty);
+    return () => onDirtyChange?.(false);
+  }, [onDirtyChange, planDirty]);
   const canEditPlan = Boolean(
     onSavePlan &&
       prompt &&

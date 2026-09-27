@@ -45,6 +45,7 @@ import type {
 import { listVideoConfigs } from "../api/video";
 import type { ProgressEventRecord } from "../api/progress";
 import { useToast } from "../components/feedback/Toast";
+import { confirmDialog } from "../components/feedback/ConfirmDialog";
 import { BookButton, BookIconButton } from "../components/ui/BookButton";
 import { FlowControls } from "../components/ui/FlowControls";
 import { BackButton } from "../components/ui/BackButton";
@@ -293,6 +294,15 @@ export const VideoStudioCanvas: React.FC = () => {
   const canvasWriteBusy = saving || importing;
   const canvasReady = !loading && loadError == null && document != null && nodeContracts.length > 0;
   const canvasMutationDisabled = !canEdit || canvasWriteBusy || !canvasReady;
+  const handleBack = async () => {
+    if (dirty && !(await confirmDialog({
+      title: t("common.unsavedChangesTitle"),
+      message: t("common.unsavedChangesMessage", { name: t("video.canvasProject"), action: t("common.back") }),
+      confirmText: t("common.discardDraft"),
+      dialogType: "warning",
+    }))) return;
+    navigate("/");
+  };
 
   useEffect(() => {
     if (leftSidebarVisible) setMobileNodeLibraryOpen(false);
@@ -753,7 +763,7 @@ export const VideoStudioCanvas: React.FC = () => {
       <div className="h-full min-h-0 flex flex-col bg-book-bg">
         <PageHeader
           className="shrink-0"
-          leading={<BackButton iconOnly title={t("a11y.back")} onClick={() => navigate("/")} />}
+          leading={<BackButton iconOnly title={t("a11y.back")} onClick={() => void handleBack()} />}
           icon={<Film size={15} />}
           title={project?.title || t("video.canvasProject")}
           subtitle={

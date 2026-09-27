@@ -53,6 +53,7 @@ export const common = {
   },
   unsavedChangesTitle: "未保存修改",
   discardDraft: "放弃草稿",
+  switchTab: "切换页面",
   deleteConfirm: "确定删除该 {name}？此操作不可撤销。",
   unsavedChangesMessage: "当前 {name} 表单有未保存修改，{action}会放弃当前草稿。是否继续？",
   downstreamMessage: "{asset} 已派生 {count} 个{downstream}。\n\n你可以删除这些下游派生产物后再{operation}，也可以只{operation}源资产并保留下游产物。保留下游时，已有下游产物可能与新的源资产内容不一致，需要你后续按需重新生成或清理。",

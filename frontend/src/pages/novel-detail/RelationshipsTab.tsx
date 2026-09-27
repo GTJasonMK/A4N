@@ -37,6 +37,7 @@ import {
   relationshipNodeId,
   type CurrentRelationship,
 } from "./relationships/RelationshipGraphPanel";
+import { useNovelDetailDirty } from "./novelDetailDirty";
 
 export const relationshipEditMode = (
   editable: boolean,
@@ -158,6 +159,12 @@ export const RelationshipsTab: React.FC<{ projectId: number }> = ({
     () => displayProfiles.filter((profile) => profile.initial_profile_editable),
     [displayProfiles],
   );
+  const editorDirty = editor != null && (
+    editor.profileId !== editor.initialProfileId ||
+    editor.target !== editor.initialTarget ||
+    editor.description !== editor.initialDescription
+  );
+  useNovelDetailDirty(`relationships:${projectId}`, editorDirty);
 
   useEffect(() => {
     setCurrentDetail((current) => {
@@ -431,12 +438,7 @@ export const RelationshipsTab: React.FC<{ projectId: number }> = ({
         onSave={() => void saveRelationship()}
         onClose={async () => {
           if (saving) return;
-          const dirty = editor != null && (
-            editor.profileId !== editor.initialProfileId ||
-            editor.target !== editor.initialTarget ||
-            editor.description !== editor.initialDescription
-          );
-          if (dirty && !(await confirmDialog({
+          if (editorDirty && !(await confirmDialog({
             title: t("common.unsavedChangesTitle"),
             message: t("common.unsavedChangesMessage", { name: t("novel.relationships.title"), action: t("common.close") }),
             confirmText: t("common.discardDraft"),

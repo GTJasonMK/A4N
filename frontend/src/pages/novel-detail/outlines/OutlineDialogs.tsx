@@ -16,6 +16,7 @@ import {
   type PartOutline,
 } from "../../../api/outline";
 import { useI18n } from "../../../i18n";
+import { useNovelDetailDirty } from "../novelDetailDirty";
 
 export interface ManualChapterOutlineForm {
   chapterNumber: number;
@@ -45,6 +46,7 @@ export function ManualChapterOutlineDialog({
 }) {
   const { t } = useI18n();
   const [form, setForm] = useState(initial);
+  useNovelDetailDirty("outline-manual-chapter", JSON.stringify(form) !== JSON.stringify(initial));
   const formId = "manual-chapter-outline-form";
   const close = async () => {
     if (saving) return;
@@ -144,6 +146,7 @@ export function ManualPartOutlineDialog({
 }) {
   const { t } = useI18n();
   const [form, setForm] = useState(initial);
+  useNovelDetailDirty("outline-manual-part", JSON.stringify(form) !== JSON.stringify(initial));
   const formId = "manual-part-outline-form";
   const close = async () => {
     if (saving) return;

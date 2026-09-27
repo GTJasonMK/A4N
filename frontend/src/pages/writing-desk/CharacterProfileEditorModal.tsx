@@ -8,6 +8,7 @@ import { confirmDialog } from "../../components/feedback/ConfirmDialog";
 import { ProfileTextarea } from "./CharacterProfileDisplay";
 import { characterAttributeText } from "../../utils/characterAttributes";
 import { useI18n } from "../../i18n";
+import { useNovelDetailDirty } from "../novel-detail/novelDetailDirty";
 
 export interface ProfileForm {
   name: string;
@@ -107,6 +108,10 @@ export const CharacterProfileEditorModal: React.FC<{
   useEffect(() => {
     if (open) baselineRef.current = form;
   }, [mode, open]);
+  useNovelDetailDirty(
+    "character-profile-editor",
+    open && JSON.stringify(form) !== JSON.stringify(baselineRef.current),
+  );
   if (!open) return null;
   const editing = mode === "edit";
   const close = async () => {

@@ -52,6 +52,7 @@ import {
 import { DEFAULT_IMAGE_STYLE } from "./styleTemplates";
 import { useProjectProfileCollection } from "./useProjectProfileCollection";
 import { useI18n, type MessageKey, type MessageTranslator } from "../../i18n";
+import { useNovelDetailDirty } from "./novelDetailDirty";
 
 const SCENE_TYPE_KEYS: Record<string, MessageKey> = {
   room: "novel.sceneType.room",
@@ -652,6 +653,10 @@ function SceneProfileEditModal({
     setDraft(nextDraft);
     setSaving(false);
   }, [profile]);
+  useNovelDetailDirty(
+    "scene-profile-editor",
+    profile != null && JSON.stringify(draft) !== JSON.stringify(initialDraftRef.current),
+  );
 
   if (!profile) return null;
 
