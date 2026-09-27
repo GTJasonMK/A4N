@@ -435,10 +435,11 @@ export const CharacterPortraitsPanel: React.FC<{ projectId: number }> = ({
           projectId={projectId}
           profiles={displayProfiles}
           onClose={() => setShowSingle(false)}
-          onCreated={() => {
-            if (!isCurrentProject(projectId)) return;
+          onCreated={async () => {
+            if (!isCurrentProject(projectId)) return false;
+            if (!await load()) return false;
             setShowSingle(false);
-            void load();
+            return true;
           }}
         />
       ) : null}
@@ -448,10 +449,11 @@ export const CharacterPortraitsPanel: React.FC<{ projectId: number }> = ({
           projectId={projectId}
           profiles={displayProfiles}
           onClose={() => setShowUpload(false)}
-          onUploaded={() => {
-            if (!isCurrentProject(projectId)) return;
+          onUploaded={async () => {
+            if (!isCurrentProject(projectId)) return false;
+            if (!await load()) return false;
             setShowUpload(false);
-            void load();
+            return true;
           }}
         />
       ) : null}
@@ -461,10 +463,11 @@ export const CharacterPortraitsPanel: React.FC<{ projectId: number }> = ({
           portrait={showAge}
           profileName={displayProfiles.find((profile) => profile.id === showAge.profile_id)?.name}
           onClose={() => setShowAge(null)}
-          onCreated={() => {
-            if (!isCurrentProject(projectId)) return;
+          onCreated={async () => {
+            if (!isCurrentProject(projectId)) return false;
+            if (!await load()) return false;
             setShowAge(null);
-            void load();
+            return true;
           }}
         />
       ) : null}

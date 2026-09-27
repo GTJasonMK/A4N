@@ -121,6 +121,7 @@ export const CharactersTab: React.FC<{ projectId: number }> = ({ projectId }) =>
       ) {
         return;
       }
+      if (!await load({ silent: true, force: true })) return;
       setEditorOpen(false);
       setEditingProfile(null);
       addToast(
@@ -139,7 +140,6 @@ export const CharactersTab: React.FC<{ projectId: number }> = ({ projectId }) =>
             : t("characterDetail.profileCreated", { name }),
         result.warnings.length > 0 ? "info" : "success",
       );
-      await load({ silent: true, force: true });
     } catch (err) {
       if (
         activeProjectIdRef.current === requestProjectId &&

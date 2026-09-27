@@ -150,7 +150,9 @@ export const ObjectProfilesTab: React.FC<{
             throw new Error("任务已停止");
           }
           await verifyImageGenerationResult(task, requestProjectId);
-          await load({ silent: true, force: true, projectId: requestProjectId });
+          if (!await load({ silent: true, force: true, projectId: requestProjectId })) {
+            throw new Error(t("novel.profile.generateError", { name: t("novel.profile.object") }));
+          }
         },
       );
       if (!isCurrentAction(requestProjectId, requestSeq)) return;
@@ -291,7 +293,7 @@ export const ObjectProfilesTab: React.FC<{
       if (saved.project_id !== requestProjectId) {
         throw new Error("保存物体档案返回了其他项目的数据");
       }
-      await load({ silent: true, force: true, projectId: requestProjectId });
+      if (!await load({ silent: true, force: true, projectId: requestProjectId })) return;
       if (!isCurrentAction(requestProjectId, requestSeq)) return;
       setDetailFor(saved);
       setEditingProfile(null);

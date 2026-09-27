@@ -393,7 +393,7 @@ export const SceneProfilesTab: React.FC<{
       if (saved.project_id !== requestProjectId) {
         throw new Error("保存场景档案返回了其他项目的数据");
       }
-      await load({ silent: true, force: true, projectId: requestProjectId });
+      if (!await load({ silent: true, force: true, projectId: requestProjectId })) return;
       if (!isCurrentAction(requestProjectId, requestSeq)) return;
       setDetailFor(saved);
       setEditingProfile(null);

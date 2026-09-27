@@ -25,7 +25,7 @@ interface AgeVariantDialogProps {
   portrait: Portrait;
   profileName?: string;
   onClose: () => void;
-  onCreated: () => void;
+  onCreated: () => boolean | void | Promise<boolean | void>;
 }
 
 export const AgeVariantDialog: React.FC<AgeVariantDialogProps> = ({
@@ -123,11 +123,16 @@ export const AgeVariantDialog: React.FC<AgeVariantDialogProps> = ({
         },
         async (task) => {
           await verifyPortraitGenerationResult(task, requestProjectId);
+          if (!isCurrentPortrait(requestScope)) {
+            throw new Error(t("characterDetail.taskStopped"));
+          }
+          if (await onCreated() === false) {
+            throw new Error(t("characterDetail.portrait.generationFailed"));
+          }
         },
       );
       if (!isCurrentPortrait(requestScope)) return;
       addToast(t("characterDetail.portrait.ageGenerated", { age: trimmedAge }), "success");
-      onCreated();
     } catch (err) {
       if (!isCurrentPortrait(requestScope)) return;
       const message = extractErrorMessage(err, t("characterDetail.portrait.generationFailed"));

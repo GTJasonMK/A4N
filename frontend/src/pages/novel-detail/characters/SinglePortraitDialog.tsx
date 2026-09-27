@@ -42,7 +42,7 @@ interface SinglePortraitDialogProps {
   projectId: number;
   profiles: CharacterProfile[];
   onClose: () => void;
-  onCreated: () => void;
+  onCreated: () => boolean | void | Promise<boolean | void>;
 }
 
 export const SinglePortraitDialog: React.FC<SinglePortraitDialogProps> = ({
@@ -250,11 +250,16 @@ export const SinglePortraitDialog: React.FC<SinglePortraitDialogProps> = ({
         },
         async (task) => {
           await verifyPortraitGenerationResult(task, requestProjectId);
+          if (!isCurrentProject(requestProjectId)) {
+            throw new Error(t("characterDetail.taskStopped"));
+          }
+          if (await onCreated() === false) {
+            throw new Error(t("characterDetail.portrait.generationFailed"));
+          }
         },
       );
       if (!isCurrentProject(requestProjectId)) return;
       addToast(t("characterDetail.portrait.generated", { name: requestName }), "success");
-      onCreated();
     } catch (err) {
       if (!isCurrentProject(requestProjectId)) return;
       const message = extractErrorMessage(err, t("characterDetail.portrait.generationFailed"));

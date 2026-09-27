@@ -22,7 +22,7 @@ interface UploadPortraitDialogProps {
   projectId: number;
   profiles: CharacterProfile[];
   onClose: () => void;
-  onUploaded: () => void;
+  onUploaded: () => boolean | void | Promise<boolean | void>;
 }
 
 const PORTRAIT_TYPE_OPTIONS: ReadonlyArray<{ value: PortraitType }> = [
@@ -145,8 +145,8 @@ export const UploadPortraitDialog: React.FC<UploadPortraitDialogProps> = ({
         set_primary: setPrimary,
       });
       if (!isCurrentProject(requestProjectId)) return;
+      if (await onUploaded() === false) return;
       addToast(t("characterDetail.portrait.uploaded"), "success");
-      onUploaded();
     } catch (err) {
       if (!isCurrentProject(requestProjectId)) return;
       addToast(extractErrorMessage(err, t("characterDetail.portrait.uploadFailed")), "error");
