@@ -131,7 +131,7 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
   const requestSeqRef = useRef(0);
   const previewSeqRef = useRef(0);
 
-  const load = React.useCallback(async () => {
+  const load = React.useCallback(async (): Promise<boolean> => {
     const seq = requestSeqRef.current + 1;
     requestSeqRef.current = seq;
     setLoading(true);
@@ -141,7 +141,7 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
         getGalgameScript(projectId),
         getGalgameAssetPlan(projectId),
       ]);
-      if (requestSeqRef.current !== seq) return;
+      if (requestSeqRef.current !== seq) return false;
       if (statusResult.status === "fulfilled") {
         setPipelineStatus(statusResult.value);
       } else {
@@ -167,6 +167,7 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
       } else {
         setAssetPlanError(extractErrorMessage(assetPlanResult.reason, t("galgame.planLoadFailed")));
       }
+      return [statusResult, scriptResult, assetPlanResult].every((result) => result.status === "fulfilled");
     } finally {
       if (requestSeqRef.current === seq) setLoading(false);
     }
@@ -464,6 +465,8 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
         width: requestSize.width,
         height: requestSize.height,
       });
+      const refreshed = await load();
+      if (!refreshed) return;
       addToast(
         t("galgame.assetGenerationSummary", {
           generated: result.generated_count,
@@ -474,7 +477,6 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
     } catch (err) {
       addToast(extractErrorMessage(err, t("galgame.assetGenerationFailed")), "error");
     } finally {
-      await load();
       setGeneratingAssets(false);
     }
   };
@@ -500,6 +502,8 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
         width: requestSize.width,
         height: requestSize.height,
       });
+      const refreshed = await load();
+      if (!refreshed) return;
       addToast(
         result.generated_count > 0
           ? t("galgame.portraitGenerated")
@@ -509,7 +513,6 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
     } catch (err) {
       addToast(extractErrorMessage(err, t("galgame.portraitGenerationFailed")), "error");
     } finally {
-      await load();
       setGeneratingAssetSpecId(null);
     }
   };

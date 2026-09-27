@@ -200,17 +200,19 @@ export const NovelList: React.FC<NovelListProps> = () => {
     }
   };
 
-  const loadPendingInvites = async () => {
+  const loadPendingInvites = async (): Promise<boolean> => {
     const requestSeq = inviteSeqRef.current + 1;
     inviteSeqRef.current = requestSeq;
     try {
       const invites = await listMyProjectInvites();
-      if (!mountedRef.current || inviteSeqRef.current !== requestSeq) return;
+      if (!mountedRef.current || inviteSeqRef.current !== requestSeq) return false;
       setPendingInvites(invites);
+      return true;
     } catch (err) {
       if (mountedRef.current && inviteSeqRef.current === requestSeq) {
         addToast(extractErrorMessage(err, t("novel.projectLoadFailed")), "error");
       }
+      return false;
     }
   };
 
@@ -671,9 +673,8 @@ export const NovelList: React.FC<NovelListProps> = () => {
     try {
       await acceptProjectInvite(invite.id);
       if (!mountedRef.current) return;
+      if (!await loadPendingInvites() || !await refresh(activeTabRef.current)) return;
       addToast(t("novel.projectListActions.inviteAccepted"), "success");
-      await loadPendingInvites();
-      await refresh(activeTabRef.current);
     } catch (err) {
       if (mountedRef.current) {
         addToast(extractErrorMessage(err, t("novel.projectListActions.acceptInviteFailed")), "error");
@@ -688,8 +689,8 @@ export const NovelList: React.FC<NovelListProps> = () => {
     try {
       await declineProjectInvite(invite.id);
       if (!mountedRef.current) return;
+      if (!await loadPendingInvites()) return;
       addToast(t("novel.projectListActions.inviteDeclined"), "success");
-      await loadPendingInvites();
     } catch (err) {
       if (mountedRef.current) {
         addToast(extractErrorMessage(err, t("novel.projectListActions.declineInviteFailed")), "error");

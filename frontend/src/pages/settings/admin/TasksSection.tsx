@@ -52,8 +52,8 @@ export const TasksSection: React.FC = () => {
     setTaskCancelling(id, true);
     try {
       await cancelAdminTask(id);
+      if (!await load()) return;
       addToast(t("settingsAdmin.taskCancelled"), "success");
-      await load();
     } catch (err) {
       addToast(extractErrorMessage(err, t("settingsAdmin.cancelFailed")), "error");
     } finally {
