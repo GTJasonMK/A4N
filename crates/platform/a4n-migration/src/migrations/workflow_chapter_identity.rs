@@ -13,7 +13,9 @@ impl MigrationTrait for Migration {
         let db = manager.get_connection();
         let rows = db.query_all(Statement::from_string(DbBackend::Postgres, r#"
             SELECT w.chapter_id, w.project_id, w.input_fingerprint_json->'source_fingerprint' AS source
-            FROM workflow_run w LEFT JOIN chapter c ON c.id=w.chapter_id
+            FROM workflow_run w
+            JOIN novel_project p ON p.id = w.project_id
+            LEFT JOIN chapter c ON c.id=w.chapter_id
             WHERE w.chapter_id IS NOT NULL AND c.id IS NULL
               AND w.input_fingerprint_json::jsonb ? 'source_fingerprint'
         "#)).await?;
@@ -99,7 +101,9 @@ mod tests {
                 status text NOT NULL, summary text, style_tags jsonb, analysis_data jsonb,
                 created_at timestamp NOT NULL, updated_at timestamp NOT NULL
             ) ON COMMIT DROP;
+            CREATE TEMP TABLE novel_project (id bigint PRIMARY KEY) ON COMMIT DROP;
             CREATE TEMP TABLE workflow_run (chapter_id bigint, project_id bigint, input_fingerprint_json jsonb) ON COMMIT DROP;
+            INSERT INTO novel_project VALUES (90);
             INSERT INTO chapter (id,project_id,chapter_number,content,word_count,status,created_at,updated_at)
                 VALUES (20,90,1,'current',7,'draft',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP);
         "#).await.unwrap();
@@ -126,6 +130,25 @@ mod tests {
         let current = chapter::Entity::find_current().all(&tx).await.unwrap();
         assert_eq!(current.len(), 1);
         assert_eq!(current[0].content, "current");
+        let orphan_project = serde_json::json!({"source_fingerprint":{
+            "project_id":91,"chapter_id":23,"chapter_number":2,"title":null,
+            "content_sha256":a4n_domain::source_text_hash("orphan")
+        }});
+        tx.execute(Statement::from_sql_and_values(
+            DbBackend::Postgres,
+            "INSERT INTO workflow_run VALUES (23,91,$1)",
+            [orphan_project.into()],
+        ))
+        .await
+        .unwrap();
+        Migration.up(&SchemaManager::new(&tx)).await.unwrap();
+        assert!(
+            chapter::Entity::find_by_id(23)
+                .one(&tx)
+                .await
+                .unwrap()
+                .is_none()
+        );
         let bad = serde_json::json!({"source_fingerprint":{
             "project_id":90,"chapter_id":22,"chapter_number":2,"title":null,
             "content_sha256":a4n_domain::source_text_hash("other"),"updated_at":"2026-01-01T00:00:00"
