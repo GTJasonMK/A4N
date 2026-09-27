@@ -54,7 +54,7 @@ interface CharacterDetailDialogProps {
   currentChapterNumber?: number | null;
   initialTab?: CharacterDetailTab;
   initialEventFilter?: CharacterDetailInitialEventFilter | null;
-  onChanged?: () => void | Promise<void>;
+  onChanged?: () => boolean | void | Promise<boolean | void>;
   onEditInitial?: (character: CharacterProfile) => void;
 }
 

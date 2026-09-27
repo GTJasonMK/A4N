@@ -43,7 +43,7 @@ const visibleAttributeEntries = (
 export const CharacterProfilesPanel: React.FC<{
   projectId: number;
   profiles: CharacterProfile[];
-  onChanged: () => void | Promise<void>;
+  onChanged: () => boolean | void | Promise<boolean | void>;
   onEdit: (profile: CharacterProfile) => void;
 }> = ({ projectId, profiles, onChanged, onEdit }) => {
   const { t } = useI18n();

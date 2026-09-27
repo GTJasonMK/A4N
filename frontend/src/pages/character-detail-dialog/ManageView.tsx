@@ -25,7 +25,7 @@ export const ManageView: React.FC<{
   character: CharacterProfile;
   initialSection?: ManageSection;
   initialEventFilter?: { category?: string | null; key?: string | null } | null;
-  onChanged?: () => void | Promise<void>;
+  onChanged?: () => boolean | void | Promise<boolean | void>;
 }> = ({ character, initialSection, initialEventFilter, onChanged }) => {
   const { t } = useI18n();
   const [sec, setSec] = useState<ManageSection>(initialSection ?? "behavior");

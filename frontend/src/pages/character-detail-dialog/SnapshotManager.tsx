@@ -73,7 +73,7 @@ const snapshotLoadKey = (
 
 export const SnapshotManager: React.FC<{
   profileId: number;
-  onChanged?: () => void | Promise<void>;
+  onChanged?: () => boolean | void | Promise<boolean | void>;
 }> = ({ profileId, onChanged }) => {
   const { addToast } = useToast();
   const { t } = useI18n();

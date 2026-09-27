@@ -39,7 +39,7 @@ interface ForeshadowingIndexCardProps {
   records: Foreshadowing[];
   canEdit: boolean;
   loading: boolean;
-  onReload: () => Promise<void>;
+  onReload: () => Promise<boolean | void>;
 }
 
 export const ForeshadowingIndexCard: React.FC<ForeshadowingIndexCardProps> = ({

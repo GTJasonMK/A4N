@@ -205,13 +205,13 @@ export const RelationshipsTab: React.FC<{ projectId: number }> = ({
       setProfiles((current) =>
         current.map((item) => (item.id === result.profile.id ? result.profile : item)),
       );
+      if (!(await load({ silent: true, force: true }))) return false;
       addToast(
         result.warnings.length > 0
           ? `${successMessage}${t("common.summarySeparator")}${result.warnings.join(t("common.summarySeparator"))}`
           : successMessage,
         result.warnings.length > 0 ? "info" : "success",
       );
-      await load({ silent: true, force: true });
       return true;
     } catch (error) {
       if (

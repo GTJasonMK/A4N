@@ -58,7 +58,7 @@ export const EventManager: React.FC<{
   defaultChapter: number;
   initialCategory?: string;
   initialKey?: string;
-  onChanged?: () => void | Promise<void>;
+  onChanged?: () => boolean | void | Promise<boolean | void>;
 }> = ({ profileId, defaultChapter, initialCategory = "", initialKey = "", onChanged }) => {
   const { addToast } = useToast();
   const { locale, t } = useI18n();

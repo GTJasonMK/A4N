@@ -53,7 +53,7 @@ const implicitReviewScopeKey = (
 export const ImplicitReviewManager: React.FC<{
   profileId: number;
   defaultChapter: number;
-  onChanged?: () => void | Promise<void>;
+  onChanged?: () => boolean | void | Promise<boolean | void>;
 }> = ({ profileId, defaultChapter, onChanged }) => {
   const { addToast } = useToast();
   const { locale, t } = useI18n();

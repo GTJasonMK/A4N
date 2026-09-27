@@ -26,10 +26,10 @@ export function useNovelDetailLoader(
   const requestSeqRef = useRef(0);
   const loadInFlightRef = useRef<{
     token: symbol;
-    promise: Promise<void>;
+    promise: Promise<boolean>;
   } | null>(null);
 
-  const load = useCallback(async (optionsOrSilent: boolean | NovelDetailLoadOptions = {}) => {
+  const load = useCallback(async (optionsOrSilent: boolean | NovelDetailLoadOptions = {}): Promise<boolean> => {
     const options =
       typeof optionsOrSilent === "boolean"
         ? { silent: optionsOrSilent }
@@ -46,10 +46,12 @@ export function useNovelDetailLoader(
       if (!silent) setLoading(true);
       try {
         await loadData(isCurrent);
+        return true;
       } catch (err) {
         if (isCurrent()) {
           addToast(extractErrorMessage(err, errorMessage), "error");
         }
+        return false;
       } finally {
         if (!silent && isCurrent()) {
           setLoading(false);

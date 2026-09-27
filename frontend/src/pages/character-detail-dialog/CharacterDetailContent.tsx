@@ -20,7 +20,7 @@ interface CharacterDetailContentProps {
   character: CharacterProfile;
   initialManageSection?: "event";
   initialEventFilter?: CharacterDetailInitialEventFilter | null;
-  onChanged?: () => void | Promise<void>;
+  onChanged?: () => boolean | void | Promise<boolean | void>;
   onRefresh: () => void | Promise<void>;
 }
 

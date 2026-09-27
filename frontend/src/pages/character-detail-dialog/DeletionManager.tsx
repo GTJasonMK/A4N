@@ -37,7 +37,7 @@ const deletionMarkLoadKey = (
 export const DeletionManager: React.FC<{
   profileId: number;
   defaultChapter: number;
-  onChanged?: () => void | Promise<void>;
+  onChanged?: () => boolean | void | Promise<boolean | void>;
 }> = ({ profileId, defaultChapter, onChanged }) => {
   const { addToast } = useToast();
   const { locale, t } = useI18n();
@@ -125,10 +125,10 @@ export const DeletionManager: React.FC<{
     async (
       nextCategory = filterCategoryRef.current,
       nextStatus: DeletionMarkStatusFilter = filterStatusRef.current,
-    ) => {
+    ): Promise<boolean> => {
       const requestProfileId = profileId;
       const requestKey = deletionMarkLoadKey(requestProfileId, nextCategory, nextStatus);
-      if (loadInFlightKeyRef.current === requestKey) return;
+      if (loadInFlightKeyRef.current === requestKey) return false;
       const requestSeq = loadSeqRef.current + 1;
       loadSeqRef.current = requestSeq;
       loadInFlightKeyRef.current = requestKey;
@@ -139,12 +139,14 @@ export const DeletionManager: React.FC<{
           category: categoryFilter ? categoryFilter : null,
           status: nextStatus,
         });
-        if (!isCurrentLoad(requestProfileId, requestKey, requestSeq)) return;
+        if (!isCurrentLoad(requestProfileId, requestKey, requestSeq)) return false;
         setMarks(rows);
         setLoadedScopeKey(requestKey);
+        return true;
       } catch (err) {
-        if (!isCurrentLoad(requestProfileId, requestKey, requestSeq)) return;
+        if (!isCurrentLoad(requestProfileId, requestKey, requestSeq)) return false;
         addToast(extractErrorMessage(err, t("characterDetail.deletion.loadFailed")), "error");
+        return false;
       } finally {
         if (loadInFlightKeyRef.current === requestKey) {
           loadInFlightKeyRef.current = null;
@@ -205,6 +207,7 @@ export const DeletionManager: React.FC<{
     try {
       const deletedMarks = await resetDeletionMarks(requestProfileId, category, key);
       if (!isCurrentProfile(requestProfileId) || resetSeqRef.current !== requestSeq) return;
+      if (!await load()) return;
       addToast(
         t("characterDetail.deletion.resetSuccess", {
           attribute: attributeKeyLabel(key, t),
@@ -212,7 +215,6 @@ export const DeletionManager: React.FC<{
         }),
         "success",
       );
-      await load();
     } catch (err) {
       if (!isCurrentProfile(requestProfileId) || resetSeqRef.current !== requestSeq) return;
       addToast(extractErrorMessage(err, t("characterDetail.deletion.resetFailed")), "error");
@@ -255,6 +257,7 @@ export const DeletionManager: React.FC<{
         evidence: requestPayload.evidence,
       });
       if (!isCurrentProfile(requestProfileId) || requestSeqRef.current !== requestSeq) return;
+      if (!await load()) return;
       addToast(
         mark.consecutive_count >= CHARACTER_DELETION_THRESHOLD
           ? t("characterDetail.deletion.thresholdReached", {
@@ -270,7 +273,6 @@ export const DeletionManager: React.FC<{
       setKey("");
       setReason("");
       setEvidence("");
-      await load();
     } catch (err) {
       if (!isCurrentProfile(requestProfileId) || requestSeqRef.current !== requestSeq) return;
       addToast(extractErrorMessage(err, t("characterDetail.deletion.requestFailed")), "error");
@@ -323,13 +325,13 @@ export const DeletionManager: React.FC<{
         evidence: mark.evidence,
       });
       if (!isCurrentProfile(requestProfileId) || executeSeqRef.current !== requestSeq) return;
+      if (!await load()) return;
       addToast(
         t("characterDetail.deletion.executeSuccess", {
           attribute: attributeKeyLabel(mark.key, t),
         }),
         "success",
       );
-      await load();
       if (!isCurrentProfile(requestProfileId) || executeSeqRef.current !== requestSeq) return;
       await onChanged?.();
     } catch (err) {
