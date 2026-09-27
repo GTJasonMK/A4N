@@ -185,13 +185,21 @@ export const VideoProjectWorkspace: React.FC = () => {
     project?.my_role === "owner" || project?.my_role === "manager" || project?.my_role === "editor";
   const showChapterNavigation = chapters.length > 1;
   const handleBack = async () => {
-    if ((videoDirty || dirtyRegistry.hasDirty()) && !(await confirmDialog({
+    if (!(await confirmLeave(t("common.back")))) return;
+    navigate("/");
+  };
+  const confirmLeave = async (action: string): Promise<boolean> => {
+    if (!(videoDirty || dirtyRegistry.hasDirty())) return true;
+    return confirmDialog({
       title: t("common.unsavedChangesTitle"),
-      message: t("common.unsavedChangesMessage", { name: t("video.projectWorkspace"), action: t("common.back") }),
+      message: t("common.unsavedChangesMessage", { name: t("video.projectWorkspace"), action }),
       confirmText: t("common.discardDraft"),
       dialogType: "warning",
-    }))) return;
-    navigate("/");
+    });
+  };
+  const handleOpenCanvas = async () => {
+    if (!(await confirmLeave(t("video.canvasMode")))) return;
+    navigate(getProjectStudioRoute(projectId));
   };
 
   return (
@@ -221,7 +229,7 @@ export const VideoProjectWorkspace: React.FC = () => {
             {isPackageVisible("canvas") ? <BookButton
               variant="secondary"
               size="sm"
-              onClick={() => navigate(getProjectStudioRoute(projectId))}
+              onClick={() => void handleOpenCanvas()}
               disabled={!project}
             >
               <Layers3 size={14} />
