@@ -522,25 +522,17 @@ export const MangaTab: React.FC<MangaTabProps> = ({
             status: c.status,
             analysis_data: c.analysis_data,
           }));
-      const statuses = rows.length
-        ? await listMangaPipelineStatuses(
-            requestProjectId,
-            rows.map((row) => row.id),
-          )
-        : [];
       if (
         !isProjectCurrent(requestProjectId) ||
         chapterLoadSeqRef.current !== requestSeq
       )
         return;
-      const map: Record<number, MangaPipelineStatusSummary | null> = {};
-      for (const status of statuses) map[status.chapter_id] = status;
       const previousChapterId = selectedChapterIdRef.current;
       const nextSelectedChapter =
         rows.find((row) => row.id === previousChapterId) ??
         (rows.length === 1 ? rows[0] : null);
       setChapters(rows);
-      setStatuses(map);
+      setStatuses({});
       selectedChapterIdRef.current = nextSelectedChapter?.id ?? null;
       setSelectedChapter(nextSelectedChapter);
       if (nextSelectedChapter && nextSelectedChapter.id !== previousChapterId) {
@@ -553,6 +545,28 @@ export const MangaTab: React.FC<MangaTabProps> = ({
       } else if (!nextSelectedChapter) {
         setPagePrompts([]);
         setCurrentContentHash(null);
+      }
+      setLoading(false);
+      if (rows.length === 0) return;
+      try {
+        const statuses = await listMangaPipelineStatuses(
+          requestProjectId,
+          rows.map((row) => row.id),
+        );
+        if (
+          !isProjectCurrent(requestProjectId) ||
+          chapterLoadSeqRef.current !== requestSeq
+        ) return;
+        const statusMap: Record<number, MangaPipelineStatusSummary | null> = {};
+        for (const status of statuses) statusMap[status.chapter_id] = status;
+        setStatuses(statusMap);
+      } catch (err) {
+        if (
+          isProjectCurrent(requestProjectId) &&
+          chapterLoadSeqRef.current === requestSeq
+        ) {
+          addToast(extractErrorMessage(err, t("comic.loadPipelineStatusFailed")), "error");
+        }
       }
     } catch (err) {
       if (

@@ -99,17 +99,33 @@ export async function listServerLlmConfig(): Promise<LlmConfigSummary[]> {
   return apiInvoke<LlmConfigSummary[]>("list_llm_config");
 }
 
-export async function listLlmConfig(): Promise<LlmConfigSummary[]> {
-  if (!usesLocalRuntimeSettings()) return listServerLlmConfig();
-  const [serverConfigs, localConfigs] = await Promise.all([
+export async function loadLlmConfigList(): Promise<{
+  configs: LlmConfigSummary[];
+  warning?: unknown;
+}> {
+  if (!usesLocalRuntimeSettings()) {
+    return { configs: await listServerLlmConfig() };
+  }
+  const [serverResult, localResult] = await Promise.allSettled([
     listServerLlmConfig(),
-    listLocalLlmConfigs(),
+    Promise.resolve(listLocalLlmConfigs()),
   ]);
-  return mergeLocalRuntimeConfigs(
-    localConfigs,
-    systemDefaultLlmConfig(serverConfigs),
-    usesSystemDefaultLlmConfig(),
-  );
+  if (localResult.status === "rejected") throw localResult.reason;
+  const serverConfigs = serverResult.status === "fulfilled" ? serverResult.value : [];
+  return {
+    configs: mergeLocalRuntimeConfigs(
+      localResult.value,
+      systemDefaultLlmConfig(serverConfigs),
+      usesSystemDefaultLlmConfig(),
+    ),
+    warning: serverResult.status === "rejected" ? serverResult.reason : undefined,
+  };
+}
+
+export async function listLlmConfig(): Promise<LlmConfigSummary[]> {
+  const loaded = await loadLlmConfigList();
+  if (loaded.warning !== undefined) throw loaded.warning;
+  return loaded.configs;
 }
 
 export async function createServerLlmConfig(

@@ -17,13 +17,24 @@ export interface ShootingScriptTabData {
 export interface ShootingScriptOrProgressData {
   view: ChapterShootingScriptView | null;
   unitProgress: ChapterShootingScriptUnitProgressView | null;
+  scriptError?: unknown;
 }
 
 export async function loadShootingScriptOrProgress(
   projectId: number,
   chapterId: number,
 ): Promise<ShootingScriptOrProgressData> {
-  const view = await getChapterShootingScript(projectId, chapterId);
+  let view: ChapterShootingScriptView | null;
+  try {
+    view = await getChapterShootingScript(projectId, chapterId);
+  } catch (scriptError) {
+    try {
+      const unitProgress = await getChapterShootingScriptUnitProgress(projectId, chapterId);
+      return { view: null, unitProgress, scriptError };
+    } catch {
+      throw scriptError;
+    }
+  }
   if (view) return { view, unitProgress: null };
   return {
     view: null,

@@ -82,11 +82,18 @@ export const ComicProjectWorkspace: React.FC = () => {
         navigate("/", { replace: true });
         return;
       }
-      if (chaptersResult.status === "rejected") throw chaptersResult.reason;
-      const snapshotChapters = chaptersResult.value;
       if (refreshRequestRef.current !== requestId) return;
       setProject(item);
-      setChapters(snapshotChapters);
+      if (chaptersResult.status === "fulfilled") {
+        setChapters(chaptersResult.value);
+      } else {
+        const message = extractErrorMessage(
+          chaptersResult.reason,
+          translatorRef.current("comic.loadProjectFailed"),
+        );
+        setLoadError(message);
+        addToast(message, "error");
+      }
     } catch (err) {
       if (refreshRequestRef.current === requestId) {
         const message = extractErrorMessage(err, translatorRef.current("comic.loadProjectFailed"));

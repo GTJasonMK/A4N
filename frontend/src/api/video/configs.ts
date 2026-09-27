@@ -83,17 +83,33 @@ export async function listServerVideoConfigs(): Promise<VideoGenConfig[]> {
   return apiInvoke<VideoGenConfig[]>("list_video_configs");
 }
 
-export async function listVideoConfigs(): Promise<VideoGenConfig[]> {
-  if (!usesLocalRuntimeSettings()) return listServerVideoConfigs();
-  const [serverConfigs, localConfigs] = await Promise.all([
+export async function loadVideoConfigList(): Promise<{
+  configs: VideoGenConfig[];
+  warning?: unknown;
+}> {
+  if (!usesLocalRuntimeSettings()) {
+    return { configs: await listServerVideoConfigs() };
+  }
+  const [serverResult, localResult] = await Promise.allSettled([
     listServerVideoConfigs(),
-    listLocalVideoConfigs(),
+    Promise.resolve(listLocalVideoConfigs()),
   ]);
-  return mergeLocalRuntimeConfigs(
-    localConfigs,
-    systemDefaultVideoConfig(serverConfigs),
-    usesSystemDefaultVideoConfig(),
-  );
+  if (localResult.status === "rejected") throw localResult.reason;
+  const serverConfigs = serverResult.status === "fulfilled" ? serverResult.value : [];
+  return {
+    configs: mergeLocalRuntimeConfigs(
+      localResult.value,
+      systemDefaultVideoConfig(serverConfigs),
+      usesSystemDefaultVideoConfig(),
+    ),
+    warning: serverResult.status === "rejected" ? serverResult.reason : undefined,
+  };
+}
+
+export async function listVideoConfigs(): Promise<VideoGenConfig[]> {
+  const loaded = await loadVideoConfigList();
+  if (loaded.warning !== undefined) throw loaded.warning;
+  return loaded.configs;
 }
 
 export async function addServerVideoConfig(

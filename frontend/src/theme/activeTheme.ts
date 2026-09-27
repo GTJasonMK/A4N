@@ -193,10 +193,24 @@ async function readRuntimeTheme(userId: number): Promise<void> {
   const requestSeq = ++themeSyncSeq;
   const themesVersion = themeMutationSeq;
   const appearanceVersion = appearanceMutationSeq;
-  const [themes, preference] = await Promise.all([listThemes(), getThemePreference()]);
-  if (requestSeq !== themeSyncSeq || runtimeUserId !== userId || preference.user_id !== userId) return;
-  if (themesVersion === themeMutationSeq) runtimeThemes = themes;
-  if (appearanceVersion === appearanceMutationSeq) runtimeAppearance = preference.appearance;
+  const [themesResult, preferenceResult] = await Promise.allSettled([
+    listThemes(),
+    getThemePreference(),
+  ]);
+  if (requestSeq !== themeSyncSeq || runtimeUserId !== userId) return;
+  if (themesResult.status === "fulfilled" && themesVersion === themeMutationSeq) {
+    runtimeThemes = themesResult.value;
+  }
+  if (
+    preferenceResult.status === "fulfilled" &&
+    preferenceResult.value.user_id === userId &&
+    appearanceVersion === appearanceMutationSeq
+  ) {
+    runtimeAppearance = preferenceResult.value.appearance;
+  }
+  if (themesResult.status === "rejected" && preferenceResult.status === "rejected") {
+    throw themesResult.reason;
+  }
   writeThemeCache(userId, runtimeThemes, runtimeAppearance);
   applyRuntimeTheme();
 }

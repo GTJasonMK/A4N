@@ -3,7 +3,7 @@ import { extractErrorMessage } from "../../api";
 import {
   addVideoConfig,
   addServerVideoConfig,
-  listVideoConfigs,
+  loadVideoConfigList,
   listServerVideoConfigs,
   removeVideoConfig,
   removeServerVideoConfig,
@@ -47,12 +47,17 @@ export const VideoTab: React.FC<VideoTabProps> = ({ scope = "local" }) => {
     warning?: string | null;
   }> => {
     const [listResult, catalogResult] = await Promise.allSettled([
-      serverScope ? listServerVideoConfigs() : listVideoConfigs(),
+      serverScope
+        ? listServerVideoConfigs().then((configs) => ({ configs, warning: undefined }))
+        : loadVideoConfigList(),
       listModelProviderCatalog(),
     ]);
     if (listResult.status === "rejected") throw listResult.reason;
-    const list = listResult.value;
+    const list = listResult.value.configs;
     const providerCatalog = catalogResult.status === "fulfilled" ? catalogResult.value : null;
+    const warnings = listResult.value.warning === undefined
+      ? []
+      : [extractErrorMessage(listResult.value.warning, t("settings.loadConfigFailed", { name: t("settings.video") }))];
     const items = list.map((config) => {
       if (providerCatalog) assertCatalogProvider("video", config.backend, providerCatalog);
       return {
@@ -66,8 +71,8 @@ export const VideoTab: React.FC<VideoTabProps> = ({ scope = "local" }) => {
       items,
       catalog: providerCatalog,
       warning: catalogResult.status === "rejected"
-        ? extractErrorMessage(catalogResult.reason, t("settings.loadConfigFailed", { name: t("settings.video") }))
-        : null,
+        ? [...warnings, extractErrorMessage(catalogResult.reason, t("settings.loadConfigFailed", { name: t("settings.video") }))].join("; ")
+        : warnings.join("; ") || null,
     };
   }, [serverScope, t]);
   const { items, setItems, catalog, loading, error, refresh } = useConfigItems(

@@ -3,7 +3,7 @@ import { extractErrorMessage } from "../../api";
 import {
   addImageConfig,
   addServerImageConfig,
-  listImageConfigs,
+  loadImageConfigList,
   listServerImageConfigs,
   previewTestImageConfigRequest,
   removeImageConfig,
@@ -57,12 +57,17 @@ export const ImageTab: React.FC<ImageTabProps> = ({ scope = "local" }) => {
     warning?: string | null;
   }> => {
     const [listResult, catalogResult] = await Promise.allSettled([
-      serverScope ? listServerImageConfigs() : listImageConfigs(),
+      serverScope
+        ? listServerImageConfigs().then((configs) => ({ configs, warning: undefined }))
+        : loadImageConfigList(),
       listModelProviderCatalog(),
     ]);
     if (listResult.status === "rejected") throw listResult.reason;
-    const list = listResult.value;
+    const list = listResult.value.configs;
     const providerCatalog = catalogResult.status === "fulfilled" ? catalogResult.value : null;
+    const warnings = listResult.value.warning === undefined
+      ? []
+      : [extractErrorMessage(listResult.value.warning, t("settings.loadConfigFailed", { name: t("settings.image") }))];
     const items = list.map((config) => {
       if (providerCatalog) assertCatalogProvider("image", config.backend, providerCatalog);
       return {
@@ -76,8 +81,8 @@ export const ImageTab: React.FC<ImageTabProps> = ({ scope = "local" }) => {
       items,
       catalog: providerCatalog,
       warning: catalogResult.status === "rejected"
-        ? extractErrorMessage(catalogResult.reason, t("settings.loadConfigFailed", { name: t("settings.image") }))
-        : null,
+        ? [...warnings, extractErrorMessage(catalogResult.reason, t("settings.loadConfigFailed", { name: t("settings.image") }))].join("; ")
+        : warnings.join("; ") || null,
     };
   }, [serverScope, t]);
   const { items, setItems, catalog, loading, error, refresh } = useConfigItems(

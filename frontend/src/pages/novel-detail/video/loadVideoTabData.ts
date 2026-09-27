@@ -32,6 +32,7 @@ export interface LoadedSegmentPlanDraft {
   workflowRunId: number;
   workflowStatus: string;
   resumeTaskId: string | null;
+  resumeTaskError?: unknown;
   resumeOptions: GeneratePromptOptions;
   workflowProgress: WorkflowRunSummary["progress"];
   segments: Record<string, unknown>[];
@@ -230,19 +231,22 @@ export const loadVideoSegmentPlanDraft = async (
   });
   const run = runs[0];
   if (!run || (run.status !== "running" && !run.can_resume)) return null;
-  const [detail, resumeTaskId] = await Promise.all([
+  const [detailResult, resumeResult] = await Promise.allSettled([
     loadVideoSegmentPlanDraftDetail(projectId, chapterId, run.id),
     run.status === "running"
       ? Promise.resolve(null)
       : workflowResumeTaskId(projectId, run.id, t),
   ]);
-  return loadedVideoSegmentPlanDraftFromDetail(
-    detail,
+  if (detailResult.status === "rejected") throw detailResult.reason;
+  const draft = loadedVideoSegmentPlanDraftFromDetail(
+    detailResult.value,
     projectId,
     chapterId,
-    resumeTaskId,
+    resumeResult.status === "fulfilled" ? resumeResult.value : null,
     t,
   );
+  if (resumeResult.status === "rejected") draft.resumeTaskError = resumeResult.reason;
+  return draft;
 };
 
 const workflowResumeTaskId = async (

@@ -116,6 +116,11 @@ export function useVideoTabLoading({
       }
       setSegmentPlanDraft(nextDraft);
       setSegmentPlanPreview(nextDraft?.segments ?? []);
+      if (nextDraft?.resumeTaskError !== undefined) {
+        setSegmentPlanDraftError(
+          extractErrorMessage(nextDraft.resumeTaskError, t("video.chapter.loadSavedPlanFailed")),
+        );
+      }
       return nextDraft;
     } catch (err) {
       if (
@@ -179,6 +184,14 @@ export function useVideoTabLoading({
             shootingScriptResult.value.view?.script.scenes ??
             [],
         );
+        if (shootingScriptResult.value.scriptError !== undefined) {
+          failures.push(
+            extractErrorMessage(
+              shootingScriptResult.value.scriptError,
+              t("video.chapter.loadFailed"),
+            ),
+          );
+        }
       } else {
         failures.push(extractErrorMessage(shootingScriptResult.reason, t("video.chapter.loadFailed")));
       }

@@ -5,7 +5,7 @@ import {
   createServerLlmConfig,
   deleteLlmConfig,
   deleteServerLlmConfig,
-  listLlmConfig,
+  loadLlmConfigList,
   listServerLlmConfig,
   previewTestLlmConfigRequest,
   setDefaultLlmConfig,
@@ -49,12 +49,17 @@ export const LlmTab: React.FC<LlmTabProps> = ({ scope = "local" }) => {
     warning?: string | null;
   }> => {
     const [listResult, catalogResult] = await Promise.allSettled([
-      serverScope ? listServerLlmConfig() : listLlmConfig(),
+      serverScope
+        ? listServerLlmConfig().then((configs) => ({ configs, warning: undefined }))
+        : loadLlmConfigList(),
       listModelProviderCatalog(),
     ]);
     if (listResult.status === "rejected") throw listResult.reason;
-    const list = listResult.value;
+    const list = listResult.value.configs;
     const providerCatalog = catalogResult.status === "fulfilled" ? catalogResult.value : null;
+    const warnings = listResult.value.warning === undefined
+      ? []
+      : [extractErrorMessage(listResult.value.warning, t("settings.loadConfigFailed", { name: t("settings.llm") }))];
     const items = list.map((config) => {
       if (providerCatalog) assertCatalogProvider("llm", config.provider, providerCatalog);
       return {
@@ -67,8 +72,8 @@ export const LlmTab: React.FC<LlmTabProps> = ({ scope = "local" }) => {
       items,
       catalog: providerCatalog,
       warning: catalogResult.status === "rejected"
-        ? extractErrorMessage(catalogResult.reason, t("settings.loadConfigFailed", { name: t("settings.llm") }))
-        : null,
+        ? [...warnings, extractErrorMessage(catalogResult.reason, t("settings.loadConfigFailed", { name: t("settings.llm") }))].join("; ")
+        : warnings.join("; ") || null,
     };
   }, [serverScope, t]);
   const { items, setItems, catalog, loading, error, refresh } = useConfigItems(

@@ -119,17 +119,33 @@ export async function listServerImageConfigs(): Promise<ImageGenConfig[]> {
   return apiInvoke<ImageGenConfig[]>("list_image_configs");
 }
 
-export async function listImageConfigs(): Promise<ImageGenConfig[]> {
-  if (!usesLocalRuntimeSettings()) return listServerImageConfigs();
-  const [serverConfigs, localConfigs] = await Promise.all([
+export async function loadImageConfigList(): Promise<{
+  configs: ImageGenConfig[];
+  warning?: unknown;
+}> {
+  if (!usesLocalRuntimeSettings()) {
+    return { configs: await listServerImageConfigs() };
+  }
+  const [serverResult, localResult] = await Promise.allSettled([
     listServerImageConfigs(),
-    listLocalImageConfigs(),
+    Promise.resolve(listLocalImageConfigs()),
   ]);
-  return mergeLocalRuntimeConfigs(
-    localConfigs,
-    systemDefaultImageConfig(serverConfigs),
-    usesSystemDefaultImageConfig(),
-  );
+  if (localResult.status === "rejected") throw localResult.reason;
+  const serverConfigs = serverResult.status === "fulfilled" ? serverResult.value : [];
+  return {
+    configs: mergeLocalRuntimeConfigs(
+      localResult.value,
+      systemDefaultImageConfig(serverConfigs),
+      usesSystemDefaultImageConfig(),
+    ),
+    warning: serverResult.status === "rejected" ? serverResult.reason : undefined,
+  };
+}
+
+export async function listImageConfigs(): Promise<ImageGenConfig[]> {
+  const loaded = await loadImageConfigList();
+  if (loaded.warning !== undefined) throw loaded.warning;
+  return loaded.configs;
 }
 
 export async function addServerImageConfig(
