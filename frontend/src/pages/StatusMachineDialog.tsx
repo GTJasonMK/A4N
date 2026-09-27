@@ -26,7 +26,7 @@ interface StatusMachineDialogProps {
   project: NovelProject;
   canForwardStatus: boolean;
   canRollbackStatus: boolean;
-  onMutated: () => Promise<void> | void;
+  onMutated: () => Promise<boolean | void> | boolean | void;
 }
 
 export const StatusMachineDialog: React.FC<StatusMachineDialogProps> = ({
@@ -76,19 +76,21 @@ export const StatusMachineDialog: React.FC<StatusMachineDialogProps> = ({
     [],
   );
 
-  const loadMachine = useCallback(async () => {
+  const loadMachine = useCallback(async (): Promise<boolean> => {
     const requestScope = scopeKey;
     const requestSeq = machineSeqRef.current + 1;
     machineSeqRef.current = requestSeq;
     setLoadingMachine(true);
     try {
       const data = await getProjectStatusMachine(project.id);
-      if (!isCurrentRequest(requestScope, machineSeqRef, requestSeq)) return;
+      if (!isCurrentRequest(requestScope, machineSeqRef, requestSeq)) return false;
       setMachine(data);
+      return true;
     } catch (err) {
       if (isCurrentRequest(requestScope, machineSeqRef, requestSeq)) {
         addToast(extractErrorMessage(err, t("statusMachine.loadFailed")), "error");
       }
+      return false;
     } finally {
       if (isCurrentRequest(requestScope, machineSeqRef, requestSeq)) {
         setLoadingMachine(false);
@@ -137,10 +139,10 @@ export const StatusMachineDialog: React.FC<StatusMachineDialogProps> = ({
       try {
         await action();
         if (!isCurrentMutation(requestProjectId, requestSeq)) return false;
-        addToast(successMessage, "success");
-        await onMutated();
+        if (await onMutated() === false) return false;
         if (!isCurrentMutation(requestProjectId, requestSeq)) return false;
-        if (open) await loadMachine();
+        if (open && !await loadMachine()) return false;
+        addToast(successMessage, "success");
         return true;
       } catch (err) {
         if (isCurrentMutation(requestProjectId, requestSeq)) {

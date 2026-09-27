@@ -75,7 +75,7 @@ export const QueueTab: React.FC = () => {
     return mountedRef.current && refreshSeqRef.current === seq;
   }, []);
 
-  const refresh = useCallback(async (options?: { force?: boolean }) => {
+  const refresh = useCallback(async (options?: { force?: boolean }): Promise<boolean> => {
     if (!canReadQueueDiagnostics) {
       refreshBusyRef.current = false;
       setStats(null);
@@ -85,9 +85,9 @@ export const QueueTab: React.FC = () => {
       setLoadErrors([]);
       setLoading(false);
       setTasksLoading(false);
-      return;
+      return false;
     }
-    if (refreshBusyRef.current && !options?.force) return;
+    if (refreshBusyRef.current && !options?.force) return false;
     const requestSeq = refreshSeqRef.current + 1;
     refreshSeqRef.current = requestSeq;
     refreshBusyRef.current = true;
@@ -100,7 +100,7 @@ export const QueueTab: React.FC = () => {
         listActiveWorkflows(),
         listWorkflowRuns({ resumable_only: false, limit: 40 }),
       ]);
-      if (!isCurrentRefresh(requestSeq)) return;
+      if (!isCurrentRefresh(requestSeq)) return false;
       const errors: string[] = [];
       if (statsResult.status === "fulfilled") setStats(statsResult.value);
       else {
@@ -119,6 +119,7 @@ export const QueueTab: React.FC = () => {
         errors.push(`${t("settingsQueue.workflowRuns")}: ${extractErrorMessage(runsResult.reason, t("settingsQueue.loadQueueFailed"))}`);
       }
       setLoadErrors(errors);
+      return errors.length === 0;
     } finally {
       if (refreshSeqRef.current === requestSeq) {
         refreshBusyRef.current = false;
@@ -182,8 +183,9 @@ export const QueueTab: React.FC = () => {
     try {
       await cancelTask(taskId);
       if (!mountedRef.current) return;
+      const refreshed = await refresh({ force: true });
+      if (!refreshed) return;
       addToast(t("settingsQueue.taskCancelled"), "success");
-      await refresh({ force: true });
     } catch (err) {
       if (!mountedRef.current) return;
       addToast(extractErrorMessage(err, t("settingsQueue.cancelTaskFailed")), "error");
@@ -202,8 +204,9 @@ export const QueueTab: React.FC = () => {
     try {
       await cancelWorkflow({ task_id: taskId, workflow_run_id: null });
       if (!mountedRef.current) return;
+      const refreshed = await refresh({ force: true });
+      if (!refreshed) return;
       addToast(t("settingsQueue.workflowCancelled"), "success");
-      await refresh({ force: true });
     } catch (err) {
       if (!mountedRef.current) return;
       addToast(extractErrorMessage(err, t("settingsQueue.cancelWorkflowFailed")), "error");
@@ -218,8 +221,9 @@ export const QueueTab: React.FC = () => {
     try {
       await resumeWorkflowRun(run.id);
       if (!mountedRef.current) return;
+      const refreshed = await refresh({ force: true });
+      if (!refreshed) return;
       addToast(t("settingsQueue.workflowResumed"), "success");
-      await refresh({ force: true });
     } catch (err) {
       if (!mountedRef.current) return;
       addToast(extractErrorMessage(err, t("settingsQueue.resumeWorkflowFailed")), "error");

@@ -231,28 +231,30 @@ export const NovelDetail: React.FC = () => {
     titleActionBusyRef.current = false;
   };
 
-  const refresh = async (requestProjectId = projectId) => {
+  const refresh = async (requestProjectId = projectId): Promise<boolean> => {
     const requestSeq = refreshSeqRef.current + 1;
     refreshSeqRef.current = requestSeq;
     if (!Number.isFinite(requestProjectId) || requestProjectId <= 0) {
       addToast(t("novel.projectIdInvalid"), "error");
       navigate("/");
-      return;
+      return false;
     }
     setLoading(true);
     try {
       const p = await getProject(String(requestProjectId));
-      if (!isCurrentAction(requestProjectId, refreshSeqRef, requestSeq)) return;
+      if (!isCurrentAction(requestProjectId, refreshSeqRef, requestSeq)) return false;
       if (p.project_kind !== "text") {
         navigate(getProjectHomeEntryRoute(p), { replace: true });
-        return;
+        return false;
       }
       setProject(p);
+      return true;
     } catch (err) {
       if (isCurrentAction(requestProjectId, refreshSeqRef, requestSeq)) {
         addToast(extractErrorMessage(err, t("novel.loadProject")), "error");
         if (project?.id !== requestProjectId) navigate("/");
       }
+      return false;
     } finally {
       if (isCurrentAction(requestProjectId, refreshSeqRef, requestSeq)) {
         setLoading(false);

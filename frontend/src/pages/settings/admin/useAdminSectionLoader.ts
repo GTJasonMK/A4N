@@ -47,11 +47,11 @@ export function useAdminSectionLoader<T>(
     [isCurrentScope],
   );
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (): Promise<boolean> => {
     if (
       Object.is(inFlightLoadRef.current?.scopeKey, scopeKey) &&
       inFlightLoadRef.current?.loadData === loadData
-    ) return;
+    ) return false;
     const requestSeq = loadSeqRef.current + 1;
     loadSeqRef.current = requestSeq;
     inFlightLoadRef.current = { scopeKey, loadData };
@@ -59,14 +59,16 @@ export function useAdminSectionLoader<T>(
     setFailure(null);
     try {
       const data = await loadData();
-      if (!isCurrentLoad(scopeKey, requestSeq)) return;
+      if (!isCurrentLoad(scopeKey, requestSeq)) return false;
       applyData(data);
       setFailure(null);
+      return true;
     } catch (err) {
-      if (!isCurrentLoad(scopeKey, requestSeq)) return;
+      if (!isCurrentLoad(scopeKey, requestSeq)) return false;
       const message = extractErrorMessage(err, errorMessage);
       setFailure({ scope: scopeKey, message });
       addToast(message, "error");
+      return false;
     } finally {
       if (isCurrentLoad(scopeKey, requestSeq)) {
         inFlightLoadRef.current = null;

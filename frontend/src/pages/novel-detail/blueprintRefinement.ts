@@ -16,7 +16,7 @@ interface RunBlueprintRefinementWithProgressInput {
   successMessage: string;
   errorMessage: string;
   isCurrent: () => boolean;
-  refresh: () => Promise<void>;
+  refresh: () => Promise<boolean | void>;
   t: MessageTranslator;
 }
 
@@ -53,7 +53,7 @@ export async function runBlueprintRefinementWithProgress({
       if (!isCurrent()) throw new Error(t("workflow.cancelled"));
       const warnings = await syncBlueprintMaterials(projectId);
       if (!isCurrent()) throw new Error(t("workflow.cancelled"));
-      await refresh();
+      if (await refresh() === false) throw new Error(t("novel.loadProject"));
       if (!isCurrent()) throw new Error(t("workflow.cancelled"));
       return warnings;
     },

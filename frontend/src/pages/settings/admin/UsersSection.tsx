@@ -240,13 +240,14 @@ export const UsersSection: React.FC<{ currentUserId: number }> = ({
     try {
       await createAdminUser(input);
       if (!isCurrentUser(requestCurrentUserId)) return;
+      const refreshed = await load();
+      if (!refreshed) return;
       if (createFormVersionRef.current === requestFormVersion && createOpen) {
         addToast(t("settingsAdmin.userCreated"), "success");
         resetCreate();
       } else {
         addToast(t("settingsAdmin.userCreatedWithDraft"), "info");
       }
-      await load();
     } catch (err) {
       if (!isCurrentUser(requestCurrentUserId)) return;
       addToast(extractErrorMessage(err, t("settingsAdmin.createUserFailed")), "error");
@@ -277,8 +278,9 @@ export const UsersSection: React.FC<{ currentUserId: number }> = ({
       if (!isCurrentUser(requestCurrentUserId)) return;
       await createInviteCode({ code: trimmedCode });
       if (!isCurrentUser(requestCurrentUserId)) return;
+      const refreshed = await load();
+      if (!refreshed) return;
       addToast(t("settingsAdmin.inviteCreated"), "success");
-      await load();
     } catch (err) {
       if (!isCurrentUser(requestCurrentUserId)) return;
       addToast(extractErrorMessage(err, t("settingsAdmin.createInviteFailed")), "error");
@@ -313,12 +315,16 @@ export const UsersSection: React.FC<{ currentUserId: number }> = ({
       }
       const updated = await updateUserRole(u.id, role);
       if (!isCurrentUser(requestCurrentUserId)) return;
-      addToast(t("settingsAdmin.roleUpdated"), "success");
       if (updated.id === requestCurrentUserId) {
         useAuthStore.setState({ user: updated });
-        if (updated.role !== "admin") return;
+        if (updated.role !== "admin") {
+          addToast(t("settingsAdmin.roleUpdated"), "success");
+          return;
+        }
       }
-      await load();
+      const refreshed = await load();
+      if (!refreshed) return;
+      addToast(t("settingsAdmin.roleUpdated"), "success");
     } catch (err) {
       if (!isCurrentUser(requestCurrentUserId)) return;
       addToast(extractErrorMessage(err, t("settingsAdmin.updateFailed")), "error");
@@ -346,8 +352,9 @@ export const UsersSection: React.FC<{ currentUserId: number }> = ({
       if (!isCurrentUser(requestCurrentUserId)) return;
       await disableUser(u.id);
       if (!isCurrentUser(requestCurrentUserId)) return;
+      const refreshed = await load();
+      if (!refreshed) return;
       addToast(t("settingsAdmin.disabled"), "success");
-      await load();
     } catch (err) {
       if (!isCurrentUser(requestCurrentUserId)) return;
       addToast(extractErrorMessage(err, t("settingsAdmin.disableFailed")), "error");

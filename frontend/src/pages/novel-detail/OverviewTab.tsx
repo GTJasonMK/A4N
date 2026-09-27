@@ -34,7 +34,7 @@ const ProjectCollaborationPanel = lazy(() =>
 
 interface OverviewTabProps {
   project: NovelProject;
-  onRefresh: () => Promise<void>;
+  onRefresh: () => Promise<boolean>;
   onOpenImports: () => void;
 }
 
@@ -120,19 +120,20 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
     };
   }, []);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (): Promise<boolean> => {
     const requestProjectId = project.id;
     const requestSeq = loadSeqRef.current + 1;
     loadSeqRef.current = requestSeq;
     setLoading(true);
     try {
       const bp = await getBlueprint(requestProjectId);
-      if (!isCurrentLoad(requestProjectId, requestSeq)) return;
+      if (!isCurrentLoad(requestProjectId, requestSeq)) return false;
       setBlueprint(bp);
+      return true;
     } catch (err) {
-      if (!isCurrentLoad(requestProjectId, requestSeq)) return;
-      setBlueprint(null);
+      if (!isCurrentLoad(requestProjectId, requestSeq)) return false;
       addToast(extractErrorMessage(err, t("writing.blueprintLoadFailed")), "error");
+      return false;
     } finally {
       if (isCurrentLoad(requestProjectId, requestSeq)) {
         setLoadedProjectId(requestProjectId);

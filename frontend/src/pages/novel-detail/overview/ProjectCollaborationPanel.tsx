@@ -25,7 +25,7 @@ import { useI18n } from "../../../i18n";
 
 interface ProjectCollaborationPanelProps {
   project: NovelProject;
-  onRefresh: () => Promise<void>;
+  onRefresh: () => Promise<boolean>;
 }
 
 export const ProjectCollaborationPanel: React.FC<ProjectCollaborationPanelProps> = ({
@@ -56,7 +56,7 @@ export const ProjectCollaborationPanel: React.FC<ProjectCollaborationPanelProps>
   const canLeave = project.my_role !== "owner";
   const rootProjectId = project.collaboration_root_project_id;
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (): Promise<boolean> => {
     const requestSeq = loadSeqRef.current + 1;
     loadSeqRef.current = requestSeq;
     setLoading(true);
@@ -65,13 +65,14 @@ export const ProjectCollaborationPanel: React.FC<ProjectCollaborationPanelProps>
         listProjectMembers(rootProjectId),
         canManage ? listProjectInvites(rootProjectId) : Promise.resolve([]),
       ]);
-      if (!mountedRef.current || loadSeqRef.current !== requestSeq) return;
+      if (!mountedRef.current || loadSeqRef.current !== requestSeq) return false;
       const errors: string[] = [];
       if (membersResult.status === "fulfilled") setMembers(membersResult.value);
       else errors.push(extractErrorMessage(membersResult.reason, t("novel.collaborationActions.membersLoadFailed")));
       if (invitesResult.status === "fulfilled") setInvites(invitesResult.value);
       else errors.push(extractErrorMessage(invitesResult.reason, t("novel.collaborationActions.invitesLoadFailed")));
       errors.forEach((message) => addToast(message, "error"));
+      return errors.length === 0;
     } finally {
       if (mountedRef.current && loadSeqRef.current === requestSeq) {
         setLoading(false);
@@ -119,9 +120,8 @@ export const ProjectCollaborationPanel: React.FC<ProjectCollaborationPanelProps>
       });
       if (!mountedRef.current) return;
       setIdentity("");
+      if (!await load() || !await onRefresh()) return;
       addToast(t("novel.collaborationActions.inviteSent"), "success");
-      await load();
-      await onRefresh();
     } catch (err) {
       if (mountedRef.current) {
         addToast(extractErrorMessage(err, t("novel.collaborationActions.inviteFailed")), "error");
@@ -138,9 +138,8 @@ export const ProjectCollaborationPanel: React.FC<ProjectCollaborationPanelProps>
     try {
       await updateProjectMemberRole(rootProjectId, member.user_id, nextRole);
       if (!mountedRef.current) return;
+      if (!await load() || !await onRefresh()) return;
       addToast(t("novel.collaborationActions.roleUpdated"), "success");
-      await load();
-      await onRefresh();
     } catch (err) {
       if (mountedRef.current) {
         addToast(extractErrorMessage(err, t("novel.collaborationActions.roleUpdateFailed")), "error");
@@ -166,9 +165,8 @@ export const ProjectCollaborationPanel: React.FC<ProjectCollaborationPanelProps>
     try {
       await removeProjectMember(rootProjectId, member.user_id);
       if (!mountedRef.current) return;
+      if (!await load() || !await onRefresh()) return;
       addToast(t("novel.collaborationActions.removed"), "success");
-      await load();
-      await onRefresh();
     } catch (err) {
       if (mountedRef.current) {
         addToast(extractErrorMessage(err, t("novel.collaborationActions.removeFailed")), "error");
@@ -184,9 +182,8 @@ export const ProjectCollaborationPanel: React.FC<ProjectCollaborationPanelProps>
     try {
       await revokeProjectInvite(rootProjectId, invite.id);
       if (!mountedRef.current) return;
+      if (!await load() || !await onRefresh()) return;
       addToast(t("novel.collaborationActions.inviteRevoked"), "success");
-      await load();
-      await onRefresh();
     } catch (err) {
       if (mountedRef.current) {
         addToast(extractErrorMessage(err, t("novel.collaborationActions.revokeFailed")), "error");

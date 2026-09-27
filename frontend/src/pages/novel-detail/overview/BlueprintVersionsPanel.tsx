@@ -19,7 +19,7 @@ const blueprintVersionLabel = (version: string, t: MessageTranslator): string =>
 
 interface BlueprintVersionsPanelProps {
   projectId: number;
-  onMutated: () => Promise<void>;
+  onMutated: () => Promise<boolean>;
 }
 
 export const BlueprintVersionsPanel: React.FC<BlueprintVersionsPanelProps> = ({
@@ -54,8 +54,8 @@ export const BlueprintVersionsPanel: React.FC<BlueprintVersionsPanelProps> = ({
     };
   }, []);
 
-  const load = useCallback(async () => {
-    if (loadingRef.current || restoringRef.current != null) return;
+  const load = useCallback(async (): Promise<boolean> => {
+    if (loadingRef.current || restoringRef.current != null) return false;
     const requestProjectId = projectId;
     const requestSeq = loadSeqRef.current + 1;
     loadSeqRef.current = requestSeq;
@@ -68,18 +68,20 @@ export const BlueprintVersionsPanel: React.FC<BlueprintVersionsPanelProps> = ({
         activeProjectRef.current !== requestProjectId ||
         loadSeqRef.current !== requestSeq
       ) {
-        return;
+        return false;
       }
       setVersions(data);
+      return true;
     } catch (err) {
       if (
         !mountedRef.current ||
         activeProjectRef.current !== requestProjectId ||
         loadSeqRef.current !== requestSeq
       ) {
-        return;
+        return false;
       }
       addToast(extractErrorMessage(err, t("novel.blueprintVersions.loadFailed")), "error");
+      return false;
     } finally {
       if (loadSeqRef.current === requestSeq) loadingRef.current = false;
       if (
@@ -213,6 +215,9 @@ export const BlueprintVersionsPanel: React.FC<BlueprintVersionsPanelProps> = ({
         version: version.version,
       });
       if (!mountedRef.current || activeProjectRef.current !== requestProjectId) return;
+      if (!await onMutated()) return;
+      if (!mountedRef.current || activeProjectRef.current !== requestProjectId) return;
+      if (!await load()) return;
       addToast(
         result.warnings.length > 0
           ? t("novel.blueprintVersions.restoredWithWarnings", {
@@ -222,9 +227,6 @@ export const BlueprintVersionsPanel: React.FC<BlueprintVersionsPanelProps> = ({
           : t("novel.blueprintVersions.restored", { version: versionLabel }),
         result.warnings.length > 0 ? "info" : "success",
       );
-      await onMutated();
-      if (!mountedRef.current || activeProjectRef.current !== requestProjectId) return;
-      await load();
     } catch (err) {
       if (!mountedRef.current || activeProjectRef.current !== requestProjectId) return;
       addToast(extractErrorMessage(err, t("novel.blueprintVersions.restoreFailed")), "error");

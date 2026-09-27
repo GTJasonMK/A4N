@@ -79,8 +79,8 @@ export const PromptTab: React.FC = () => {
     setDirty(true);
   }, []);
 
-  const refresh = useCallback(async () => {
-    if (refreshBusyRef.current) return;
+  const refresh = useCallback(async (): Promise<boolean> => {
+    if (refreshBusyRef.current) return false;
     const requestSeq = refreshSeqRef.current + 1;
     const requestEditVersion = editVersionRef.current;
     refreshSeqRef.current = requestSeq;
@@ -92,10 +92,10 @@ export const PromptTab: React.FC = () => {
         promptList(),
         promptListCategories(),
       ]);
-      if (!mountedRef.current || refreshSeqRef.current !== requestSeq) return;
+      if (!mountedRef.current || refreshSeqRef.current !== requestSeq) return false;
       if (dirtyRef.current && editVersionRef.current !== requestEditVersion) {
         addToast(t("settingsPrompt.draftKept"), "info");
-        return;
+        return false;
       }
       const failures: string[] = [];
       if (listResult.status === "fulfilled") {
@@ -115,6 +115,7 @@ export const PromptTab: React.FC = () => {
       }
       setLoadErrors(failures);
       failures.forEach((message) => addToast(message, "error"));
+      return failures.length === 0;
     } finally {
       if (refreshSeqRef.current === requestSeq) refreshBusyRef.current = false;
       if (mountedRef.current && refreshSeqRef.current === requestSeq)
@@ -261,9 +262,10 @@ export const PromptTab: React.FC = () => {
         );
         return;
       }
+      const refreshed = await refresh();
+      if (!refreshed) return;
       markClean();
       addToast(t("settingsPrompt.saved", { name: requestLabel }), "success");
-      await refresh();
     } catch (err) {
       if (!mountedRef.current || saveSeqRef.current !== requestSeq) return;
       addToast(extractErrorMessage(err, t("settings.saveFailed")), "error");
@@ -316,9 +318,10 @@ export const PromptTab: React.FC = () => {
         );
         return;
       }
+      const refreshed = await refresh();
+      if (!refreshed) return;
       markClean();
       addToast(t("settingsPrompt.restored", { name: requestLabel }), "success");
-      await refresh();
     } catch (err) {
       if (!mountedRef.current || resetSeqRef.current !== requestSeq) return;
       addToast(extractErrorMessage(err, t("settingsPrompt.resetFailed")), "error");
@@ -378,9 +381,10 @@ export const PromptTab: React.FC = () => {
         addToast(t("settingsPrompt.keepDraft", { message: successMessage }), "info");
         return;
       }
+      const refreshed = await refresh();
+      if (!refreshed) return;
       markClean();
       addToast(successMessage, "success");
-      await refresh();
     } catch (err) {
       if (!mountedRef.current || defaultsSeqRef.current !== requestSeq) return;
       addToast(extractErrorMessage(err, t("settingsPrompt.loadDefaultsFailed")), "error");
