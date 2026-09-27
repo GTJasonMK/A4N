@@ -400,10 +400,13 @@ export function ProfileMaterialUploadDialog({
   onCopyPrompt: () => void;
   onUpload: (file: File) => void;
 }) {
-  if (!group) return null;
   const { t } = useI18n();
-  const uploadDirty = !setPrimary;
-  useNovelDetailDirty(`video-material-upload:${group.profile.id}:${group.kind}`, uploadDirty);
+  const uploadDirty = group != null && !setPrimary;
+  useNovelDetailDirty(
+    group ? `video-material-upload:${group.profile.id}:${group.kind}` : "video-material-upload:none",
+    uploadDirty,
+  );
+  if (!group) return null;
   const close = async () => {
     if (busy) return;
     if (uploadDirty && !(await confirmDialog({
