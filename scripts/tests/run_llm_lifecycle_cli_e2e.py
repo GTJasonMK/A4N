@@ -1,40 +1,25 @@
 #!/usr/bin/env python3
 """Verify LLM lifecycle failures through CLI, real Host, queue and fixture Provider."""
 
-import argparse
 import json
-import os
 import tempfile
 import time
 from pathlib import Path
 
 from run_agent_cli_e2e import data, thread_snapshot, wait_for_run
-from run_cli_contract_e2e import Cli, RunnerError, checked, provider_log_entries, runtime_snapshot, secure_json
+from run_cli_contract_e2e import RunnerError, checked, cli_e2e_parser, command_error, logged_in_cli, provider_log_entries, runtime_snapshot, secure_json
 
 
 def main():
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--a4n", required=True)
-    parser.add_argument("--server", required=True)
-    parser.add_argument("--username", required=True)
-    parser.add_argument("--password-env", default="A4N_PASSWORD")
-    parser.add_argument("--provider-url", required=True)
-    parser.add_argument("--provider-log", type=Path, required=True)
-    parser.add_argument("--report", type=Path, required=True)
+    parser = cli_e2e_parser(__doc__)
     args = parser.parse_args()
     args.report.parent.mkdir(parents=True, exist_ok=True)
     report = {"success": False, "checks": []}
     try:
-        with tempfile.TemporaryDirectory(prefix="a4n-llm-lifecycle-") as directory:
+        with tempfile.TemporaryDirectory(prefix="a4n-llm-lifecycle-", dir=args.report.parent) as directory:
             work = Path(directory)
-            env = os.environ.copy()
-            password = env.pop(args.password_env)
-            env.pop("A4N_ACCESS_TOKEN", None)
-            cli = Cli(args.a4n, args.server, work / "cli.json", work / "context.json", 60, env)
-            bare = Cli(args.a4n, args.server, work / "bare.json", work / "bare-context.json", 60, env)
-            for client in (cli, bare):
-                checked(client, ["auth", "login", "--username", args.username, "--password-stdin"], "login", password + "\n")
-            checked(cli, ["capabilities", "check"], "capabilities")
+            cli = logged_in_cli(args, work)
+            bare = logged_in_cli(args, work / "bare")
 
             def call(client, name, value):
                 parts = ["call", name, "--args", json.dumps({"input": value}, ensure_ascii=False)]
@@ -141,12 +126,19 @@ def main():
             report["checks"].append("Agent stops a continuously streaming response at its duration budget")
 
             before = len(provider_log_entries(args.provider_log))
-            started = data(checked(cli, ["agent", "chat", thread["id"], "测试无法表示的时长预算。",
-                "--budget", '{"max_duration_seconds":9223372036854775807}'], "agent clock limit")[0], "send")
-            result = wait_for_run(cli, started["run_id"], 60, 0.1)
-            assert result["status"] == "failed", result
+            prior = thread_snapshot(cli, thread["id"])
+            rejected = cli.run(["agent", "chat", thread["id"], "测试无法表示的时长预算。",
+                "--budget", '{"max_duration_seconds":9223372036854775807}'])
+            error = command_error(rejected)
+            assert rejected["exit_code"] in (2, 8) and "max_duration_seconds" in error["message"], rejected
             assert len(provider_log_entries(args.provider_log)) == before, "invalid duration reached the Provider"
-            report["checks"].append("Agent clock overflow persists failure instead of leaving the run running")
+            after = thread_snapshot(cli, thread["id"])
+            assert [row["id"] for row in after["runs"]] == [row["id"] for row in prior["runs"]], "invalid budget created a run"
+            assert [row["id"] for row in after["messages"]] == [row["id"] for row in prior["messages"]], "invalid budget created a message"
+            assert {row["id"]: row["content"] for row in after["messages"] if row["role"] == "user"} == {
+                row["id"]: row["content"] for row in prior["messages"] if row["role"] == "user"
+            }, "invalid budget changed the user's history"
+            report["checks"].append("Agent clock overflow rejects before creating a run, message or Provider request")
             report["success"] = True
     except (RunnerError, OSError, ValueError, TypeError, KeyError, AssertionError, StopIteration) as error:
         report["error"] = f"{type(error).__name__}: {error}"

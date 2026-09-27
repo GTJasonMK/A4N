@@ -6,7 +6,7 @@ import { ThemedCombobox } from "../../../components/ui/ThemedCombobox";
 import { ThemedSelect } from "../../../components/ui/ThemedSelect";
 import { BookInput, BookTextarea } from "../../../components/ui/BookInput";
 import { MediaAssetIdBinder } from "./MediaAssetIdBinder";
-import { presentationCgNote, updatePresentationJson, type PresentationPatch } from "./presentation";
+import { presentationCgNote, updatePresentationJson, type CgDraft } from "./presentation";
 import { ChoiceEditor, type ChoiceDraft } from "./GalgameChoiceEditor";
 import {
   ImageBindingStrip,
@@ -51,6 +51,9 @@ interface LineEditorProps {
   mediaBindings: GalgameMediaBindingSummary[];
   choiceDrafts: ChoiceDraft[];
   onChoiceDraftsChange: (drafts: ChoiceDraft[]) => void;
+  cgDraft: CgDraft;
+  onCgDraftChange: (draft: CgDraft) => void;
+  onCgSave: (draft: CgDraft) => void;
   scenes: GalgameSceneDetail[];
   sceneById: Map<number, GalgameSceneDetail>;
   disabled: boolean;
@@ -267,6 +270,9 @@ export const LineEditor: React.FC<LineEditorProps> = ({
   mediaBindings,
   choiceDrafts,
   onChoiceDraftsChange,
+  cgDraft,
+  onCgDraftChange,
+  onCgSave,
   scenes,
   sceneById,
   disabled,
@@ -372,7 +378,7 @@ export const LineEditor: React.FC<LineEditorProps> = ({
             ))}
           </ThemedSelect>
         ) : null}
-        {!isChoiceLine ? (
+        {isSpeakingLine ? (
           <ThemedSelect
             className="pyqt-input text-xs text-book-text-main"
             value={line.position ?? ""}
@@ -383,7 +389,7 @@ export const LineEditor: React.FC<LineEditorProps> = ({
             }}
           >
             {POSITIONS.map((item) => (
-              <option key={item.value} value={item.value}>
+              <option key={item.value} value={item.value} disabled={item.value === ""}>
                 {t(item.labelKey)}
               </option>
             ))}
@@ -497,6 +503,7 @@ export const LineEditor: React.FC<LineEditorProps> = ({
             </span>
           </summary>
           <div className="grid gap-2 md:grid-cols-2">
+          {isSpeakingLine ? <>
           <div>
           <div className="mb-1.5 text-xs text-book-text-sub">{t("galgame.expressionLabel")}</div>
           <ThemedSelect
@@ -538,8 +545,12 @@ export const LineEditor: React.FC<LineEditorProps> = ({
             }}
           />
           </div>
+          </> : null}
           <PresentationEditor
             line={line}
+            draft={cgDraft}
+            onDraftChange={onCgDraftChange}
+            onSave={onCgSave}
             disabled={disabled}
             onPatch={(presentationJson) =>
               onPatch({ presentation_json: presentationJson })
@@ -571,33 +582,17 @@ export const LineEditor: React.FC<LineEditorProps> = ({
 
 const PresentationEditor: React.FC<{
   line: GalgameLine;
+  draft: CgDraft;
+  onDraftChange: (draft: CgDraft) => void;
+  onSave: (draft: CgDraft) => void;
   disabled: boolean;
   onPatch: (presentationJson: GalgameLinePresentationDocumentV2) => void;
-}> = ({ line, disabled, onPatch }) => {
+}> = ({ line, draft, onDraftChange, onSave, disabled, onPatch }) => {
   const { t } = useI18n();
   const presentation = line.presentation_json;
-  const currentCgEnabled = presentation.cg === true;
-  const currentCgImportance: GalgameCgImportance | "" =
-    presentation.cg_importance ?? "";
+  const { cgEnabled, cgNote, cgImportance } = draft;
   const currentTransition: GalgameTransition | "" =
     presentation.transition || "";
-  const [cgNote, setCgNote] = useState(presentationCgNote(presentation));
-  const [cgEnabled, setCgEnabled] = useState(currentCgEnabled);
-  const [cgImportance, setCgImportance] =
-    useState<GalgameCgImportance | "">(currentCgImportance);
-  const [transition, setTransition] =
-    useState<GalgameTransition | "">(currentTransition);
-
-  useEffect(() => {
-    setCgNote(presentationCgNote(presentation));
-    setCgEnabled(currentCgEnabled);
-    setCgImportance(currentCgImportance);
-    setTransition(currentTransition);
-  }, [currentCgEnabled, currentCgImportance, currentTransition, presentation]);
-
-  const update = (patch: PresentationPatch) => {
-    onPatch(updatePresentationJson(presentation, patch));
-  };
 
   return (
     <div className="rounded-xl bg-book-bg-paper/45 px-2.5 py-2.5 md:col-span-2">
@@ -609,16 +604,11 @@ const PresentationEditor: React.FC<{
           disabled={disabled}
           onClick={() => {
             const checked = !cgEnabled;
-            setCgEnabled(checked);
-            if (!checked) {
-              setCgNote("");
-              setCgImportance("");
-              update({ cgEnabled: false });
-              return;
-            }
-            if (cgNote.trim() && cgImportance) {
-              update({ cgNote, cgImportance });
-            }
+            const next = checked
+              ? { ...draft, cgEnabled: true }
+              : { cgEnabled: false, cgNote: "", cgImportance: "" as const };
+            onDraftChange(next);
+            onSave(next);
           }}
           className="inline-flex items-center gap-1.5 text-small text-book-text-main disabled:opacity-50"
         >
@@ -643,8 +633,9 @@ const PresentationEditor: React.FC<{
             disabled={disabled}
             onChange={(selectedValue) => {
               const importance = selectedValue as GalgameCgImportance;
-              setCgImportance(importance);
-              if (cgNote.trim()) update({ cgNote, cgImportance: importance });
+              const next = { ...draft, cgImportance: importance };
+              onDraftChange(next);
+              onSave(next);
             }}
           >
             <option value="" disabled>
@@ -660,12 +651,11 @@ const PresentationEditor: React.FC<{
         <ThemedSelect
           aria-label={t("galgame.transitionLabel")}
           className="pyqt-input text-xs text-book-text-main"
-          value={transition}
-          disabled={disabled}
+          value={currentTransition}
+          disabled={disabled || presentation.cg !== true}
           onChange={(selectedValue) => {
             const nextTransition = selectedValue as GalgameTransition | "";
-            setTransition(nextTransition);
-            update({ transition: nextTransition });
+            onPatch(updatePresentationJson(presentation, { transition: nextTransition }));
           }}
         >
           {TRANSITION_OPTIONS.map((item) => (
@@ -682,20 +672,19 @@ const PresentationEditor: React.FC<{
           value={cgNote}
           disabled={disabled}
           placeholder={t("galgame.cgDescriptionPlaceholder")}
-          onChange={(event) => setCgNote(event.target.value)}
+          onChange={(event) => onDraftChange({ ...draft, cgNote: event.target.value })}
           onBlur={() => {
             if (cgNote !== presentationCgNote(presentation)) {
-              if (cgNote.trim()) {
-                setCgEnabled(true);
-                if (cgImportance) update({ cgNote, cgImportance });
-              } else {
-                update({ cgNote: "" });
-              }
+              onSave(draft);
             }
           }}
         />
       ) : null}
-      {cgEnabled && cgNote.trim() && !cgImportance ? (
+      {cgEnabled && !cgNote.trim() ? (
+        <div className="mt-1 text-small text-error">
+          {t("galgame.requireCgDescription")}
+        </div>
+      ) : cgEnabled && !cgImportance ? (
         <div className="mt-1 text-small text-error">
           {t("galgame.requireCgImportance")}
         </div>

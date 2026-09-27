@@ -45,6 +45,15 @@ pub(in crate::routes::commands) async fn oauth2_authorize_url(
     Ok(json!(oauth_actions::oauth2_authorize_url(input)?))
 }
 
+pub(in crate::routes::commands) async fn oauth2_available_providers(
+    _state: &ServerState,
+    args: &Value,
+) -> Result<Value, ApiError> {
+    let input: oauth_actions::OAuth2AvailableProvidersInput =
+        command_input(args, "oauth2_available_providers")?;
+    Ok(json!(oauth_actions::oauth2_available_providers(input)?))
+}
+
 pub(in crate::routes::commands) async fn oauth2_callback(
     state: &ServerState,
     headers: &HeaderMap,

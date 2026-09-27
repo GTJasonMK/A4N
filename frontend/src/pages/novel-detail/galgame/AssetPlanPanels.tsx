@@ -13,7 +13,6 @@ import type {
   GalgameSpeakerProfile,
 } from "../../../api/galgame";
 import {
-  assetPlanOutcomeLabel,
   assetSpecStatusLabel,
   buildPortraitExpressionCells,
   buildPortraitExpressionMatrixModel,
@@ -23,6 +22,7 @@ import {
 
 export const AssetPlanPanel: React.FC<{
   plan: GalgameAssetPlan | null;
+  error: string | null;
   speakerProfiles: GalgameSpeakerProfile[];
   loading: boolean;
   generating: boolean;
@@ -38,6 +38,7 @@ export const AssetPlanPanel: React.FC<{
   onGenerateSpec: (generationSpecId: number) => void;
 }> = ({
   plan,
+  error,
   speakerProfiles,
   loading,
   generating,
@@ -114,33 +115,34 @@ export const AssetPlanPanel: React.FC<{
           <LoadingSpinner size="sm" />
         ) : null}
         <span className="text-small font-normal text-book-text-muted">
-          {plan ? t("galgame.assetPlanPlanned") : t("galgame.assetPlanUnplanned")}
+          {error ? t("galgame.planLoadFailed") : loading ? t("common.loading") : plan ? t("galgame.assetPlanPlanned") : t("galgame.assetPlanUnplanned")}
         </span>
         <ChevronRight size={14} className="shrink-0 text-book-text-muted" />
       </button>
       <Modal isOpen={open} onClose={() => setOpen(false)} title={t("galgame.visualAssets")} maxWidthClassName="max-w-4xl" footer={(
         <div className="flex w-full flex-wrap items-center justify-end gap-2">
-          {plan ? (
+          {plan && !error ? (
             <Dropdown items={[{ label: t("galgame.replanVisualAssets"), icon: <RefreshCw size={13} />, onClick: onPlan, disabled }]} />
           ) : null}
         <BookButton
           variant="primary"
           size="sm"
-          onClick={plan ? onGenerate : onPlan}
-          disabled={disabled || imageSize == null}
+          onClick={plan && !error ? onGenerate : onPlan}
+          disabled={disabled || loading || (plan != null && !error && imageSize == null)}
         >
           {loading || generating ? (
             <LoadingSpinner size="sm" />
           ) : (
             <Images size={13} />
           )}
-          {plan
+          {error ? t("galgame.replanVisualAssets") : plan
             ? t("galgame.generateVisualAssets")
             : t("galgame.planVisualAssets")}
         </BookButton>
         </div>
       )}>
       <div className="space-y-4">
+        {error ? <p role="alert" className="text-small text-error">{error}</p> : null}
         <div className="max-w-xs">
           <ImageSizeSelect label={t("settingsForm.selectImageSize")} value={imageSize} sizes={imageSizes} loading={imageSizeLoading}
             error={imageSizeError} disabled={disabled} onChange={onImageSizeChange} />
@@ -161,7 +163,7 @@ export const AssetPlanPanel: React.FC<{
             <PortraitExpressionMatrix
               items={plan.portrait_expressions}
               speakerProfiles={speakerProfiles}
-              disabled={disabled}
+              disabled={disabled || loading || error != null || imageSize == null}
               generatingSpecId={generatingSpecId}
               onGenerateSpec={onGenerateSpec}
             />
@@ -192,7 +194,7 @@ const AssetPlanList: React.FC<{
             <span className="min-w-0 truncate" title={item.label}>
               {item.label}
             </span>
-            <span>{assetPlanOutcomeLabel(item.outcome, t)}</span>
+            <span>{assetSpecStatusLabel(item.status, t)}</span>
           </div>
         ))}
       </div>

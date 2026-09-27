@@ -65,6 +65,8 @@ import {
 import {
   EMPTY_CONFIG_OPTIONS,
   buildStudioConfigOptions,
+  type StudioConfigKind,
+  type StudioConfigLoadStatusByKind,
   type StudioConfigOptionsByKind,
 } from "./video-studio/canvasConfig";
 import { canvasGraphSaveValidationError } from "./video-studio/canvasEdgeContract";
@@ -151,6 +153,8 @@ export const VideoStudioCanvas: React.FC = () => {
   const [workflowEvents, setWorkflowEvents] = useState<ProgressEventRecord[]>(
     [],
   );
+  const [workflowStatusError, setWorkflowStatusError] = useState<string | null>(null);
+  const [workflowEventsError, setWorkflowEventsError] = useState<string | null>(null);
   const [workflowLoading, setWorkflowLoading] = useState(false);
   const [workflowSubmissionLabel, setWorkflowSubmissionLabel] = useState<
     string | null
@@ -160,6 +164,8 @@ export const VideoStudioCanvas: React.FC = () => {
   const [resumingWorkflow, setResumingWorkflow] = useState(false);
   const [configOptions, setConfigOptions] =
     useState<StudioConfigOptionsByKind>(EMPTY_CONFIG_OPTIONS);
+  const [configOptionsStatus, setConfigOptionsStatus] =
+    useState<StudioConfigLoadStatusByKind>({ llm: "loading", image: "loading", video: "loading" });
   const [flowInstance, setFlowInstance] = useState<ReactFlowInstance<
     StudioNode,
     StudioEdge
@@ -268,6 +274,8 @@ export const VideoStudioCanvas: React.FC = () => {
   const canResumeCurrentCanvasRun = Boolean(
     document &&
       workflowDetail?.run.can_resume &&
+      workflowDetail.run.status !== "running" &&
+      workflowDetail.run.status !== "pending" &&
       workflowDetail.run.workflow_kind === CANVAS_WORKFLOW_KIND &&
       workflowDetail.run.scope_table === "canvas_graph" &&
       workflowDetail.run.scope_id === document.graph.id &&
@@ -297,28 +305,53 @@ export const VideoStudioCanvas: React.FC = () => {
     return () => window.clearInterval(timer);
   }, [workflowLive]);
 
-  const loadStudioConfigOptions = useCallback(async () => {
-    const [llmConfigs, imageConfigs, videoConfigs] = await Promise.all([
-      listLlmConfig(),
-      listImageConfigs(),
-      listVideoConfigs(),
-    ]);
-    return buildStudioConfigOptions(llmConfigs, imageConfigs, videoConfigs);
-  }, []);
-
   const refreshStudioConfigOptions = useCallback(async () => {
     const requestId = configRefreshRef.current + 1;
     configRefreshRef.current = requestId;
+    setConfigOptionsStatus((current) => ({
+      llm: current.llm === "ready" ? "ready" : "loading",
+      image: current.image === "ready" ? "ready" : "loading",
+      video: current.video === "ready" ? "ready" : "loading",
+    }));
+    const failures: string[] = [];
+    const loadOptions = async (
+      kind: StudioConfigKind,
+      label: string,
+      request: () => Promise<StudioConfigOptionsByKind[StudioConfigKind]>,
+    ) => {
+      try {
+        const options = await request();
+        if (configRefreshRef.current !== requestId) return;
+        setConfigOptions((current) => ({ ...current, [kind]: options }));
+        setConfigOptionsStatus((current) => ({ ...current, [kind]: "ready" }));
+      } catch (err) {
+        if (configRefreshRef.current !== requestId) return;
+        setConfigOptions((current) => ({ ...current, [kind]: [] }));
+        setConfigOptionsStatus((current) => ({ ...current, [kind]: "failed" }));
+        failures.push(`${label}: ${extractErrorMessage(err, translatorRef.current("video.refreshCanvasConfigFailed"))}`);
+      }
+    };
     try {
-      const nextConfigOptions = await loadStudioConfigOptions();
-      if (configRefreshRef.current !== requestId) return;
-      setConfigOptions(nextConfigOptions);
+      await Promise.all([
+        loadOptions("llm", translatorRef.current("video.canvas.inspector.llmConfig"), async () =>
+          buildStudioConfigOptions(await listLlmConfig(), [], []).llm,
+        ),
+        loadOptions("image", translatorRef.current("video.canvas.inspector.imageConfig"), async () =>
+          buildStudioConfigOptions([], await listImageConfigs(), []).image,
+        ),
+        loadOptions("video", translatorRef.current("video.canvas.inspector.videoConfig"), async () =>
+          buildStudioConfigOptions([], [], await listVideoConfigs()).video,
+        ),
+      ]);
+      if (configRefreshRef.current === requestId && failures.length > 0) {
+        addToast(failures.join("; "), "error");
+      }
     } catch (err) {
       if (configRefreshRef.current === requestId) {
-        addToast(extractErrorMessage(err, t("video.refreshCanvasConfigFailed")), "error");
+        addToast(extractErrorMessage(err, translatorRef.current("video.refreshCanvasConfigFailed")), "error");
       }
     }
-  }, [addToast, loadStudioConfigOptions, t]);
+  }, [addToast]);
 
   const load = useCallback(async () => {
     const requestId = requestRef.current + 1;
@@ -331,16 +364,10 @@ export const VideoStudioCanvas: React.FC = () => {
     setLoadError(null);
     setLoading(true);
     try {
-      const [
-        projectRecord,
-        graphDocument,
-        rawNodeContracts,
-        nextConfigOptions,
-      ] = await Promise.all([
+      const [projectRecord, graphDocument, rawNodeContracts] = await Promise.all([
         getProject(projectId),
         getCanvasGraph(projectId),
         getCanvasNodeContracts(),
-        loadStudioConfigOptions(),
       ]);
       if (requestRef.current !== requestId) return;
       if (projectRecord.project_kind !== "video") {
@@ -366,10 +393,10 @@ export const VideoStudioCanvas: React.FC = () => {
       setProject(projectRecord);
       setDocument(graphDocument);
       setNodeContracts(normalizedContracts);
-      setConfigOptions(nextConfigOptions);
       setNodes((current) => preserveSelectedItems(flowNodes, current));
       setEdges((current) => preserveSelectedItems(flowEdges, current));
       setDirty(false);
+      void refreshStudioConfigOptions();
     } catch (err) {
       if (requestRef.current === requestId) {
         setLoadError(extractErrorMessage(err, translatorRef.current("video.canvasLoadFailed")));
@@ -379,9 +406,9 @@ export const VideoStudioCanvas: React.FC = () => {
     }
   }, [
     addToast,
-    loadStudioConfigOptions,
     navigate,
     projectId,
+    refreshStudioConfigOptions,
     setEdges,
     setNodes,
   ]);
@@ -407,6 +434,7 @@ export const VideoStudioCanvas: React.FC = () => {
     void load();
     return () => {
       requestRef.current += 1;
+      configRefreshRef.current += 1;
     };
   }, [load]);
 
@@ -464,6 +492,8 @@ export const VideoStudioCanvas: React.FC = () => {
     setLatestWorkflowRunId,
     setWorkflowDetail,
     setWorkflowEvents,
+    setWorkflowStatusError,
+    setWorkflowEventsError,
     setWorkflowLoading,
     setWorkflowSubmissionLabel,
     setCancellingWorkflow,
@@ -660,6 +690,7 @@ export const VideoStudioCanvas: React.FC = () => {
               edges={edges}
               disabled={canvasMutationDisabled}
               configOptions={configOptions}
+              configOptionsStatus={configOptionsStatus}
               onChange={updateSelectedConfig}
               onRefChange={updateSelectedRef}
               onMoveAssembleClip={moveAssembleClip}
@@ -675,6 +706,8 @@ export const VideoStudioCanvas: React.FC = () => {
           latestWorkflowRunId={latestWorkflowRunId}
           detail={workflowDetail}
           events={workflowEvents}
+          statusError={workflowStatusError}
+          eventsError={workflowEventsError}
           loading={workflowLoading}
           submittingLabel={workflowSubmissionLabel}
           cancelling={cancellingWorkflow}

@@ -6,6 +6,7 @@ const password = process.env.A4N_BROWSER_E2E_PASSWORD;
 const providerUrl = process.env.A4N_BROWSER_E2E_PROVIDER_URL;
 const configuredKeys = [];
 const activeDialogs = '.a4n-modal-layer:not([data-modal-state="exiting"]) [role="dialog"]';
+const failedProgress = /生成失败|任务失败|调用失败|分析失败|同步失败|已取消|已停止/;
 
 function ignoreStaleElement(error) {
   if (!/stale element reference/i.test(String(error))) throw error;
@@ -244,7 +245,7 @@ async function waitAndCloseProgress(successText, timeout = 480_000) {
           if (!bars.length) continue;
           progressText = await dialog.getText();
           const value = await bars[0].getAttribute("aria-valuenow");
-          if (/生成失败|任务失败|调用失败|分析失败|同步失败/.test(progressText)) return true;
+          if (failedProgress.test(progressText)) return true;
           // The dialog title is also included in `getText()`, so a 100% running
           // task can contain successText before it has entered its terminal
           // state.  A close control is rendered only for terminal states.
@@ -267,7 +268,7 @@ async function waitAndCloseProgress(successText, timeout = 480_000) {
     { timeout, interval: 1_000, timeoutMsg: `异步任务未完成：${successText}` },
   );
   assert.ok(progressText.includes(successText), `异步任务未成功：${progressText.slice(-1_000)}`);
-  assert.doesNotMatch(progressText, /生成失败|任务失败|调用失败|分析失败|同步失败/, `异步任务失败：${progressText}`);
+  assert.doesNotMatch(progressText, failedProgress, `异步任务失败：${progressText}`);
   await browser.waitUntil(
     async () => {
       try {
@@ -466,10 +467,9 @@ async function configureSystemProviderKey(tabLabel, title) {
 }
 
 
-export async function prepareSession() {
+export async function login() {
   assert.ok(username, "缺少 A4N_BROWSER_E2E_USERNAME");
   assert.ok(password, "缺少 A4N_BROWSER_E2E_PASSWORD");
-  assert.ok(providerUrl?.endsWith("/v1"), "缺少 A4N_BROWSER_E2E_PROVIDER_URL（必须是 /v1）");
 
   await browser.url("/");
   const loginUser = await $("input[autocomplete='username']");
@@ -488,6 +488,11 @@ export async function prepareSession() {
   if (!chineseOption) throw new Error("语言菜单缺少简体中文选项");
   await chineseOption.click();
   await waitForBodyText("创建项目", 60_000);
+}
+
+export async function prepareSession() {
+  assert.ok(providerUrl?.endsWith("/v1"), "缺少 A4N_BROWSER_E2E_PROVIDER_URL（必须是 /v1）");
+  await login();
 
   // Web 端将系统模板的个人密钥保存在浏览器运行时设置中；后续正文、图片和派生流程
   // 的请求都会由这些真实页面配置注入 runtime snapshot。

@@ -36,9 +36,9 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import quote, unquote, urlsplit, urlunsplit
 from urllib.request import Request, ProxyHandler, build_opener
 
+from run_browser_full_project_e2e import secure_mkdir as secure_dir, tail
 
 ROOT = Path(__file__).resolve().parents[2]
-PROTECTED_PIDS = frozenset({2_377_237, 3_425_752, 3_424_452})
 EXPORT_CAPABILITY_VERSION = "export-render-v3"
 PROJECT_FAMILY_MANIFEST_PATH = "a4n-project-family.json"
 PROTOCOL_VERSION = 2
@@ -168,15 +168,6 @@ def parse_args() -> argparse.Namespace:
     return args
 
 
-def secure_dir(path: Path) -> Path:
-    path.mkdir(parents=True, exist_ok=True)
-    try:
-        path.chmod(0o700)
-    except OSError:
-        pass
-    return path
-
-
 def prepare_report(path: Path | None) -> Path:
     if path is None:
         return Path(tempfile.mkdtemp(prefix="a4n-export-worker-e2e-"))
@@ -296,16 +287,14 @@ def http_request(
                 headers=dict(response.headers.items()),
             )
     except HTTPError as error:
-        try:
+        with error:
             payload = read_limited(error)
-        except RunnerError:
-            payload = b""
-        return HttpResult(
-            error.code,
-            payload,
-            round((time.monotonic() - started) * 1000),
-            headers=dict(error.headers.items()) if error.headers else {},
-        )
+            return HttpResult(
+                error.code,
+                payload,
+                round((time.monotonic() - started) * 1000),
+                headers=dict(error.headers.items()) if error.headers else {},
+            )
     except (OSError, URLError, ValueError) as error:
         return HttpResult(
             None,
@@ -324,22 +313,9 @@ def json_body(result: HttpResult, label: str) -> Any:
         raise RunnerError(f"{label} returned non-JSON (HTTP {result.status})") from error
 
 
-def process_group_protected(pgid: int) -> int | None:
-    for pid in PROTECTED_PIDS:
-        try:
-            if os.getpgid(pid) == pgid:
-                return pid
-        except (OSError, ProcessLookupError):
-            continue
-    return None
-
-
-def assert_process_not_protected(pid: int, pgid: int) -> None:
-    if pid in PROTECTED_PIDS:
-        raise RunnerError(f"refusing to manage protected PID {pid}")
-    protected = process_group_protected(pgid)
-    if protected is not None:
-        raise RunnerError(f"refusing process group {pgid}; it contains protected PID {protected}")
+def assert_owned_process_group(pid: int, pgid: int) -> None:
+    if pgid != pid or pgid == os.getpgrp() or os.getpgid(pid) != pgid or os.getsid(pid) != pid:
+        raise RunnerError(f"refusing process group {pgid}; it is not the spawned process's isolated session")
 
 
 def open_process_log(path: Path) -> Any:
@@ -369,19 +345,14 @@ def start_process(
             start_new_session=True,
         )
         pgid = os.getpgid(process.pid)
-        assert_process_not_protected(process.pid, pgid)
+        assert_owned_process_group(process.pid, pgid)
     except BaseException:
-        if process is not None:
-            try:
-                pgid = os.getpgid(process.pid)
-            except OSError:
-                pgid = None
-            if pgid is not None and process_group_protected(pgid) is None:
-                try:
-                    os.killpg(pgid, signal.SIGKILL)
-                except OSError:
-                    pass
-        handle.close()
+        try:
+            if process is not None:
+                process.kill()
+                process.wait(timeout=10)
+        finally:
+            handle.close()
         raise
     assert process is not None
     return ManagedProcess(label, command, process, log_path, pgid, handle)
@@ -409,24 +380,19 @@ def wait_process(process: ManagedProcess, timeout: float, label: str) -> int:
 def stop_process(process: ManagedProcess | None, *, force: bool = False) -> None:
     if process is None:
         return
-    if process.process.poll() is None:
-        assert_process_not_protected(process.process.pid, process.pgid)
-        first_signal = signal.SIGKILL if force else signal.SIGTERM
-        os.killpg(process.pgid, first_signal)
-        try:
-            process.process.wait(timeout=10)
-        except subprocess.TimeoutExpired:
-            assert_process_not_protected(process.process.pid, process.pgid)
-            os.killpg(process.pgid, signal.SIGKILL)
-            process.process.wait(timeout=10)
-    finish_process(process)
-
-
-def tail(path: Path, limit: int = 4_000) -> str:
     try:
-        return path.read_text(encoding="utf-8", errors="replace")[-limit:]
-    except OSError:
-        return ""
+        if process.process.poll() is None:
+            assert_owned_process_group(process.process.pid, process.pgid)
+            first_signal = signal.SIGKILL if force else signal.SIGTERM
+            os.killpg(process.pgid, first_signal)
+            try:
+                process.process.wait(timeout=10)
+            except subprocess.TimeoutExpired:
+                assert_owned_process_group(process.process.pid, process.pgid)
+                os.killpg(process.pgid, signal.SIGKILL)
+                process.process.wait(timeout=10)
+    finally:
+        finish_process(process)
 
 
 def proc_rss_tree(root: int) -> dict[str, Any] | None:
@@ -666,7 +632,7 @@ class RuntimeRunner:
                 "status": "undetermined",
                 "reason": "this run has no same-workload static/host baseline; runtime data is not a net-gain claim",
             },
-            "protected_pids": sorted(PROTECTED_PIDS),
+            "process_ownership": "isolated session per spawned process",
             "faults": {fault: {"status": "not_run"} for fault in FAULTS},
             "artifacts": {},
         }
@@ -955,7 +921,7 @@ class RuntimeRunner:
         )
         self.record_http(label, "GET", self.worker_url + "/metrics", result, [])
         if result.status != 200:
-            raise RunnerError(f"Worker metrics failed with HTTP {result.status}: {tail(self.logs / 'worker-process.log')}")
+            raise RunnerError(f"Worker metrics failed with HTTP {result.status}: {tail(self.logs / 'worker-process.log', 4_000)}")
         metrics = json_body(result, label)
         if not isinstance(metrics, dict):
             raise RunnerError(f"{label} returned an invalid export metrics envelope")
@@ -978,7 +944,7 @@ class RuntimeRunner:
         if result.status != 200:
             raise RunnerError(
                 f"Worker render metrics failed with HTTP {result.status}: "
-                f"{tail(self.logs / 'worker-process.log')}"
+                f"{tail(self.logs / 'worker-process.log', 4_000)}"
             )
         metrics = json_body(result, label)
         if not isinstance(metrics, dict):
@@ -1981,11 +1947,37 @@ def self_test() -> None:
             "drained_results": [HttpResult(200, b"", 0, error="truncated response"), drained_results[1]],
         }
     ), "held responses with drain errors must not count as observed"
-    assert 2_377_237 in PROTECTED_PIDS and 3_425_752 in PROTECTED_PIDS and 3_424_452 in PROTECTED_PIDS
     from unittest.mock import patch
+    from unittest import TestCase
+
+    with patch.object(os, "getpgrp", return_value=10), patch.object(os, "getpgid", return_value=20), patch.object(os, "getsid", return_value=20):
+        assert_owned_process_group(20, 20)
+        for pid, pgid in ((10, 10), (20, 10), (21, 21)):
+            with TestCase().assertRaises(RunnerError):
+                assert_owned_process_group(pid, pgid)
+    with patch.object(os, "getpgrp", return_value=10), patch.object(os, "getpgid", return_value=20), patch.object(os, "getsid", return_value=10):
+        with TestCase().assertRaises(RunnerError):
+            assert_owned_process_group(20, 20)
+
+    error_body = io.BytesIO(b"rejected")
+    error = HTTPError("http://fixture.invalid", 422, "rejected", {}, error_body)
+    with patch.object(HTTP, "open", side_effect=error):
+        assert http_request("http://fixture.invalid").body == b"rejected"
+    assert error_body.closed, "HTTP error responses must be closed"
 
     with tempfile.TemporaryDirectory(prefix="a4n-cache-ownership-") as directory:
         root = Path(directory).resolve()
+        child = start_process("ownership", [sys.executable, "-c", "import time; time.sleep(60)"],
+                              env=os.environ.copy(), cwd=root, log_path=root / "child.log")
+        try:
+            child.pgid = os.getpgrp()
+            with TestCase().assertRaises(RunnerError):
+                stop_process(child)
+            assert child.process.poll() is None, "invalid ownership must not signal even the spawned child"
+        finally:
+            child.pgid = child.process.pid
+            stop_process(child)
+        assert child.process.poll() is not None and child.handle.closed
         args = argparse.Namespace(target_dir=None, keep_target=False)
         runner = RuntimeRunner(args, root / "report", "cache-self-test")
         runner.target_dir.mkdir()

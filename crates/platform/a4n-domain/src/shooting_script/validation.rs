@@ -3,15 +3,15 @@
 use thiserror::Error;
 
 use super::contracts::{
-    ChapterShootingScriptUnitProgressCheckpoint, ChapterShootingScriptV1,
-    ShootingDirectingStatementV1, ShootingSceneV1,
+    ChapterShootingScriptUnitProgressCheckpoint, ChapterShootingScriptV2,
+    ShootingDirectingStatementV1, ShootingSceneV2,
 };
 
 mod rules;
 mod scene;
 mod script;
 #[cfg(test)]
-mod tests;
+pub(crate) mod tests;
 
 #[derive(Debug, Clone, Error, PartialEq, Eq)]
 #[error("拍摄剧本字段 {path} 无效: {message}")]
@@ -44,7 +44,7 @@ impl ShootingDirectingStatementV1 {
     }
 }
 
-impl ShootingSceneV1 {
+impl ShootingSceneV2 {
     /// 调用输出经确定性装配后复用发布时的内容规则；跨场景引用仍由整章校验负责。
     pub fn validate_content(
         &self,
@@ -65,13 +65,13 @@ impl ShootingSceneV1 {
     }
 }
 
-impl ChapterShootingScriptV1 {
+impl ChapterShootingScriptV2 {
     /// 逐镜头校验导演约束。与当前方案内容一致的镜头必须落在当前计划时间；内容已变化的
     /// 过时镜头只能原样保留上一版本的约束，等待手动或模型辅助更新，不能被改写成其他约束。
     pub fn validate_director_plan(
         &self,
         plan: &crate::chapter_visual_plan::ChapterVisualPlanV3,
-        previous: Option<&ChapterShootingScriptV1>,
+        previous: Option<&ChapterShootingScriptV2>,
     ) -> Result<(), ShootingScriptValidationError> {
         let mut expected = plan
             .project()
@@ -131,12 +131,6 @@ impl ChapterShootingScriptV1 {
                 return Err(ShootingScriptValidationError {
                     path: format!("shots[{}].planned_start_ms", shot.shot_id),
                     message: "镜头计划时间必须与导演编排一致".into(),
-                });
-            }
-            if (shot.estimated_natural_seconds - duration_ms as f64 / 1000.0).abs() > 0.001 {
-                return Err(ShootingScriptValidationError {
-                    path: format!("shots[{}].estimated_natural_seconds", shot.shot_id),
-                    message: "镜头时长必须与导演编排一致".into(),
                 });
             }
         }

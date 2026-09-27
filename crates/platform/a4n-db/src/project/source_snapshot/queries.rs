@@ -59,12 +59,14 @@ pub async fn source_snapshot_chapters(
 
 pub async fn source_snapshot_chapter_content_by_snapshot_and_source(
     db: &DatabaseConnection,
+    root_project_id: i64,
     snapshot_id: i64,
     source_chapter_id: i64,
 ) -> Result<Option<String>, ProjectMutationError> {
     source_snapshot_chapter::Entity::find()
         .select_only()
         .column(source_snapshot_chapter::Column::Content)
+        .filter(source_snapshot_chapter::Column::RootProjectId.eq(root_project_id))
         .filter(source_snapshot_chapter::Column::SnapshotId.eq(snapshot_id))
         .filter(source_snapshot_chapter::Column::SourceChapterId.eq(source_chapter_id))
         .into_tuple::<String>()

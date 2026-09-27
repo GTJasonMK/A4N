@@ -1,17 +1,18 @@
 import React from "react";
 import { ChevronRight } from "lucide-react";
 
-import type { ChapterShootingScriptV1 } from "../../../api/shootingScript";
+import type { ChapterShootingScriptV2 } from "../../../api/shootingScript";
 import {
   shootingCameraAngleLabel,
   shootingCameraMovementLabel,
   shootingCoverageLabel,
   shootingShotSizeLabel,
+  shootingShotDurationLabel,
 } from "../../../utils/shootingScriptPresentation";
-import { formatNumber, useI18n } from "../../../i18n";
+import { useI18n } from "../../../i18n";
 
 export const ScriptContent: React.FC<{
-  script: ChapterShootingScriptV1;
+  script: ChapterShootingScriptV2;
 }> = ({ script }) => {
   const { locale, t } = useI18n();
   const directing = script.directing_statement;
@@ -147,15 +148,7 @@ export const ScriptContent: React.FC<{
                           </span>
                           <span>{shootingCoverageLabel(shot.coverage, t)}</span>
                           <span>
-                            {formatNumber(
-                              shot.estimated_natural_seconds,
-                              locale,
-                              {
-                                minimumFractionDigits: 1,
-                                maximumFractionDigits: 1,
-                              },
-                            )}{" "}
-                            {t("units.seconds")}
+                            {shootingShotDurationLabel(shot, locale, t)}
                           </span>
                         </div>
                       </div>

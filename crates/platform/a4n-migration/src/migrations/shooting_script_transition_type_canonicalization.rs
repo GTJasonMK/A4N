@@ -1,6 +1,6 @@
 //! 将严格转场枚举启用前保存的自然语言值一次性规范化为当前合同。
 
-use a4n_domain::shooting_script::{ChapterShootingScriptV1, ShootingTransitionTypeV1};
+use a4n_domain::shooting_script::{ShootingTransitionTypeV1, compat::v1::ChapterShootingScriptV1};
 use sea_orm::{ConnectionTrait, DbBackend, Statement};
 use sea_orm_migration::prelude::*;
 use serde_json::Value;

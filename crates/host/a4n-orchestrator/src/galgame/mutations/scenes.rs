@@ -15,12 +15,6 @@ impl OrchestratorContext {
         let scene_id = scene.id;
         let script_id = scene.script_id;
         let current_entry_kind = scene.entry_kind.clone();
-        let background_generation_inputs_changed = input.title.is_some()
-            || input.location.is_some()
-            || input.time_of_day.is_some()
-            || input.background_note.is_some();
-        let line_cg_generation_inputs_changed =
-            input.title.is_some() || input.location.is_some() || input.time_of_day.is_some();
         let title = input
             .title
             .map(|title| required_text(&title, "scene.title").map(str::to_string))
@@ -28,6 +22,18 @@ impl OrchestratorContext {
         let location = input.location.map(normalize_optional_text);
         let time_of_day = input.time_of_day.map(normalize_optional_text);
         let background_note = input.background_note.map(normalize_optional_text);
+        let line_cg_generation_inputs_changed =
+            title.as_ref().is_some_and(|value| value != &scene.title)
+                || location
+                    .as_ref()
+                    .is_some_and(|value| value != &scene.location)
+                || time_of_day
+                    .as_ref()
+                    .is_some_and(|value| value != &scene.time_of_day);
+        let background_generation_inputs_changed = line_cg_generation_inputs_changed
+            || background_note
+                .as_ref()
+                .is_some_and(|value| value != &scene.background_note);
         let next_scene_id = if let Some(next_scene_id) = input.next_scene_id {
             Some(if let Some(next_scene_id) = next_scene_id {
                 validate_positive_id(next_scene_id, "next_scene_id")?;
@@ -50,6 +56,20 @@ impl OrchestratorContext {
                     return Err(AppError::InvalidArgument(
                         "Galgame 支线场 next_scene_id 必须指向主线场".to_string(),
                     ));
+                }
+                if current_entry_kind == SCENE_ENTRY_BRANCH {
+                    let detail = self.get_script_detail(context.project.id).await?;
+                    let returns_before_choice = detail.scenes.iter().any(|source_scene| {
+                        source_scene.choices.iter().any(|choice| {
+                            choice.target_scene_id == Some(scene_id)
+                                && target_scene.scene_index <= source_scene.scene.scene_index
+                        })
+                    });
+                    if returns_before_choice {
+                        return Err(AppError::InvalidArgument(
+                            "Galgame 支线回收敛场必须晚于引用该支线的选择所在主线场".to_string(),
+                        ));
+                    }
                 }
                 Some(next_scene_id)
             } else {

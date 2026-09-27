@@ -602,12 +602,12 @@ impl OrchestratorContext {
         let Some(chapter_id) = chapter_id else {
             return Ok((None, None));
         };
-        let chapter = self
-            .chapter_by_id(chapter_id)
-            .await?
-            .ok_or_else(|| AppError::NotFound(format!("章节 #{chapter_id} 不存在")))?;
         let source_content = match project.project_kind.as_str() {
             "text" => {
+                let chapter = self
+                    .chapter_by_id(chapter_id)
+                    .await?
+                    .ok_or_else(|| AppError::NotFound(format!("章节 #{chapter_id} 不存在")))?;
                 if chapter.project_id != project.id {
                     return Err(AppError::InvalidArgument(format!(
                         "章节 #{} 不属于文本项目 {project_id}",
@@ -629,26 +629,27 @@ impl OrchestratorContext {
                 chapter.content.clone()
             }
             "comic" | "video" | "galgame" => {
-                if project.root_project_id != Some(chapter.project_id) {
-                    return Err(AppError::InvalidArgument(format!(
-                        "章节 #{} 不属于派生项目 {project_id} 绑定的根文本项目",
-                        chapter.id
-                    )));
-                }
+                let root_project_id = project.root_project_id.ok_or_else(|| {
+                    AppError::InvalidArgument(format!("派生项目缺少根文本项目: {project_id}"))
+                })?;
                 // Galgame supplies its target scene's snapshot; other image paths use the project source.
                 let snapshot_id = source_snapshot_id
                     .or(project.source_snapshot_id)
                     .ok_or_else(|| {
                         AppError::InvalidArgument(format!("派生项目缺少源文本快照: {project_id}"))
                     })?;
-                self.source_snapshot_chapter_content_by_snapshot_and_source(snapshot_id, chapter.id)
-                    .await?
-                    .ok_or_else(|| {
-                        AppError::NotFound(format!(
-                            "派生项目 {project_id} 的源快照不包含章节 {}",
-                            chapter.id
-                        ))
-                    })?
+                self.source_snapshot_chapter_content_by_snapshot_and_source(
+                    root_project_id,
+                    snapshot_id,
+                    chapter_id,
+                )
+                .await?
+                .ok_or_else(|| {
+                    AppError::NotFound(format!(
+                        "派生项目 {project_id} 的源快照不包含章节 {}",
+                        chapter_id
+                    ))
+                })?
             }
             other => {
                 return Err(AppError::InvalidArgument(format!(
@@ -661,7 +662,7 @@ impl OrchestratorContext {
         } else {
             Some(image_source_metadata(&source_content))
         };
-        Ok((Some(chapter.id), source_metadata))
+        Ok((Some(chapter_id), source_metadata))
     }
 
     async fn build_batch_image_jobs(

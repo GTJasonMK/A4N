@@ -80,6 +80,9 @@ export const LineMediaBindings: React.FC<{
                     size="sm"
                     onClick={() => onUnbindMedia(item)}
                     disabled={disabled}
+                    aria-label={t("galgame.unbindMedia", {
+                      title: item.binding.role === "bgm" ? "BGM" : "SFX",
+                    })}
                   >
                     <X size={13} />
                   </BookButton>

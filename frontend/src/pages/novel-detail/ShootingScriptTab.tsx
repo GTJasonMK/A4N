@@ -12,7 +12,7 @@ import {
   readChapterShootingScriptGenerationResult,
   startChapterShootingScriptGeneration,
   type ChapterShootingScriptUnitProgressView,
-  type ChapterShootingScriptV1,
+  type ChapterShootingScriptV2,
   type ChapterShootingScriptView,
   type ShootingScriptGenerationMode,
 } from "../../api/shootingScript";
@@ -63,7 +63,7 @@ export const ShootingScriptTab: React.FC<ShootingScriptTabProps> = ({
   const [rebindShotIds, setRebindShotIds] = useState<string[]>([]);
   const [focusShotId, setFocusShotId] = useState<string | null>(null);
   const affectedShotIds = view ? [...view.plan_sync.stale_shot_ids, ...view.plan_sync.missing_shot_ids] : [];
-  const [draft, setDraft] = useState<ChapterShootingScriptV1 | null>(null);
+  const [draft, setDraft] = useState<ChapterShootingScriptV2 | null>(null);
   const [invalidatedProjectIds, setInvalidatedProjectIds] = useState<number[]>(
     [],
   );

@@ -1,11 +1,11 @@
 use a4n_db_models::models::chapter::chapter_shooting_script;
-use a4n_domain::{chapter::ResolvedChapterSource, shooting_script::ChapterShootingScriptV1};
+use a4n_domain::{chapter::ResolvedChapterSource, shooting_script::ChapterShootingScriptV2};
 use sea_orm::DbErr;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct ParsedChapterShootingScript {
     pub record: chapter_shooting_script::Model,
-    pub script: ChapterShootingScriptV1,
+    pub script: ChapterShootingScriptV2,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -20,7 +20,7 @@ pub struct InsertChapterShootingScriptInput {
     pub source: ResolvedChapterSource,
     pub input_fingerprint_sha256: String,
     pub visual_plan: ChapterVisualPlanIdentity,
-    pub script: ChapterShootingScriptV1,
+    pub script: ChapterShootingScriptV2,
     pub workflow_run_id: Option<i64>,
 }
 
@@ -30,7 +30,7 @@ pub struct UpdateChapterShootingScriptInput {
     pub expected_revision: i32,
     pub input_fingerprint_sha256: String,
     pub visual_plan: ChapterVisualPlanIdentity,
-    pub script: ChapterShootingScriptV1,
+    pub script: ChapterShootingScriptV2,
     pub workflow_run_id: Option<i64>,
 }
 

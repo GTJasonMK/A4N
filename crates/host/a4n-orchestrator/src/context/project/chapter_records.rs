@@ -85,11 +85,13 @@ impl ProjectChapterRecordsApplication {
 
     async fn source_snapshot_chapter_content_by_snapshot_and_source(
         &self,
+        root_project_id: i64,
         snapshot_id: i64,
         source_chapter_id: i64,
     ) -> Result<Option<String>, AppError> {
         a4n_db::project::source_snapshot_chapter_content_by_snapshot_and_source(
             self.database.connection(),
+            root_project_id,
             snapshot_id,
             source_chapter_id,
         )
@@ -169,11 +171,16 @@ impl OrchestratorContext {
 
     pub(crate) async fn source_snapshot_chapter_content_by_snapshot_and_source(
         &self,
+        root_project_id: i64,
         snapshot_id: i64,
         source_chapter_id: i64,
     ) -> Result<Option<String>, AppError> {
         self.project_chapter_records
-            .source_snapshot_chapter_content_by_snapshot_and_source(snapshot_id, source_chapter_id)
+            .source_snapshot_chapter_content_by_snapshot_and_source(
+                root_project_id,
+                snapshot_id,
+                source_chapter_id,
+            )
             .await
     }
 

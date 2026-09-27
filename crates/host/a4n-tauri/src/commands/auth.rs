@@ -4,7 +4,9 @@
 
 use a4n_runtime::AppState;
 use a4n_runtime::host_api::auth_records as auth_actions;
-use a4n_runtime::host_api::oauth::{OAuth2AuthorizeInput, OAuth2CallbackInput};
+use a4n_runtime::host_api::oauth::{
+    OAuth2AuthorizeInput, OAuth2AvailableProvidersInput, OAuth2CallbackInput,
+};
 use auth_actions::{AuthResult, LoginInput, RefreshTokenInput, RegisterInput, TokenPairSummary};
 use tauri::State;
 
@@ -38,6 +40,13 @@ auth_command!(
 #[tauri::command]
 pub fn oauth2_authorize_url(input: OAuth2AuthorizeInput) -> Result<String, String> {
     a4n_runtime::host_api::oauth::oauth2_authorize_url(input).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn oauth2_available_providers(
+    input: OAuth2AvailableProvidersInput,
+) -> Result<Vec<String>, String> {
+    a4n_runtime::host_api::oauth::oauth2_available_providers(input).map_err(|e| e.to_string())
 }
 
 #[tauri::command]

@@ -14,6 +14,7 @@ use crate::{
 pub struct CanvasNodeRunHandle {
     pub(crate) workflow_run_id: i64,
     pub(crate) finalize_on_success: bool,
+    pub(crate) graph_version: i32,
 }
 
 impl CanvasNodeRunHandle {
@@ -41,12 +42,24 @@ impl OrchestratorContext {
         &self,
         project_id: i64,
         graph_id: i64,
+        graph_version: i32,
         mode: &str,
         step_key: String,
         input_json: Value,
         shared_run: Option<CanvasNodeRunHandle>,
     ) -> Result<CanvasNodeLifecycle, AppError> {
+        let mut input_json = input_json;
+        let input = input_json.as_object_mut().ok_or_else(|| {
+            AppError::InvalidArgument("Canvas 节点运行输入必须是 JSON object".to_string())
+        })?;
+        input.insert("graph_version".to_string(), Value::from(graph_version));
         let run = if let Some(run) = shared_run {
+            if run.graph_version != graph_version {
+                return Err(AppError::InvalidState {
+                    current: format!("canvas_graph_version:{}", graph_version),
+                    operation: format!("工作流要求图版本 {}", run.graph_version),
+                });
+            }
             run
         } else {
             let run = self
@@ -61,6 +74,7 @@ impl OrchestratorContext {
             CanvasNodeRunHandle {
                 workflow_run_id: run.id,
                 finalize_on_success: true,
+                graph_version,
             }
         };
         self.record_canvas_node_checkpoint(

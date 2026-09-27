@@ -1,36 +1,24 @@
 #!/usr/bin/env python3
 """Verify independent image calls and regeneration after deletion through the real CLI."""
 
-import argparse
 import json
-import os
 import tempfile
 import time
 import uuid
 from pathlib import Path
 
-from run_cli_contract_e2e import Cli, checked, provider_log_entries, runtime_snapshot, secure_json
+from run_cli_contract_e2e import checked, cli_e2e_parser, logged_in_cli, provider_log_entries, runtime_snapshot, secure_json
 
 
 def main():
-    parser = argparse.ArgumentParser(description=__doc__)
-    for name in ("a4n", "server", "username", "provider-url"):
-        parser.add_argument("--" + name, required=True)
-    parser.add_argument("--password-env", default="A4N_PASSWORD")
-    parser.add_argument("--provider-log", type=Path, required=True)
-    parser.add_argument("--report", type=Path, required=True)
+    parser = cli_e2e_parser(__doc__)
     args = parser.parse_args()
     args.report.parent.mkdir(parents=True, exist_ok=True)
     report = {"success": False, "checks": []}
     try:
         with tempfile.TemporaryDirectory(prefix="image-publication-", dir=args.report.parent) as directory:
             work = Path(directory)
-            env = os.environ.copy()
-            password = env.pop(args.password_env)
-            env.pop("A4N_ACCESS_TOKEN", None)
-            cli = Cli(args.a4n, args.server, work / "cli.json", work / "context.json", 60, env)
-            checked(cli, ["auth", "login", "--username", args.username, "--password-stdin"], "login", password + "\n")
-            checked(cli, ["capabilities", "check"], "capabilities")
+            cli = logged_in_cli(args, work)
             for name in ("create_freeform_video_project", "start_image_generation", "list_images_by_project", "delete_image"):
                 checked(cli, ["capabilities", "describe", name], name + " contract")
             secure_json(work / "runtime.json", runtime_snapshot(args.provider_url, embedding_dimension=384))

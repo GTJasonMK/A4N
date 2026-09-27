@@ -650,14 +650,15 @@ impl OrchestratorContext {
                     segment.source_shot_id
                 ))
             })?;
-            segment.director_constraints = shot.director_constraints.clone();
-            segment.duration_secs = shot.segment_duration_secs;
-            if let Some(director) = &shot.director_constraints {
-                segment.aspect_ratio = director
-                    .frame
-                    .aspect_ratio()
-                    .map_err(AppError::InvalidArgument)?;
-            }
+            let director = &shot.director_constraints;
+            segment.director_constraints = Some(director.clone());
+            segment.duration_secs = director
+                .video_duration_secs()
+                .map_err(AppError::InvalidArgument)?;
+            segment.aspect_ratio = director
+                .frame
+                .aspect_ratio()
+                .map_err(AppError::InvalidArgument)?;
         }
         let mut changed_projection = projection.clone();
         for scene in &mut changed_projection.scenes {

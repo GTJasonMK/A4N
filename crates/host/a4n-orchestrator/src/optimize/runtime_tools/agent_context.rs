@@ -3,14 +3,15 @@ use a4n_api_contract::optimize::{
     ReadOptimizationContextInput, SearchOptimizationContextInput,
     canonical_optimization_context_source,
 };
-use a4n_domain::source_spans::source_spans_for_content;
+use a4n_domain::source_spans::source_paragraph_ranges;
 use a4n_error::AppError;
 use serde_json::{Value, json};
 
 use super::super::OrchestratorContext;
 use super::super::context::build_content_optimization_context;
+use super::super::permissions::{default_agent_permissions, optimization_permissions_from_session};
+use super::search::search_context;
 use super::source_hash;
-use a4n_api_contract::optimize::OptimizationAgentPermissions;
 
 const CONTEXT_RESULT_BYTES: usize = 12 * 1024;
 const PREVIEW_CHARS: usize = 120;
@@ -34,17 +35,26 @@ pub(in crate::optimize) async fn inspect_project_context(
         ));
     }
     let source = input.source.as_deref().map(canonical_source).transpose()?;
+    if input.cursor.is_some() && source != Some("current_chapter") {
+        return Err(AppError::InvalidArgument(
+            "cursor 只适用于当前章节的段落目录".into(),
+        ));
+    }
     let result = match source {
-        None => json!({
-            "kind": "context_index",
-            "sources": OPTIMIZATION_CONTEXT_SOURCES.iter().filter_map(|name| {
-                context_value.get(*name).map(|value| json!({
-                    "source": name,
-                    "kind": value_kind(value),
-                    "hash": source_hash(value).ok(),
-                }))
-            }).collect::<Vec<_>>(),
-        }),
+        None => {
+            let sources = OPTIMIZATION_CONTEXT_SOURCES
+                .iter()
+                .filter_map(|name| context_value.get(*name).map(|value| (name, value)))
+                .map(|(name, value)| {
+                    Ok(json!({
+                        "source": name,
+                        "kind": value_kind(value),
+                        "hash": source_hash(value)?,
+                    }))
+                })
+                .collect::<Result<Vec<_>, AppError>>()?;
+            json!({"kind": "context_index", "sources": sources})
+        }
         Some(source) => {
             let value = context_value.get(source).ok_or_else(|| {
                 AppError::InvalidArgument(format!("当前会话没有可读取的信息源: {source}"))
@@ -90,6 +100,19 @@ pub(in crate::optimize) async fn read_project_context(
         ));
     }
     let include = normalized_include(&input.include)?;
+    if input.cursor.is_some()
+        && !matches!(
+            (&input.selection, source),
+            (
+                OptimizationContextSelection::All | OptimizationContextSelection::Paragraphs { .. },
+                "current_chapter"
+            )
+        )
+    {
+        return Err(AppError::InvalidArgument(
+            "cursor 只适用于当前章节的段落读取".into(),
+        ));
+    }
     let content = match (&input.selection, source) {
         (OptimizationContextSelection::All, "current_chapter") => {
             read_all_chapter(value, &include, input.cursor.as_deref())?
@@ -143,23 +166,9 @@ pub(in crate::optimize) async fn search_project_context(
     if query.is_empty() {
         return Err(AppError::InvalidArgument("query 不能为空".into()));
     }
-    let query_lower = query.to_lowercase();
     let limit = input.limit.unwrap_or(8).clamp(1, 20) as usize;
-    let mut matches = Vec::new();
     let source = input.source.as_deref().map(canonical_source).transpose()?;
-    let sources = match source {
-        Some(source) => vec![source],
-        None => OPTIMIZATION_CONTEXT_SOURCES.to_vec(),
-    };
-    for source in sources {
-        let Some(value) = context_value.get(source) else {
-            continue;
-        };
-        collect_matches(source, value, "$", &query_lower, limit, &mut matches);
-        if matches.len() >= limit {
-            break;
-        }
-    }
+    let mut matches = search_context(&context_value, source, query, limit);
     for item in &mut matches {
         let source =
             item.get("source")
@@ -190,46 +199,20 @@ impl OrchestratorContext {
         project_id: i64,
         chapter_id: i64,
     ) -> Result<Value, AppError> {
-        self.verify_project_permission(
-            project_id,
-            user_id,
-            a4n_domain::collaboration::ProjectAccessRole::Editor,
-        )
-        .await?;
-        let permissions = self
-            .optimize_sessions_for_user(user_id, project_id, Some(chapter_id))
+        let permissions = match self
+            .agent_optimization_session_for_user(user_id, project_id, chapter_id)
             .await?
-            .into_iter()
-            .find_map(|session| {
-                session
-                    .agent_permissions
-                    .and_then(|value| serde_json::from_value(value).ok())
-            })
-            .unwrap_or_else(default_permissions);
-        let mut value = build_content_optimization_context(
+        {
+            Some(session) => optimization_permissions_from_session(&session)?,
+            None => default_agent_permissions(),
+        };
+        build_content_optimization_context(
             self.database.connection(),
             project_id,
             chapter_id,
             &permissions,
         )
-        .await?;
-        let chapter = self
-            .optimization_chapter_by_id(chapter_id)
-            .await?
-            .ok_or_else(|| AppError::NotFound(format!("章节不存在: {chapter_id}")))?;
-        value["current_chapter"]["content"] = Value::String(chapter.content);
-        Ok(value)
-    }
-}
-
-fn default_permissions() -> OptimizationAgentPermissions {
-    OptimizationAgentPermissions {
-        read_project_detail: true,
-        read_blueprint: true,
-        read_outlines: true,
-        read_character_profiles: true,
-        read_foreshadowing: true,
-        automatic_writeback: false,
+        .await
     }
 }
 
@@ -239,7 +222,7 @@ fn inspect_source(source: &str, value: &Value, cursor: Option<&str>) -> Result<V
             .get("content")
             .and_then(Value::as_str)
             .ok_or_else(|| AppError::InvalidArgument("current_chapter 缺少正文".into()))?;
-        let all_paragraphs = paragraph_ranges(content);
+        let all_paragraphs = source_paragraph_ranges(content);
         let start = paragraph_cursor(cursor)?;
         let mut paragraphs = Vec::new();
         for (offset, (start_byte, end_byte)) in all_paragraphs
@@ -301,7 +284,7 @@ fn inspect_source(source: &str, value: &Value, cursor: Option<&str>) -> Result<V
             "items": items.iter().enumerate().map(|(index, value)| json!({
                 "index": index,
                 "type": value_kind(value),
-                "preview": preview(&serde_json::to_string(value).unwrap_or_default()),
+                "preview": preview(&value.to_string()),
             })).collect::<Vec<_>>(),
         }));
     }
@@ -318,7 +301,7 @@ fn read_all_chapter(
         .and_then(Value::as_str)
         .ok_or_else(|| AppError::InvalidArgument("current_chapter 缺少正文".into()))?;
     let start = paragraph_cursor(cursor)?;
-    let indexes = (start..=paragraph_ranges(content).len() as u32).collect::<Vec<_>>();
+    let indexes = (start..=source_paragraph_ranges(content).len() as u32).collect::<Vec<_>>();
     read_chapter_paragraphs(value, &indexes, include)
 }
 
@@ -331,32 +314,13 @@ fn read_chapter_paragraphs(
         .get("content")
         .and_then(Value::as_str)
         .ok_or_else(|| AppError::InvalidArgument("current_chapter 缺少正文".into()))?;
-    let ranges = paragraph_ranges(content);
+    let ranges = source_paragraph_ranges(content);
     let spans = value
         .get("source_spans")
         .and_then(Value::as_array)
-        .cloned()
-        .unwrap_or_else(|| {
-            let chapter_number = value
-                .get("chapter_number")
-                .and_then(Value::as_i64)
-                .and_then(|value| i32::try_from(value).ok())
-                .unwrap_or_default();
-            source_spans_for_content(0, chapter_number, content)
-                .into_iter()
-                .map(|span| {
-                    json!({
-                        "id": span.id,
-                        "text": span.text,
-                        "paragraph_index": span.paragraph_index,
-                        "char_start": span.char_start,
-                        "char_end": span.char_end,
-                    })
-                })
-                .collect()
-        });
+        .ok_or_else(|| AppError::InvalidArgument("current_chapter 缺少原文引用".into()))?;
     let mut paragraphs = Vec::new();
-    for index in indexes.iter().copied().filter(|index| *index > 0) {
+    for index in indexes.iter().copied() {
         let Some((start, end)) = ranges.get(index as usize - 1).copied() else {
             return Err(AppError::InvalidArgument(format!(
                 "paragraph index 超出范围: {index}"
@@ -416,13 +380,7 @@ fn paragraph_cursor(cursor: Option<&str>) -> Result<u32, AppError> {
             let index = cursor
                 .strip_prefix("paragraph:")
                 .ok_or_else(|| AppError::InvalidArgument("paragraph cursor 无效".into()))?;
-            let index = parse_index(index)?;
-            if index == 0 {
-                return Err(AppError::InvalidArgument(
-                    "paragraph cursor 必须从 1 开始".into(),
-                ));
-            }
-            Ok(index)
+            parse_index(index)
         }
     }
 }
@@ -521,48 +479,12 @@ fn value_kind(value: &Value) -> &'static str {
     }
 }
 
-fn paragraph_ranges(content: &str) -> Vec<(usize, usize)> {
-    let mut ranges = Vec::new();
-    let mut start = None;
-    let mut cursor = 0;
-    for line in content.split_inclusive('\n') {
-        let line_start = cursor;
-        cursor += line.len();
-        let trimmed = line.trim_matches(['\n', '\r', ' ', '\t']);
-        if trimmed.is_empty() {
-            if let Some(begin) = start.take() {
-                let end = trim_range_end(content, begin, line_start);
-                if begin < end {
-                    ranges.push((begin, end));
-                }
-            }
-        } else if start.is_none() {
-            start = Some(line_start);
-        }
-    }
-    if let Some(begin) = start {
-        let end = trim_range_end(content, begin, content.len());
-        if begin < end {
-            ranges.push((begin, end));
-        }
-    }
-    if ranges.is_empty() && !content.is_empty() {
-        ranges.push((0, content.len()));
-    }
-    ranges
-}
-
 fn parse_index(value: &str) -> Result<u32, AppError> {
     value
         .parse::<u32>()
         .ok()
         .filter(|value| *value > 0)
         .ok_or_else(|| AppError::InvalidArgument(format!("cursor 段落索引无效: {value}")))
-}
-
-fn trim_range_end(content: &str, start: usize, end: usize) -> usize {
-    let trimmed = content[start..end].trim_end_matches(['\n', '\r', ' ', '\t']);
-    start + trimmed.len()
 }
 
 fn escape_pointer(value: &str) -> String {
@@ -578,88 +500,36 @@ fn preview(value: &str) -> String {
     text.trim().to_string()
 }
 
-fn collect_matches(
-    source: &str,
-    value: &Value,
-    path: &str,
-    query_lower: &str,
-    limit: usize,
-    out: &mut Vec<Value>,
-) {
-    if out.len() >= limit {
-        return;
-    }
-    match value {
-        Value::String(text) if text.to_lowercase().contains(query_lower) => {
-            out.push(json!({
-                "source": source,
-                "path": path,
-                "preview": preview(text),
-            }));
-        }
-        Value::Array(items) => {
-            for (index, item) in items.iter().enumerate() {
-                collect_matches(
-                    source,
-                    item,
-                    &format!("{path}/{index}"),
-                    query_lower,
-                    limit,
-                    out,
-                );
-                if out.len() >= limit {
-                    break;
-                }
-            }
-        }
-        Value::Object(object) => {
-            for (key, child) in object {
-                collect_matches(
-                    source,
-                    child,
-                    &format!("{path}/{}", escape_pointer(key)),
-                    query_lower,
-                    limit,
-                    out,
-                );
-                if out.len() >= limit {
-                    break;
-                }
-            }
-        }
-        Value::Null | Value::Bool(_) | Value::Number(_) | Value::String(_) => {}
-    }
-}
-
 #[cfg(test)]
 mod tests {
-    use super::{inspect_source, paragraph_ranges, read_chapter_paragraphs, read_paths};
-    use serde_json::json;
+    use super::{inspect_source, read_chapter_paragraphs, read_paths};
+    use a4n_domain::source_spans::{source_span_prompt_values, source_spans_for_content};
+    use serde_json::{Value, json};
 
-    #[test]
-    fn paragraph_ranges_keep_blank_line_separated_prose() {
-        let content = "第一段第一行。\n第一段第二行。\n\n第二段。\n\n第三段。";
-        let ranges = paragraph_ranges(content);
-        let paragraphs = ranges
-            .iter()
-            .map(|(start, end)| content[*start..*end].to_string())
-            .collect::<Vec<_>>();
-        assert_eq!(
-            paragraphs,
-            vec!["第一段第一行。\n第一段第二行。", "第二段。", "第三段。"]
-        );
+    fn chapter_value(content: &str) -> Value {
+        json!({"chapter_number": 3, "content": content,
+               "source_spans": source_span_prompt_values(&source_spans_for_content(7, 3, content))})
     }
 
     #[test]
-    fn paragraph_ranges_return_one_range_for_single_line_content() {
-        let content = "正文。";
-        assert_eq!(paragraph_ranges(content), vec![(0, content.len())]);
+    fn selected_paragraph_returns_its_own_evidence() {
+        let value = chapter_value("\r\n第一段。\r\n第二段。\r\n\r\n第三段。");
+        let page = read_chapter_paragraphs(&value, &[2], &["content", "source_spans"]).unwrap();
+        assert_eq!(page["paragraphs"][0]["content"], "第二段。");
+        assert_eq!(page["paragraphs"][0]["source_spans"][0]["text"], "第二段");
+        assert_eq!(
+            page["paragraphs"][0]["source_spans"][0]["paragraph_index"],
+            2
+        );
+        assert!(
+            read_chapter_paragraphs(&json!({"content": "无引用"}), &[1], &["content"]).is_err()
+        );
     }
 
     #[test]
     fn paragraph_reads_preserve_utf8_and_return_continuation_cursor() {
         let content = (0..500).map(|_| "中文段落。\n\n").collect::<String>();
-        let value = json!({"chapter_number": 3, "content": content});
+        let value = chapter_value(&content);
         let result = read_chapter_paragraphs(&value, &(1..=500).collect::<Vec<_>>(), &["content"])
             .expect("paragraph read should be bounded");
         assert_eq!(result["paragraphs"][0]["content"], "中文段落。");
@@ -674,7 +544,7 @@ mod tests {
     #[test]
     fn oversized_paragraph_makes_progress_and_history_cursor_never_rewinds() {
         let text = format!("{}末尾约束", "长段落。".repeat(4000));
-        let value = json!({"chapter_number": 1, "content": text});
+        let value = chapter_value(&text);
         let page = read_chapter_paragraphs(&value, &[1], &["content", "source_spans"]).unwrap();
         assert_eq!(page["paragraphs"][0]["content"], value["content"]);
         assert_eq!(page["complete"], true);

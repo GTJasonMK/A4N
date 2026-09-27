@@ -101,6 +101,49 @@ fn budget_execution(run_id: i64, key: &str, model: bool) -> AgentExecutionInput 
 }
 
 #[tokio::test]
+async fn failed_duration_budget_keeps_its_usage_readable() {
+    use a4n_db::agent::run_budget_snapshot;
+    let db = setup_db().await;
+    let thread = create_test_thread(&db, "main").await;
+    let (_, run) = create_test_run(&db, thread.id, "user").await;
+    let id = run.id;
+    let mut row: run::ActiveModel = run.into();
+    row.budget_json = Set(json!({"max_duration_seconds": i64::MAX}));
+    row.started_at = Set(Some(Utc::now().naive_utc()));
+    row.status = Set("running".into());
+    let row = row.update(&db).await.unwrap();
+    assert!(matches!(
+        run_budget_snapshot(&db, id).await,
+        Err(AgentDbError::InvalidArgument(_))
+    ));
+    let mut row: run::ActiveModel = row.into();
+    row.status = Set("failed".into());
+    row.is_active = Set(false);
+    row.last_error = Set(Some("Agent 时长预算超出时钟范围".into()));
+    row.update(&db).await.unwrap();
+    let snapshot = run_budget_snapshot(&db, id).await.unwrap();
+    assert_eq!(
+        snapshot.usage["duration_deadline_unix_ms"],
+        serde_json::Value::Null
+    );
+    assert_eq!(snapshot.usage["model_calls_used"], 0);
+    assert_eq!(snapshot.usage["tokens_used"], 0);
+
+    let child_thread = create_test_thread(&db, "general").await;
+    let (_, child) = create_test_run(&db, child_thread.id, "delegation").await;
+    let child_id = child.id;
+    let mut child: run::ActiveModel = child.into();
+    child.parent_run_id = Set(Some(id));
+    child.root_run_id = Set(Some(id));
+    child.update(&db).await.unwrap();
+    assert!(
+        matches!(run_budget_snapshot(&db, child_id).await,
+        Err(AgentDbError::InvalidArgument(message)) if message.contains("时钟范围")),
+        "an active child must retain its ancestor's duration constraint"
+    );
+}
+
+#[tokio::test]
 async fn budget_one_admits_one_call_and_extension_resumes_the_same_run() {
     use a4n_db::agent::{resume_run, run_budget_snapshot, wait_run_for_lease};
     use a4n_domain::agent::AgentBudget;

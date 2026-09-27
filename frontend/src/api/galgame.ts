@@ -55,8 +55,8 @@ export type {
   UpdateGalgameSceneInput,
 } from "./generated/host";
 
-export async function getGalgameScript(projectId: Id): Promise<Host.GalgameScriptDetail> {
-  return apiInvoke<Host.GalgameScriptDetail>("get_galgame_script", {
+export async function getGalgameScript(projectId: Id): Promise<Host.GalgameScriptDetail | null> {
+  return apiInvoke<Host.GalgameScriptDetail | null>("get_galgame_script", {
     input: { project_id: idNum(projectId) },
   });
 }
@@ -155,6 +155,12 @@ export async function updateGalgameChoices(
 
 export async function planGalgameAssets(projectId: Id): Promise<Host.GalgameAssetPlan> {
   return apiInvoke<Host.GalgameAssetPlan>("plan_galgame_assets", {
+    input: { project_id: idNum(projectId) },
+  });
+}
+
+export async function getGalgameAssetPlan(projectId: Id): Promise<Host.GalgameAssetPlan | null> {
+  return apiInvoke<Host.GalgameAssetPlan | null>("get_galgame_asset_plan", {
     input: { project_id: idNum(projectId) },
   });
 }

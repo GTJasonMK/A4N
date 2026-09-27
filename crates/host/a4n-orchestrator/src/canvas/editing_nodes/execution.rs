@@ -57,6 +57,7 @@ impl OrchestratorContext {
             .start_canvas_node_execution(
                 input.project_id,
                 input.graph_id,
+                input.document.graph.version,
                 input.mode,
                 step_key,
                 input_json,
@@ -218,6 +219,7 @@ impl OrchestratorContext {
             };
             self.update_canvas_node_artifact_record(CanvasNodeArtifactUpdateInput {
                 node_id: input.node.id,
+                expected_graph_version: lifecycle.run.graph_version,
                 ref_type: ref_type.to_string(),
                 ref_id,
                 config_patch: artifact_json.clone(),

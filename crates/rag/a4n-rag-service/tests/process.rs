@@ -1,5 +1,5 @@
 use a4n_service_protocol::{
-    CapabilityTaskEventKind, RAG_INGEST_EVENTS_PATH, RAG_METADATA_BY_IDS_PATH,
+    BodyLimitKind, CapabilityTaskEventKind, RAG_INGEST_EVENTS_PATH, RAG_METADATA_BY_IDS_PATH,
     SIDECAR_EVENT_QUEUE_CAPACITY, ServiceErrorCode, ServiceRequest,
 };
 use a4n_test_support::process::{
@@ -175,8 +175,13 @@ async fn rag_service_process_persists_rebuilds_and_recovers() {
     let base_url = sidecar_base_url(addr);
     assert_protected_route_rejects_invalid_auth(&base_url, RAG_METADATA_BY_IDS_PATH).await;
     assert_route_rejects_malformed_json(&base_url, RAG_METADATA_BY_IDS_PATH).await;
-    assert_route_rejects_oversized_json(&base_url, RAG_METADATA_BY_IDS_PATH, 16 * 1024 * 1024)
-        .await;
+    assert_route_rejects_oversized_json(
+        &base_url,
+        RAG_METADATA_BY_IDS_PATH,
+        RAG_SERVICE_NAME,
+        BodyLimitKind::Json,
+    )
+    .await;
     let client = HttpRagClient::new_with_auth_token(base_url, SIDECAR_PROCESS_TEST_TOKEN);
     let request = request_context(
         "rag-process-metadata",
@@ -506,6 +511,9 @@ async fn rag_service_process_persists_rebuilds_and_recovers() {
     force_finish_sidecar(restarted, &manager, RAG_SERVICE_NAME, addr).await;
 
     let recovered = start_sidecar(&manager, RAG_SERVICE_NAME).await;
+    // The recovered process gets a new pool instead of idle sockets left by SIGKILL.
+    let client =
+        HttpRagClient::new_with_auth_token(sidecar_base_url(addr), SIDECAR_PROCESS_TEST_TOKEN);
     assert_complete(&client, &["doc-1", "doc-2", "doc-3"]).await;
     finish_sidecar(recovered, &manager, RAG_SERVICE_NAME, addr).await;
 

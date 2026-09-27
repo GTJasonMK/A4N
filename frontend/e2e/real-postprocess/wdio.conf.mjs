@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import { stopProcess } from "../process.mjs";
 
 const appBinary = process.env.A4N_REAL_APP_BINARY;
 if (!appBinary) throw new Error("A4N_REAL_APP_BINARY is required");
@@ -36,7 +37,7 @@ export const config = {
   logLevel: "warn",
   onPrepare: async () => {
     driver = spawn(
-      process.env.A4N_TAURI_DRIVER_BINARY ?? "/home/fufu/.cargo/bin/tauri-driver",
+      process.env.A4N_TAURI_DRIVER_BINARY ?? "tauri-driver",
       ["--port", "4444", "--native-port", "4445", "--native-driver", "/usr/bin/WebKitWebDriver"],
       { stdio: ["ignore", "pipe", "pipe"] },
     );
@@ -45,7 +46,12 @@ export const config = {
     };
     driver.stdout.on("data", record);
     driver.stderr.on("data", record);
-    await waitForDriver();
+    try {
+      await waitForDriver();
+    } catch (error) {
+      await stopProcess(driver);
+      throw error;
+    }
   },
-  onComplete: () => driver?.kill("SIGTERM"),
+  onComplete: () => stopProcess(driver),
 };

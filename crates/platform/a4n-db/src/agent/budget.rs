@@ -207,7 +207,10 @@ pub async fn run_budget_snapshot<C: ConnectionTrait>(
             });
             cap_u64(&mut remaining.max_duration_seconds, limit, elapsed);
             exhausted_here |= elapsed >= limit;
-            if let Some(started) = row.started_at {
+            // Closed runs only need totals; active children still inherit ancestor deadlines.
+            if let Some(started) = row.started_at
+                && current.is_active
+            {
                 let deadline = i64::try_from(limit)
                     .ok()
                     .and_then(Duration::try_seconds)

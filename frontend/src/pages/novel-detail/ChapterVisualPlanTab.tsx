@@ -448,7 +448,10 @@ export function ChapterVisualPlanTab({ projectId, canEdit, chapter }: { projectI
       <DomainAgentConsole capability="director" projectId={projectId} chapterId={chapter.id} resourceLabel={chapter.title} className="director-agent-console director-agent-modal-console" onResourceChanged={() => model.reload()} getEditorSource={getEditorSource} onEditorRequest={editorRequest} />
     </Modal>
     <Modal isOpen={modalPanel === "settings"} title="画幅" onClose={closeModal}>
-      <div className="director-inline-actions">{[[1920, 1080, "16:9 横屏"], [1080, 1920, "9:16 竖屏"], [1080, 1080, "1:1 方形"], [1440, 1080, "4:3"]].map(([width, height, label]) => <BookButton key={label} variant="secondary" disabled={disabled} onClick={() => { void edit({ kind: "set_frame", frame: { width: Number(width), height: Number(height) } }); closeModal(); }}>{label}</BookButton>)}</div>
+      <div className="director-inline-actions">{[[1920, 1080, "16:9 横屏"], [1080, 1920, "9:16 竖屏"], [1080, 1080, "1:1 方形"], [1440, 1080, "4:3"]].map(([width, height, label]) => {
+        const selected = plan.frame.width * Number(height) === plan.frame.height * Number(width);
+        return <BookButton key={label} variant={selected ? "primary" : "secondary"} aria-pressed={selected} disabled={disabled} onClick={() => { void edit({ kind: "set_frame", frame: { width: Number(width), height: Number(height) } }); closeModal(); }}>{label}</BookButton>;
+      })}</div>
       <p className="director-context-line">图片完整显示在画框中；总时长在时间条上等比调整。</p>
     </Modal>
     <Modal isOpen={modalPanel === "media"} title={point ? `${point.label || "图片点"} · 选择分镜与参考图` : "图片素材库"} onClose={closeModal} maxWidthClassName="max-w-5xl">

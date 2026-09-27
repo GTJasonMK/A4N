@@ -44,7 +44,7 @@ function Harness() {
   });
   window.__LLM_PRESET_E2E__.form = form;
   return <I18nProvider initialLocale="zh-CN">
-    <main className="mx-auto flex max-w-3xl flex-col gap-4 p-4">
+    <main className="mx-auto flex h-full max-w-3xl flex-col gap-4 overflow-y-auto p-4">
       <h1 className="text-xl font-semibold text-book-text-main">模型配置</h1>
       <LlmConfigEditor form={form} setForm={setForm} configId={1} scope="local" providers={providers} />
     </main>

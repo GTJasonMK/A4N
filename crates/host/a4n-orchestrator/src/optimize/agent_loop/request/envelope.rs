@@ -139,7 +139,7 @@ mod tests {
     #[test]
     fn loop_appends_full_observations_after_a_frozen_base_and_budget_counts_them() {
         let observations = vec![
-            json!({"action": "run_tool", "success": false, "result": {"evidence": "unique-full-evidence"}}),
+            json!({"action": "run_tool", "arguments": {"content": "unique-full-arguments"}, "success": false, "result": {"evidence": "unique-full-evidence"}}),
             json!({"action": "think", "information_gaps": ["next"]}),
         ];
         let build = |history: &[Value], step| {
@@ -189,6 +189,14 @@ mod tests {
                 .iter()
                 .any(|point| point.message_index == 3)
         );
+        assert_eq!(
+            next.messages
+                .iter()
+                .map(|message| message.content.matches("unique-full-arguments").count())
+                .sum::<usize>(),
+            1
+        );
+        assert!(!next.messages.last().unwrap().content.contains("tools_used"));
         let mut oversized = build_agent_loop_chat_request(
             7,
             Some(11),

@@ -44,7 +44,7 @@ await initializePortableStorage();
 useAuthStore.setState({ initialized: true, user: { id: 1, role: "admin", username: "cache-review" } });
 createRoot(document.getElementById("root")).render(
   <I18nProvider initialLocale="zh-CN">
-    <main className="mx-auto max-w-6xl p-4"><GenerationCallAnalyticsPanel /></main>
+    <main className="mx-auto h-full max-w-6xl overflow-y-auto p-4"><GenerationCallAnalyticsPanel /></main>
     <ToastContainer />
   </I18nProvider>,
 );

@@ -3,10 +3,24 @@ import type {
   ShootingCameraMovementV1,
   ShootingCoverageV1,
   ShootingShotSizeV1,
+  ShootingShotV2,
 } from "../api/shootingScript";
-import type { MessageKey } from "../i18n";
+import { formatNumber, type MessageKey } from "../i18n";
 
 type Translator = (key: MessageKey) => string;
+
+export function shootingShotDurationLabel(
+  shot: Pick<ShootingShotV2, "planned_start_ms" | "planned_end_ms">,
+  locale: Parameters<typeof formatNumber>[1],
+  t: Translator,
+): string {
+  const start = shot.planned_start_ms;
+  const end = shot.planned_end_ms;
+  if (start == null || end == null || !Number.isFinite(start) || !Number.isFinite(end) || end <= start) {
+    return t("shootingScript.editor.missingPlannedDuration");
+  }
+  return `${formatNumber((end - start) / 1000, locale, { maximumFractionDigits: 3 })} ${t("units.seconds")}`;
+}
 
 const SHOT_SIZE_LABELS: Record<ShootingShotSizeV1, MessageKey> = {
   extreme_wide: "shootingScript.editor.cameraExtremeWide",

@@ -55,6 +55,7 @@ impl CanvasGraphExecutionHostPort for RuntimeCanvasGraphExecutionHostPort<'_> {
                     Some(CanvasNodeRun {
                         workflow_run_id: input.shared_run.workflow_run_id,
                         finalize_on_success: input.shared_run.finalize_on_success,
+                        graph_version: input.graph_version,
                     }),
                     input.mode.as_str(),
                 )
@@ -70,6 +71,7 @@ impl CanvasGraphExecutionHostPort for RuntimeCanvasGraphExecutionHostPort<'_> {
                     Some(CanvasNodeRun {
                         workflow_run_id: input.shared_run.workflow_run_id,
                         finalize_on_success: input.shared_run.finalize_on_success,
+                        graph_version: input.graph_version,
                     }),
                     input.mode.as_str(),
                 )
@@ -85,6 +87,7 @@ impl CanvasGraphExecutionHostPort for RuntimeCanvasGraphExecutionHostPort<'_> {
                     Some(CanvasNodeRun {
                         workflow_run_id: input.shared_run.workflow_run_id,
                         finalize_on_success: input.shared_run.finalize_on_success,
+                        graph_version: input.graph_version,
                     }),
                     input.mode.as_str(),
                 )
@@ -100,6 +103,7 @@ impl CanvasGraphExecutionHostPort for RuntimeCanvasGraphExecutionHostPort<'_> {
                     Some(CanvasNodeRun {
                         workflow_run_id: input.shared_run.workflow_run_id,
                         finalize_on_success: input.shared_run.finalize_on_success,
+                        graph_version: input.graph_version,
                     }),
                     input.mode.as_str(),
                 )
@@ -111,6 +115,7 @@ impl CanvasGraphExecutionHostPort for RuntimeCanvasGraphExecutionHostPort<'_> {
                 let editing_run = Some(CanvasEditingNodeRun {
                     workflow_run_id: input.shared_run.workflow_run_id,
                     finalize_on_success: input.shared_run.finalize_on_success,
+                    graph_version: input.graph_version,
                 });
                 run_canvas_editing_node(
                     self.state,
@@ -133,6 +138,7 @@ impl CanvasGraphExecutionHostPort for RuntimeCanvasGraphExecutionHostPort<'_> {
                     Some(CanvasNodeRun {
                         workflow_run_id: input.shared_run.workflow_run_id,
                         finalize_on_success: input.shared_run.finalize_on_success,
+                        graph_version: input.graph_version,
                     }),
                     input.mode.as_str(),
                 )
@@ -151,6 +157,7 @@ impl CanvasGraphExecutionHostPort for RuntimeCanvasGraphExecutionHostPort<'_> {
                     Some(CanvasNodeRun {
                         workflow_run_id: input.shared_run.workflow_run_id,
                         finalize_on_success: input.shared_run.finalize_on_success,
+                        graph_version: input.graph_version,
                     }),
                     input.mode.as_str(),
                 )

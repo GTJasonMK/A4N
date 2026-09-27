@@ -255,7 +255,7 @@ mod tests {
             visual_plan_version: Some(3),
             visual_plan_sha256: Some("b".repeat(64)),
             input_fingerprint_sha256: "c".repeat(64),
-            contract_version: "chapter_shooting_script_v1".to_string(),
+            contract_version: "chapter_shooting_script_v2".to_string(),
             revision: 1,
             script_sha256: "d".repeat(64),
             script_json: json!({}),

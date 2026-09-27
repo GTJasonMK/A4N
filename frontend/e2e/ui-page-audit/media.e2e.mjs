@@ -676,7 +676,17 @@ const cases = [
     ["MV15", 4, "参考媒体", "图片、视频和音频参考"],
     ["MV16", 5, "Chat", "复制Chat提示词的手工流程"],
     ["MV17", 6, "首尾帧", "尚未准备输入时的下一步"],
-  ].map(([id, number, mode, task]) => ({ id, title: `片段${number}·${mode}`, task, open: () => openSegment(number), scope: dialog, expected: [mode], after: ["MV12", "MV13", "MV14", "MV15", "MV16"].includes(id) ? inspectVideoEditorEnd : undefined, note: "五种已就绪制作模式均真实滚到末尾文字字段并记录interaction截图，不能以首屏模式按钮替代编辑可达性。" })),
+  ].map(([id, number, mode, task]) => ({
+    id, title: `片段${number}·${mode}`, task, open: () => openSegment(number), scope: dialog, expected: [mode],
+    after: async (record) => {
+      if (id !== "MV17") return inspectVideoEditorEnd(record);
+      const reason = "请先准备当前片段的首尾帧提示词";
+      assert.equal(record.text.split(reason).length - 1, 1, "The generation workspace must show the blocking reason once");
+      assert.equal(await $(dialog).$('.//button[normalize-space()="生成最终提示词"]').isEnabled(), false);
+      return { blockingReason: reason, generationDisabled: true };
+    },
+    note: "五种就绪模式检查末端字段；未准备模式保留唯一原因与禁用生成。",
+  })),
   { id: "MV18", title: "首帧配置", task: "查看已生成首帧及文字操作", open: () => openFrame(1, "首帧"), scope: dialog, expected: ["首帧配置", "保存", "生成图片"], images: 1, note: "底栏可能有六个动作，390px需检查正文剩余高度。" },
   { id: "MV19", title: "尾帧配置", task: "查看尾帧，区分当前片段起止状态", open: () => openFrame(1, "尾帧"), scope: dialog, expected: ["尾帧配置"], images: 1, note: "必须是真实尾帧内容，不能复用空配置截图。" },
   { id: "MV20", title: "连续性来源", task: "辨认续接尾帧与更早视频的关系", open: async () => { await openSegment(2); await $(`${dialog} button[aria-label="配置续接首帧"]`).$('.//span[normalize-space()="配置续接首帧"]').click(); await browser.waitUntil(async () => (await $(`${dialog} h3`).getText()) === "续接首帧配置"); }, scope: dialog, expected: ["来源视频"], images: 1, note: "来源ID应配合片段信息和尾帧预览，不能要求记忆裸编号。" },
@@ -712,7 +722,14 @@ const cases = [
   }, note: "先真实滚到BGM控制区再验证播放时间推进，保留可见音频控件的interaction截图。" },
   { id: "MG09", title: "Galgame视觉资产计划", task: "查看6背景、12立绘单元和2CG", open: openGalgameAssets, scope: dialog, expected: ["角色差分", "CG", "站台·镜中出口"], count: [`${dialog} tbody td`, 12], note: "资产已集中到独立弹窗；检查全部背景、矩阵和固定底栏，而不是旧侧栏布局。" },
   { id: "MG10", title: "Galgame矩阵末项", task: "找到矩阵最右列并读取生成状态", open: async () => { await openGalgameAssets(); await reachByWheel(`${dialog} tbody tr:last-child td:last-child button`, "y"); }, scope: dialog, tail: `${dialog} tbody tr:last-child td:last-child button`, axis: "x", expected: ["视觉资产", "生成素材"], note: "单格动作准确标为生成素材；窄屏保留真实横向滚动与大图预览。" },
-  { id: "MG11", title: "Galgame生成选项", task: "查看可续跑阶段与生成起点", open: async () => { await openGalgame("scenes"); await openDetails('details[aria-label="剧本生成"]'); await openDetails('details[aria-label="剧本生成"] details'); }, expected: ["生成", "从头开始"], note: "可恢复失败状态与生成参数必须同时可辨。" },
+  { id: "MG11", title: "Galgame生成选项", task: "区分断点续跑与指定阶段重新生成", open: async () => { await openGalgame("scenes"); await openDetails('details[aria-label="剧本生成"]'); await openDetails('details[aria-label="剧本生成"] details'); }, expected: ["继续生成", "自动选择起点"], after: async () => {
+    const options = await $('details[aria-label="剧本生成"]');
+    await options.$('button[role="combobox"]').click();
+    await $('//*[@role="option" and normalize-space()="资产意图"]').click();
+    assert.equal(await options.$('button=从资产意图重新生成').isDisplayed(), true);
+    assert.equal(await browser.execute(() => window.__uiAudit.commands.includes("start_galgame_pipeline")), false);
+    return { selectedStage: "asset_generation", operationLabel: "从资产意图重新生成", submitted: false };
+  }, note: "未指定阶段时由续跑/生成操作决定起点；指定阶段后主按钮准确说明重生成范围，原请求参数不变。" },
   { id: "MG12", title: "Galgame请求预览", task: "从生成选项查看完整请求", open: async () => { await openGalgame("scenes"); await openDetails('details[aria-label="剧本生成"]'); await openMenu('details[aria-label="剧本生成"]', "查看模型请求"); await $(dialog).waitForDisplayed(); }, scope: dialog, expected: ["请求"], note: "保留阶段、来源、提示词和退出路径。" },
   { id: "MG13", title: "Galgame重置确认", task: "审查重置影响范围后安全取消", frequency: "低", open: async () => { await openGalgame(); await openMenu(".a4n-page-header", "重置生成数据"); await $(dialog).waitForDisplayed(); }, scope: dialog, expected: ["不可恢复", "重置"], after: async () => { assert.equal(await $(`${dialog} button[aria-label="关闭"]`).isDisplayed(), true); await browser.keys("Escape"); await $(dialog).waitForExist({ reverse: true }); assert.equal(await browser.execute(() => window.__uiAudit.commands.includes("reset_project_generated_data")), false); return { cancelledBeforeMutation: true }; }, note: "使用既有关闭/Escape安全取消，不要求新增底栏取消按钮。" },
 

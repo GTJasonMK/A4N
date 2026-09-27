@@ -7,6 +7,79 @@ use sea_orm::{
 use super::super::{ProjectDeleteDbError, delete_project_cascade_record};
 use super::support::{root_with_video_derivative, set_project_gate, setup_db, text_project};
 
+#[tokio::test]
+async fn deleting_root_removes_historical_snapshots_after_derived_projects_are_gone() {
+    use a4n_db_models::models::project::{project_source_snapshot, source_snapshot_chapter};
+    let db = setup_db().await;
+    let (root, derived) = root_with_video_derivative(&db).await;
+    let source_id = derived.source_snapshot_id.unwrap();
+    let source = project_source_snapshot::Entity::find_by_id(source_id)
+        .one(&db)
+        .await
+        .unwrap()
+        .unwrap();
+    let mut historical: project_source_snapshot::ActiveModel = source.clone().into();
+    historical.id = sea_orm::NotSet;
+    historical.source_version_hash = Set(a4n_domain::source_text_hash("historical snapshot"));
+    let historical = historical.insert(&db).await.unwrap();
+    for chapter in source_snapshot_chapter::Entity::find()
+        .filter(source_snapshot_chapter::Column::SnapshotId.eq(source_id))
+        .all(&db)
+        .await
+        .unwrap()
+    {
+        let mut copy: source_snapshot_chapter::ActiveModel = chapter.into();
+        copy.id = sea_orm::NotSet;
+        copy.snapshot_id = Set(historical.id);
+        copy.insert(&db).await.unwrap();
+    }
+    let other = text_project(&db, "unrelated root").await;
+    let mut other_snapshot: project_source_snapshot::ActiveModel = source.into();
+    other_snapshot.id = sea_orm::NotSet;
+    other_snapshot.root_project_id = Set(other.id);
+    let other_snapshot = other_snapshot.insert(&db).await.unwrap();
+    for project in [&derived, &root] {
+        set_project_gate(
+            &db,
+            project,
+            a4n_domain::generation::ProjectLifecycleOperation::Delete,
+        )
+        .await;
+        delete_project_cascade_record(&db, project.id)
+            .await
+            .unwrap();
+    }
+    assert!(
+        novel_project::Entity::find_by_id(root.id)
+            .one(&db)
+            .await
+            .unwrap()
+            .is_none()
+    );
+    assert_eq!(
+        source_snapshot_chapter::Entity::find()
+            .filter(source_snapshot_chapter::Column::RootProjectId.eq(root.id))
+            .count(&db)
+            .await
+            .unwrap(),
+        0
+    );
+    assert!(
+        project_source_snapshot::Entity::find_by_id(historical.id)
+            .one(&db)
+            .await
+            .unwrap()
+            .is_none()
+    );
+    assert!(
+        project_source_snapshot::Entity::find_by_id(other_snapshot.id)
+            .one(&db)
+            .await
+            .unwrap()
+            .is_some()
+    );
+}
+
 async fn insert_setting(
     db: &sea_orm::DatabaseConnection,
     key: String,

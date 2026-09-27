@@ -10,15 +10,18 @@ import { SegmentedControl } from "../components/ui/SegmentedControl";
 import { useAuthStore } from "../store/auth";
 import { useToast } from "../components/feedback/Toast";
 import { extractErrorMessage } from "../api";
-import { beginOAuthLogin, cancelOAuthLogin } from "../api/oauth";
+import { beginOAuthLogin, cancelOAuthLogin, getOAuth2AvailableProviders } from "../api/oauth";
 import { useI18n } from "../i18n";
 import { logger } from "../utils/logger";
 
-const OAUTH_PROVIDERS = ["github", "google"] as const;
-const OAUTH_PROVIDER_LABELS: Record<(typeof OAUTH_PROVIDERS)[number], string> = {
+const OAUTH_PROVIDER_LABELS = {
   github: "GitHub",
   google: "Google",
-};
+} as const;
+type OAuthProvider = keyof typeof OAUTH_PROVIDER_LABELS;
+
+const isOAuthProvider = (value: string): value is OAuthProvider =>
+  Object.prototype.hasOwnProperty.call(OAUTH_PROVIDER_LABELS, value);
 
 export const AuthPage: React.FC = () => {
   const { login, oauthLogin, register } = useAuthStore();
@@ -32,12 +35,14 @@ export const AuthPage: React.FC = () => {
   const [password, setPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
-  const [oauthProvider, setOauthProvider] = useState("github");
+  const [oauthProviders, setOauthProviders] = useState<OAuthProvider[] | null>(null);
+  const [oauthProviderLoadFailed, setOauthProviderLoadFailed] = useState(false);
+  const [oauthProvider, setOauthProvider] = useState<OAuthProvider | "">("");
   const [oauthBusy, setOauthBusy] = useState(false);
   const [showOauth, setShowOauth] = useState(false);
   const submitBusyRef = useRef(false);
   const oauthBusyRef = useRef(false);
-  const oauthProviderRef = useRef(oauthProvider);
+  const oauthProviderRef = useRef<OAuthProvider | "">("");
   const oauthSeqRef = useRef(0);
   const mountedRef = useRef(false);
   const submitReady =
@@ -59,7 +64,31 @@ export const AuthPage: React.FC = () => {
     };
   }, []);
 
+  useEffect(() => {
+    let active = true;
+    void getOAuth2AvailableProviders().then((providers) => {
+      if (providers.some((provider) => !isOAuthProvider(provider))) {
+        throw new Error("OAuth provider availability response is invalid");
+      }
+      if (!active) return;
+      const available = providers as OAuthProvider[];
+      const initialProvider = available[0] ?? "";
+      setOauthProviders(available);
+      oauthProviderRef.current = initialProvider;
+      setOauthProvider(initialProvider);
+    }).catch((error: unknown) => {
+      if (!active) return;
+      logger.scoped("OAuth").error("Failed to load available OAuth providers", { error });
+      setOauthProviderLoadFailed(true);
+      setOauthProviders([]);
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
+
   const handleOauthProviderChange = (nextProvider: string) => {
+    if (!isOAuthProvider(nextProvider) || !oauthProviders?.includes(nextProvider)) return;
     oauthProviderRef.current = nextProvider;
     oauthSeqRef.current += 1;
     setOauthProvider(nextProvider);
@@ -121,8 +150,8 @@ export const AuthPage: React.FC = () => {
 
   const handleOauthLogin = async () => {
     const requestProvider = oauthProvider.trim();
-    if (!requestProvider) {
-      addToast(t("auth.selectLoginService"), "error");
+    if (!requestProvider || !oauthProviders?.includes(requestProvider as OAuthProvider)) {
+      addToast(t("auth.oauthUnavailable"), "error");
       return;
     }
     if (oauthBusyRef.current) return;
@@ -312,8 +341,8 @@ export const AuthPage: React.FC = () => {
                   : t("auth.registerPrivacy")}
               </p>
 
-              {mode === "login" ? (
-              <>
+              {mode === "login" && oauthProviders && oauthProviders.length > 0 ? (
+                <>
                   <hr className="story-divider my-5" />
                   <button
                     type="button"
@@ -326,6 +355,11 @@ export const AuthPage: React.FC = () => {
                     <Globe size={13} /> {t("auth.useOauth")}
                   </button>
                 </>
+              ) : null}
+              {mode === "login" && oauthProviders !== null && oauthProviders.length === 0 ? (
+                <p role="status" className="a4n-auth-privacy">
+                  {t(oauthProviderLoadFailed ? "auth.oauthProviderLoadFailed" : "auth.oauthUnavailable")}
+                </p>
               ) : null}
             </>
           ) : (
@@ -342,7 +376,7 @@ export const AuthPage: React.FC = () => {
                   disabled={oauthBusy}
                   className="pyqt-input min-w-0"
                 >
-                  {OAUTH_PROVIDERS.map((provider) => (
+                  {oauthProviders?.map((provider) => (
                     <option key={provider} value={provider}>
                       {OAUTH_PROVIDER_LABELS[provider]}
                     </option>
@@ -356,7 +390,7 @@ export const AuthPage: React.FC = () => {
                 className="w-full"
               >
                 {oauthBusy ? t("auth.awaitingAuthorization") : t("auth.continueWithProvider", {
-                  provider: OAUTH_PROVIDER_LABELS[oauthProvider as keyof typeof OAUTH_PROVIDER_LABELS],
+                  provider: oauthProvider ? OAUTH_PROVIDER_LABELS[oauthProvider] : "",
                 })}
               </BookButton>
               <button

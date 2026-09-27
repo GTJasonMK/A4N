@@ -128,6 +128,7 @@ export const HOST_API_COMMANDS = [
   "get_character_voice_fingerprint",
   "get_current_user",
   "get_embedding_model_download_info",
+  "get_galgame_asset_plan",
   "get_galgame_pipeline_status",
   "get_galgame_script",
   "get_generation_call_analytics",
@@ -231,6 +232,7 @@ export const HOST_API_COMMANDS = [
   "modify_profile_attribute",
   "move_inserted_segment",
   "oauth2_authorize_url",
+  "oauth2_available_providers",
   "oauth2_callback",
   "optimize_chapter_video_prompt",
   "optimize_manga_prompt",
@@ -2612,7 +2614,7 @@ export interface GalgameAssetPlanItem {
   canonical_key: string;
   generation_spec_id: number;
   label: string;
-  outcome: GalgameAssetPlanOutcome;
+  outcome: GalgameAssetPlanOutcome | null;
   params_json: unknown;
   source_label: string;
   source_snapshot_id: number;
@@ -5052,7 +5054,7 @@ export interface ConfirmedChapterVisualPlanView {
   visual_plan: ChapterVisualPlanView;
 }
 
-export type ChapterShootingScriptSchemaVersion = "chapter_shooting_script_v1";
+export type ChapterShootingScriptSchemaVersion = "chapter_shooting_script_v2";
 
 export type ShootingEditingModeV1 = "continuity" | "intercut" | "montage" | "flashback" | "parallel_action" | "sound_bridge";
 
@@ -5111,7 +5113,7 @@ export interface ShootingBlockingV1 {
   start: string;
 }
 
-export interface ShootingPerformanceBeatV1 {
+export interface ShootingPerformanceBeatV2 {
   actor: string | null;
   answer_or_delay: string;
   audience_question: string;
@@ -5119,7 +5121,6 @@ export interface ShootingPerformanceBeatV1 {
   beat_index: number;
   dialogue_intent: string | null;
   entry_state: string;
-  estimated_seconds: number;
   exit_state: string;
   expression: string | null;
   gaze: string | null;
@@ -5169,7 +5170,7 @@ export interface ShootingVisualConstraintsV3 {
   title: string;
 }
 
-export interface ShootingShotV1 {
+export interface ShootingShotV2 {
   blocking: ShootingBlockingV1;
   camera_angle: ShootingCameraAngleV1;
   camera_end_state: string;
@@ -5181,10 +5182,9 @@ export interface ShootingShotV1 {
   coverage: ShootingCoverageV1;
   dialogue_cues: ShootingDialogueCueV1[];
   end_state: string;
-  estimated_natural_seconds: number;
   lens_intent: string;
   narrative_purpose: string;
-  performance_beats: ShootingPerformanceBeatV1[];
+  performance_beats: ShootingPerformanceBeatV2[];
   planned_end_ms: number | null;
   planned_start_ms: number | null;
   shot_id: string;
@@ -5203,7 +5203,7 @@ export interface ShootingShotV1 {
   visual_shot_id: string | null;
 }
 
-export interface ShootingSceneV1 {
+export interface ShootingSceneV2 {
   audience_knowledge_after: string[];
   audience_knowledge_before: string[];
   dramatic_question: string;
@@ -5222,7 +5222,7 @@ export interface ShootingSceneV1 {
   scene_objective: string;
   scene_obstacle: string;
   sequence_index: number;
-  shots: ShootingShotV1[];
+  shots: ShootingShotV2[];
   slugline: string;
   sound_strategy: string;
   source_span_ids: string[];
@@ -5237,9 +5237,9 @@ export interface ShootingSceneV1 {
   withheld_information: string[];
 }
 
-export interface ChapterShootingScriptV1 {
+export interface ChapterShootingScriptV2 {
   directing_statement: ShootingDirectingStatementV1 | null;
-  scenes: ShootingSceneV1[];
+  scenes: ShootingSceneV2[];
   schema_version: ChapterShootingScriptSchemaVersion;
   user_additions: VisualUserAdditionV1[];
   visual_plan_source: ShootingVisualPlanSourceV1 | null;
@@ -5274,14 +5274,14 @@ export interface EditChapterShootingScriptInput {
   project_id: number;
   rebind_shot_ids?: string[];
   record_id: number;
-  script: ChapterShootingScriptV1;
+  script: ChapterShootingScriptV2;
   source_chapter_id: number;
 }
 
 export interface EditChapterShootingScriptProgressInput {
-  expected_script: ChapterShootingScriptV1;
+  expected_script: ChapterShootingScriptV2;
   project_id: number;
-  script: ChapterShootingScriptV1;
+  script: ChapterShootingScriptV2;
   source_chapter_id: number;
   workflow_run_id: number;
 }
@@ -5302,12 +5302,12 @@ export interface ShootingScriptPlanSyncV1 {
 export interface ChapterShootingScriptView {
   plan_sync: ShootingScriptPlanSyncV1;
   record: ChapterShootingScriptRecordSummary;
-  script: ChapterShootingScriptV1;
+  script: ChapterShootingScriptV2;
 }
 
 export interface ChapterShootingScriptUnitProgressView {
   completed_unit_count: number;
-  script: ChapterShootingScriptV1;
+  script: ChapterShootingScriptV2;
   total_unit_count: number;
   workflow_run_id: number;
 }

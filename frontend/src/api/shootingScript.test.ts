@@ -83,12 +83,12 @@ describe("shootingScript API", () => {
     })).rejects.toThrow("已变化");
 
     const progress = { workflow_run_id: 42, script: {
-      schema_version: "chapter_shooting_script_v1",
+      schema_version: "chapter_shooting_script_v2",
       scenes: [{ title: "第一场", scene_index: 1 }],
       directing_statement: null,
     } };
     mocks.apiInvoke.mockResolvedValue(progress);
-    const reference = { kind: "chapter_shooting_script_progress", id: "42", revision: "2de1466746dd2acf7511ffab55717c69b8257dcad434b2083ad98ab8c96d5b31" };
+    const reference = { kind: "chapter_shooting_script_progress", id: "42", revision: "5285741519dd65cbef09ebde56930c75f67605655665decd5902079d6b3d865d" };
     await expect(readChapterShootingScriptGenerationResult(26, 11, reference)).resolves.toEqual(progress);
     progress.script.scenes[0].title = "a newer manual edit";
     await expect(readChapterShootingScriptGenerationResult(26, 11, reference)).rejects.toThrow("已变化");

@@ -6,6 +6,7 @@ import {
   useLocation,
   useNavigate,
   useNavigationType,
+  useParams,
 } from "react-router-dom";
 import { Activity, Moon, Network, Settings, Sun } from "lucide-react";
 import { extractErrorMessage } from "./api";
@@ -64,6 +65,10 @@ const VideoStudioCanvas = lazy(() =>
     default: m.VideoStudioCanvas,
   })),
 );
+function VideoStudioCanvasRoute() {
+  const { id } = useParams();
+  return <VideoStudioCanvas key={id} />;
+}
 const ComicProjectWorkspace = lazy(() =>
   import("./pages/ComicProjectWorkspace").then((m) => ({
     default: m.ComicProjectWorkspace,
@@ -177,7 +182,7 @@ function RouteContent() {
           />
           <Route
             path="/video-project/:id/studio"
-            element={<VideoStudioCanvas />}
+            element={<VideoStudioCanvasRoute />}
           />
           <Route
             path="/comic-project/:id"

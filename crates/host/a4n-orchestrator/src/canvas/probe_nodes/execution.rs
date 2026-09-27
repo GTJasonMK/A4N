@@ -39,6 +39,7 @@ impl OrchestratorContext {
             .start_canvas_node_execution(
                 input.project_id,
                 input.graph_id,
+                input.document.graph.version,
                 input.mode,
                 step_key,
                 input_json,
@@ -50,6 +51,7 @@ impl OrchestratorContext {
             let artifact_json = self.canvas_probe_artifact_json(data_type, &output).await?;
             self.update_canvas_node_observation_record(CanvasNodeObservationUpdateInput {
                 node_id: input.node.id,
+                expected_graph_version: lifecycle.run.graph_version,
                 config_patch: canvas_probe_observation_patch(
                     &artifact_json,
                     &output.source_node_ids,

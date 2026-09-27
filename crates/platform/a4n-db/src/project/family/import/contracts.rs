@@ -79,6 +79,8 @@ pub(super) struct ImportIdMaps {
     pub(super) blueprint_version_ids: HashMap<i64, i64>,
     pub(super) part_outline_ids: HashMap<i64, i64>,
     pub(super) chapter_outline_ids: HashMap<i64, i64>,
+    pub(super) source_part_outline_ids: HashMap<i64, i64>,
+    pub(super) source_chapter_outline_ids: HashMap<i64, i64>,
     pub(super) chapter_ids: HashMap<i64, i64>,
     pub(super) character_profile_ids: HashMap<i64, i64>,
     pub(super) foreshadowing_ids: HashMap<i64, i64>,

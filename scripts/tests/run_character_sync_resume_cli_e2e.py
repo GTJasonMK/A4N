@@ -1,9 +1,7 @@
 #!/usr/bin/env python3
 """Cancel a character sync after two saved calls, then verify checkpoint inheritance."""
 
-import argparse
 import json
-import os
 import re
 import tempfile
 import time
@@ -13,31 +11,18 @@ from pathlib import Path
 
 from mock_openai.fixtures.reverse import message_text
 from mock_openai.fixtures.story import chapter_body_response
-from run_cli_contract_e2e import Cli, RunnerError, checked, provider_log_entries, runtime_snapshot, secure_json
+from run_cli_contract_e2e import RunnerError, checked, cli_e2e_parser, command_error, logged_in_cli, provider_log_entries, runtime_snapshot, secure_json
 
 
 def main():
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--a4n", required=True)
-    parser.add_argument("--server", required=True)
-    parser.add_argument("--username", required=True)
-    parser.add_argument("--password-env", default="A4N_PASSWORD")
-    parser.add_argument("--provider-url", required=True)
-    parser.add_argument("--provider-log", type=Path, required=True)
-    parser.add_argument("--report", type=Path, required=True)
+    parser = cli_e2e_parser(__doc__)
     args = parser.parse_args()
     args.report.parent.mkdir(parents=True, exist_ok=True)
     report = {"success": False, "checks": []}
     try:
         with tempfile.TemporaryDirectory(prefix="character-resume-", dir=args.report.parent) as directory:
             work = Path(directory)
-            env = os.environ.copy()
-            password = env.pop(args.password_env)
-            env.pop("A4N_ACCESS_TOKEN", None)
-            cli = Cli(args.a4n, args.server, work / "cli.json", work / "context.json", 60, env)
-            checked(cli, ["health"], "health")
-            checked(cli, ["capabilities", "check"], "CLI/Server compatibility")
-            checked(cli, ["auth", "login", "--username", args.username, "--password-stdin"], "login", password + "\n")
+            cli = logged_in_cli(args, work)
 
             def parts(name, value, task_id=None):
                 payload = {"input": value}
@@ -96,7 +81,9 @@ def main():
                 assert all(item["status"] == "completed" for item in saved), saved
                 cancel = parts("cancel_workflow", {"task_id": None, "workflow_run_id": original["id"]}) + ["--allow-destructive"]
                 checked(cli, cancel, "cancel only the fixture workflow")
-                assert pending.result(timeout=60)["exit_code"] != 0, "cancelled attempt must fail"
+                interrupted = pending.result(timeout=60)
+                assert interrupted["exit_code"] in (6, 9), interrupted
+                assert command_error(interrupted).get("code") == "cancelled", interrupted
             cancelled = detail(original["id"])
             assert cancelled["run"]["status"] == "cancelled", cancelled
             assert len(cancelled["checkpoints"]) == 2, cancelled["checkpoints"]

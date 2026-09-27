@@ -65,11 +65,12 @@ impl OrchestratorContext {
             &HashMap::new(),
             Some(input.project_id),
         )?;
-        let design_unit_system_prompt = self.prompt_render_template(
-            CHAPTER_SHOOTING_DESIGN_UNIT_PROMPT,
-            &HashMap::new(),
-            Some(input.project_id),
-        )?;
+        let design_unit_system_prompt =
+            Self::current_shooting_design_prompt(self.prompt_render_template(
+                CHAPTER_SHOOTING_DESIGN_UNIT_PROMPT,
+                &HashMap::new(),
+                Some(input.project_id),
+            )?)?;
         let user_payload = json!({
             "source": {
                 "root_project_id": source.root_project_id,

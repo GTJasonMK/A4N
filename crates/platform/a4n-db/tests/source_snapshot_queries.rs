@@ -68,9 +68,24 @@ async fn source_snapshot_chapter_content_projection_preserves_content() {
     .await
     .expect("source snapshot chapter must be created");
 
-    let content =
-        source_snapshot_chapter_content_by_snapshot_and_source(&db, snapshot.id, source_chapter.id)
-            .await
-            .expect("content projection must load");
+    let content = source_snapshot_chapter_content_by_snapshot_and_source(
+        &db,
+        project.id,
+        snapshot.id,
+        source_chapter.id,
+    )
+    .await
+    .expect("content projection must load");
     assert_eq!(content.as_deref(), Some("源章节正文"));
+    assert!(
+        source_snapshot_chapter_content_by_snapshot_and_source(
+            &db,
+            project.id + 1,
+            snapshot.id,
+            source_chapter.id
+        )
+        .await
+        .expect("scope query must execute")
+        .is_none()
+    );
 }

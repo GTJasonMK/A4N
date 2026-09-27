@@ -35,13 +35,11 @@ pub(super) const CHAT_VIDEO_PROMPT_PROGRESS_FIELDS: &[FieldMilestone] = &[
     FieldMilestone::new("negative_prompt", "负向提示词", 1),
 ];
 
-pub(super) fn segment_plan_progress_spec(
-    expected_items: Option<usize>,
-) -> StructuredJsonProgressSpec {
+pub(super) fn segment_plan_progress_spec() -> StructuredJsonProgressSpec {
     StructuredJsonProgressSpec {
         root_array_key: "segments",
         item_label: "片段规划",
-        expected_items,
+        expected_items: Some(1),
         milestones: SEGMENT_PLAN_PROGRESS_FIELDS,
     }
 }

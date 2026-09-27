@@ -2,10 +2,9 @@ use std::{
     convert::Infallible,
     net::SocketAddr,
     sync::{Arc, Mutex},
-    time::Instant,
 };
 
-use a4n_llm_client::{HttpLlmClient, LlmClient, LlmGatewayRequest};
+use a4n_llm_client::{HttpLlmClient, LlmClient};
 use a4n_llm_provider_contract::{ChatChunk, ChatRequest};
 use a4n_llm_sidecar_contract::{
     LlmChatRequest, LlmGatewayPayload as WireGatewayPayload, LlmGatewayProviderConfig,
@@ -15,6 +14,7 @@ use a4n_service_protocol::{
     CapabilityTaskEvent, CapabilityTaskEventKind, HealthStatus, LLM_CHAT_CAPABILITY_VERSION,
     LLM_SERVICE_NAME, PROTOCOL_VERSION, SIDECAR_EVENT_QUEUE_CAPACITY, ServiceErrorCode,
 };
+use a4n_test_support::process::collect_llm_stream_events as collect_stream_events;
 use axum::{
     Json, Router,
     body::{Body, Bytes},
@@ -25,7 +25,6 @@ use axum::{
 };
 use futures::{future::pending, stream};
 use serde_json::{Value, json};
-use sha2::{Digest, Sha256};
 use tokio::{
     sync::oneshot,
     task::JoinHandle,
@@ -85,22 +84,6 @@ impl TestHttpServer {
             .expect("loopback HTTP server task should join")
             .expect("loopback HTTP server should stop cleanly");
     }
-}
-
-async fn collect_stream_events(
-    client: &impl LlmClient,
-    request: LlmGatewayRequest,
-) -> Vec<CapabilityTaskEvent> {
-    let (event_tx, mut event_rx) = tokio::sync::mpsc::channel(SIDECAR_EVENT_QUEUE_CAPACITY);
-    client
-        .stream(request, event_tx)
-        .await
-        .expect("terminal event should complete typed transport");
-    let mut events = Vec::new();
-    while let Some(event) = event_rx.recv().await {
-        events.push(event);
-    }
-    events
 }
 
 fn invalid_provider_payload() -> LlmGatewayPayload {
@@ -246,8 +229,6 @@ async fn typed_http_client_rejects_malformed_envelopes_before_provider_construct
     let mut root_without_project = service_request(invalid_provider_payload());
     root_without_project.project_id = None;
     root_without_project.root_project_id = Some(3);
-    let root_events = collect_stream_events(&client, root_without_project).await;
-
     let mut unredacted_snapshot = service_request(invalid_provider_payload());
     unredacted_snapshot.runtime_config_snapshot = Some(json!({
         "llm": {
@@ -255,7 +236,32 @@ async fn typed_http_client_rejects_malformed_envelopes_before_provider_construct
             "base_url": "https://private-provider.example/v1"
         }
     }));
-    let snapshot_events = collect_stream_events(&client, unredacted_snapshot).await;
+    for (request, message) in [
+        (root_without_project, "root_project_id requires project_id"),
+        (unredacted_snapshot, "unredacted sensitive fields"),
+    ] {
+        let (sender, mut receiver) = tokio::sync::mpsc::channel(1);
+        let error = client
+            .stream(request, sender)
+            .await
+            .expect_err("invalid context must fail before opening an event stream");
+        assert_eq!(error.code, ServiceErrorCode::ConfigurationError);
+        assert_eq!(error.retryable, Some(false));
+        assert!(error.message.contains(message));
+        assert!(
+            receiver.recv().await.is_none(),
+            "client-side rejection must not invent a server event"
+        );
+        let serialized = serde_json::to_string(&error).expect("error should serialize");
+        for private in [
+            "payload-provider-secret",
+            "not a provider URL",
+            "snapshot-secret",
+            "private-provider.example",
+        ] {
+            assert!(!serialized.contains(private));
+        }
+    }
 
     let mut incompatible_capability = service_request(invalid_provider_payload());
     incompatible_capability.capability_version = "llm-chat-v0".to_string();
@@ -271,47 +277,9 @@ async fn typed_http_client_rejects_malformed_envelopes_before_provider_construct
         LLM_CHAT_CAPABILITY_VERSION
     );
 
-    for events in [&root_events, &snapshot_events, &capability_events] {
-        let response_text = serde_json::to_string(events).expect("events should serialize");
-        assert!(!response_text.contains("payload-provider-secret"));
-        assert!(!response_text.contains("not a provider URL"));
-    }
-
-    let snapshot_text = serde_json::to_string(&snapshot_events).expect("events should serialize");
-    assert!(!snapshot_text.contains("snapshot-secret"));
-    assert!(!snapshot_text.contains("private-provider.example"));
-
-    assert_eq!(root_events.len(), 1);
-    assert_eq!(root_events[0].event_kind, CapabilityTaskEventKind::Failed);
-    assert_eq!(
-        root_events[0]
-            .error
-            .as_ref()
-            .map(|error| error.code.clone()),
-        Some(ServiceErrorCode::ConfigurationError)
-    );
-    assert!(root_events[0].error.as_ref().is_some_and(|error| {
-        error
-            .message
-            .contains("root_project_id requires project_id")
-            && error.retryable == Some(false)
-    }));
-
-    assert_eq!(snapshot_events.len(), 1);
-    assert_eq!(
-        snapshot_events[0].event_kind,
-        CapabilityTaskEventKind::Failed
-    );
-    assert_eq!(
-        snapshot_events[0]
-            .error
-            .as_ref()
-            .map(|error| error.code.clone()),
-        Some(ServiceErrorCode::ConfigurationError)
-    );
-    assert!(snapshot_events[0].error.as_ref().is_some_and(|error| {
-        error.message.contains("unredacted sensitive fields") && error.retryable == Some(false)
-    }));
+    let response_text = serde_json::to_string(&capability_events).expect("events should serialize");
+    assert!(!response_text.contains("payload-provider-secret"));
+    assert!(!response_text.contains("not a provider URL"));
 
     assert_eq!(capability_events.len(), 1);
     assert_eq!(
@@ -354,16 +322,7 @@ async fn typed_stream_client_roundtrips_fake_provider_chunks() {
             .with_stream_usage()
             .into(),
     });
-    let (event_tx, mut event_rx) = tokio::sync::mpsc::channel(SIDECAR_EVENT_QUEUE_CAPACITY);
-
-    client
-        .stream(request, event_tx)
-        .await
-        .expect("typed LLM stream should complete through the fake provider");
-    let mut events = Vec::new();
-    while let Some(event) = event_rx.recv().await {
-        events.push(event);
-    }
+    let events = collect_stream_events(&client, request).await;
 
     gateway.stop().await;
     provider.stop().await;
@@ -485,25 +444,15 @@ async fn closed_receiver_cancels_before_and_during_provider_streams() {
     );
 }
 
-#[derive(Clone)]
-struct BaselineFakeProviderState {
-    chunks: Arc<Vec<String>>,
-}
-
-fn baseline_fake_provider_router(chunks: Vec<String>) -> Router {
+fn chunked_provider_router(chunks: Vec<String>) -> Router {
     Router::new()
-        .route("/chat/completions", post(baseline_fake_chat_completions))
-        .with_state(BaselineFakeProviderState {
-            chunks: Arc::new(chunks),
-        })
+        .route("/chat/completions", post(chunked_chat_completions))
+        .with_state(Arc::new(chunks))
 }
 
-async fn baseline_fake_chat_completions(
-    State(state): State<BaselineFakeProviderState>,
-) -> impl IntoResponse {
-    let last_index = state.chunks.len().saturating_sub(1);
-    let mut frames = state
-        .chunks
+async fn chunked_chat_completions(State(chunks): State<Arc<Vec<String>>>) -> impl IntoResponse {
+    let last_index = chunks.len().saturating_sub(1);
+    let mut frames = chunks
         .iter()
         .enumerate()
         .map(|(index, content)| {
@@ -526,125 +475,54 @@ async fn baseline_fake_chat_completions(
     )
 }
 
-async fn run_stream_baseline(
-    chunks: Vec<String>,
-) -> (
-    Vec<a4n_service_protocol::CapabilityTaskEvent>,
-    Duration,
-    Duration,
-) {
-    let event_capacity = chunks.len() + 1;
-    let provider = TestHttpServer::start(baseline_fake_provider_router(chunks)).await;
-    let gateway = TestHttpServer::start(build_router()).await;
-    let client = gateway.client();
-    let request = service_request(LlmGatewayPayload {
-        provider: LlmGatewayProviderConfig {
-            provider: "openai".to_string(),
-            base_url: provider.base_url(),
-            model: "fake-baseline-model".to_string(),
-            api_key: None,
-            timeout_secs: 30,
-            extra_body_json: None,
-        },
-        request: ChatRequest::system_user("system", "baseline", None, None).into(),
-    });
-    let (event_tx, mut event_rx) = tokio::sync::mpsc::channel(event_capacity);
-    let started_at = Instant::now();
-    let mut producer = tokio::spawn(async move { client.stream(request, event_tx).await });
-
-    let first_event = timeout(Duration::from_secs(10), event_rx.recv())
-        .await
-        .expect("baseline stream should publish its first event before timeout")
-        .expect("baseline stream should not close before its first event");
-    let first_event_latency = started_at.elapsed();
-
-    timeout(Duration::from_secs(30), &mut producer)
-        .await
-        .expect("old unbounded event producer should finish while the consumer is paused")
-        .expect("baseline stream task should join")
-        .expect("baseline stream should complete");
-    let producer_elapsed = started_at.elapsed();
-
-    let mut events = vec![first_event];
-    while let Some(event) = event_rx.recv().await {
-        events.push(event);
-    }
-
-    gateway.stop().await;
-    provider.stop().await;
-
-    (events, first_event_latency, producer_elapsed)
-}
-
-fn sha256_hex(text: &str) -> String {
-    format!("{:x}", Sha256::digest(text.as_bytes()))
-}
-
 #[tokio::test]
-#[ignore = "manual stage-0 streaming baseline"]
-async fn reports_stage_0_streaming_baseline() {
+async fn typed_stream_preserves_large_output_with_a_bounded_event_queue() {
     let small_chunks = (0..10_000)
         .map(|index| {
             let byte = b'a' + (index % 26) as u8;
             String::from_utf8(vec![byte; index % 8 + 1]).expect("ASCII chunk should be UTF-8")
         })
         .collect::<Vec<_>>();
-    let expected_small = small_chunks.concat();
-    let (small_events, small_first_latency, small_producer_elapsed) =
-        run_stream_baseline(small_chunks).await;
-    let observed_small = small_events
-        .iter()
-        .filter(|event| event.event_kind == CapabilityTaskEventKind::Chunk)
-        .map(|event| event_chunk(event).content.expect("content chunk"))
-        .collect::<String>();
-    let small_chunk_events = small_events
-        .iter()
-        .filter(|event| event.event_kind == CapabilityTaskEventKind::Chunk)
-        .count();
-
-    assert_eq!(small_chunk_events, 10_000);
-    assert_eq!(small_events.len(), 10_001);
-    assert_eq!(observed_small, expected_small);
-    assert_eq!(sha256_hex(&observed_small), sha256_hex(&expected_small));
-    assert_eq!(
-        small_events.last().map(|event| &event.event_kind),
-        Some(&CapabilityTaskEventKind::Completed)
-    );
-    eprintln!(
-        "BASELINE_STREAM_10000 first_event_us={} producer_elapsed_ms={} upstream_chunks=10000 chunk_events={} total_events={} final_bytes={} sha256={} slow_consumer=producer_completed_while_receiver_paused",
-        small_first_latency.as_micros(),
-        small_producer_elapsed.as_millis(),
-        small_chunk_events,
-        small_events.len(),
-        observed_small.len(),
-        sha256_hex(&observed_small),
-    );
-
-    let one_mib_chunks = vec!["x".repeat(1024); 1024];
-    let expected_one_mib = one_mib_chunks.concat();
-    let (one_mib_events, one_mib_first_latency, one_mib_producer_elapsed) =
-        run_stream_baseline(one_mib_chunks).await;
-    let observed_one_mib = one_mib_events
-        .iter()
-        .filter(|event| event.event_kind == CapabilityTaskEventKind::Chunk)
-        .map(|event| event_chunk(event).content.expect("content chunk"))
-        .collect::<String>();
-    let one_mib_chunk_events = one_mib_events
-        .iter()
-        .filter(|event| event.event_kind == CapabilityTaskEventKind::Chunk)
-        .count();
-
-    assert_eq!(one_mib_chunk_events, 1024);
-    assert_eq!(one_mib_events.len(), 1025);
-    assert_eq!(observed_one_mib, expected_one_mib);
-    assert_eq!(sha256_hex(&observed_one_mib), sha256_hex(&expected_one_mib));
-    eprintln!(
-        "BASELINE_STREAM_1M first_event_us={} producer_elapsed_ms={} upstream_chunks=1024 chunk_events={} total_events={} final_bytes={} sha256={} slow_consumer=producer_completed_while_receiver_paused",
-        one_mib_first_latency.as_micros(),
-        one_mib_producer_elapsed.as_millis(),
-        one_mib_chunk_events,
-        one_mib_events.len(),
-        observed_one_mib.len(),
-        sha256_hex(&observed_one_mib),
-    );
+    for chunks in [small_chunks, vec!["x".repeat(1024); 1024]] {
+        let expected = chunks.concat();
+        let chunk_count = chunks.len();
+        assert!(chunk_count > SIDECAR_EVENT_QUEUE_CAPACITY);
+        let provider = TestHttpServer::start(chunked_provider_router(chunks)).await;
+        let gateway = TestHttpServer::start(build_router()).await;
+        let events = timeout(
+            Duration::from_secs(30),
+            collect_stream_events(
+                &gateway.client(),
+                service_request(LlmGatewayPayload {
+                    provider: LlmGatewayProviderConfig {
+                        base_url: provider.base_url(),
+                        timeout_secs: 30,
+                        ..test_provider_config()
+                    },
+                    request: ChatRequest::system_user("system", "large stream", None, None).into(),
+                }),
+            ),
+        )
+        .await
+        .expect("bounded event collection must drain without deadlocking");
+        let observed = events
+            .iter()
+            .filter(|event| event.event_kind == CapabilityTaskEventKind::Chunk)
+            .map(|event| event_chunk(event).content.expect("content chunk"))
+            .collect::<String>();
+        assert_eq!(observed, expected);
+        assert_eq!(events.len(), chunk_count + 1);
+        assert_eq!(
+            events.last().map(|event| &event.event_kind),
+            Some(&CapabilityTaskEventKind::Completed)
+        );
+        assert!(
+            events
+                .iter()
+                .enumerate()
+                .all(|(index, event)| event.sequence == index as u64 + 1)
+        );
+        gateway.stop().await;
+        provider.stop().await;
+    }
 }

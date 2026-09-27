@@ -119,8 +119,8 @@ fn agent_loop_request_moves_base_task_into_context_manifest() {
     assert!(pack_kinds.contains(&"optimization_agent_base_task"));
     assert!(pack_kinds.contains(&"optimization_agent_rules"));
     let manifest_text = serde_json::to_string(manifest).unwrap();
-    assert!(manifest_text.contains("protocol_constraints"));
-    assert!(manifest_text.contains("tool_names_are_not_actions"));
+    assert!(manifest_text.contains("completion_policy"));
+    assert!(!manifest_text.contains("protocol_constraints"));
     let user_message = request
         .messages
         .iter()

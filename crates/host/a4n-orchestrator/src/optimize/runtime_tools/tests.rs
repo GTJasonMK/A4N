@@ -114,6 +114,41 @@ fn information_tool_searches_across_sources() {
     .unwrap();
 
     assert_eq!(result["matches"].as_array().unwrap().len(), 2);
+    for hit in result["matches"].as_array().unwrap() {
+        let read = execute_get_project_information(
+            json!({
+                "mode": "read", "source": hit["source"], "path": hit["path"],
+                "expected_hash": hit["resource"]["hash"],
+            }),
+            &context,
+        )
+        .unwrap();
+        assert!(read["content"].as_str().unwrap().contains("旧城"));
+    }
+}
+
+#[test]
+fn search_paths_escape_keys_and_snippets_use_original_unicode_offsets() {
+    let text = format!("{}needle 在此", "İ".repeat(200));
+    let context = json!({"project_detail": {"a/b~c": [{"with.dot": text}]}});
+    let found = execute_get_project_information(
+        json!({
+            "mode": "search", "source": "project_detail", "query": "NEEDLE",
+        }),
+        &context,
+    )
+    .unwrap();
+    let hit = &found["matches"][0];
+    assert_eq!(hit["path"], "/a~1b~0c/0/with.dot");
+    assert!(hit["snippet"].as_str().unwrap().contains("needle 在此"));
+    let read = execute_get_project_information(
+        json!({
+            "mode": "read", "source": "project_detail", "path": hit["path"],
+        }),
+        &context,
+    )
+    .unwrap();
+    assert_eq!(read["content"], text);
 }
 
 #[test]

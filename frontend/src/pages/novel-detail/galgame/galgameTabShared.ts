@@ -140,19 +140,6 @@ export function sceneSelectLabel(scene: GalgameScene, t: MessageTranslator): str
   return `${t("galgame.scenes")} ${scene.scene_index} · ${scene.title} · ${entryKind}`;
 }
 
-export function assetPlanOutcomeLabel(outcome: string, t: MessageTranslator): string {
-  switch (outcome) {
-    case "created":
-      return t("galgame.assetOutcome.created");
-    case "updated":
-      return t("galgame.assetOutcome.updated");
-    case "reused":
-      return t("galgame.assetOutcome.reused");
-    default:
-      return t("galgame.assetOutcome.other");
-  }
-}
-
 export function assetSpecStatusLabel(status: string, t: MessageTranslator): string {
   switch (status) {
     case "draft":
@@ -317,13 +304,12 @@ export function presentationForLinePatch(
   const existing = presentation.visible_cast.find(
     (member) => member.character_profile_id === speakerProfileId,
   );
-  const expression =
-    ("expression" in patch
-      ? patch.expression
-      : (existing?.expression ?? line.expression)) || "neutral";
-  const pose =
-    ("pose" in patch ? patch.pose : (existing?.pose ?? line.pose)) ||
-    "standing";
+  const expression = "expression" in patch
+    ? patch.expression ?? ""
+    : existing?.expression ?? line.expression ?? "neutral";
+  const pose = "pose" in patch
+    ? patch.pose ?? ""
+    : existing?.pose ?? line.pose ?? "standing";
   const position = (("position" in patch
     ? patch.position
     : (existing?.position ?? line.position)) ||

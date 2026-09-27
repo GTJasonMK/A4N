@@ -22,6 +22,7 @@ const renderCard = (props: Partial<React.ComponentProps<typeof PackageCard>> = {
       <PackageCard
         item={packageOverview()}
         hidden={false}
+        preferencesUnavailable={false}
         canManageLifecycle
         snapshotStale={false}
         busy={false}
@@ -67,8 +68,8 @@ describe("PackageSection", () => {
     expect(html).toContain("错误：状态版本已变化");
   });
 
-  it("marks a failed refresh as unknown and disables writes", () => {
-    const html = renderCard({ snapshotStale: true });
+  it("marks a failed overview refresh as unknown and disables lifecycle writes", () => {
+    const html = renderCard({ snapshotStale: true, preferencesUnavailable: false });
 
     expect(html).toContain("未知 · 未知 · 未知");
     expect(html).toContain('data-snapshot-stale="1"');
@@ -76,6 +77,24 @@ describe("PackageSection", () => {
     expect(html).toContain('data-package-lifecycle="true"');
     expect(html).toContain('data-package-preference="true"');
     expect(html).toContain('disabled=""');
+  });
+
+  it("gates display preferences independently from package lifecycle state", () => {
+    const staleOverview = renderCard({
+      canManageLifecycle: false,
+      snapshotStale: true,
+      preferencesUnavailable: false,
+    });
+    expect(staleOverview).toContain('data-package-preference="true"');
+    expect(staleOverview).not.toContain('disabled=""');
+
+    const unavailablePreferences = renderCard({
+      canManageLifecycle: false,
+      snapshotStale: false,
+      preferencesUnavailable: true,
+    });
+    expect(unavailablePreferences).toContain('data-package-preference="true"');
+    expect(unavailablePreferences).toContain('disabled=""');
   });
 
   it("accepts only a structured package rejection envelope", () => {

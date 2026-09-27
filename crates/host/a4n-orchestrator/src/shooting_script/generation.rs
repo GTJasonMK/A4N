@@ -5,7 +5,7 @@ use a4n_api_contract::shooting_script::{
     ChapterShootingScriptUnitProgressCheckpoint, ChapterShootingScriptUnitProgressView,
 };
 use a4n_domain::shooting_script::{
-    ChapterShootingScriptSchemaVersion, ChapterShootingScriptV1, ShootingVisualPlanSourceV1,
+    ChapterShootingScriptSchemaVersion, ChapterShootingScriptV2, ShootingVisualPlanSourceV1,
 };
 use a4n_error::AppError;
 use tokio_util::sync::CancellationToken;
@@ -209,8 +209,8 @@ impl OrchestratorContext {
         // 已保存的进度是作者可编辑的事实来源；LLM 断点只恢复尚未完成的单元。
         let mut script = saved_progress
             .map(|progress| progress.script)
-            .unwrap_or_else(|| ChapterShootingScriptV1 {
-                schema_version: ChapterShootingScriptSchemaVersion::V1,
+            .unwrap_or_else(|| ChapterShootingScriptV2 {
+                schema_version: ChapterShootingScriptSchemaVersion::V2,
                 visual_plan_source: Some(ShootingVisualPlanSourceV1 {
                     plan_id: prepared.visual_plan.record.id,
                     plan_version: prepared.visual_plan.record.plan_version,

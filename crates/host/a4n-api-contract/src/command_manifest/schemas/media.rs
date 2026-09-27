@@ -610,6 +610,9 @@ pub(crate) fn result_get_chapter_shooting_script_unit_progress() -> Value {
 pub(crate) fn result_get_galgame_script() -> Value {
     typed_schema::<crate::galgame::GalgameScriptDetail>()
 }
+pub(crate) fn result_find_galgame_script() -> Value {
+    typed_schema::<Option<crate::galgame::GalgameScriptDetail>>()
+}
 pub(crate) fn result_read_image() -> Value {
     typed_schema::<crate::image_read::ReadImageResult>()
 }
@@ -654,6 +657,9 @@ pub(crate) fn result_optimize_chapter_video_prompt() -> Value {
 }
 pub(crate) fn result_plan_galgame_assets() -> Value {
     typed_schema::<crate::galgame::GalgameAssetPlan>()
+}
+pub(crate) fn result_get_galgame_asset_plan() -> Value {
+    typed_schema::<Option<crate::galgame::GalgameAssetPlan>>()
 }
 pub(crate) fn result_optional_assembled_chapter_video_preview() -> Value {
     typed_schema::<Option<crate::video::AssembledChapterVideoPreview>>()

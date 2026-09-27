@@ -198,6 +198,7 @@ export function DirectorGeneration({ projectId, chapterId, plan, target, save, s
 
   const adopt = async () => {
     setBusy(true);
+    setError(null);
     try {
       if (!candidate) throw new Error("没有可采用的描述候选");
       await onAdoptPrompt(candidate);
@@ -213,6 +214,7 @@ export function DirectorGeneration({ projectId, chapterId, plan, target, save, s
     if (cancelling) return;
     cancelRequested.current = true;
     setCancelling(true);
+    setError(null);
     if (!handle) return;
     try { await task.cancel(); }
     catch (failure) {

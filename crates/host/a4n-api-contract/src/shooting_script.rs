@@ -4,12 +4,12 @@ use serde::{Deserialize, Serialize};
 pub use a4n_domain::shooting_script::{
     ChapterShootingScriptRecordSummary, ChapterShootingScriptSchemaVersion,
     ChapterShootingScriptUnitProgressCheckpoint, ChapterShootingScriptUnitProgressView,
-    ChapterShootingScriptV1, EditChapterShootingScriptProgressInput,
+    ChapterShootingScriptV2, EditChapterShootingScriptProgressInput,
     EditedChapterShootingScriptProgressView, ShootingBlockingV1, ShootingCameraAngleV1,
     ShootingCameraHeightV1, ShootingCameraMovementV1, ShootingContinuityIntentV1,
     ShootingCoverageV1, ShootingDialogueCueV1, ShootingDirectingStatementV1, ShootingEditingModeV1,
-    ShootingPerformanceBeatV1, ShootingSceneV1, ShootingScriptPlanSyncV1, ShootingShotSizeV1,
-    ShootingShotV1, ShootingSoundDesignV1, ShootingSpatialContinuityV1,
+    ShootingPerformanceBeatV2, ShootingSceneV2, ShootingScriptPlanSyncV1, ShootingShotSizeV1,
+    ShootingShotV2, ShootingSoundDesignV1, ShootingSpatialContinuityV1,
     ShootingTransitionContractV1, ShootingTransitionTypeV1, ShootingViewpointModeV1,
     ShootingViewpointV1, ShootingVisualConstraintsV3, ShootingVisualPlanSourceV1,
 };
@@ -62,7 +62,7 @@ pub struct PublishChapterShootingScriptInput {
     pub visual_plan_version: i32,
     #[schemars(length(min = 64, max = 64))]
     pub visual_plan_sha256: String,
-    pub script: ChapterShootingScriptV1,
+    pub script: ChapterShootingScriptV2,
     #[schemars(range(min = 1))]
     pub workflow_run_id: i64,
     #[schemars(range(min = 1))]
@@ -80,7 +80,7 @@ pub struct EditChapterShootingScriptInput {
     pub record_id: i64,
     #[schemars(range(min = 1))]
     pub expected_revision: i32,
-    pub script: ChapterShootingScriptV1,
+    pub script: ChapterShootingScriptV2,
     /// 手动更新：用户已按当前导演编排修订的过时镜头，保存时重新绑定到当前方案约束。
     #[serde(default)]
     pub rebind_shot_ids: Vec<String>,
@@ -102,7 +102,7 @@ pub struct DeleteChapterShootingScriptInput {
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
 pub struct ChapterShootingScriptView {
     pub record: ChapterShootingScriptRecordSummary,
-    pub script: ChapterShootingScriptV1,
+    pub script: ChapterShootingScriptV2,
     /// 相对当前已确认导演编排的逐镜头同步状态。
     pub plan_sync: ShootingScriptPlanSyncV1,
 }

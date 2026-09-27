@@ -151,7 +151,7 @@ pub(super) async fn remap_visual_plan_resources(
 ) -> Result<(), ProjectFamilyImportError> {
     use a4n_db_models::models::chapter::chapter_shooting_script;
     use a4n_domain::{
-        chapter_visual_plan::ChapterVisualPlanV3, shooting_script::ChapterShootingScriptV1,
+        chapter_visual_plan::ChapterVisualPlanV3, shooting_script::ChapterShootingScriptV2,
     };
     for original in &package.chapter_visual_plans {
         let mut plan: ChapterVisualPlanV3 = serde_json::from_value(original.plan_json.clone())
@@ -198,7 +198,7 @@ pub(super) async fn remap_visual_plan_resources(
         maps.visual_plan_sha256s.insert(original.id, hash);
     }
     for original in &package.chapter_shooting_scripts {
-        let mut script: ChapterShootingScriptV1 =
+        let mut script: ChapterShootingScriptV2 =
             serde_json::from_value(original.script_json.clone())
                 .map_err(|error| ProjectFamilyImportError::invalid_package(error.to_string()))?;
         let director = original
@@ -221,7 +221,7 @@ pub(super) async fn remap_visual_plan_resources(
                     .map_err(|error| ProjectFamilyImportError::invalid_package(error.to_string()))
             })
             .transpose()?;
-        let fingerprints = |script: &ChapterShootingScriptV1| match &director {
+        let fingerprints = |script: &ChapterShootingScriptV2| match &director {
             Some(director) => script
                 .shot_content_fingerprints(director)
                 .map_err(|error| ProjectFamilyImportError::invalid_package(error.to_string())),

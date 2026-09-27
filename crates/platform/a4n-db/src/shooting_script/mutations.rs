@@ -1,5 +1,5 @@
 use a4n_db_models::models::chapter::chapter_shooting_script;
-use a4n_domain::shooting_script::CHAPTER_SHOOTING_SCRIPT_V1;
+use a4n_domain::shooting_script::CHAPTER_SHOOTING_SCRIPT_V2;
 use chrono::Utc;
 use sea_orm::sea_query::Expr;
 use sea_orm::{
@@ -56,7 +56,7 @@ where
         visual_plan_version: Set(Some(input.visual_plan.version)),
         visual_plan_sha256: Set(Some(input.visual_plan.sha256)),
         input_fingerprint_sha256: Set(input.input_fingerprint_sha256),
-        contract_version: Set(CHAPTER_SHOOTING_SCRIPT_V1.to_string()),
+        contract_version: Set(CHAPTER_SHOOTING_SCRIPT_V2.to_string()),
         revision: Set(1),
         script_sha256: Set(script_sha256),
         script_json: Set(script_json),
@@ -206,8 +206,8 @@ pub(super) async fn validate_director_constraints<C: ConnectionTrait>(
     db: &C,
     source: (i64, i64, Option<i64>, Option<i64>),
     identity: &super::contracts::ChapterVisualPlanIdentity,
-    script: &a4n_domain::shooting_script::ChapterShootingScriptV1,
-    previous: Option<&a4n_domain::shooting_script::ChapterShootingScriptV1>,
+    script: &a4n_domain::shooting_script::ChapterShootingScriptV2,
+    previous: Option<&a4n_domain::shooting_script::ChapterShootingScriptV2>,
 ) -> Result<(), ShootingScriptDbError> {
     let plan = crate::chapter_visual_plan::chapter_visual_plan_by_id(db, identity.id)
         .await

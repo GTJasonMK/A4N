@@ -1,20 +1,13 @@
-use a4n_db_models::models::{chapter::chapter, project::source_snapshot_chapter};
+use a4n_db_models::models::chapter::chapter;
 use chrono::NaiveDateTime;
-use sea_orm::{
-    ColumnTrait, ConnectionTrait, DbErr, EntityTrait, QueryFilter, QuerySelect, QueryTrait,
-    sea_query::Expr,
-};
+use sea_orm::{ColumnTrait, ConnectionTrait, DbErr, EntityTrait, QueryFilter, sea_query::Expr};
 
 pub(crate) async fn delete_project_chapter_content<C: ConnectionTrait>(
     db: &C,
     project_id: i64,
     now: NaiveDateTime,
 ) -> Result<u64, DbErr> {
-    let retained = source_snapshot_chapter::Entity::find()
-        .select_only()
-        .column(source_snapshot_chapter::Column::SourceChapterId)
-        .filter(source_snapshot_chapter::Column::RootProjectId.eq(project_id))
-        .into_query();
+    // Reset removes content; workflow history and frozen sources retain chapter identities.
     let retired = chapter::Entity::update_many()
         .col_expr(chapter::Column::OutlineId, Expr::value(Option::<i64>::None))
         .col_expr(chapter::Column::Title, Expr::value(Option::<String>::None))
@@ -39,13 +32,7 @@ pub(crate) async fn delete_project_chapter_content<C: ConnectionTrait>(
         .col_expr(chapter::Column::UpdatedAt, Expr::value(now))
         .filter(chapter::Column::ProjectId.eq(project_id))
         .filter(chapter::Column::Status.ne(chapter::STATUS_DELETED))
-        .filter(chapter::Column::Id.in_subquery(retained.clone()))
         .exec(db)
         .await?;
-    let deleted = chapter::Entity::delete_many()
-        .filter(chapter::Column::ProjectId.eq(project_id))
-        .filter(chapter::Column::Id.not_in_subquery(retained))
-        .exec(db)
-        .await?;
-    Ok(retired.rows_affected + deleted.rows_affected)
+    Ok(retired.rows_affected)
 }

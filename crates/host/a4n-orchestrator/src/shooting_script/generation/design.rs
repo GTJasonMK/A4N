@@ -2,7 +2,7 @@ use std::collections::HashSet;
 
 use a4n_domain::{
     chapter_visual_plan::VisualSegmentProjectionV3,
-    shooting_script::{ShootingSceneV1, ShootingShotV1},
+    shooting_script::{ShootingSceneV2, ShootingShotV2},
 };
 use a4n_error::AppError;
 use a4n_llm_provider_contract::provider::ChatRequest;
@@ -30,7 +30,7 @@ pub(super) async fn generate_shooting_scene(
     progress: ShootingScriptProgressReporter<'_>,
     stream_reporter: ShootingScriptStreamReporter<'_>,
     cancel_token: &CancellationToken,
-) -> Result<super::super::contracts::ShootingScriptStageResult<ShootingSceneV1>, AppError> {
+) -> Result<super::super::contracts::ShootingScriptStageResult<ShootingSceneV2>, AppError> {
     let planned_unit = prepared.visual_unit(unit.narrative_unit_index, &unit.scene_identity)?;
     let planned_shots = planned_unit
         .shots
@@ -72,7 +72,7 @@ pub(super) async fn generate_shooting_scene(
         );
         let request = design_shot_request(prepared, workflow_run_id, unit, planned_shot, &facts)?;
         let stage = orchestrator
-            .run_shooting_script_stage::<ShootingSceneV1>(
+            .run_shooting_script_stage::<ShootingSceneV2>(
                 workflow_run_id,
                 &step_key,
                 shooting_design_call_order(total_unit_count, preceding_shot_count, shot_offset)?,
@@ -170,14 +170,14 @@ fn design_shot_request(
             }),
         )),
         format!(
-            "只设计 narrative_unit_index={} 的 target_shot_id={}。响应仍为 ShootingSceneV1，但 shots 必须只包含 target_shot_id 对应的一个镜头；不得输出其他镜头。不得改变镜头段 ID、时间范围、图片关键帧或场景绑定。required_performance_facts 中的 required fact 必须由本镜头的 required performance beat 覆盖，并逐字保留对应 source_span_ids 或 user_addition_ids。source_span_ids 只填写实际引用的正文片段；仅来源于用户导演描述的内容允许为空。",
+            "只设计 narrative_unit_index={} 的 target_shot_id={}。响应仍为 ShootingSceneV2，但 shots 必须只包含 target_shot_id 对应的一个镜头；不得输出其他镜头。不得改变镜头段 ID、时间范围、图片关键帧或场景绑定。required_performance_facts 中的 required fact 必须由本镜头的 required performance beat 覆盖，并逐字保留对应 source_span_ids 或 user_addition_ids。source_span_ids 只填写实际引用的正文片段；仅来源于用户导演描述的内容允许为空。",
             unit.narrative_unit_index, planned_shot.segment_id,
         ),
     )
 }
 
 fn validate_design_shot(
-    scene: &ShootingSceneV1,
+    scene: &ShootingSceneV2,
     unit: &ScreenplayPlanUnit,
     planned_shot: &VisualSegmentProjectionV3,
     facts: &[&ScreenplayPerformanceFactV1],
@@ -234,7 +234,7 @@ fn validate_design_shot(
 }
 
 fn validate_design_unit(
-    scene: &ShootingSceneV1,
+    scene: &ShootingSceneV2,
     unit: &ScreenplayPlanUnit,
     prepared: &PreparedChapterShootingScriptRequest,
     planned_shots: &[VisualSegmentProjectionV3],
@@ -276,7 +276,7 @@ fn validate_design_unit(
 }
 
 fn validate_scene_actors(
-    scene: &ShootingSceneV1,
+    scene: &ShootingSceneV2,
     participants: &HashSet<&str>,
 ) -> Result<(), AppError> {
     if !optional_actor_is_allowed(scene.focal_character.as_deref(), participants) {
@@ -295,7 +295,7 @@ fn validate_scene_actors(
 }
 
 fn validate_required_fact_coverage<'a>(
-    scene: &ShootingSceneV1,
+    scene: &ShootingSceneV2,
     facts: impl IntoIterator<Item = &'a ScreenplayPerformanceFactV1>,
 ) -> Result<(), AppError> {
     let required_beats = scene
@@ -335,7 +335,7 @@ fn validate_required_fact_coverage<'a>(
 
 fn validate_shot_sources(
     narrative_unit_index: u32,
-    shot: &ShootingShotV1,
+    shot: &ShootingShotV2,
     allowed_sources: &HashSet<&str>,
     participants: &HashSet<&str>,
 ) -> Result<(), AppError> {

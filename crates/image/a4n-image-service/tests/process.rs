@@ -2,7 +2,9 @@ use a4n_image_client::{HttpImageClient, ImageClient, ImageProviderRequest};
 use a4n_image_contract::{
     IMAGE_PROVIDER_CAPABILITY_VERSION, IMAGE_SERVICE_NAME, ImageProviderPayload,
 };
-use a4n_service_protocol::{CapabilityTaskEvent, SIDECAR_EVENT_QUEUE_CAPACITY, ServiceErrorCode};
+use a4n_service_protocol::{
+    BodyLimitKind, CapabilityTaskEvent, SIDECAR_EVENT_QUEUE_CAPACITY, ServiceErrorCode,
+};
 use a4n_test_support::process::{
     FakeJsonProvider, HangingJsonProvider, SIDECAR_PROCESS_TEST_TOKEN, ServiceStatus,
     assert_process_concurrency_saturation, assert_protected_route_rejects_invalid_auth,
@@ -34,8 +36,20 @@ async fn image_service_process_calls_local_fake_provider_and_stops() {
     assert_protected_route_rejects_invalid_auth(&base_url, "/image/generate/events").await;
     assert_protected_route_rejects_invalid_auth(&base_url, "/image/request_preview").await;
     assert_route_rejects_malformed_json(&base_url, "/image/generate/events").await;
-    assert_route_rejects_oversized_json(&base_url, "/image/models", 8 * 1024 * 1024).await;
-    assert_route_rejects_oversized_json(&base_url, "/image/generate/events", 8 * 1024 * 1024).await;
+    assert_route_rejects_oversized_json(
+        &base_url,
+        "/image/models",
+        IMAGE_SERVICE_NAME,
+        BodyLimitKind::Json,
+    )
+    .await;
+    assert_route_rejects_oversized_json(
+        &base_url,
+        "/image/generate/events",
+        IMAGE_SERVICE_NAME,
+        BodyLimitKind::Streaming,
+    )
+    .await;
     let client = HttpImageClient::new_with_auth_token(base_url.clone(), SIDECAR_PROCESS_TEST_TOKEN);
     let cancel_client = HttpImageClient::new_with_auth_token(base_url, SIDECAR_PROCESS_TEST_TOKEN);
     let contract_request = provider_request_context(

@@ -1,32 +1,20 @@
 import assert from "node:assert/strict";
-import { spawn } from "node:child_process";
 import { mkdir } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 
 import { remote } from "webdriverio";
+import { startVite, stopProcess } from "../process.mjs";
 
-const root = fileURLToPath(new URL("../..", import.meta.url));
 const output = fileURLToPath(new URL("../../../data/llm-presets-e2e/", import.meta.url));
 const port = process.env.VITE_PORT ?? "4197";
 const url = `http://127.0.0.1:${port}/e2e/llm-presets/`;
 let browser;
-let logs = "";
-const vite = spawn(process.execPath, ["node_modules/vite/bin/vite.js", "--host", "127.0.0.1", "--port", port, "--strictPort"], {
-  cwd: root,
-  env: { ...process.env, VITE_A4N_API_TRANSPORT: "tauri", VITE_A4N_API_BASE_URL: "http://127.0.0.1:19997/api", A4N_WEB_ADDR: "127.0.0.1:19997", A4N_DISABLE_VITE_HMR: "1" },
-  stdio: ["ignore", "pipe", "pipe"],
+const vite = await startVite(port, "/e2e/llm-presets/", {
+  VITE_A4N_API_TRANSPORT: "tauri", VITE_A4N_API_BASE_URL: "http://127.0.0.1:19997/api",
+  A4N_WEB_ADDR: "127.0.0.1:19997", A4N_DISABLE_VITE_HMR: "1",
 });
-for (const stream of [vite.stdout, vite.stderr]) stream.on("data", (chunk) => { logs = `${logs}${chunk}`.slice(-8000); });
 
 try {
-  let ready = false;
-  for (let attempt = 0; attempt < 100; attempt++) {
-    if (vite.exitCode != null) throw new Error(logs);
-    try { ready = (await fetch(url)).ok; } catch { /* Vite is starting. */ }
-    if (ready) break;
-    await new Promise((resolve) => setTimeout(resolve, 100));
-  }
-  assert.ok(ready, logs);
   browser = await remote({
     logLevel: "error",
     capabilities: {
@@ -40,7 +28,10 @@ try {
   await preset.waitForDisplayed({ timeout: 20000 });
   await preset.click();
   await browser.$('[role="option"]*=OpenAI · Responses').click();
-  const advanced = await browser.$("textarea");
+  const advancedSection = await browser.$('//details[.//textarea[@aria-label="高级请求参数"]]');
+  if (!(await advancedSection.getAttribute("open"))) await advancedSection.$("summary").click();
+  const advanced = await advancedSection.$("textarea");
+  await advanced.waitForDisplayed();
   await advanced.setValue('{"prompt_cache_options":{"mode":"explicit"}}');
   assert.ok((await browser.execute(() => window.__LLM_PRESET_E2E__.form.extra_body_text)).includes("prompt_cache_options"));
   await preset.click();
@@ -99,6 +90,9 @@ try {
   }
   throw error;
 } finally {
-  if (browser) await browser.deleteSession();
-  vite.kill("SIGTERM");
+  try {
+    if (browser) await browser.deleteSession();
+  } finally {
+    await stopProcess(vite);
+  }
 }

@@ -1,9 +1,7 @@
 #!/usr/bin/env python3
 """Verify authoring results, edits, conflicts, and downstream inputs through real CLI calls."""
 
-import argparse
 import json
-import os
 import re
 import tempfile
 import time
@@ -12,29 +10,19 @@ import uuid
 from pathlib import Path
 
 from mock_openai.fixtures.reverse import embedded_json_objects, message_text
-from run_cli_contract_e2e import Cli, checked, command_error, provider_log_entries, runtime_snapshot, secure_json
+from run_cli_contract_e2e import checked, cli_e2e_parser, command_error, logged_in_cli, provider_log_entries, runtime_snapshot, secure_json
 
 
 def main():
-    parser = argparse.ArgumentParser(description=__doc__)
-    for option in ("a4n", "server", "username", "provider-url"):
-        parser.add_argument("--" + option, required=True)
-    parser.add_argument("--password-env", default="A4N_PASSWORD")
-    parser.add_argument("--provider-log", type=Path, required=True)
-    parser.add_argument("--report", type=Path, required=True)
+    parser = cli_e2e_parser(__doc__)
     parser.add_argument("--through-stage", choices=("inspiration", "blueprint", "outline", "chapter", "analysis"), default="analysis")
     args = parser.parse_args()
+    args.report.parent.mkdir(parents=True, exist_ok=True)
     report = {"success": False, "checks": [], "stages": {name: {"status": "not_run"} for name in ("inspiration", "blueprint", "outline", "chapter", "analysis")}}
     try:
         with tempfile.TemporaryDirectory(prefix="authoring-", dir=args.report.parent) as directory:
             work = Path(directory)
-            env = os.environ.copy()
-            password = env.pop(args.password_env)
-            env.pop("A4N_ACCESS_TOKEN", None)
-            cli = Cli(args.a4n, args.server, work / "cli.json", work / "context.json", 60, env)
-            checked(cli, ["health"], "health")
-            checked(cli, ["capabilities", "check"], "contract")
-            checked(cli, ["auth", "login", "--username", args.username, "--password-stdin"], "login", password + "\n")
+            cli = logged_in_cli(args, work)
             def configure(model="a4n-virtual-text"):
                 snapshot = runtime_snapshot(args.provider_url)
                 snapshot["llm"]["model"] = model
@@ -65,7 +53,7 @@ def main():
                     checked(cli, watch, "task watch")
                 else:
                     watched = cli.run(watch)
-                    assert watched["exit_code"] not in (0, 124), watched
+                    assert watched["exit_code"] == (9 if expected == "cancelled" else 8), watched
                 result = checked(cli, ["task", "get", handle["task_id"], "--attempt", str(handle["attempt"])], "task reread")[0]["data"]
                 assert result["handle"]["status"] == expected, result
                 return result

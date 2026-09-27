@@ -26,4 +26,4 @@ pub use mutations::{
     delete_galgame_line, insert_galgame_line, reorder_galgame_lines, update_galgame_choices,
     update_galgame_line, update_galgame_scene,
 };
-pub use queries::get_galgame_script;
+pub use queries::{get_galgame_asset_plan, get_galgame_script};

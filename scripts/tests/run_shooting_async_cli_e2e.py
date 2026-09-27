@@ -1,10 +1,8 @@
 #!/usr/bin/env python3
 """Verify background shooting generation, disconnected observers and durable completed scenes."""
 
-import argparse
 import copy
 import json
-import os
 import selectors
 import subprocess
 import tempfile
@@ -12,18 +10,11 @@ import time
 import uuid
 from pathlib import Path
 
-from run_cli_contract_e2e import Cli, RunnerError, checked, provider_log_entries, runtime_snapshot, secure_json
+from run_cli_contract_e2e import RunnerError, checked, cli_e2e_parser, logged_in_cli, provider_log_entries, runtime_snapshot, secure_json
 
 
 def main():
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--a4n", required=True)
-    parser.add_argument("--server", required=True)
-    parser.add_argument("--username", required=True)
-    parser.add_argument("--password-env", default="A4N_PASSWORD")
-    parser.add_argument("--provider-url", required=True)
-    parser.add_argument("--provider-log", type=Path, required=True)
-    parser.add_argument("--report", type=Path, required=True)
+    parser = cli_e2e_parser(__doc__)
     parser.add_argument("--prepare-browser", action="store_true")
     args = parser.parse_args()
     args.report.parent.mkdir(parents=True, exist_ok=True)
@@ -31,13 +22,7 @@ def main():
     try:
         with tempfile.TemporaryDirectory(prefix="shooting-async-", dir=args.report.parent) as directory:
             work = Path(directory)
-            env = os.environ.copy()
-            password = env.pop(args.password_env)
-            env.pop("A4N_ACCESS_TOKEN", None)
-            cli = Cli(args.a4n, args.server, work / "cli.json", work / "context.json", 60, env)
-            checked(cli, ["health"], "health")
-            checked(cli, ["capabilities", "check"], "capabilities")
-            checked(cli, ["auth", "login", "--username", args.username, "--password-stdin"], "login", password + "\n")
+            cli = logged_in_cli(args, work)
             described = set()
 
             def call(name, value, *, raw=False, destructive=False):
@@ -130,7 +115,7 @@ def main():
             watcher = subprocess.Popen([args.a4n, "--output", "jsonl", "--no-input", "--server", args.server,
                                         "--config", str(cli.config), "--context", str(cli.context), "task", "watch",
                                         handle["task_id"], "--attempt", str(handle["attempt"])],
-                                       stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env)
+                                       stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=cli.env)
             try:
                 with selectors.DefaultSelector() as selector:
                     selector.register(watcher.stdout, selectors.EVENT_READ)
@@ -228,7 +213,7 @@ def main():
             stale = cli.run(["call", "apply_source_sync_decisions", "--args", "-", "--allow-destructive"], stdin=json.dumps({
                 "input": {"sync_run_id": unchanged_preview["run"]["id"], "decisions": []},
             }))
-            assert stale["exit_code"] != 0 and "root_changed_after_dry_run" in json.dumps(stale), stale
+            assert stale["exit_code"] in (6, 8) and "root_changed_after_dry_run" in json.dumps(stale), stale
             sync_apply(sync_preview(video, 1))
             assert call("get_chapter_shooting_script", video_resource)["script"]["scenes"][0]["title"] == modified["scenes"][0]["title"]
             report["checks"].append("script edits invalidate stale sync previews and a new preview safely imports the edited scenes")

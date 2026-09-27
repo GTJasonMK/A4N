@@ -4,11 +4,11 @@ use super::ShootingScriptValidationError;
 use super::rules::{invalid, positive_index, require_index, required_text};
 use super::scene::validate_scene;
 use crate::shooting_script::{
-    ChapterShootingScriptV1, ShootingDirectingStatementV1, ShootingEditingModeV1,
+    ChapterShootingScriptV2, ShootingDirectingStatementV1, ShootingEditingModeV1,
 };
 
 pub(super) fn validate_script(
-    script: &ChapterShootingScriptV1,
+    script: &ChapterShootingScriptV2,
     pending_units: Option<(usize, usize)>,
 ) -> Result<(), ShootingScriptValidationError> {
     if let Some(source) = &script.visual_plan_source {

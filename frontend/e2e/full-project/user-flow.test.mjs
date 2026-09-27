@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
-import { captureBrowserDiagnostics, visibleElements } from "./user-flow.mjs";
+import { captureBrowserDiagnostics, visibleElements, waitAndCloseProgress } from "./user-flow.mjs";
 
 test("element scans tolerate replaced nodes but propagate transport failures", async () => {
   try {
@@ -12,6 +12,52 @@ test("element scans tolerate replaced nodes but propagate transport failures", a
     await assert.rejects(visibleElements("button"), /session disconnected/);
   } finally {
     delete globalThis.$$;
+  }
+});
+
+test("progress requires a terminal success and exposes failure or cancellation without retrying", async () => {
+  let phase = 0;
+  let closed = false;
+  let progressText = "生成首版蓝图";
+  const close = {
+    isDisplayed: async () => true,
+    getAttribute: async () => "关闭弹窗",
+    getText: async () => "",
+    click: async () => {
+      assert.equal(phase, 2, "a title and 100% progress cannot close a running task");
+      closed = true;
+    },
+  };
+  const bar = { isDisplayed: async () => true, getAttribute: async () => "100" };
+  const dialog = {
+    isDisplayed: async () => !closed,
+    getText: async () => progressText,
+    $$: async (selector) => selector === "button" ? (phase === 2 ? [close] : []) : (phase > 0 ? [bar] : []),
+  };
+  globalThis.$$ = async () => [dialog];
+  globalThis.browser = {
+    execute: async () => !closed,
+    waitUntil: async (condition) => {
+      for (let attempt = 0; attempt < 3; attempt += 1) {
+        if (await condition()) return;
+        phase += 1;
+      }
+      assert.fail("progress never reached its expected terminal state");
+    },
+  };
+  try {
+    await waitAndCloseProgress("生成首版蓝图");
+    assert.equal(closed, true);
+    for (const status of ["生成失败", "已取消", "已停止"]) {
+      phase = 2;
+      closed = false;
+      progressText = `生成首版蓝图 ${status}`;
+      await assert.rejects(waitAndCloseProgress("生成首版蓝图"), /异步任务失败/);
+      assert.equal(closed, false, "failed progress must remain visible for diagnostics");
+    }
+  } finally {
+    delete globalThis.$$;
+    delete globalThis.browser;
   }
 });
 

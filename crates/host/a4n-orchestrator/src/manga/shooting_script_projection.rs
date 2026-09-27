@@ -1,10 +1,10 @@
 use a4n_domain::shooting_script::{
-    ChapterShootingScriptV1, ShootingCoverageV1, ShootingPerformanceBeatV1,
+    ChapterShootingScriptV2, ShootingCoverageV1, ShootingPerformanceBeatV2,
 };
 use serde_json::{Value, json};
 
 pub(super) fn manga_beat_refs(
-    script: &ChapterShootingScriptV1,
+    script: &ChapterShootingScriptV2,
 ) -> std::collections::HashSet<(i64, i64, i64)> {
     script
         .scenes
@@ -23,7 +23,7 @@ pub(super) fn manga_beat_refs(
         .collect()
 }
 
-pub(super) fn manga_events_from_shooting_script(script: &ChapterShootingScriptV1) -> Value {
+pub(super) fn manga_events_from_shooting_script(script: &ChapterShootingScriptV2) -> Value {
     Value::Array(
         script
             .scenes
@@ -58,7 +58,7 @@ pub(super) fn manga_events_from_shooting_script(script: &ChapterShootingScriptV1
 pub(super) fn manga_page_planning_source(
     shooting_script_id: i64,
     shooting_script_revision: i32,
-    script: &ChapterShootingScriptV1,
+    script: &ChapterShootingScriptV2,
 ) -> Value {
     json!({
         "shooting_script_id": shooting_script_id,
@@ -90,7 +90,7 @@ pub(super) fn manga_page_planning_source(
     })
 }
 
-fn event_type(beat: &ShootingPerformanceBeatV1) -> &'static str {
+fn event_type(beat: &ShootingPerformanceBeatV2) -> &'static str {
     if beat.dialogue_intent.is_some() {
         "dialogue"
     } else if beat.reaction.is_some() {
@@ -114,6 +114,6 @@ fn event_importance(coverage: ShootingCoverageV1, required: bool) -> &'static st
     }
 }
 
-fn is_climax(beat: &ShootingPerformanceBeatV1) -> bool {
+fn is_climax(beat: &ShootingPerformanceBeatV2) -> bool {
     beat.required && (!beat.knowledge_delta.is_empty() || beat.relationship_delta.is_some())
 }

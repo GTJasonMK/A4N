@@ -13,7 +13,7 @@ use crate::chapter_visual_plan::VisualSegmentProjectionV3;
 
 use super::director_projection::{DirectorScriptPlan, segment_addition_id};
 use super::{
-    ChapterShootingScriptV1, ShootingScriptValidationError, ShootingShotV1,
+    ChapterShootingScriptV2, ShootingScriptValidationError, ShootingShotV2,
     ShootingTransitionContractV1, ShootingVisualPlanSourceV1,
 };
 
@@ -33,40 +33,21 @@ impl ShootingScriptPlanSyncV1 {
     }
 }
 
-impl ShootingShotV1 {
+impl ShootingShotV2 {
     /// 只重绑定导演锁定的约束和时间，保留作者的拍摄设计与标题。
-    /// 表演节拍时长按新镜头时长等比缩放。
     pub fn bind_director_constraints(
         &mut self,
         planned: &VisualSegmentProjectionV3,
     ) -> Result<(), ShootingScriptValidationError> {
-        let duration_ms = planned
+        planned
             .end_ms
             .checked_sub(planned.start_ms)
             .filter(|duration| *duration > 0)
             .ok_or_else(|| invalid(format!("shots[{}]", self.shot_id), "镜头时间范围无效"))?;
-        let duration = duration_ms as f64 / 1000.0;
-        let seconds = self
-            .performance_beats
-            .iter()
-            .map(|beat| beat.estimated_seconds)
-            .sum::<f64>();
-        if !self.performance_beats.is_empty() {
-            if !seconds.is_finite() || seconds <= 0.0 {
-                return Err(invalid(
-                    format!("shots[{}].performance_beats", self.shot_id),
-                    "表演节拍时长必须为有效正数",
-                ));
-            }
-            for beat in &mut self.performance_beats {
-                beat.estimated_seconds *= duration / seconds;
-            }
-        }
         self.visual_shot_id = Some(planned.segment_id.clone());
         self.planned_start_ms = Some(planned.start_ms);
         self.planned_end_ms = Some(planned.end_ms);
         self.visual_constraints = Some(planned.clone());
-        self.estimated_natural_seconds = duration;
         Ok(())
     }
 
@@ -77,7 +58,7 @@ impl ShootingShotV1 {
     }
 }
 
-impl ChapterShootingScriptV1 {
+impl ChapterShootingScriptV2 {
     /// 下游只依赖目标镜头、所在场景的共享内容和实际引用的作者补充；版本号与显示顺序不参与。
     pub fn shot_content_fingerprints(
         &self,
@@ -326,7 +307,7 @@ impl ChapterShootingScriptV1 {
     pub fn with_updated_shots(
         &self,
         plan: &DirectorScriptPlan,
-        generated_scenes: Vec<super::ShootingSceneV1>,
+        generated_scenes: Vec<super::ShootingSceneV2>,
         shot_ids: &[String],
     ) -> Result<Self, ShootingScriptValidationError> {
         plan.validate_shot_ids(shot_ids)

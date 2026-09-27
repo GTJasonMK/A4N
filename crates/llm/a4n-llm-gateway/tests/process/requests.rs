@@ -2,8 +2,8 @@ use a4n_llm_client::LlmClient;
 use a4n_llm_provider_contract::{ChatChunk, ChatRequest};
 use a4n_service_client::ServiceClient;
 use a4n_service_protocol::{
-    CapabilityTaskEvent, CapabilityTaskEventKind, LLM_SERVICE_NAME, PROTOCOL_VERSION,
-    ServiceErrorCode, ServiceStatus, sidecar_resource_policy,
+    BodyLimitKind, CapabilityTaskEvent, CapabilityTaskEventKind, LLM_SERVICE_NAME,
+    PROTOCOL_VERSION, ServiceErrorCode, ServiceStatus, sidecar_resource_policy,
 };
 use a4n_test_support::process::{
     assert_protected_route_rejects_invalid_auth, assert_route_rejects_malformed_json,
@@ -234,7 +234,13 @@ async fn typed_stream_crosses_independent_gateway_process() {
     let gateway_base_url = format!("http://{addr}");
     assert_protected_route_rejects_invalid_auth(&gateway_base_url, "/llm/stream").await;
     assert_route_rejects_malformed_json(&gateway_base_url, "/llm/stream").await;
-    assert_route_rejects_oversized_json(&gateway_base_url, "/llm/stream", 8 * 1024 * 1024).await;
+    assert_route_rejects_oversized_json(
+        &gateway_base_url,
+        "/llm/stream",
+        LLM_SERVICE_NAME,
+        BodyLimitKind::Json,
+    )
+    .await;
 
     let stream_request = gateway_request(
         "process-stream-request",

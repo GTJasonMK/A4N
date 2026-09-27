@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use a4n_domain::shooting_script::{ChapterShootingScriptV1, ShootingVisualPlanSourceV1};
+use a4n_domain::shooting_script::{ChapterShootingScriptV2, ShootingVisualPlanSourceV1};
 use serde_json::Value;
 use sha2::{Digest, Sha256};
 
@@ -143,7 +143,7 @@ pub(super) fn remap_shooting_script_visual_plan_source(
     new_identity: (Option<i64>, Option<i32>, Option<&str>),
     label: &str,
 ) -> Result<(Value, String), ProjectFamilyImportError> {
-    let mut script: ChapterShootingScriptV1 =
+    let mut script: ChapterShootingScriptV2 =
         serde_json::from_value(script_json.clone()).map_err(|error| {
             ProjectFamilyImportError::invalid_package(format!("{label} JSON 无效: {error}"))
         })?;

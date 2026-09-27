@@ -145,7 +145,11 @@ export const VoiceView: React.FC<{ data: unknown }> = ({ data }) => {
               {voiceFieldLabel(key, locale, t, index + 1)}
             </div>
             <div className="min-w-0 whitespace-pre-wrap break-words leading-relaxed text-book-text-main">
-              {structuredValueText(value, t, locale)}
+              {Array.isArray(value) && value.length > 0 && ["catchphrases", "favorite_phrases", "examples"].includes(key) ? (
+                <ul className="space-y-1">
+                  {value.map((item, itemIndex) => <li key={itemIndex}>{structuredValueText(item, t, locale)}</li>)}
+                </ul>
+              ) : structuredValueText(value, t, locale)}
             </div>
           </div>
         ))}

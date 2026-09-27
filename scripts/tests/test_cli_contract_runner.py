@@ -6,6 +6,7 @@ from __future__ import annotations
 import json
 import tempfile
 import unittest
+from argparse import Namespace
 from pathlib import Path
 from unittest.mock import Mock, patch
 
@@ -14,6 +15,7 @@ from run_cli_contract_e2e import (
     RunnerError,
     classify,
     completion_flags,
+    logged_in_cli,
     provider_log_summary,
     run_watch,
     scenario_execution_success,
@@ -48,6 +50,29 @@ from run_all_workflows_e2e import (
 
 
 class CliContractRunnerTest(unittest.TestCase):
+    def test_fixture_login_uses_stdin_and_never_inherits_an_existing_token(self) -> None:
+        args = Namespace(a4n="fixture-cli", server="http://127.0.0.1:1", username="fixture", password_env="A4N_FIXTURE_PASSWORD")
+        with tempfile.TemporaryDirectory() as directory, patch.dict("os.environ", {
+            "A4N_FIXTURE_PASSWORD": "fixture-password", "A4N_ACCESS_TOKEN": "another-session",
+        }), patch("run_cli_contract_e2e.checked") as run:
+            cli = logged_in_cli(args, Path(directory))
+            self.assertNotIn("A4N_FIXTURE_PASSWORD", cli.env)
+            self.assertNotIn("A4N_ACCESS_TOKEN", cli.env)
+            self.assertEqual([call.args[1] for call in run.call_args_list], [
+                ["health"], ["capabilities", "check"],
+                ["auth", "login", "--username", "fixture", "--password-stdin"],
+            ])
+            self.assertEqual(run.call_args.args[3], "fixture-password\n")
+            run.reset_mock()
+            run.side_effect = [None, RunnerError("incompatible manifest")]
+            with self.assertRaisesRegex(RunnerError, "incompatible manifest"):
+                logged_in_cli(args, Path(directory))
+            self.assertEqual(run.call_count, 2)
+        with patch.dict("os.environ", {"A4N_FIXTURE_PASSWORD": ""}), patch("run_cli_contract_e2e.checked") as run:
+            with self.assertRaisesRegex(RunnerError, "环境变量.*为空"):
+                logged_in_cli(args, Path("unused-fixture"))
+            run.assert_not_called()
+
     def test_task_watch_uses_the_returned_attempt_and_rejects_missing_or_invalid_attempts(self) -> None:
         cli = Mock()
         cli.run.return_value = {"exit_code": 0, "duration_ms": 1, "stdout_documents": [{"ok": True}]}

@@ -37,10 +37,14 @@ async function ready(child, url) {
   }
   throw new Error(`Readiness timeout: ${url}`);
 }
-async function measure(width, state) {
+async function measure(width, state, anchor = null) {
   await browser.setViewport({ width, height: 900 });
   await browser.$("main").waitForDisplayed();
-  await browser.execute(() => document.querySelector("main").scrollTo(0, 0));
+  if (anchor) {
+    await browser.$(anchor).execute((element) => element.scrollIntoView({ block: "start" }));
+  } else {
+    await browser.execute(() => document.querySelector("main").scrollTo(0, 0));
+  }
   await browser.executeAsync((done) => requestAnimationFrame(() => requestAnimationFrame(done)));
   const result = await browser.execute(() => ({ width: innerWidth, overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth, contentOverflow: document.querySelector("main").scrollWidth - document.querySelector("main").clientWidth }));
   assert.equal(result.width, width);
@@ -77,13 +81,40 @@ try {
   assert.equal(await browser.execute(() => document.activeElement?.closest("[data-shot-id]")?.getAttribute("data-shot-id")), "shot-3", "manual action opens and focuses its shot");
   const composition = fixture.manual.after.script.scenes[2].shots[0].composition;
   await browser.$('[data-shot-id="shot-3"]').$('label*=构图').$('textarea').setValue(composition);
+  const shotEditor = await browser.$('[data-shot-id="shot-3"]');
+  const readDuration = () => browser.execute(() => {
+    const shot = document.querySelector('[data-shot-id="shot-3"]');
+    const label = [...shot.querySelectorAll("span")].find((item) => item.textContent === "镜头时长（来自导演编排）");
+    return label?.parentElement?.querySelector("p")?.textContent;
+  });
+  const originalDuration = await readDuration();
+  assert.ok(originalDuration?.includes("秒"));
+  assert.equal(await shotEditor.$('input[type="number"]').isExisting(), false);
+  const beatCount = (await shotEditor.$$('[aria-label="删除节拍"]')).length;
+  const addBeat = await shotEditor.$('button=添加节拍');
+  await addBeat.execute((element) => element.focus());
+  await browser.keys("Enter");
+  await browser.waitUntil(async () => (await shotEditor.$$('[aria-label="删除节拍"]')).length === beatCount + 1);
+  assert.equal(await readDuration(), originalDuration);
+  const removeBeat = (await shotEditor.$$('[aria-label="删除节拍"]')).at(-1);
+  await removeBeat.execute((element) => element.focus());
+  await browser.keys("Enter");
+  await browser.waitUntil(async () => (await shotEditor.$$('[aria-label="删除节拍"]')).length === beatCount);
+  assert.equal(await readDuration(), originalDuration);
   await browser.$('label*=已手动更新').$('input').click();
   for (const width of [1024, 390]) await measure(width, "editing");
+  for (const width of [1024, 390]) await measure(width, "timing-controls", '[data-shot-id="shot-3"]');
   await browser.$('button=保存改编').click();
   await browser.$('[aria-label="待更新镜头"]').waitForExist({ reverse: true });
   const manual = await browser.execute(() => window.shotSyncCalls.find((call) => call.command === "edit_chapter_shooting_script"));
   assert.deepEqual(manual.input.rebind_shot_ids, ["shot-3"]);
   assert.equal(manual.input.script.scenes[2].shots[0].composition, composition);
+  for (const scene of manual.input.script.scenes) {
+    for (const shot of scene.shots) {
+      assert.equal(Object.hasOwn(shot, "estimated_natural_seconds"), false);
+      assert.ok(shot.performance_beats.every((beat) => !Object.hasOwn(beat, "estimated_seconds")));
+    }
+  }
   assert.deepEqual(manual.input.script.scenes.slice(0, 2), fixture.manual.before.script.scenes.slice(0, 2));
 
   await browser.url(`http://127.0.0.1:${port}/e2e/shot-sync/?mode=ai`);

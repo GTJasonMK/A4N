@@ -1,5 +1,5 @@
 use a4n_prompt_contract::{PromptEmptyPayload, PromptRenderPayload};
-use a4n_service_protocol::{PROMPT_SERVICE_PROMPTS_DIR_ENV, ServiceRequest};
+use a4n_service_protocol::{BodyLimitKind, PROMPT_SERVICE_PROMPTS_DIR_ENV, ServiceRequest};
 use a4n_test_support::process::{
     HttpPromptClient, PROMPT_RENDER_CAPABILITY_VERSION, PROMPT_SERVICE_NAME, PromptClient,
     SIDECAR_PROCESS_TEST_TOKEN, ServiceStatus, SidecarProcessTestDir,
@@ -101,7 +101,13 @@ async fn prompt_service_process_serves_typed_list_and_stops() {
     assert_protected_route_rejects_invalid_auth(&base_url, "/prompt/list").await;
     assert_protected_route_rejects_invalid_auth(&base_url, "/prompt/render").await;
     assert_route_rejects_malformed_json(&base_url, "/prompt/list").await;
-    assert_route_rejects_oversized_json(&base_url, "/prompt/list", 8 * 1024 * 1024).await;
+    assert_route_rejects_oversized_json(
+        &base_url,
+        "/prompt/list",
+        PROMPT_SERVICE_NAME,
+        BodyLimitKind::Json,
+    )
+    .await;
     let client = HttpPromptClient::new_with_auth_token(base_url, SIDECAR_PROCESS_TEST_TOKEN);
     let request = request_context(
         "prompt-process-list",

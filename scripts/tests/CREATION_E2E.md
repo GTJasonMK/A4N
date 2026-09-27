@@ -43,6 +43,20 @@ python3 scripts/tests/run_creation_e2e.py --list
 
 选择某阶段会运行相关测试组；复合组可能额外覆盖其他阶段。CLI 与浏览器都必须有该阶段的实际检查结果。仅启动服务、空报告、未执行、依赖失败、超时均不能计作通过。测试组进程非零退出时，整轮失败，即使已经保存了某些阶段的通过记录。损坏或缺失的测试组报告明确记为失败，继续检查其他独立组；同一串行创作链的上游失败时，下游标为未验证，不伪造结果继续。
 
+## 与其他端到端测试的关系
+
+| 入口或测试 | 保留的独有覆盖 |
+| --- | --- |
+| 上述五组 CLI 脚本 | 统一入口的组成部分，也用于快速定位阶段故障 |
+| `full-project.e2e.mjs` | 手工建档、导入正文、RAG、Agent、画布、项目族导出 |
+| `nonlinear-material-sync.e2e.mjs` | 自由创作、无正文资料、跳过空白章节、归纳候选确认及正式蓝图更新 |
+| `video-mode-switch` / `video-scrub` | 多种生成模式、多片段状态、取消、播放与拖动竞态 |
+| `tauri-generation` / `package-lifecycle` | Native Channel 生命周期、功能包启停与权限隔离 |
+
+原 `resume-existing.e2e.mjs` 的独有断言已并入非线性测试，旧文件退役。现在由同一次运行创建项目、导入第 7 章、完成同步，再验证分部归纳保留稀疏章纲和蓝图正式写入；不再依赖人工留下的项目 ID，也不以自动重试掩盖生成或同步失败。
+
+非线性测试可用 `cd frontend && npm run test:browser-full-project -- --spec ./e2e/nonlinear-material-sync/nonlinear-material-sync.e2e.mjs` 运行。需要已启动的隔离 Server，通过 `A4N_BROWSER_E2E_BASE_URL`、`A4N_BROWSER_E2E_USERNAME`、`A4N_BROWSER_E2E_PASSWORD` 指定页面与登录信息，并提供 `A4N_NONLINEAR_LLM_API_KEY`。使用自定义模型时同时指定 `A4N_NONLINEAR_LLM_PROVIDER`、`A4N_NONLINEAR_LLM_BASE_URL`、`A4N_NONLINEAR_LLM_MODEL`，否则使用该 Server 的系统 LLM 配置。它使用独立的本地哈希嵌入配置，模型的故事内容必须遵循测试输入；不能把固定返回另一组人物和情节的 Mock 当作真实模型评测。
+
 ## 报告及保证边界
 
 报告保留在 `data/creation-e2e/<run-id>/`，包括 `report.json`、源码快照及二进制哈希、各组检查、Provider 请求、逐阶段截图、失败 DOM、浏览器异常堆栈、运行日志和数据库文件。页面出现严重控制台错误或未恢复的 HTTP 错误，即使业务断言成功也不能通过。生成事件协议用 HTTP 409 表示需要快照；仅当同一任务、同一 attempt 的后续快照返回 200 且阶段业务断言成功时，才记录为已恢复协商，证据另存 `*-recoveries.json`。日志读取失败、资源清理失败也会报错；失败清理继续处理其他资源。成功或失败后均停止自己启动的服务；证据保留。输入版本改变后必须重新验证，旧版本结果不能转移到新代码。

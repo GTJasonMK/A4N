@@ -93,7 +93,8 @@ export const novelOverview = {
   memberSummary: "{count} 位成员 · {role}",
   pendingInvitesSummary: "{count} 个邀请待处理",
   collaborationActions: {
-    loadFailed: "加载协作成员失败",
+    membersLoadFailed: "加载项目成员列表失败",
+    invitesLoadFailed: "加载项目邀请列表失败",
     inviteSent: "邀请已发送",
     inviteFailed: "邀请失败",
     roleUpdated: "成员角色已更新",

@@ -1,8 +1,8 @@
 use crate::shooting_script::*;
 
-fn valid_script() -> ChapterShootingScriptV1 {
-    ChapterShootingScriptV1 {
-        schema_version: ChapterShootingScriptSchemaVersion::V1,
+pub(crate) fn valid_script() -> ChapterShootingScriptV2 {
+    ChapterShootingScriptV2 {
+        schema_version: ChapterShootingScriptSchemaVersion::V2,
         visual_plan_source: None,
         user_additions: Vec::new(),
         directing_statement: Some(ShootingDirectingStatementV1 {
@@ -15,7 +15,7 @@ fn valid_script() -> ChapterShootingScriptV1 {
             sound_strategy: "用脚步和停顿制造悬念".to_string(),
             rhythm_strategy: "进入、停顿、观察".to_string(),
         }),
-        scenes: vec![ShootingSceneV1 {
+        scenes: vec![ShootingSceneV2 {
             scene_index: 1,
             scene_identity: "hall".to_string(),
             sequence_index: 1,
@@ -55,7 +55,7 @@ fn valid_script() -> ChapterShootingScriptV1 {
             sound_strategy: "突出脚步和停顿".to_string(),
             entry_state: "主角站在门口".to_string(),
             exit_state: "主角停在暗廊前".to_string(),
-            shots: vec![ShootingShotV1 {
+            shots: vec![ShootingShotV2 {
                 shot_index: 1,
                 shot_id: "shot-1".to_string(),
                 title: "进入".to_string(),
@@ -80,7 +80,7 @@ fn valid_script() -> ChapterShootingScriptV1 {
                     movement: "走向暗廊".to_string(),
                     end: "暗廊前".to_string(),
                 },
-                performance_beats: vec![ShootingPerformanceBeatV1 {
+                performance_beats: vec![ShootingPerformanceBeatV2 {
                     beat_index: 1,
                     beat_id: "beat-1".to_string(),
                     source_span_ids: vec!["span-1".to_string()],
@@ -102,7 +102,6 @@ fn valid_script() -> ChapterShootingScriptV1 {
                     entry_state: "谨慎".to_string(),
                     exit_state: "警惕".to_string(),
                     required: true,
-                    estimated_seconds: 2.0,
                 }],
                 dialogue_cues: Vec::new(),
                 sound: ShootingSoundDesignV1 {
@@ -119,7 +118,6 @@ fn valid_script() -> ChapterShootingScriptV1 {
                 transition_in: "从开门动作开始".to_string(),
                 transition_out: "停在暗廊前".to_string(),
                 continuity_requirements: vec!["暗廊保持在画面右侧".to_string()],
-                estimated_natural_seconds: 2.0,
             }],
         }],
     }
@@ -157,14 +155,13 @@ fn director_constraints_reject_changed_identity_timing_and_images() {
     shot.visual_shot_id = Some(director.segment_id.clone());
     shot.planned_start_ms = Some(director.start_ms);
     shot.planned_end_ms = Some(director.end_ms);
-    shot.estimated_natural_seconds = 10.0;
     shot.visual_constraints = Some(director);
     assert!(script.validate_director_plan(&plan, None).is_ok());
     let original = script.clone();
     script.scenes[0].shots[0].shot_id = "other-shot".into();
     assert!(script.validate_director_plan(&plan, None).is_err());
     script = original.clone();
-    script.scenes[0].shots[0].estimated_natural_seconds = 9.0;
+    script.scenes[0].shots[0].planned_end_ms = Some(9_000);
     assert!(script.validate_director_plan(&plan, None).is_err());
     script = original;
     script.scenes[0].shots[0]
@@ -213,7 +210,7 @@ fn schema_version_rejects_noncanonical_values_during_deserialization() {
     let mut value = serde_json::to_value(valid_script()).unwrap();
     value["schema_version"] = serde_json::json!("legacy_shooting_script");
 
-    assert!(serde_json::from_value::<ChapterShootingScriptV1>(value).is_err());
+    assert!(serde_json::from_value::<ChapterShootingScriptV2>(value).is_err());
 }
 
 #[test]
@@ -237,14 +234,12 @@ fn shot_source_spans_must_belong_to_scene() {
 }
 
 #[test]
-fn shot_duration_must_equal_performance_beats() {
-    let mut script = valid_script();
-    script.scenes[0].shots[0].estimated_natural_seconds = 3.0;
-
-    let error = script.validate().expect_err("duration mismatch must fail");
-
-    assert_eq!(error.path, "scenes[0].shots[0].estimated_natural_seconds");
-    assert_eq!(error.message, "必须等于表演节拍时长之和");
+fn current_contract_rejects_retired_beat_estimates() {
+    let mut value = serde_json::to_value(valid_script()).unwrap();
+    value["scenes"][0]["shots"][0]["performance_beats"][0]["estimated_seconds"] =
+        serde_json::json!(2);
+    let error = serde_json::from_value::<ChapterShootingScriptV2>(value).unwrap_err();
+    assert!(error.to_string().contains("unknown field"));
 }
 
 #[test]

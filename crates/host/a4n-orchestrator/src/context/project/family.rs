@@ -925,9 +925,12 @@ impl OrchestratorContext {
             )
             .await
             .map_err(ProjectPackageTransferError::Message)?;
-        let package: ProjectFamilyPackage =
+        let mut package: ProjectFamilyPackage =
             a4n_import_core::parse_json_manifest_value(read_package.manifest, "项目族清单")
                 .map_err(|error| ProjectPackageTransferError::Message(error.to_string()))?;
+        package
+            .upgrade_shooting_contract(&mut Default::default())
+            .map_err(ProjectPackageTransferError::Message)?;
         let media_payload =
             index_import_media_payload(&package.media_files, read_package.media_bytes)
                 .map_err(ProjectPackageTransferError::Message)?;

@@ -49,6 +49,17 @@ def agent_observation(data):
             "stats": {"duration_ms": 1, "result_bytes": len(json.dumps(data).encode())}}
 
 
+def optimization_messages(observations, user_message="请提出局部补丁"):
+    task = {"task": {"name": "content_optimization_chat_agent_loop"}, "user_message": user_message}
+    base = {"kind": "base_task", "base_task": "任务\n\n输入：\n" + json.dumps(task, ensure_ascii=False)}
+    return [
+        {"role": "user", "content": json.dumps(base, ensure_ascii=False)},
+        *[{"role": "user", "content": json.dumps({"loop_observation": {"sequence": index, "value": value}}, ensure_ascii=False)}
+          for index, value in enumerate(observations, 1)],
+        {"role": "user", "content": json.dumps({"loop_state": {"observations_ref": "previous messages", "progress": {"observation_count": len(observations)}}})},
+    ]
+
+
 class MockOpenAIProviderTest(unittest.TestCase):
     def test_fact_feedback_reads_current_annotated_and_structured_sources(self) -> None:
         from mock_openai.fixtures.fact_feedback import fact_feedback_response
@@ -110,11 +121,7 @@ class MockOpenAIProviderTest(unittest.TestCase):
             response_for({"messages": [{"role": "user", "content": [{"type": "image_url"}]}]})
         observation = {"tool": "get_project_information", "success": True,
                        "result": {"content": {"source_spans": [{"text": "林岚走进机房。"}]}}}
-        request = {"messages": [
-            {"role": "system", "content": "content_optimization_chat_agent_loop"},
-            {"role": "user", "content": json.dumps({"loop_observation": {"sequence": 1, "value": observation}}, ensure_ascii=False)},
-            {"role": "user", "content": json.dumps({"loop_state": {"observations_ref": "previous messages", "progress": {"observation_count": 1}}})},
-        ]}
+        request = {"messages": optimization_messages([observation])}
         decision = json.loads(response_for(request))
         self.assertEqual(decision["arguments"]["tool"], "edit_article")
         self.assertEqual(decision["arguments"]["arguments"]["patches"][0]["old_text"], "林岚走进机房。")
@@ -305,7 +312,8 @@ class MockOpenAIProviderTest(unittest.TestCase):
         with self.assertRaises(HTTPError) as error:
             self.request_json("/api/temp-media", {**metadata, "data_base64": PNG_1X1_BASE64},
                               headers={"Authorization": "Bearer upload-test"})
-        self.assertEqual(error.exception.code, 415)
+        with error.exception as response:
+            self.assertEqual(response.code, 415)
 
     def test_streaming_chat_ping(self) -> None:
         request = Request(
@@ -531,7 +539,8 @@ class MockOpenAIProviderTest(unittest.TestCase):
             "content": json.dumps(agent_observation({"project": {"id": 7}, "chapter": {"id": 11}})),
         }
         second = agent_chat_fixture(
-            {"messages": [system, historical_user, historical_delegate, historical_result, historical_inbox, current_user, locate, observation]}
+            {"messages": [system, historical_user, historical_delegate, historical_result, historical_inbox, current_user, locate, observation,
+                          {"role": "user", "content": "当前执行阶段：context_read。当前目标：开始新的正文优化任务。"}]}
         )
         self.assertEqual(second["tool_call"]["name"], "delegate")
         self.assertEqual(second["tool_call"]["arguments"]["projectId"], 7)
@@ -545,7 +554,9 @@ class MockOpenAIProviderTest(unittest.TestCase):
             {"role": "assistant", "tool_calls": [{"id": inspect["id"], "function": {"name": inspect["name"]}}]},
             {"role": "tool", "tool_call_id": inspect["id"], "content": json.dumps(agent_observation({"content": {"paragraphs": [{"index": 1}]}}))},
         ])
-        read = agent_chat_fixture({"messages": messages})["tool_call"]
+        read = agent_chat_fixture({"messages": [*messages,
+            {"role": "user", "content": "当前执行阶段：context_read。当前目标：优化当前章节。"},
+        ]})["tool_call"]
         self.assertEqual(read["name"], "read_project_context")
         messages.extend([
             {"role": "assistant", "tool_calls": [{"id": read["id"], "function": {"name": read["name"]}}]},
@@ -582,40 +593,18 @@ class MockOpenAIProviderTest(unittest.TestCase):
         self.assertEqual(second["tool_call"]["name"], "describe_agent_tool")
 
     def test_content_optimization_chat_fixture_matches_current_workflow(self) -> None:
-        response = json.loads(
-            response_for(
-                {
-                    "messages": [
-                        {
-                            "role": "user",
-                            "content": "content_optimization_chat_agent_loop",
-                        }
-                    ]
-                }
-            )
-        )
+        response = json.loads(response_for({"messages": optimization_messages([])}))
         self.assertEqual(response["action"], "run_tool")
         self.assertEqual(response["arguments"]["tool"], "get_project_information")
-
-        response = json.loads(
-            response_for(
-                {
-                    "messages": [
-                        {
-                            "role": "user",
-                            "content": (
-                                "content_optimization_chat_agent_loop\n"
-                                '{"loop_state":{"observations":[{"tool":"get_project_information",'
-                                '"success":true,"result":{"content":{"source_spans":[{"id":"ch1:s1:f1","text":"原文。"}]}}}]}}'
-                            ),
-                        }
-                    ]
-                }
-            )
-        )
-        self.assertEqual(response["action"], "run_tool")
-        self.assertEqual(response["arguments"]["tool"], "edit_article")
-        self.assertEqual(response["arguments"]["arguments"]["patches"][0]["old_text"], "原文。")
+        plain = optimization_messages([], "A4N_OPTIMIZATION_PLAIN 只回答当前问题")
+        self.assertEqual(json.loads(response_for({"messages": plain}))["action"], "final")
+        plain[-1]["content"] = json.dumps({"loop_state": {"observations": []}})
+        with self.assertRaisesRegex(ValueError, "observation references"):
+            response_for({"messages": plain})
+        missing = optimization_messages([])
+        missing[-1]["content"] = json.dumps({"loop_state": {"observations_ref": "previous messages", "progress": {"observation_count": 1}}})
+        with self.assertRaisesRegex(ValueError, "lost full observations"):
+            response_for({"messages": missing})
 
     def test_unmatched_prompt_is_rejected(self) -> None:
         with self.assertRaises(HTTPError) as caught:

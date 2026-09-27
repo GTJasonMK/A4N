@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import type { StudioNode } from "./types";
+import type { StudioEdge, StudioNode } from "./types";
 
-import { canvasGraphViewport, changeCanvasNodeReference, clearCanvasNodeRuntimeResult, mergeCanvasDocumentRuntimeResults, mergeStudioNodeRuntimeResults, preserveSelectedItems, toCanvasGraphInput, toFlowNode } from "./canvasGraphMapping";
+import { canvasGraphViewport, changeCanvasNodeReference, clearCanvasNodeRuntimeResult, invalidateCanvasRuntimeResults, mergeCanvasDocumentRuntimeResults, mergeStudioNodeRuntimeResults, preserveSelectedItems, toCanvasGraphInput, toFlowNode } from "./canvasGraphMapping";
 import type { CanvasGraphDocument } from "../../api/canvas";
 
 it("restores a finite saved viewport and leaves absent or invalid values to fit view", () => {
@@ -165,4 +165,38 @@ it("preserves requested video duration when clearing or receiving execution resu
     config_json: { duration_secs: 2, canvas_runtime_result: true, generated_video_id: 92 },
   }]);
   expect(merged[0].data.config).toMatchObject({ duration_secs: 6, generated_video_id: 92 });
+});
+
+it("clears completed runtime results downstream of a changed canvas node", () => {
+  const source = textNode("1", "new source");
+  const makeResult = (id: string): StudioNode => ({
+    ...textNode(id, ""),
+    data: {
+      ...textNode(id, "").data,
+      nodeKind: "LlmTextNode",
+      refType: "prompt_artifact",
+      refId: Number(id) + 100,
+      state: "completed",
+      config: { canvas_runtime_result: true, text: `result-${id}` },
+    },
+  });
+  const firstOutput = makeResult("2");
+  const secondOutput = makeResult("3");
+  const unrelated = makeResult("4");
+  const edges = [
+    { id: "a", source: "1", target: "2" },
+    { id: "b", source: "2", target: "3" },
+  ] as StudioEdge[];
+
+  const next = invalidateCanvasRuntimeResults(
+    [source, firstOutput, secondOutput, unrelated],
+    edges,
+    [source.id],
+  );
+
+  expect(next[0]).toBe(source);
+  expect(next[1]?.data).toMatchObject({ state: "ready", refType: null, refId: null });
+  expect(next[1]?.data.config).not.toHaveProperty("canvas_runtime_result");
+  expect(next[2]?.data).toMatchObject({ state: "ready", refType: null, refId: null });
+  expect(next[3]).toBe(unrelated);
 });

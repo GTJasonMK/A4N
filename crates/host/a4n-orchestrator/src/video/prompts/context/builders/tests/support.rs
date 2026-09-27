@@ -38,15 +38,12 @@ impl<F, T, E> FutureResultExt<T, E> for F where F: Future<Output = Result<T, E>>
 fn planning_context<'a>(
     prompt_renderer: &'a dyn PromptRenderer,
     style: &'a str,
-    duration_secs: i32,
 ) -> VideoPlanningPromptContext<'a> {
     VideoPlanningPromptContext {
         prompt_renderer,
         project_id: PROJECT_ID,
         chapter_summary: None,
         style,
-        duration_secs,
-        aspect_ratio: "16:9",
     }
 }
 

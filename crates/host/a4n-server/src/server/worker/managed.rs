@@ -1,4 +1,5 @@
 use super::super::*;
+use anyhow::Context;
 
 fn launch(config: &ManagedWorkerConfig) -> anyhow::Result<(Child, BinaryFingerprint)> {
     let mut child = spawn_managed_worker(config)?;
@@ -66,7 +67,7 @@ pub(crate) fn start_managed_workers(
                 rollback_binary,
             }),
             Err(error) => {
-                remove_backup(rollback_binary.as_deref());
+                remove_backup(rollback_binary);
                 return Err(error.context(startup_failure_context(
                     &config.metadata.name,
                     stop_managed_workers(&mut workers),
@@ -86,7 +87,7 @@ pub(crate) fn restart_managed_worker(
     if stop_first {
         if let Err(error) = stop_child(&mut worker.child) {
             worker.rollback_binary = rollback_binary;
-            remove_backup(next_rollback_binary.as_deref());
+            remove_backup(next_rollback_binary);
             return Err(error);
         }
     }
@@ -96,7 +97,7 @@ pub(crate) fn restart_managed_worker(
             worker.child = child;
             worker.fingerprint = fingerprint;
             if next_rollback_binary.is_some() {
-                remove_backup(rollback_binary.as_deref());
+                remove_backup(rollback_binary);
                 worker.rollback_binary = next_rollback_binary;
             } else {
                 worker.rollback_binary = rollback_binary;
@@ -104,44 +105,53 @@ pub(crate) fn restart_managed_worker(
             Ok(())
         }
         Err(error) => {
-            remove_backup(next_rollback_binary.as_deref());
+            remove_backup(next_rollback_binary);
             let Some(rollback_binary) = rollback_binary else {
                 return Err(error);
             };
-            rollback_worker(worker, &rollback_binary, error)
+            rollback_worker(worker, rollback_binary, error)
         }
     }
 }
 
-fn backup_binary(binary: &std::path::Path) -> anyhow::Result<Option<std::path::PathBuf>> {
+fn backup_binary(binary: &Path) -> anyhow::Result<Option<tempfile::TempPath>> {
+    let mut config = a4n_config::app_config::AppConfig::default();
+    a4n_config::app_config::apply_storage_env_overrides(
+        &mut config,
+        &a4n_config::app_config::portable_home_dir(),
+    )?;
+    backup_binary_in(binary, &config.temp_dir)
+}
+
+fn backup_binary_in(binary: &Path, directory: &Path) -> anyhow::Result<Option<tempfile::TempPath>> {
     if !binary.is_file() {
         return Ok(None);
     }
-    let timestamp = SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map_err(|error| anyhow::anyhow!("生成 Worker 回滚备份名失败: {error}"))?
-        .as_nanos();
-    let name = binary
-        .file_name()
-        .and_then(|value| value.to_str())
-        .unwrap_or("worker");
-    let backup = std::env::temp_dir().join(format!(
-        "a4n-worker-rollback-{}-{timestamp}-{name}",
-        std::process::id()
-    ));
-    std::fs::copy(binary, &backup).map_err(|error| {
-        anyhow::anyhow!("备份 Worker 二进制 {} 失败: {error}", binary.display())
+    std::fs::create_dir_all(directory)
+        .with_context(|| format!("创建 Worker 回滚备份目录 {} 失败", directory.display()))?;
+    // Use the application's storage root: OS temporary directories may be quota-limited tmpfs.
+    let backup = tempfile::Builder::new()
+        .prefix("a4n-worker-rollback-")
+        .tempfile_in(directory)
+        .with_context(|| format!("创建 Worker 回滚备份文件失败: {}", directory.display()))?
+        .into_temp_path();
+    std::fs::copy(binary, &backup).with_context(|| {
+        format!(
+            "备份 Worker 二进制 {} 到 {} 失败",
+            binary.display(),
+            backup.display()
+        )
     })?;
     Ok(Some(backup))
 }
 
 fn rollback_worker(
     worker: &mut ManagedWorker,
-    backup: &std::path::Path,
+    backup: tempfile::TempPath,
     update_error: anyhow::Error,
 ) -> anyhow::Result<()> {
-    if let Err(error) = std::fs::copy(backup, &worker.config.binary) {
-        worker.rollback_binary = Some(backup.to_path_buf());
+    if let Err(error) = std::fs::copy(&backup, &worker.config.binary) {
+        worker.rollback_binary = Some(backup);
         return Err(anyhow::anyhow!(
             "{} 更新失败: {update_error:#}; 恢复旧 Worker 二进制失败: {error}",
             worker.config.metadata.name
@@ -150,7 +160,7 @@ fn rollback_worker(
     let (child, fingerprint) = match launch(&worker.config) {
         Ok(result) => result,
         Err(error) => {
-            worker.rollback_binary = Some(backup.to_path_buf());
+            worker.rollback_binary = Some(backup);
             return Err(anyhow::anyhow!(
                 "{} 更新失败: {update_error:#}; 恢复旧 Worker 失败: {error:#}",
                 worker.config.metadata.name
@@ -159,16 +169,19 @@ fn rollback_worker(
     };
     worker.fingerprint = fingerprint;
     worker.child = child;
-    worker.rollback_binary = Some(backup.to_path_buf());
+    worker.rollback_binary = Some(backup);
     Err(anyhow::anyhow!(
         "{} 更新失败: {update_error:#}; 已恢复旧 Worker 并继续监督",
         worker.config.metadata.name
     ))
 }
 
-fn remove_backup(path: Option<&std::path::Path>) {
+fn remove_backup(path: Option<tempfile::TempPath>) {
     if let Some(path) = path {
-        let _ = std::fs::remove_file(path);
+        let name = path.display().to_string();
+        if let Err(error) = path.close() {
+            eprintln!("清理 Worker 回滚备份 {name} 失败: {error}");
+        }
     }
 }
 
@@ -181,7 +194,7 @@ pub(crate) fn stop_managed_workers(
         .map(|worker| {
             let rollback_binary = worker.rollback_binary.take();
             let result = stop_child(&mut worker.child);
-            remove_backup(rollback_binary.as_deref());
+            remove_backup(rollback_binary);
             (worker.config.metadata.name.clone(), result)
         })
         .collect()
@@ -189,7 +202,7 @@ pub(crate) fn stop_managed_workers(
 
 #[cfg(test)]
 mod tests {
-    use super::{backup_binary, remove_backup, startup_failure_context};
+    use super::{backup_binary_in, remove_backup, startup_failure_context};
 
     #[test]
     fn startup_failure_context_reports_cleanup_errors() {
@@ -216,14 +229,30 @@ mod tests {
     fn backup_binary_preserves_its_snapshot_when_the_source_path_changes() {
         let tempdir = tempfile::tempdir().unwrap();
         let binary = tempdir.path().join("worker");
+        let backup_dir = tempdir.path().join("application-tmp");
         std::fs::write(&binary, b"running-version").unwrap();
 
-        let backup = backup_binary(&binary).unwrap().unwrap();
+        let backup = backup_binary_in(&binary, &backup_dir).unwrap().unwrap();
+        assert_eq!(backup.parent(), Some(backup_dir.as_path()));
         std::fs::write(&binary, b"new-version").unwrap();
 
         assert_eq!(std::fs::read(&backup).unwrap(), b"running-version");
         assert_eq!(std::fs::read(&binary).unwrap(), b"new-version");
-        remove_backup(Some(&backup));
-        assert!(!backup.exists());
+        let backup_path = backup.to_path_buf();
+        remove_backup(Some(backup));
+        assert!(!backup_path.exists());
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn failed_backup_removes_the_incomplete_file() {
+        let tempdir = tempfile::tempdir().unwrap();
+        let backup_dir = tempdir.path().join("application-tmp");
+        // This regular proc file fails reads at offset zero, including when tests run as root.
+        let binary = std::path::Path::new("/proc/self/mem");
+
+        let error = backup_binary_in(binary, &backup_dir).unwrap_err();
+        assert!(format!("{error:#}").contains("备份 Worker 二进制"));
+        assert!(std::fs::read_dir(&backup_dir).unwrap().next().is_none());
     }
 }

@@ -31,6 +31,7 @@ pub(super) fn optimization_chapter_context(ch: &chapter::Model) -> Value {
     let source_spans = source_spans_for_chapters(std::slice::from_ref(ch));
     json!({
         "chapter_number": ch.chapter_number,
+        "content": ch.content,
         "title": ch.title.as_deref().map(str::trim).filter(|title| !title.is_empty()),
         "summary": optimization_chapter_summary_parts(ch.analysis_data.as_ref(), ch.summary.as_deref()),
         "word_count": ch.word_count,

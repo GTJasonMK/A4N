@@ -2,7 +2,7 @@ use super::*;
 use a4n_domain::chapter_visual_plan::SceneBindingV3;
 use sea_orm::TransactionTrait;
 
-fn source_script(plan: &ChapterVisualPlanV3) -> ChapterShootingScriptV1 {
+pub(crate) fn source_script(plan: &ChapterVisualPlanV3) -> ChapterShootingScriptV1 {
     let director = project_visual_plan_for_shooting_script(plan, &[]).unwrap();
     let mut script: Value = serde_json::from_str(r#"{
         "schema_version": "chapter_shooting_script_v1", "directing_statement": null,

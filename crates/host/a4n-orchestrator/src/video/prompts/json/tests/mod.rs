@@ -10,7 +10,6 @@ include!("dialogue.rs");
 fn derives_environment_shot_source_spans_without_beats() {
     let mut script = crate::video::tests::test_director_bound_shooting_script("ch1:s1:f1", 2);
     script.scenes[0].shots[0].performance_beats.clear();
-    script.scenes[0].shots[0].estimated_natural_seconds = 2.0;
     let projection = crate::video::prompts::generation::video_projection_from_shooting_script(
         &script,
         a4n_video_contract::VideoShootingScriptIdentityV1 {
@@ -57,11 +56,13 @@ fn validates_environment_segment_without_fake_character() {
     segment.covered_beat_ids.clear();
     segment.emotion_action_goals.clear();
     segment.performance_plan.action_script.clear();
-    segment.director_constraints = projection
-        .shot("shot-1")
-        .unwrap()
-        .director_constraints
-        .clone();
+    segment.director_constraints = Some(
+        projection
+            .shot("shot-1")
+            .unwrap()
+            .director_constraints
+            .clone(),
+    );
     let segment = validate_segment_plan(segment).unwrap();
     validate_segment_plan_against_shooting_script_projection(
         std::slice::from_ref(&segment),
@@ -138,14 +139,39 @@ fn participant_segment_still_requires_character_actions() {
     segment.covered_beat_ids = vec!["beat-1".to_string(), "beat-2".to_string()];
     segment.emotion_action_goals.clear();
     segment.performance_plan.action_script.clear();
-    segment.director_constraints = projection
-        .shot("shot-1")
-        .unwrap()
-        .director_constraints
-        .clone();
+    segment.director_constraints = Some(
+        projection
+            .shot("shot-1")
+            .unwrap()
+            .director_constraints
+            .clone(),
+    );
+
     let segment = validate_segment_plan(segment).unwrap();
 
     let error = validate_segment_plan_against_shooting_script_projection(&[segment], &projection)
         .unwrap_err();
     assert!(error.to_string().contains("emotion_action_goals 不能为空"));
+}
+
+#[test]
+fn stored_director_segment_uses_director_frame_instead_of_request_default() {
+    let mut segment = valid_segments().remove(0);
+    let mut plan = a4n_domain::chapter_visual_plan::ChapterVisualPlanV3::starter();
+    plan.frame.width = 1280;
+    plan.frame.height = 960;
+    plan.points.last_mut().unwrap().at_ms = 6000;
+    plan.segments[0].id = segment.source_shot_id.clone();
+    plan.segments[0].prompt = "保留导演画幅".into();
+    plan.segments[0].scene_binding = Some(a4n_domain::chapter_visual_plan::SceneBindingV3::Scene {
+        scene_profile_id: 1,
+    });
+    segment.director_constraints = Some(plan.project().unwrap().remove(0));
+    segment.source_span_ids.clear();
+    segment.reference_image_ids.clear();
+    segment.aspect_ratio = "4:3".into();
+    let stored = validate_stored_video_segment_plan(vec![segment.clone()], &[], "16:9").unwrap();
+    assert_eq!(stored[0], segment);
+    segment.aspect_ratio = "16:9".into();
+    assert!(validate_stored_video_segment_plan(vec![segment], &[], "16:9").is_err());
 }

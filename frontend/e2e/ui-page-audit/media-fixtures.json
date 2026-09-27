@@ -11723,7 +11723,7 @@
           "visual_plan_version": 1
         },
         "script": {
-          "schema_version": "chapter_shooting_script_v1",
+          "schema_version": "chapter_shooting_script_v2",
           "directing_statement": {
             "audience_experience": "先观察，再怀疑，最后理解选择。",
             "central_dramatic_question": "旧信能否让林岚相信自己所见？",
@@ -18105,7 +18105,7 @@
           "visual_plan_version": 1
         },
         "script": {
-          "schema_version": "chapter_shooting_script_v1",
+          "schema_version": "chapter_shooting_script_v2",
           "directing_statement": {
             "audience_experience": "先观察，再怀疑，最后理解选择。",
             "central_dramatic_question": "旧信能否让林岚相信自己所见？",
@@ -24487,7 +24487,7 @@
           "visual_plan_version": 1
         },
         "script": {
-          "schema_version": "chapter_shooting_script_v1",
+          "schema_version": "chapter_shooting_script_v2",
           "directing_statement": {
             "audience_experience": "先观察，再怀疑，最后理解选择。",
             "central_dramatic_question": "旧信能否让林岚相信自己所见？",

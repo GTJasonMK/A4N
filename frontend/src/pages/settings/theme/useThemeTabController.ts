@@ -215,6 +215,7 @@ export const useThemeTabController = () => {
     refreshInFlightUserRef.current = null;
     setThemes(update);
     setLoading(false);
+    setLoadError(null);
   };
 
   const commitTheme = (saved: Theme) => {

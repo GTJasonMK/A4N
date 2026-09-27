@@ -3,8 +3,8 @@ mod pipeline;
 mod script;
 
 pub(super) use assets::{
-    bind_galgame_media, export_galgame_webgal, import_galgame_audio, plan_galgame_assets,
-    run_galgame_asset_generation, unbind_galgame_media,
+    bind_galgame_media, export_galgame_webgal, get_galgame_asset_plan, import_galgame_audio,
+    plan_galgame_assets, run_galgame_asset_generation, unbind_galgame_media,
 };
 pub(super) use pipeline::{
     cancel_galgame_pipeline, get_galgame_pipeline_status, preview_galgame_pipeline_request,

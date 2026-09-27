@@ -37,6 +37,7 @@ const NATIVE_TAURI_COMMANDS = new Set([
   "login_user",
   "refresh_token",
   "oauth2_authorize_url",
+  "oauth2_available_providers",
   "oauth2_callback",
   "oauth2_browser_login",
   "cancel_oauth2_browser_login",

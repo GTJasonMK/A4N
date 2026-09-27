@@ -67,12 +67,27 @@ pub fn source_spans_for_chapters<C: SourceChapter>(chapters: &[C]) -> Vec<Source
     chapters.iter().flat_map(source_spans_for_chapter).collect()
 }
 
+/// Nonempty source lines are paragraphs; offsets preserve the original UTF-8 bytes.
+pub fn source_paragraph_ranges(content: &str) -> Vec<(usize, usize)> {
+    let mut offset = 0;
+    content
+        .split_inclusive(['\n', '\r'])
+        .filter_map(|line| {
+            let start = offset;
+            offset += line.len();
+            let paragraph = line.trim_end();
+            (!paragraph.trim().is_empty()).then_some((start, start + paragraph.len()))
+        })
+        .collect()
+}
+
 pub fn source_spans_for_content(
     chapter_id: i64,
     chapter_number: i32,
     content: &str,
 ) -> Vec<SourceSpan> {
     let mut spans = Vec::new();
+    let paragraphs = source_paragraph_ranges(content);
     for (sentence_index, (sentence_start, sentence_end)) in
         split_ranges(content, is_sentence_delimiter)
             .into_iter()
@@ -97,7 +112,7 @@ pub fn source_spans_for_content(
                 ),
                 chapter_id,
                 chapter_number,
-                paragraph_index: paragraph_index_for_byte(content, start),
+                paragraph_index: paragraphs.partition_point(|(_, end)| *end <= start) + 1,
                 sentence_index: sentence_index + 1,
                 fragment_index,
                 text: content[start..end].to_string(),
@@ -468,25 +483,6 @@ fn trim_content_range(content: &str, start: usize, end: usize) -> Option<(usize,
     Some((start + trimmed_start, start + trimmed_start + trimmed.len()))
 }
 
-fn paragraph_index_for_byte(content: &str, byte_index: usize) -> usize {
-    let mut paragraph_index = 1usize;
-    let mut in_line_break = false;
-    for (index, ch) in content.char_indices() {
-        if index >= byte_index {
-            break;
-        }
-        if matches!(ch, '\n' | '\r') {
-            if !in_line_break {
-                paragraph_index += 1;
-                in_line_break = true;
-            }
-        } else if !ch.is_whitespace() {
-            in_line_break = false;
-        }
-    }
-    paragraph_index
-}
-
 fn is_sentence_delimiter(ch: char) -> bool {
     matches!(ch, '。' | '！' | '？' | '!' | '?' | '\n' | '\r')
 }
@@ -522,6 +518,32 @@ fn is_outer_punctuation(ch: char) -> bool {
 mod tests {
     use super::*;
     use serde_json::json;
+
+    #[test]
+    fn paragraphs_and_evidence_share_indexes_for_all_line_endings() {
+        for newline in ["\n", "\r\n", "\r"] {
+            let content =
+                format!("{newline}  第一段。{newline}第二段。{newline}  {newline}第三段。 ");
+            let ranges = source_paragraph_ranges(&content);
+            assert_eq!(
+                ranges
+                    .iter()
+                    .map(|(start, end)| &content[*start..*end])
+                    .collect::<Vec<_>>(),
+                ["  第一段。", "第二段。", "第三段。"]
+            );
+            let spans = source_spans_for_content(7, 3, &content);
+            assert_eq!(
+                spans
+                    .iter()
+                    .map(|span| span.paragraph_index)
+                    .collect::<Vec<_>>(),
+                [1, 2, 3]
+            );
+        }
+        assert!(source_paragraph_ranges(" \r\n\t").is_empty());
+        assert_eq!(source_paragraph_ranges("正文。"), [(0, "正文。".len())]);
+    }
 
     struct Chapter {
         id: i64,

@@ -98,8 +98,8 @@ fn remap_snapshot_hash_json_rewrites_known_ids() {
 fn remap_source_snapshot_outline_payload_rewrites_payload_identity_and_hash() {
     let mut maps = ImportIdMaps::default();
     maps.project_ids.insert(1, 101);
-    maps.part_outline_ids.insert(301, 1301);
-    maps.chapter_outline_ids.insert(302, 1302);
+    maps.source_part_outline_ids.insert(301, 1301);
+    maps.source_chapter_outline_ids.insert(302, 1302);
 
     let mut outline = source_snapshot_outline_record("chapter");
     outline.source_outline_id = 302;

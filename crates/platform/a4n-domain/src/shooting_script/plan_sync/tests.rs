@@ -57,10 +57,9 @@ fn source(version: i32) -> ShootingVisualPlanSourceV1 {
     }
 }
 
-fn shot(planned: &VisualSegmentProjectionV3, index: u32) -> ShootingShotV1 {
+fn shot(planned: &VisualSegmentProjectionV3, index: u32) -> ShootingShotV2 {
     let addition = segment_addition_id(&planned.segment_id);
-    let seconds = (planned.end_ms - planned.start_ms) as f64 / 1000.0;
-    ShootingShotV1 {
+    ShootingShotV2 {
         shot_index: index,
         shot_id: planned.segment_id.clone(),
         title: planned.title.clone(),
@@ -85,7 +84,7 @@ fn shot(planned: &VisualSegmentProjectionV3, index: u32) -> ShootingShotV1 {
             movement: "前行".into(),
             end: "走廊".into(),
         },
-        performance_beats: vec![ShootingPerformanceBeatV1 {
+        performance_beats: vec![ShootingPerformanceBeatV2 {
             beat_index: 1,
             beat_id: format!("{}_beat_1", planned.segment_id),
             source_span_ids: Vec::new(),
@@ -107,7 +106,6 @@ fn shot(planned: &VisualSegmentProjectionV3, index: u32) -> ShootingShotV1 {
             entry_state: "谨慎".into(),
             exit_state: "警惕".into(),
             required: true,
-            estimated_seconds: seconds,
         }],
         dialogue_cues: Vec::new(),
         sound: ShootingSoundDesignV1 {
@@ -124,12 +122,11 @@ fn shot(planned: &VisualSegmentProjectionV3, index: u32) -> ShootingShotV1 {
         transition_in: "切入".into(),
         transition_out: "切出".into(),
         continuity_requirements: Vec::new(),
-        estimated_natural_seconds: seconds,
     }
 }
 
 /// 模拟一次完整生成：每个叙事单元一个场景，场景间有指向下一单元的转场合同。
-fn script(plan: &ChapterVisualPlanV3) -> ChapterShootingScriptV1 {
+fn script(plan: &ChapterVisualPlanV3) -> ChapterShootingScriptV2 {
     let projected = project_visual_plan_for_shooting_script(plan, &[]).unwrap();
     let unit_count = projected.narrative_units.len() as u32;
     let scenes = projected
@@ -138,7 +135,7 @@ fn script(plan: &ChapterVisualPlanV3) -> ChapterShootingScriptV1 {
         .enumerate()
         .map(|(offset, unit)| {
             let index = offset as u32 + 1;
-            ShootingSceneV1 {
+            ShootingSceneV2 {
                 scene_index: index,
                 scene_identity: unit.id.clone(),
                 sequence_index: unit.sequence_index,
@@ -201,8 +198,8 @@ fn script(plan: &ChapterVisualPlanV3) -> ChapterShootingScriptV1 {
             }
         })
         .collect();
-    let script = ChapterShootingScriptV1 {
-        schema_version: ChapterShootingScriptSchemaVersion::V1,
+    let script = ChapterShootingScriptV2 {
+        schema_version: ChapterShootingScriptSchemaVersion::V2,
         visual_plan_source: Some(source(1)),
         user_additions: projected.user_additions,
         directing_statement: Some(projected.directing_statement),
@@ -216,9 +213,9 @@ fn script(plan: &ChapterVisualPlanV3) -> ChapterShootingScriptV1 {
 }
 
 fn rebase(
-    script: &ChapterShootingScriptV1,
+    script: &ChapterShootingScriptV2,
     plan: &ChapterVisualPlanV3,
-) -> (ChapterShootingScriptV1, ShootingScriptPlanSyncV1) {
+) -> (ChapterShootingScriptV2, ShootingScriptPlanSyncV1) {
     let projected = project_visual_plan_for_shooting_script(plan, &[]).unwrap();
     let rebased = script.rebased_onto(&projected, source(2)).expect("rebase");
     rebased
@@ -231,7 +228,7 @@ fn rebase(
     (rebased, sync)
 }
 
-fn shot_of<'a>(script: &'a ChapterShootingScriptV1, id: &str) -> &'a ShootingShotV1 {
+fn shot_of<'a>(script: &'a ChapterShootingScriptV2, id: &str) -> &'a ShootingShotV2 {
     script
         .scenes
         .iter()
@@ -245,7 +242,7 @@ fn ids(values: &[&str]) -> Vec<String> {
 }
 
 fn fingerprints(
-    script: &ChapterShootingScriptV1,
+    script: &ChapterShootingScriptV2,
     plan: &ChapterVisualPlanV3,
 ) -> std::collections::BTreeMap<String, String> {
     script

@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::HashSet;
 
 use a4n_error::AppError;
 use serde_json::Value;
@@ -7,31 +7,13 @@ use a4n_domain::source_spans::SourceSpan;
 use a4n_video_contract::VIDEO_SEGMENT_PLAN_V2;
 
 use super::contracts::{
-    VideoSegmentPlan, VideoSegmentPlanDefaults, VideoSegmentPlanInput, VideoSegmentPlanResponse,
+    VideoSegmentPlan, VideoSegmentPlanInput, VideoSegmentPlanResponse,
     VideoShootingScriptProjection,
 };
 use super::{
     derive_segment_source_span_ids, parse_strict_json_response, validate_segment_plan,
     validate_source_span_ids,
 };
-
-pub(in crate::video) fn parse_video_segment_plan_response(
-    raw: &str,
-    source_spans: &[SourceSpan],
-    shooting_script_projection: &VideoShootingScriptProjection,
-    duration_secs: i32,
-    default_aspect_ratio: &str,
-) -> Result<Vec<VideoSegmentPlan>, AppError> {
-    parse_video_segment_plan_inner(
-        raw,
-        source_spans,
-        VideoSegmentPlanDefaults {
-            shooting_script_projection,
-            duration_secs,
-            aspect_ratio: default_aspect_ratio,
-        },
-    )
-}
 
 pub(in crate::video) fn video_segment_plan_input_values(
     segments: &[VideoSegmentPlan],
@@ -55,9 +37,13 @@ pub(in crate::video) fn validate_stored_video_segment_plan(
 ) -> Result<Vec<VideoSegmentPlan>, AppError> {
     segments.into_iter().map(|segment| {
         let segment_number = segment.segment_number;
-        if segment.aspect_ratio != expected_aspect_ratio {
+        let aspect_ratio = match &segment.director_constraints {
+            Some(director) => director.frame.aspect_ratio().map_err(AppError::InvalidArgument)?,
+            None => expected_aspect_ratio.to_string(),
+        };
+        if segment.aspect_ratio != aspect_ratio {
             return Err(AppError::InvalidArgument(format!(
-                "已存视频分段规划 segment_number {segment_number} aspect_ratio 必须等于当前请求 {expected_aspect_ratio}，实际为 {}；请删除旧规划并重新生成",
+                "已存视频分段规划 segment_number {segment_number} aspect_ratio 必须等于 {aspect_ratio}，实际为 {}",
                 segment.aspect_ratio
             )));
         }
@@ -84,10 +70,10 @@ pub(in crate::video) fn validate_stored_video_segment_plan(
     }).collect()
 }
 
-fn parse_video_segment_plan_inner(
+pub(in crate::video) fn parse_video_segment_plan_response(
     raw: &str,
     source_spans: &[SourceSpan],
-    defaults: VideoSegmentPlanDefaults<'_>,
+    projection: &VideoShootingScriptProjection,
 ) -> Result<Vec<VideoSegmentPlan>, AppError> {
     let response: VideoSegmentPlanResponse = parse_strict_json_response(raw, "视频分段规划")?;
     if response.segments.is_empty() {
@@ -98,55 +84,29 @@ fn parse_video_segment_plan_inner(
     i32::try_from(response.segments.len()).map_err(|_| {
         AppError::InvalidArgument("视频分段规划 segments 数量超出 i32 范围".to_string())
     })?;
-    let mut segment_count_by_shot = HashMap::<String, i32>::new();
-    for segment in &response.segments {
-        let count = segment_count_by_shot
-            .entry(segment.source_shot_id.clone())
-            .or_default();
-        *count = count.checked_add(1).ok_or_else(|| {
-            AppError::InvalidArgument("单镜头视频分段数量超出 i32 范围".to_string())
-        })?;
-    }
-    let mut next_index_by_shot = HashMap::<String, i32>::new();
+    let mut seen_shots = HashSet::new();
     let mut segments = Vec::with_capacity(response.segments.len());
     for (index, segment) in response.segments.into_iter().enumerate() {
         let segment_number = i32::try_from(index + 1).map_err(|_| {
             AppError::InvalidArgument("视频分段规划 segment_number 超出 i32 范围".to_string())
         })?;
-        let shot_segment_count = segment_count_by_shot
-            .get(&segment.source_shot_id)
-            .copied()
-            .ok_or_else(|| {
-                AppError::InvalidArgument(format!(
-                    "视频分段规划 segment_number {} 无法推导 shot_segment_count",
-                    segment_number
-                ))
-            })?;
-        let derived_index = next_index_by_shot
-            .entry(segment.source_shot_id.clone())
-            .or_default();
-        *derived_index = derived_index.checked_add(1).ok_or_else(|| {
-            AppError::InvalidArgument("单镜头 segment_index_in_shot 超出 i32 范围".to_string())
-        })?;
-        let segment_index_in_shot = *derived_index;
+        if !seen_shots.insert(segment.source_shot_id.clone()) {
+            return Err(AppError::InvalidArgument(format!(
+                "导演镜头 {} 必须对应一个片段，不能重新拆镜头",
+                segment.source_shot_id
+            )));
+        }
         let source_span_ids = derive_segment_source_span_ids(
-            defaults.shooting_script_projection,
+            projection,
             &segment.source_shot_id,
             &segment.covered_beat_ids,
             segment_number,
         )?;
-        let shot = defaults
-            .shooting_script_projection
+        let shot = projection
             .shot(&segment.source_shot_id)
             .ok_or_else(|| AppError::InvalidArgument("视频片段引用了不存在的镜头".into()))?;
-        if shot.director_constraints.is_some() && shot_segment_count != 1 {
-            return Err(AppError::InvalidArgument(format!(
-                "导演镜头 {} 必须对应一个片段，不能重新拆镜头",
-                shot.source_shot_id
-            )));
-        }
-        let source_span_ids = if source_span_ids.is_empty() && shot.director_constraints.is_some() {
-            Vec::new()
+        let source_span_ids = if source_span_ids.is_empty() {
+            source_span_ids
         } else {
             validate_source_span_ids(
                 source_span_ids,
@@ -155,12 +115,12 @@ fn parse_video_segment_plan_inner(
             )?
         };
         let segment = VideoSegmentPlan {
-            director_constraints: shot.director_constraints.clone(),
+            director_constraints: Some(shot.director_constraints.clone()),
             schema_version: VIDEO_SEGMENT_PLAN_V2.to_string(),
             segment_number,
             source_shot_id: segment.source_shot_id,
-            segment_index_in_shot,
-            shot_segment_count,
+            segment_index_in_shot: 1,
+            shot_segment_count: 1,
             covered_beat_ids: segment.covered_beat_ids,
             title: segment.title,
             scene_summary: segment.scene_summary,
@@ -173,71 +133,19 @@ fn parse_video_segment_plan_inner(
             material_coverage: segment.material_coverage,
             transition_to_next: None,
             source_span_ids,
-            duration_secs: if shot.director_constraints.is_some() {
-                shot.segment_duration_secs
-            } else {
-                defaults.duration_secs
-            },
+            duration_secs: shot
+                .director_constraints
+                .video_duration_secs()
+                .map_err(AppError::InvalidArgument)?,
             aspect_ratio: shot
                 .director_constraints
-                .as_ref()
-                .map_or_else(
-                    || Ok(defaults.aspect_ratio.to_string()),
-                    |director| director.frame.aspect_ratio(),
-                )
+                .frame
+                .aspect_ratio()
                 .map_err(AppError::InvalidArgument)?,
             reference_image_ids: Vec::new(),
         };
         let segment = validate_segment_plan(segment)?;
         segments.push(segment);
     }
-    apply_segment_transitions(&mut segments, defaults.shooting_script_projection)?;
     Ok(segments)
-}
-
-fn apply_segment_transitions(
-    segments: &mut [VideoSegmentPlan],
-    projection: &VideoShootingScriptProjection,
-) -> Result<(), AppError> {
-    use a4n_video_contract::VideoSegmentTransitionV1;
-
-    if segments.len() < 2 {
-        return Ok(());
-    }
-    for index in 0..segments.len() - 1 {
-        let from_shot_id = segments[index].source_shot_id.clone();
-        let to_shot_id = segments[index + 1].source_shot_id.clone();
-        if from_shot_id == to_shot_id {
-            continue;
-        }
-        let from_shot = projection.shot(&from_shot_id).ok_or_else(|| {
-            AppError::InvalidArgument(format!(
-                "视频分段规划引用不存在的 source_shot_id {from_shot_id}"
-            ))
-        })?;
-        let to_shot = projection.shot(&to_shot_id).ok_or_else(|| {
-            AppError::InvalidArgument(format!(
-                "视频分段规划引用不存在的 source_shot_id {to_shot_id}"
-            ))
-        })?;
-        // A director transition is already a timed segment, never an extra bridge clip.
-        if from_shot.director_constraints.is_some() {
-            continue;
-        }
-        let Some(contract) = from_shot
-            .transition_contracts
-            .iter()
-            .find(|contract| contract.to_narrative_unit_index == to_shot.narrative_unit_index)
-        else {
-            continue;
-        };
-        segments[index].transition_to_next = Some(VideoSegmentTransitionV1 {
-            transition_type: contract.transition_type,
-            editing_mode: from_shot.editing_mode,
-            preserved_action: contract.preserved_action.clone(),
-            preserved_sound: contract.preserved_sound.clone(),
-            required_cut_point: contract.required_cut_point.clone(),
-        });
-    }
-    Ok(())
 }

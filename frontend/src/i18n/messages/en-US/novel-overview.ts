@@ -93,7 +93,8 @@ export const novelOverview = {
   memberSummary: "{count} members · {role}",
   pendingInvitesSummary: "{count} pending invites",
   collaborationActions: {
-    loadFailed: "Failed to load collaborators",
+    membersLoadFailed: "Failed to load project members",
+    invitesLoadFailed: "Failed to load project invitations",
     inviteSent: "Invitation sent",
     inviteFailed: "Failed to send invitation",
     roleUpdated: "Member role updated",

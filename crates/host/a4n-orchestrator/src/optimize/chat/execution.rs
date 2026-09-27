@@ -2,9 +2,7 @@ use a4n_error::AppError;
 use a4n_llm_provider_contract::provider::ChatRequest;
 
 use super::validation::{ensure_chat_session_accepts_message, required_chat_user_text};
-use crate::optimize::agent_loop::{
-    build_first_agent_loop_chat_request, insert_current_chapter_content,
-};
+use crate::optimize::agent_loop::build_first_agent_loop_chat_request;
 use crate::optimize::chat::loop_executor::ChatAgentLoopInput;
 use crate::optimize::turns::{TURN_STATUS_CANCELLED, TURN_STATUS_FAILED};
 use crate::optimize::{
@@ -31,17 +29,15 @@ impl OrchestratorContext {
         let session = self.get_session(session_id).await?;
         ensure_chat_session_accepts_message(&session, "发送内容优化 Agent 对话")?;
 
-        let chapter = self
-            .load_optimize_chapter_for_operation(
-                &session,
-                "发送内容优化 Agent 对话",
-                "已删除章节不能继续内容优化对话",
-                None,
-            )
-            .await?;
+        self.load_optimize_chapter_for_operation(
+            &session,
+            "发送内容优化 Agent 对话",
+            "已删除章节不能继续内容优化对话",
+            None,
+        )
+        .await?;
 
-        let mut chat_context = self.build_chat_agent_context(&session, permissions).await?;
-        insert_current_chapter_content(&mut chat_context.chat_context, &chapter.content);
+        let chat_context = self.build_chat_agent_context(&session, permissions).await?;
 
         self.save_agent_event(
             session_id,

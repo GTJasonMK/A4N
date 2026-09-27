@@ -242,12 +242,11 @@ export const UploadPortraitDialog: React.FC<UploadPortraitDialogProps> = ({
                 alt=""
                 className="max-h-56 max-w-full rounded-[12px] border border-book-border/50 object-contain"
               />
-            ) : (
-              <>
-                <Upload size={18} />
-                <span>{t("characterDetail.portrait.chooseImage")}</span>
-              </>
-            )}
+            ) : null}
+            <span className="inline-flex items-center gap-1.5 text-book-primary">
+              <Upload size={16} />
+              {t(file ? "characterDetail.portrait.changeImage" : "characterDetail.portrait.chooseImage")}
+            </span>
             {file ? (
               <span className="max-w-full truncate text-small text-book-text-sub">
                 {t("characterDetail.portrait.selectedFile", { name: file.name })}
@@ -255,7 +254,7 @@ export const UploadPortraitDialog: React.FC<UploadPortraitDialogProps> = ({
             ) : null}
             <input
               type="file"
-              aria-label={t("characterDetail.portrait.chooseImage")}
+              aria-label={t(file ? "characterDetail.portrait.changeImage" : "characterDetail.portrait.chooseImage")}
               accept={supportedImageAccept()}
               className="sr-only"
               disabled={busy}

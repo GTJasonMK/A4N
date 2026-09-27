@@ -11,12 +11,12 @@ describe("canonical JSON result hashes", () => {
 
   it("matches the backend result digest independently of response field order", async () => {
     const script = {
-      schema_version: "chapter_shooting_script_v1",
+      schema_version: "chapter_shooting_script_v2",
       scenes: [{ title: "第一场", scene_index: 1 }],
       directing_statement: null,
     };
     expect(await sha256Json(script))
-      .toBe("2de1466746dd2acf7511ffab55717c69b8257dcad434b2083ad98ab8c96d5b31");
+      .toBe("5285741519dd65cbef09ebde56930c75f67605655665decd5902079d6b3d865d");
     expect(await sha256Json([1, 2, 3]))
       .toBe("a615eeaee21de5179de080de8c3052c8da901138406ba71c38c032845f7d54f4");
   });

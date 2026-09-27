@@ -391,12 +391,56 @@ pub async fn import_project_bundle_history(
         let mut active: workflow_checkpoint::ActiveModel = source.clone().into();
         active.id = sea_orm::NotSet;
         active.workflow_run_id = Set(workflow_run_id);
-        active.input_fingerprint_json = Set(remap_history_json(
+        if let Some(artifacts) = source.artifacts_json.as_ref().filter(|artifacts| {
+            artifacts
+                .get(a4n_domain::shooting_script::compat::checkpoint::TIMING_UPGRADE_KEY)
+                .is_some()
+        }) {
+            let original = source.checkpoint_json.as_ref().ok_or_else(|| {
+                ProjectBundleHistoryError::Invalid(format!(
+                    "工作流断点 {} 的升级回执缺少输出",
+                    source.id
+                ))
+            })?;
+            a4n_domain::shooting_script::compat::checkpoint::validate_checkpoint_upgrade(
+                original, artifacts,
+            )
+            .map_err(ProjectBundleHistoryError::Invalid)?;
+        }
+        let (input_fingerprint, fingerprint_hash) = remap_checkpoint_input(
             source.input_fingerprint_json.clone(),
+            source.input_fingerprint_sha256.as_deref(),
             maps,
-        )?);
-        active.checkpoint_json = Set(remap_history_json(source.checkpoint_json.clone(), maps)?);
-        active.artifacts_json = Set(remap_history_json(source.artifacts_json.clone(), maps)?);
+        )
+        .map_err(|error| {
+            ProjectBundleHistoryError::Invalid(format!("工作流断点 {}: {error}", source.id))
+        })?;
+        active.input_fingerprint_sha256 = Set(fingerprint_hash);
+        active.input_fingerprint_json = Set(input_fingerprint);
+        let checkpoint = remap_history_json(source.checkpoint_json.clone(), maps)?;
+        let mut artifacts = remap_history_json(source.artifacts_json.clone(), maps)?;
+        if let Some(receipt) = artifacts.as_mut().and_then(|value| {
+            value.get_mut(a4n_domain::shooting_script::compat::checkpoint::TIMING_UPGRADE_KEY)
+        }) {
+            receipt["upgraded_input_fingerprint_sha256"] = json!(
+                crate::generation::generation_checkpoint_fingerprint_sha256(
+                    &receipt["upgraded_input_fingerprint_json"]
+                )
+                .map_err(|e| ProjectBundleHistoryError::Invalid(e.to_string()))?
+            );
+            receipt["upgraded_parsed_output_sha256"] = json!(
+                crate::generation::generation_checkpoint_fingerprint_sha256(
+                    &checkpoint
+                        .as_ref()
+                        .ok_or_else(|| ProjectBundleHistoryError::Invalid(
+                            "升级断点缺少结构化输出".into()
+                        ))?["parsed_output"]
+                )
+                .map_err(|e| ProjectBundleHistoryError::Invalid(e.to_string()))?
+            );
+        }
+        active.checkpoint_json = Set(checkpoint);
+        active.artifacts_json = Set(artifacts);
         active.generation_run_ids_json = Set(remap_generation_ids(
             source.generation_run_ids_json.clone(),
             &generation_ids,
@@ -569,6 +613,37 @@ fn sanitize_runtime_json(value: Option<Value>) -> Option<Value> {
     Some(value)
 }
 
+fn remap_checkpoint_input(
+    value: Option<Value>,
+    stored_hash: Option<&str>,
+    maps: &ProjectBundleEntityIdMaps,
+) -> Result<(Option<Value>, Option<String>), ProjectBundleHistoryError> {
+    let Some(mut value) = value else {
+        if stored_hash.is_some() {
+            return Err(ProjectBundleHistoryError::Invalid(
+                "调用断点有指纹哈希但缺少原始输入".into(),
+            ));
+        }
+        return Ok((None, None));
+    };
+    if let Some(stored_hash) = stored_hash {
+        let actual = crate::generation::generation_checkpoint_fingerprint_sha256(&value)
+            .map_err(|error| ProjectBundleHistoryError::Invalid(error.to_string()))?;
+        if actual != stored_hash {
+            return Err(ProjectBundleHistoryError::Invalid(
+                "调用断点原始输入指纹不一致，不能通过重新计算修复".into(),
+            ));
+        }
+    }
+    remap_history_value(&mut value, maps)?;
+    // Unfingerprinted history must not become a reusable completed call during import.
+    let hash = stored_hash
+        .map(|_| crate::generation::generation_checkpoint_fingerprint_sha256(&value))
+        .transpose()
+        .map_err(|error| ProjectBundleHistoryError::Invalid(error.to_string()))?;
+    Ok((Some(value), hash))
+}
+
 fn remap_history_json(
     value: Option<Value>,
     maps: &ProjectBundleEntityIdMaps,
@@ -587,6 +662,12 @@ fn remap_history_value(
     match value {
         Value::Object(object) => {
             for (key, value) in object.iter_mut() {
+                if matches!(
+                    key.as_str(),
+                    "original_input_fingerprint_json" | "original_checkpoint"
+                ) {
+                    continue;
+                }
                 if let Some(old_id) = value.as_i64() {
                     let mapping = match key.as_str() {
                         "project_id" => Some((&maps.project_ids, "history.project_id")),
@@ -648,7 +729,40 @@ fn remap_generation_ids(
 mod tests {
     use std::collections::HashMap;
 
-    use super::{ProjectBundleEntityIdMaps, imported_status, remap_workflow_scope};
+    use super::{
+        ProjectBundleEntityIdMaps, imported_status, remap_checkpoint_input, remap_workflow_scope,
+    };
+
+    #[test]
+    fn checkpoint_remap_verifies_original_hash_without_inventing_one() {
+        let maps = ProjectBundleEntityIdMaps {
+            chapter_ids: HashMap::from([(7, 70)]),
+            ..Default::default()
+        };
+        let input = serde_json::json!({"chapter_id": 7, "task": "kept"});
+        let hash = crate::generation::generation_checkpoint_fingerprint_sha256(&input).unwrap();
+        let (mapped, mapped_hash) =
+            remap_checkpoint_input(Some(input.clone()), Some(&hash), &maps).unwrap();
+        let expected = serde_json::json!({"chapter_id": 70, "task": "kept"});
+        assert_eq!(mapped, Some(expected.clone()));
+        assert_eq!(
+            mapped_hash,
+            Some(crate::generation::generation_checkpoint_fingerprint_sha256(&expected).unwrap())
+        );
+        let mut corrupt = input.clone();
+        corrupt["task"] = serde_json::json!("changed without updating hash");
+        assert!(
+            remap_checkpoint_input(Some(corrupt), Some(&hash), &maps)
+                .unwrap_err()
+                .to_string()
+                .contains("原始输入指纹不一致")
+        );
+        assert_eq!(
+            remap_checkpoint_input(Some(input), None, &maps).unwrap(),
+            (Some(expected), None)
+        );
+        assert!(remap_checkpoint_input(None, Some(&hash), &maps).is_err());
+    }
 
     #[tokio::test]
     async fn history_project_scope_excludes_unselected_descendants() {

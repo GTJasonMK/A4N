@@ -1,5 +1,5 @@
 use super::{GalgamePipelinePromptChapter, GalgamePipelineSourceSpan};
-use a4n_domain::shooting_script::ChapterShootingScriptV1;
+use a4n_domain::shooting_script::ChapterShootingScriptV2;
 use serde::Serialize;
 
 pub(crate) use a4n_api_contract::galgame::{
@@ -43,5 +43,5 @@ pub struct GalgameChapterShootingScript {
     pub chapter_number: i32,
     pub shooting_script_id: i64,
     pub shooting_script_revision: i32,
-    pub script: ChapterShootingScriptV1,
+    pub script: ChapterShootingScriptV2,
 }

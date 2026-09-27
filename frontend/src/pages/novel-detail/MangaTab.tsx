@@ -701,16 +701,31 @@ export const MangaTab: React.FC<MangaTabProps> = ({
     actionSeqRef.current = actionSeq;
     setActing(key);
     try {
-      await fn();
+      try {
+        await fn();
+      } catch (err) {
+        if (isActionCurrent(requestProjectId, actionSeq)) {
+          addToast(extractErrorMessage(err, t("comic.operationFailed")), "error");
+        }
+        return;
+      }
       if (!isActionCurrent(requestProjectId, actionSeq)) return;
       if (targetChapterId) {
         await Promise.all([
           isChapterCurrent(requestProjectId, targetChapterId)
             ? loadPagePrompts(targetChapterId, requestProjectId, {
                 showLoading: false,
+              }).catch((err) => {
+                if (isActionCurrent(requestProjectId, actionSeq)) {
+                  addToast(extractErrorMessage(err, t("comic.loadPagePromptsFailed")), "error");
+                }
               })
             : Promise.resolve(),
-          loadSingleStatus(targetChapterId, requestProjectId),
+          loadSingleStatus(targetChapterId, requestProjectId).catch((err) => {
+            if (isActionCurrent(requestProjectId, actionSeq)) {
+              addToast(extractErrorMessage(err, t("comic.loadPipelineStatusFailed")), "error");
+            }
+          }),
         ]);
         if (!isActionCurrent(requestProjectId, actionSeq)) return;
         window.setTimeout(() => {
@@ -721,10 +736,6 @@ export const MangaTab: React.FC<MangaTabProps> = ({
       }
       if (!isActionCurrent(requestProjectId, actionSeq)) return;
       addToast(ok, "success");
-    } catch (err) {
-      if (isActionCurrent(requestProjectId, actionSeq)) {
-        addToast(extractErrorMessage(err, t("comic.operationFailed")), "error");
-      }
     } finally {
       if (isActionCurrent(requestProjectId, actionSeq)) setActing(null);
       endAction(key);

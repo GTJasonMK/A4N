@@ -11,6 +11,20 @@ export interface PresentationPatch {
   transition?: GalgameTransition | "";
 }
 
+export interface CgDraft {
+  cgEnabled: boolean;
+  cgNote: string;
+  cgImportance: GalgameCgImportance | "";
+}
+
+export function buildCgDraft(value: GalgameLinePresentationDocumentV2): CgDraft {
+  return {
+    cgEnabled: value.cg === true,
+    cgNote: presentationCgNote(value),
+    cgImportance: value.cg_importance ?? "",
+  };
+}
+
 export function presentationCgNote(
   value: GalgameLinePresentationDocumentV2,
 ): string {
@@ -59,4 +73,5 @@ function clearEventCgPresentation(
   value.cg = null;
   value.cg_note = null;
   value.cg_importance = null;
+  value.transition = null;
 }

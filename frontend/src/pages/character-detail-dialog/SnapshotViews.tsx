@@ -310,7 +310,7 @@ export const ProfileChapterStateDetail: React.FC<{
         <summary className="cursor-pointer px-3 py-2.5 text-caption font-medium text-book-primary hover:bg-book-bg-tertiary/45">
           {t("characterDetail.snapshot.viewAttributes")}
         </summary>
-        <div className="divide-y divide-book-border/35 border-t border-book-border/30 bg-book-bg/35 md:grid md:grid-cols-3 md:divide-x md:divide-y-0">
+        <div className="divide-y divide-book-border/35 border-t border-book-border/30 bg-book-bg/35">
           <SnapshotAttributeGroup
             label={t("characterDetail.labels.explicit")}
             value={state.explicit_attributes}

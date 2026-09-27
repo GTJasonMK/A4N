@@ -1,3 +1,4 @@
+use a4n_service_protocol::BodyLimitKind;
 use a4n_test_support::process::{
     EXPORT_RENDER_CAPABILITY_VERSION, EXPORT_SERVICE_NAME, ExportChapter, ExportClient,
     ExportDocument, ExportDocumentFormat, ExportRenderDocumentInput, ExportRenderJsonInput,
@@ -26,8 +27,20 @@ async fn export_service_process_serves_typed_render_and_stops() {
     assert_protected_route_rejects_invalid_auth(&base_url, "/export/render_json").await;
     assert_protected_route_rejects_invalid_auth(&base_url, "/export/metrics").await;
     assert_route_rejects_malformed_json(&base_url, "/export/render_json").await;
-    assert_route_rejects_oversized_json(&base_url, "/export/render_json", 8 * 1024 * 1024).await;
-    assert_route_rejects_oversized_json(&base_url, "/export/render_zip", 64 * 1024 * 1024).await;
+    assert_route_rejects_oversized_json(
+        &base_url,
+        "/export/render_json",
+        EXPORT_SERVICE_NAME,
+        BodyLimitKind::Json,
+    )
+    .await;
+    assert_route_rejects_oversized_json(
+        &base_url,
+        "/export/render_zip",
+        EXPORT_SERVICE_NAME,
+        BodyLimitKind::Media,
+    )
+    .await;
     let client = HttpExportClient::new_with_auth_token(base_url, SIDECAR_PROCESS_TEST_TOKEN);
     let request = ServiceRequestContext::new(
         "export-process-render",

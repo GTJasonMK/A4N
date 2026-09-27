@@ -148,6 +148,29 @@ def optimization_fixture(body, messages):
     for result in observations.values():
         if isinstance(result, dict) and "error" in result:
             raise ValueError("optimization fixture tool failed: " + str(result["error"]))
+    if "A4N_OPTIMIZATION_CONTEXT" in user_text:
+        aliases = logical_call_ids(messages)
+        results = {aliases[message["tool_call_id"]]: observation_data(message)
+                   for message in messages if message.get("role") == "tool"}
+        if "find" not in results:
+            return fixture_call("find", "search_project_context", {"source": "current_chapter", "query": "第二段"})
+        if "read_match" not in results:
+            hit = results["find"]["matches"][0]
+            return fixture_call("read_match", "read_project_context", {
+                "source": hit["source"], "expected_hash": hit["resource"]["hash"],
+                "selection": {"kind": "paths", "paths": [hit["path"]]}, "include": ["content"],
+            })
+        if "第二段" not in results["read_match"]["content"][0]["value"]:
+            raise ValueError("search result did not read back its matching source")
+        if "read_second" not in results:
+            return fixture_call("read_second", "read_project_context", {
+                "source": "current_chapter", "selection": {"kind": "paragraphs", "indexes": [2]},
+                "include": ["content", "source_spans"],
+            })
+        paragraph = results["read_second"]["content"]["paragraphs"][0]
+        if paragraph["content"] != "第二段。" or paragraph["source_spans"][0]["text"] != "第二段":
+            raise ValueError("paragraph text and evidence must come from the same source range")
+        return {"content": "搜索路径可以读取，第二段与引用一致。"}
     if "inspect_project_context" not in observations:
         return fixture_call("inspect_context", "inspect_project_context", {"source": "current_chapter"})
     if "read_project_context" not in observations:
@@ -729,8 +752,6 @@ def director_fixture(body, messages):
 
 def main_fixture(body, messages):
     """Read real child artifacts before invoking the explicit review command."""
-    start = max(index for index, message in enumerate(messages) if message.get("role") == "user")
-    messages = messages[start:]
     logical_ids = logical_call_ids(messages)
     names = {logical_ids[call["id"]]: call.get("function", call).get("name")
              for message in messages for call in message.get("tool_calls") or []}

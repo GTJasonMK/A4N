@@ -1,9 +1,7 @@
 #!/usr/bin/env python3
 """Check call-level validation and reuse through a real isolated CLI/Server/Provider."""
 
-import argparse
 import json
-import os
 import tempfile
 import time
 import uuid
@@ -11,30 +9,19 @@ from pathlib import Path
 
 from mock_openai.fixtures.story import chapter_body_response
 from mock_openai.protocol import PNG_1X1_BASE64
-from run_cli_contract_e2e import Cli, RunnerError, checked, command_error, provider_log_entries, runtime_snapshot, secure_json
+from run_cli_contract_e2e import RunnerError, checked, cli_e2e_parser, command_error, logged_in_cli, provider_log_entries, runtime_snapshot, secure_json
 
 
 def main():
-    parser = argparse.ArgumentParser(description=__doc__)
-    for option in ("a4n", "server", "username", "provider-url"):
-        parser.add_argument("--" + option, required=True)
-    parser.add_argument("--password-env", default="A4N_PASSWORD")
-    parser.add_argument("--provider-log", type=Path, required=True)
+    parser = cli_e2e_parser(__doc__)
     parser.add_argument("--embedding-dimension", type=int, default=384)
-    parser.add_argument("--report", type=Path, required=True)
     args = parser.parse_args()
     args.report.parent.mkdir(parents=True, exist_ok=True)
     report = {"success": False, "checks": [], "projects": []}
     try:
         with tempfile.TemporaryDirectory(prefix="call-checkpoints-", dir=args.report.parent) as directory:
             work = Path(directory)
-            env = os.environ.copy()
-            password = env.pop(args.password_env)
-            env.pop("A4N_ACCESS_TOKEN", None)
-            cli = Cli(args.a4n, args.server, work / "cli.json", work / "context.json", 60, env)
-            checked(cli, ["health"], "health")
-            checked(cli, ["capabilities", "check"], "CLI/Server compatibility")
-            checked(cli, ["auth", "login", "--username", args.username, "--password-stdin"], "login", password + "\n")
+            cli = logged_in_cli(args, work)
             described = set()
 
             def parts(name, value, destructive=False):

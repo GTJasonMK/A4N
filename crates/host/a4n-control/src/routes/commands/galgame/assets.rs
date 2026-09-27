@@ -5,6 +5,22 @@ use crate::state::ServerState;
 
 use super::super::{ApiError, command_input, to_value};
 
+pub(in crate::routes::commands) async fn get_galgame_asset_plan(
+    state: &ServerState,
+    user_id: i64,
+    args: &Value,
+) -> Result<Value, ApiError> {
+    to_value(
+        galgame_records_actions::get_galgame_asset_plan(
+            state.runtime(),
+            user_id,
+            command_input(args, "get_galgame_asset_plan")?,
+        )
+        .await
+        .map_err(ApiError::bad_request)?,
+    )
+}
+
 pub(in crate::routes::commands) async fn plan_galgame_assets(
     state: &ServerState,
     user_id: i64,

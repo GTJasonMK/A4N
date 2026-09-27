@@ -9,7 +9,7 @@ from run_creation_e2e import (
     ROOT, RunnerError, STAGES, acceptance_passed, acceptance_result,
     files_fingerprint, frontend_fingerprint, read_suite_report, selected_suites, source_fingerprint, stop_postgres,
 )
-from run_browser_full_project_e2e import stop_process
+from run_browser_full_project_e2e import secure_mkdir, stop_process, tail
 
 
 class CreationAcceptanceTest(unittest.TestCase):
@@ -17,6 +17,13 @@ class CreationAcceptanceTest(unittest.TestCase):
         parent = ROOT / "data"
         parent.mkdir(exist_ok=True)
         return Path(self.enterContext(tempfile.TemporaryDirectory(prefix="creation-check-", dir=parent)))
+
+    def test_unreadable_evidence_and_unprotected_report_directories_fail_explicitly(self):
+        directory = self.scratch()
+        with self.assertRaises(FileNotFoundError):
+            tail(directory / "missing.log")
+        with patch.object(Path, "chmod", side_effect=PermissionError("private directory denied")), self.assertRaises(PermissionError):
+            secure_mkdir(directory)
 
     def test_empty_unknown_and_missing_checks_cannot_pass(self):
         for selection in (set(), {"nonexistent"}):

@@ -23,15 +23,25 @@ impl OrchestratorContext {
         &self,
         project_id: i64,
     ) -> Result<GalgameScriptDetail, AppError> {
+        self.find_script_detail(project_id)
+            .await?
+            .ok_or_else(|| AppError::NotFound(format!("Galgame 剧本不存在: {project_id}")))
+    }
+
+    pub(crate) async fn find_script_detail(
+        &self,
+        project_id: i64,
+    ) -> Result<Option<GalgameScriptDetail>, AppError> {
         let context = self.load_galgame_context(project_id).await?;
         let read_model = a4n_db::galgame::galgame_script_detail_read_model(
             self.database.connection(),
             context.project.id,
         )
         .await
-        .map_err(AppError::Database)?
-        .ok_or_else(|| AppError::NotFound(format!("Galgame 剧本不存在: {project_id}")))?;
-        galgame_script_detail_from_read_model(read_model)
+        .map_err(AppError::Database)?;
+        read_model
+            .map(galgame_script_detail_from_read_model)
+            .transpose()
     }
 }
 

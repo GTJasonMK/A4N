@@ -3997,28 +3997,6 @@
     ],
     "list_behaviors": [
       {
-        "behavior_description": "观察并记录物件与空间细节。",
-        "behavior_tags": [
-          "证据",
-          "信任",
-          "观察"
-        ],
-        "behavior_type": "action",
-        "chapter_number": 1,
-        "classification_results": {
-          "attribute": "personality",
-          "conforms": true,
-          "reason": "延续此前已经建立的行为倾向。"
-        },
-        "id": 10112,
-        "impact_analysis": "变化需要连续证据支持，不能由单句对话覆盖既有属性。",
-        "original_text": "她从风衣内袋摸出一张旧车票。纸边已经磨软，日期停在父亲失踪的那个秋天。背面只有一行铅笔字：如果你还想知道答案，就在最后一班车开走之前来见我。字迹并不陌生，可她不愿这么快说出那个名字。",
-        "related_characters": [
-          "周衡"
-        ],
-        "source_kind": "ai_sync"
-      },
-      {
         "behavior_description": "在作出选择前要求可核验的依据。",
         "behavior_tags": [
           "证据",
@@ -4026,59 +4004,15 @@
           "选择"
         ],
         "behavior_type": "dialogue",
-        "chapter_number": 1,
+        "chapter_number": 3,
         "classification_results": {
-          "attribute": "personality",
-          "conforms": false,
-          "reason": "角色开始尝试新的协作方式。"
+          "personality": "non-conform",
+          "belief": "conform",
+          "core_desire": "non-conform"
         },
-        "id": 10113,
+        "id": 10117,
         "impact_analysis": "变化需要连续证据支持，不能由单句对话覆盖既有属性。",
-        "original_text": "店内的灯很暖，周衡站在柜台后，把一封没有邮票的信推到灯下。他没有问她这些年去了哪里，也没有解释为什么突然出现。他只看了一眼她握紧车票的右手，说，雨还要下一阵，先把门关好。",
-        "related_characters": [
-          "周衡"
-        ],
-        "source_kind": "ai_sync"
-      },
-      {
-        "behavior_description": "观察并记录物件与空间细节。",
-        "behavior_tags": [
-          "证据",
-          "信任",
-          "观察"
-        ],
-        "behavior_type": "action",
-        "chapter_number": 2,
-        "classification_results": {
-          "attribute": "personality",
-          "conforms": true,
-          "reason": "延续此前已经建立的行为倾向。"
-        },
-        "id": 10114,
-        "impact_analysis": "变化需要连续证据支持，不能由单句对话覆盖既有属性。",
-        "original_text": "窗下排着三只木箱，每只箱盖都有同样的齿轮刻痕。林岚先打开最轻的一只，里面装着退回的信，收件地址从旧车站一直延伸到海边。她按日期把信排开，发现每封信都比上一封早寄出一天。",
-        "related_characters": [
-          "周衡"
-        ],
-        "source_kind": "ai_sync"
-      },
-      {
-        "behavior_description": "在作出选择前要求可核验的依据。",
-        "behavior_tags": [
-          "证据",
-          "信任",
-          "选择"
-        ],
-        "behavior_type": "dialogue",
-        "chapter_number": 2,
-        "classification_results": {
-          "attribute": "personality",
-          "conforms": false,
-          "reason": "角色开始尝试新的协作方式。"
-        },
-        "id": 10115,
-        "impact_analysis": "变化需要连续证据支持，不能由单句对话覆盖既有属性。",
-        "original_text": "周衡走到窗边，将遮住天光的纸板挪开。地图上的红线在光下显出第二层笔迹，原来储物柜并不是终点，而是通往维修通道的入口。林岚问他是否早就知道，周衡点头，又说自己从没有真正走到过通道尽头。",
+        "original_text": "周衡的脚步从身后传来。他把湿透的外衣搭在手臂上，停在她留下的记号之外。两人终于可以说话，谁也没有先解释昨夜的沉默。林岚指向镜中的灯，问那边是否就是父亲留下的出口。",
         "related_characters": [
           "周衡"
         ],
@@ -4094,9 +4028,9 @@
         "behavior_type": "action",
         "chapter_number": 3,
         "classification_results": {
-          "attribute": "personality",
-          "conforms": true,
-          "reason": "延续此前已经建立的行为倾向。"
+          "personality": "conform",
+          "belief": "conform",
+          "core_desire": "conform"
         },
         "id": 10116,
         "impact_analysis": "变化需要连续证据支持，不能由单句对话覆盖既有属性。",
@@ -4114,15 +4048,81 @@
           "选择"
         ],
         "behavior_type": "dialogue",
-        "chapter_number": 3,
+        "chapter_number": 2,
         "classification_results": {
-          "attribute": "personality",
-          "conforms": false,
-          "reason": "角色开始尝试新的协作方式。"
+          "personality": "non-conform",
+          "belief": "non-conform",
+          "core_desire": "non-conform"
         },
-        "id": 10117,
+        "id": 10115,
         "impact_analysis": "变化需要连续证据支持，不能由单句对话覆盖既有属性。",
-        "original_text": "周衡的脚步从身后传来。他把湿透的外衣搭在手臂上，停在她留下的记号之外。两人终于可以说话，谁也没有先解释昨夜的沉默。林岚指向镜中的灯，问那边是否就是父亲留下的出口。",
+        "original_text": "周衡走到窗边，将遮住天光的纸板挪开。地图上的红线在光下显出第二层笔迹，原来储物柜并不是终点，而是通往维修通道的入口。林岚问他是否早就知道，周衡点头，又说自己从没有真正走到过通道尽头。",
+        "related_characters": [
+          "周衡"
+        ],
+        "source_kind": "ai_sync"
+      },
+      {
+        "behavior_description": "观察并记录物件与空间细节。",
+        "behavior_tags": [
+          "证据",
+          "信任",
+          "观察"
+        ],
+        "behavior_type": "action",
+        "chapter_number": 2,
+        "classification_results": {
+          "personality": "conform",
+          "belief": "conform",
+          "core_desire": "non-conform"
+        },
+        "id": 10114,
+        "impact_analysis": "变化需要连续证据支持，不能由单句对话覆盖既有属性。",
+        "original_text": "窗下排着三只木箱，每只箱盖都有同样的齿轮刻痕。林岚先打开最轻的一只，里面装着退回的信，收件地址从旧车站一直延伸到海边。她按日期把信排开，发现每封信都比上一封早寄出一天。",
+        "related_characters": [
+          "周衡"
+        ],
+        "source_kind": "ai_sync"
+      },
+      {
+        "behavior_description": "在作出选择前要求可核验的依据。",
+        "behavior_tags": [
+          "证据",
+          "信任",
+          "选择"
+        ],
+        "behavior_type": "dialogue",
+        "chapter_number": 1,
+        "classification_results": {
+          "personality": "non-conform",
+          "belief": "non-conform",
+          "core_desire": "non-conform"
+        },
+        "id": 10113,
+        "impact_analysis": "变化需要连续证据支持，不能由单句对话覆盖既有属性。",
+        "original_text": "店内的灯很暖，周衡站在柜台后，把一封没有邮票的信推到灯下。他没有问她这些年去了哪里，也没有解释为什么突然出现。他只看了一眼她握紧车票的右手，说，雨还要下一阵，先把门关好。",
+        "related_characters": [
+          "周衡"
+        ],
+        "source_kind": "ai_sync"
+      },
+      {
+        "behavior_description": "观察并记录物件与空间细节。",
+        "behavior_tags": [
+          "证据",
+          "信任",
+          "观察"
+        ],
+        "behavior_type": "action",
+        "chapter_number": 1,
+        "classification_results": {
+          "personality": "conform",
+          "belief": "conform",
+          "core_desire": "non-conform"
+        },
+        "id": 10112,
+        "impact_analysis": "变化需要连续证据支持，不能由单句对话覆盖既有属性。",
+        "original_text": "她从风衣内袋摸出一张旧车票。纸边已经磨软，日期停在父亲失踪的那个秋天。背面只有一行铅笔字：如果你还想知道答案，就在最后一班车开走之前来见我。字迹并不陌生，可她不愿这么快说出那个名字。",
         "related_characters": [
           "周衡"
         ],
@@ -4132,166 +4132,23 @@
     "get_implicit_review": {
       "attributes": [
         {
-          "attribute_key": "personality",
-          "conform_count": 4,
-          "conform_rate": 0.5714285714285714,
-          "current_value": "谨慎、敏锐，愿意把猜测和事实分开。",
-          "evidence": [
-            {
-              "behavior_description": "观察并记录物件与空间细节。",
-              "behavior_id": 10112,
-              "behavior_tags": [
-                "证据",
-                "信任",
-                "观察"
-              ],
-              "behavior_type": "action",
-              "chapter_number": 1,
-              "classification": {
-                "attribute": "personality",
-                "conforms": true,
-                "reason": "延续此前已经建立的行为倾向。"
-              },
-              "original_text": "她从风衣内袋摸出一张旧车票。纸边已经磨软，日期停在父亲失踪的那个秋天。背面只有一行铅笔字：如果你还想知道答案，就在最后一班车开走之前来见我。字迹并不陌生，可她不愿这么快说出那个名字。"
-            },
-            {
-              "behavior_description": "在作出选择前要求可核验的依据。",
-              "behavior_id": 10113,
-              "behavior_tags": [
-                "证据",
-                "信任",
-                "选择"
-              ],
-              "behavior_type": "dialogue",
-              "chapter_number": 1,
-              "classification": {
-                "attribute": "personality",
-                "conforms": false,
-                "reason": "角色开始尝试新的协作方式。"
-              },
-              "original_text": "店内的灯很暖，周衡站在柜台后，把一封没有邮票的信推到灯下。他没有问她这些年去了哪里，也没有解释为什么突然出现。他只看了一眼她握紧车票的右手，说，雨还要下一阵，先把门关好。"
-            },
-            {
-              "behavior_description": "观察并记录物件与空间细节。",
-              "behavior_id": 10114,
-              "behavior_tags": [
-                "证据",
-                "信任",
-                "观察"
-              ],
-              "behavior_type": "action",
-              "chapter_number": 2,
-              "classification": {
-                "attribute": "personality",
-                "conforms": true,
-                "reason": "延续此前已经建立的行为倾向。"
-              },
-              "original_text": "窗下排着三只木箱，每只箱盖都有同样的齿轮刻痕。林岚先打开最轻的一只，里面装着退回的信，收件地址从旧车站一直延伸到海边。她按日期把信排开，发现每封信都比上一封早寄出一天。"
-            }
-          ],
-          "non_conform_count": 3,
-          "threshold_reached": false
-        },
-        {
-          "attribute_key": "belief",
-          "conform_count": 5,
-          "conform_rate": 0.7142857142857143,
-          "current_value": "不能把猜测当成已经发生的事实",
-          "evidence": [
-            {
-              "behavior_description": "在作出选择前要求可核验的依据。",
-              "behavior_id": 10113,
-              "behavior_tags": [
-                "证据",
-                "信任",
-                "选择"
-              ],
-              "behavior_type": "dialogue",
-              "chapter_number": 1,
-              "classification": {
-                "attribute": "personality",
-                "conforms": false,
-                "reason": "角色开始尝试新的协作方式。"
-              },
-              "original_text": "店内的灯很暖，周衡站在柜台后，把一封没有邮票的信推到灯下。他没有问她这些年去了哪里，也没有解释为什么突然出现。他只看了一眼她握紧车票的右手，说，雨还要下一阵，先把门关好。"
-            },
-            {
-              "behavior_description": "观察并记录物件与空间细节。",
-              "behavior_id": 10114,
-              "behavior_tags": [
-                "证据",
-                "信任",
-                "观察"
-              ],
-              "behavior_type": "action",
-              "chapter_number": 2,
-              "classification": {
-                "attribute": "personality",
-                "conforms": true,
-                "reason": "延续此前已经建立的行为倾向。"
-              },
-              "original_text": "窗下排着三只木箱，每只箱盖都有同样的齿轮刻痕。林岚先打开最轻的一只，里面装着退回的信，收件地址从旧车站一直延伸到海边。她按日期把信排开，发现每封信都比上一封早寄出一天。"
-            },
-            {
-              "behavior_description": "在作出选择前要求可核验的依据。",
-              "behavior_id": 10115,
-              "behavior_tags": [
-                "证据",
-                "信任",
-                "选择"
-              ],
-              "behavior_type": "dialogue",
-              "chapter_number": 2,
-              "classification": {
-                "attribute": "personality",
-                "conforms": false,
-                "reason": "角色开始尝试新的协作方式。"
-              },
-              "original_text": "周衡走到窗边，将遮住天光的纸板挪开。地图上的红线在光下显出第二层笔迹，原来储物柜并不是终点，而是通往维修通道的入口。林岚问他是否早就知道，周衡点头，又说自己从没有真正走到过通道尽头。"
-            }
-          ],
-          "non_conform_count": 2,
-          "threshold_reached": false
-        },
-        {
           "attribute_key": "core_desire",
-          "conform_count": 6,
-          "conform_rate": 0.8571428571428571,
+          "conform_count": 1,
+          "conform_rate": 0.16666666666666666,
           "current_value": "亲自核验父亲留下的线索",
           "evidence": [
             {
-              "behavior_description": "观察并记录物件与空间细节。",
-              "behavior_id": 10114,
-              "behavior_tags": [
-                "证据",
-                "信任",
-                "观察"
-              ],
-              "behavior_type": "action",
-              "chapter_number": 2,
-              "classification": {
-                "attribute": "personality",
-                "conforms": true,
-                "reason": "延续此前已经建立的行为倾向。"
-              },
-              "original_text": "窗下排着三只木箱，每只箱盖都有同样的齿轮刻痕。林岚先打开最轻的一只，里面装着退回的信，收件地址从旧车站一直延伸到海边。她按日期把信排开，发现每封信都比上一封早寄出一天。"
-            },
-            {
               "behavior_description": "在作出选择前要求可核验的依据。",
-              "behavior_id": 10115,
+              "behavior_id": 10117,
               "behavior_tags": [
                 "证据",
                 "信任",
                 "选择"
               ],
               "behavior_type": "dialogue",
-              "chapter_number": 2,
-              "classification": {
-                "attribute": "personality",
-                "conforms": false,
-                "reason": "角色开始尝试新的协作方式。"
-              },
-              "original_text": "周衡走到窗边，将遮住天光的纸板挪开。地图上的红线在光下显出第二层笔迹，原来储物柜并不是终点，而是通往维修通道的入口。林岚问他是否早就知道，周衡点头，又说自己从没有真正走到过通道尽头。"
+              "chapter_number": 3,
+              "classification": "non-conform",
+              "original_text": "周衡的脚步从身后传来。他把湿透的外衣搭在手臂上，停在她留下的记号之外。两人终于可以说话，谁也没有先解释昨夜的沉默。林岚指向镜中的灯，问那边是否就是父亲留下的出口。"
             },
             {
               "behavior_description": "观察并记录物件与空间细节。",
@@ -4303,16 +4160,240 @@
               ],
               "behavior_type": "action",
               "chapter_number": 3,
-              "classification": {
-                "attribute": "personality",
-                "conforms": true,
-                "reason": "延续此前已经建立的行为倾向。"
-              },
+              "classification": "conform",
               "original_text": "储物柜的锁早已松动。她把旧车票插入缝隙，柜门缓缓弹开，里面不是行李，而是一面与柜体同高的镜子。镜中的站台多了一盏亮着的灯，灯下站着一个背对她的人。林岚没有立刻伸手，先在地上划下一道记号。"
+            },
+            {
+              "behavior_description": "在作出选择前要求可核验的依据。",
+              "behavior_id": 10115,
+              "behavior_tags": [
+                "证据",
+                "信任",
+                "选择"
+              ],
+              "behavior_type": "dialogue",
+              "chapter_number": 2,
+              "classification": "non-conform",
+              "original_text": "周衡走到窗边，将遮住天光的纸板挪开。地图上的红线在光下显出第二层笔迹，原来储物柜并不是终点，而是通往维修通道的入口。林岚问他是否早就知道，周衡点头，又说自己从没有真正走到过通道尽头。"
+            },
+            {
+              "behavior_description": "观察并记录物件与空间细节。",
+              "behavior_id": 10114,
+              "behavior_tags": [
+                "证据",
+                "信任",
+                "观察"
+              ],
+              "behavior_type": "action",
+              "chapter_number": 2,
+              "classification": "non-conform",
+              "original_text": "窗下排着三只木箱，每只箱盖都有同样的齿轮刻痕。林岚先打开最轻的一只，里面装着退回的信，收件地址从旧车站一直延伸到海边。她按日期把信排开，发现每封信都比上一封早寄出一天。"
+            },
+            {
+              "behavior_description": "在作出选择前要求可核验的依据。",
+              "behavior_id": 10113,
+              "behavior_tags": [
+                "证据",
+                "信任",
+                "选择"
+              ],
+              "behavior_type": "dialogue",
+              "chapter_number": 1,
+              "classification": "non-conform",
+              "original_text": "店内的灯很暖，周衡站在柜台后，把一封没有邮票的信推到灯下。他没有问她这些年去了哪里，也没有解释为什么突然出现。他只看了一眼她握紧车票的右手，说，雨还要下一阵，先把门关好。"
+            },
+            {
+              "behavior_description": "观察并记录物件与空间细节。",
+              "behavior_id": 10112,
+              "behavior_tags": [
+                "证据",
+                "信任",
+                "观察"
+              ],
+              "behavior_type": "action",
+              "chapter_number": 1,
+              "classification": "non-conform",
+              "original_text": "她从风衣内袋摸出一张旧车票。纸边已经磨软，日期停在父亲失踪的那个秋天。背面只有一行铅笔字：如果你还想知道答案，就在最后一班车开走之前来见我。字迹并不陌生，可她不愿这么快说出那个名字。"
             }
           ],
-          "non_conform_count": 1,
+          "non_conform_count": 5,
           "threshold_reached": true
+        },
+        {
+          "attribute_key": "personality",
+          "conform_count": 3,
+          "conform_rate": 0.5,
+          "current_value": "谨慎、敏锐，愿意把猜测和事实分开。",
+          "evidence": [
+            {
+              "behavior_description": "在作出选择前要求可核验的依据。",
+              "behavior_id": 10117,
+              "behavior_tags": [
+                "证据",
+                "信任",
+                "选择"
+              ],
+              "behavior_type": "dialogue",
+              "chapter_number": 3,
+              "classification": "non-conform",
+              "original_text": "周衡的脚步从身后传来。他把湿透的外衣搭在手臂上，停在她留下的记号之外。两人终于可以说话，谁也没有先解释昨夜的沉默。林岚指向镜中的灯，问那边是否就是父亲留下的出口。"
+            },
+            {
+              "behavior_description": "观察并记录物件与空间细节。",
+              "behavior_id": 10116,
+              "behavior_tags": [
+                "证据",
+                "信任",
+                "观察"
+              ],
+              "behavior_type": "action",
+              "chapter_number": 3,
+              "classification": "conform",
+              "original_text": "储物柜的锁早已松动。她把旧车票插入缝隙，柜门缓缓弹开，里面不是行李，而是一面与柜体同高的镜子。镜中的站台多了一盏亮着的灯，灯下站着一个背对她的人。林岚没有立刻伸手，先在地上划下一道记号。"
+            },
+            {
+              "behavior_description": "在作出选择前要求可核验的依据。",
+              "behavior_id": 10115,
+              "behavior_tags": [
+                "证据",
+                "信任",
+                "选择"
+              ],
+              "behavior_type": "dialogue",
+              "chapter_number": 2,
+              "classification": "non-conform",
+              "original_text": "周衡走到窗边，将遮住天光的纸板挪开。地图上的红线在光下显出第二层笔迹，原来储物柜并不是终点，而是通往维修通道的入口。林岚问他是否早就知道，周衡点头，又说自己从没有真正走到过通道尽头。"
+            },
+            {
+              "behavior_description": "观察并记录物件与空间细节。",
+              "behavior_id": 10114,
+              "behavior_tags": [
+                "证据",
+                "信任",
+                "观察"
+              ],
+              "behavior_type": "action",
+              "chapter_number": 2,
+              "classification": "conform",
+              "original_text": "窗下排着三只木箱，每只箱盖都有同样的齿轮刻痕。林岚先打开最轻的一只，里面装着退回的信，收件地址从旧车站一直延伸到海边。她按日期把信排开，发现每封信都比上一封早寄出一天。"
+            },
+            {
+              "behavior_description": "在作出选择前要求可核验的依据。",
+              "behavior_id": 10113,
+              "behavior_tags": [
+                "证据",
+                "信任",
+                "选择"
+              ],
+              "behavior_type": "dialogue",
+              "chapter_number": 1,
+              "classification": "non-conform",
+              "original_text": "店内的灯很暖，周衡站在柜台后，把一封没有邮票的信推到灯下。他没有问她这些年去了哪里，也没有解释为什么突然出现。他只看了一眼她握紧车票的右手，说，雨还要下一阵，先把门关好。"
+            },
+            {
+              "behavior_description": "观察并记录物件与空间细节。",
+              "behavior_id": 10112,
+              "behavior_tags": [
+                "证据",
+                "信任",
+                "观察"
+              ],
+              "behavior_type": "action",
+              "chapter_number": 1,
+              "classification": "conform",
+              "original_text": "她从风衣内袋摸出一张旧车票。纸边已经磨软，日期停在父亲失踪的那个秋天。背面只有一行铅笔字：如果你还想知道答案，就在最后一班车开走之前来见我。字迹并不陌生，可她不愿这么快说出那个名字。"
+            }
+          ],
+          "non_conform_count": 3,
+          "threshold_reached": false
+        },
+        {
+          "attribute_key": "belief",
+          "conform_count": 4,
+          "conform_rate": 0.6666666666666666,
+          "current_value": "不能把猜测当成已经发生的事实",
+          "evidence": [
+            {
+              "behavior_description": "在作出选择前要求可核验的依据。",
+              "behavior_id": 10117,
+              "behavior_tags": [
+                "证据",
+                "信任",
+                "选择"
+              ],
+              "behavior_type": "dialogue",
+              "chapter_number": 3,
+              "classification": "conform",
+              "original_text": "周衡的脚步从身后传来。他把湿透的外衣搭在手臂上，停在她留下的记号之外。两人终于可以说话，谁也没有先解释昨夜的沉默。林岚指向镜中的灯，问那边是否就是父亲留下的出口。"
+            },
+            {
+              "behavior_description": "观察并记录物件与空间细节。",
+              "behavior_id": 10116,
+              "behavior_tags": [
+                "证据",
+                "信任",
+                "观察"
+              ],
+              "behavior_type": "action",
+              "chapter_number": 3,
+              "classification": "conform",
+              "original_text": "储物柜的锁早已松动。她把旧车票插入缝隙，柜门缓缓弹开，里面不是行李，而是一面与柜体同高的镜子。镜中的站台多了一盏亮着的灯，灯下站着一个背对她的人。林岚没有立刻伸手，先在地上划下一道记号。"
+            },
+            {
+              "behavior_description": "在作出选择前要求可核验的依据。",
+              "behavior_id": 10115,
+              "behavior_tags": [
+                "证据",
+                "信任",
+                "选择"
+              ],
+              "behavior_type": "dialogue",
+              "chapter_number": 2,
+              "classification": "non-conform",
+              "original_text": "周衡走到窗边，将遮住天光的纸板挪开。地图上的红线在光下显出第二层笔迹，原来储物柜并不是终点，而是通往维修通道的入口。林岚问他是否早就知道，周衡点头，又说自己从没有真正走到过通道尽头。"
+            },
+            {
+              "behavior_description": "观察并记录物件与空间细节。",
+              "behavior_id": 10114,
+              "behavior_tags": [
+                "证据",
+                "信任",
+                "观察"
+              ],
+              "behavior_type": "action",
+              "chapter_number": 2,
+              "classification": "conform",
+              "original_text": "窗下排着三只木箱，每只箱盖都有同样的齿轮刻痕。林岚先打开最轻的一只，里面装着退回的信，收件地址从旧车站一直延伸到海边。她按日期把信排开，发现每封信都比上一封早寄出一天。"
+            },
+            {
+              "behavior_description": "在作出选择前要求可核验的依据。",
+              "behavior_id": 10113,
+              "behavior_tags": [
+                "证据",
+                "信任",
+                "选择"
+              ],
+              "behavior_type": "dialogue",
+              "chapter_number": 1,
+              "classification": "non-conform",
+              "original_text": "店内的灯很暖，周衡站在柜台后，把一封没有邮票的信推到灯下。他没有问她这些年去了哪里，也没有解释为什么突然出现。他只看了一眼她握紧车票的右手，说，雨还要下一阵，先把门关好。"
+            },
+            {
+              "behavior_description": "观察并记录物件与空间细节。",
+              "behavior_id": 10112,
+              "behavior_tags": [
+                "证据",
+                "信任",
+                "观察"
+              ],
+              "behavior_type": "action",
+              "chapter_number": 1,
+              "classification": "conform",
+              "original_text": "她从风衣内袋摸出一张旧车票。纸边已经磨软，日期停在父亲失踪的那个秋天。背面只有一行铅笔字：如果你还想知道答案，就在最后一班车开走之前来见我。字迹并不陌生，可她不愿这么快说出那个名字。"
+            }
+          ],
+          "non_conform_count": 2,
+          "threshold_reached": false
         }
       ]
     },
@@ -12725,28 +12806,6 @@
       ],
       "list_behaviors": [
         {
-          "behavior_description": "观察并记录物件与空间细节。",
-          "behavior_tags": [
-            "证据",
-            "信任",
-            "观察"
-          ],
-          "behavior_type": "action",
-          "chapter_number": 1,
-          "classification_results": {
-            "attribute": "personality",
-            "conforms": true,
-            "reason": "延续此前已经建立的行为倾向。"
-          },
-          "id": 10112,
-          "impact_analysis": "变化需要连续证据支持，不能由单句对话覆盖既有属性。",
-          "original_text": "她从风衣内袋摸出一张旧车票。纸边已经磨软，日期停在父亲失踪的那个秋天。背面只有一行铅笔字：如果你还想知道答案，就在最后一班车开走之前来见我。字迹并不陌生，可她不愿这么快说出那个名字。",
-          "related_characters": [
-            "周衡"
-          ],
-          "source_kind": "ai_sync"
-        },
-        {
           "behavior_description": "在作出选择前要求可核验的依据。",
           "behavior_tags": [
             "证据",
@@ -12754,59 +12813,15 @@
             "选择"
           ],
           "behavior_type": "dialogue",
-          "chapter_number": 1,
+          "chapter_number": 3,
           "classification_results": {
-            "attribute": "personality",
-            "conforms": false,
-            "reason": "角色开始尝试新的协作方式。"
+            "personality": "non-conform",
+            "belief": "conform",
+            "core_desire": "non-conform"
           },
-          "id": 10113,
+          "id": 10117,
           "impact_analysis": "变化需要连续证据支持，不能由单句对话覆盖既有属性。",
-          "original_text": "店内的灯很暖，周衡站在柜台后，把一封没有邮票的信推到灯下。他没有问她这些年去了哪里，也没有解释为什么突然出现。他只看了一眼她握紧车票的右手，说，雨还要下一阵，先把门关好。",
-          "related_characters": [
-            "周衡"
-          ],
-          "source_kind": "ai_sync"
-        },
-        {
-          "behavior_description": "观察并记录物件与空间细节。",
-          "behavior_tags": [
-            "证据",
-            "信任",
-            "观察"
-          ],
-          "behavior_type": "action",
-          "chapter_number": 2,
-          "classification_results": {
-            "attribute": "personality",
-            "conforms": true,
-            "reason": "延续此前已经建立的行为倾向。"
-          },
-          "id": 10114,
-          "impact_analysis": "变化需要连续证据支持，不能由单句对话覆盖既有属性。",
-          "original_text": "窗下排着三只木箱，每只箱盖都有同样的齿轮刻痕。林岚先打开最轻的一只，里面装着退回的信，收件地址从旧车站一直延伸到海边。她按日期把信排开，发现每封信都比上一封早寄出一天。",
-          "related_characters": [
-            "周衡"
-          ],
-          "source_kind": "ai_sync"
-        },
-        {
-          "behavior_description": "在作出选择前要求可核验的依据。",
-          "behavior_tags": [
-            "证据",
-            "信任",
-            "选择"
-          ],
-          "behavior_type": "dialogue",
-          "chapter_number": 2,
-          "classification_results": {
-            "attribute": "personality",
-            "conforms": false,
-            "reason": "角色开始尝试新的协作方式。"
-          },
-          "id": 10115,
-          "impact_analysis": "变化需要连续证据支持，不能由单句对话覆盖既有属性。",
-          "original_text": "周衡走到窗边，将遮住天光的纸板挪开。地图上的红线在光下显出第二层笔迹，原来储物柜并不是终点，而是通往维修通道的入口。林岚问他是否早就知道，周衡点头，又说自己从没有真正走到过通道尽头。",
+          "original_text": "周衡的脚步从身后传来。他把湿透的外衣搭在手臂上，停在她留下的记号之外。两人终于可以说话，谁也没有先解释昨夜的沉默。林岚指向镜中的灯，问那边是否就是父亲留下的出口。",
           "related_characters": [
             "周衡"
           ],
@@ -12822,9 +12837,9 @@
           "behavior_type": "action",
           "chapter_number": 3,
           "classification_results": {
-            "attribute": "personality",
-            "conforms": true,
-            "reason": "延续此前已经建立的行为倾向。"
+            "personality": "conform",
+            "belief": "conform",
+            "core_desire": "conform"
           },
           "id": 10116,
           "impact_analysis": "变化需要连续证据支持，不能由单句对话覆盖既有属性。",
@@ -12842,15 +12857,81 @@
             "选择"
           ],
           "behavior_type": "dialogue",
-          "chapter_number": 3,
+          "chapter_number": 2,
           "classification_results": {
-            "attribute": "personality",
-            "conforms": false,
-            "reason": "角色开始尝试新的协作方式。"
+            "personality": "non-conform",
+            "belief": "non-conform",
+            "core_desire": "non-conform"
           },
-          "id": 10117,
+          "id": 10115,
           "impact_analysis": "变化需要连续证据支持，不能由单句对话覆盖既有属性。",
-          "original_text": "周衡的脚步从身后传来。他把湿透的外衣搭在手臂上，停在她留下的记号之外。两人终于可以说话，谁也没有先解释昨夜的沉默。林岚指向镜中的灯，问那边是否就是父亲留下的出口。",
+          "original_text": "周衡走到窗边，将遮住天光的纸板挪开。地图上的红线在光下显出第二层笔迹，原来储物柜并不是终点，而是通往维修通道的入口。林岚问他是否早就知道，周衡点头，又说自己从没有真正走到过通道尽头。",
+          "related_characters": [
+            "周衡"
+          ],
+          "source_kind": "ai_sync"
+        },
+        {
+          "behavior_description": "观察并记录物件与空间细节。",
+          "behavior_tags": [
+            "证据",
+            "信任",
+            "观察"
+          ],
+          "behavior_type": "action",
+          "chapter_number": 2,
+          "classification_results": {
+            "personality": "conform",
+            "belief": "conform",
+            "core_desire": "non-conform"
+          },
+          "id": 10114,
+          "impact_analysis": "变化需要连续证据支持，不能由单句对话覆盖既有属性。",
+          "original_text": "窗下排着三只木箱，每只箱盖都有同样的齿轮刻痕。林岚先打开最轻的一只，里面装着退回的信，收件地址从旧车站一直延伸到海边。她按日期把信排开，发现每封信都比上一封早寄出一天。",
+          "related_characters": [
+            "周衡"
+          ],
+          "source_kind": "ai_sync"
+        },
+        {
+          "behavior_description": "在作出选择前要求可核验的依据。",
+          "behavior_tags": [
+            "证据",
+            "信任",
+            "选择"
+          ],
+          "behavior_type": "dialogue",
+          "chapter_number": 1,
+          "classification_results": {
+            "personality": "non-conform",
+            "belief": "non-conform",
+            "core_desire": "non-conform"
+          },
+          "id": 10113,
+          "impact_analysis": "变化需要连续证据支持，不能由单句对话覆盖既有属性。",
+          "original_text": "店内的灯很暖，周衡站在柜台后，把一封没有邮票的信推到灯下。他没有问她这些年去了哪里，也没有解释为什么突然出现。他只看了一眼她握紧车票的右手，说，雨还要下一阵，先把门关好。",
+          "related_characters": [
+            "周衡"
+          ],
+          "source_kind": "ai_sync"
+        },
+        {
+          "behavior_description": "观察并记录物件与空间细节。",
+          "behavior_tags": [
+            "证据",
+            "信任",
+            "观察"
+          ],
+          "behavior_type": "action",
+          "chapter_number": 1,
+          "classification_results": {
+            "personality": "conform",
+            "belief": "conform",
+            "core_desire": "non-conform"
+          },
+          "id": 10112,
+          "impact_analysis": "变化需要连续证据支持，不能由单句对话覆盖既有属性。",
+          "original_text": "她从风衣内袋摸出一张旧车票。纸边已经磨软，日期停在父亲失踪的那个秋天。背面只有一行铅笔字：如果你还想知道答案，就在最后一班车开走之前来见我。字迹并不陌生，可她不愿这么快说出那个名字。",
           "related_characters": [
             "周衡"
           ],
@@ -12860,166 +12941,23 @@
       "get_implicit_review": {
         "attributes": [
           {
-            "attribute_key": "personality",
-            "conform_count": 4,
-            "conform_rate": 0.5714285714285714,
-            "current_value": "谨慎、敏锐，愿意把猜测和事实分开。",
-            "evidence": [
-              {
-                "behavior_description": "观察并记录物件与空间细节。",
-                "behavior_id": 10112,
-                "behavior_tags": [
-                  "证据",
-                  "信任",
-                  "观察"
-                ],
-                "behavior_type": "action",
-                "chapter_number": 1,
-                "classification": {
-                  "attribute": "personality",
-                  "conforms": true,
-                  "reason": "延续此前已经建立的行为倾向。"
-                },
-                "original_text": "她从风衣内袋摸出一张旧车票。纸边已经磨软，日期停在父亲失踪的那个秋天。背面只有一行铅笔字：如果你还想知道答案，就在最后一班车开走之前来见我。字迹并不陌生，可她不愿这么快说出那个名字。"
-              },
-              {
-                "behavior_description": "在作出选择前要求可核验的依据。",
-                "behavior_id": 10113,
-                "behavior_tags": [
-                  "证据",
-                  "信任",
-                  "选择"
-                ],
-                "behavior_type": "dialogue",
-                "chapter_number": 1,
-                "classification": {
-                  "attribute": "personality",
-                  "conforms": false,
-                  "reason": "角色开始尝试新的协作方式。"
-                },
-                "original_text": "店内的灯很暖，周衡站在柜台后，把一封没有邮票的信推到灯下。他没有问她这些年去了哪里，也没有解释为什么突然出现。他只看了一眼她握紧车票的右手，说，雨还要下一阵，先把门关好。"
-              },
-              {
-                "behavior_description": "观察并记录物件与空间细节。",
-                "behavior_id": 10114,
-                "behavior_tags": [
-                  "证据",
-                  "信任",
-                  "观察"
-                ],
-                "behavior_type": "action",
-                "chapter_number": 2,
-                "classification": {
-                  "attribute": "personality",
-                  "conforms": true,
-                  "reason": "延续此前已经建立的行为倾向。"
-                },
-                "original_text": "窗下排着三只木箱，每只箱盖都有同样的齿轮刻痕。林岚先打开最轻的一只，里面装着退回的信，收件地址从旧车站一直延伸到海边。她按日期把信排开，发现每封信都比上一封早寄出一天。"
-              }
-            ],
-            "non_conform_count": 3,
-            "threshold_reached": false
-          },
-          {
-            "attribute_key": "belief",
-            "conform_count": 5,
-            "conform_rate": 0.7142857142857143,
-            "current_value": "不能把猜测当成已经发生的事实",
-            "evidence": [
-              {
-                "behavior_description": "在作出选择前要求可核验的依据。",
-                "behavior_id": 10113,
-                "behavior_tags": [
-                  "证据",
-                  "信任",
-                  "选择"
-                ],
-                "behavior_type": "dialogue",
-                "chapter_number": 1,
-                "classification": {
-                  "attribute": "personality",
-                  "conforms": false,
-                  "reason": "角色开始尝试新的协作方式。"
-                },
-                "original_text": "店内的灯很暖，周衡站在柜台后，把一封没有邮票的信推到灯下。他没有问她这些年去了哪里，也没有解释为什么突然出现。他只看了一眼她握紧车票的右手，说，雨还要下一阵，先把门关好。"
-              },
-              {
-                "behavior_description": "观察并记录物件与空间细节。",
-                "behavior_id": 10114,
-                "behavior_tags": [
-                  "证据",
-                  "信任",
-                  "观察"
-                ],
-                "behavior_type": "action",
-                "chapter_number": 2,
-                "classification": {
-                  "attribute": "personality",
-                  "conforms": true,
-                  "reason": "延续此前已经建立的行为倾向。"
-                },
-                "original_text": "窗下排着三只木箱，每只箱盖都有同样的齿轮刻痕。林岚先打开最轻的一只，里面装着退回的信，收件地址从旧车站一直延伸到海边。她按日期把信排开，发现每封信都比上一封早寄出一天。"
-              },
-              {
-                "behavior_description": "在作出选择前要求可核验的依据。",
-                "behavior_id": 10115,
-                "behavior_tags": [
-                  "证据",
-                  "信任",
-                  "选择"
-                ],
-                "behavior_type": "dialogue",
-                "chapter_number": 2,
-                "classification": {
-                  "attribute": "personality",
-                  "conforms": false,
-                  "reason": "角色开始尝试新的协作方式。"
-                },
-                "original_text": "周衡走到窗边，将遮住天光的纸板挪开。地图上的红线在光下显出第二层笔迹，原来储物柜并不是终点，而是通往维修通道的入口。林岚问他是否早就知道，周衡点头，又说自己从没有真正走到过通道尽头。"
-              }
-            ],
-            "non_conform_count": 2,
-            "threshold_reached": false
-          },
-          {
             "attribute_key": "core_desire",
-            "conform_count": 6,
-            "conform_rate": 0.8571428571428571,
+            "conform_count": 1,
+            "conform_rate": 0.16666666666666666,
             "current_value": "亲自核验父亲留下的线索",
             "evidence": [
               {
-                "behavior_description": "观察并记录物件与空间细节。",
-                "behavior_id": 10114,
-                "behavior_tags": [
-                  "证据",
-                  "信任",
-                  "观察"
-                ],
-                "behavior_type": "action",
-                "chapter_number": 2,
-                "classification": {
-                  "attribute": "personality",
-                  "conforms": true,
-                  "reason": "延续此前已经建立的行为倾向。"
-                },
-                "original_text": "窗下排着三只木箱，每只箱盖都有同样的齿轮刻痕。林岚先打开最轻的一只，里面装着退回的信，收件地址从旧车站一直延伸到海边。她按日期把信排开，发现每封信都比上一封早寄出一天。"
-              },
-              {
                 "behavior_description": "在作出选择前要求可核验的依据。",
-                "behavior_id": 10115,
+                "behavior_id": 10117,
                 "behavior_tags": [
                   "证据",
                   "信任",
                   "选择"
                 ],
                 "behavior_type": "dialogue",
-                "chapter_number": 2,
-                "classification": {
-                  "attribute": "personality",
-                  "conforms": false,
-                  "reason": "角色开始尝试新的协作方式。"
-                },
-                "original_text": "周衡走到窗边，将遮住天光的纸板挪开。地图上的红线在光下显出第二层笔迹，原来储物柜并不是终点，而是通往维修通道的入口。林岚问他是否早就知道，周衡点头，又说自己从没有真正走到过通道尽头。"
+                "chapter_number": 3,
+                "classification": "non-conform",
+                "original_text": "周衡的脚步从身后传来。他把湿透的外衣搭在手臂上，停在她留下的记号之外。两人终于可以说话，谁也没有先解释昨夜的沉默。林岚指向镜中的灯，问那边是否就是父亲留下的出口。"
               },
               {
                 "behavior_description": "观察并记录物件与空间细节。",
@@ -13031,16 +12969,240 @@
                 ],
                 "behavior_type": "action",
                 "chapter_number": 3,
-                "classification": {
-                  "attribute": "personality",
-                  "conforms": true,
-                  "reason": "延续此前已经建立的行为倾向。"
-                },
+                "classification": "conform",
                 "original_text": "储物柜的锁早已松动。她把旧车票插入缝隙，柜门缓缓弹开，里面不是行李，而是一面与柜体同高的镜子。镜中的站台多了一盏亮着的灯，灯下站着一个背对她的人。林岚没有立刻伸手，先在地上划下一道记号。"
+              },
+              {
+                "behavior_description": "在作出选择前要求可核验的依据。",
+                "behavior_id": 10115,
+                "behavior_tags": [
+                  "证据",
+                  "信任",
+                  "选择"
+                ],
+                "behavior_type": "dialogue",
+                "chapter_number": 2,
+                "classification": "non-conform",
+                "original_text": "周衡走到窗边，将遮住天光的纸板挪开。地图上的红线在光下显出第二层笔迹，原来储物柜并不是终点，而是通往维修通道的入口。林岚问他是否早就知道，周衡点头，又说自己从没有真正走到过通道尽头。"
+              },
+              {
+                "behavior_description": "观察并记录物件与空间细节。",
+                "behavior_id": 10114,
+                "behavior_tags": [
+                  "证据",
+                  "信任",
+                  "观察"
+                ],
+                "behavior_type": "action",
+                "chapter_number": 2,
+                "classification": "non-conform",
+                "original_text": "窗下排着三只木箱，每只箱盖都有同样的齿轮刻痕。林岚先打开最轻的一只，里面装着退回的信，收件地址从旧车站一直延伸到海边。她按日期把信排开，发现每封信都比上一封早寄出一天。"
+              },
+              {
+                "behavior_description": "在作出选择前要求可核验的依据。",
+                "behavior_id": 10113,
+                "behavior_tags": [
+                  "证据",
+                  "信任",
+                  "选择"
+                ],
+                "behavior_type": "dialogue",
+                "chapter_number": 1,
+                "classification": "non-conform",
+                "original_text": "店内的灯很暖，周衡站在柜台后，把一封没有邮票的信推到灯下。他没有问她这些年去了哪里，也没有解释为什么突然出现。他只看了一眼她握紧车票的右手，说，雨还要下一阵，先把门关好。"
+              },
+              {
+                "behavior_description": "观察并记录物件与空间细节。",
+                "behavior_id": 10112,
+                "behavior_tags": [
+                  "证据",
+                  "信任",
+                  "观察"
+                ],
+                "behavior_type": "action",
+                "chapter_number": 1,
+                "classification": "non-conform",
+                "original_text": "她从风衣内袋摸出一张旧车票。纸边已经磨软，日期停在父亲失踪的那个秋天。背面只有一行铅笔字：如果你还想知道答案，就在最后一班车开走之前来见我。字迹并不陌生，可她不愿这么快说出那个名字。"
               }
             ],
-            "non_conform_count": 1,
+            "non_conform_count": 5,
             "threshold_reached": true
+          },
+          {
+            "attribute_key": "personality",
+            "conform_count": 3,
+            "conform_rate": 0.5,
+            "current_value": "谨慎、敏锐，愿意把猜测和事实分开。",
+            "evidence": [
+              {
+                "behavior_description": "在作出选择前要求可核验的依据。",
+                "behavior_id": 10117,
+                "behavior_tags": [
+                  "证据",
+                  "信任",
+                  "选择"
+                ],
+                "behavior_type": "dialogue",
+                "chapter_number": 3,
+                "classification": "non-conform",
+                "original_text": "周衡的脚步从身后传来。他把湿透的外衣搭在手臂上，停在她留下的记号之外。两人终于可以说话，谁也没有先解释昨夜的沉默。林岚指向镜中的灯，问那边是否就是父亲留下的出口。"
+              },
+              {
+                "behavior_description": "观察并记录物件与空间细节。",
+                "behavior_id": 10116,
+                "behavior_tags": [
+                  "证据",
+                  "信任",
+                  "观察"
+                ],
+                "behavior_type": "action",
+                "chapter_number": 3,
+                "classification": "conform",
+                "original_text": "储物柜的锁早已松动。她把旧车票插入缝隙，柜门缓缓弹开，里面不是行李，而是一面与柜体同高的镜子。镜中的站台多了一盏亮着的灯，灯下站着一个背对她的人。林岚没有立刻伸手，先在地上划下一道记号。"
+              },
+              {
+                "behavior_description": "在作出选择前要求可核验的依据。",
+                "behavior_id": 10115,
+                "behavior_tags": [
+                  "证据",
+                  "信任",
+                  "选择"
+                ],
+                "behavior_type": "dialogue",
+                "chapter_number": 2,
+                "classification": "non-conform",
+                "original_text": "周衡走到窗边，将遮住天光的纸板挪开。地图上的红线在光下显出第二层笔迹，原来储物柜并不是终点，而是通往维修通道的入口。林岚问他是否早就知道，周衡点头，又说自己从没有真正走到过通道尽头。"
+              },
+              {
+                "behavior_description": "观察并记录物件与空间细节。",
+                "behavior_id": 10114,
+                "behavior_tags": [
+                  "证据",
+                  "信任",
+                  "观察"
+                ],
+                "behavior_type": "action",
+                "chapter_number": 2,
+                "classification": "conform",
+                "original_text": "窗下排着三只木箱，每只箱盖都有同样的齿轮刻痕。林岚先打开最轻的一只，里面装着退回的信，收件地址从旧车站一直延伸到海边。她按日期把信排开，发现每封信都比上一封早寄出一天。"
+              },
+              {
+                "behavior_description": "在作出选择前要求可核验的依据。",
+                "behavior_id": 10113,
+                "behavior_tags": [
+                  "证据",
+                  "信任",
+                  "选择"
+                ],
+                "behavior_type": "dialogue",
+                "chapter_number": 1,
+                "classification": "non-conform",
+                "original_text": "店内的灯很暖，周衡站在柜台后，把一封没有邮票的信推到灯下。他没有问她这些年去了哪里，也没有解释为什么突然出现。他只看了一眼她握紧车票的右手，说，雨还要下一阵，先把门关好。"
+              },
+              {
+                "behavior_description": "观察并记录物件与空间细节。",
+                "behavior_id": 10112,
+                "behavior_tags": [
+                  "证据",
+                  "信任",
+                  "观察"
+                ],
+                "behavior_type": "action",
+                "chapter_number": 1,
+                "classification": "conform",
+                "original_text": "她从风衣内袋摸出一张旧车票。纸边已经磨软，日期停在父亲失踪的那个秋天。背面只有一行铅笔字：如果你还想知道答案，就在最后一班车开走之前来见我。字迹并不陌生，可她不愿这么快说出那个名字。"
+              }
+            ],
+            "non_conform_count": 3,
+            "threshold_reached": false
+          },
+          {
+            "attribute_key": "belief",
+            "conform_count": 4,
+            "conform_rate": 0.6666666666666666,
+            "current_value": "不能把猜测当成已经发生的事实",
+            "evidence": [
+              {
+                "behavior_description": "在作出选择前要求可核验的依据。",
+                "behavior_id": 10117,
+                "behavior_tags": [
+                  "证据",
+                  "信任",
+                  "选择"
+                ],
+                "behavior_type": "dialogue",
+                "chapter_number": 3,
+                "classification": "conform",
+                "original_text": "周衡的脚步从身后传来。他把湿透的外衣搭在手臂上，停在她留下的记号之外。两人终于可以说话，谁也没有先解释昨夜的沉默。林岚指向镜中的灯，问那边是否就是父亲留下的出口。"
+              },
+              {
+                "behavior_description": "观察并记录物件与空间细节。",
+                "behavior_id": 10116,
+                "behavior_tags": [
+                  "证据",
+                  "信任",
+                  "观察"
+                ],
+                "behavior_type": "action",
+                "chapter_number": 3,
+                "classification": "conform",
+                "original_text": "储物柜的锁早已松动。她把旧车票插入缝隙，柜门缓缓弹开，里面不是行李，而是一面与柜体同高的镜子。镜中的站台多了一盏亮着的灯，灯下站着一个背对她的人。林岚没有立刻伸手，先在地上划下一道记号。"
+              },
+              {
+                "behavior_description": "在作出选择前要求可核验的依据。",
+                "behavior_id": 10115,
+                "behavior_tags": [
+                  "证据",
+                  "信任",
+                  "选择"
+                ],
+                "behavior_type": "dialogue",
+                "chapter_number": 2,
+                "classification": "non-conform",
+                "original_text": "周衡走到窗边，将遮住天光的纸板挪开。地图上的红线在光下显出第二层笔迹，原来储物柜并不是终点，而是通往维修通道的入口。林岚问他是否早就知道，周衡点头，又说自己从没有真正走到过通道尽头。"
+              },
+              {
+                "behavior_description": "观察并记录物件与空间细节。",
+                "behavior_id": 10114,
+                "behavior_tags": [
+                  "证据",
+                  "信任",
+                  "观察"
+                ],
+                "behavior_type": "action",
+                "chapter_number": 2,
+                "classification": "conform",
+                "original_text": "窗下排着三只木箱，每只箱盖都有同样的齿轮刻痕。林岚先打开最轻的一只，里面装着退回的信，收件地址从旧车站一直延伸到海边。她按日期把信排开，发现每封信都比上一封早寄出一天。"
+              },
+              {
+                "behavior_description": "在作出选择前要求可核验的依据。",
+                "behavior_id": 10113,
+                "behavior_tags": [
+                  "证据",
+                  "信任",
+                  "选择"
+                ],
+                "behavior_type": "dialogue",
+                "chapter_number": 1,
+                "classification": "non-conform",
+                "original_text": "店内的灯很暖，周衡站在柜台后，把一封没有邮票的信推到灯下。他没有问她这些年去了哪里，也没有解释为什么突然出现。他只看了一眼她握紧车票的右手，说，雨还要下一阵，先把门关好。"
+              },
+              {
+                "behavior_description": "观察并记录物件与空间细节。",
+                "behavior_id": 10112,
+                "behavior_tags": [
+                  "证据",
+                  "信任",
+                  "观察"
+                ],
+                "behavior_type": "action",
+                "chapter_number": 1,
+                "classification": "conform",
+                "original_text": "她从风衣内袋摸出一张旧车票。纸边已经磨软，日期停在父亲失踪的那个秋天。背面只有一行铅笔字：如果你还想知道答案，就在最后一班车开走之前来见我。字迹并不陌生，可她不愿这么快说出那个名字。"
+              }
+            ],
+            "non_conform_count": 2,
+            "threshold_reached": false
           }
         ]
       },
@@ -13310,28 +13472,6 @@
       ],
       "list_behaviors": [
         {
-          "behavior_description": "以具体行动回应同伴的需要。",
-          "behavior_tags": [
-            "证据",
-            "信任",
-            "观察"
-          ],
-          "behavior_type": "action",
-          "chapter_number": 1,
-          "classification_results": {
-            "attribute": "personality",
-            "conforms": true,
-            "reason": "延续此前已经建立的行为倾向。"
-          },
-          "id": 10122,
-          "impact_analysis": "变化需要连续证据支持，不能由单句对话覆盖既有属性。",
-          "original_text": "她从风衣内袋摸出一张旧车票。纸边已经磨软，日期停在父亲失踪的那个秋天。背面只有一行铅笔字：如果你还想知道答案，就在最后一班车开走之前来见我。字迹并不陌生，可她不愿这么快说出那个名字。",
-          "related_characters": [
-            "林岚"
-          ],
-          "source_kind": "ai_sync"
-        },
-        {
           "behavior_description": "把自己知道的部分说明给林岚。",
           "behavior_tags": [
             "证据",
@@ -13339,59 +13479,15 @@
             "选择"
           ],
           "behavior_type": "dialogue",
-          "chapter_number": 1,
+          "chapter_number": 3,
           "classification_results": {
-            "attribute": "personality",
-            "conforms": false,
-            "reason": "角色开始尝试新的协作方式。"
+            "personality": "non-conform",
+            "belief": "conform",
+            "core_desire": "non-conform"
           },
-          "id": 10123,
+          "id": 10127,
           "impact_analysis": "变化需要连续证据支持，不能由单句对话覆盖既有属性。",
-          "original_text": "店内的灯很暖，周衡站在柜台后，把一封没有邮票的信推到灯下。他没有问她这些年去了哪里，也没有解释为什么突然出现。他只看了一眼她握紧车票的右手，说，雨还要下一阵，先把门关好。",
-          "related_characters": [
-            "林岚"
-          ],
-          "source_kind": "ai_sync"
-        },
-        {
-          "behavior_description": "以具体行动回应同伴的需要。",
-          "behavior_tags": [
-            "证据",
-            "信任",
-            "观察"
-          ],
-          "behavior_type": "action",
-          "chapter_number": 2,
-          "classification_results": {
-            "attribute": "personality",
-            "conforms": true,
-            "reason": "延续此前已经建立的行为倾向。"
-          },
-          "id": 10124,
-          "impact_analysis": "变化需要连续证据支持，不能由单句对话覆盖既有属性。",
-          "original_text": "窗下排着三只木箱，每只箱盖都有同样的齿轮刻痕。林岚先打开最轻的一只，里面装着退回的信，收件地址从旧车站一直延伸到海边。她按日期把信排开，发现每封信都比上一封早寄出一天。",
-          "related_characters": [
-            "林岚"
-          ],
-          "source_kind": "ai_sync"
-        },
-        {
-          "behavior_description": "把自己知道的部分说明给林岚。",
-          "behavior_tags": [
-            "证据",
-            "信任",
-            "选择"
-          ],
-          "behavior_type": "dialogue",
-          "chapter_number": 2,
-          "classification_results": {
-            "attribute": "personality",
-            "conforms": false,
-            "reason": "角色开始尝试新的协作方式。"
-          },
-          "id": 10125,
-          "impact_analysis": "变化需要连续证据支持，不能由单句对话覆盖既有属性。",
-          "original_text": "周衡走到窗边，将遮住天光的纸板挪开。地图上的红线在光下显出第二层笔迹，原来储物柜并不是终点，而是通往维修通道的入口。林岚问他是否早就知道，周衡点头，又说自己从没有真正走到过通道尽头。",
+          "original_text": "周衡的脚步从身后传来。他把湿透的外衣搭在手臂上，停在她留下的记号之外。两人终于可以说话，谁也没有先解释昨夜的沉默。林岚指向镜中的灯，问那边是否就是父亲留下的出口。",
           "related_characters": [
             "林岚"
           ],
@@ -13407,9 +13503,9 @@
           "behavior_type": "action",
           "chapter_number": 3,
           "classification_results": {
-            "attribute": "personality",
-            "conforms": true,
-            "reason": "延续此前已经建立的行为倾向。"
+            "personality": "conform",
+            "belief": "conform",
+            "core_desire": "conform"
           },
           "id": 10126,
           "impact_analysis": "变化需要连续证据支持，不能由单句对话覆盖既有属性。",
@@ -13427,15 +13523,81 @@
             "选择"
           ],
           "behavior_type": "dialogue",
-          "chapter_number": 3,
+          "chapter_number": 2,
           "classification_results": {
-            "attribute": "personality",
-            "conforms": false,
-            "reason": "角色开始尝试新的协作方式。"
+            "personality": "non-conform",
+            "belief": "non-conform",
+            "core_desire": "non-conform"
           },
-          "id": 10127,
+          "id": 10125,
           "impact_analysis": "变化需要连续证据支持，不能由单句对话覆盖既有属性。",
-          "original_text": "周衡的脚步从身后传来。他把湿透的外衣搭在手臂上，停在她留下的记号之外。两人终于可以说话，谁也没有先解释昨夜的沉默。林岚指向镜中的灯，问那边是否就是父亲留下的出口。",
+          "original_text": "周衡走到窗边，将遮住天光的纸板挪开。地图上的红线在光下显出第二层笔迹，原来储物柜并不是终点，而是通往维修通道的入口。林岚问他是否早就知道，周衡点头，又说自己从没有真正走到过通道尽头。",
+          "related_characters": [
+            "林岚"
+          ],
+          "source_kind": "ai_sync"
+        },
+        {
+          "behavior_description": "以具体行动回应同伴的需要。",
+          "behavior_tags": [
+            "证据",
+            "信任",
+            "观察"
+          ],
+          "behavior_type": "action",
+          "chapter_number": 2,
+          "classification_results": {
+            "personality": "conform",
+            "belief": "conform",
+            "core_desire": "non-conform"
+          },
+          "id": 10124,
+          "impact_analysis": "变化需要连续证据支持，不能由单句对话覆盖既有属性。",
+          "original_text": "窗下排着三只木箱，每只箱盖都有同样的齿轮刻痕。林岚先打开最轻的一只，里面装着退回的信，收件地址从旧车站一直延伸到海边。她按日期把信排开，发现每封信都比上一封早寄出一天。",
+          "related_characters": [
+            "林岚"
+          ],
+          "source_kind": "ai_sync"
+        },
+        {
+          "behavior_description": "把自己知道的部分说明给林岚。",
+          "behavior_tags": [
+            "证据",
+            "信任",
+            "选择"
+          ],
+          "behavior_type": "dialogue",
+          "chapter_number": 1,
+          "classification_results": {
+            "personality": "non-conform",
+            "belief": "non-conform",
+            "core_desire": "non-conform"
+          },
+          "id": 10123,
+          "impact_analysis": "变化需要连续证据支持，不能由单句对话覆盖既有属性。",
+          "original_text": "店内的灯很暖，周衡站在柜台后，把一封没有邮票的信推到灯下。他没有问她这些年去了哪里，也没有解释为什么突然出现。他只看了一眼她握紧车票的右手，说，雨还要下一阵，先把门关好。",
+          "related_characters": [
+            "林岚"
+          ],
+          "source_kind": "ai_sync"
+        },
+        {
+          "behavior_description": "以具体行动回应同伴的需要。",
+          "behavior_tags": [
+            "证据",
+            "信任",
+            "观察"
+          ],
+          "behavior_type": "action",
+          "chapter_number": 1,
+          "classification_results": {
+            "personality": "conform",
+            "belief": "conform",
+            "core_desire": "non-conform"
+          },
+          "id": 10122,
+          "impact_analysis": "变化需要连续证据支持，不能由单句对话覆盖既有属性。",
+          "original_text": "她从风衣内袋摸出一张旧车票。纸边已经磨软，日期停在父亲失踪的那个秋天。背面只有一行铅笔字：如果你还想知道答案，就在最后一班车开走之前来见我。字迹并不陌生，可她不愿这么快说出那个名字。",
           "related_characters": [
             "林岚"
           ],
@@ -13445,166 +13607,23 @@
       "get_implicit_review": {
         "attributes": [
           {
-            "attribute_key": "personality",
-            "conform_count": 4,
-            "conform_rate": 0.5714285714285714,
-            "current_value": "克制、负责任，但在恐惧中倾向沉默。",
-            "evidence": [
-              {
-                "behavior_description": "以具体行动回应同伴的需要。",
-                "behavior_id": 10122,
-                "behavior_tags": [
-                  "证据",
-                  "信任",
-                  "观察"
-                ],
-                "behavior_type": "action",
-                "chapter_number": 1,
-                "classification": {
-                  "attribute": "personality",
-                  "conforms": true,
-                  "reason": "延续此前已经建立的行为倾向。"
-                },
-                "original_text": "她从风衣内袋摸出一张旧车票。纸边已经磨软，日期停在父亲失踪的那个秋天。背面只有一行铅笔字：如果你还想知道答案，就在最后一班车开走之前来见我。字迹并不陌生，可她不愿这么快说出那个名字。"
-              },
-              {
-                "behavior_description": "把自己知道的部分说明给林岚。",
-                "behavior_id": 10123,
-                "behavior_tags": [
-                  "证据",
-                  "信任",
-                  "选择"
-                ],
-                "behavior_type": "dialogue",
-                "chapter_number": 1,
-                "classification": {
-                  "attribute": "personality",
-                  "conforms": false,
-                  "reason": "角色开始尝试新的协作方式。"
-                },
-                "original_text": "店内的灯很暖，周衡站在柜台后，把一封没有邮票的信推到灯下。他没有问她这些年去了哪里，也没有解释为什么突然出现。他只看了一眼她握紧车票的右手，说，雨还要下一阵，先把门关好。"
-              },
-              {
-                "behavior_description": "以具体行动回应同伴的需要。",
-                "behavior_id": 10124,
-                "behavior_tags": [
-                  "证据",
-                  "信任",
-                  "观察"
-                ],
-                "behavior_type": "action",
-                "chapter_number": 2,
-                "classification": {
-                  "attribute": "personality",
-                  "conforms": true,
-                  "reason": "延续此前已经建立的行为倾向。"
-                },
-                "original_text": "窗下排着三只木箱，每只箱盖都有同样的齿轮刻痕。林岚先打开最轻的一只，里面装着退回的信，收件地址从旧车站一直延伸到海边。她按日期把信排开，发现每封信都比上一封早寄出一天。"
-              }
-            ],
-            "non_conform_count": 3,
-            "threshold_reached": false
-          },
-          {
-            "attribute_key": "belief",
-            "conform_count": 5,
-            "conform_rate": 0.7142857142857143,
-            "current_value": "不能把猜测当成已经发生的事实",
-            "evidence": [
-              {
-                "behavior_description": "把自己知道的部分说明给林岚。",
-                "behavior_id": 10123,
-                "behavior_tags": [
-                  "证据",
-                  "信任",
-                  "选择"
-                ],
-                "behavior_type": "dialogue",
-                "chapter_number": 1,
-                "classification": {
-                  "attribute": "personality",
-                  "conforms": false,
-                  "reason": "角色开始尝试新的协作方式。"
-                },
-                "original_text": "店内的灯很暖，周衡站在柜台后，把一封没有邮票的信推到灯下。他没有问她这些年去了哪里，也没有解释为什么突然出现。他只看了一眼她握紧车票的右手，说，雨还要下一阵，先把门关好。"
-              },
-              {
-                "behavior_description": "以具体行动回应同伴的需要。",
-                "behavior_id": 10124,
-                "behavior_tags": [
-                  "证据",
-                  "信任",
-                  "观察"
-                ],
-                "behavior_type": "action",
-                "chapter_number": 2,
-                "classification": {
-                  "attribute": "personality",
-                  "conforms": true,
-                  "reason": "延续此前已经建立的行为倾向。"
-                },
-                "original_text": "窗下排着三只木箱，每只箱盖都有同样的齿轮刻痕。林岚先打开最轻的一只，里面装着退回的信，收件地址从旧车站一直延伸到海边。她按日期把信排开，发现每封信都比上一封早寄出一天。"
-              },
-              {
-                "behavior_description": "把自己知道的部分说明给林岚。",
-                "behavior_id": 10125,
-                "behavior_tags": [
-                  "证据",
-                  "信任",
-                  "选择"
-                ],
-                "behavior_type": "dialogue",
-                "chapter_number": 2,
-                "classification": {
-                  "attribute": "personality",
-                  "conforms": false,
-                  "reason": "角色开始尝试新的协作方式。"
-                },
-                "original_text": "周衡走到窗边，将遮住天光的纸板挪开。地图上的红线在光下显出第二层笔迹，原来储物柜并不是终点，而是通往维修通道的入口。林岚问他是否早就知道，周衡点头，又说自己从没有真正走到过通道尽头。"
-              }
-            ],
-            "non_conform_count": 2,
-            "threshold_reached": false
-          },
-          {
             "attribute_key": "core_desire",
-            "conform_count": 6,
-            "conform_rate": 0.8571428571428571,
+            "conform_count": 1,
+            "conform_rate": 0.16666666666666666,
             "current_value": "以行动补足过去的沉默",
             "evidence": [
               {
-                "behavior_description": "以具体行动回应同伴的需要。",
-                "behavior_id": 10124,
-                "behavior_tags": [
-                  "证据",
-                  "信任",
-                  "观察"
-                ],
-                "behavior_type": "action",
-                "chapter_number": 2,
-                "classification": {
-                  "attribute": "personality",
-                  "conforms": true,
-                  "reason": "延续此前已经建立的行为倾向。"
-                },
-                "original_text": "窗下排着三只木箱，每只箱盖都有同样的齿轮刻痕。林岚先打开最轻的一只，里面装着退回的信，收件地址从旧车站一直延伸到海边。她按日期把信排开，发现每封信都比上一封早寄出一天。"
-              },
-              {
                 "behavior_description": "把自己知道的部分说明给林岚。",
-                "behavior_id": 10125,
+                "behavior_id": 10127,
                 "behavior_tags": [
                   "证据",
                   "信任",
                   "选择"
                 ],
                 "behavior_type": "dialogue",
-                "chapter_number": 2,
-                "classification": {
-                  "attribute": "personality",
-                  "conforms": false,
-                  "reason": "角色开始尝试新的协作方式。"
-                },
-                "original_text": "周衡走到窗边，将遮住天光的纸板挪开。地图上的红线在光下显出第二层笔迹，原来储物柜并不是终点，而是通往维修通道的入口。林岚问他是否早就知道，周衡点头，又说自己从没有真正走到过通道尽头。"
+                "chapter_number": 3,
+                "classification": "non-conform",
+                "original_text": "周衡的脚步从身后传来。他把湿透的外衣搭在手臂上，停在她留下的记号之外。两人终于可以说话，谁也没有先解释昨夜的沉默。林岚指向镜中的灯，问那边是否就是父亲留下的出口。"
               },
               {
                 "behavior_description": "以具体行动回应同伴的需要。",
@@ -13616,16 +13635,240 @@
                 ],
                 "behavior_type": "action",
                 "chapter_number": 3,
-                "classification": {
-                  "attribute": "personality",
-                  "conforms": true,
-                  "reason": "延续此前已经建立的行为倾向。"
-                },
+                "classification": "conform",
                 "original_text": "储物柜的锁早已松动。她把旧车票插入缝隙，柜门缓缓弹开，里面不是行李，而是一面与柜体同高的镜子。镜中的站台多了一盏亮着的灯，灯下站着一个背对她的人。林岚没有立刻伸手，先在地上划下一道记号。"
+              },
+              {
+                "behavior_description": "把自己知道的部分说明给林岚。",
+                "behavior_id": 10125,
+                "behavior_tags": [
+                  "证据",
+                  "信任",
+                  "选择"
+                ],
+                "behavior_type": "dialogue",
+                "chapter_number": 2,
+                "classification": "non-conform",
+                "original_text": "周衡走到窗边，将遮住天光的纸板挪开。地图上的红线在光下显出第二层笔迹，原来储物柜并不是终点，而是通往维修通道的入口。林岚问他是否早就知道，周衡点头，又说自己从没有真正走到过通道尽头。"
+              },
+              {
+                "behavior_description": "以具体行动回应同伴的需要。",
+                "behavior_id": 10124,
+                "behavior_tags": [
+                  "证据",
+                  "信任",
+                  "观察"
+                ],
+                "behavior_type": "action",
+                "chapter_number": 2,
+                "classification": "non-conform",
+                "original_text": "窗下排着三只木箱，每只箱盖都有同样的齿轮刻痕。林岚先打开最轻的一只，里面装着退回的信，收件地址从旧车站一直延伸到海边。她按日期把信排开，发现每封信都比上一封早寄出一天。"
+              },
+              {
+                "behavior_description": "把自己知道的部分说明给林岚。",
+                "behavior_id": 10123,
+                "behavior_tags": [
+                  "证据",
+                  "信任",
+                  "选择"
+                ],
+                "behavior_type": "dialogue",
+                "chapter_number": 1,
+                "classification": "non-conform",
+                "original_text": "店内的灯很暖，周衡站在柜台后，把一封没有邮票的信推到灯下。他没有问她这些年去了哪里，也没有解释为什么突然出现。他只看了一眼她握紧车票的右手，说，雨还要下一阵，先把门关好。"
+              },
+              {
+                "behavior_description": "以具体行动回应同伴的需要。",
+                "behavior_id": 10122,
+                "behavior_tags": [
+                  "证据",
+                  "信任",
+                  "观察"
+                ],
+                "behavior_type": "action",
+                "chapter_number": 1,
+                "classification": "non-conform",
+                "original_text": "她从风衣内袋摸出一张旧车票。纸边已经磨软，日期停在父亲失踪的那个秋天。背面只有一行铅笔字：如果你还想知道答案，就在最后一班车开走之前来见我。字迹并不陌生，可她不愿这么快说出那个名字。"
               }
             ],
-            "non_conform_count": 1,
+            "non_conform_count": 5,
             "threshold_reached": true
+          },
+          {
+            "attribute_key": "personality",
+            "conform_count": 3,
+            "conform_rate": 0.5,
+            "current_value": "克制、负责任，但在恐惧中倾向沉默。",
+            "evidence": [
+              {
+                "behavior_description": "把自己知道的部分说明给林岚。",
+                "behavior_id": 10127,
+                "behavior_tags": [
+                  "证据",
+                  "信任",
+                  "选择"
+                ],
+                "behavior_type": "dialogue",
+                "chapter_number": 3,
+                "classification": "non-conform",
+                "original_text": "周衡的脚步从身后传来。他把湿透的外衣搭在手臂上，停在她留下的记号之外。两人终于可以说话，谁也没有先解释昨夜的沉默。林岚指向镜中的灯，问那边是否就是父亲留下的出口。"
+              },
+              {
+                "behavior_description": "以具体行动回应同伴的需要。",
+                "behavior_id": 10126,
+                "behavior_tags": [
+                  "证据",
+                  "信任",
+                  "观察"
+                ],
+                "behavior_type": "action",
+                "chapter_number": 3,
+                "classification": "conform",
+                "original_text": "储物柜的锁早已松动。她把旧车票插入缝隙，柜门缓缓弹开，里面不是行李，而是一面与柜体同高的镜子。镜中的站台多了一盏亮着的灯，灯下站着一个背对她的人。林岚没有立刻伸手，先在地上划下一道记号。"
+              },
+              {
+                "behavior_description": "把自己知道的部分说明给林岚。",
+                "behavior_id": 10125,
+                "behavior_tags": [
+                  "证据",
+                  "信任",
+                  "选择"
+                ],
+                "behavior_type": "dialogue",
+                "chapter_number": 2,
+                "classification": "non-conform",
+                "original_text": "周衡走到窗边，将遮住天光的纸板挪开。地图上的红线在光下显出第二层笔迹，原来储物柜并不是终点，而是通往维修通道的入口。林岚问他是否早就知道，周衡点头，又说自己从没有真正走到过通道尽头。"
+              },
+              {
+                "behavior_description": "以具体行动回应同伴的需要。",
+                "behavior_id": 10124,
+                "behavior_tags": [
+                  "证据",
+                  "信任",
+                  "观察"
+                ],
+                "behavior_type": "action",
+                "chapter_number": 2,
+                "classification": "conform",
+                "original_text": "窗下排着三只木箱，每只箱盖都有同样的齿轮刻痕。林岚先打开最轻的一只，里面装着退回的信，收件地址从旧车站一直延伸到海边。她按日期把信排开，发现每封信都比上一封早寄出一天。"
+              },
+              {
+                "behavior_description": "把自己知道的部分说明给林岚。",
+                "behavior_id": 10123,
+                "behavior_tags": [
+                  "证据",
+                  "信任",
+                  "选择"
+                ],
+                "behavior_type": "dialogue",
+                "chapter_number": 1,
+                "classification": "non-conform",
+                "original_text": "店内的灯很暖，周衡站在柜台后，把一封没有邮票的信推到灯下。他没有问她这些年去了哪里，也没有解释为什么突然出现。他只看了一眼她握紧车票的右手，说，雨还要下一阵，先把门关好。"
+              },
+              {
+                "behavior_description": "以具体行动回应同伴的需要。",
+                "behavior_id": 10122,
+                "behavior_tags": [
+                  "证据",
+                  "信任",
+                  "观察"
+                ],
+                "behavior_type": "action",
+                "chapter_number": 1,
+                "classification": "conform",
+                "original_text": "她从风衣内袋摸出一张旧车票。纸边已经磨软，日期停在父亲失踪的那个秋天。背面只有一行铅笔字：如果你还想知道答案，就在最后一班车开走之前来见我。字迹并不陌生，可她不愿这么快说出那个名字。"
+              }
+            ],
+            "non_conform_count": 3,
+            "threshold_reached": false
+          },
+          {
+            "attribute_key": "belief",
+            "conform_count": 4,
+            "conform_rate": 0.6666666666666666,
+            "current_value": "不能把猜测当成已经发生的事实",
+            "evidence": [
+              {
+                "behavior_description": "把自己知道的部分说明给林岚。",
+                "behavior_id": 10127,
+                "behavior_tags": [
+                  "证据",
+                  "信任",
+                  "选择"
+                ],
+                "behavior_type": "dialogue",
+                "chapter_number": 3,
+                "classification": "conform",
+                "original_text": "周衡的脚步从身后传来。他把湿透的外衣搭在手臂上，停在她留下的记号之外。两人终于可以说话，谁也没有先解释昨夜的沉默。林岚指向镜中的灯，问那边是否就是父亲留下的出口。"
+              },
+              {
+                "behavior_description": "以具体行动回应同伴的需要。",
+                "behavior_id": 10126,
+                "behavior_tags": [
+                  "证据",
+                  "信任",
+                  "观察"
+                ],
+                "behavior_type": "action",
+                "chapter_number": 3,
+                "classification": "conform",
+                "original_text": "储物柜的锁早已松动。她把旧车票插入缝隙，柜门缓缓弹开，里面不是行李，而是一面与柜体同高的镜子。镜中的站台多了一盏亮着的灯，灯下站着一个背对她的人。林岚没有立刻伸手，先在地上划下一道记号。"
+              },
+              {
+                "behavior_description": "把自己知道的部分说明给林岚。",
+                "behavior_id": 10125,
+                "behavior_tags": [
+                  "证据",
+                  "信任",
+                  "选择"
+                ],
+                "behavior_type": "dialogue",
+                "chapter_number": 2,
+                "classification": "non-conform",
+                "original_text": "周衡走到窗边，将遮住天光的纸板挪开。地图上的红线在光下显出第二层笔迹，原来储物柜并不是终点，而是通往维修通道的入口。林岚问他是否早就知道，周衡点头，又说自己从没有真正走到过通道尽头。"
+              },
+              {
+                "behavior_description": "以具体行动回应同伴的需要。",
+                "behavior_id": 10124,
+                "behavior_tags": [
+                  "证据",
+                  "信任",
+                  "观察"
+                ],
+                "behavior_type": "action",
+                "chapter_number": 2,
+                "classification": "conform",
+                "original_text": "窗下排着三只木箱，每只箱盖都有同样的齿轮刻痕。林岚先打开最轻的一只，里面装着退回的信，收件地址从旧车站一直延伸到海边。她按日期把信排开，发现每封信都比上一封早寄出一天。"
+              },
+              {
+                "behavior_description": "把自己知道的部分说明给林岚。",
+                "behavior_id": 10123,
+                "behavior_tags": [
+                  "证据",
+                  "信任",
+                  "选择"
+                ],
+                "behavior_type": "dialogue",
+                "chapter_number": 1,
+                "classification": "non-conform",
+                "original_text": "店内的灯很暖，周衡站在柜台后，把一封没有邮票的信推到灯下。他没有问她这些年去了哪里，也没有解释为什么突然出现。他只看了一眼她握紧车票的右手，说，雨还要下一阵，先把门关好。"
+              },
+              {
+                "behavior_description": "以具体行动回应同伴的需要。",
+                "behavior_id": 10122,
+                "behavior_tags": [
+                  "证据",
+                  "信任",
+                  "观察"
+                ],
+                "behavior_type": "action",
+                "chapter_number": 1,
+                "classification": "conform",
+                "original_text": "她从风衣内袋摸出一张旧车票。纸边已经磨软，日期停在父亲失踪的那个秋天。背面只有一行铅笔字：如果你还想知道答案，就在最后一班车开走之前来见我。字迹并不陌生，可她不愿这么快说出那个名字。"
+              }
+            ],
+            "non_conform_count": 2,
+            "threshold_reached": false
           }
         ]
       },

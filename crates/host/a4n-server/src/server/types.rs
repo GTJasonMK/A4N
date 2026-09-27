@@ -22,7 +22,7 @@ pub(crate) struct WorkerProcess {
     pub(crate) config: WorkerSpec,
     pub(crate) child: Child,
     pub(crate) fingerprint: BinaryFingerprint,
-    pub(crate) rollback_binary: Option<PathBuf>,
+    pub(crate) rollback_binary: Option<tempfile::TempPath>,
 }
 
 pub(crate) type ManagedWorker = WorkerProcess;

@@ -65,6 +65,7 @@ fn chapter_projection_trims_optional_text_and_exposes_source_spans_only_for_curr
     };
 
     let current = optimization_chapter_context(&chapter);
+    assert_eq!(current["content"], chapter.content);
     assert_eq!(current["title"], json!("旧城回声"));
     assert_eq!(current["summary"], json!("主角听见回声。"));
     assert_eq!(current["status"], json!(chapter::STATUS_COMPLETED));
@@ -80,5 +81,6 @@ fn chapter_projection_trims_optional_text_and_exposes_source_spans_only_for_curr
     assert_eq!(neighboring["title"], json!("旧城回声"));
     assert_eq!(neighboring["summary"], json!("主角听见回声。"));
     assert!(neighboring.get("source_spans").is_none());
+    assert!(neighboring.get("content").is_none());
     assert!(neighboring.get("status").is_none());
 }

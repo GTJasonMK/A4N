@@ -139,8 +139,14 @@ impl OrchestratorContext {
         call_key: &str,
         input_fingerprint_json: &serde_json::Value,
     ) -> Result<Option<CompletedLlmCallCheckpoint>, AppError> {
-        self.workflow
+        let checkpoint = self
+            .workflow
             .load_completed_llm_call_checkpoint(workflow_run_id, call_key, input_fingerprint_json)
+            .await?;
+        if checkpoint.is_some() {
+            return Ok(checkpoint);
+        }
+        self.load_timing_upgraded_checkpoint(workflow_run_id, call_key, input_fingerprint_json)
             .await
     }
 

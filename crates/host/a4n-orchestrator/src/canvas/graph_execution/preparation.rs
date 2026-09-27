@@ -71,6 +71,7 @@ impl OrchestratorContext {
             user_id: input.user_id,
             project_id: input.project_id,
             graph_id: input.graph_id,
+            graph_version: document.graph.version,
             mode: mode.to_string(),
             runnable_node_ids,
         })
@@ -123,6 +124,7 @@ impl OrchestratorContext {
             user_id: input.user_id,
             project_id: input.project_id,
             graph_id: input.graph_id,
+            graph_version: document.graph.version,
             mode: "single_node".to_string(),
             runnable_node_ids: vec![input.node_id],
         })
@@ -170,15 +172,15 @@ impl OrchestratorContext {
         let document = self
             .load_canvas_execution_document(input.user_id, project_id, graph_id, host_port)
             .await?;
-        if let Some(graph_version) = run
+        let workflow_graph_version = run
             .input_fingerprint_json
             .as_ref()
             .and_then(|value| value.get("graph_version"))
             .and_then(Value::as_i64)
-            && graph_version != i64::from(document.graph.version)
-        {
+            .ok_or_else(|| "画布工作流输入缺少 graph_version".to_string())?;
+        if workflow_graph_version != i64::from(document.graph.version) {
             return Err(format!(
-                "画布已在 workflow 运行后变更: workflow_graph_version={graph_version}, current={}",
+                "画布已在 workflow 运行后变更: workflow_graph_version={workflow_graph_version}, current={}",
                 document.graph.version
             ));
         }
@@ -222,6 +224,7 @@ impl OrchestratorContext {
                 user_id: input.user_id,
                 project_id,
                 graph_id,
+                graph_version: document.graph.version,
                 mode,
                 runnable_node_ids: Vec::new(),
             });
@@ -240,6 +243,7 @@ impl OrchestratorContext {
             user_id: input.user_id,
             project_id,
             graph_id,
+            graph_version: document.graph.version,
             mode,
             runnable_node_ids: pending_node_ids,
         })

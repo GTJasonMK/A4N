@@ -167,7 +167,9 @@ impl OrchestratorContext {
         .await
         .map_err(|error| InternalTransferError::Message(error.to_string()))?;
         let mut package = assemble_project_bundle(
-            project.id,
+            family
+                .as_ref()
+                .map_or(project.id, |family| family.root_project_id),
             "project_bundle",
             family,
             canvas_projects,
@@ -310,9 +312,12 @@ impl OrchestratorContext {
             )
             .await
             .map_err(InternalTransferError::Message)?;
-        let package: ProjectBundlePackage =
+        let mut package: ProjectBundlePackage =
             a4n_import_core::parse_json_manifest_value(payload.manifest, "统一项目包清单")
                 .map_err(|error| InternalTransferError::Message(error.to_string()))?;
+        package
+            .upgrade_shooting_contract()
+            .map_err(InternalTransferError::Message)?;
         package.validate().map_err(InternalTransferError::Message)?;
         Ok((package, payload.media_bytes))
     }

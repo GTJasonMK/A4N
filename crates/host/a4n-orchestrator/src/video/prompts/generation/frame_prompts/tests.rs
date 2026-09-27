@@ -120,7 +120,7 @@ pub(super) fn segment(segment_number: i32) -> VideoSegmentPlan {
 
 pub(super) fn shooting_script_projection() -> VideoShootingScriptProjection {
     serde_json::from_value(json!({
-        "schema_version": a4n_video_contract::VIDEO_EXECUTION_PROJECTION_V2,
+        "schema_version": a4n_video_contract::VIDEO_EXECUTION_PROJECTION_V3,
         "contract_epoch": a4n_video_contract::VIDEO_EXECUTION_CONTRACT_EPOCH,
         "shooting_script_identity": {
             "record_id": 1,
@@ -140,20 +140,7 @@ pub(super) fn shooting_script_projection() -> VideoShootingScriptProjection {
             "sound_strategy": "环境声",
             "rhythm_strategy": "克制节奏"
         },
-        "scenes": [],
-        "planning_quality": {
-            "total_estimated_seconds": 0.0,
-            "total_recommended_segments": 0,
-            "total_minimum_readable_segments": 0,
-            "risk_flags": [],
-            "directing_audit": {
-                "total_directing_beats": 0,
-                "must_show_beats": 0,
-                "directing_order_preserved": true,
-                "viewpoint_metadata_complete": true,
-                "audience_causality_complete": true
-            }
-        }
+        "scenes": []
     }))
     .expect("test shooting script projection should deserialize")
 }

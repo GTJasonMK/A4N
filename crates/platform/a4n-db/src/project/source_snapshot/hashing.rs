@@ -25,16 +25,8 @@ pub(super) fn hash_json(value: &Value) -> String {
 }
 
 pub(crate) fn shooting_script_source_hash(script: &Value) -> String {
-    let mut content = script.clone();
-    // 冻结来源会重新分配方案 ID/版本；内容指纹只跟随方案内容和剧本本身。
-    if let Some(source) = content
-        .get_mut("visual_plan_source")
-        .and_then(Value::as_object_mut)
-    {
-        source.remove("plan_id");
-        source.remove("plan_version");
-    }
-    hash_json(&content)
+    a4n_domain::shooting_script::source_hash(script)
+        .expect("serde_json::Value serialization cannot fail")
 }
 
 #[cfg(test)]

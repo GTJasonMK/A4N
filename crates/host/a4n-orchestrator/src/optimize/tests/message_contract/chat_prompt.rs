@@ -39,27 +39,30 @@ fn content_optimization_chat_user_message_uses_session_context() {
     )
     .expect("chat prompt should serialize");
 
-    assert!(prompt.contains(r#""user_message": "这里最大的漏洞是什么？""#));
-    assert!(!prompt.contains("主角做出选择"));
-    assert!(prompt.contains(r#""context_manifest""#));
-    assert!(prompt.contains(r#""think_arguments""#));
-    assert!(prompt.contains("get_project_information"));
-    assert!(prompt.contains(r#""final_arguments""#));
-    assert!(prompt.contains(r#""protocol_constraints""#));
-    assert!(prompt.contains(r#""tool_names_are_not_actions""#));
-    assert!(prompt.contains(r#""public_update_required_for""#));
-    assert!(prompt.contains(r#""action": "edit_article""#));
-    assert!(prompt.contains(r#""action": "run_tool""#));
-    assert!(prompt.contains(r#""conversation_history""#));
-    assert!(!prompt.contains(r#""permissions""#));
-    assert!(!prompt.contains(r#""capabilities""#));
-    assert!(!prompt.contains(r#""apply_local_patches""#));
-    assert!(prompt.contains("当前消息本身已经足以回答"));
-    assert!(prompt.contains(r#""completion_policy""#));
-    assert!(prompt.contains("人物动机不足"));
+    let payload: serde_json::Value =
+        serde_json::from_str(a4n_prompt::request::json_user_message_payload(&prompt).unwrap())
+            .unwrap();
+    assert_eq!(payload["user_message"], "这里最大的漏洞是什么？");
+    assert_eq!(
+        payload["context_manifest"]["counts"]["previous_chapters"],
+        3
+    );
+    assert_eq!(payload["conversation_history"][0]["content"], "上一轮结论");
+    assert_eq!(
+        payload["session"]["issues"][0]["description"],
+        "人物动机不足"
+    );
+    assert_eq!(payload["automatic_writeback"], false);
     assert!(!prompt.contains("优先检查动机"));
-    assert!(!prompt.contains(r#""selected_issue_ids""#));
-    assert!(prompt.contains("严格 JSON 决策对象"));
+    for redundant in [
+        "protocol_constraints",
+        "available_actions",
+        "decision_contract",
+        "completion_policy",
+    ] {
+        assert!(payload.get(redundant).is_none());
+    }
+    assert!(prompt.len() < 1500);
 }
 
 #[test]

@@ -21,6 +21,12 @@ import { usePackagePreferences, savePackagePreferences } from "../../../store/pa
 const OPERATION_POLL_INTERVAL_MS = 1_000;
 const MAX_OPERATION_POLLS = 60;
 
+type PackageSectionFailure = {
+  source: "overview" | "preferences" | "operation" | "poll";
+  operationId?: string;
+  message: string;
+};
+
 export const isTerminalLifecycleState = (state: PackageLifecycleState): boolean =>
   state === "completed" || state === "failed";
 
@@ -54,13 +60,13 @@ export const PackageSection: React.FC<{ canManageLifecycle?: boolean }> = ({
 }) => {
   const { t } = useI18n();
   const [overview, setOverview] = useState<PackageOverview[]>([]);
-  const { preferences, refresh: refreshPreferences } = usePackagePreferences();
+  const { preferences, error: preferenceError, refresh: refreshPreferences } = usePackagePreferences();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [busyPackages, setBusyPackages] = useState<ReadonlySet<PackageId>>(new Set());
   const [preferenceBusy, setPreferenceBusy] = useState(false);
   const [snapshotStale, setSnapshotStale] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<PackageSectionFailure | null>(null);
   const mountedRef = useRef(true);
   const pollingOperationsRef = useRef(new Set<string>());
 
@@ -81,30 +87,44 @@ export const PackageSection: React.FC<{ canManageLifecycle?: boolean }> = ({
     };
   }, []);
 
-  const load = useCallback(async (initial = false): Promise<PackageOverview[] | null> => {
+  const load = useCallback(async (initial = false, includePreferences = true): Promise<PackageOverview[] | null> => {
     if (initial) setLoading(true);
-    else setRefreshing(true);
+    else if (includePreferences) setRefreshing(true);
     try {
-      const [nextOverview] = await Promise.all([
+      const [overviewResult, preferencesResult] = await Promise.allSettled([
         getPackageOverview(),
-        refreshPreferences(),
+        includePreferences ? refreshPreferences() : Promise.resolve(),
       ]);
-      if (!mountedRef.current) return nextOverview;
-      setOverview(nextOverview);
-      setSnapshotStale(false);
-      return nextOverview;
-    } catch (nextError) {
-      if (!mountedRef.current) return null;
-      setSnapshotStale(true);
-      if (initial) {
-        setOverview([]);
+      if (!mountedRef.current) {
+        return overviewResult.status === "fulfilled" ? overviewResult.value : null;
       }
-      setError(formatPackageError(nextError, t("settingsAdmin.packageLoadFailed"), t));
-      return null;
+      if (overviewResult.status === "rejected") {
+        setSnapshotStale(true);
+        if (initial) setOverview([]);
+        setError({
+          source: "overview",
+          message: formatPackageError(overviewResult.reason, t("settingsAdmin.packageLoadFailed"), t),
+        });
+        return null;
+      }
+      setOverview(overviewResult.value);
+      setSnapshotStale(false);
+      setError((current) => current?.source === "overview" ? null : current);
+      if (includePreferences) {
+        if (preferencesResult.status === "rejected") {
+          setError({
+            source: "preferences",
+            message: formatPackageError(preferencesResult.reason, t("settingsAdmin.packagePreferenceLoadFailed"), t),
+          });
+        } else {
+          setError((current) => current?.source === "preferences" ? null : current);
+        }
+      }
+      return overviewResult.value;
     } finally {
       if (mountedRef.current) {
         setLoading(false);
-        setRefreshing(false);
+        if (includePreferences) setRefreshing(false);
       }
     }
   }, [refreshPreferences, t]);
@@ -122,23 +142,31 @@ export const PackageSection: React.FC<{ canManageLifecycle?: boolean }> = ({
         if (!mountedRef.current) return;
         try {
           operation = await getPackageOperation({ operation_id: operation.operation_id });
-          await load();
+          setError((current) => current?.source === "poll" && current.operationId === operation.operation_id ? null : current);
+          await load(false, false);
         } catch (nextError) {
           if (mountedRef.current) {
             setSnapshotStale(true);
-            setError(formatPackageError(nextError, t("settingsAdmin.packageActionFailed"), t));
+            setError({
+              source: "poll",
+              operationId: operation.operation_id,
+              message: formatPackageError(nextError, t("settingsAdmin.packageActionFailed"), t),
+            });
           }
         }
       }
       if (!mountedRef.current) return;
       if (operation.state === "failed") {
         setError(
-          operation.error
-            ? `${t("settingsAdmin.packageOperationError", { error: operation.error })}${operation.reason_code ? ` · ${t("settingsAdmin.packageOperationReason", { reason: operation.reason_code })}` : ""}`
-            : t("settingsAdmin.packageActionFailed"),
+          {
+            source: "operation",
+            message: operation.error
+              ? `${t("settingsAdmin.packageOperationError", { error: operation.error })}${operation.reason_code ? ` · ${t("settingsAdmin.packageOperationReason", { reason: operation.reason_code })}` : ""}`
+              : t("settingsAdmin.packageActionFailed"),
+          },
         );
       } else if (!isTerminalLifecycleState(operation.state)) {
-        setError(t("settingsAdmin.packageOperationStillRunning"));
+        setError({ source: "operation", message: t("settingsAdmin.packageOperationStillRunning") });
       }
     } finally {
       pollingOperationsRef.current.delete(initial.operation_id);
@@ -177,7 +205,7 @@ export const PackageSection: React.FC<{ canManageLifecycle?: boolean }> = ({
       return;
     }
     setPackageBusy(item.package_id, true);
-    setError(null);
+    setError((current) => current?.source === "operation" || current?.source === "poll" ? null : current);
     let operationTracked = false;
     try {
       const operation = await startPackageLifecycle({
@@ -190,32 +218,41 @@ export const PackageSection: React.FC<{ canManageLifecycle?: boolean }> = ({
         ensureOperationPolling(item, operation);
         operationTracked = true;
       }
-      await load();
+      await load(false, false);
       if (operation.state === "failed") {
         setError(
-          operation.error
-            ? `${t("settingsAdmin.packageOperationError", { error: operation.error })}${operation.reason_code ? ` · ${t("settingsAdmin.packageOperationReason", { reason: operation.reason_code })}` : ""}`
-            : t("settingsAdmin.packageActionFailed"),
+          {
+            source: "operation",
+            message: operation.error
+              ? `${t("settingsAdmin.packageOperationError", { error: operation.error })}${operation.reason_code ? ` · ${t("settingsAdmin.packageOperationReason", { reason: operation.reason_code })}` : ""}`
+              : t("settingsAdmin.packageActionFailed"),
+          },
         );
       }
     } catch (nextError) {
-      setError(formatPackageError(nextError, t("settingsAdmin.packageActionFailed"), t));
+      setError({
+        source: "operation",
+        message: formatPackageError(nextError, t("settingsAdmin.packageActionFailed"), t),
+      });
     } finally {
       if (!operationTracked) setPackageBusy(item.package_id, false);
     }
   };
 
   const toggleHidden = async (packageId: PackageOverview["package_id"], hidden: boolean) => {
-    if (!preferences || snapshotStale) return;
+    if (!preferences || preferenceError) return;
     const nextHidden = new Set(preferences.hidden_package_ids);
     if (hidden) nextHidden.add(packageId);
     else nextHidden.delete(packageId);
     setPreferenceBusy(true);
-    setError(null);
+    setError((current) => current?.source === "preferences" ? null : current);
     try {
       await savePackagePreferences([...nextHidden]);
     } catch (nextError) {
-      setError(formatPackageError(nextError, t("settingsAdmin.packagePreferenceFailed"), t));
+      setError({
+        source: "preferences",
+        message: formatPackageError(nextError, t("settingsAdmin.packagePreferenceFailed"), t),
+      });
     } finally {
       setPreferenceBusy(false);
     }
@@ -254,7 +291,7 @@ export const PackageSection: React.FC<{ canManageLifecycle?: boolean }> = ({
       {error ? (
         <div className="flex min-w-0 items-start gap-2 border-l-2 border-error px-3 py-2 text-xs text-error" role="alert">
           <AlertTriangle size={14} className="mt-0.5 shrink-0" />
-          <span className="min-w-0 break-words">{error}</span>
+          <span className="min-w-0 break-words">{error.message}</span>
         </div>
       ) : null}
 
@@ -270,6 +307,7 @@ export const PackageSection: React.FC<{ canManageLifecycle?: boolean }> = ({
               key={item.package_id}
               item={item}
               hidden={preferences?.hidden_package_ids.includes(item.package_id) ?? false}
+              preferencesUnavailable={preferences == null || preferenceError != null}
               canManageLifecycle={canManageLifecycle}
               snapshotStale={snapshotStale}
               busy={busyPackages.has(item.package_id)}
@@ -287,13 +325,14 @@ export const PackageSection: React.FC<{ canManageLifecycle?: boolean }> = ({
 export const PackageCard: React.FC<{
   item: PackageOverview;
   hidden: boolean;
+  preferencesUnavailable: boolean;
   canManageLifecycle: boolean;
   snapshotStale: boolean;
   busy: boolean;
   preferenceBusy: boolean;
   onToggle: () => void;
   onHiddenChange: (hidden: boolean) => void;
-}> = ({ item, hidden, canManageLifecycle, snapshotStale, busy, preferenceBusy, onToggle, onHiddenChange }) => {
+}> = ({ item, hidden, preferencesUnavailable, canManageLifecycle, snapshotStale, busy, preferenceBusy, onToggle, onHiddenChange }) => {
   const { t } = useI18n();
   const enabled = !snapshotStale && item.host_state === "enabled";
   const transitional = !snapshotStale && ["enabling", "disabling"].includes(item.host_state);
@@ -371,7 +410,7 @@ export const PackageCard: React.FC<{
             checked={hidden}
             aria-label={`${t("settingsAdmin.hidePackage")} ${item.package_id}`}
             data-package-preference
-            disabled={snapshotStale || preferenceBusy}
+            disabled={preferencesUnavailable || preferenceBusy}
             onChange={(event) => onHiddenChange(event.target.checked)}
             className="h-4 w-4 accent-book-primary"
           />

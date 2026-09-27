@@ -63,12 +63,8 @@ impl OrchestratorContext {
         .await?;
         let context_manifest_value = optimization_context_manifest(&analysis_context);
         let context_manifest = serde_json::to_string_pretty(&context_manifest_value)?;
-        let user_message = build_content_optimization_user_message(
-            chapter_content,
-            Some(&context_manifest_value),
-            &permissions,
-            agent_instruction.as_deref(),
-        )?;
+        let user_message =
+            build_content_optimization_user_message(chapter_content, &context_manifest_value)?;
 
         Ok(AnalysisSessionPromptBundle {
             analysis_prompt,

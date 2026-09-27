@@ -15,6 +15,8 @@ interface ImportToolsPanelProps {
   dedupText: string;
   dedupResult: DedupResult | null;
   dedupBusy: boolean;
+  previewChapterLoading: boolean;
+  onViewMatchedChapter: () => void | Promise<void>;
   reverseType: ReverseEngineeringTarget;
   reverseSample: string;
   reverseAutoContext: boolean;
@@ -36,6 +38,8 @@ export const ImportToolsPanel: React.FC<ImportToolsPanelProps> = ({
   dedupText,
   dedupResult,
   dedupBusy,
+  previewChapterLoading,
+  onViewMatchedChapter,
   reverseType,
   reverseSample,
   reverseAutoContext,
@@ -121,6 +125,13 @@ export const ImportToolsPanel: React.FC<ImportToolsPanelProps> = ({
               </summary>
               <div className="pt-2">
                 <ImportToolResult value={dedupResult} />
+                {dedupResult.matched_chapter_id != null && (
+                  // Keep focus on this read-only action while loading, so closing the preview can restore it.
+                  <BookButton variant="secondary" size="sm" className="mt-2" disabled={toolsBusy} aria-disabled={previewChapterLoading || undefined} aria-busy={previewChapterLoading || undefined} onClick={() => void onViewMatchedChapter()}>
+                    {previewChapterLoading ? <LoadingSpinner size="sm" /> : <Eye size={13} />}
+                    {t("novel.importReview.tools.viewMatchedChapter")}
+                  </BookButton>
+                )}
               </div>
             </details>
           )}
@@ -144,7 +155,7 @@ export const ImportToolsPanel: React.FC<ImportToolsPanelProps> = ({
         <div className="space-y-2 border-t border-book-border/45 p-4">
           <p className="text-small leading-relaxed text-book-text-muted">
             {reverseType === "blueprint"
-              ? t("novel.importReview.tools.blueprintDescription")
+              ? t(reverseAutoContext ? "novel.importReview.tools.blueprintDescription" : "novel.importReview.tools.blueprintSampleDescription")
               : t("novel.importReview.tools.outlineDescription")}
           </p>
           <div className="flex flex-wrap items-center gap-2">
@@ -297,7 +308,6 @@ export const ImportToolsPanel: React.FC<ImportToolsPanelProps> = ({
 
 const RESULT_LABEL_KEYS: Record<string, MessageKey> = {
   is_duplicate: "novel.importReview.result.isDuplicate",
-  matched_chapter_id: "novel.importReview.result.matchedChapterId",
   original_count: "novel.importReview.result.originalCount",
   unique_count: "novel.importReview.result.uniqueCount",
   duplicate_count: "novel.importReview.result.duplicateCount",
@@ -341,7 +351,7 @@ const RESULT_LABEL_KEYS: Record<string, MessageKey> = {
 const ImportToolResult: React.FC<{ value: unknown }> = ({ value }) => {
   const { t } = useI18n();
   const entries = isPlainRecord(value)
-    ? Object.entries(value).filter(([key]) => key !== "content_hash" && key !== "closest_distance")
+    ? Object.entries(value).filter(([key]) => !["content_hash", "closest_distance", "matched_chapter_id"].includes(key))
     : [];
   if (entries.length === 0) {
     return <div className="whitespace-pre-wrap break-words text-small leading-relaxed text-book-text-sub">{formatResultValue(value, t)}</div>;

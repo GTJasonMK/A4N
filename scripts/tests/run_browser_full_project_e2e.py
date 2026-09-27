@@ -141,10 +141,7 @@ def ensure_file(path: Path, label: str) -> Path:
 
 def secure_mkdir(path: Path) -> Path:
     path.mkdir(parents=True, exist_ok=True)
-    try:
-        path.chmod(0o700)
-    except OSError:
-        pass
+    path.chmod(0o700)
     return path
 
 
@@ -155,10 +152,7 @@ def open_log(path: Path):
 
 
 def tail(path: Path, limit: int = 8_000) -> str:
-    try:
-        return path.read_text(encoding="utf-8", errors="replace")[-limit:]
-    except OSError:
-        return ""
+    return path.read_text(encoding="utf-8", errors="replace")[-limit:]
 
 
 def start_process(

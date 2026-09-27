@@ -518,10 +518,8 @@ impl OptimizeAgentToolApplicationPort for OrchestratorContext {
         input: a4n_api_contract::optimize::OptimizationArticlePatchToolInput,
     ) -> Result<serde_json::Value, AppError> {
         let existing_session = self
-            .optimize_sessions_for_user(user_id, project_id, Some(chapter_id))
-            .await?
-            .into_iter()
-            .find(|session| session.status != "cancelled");
+            .agent_optimization_session_for_user(user_id, project_id, chapter_id)
+            .await?;
         let session = match existing_session {
             Some(session) => session,
             None => {
@@ -535,7 +533,7 @@ impl OptimizeAgentToolApplicationPort for OrchestratorContext {
                     chapter.chapter_number,
                     "章节内容优化 Agent",
                     &crate::optimize::permissions::optimization_agent_variables(
-                        &default_agent_permissions(),
+                        &super::permissions::default_agent_permissions(),
                     ),
                 )
                 .await?
@@ -625,17 +623,6 @@ impl OptimizeAgentToolApplicationPort for OrchestratorContext {
             });
         }
         Ok(result)
-    }
-}
-
-fn default_agent_permissions() -> a4n_api_contract::optimize::OptimizationAgentPermissions {
-    a4n_api_contract::optimize::OptimizationAgentPermissions {
-        read_project_detail: true,
-        read_blueprint: true,
-        read_outlines: true,
-        read_character_profiles: true,
-        read_foreshadowing: true,
-        automatic_writeback: false,
     }
 }
 
