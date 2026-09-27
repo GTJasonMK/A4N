@@ -206,19 +206,20 @@ export const useInspirationChatController = () => {
           navigate(getProjectPrimaryRoute(p), { replace: true });
           return;
         }
-        const history = await getInspirationHistory(projectId);
-        if (cancelled) return;
-        const restored = history.map(normalizeHistoryMessage);
         // Keep the page in its loading state until both the project and its
         // conversation are ready; otherwise the blueprint action can race the
         // history request and omit persisted context.
         setProject(p);
-        if (restored.length > 0) {
-          setMessages(restored);
-        } else {
+        try {
+          const history = await getInspirationHistory(projectId);
+          if (cancelled) return;
+          const restored = history.map(normalizeHistoryMessage);
+          setMessages(restored.length > 0 ? restored : [welcomeMessage(p.title, t)]);
+        } catch (historyError) {
+          if (cancelled) return;
           setMessages([welcomeMessage(p.title, t)]);
+          addToast(extractErrorMessage(historyError, t("errors.loadProject")), "error");
         }
-
       } catch (err) {
         if (cancelled) return;
         addToast(extractErrorMessage(err, t("errors.loadProject")), "error");

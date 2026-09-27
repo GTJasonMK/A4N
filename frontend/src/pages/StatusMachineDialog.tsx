@@ -87,7 +87,6 @@ export const StatusMachineDialog: React.FC<StatusMachineDialogProps> = ({
       setMachine(data);
     } catch (err) {
       if (isCurrentRequest(requestScope, machineSeqRef, requestSeq)) {
-        setMachine(null);
         addToast(extractErrorMessage(err, t("statusMachine.loadFailed")), "error");
       }
     } finally {

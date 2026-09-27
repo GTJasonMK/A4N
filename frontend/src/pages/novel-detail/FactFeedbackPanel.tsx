@@ -55,18 +55,20 @@ export const FactFeedbackPanel = ({ projectId, canEdit, refreshKey, onChanged }:
     return () => { mounted.current = false; loadSequence.current += 1; };
   }, []);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (): Promise<boolean> => {
     const sequence = ++loadSequence.current;
     try {
       const result = await getProjectFactFeedback(projectId);
-      if (!mounted.current || currentProject.current !== projectId || loadSequence.current !== sequence) return;
+      if (!mounted.current || currentProject.current !== projectId || loadSequence.current !== sequence) return false;
       setData(result);
       if (!intervalDirty.current) setIntervalDraft(String(result.interval_chapters));
       setError(null);
+      return true;
     } catch (cause) {
       if (mounted.current && currentProject.current === projectId && loadSequence.current === sequence) {
         setError(extractErrorMessage(cause, t("novel.factFeedback.loadFailed")));
       }
+      return false;
     } finally {
       if (mounted.current && currentProject.current === projectId && loadSequence.current === sequence) setLoading(false);
     }
@@ -127,7 +129,7 @@ export const FactFeedbackPanel = ({ projectId, canEdit, refreshKey, onChanged }:
       await updateProject(requestProject, { title: null, description: null, fact_feedback_interval_chapters: value });
       if (!mounted.current || currentProject.current !== requestProject) return;
       intervalDirty.current = false;
-      await load();
+      if (!await load()) return;
       await onChanged?.();
       addToast(t("novel.factFeedback.intervalSaved"), "success");
     } catch (cause) {

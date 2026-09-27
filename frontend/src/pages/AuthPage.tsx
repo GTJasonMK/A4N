@@ -1,6 +1,6 @@
 import { ThemedSelect } from "../components/ui/ThemedSelect";
-import React, { useEffect, useRef, useState } from "react";
-import { BookOpen, Globe } from "lucide-react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
+import { BookOpen, Globe, RefreshCw } from "lucide-react";
 import { LoadingSpinner } from "../components/ui/LoadingSpinner";
 import { StatusBarToggle } from "../components/ui/StatusBar";
 import { BookButton } from "../components/ui/BookButton";
@@ -64,28 +64,30 @@ export const AuthPage: React.FC = () => {
     };
   }, []);
 
-  useEffect(() => {
-    let active = true;
-    void getOAuth2AvailableProviders().then((providers) => {
+  const loadOauthProviders = useCallback(async () => {
+    setOauthProviderLoadFailed(false);
+    try {
+      const providers = await getOAuth2AvailableProviders();
       if (providers.some((provider) => !isOAuthProvider(provider))) {
         throw new Error("OAuth provider availability response is invalid");
       }
-      if (!active) return;
+      if (!mountedRef.current) return;
       const available = providers as OAuthProvider[];
       const initialProvider = available[0] ?? "";
       setOauthProviders(available);
       oauthProviderRef.current = initialProvider;
       setOauthProvider(initialProvider);
-    }).catch((error: unknown) => {
-      if (!active) return;
+    } catch (error) {
+      if (!mountedRef.current) return;
       logger.scoped("OAuth").error("Failed to load available OAuth providers", { error });
       setOauthProviderLoadFailed(true);
       setOauthProviders([]);
-    });
-    return () => {
-      active = false;
-    };
+    }
   }, []);
+
+  useEffect(() => {
+    void loadOauthProviders();
+  }, [loadOauthProviders]);
 
   const handleOauthProviderChange = (nextProvider: string) => {
     if (!isOAuthProvider(nextProvider) || !oauthProviders?.includes(nextProvider)) return;
@@ -357,9 +359,21 @@ export const AuthPage: React.FC = () => {
                 </>
               ) : null}
               {mode === "login" && oauthProviders !== null && oauthProviders.length === 0 ? (
-                <p role="status" className="a4n-auth-privacy">
-                  {t(oauthProviderLoadFailed ? "auth.oauthProviderLoadFailed" : "auth.oauthUnavailable")}
-                </p>
+                <div className="flex flex-wrap items-center gap-2">
+                  <p role="status" className="a4n-auth-privacy">
+                    {t(oauthProviderLoadFailed ? "auth.oauthProviderLoadFailed" : "auth.oauthUnavailable")}
+                  </p>
+                  {oauthProviderLoadFailed ? (
+                    <BookButton
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => void loadOauthProviders()}
+                    >
+                      <RefreshCw size={12} /> {t("common.retry")}
+                    </BookButton>
+                  ) : null}
+                </div>
               ) : null}
             </>
           ) : (

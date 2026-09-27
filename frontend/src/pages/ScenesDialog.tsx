@@ -126,10 +126,10 @@ export const ScenesDialog: React.FC<ScenesDialogProps> = ({
     };
   }, []);
 
-  const load = useCallback(async (options?: { force?: boolean }) => {
-    if (chapterId == null) return;
+  const load = useCallback(async (options?: { force?: boolean }): Promise<boolean> => {
+    if (chapterId == null) return false;
     const requestScope = String(chapterId);
-    if (!options?.force && loadInFlightScopeRef.current === requestScope) return;
+    if (!options?.force && loadInFlightScopeRef.current === requestScope) return false;
     loadInFlightScopeRef.current = requestScope;
     const requestSeq = loadSeqRef.current + 1;
     loadSeqRef.current = requestSeq;
@@ -137,14 +137,16 @@ export const ScenesDialog: React.FC<ScenesDialogProps> = ({
     setLoadError(null);
     try {
       const data = await listChapterScenes(chapterId);
-      if (loadSeqRef.current !== requestSeq || !isCurrentScope(requestScope)) return;
+      if (loadSeqRef.current !== requestSeq || !isCurrentScope(requestScope)) return false;
       setScenes(data);
       setLoadError(null);
+      return true;
     } catch (err) {
-      if (loadSeqRef.current !== requestSeq || !isCurrentScope(requestScope)) return;
+      if (loadSeqRef.current !== requestSeq || !isCurrentScope(requestScope)) return false;
       const message = extractErrorMessage(err, t("scenes.loadFailed"));
       setLoadError(message);
       addToast(message, "error");
+      return false;
     } finally {
       if (loadSeqRef.current === requestSeq && isCurrentScope(requestScope)) {
         setLoading(false);
@@ -239,12 +241,12 @@ export const ScenesDialog: React.FC<ScenesDialogProps> = ({
         timeline_position: editForm.timeline_position ?? null,
       });
       if (!isCurrentMutation(requestChapterId, saveSeqRef, requestSeq)) return;
-      addToast(t("scenes.saved"), "success");
       if (isCurrentScope(requestScope)) {
+        if (!await load({ force: true })) return;
         setEditingId(null);
         setEditForm({});
-        await load({ force: true });
       }
+      addToast(t("scenes.saved"), "success");
     } catch (err) {
       if (!isCurrentMutation(requestChapterId, saveSeqRef, requestSeq)) return;
       addToast(extractErrorMessage(err, t("scenes.saveFailed")), "error");
@@ -296,8 +298,8 @@ export const ScenesDialog: React.FC<ScenesDialogProps> = ({
           ),
       );
       if (!isCurrentMutation(requestChapterId, generateSeqRef, requestSeq)) return;
+      if (isCurrentScope(requestScope) && !await load({ force: true })) return;
       addToast(t("scenes.generatedNumber", { number: formatNumber(s.scene_number, locale) }), "success");
-      if (isCurrentScope(requestScope)) await load({ force: true });
     } catch (err) {
       if (!isCurrentMutation(requestChapterId, generateSeqRef, requestSeq)) return;
       const message = extractErrorMessage(err, t("scenes.generateFailed"));
@@ -374,8 +376,8 @@ export const ScenesDialog: React.FC<ScenesDialogProps> = ({
     try {
       await deleteChapterScene(s.id);
       if (!isCurrentChapter(requestChapterId)) return;
+      if (isCurrentScope(requestScope) && !await load({ force: true })) return;
       addToast(t("scenes.deleted"), "success");
-      if (isCurrentScope(requestScope)) await load({ force: true });
     } catch (err) {
       if (!isCurrentChapter(requestChapterId)) return;
       addToast(extractErrorMessage(err, t("scenes.deleteFailed")), "error");
