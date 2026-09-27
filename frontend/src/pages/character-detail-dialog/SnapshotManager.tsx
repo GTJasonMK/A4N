@@ -180,7 +180,7 @@ export const SnapshotManager: React.FC<{
     setDelta(null);
   };
 
-  const load = async () => {
+  const load = async (): Promise<boolean> => {
     const requestProfileId = profileId;
     const requestSeq = loadSeqRef.current + 1;
     const requestStartChapter = snapshotStartChapter;
@@ -215,7 +215,7 @@ export const SnapshotManager: React.FC<{
           requestSeq,
         )
       )
-        return;
+        return false;
       const failures: string[] = [];
       const nextSnapshots = snapshotsResult.status === "fulfilled" ? snapshotsResult.value : [];
       const nextConflict = conflictResult.status === "fulfilled" ? conflictResult.value : null;
@@ -267,6 +267,7 @@ export const SnapshotManager: React.FC<{
           return current;
         return latestRollbackChapter;
       });
+      return failures.length === 0;
     } catch (err) {
       if (
         !isCurrentLoad(
@@ -276,8 +277,9 @@ export const SnapshotManager: React.FC<{
           requestSeq,
         )
       )
-        return;
+        return false;
       addToast(extractErrorMessage(err, t("characterDetail.snapshot.loadFailed")), "error");
+      return false;
     } finally {
       if (
         isCurrentLoad(
@@ -437,6 +439,7 @@ export const SnapshotManager: React.FC<{
       );
       if (!isCurrentRequest(requestProfileId, rollbackSeqRef, requestSeq))
         return;
+      if (!await load()) return;
       addToast(
         t("characterDetail.snapshot.rollbackSummary", {
           events: r.deleted_events,
@@ -450,7 +453,6 @@ export const SnapshotManager: React.FC<{
         }),
         "success",
       );
-      await load();
       if (!isCurrentRequest(requestProfileId, rollbackSeqRef, requestSeq))
         return;
       await onChanged?.();

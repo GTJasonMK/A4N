@@ -84,21 +84,23 @@ export const WorldTab: React.FC<WorldTabProps> = ({
     return true;
   }, [normalizedWorld]);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (): Promise<boolean> => {
     const requestProjectId = projectId;
     const requestSeq = loadSeqRef.current + 1;
     loadSeqRef.current = requestSeq;
     setLoading(true);
     try {
       const bp = await getBlueprint(requestProjectId);
-      if (!isCurrentLoad(requestProjectId, requestSeq)) return;
+      if (!isCurrentLoad(requestProjectId, requestSeq)) return false;
       setBlueprint(bp);
       setWorldValue(bp?.world_setting ?? null);
+      return true;
     } catch (err) {
-      if (!isCurrentLoad(requestProjectId, requestSeq)) return;
+      if (!isCurrentLoad(requestProjectId, requestSeq)) return false;
       setBlueprint(null);
       setWorldValue(null);
       addToast(extractErrorMessage(err, t("novel.world.loadFailed")), "error");
+      return false;
     } finally {
       if (isCurrentLoad(requestProjectId, requestSeq)) {
         setLoadedProjectId(requestProjectId);
@@ -175,9 +177,9 @@ export const WorldTab: React.FC<WorldTabProps> = ({
       });
       if (!isCurrentProject(requestProjectId)) return;
       const notice = worldSettingSaveNotice(result.warnings, t);
+      if (!await load()) return;
       addToast(notice.message, notice.type);
       setEditing(false);
-      await load();
     } catch (err) {
       if (!isCurrentProject(requestProjectId)) return;
       addToast(extractErrorMessage(err, t("novel.world.saveFailed")), "error");

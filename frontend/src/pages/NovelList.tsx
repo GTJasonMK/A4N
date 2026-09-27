@@ -150,7 +150,7 @@ export const NovelList: React.FC<NovelListProps> = () => {
     requestTab: ProjectTab = activeTabRef.current,
     requestScope: ProjectAccessScope = activeAccessScopeRef.current,
     requestKind: ProjectKindFilter = activeProjectKindFilterRef.current,
-  ) => {
+  ): Promise<boolean> => {
     const requestSeq = refreshSeqRef.current + 1;
     refreshSeqRef.current = requestSeq;
     setLoading(true);
@@ -170,10 +170,11 @@ export const NovelList: React.FC<NovelListProps> = () => {
         activeAccessScopeRef.current !== requestScope ||
         activeProjectKindFilterRef.current !== requestKind
       ) {
-        return;
+        return false;
       }
       setProjects(items);
       setLoadError(null);
+      return true;
     } catch (err) {
       if (
         mountedRef.current &&
@@ -185,6 +186,7 @@ export const NovelList: React.FC<NovelListProps> = () => {
         const message = extractErrorMessage(err, t("novel.projectLoadFailed"));
         setLoadError(message);
       }
+      return false;
     } finally {
       if (
         mountedRef.current &&
@@ -330,9 +332,9 @@ export const NovelList: React.FC<NovelListProps> = () => {
               project_type: "novel_long",
             });
       if (!mountedRef.current || createSeqRef.current !== requestSeq) return;
+      if (!await refresh(activeTabRef.current)) return;
       addToast(t("novel.projectListActions.created", { title: project.title }), "success");
       setCreateDialogOpen(false);
-      await refresh(activeTabRef.current);
       if (!mountedRef.current || createSeqRef.current !== requestSeq) return;
       if (requestMode === "ai") {
         navigate(`/inspiration/${project.id}`);
@@ -380,8 +382,8 @@ export const NovelList: React.FC<NovelListProps> = () => {
     try {
       const np = await duplicateProject(project.id, title.trim());
       if (!mountedRef.current) return;
+      if (!await refresh(activeTabRef.current)) return;
       addToast(t("novel.projectListActions.duplicated", { title: np.title }), "success");
-      await refresh(activeTabRef.current);
       if (!mountedRef.current) return;
       await syncCreatedProjectMaterials(np);
     } catch (err) {
@@ -465,8 +467,8 @@ export const NovelList: React.FC<NovelListProps> = () => {
         end_chapter: end,
       });
       if (!mountedRef.current) return;
+      if (!await refresh(activeTabRef.current)) return;
       addToast(t("novel.projectListActions.derivedCreated", { label, title: derived.title }), "success");
-      await refresh(activeTabRef.current);
       if (!mountedRef.current) return;
       navigate(getProjectHomeEntryRoute(derived));
     } catch (err) {
@@ -534,8 +536,8 @@ export const NovelList: React.FC<NovelListProps> = () => {
       await deleteProject(project.id);
       if (!mountedRef.current) return;
       setProjects((current) => current.filter((item) => item.id !== project.id));
+      if (!await refresh(activeTabRef.current)) return;
       addToast(t("novel.projectListActions.deleted", { title: project.title }), "success");
-      await refresh(activeTabRef.current);
     } catch (err) {
       if (mountedRef.current) {
         addToast(extractErrorMessage(err, t("novel.projectListActions.deleteFailed")), "error");

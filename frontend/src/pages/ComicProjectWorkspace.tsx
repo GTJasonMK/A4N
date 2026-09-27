@@ -55,7 +55,7 @@ export const ComicProjectWorkspace: React.FC = () => {
   const [sourceSyncOpen, setSourceSyncOpen] = useState(false);
   const refreshRequestRef = useRef(0);
 
-  const refresh = useCallback(async () => {
+  const refresh = useCallback(async (): Promise<boolean> => {
     const requestId = refreshRequestRef.current + 1;
     refreshRequestRef.current = requestId;
     setLoadError(null);
@@ -66,7 +66,7 @@ export const ComicProjectWorkspace: React.FC = () => {
       setProject(null);
       setChapters([]);
       setLoading(false);
-      return;
+      return false;
     }
     setLoading(true);
     try {
@@ -76,13 +76,13 @@ export const ComicProjectWorkspace: React.FC = () => {
       ]);
       if (projectResult.status === "rejected") throw projectResult.reason;
       const item = projectResult.value;
-      if (refreshRequestRef.current !== requestId) return;
+      if (refreshRequestRef.current !== requestId) return false;
       if (item.project_kind !== "comic") {
         addToast(translatorRef.current("comic.notComicProject"), "error");
         navigate("/", { replace: true });
-        return;
+        return false;
       }
-      if (refreshRequestRef.current !== requestId) return;
+      if (refreshRequestRef.current !== requestId) return false;
       setProject(item);
       if (chaptersResult.status === "fulfilled") {
         setChapters(chaptersResult.value);
@@ -94,12 +94,14 @@ export const ComicProjectWorkspace: React.FC = () => {
         setLoadError(message);
         addToast(message, "error");
       }
+      return chaptersResult.status === "fulfilled";
     } catch (err) {
       if (refreshRequestRef.current === requestId) {
         const message = extractErrorMessage(err, translatorRef.current("comic.loadProjectFailed"));
         setLoadError(message);
         addToast(message, "error");
       }
+      return false;
     } finally {
       if (refreshRequestRef.current === requestId) {
         setLoading(false);

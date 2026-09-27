@@ -76,7 +76,7 @@ export const VideoProjectWorkspace: React.FC = () => {
   const [sourceSyncOpen, setSourceSyncOpen] = useState(false);
   const refreshRequestRef = useRef(0);
 
-  const refresh = useCallback(async () => {
+  const refresh = useCallback(async (): Promise<boolean> => {
     const requestId = refreshRequestRef.current + 1;
     refreshRequestRef.current = requestId;
     setLoadError(null);
@@ -88,7 +88,7 @@ export const VideoProjectWorkspace: React.FC = () => {
       setChapters([]);
       setSelectedSourceChapterId(null);
       setLoading(false);
-      return;
+      return false;
     }
     setLoading(true);
     try {
@@ -98,17 +98,17 @@ export const VideoProjectWorkspace: React.FC = () => {
       ]);
       if (projectResult.status === "rejected") throw projectResult.reason;
       const item = projectResult.value;
-      if (refreshRequestRef.current !== requestId) return;
+      if (refreshRequestRef.current !== requestId) return false;
       if (item.project_kind !== "video") {
         addToast(translatorRef.current("video.notVideoProject"), "error");
         navigate("/", { replace: true });
-        return;
+        return false;
       }
       if (item.source_mode === "freeform") {
         navigate(getProjectStudioRoute(projectId), { replace: true });
-        return;
+        return false;
       }
-      if (refreshRequestRef.current !== requestId) return;
+      if (refreshRequestRef.current !== requestId) return false;
       setProject(item);
       if (chaptersResult.status === "fulfilled") {
         const snapshotChapters = chaptersResult.value;
@@ -130,12 +130,14 @@ export const VideoProjectWorkspace: React.FC = () => {
         setLoadError(message);
         addToast(message, "error");
       }
+      return chaptersResult.status === "fulfilled";
     } catch (err) {
       if (refreshRequestRef.current === requestId) {
         const message = extractErrorMessage(err, translatorRef.current("video.loadProjectFailed"));
         setLoadError(message);
         addToast(message, "error");
       }
+      return false;
     } finally {
       if (refreshRequestRef.current === requestId) {
         setLoading(false);

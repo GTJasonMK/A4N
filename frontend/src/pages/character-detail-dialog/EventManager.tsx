@@ -146,7 +146,7 @@ export const EventManager: React.FC<{
       nextCategory = filterCategoryRef.current,
       nextKey = filterKeyRef.current,
       nextOperation = filterOperationRef.current,
-    ) => {
+    ): Promise<boolean> => {
       const requestProfileId = profileId;
       const requestKey = eventLoadKey(
         requestProfileId,
@@ -156,7 +156,7 @@ export const EventManager: React.FC<{
         nextKey,
         nextOperation,
       );
-      if (loadInFlightKeyRef.current === requestKey) return;
+      if (loadInFlightKeyRef.current === requestKey) return false;
       const requestSeq = loadSeqRef.current + 1;
       loadSeqRef.current = requestSeq;
       loadInFlightKeyRef.current = requestKey;
@@ -169,12 +169,14 @@ export const EventManager: React.FC<{
           key: nonEmptyText(nextKey),
           operation: nullableFilterValue(nextOperation),
         });
-        if (!isCurrentLoad(requestProfileId, requestKey, requestSeq)) return;
+        if (!isCurrentLoad(requestProfileId, requestKey, requestSeq)) return false;
         setEvents(rows);
         setLoadedScopeKey(requestKey);
+        return true;
       } catch (err) {
-        if (!isCurrentLoad(requestProfileId, requestKey, requestSeq)) return;
+        if (!isCurrentLoad(requestProfileId, requestKey, requestSeq)) return false;
         addToast(extractErrorMessage(err, t("characterDetail.event.loadFailed")), "error");
+        return false;
       } finally {
         if (loadInFlightKeyRef.current === requestKey) {
           loadInFlightKeyRef.current = null;
@@ -283,12 +285,12 @@ export const EventManager: React.FC<{
       const successMessage = requestMode === "add"
         ? t("characterDetail.event.added")
         : t("characterDetail.event.modified");
+      if (!await load()) return;
       addToast(successMessage, "success");
       setKey("");
       setValueText("");
       setCause("");
       setEvidence("");
-      await load();
       if (!isCurrentProfile(requestProfileId) || saveSeqRef.current !== requestSeq) return;
       await onChanged?.();
     } catch (err) {

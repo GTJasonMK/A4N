@@ -92,7 +92,7 @@ export const CharacterPortraitsPanel: React.FC<{ projectId: number }> = ({
     return isCurrentProject(requestProjectId) && loadSeqRef.current === seq;
   }, [isCurrentProject]);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (): Promise<boolean> => {
     const requestProjectId = projectId;
     const requestSeq = loadSeqRef.current + 1;
     loadSeqRef.current = requestSeq;
@@ -102,7 +102,7 @@ export const CharacterPortraitsPanel: React.FC<{ projectId: number }> = ({
         listPortraitsByProject(requestProjectId),
         listProfiles(requestProjectId),
       ]);
-      if (!isCurrentLoad(requestProjectId, requestSeq)) return;
+      if (!isCurrentLoad(requestProjectId, requestSeq)) return false;
       const failures: string[] = [];
       if (portraitsResult.status === "fulfilled") {
         setPortraits(portraitsResult.value);
@@ -126,6 +126,7 @@ export const CharacterPortraitsPanel: React.FC<{ projectId: number }> = ({
         ));
       }
       if (failures.length > 0) addToast(failures.join("；"), "error");
+      return failures.length === 0;
     } finally {
       if (isCurrentLoad(requestProjectId, requestSeq)) {
         setLoadedProjectId(requestProjectId);
@@ -188,6 +189,7 @@ export const CharacterPortraitsPanel: React.FC<{ projectId: number }> = ({
     const requestProjectId = projectId;
     generatingRef.current = true;
     setGenerating(true);
+    let refreshSucceeded = true;
     try {
       const handle = await startPortraitGeneration({
         project_id: requestProjectId,
@@ -210,12 +212,13 @@ export const CharacterPortraitsPanel: React.FC<{ projectId: number }> = ({
         async (task) => {
           const generated = await verifyPortraitGenerationResult(task, requestProjectId);
           if (!isCurrentProject(requestProjectId)) throw new Error(t("characterDetail.taskStopped"));
-          await load();
+          refreshSucceeded = await load();
           if (!isCurrentProject(requestProjectId)) throw new Error(t("characterDetail.taskStopped"));
           return generated.length;
         },
       );
       if (!isCurrentProject(requestProjectId)) return;
+      if (!refreshSucceeded) return;
       addToast(t("characterDetail.portrait.batchGenerated", { count: createdCount }), "success");
     } catch (err) {
       if (!isCurrentProject(requestProjectId)) return;
@@ -292,8 +295,8 @@ export const CharacterPortraitsPanel: React.FC<{ projectId: number }> = ({
         },
       );
       if (!isCurrentProject(requestProjectId)) return;
+      if (!await load()) return;
       addToast(t("characterDetail.portrait.redrawSuccess"), "success");
-      await load();
       if (!isCurrentProject(requestProjectId)) return;
       setActionPortrait(null);
     } catch (err) {
@@ -348,8 +351,8 @@ export const CharacterPortraitsPanel: React.FC<{ projectId: number }> = ({
     try {
       await setPrimaryPortrait(portrait.id);
       if (!isCurrentProject(requestProjectId)) return;
+      if (!await load()) return;
       addToast(t("characterDetail.portrait.primarySet"), "success");
-      await load();
       if (!isCurrentProject(requestProjectId)) return;
       setActionPortrait(null);
     } catch (err) {
