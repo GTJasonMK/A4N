@@ -630,6 +630,16 @@ export const NovelDetail: React.FC = () => {
     setExportBusy(false);
     setExportOpen(true);
   };
+  const closeExport = async () => {
+    if (exportBusy) return;
+    if (dirtyRegistry.hasDirty(`export:${project.id}`) && !(await confirmDialog({
+      title: t("common.unsavedChangesTitle"),
+      message: t("common.unsavedChangesMessage", { name: t("novel.exportNovel"), action: t("common.close") }),
+      confirmText: t("common.discardDraft"),
+      dialogType: "warning",
+    }))) return;
+    setExportOpen(false);
+  };
 
   return (
     <NovelDetailDirtyProvider>
@@ -912,9 +922,7 @@ export const NovelDetail: React.FC = () => {
 
       <Modal
         isOpen={exportOpen}
-        onClose={() => {
-          if (!exportBusy) setExportOpen(false);
-        }}
+        onClose={() => void closeExport()}
         title={t("novel.exportNovelTitle")}
         subtitle={t("novel.exportNovelSubtitle")}
         icon={<FileText size={15} />}

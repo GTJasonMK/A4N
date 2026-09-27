@@ -26,7 +26,7 @@ import { nonEmptyText } from "../../utils/text";
 import { useProgressTask } from "../../hooks/useProgressTask";
 import { runBlueprintRefinementWithProgress } from "./blueprintRefinement";
 import { useI18n } from "../../i18n";
-import { useNovelDetailDirty } from "./novelDetailDirty";
+import { useNovelDetailDirty, useNovelDetailDirtyRegistry } from "./novelDetailDirty";
 
 const ProjectCollaborationPanel = lazy(() =>
   import("./overview/ProjectCollaborationPanel").then((module) => ({
@@ -70,6 +70,7 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
 }) => {
   const { addToast } = useToast();
   const { t } = useI18n();
+  const dirtyRegistry = useNovelDetailDirtyRegistry();
   const { runProgressTask } = useProgressTask();
   const navigate = useNavigate();
   const [blueprint, setBlueprint] = useState<Blueprint | null>(null);
@@ -257,6 +258,15 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
       dialogType: "warning",
     }))) return;
     setBlueprintEditorOpen(false);
+  };
+  const closeCollaboration = async () => {
+    if (dirtyRegistry.hasDirty(`collaboration:${project.id}`) && !(await confirmDialog({
+      title: t("common.unsavedChangesTitle"),
+      message: t("common.unsavedChangesMessage", { name: t("novel.collaborationTitle"), action: t("common.close") }),
+      confirmText: t("common.discardDraft"),
+      dialogType: "warning",
+    }))) return;
+    setCollabOpen(false);
   };
   const displayLoading = loading || loadedProjectId !== project.id;
 
@@ -533,7 +543,7 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
 
       <Modal
         isOpen={collabOpen}
-        onClose={() => setCollabOpen(false)}
+        onClose={() => void closeCollaboration()}
         title={t("novel.collaborators")}
         subtitle={`${project.title} · ${t("novel.collaborationRootProject")}`}
         icon={<Users size={15} />}

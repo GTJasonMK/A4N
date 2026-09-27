@@ -11,6 +11,7 @@ import { RequestPreviewModal } from "../../components/feedback/RequestPreviewMod
 import { useToast } from "../../components/feedback/Toast";
 import { useProgressTask } from "../../hooks/useProgressTask";
 import { useI18n, type MessageKey } from "../../i18n";
+import { useNovelDetailDirty } from "./novelDetailDirty";
 
 const MATERIAL_LABELS: Record<string, MessageKey> = {
   world_setting: "novel.factFeedback.world",
@@ -165,6 +166,10 @@ export const FactFeedbackPanel = ({ projectId, canEdit, refreshKey, onChanged }:
   };
 
   const running = busy || data?.workflow_status === "running";
+  useNovelDetailDirty(
+    `fact-feedback:${projectId}`,
+    intervalDirty.current && interval.trim() !== String(data?.interval_chapters ?? ""),
+  );
   return (
     <section aria-labelledby={headingId} className="a4n-flat-surface min-w-0 p-3 sm:p-4">
       <header className="flex flex-wrap items-center justify-between gap-2">

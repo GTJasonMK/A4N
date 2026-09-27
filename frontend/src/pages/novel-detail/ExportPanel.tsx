@@ -25,6 +25,7 @@ import { createWorkflowTaskId, useProgressTask } from "../../hooks/useProgressTa
 import { isCancelledOperation } from "../../utils/cancellation";
 import { downloadBase64ExportFile } from "../../utils/downloadFile";
 import { useI18n, type MessageKey } from "../../i18n";
+import { useNovelDetailDirty } from "./novelDetailDirty";
 
 type ExportFormat = "txt" | "markdown" | "epub" | "pdf" | "batch";
 
@@ -110,6 +111,12 @@ export const ExportPanel: React.FC<{
   const projectInput: ExportProjectInput = { project_id: project.id };
   const selectedExportReady =
     !selectedFormatOption.requiresMetadata || selectedMetadata != null;
+  useNovelDetailDirty(
+    `export:${project.id}`,
+    meta.title.trim() !== project.title.trim() ||
+      meta.author.trim().length > 0 ||
+      selectedFormat !== "txt",
+  );
 
   useEffect(() => {
     mountedRef.current = true;

@@ -11,6 +11,8 @@ import { ImportsTab } from "../novel-detail/ImportsTab";
 import { useI18n, type MessageKey } from "../../i18n";
 import type { PackageId } from "../../api/generated/page";
 import { usePackagePreferences } from "../../store/packagePreferences";
+import { confirmDialog } from "../../components/feedback/ConfirmDialog";
+import { useNovelDetailDirtyRegistry } from "../novel-detail/novelDetailDirty";
 
 export type CreateMode = "ai" | "free" | "video_canvas";
 
@@ -124,11 +126,20 @@ export const ProjectImportDialog: React.FC<ProjectImportDialogProps> = ({
   onImport,
 }) => {
   const { t } = useI18n();
+  const close = async () => {
+    if (importFileName.trim() && !(await confirmDialog({
+      title: t("common.unsavedChangesTitle"),
+      message: t("common.unsavedChangesMessage", { name: t("novel.importProject"), action: t("common.close") }),
+      confirmText: t("common.discardDraft"),
+      dialogType: "warning",
+    }))) return;
+    onClose();
+  };
 
   return (
     <Modal
       isOpen={open}
-      onClose={() => !importing && onClose()}
+      onClose={() => !importing && void close()}
       title={t("novel.importProject")}
       icon={<Upload size={15} />}
       subtitle={t("novel.restoringProject")}
@@ -191,12 +202,24 @@ export const ProjectTextImportDialog: React.FC<ProjectTextImportDialogProps> = (
 }) => {
   const { t } = useI18n();
   const [writeBusy, setWriteBusy] = useState(false);
+  const dirtyRegistry = useNovelDetailDirtyRegistry();
   const open = projectId != null;
+  const close = async () => {
+    if (writeBusy) return;
+    const dirty = projectId != null && dirtyRegistry.hasDirty(`imports:${projectId}`);
+    if (dirty && !(await confirmDialog({
+      title: t("common.unsavedChangesTitle"),
+      message: t("common.unsavedChangesMessage", { name: t("novel.importText"), action: t("common.close") }),
+      confirmText: t("common.discardDraft"),
+      dialogType: "warning",
+    }))) return;
+    onClose();
+  };
 
   return (
     <Modal
       isOpen={open}
-      onClose={() => !writeBusy && onClose()}
+      onClose={() => void close()}
       title={t("novel.importText")}
       subtitle={projectTitle}
       maxWidthClassName="max-w-5xl"

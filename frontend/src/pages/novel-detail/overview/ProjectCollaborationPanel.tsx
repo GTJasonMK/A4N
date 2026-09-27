@@ -22,6 +22,7 @@ import { BookButton } from "../../../components/ui/BookButton";
 import { Dropdown } from "../../../components/ui/Dropdown";
 import { getProjectAccessRoleLabel } from "../../../utils/projectRouting";
 import { useI18n } from "../../../i18n";
+import { useNovelDetailDirty } from "../novelDetailDirty";
 
 interface ProjectCollaborationPanelProps {
   project: NovelProject;
@@ -55,6 +56,7 @@ export const ProjectCollaborationPanel: React.FC<ProjectCollaborationPanelProps>
   const canManage = project.my_role === "owner" || project.my_role === "manager";
   const canLeave = project.my_role !== "owner";
   const rootProjectId = project.collaboration_root_project_id;
+  useNovelDetailDirty(`collaboration:${project.id}`, Boolean(identity.trim()));
 
   const load = useCallback(async (): Promise<boolean> => {
     const requestSeq = loadSeqRef.current + 1;

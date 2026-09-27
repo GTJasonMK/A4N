@@ -31,6 +31,7 @@ import { readFileAsBase64 } from "../../../utils/fileUpload";
 import { isSupportedImageMime } from "../../../utils/imageUpload";
 import { ImageActionDialog } from "../images/ImageActionDialog";
 import { useI18n } from "../../../i18n";
+import { useNovelDetailDirty } from "../novelDetailDirty";
 import {
   VISUAL_STYLE_TEMPLATES,
   renderVisualStyleTemplate,
@@ -109,6 +110,10 @@ export const VideoMaterialWorkspace: React.FC<VideoMaterialWorkspaceProps> = ({
   const materialStyle = selectedStyleTemplate
     ? renderVisualStyleTemplate(selectedStyleTemplate)
     : customStyle;
+  useNovelDetailDirty(
+    `video-material-style:${projectId}`,
+    selectedStyleTemplateId === CUSTOM_STYLE_VALUE && customStyle.trim().length > 0,
+  );
 
   useLayoutEffect(() => {
     activeProjectRef.current = projectId;

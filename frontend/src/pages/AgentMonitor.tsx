@@ -175,6 +175,33 @@ export const AgentMonitor: React.FC = () => {
   const setDraft = (value: string) => {
     if (selectedThreadId) setDrafts((current) => ({ ...current, [selectedThreadId]: value }));
   };
+  const hasWorkspaceDraft = Boolean(
+    Object.values(drafts).some((value) => value.trim()) ||
+      createTitle.trim() ||
+      createCapability !== "general",
+  );
+  const safeSmartBack = async () => {
+    if (hasWorkspaceDraft && !(await confirmDialog({
+      title: t("common.unsavedChangesTitle"),
+      message: t("common.unsavedChangesMessage", { name: t("agent.workbench"), action: t("common.back") }),
+      confirmText: t("common.discardDraft"),
+      dialogType: "warning",
+    }))) return;
+    smartBack();
+  };
+  const closeCreateForm = async () => {
+    if (createTitle.trim() || createCapability !== "general") {
+      if (!(await confirmDialog({
+        title: t("common.unsavedChangesTitle"),
+        message: t("common.unsavedChangesMessage", { name: t("agent.workbench"), action: t("common.close") }),
+        confirmText: t("common.discardDraft"),
+        dialogType: "warning",
+      }))) return;
+    }
+    setCreateOpen(false);
+    setCreateTitle("");
+    setCreateCapability("general");
+  };
 
   useEffect(() => {
     const acceptedMessageId = pendingSubmission?.acceptedMessageId;
@@ -454,7 +481,7 @@ export const AgentMonitor: React.FC = () => {
       {budgetRun ? <AgentBudgetDialog run={budgetRun} onClose={() => setBudgetRun(null)} onResumed={() => Promise.all([loadSnapshot(budgetRun.thread_id, true), refreshThreads()])} /> : null}
       <PageHeader
         className="agent-monitor-page-header"
-        leading={<BackButton iconOnly title={t("nav.backToPrevious")} onClick={smartBack} />}
+        leading={<BackButton iconOnly title={t("nav.backToPrevious")} onClick={() => void safeSmartBack()} />}
         icon={<span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-book-primary/10 text-book-primary"><Bot size={18} /></span>}
         eyebrow={t("agent.collaborationHub")}
         title={t("agent.workbench")}
@@ -474,7 +501,7 @@ export const AgentMonitor: React.FC = () => {
                 </div>
                 <p className="truncate text-caption text-book-text-muted">{locale === "zh-CN" ? "主 Agent 与领域子 Agent" : "Main and domain sub-agents"}</p>
               </div>
-              <BookIconButton label={locale === "zh-CN" ? "新建子 Agent" : "New sub-agent"} onClick={() => setCreateOpen((open) => !open)} size="sm"><Plus size={14} /></BookIconButton>
+              <BookIconButton label={locale === "zh-CN" ? "新建子 Agent" : "New sub-agent"} onClick={() => void (createOpen ? closeCreateForm() : setCreateOpen(true))} size="sm"><Plus size={14} /></BookIconButton>
             </div>
             {createOpen ? (
               <div className="agent-monitor-create-form">
@@ -488,7 +515,7 @@ export const AgentMonitor: React.FC = () => {
                 </label>
                 <div className="flex gap-2">
                   <BookButton size="sm" className="flex-1" onClick={() => void createSubagent()}><Plus size={13} />{locale === "zh-CN" ? "创建" : "Create"}</BookButton>
-                  <BookButton size="sm" variant="ghost" onClick={() => setCreateOpen(false)}>{locale === "zh-CN" ? "关闭" : "Close"}</BookButton>
+                  <BookButton size="sm" variant="ghost" onClick={() => void closeCreateForm()}>{locale === "zh-CN" ? "关闭" : "Close"}</BookButton>
                 </div>
               </div>
             ) : null}

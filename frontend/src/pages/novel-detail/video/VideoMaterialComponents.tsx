@@ -10,6 +10,7 @@ import type {
   ProfileMaterialState,
 } from "../../../api/profileMaterials";
 import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
+import { confirmDialog } from "../../../components/feedback/ConfirmDialog";
 import { BookIconButton } from "../../../components/ui/BookButton";
 import { ZoomableImage } from "../../../components/ui/ImageLightbox";
 import { ThemedSelect } from "../../../components/ui/ThemedSelect";
@@ -19,6 +20,7 @@ import { supportedImageAccept } from "../../../utils/imageUpload";
 import { toMediaSrc } from "../../../utils/mediaSrc";
 import { chapterRangeText } from "../shared";
 import { useI18n, type MessageKey, type MessageTranslator } from "../../../i18n";
+import { useNovelDetailDirty } from "../novelDetailDirty";
 export const kindOptions = (t: MessageTranslator): Array<{ value: ProfileMaterialKindFilter; label: string }> => [
   { value: "all", label: t("video.material.all") },
   { value: "scene", label: t("video.material.scene") },
@@ -400,12 +402,22 @@ export function ProfileMaterialUploadDialog({
 }) {
   if (!group) return null;
   const { t } = useI18n();
+  const uploadDirty = !setPrimary;
+  useNovelDetailDirty(`video-material-upload:${group.profile.id}:${group.kind}`, uploadDirty);
+  const close = async () => {
+    if (busy) return;
+    if (uploadDirty && !(await confirmDialog({
+      title: t("common.unsavedChangesTitle"),
+      message: t("common.unsavedChangesMessage", { name: t("video.material.uploadTitle"), action: t("common.close") }),
+      confirmText: t("common.discardDraft"),
+      dialogType: "warning",
+    }))) return;
+    onClose();
+  };
   return (
     <Modal
       isOpen
-      onClose={() => {
-        if (!busy) onClose();
-      }}
+      onClose={() => void close()}
       title={t("video.material.uploadTitle")}
       subtitle={`${materialKindLabel(group.kind, t)} · ${group.profile.name}`}
       icon={<Upload size={15} />}
