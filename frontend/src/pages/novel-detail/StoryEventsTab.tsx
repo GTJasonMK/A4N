@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { extractErrorMessage } from "../../api";
 import { LoadingSpinner } from "../../components/ui/LoadingSpinner";
 import { useToast } from "../../components/feedback/Toast";
 import { listChapters, type ChapterSummary } from "../../api/chapter";
@@ -34,28 +35,30 @@ export const StoryEventsTab: React.FC<StoryEventsTabProps> = ({
   const [foreshadowing, setForeshadowing] = useState<Foreshadowing[]>([]);
   const [filters, setFilters] = useState<StoryEventFilters>(DEFAULT_STORY_EVENT_FILTERS);
   const [loadedProjectId, setLoadedProjectId] = useState<number | null>(null);
+  const [loadErrors, setLoadErrors] = useState<string[]>([]);
 
   const loadChapters = useCallback(
     async (isCurrent: () => boolean) => {
-      try {
-        const [nextChapters, nextForeshadowing] = await Promise.all([
-          listChapters(projectId),
-          listForeshadowing(projectId),
-        ]);
-        if (!isCurrent()) return;
-        setChapters(nextChapters);
-        setForeshadowing(nextForeshadowing);
-        setLoadedProjectId(projectId);
-      } catch (err) {
-        if (isCurrent()) {
-          setChapters([]);
-          setForeshadowing([]);
-          setLoadedProjectId(projectId);
-        }
-        throw err;
+      const [chaptersResult, foreshadowingResult] = await Promise.allSettled([
+        listChapters(projectId),
+        listForeshadowing(projectId),
+      ]);
+      if (!isCurrent()) return;
+      const errors: string[] = [];
+      if (chaptersResult.status === "fulfilled") setChapters(chaptersResult.value);
+      else {
+        setChapters([]);
+        errors.push(extractErrorMessage(chaptersResult.reason, t("novel.storyEvents.chaptersLoadFailed")));
       }
+      if (foreshadowingResult.status === "fulfilled") setForeshadowing(foreshadowingResult.value);
+      else {
+        setForeshadowing([]);
+        errors.push(extractErrorMessage(foreshadowingResult.reason, t("novel.storyEvents.foreshadowingLoadFailed")));
+      }
+      setLoadErrors(errors);
+      setLoadedProjectId(projectId);
     },
-    [projectId],
+    [projectId, t],
   );
   const { loading, load } = useChapterAnalysisLoader(
     projectId,
@@ -111,6 +114,11 @@ export const StoryEventsTab: React.FC<StoryEventsTabProps> = ({
 
   return (
     <div className="content-main flex flex-col gap-4">
+      {loadErrors.length > 0 ? (
+        <div role="alert" className="space-y-1 border-l-2 border-error px-3 py-2 text-xs text-error">
+          {loadErrors.map((error, index) => <p key={`${index}:${error}`}>{error}</p>)}
+        </div>
+      ) : null}
       <StoryEventsSummaryCard
         analyzedChapters={analyzedChapters}
         totalChapters={displayChapters.length}

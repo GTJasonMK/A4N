@@ -64,8 +64,14 @@ pub(crate) fn args_delete_local_embedding_model() -> Value {
 pub(crate) fn args_oauth2_authorize_url() -> Value {
     strict_typed_input_schema::<crate::auth::OAuth2AuthorizeInput>()
 }
+pub(crate) fn args_oauth2_available_providers() -> Value {
+    strict_typed_input_schema::<crate::auth::OAuth2AvailableProvidersInput>()
+}
 pub(crate) fn args_oauth2_callback() -> Value {
     strict_typed_input_schema::<crate::auth::OAuth2CallbackInput>()
+}
+pub(crate) fn result_oauth2_available_providers() -> Value {
+    typed_schema::<Vec<String>>()
 }
 pub(crate) fn args_rag_enhanced_search() -> Value {
     project_runtime_typed_input_schema::<crate::rag::EnhancedSearchInput>()

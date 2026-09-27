@@ -147,6 +147,8 @@ export const novelWorld = {
     foreshadowingCount: "{count} formal foreshadowing items",
     refresh: "Refresh story events",
     loadFailed: "Failed to load story events",
+    chaptersLoadFailed: "Failed to load chapter events",
+    foreshadowingLoadFailed: "Failed to load formal foreshadowing",
     loading: "Loading story events…",
   },
   foreshadowing: {

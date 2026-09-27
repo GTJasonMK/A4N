@@ -1,4 +1,6 @@
-use a4n_api_contract::auth::{UserSummary, required_authorization_code};
+use a4n_api_contract::auth::{
+    OAuth2AvailableProvidersInput, UserSummary, required_authorization_code,
+};
 use a4n_config::required_non_empty_env_string;
 use a4n_error::AppError;
 use url::Url;
@@ -11,13 +13,26 @@ use super::{OAuth2AuthorizeInput, OAuth2CallbackInput};
 pub fn oauth2_authorize_url(input: OAuth2AuthorizeInput) -> Result<String, AppError> {
     validate_oauth_token(&input.state, "state", 32, 128)?;
     validate_oauth_token(&input.code_challenge, "code_challenge", 43, 43)?;
-    let redirect_uri = match input.redirect_uri {
+    let redirect_uri = oauth_redirect_uri(input.redirect_uri)?;
+    let provider = oauth2_provider_from_env(input.provider.trim(), &redirect_uri)?;
+    Ok(provider.authorize_url(&input.state, &input.code_challenge))
+}
+
+pub fn oauth2_available_providers(
+    input: OAuth2AvailableProvidersInput,
+) -> Result<Vec<String>, AppError> {
+    let redirect_uri = oauth_redirect_uri(input.redirect_uri)?;
+    validate_redirect_uri(&redirect_uri)?;
+    super::provider::oauth2_available_providers()
+}
+
+fn oauth_redirect_uri(requested: Option<String>) -> Result<String, AppError> {
+    let redirect_uri = match requested {
         Some(value) => value,
         None => required_non_empty_env_string("A4N_OAUTH_REDIRECT_URI")?,
     };
     validate_redirect_uri(&redirect_uri)?;
-    let provider = oauth2_provider_from_env(input.provider.trim(), &redirect_uri)?;
-    Ok(provider.authorize_url(&input.state, &input.code_challenge))
+    Ok(redirect_uri)
 }
 
 pub(crate) async fn oauth2_login_user(

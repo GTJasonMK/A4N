@@ -5,10 +5,11 @@ use std::path::Path;
 use a4n_domain::galgame::{GalgameMediaRole, GalgameTransition};
 
 /// 将强类型转场映射为 WebGAL 参数串。
-pub fn webgal_transition_args(value: Option<GalgameTransition>) -> &'static str {
+pub fn webgal_transition_args(value: Option<GalgameTransition>) -> Result<&'static str, String> {
     match value {
-        Some(GalgameTransition::Cut) => " -duration=0 -enterDuration=0 -exitDuration=0",
-        Some(GalgameTransition::Fade | GalgameTransition::Dissolve) | None => "",
+        Some(GalgameTransition::Cut) | None => Ok(" -duration=0 -enterDuration=0 -exitDuration=0"),
+        Some(GalgameTransition::Fade) => Ok(""),
+        Some(GalgameTransition::Dissolve) => Err("WebGAL 4.6.5 不支持叠化转场".to_string()),
     }
 }
 
@@ -89,17 +90,17 @@ pub fn webgal_string_literal(value: &str) -> String {
     output
 }
 
-/// WebGAL 对白文本转义。
-pub fn webgal_text(value: &str) -> String {
-    value
+pub fn webgal_choice_text(value: &str) -> Result<String, String> {
+    if value.contains("->") {
+        return Err("WebGAL 选择项不支持包含 -> 的文案".to_string());
+    }
+    Ok(value
         .trim()
         .replace(['\r', '\n', '\t'], " ")
-        .replace(';', "；")
-}
-
-/// WebGAL 通用参数转义。
-pub fn webgal_arg(value: &str) -> String {
-    webgal_text(value).replace(':', " ").replace('|', "")
+        .replace('\\', "\\\\")
+        .replace(';', "\\;")
+        .replace(':', "\\:")
+        .replace('|', "\\|"))
 }
 
 #[cfg(test)]
@@ -108,8 +109,14 @@ mod tests {
 
     #[test]
     fn transition_mapping() {
-        assert_eq!(webgal_transition_args(None), "");
-        assert!(webgal_transition_args(Some(GalgameTransition::Cut)).contains("duration=0"));
+        assert!(webgal_transition_args(None).unwrap().contains("duration=0"));
+        assert!(
+            webgal_transition_args(Some(GalgameTransition::Cut))
+                .unwrap()
+                .contains("duration=0")
+        );
+        assert!(webgal_transition_args(Some(GalgameTransition::Dissolve)).is_err());
+        assert!(webgal_choice_text("A -> B").is_err());
     }
 
     #[test]
@@ -129,12 +136,6 @@ mod tests {
     }
 
     #[test]
-    fn text_escaping() {
-        assert_eq!(webgal_text("a;b\nc"), "a；b c");
-        assert_eq!(webgal_arg("a:b|c"), "a bc");
-    }
-
-    #[test]
     fn text_literals_preserve_content_without_script_delimiters() {
         for text in [
             "A: B; C - D",
@@ -145,5 +146,14 @@ mod tests {
             assert_eq!(serde_json::from_str::<String>(&literal).unwrap(), text);
             assert!(!literal.contains([';', '=', '{', '}', '+', '-', '*', '/', '(', ')']));
         }
+    }
+
+    #[test]
+    fn choice_literals_escape_webgal_delimiters_without_rewriting_text() {
+        assert_eq!(
+            webgal_choice_text("A: B; C | D\\E").unwrap(),
+            "A\\: B\\; C \\| D\\\\E"
+        );
+        assert!(webgal_choice_text("A -> B").is_err());
     }
 }

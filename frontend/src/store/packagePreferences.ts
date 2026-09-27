@@ -76,7 +76,7 @@ export function usePackagePreferences() {
   }, [userId]);
   const preferences = state.userId === userId ? state.preferences : null;
   const isVisible = useCallback((packageId: PackageId) =>
-    preferences != null && !preferences.hidden_package_ids.includes(packageId), [preferences]);
+    preferences == null || !preferences.hidden_package_ids.includes(packageId), [preferences]);
   const refresh = useCallback(() => {
     if (userId == null) return Promise.reject(new Error(translateMessage(getActiveLocale(), "auth.sessionChanged")));
     return refreshPackagePreferences(userId);

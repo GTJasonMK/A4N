@@ -147,6 +147,8 @@ export const novelWorld = {
     foreshadowingCount: "{count} 条正式伏笔",
     refresh: "刷新事件脉络",
     loadFailed: "加载事件脉络失败",
+    chaptersLoadFailed: "加载章节事件失败",
+    foreshadowingLoadFailed: "加载正式伏笔失败",
     loading: "加载事件脉络…",
   },
   foreshadowing: {

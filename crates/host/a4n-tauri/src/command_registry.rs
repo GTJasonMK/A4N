@@ -8,6 +8,7 @@ pub(crate) fn handler() -> impl Fn(tauri::ipc::Invoke<tauri::Wry>) -> bool + Sen
         commands::auth::login_user,
         commands::auth::refresh_token,
         commands::auth::oauth2_authorize_url,
+        commands::auth::oauth2_available_providers,
         commands::auth::oauth2_callback,
         commands::auth::browser::oauth2_browser_login,
         commands::auth::browser::cancel_oauth2_browser_login,

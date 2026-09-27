@@ -7,7 +7,8 @@ mod workflow_task;
 
 pub(super) use auth::{
     change_user_password, get_current_user, list_sessions, login_user, oauth2_authorize_url,
-    oauth2_callback, refresh_token, register_user, revoke_session, update_user_profile,
+    oauth2_available_providers, oauth2_callback, refresh_token, register_user, revoke_session,
+    update_user_profile,
 };
 pub(super) use config::{
     add_image_config, add_video_config, create_embedding_config, create_llm_config,

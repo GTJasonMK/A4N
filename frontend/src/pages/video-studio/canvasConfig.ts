@@ -4,6 +4,8 @@ import type { VideoGenConfig } from "../../api/video/types";
 import type { MessageTranslator } from "../../i18n";
 
 export type StudioConfigKind = "llm" | "image" | "video";
+export type StudioConfigLoadStatus = "loading" | "ready" | "failed";
+export type StudioConfigLoadStatusByKind = Record<StudioConfigKind, StudioConfigLoadStatus>;
 
 export interface StudioConfigOption {
   id: number;

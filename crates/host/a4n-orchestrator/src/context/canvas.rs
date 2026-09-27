@@ -440,6 +440,7 @@ impl CanvasEditingNodeApplicationPort for OrchestratorContext {
                 shared_run: input.shared_run.map(|run| CanvasNodeRunHandle {
                     workflow_run_id: run.workflow_run_id,
                     finalize_on_success: run.finalize_on_success,
+                    graph_version: run.graph_version,
                 }),
                 mode: &input.mode,
             },
@@ -479,6 +480,7 @@ impl CanvasProbeNodeApplicationPort for OrchestratorContext {
             shared_run: input.shared_run.map(|run| CanvasNodeRunHandle {
                 workflow_run_id: run.workflow_run_id,
                 finalize_on_success: run.finalize_on_success,
+                graph_version: run.graph_version,
             }),
             mode: &input.mode,
         })
@@ -516,6 +518,7 @@ impl CanvasOutputNodeApplicationPort for OrchestratorContext {
             shared_run: input.shared_run.map(|run| CanvasNodeRunHandle {
                 workflow_run_id: run.workflow_run_id,
                 finalize_on_success: run.finalize_on_success,
+                graph_version: run.graph_version,
             }),
             mode: &input.mode,
         })
@@ -553,6 +556,7 @@ impl CanvasRenderTextNodeApplicationPort for OrchestratorContext {
             shared_run: input.shared_run.map(|run| CanvasNodeRunHandle {
                 workflow_run_id: run.workflow_run_id,
                 finalize_on_success: run.finalize_on_success,
+                graph_version: run.graph_version,
             }),
             mode: &input.mode,
         })
@@ -672,6 +676,7 @@ impl CanvasImageNodeApplicationPort for OrchestratorContext {
                 shared_run: input.shared_run.map(|run| CanvasNodeRunHandle {
                     workflow_run_id: run.workflow_run_id,
                     finalize_on_success: run.finalize_on_success,
+                    graph_version: run.graph_version,
                 }),
                 mode: &input.mode,
             },
@@ -714,6 +719,7 @@ impl CanvasLlmTextNodeApplicationPort for OrchestratorContext {
                 shared_run: input.shared_run.map(|run| CanvasNodeRunHandle {
                     workflow_run_id: run.workflow_run_id,
                     finalize_on_success: run.finalize_on_success,
+                    graph_version: run.graph_version,
                 }),
                 mode: &input.mode,
             },
@@ -756,6 +762,7 @@ impl CanvasVideoNodeApplicationPort for OrchestratorContext {
                 shared_run: input.shared_run.map(|run| CanvasNodeRunHandle {
                     workflow_run_id: run.workflow_run_id,
                     finalize_on_success: run.finalize_on_success,
+                    graph_version: run.graph_version,
                 }),
                 mode: &input.mode,
             },

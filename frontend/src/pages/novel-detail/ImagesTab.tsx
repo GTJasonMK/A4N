@@ -193,6 +193,7 @@ export const ImagesTab: React.FC<ImagesTabProps> = ({
     allImagesRef.current = images;
     setAllImages(images);
     setLoading(false);
+    setLoadError(null);
   };
 
   const commitImage = (image: GeneratedImage) => {

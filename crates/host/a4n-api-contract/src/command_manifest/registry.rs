@@ -243,6 +243,7 @@ command_specs! {
     "modify_profile_attribute" => args_modify_profile_attribute, result_unit, "profile";
     "move_inserted_segment" => args_move_inserted_segment, result_video_timeline, "video";
     "oauth2_authorize_url" => args_oauth2_authorize_url, result_string, "auth", identity(PUBLIC_IDENTITY);
+    "oauth2_available_providers" => args_oauth2_available_providers, result_oauth2_available_providers, "auth", identity(PUBLIC_IDENTITY), effect(READ_EFFECT);
     "oauth2_callback" => args_oauth2_callback, result_login_user, "auth", identity(PUBLIC_IDENTITY), secrets(OAUTH_CODE_SECRET_POINTERS);
     "optimize_chapter_video_prompt" => args_optimize_chapter_video_prompt, result_optimize_chapter_video_prompt, "video", secrets(RUNTIME_SECRET_POINTERS), capabilities(CAPABILITIES_PROMPT_LLM), runtime(RuntimeConfigPolicy::Full);
     "optimize_manga_prompt" => args_optimize_manga_prompt, result_bind_manga_reference_image, "manga", context(NO_CONTEXT), secrets(RUNTIME_SECRET_POINTERS), capabilities(CAPABILITIES_PROMPT_LLM), runtime(RuntimeConfigPolicy::Full);

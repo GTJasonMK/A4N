@@ -57,6 +57,20 @@ impl OrchestratorContext {
                         "Galgame 支线场 next_scene_id 必须指向主线场".to_string(),
                     ));
                 }
+                if current_entry_kind == SCENE_ENTRY_BRANCH {
+                    let detail = self.get_script_detail(context.project.id).await?;
+                    let returns_before_choice = detail.scenes.iter().any(|source_scene| {
+                        source_scene.choices.iter().any(|choice| {
+                            choice.target_scene_id == Some(scene_id)
+                                && target_scene.scene_index <= source_scene.scene.scene_index
+                        })
+                    });
+                    if returns_before_choice {
+                        return Err(AppError::InvalidArgument(
+                            "Galgame 支线回收敛场必须晚于引用该支线的选择所在主线场".to_string(),
+                        ));
+                    }
+                }
                 Some(next_scene_id)
             } else {
                 None

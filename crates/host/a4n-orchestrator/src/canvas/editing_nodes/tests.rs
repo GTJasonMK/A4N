@@ -363,6 +363,7 @@ async fn shared_graph_run_completes_editing_node_without_finalizing_workflow() {
             json!({
                 "project_id": setup.project_id,
                 "graph_id": setup.document.graph.id,
+                "graph_version": setup.document.graph.version,
                 "runnable_node_ids": [setup.node.id],
             }),
             Some(step_key.clone()),
@@ -376,6 +377,7 @@ async fn shared_graph_run_completes_editing_node_without_finalizing_workflow() {
         Some(CanvasNodeRunHandle {
             workflow_run_id: graph_run.id,
             finalize_on_success: false,
+            graph_version: setup.document.graph.version,
         }),
         "full_graph",
     )

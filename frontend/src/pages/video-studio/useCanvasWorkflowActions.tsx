@@ -26,8 +26,9 @@ import type { MessageTranslator } from "../../i18n";
 import {
   canvasWorkflowRuntimeRefreshSignature,
   computeRunToNodeScope,
-  parseWorkflowTimestampMs,
+  findSubmittedCanvasWorkflowRun,
   runToNodeConfirmationMessage,
+  workflowRunGraphVersion,
 } from "./canvasWorkflowState";
 import { nodeHasProviderRequest } from "./canvasNodeKinds";
 import {
@@ -68,6 +69,8 @@ export interface CanvasWorkflowActionsOptions {
   setLatestWorkflowRunId: React.Dispatch<React.SetStateAction<number | null>>;
   setWorkflowDetail: React.Dispatch<React.SetStateAction<WorkflowRunDetailSummary | null>>;
   setWorkflowEvents: React.Dispatch<React.SetStateAction<ProgressEventRecord[]>>;
+  setWorkflowStatusError: React.Dispatch<React.SetStateAction<string | null>>;
+  setWorkflowEventsError: React.Dispatch<React.SetStateAction<string | null>>;
   setWorkflowLoading: React.Dispatch<React.SetStateAction<boolean>>;
   setWorkflowSubmissionLabel: React.Dispatch<React.SetStateAction<string | null>>;
   setCancellingWorkflow: React.Dispatch<React.SetStateAction<boolean>>;
@@ -110,6 +113,8 @@ export function useCanvasWorkflowActions({
   setLatestWorkflowRunId,
   setWorkflowDetail,
   setWorkflowEvents,
+  setWorkflowStatusError,
+  setWorkflowEventsError,
   setWorkflowLoading,
   setWorkflowSubmissionLabel,
   setCancellingWorkflow,
@@ -125,17 +130,40 @@ export function useCanvasWorkflowActions({
   deleteCanvasEdge,
   importMedia,
 }: CanvasWorkflowActionsOptions) {
+  const workflowStatusRequestRef = React.useRef(0);
+  const latestWorkflowRunIdRef = React.useRef(latestWorkflowRunId);
+  latestWorkflowRunIdRef.current = latestWorkflowRunId;
+
   const loadWorkflowStatus = useCallback(
-    async (workflowRunId: number, options: { silent?: boolean } = {}) => {
+    async (workflowRunId: number, options: { silent?: boolean; expectedRunId?: number } = {}) => {
+      if (options.expectedRunId != null && latestWorkflowRunIdRef.current !== options.expectedRunId) return;
+      const requestId = workflowStatusRequestRef.current + 1;
+      workflowStatusRequestRef.current = requestId;
+      latestWorkflowRunIdRef.current = workflowRunId;
       setLatestWorkflowRunId(workflowRunId);
       setWorkflowLoading(true);
       try {
-        const [detail, events] = await Promise.all([
+        const [detailResult, eventsResult] = await Promise.allSettled([
           getWorkflowRunDetail(workflowRunId, true),
           getWorkflowRunProgressEvents(workflowRunId, 20),
         ]);
-        setWorkflowDetail(detail);
-        setWorkflowEvents(events);
+        if (workflowStatusRequestRef.current !== requestId) return;
+        const detail = detailResult.status === "fulfilled" ? detailResult.value : null;
+        if (detailResult.status === "fulfilled") {
+          setWorkflowDetail(detailResult.value);
+          setWorkflowStatusError(null);
+        } else {
+          setWorkflowDetail(null);
+          setWorkflowStatusError(extractErrorMessage(detailResult.reason, t("video.loadCanvasRunsFailed")));
+        }
+        if (eventsResult.status === "fulfilled") {
+          setWorkflowEvents(eventsResult.value);
+          setWorkflowEventsError(null);
+        } else {
+          setWorkflowEvents([]);
+          setWorkflowEventsError(extractErrorMessage(eventsResult.reason, t("video.loadCanvasEventsFailed")));
+        }
+        if (!detail) return;
         const refreshSignature = canvasWorkflowRuntimeRefreshSignature(detail);
         const graphId =
           detail.run.scope_table === "canvas_graph"
@@ -146,11 +174,12 @@ export function useCanvasWorkflowActions({
           graphId &&
           workflowRuntimeRefreshSignatureRef.current !== refreshSignature
         ) {
-          workflowRuntimeRefreshSignatureRef.current = refreshSignature;
           try {
             await refreshCanvasRuntimeResults(graphId);
+            if (workflowStatusRequestRef.current !== requestId) return;
+            workflowRuntimeRefreshSignatureRef.current = refreshSignature;
           } catch (err) {
-            if (!options.silent) {
+            if (!options.silent && workflowStatusRequestRef.current === requestId) {
               addToast(
                 extractErrorMessage(err, t("video.syncCanvasRuntimeFailed")),
                 "error",
@@ -158,16 +187,41 @@ export function useCanvasWorkflowActions({
             }
           }
         }
-      } catch (err) {
-        if (!options.silent) {
-          addToast(extractErrorMessage(err, t("video.loadCanvasRunsFailed")), "error");
-        }
       } finally {
-        setWorkflowLoading(false);
+        if (workflowStatusRequestRef.current === requestId) setWorkflowLoading(false);
       }
     },
-    [addToast, refreshCanvasRuntimeResults, t],
+    [
+      addToast,
+      refreshCanvasRuntimeResults,
+      setLatestWorkflowRunId,
+      setWorkflowDetail,
+      setWorkflowEvents,
+      setWorkflowStatusError,
+      setWorkflowEventsError,
+      setWorkflowLoading,
+      t,
+    ],
   );
+
+  const clearWorkflowStatus = useCallback(() => {
+    workflowStatusRequestRef.current += 1;
+    latestWorkflowRunIdRef.current = null;
+    setLatestWorkflowRunId(null);
+    setWorkflowDetail(null);
+    setWorkflowEvents([]);
+    setWorkflowStatusError(null);
+    setWorkflowEventsError(null);
+    setWorkflowLoading(false);
+    workflowRuntimeRefreshSignatureRef.current = null;
+  }, [
+    setLatestWorkflowRunId,
+    setWorkflowDetail,
+    setWorkflowEvents,
+    setWorkflowEventsError,
+    setWorkflowLoading,
+    setWorkflowStatusError,
+  ]);
 
   const stopWorkflowDiscovery = useCallback(() => {
     if (workflowDiscoveryTimerRef.current !== null) {
@@ -177,9 +231,10 @@ export function useCanvasWorkflowActions({
     workflowDiscoveryInFlightRef.current = false;
   }, []);
 
-  const findActiveCanvasWorkflowRun = useCallback(
+  const findSubmittedCanvasWorkflowRunForGraph = useCallback(
     async (
       graphId: number,
+      graphVersion: number,
       submittedAtMs: number,
     ): Promise<WorkflowRunSummary | null> => {
       const runs = await listWorkflowRuns({
@@ -188,32 +243,19 @@ export function useCanvasWorkflowActions({
         resumable_only: false,
         limit: 50,
       });
-      const submittedFloorMs = submittedAtMs - 5000;
-      return (
-        runs.find((run) => {
-          if (run.scope_table !== "canvas_graph" || run.scope_id !== graphId)
-            return false;
-          if (run.status === "running" || run.status === "pending") return true;
-          const updatedAtMs = parseWorkflowTimestampMs(run.updated_at);
-          const createdAtMs = parseWorkflowTimestampMs(run.created_at);
-          return (
-            (updatedAtMs !== null && updatedAtMs >= submittedFloorMs) ||
-            (createdAtMs !== null && createdAtMs >= submittedFloorMs)
-          );
-        }) ?? null
-      );
+      return findSubmittedCanvasWorkflowRun(runs, graphId, graphVersion, submittedAtMs);
     },
     [projectId],
   );
 
   const startWorkflowDiscovery = useCallback(
-    (graphId: number, submittedAtMs: number) => {
+    (graphId: number, graphVersion: number, submittedAtMs: number) => {
       stopWorkflowDiscovery();
       const tick = async () => {
         if (workflowDiscoveryInFlightRef.current) return;
         workflowDiscoveryInFlightRef.current = true;
         try {
-          const run = await findActiveCanvasWorkflowRun(graphId, submittedAtMs);
+          const run = await findSubmittedCanvasWorkflowRunForGraph(graphId, graphVersion, submittedAtMs);
           if (!run) return;
           await loadWorkflowStatus(run.id, { silent: true });
           stopWorkflowDiscovery();
@@ -228,7 +270,7 @@ export function useCanvasWorkflowActions({
       }, 700);
       void tick();
     },
-    [findActiveCanvasWorkflowRun, loadWorkflowStatus, stopWorkflowDiscovery],
+    [findSubmittedCanvasWorkflowRunForGraph, loadWorkflowStatus, stopWorkflowDiscovery],
   );
 
   useEffect(() => stopWorkflowDiscovery, [stopWorkflowDiscovery]);
@@ -238,7 +280,7 @@ export function useCanvasWorkflowActions({
     const status = workflowDetail?.run.status;
     if (status !== "running" && status !== "pending") return;
     const timer = window.setInterval(() => {
-      void loadWorkflowStatus(latestWorkflowRunId, { silent: true });
+      void loadWorkflowStatus(latestWorkflowRunId, { silent: true, expectedRunId: latestWorkflowRunId });
     }, 1000);
     return () => window.clearInterval(timer);
   }, [latestWorkflowRunId, loadWorkflowStatus, workflowDetail?.run.status]);
@@ -247,6 +289,7 @@ export function useCanvasWorkflowActions({
     const graph = document?.graph;
     if (!graph) return;
     let cancelled = false;
+    clearWorkflowStatus();
     const restoreLatestRun = async () => {
       try {
         const runs = await listWorkflowRuns({
@@ -264,24 +307,28 @@ export function useCanvasWorkflowActions({
         );
         workflowRuntimeRefreshSignatureRef.current = null;
         if (!latest) {
-          setLatestWorkflowRunId(null);
-          setWorkflowDetail(null);
-          setWorkflowEvents([]);
           return;
         }
         await loadWorkflowStatus(latest.id, { silent: true });
-      } catch {
+      } catch (err) {
         if (cancelled) return;
-        setLatestWorkflowRunId(null);
-        setWorkflowDetail(null);
-        setWorkflowEvents([]);
+        clearWorkflowStatus();
+        setWorkflowStatusError(extractErrorMessage(err, t("video.loadCanvasRunsFailed")));
       }
     };
     void restoreLatestRun();
     return () => {
       cancelled = true;
     };
-  }, [document?.graph.id, document?.graph.version, loadWorkflowStatus, projectId]);
+  }, [
+    clearWorkflowStatus,
+    document?.graph.id,
+    document?.graph.version,
+    loadWorkflowStatus,
+    projectId,
+    setWorkflowStatusError,
+    t,
+  ]);
 
   const previewNode = async (node: StudioNode) => {
     if (!nodeHasProviderRequest(node)) {
@@ -353,12 +400,9 @@ export function useCanvasWorkflowActions({
       return;
     }
     setWorkflowSubmissionLabel(t("video.runNodeSubmitting", { name: nodeDisplayTitle(node.data, t) }));
-    setLatestWorkflowRunId(null);
-    setWorkflowDetail(null);
-    setWorkflowEvents([]);
-    workflowRuntimeRefreshSignatureRef.current = null;
+    clearWorkflowStatus();
     const graphId = document.graph.id;
-    startWorkflowDiscovery(graphId, Date.now());
+    startWorkflowDiscovery(graphId, document.graph.version, Date.now());
     try {
       const result = await runCanvasNode(projectId, graphId, nodeId);
       addToast(
@@ -413,12 +457,9 @@ export function useCanvasWorkflowActions({
       return;
     }
     setWorkflowSubmissionLabel(t("video.runToNodeSubmitting", { name: nodeDisplayTitle(node.data, t) }));
-    setLatestWorkflowRunId(null);
-    setWorkflowDetail(null);
-    setWorkflowEvents([]);
-    workflowRuntimeRefreshSignatureRef.current = null;
+    clearWorkflowStatus();
     const graphId = document.graph.id;
-    startWorkflowDiscovery(graphId, Date.now());
+    startWorkflowDiscovery(graphId, document.graph.version, Date.now());
     try {
       const result = await runCanvasGraphToNode(projectId, graphId, nodeId);
       addToast(
@@ -452,12 +493,9 @@ export function useCanvasWorkflowActions({
       return;
     }
     setWorkflowSubmissionLabel(t("video.runCanvasSubmitting"));
-    setLatestWorkflowRunId(null);
-    setWorkflowDetail(null);
-    setWorkflowEvents([]);
-    workflowRuntimeRefreshSignatureRef.current = null;
+    clearWorkflowStatus();
     const graphId = document.graph.id;
-    startWorkflowDiscovery(graphId, Date.now());
+    startWorkflowDiscovery(graphId, document.graph.version, Date.now());
     try {
       const result = await runCanvasGraph(projectId, graphId);
       addToast(
@@ -692,17 +730,4 @@ export function useCanvasWorkflowActions({
     cancelActiveWorkflow,
     resumeActiveWorkflow,
   };
-}
-
-function workflowRunGraphVersion(run: WorkflowRunSummary): number | null {
-  const fingerprint = run.input_fingerprint_json;
-  if (
-    typeof fingerprint !== "object" ||
-    fingerprint === null ||
-    Array.isArray(fingerprint) ||
-    typeof (fingerprint as Record<string, unknown>).graph_version !== "number"
-  ) {
-    return null;
-  }
-  return (fingerprint as Record<string, number>).graph_version;
 }

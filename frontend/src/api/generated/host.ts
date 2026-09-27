@@ -232,6 +232,7 @@ export const HOST_API_COMMANDS = [
   "modify_profile_attribute",
   "move_inserted_segment",
   "oauth2_authorize_url",
+  "oauth2_available_providers",
   "oauth2_callback",
   "optimize_chapter_video_prompt",
   "optimize_manga_prompt",

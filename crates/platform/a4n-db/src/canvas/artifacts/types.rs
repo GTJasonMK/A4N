@@ -92,6 +92,7 @@ pub struct CanvasAssemblyContractSyncSummary {
 #[derive(Debug, Clone)]
 pub struct CanvasNodeArtifactUpdateInput {
     pub node_id: i64,
+    pub expected_graph_version: i32,
     pub ref_type: String,
     pub ref_id: i64,
     pub config_patch: Value,
@@ -100,5 +101,6 @@ pub struct CanvasNodeArtifactUpdateInput {
 #[derive(Debug, Clone)]
 pub struct CanvasNodeObservationUpdateInput {
     pub node_id: i64,
+    pub expected_graph_version: i32,
     pub config_patch: Value,
 }

@@ -102,6 +102,7 @@ export const FactFeedbackPanel = ({ projectId, canEdit, refreshKey, onChanged }:
       }, () => runProjectFactFeedback({ project_id: requestProject, mode, workflow_run_id: resume ? data?.workflow_run_id ?? null : null }, taskId));
       if (!mounted.current || currentProject.current !== requestProject) return;
       setData(result);
+      setError(null);
       if (result.error) addToast(result.error, "error");
       await onChanged?.();
     } catch (cause) {

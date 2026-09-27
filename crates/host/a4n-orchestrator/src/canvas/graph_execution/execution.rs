@@ -63,6 +63,7 @@ impl OrchestratorContext {
         let shared_run = CanvasNodeRunHandle {
             workflow_run_id: prepared.workflow_run_id,
             finalize_on_success: false,
+            graph_version: prepared.graph_version,
         };
         let mut last_summary = None;
         for node_id in prepared.runnable_node_ids.iter().copied() {
@@ -81,6 +82,12 @@ impl OrchestratorContext {
                 )
                 .await
                 .map_err(|error| error.to_string())?;
+            if current_document.graph.version != prepared.graph_version {
+                return Err(format!(
+                    "画布在工作流运行期间已更改: workflow_graph_version={}, current={}",
+                    prepared.graph_version, current_document.graph.version
+                ));
+            }
             validate_canvas_record_document_edge_contract(&current_document)
                 .map_err(|error| error.to_string())?;
             let node = current_document
@@ -95,10 +102,12 @@ impl OrchestratorContext {
                     user_id: prepared.user_id,
                     project_id: prepared.project_id,
                     graph_id: prepared.graph_id,
+                    graph_version: prepared.graph_version,
                     node_id: node.id,
                     shared_run: a4n_canvas_contract::CanvasNodeRun {
                         workflow_run_id: shared_run.workflow_run_id,
                         finalize_on_success: shared_run.finalize_on_success,
+                        graph_version: prepared.graph_version,
                     },
                     mode: prepared.mode.clone(),
                 })
@@ -124,6 +133,20 @@ impl OrchestratorContext {
             return Ok(cancelled_canvas_graph_summary(prepared, reason));
         }
         if summary.status == WORKFLOW_STATUS_COMPLETED {
+            let current_document = self
+                .get_or_create_canvas_graph_record(
+                    prepared.project_id,
+                    Some(prepared.graph_id),
+                    chrono::Utc::now().naive_utc(),
+                )
+                .await
+                .map_err(|error| error.to_string())?;
+            if current_document.graph.version != prepared.graph_version {
+                return Err(format!(
+                    "画布在工作流完成前已更改: workflow_graph_version={}, current={}",
+                    prepared.graph_version, current_document.graph.version
+                ));
+            }
             let completed = self
                 .complete_canvas_graph_workflow_validated(prepared.workflow_run_id)
                 .await

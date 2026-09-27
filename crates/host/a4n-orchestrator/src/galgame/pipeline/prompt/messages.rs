@@ -148,7 +148,7 @@ fn build_galgame_branch_design_user_message(
         json!({
             "format": "json_object",
             "required_fields": ["choices"],
-            "choice_rule": "每个选择点使用 after_beat_ref 精确引用 shooting_script_projection.scenes[].beats[]；每个选择点 2 到 3 个选项；branch_id 全局唯一；每个选项定义可见 dramatic_action、角色 reaction 和 player_knowledge，并通过 returns_to_scene_index 回到已有主线场",
+            "choice_rule": "每个选择点使用 after_beat_ref 精确引用 shooting_script_projection.scenes[].beats[]；每个选择点 2 到 3 个选项；branch_id 全局唯一；每个选项定义可见 dramatic_action、角色 reaction 和 player_knowledge，并通过大于 after_beat_ref.scene_index 的 returns_to_scene_index 回到选择之后的主线场",
             "phase": "可返回空 choices 数组；非空 choices 会持久化为 choice 行、branch 场与 galgame_choice 选项"
         }),
     )

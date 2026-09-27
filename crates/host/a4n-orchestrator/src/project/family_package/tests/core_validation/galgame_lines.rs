@@ -273,12 +273,11 @@ fn validate_package_manifest_rejects_galgame_choice_target_cross_script() {
 fn validate_package_manifest_accepts_galgame_choice_targeting_closed_branch() {
     let mut package = package_with_galgame_project();
     package.galgame_lines[0].line_type = "choice".to_string();
-    package.galgame_scenes.push(galgame_scene_record_with_id(
-        2202,
-        1001,
-        "branch",
-        Some(2201),
-    ));
+    let mut branch = galgame_scene_record_with_id(2202, 1001, "branch", Some(2203));
+    branch.scene_index = 3;
+    let mut return_scene = galgame_scene_record_with_id(2203, 1001, "main", None);
+    return_scene.scene_index = 2;
+    package.galgame_scenes.extend([branch, return_scene]);
     package.galgame_choices = vec![
         galgame_choice_record_with_index(2401, 2301, 1, 2202),
         galgame_choice_record_with_index(2402, 2301, 2, 2202),

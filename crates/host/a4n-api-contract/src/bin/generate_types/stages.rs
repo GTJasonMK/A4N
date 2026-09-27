@@ -39,6 +39,7 @@ pub(super) fn run() {
         &typescript_interface::<AuthResult>("AuthResult"),
         &typescript_interface::<RefreshTokenInput>("RefreshTokenInput"),
         &typescript_interface::<OAuth2AuthorizeInput>("OAuth2AuthorizeInput"),
+        &typescript_interface::<OAuth2AvailableProvidersInput>("OAuth2AvailableProvidersInput"),
         &typescript_interface::<OAuth2CallbackInput>("OAuth2CallbackInput"),
         &typescript_interface::<OAuth2BrowserInput>("OAuth2BrowserInput"),
     ]

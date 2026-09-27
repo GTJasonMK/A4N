@@ -3,9 +3,9 @@ use a4n_db_models::models::galgame::galgame_line;
 use a4n_error::AppError;
 
 use crate::galgame::{
-    OrchestratorContext, UpdateGalgameLineInput, galgame_line_record_error,
-    normalize_optional_positive_id, required_text, validate_and_project_presentation,
-    validate_line_semantics, validate_positive_id,
+    GalgameLinePresentationDocumentV2, OrchestratorContext, UpdateGalgameLineInput,
+    galgame_line_record_error, normalize_optional_positive_id, required_text,
+    validate_and_project_presentation, validate_line_semantics, validate_positive_id,
 };
 
 impl OrchestratorContext {
@@ -20,6 +20,13 @@ impl OrchestratorContext {
         let line = self
             .load_line_in_project(context.project.id, input.line_id)
             .await?;
+        if input.presentation.as_ref().is_some_and(|presentation| {
+            transition_change_without_cg_is_invalid(&line.presentation_json, presentation)
+        }) {
+            return Err(AppError::InvalidArgument(
+                "Galgame transition 只能在已保存 CG 的行上修改".to_string(),
+            ));
+        }
         let next_line_type = match input.line_type {
             Some(line_type) => line_type.to_string(),
             None => line.line_type.clone(),
@@ -131,6 +138,16 @@ impl OrchestratorContext {
     }
 }
 
+fn transition_change_without_cg_is_invalid(
+    current: &serde_json::Value,
+    next: &GalgameLinePresentationDocumentV2,
+) -> bool {
+    next.cg != Some(true)
+        && next.transition.is_some_and(|transition| {
+            current.get("transition").and_then(|value| value.as_str()) != Some(transition.as_str())
+        })
+}
+
 fn visual_inputs_changed(line: &galgame_line::Model, input: &UpdateGalgameLineRecordInput) -> bool {
     // Asset plans consume line content, the speaker projection and CG fields, not playback directives.
     input
@@ -198,5 +215,41 @@ mod tests {
         assert!(!visual_inputs_changed(&line, &input));
         input.presentation_json.as_mut().unwrap()["cg_note"] = json!("晴天的车站");
         assert!(visual_inputs_changed(&line, &input));
+    }
+
+    #[test]
+    fn transition_edits_without_cg_reject_new_values_but_allow_legacy_values() {
+        let next: GalgameLinePresentationDocumentV2 = serde_json::from_value(json!({
+            "schema_version": "galgame_line_presentation_v2",
+            "visible_cast": [],
+            "enter": [],
+            "exit": [],
+            "focus_character_profile_id": null,
+            "hold": false,
+            "player_knowledge": [],
+            "cg": null,
+            "cg_note": null,
+            "cg_importance": null,
+            "transition": "fade",
+            "branch": null,
+            "branch_id": null,
+            "returns_to_scene_index": null,
+            "after_beat_ref": null
+        }))
+        .unwrap();
+        assert!(transition_change_without_cg_is_invalid(
+            &json!({"transition": null}),
+            &next
+        ));
+        assert!(!transition_change_without_cg_is_invalid(
+            &json!({"transition": "fade"}),
+            &next
+        ));
+        let mut enabled = next;
+        enabled.cg = Some(true);
+        assert!(!transition_change_without_cg_is_invalid(
+            &json!({"transition": null}),
+            &enabled
+        ));
     }
 }

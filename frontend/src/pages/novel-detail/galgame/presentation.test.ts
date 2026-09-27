@@ -39,6 +39,11 @@ describe("Galgame presentation", () => {
 
     expect(
       updatePresentationJson(enabled, { cgEnabled: false }),
-    ).toMatchObject({ cg: null, cg_importance: null, cg_note: null });
+    ).toMatchObject({
+      cg: null,
+      cg_importance: null,
+      cg_note: null,
+      transition: null,
+    });
   });
 });

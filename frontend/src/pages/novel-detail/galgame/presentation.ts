@@ -73,4 +73,5 @@ function clearEventCgPresentation(
   value.cg = null;
   value.cg_note = null;
   value.cg_importance = null;
+  value.transition = null;
 }

@@ -45,9 +45,10 @@ use a4n_api_contract::{
         UpdateAgentThreadInput, WritingTargetView,
     },
     auth::{
-        AuthResult, ChangePasswordInput, LoginInput, OAuth2AuthorizeInput, OAuth2BrowserInput,
-        OAuth2CallbackInput, RefreshTokenInput, RegisterInput, RevokeSessionInput, SessionSummary,
-        TokenPairSummary, UpdateProfileInput, UserSummary,
+        AuthResult, ChangePasswordInput, LoginInput, OAuth2AuthorizeInput,
+        OAuth2AvailableProvidersInput, OAuth2BrowserInput, OAuth2CallbackInput, RefreshTokenInput,
+        RegisterInput, RevokeSessionInput, SessionSummary, TokenPairSummary, UpdateProfileInput,
+        UserSummary,
     },
     blueprint::{
         BlueprintDiffSummary, BlueprintMutationResult, BlueprintSummary, BlueprintVersionSummary,

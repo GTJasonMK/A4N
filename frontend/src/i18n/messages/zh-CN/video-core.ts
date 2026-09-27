@@ -194,6 +194,7 @@ export const videoCore = {
   resumeCanvasFailed: "继续运行失败",
   syncCanvasRuntimeFailed: "同步画布运行结果失败",
   loadCanvasRunsFailed: "加载画布运行记录失败",
+  loadCanvasEventsFailed: "加载画布运行事件失败",
   previewRequestFailed: "预览节点请求失败",
   deleteNode: "删除节点",
   deleteEdge: "删除连线",

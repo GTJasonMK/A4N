@@ -3,17 +3,18 @@ use std::collections::{BTreeMap, BTreeSet};
 use a4n_api_contract::export::ExportFileData;
 use a4n_archive_core::{ArchiveEntry, write_zip};
 use a4n_db_models::models::character::character_portrait;
+use a4n_domain::galgame::{GalgameFacingV2, GalgameStageLayerV2};
 use a4n_error::AppError;
 use base64::Engine as _;
 
 use crate::OrchestratorContext;
 
 use super::{
-    GalgameChoice, GalgameLine, GalgameLineType, GalgameMediaRole, GalgameMediaTargetKind,
-    GalgameSceneDetail, GalgameSceneEntryKind, GalgameScriptDetail,
+    GalgameChoice, GalgameLineType, GalgameMediaRole, GalgameMediaTargetKind, GalgameSceneDetail,
+    GalgameSceneEntryKind, GalgameScriptDetail,
     webgal_export_rules::{
         media_file_extension, media_file_extension_for_webgal_role, sanitize_export_file_stem,
-        webgal_arg, webgal_string_literal, webgal_transition_args,
+        webgal_choice_text, webgal_string_literal, webgal_transition_args,
     },
 };
 use crate::media::galgame_media_binding_required_media_kind;
@@ -31,6 +32,14 @@ struct WebgalFigureKey {
     profile_id: i64,
     expression: Option<String>,
     pose: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct WebgalFigureState {
+    script_name: String,
+    position: String,
+    facing: GalgameFacingV2,
+    layer: GalgameStageLayerV2,
 }
 
 #[derive(Default)]
@@ -101,6 +110,13 @@ fn build_webgal_package(
             choices.entry(choice.line_id).or_default().push(choice);
             choices
         });
+    let figure_profile_ids = detail
+        .scenes
+        .iter()
+        .flat_map(|scene| &scene.lines)
+        .flat_map(|line| &line.presentation_json.visible_cast)
+        .map(|member| member.character_profile_id)
+        .collect::<BTreeSet<_>>();
     validate_webgal_choice_contract(detail, &scene_file_by_id)?;
     let assets = webgal_export_assets(detail, portraits)?;
     let first_scene = scene_file_by_id
@@ -123,6 +139,7 @@ fn build_webgal_package(
             &speaker_name_by_id,
             &choices_by_line,
             &assets,
+            &figure_profile_ids,
         )?;
         entries.push(ArchiveEntry {
             path: format!("game/scene/{file_name}"),
@@ -149,10 +166,11 @@ fn build_webgal_package(
         }
     }
 
+    let config = webgal_config_text(detail)?;
     write_zip(
         std::iter::once(ArchiveEntry {
             path: "game/config.txt".to_string(),
-            bytes: webgal_config_text(detail).into_bytes(),
+            bytes: config.into_bytes(),
             label: "WebGAL 配置".to_string(),
         })
         .chain(entries),
@@ -168,14 +186,19 @@ fn render_webgal_scene(
     speaker_name_by_id: &BTreeMap<i64, String>,
     choices_by_line: &BTreeMap<i64, Vec<&GalgameChoice>>,
     assets: &WebgalExportAssets,
+    figure_profile_ids: &BTreeSet<i64>,
 ) -> Result<String, AppError> {
     let mut output = String::new();
-    let mut current_figure_by_position = BTreeMap::<String, String>::new();
+    let mut current_figure_by_profile = BTreeMap::<i64, WebgalFigureState>::new();
+    for profile_id in figure_profile_ids {
+        output.push_str(&format!(
+            "changeFigure:none -id=a4n_profile_{profile_id} -next;\n"
+        ));
+    }
     if let Some(background) = assets.scene_backgrounds.get(&scene.scene.id) {
         output.push_str(&format!("changeBg:{} -next;\n", background.script_name));
     }
     for line in &scene.lines {
-        let transition_args = webgal_transition_args(line.presentation_json.transition);
         if let Some(bgm) = assets.line_bgms.get(&line.id) {
             output.push_str(&format!("bgm:{};\n", bgm.script_name));
         }
@@ -183,27 +206,81 @@ fn render_webgal_scene(
             output.push_str(&format!("playEffect:{} -next;\n", sfx.script_name));
         }
         if let Some(cg) = assets.line_cgs.get(&line.id) {
+            let transition_args = webgal_transition_args(line.presentation_json.transition)
+                .map_err(invalid_webgal)?;
+            let name_var = format!("__a4n_cg_name_{}", line.id);
+            output.push_str(&format!(
+                "setVar:{name_var}=({});\n",
+                webgal_string_literal(&format!("{} #{} CG", scene.scene.title, line.line_index))
+            ));
             output.push_str(&format!(
                 "changeBg:{}{} -next;\n",
                 cg.script_name, transition_args
             ));
             output.push_str(&format!(
-                "unlockCg:{} -name={};\n",
-                cg.script_name,
-                webgal_arg(&format!("{} #{} CG", scene.scene.title, line.line_index))
+                "unlockCg:{} -name={{{name_var}}};\n",
+                cg.script_name
             ));
         }
-        if let Some((position, figure)) = webgal_line_figure(line, assets) {
-            let changed = current_figure_by_position
-                .get(position)
-                .is_none_or(|current| current != &figure.script_name);
-            if changed {
-                output.push_str(&format!(
-                    "changeFigure:{} -{} -next;\n",
-                    figure.script_name, position
-                ));
-                current_figure_by_position.insert(position.to_string(), figure.script_name.clone());
+        let visible_figures = line
+            .presentation_json
+            .visible_cast
+            .iter()
+            .filter_map(|member| {
+                webgal_cast_figure(member, assets)
+                    .map(|figure| (member.character_profile_id, (member, figure)))
+            })
+            .collect::<BTreeMap<_, _>>();
+        for profile_id in current_figure_by_profile.keys() {
+            if visible_figures.contains_key(profile_id) {
+                continue;
             }
+            if line.presentation_json.exit.contains(profile_id) {
+                output.push_str(&format!(
+                    "setTransition: -target=a4n_profile_{profile_id} -exit=exit;\n"
+                ));
+            }
+            output.push_str(&format!(
+                "changeFigure:none -id=a4n_profile_{profile_id} -next;\n"
+            ));
+        }
+        current_figure_by_profile.retain(|profile_id, _| visible_figures.contains_key(profile_id));
+        for (profile_id, (member, figure)) in visible_figures {
+            let state = WebgalFigureState {
+                script_name: figure.script_name.clone(),
+                position: member.position.to_string(),
+                facing: member.facing,
+                layer: member.layer,
+            };
+            if current_figure_by_profile.get(&profile_id) == Some(&state) {
+                continue;
+            }
+            let layer = match member.layer {
+                GalgameStageLayerV2::Back => 1,
+                GalgameStageLayerV2::Middle => 2,
+                GalgameStageLayerV2::Front => 3,
+            };
+            let facing_scale = if member.facing == GalgameFacingV2::Left {
+                -1
+            } else {
+                1
+            };
+            let enter = if line.presentation_json.enter.contains(&profile_id) {
+                match member.position.as_str() {
+                    "left" => " -enter=enter-from-left",
+                    "right" => " -enter=enter-from-right",
+                    _ => " -enter=enter",
+                }
+            } else {
+                ""
+            };
+            output.push_str(&format!(
+                "changeFigure:{} -id=a4n_profile_{profile_id} -{} -zIndex={layer} -transform={{\"scale\":{{\"x\":{facing_scale},\"y\":1}}}}{} -next;\n",
+                figure.script_name,
+                state.position,
+                enter,
+            ));
+            current_figure_by_profile.insert(profile_id, state);
         }
         output.push_str(&format!(
             "setVar:__a4n_line_text=({});\n",
@@ -258,11 +335,20 @@ fn render_webgal_scene(
                                 choice.id, target_scene_id
                             ))
                         })?;
-                        Ok(format!("{}:{}", webgal_arg(&choice.option_text), target))
+                        let text_var = format!("__a4n_choice_{}_{}", line.id, choice.option_index);
+                        let choice_text =
+                            webgal_choice_text(&choice.option_text).map_err(invalid_webgal)?;
+                        output.push_str(&format!(
+                            "setVar:{text_var}=({});\n",
+                            webgal_string_literal(&choice_text)
+                        ));
+                        Ok(format!("{{{text_var}}}:{target}"))
                     })
                     .collect::<Result<Vec<_>, AppError>>()?
                     .join("|");
-                output.push_str(&format!("say:{{__a4n_line_text}} -clear -next;\nchoose:{options};\n"));
+                output.push_str(&format!(
+                    "say:{{__a4n_line_text}} -clear -next;\nchoose:{options};\n"
+                ));
             }
         }
     }
@@ -295,28 +381,16 @@ fn render_webgal_scene(
     Ok(output)
 }
 
-fn webgal_line_figure<'a>(
-    line: &GalgameLine,
+fn webgal_cast_figure<'a>(
+    member: &a4n_domain::galgame::GalgameVisibleCastMemberV2,
     assets: &'a WebgalExportAssets,
-) -> Option<(&'static str, &'a WebgalExportAsset)> {
-    let profile_id = line.speaker_profile_id?;
-    let position = line.position.map(|position| position.as_str())?;
+) -> Option<&'a WebgalExportAsset> {
     let key = WebgalFigureKey {
-        profile_id,
-        expression: line.expression.clone(),
-        pose: line.pose.clone(),
+        profile_id: member.character_profile_id,
+        expression: Some(member.expression.clone()),
+        pose: Some(member.pose.clone()),
     };
-    if key.expression.is_some() || key.pose.is_some() {
-        return assets.figures.get(&key).map(|asset| (position, asset));
-    }
-    assets
-        .figures
-        .get(&WebgalFigureKey {
-            profile_id,
-            expression: None,
-            pose: None,
-        })
-        .map(|asset| (position, asset))
+    assets.figures.get(&key)
 }
 
 fn webgal_export_assets(
@@ -459,6 +533,42 @@ fn validate_webgal_choice_contract(
                     choice.id
                 )));
             }
+            let target_scene = detail
+                .scenes
+                .iter()
+                .find(|candidate| candidate.scene.id == target_scene_id)
+                .ok_or_else(|| {
+                    invalid_webgal(format!(
+                        "Galgame choice {} 指向详情中不存在的场 {target_scene_id}",
+                        choice.id
+                    ))
+                })?;
+            if target_scene.scene.entry_kind == GalgameSceneEntryKind::Branch {
+                let return_scene_id = target_scene.scene.next_scene_id.ok_or_else(|| {
+                    invalid_webgal(format!(
+                        "Galgame choice {} 指向没有回线的 branch 场，无法导出 WebGAL",
+                        choice.id
+                    ))
+                })?;
+                let return_scene = detail
+                    .scenes
+                    .iter()
+                    .find(|candidate| candidate.scene.id == return_scene_id)
+                    .ok_or_else(|| {
+                        invalid_webgal(format!(
+                            "Galgame choice {} 的 branch 回线指向不存在的场 {return_scene_id}",
+                            choice.id
+                        ))
+                    })?;
+                if return_scene.scene.entry_kind != GalgameSceneEntryKind::Main
+                    || return_scene.scene.scene_index <= scene.scene.scene_index
+                {
+                    return Err(invalid_webgal(format!(
+                        "Galgame choice {} 的 branch 回线必须进入选择所在场之后的主线场，当前选择场={}, 回线场={}",
+                        choice.id, scene.scene.scene_index, return_scene.scene.scene_index
+                    )));
+                }
+            }
             choices_by_line
                 .entry(choice.line_id)
                 .or_default()
@@ -516,12 +626,23 @@ fn validate_webgal_choice_contract(
     Ok(())
 }
 
-fn webgal_config_text(detail: &GalgameScriptDetail) -> String {
-    format!(
-        "Game_name:{};\nGame_key:a4n_galgame_{};\n",
-        webgal_arg(&detail.title),
+fn webgal_config_text(detail: &GalgameScriptDetail) -> Result<String, AppError> {
+    let title = &detail.title;
+    if title.trim() != title
+        || title
+            .chars()
+            .any(|ch| matches!(ch, ';' | '\r' | '\n' | '\t'))
+        || title.contains(" -")
+        || title.split('|').any(|part| part.trim() != part)
+    {
+        return Err(invalid_webgal(
+            "WebGAL 配置无法无损表示游戏标题中的分号、控制空白、参数分隔符或带边界空格的竖线",
+        ));
+    }
+    Ok(format!(
+        "Game_name:{title};\nGame_key:a4n_galgame_{};\n",
         detail.id
-    )
+    ))
 }
 
 fn read_webgal_data_file(data_dir: &Path, relative_path: &str) -> Result<Vec<u8>, AppError> {
@@ -555,5 +676,203 @@ fn invalid_webgal(message: impl Into<String>) -> AppError {
     AppError::InvalidState {
         current: "webgal_export".to_string(),
         operation: message.into(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::galgame::{GalgameLine, GalgameScene};
+    use a4n_domain::galgame::{
+        GalgameFacingV2, GalgameLinePresentationDocumentV2, GalgameStageLayerV2,
+        GalgameStagePositionV2, GalgameVisibleCastMemberV2,
+    };
+    use serde_json::Value;
+
+    fn scene(lines: Vec<GalgameLine>) -> GalgameSceneDetail {
+        GalgameSceneDetail {
+            scene: GalgameScene {
+                id: 10,
+                source_snapshot_chapter_id: 20,
+                scene_index: 1,
+                title: "测试场".to_string(),
+                location: None,
+                time_of_day: None,
+                background_note: None,
+                entry_kind: GalgameSceneEntryKind::Main,
+                next_scene_id: None,
+            },
+            lines,
+            choices: Vec::new(),
+        }
+    }
+
+    fn line(id: i64, line_type: GalgameLineType, presentation_json: Value) -> GalgameLine {
+        GalgameLine {
+            id,
+            scene_id: 10,
+            line_index: 1,
+            line_type,
+            speaker_profile_id: None,
+            text: "旁白".to_string(),
+            expression: None,
+            pose: None,
+            position: None,
+            presentation_json: serde_json::from_value(presentation_json).unwrap(),
+            text_anchor_id: None,
+        }
+    }
+
+    fn presentation(
+        visible_cast: Vec<GalgameVisibleCastMemberV2>,
+        enter: Vec<i64>,
+        exit: Vec<i64>,
+    ) -> Value {
+        serde_json::to_value(GalgameLinePresentationDocumentV2 {
+            schema_version: a4n_domain::galgame::GalgameLinePresentationSchemaVersion::V2,
+            visible_cast,
+            enter,
+            exit,
+            focus_character_profile_id: None,
+            hold: false,
+            player_knowledge: Vec::new(),
+            cg: None,
+            cg_note: None,
+            cg_importance: None,
+            transition: None,
+            branch: None,
+            branch_id: None,
+            returns_to_scene_index: None,
+            after_beat_ref: None,
+        })
+        .unwrap()
+    }
+
+    #[test]
+    fn renders_all_visible_cast_members_on_narration_lines() {
+        let visible_cast = vec![
+            GalgameVisibleCastMemberV2 {
+                character_profile_id: 47,
+                expression: "serious".to_string(),
+                pose: "watch".to_string(),
+                position: GalgameStagePositionV2::Left,
+                facing: GalgameFacingV2::Left,
+                layer: GalgameStageLayerV2::Back,
+            },
+            GalgameVisibleCastMemberV2 {
+                character_profile_id: 48,
+                expression: "neutral".to_string(),
+                pose: "toolbox".to_string(),
+                position: GalgameStagePositionV2::Right,
+                facing: GalgameFacingV2::Right,
+                layer: GalgameStageLayerV2::Front,
+            },
+        ];
+        let mut assets = WebgalExportAssets::default();
+        for (profile_id, expression, pose, file) in [
+            (47, "serious", "watch", "lin.webp"),
+            (48, "neutral", "toolbox", "zhou.webp"),
+        ] {
+            assets.figures.insert(
+                WebgalFigureKey {
+                    profile_id,
+                    expression: Some(expression.to_string()),
+                    pose: Some(pose.to_string()),
+                },
+                WebgalExportAsset {
+                    script_name: file.to_string(),
+                    zip_path: format!("game/figure/{file}"),
+                    data_path: format!("portraits/{file}"),
+                },
+            );
+        }
+
+        let script = render_webgal_scene(
+            &scene(vec![
+                line(
+                    100,
+                    GalgameLineType::Narration,
+                    presentation(visible_cast, vec![47, 48], Vec::new()),
+                ),
+                line(
+                    101,
+                    GalgameLineType::Narration,
+                    presentation(
+                        vec![GalgameVisibleCastMemberV2 {
+                            character_profile_id: 48,
+                            expression: "neutral".to_string(),
+                            pose: "toolbox".to_string(),
+                            position: GalgameStagePositionV2::Right,
+                            facing: GalgameFacingV2::Right,
+                            layer: GalgameStageLayerV2::Front,
+                        }],
+                        Vec::new(),
+                        vec![47],
+                    ),
+                ),
+            ]),
+            &BTreeMap::new(),
+            &BTreeMap::new(),
+            &BTreeMap::new(),
+            &BTreeMap::new(),
+            &assets,
+            &BTreeSet::from([47, 48]),
+        )
+        .unwrap();
+
+        assert!(script.contains("changeFigure:lin.webp -id=a4n_profile_47 -left"));
+        assert!(script.contains("changeFigure:zhou.webp -id=a4n_profile_48 -right"));
+        assert!(script.contains("-zIndex=1"));
+        assert!(script.contains("-zIndex=3"));
+        assert!(script.contains("-transform={\"scale\":{\"x\":-1,\"y\":1}}"));
+        assert!(script.contains(
+            "setTransition: -target=a4n_profile_47 -exit=exit;\nchangeFigure:none -id=a4n_profile_47 -next;"
+        ));
+    }
+
+    #[test]
+    fn injects_choice_text_after_webgal_command_parsing() {
+        let option_text = "继续调查 - 暂缓验证:甲|乙";
+        let choices = [
+            GalgameChoice {
+                id: 201,
+                line_id: 100,
+                option_index: 1,
+                option_text: option_text.to_string(),
+                target_scene_id: Some(20),
+            },
+            GalgameChoice {
+                id: 202,
+                line_id: 100,
+                option_index: 2,
+                option_text: "暂时离开".to_string(),
+                target_scene_id: Some(30),
+            },
+        ];
+        let choices_by_line = BTreeMap::from([(100, choices.iter().collect())]);
+        let script = render_webgal_scene(
+            &scene(vec![line(
+                100,
+                GalgameLineType::Choice,
+                presentation(Vec::new(), Vec::new(), Vec::new()),
+            )]),
+            &BTreeMap::from([
+                (20, "scene_002_20.txt".to_string()),
+                (30, "scene_003_30.txt".to_string()),
+            ]),
+            &BTreeMap::new(),
+            &BTreeMap::new(),
+            &choices_by_line,
+            &WebgalExportAssets::default(),
+            &BTreeSet::new(),
+        )
+        .unwrap();
+        let escaped = webgal_choice_text(option_text).unwrap();
+        let literal = webgal_string_literal(&escaped);
+
+        assert!(script.contains(&format!("setVar:__a4n_choice_100_1=({literal});")));
+        assert!(script.contains(
+            "choose:{__a4n_choice_100_1}:scene_002_20.txt|{__a4n_choice_100_2}:scene_003_30.txt;"
+        ));
     }
 }

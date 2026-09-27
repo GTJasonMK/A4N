@@ -1,4 +1,4 @@
-import type { WorkflowRunDetailSummary } from "../../api/streaming";
+import type { WorkflowRunDetailSummary, WorkflowRunSummary } from "../../api/streaming";
 import type { MessageTranslator } from "../../i18n";
 import { nodeDisplayTitle } from "./StudioCanvasNode";
 import { studioNodeContract, type StudioNodeContractMap } from "./nodeContracts";
@@ -277,6 +277,41 @@ export function parseWorkflowTimestampMs(value: string | null | undefined): numb
   const normalized = trimmed.includes("T") ? trimmed : trimmed.replace(" ", "T");
   const parsed = Date.parse(hasTimezone ? normalized : `${normalized}Z`);
   return Number.isFinite(parsed) ? parsed : null;
+}
+
+export function workflowRunGraphVersion(run: WorkflowRunSummary): number | null {
+  const fingerprint = run.input_fingerprint_json;
+  if (
+    typeof fingerprint !== "object" ||
+    fingerprint === null ||
+    Array.isArray(fingerprint) ||
+    typeof (fingerprint as Record<string, unknown>).graph_version !== "number"
+  ) {
+    return null;
+  }
+  return (fingerprint as Record<string, number>).graph_version;
+}
+
+export function findSubmittedCanvasWorkflowRun(
+  runs: WorkflowRunSummary[],
+  graphId: number,
+  graphVersion: number,
+  submittedAtMs: number,
+): WorkflowRunSummary | null {
+  const submittedFloorMs = submittedAtMs - 5000;
+  return (
+    runs.find((run) => {
+      if (
+        run.scope_table !== "canvas_graph" ||
+        run.scope_id !== graphId ||
+        workflowRunGraphVersion(run) !== graphVersion
+      ) {
+        return false;
+      }
+      const createdAtMs = parseWorkflowTimestampMs(run.created_at);
+      return createdAtMs !== null && createdAtMs >= submittedFloorMs;
+    }) ?? null
+  );
 }
 
 function replaceNodeClassTokens(

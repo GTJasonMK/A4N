@@ -194,6 +194,7 @@ export const videoCore = {
   resumeCanvasFailed: "Failed to resume canvas",
   syncCanvasRuntimeFailed: "Failed to sync canvas runtime results",
   loadCanvasRunsFailed: "Failed to load canvas run history",
+  loadCanvasEventsFailed: "Failed to load canvas run events",
   previewRequestFailed: "Failed to preview node request",
   deleteNode: "Delete node",
   deleteEdge: "Delete edge",
