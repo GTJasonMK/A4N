@@ -57,7 +57,7 @@ interface VideoMaterialWorkspaceProps {
   projectId: number;
   onToast: (message: string, type: "success" | "error" | "info") => void;
   runProgressTask: RunProgressTask;
-  onRefreshVideoData: () => Promise<void> | void;
+  onRefreshVideoData: () => Promise<boolean | void> | boolean | void;
 }
 
 export const VideoMaterialWorkspace: React.FC<VideoMaterialWorkspaceProps> = ({

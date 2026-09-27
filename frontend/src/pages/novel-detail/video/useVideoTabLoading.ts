@@ -142,8 +142,8 @@ export function useVideoTabLoading({
     }
   }, [chapterId, projectId, t, videoDataKey]);
 
-  async function loadAll() {
-    if (!chapter || !videoDataKey) return;
+  async function loadAll(): Promise<boolean> {
+    if (!chapter || !videoDataKey) return false;
     void refreshSegmentPlanDraft().catch(() => undefined);
     const requestSeq = loadAllSeqRef.current + 1;
     const requestDataKey = videoDataKey;
@@ -162,7 +162,7 @@ export function useVideoTabLoading({
         loadAllSeqRef.current !== requestSeq ||
         activeVideoDataKeyRef.current !== requestDataKey
       ) {
-        return;
+        return false;
       }
       const failures: string[] = [];
       if (videoDataResult.status === "fulfilled") {
@@ -199,6 +199,7 @@ export function useVideoTabLoading({
       const message = failures.length > 0 ? failures.join("；") : null;
       setVideoDataError(message);
       if (message) addToast(message, "error");
+      return failures.length === 0;
     } finally {
       if (
         loadAllSeqRef.current === requestSeq &&

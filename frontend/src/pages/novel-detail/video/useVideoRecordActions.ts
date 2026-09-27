@@ -150,7 +150,7 @@ interface UseVideoRecordActionsParams {
   t: MessageTranslator;
   addToast: AddToast;
   runProgressTask: RunProgressTask;
-  loadAll: () => Promise<void>;
+  loadAll: () => Promise<boolean>;
   setPrompts: Dispatch<SetStateAction<ChapterVideoPrompt[]>>;
   setVideos: Dispatch<SetStateAction<GeneratedVideo[]>>;
   setSelectedPromptId: Dispatch<SetStateAction<number | null>>;
@@ -288,8 +288,9 @@ export function useVideoRecordActions({
       const result = await fn(() => isCurrentActionScope(requestScope));
       if (!isCurrentActionScope(requestScope)) return;
       if (result) upsertVideo(result);
+      const refreshed = await loadAll();
+      if (refreshed === false) return;
       addToast(ok, "success");
-      await loadAll();
     } catch (err) {
       if (!isCurrentActionScope(requestScope)) return;
       addToast(extractErrorMessage(err, t("video.actions.operationFailed")), "error");
@@ -324,6 +325,7 @@ export function useVideoRecordActions({
       if (downstreamStrategy == null || !isCurrentActionScope(requestScope)) {
         return null;
       }
+      let refreshSucceeded = true;
       const updated = await runProgressTask(
         {
           title: t("video.chapter.optimizePrompt"),
@@ -352,11 +354,12 @@ export function useVideoRecordActions({
               duration_secs: result.duration_secs,
             });
           }
-          await loadAll();
+          refreshSucceeded = await loadAll();
           return result;
         },
       );
       if (!isCurrentActionScope(requestScope)) return null;
+      if (!refreshSucceeded) return updated;
       addToast(t("video.actions.optimizeSuccess"), "success");
       return updated;
     } catch (err) {
@@ -463,8 +466,9 @@ export function useVideoRecordActions({
           duration_secs: updated.duration_secs,
         });
       }
+      const refreshed = await loadAll();
+      if (refreshed === false) return updated;
       addToast(t("video.actions.promptSaved"), "success");
-      await loadAll();
       return updated;
     } catch (err) {
       if (!isCurrentActionScope(requestScope)) return null;
@@ -494,6 +498,7 @@ export function useVideoRecordActions({
     const requestScope = actionScopeKey;
     const actionKey = `generate-video-${selectedPrompt.id}`;
     if (!beginAction(actionKey)) return;
+    let generated = false;
     try {
       const handle = await startVideoGeneration({
         project_id: projectId,
@@ -527,14 +532,17 @@ export function useVideoRecordActions({
         },
       );
       if (!isCurrentActionScope(requestScope)) return;
-      addToast(t("video.actions.videoGenerated"), "success");
+      generated = true;
     } catch (err) {
       if (!isCurrentActionScope(requestScope)) return;
       const message = extractErrorMessage(err, t("video.actions.failed", { operation: t("video.chapter.generateVideo") }));
       if (!isCancelledOperation(message)) addToast(message, "error");
     } finally {
       try {
-        await loadAll();
+        const refreshed = await loadAll();
+        if (generated && refreshed !== false && isCurrentActionScope(requestScope)) {
+          addToast(t("video.actions.videoGenerated"), "success");
+        }
       } finally {
         finishAction(actionKey);
       }
@@ -599,8 +607,9 @@ export function useVideoRecordActions({
       setSelectedVideoId(row.id);
       setPendingVideoId(null);
       upsertVideo(row);
+      const refreshed = await loadAll();
+      if (refreshed === false) return;
       addToast(t("video.actions.videoImported"), "success");
-      await loadAll();
     } catch (err) {
       if (!isCurrentActionScope(requestScope)) return;
       addToast(extractErrorMessage(err, t("video.actions.videoImportFailed")), "error");
@@ -740,8 +749,9 @@ export function useVideoRecordActions({
       if (!isCurrentActionScope(requestScope)) return;
       setSelectedVideoId(row.id);
       upsertVideo(row);
+      const refreshed = await loadAll();
+      if (refreshed === false) return;
       addToast(t("video.actions.videoRecordSaved"), "success");
-      await loadAll();
     } catch (err) {
       if (!isCurrentActionScope(requestScope)) return;
       addToast(extractErrorMessage(err, t("video.actions.videoRecordSaveFailed")), "error");

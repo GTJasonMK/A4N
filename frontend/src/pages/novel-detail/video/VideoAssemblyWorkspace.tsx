@@ -60,7 +60,7 @@ interface VideoAssemblyWorkspaceProps {
   adoptedVideoIds: ReadonlySet<number>;
   unavailableSegmentNumbers?: number[];
   onToast: (message: string, type: ToastType) => void;
-  onRefresh: () => Promise<void> | void;
+  onRefresh: () => Promise<boolean | void> | boolean | void;
   onVideoRecordUpdated: (video: GeneratedVideo) => void;
 }
 
@@ -402,7 +402,8 @@ export const VideoAssemblyWorkspace: React.FC<VideoAssemblyWorkspaceProps> = ({
       if (!isCurrentScope(requestScope)) return;
       onVideoRecordUpdated(result.video);
       clearPreview();
-      await onRefresh();
+      const refreshed = await onRefresh();
+      if (refreshed === false) return;
       if (!isCurrentScope(requestScope)) return;
       onToast(
         t("video.chapter.pushSuccess", { count: result.source_video_ids.length }),

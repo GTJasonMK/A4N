@@ -44,7 +44,7 @@ interface VideoPostProcessWorkspaceProps {
   chapter: ChapterRow;
   videos: GeneratedVideo[];
   onToast: (message: string, type: ToastType) => void;
-  onRefresh: () => Promise<void> | void;
+  onRefresh: () => Promise<boolean | void> | boolean | void;
   onVideoRecordUpdated: (video: GeneratedVideo) => void;
 }
 
@@ -550,7 +550,8 @@ export const VideoPostProcessWorkspace: React.FC<
       const updated = await updateAssemblyPushStatus(selectedPush.id, action);
       if (!isCurrentScope(requestScope)) return;
       onVideoRecordUpdated(updated);
-      await onRefresh();
+      const refreshed = await onRefresh();
+      if (refreshed === false) return;
       if (!isCurrentScope(requestScope)) return;
       onToast(
         action === "accept"
@@ -616,7 +617,8 @@ export const VideoPostProcessWorkspace: React.FC<
       if (!isCurrentScope(requestScope)) return;
       onVideoRecordUpdated(updated);
       clearMarkers();
-      await onRefresh();
+      const refreshed = await onRefresh();
+      if (refreshed === false) return;
       if (!isCurrentScope(requestScope)) return;
       onToast(t("video.postprocess.editUploaded", { operation: t(editOperationLabel[operation]) }), "success");
     } catch (err) {
@@ -645,7 +647,8 @@ export const VideoPostProcessWorkspace: React.FC<
       if (!isCurrentScope(requestScope)) return;
       onVideoRecordUpdated(updated);
       clearMarkers();
-      await onRefresh();
+      const refreshed = await onRefresh();
+      if (refreshed === false) return;
       if (!isCurrentScope(requestScope)) return;
       onToast(t("video.postprocess.deletedSelection"), "success");
     } catch (err) {

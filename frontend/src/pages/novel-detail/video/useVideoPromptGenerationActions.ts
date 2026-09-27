@@ -185,7 +185,7 @@ interface UseVideoPromptGenerationActionsParams {
   t: MessageTranslator;
   addToast: AddToast;
   runProgressTask: RunProgressTask;
-  loadAll: () => Promise<void>;
+  loadAll: () => Promise<boolean>;
   refreshPrompts: () => Promise<void>;
   refreshSegmentPlanDraft: () => Promise<LoadedSegmentPlanDraft | null>;
   setSegmentPlanPreview: Dispatch<SetStateAction<Record<string, unknown>[]>>;
@@ -300,6 +300,7 @@ export function useVideoPromptGenerationActions({
       finishAction(key);
       return;
     }
+    let refreshSucceeded = true;
     try {
       const handle = await startImageGeneration({
         project_id: projectId,
@@ -320,11 +321,14 @@ export function useVideoPromptGenerationActions({
         },
         async (task) => {
           const rows = await verifyImageGenerationResult(task, projectId);
-          if (isCurrentActionScope(requestScope)) await loadAll();
+          if (isCurrentActionScope(requestScope)) {
+            refreshSucceeded = await loadAll();
+          }
           return rows.map((row) => row.id);
         },
       );
       if (!isCurrentActionScope(requestScope)) return;
+      if (!refreshSucceeded) return;
       addToast(t("video.actions.generatedFramesReused", { count: formatNumber(generatedIds.length, locale), label: resultImageLabel }), "success");
     } catch (err) {
       if (!isCurrentActionScope(requestScope)) return;
@@ -404,8 +408,9 @@ export function useVideoPromptGenerationActions({
         metadata_json: buildVideoFrameImageTraceMetadata(prompt, source, t),
       });
       if (!isCurrentActionScope(requestScope)) return;
+      const refreshed = await loadAll();
+      if (refreshed === false) return;
       addToast(t("video.actions.frameImageImported", { label: frameLabel }), "success");
-      await loadAll();
     } catch (err) {
       if (!isCurrentActionScope(requestScope)) return;
       addToast(extractErrorMessage(err, t("video.actions.frameImageImportFailed", { label: frameLabel })), "error");
@@ -742,6 +747,7 @@ export function useVideoPromptGenerationActions({
         ? t("video.actions.resumeShots", { completed: formatNumber(resumedDraft.completedShotCount, locale), total: formatNumber(resumedDraft.totalShotCount, locale) })
         : t("video.actions.preparing", { operation: effectiveRegenerateExisting ? t("video.actions.regenerateTitle", { label }) : t("video.actions.generateTitle", { label }) });
     let previewFingerprint = "";
+    let generated = false;
     try {
       const handle = await startChapterVideoSegmentPlan(
         projectId,
@@ -772,13 +778,18 @@ export function useVideoPromptGenerationActions({
         },
       );
       if (!isCurrentActionScope(requestScope)) return;
-      addToast(t("video.actions.completed", { operation: effectiveRegenerateExisting ? t("video.actions.regenerateTitle", { label }) : t("video.actions.generateTitle", { label }) }), "success");
+      generated = true;
     } catch (err) {
       if (!isCurrentActionScope(requestScope)) return;
       const message = extractErrorMessage(err, t("video.actions.failed", { operation: effectiveRegenerateExisting ? t("video.actions.regenerateTitle", { label }) : t("video.actions.generateTitle", { label }) }));
       if (!isCancelledOperation(message)) addToast(message, "error");
     } finally {
-      if (isCurrentActionScope(requestScope)) await loadAll();
+      if (isCurrentActionScope(requestScope)) {
+        const refreshed = await loadAll();
+        if (generated && refreshed !== false && isCurrentActionScope(requestScope)) {
+          addToast(t("video.actions.completed", { operation: effectiveRegenerateExisting ? t("video.actions.regenerateTitle", { label }) : t("video.actions.generateTitle", { label }) }), "success");
+        }
+      }
       finishAction(actionKey);
     }
   };
@@ -1026,6 +1037,7 @@ export function useVideoPromptGenerationActions({
     }
     try {
       const generatedIds: number[] = [];
+      let refreshSucceeded = true;
       const chainImages = [...frameImages];
       let activeHandle: GenerationTaskHandle | null = null;
       const firstMissing = missingPrompts[0];
@@ -1084,10 +1096,11 @@ export function useVideoPromptGenerationActions({
             );
           }
           if (!isCurrentActionScope(requestScope)) return;
-          await loadAll();
+          refreshSucceeded = await loadAll();
         },
       );
       if (!isCurrentActionScope(requestScope)) return;
+      if (!refreshSucceeded) return;
       addToast(
         t("video.actions.generatedFramesReused", { count: formatNumber(generatedIds.length, locale), label: frameLabel }),
         "success",

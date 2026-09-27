@@ -11,7 +11,7 @@ interface UseVideoImageActionsParams {
   t: MessageTranslator;
   addToast: AddToast;
   actionScopeKey: string | null;
-  loadAll: () => Promise<void>;
+  loadAll: () => Promise<boolean>;
 }
 
 export const useVideoImageActions = ({
@@ -48,7 +48,8 @@ export const useVideoImageActions = ({
       try {
         await deleteImage(image.id);
         if (!isCurrentActionScope(requestScope)) return;
-        await loadAll();
+        const refreshed = await loadAll();
+        if (refreshed === false) return;
         if (!isCurrentActionScope(requestScope)) return;
         addToast(t("video.material.deleted"), "success");
       } catch (err) {

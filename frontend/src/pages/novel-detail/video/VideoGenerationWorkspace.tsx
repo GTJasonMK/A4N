@@ -72,7 +72,7 @@ interface VideoGenerationWorkspaceProps {
   selectedVideoPath: string;
   trimStart: string;
   trimEnd: string;
-  onLoad: () => void | Promise<void>;
+  onLoad: () => void | boolean | Promise<boolean | void>;
   onGeneratePromptRequests: (segmentNumber: number) => void | Promise<void>;
   onSelectPrompt: (id: number) => void | Promise<void>;
   segmentConfigOpen: boolean;

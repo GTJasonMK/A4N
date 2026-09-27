@@ -45,7 +45,7 @@ interface VideoPromptSetupPanelProps {
   finalPromptBlockedReasons: Map<number, string>;
   timeline: VideoTimelineSummary | null;
   layout: "index" | "selected";
-  onLoad: () => void | Promise<void>;
+  onLoad: () => void | boolean | Promise<boolean | void>;
   onSelectPrompt: (id: number) => void | Promise<void>;
   onSelectSegment: (segmentNumber: number) => void | Promise<void>;
   onWorkflowModeChange: (

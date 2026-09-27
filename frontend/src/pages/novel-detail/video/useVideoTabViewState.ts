@@ -50,7 +50,7 @@ export interface VideoTabViewStateOptions
   chapterContentHashError: string | null;
   addToast: (message: string, type: "success" | "error" | "info") => void;
   t: MessageTranslator;
-  loadAll: () => Promise<void>;
+  loadAll: () => Promise<boolean>;
 }
 
 export function useVideoTabViewState({
