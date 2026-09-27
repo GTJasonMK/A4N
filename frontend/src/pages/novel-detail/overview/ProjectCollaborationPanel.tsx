@@ -61,23 +61,23 @@ export const ProjectCollaborationPanel: React.FC<ProjectCollaborationPanelProps>
     loadSeqRef.current = requestSeq;
     setLoading(true);
     try {
-      const [nextMembers, nextInvites] = await Promise.all([
+      const [membersResult, invitesResult] = await Promise.allSettled([
         listProjectMembers(rootProjectId),
         canManage ? listProjectInvites(rootProjectId) : Promise.resolve([]),
       ]);
       if (!mountedRef.current || loadSeqRef.current !== requestSeq) return;
-      setMembers(nextMembers);
-      setInvites(nextInvites);
-    } catch (err) {
-      if (mountedRef.current && loadSeqRef.current === requestSeq) {
-        addToast(extractErrorMessage(err, t("novel.collaborationActions.loadFailed")), "error");
-      }
+      const errors: string[] = [];
+      if (membersResult.status === "fulfilled") setMembers(membersResult.value);
+      else errors.push(extractErrorMessage(membersResult.reason, t("novel.collaborationActions.membersLoadFailed")));
+      if (invitesResult.status === "fulfilled") setInvites(invitesResult.value);
+      else errors.push(extractErrorMessage(invitesResult.reason, t("novel.collaborationActions.invitesLoadFailed")));
+      errors.forEach((message) => addToast(message, "error"));
     } finally {
       if (mountedRef.current && loadSeqRef.current === requestSeq) {
         setLoading(false);
       }
     }
-  }, [addToast, canManage, rootProjectId]);
+  }, [addToast, canManage, rootProjectId, t]);
 
   useEffect(() => {
     mountedRef.current = true;

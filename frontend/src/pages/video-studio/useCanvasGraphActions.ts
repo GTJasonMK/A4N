@@ -16,6 +16,7 @@ import {
   canvasNodePosition,
   changeCanvasNodeReference,
   clearCanvasNodeRuntimeResult,
+  invalidateCanvasRuntimeResults,
   defaultConfigForNode,
   mergeCanvasDocumentRuntimeResults,
   mergeStudioNodeRuntimeResults,
@@ -139,15 +140,8 @@ export function useCanvasGraphActions({
           .map((change) => edges.find((edge) => edge.id === change.id)?.target)
           .filter((target): target is string => Boolean(target)),
       );
-      const invalidatedNodeIds = downstreamNodeIds(removedTargetIds, edges);
-      if (invalidatedNodeIds.size > 0) {
-        setNodes((items) =>
-          items.map((node) =>
-            invalidatedNodeIds.has(node.id)
-              ? clearCanvasNodeRuntimeResult(node)
-              : node,
-          ),
-        );
+      if (removedTargetIds.size > 0) {
+        setNodes((items) => invalidateCanvasRuntimeResults(items, edges, removedTargetIds));
       }
       if (allowedChanges.length > 0) applyEdgesChange(allowedChanges);
       if (removedTargetIds.size > 0) {
@@ -285,9 +279,8 @@ export function useCanvasGraphActions({
         contract.role === "assembly_clip" && connection.target
           ? { order_index: nextAssembleClipOrder(edges, connection.target) }
           : {};
-      const invalidatedNodeIds = downstreamNodeIds(
-        new Set([connection.target].filter((id): id is string => Boolean(id))),
-        edges,
+      const invalidationRoots = new Set(
+        [connection.target].filter((id): id is string => Boolean(id)),
       );
       setEdges((items) =>
         addEdge(
@@ -305,13 +298,7 @@ export function useCanvasGraphActions({
           items,
         ),
       );
-      setNodes((items) =>
-        items.map((item) =>
-          invalidatedNodeIds.has(item.id)
-            ? clearCanvasNodeRuntimeResult(item)
-            : item,
-        ),
-      );
+      setNodes((items) => invalidateCanvasRuntimeResults(items, edges, invalidationRoots));
       setDirty(true);
     },
     [
@@ -357,9 +344,10 @@ export function useCanvasGraphActions({
     (node: StudioNode) => {
       if (canvasMutationDisabled) return;
       const affectedTargets = new Set(edges.filter((edge) => edge.source === node.id).map((edge) => edge.target));
-      const invalidatedNodeIds = downstreamNodeIds(affectedTargets, edges);
-      setNodes((items) => items.filter((item) => item.id !== node.id).map((item) =>
-        invalidatedNodeIds.has(item.id) ? clearCanvasNodeRuntimeResult(item) : item,
+      setNodes((items) => invalidateCanvasRuntimeResults(
+        items.filter((item) => item.id !== node.id),
+        edges,
+        affectedTargets,
       ));
       setEdges((items) =>
         renumberAssembleClipEdges(
@@ -376,15 +364,9 @@ export function useCanvasGraphActions({
   const deleteCanvasEdge = useCallback(
     (edge: StudioEdge) => {
       if (canvasMutationDisabled) return;
-      const invalidatedNodeIds = downstreamNodeIds(new Set([edge.target]), edges);
+      const invalidationRoots = new Set([edge.target]);
       setEdges((items) => renumberAssembleClipEdges(items.filter((item) => item.id !== edge.id), new Set([edge.target])));
-      setNodes((items) =>
-        items.map((item) =>
-          invalidatedNodeIds.has(item.id)
-            ? clearCanvasNodeRuntimeResult(item)
-            : item,
-        ),
-      );
+      setNodes((items) => invalidateCanvasRuntimeResults(items, edges, invalidationRoots));
       setDirty(true);
       addToast(t("video.deletedEdge"), "success");
     },
@@ -393,10 +375,8 @@ export function useCanvasGraphActions({
 
   const updateSelectedConfig = (patch: Record<string, unknown>) => {
     if (!selectedNode || canvasMutationDisabled) return;
-    const invalidatesRuntimeResult =
-      selectedNode.data.config.canvas_runtime_result === true &&
-      Object.keys(patch).some((key) => key !== "title");
-    const base = invalidatesRuntimeResult ? clearCanvasNodeRuntimeResult(selectedNode) : selectedNode;
+    const invalidatesRuntimeResults = Object.keys(patch).some((key) => key !== "title");
+    const base = invalidatesRuntimeResults ? clearCanvasNodeRuntimeResult(selectedNode) : selectedNode;
     const nextConfig = {
       ...base.data.config,
       ...patch,
@@ -413,16 +393,12 @@ export function useCanvasGraphActions({
       label: nextLabel,
       config: nextConfig,
     };
-    setNodes((items) =>
-      items.map((node) =>
-        node.id === selectedNode.id
-          ? {
-              ...node,
-              data: nextData,
-            }
-          : node,
-      ),
-    );
+    setNodes((items) => {
+      const next = invalidatesRuntimeResults
+        ? invalidateCanvasRuntimeResults(items, edges, [selectedNode.id])
+        : items;
+      return next.map((node) => node.id === selectedNode.id ? { ...node, data: nextData } : node);
+    });
     if (
       selectedNode.data.nodeKind === "GenerateVideoNode" &&
       Object.prototype.hasOwnProperty.call(patch, "input_mode")
@@ -451,19 +427,28 @@ export function useCanvasGraphActions({
 
   const updateSelectedRef = (refType: string | null, refId: number | null) => {
     if (!selectedNode || canvasMutationDisabled) return;
-    setNodes((items) =>
-      items.map((node) =>
-        node.id === selectedNode.id
-          ? changeCanvasNodeReference(node, refType, refId)
-          : node,
-      ),
+    if (selectedNode.data.refType === refType && selectedNode.data.refId === refId) return;
+    const changed = changeCanvasNodeReference(
+      clearCanvasNodeRuntimeResult(selectedNode),
+      refType,
+      refId,
     );
+    if (changed === selectedNode) return;
+    setNodes((items) => {
+      const next = invalidateCanvasRuntimeResults(items, edges, [selectedNode.id]);
+      return next.map((node) => node.id === selectedNode.id ? changed : node);
+    });
     setDirty(true);
   };
 
   const moveAssembleClip = (edgeId: string, direction: -1 | 1) => {
     if (canvasMutationDisabled) return;
-    setEdges((items) => reorderAssembleClipEdges(items, edgeId, direction));
+    const next = reorderAssembleClipEdges(edges, edgeId, direction);
+    if (next === edges) return;
+    const targetNodeId = edges.find((edge) => edge.id === edgeId)?.target;
+    if (!targetNodeId) return;
+    setEdges(next);
+    setNodes((items) => invalidateCanvasRuntimeResults(items, edges, [targetNodeId]));
     setDirty(true);
   };
 
@@ -635,21 +620,4 @@ export function useCanvasGraphActions({
     importMedia,
     refreshCanvasRuntimeResults,
   };
-}
-
-function downstreamNodeIds(
-  startNodeIds: Set<string>,
-  edges: StudioEdge[],
-): Set<string> {
-  const visited = new Set(startNodeIds);
-  const queue = [...startNodeIds];
-  for (let index = 0; index < queue.length; index += 1) {
-    const source = queue[index];
-    for (const edge of edges) {
-      if (edge.source !== source || visited.has(edge.target)) continue;
-      visited.add(edge.target);
-      queue.push(edge.target);
-    }
-  }
-  return visited;
 }

@@ -129,6 +129,32 @@ export function clearCanvasNodeRuntimeResult(node: StudioNode): StudioNode {
   };
 }
 
+export function invalidateCanvasRuntimeResults(
+  nodes: StudioNode[],
+  edges: StudioEdge[],
+  sourceNodeIds: Iterable<string>,
+): StudioNode[] {
+  const invalidated = new Set(sourceNodeIds);
+  const queue = [...invalidated];
+  for (let index = 0; index < queue.length; index += 1) {
+    const source = queue[index];
+    for (const edge of edges) {
+      if (edge.source !== source || invalidated.has(edge.target)) continue;
+      invalidated.add(edge.target);
+      queue.push(edge.target);
+    }
+  }
+
+  let changed = false;
+  const next = nodes.map((node) => {
+    if (!invalidated.has(node.id)) return node;
+    const cleared = clearCanvasNodeRuntimeResult(node);
+    changed ||= cleared !== node;
+    return cleared;
+  });
+  return changed ? next : nodes;
+}
+
 export function changeCanvasNodeReference(node: StudioNode, refType: string | null, refId: number | null): StudioNode {
   if (node.data.refType === refType && node.data.refId === refId) return node;
   const config = { ...node.data.config };

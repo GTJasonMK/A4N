@@ -1,6 +1,15 @@
-import { oauth2AuthorizeUrl, oauth2Callback, persistAuthResult } from "./auth";
+import {
+  oauth2AuthorizeUrl,
+  oauth2AvailableProviders,
+  oauth2Callback,
+  persistAuthResult,
+} from "./auth";
 import { readCurrentSessionId } from "./authStorage";
-import type { AuthResult, OAuth2BrowserInput } from "./generated/auth";
+import type {
+  AuthResult,
+  OAuth2AvailableProvidersInput,
+  OAuth2BrowserInput,
+} from "./generated/auth";
 import { isTauriRuntime, runtimeInvoke } from "./runtime";
 import { getActiveLocale, translateMessage } from "../i18n";
 import { routerBasename } from "../utils/routerBase";
@@ -32,14 +41,24 @@ const message = (key: "auth.oauthRequestMissing" | "auth.oauthStateMismatch" | "
 const base64Url = (bytes: Uint8Array): string =>
   btoa(String.fromCharCode(...bytes)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 
+function requestedRedirectUri(): string | null {
+  if (isTauriRuntime()) return null;
+  const basename = routerBasename() ?? "";
+  return new URL(`${basename}/auth/callback`, window.location.origin).href;
+}
+
+export async function getOAuth2AvailableProviders(): Promise<string[]> {
+  const input: OAuth2AvailableProvidersInput = { redirect_uri: requestedRedirectUri() };
+  return oauth2AvailableProviders(input);
+}
+
 export async function beginOAuthLogin(provider: string): Promise<string | null> {
   const version = ++authorizationVersion;
   const state = base64Url(crypto.getRandomValues(new Uint8Array(32)));
   const codeVerifier = base64Url(crypto.getRandomValues(new Uint8Array(32)));
   const challenge = base64Url(new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(codeVerifier))));
-  const desktop = isTauriRuntime();
   const basename = routerBasename() ?? "";
-  const requestedRedirect = desktop ? null : new URL(`${basename}/auth/callback`, window.location.origin).href;
+  const requestedRedirect = requestedRedirectUri();
   const authorizationUrl = await oauth2AuthorizeUrl({
     provider,
     redirect_uri: requestedRedirect,
@@ -58,7 +77,7 @@ export async function beginOAuthLogin(provider: string): Promise<string | null> 
   };
   sessionStorage.setItem(STORAGE_KEY, JSON.stringify(pending));
   completion = null;
-  if (!desktop) {
+  if (!isTauriRuntime()) {
     window.location.assign(authorizationUrl);
     return null;
   }

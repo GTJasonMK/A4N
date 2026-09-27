@@ -61,6 +61,7 @@ export function useAdminSectionLoader<T>(
       const data = await loadData();
       if (!isCurrentLoad(scopeKey, requestSeq)) return;
       applyData(data);
+      setFailure(null);
     } catch (err) {
       if (!isCurrentLoad(scopeKey, requestSeq)) return;
       const message = extractErrorMessage(err, errorMessage);

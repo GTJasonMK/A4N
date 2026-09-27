@@ -30,9 +30,9 @@ export const ChoiceEditor: React.FC<{
   const targetInspections = useMemo(
     () =>
       drafts.map((draft) =>
-        inspectChoiceTarget(draft.target_scene_id, sceneById, t),
+        inspectChoiceTarget(draft.target_scene_id, sceneById, line.scene_id, t),
       ),
-    [drafts, sceneById, t],
+    [drafts, line.scene_id, sceneById, t],
   );
   const normalizedChoices = useMemo(() => {
     return drafts
@@ -217,6 +217,7 @@ const ChoiceTargetSummary: React.FC<{ inspection: ChoiceTargetInspection }> = ({
 function inspectChoiceTarget(
   targetSceneId: string,
   sceneById: Map<number, GalgameSceneDetail>,
+  sourceSceneId: number,
   t: MessageTranslator,
 ): ChoiceTargetInspection {
   if (!targetSceneId) {
@@ -229,6 +230,10 @@ function inspectChoiceTarget(
   const target = sceneById.get(sceneId);
   if (!target) {
     return { kind: "error", message: t("galgame.choiceTarget.missing") };
+  }
+  const sourceScene = sceneById.get(sourceSceneId);
+  if (!sourceScene) {
+    return { kind: "error", message: t("galgame.choiceTarget.sourceMissing") };
   }
   if (target.scene.entry_kind !== "branch") {
     return {
@@ -264,6 +269,15 @@ function inspectChoiceTarget(
       message: t("galgame.choiceTarget.returnNotMain", {
         number: target.scene.scene_index,
         returnNumber: returnScene.scene.scene_index,
+      }),
+    };
+  }
+  if (returnScene.scene.scene_index <= sourceScene.scene.scene_index) {
+    return {
+      kind: "error",
+      message: t("galgame.choiceTarget.returnBeforeChoice", {
+        number: returnScene.scene.scene_index,
+        sourceNumber: sourceScene.scene.scene_index,
       }),
     };
   }

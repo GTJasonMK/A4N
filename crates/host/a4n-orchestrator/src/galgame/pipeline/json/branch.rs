@@ -40,6 +40,11 @@ pub fn branch_design_from_value(
                         option.returns_to_scene_index,
                         &format!("{context}.choices[].options[].returns_to_scene_index"),
                     )?;
+                    if option.returns_to_scene_index <= choice.after_beat_ref.scene_index {
+                        return Err(invalid(format!(
+                            "{context}.choices[].options[].returns_to_scene_index 必须晚于选择所在场"
+                        )));
+                    }
                     Ok(GalgamePipelineChoiceOptionPlan {
                         branch_id: required_text(
                             option.branch_id,

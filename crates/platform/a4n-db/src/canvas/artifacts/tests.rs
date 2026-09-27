@@ -1,9 +1,11 @@
 use super::*;
 use crate::canvas::CanvasDbError;
+use crate::canvas::{CanvasGraphRecordInput, CanvasNodeRecordInput, save_canvas_graph_record};
 use crate::generation::{
     GENERATION_SPEC_TARGET_ENTITY_KIND_CANVAS_NODE, GENERATION_SPEC_TARGET_KIND_CANVAS_VIDEO,
 };
 use a4n_db_models::models::{
+    canvas::canvas_node,
     generation::generation_spec,
     media::{media_asset, media_binding, media_provenance},
     video_project::{assembly_clip, assembly_timeline, video_segment},
@@ -124,6 +126,110 @@ async fn canvas_generation_spec_upsert_derives_source_version_hash() {
         Some(spec.source_version_hash),
         generation_spec::freeform_source_version_hash(&params_json)
     );
+}
+
+#[tokio::test]
+async fn canvas_node_artifact_update_rejects_a_changed_graph_version() {
+    let db = setup_db().await;
+    let project = crate::project::create_freeform_video_project_record(
+        &db,
+        1,
+        crate::project::CreateFreeformVideoProjectParams {
+            title: "画布节点版本保护".to_string(),
+            description: String::new(),
+        },
+    )
+    .await
+    .unwrap();
+    let graph = save_canvas_graph_record(
+        &db,
+        project.id,
+        CanvasGraphRecordInput {
+            id: None,
+            expected_version: None,
+            name: Some("版本保护".to_string()),
+            graph_kind: Some("video_studio".to_string()),
+            viewport_json: None,
+            nodes: vec![CanvasNodeRecordInput {
+                client_id: "source".to_string(),
+                node_kind: "LlmTextNode".to_string(),
+                ref_type: None,
+                ref_id: None,
+                config_json: Some(json!({"instruction": "before"})),
+                position_json: json!({"x": 0, "y": 0}),
+                state: Some("ready".to_string()),
+            }],
+            edges: Vec::new(),
+        },
+        chrono::Utc::now().naive_utc(),
+    )
+    .await
+    .unwrap()
+    .document;
+    let node = graph.nodes.first().unwrap();
+    let saved = save_canvas_graph_record(
+        &db,
+        project.id,
+        CanvasGraphRecordInput {
+            id: Some(graph.graph.id),
+            expected_version: Some(graph.graph.version),
+            name: None,
+            graph_kind: Some("video_studio".to_string()),
+            viewport_json: None,
+            nodes: vec![CanvasNodeRecordInput {
+                client_id: node.id.to_string(),
+                node_kind: node.node_kind.clone(),
+                ref_type: node.ref_type.clone(),
+                ref_id: node.ref_id,
+                config_json: Some(json!({"instruction": "after"})),
+                position_json: node.position_json.clone(),
+                state: Some("ready".to_string()),
+            }],
+            edges: Vec::new(),
+        },
+        chrono::Utc::now().naive_utc(),
+    )
+    .await
+    .unwrap()
+    .document;
+
+    let error = update_canvas_node_artifact_record(
+        &db,
+        CanvasNodeArtifactUpdateInput {
+            node_id: node.id,
+            expected_graph_version: graph.graph.version,
+            ref_type: "prompt_artifact".to_string(),
+            ref_id: 99,
+            config_patch: json!({"canvas_runtime_result": true, "text": "stale"}),
+        },
+    )
+    .await
+    .expect_err("a result from the old graph revision must not be attached");
+
+    assert!(matches!(
+        error,
+        CanvasDbError::VersionConflict {
+            graph_id,
+            expected_version,
+            current_version,
+        } if graph_id == saved.graph.id
+            && expected_version == graph.graph.version
+            && current_version == saved.graph.version
+    ));
+    let persisted = canvas_node::Entity::find_by_id(node.id)
+        .one(&db)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(persisted.config_json["instruction"], "after");
+    assert!(
+        !persisted
+            .config_json
+            .as_object()
+            .unwrap()
+            .contains_key("canvas_runtime_result")
+    );
+    assert_eq!(persisted.state, "ready");
 }
 
 #[tokio::test]

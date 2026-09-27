@@ -652,7 +652,7 @@ const PresentationEditor: React.FC<{
           aria-label={t("galgame.transitionLabel")}
           className="pyqt-input text-xs text-book-text-main"
           value={currentTransition}
-          disabled={disabled}
+          disabled={disabled || presentation.cg !== true}
           onChange={(selectedValue) => {
             const nextTransition = selectedValue as GalgameTransition | "";
             onPatch(updatePresentationJson(presentation, { transition: nextTransition }));

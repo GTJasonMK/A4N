@@ -508,6 +508,7 @@ async fn canvas_image_shared_run_completes_node_without_finalizing_graph_workflo
             json!({
                 "project_id": project_id,
                 "graph_id": document.graph.id,
+                "graph_version": document.graph.version,
                 "runnable_node_ids": [node.id],
             }),
             Some(step_key.clone()),
@@ -527,6 +528,7 @@ async fn canvas_image_shared_run_completes_node_without_finalizing_graph_workflo
                 shared_run: Some(CanvasNodeRunHandle {
                     workflow_run_id: graph_run.id,
                     finalize_on_success: false,
+                    graph_version: document.graph.version,
                 }),
                 mode: "full_graph",
             },

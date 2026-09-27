@@ -11,6 +11,7 @@ import type {
   AuthResult,
   ChangePasswordInput,
   LoginInput,
+  OAuth2AvailableProvidersInput,
   OAuth2AuthorizeInput,
   OAuth2CallbackInput,
   RefreshTokenInput,
@@ -113,6 +114,12 @@ export async function listSessions(): Promise<SessionSummary[]> {
 
 export async function oauth2AuthorizeUrl(input: OAuth2AuthorizeInput): Promise<string> {
   return apiInvoke<string>("oauth2_authorize_url", { input });
+}
+
+export async function oauth2AvailableProviders(
+  input: OAuth2AvailableProvidersInput,
+): Promise<string[]> {
+  return apiInvoke<string[]>("oauth2_available_providers", { input });
 }
 
 export async function oauth2Callback(input: OAuth2CallbackInput): Promise<AuthResult> {

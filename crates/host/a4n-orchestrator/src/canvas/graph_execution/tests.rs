@@ -16,7 +16,7 @@ use a4n_db_models::models::{
     generation::workflow_run,
 };
 use async_trait::async_trait;
-use sea_orm::EntityTrait;
+use sea_orm::{ActiveModelTrait, EntityTrait, Set};
 use serde_json::json;
 
 use super::planning::{
@@ -174,6 +174,51 @@ async fn canvas_graph_application_executes_nodes_in_order_and_completes_workflow
 }
 
 #[tokio::test]
+async fn canvas_graph_application_stops_when_graph_changes_during_a_node() {
+    let (database, context) = setup_context().await;
+    let (project_id, document) = insert_test_graph(database.as_ref(), &context, 2).await;
+    let preparing_port = TestGraphHostPort::default();
+    let prepared = context
+        .prepare_canvas_graph_run_validated(
+            CanvasGraphRunPreparationInput {
+                user_id: 1,
+                project_id,
+                graph_id: document.graph.id,
+                target_node_id: None,
+            },
+            &preparing_port,
+        )
+        .await
+        .expect("整图运行应准备成功");
+    let first_node_id = prepared.runnable_node_ids[0];
+    let host_port = TestGraphHostPort::changing_graph_after(
+        Arc::clone(&database),
+        document.graph.id,
+        first_node_id,
+    );
+
+    let summary = context
+        .run_prepared_canvas_graph_validated(prepared, &host_port)
+        .await
+        .expect("图变更应使工作流失败并持久化终态");
+    let run = workflow_run::Entity::find_by_id(summary.workflow_run_id)
+        .one(database.as_ref())
+        .await
+        .expect("应可查询 workflow")
+        .expect("workflow 应存在");
+
+    assert_eq!(summary.status, WORKFLOW_STATUS_FAILED);
+    assert_eq!(run.status, WORKFLOW_STATUS_FAILED);
+    assert!(
+        summary
+            .error_message
+            .as_deref()
+            .is_some_and(|message| message.contains("画布在工作流运行期间已更改"))
+    );
+    assert_eq!(host_port.executed_node_ids(), vec![first_node_id]);
+}
+
+#[tokio::test]
 async fn canvas_graph_application_marks_workflow_failed_and_stops_after_host_error() {
     let (database, context) = setup_context().await;
     let (project_id, document) = insert_test_graph(database.as_ref(), &context, 3).await;
@@ -310,6 +355,7 @@ async fn canvas_single_node_preparation_limits_execution_to_requested_node() {
 #[derive(Default)]
 struct TestGraphHostPort {
     fail_node_id: Option<i64>,
+    graph_version_change_after: Option<(Arc<DatabaseConnection>, i64, i64)>,
     verification_calls: Mutex<Vec<(i64, i64)>>,
     executed_node_ids: Mutex<Vec<i64>>,
 }
@@ -318,6 +364,17 @@ impl TestGraphHostPort {
     fn failing_at(node_id: i64) -> Self {
         Self {
             fail_node_id: Some(node_id),
+            ..Self::default()
+        }
+    }
+
+    fn changing_graph_after(
+        database: Arc<DatabaseConnection>,
+        graph_id: i64,
+        node_id: i64,
+    ) -> Self {
+        Self {
+            graph_version_change_after: Some((database, graph_id, node_id)),
             ..Self::default()
         }
     }
@@ -360,6 +417,25 @@ impl CanvasGraphExecutionHostPort for TestGraphHostPort {
             .push(input.node_id);
         if self.fail_node_id == Some(input.node_id) {
             return Err(format!("模拟节点失败: {}", input.node_id));
+        }
+        if let Some((database, graph_id, node_id)) = &self.graph_version_change_after
+            && *graph_id == input.graph_id
+            && *node_id == input.node_id
+        {
+            let graph = canvas_graph::Entity::find_by_id(*graph_id)
+                .one(database.as_ref())
+                .await
+                .map_err(|error| error.to_string())?
+                .expect("测试画布应存在");
+            canvas_graph::ActiveModel {
+                id: Set(graph.id),
+                version: Set(graph.version + 1),
+                updated_at: Set(chrono::Utc::now().naive_utc()),
+                ..Default::default()
+            }
+            .update(database.as_ref())
+            .await
+            .map_err(|error| error.to_string())?;
         }
         Ok(CanvasRunSummary {
             workflow_run_id: input.shared_run.workflow_run_id,

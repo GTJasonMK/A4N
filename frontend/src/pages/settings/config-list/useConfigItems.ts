@@ -24,6 +24,7 @@ export function useConfigItems<C>(
   const setItems = useCallback((update: SetStateAction<ConfigItem<C>[]>) => {
     refreshSeqRef.current += 1;
     setLoading(false);
+    setError(null);
     setLoadedItems(update);
   }, []);
 

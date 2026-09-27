@@ -61,6 +61,12 @@ impl OrchestratorContext {
                         target_scene.id
                     )));
                 }
+                if return_scene.scene_index <= line_scene.scene_index {
+                    return Err(AppError::InvalidArgument(format!(
+                        "Galgame choice target_scene_id {} 的回收敛场必须晚于选择所在主线场",
+                        target_scene.id
+                    )));
+                }
             }
             let option_text = required_text(&choice.option_text, "choice.option_text")?.to_string();
             normalized.push(ReplaceGalgameChoiceRecordInput {

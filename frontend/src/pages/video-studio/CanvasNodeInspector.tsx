@@ -31,6 +31,8 @@ import {
   firstLine,
   numberOrNull,
   type StudioConfigOption,
+  type StudioConfigLoadStatus,
+  type StudioConfigLoadStatusByKind,
   type StudioConfigOptionsByKind,
 } from "./canvasConfig";
 import { assembleClipEdges, edgeOrderIndex } from "./canvasAssemblyEdges";
@@ -66,6 +68,7 @@ interface NodeConfigEditorProps {
   onRefChange: (refType: string | null, refId: number | null) => void;
   onMoveAssembleClip: (edgeId: string, direction: -1 | 1) => void;
   configOptions: StudioConfigOptionsByKind;
+  configOptionsStatus: StudioConfigLoadStatusByKind;
 }
 
 interface NodeInspectorProps extends NodeConfigEditorProps {
@@ -82,6 +85,7 @@ export const NodeInspector: React.FC<NodeInspectorProps> = ({
   onRefChange,
   onMoveAssembleClip,
   configOptions,
+  configOptionsStatus,
   onPreviewContent,
 }) => {
   const { t } = useI18n();
@@ -119,6 +123,7 @@ export const NodeInspector: React.FC<NodeInspectorProps> = ({
           onRefChange={onRefChange}
           onMoveAssembleClip={onMoveAssembleClip}
           configOptions={configOptions}
+          configOptionsStatus={configOptionsStatus}
         />
       </InspectorSection>
       <InspectorSection title={t("video.canvas.inspector.output")}>
@@ -368,6 +373,7 @@ const NodeConfigEditor: React.FC<NodeConfigEditorProps> = ({
   onRefChange,
   onMoveAssembleClip,
   configOptions,
+  configOptionsStatus,
 }) => {
   const { t } = useI18n();
   const config = node.data.config;
@@ -463,6 +469,7 @@ const NodeConfigEditor: React.FC<NodeConfigEditorProps> = ({
           label={t("video.canvas.inspector.llmConfig")}
           value={configPositiveNumber(config, "llm_config_id")}
           options={configOptions.llm}
+          loadStatus={configOptionsStatus.llm}
           disabled={disabled}
           onChange={(value) => onChange({ llm_config_id: value })}
         />
@@ -502,6 +509,7 @@ const NodeConfigEditor: React.FC<NodeConfigEditorProps> = ({
           label={t("video.canvas.inspector.videoConfig")}
           value={configPositiveNumber(config, "video_config_id")}
           options={configOptions.video}
+          loadStatus={configOptionsStatus.video}
           disabled={disabled}
           onChange={(value) => onChange({ video_config_id: value })}
         />
@@ -556,6 +564,7 @@ const NodeConfigEditor: React.FC<NodeConfigEditorProps> = ({
           label={t("video.canvas.inspector.imageConfig")}
           value={imageConfigId}
           options={configOptions.image}
+          loadStatus={configOptionsStatus.image}
           disabled={disabled}
           onChange={(value) => {
             const nextConfig =
@@ -835,24 +844,36 @@ interface ConfigSelectProps {
   label: string;
   value: number | null;
   options: StudioConfigOption[];
+  loadStatus: StudioConfigLoadStatus;
   disabled: boolean;
   onChange: (value: number | null) => void;
 }
 
-const ConfigSelect: React.FC<ConfigSelectProps> = ({ label, value, options, disabled, onChange }) => {
+const ConfigSelect: React.FC<ConfigSelectProps> = ({ label, value, options, loadStatus, disabled, onChange }) => {
   const { t } = useI18n();
   const selectedOption = value == null ? null : options.find((option) => option.id === value) ?? null;
-  const selectedMissing = value != null && selectedOption == null;
+  const selectedMissing = loadStatus === "ready" && value != null && selectedOption == null;
+  const loadMessage =
+    loadStatus === "loading"
+      ? t("video.canvas.inspector.loadingConfigs")
+      : t("video.canvas.inspector.configLoadFailed");
   return (
     <label className="block text-caption text-book-text-muted">
       {label}
       <ThemedSelect
         value={value ?? ""}
-        disabled={disabled || (options.length === 0 && !selectedMissing)}
+        disabled={disabled || loadStatus !== "ready" || (options.length === 0 && !selectedMissing)}
         onChange={(selectedValue) => onChange(numberOrNull(selectedValue, 1))}
         className={INSPECTOR_CONTROL_CLASS}
       >
-        <option value="">{options.length === 0 ? t("video.canvas.inspector.noConfigAvailable") : t("video.canvas.inspector.defaultConfig")}</option>
+        <option value="">
+          {loadStatus === "ready"
+            ? options.length === 0
+              ? t("video.canvas.inspector.noConfigAvailable")
+              : t("video.canvas.inspector.defaultConfig")
+            : loadMessage}
+        </option>
+        {value != null && loadStatus !== "ready" ? <option value={value}>{loadMessage}</option> : null}
         {selectedMissing ? (
           <option value={value}>{t("video.canvas.inspector.unavailableConfig")}</option>
         ) : null}
@@ -870,6 +891,8 @@ const ConfigSelect: React.FC<ConfigSelectProps> = ({ label, value, options, disa
         <div className="mt-1 text-caption text-warning" title={String(value)}>
           {t("video.canvas.inspector.unavailableCurrentConfig")}
         </div>
+      ) : loadStatus === "failed" ? (
+        <div role="alert" className="mt-1 text-caption text-error">{loadMessage}</div>
       ) : null}
     </label>
   );

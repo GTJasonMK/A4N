@@ -59,6 +59,7 @@ import type { SourceSnapshotChapterSummary } from "../../api/project";
 import { pickLocalFile, readFileAsBase64 } from "../../utils/fileUpload";
 import { createWorkflowTaskId, useProgressTask } from "../../hooks/useProgressTask";
 import { downloadBase64ExportFile } from "../../utils/downloadFile";
+import { isCancelledOperation } from "../../utils/cancellation";
 import { useI18n } from "../../i18n";
 import {
   PIPELINE_START_STAGES,
@@ -188,6 +189,7 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
   const commitDetail = (update: (current: GalgameScriptDetail) => GalgameScriptDetail) => {
     requestSeqRef.current += 1;
     setLoading(false);
+    setLoadError(null);
     setDetail((current) => current == null ? current : update(current));
   };
 
@@ -320,6 +322,7 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
       clearDrafts();
     }
     const taskId = createWorkflowTaskId("galgame-pipeline", projectId);
+    setPipelineStatus(null);
     setGenerating(true);
     try {
       const next = await runProgressTask(
@@ -350,22 +353,32 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
           return result;
         },
       );
-      const nextStatus = await getGalgamePipelineStatus(projectId);
       setDetail(next);
-      setPipelineStatus(nextStatus);
       setSelectedSceneId(next.scenes[0]?.scene.id ?? null);
       addToast(t("galgame.pipelineCompleted"), "success");
+      try {
+        setPipelineStatus(await getGalgamePipelineStatus(projectId));
+      } catch (statusError) {
+        addToast(
+          extractErrorMessage(statusError, t("galgame.pipelineStatusLoadFailed")),
+          "error",
+        );
+      }
     } catch (err) {
       const message = extractErrorMessage(err, t("galgame.pipelineFailed"));
-      const cancelled = message.includes("取消");
+      const cancelled = isCancelledOperation(message);
       addToast(
         cancelled ? t("galgame.pipelineCancelled") : message,
         cancelled ? "info" : "error",
       );
-      const nextStatus = await getGalgamePipelineStatus(projectId).catch(
-        () => pipelineStatus,
-      );
-      setPipelineStatus(nextStatus);
+      try {
+        setPipelineStatus(await getGalgamePipelineStatus(projectId));
+      } catch (statusError) {
+        addToast(
+          extractErrorMessage(statusError, t("galgame.pipelineStatusLoadFailed")),
+          "error",
+        );
+      }
     } finally {
       setGenerating(false);
     }

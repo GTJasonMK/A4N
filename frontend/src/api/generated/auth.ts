@@ -77,6 +77,10 @@ export interface OAuth2AuthorizeInput {
   state: string;
 }
 
+export interface OAuth2AvailableProvidersInput {
+  redirect_uri?: string | null;
+}
+
 export interface OAuth2CallbackInput {
   code: string;
   code_verifier: string;

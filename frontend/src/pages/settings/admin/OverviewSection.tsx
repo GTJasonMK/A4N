@@ -2,6 +2,7 @@ import React, { useCallback, useState } from "react";
 import { AlertTriangle, CheckCircle2, CirclePause, RefreshCw } from "lucide-react";
 import type { MessageKey } from "../../../i18n";
 import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
+import { extractErrorMessage } from "../../../api";
 import {
   getAdminOverview,
   healthCheck,
@@ -10,36 +11,54 @@ import {
   type AdminServiceHealth,
 } from "../../../api/admin";
 import { BookIconButton } from "../../../components/ui/BookButton";
+import { useToast } from "../../../components/feedback/Toast";
 import { useAdminSectionLoader } from "./useAdminSectionLoader";
 import { formatNumber, useI18n } from "../../../i18n";
 
 export const OverviewSection: React.FC = () => {
   const { t } = useI18n();
+  const { addToast } = useToast();
   const [overview, setOverview] = useState<AdminOverviewSummary | null>(null);
   const [health, setHealth] = useState<AdminHealthCheck | null>(null);
-  const loadOverview = useCallback(
-    () => Promise.all([getAdminOverview(), healthCheck()]),
-    [],
-  );
-  const applyOverview = useCallback(
-    ([nextOverview, nextHealth]: [AdminOverviewSummary, AdminHealthCheck]) => {
-      setOverview(nextOverview);
-      setHealth(nextHealth);
-    },
-    [],
-  );
+  const [healthLoading, setHealthLoading] = useState(false);
+  const [healthError, setHealthError] = useState<string | null>(null);
+  const loadOverview = useCallback(() => getAdminOverview(), []);
+  const applyOverview = useCallback((nextOverview: AdminOverviewSummary) => {
+    setOverview(nextOverview);
+  }, []);
   const { loading, error, load } = useAdminSectionLoader(
     "admin-overview",
     loadOverview,
     applyOverview,
     t("settingsAdmin.loadFailed"),
   );
+  const refreshHealth = useCallback(async () => {
+    setHealthLoading(true);
+    setHealthError(null);
+    try {
+      setHealth(await healthCheck());
+    } catch (error) {
+      const message = extractErrorMessage(error, t("settingsAdmin.healthCheckFailed"));
+      setHealthError(message);
+      addToast(message, "error");
+    } finally {
+      setHealthLoading(false);
+    }
+  }, [addToast, t]);
+  const refresh = useCallback(async () => {
+    await Promise.all([load(), refreshHealth()]);
+  }, [load, refreshHealth]);
+
+  React.useEffect(() => {
+    void refreshHealth();
+  }, [refreshHealth]);
 
   return (
     <div className="flex flex-col gap-3">
-      <OverviewSummary overview={overview} loading={loading} onRefresh={load} />
+      <OverviewSummary overview={overview} loading={loading || healthLoading} onRefresh={refresh} />
       {error ? <p role="alert" className="text-xs text-error">{error}</p> : null}
-      {health || !error ? <ServiceHealthPanel health={health} loading={loading} /> : null}
+      {healthError ? <p role="alert" className="text-xs text-error">{healthError}</p> : null}
+      <ServiceHealthPanel health={health} loading={healthLoading} />
     </div>
   );
 };

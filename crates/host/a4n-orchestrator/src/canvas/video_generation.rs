@@ -171,6 +171,7 @@ impl OrchestratorContext {
             .start_canvas_node_execution(
                 input.project_id,
                 input.graph_id,
+                input.document.graph.version,
                 input.mode,
                 step_key,
                 input_json,
@@ -729,6 +730,7 @@ impl OrchestratorContext {
                             current: lifecycle.step_key.clone(),
                             operation: "保存画布视频结果".to_string(),
                         })?,
+                    expected_graph_version: lifecycle.run.graph_version,
                     ref_type: CanvasNodeRefKind::GeneratedVideo.to_string(),
                     ref_id: video.id,
                     config_patch: artifact_json.clone(),

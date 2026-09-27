@@ -9,6 +9,7 @@ pub use a4n_api_contract::canvas::GenerateCanvasVideoInput;
 pub struct CanvasNodeRun {
     pub workflow_run_id: i64,
     pub finalize_on_success: bool,
+    pub graph_version: i32,
 }
 
 pub type CanvasEditingNodeRun = CanvasNodeRun;
@@ -79,6 +80,7 @@ pub struct PreparedCanvasGraphRun {
     pub user_id: i64,
     pub project_id: i64,
     pub graph_id: i64,
+    pub graph_version: i32,
     pub mode: String,
     pub runnable_node_ids: Vec<i64>,
 }
@@ -105,6 +107,7 @@ pub struct CanvasGraphNodeExecutionInput {
     pub user_id: i64,
     pub project_id: i64,
     pub graph_id: i64,
+    pub graph_version: i32,
     pub node_id: i64,
     pub shared_run: CanvasNodeRun,
     pub mode: String,

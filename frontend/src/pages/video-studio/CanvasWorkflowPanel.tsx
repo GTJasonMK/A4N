@@ -12,6 +12,8 @@ interface CanvasWorkflowPanelProps {
   latestWorkflowRunId: number | null;
   detail: WorkflowRunDetailSummary | null;
   events: ProgressEventRecord[];
+  statusError: string | null;
+  eventsError: string | null;
   loading: boolean;
   submittingLabel: string | null;
   cancelling: boolean;
@@ -25,6 +27,8 @@ export const CanvasWorkflowPanel: React.FC<CanvasWorkflowPanelProps> = ({
   latestWorkflowRunId,
   detail,
   events,
+  statusError,
+  eventsError,
   loading,
   submittingLabel,
   cancelling,
@@ -90,6 +94,8 @@ export const CanvasWorkflowPanel: React.FC<CanvasWorkflowPanelProps> = ({
           <p className="mt-0.5 truncate text-small text-book-text-muted" title={canResume ? resumeTitle : undefined}>
             {run
               ? canvasWorkflowStepLabel(currentStepKey, t)
+              : statusError
+                ? t("video.canvas.workflow.unavailable")
               : latestWorkflowRunId
                 ? t("video.canvas.workflow.loadingLatest")
                 : t("video.canvas.workflow.notRun")}
@@ -106,7 +112,8 @@ export const CanvasWorkflowPanel: React.FC<CanvasWorkflowPanelProps> = ({
           {!run ? <div className="text-small text-book-text-muted">{t("video.canvas.workflow.discovering")}</div> : null}
         </div>
       ) : null}
-      {!submittingLabel && !latestWorkflowRunId && !run ? (
+      {statusError ? <p role="alert" className="mb-2 text-small text-error">{statusError}</p> : null}
+      {!statusError && !submittingLabel && !latestWorkflowRunId && !run ? (
         <div className="text-small text-book-text-muted">{t("video.canvas.workflow.noCanvasRun")}</div>
       ) : submittingLabel && !run ? null : !detail && loading ? (
         <div className="inline-flex items-center gap-1.5 text-small text-book-text-muted">
@@ -160,30 +167,6 @@ export const CanvasWorkflowPanel: React.FC<CanvasWorkflowPanelProps> = ({
               </span>
             ) : null}
           </div>
-          {events.length > 0 ? (
-            <div className="divide-y divide-book-border/45 border-y border-book-border/45">
-              {events.slice(0, 5).map((event) => {
-                const display = progressDisplayModel({
-                  ...event,
-                  locale,
-                  t,
-                  fallbackStage: t("video.canvas.workflow.process"),
-                });
-                return (
-                  <div key={event.id} className="grid grid-cols-[42px_minmax(0,1fr)] gap-2 px-2.5 py-1.5 text-caption">
-                    <span className="font-mono text-book-text-muted">
-                      {display.percent == null ? "-" : `${formatNumber(Math.round(display.percent), locale)}%`}
-                    </span>
-                    <span className="truncate text-book-text-sub" title={display.detail ?? display.stage}>
-                      {display.detail ?? display.stage}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
-          ) : (
-            <div className="text-small text-book-text-muted">{t("video.canvas.workflow.noEvents")}</div>
-          )}
           <details className="rounded border border-book-border/60 bg-book-bg-paper/45 text-caption">
             <summary className="cursor-pointer px-2.5 py-2 text-book-text-muted">{t("video.canvas.workflow.diagnostics")}</summary>
             <div className="grid grid-cols-[72px_minmax(0,1fr)] gap-x-2 gap-y-1 border-t border-book-border/50 px-2.5 py-2">
@@ -219,6 +202,34 @@ export const CanvasWorkflowPanel: React.FC<CanvasWorkflowPanelProps> = ({
       ) : (
         <div className="text-small text-book-text-muted">{t("video.canvas.workflow.unavailable")}</div>
       )}
+      {latestWorkflowRunId && !submittingLabel ? (
+        eventsError ? (
+          <div role="alert" className="mt-2 border-y border-error/35 px-2.5 py-2 text-small text-error">{eventsError}</div>
+        ) : events.length > 0 ? (
+          <div className="mt-2 divide-y divide-book-border/45 border-y border-book-border/45">
+            {events.slice(0, 5).map((event) => {
+              const display = progressDisplayModel({
+                ...event,
+                locale,
+                t,
+                fallbackStage: t("video.canvas.workflow.process"),
+              });
+              return (
+                <div key={event.id} className="grid grid-cols-[42px_minmax(0,1fr)] gap-2 px-2.5 py-1.5 text-caption">
+                  <span className="font-mono text-book-text-muted">
+                    {display.percent == null ? "-" : `${formatNumber(Math.round(display.percent), locale)}%`}
+                  </span>
+                  <span className="truncate text-book-text-sub" title={display.detail ?? display.stage}>
+                    {display.detail ?? display.stage}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        ) : loading ? null : (
+          <div className="mt-2 text-small text-book-text-muted">{t("video.canvas.workflow.noEvents")}</div>
+        )
+      ) : null}
     </section>
   );
 };

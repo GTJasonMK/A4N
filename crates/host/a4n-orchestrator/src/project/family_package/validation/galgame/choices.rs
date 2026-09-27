@@ -127,6 +127,12 @@ pub(super) fn validate_galgame_choices(
                     choice.id
                 ));
             }
+            if return_scene.scene_index <= line_scene.scene_index {
+                return Err(format!(
+                    "项目族导入包 Galgame 选项 branch 回收敛场必须晚于选择所在主线场: choice_id={}, source_scene_index={}, return_scene_index={}",
+                    choice.id, line_scene.scene_index, return_scene.scene_index
+                ));
+            }
         }
     }
     Ok(())

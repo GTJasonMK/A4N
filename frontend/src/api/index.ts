@@ -127,6 +127,7 @@ async function webInvoke<T>(
     case "register_user":
     case "refresh_token":
     case "oauth2_authorize_url":
+    case "oauth2_available_providers":
     case "oauth2_callback":
       return webRequest<T>(`/commands/${encodeURIComponent(cmd)}`, {
         method: "POST",

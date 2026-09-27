@@ -104,6 +104,12 @@ pub struct OAuth2AuthorizeInput {
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
+pub struct OAuth2AvailableProvidersInput {
+    pub redirect_uri: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
 pub struct OAuth2CallbackInput {
     pub provider: String,
     pub code: String,

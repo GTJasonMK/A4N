@@ -50,6 +50,8 @@ export const videoCanvas = {
       defaultConfig: "Use default configuration", unavailableConfig: "Deleted or unavailable configuration", currentConfig: "Current: {name}",
       unavailableCurrentConfig: "The current configuration is unavailable. Choose another one.", generatedImageReference: "Image asset ID",
       generatedVideoReference: "Video asset ID", mediaAssetReference: "Audio asset ID",
+      loadingConfigs: "Loading configurations…",
+      configLoadFailed: "Could not load this configuration list.",
     },
     preview: {
       copyText: "Copy text", copyPath: "Copy path", copyFailed: "Failed to copy node content", copied: "Copied", title: "{name} content", fallbackTitle: "Node content",
