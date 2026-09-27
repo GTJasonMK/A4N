@@ -27,8 +27,8 @@ import "./visual-plan/director.css";
 
 const SceneLibrary = lazy(() => import("./SceneProfilesTab").then((module) => ({ default: module.SceneProfilesTab })));
 type ModalPanel = "source" | "scenes" | "media" | "settings" | "agent" | "candidates";
-type SplitDraft = { segmentId: string; pointId: string; leftPrompt: string; rightPrompt: string; leftScene: SceneBindingV3 | null; rightScene: SceneBindingV3 | null };
-type MergeDraft = { leftId: string; rightId: string; prompt: string; scene: SceneBindingV3 | null };
+type SplitDraft = { segmentId: string; pointId: string; leftPrompt: string; rightPrompt: string; leftScene: SceneBindingV3 | null; rightScene: SceneBindingV3 | null; dirty: boolean };
+type MergeDraft = { leftId: string; rightId: string; prompt: string; scene: SceneBindingV3 | null; dirty: boolean };
 
 function directorCandidatePointId(image: GeneratedImage): string | null {
   if (image.image_type !== IMAGE_TYPE_DIRECTOR_STORYBOARD_FRAME || typeof image.metadata_json !== "object" || image.metadata_json === null || Array.isArray(image.metadata_json)) return null;
@@ -110,6 +110,24 @@ export function ChapterVisualPlanTab({ projectId, canEdit, chapter }: { projectI
   const closeAgentSidebar = () => {
     setModalPanel(null);
     setInspectorOpen(false);
+  };
+  const closeSplit = async () => {
+    if (split?.dirty && !(await confirmDialog({
+      title: "放弃拆分镜头编辑？",
+      message: "当前拆分内容尚未提交，关闭后将丢失。",
+      confirmText: "放弃编辑",
+      dialogType: "warning",
+    }))) return;
+    setSplit(null);
+  };
+  const closeMerge = async () => {
+    if (merge?.dirty && !(await confirmDialog({
+      title: "放弃合并镜头编辑？",
+      message: "当前合并内容尚未提交，关闭后将丢失。",
+      confirmText: "放弃编辑",
+      dialogType: "warning",
+    }))) return;
+    setMerge(null);
   };
   const closeCandidateModal = () => {
     setModalPanel(null);
@@ -196,13 +214,13 @@ export function ChapterVisualPlanTab({ projectId, canEdit, chapter }: { projectI
     if (!splitPoint) { model.report(new Error("请先在镜头内部添加一个图片点，再从该点拆分镜头。")); return; }
     setSplit({ segmentId: target.id, pointId: splitPoint.id, leftPrompt: target.prompt, rightPrompt: "",
       leftScene: target.scene_binding?.kind === "transition" ? { kind: "scene", scene_profile_id: target.scene_binding.from_scene_profile_id } : target.scene_binding,
-      rightScene: target.scene_binding });
+      rightScene: target.scene_binding, dirty: false });
   };
   const openMerge = () => {
     if (!plan || !segment) return;
     const right = plan.segments[plan.segments.findIndex((item) => item.id === segment.id) + 1];
     if (!right) return;
-    setMerge({ leftId: segment.id, rightId: right.id, prompt: "", scene: segment.scene_binding });
+    setMerge({ leftId: segment.id, rightId: right.id, prompt: "", scene: segment.scene_binding, dirty: false });
   };
   const adoptImage = async (pointId: string, image: GeneratedImage) => {
     if (!model.editable) throw new Error("请先进入草稿编辑模式");
@@ -479,13 +497,13 @@ export function ChapterVisualPlanTab({ projectId, canEdit, chapter }: { projectI
         </div>
       </div>
     </Modal>
-    {split && <Modal isOpen title="拆分镜头" onClose={() => setSplit(null)} footer={<BookButton disabled={model.busy} onClick={() => { void model.mutate({ kind: "split_segment", segment_id: split.segmentId, point_id: split.pointId, right_segment_id: crypto.randomUUID(), left_prompt: split.leftPrompt, right_prompt: split.rightPrompt, left_scene_binding: split.leftScene, right_scene_binding: split.rightScene }).then((succeeded) => { if (succeeded) setSplit(null); }); }}>拆分镜头</BookButton>}>
-      <div className="director-fields"><label>分镜位置<ThemedSelect className="director-select" aria-label="分镜位置" value={split.pointId} onChange={(selectedValue) => setSplit({ ...split, pointId: selectedValue })}>{plan.points.filter((point) => { const target = plan.segments.find((segment) => segment.id === split.segmentId)!; const [start, end] = segmentTimes(plan, target); return point.at_ms > start && point.at_ms < end; }).map((point) => <option key={point.id} value={point.id}>{formatTime(point.at_ms)} · {point.label}</option>)}</ThemedSelect></label>
-        <label>前段描述<textarea rows={4} value={split.leftPrompt} onChange={(event) => setSplit({ ...split, leftPrompt: event.target.value })} /></label><SceneBindingEditor projectId={chapter.project_id} chapterNumber={chapter.chapter_number} binding={split.leftScene} scenes={scenes} disabled={model.busy} onSceneCreated={rememberScene} onChange={(leftScene) => setSplit({ ...split, leftScene })} />
-        <label>后段描述<textarea rows={4} value={split.rightPrompt} onChange={(event) => setSplit({ ...split, rightPrompt: event.target.value })} placeholder="为新镜头填写描述，也可以拆分后生成。" /></label><SceneBindingEditor projectId={chapter.project_id} chapterNumber={chapter.chapter_number} binding={split.rightScene} scenes={scenes} disabled={model.busy} onSceneCreated={rememberScene} onChange={(rightScene) => setSplit({ ...split, rightScene })} /></div>
+    {split && <Modal isOpen title="拆分镜头" onClose={() => void closeSplit()} footer={<BookButton disabled={model.busy} onClick={() => { void model.mutate({ kind: "split_segment", segment_id: split.segmentId, point_id: split.pointId, right_segment_id: crypto.randomUUID(), left_prompt: split.leftPrompt, right_prompt: split.rightPrompt, left_scene_binding: split.leftScene, right_scene_binding: split.rightScene }).then((succeeded) => { if (succeeded) setSplit(null); }); }}>拆分镜头</BookButton>}>
+        <div className="director-fields"><label>分镜位置<ThemedSelect className="director-select" aria-label="分镜位置" value={split.pointId} onChange={(selectedValue) => setSplit({ ...split, pointId: selectedValue, dirty: true })}>{plan.points.filter((point) => { const target = plan.segments.find((segment) => segment.id === split.segmentId)!; const [start, end] = segmentTimes(plan, target); return point.at_ms > start && point.at_ms < end; }).map((point) => <option key={point.id} value={point.id}>{formatTime(point.at_ms)} · {point.label}</option>)}</ThemedSelect></label>
+        <label>前段描述<textarea rows={4} value={split.leftPrompt} onChange={(event) => setSplit({ ...split, leftPrompt: event.target.value, dirty: true })} /></label><SceneBindingEditor projectId={chapter.project_id} chapterNumber={chapter.chapter_number} binding={split.leftScene} scenes={scenes} disabled={model.busy} onSceneCreated={rememberScene} onChange={(leftScene) => setSplit({ ...split, leftScene, dirty: true })} />
+        <label>后段描述<textarea rows={4} value={split.rightPrompt} onChange={(event) => setSplit({ ...split, rightPrompt: event.target.value, dirty: true })} placeholder="为新镜头填写描述，也可以拆分后生成。" /></label><SceneBindingEditor projectId={chapter.project_id} chapterNumber={chapter.chapter_number} binding={split.rightScene} scenes={scenes} disabled={model.busy} onSceneCreated={rememberScene} onChange={(rightScene) => setSplit({ ...split, rightScene, dirty: true })} /></div>
     </Modal>}
-    {merge && <Modal isOpen title="合并镜头" onClose={() => setMerge(null)} footer={<BookButton disabled={model.busy} onClick={() => { void model.mutate({ kind: "merge_segments", left_segment_id: merge.leftId, right_segment_id: merge.rightId, prompt: merge.prompt, scene_binding: merge.scene }).then((succeeded) => { if (succeeded) setMerge(null); }); }}>{merge.prompt.trim() ? "合并镜头" : "合并为待完善镜头"}</BookButton>}>
-      <div className="director-fields"><details open><summary>原镜头描述</summary>{[merge.leftId, merge.rightId].map((id) => <p key={id}>{plan.segments.find((segment) => segment.id === id)?.prompt || "尚未填写"}</p>)}</details><label>合并后的变化描述<textarea rows={6} value={merge.prompt} onChange={(event) => setMerge({ ...merge, prompt: event.target.value })} /></label><SceneBindingEditor projectId={chapter.project_id} chapterNumber={chapter.chapter_number} binding={merge.scene} scenes={scenes} disabled={model.busy} onSceneCreated={rememberScene} onChange={(scene) => setMerge({ ...merge, scene })} /><p className="director-context-line">原有图片点都会保留。可在合并后继续填写或生成描述。</p></div>
+    {merge && <Modal isOpen title="合并镜头" onClose={() => void closeMerge()} footer={<BookButton disabled={model.busy} onClick={() => { void model.mutate({ kind: "merge_segments", left_segment_id: merge.leftId, right_segment_id: merge.rightId, prompt: merge.prompt, scene_binding: merge.scene }).then((succeeded) => { if (succeeded) setMerge(null); }); }}>{merge.prompt.trim() ? "合并镜头" : "合并为待完善镜头"}</BookButton>}>
+      <div className="director-fields"><details open><summary>原镜头描述</summary>{[merge.leftId, merge.rightId].map((id) => <p key={id}>{plan.segments.find((segment) => segment.id === id)?.prompt || "尚未填写"}</p>)}</details><label>合并后的变化描述<textarea rows={6} value={merge.prompt} onChange={(event) => setMerge({ ...merge, prompt: event.target.value, dirty: true })} /></label><SceneBindingEditor projectId={chapter.project_id} chapterNumber={chapter.chapter_number} binding={merge.scene} scenes={scenes} disabled={model.busy} onSceneCreated={rememberScene} onChange={(scene) => setMerge({ ...merge, scene, dirty: true })} /><p className="director-context-line">原有图片点都会保留。可在合并后继续填写或生成描述。</p></div>
     </Modal>}
   </section>;
 }

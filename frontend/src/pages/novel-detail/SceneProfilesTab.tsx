@@ -1,5 +1,5 @@
 import { ThemedSelect } from "../../components/ui/ThemedSelect";
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { ChevronRight,
   Map,
   Plus,
@@ -644,9 +644,12 @@ function SceneProfileEditModal({
   const { t } = useI18n();
   const [draft, setDraft] = useState<SceneProfileInput>(emptySceneProfileInput());
   const [saving, setSaving] = useState(false);
+  const initialDraftRef = useRef<SceneProfileInput>(emptySceneProfileInput());
 
   useEffect(() => {
-    setDraft(profile && profile !== "new" ? sceneProfileToInput(profile) : emptySceneProfileInput());
+    const nextDraft = profile && profile !== "new" ? sceneProfileToInput(profile) : emptySceneProfileInput();
+    initialDraftRef.current = nextDraft;
+    setDraft(nextDraft);
     setSaving(false);
   }, [profile]);
 
@@ -673,11 +676,21 @@ function SceneProfileEditModal({
       setSaving(false);
     }
   };
+  const close = async () => {
+    if (busy || saving) return;
+    if (JSON.stringify(draft) !== JSON.stringify(initialDraftRef.current) && !(await confirmDialog({
+      title: t("common.unsavedChangesTitle"),
+      message: t("common.unsavedChangesMessage", { name: t("novel.profile.scene"), action: t("common.close") }),
+      confirmText: t("common.discardDraft"),
+      dialogType: "warning",
+    }))) return;
+    onClose();
+  };
 
   return (
     <Modal
       isOpen
-      onClose={onClose}
+      onClose={() => void close()}
       title={profile === "new" ? t("novel.profile.createScene") : t("novel.profile.editScene")}
       icon={<Map size={15} />}
       maxWidthClassName="max-w-3xl"

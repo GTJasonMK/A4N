@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { controlAgentRun, getAgentRun, type AgentBudget, type AgentRunView } from "../../api/agent";
 import { extractErrorMessage } from "../../api";
 import { useI18n } from "../../i18n";
@@ -6,6 +6,7 @@ import { BookButton } from "../ui/BookButton";
 import { BookInput } from "../ui/BookInput";
 import { LoadingSpinner } from "../ui/LoadingSpinner";
 import { Modal } from "../ui/Modal";
+import { confirmDialog } from "../feedback/ConfirmDialog";
 
 const FIELDS = ["max_steps", "max_model_calls", "max_tool_calls", "max_tokens", "max_duration_seconds"] as const;
 type BudgetField = typeof FIELDS[number];
@@ -37,6 +38,7 @@ export function AgentBudgetDialog({ run, onClose, onResumed }: {
   const { t } = useI18n();
   const [owner, setOwner] = useState<AgentRunView | null>(null);
   const [values, setValues] = useState<Partial<Record<BudgetField, string>>>({});
+  const initialValuesRef = useRef<Partial<Record<BudgetField, string>>>({});
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   useEffect(() => {
@@ -54,6 +56,7 @@ export function AgentBudgetDialog({ run, onClose, onResumed }: {
         const increase = used >= limit || (field === "max_tokens" && run.waiting_reason === "budget");
         draft[field] = String(increase ? Math.min(maximumFor(field), Math.max(limit * 2, used + limit)) : limit);
       }
+      initialValuesRef.current = draft;
       setValues(draft);
       setOwner(next);
     }).catch((failure) => { if (!stopped) setError(extractErrorMessage(failure, t("agent.loadFailed"))); });
@@ -65,7 +68,17 @@ export function AgentBudgetDialog({ run, onClose, onResumed }: {
     || Number(values[field]) < (owner?.budget[field] ?? 0) || Number(values[field]) > maximumFor(field)
   )));
   const invalid = invalidFields.size > 0;
-  const close = () => { if (!saving) onClose(); };
+  const close = async () => {
+    if (saving) return;
+    const dirty = JSON.stringify(values) !== JSON.stringify(initialValuesRef.current);
+    if (dirty && !(await confirmDialog({
+      title: t("common.unsavedChangesTitle"),
+      message: t("common.unsavedChangesMessage", { name: t("agent.budget.title"), action: t("common.close") }),
+      confirmText: t("common.discardDraft"),
+      dialogType: "warning",
+    }))) return;
+    onClose();
+  };
   const resume = async () => {
     if (!owner || saving || invalid) return;
     setSaving(true);

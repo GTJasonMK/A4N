@@ -1,9 +1,10 @@
-import React from "react";
+import React, { useEffect, useRef } from "react";
 import { Pencil, UserPlus } from "lucide-react";
 import type { CharacterProfile } from "../../api/character";
 import { LoadingSpinner } from "../../components/ui/LoadingSpinner";
 import { Modal } from "../../components/ui/Modal";
 import { BookButton } from "../../components/ui/BookButton";
+import { confirmDialog } from "../../components/feedback/ConfirmDialog";
 import { ProfileTextarea } from "./CharacterProfileDisplay";
 import { characterAttributeText } from "../../utils/characterAttributes";
 import { useI18n } from "../../i18n";
@@ -102,13 +103,27 @@ export const CharacterProfileEditorModal: React.FC<{
   onClose: () => void;
 }> = ({ open, form, saving, mode = "create", onChange, onSave, onClose }) => {
   const { t } = useI18n();
+  const baselineRef = useRef<ProfileForm>(form);
+  useEffect(() => {
+    if (open) baselineRef.current = form;
+  }, [mode, open]);
   if (!open) return null;
   const editing = mode === "edit";
+  const close = async () => {
+    if (saving) return;
+    if (JSON.stringify(form) !== JSON.stringify(baselineRef.current) && !(await confirmDialog({
+      title: t("common.unsavedChangesTitle"),
+      message: t("common.unsavedChangesMessage", { name: t("characterDetail.profilesTitle"), action: t("common.close") }),
+      confirmText: t("common.discardDraft"),
+      dialogType: "warning",
+    }))) return;
+    onClose();
+  };
 
   return (
     <Modal
       isOpen
-      onClose={() => !saving && onClose()}
+      onClose={() => void close()}
       title={editing ? t("characterDetail.editInitialProfileTitle") : t("characterDetail.newProfileTitle")}
       icon={editing ? <Pencil size={15} /> : <UserPlus size={15} />}
       subtitle={

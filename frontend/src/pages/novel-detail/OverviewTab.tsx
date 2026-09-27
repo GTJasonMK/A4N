@@ -5,6 +5,7 @@ import { Modal } from "../../components/ui/Modal";
 import { BookButton } from "../../components/ui/BookButton";
 import { BookInput, BookTextarea } from "../../components/ui/BookInput";
 import { LoadingSpinner } from "../../components/ui/LoadingSpinner";
+import { confirmDialog } from "../../components/feedback/ConfirmDialog";
 import { useToast } from "../../components/feedback/Toast";
 import { promptDialog } from "../../components/feedback/PromptDialog";
 import { extractErrorMessage } from "../../api";
@@ -236,6 +237,25 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
   };
 
   const displayBlueprint = loadedProjectId === project.id ? blueprint : null;
+  const blueprintDraftDirty = blueprintEditorOpen && Boolean(
+    blueprintDraft.genre.trim() !== (displayBlueprint?.genre ?? "").trim() ||
+    blueprintDraft.style.trim() !== (displayBlueprint?.style ?? "").trim() ||
+    blueprintDraft.tone.trim() !== (displayBlueprint?.tone ?? "").trim() ||
+    blueprintDraft.targetAudience.trim() !== (displayBlueprint?.target_audience ?? "").trim() ||
+    blueprintDraft.oneSentenceSummary.trim() !== (displayBlueprint?.one_sentence_summary ?? "").trim() ||
+    blueprintDraft.fullSynopsis.trim() !== (displayBlueprint?.full_synopsis ?? "").trim() ||
+    blueprintDraft.totalChapters.trim() !== String(displayBlueprint?.total_chapters ?? project.total_chapters ?? ""),
+  );
+  const closeBlueprintEditor = async () => {
+    if (blueprintSaving) return;
+    if (blueprintDraftDirty && !(await confirmDialog({
+      title: t("common.unsavedChangesTitle"),
+      message: t("common.unsavedChangesMessage", { name: t("novel.blueprintVersion"), action: t("common.close") }),
+      confirmText: t("common.discardDraft"),
+      dialogType: "warning",
+    }))) return;
+    setBlueprintEditorOpen(false);
+  };
   const displayLoading = loading || loadedProjectId !== project.id;
 
   const handleOpenBlueprintEditor = () => {
@@ -380,9 +400,7 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
 
       <Modal
         isOpen={blueprintEditorOpen}
-        onClose={() => {
-          if (!blueprintSaving) setBlueprintEditorOpen(false);
-        }}
+        onClose={() => void closeBlueprintEditor()}
         title={displayBlueprint ? t("novel.editFormalBlueprint") : t("novel.enterFormalBlueprint")}
         subtitle={t("novel.formalBlueprintSubtitle")}
         icon={<Pencil size={15} />}
@@ -475,7 +493,7 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
             <BookButton
               variant="secondary"
               disabled={blueprintSaving}
-              onClick={() => setBlueprintEditorOpen(false)}
+              onClick={() => void closeBlueprintEditor()}
             >
               {t("common.cancel")}
             </BookButton>

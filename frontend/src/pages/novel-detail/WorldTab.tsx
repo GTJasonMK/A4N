@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { LoadingSpinner } from "../../components/ui/LoadingSpinner";
+import { confirmDialog } from "../../components/feedback/ConfirmDialog";
 import { useToast } from "../../components/feedback/Toast";
 import { promptDialog } from "../../components/feedback/PromptDialog";
 import { extractErrorMessage } from "../../api";
@@ -56,6 +57,7 @@ export const WorldTab: React.FC<WorldTabProps> = ({
   const refineSeqRef = useRef(0);
   const refineBusyRef = useRef(false);
   const saveBusyRef = useRef(false);
+  const editBaselineRef = useRef({ mode: "structured" as WorldEditMode, json: "{}", text: "" });
 
   activeProjectIdRef.current = projectId;
 
@@ -137,10 +139,25 @@ export const WorldTab: React.FC<WorldTabProps> = ({
       return;
     }
     const draft = createWorldEditDraft(normalizedWorld);
+    editBaselineRef.current = draft;
     setJsonDraft(draft.json);
     setTextDraft(draft.text);
     setEditMode(draft.mode);
     setEditing(true);
+  };
+
+  const handleCancelEdit = async () => {
+    if (!editing || saving) return;
+    const dirty = editMode !== editBaselineRef.current.mode ||
+      jsonDraft !== editBaselineRef.current.json ||
+      textDraft !== editBaselineRef.current.text;
+    if (dirty && !(await confirmDialog({
+      title: t("common.unsavedChangesTitle"),
+      message: t("common.unsavedChangesMessage", { name: t("novel.world.title"), action: t("common.close") }),
+      confirmText: t("common.discardDraft"),
+      dialogType: "warning",
+    }))) return;
+    setEditing(false);
   };
 
   const handleSave = async () => {
@@ -289,7 +306,7 @@ export const WorldTab: React.FC<WorldTabProps> = ({
             worldObject={displayWorldObject}
             refining={refining}
             onStartEdit={handleStartEdit}
-            onCancelEdit={() => setEditing(false)}
+            onCancelEdit={() => void handleCancelEdit()}
             onSave={handleSave}
             onRefine={() => void handleRefine()}
             onOpenDetail={() => setDetailOpen(true)}
@@ -316,7 +333,7 @@ export const WorldTab: React.FC<WorldTabProps> = ({
             worldObject={displayWorldObject}
             refining={refining}
             onStartEdit={handleStartEdit}
-            onCancelEdit={() => setEditing(false)}
+            onCancelEdit={() => void handleCancelEdit()}
             onSave={handleSave}
             onRefine={() => void handleRefine()}
             onOpenDetail={() => setDetailOpen(true)}

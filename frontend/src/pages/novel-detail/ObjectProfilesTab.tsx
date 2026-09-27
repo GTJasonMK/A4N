@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Boxes,
   ChevronRight,
   Plus,
@@ -532,9 +532,12 @@ function ObjectProfileEditModal({
   const { t } = useI18n();
   const [draft, setDraft] = useState<ObjectProfileInput>(emptyObjectProfileInput());
   const [saving, setSaving] = useState(false);
+  const initialDraftRef = useRef<ObjectProfileInput>(emptyObjectProfileInput());
 
   useEffect(() => {
-    setDraft(profile && profile !== "new" ? objectProfileToInput(profile) : emptyObjectProfileInput());
+    const nextDraft = profile && profile !== "new" ? objectProfileToInput(profile) : emptyObjectProfileInput();
+    initialDraftRef.current = nextDraft;
+    setDraft(nextDraft);
     setSaving(false);
   }, [profile]);
 
@@ -561,11 +564,21 @@ function ObjectProfileEditModal({
       setSaving(false);
     }
   };
+  const close = async () => {
+    if (busy || saving) return;
+    if (JSON.stringify(draft) !== JSON.stringify(initialDraftRef.current) && !(await confirmDialog({
+      title: t("common.unsavedChangesTitle"),
+      message: t("common.unsavedChangesMessage", { name: t("novel.profile.object"), action: t("common.close") }),
+      confirmText: t("common.discardDraft"),
+      dialogType: "warning",
+    }))) return;
+    onClose();
+  };
 
   return (
     <Modal
       isOpen
-      onClose={onClose}
+      onClose={() => void close()}
       title={profile === "new" ? t("novel.profile.createObject") : t("novel.profile.editObject")}
       icon={<Boxes size={15} />}
       maxWidthClassName="max-w-3xl"

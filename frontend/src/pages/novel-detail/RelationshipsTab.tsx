@@ -51,6 +51,9 @@ interface RelationshipEditorState {
   target: string;
   description: string;
   editing: boolean;
+  initialProfileId: number;
+  initialTarget: string;
+  initialDescription: string;
 }
 
 const syncedChapterText = (
@@ -250,6 +253,9 @@ export const RelationshipsTab: React.FC<{ projectId: number }> = ({
       target: "",
       description: "",
       editing: false,
+      initialProfileId: profile.id,
+      initialTarget: "",
+      initialDescription: "",
     });
   };
 
@@ -277,6 +283,9 @@ export const RelationshipsTab: React.FC<{ projectId: number }> = ({
       target: relationship.character_b,
       description: relationship.description,
       editing: true,
+      initialProfileId: relationship.profile_id,
+      initialTarget: relationship.character_b,
+      initialDescription: relationship.description,
     });
   };
 
@@ -420,7 +429,21 @@ export const RelationshipsTab: React.FC<{ projectId: number }> = ({
         saving={saving}
         onChange={setEditor}
         onSave={() => void saveRelationship()}
-        onClose={() => !saving && setEditor(null)}
+        onClose={async () => {
+          if (saving) return;
+          const dirty = editor != null && (
+            editor.profileId !== editor.initialProfileId ||
+            editor.target !== editor.initialTarget ||
+            editor.description !== editor.initialDescription
+          );
+          if (dirty && !(await confirmDialog({
+            title: t("common.unsavedChangesTitle"),
+            message: t("common.unsavedChangesMessage", { name: t("novel.relationships.title"), action: t("common.close") }),
+            confirmText: t("common.discardDraft"),
+            dialogType: "warning",
+          }))) return;
+          setEditor(null);
+        }}
       />
 
       <CharacterDetailDialog

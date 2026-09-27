@@ -421,6 +421,21 @@ export const ScenesDialog: React.FC<ScenesDialogProps> = ({
     }
   };
 
+  const handleClose = async () => {
+    if (saving || generating) return;
+    if (editingId != null) {
+      const scene = scenes.find((item) => item.id === editingId);
+      const dirty = scene != null && JSON.stringify(editForm) !== JSON.stringify(createSceneEditForm(scene));
+      if (dirty && !(await confirmDialog({
+        title: t("common.unsavedChangesTitle"),
+        message: t("common.unsavedChangesMessage", { name: t("scenes.chapterScenes"), action: t("common.close") }),
+        confirmText: t("common.discardDraft"),
+        dialogType: "warning",
+      }))) return;
+    }
+    onClose();
+  };
+
   const sortedScenes = useMemo(() => sortScenes(scenes), [scenes]);
   const nextSceneNumber = useMemo(() => getNextSceneNumber(scenes), [scenes]);
 
@@ -428,7 +443,7 @@ export const ScenesDialog: React.FC<ScenesDialogProps> = ({
     <>
       <Modal
         isOpen={open}
-        onClose={onClose}
+        onClose={() => void handleClose()}
         title={t("scenes.chapterScenes")}
         subtitle={
           chapterNumber != null
