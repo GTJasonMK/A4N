@@ -126,7 +126,19 @@ mark_changed_targets() {
       build_agent_worker=true
       ;;
     "$PROJECT_ROOT/crates/agent/a4n-agent-runtime/"*)
+      build_control=true
       build_agent_worker=true
+      ;;
+    "$PROJECT_ROOT/crates/agent/a4n-agent-application/"*)
+      build_control=true
+      build_agent_worker=true
+      ;;
+    "$PROJECT_ROOT/crates/agent/a4n-agent-runtime-contract/"*)
+      build_control=true
+      build_agent_worker=true
+      ;;
+    "$PROJECT_ROOT/crates/agent/a4n-agent-worker-client/"*)
+      build_control=true
       ;;
     "$PROJECT_ROOT/crates/host/a4n-edge/"*)
       build_edge=true

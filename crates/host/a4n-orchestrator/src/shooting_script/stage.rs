@@ -18,6 +18,8 @@ use super::contracts::{
 mod persistence;
 mod raw_call;
 
+const RAW_RESPONSE_ONLY_ARTIFACT: &str = "shooting_script_raw_response_only_v1";
+
 impl OrchestratorContext {
     pub(super) async fn run_shooting_script_stage<T>(
         &self,
@@ -47,6 +49,7 @@ impl OrchestratorContext {
             .run_or_restore_raw_shooting_call(
                 workflow_run_id,
                 step_key,
+                step_order,
                 &fingerprint_json,
                 request,
                 label,
@@ -57,7 +60,8 @@ impl OrchestratorContext {
                 cancel_token,
             )
             .await?;
-        let restored = raw.restored_parsed_output.is_some();
+        let restored = raw.restored;
+        let response_only_checkpoint = raw.response_only_checkpoint;
         let parsed = parse_shooting_script_output::<T>(
             &raw.response_content,
             label,
@@ -66,7 +70,11 @@ impl OrchestratorContext {
         );
         let output = parsed.and_then(|output| {
             validate_output(&output)?;
-            if let Some(saved) = raw.restored_parsed_output.as_ref() {
+            if let Some(saved) = raw
+                .restored_parsed_output
+                .as_ref()
+                .filter(|_| !response_only_checkpoint)
+            {
                 ensure_checkpoint_parsed_output_matches(
                     saved,
                     &serde_json::to_value(&output)?,
@@ -81,7 +89,7 @@ impl OrchestratorContext {
         } else {
             output?
         };
-        if !restored {
+        if !restored || response_only_checkpoint {
             self.persist_parsed_shooting_call(
                 workflow_run_id,
                 step_key,

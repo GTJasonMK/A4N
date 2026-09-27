@@ -64,6 +64,7 @@ describe("VideoAssemblyWorkspace", () => {
         unavailableSegmentNumbers={[2]}
         onToast={() => undefined}
         onRefresh={() => undefined}
+        onVideoRecordUpdated={() => undefined}
         />
       </I18nProvider>,
     );
@@ -126,6 +127,7 @@ describe("VideoAssemblyWorkspace", () => {
         adoptedVideoIds={new Set([late.id, early.id])}
         onToast={() => undefined}
         onRefresh={() => undefined}
+        onVideoRecordUpdated={() => undefined}
         />
       </I18nProvider>,
     );

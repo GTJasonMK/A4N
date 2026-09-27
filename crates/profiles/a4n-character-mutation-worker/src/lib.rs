@@ -603,8 +603,8 @@ fn character_profile_summary_with_state(
         timeline_started,
         initial_profile_editable,
         attribute_counts: attribute_counts(&profile.current_state)?,
-        created_at: Some(profile.created_at.to_string()),
-        updated_at: Some(profile.updated_at.to_string()),
+        created_at: Some(profile.created_at.and_utc().to_rfc3339()),
+        updated_at: Some(profile.updated_at.and_utc().to_rfc3339()),
     })
 }
 
@@ -676,7 +676,7 @@ fn attribute_event_summary(
         id: event.id,
         chapter_number: event.chapter_number,
         source_kind,
-        timestamp: Some(event.timestamp.to_string()),
+        timestamp: Some(event.timestamp.and_utc().to_rfc3339()),
         category,
         key: event.key.clone(),
         operation,
@@ -729,7 +729,7 @@ fn deletion_mark_summary(
         consecutive_count: mark.consecutive_count,
         last_marked_chapter: mark.last_marked_chapter,
         is_executed: mark.is_executed,
-        created_at: mark.created_at.to_string(),
+        created_at: mark.created_at.and_utc().to_rfc3339(),
     })
 }
 
@@ -819,7 +819,7 @@ fn profile_state_summary(
         current_location,
         changes_in_chapter: changes,
         behaviors_in_chapter: behaviors,
-        created_at: Some(snapshot.created_at.to_string()),
+        created_at: Some(snapshot.created_at.and_utc().to_rfc3339()),
     })
 }
 

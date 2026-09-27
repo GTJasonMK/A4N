@@ -1,4 +1,5 @@
 import React, { useCallback, useMemo } from "react";
+import { extractErrorMessage } from "../../api";
 import {
   createLlmConfig,
   createServerLlmConfig,
@@ -44,21 +45,31 @@ export const LlmTab: React.FC<LlmTabProps> = ({ scope = "local" }) => {
   const serverScope = scope === "server";
   const loadItems = useCallback(async (): Promise<{
     items: ConfigItem<LlmForm>[];
-    catalog: ModelProviderCatalog;
+    catalog: ModelProviderCatalog | null;
+    warning?: string | null;
   }> => {
-    const [list, providerCatalog] = await Promise.all([
+    const [listResult, catalogResult] = await Promise.allSettled([
       serverScope ? listServerLlmConfig() : listLlmConfig(),
       listModelProviderCatalog(),
     ]);
+    if (listResult.status === "rejected") throw listResult.reason;
+    const list = listResult.value;
+    const providerCatalog = catalogResult.status === "fulfilled" ? catalogResult.value : null;
     const items = list.map((config) => {
-      assertCatalogProvider("llm", config.provider, providerCatalog);
+      if (providerCatalog) assertCatalogProvider("llm", config.provider, providerCatalog);
       return {
         ...toLlmItem(config),
         deleteDisabled: !serverScope && config.id === SYSTEM_LLM_CONFIG_ID,
         deleteDisabledReason: t("settings.systemTemplateCannotDelete", { name: "LLM" }),
       };
     });
-    return { items, catalog: providerCatalog };
+    return {
+      items,
+      catalog: providerCatalog,
+      warning: catalogResult.status === "rejected"
+        ? extractErrorMessage(catalogResult.reason, t("settings.loadConfigFailed", { name: t("settings.llm") }))
+        : null,
+    };
   }, [serverScope, t]);
   const { items, setItems, catalog, loading, error, refresh } = useConfigItems(
     loadItems,

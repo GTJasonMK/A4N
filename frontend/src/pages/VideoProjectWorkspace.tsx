@@ -108,20 +108,28 @@ export const VideoProjectWorkspace: React.FC = () => {
         navigate(getProjectStudioRoute(projectId), { replace: true });
         return;
       }
-      if (chaptersResult.status === "rejected") throw chaptersResult.reason;
-      const snapshotChapters = chaptersResult.value;
       if (refreshRequestRef.current !== requestId) return;
       setProject(item);
-      setChapters(snapshotChapters);
-      setSelectedSourceChapterId((current) => {
-        if (
-          current != null &&
-          snapshotChapters.some((chapter) => chapter.source_chapter_id === current)
-        ) {
-          return current;
-        }
-        return snapshotChapters[0]?.source_chapter_id ?? null;
-      });
+      if (chaptersResult.status === "fulfilled") {
+        const snapshotChapters = chaptersResult.value;
+        setChapters(snapshotChapters);
+        setSelectedSourceChapterId((current) => {
+          if (
+            current != null &&
+            snapshotChapters.some((chapter) => chapter.source_chapter_id === current)
+          ) {
+            return current;
+          }
+          return snapshotChapters[0]?.source_chapter_id ?? null;
+        });
+      } else {
+        const message = extractErrorMessage(
+          chaptersResult.reason,
+          translatorRef.current("video.loadProjectFailed"),
+        );
+        setLoadError(message);
+        addToast(message, "error");
+      }
     } catch (err) {
       if (refreshRequestRef.current === requestId) {
         const message = extractErrorMessage(err, translatorRef.current("video.loadProjectFailed"));

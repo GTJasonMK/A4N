@@ -71,11 +71,38 @@ class RuntimeWorkerWatcherTest(unittest.TestCase):
         self.assertIn("-p a4n-control", commands[0])
         self.assertNotIn("a4n-agent-worker", commands[0])
 
-    def test_agent_runtime_change_builds_only_agent_worker(self) -> None:
+    def test_agent_runtime_change_builds_control_and_agent_worker(self) -> None:
         commands = self.run_watcher(ROOT / "crates/agent/a4n-agent-runtime/src/lib.rs")
         self.assertEqual(len(commands), 1)
+        self.assertIn("-p a4n-control", commands[0])
         self.assertIn("-p a4n-agent-worker", commands[0])
-        self.assertNotIn("a4n-control", commands[0])
+        self.assertNotIn("-p a4n-edge", commands[0])
+
+    def test_agent_application_change_builds_control_and_agent_worker(self) -> None:
+        commands = self.run_watcher(
+            ROOT / "crates/agent/a4n-agent-application/src/agent/validation.rs"
+        )
+        self.assertEqual(len(commands), 1)
+        self.assertIn("-p a4n-control", commands[0])
+        self.assertIn("-p a4n-agent-worker", commands[0])
+        self.assertNotIn("-p a4n-edge", commands[0])
+
+    def test_agent_runtime_contract_change_builds_control_and_agent_worker(self) -> None:
+        commands = self.run_watcher(
+            ROOT / "crates/agent/a4n-agent-runtime-contract/src/lib.rs"
+        )
+        self.assertEqual(len(commands), 1)
+        self.assertIn("-p a4n-control", commands[0])
+        self.assertIn("-p a4n-agent-worker", commands[0])
+        self.assertNotIn("-p a4n-edge", commands[0])
+
+    def test_agent_worker_client_change_builds_only_control(self) -> None:
+        commands = self.run_watcher(
+            ROOT / "crates/agent/a4n-agent-worker-client/src/lib.rs"
+        )
+        self.assertEqual(len(commands), 1)
+        self.assertIn("-p a4n-control", commands[0])
+        self.assertNotIn("-p a4n-agent-worker", commands[0])
 
     def test_edge_change_builds_only_edge(self) -> None:
         commands = self.run_watcher(ROOT / "crates/host/a4n-edge/src/lib.rs")

@@ -414,7 +414,7 @@ fn blueprint_version_summary(
             version.id,
             "change_description",
         )?,
-        created_at: version.created_at.to_string(),
+        created_at: version.created_at.and_utc().to_rfc3339(),
         created_by: persisted_version_text(
             version.created_by.as_deref(),
             version.id,

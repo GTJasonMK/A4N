@@ -399,6 +399,7 @@ export const novelAssets = {
     analysisRequestPreview: "导入项目分析请求预览",
     reverseRequestPreview: "项目资料归纳请求预览",
     loadQueueFailed: "加载导入队列失败",
+    analysisProgressLoadFailed: "加载导入分析进度失败",
     restoreCandidateFailed: "恢复项目资料归纳结果失败",
     chooseFile: "请选择要导入的文件",
     fileTooLarge: "导入文件不能超过 {size}MB",

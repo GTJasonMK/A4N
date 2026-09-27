@@ -108,15 +108,24 @@ export const EmbeddingTab: React.FC<EmbeddingTabProps> = ({
   }, [localModels]);
 
   const loadConfigs = useCallback(async () => {
-    const [list, catalog] = await Promise.all([
+    const [listResult, catalogResult] = await Promise.allSettled([
       listEmbeddingConfig(scope),
       listModelProviderCatalog(),
     ]);
+    if (listResult.status === "rejected") throw listResult.reason;
+    const list = listResult.value;
+    const catalog = catalogResult.status === "fulfilled" ? catalogResult.value : null;
     for (const config of list) {
-      assertCatalogProvider("embedding", config.backend, catalog);
+      if (catalog) assertCatalogProvider("embedding", config.backend, catalog);
     }
-    return { items: list.map(toItem), catalog };
-  }, [scope]);
+    return {
+      items: list.map(toItem),
+      catalog,
+      warning: catalogResult.status === "rejected"
+        ? extractErrorMessage(catalogResult.reason, t("settings.loadConfigFailed", { name: t("settings.embedding") }))
+        : null,
+    };
+  }, [scope, t]);
   const { items, setItems, catalog, loading, error: loadError, refresh: refreshConfigs } = useConfigItems(
     loadConfigs,
     t("settingsEmbedding.configLoadFailed", { host: modelHostLabel }),

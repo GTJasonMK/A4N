@@ -61,6 +61,7 @@ interface VideoAssemblyWorkspaceProps {
   unavailableSegmentNumbers?: number[];
   onToast: (message: string, type: ToastType) => void;
   onRefresh: () => Promise<void> | void;
+  onVideoRecordUpdated: (video: GeneratedVideo) => void;
 }
 
 const ASSEMBLY_ORDER_STEP = 1000;
@@ -120,6 +121,7 @@ export const VideoAssemblyWorkspace: React.FC<VideoAssemblyWorkspaceProps> = ({
   unavailableSegmentNumbers = [],
   onToast,
   onRefresh,
+  onVideoRecordUpdated,
 }) => {
   const { locale, t } = useI18n();
   const [preview, setPreview] = useState<AssembledChapterVideoPreview | null>(
@@ -398,6 +400,7 @@ export const VideoAssemblyWorkspace: React.FC<VideoAssemblyWorkspaceProps> = ({
         { end_video_id: selectedPushEndVideo.id },
       );
       if (!isCurrentScope(requestScope)) return;
+      onVideoRecordUpdated(result.video);
       clearPreview();
       await onRefresh();
       if (!isCurrentScope(requestScope)) return;
@@ -448,7 +451,7 @@ export const VideoAssemblyWorkspace: React.FC<VideoAssemblyWorkspaceProps> = ({
     try {
       const dataBase64 = await readFileAsBase64(file);
       if (!isCurrentScope(requestScope)) return;
-      await uploadAssemblyInsertVideo(
+      const inserted = await uploadAssemblyInsertVideo(
         projectId,
         chapter.id,
         VIDEO_WORKFLOW_MODE_MIXED,
@@ -460,6 +463,7 @@ export const VideoAssemblyWorkspace: React.FC<VideoAssemblyWorkspaceProps> = ({
         },
       );
       if (!isCurrentScope(requestScope)) return;
+      onVideoRecordUpdated(inserted);
       clearPreview();
       await onRefresh();
       if (!isCurrentScope(requestScope)) return;

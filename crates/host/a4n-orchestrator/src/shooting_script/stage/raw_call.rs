@@ -13,7 +13,9 @@ use super::super::contracts::ShootingScriptProgressReporter;
 
 pub(super) struct RawCallResult {
     pub(super) response_content: String,
+    pub(super) restored: bool,
     pub(super) restored_parsed_output: Option<Value>,
+    pub(super) response_only_checkpoint: bool,
     pub(super) usage: Option<Value>,
     pub(super) finish_reason: Option<String>,
     pub(super) upgraded_contract: bool,
@@ -24,6 +26,7 @@ impl OrchestratorContext {
         &self,
         workflow_run_id: i64,
         call_key: &str,
+        call_order: i32,
         fingerprint_json: &Value,
         request: ChatRequest,
         label: &str,
@@ -39,9 +42,18 @@ impl OrchestratorContext {
             .load_completed_llm_call_checkpoint(workflow_run_id, call_key, fingerprint_json)
             .await?
         {
+            let response_only_checkpoint = checkpoint
+                .artifacts_json
+                .as_ref()
+                .and_then(|artifacts| artifacts.get(super::RAW_RESPONSE_ONLY_ARTIFACT))
+                .and_then(Value::as_bool)
+                .unwrap_or(false);
             return Ok(RawCallResult {
                 response_content: checkpoint.response_content,
-                restored_parsed_output: Some(checkpoint.parsed_output),
+                restored: true,
+                restored_parsed_output: (!response_only_checkpoint)
+                    .then_some(checkpoint.parsed_output),
+                response_only_checkpoint,
                 usage: checkpoint.usage,
                 finish_reason: checkpoint.finish_reason,
                 upgraded_contract: checkpoint.artifacts_json.as_ref().is_some_and(|artifacts| {
@@ -79,6 +91,21 @@ impl OrchestratorContext {
                     AppError::LlmError(error)
                 }
             })?;
+        let usage = result
+            .usage
+            .as_ref()
+            .map(serde_json::to_value)
+            .transpose()?;
+        self.persist_raw_shooting_call(
+            workflow_run_id,
+            call_key,
+            call_order,
+            fingerprint_json.clone(),
+            &result.response_content,
+            usage.clone(),
+            result.finish_reason.clone(),
+        )
+        .await?;
         if let Some(usage) = result.usage.as_ref() {
             let hit = usage.prompt_cache_hit_tokens.unwrap_or(0);
             let miss = usage.prompt_cache_miss_tokens.unwrap_or(0);
@@ -96,12 +123,10 @@ impl OrchestratorContext {
         }
         Ok(RawCallResult {
             response_content: result.response_content,
+            restored: false,
             restored_parsed_output: None,
-            usage: result
-                .usage
-                .as_ref()
-                .map(serde_json::to_value)
-                .transpose()?,
+            response_only_checkpoint: true,
+            usage,
             finish_reason: result.finish_reason,
             upgraded_contract: false,
         })

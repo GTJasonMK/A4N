@@ -291,7 +291,8 @@ export const VideoStudioCanvas: React.FC = () => {
     project?.my_role === "manager" ||
     project?.my_role === "editor";
   const canvasWriteBusy = saving || importing;
-  const canvasMutationDisabled = !canEdit || canvasWriteBusy;
+  const canvasReady = !loading && loadError == null && document != null && nodeContracts.length > 0;
+  const canvasMutationDisabled = !canEdit || canvasWriteBusy || !canvasReady;
 
   useEffect(() => {
     if (leftSidebarVisible) setMobileNodeLibraryOpen(false);
@@ -364,38 +365,63 @@ export const VideoStudioCanvas: React.FC = () => {
     setLoadError(null);
     setLoading(true);
     try {
-      const [projectRecord, graphDocument, rawNodeContracts] = await Promise.all([
+      const [projectResult, graphResult, contractsResult] = await Promise.allSettled([
         getProject(projectId),
         getCanvasGraph(projectId),
         getCanvasNodeContracts(),
       ]);
       if (requestRef.current !== requestId) return;
-      if (projectRecord.project_kind !== "video") {
+      const failures: string[] = [];
+      const projectRecord = projectResult.status === "fulfilled" ? projectResult.value : null;
+      const graphDocument = graphResult.status === "fulfilled" ? graphResult.value : null;
+      let normalizedContracts: StudioNodeContract[] | null = null;
+
+      if (projectResult.status === "rejected") {
+        failures.push(extractErrorMessage(projectResult.reason, translatorRef.current("video.canvasLoadFailed")));
+      } else if (projectResult.value.project_kind !== "video") {
         addToast(translatorRef.current("video.notVideoProject"), "error");
         navigate("/", { replace: true });
         return;
       }
-      const normalizedContracts =
-        normalizeStudioNodeContracts(rawNodeContracts);
-      if (normalizedContracts.length === 0) {
-        throw new Error(translatorRef.current("video.emptyNodeContract"));
+      if (graphResult.status === "rejected") {
+        failures.push(extractErrorMessage(graphResult.reason, translatorRef.current("video.canvasLoadFailed")));
       }
-      const loadedContractsByKind = studioNodeContractMap(normalizedContracts);
-      const flowNodes = graphDocument.nodes.map(toFlowNode);
-      const flowEdges = graphDocument.edges.map(toFlowEdge);
-      const loadedEdgeError = canvasGraphSaveValidationError(
-        flowNodes,
-        flowEdges,
-        loadedContractsByKind,
-        translatorRef.current,
-      );
-      if (loadedEdgeError) throw new Error(loadedEdgeError);
-      setProject(projectRecord);
-      setDocument(graphDocument);
-      setNodeContracts(normalizedContracts);
-      setNodes((current) => preserveSelectedItems(flowNodes, current));
-      setEdges((current) => preserveSelectedItems(flowEdges, current));
-      setDirty(false);
+      if (contractsResult.status === "rejected") {
+        setNodeContracts([]);
+        failures.push(extractErrorMessage(contractsResult.reason, translatorRef.current("video.canvasLoadFailed")));
+      } else {
+        normalizedContracts = normalizeStudioNodeContracts(contractsResult.value);
+        if (normalizedContracts.length === 0) {
+          normalizedContracts = null;
+          setNodeContracts([]);
+          failures.push(translatorRef.current("video.emptyNodeContract"));
+        } else {
+          setNodeContracts(normalizedContracts);
+        }
+      }
+
+      if (projectRecord) setProject(projectRecord);
+      if (graphDocument) {
+        const flowNodes = graphDocument.nodes.map(toFlowNode);
+        const flowEdges = graphDocument.edges.map(toFlowEdge);
+        if (normalizedContracts) {
+          const loadedEdgeError = canvasGraphSaveValidationError(
+            flowNodes,
+            flowEdges,
+            studioNodeContractMap(normalizedContracts),
+            translatorRef.current,
+          );
+          if (loadedEdgeError) {
+            setNodeContracts([]);
+            failures.push(loadedEdgeError);
+          }
+        }
+        setDocument(graphDocument);
+        setNodes((current) => preserveSelectedItems(flowNodes, current));
+        setEdges((current) => preserveSelectedItems(flowEdges, current));
+        setDirty(false);
+      }
+      setLoadError(failures.length > 0 ? failures.join("; ") : null);
       void refreshStudioConfigOptions();
     } catch (err) {
       if (requestRef.current === requestId) {
@@ -538,7 +564,7 @@ export const VideoStudioCanvas: React.FC = () => {
   } = workflowActions;
 
   const headerActionItems = useMemo<DropdownItem[]>(() => {
-    const importDisabled = !document || canvasWriteBusy || !canEdit;
+    const importDisabled = !canvasReady || canvasWriteBusy || !canEdit;
     const items: DropdownItem[] = [
       {
         label: t("video.importImage"),
@@ -587,6 +613,7 @@ export const VideoStudioCanvas: React.FC = () => {
     return items;
   }, [
     canEdit,
+    canvasReady,
     canvasMutationDisabled,
     canvasWriteBusy,
     dirty,
@@ -788,7 +815,7 @@ export const VideoStudioCanvas: React.FC = () => {
                   variant="primary"
                   size="sm"
                   onClick={persist}
-                  disabled={canvasWriteBusy || !canEdit}
+                  disabled={canvasWriteBusy || !canEdit || !canvasReady}
                 >
                   {saving ? (
                     <LoadingSpinner size="sm" />
@@ -804,6 +831,7 @@ export const VideoStudioCanvas: React.FC = () => {
                   onClick={() => void runGraph()}
                   disabled={
                     !document ||
+                    !canvasReady ||
                     canvasWriteBusy ||
                     !canEdit ||
                     workflowSubmitting ||

@@ -42,6 +42,8 @@ const USER_ROLE_LABEL_KEYS: Record<(typeof USER_ROLES)[number], MessageKey> = {
 
 type UserRole = (typeof USER_ROLES)[number];
 
+type UserLoadError = { scope: "users" | "invites"; message: string };
+
 const isUserRole = (value: string): value is UserRole =>
   USER_ROLES.includes(value as UserRole);
 
@@ -70,6 +72,7 @@ export const UsersSection: React.FC<{ currentUserId: number }> = ({
   const { t, locale } = useI18n();
   const [users, setUsers] = useState<UserSummary[]>([]);
   const [inviteCodes, setInviteCodes] = useState<InviteCodeSummary[]>([]);
+  const [loadErrors, setLoadErrors] = useState<UserLoadError[]>([]);
   const [actingKeys, setActingKeys] = useState<Set<string>>(() => new Set());
   const [createOpen, setCreateOpen] = useState(false);
   const [createForm, setCreateForm] =
@@ -109,14 +112,33 @@ export const UsersSection: React.FC<{ currentUserId: number }> = ({
     setActingKeys(next);
   }, []);
 
-  const loadUsers = useCallback(
-    () => Promise.all([listAllUsers(), listInviteCodes()]),
-    [],
-  );
+  const loadUsers = useCallback(async () => {
+    const [usersResult, invitesResult] = await Promise.allSettled([
+      listAllUsers(),
+      listInviteCodes(),
+    ]);
+    return {
+      users: usersResult.status === "fulfilled" ? usersResult.value : null,
+      inviteCodes: invitesResult.status === "fulfilled" ? invitesResult.value : null,
+      errors: [
+        ...(usersResult.status === "rejected"
+          ? [{ scope: "users" as const, message: extractErrorMessage(usersResult.reason, t("settingsAdmin.loadUsersFailed")) }]
+          : []),
+        ...(invitesResult.status === "rejected"
+          ? [{ scope: "invites" as const, message: extractErrorMessage(invitesResult.reason, t("settingsAdmin.loadUsersFailed")) }]
+          : []),
+      ],
+    };
+  }, [t]);
   const applyUsers = useCallback(
-    ([nextUsers, nextInviteCodes]: [UserSummary[], InviteCodeSummary[]]) => {
-      setUsers(nextUsers);
-      setInviteCodes(nextInviteCodes);
+    (loaded: {
+      users: UserSummary[] | null;
+      inviteCodes: InviteCodeSummary[] | null;
+      errors: UserLoadError[];
+    }) => {
+      if (loaded.users) setUsers(loaded.users);
+      if (loaded.inviteCodes) setInviteCodes(loaded.inviteCodes);
+      setLoadErrors(loaded.errors);
     },
     [],
   );
@@ -490,13 +512,18 @@ export const UsersSection: React.FC<{ currentUserId: number }> = ({
         />
       </div>
       {error ? <p role="alert" className="text-xs text-error">{error}</p> : null}
+      {loadErrors.length > 0 ? (
+        <div role="alert" className="space-y-1 text-xs text-error">
+          {loadErrors.map(({ scope, message }) => <p key={`${scope}:${message}`}>{message}</p>)}
+        </div>
+      ) : null}
       <ul className="space-y-2.5">
         {loading && users.length === 0 ? (
           <li className="a4n-flat-surface inline-flex w-full items-center gap-1.5 p-3 text-xs text-book-text-muted">
             <LoadingSpinner size="sm" />
             {t("settingsAdmin.loadingUsers")}
           </li>
-        ) : error && users.length === 0 ? null : users.length === 0 ? (
+        ) : (error || loadErrors.some((item) => item.scope === "users")) && users.length === 0 ? null : users.length === 0 ? (
           <li className="a4n-empty-state a4n-empty-state--framed p-3 text-xs text-book-text-muted">
             {t("settingsAdmin.noUsers")}
           </li>

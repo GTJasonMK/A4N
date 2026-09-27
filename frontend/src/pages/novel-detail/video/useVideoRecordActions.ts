@@ -152,6 +152,7 @@ interface UseVideoRecordActionsParams {
   runProgressTask: RunProgressTask;
   loadAll: () => Promise<void>;
   setPrompts: Dispatch<SetStateAction<ChapterVideoPrompt[]>>;
+  setVideos: Dispatch<SetStateAction<GeneratedVideo[]>>;
   setSelectedPromptId: Dispatch<SetStateAction<number | null>>;
   setSelectedVideoId: Dispatch<SetStateAction<number | null>>;
   setPendingVideoId: Dispatch<SetStateAction<number | null>>;
@@ -184,6 +185,7 @@ export function useVideoRecordActions({
   runProgressTask,
   loadAll,
   setPrompts,
+  setVideos,
   setSelectedPromptId,
   setSelectedVideoId,
   setPendingVideoId,
@@ -199,6 +201,16 @@ export function useVideoRecordActions({
   const requestPreviewBusyScopeRef = useRef<number | null>(null);
   const [trimStart, setTrimStart] = useState("0");
   const [trimEnd, setTrimEnd] = useState("");
+
+  const upsertVideo = (video: GeneratedVideo) => {
+    setVideos((current) => {
+      const index = current.findIndex((item) => item.id === video.id);
+      if (index < 0) return [...current, video];
+      const next = [...current];
+      next[index] = video;
+      return next;
+    });
+  };
 
   const videoPromptGenerateBlockedReason = (
     prompt: ChapterVideoPrompt,
@@ -266,15 +278,16 @@ export function useVideoRecordActions({
 
   const wrapAct = async (
     key: string,
-    fn: (isCurrent: () => boolean) => Promise<unknown>,
+    fn: (isCurrent: () => boolean) => Promise<GeneratedVideo | void>,
     ok: string,
     alreadyStarted = false,
   ) => {
     const requestScope = actionScopeKey;
     if (!alreadyStarted && !beginAction(key)) return;
     try {
-      await fn(() => isCurrentActionScope(requestScope));
+      const result = await fn(() => isCurrentActionScope(requestScope));
       if (!isCurrentActionScope(requestScope)) return;
+      if (result) upsertVideo(result);
       addToast(ok, "success");
       await loadAll();
     } catch (err) {
@@ -510,6 +523,7 @@ export function useVideoRecordActions({
           if (!isCurrentActionScope(requestScope)) return;
           setSelectedVideoId(row.id);
           setPendingVideoId(null);
+          upsertVideo(row);
         },
       );
       if (!isCurrentActionScope(requestScope)) return;
@@ -584,6 +598,7 @@ export function useVideoRecordActions({
       if (!isCurrentActionScope(requestScope)) return;
       setSelectedVideoId(row.id);
       setPendingVideoId(null);
+      upsertVideo(row);
       addToast(t("video.actions.videoImported"), "success");
       await loadAll();
     } catch (err) {
@@ -695,6 +710,7 @@ export function useVideoRecordActions({
         if (!isCurrent()) return;
         setSelectedVideoId(row.id);
         setPendingVideoId(hasPendingProviderJob(row) ? row.id : null);
+        return row;
       },
       t("video.actions.videoStatusRefreshed"),
     );
@@ -723,6 +739,7 @@ export function useVideoRecordActions({
       const row = await updateVideo(video.id, input);
       if (!isCurrentActionScope(requestScope)) return;
       setSelectedVideoId(row.id);
+      upsertVideo(row);
       addToast(t("video.actions.videoRecordSaved"), "success");
       await loadAll();
     } catch (err) {
@@ -773,6 +790,7 @@ export function useVideoRecordActions({
         const row = await trimVideo(selectedVideo.id, start, end);
         if (!isCurrent()) return;
         setSelectedVideoId(row.id);
+        return row;
       },
       t("video.actions.trimmedVideoCreated"),
     );

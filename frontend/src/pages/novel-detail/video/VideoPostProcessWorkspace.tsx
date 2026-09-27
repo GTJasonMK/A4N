@@ -45,6 +45,7 @@ interface VideoPostProcessWorkspaceProps {
   videos: GeneratedVideo[];
   onToast: (message: string, type: ToastType) => void;
   onRefresh: () => Promise<void> | void;
+  onVideoRecordUpdated: (video: GeneratedVideo) => void;
 }
 
 const MARKER_MIN_GAP_SECS = 0.05;
@@ -77,7 +78,7 @@ const PUSH_STATUS_LABELS: Record<string, MessageKey> = {
 
 export const VideoPostProcessWorkspace: React.FC<
   VideoPostProcessWorkspaceProps
-> = ({ projectId, chapter, videos, onToast, onRefresh }) => {
+> = ({ projectId, chapter, videos, onToast, onRefresh, onVideoRecordUpdated }) => {
   const { locale, t } = useI18n();
   const pushes = useMemo(
     () =>
@@ -546,8 +547,9 @@ export const VideoPostProcessWorkspace: React.FC<
     if (!beginAction()) return;
     setActing(`status-${action}`);
     try {
-      await updateAssemblyPushStatus(selectedPush.id, action);
+      const updated = await updateAssemblyPushStatus(selectedPush.id, action);
       if (!isCurrentScope(requestScope)) return;
+      onVideoRecordUpdated(updated);
       await onRefresh();
       if (!isCurrentScope(requestScope)) return;
       onToast(
@@ -602,7 +604,7 @@ export const VideoPostProcessWorkspace: React.FC<
     try {
       const dataBase64 = await readFileAsBase64(file);
       if (!isCurrentScope(requestScope)) return;
-      await applyAssemblyPostprocessEdit(selectedPush.id, {
+      const updated = await applyAssemblyPostprocessEdit(selectedPush.id, {
         operation,
         at_secs: operation === "insert" ? singleMarker : null,
         start_secs: operation === "replace" ? selectedRange?.start : null,
@@ -612,6 +614,7 @@ export const VideoPostProcessWorkspace: React.FC<
         source_data_base64: dataBase64,
       });
       if (!isCurrentScope(requestScope)) return;
+      onVideoRecordUpdated(updated);
       clearMarkers();
       await onRefresh();
       if (!isCurrentScope(requestScope)) return;
@@ -634,12 +637,13 @@ export const VideoPostProcessWorkspace: React.FC<
     if (!beginAction()) return;
     setActing("edit-delete");
     try {
-      await applyAssemblyPostprocessEdit(selectedPush.id, {
+      const updated = await applyAssemblyPostprocessEdit(selectedPush.id, {
         operation: "delete",
         start_secs: selectedRange.start,
         end_secs: selectedRange.end,
       });
       if (!isCurrentScope(requestScope)) return;
+      onVideoRecordUpdated(updated);
       clearMarkers();
       await onRefresh();
       if (!isCurrentScope(requestScope)) return;

@@ -45,7 +45,7 @@ fn project_status_history_summary_maps_fields_and_timestamp() {
     assert_eq!(summary.from_status, ProjectStatus::Draft);
     assert_eq!(summary.to_status, ProjectStatus::BlueprintReady);
     assert_eq!(summary.reason, "蓝图生成完成");
-    assert_eq!(summary.created_at, changed_at.to_string());
+    assert_eq!(summary.created_at, changed_at.and_utc().to_rfc3339());
 }
 
 #[test]

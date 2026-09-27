@@ -149,16 +149,7 @@ export function useVideoTabLoading({
     setLoading(true);
     setVideoDataError(null);
     try {
-      const [
-        {
-          prompts: promptRows,
-          videos: videoRows,
-          images: imageRows,
-          activeVideoConfig: nextActiveVideoConfig,
-          timeline: nextTimeline,
-        },
-        shootingScriptData,
-      ] = await Promise.all([
+      const [videoDataResult, shootingScriptResult] = await Promise.allSettled([
         loadVideoTabData(projectId, chapter, requestImageProjectIds),
         loadShootingScriptOrProgress(projectId, chapter.id),
       ]);
@@ -168,29 +159,33 @@ export function useVideoTabLoading({
       ) {
         return;
       }
-      setActiveVideoConfig(nextActiveVideoConfig);
-      setVideos(videoRows);
-      setImages(imageRows);
-      setTimeline(nextTimeline);
-      setShootingScenes(
-        shootingScriptData.unitProgress?.script.scenes ??
-          shootingScriptData.view?.script.scenes ??
-          [],
-      );
+      const failures: string[] = [];
+      if (videoDataResult.status === "fulfilled") {
+        const data = videoDataResult.value;
+        if (data.prompts !== undefined && promptLoadSeqRef.current === promptRequestSeq) {
+          setPrompts(data.prompts);
+        }
+        if (data.videos !== undefined) setVideos(data.videos);
+        if (data.images !== undefined) setImages(data.images);
+        if (data.activeVideoConfig !== undefined) setActiveVideoConfig(data.activeVideoConfig);
+        if (data.timeline !== undefined) setTimeline(data.timeline);
+        data.errors.forEach(({ reason }) => failures.push(extractErrorMessage(reason, t("video.chapter.loadFailed"))));
+      } else {
+        failures.push(extractErrorMessage(videoDataResult.reason, t("video.chapter.loadFailed")));
+      }
+      if (shootingScriptResult.status === "fulfilled") {
+        setShootingScenes(
+          shootingScriptResult.value.unitProgress?.script.scenes ??
+            shootingScriptResult.value.view?.script.scenes ??
+            [],
+        );
+      } else {
+        failures.push(extractErrorMessage(shootingScriptResult.reason, t("video.chapter.loadFailed")));
+      }
       setLoadedDataKey(requestDataKey);
-      if (promptLoadSeqRef.current === promptRequestSeq) {
-        setPrompts(promptRows);
-      }
-    } catch (err) {
-      if (
-        loadAllSeqRef.current !== requestSeq ||
-        activeVideoDataKeyRef.current !== requestDataKey
-      ) {
-        return;
-      }
-      const message = extractErrorMessage(err, t("video.chapter.loadFailed"));
+      const message = failures.length > 0 ? failures.join("；") : null;
       setVideoDataError(message);
-      addToast(message, "error");
+      if (message) addToast(message, "error");
     } finally {
       if (
         loadAllSeqRef.current === requestSeq &&

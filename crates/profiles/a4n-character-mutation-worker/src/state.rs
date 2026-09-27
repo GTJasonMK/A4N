@@ -289,7 +289,7 @@ impl WorkerState {
         }
         Ok(SnapshotSummary {
             data: snapshot.data,
-            created_at: Some(snapshot.created_at.to_string()),
+            created_at: Some(snapshot.created_at.and_utc().to_rfc3339()),
         })
     }
 

@@ -399,6 +399,7 @@ export const novelAssets = {
     analysisRequestPreview: "Import analysis request preview",
     reverseRequestPreview: "Project material synthesis request preview",
     loadQueueFailed: "Failed to load import queue",
+    analysisProgressLoadFailed: "Failed to load import analysis progress",
     restoreCandidateFailed: "Failed to restore project material synthesis result",
     chooseFile: "Choose a file to import",
     fileTooLarge: "The import file cannot exceed {size} MB",

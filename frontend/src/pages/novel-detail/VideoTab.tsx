@@ -149,6 +149,7 @@ export const VideoTab: React.FC<VideoTabProps> = ({
     setSegmentPlanPreview,
     segmentPlanDraft,
     videos,
+    setVideos,
     images,
     shootingScenes,
     frameSegmentPlanPromptForCards,
@@ -364,6 +365,7 @@ export const VideoTab: React.FC<VideoTabProps> = ({
     runProgressTask,
     loadAll,
     setPrompts,
+    setVideos,
     setDraft,
     setSelectedPromptId,
     setSelectedVideoId,
@@ -632,6 +634,15 @@ export const VideoTab: React.FC<VideoTabProps> = ({
               unavailableSegmentNumbers={unavailableMixedSegmentNumbers}
               onToast={addToast}
               onRefresh={loadAll}
+              onVideoRecordUpdated={(video) =>
+                setVideos((current) => {
+                  const index = current.findIndex((item) => item.id === video.id);
+                  if (index < 0) return [...current, video];
+                  const next = [...current];
+                  next[index] = video;
+                  return next;
+                })
+              }
             />
           </Suspense>
         ) : workspaceTab === "postprocess" ? (
@@ -642,6 +653,15 @@ export const VideoTab: React.FC<VideoTabProps> = ({
               videos={videos}
               onToast={addToast}
               onRefresh={loadAll}
+              onVideoRecordUpdated={(video) =>
+                setVideos((current) => {
+                  const index = current.findIndex((item) => item.id === video.id);
+                  if (index < 0) return [...current, video];
+                  const next = [...current];
+                  next[index] = video;
+                  return next;
+                })
+              }
             />
           </Suspense>
         ) : (

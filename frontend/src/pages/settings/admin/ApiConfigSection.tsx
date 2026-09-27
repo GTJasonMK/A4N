@@ -1,4 +1,5 @@
 import React, { useCallback, useMemo, useRef, useState } from "react";
+import { extractErrorMessage } from "../../../api";
 import { Bot,
   Brain,
   Film,
@@ -28,11 +29,12 @@ import { useAdminSectionLoader } from "./useAdminSectionLoader";
 type ApiConfigPanel = "overview" | "llm" | "image" | "video" | "embedding";
 
 interface ApiConfigSnapshot {
-  llm: LlmConfigSummary[];
-  image: ImageGenConfig[];
-  video: VideoGenConfig[];
-  embedding: EmbeddingConfig[];
-  providers: ModelProviderCatalog;
+  llm: LlmConfigSummary[] | null;
+  image: ImageGenConfig[] | null;
+  video: VideoGenConfig[] | null;
+  embedding: EmbeddingConfig[] | null;
+  providers: ModelProviderCatalog | null;
+  errors: string[];
 }
 
 const PANEL_DEFS: Array<{
@@ -112,22 +114,43 @@ export const ApiConfigSection: React.FC = () => {
 const ApiConfigOverview: React.FC = () => {
   const { t } = useI18n();
   const [snapshot, setSnapshot] = useState<ApiConfigSnapshot | null>(null);
-  const loadSnapshot = useCallback(async () => {
-    const [llm, image, video, embedding, providers] = await Promise.all([
+  const loadSnapshot = useCallback(async (): Promise<ApiConfigSnapshot> => {
+    const [llm, image, video, embedding, providers] = await Promise.allSettled([
       listServerLlmConfig(), listServerImageConfigs(), listServerVideoConfigs(),
       listEmbeddingConfig("server"), listModelProviderCatalog(),
     ]);
-    return { llm, image, video, embedding, providers };
+    return {
+      llm: llm.status === "fulfilled" ? llm.value : null,
+      image: image.status === "fulfilled" ? image.value : null,
+      video: video.status === "fulfilled" ? video.value : null,
+      embedding: embedding.status === "fulfilled" ? embedding.value : null,
+      providers: providers.status === "fulfilled" ? providers.value : null,
+      errors: [llm, image, video, embedding, providers].flatMap((result) =>
+        result.status === "rejected"
+          ? [extractErrorMessage(result.reason, t("settingsAdmin.loadApiConfigFailed"))]
+          : [],
+      ),
+    };
+  }, [t]);
+  const applySnapshot = useCallback((loaded: ApiConfigSnapshot) => {
+    setSnapshot((current) => ({
+      llm: loaded.llm ?? current?.llm ?? [],
+      image: loaded.image ?? current?.image ?? [],
+      video: loaded.video ?? current?.video ?? [],
+      embedding: loaded.embedding ?? current?.embedding ?? [],
+      providers: loaded.providers ?? current?.providers ?? null,
+      errors: loaded.errors,
+    }));
   }, []);
   const { loading, error, load } = useAdminSectionLoader(
-    "admin-api-defaults", loadSnapshot, setSnapshot, t("settingsAdmin.loadApiConfigFailed"),
+    "admin-api-defaults", loadSnapshot, applySnapshot, t("settingsAdmin.loadApiConfigFailed"),
   );
 
   const defaults = useMemo(() => {
-    const llm = snapshot?.llm.find((item) => item.is_default) ?? null;
-    const image = snapshot?.image.find((item) => item.is_default) ?? null;
-    const video = snapshot?.video.find((item) => item.is_default) ?? null;
-    const embedding = snapshot?.embedding.find((item) => item.is_default) ?? null;
+    const llm = snapshot?.llm?.find((item) => item.is_default) ?? null;
+    const image = snapshot?.image?.find((item) => item.is_default) ?? null;
+    const video = snapshot?.video?.find((item) => item.is_default) ?? null;
+    const embedding = snapshot?.embedding?.find((item) => item.is_default) ?? null;
     return { llm, image, video, embedding };
   }, [snapshot]);
 
@@ -151,6 +174,11 @@ const ApiConfigOverview: React.FC = () => {
       </div>
 
       {error ? <p role="alert" className="text-xs text-error">{error}</p> : null}
+      {snapshot?.errors.length ? (
+        <div role="alert" className="space-y-1 text-xs text-error">
+          {snapshot.errors.map((message) => <p key={message}>{message}</p>)}
+        </div>
+      ) : null}
       {loading && snapshot == null ? (
         <div className="inline-flex items-center gap-2 py-10 text-xs text-book-text-muted">
           <LoadingSpinner size="sm" />
@@ -167,7 +195,7 @@ const ApiConfigOverview: React.FC = () => {
                 ? [
                     [t("settingsForm.configName"), configName(defaults.llm)],
                     [t("settingsForm.model"), defaults.llm.model],
-                    [t("settingsForm.provider"), providerLabel(snapshot?.providers.llm, defaults.llm.provider, t)],
+                    [t("settingsForm.provider"), providerLabel(snapshot?.providers?.llm, defaults.llm.provider, t)],
                     [t("settingsForm.apiKey"), defaults.llm.has_api_key ? t("settingsAdmin.configured") : t("settingsAdmin.notConfigured")],
                   ]
                 : []
@@ -199,7 +227,7 @@ const ApiConfigOverview: React.FC = () => {
                 ? [
                     [t("settingsForm.configName"), configName(defaults.image)],
                     [t("settingsForm.model"), defaults.image.model],
-                    [t("settingsAdmin.runtimeMode"), providerLabel(snapshot?.providers.image, defaults.image.backend, t)],
+                    [t("settingsAdmin.runtimeMode"), providerLabel(snapshot?.providers?.image, defaults.image.backend, t)],
                     [t("settingsForm.apiKey"), defaults.image.has_api_key ? t("settingsAdmin.configured") : t("settingsAdmin.notConfigured")],
                   ]
                 : []
@@ -229,7 +257,7 @@ const ApiConfigOverview: React.FC = () => {
                 ? [
                     [t("settingsForm.configName"), configName(defaults.video)],
                     [t("settingsForm.model"), defaults.video.model],
-                    [t("settingsAdmin.runtimeMode"), providerLabel(snapshot?.providers.video, defaults.video.backend, t)],
+                    [t("settingsAdmin.runtimeMode"), providerLabel(snapshot?.providers?.video, defaults.video.backend, t)],
                   ]
                 : []
             }
@@ -263,7 +291,7 @@ const ApiConfigOverview: React.FC = () => {
                     [t("settingsForm.model"), modelLabel(defaults.embedding.model, t)],
                     [
                       t("settingsAdmin.runtimeMode"),
-                      providerLabel(snapshot?.providers.embedding, defaults.embedding.backend, t),
+                      providerLabel(snapshot?.providers?.embedding, defaults.embedding.backend, t),
                     ],
                     [t("settingsForm.apiKey"), defaults.embedding.has_api_key ? t("settingsAdmin.configured") : t("settingsAdmin.notConfigured")],
                   ]

@@ -429,6 +429,12 @@ export const AgentMonitor: React.FC = () => {
     setClearing(true);
     try {
       await clearAgentThreadContext(threadId, t("agent.clearContextTimeout"));
+      snapshotRef.current = null;
+      eventCursorRef.current = 0;
+      pendingEventsRef.current = [];
+      setSnapshot(null);
+      setStreamedMessageIds(new Set());
+      setPendingSubmission(null);
       await refreshThreads(true);
       addToast(t("agent.clearContextSuccess"), "success");
     } catch (err) {

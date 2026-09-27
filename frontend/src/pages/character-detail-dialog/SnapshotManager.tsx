@@ -46,7 +46,9 @@ const rollbackChapterLabel = (chapter: number, t: MessageTranslator): string =>
 const rollbackChapterOptions = (
   conflict: ProfileSyncConflict | null,
   snapshots: SnapshotReference[],
+  conflictLoaded = true,
 ): number[] => {
+  if (!conflictLoaded) return [];
   if (conflict?.available_snapshot_chapters.length) {
     return conflict.available_snapshot_chapters;
   }
@@ -77,6 +79,7 @@ export const SnapshotManager: React.FC<{
   const { t } = useI18n();
   const [snapshots, setSnapshots] = useState<SnapshotReference[]>([]);
   const [conflict, setConflict] = useState<ProfileSyncConflict | null>(null);
+  const [conflictLoaded, setConflictLoaded] = useState(false);
   const [loading, setLoading] = useState(false);
   const [diffing, setDiffing] = useState(false);
   const [rollingBack, setRollingBack] = useState(false);
@@ -171,6 +174,7 @@ export const SnapshotManager: React.FC<{
     setLoadedScopeKey(null);
     setSnapshots([]);
     setConflict(null);
+    setConflictLoaded(false);
     setSnapshotData(null);
     setChapterState(null);
     setDelta(null);
@@ -189,11 +193,13 @@ export const SnapshotManager: React.FC<{
     loadSeqRef.current = requestSeq;
     loadingRef.current = true;
     setLoading(true);
+    setLoadedScopeKey(null);
+    setConflictLoaded(false);
     setSnapshotData(null);
     setChapterState(null);
     setDelta(null);
     try {
-      const [nextSnapshots, nextConflict] = await Promise.all([
+      const [snapshotsResult, conflictResult] = await Promise.allSettled([
         listSnapshots(requestProfileId, {
           start_chapter:
             requestStartChapter === "" ? null : requestStartChapter,
@@ -210,9 +216,24 @@ export const SnapshotManager: React.FC<{
         )
       )
         return;
-      setSnapshots(nextSnapshots);
-      setConflict(nextConflict);
-      setLoadedScopeKey(requestKey);
+      const failures: string[] = [];
+      const nextSnapshots = snapshotsResult.status === "fulfilled" ? snapshotsResult.value : [];
+      const nextConflict = conflictResult.status === "fulfilled" ? conflictResult.value : null;
+      if (snapshotsResult.status === "fulfilled") {
+        setSnapshots(snapshotsResult.value);
+        setLoadedScopeKey(requestKey);
+      } else {
+        setSnapshots([]);
+        failures.push(extractErrorMessage(snapshotsResult.reason, t("characterDetail.snapshot.loadFailed")));
+        if (conflictResult.status === "fulfilled") setLoadedScopeKey(requestKey);
+      }
+      if (conflictResult.status === "fulfilled") {
+        setConflict(nextConflict);
+        setConflictLoaded(true);
+      } else {
+        failures.push(extractErrorMessage(conflictResult.reason, t("characterDetail.snapshot.loadFailed")));
+      }
+      if (failures.length > 0) addToast(failures.join("；"), "error");
       const snapshotChapters = nextSnapshots.map(
         (snapshot) => snapshot.chapter_number,
       );
@@ -235,12 +256,13 @@ export const SnapshotManager: React.FC<{
       const availableChapters = rollbackChapterOptions(
         nextConflict,
         nextSnapshots,
+        conflictResult.status === "fulfilled",
       );
       const latestRollbackChapter =
         availableChapters[availableChapters.length - 1] ?? null;
       setRollbackChapter((current) => {
         if (availableChapters.length === 0) return null;
-        if (nextConflict.has_conflict) return latestRollbackChapter;
+        if (nextConflict?.has_conflict) return latestRollbackChapter;
         if (current != null && availableChapters.includes(current))
           return current;
         return latestRollbackChapter;
@@ -285,6 +307,7 @@ export const SnapshotManager: React.FC<{
     rollbackSeqRef.current += 1;
     setSnapshots([]);
     setConflict(null);
+    setConflictLoaded(false);
     setSnapshotData(null);
     setChapterState(null);
     setDelta(null);
@@ -445,7 +468,7 @@ export const SnapshotManager: React.FC<{
     }
   };
 
-  const rollbackChapters = rollbackChapterOptions(conflict, snapshots);
+  const rollbackChapters = rollbackChapterOptions(conflict, snapshots, conflictLoaded);
   const canRollback =
     rollbackChapter != null && rollbackChapters.includes(rollbackChapter);
   const snapshotChapters = snapshots.map((snapshot) => snapshot.chapter_number);

@@ -29,6 +29,7 @@ export const PromptTab: React.FC = () => {
   const { t } = useI18n();
   const [items, setItems] = useState<PromptEntry[]>([]);
   const [categories, setCategories] = useState<CategoryInfo[]>([]);
+  const [loadErrors, setLoadErrors] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [activeCategory, setActiveCategory] = useState<string>("all");
   const [keyword, setKeyword] = useState("");
@@ -85,8 +86,9 @@ export const PromptTab: React.FC = () => {
     refreshSeqRef.current = requestSeq;
     refreshBusyRef.current = true;
     setLoading(true);
+    setLoadErrors([]);
     try {
-      const [list, cats] = await Promise.all([
+      const [listResult, categoriesResult] = await Promise.allSettled([
         promptList(),
         promptListCategories(),
       ]);
@@ -95,22 +97,30 @@ export const PromptTab: React.FC = () => {
         addToast(t("settingsPrompt.draftKept"), "info");
         return;
       }
-      setItems(list);
-      setCategories(cats);
-      setSelectedName((current) =>
-        current && list.some((prompt) => prompt.name === current)
-          ? current
-          : list[0]?.name ?? null,
-      );
-    } catch (err) {
-      if (!mountedRef.current || refreshSeqRef.current !== requestSeq) return;
-      addToast(extractErrorMessage(err, t("settingsPrompt.loadFailed")), "error");
+      const failures: string[] = [];
+      if (listResult.status === "fulfilled") {
+        setItems(listResult.value);
+        setSelectedName((current) =>
+          current && listResult.value.some((prompt) => prompt.name === current)
+            ? current
+            : listResult.value[0]?.name ?? null,
+        );
+      } else {
+        failures.push(extractErrorMessage(listResult.reason, t("settingsPrompt.loadFailed")));
+      }
+      if (categoriesResult.status === "fulfilled") {
+        setCategories(categoriesResult.value);
+      } else {
+        failures.push(extractErrorMessage(categoriesResult.reason, t("settingsPrompt.loadFailed")));
+      }
+      setLoadErrors(failures);
+      failures.forEach((message) => addToast(message, "error"));
     } finally {
       if (refreshSeqRef.current === requestSeq) refreshBusyRef.current = false;
       if (mountedRef.current && refreshSeqRef.current === requestSeq)
         setLoading(false);
     }
-  }, [addToast]);
+  }, [addToast, t]);
 
   useEffect(() => {
     void refresh();
@@ -402,6 +412,12 @@ export const PromptTab: React.FC = () => {
         onLoadDefaults={() => void handleLoadDefaults()}
         onRefresh={() => void handleRefresh()}
       />
+
+      {loadErrors.length > 0 ? (
+        <div role="alert" className="space-y-1 text-xs text-error">
+          {loadErrors.map((message) => <p key={message}>{message}</p>)}
+        </div>
+      ) : null}
 
       <div className="grid min-h-0 gap-3 md:flex-1 md:grid-cols-[clamp(180px,24%,260px)_minmax(0,1fr)] md:grid-rows-1">
         <PromptList

@@ -768,7 +768,9 @@ pub(super) fn run_view(row: run::Model) -> Result<AgentRunView, AppError> {
             .map(parse_waiting_reason)
             .transpose()?,
         lease_owner: row.worker_id,
-        lease_expires_at: row.lease_expires_at.map(|value| value.to_string()),
+        lease_expires_at: row
+            .lease_expires_at
+            .map(|value| value.and_utc().to_rfc3339()),
         budget: from_json::<AgentBudget>(row.budget_json, "agent_run.budget_json")?
             .effective_for_run(row.parent_run_id.is_none()),
         steps_used: json_u32(usage, "steps_used")?,
@@ -788,9 +790,9 @@ pub(super) fn run_view(row: run::Model) -> Result<AgentRunView, AppError> {
         context_capacity_tokens: json_optional_u64(usage, "context_capacity_tokens")?,
         cost_micros: json_optional_u64(usage, "cost_micros")?,
         error: row.last_error,
-        created_at: row.created_at.to_string(),
-        started_at: row.started_at.map(|value| value.to_string()),
-        updated_at: row.updated_at.to_string(),
+        created_at: row.created_at.and_utc().to_rfc3339(),
+        started_at: row.started_at.map(|value| value.and_utc().to_rfc3339()),
+        updated_at: row.updated_at.and_utc().to_rfc3339(),
     })
 }
 

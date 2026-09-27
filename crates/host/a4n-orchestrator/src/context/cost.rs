@@ -100,14 +100,16 @@ impl OrchestratorContext {
                 source: record.source,
                 error_kind: record.error_kind,
                 error_message: record.error_message,
-                started_at: record.started_at.to_string(),
-                completed_at: record.completed_at.map(|value| value.to_string()),
+                started_at: record.started_at.and_utc().to_rfc3339(),
+                completed_at: record
+                    .completed_at
+                    .map(|value| value.and_utc().to_rfc3339()),
             });
         }
         Ok(ModelUsageReport {
             project_id: input.project_id,
-            since: since.to_string(),
-            until: until.to_string(),
+            since: since.and_utc().to_rfc3339(),
+            until: until.and_utc().to_rfc3339(),
             totals: currency_totals
                 .into_iter()
                 .map(

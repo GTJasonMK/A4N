@@ -1,4 +1,5 @@
 import React, { useCallback } from "react";
+import { extractErrorMessage } from "../../api";
 import {
   addVideoConfig,
   addServerVideoConfig,
@@ -42,14 +43,18 @@ export const VideoTab: React.FC<VideoTabProps> = ({ scope = "local" }) => {
   const serverScope = scope === "server";
   const loadItems = useCallback(async (): Promise<{
     items: ConfigItem<VideoForm>[];
-    catalog: ModelProviderCatalog;
+    catalog: ModelProviderCatalog | null;
+    warning?: string | null;
   }> => {
-    const [list, providerCatalog] = await Promise.all([
+    const [listResult, catalogResult] = await Promise.allSettled([
       serverScope ? listServerVideoConfigs() : listVideoConfigs(),
       listModelProviderCatalog(),
     ]);
+    if (listResult.status === "rejected") throw listResult.reason;
+    const list = listResult.value;
+    const providerCatalog = catalogResult.status === "fulfilled" ? catalogResult.value : null;
     const items = list.map((config) => {
-      assertCatalogProvider("video", config.backend, providerCatalog);
+      if (providerCatalog) assertCatalogProvider("video", config.backend, providerCatalog);
       return {
         ...toVideoItem(config),
         deleteDisabled: !serverScope && config.id === SYSTEM_VIDEO_CONFIG_ID,
@@ -57,7 +62,13 @@ export const VideoTab: React.FC<VideoTabProps> = ({ scope = "local" }) => {
           t("settings.systemTemplateCannotDelete", { name: t("settings.videoConfig") }),
       };
     });
-    return { items, catalog: providerCatalog };
+    return {
+      items,
+      catalog: providerCatalog,
+      warning: catalogResult.status === "rejected"
+        ? extractErrorMessage(catalogResult.reason, t("settings.loadConfigFailed", { name: t("settings.video") }))
+        : null,
+    };
   }, [serverScope, t]);
   const { items, setItems, catalog, loading, error, refresh } = useConfigItems(
     loadItems,

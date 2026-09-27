@@ -240,7 +240,7 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({
     loadRequestRef.current = requestId;
     setLoading(true);
     try {
-      const [list, progress] = await Promise.all([
+      const [listResult, progressResult] = await Promise.allSettled([
         listImportQueue(requestProjectId),
         getProjectImportAnalysisProgress(requestProjectId),
       ]);
@@ -249,41 +249,49 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({
         loadRequestRef.current !== requestId
       )
         return;
-      reviewsRef.current = list;
-      setReviews(list);
-      setProjectProgress(progress);
-      const reviewIds = new Set(
-        list
-          .filter((review) => review.review_status === "pending")
-          .map((review) => review.id),
-      );
-      setSelected((current) => {
-        const next = new Set([...current].filter((id) => reviewIds.has(id)));
-        return next.size === current.size ? current : next;
-      });
-      const currentActiveReview = activeReviewRef.current;
-      if (currentActiveReview) {
-        const updatedActiveReview = list.find(
-          (review) => review.id === currentActiveReview.id,
+      if (listResult.status === "fulfilled") {
+        const list = listResult.value;
+        reviewsRef.current = list;
+        setReviews(list);
+        const reviewIds = new Set(
+          list
+            .filter((review) => review.review_status === "pending")
+            .map((review) => review.id),
         );
-        if (updatedActiveReview) {
-          setActiveReviewState(updatedActiveReview);
-          if (!activeReviewJsonDirtyRef.current) {
-            setActiveReviewJsonState(
-              JSON.stringify(
-                updatedActiveReview.analysis_result,
-                null,
-                2,
-              ),
-              false,
-            );
+        setSelected((current) => {
+          const next = new Set([...current].filter((id) => reviewIds.has(id)));
+          return next.size === current.size ? current : next;
+        });
+        const currentActiveReview = activeReviewRef.current;
+        if (currentActiveReview) {
+          const updatedActiveReview = list.find(
+            (review) => review.id === currentActiveReview.id,
+          );
+          if (updatedActiveReview) {
+            setActiveReviewState(updatedActiveReview);
+            if (!activeReviewJsonDirtyRef.current) {
+              setActiveReviewJsonState(
+                JSON.stringify(updatedActiveReview.analysis_result, null, 2),
+                false,
+              );
+              setActiveReviewJsonError(null);
+            }
+          } else {
+            setActiveReviewState(null);
+            setActiveReviewJsonState("", false);
             setActiveReviewJsonError(null);
           }
-        } else {
-          setActiveReviewState(null);
-          setActiveReviewJsonState("", false);
-          setActiveReviewJsonError(null);
         }
+      } else {
+        addToast(extractErrorMessage(listResult.reason, t("novel.importReview.loadQueueFailed")), "error");
+      }
+      if (progressResult.status === "fulfilled") {
+        setProjectProgress(progressResult.value);
+      } else {
+        addToast(
+          extractErrorMessage(progressResult.reason, t("novel.importReview.analysisProgressLoadFailed")),
+          "error",
+        );
       }
     } catch (err) {
       if (

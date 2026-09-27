@@ -1,4 +1,5 @@
 import React, { useCallback } from "react";
+import { extractErrorMessage } from "../../api";
 import {
   addImageConfig,
   addServerImageConfig,
@@ -52,14 +53,18 @@ export const ImageTab: React.FC<ImageTabProps> = ({ scope = "local" }) => {
   const serverScope = scope === "server";
   const loadItems = useCallback(async (): Promise<{
     items: ConfigItem<ImageForm>[];
-    catalog: ModelProviderCatalog;
+    catalog: ModelProviderCatalog | null;
+    warning?: string | null;
   }> => {
-    const [list, providerCatalog] = await Promise.all([
+    const [listResult, catalogResult] = await Promise.allSettled([
       serverScope ? listServerImageConfigs() : listImageConfigs(),
       listModelProviderCatalog(),
     ]);
+    if (listResult.status === "rejected") throw listResult.reason;
+    const list = listResult.value;
+    const providerCatalog = catalogResult.status === "fulfilled" ? catalogResult.value : null;
     const items = list.map((config) => {
-      assertCatalogProvider("image", config.backend, providerCatalog);
+      if (providerCatalog) assertCatalogProvider("image", config.backend, providerCatalog);
       return {
         ...toImageItem(config),
         deleteDisabled: !serverScope && config.id === SYSTEM_IMAGE_CONFIG_ID,
@@ -67,7 +72,13 @@ export const ImageTab: React.FC<ImageTabProps> = ({ scope = "local" }) => {
           t("settings.systemTemplateCannotDelete", { name: t("settings.imageConfig") }),
       };
     });
-    return { items, catalog: providerCatalog };
+    return {
+      items,
+      catalog: providerCatalog,
+      warning: catalogResult.status === "rejected"
+        ? extractErrorMessage(catalogResult.reason, t("settings.loadConfigFailed", { name: t("settings.image") }))
+        : null,
+    };
   }, [serverScope, t]);
   const { items, setItems, catalog, loading, error, refresh } = useConfigItems(
     loadItems,

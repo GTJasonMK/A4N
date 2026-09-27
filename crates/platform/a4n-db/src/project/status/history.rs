@@ -140,7 +140,7 @@ fn project_status_history_summary_values(
         from_status,
         to_status,
         reason,
-        created_at: changed_at.to_string(),
+        created_at: changed_at.and_utc().to_rfc3339(),
     })
 }
 

@@ -171,10 +171,18 @@ export const ShootingScriptTab: React.FC<ShootingScriptTabProps> = ({
     let active = true;
     setScriptLoading(true);
     void loadShootingScriptData(projectId, chapterId)
-      .then(({ view: value, unitProgress: progress, visualPlan }) => {
+      .then(({ view: value, unitProgress: progress, visualPlan, scriptError, visualPlanError }) => {
         if (!active) return;
-        if (dataVersion.current === initialVersion) applyScriptData(value, progress);
-        setConfirmedVisualPlan(visualPlan.confirmed);
+        if (scriptError !== undefined) {
+          addToast(extractErrorMessage(scriptError, t("shootingScript.loadFailed")), "error");
+        } else if (dataVersion.current === initialVersion) {
+          applyScriptData(value, progress);
+        }
+        if (visualPlan) {
+          setConfirmedVisualPlan(visualPlan.confirmed);
+        } else if (visualPlanError !== undefined) {
+          addToast(extractErrorMessage(visualPlanError, t("shootingScript.loadFailed")), "error");
+        }
       })
       .catch((error) => {
         if (active) {

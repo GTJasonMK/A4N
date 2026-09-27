@@ -155,11 +155,22 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
     const showLoading = options.showLoading ?? true;
     if (showLoading && isLoadCurrent(requestProjectId, requestSeq)) setLoading(true);
     try {
-      const [pp, oo] = await Promise.all([
+      const [partsResult, outlinesResult] = await Promise.allSettled([
         listParts(requestProjectId),
         listChapterOutlines(requestProjectId),
       ]);
       if (!isLoadCurrent(requestProjectId, requestSeq)) return false;
+      if (partsResult.status === "rejected") {
+        addToast(extractErrorMessage(partsResult.reason, t("outline.loadFailed")), "error");
+      }
+      if (outlinesResult.status === "rejected") {
+        addToast(extractErrorMessage(outlinesResult.reason, t("outline.loadFailed")), "error");
+      }
+      if (partsResult.status === "rejected" && outlinesResult.status === "rejected") {
+        return false;
+      }
+      const pp = partsResult.status === "fulfilled" ? partsResult.value : partsRef.current;
+      const oo = outlinesResult.status === "fulfilled" ? outlinesResult.value : outlinesRef.current;
       const foreignPart = pp.find((part) => part.project_id !== requestProjectId);
       if (foreignPart) {
         throw new Error(`分部大纲接口返回了其他项目的数据：part_id=${foreignPart.id}`);

@@ -208,6 +208,7 @@ fn project_override_list_filters_records_for_retired_prompt_names() {
     assert_eq!(overrides.len(), 1);
     assert_eq!(overrides[0].prompt_name, "active_prompt");
     assert_eq!(overrides[0].content, "active override");
+    assert!(overrides[0].updated_at.ends_with("+00:00"));
 }
 
 #[test]

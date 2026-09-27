@@ -250,9 +250,9 @@ fn user_summary(user: &user::Model) -> UserSummary {
         avatar_url: user.avatar_url.clone(),
         page_cli_enabled: user.page_cli_enabled,
         is_active: user.is_active,
-        created_at: Some(user.created_at.to_string()),
-        updated_at: Some(user.updated_at.to_string()),
-        last_login_at: user.last_login_at.map(|value| value.to_string()),
+        created_at: Some(user.created_at.and_utc().to_rfc3339()),
+        updated_at: Some(user.updated_at.and_utc().to_rfc3339()),
+        last_login_at: user.last_login_at.map(|value| value.and_utc().to_rfc3339()),
     }
 }
 
@@ -260,9 +260,11 @@ fn session_summary(session: &user_session::Model) -> SessionSummary {
     SessionSummary {
         id: session.id.clone(),
         user_agent: session.user_agent.clone(),
-        created_at: session.created_at.to_string(),
-        expires_at: session.expires_at.to_string(),
-        last_used_at: session.last_used_at.map(|value| value.to_string()),
+        created_at: session.created_at.and_utc().to_rfc3339(),
+        expires_at: session.expires_at.and_utc().to_rfc3339(),
+        last_used_at: session
+            .last_used_at
+            .map(|value| value.and_utc().to_rfc3339()),
     }
 }
 
@@ -272,15 +274,15 @@ fn invite_code_summary(code: &invite_code::Model) -> InviteCodeSummary {
         code: code.code.clone(),
         created_by_user_id: code.created_by_user_id,
         used_by_user_id: code.used_by_user_id,
-        created_at: Some(code.created_at.to_string()),
-        used_at: code.used_at.map(|value| value.to_string()),
+        created_at: Some(code.created_at.and_utc().to_rfc3339()),
+        used_at: code.used_at.map(|value| value.and_utc().to_rfc3339()),
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::user_summary;
-    use a4n_db_models::models::user::user;
+    use super::{invite_code_summary, session_summary, user_summary};
+    use a4n_db_models::models::user::{invite_code, user, user_session};
 
     #[test]
     fn user_summary_never_serializes_database_secrets() {
@@ -307,8 +309,45 @@ mod tests {
 
         assert_eq!(serialized["id"], 12);
         assert_eq!(serialized["username"], "reader");
+        assert!(
+            serialized["created_at"]
+                .as_str()
+                .unwrap()
+                .ends_with("+00:00")
+        );
         assert!(serialized.get("password_hash").is_none());
         assert!(serialized.get("lifecycle_gate").is_none());
         assert!(!serialized.to_string().contains("password-hash-secret"));
+    }
+
+    #[test]
+    fn session_and_invite_timestamps_are_utc_instants() {
+        let now = Default::default();
+        let session = user_session::Model {
+            id: "session".into(),
+            user_id: 7,
+            refresh_token_hash: "hash".into(),
+            user_agent: None,
+            is_revoked: false,
+            created_at: now,
+            expires_at: now,
+            revoked_at: None,
+            last_used_at: Some(now),
+        };
+        let invite = invite_code::Model {
+            id: 3,
+            code: "invite".into(),
+            created_by_user_id: Some(7),
+            used_by_user_id: None,
+            created_at: now,
+            used_at: None,
+        };
+
+        let session = session_summary(&session);
+        let invite = invite_code_summary(&invite);
+        assert!(session.created_at.ends_with("+00:00"));
+        assert!(session.expires_at.ends_with("+00:00"));
+        assert!(session.last_used_at.unwrap().ends_with("+00:00"));
+        assert!(invite.created_at.unwrap().ends_with("+00:00"));
     }
 }

@@ -251,7 +251,7 @@ export const NovelDetail: React.FC = () => {
     } catch (err) {
       if (isCurrentAction(requestProjectId, refreshSeqRef, requestSeq)) {
         addToast(extractErrorMessage(err, t("novel.loadProject")), "error");
-        navigate("/");
+        if (project?.id !== requestProjectId) navigate("/");
       }
     } finally {
       if (isCurrentAction(requestProjectId, refreshSeqRef, requestSeq)) {

@@ -349,7 +349,7 @@ export const MangaTab: React.FC<MangaTabProps> = ({
       setCharacterAssetsLoading(true);
     }
     try {
-      const [profileRows, portraitRows] = await Promise.all([
+      const [profilesResult, portraitsResult] = await Promise.allSettled([
         listProfiles(requestAssetProjectId),
         listPortraitsByProject(requestAssetProjectId),
       ]);
@@ -361,17 +361,21 @@ export const MangaTab: React.FC<MangaTabProps> = ({
         )
       )
         return;
-      setProfiles(profileRows);
-      setPortraits(portraitRows);
-    } catch (err) {
-      if (
-        isCharacterAssetsCurrent(
-          requestProjectId,
-          requestAssetProjectId,
-          requestSeq,
-        )
-      ) {
-        addToast(extractErrorMessage(err, t("comic.loadCharacterAssetsFailed")), "error");
+      if (profilesResult.status === "fulfilled") {
+        setProfiles(profilesResult.value);
+      } else {
+        addToast(
+          extractErrorMessage(profilesResult.reason, t("comic.loadCharacterAssetsFailed")),
+          "error",
+        );
+      }
+      if (portraitsResult.status === "fulfilled") {
+        setPortraits(portraitsResult.value);
+      } else {
+        addToast(
+          extractErrorMessage(portraitsResult.reason, t("comic.loadCharacterAssetsFailed")),
+          "error",
+        );
       }
     } finally {
       if (
@@ -917,13 +921,19 @@ export const MangaTab: React.FC<MangaTabProps> = ({
     try {
       await cancelMangaPipeline(requestProjectId, chapterId);
       if (!isActionCurrent(requestProjectId, actionSeq)) return;
-      await Promise.all([
+      const [statusResult, promptsResult] = await Promise.allSettled([
         loadSingleStatus(chapterId, requestProjectId),
         isChapterCurrent(requestProjectId, chapterId)
           ? loadPagePrompts(chapterId, requestProjectId, { showLoading: false })
           : Promise.resolve(),
       ]);
       if (!isActionCurrent(requestProjectId, actionSeq)) return;
+      if (statusResult.status === "rejected") {
+        addToast(extractErrorMessage(statusResult.reason, t("comic.loadPipelineStatusFailed")), "error");
+      }
+      if (promptsResult.status === "rejected") {
+        addToast(extractErrorMessage(promptsResult.reason, t("comic.loadPagePromptsFailed")), "error");
+      }
       setPipelineProgress((prev) => ({
         ...prev,
         status: "cancelled",

@@ -9,7 +9,9 @@ import {
 export interface ShootingScriptTabData {
   view: ChapterShootingScriptView | null;
   unitProgress: ChapterShootingScriptUnitProgressView | null;
-  visualPlan: ChapterVisualPlanSetView;
+  visualPlan: ChapterVisualPlanSetView | null;
+  scriptError?: unknown;
+  visualPlanError?: unknown;
 }
 
 export interface ShootingScriptOrProgressData {
@@ -33,9 +35,17 @@ export async function loadShootingScriptData(
   projectId: number,
   chapterId: number,
 ): Promise<ShootingScriptTabData> {
-  const [scriptData, visualPlan] = await Promise.all([
+  const [scriptResult, visualPlanResult] = await Promise.allSettled([
     loadShootingScriptOrProgress(projectId, chapterId),
     getChapterVisualPlan(projectId, chapterId),
   ]);
-  return { ...scriptData, visualPlan };
+  const data: ShootingScriptTabData = {
+    ...(scriptResult.status === "fulfilled"
+      ? scriptResult.value
+      : { view: null, unitProgress: null }),
+    visualPlan: visualPlanResult.status === "fulfilled" ? visualPlanResult.value : null,
+  };
+  if (scriptResult.status === "rejected") data.scriptError = scriptResult.reason;
+  if (visualPlanResult.status === "rejected") data.visualPlanError = visualPlanResult.reason;
+  return data;
 }

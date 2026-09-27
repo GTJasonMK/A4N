@@ -397,11 +397,19 @@ export const WritingDesk: React.FC = () => {
           navigate(getProjectPrimaryRoute(p), { replace: true });
           return;
         }
-        const [ch, ol] = await Promise.all([
+        const [chaptersResult, outlinesResult] = await Promise.allSettled([
           listChapters(projectId),
           listChapterOutlines(projectId),
         ]);
         if (!isCurrentLoad()) return;
+        if (chaptersResult.status === "rejected") {
+          addToast(extractErrorMessage(chaptersResult.reason, t("novel.loadChaptersFailed")), "error");
+        }
+        if (outlinesResult.status === "rejected") {
+          addToast(extractErrorMessage(outlinesResult.reason, t("outline.loadFailed")), "error");
+        }
+        const ch = chaptersResult.status === "fulfilled" ? chaptersResult.value : [];
+        const ol = outlinesResult.status === "fulfilled" ? outlinesResult.value : [];
         const outlineNumbers = ol.map((outline) => outline.chapter_number);
         setProject(p);
         setChapters(ch);

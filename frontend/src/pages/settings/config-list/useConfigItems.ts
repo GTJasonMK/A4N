@@ -6,7 +6,8 @@ import type { ConfigItem } from "./types";
 
 interface LoadedConfigItems<C> {
   items: ConfigItem<C>[];
-  catalog: ModelProviderCatalog;
+  catalog: ModelProviderCatalog | null;
+  warning?: string | null;
 }
 
 export function useConfigItems<C>(
@@ -46,6 +47,7 @@ export function useConfigItems<C>(
       if (!mountedRef.current || refreshSeqRef.current !== requestSeq) return;
       setLoadedItems(loaded.items);
       setCatalog(loaded.catalog);
+      setError(loaded.warning ?? null);
     } catch (error) {
       if (!mountedRef.current || refreshSeqRef.current !== requestSeq) return;
       const message = extractErrorMessage(error, loadErrorMessage);

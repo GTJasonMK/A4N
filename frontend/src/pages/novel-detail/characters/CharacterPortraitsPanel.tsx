@@ -98,23 +98,34 @@ export const CharacterPortraitsPanel: React.FC<{ projectId: number }> = ({
     loadSeqRef.current = requestSeq;
     setLoading(true);
     try {
-      const [data, profs] = await Promise.all([
+      const [portraitsResult, profilesResult] = await Promise.allSettled([
         listPortraitsByProject(requestProjectId),
         listProfiles(requestProjectId),
       ]);
       if (!isCurrentLoad(requestProjectId, requestSeq)) return;
-      setPortraits(data);
-      setProfiles(profs);
-      setSelectedProfileId((current) =>
-        current != null && profs.some((profile) => profile.id === current)
-          ? current
-          : null,
-      );
-    } catch (err) {
-      if (!isCurrentLoad(requestProjectId, requestSeq)) return;
-      setPortraits([]);
-      setProfiles([]);
-      addToast(extractErrorMessage(err, t("characterDetail.portrait.missingFailed")), "error");
+      const failures: string[] = [];
+      if (portraitsResult.status === "fulfilled") {
+        setPortraits(portraitsResult.value);
+      } else {
+        failures.push(extractErrorMessage(
+          portraitsResult.reason,
+          t("characterDetail.portrait.missingFailed"),
+        ));
+      }
+      if (profilesResult.status === "fulfilled") {
+        setProfiles(profilesResult.value);
+        setSelectedProfileId((current) =>
+          current != null && profilesResult.value.some((profile) => profile.id === current)
+            ? current
+            : null,
+        );
+      } else {
+        failures.push(extractErrorMessage(
+          profilesResult.reason,
+          t("characterDetail.portrait.missingFailed"),
+        ));
+      }
+      if (failures.length > 0) addToast(failures.join("；"), "error");
     } finally {
       if (isCurrentLoad(requestProjectId, requestSeq)) {
         setLoadedProjectId(requestProjectId);

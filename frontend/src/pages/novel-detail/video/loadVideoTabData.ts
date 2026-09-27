@@ -46,11 +46,12 @@ export const loadedSegmentPlanDraftIsActive = (
 ): boolean => draft?.workflowStatus === "running" || generationActive;
 
 interface VideoTabData {
-  prompts: ChapterVideoPrompt[];
-  videos: GeneratedVideo[];
-  images: GeneratedImage[];
-  activeVideoConfig: VideoGenConfig | null;
-  timeline: VideoTimelineSummary;
+  prompts?: ChapterVideoPrompt[];
+  videos?: GeneratedVideo[];
+  images?: GeneratedImage[];
+  activeVideoConfig?: VideoGenConfig | null;
+  timeline?: VideoTimelineSummary;
+  errors: Array<{ key: "prompts" | "videos" | "images" | "configs" | "timeline"; reason: unknown }>;
 }
 
 const invalidSegmentPlanWorkflowInput = (
@@ -333,7 +334,7 @@ export const loadVideoTabData = async (
   const uniqueImageProjectIds = Array.from(
     new Set(imageProjectIds.filter((id) => Number.isFinite(id) && id > 0)),
   );
-  const [prompts, videos, images, configs, timeline] = await Promise.all([
+  const [prompts, videos, images, configs, timeline] = await Promise.allSettled([
     listChapterVideoPrompts(projectId, chapter.id),
     listVideosByChapter(projectId, chapter.id),
     listVideoReferenceImages(projectId, chapter.id, uniqueImageProjectIds),
@@ -342,10 +343,19 @@ export const loadVideoTabData = async (
   ]);
 
   return {
-    prompts,
-    videos,
-    images,
-    activeVideoConfig: configs.find((config) => config.is_default) ?? null,
-    timeline,
+    prompts: prompts.status === "fulfilled" ? prompts.value : undefined,
+    videos: videos.status === "fulfilled" ? videos.value : undefined,
+    images: images.status === "fulfilled" ? images.value : undefined,
+    activeVideoConfig: configs.status === "fulfilled"
+      ? configs.value.find((config) => config.is_default) ?? null
+      : undefined,
+    timeline: timeline.status === "fulfilled" ? timeline.value : undefined,
+    errors: [
+      ...(prompts.status === "rejected" ? [{ key: "prompts" as const, reason: prompts.reason }] : []),
+      ...(videos.status === "rejected" ? [{ key: "videos" as const, reason: videos.reason }] : []),
+      ...(images.status === "rejected" ? [{ key: "images" as const, reason: images.reason }] : []),
+      ...(configs.status === "rejected" ? [{ key: "configs" as const, reason: configs.reason }] : []),
+      ...(timeline.status === "rejected" ? [{ key: "timeline" as const, reason: timeline.reason }] : []),
+    ],
   };
 };

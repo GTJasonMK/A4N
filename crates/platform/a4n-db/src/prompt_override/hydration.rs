@@ -70,7 +70,7 @@ pub(super) fn project_override_summaries_from_records(
             project_id,
             prompt_name: identity.name,
             content,
-            updated_at: record.updated_at.to_string(),
+            updated_at: record.updated_at.and_utc().to_rfc3339(),
         });
     }
 
