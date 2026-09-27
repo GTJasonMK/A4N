@@ -1,11 +1,11 @@
 import fs from "node:fs";
-import { createRequire } from "node:module";
+import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { compileGenerationValidators } from "./generate-generation-validators.mjs";
+import * as generated from "../../frontend/src/api/generated/generationValidators.js";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
-const require = createRequire(path.join(root, "frontend/package.json"));
-const Ajv2020 = require("ajv/dist/2020").default;
 const schemaPath = path.join(
   root,
   "frontend/src/api/generated/generation-contract.schema.json",
@@ -15,23 +15,8 @@ const fixtureDir = path.join(
   "crates/process/a4n-service-protocol/fixtures/generation-events-v1",
 );
 const schema = JSON.parse(fs.readFileSync(schemaPath, "utf8"));
-const ajv = new Ajv2020({
-  allErrors: true,
-  strict: true,
-  formats: {
-    float: true,
-    int32: true,
-    int64: true,
-    uint16: true,
-    uint32: true,
-    uint64: true,
-  },
-});
-ajv.addSchema(schema, "a4n-generation-contract");
-const validateEvent = ajv.getSchema(
-  "a4n-generation-contract#/$defs/GenerationTaskEvent",
-);
-if (!validateEvent) throw new Error("GenerationTaskEvent schema is missing");
+const { ajv, validators } = compileGenerationValidators(schema);
+const validateEvent = generated.eventValidator;
 
 const eventFiles = fs
   .readdirSync(fixtureDir)
@@ -70,6 +55,32 @@ delete invalid.future_field;
 invalid.sequence = 9_007_199_254_740_992;
 if (validateEvent(invalid)) throw new Error("unsafe integers must be rejected");
 
+// The generated browser code must preserve AJV's decisions and complete errors,
+// including malformed input and Unicode boundaries, for every exported validator.
+const candidates = [null, false, 0, "", [], {}, ...events];
+for (const event of events) {
+  candidates.push({ ...event, future_field: true });
+  const visit = (object, parentPath = []) => {
+    for (const [key, child] of Object.entries(object)) {
+      for (const replacement of [undefined, null, false, -1, 9_007_199_254_740_992, "", "猫🙂"]) {
+        const copy = structuredClone(event);
+        const parent = parentPath.reduce((value, part) => value[part], copy);
+        if (replacement === undefined) delete parent[key];
+        else parent[key] = replacement;
+        candidates.push(copy);
+      }
+      if (child && typeof child === "object" && !Array.isArray(child)) visit(child, [...parentPath, key]);
+    }
+  };
+  visit(event);
+}
+for (const [name, reference] of Object.entries(validators)) {
+  for (const candidate of candidates) {
+    assert.equal(generated[name](candidate), reference(candidate), `${name} decision changed`);
+    assert.deepEqual(generated[name].errors, reference.errors, `${name} errors changed`);
+  }
+}
+
 console.log(
-  `generation fixtures valid: ${eventFiles.length} events, ${vectors.length} UTF-8 vectors`,
+  `generation fixtures valid: ${eventFiles.length} events, ${vectors.length} UTF-8 vectors; ${candidates.length * Object.keys(validators).length} standalone/reference checks`,
 );

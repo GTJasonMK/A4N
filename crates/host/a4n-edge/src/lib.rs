@@ -3,7 +3,8 @@ use axum::{
     Router,
     body::Body,
     extract::State,
-    http::{HeaderName, Request, StatusCode, header},
+    http::{HeaderName, HeaderValue, Request, StatusCode, header},
+    middleware,
     response::{IntoResponse, Response},
     routing::any,
 };
@@ -157,9 +158,21 @@ fn init_tracing() {
 
 fn router(state: EdgeState, frontend_dist: PathBuf) -> Router {
     let index_file = frontend_dist.join("index.html");
-    let static_files = ServeDir::new(frontend_dist)
-        .append_index_html_on_directories(true)
-        .fallback(ServeFile::new(index_file));
+    let static_files = Router::new()
+        .fallback_service(
+            ServeDir::new(frontend_dist)
+                .precompressed_gzip()
+                .append_index_html_on_directories(true)
+                .fallback(ServeFile::new(index_file).precompressed_gzip()),
+        )
+        .layer(middleware::map_response(
+            |mut response: Response| async move {
+                response
+                    .headers_mut()
+                    .append(header::VARY, HeaderValue::from_static("accept-encoding"));
+                response
+            },
+        ));
 
     Router::new()
         .route("/api", any(proxy))

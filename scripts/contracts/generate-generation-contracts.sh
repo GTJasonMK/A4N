@@ -21,6 +21,7 @@ case "${1:---check}" in
         cargo run -q --manifest-path "$PROJECT_ROOT/Cargo.toml" \
             -p a4n-api-contract --bin export_generation_schema -- --write
         write_types
+        node "$SCRIPT_DIR/generate-generation-validators.mjs" "$SCHEMA" "$(dirname "$TYPES")"
         ;;
     --check)
         tmp_dir="$(make_target_temp_dir generation-contracts)"
@@ -31,6 +32,7 @@ case "${1:---check}" in
             -i "$tmp_dir/schema.json" \
             -o "$tmp_dir/generationContracts.ts" \
             --bannerComment "$BANNER")
+        node "$SCRIPT_DIR/generate-generation-validators.mjs" "$tmp_dir/schema.json" "$tmp_dir"
         cmp -s "$tmp_dir/schema.json" "$SCHEMA" || {
             printf 'generation schema is stale; run --write\n' >&2
             exit 1
@@ -39,6 +41,12 @@ case "${1:---check}" in
             printf 'generated TypeScript is stale; run --write\n' >&2
             exit 1
         }
+        for file in generationValidators.js generationValidators.d.ts; do
+            cmp -s "$tmp_dir/$file" "$FRONTEND/src/api/generated/$file" || {
+                printf 'generated validator is stale: %s; run --write\n' "$file" >&2
+                exit 1
+            }
+        done
         ;;
     *)
         printf 'usage: %s [--write|--check]\n' "$0" >&2

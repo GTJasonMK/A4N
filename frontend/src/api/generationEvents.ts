@@ -1,5 +1,13 @@
-import Ajv2020, { type ErrorObject, type ValidateFunction } from "ajv/dist/2020.js";
-import generationSchema from "./generated/generation-contract.schema.json";
+import type { ErrorObject } from "ajv";
+import {
+  eventValidator,
+  snapshotValidator,
+  handleValidator,
+  subscriptionHandleValidator,
+  summaryValidator,
+  historyValidator,
+  hostErrorValidator,
+} from "./generated/generationValidators.js";
 import type {
   GenerationTaskHandle,
   GenerationTaskHistoryPage,
@@ -22,35 +30,6 @@ export type {
 
 const EVENT_MAX_BYTES = 64 * 1024;
 const SNAPSHOT_MAX_BYTES = 4 * 1024 * 1024;
-const schemaId = "a4n-generation-contract";
-const ajv = new Ajv2020({
-  allErrors: true,
-  strict: true,
-  formats: {
-    float: true,
-    int32: true,
-    int64: true,
-    uint16: true,
-    uint32: true,
-    uint64: true,
-  },
-});
-
-ajv.addSchema(generationSchema, schemaId);
-
-const eventValidator = requiredValidator<GenerationTaskEvent>("GenerationTaskEvent");
-const snapshotValidator = requiredValidator<GenerationTaskSnapshot>(
-  "GenerationTaskSnapshot",
-);
-const handleValidator = requiredValidator<GenerationTaskHandle>("GenerationTaskHandle");
-const subscriptionHandleValidator = requiredValidator<GenerationSubscriptionHandle>(
-  "GenerationSubscriptionHandle",
-);
-const summaryValidator = requiredValidator<GenerationTaskSummary>("GenerationTaskSummary");
-const historyValidator = requiredValidator<GenerationTaskHistoryPage>(
-  "GenerationTaskHistoryPage",
-);
-const hostErrorValidator = requiredValidator<HostErrorResponse>("HostErrorResponse");
 
 export function parseGenerationTaskEvent(value: unknown): GenerationTaskEvent {
   assertJsonSize(value, EVENT_MAX_BYTES, "generation event");
@@ -107,12 +86,6 @@ export function parseHostErrorResponse(value: unknown): HostErrorResponse {
     throw new Error(`generation host error schema invalid: ${formatErrors(hostErrorValidator.errors)}`);
   }
   return value;
-}
-
-function requiredValidator<T>(name: string): ValidateFunction<T> {
-  const validator = ajv.getSchema<T>(`${schemaId}#/$defs/${name}`);
-  if (!validator) throw new Error(`${name} schema is missing`);
-  return validator;
 }
 
 function assertJsonSize(value: unknown, limit: number, label: string): void {
