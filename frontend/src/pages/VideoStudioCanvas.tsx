@@ -327,7 +327,6 @@ export const VideoStudioCanvas: React.FC = () => {
         setConfigOptionsStatus((current) => ({ ...current, [kind]: "ready" }));
       } catch (err) {
         if (configRefreshRef.current !== requestId) return;
-        setConfigOptions((current) => ({ ...current, [kind]: [] }));
         setConfigOptionsStatus((current) => ({ ...current, [kind]: "failed" }));
         failures.push(`${label}: ${extractErrorMessage(err, translatorRef.current("video.refreshCanvasConfigFailed"))}`);
       }

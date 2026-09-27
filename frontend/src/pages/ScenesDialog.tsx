@@ -143,10 +143,6 @@ export const ScenesDialog: React.FC<ScenesDialogProps> = ({
     } catch (err) {
       if (loadSeqRef.current !== requestSeq || !isCurrentScope(requestScope)) return;
       const message = extractErrorMessage(err, t("scenes.loadFailed"));
-      setScenes([]);
-      setExpanded(new Set());
-      setEditingId(null);
-      setEditForm({});
       setLoadError(message);
       addToast(message, "error");
     } finally {

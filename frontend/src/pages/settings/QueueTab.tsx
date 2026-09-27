@@ -104,22 +104,18 @@ export const QueueTab: React.FC = () => {
       const errors: string[] = [];
       if (statsResult.status === "fulfilled") setStats(statsResult.value);
       else {
-        setStats(null);
         errors.push(`${t("settingsQueue.queueLoad")}: ${extractErrorMessage(statsResult.reason, t("settingsQueue.loadQueueFailed"))}`);
       }
       if (tasksResult.status === "fulfilled") setTasks(tasksResult.value);
       else {
-        setTasks([]);
         errors.push(`${t("settingsQueue.recentTasks")}: ${extractErrorMessage(tasksResult.reason, t("settingsQueue.loadQueueFailed"))}`);
       }
       if (workflowsResult.status === "fulfilled") setWorkflows(workflowsResult.value);
       else {
-        setWorkflows([]);
         errors.push(`${t("settingsQueue.activeWorkflows")}: ${extractErrorMessage(workflowsResult.reason, t("settingsQueue.loadQueueFailed"))}`);
       }
       if (runsResult.status === "fulfilled") setWorkflowRuns(runsResult.value);
       else {
-        setWorkflowRuns([]);
         errors.push(`${t("settingsQueue.workflowRuns")}: ${extractErrorMessage(runsResult.reason, t("settingsQueue.loadQueueFailed"))}`);
       }
       setLoadErrors(errors);
