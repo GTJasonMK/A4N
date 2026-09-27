@@ -24,6 +24,7 @@ import {
   type UpdateVideoInput,
 } from "../../../api/video";
 import { useToast } from "../../../components/feedback/Toast";
+import { confirmDialog } from "../../../components/feedback/ConfirmDialog";
 import { BookButton } from "../../../components/ui/BookButton";
 import { Dropdown } from "../../../components/ui/Dropdown";
 import { Modal } from "../../../components/ui/Modal";
@@ -158,8 +159,14 @@ export const VideoResultsPane: React.FC<VideoResultsPaneProps> = ({
     setPromptOpen(true);
   };
 
-  const closePromptModal = () => {
+  const closePromptModal = async () => {
     if (promptSavingRef.current) return;
+    if (promptEditing && promptRecordDirty && !(await confirmDialog({
+      title: t("common.unsavedChangesTitle"),
+      message: t("common.unsavedChangesMessage", { name: t("video.chapter.promptRecord"), action: t("common.close") }),
+      confirmText: t("common.discardDraft"),
+      dialogType: "warning",
+    }))) return;
     setPromptOpen(false);
     setPromptEditing(false);
     setPromptSaving(false);

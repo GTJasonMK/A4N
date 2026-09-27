@@ -2,6 +2,7 @@ import { useState, type ReactNode } from "react";
 import { Eye, MoreHorizontal, Pencil, RefreshCw, Trash2, Wand2 } from "lucide-react";
 import { BookButton } from "../../../components/ui/BookButton";
 import { Modal } from "../../../components/ui/Modal";
+import { confirmDialog } from "../../../components/feedback/ConfirmDialog";
 import { nonEmptyText } from "../../../utils/text";
 import {
   chapterOutlineHeading,
@@ -45,13 +46,21 @@ export function ManualChapterOutlineDialog({
   const { t } = useI18n();
   const [form, setForm] = useState(initial);
   const formId = "manual-chapter-outline-form";
+  const close = async () => {
+    if (saving) return;
+    if (JSON.stringify(form) !== JSON.stringify(initial) && !(await confirmDialog({
+      title: t("common.unsavedChangesTitle"),
+      message: t("common.unsavedChangesMessage", { name: t("outline.dialogs.directChapterTitle"), action: t("common.close") }),
+      confirmText: t("common.discardDraft"),
+      dialogType: "warning",
+    }))) return;
+    onClose();
+  };
 
   return (
     <Modal
       isOpen
-      onClose={() => {
-        if (!saving) onClose();
-      }}
+      onClose={() => void close()}
       title={t("outline.dialogs.directChapterTitle")}
       subtitle={t("outline.dialogs.directChapterSubtitle")}
       maxWidthClassName="max-w-2xl"
@@ -60,7 +69,7 @@ export function ManualChapterOutlineDialog({
       showCloseButton={!saving}
       footer={
         <>
-          <BookButton variant="secondary" disabled={saving} onClick={onClose}>
+          <BookButton variant="secondary" disabled={saving} onClick={() => void close()}>
             {t("outline.dialogs.cancel")}
           </BookButton>
           <BookButton type="submit" form={formId} disabled={saving}>
@@ -136,13 +145,21 @@ export function ManualPartOutlineDialog({
   const { t } = useI18n();
   const [form, setForm] = useState(initial);
   const formId = "manual-part-outline-form";
+  const close = async () => {
+    if (saving) return;
+    if (JSON.stringify(form) !== JSON.stringify(initial) && !(await confirmDialog({
+      title: t("common.unsavedChangesTitle"),
+      message: t("common.unsavedChangesMessage", { name: t("outline.dialogs.directPartTitle"), action: t("common.close") }),
+      confirmText: t("common.discardDraft"),
+      dialogType: "warning",
+    }))) return;
+    onClose();
+  };
 
   return (
     <Modal
       isOpen
-      onClose={() => {
-        if (!saving) onClose();
-      }}
+      onClose={() => void close()}
       title={part ? t("outline.dialogs.editPartTitle", { part: part.part_number }) : t("outline.dialogs.directPartTitle")}
       subtitle={t("outline.dialogs.directPartSubtitle")}
       maxWidthClassName="max-w-2xl"
@@ -151,7 +168,7 @@ export function ManualPartOutlineDialog({
       showCloseButton={!saving}
       footer={
         <>
-          <BookButton variant="secondary" disabled={saving} onClick={onClose}>
+          <BookButton variant="secondary" disabled={saving} onClick={() => void close()}>
             {t("outline.dialogs.cancel")}
           </BookButton>
           <BookButton type="submit" form={formId} disabled={saving}>

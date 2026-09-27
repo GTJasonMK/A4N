@@ -4,6 +4,7 @@ import { LoadingSpinner } from "../../components/ui/LoadingSpinner";
 import { BookButton } from "../../components/ui/BookButton";
 import { Dropdown } from "../../components/ui/Dropdown";
 import { Modal } from "../../components/ui/Modal";
+import { confirmDialog } from "../../components/feedback/ConfirmDialog";
 import type { Blueprint } from "../../api/blueprint";
 import { Section } from "./shared";
 import { useI18n } from "../../i18n";
@@ -33,6 +34,16 @@ export const BlueprintConfirmationPane: React.FC<BlueprintConfirmationPaneProps>
   const [refineModalOpen, setRefineModalOpen] = useState(false);
   const refineInputRef = useRef<HTMLTextAreaElement>(null);
   const refineReady = refineFocus.trim().length > 0;
+  const closeRefineModal = async () => {
+    if (refining) return;
+    if (refineFocus.trim() && !(await confirmDialog({
+      title: t("common.unsavedChangesTitle"),
+      message: t("common.unsavedChangesMessage", { name: t("inspiration.adjustBlueprint"), action: t("common.close") }),
+      confirmText: t("common.discardDraft"),
+      dialogType: "warning",
+    }))) return;
+    setRefineModalOpen(false);
+  };
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -113,7 +124,7 @@ export const BlueprintConfirmationPane: React.FC<BlueprintConfirmationPaneProps>
 
       <Modal
         isOpen={refineModalOpen && !consistencyWarning}
-        onClose={() => setRefineModalOpen(false)}
+        onClose={() => void closeRefineModal()}
         title={t("inspiration.adjustBlueprint")}
         subtitle={t("inspiration.adjustHint")}
         icon={<RefreshCw size={15} />}

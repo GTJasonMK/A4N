@@ -25,6 +25,7 @@ import {
   type VideoTimelineSummary,
 } from "../../../api/video";
 import { BookButton } from "../../../components/ui/BookButton";
+import { confirmDialog } from "../../../components/feedback/ConfirmDialog";
 import { Dropdown } from "../../../components/ui/Dropdown";
 import { ImageZoomButton, ZoomableImage } from "../../../components/ui/ImageLightbox";
 import { Modal } from "../../../components/ui/Modal";
@@ -268,6 +269,15 @@ export const VideoGenerationWorkspace: React.FC<
     inputDialogPrompt &&
     framePromptDraft.trim() !== inputDialogPrompt.visual_prompt.trim(),
   );
+  const closeFrameDialog = async () => {
+    if (framePromptDirty && !(await confirmDialog({
+      title: t("common.unsavedChangesTitle"),
+      message: t("common.unsavedChangesMessage", { name: t("video.chapter.imagePrompt"), action: t("common.close") }),
+      confirmText: t("common.discardDraft"),
+      dialogType: "warning",
+    }))) return;
+    setInputDialog(null);
+  };
   const frameImageLocked = inputDialogImage != null;
   const selectedContinuitySourceAvailable = previousAdoptedVideos.some(
     (video) => video.id === selectedContinuitySourceVideoId,
@@ -642,7 +652,7 @@ export const VideoGenerationWorkspace: React.FC<
 
       <Modal
         isOpen={segmentConfigOpen && inputDialog?.kind === "frame"}
-        onClose={() => setInputDialog(null)}
+        onClose={() => void closeFrameDialog()}
         title={
           inputDialog?.kind === "frame" ? t("video.chapter.frameConfigTitle", { label: inputDialog.label }) : t("video.chapter.frameConfig")
         }

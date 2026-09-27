@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Pencil, Plus, RefreshCw, Trash2 } from "lucide-react";
 import { extractErrorMessage } from "../../../api";
 import {
@@ -53,6 +53,7 @@ export const ForeshadowingIndexCard: React.FC<ForeshadowingIndexCardProps> = ({
   const { t } = useI18n();
   const [editing, setEditing] = useState<"new" | Foreshadowing | null>(null);
   const [draft, setDraft] = useState<Draft>(() => emptyDraft());
+  const initialDraftRef = useRef<Draft>(emptyDraft());
   const [busyId, setBusyId] = useState<number | null>(null);
 
   useEffect(() => {
@@ -61,8 +62,21 @@ export const ForeshadowingIndexCard: React.FC<ForeshadowingIndexCardProps> = ({
   }, [projectId]);
 
   const openEditor = (record: "new" | Foreshadowing) => {
+    const nextDraft = record === "new" ? emptyDraft() : draftFromRecord(record);
     setEditing(record);
-    setDraft(record === "new" ? emptyDraft() : draftFromRecord(record));
+    initialDraftRef.current = nextDraft;
+    setDraft(nextDraft);
+  };
+
+  const closeEditor = async () => {
+    if (busyId != null) return;
+    if (editing && JSON.stringify(draft) !== JSON.stringify(initialDraftRef.current) && !(await confirmDialog({
+      title: t("common.unsavedChangesTitle"),
+      message: t("common.unsavedChangesMessage", { name: t("novel.foreshadowing.title"), action: t("common.close") }),
+      confirmText: t("common.discardDraft"),
+      dialogType: "warning",
+    }))) return;
+    setEditing(null);
   };
 
   const handleSave = async () => {
@@ -220,13 +234,13 @@ export const ForeshadowingIndexCard: React.FC<ForeshadowingIndexCardProps> = ({
 
       <Modal
         isOpen={editing != null}
-        onClose={() => (busyId == null ? setEditing(null) : undefined)}
+        onClose={() => void closeEditor()}
         title={editing === "new" ? t("novel.foreshadowing.addTitle") : t("novel.foreshadowing.editTitle")}
         closeOnBackdrop={busyId == null}
         closeOnEscape={busyId == null}
         footer={
           <>
-            <BookButton variant="secondary" onClick={() => setEditing(null)} disabled={busyId != null}>
+            <BookButton variant="secondary" onClick={() => void closeEditor()} disabled={busyId != null}>
               {t("common.cancel")}
             </BookButton>
             <BookButton onClick={() => void handleSave()} disabled={busyId != null}>

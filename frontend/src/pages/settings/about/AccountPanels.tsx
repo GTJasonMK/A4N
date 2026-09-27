@@ -3,6 +3,7 @@ import { ChevronRight, KeyRound, RefreshCw, UserRound } from "lucide-react";
 import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
 import { BookButton } from "../../../components/ui/BookButton";
 import { BookInput } from "../../../components/ui/BookInput";
+import { confirmDialog } from "../../../components/feedback/ConfirmDialog";
 import { useToast } from "../../../components/feedback/Toast";
 import { extractErrorMessage } from "../../../api";
 import {
@@ -180,6 +181,19 @@ export const ProfileEditor: React.FC<{ userId: number; embedded?: boolean }> = (
   return (
     <details
       data-settings-dirty={profileDirty ? "true" : undefined}
+      onToggle={(event) => {
+        if (event.currentTarget.open || !profileDirty) return;
+        const details = event.currentTarget;
+        details.open = true;
+        void confirmDialog({
+          title: t("common.unsavedChangesTitle"),
+          message: t("common.unsavedChangesMessage", { name: t("settingsAbout.profile"), action: t("common.close") }),
+          confirmText: t("common.discardDraft"),
+          dialogType: "warning",
+        }).then((discard) => {
+          if (discard) details.open = false;
+        });
+      }}
       className={`${embedded ? "border-t border-book-border/35" : "a4n-flat-surface"} group overflow-hidden text-xs`}
     >
       <summary className="flex cursor-pointer list-none items-center gap-2 px-3 py-3 text-book-text-sub transition-colors hover:bg-book-bg-tertiary/40 [&::-webkit-details-marker]:hidden">
@@ -308,6 +322,19 @@ export const PasswordChanger: React.FC<{ embedded?: boolean }> = ({ embedded = f
   return (
     <details
       data-settings-dirty={passwordDirty ? "true" : undefined}
+      onToggle={(event) => {
+        if (event.currentTarget.open || !passwordDirty) return;
+        const details = event.currentTarget;
+        details.open = true;
+        void confirmDialog({
+          title: t("common.unsavedChangesTitle"),
+          message: t("common.unsavedChangesMessage", { name: t("settingsAbout.changePassword"), action: t("common.close") }),
+          confirmText: t("common.discardDraft"),
+          dialogType: "warning",
+        }).then((discard) => {
+          if (discard) details.open = false;
+        });
+      }}
       className={`${embedded ? "border-t border-book-border/35" : "a4n-flat-surface"} group overflow-hidden text-xs`}
     >
       <summary className="flex cursor-pointer list-none items-center gap-2 px-3 py-3 text-book-text-sub transition-colors hover:bg-book-bg-tertiary/40 [&::-webkit-details-marker]:hidden">

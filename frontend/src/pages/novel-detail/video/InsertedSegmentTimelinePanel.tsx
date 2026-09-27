@@ -263,8 +263,27 @@ export const InsertedSegmentTimelinePanel = React.forwardRef<
       setEdit(null);
     };
 
-    const closeModal = () => {
+    const closeModal = async () => {
       if (acting != null) return;
+      const formDirty = Boolean(
+        form && (
+          form.user_prompt.trim() ||
+          form.style !== defaultStyle ||
+          form.prompt_output_language !== defaultPromptOutputLanguage ||
+          form.duration_secs !== defaultDurationSecs ||
+          form.aspect_ratio !== defaultAspectRatio ||
+          form.reference_image_ids.length > 0 ||
+          form.allow_without_visual_anchor
+        ),
+      );
+      if (formDirty || draft != null || editingPromptDirty) {
+        if (!(await confirmDialog({
+          title: t("common.unsavedChangesTitle"),
+          message: t("common.unsavedChangesMessage", { name: t("video.chapter.insertSegment"), action: t("common.close") }),
+          confirmText: t("common.discardDraft"),
+          dialogType: "warning",
+        }))) return;
+      }
       resetModalState();
     };
 
