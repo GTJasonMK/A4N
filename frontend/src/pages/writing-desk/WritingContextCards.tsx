@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { ChevronRight, Sparkles, User, Users } from "lucide-react";
 import { extractErrorMessage } from "../../api";
 import { getBlueprint, type Blueprint } from "../../api/blueprint";
@@ -43,10 +43,12 @@ export const WritingContextCards: React.FC<WritingContextCardsProps> = ({
   const { addToast } = useToast();
   const { locale, t } = useI18n();
   const [blueprint, setBlueprint] = useState<Blueprint | null>(null);
+  const blueprintProjectIdRef = useRef<number | null>(null);
   const [blueprintError, setBlueprintError] = useState<string | null>(null);
   const [primaryProfile, setPrimaryProfile] = useState<CharacterProfile | null>(null);
   const [profileCount, setProfileCount] = useState(0);
   const [portrait, setPortrait] = useState<Portrait | null>(null);
+  const profileProjectIdRef = useRef<number | null>(null);
   const [profileError, setProfileError] = useState<string | null>(null);
   const [blueprintDetailOpen, setBlueprintDetailOpen] = useState(false);
   const primaryPortraitSrc = toMediaSrc(portrait?.image_path);
@@ -56,6 +58,16 @@ export const WritingContextCards: React.FC<WritingContextCardsProps> = ({
 
   useEffect(() => {
     let cancelled = false;
+    if (blueprintProjectIdRef.current !== projectId) {
+      setBlueprint(null);
+      setBlueprintError(null);
+    }
+    if (profileProjectIdRef.current !== projectId) {
+      setPrimaryProfile(null);
+      setProfileCount(0);
+      setPortrait(null);
+      setProfileError(null);
+    }
     (async () => {
       const profileResult = (async () => {
         const profiles = await listProfiles(projectId);
@@ -72,13 +84,13 @@ export const WritingContextCards: React.FC<WritingContextCardsProps> = ({
 
       if (blueprintResult.status === "fulfilled") {
         setBlueprint(blueprintResult.value);
+        blueprintProjectIdRef.current = projectId;
         setBlueprintError(null);
       } else {
         const message = extractErrorMessage(
           blueprintResult.reason,
           t("writing.blueprintLoadFailed"),
         );
-        setBlueprint(null);
         setBlueprintError(message);
         addToast(message, "error");
       }
@@ -88,11 +100,9 @@ export const WritingContextCards: React.FC<WritingContextCardsProps> = ({
         setPrimaryProfile(profiles[0] ?? null);
         setProfileCount(profiles.length);
         setPortrait(portrait);
+        profileProjectIdRef.current = projectId;
         setProfileError(null);
       } else if (profilesResult.status === "rejected") {
-        setPrimaryProfile(null);
-        setProfileCount(0);
-        setPortrait(null);
         const message = extractErrorMessage(
           profilesResult.reason,
           t("writing.profileLoadFailedContext"),

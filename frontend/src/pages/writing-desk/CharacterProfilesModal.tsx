@@ -155,8 +155,6 @@ export const CharacterProfilesModal: React.FC<CharacterProfilesModalProps> = ({
       });
     } catch (err) {
       if (!isCurrentWorkspace(requestProjectId) || loadSeqRef.current !== requestSeq) return;
-      setProfiles([]);
-      setSelectedId(null);
       addToast(extractErrorMessage(err, t("characterDetail.profileLoadFailed")), "error");
     } finally {
       if (isCurrentWorkspace(requestProjectId) && loadSeqRef.current === requestSeq) {

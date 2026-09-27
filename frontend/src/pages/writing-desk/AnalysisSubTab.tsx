@@ -250,6 +250,7 @@ export const AnalysisSubTab: React.FC<AnalysisSubTabProps> = ({
 }) => {
   const { t } = useI18n();
   const [objectProfiles, setObjectProfiles] = useState<ObjectProfile[]>([]);
+  const [objectProfilesProjectId, setObjectProfilesProjectId] = useState<number | null>(null);
   const [objectProfilesError, setObjectProfilesError] = useState<string | null>(
     null,
   );
@@ -259,6 +260,11 @@ export const AnalysisSubTab: React.FC<AnalysisSubTabProps> = ({
 
   useEffect(() => {
     let cancelled = false;
+    if (objectProfilesProjectId !== projectId) {
+      setObjectProfiles([]);
+      setObjectProfilesProjectId(projectId);
+      setObjectProfilesError(null);
+    }
     if (!analysis) {
       setObjectProfiles([]);
       setObjectProfilesError(null);
@@ -270,11 +276,11 @@ export const AnalysisSubTab: React.FC<AnalysisSubTabProps> = ({
       .then((rows) => {
         if (cancelled) return;
         setObjectProfiles(rows);
+        setObjectProfilesProjectId(projectId);
         setObjectProfilesError(null);
       })
       .catch((err) => {
         if (cancelled) return;
-        setObjectProfiles([]);
         setObjectProfilesError(
           err instanceof Error ? err.message : String(err),
         );
@@ -286,11 +292,13 @@ export const AnalysisSubTab: React.FC<AnalysisSubTabProps> = ({
     return () => {
       cancelled = true;
     };
-  }, [analysis, projectId]);
+  }, [analysis, objectProfilesProjectId, projectId]);
 
   const chapterObjects = useMemo(
-    () => objectProfilesForChapter(objectProfiles, chapterNumber),
-    [chapterNumber, objectProfiles],
+    () => objectProfilesProjectId === projectId
+      ? objectProfilesForChapter(objectProfiles, chapterNumber)
+      : [],
+    [chapterNumber, objectProfiles, objectProfilesProjectId, projectId],
   );
 
   const root = asRecord(analysis);

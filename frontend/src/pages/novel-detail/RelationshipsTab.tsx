@@ -100,6 +100,7 @@ export const RelationshipsTab: React.FC<{ projectId: number }> = ({
   const [currentDetail, setCurrentDetail] =
     useState<CurrentRelationship | null>(null);
   const [loadedProjectId, setLoadedProjectId] = useState<number | null>(null);
+  const loadedProjectIdRef = useRef<number | null>(null);
   const [editor, setEditor] = useState<RelationshipEditorState | null>(null);
   const [timelineRelationship, setTimelineRelationship] =
     useState<CurrentRelationship | null>(null);
@@ -116,10 +117,12 @@ export const RelationshipsTab: React.FC<{ projectId: number }> = ({
         const data = await listProfiles(projectId);
         if (!isCurrent()) return;
         setProfiles(data);
+        loadedProjectIdRef.current = projectId;
         setLoadedProjectId(projectId);
       } catch (err) {
         if (isCurrent()) {
-          setProfiles([]);
+          if (loadedProjectIdRef.current !== projectId) setProfiles([]);
+          loadedProjectIdRef.current = projectId;
           setLoadedProjectId(projectId);
         }
         throw err;

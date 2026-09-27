@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { extractErrorMessage } from "../../api";
 import { LoadingSpinner } from "../../components/ui/LoadingSpinner";
@@ -36,6 +36,8 @@ export const StoryEventsTab: React.FC<StoryEventsTabProps> = ({
   const [filters, setFilters] = useState<StoryEventFilters>(DEFAULT_STORY_EVENT_FILTERS);
   const [loadedProjectId, setLoadedProjectId] = useState<number | null>(null);
   const [loadErrors, setLoadErrors] = useState<string[]>([]);
+  const chaptersProjectIdRef = useRef<number | null>(null);
+  const foreshadowingProjectIdRef = useRef<number | null>(null);
 
   const loadChapters = useCallback(
     async (isCurrent: () => boolean) => {
@@ -45,14 +47,20 @@ export const StoryEventsTab: React.FC<StoryEventsTabProps> = ({
       ]);
       if (!isCurrent()) return;
       const errors: string[] = [];
-      if (chaptersResult.status === "fulfilled") setChapters(chaptersResult.value);
+      if (chaptersResult.status === "fulfilled") {
+        setChapters(chaptersResult.value);
+        chaptersProjectIdRef.current = projectId;
+      }
       else {
-        setChapters([]);
+        if (chaptersProjectIdRef.current !== projectId) setChapters([]);
         errors.push(extractErrorMessage(chaptersResult.reason, t("novel.storyEvents.chaptersLoadFailed")));
       }
-      if (foreshadowingResult.status === "fulfilled") setForeshadowing(foreshadowingResult.value);
+      if (foreshadowingResult.status === "fulfilled") {
+        setForeshadowing(foreshadowingResult.value);
+        foreshadowingProjectIdRef.current = projectId;
+      }
       else {
-        setForeshadowing([]);
+        if (foreshadowingProjectIdRef.current !== projectId) setForeshadowing([]);
         errors.push(extractErrorMessage(foreshadowingResult.reason, t("novel.storyEvents.foreshadowingLoadFailed")));
       }
       setLoadErrors(errors);

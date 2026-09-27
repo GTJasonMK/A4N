@@ -30,6 +30,7 @@ export const CharactersTab: React.FC<{ projectId: number }> = ({ projectId }) =>
   const [profiles, setProfiles] = useState<CharacterProfile[]>([]);
   const [subTab, setSubTab] = useState<CharactersSubTab>("profile");
   const [loadedProjectId, setLoadedProjectId] = useState<number | null>(null);
+  const loadedProjectIdRef = useRef<number | null>(null);
   const [editorOpen, setEditorOpen] = useState(false);
   const [editingProfile, setEditingProfile] = useState<CharacterProfile | null>(null);
   const [form, setForm] = useState<ProfileForm>(EMPTY_PROFILE_FORM);
@@ -46,10 +47,12 @@ export const CharactersTab: React.FC<{ projectId: number }> = ({ projectId }) =>
         const nextProfiles = await listProfiles(projectId);
         if (!isCurrent()) return;
         setProfiles(nextProfiles);
+        loadedProjectIdRef.current = projectId;
         setLoadedProjectId(projectId);
       } catch (err) {
         if (isCurrent()) {
-          setProfiles([]);
+          if (loadedProjectIdRef.current !== projectId) setProfiles([]);
+          loadedProjectIdRef.current = projectId;
           setLoadedProjectId(projectId);
         }
         throw err;

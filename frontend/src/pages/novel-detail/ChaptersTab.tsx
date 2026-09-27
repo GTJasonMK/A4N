@@ -64,6 +64,7 @@ export const ChaptersTab: React.FC<ChaptersTabProps> = ({ projectId, canEditChap
   });
   const [importing, setImporting] = useState(false);
   const [loadedProjectId, setLoadedProjectId] = useState<number | null>(null);
+  const loadedProjectIdRef = useRef<number | null>(null);
   const mountedRef = useRef(false);
   const activeProjectIdRef = useRef(projectId);
   const importSeqRef = useRef(0);
@@ -74,10 +75,12 @@ export const ChaptersTab: React.FC<ChaptersTabProps> = ({ projectId, canEditChap
       const data = await listChapters(projectId);
       if (!isCurrent()) return;
       setChapters(data);
+      loadedProjectIdRef.current = projectId;
       setLoadedProjectId(projectId);
     } catch (err) {
       if (isCurrent()) {
-        setChapters([]);
+        if (loadedProjectIdRef.current !== projectId) setChapters([]);
+        loadedProjectIdRef.current = projectId;
         setLoadedProjectId(projectId);
       }
       throw err;
