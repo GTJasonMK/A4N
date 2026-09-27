@@ -183,7 +183,7 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
       outlinesRef.current = oo;
       setParts(pp);
       setOutlines(oo);
-      return true;
+      return partsResult.status === "fulfilled" && outlinesResult.status === "fulfilled";
     } catch (err) {
       if (isLoadCurrent(requestProjectId, requestSeq)) {
         addToast(extractErrorMessage(err, t("outline.loadFailed")), "error");
@@ -1177,9 +1177,7 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
       onPreviewRegenLastPart={() => void handlePreviewRegenLastPart()}
       onDeleteLatestParts={() => void handleDeleteLatestParts()}
       onDeleteLatestOutlines={() => void handleDeleteLatestOutlines()}
-      onChanged={async () => {
-        await load({ showLoading: false });
-      }}
+      onChanged={() => load({ showLoading: false })}
       onCloseRequestPreview={closeRequestPreview}
     />
   );

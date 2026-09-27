@@ -116,8 +116,8 @@ export const useFullConfigBackup = (scope: ConfigBackupScope) => {
         });
       }
       if (!isCurrentUser(requestUserId)) return;
-      addToast(t("settingsAdvanced.importedDetails", { details: details.join(t("common.summarySeparator")) }), "success");
       if (scope === "server") await loadAndApplyActiveTheme(requestUserId);
+      addToast(t("settingsAdvanced.importedDetails", { details: details.join(t("common.summarySeparator")) }), "success");
     } catch (err) {
       if (isCurrentUser(requestUserId)) {
         addToast(extractErrorMessage(err, errorFallback), "error");

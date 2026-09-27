@@ -27,7 +27,7 @@ interface FactFeedbackPanelProps {
   projectId: number;
   canEdit: boolean;
   refreshKey?: string;
-  onChanged?: () => void | Promise<void>;
+  onChanged?: () => boolean | void | Promise<boolean | void>;
 }
 
 export const FactFeedbackPanel = ({ projectId, canEdit, refreshKey, onChanged }: FactFeedbackPanelProps) => {
@@ -106,7 +106,7 @@ export const FactFeedbackPanel = ({ projectId, canEdit, refreshKey, onChanged }:
       setData(result);
       setError(null);
       if (result.error) addToast(result.error, "error");
-      await onChanged?.();
+      if (await onChanged?.() === false) return;
     } catch (cause) {
       if (mounted.current && currentProject.current === requestProject) {
         setError(extractErrorMessage(cause, t("novel.factFeedback.runFailed")));
@@ -130,7 +130,7 @@ export const FactFeedbackPanel = ({ projectId, canEdit, refreshKey, onChanged }:
       if (!mounted.current || currentProject.current !== requestProject) return;
       intervalDirty.current = false;
       if (!await load()) return;
-      await onChanged?.();
+      if (await onChanged?.() === false) return;
       addToast(t("novel.factFeedback.intervalSaved"), "success");
     } catch (cause) {
       if (mounted.current && currentProject.current === requestProject) setError(extractErrorMessage(cause, t("novel.factFeedback.saveFailed")));

@@ -99,7 +99,7 @@ export interface OutlinesTabViewProps {
   onPreviewRegenLastPart: () => void;
   onDeleteLatestParts: () => void;
   onDeleteLatestOutlines: () => void;
-  onChanged: () => void | Promise<void>;
+  onChanged: () => boolean | void | Promise<boolean | void>;
   onCloseRequestPreview: () => void;
 }
 

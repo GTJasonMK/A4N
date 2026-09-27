@@ -43,7 +43,7 @@ interface OutlineAdvancedPanelProps {
   chaptersPerPart: number | null;
   runGeneration: RunOutlineGeneration;
   disabled?: boolean;
-  onChanged: () => void | Promise<void>;
+  onChanged: () => boolean | void | Promise<boolean | void>;
   onBusyChange?: (busy: boolean) => void;
 }
 
@@ -452,6 +452,7 @@ export const OutlineAdvancedPanel: React.FC<OutlineAdvancedPanelProps> = ({
     const actionSeq = beginAction(requestProjectId);
     if (actionSeq == null) return;
     setBeatBusy(true);
+    let refreshAttempted = false;
     try {
       const warnings = await runGeneration(
         {
@@ -471,7 +472,8 @@ export const OutlineAdvancedPanel: React.FC<OutlineAdvancedPanelProps> = ({
         async (control) => {
           ensureActionCurrent(requestProjectId, actionSeq);
           control.setProgress(t("outline.advancedPanel.refreshOutlines"), 2);
-          await onChanged();
+          refreshAttempted = true;
+          if (await onChanged() === false) throw new Error(t("outline.loadFailed"));
           ensureActionCurrent(requestProjectId, actionSeq);
         },
       );
@@ -479,7 +481,7 @@ export const OutlineAdvancedPanel: React.FC<OutlineAdvancedPanelProps> = ({
       showGenerationSuccess(t("outline.advancedPanel.beatApplied"), warnings);
     } catch (err) {
       if (isActionCurrent(requestProjectId, actionSeq)) {
-        await onChanged();
+        if (!refreshAttempted) await onChanged();
         showGenerationError(err, t("outline.advancedPanel.applyBeatFailed"));
       }
     } finally {
@@ -528,6 +530,7 @@ export const OutlineAdvancedPanel: React.FC<OutlineAdvancedPanelProps> = ({
     const actionSeq = beginAction(requestProjectId);
     if (actionSeq == null) return;
     setPartGenBusy(true);
+    let refreshAttempted = false;
     try {
       const warnings = await runGeneration(
         {
@@ -552,7 +555,8 @@ export const OutlineAdvancedPanel: React.FC<OutlineAdvancedPanelProps> = ({
         async (control) => {
           ensureActionCurrent(requestProjectId, actionSeq);
           control.setProgress(t("outline.advancedPanel.refreshOutlines"), 2);
-          await onChanged();
+          refreshAttempted = true;
+          if (await onChanged() === false) throw new Error(t("outline.loadFailed"));
           ensureActionCurrent(requestProjectId, actionSeq);
         },
       );
@@ -565,7 +569,7 @@ export const OutlineAdvancedPanel: React.FC<OutlineAdvancedPanelProps> = ({
       );
     } catch (err) {
       if (isActionCurrent(requestProjectId, actionSeq)) {
-        await onChanged();
+        if (!refreshAttempted) await onChanged();
         showGenerationError(err, t("outline.advancedPanel.generateFailed"));
       }
     } finally {
@@ -610,6 +614,7 @@ export const OutlineAdvancedPanel: React.FC<OutlineAdvancedPanelProps> = ({
     const actionSeq = beginAction(requestProjectId);
     if (actionSeq == null) return;
     setBatchBusy(true);
+    let refreshAttempted = false;
     try {
       const warnings = await runGeneration(
         {
@@ -630,7 +635,8 @@ export const OutlineAdvancedPanel: React.FC<OutlineAdvancedPanelProps> = ({
         async (control) => {
           ensureActionCurrent(requestProjectId, actionSeq);
           control.setProgress(t("outline.advancedPanel.refreshOutlines"), 2);
-          await onChanged();
+          refreshAttempted = true;
+          if (await onChanged() === false) throw new Error(t("outline.loadFailed"));
           ensureActionCurrent(requestProjectId, actionSeq);
         },
       );
@@ -641,7 +647,7 @@ export const OutlineAdvancedPanel: React.FC<OutlineAdvancedPanelProps> = ({
       );
     } catch (err) {
       if (isActionCurrent(requestProjectId, actionSeq)) {
-        await onChanged();
+        if (!refreshAttempted) await onChanged();
         showGenerationError(err, t("outline.advancedPanel.batchFailed"));
       }
     } finally {
@@ -711,7 +717,7 @@ export const OutlineAdvancedPanel: React.FC<OutlineAdvancedPanelProps> = ({
         async (control) => {
           ensureActionCurrent(requestProjectId, actionSeq);
           control.setProgress(t("outline.advancedPanel.refreshOutlines"), 2);
-          await onChanged();
+          if (await onChanged() === false) throw new Error(t("outline.loadFailed"));
           ensureActionCurrent(requestProjectId, actionSeq);
         },
       );
@@ -797,6 +803,7 @@ export const OutlineAdvancedPanel: React.FC<OutlineAdvancedPanelProps> = ({
     }
     finishConfirmAction();
     setRegenPartsBusy(true);
+    let refreshAttempted = false;
     try {
       const warnings = await runGeneration(
         {
@@ -817,7 +824,8 @@ export const OutlineAdvancedPanel: React.FC<OutlineAdvancedPanelProps> = ({
         async (control) => {
           ensureActionCurrent(requestProjectId, actionSeq);
           control.setProgress(t("outline.advancedPanel.refreshOutlines"), 2);
-          await onChanged();
+          refreshAttempted = true;
+          if (await onChanged() === false) throw new Error(t("outline.loadFailed"));
           ensureActionCurrent(requestProjectId, actionSeq);
         },
       );
@@ -828,7 +836,7 @@ export const OutlineAdvancedPanel: React.FC<OutlineAdvancedPanelProps> = ({
       );
     } catch (err) {
       if (isActionCurrent(requestProjectId, actionSeq)) {
-        await onChanged();
+        if (!refreshAttempted) await onChanged();
         showGenerationError(err, t("outline.regenerateFailed"));
       }
     } finally {
@@ -894,6 +902,7 @@ export const OutlineAdvancedPanel: React.FC<OutlineAdvancedPanelProps> = ({
     const actionSeq = beginAction(requestProjectId);
     if (actionSeq == null) return;
     setContinueBusy(true);
+    let refreshAttempted = false;
     try {
       const warnings = await runGeneration(
         {
@@ -923,7 +932,8 @@ export const OutlineAdvancedPanel: React.FC<OutlineAdvancedPanelProps> = ({
         async (control) => {
           ensureActionCurrent(requestProjectId, actionSeq);
           control.setProgress(t("outline.advancedPanel.refreshOutlines"), 2);
-          await onChanged();
+          refreshAttempted = true;
+          if (await onChanged() === false) throw new Error(t("outline.loadFailed"));
           ensureActionCurrent(requestProjectId, actionSeq);
         },
       );
@@ -936,7 +946,7 @@ export const OutlineAdvancedPanel: React.FC<OutlineAdvancedPanelProps> = ({
       );
     } catch (err) {
       if (isActionCurrent(requestProjectId, actionSeq)) {
-        await onChanged();
+        if (!refreshAttempted) await onChanged();
         showGenerationError(err, t("outline.advancedPanel.continueFailed"));
       }
     } finally {
