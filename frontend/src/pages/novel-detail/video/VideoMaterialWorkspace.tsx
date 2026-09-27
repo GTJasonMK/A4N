@@ -92,7 +92,7 @@ export const VideoMaterialWorkspace: React.FC<VideoMaterialWorkspaceProps> = ({
   const [uploadTarget, setUploadTarget] = useState<ProfileMaterialGroup | null>(null);
   const [uploadSetPrimary, setUploadSetPrimary] = useState(true);
   const loadSeqRef = useRef(0);
-  const loadInFlightRef = useRef<{ key: string; seq: number; promise: Promise<void> } | null>(
+  const loadInFlightRef = useRef<{ key: string; seq: number; promise: Promise<boolean> } | null>(
     null,
   );
   const actionBusyRef = useRef(false);
@@ -151,7 +151,7 @@ export const VideoMaterialWorkspace: React.FC<VideoMaterialWorkspaceProps> = ({
     }
   };
 
-  const loadMaterials = useCallback(async (options: LoadMaterialsOptions = {}) => {
+  const loadMaterials = useCallback(async (options: LoadMaterialsOptions = {}): Promise<boolean> => {
     const requestSeq = loadSeqRef.current + 1;
     const requestKey = loadRequestKey;
     const currentLoad = loadInFlightRef.current;
@@ -170,11 +170,13 @@ export const VideoMaterialWorkspace: React.FC<VideoMaterialWorkspaceProps> = ({
           sort,
           image_limit_per_profile: 12,
         });
-        if (loadSeqRef.current !== requestSeq || activeLoadKeyRef.current !== requestKey) return;
+        if (loadSeqRef.current !== requestSeq || activeLoadKeyRef.current !== requestKey) return false;
         setGroups(result);
+        return true;
       } catch (err) {
-        if (loadSeqRef.current !== requestSeq || activeLoadKeyRef.current !== requestKey) return;
+        if (loadSeqRef.current !== requestSeq || activeLoadKeyRef.current !== requestKey) return false;
         onToast(extractErrorMessage(err, t("video.material.loadFailed")), "error");
+        return false;
       } finally {
         if (loadSeqRef.current === requestSeq && activeLoadKeyRef.current === requestKey) {
           setLoading(false);
@@ -246,8 +248,12 @@ export const VideoMaterialWorkspace: React.FC<VideoMaterialWorkspaceProps> = ({
     custom_style: selectedStyleTemplate ? null : customStyle.trim() || null,
   });
 
-  const refreshAfterMaterialChange = async () => {
-    await Promise.all([loadMaterials({ force: true }), Promise.resolve(onRefreshVideoData())]);
+  const refreshAfterMaterialChange = async (): Promise<boolean> => {
+    const [materials, parent] = await Promise.all([
+      loadMaterials({ force: true }),
+      Promise.resolve(onRefreshVideoData()),
+    ]);
+    return materials && parent !== false;
   };
 
   const generateMaterialCore = async (
@@ -298,9 +304,9 @@ export const VideoMaterialWorkspace: React.FC<VideoMaterialWorkspaceProps> = ({
         },
       );
       if (!isCurrentProject(requestProjectId)) return;
-      onToast(t("video.material.generatedProjectMaterial", { name: group.profile.name }), "success");
       if (options.refresh !== false) {
-        await refreshAfterMaterialChange();
+        if (!await refreshAfterMaterialChange()) return;
+        onToast(t("video.material.generatedProjectMaterial", { name: group.profile.name }), "success");
       }
     } catch (err) {
       if (!isCurrentProject(requestProjectId)) return;
@@ -413,7 +419,7 @@ export const VideoMaterialWorkspace: React.FC<VideoMaterialWorkspaceProps> = ({
       });
       if (!isCurrentProject(requestProjectId)) return;
       setUploadTarget(null);
-      await refreshAfterMaterialChange();
+      if (!await refreshAfterMaterialChange()) return;
       if (!isCurrentProject(requestProjectId)) return;
       onToast(uploadSetPrimary ? t("video.material.uploadedPrimary") : t("video.material.uploaded"), "success");
     } catch (err) {
@@ -445,7 +451,7 @@ export const VideoMaterialWorkspace: React.FC<VideoMaterialWorkspaceProps> = ({
         await generateMaterialCore(group, requestProjectId, requestSize, { refresh: false });
       }
       if (!isCurrentProject(requestProjectId)) return;
-      await refreshAfterMaterialChange();
+      if (!await refreshAfterMaterialChange()) return;
       if (!isCurrentProject(requestProjectId)) return;
       onToast(t("video.material.batchCompleted", { count: targets.length }), "success");
     } finally {
@@ -471,7 +477,7 @@ export const VideoMaterialWorkspace: React.FC<VideoMaterialWorkspaceProps> = ({
       const updated = await updateImage(image.id, { is_favorite: !image.is_favorite });
       if (!isCurrentProject(requestProjectId)) return;
       setImageDetails((current) => (current?.id === updated.id ? updated : current));
-      await loadMaterials({ force: true });
+      if (!await loadMaterials({ force: true })) return;
       if (!isCurrentProject(requestProjectId)) return;
       onToast(updated.is_favorite ? t("video.material.favorited") : t("video.material.unfavorited"), "success");
     } catch (err) {
@@ -496,7 +502,7 @@ export const VideoMaterialWorkspace: React.FC<VideoMaterialWorkspaceProps> = ({
       const updated = await updateImage(image.id, { ai_score: score });
       if (!isCurrentProject(requestProjectId)) return;
       setImageDetails((current) => (current?.id === updated.id ? updated : current));
-      await loadMaterials({ force: true });
+      if (!await loadMaterials({ force: true })) return;
       if (!isCurrentProject(requestProjectId)) return;
       onToast(t("video.material.scored", { score }), "success");
     } catch (err) {
@@ -516,7 +522,7 @@ export const VideoMaterialWorkspace: React.FC<VideoMaterialWorkspaceProps> = ({
       const updated = await updateImage(image.id, input);
       if (!isCurrentProject(requestProjectId)) return;
       setImageDetails((current) => (current?.id === updated.id ? updated : current));
-      await loadMaterials({ force: true });
+      if (!await loadMaterials({ force: true })) return;
       if (!isCurrentProject(requestProjectId)) return;
       onToast(t("video.material.imageUpdated"), "success");
     } catch (err) {
@@ -545,7 +551,7 @@ export const VideoMaterialWorkspace: React.FC<VideoMaterialWorkspaceProps> = ({
       await deleteImage(image.id);
       if (!isCurrentProject(requestProjectId)) return;
       setImageDetails(null);
-      await refreshAfterMaterialChange();
+      if (!await refreshAfterMaterialChange()) return;
       if (!isCurrentProject(requestProjectId)) return;
       onToast(t("video.material.deleted"), "success");
     } catch (err) {
@@ -569,7 +575,7 @@ export const VideoMaterialWorkspace: React.FC<VideoMaterialWorkspaceProps> = ({
         image_id: imageId,
       });
       if (!isCurrentProject(requestProjectId)) return;
-      await refreshAfterMaterialChange();
+      if (!await refreshAfterMaterialChange()) return;
       if (!isCurrentProject(requestProjectId)) return;
       onToast(imageId == null ? t("video.material.primaryCleared") : t("video.material.primarySet"), "success");
     } catch (err) {

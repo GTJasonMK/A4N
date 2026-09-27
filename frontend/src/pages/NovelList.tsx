@@ -537,7 +537,6 @@ export const NovelList: React.FC<NovelListProps> = () => {
     try {
       await deleteProject(project.id);
       if (!mountedRef.current) return;
-      setProjects((current) => current.filter((item) => item.id !== project.id));
       if (!await refresh(activeTabRef.current)) return;
       addToast(t("novel.projectListActions.deleted", { title: project.title }), "success");
     } catch (err) {
@@ -563,6 +562,7 @@ export const NovelList: React.FC<NovelListProps> = () => {
     setImporting(true);
     try {
       let importedTextProject: NovelProject | null = null;
+      let importSuccessMessage: string | null = null;
       const fileName = selectedFile.name.trim();
       const dataBase64 = await readFileAsBase64(selectedFile);
       if (!mountedRef.current || importSeqRef.current !== requestSeq) return;
@@ -572,21 +572,18 @@ export const NovelList: React.FC<NovelListProps> = () => {
         const report = await importProjectBundleUpload(input);
         if (!mountedRef.current || importSeqRef.current !== requestSeq) return;
         const imported = report.project_summaries;
-        addToast(
-          t("novel.projectListActions.importedBundle", {
-            titles: imported.map((item) => item.title).join(" / "),
-          }),
-          "success",
-        );
+        importSuccessMessage = t("novel.projectListActions.importedBundle", {
+          titles: imported.map((item) => item.title).join(" / "),
+        });
       } else if (normalizedFileName.endsWith(PROJECT_FAMILY_PACKAGE_SUFFIX)) {
         const imported = await importProjectFamilyUpload(input);
         if (!mountedRef.current || importSeqRef.current !== requestSeq) return;
         importedTextProject = imported.find((item) => item.project_kind === "text") ?? null;
-        addToast(t("novel.projectListActions.importedFamily", { titles: imported.map((item) => item.title).join(" / ") }), "success");
+        importSuccessMessage = t("novel.projectListActions.importedFamily", { titles: imported.map((item) => item.title).join(" / ") });
       } else if (normalizedFileName.endsWith(VIDEO_STUDIO_PROJECT_PACKAGE_SUFFIX)) {
         const imported = await importVideoStudioProjectUpload(input);
         if (!mountedRef.current || importSeqRef.current !== requestSeq) return;
-        addToast(t("novel.projectListActions.importedVideo", { title: imported.title }), "success");
+        importSuccessMessage = t("novel.projectListActions.importedVideo", { title: imported.title });
       } else {
         throw new Error(
           t("novel.projectListActions.invalidImportFile", {
@@ -597,9 +594,10 @@ export const NovelList: React.FC<NovelListProps> = () => {
         );
       }
       setImportDialogOpenState(false);
-      await refresh(activeTabRef.current);
+      if (!await refresh(activeTabRef.current)) return;
       if (!mountedRef.current || importSeqRef.current !== requestSeq) return;
       if (importedTextProject) await syncCreatedProjectMaterials(importedTextProject);
+      if (importSuccessMessage) addToast(importSuccessMessage, "success");
     } catch (err) {
       if (mountedRef.current && importSeqRef.current === requestSeq) {
         addToast(extractErrorMessage(err, t("novel.projectListActions.importFailed")), "error");

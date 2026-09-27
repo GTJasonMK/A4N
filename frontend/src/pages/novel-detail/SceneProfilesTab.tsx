@@ -317,7 +317,7 @@ export const SceneProfilesTab: React.FC<{
     try {
       const result = await deleteSceneProfile(requestProfile.id, downstreamStrategy);
       if (!isCurrentAction(requestProjectId, requestSeq)) return;
-      await load({ silent: true, force: true, projectId: requestProjectId });
+      if (!await load({ silent: true, force: true, projectId: requestProjectId })) return;
       if (!isCurrentAction(requestProjectId, requestSeq)) return;
       setDetailFor((current) => (current?.id === requestProfile.id ? null : current));
       addToast(
