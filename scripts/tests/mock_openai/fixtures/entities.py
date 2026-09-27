@@ -6,6 +6,7 @@ import re
 from typing import Any
 
 from mock_openai.fixtures.reverse import embedded_json_objects
+from mock_openai.prompt_parsing import json_task_payload
 
 def annotated_source_pairs(combined: str) -> list[tuple[str, str]]:
     pairs = []
@@ -665,23 +666,24 @@ def optimization_chat_response(combined: str) -> dict[str, Any]:
     objects = embedded_json_objects(combined)
     states = [value["loop_state"] for value in objects
               if isinstance(value.get("loop_state"), dict)]
-    if states and "observations_ref" in states[-1]:
-        records = [value["loop_observation"] for value in objects if isinstance(value.get("loop_observation"), dict)]
-        if [record["sequence"] for record in records] != list(range(1, len(records) + 1)):
-            raise ValueError("optimization observations are not an intact ordered history")
-        observations = [record["value"] for record in records]
-        if states[-1]["progress"]["observation_count"] != len(observations):
-            raise ValueError("optimization request lost full observations")
-    else:
-        observations = states[-1].get("observations", []) if states else []
-    instruction = re.search(r"# 本次用户指令\s*\n([\s\S]*?)\n# 可用工具", combined)
-    current = instruction.group(1) if instruction else ""
-    if "A4N_OPTIMIZATION_CANCEL_WAIT" in current:
-        time.sleep(10)
-    elif "A4N_OPTIMIZATION_WAIT" in current:
-        time.sleep(3)
+    if not states or "observations_ref" not in states[-1]:
+        raise ValueError("optimization request requires explicit observation references")
+    records = [value["loop_observation"] for value in objects if isinstance(value.get("loop_observation"), dict)]
+    if [record["sequence"] for record in records] != list(range(1, len(records) + 1)):
+        raise ValueError("optimization observations are not an intact ordered history")
+    observations = [record["value"] for record in records]
+    if states[-1]["progress"]["observation_count"] != len(observations):
+        raise ValueError("optimization request lost full observations")
+    tasks = [json_task_payload(value["base_task"]) for value in objects
+             if value.get("kind") == "base_task" and isinstance(value.get("base_task"), str)]
+    if len(tasks) != 1:
+        raise ValueError("optimization request requires one base task")
+    current = tasks[0]["user_message"]
     if "A4N_OPTIMIZATION_PLAIN" in current:
-        return {"thought": "该问题可直接回答。", "action": "final", "arguments": {"reply": "局部补丁提案需要用户确认后才会写回正文。"}}
+        reply = "局部补丁提案需要用户确认后才会写回正文。"
+        if "A4N_OPTIMIZATION_LONG_REPLY" in current:
+            reply += "乙" * 6500 + "完整答复末尾"
+        return {"thought": "该问题可直接回答。", "action": "final", "arguments": {"reply": reply}}
     reads = [item["result"] for item in observations
              if item.get("tool") == "get_project_information" and item.get("success") is True]
     if not reads:

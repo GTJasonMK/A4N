@@ -52,8 +52,6 @@ pub(crate) use workflow_rules::optimize_session_workflow_run_input;
 use crate::OrchestratorContext;
 pub(crate) use a4n_api_contract::optimize::OptimizationAgentPermissions;
 
-const OPTIMIZATION_CHAT_HISTORY_LIMIT: usize = 12;
-const OPTIMIZATION_CHAT_CONTENT_LIMIT: usize = 6000;
 const OPTIMIZATION_PATCH_OLD_TEXT_MAX_CHARS: usize = 2000;
 const OPTIMIZATION_PATCH_NEW_TEXT_MAX_CHARS: usize = 4000;
 const OPTIMIZATION_PATCH_MAX_COUNT: usize = 20;

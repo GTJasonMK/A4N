@@ -1,8 +1,8 @@
 import { spawn, spawnSync } from "node:child_process";
 import { copyFileSync, existsSync, unlinkSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import { startVite, stopProcess } from "../process.mjs";
 
-const frontendRoot = fileURLToPath(new URL("../..", import.meta.url));
 const fixturePath = fileURLToPath(
   new URL("./scrub-fixture.mp4", import.meta.url),
 );
@@ -23,11 +23,10 @@ const chromiumBinary =
 const chromedriverBinary =
   process.env.A4N_WDIO_CHROMEDRIVER_BINARY ?? "/usr/bin/chromedriver";
 const tauriDriverBinary =
-  process.env.A4N_TAURI_DRIVER_BINARY ?? "/home/fufu/.cargo/bin/tauri-driver";
+  process.env.A4N_TAURI_DRIVER_BINARY ?? "tauri-driver";
 const nativeWebDriverBinary =
   process.env.A4N_WEBKIT_WEBDRIVER_BINARY ?? "/usr/bin/WebKitWebDriver";
 let viteProcess;
-let viteOutput = "";
 let tauriDriverProcess;
 let tauriDriverOutput = "";
 
@@ -135,23 +134,6 @@ const createFixture = () => {
   createScrubFixture();
 };
 
-const waitForVite = async () => {
-  const deadline = Date.now() + 30_000;
-  while (Date.now() < deadline) {
-    if (viteProcess?.exitCode != null) {
-      throw new Error(`Vite exited before browser test:\n${viteOutput}`);
-    }
-    try {
-      const response = await fetch(`${baseUrl}/e2e/video-scrub/`);
-      if (response.ok) return;
-    } catch {
-      // Vite is still starting.
-    }
-    await new Promise((resolve) => setTimeout(resolve, 100));
-  }
-  throw new Error(`Timed out waiting for Vite:\n${viteOutput}`);
-};
-
 const waitForTauriDriver = async () => {
   const deadline = Date.now() + 30_000;
   while (Date.now() < deadline) {
@@ -169,6 +151,18 @@ const waitForTauriDriver = async () => {
     await new Promise((resolve) => setTimeout(resolve, 100));
   }
   throw new Error(`Timed out waiting for tauri-driver:\n${tauriDriverOutput}`);
+};
+
+const cleanup = async () => {
+  try {
+    await stopProcess(viteProcess);
+  } finally {
+    try {
+      await stopProcess(tauriDriverProcess);
+    } finally {
+      removeFixture();
+    }
+  }
 };
 
 export const config = {
@@ -207,56 +201,28 @@ export const config = {
   logLevel: "warn",
   baseUrl,
   onPrepare: async () => {
-    createFixture();
-    if (useTauri) {
-      process.env.A4N_VIDEO_SCRUB_FIXTURE_PATH = playbackFixturePath;
-      process.env.A4N_VIDEO_SCRUB_FRAMES_FIXTURE_PATH = framesFixturePath;
-      tauriDriverProcess = spawn(
-        tauriDriverBinary,
-        [
-          "--port",
-          "4444",
-          "--native-port",
-          "4445",
-          "--native-driver",
-          nativeWebDriverBinary,
-        ],
-        { stdio: ["ignore", "pipe", "pipe"] },
-      );
-      const recordDriverOutput = (chunk) => {
-        tauriDriverOutput = `${tauriDriverOutput}${chunk}`.slice(-12_000);
-      };
-      tauriDriverProcess.stdout.on("data", recordDriverOutput);
-      tauriDriverProcess.stderr.on("data", recordDriverOutput);
-      await waitForTauriDriver();
+    try {
+      createFixture();
+      if (useTauri) {
+        process.env.A4N_VIDEO_SCRUB_FIXTURE_PATH = playbackFixturePath;
+        process.env.A4N_VIDEO_SCRUB_FRAMES_FIXTURE_PATH = framesFixturePath;
+        tauriDriverProcess = spawn(
+          tauriDriverBinary,
+          ["--port", "4444", "--native-port", "4445", "--native-driver", nativeWebDriverBinary],
+          { stdio: ["ignore", "pipe", "pipe"] },
+        );
+        const recordDriverOutput = (chunk) => {
+          tauriDriverOutput = `${tauriDriverOutput}${chunk}`.slice(-12_000);
+        };
+        tauriDriverProcess.stdout.on("data", recordDriverOutput);
+        tauriDriverProcess.stderr.on("data", recordDriverOutput);
+        await waitForTauriDriver();
+      }
+      viteProcess = await startVite(port, "/e2e/video-scrub/", { VITE_A4N_API_TRANSPORT: "tauri" });
+    } catch (error) {
+      await cleanup();
+      throw error;
     }
-    viteProcess = spawn(
-      process.execPath,
-      [
-        "./node_modules/vite/bin/vite.js",
-        "--host",
-        host,
-        "--port",
-        String(port),
-        "--strictPort",
-        ...(process.env.A4N_UI_VITE_CONFIG ? ["--config", process.env.A4N_UI_VITE_CONFIG] : []),
-      ],
-      {
-        cwd: frontendRoot,
-        env: { ...process.env, VITE_A4N_API_TRANSPORT: "tauri" },
-        stdio: ["ignore", "pipe", "pipe"],
-      },
-    );
-    const recordOutput = (chunk) => {
-      viteOutput = `${viteOutput}${chunk}`.slice(-12_000);
-    };
-    viteProcess.stdout.on("data", recordOutput);
-    viteProcess.stderr.on("data", recordOutput);
-    await waitForVite();
   },
-  onComplete: () => {
-    viteProcess?.kill("SIGTERM");
-    tauriDriverProcess?.kill("SIGTERM");
-    removeFixture();
-  },
+  onComplete: cleanup,
 };

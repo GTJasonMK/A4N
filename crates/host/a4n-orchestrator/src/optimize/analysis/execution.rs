@@ -3,7 +3,6 @@ use super::super::agent_loop::executor::{
     AgentLoopExecutionError, AgentLoopGenerationContext, ExplicitAnalysisAgentLoopInput,
     OptimizeAnalysisTurnExecution,
 };
-use super::super::agent_loop::insert_current_chapter_content;
 use super::super::context::build_content_optimization_context;
 use super::super::messages::is_content_optimization_analysis_prompt;
 use crate::optimize::permissions::optimization_permissions_from_session;
@@ -54,23 +53,21 @@ impl OrchestratorContext {
                 a4n_error::AppError::InvalidArgument("优化分析会话缺少分析 user 输入".into())
             })?;
 
-        let chapter = self
-            .load_optimize_chapter_for_operation(
-                &session,
-                "执行内容优化分析",
-                "已删除章节不能执行内容优化分析",
-                Some("章节正文为空，无法执行内容优化分析"),
-            )
-            .await?;
+        self.load_optimize_chapter_for_operation(
+            &session,
+            "执行内容优化分析",
+            "已删除章节不能执行内容优化分析",
+            Some("章节正文为空，无法执行内容优化分析"),
+        )
+        .await?;
         let permissions = optimization_permissions_from_session(&session)?;
-        let mut analysis_context = build_content_optimization_context(
+        let analysis_context = build_content_optimization_context(
             self.database.connection(),
             session.project_id,
             session.chapter_id,
             &permissions,
         )
         .await?;
-        insert_current_chapter_content(&mut analysis_context, &chapter.content);
         let turn_text = session
             .agent_instruction
             .as_deref()

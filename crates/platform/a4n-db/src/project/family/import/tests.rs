@@ -271,6 +271,55 @@ async fn project_family_import_rebuilds_raw_blueprint_from_formal_rows() {
 
     assert_eq!(raw, snapshot);
     assert!(raw.get("untrusted").is_none());
+
+    let mut history_only = package;
+    let live_character = history_only.text_core.blueprint_characters[0].clone();
+    history_only.text_core.blueprint = None;
+    history_only.text_core.blueprint_characters.clear();
+    history_only.text_core.blueprint_relationships.clear();
+    let imported =
+        import_project_family_package_rows(&db, user.id, &history_only, &mut EmptyMediaImporter)
+            .await
+            .expect("reset projects retain independently valid blueprint history");
+    let restored = novel_project::Entity::find_by_id(imported[0].id)
+        .one(&db)
+        .await
+        .unwrap()
+        .unwrap();
+    assert!(restored.raw_blueprint.is_none());
+    assert!(
+        novel_blueprint::Entity::find()
+            .filter(novel_blueprint::Column::ProjectId.eq(restored.id))
+            .one(&db)
+            .await
+            .unwrap()
+            .is_none()
+    );
+    let versions = blueprint_version::Entity::find()
+        .filter(blueprint_version::Column::ProjectId.eq(restored.id))
+        .all(&db)
+        .await
+        .unwrap();
+    assert_eq!(versions.len(), 1);
+    assert_eq!(versions[0].blueprint_data, snapshot);
+
+    history_only
+        .text_core
+        .blueprint_characters
+        .push(live_character);
+    let error =
+        import_project_family_package_rows(&db, user.id, &history_only, &mut EmptyMediaImporter)
+            .await
+            .expect_err("live blueprint rows still require their current blueprint");
+    assert!(error.to_string().contains("包含当前蓝图角色或关系"));
+    history_only.text_core.blueprint_characters.clear();
+    history_only.text_core.blueprint_versions[0].blueprint_data =
+        serde_json::json!({"invalid": true});
+    let error =
+        import_project_family_package_rows(&db, user.id, &history_only, &mut EmptyMediaImporter)
+            .await
+            .expect_err("retained history must still satisfy the full snapshot contract");
+    assert!(error.to_string().contains("蓝图版本快照无效"));
 }
 
 #[tokio::test]

@@ -71,15 +71,6 @@ fn required_string_array(arguments: &Value, key: &str) -> Result<Vec<String>, Ap
         .collect()
 }
 
-pub(in crate::optimize) fn insert_current_chapter_content(context: &mut Value, content: &str) {
-    if let Some(current_chapter) = context
-        .get_mut("current_chapter")
-        .and_then(Value::as_object_mut)
-    {
-        current_chapter.insert("content".to_string(), json!(content));
-    }
-}
-
 pub(in crate::optimize) fn run_tool_arguments(
     arguments: &Value,
 ) -> Result<(&str, Value), AppError> {

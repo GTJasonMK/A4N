@@ -16,6 +16,7 @@ pub(super) struct RawCallResult {
     pub(super) restored_parsed_output: Option<Value>,
     pub(super) usage: Option<Value>,
     pub(super) finish_reason: Option<String>,
+    pub(super) upgraded_contract: bool,
 }
 
 impl OrchestratorContext {
@@ -43,6 +44,11 @@ impl OrchestratorContext {
                 restored_parsed_output: Some(checkpoint.parsed_output),
                 usage: checkpoint.usage,
                 finish_reason: checkpoint.finish_reason,
+                upgraded_contract: checkpoint.artifacts_json.as_ref().is_some_and(|artifacts| {
+                    artifacts
+                        .get(a4n_domain::shooting_script::compat::checkpoint::TIMING_UPGRADE_KEY)
+                        .is_some()
+                }),
             });
         }
 
@@ -97,6 +103,7 @@ impl OrchestratorContext {
                 .map(serde_json::to_value)
                 .transpose()?,
             finish_reason: result.finish_reason,
+            upgraded_contract: false,
         })
     }
 

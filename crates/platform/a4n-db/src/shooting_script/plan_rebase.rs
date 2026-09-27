@@ -1,6 +1,6 @@
 use a4n_db_models::models::chapter::chapter_shooting_script;
 use a4n_domain::shooting_script::{
-    ChapterShootingScriptV1, DirectorScriptPlan, ShootingScriptPlanSyncV1,
+    ChapterShootingScriptV2, DirectorScriptPlan, ShootingScriptPlanSyncV1,
     ShootingVisualPlanSourceV1, project_visual_plan_for_shooting_script,
 };
 use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QueryOrder};
@@ -26,7 +26,7 @@ pub async fn chapter_shooting_script_plan_sync<C: ConnectionTrait>(
 
 pub(crate) async fn shooting_script_director_plan<C: ConnectionTrait>(
     db: &C,
-    script: &ChapterShootingScriptV1,
+    script: &ChapterShootingScriptV2,
 ) -> Result<DirectorScriptPlan, ShootingScriptDbError> {
     let identity = script
         .visual_plan_source
@@ -110,7 +110,7 @@ where
         })?;
     let sync = rebased.plan_sync(&director);
     let previous_director = shooting_script_director_plan(db, &current.script).await?;
-    let fingerprints = |script: &ChapterShootingScriptV1, plan: &DirectorScriptPlan| {
+    let fingerprints = |script: &ChapterShootingScriptV2, plan: &DirectorScriptPlan| {
         script
             .shot_content_fingerprints(plan)
             .map_err(|error| ShootingScriptDbError::InvalidState(error.to_string()))

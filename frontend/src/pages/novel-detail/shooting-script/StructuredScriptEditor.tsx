@@ -2,7 +2,6 @@ import {
   AdvancedDetails,
   BeatEditor,
   DiagnosticDetails,
-  NumberField,
   SelectField,
   StringListField,
   TextField,
@@ -13,12 +12,12 @@ import React, { useEffect, useRef } from "react";
 import { ChevronRight, Plus, Trash2 } from "lucide-react";
 
 import type {
-  ChapterShootingScriptV1,
+  ChapterShootingScriptV2,
   ShootingDirectingStatementV1,
   ShootingDialogueCueV1,
-  ShootingPerformanceBeatV1,
-  ShootingSceneV1,
-  ShootingShotV1,
+  ShootingPerformanceBeatV2,
+  ShootingSceneV2,
+  ShootingShotV2,
   ShootingTransitionContractV1,
 } from "../../../api/shootingScript";
 import {
@@ -26,6 +25,7 @@ import {
   shootingCameraMovementLabel,
   shootingCoverageLabel,
   shootingShotSizeLabel,
+  shootingShotDurationLabel,
 } from "../../../utils/shootingScriptPresentation";
 import { useI18n, type MessageKey } from "../../../i18n";
 import { BookButton, BookIconButton } from "../../../components/ui/BookButton";
@@ -117,8 +117,8 @@ const CAMERA_MOVEMENT_OPTIONS = [
 const COVERAGE_OPTIONS = ["must_show", "should_show", "optional"] as const;
 
 interface StructuredScriptEditorProps {
-  script: ChapterShootingScriptV1;
-  onChange: (script: ChapterShootingScriptV1) => void;
+  script: ChapterShootingScriptV2;
+  onChange: (script: ChapterShootingScriptV2) => void;
   disabled?: boolean;
   focusShotId?: string | null;
 }
@@ -135,10 +135,9 @@ const newTransition = (target: number): ShootingTransitionContractV1 => ({
 });
 
 const newBeat = (
-  shot: ShootingShotV1,
-  estimatedSeconds: number,
+  shot: ShootingShotV2,
   beatIndex: number,
-): ShootingPerformanceBeatV1 => ({
+): ShootingPerformanceBeatV2 => ({
   beat_index: beatIndex,
   beat_id: newEntryId("beat"),
   source_span_ids: [...shot.source_span_ids],
@@ -160,11 +159,10 @@ const newBeat = (
   entry_state: "",
   exit_state: "",
   required: false,
-  estimated_seconds: estimatedSeconds,
 });
 
 const newDialogueCue = (
-  beat: ShootingPerformanceBeatV1,
+  beat: ShootingPerformanceBeatV2,
 ): ShootingDialogueCueV1 => ({
   beat_id: beat.beat_id,
   speaker: beat.actor ?? "",
@@ -385,7 +383,7 @@ export const StructuredScriptEditor: React.FC<StructuredScriptEditorProps> = ({
 };
 
 const SceneEditor: React.FC<{
-  scene: ShootingSceneV1;
+  scene: ShootingSceneV2;
   sceneOffset: number;
   narrativeUnitIndexes: number[];
   onChange: UpdateValue;
@@ -798,34 +796,20 @@ const SceneEditor: React.FC<{
 };
 
 const ShotEditor: React.FC<{
-  shot: ShootingShotV1;
+  shot: ShootingShotV2;
   path: ValuePath;
   onChange: UpdateValue;
 }> = ({ shot, path, onChange }) => {
-  const { t } = useI18n();
-  const updateShot = (next: ShootingShotV1) => onChange(path, next);
+  const { t, locale } = useI18n();
+  const updateShot = (next: ShootingShotV2) => onChange(path, next);
   const addBeat = () => {
     const next = structuredClone(shot);
-    const last = next.performance_beats.at(-1);
-    if (last) {
-      const split = last.estimated_seconds / 2;
-      last.estimated_seconds = split;
-      next.performance_beats.push(
-        newBeat(shot, split, next.performance_beats.length + 1),
-      );
-    } else {
-      next.performance_beats.push(
-        newBeat(shot, shot.estimated_natural_seconds, 1),
-      );
-    }
+    next.performance_beats.push(newBeat(shot, next.performance_beats.length + 1));
     updateShot(next);
   };
   const removeBeat = (beatOffset: number) => {
     const next = structuredClone(shot);
     const [removed] = next.performance_beats.splice(beatOffset, 1);
-    if (removed && next.performance_beats.length > 0) {
-      next.performance_beats[0].estimated_seconds += removed.estimated_seconds;
-    }
     next.performance_beats.forEach((beat, index) => {
       beat.beat_index = index + 1;
     });
@@ -905,12 +889,14 @@ const ShotEditor: React.FC<{
             path={[...path, "lens_intent"]}
             onChange={onChange}
           />
-          <NumberField
-            label={t("shootingScript.editor.naturalDuration")}
-            value={shot.estimated_natural_seconds}
-            path={[...path, "estimated_natural_seconds"]}
-            onChange={onChange}
-          />
+          <div className="min-w-0">
+            <span className="mb-1 block text-small text-book-text-muted">
+              {t("shootingScript.editor.plannedDuration")}
+            </span>
+            <p className="text-xs text-book-text-main">
+              {shootingShotDurationLabel(shot, locale, t)}
+            </p>
+          </div>
         </div>
 
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">

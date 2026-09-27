@@ -1,6 +1,6 @@
 import React from "react";
 import { ChevronRight, Plus, Trash2 } from "lucide-react";
-import type { ShootingPerformanceBeatV1 } from "../../../api/shootingScript";
+import type { ShootingPerformanceBeatV2 } from "../../../api/shootingScript";
 import { useI18n } from "../../../i18n";
 import { BookButton, BookIconButton } from "../../../components/ui/BookButton";
 import { ThemedSelect } from "../../../components/ui/ThemedSelect";
@@ -9,7 +9,7 @@ export type ValuePath = Array<string | number>;
 export type UpdateValue = (path: ValuePath, value: unknown) => void;
 
 export const BeatEditor: React.FC<{
-  beat: ShootingPerformanceBeatV1;
+  beat: ShootingPerformanceBeatV2;
   path: ValuePath;
   onChange: UpdateValue;
   onRemove: () => void;
@@ -150,12 +150,6 @@ export const BeatEditor: React.FC<{
           path={[...path, "exit_state"]}
           onChange={onChange}
         />
-        <NumberField
-          label={t("shootingScript.editor.estimatedSeconds")}
-          value={beat.estimated_seconds}
-          path={[...path, "estimated_seconds"]}
-          onChange={onChange}
-        />
         <SwitchField
           label={t("shootingScript.editor.required")}
           value={beat.required}
@@ -199,32 +193,6 @@ export const TextField: React.FC<{
       }
       rows={compact ? 1 : (value?.length ?? 0) > 80 ? 3 : 2}
       className="pyqt-input w-full resize-y text-xs"
-    />
-  </label>
-);
-
-export const NumberField: React.FC<{
-  label: string;
-  value: number | null;
-  path: ValuePath;
-  onChange: UpdateValue;
-  nullable?: boolean;
-}> = ({ label, value, path, onChange, nullable = false }) => (
-  <label className="block min-w-0">
-    <span className="mb-1 block text-small text-book-text-muted">{label}</span>
-    <input
-      type="number"
-      step="any"
-      value={value ?? ""}
-      onChange={(event) =>
-        onChange(
-          path,
-          nullable && event.target.value === ""
-            ? null
-            : Number(event.target.value),
-        )
-      }
-      className="pyqt-input w-full text-xs"
     />
   </label>
 );

@@ -16,6 +16,8 @@ use sha2::{Digest, Sha256};
 
 use super::{MediaFileEntry, ProjectFamilyPackage, VideoStudioProjectPackage};
 
+mod shooting_upgrade;
+
 pub(crate) const PROJECT_BUNDLE_PACKAGE_VERSION: &str = "a4n_project_bundle_v1";
 pub(crate) const MANIFEST_PATH: &str = "a4n-project-bundle.json";
 

@@ -4,7 +4,6 @@
 import argparse
 import base64
 import json
-import os
 import tempfile
 import threading
 import time
@@ -13,7 +12,7 @@ from pathlib import Path
 
 from mock_openai.protocol import MP4_1S_BASE64, PNG_1X1_BASE64
 from mock_openai.transport import ProviderServer
-from run_cli_contract_e2e import Cli, checked, provider_log_entries, runtime_snapshot, secure_json
+from run_cli_contract_e2e import checked, logged_in_cli, provider_log_entries, runtime_snapshot, secure_json
 
 FIRST = "checkpoint audit first image"
 SECOND = "checkpoint audit second image"
@@ -50,12 +49,7 @@ def main():
             thread = threading.Thread(target=provider.serve_forever, daemon=True)
             thread.start()
             try:
-                env = os.environ.copy()
-                password = env.pop(args.password_env)
-                env.pop("A4N_ACCESS_TOKEN", None)
-                cli = Cli(args.a4n, args.server, work / "cli.json", work / "context.json", 60, env)
-                checked(cli, ["health"], "health")
-                checked(cli, ["auth", "login", "--username", args.username, "--password-stdin"], "login", password + "\n")
+                cli = logged_in_cli(args, work)
                 settings = runtime_snapshot(f"http://127.0.0.1:{provider.server_address[1]}/v1", embedding_dimension=384)
                 settings["image"]["max_concurrent"] = 1
                 for config in settings["image_configs"]:

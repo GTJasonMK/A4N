@@ -13,7 +13,7 @@ use a4n_domain::{
     canvas_transfer_runtime_identity_key,
     manga::{MangaPageGenerationLayoutV2, MangaReferenceAssetKind},
     project::ProjectKind,
-    shooting_script::{CHAPTER_SHOOTING_SCRIPT_V1, ChapterShootingScriptV1},
+    shooting_script::{CHAPTER_SHOOTING_SCRIPT_V2, ChapterShootingScriptV2},
 };
 
 use crate::{
@@ -112,7 +112,7 @@ fn validate_shooting_scripts(
                 script.id, script.source_chapter_id
             ));
         }
-        if script.contract_version != CHAPTER_SHOOTING_SCRIPT_V1 || script.revision <= 0 {
+        if script.contract_version != CHAPTER_SHOOTING_SCRIPT_V2 || script.revision <= 0 {
             return Err(format!(
                 "项目族导入包拍摄剧本合同身份无效: shooting_script_id={}, contract_version={}, revision={}",
                 script.id, script.contract_version, script.revision
@@ -134,7 +134,7 @@ fn validate_shooting_scripts(
             script.id,
         )?;
         validate_sha256(&script.script_sha256, "拍摄剧本 script_sha256", script.id)?;
-        let typed_script: ChapterShootingScriptV1 =
+        let typed_script: ChapterShootingScriptV2 =
             serde_json::from_value(script.script_json.clone()).map_err(|error| {
                 format!(
                     "项目族导入包拍摄剧本 JSON 无效: shooting_script_id={}, error={error}",

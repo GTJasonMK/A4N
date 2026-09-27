@@ -2,7 +2,9 @@
 
 use a4n_domain::{
     chapter_visual_plan::ChapterVisualPlanV3,
-    shooting_script::{ChapterShootingScriptV1, project_visual_plan_for_shooting_script},
+    shooting_script::{
+        compat::v1::ChapterShootingScriptV1, project_visual_plan_for_shooting_script,
+    },
 };
 use sea_orm::{ConnectionTrait, DbBackend, DbErr, Statement};
 use sea_orm_migration::prelude::*;
@@ -101,4 +103,4 @@ async fn migrate_metadata<C: ConnectionTrait>(db: &C) -> Result<(), DbErr> {
 }
 
 #[cfg(test)]
-mod tests;
+pub(crate) mod tests;

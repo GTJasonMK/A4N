@@ -24,42 +24,51 @@ where
     let Some(current_chapter) = optimization_chapter_by_id(db, input.chapter_id).await? else {
         return Ok(None);
     };
+    if current_chapter.project_id != input.project_id {
+        return Err(OptimizeDbError::InvalidArgument(
+            "内容优化章节不属于当前项目".into(),
+        ));
+    }
 
-    let current_chapter_outline = match current_chapter.outline_id {
-        Some(outline_id) => chapter_outline::Entity::find_by_id(outline_id)
-            .select_only()
-            .column(chapter_outline::Column::ChapterNumber)
-            .column(chapter_outline::Column::Title)
-            .column(chapter_outline::Column::Summary)
-            .column(chapter_outline::Column::Beats)
-            .column(chapter_outline::Column::KeyScenes)
-            .column(chapter_outline::Column::PacingScore)
-            .column(chapter_outline::Column::ForeshadowingSetup)
-            .column(chapter_outline::Column::ForeshadowingPayoff)
-            .column(chapter_outline::Column::CharactersInvolved)
-            .column(chapter_outline::Column::WordCountTarget)
-            .into_model::<OptimizationChapterOutlineRecord>()
-            .one(db)
-            .await
-            .map_err(OptimizeDbError::Database)?,
-        None => chapter_outline::Entity::find()
-            .filter(chapter_outline::Column::ProjectId.eq(input.project_id))
-            .filter(chapter_outline::Column::ChapterNumber.eq(current_chapter.chapter_number))
-            .select_only()
-            .column(chapter_outline::Column::ChapterNumber)
-            .column(chapter_outline::Column::Title)
-            .column(chapter_outline::Column::Summary)
-            .column(chapter_outline::Column::Beats)
-            .column(chapter_outline::Column::KeyScenes)
-            .column(chapter_outline::Column::PacingScore)
-            .column(chapter_outline::Column::ForeshadowingSetup)
-            .column(chapter_outline::Column::ForeshadowingPayoff)
-            .column(chapter_outline::Column::CharactersInvolved)
-            .column(chapter_outline::Column::WordCountTarget)
-            .into_model::<OptimizationChapterOutlineRecord>()
-            .one(db)
-            .await
-            .map_err(OptimizeDbError::Database)?,
+    let current_chapter_outline = if !input.read_outlines {
+        None
+    } else {
+        match current_chapter.outline_id {
+            Some(outline_id) => chapter_outline::Entity::find_by_id(outline_id)
+                .select_only()
+                .column(chapter_outline::Column::ChapterNumber)
+                .column(chapter_outline::Column::Title)
+                .column(chapter_outline::Column::Summary)
+                .column(chapter_outline::Column::Beats)
+                .column(chapter_outline::Column::KeyScenes)
+                .column(chapter_outline::Column::PacingScore)
+                .column(chapter_outline::Column::ForeshadowingSetup)
+                .column(chapter_outline::Column::ForeshadowingPayoff)
+                .column(chapter_outline::Column::CharactersInvolved)
+                .column(chapter_outline::Column::WordCountTarget)
+                .into_model::<OptimizationChapterOutlineRecord>()
+                .one(db)
+                .await
+                .map_err(OptimizeDbError::Database)?,
+            None => chapter_outline::Entity::find()
+                .filter(chapter_outline::Column::ProjectId.eq(input.project_id))
+                .filter(chapter_outline::Column::ChapterNumber.eq(current_chapter.chapter_number))
+                .select_only()
+                .column(chapter_outline::Column::ChapterNumber)
+                .column(chapter_outline::Column::Title)
+                .column(chapter_outline::Column::Summary)
+                .column(chapter_outline::Column::Beats)
+                .column(chapter_outline::Column::KeyScenes)
+                .column(chapter_outline::Column::PacingScore)
+                .column(chapter_outline::Column::ForeshadowingSetup)
+                .column(chapter_outline::Column::ForeshadowingPayoff)
+                .column(chapter_outline::Column::CharactersInvolved)
+                .column(chapter_outline::Column::WordCountTarget)
+                .into_model::<OptimizationChapterOutlineRecord>()
+                .one(db)
+                .await
+                .map_err(OptimizeDbError::Database)?,
+        }
     };
 
     let project_id = input.project_id;

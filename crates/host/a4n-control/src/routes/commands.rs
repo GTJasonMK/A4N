@@ -142,10 +142,10 @@ use self::front::{
 };
 use self::galgame::{
     bind_galgame_media, cancel_galgame_pipeline, delete_galgame_line, export_galgame_webgal,
-    get_galgame_pipeline_status, get_galgame_script, import_galgame_audio, insert_galgame_line,
-    plan_galgame_assets, preview_galgame_pipeline_request, reorder_galgame_lines,
-    run_galgame_asset_generation, start_galgame_pipeline, unbind_galgame_media,
-    update_galgame_choices, update_galgame_line, update_galgame_scene,
+    get_galgame_asset_plan, get_galgame_pipeline_status, get_galgame_script, import_galgame_audio,
+    insert_galgame_line, plan_galgame_assets, preview_galgame_pipeline_request,
+    reorder_galgame_lines, run_galgame_asset_generation, start_galgame_pipeline,
+    unbind_galgame_media, update_galgame_choices, update_galgame_line, update_galgame_scene,
 };
 use self::import_project::{
     accept_import_review, accept_project_invite, batch_accept_reviews, cancel_import_analysis,

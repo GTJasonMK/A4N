@@ -197,6 +197,30 @@ def checked(cli: Cli, parts: list[str], label: str, stdin: str | None = None) ->
     return envelope, result
 
 
+def cli_e2e_parser(description: str) -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(description=description)
+    for name in ("a4n", "server", "username", "provider-url"):
+        parser.add_argument("--" + name, required=True)
+    parser.add_argument("--password-env", default="A4N_PASSWORD")
+    parser.add_argument("--provider-log", type=Path, required=True)
+    parser.add_argument("--report", type=Path, required=True)
+    return parser
+
+
+def logged_in_cli(args: argparse.Namespace, work: Path, *, timeout: float = 60) -> Cli:
+    env = os.environ.copy()
+    password = env.pop(args.password_env, "")
+    if not password:
+        raise RunnerError(f"登录密码环境变量 {args.password_env} 为空")
+    env.pop("A4N_ACCESS_TOKEN", None)
+    work.mkdir(parents=True, exist_ok=True)
+    cli = Cli(args.a4n, args.server, work / "cli.json", work / "context.json", timeout, env)
+    checked(cli, ["health"], "health")
+    checked(cli, ["capabilities", "check"], "CLI/Server compatibility")
+    checked(cli, ["auth", "login", "--username", args.username, "--password-stdin"], "login", password + "\n")
+    return cli
+
+
 def read_ledger(path: Path | None) -> dict[str, Any]:
     if path is None:
         return {"variables": {}, "scenarios": [], "skips": {}}

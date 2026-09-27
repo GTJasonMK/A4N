@@ -232,10 +232,16 @@ impl AgentBudget {
         {
             return Err("Agent budget 上限必须为正数".into());
         }
-        if self
-            .max_duration_seconds
-            .is_some_and(|value| value > i64::MAX as u64)
-        {
+        if self.max_duration_seconds.is_some_and(|value| {
+            i64::try_from(value)
+                .ok()
+                .and_then(chrono::Duration::try_seconds)
+                .and_then(|duration| chrono::Utc::now().checked_add_signed(duration))
+                .is_none()
+                || std::time::Instant::now()
+                    .checked_add(std::time::Duration::from_secs(value))
+                    .is_none()
+        }) {
             return Err("Agent max_duration_seconds 超出时间实现上限".into());
         }
         if self.max_cost_micros.is_some() {
@@ -572,7 +578,31 @@ pub enum AgentToolCostClass {
 
 #[cfg(test)]
 mod tests {
-    use super::AgentRunStatus;
+    use super::{AgentBudget, AgentRunStatus};
+
+    #[test]
+    fn duration_budget_must_fit_wall_and_monotonic_clocks() {
+        for limit in [u64::MAX, i64::MAX as u64, (i64::MAX / 1000) as u64] {
+            let budget = AgentBudget {
+                max_duration_seconds: Some(limit),
+                ..Default::default()
+            };
+            assert!(
+                budget
+                    .validate()
+                    .unwrap_err()
+                    .contains("max_duration_seconds")
+            );
+        }
+        for limit in [None, Some(1), Some(86_400)] {
+            AgentBudget {
+                max_duration_seconds: limit,
+                ..Default::default()
+            }
+            .validate()
+            .unwrap();
+        }
+    }
 
     #[test]
     fn recovery_required_is_terminal_but_waiting_is_not() {

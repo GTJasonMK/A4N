@@ -1,30 +1,18 @@
 import assert from "node:assert/strict";
-import { spawn } from "node:child_process";
 import { mkdir } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { remote } from "webdriverio";
+import { startVite, stopProcess } from "../process.mjs";
 
-const root = fileURLToPath(new URL("../..", import.meta.url));
 const output = fileURLToPath(new URL("../../../data/llm-cache-browser/", import.meta.url));
 const port = process.env.VITE_PORT ?? "4198";
 const url = `http://127.0.0.1:${port}/e2e/llm-cache/`;
-const vite = spawn(process.execPath, ["node_modules/vite/bin/vite.js", "--host", "127.0.0.1", "--port", port, "--strictPort"], {
-  cwd: root,
-  env: { ...process.env, VITE_A4N_API_TRANSPORT: "tauri", VITE_A4N_API_BASE_URL: "http://127.0.0.1:19998/api", A4N_WEB_ADDR: "127.0.0.1:19998", A4N_DISABLE_VITE_HMR: "1" },
-  stdio: ["ignore", "pipe", "pipe"],
+const vite = await startVite(port, "/e2e/llm-cache/", {
+  VITE_A4N_API_TRANSPORT: "tauri", VITE_A4N_API_BASE_URL: "http://127.0.0.1:19998/api",
+  A4N_WEB_ADDR: "127.0.0.1:19998", A4N_DISABLE_VITE_HMR: "1",
 });
-let logs = "";
-for (const stream of [vite.stdout, vite.stderr]) stream.on("data", (chunk) => { logs = `${logs}${chunk}`.slice(-8000); });
 let browser;
 try {
-  let ready = false;
-  for (let attempt = 0; attempt < 100; attempt++) {
-    if (vite.exitCode != null) throw new Error(logs);
-    try { ready = (await fetch(url)).ok; } catch { /* Await Vite startup. */ }
-    if (ready) break;
-    await new Promise((resolve) => setTimeout(resolve, 100));
-  }
-  assert.ok(ready, logs);
   browser = await remote({ logLevel: "error", capabilities: {
     browserName: "chrome", "wdio:chromedriverOptions": { binary: "/usr/bin/chromedriver" },
     "goog:chromeOptions": { binary: "/usr/bin/chromium", args: ["--headless=new", "--no-sandbox", "--disable-dev-shm-usage"] },
@@ -63,6 +51,9 @@ try {
   }
   throw error;
 } finally {
-  if (browser) await browser.deleteSession();
-  vite.kill("SIGTERM");
+  try {
+    if (browser) await browser.deleteSession();
+  } finally {
+    await stopProcess(vite);
+  }
 }

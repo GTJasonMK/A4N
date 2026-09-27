@@ -1,9 +1,9 @@
 use a4n_embedding_contract::EmbedTextsPayload;
 #[cfg(feature = "fastembed")]
 use a4n_embedding_contract::EmbeddingModelPayload;
+use a4n_service_protocol::{BodyLimitKind, EMBEDDING_CACHE_DIR_ENV, EMBEDDING_EMBED_TEXTS_PATH};
 #[cfg(feature = "fastembed")]
 use a4n_service_protocol::{CapabilityTaskEventKind, ServiceErrorCode};
-use a4n_service_protocol::{EMBEDDING_CACHE_DIR_ENV, EMBEDDING_EMBED_TEXTS_PATH};
 #[cfg(feature = "fastembed")]
 use a4n_test_support::process::force_finish_sidecar;
 use a4n_test_support::process::{
@@ -258,8 +258,13 @@ async fn embedding_service_process_serves_local_hash_and_recovers_cache() {
     let base_url = sidecar_base_url(addr);
     assert_protected_route_rejects_invalid_auth(&base_url, EMBEDDING_EMBED_TEXTS_PATH).await;
     assert_route_rejects_malformed_json(&base_url, EMBEDDING_EMBED_TEXTS_PATH).await;
-    assert_route_rejects_oversized_json(&base_url, EMBEDDING_EMBED_TEXTS_PATH, 16 * 1024 * 1024)
-        .await;
+    assert_route_rejects_oversized_json(
+        &base_url,
+        EMBEDDING_EMBED_TEXTS_PATH,
+        EMBEDDING_SERVICE_NAME,
+        BodyLimitKind::Json,
+    )
+    .await;
     let client = HttpEmbeddingClient::new_with_auth_token(base_url, SIDECAR_PROCESS_TEST_TOKEN);
     let request = request_context(
         "embedding-process-embed",

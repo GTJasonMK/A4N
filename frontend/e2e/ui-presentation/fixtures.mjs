@@ -66,6 +66,12 @@ export const uiFixtures = {
     page_cli_enabled: false, avatar_url: null, created_at: null, updated_at: null,
     last_login_at: null, oauth_provider: null, oauth_subject: null,
   },
+  get_package_preferences: { host_scope: "ui-fixture-host", hidden_package_ids: [] },
+  get_project_fact_feedback: {
+    project_id: 1, interval_chapters: 5, consolidated_chapters: [], pending_chapters: [],
+    legacy_chapters: [1, 2], last_consolidated_at: null, workflow_kind: null,
+    workflow_run_id: null, workflow_status: null, can_resume: false, error: null, changes: [],
+  },
   list_projects: { items: projects, page: 1, page_size: 20, total: projects.length },
   get_project: project,
   list_chapters: chapters,

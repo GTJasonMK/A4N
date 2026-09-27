@@ -1,10 +1,12 @@
+use a4n_db::galgame::GalgameGenerationSpecUpsertOutcome;
+use a4n_db_models::models::generation::generation_spec;
 use a4n_error::AppError;
 
 use crate::galgame::{OrchestratorContext, galgame_asset_plan_spec_record_error};
 
 use super::contracts::{GalgameAssetPlanGroup, GalgameAssetPlanItemDraft};
 use super::drafts::push_plan_item;
-use super::{GalgameAssetPlan, GalgameAssetPlanSummary};
+use super::{GalgameAssetPlan, GalgameAssetPlanOutcome, GalgameAssetPlanSummary};
 
 pub(super) async fn persist_galgame_asset_plan(
     service: &OrchestratorContext,
@@ -33,17 +35,36 @@ pub(super) async fn persist_galgame_asset_plan(
         });
     }
 
+    assemble_galgame_asset_plan(item_drafts.into_iter().zip(upserts).map(|(draft, upsert)| {
+        let outcome = match upsert.outcome {
+            GalgameGenerationSpecUpsertOutcome::Created => GalgameAssetPlanOutcome::Created,
+            GalgameGenerationSpecUpsertOutcome::Updated => GalgameAssetPlanOutcome::Updated,
+            GalgameGenerationSpecUpsertOutcome::Reused => GalgameAssetPlanOutcome::Reused,
+        };
+        (draft, upsert.model, Some(outcome))
+    }))
+}
+
+pub(super) fn assemble_galgame_asset_plan(
+    items: impl IntoIterator<
+        Item = (
+            GalgameAssetPlanItemDraft,
+            generation_spec::Model,
+            Option<GalgameAssetPlanOutcome>,
+        ),
+    >,
+) -> Result<GalgameAssetPlan, AppError> {
     let mut summary = GalgameAssetPlanSummary::default();
     let mut backgrounds = Vec::new();
     let mut portrait_expressions = Vec::new();
     let mut event_cgs = Vec::new();
-    for (draft, upsert) in item_drafts.into_iter().zip(upserts) {
+    for (draft, spec, outcome) in items {
         let items = match draft.group {
             GalgameAssetPlanGroup::Background => &mut backgrounds,
             GalgameAssetPlanGroup::PortraitExpression => &mut portrait_expressions,
             GalgameAssetPlanGroup::EventCg => &mut event_cgs,
         };
-        push_plan_item(items, &mut summary, upsert, draft)?;
+        push_plan_item(items, &mut summary, spec, draft, outcome)?;
     }
     summary.background_specs = backgrounds.len();
     summary.portrait_expression_specs = portrait_expressions.len();

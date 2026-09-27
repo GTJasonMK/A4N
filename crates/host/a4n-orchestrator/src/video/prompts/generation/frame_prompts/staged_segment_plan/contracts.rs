@@ -73,8 +73,6 @@ pub(super) struct FinalizeStagedSegmentPlanInput<'a> {
     pub(super) workflow_run_id: i64,
     pub(super) source_spans: &'a [SourceSpan],
     pub(super) shooting_script_projection: &'a VideoShootingScriptProjection,
-    pub(super) duration_secs: i32,
-    pub(super) default_aspect_ratio: &'a str,
     pub(super) cancel_token: Option<&'a CancellationToken>,
     pub(super) rendered_shots: RenderedSegmentPlanShots,
 }

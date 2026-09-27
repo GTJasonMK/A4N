@@ -110,6 +110,35 @@ async fn optimization_context_reads_outline_projection_without_contract_loss() {
     assert_eq!(rows.foreshadowing_index.len(), 1);
     assert_eq!(rows.foreshadowing_index[0].description, "伏笔描述");
     assert_eq!(rows.foreshadowing_index[0].importance, 4);
+
+    let restricted = OptimizationContextReadInput {
+        project_id: project.id,
+        chapter_id: chapter.id,
+        read_project_detail: false,
+        read_blueprint: false,
+        read_outlines: false,
+        read_character_profiles: false,
+        read_foreshadowing: false,
+    };
+    let rows = optimization_context_rows(&db, restricted.clone())
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(rows.current_chapter.content, "正文");
+    assert!(rows.current_chapter_outline.is_none());
+    assert!(rows.chapter_outlines.is_empty() && rows.part_outlines.is_empty());
+    assert!(rows.project.is_none() && rows.blueprint.is_none());
+    assert!(rows.character_profiles.is_empty() && rows.foreshadowing_index.is_empty());
+    let error = optimization_context_rows(
+        &db,
+        OptimizationContextReadInput {
+            project_id: project.id + 1,
+            ..restricted
+        },
+    )
+    .await
+    .expect_err("a chapter must not be read through another project");
+    assert!(error.to_string().contains("不属于当前项目"));
 }
 
 #[tokio::test]

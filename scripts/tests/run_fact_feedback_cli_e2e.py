@@ -1,11 +1,9 @@
 #!/usr/bin/env python3
 """Verify chapter facts, consolidation cadence, source invalidation and recovery through CLI/Host."""
 
-import argparse
 import base64
 import io
 import json
-import os
 import tempfile
 from pathlib import Path
 import zipfile
@@ -13,33 +11,20 @@ import zipfile
 from mock_openai.fixtures.reverse import message_text
 from mock_openai.fixtures.story import chapter_body_response
 from run_cli_contract_e2e import (
-    Cli, RunnerError, checked, provider_log_entries, runtime_snapshot, secure_json,
+    RunnerError, checked, cli_e2e_parser, logged_in_cli, provider_log_entries, runtime_snapshot, secure_json,
 )
 
 
 def main():
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--a4n", required=True)
-    parser.add_argument("--server", required=True)
-    parser.add_argument("--username", required=True)
-    parser.add_argument("--password-env", default="A4N_PASSWORD")
-    parser.add_argument("--provider-url", required=True)
-    parser.add_argument("--provider-log", type=Path, required=True)
+    parser = cli_e2e_parser(__doc__)
     parser.add_argument("--embedding-dimension", type=int, default=384)
-    parser.add_argument("--report", type=Path, required=True)
     args = parser.parse_args()
     args.report.parent.mkdir(parents=True, exist_ok=True)
     report = {"success": False, "checks": []}
     try:
         with tempfile.TemporaryDirectory(prefix="fact-feedback-", dir=args.report.parent) as directory:
             work = Path(directory)
-            env = os.environ.copy()
-            password = env.pop(args.password_env)
-            env.pop("A4N_ACCESS_TOKEN", None)
-            cli = Cli(args.a4n, args.server, work / "cli.json", work / "context.json", 60, env)
-            checked(cli, ["health"], "health")
-            checked(cli, ["capabilities", "check"], "capabilities")
-            checked(cli, ["auth", "login", "--username", args.username, "--password-stdin"], "login", password + "\n")
+            cli = logged_in_cli(args, work)
 
             def call(name, payload):
                 secure_json(work / "call.json", payload)
@@ -181,7 +166,7 @@ def main():
             exported = typed("export_project_family_data", {"root_project_id": project_id, "include_derived_projects": False})
             with zipfile.ZipFile(io.BytesIO(base64.b64decode(exported["data_base64"]))) as archive:
                 manifest = json.loads(archive.read("a4n-project-family.json"))
-            assert manifest["version"] == "project_family_v6", manifest["version"]
+            assert manifest["version"] == "project_family_v7", manifest["version"]
             assert manifest["text_core"]["fact_feedback"]["changes"]
             calls_before = len(consolidation_calls())
             imported = typed("import_project_family_upload", exported)[0]

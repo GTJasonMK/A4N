@@ -169,7 +169,13 @@ pub trait GalgameReadApplicationPort: Send + Sync {
         &self,
         user_id: i64,
         project_id: i64,
-    ) -> Result<GalgameScriptDetail, a4n_error::AppError>;
+    ) -> Result<Option<GalgameScriptDetail>, a4n_error::AppError>;
+
+    async fn asset_plan(
+        &self,
+        user_id: i64,
+        project_id: i64,
+    ) -> Result<Option<GalgameAssetPlan>, a4n_error::AppError>;
 }
 
 /// Host-facing Galgame script-record mutation boundary.
@@ -356,7 +362,7 @@ pub struct GalgameAssetPlanItem {
     pub target_entity_id: i64,
     pub generation_spec_id: i64,
     pub status: String,
-    pub outcome: GalgameAssetPlanOutcome,
+    pub outcome: Option<GalgameAssetPlanOutcome>,
     pub params_json: Value,
 }
 

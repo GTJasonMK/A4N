@@ -1,5 +1,5 @@
 import { ThemedSelect } from "../../components/ui/ThemedSelect";
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { LoadingSpinner } from "../../components/ui/LoadingSpinner";
 import { extractErrorMessage } from "../../api";
 import {
@@ -85,6 +85,7 @@ export const SnapshotManager: React.FC<{
     null,
   );
   const [delta, setDelta] = useState<SnapshotDelta | null>(null);
+  const resultRef = useRef<HTMLDivElement>(null);
   const [diffFromChapter, setDiffFromChapter] = useState(0);
   const [diffToChapter, setDiffToChapter] = useState<number | null>(null);
   const [rollbackChapter, setRollbackChapter] = useState<number | null>(null);
@@ -105,6 +106,12 @@ export const SnapshotManager: React.FC<{
   const loadingRef = useRef(false);
   const diffingRef = useRef(false);
   const rollingBackRef = useRef(false);
+
+  useLayoutEffect(() => {
+    if (!chapterState && !snapshotData && !delta) return;
+    resultRef.current?.focus({ preventScroll: true });
+    resultRef.current?.scrollIntoView({ block: "start" });
+  }, [chapterState, snapshotData, delta]);
 
   activeProfileIdRef.current = profileId;
   snapshotStartChapterRef.current = snapshotStartChapter;
@@ -693,11 +700,13 @@ export const SnapshotManager: React.FC<{
           )}
         </>
       )}
-      {chapterState != null && (
-        <ProfileChapterStateDetail state={chapterState} />
+      {(chapterState || snapshotData || delta) && (
+        <div ref={resultRef} role="region" tabIndex={-1} aria-label={t(delta ? "characterDetail.snapshot.changeSummary" : "characterDetail.snapshot.stateDetail")} className="scroll-mt-3 rounded-xl">
+          {chapterState != null && <ProfileChapterStateDetail state={chapterState} />}
+          {snapshotData != null && <SnapshotDetail snapshot={snapshotData} />}
+          {delta != null && <SnapshotDeltaView delta={delta} />}
+        </div>
       )}
-      {snapshotData != null && <SnapshotDetail snapshot={snapshotData} />}
-      {delta != null && <SnapshotDeltaView delta={delta} />}
     </div>
   );
 };

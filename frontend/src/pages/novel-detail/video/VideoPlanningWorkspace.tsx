@@ -4,7 +4,7 @@ import { ListChecks, Pencil, RotateCcw, Save, Trash2, Wand2, X } from "lucide-re
 import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
 import { formatNumber, useI18n } from "../../../i18n";
 import type { ChapterVideoPrompt, VideoSegmentPlanV2 } from "../../../api/video";
-import type { ShootingSceneV1 } from "../../../api/shootingScript";
+import type { ShootingSceneV2 } from "../../../api/shootingScript";
 import { BookButton } from "../../../components/ui/BookButton";
 import { confirmDialog } from "../../../components/feedback/ConfirmDialog";
 import { asArray, asJsonRecord } from "../../../utils/jsonRecord";
@@ -30,7 +30,7 @@ interface VideoPlanningWorkspaceProps {
   loadError: string | null;
   dataReady: boolean;
   acting: string | null;
-  shootingScenes: ShootingSceneV1[];
+  shootingScenes: ShootingSceneV2[];
   onGenerate: (
     targetNarrativeUnitIndex: number,
     regenerateExisting: boolean,
@@ -47,8 +47,8 @@ const textValue = (value: unknown): string | null =>
 const numberValue = (value: unknown): number | null =>
   typeof value === "number" && Number.isFinite(value) ? value : null;
 
-type PlanningSceneSelection = Pick<ShootingSceneV1, "narrative_unit_index"> & {
-  shots: Array<Pick<ShootingSceneV1["shots"][number], "shot_id">>;
+type PlanningSceneSelection = Pick<ShootingSceneV2, "narrative_unit_index"> & {
+  shots: Array<Pick<ShootingSceneV2["shots"][number], "shot_id">>;
 };
 
 export const selectVideoPlanningUnitIndex = (

@@ -39,6 +39,8 @@ export function useListboxPosition(
     const spaceAbove = rect.top - viewportTop - gap - padding;
     const opensAbove = spaceAbove > spaceBelow;
     const maxHeight = Math.max(1, Math.min(320, opensAbove ? spaceAbove : spaceBelow));
+    // Wrapped labels need their final width before measuring the popup height.
+    listbox.style.width = `${width}px`;
     const height = Math.min(listbox.scrollHeight, maxHeight);
     const preferredTop = opensAbove ? rect.top - height - gap : rect.bottom + gap;
     const top = Math.max(viewportTop + padding, Math.min(preferredTop, viewportTop + viewportHeight - height - padding));

@@ -5,7 +5,7 @@ import { sha256Json } from "../utils/contentHash";
 import type {
   ChapterShootingScriptSourceInput,
   ChapterShootingScriptUnitProgressView,
-  ChapterShootingScriptV1,
+  ChapterShootingScriptV2,
   ChapterShootingScriptView,
   DeleteChapterShootingScriptInput,
   EditChapterShootingScriptInput,
@@ -20,7 +20,7 @@ export type {
   ChapterShootingScriptRecordSummary,
   ChapterShootingScriptSchemaVersion,
   ChapterShootingScriptUnitProgressView,
-  ChapterShootingScriptV1,
+  ChapterShootingScriptV2,
   ChapterShootingScriptView,
   DeleteChapterShootingScriptInput,
   EditChapterShootingScriptProgressInput,
@@ -33,12 +33,12 @@ export type {
   ShootingDialogueCueV1,
   ShootingDirectingStatementV1,
   ShootingEditingModeV1,
-  ShootingPerformanceBeatV1,
-  ShootingSceneV1,
+  ShootingPerformanceBeatV2,
+  ShootingSceneV2,
   ShootingScriptPlanSyncV1,
   ShootingScriptGenerationMode,
   ShootingShotSizeV1,
-  ShootingShotV1,
+  ShootingShotV2,
   ShootingSoundDesignV1,
   ShootingSpatialContinuityV1,
   ShootingTransitionContractV1,
@@ -114,7 +114,7 @@ export const editChapterShootingScript = (
   projectId: number,
   sourceChapterId: number,
   view: Pick<ChapterShootingScriptView, "record">,
-  script: ChapterShootingScriptV1,
+  script: ChapterShootingScriptV2,
   rebindShotIds: string[] = [],
 ) =>
   apiInvoke<EditedChapterShootingScriptView>("edit_chapter_shooting_script", {
@@ -131,7 +131,7 @@ export const editChapterShootingScriptProgress = (
   projectId: number,
   sourceChapterId: number,
   progress: ChapterShootingScriptUnitProgressView,
-  script: ChapterShootingScriptV1,
+  script: ChapterShootingScriptV2,
 ) =>
   apiInvoke<EditedChapterShootingScriptProgressView>(
     "edit_chapter_shooting_script_progress",

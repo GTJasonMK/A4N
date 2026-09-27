@@ -407,7 +407,7 @@ prompts:
       - "OrchestratorContext.prepare_chapter_shooting_script_request"
     dependencies:
       - "chapter_screenplay_unit_adaptation"
-    description: "针对一个已校验叙事单元逐镜头生成可独立缓存的 ShootingSceneV1，最终合同由后端确定性装配"
+    description: "针对一个已校验叙事单元逐镜头生成可独立缓存的 ShootingSceneV2，最终合同由后端确定性装配"
 
   content_optimization_chat:
     path: "novel/05_analysis/content_optimization_chat.md"

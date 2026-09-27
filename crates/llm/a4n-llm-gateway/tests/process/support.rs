@@ -5,7 +5,7 @@ use std::{
     time::Duration,
 };
 
-use a4n_llm_client::{HttpLlmClient, LlmClient, LlmGatewayRequest};
+use a4n_llm_client::{HttpLlmClient, LlmGatewayRequest};
 use a4n_llm_provider_contract::ChatRequest;
 use a4n_llm_sidecar_contract::{
     LlmChatRequest, LlmGatewayPayload as WireGatewayPayload, LlmGatewayProviderConfig,
@@ -16,11 +16,12 @@ use a4n_service_manager::{
     ManagedServiceConfig, ManagedSidecarState, ServiceManager, ServiceManagerError,
 };
 use a4n_service_protocol::{
-    CapabilityTaskEvent, HealthStatus, LLM_CHAT_CAPABILITY_VERSION, LLM_SERVICE_NAME,
-    PROTOCOL_VERSION, SIDECAR_AUTH_TOKEN_ENV, SIDECAR_EVENT_QUEUE_CAPACITY, SecretForwardingPolicy,
+    HealthStatus, LLM_CHAT_CAPABILITY_VERSION, LLM_SERVICE_NAME, PROTOCOL_VERSION,
+    SIDECAR_AUTH_TOKEN_ENV, SIDECAR_EVENT_QUEUE_CAPACITY, SecretForwardingPolicy,
     ServiceRequestContext, TraceContext,
 };
 use a4n_test_support::process::SIDECAR_PROCESS_TEST_TOKEN;
+pub(crate) use a4n_test_support::process::collect_llm_stream_events as collect_stream_events;
 use axum::{
     Json, Router,
     extract::State,
@@ -355,22 +356,6 @@ pub(crate) fn gateway_models_request(
         },
     )
     .expect("process models request context should be valid")
-}
-
-pub(crate) async fn collect_stream_events(
-    client: &impl LlmClient,
-    request: LlmGatewayRequest,
-) -> Vec<CapabilityTaskEvent> {
-    let (event_tx, mut event_rx) = tokio::sync::mpsc::channel(SIDECAR_EVENT_QUEUE_CAPACITY);
-    client
-        .stream(request, event_tx)
-        .await
-        .expect("terminal event should complete typed transport");
-    let mut events = Vec::new();
-    while let Some(event) = event_rx.recv().await {
-        events.push(event);
-    }
-    events
 }
 
 pub(crate) async fn wait_until_unavailable(manager: &ServiceManager) -> ServiceManagerError {

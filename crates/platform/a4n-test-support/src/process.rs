@@ -72,6 +72,24 @@ pub fn sidecar_base_url(addr: SocketAddr) -> String {
     format!("http://{addr}")
 }
 
+pub async fn collect_llm_stream_events(
+    client: &impl LlmClient,
+    request: a4n_llm_client::LlmGatewayRequest,
+) -> Vec<a4n_service_protocol::CapabilityTaskEvent> {
+    let (sender, mut receiver) =
+        tokio::sync::mpsc::channel(a4n_service_protocol::SIDECAR_EVENT_QUEUE_CAPACITY);
+    // Drain while producing: awaiting the producer first deadlocks at the queue limit.
+    let (result, events) = tokio::join!(client.stream(request, sender), async {
+        let mut events = Vec::new();
+        while let Some(event) = receiver.recv().await {
+            events.push(event);
+        }
+        events
+    });
+    result.expect("terminal event should complete typed transport");
+    events
+}
+
 pub async fn assert_protected_route_rejects_invalid_auth(base_url: &str, path: &str) {
     const WRONG_TOKEN: &str = "a4n-wrong-process-test-token";
 
@@ -228,7 +246,15 @@ pub async fn disconnect_during_request_body(addr: SocketAddr, path: &str) {
     tokio::time::sleep(Duration::from_millis(25)).await;
 }
 
-pub async fn assert_route_rejects_oversized_json(base_url: &str, path: &str, limit: usize) {
+pub async fn assert_route_rejects_oversized_json(
+    base_url: &str,
+    path: &str,
+    service: &str,
+    kind: a4n_service_protocol::BodyLimitKind,
+) {
+    let limit = a4n_service_protocol::sidecar_resource_policy(service)
+        .expect("tested sidecar must have a resource policy")
+        .body_limit(kind);
     let response = reqwest::Client::new()
         .post(format!("{base_url}{path}"))
         .header(

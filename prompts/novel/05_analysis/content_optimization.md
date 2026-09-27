@@ -12,19 +12,9 @@ name: content_optimization
 
 {{ dimensions }}
 
-# 用户指令
-
-{{ agent_instruction }}
-
 # 权限
 
 你只能读取权限允许的上下文段，只能调用已注册的优化工具，不能声称已经改写、保存或写回正文。
-
-{{ agent_permissions_prompt }}
-
-# 能力边界
-
-{{ agent_capabilities_prompt }}
 
 # 可用工具
 
@@ -128,3 +118,13 @@ name: content_optimization
 - 不要输出 `arguments.evidence`，不要自己抄写或改写原文证据。
 - `evidence_span_id` 是选择题，只能来自本轮读取到的 `current_chapter.source_spans`。
 - 如果问题跨多个片段，选择最能证明问题存在的主要 span，把综合判断写入 `description` 或 `goal`。
+
+# 本次权限与能力
+
+{{ agent_permissions_prompt }}
+
+{{ agent_capabilities_prompt }}
+
+# 本次用户指令
+
+{{ agent_instruction }}

@@ -255,7 +255,7 @@ export const VideoPromptSetupPanel: React.FC<VideoPromptSetupPanelProps> = ({
               <span className="inline-flex items-center gap-1 text-book-text-muted">
                 <LoadingSpinner size="sm" /> {t("video.chapter.saveRecipe")}
               </span>
-            ) : finalPromptBlockedReason ? (
+            ) : finalPromptBlockedReason && recipe.workflow_mode === VIDEO_WORKFLOW_MODE_REFERENCE_MEDIA ? (
               <span className="line-clamp-2 text-warning">
                 {finalPromptBlockedReason}
               </span>

@@ -1,6 +1,6 @@
 use std::collections::BTreeSet;
 
-use a4n_db::galgame::{GalgameGenerationSpecUpsert, GalgameGenerationSpecUpsertOutcome};
+use a4n_db_models::models::generation::generation_spec;
 use a4n_domain::galgame::GalgameAssetPlanSpecRecordInput;
 use a4n_error::AppError;
 
@@ -39,26 +39,22 @@ pub(in crate::galgame::asset_plan) fn galgame_asset_plan_item_draft(
 pub(in crate::galgame::asset_plan) fn push_plan_item(
     items: &mut Vec<GalgameAssetPlanItem>,
     summary: &mut GalgameAssetPlanSummary,
-    spec: GalgameGenerationSpecUpsert,
+    spec: generation_spec::Model,
     draft: GalgameAssetPlanItemDraft,
+    outcome: Option<GalgameAssetPlanOutcome>,
 ) -> Result<(), AppError> {
-    let outcome = match spec.outcome {
-        GalgameGenerationSpecUpsertOutcome::Created => GalgameAssetPlanOutcome::Created,
-        GalgameGenerationSpecUpsertOutcome::Updated => GalgameAssetPlanOutcome::Updated,
-        GalgameGenerationSpecUpsertOutcome::Reused => GalgameAssetPlanOutcome::Reused,
-    };
     match outcome {
-        GalgameAssetPlanOutcome::Created => summary.created_specs += 1,
-        GalgameAssetPlanOutcome::Updated => summary.updated_specs += 1,
-        GalgameAssetPlanOutcome::Reused => summary.reused_specs += 1,
+        Some(GalgameAssetPlanOutcome::Created) => summary.created_specs += 1,
+        Some(GalgameAssetPlanOutcome::Updated) => summary.updated_specs += 1,
+        Some(GalgameAssetPlanOutcome::Reused) => summary.reused_specs += 1,
+        None => {}
     }
     let target_entity_id = spec
-        .model
         .target_entity_id
         .ok_or_else(|| AppError::InvalidState {
             current: format!(
                 "galgame_generation_spec_{}_missing_target_entity_id",
-                spec.model.id
+                spec.id
             ),
             operation: "plan_galgame_assets".to_string(),
         })?;
@@ -67,31 +63,29 @@ pub(in crate::galgame::asset_plan) fn push_plan_item(
         label: draft.label,
         source_snapshot_id: draft.record_input.spec.source_snapshot_id,
         source_label: draft.source_label,
-        target_kind: a4n_domain::galgame::GalgameGenerationTargetKind::parse(
-            &spec.model.target_kind,
-        )
-        .ok_or_else(|| AppError::InvalidState {
-            current: format!(
-                "galgame_generation_spec_{}_invalid_target_kind:{}",
-                spec.model.id, spec.model.target_kind
-            ),
-            operation: "plan_galgame_assets".to_string(),
-        })?,
+        target_kind: a4n_domain::galgame::GalgameGenerationTargetKind::parse(&spec.target_kind)
+            .ok_or_else(|| AppError::InvalidState {
+                current: format!(
+                    "galgame_generation_spec_{}_invalid_target_kind:{}",
+                    spec.id, spec.target_kind
+                ),
+                operation: "plan_galgame_assets".to_string(),
+            })?,
         target_entity_kind: a4n_domain::galgame::GalgameTargetEntityKind::parse(
-            &spec.model.target_entity_kind,
+            &spec.target_entity_kind,
         )
         .ok_or_else(|| AppError::InvalidState {
             current: format!(
                 "galgame_generation_spec_{}_invalid_target_entity_kind:{}",
-                spec.model.id, spec.model.target_entity_kind
+                spec.id, spec.target_entity_kind
             ),
             operation: "plan_galgame_assets".to_string(),
         })?,
         target_entity_id,
-        generation_spec_id: spec.model.id,
-        status: spec.model.status.clone(),
+        generation_spec_id: spec.id,
+        status: spec.status,
         outcome,
-        params_json: spec.model.params_json,
+        params_json: spec.params_json,
     });
     Ok(())
 }

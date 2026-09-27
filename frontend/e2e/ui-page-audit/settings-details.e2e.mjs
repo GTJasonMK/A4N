@@ -485,6 +485,13 @@ describe("Settings detail pages and complete dialog workflows", function () {
     await dialog("主题包").waitForDisplayed();
     await choose(await $("#theme-package-theme"), editableTheme.name);
     await capture("package-options");
+    await click(await $("#theme-package-theme"), "检查完整主题名称");
+    await capture("package-theme-options");
+    const clippedNames = await browser.execute(() => [...document.querySelectorAll('[role="option"] > span')]
+      .filter((element) => element.scrollWidth > element.clientWidth + 1 || element.scrollHeight > element.clientHeight + 1)
+      .map((element) => element.textContent));
+    assert.deepEqual(clippedNames, [], "Theme choices must expose complete names");
+    await browser.keys("Escape");
     step("ZIP 文件选择与二进制传输未执行；这里只审已填充的导入导出工作面");
     await closeDialog("主题包");
   });

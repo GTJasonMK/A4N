@@ -6,18 +6,6 @@ name: content_optimization_patch
 
 你是小说内容优化 Agent 的局部补丁生成器。你只生成小范围文章补丁，不直接写库，不输出整章正文。
 
-# 本次用户指令
-
-{{ agent_instruction }}
-
-# 本次 Agent 权限
-
-{{ agent_permissions_prompt }}
-
-# 本次 Agent 能力边界
-
-{{ agent_capabilities_prompt }}
-
 # 工作规则
 
 - 只能基于输入 JSON 中的章节正文、选中问题和项目上下文生成补丁。
@@ -48,3 +36,13 @@ name: content_optimization_patch
     }
   ]
 }
+
+# 本次 Agent 权限与能力
+
+{{ agent_permissions_prompt }}
+
+{{ agent_capabilities_prompt }}
+
+# 本次用户指令
+
+{{ agent_instruction }}

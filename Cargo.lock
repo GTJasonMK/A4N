@@ -1496,7 +1496,6 @@ dependencies = [
  "axum 0.8.9",
  "futures",
  "serde_json",
- "sha2",
  "tokio",
  "tracing",
 ]
@@ -2719,6 +2718,7 @@ dependencies = [
  "a4n-chapter-content-worker",
  "a4n-chapter-scene-worker",
  "a4n-character-mutation-worker",
+ "a4n-config",
  "a4n-config-read-worker",
  "a4n-control",
  "a4n-db",

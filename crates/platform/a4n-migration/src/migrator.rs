@@ -135,6 +135,8 @@ impl MigratorTrait for Migrator {
             Box::new(crate::migrations::retire_stale_live_text_anchors::Migration),
             Box::new(crate::migrations::source_sync_local_target_retirement::Migration),
             Box::new(crate::migrations::frozen_chapter_identity::Migration),
+            Box::new(crate::migrations::shooting_script_timing_v2::Migration),
+            Box::new(crate::migrations::workflow_chapter_identity::Migration),
         ]
     }
 }

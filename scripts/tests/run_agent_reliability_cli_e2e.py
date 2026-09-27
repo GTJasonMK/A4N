@@ -11,7 +11,6 @@ import re
 from pathlib import Path
 import signal
 import subprocess
-import sys
 import time
 import traceback
 from types import SimpleNamespace

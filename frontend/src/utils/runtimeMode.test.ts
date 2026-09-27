@@ -58,6 +58,7 @@ it("uses the client embedding runtime only for a desktop attached to an HTTP bac
 });
 
 it("uses the bound desktop endpoint before a build-time API address", async () => {
+  vi.stubEnv("VITE_A4N_API_TRANSPORT", "");
   vi.stubEnv("VITE_A4N_API_BASE_URL", "http://127.0.0.1:8080/api");
   vi.stubGlobal("window", {
     __TAURI_INTERNALS__: {},

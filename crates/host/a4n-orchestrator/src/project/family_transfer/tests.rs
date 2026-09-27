@@ -20,7 +20,7 @@ use a4n_db_models::models::{
     project::{novel_project, project_source_snapshot, source_snapshot_chapter},
     user::user,
 };
-use a4n_domain::shooting_script::{ChapterShootingScriptV1, ShootingVisualPlanSourceV1};
+use a4n_domain::shooting_script::{ChapterShootingScriptV2, ShootingVisualPlanSourceV1};
 use async_trait::async_trait;
 use chrono::Utc;
 use sea_orm::{ActiveModelTrait, Set};
@@ -674,7 +674,7 @@ async fn manga_family_application_round_trip_remaps_all_owned_identities_and_med
         new_script.visual_plan_sha256.as_deref(),
         Some(new_plan.plan_sha256.as_str())
     );
-    let typed_new_script: ChapterShootingScriptV1 =
+    let typed_new_script: ChapterShootingScriptV2 =
         serde_json::from_value(new_script.script_json.clone())
             .expect("重映射拍摄剧本 JSON 应保持合法");
     let typed_plan_source = typed_new_script
@@ -1040,7 +1040,7 @@ async fn seed_manga_family_round_trip(
         visual_plan_version: Set(Some(visual_plan.record.plan_version)),
         visual_plan_sha256: Set(Some(visual_plan.record.plan_sha256.clone())),
         input_fingerprint_sha256: Set(sha256_bytes(b"round-trip shooting input")),
-        contract_version: Set("chapter_shooting_script_v1".to_string()),
+        contract_version: Set("chapter_shooting_script_v2".to_string()),
         revision: Set(1),
         script_sha256: Set(script_sha256.clone()),
         script_json: Set(script_json),
@@ -1186,10 +1186,10 @@ async fn seed_manga_family_round_trip(
 fn round_trip_shooting_script(
     visual_plan: &a4n_db::chapter_visual_plan::ParsedChapterVisualPlan,
     source_spans: &[a4n_domain::source_spans::SourceSpan],
-) -> ChapterShootingScriptV1 {
-    let mut script: ChapterShootingScriptV1 = serde_json::from_str(
+) -> ChapterShootingScriptV2 {
+    let mut script: ChapterShootingScriptV2 = serde_json::from_str(
         r#"{
-        "schema_version": "chapter_shooting_script_v1",
+        "schema_version": "chapter_shooting_script_v2",
         "directing_statement": {
             "central_dramatic_question": "主角能否确认异常",
             "protagonist_throughline": "克制恐惧并继续调查",
@@ -1274,8 +1274,7 @@ fn round_trip_shooting_script(
                     "spatial_change": "从门口移动到暗廊",
                     "entry_state": "谨慎",
                     "exit_state": "警惕",
-                    "required": true,
-                    "estimated_seconds": 2.0
+                    "required": true
                 }],
                 "dialogue_cues": [],
                 "sound": {
@@ -1291,8 +1290,7 @@ fn round_trip_shooting_script(
                 "end_state": "主角在暗廊前",
                 "transition_in": "从开门动作开始",
                 "transition_out": "停在暗廊前",
-                "continuity_requirements": ["暗廊保持在画面右侧"],
-                "estimated_natural_seconds": 2.0
+                "continuity_requirements": ["暗廊保持在画面右侧"]
             }]
         }]
     }"#,

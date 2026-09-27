@@ -1,4 +1,5 @@
 use a4n_archive_core::{ArchiveEntry, write_zip};
+use a4n_service_protocol::BodyLimitKind;
 use a4n_test_support::process::{
     HttpImportClient, IMPORT_SERVICE_NAME, IMPORT_TRANSFORM_CAPABILITY_VERSION, ImportClient,
     ImportReadMediaPackageZipInput, SIDECAR_PROCESS_TEST_TOKEN, ServiceRequestContext,
@@ -60,7 +61,8 @@ async fn import_service_process_serves_typed_media_package_and_stops() {
     assert_route_rejects_oversized_json(
         &base_url,
         "/import/read_media_package_zip",
-        64 * 1024 * 1024,
+        IMPORT_SERVICE_NAME,
+        BodyLimitKind::Media,
     )
     .await;
     let client = HttpImportClient::new_with_auth_token(base_url, SIDECAR_PROCESS_TEST_TOKEN);

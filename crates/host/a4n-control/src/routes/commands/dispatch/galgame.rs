@@ -1,9 +1,10 @@
 use super::super::{
     ApiError, ServerState, bind_galgame_media, cancel_galgame_pipeline, delete_galgame_line,
-    export_galgame_webgal, get_galgame_pipeline_status, get_galgame_script, import_galgame_audio,
-    insert_galgame_line, plan_galgame_assets, preview_galgame_pipeline_request,
-    reorder_galgame_lines, run_galgame_asset_generation, start_galgame_pipeline,
-    unbind_galgame_media, update_galgame_choices, update_galgame_line, update_galgame_scene,
+    export_galgame_webgal, get_galgame_asset_plan, get_galgame_pipeline_status, get_galgame_script,
+    import_galgame_audio, insert_galgame_line, plan_galgame_assets,
+    preview_galgame_pipeline_request, reorder_galgame_lines, run_galgame_asset_generation,
+    start_galgame_pipeline, unbind_galgame_media, update_galgame_choices, update_galgame_line,
+    update_galgame_scene,
 };
 use serde_json::Value;
 
@@ -14,6 +15,7 @@ pub(super) async fn try_dispatch(
     cmd: &str,
 ) -> Result<Option<Value>, ApiError> {
     let result = match cmd {
+        "get_galgame_asset_plan" => get_galgame_asset_plan(state, user_id, args).await?,
         "get_galgame_script" => get_galgame_script(state, user_id, args).await?,
         "start_galgame_pipeline" => start_galgame_pipeline(state, user_id, args).await?,
         "cancel_galgame_pipeline" => cancel_galgame_pipeline(state, user_id, args).await?,

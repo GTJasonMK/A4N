@@ -160,7 +160,6 @@ def shooting_design_scene_template(combined: str) -> dict[str, Any]:
                         "entry_state": "警觉观察。",
                         "exit_state": "主动深入调查。",
                         "required": True,
-                        "estimated_seconds": 6.0,
                     }
                 ],
                 "dialogue_cues": [],
@@ -178,7 +177,6 @@ def shooting_design_scene_template(combined: str) -> dict[str, Any]:
                 "transition_in": "承接第二声钟鸣后的静默。",
                 "transition_out": "以机房黑暗吞没林岚背影收束。",
                 "continuity_requirements": ["怀表始终在林岚右手", "机房入口保持画面右侧"],
-                "estimated_natural_seconds": 6.0,
             }
         ],
     }
@@ -247,7 +245,6 @@ def shooting_design_response(combined: str) -> dict[str, Any]:
         end_ms = planned.get("end_ms")
         if not isinstance(start_ms, int) or not isinstance(end_ms, int) or start_ms >= end_ms:
             raise UnhandledPromptError("locked visual shot time range is invalid")
-        duration_seconds = (end_ms - start_ms) / 1000
         shot = json.loads(json.dumps(template_shot, ensure_ascii=False))
         shot.update(
             {
@@ -284,7 +281,6 @@ def shooting_design_response(combined: str) -> dict[str, Any]:
                     "end": f"{planned['title']} 的结束状态。",
                 },
                 "continuity_requirements": list(planned.get("continuity_notes", [])),
-                "estimated_natural_seconds": duration_seconds,
             }
         )
         beats = []
@@ -305,7 +301,6 @@ def shooting_design_response(combined: str) -> dict[str, Any]:
                     "entry_state": fact["entry_state"],
                     "exit_state": fact["exit_state"],
                     "required": bool(fact.get("required")),
-                    "estimated_seconds": duration_seconds / len(assigned_facts),
                 }
             )
             beats.append(beat)
@@ -447,14 +442,7 @@ def video_segment_plan_response(combined: str) -> dict[str, Any]:
                     "risk_note": "当前镜头上下文已提供所需素材约束",
                 },
     }
-    segment_count = max(1, int(shot.get("minimum_readable_segment_count") or 1))
-    segments = []
-    for index in range(segment_count):
-        item = dict(segment)
-        if segment_count > 1:
-            item["title"] = f"{title} · 阶段 {index + 1}"
-        segments.append(item)
-    return {"segments": segments}
+    return {"segments": [segment]}
 
 
 def video_static_frame_response(combined: str) -> dict[str, Any]:

@@ -41,6 +41,17 @@ fn completed_llm_call_checkpoint_from_json(
     artifacts_json: Option<Value>,
     call_key: &str,
 ) -> Result<CompletedLlmCallCheckpoint, WorkflowCheckpointContractError> {
+    if let Some(artifacts) = artifacts_json.as_ref().filter(|artifacts| {
+        artifacts
+            .get(a4n_domain::shooting_script::compat::checkpoint::TIMING_UPGRADE_KEY)
+            .is_some()
+    }) {
+        a4n_domain::shooting_script::compat::checkpoint::validate_checkpoint_upgrade(
+            &checkpoint_json,
+            artifacts,
+        )
+        .map_err(WorkflowCheckpointContractError::Invalid)?;
+    }
     let mut object = match checkpoint_json {
         Value::Object(object) => object,
         _ => {
@@ -311,6 +322,25 @@ fn retarget_call_fingerprint(value: &mut Value, source_run_id: i64, target_run_i
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn every_completed_call_decoder_checks_upgrade_receipts() {
+        let checkpoint = json!({"parsed_output": {}, "response_content": "{}", "usage": null, "finish_reason": "stop"});
+        completed_llm_call_checkpoint_from_json(
+            checkpoint.clone(),
+            None,
+            "video_segment_plan.shot.1",
+        )
+        .unwrap();
+        let receipt = json!({"shooting_timing_v2": {"version": 999}});
+        let error = completed_llm_call_checkpoint_from_json(
+            checkpoint,
+            Some(receipt),
+            "video_segment_plan.shot.1",
+        )
+        .unwrap_err();
+        assert!(error.to_string().contains("不支持的剧本断点升级回执版本"));
+    }
 
     #[test]
     fn inherited_fingerprint_changes_only_request_trace_ownership() {

@@ -7,7 +7,7 @@ use a4n_domain::project::{ProjectStatus, required_text};
 use std::collections::{HashMap, HashSet};
 
 pub(super) fn validate_package_projects(package: &ProjectFamilyPackage) -> Result<(), String> {
-    if package.version != PROJECT_FAMILY_PACKAGE_VERSION && package.version != "project_family_v5" {
+    if package.version != PROJECT_FAMILY_PACKAGE_VERSION {
         return Err(format!("项目族导入包版本无效: {}", package.version));
     }
     if !matches!(

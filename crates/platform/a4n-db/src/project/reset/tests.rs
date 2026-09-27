@@ -372,7 +372,7 @@ async fn reset_deletes_scene_occurrences_before_chapters() {
             .one(&db)
             .await
             .unwrap();
-        assert_eq!(retained_chapter.is_some(), preserve_source);
+        assert!(retained_chapter.is_some());
         if let Some(retained) = retained_chapter {
             assert_eq!(retained.status, chapter::STATUS_DELETED);
             assert!(retained.content.is_empty());
@@ -440,7 +440,7 @@ async fn rollback_schedules_only_paths_unreferenced_after_chapter_cleanup() {
         serde_json::from_value(cleanup.payload_json).unwrap();
     assert_eq!(payload.paths, expected_media_paths);
     assert_eq!(
-        chapter::Entity::find()
+        chapter::Entity::find_current()
             .filter(chapter::Column::ProjectId.eq(project.id))
             .count(&db)
             .await

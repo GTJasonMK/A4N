@@ -173,12 +173,6 @@ pub(in crate::video) fn derive_segment_source_span_ids(
             }
         }
     }
-    if ids.is_empty() && shot.director_constraints.is_none() {
-        return Err(AppError::InvalidArgument(format!(
-            "视频分段规划 segment_number {} 无法从 covered_beat_ids 推导 source_span_ids",
-            segment_number
-        )));
-    }
     Ok(ids)
 }
 

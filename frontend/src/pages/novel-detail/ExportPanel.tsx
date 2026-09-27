@@ -1,6 +1,6 @@
 import { ThemedSelect } from "../../components/ui/ThemedSelect";
 import React, { useEffect, useRef, useState } from "react";
-import { CheckCircle2, Download } from "lucide-react";
+import { CheckCircle2, ChevronDown, Download } from "lucide-react";
 import { LoadingSpinner } from "../../components/ui/LoadingSpinner";
 import { extractErrorMessage } from "../../api";
 import {
@@ -354,9 +354,10 @@ export const ExportPanel: React.FC<{
         </div>
       ) : null}
 
-      <details className="a4n-flat-surface overflow-hidden">
-        <summary className="flex cursor-pointer items-center justify-between gap-3 px-3 py-2.5 text-xs font-semibold text-book-text-main">
-              <span>{t("novel.exportPanel.structuredData")}</span>
+      <details className="group a4n-flat-surface overflow-hidden">
+        <summary className="flex cursor-pointer items-center gap-2 px-3 py-2.5 text-xs font-semibold text-book-text-main">
+          <ChevronDown size={14} aria-hidden="true" className="shrink-0 transition-transform group-open:rotate-180" />
+          <span className="flex-1">{t("novel.exportPanel.structuredData")}</span>
           <span className="text-caption font-normal text-book-text-muted">{t("novel.exportPanel.structuredDataHint")}</span>
         </summary>
         <div className="grid grid-cols-2 gap-2 border-t border-book-border/45 p-3">

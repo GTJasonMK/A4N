@@ -13,13 +13,13 @@ pub(super) fn search_context(
     match source {
         Some(source) => {
             if let Some(value) = context.get(source) {
-                collect_matches(source, value, "$", &query_lower, limit, &mut out);
+                collect_matches(source, value, "", &query_lower, limit, &mut out);
             }
         }
         None => {
             for source in OPTIMIZATION_CONTEXT_SOURCES {
                 if let Some(value) = context.get(*source) {
-                    collect_matches(source, value, "$", &query_lower, limit, &mut out);
+                    collect_matches(source, value, "", &query_lower, limit, &mut out);
                     if out.len() >= limit {
                         break;
                     }
@@ -30,7 +30,7 @@ pub(super) fn search_context(
     out
 }
 
-pub(super) fn collect_matches(
+fn collect_matches(
     source: &str,
     value: &Value,
     path: &str,
@@ -54,7 +54,7 @@ pub(super) fn collect_matches(
                 collect_matches(
                     source,
                     item,
-                    &format!("{path}[{index}]"),
+                    &format!("{path}/{index}"),
                     query_lower,
                     limit,
                     out,
@@ -69,7 +69,7 @@ pub(super) fn collect_matches(
                 collect_matches(
                     source,
                     child,
-                    &format!("{path}.{key}"),
+                    &format!("{path}/{}", key.replace('~', "~0").replace('/', "~1")),
                     query_lower,
                     limit,
                     out,
@@ -83,10 +83,18 @@ pub(super) fn collect_matches(
     }
 }
 
-pub(super) fn search_snippet(text: &str, query_lower: &str) -> String {
+fn search_snippet(text: &str, query_lower: &str) -> String {
     let lower = text.to_lowercase();
     let byte_index = lower.find(query_lower).unwrap_or(0);
-    let char_index = lower[..byte_index].chars().count();
+    // Case folding can expand one source character (for example İ → i + ◌̇).
+    let char_index = text
+        .chars()
+        .scan(0, |offset, character| {
+            *offset += character.to_lowercase().map(char::len_utf8).sum::<usize>();
+            Some(*offset)
+        })
+        .take_while(|end| *end <= byte_index)
+        .count();
     let start = char_index.saturating_sub(60);
     let snippet = text.chars().skip(start).take(140).collect::<String>();
     snippet.trim().to_string()

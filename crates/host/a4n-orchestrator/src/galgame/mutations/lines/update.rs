@@ -66,11 +66,6 @@ impl OrchestratorContext {
             self.validate_speaker_profile(&context, speaker_profile_id)
                 .await?;
         }
-        let visual_generation_inputs_changed = input.line_type.is_some()
-            || input.speaker_profile_id.is_some()
-            || input.text.is_some()
-            || input.presentation.is_some()
-            || input.text_anchor_id.is_some();
         let line_scene_id = line.scene_id;
         let line_type = input.line_type.is_some().then_some(next_line_type);
         let speaker_profile_id = input
@@ -123,6 +118,7 @@ impl OrchestratorContext {
             presentation_json,
             text_anchor_id,
         };
+        let visual_generation_inputs_changed = visual_inputs_changed(&line, &record_input);
         let updated = a4n_db::galgame::update_galgame_line_with_generation_cleanup_record(
             self.database.connection(),
             context.project.id,
@@ -132,5 +128,75 @@ impl OrchestratorContext {
         .await
         .map_err(galgame_line_record_error)?;
         Ok(updated)
+    }
+}
+
+fn visual_inputs_changed(line: &galgame_line::Model, input: &UpdateGalgameLineRecordInput) -> bool {
+    // Asset plans consume line content, the speaker projection and CG fields, not playback directives.
+    input
+        .line_type
+        .as_ref()
+        .is_some_and(|value| value != &line.line_type)
+        || input
+            .speaker_profile_id
+            .is_some_and(|value| value != line.speaker_profile_id)
+        || input.text.as_ref().is_some_and(|value| value != &line.text)
+        || input
+            .expression
+            .as_ref()
+            .is_some_and(|value| value != &line.expression)
+        || input.pose.as_ref().is_some_and(|value| value != &line.pose)
+        || input
+            .position
+            .as_ref()
+            .is_some_and(|value| value != &line.position)
+        || input
+            .text_anchor_id
+            .is_some_and(|value| value != line.text_anchor_id)
+        || input.presentation_json.as_ref().is_some_and(|value| {
+            ["cg", "cg_note", "cg_importance"]
+                .iter()
+                .any(|field| value.get(*field) != line.presentation_json.get(*field))
+        })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn playback_changes_and_unchanged_content_keep_visual_assets() {
+        let timestamp = chrono::Utc::now().naive_utc();
+        let line = galgame_line::Model {
+            id: 1,
+            scene_id: 1,
+            line_index: 1,
+            line_type: "stage_direction".into(),
+            speaker_profile_id: None,
+            text: "雨中的车站".into(),
+            expression: None,
+            pose: None,
+            position: None,
+            presentation_json: json!({"cg": true, "cg_note": "雨中的车站", "cg_importance": "high", "transition": null}),
+            text_anchor_id: Some(1),
+            created_at: timestamp,
+            updated_at: timestamp,
+        };
+        let mut input = UpdateGalgameLineRecordInput {
+            line_id: 1,
+            line_type: Some(line.line_type.clone()),
+            speaker_profile_id: Some(None),
+            text: Some(line.text.clone()),
+            expression: Some(None),
+            pose: Some(None),
+            position: Some(None),
+            presentation_json: Some(line.presentation_json.clone()),
+            text_anchor_id: Some(Some(1)),
+        };
+        input.presentation_json.as_mut().unwrap()["transition"] = json!("fade");
+        assert!(!visual_inputs_changed(&line, &input));
+        input.presentation_json.as_mut().unwrap()["cg_note"] = json!("晴天的车站");
+        assert!(visual_inputs_changed(&line, &input));
     }
 }

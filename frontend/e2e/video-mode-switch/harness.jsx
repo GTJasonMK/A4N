@@ -44,7 +44,7 @@ const segmentSelectionScenario = scenario === "segment-selection";
 const storyboardAssetsScenario = scenario === "storyboard-assets";
 const content = "真实浏览器模式切换测试正文";
 const shootingScript = {
-  schema_version: "chapter_shooting_script_v1",
+  schema_version: "chapter_shooting_script_v2",
   scenes: [
     {
       scene_index: 1,

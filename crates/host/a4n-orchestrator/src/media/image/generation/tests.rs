@@ -1437,6 +1437,47 @@ fn manga_page_execution_input(
 }
 
 #[tokio::test]
+async fn snapshot_image_preflight_reads_retired_source_and_rejects_live_binding() {
+    let (database, context, _) = setup_context().await;
+    let (project_id, source, _, _) = insert_manga_page_fixture(database.as_ref()).await;
+    let mut retired: chapter::ActiveModel = source.clone().into();
+    retired.status = Set("deleted".to_string());
+    retired.content = Set(String::new());
+    retired.update(database.as_ref()).await.unwrap();
+    assert!(
+        a4n_db::project::chapter_by_id(database.as_ref(), source.id)
+            .await
+            .unwrap()
+            .is_none()
+    );
+    let host = TestImageGenerationHost::default();
+    let input = a4n_api_contract::image_generation::GenerateSceneImageInput {
+        project_id,
+        chapter_id: Some(source.id),
+        prompt: "冻结来源的车站画面".to_string(),
+        config_id: None,
+        width: 1024,
+        height: 576,
+    };
+    context
+        .prepare_scene_image_request_validated(&host, 1, input.clone())
+        .await
+        .expect("a derived image must resolve its frozen chapter after a root reset");
+    let error = context
+        .prepare_scene_image_request_validated(
+            &host,
+            1,
+            a4n_api_contract::image_generation::GenerateSceneImageInput {
+                project_id: source.project_id,
+                ..input
+            },
+        )
+        .await
+        .expect_err("retired chapters are not current text project bindings");
+    assert!(error.to_string().contains("不存在"));
+}
+
+#[tokio::test]
 async fn manga_page_post_commit_binds_new_image_and_removes_old_image() {
     let (database, context, user_id) = setup_context().await;
     let (project_id, chapter, page_prompt, old_image) =

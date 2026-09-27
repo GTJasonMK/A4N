@@ -255,19 +255,10 @@ pub const OPTIMIZATION_CONTEXT_SOURCES: &[&str] = &[
 ];
 
 pub fn canonical_optimization_context_source(source: &str) -> Option<&'static str> {
-    match source.trim() {
-        "current_chapter" => Some("current_chapter"),
-        "current_chapter_outline" => Some("current_chapter_outline"),
-        "project_detail" => Some("project_detail"),
-        "blueprint" => Some("blueprint"),
-        "part_outlines" => Some("part_outlines"),
-        "chapter_outlines" => Some("chapter_outlines"),
-        "character_profiles" => Some("character_profiles"),
-        "foreshadowing_index" => Some("foreshadowing_index"),
-        "previous_chapters" => Some("previous_chapters"),
-        "next_chapters" => Some("next_chapters"),
-        _ => None,
-    }
+    OPTIMIZATION_CONTEXT_SOURCES
+        .iter()
+        .copied()
+        .find(|name| *name == source.trim())
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
@@ -312,8 +303,6 @@ pub struct SearchOptimizationContextInput {
     pub source: Option<String>,
     #[serde(default)]
     pub limit: Option<u32>,
-    #[serde(default)]
-    pub cursor: Option<String>,
 }
 
 #[cfg(test)]
@@ -329,6 +318,12 @@ mod tests {
         );
         assert!(canonical_optimization_context_source("unknown").is_none());
         assert!(OPTIMIZATION_CONTEXT_SOURCES.contains(&"current_chapter"));
+        assert!(
+            serde_json::from_value::<super::SearchOptimizationContextInput>(
+                serde_json::json!({"query": "正文", "cursor": "ignored-before"})
+            )
+            .is_err()
+        );
     }
 }
 

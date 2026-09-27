@@ -1,37 +1,24 @@
 #!/usr/bin/env python3
 """Verify cache wire metadata and accounting through CLI/Host/sidecar, not cache performance."""
 
-import argparse
 import json
-import os
 import tempfile
 import time
 from pathlib import Path
 
 from run_agent_cli_e2e import data, wait_for_run
-from run_cli_contract_e2e import Cli, RunnerError, checked, provider_log_entries, runtime_snapshot, secure_json
+from run_cli_contract_e2e import RunnerError, checked, cli_e2e_parser, logged_in_cli, provider_log_entries, runtime_snapshot, secure_json
 
 
 def main():
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--a4n", required=True)
-    parser.add_argument("--server", required=True)
-    parser.add_argument("--username", required=True)
-    parser.add_argument("--password-env", default="A4N_PASSWORD")
-    parser.add_argument("--provider-url", required=True)
-    parser.add_argument("--provider-log", type=Path, required=True)
-    parser.add_argument("--report", type=Path, required=True)
+    parser = cli_e2e_parser(__doc__)
     args = parser.parse_args()
     args.report.parent.mkdir(parents=True, exist_ok=True)
     report = {"success": False, "checks": [], "usage_is_synthetic": True}
     try:
         with tempfile.TemporaryDirectory(prefix="cache-cli-", dir=args.report.parent) as directory:
             work = Path(directory)
-            env = os.environ.copy()
-            password = env.pop(args.password_env)
-            env.pop("A4N_ACCESS_TOKEN", None)
-            cli = Cli(args.a4n, args.server, work / "cli.json", work / "context.json", 60, env)
-            checked(cli, ["auth", "login", "--username", args.username, "--password-stdin"], "login", password + "\n")
+            cli = logged_in_cli(args, work)
 
             def call(name, value, destructive=False):
                 command = ["call", name, "--args", json.dumps({"input": value}, ensure_ascii=False)]

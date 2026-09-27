@@ -112,7 +112,8 @@ def agent_chat_fixture(body: dict[str, Any]) -> dict[str, Any] | None:
     # The main Agent thread is durable, so a new turn carries the previous
     # turns' tool calls and child results as well.  Fixture decisions must be
     # scoped to the latest real user message; otherwise an old delegation can
-    # make a fresh request look already completed.
+    # make a fresh request look already completed. Runtime state is appended
+    # after tool observations and is not a new user turn.
     current_turn_start = next(
         (
             index
@@ -120,7 +121,7 @@ def agent_chat_fixture(body: dict[str, Any]) -> dict[str, Any] | None:
             if isinstance(messages[index], dict)
             and messages[index].get("role") == "user"
             and not str(messages[index].get("content", "")).startswith(
-                "[Agent inbox:"
+                ("[Agent inbox:", "当前执行阶段：")
             )
         ),
         0,

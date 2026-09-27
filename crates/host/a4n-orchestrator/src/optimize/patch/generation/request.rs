@@ -105,12 +105,8 @@ impl OrchestratorContext {
                 Some(base.session.project_id),
             )
             .await?;
-        let user_message = build_content_optimization_patch_user_message(
-            &base_content_hash,
-            &selected_issues,
-            &permissions,
-            base.override_instruction.as_deref(),
-        )?;
+        let user_message =
+            build_content_optimization_patch_user_message(&base_content_hash, &selected_issues)?;
         let request = build_content_optimization_patch_request(
             base.session.project_id,
             base.session.id,

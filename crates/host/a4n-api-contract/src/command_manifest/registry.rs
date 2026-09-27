@@ -139,8 +139,9 @@ command_specs! {
     "get_character_voice_fingerprint" => args_character_profile_value, result_optional_json_value, "profile", context(NO_CONTEXT), effect(READ_EFFECT);
     "get_current_user" => empty_args_schema, result_get_current_user, "auth", context(NO_CONTEXT), effect(READ_EFFECT);
     "get_embedding_model_download_info" => args_delete_local_embedding_model, result_get_embedding_model_download_info, "rag", effect(READ_EFFECT), capabilities(CAPABILITIES_EMBEDDING);
+    "get_galgame_asset_plan" => args_cancel_galgame_pipeline, result_get_galgame_asset_plan, "galgame", context(NO_CONTEXT), effect(READ_EFFECT), references(REFERENCES_GENERATION_SPEC_IDS);
     "get_galgame_pipeline_status" => args_cancel_galgame_pipeline, result_cancel_galgame_pipeline, "galgame", context(NO_CONTEXT), effect(READ_EFFECT), execution("workflow"), references(REFERENCES_WORKFLOW_RUN_IDS);
-    "get_galgame_script" => args_cancel_galgame_pipeline, result_get_galgame_script, "galgame", context(NO_CONTEXT), effect(READ_EFFECT), references(REFERENCES_GALGAME_SCRIPT_IDS);
+    "get_galgame_script" => args_cancel_galgame_pipeline, result_find_galgame_script, "galgame", context(NO_CONTEXT), effect(READ_EFFECT), references(REFERENCES_GALGAME_SCRIPT_IDS);
     "get_generation_call_analytics" => args_get_generation_call_analytics, result_get_generation_call_analytics, "system", identity(ADMIN_IDENTITY), effect(READ_EFFECT);
     "get_generation_progress" => args_project_id, result_outline_generation_progress, "task", context(PROJECT_CONTEXT), effect(READ_EFFECT);
     "get_implicit_review" => args_get_implicit_review, result_get_implicit_review, "profile", effect(READ_EFFECT);

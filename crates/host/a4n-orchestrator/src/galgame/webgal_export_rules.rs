@@ -74,9 +74,19 @@ pub fn sanitize_export_file_stem(value: &str) -> Result<String, String> {
     }
 }
 
-/// WebGAL 说话人参数转义。
-pub fn webgal_speaker(value: &str) -> String {
-    webgal_arg(value)
+/// Native setVar expressions carry literal text past the script parser's command delimiters.
+pub fn webgal_string_literal(value: &str) -> String {
+    let json = serde_json::Value::String(value.to_owned()).to_string();
+    let mut output = String::with_capacity(json.len());
+    for ch in json.chars() {
+        match ch {
+            ';' | '=' | '{' | '}' | '+' | '-' | '*' | '/' | '(' | ')' => {
+                output.push_str(&format!("\\u{:04x}", ch as u32));
+            }
+            _ => output.push(ch),
+        }
+    }
+    output
 }
 
 /// WebGAL 对白文本转义。
@@ -85,11 +95,6 @@ pub fn webgal_text(value: &str) -> String {
         .trim()
         .replace(['\r', '\n', '\t'], " ")
         .replace(';', "；")
-}
-
-/// WebGAL 旁白文本转义。
-pub fn webgal_narration(value: &str) -> String {
-    webgal_text(value).replace(':', "：")
 }
 
 /// WebGAL 通用参数转义。
@@ -126,7 +131,19 @@ mod tests {
     #[test]
     fn text_escaping() {
         assert_eq!(webgal_text("a;b\nc"), "a；b c");
-        assert_eq!(webgal_narration("a:b"), "a：b");
         assert_eq!(webgal_arg("a:b|c"), "a bc");
+    }
+
+    #[test]
+    fn text_literals_preserve_content_without_script_delimiters() {
+        for text in [
+            "A: B; C - D",
+            "true+false={value}",
+            "引号\"和反斜杠\\;\n下一行/(1)",
+        ] {
+            let literal = webgal_string_literal(text);
+            assert_eq!(serde_json::from_str::<String>(&literal).unwrap(), text);
+            assert!(!literal.contains([';', '=', '{', '}', '+', '-', '*', '/', '(', ')']));
+        }
     }
 }

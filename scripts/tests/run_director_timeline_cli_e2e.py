@@ -3,7 +3,6 @@
 
 from __future__ import annotations
 
-import argparse
 import base64
 import copy
 import hashlib
@@ -21,31 +20,18 @@ from pathlib import Path
 from mock_openai.protocol import PNG_1X1_BASE64
 from mock_openai.prompt_parsing import json_task_payload
 from run_agent_cli_e2e import data
-from run_cli_contract_e2e import Cli, RunnerError, checked, command_error, provider_log_entries, runtime_snapshot, secure_json
+from run_cli_contract_e2e import RunnerError, checked, cli_e2e_parser, command_error, logged_in_cli, provider_log_entries, runtime_snapshot, secure_json
 
 
 def main():
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--a4n", required=True)
-    parser.add_argument("--server", required=True)
-    parser.add_argument("--username", required=True)
-    parser.add_argument("--password-env", default="A4N_PASSWORD")
-    parser.add_argument("--provider-url", required=True)
-    parser.add_argument("--provider-log", type=Path, required=True)
-    parser.add_argument("--report", type=Path, required=True)
+    parser = cli_e2e_parser(__doc__)
     args = parser.parse_args()
     args.report.parent.mkdir(parents=True, exist_ok=True)
     report = {"success": False, "checks": [], "commands": []}
     try:
         with tempfile.TemporaryDirectory(prefix="director-v3-", dir=args.report.parent) as directory:
             work = Path(directory)
-            env = os.environ.copy()
-            password = env.pop(args.password_env)
-            env.pop("A4N_ACCESS_TOKEN", None)
-            cli = Cli(args.a4n, args.server, work / "cli.json", work / "context.json", 60, env)
-            checked(cli, ["health"], "health")
-            checked(cli, ["capabilities", "check"], "capabilities")
-            checked(cli, ["auth", "login", "--username", args.username, "--password-stdin"], "login", password + "\n")
+            cli = logged_in_cli(args, work)
 
             def configure(model="a4n-virtual-text"):
                 snapshot = runtime_snapshot(args.provider_url)
@@ -234,7 +220,7 @@ def main():
             report["checks"].append("saved partial scene and directing edits survive full continuation and reread without regenerating completed shots")
             shots = [shot for scene in script["script"]["scenes"] for shot in scene["shots"]]
             assert [shot["shot_id"] for shot in shots] == ["shot-1", "shot-2", "shot-3"]
-            assert [shot["estimated_natural_seconds"] for shot in shots] == [6, 4, 8]
+            assert [(shot["planned_end_ms"] - shot["planned_start_ms"]) / 1000 for shot in shots] == [6, 4, 8]
             assert shots[0]["visual_constraints"]["end_frame"] is None
             assert [point["at_ms"] for point in shots[0]["visual_constraints"]["keyframes"]] == [0, 2000, 4000]
             report["checks"].append("confirmation permits missing images; script preserves shot IDs, timing, internal points and explicit end-frame semantics")

@@ -11,6 +11,17 @@ use super::{
     OPTIMIZATION_PATCH_OLD_TEXT_MAX_CHARS,
 };
 
+pub(super) fn default_agent_permissions() -> OptimizationAgentPermissions {
+    OptimizationAgentPermissions {
+        read_project_detail: true,
+        read_blueprint: true,
+        read_outlines: true,
+        read_character_profiles: true,
+        read_foreshadowing: true,
+        automatic_writeback: false,
+    }
+}
+
 pub(super) fn optimization_permissions_from_variables(
     variables: &HashMap<String, Value>,
 ) -> Result<OptimizationAgentPermissions, AppError> {

@@ -2,13 +2,11 @@ use std::collections::HashMap;
 
 use a4n_domain::prompt_language::PromptOutputLanguage;
 use a4n_error::AppError;
-use serde_json::{Value, json};
 
 use super::{
-    ChatVideoPromptShot, SourceSpan, VideoFramePrompt, VideoFramePromptDefaults, VideoPromptShot,
-    VideoSegmentPlan, VideoShootingScriptProjection, parse_chat_video_prompt_shots,
-    parse_storyboard_frame_prompts_with_defaults, parse_video_frame_prompts_with_defaults,
-    parse_video_prompt_shots, parse_video_segment_plan_response,
+    ChatVideoPromptShot, VideoFramePrompt, VideoFramePromptDefaults, VideoPromptShot,
+    VideoSegmentPlan, parse_chat_video_prompt_shots, parse_storyboard_frame_prompts_with_defaults,
+    parse_video_frame_prompts_with_defaults, parse_video_prompt_shots,
 };
 
 pub(super) fn parse_single_video_prompt_shot(
@@ -125,22 +123,4 @@ pub(super) fn parse_single_storyboard_frame_prompt(
         )));
     }
     Ok(frame)
-}
-
-pub(super) fn parse_generated_segment_plan_with_current_config(
-    raw: &str,
-    source_spans: &[SourceSpan],
-    shooting_script_projection: &VideoShootingScriptProjection,
-    duration_secs: i32,
-    default_aspect_ratio: &str,
-) -> Result<(Value, Vec<VideoSegmentPlan>), AppError> {
-    let segment_plan = parse_video_segment_plan_response(
-        raw,
-        source_spans,
-        shooting_script_projection,
-        duration_secs,
-        default_aspect_ratio,
-    )?;
-    let segment_json = json!({ "segments": &segment_plan });
-    Ok((segment_json, segment_plan))
 }

@@ -6,8 +6,8 @@ use a4n_video_contract::{
     VideoPerformancePlanV2, VideoSpatialAnchorV1,
 };
 pub(in crate::video) use a4n_video_contract::{
-    VideoExecutionProjectionV2 as VideoShootingScriptProjection,
-    VideoExecutionShotV2 as VideoCinematicShot, VideoSegmentPlanV2 as VideoSegmentPlan,
+    VideoExecutionProjectionV3 as VideoShootingScriptProjection,
+    VideoExecutionShotV3 as VideoCinematicShot, VideoSegmentPlanV2 as VideoSegmentPlan,
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -188,10 +188,4 @@ pub(in crate::video) struct VideoFramePromptDefaults<'a> {
     pub aspect_ratio: &'a str,
     pub segment_numbers: Vec<i32>,
     pub reference_image_ids: Vec<i64>,
-}
-
-pub(in crate::video) struct VideoSegmentPlanDefaults<'a> {
-    pub(in crate::video) shooting_script_projection: &'a VideoShootingScriptProjection,
-    pub(in crate::video) duration_secs: i32,
-    pub(in crate::video) aspect_ratio: &'a str,
 }

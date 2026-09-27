@@ -18,9 +18,9 @@ use super::super::{
     build_video_context_manifest, parse_video_segment_plan_response,
     render_json_with_validation_with_context, report_video_prompt_checkpoint,
     report_video_prompt_item_committed, report_video_prompt_progress,
-    save_completed_video_llm_checkpoint, segment_plan_progress_spec, serialize_video_value,
-    source_spans_for_shot, validate_segment_plan_against_shooting_script_projection,
-    video_execution_chain_identity, video_segment_plan_input_values, video_stage_fingerprint,
+    save_completed_video_llm_checkpoint, segment_plan_progress_spec, source_spans_for_shot,
+    validate_segment_plan_against_shooting_script_projection, video_execution_chain_identity,
+    video_segment_plan_input_values, video_stage_fingerprint,
 };
 use super::{
     contracts::{RenderedSegmentPlanShots, StagedSegmentPlanInput},
@@ -35,7 +35,6 @@ struct PendingSegmentPlanShot {
     context: String,
     context_manifest: LlmContextManifest,
     fingerprint_json: Value,
-    expected_items: Option<usize>,
 }
 
 #[derive(Debug)]
@@ -83,8 +82,6 @@ pub(super) async fn render_segment_plan_shots(
         project_id,
         chapter_summary: source.summary,
         style,
-        duration_secs,
-        aspect_ratio: default_aspect_ratio,
     };
     let mut completed_shots = (0..total_shots)
         .map(|_| None)
@@ -99,12 +96,6 @@ pub(super) async fn render_segment_plan_shots(
             return Err(AppError::Cancelled);
         }
         let shot_source_spans = source_spans_for_shot(source_spans, shot)?;
-        if shot_source_spans.is_empty() && shot.director_constraints.is_none() {
-            return Err(AppError::InvalidArgument(format!(
-                "视频片段规划镜头 #{} 缺少可用于提示词的 source_spans",
-                shot.source_shot_id
-            )));
-        }
         if reuse_published_shots
             && previous_script_identity.is_some_and(|saved| {
                 saved.matches_shot(
@@ -123,8 +114,6 @@ pub(super) async fn render_segment_plan_shots(
                 shooting_script_projection,
                 &shot.source_shot_id,
                 &shot_source_spans,
-                duration_secs,
-                default_aspect_ratio,
             )?
         {
             completed_shots[index] = Some((
@@ -139,9 +128,7 @@ pub(super) async fn render_segment_plan_shots(
             reused_source_shot_ids.insert(shot.source_shot_id.clone());
             continue;
         }
-        let shot_value = serialize_video_value(shot, "当前导演镜头")?;
-        let user_content =
-            build_segment_plan_for_shot_user(planning_prompt_context, &shot_value).await?;
+        let user_content = build_segment_plan_for_shot_user(planning_prompt_context, shot).await?;
         let source_text = a4n_domain::source_spans::source_span_context_excerpt(
             source.content,
             &shot_source_spans,
@@ -153,10 +140,6 @@ pub(super) async fn render_segment_plan_shots(
             analysis: source.analysis,
         };
         let shot_context = format!("{context} 镜头 #{}", shot.source_shot_id);
-        let expected_items = Some(segment_plan_expected_items(
-            shot.recommended_segment_count,
-            shot.minimum_readable_segment_count,
-        ));
         let context_manifest = build_video_context_manifest(VideoContextManifestInput {
             prompt_renderer,
             project_id,
@@ -185,7 +168,7 @@ pub(super) async fn render_segment_plan_shots(
                 "shot_index": index + 1,
                 "source_span_ids": shot_source_spans.iter().map(|span| &span.id).collect::<Vec<_>>(),
                 "total_shots": total_shots,
-                "expected_items": expected_items,
+                "expected_items": 1,
                 "validation_contract": "segment_plan_per_shot_strict_v4",
             }),
         );
@@ -199,8 +182,6 @@ pub(super) async fn render_segment_plan_shots(
                 &shot_source_spans,
                 shooting_script_projection,
                 &shot.source_shot_id,
-                duration_secs,
-                default_aspect_ratio,
             );
             let (response_content, segment_shot) = service
                 .validate_llm_call_output(workflow_run_id, &step_key, &fingerprint_json, restored)
@@ -224,7 +205,6 @@ pub(super) async fn render_segment_plan_shots(
             context: shot_context,
             context_manifest,
             fingerprint_json,
-            expected_items,
         });
     }
 
@@ -274,7 +254,6 @@ pub(super) async fn render_segment_plan_shots(
             context: shot_context,
             context_manifest,
             fingerprint_json,
-            expected_items,
         } = pending;
         let shot_span = pending_progress_span.split(pending_index, pending_total);
         let step_key = format!("video_segment_plan.shot.{source_shot_id}");
@@ -302,7 +281,7 @@ pub(super) async fn render_segment_plan_shots(
                     .with_span(shot_span),
                 progress,
                 chunks,
-                structured_progress: Some(segment_plan_progress_spec(expected_items)),
+                structured_progress: Some(segment_plan_progress_spec()),
                 checkpoint_context: &shot_context,
             },
             |raw| {
@@ -312,8 +291,6 @@ pub(super) async fn render_segment_plan_shots(
                     &shot_source_spans,
                     shooting_script_projection,
                     &source_shot_id,
-                    duration_secs,
-                    default_aspect_ratio,
                 )
             },
         )
@@ -465,8 +442,6 @@ fn reuse_published_segment_plan_shot(
     shooting_script_projection: &super::super::VideoShootingScriptProjection,
     source_shot_id: &str,
     source_spans: &[a4n_domain::source_spans::SourceSpan],
-    duration_secs: i32,
-    default_aspect_ratio: &str,
 ) -> Result<Option<ValidatedSegmentPlanShot>, AppError> {
     let Some(previous_segment_plan) = previous_segment_plan else {
         return Ok(None);
@@ -496,8 +471,6 @@ fn reuse_published_segment_plan_shot(
         source_spans,
         &scoped_projection,
         source_shot_id,
-        duration_secs,
-        default_aspect_ratio,
     )
     .map(Some)
 }
@@ -508,8 +481,6 @@ fn restore_segment_plan_shot_checkpoint(
     source_spans: &[a4n_domain::source_spans::SourceSpan],
     shooting_script_projection: &super::super::VideoShootingScriptProjection,
     source_shot_id: &str,
-    duration_secs: i32,
-    default_aspect_ratio: &str,
 ) -> Result<(String, ValidatedSegmentPlanShot), AppError> {
     let response_content = checkpoint.response_content.clone();
     let segment_shot = parse_and_validate_segment_plan_shot(
@@ -518,8 +489,6 @@ fn restore_segment_plan_shot_checkpoint(
         source_spans,
         shooting_script_projection,
         source_shot_id,
-        duration_secs,
-        default_aspect_ratio,
     )?;
     ensure_segment_plan_checkpoint_output(&checkpoint.parsed_output, &segment_shot, context)?;
     Ok((response_content, segment_shot))
@@ -531,18 +500,10 @@ fn parse_and_validate_segment_plan_shot(
     source_spans: &[a4n_domain::source_spans::SourceSpan],
     shooting_script_projection: &super::super::VideoShootingScriptProjection,
     source_shot_id: &str,
-    duration_secs: i32,
-    default_aspect_ratio: &str,
 ) -> Result<ValidatedSegmentPlanShot, AppError> {
     let scoped_projection =
         shooting_script_projection_for_shot(shooting_script_projection, source_shot_id)?;
-    let segment_plan = parse_video_segment_plan_response(
-        raw,
-        source_spans,
-        &scoped_projection,
-        duration_secs,
-        default_aspect_ratio,
-    )?;
+    let segment_plan = parse_video_segment_plan_response(raw, source_spans, &scoped_projection)?;
     validate_segment_plan_against_shooting_script_projection(&segment_plan, &scoped_projection)?;
     let input_values = video_segment_plan_input_values(&segment_plan, context)?;
     let checkpoint_values = segment_plan
@@ -571,10 +532,6 @@ fn ensure_segment_plan_checkpoint_output(
         segment_shot.checkpoint_values.as_slice(),
         context,
     )
-}
-
-fn segment_plan_expected_items(recommended: i32, minimum_readable: i32) -> usize {
-    recommended.max(minimum_readable).max(1) as usize
 }
 
 fn segment_plan_draft_text(
@@ -658,13 +615,12 @@ fn segment_plan_reference_context(
 
 #[cfg(test)]
 mod tests {
-    use super::super::super::parse_generated_segment_plan_with_current_config;
     use super::*;
-    use a4n_video_contract::{VideoExecutionProjectionV2, VideoShootingScriptIdentityV1};
+    use a4n_video_contract::{VideoExecutionProjectionV3, VideoShootingScriptIdentityV1};
 
     #[test]
     fn reference_context_keeps_neighbor_boundaries_without_other_shot_payloads() {
-        let mut projection = single_shot_projection("ch1:s1:f1", 6, 1, None);
+        let mut projection = single_shot_projection("ch1:s1:f1", 6, 1);
         let id = projection.scenes[0].shots[0].source_shot_id.clone();
         let mut next = projection.scenes[0].shots[0].clone();
         next.source_shot_id = "next".into();
@@ -688,17 +644,13 @@ mod tests {
         source_span_id: &str,
         duration_secs: i32,
         beat_count: usize,
-        first_beat_seconds: Option<f64>,
-    ) -> VideoExecutionProjectionV2 {
+    ) -> VideoExecutionProjectionV3 {
         let mut script =
             crate::video::tests::test_director_bound_shooting_script(source_span_id, duration_secs);
         script.scenes[0].shots.truncate(1);
         script.scenes[0].shots[0]
             .performance_beats
             .truncate(beat_count);
-        if let Some(seconds) = first_beat_seconds {
-            script.scenes[0].shots[0].performance_beats[0].estimated_seconds = seconds;
-        }
         super::super::super::video_projection_from_shooting_script(
             &script,
             VideoShootingScriptIdentityV1 {
@@ -731,7 +683,7 @@ mod tests {
     #[test]
     fn per_shot_validation_rejects_invalid_terminal_delimiters() {
         let source_spans = a4n_domain::source_spans::source_spans_for_content(1, 1, "章节正文");
-        let projection = single_shot_projection(&source_spans[0].id, 6, 1, None);
+        let projection = single_shot_projection(&source_spans[0].id, 6, 1);
         let raw = repeated_segment_plan_json(1, 6, &["beat-1"]);
         assert!(
             parse_and_validate_segment_plan_shot(
@@ -740,8 +692,6 @@ mod tests {
                 &source_spans,
                 &projection,
                 "shot-1",
-                6,
-                "16:9",
             )
             .is_err()
         );
@@ -750,24 +700,13 @@ mod tests {
     #[test]
     fn director_shot_cannot_be_split_into_extra_segments() {
         let source_spans = a4n_domain::source_spans::source_spans_for_content(1, 1, "章节正文");
-        let projection = single_shot_projection(&source_spans[0].id, 2, 2, None);
-        assert_eq!(
-            projection
-                .shot("shot-1")
-                .unwrap()
-                .minimum_readable_segment_count,
-            1
-        );
-        assert_eq!(segment_plan_expected_items(1, 1), 1);
-
+        let projection = single_shot_projection(&source_spans[0].id, 2, 2);
         let error = parse_and_validate_segment_plan_shot(
             &repeated_segment_plan_json(2, 2, &["beat-1", "beat-2"]),
             "测试镜头",
             &source_spans,
             &projection,
             "shot-1",
-            2,
-            "16:9",
         )
         .unwrap_err();
 
@@ -777,15 +716,13 @@ mod tests {
     #[test]
     fn per_shot_checkpoint_contains_backend_derived_card_fields() {
         let source_spans = a4n_domain::source_spans::source_spans_for_content(1, 1, "章节正文");
-        let projection = single_shot_projection(&source_spans[0].id, 6, 1, None);
+        let projection = single_shot_projection(&source_spans[0].id, 6, 1);
         let segment_shot = parse_and_validate_segment_plan_shot(
             &repeated_segment_plan_json(1, 6, &["beat-1"]),
             "测试镜头",
             &source_spans,
             &projection,
             "shot-1",
-            6,
-            "16:9",
         )
         .unwrap();
 
@@ -800,15 +737,13 @@ mod tests {
     #[test]
     fn checkpoint_output_requires_current_canonical_segment_contract() {
         let source_spans = a4n_domain::source_spans::source_spans_for_content(1, 1, "章节正文");
-        let projection = single_shot_projection(&source_spans[0].id, 6, 1, None);
+        let projection = single_shot_projection(&source_spans[0].id, 6, 1);
         let segment_shot = parse_and_validate_segment_plan_shot(
             &repeated_segment_plan_json(1, 6, &["beat-1"]),
             "测试镜头",
             &source_spans,
             &projection,
             "shot-1",
-            6,
-            "16:9",
         )
         .unwrap();
 
@@ -835,15 +770,13 @@ mod tests {
     #[test]
     fn published_shot_is_reused_as_validated_input_without_derived_fields() {
         let source_spans = a4n_domain::source_spans::source_spans_for_content(1, 1, "章节正文");
-        let projection = single_shot_projection(&source_spans[0].id, 6, 1, None);
+        let projection = single_shot_projection(&source_spans[0].id, 6, 1);
         let generated = parse_and_validate_segment_plan_shot(
             &repeated_segment_plan_json(1, 6, &["beat-1"]),
             "测试镜头",
             &source_spans,
             &projection,
             "shot-1",
-            6,
-            "16:9",
         )
         .unwrap();
         let published: Vec<super::super::super::VideoSegmentPlan> =
@@ -854,8 +787,6 @@ mod tests {
             &projection,
             "shot-1",
             &source_spans,
-            6,
-            "16:9",
         )
         .unwrap()
         .unwrap();
@@ -870,15 +801,13 @@ mod tests {
     #[test]
     fn incomplete_published_shot_is_rejected_instead_of_silently_skipped() {
         let source_spans = a4n_domain::source_spans::source_spans_for_content(1, 1, "章节正文");
-        let projection = single_shot_projection(&source_spans[0].id, 2, 2, None);
+        let projection = single_shot_projection(&source_spans[0].id, 2, 2);
         let generated = parse_and_validate_segment_plan_shot(
             &repeated_segment_plan_json(1, 2, &["beat-1", "beat-2"]),
             "测试镜头",
             &source_spans,
             &projection,
             "shot-1",
-            2,
-            "16:9",
         )
         .unwrap();
         let mut published: Vec<super::super::super::VideoSegmentPlan> =
@@ -890,8 +819,6 @@ mod tests {
             &projection,
             "shot-1",
             &source_spans,
-            2,
-            "16:9",
         )
         .unwrap_err();
 
@@ -899,68 +826,54 @@ mod tests {
     }
 
     #[test]
-    fn long_beat_does_not_override_director_shot_boundaries() {
-        let source_spans = a4n_domain::source_spans::source_spans_for_content(1, 1, "章节正文");
-        let projection = single_shot_projection(&source_spans[0].id, 2, 1, Some(4.0));
-        assert_eq!(
-            projection
-                .shot("shot-1")
-                .unwrap()
-                .minimum_readable_segment_count,
-            1
-        );
-        let raw = repeated_segment_plan_json(2, 2, &["beat-1"]);
-
-        let error = parse_generated_segment_plan_with_current_config(
-            &raw,
-            &source_spans,
-            &projection,
-            2,
-            "16:9",
-        )
-        .unwrap_err();
-        assert!(error.to_string().contains("不能重新拆镜头"));
-    }
-
-    #[test]
     fn per_shot_validation_rejects_unnecessary_duplicate_beat_coverage() {
         let source_spans = a4n_domain::source_spans::source_spans_for_content(1, 1, "章节正文");
-        let projection = single_shot_projection(&source_spans[0].id, 2, 2, None);
+        let projection = single_shot_projection(&source_spans[0].id, 2, 2);
         let raw = repeated_segment_plan_json(1, 2, &["beat-1", "beat-1", "beat-2"]);
-        let error = parse_generated_segment_plan_with_current_config(
-            &raw,
-            &source_spans,
-            &projection,
-            2,
-            "16:9",
-        )
-        .unwrap_err();
+        let error =
+            parse_video_segment_plan_response(&raw, &source_spans, &projection).unwrap_err();
         assert!(error.to_string().contains("包含重复 beat_id"));
     }
 
     #[test]
     fn director_shot_still_requires_every_required_beat() {
         let source_spans = a4n_domain::source_spans::source_spans_for_content(1, 1, "章节正文");
-        let projection = single_shot_projection(&source_spans[0].id, 1, 2, None);
+        let projection = single_shot_projection(&source_spans[0].id, 1, 2);
         let raw = repeated_segment_plan_json(1, 1, &["beat-1"]);
-        let (_, segments) = parse_generated_segment_plan_with_current_config(
-            &raw,
-            &source_spans,
-            &projection,
-            1,
-            "16:9",
-        )
-        .unwrap();
+        let segments = parse_video_segment_plan_response(&raw, &source_spans, &projection).unwrap();
 
         let error =
             validate_segment_plan_against_shooting_script_projection(&segments, &projection)
                 .unwrap_err();
 
         assert!(
-            error.to_string().contains(
-                "必须至少覆盖镜头 shot-1 的必需动作节拍 beat_id beat-2 一次，实际覆盖 0 次"
-            )
+            error
+                .to_string()
+                .contains("必须覆盖镜头 shot-1 的必需动作节拍 beat_id beat-2 一次")
         );
+    }
+
+    #[test]
+    fn covered_beats_preserve_script_order() {
+        let source_spans = a4n_domain::source_spans::source_spans_for_content(1, 1, "章节正文");
+        let projection = single_shot_projection(&source_spans[0].id, 6, 2);
+        parse_and_validate_segment_plan_shot(
+            &repeated_segment_plan_json(1, 6, &["beat-1", "beat-2"]),
+            "测试镜头",
+            &source_spans,
+            &projection,
+            "shot-1",
+        )
+        .unwrap();
+        let error = parse_and_validate_segment_plan_shot(
+            &repeated_segment_plan_json(1, 6, &["beat-2", "beat-1"]),
+            "测试镜头",
+            &source_spans,
+            &projection,
+            "shot-1",
+        )
+        .unwrap_err();
+        assert!(error.to_string().contains("拍摄剧本节拍顺序"), "{error}");
     }
 
     #[test]

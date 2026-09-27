@@ -58,18 +58,27 @@ impl OrchestratorContext {
             )
             .await?;
         let restored = raw.restored_parsed_output.is_some();
-        let output =
-            parse_strict_json_response::<T>(&raw.response_content, label).and_then(|output| {
-                validate_output(&output)?;
-                if let Some(saved) = raw.restored_parsed_output.as_ref() {
-                    ensure_checkpoint_parsed_output_matches(
-                        saved,
-                        &serde_json::to_value(&output)?,
-                        &format!("分镜脚本 {step_key}"),
-                    )?;
-                }
-                Ok(output)
-            });
+        let parsed = if raw.upgraded_contract {
+            let mut value =
+                parse_strict_json_response::<serde_json::Value>(&raw.response_content, label)?;
+            a4n_domain::shooting_script::compat::HashUpgrades::default()
+                .upgrade_embedded(&mut value)
+                .map_err(AppError::InvalidArgument)?;
+            serde_json::from_value::<T>(value).map_err(AppError::Serialization)
+        } else {
+            parse_strict_json_response::<T>(&raw.response_content, label)
+        };
+        let output = parsed.and_then(|output| {
+            validate_output(&output)?;
+            if let Some(saved) = raw.restored_parsed_output.as_ref() {
+                ensure_checkpoint_parsed_output_matches(
+                    saved,
+                    &serde_json::to_value(&output)?,
+                    &format!("分镜脚本 {step_key}"),
+                )?;
+            }
+            Ok(output)
+        });
         let output = if restored {
             self.validate_llm_call_output(workflow_run_id, step_key, &fingerprint_json, output)
                 .await?

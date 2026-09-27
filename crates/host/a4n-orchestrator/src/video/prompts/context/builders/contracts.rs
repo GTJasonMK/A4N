@@ -25,8 +25,6 @@ pub(in crate::video) struct VideoPlanningPromptContext<'a> {
     pub project_id: i64,
     pub chapter_summary: Option<&'a str>,
     pub style: &'a str,
-    pub duration_secs: i32,
-    pub aspect_ratio: &'a str,
 }
 
 #[derive(Clone, Copy)]

@@ -19,31 +19,15 @@ fn video_user_prompt_forbids_markdown_fenced_json() {
 }
 
 #[test]
-fn segment_plan_user_includes_time_budget_rule() {
+fn segment_plan_uses_director_duration_and_preserves_performance_requirements() {
     let engine = prompt_renderer();
-    let current_shot = json!({
-        "source_shot_id": "scene-1-shot-1",
-        "action_beats": [
-            {
-                "beat_id": "scene-1-shot-1-beat-1",
-                "natural_seconds": 3.0,
-                "required": true,
-                "visible_action": "他推门进入",
-                "source_span_ids": ["ch1:s1:f1"]
-            }
-        ]
-    });
-    let user = build_segment_plan_for_shot_user(
-        planning_context(&engine, "电影感写实", 10),
-        &current_shot,
-    )
-    .expect("segment plan user prompt should render");
+    let current_shot = crate::video::tests::test_video_execution_shot(6);
+    let user =
+        build_segment_plan_for_shot_user(planning_context(&engine, "电影感写实"), &current_shot)
+            .expect("segment plan user prompt should render");
 
-    assert!(user.contains("\"time_budget_rule\""));
-    assert!(user.contains("不要机械套用固定事件数量"));
-    assert!(user.contains("不得改用其他时长"));
     let payload = video_user_payload(&user);
-    assert_eq!(payload["constraints"]["selected_duration_secs"], json!(10));
+    assert_eq!(payload["constraints"]["selected_duration_secs"], json!(6));
     assert!(
         payload["constraints"]["default_duration_secs"].is_null(),
         "segment planning should not expose a separate default duration"
@@ -56,11 +40,8 @@ fn segment_plan_user_includes_time_budget_rule() {
         !contains_json_key(&payload, "model_duration_capability"),
         "segment planning should not expose provider duration capability to the model"
     );
-    assert!(
-        payload["constraints"]["duration_selection_rule"]
-            .as_str()
-            .is_some_and(|rule| rule.contains("必须等于 constraints.selected_duration_secs"))
-    );
+    assert!(payload["constraints"]["duration_selection_rule"].is_null());
+    assert!(payload["constraints"]["time_budget_rule"].is_null());
     let required_fields = payload["output_contract"]["required_segment_fields"]
         .as_array()
         .expect("required_segment_fields should be array");
@@ -94,22 +75,14 @@ fn segment_plan_user_includes_time_budget_rule() {
 
 #[test]
 fn locked_director_shot_has_one_count_rule_and_no_split_instructions() {
-    use a4n_domain::chapter_visual_plan::{ChapterVisualPlanV3, SceneBindingV3};
-    let mut plan = ChapterVisualPlanV3::starter();
-    plan.segments[0].prompt = "人物停在门边".into();
-    plan.segments[0].scene_binding = Some(SceneBindingV3::Scene {
-        scene_profile_id: 1,
-    });
-    let director = plan.project().unwrap().remove(0);
+    let mut shot = crate::video::tests::test_video_execution_shot(10);
+    shot.director_constraints.prompt = "人物停在门边".into();
+    shot.action_beats.clear();
     let engine = prompt_renderer();
-    let user = build_segment_plan_for_shot_user(
-        planning_context(&engine, "电影感写实", 10),
-        &json!({"source_shot_id": director.segment_id, "segment_duration_secs": 5,
-            "director_constraints": director, "action_beats": []}),
-    )
-    .expect("fixed shot request");
+    let user = build_segment_plan_for_shot_user(planning_context(&engine, "电影感写实"), &shot)
+        .expect("fixed shot request");
     let payload = video_user_payload(&user);
-    assert_eq!(payload["constraints"]["selected_duration_secs"], 5);
+    assert_eq!(payload["constraints"]["selected_duration_secs"], 10);
     assert!(payload["constraints"]["time_budget_rule"].is_null());
     assert!(payload["constraints"]["duration_selection_rule"].is_null());
     assert_eq!(user.matches("人物停在门边").count(), 1);

@@ -1,5 +1,5 @@
 use a4n_db_models::models::chapter::chapter_shooting_script;
-use a4n_domain::shooting_script::{CHAPTER_SHOOTING_SCRIPT_V1, ChapterShootingScriptV1};
+use a4n_domain::shooting_script::{CHAPTER_SHOOTING_SCRIPT_V2, ChapterShootingScriptV2};
 use serde::Serialize;
 use sha2::{Digest, Sha256};
 
@@ -11,7 +11,7 @@ use super::{
 pub(crate) fn parse_record(
     record: chapter_shooting_script::Model,
 ) -> Result<ParsedChapterShootingScript, ShootingScriptDbError> {
-    if record.contract_version != CHAPTER_SHOOTING_SCRIPT_V1 {
+    if record.contract_version != CHAPTER_SHOOTING_SCRIPT_V2 {
         return Err(ShootingScriptDbError::InvalidState(format!(
             "拍摄剧本 {} 使用不受支持的合同版本: {}",
             record.id, record.contract_version
@@ -21,7 +21,7 @@ pub(crate) fn parse_record(
     validate_sha256(&record.input_fingerprint_sha256, "input_fingerprint_sha256")?;
     validate_sha256(&record.script_sha256, "script_sha256")?;
     let visual_plan = stored_visual_plan_identity(&record)?;
-    let script: ChapterShootingScriptV1 = serde_json::from_value(record.script_json.clone())
+    let script: ChapterShootingScriptV2 = serde_json::from_value(record.script_json.clone())
         .map_err(|error| {
             ShootingScriptDbError::InvalidState(format!(
                 "解析章节拍摄剧本 {} 失败: {error}",
@@ -72,7 +72,7 @@ pub(super) fn stored_visual_plan_identity(
 }
 
 pub(super) fn validate_script_visual_plan_identity(
-    script: &ChapterShootingScriptV1,
+    script: &ChapterShootingScriptV2,
     identity: &ChapterVisualPlanIdentity,
 ) -> Result<(), ShootingScriptDbError> {
     let source = script.visual_plan_source.as_ref().ok_or_else(|| {
@@ -96,7 +96,7 @@ pub(super) fn validate_script_visual_plan_identity(
 
 fn validate_stored_script_visual_plan_identity(
     record_id: i64,
-    script: &ChapterShootingScriptV1,
+    script: &ChapterShootingScriptV2,
     identity: Option<&ChapterVisualPlanIdentity>,
 ) -> Result<(), ShootingScriptDbError> {
     match (script.visual_plan_source.as_ref(), identity) {
@@ -118,7 +118,7 @@ fn visual_plan_source_matches(
 }
 
 pub(super) fn serialize_script(
-    script: &ChapterShootingScriptV1,
+    script: &ChapterShootingScriptV2,
 ) -> Result<(serde_json::Value, String), ShootingScriptDbError> {
     script
         .validate()

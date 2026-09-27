@@ -16,7 +16,7 @@ pub use a4n_api_contract::shooting_script::{
 pub use a4n_worker_contract::{WorkerEnvelope, WorkerResponse};
 
 pub const NOVEL_PLANNING_WORKER_ID: &str = "novel-planning-worker";
-pub const NOVEL_PLANNING_WORKER_CONTRACT_VERSION: &str = "novel-planning-shooting-script-v2";
+pub const NOVEL_PLANNING_WORKER_CONTRACT_VERSION: &str = "novel-planning-shooting-script-v3";
 
 /// Explicitly wraps nullable command results so `payload: null` cannot be
 /// confused with a missing worker response payload.

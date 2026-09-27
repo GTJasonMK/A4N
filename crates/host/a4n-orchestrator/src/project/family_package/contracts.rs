@@ -20,7 +20,7 @@ use a4n_db_models::models::{
 };
 use serde::{Deserialize, Serialize};
 
-pub const PROJECT_FAMILY_PACKAGE_VERSION: &str = "project_family_v6";
+pub const PROJECT_FAMILY_PACKAGE_VERSION: &str = "project_family_v7";
 pub const MANIFEST_PATH: &str = "a4n-project-family.json";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

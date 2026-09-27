@@ -16,7 +16,7 @@ pub(in crate::project::family::import) fn remap_source_snapshot_outline_payload(
             remap_required_object_id(
                 &mut object,
                 "id",
-                &maps.part_outline_ids,
+                &maps.source_part_outline_ids,
                 "源快照大纲 payload_json",
             )?;
             remap_required_object_id(
@@ -30,7 +30,7 @@ pub(in crate::project::family::import) fn remap_source_snapshot_outline_payload(
             remap_required_object_id(
                 &mut object,
                 "id",
-                &maps.chapter_outline_ids,
+                &maps.source_chapter_outline_ids,
                 "源快照大纲 payload_json",
             )?;
             remap_required_object_id(
@@ -42,7 +42,7 @@ pub(in crate::project::family::import) fn remap_source_snapshot_outline_payload(
             remap_object_id(
                 &mut object,
                 "part_id",
-                &maps.part_outline_ids,
+                &maps.source_part_outline_ids,
                 "源快照大纲 payload_json",
             )?;
         }
@@ -63,12 +63,12 @@ pub(in crate::project::family::import) fn remap_snapshot_outline_source_id(
 ) -> Result<i64, ProjectFamilyImportError> {
     match outline.outline_kind.as_str() {
         "part" => map_required(
-            &maps.part_outline_ids,
+            &maps.source_part_outline_ids,
             outline.source_outline_id,
             "源快照分部大纲 source_outline_id",
         ),
         "chapter" => map_required(
-            &maps.chapter_outline_ids,
+            &maps.source_chapter_outline_ids,
             outline.source_outline_id,
             "源快照章节大纲 source_outline_id",
         ),

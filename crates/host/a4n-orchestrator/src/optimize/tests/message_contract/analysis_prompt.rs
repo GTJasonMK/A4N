@@ -2,48 +2,47 @@
 fn content_optimization_user_message_uses_json_payload() {
     let prompt = build_content_optimization_user_message(
         "第一段正文",
-        Some(&json!({
+        &json!({
             "sections": ["current_chapter", "current_chapter_outline", "previous_chapters"],
             "counts": {
                 "current_chapter": 1,
                 "current_chapter_outline": 1,
                 "previous_chapters": 1
             }
-        })),
-        &optimize_test_permissions(),
-        Some("优先找逻辑漏洞"),
+        }),
     )
     .expect("content optimization prompt should serialize");
 
-    assert!(prompt.contains(r#""agent""#));
-    assert!(prompt.contains(r#""read_character_profiles": true"#));
-    assert!(prompt.contains(r#""capabilities""#));
-    assert!(prompt.contains(r#""full_chapter_rewrite": false"#));
-    assert!(prompt.contains(r#""automatic_writeback": false"#));
-    assert!(prompt.contains("优先找逻辑漏洞"));
-    assert!(prompt.contains(
-        r#""content_available_via": "run_tool.get_project_information(mode=read, source=current_chapter).result.content""#
-    ));
-    assert!(prompt.contains(
-        r#""source_spans_available_via": "run_tool.get_project_information(mode=read, source=current_chapter).result.content.source_spans""#
-    ));
-    assert!(!prompt.contains(r#""content": "第一段正文""#));
-    assert!(prompt.contains(r#""context_manifest""#));
-    assert!(prompt.contains(r#""available_actions""#));
-    assert!(prompt.contains(r#""protocol_constraints""#));
-    assert!(prompt.contains(r#""tool_names_are_not_actions""#));
-    assert!(prompt.contains(r#""public_update_required_for""#));
-    assert!(prompt.contains(r#""root_action_enum": ["#));
-    assert!(prompt.contains(r#""action": "edit_article""#));
-    assert!(prompt.contains(r#""action": "run_tool""#));
-    assert!(prompt.contains(r#""action": "think|run_tool|final""#));
-    assert!(prompt.contains(r#""think_arguments""#));
-    assert!(prompt.contains(r#""output_contract""#));
-    assert!(prompt.contains(r#""issues": "问题对象数组""#));
-    assert!(prompt.contains(r#""evidence_span_id""#));
-    assert!(prompt.contains(r#""forbidden_issue_argument_fields": ["#));
+    let payload: serde_json::Value =
+        serde_json::from_str(a4n_prompt::request::json_user_message_payload(&prompt).unwrap())
+            .unwrap();
+    assert_eq!(
+        payload["chapter"]["content_chars"],
+        "第一段正文".chars().count()
+    );
+    assert_eq!(
+        payload["context_manifest"]["counts"]["previous_chapters"],
+        1
+    );
+    assert!(
+        payload["chapter"]["content_available_via"]
+            .as_str()
+            .unwrap()
+            .contains("current_chapter")
+    );
     assert!(is_content_optimization_analysis_prompt(&prompt));
-    assert!(!prompt.contains("请审阅以下章节内容并提出优化建议："));
+    assert!(!prompt.contains("第一段正文"));
+    for redundant in [
+        "available_actions",
+        "protocol_constraints",
+        "decision_contract",
+        "completion_policy",
+    ] {
+        assert!(
+            payload.get(redundant).is_none(),
+            "{redundant} belongs to the fixed rules"
+        );
+    }
 }
 
 #[test]
@@ -81,13 +80,8 @@ fn content_optimization_analysis_prompt_detection_uses_payload_task_name() {
 
 #[test]
 fn content_optimization_user_message_rejects_blank_content() {
-    let err = build_content_optimization_user_message(
-        " \n\t ",
-        None,
-        &optimize_test_permissions(),
-        None,
-    )
-    .expect_err("blank chapter content must fail");
+    let err = build_content_optimization_user_message(" \n\t ", &json!({}))
+        .expect_err("blank chapter content must fail");
 
     assert!(matches!(err, AppError::InvalidArgument(_)));
 }

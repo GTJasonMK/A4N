@@ -2,10 +2,10 @@ use std::collections::HashSet;
 
 use super::ShootingScriptValidationError;
 use super::rules::{invalid, is_subset, non_empty_texts, require_index, required_text};
-use crate::shooting_script::{ShootingPerformanceBeatV1, ShootingSceneV1, ShootingShotV1};
+use crate::shooting_script::{ShootingPerformanceBeatV2, ShootingSceneV2, ShootingShotV2};
 
 pub(super) fn validate_scene(
-    scene: &ShootingSceneV1,
+    scene: &ShootingSceneV2,
     path: &str,
     shot_ids: &mut HashSet<String>,
     beat_ids: &mut HashSet<String>,
@@ -97,8 +97,8 @@ pub(super) fn validate_scene(
 }
 
 fn validate_shot(
-    scene: &ShootingSceneV1,
-    shot: &ShootingShotV1,
+    scene: &ShootingSceneV2,
+    shot: &ShootingShotV2,
     path: &str,
     shot_ids: &mut HashSet<String>,
     beat_ids: &mut HashSet<String>,
@@ -165,13 +165,6 @@ fn validate_shot(
             "必须属于所在场景的来源范围",
         );
     }
-    if !shot.estimated_natural_seconds.is_finite() || shot.estimated_natural_seconds <= 0.0 {
-        return invalid(
-            format!("{path}.estimated_natural_seconds"),
-            "必须是大于 0 的有限数",
-        );
-    }
-    let mut seconds = 0.0;
     for (beat_offset, beat) in shot.performance_beats.iter().enumerate() {
         let beat_path = format!("{path}.performance_beats[{beat_offset}]");
         require_index(
@@ -180,14 +173,6 @@ fn validate_shot(
             &format!("{beat_path}.beat_index"),
         )?;
         validate_beat(scene, shot, beat, &beat_path, beat_ids, user_addition_ids)?;
-        seconds += beat.estimated_seconds;
-    }
-    if !shot.performance_beats.is_empty() && (seconds - shot.estimated_natural_seconds).abs() > 0.01
-    {
-        return invalid(
-            format!("{path}.estimated_natural_seconds"),
-            "必须等于表演节拍时长之和",
-        );
     }
     let beat_ids_for_shot = shot
         .performance_beats
@@ -212,9 +197,9 @@ fn validate_shot(
 }
 
 fn validate_beat(
-    scene: &ShootingSceneV1,
-    shot: &ShootingShotV1,
-    beat: &ShootingPerformanceBeatV1,
+    scene: &ShootingSceneV2,
+    shot: &ShootingShotV2,
+    beat: &ShootingPerformanceBeatV2,
     path: &str,
     beat_ids: &mut HashSet<String>,
     user_addition_ids: &HashSet<&str>,
@@ -257,9 +242,6 @@ fn validate_beat(
             .any(|participant| participant == actor)
     {
         return invalid(format!("{path}.actor"), "必须属于所在场景 participants");
-    }
-    if !beat.estimated_seconds.is_finite() || beat.estimated_seconds <= 0.0 {
-        return invalid(format!("{path}.estimated_seconds"), "必须是大于 0 的有限数");
     }
     Ok(())
 }

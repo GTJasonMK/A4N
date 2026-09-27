@@ -1,7 +1,7 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import type { ChapterVideoPrompt } from "../../../api/video";
-import type { ShootingSceneV1 } from "../../../api/shootingScript";
+import type { ShootingSceneV2 } from "../../../api/shootingScript";
 import {
   selectVideoPlanningUnitIndex,
   VideoPlanningWorkspace,
@@ -18,7 +18,7 @@ const shootingScenes = [
     title: "场景一",
     shots: [{ shot_id: "shot-1" }],
   },
-] as ShootingSceneV1[];
+] as ShootingSceneV2[];
 
 const persistedPrompt = {
   id: 1,
@@ -233,7 +233,7 @@ describe("VideoPlanningWorkspace", () => {
             title: "场景一",
             shots: [{ shot_id: "shot-1" }, { shot_id: "shot-2" }],
           },
-        ] as ShootingSceneV1[]}
+        ] as ShootingSceneV2[]}
         onGenerate={vi.fn()}
         onOptionsChange={vi.fn()}
         onRetryLoad={vi.fn()}

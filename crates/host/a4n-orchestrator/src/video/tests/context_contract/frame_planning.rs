@@ -81,21 +81,8 @@ fn planning_prompt_builders_include_safe_visual_rewrite_rule() {
         project_id: PROMPT_PROJECT_ID,
         chapter_summary: None,
         style: "电影感写实",
-        duration_secs: 5,
-        aspect_ratio: "16:9",
     };
-    let current_shot = json!({
-        "source_shot_id": "scene-1-shot-1",
-        "action_beats": [
-            {
-                "beat_id": "scene-1-shot-1-beat-1",
-                "natural_seconds": 5.0,
-                "required": true,
-                "visible_action": "角色发现线索",
-                "source_span_ids": ["ch1:s1:f1"]
-            }
-        ]
-    });
+    let current_shot = crate::video::tests::test_video_execution_shot(5);
     let segment_prompt =
         super::super::prompts::context::build_segment_plan_for_shot_user(context, &current_shot)
             .expect("segment plan prompt builder should render");

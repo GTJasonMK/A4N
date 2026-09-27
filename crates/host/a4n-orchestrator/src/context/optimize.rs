@@ -271,6 +271,19 @@ impl OrchestratorContext {
             .await
     }
 
+    pub(crate) async fn agent_optimization_session_for_user(
+        &self,
+        user_id: i64,
+        project_id: i64,
+        chapter_id: i64,
+    ) -> Result<Option<optimization_session::Model>, AppError> {
+        Ok(self
+            .optimize_sessions_for_user(user_id, project_id, Some(chapter_id))
+            .await?
+            .into_iter()
+            .find(|session| session.status != "cancelled"))
+    }
+
     pub(crate) async fn optimize_session_for_user(
         &self,
         user_id: i64,

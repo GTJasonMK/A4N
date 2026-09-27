@@ -264,9 +264,9 @@ async function closeDialog() {
   await browser.keys("Escape");
   await browser.waitUntil(async () => !await closing.isDisplayed(), { timeout, timeoutMsg: "Escape did not close the active dialog" });
 }
-async function wheelTo(element, atEnd = false) {
+async function wheelTo(element, anchor = "center") {
   await element.waitForExist({ timeout });
-  const inspect = () => element.execute((node, end) => {
+  const inspect = () => element.execute((node, anchor) => {
     const r = node.getBoundingClientRect();
     const clip = { left: 0, top: 0, right: innerWidth, bottom: innerHeight };
     for (let parent = node.parentElement; parent; parent = parent.parentElement) {
@@ -279,13 +279,16 @@ async function wheelTo(element, atEnd = false) {
         clip.top = Math.max(clip.top, bounds.top); clip.bottom = Math.min(clip.bottom, bounds.bottom);
       }
     }
-    const x = end ? r.right - Math.min(6, r.width / 2) : r.left + r.width / 2;
-    const y = end ? r.bottom - Math.min(6, r.height / 2) : r.top + r.height / 2;
+    const x = anchor === "end" ? r.right - Math.min(6, r.width / 2) : r.left + r.width / 2;
+    const y = anchor === "start" ? r.top + 1 : anchor === "end" ? r.bottom - Math.min(6, r.height / 2) : r.top + r.height / 2;
     const inViewport = x > clip.left && x < clip.right && y > clip.top && y < clip.bottom;
     const hit = inViewport ? document.elementFromPoint(x, y) : null;
-    const reached = Boolean(hit && (node === hit || node.contains(hit)));
-    const axis = x <= clip.left || x >= clip.right ? "x" : y <= clip.top || y >= clip.bottom ? "y" : null;
-    let scroll = node.parentElement;
+    const hitTarget = Boolean(hit && (node === hit || node.contains(hit)));
+    const contentEndPending = anchor === "end" && hitTarget && /(auto|scroll)/.test(getComputedStyle(node).overflowY)
+      && node.scrollHeight - node.clientHeight - node.scrollTop > 1;
+    const reached = hitTarget && !contentEndPending;
+    const axis = contentEndPending ? "y" : x <= clip.left || x >= clip.right ? "x" : y <= clip.top || y >= clip.bottom ? "y" : null;
+    let scroll = contentEndPending ? node : node.parentElement;
     while (scroll && axis) {
       const style = getComputedStyle(scroll), box = scroll.getBoundingClientRect();
       const overflow = axis === "x" ? style.overflowX : style.overflowY;
@@ -302,7 +305,8 @@ async function wheelTo(element, atEnd = false) {
     } : null;
     const origin = bounds ? { x: (bounds.left + bounds.right) / 2, y: (bounds.top + bounds.bottom) / 2 } : null;
     const span = bounds ? axis === "x" ? bounds.right - bounds.left : bounds.bottom - bounds.top : 0;
-    const distance = origin ? axis === "x" ? x - origin.x : y - origin.y : 0;
+    const distance = contentEndPending ? node.scrollHeight - node.clientHeight - node.scrollTop
+      : origin ? axis === "x" ? x - origin.x : y - origin.y : 0;
     return {
       label: node.getAttribute("aria-label") || node.getAttribute("title") || node.innerText?.trim().slice(0, 100),
       rect: { x: r.x, y: r.y, width: r.width, height: r.height, bottom: r.bottom, right: r.right },
@@ -310,7 +314,7 @@ async function wheelTo(element, atEnd = false) {
       delta: Math.round(Math.max(-span, Math.min(span, distance))),
       enabled: !node.matches(":disabled") && node.getAttribute("aria-disabled") !== "true",
     };
-  }, atEnd);
+  }, anchor);
   let state = await inspect();
   let count = 0;
   let wheelSteps = 0;
@@ -335,7 +339,7 @@ async function wheelTo(element, atEnd = false) {
   return { ...state, wheelSteps, method: wheelSteps ? "native wheel" : "already visible" };
 }
 async function reach(element) {
-  return wheelTo(element, true);
+  return wheelTo(element, "end");
 }
 async function snapshot(id, width, stage, scope, evidence = {}) {
   await browser.switchToWindow(auditWindow);
@@ -733,7 +737,19 @@ describe("Novel page audit - ordinary populated pages", function () {
         const textareaHeights = await Promise.all([...fields].map(async (field) => (await field.getSize()).height));
         assert.ok(textareaHeights.every((value) => value >= (mode === "结构化" ? 120 : 280)), "World editing needs a usable multi-line area, not a two-line input");
         return { editingMode: mode, textareaCount: fields.length, textareaHeights };
-      }, last: async (scope) => (await scope.$$("textarea")).at(-1),
+      }, last: async (scope) => {
+        const field = (await scope.$$("textarea")).at(-1);
+        await press(field);
+        await browser.keys(["Control", "End"]);
+        const end = await field.execute((element) => ({
+          caret: element.selectionEnd, length: element.value.length,
+          remaining: element.scrollHeight - element.clientHeight - element.scrollTop,
+          allowance: parseFloat(getComputedStyle(element).paddingBottom) + parseFloat(getComputedStyle(element).lineHeight),
+        }));
+        assert.equal(end.caret, end.length);
+        assert.ok(end.remaining <= end.allowance, "The final world-setting line must be visible: " + JSON.stringify(end));
+        return field;
+      },
     })),
     { id: "N02-detail", task: "查看摘要之外的完整世界观字段", open: async () => {
       const scope = await project("世界观"); await clickText("查看完整设定", scope); return dialog();
@@ -758,7 +774,12 @@ describe("Novel page audit - ordinary populated pages", function () {
       return { inputs: (await scope.$$("input,textarea")).length };
     }, last: async (scope) => (await scope.$$("button")).at(-1) },
     { id: "N03-arc", task: "阅读角色弧光与阶段", open: () => characterTab("弧光"), text: ["从等待答案到主动核验", "主动承担下一步行动"] },
-    { id: "N03-voice", task: "阅读声音指纹和示例", open: () => characterTab("声音指纹"), text: ["以具体问题替代情绪指控", "这封信，你为什么留到今天"] },
+    { id: "N03-voice", task: "阅读声音指纹和逐条示例", open: () => characterTab("声音指纹"), text: ["以具体问题替代情绪指控", "这封信，你为什么留到今天"], check: async (scope) => {
+      const voice = seed.commands.get_character_voice_fingerprint;
+      const lines = await scope.$$("ul > li");
+      assert.deepEqual(await Promise.all([...lines].map((line) => line.getText())), [...voice.catchphrases, ...voice.examples]);
+      return { separateExampleLines: lines.length };
+    } },
     { id: "N03-consistency", task: "检查角色一致性并对照具体章节的预期与实际证据", open: async () => {
       const scope = await characterTab("一致性");
       await browser.execute(() => { window.__uiAudit.fixtures.get_workflow_progress_events = { events: [], stream_text: null }; });
@@ -774,10 +795,19 @@ describe("Novel page audit - ordinary populated pages", function () {
       for (const conflict of conflicts) for (const value of [conflict.expected, conflict.actual]) await waitText(scope, value);
       return { profileId: 1011, conflicts: conflicts.length };
     }, last: async (scope) => (await scope.$$("li")).at(-1) },
-    { id: "N03-portraits", task: "查找已有立绘并区分主图与变体", open: portraits, text: ["林岚", "周衡"], check: async (scope) => {
+    { id: "N03-portraits", task: "查找已有立绘并浏览全部角色筛选", open: portraits, text: ["林岚", "周衡"], check: async (scope, width) => {
       const cards = await scope.$$('button[title="管理人物三视图拆解"]');
       assert.equal(cards.length, 4, "Need the four populated portraits");
-      return { portraits: cards.length };
+      const filters = await scope.$$(".a4n-filter-chips button");
+      assert.equal(filters.length, seed.commands.list_profiles.length + 1);
+      const lastFilter = filters.at(-1);
+      assert.equal((await wheelTo(lastFilter)).reached, true, "Every character filter must be reachable");
+      await press(lastFilter);
+      assert.equal(await lastFilter.getAttribute("aria-pressed"), "true");
+      assert.deepEqual(await snapshot("N03-portraits", width, "last-filter", scope, { selectedProfile: await lastFilter.getText() }), []);
+      await press(filters[0]);
+      assert.equal((await scope.$$('button[title="管理人物三视图拆解"]')).length, 4);
+      return { portraits: cards.length, reachableFilters: filters.length };
     }, last: async (scope) => (await scope.$$('button[title="管理人物三视图拆解"]')).at(-1) },
     { id: "N03-portrait-detail", task: "点击立绘图片中央进入素材管理", open: async () => {
       const scope = await portraits();
@@ -835,7 +865,7 @@ describe("Novel page audit - ordinary populated pages", function () {
       assert.equal(await (await textButton("上传立绘", form)).isEnabled(), true);
       assert.equal(await browser.execute(() => window.__uiAudit.commands.includes("upload_portrait")), false);
       return form;
-    }, text: ["林岚", "thelittleprince.png"], last: async (scope) => scope.$('[role="switch"]') },
+    }, text: ["林岚", "thelittleprince.png", "更换图片"], last: async (scope) => scope.$('[role="switch"]') },
     { id: "N03-portrait-preview", task: "独立预览立绘并用 Escape 返回原按钮", open: async () => {
       const scope = await portraits();
       const card = await scope.$('button[title="管理人物三视图拆解"]').$("..");
@@ -867,7 +897,15 @@ describe("Novel page audit - ordinary populated pages", function () {
       await press(picture);
       assert.equal(await select.getAttribute("aria-pressed"), "true");
       return { referenceImages: (await scope.$$('button[aria-pressed]')).length, imageCenterToggles: true, previewPreservesSelection: true, escapeFocusRestored: true };
-    }, last: async (scope) => (await scope.$$('button[aria-pressed]')).at(-1) },
+    }, last: async (scope) => {
+      const lastImage = (await scope.$$('button[aria-pressed]')).at(-1);
+      assert.equal((await reach(lastImage)).reached, true);
+      const count = await scope.$('[role="status"]');
+      assert.equal(await count.getText(), "已选 1 张，最多 4 张");
+      const visible = await wheelTo(count);
+      assert.ok(visible.reached && visible.wheelSteps === 0, "Selected-reference count must remain visible at the end of the gallery");
+      return lastImage;
+    } },
     ...[
       ["behavior", "行为", 6], ["implicit", "复审", 3], ["event", "属性", 6],
       ["snapshot", "快照", 3], ["deletion", "删除", 2],
@@ -891,6 +929,7 @@ describe("Novel page audit - ordinary populated pages", function () {
       }
       await clickText("生成差异", tools);
       await waitText(scope, "旧车站第三站台");
+      assert.equal(await scope.$('[role="region"][tabindex="-1"]').isFocused(), true, "Snapshot comparison must reveal and focus its result");
       return scope;
     }, check: async () => {
       const request = await browser.execute(() => window.__uiAudit.requests.findLast((item) => item.command === "diff_profile_chapters")?.body.input);
@@ -905,6 +944,7 @@ describe("Novel page audit - ordinary populated pages", function () {
       const summary = seed.byProfileChapter["1011"]["1"].state_summary;
       const detail = await scope.$(".//section[.//p[normalize-space(.)=" + literal(summary) + "]]");
       await detail.waitForDisplayed({ timeout });
+      assert.equal(await scope.$('[role="region"][tabindex="-1"]').isFocused(), true, "Snapshot state must reveal and focus its result");
       await press(await detail.$("summary"));
       return detail;
     }, text: ["旧书店", "亲自核验父亲留下的线索"], check: async (scope) => {
@@ -922,8 +962,7 @@ describe("Novel page audit - ordinary populated pages", function () {
       const summary = seed.byProfileChapter["1011"]["1"].state_summary;
       const detail = await scope.$(".//section[.//p[normalize-space(.)=" + literal(summary) + "]]");
       await detail.waitForDisplayed({ timeout });
-      const reached = await wheelTo(await detail.$("p"));
-      assert.ok(reached.reached, "Snapshot details must be user-scrollable");
+      assert.equal(await scope.$('[role="region"][tabindex="-1"]').isFocused(), true, "Snapshot details must reveal and focus their result");
       return detail;
     }, text: ["根据已写正文更新当前位置。", "观察并记录物件与空间细节。"], check: async () => {
       const request = await browser.execute(() => window.__uiAudit.requests.findLast((item) => item.command === "get_snapshot")?.body.input);
@@ -1137,7 +1176,7 @@ describe("Novel page audit - ordinary populated pages", function () {
         const detail = await dialog();
         await clickText(tab, detail);
         return detail;
-      }, text: ["概览", "来源", "管理"], check: async (scope) => {
+      }, text: ["概览", "来源", "管理"], check: async (scope, width) => {
         assert.equal(await $(".a4n-image-lightbox-panel").isDisplayed(), false, "Image center must open management");
         if (index === 0) {
           const metadata = await reach(await scope.$("dl"));
@@ -1147,9 +1186,11 @@ describe("Novel page audit - ordinary populated pages", function () {
         }
         if (index === 1) {
           const expected = seed.commands.list_images_by_projects.find((image) => image.id === 40001);
-          const metadataText = await scope.$("dl").getText();
+          const metadataText = (await Promise.all([...await scope.$$("dl")].map((list) => list.getText()))).join("\n");
           assert.ok(metadataText.includes(expected.metadata_json.generation.config_name), "The source tab must contain populated generation fields");
+          assert.ok(metadataText.includes("来源章节") && metadataText.includes(String(expected.metadata_json.source.chapter_number)), "Source chapter must be readable without opening raw JSON");
           assert.equal((await scope.getText()).includes("没有可展示的图片详情。"), false);
+          assert.deepEqual(await snapshot("N09-image-detail-1", width, "source-summary", scope, { metadataText }), []);
           await press(await scope.$("summary"));
           const actual = JSON.parse(await scope.$("pre").getText());
           assert.equal(actual.record.id, expected.id);
@@ -1246,7 +1287,25 @@ describe("Novel page audit - ordinary populated pages", function () {
       assert.equal(await scope.$("dd").getText(), "是");
       await press(await containing("诊断信息", scope, "summary"));
       assert.deepEqual(JSON.parse(await scope.$("pre").getText()), { content_hash: "0000000000000000", is_duplicate: true, matched_chapter_id: 1, closest_distance: 0 });
-      return { inputPreserved: true, readOnlyCheck: true };
+      const opener = await textButton("查看匹配章节", scope);
+      await browser.execute(() => { window.__uiAudit.deferred.push("list_chapters"); });
+      await press(opener);
+      await browser.waitUntil(() => browser.execute(() => window.__uiAudit.pending.some((item) => item.command === "list_chapters")));
+      assert.equal(await opener.getAttribute("aria-busy"), "true");
+      await browser.execute(() => {
+        const pending = window.__uiAudit.pending.findLast((item) => item.command === "list_chapters");
+        window.__uiAudit.deferred = window.__uiAudit.deferred.filter((item) => item !== "list_chapters");
+        pending.resolve(Response.json(window.__uiAudit.fixtures.list_chapters));
+      });
+      const matched = await dialog();
+      const body = await matched.$("article");
+      assert.equal(await body.getText(), seed.commands.list_chapters[0].content);
+      assert.ok((await reach(body)).reached);
+      assert.deepEqual(await snapshot("N10-dedup", current.width, "matched-chapter", matched), []);
+      await closeDialog();
+      await assertFocus(opener);
+      assert.equal(await scope.$("textarea").getValue(), seed.commands.list_chapters[0].content);
+      return { inputPreserved: true, readOnlyCheck: true, matchedChapterRead: true };
     }, last: async (scope) => scope.$("pre") },
     ...[["blueprint", "故事蓝图", "归纳正式蓝图"], ["outline", "章节大纲", "生成章节大纲候选"], ["part", "分部大纲", "生成分部大纲候选"]].map(([kind, target, action]) => ({
       id: "N10-consolidate-" + kind, task: "检查" + target + "归纳的上下文、人工补充和写入说明",
@@ -1265,6 +1324,15 @@ describe("Novel page audit - ordinary populated pages", function () {
         assert.equal(await scope.$('button[role="switch"]').getAttribute("aria-checked"), "false");
         assert.ok(await (await textButton(action, scope)).isEnabled());
         await waitText(scope, kind === "blueprint" ? "直接成为正式蓝图" : "确认后才更新正式大纲");
+        if (kind === "blueprint") {
+          await waitText(scope, "依据下方样本文本归纳蓝图");
+          const context = await scope.$('button[role="switch"]');
+          await press(context);
+          await waitText(scope, "依据当前正文、简介、大纲和正式资料归纳蓝图");
+          await press(context);
+          await waitText(scope, "依据下方样本文本归纳蓝图");
+          assert.equal(await scope.$("textarea").getValue(), seed.commands.list_chapters[0].content);
+        }
         return { target, contextFromEnteredContent: true, generationSubmitted: false };
       }, last: async (scope) => textButton(action, scope),
     })),
@@ -1320,7 +1388,12 @@ describe("Novel page audit - ordinary populated pages", function () {
     }, last: async (scope) => (await scope.$$(".director-point-candidate")).at(-1) },
     { id: "W04-frame", task: "查看四种画幅选择并保留现有比例", open: async () => {
       await writing("导演编排"); await press(await ariaButton("画幅")); return dialog("画幅");
-    }, text: ["16:9 横屏", "9:16 竖屏", "1:1 方形", "4:3"], last: async (scope) => textButton("4:3", scope) },
+    }, text: ["16:9 横屏", "9:16 竖屏", "1:1 方形", "4:3"], check: async (scope) => {
+      const selected = await scope.$$('button[aria-pressed="true"]');
+      assert.equal(selected.length, 1, "The current aspect ratio must have one selected choice");
+      assert.equal(await selected[0].getText(), "16:9 横屏");
+      return { currentAspectRatio: "16:9" };
+    }, last: async (scope) => textButton("4:3", scope) },
     { id: "W04-duration", task: "打开完整时间调整，核对总时长和等比伸缩", open: async () => {
       await writing("导演编排"); await press(await ariaButton("调整整体时长")); return dialog("调整时长");
     }, check: async (scope) => {
@@ -1355,7 +1428,7 @@ describe("Novel page audit - ordinary populated pages", function () {
       assert.equal(await prompts[1].getValue(), "");
       await prompts[1].setValue("从稳定构图继续，镜头跟随林岚走向橱窗。");
       return scope;
-    }, text: ["前段描述", "后段描述", "分镜位置"], last: async (scope) => textButton("拆分镜头", scope) },
+    }, text: ["前段描述", "后段描述", "分镜位置"], last: async (scope) => (await scope.$$('button[role="combobox"]')).at(-1) },
     { id: "W04-agent", task: "打开第一章导演讨论，核对独立线程并到达输入区", open: async () => {
       await writing("导演编排");
       await press(await ariaButton("导演 Agent"));
@@ -1428,8 +1501,8 @@ describe("Novel page audit - ordinary populated pages", function () {
     }, text: ["林岚", "沈照"] },
   ];
   for (const spec of inner) {
-    if (spec.id === "N01-lineage") {
-      for (const width of widths) it(`${spec.id}-${width} checks graph, sources and complete inputs`, async () => matrix(spec, [width]));
+    if (spec.id === "N01-lineage" || spec.id === "N10-dedup" || spec.id.startsWith("N10-consolidate-")) {
+      for (const width of widths) it(`${spec.id}-${width} checks its complete workflow`, async () => matrix(spec, [width]));
     } else it(spec.id + " exercises its inner page", async () => matrix(spec));
   }
 
@@ -1447,8 +1520,9 @@ describe("Novel page audit - ordinary populated pages", function () {
     },
     { id: "I01-history", task: "用真实滚动返回长对话开头", open: inspiration, check: async (scope) => {
       const first = await scope.$(".//div[normalize-space(.)=" + literal(seed.commands.get_inspiration_history[0].content) + "]");
-      const firstMessage = await reach(first);
+      const firstMessage = await wheelTo(first, "start");
       assert.ok(firstMessage.reached, "The first message must be user-scrollable");
+      assert.ok(firstMessage.rect.y >= firstMessage.clip.top - 1, "The first message must start below the clipping boundary");
       return { firstMessage };
     } },
     { id: "I02-progress", task: "查看已确认故事信息与下一步建议", open: async (width) => {

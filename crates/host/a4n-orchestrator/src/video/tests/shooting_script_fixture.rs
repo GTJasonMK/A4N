@@ -1,16 +1,16 @@
 use a4n_domain::shooting_script::{
-    ChapterShootingScriptSchemaVersion, ChapterShootingScriptV1, ShootingBlockingV1,
+    ChapterShootingScriptSchemaVersion, ChapterShootingScriptV2, ShootingBlockingV1,
     ShootingCameraAngleV1, ShootingCameraHeightV1, ShootingCameraMovementV1,
     ShootingContinuityIntentV1, ShootingCoverageV1, ShootingDirectingStatementV1,
-    ShootingEditingModeV1, ShootingPerformanceBeatV1, ShootingSceneV1, ShootingShotSizeV1,
-    ShootingShotV1, ShootingSoundDesignV1, ShootingSpatialContinuityV1, ShootingViewpointModeV1,
+    ShootingEditingModeV1, ShootingPerformanceBeatV2, ShootingSceneV2, ShootingShotSizeV1,
+    ShootingShotV2, ShootingSoundDesignV1, ShootingSpatialContinuityV1, ShootingViewpointModeV1,
     ShootingViewpointV1, ShootingVisualPlanSourceV1,
 };
 
 pub(in crate::video) fn test_chapter_shooting_script(
     source_span_id: &str,
-) -> ChapterShootingScriptV1 {
-    let beat = |beat_index: u32, beat_id: &str, visible_action: &str| ShootingPerformanceBeatV1 {
+) -> ChapterShootingScriptV2 {
+    let beat = |beat_index: u32, beat_id: &str, visible_action: &str| ShootingPerformanceBeatV2 {
         beat_index,
         beat_id: beat_id.to_string(),
         source_span_ids: vec![source_span_id.to_string()],
@@ -32,15 +32,14 @@ pub(in crate::video) fn test_chapter_shooting_script(
         entry_state: "谨慎".to_string(),
         exit_state: "紧张".to_string(),
         required: true,
-        estimated_seconds: 2.0,
     };
     let shot = |shot_index: u32,
                 shot_id: &str,
                 title: &str,
                 purpose: &str,
-                first_beat: ShootingPerformanceBeatV1,
-                second_beat: ShootingPerformanceBeatV1| {
-        ShootingShotV1 {
+                first_beat: ShootingPerformanceBeatV2,
+                second_beat: ShootingPerformanceBeatV2| {
+        ShootingShotV2 {
             shot_index,
             shot_id: shot_id.to_string(),
             title: title.to_string(),
@@ -81,12 +80,11 @@ pub(in crate::video) fn test_chapter_shooting_script(
             transition_in: "从殿门外动作开始".to_string(),
             transition_out: "停在暗廊入口前保留悬念".to_string(),
             continuity_requirements: vec!["暗廊始终位于画面右后方".to_string()],
-            estimated_natural_seconds: 4.0,
         }
     };
 
-    ChapterShootingScriptV1 {
-        schema_version: ChapterShootingScriptSchemaVersion::V1,
+    ChapterShootingScriptV2 {
+        schema_version: ChapterShootingScriptSchemaVersion::V2,
         visual_plan_source: None,
         user_additions: Vec::new(),
         directing_statement: Some(ShootingDirectingStatementV1 {
@@ -99,7 +97,7 @@ pub(in crate::video) fn test_chapter_shooting_script(
             sound_strategy: "用推门声和停顿制造紧张".to_string(),
             rhythm_strategy: "缓慢进入，停顿，回望".to_string(),
         }),
-        scenes: vec![ShootingSceneV1 {
+        scenes: vec![ShootingSceneV2 {
             scene_index: 1,
             scene_identity: "palace_hall".to_string(),
             sequence_index: 1,
@@ -164,7 +162,7 @@ pub(in crate::video) fn test_chapter_shooting_script(
 pub(in crate::video) fn test_director_bound_shooting_script(
     source_span_id: &str,
     duration_secs: i32,
-) -> ChapterShootingScriptV1 {
+) -> ChapterShootingScriptV2 {
     use a4n_domain::chapter_visual_plan::{ChapterVisualPlanV3, SceneBindingV3, VisualPointV3};
     let mut script = test_chapter_shooting_script(source_span_id);
     let mut plan = ChapterVisualPlanV3::starter();
@@ -204,6 +202,25 @@ pub(in crate::video) fn test_director_bound_shooting_script(
         plan_sha256: a4n_domain::generation::canonical_json_sha256(&plan).unwrap(),
     });
     script
+}
+
+pub(in crate::video) fn test_video_execution_shot(
+    duration_secs: i32,
+) -> a4n_video_contract::VideoExecutionShotV3 {
+    let script = test_director_bound_shooting_script("ch1:s1:f1", duration_secs);
+    let mut projection = crate::video::prompts::generation::video_projection_from_shooting_script(
+        &script,
+        a4n_video_contract::VideoShootingScriptIdentityV1 {
+            record_id: 1,
+            revision: 1,
+            source_revision_key: "revision-1".into(),
+            source_content_sha256: "a".repeat(64),
+            script_sha256: "b".repeat(64),
+            shot_fingerprints: Default::default(),
+        },
+    )
+    .expect("test director shot should project");
+    projection.scenes[0].shots.remove(0)
 }
 
 fn test_segment_performance_plan(

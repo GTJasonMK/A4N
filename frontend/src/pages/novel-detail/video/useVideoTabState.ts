@@ -18,7 +18,7 @@ import {
 } from "../../../api/video";
 import type { GeneratedImage } from "../../../api/image";
 import type { ModelRequestPreview } from "../../../api/requestPreview";
-import type { ShootingSceneV1 } from "../../../api/shootingScript";
+import type { ShootingSceneV2 } from "../../../api/shootingScript";
 import { usePersistedState } from "../../../hooks/usePersistedState";
 import { asJsonRecord } from "../../../utils/jsonRecord";
 import { sha256Hex } from "../../../utils/contentHash";
@@ -277,7 +277,7 @@ export function useVideoTabState({
     useState<LoadedSegmentPlanDraft | null>(null);
   const [videos, setVideos] = useState<GeneratedVideo[]>([]);
   const [images, setImages] = useState<GeneratedImage[]>([]);
-  const [shootingScenes, setShootingScenes] = useState<ShootingSceneV1[]>([]);
+  const [shootingScenes, setShootingScenes] = useState<ShootingSceneV2[]>([]);
   const frameSegmentPlanPromptForCards = useMemo(
     () => latestVideoSegmentPlanPrompt(prompts, currentContentHash),
     [currentContentHash, prompts],

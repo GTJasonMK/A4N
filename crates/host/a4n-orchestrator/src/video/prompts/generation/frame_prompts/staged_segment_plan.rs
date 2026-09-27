@@ -49,16 +49,12 @@ pub(super) async fn render_staged_segment_plan_with_duration(
     let service = input.service;
     let source_spans = input.source_spans;
     let shooting_script_projection = input.shooting_script_projection;
-    let duration_secs = input.duration_secs;
-    let default_aspect_ratio = input.default_aspect_ratio;
     let rendered_shots = render_segment_plan_shots(input, workflow_run_id).await?;
     finalize_staged_segment_plan(FinalizeStagedSegmentPlanInput {
         service,
         workflow_run_id,
         source_spans,
         shooting_script_projection,
-        duration_secs,
-        default_aspect_ratio,
         cancel_token,
         rendered_shots,
     })

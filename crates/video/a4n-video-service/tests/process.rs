@@ -1,4 +1,6 @@
-use a4n_service_protocol::{CapabilityTaskEvent, SIDECAR_EVENT_QUEUE_CAPACITY, ServiceErrorCode};
+use a4n_service_protocol::{
+    BodyLimitKind, CapabilityTaskEvent, SIDECAR_EVENT_QUEUE_CAPACITY, ServiceErrorCode,
+};
 use a4n_test_support::process::{
     FakeJsonProvider, HangingJsonProvider, HttpVideoClient, SIDECAR_PROCESS_TEST_TOKEN,
     ServiceStatus, VIDEO_PROVIDER_CAPABILITY_VERSION, VIDEO_SERVICE_NAME, VideoClient,
@@ -180,12 +182,21 @@ async fn video_service_process_calls_local_fake_provider_and_stops() {
     assert_protected_route_rejects_invalid_auth(&base_url, "/video/delete").await;
     assert_protected_route_rejects_invalid_auth(&base_url, "/video/request_preview").await;
     assert_route_rejects_malformed_json(&base_url, "/video/generate/events").await;
-    assert_route_rejects_oversized_json(&base_url, "/video/models", 8 * 1024 * 1024).await;
-    let media_limit = a4n_service_protocol::sidecar_resource_policy(VIDEO_SERVICE_NAME)
-        .expect("video resource policy")
-        .body_limit(a4n_service_protocol::BodyLimitKind::Media);
+    assert_route_rejects_oversized_json(
+        &base_url,
+        "/video/models",
+        VIDEO_SERVICE_NAME,
+        BodyLimitKind::Json,
+    )
+    .await;
     for path in ["/video/generate/events", "/video/request_preview"] {
-        assert_route_rejects_oversized_json(&base_url, path, media_limit).await;
+        assert_route_rejects_oversized_json(
+            &base_url,
+            path,
+            VIDEO_SERVICE_NAME,
+            BodyLimitKind::Media,
+        )
+        .await;
     }
     let client = HttpVideoClient::new_with_auth_token(base_url.clone(), SIDECAR_PROCESS_TEST_TOKEN);
     let cancel_client = HttpVideoClient::new_with_auth_token(base_url, SIDECAR_PROCESS_TEST_TOKEN);

@@ -277,8 +277,9 @@ export const ThemeEditorPanel: React.FC<ThemeEditorPanelProps> = ({
       return;
     }
     setPendingFiles((current) => ({ ...current, [backgroundRoute]: file }));
+    const replacedResource = theme.resources.find((resource) => resource.resource_key === backgroundRoute);
     setDeleteResourceIds((current) =>
-      current.filter((resourceId) => resourceId !== removableResource?.id),
+      current.filter((resourceId) => resourceId !== replacedResource?.id),
     );
     updateBackground({ resource_key: backgroundRoute });
     setError(null);

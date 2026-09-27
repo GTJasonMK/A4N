@@ -44,7 +44,6 @@ from mock_openai.fixtures.entities import (
 )
 from mock_openai.fixtures.fact_feedback import fact_feedback_response, identity_feedback_response
 from mock_openai.fixtures.reverse import (
-    cache_fixture_usage,
     message_text,
     reverse_blueprint_response,
     reverse_outline_response,
@@ -68,7 +67,6 @@ from mock_openai.fixtures.story import (
     guided_inspiration_response,
     part_outline_response,
 )
-from mock_openai.fixtures.reverse import agent_chat_fixture
 from mock_openai.prompt_parsing import current_task_prompt_name
 from mock_openai.protocol import UnhandledPromptError
 def response_for(body: dict[str, Any]) -> str:
@@ -220,7 +218,7 @@ def response_for(body: dict[str, Any]) -> str:
     if "你是导演分镜助手" in combined:
         return "从起点画面开始，镜头缓缓推进；人物沿通道走向门口并停步，光线随开门动作逐渐改变。遵循已给定的内部关键帧和场景，不推断下一镜头的图片。"
 
-    if "chapter_shooting_design_unit" in combined or "ShootingSceneV1" in combined:
+    if "chapter_shooting_design_unit" in combined or "ShootingSceneV2" in combined:
         if model == "a4n-shooting-background-slow":
             time.sleep(6)
         elif model == "a4n-shooting-background-browser":

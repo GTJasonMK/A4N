@@ -129,14 +129,13 @@ fn canonical_package_blueprint_snapshot(
     package: &ProjectFamilyImportPackage,
 ) -> Result<Option<String>, ProjectFamilyImportError> {
     let Some(blueprint) = &package.text_core.blueprint else {
-        if package.text_core.blueprint_versions.is_empty()
-            && package.text_core.blueprint_characters.is_empty()
+        if package.text_core.blueprint_characters.is_empty()
             && package.text_core.blueprint_relationships.is_empty()
         {
             return Ok(None);
         }
         return Err(ProjectFamilyImportError::invalid_package(
-            "项目族导入包缺少当前蓝图，但包含蓝图版本、角色或关系".to_string(),
+            "项目族导入包缺少当前蓝图，但包含当前蓝图角色或关系".to_string(),
         ));
     };
     let snapshot = crate::blueprint::blueprint_version_snapshot(

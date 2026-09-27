@@ -2,7 +2,7 @@ use a4n_error::AppError;
 use serde_json::json;
 
 use super::super::{
-    parse_generated_segment_plan_with_current_config, save_completed_video_workflow_checkpoint,
+    parse_video_segment_plan_response, save_completed_video_workflow_checkpoint,
     validate_segment_plan_against_shooting_script_projection,
 };
 use super::contracts::{FinalizeStagedSegmentPlanInput, StagedSegmentPlanResult};
@@ -16,19 +16,12 @@ pub(super) async fn finalize_staged_segment_plan(
         workflow_run_id,
         source_spans,
         shooting_script_projection,
-        duration_secs,
-        default_aspect_ratio,
         cancel_token,
         rendered_shots,
     } = input;
     let combined_raw = json!({ "segments": rendered_shots.segment_inputs }).to_string();
-    let (_, segment_plan) = parse_generated_segment_plan_with_current_config(
-        &combined_raw,
-        source_spans,
-        shooting_script_projection,
-        duration_secs,
-        default_aspect_ratio,
-    )?;
+    let segment_plan =
+        parse_video_segment_plan_response(&combined_raw, source_spans, shooting_script_projection)?;
     validate_segment_plan_against_shooting_script_projection(
         &segment_plan,
         shooting_script_projection,

@@ -4,12 +4,12 @@ use super::contracts::ScreenplayPlanUnit;
 use crate::chapter_visual_plan::DirectorScriptUnit;
 use a4n_domain::{
     chapter_visual_plan::VisualSegmentProjectionV3,
-    shooting_script::{ChapterShootingScriptV1, ShootingSceneV1, ShootingShotV1},
+    shooting_script::{ChapterShootingScriptV2, ShootingSceneV2, ShootingShotV2},
 };
 use a4n_error::AppError;
 
 pub(super) fn finish_generated_script(
-    script: &mut ChapterShootingScriptV1,
+    script: &mut ChapterShootingScriptV2,
     completed_unit_count: usize,
     total_unit_count: usize,
 ) -> Result<(), AppError> {
@@ -32,11 +32,11 @@ pub(super) fn finish_generated_script(
 
 pub(super) fn assemble_scene(
     index: usize,
-    mut scene: ShootingSceneV1,
+    mut scene: ShootingSceneV2,
     unit: &ScreenplayPlanUnit,
     planned: &DirectorScriptUnit,
     planned_shots: &[VisualSegmentProjectionV3],
-) -> Result<ShootingSceneV1, AppError> {
+) -> Result<ShootingSceneV2, AppError> {
     if unit.scene_identity != planned.id || unit.sequence_index != planned.sequence_index {
         return Err(AppError::InvalidArgument(format!(
             "拍摄设计单元 {} 的顺序与 confirmed 导演编排不一致",
@@ -77,7 +77,7 @@ pub(super) fn assemble_scene(
 }
 
 fn apply_visual_shot_plan(
-    shot: &mut ShootingShotV1,
+    shot: &mut ShootingShotV2,
     planned: &VisualSegmentProjectionV3,
     index: usize,
 ) -> Result<(), AppError> {

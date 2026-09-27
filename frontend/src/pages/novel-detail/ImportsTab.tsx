@@ -4,6 +4,8 @@ import { ProgressDialog } from "../../components/feedback/ProgressDialog";
 import { RequestPreviewModal } from "../../components/feedback/RequestPreviewModal";
 import { confirmDialog } from "../../components/feedback/ConfirmDialog";
 import { extractErrorMessage } from "../../api";
+import { listChapters, type ChapterSummary } from "../../api/chapter";
+import { Modal } from "../../components/ui/Modal";
 import {
   acceptImportReview,
   batchAcceptReviews,
@@ -109,6 +111,8 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({
   const [dedupText, setDedupText] = useState("");
   const [dedupResult, setDedupResult] = useState<DedupResult | null>(null);
   const [dedupBusy, setDedupBusy] = useState(false);
+  const [previewChapter, setPreviewChapter] = useState<ChapterSummary | null>(null);
+  const [previewChapterLoading, setPreviewChapterLoading] = useState(false);
   const [reverseType, setReverseType] =
     useState<ReverseEngineeringTarget>("blueprint");
   const [reverseSample, setReverseSample] = useState("");
@@ -342,6 +346,8 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({
     setActBusy(null);
     setDedupBusy(false);
     setDedupResult(null);
+    setPreviewChapter(null);
+    setPreviewChapterLoading(false);
     setReverseGenerating(false);
     setReverseConfirmBusy(false);
     setReverseResult(null);
@@ -770,6 +776,8 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({
     dedupBusyRef.current = false;
     setDedupText(value);
     setDedupResult(null);
+    setPreviewChapter(null);
+    setPreviewChapterLoading(false);
     setDedupBusy(false);
   };
 
@@ -824,6 +832,28 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({
       if (dedupSeqRef.current === requestSeq) {
         dedupBusyRef.current = false;
       }
+    }
+  };
+
+  const handleViewMatchedChapter = async () => {
+    const chapterId = dedupResult?.matched_chapter_id;
+    if (chapterId == null || previewChapterLoading) return;
+    const requestProjectId = projectId;
+    const sequence = dedupSeqRef.current;
+    const inputVersion = dedupInputVersionRef.current;
+    setPreviewChapterLoading(true);
+    try {
+      const chapters = await listChapters(requestProjectId);
+      if (!isCurrentDedupRequest(requestProjectId, sequence, inputVersion)) return;
+      const chapter = chapters.find((item) => item.id === chapterId);
+      if (!chapter) throw new Error(t("novel.importReview.matchedChapterMissing"));
+      setPreviewChapter(chapter);
+    } catch (error) {
+      if (isCurrentDedupRequest(requestProjectId, sequence, inputVersion)) {
+        addToast(extractErrorMessage(error, t("novel.loadChaptersFailed")), "error");
+      }
+    } finally {
+      if (isCurrentDedupRequest(requestProjectId, sequence, inputVersion)) setPreviewChapterLoading(false);
     }
   };
 
@@ -1075,6 +1105,8 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({
           dedupText={dedupText}
           dedupResult={dedupResult}
           dedupBusy={dedupBusy}
+          previewChapterLoading={previewChapterLoading}
+          onViewMatchedChapter={handleViewMatchedChapter}
           reverseType={reverseType}
           reverseSample={reverseSample}
           reverseAutoContext={reverseAutoContext}
@@ -1143,6 +1175,13 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({
           </aside>
         </div>
       </div>
+      {previewChapter && (
+        <Modal isOpen onClose={() => setPreviewChapter(null)} title={`${t("novel.chapterRangeSingle", { number: previewChapter.chapter_number })}${previewChapter.title ? ` · ${previewChapter.title}` : ""}`} maxWidthClassName="max-w-3xl">
+          <article aria-label={t("novel.chapterBody")} className="whitespace-pre-wrap break-words font-serif text-sm leading-relaxed text-book-text-main">
+            {previewChapter.content}
+          </article>
+        </Modal>
+      )}
       {importAnalysisDialog ? (
         <ProgressDialog
           open={importAnalysisDialog.open}

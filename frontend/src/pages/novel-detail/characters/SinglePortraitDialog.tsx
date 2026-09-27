@@ -353,7 +353,11 @@ export const SinglePortraitDialog: React.FC<SinglePortraitDialogProps> = ({
                 },
               ]}
             />
-            <span className="min-w-0 flex-1" />
+            <span role="status" className="min-w-0 flex-1 text-caption leading-relaxed text-book-text-muted">
+              {selectedReferenceImageIds.length > 0
+                ? t("characterDetail.portrait.selectedReferences", { selected: selectedReferenceImageIds.length, max: MAX_REFERENCE_IMAGES })
+                : t("characterDetail.portrait.optionalReferences", { max: MAX_REFERENCE_IMAGES })}
+            </span>
             <BookButton
               variant="primary"
               size="sm"
@@ -424,19 +428,7 @@ export const SinglePortraitDialog: React.FC<SinglePortraitDialogProps> = ({
           </div>
           <section className="border-t border-book-border/45 pt-4">
             <header className="mb-3 flex items-center justify-between gap-3">
-              <div className="min-w-0">
-                <h3 className="text-sm font-semibold text-book-text-main">{t("characterDetail.portrait.references")}</h3>
-                <p className="mt-0.5 text-small leading-relaxed text-book-text-muted">
-                  {selectedReferenceImageIds.length > 0
-                    ? t("characterDetail.portrait.selectedReferences", {
-                        selected: selectedReferenceImageIds.length,
-                        max: MAX_REFERENCE_IMAGES,
-                      })
-                    : t("characterDetail.portrait.optionalReferences", {
-                        max: MAX_REFERENCE_IMAGES,
-                      })}
-                </p>
-              </div>
+              <h3 className="min-w-0 text-sm font-semibold text-book-text-main">{t("characterDetail.portrait.references")}</h3>
               <label
                 className={[
                   "pyqt-btn-secondary inline-flex min-h-8 shrink-0 cursor-pointer items-center gap-1.5 px-2.5 text-xs",

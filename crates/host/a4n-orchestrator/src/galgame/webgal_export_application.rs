@@ -13,7 +13,7 @@ use super::{
     GalgameSceneDetail, GalgameSceneEntryKind, GalgameScriptDetail,
     webgal_export_rules::{
         media_file_extension, media_file_extension_for_webgal_role, sanitize_export_file_stem,
-        webgal_arg, webgal_narration, webgal_speaker, webgal_text, webgal_transition_args,
+        webgal_arg, webgal_string_literal, webgal_transition_args,
     },
 };
 use crate::media::galgame_media_binding_required_media_kind;
@@ -205,6 +205,10 @@ fn render_webgal_scene(
                 current_figure_by_position.insert(position.to_string(), figure.script_name.clone());
             }
         }
+        output.push_str(&format!(
+            "setVar:__a4n_line_text=({});\n",
+            webgal_string_literal(&line.text)
+        ));
         match line.line_type {
             GalgameLineType::Dialogue | GalgameLineType::Monologue => {
                 let speaker_profile_id = line.speaker_profile_id.ok_or_else(|| {
@@ -213,19 +217,19 @@ fn render_webgal_scene(
                         line.line_type, line.id
                     ))
                 })?;
-                let speaker = speaker_name_by_id
-                    .get(&speaker_profile_id)
-                    .map(|name| webgal_speaker(name))
-                    .ok_or_else(|| {
-                        invalid_webgal(format!(
-                            "Galgame {} 行 {} 绑定的角色档案 {} 不存在，无法导出 WebGAL",
-                            line.line_type, line.id, speaker_profile_id
-                        ))
-                    })?;
-                output.push_str(&format!("{}:{};\n", speaker, webgal_text(&line.text)));
+                let speaker = speaker_name_by_id.get(&speaker_profile_id).ok_or_else(|| {
+                    invalid_webgal(format!(
+                        "Galgame {} 行 {} 绑定的角色档案 {} 不存在，无法导出 WebGAL",
+                        line.line_type, line.id, speaker_profile_id
+                    ))
+                })?;
+                output.push_str(&format!(
+                    "setVar:__a4n_line_speaker=({});\nsay:{{__a4n_line_text}} -speaker={{__a4n_line_speaker}};\n",
+                    webgal_string_literal(speaker)
+                ));
             }
             GalgameLineType::Narration | GalgameLineType::StageDirection => {
-                output.push_str(&format!("{};\n", webgal_narration(&line.text)));
+                output.push_str("say:{__a4n_line_text} -clear;\n");
             }
             GalgameLineType::Choice => {
                 let choices = choices_by_line
@@ -258,7 +262,7 @@ fn render_webgal_scene(
                     })
                     .collect::<Result<Vec<_>, AppError>>()?
                     .join("|");
-                output.push_str(&format!("choose:{options};\n"));
+                output.push_str(&format!("say:{{__a4n_line_text}} -clear -next;\nchoose:{options};\n"));
             }
         }
     }

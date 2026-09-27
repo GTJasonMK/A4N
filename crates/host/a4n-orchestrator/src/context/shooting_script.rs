@@ -11,7 +11,7 @@ use a4n_api_contract::shooting_script::{
 use a4n_db::DbHandle;
 use a4n_db::chapter_visual_plan::ParsedChapterVisualPlan;
 use a4n_db::shooting_script::{ChapterVisualPlanIdentity, ParsedChapterShootingScript};
-use a4n_domain::{chapter::ResolvedChapterSource, shooting_script::ChapterShootingScriptV1};
+use a4n_domain::{chapter::ResolvedChapterSource, shooting_script::ChapterShootingScriptV2};
 use a4n_error::AppError;
 
 use super::OrchestratorContext;
@@ -125,7 +125,7 @@ impl ShootingScriptApplication {
         existing: Option<ParsedChapterShootingScript>,
         input_fingerprint_sha256: String,
         visual_plan: ChapterVisualPlanIdentity,
-        script: ChapterShootingScriptV1,
+        script: ChapterShootingScriptV2,
         workflow_run_id: i64,
     ) -> Result<ResolvedChapterShootingScript, AppError> {
         let visual_plan_id = visual_plan.id;
@@ -233,7 +233,7 @@ impl OrchestratorContext {
         existing: Option<ParsedChapterShootingScript>,
         input_fingerprint_sha256: String,
         visual_plan: ChapterVisualPlanIdentity,
-        script: ChapterShootingScriptV1,
+        script: ChapterShootingScriptV2,
         workflow_run_id: i64,
     ) -> Result<ResolvedChapterShootingScript, AppError> {
         self.shooting_script

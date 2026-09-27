@@ -85,6 +85,7 @@ a4n-character-mutation-worker = { workspace = true, optional = true }
 a4n-video-record-worker = { workspace = true, optional = true }
 a4n-manga-record-worker = { workspace = true, optional = true }
 a4n-canvas-record-worker = { workspace = true, optional = true }
+a4n-config = { workspace = true }
 a4n-control = { workspace = true, optional = true }
 a4n-edge = { workspace = true, optional = true }
 a4n-process-catalog = { workspace = true }
@@ -93,6 +94,7 @@ a4n-worker-contract = { workspace = true }
 
 anyhow = { workspace = true }
 reqwest = { workspace = true }
+tempfile = { workspace = true }
 uuid = { workspace = true }
 
 [dev-dependencies]
@@ -111,5 +113,4 @@ reqwest = { workspace = true }
 serde_json = { workspace = true }
 sea-orm = { workspace = true }
 sha2 = { workspace = true }
-tempfile = { workspace = true }
 tokio = { workspace = true }

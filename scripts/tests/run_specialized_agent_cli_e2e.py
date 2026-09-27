@@ -18,7 +18,7 @@ from urllib.parse import unquote, urlparse
 
 from mock_openai.protocol import PNG_1X1_BASE64
 from run_agent_cli_e2e import data, thread_snapshot, wait_for_run
-from run_cli_contract_e2e import Cli, RunnerError, checked, provider_log_entries, runtime_snapshot, secure_json, start_provider
+from run_cli_contract_e2e import RunnerError, checked, logged_in_cli, provider_log_entries, runtime_snapshot, secure_json, start_provider
 from specialized_agent_fixture import MARKER, observation_data
 
 
@@ -52,15 +52,9 @@ def main():
     args.report.parent.mkdir(parents=True, exist_ok=True)
     provider = None
     try:
-        with tempfile.TemporaryDirectory(prefix="a4n-director-e2e-") as tmp:
+        with tempfile.TemporaryDirectory(prefix="a4n-director-e2e-", dir=args.report.parent) as tmp:
             work = Path(tmp)
-            env = os.environ.copy()
-            password = env.pop(args.password_env)
-            env.pop("A4N_ACCESS_TOKEN", None)
-            cli = Cli(args.a4n, args.server, work / "cli.json", work / "context.json", args.command_timeout, env)
-            checked(cli, ["health"], "health")
-            checked(cli, ["capabilities", "check"], "capabilities check")
-            checked(cli, ["auth", "login", "--username", args.username, "--password-stdin"], "login", password + "\n")
+            cli = logged_in_cli(args, work, timeout=args.command_timeout)
             provider, log_path = start_provider(
                 args,
                 args.report.parent,
@@ -80,7 +74,7 @@ def main():
                     parts.append("--allow-destructive")
                 if failure:
                     result = cli.run(parts)
-                    assert result["exit_code"] != 0, name + " unexpectedly succeeded"
+                    assert result["exit_code"] in (2, 4, 6, 8), (name, result)
                     return result
                 envelope, _ = checked(cli, parts, name)
                 return envelope["data"]
@@ -203,7 +197,7 @@ def main():
             wait_state(run_id, "budget")
             checked(cli, ["agent", "run", run_id, "pause", "--thread-id", thread_id], "pause exhausted budget")
             denied_resume = cli.run(["agent", "run", run_id, "resume", "--thread-id", thread_id])
-            assert denied_resume["exit_code"] != 0
+            assert denied_resume["exit_code"] in (6, 8), denied_resume
             limited = thread_snapshot(cli, thread_id)
             assert not any(row["run_id"] == run_id and row["kind"] == "tool_call" for row in limited["executions"])
             checked(cli, ["agent", "run", run_id, "resume", "--thread-id", thread_id, "--budget", json.dumps({"max_tokens": 500000})], "extend exhausted budget")
@@ -410,7 +404,7 @@ def main():
             script = call("get_chapter_shooting_script", compose_resource)
             shots = [shot for scene in script["script"]["scenes"] for shot in scene["shots"]]
             assert [shot["shot_id"] for shot in shots] == ["shot-1", "shot-2", "shot-3"]
-            assert [shot["estimated_natural_seconds"] for shot in shots] == [3, 6, 3]
+            assert [(shot["planned_end_ms"] - shot["planned_start_ms"]) / 1000 for shot in shots] == [3, 6, 3]
             report["checks"].append("Director Agent composes a starter into a persisted three-shot timeline; approvals, image binding, scene transition, confirmation and shooting-script projection are covered")
 
             generation_run = send({

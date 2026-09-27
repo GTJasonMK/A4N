@@ -185,7 +185,7 @@ where
                 .await
                 .map_err(ProjectMutationError::Database)?;
             if let Some(live_script) = data.shooting_scripts.get(&chapter.id) {
-                let mut script: a4n_domain::shooting_script::ChapterShootingScriptV1 =
+                let mut script: a4n_domain::shooting_script::ChapterShootingScriptV2 =
                     serde_json::from_value(live_script.script_json.clone()).map_err(|error| {
                         ProjectMutationError::Internal(format!("解析源拍摄剧本失败: {error}"))
                     })?;

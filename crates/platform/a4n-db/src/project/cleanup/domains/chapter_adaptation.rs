@@ -233,7 +233,7 @@ mod tests {
                 visual_plan_version: Set(Some(visual_plan_version)),
                 visual_plan_sha256: Set(Some("c".repeat(64))),
                 input_fingerprint_sha256: Set("d".repeat(64)),
-                contract_version: Set("chapter_shooting_script_v1".to_string()),
+                contract_version: Set("chapter_shooting_script_v2".to_string()),
                 revision: Set(1),
                 script_sha256: Set("e".repeat(64)),
                 script_json: Set(json!({})),

@@ -9,7 +9,7 @@ use a4n_domain::shooting_script::{
 };
 
 pub const VIDEO_EXECUTION_CONTRACT_EPOCH: u32 = 5;
-pub const VIDEO_EXECUTION_PROJECTION_V2: &str = "video_execution_projection_v2";
+pub const VIDEO_EXECUTION_PROJECTION_V3: &str = "video_execution_projection_v3";
 pub const VIDEO_SEGMENT_PLAN_V2: &str = "video_segment_plan_v2";
 pub const VIDEO_EXECUTION_UNIT_V2: &str = "video_execution_unit_v2";
 
@@ -136,21 +136,20 @@ mod source_identity_tests {
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
 #[serde(deny_unknown_fields)]
-pub struct VideoExecutionProjectionV2 {
+pub struct VideoExecutionProjectionV3 {
     pub schema_version: String,
     pub contract_epoch: u32,
     pub shooting_script_identity: VideoShootingScriptIdentityV1,
     pub directing_statement: Option<ShootingDirectingStatementV1>,
-    pub scenes: Vec<VideoExecutionSceneV2>,
-    pub planning_quality: VideoExecutionQualityV2,
+    pub scenes: Vec<VideoExecutionSceneV3>,
 }
 
-impl VideoExecutionProjectionV2 {
-    pub fn shots(&self) -> impl Iterator<Item = &VideoExecutionShotV2> {
+impl VideoExecutionProjectionV3 {
+    pub fn shots(&self) -> impl Iterator<Item = &VideoExecutionShotV3> {
         self.scenes.iter().flat_map(|scene| scene.shots.iter())
     }
 
-    pub fn shot(&self, source_shot_id: &str) -> Option<&VideoExecutionShotV2> {
+    pub fn shot(&self, source_shot_id: &str) -> Option<&VideoExecutionShotV3> {
         self.shots()
             .find(|shot| shot.source_shot_id == source_shot_id)
     }
@@ -162,7 +161,7 @@ impl VideoExecutionProjectionV2 {
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
 #[serde(deny_unknown_fields)]
-pub struct VideoExecutionSceneV2 {
+pub struct VideoExecutionSceneV3 {
     pub scene_index: u32,
     pub scene_identity: String,
     pub sequence_index: u32,
@@ -191,14 +190,13 @@ pub struct VideoExecutionSceneV2 {
     pub sound_strategy: String,
     pub entry_state: String,
     pub exit_state: String,
-    pub shots: Vec<VideoExecutionShotV2>,
+    pub shots: Vec<VideoExecutionShotV3>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
 #[serde(deny_unknown_fields)]
-pub struct VideoExecutionShotV2 {
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub director_constraints: Option<a4n_domain::chapter_visual_plan::VisualSegmentProjectionV3>,
+pub struct VideoExecutionShotV3 {
+    pub director_constraints: a4n_domain::chapter_visual_plan::VisualSegmentProjectionV3,
     pub source_shot_id: String,
     pub shot_index: u32,
     pub scene_index: u32,
@@ -240,18 +238,12 @@ pub struct VideoExecutionShotV2 {
     pub transition_in: String,
     pub transition_out: String,
     pub continuity_requirements: Vec<String>,
-    pub action_beats: Vec<VideoExecutionBeatV2>,
-    pub estimated_natural_seconds: f64,
-    pub segment_duration_secs: i32,
-    pub recommended_segment_count: i32,
-    pub minimum_readable_segment_count: i32,
-    pub action_load: VideoActionLoadV1,
-    pub risk_flags: Vec<VideoExecutionRiskV1>,
+    pub action_beats: Vec<VideoExecutionBeatV3>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
 #[serde(deny_unknown_fields)]
-pub struct VideoExecutionBeatV2 {
+pub struct VideoExecutionBeatV3 {
     pub beat_id: String,
     pub source_span_ids: Vec<String>,
     pub actor: Option<String>,
@@ -271,7 +263,6 @@ pub struct VideoExecutionBeatV2 {
     pub entry_state: String,
     pub exit_state: String,
     pub required: bool,
-    pub natural_seconds: f64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
@@ -279,51 +270,6 @@ pub struct VideoExecutionBeatV2 {
 pub struct VideoSourceSpanRangeV1 {
     pub start: String,
     pub end: String,
-}
-
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
-#[serde(rename_all = "snake_case")]
-pub enum VideoActionLoadV1 {
-    Light,
-    Medium,
-    Heavy,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
-#[serde(deny_unknown_fields)]
-pub struct VideoExecutionQualityV2 {
-    pub total_estimated_seconds: f64,
-    pub total_recommended_segments: i32,
-    pub total_minimum_readable_segments: i32,
-    pub risk_flags: Vec<VideoExecutionRiskV1>,
-    pub directing_audit: VideoDirectingAuditV2,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
-#[serde(deny_unknown_fields)]
-pub struct VideoDirectingAuditV2 {
-    pub total_directing_beats: i32,
-    pub must_show_beats: i32,
-    pub directing_order_preserved: bool,
-    pub viewpoint_metadata_complete: bool,
-    pub audience_causality_complete: bool,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
-#[serde(deny_unknown_fields)]
-pub struct VideoExecutionRiskV1 {
-    pub level: VideoExecutionRiskLevelV1,
-    pub code: String,
-    pub source_shot_id: Option<String>,
-    pub message: String,
-}
-
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
-#[serde(rename_all = "snake_case")]
-pub enum VideoExecutionRiskLevelV1 {
-    Info,
-    Warning,
-    Error,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]

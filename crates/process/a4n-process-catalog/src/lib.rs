@@ -367,7 +367,7 @@ mod tests {
             .expect("novel planning worker entry");
         assert_eq!(novel.kind, ProcessKind::StatefulWorker);
         assert_eq!(novel.binary, "a4n-novel-planning-worker");
-        assert_eq!(novel.contract_version, "novel-planning-shooting-script-v2");
+        assert_eq!(novel.contract_version, "novel-planning-shooting-script-v3");
         assert_eq!(novel.addr_env, "A4N_NOVEL_PLANNING_WORKER_ADDR");
         assert_eq!(
             novel.url_env.as_deref(),

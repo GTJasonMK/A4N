@@ -93,7 +93,7 @@ async fn deleting_script_is_revision_fenced_and_preserves_downstream_state() {
         visual_plan_version: Set(None),
         visual_plan_sha256: Set(None),
         input_fingerprint_sha256: Set("b".repeat(64)),
-        contract_version: Set("chapter_shooting_script_v1".into()),
+        contract_version: Set("chapter_shooting_script_v2".into()),
         revision: Set(2),
         script_sha256: Set("c".repeat(64)),
         script_json: Set(serde_json::json!({})),

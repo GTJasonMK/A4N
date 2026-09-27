@@ -5,7 +5,52 @@ fn legacy_v5_package_without_feedback_remains_importable() {
     let mut package = package_with_part_outlines(Vec::new());
     package.version = "project_family_v5".into();
     package.text_core.fact_feedback = None;
+    package
+        .upgrade_shooting_contract(&mut Default::default())
+        .unwrap();
+    assert_eq!(package.version, "project_family_v7");
     validate_package_manifest(&package).unwrap();
+}
+
+#[test]
+fn legacy_upgrade_keeps_unconfirmed_director_drafts() {
+    use a4n_db_models::models::chapter::chapter_visual_plan;
+    use a4n_domain::chapter_visual_plan::ChapterVisualPlanV3;
+
+    let mut package = package_with_part_outlines(Vec::new());
+    package.version = "project_family_v6".into();
+    let draft = ChapterVisualPlanV3::starter();
+    draft.validate_draft().unwrap();
+    assert!(draft.project().is_err());
+    let now = chrono::Utc::now().naive_utc();
+    package
+        .chapter_visual_plans
+        .push(chapter_visual_plan::Model {
+            id: 1,
+            root_project_id: package.root_project_id,
+            source_chapter_id: 1,
+            source_snapshot_id: None,
+            source_snapshot_chapter_id: None,
+            source_revision_key: "draft-source".into(),
+            source_content_sha256: "a".repeat(64),
+            contract_version: "chapter_visual_plan_v3".into(),
+            plan_version: 1,
+            revision: 1,
+            status: "draft".into(),
+            authoring_mode: "manual".into(),
+            plan_sha256: "b".repeat(64),
+            plan_json: serde_json::to_value(draft).unwrap(),
+            author_user_id: 1,
+            confirmed_at: None,
+            created_at: now,
+            updated_at: now,
+        });
+    let original = package.chapter_visual_plans.clone();
+    package
+        .upgrade_shooting_contract(&mut Default::default())
+        .unwrap();
+    assert_eq!(package.chapter_visual_plans, original);
+    assert_eq!(package.version, "project_family_v7");
 }
 
 #[test]

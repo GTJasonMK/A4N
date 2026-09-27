@@ -5,32 +5,32 @@ use serde::{Deserialize, Serialize};
 
 use crate::chapter_visual_plan::{VisualSegmentProjectionV3, VisualUserAdditionV1};
 
-pub const CHAPTER_SHOOTING_SCRIPT_V1: &str = "chapter_shooting_script_v1";
+pub const CHAPTER_SHOOTING_SCRIPT_V2: &str = "chapter_shooting_script_v2";
 
 #[derive(Debug, Clone)]
 pub struct EditStoredChapterShootingScriptInput {
     pub record_id: i64,
     pub expected_revision: i32,
-    pub script: ChapterShootingScriptV1,
+    pub script: ChapterShootingScriptV2,
     pub rebind_shot_ids: Vec<String>,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
 pub enum ChapterShootingScriptSchemaVersion {
-    #[serde(rename = "chapter_shooting_script_v1")]
-    V1,
+    #[serde(rename = "chapter_shooting_script_v2")]
+    V2,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
 #[serde(deny_unknown_fields)]
-pub struct ChapterShootingScriptV1 {
+pub struct ChapterShootingScriptV2 {
     pub schema_version: ChapterShootingScriptSchemaVersion,
     #[serde(default)]
     pub visual_plan_source: Option<ShootingVisualPlanSourceV1>,
     #[serde(default)]
     pub user_additions: Vec<VisualUserAdditionV1>,
     pub directing_statement: Option<ShootingDirectingStatementV1>,
-    pub scenes: Vec<ShootingSceneV1>,
+    pub scenes: Vec<ShootingSceneV2>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
@@ -45,7 +45,7 @@ pub struct ChapterShootingScriptRecordSummary {
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
 pub struct ChapterShootingScriptUnitProgressView {
     pub workflow_run_id: i64,
-    pub script: ChapterShootingScriptV1,
+    pub script: ChapterShootingScriptV2,
     /// 已处理的生成单元数；手工删除场景不会让生成游标倒退。
     pub completed_unit_count: usize,
     pub total_unit_count: usize,
@@ -69,8 +69,8 @@ pub struct EditChapterShootingScriptProgressInput {
     pub source_chapter_id: i64,
     #[schemars(range(min = 1))]
     pub workflow_run_id: i64,
-    pub expected_script: ChapterShootingScriptV1,
-    pub script: ChapterShootingScriptV1,
+    pub expected_script: ChapterShootingScriptV2,
+    pub script: ChapterShootingScriptV2,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
@@ -102,7 +102,7 @@ pub struct ShootingDirectingStatementV1 {
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
 #[serde(deny_unknown_fields)]
-pub struct ShootingSceneV1 {
+pub struct ShootingSceneV2 {
     pub scene_index: u32,
     pub scene_identity: String,
     pub sequence_index: u32,
@@ -135,7 +135,7 @@ pub struct ShootingSceneV1 {
     pub sound_strategy: String,
     pub entry_state: String,
     pub exit_state: String,
-    pub shots: Vec<ShootingShotV1>,
+    pub shots: Vec<ShootingShotV2>,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
@@ -241,7 +241,7 @@ pub enum ShootingContinuityIntentV1 {
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
 #[serde(deny_unknown_fields)]
-pub struct ShootingShotV1 {
+pub struct ShootingShotV2 {
     pub shot_index: u32,
     pub shot_id: String,
     pub title: String,
@@ -267,7 +267,7 @@ pub struct ShootingShotV1 {
     pub composition: String,
     pub spatial_anchors: Vec<String>,
     pub blocking: ShootingBlockingV1,
-    pub performance_beats: Vec<ShootingPerformanceBeatV1>,
+    pub performance_beats: Vec<ShootingPerformanceBeatV2>,
     pub dialogue_cues: Vec<ShootingDialogueCueV1>,
     pub sound: ShootingSoundDesignV1,
     pub camera_start_state: String,
@@ -277,7 +277,6 @@ pub struct ShootingShotV1 {
     pub transition_in: String,
     pub transition_out: String,
     pub continuity_requirements: Vec<String>,
-    pub estimated_natural_seconds: f64,
 }
 
 pub type ShootingVisualConstraintsV3 = VisualSegmentProjectionV3;
@@ -292,7 +291,7 @@ pub struct ShootingBlockingV1 {
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
 #[serde(deny_unknown_fields)]
-pub struct ShootingPerformanceBeatV1 {
+pub struct ShootingPerformanceBeatV2 {
     pub beat_index: u32,
     pub beat_id: String,
     pub source_span_ids: Vec<String>,
@@ -315,7 +314,6 @@ pub struct ShootingPerformanceBeatV1 {
     pub entry_state: String,
     pub exit_state: String,
     pub required: bool,
-    pub estimated_seconds: f64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
