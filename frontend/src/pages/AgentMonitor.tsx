@@ -186,7 +186,7 @@ export const AgentMonitor: React.FC = () => {
     }
   }, [pendingSubmission?.acceptedMessageId, snapshot]);
 
-  const refreshThreads = useCallback(async (manual = false) => {
+  const refreshThreads = useCallback(async (manual = false): Promise<boolean> => {
     if (manual) setRefreshing(true);
     try {
       let next = await listAgentThreads({ include_archived: false, limit: 200 });
@@ -199,8 +199,10 @@ export const AgentMonitor: React.FC = () => {
       setSelectedThreadId((current) => current && next.some((thread) => thread.id === current)
         ? current : next.find((thread) => thread.kind === "main")?.id ?? next[0]?.id ?? null);
       setError(null);
+      return true;
     } catch (err) {
       setError(extractErrorMessage(err, t("agent.loadFailed")));
+      return false;
     } finally {
       setLoading(false);
       if (manual) setRefreshing(false);
@@ -408,7 +410,8 @@ export const AgentMonitor: React.FC = () => {
     try {
       const created = await createAgentThread({ kind: "subagent", capability, title: createTitle.trim() || null });
       setCreateOpen(false); setCreateTitle(""); setCreateCapability("general");
-      await refreshThreads(); setSelectedThreadId(created.id);
+      if (!await refreshThreads()) return;
+      setSelectedThreadId(created.id);
     } catch (err) {
       addToast(extractErrorMessage(err, locale === "zh-CN" ? "创建子 Agent 失败" : "Failed to create sub-agent"), "error");
     }
@@ -435,7 +438,7 @@ export const AgentMonitor: React.FC = () => {
       setSnapshot(null);
       setStreamedMessageIds(new Set());
       setPendingSubmission(null);
-      await refreshThreads(true);
+      if (!await refreshThreads(true)) return;
       addToast(t("agent.clearContextSuccess"), "success");
     } catch (err) {
       const message = extractErrorMessage(err, t("agent.clearContextFailed"));

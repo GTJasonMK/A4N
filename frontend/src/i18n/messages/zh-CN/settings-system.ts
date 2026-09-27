@@ -235,6 +235,7 @@ export const settingsAdvanced = {
   importSuccess: "配置已导入",
   exportFailed: "导出配置失败",
   importFailed: "导入配置失败",
+  themeRefreshFailed: "配置已导入，但主题刷新失败",
   configBackup: "配置备份",
   configBackupHint: "备份或恢复模型、提示词、主题和系统配置。",
   localBackup: "本机模型与联网配置备份",

@@ -393,12 +393,12 @@ export const ImagesTab: React.FC<ImagesTabProps> = ({
     });
   }, [allImages]);
 
-  const loadObjectProfiles = useCallback(async () => {
+  const loadObjectProfiles = useCallback(async (notify = true): Promise<boolean> => {
     if (!canEditImages) {
       objectProfilesRef.current = [];
       setObjectProfiles([]);
       setSelectedObjectProfileId(null);
-      return;
+      return true;
     }
     const requestScope = scopeKey;
     const requestProjectId = projectId;
@@ -406,7 +406,7 @@ export const ImagesTab: React.FC<ImagesTabProps> = ({
     objectProfilesLoadSeqRef.current = requestSeq;
     try {
       const rows = await listObjectProfiles(requestProjectId);
-      if (!isCurrentObjectProfilesLoad(requestScope, requestSeq)) return;
+      if (!isCurrentObjectProfilesLoad(requestScope, requestSeq)) return false;
       objectProfilesRef.current = rows;
       setObjectProfiles(rows);
       setSelectedObjectProfileId((current) =>
@@ -414,10 +414,14 @@ export const ImagesTab: React.FC<ImagesTabProps> = ({
           ? current
           : rows[0]?.id ?? null,
       );
+      return true;
     } catch (err) {
       if (isCurrentObjectProfilesLoad(requestScope, requestSeq)) {
-        addToast(extractErrorMessage(err, t("novel.imageLibrary.loadProfilesFailed")), "error");
+        if (notify) {
+          addToast(extractErrorMessage(err, t("novel.imageLibrary.loadProfilesFailed")), "error");
+        }
       }
+      return false;
     }
   }, [addToast, canEditImages, isCurrentObjectProfilesLoad, projectId, scopeKey]);
 
@@ -660,7 +664,9 @@ export const ImagesTab: React.FC<ImagesTabProps> = ({
           const images = await verifyImageGenerationResult(task, requestProjectId);
           ensureCurrentAction(requestScope, actionSeq);
           images.forEach(commitImage);
-          await loadObjectProfiles();
+          if (!await loadObjectProfiles(false)) {
+            throw new Error(t("novel.imageLibrary.loadProfilesFailed"));
+          }
           ensureCurrentAction(requestScope, actionSeq);
         },
       );

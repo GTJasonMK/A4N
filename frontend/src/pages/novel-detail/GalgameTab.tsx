@@ -326,7 +326,7 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
     setPipelineStatus(null);
     setGenerating(true);
     try {
-      const next = await runProgressTask(
+      const completed = await runProgressTask(
         {
           title: t("galgame.pipelineTitle"),
           startMessage: t("galgame.preparingPipeline"),
@@ -351,20 +351,15 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
             resume_from_checkpoint: resumeFromCheckpoint,
           });
           setProgress(t("galgame.refreshingPipeline"), 7, 7);
-          return result;
+          const status = await getGalgamePipelineStatus(projectId);
+          return { detail: result, status };
         },
       );
+      const next = completed.detail;
       setDetail(next);
       setSelectedSceneId(next.scenes[0]?.scene.id ?? null);
+      setPipelineStatus(completed.status);
       addToast(t("galgame.pipelineCompleted"), "success");
-      try {
-        setPipelineStatus(await getGalgamePipelineStatus(projectId));
-      } catch (statusError) {
-        addToast(
-          extractErrorMessage(statusError, t("galgame.pipelineStatusLoadFailed")),
-          "error",
-        );
-      }
     } catch (err) {
       const message = extractErrorMessage(err, t("galgame.pipelineFailed"));
       const cancelled = isCancelledOperation(message);

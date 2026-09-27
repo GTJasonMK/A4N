@@ -235,6 +235,7 @@ export const settingsAdvanced = {
   importSuccess: "Configuration imported",
   exportFailed: "Failed to export configuration",
   importFailed: "Failed to import configuration",
+  themeRefreshFailed: "Configuration imported, but the theme could not be refreshed",
   configBackup: "Configuration backup",
   configBackupHint: "Back up or restore model, prompt, theme, and system configuration.",
   localBackup: "Device model and web tool backup",

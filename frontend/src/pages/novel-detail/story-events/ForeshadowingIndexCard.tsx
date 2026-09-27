@@ -86,8 +86,8 @@ export const ForeshadowingIndexCard: React.FC<ForeshadowingIndexCardProps> = ({
         editing === "new"
           ? await createForeshadowing(projectId, record)
           : await updateForeshadowing(projectId, editing, record);
+      if (await onReload() === false) return;
       setEditing(null);
-      await onReload();
       addToast(
         result.warnings.length > 0
           ? t("novel.foreshadowing.savedWithWarnings", { warnings: result.warnings.join(t("common.listSeparator")) })
@@ -113,7 +113,7 @@ export const ForeshadowingIndexCard: React.FC<ForeshadowingIndexCardProps> = ({
     setBusyId(record.id);
     try {
       const result = await deleteForeshadowing(projectId, record);
-      await onReload();
+      if (await onReload() === false) return;
       addToast(
         result.warnings.length > 0
           ? t("novel.foreshadowing.deletedWithWarnings", { warnings: result.warnings.join(t("common.listSeparator")) })

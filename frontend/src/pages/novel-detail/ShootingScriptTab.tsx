@@ -350,7 +350,7 @@ export const ShootingScriptTab: React.FC<ShootingScriptTabProps> = ({
   };
 
   const removeProgress = async () => {
-    if (!unitProgress || deleting || generating || saving || scriptLoading)
+    if (chapterId == null || !unitProgress || deleting || generating || saving || scriptLoading)
       return;
     const scope = sourceRef.current;
     const confirmed = await confirmDialog({
@@ -367,6 +367,11 @@ export const ShootingScriptTab: React.FC<ShootingScriptTabProps> = ({
         workflow_run_id: unitProgress.workflow_run_id,
       });
       if (sourceRef.current !== scope) return;
+      const refreshed = await loadShootingScriptOrProgress(projectId, chapterId);
+      if (sourceRef.current !== scope) return;
+      if (refreshed.scriptError || refreshed.view || refreshed.unitProgress) {
+        throw new Error(t("shootingScript.discardProgressFailed"));
+      }
       setUnitProgress(null);
       setDraft(null);
       setEditing(false);
@@ -405,6 +410,11 @@ export const ShootingScriptTab: React.FC<ShootingScriptTabProps> = ({
     try {
       await deleteChapterShootingScript(projectId, chapterId, view);
       if (sourceRef.current !== scope) return;
+      const refreshed = await loadShootingScriptOrProgress(projectId, chapterId);
+      if (sourceRef.current !== scope) return;
+      if (refreshed.scriptError || refreshed.view || refreshed.unitProgress) {
+        throw new Error(t("shootingScript.deleteFailed"));
+      }
       setView(null);
       setDraft(null);
       setUnitProgress(null);

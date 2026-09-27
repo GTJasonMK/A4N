@@ -116,7 +116,11 @@ export const useFullConfigBackup = (scope: ConfigBackupScope) => {
         });
       }
       if (!isCurrentUser(requestUserId)) return;
-      if (scope === "server") await loadAndApplyActiveTheme(requestUserId);
+      if (scope === "server" && !await loadAndApplyActiveTheme(requestUserId)) {
+        addToast(t("settingsAdvanced.importedDetails", { details: details.join(t("common.summarySeparator")) }), "info");
+        addToast(t("settingsAdvanced.themeRefreshFailed"), "error");
+        return;
+      }
       addToast(t("settingsAdvanced.importedDetails", { details: details.join(t("common.summarySeparator")) }), "success");
     } catch (err) {
       if (isCurrentUser(requestUserId)) {

@@ -189,7 +189,7 @@ function applyRuntimeTheme(): void {
   applyThemeState(runtimeActiveTheme, mode);
 }
 
-async function readRuntimeTheme(userId: number): Promise<void> {
+async function readRuntimeTheme(userId: number): Promise<boolean> {
   const requestSeq = ++themeSyncSeq;
   const themesVersion = themeMutationSeq;
   const appearanceVersion = appearanceMutationSeq;
@@ -197,7 +197,7 @@ async function readRuntimeTheme(userId: number): Promise<void> {
     listThemes(),
     getThemePreference(),
   ]);
-  if (requestSeq !== themeSyncSeq || runtimeUserId !== userId) return;
+  if (requestSeq !== themeSyncSeq || runtimeUserId !== userId) return false;
   if (themesResult.status === "fulfilled" && themesVersion === themeMutationSeq) {
     runtimeThemes = themesResult.value;
   }
@@ -213,6 +213,7 @@ async function readRuntimeTheme(userId: number): Promise<void> {
   }
   writeThemeCache(userId, runtimeThemes, runtimeAppearance);
   applyRuntimeTheme();
+  return themesResult.status === "fulfilled" && preferenceResult.status === "fulfilled";
 }
 
 async function reloadRuntimeTheme(): Promise<void> {
@@ -307,7 +308,7 @@ export function notifyThemeChanged(): void {
   broadcastThemeSync();
 }
 
-export async function loadAndApplyActiveTheme(userId: number | null): Promise<void> {
+export async function loadAndApplyActiveTheme(userId: number | null): Promise<boolean> {
   themeSyncSeq += 1;
   ensureSyncListeners();
   runtimeUserId = userId;
@@ -316,7 +317,7 @@ export async function loadAndApplyActiveTheme(userId: number | null): Promise<vo
   if (userId == null) {
     runtimeAppearance = "system";
     applyThemeState(null, "light");
-    return;
+    return true;
   }
 
   const cached = readThemeCache(userId);
@@ -327,5 +328,5 @@ export async function loadAndApplyActiveTheme(userId: number | null): Promise<vo
   } else {
     applyThemeState(null, preferredThemeMode(runtimeAppearance));
   }
-  await readRuntimeTheme(userId);
+  return readRuntimeTheme(userId);
 }

@@ -193,7 +193,10 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
         successMessage: t("novel.blueprintRefined"),
         errorMessage: t("novel.refineBlueprintFailed"),
         isCurrent: () => isCurrentRefine(requestProjectId, requestSeq),
-        refresh: load,
+        refresh: async () => {
+          if (!await load()) return false;
+          return onRefresh();
+        },
         t,
       });
       addToast(
@@ -202,7 +205,6 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
           : t("novel.blueprintRefined"),
         syncWarnings.length > 0 ? "info" : "success",
       );
-      await onRefresh();
     } catch (err) {
       if (!isCurrentRefine(requestProjectId, requestSeq)) return;
       const message = extractErrorMessage(err, t("novel.refineBlueprintFailed"));
@@ -288,11 +290,11 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
         total_chapters: totalChapters,
       });
       if (!isCurrentProject(requestProjectId)) return;
+      if (!await load()) return;
+      if (!isCurrentProject(requestProjectId)) return;
+      if (!await onRefresh()) return;
+      if (!isCurrentProject(requestProjectId)) return;
       setBlueprintEditorOpen(false);
-      await load();
-      if (!isCurrentProject(requestProjectId)) return;
-      await onRefresh();
-      if (!isCurrentProject(requestProjectId)) return;
       addToast(
         result.warnings.length > 0
           ? t("novel.blueprintSavedWithWarnings", { warnings: result.warnings.join(t("common.summarySeparator")) })
