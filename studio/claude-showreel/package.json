@@ -1,0 +1,19 @@
+{
+  "name": "showreel",
+  "version": "1.0.0",
+  "description": "Continuation of Claude's original A4N WebGL showreel, with a locally synthesized score and Foley",
+  "scripts": {
+    "test": "node tools/check.mjs",
+    "snap": "node tools/snap.mjs",
+    "audio": ".venv/bin/python tools/audio.py",
+    "render": "node tools/render.mjs",
+    "finish": ".venv/bin/python tools/finish.py",
+    "check:playback": "node tools/playback.mjs",
+    "preview": "node tools/preview.mjs"
+  },
+  "keywords": [],
+  "type": "module",
+  "dependencies": {
+    "puppeteer-core": "^25.12.0"
+  }
+}
