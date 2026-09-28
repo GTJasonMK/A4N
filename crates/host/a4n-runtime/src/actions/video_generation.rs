@@ -7,6 +7,7 @@ mod common;
 mod config;
 mod config_state;
 mod generation_task;
+mod image_inputs;
 mod job_lifecycle;
 pub(crate) mod media;
 mod poll;
