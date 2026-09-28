@@ -10,6 +10,7 @@ mod generation_task;
 mod job_lifecycle;
 pub(crate) mod media;
 mod poll;
+mod preview;
 mod provider_host;
 mod provider_request;
 mod reference_media;
