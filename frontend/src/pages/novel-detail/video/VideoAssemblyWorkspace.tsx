@@ -402,8 +402,7 @@ export const VideoAssemblyWorkspace: React.FC<VideoAssemblyWorkspaceProps> = ({
       if (!isCurrentScope(requestScope)) return;
       onVideoRecordUpdated(result.video);
       clearPreview();
-      const refreshed = await onRefresh();
-      if (refreshed === false) return;
+      await onRefresh();
       if (!isCurrentScope(requestScope)) return;
       onToast(
         t("video.chapter.pushSuccess", { count: result.source_video_ids.length }),
@@ -466,7 +465,7 @@ export const VideoAssemblyWorkspace: React.FC<VideoAssemblyWorkspaceProps> = ({
       if (!isCurrentScope(requestScope)) return;
       onVideoRecordUpdated(inserted);
       clearPreview();
-      if (await onRefresh() === false) return;
+      await onRefresh();
       if (!isCurrentScope(requestScope)) return;
       onToast(t("video.chapter.insertSuccess"), "success");
     } catch (err) {
@@ -504,7 +503,7 @@ export const VideoAssemblyWorkspace: React.FC<VideoAssemblyWorkspaceProps> = ({
       await deleteVideo(video.id);
       if (!isCurrentScope(requestScope)) return;
       clearPreview();
-      if (await onRefresh() === false) return;
+      await onRefresh();
       if (!isCurrentScope(requestScope)) return;
       onToast(t("video.chapter.deleteSuccess"), "success");
     } catch (err) {

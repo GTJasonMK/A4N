@@ -219,7 +219,7 @@ export const ObjectProfilesTab: React.FC<{
     try {
       const result = await deleteObjectProfile(requestProfile.id, downstreamStrategy);
       if (!isCurrentAction(requestProjectId, requestSeq)) return;
-      if (!await load({ silent: true, force: true, projectId: requestProjectId })) return;
+      await load({ silent: true, force: true, projectId: requestProjectId });
       if (!isCurrentAction(requestProjectId, requestSeq)) return;
       setDetailFor((current) => (current?.id === requestProfile.id ? null : current));
       addToast(
@@ -295,7 +295,7 @@ export const ObjectProfilesTab: React.FC<{
       if (saved.project_id !== requestProjectId) {
         throw new Error("保存物体档案返回了其他项目的数据");
       }
-      if (!await load({ silent: true, force: true, projectId: requestProjectId })) return;
+      await load({ silent: true, force: true, projectId: requestProjectId });
       if (!isCurrentAction(requestProjectId, requestSeq)) return;
       setDetailFor(saved);
       setEditingProfile(null);

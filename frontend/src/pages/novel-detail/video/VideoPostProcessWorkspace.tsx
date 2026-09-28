@@ -551,8 +551,7 @@ export const VideoPostProcessWorkspace: React.FC<
       const updated = await updateAssemblyPushStatus(selectedPush.id, action);
       if (!isCurrentScope(requestScope)) return;
       onVideoRecordUpdated(updated);
-      const refreshed = await onRefresh();
-      if (refreshed === false) return;
+      await onRefresh();
       if (!isCurrentScope(requestScope)) return;
       onToast(
         action === "accept"
@@ -618,8 +617,7 @@ export const VideoPostProcessWorkspace: React.FC<
       if (!isCurrentScope(requestScope)) return;
       onVideoRecordUpdated(updated);
       clearMarkers();
-      const refreshed = await onRefresh();
-      if (refreshed === false) return;
+      await onRefresh();
       if (!isCurrentScope(requestScope)) return;
       onToast(t("video.postprocess.editUploaded", { operation: t(editOperationLabel[operation]) }), "success");
     } catch (err) {
@@ -648,8 +646,7 @@ export const VideoPostProcessWorkspace: React.FC<
       if (!isCurrentScope(requestScope)) return;
       onVideoRecordUpdated(updated);
       clearMarkers();
-      const refreshed = await onRefresh();
-      if (refreshed === false) return;
+      await onRefresh();
       if (!isCurrentScope(requestScope)) return;
       onToast(t("video.postprocess.deletedSelection"), "success");
     } catch (err) {
