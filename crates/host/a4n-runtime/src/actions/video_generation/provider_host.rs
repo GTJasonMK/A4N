@@ -34,10 +34,7 @@ use crate::{
     actions::video_generation::{
         common::relay_video_sidecar_progress,
         job_lifecycle::poll_provider_job,
-        media::{
-            delete_video_tail_frame_assets, media_bytes_to_remote_temp_media_url,
-            persist_canvas_video_bytes,
-        },
+        media::{delete_video_tail_frame_assets, persist_canvas_video_bytes},
         video_sidecar_root_project_id,
     },
     cleanup_outbox::enqueue_file_artifact_cleanup_by_project,
@@ -331,20 +328,16 @@ impl ReferenceMediaVideoPreviewHostPort for RuntimeVideoProviderHostPort<'_> {
         mime_type: &str,
         bytes: &[u8],
     ) -> Result<(String, GenerationArtifactRef), AppError> {
-        let uploaded = media_bytes_to_remote_temp_media_url(
-            a4n_api_contract::temp_media::TempMediaUploadRequest {
-                owner_user_id,
-                project_id,
-                source_media_kind: source_media_kind.to_string(),
-                source_media_id,
-                file_name: file_name.to_string(),
-                mime_type: mime_type.to_string(),
-            },
-            bytes.to_vec(),
+        super::preview::upload_reference_media_input(
+            owner_user_id,
+            project_id,
+            source_media_id,
+            source_media_kind,
+            file_name,
+            mime_type,
+            bytes,
         )
         .await
-        .map_err(host_error)?;
-        Ok((uploaded.url, uploaded.artifact))
     }
 }
 

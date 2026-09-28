@@ -71,6 +71,31 @@ pub(super) async fn provider_request_body(
     )))
 }
 
+pub(super) async fn upload_reference_media_input(
+    owner_user_id: i64,
+    project_id: i64,
+    source_media_id: i64,
+    source_media_kind: &str,
+    file_name: &str,
+    mime_type: &str,
+    bytes: &[u8],
+) -> Result<(String, a4n_service_protocol::GenerationArtifactRef), AppError> {
+    let uploaded = super::media::media_bytes_to_remote_temp_media_url(
+        a4n_api_contract::temp_media::TempMediaUploadRequest {
+            owner_user_id,
+            project_id,
+            source_media_kind: source_media_kind.to_string(),
+            source_media_id,
+            file_name: file_name.to_string(),
+            mime_type: mime_type.to_string(),
+        },
+        bytes.to_vec(),
+    )
+    .await
+    .map_err(host_error)?;
+    Ok((uploaded.url, uploaded.artifact))
+}
+
 pub(super) fn completed_video_artifact_metadata(result: &VideoGenerationResult) -> Value {
     json!({
         "provider_job_id": result.provider_job_id,
