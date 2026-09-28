@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { buildPageContext, pageKindForPath } from "./usePageSession";
+import { buildPageContext, pageKindForPath, pageSessionWithCurrentContext } from "./usePageSession";
+import type { PageSessionView } from "../api/pageSessions";
 
 describe("Page Session page context", () => {
   it("maps supported routes to stable page kinds", () => {
@@ -57,6 +58,35 @@ describe("Page Session page context", () => {
       dirty_state: true,
       local_state: { scroll_top: 120 },
       context_revision: 5,
+    });
+  });
+
+  it("does not let an older heartbeat overwrite a newer route or dirty state", () => {
+    const current = buildPageContext(
+      { pathname: "/video-project/7", hash: "#materials" },
+      8,
+      { selected_ids: { image: [4] }, dirty_state: true, local_state: { draft: "edited" } },
+    );
+    const oldSession = {
+      ui_session_id: "session-1",
+      context_revision: 7,
+      route: "/video-project/7#frames",
+      page_kind: "video-project",
+      project_id: 7,
+      chapter_id: null,
+      active_tab: "frames",
+      selected_ids: {},
+      dirty_state: false,
+      local_state: {},
+    } as PageSessionView;
+
+    expect(pageSessionWithCurrentContext(oldSession, current)).toMatchObject({
+      context_revision: 8,
+      route: "/video-project/7#materials",
+      active_tab: "materials",
+      selected_ids: { image: [4] },
+      dirty_state: true,
+      local_state: { draft: "edited" },
     });
   });
 });

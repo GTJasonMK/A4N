@@ -154,9 +154,15 @@ export function ChapterVisualPlanTab({ projectId, canEdit, chapter, onDirtyChang
     if (scope !== assetScope.current) return;
     const failures: string[] = [];
     if (results[0].status === "fulfilled") setImages(results[0].value);
-    else failures.push(extractErrorMessage(results[0].reason, "图片库加载失败"));
+    else {
+      setImages([]);
+      failures.push(extractErrorMessage(results[0].reason, "图片库加载失败"));
+    }
     if (results[1].status === "fulfilled") setScenes(results[1].value.scene_choices);
-    else failures.push(extractErrorMessage(results[1].reason, "场景库加载失败"));
+    else {
+      setScenes([]);
+      failures.push(extractErrorMessage(results[1].reason, "场景库加载失败"));
+    }
     setAssetLoadError(failures.length > 0 ? failures.join("；") : null);
   }, [projectId, chapterId, chapter?.project_id]);
 

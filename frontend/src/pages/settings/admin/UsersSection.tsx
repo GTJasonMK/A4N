@@ -26,6 +26,7 @@ import { Modal } from "../../../components/ui/Modal";
 import { useAdminSectionLoader } from "./useAdminSectionLoader";
 import { formatDateTime, formatNumber, useI18n, type MessageKey } from "../../../i18n";
 import { useAuthStore } from "../../../store/auth";
+import { useDirty } from "../../../components/navigation/dirtyRegistry";
 
 const emptyCreateUserForm: CreateUserInput = {
   username: "",
@@ -198,6 +199,7 @@ export const UsersSection: React.FC<{ currentUserId: number }> = ({
     createForm.email.trim().length > 0 ||
     createForm.password.length > 0 ||
     createForm.role !== emptyCreateUserForm.role;
+  useDirty("settings-admin-create-user", createDirty);
 
   const closeCreate = async () => {
     if (createBusy) return;

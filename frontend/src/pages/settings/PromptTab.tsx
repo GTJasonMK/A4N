@@ -23,6 +23,7 @@ import { PromptCategoryTabs } from "./prompt/PromptNavigation";
 import { PromptToolbar } from "./prompt/PromptToolbar";
 import { filterPrompts } from "./prompt/promptTabUtils";
 import { useI18n } from "../../i18n";
+import { useDirty } from "../../components/navigation/dirtyRegistry";
 
 export const PromptTab: React.FC = () => {
   const { addToast } = useToast();
@@ -37,6 +38,7 @@ export const PromptTab: React.FC = () => {
   const [selectedName, setSelectedName] = useState<string | null>(null);
   const [draft, setDraft] = useState<string>("");
   const [dirty, setDirty] = useState(false);
+  useDirty("settings-prompt-editor", dirty);
   const [saving, setSaving] = useState(false);
   const [resetting, setResetting] = useState(false);
   const [reloadingDefaults, setReloadingDefaults] = useState(false);

@@ -1,12 +1,12 @@
 import React, { useEffect, useState } from "react";
-import type { ChapterSummary } from "../../api/chapter";
+import type { ChapterMetadata } from "../../api/chapter";
 import { DomainAgentConsole } from "../../components/agent/DomainAgentConsole";
 import type { PendingContentDiff } from "../../components/agent/contentOptimizationDiff";
 import { OptimizeHeader } from "./optimize/OptimizeHeader";
 
 interface OptimizeTabProps {
   projectId: number;
-  chapters: ChapterSummary[];
+  chapters: ChapterMetadata[];
   fixedChapterId?: number | null;
   embedded?: boolean;
   onChapterContentChanged?: (chapterId: number) => void | Promise<void>;

@@ -4,7 +4,7 @@ import { ProgressDialog } from "../../components/feedback/ProgressDialog";
 import { RequestPreviewModal } from "../../components/feedback/RequestPreviewModal";
 import { confirmDialog } from "../../components/feedback/ConfirmDialog";
 import { extractErrorMessage } from "../../api";
-import { listChapters, type ChapterSummary } from "../../api/chapter";
+import { getChapter, type ChapterSummary } from "../../api/chapter";
 import { Modal } from "../../components/ui/Modal";
 import {
   acceptImportReview,
@@ -858,10 +858,8 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({
     const inputVersion = dedupInputVersionRef.current;
     setPreviewChapterLoading(true);
     try {
-      const chapters = await listChapters(requestProjectId);
+      const chapter = await getChapter(requestProjectId, chapterId);
       if (!isCurrentDedupRequest(requestProjectId, sequence, inputVersion)) return;
-      const chapter = chapters.find((item) => item.id === chapterId);
-      if (!chapter) throw new Error(t("novel.importReview.matchedChapterMissing"));
       setPreviewChapter(chapter);
     } catch (error) {
       if (isCurrentDedupRequest(requestProjectId, sequence, inputVersion)) {

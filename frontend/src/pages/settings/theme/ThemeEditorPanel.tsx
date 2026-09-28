@@ -17,6 +17,7 @@ import { BookInput } from "../../../components/ui/BookInput";
 import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
 import { SegmentedControl } from "../../../components/ui/SegmentedControl";
 import { confirmDialog } from "../../../components/feedback/ConfirmDialog";
+import { useDirty } from "../../../components/navigation/dirtyRegistry";
 import {
   applyThemePreview,
   restoreActiveTheme,
@@ -219,6 +220,7 @@ export const ThemeEditorPanel: React.FC<ThemeEditorPanelProps> = ({
     JSON.stringify(document) !== JSON.stringify(cloneDocument(theme)) ||
     Object.keys(pendingFiles).length > 0 ||
     deleteResourceIds.length > 0;
+  useDirty("settings-theme-editor", isDirty);
 
   useEffect(() => {
     onDirtyChange?.(isDirty);

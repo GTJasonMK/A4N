@@ -137,7 +137,8 @@ export const ProjectCollaborationPanel: React.FC<ProjectCollaborationPanelProps>
       });
       if (!mountedRef.current) return;
       setIdentity("");
-      if (!await load() || !await onRefresh()) return;
+      if (!await load()) return;
+      await onRefresh();
       addToast(t("novel.collaborationActions.inviteSent"), "success");
     } catch (err) {
       if (mountedRef.current) {
@@ -155,7 +156,8 @@ export const ProjectCollaborationPanel: React.FC<ProjectCollaborationPanelProps>
     try {
       await updateProjectMemberRole(rootProjectId, member.user_id, nextRole);
       if (!mountedRef.current) return;
-      if (!await load() || !await onRefresh()) return;
+      if (!await load()) return;
+      await onRefresh();
       addToast(t("novel.collaborationActions.roleUpdated"), "success");
     } catch (err) {
       if (mountedRef.current) {
@@ -182,7 +184,8 @@ export const ProjectCollaborationPanel: React.FC<ProjectCollaborationPanelProps>
     try {
       await removeProjectMember(rootProjectId, member.user_id);
       if (!mountedRef.current) return;
-      if (!await load() || !await onRefresh()) return;
+      if (!await load()) return;
+      await onRefresh();
       addToast(t("novel.collaborationActions.removed"), "success");
     } catch (err) {
       if (mountedRef.current) {
@@ -199,7 +202,8 @@ export const ProjectCollaborationPanel: React.FC<ProjectCollaborationPanelProps>
     try {
       await revokeProjectInvite(rootProjectId, invite.id);
       if (!mountedRef.current) return;
-      if (!await load() || !await onRefresh()) return;
+      if (!await load()) return;
+      await onRefresh();
       addToast(t("novel.collaborationActions.inviteRevoked"), "success");
     } catch (err) {
       if (mountedRef.current) {

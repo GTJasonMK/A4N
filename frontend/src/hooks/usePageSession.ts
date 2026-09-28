@@ -15,6 +15,7 @@ import { extractErrorMessage } from "../api";
 import { useAuthStore } from "../store/auth";
 import { shouldUseHttpBackend } from "../utils/runtimeMode";
 import { useI18n } from "../i18n";
+import { useDirtyRegistry, useDirtyRegistryVersion } from "../components/navigation/dirtyRegistry";
 
 const PAGE_CLIENT = "a4n-web";
 const TAB_ID_KEY = "a4n:page-session-tab-id";
@@ -75,6 +76,25 @@ export function buildPageContext(
   };
 }
 
+export function pageSessionWithCurrentContext(
+  session: PageSessionView,
+  current: PageContext,
+): PageSessionView {
+  if (session.context_revision >= current.context_revision) return session;
+  return {
+    ...session,
+    page_kind: current.page_kind,
+    route: current.route,
+    project_id: current.project_id,
+    chapter_id: current.chapter_id,
+    active_tab: current.active_tab,
+    selected_ids: current.selected_ids,
+    dirty_state: current.dirty_state,
+    local_state: current.local_state,
+    context_revision: current.context_revision,
+  };
+}
+
 function tabId(): string {
   if (typeof window === "undefined") return "server-rendered";
   try {
@@ -109,6 +129,8 @@ export interface PageSessionState {
 
 export function usePageSession(): PageSessionState {
   const { user } = useAuthStore();
+  const dirtyRegistry = useDirtyRegistry();
+  const dirtyVersion = useDirtyRegistryVersion();
   const { t } = useI18n();
   const translatorRef = useRef(t);
   translatorRef.current = t;
@@ -131,15 +153,20 @@ export function usePageSession(): PageSessionState {
   const tabIdRef = useRef<string>();
 
   const applySession = useCallback((next: PageSessionView) => {
-    setSession(next);
-    contextRevisionRef.current = Math.max(contextRevisionRef.current, next.context_revision);
-    contextRef.current = {
-      ...contextRef.current,
-      selected_ids: next.selected_ids,
-      dirty_state: next.dirty_state,
-      local_state: next.local_state,
-      context_revision: Math.max(contextRef.current.context_revision, next.context_revision),
-    };
+    const currentContext = contextRef.current;
+    const staleContext = next.context_revision < currentContext.context_revision;
+    const applied = pageSessionWithCurrentContext(next, currentContext);
+    setSession(applied);
+    contextRevisionRef.current = Math.max(contextRevisionRef.current, next.context_revision, currentContext.context_revision);
+    if (!staleContext) {
+      contextRef.current = {
+        ...currentContext,
+        selected_ids: next.selected_ids,
+        dirty_state: next.dirty_state,
+        local_state: next.local_state,
+        context_revision: Math.max(currentContext.context_revision, next.context_revision),
+      };
+    }
     if (next.status === "attached" || next.agent_id != null) setAuthorizationCode(null);
   }, []);
 
@@ -148,6 +175,7 @@ export function usePageSession(): PageSessionState {
     tokenRef.current = null;
     setSession(null);
     setAuthorizationCode(null);
+    setBusy(false);
   }, []);
 
   const authorize = useCallback(async () => {
@@ -157,13 +185,16 @@ export function usePageSession(): PageSessionState {
     setBusy(true);
     try {
       const result = await authorizePageSession(sessionId, token);
+      if (sessionIdRef.current !== sessionId || tokenRef.current !== token) return;
       setAuthorizationCode(result.authorization_code);
       setError(null);
     } catch (err) {
-      setError(extractErrorMessage(err, translatorRef.current("pageSession.authorizationFailed")));
+      if (sessionIdRef.current === sessionId && tokenRef.current === token) {
+        setError(extractErrorMessage(err, translatorRef.current("pageSession.authorizationFailed")));
+      }
       throw err;
     } finally {
-      setBusy(false);
+      if (sessionIdRef.current === sessionId && tokenRef.current === token) setBusy(false);
     }
   }, []);
 
@@ -174,6 +205,7 @@ export function usePageSession(): PageSessionState {
     setBusy(true);
     try {
       const next = await controlPageSession(sessionId, token, action);
+      if (sessionIdRef.current !== sessionId || tokenRef.current !== token) return;
       if (action === "detach") {
         detachLocal();
       } else {
@@ -182,21 +214,26 @@ export function usePageSession(): PageSessionState {
       }
       setError(null);
     } catch (err) {
-      setError(extractErrorMessage(err, translatorRef.current("pageSession.controlFailed")));
+      if (sessionIdRef.current === sessionId && tokenRef.current === token) {
+        setError(extractErrorMessage(err, translatorRef.current("pageSession.controlFailed")));
+      }
       throw err;
     } finally {
-      setBusy(false);
+      if (sessionIdRef.current === sessionId && tokenRef.current === token) setBusy(false);
     }
   }, [applySession, detachLocal]);
 
   const restart = useCallback(async () => {
+    const sessionId = sessionIdRef.current;
+    const token = tokenRef.current;
     try {
-      if (sessionIdRef.current && tokenRef.current) {
-        await controlPageSession(sessionIdRef.current, tokenRef.current, "detach");
+      if (sessionId && token) {
+        await controlPageSession(sessionId, token, "detach");
       }
     } catch {
       // The old session may already be offline; creating a fresh session is the recovery path.
     }
+    if (sessionIdRef.current !== sessionId || tokenRef.current !== token) return;
     detachLocal();
     setError(null);
     setRestartKey((value) => value + 1);
@@ -257,9 +294,9 @@ export function usePageSession(): PageSessionState {
     contextRef.current = buildPageContext(
       { pathname: location.pathname, search: location.search, hash: location.hash },
       nextRevision,
-      contextRef.current,
+      { ...contextRef.current, dirty_state: dirtyRegistry.hasDirty() },
     );
-  }, [enabled, location.hash, location.pathname, location.search]);
+  }, [dirtyRegistry, dirtyVersion, enabled, location.hash, location.pathname, location.search, session?.ui_session_id]);
 
   useEffect(() => {
     const sessionId = sessionIdRef.current;
@@ -269,10 +306,13 @@ export function usePageSession(): PageSessionState {
     let cancelled = false;
     void updatePageContext(sessionId, token, context)
       .then((next) => {
-        if (!cancelled) applySession(next);
+        if (!cancelled && sessionIdRef.current === sessionId && tokenRef.current === token) applySession(next);
       })
       .catch((err) => {
-        if (!cancelled) setError(extractErrorMessage(err, translatorRef.current("pageSession.contextSyncFailed")));
+        if (!cancelled && sessionIdRef.current === sessionId && tokenRef.current === token
+          && context.context_revision >= contextRef.current.context_revision) {
+          setError(extractErrorMessage(err, translatorRef.current("pageSession.contextSyncFailed")));
+        }
       });
     return () => {
       cancelled = true;
@@ -283,6 +323,7 @@ export function usePageSession(): PageSessionState {
     location.hash,
     location.pathname,
     location.search,
+    dirtyVersion,
     session?.ui_session_id,
   ]);
 
@@ -290,11 +331,22 @@ export function usePageSession(): PageSessionState {
     const sessionId = sessionIdRef.current;
     const token = tokenRef.current;
     if (!enabled || !sessionId || !token) return;
+    let requestInFlight = false;
     const timer = window.setInterval(() => {
+      if (requestInFlight) return;
+      requestInFlight = true;
       const context = { ...contextRef.current };
       void heartbeatPageSession(sessionId, token, context)
-        .then(applySession)
-        .catch((err) => setError(extractErrorMessage(err, translatorRef.current("pageSession.heartbeatFailed"))));
+        .then((next) => {
+          if (sessionIdRef.current === sessionId && tokenRef.current === token) applySession(next);
+        })
+        .catch((err) => {
+          if (sessionIdRef.current === sessionId && tokenRef.current === token
+            && context.context_revision >= contextRef.current.context_revision) {
+            setError(extractErrorMessage(err, translatorRef.current("pageSession.heartbeatFailed")));
+          }
+        })
+        .finally(() => { requestInFlight = false; });
     }, HEARTBEAT_MS);
     return () => window.clearInterval(timer);
   }, [applySession, enabled, session?.ui_session_id]);

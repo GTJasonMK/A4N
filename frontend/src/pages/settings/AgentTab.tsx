@@ -12,6 +12,7 @@ import { useToast } from "../../components/feedback/Toast";
 import { BookButton, BookIconButton } from "../../components/ui/BookButton";
 import { ThemedSelect } from "../../components/ui/ThemedSelect";
 import { useI18n } from "../../i18n";
+import { useDirty } from "../../components/navigation/dirtyRegistry";
 
 function profileLabel(
   capability: string,
@@ -49,6 +50,7 @@ export const AgentTab: React.FC = () => {
   const dirty = useMemo(() => settings?.profiles.some((profile) =>
     profile.skills.some((skill) => skill.enabled !== draft[profile.capability]?.has(skill.id)),
   ) ?? false, [draft, settings]);
+  useDirty("settings-agent-skills", dirty);
 
   const refresh = useCallback(async () => {
     setLoading(true);

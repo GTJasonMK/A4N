@@ -90,6 +90,7 @@ export const common = {
     unsaved: "当前阶段有未保存修改。离开会放弃这些修改。",
   },
   discardDraft: "放弃草稿",
+  leavePage: "离开此页",
   switchTab: "切换页面",
   deleteConfirm: "确定删除该 {name}？此操作不可撤销。",
   unsavedChangesMessage: "当前 {name} 表单有未保存修改，{action}会放弃当前草稿。是否继续？",

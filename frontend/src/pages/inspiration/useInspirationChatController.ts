@@ -24,6 +24,7 @@ import {
   type NovelProject,
 } from "../../api/project";
 import { useGenerationTask } from "../../hooks/useGenerationTask";
+import { useNovelDetailDirty } from "../novel-detail/novelDetailDirty";
 import { useFollowLatest } from "../../hooks/useFollowLatest";
 import {
   generationTaskKey,
@@ -65,6 +66,7 @@ export const useInspirationChatController = () => {
   const [project, setProject] = useState<NovelProject | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
+  useNovelDetailDirty(`inspiration-input:${projectId}`, input.trim().length > 0);
   const [sending, setSending] = useState(false);
   const [generationHandle, setGenerationHandle] = useState<GenerationTaskHandle | null>(null);
   const [inputPlaceholder, setInputPlaceholder] = useState(() => t("inspiration.inputPlaceholder"));

@@ -19,6 +19,7 @@ import { formatDateTime, useI18n } from "../../../i18n";
 import { useAuthStore } from "../../../store/auth";
 import { shouldUseHttpBackend } from "../../../utils/runtimeMode";
 import { sessionDeviceLabel } from "./aboutUtils";
+import { useDirty } from "../../../components/navigation/dirtyRegistry";
 
 export const PageCliPanel: React.FC = () => {
   const { user, updateProfile } = useAuthStore();
@@ -84,6 +85,7 @@ export const ProfileEditor: React.FC<{ userId: number; embedded?: boolean }> = (
   const profileDirty =
     email !== savedProfileRef.current.email ||
     avatar !== savedProfileRef.current.avatar;
+  useDirty(`settings-account-profile:${userId}`, profileDirty);
 
   activeUserIdRef.current = userId;
 
@@ -282,6 +284,7 @@ export const PasswordChanger: React.FC<{ embedded?: boolean }> = ({ embedded = f
     setNewPwd(value);
   };
   const passwordDirty = oldPwd.length > 0 || newPwd.length > 0;
+  useDirty("settings-account-password", passwordDirty);
 
   const handleChange = async () => {
     if (busyRef.current) return;

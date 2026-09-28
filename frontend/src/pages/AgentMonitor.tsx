@@ -63,6 +63,7 @@ import {
 import { useI18n, type Locale } from "../i18n";
 import { useBeforeUnload, useBlocker, useNavigate } from "react-router-dom";
 import { extractWritingTarget } from "./agentMonitorUtils";
+import { useDirty } from "../components/navigation/dirtyRegistry";
 import {
   reduceAgentEvent,
   snapshotCursor,
@@ -182,6 +183,7 @@ export const AgentMonitor: React.FC = () => {
       createTitle.trim() ||
       createCapability !== "general",
   );
+  useDirty("agent-monitor-workspace", hasWorkspaceDraft);
   const clearWorkspaceDrafts = useCallback(() => {
     setDrafts({});
     setCreateOpen(false);

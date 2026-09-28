@@ -25,6 +25,7 @@ import { LlmTab } from "../LlmTab";
 import { VideoTab } from "../VideoTab";
 import { useI18n, type MessageKey } from "../../../i18n";
 import { useAdminSectionLoader } from "./useAdminSectionLoader";
+import { useDirtyRegistry, useDirtyRegistryVersion } from "../../../components/navigation/dirtyRegistry";
 
 type ApiConfigPanel = "overview" | "llm" | "image" | "video" | "embedding";
 
@@ -51,12 +52,14 @@ const PANEL_DEFS: Array<{
 
 export const ApiConfigSection: React.FC = () => {
   const { t } = useI18n();
+  const dirtyRegistry = useDirtyRegistry();
+  useDirtyRegistryVersion();
   const [panel, setPanel] = useState<ApiConfigPanel>("overview");
   const navigationGuardRef = useRef(false);
 
   const selectPanel = async (nextPanel: ApiConfigPanel) => {
     if (nextPanel === panel) return;
-    if (document.querySelector('[data-settings-dirty="true"]')) {
+    if (dirtyRegistry.hasDirty()) {
       if (navigationGuardRef.current) return;
       navigationGuardRef.current = true;
       try {

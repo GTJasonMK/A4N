@@ -415,6 +415,7 @@ export const NovelDetail: React.FC = () => {
   const handleTabChange = async (nextTab: Tab) => {
     if (nextTab === tab) return;
     if (!(await confirmDirtyNavigation(t("common.switchTab")))) return;
+    await dirtyRegistry.discardDirty();
     setTab(nextTab);
   };
   const workspaceRoute = getProjectWorkspaceRoute(project);
@@ -648,6 +649,7 @@ export const NovelDetail: React.FC = () => {
       confirmText: t("common.discardDraft"),
       dialogType: "warning",
     }))) return;
+    await dirtyRegistry.discardDirty(`collaboration:${project.id}`);
     setCollaborationOpen(false);
   };
   const closeExport = async () => {
@@ -658,6 +660,7 @@ export const NovelDetail: React.FC = () => {
       confirmText: t("common.discardDraft"),
       dialogType: "warning",
     }))) return;
+    await dirtyRegistry.discardDirty(`export:${project.id}`);
     setExportOpen(false);
   };
 
@@ -674,7 +677,7 @@ export const NovelDetail: React.FC = () => {
           footer={(
             <>
               <BookButton variant="secondary" onClick={dirtyNavigationBlocker.reset}>{t("common.cancel")}</BookButton>
-              {!exportBusy ? <BookButton variant="warning" onClick={dirtyNavigationBlocker.proceed}>{t("common.discardDraft")}</BookButton> : null}
+              {!exportBusy ? <BookButton variant="warning" onClick={() => { void dirtyRegistry.discardDirty().then(dirtyNavigationBlocker.proceed); }}>{t("common.discardDraft")}</BookButton> : null}
             </>
           )}
         >

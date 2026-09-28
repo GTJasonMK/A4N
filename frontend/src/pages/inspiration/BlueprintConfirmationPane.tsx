@@ -8,6 +8,7 @@ import { confirmDialog } from "../../components/feedback/ConfirmDialog";
 import type { Blueprint } from "../../api/blueprint";
 import { Section } from "./shared";
 import { useI18n } from "../../i18n";
+import { useNovelDetailDirty } from "../novel-detail/novelDetailDirty";
 
 interface BlueprintConfirmationPaneProps {
   blueprint: Blueprint;
@@ -31,6 +32,7 @@ export const BlueprintConfirmationPane: React.FC<BlueprintConfirmationPaneProps>
 }) => {
   const { t } = useI18n();
   const [refineFocus, setRefineFocus] = useState("");
+  useNovelDetailDirty("inspiration-blueprint-refine", refineFocus.trim().length > 0);
   const [refineModalOpen, setRefineModalOpen] = useState(false);
   const refineInputRef = useRef<HTMLTextAreaElement>(null);
   const refineReady = refineFocus.trim().length > 0;

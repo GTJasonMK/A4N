@@ -11,6 +11,7 @@ import { ConfigListToolbar } from "./config-list/ConfigListToolbar";
 import { FormField } from "./config-list/FormField";
 import type { ConfigItem, ConfigListPanelProps, ConfigTestResult } from "./config-list/types";
 import { useI18n } from "../../i18n";
+import { useDirty } from "../../components/navigation/dirtyRegistry";
 
 export type { ConfigItem } from "./config-list/types";
 export { FormField };
@@ -52,6 +53,7 @@ export function ConfigListPanel<C>({
   const [creating, setCreating] = useState(false);
   const [form, setForm] = useState<C>(defaultForm);
   const [dirty, setDirty] = useState(false);
+  useDirty(`settings-config:${title}`, dirty);
   const [saving, setSaving] = useState(false);
   const [activating, setActivating] = useState<number | null>(null);
   const [deleting, setDeleting] = useState<number | null>(null);

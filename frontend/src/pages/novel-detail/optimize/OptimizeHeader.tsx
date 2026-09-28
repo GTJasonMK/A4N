@@ -1,10 +1,10 @@
 import { ThemedSelect } from "../../../components/ui/ThemedSelect";
-import type { ChapterSummary } from "../../../api/chapter";
+import type { ChapterMetadata } from "../../../api/chapter";
 import { useI18n } from "../../../i18n";
 
 interface OptimizeHeaderProps {
-  activeChapter: ChapterSummary | null;
-  chapters: ChapterSummary[];
+  activeChapter: ChapterMetadata | null;
+  chapters: ChapterMetadata[];
   isPinned: boolean;
   selectedChapter: number | "";
   onSelectChapter: (chapterId: number | "") => void;
@@ -18,7 +18,7 @@ export function OptimizeHeader({
   onSelectChapter,
 }: OptimizeHeaderProps) {
   const { t } = useI18n();
-  const formatChapterLabel = (chapter: ChapterSummary) =>
+  const formatChapterLabel = (chapter: ChapterMetadata) =>
     `${t("writing.chapterLabel", { number: chapter.chapter_number })}${
       chapter.title?.trim() ? ` · ${chapter.title.trim()}` : ""
     }`;

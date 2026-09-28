@@ -90,6 +90,7 @@ export const common = {
     unsaved: "This stage has unsaved changes. Leaving will discard them.",
   },
   discardDraft: "Discard draft",
+  leavePage: "Leave this page",
   switchTab: "switching pages",
   deleteConfirm: "Delete {name}? This cannot be undone.",
   unsavedChangesMessage: "The {name} form has unsaved changes. {action} will discard the current draft. Continue?",

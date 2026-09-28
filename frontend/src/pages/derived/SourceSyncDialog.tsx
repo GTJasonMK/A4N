@@ -275,9 +275,10 @@ export const SourceSyncDialog: React.FC<SourceSyncDialogProps> = ({
         decisions: [],
       });
       if (!isCurrentMutation(targetProjectId, applySeqRef, requestSeq)) return;
-      if (await onChanged() === false) return;
-      if (!isCurrentMutation(targetProjectId, applySeqRef, requestSeq)) return;
       setPlan(updatedPlan);
+      const refreshed = await onChanged();
+      if (!isCurrentMutation(targetProjectId, applySeqRef, requestSeq)) return;
+      if (refreshed === false) return;
       addToast(t("novel.sourceSyncDialog.unconflictedApplied"), "success");
     } catch (err) {
       if (isCurrentMutation(targetProjectId, applySeqRef, requestSeq)) {

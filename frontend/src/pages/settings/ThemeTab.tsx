@@ -13,6 +13,7 @@ import { BookButton } from "../../components/ui/BookButton";
 import { ThemeListSection } from "./theme/ThemeListSection";
 import { useThemeTabController } from "./theme/useThemeTabController";
 import { useI18n } from "../../i18n";
+import { useDirty } from "../../components/navigation/dirtyRegistry";
 
 type ThemeAction = "create" | "import" | "package" | null;
 
@@ -35,6 +36,7 @@ export const ThemeTab: React.FC = () => {
       (themeTab.newName.trim().length > 0 || themeTab.newMode !== "light")) ||
     (themeAction === "import" && themeTab.importText.trim().length > 0) ||
     hasRenameDraft;
+  useDirty("settings-theme-draft", hasThemeDraft);
 
   const confirmDiscardThemeDraft = async (action: string): Promise<boolean> => {
     if (!hasThemeDraft) return true;

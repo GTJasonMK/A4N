@@ -10,12 +10,15 @@ import { TrendsSection } from "./admin/TrendsSection";
 import { UsersSection } from "./admin/UsersSection";
 import { PackageSection } from "./admin/PackageSection";
 import { useI18n } from "../../i18n";
+import { useDirtyRegistry, useDirtyRegistryVersion } from "../../components/navigation/dirtyRegistry";
 
 type Section = "overview" | "users" | "projects" | "tasks" | "api" | "trends" | "packages";
 
 export const AdminTab: React.FC = () => {
   const { user } = useAuthStore();
   const { t } = useI18n();
+  const dirtyRegistry = useDirtyRegistry();
+  useDirtyRegistryVersion();
   const [section, setSection] = useState<Section>("overview");
   const navigationGuardRef = useRef(false);
   const sectionDefs: { id: Section; label: string }[] = [
@@ -30,7 +33,7 @@ export const AdminTab: React.FC = () => {
 
   const selectSection = async (nextSection: Section) => {
     if (nextSection === section) return;
-    if (document.querySelector('[data-settings-dirty="true"]')) {
+    if (dirtyRegistry.hasDirty()) {
       if (navigationGuardRef.current) return;
       navigationGuardRef.current = true;
       try {

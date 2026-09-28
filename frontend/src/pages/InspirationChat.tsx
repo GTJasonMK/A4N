@@ -14,6 +14,7 @@ import {
 } from "./inspiration/InspirationGuidePanel";
 import { useInspirationChatController } from "./inspiration/useInspirationChatController";
 import { useI18n } from "../i18n";
+import { UnsavedNavigationGuard } from "../components/navigation/UnsavedNavigationGuard";
 
 /**
  * 灵感对话页。
@@ -36,6 +37,7 @@ export const InspirationChat: React.FC = () => {
 
   return (
     <div className="h-full w-full min-w-0 flex flex-col">
+      <UnsavedNavigationGuard dirty={chat.input.trim().length > 0} name={t("inspiration.inputConversation")} action={t("common.leavePage")} />
       <InspirationChatHeader
         projectTitle={chat.project.title}
         showConversationControls={chat.stage === "conversation"}

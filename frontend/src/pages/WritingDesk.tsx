@@ -19,7 +19,9 @@ import {
   type NovelProject,
 } from "../api/project";
 import {
-  listChapters,
+  getChapter,
+  listChapterIndex,
+  type ChapterIndexEntry,
   type ChapterSummary,
 } from "../api/chapter";
 import {
@@ -40,6 +42,8 @@ import {
   parseGenerationWordCountRange,
 } from "./writing-desk/generationWordCount";
 import { countChapterBodyCharacters } from "./writing-desk/wordCount";
+import { chapterIndexEntry, type ReloadChapters } from "./writing-desk/chapterIndex";
+import { useChapterDetail } from "../hooks/useChapterDetail";
 import {
   LEFT_SIDEBAR_WIDTH,
   RIGHT_PANEL_RESIZER_WIDTH,
@@ -61,6 +65,7 @@ import { useWritingDeskChapterDerivedState } from "./writing-desk/useWritingDesk
 import { WritingDeskView } from "./writing-desk/WritingDeskView";
 import { useWritingDeskResetGeneratedData } from "./writing-desk/useWritingDeskResetGeneratedData";
 import { useWritingDeskSaveContent } from "./writing-desk/useWritingDeskSaveContent";
+import { UnsavedNavigationGuard } from "../components/navigation/UnsavedNavigationGuard";
 import { formatNumber, useI18n } from "../i18n";
 import type { ContentDiffAction } from "../components/agent/ContentDiffPreview";
 import type { PendingContentDiff } from "../components/agent/contentOptimizationDiff";
@@ -96,7 +101,7 @@ export const WritingDesk: React.FC = () => {
   const canEditWritingProject = project
     ? canEditProjectMaterials(project)
     : false;
-  const [chapters, setChapters] = useState<ChapterSummary[]>([]);
+  const [chapters, setChapters] = useState<ChapterIndexEntry[]>([]);
   const [outlines, setOutlines] = useState<ChapterOutline[]>([]);
   const [loading, setLoading] = useState(true);
   const searchParamsRef = useRef(searchParams);
@@ -183,8 +188,10 @@ export const WritingDesk: React.FC = () => {
   const loadSeqRef = useRef(0);
   const reloadChaptersInFlightRef = useRef<{
     projectId: number;
+    chapterId: number | undefined;
+    chapterNumber: number | null;
     token: symbol;
-    promise: Promise<ChapterSummary[] | null>;
+    promise: ReturnType<ReloadChapters>;
   } | null>(null);
   const saveContentBusyRef = useRef(false);
   const contentDiffActionRef = useRef(false);
@@ -223,8 +230,26 @@ export const WritingDesk: React.FC = () => {
     if (lifecycleBlockedReason) setRightPanel("none");
   }, [lifecycleBlockedReason]);
 
+  const activeEntry = chapters.find((chapter) => chapter.project_id === projectId
+    && chapter.chapter_number === activeNumber);
   const {
-    activeChapter,
+    chapter: activeChapter,
+    error: chapterReadError,
+    apply: applyChapterDetail,
+  } = useChapterDetail(projectId, activeEntry?.id ?? null);
+  const chapterReady = !loading && Number(project?.id) === projectId
+    && (!activeEntry || activeChapter != null);
+  const chapterReadBlockedReason = chapterReady ? null
+    : chapterReadError ?? t("novel.loadingChapters");
+  const applyChapter = useCallback((chapter: ChapterSummary) => {
+    if (!mountedRef.current || projectIdRef.current !== chapter.project_id) return;
+    const entry = chapterIndexEntry(chapter);
+    setChapters((previous) => previous.some((item) => item.id === chapter.id)
+      ? previous.map((item) => item.id === chapter.id ? entry : item)
+      : [...previous, entry].sort((a, b) => a.chapter_number - b.chapter_number));
+    applyChapterDetail(chapter);
+  }, [applyChapterDetail]);
+  const {
     activeOutline,
     activeOutlineText,
     activeChapterContext,
@@ -232,6 +257,7 @@ export const WritingDesk: React.FC = () => {
     filteredChapterNumbers,
   } = useWritingDeskChapterDerivedState({
     chapters,
+    activeChapter,
     outlines,
     activeNumber,
     chapterQuery,
@@ -340,6 +366,7 @@ export const WritingDesk: React.FC = () => {
     projectIdKey,
     activeNumber,
     activeChapter,
+    chapterReady,
     addToast,
   });
   // 初始化加载
@@ -398,17 +425,17 @@ export const WritingDesk: React.FC = () => {
           return;
         }
         const [chaptersResult, outlinesResult] = await Promise.allSettled([
-          listChapters(projectId),
+          listChapterIndex(projectId),
           listChapterOutlines(projectId),
         ]);
         if (!isCurrentLoad()) return;
         if (chaptersResult.status === "rejected") {
-          addToast(extractErrorMessage(chaptersResult.reason, t("novel.loadChaptersFailed")), "error");
+          throw chaptersResult.reason;
         }
         if (outlinesResult.status === "rejected") {
           addToast(extractErrorMessage(outlinesResult.reason, t("outline.loadFailed")), "error");
         }
-        const ch = chaptersResult.status === "fulfilled" ? chaptersResult.value : [];
+        const ch = chaptersResult.value;
         const ol = outlinesResult.status === "fulfilled" ? outlinesResult.value : [];
         const outlineNumbers = ol.map((outline) => outline.chapter_number);
         setProject(p);
@@ -534,10 +561,13 @@ export const WritingDesk: React.FC = () => {
     `${activeNumber != null ? t("writing.chapterLabel", { number: formatNumber(activeNumber, locale) }) : t("writing.chapterNotSelected")} · ${t("writing.chapterWords", { count: formatNumber(wordCount, locale) })}${dirty ? " *" : ""}`,
   );
 
-  const reloadChapters = useCallback(async (options: { force?: boolean } = {}) => {
+  const reloadChapters: ReloadChapters = useCallback(async (options = {}) => {
+    const chapterNumber = activeNumberRef.current;
     if (
       !options.force &&
-      reloadChaptersInFlightRef.current?.projectId === projectId
+      reloadChaptersInFlightRef.current?.projectId === projectId &&
+      reloadChaptersInFlightRef.current.chapterId === options.chapterId &&
+      reloadChaptersInFlightRef.current.chapterNumber === chapterNumber
     ) {
       return reloadChaptersInFlightRef.current.promise;
     }
@@ -545,22 +575,29 @@ export const WritingDesk: React.FC = () => {
     const requestToken = Symbol(String(requestProjectId));
     const promise = (async () => {
       try {
-        const next = await listChapters(requestProjectId);
+        const next = await listChapterIndex(requestProjectId);
         if (!mountedRef.current || projectIdRef.current !== requestProjectId) return null;
-        setChapters(next);
-        const current = activeNumberRef.current;
-        if (
-          current == null ||
-          (!next.some((ch) => ch.chapter_number === current) &&
-            !outlines.some((outline) => outline.chapter_number === current))
-        ) {
-          setActiveNumber(
-            next[next.length - 1]?.chapter_number ??
-            outlines[0]?.chapter_number ??
-            null,
-          );
+        const targetId = options.chapterId
+          ?? next.find((chapter) => chapter.chapter_number === chapterNumber)?.id;
+        const chapter = targetId == null ? null : await getChapter(requestProjectId, targetId);
+        if (!mountedRef.current || projectIdRef.current !== requestProjectId) return null;
+        if (reloadChaptersInFlightRef.current?.token === requestToken) {
+          setChapters(next);
+          if (chapter) applyChapterDetail(chapter);
+          const current = activeNumberRef.current;
+          if (
+            current == null ||
+            (!next.some((ch) => ch.chapter_number === current) &&
+              !outlines.some((outline) => outline.chapter_number === current))
+          ) {
+            setActiveNumber(
+              next[next.length - 1]?.chapter_number ??
+              outlines[0]?.chapter_number ??
+              null,
+            );
+          }
         }
-        return next;
+        return { index: next, chapter };
       } catch (err) {
         if (mountedRef.current && projectIdRef.current === requestProjectId) {
           addToast(extractErrorMessage(err, t("writing.refreshChaptersFailed")), "error");
@@ -577,18 +614,20 @@ export const WritingDesk: React.FC = () => {
     })();
     reloadChaptersInFlightRef.current = {
       projectId: requestProjectId,
+      chapterId: options.chapterId,
+      chapterNumber,
       token: requestToken,
       promise,
     };
     return promise;
-  }, [projectId, addToast, outlines, activeNumberRef, setActiveNumber]);
+  }, [projectId, addToast, outlines, activeNumberRef, applyChapterDetail, setActiveNumber]);
 
   const handleRefreshChapters = useCallback(async () => {
     const chapterNumber = activeNumberRef.current;
     if (!(await confirmCurrentEdit(t("common.refresh")))) return;
     const next = await reloadChapters({ force: true });
     if (!next || activeNumberRef.current !== chapterNumber) return;
-    const refreshed = next.find((chapter) => chapter.chapter_number === chapterNumber);
+    const refreshed = next.chapter;
     if (!refreshed) return;
     setEditorState(refreshed.content, false);
     editorRevisionRef.current = refreshed.edit_revision;
@@ -682,7 +721,7 @@ export const WritingDesk: React.FC = () => {
     activeChapter,
     activeOutline,
     activeOutlineText,
-    projectBlockedReason: lifecycleBlockedReason,
+    projectBlockedReason: lifecycleBlockedReason ?? chapterReadBlockedReason,
     writingNotes,
     wordCountRange: parsedWordCountRange.range,
     wordCountRangeError: generationWordCountError,
@@ -723,7 +762,7 @@ export const WritingDesk: React.FC = () => {
     addToast,
     reloadChapters,
     reloadOutlines,
-    setChapters,
+    applyChapter,
     refreshProfiles,
   });
   const {
@@ -815,8 +854,8 @@ export const WritingDesk: React.FC = () => {
 
   const handleOptimizedChapterContentChanged = useCallback(
     async (chapterId: number) => {
-      const next = await reloadChapters({ force: true });
-      const updated = next?.find((chapter) => chapter.id === chapterId) ?? null;
+      const next = await reloadChapters({ force: true, chapterId });
+      const updated = next?.chapter;
       if (!updated || activeChapter?.id !== chapterId) return;
 
       if (dirtyRef.current) {
@@ -929,7 +968,7 @@ export const WritingDesk: React.FC = () => {
   const handleSaveContent = useWritingDeskSaveContent({
     projectId,
     locale,
-    lifecycleBlockedReason,
+    lifecycleBlockedReason: lifecycleBlockedReason ?? chapterReadBlockedReason,
     activeNumber,
     activeChapter,
     activeOutline,
@@ -942,7 +981,7 @@ export const WritingDesk: React.FC = () => {
     addToast,
     t,
     setSavingContent,
-    setChapters,
+    applyChapter,
     reloadChapters,
     getCurrentEditorContent,
     removeDraftForChapter,
@@ -1040,12 +1079,14 @@ export const WritingDesk: React.FC = () => {
   };
 
   return (
+    <>
     <WritingDeskView
       projectId={projectId}
       activeNumber={activeNumber}
       chapters={chapters}
       outlines={outlines}
       lifecycleBlockedReason={lifecycleBlockedReason}
+      chapterReadBlockedReason={chapterReadBlockedReason}
       isMobileLayout={isMobileLayout}
       leftSidebarVisible={leftSidebarVisible}
       rightPanel={rightPanel}
@@ -1066,7 +1107,7 @@ export const WritingDesk: React.FC = () => {
         rightPanel,
         dirty,
         savingContent,
-        editBlockedReason: lifecycleBlockedReason,
+        editBlockedReason: lifecycleBlockedReason ?? chapterReadBlockedReason,
         activeChapterBusy,
         activeChapterGeneratingMessage,
         rightPanelAvailable,
@@ -1177,5 +1218,7 @@ export const WritingDesk: React.FC = () => {
       analysisRequestPreviewLoading={analysisRequestPreviewLoading}
       analysisRequestPreviewData={analysisRequestPreviewData}
     />
+    <UnsavedNavigationGuard dirty={dirty} name={t("writing.writingDesk")} action={t("common.leavePage")} />
+    </>
   );
 };

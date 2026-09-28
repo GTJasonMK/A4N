@@ -532,6 +532,12 @@ impl PageSessionRegistry {
             if record.view.agent_id.as_deref() != Some(agent_id) {
                 return Err(ApiError::conflict("Page Session 尚未绑定 Agent"));
             }
+            if record.view.dirty_state {
+                return Err(ApiError::conflict(
+                    "当前页面有未保存修改，保存或放弃修改后才能导航",
+                ));
+            }
+            record.view.context_revision = record.view.context_revision.saturating_add(1);
             record.view.route = Some(input.route.clone());
             if input.page_kind.is_some() {
                 record.view.page_kind = input.page_kind.clone();

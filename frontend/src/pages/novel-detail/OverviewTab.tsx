@@ -324,7 +324,7 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
       if (!isCurrentProject(requestProjectId)) return;
       if (!await load()) return;
       if (!isCurrentProject(requestProjectId)) return;
-      if (!await onRefresh()) return;
+      await onRefresh();
       if (!isCurrentProject(requestProjectId)) return;
       setBlueprintEditorOpen(false);
       addToast(

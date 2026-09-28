@@ -45,13 +45,14 @@ import type {
 import { listVideoConfigs } from "../api/video";
 import type { ProgressEventRecord } from "../api/progress";
 import { useToast } from "../components/feedback/Toast";
-import { confirmDialog } from "../components/feedback/ConfirmDialog";
+import { UnsavedNavigationGuard } from "../components/navigation/UnsavedNavigationGuard";
 import { BookButton, BookIconButton } from "../components/ui/BookButton";
 import { FlowControls } from "../components/ui/FlowControls";
 import { BackButton } from "../components/ui/BackButton";
 import { Dropdown, type DropdownItem } from "../components/ui/Dropdown";
 import { Modal } from "../components/ui/Modal";
 import { PageHeader } from "../components/shell/PageHeader";
+import { useNovelDetailDirty } from "./novel-detail/novelDetailDirty";
 import { DomainAgentConsole } from "../components/agent/DomainAgentConsole";
 import { useContextMenu } from "../components/ui/ContextMenu";
 import { CanvasEmptyState } from "./video-studio/CanvasEmptyState";
@@ -294,15 +295,7 @@ export const VideoStudioCanvas: React.FC = () => {
   const canvasWriteBusy = saving || importing;
   const canvasReady = !loading && loadError == null && document != null && nodeContracts.length > 0;
   const canvasMutationDisabled = !canEdit || canvasWriteBusy || !canvasReady;
-  const handleBack = async () => {
-    if (dirty && !(await confirmDialog({
-      title: t("common.unsavedChangesTitle"),
-      message: t("common.unsavedChangesMessage", { name: t("video.canvasProject"), action: t("common.back") }),
-      confirmText: t("common.discardDraft"),
-      dialogType: "warning",
-    }))) return;
-    navigate("/");
-  };
+  useNovelDetailDirty(`video-canvas:${projectId}`, dirty);
 
   useEffect(() => {
     if (leftSidebarVisible) setMobileNodeLibraryOpen(false);
@@ -761,9 +754,10 @@ export const VideoStudioCanvas: React.FC = () => {
   return (
     <StudioNodeContractsProvider contracts={nodeContractsByKind}>
       <div className="h-full min-h-0 flex flex-col bg-book-bg">
+        <UnsavedNavigationGuard dirty={dirty} name={t("video.canvasProject")} action={t("common.leavePage")} />
         <PageHeader
           className="shrink-0"
-          leading={<BackButton iconOnly title={t("a11y.back")} onClick={() => void handleBack()} />}
+          leading={<BackButton iconOnly title={t("a11y.back")} onClick={() => navigate("/")} />}
           icon={<Film size={15} />}
           title={project?.title || t("video.canvasProject")}
           subtitle={

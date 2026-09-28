@@ -23,6 +23,7 @@ import { nonEmptyText } from "../utils/text";
 import { formatNumber, useI18n } from "../i18n";
 import { SceneGenerationPanel } from "./scenes-dialog/SceneGenerationPanel";
 import { SceneList } from "./scenes-dialog/SceneList";
+import { useDirty } from "../components/navigation/dirtyRegistry";
 import {
   createSceneEditForm,
   DEFAULT_SCENE_GENERATION_PROMPT,
@@ -186,6 +187,7 @@ export const ScenesDialog: React.FC<ScenesDialogProps> = ({
     setRequestPreviewLoading(false);
     setRequestPreviewData(null);
     previewingRef.current = false;
+    setGenPrompt(DEFAULT_SCENE_GENERATION_PROMPT);
   }, [scopeKey]);
 
   useLayoutEffect(() => {
@@ -225,6 +227,7 @@ export const ScenesDialog: React.FC<ScenesDialogProps> = ({
     saving ||
     generating ||
     actingKeys.size > 0;
+  useDirty("scenes-dialog-workspace", navigationDirty);
   const navigationBlocker = useBlocker(navigationDirty);
 
   useBeforeUnload((event) => {
@@ -508,12 +511,17 @@ export const ScenesDialog: React.FC<ScenesDialogProps> = ({
 
   const handleClose = async () => {
     if (isMutationBusy()) return;
-    if (editDirty && !(await confirmDialog({
-        title: t("common.unsavedChangesTitle"),
-        message: t("common.unsavedChangesMessage", { name: t("scenes.chapterScenes"), action: t("common.close") }),
-        confirmText: t("common.discardDraft"),
-        dialogType: "warning",
-      }))) return;
+    const hasDraft = editDirty || genPrompt !== DEFAULT_SCENE_GENERATION_PROMPT;
+    if (hasDraft && !(await confirmDialog({
+      title: t("common.unsavedChangesTitle"),
+      message: t("common.unsavedChangesMessage", {
+        name: editDirty ? t("scenes.chapterScenes") : t("scenes.generateNext"),
+        action: t("common.close"),
+      }),
+      confirmText: t("common.discardDraft"),
+      dialogType: "warning",
+    }))) return;
+    setGenPrompt(DEFAULT_SCENE_GENERATION_PROMPT);
     onClose();
   };
 

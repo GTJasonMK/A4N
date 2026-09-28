@@ -145,7 +145,7 @@ export const StatusMachineDialog: React.FC<StatusMachineDialogProps> = ({
       try {
         await action();
         if (!isCurrentMutation(requestProjectId, requestSeq)) return false;
-        if (await onMutated() === false) return false;
+        await onMutated();
         if (!isCurrentMutation(requestProjectId, requestSeq)) return false;
         if (open && !await loadMachine()) return false;
         addToast(successMessage, "success");

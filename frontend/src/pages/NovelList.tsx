@@ -57,6 +57,8 @@ import {
 import { pickLocalFile, readFileAsBase64 } from "../utils/fileUpload";
 import { base64DataToBlob, downloadBlob } from "../utils/downloadFile";
 import { useI18n } from "../i18n";
+import { UnsavedNavigationGuard } from "../components/navigation/UnsavedNavigationGuard";
+import { useNovelDetailDirty } from "./novel-detail/novelDetailDirty";
 
 const ProjectCreationDialog = lazy(() =>
   import("./novel-list/NovelListDialogs").then((module) => ({
@@ -136,6 +138,7 @@ export const NovelList: React.FC<NovelListProps> = () => {
   const [importFile, setImportFile] = useState<File | null>(null);
   const [importing, setImporting] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
+  useNovelDetailDirty("novel-list-import-file", importDialogOpen && importFile != null);
 
   const quote = useMemo<Quote>(() => pickRandomQuote(), []);
 
@@ -678,7 +681,8 @@ export const NovelList: React.FC<NovelListProps> = () => {
     try {
       await acceptProjectInvite(invite.id);
       if (!mountedRef.current) return;
-      if (!await loadPendingInvites() || !await refresh(activeTabRef.current)) return;
+      if (!await loadPendingInvites()) return;
+      await refresh(activeTabRef.current);
       addToast(t("novel.projectListActions.inviteAccepted"), "success");
     } catch (err) {
       if (mountedRef.current) {
@@ -730,6 +734,7 @@ export const NovelList: React.FC<NovelListProps> = () => {
 
   return (
     <div className="a4n-home-page relative h-full w-full overflow-y-auto overflow-x-hidden bg-book-bg md:overflow-hidden">
+      <UnsavedNavigationGuard dirty={importDialogOpen && importFile != null} name={t("novel.importProject")} action={t("common.leavePage")} />
       <div className="relative z-10 flex min-h-full w-full flex-col md:h-full md:flex-row md:overflow-hidden">
         <NovelListSidebar
           quote={quote}

@@ -13,6 +13,7 @@ import { LlmTab } from "./LlmTab";
 import { TABS, TAB_IDS, type TabId } from "./settingsTabs";
 import { useI18n } from "../../i18n";
 import { confirmDialog } from "../../components/feedback/ConfirmDialog";
+import { useDirtyRegistry, useDirtyRegistryVersion } from "../../components/navigation/dirtyRegistry";
 
 const EmbeddingTab = lazy(() =>
   import("./EmbeddingTab").then((module) => ({ default: module.EmbeddingTab })),
@@ -70,7 +71,9 @@ export const SettingsPage: React.FC = () => {
   const { t } = useI18n();
   const activeTab = TABS.find((item) => item.id === tab);
   const smartBack = useSmartBack();
-  const hasUnsavedSettings = () => Boolean(document.querySelector('[data-settings-dirty="true"]'));
+  const dirtyRegistry = useDirtyRegistry();
+  useDirtyRegistryVersion();
+  const hasUnsavedSettings = () => dirtyRegistry.hasDirty();
   const blocker = useBlocker(({ currentLocation, nextLocation }) =>
     (currentLocation.pathname !== nextLocation.pathname ||
       currentLocation.search !== nextLocation.search ||
@@ -210,7 +213,7 @@ export const SettingsPage: React.FC = () => {
           footer={
             <>
               <BookButton variant="secondary" onClick={blocker.reset}>{t("common.cancel")}</BookButton>
-              <BookButton variant="warning" onClick={blocker.proceed}>{t("common.discardDraft")}</BookButton>
+              <BookButton variant="warning" onClick={() => { void dirtyRegistry.discardDirty().then(blocker.proceed); }}>{t("common.discardDraft")}</BookButton>
             </>
           }
         >

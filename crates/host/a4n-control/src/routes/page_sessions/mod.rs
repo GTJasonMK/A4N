@@ -410,6 +410,116 @@ mod tests {
     }
 
     #[test]
+    fn page_navigation_rejects_dirty_editor_context_without_changing_route() {
+        let registry = PageSessionRegistry::new();
+        let agents = AgentRegistry::new();
+        let created = registry.create(1, create_input(), true).unwrap();
+        let mut current_context = context("video-project", "/video-project/7", 1, Some(7));
+        current_context.dirty_state = true;
+        registry
+            .update_context(
+                1,
+                &created.session.ui_session_id,
+                &created.ui_session_token,
+                current_context,
+            )
+            .unwrap();
+        let authorization = registry
+            .authorize(
+                1,
+                &created.session.ui_session_id,
+                &created.ui_session_token,
+                true,
+            )
+            .unwrap();
+        let (agent_id, agent_token) = agents.register_for_test(1, "page-agent");
+        registry
+            .attach_by_code(
+                1,
+                AttachPageSessionInput {
+                    authorization_code: authorization.authorization_code,
+                    agent_id: agent_id.clone(),
+                },
+                &agents,
+                &agent_token,
+                true,
+            )
+            .unwrap();
+
+        let result = registry.navigate(
+            1,
+            &created.session.ui_session_id,
+            &created.ui_session_token,
+            &agent_id,
+            &agents,
+            &agent_token,
+            true,
+            PageNavigationInput {
+                route: "/settings".into(),
+                page_kind: Some("settings".into()),
+                reason: Some("user requested settings".into()),
+            },
+        );
+
+        assert!(result.is_err());
+        assert_eq!(
+            registry
+                .get(1, &created.session.ui_session_id)
+                .unwrap()
+                .route
+                .as_deref(),
+            Some("/video-project/7")
+        );
+
+        let mut clean_context = context("video-project", "/video-project/7", 2, Some(7));
+        clean_context.dirty_state = false;
+        registry
+            .update_context(
+                1,
+                &created.session.ui_session_id,
+                &created.ui_session_token,
+                clean_context,
+            )
+            .unwrap();
+        let navigated = registry
+            .navigate(
+                1,
+                &created.session.ui_session_id,
+                &created.ui_session_token,
+                &agent_id,
+                &agents,
+                &agent_token,
+                true,
+                PageNavigationInput {
+                    route: "/settings".into(),
+                    page_kind: Some("settings".into()),
+                    reason: Some("user requested settings".into()),
+                },
+            )
+            .unwrap();
+        assert_eq!(navigated.route.as_deref(), Some("/settings"));
+        assert_eq!(navigated.context_revision, 2);
+        assert!(
+            registry
+                .heartbeat(
+                    1,
+                    &created.session.ui_session_id,
+                    &created.ui_session_token,
+                    Some(context("video-project", "/video-project/7", 1, Some(7))),
+                )
+                .is_err()
+        );
+        assert_eq!(
+            registry
+                .get(1, &created.session.ui_session_id)
+                .unwrap()
+                .route
+                .as_deref(),
+            Some("/settings")
+        );
+    }
+
+    #[test]
     fn operation_validation_rejects_unavailable_and_unconfirmed_destructive_commands() {
         let registry = PageSessionRegistry::new();
         let agents = AgentRegistry::new();

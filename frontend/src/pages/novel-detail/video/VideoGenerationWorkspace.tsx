@@ -37,6 +37,7 @@ import { type VideoSegmentCardPlan } from "./videoSegmentPlan";
 import { VideoPromptSetupPanel } from "./VideoPromptSetupPanel";
 import type { InsertedSegmentGap } from "./InsertedSegmentTimelinePanel";
 import { VideoResultsPane } from "./VideoResultsPane";
+import { useNovelDetailDirty } from "../novelDetailDirty";
 import {
   VideoGenerationEditor,
   type SegmentInputDialog,
@@ -269,14 +270,16 @@ export const VideoGenerationWorkspace: React.FC<
     inputDialogPrompt &&
     framePromptDraft.trim() !== inputDialogPrompt.visual_prompt.trim(),
   );
-  const closeFrameDialog = async () => {
+  useNovelDetailDirty("video-frame-prompt", framePromptDirty);
+  const closeFrameDialog = async (): Promise<boolean> => {
     if (framePromptDirty && !(await confirmDialog({
       title: t("common.unsavedChangesTitle"),
       message: t("common.unsavedChangesMessage", { name: t("video.chapter.imagePrompt"), action: t("common.close") }),
       confirmText: t("common.discardDraft"),
       dialogType: "warning",
-    }))) return;
+    }))) return false;
     setInputDialog(null);
+    return true;
   };
   const frameImageLocked = inputDialogImage != null;
   const selectedContinuitySourceAvailable = previousAdoptedVideos.some(
@@ -563,8 +566,11 @@ export const VideoGenerationWorkspace: React.FC<
         <Modal
           isOpen={segmentConfigOpen}
           onClose={() => {
-            setInputDialog(null);
-            void onCloseSegmentConfig();
+            void (async () => {
+              if (inputDialog?.kind === "frame" && !(await closeFrameDialog())) return;
+              setInputDialog(null);
+              await onCloseSegmentConfig();
+            })();
           }}
           title={t("video.chapter.segmentConfig", { number: selectedSegmentNumber })}
           subtitle={selectedSegmentCard?.title ?? t("video.chapter.segmentNotInPlan")}

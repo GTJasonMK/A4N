@@ -15,6 +15,7 @@ import { LoadingSpinner } from "../../components/ui/LoadingSpinner";
 import { ThemedSelect } from "../../components/ui/ThemedSelect";
 import { useI18n } from "../../i18n";
 import { confirmDialog } from "../../components/feedback/ConfirmDialog";
+import { useDirty } from "../../components/navigation/dirtyRegistry";
 
 interface WebSearchForm {
   protocol: string;
@@ -93,6 +94,7 @@ export const WebSearchConfigPanel: React.FC = () => {
     JSON.stringify(form) !== JSON.stringify(formFromConfig(config))
     || JSON.stringify(fetchForm) !== JSON.stringify(savedFetch)
   );
+  useDirty("settings-web-search", dirty);
 
   const refresh = async () => {
     if (dirty && !(await confirmDialog({

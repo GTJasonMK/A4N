@@ -9,8 +9,9 @@ import { extractErrorMessage } from "../../api";
 import {
   chapterContentCommitToastType,
   importChapter,
-  listChapters,
-  type ChapterSummary,
+  listChapterIndex,
+  type ChapterMetadata,
+  type ChapterIndexEntry,
 } from "../../api/chapter";
 import { EmptyHint } from "./shared";
 import { useNovelDetailLoader } from "./useNovelDetailLoader";
@@ -18,12 +19,13 @@ import { nonEmptyText } from "../../utils/text";
 import { getOperationStatusLabel } from "../../utils/workflowPresentation";
 import { formatNumber, useI18n, type Locale } from "../../i18n";
 import { useNovelDetailDirty } from "./novelDetailDirty";
+import { useChapterDetail } from "../../hooks/useChapterDetail";
 
-const chapterWordCount = (chapter: ChapterSummary): number => {
+const chapterWordCount = (chapter: ChapterMetadata): number => {
   return chapter.word_count == null ? 0 : chapter.word_count;
 };
 
-const nextImportChapterNumber = (chapters: ChapterSummary[]): number => {
+const nextImportChapterNumber = (chapters: ChapterMetadata[]): number => {
   if (chapters.length === 0) return 1;
   return Math.max(...chapters.map((chapter) => chapter.chapter_number)) + 1;
 };
@@ -38,7 +40,7 @@ const chapterStatusLabel = (
 };
 
 const derivedSyncStatusLabel = (
-  chapter: ChapterSummary,
+  chapter: ChapterMetadata,
   t: ReturnType<typeof useI18n>["t"],
 ): string | null => {
   if (chapter.derived_sync_status === "running") return t("writing.materialSyncRunning");
@@ -55,8 +57,9 @@ export const ChaptersTab: React.FC<ChaptersTabProps> = ({ projectId, canEditChap
   const { addToast } = useToast();
   const { locale, t } = useI18n();
   const navigate = useNavigate();
-  const [chapters, setChapters] = useState<ChapterSummary[]>([]);
+  const [chapters, setChapters] = useState<ChapterIndexEntry[]>([]);
   const [previewChapterId, setPreviewChapterId] = useState<number | null>(null);
+  const preview = useChapterDetail(projectId, previewChapterId);
   const [importOpen, setImportOpen] = useState(false);
   const [importForm, setImportForm] = useState({
     chapter_number: 1,
@@ -79,7 +82,7 @@ export const ChaptersTab: React.FC<ChaptersTabProps> = ({ projectId, canEditChap
 
   const loadChapters = useCallback(async (isCurrent: () => boolean) => {
     try {
-      const data = await listChapters(projectId);
+      const data = await listChapterIndex(projectId);
       if (!isCurrent()) return;
       setChapters(data);
       loadedProjectIdRef.current = projectId;
@@ -285,7 +288,9 @@ export const ChaptersTab: React.FC<ChaptersTabProps> = ({ projectId, canEditChap
             aria-label={t("novel.chapterBody")}
             className="whitespace-pre-wrap break-words font-serif text-sm leading-relaxed text-book-text-main"
           >
-            {previewChapter.content}
+            {preview.loading ? <LoadingSpinner size="sm" /> : preview.error ? (
+              <span role="alert">{preview.error}</span>
+            ) : preview.chapter?.content}
           </article>
         </Modal>
       )}
@@ -369,7 +374,7 @@ export const ChaptersTab: React.FC<ChaptersTabProps> = ({ projectId, canEditChap
 };
 
 const ChapterRow: React.FC<{
-  chapter: ChapterSummary;
+  chapter: ChapterMetadata;
   onOpen: () => void;
 }> = ({ chapter, onOpen }) => {
   const { locale, t } = useI18n();
