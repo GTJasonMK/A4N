@@ -1,3 +1,11 @@
+impl WorkerState {
+    fn authorized(&self, headers: &HeaderMap) -> bool {
+        headers
+            .get(WORKER_AUTH_HEADER)
+            .is_some_and(|value| bool::from(value.as_bytes().ct_eq(self.auth_token.as_bytes())))
+    }
+}
+
 async fn health(State(state): State<WorkerState>, headers: HeaderMap) -> Response {
     if !state.authorized(&headers) {
         return unauthorized();

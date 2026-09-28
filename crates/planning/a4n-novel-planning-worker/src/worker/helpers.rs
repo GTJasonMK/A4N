@@ -96,15 +96,6 @@ fn user_id<T>(request: &WorkerEnvelope<T>) -> Result<i64, WorkerFailure> {
     Ok(user_id)
 }
 
-fn ensure_record_id(expected: i64, actual: i64) -> Result<(), WorkerFailure> {
-    if expected != actual {
-        return Err(WorkerFailure::invalid_request(format!(
-            "拍摄剧本与当前章节来源不匹配: expected_record_id={expected}, actual_record_id={actual}"
-        )));
-    }
-    Ok(())
-}
-
 async fn resolve_source(
     state: &WorkerState,
     project_id: i64,
@@ -117,132 +108,6 @@ async fn resolve_source(
     )
     .await
     .map_err(source_error)
-}
-
-async fn ensure_visual_plan_belongs_to_source(
-    state: &WorkerState,
-    input: &ChapterVisualPlanRecordInput,
-) -> Result<(), WorkerFailure> {
-    let source = resolve_source(state, input.project_id, input.source_chapter_id).await?;
-    let plan = a4n_db::chapter_visual_plan::chapter_visual_plan_by_id(
-        state.database.connection(),
-        input.record_id,
-    )
-    .await
-    .map_err(visual_plan_error)?;
-    if plan.record.project_id != source.requested_project_id
-        || plan.record.root_project_id != source.root_project_id
-        || plan.record.source_chapter_id != source.source_chapter_id
-        || plan.record.source_snapshot_id != source.source_snapshot_id
-        || plan.record.source_snapshot_chapter_id != source.source_snapshot_chapter_id
-    {
-        return Err(WorkerFailure::invalid_request(
-            "章节视觉编排与当前章节正文不匹配",
-        ));
-    }
-    Ok(())
-}
-
-fn visual_plan_view(
-    value: a4n_db::chapter_visual_plan::ParsedChapterVisualPlan,
-) -> ChapterVisualPlanView {
-    ChapterVisualPlanView {
-        record: ChapterVisualPlanRecordSummary {
-            id: value.record.id,
-            plan_version: value.record.plan_version,
-            revision: value.record.revision,
-            status: value.status,
-            authoring_mode: value.authoring_mode,
-            source_content_sha256: value.record.source_content_sha256,
-            plan_sha256: value.record.plan_sha256,
-            confirmed_at: value.record.confirmed_at.map(|value| value.to_string()),
-        },
-        plan: value.plan,
-    }
-}
-
-fn visual_plan_resource(
-    current: &a4n_db::chapter_visual_plan::ParsedChapterVisualPlan,
-) -> a4n_api_contract::agent::AgentResourceRef {
-    a4n_api_contract::agent::AgentResourceRef {
-        kind: "chapter_visual_plan".into(),
-        id: current.record.id.to_string(),
-        revision: Some(current.record.revision.to_string()),
-        hash: Some(current.record.plan_sha256.clone()),
-        label: Some(current.record.status.clone()),
-    }
-}
-
-fn ensure_visual_plan_belongs_to_source_record(
-    plan: &a4n_db::chapter_visual_plan::ParsedChapterVisualPlan,
-    source: &a4n_domain::chapter::ResolvedChapterSource,
-) -> Result<(), WorkerFailure> {
-    if plan.record.project_id != source.requested_project_id
-        || plan.record.root_project_id != source.root_project_id
-        || plan.record.source_chapter_id != source.source_chapter_id
-        || plan.record.source_snapshot_id != source.source_snapshot_id
-        || plan.record.source_snapshot_chapter_id != source.source_snapshot_chapter_id
-    {
-        return Err(WorkerFailure::invalid_request(
-            "章节视觉编排与当前章节正文不匹配",
-        ));
-    }
-    Ok(())
-}
-
-fn visual_plan_revision_conflict(record_id: i64, expected_revision: i32) -> WorkerFailure {
-    WorkerFailure::conflict(format!(
-        "chapter_visual_plan_revision_conflict:id={record_id},expected={expected_revision}"
-    ))
-}
-
-fn page_range(
-    offset: u32,
-    limit: Option<u32>,
-    total: usize,
-    default: u32,
-    max: u32,
-) -> Result<(usize, usize), WorkerFailure> {
-    let limit = limit.unwrap_or(default);
-    if limit == 0 || limit > max || offset as usize > total {
-        return Err(WorkerFailure::invalid_request(format!(
-            "分页范围无效：offset={offset}，limit 须为 1..={max}，total={total}"
-        )));
-    }
-    let start = offset as usize;
-    Ok((start, start.saturating_add(limit as usize).min(total)))
-}
-
-fn next_offset(end: usize, total: usize) -> Result<Option<u32>, WorkerFailure> {
-    (end < total)
-        .then(|| u32::try_from(end))
-        .transpose()
-        .map_err(|_| WorkerFailure::invalid_request("分页长度超出 u32"))
-}
-
-fn projection_error(
-    error: a4n_api_contract::chapter_visual_plan::VisualPlanProjectionError,
-) -> WorkerFailure {
-    match error {
-        a4n_api_contract::chapter_visual_plan::VisualPlanProjectionError::InvalidRequest(
-            message,
-        ) => WorkerFailure::invalid_request(message),
-        a4n_api_contract::chapter_visual_plan::VisualPlanProjectionError::NotFound(message) => {
-            WorkerFailure::not_found(message)
-        }
-    }
-}
-
-fn record_summary(
-    record: a4n_db_models::models::chapter::chapter_shooting_script::Model,
-) -> ChapterShootingScriptRecordSummary {
-    ChapterShootingScriptRecordSummary {
-        id: record.id,
-        revision: record.revision,
-        visual_plan_id: record.visual_plan_id,
-        visual_plan_version: record.visual_plan_version,
-        visual_plan_sha256: record.visual_plan_sha256,
-    }
 }
 
 fn completed<T>(request: &WorkerEnvelope<impl serde::Serialize>, payload: T) -> WorkerResponse<T> {
@@ -381,46 +246,6 @@ fn collaboration_error(error: a4n_db::collaboration::CollaborationDbError) -> Wo
             WorkerFailure::conflict(message)
         }
         a4n_db::collaboration::CollaborationDbError::Database(error) => {
-            WorkerFailure::unavailable(error.to_string())
-        }
-    }
-}
-
-fn visual_plan_error(error: ChapterVisualPlanDbError) -> WorkerFailure {
-    match error {
-        ChapterVisualPlanDbError::InvalidArgument(message) => {
-            WorkerFailure::invalid_request(message)
-        }
-        ChapterVisualPlanDbError::InvalidState(message) => WorkerFailure::conflict(message),
-        ChapterVisualPlanDbError::NotFound(message) => WorkerFailure::not_found(message),
-        ChapterVisualPlanDbError::RevisionConflict {
-            record_id,
-            expected_revision,
-        } => WorkerFailure::conflict(format!(
-            "chapter_visual_plan_revision_conflict:id={record_id},expected={expected_revision}"
-        )),
-        ChapterVisualPlanDbError::Database(error) => WorkerFailure::unavailable(error.to_string()),
-    }
-}
-
-fn shooting_script_error(error: a4n_db::shooting_script::ShootingScriptDbError) -> WorkerFailure {
-    match error {
-        a4n_db::shooting_script::ShootingScriptDbError::InvalidArgument(message) => {
-            WorkerFailure::invalid_request(message)
-        }
-        a4n_db::shooting_script::ShootingScriptDbError::InvalidState(message) => {
-            WorkerFailure::conflict(message)
-        }
-        a4n_db::shooting_script::ShootingScriptDbError::NotFound(message) => {
-            WorkerFailure::not_found(message)
-        }
-        a4n_db::shooting_script::ShootingScriptDbError::RevisionConflict {
-            record_id,
-            expected_revision,
-        } => WorkerFailure::conflict(format!(
-            "shooting_script_revision_conflict:id={record_id},expected={expected_revision}"
-        )),
-        a4n_db::shooting_script::ShootingScriptDbError::Database(error) => {
             WorkerFailure::unavailable(error.to_string())
         }
     }
