@@ -288,6 +288,11 @@ export function useWritingDeskDrafts({
     return true;
   }, [activeChapter, canDiscard, saveLocalDraftForCurrent, setEditorState]);
 
+  const markCurrentEditClean = useCallback(() => {
+    dirtyRef.current = false;
+    setDirty(false);
+  }, []);
+
   useDirty(`writing-desk:${projectIdKey || "unknown"}`, dirty, discardCurrentEdit, canDiscard);
 
   const clearProjectDrafts = useCallback(async () => {
@@ -316,6 +321,7 @@ export function useWritingDeskDrafts({
     getCurrentEditorContent,
     saveLocalDraftForCurrent,
     confirmCurrentEdit,
+    markCurrentEditClean,
     refreshDraftSet,
     removeDraftForChapter,
     clearProjectDrafts,

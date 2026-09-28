@@ -16,12 +16,14 @@ import {
   attributeKeyLabel,
   attributeValueText,
   categoryLabel,
+  characterDetailDraftKey,
   operationLabel,
   sourceKindLabel,
 } from "./manageViewUtils";
 import { nonEmptyText } from "../../utils/text";
 import type { CharacterAttributeCategory } from "../../api/generated/host";
 import { formatDateTime, useI18n } from "../../i18n";
+import { useDirty } from "../../components/navigation/dirtyRegistry";
 
 const parseAttributeValue = (raw: string): unknown => {
   const text = raw.trim();
@@ -107,6 +109,36 @@ export const EventManager: React.FC<{
   );
   currentFilterScopeKeyRef.current = currentFilterScopeKey;
   const hasCurrentEvents = loadedScopeKey === currentFilterScopeKey;
+  const defaultCategory = initialCategory.trim() || "explicit";
+  const defaultKey = initialKey.trim();
+  const defaultMode = defaultKey ? "modify" : "add";
+  const formDirty =
+    mode !== defaultMode ||
+    chapterNumber !== defaultChapter ||
+    category !== defaultCategory ||
+    key.trim().length > 0 ||
+    valueText.trim().length > 0 ||
+    cause.trim().length > 0 ||
+    evidence.trim().length > 0;
+
+  const discardFormDraft = useCallback(() => {
+    if (saving) return false;
+    setMode(defaultMode);
+    setChapterNumber(defaultChapter);
+    setCategory(defaultCategory);
+    setKey(defaultKey);
+    setValueText("");
+    setCause("");
+    setEvidence("");
+    return true;
+  }, [defaultCategory, defaultChapter, defaultKey, defaultMode, saving]);
+
+  useDirty(
+    characterDetailDraftKey(profileId, "event"),
+    formDirty,
+    discardFormDraft,
+    () => !saving,
+  );
 
   useEffect(() => {
     mountedRef.current = true;
@@ -286,7 +318,13 @@ export const EventManager: React.FC<{
         ? t("characterDetail.event.added")
         : t("characterDetail.event.modified");
       await load();
-      await onChanged?.();
+      try {
+        if (await onChanged?.() === false) {
+          addToast(t("characterDetail.refreshFailed"), "error");
+        }
+      } catch (refreshError) {
+        addToast(extractErrorMessage(refreshError, t("characterDetail.refreshFailed")), "error");
+      }
       addToast(successMessage, "success");
       setKey("");
       setValueText("");
