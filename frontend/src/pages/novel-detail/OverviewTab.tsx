@@ -336,7 +336,7 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
         total_chapters: totalChapters,
       });
       if (!isCurrentProject(requestProjectId)) return;
-      if (!await load()) return;
+      await load();
       if (!isCurrentProject(requestProjectId)) return;
       await onRefresh();
       if (!isCurrentProject(requestProjectId)) return;
