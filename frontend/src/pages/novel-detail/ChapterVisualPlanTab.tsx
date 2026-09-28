@@ -75,6 +75,7 @@ export function ChapterVisualPlanTab({ projectId, canEdit, chapter, onDirtyChang
   const [selectedImageSize, setSelectedImageSize] = useState<ImageSize | null>(null);
   const [split, setSplit] = useState<SplitDraft | null>(null);
   const [merge, setMerge] = useState<MergeDraft | null>(null);
+  const [sceneBindingDirtyKeys, setSceneBindingDirtyKeys] = useState<ReadonlySet<string>>(() => new Set());
   const [uploading, setUploading] = useState(false);
   const [assetLoadError, setAssetLoadError] = useState<string | null>(null);
   const frameRef = useRef<HTMLDivElement>(null);
@@ -101,17 +102,38 @@ export function ChapterVisualPlanTab({ projectId, canEdit, chapter, onDirtyChang
   const agentSidebarOpen = modalPanel === "agent" && !narrow && inspectorOpen;
   const hasModal = Boolean(split || merge || (modalPanel && !agentSidebarOpen) || (narrow && inspectorOpen));
   const dirty = Boolean(model.dirty || split?.dirty || merge?.dirty);
-  useEffect(() => { onDirtyChange?.(dirty); }, [dirty, onDirtyChange]);
+  const visualPlanDirty = dirty || sceneBindingDirtyKeys.size > 0;
+  const setSceneBindingDraftDirty = useCallback((key: string, value: boolean) => {
+    setSceneBindingDirtyKeys((current) => {
+      if (current.has(key) === value) return current;
+      const next = new Set(current);
+      if (value) next.add(key);
+      else next.delete(key);
+      return next;
+    });
+  }, []);
+  const inspectorSceneBindingKey = `inspector:${selection?.kind ?? "none"}:${selection?.id ?? "none"}`;
+  const inspectorSceneBindingDirty = sceneBindingDirtyKeys.has(inspectorSceneBindingKey);
+  useEffect(() => setSceneBindingDirtyKeys(new Set()), [chapterId]);
+  useEffect(() => { onDirtyChange?.(visualPlanDirty); }, [onDirtyChange, visualPlanDirty]);
   useEffect(() => { onBusyChange?.(model.busy || model.saving || uploading); }, [model.busy, model.saving, onBusyChange, uploading]);
   useEffect(() => () => onBusyChange?.(false), [onBusyChange]);
   useEffect(() => () => onDirtyChange?.(false), [onDirtyChange]);
   useNovelDetailDirty(
     `visual-plan:${projectId}:${chapterId ?? "none"}`,
-    dirty,
+    visualPlanDirty,
     undefined,
     () => !model.busy && !model.saving && !uploading,
   );
-  const openModal = (next: ModalPanel) => {
+  const openModal = async (next: ModalPanel) => {
+    const closesInspector = (next === "agent" && !narrow) || (narrow && inspectorOpen);
+    if (closesInspector && inspectorSceneBindingDirty && !(await confirmDialog({
+      title: "放弃自定义场景编辑？",
+      message: "当前自定义场景尚未保存，打开其他面板后将丢失。",
+      confirmText: "放弃编辑",
+      dialogType: "warning",
+    }))) return;
+    if (closesInspector) setSceneBindingDraftDirty(inspectorSceneBindingKey, false);
     setModalPanel(next);
     if (next === "agent" && !narrow) {
       setInspectorOpen(true);
@@ -120,30 +142,56 @@ export function ChapterVisualPlanTab({ projectId, canEdit, chapter, onDirtyChang
     }
   };
   const closeModal = () => setModalPanel(null);
-  const closeAgentSidebar = () => {
+  const closeAgentSidebar = async () => {
+    if (inspectorSceneBindingDirty && !(await confirmDialog({
+      title: "放弃自定义场景编辑？",
+      message: "当前自定义场景尚未保存，关闭 Agent 后将丢失。",
+      confirmText: "放弃编辑",
+      dialogType: "warning",
+    }))) return;
+    setSceneBindingDraftDirty(inspectorSceneBindingKey, false);
     setModalPanel(null);
     setInspectorOpen(false);
   };
+  const closeInspector = async () => {
+    if (inspectorSceneBindingDirty && !(await confirmDialog({
+      title: "放弃自定义场景编辑？",
+      message: "当前自定义场景尚未保存，关闭属性面板后将丢失。",
+      confirmText: "放弃编辑",
+      dialogType: "warning",
+    }))) return;
+    setSceneBindingDraftDirty(inspectorSceneBindingKey, false);
+    setInspectorOpen(false);
+  };
   const closeSplit = async () => {
-    if (split?.dirty && !(await confirmDialog({
+    const discard = split?.dirty || sceneBindingDirtyKeys.has("split:left") || sceneBindingDirtyKeys.has("split:right");
+    if (discard && !(await confirmDialog({
       title: "放弃拆分镜头编辑？",
       message: "当前拆分内容尚未提交，关闭后将丢失。",
       confirmText: "放弃编辑",
       dialogType: "warning",
     }))) return;
+    setSceneBindingDirtyKeys((current) => new Set([...current].filter((key) => !key.startsWith("split:"))));
     setSplit(null);
   };
   const closeMerge = async () => {
-    if (merge?.dirty && !(await confirmDialog({
+    const discard = merge?.dirty || sceneBindingDirtyKeys.has("merge");
+    if (discard && !(await confirmDialog({
       title: "放弃合并镜头编辑？",
       message: "当前合并内容尚未提交，关闭后将丢失。",
       confirmText: "放弃编辑",
       dialogType: "warning",
     }))) return;
+    setSceneBindingDirtyKeys((current) => new Set([...current].filter((key) => key !== "merge")));
     setMerge(null);
   };
   const closeCandidateModal = () => {
     setModalPanel(null);
+    if (narrow) setInspectorOpen(true);
+  };
+  const closeSceneLibrary = () => {
+    closeModal();
+    void loadAssets();
     if (narrow) setInspectorOpen(true);
   };
 
@@ -192,7 +240,19 @@ export function ChapterVisualPlanTab({ projectId, canEdit, chapter, onDirtyChang
 
   useEffect(() => { if (point) clock.getState().seek(point.at_ms); }, [clock, point?.id, point?.at_ms]);
 
-  const select = (next: DirectorSelection, time: number) => {
+  const select = async (next: DirectorSelection, time: number) => {
+    const currentKey = `inspector:${selection?.kind ?? "none"}:${selection?.id ?? "none"}`;
+    const nextKey = `inspector:${next.kind}:${next.id}`;
+    if (sceneBindingDirtyKeys.has(currentKey) && currentKey !== nextKey) {
+      const confirmed = await confirmDialog({
+        title: "放弃自定义场景编辑？",
+        message: "当前自定义场景尚未保存，切换对象后将丢失。",
+        confirmText: "放弃编辑",
+        dialogType: "warning",
+      });
+      if (!confirmed) return;
+      setSceneBindingDraftDirty(currentKey, false);
+    }
     setSelection(next);
     setInspectorOpen(true);
     clock.getState().seek(time);
@@ -346,7 +406,7 @@ export function ChapterVisualPlanTab({ projectId, canEdit, chapter, onDirtyChang
       : <div className="director-inline-actions"><BookButton variant="ghost" size="sm" disabled={disabled} onClick={openSplit}>从此处分镜</BookButton><BookButton className="director-delete-point" variant="ghost" size="sm" disabled={disabled} onClick={() => void edit({ kind: "remove_point", point_id: point.id })}><Trash2 size={15} />删除图片点</BookButton></div>}
   </section>;
   const inspector = <>
-        {!narrow && <div className="director-inspector-heading"><h3>{point ? "图片点" : "镜头段"}</h3><p className="director-object-time">{selectionSummary}</p><BookIconButton label="收起属性" onClick={() => setInspectorOpen(false)}><X size={15} /></BookIconButton></div>}
+        {!narrow && <div className="director-inspector-heading"><h3>{point ? "图片点" : "镜头段"}</h3><p className="director-object-time">{selectionSummary}</p><BookIconButton label="收起属性" onClick={() => void closeInspector()}><X size={15} /></BookIconButton></div>}
         {point && <>
           <fieldset disabled={disabled} className="director-fields">
             {narrow && <p className="director-object-time">{selectionSummary}</p>}
@@ -407,7 +467,7 @@ export function ChapterVisualPlanTab({ projectId, canEdit, chapter, onDirtyChang
             onImageGenerated={rememberImage}
             onAdoptPrompt={adoptPrompt}
           />
-          <SceneBindingEditor key={`segment-scene:${segment.id}`} projectId={projectId} chapterNumber={chapter.chapter_number} binding={segment.scene_binding} scenes={scenes} disabled={disabled} onSceneCreated={rememberScene} onChange={(binding) => updateSegment(segment.id, { scene_binding: binding })} />
+          <SceneBindingEditor key={`segment-scene:${segment.id}`} draftKey={inspectorSceneBindingKey} setDraftDirty={setSceneBindingDraftDirty} projectId={projectId} chapterNumber={chapter.chapter_number} binding={segment.scene_binding} scenes={scenes} disabled={disabled} onSceneCreated={rememberScene} onChange={(binding) => { setSceneBindingDraftDirty(inspectorSceneBindingKey, false); updateSegment(segment.id, { scene_binding: binding }); }} />
           <label className="director-checkbox" title="默认只使用起点和段内关键帧，结束点可以是下一镜头。"><input type="checkbox" checked={segment.use_end_point_image} onChange={(event) => updateSegment(segment.id, { use_end_point_image: event.target.checked })} />使用结束点图片作为目标尾帧</label>
           <div className="director-inline-actions"><BookButton variant="ghost" size="sm" onClick={openSplit}>拆分镜头</BookButton><BookButton variant="ghost" size="sm" onClick={openMerge} disabled={disabled || segment.id === plan.segments.at(-1)?.id}>与后一段合并</BookButton></div>
         </fieldset>}
@@ -479,9 +539,9 @@ export function ChapterVisualPlanTab({ projectId, canEdit, chapter, onDirtyChang
       </aside>}
     </div>
 
-    <Modal isOpen={inspectorOpen && narrow} title={point ? "图片点属性" : "镜头段属性"} onClose={() => setInspectorOpen(false)} className="director-mobile-inspector" footer={narrow ? pointActions : undefined}>{inspector}</Modal>
+    <Modal isOpen={inspectorOpen && narrow} title={point ? "图片点属性" : "镜头段属性"} onClose={() => void closeInspector()} className="director-mobile-inspector" footer={narrow ? pointActions : undefined}>{inspector}</Modal>
     <Modal isOpen={modalPanel === "source"} title="章节原文" onClose={closeModal} maxWidthClassName="max-w-3xl"><div className="director-source">{model.set?.source.content}</div></Modal>
-    <Modal isOpen={modalPanel === "scenes"} title="本项目场景库" onClose={() => { closeModal(); void loadAssets(); }} maxWidthClassName="max-w-6xl"><Suspense fallback={<LoadingSpinner text="加载场景库…" />}><SceneLibrary projectId={projectId} canEditProfiles={canEdit} /></Suspense></Modal>
+    <Modal isOpen={modalPanel === "scenes"} title="本项目场景库" onClose={closeSceneLibrary} maxWidthClassName="max-w-6xl"><Suspense fallback={<LoadingSpinner text="加载场景库…" />}><SceneLibrary projectId={projectId} canEditProfiles={canEdit} /></Suspense></Modal>
     <Modal isOpen={modalPanel === "agent" && narrow} title="导演 Agent" onClose={closeModal} maxWidthClassName="max-w-4xl">
       <DomainAgentConsole capability="director" projectId={projectId} chapterId={chapter.id} resourceLabel={chapter.title} className="director-agent-console director-agent-modal-console" onResourceChanged={() => model.reload()} getEditorSource={getEditorSource} onEditorRequest={editorRequest} />
     </Modal>
@@ -519,11 +579,11 @@ export function ChapterVisualPlanTab({ projectId, canEdit, chapter, onDirtyChang
     </Modal>
     {split && <Modal isOpen title="拆分镜头" onClose={() => void closeSplit()} footer={<BookButton disabled={model.busy} onClick={() => { void model.mutate({ kind: "split_segment", segment_id: split.segmentId, point_id: split.pointId, right_segment_id: crypto.randomUUID(), left_prompt: split.leftPrompt, right_prompt: split.rightPrompt, left_scene_binding: split.leftScene, right_scene_binding: split.rightScene }).then((succeeded) => { if (succeeded) setSplit(null); }); }}>拆分镜头</BookButton>}>
         <div className="director-fields"><label>分镜位置<ThemedSelect className="director-select" aria-label="分镜位置" value={split.pointId} onChange={(selectedValue) => setSplit({ ...split, pointId: selectedValue, dirty: true })}>{plan.points.filter((point) => { const target = plan.segments.find((segment) => segment.id === split.segmentId)!; const [start, end] = segmentTimes(plan, target); return point.at_ms > start && point.at_ms < end; }).map((point) => <option key={point.id} value={point.id}>{formatTime(point.at_ms)} · {point.label}</option>)}</ThemedSelect></label>
-        <label>前段描述<textarea rows={4} value={split.leftPrompt} onChange={(event) => setSplit({ ...split, leftPrompt: event.target.value, dirty: true })} /></label><SceneBindingEditor projectId={projectId} chapterNumber={chapter.chapter_number} binding={split.leftScene} scenes={scenes} disabled={model.busy} onSceneCreated={rememberScene} onChange={(leftScene) => setSplit({ ...split, leftScene, dirty: true })} />
-        <label>后段描述<textarea rows={4} value={split.rightPrompt} onChange={(event) => setSplit({ ...split, rightPrompt: event.target.value, dirty: true })} placeholder="为新镜头填写描述，也可以拆分后生成。" /></label><SceneBindingEditor projectId={projectId} chapterNumber={chapter.chapter_number} binding={split.rightScene} scenes={scenes} disabled={model.busy} onSceneCreated={rememberScene} onChange={(rightScene) => setSplit({ ...split, rightScene, dirty: true })} /></div>
+        <label>前段描述<textarea rows={4} value={split.leftPrompt} onChange={(event) => setSplit({ ...split, leftPrompt: event.target.value, dirty: true })} /></label><SceneBindingEditor draftKey="split:left" setDraftDirty={setSceneBindingDraftDirty} projectId={projectId} chapterNumber={chapter.chapter_number} binding={split.leftScene} scenes={scenes} disabled={model.busy} onSceneCreated={rememberScene} onChange={(leftScene) => setSplit({ ...split, leftScene, dirty: true })} />
+        <label>后段描述<textarea rows={4} value={split.rightPrompt} onChange={(event) => setSplit({ ...split, rightPrompt: event.target.value, dirty: true })} placeholder="为新镜头填写描述，也可以拆分后生成。" /></label><SceneBindingEditor draftKey="split:right" setDraftDirty={setSceneBindingDraftDirty} projectId={projectId} chapterNumber={chapter.chapter_number} binding={split.rightScene} scenes={scenes} disabled={model.busy} onSceneCreated={rememberScene} onChange={(rightScene) => setSplit({ ...split, rightScene, dirty: true })} /></div>
     </Modal>}
     {merge && <Modal isOpen title="合并镜头" onClose={() => void closeMerge()} footer={<BookButton disabled={model.busy} onClick={() => { void model.mutate({ kind: "merge_segments", left_segment_id: merge.leftId, right_segment_id: merge.rightId, prompt: merge.prompt, scene_binding: merge.scene }).then((succeeded) => { if (succeeded) setMerge(null); }); }}>{merge.prompt.trim() ? "合并镜头" : "合并为待完善镜头"}</BookButton>}>
-      <div className="director-fields"><details open><summary>原镜头描述</summary>{[merge.leftId, merge.rightId].map((id) => <p key={id}>{plan.segments.find((segment) => segment.id === id)?.prompt || "尚未填写"}</p>)}</details><label>合并后的变化描述<textarea rows={6} value={merge.prompt} onChange={(event) => setMerge({ ...merge, prompt: event.target.value, dirty: true })} /></label><SceneBindingEditor projectId={projectId} chapterNumber={chapter.chapter_number} binding={merge.scene} scenes={scenes} disabled={model.busy} onSceneCreated={rememberScene} onChange={(scene) => setMerge({ ...merge, scene, dirty: true })} /><p className="director-context-line">原有图片点都会保留。可在合并后继续填写或生成描述。</p></div>
+      <div className="director-fields"><details open><summary>原镜头描述</summary>{[merge.leftId, merge.rightId].map((id) => <p key={id}>{plan.segments.find((segment) => segment.id === id)?.prompt || "尚未填写"}</p>)}</details><label>合并后的变化描述<textarea rows={6} value={merge.prompt} onChange={(event) => setMerge({ ...merge, prompt: event.target.value, dirty: true })} /></label><SceneBindingEditor draftKey="merge" setDraftDirty={setSceneBindingDraftDirty} projectId={projectId} chapterNumber={chapter.chapter_number} binding={merge.scene} scenes={scenes} disabled={model.busy} onSceneCreated={rememberScene} onChange={(scene) => setMerge({ ...merge, scene, dirty: true })} /><p className="director-context-line">原有图片点都会保留。可在合并后继续填写或生成描述。</p></div>
     </Modal>}
   </section>;
 }
@@ -535,7 +595,9 @@ function Tool({ icon: Icon, label, pressed, opensDialog = false, expanded = fals
 const NEW_SCENE_VALUE = "__new_scene__";
 type SceneSelectTarget = "entry" | "exit";
 
-function SceneBindingEditor({ projectId, chapterNumber, binding, scenes, disabled = false, onSceneCreated, onChange }: {
+function SceneBindingEditor({ draftKey, setDraftDirty, projectId, chapterNumber, binding, scenes, disabled = false, onSceneCreated, onChange }: {
+  draftKey: string;
+  setDraftDirty: (key: string, dirty: boolean) => void;
   projectId: number;
   chapterNumber: number;
   binding: SceneBindingV3 | null;
@@ -552,6 +614,7 @@ function SceneBindingEditor({ projectId, chapterNumber, binding, scenes, disable
   const [newSceneDescription, setNewSceneDescription] = useState("");
   const [creating, setCreating] = useState(false);
   const resetNewScene = () => {
+    setDraftDirty(draftKey, false);
     setNewSceneTarget(null);
     setNewSceneName("");
     setNewSceneDescription("");
@@ -567,6 +630,7 @@ function SceneBindingEditor({ projectId, chapterNumber, binding, scenes, disable
   };
   const chooseScene = (target: SceneSelectTarget, value: string) => {
     if (value === NEW_SCENE_VALUE) {
+      setDraftDirty(draftKey, true);
       setNewSceneTarget(target);
       setNewSceneName("");
       setNewSceneDescription("");
@@ -616,6 +680,7 @@ function SceneBindingEditor({ projectId, chapterNumber, binding, scenes, disable
   return <div className="director-scene-binding"><label>场景方式<ThemedSelect className="director-select" aria-label="场景方式" value={binding?.kind ?? "scene"} disabled={disabled || creating} onChange={(selectedValue) => {
     const first = entry ?? scenes[0]?.id;
     if (!first) {
+      setDraftDirty(draftKey, true);
       setNewSceneTarget("entry");
       return;
     }
@@ -623,7 +688,7 @@ function SceneBindingEditor({ projectId, chapterNumber, binding, scenes, disable
   }}><option value="scene">单一场景</option><option value="transition">场景转场</option></ThemedSelect></label>
     <label>{binding?.kind === "transition" ? "起始场景" : "场景"}<ThemedSelect className="director-select" aria-label={binding?.kind === "transition" ? "起始场景" : "场景"} value={newSceneTarget === "entry" ? NEW_SCENE_VALUE : entry ?? ""} disabled={disabled || creating} onChange={(selectedValue) => chooseScene("entry", selectedValue)}>{options}</ThemedSelect></label>
     {binding?.kind === "transition" && <label>目标场景<ThemedSelect className="director-select" aria-label="目标场景" value={newSceneTarget === "exit" ? NEW_SCENE_VALUE : binding.to_scene_profile_id} disabled={disabled || creating} onChange={(selectedValue) => chooseScene("exit", selectedValue)}>{options}</ThemedSelect></label>}
-    {newSceneTarget && <div className="director-custom-scene"><label>自定义场景名称<input autoFocus value={newSceneName} disabled={disabled || creating} onChange={(event) => setNewSceneName(event.target.value)} placeholder="例如：废弃车站月台" /></label><label>场景描述（可选）<textarea rows={3} value={newSceneDescription} disabled={disabled || creating} onChange={(event) => setNewSceneDescription(event.target.value)} placeholder="补充空间、光线和氛围等信息" /></label><div className="director-inline-actions"><BookButton variant="secondary" size="sm" disabled={disabled || creating || !newSceneName.trim()} onClick={() => void createCustomScene()}><Plus size={14} />保存并绑定</BookButton><BookButton variant="ghost" size="sm" disabled={creating} onClick={resetNewScene}>取消</BookButton></div></div>}
+    {newSceneTarget && <div className="director-custom-scene"><label>自定义场景名称<input autoFocus value={newSceneName} disabled={disabled || creating} onChange={(event) => { setDraftDirty(draftKey, true); setNewSceneName(event.target.value); }} placeholder="例如：废弃车站月台" /></label><label>场景描述（可选）<textarea rows={3} value={newSceneDescription} disabled={disabled || creating} onChange={(event) => { setDraftDirty(draftKey, true); setNewSceneDescription(event.target.value); }} placeholder="补充空间、光线和氛围等信息" /></label><div className="director-inline-actions"><BookButton variant="secondary" size="sm" disabled={disabled || creating || !newSceneName.trim()} onClick={() => void createCustomScene()}><Plus size={14} />保存并绑定</BookButton><BookButton variant="ghost" size="sm" disabled={creating} onClick={resetNewScene}>取消</BookButton></div></div>}
   </div>;
 }
 

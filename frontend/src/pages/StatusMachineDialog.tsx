@@ -145,10 +145,17 @@ export const StatusMachineDialog: React.FC<StatusMachineDialogProps> = ({
       try {
         await action();
         if (!isCurrentMutation(requestProjectId, requestSeq)) return false;
-        await onMutated();
+        let refreshFailed = false;
+        try {
+          refreshFailed = (await onMutated()) === false;
+        } catch {
+          refreshFailed = true;
+        }
         if (!isCurrentMutation(requestProjectId, requestSeq)) return false;
-        if (open && !await loadMachine()) return false;
+        if (open && !await loadMachine()) refreshFailed = true;
+        if (!isCurrentMutation(requestProjectId, requestSeq)) return false;
         addToast(successMessage, "success");
+        if (refreshFailed) addToast(t("statusMachine.refreshFailed"), "error");
         return true;
       } catch (err) {
         if (isCurrentMutation(requestProjectId, requestSeq)) {
