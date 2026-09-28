@@ -3,6 +3,11 @@ use std::fmt;
 use schemars::JsonSchema;
 use serde::{Deserialize, Deserializer, Serialize};
 
+pub mod pipeline;
+pub mod validation;
+
+pub use pipeline::GalgamePipelineStartStage;
+
 pub const SCENE_ENTRY_MAIN: &str = "main";
 pub const SCENE_ENTRY_BRANCH: &str = "branch";
 pub const LINE_TYPE_NARRATION: &str = "narration";
@@ -412,26 +417,6 @@ pub struct GalgameAdaptationUnitRef {
     pub unit_id: String,
 }
 
-impl GalgamePipelineBeatRefV4 {
-    pub fn validate(&self) -> Result<(), String> {
-        if self.source_chapter_id <= 0 {
-            return Err("source_chapter_id 必须大于 0".into());
-        }
-        crate::media_authoring::AdaptationBeatRef {
-            unit_id: self.unit_id.clone(),
-            beat_id: self.beat_id.clone(),
-        }
-        .validate()
-    }
-
-    pub fn unit_ref(&self) -> GalgameAdaptationUnitRef {
-        GalgameAdaptationUnitRef {
-            source_chapter_id: self.source_chapter_id,
-            unit_id: self.unit_id.clone(),
-        }
-    }
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub enum GalgameLineDocumentSchemaVersion {
     #[serde(rename = "galgame_line_presentation_v3")]
@@ -500,186 +485,6 @@ where
     T: Deserialize<'de>,
 {
     Option::<T>::deserialize(deserializer)
-}
-
-impl GalgameLinePresentationDocumentV3 {
-    pub fn validate_source_identity(&self, text_anchor_id: Option<i64>) -> Result<(), String> {
-        use crate::media_authoring::AdaptationOrigin;
-        match self.origin {
-            AdaptationOrigin::Source | AdaptationOrigin::Adapted if self.beat_ref.is_none() => {
-                return Err("原文或改编演出必须引用本地节拍".into());
-            }
-            AdaptationOrigin::Added if text_anchor_id.is_some() => {
-                return Err("新增演出不能冒充原文依据".into());
-            }
-            _ => {}
-        }
-        for reference in self.beat_ref.iter().chain(self.after_beat_ref.iter()) {
-            reference.validate()?;
-        }
-        Ok(())
-    }
-
-    pub fn validate_adaptation(
-        &self,
-        plan: &crate::media_authoring::AdaptationPlanV1,
-        chapter_id: i64,
-        unit_id: &str,
-        text_anchor_id: Option<i64>,
-    ) -> Result<(), String> {
-        self.validate_source_identity(text_anchor_id)?;
-        for reference in self.beat_ref.iter().chain(self.after_beat_ref.iter()) {
-            if reference.source_chapter_id != chapter_id
-                || reference.unit_id != unit_id
-                || plan
-                    .beat(&crate::media_authoring::AdaptationBeatRef {
-                        unit_id: reference.unit_id.clone(),
-                        beat_id: reference.beat_id.clone(),
-                    })
-                    .is_none()
-            {
-                return Err("演出引用的节拍不属于该场景的本地改编版本".into());
-            }
-        }
-        if matches!(
-            self.origin,
-            crate::media_authoring::AdaptationOrigin::Source
-                | crate::media_authoring::AdaptationOrigin::Adapted
-        ) && text_anchor_id.is_none()
-            && let Some(reference) = &self.beat_ref
-            && plan
-                .beat(&crate::media_authoring::AdaptationBeatRef {
-                    unit_id: reference.unit_id.clone(),
-                    beat_id: reference.beat_id.clone(),
-                })
-                .is_some_and(|beat| beat.source_span_ids.is_empty())
-        {
-            return Err("原文或改编演出的本地节拍缺少原文依据".into());
-        }
-        Ok(())
-    }
-
-    pub fn directing_presentation(&self) -> GalgameLinePresentationV2 {
-        GalgameLinePresentationV2 {
-            schema_version: GalgameLinePresentationSchemaVersion::V2,
-            visible_cast: self.visible_cast.clone(),
-            enter: self.enter.clone(),
-            exit: self.exit.clone(),
-            focus_character_profile_id: self.focus_character_profile_id,
-            hold: self.hold,
-            player_knowledge: self.player_knowledge.clone(),
-        }
-    }
-}
-
-impl From<GalgameLinePresentationV2> for GalgameLinePresentationDocumentV3 {
-    fn from(presentation: GalgameLinePresentationV2) -> Self {
-        Self {
-            schema_version: GalgameLineDocumentSchemaVersion::V3,
-            origin: crate::media_authoring::AdaptationOrigin::Added,
-            beat_ref: None,
-            visible_cast: presentation.visible_cast,
-            enter: presentation.enter,
-            exit: presentation.exit,
-            focus_character_profile_id: presentation.focus_character_profile_id,
-            hold: presentation.hold,
-            player_knowledge: presentation.player_knowledge,
-            cg: None,
-            cg_note: None,
-            cg_importance: None,
-            transition: None,
-            branch: None,
-            branch_id: None,
-            returns_to_scene_index: None,
-            after_beat_ref: None,
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "snake_case")]
-pub enum GalgamePipelineStartStage {
-    AdaptationPlan,
-    BranchDesign,
-    ScriptAdaptation,
-    CharacterStaging,
-    VisualPlanning,
-    PersistScript,
-    AssetGeneration,
-}
-
-impl GalgamePipelineStartStage {
-    pub const ALL: [Self; 7] = [
-        Self::AdaptationPlan,
-        Self::BranchDesign,
-        Self::ScriptAdaptation,
-        Self::CharacterStaging,
-        Self::VisualPlanning,
-        Self::PersistScript,
-        Self::AssetGeneration,
-    ];
-
-    pub const fn key(self) -> &'static str {
-        self.status().0
-    }
-
-    pub const fn order(self) -> i32 {
-        self.status().1
-    }
-
-    pub const fn message(self) -> &'static str {
-        self.status().2
-    }
-
-    pub const fn checkpoint_keys_to_clear(self) -> &'static [&'static str] {
-        match self {
-            Self::AdaptationPlan => &[
-                "scenes",
-                "branch_plan",
-                "lines_draft",
-                "lines_staged",
-                "visual_plan",
-                "persist_script",
-                "asset_generation",
-            ],
-            Self::BranchDesign => &[
-                "branch_plan",
-                "lines_draft",
-                "lines_staged",
-                "visual_plan",
-                "persist_script",
-                "asset_generation",
-            ],
-            Self::ScriptAdaptation => &[
-                "lines_draft",
-                "lines_staged",
-                "visual_plan",
-                "persist_script",
-                "asset_generation",
-            ],
-            Self::CharacterStaging => &[
-                "lines_staged",
-                "visual_plan",
-                "persist_script",
-                "asset_generation",
-            ],
-            Self::VisualPlanning => &["visual_plan", "persist_script", "asset_generation"],
-            Self::PersistScript => &["persist_script", "asset_generation"],
-            Self::AssetGeneration => &["asset_generation"],
-        }
-    }
-
-    const fn status(self) -> (&'static str, i32, &'static str) {
-        match self {
-            Self::AdaptationPlan => ("adaptation_plan", 1, "正在准备本项目的改编计划"),
-            Self::BranchDesign => ("branch_design", 2, "正在基于导演节拍设计 Galgame 分支"),
-            Self::ScriptAdaptation => ("script_adaptation", 3, "正在改编 Galgame 主线与支线剧本行"),
-            Self::CharacterStaging => ("character_staging", 4, "正在绑定角色并标注演出状态"),
-            Self::VisualPlanning => ("visual_planning", 5, "正在规划背景与事件 CG"),
-            Self::PersistScript => ("persist_script", 6, "正在写入 Galgame 剧本"),
-            Self::AssetGeneration => ("asset_generation", 7, "正在创建 Galgame 资产生成意图"),
-        }
-    }
 }
 
 #[cfg(test)]
