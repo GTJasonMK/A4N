@@ -25,7 +25,10 @@ impl OrchestratorContext {
             .resolve_visual_plan_source(input.project_id, input.source_chapter_id)
             .await?;
         let expected = expected_draft(input.record_id, input.expected_revision)?;
-        a4n_db::chapter_visual_plan::save_chapter_visual_plan_draft(
+        let operation_id = input
+            .operation_id
+            .unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
+        a4n_db::chapter_visual_plan::save_chapter_visual_plan_draft_with_operation(
             self.database.connection(),
             a4n_db::chapter_visual_plan::SaveChapterVisualPlanDraftInput {
                 source,
@@ -35,6 +38,7 @@ impl OrchestratorContext {
                 expected_source_hash: input.expected_source_hash,
                 plan: input.plan,
             },
+            &operation_id,
         )
         .await
         .map_err(visual_plan_db_error)
@@ -253,6 +257,7 @@ fn chapter_visual_plan_view(
     value: ParsedChapterVisualPlan,
 ) -> a4n_api_contract::chapter_visual_plan::ChapterVisualPlanView {
     a4n_api_contract::chapter_visual_plan::ChapterVisualPlanView {
+        edit_receipt: value.edit_receipt,
         record: a4n_api_contract::chapter_visual_plan::ChapterVisualPlanRecordSummary {
             id: value.record.id,
             plan_version: value.record.plan_version,

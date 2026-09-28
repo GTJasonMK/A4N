@@ -5,6 +5,7 @@ import {
 } from "../../api/agent";
 import {
   domainAgentBinding,
+  domainAgentBindingKey,
   findDomainAgentThread,
   matchesEditorSourceScope,
   matchesDomainAgentThread,
@@ -56,6 +57,7 @@ describe("domain Agent binding", () => {
       scene_id: null,
       shot_id: null,
       view_instance_id: "view-1",
+      protocol_version: 2,
     };
     expect(matchesEditorSourceScope(source, 7, 11)).toBe(true);
     expect(matchesEditorSourceScope(source, 8, 11)).toBe(false);
@@ -75,9 +77,8 @@ describe("domain Agent binding", () => {
       resourceId: "11",
     });
     expect(
-      optimization &&
-        `subagent:${optimization.capability}:${optimization.resourceKind}:${optimization.resourceId}`,
-    ).toBe("subagent:content_optimization:chapter:11");
+      optimization && domainAgentBindingKey(optimization),
+    ).toBe("content_optimization:7:chapter:11");
     expect(canvas).toMatchObject({
       capability: "canvas",
       projectId: 7,
@@ -86,8 +87,10 @@ describe("domain Agent binding", () => {
       resourceId: "7",
     });
     expect(
-      canvas && `subagent:${canvas.capability}:${canvas.resourceKind}:${canvas.resourceId}`,
-    ).toBe("subagent:canvas:project:7");
+      canvas && domainAgentBindingKey(canvas),
+    ).toBe("canvas:7:project:7");
+    expect(domainAgentBindingKey(domainAgentBinding("director", 7, 11)!))
+      .not.toBe(domainAgentBindingKey(domainAgentBinding("director", 8, 11)!));
   });
 
   it("rejects invalid or cross-domain scope", () => {

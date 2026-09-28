@@ -82,6 +82,14 @@ def main():
             project = data(checked(cli, ["project", "create", "--title", "特化 Agent 隔离验证", "--project-type", "novel_long", "--use-context"], "project")[0], "project")
             source_text = "SOURCE_NOT_REQUESTED_未请求的正文。" * 900
             chapter = data(checked(cli, ["chapter", "import", "--number", "1", "--title", "雨夜来信", "--content", source_text], "chapter")[0], "chapter")
+            other_chapter = data(checked(cli, ["chapter", "import", "--number", "2", "--title", "另一章节", "--content", "独立作用域"], "second chapter")[0], "second chapter")
+            compose_chapter = data(checked(cli, ["chapter", "import", "--number", "3", "--title", "门后的机房", "--content", "林岚停在旧车站通道入口，观察挂钟后推开门，冷光从地下机房涌出。"], "compose chapter")[0], "compose chapter")
+            root_project = project
+            project = call("create_derived_project", {
+                "root_project_id": root_project["id"], "derived_kind": "video",
+                "title": "导演 Agent 视频验证", "description": "原生时间线编辑与来源快照隔离验证",
+                "start_chapter": 1, "end_chapter": 3,
+            })
             resource = {"project_id": project["id"], "source_chapter_id": chapter["id"]}
             draft = call("save_chapter_visual_plan_draft", {**resource, "authoring_mode": "collaborative", "record_id": None, "expected_revision": None, "plan": visual_plan()})
             create = ["agent", "thread", "create", "--kind", "subagent", "--capability", "director",
@@ -90,6 +98,12 @@ def main():
             restricted = data(checked(cli, create + ["--allowed-tool", "read_chapter_visual_plan"], "restricted thread")[0], "thread")
             reused = data(checked(cli, create, "reuse thread")[0], "thread")
             assert reused["scope"]["allowed_tools"] == ["read_chapter_visual_plan"]
+            sibling = call("create_derived_project", {"root_project_id": root_project["id"], "derived_kind": "video", "title": "同源独立视频", "description": "同源章节绑定不共享导演会话", "start_chapter": 1, "end_chapter": 3})
+            sibling_create = create.copy()
+            sibling_create[sibling_create.index("--project-id") + 1] = str(sibling["id"])
+            sibling_thread = data(checked(cli, sibling_create, "sibling director thread")[0], "thread")
+            assert sibling_thread["id"] != restricted["id"]
+            report["checks"].append("two videos sharing a source chapter keep distinct canonical Director threads")
             thread = data(checked(cli, ["agent", "thread", "update", restricted["id"], "--use-capability-tools", "--expected-revision", str(restricted["revision"])], "explicit catalog update")[0], "thread")
             thread_id = thread["id"]
             assert thread["scope"]["allowed_tools"] == []
@@ -154,17 +168,30 @@ def main():
             assert call("get_chapter_visual_plan", resource)["draft"] == current
             report["checks"].append("rejection returns an observation without writing")
 
-            run_id = send({**task, "prompt": "不得覆盖并发修改"})
+            run_id = send({**task, "prompt": "Agent 与人工修改不同字段"})
             pending = wait_state(run_id, "approval")
             change = {**resource, "record_id": current["record"]["id"], "expected_revision": current["record"]["revision"],
                       "operation": {"kind": "update_segment", "segment": {**current["plan"]["segments"][1], "title": "用户并发改名"}}}
             call("edit_chapter_visual_plan_draft", change)
             approve(pending)
-            conflict = finish(run_id)
-            assert any(row["run_id"] == run_id and row["status"] == "failed" and "revision" in (row["error"] or "") for row in conflict["executions"])
+            merged = finish(run_id)
+            assert any(row["run_id"] == run_id and row["tool_name"] == "edit_chapter_visual_plan_draft" and row["status"] == "succeeded" for row in merged["executions"])
             current = call("get_chapter_visual_plan", resource)["draft"]
-            assert current["plan"]["segments"][0]["prompt"] == task["prompt"]
-            report["checks"].append("approval never overwrites a newer draft revision")
+            assert current["plan"]["segments"][0]["prompt"] == "Agent 与人工修改不同字段"
+            assert current["plan"]["segments"][1]["title"] == "用户并发改名"
+            report["checks"].append("approved Agent edits automatically merge independent manual fields")
+            run_id = send({**task, "prompt": "Agent 同字段修改"})
+            pending = wait_state(run_id, "approval")
+            change = {**resource, "record_id": current["record"]["id"], "expected_revision": current["record"]["revision"],
+                      "operation": {"kind": "update_segment", "segment": {**current["plan"]["segments"][0], "prompt": "人工同字段修改"}}}
+            manual = call("edit_chapter_visual_plan_draft", change)["visual_plan"]
+            approve(pending)
+            conflict = finish(run_id)
+            assert any(row["run_id"] == run_id and row["status"] == "failed" and "冲突" in (row["error"] or "") for row in conflict["executions"])
+            current = call("get_chapter_visual_plan", resource)["draft"]
+            assert current["plan"] == manual["plan"] and current["record"]["revision"] == manual["record"]["revision"]
+            task["prompt"] = current["plan"]["segments"][0]["prompt"]
+            report["checks"].append("overlapping approved edits fail explicitly without overwriting manual content")
 
             discovery_run = send({**task, "mode": "discover"})
             discovered = finish(discovery_run)
@@ -179,7 +206,6 @@ def main():
             denied_run = send({**result_task, "execution_id": model_result["id"]})
             denied = finish(denied_run)
             assert any(row["run_id"] == denied_run and row["kind"] == "tool_call" and row["status"] == "failed" for row in denied["executions"])
-            other_chapter = data(checked(cli, ["chapter", "import", "--number", "2", "--title", "另一章节", "--content", "独立作用域"], "second chapter")[0], "second chapter")
             original_thread_id = thread_id
             other_thread = data(checked(cli, ["agent", "thread", "create", "--kind", "subagent", "--capability", "director", "--project-id", str(project["id"]), "--chapter-id", str(other_chapter["id"]), "--resource-kind", "chapter", "--resource-id", str(other_chapter["id"])], "second thread")[0], "second thread")
             thread_id = other_thread["id"]
@@ -206,7 +232,7 @@ def main():
             assert any(row["run_id"] == run_id and row["kind"] == "tool_call" for row in resumed["executions"])
             report["checks"].append("batch prefix respects budget; empty resume cannot bypass it; explicit extension continues the same Run")
 
-            source = {"view_instance_id": "cli-original-view", "project_id": project["id"], "chapter_id": chapter["id"],
+            source = {"protocol_version": 2, "view_instance_id": "cli-original-view", "project_id": project["id"], "chapter_id": chapter["id"],
                       "editor_revision": "editor-v1", "scene_id": "scene-1", "shot_id": "shot-1", "keyframe_id": None, "entity_id": None}
             run_id = send({"mode": "inspect_only"}, source=source)
             waiting = wait_state(run_id, "external")
@@ -230,23 +256,6 @@ def main():
             # Exercise the user-facing Director journey from a clean starter
             # plan. Every write is an Agent tool call and must pass the real
             # approval gate before the next revision is observed.
-            compose_chapter = data(
-                checked(
-                    cli,
-                    [
-                        "chapter",
-                        "import",
-                        "--number",
-                        "2",
-                        "--title",
-                        "门后的机房",
-                        "--content",
-                        "林岚停在旧车站通道入口，观察挂钟后推开门，冷光从地下机房涌出。",
-                    ],
-                    "compose chapter",
-                )[0],
-                "compose chapter",
-            )
             compose_resource = {"project_id": project["id"], "source_chapter_id": compose_chapter["id"]}
 
             def create_scene(name):

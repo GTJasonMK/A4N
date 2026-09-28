@@ -367,10 +367,29 @@ async fn dispatch_agent_host_command_inner(
         .validate()
         .map_err(|error| ApiError::bad_request(error.to_string()))?;
     let command = request.payload.command.clone();
-    let arguments = request
+    let mut arguments = request
         .payload
         .arguments_with_runtime_snapshot()
         .map_err(|error| ApiError::bad_request(error.to_string()))?;
+    if matches!(
+        command.as_str(),
+        "save_chapter_visual_plan_draft" | "edit_chapter_visual_plan_draft"
+    ) {
+        let input = arguments
+            .get_mut("input")
+            .and_then(Value::as_object_mut)
+            .ok_or_else(|| ApiError::bad_request("导演编辑必须提供 input"))?;
+        if input.get("operation_id").is_none_or(Value::is_null) {
+            let execution_id = request
+                .payload
+                .execution_id
+                .ok_or_else(|| ApiError::bad_request("导演编辑缺少持久 execution_id"))?;
+            input.insert(
+                "operation_id".into(),
+                Value::String(format!("agent:{execution_id}")),
+            );
+        }
+    }
     // The manifest is the exposure gate for both kinds of Agent tools. Only
     // synthetic tools belong to the Agent-native dispatcher; ordinary
     // manifest tools must retain their existing command dispatch path.

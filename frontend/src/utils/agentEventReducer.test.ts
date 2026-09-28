@@ -233,6 +233,7 @@ describe("agent event reducer", () => {
           execution_id: "execution-1",
           source: {
             view_instance_id: "view-1",
+            protocol_version: 2,
             project_id: 1,
             chapter_id: 1,
             chapter_number: null,

@@ -42,7 +42,6 @@ import {
   createAgentThread,
   getAgentThread,
   isAgentThreadOperational,
-  listAgentThreads,
   resolveAgentApproval,
   sendAgentMessage,
   subscribeAgentThreadEvents,
@@ -77,7 +76,7 @@ import {
 } from "./DomainAgentConsoleRows";
 import {
   domainAgentBinding,
-  findDomainAgentThread,
+  domainAgentBindingKey,
   matchesEditorSourceScope,
   positiveId,
   scopeForBinding,
@@ -85,6 +84,7 @@ import {
 } from "./DomainAgentBinding";
 export {
   domainAgentBinding,
+  domainAgentBindingKey,
   findDomainAgentThread,
   matchesDomainAgentThread,
   matchesEditorSourceScope,
@@ -192,7 +192,7 @@ export const DomainAgentConsole: React.FC<DomainAgentConsoleProps> = ({
     [capability, chapterId, projectId],
   );
   const bindingKey = binding
-    ? `${binding.capability}:${binding.resourceKind}:${binding.resourceId}`
+    ? domainAgentBindingKey(binding)
     : "invalid";
   const displayResourceLabel =
     resourceLabel?.trim() ||
@@ -275,15 +275,7 @@ export const DomainAgentConsole: React.FC<DomainAgentConsoleProps> = ({
     setError(null);
     setConnectionError(null);
     try {
-      const threads = await listAgentThreads({
-        capability: binding.capability,
-        include_archived: false,
-        limit: 200,
-      });
-      let match = findDomainAgentThread(threads, binding);
-      if (!match) {
-        try {
-          match = await createAgentThread({
+      const match = await createAgentThread({
             kind: "subagent",
             capability: binding.capability,
             title: `${title} · ${displayResourceLabel}`,
@@ -295,18 +287,7 @@ export const DomainAgentConsole: React.FC<DomainAgentConsoleProps> = ({
               hash: null,
             },
             scope: scopeForBinding(binding),
-          });
-        } catch (createError) {
-          // Another tab or the main Agent may have won the canonical create.
-          const retryThreads = await listAgentThreads({
-            capability: binding.capability,
-            include_archived: false,
-            limit: 200,
-          });
-          match = findDomainAgentThread(retryThreads, binding);
-          if (!match) throw createError;
-        }
-      }
+      });
       const loaded = await loadSnapshot(match.id);
       return loaded ? loaded.thread : null;
     } catch (err) {
@@ -483,7 +464,8 @@ export const DomainAgentConsole: React.FC<DomainAgentConsoleProps> = ({
       if (
         !request ||
         !event.run_id ||
-        !matchesEditorSourceScope(request.source, projectId, chapterId)
+        !matchesEditorSourceScope(request.source, projectId, chapterId) ||
+        getEditorSource?.()?.view_instance_id !== request.source.view_instance_id
       )
         continue;
       const execution = snapshot.executions.find(
@@ -516,6 +498,7 @@ export const DomainAgentConsole: React.FC<DomainAgentConsoleProps> = ({
   }, [
     addToast,
     chapterId,
+    getEditorSource,
     loadSnapshot,
     onEditorRequest,
     projectId,

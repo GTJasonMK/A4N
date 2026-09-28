@@ -455,13 +455,14 @@ impl AgentApplication {
         scope.project_id = scope.project_id.or(project_id);
         scope.chapter_id = scope.chapter_id.or(chapter_id);
         scope.chapter_number = chapter_number;
+        verify_director_source(self.connection(), &capability, &scope).await?;
         validate_subagent_resource(&capability, &scope, bound_resource.as_ref())?;
 
         apply_subagent_tool_policy(&capability, &mut scope)?;
 
         let canonical_binding_key = bound_resource
             .as_ref()
-            .map(|resource| canonical_subagent_binding_key(&capability, resource))
+            .map(|resource| canonical_subagent_binding_key(&capability, scope.project_id, resource))
             .transpose()?
             .unwrap_or_else(|| format!("subagent:{capability}:global"));
         let child_thread = self

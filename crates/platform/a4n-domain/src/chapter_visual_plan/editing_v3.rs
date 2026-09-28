@@ -13,6 +13,17 @@ impl ChapterVisualPlanV3 {
         self.validate_draft()?;
         let mut next = self.clone();
         match operation {
+            VisualPlanEditOperationV3::Batch { operations } => {
+                if operations.is_empty() || operations.len() > 100 {
+                    return Err(invalid("operations", "批次必须包含 1 到 100 个操作"));
+                }
+                for operation in operations {
+                    if matches!(operation, VisualPlanEditOperationV3::Batch { .. }) {
+                        return Err(invalid("operations", "不允许嵌套编辑批次"));
+                    }
+                    next = next.edited(operation)?;
+                }
+            }
             VisualPlanEditOperationV3::InsertPoint { point } => {
                 if point.at_ms == 0 || point.at_ms >= self.duration_ms() {
                     return Err(invalid("point.at_ms", "新点必须在章节两端之间"));
@@ -460,5 +471,31 @@ mod tests {
         assert!(plan.validate_confirmed().is_ok());
         plan.segments[0].use_end_point_image = true;
         assert!(plan.validate_confirmed().is_err());
+    }
+    #[test]
+    fn batches_are_atomic_and_cannot_nest() {
+        let plan = ChapterVisualPlanV3::starter();
+        let operation = VisualPlanEditOperationV3::Batch {
+            operations: vec![
+                VisualPlanEditOperationV3::SetFrame {
+                    frame: super::super::VisualFrameV3 {
+                        width: 1080,
+                        height: 1920,
+                    },
+                },
+                VisualPlanEditOperationV3::MovePoint {
+                    point_id: "missing".into(),
+                    at_ms: 1000,
+                },
+            ],
+        };
+        assert!(plan.edited(&operation).is_err());
+        assert_eq!(plan, ChapterVisualPlanV3::starter());
+        assert!(
+            plan.edited(&VisualPlanEditOperationV3::Batch {
+                operations: vec![operation]
+            })
+            .is_err()
+        );
     }
 }

@@ -28,6 +28,7 @@ export const saveChapterVisualPlanDraft = (
   projectId: number, sourceChapterId: number, current: ChapterVisualPlanView | null, plan: ChapterVisualPlanV3,
 ) => apiInvoke<ChapterVisualPlanView>("save_chapter_visual_plan_draft", {
   input: { ...sourceInput(projectId, sourceChapterId), authoring_mode: "collaborative",
+    operation_id: crypto.randomUUID(),
     record_id: current?.record.id ?? null, expected_revision: current?.record.revision ?? null, plan },
 });
 
@@ -35,7 +36,7 @@ export const editChapterVisualPlanDraft = (
   projectId: number, sourceChapterId: number, current: ChapterVisualPlanView, operation: VisualPlanEditOperation,
 ) => apiInvoke<ChapterVisualPlanEditResult>("edit_chapter_visual_plan_draft", {
   input: { ...sourceInput(projectId, sourceChapterId), record_id: current.record.id,
-    expected_revision: current.record.revision, operation },
+    operation_id: crypto.randomUUID(), expected_revision: current.record.revision, operation },
 });
 
 export const validateChapterVisualPlan = (

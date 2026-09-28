@@ -16,6 +16,8 @@ pub struct ChapterVisualPlanSourceInput {
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct SaveChapterVisualPlanDraftInput {
+    #[serde(default)]
+    pub operation_id: Option<String>,
     #[schemars(range(min = 1))]
     pub project_id: i64,
     #[schemars(range(min = 1))]
@@ -59,6 +61,8 @@ pub struct ChapterVisualPlanRecordSummary {
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
 pub struct ChapterVisualPlanView {
+    #[serde(default)]
+    pub edit_receipt: Option<VisualPlanEditReceipt>,
     pub record: ChapterVisualPlanRecordSummary,
     pub plan: ChapterVisualPlanV3,
 }
@@ -112,6 +116,9 @@ pub struct ReadChapterVisualPlanInput {
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum VisualPlanReadView {
+    Edits {
+        after_sequence: i64,
+    },
     Outline {
         #[serde(default)]
         offset: u32,
@@ -147,6 +154,10 @@ pub struct VisualPlanOutlineItem {
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum VisualPlanProjection {
+    Edits {
+        items: Vec<ChapterVisualPlanView>,
+        next_sequence: i64,
+    },
     Outline {
         items: Vec<VisualPlanOutlineItem>,
         total: usize,
@@ -276,9 +287,11 @@ pub fn project_visual_plan(
                 points,
             })
         }
-        VisualPlanReadView::Source { .. } => Err(VisualPlanProjectionError::InvalidRequest(
-            "原文由章节 source owner 读取".into(),
-        )),
+        VisualPlanReadView::Source { .. } | VisualPlanReadView::Edits { .. } => {
+            Err(VisualPlanProjectionError::InvalidRequest(
+                "原文和持久编辑回执由保存记录 owner 读取".into(),
+            ))
+        }
     }
 }
 
@@ -323,6 +336,8 @@ pub use a4n_domain::chapter_visual_plan::VisualPlanEditOperationV3 as VisualPlan
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct EditChapterVisualPlanDraftInput {
+    #[serde(default)]
+    pub operation_id: Option<String>,
     pub project_id: i64,
     pub source_chapter_id: i64,
     pub record_id: i64,
@@ -337,6 +352,7 @@ pub struct EditChapterVisualPlanDraftInput {
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
 pub struct VisualPlanFieldChange {
+    pub collection: String,
     pub object_id: String,
     pub field: String,
     pub before: Option<String>,

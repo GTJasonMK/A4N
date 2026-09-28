@@ -8,8 +8,10 @@ use sea_orm::DbErr;
 
 use a4n_domain::chapter::ResolvedChapterSource;
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct ParsedChapterVisualPlan {
+    #[serde(default)]
+    pub edit_receipt: Option<a4n_domain::chapter_visual_plan::VisualPlanEditReceipt>,
     pub record: chapter_visual_plan::Model,
     pub status: ChapterVisualPlanStatus,
     pub authoring_mode: ChapterVisualPlanAuthoringMode,
@@ -22,7 +24,7 @@ pub struct ChapterVisualPlanSet {
     pub confirmed: Option<ParsedChapterVisualPlan>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize)]
 pub struct SaveChapterVisualPlanDraftInput {
     pub source: ResolvedChapterSource,
     pub author_user_id: i64,

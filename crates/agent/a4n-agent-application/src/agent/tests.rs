@@ -169,6 +169,7 @@ fn remote_new_run_requires_runtime_snapshot_but_local_run_does_not() {
 fn canonical_subagent_key_matches_runtime_domain_binding() {
     let chapter = canonical_subagent_binding_key(
         "content_optimization",
+        Some(7),
         &AgentResourceRef {
             kind: "chapter".into(),
             id: "11".into(),
@@ -178,10 +179,14 @@ fn canonical_subagent_key_matches_runtime_domain_binding() {
         },
     )
     .expect("chapter binding");
-    assert_eq!(chapter, "subagent:content_optimization:chapter:11");
+    assert_eq!(
+        chapter,
+        "subagent:v2:content_optimization:project:7:chapter:11"
+    );
 
     let project = canonical_subagent_binding_key(
         "canvas",
+        Some(7),
         &AgentResourceRef {
             kind: "project".into(),
             id: "7".into(),

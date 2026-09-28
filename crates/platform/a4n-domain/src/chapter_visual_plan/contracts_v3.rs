@@ -104,6 +104,10 @@ impl SceneBindingV3 {
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 #[schemars(rename = "VisualPlanEditOperation")]
 pub enum VisualPlanEditOperationV3 {
+    /// One validated transaction and one undo step. Nested batches are rejected.
+    Batch {
+        operations: Vec<VisualPlanEditOperationV3>,
+    },
     InsertPoint {
         point: VisualPointV3,
     },

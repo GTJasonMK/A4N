@@ -3,12 +3,13 @@ import { useStore } from "zustand";
 import { BookOpen, Check, Film, ImagePlus, Images, Maximize, Mountain, Pause, Play, Plus, Redo2, RefreshCw, Save, Settings2, SkipBack, SkipForward, Sparkles, Trash2, Undo2, Upload, X } from "lucide-react";
 import { extractErrorMessage } from "../../api";
 import type { ChapterSummary } from "../../api/chapter";
-import type { ChapterVisualPlanV3, SceneBindingV3, VisualPointV3, VisualSegmentV3, VisualPlanPromptCandidate, VisualPlanEditOperation } from "../../api/chapterVisualPlan";
+import type { ChapterVisualPlanV3, ChapterVisualPlanView, SceneBindingV3, VisualPointV3, VisualSegmentV3, VisualPlanPromptCandidate, VisualPlanEditOperation } from "../../api/chapterVisualPlan";
 import { getChapterVisualPlan } from "../../api/chapterVisualPlan";
 import { IMAGE_TYPE_DIRECTOR_STORYBOARD_FRAME, listImagesByProjects, uploadImage, type GeneratedImage, type ImageSize } from "../../api/image";
 import { createSceneProfile, type SceneProfile } from "../../api/sceneProfiles";
 import { respondAgentEditor, type AgentEditorRequest, type AgentEditorResponse, type AgentEditorSource } from "../../api/agent";
 import { DomainAgentConsole } from "../../components/agent/DomainAgentConsole";
+import { useDirectorAgentBridge } from "./visual-plan/useDirectorAgentBridge";
 import { confirmDialog } from "../../components/feedback/ConfirmDialog";
 import { useToast } from "../../components/feedback/Toast";
 import { BookButton, BookIconButton } from "../../components/ui/BookButton";
@@ -20,7 +21,7 @@ import { ImageSizeSelect, useImageGenerationSize } from "../../components/image/
 import { readFileAsBase64 } from "../../utils/fileUpload";
 import { toMediaSrc } from "../../utils/mediaSrc";
 import { DirectorGeneration } from "./visual-plan/DirectorGeneration";
-import { DirectorScrubber, DirectorTimeline } from "./visual-plan/DirectorTimeline";
+import { DirectorScrubber, DirectorTimeline, type DirectorTimelineView } from "./visual-plan/DirectorTimeline";
 import { useDirectorPlan } from "./visual-plan/useDirectorPlan";
 import { useDirectorPlayback, type DirectorPlayback } from "./visual-plan/playback";
 import { useNovelDetailDirty } from "./novelDetailDirty";
@@ -29,8 +30,8 @@ import "./visual-plan/director.css";
 
 const SceneLibrary = lazy(() => import("./SceneProfilesTab").then((module) => ({ default: module.SceneProfilesTab })));
 type ModalPanel = "source" | "scenes" | "media" | "settings" | "agent" | "candidates";
-type SplitDraft = { segmentId: string; pointId: string; leftPrompt: string; rightPrompt: string; leftScene: SceneBindingV3 | null; rightScene: SceneBindingV3 | null; dirty: boolean };
-type MergeDraft = { leftId: string; rightId: string; prompt: string; scene: SceneBindingV3 | null; dirty: boolean };
+type SplitDraft = { base: ChapterVisualPlanView; segmentId: string; pointId: string; leftPrompt: string; rightPrompt: string; leftScene: SceneBindingV3 | null; rightScene: SceneBindingV3 | null; dirty: boolean };
+type MergeDraft = { base: ChapterVisualPlanView; leftId: string; rightId: string; prompt: string; scene: SceneBindingV3 | null; dirty: boolean };
 
 function directorCandidatePointId(image: GeneratedImage): string | null {
   if (image.image_type !== IMAGE_TYPE_DIRECTOR_STORYBOARD_FRAME || typeof image.metadata_json !== "object" || image.metadata_json === null || Array.isArray(image.metadata_json)) return null;
@@ -49,8 +50,11 @@ export function ChapterVisualPlanTab({ projectId, canEdit, chapter, onDirtyChang
   const [selection, setSelection] = useState<DirectorSelection | null>(null);
   const [inspectorOpen, setInspectorOpen] = useState(false);
   const [modalPanel, setModalPanel] = useState<ModalPanel | null>(null);
+  const [showConflictDialog, setShowConflictDialog] = useState(false);
+  useEffect(() => { if (model.conflict) setShowConflictDialog(true); }, [model.conflict]);
   const [narrow, setNarrow] = useState(true);
   const workspaceRef = useRef<HTMLElement>(null);
+  const timelineView = useRef<DirectorTimelineView>(null);
   useLayoutEffect(() => {
     const workspace = workspaceRef.current;
     if (!workspace) return;
@@ -97,7 +101,7 @@ export function ChapterVisualPlanTab({ projectId, canEdit, chapter, onDirtyChang
   useEffect(() => {
     setSelectedImageSize((current) => current && pointImageSizes.some((size) => size.width === current.width && size.height === current.height) ? current : null);
   }, [pointImageSizes]);
-  const disabled = !model.editable || model.busy;
+  const disabled = !model.editable;
   const agentSidebarOpen = modalPanel === "agent" && !narrow && inspectorOpen;
   const hasModal = Boolean(split || merge || (modalPanel && !agentSidebarOpen) || (narrow && inspectorOpen));
   const dirty = Boolean(model.dirty || split?.dirty || merge?.dirty);
@@ -186,8 +190,6 @@ export function ChapterVisualPlanTab({ projectId, canEdit, chapter, onDirtyChang
     }
   }, [model.loading, plan, selection]);
 
-  useEffect(() => { if (point) clock.getState().seek(point.at_ms); }, [clock, point?.id, point?.at_ms]);
-
   const select = (next: DirectorSelection, time: number) => {
     setSelection(next);
     setInspectorOpen(true);
@@ -214,28 +216,38 @@ export function ChapterVisualPlanTab({ projectId, canEdit, chapter, onDirtyChang
       ? current.map((item) => item.id === scene.id ? scene : item)
       : [...current, scene]);
   }, []);
-  const edit = async (operation: VisualPlanEditOperation) => {
+  const edit = async (operation: VisualPlanEditOperation, base?: ChapterVisualPlanView) => {
     clock.getState().pause();
-    await model.mutate(operation);
+    await model.mutate(operation, base);
   };
 
-  const openSplit = () => {
+  const openSplit = async () => {
     if (!plan) return;
-    const target = segment ?? segmentAt(plan, point?.at_ms ?? clock.getState().time);
+    const viewId = model.viewInstanceId.current;
+    let base: ChapterVisualPlanView;
+    try { base = await model.save(); } catch (failure) { model.report(failure); return; }
+    if (model.viewInstanceId.current !== viewId) return;
+    const target = base.plan.segments.find((item) => item.id === segment?.id) ?? segmentAt(base.plan, point?.at_ms ?? clock.getState().time);
     if (!target) return;
-    const [start, end] = segmentTimes(plan, target);
-    const candidates = plan.points.filter((point) => point.at_ms > start && point.at_ms < end);
+    const [start, end] = segmentTimes(base.plan, target);
+    const candidates = base.plan.points.filter((point) => point.at_ms > start && point.at_ms < end);
     const splitPoint = candidates.find((candidate) => candidate.id === point?.id) ?? candidates[0];
     if (!splitPoint) { model.report(new Error("请先在镜头内部添加一个图片点，再从该点拆分镜头。")); return; }
-    setSplit({ segmentId: target.id, pointId: splitPoint.id, leftPrompt: target.prompt, rightPrompt: "",
+    setSplit({ base, segmentId: target.id, pointId: splitPoint.id, leftPrompt: target.prompt, rightPrompt: "",
       leftScene: target.scene_binding?.kind === "transition" ? { kind: "scene", scene_profile_id: target.scene_binding.from_scene_profile_id } : target.scene_binding,
       rightScene: target.scene_binding, dirty: false });
   };
-  const openMerge = () => {
+  const openMerge = async () => {
     if (!plan || !segment) return;
-    const right = plan.segments[plan.segments.findIndex((item) => item.id === segment.id) + 1];
+    const viewId = model.viewInstanceId.current;
+    let base: ChapterVisualPlanView;
+    try { base = await model.save(); } catch (failure) { model.report(failure); return; }
+    if (model.viewInstanceId.current !== viewId) return;
+    const index = base.plan.segments.findIndex((item) => item.id === segment.id);
+    if (index < 0) return;
+    const right = base.plan.segments[index + 1];
     if (!right) return;
-    setMerge({ leftId: segment.id, rightId: right.id, prompt: "", scene: segment.scene_binding, dirty: false });
+    setMerge({ base, leftId: segment.id, rightId: right.id, prompt: "", scene: base.plan.segments[index].scene_binding, dirty: false });
   };
   const adoptImage = async (pointId: string, image: GeneratedImage) => {
     if (!model.editable) throw new Error("请先进入草稿编辑模式");
@@ -272,39 +284,74 @@ export function ChapterVisualPlanTab({ projectId, canEdit, chapter, onDirtyChang
   const getEditorSource = (): AgentEditorSource | null => {
     if (!plan || chapterId == null) return null;
     const owner = point ? segmentAt(plan, point.at_ms) : segment;
-    return { view_instance_id: model.viewInstanceId.current, project_id: projectId, chapter_id: chapterId,
+    return { protocol_version: 2, view_instance_id: model.viewInstanceId.current, project_id: projectId, chapter_id: chapterId,
       chapter_number: chapter?.chapter_number ?? null,
       editor_revision: model.editorRevision.current, scene_id: null, shot_id: owner?.id ?? null,
       keyframe_id: point?.id ?? null, entity_id: null };
   };
   const editorRequest = async (request: AgentEditorRequest, runId: string) => {
+    const viewInstanceId = model.viewInstanceId.current;
     let submitted = false;
     const respond = async (response: AgentEditorResponse) => {
       submitted = true;
-      const reply = await respondAgentEditor({ run_id: runId, execution_id: request.execution_id, view_instance_id: request.source.view_instance_id, response });
+      const reply = await respondAgentEditor({ run_id: runId, execution_id: request.execution_id, view_instance_id: viewInstanceId, response });
       if (reply.status !== "succeeded") throw new Error(reply.error_message || "编辑器请求失败");
       return reply;
     };
     try {
       const currentSource = getEditorSource();
+      if (viewInstanceId !== request.source.view_instance_id) return;
       if (!currentSource || currentSource.project_id !== request.source.project_id || currentSource.chapter_id !== request.source.chapter_id) {
         await respond({ kind: "error", message: "当前时间线已切换，请回到原章节视图后重试" });
         return;
       }
-      if (model.busy || model.saving || !model.planRef.current) throw new Error("编辑器正在保存，请稍后重试");
+      if (!model.planRef.current) throw new Error("编辑器尚未就绪");
       const operation = request.operation;
       const expected = operation.kind === "prepare_write" ? operation.expected_editor_revision : operation.kind === "read" || operation.kind === "save" ? operation.input.expected_editor_revision : null;
       if (expected && expected !== model.editorRevision.current) throw new Error("编辑器内容已改变，请重新读取");
-      const state = { editor_revision: model.editorRevision.current, record_id: model.recordRef.current?.record.id ?? null,
+      const view = { editable: model.editable, status: model.recordRef.current?.record.status ?? "unsaved",
+        selected_ids: selection ? [selection.id] : [], playhead_ms: Math.round(clock.getState().time), playing: clock.getState().playing,
+        visible_range_ms: timelineView.current?.visibleRange() ?? [0, total] as [number, number],
+        available_actions: ["select", "locate", "seek", "play", "pause", "fit"],
+        blockers: [model.conflict, model.saving ? "保存中" : null, split || merge ? "对话框尚未提交" : null].filter((item): item is string => item != null) };
+      const state = { view, editor_revision: model.editorRevision.current, record_id: model.recordRef.current?.record.id ?? null,
         record_revision: model.recordRef.current?.record.revision ?? null, dirty: model.dirty, has_uncommitted_dialog: split != null || merge != null };
       if (operation.kind === "inspect") await respond({ kind: "state", state });
+      else if (operation.kind === "control") {
+        const action = operation.input.action;
+        if ("at_ms" in action && (!Number.isSafeInteger(action.at_ms) || action.at_ms < 0 || action.at_ms > total)) throw new Error("播放位置超出时间线范围");
+        if (action.kind === "select") {
+          if (action.object_kind !== "point" && action.object_kind !== "segment") throw new Error("未知时间线对象类型");
+          const items = action.object_kind === "point" ? model.planRef.current.points : model.planRef.current.segments;
+          if (!items.some((item) => item.id === action.object_id)) throw new Error("时间线对象已删除");
+          setSelection({ kind: action.object_kind, id: action.object_id });
+          view.selected_ids = [action.object_id];
+        } else if (action.kind === "locate") {
+          if (!timelineView.current) throw new Error("时间线视图尚未就绪");
+          timelineView.current.locate(action.at_ms);
+        } else if (action.kind === "seek") clock.getState().seek(action.at_ms);
+        else if (action.kind === "play") { if (!clock.getState().playing) clock.getState().toggle(); }
+        else if (action.kind === "pause") clock.getState().pause();
+        else {
+          if (!timelineView.current) throw new Error("时间线视图尚未就绪");
+          timelineView.current.fit();
+        }
+        view.playhead_ms = Math.round(clock.getState().time);
+        view.playing = clock.getState().playing;
+        view.visible_range_ms = timelineView.current?.visibleRange() ?? view.visible_range_ms;
+        await respond({ kind: "state", state });
+      }
       else if (operation.kind === "read") await respond({ kind: "draft", editor_revision: state.editor_revision, plan: model.planRef.current });
       else if (operation.kind === "save") {
         if (state.has_uncommitted_dialog) throw new Error("请先完成拆分或合并编辑");
-        const reply = await respond({ kind: "save_draft", state, plan: model.planRef.current });
-        if (!reply.saved_draft) throw new Error("Agent 保存未返回草稿");
-        model.acceptRecord(reply.saved_draft);
-        model.replace(reply.saved_draft.plan);
+        await model.saveFromAgent(async (snapshot) => {
+          if (viewInstanceId !== model.viewInstanceId.current || state.editor_revision !== model.editorRevision.current) {
+            throw new Error("编辑器内容已改变，请重新读取后保存");
+          }
+          const reply = await respond({ kind: "save_draft", state, plan: snapshot });
+          if (!reply.saved_draft) throw new Error("Agent 保存未返回草稿");
+          return reply.saved_draft;
+        });
       } else {
         if (state.dirty || state.has_uncommitted_dialog) throw new Error("当前仍有未保存编辑，请先保存");
         await respond({ kind: "ready_to_write", state });
@@ -314,6 +361,8 @@ export function ChapterVisualPlanTab({ projectId, canEdit, chapter, onDirtyChang
       throw failure;
     }
   };
+
+  useDirectorAgentBridge(projectId, chapterId, !model.loading && plan != null, model.conflict != null || model.invalidated, getEditorSource, editorRequest, model.report);
 
   useEffect(() => {
     const keyboard = (event: KeyboardEvent) => {
@@ -341,6 +390,20 @@ export function ChapterVisualPlanTab({ projectId, canEdit, chapter, onDirtyChang
       ? <p className="director-context-line">固定端点不能拆分或删除。</p>
       : <div className="director-inline-actions"><BookButton variant="ghost" size="sm" disabled={disabled} onClick={openSplit}>从此处分镜</BookButton><BookButton className="director-delete-point" variant="ghost" size="sm" disabled={disabled} onClick={() => void edit({ kind: "remove_point", point_id: point.id })}><Trash2 size={15} />删除图片点</BookButton></div>}
   </section>;
+  const conflictContent = model.conflict && <div className="director-error" role="alert">
+    <p>{model.conflict}</p>
+    <p>只选择冲突字段的版本；其他字段的修改会合并保留。</p>
+    <div className="director-conflict-details" tabIndex={0} aria-label="冲突内容对比">
+      {model.conflictDetails.map((detail, index) => <div key={`${detail.name}:${detail.field}:${index}`}>
+        <strong>{detail.name} · {detail.field}</strong>
+        <p>我的编辑：{detail.local}</p><p>已保存版本：{detail.remote}</p>
+      </div>)}
+    </div>
+    <div className="director-inline-actions">
+      <BookButton onClick={() => model.resolveConflict("local")}>冲突字段保留我的编辑</BookButton>
+      <BookButton onClick={() => model.resolveConflict("remote")}>冲突字段采用已保存版本</BookButton>
+    </div>
+  </div>;
   const inspector = <>
         {!narrow && <div className="director-inspector-heading"><h3>{point ? "图片点" : "镜头段"}</h3><p className="director-object-time">{selectionSummary}</p><BookIconButton label="收起属性" onClick={() => setInspectorOpen(false)}><X size={15} /></BookIconButton></div>}
         {point && <>
@@ -410,6 +473,11 @@ export function ChapterVisualPlanTab({ projectId, canEdit, chapter, onDirtyChang
   </>;
 
   return <section ref={workspaceRef} className="director-workspace" aria-label="导演编排" style={{ "--director-ratio": plan.frame.width / plan.frame.height } as CSSProperties}>
+    {!narrow && conflictContent}
+    {narrow && model.conflict && <div className="director-error" role="status">编辑冲突尚未解决，自动保存已暂停。<BookButton onClick={() => setShowConflictDialog(true)}>核对冲突</BookButton></div>}
+    {model.syncError && <div className="director-error" role="status">{model.syncError}
+      {model.invalidated && <BookButton onClick={() => void model.reloadWithBackup()}>保留本地备份并载入新版本</BookButton>}
+    </div>}
     <header className="director-header"><div><p className="director-eyebrow">导演编排 · 第 {chapter.chapter_number} 章</p><h2 title={chapter.title || "分镜时间线"}>{chapter.title || "分镜时间线"}</h2></div>
       <div className="director-inline-actions"><span className="director-save-status" role="status">{model.saving ? "保存中…" : model.dirty ? "未保存" : model.record?.record.status === "confirmed" ? "方案已确认" : model.record ? "草稿已保存" : "新编排"}</span>
         <BookIconButton label="撤销" onClick={model.undo} disabled={!model.canUndo || model.busy}><Undo2 size={17} /></BookIconButton>
@@ -457,7 +525,7 @@ export function ChapterVisualPlanTab({ projectId, canEdit, chapter, onDirtyChang
           </div>
           <Transport clock={clock} plan={plan} />
         </div>
-        <DirectorTimeline plan={plan} selection={selection} clock={clock} editable={!disabled} sceneNames={names} onSelect={select} onEdit={edit} onSplit={openSplit} />
+        <DirectorTimeline viewRef={timelineView} plan={plan} record={model.record} selection={selection} clock={clock} editable={!disabled} sceneNames={names} onSelect={select} onEdit={edit} onSplit={openSplit} onError={model.report} />
       </div>
       {inspectorOpen && !narrow && <aside className={`director-inspector ${agentSidebarOpen ? "director-agent-inspector" : ""}`} aria-label={agentSidebarOpen ? "导演 Agent" : "所选对象属性"}>
         {agentSidebarOpen ? <DomainAgentConsole
@@ -468,9 +536,7 @@ export function ChapterVisualPlanTab({ projectId, canEdit, chapter, onDirtyChang
           fill
           className="director-agent-console min-h-0 flex-1 rounded-none border-0 shadow-none"
           onClose={closeAgentSidebar}
-          onResourceChanged={() => model.reload()}
           getEditorSource={getEditorSource}
-          onEditorRequest={editorRequest}
         /> : inspector}
       </aside>}
     </div>
@@ -479,7 +545,7 @@ export function ChapterVisualPlanTab({ projectId, canEdit, chapter, onDirtyChang
     <Modal isOpen={modalPanel === "source"} title="章节原文" onClose={closeModal} maxWidthClassName="max-w-3xl"><div className="director-source">{model.set?.source.content}</div></Modal>
     <Modal isOpen={modalPanel === "scenes"} title="本项目场景库" onClose={() => { closeModal(); void loadAssets(); }} maxWidthClassName="max-w-6xl"><Suspense fallback={<LoadingSpinner text="加载场景库…" />}><SceneLibrary projectId={projectId} canEditProfiles={canEdit} /></Suspense></Modal>
     <Modal isOpen={modalPanel === "agent" && narrow} title="导演 Agent" onClose={closeModal} maxWidthClassName="max-w-4xl">
-      <DomainAgentConsole capability="director" projectId={projectId} chapterId={chapter.id} resourceLabel={chapter.title} className="director-agent-console director-agent-modal-console" onResourceChanged={() => model.reload()} getEditorSource={getEditorSource} onEditorRequest={editorRequest} />
+      <DomainAgentConsole capability="director" projectId={projectId} chapterId={chapter.id} resourceLabel={chapter.title} className="director-agent-console director-agent-modal-console" getEditorSource={getEditorSource} />
     </Modal>
     <Modal isOpen={modalPanel === "settings"} title="画幅" onClose={closeModal}>
       <div className="director-inline-actions">{[[1920, 1080, "16:9 横屏"], [1080, 1920, "9:16 竖屏"], [1080, 1080, "1:1 方形"], [1440, 1080, "4:3"]].map(([width, height, label]) => {
@@ -513,14 +579,15 @@ export function ChapterVisualPlanTab({ projectId, canEdit, chapter, onDirtyChang
         </div>
       </div>
     </Modal>
-    {split && <Modal isOpen title="拆分镜头" onClose={() => void closeSplit()} footer={<BookButton disabled={model.busy} onClick={() => { void model.mutate({ kind: "split_segment", segment_id: split.segmentId, point_id: split.pointId, right_segment_id: crypto.randomUUID(), left_prompt: split.leftPrompt, right_prompt: split.rightPrompt, left_scene_binding: split.leftScene, right_scene_binding: split.rightScene }).then((succeeded) => { if (succeeded) setSplit(null); }); }}>拆分镜头</BookButton>}>
-        <div className="director-fields"><label>分镜位置<ThemedSelect className="director-select" aria-label="分镜位置" value={split.pointId} onChange={(selectedValue) => setSplit({ ...split, pointId: selectedValue, dirty: true })}>{plan.points.filter((point) => { const target = plan.segments.find((segment) => segment.id === split.segmentId)!; const [start, end] = segmentTimes(plan, target); return point.at_ms > start && point.at_ms < end; }).map((point) => <option key={point.id} value={point.id}>{formatTime(point.at_ms)} · {point.label}</option>)}</ThemedSelect></label>
+    {split && <Modal isOpen title="拆分镜头" onClose={() => void closeSplit()} footer={<BookButton disabled={model.busy} onClick={() => { void model.mutate({ kind: "split_segment", segment_id: split.segmentId, point_id: split.pointId, right_segment_id: crypto.randomUUID(), left_prompt: split.leftPrompt, right_prompt: split.rightPrompt, left_scene_binding: split.leftScene, right_scene_binding: split.rightScene }, split.base).then((succeeded) => { if (succeeded) setSplit(null); }); }}>拆分镜头</BookButton>}>
+        <div className="director-fields"><label>分镜位置<ThemedSelect className="director-select" aria-label="分镜位置" value={split.pointId} onChange={(selectedValue) => setSplit({ ...split, pointId: selectedValue, dirty: true })}>{split.base.plan.points.filter((point) => { const target = split.base.plan.segments.find((segment) => segment.id === split.segmentId)!; const [start, end] = segmentTimes(split.base.plan, target); return point.at_ms > start && point.at_ms < end; }).map((point) => <option key={point.id} value={point.id}>{formatTime(point.at_ms)} · {point.label}</option>)}</ThemedSelect></label>
         <label>前段描述<textarea rows={4} value={split.leftPrompt} onChange={(event) => setSplit({ ...split, leftPrompt: event.target.value, dirty: true })} /></label><SceneBindingEditor projectId={projectId} chapterNumber={chapter.chapter_number} binding={split.leftScene} scenes={scenes} disabled={model.busy} onSceneCreated={rememberScene} onChange={(leftScene) => setSplit({ ...split, leftScene, dirty: true })} />
         <label>后段描述<textarea rows={4} value={split.rightPrompt} onChange={(event) => setSplit({ ...split, rightPrompt: event.target.value, dirty: true })} placeholder="为新镜头填写描述，也可以拆分后生成。" /></label><SceneBindingEditor projectId={projectId} chapterNumber={chapter.chapter_number} binding={split.rightScene} scenes={scenes} disabled={model.busy} onSceneCreated={rememberScene} onChange={(rightScene) => setSplit({ ...split, rightScene, dirty: true })} /></div>
     </Modal>}
-    {merge && <Modal isOpen title="合并镜头" onClose={() => void closeMerge()} footer={<BookButton disabled={model.busy} onClick={() => { void model.mutate({ kind: "merge_segments", left_segment_id: merge.leftId, right_segment_id: merge.rightId, prompt: merge.prompt, scene_binding: merge.scene }).then((succeeded) => { if (succeeded) setMerge(null); }); }}>{merge.prompt.trim() ? "合并镜头" : "合并为待完善镜头"}</BookButton>}>
+    {merge && <Modal isOpen title="合并镜头" onClose={() => void closeMerge()} footer={<BookButton disabled={model.busy} onClick={() => { void model.mutate({ kind: "merge_segments", left_segment_id: merge.leftId, right_segment_id: merge.rightId, prompt: merge.prompt, scene_binding: merge.scene }, merge.base).then((succeeded) => { if (succeeded) setMerge(null); }); }}>{merge.prompt.trim() ? "合并镜头" : "合并为待完善镜头"}</BookButton>}>
       <div className="director-fields"><details open><summary>原镜头描述</summary>{[merge.leftId, merge.rightId].map((id) => <p key={id}>{plan.segments.find((segment) => segment.id === id)?.prompt || "尚未填写"}</p>)}</details><label>合并后的变化描述<textarea rows={6} value={merge.prompt} onChange={(event) => setMerge({ ...merge, prompt: event.target.value, dirty: true })} /></label><SceneBindingEditor projectId={projectId} chapterNumber={chapter.chapter_number} binding={merge.scene} scenes={scenes} disabled={model.busy} onSceneCreated={rememberScene} onChange={(scene) => setMerge({ ...merge, scene, dirty: true })} /><p className="director-context-line">原有图片点都会保留。可在合并后继续填写或生成描述。</p></div>
     </Modal>}
+    <Modal isOpen={narrow && showConflictDialog && model.conflict != null} title="核对编辑冲突" onClose={() => setShowConflictDialog(false)}>{conflictContent}</Modal>
   </section>;
 }
 

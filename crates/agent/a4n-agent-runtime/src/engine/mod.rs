@@ -74,9 +74,9 @@ pub use observation::{bounded_observation, tool_error_code};
 pub use tool_calls::{append_tool_observation, is_correctable_tool_error};
 pub use tool_window::{enum_string, json_u64};
 pub use tools::{
-    collect_scope_ids, editor_request_for_call, ensure_argument_scope, ensure_chapter_scope,
-    ensure_project_scope, parse_arguments, should_request_approval, tool_descriptor,
-    tool_result_refs,
+    collect_argument_chapter_targets, collect_scope_ids, editor_request_for_call,
+    ensure_argument_scope, ensure_chapter_scope, ensure_project_scope, parse_arguments,
+    should_request_approval, tool_descriptor, tool_result_refs,
 };
 pub use wire::agent_worker_run_from_wire;
 

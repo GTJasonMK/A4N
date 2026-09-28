@@ -136,7 +136,7 @@ async function approve(runId, command) {
 }
 
 async function openDirector() {
-  await browser.url(`${process.env.A4N_BROWSER_E2E_BASE_URL}/write/${fixture.project_id}?chapter=1`);
+  await browser.url(`${process.env.A4N_BROWSER_E2E_BASE_URL}/video-project/${fixture.project_id}`);
   await click("导演编排");
   await $("section.director-workspace").waitForDisplayed({ timeout: 60_000 });
 }

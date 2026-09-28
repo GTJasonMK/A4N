@@ -37,7 +37,7 @@ impl ChapterVisualPlanAuthoringMode {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
 pub struct ExpectedVisualPlanDraft {
     pub record_id: i64,
     pub revision: i32,
