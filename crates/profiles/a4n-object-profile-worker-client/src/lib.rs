@@ -1,8 +1,9 @@
 //! Typed Host adapter for the object profile worker.
 
 use a4n_api_contract::profile::{
-    CreateObjectProfileInput, DeleteObjectProfileInput, ObjectProfileReadApplicationPort,
-    ObjectProfileSummary, UpdateObjectProfileInput,
+    CreateObjectProfileInput, DeleteObjectProfileInput, ObjectProfileDeleteOutcome,
+    ObjectProfileMutationApplicationPort, ObjectProfileMutationOutcome,
+    ObjectProfileReadApplicationPort, ObjectProfileSummary, UpdateObjectProfileInput,
 };
 use a4n_error::AppError;
 use a4n_object_profile_worker_contract::{
@@ -19,6 +20,9 @@ use a4n_worker_contract::{
 const DEFAULT_WORKER_URL: &str = "http://127.0.0.1:47657";
 const CONTROL_LEASE_FENCE: &str = "control-request";
 const CONTROL_LEASE_EXPIRY: &str = "9999-12-31T23:59:59Z";
+
+mod mutations;
+mod reads;
 
 #[derive(Clone)]
 pub struct ObjectProfileWorkerClient {
@@ -113,73 +117,6 @@ impl ObjectProfileWorkerClient {
                 "object profile worker 返回未完成状态: operation={operation_id}, status={status:?}"
             ))),
         }
-    }
-}
-
-#[async_trait::async_trait]
-impl ObjectProfileReadApplicationPort for ObjectProfileWorkerClient {
-    async fn list(
-        &self,
-        user_id: i64,
-        project_id: i64,
-    ) -> Result<Vec<ObjectProfileSummary>, AppError> {
-        self.command(
-            user_id,
-            Some(project_id),
-            OBJECT_PROFILE_LIST_OPERATION,
-            ObjectProfileProjectInput { project_id },
-        )
-        .await
-    }
-}
-
-#[async_trait::async_trait]
-impl a4n_api_contract::profile::ObjectProfileMutationApplicationPort for ObjectProfileWorkerClient {
-    async fn create(
-        &self,
-        user_id: i64,
-        input: CreateObjectProfileInput,
-    ) -> Result<a4n_api_contract::profile::ObjectProfileMutationOutcome, AppError> {
-        let response: ObjectProfileMutationResponse = self
-            .command(
-                user_id,
-                Some(input.project_id),
-                OBJECT_PROFILE_CREATE_OPERATION,
-                input,
-            )
-            .await?;
-        Ok(a4n_api_contract::profile::ObjectProfileMutationOutcome {
-            result: response.result,
-            downstream_image_ids: response.downstream_image_ids,
-        })
-    }
-
-    async fn update(
-        &self,
-        user_id: i64,
-        input: UpdateObjectProfileInput,
-    ) -> Result<a4n_api_contract::profile::ObjectProfileMutationOutcome, AppError> {
-        let response: ObjectProfileMutationResponse = self
-            .command(user_id, None, OBJECT_PROFILE_UPDATE_OPERATION, input)
-            .await?;
-        Ok(a4n_api_contract::profile::ObjectProfileMutationOutcome {
-            result: response.result,
-            downstream_image_ids: response.downstream_image_ids,
-        })
-    }
-
-    async fn delete(
-        &self,
-        user_id: i64,
-        input: DeleteObjectProfileInput,
-    ) -> Result<a4n_api_contract::profile::ObjectProfileDeleteOutcome, AppError> {
-        let response: ObjectProfileDeleteResponse = self
-            .command(user_id, None, OBJECT_PROFILE_DELETE_OPERATION, input)
-            .await?;
-        Ok(a4n_api_contract::profile::ObjectProfileDeleteOutcome {
-            result: response.result,
-            downstream_image_ids: response.downstream_image_ids,
-        })
     }
 }
 
