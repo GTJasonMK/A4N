@@ -12,7 +12,6 @@ import {
 import { generationClient } from "../../../api/generationTasks";
 import type { GenerationTaskHandle } from "../../../api/generated/generationContracts";
 import { useGenerationTask } from "../../../hooks/useGenerationTask";
-import { useToast } from "../../../components/feedback/Toast";
 import { BookButton } from "../../../components/ui/BookButton";
 import { sha256Json } from "../../../utils/contentHash";
 import type { DirectorSelection } from "./timeline";
@@ -33,7 +32,6 @@ interface Props {
 
 export function DirectorGeneration({ projectId, chapterId, plan, target, save, selectedSize, availableSizes, autoStart = false, hasCandidates = false, onImageGenerated, onAdoptPrompt }: Props) {
   const key = `a4n:director-task:${location.origin}:${projectId}:${chapterId}:${target.kind}:${target.id}`;
-  const addToast = useToast((state) => state.addToast);
   const [handle, setHandle] = useState<GenerationTaskHandle | null>(null);
   const [candidate, setCandidate] = useState<VisualPlanPromptCandidate | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -52,8 +50,7 @@ export function DirectorGeneration({ projectId, chapterId, plan, target, save, s
   const report = useCallback((failure: unknown, fallback: string) => {
     const message = extractErrorMessage(failure, fallback);
     setError(message);
-    addToast(message, "error");
-  }, [addToast]);
+  }, []);
 
   const startGeneration = useCallback(async () => {
     cancelRequested.current = false;
@@ -181,10 +178,6 @@ export function DirectorGeneration({ projectId, chapterId, plan, target, save, s
     void recover().catch((failure) => { if (mounted) report(failure, "读取生成候选失败"); });
     return () => { mounted = false; };
   }, [chapterId, handle, onImageGenerated, projectId, report, target.id, target.kind, task.resultRef, task.taskStatus]);
-
-  useEffect(() => {
-    if (task.error?.message) addToast(task.error.message, "error");
-  }, [addToast, task.error?.message]);
 
   const retryGeneration = () => {
     cancelRequested.current = false;

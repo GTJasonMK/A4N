@@ -216,7 +216,6 @@ export const NovelList: React.FC<NovelListProps> = () => {
       if (mountedRef.current && inviteSeqRef.current === requestSeq) {
         const message = extractErrorMessage(err, t("novel.projectLoadFailed"));
         setPendingInvitesError(message);
-        addToast(message, "error");
       }
       return false;
     } finally {

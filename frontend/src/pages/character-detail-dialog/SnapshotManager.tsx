@@ -1,5 +1,6 @@
 import { ThemedSelect } from "../../components/ui/ThemedSelect";
 import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { RefreshCw } from "lucide-react";
 import { LoadingSpinner } from "../../components/ui/LoadingSpinner";
 import { extractErrorMessage } from "../../api";
 import {
@@ -88,6 +89,7 @@ export const SnapshotManager: React.FC<{
     null,
   );
   const [delta, setDelta] = useState<SnapshotDelta | null>(null);
+  const [resultError, setResultError] = useState<string | null>(null);
   const resultRef = useRef<HTMLDivElement>(null);
   const [diffFromChapter, setDiffFromChapter] = useState(0);
   const [diffToChapter, setDiffToChapter] = useState<number | null>(null);
@@ -97,6 +99,7 @@ export const SnapshotManager: React.FC<{
   );
   const [snapshotEndChapter, setSnapshotEndChapter] = useState<number | "">("");
   const [loadedScopeKey, setLoadedScopeKey] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const mountedRef = useRef(true);
   const activeProfileIdRef = useRef(profileId);
   const snapshotStartChapterRef = useRef(snapshotStartChapter);
@@ -173,11 +176,13 @@ export const SnapshotManager: React.FC<{
     setDiffing(false);
     setLoadedScopeKey(null);
     setSnapshots([]);
+    setLoadError(null);
     setConflict(null);
     setConflictLoaded(false);
     setSnapshotData(null);
     setChapterState(null);
     setDelta(null);
+    setResultError(null);
   };
 
   const load = async (): Promise<boolean> => {
@@ -193,11 +198,13 @@ export const SnapshotManager: React.FC<{
     loadSeqRef.current = requestSeq;
     loadingRef.current = true;
     setLoading(true);
+    setLoadError(null);
     setLoadedScopeKey(null);
     setConflictLoaded(false);
     setSnapshotData(null);
     setChapterState(null);
     setDelta(null);
+    setResultError(null);
     try {
       const [snapshotsResult, conflictResult] = await Promise.allSettled([
         listSnapshots(requestProfileId, {
@@ -225,7 +232,6 @@ export const SnapshotManager: React.FC<{
       } else {
         setSnapshots([]);
         failures.push(extractErrorMessage(snapshotsResult.reason, t("characterDetail.snapshot.loadFailed")));
-        if (conflictResult.status === "fulfilled") setLoadedScopeKey(requestKey);
       }
       if (conflictResult.status === "fulfilled") {
         setConflict(nextConflict);
@@ -233,7 +239,7 @@ export const SnapshotManager: React.FC<{
       } else {
         failures.push(extractErrorMessage(conflictResult.reason, t("characterDetail.snapshot.loadFailed")));
       }
-      if (failures.length > 0) addToast(failures.join("；"), "error");
+      setLoadError(failures.length > 0 ? failures.join("；") : null);
       const snapshotChapters = nextSnapshots.map(
         (snapshot) => snapshot.chapter_number,
       );
@@ -278,7 +284,7 @@ export const SnapshotManager: React.FC<{
         )
       )
         return false;
-      addToast(extractErrorMessage(err, t("characterDetail.snapshot.loadFailed")), "error");
+      setLoadError(extractErrorMessage(err, t("characterDetail.snapshot.loadFailed")));
       return false;
     } finally {
       if (
@@ -338,10 +344,11 @@ export const SnapshotManager: React.FC<{
       if (!isCurrentRequest(requestProfileId, snapshotViewSeqRef, requestSeq))
         return;
       setSnapshotData(nextSnapshot);
+      setResultError(null);
     } catch (err) {
       if (!isCurrentRequest(requestProfileId, snapshotViewSeqRef, requestSeq))
         return;
-      addToast(extractErrorMessage(err, t("characterDetail.snapshot.loadFailed")), "error");
+      setResultError(extractErrorMessage(err, t("characterDetail.snapshot.loadFailed")));
     }
   };
 
@@ -362,10 +369,11 @@ export const SnapshotManager: React.FC<{
       if (!isCurrentRequest(requestProfileId, chapterStateSeqRef, requestSeq))
         return;
       setChapterState(nextState);
+      setResultError(null);
     } catch (err) {
       if (!isCurrentRequest(requestProfileId, chapterStateSeqRef, requestSeq))
         return;
-      addToast(extractErrorMessage(err, t("characterDetail.snapshot.chapterStateFailed")), "error");
+      setResultError(extractErrorMessage(err, t("characterDetail.snapshot.chapterStateFailed")));
     }
   };
 
@@ -392,9 +400,10 @@ export const SnapshotManager: React.FC<{
       );
       if (!isCurrentRequest(requestProfileId, diffSeqRef, requestSeq)) return;
       setDelta(nextDelta);
+      setResultError(null);
     } catch (err) {
       if (!isCurrentRequest(requestProfileId, diffSeqRef, requestSeq)) return;
-      addToast(extractErrorMessage(err, t("characterDetail.snapshot.compareFailed")), "error");
+      setResultError(extractErrorMessage(err, t("characterDetail.snapshot.compareFailed")));
     } finally {
       if (isCurrentRequest(requestProfileId, diffSeqRef, requestSeq)) {
         setDiffing(false);
@@ -534,6 +543,15 @@ export const SnapshotManager: React.FC<{
             t("characterDetail.snapshot.refresh")
           )}
         </BookButton>
+        {loadError ? (
+          <div role="alert" className="flex flex-wrap items-center gap-2 rounded-xl border border-error/40 bg-error-bg px-3 py-2 text-small text-error">
+            <span className="min-w-0 flex-1">{loadError}</span>
+            <BookButton variant="secondary" size="sm" onClick={handleReload} disabled={loading}>
+              <RefreshCw size={13} className={loading ? "animate-spin" : undefined} />
+              {t("common.retry")}
+            </BookButton>
+          </div>
+        ) : null}
         {hasCurrentSnapshots && snapshots.length > 0 ? (
           <span className="pb-1 text-caption text-book-text-muted">
             {t("characterDetail.snapshot.count", { count: snapshots.length })}
@@ -637,9 +655,10 @@ export const SnapshotManager: React.FC<{
           </section>
         </div>
       </details>
+      {resultError ? <p role="alert" className="rounded-xl border border-error/40 bg-error-bg px-3 py-2 text-small text-error">{resultError}</p> : null}
       {loading ? (
         <div className="text-small text-book-text-muted">{t("characterDetail.snapshot.loading")}</div>
-      ) : !hasCurrentSnapshots ? (
+      ) : loadError && !hasCurrentSnapshots ? null : !hasCurrentSnapshots ? (
         <div className="text-small text-book-text-muted italic">
           {t("characterDetail.snapshot.notLoaded")}
         </div>
