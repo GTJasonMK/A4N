@@ -167,15 +167,14 @@ export const MangaPagePromptList: React.FC<MangaPagePromptListProps> = ({
   const activePage =
     pagePrompts.find((page) => page.pageNumber === selectedPage) ?? pagePrompts[0] ?? null;
   const activeDetailView = stageMode === "prompts" ? "prompt" : stageMode === "images" ? "image" : detailView ?? (activePage?.prompt.generated_image_id != null ? "image" : "prompt");
-  const hasUnsavedPrompt = Object.entries(promptDrafts).some(([id, draft]) => draft !== prompts.find((prompt) => prompt.id === Number(id))?.image_prompt);
-  useEffect(() => { onDirtyChange?.(hasUnsavedPrompt); }, [hasUnsavedPrompt, onDirtyChange]);
-  useEffect(() => () => onDirtyChange?.(false), [onDirtyChange]);
   const editingPromptId = activePage && promptDrafts[activePage.prompt.id] !== undefined ? activePage.prompt.id : null;
   const promptDraft = editingPromptId == null ? "" : promptDrafts[editingPromptId];
   const promptDraftDirty = Object.entries(promptDrafts).some(([id, value]) => {
     const prompt = prompts.find((item) => item.id === Number(id));
     return prompt != null && value !== prompt.image_prompt;
   });
+  useEffect(() => { onDirtyChange?.(promptDraftDirty); }, [promptDraftDirty, onDirtyChange]);
+  useEffect(() => () => onDirtyChange?.(false), [onDirtyChange]);
   useNovelDetailDirty(`manga-prompts:${prompts.map((prompt) => prompt.id).join(",")}`, promptDraftDirty);
   const setPromptDraft = (value: string) => {
     if (activePage) setPromptDrafts((current) => ({ ...current, [activePage.prompt.id]: value }));

@@ -117,4 +117,27 @@ describe("Media authoring against the real Host", () => {
     await next.click();
     await browser.waitUntil(async () => await $('[role="tablist"]').$$('[role="tab"]')[2].getAttribute("aria-selected") === "true");
   });
+
+  it("uses one route guard to cancel or discard a plan draft", async () => {
+    await browser.setWindowSize(1440, 1000);
+    await browser.url(`/comic-project/${ids.comic}`);
+    await $('[role="tab"][id$="-tab-adaptation"]').click();
+    const intention = () => $('//label[span[normalize-space()="改编目标"]]/textarea');
+    await intention().waitForDisplayed();
+    const saved = await intention().getValue();
+    await intention().setValue("未保存的返回导航回归");
+    await $('button[aria-label="返回上一页"]').click();
+    await $('[role="dialog"]').waitForDisplayed();
+    await browser.keys("Escape");
+    await $('[role="dialog"]').waitForDisplayed({ reverse: true });
+    assert.equal(await intention().getValue(), "未保存的返回导航回归");
+    await $('button[aria-label="返回上一页"]').click();
+    await $('[role="dialog"]').waitForDisplayed();
+    await $('//button[normalize-space()="放弃草稿"]').click();
+    await browser.waitUntil(async () => new URL(await browser.getUrl()).pathname === "/");
+    assert.equal(await $('[role="dialog"]').isExisting(), false);
+    await browser.url(`/comic-project/${ids.comic}`);
+    await intention().waitForDisplayed();
+    assert.equal(await intention().getValue(), saved);
+  });
 });
