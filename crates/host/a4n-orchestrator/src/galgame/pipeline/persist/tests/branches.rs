@@ -2,14 +2,14 @@ use super::*;
 
 #[test]
 fn rejects_branch_design_choice_after_missing_line() {
-    let mut scenes = shooting_script_projection_from_value(
+    let mut scenes = adaptation_projection_from_value(
         json!({
             "scenes": [
                 directing_scene_value(1, "分岔口", "s1"),
                 directing_scene_value(2, "回收点", "s2")
             ]
         }),
-        "galgame_shooting_script_projection",
+        "galgame_adaptation_projection",
     )
     .expect("scenes");
     scenes.scenes[1].chapter_number = 2;
@@ -20,7 +20,7 @@ fn rejects_branch_design_choice_after_missing_line() {
                     "scene_index": 1,
                     "lines": [{
                         "index": 1,
-                        "beat_ref": {"scene_index": 1, "shot_index": 1, "beat_index": 1},
+                        "origin": "source", "beat_ref": beat_reference(1, 1),
                         "line_type": "narration",
                         "text": "路灯闪了一下。",
                         "presentation": narration_presentation(),
@@ -31,7 +31,7 @@ fn rejects_branch_design_choice_after_missing_line() {
                     "scene_index": 2,
                     "lines": [{
                         "index": 1,
-                        "beat_ref": {"scene_index": 2, "shot_index": 1, "beat_index": 1},
+                        "origin": "source", "beat_ref": beat_reference(2, 1),
                         "line_type": "narration",
                         "text": "两人重新会合。",
                         "presentation": narration_presentation(),
@@ -47,7 +47,7 @@ fn rejects_branch_design_choice_after_missing_line() {
     let branch = branch_design_from_value(
         json!({
             "choices": [{
-                "after_beat_ref": {"scene_index": 1, "shot_index": 1, "beat_index": 99},
+                "after_beat_ref": beat_reference(1, 99),
                 "question": "要走哪条路？",
                 "options": [
                     {
@@ -58,7 +58,7 @@ fn rejects_branch_design_choice_after_missing_line() {
                         "dramatic_action": "主角走入小巷查看痕迹",
                         "reaction": "同伴警惕地守住入口",
                         "player_knowledge": ["小巷有新鲜脚印"],
-                        "returns_to_scene_index": 2
+                        "returns_to": {"source_chapter_id": 2, "unit_id": "scene-2"}
                     },
                     {
                         "branch_id": "wait_here",
@@ -68,7 +68,7 @@ fn rejects_branch_design_choice_after_missing_line() {
                         "dramatic_action": "主角停在路灯下观察",
                         "reaction": "同伴放慢脚步返回",
                         "player_knowledge": ["路灯闪烁有规律"],
-                        "returns_to_scene_index": 2
+                        "returns_to": {"source_chapter_id": 2, "unit_id": "scene-2"}
                     }
                 ]
             }]
@@ -105,14 +105,14 @@ fn rejects_branch_design_choice_after_missing_line() {
 
 #[test]
 fn inserts_choice_line_from_branch_design() {
-    let mut scenes = shooting_script_projection_from_value(
+    let mut scenes = adaptation_projection_from_value(
         json!({
             "scenes": [
                 directing_scene_value(1, "分岔口", "s1"),
                 directing_scene_value(2, "回收点", "s2")
             ]
         }),
-        "galgame_shooting_script_projection",
+        "galgame_adaptation_projection",
     )
     .expect("scenes");
     scenes.scenes[1].chapter_number = 2;
@@ -123,7 +123,7 @@ fn inserts_choice_line_from_branch_design() {
                     "scene_index": 1,
                     "lines": [{
                         "index": 1,
-                        "beat_ref": {"scene_index": 1, "shot_index": 1, "beat_index": 1},
+                        "origin": "source", "beat_ref": beat_reference(1, 1),
                         "line_type": "narration",
                         "text": "路灯闪了一下。",
                         "presentation": narration_presentation(),
@@ -134,7 +134,7 @@ fn inserts_choice_line_from_branch_design() {
                     "scene_index": 2,
                     "lines": [{
                         "index": 1,
-                        "beat_ref": {"scene_index": 2, "shot_index": 1, "beat_index": 1},
+                        "origin": "source", "beat_ref": beat_reference(2, 1),
                         "line_type": "narration",
                         "text": "两人重新会合。",
                         "presentation": narration_presentation(),
@@ -147,7 +147,7 @@ fn inserts_choice_line_from_branch_design() {
                     "branch_id": "left_lane",
                     "lines": [{
                         "index": 1,
-                        "beat_ref": {"scene_index": 1, "shot_index": 1, "beat_index": 1},
+                        "origin": "adapted", "beat_ref": beat_reference(1, 1),
                         "line_type": "stage_direction",
                         "text": "主角走入小巷查看痕迹，同伴警惕地守住入口。",
                         "presentation": narration_presentation(),
@@ -158,7 +158,7 @@ fn inserts_choice_line_from_branch_design() {
                     "branch_id": "wait_here",
                     "lines": [{
                         "index": 1,
-                        "beat_ref": {"scene_index": 1, "shot_index": 1, "beat_index": 1},
+                        "origin": "adapted", "beat_ref": beat_reference(1, 1),
                         "line_type": "stage_direction",
                         "text": "主角停在路灯下观察，同伴放慢脚步返回。",
                         "presentation": narration_presentation(),
@@ -173,7 +173,7 @@ fn inserts_choice_line_from_branch_design() {
     let branch = branch_design_from_value(
         json!({
             "choices": [{
-                "after_beat_ref": {"scene_index": 1, "shot_index": 1, "beat_index": 1},
+                "after_beat_ref": beat_reference(1, 1),
                 "question": "要走哪条路？",
                 "options": [
                     {
@@ -184,7 +184,7 @@ fn inserts_choice_line_from_branch_design() {
                         "dramatic_action": "主角走入小巷查看痕迹",
                         "reaction": "同伴警惕地守住入口",
                         "player_knowledge": ["小巷有新鲜脚印"],
-                        "returns_to_scene_index": 2
+                        "returns_to": {"source_chapter_id": 2, "unit_id": "scene-2"}
                     },
                     {
                         "branch_id": "wait_here",
@@ -194,7 +194,7 @@ fn inserts_choice_line_from_branch_design() {
                         "dramatic_action": "主角停在路灯下观察",
                         "reaction": "同伴放慢脚步返回",
                         "player_knowledge": ["路灯闪烁有规律"],
-                        "returns_to_scene_index": 2
+                        "returns_to": {"source_chapter_id": 2, "unit_id": "scene-2"}
                     }
                 ]
             }]
@@ -238,18 +238,14 @@ fn inserts_choice_line_from_branch_design() {
     assert_eq!(choice_line.choices[0].option_index, 1);
     assert_eq!(choice_line.choices[0].target_scene_index, 3);
     assert_eq!(choice_line.choices[1].target_scene_index, 4);
-    let choice_presentation = serde_json::from_value::<GalgameLinePresentationDocumentV2>(
+    let choice_presentation = serde_json::from_value::<GalgameLinePresentationDocumentV3>(
         choice_line.presentation_json.clone(),
     )
     .expect("choice presentation must use the complete v2 document");
     assert_eq!(choice_presentation.branch, Some(true));
     assert_eq!(
         choice_presentation.after_beat_ref,
-        Some(GalgamePipelineBeatRefV3 {
-            scene_index: 1,
-            shot_index: 1,
-            beat_index: 1,
-        })
+        Some(beat_reference(1, 1))
     );
 
     assert_eq!(plan.scenes[2].scene_index, 3);

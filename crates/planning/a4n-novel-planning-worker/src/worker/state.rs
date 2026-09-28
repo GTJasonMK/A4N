@@ -138,7 +138,7 @@ impl WorkerState {
         )
         .await?;
 
-        let source = a4n_db::project::resolve_chapter_source(
+        let source = a4n_db::project::resolve_video_chapter_source(
             self.database.connection(),
             request.payload.project_id,
             request.payload.source_chapter_id,
@@ -357,7 +357,12 @@ impl WorkerState {
         )
         .await
         .map_err(visual_plan_error)?;
+        let scene_choices = a4n_db::project::authoring_scene_profiles(self.database.connection(), &source)
+            .await.map_err(source_error)?.into_iter().map(|profile| a4n_api_contract::chapter_visual_plan::ChapterVisualPlanSceneChoice {
+                id: profile.id, project_id: profile.project_id, name: profile.name,
+            }).collect();
         Ok(ChapterVisualPlanSetView {
+            scene_choices,
             source: a4n_api_contract::chapter_visual_plan::ChapterVisualPlanSourceView {
                 chapter_number: source.chapter_number,
                 title: source.title,
@@ -583,7 +588,7 @@ impl WorkerState {
         &self,
         input: &ChapterShootingScriptSourceInput,
     ) -> Result<Option<a4n_db::shooting_script::ParsedChapterShootingScript>, WorkerFailure> {
-        let source = a4n_db::project::resolve_chapter_source(
+        let source = a4n_db::project::resolve_video_chapter_source(
             self.database.connection(),
             input.project_id,
             input.source_chapter_id,

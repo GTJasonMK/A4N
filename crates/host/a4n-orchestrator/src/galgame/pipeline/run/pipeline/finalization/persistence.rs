@@ -51,7 +51,8 @@ pub(in crate::galgame::pipeline::run::pipeline) async fn persist_galgame_pipelin
         .persist_pipeline_script(
             execution.project_id,
             persist_plan,
-            &execution.prompt_context.shooting_scripts,
+            &execution.prompt_context.adaptations,
+            early.branch_plan_ref.clone(),
         )
         .await?;
     let line_count = detail

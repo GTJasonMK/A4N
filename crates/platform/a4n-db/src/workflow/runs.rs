@@ -20,9 +20,10 @@ pub use checkpoints::{
 };
 pub use claim::claim_exclusive_workflow_run;
 pub use mutations::{
-    invalidate_chapter_analysis_after_source_change, mark_workflow_current_step,
-    mark_workflow_status, resume_or_upsert_workflow_run, resume_workflow_run,
-    resume_workflow_run_with_active_task, upsert_workflow_run, upsert_workflow_run_in_transaction,
+    continue_completed_workflow_run, invalidate_chapter_analysis_after_source_change,
+    mark_workflow_current_step, mark_workflow_status, resume_or_upsert_workflow_run,
+    resume_workflow_run, resume_workflow_run_with_active_task, upsert_workflow_run,
+    upsert_workflow_run_in_transaction,
 };
 pub use progress::{
     persist_workflow_progress_snapshot, record_workflow_progress_event, workflow_progress_events,

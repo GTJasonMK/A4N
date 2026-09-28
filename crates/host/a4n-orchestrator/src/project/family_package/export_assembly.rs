@@ -77,6 +77,8 @@ pub(crate) fn assemble_project_family_export_package(
         profile_evidence: export_rows.profile_evidence,
         chapter_visual_plans: export_rows.chapter_visual_plans,
         chapter_shooting_scripts: export_rows.chapter_shooting_scripts,
+        authoring_documents: export_rows.authoring_documents,
+        authoring_receipts: export_rows.authoring_receipts,
         character_portraits: export_rows.character_portraits,
         generated_images: export_rows.generated_images,
         chapter_manga_prompts: export_rows.chapter_manga_prompts,

@@ -17,7 +17,7 @@ export type {
   GalgameFacingV2,
   GalgameGenerationTargetKind,
   GalgameLine,
-  GalgameLinePresentationDocumentV2,
+  GalgameLinePresentationDocumentV3,
   GalgameLinePresentationSchemaVersion,
   GalgameLineType,
   GalgameMediaAsset,
@@ -25,7 +25,7 @@ export type {
   GalgameMediaBindingSummary,
   GalgameMediaRole,
   GalgameMediaTargetKind,
-  GalgamePipelineBeatRefV3,
+  GalgamePipelineBeatRefV4,
   GalgamePipelineStartStage,
   GalgamePipelineStatusSummary,
   GalgameProjectInput,
@@ -63,8 +63,8 @@ export async function getGalgameScript(projectId: Id): Promise<Host.GalgameScrip
 
 export async function startGalgamePipeline(
   input: Host.StartGalgamePipelineInput,
-): Promise<Host.GalgameScriptDetail> {
-  return apiInvoke<Host.GalgameScriptDetail>("start_galgame_pipeline", {
+): Promise<Host.GalgameScriptDetail | null> {
+  return apiInvoke<Host.GalgameScriptDetail | null>("start_galgame_pipeline", {
     input,
   });
 }

@@ -19,15 +19,12 @@ pub(super) fn line_draft_from_raw(
     }
     Ok(GalgamePipelineLineDraft {
         index: line.index,
+        origin: line.origin,
         beat_ref: validated_beat_ref(line.beat_ref, context)?,
         line_type,
         speaker_name,
         text: required_text(line.text, &format!("{context}.lines[].text"))?,
-        source_span_ids: normalize_source_span_ids(
-            line.source_span_ids,
-            &format!("{context}.lines[].source_span_ids"),
-            true,
-        )?,
+        source_span_ids: line_source_span_ids(line.origin, line.source_span_ids, context)?,
     })
 }
 
@@ -62,38 +59,40 @@ pub(super) fn line_staged_from_raw(
     validate_staged_presentation(&line.presentation, speaker_profile_id, context)?;
     Ok(GalgamePipelineLineStaged {
         index: line.index,
+        origin: line.origin,
         beat_ref: validated_beat_ref(line.beat_ref, context)?,
         line_type,
         speaker_profile_id,
         speaker_name,
         text: required_text(line.text, &format!("{context}.lines[].text"))?,
         presentation: line.presentation,
-        source_span_ids: normalize_source_span_ids(
-            line.source_span_ids,
-            &format!("{context}.lines[].source_span_ids"),
-            true,
-        )?,
+        source_span_ids: line_source_span_ids(line.origin, line.source_span_ids, context)?,
     })
 }
 
-fn validated_beat_ref(
-    beat_ref: GalgamePipelineBeatRefV3,
+fn line_source_span_ids(
+    origin: a4n_domain::media_authoring::AdaptationOrigin,
+    spans: Vec<String>,
     context: &str,
-) -> Result<GalgamePipelineBeatRefV3, AppError> {
-    require_positive(
-        beat_ref.scene_index,
-        &format!("{context}.lines[].beat_ref.scene_index"),
-    )?;
-    if beat_ref.shot_index == 0 {
-        return Err(invalid(format!(
-            "{context}.lines[].beat_ref.shot_index 必须大于 0"
-        )));
-    }
-    if beat_ref.beat_index == 0 {
-        return Err(invalid(format!(
-            "{context}.lines[].beat_ref.beat_index 必须大于 0"
-        )));
-    }
+) -> Result<Vec<String>, AppError> {
+    let spans =
+        normalize_source_span_ids(spans, &format!("{context}.lines[].source_span_ids"), false)?;
+    a4n_domain::media_authoring::validate_adaptation_evidence(
+        origin,
+        &spans,
+        &spans.iter().cloned().collect(),
+    )
+    .map_err(|error| invalid(format!("{context}.lines[].source_span_ids: {error}")))?;
+    Ok(spans)
+}
+
+fn validated_beat_ref(
+    beat_ref: GalgamePipelineBeatRefV4,
+    context: &str,
+) -> Result<GalgamePipelineBeatRefV4, AppError> {
+    beat_ref
+        .validate()
+        .map_err(|error| invalid(format!("{context}.lines[].beat_ref: {error}")))?;
     Ok(beat_ref)
 }
 

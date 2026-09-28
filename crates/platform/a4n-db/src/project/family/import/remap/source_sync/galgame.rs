@@ -46,6 +46,11 @@ fn remap_galgame_stage_outputs(
     maps: &ImportIdMaps,
     label: &str,
 ) -> Result<(), ProjectFamilyImportError> {
+    if a4n_domain::media_authoring::legacy::source_sync::archived_stage_outputs(value)
+        .map_err(ProjectFamilyImportError::invalid_package)?
+    {
+        return Ok(());
+    }
     match value {
         Value::Object(object) => {
             for key in ["presentation", "presentation_json"] {
@@ -69,13 +74,16 @@ fn remap_galgame_stage_outputs(
                         &maps.source_snapshot_chapter_ids,
                     ),
                     ("source_chapter_id", &maps.chapter_ids),
+                    ("adaptation_plan_id", &maps.authoring_document_ids),
                     ("galgame_scene_id", &maps.galgame_scene_ids),
                     ("galgame_line_id", &maps.galgame_line_ids),
                 ],
             )?;
             remap_source_span_id_array(object, "source_span_ids", maps, label)?;
-            for nested in object.values_mut() {
-                remap_galgame_stage_outputs(nested, maps, label)?;
+            for (key, nested) in object.iter_mut() {
+                if !matches!(key.as_str(), "presentation" | "presentation_json") {
+                    remap_galgame_stage_outputs(nested, maps, label)?;
+                }
             }
         }
         Value::Array(items) => {

@@ -42,6 +42,34 @@ pub(super) fn validate_galgame_scenes(
                 scene.id
             ));
         }
+        match (
+            scene.adaptation_plan_id,
+            scene.adaptation_unit_id.as_deref(),
+        ) {
+            (Some(id), Some(unit)) => {
+                let document = package
+                    .authoring_documents
+                    .iter()
+                    .find(|row| row.id == id)
+                    .ok_or("游戏场景引用的本地改编计划不存在")?;
+                if document.project_id != script.project_id
+                    || document.kind != "adaptation_plan"
+                    || document.source_snapshot_id != snapshot_chapter.snapshot_id
+                    || document.source_chapter_id != Some(snapshot_chapter.source_chapter_id)
+                    || !matches!(document.status.as_str(), "adopted" | "superseded")
+                {
+                    return Err("游戏场景与本地改编计划的归属或来源不一致".into());
+                }
+                let plan: a4n_domain::media_authoring::AdaptationPlanV1 =
+                    serde_json::from_value(document.document_json.clone())
+                        .map_err(|error| error.to_string())?;
+                if !plan.units.iter().any(|item| item.id == unit) {
+                    return Err("游戏场景引用的本地单元不存在".into());
+                }
+            }
+            (None, None) if scene.entry_kind == "branch" => {}
+            _ => return Err("游戏场景缺少完整本地改编来源".into()),
+        }
         if let Some(next_scene_id) = scene.next_scene_id
             && !scenes.contains_key(&next_scene_id)
         {

@@ -8,11 +8,6 @@ mod progress;
 mod queries;
 mod validation;
 
-pub(crate) use codec::parse_record;
-pub(crate) use progress::{
-    chapter_shooting_script_progress_for_plans, mark_shooting_progress_source_updated,
-};
-
 pub use contracts::{
     ChapterVisualPlanIdentity, DeleteStoredChapterShootingScriptInput,
     EditChapterShootingScriptOutcome, InsertChapterShootingScriptInput,

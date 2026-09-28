@@ -691,6 +691,14 @@ async fn setup_project_chapter() -> (
         .build()
         .await;
     let mut project = insert_video_project(database.as_ref(), "provider generation 定向").await;
+    novel_project::ActiveModel {
+        id: Set(project.root_project_id.unwrap()),
+        user_id: Set(owner_id),
+        ..Default::default()
+    }
+    .update(database.as_ref())
+    .await
+    .expect("原作与派生测试项目使用同一拥有者");
     project = novel_project::ActiveModel {
         id: Set(project.id),
         user_id: Set(owner_id),

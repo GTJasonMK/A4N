@@ -163,6 +163,8 @@ async fn galgame_script_detail_scene_lines(
         .select_only()
         .column(galgame_scene::Column::Id)
         .column(galgame_scene::Column::SourceSnapshotChapterId)
+        .column(galgame_scene::Column::AdaptationPlanId)
+        .column(galgame_scene::Column::AdaptationUnitId)
         .column(galgame_scene::Column::SceneIndex)
         .column(galgame_scene::Column::Title)
         .column(galgame_scene::Column::Location)

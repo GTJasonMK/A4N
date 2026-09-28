@@ -137,6 +137,7 @@ impl MigratorTrait for Migrator {
             Box::new(crate::migrations::frozen_chapter_identity::Migration),
             Box::new(crate::migrations::shooting_script_timing_v2::Migration),
             Box::new(crate::migrations::workflow_chapter_identity::Migration),
+            Box::new(crate::migrations::media_authoring::Migration),
         ]
     }
 }

@@ -1,5 +1,7 @@
 use std::collections::HashSet;
 
+use crate::manga::adaptation_projection::MangaBeatIndex;
+use a4n_domain::media_authoring::AdaptationBeatRef;
 use a4n_error::AppError;
 use serde_json::Value;
 
@@ -19,39 +21,18 @@ pub(in crate::manga::pipeline::prompt::validation) fn validate_manga_nonnegative
 pub(in crate::manga::pipeline::prompt::validation) fn validate_manga_beat_ref(
     value: Option<&Value>,
     path: &str,
-    known_beats: &HashSet<(i64, i64, i64)>,
-) -> Result<(i64, i64, i64), AppError> {
-    let object = value
-        .and_then(Value::as_object)
-        .ok_or_else(|| AppError::InvalidArgument(format!("{path} 必须是对象")))?;
-    if object.len() != 3
-        || !object.contains_key("scene_index")
-        || !object.contains_key("shot_index")
-        || !object.contains_key("beat_index")
-    {
+    known_beats: &MangaBeatIndex,
+) -> Result<AdaptationBeatRef, AppError> {
+    let value = value.ok_or_else(|| AppError::InvalidArgument(format!("{path} 缺失")))?;
+    let beat_ref: AdaptationBeatRef = serde_json::from_value(value.clone())
+        .map_err(|error| AppError::InvalidArgument(format!("{path} 无效: {error}")))?;
+    beat_ref
+        .validate()
+        .map_err(|error| AppError::InvalidArgument(format!("{path}.{error}")))?;
+    if !known_beats.contains_key(&beat_ref) {
         return Err(AppError::InvalidArgument(format!(
-            "{path} 只能包含 scene_index、shot_index 和 beat_index"
-        )));
-    }
-    let scene_index = object
-        .get("scene_index")
-        .and_then(Value::as_i64)
-        .filter(|value| *value > 0)
-        .ok_or_else(|| AppError::InvalidArgument(format!("{path}.scene_index 必须是正整数")))?;
-    let beat_index = object
-        .get("beat_index")
-        .and_then(Value::as_i64)
-        .filter(|value| *value > 0)
-        .ok_or_else(|| AppError::InvalidArgument(format!("{path}.beat_index 必须是正整数")))?;
-    let shot_index = object
-        .get("shot_index")
-        .and_then(Value::as_i64)
-        .filter(|value| *value > 0)
-        .ok_or_else(|| AppError::InvalidArgument(format!("{path}.shot_index 必须是正整数")))?;
-    let beat_ref = (scene_index, shot_index, beat_index);
-    if !known_beats.contains(&beat_ref) {
-        return Err(AppError::InvalidArgument(format!(
-            "{path} 引用了不存在的拍摄节拍: scene_index={scene_index}, shot_index={shot_index}, beat_index={beat_index}"
+            "{path} 引用了不存在的改编节拍: unit_id={}, beat_id={}",
+            beat_ref.unit_id, beat_ref.beat_id
         )));
     }
     Ok(beat_ref)
@@ -60,8 +41,8 @@ pub(in crate::manga::pipeline::prompt::validation) fn validate_manga_beat_ref(
 pub(in crate::manga::pipeline::prompt::validation) fn validate_manga_beat_refs(
     value: Option<&Value>,
     path: &str,
-    known_beats: &HashSet<(i64, i64, i64)>,
-) -> Result<(), AppError> {
+    known_beats: &MangaBeatIndex,
+) -> Result<Vec<AdaptationBeatRef>, AppError> {
     let refs = value
         .and_then(Value::as_array)
         .ok_or_else(|| AppError::InvalidArgument(format!("{path} 必须是数组")))?;
@@ -73,12 +54,52 @@ pub(in crate::manga::pipeline::prompt::validation) fn validate_manga_beat_refs(
     for (index, value) in refs.iter().enumerate() {
         let beat_ref =
             validate_manga_beat_ref(Some(value), &format!("{path}[{index}]"), known_beats)?;
-        if !seen.insert(beat_ref) {
+        if !seen.insert(beat_ref.clone()) {
             return Err(AppError::InvalidArgument(format!(
-                "{path} 包含重复拍摄节拍引用：scene_index={}, shot_index={}, beat_index={}",
-                beat_ref.0, beat_ref.1, beat_ref.2
+                "{path} 包含重复改编节拍引用：unit_id={}, beat_id={}",
+                beat_ref.unit_id, beat_ref.beat_id
             )));
         }
+    }
+    Ok(seen.into_iter().collect())
+}
+
+pub(in crate::manga::pipeline::prompt::validation) fn validate_manga_adaptation_sources(
+    ids: &[String],
+    references: &[AdaptationBeatRef],
+    known_beats: &MangaBeatIndex,
+    source_spans: &super::source::SourceSpanIndex<'_>,
+    path: &str,
+) -> Result<(), AppError> {
+    use a4n_domain::media_authoring::{AdaptationOrigin, validate_adaptation_evidence};
+    let mut origins = Vec::new();
+    let mut available = std::collections::BTreeSet::new();
+    for reference in references {
+        let beat = known_beats
+            .get(reference)
+            .ok_or_else(|| AppError::InvalidArgument(format!("{path} 引用了未知改编节拍")))?;
+        origins.push(beat.origin);
+        available.extend(beat.source_span_ids.iter().cloned());
+    }
+    let origin = if origins
+        .iter()
+        .any(|origin| matches!(origin, AdaptationOrigin::Source | AdaptationOrigin::Adapted))
+    {
+        AdaptationOrigin::Adapted
+    } else if origins
+        .iter()
+        .all(|origin| *origin == AdaptationOrigin::Added)
+    {
+        AdaptationOrigin::Added
+    } else {
+        AdaptationOrigin::Historical
+    };
+    validate_adaptation_evidence(origin, ids, &available)
+        .map_err(|error| AppError::InvalidArgument(format!("{path}: {error}")))?;
+    for id in ids {
+        source_spans
+            .resolve_text(id)
+            .map_err(|error| AppError::InvalidArgument(format!("{path}: {error}")))?;
     }
     Ok(())
 }
@@ -90,14 +111,15 @@ mod tests {
 
     #[test]
     fn typed_beat_reference_must_exist_before_the_next_stage() {
-        let known = HashSet::from([(1, 1, 1)]);
-        let mut value = json!({"scene_index": 1, "shot_index": 1, "beat_index": 1});
+        let known = crate::manga::tests::known_beats(&[], 1);
+        let original = json!({"unit_id": "unit-1", "beat_id": "beat-1"});
+        let mut value = original.clone();
         assert!(validate_manga_beat_ref(Some(&value), "beat_ref", &known).is_ok());
-        for field in ["scene_index", "shot_index", "beat_index"] {
-            value[field] = json!(2);
+        for field in ["unit_id", "beat_id"] {
+            value[field] = json!("other");
             let error = validate_manga_beat_ref(Some(&value), "beat_ref", &known).unwrap_err();
-            assert!(error.to_string().contains("不存在的拍摄节拍"));
-            value[field] = json!(1);
+            assert!(error.to_string().contains("不存在的改编节拍"));
+            value[field] = original[field].clone();
         }
     }
 }

@@ -1,7 +1,7 @@
 pub use a4n_domain::galgame::GalgameLinePresentationV2;
 use serde::{Deserialize, Serialize};
 
-use super::scene_script::GalgamePipelineBeatRefV3;
+use super::scene_script::GalgamePipelineBeatRefV4;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct GalgameCharacterStaging {
@@ -18,7 +18,8 @@ pub struct GalgamePipelineSceneLineStaged {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct GalgamePipelineLineStaged {
     pub index: i32,
-    pub beat_ref: GalgamePipelineBeatRefV3,
+    pub origin: a4n_domain::media_authoring::AdaptationOrigin,
+    pub beat_ref: GalgamePipelineBeatRefV4,
     pub line_type: String,
     pub speaker_profile_id: Option<i64>,
     pub speaker_name: Option<String>,
@@ -51,7 +52,8 @@ pub(in crate::galgame::pipeline::json) struct SceneLineStagedRaw {
 #[serde(deny_unknown_fields)]
 pub(in crate::galgame::pipeline::json) struct LineStagedRaw {
     pub(in crate::galgame::pipeline::json) index: i32,
-    pub(in crate::galgame::pipeline::json) beat_ref: GalgamePipelineBeatRefV3,
+    pub(in crate::galgame::pipeline::json) origin: a4n_domain::media_authoring::AdaptationOrigin,
+    pub(in crate::galgame::pipeline::json) beat_ref: GalgamePipelineBeatRefV4,
     pub(in crate::galgame::pipeline::json) line_type: String,
     pub(in crate::galgame::pipeline::json) speaker_profile_id: Option<i64>,
     pub(in crate::galgame::pipeline::json) speaker_name: Option<String>,

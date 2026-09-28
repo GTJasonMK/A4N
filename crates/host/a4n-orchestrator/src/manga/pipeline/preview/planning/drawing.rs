@@ -1,4 +1,4 @@
-use a4n_domain::manga::MangaPagePlanV3;
+use a4n_domain::manga::MangaPagePlanV4;
 use a4n_error::AppError;
 use serde_json::Value;
 
@@ -13,7 +13,7 @@ use super::super::contracts::{
 pub(super) async fn preview_page_drawing_prompts(
     context: &MangaPreviewContext<'_>,
     steps: &mut Vec<MangaPipelineRequestPreviewStep>,
-    plan: &MangaPagePlanV3,
+    plan: &MangaPagePlanV4,
     extraction_summary: &Value,
     reference_assets: &Value,
 ) -> Result<(), AppError> {

@@ -1,12 +1,12 @@
 use std::collections::HashSet;
 
-use a4n_domain::manga::MangaPageV3;
+use a4n_domain::manga::MangaPageV4;
 use a4n_error::AppError;
 use serde_json::{Map, Value, json};
 
 use super::validation::required_manga_string;
 
-pub(super) fn character_names_for_page(page_plan: &MangaPageV3) -> HashSet<String> {
+pub(super) fn character_names_for_page(page_plan: &MangaPageV4) -> HashSet<String> {
     page_plan
         .panels
         .iter()

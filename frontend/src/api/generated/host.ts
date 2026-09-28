@@ -12,6 +12,7 @@ export const HOST_API_COMMANDS = [
   "add_image_config",
   "add_profile_attribute",
   "add_video_config",
+  "adopt_media_authoring_document",
   "apply_assembly_postprocess_edit",
   "apply_implicit_update_decision",
   "apply_optimization_patches",
@@ -112,6 +113,7 @@ export const HOST_API_COMMANDS = [
   "forward_project_status",
   "generate_chapter_analysis",
   "generate_chapter_scene",
+  "generate_media_adaptation_plan",
   "generate_object_profile_image_prompt",
   "generate_portrait_prompt",
   "generate_scene_profile_image_prompt",
@@ -137,6 +139,7 @@ export const HOST_API_COMMANDS = [
   "get_inspiration_history",
   "get_log_dir",
   "get_manga_pipeline_status",
+  "get_media_authoring_workspace",
   "get_model_usage_report",
   "get_optimize_session",
   "get_package_operation",
@@ -220,6 +223,7 @@ export const HOST_API_COMMANDS = [
   "list_snapshots",
   "list_source_snapshot_chapters",
   "list_themes",
+  "list_video_adaptation_references",
   "list_video_configs",
   "list_video_reference_images",
   "list_videos_by_chapter",
@@ -264,6 +268,7 @@ export const HOST_API_COMMANDS = [
   "preview_generate_portrait_request",
   "preview_import_project_analysis_request",
   "preview_inspiration_request",
+  "preview_media_adaptation_plan_request",
   "preview_object_profile_image_request",
   "preview_page_image_request",
   "preview_prepare_optimization_analysis_session_request",
@@ -349,6 +354,7 @@ export const HOST_API_COMMANDS = [
   "save_canvas_text_asset",
   "save_chapter_outline",
   "save_chapter_visual_plan_draft",
+  "save_media_authoring_document",
   "save_part_outline",
   "select_segment_video",
   "set_default_embedding_config",
@@ -473,6 +479,7 @@ export const RUNTIME_CONFIG_POLICIES: Readonly<Record<string, RuntimeConfigPolic
   "discover_character_profiles": "full",
   "generate_chapter_analysis": "full",
   "generate_chapter_scene": "full",
+  "generate_media_adaptation_plan": "full",
   "generate_portrait_prompt": "full",
   "import_chapter": "full",
   "optimize_chapter_video_prompt": "full",
@@ -504,6 +511,7 @@ export const RUNTIME_CONFIG_POLICIES: Readonly<Record<string, RuntimeConfigPolic
   "preview_generate_portrait_request": "without_secrets",
   "preview_import_project_analysis_request": "without_secrets",
   "preview_inspiration_request": "without_secrets",
+  "preview_media_adaptation_plan_request": "without_secrets",
   "preview_object_profile_image_request": "without_secrets",
   "preview_page_image_request": "without_secrets",
   "preview_prepare_optimization_analysis_session_request": "without_secrets",
@@ -2230,11 +2238,225 @@ export interface ExportFileData {
 export interface MangaPipelineStartInput {
   chapter_number: number;
   project_id: number;
+  stop_after?: MangaPipelineStopAfter | null;
+}
+
+export type MangaPipelineStopAfter = "page_planning" | "drawing_prompt";
+
+export type AdaptationTarget = "manga" | "galgame";
+
+export type AdaptationPlanVersion = "adaptation_plan_v1";
+
+export type AdaptationOrigin = "source" | "adapted" | "added" | "historical";
+
+export type AdaptationImportance = "required" | "important" | "supporting";
+
+export type AdaptationBeatKind = "action" | "dialogue" | "reaction" | "revelation" | "transition";
+
+export type AuthoringDocumentKind = "adaptation_plan" | "galgame_branch_plan" | "manga_page_plan";
+
+export type AuthoringDocumentStatus = "draft" | "adopted" | "superseded";
+
+export type VideoReferenceStatus = "current" | "updated" | "unavailable";
+
+export interface AdaptationBeat {
+  action: string;
+  dialogue_intent: string | null;
+  entry_state: string;
+  exit_state: string;
+  id: string;
+  importance: AdaptationImportance;
+  is_climax: boolean;
+  kind: AdaptationBeatKind;
+  origin: AdaptationOrigin;
+  reaction: string | null;
+  source_span_ids: string[];
+}
+
+export interface AdaptationUnit {
+  beats: AdaptationBeat[];
+  dramatic_question: string;
+  entry_state: string;
+  exit_state: string;
+  id: string;
+  location: string | null;
+  objective: string;
+  obstacle: string;
+  origin: AdaptationOrigin;
+  participants: string[];
+  source_span_ids: string[];
+  title: string;
+}
+
+export interface AdaptationUnitRef {
+  source_chapter_id: number;
+  unit_id: string;
+}
+
+export interface GalgameBranchDesign {
+  choices: GalgamePipelineChoicePlan[];
+}
+
+export interface GalgamePipelineChoicePlan {
+  after_beat_ref: GalgamePipelineBeatRefV4;
+  options: GalgamePipelineChoiceOptionPlan[];
+  question: string;
+}
+
+export interface GalgamePipelineChoiceOptionPlan {
+  branch_id: string;
+  branch_objective: string;
+  branch_title: string;
+  dramatic_action: string;
+  option_text: string;
+  player_knowledge: string[];
+  reaction: string;
+  returns_to: AdaptationUnitRef;
+}
+
+export interface AdaptationDecision {
+  description: string;
+  reason: string;
+  source_span_ids: string[];
+}
+
+export interface AdaptationPlanV1 {
+  decisions: AdaptationDecision[];
+  intention: string;
+  schema_version: AdaptationPlanVersion;
+  target: AdaptationTarget;
+  units: AdaptationUnit[];
+}
+
+export interface AuthoringSourceRef {
+  content_sha256: string;
+  root_project_id: number;
+  source_chapter_id: number;
+  source_snapshot_chapter_id: number;
+  source_snapshot_id: number;
+}
+
+export interface VideoAdaptationReference {
+  project_title: string;
+  script_id: number;
+  script_revision: number;
+  script_sha256: string;
+  source: AuthoringSourceRef;
+  units: AdaptationUnit[];
+  video_project_id: number | null;
+}
+
+export interface AuthoringDocumentRef {
+  id: number;
+  revision: number;
+  sha256: string;
+}
+
+export interface AuthoringDocumentInputs {
+  dependencies: AuthoringDocumentRef[];
+  sources: AuthoringSourceRef[];
+  video_reference: VideoAdaptationReference | null;
+}
+
+export interface AuthoringDocumentRecord {
+  document: unknown;
+  id: number;
+  inputs: AuthoringDocumentInputs;
+  kind: AuthoringDocumentKind;
+  project_id: number;
+  revision: number;
+  sha256: string;
+  source_chapter_id: number | null;
+  source_snapshot_id: number;
+  status: AuthoringDocumentStatus;
+  version: number;
+}
+
+export interface MediaAuthoringInput {
+  chapter_id?: number | null;
+  project_id: number;
+}
+
+export interface SaveAuthoringDocumentInput {
+  chapter_id?: number | null;
+  document: unknown;
+  expected_revision?: number | null;
+  kind: AuthoringDocumentKind;
+  project_id: number;
+  record_id?: number | null;
+}
+
+export interface AdoptAuthoringDocumentInput {
+  expected_revision: number;
+  project_id: number;
+  record_id: number;
+}
+
+export interface VideoScriptSelection {
+  revision: number;
+  script_id: number;
+  video_project_id: number;
+}
+
+export interface GenerateAdaptationPlanInput {
+  chapter_id: number;
+  clear_video_reference?: boolean;
+  expected_revision?: number | null;
+  instruction: string;
+  project_id: number;
+  record_id?: number | null;
+  resume_from_checkpoint?: boolean;
+  task_id: string;
+  video_reference?: VideoScriptSelection | null;
+}
+
+export interface AuthoringSourceSpan {
+  id: string;
+  text: string;
+}
+
+export interface AuthoringChapter {
+  chapter_number: number;
+  source: AuthoringSourceRef;
+  source_spans: AuthoringSourceSpan[];
+  title: string | null;
+}
+
+export interface AuthoringDocumentView {
+  record: AuthoringDocumentRecord;
+  stale: boolean;
+  video_reference_status: VideoReferenceStatus | null;
+}
+
+export interface MediaAuthoringWorkspace {
+  artifacts: MediaAuthoringArtifactView[];
+  chapters: AuthoringChapter[];
+  documents: AuthoringDocumentView[];
+  source_snapshot_id: number;
+  target: AdaptationTarget;
+}
+
+export interface MediaAuthoringArtifactView {
+  count: number;
+  kind: MediaAuthoringArtifactKind;
+  source_chapter_id: number | null;
+  stale: boolean;
+}
+
+export type MediaAuthoringArtifactKind = "manga_pages" | "galgame_script";
+
+export interface VideoScriptReferenceCandidate {
+  chapter_number: number;
+  project_title: string;
+  same_source_content: boolean;
+  selection: VideoScriptSelection;
+  source: AuthoringSourceRef;
 }
 
 export interface MangaPipelineResumeInput {
   chapter_number: number;
   project_id: number;
+  stop_after?: MangaPipelineStopAfter | null;
 }
 
 export interface MangaChapterInput {
@@ -2291,14 +2513,13 @@ export interface MangaPipelineStatusesInput {
   project_id: number;
 }
 
-export type MangaPagePlanSchemaVersion = "manga_page_plan_v3";
+export type MangaPagePlanSchemaVersion = "manga_page_plan_v4";
 
 export type MangaPageDrawingPromptSchemaVersion = "manga_page_drawing_prompt_v2";
 
-export interface MangaShootingBeatRefV3 {
-  beat_index: number;
-  scene_index: number;
-  shot_index: number;
+export interface AdaptationBeatRef {
+  beat_id: string;
+  unit_id: string;
 }
 
 export type MangaPageRoleV2 = "opening" | "setup" | "rising" | "climax" | "falling" | "resolution" | "transition";
@@ -2331,7 +2552,7 @@ export interface MangaTextLayerV2 {
 }
 
 export interface MangaPanelV2 {
-  beat_refs: MangaShootingBeatRefV3[];
+  beat_refs: AdaptationBeatRef[];
   camera_angle: MangaCameraAngleV2;
   composition: string;
   continuity_from_previous: string | null;
@@ -2346,8 +2567,8 @@ export interface MangaPanelV2 {
   text_layers: MangaTextLayerV2[];
 }
 
-export interface MangaPageV3 {
-  beat_refs: MangaShootingBeatRefV3[];
+export interface MangaPageV4 {
+  beat_refs: AdaptationBeatRef[];
   dominant_panel_number: number;
   entry_state: string;
   exit_state: string;
@@ -2359,6 +2580,13 @@ export interface MangaPageV3 {
   reading_flow: MangaReadingFlowV2;
   role: MangaPageRoleV2;
   visual_thesis: string;
+}
+
+export interface MangaPagePlanV4 {
+  adaptation_plan_id: number;
+  adaptation_plan_revision: number;
+  pages: MangaPageV4[];
+  schema_version: MangaPagePlanSchemaVersion;
 }
 
 export interface MangaPageDrawingPromptV2 {
@@ -2381,11 +2609,11 @@ export interface MangaReferenceBindingSummary {
 }
 
 export interface MangaPagePromptSourceSummary {
+  adaptation_plan_id: number;
+  adaptation_plan_revision: number;
+  adaptation_plan_sha256: string;
   content_sha256: string;
   root_project_id: number;
-  shooting_script_id: number;
-  shooting_script_revision: number;
-  shooting_script_sha256: string;
   source_chapter_id: number;
   source_revision_key: string;
   source_snapshot_chapter_id: number | null;
@@ -2401,7 +2629,7 @@ export interface MangaPagePromptSummary {
   id: number;
   image_prompt: string;
   page_number: number;
-  page_plan: MangaPageV3;
+  page_plan: MangaPageV4;
   project_id: number;
   reference_bindings: MangaReferenceBindingSummary[];
   source: MangaPagePromptSourceSummary;
@@ -2417,16 +2645,20 @@ export interface StartGalgamePipelineInput {
   project_id: number;
   resume_from_checkpoint?: boolean;
   start_from_stage?: GalgamePipelineStartStage | null;
+  stop_after?: GalgamePipelineStopAfter | null;
   task_id: string;
 }
+
+export type GalgamePipelineStopAfter = "branch_design" | "script";
 
 export interface PreviewGalgamePipelineInput {
   project_id: number;
   resume_from_checkpoint?: boolean;
   start_from_stage?: GalgamePipelineStartStage | null;
+  stop_after?: GalgamePipelineStopAfter | null;
 }
 
-export type GalgamePipelineStartStage = "shooting_script_projection" | "branch_design" | "script_adaptation" | "character_staging" | "visual_planning" | "persist_script" | "asset_generation";
+export type GalgamePipelineStartStage = "adaptation_plan" | "branch_design" | "script_adaptation" | "character_staging" | "visual_planning" | "persist_script" | "asset_generation";
 
 export interface GalgamePipelineStatusSummary {
   checkpoints: GalgameWorkflowCheckpointSummary[];
@@ -2492,6 +2724,8 @@ export interface GalgameSceneDetail {
 }
 
 export interface GalgameScene {
+  adaptation_plan_id: number | null;
+  adaptation_unit_id: string | null;
   background_note: string | null;
   entry_kind: GalgameSceneEntryKind;
   id: number;
@@ -2512,7 +2746,7 @@ export interface GalgameLine {
   line_type: GalgameLineType;
   pose: string | null;
   position: GalgameStagePositionV2 | null;
-  presentation_json: GalgameLinePresentationDocumentV2;
+  presentation_json: GalgameLinePresentationDocumentV3;
   scene_id: number;
   speaker_profile_id: number | null;
   text: string;
@@ -2523,8 +2757,9 @@ export type GalgameLineType = "dialogue" | "narration" | "monologue" | "stage_di
 
 export type GalgameStagePositionV2 = "left" | "center" | "right";
 
-export interface GalgameLinePresentationDocumentV2 {
-  after_beat_ref: GalgamePipelineBeatRefV3 | null;
+export interface GalgameLinePresentationDocumentV3 {
+  after_beat_ref: GalgamePipelineBeatRefV4 | null;
+  beat_ref: GalgamePipelineBeatRefV4 | null;
   branch: boolean | null;
   branch_id: string | null;
   cg: boolean | null;
@@ -2534,14 +2769,17 @@ export interface GalgameLinePresentationDocumentV2 {
   exit: number[];
   focus_character_profile_id: number | null;
   hold: boolean;
+  origin: AdaptationOrigin;
   player_knowledge: string[];
   returns_to_scene_index: number | null;
-  schema_version: GalgameLinePresentationSchemaVersion;
+  schema_version: GalgameLineDocumentSchemaVersion;
   transition: GalgameTransition | null;
   visible_cast: GalgameVisibleCastMemberV2[];
 }
 
 export type GalgameLinePresentationSchemaVersion = "galgame_line_presentation_v2";
+
+export type GalgameLineDocumentSchemaVersion = "galgame_line_presentation_v3";
 
 export interface GalgameVisibleCastMemberV2 {
   character_profile_id: number;
@@ -2560,10 +2798,10 @@ export type GalgameCgImportance = "normal" | "high" | "critical";
 
 export type GalgameTransition = "cut" | "fade" | "dissolve";
 
-export interface GalgamePipelineBeatRefV3 {
-  beat_index: number;
-  scene_index: number;
-  shot_index: number;
+export interface GalgamePipelineBeatRefV4 {
+  beat_id: string;
+  source_chapter_id: number;
+  unit_id: string;
 }
 
 export interface GalgameChoice {
@@ -2693,7 +2931,7 @@ export type GalgameAudioRole = "bgm" | "sfx";
 export interface UpdateGalgameLineInput {
   line_id: number;
   line_type?: GalgameLineType;
-  presentation?: GalgameLinePresentationDocumentV2;
+  presentation?: GalgameLinePresentationDocumentV3;
   speaker_profile_id?: number | null;
   text?: string;
   text_anchor_id?: number | null;
@@ -2711,7 +2949,7 @@ export interface UpdateGalgameSceneInput {
 export interface InsertGalgameLineInput {
   after_line_id?: number | null;
   line_type: GalgameLineType;
-  presentation: GalgameLinePresentationDocumentV2;
+  presentation: GalgameLinePresentationDocumentV3;
   scene_id: number;
   speaker_profile_id?: number | null;
   text: string;
@@ -4966,8 +5204,15 @@ export interface ChapterVisualPlanView {
 export interface ChapterVisualPlanSetView {
   confirmed: ChapterVisualPlanView | null;
   draft: ChapterVisualPlanView | null;
+  scene_choices: ChapterVisualPlanSceneChoice[];
   source: ChapterVisualPlanSourceView;
   starter_plan: ChapterVisualPlanV3;
+}
+
+export interface ChapterVisualPlanSceneChoice {
+  id: number;
+  name: string;
+  project_id: number;
 }
 
 export interface ReadChapterVisualPlanInput {

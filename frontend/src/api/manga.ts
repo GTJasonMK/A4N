@@ -6,7 +6,7 @@ export type {
   MangaPageImportanceV2,
   MangaPagePacingV2,
   MangaPageRoleV2,
-  MangaPageV3,
+  MangaPageV4,
   MangaPanelV2,
   MangaPipelineStatusSummary,
   MangaPagePromptSourceSummary,

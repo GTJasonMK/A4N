@@ -6,6 +6,7 @@ pub struct PersistGalgameScriptRecordInput {
     pub project_id: i64,
     pub root_project_id: i64,
     pub source_snapshot_id: i64,
+    pub branch_plan: Option<a4n_domain::media_authoring::AuthoringDocumentRef>,
     pub title: String,
     pub style_config_json: Value,
     pub status: String,
@@ -16,7 +17,8 @@ pub struct PersistGalgameScriptRecordInput {
 pub struct PersistGalgameSceneRecordInput {
     pub scene_index: i32,
     pub source_snapshot_chapter_id: i64,
-    pub shooting_scene_identity: Option<String>,
+    pub adaptation_plan_id: Option<i64>,
+    pub adaptation_unit_id: Option<String>,
     pub title: String,
     pub location: Option<String>,
     pub time_of_day: Option<String>,

@@ -1,17 +1,17 @@
 use std::collections::BTreeSet;
 
 use super::super::contracts::{
-    MangaPageV3, MangaPanelSizeV2, MangaPanelV2, MangaShootingBeatRefV3, MangaTextLayerKindV2,
-    MangaTextLayerV2,
+    MangaPageV4, MangaPanelSizeV2, MangaPanelV2, MangaTextLayerKindV2, MangaTextLayerV2,
 };
 use super::MangaPlanValidationError;
 use super::rules::{
     index_u32, invalid, optional_text, required_text, unique_required_beat_refs, unique_texts,
     validation_error,
 };
+use crate::media_authoring::AdaptationBeatRef;
 
 pub(super) fn validate_page(
-    page: &MangaPageV3,
+    page: &MangaPageV4,
     path: &str,
 ) -> Result<(), MangaPlanValidationError> {
     unique_required_beat_refs(&page.beat_refs, format!("{path}.beat_refs"))?;
@@ -61,17 +61,17 @@ pub(super) fn validate_page(
 fn validate_panel(
     panel: &MangaPanelV2,
     path: &str,
-    page_beat_refs: &[MangaShootingBeatRefV3],
+    page_beat_refs: &[AdaptationBeatRef],
 ) -> Result<(), MangaPlanValidationError> {
     let panel_refs = unique_required_beat_refs(&panel.beat_refs, format!("{path}.beat_refs"))?;
-    let page_refs = page_beat_refs.iter().copied().collect::<BTreeSet<_>>();
+    let page_refs = page_beat_refs.iter().cloned().collect::<BTreeSet<_>>();
     for beat_ref in panel_refs {
         if !page_refs.contains(&beat_ref) {
             return invalid(
                 format!("{path}.beat_refs"),
                 format!(
-                    "scene_index={}, shot_index={}, beat_index={} 不属于所在页",
-                    beat_ref.scene_index, beat_ref.shot_index, beat_ref.beat_index
+                    "改编单元 {} 的节拍 {} 不属于所在页",
+                    beat_ref.unit_id, beat_ref.beat_id
                 ),
             );
         }

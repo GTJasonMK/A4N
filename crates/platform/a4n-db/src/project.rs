@@ -54,6 +54,7 @@ pub use chapter::scene::{
 };
 pub use chapter::source::{
     ResolveChapterSourceError, resolve_chapter_source, resolve_snapshot_sources,
+    resolve_video_chapter_source,
 };
 pub use cleanup::ProjectCleanupDbError;
 pub(crate) use cleanup::{
@@ -140,15 +141,12 @@ pub use progress::{
     project_progress_summary,
 };
 pub use rollback_impact::{ProjectRollbackImpactReadError, project_rollback_impacts};
-pub(crate) use source_snapshot::projects_using_source_snapshot;
-pub use source_snapshot::scene_profiles_for_source;
 pub use source_snapshot::{
     CreateDerivedProjectParams, DerivedChapterScope, create_derived_project_record,
     source_snapshot_chapter_content_by_snapshot_and_source, source_snapshot_chapters,
 };
-pub(crate) use source_snapshot::{
-    create_source_snapshot_in_record, shooting_script_source_hash, source_snapshot_version_hash,
-};
+pub use source_snapshot::{authoring_scene_profiles, scene_profiles_for_source};
+pub(crate) use source_snapshot::{create_source_snapshot_in_record, source_snapshot_version_hash};
 pub(crate) use status::delete_project_status_history;
 pub use status::{
     ProjectStatusReadError, ProjectStatusWriteError, insert_project_status_history,

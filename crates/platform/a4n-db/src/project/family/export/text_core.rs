@@ -11,6 +11,7 @@ use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QueryOrder
 pub(super) async fn project_family_export_text_core_rows<C>(
     db: &C,
     root_project_id: i64,
+    family_project_ids: &[i64],
 ) -> Result<ProjectFamilyTextCoreRows, ProjectFamilyExportError>
 where
     C: ConnectionTrait,
@@ -103,7 +104,7 @@ where
         },
         async {
             scene_profile::Entity::find()
-                .filter(scene_profile::Column::ProjectId.eq(root_project_id))
+                .filter(scene_profile::Column::ProjectId.is_in(family_project_ids.to_vec()))
                 .order_by_asc(scene_profile::Column::Id)
                 .all(db)
                 .await

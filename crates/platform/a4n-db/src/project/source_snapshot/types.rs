@@ -1,6 +1,5 @@
-use a4n_db_models::models::chapter::{chapter, chapter_visual_plan};
+use a4n_db_models::models::chapter::chapter;
 use serde_json::Value;
-use std::collections::HashMap;
 
 pub(crate) use a4n_domain::project::SourceSnapshotChapterSummary;
 
@@ -21,19 +20,12 @@ pub struct CreateDerivedProjectParams {
 
 pub(super) struct SourceSnapshotBuildData {
     pub(super) chapters: Vec<chapter::Model>,
-    pub(super) visual_plans: HashMap<i64, chapter_visual_plan::Model>,
-    pub(super) shooting_scripts: HashMap<i64, SourceSnapshotShootingScript>,
     pub(super) profiles: Vec<SourceSnapshotProfile>,
     pub(super) chapter_hashes_json: Vec<Value>,
     pub(super) profile_hashes_json: Value,
     pub(super) latest_blueprint_version_id: Option<i64>,
     pub(super) chapter_scope_json: Value,
     pub(super) source_version_hash: String,
-}
-
-pub(super) struct SourceSnapshotShootingScript {
-    pub(super) script_json: Value,
-    pub(super) input_fingerprint_sha256: String,
 }
 
 pub(super) struct SourceSnapshotProfile {

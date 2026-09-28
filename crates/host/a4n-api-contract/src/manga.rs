@@ -4,14 +4,15 @@ use serde_json::Value;
 
 pub use a4n_domain::DownstreamConflictStrategy;
 pub use a4n_domain::manga::{
-    MANGA_PAGE_DRAWING_PROMPT_V2, MANGA_PAGE_PLAN_V3, MangaBoundReferenceAsset, MangaCameraAngleV2,
+    MANGA_PAGE_DRAWING_PROMPT_V2, MANGA_PAGE_PLAN_V4, MangaBoundReferenceAsset, MangaCameraAngleV2,
     MangaPageDrawingPromptSchemaVersion, MangaPageDrawingPromptV2,
     MangaPageGenerationSchemaVersion, MangaPageImportanceV2, MangaPagePacingV2,
-    MangaPagePlanSchemaVersion, MangaPagePlanV3, MangaPagePromptSourceSummary, MangaPageRoleV2,
-    MangaPageV3, MangaPanelFunctionV2, MangaPanelSizeV2, MangaPanelV2, MangaReadingFlowV2,
-    MangaReferenceAssetKind, MangaReferenceBindingSummary, MangaShootingBeatRefV3,
-    MangaShotScaleV2, MangaTextLayerKindV2, MangaTextLayerV2, MangaTextPlacementV2,
+    MangaPagePlanSchemaVersion, MangaPagePlanV4, MangaPagePromptSourceSummary, MangaPageRoleV2,
+    MangaPageV4, MangaPanelFunctionV2, MangaPanelSizeV2, MangaPanelV2, MangaReadingFlowV2,
+    MangaReferenceAssetKind, MangaReferenceBindingSummary, MangaShotScaleV2, MangaTextLayerKindV2,
+    MangaTextLayerV2, MangaTextPlacementV2,
 };
+pub use a4n_domain::media_authoring::AdaptationBeatRef;
 
 /// Host-provided cleanup for media that becomes unreachable after a Manga
 /// prompt mutation. The Manga owner decides which image IDs are safe to remove.
@@ -81,6 +82,7 @@ pub struct MangaPipelineStartInput {
     pub project_id: i64,
     #[schemars(range(min = 1))]
     pub chapter_number: i32,
+    pub stop_after: Option<MangaPipelineStopAfter>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
@@ -90,6 +92,14 @@ pub struct MangaPipelineResumeInput {
     pub project_id: i64,
     #[schemars(range(min = 1))]
     pub chapter_number: i32,
+    pub stop_after: Option<MangaPipelineStopAfter>,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum MangaPipelineStopAfter {
+    PagePlanning,
+    DrawingPrompt,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
@@ -140,6 +150,7 @@ pub trait MangaPipelineExecutionApplicationPort: Send + Sync {
         chapter_number: i32,
         task_id: String,
         resume_from_checkpoint: bool,
+        stop_after: Option<MangaPipelineStopAfter>,
         prompt_renderer: &dyn crate::prompt::PromptRenderPort,
     ) -> Result<(), a4n_error::AppError>;
 }
@@ -153,6 +164,7 @@ pub trait MangaPipelinePreviewApplicationPort: Send + Sync {
         project_id: i64,
         chapter_number: i32,
         resume_from_checkpoint: bool,
+        stop_after: Option<MangaPipelineStopAfter>,
         prompt_renderer: &dyn crate::prompt::PromptRenderPort,
     ) -> Result<Vec<MangaPipelinePreviewStep>, a4n_error::AppError>;
 }
@@ -255,7 +267,7 @@ pub struct MangaPagePromptSummary {
     pub page_number: i32,
     pub image_prompt: String,
     pub dialogue_text: Option<String>,
-    pub page_plan: MangaPageV3,
+    pub page_plan: MangaPageV4,
     pub drawing_prompt: MangaPageDrawingPromptV2,
     pub reference_bindings: Vec<MangaReferenceBindingSummary>,
     pub source: MangaPagePromptSourceSummary,

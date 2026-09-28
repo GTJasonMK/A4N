@@ -521,7 +521,7 @@ async fn manga_family_application_round_trip_remaps_all_owned_identities_and_med
         )
         .await
         .expect("完整漫画项目族应通过 application 导入");
-    assert_eq!(imported.len(), 2);
+    assert_eq!(imported.len(), 3);
     let imported_root = imported
         .iter()
         .find(|project| project.project_kind == "text")
@@ -640,16 +640,18 @@ async fn manga_family_application_round_trip_remaps_all_owned_identities_and_med
         Some(new_snapshot_chapter.id)
     );
     assert_eq!(new_plan.author_user_id, owner_user_id);
-    assert_eq!(old_snapshot_chapter.visual_plan_id, Some(old_plan.id));
-    assert_eq!(new_snapshot_chapter.visual_plan_id, Some(new_plan.id));
-    assert_eq!(
-        new_snapshot_chapter.visual_plan_version,
-        Some(new_plan.plan_version)
-    );
-    assert_eq!(
-        new_snapshot_chapter.visual_plan_sha256.as_deref(),
-        Some(new_plan.plan_sha256.as_str())
-    );
+    assert_eq!(old_snapshot_chapter.content, new_snapshot_chapter.content);
+    for source in [old_snapshot_chapter, new_snapshot_chapter] {
+        let value = serde_json::to_value(source).unwrap();
+        assert!(value.get("visual_plan_id").is_none());
+    }
+    let movie = remapped
+        .package
+        .projects
+        .iter()
+        .find(|project| project.project_kind == "video")
+        .unwrap();
+    assert_eq!(new_plan.project_id, movie.id);
 
     let old_script = &original.package.chapter_shooting_scripts[0];
     let new_script = &remapped.package.chapter_shooting_scripts[0];
@@ -744,10 +746,10 @@ async fn manga_family_application_round_trip_remaps_all_owned_identities_and_med
     let new_layout = new_prompt
         .layout
         .as_ref()
-        .expect("漫画提示词应保留 v2 layout");
+        .expect("漫画提示词应保留本地计划布局");
     assert_eq!(
         new_layout["schema_version"],
-        json!("manga_page_generation_v2")
+        json!("manga_page_generation_v3")
     );
     assert!(new_layout.get("shooting_script_id").is_none());
     assert!(new_layout.get("shooting_script_revision").is_none());
@@ -768,9 +770,18 @@ async fn manga_family_application_round_trip_remaps_all_owned_identities_and_med
         new_layout["source"]["source_revision_key"],
         json!(new_source_revision_key)
     );
+    assert!(new_layout["source"].get("shooting_script_id").is_none());
+    let adaptation = remapped
+        .package
+        .authoring_documents
+        .iter()
+        .find(|row| row.kind == "adaptation_plan")
+        .unwrap();
+    assert_eq!(new_layout["source"]["adaptation_plan_id"], adaptation.id);
+    assert_eq!(adaptation.project_id, new_comic.id);
     assert_eq!(
-        new_layout["source"]["shooting_script_id"],
-        json!(new_script.id)
+        new_layout["source"]["adaptation_plan_sha256"],
+        adaptation.document_sha256
     );
     assert_eq!(
         new_layout["reference_bindings"][0]["bound_asset"]["asset_id"],
@@ -961,9 +972,14 @@ async fn seed_manga_family_round_trip(
     .insert(database)
     .await
     .expect("round-trip 漫画派生项目应可写入");
+    let mut video: novel_project::ActiveModel = comic.clone().into();
+    video.id = sea_orm::NotSet;
+    video.project_kind = Set("video".into());
+    video.title = Set("round-trip-video".into());
+    let video = video.insert(database).await.unwrap();
 
     let source = a4n_domain::chapter::ResolvedChapterSource {
-        requested_project_id: comic.id,
+        requested_project_id: video.id,
         root_project_id: root.id,
         source_chapter_id: chapter.id,
         source_snapshot_id: Some(snapshot.id),
@@ -986,7 +1002,7 @@ async fn seed_manga_family_round_trip(
     );
     let mut plan = crate::shooting_script::visual_plan_fixture(&source).plan;
     let scene_id =
-        crate::shooting_script::seed_visual_plan_scene(database, source.root_project_id).await;
+        crate::shooting_script::seed_visual_plan_scene(database, source.requested_project_id).await;
     plan.points.remove(1);
     plan.points[1].at_ms = 2000;
     plan.segments.truncate(1);
@@ -1030,6 +1046,7 @@ async fn seed_manga_family_round_trip(
         snapshot.id, snapshot_chapter.id, content_hash
     );
     let script = chapter_shooting_script::ActiveModel {
+        project_id: Set(video.id),
         root_project_id: Set(root.id),
         source_chapter_id: Set(chapter.id),
         source_snapshot_id: Set(Some(snapshot.id)),
@@ -1172,6 +1189,9 @@ async fn seed_manga_family_round_trip(
     .update(database)
     .await
     .expect("round-trip 漫画结果图片 metadata 应可更新");
+    a4n_migration::migrations::media_authoring::migrate_legacy_media(database)
+        .await
+        .expect("旧漫画页面应转换为本地计划后再验证包往返");
 
     (
         root,
@@ -1517,6 +1537,8 @@ fn empty_package(root: novel_project::Model) -> ProjectFamilyPackage {
         profile_evidence: Vec::new(),
         chapter_visual_plans: Vec::new(),
         chapter_shooting_scripts: Vec::new(),
+        authoring_documents: Vec::new(),
+        authoring_receipts: Vec::new(),
         character_portraits: Vec::new(),
         generated_images: Vec::new(),
         chapter_manga_prompts: Vec::new(),

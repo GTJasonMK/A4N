@@ -87,7 +87,7 @@ async fn create_video_record_rejects_chapter_from_another_project_without_insert
         err,
         AppError::InvalidArgument(message)
             if message == format!(
-                "章节 #{} 不属于文本项目 {}",
+                "章节 #{} 不属于视频项目 {} 绑定的根文本项目",
                 other_chapter.id, first_project.id
             )
     ));

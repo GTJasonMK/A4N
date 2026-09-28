@@ -684,7 +684,7 @@ mod tests {
     use super::*;
     use crate::galgame::{GalgameLine, GalgameScene};
     use a4n_domain::galgame::{
-        GalgameFacingV2, GalgameLinePresentationDocumentV2, GalgameStageLayerV2,
+        GalgameFacingV2, GalgameLinePresentationDocumentV3, GalgameStageLayerV2,
         GalgameStagePositionV2, GalgameVisibleCastMemberV2,
     };
     use serde_json::Value;
@@ -692,6 +692,8 @@ mod tests {
     fn scene(lines: Vec<GalgameLine>) -> GalgameSceneDetail {
         GalgameSceneDetail {
             scene: GalgameScene {
+                adaptation_plan_id: None,
+                adaptation_unit_id: None,
                 id: 10,
                 source_snapshot_chapter_id: 20,
                 scene_index: 1,
@@ -728,8 +730,10 @@ mod tests {
         enter: Vec<i64>,
         exit: Vec<i64>,
     ) -> Value {
-        serde_json::to_value(GalgameLinePresentationDocumentV2 {
-            schema_version: a4n_domain::galgame::GalgameLinePresentationSchemaVersion::V2,
+        serde_json::to_value(GalgameLinePresentationDocumentV3 {
+            schema_version: a4n_domain::galgame::GalgameLineDocumentSchemaVersion::V3,
+            origin: a4n_domain::media_authoring::AdaptationOrigin::Historical,
+            beat_ref: None,
             visible_cast,
             enter,
             exit,

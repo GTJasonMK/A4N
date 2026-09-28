@@ -43,7 +43,7 @@ pub(in crate::source_sync) fn prepared_galgame_scene_regeneration_decision(
             reason: payload.reason,
             expected_scene_index: plan.scene.scene_index,
             expected_source_snapshot_chapter_id: plan.scene.source_snapshot_chapter_id,
-            generated_scene: source_sync_galgame_scene_write_record(plan.scene.clone()),
+            generated_scene: source_sync_galgame_scene_write_record(plan.scene.clone())?,
             stage_outputs_json: plan.stage_outputs_json.clone(),
             decision_payload_json,
         },

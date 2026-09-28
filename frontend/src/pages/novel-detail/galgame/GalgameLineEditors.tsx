@@ -21,7 +21,7 @@ import type { SourceSnapshotChapterSummary } from "../../../api/project";
 import type {
   GalgameCgImportance,
   GalgameLine,
-  GalgameLinePresentationDocumentV2,
+  GalgameLinePresentationDocumentV3,
   GalgameLineType,
   GalgameMediaBindingSummary,
   GalgameScene,
@@ -626,7 +626,7 @@ const PresentationEditor: React.FC<{
   onDraftChange: (draft: CgDraft) => void;
   onSave: (draft: CgDraft) => void;
   disabled: boolean;
-  onPatch: (presentationJson: GalgameLinePresentationDocumentV2) => void;
+  onPatch: (presentationJson: GalgameLinePresentationDocumentV3) => void;
 }> = ({ line, draft, onDraftChange, onSave, disabled, onPatch }) => {
   const { t } = useI18n();
   const presentation = line.presentation_json;

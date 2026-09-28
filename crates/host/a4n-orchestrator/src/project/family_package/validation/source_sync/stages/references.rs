@@ -2,12 +2,6 @@ use serde_json::{Map, Value};
 
 use super::super::contracts::{RegenerateSceneStageOutputContext, SourceSyncReferenceSets};
 use super::super::json::{validate_optional_json_id_ref, validate_source_span_ids};
-use super::shape::{
-    validate_regenerate_scene_branch_design_stage_output,
-    validate_regenerate_scene_single_scene_line_stage_output,
-    validate_regenerate_scene_visual_planning_stage_output,
-    validate_regenerate_shooting_script_projection_stage_output,
-};
 
 pub(super) fn validate_stage_output_object(
     object: &Map<String, Value>,
@@ -17,16 +11,13 @@ pub(super) fn validate_stage_output_object(
     owner_id: i64,
     path: &str,
 ) -> Result<(), String> {
-    validate_regenerate_shooting_script_projection_stage_output(
-        object,
-        context.expected_chapter_number,
-        owner_kind,
-        owner_id,
-        path,
-    )?;
-    validate_regenerate_scene_single_scene_line_stage_output(object, owner_kind, owner_id, path)?;
-    validate_regenerate_scene_visual_planning_stage_output(object, owner_kind, owner_id, path)?;
-    validate_regenerate_scene_branch_design_stage_output(object, owner_kind, owner_id, path)?;
+    if let Some(number) = object.get("chapter_number") {
+        ensure_package!(
+            number.as_i64() == Some(i64::from(context.expected_chapter_number)),
+            "项目族导入包 {path}.chapter_number 与重建目标章节不一致: chapter_number={number}, expected={}",
+            context.expected_chapter_number
+        );
+    }
     if let Some(text_anchor_id) = validate_optional_json_id_ref(
         object,
         "text_anchor_id",

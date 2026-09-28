@@ -11,6 +11,44 @@ pub(in crate::project::family_package::tests) fn package_with_galgame_project()
 -> ProjectFamilyPackage {
     let mut package = package_with_derived_project();
     package.projects[1] = derived_galgame_project();
+    package.authoring_documents = package.source_snapshot_chapters.iter().map(|source| {
+        let document = json!({
+            "schema_version": "adaptation_plan_v1", "target": "galgame",
+            "intention": "保留现有场景", "decisions": [],
+            "units": [{
+                "id": "opening", "origin": "historical", "title": "开场",
+                "location": null, "participants": [], "dramatic_question": "发生什么",
+                "objective": "呈现开场", "obstacle": "未知", "entry_state": "开始", "exit_state": "结束",
+                "source_span_ids": [], "beats": [{
+                    "id": "narration", "kind": "action", "is_climax": false,
+                    "origin": "historical", "importance": "required", "action": "开场旁白",
+                    "reaction": null, "dialogue_intent": null, "entry_state": "开始", "exit_state": "结束",
+                    "source_span_ids": []
+                }]
+            }]
+        });
+        let inputs = json!({
+            "sources": [{
+                "root_project_id": source.root_project_id,
+                "source_chapter_id": source.source_chapter_id,
+                "source_snapshot_id": source.snapshot_id,
+                "source_snapshot_chapter_id": source.id,
+                "content_sha256": source.content_hash
+            }],
+            "video_reference": null, "dependencies": []
+        });
+        a4n_db_models::models::project::media_authoring_document::Model {
+            id: 1400 + source.id,
+            project_id: 2,
+            source_snapshot_id: source.snapshot_id,
+            source_chapter_id: Some(source.source_chapter_id),
+            kind: "adaptation_plan".into(), version: 1, revision: 1, status: "adopted".into(),
+            document_sha256: a4n_db::generation::canonical_json_sha256(&(&inputs, &document)).unwrap(),
+            inputs_json: inputs,
+            document_json: document,
+            created_at: dt(), updated_at: dt(),
+        }
+    }).collect();
     package.galgame_scripts = vec![galgame_script_record()];
     package.galgame_scenes = vec![galgame_scene_record(1001)];
     package.galgame_lines = vec![galgame_line_record(2201)];
@@ -23,6 +61,7 @@ pub(in crate::project::family_package::tests) fn galgame_script_record() -> galg
         project_id: 2,
         root_project_id: 1,
         source_snapshot_id: 901,
+        branch_plan_id: None,
         title: "Galgame 剧本".to_string(),
         style_config_json: json!({}),
         status: "draft".to_string(),
@@ -47,7 +86,8 @@ pub(in crate::project::family_package::tests) fn galgame_scene_record_with_id(
         id,
         script_id: 2101,
         source_snapshot_chapter_id,
-        shooting_scene_identity: None,
+        adaptation_plan_id: Some(1400 + source_snapshot_chapter_id),
+        adaptation_unit_id: Some("opening".into()),
         scene_index: 1,
         title: "开场".to_string(),
         location: None,
@@ -90,7 +130,7 @@ pub(in crate::project::family_package::tests) fn galgame_line_record_with_id(
 
 pub(in crate::project::family_package::tests) fn empty_galgame_presentation_json() -> Value {
     json!({
-        "schema_version": "galgame_line_presentation_v2",
+        "schema_version": "galgame_line_presentation_v3", "origin": "historical", "beat_ref": null,
         "visible_cast": [],
         "enter": [],
         "exit": [],

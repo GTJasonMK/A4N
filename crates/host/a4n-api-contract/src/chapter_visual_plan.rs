@@ -66,9 +66,17 @@ pub struct ChapterVisualPlanView {
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
 pub struct ChapterVisualPlanSetView {
     pub source: ChapterVisualPlanSourceView,
+    pub scene_choices: Vec<ChapterVisualPlanSceneChoice>,
     pub starter_plan: ChapterVisualPlanV3,
     pub draft: Option<ChapterVisualPlanView>,
     pub confirmed: Option<ChapterVisualPlanView>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+pub struct ChapterVisualPlanSceneChoice {
+    pub id: i64,
+    pub project_id: i64,
+    pub name: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]

@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use a4n_domain::galgame::{
-    GalgameAudioRole, GalgameGenerationTargetKind, GalgameLinePresentationDocumentV2,
+    GalgameAudioRole, GalgameGenerationTargetKind, GalgameLinePresentationDocumentV3,
     GalgameLineType, GalgameMediaRole, GalgameMediaTargetKind, GalgamePipelineStartStage,
     GalgameSceneEntryKind, GalgameStagePositionV2, GalgameTargetEntityKind,
 };
@@ -32,6 +32,14 @@ pub struct StartGalgamePipelineInput {
     pub start_from_stage: Option<GalgamePipelineStartStage>,
     #[serde(default)]
     pub resume_from_checkpoint: bool,
+    pub stop_after: Option<GalgamePipelineStopAfter>,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum GalgamePipelineStopAfter {
+    BranchDesign,
+    Script,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
@@ -54,7 +62,7 @@ pub trait GalgamePipelineExecutionApplicationPort: Send + Sync {
         input: StartGalgamePipelineInput,
         progress_reporter: Option<GalgameProgressReporter>,
         prompt_renderer: &dyn crate::prompt::PromptRenderPort,
-    ) -> Result<GalgameScriptDetail, a4n_error::AppError>;
+    ) -> Result<Option<GalgameScriptDetail>, a4n_error::AppError>;
 }
 
 /// Host-facing Galgame pipeline request-preview boundary.
@@ -110,6 +118,7 @@ pub struct PreviewGalgamePipelineInput {
     pub start_from_stage: Option<GalgamePipelineStartStage>,
     #[serde(default)]
     pub resume_from_checkpoint: bool,
+    pub stop_after: Option<GalgamePipelineStopAfter>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
@@ -277,6 +286,8 @@ pub struct GalgameSceneDetail {
 pub struct GalgameScene {
     pub id: i64,
     pub source_snapshot_chapter_id: i64,
+    pub adaptation_plan_id: Option<i64>,
+    pub adaptation_unit_id: Option<String>,
     pub scene_index: i32,
     pub title: String,
     pub location: Option<String>,
@@ -297,7 +308,7 @@ pub struct GalgameLine {
     pub expression: Option<String>,
     pub pose: Option<String>,
     pub position: Option<GalgameStagePositionV2>,
-    pub presentation_json: GalgameLinePresentationDocumentV2,
+    pub presentation_json: GalgameLinePresentationDocumentV3,
     pub text_anchor_id: Option<i64>,
 }
 
@@ -480,8 +491,8 @@ pub struct UpdateGalgameLineInput {
     #[schemars(with = "String")]
     pub text: Option<String>,
     #[serde(default, deserialize_with = "deserialize_non_null_update_field")]
-    #[schemars(with = "GalgameLinePresentationDocumentV2")]
-    pub presentation: Option<GalgameLinePresentationDocumentV2>,
+    #[schemars(with = "GalgameLinePresentationDocumentV3")]
+    pub presentation: Option<GalgameLinePresentationDocumentV3>,
     #[serde(default, deserialize_with = "deserialize_nullable_update_field")]
     #[schemars(with = "Option<i64>")]
     pub text_anchor_id: Option<Option<i64>>,
@@ -518,7 +529,7 @@ pub struct InsertGalgameLineInput {
     pub line_type: GalgameLineType,
     pub speaker_profile_id: Option<i64>,
     pub text: String,
-    pub presentation: GalgameLinePresentationDocumentV2,
+    pub presentation: GalgameLinePresentationDocumentV3,
     pub text_anchor_id: Option<i64>,
 }
 

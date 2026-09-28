@@ -8,13 +8,12 @@ mod contracts;
 mod validation;
 
 pub use contracts::{
-    MANGA_PAGE_DRAWING_PROMPT_V2, MANGA_PAGE_PLAN_V3, MangaCameraAngleV2,
+    MANGA_PAGE_DRAWING_PROMPT_V2, MANGA_PAGE_PLAN_V4, MangaCameraAngleV2,
     MangaPageDrawingPromptSchemaVersion, MangaPageDrawingPromptV2,
     MangaPageGenerationSchemaVersion, MangaPageImportanceV2, MangaPagePacingV2,
-    MangaPagePlanSchemaVersion, MangaPagePlanV3, MangaPageRoleV2, MangaPageV3,
-    MangaPanelFunctionV2, MangaPanelSizeV2, MangaPanelV2, MangaReadingFlowV2,
-    MangaShootingBeatRefV3, MangaShotScaleV2, MangaTextLayerKindV2, MangaTextLayerV2,
-    MangaTextPlacementV2,
+    MangaPagePlanSchemaVersion, MangaPagePlanV4, MangaPageRoleV2, MangaPageV4,
+    MangaPanelFunctionV2, MangaPanelSizeV2, MangaPanelV2, MangaReadingFlowV2, MangaShotScaleV2,
+    MangaTextLayerKindV2, MangaTextLayerV2, MangaTextPlacementV2,
 };
 pub use validation::MangaPlanValidationError;
 
@@ -73,24 +72,63 @@ pub struct MangaPagePromptSourceSummary {
     pub source_snapshot_chapter_id: Option<i64>,
     pub source_revision_key: String,
     pub content_sha256: String,
-    pub shooting_script_id: i64,
-    pub shooting_script_revision: i32,
-    pub shooting_script_sha256: String,
+    pub adaptation_plan_id: i64,
+    pub adaptation_plan_revision: i32,
+    pub adaptation_plan_sha256: String,
+}
+
+impl MangaPagePromptSourceSummary {
+    pub fn matches_authoring(
+        &self,
+        source: &crate::media_authoring::AuthoringSourceRef,
+        plan: &crate::media_authoring::AuthoringDocumentRef,
+    ) -> bool {
+        self.root_project_id == source.root_project_id
+            && self.source_chapter_id == source.source_chapter_id
+            && self.source_snapshot_id == Some(source.source_snapshot_id)
+            && self.source_snapshot_chapter_id == Some(source.source_snapshot_chapter_id)
+            && self.content_sha256 == source.content_sha256
+            && self.source_revision_key
+                == format!(
+                    "snapshot:{}:chapter:{}:{}",
+                    source.source_snapshot_id,
+                    source.source_snapshot_chapter_id,
+                    source.content_sha256
+                )
+            && self.adaptation_plan_id == plan.id
+            && self.adaptation_plan_revision == plan.revision
+            && self.adaptation_plan_sha256 == plan.sha256
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
-pub struct MangaPageGenerationLayoutV2 {
+pub struct MangaPageGenerationLayoutV3 {
     pub schema_version: MangaPageGenerationSchemaVersion,
-    pub page_plan: MangaPageV3,
+    pub page_plan: MangaPageV4,
+    pub page_plan_ref: Option<crate::media_authoring::AuthoringDocumentRef>,
     pub drawing_prompt: MangaPageDrawingPromptV2,
     pub reference_bindings: Vec<MangaReferenceBindingSummary>,
     pub prompt_fingerprint: Value,
     pub source: MangaPagePromptSourceSummary,
 }
 
-impl MangaPageGenerationLayoutV2 {
+impl MangaPageGenerationLayoutV3 {
     pub fn validate(&self, expected_page_number: u32) -> Result<(), MangaPlanValidationError> {
+        if let Some(reference) = &self.page_plan_ref
+            && (reference.id <= 0
+                || reference.revision <= 0
+                || reference.sha256.len() != 64
+                || !reference
+                    .sha256
+                    .bytes()
+                    .all(|byte| byte.is_ascii_hexdigit()))
+        {
+            return Err(MangaPlanValidationError {
+                path: "page_plan_ref".into(),
+                message: "分页计划版本身份无效".into(),
+            });
+        }
         self.page_plan.validate()?;
         self.drawing_prompt.validate(expected_page_number)?;
         if self.page_plan.page_number != expected_page_number {
@@ -99,15 +137,15 @@ impl MangaPageGenerationLayoutV2 {
                 message: format!("必须等于 {expected_page_number}"),
             });
         }
-        if self.source.shooting_script_id <= 0 {
+        if self.source.adaptation_plan_id <= 0 {
             return Err(MangaPlanValidationError {
-                path: "source.shooting_script_id".to_string(),
+                path: "source.adaptation_plan_id".to_string(),
                 message: "必须大于 0".to_string(),
             });
         }
-        if self.source.shooting_script_revision <= 0 {
+        if self.source.adaptation_plan_revision <= 0 {
             return Err(MangaPlanValidationError {
-                path: "source.shooting_script_revision".to_string(),
+                path: "source.adaptation_plan_revision".to_string(),
                 message: "必须大于 0".to_string(),
             });
         }
@@ -133,8 +171,8 @@ impl MangaPageGenerationLayoutV2 {
             ),
             ("source.content_sha256", &self.source.content_sha256),
             (
-                "source.shooting_script_sha256",
-                &self.source.shooting_script_sha256,
+                "source.adaptation_plan_sha256",
+                &self.source.adaptation_plan_sha256,
             ),
         ] {
             if value.trim().is_empty() {

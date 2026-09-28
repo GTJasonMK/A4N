@@ -22,17 +22,64 @@ where
     let family_project_ids = std::iter::once(root_project_id)
         .chain(derived_project_ids.iter().copied())
         .collect::<Vec<_>>();
-    let (text_core, source_sync_runs, galgame_snapshot_ids) = futures::join!(
-        project_family_export_text_core_rows(db, root_project_id),
+    let (
+        text_core,
+        source_sync_runs,
+        galgame_snapshot_ids,
+        authoring_documents,
+        authoring_receipts,
+        chapter_visual_plans,
+        chapter_shooting_scripts,
+    ) = futures::join!(
+        project_family_export_text_core_rows(db, root_project_id, &family_project_ids),
         project_family_export_source_sync_runs(db, derived_project_ids),
         project_family_export_galgame_snapshot_ids(db, derived_project_ids),
+        crate::media_authoring::authoring_documents_for_projects(db, derived_project_ids),
+        crate::media_authoring::authoring_receipts_for_projects(db, &family_project_ids),
+        project_family_export_chapter_visual_plans(db, &family_project_ids),
+        project_family_export_chapter_shooting_scripts(db, &family_project_ids),
     );
     let text_core = text_core?;
     let source_sync_runs = source_sync_runs?;
+    let authoring_documents = authoring_documents?;
+    let authoring_receipts = authoring_receipts?;
+    let chapter_visual_plans = chapter_visual_plans?;
+    let chapter_shooting_scripts = chapter_shooting_scripts?;
+    let mut authoring_snapshot_ids = Vec::new();
+    for record in &authoring_documents {
+        authoring_snapshot_ids.push(record.source_snapshot_id);
+        let inputs: a4n_domain::media_authoring::AuthoringDocumentInputs =
+            serde_json::from_value(record.inputs_json.clone()).map_err(|error| {
+                ProjectFamilyExportError::InvalidArgument(format!(
+                    "创作文档 {} 输入无效: {error}",
+                    record.id
+                ))
+            })?;
+        authoring_snapshot_ids.extend(
+            inputs
+                .sources
+                .iter()
+                .map(|source| source.source_snapshot_id),
+        );
+        if let Some(reference) = inputs.video_reference {
+            authoring_snapshot_ids.push(reference.source.source_snapshot_id);
+        }
+    }
     let source_snapshot_ids = derived_source_snapshot_ids
         .iter()
         .copied()
         .chain(galgame_snapshot_ids?)
+        .chain(authoring_snapshot_ids)
+        .chain(
+            chapter_visual_plans
+                .iter()
+                .filter_map(|record| record.source_snapshot_id),
+        )
+        .chain(
+            chapter_shooting_scripts
+                .iter()
+                .filter_map(|record| record.source_snapshot_id),
+        )
         .collect::<Vec<_>>();
     let snapshot_ids =
         collect_project_family_export_snapshot_ids(&source_snapshot_ids, &source_sync_runs);
@@ -57,8 +104,6 @@ where
     let text_anchors = text_anchors?;
     let (
         profile_evidence,
-        chapter_visual_plans,
-        chapter_shooting_scripts,
         character_portraits,
         generated_images,
         chapter_manga_prompts,
@@ -66,8 +111,6 @@ where
         generated_videos,
     ) = futures::join!(
         project_family_export_profile_evidence(db, &text_anchors),
-        project_family_export_chapter_visual_plans(db, &root_project_ids),
-        project_family_export_chapter_shooting_scripts(db, &root_project_ids),
         project_family_export_character_portraits(db, &root_project_ids),
         project_family_export_generated_images(db, &family_project_ids),
         project_family_export_chapter_manga_prompts(db, &family_project_ids),
@@ -75,7 +118,7 @@ where
         project_family_export_generated_videos(db, &family_project_ids),
     );
     let profile_evidence = profile_evidence?;
-    let mut chapter_visual_plans = chapter_visual_plans?;
+    let mut chapter_visual_plans = chapter_visual_plans;
     let chapter_content_by_id = text_core.chapters.iter().fold(
         HashMap::<i64, &str>::new(),
         |mut chapters_by_id, chapter| {
@@ -101,7 +144,7 @@ where
         .iter()
         .map(|plan| plan.id)
         .collect::<HashSet<_>>();
-    let mut chapter_shooting_scripts = chapter_shooting_scripts?;
+    let mut chapter_shooting_scripts = chapter_shooting_scripts;
     chapter_shooting_scripts.retain(|script| {
         script
             .visual_plan_id
@@ -226,6 +269,8 @@ where
         profile_evidence,
         chapter_visual_plans,
         chapter_shooting_scripts,
+        authoring_documents,
+        authoring_receipts,
         character_portraits,
         generated_images,
         chapter_manga_prompts,

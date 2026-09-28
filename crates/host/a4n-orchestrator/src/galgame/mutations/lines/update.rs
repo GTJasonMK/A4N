@@ -3,7 +3,7 @@ use a4n_db_models::models::galgame::galgame_line;
 use a4n_error::AppError;
 
 use crate::galgame::{
-    GalgameLinePresentationDocumentV2, OrchestratorContext, UpdateGalgameLineInput,
+    GalgameLinePresentationDocumentV3, OrchestratorContext, UpdateGalgameLineInput,
     galgame_line_record_error, normalize_optional_positive_id, required_text,
     validate_and_project_presentation, validate_line_semantics, validate_positive_id,
 };
@@ -20,6 +20,20 @@ impl OrchestratorContext {
         let line = self
             .load_line_in_project(context.project.id, input.line_id)
             .await?;
+        let scene = self
+            .load_scene_in_project(project_id, line.scene_id)
+            .await?;
+        let presentation = match &input.presentation {
+            Some(presentation) => presentation.clone(),
+            None => serde_json::from_value(line.presentation_json.clone())?,
+        };
+        self.validate_line_adaptation_source(
+            project_id,
+            &scene,
+            &presentation,
+            input.text_anchor_id.unwrap_or(line.text_anchor_id),
+        )
+        .await?;
         if input.presentation.as_ref().is_some_and(|presentation| {
             transition_change_without_cg_is_invalid(&line.presentation_json, presentation)
         }) {
@@ -140,7 +154,7 @@ impl OrchestratorContext {
 
 fn transition_change_without_cg_is_invalid(
     current: &serde_json::Value,
-    next: &GalgameLinePresentationDocumentV2,
+    next: &GalgameLinePresentationDocumentV3,
 ) -> bool {
     next.cg != Some(true)
         && next.transition.is_some_and(|transition| {
@@ -219,8 +233,8 @@ mod tests {
 
     #[test]
     fn transition_edits_without_cg_reject_new_values_but_allow_legacy_values() {
-        let next: GalgameLinePresentationDocumentV2 = serde_json::from_value(json!({
-            "schema_version": "galgame_line_presentation_v2",
+        let next: GalgameLinePresentationDocumentV3 = serde_json::from_value(json!({
+            "schema_version": "galgame_line_presentation_v3", "origin": "historical", "beat_ref": null,
             "visible_cast": [],
             "enter": [],
             "exit": [],

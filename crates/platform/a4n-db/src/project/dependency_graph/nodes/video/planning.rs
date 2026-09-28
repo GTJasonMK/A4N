@@ -29,7 +29,7 @@ pub(super) fn add_video_planning_nodes(
             editable: true,
             needs_visualization: true,
             visualized: true,
-            summary: Some("位于章节正文与拍摄剧本之间的结构化时序舞台方案。".to_string()),
+            summary: Some("视频派生项目内独立保存的章节导演编排。".to_string()),
             details: json!({
                 "confirmed": visual_plans.iter().filter(|plan| plan.status == "confirmed").count(),
                 "draft": visual_plans.iter().filter(|plan| plan.status == "draft").count(),
@@ -58,7 +58,7 @@ pub(super) fn add_video_planning_nodes(
             editable: true,
             needs_visualization: true,
             visualized: true,
-            summary: Some("由章节正文改编并发布的结构化可拍摄剧本。".to_string()),
+            summary: Some("视频派生项目内由导演编排生成、独立编辑的拍摄剧本。".to_string()),
             details: json!({}),
         },
     ));

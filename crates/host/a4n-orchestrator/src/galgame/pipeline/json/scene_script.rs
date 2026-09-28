@@ -1,6 +1,5 @@
 use std::collections::HashSet;
 
-use a4n_domain::shooting_script::ShootingCoverageV1;
 use a4n_error::AppError;
 use serde_json::Value;
 
@@ -8,11 +7,11 @@ use super::contracts::*;
 use super::lines::line_draft_from_raw;
 use super::rules::*;
 
-pub fn shooting_script_projection_from_value(
+pub fn adaptation_projection_from_value(
     value: Value,
     context: &str,
-) -> Result<GalgameShootingScriptProjection, AppError> {
-    let raw: ShootingScriptProjectionRaw = from_value(value, context)?;
+) -> Result<GalgameAdaptationProjection, AppError> {
+    let raw: AdaptationProjectionRaw = from_value(value, context)?;
     require_nonempty(raw.scenes.as_slice(), &format!("{context}.scenes"))?;
     let mut seen = HashSet::new();
     let mut scenes = Vec::with_capacity(raw.scenes.len());
@@ -25,22 +24,26 @@ pub fn shooting_script_projection_from_value(
             )));
         }
         require_positive_i64(
-            scene.shooting_script_id,
-            &format!("{context}.scenes[].shooting_script_id"),
+            scene.adaptation_plan_id,
+            &format!("{context}.scenes[].adaptation_plan_id"),
         )?;
         require_positive(
-            scene.shooting_script_revision,
-            &format!("{context}.scenes[].shooting_script_revision"),
+            scene.adaptation_plan_revision,
+            &format!("{context}.scenes[].adaptation_plan_revision"),
         )?;
         require_positive(
             scene.chapter_number,
             &format!("{context}.scenes[].chapter_number"),
         )?;
-        if scene.shooting_scene_index == 0 {
-            return Err(invalid(format!(
-                "{context}.scenes[].shooting_scene_index 必须是正整数"
-            )));
-        }
+        require_positive_i64(
+            scene.source_chapter_id,
+            &format!("{context}.scenes[].source_chapter_id"),
+        )?;
+        require_positive_i64(
+            scene.source_snapshot_chapter_id,
+            &format!("{context}.scenes[].source_snapshot_chapter_id"),
+        )?;
+        let unit_id = required_text(scene.unit_id, &format!("{context}.scenes[].unit_id"))?;
         let source_span_ids = normalize_source_span_ids(
             scene.source_span_ids,
             &format!("{context}.scenes[].source_span_ids"),
@@ -51,31 +54,13 @@ pub fn shooting_script_projection_from_value(
             .map(String::as_str)
             .collect::<HashSet<_>>();
         require_nonempty(scene.beats.as_slice(), &format!("{context}.scenes[].beats"))?;
-        let mut has_must_show = false;
         let mut beats = Vec::with_capacity(scene.beats.len());
-        let mut previous_ref: Option<(u32, u32)> = None;
-        for beat in scene.beats {
-            if beat.shot_index == 0 || beat.beat_index == 0 {
-                return Err(invalid(format!(
-                    "{context}.scenes[].beats[].shot_index 和 beat_index 必须是正整数"
-                )));
+        let mut beat_ids = HashSet::new();
+        for mut beat in scene.beats {
+            beat.id = required_text(beat.id, &format!("{context}.scenes[].beats[].id"))?;
+            if !beat_ids.insert(beat.id.clone()) {
+                return Err(invalid(format!("{context} 改编节拍 ID 重复: {}", beat.id)));
             }
-            let valid_sequence = match previous_ref {
-                None => beat.shot_index == 1 && beat.beat_index == 1,
-                Some((shot_index, beat_index)) if beat.shot_index == shot_index => {
-                    beat_index.checked_add(1) == Some(beat.beat_index)
-                }
-                Some((shot_index, _)) => {
-                    shot_index.checked_add(1) == Some(beat.shot_index) && beat.beat_index == 1
-                }
-            };
-            if !valid_sequence {
-                return Err(invalid(format!(
-                    "{context}.scenes[].beats 必须按 shot_index、beat_index 连续排列，实际 shot_index={} beat_index={}",
-                    beat.shot_index, beat.beat_index
-                )));
-            }
-            previous_ref = Some((beat.shot_index, beat.beat_index));
             let beat_source_span_ids = normalize_source_span_ids(
                 beat.source_span_ids,
                 &format!("{context}.scenes[].beats[].source_span_ids"),
@@ -89,52 +74,14 @@ pub fn shooting_script_projection_from_value(
                     "{context}.scenes[].beats[].source_span_ids 包含不属于所在场景的引用: {unknown_span_id}"
                 )));
             }
-            has_must_show |= beat.required || beat.coverage == ShootingCoverageV1::MustShow;
-            beats.push(GalgamePipelineShootingBeat {
-                shot_index: beat.shot_index,
-                beat_index: beat.beat_index,
-                coverage: beat.coverage,
-                required: beat.required,
-                objective: required_text(
-                    beat.objective,
-                    &format!("{context}.scenes[].beats[].objective"),
-                )?,
-                obstacle: required_text(
-                    beat.obstacle,
-                    &format!("{context}.scenes[].beats[].obstacle"),
-                )?,
-                visible_action: required_text(
-                    beat.visible_action,
-                    &format!("{context}.scenes[].beats[].visible_action"),
-                )?,
-                reaction: optional_text(beat.reaction),
-                dialogue_intent: optional_text(beat.dialogue_intent),
-                audience_question: required_text(
-                    beat.audience_question,
-                    &format!("{context}.scenes[].beats[].audience_question"),
-                )?,
-                answer_or_delay: required_text(
-                    beat.answer_or_delay,
-                    &format!("{context}.scenes[].beats[].answer_or_delay"),
-                )?,
-                entry_state: required_text(
-                    beat.entry_state,
-                    &format!("{context}.scenes[].beats[].entry_state"),
-                )?,
-                exit_state: required_text(
-                    beat.exit_state,
-                    &format!("{context}.scenes[].beats[].exit_state"),
-                )?,
-                source_span_ids: beat_source_span_ids,
-            });
-        }
-        if !has_must_show {
-            return Err(invalid(format!(
-                "{context}.scenes[].beats 每个拍摄场至少需要一个 required 或 must_show 节拍"
-            )));
+            beat.action =
+                required_text(beat.action, &format!("{context}.scenes[].beats[].action"))?;
+            beat.source_span_ids = beat_source_span_ids;
+            beats.push(beat);
         }
         scenes.push(GalgamePipelineScene {
             index: scene.index,
+            origin: scene.origin,
             title: required_text(scene.title, &format!("{context}.scenes[].title"))?,
             location: optional_text(scene.location),
             time_of_day: optional_text(scene.time_of_day),
@@ -144,10 +91,12 @@ pub fn shooting_script_projection_from_value(
             )?,
             summary: optional_text(scene.summary),
             source_span_ids,
-            shooting_script_id: scene.shooting_script_id,
-            shooting_script_revision: scene.shooting_script_revision,
+            adaptation_plan_id: scene.adaptation_plan_id,
+            adaptation_plan_revision: scene.adaptation_plan_revision,
+            source_chapter_id: scene.source_chapter_id,
+            source_snapshot_chapter_id: scene.source_snapshot_chapter_id,
             chapter_number: scene.chapter_number,
-            shooting_scene_index: scene.shooting_scene_index,
+            unit_id,
             beats,
         });
     }
@@ -155,7 +104,7 @@ pub fn shooting_script_projection_from_value(
         scenes.iter().map(|scene| scene.index),
         &format!("{context}.scenes"),
     )?;
-    Ok(GalgameShootingScriptProjection { scenes })
+    Ok(GalgameAdaptationProjection { scenes })
 }
 
 pub fn script_adaptation_from_value(

@@ -15,8 +15,9 @@ impl OrchestratorContext {
         project_id: i64,
         prompt_renderer: &dyn PromptRenderer,
         options: GalgamePipelineRunOptions,
-    ) -> Result<GalgameScriptDetail, AppError> {
-        let prompt_context = prepare_galgame_pipeline(self, project_id, &options).await?;
+    ) -> Result<Option<GalgameScriptDetail>, AppError> {
+        let prompt_context =
+            prepare_galgame_pipeline(self, project_id, &options, prompt_renderer).await?;
         let execution = GalgamePipelineExecution {
             service: self,
             project_id,
@@ -24,10 +25,14 @@ impl OrchestratorContext {
             options: &options,
             prompt_context: &prompt_context,
         };
-        let early = run_galgame_pipeline_early_stages(&execution).await?;
+        let Some(early) = run_galgame_pipeline_early_stages(&execution).await? else {
+            return Ok(None);
+        };
         let late = run_galgame_pipeline_late_stages(&execution, &early).await?;
         let detail = persist_galgame_pipeline_script(&execution, &early, &late).await?;
-        plan_galgame_pipeline_assets(&execution, &detail).await?;
-        self.get_script_detail(project_id).await
+        if options.stop_after != Some(a4n_api_contract::galgame::GalgamePipelineStopAfter::Script) {
+            plan_galgame_pipeline_assets(&execution, &detail).await?;
+        }
+        self.get_script_detail(project_id).await.map(Some)
     }
 }

@@ -182,7 +182,7 @@ export const galgame = {
   pose: { natural: "Natural", standing: "Standing", sitting: "Sitting", walking: "Walking", turning: "Turning", closeUp: "Close-up" },
   cgImportance: { normal: "Normal", high: "High", critical: "Critical" },
   transition: { none: "No transition", cut: "Direct cut", fade: "Fade", dissolve: "Dissolve" },
-  startStage: { all: "Automatic starting point", shootingScript: "Shooting script projection", adaptation: "Script adaptation", staging: "Character staging", planning: "Visual planning", branch: "Branch design", persist: "Write script", asset: "Asset intent" },
+  startStage: { all: "Automatic starting point", adaptationPlan: "Adaptation plan", shootingScript: "Shooting script projection (legacy)", adaptation: "Script adaptation", staging: "Character staging", planning: "Visual planning", branch: "Branch design", persist: "Write script", asset: "Asset intent" },
   sceneEntry: { main: "Main line", branch: "Branch", other: "Other scene" },
   assetOutcome: { created: "New", updated: "Updated", reused: "Reused", other: "Other result" },
   assetStatus: { draft: "Pending", completed: "Completed", failed: "Failed", running: "Generating" },

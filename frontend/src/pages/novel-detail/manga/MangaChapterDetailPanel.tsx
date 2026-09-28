@@ -54,6 +54,8 @@ import {
 import { useI18n } from "../../../i18n";
 
 interface MangaChapterDetailPanelProps {
+  stageMode?: "prompts" | "images";
+  onDirtyChange?: (dirty: boolean) => void;
   projectId: number;
   isSingleMode: boolean;
   selectedChapter: ChapterRow | null;
@@ -102,6 +104,8 @@ const noticeIcon = (tone: NoticeTone) => {
 };
 
 export function MangaChapterDetailPanel({
+  stageMode,
+  onDirtyChange,
   projectId,
   isSingleMode,
   selectedChapter,
@@ -859,7 +863,7 @@ export function MangaChapterDetailPanel({
                     {[...chapterMeta, stageText].filter(Boolean).join(" · ")}
                   </p>
                 </div>
-                <div className="w-44 max-w-full">
+                {stageMode !== "prompts" && <div className="w-44 max-w-full">
                   <ImageSizeSelect
                     label={t("settingsForm.selectImageSize")}
                     value={imageSize}
@@ -869,8 +873,8 @@ export function MangaChapterDetailPanel({
                     disabled={!canEditManga || detailBusy || selectedChapterGenerating}
                     onChange={onImageSizeChange}
                   />
-                </div>
-                {canEditManga ? (
+                </div>}
+                {canEditManga && stageMode !== "images" ? (
                   <div className="flex items-center justify-end gap-2">
                     {pipelineMenuItems.length > 0 ? (
                       <Dropdown items={pipelineMenuItems} />
@@ -935,6 +939,8 @@ export function MangaChapterDetailPanel({
 
             <div className="mt-3 min-h-0 flex-1">
               <MangaPagePromptList
+                stageMode={stageMode}
+                onDirtyChange={onDirtyChange}
                 prompts={pagePrompts}
                 promptsLoading={pagePromptsLoading}
                 currentContentHash={currentContentHash}
@@ -950,8 +956,8 @@ export function MangaChapterDetailPanel({
                 optimizingPromptId={optimizingPromptId}
                 actionsDisabled={detailBusy}
                 canEditManga={canEditManga}
-                onPreviewPageImage={handlePreviewPageImage}
-                onGeneratePageImage={handleGeneratePageImage}
+                onPreviewPageImage={stageMode === "prompts" ? undefined : handlePreviewPageImage}
+                onGeneratePageImage={stageMode === "prompts" ? undefined : handleGeneratePageImage}
                 onBindReferenceImage={handleBindReferenceImage}
                 onUpdatePrompt={handleUpdatePrompt}
                 onOptimizePrompt={handleOptimizePrompt}

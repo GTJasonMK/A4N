@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import type { GalgameLinePresentationDocumentV2 } from "../../../api/galgame";
+import type { GalgameLinePresentationDocumentV3 } from "../../../api/galgame";
 import { updatePresentationJson } from "./presentation";
 
-const emptyPresentation = (): GalgameLinePresentationDocumentV2 => ({
+const emptyPresentation = (): GalgameLinePresentationDocumentV3 => ({
   after_beat_ref: null,
   branch: null,
   branch_id: null,
@@ -16,7 +16,9 @@ const emptyPresentation = (): GalgameLinePresentationDocumentV2 => ({
   hold: false,
   player_knowledge: [],
   returns_to_scene_index: null,
-  schema_version: "galgame_line_presentation_v2",
+  schema_version: "galgame_line_presentation_v3",
+  origin: "added",
+  beat_ref: null,
   transition: null,
   visible_cast: [],
 });

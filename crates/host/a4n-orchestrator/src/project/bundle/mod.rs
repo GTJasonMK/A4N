@@ -53,6 +53,61 @@ pub(crate) struct ProjectBundleProviderSlot {
 }
 
 impl ProjectBundlePackage {
+    pub(crate) fn from_manifest(
+        mut value: Value,
+        media_bytes: &mut std::collections::HashMap<String, Vec<u8>>,
+    ) -> Result<Self, String> {
+        let reserved_id = super::family_package::maximum_manifest_id(&value);
+        let family = value
+            .get_mut("family")
+            .map(Value::take)
+            .filter(|value| !value.is_null());
+        let mut package: Self = serde_json::from_value(value).map_err(|error| error.to_string())?;
+        if let Some(family) = family {
+            let legacy = family["version"].as_str()
+                != Some(super::family_package::PROJECT_FAMILY_PACKAGE_VERSION);
+            let family = ProjectFamilyPackage::from_manifest(
+                family,
+                &mut package.history,
+                media_bytes,
+                reserved_id,
+            )?;
+            for copied in family
+                .authoring_receipts
+                .iter()
+                .filter(|receipt| legacy && receipt.kind == "manga_image_copy")
+            {
+                let entry = family
+                    .media_files
+                    .iter()
+                    .find(|entry| {
+                        entry.owner_kind == "generated_image" && entry.owner_id == copied.new_id
+                    })
+                    .ok_or("迁移后的漫画图片缺少媒体清单")?;
+                if package.media_files.iter().any(|existing| existing == entry) {
+                    continue;
+                }
+                if package.media_files.iter().any(|existing| {
+                    existing.package_path == entry.package_path
+                        || (existing.owner_kind == entry.owner_kind
+                            && existing.owner_id == entry.owner_id
+                            && existing.field == entry.field)
+                }) {
+                    return Err("旧包媒体迁移身份冲突".into());
+                }
+                let bytes = media_bytes
+                    .get(&entry.package_path)
+                    .ok_or("迁移后的漫画图片字节缺失")?;
+                package
+                    .media_sha256
+                    .insert(entry.package_path.clone(), super::sha256_bytes(bytes));
+                package.media_files.push(entry.clone());
+            }
+            package.family = Some(family);
+        }
+        Ok(package)
+    }
+
     pub(crate) fn validate(&self) -> Result<(), String> {
         if self.version != PROJECT_BUNDLE_PACKAGE_VERSION {
             return Err(format!(

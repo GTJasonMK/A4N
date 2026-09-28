@@ -57,7 +57,7 @@ pub(crate) fn galgame_progress_update(
 
 fn galgame_progress_meta(stage: GalgamePipelineStartStage, message: &str) -> ProgressMeta {
     let phase = match stage {
-        GalgamePipelineStartStage::ShootingScriptProjection
+        GalgamePipelineStartStage::AdaptationPlan
         | GalgamePipelineStartStage::ScriptAdaptation
         | GalgamePipelineStartStage::CharacterStaging
         | GalgamePipelineStartStage::VisualPlanning
@@ -76,7 +76,7 @@ fn galgame_progress_meta(stage: GalgamePipelineStartStage, message: &str) -> Pro
 
 fn galgame_stage_label(stage: GalgamePipelineStartStage) -> &'static str {
     match stage {
-        GalgamePipelineStartStage::ShootingScriptProjection => "拍摄剧本投影",
+        GalgamePipelineStartStage::AdaptationPlan => "改编计划",
         GalgamePipelineStartStage::ScriptAdaptation => "剧本改编",
         GalgamePipelineStartStage::CharacterStaging => "角色演出",
         GalgamePipelineStartStage::VisualPlanning => "视觉规划",

@@ -25,6 +25,7 @@ pub mod json_contract;
 pub mod llm;
 pub mod manga;
 pub mod media;
+pub mod media_authoring;
 pub mod object_profile;
 pub mod profile_material;
 pub mod profile_ownership;

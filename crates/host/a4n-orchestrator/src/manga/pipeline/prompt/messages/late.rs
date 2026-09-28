@@ -26,7 +26,7 @@ pub(in crate::manga) fn manga_visual_anchor_extraction_user_message(
             "format": "json_object",
             "prompt_name": "manga_visual_anchor_extraction",
             "required_fields": ["scenes"],
-            "source_span_rule": "scenes[] 每项必须输出 source_span_ids；只能从 input.chapter.available_source_spans 中选择，至少 1 个，不要自造 ID"
+            "source_span_rule": "scenes[] 每项必须输出 source_span_ids；原文/改编节拍只能从 input.chapter.available_source_spans 和对应节拍引用中选择，至少 1 个；仅含新增节拍或无原文依据的历史节拍时为空数组，不得自造 ID"
         }),
     )
 }
@@ -43,7 +43,7 @@ pub(in crate::manga) fn manga_item_extraction_user_message(
             "format": "json_object",
             "prompt_name": "manga_item_extraction",
             "required_fields": ["items"],
-            "source_span_rule": "items[] 每项必须输出 source_span_ids；只能从 input.available_source_span_ids 中选择，至少 1 个，不要自造 ID；没有关键物品时 items 输出空数组"
+            "source_span_rule": "items[] 每项必须输出 source_span_ids；原文/改编节拍只能从 input.available_source_span_ids 中选择，至少 1 个；新增节拍或无原文依据的历史节拍使用空数组，不得自造 ID；没有关键物品时 items 输出空数组"
         }),
     )
 }

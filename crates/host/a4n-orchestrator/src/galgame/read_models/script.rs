@@ -133,62 +133,42 @@ pub(crate) fn galgame_script_detail_from_read_model(
 pub(crate) fn galgame_scene_from_model(
     scene: galgame_scene::Model,
 ) -> Result<GalgameScene, AppError> {
-    galgame_scene_from_parts(
-        scene.id,
-        scene.source_snapshot_chapter_id,
-        scene.scene_index,
-        scene.title,
-        scene.location,
-        scene.time_of_day,
-        scene.background_note,
-        scene.entry_kind,
-        scene.next_scene_id,
-    )
+    galgame_scene_from_detail_record(GalgameScriptDetailSceneRecord {
+        id: scene.id,
+        source_snapshot_chapter_id: scene.source_snapshot_chapter_id,
+        adaptation_plan_id: scene.adaptation_plan_id,
+        adaptation_unit_id: scene.adaptation_unit_id,
+        scene_index: scene.scene_index,
+        title: scene.title,
+        location: scene.location,
+        time_of_day: scene.time_of_day,
+        background_note: scene.background_note,
+        entry_kind: scene.entry_kind,
+        next_scene_id: scene.next_scene_id,
+    })
 }
 
 fn galgame_scene_from_detail_record(
     scene: GalgameScriptDetailSceneRecord,
 ) -> Result<GalgameScene, AppError> {
-    galgame_scene_from_parts(
-        scene.id,
-        scene.source_snapshot_chapter_id,
-        scene.scene_index,
-        scene.title,
-        scene.location,
-        scene.time_of_day,
-        scene.background_note,
-        scene.entry_kind,
-        scene.next_scene_id,
-    )
-}
-
-fn galgame_scene_from_parts(
-    id: i64,
-    source_snapshot_chapter_id: i64,
-    scene_index: i32,
-    title: String,
-    location: Option<String>,
-    time_of_day: Option<String>,
-    background_note: Option<String>,
-    entry_kind_value: String,
-    next_scene_id: Option<i64>,
-) -> Result<GalgameScene, AppError> {
-    let entry_kind = GalgameSceneEntryKind::parse(&entry_kind_value).ok_or_else(|| {
+    let entry_kind = GalgameSceneEntryKind::parse(&scene.entry_kind).ok_or_else(|| {
         invalid_read_model(format!(
             "Galgame 场 {} entry_kind 无效: {}",
-            id, entry_kind_value
+            scene.id, scene.entry_kind
         ))
     })?;
     Ok(GalgameScene {
-        id,
-        source_snapshot_chapter_id,
-        scene_index,
-        title,
-        location,
-        time_of_day,
-        background_note,
+        id: scene.id,
+        source_snapshot_chapter_id: scene.source_snapshot_chapter_id,
+        adaptation_plan_id: scene.adaptation_plan_id,
+        adaptation_unit_id: scene.adaptation_unit_id,
+        scene_index: scene.scene_index,
+        title: scene.title,
+        location: scene.location,
+        time_of_day: scene.time_of_day,
+        background_note: scene.background_note,
         entry_kind,
-        next_scene_id,
+        next_scene_id: scene.next_scene_id,
     })
 }
 
@@ -208,6 +188,9 @@ pub(crate) fn galgame_line_from_model(line: galgame_line::Model) -> Result<Galga
         &format!("Galgame 行 {}", line.id),
     )
     .map_err(|error| invalid_read_model(error.to_string()))?;
+    presentation
+        .validate_source_identity(line.text_anchor_id)
+        .map_err(invalid_read_model)?;
     let expression = line.expression.clone();
     let pose = line.pose.clone();
     let position = line.position.clone();

@@ -3,9 +3,9 @@ use std::collections::BTreeSet;
 use serde_json::{Value, json};
 
 use super::super::{
-    GalgameFacingV2, GalgameLine, GalgameLinePresentationDocumentV2,
-    GalgameLinePresentationSchemaVersion, GalgameLineType, GalgamePortraitAssetDraft,
-    GalgameStageLayerV2, GalgameStagePositionV2, GalgameVisibleCastMemberV2, portrait_variant,
+    GalgameFacingV2, GalgameLine, GalgameLinePresentationDocumentV3, GalgameLineType,
+    GalgamePortraitAssetDraft, GalgameStageLayerV2, GalgameStagePositionV2,
+    GalgameVisibleCastMemberV2, portrait_variant,
 };
 use super::fixtures::{test_generation_spec, test_spec_input};
 
@@ -75,8 +75,10 @@ fn projected_line(
         expression: Some("smile".to_string()),
         pose: Some("standing".to_string()),
         position: Some(position),
-        presentation_json: GalgameLinePresentationDocumentV2 {
-            schema_version: GalgameLinePresentationSchemaVersion::V2,
+        presentation_json: GalgameLinePresentationDocumentV3 {
+            schema_version: a4n_domain::galgame::GalgameLineDocumentSchemaVersion::V3,
+            origin: a4n_domain::media_authoring::AdaptationOrigin::Historical,
+            beat_ref: None,
             visible_cast: vec![GalgameVisibleCastMemberV2 {
                 character_profile_id: 7,
                 expression: "smile".to_string(),

@@ -2,14 +2,14 @@ use super::*;
 
 #[test]
 fn rejects_visual_plan_missing_scene_background() {
-    let scenes = shooting_script_projection_from_value(
+    let scenes = adaptation_projection_from_value(
         json!({
             "scenes": [
                 directing_scene_value(1, "雨夜重逢", "s1"),
                 directing_scene_value(2, "站台尽头", "s2")
             ]
         }),
-        "galgame_shooting_script_projection",
+        "galgame_adaptation_projection",
     )
     .expect("scenes");
     let staging = character_staging_from_value(
@@ -19,7 +19,7 @@ fn rejects_visual_plan_missing_scene_background() {
                     "scene_index": 1,
                     "lines": [{
                         "index": 1,
-                        "beat_ref": {"scene_index": 1, "shot_index": 1, "beat_index": 1},
+                        "origin": "source", "beat_ref": beat_reference(1, 1),
                         "line_type": "narration",
                         "text": "雨声压过脚步。",
                         "presentation": narration_presentation(),
@@ -30,7 +30,7 @@ fn rejects_visual_plan_missing_scene_background() {
                     "scene_index": 2,
                     "lines": [{
                         "index": 1,
-                        "beat_ref": {"scene_index": 2, "shot_index": 1, "beat_index": 1},
+                        "origin": "source", "beat_ref": beat_reference(2, 1),
                         "line_type": "narration",
                         "text": "站台尽头亮起灯。",
                         "presentation": narration_presentation(),
@@ -84,7 +84,7 @@ fn rejects_visual_plan_missing_scene_background() {
 
 #[test]
 fn rejects_visual_plan_event_cg_for_missing_line() {
-    let scenes = single_shooting_script_projection();
+    let scenes = single_adaptation_projection();
     let staging = single_narration_staging();
     let visual_plan = visual_plan_from_value(
         json!({
@@ -115,12 +115,12 @@ fn rejects_visual_plan_event_cg_for_missing_line() {
     )
     .expect_err("missing CG target line must fail visibly");
 
-    assert!(err.to_string().contains("event_cg line_index 不存在"));
+    assert!(err.to_string().contains("CG 引用的剧本行不存在"));
 }
 
 #[test]
 fn rejects_visual_plan_unknown_source_span() {
-    let scenes = single_shooting_script_projection();
+    let scenes = single_adaptation_projection();
     let staging = single_narration_staging();
     let visual_plan = visual_plan_from_value(
         json!({
@@ -145,5 +145,8 @@ fn rejects_visual_plan_unknown_source_span() {
     )
     .expect_err("unknown visual source span must fail visibly");
 
-    assert!(err.to_string().contains("source_span_id 不存在"));
+    assert!(
+        err.to_string()
+            .contains("改编原文引用不存在或重复: missing")
+    );
 }

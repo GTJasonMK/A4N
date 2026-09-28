@@ -4,14 +4,15 @@ use a4n_db_models::models::{
     ai::generated_image,
     chapter::{
         chapter_manga_prompt::{self, MANGA_PAGE_PROMPT_TYPE},
-        chapter_shooting_script, chapter_visual_plan,
+        chapter_visual_plan,
     },
     character::character_portrait,
-    project::{novel_project, source_snapshot_chapter},
+    project::{media_authoring_document, novel_project, source_snapshot_chapter},
 };
 use a4n_domain::{
     canvas_transfer_runtime_identity_key,
-    manga::{MangaPageGenerationLayoutV2, MangaReferenceAssetKind},
+    manga::{MangaPageGenerationLayoutV3, MangaReferenceAssetKind},
+    media_authoring::{AdaptationPlanV1, AdaptationTarget, AuthoringDocumentInputs},
     project::ProjectKind,
     shooting_script::{CHAPTER_SHOOTING_SCRIPT_V2, ChapterShootingScriptV2},
 };
@@ -33,7 +34,7 @@ struct MangaManifestContext<'a> {
     projects: HashMap<i64, &'a novel_project::Model>,
     chapters: HashMap<i64, &'a a4n_db_models::models::chapter::chapter::Model>,
     snapshot_chapters: HashMap<i64, &'a source_snapshot_chapter::Model>,
-    scripts: HashMap<i64, &'a chapter_shooting_script::Model>,
+    documents: HashMap<i64, &'a media_authoring_document::Model>,
     visual_plans: HashMap<i64, &'a chapter_visual_plan::Model>,
     portraits: HashMap<i64, &'a character_portrait::Model>,
     images: HashMap<i64, &'a generated_image::Model>,
@@ -54,8 +55,8 @@ impl<'a> MangaManifestContext<'a> {
                 .iter()
                 .map(|row| (row.id, row))
                 .collect(),
-            scripts: package
-                .chapter_shooting_scripts
+            documents: package
+                .authoring_documents
                 .iter()
                 .map(|row| (row.id, row))
                 .collect(),
@@ -84,6 +85,13 @@ fn validate_shooting_scripts(
 ) -> Result<(), String> {
     for script in &package.chapter_shooting_scripts {
         positive_id(script.id, "chapter_shooting_script.id")?;
+        let owner = context
+            .projects
+            .get(&script.project_id)
+            .ok_or_else(|| format!("拍摄剧本 {} 的所属视频项目不存在", script.id))?;
+        if owner.project_kind != "video" || owner.root_project_id != Some(package.root_project_id) {
+            return Err(format!("拍摄剧本 {} 的所属视频项目不匹配", script.id));
+        }
         if script.workflow_run_id.is_some() {
             return Err(format!(
                 "项目族导入包拍摄剧本不能携带 workflow_run_id: shooting_script_id={}",
@@ -182,6 +190,7 @@ fn validate_shooting_scripts(
             )
         })?;
         if !matches!(visual_plan.status.as_str(), "confirmed" | "superseded")
+            || visual_plan.project_id != script.project_id
             || visual_plan.root_project_id != script.root_project_id
             || visual_plan.source_chapter_id != script.source_chapter_id
             || visual_plan.source_snapshot_id != script.source_snapshot_id
@@ -404,53 +413,103 @@ fn validate_manga_layout(
     package: &ProjectFamilyPackage,
     prompt: &chapter_manga_prompt::Model,
     project: &novel_project::Model,
-    layout: &MangaPageGenerationLayoutV2,
+    layout: &MangaPageGenerationLayoutV3,
     context: &MangaManifestContext<'_>,
 ) -> Result<(), String> {
-    let script = context
-        .scripts
-        .get(&layout.source.shooting_script_id)
+    let document = context
+        .documents
+        .get(&layout.source.adaptation_plan_id)
         .copied()
         .ok_or_else(|| {
             format!(
-                "项目族导入包漫画 layout 引用了不存在的拍摄剧本: prompt_id={}, shooting_script_id={}",
-                prompt.id, layout.source.shooting_script_id
+                "项目族导入包漫画 layout 引用了不存在的改编计划: prompt_id={}, adaptation_plan_id={}",
+                prompt.id, layout.source.adaptation_plan_id
             )
         })?;
-    if layout.source.root_project_id != package.root_project_id
+    let inputs: AuthoringDocumentInputs = serde_json::from_value(document.inputs_json.clone())
+        .map_err(|error| format!("改编计划 {} 输入无效: {error}", document.id))?;
+    let [source] = inputs.sources.as_slice() else {
+        return Err(format!("漫画改编计划 {} 必须对应一个来源章节", document.id));
+    };
+    let expected_hash = a4n_db::generation::canonical_json_sha256(&(
+        &document.inputs_json,
+        &document.document_json,
+    ))
+    .map_err(|error| error.to_string())?;
+    if document.kind != "adaptation_plan"
+        || !matches!(document.status.as_str(), "adopted" | "superseded")
+        || document.project_id != prompt.project_id
+        || document.source_chapter_id != Some(prompt.chapter_id)
+        || document.source_snapshot_id != source.source_snapshot_id
+        || document.version <= 0
+        || document.revision <= 0
+        || expected_hash != document.document_sha256
+        || layout.source.root_project_id != package.root_project_id
+        || source.root_project_id != package.root_project_id
         || layout.source.source_chapter_id != prompt.chapter_id
-        || layout.source.source_snapshot_id != script.source_snapshot_id
-        || layout.source.source_snapshot_chapter_id != script.source_snapshot_chapter_id
-        || layout.source.source_revision_key != script.source_revision_key
-        || layout.source.content_sha256 != script.source_content_sha256
-        || layout.source.shooting_script_id != script.id
-        || layout.source.shooting_script_revision != script.revision
-        || layout.source.shooting_script_sha256 != script.script_sha256
+        || source.source_chapter_id != prompt.chapter_id
+        || !layout.source.matches_authoring(
+            source,
+            &a4n_domain::media_authoring::AuthoringDocumentRef {
+                id: document.id,
+                revision: document.revision,
+                sha256: document.document_sha256.clone(),
+            },
+        )
     {
         return Err(format!(
-            "项目族导入包漫画 layout 来源与拍摄剧本身份不一致: prompt_id={}, shooting_script_id={}",
-            prompt.id, script.id
+            "项目族导入包漫画 layout 来源与改编计划身份不一致: prompt_id={}, adaptation_plan_id={}",
+            prompt.id, document.id
         ));
     }
-    match ProjectKind::parse(&project.project_kind) {
-        Some(ProjectKind::Text)
-            if layout.source.source_snapshot_id.is_some()
-                || layout.source.source_snapshot_chapter_id.is_some() =>
+    if ProjectKind::parse(&project.project_kind) != Some(ProjectKind::Comic) {
+        return Err(format!("漫画页面 {} 不属于漫画派生项目", prompt.id));
+    }
+    if let Some(reference) = &layout.page_plan_ref {
+        let page_doc = context
+            .documents
+            .get(&reference.id)
+            .ok_or("漫画页面引用的分页计划不存在")?;
+        if page_doc.project_id != prompt.project_id
+            || page_doc.kind != "manga_page_plan"
+            || page_doc.source_chapter_id != Some(prompt.chapter_id)
+            || page_doc.source_snapshot_id != source.source_snapshot_id
+            || page_doc.revision != reference.revision
+            || page_doc.document_sha256 != reference.sha256
+            || !matches!(page_doc.status.as_str(), "adopted" | "superseded")
         {
-            return Err(format!(
-                "项目族导入包文本项目漫画 layout 不能引用源快照: prompt_id={}",
-                prompt.id
-            ));
+            return Err("漫画页面的分页计划版本或归属不一致".into());
         }
-        Some(ProjectKind::Comic)
-            if layout.source.source_snapshot_id != project.source_snapshot_id =>
-        {
-            return Err(format!(
-                "项目族导入包漫画 layout 源快照与漫画项目不一致: prompt_id={}, project_id={}",
-                prompt.id, prompt.project_id
-            ));
-        }
-        _ => {}
+    }
+    let snapshot = context
+        .snapshot_chapters
+        .get(&source.source_snapshot_chapter_id)
+        .ok_or_else(|| format!("改编计划 {} 的原文快照不存在", document.id))?;
+    if snapshot.root_project_id != source.root_project_id
+        || snapshot.snapshot_id != source.source_snapshot_id
+        || snapshot.source_chapter_id != source.source_chapter_id
+        || snapshot.content_hash != source.content_sha256
+    {
+        return Err(format!("改编计划 {} 的原文身份不一致", document.id));
+    }
+    let plan: AdaptationPlanV1 = serde_json::from_value(document.document_json.clone())
+        .map_err(|error| error.to_string())?;
+    if plan.target != AdaptationTarget::Manga {
+        return Err("漫画页面引用了其他媒介的改编计划".into());
+    }
+    let spans = a4n_domain::source_spans::source_spans_for_content(
+        source.source_chapter_id,
+        snapshot.chapter_number,
+        &snapshot.content,
+    );
+    plan.validate(&spans.into_iter().map(|span| span.id).collect())?;
+    if layout
+        .page_plan
+        .beat_refs
+        .iter()
+        .any(|reference| plan.beat(reference).is_none())
+    {
+        return Err(format!("漫画页面 {} 引用了不存在的本地改编节拍", prompt.id));
     }
     let mut names = HashSet::new();
     for binding in &layout.reference_bindings {

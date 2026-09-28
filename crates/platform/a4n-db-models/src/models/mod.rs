@@ -29,6 +29,8 @@ pub mod project {
     pub mod blueprint_version;
     pub mod import_review_queue;
     pub mod material_fact_change;
+    pub mod media_authoring_document;
+    pub mod media_authoring_migration_receipt;
     pub mod novel_blueprint;
     pub mod novel_project;
     pub mod profile_evidence;

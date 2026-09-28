@@ -145,6 +145,8 @@ pub(in crate::project::family_package::tests) fn package_with_part_outlines(
         profile_evidence: Vec::new(),
         chapter_visual_plans: Vec::new(),
         chapter_shooting_scripts: Vec::new(),
+        authoring_documents: Vec::new(),
+        authoring_receipts: Vec::new(),
         character_portraits: Vec::new(),
         generated_images: Vec::new(),
         chapter_manga_prompts: Vec::new(),

@@ -1,8 +1,8 @@
 use a4n_error::AppError;
 
 use crate::galgame::{
-    GalgamePipelinePromptChapter, GalgamePipelineSourceSpan, GalgameSceneRegenerationInput,
-    GalgameShootingScriptProjection,
+    GalgameAdaptationProjection, GalgamePipelinePromptChapter, GalgamePipelineSourceSpan,
+    GalgameSceneRegenerationInput,
 };
 
 use super::contracts::PreparedGalgameSceneRegeneration;
@@ -38,15 +38,15 @@ pub(super) fn prepare_galgame_scene_regeneration(
         .collect::<Vec<_>>();
     let mut directing_scene = input.directing_scene.clone();
     directing_scene.index = 1;
-    let shooting_script_projection = GalgameShootingScriptProjection {
+    let adaptation_projection = GalgameAdaptationProjection {
         scenes: vec![directing_scene],
     };
     let scenes_json =
-        serde_json::to_value(&shooting_script_projection).map_err(AppError::Serialization)?;
+        serde_json::to_value(&adaptation_projection).map_err(AppError::Serialization)?;
     Ok(PreparedGalgameSceneRegeneration {
         prompt_chapter,
         persist_source_spans,
-        shooting_script_projection,
+        adaptation_projection,
         scenes_json,
     })
 }

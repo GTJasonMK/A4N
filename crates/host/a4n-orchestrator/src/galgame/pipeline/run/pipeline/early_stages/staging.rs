@@ -49,7 +49,7 @@ pub(super) async fn run_character_staging_stage(
                 prompt_name: "galgame_character_staging",
                 user_prompt,
                 request_user_prompt,
-                shared_shooting_script_projection: scenes_json,
+                shared_adaptation_projection: scenes_json,
                 restore_from_checkpoint: execution.should_restore(stage),
                 restore_required: execution.restore_required(stage),
             },

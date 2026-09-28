@@ -17,7 +17,29 @@ pub(super) fn validate_galgame_lines(
                 line.id, line.scene_id
             )
         })?;
-        validate_galgame_line_semantics(line)?;
+        let parsed = validate_galgame_line_semantics(line)?;
+        if parsed.presentation_json.beat_ref.is_some()
+            || parsed.presentation_json.after_beat_ref.is_some()
+        {
+            let document = scene
+                .adaptation_plan_id
+                .and_then(|id| package.authoring_documents.iter().find(|row| row.id == id))
+                .ok_or("游戏演出缺少本地改编版本")?;
+            let source = snapshot_chapters
+                .get(&scene.source_snapshot_chapter_id)
+                .ok_or("游戏演出原文不存在")?;
+            let plan = serde_json::from_value(document.document_json.clone())
+                .map_err(|error| error.to_string())?;
+            parsed.presentation_json.validate_adaptation(
+                &plan,
+                source.source_chapter_id,
+                scene
+                    .adaptation_unit_id
+                    .as_deref()
+                    .ok_or("游戏演出单元缺失")?,
+                line.text_anchor_id,
+            )?;
+        }
         if let Some(profile_id) = line.speaker_profile_id
             && !character_profile_ids.contains(&profile_id)
         {

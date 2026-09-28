@@ -17,8 +17,8 @@ import { MangaTab } from "./novel-detail/MangaTab";
 import { SourceSyncDialog } from "./derived/SourceSyncDialog";
 import { getDerivedProjectSubtitle } from "../utils/projectRouting";
 import { useI18n } from "../i18n";
-import { confirmDialog } from "../components/feedback/ConfirmDialog";
 import { useNovelDetailDirtyRegistry } from "./novel-detail/novelDetailDirty";
+import { confirmDiscardMediaChanges } from "../components/feedback/UnsavedChangesGuard";
 
 export const ComicProjectWorkspace: React.FC = () => {
   const { id } = useParams();
@@ -56,6 +56,7 @@ export const ComicProjectWorkspace: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [sourceSyncOpen, setSourceSyncOpen] = useState(false);
+  const [workspaceDirty, setWorkspaceDirty] = useState(false);
   const refreshRequestRef = useRef(0);
 
   const refresh = useCallback(async (): Promise<boolean> => {
@@ -133,15 +134,7 @@ export const ComicProjectWorkspace: React.FC = () => {
   return (
     <div className="h-full min-h-0 flex flex-col bg-book-bg">
       <DerivedProjectHeader
-        leading={<BackButton iconOnly title={t("a11y.back")} onClick={() => void (async () => {
-          if (dirtyRegistry.hasDirty() && !(await confirmDialog({
-            title: t("common.unsavedChangesTitle"),
-            message: t("common.unsavedChangesMessage", { name: t("comic.projectWorkspace"), action: t("common.back") }),
-            confirmText: t("common.discardDraft"),
-            dialogType: "warning",
-          }))) return;
-          navigate("/");
-        })()} />}
+        leading={<BackButton iconOnly title={t("a11y.back")} onClick={() => navigate("/")} />}
         icon={<PanelsTopLeft size={15} />}
         title={project?.title || t("novel.comicProject")}
         subtitle={
@@ -154,7 +147,7 @@ export const ComicProjectWorkspace: React.FC = () => {
             {canEditProject ? (
               <BookIconButton
                 label={t("comic.syncSource")}
-                onClick={() => setSourceSyncOpen(true)}
+                onClick={() => { void (async () => { if (await confirmDiscardMediaChanges(workspaceDirty || dirtyRegistry.hasDirty(), t)) setSourceSyncOpen(true); })(); }}
                 disabled={!project}
                 variant="secondary"
                 size="sm"
@@ -189,6 +182,7 @@ export const ComicProjectWorkspace: React.FC = () => {
           <MangaTab
             projectId={project.id}
             canEditManga={canEditProject}
+            onDirtyChange={setWorkspaceDirty}
             snapshotChapters={chapters}
             assetProjectId={project.root_project_id ?? project.id}
             imageProjectIds={imageProjectIds}

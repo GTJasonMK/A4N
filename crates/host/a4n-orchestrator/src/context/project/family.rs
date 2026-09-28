@@ -925,15 +925,16 @@ impl OrchestratorContext {
             )
             .await
             .map_err(ProjectPackageTransferError::Message)?;
-        let mut package: ProjectFamilyPackage =
-            a4n_import_core::parse_json_manifest_value(read_package.manifest, "项目族清单")
-                .map_err(|error| ProjectPackageTransferError::Message(error.to_string()))?;
-        package
-            .upgrade_shooting_contract(&mut Default::default())
+        let mut media_bytes = read_package.media_bytes;
+        let package = ProjectFamilyPackage::from_manifest(
+            read_package.manifest,
+            &mut Default::default(),
+            &mut media_bytes,
+            0,
+        )
+        .map_err(ProjectPackageTransferError::Message)?;
+        let media_payload = index_import_media_payload(&package.media_files, media_bytes)
             .map_err(ProjectPackageTransferError::Message)?;
-        let media_payload =
-            index_import_media_payload(&package.media_files, read_package.media_bytes)
-                .map_err(ProjectPackageTransferError::Message)?;
         validate_family_package_manifest(&package)
             .and_then(|_| validate_family_media_manifest(&package, &media_payload))
             .map_err(AppError::InvalidArgument)?;

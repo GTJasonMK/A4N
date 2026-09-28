@@ -2,7 +2,7 @@
 
 use thiserror::Error;
 
-use super::contracts::{MangaPageDrawingPromptV2, MangaPagePlanV3, MangaPageV3};
+use super::contracts::{MangaPageDrawingPromptV2, MangaPagePlanV4, MangaPageV4};
 
 mod page;
 mod plan;
@@ -17,13 +17,13 @@ pub struct MangaPlanValidationError {
     pub message: String,
 }
 
-impl MangaPagePlanV3 {
+impl MangaPagePlanV4 {
     pub fn validate(&self) -> Result<(), MangaPlanValidationError> {
         plan::validate_plan(self)
     }
 }
 
-impl MangaPageV3 {
+impl MangaPageV4 {
     pub fn validate(&self) -> Result<(), MangaPlanValidationError> {
         page::validate_page(self, "page")
     }

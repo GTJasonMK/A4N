@@ -1,8 +1,8 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use super::super::super::{
-    GalgameBranchDesign, GalgameCharacterStaging, GalgameShootingScriptProjection,
-    GalgameVisualPlan, SCENE_ENTRY_MAIN,
+    GalgameAdaptationProjection, GalgameBranchDesign, GalgameCharacterStaging, GalgameVisualPlan,
+    SCENE_ENTRY_MAIN,
 };
 use super::branches::*;
 use super::contracts::*;
@@ -12,7 +12,7 @@ use super::visual::*;
 use a4n_error::AppError;
 
 pub fn build_galgame_script_persist_plan(
-    scenes: &GalgameShootingScriptProjection,
+    scenes: &GalgameAdaptationProjection,
     staging: &GalgameCharacterStaging,
     visual_plan: &GalgameVisualPlan,
     branch_design: &GalgameBranchDesign,
@@ -50,12 +50,8 @@ pub fn build_galgame_script_persist_plan(
         .map(|scene| scene.index)
         .collect::<BTreeSet<_>>();
     validate_staging_scene_indexes(&staged_line_indexes_by_scene, &scene_indexes)?;
-    let (background_by_scene, cg_by_scene_line) = visual_plan_mappings(
-        visual_plan,
-        &scene_indexes,
-        &staged_line_indexes_by_scene,
-        &source_span_by_id,
-    )?;
+    let (background_by_scene, cg_by_scene_line) =
+        visual_plan_mappings(visual_plan, &scenes.scenes, staging, &source_span_by_id)?;
     let choices_by_beat_ref = branch_choices_by_beat_ref(branch_design, &scenes.scenes)?;
     let branch_lines_by_id = branch_lines_by_id(branch_design, &staging.branch_scene_lines)?;
 
@@ -98,15 +94,15 @@ pub fn build_galgame_script_persist_plan(
             .lines
             .iter()
             .enumerate()
-            .map(|(position, line)| (line.beat_ref, position))
+            .map(|(position, line)| (line.beat_ref.clone(), position))
             .collect::<BTreeMap<_, _>>();
         let mut participants = BTreeMap::<i64, String>::new();
         let mut persist_lines = Vec::with_capacity(staged_scene.lines.len());
         for (line_position, line) in staged_scene.lines.iter().enumerate() {
-            if line.beat_ref.scene_index != scene.index {
+            if !scene.contains_beat(&line.beat_ref) {
                 return Err(invalid(format!(
-                    "Galgame staged line beat_ref.scene_index 与所在主线场不一致: scene_index={}, line_index={}, beat_scene_index={}",
-                    scene.index, line.index, line.beat_ref.scene_index
+                    "Galgame staged line 的改编单元与所在主线场不一致: scene_index={}, line_index={}",
+                    scene.index, line.index
                 )));
             }
             let text_anchor_id =
@@ -146,7 +142,13 @@ pub fn build_galgame_script_persist_plan(
                     persist_lines.len() + 1,
                     &mut next_branch_scene_index,
                     GalgameBranchSceneContext {
+                        scenes: &scenes.scenes,
                         source_snapshot_chapter_id,
+                        adaptation_source: GalgameAdaptationSceneRef {
+                            plan_id: scene.adaptation_plan_id,
+                            plan_revision: scene.adaptation_plan_revision,
+                            unit_id: scene.unit_id.clone(),
+                        },
                         location: scene.location.clone(),
                         time_of_day: scene.time_of_day.clone(),
                         source_scene_summary: scene.summary.clone(),
@@ -167,10 +169,10 @@ pub fn build_galgame_script_persist_plan(
         persist_scenes.push(GalgamePersistScene {
             scene_index: scene.index,
             source_snapshot_chapter_id,
-            shooting_source: Some(GalgameShootingSceneRef {
-                script_id: scene.shooting_script_id,
-                script_revision: scene.shooting_script_revision,
-                scene_index: scene.shooting_scene_index,
+            adaptation_source: Some(GalgameAdaptationSceneRef {
+                plan_id: scene.adaptation_plan_id,
+                plan_revision: scene.adaptation_plan_revision,
+                unit_id: scene.unit_id.clone(),
             }),
             title: scene.title.clone(),
             location: scene.location.clone(),

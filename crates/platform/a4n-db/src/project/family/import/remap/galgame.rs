@@ -51,6 +51,19 @@ pub(in crate::project::family::import) fn remap_galgame_presentation_json(
         &maps.character_profile_ids,
         label,
     )?;
+    for key in ["beat_ref", "after_beat_ref"] {
+        if let Some(reference) = object.get_mut(key).filter(|value| !value.is_null()) {
+            let reference = reference.as_object_mut().ok_or_else(|| {
+                ProjectFamilyImportError::invalid_package(format!("{label}.{key} 必须是对象"))
+            })?;
+            super::json_ids::remap_required_object_id(
+                reference,
+                "source_chapter_id",
+                &maps.chapter_ids,
+                label,
+            )?;
+        }
+    }
     Ok(Value::Object(object))
 }
 
@@ -63,8 +76,11 @@ mod tests {
     fn presentation_remaps_all_character_references_but_not_scene_ordinals() {
         let mut maps = ImportIdMaps::default();
         maps.character_profile_ids.extend([(7, 107), (8, 108)]);
+        maps.chapter_ids.insert(9, 109);
         let presentation = json!({
-            "schema_version": "galgame_line_presentation_v2",
+            "schema_version": "galgame_line_presentation_v3",
+            "origin": "adapted",
+            "beat_ref": {"source_chapter_id": 9, "unit_id": "arrival", "beat_id": "knock"},
             "visible_cast": [{"character_profile_id": 7, "expression": "neutral", "pose": "standing", "position": "left", "facing": "front", "layer": "front"}],
             "enter": [7], "exit": [8], "focus_character_profile_id": 7,
             "hold": false, "player_knowledge": [], "returns_to_scene_index": 7,
@@ -77,6 +93,8 @@ mod tests {
         assert_eq!(mapped["exit"], json!([108]));
         assert_eq!(mapped["focus_character_profile_id"], 107);
         assert_eq!(mapped["returns_to_scene_index"], 7);
+        assert_eq!(mapped["beat_ref"]["source_chapter_id"], 109);
+        assert_eq!(mapped["beat_ref"]["unit_id"], "arrival");
         assert_eq!(mapped["visible_cast"][0]["pose"], "standing");
         maps.character_profile_ids.remove(&8);
         assert!(remap_galgame_presentation_json(&presentation, &maps, "presentation").is_err());

@@ -55,10 +55,11 @@ import {
   loadedSegmentPlanDraftIsActive,
   type LoadedSegmentPlanDraft,
 } from "./loadVideoTabData";
-import type { VideoWorkspaceTab } from "./VideoWorkspaceHeader";
 import type { MessageTranslator } from "../../../i18n";
 import type { ToastType } from "../../../components/feedback/Toast";
 import type { InsertedSegmentTimelinePanelHandle } from "./InsertedSegmentTimelinePanel";
+
+export type VideoWorkspaceTab = "director" | "screenplay" | "materials" | "frames" | "video" | "assembly" | "postprocess";
 
 interface PersistedWorkspaceTabState {
   tab: VideoWorkspaceTab;
@@ -240,7 +241,7 @@ export function useVideoTabState({
     setActing((current) => (current === key ? null : current));
   }, []);
   const workspaceTabIds = workspaceTabs.map((tab) => tab.id);
-  const defaultWorkspaceTab: VideoWorkspaceTab = "video";
+  const defaultWorkspaceTab: VideoWorkspaceTab = "materials";
   const workspaceTabInitialValue = useMemo(
     () => createPersistedWorkspaceTabState(defaultWorkspaceTab),
     [defaultWorkspaceTab, chapterStorageKey],

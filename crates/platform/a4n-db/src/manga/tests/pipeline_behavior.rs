@@ -44,7 +44,23 @@ async fn project_and_chapter(db: &DatabaseConnection, title: &str) -> (i64, i64)
     .insert(db)
     .await
     .unwrap();
-    (project.id, chapter.id)
+    let comic = crate::project::create_derived_project_record(
+        db,
+        1,
+        crate::project::CreateDerivedProjectParams {
+            root_project_id: project.id,
+            derived_kind: "comic".into(),
+            title: title.into(),
+            description: String::new(),
+            chapter_scope: crate::project::DerivedChapterScope {
+                start_chapter: 1,
+                end_chapter: 1,
+            },
+        },
+    )
+    .await
+    .unwrap();
+    (comic.id, chapter.id)
 }
 
 fn fixed_time(day: u32) -> chrono::NaiveDateTime {
@@ -74,10 +90,10 @@ fn prompt_draft(
 
 fn page_layout(page_number: i32) -> serde_json::Value {
     json!({
-        "schema_version": "manga_page_generation_v2",
+        "schema_version": "manga_page_generation_v3",
         "page_plan": {
             "page_number": page_number,
-            "beat_refs": [{"scene_index": 1, "shot_index": 1, "beat_index": 1}],
+            "beat_refs": [{"unit_id": "unit-1", "beat_id": "beat-1"}],
             "role": "setup",
             "pacing": "medium",
             "importance": "normal",
@@ -89,7 +105,7 @@ fn page_layout(page_number: i32) -> serde_json::Value {
             "dominant_panel_number": 1,
             "panels": [{
                 "panel_number": 1,
-                "beat_refs": [{"scene_index": 1, "shot_index": 1, "beat_index": 1}],
+                "beat_refs": [{"unit_id": "unit-1", "beat_id": "beat-1"}],
                 "function": "dialogue",
                 "size": "dominant",
                 "shot_scale": "medium",
@@ -117,11 +133,108 @@ fn page_layout(page_number: i32) -> serde_json::Value {
             "source_snapshot_chapter_id": null,
             "source_revision_key": "live:2:content-sha256",
             "content_sha256": "content-sha256",
-            "shooting_script_id": 71,
-            "shooting_script_revision": 2,
-            "shooting_script_sha256": "script-sha256"
+            "adaptation_plan_id": 71,
+            "adaptation_plan_revision": 2,
+            "adaptation_plan_sha256": "plan-sha256"
         }
     })
+}
+
+async fn planned_drafts(
+    db: &DatabaseConnection,
+    project_id: i64,
+    chapter_id: i64,
+) -> (
+    Vec<MangaPagePromptSyncDraft>,
+    a4n_domain::media_authoring::AuthoringDocumentRecord,
+) {
+    use crate::media_authoring::{
+        SaveAuthoringDocument, adopt_authoring_document, save_authoring_document,
+    };
+    use a4n_domain::media_authoring::{
+        AdaptationPlanV1, AuthoringDocumentInputs, AuthoringDocumentKind, AuthoringSourceRef,
+    };
+    let source = crate::project::resolve_chapter_source(db, project_id, chapter_id)
+        .await
+        .unwrap();
+    let inputs = AuthoringDocumentInputs {
+        sources: vec![AuthoringSourceRef {
+            root_project_id: source.root_project_id,
+            source_chapter_id: chapter_id,
+            source_snapshot_id: source.source_snapshot_id.unwrap(),
+            source_snapshot_chapter_id: source.source_snapshot_chapter_id.unwrap(),
+            content_sha256: source.content_sha256.clone(),
+        }],
+        video_reference: None,
+        dependencies: Vec::new(),
+    };
+    let document = json!({"schema_version":"adaptation_plan_v1", "target":"manga", "intention":"保留已有页面", "decisions":[],
+        "units":[{"id":"unit-1", "origin":"historical", "title":"对峙", "location":null, "participants":[],
+            "dramatic_question":"如何回应", "objective":"确认", "obstacle":"沉默", "entry_state":"平静", "exit_state":"紧张", "source_span_ids":[],
+            "beats":[{"id":"beat-1", "kind":"action", "is_climax":false, "origin":"historical", "importance":"required",
+                "action":"抬头", "reaction":null, "dialogue_intent":null, "entry_state":"平静", "exit_state":"紧张", "source_span_ids":[]}]}]});
+    serde_json::from_value::<AdaptationPlanV1>(document.clone())
+        .unwrap()
+        .validate(&Default::default())
+        .unwrap();
+    let draft = save_authoring_document(
+        db,
+        SaveAuthoringDocument {
+            project_id,
+            source_snapshot_id: source.source_snapshot_id.unwrap(),
+            source_chapter_id: Some(chapter_id),
+            kind: AuthoringDocumentKind::AdaptationPlan,
+            record_id: None,
+            expected_revision: None,
+            inputs: inputs.clone(),
+            document,
+        },
+    )
+    .await
+    .unwrap();
+    let adaptation = adopt_authoring_document(db, project_id, draft.id, draft.revision)
+        .await
+        .unwrap();
+    let mut drafts = vec![
+        prompt_draft(chapter_id, project_id, 1, "镜头一"),
+        prompt_draft(chapter_id, project_id, 2, "镜头二"),
+    ];
+    let page_plan = json!({"schema_version":"manga_page_plan_v4", "adaptation_plan_id":adaptation.id, "adaptation_plan_revision":adaptation.revision,
+        "pages":drafts.iter().map(|draft| draft.layout.as_ref().unwrap()["page_plan"].clone()).collect::<Vec<_>>()});
+    serde_json::from_value::<a4n_domain::manga::MangaPagePlanV4>(page_plan.clone())
+        .unwrap()
+        .validate()
+        .unwrap();
+    let page_plan = save_authoring_document(
+        db,
+        SaveAuthoringDocument {
+            project_id,
+            source_snapshot_id: source.source_snapshot_id.unwrap(),
+            source_chapter_id: Some(chapter_id),
+            kind: AuthoringDocumentKind::MangaPagePlan,
+            record_id: None,
+            expected_revision: None,
+            inputs: AuthoringDocumentInputs {
+                dependencies: vec![adaptation.reference()],
+                ..inputs
+            },
+            document: page_plan,
+        },
+    )
+    .await
+    .unwrap();
+    let page_plan = adopt_authoring_document(db, project_id, page_plan.id, page_plan.revision)
+        .await
+        .unwrap();
+    for draft in &mut drafts {
+        let layout = draft.layout.as_mut().unwrap();
+        layout["source"] = json!({"root_project_id":source.root_project_id, "source_chapter_id":chapter_id,
+            "source_snapshot_id":source.source_snapshot_id, "source_snapshot_chapter_id":source.source_snapshot_chapter_id,
+            "source_revision_key":source.source_revision_key, "content_sha256":source.content_sha256,
+            "adaptation_plan_id":adaptation.id, "adaptation_plan_revision":adaptation.revision, "adaptation_plan_sha256":adaptation.sha256});
+        layout["page_plan_ref"] = serde_json::to_value(page_plan.reference()).unwrap();
+    }
+    (drafts, adaptation)
 }
 
 #[tokio::test]
@@ -129,13 +242,14 @@ async fn sync_page_prompts_preserves_rendered_image_when_prompt_unchanged() {
     let db = setup_db().await;
     let (project_id, chapter_id) = project_and_chapter(&db, "漫画提示词同步").await;
     let old_time = fixed_time(1);
+    let (drafts, adaptation) = planned_drafts(&db, project_id, chapter_id).await;
     let kept = chapter_manga_prompt::ActiveModel {
         chapter_id: Set(chapter_id),
         project_id: Set(project_id),
         page_number: Set(1),
         prompt_type: Set(MANGA_PAGE_PROMPT_TYPE.to_string()),
         image_prompt: Set("镜头一".to_string()),
-        layout: Set(Some(page_layout(1))),
+        layout: Set(drafts[0].layout.clone()),
         generated_image_id: Set(Some(9901)),
         status: Set("completed".to_string()),
         created_at: Set(old_time),
@@ -160,14 +274,26 @@ async fn sync_page_prompts_preserves_rendered_image_when_prompt_unchanged() {
     .await
     .unwrap();
 
+    let mut wrong_source = drafts.clone();
+    wrong_source[0].layout.as_mut().unwrap()["source"]["adaptation_plan_id"] = json!(999);
+    assert!(
+        sync_manga_page_prompts_by_chapter(
+            &db,
+            project_id,
+            chapter_id,
+            wrong_source,
+            fixed_time(2)
+        )
+        .await
+        .unwrap_err()
+        .to_string()
+        .contains("页面来源")
+    );
     let rows = sync_manga_page_prompts_by_chapter(
         &db,
         project_id,
         chapter_id,
-        vec![
-            prompt_draft(chapter_id, project_id, 1, "镜头一"),
-            prompt_draft(chapter_id, project_id, 2, "镜头二"),
-        ],
+        drafts.clone(),
         fixed_time(2),
     )
     .await
@@ -206,6 +332,31 @@ async fn sync_page_prompts_preserves_rendered_image_when_prompt_unchanged() {
             (chapter_id, stored[0].id, "completed".to_string()),
             (chapter_id, stored[1].id, "pending".to_string()),
         ]
+    );
+    let newer = crate::media_authoring::save_authoring_document(
+        &db,
+        crate::media_authoring::SaveAuthoringDocument {
+            project_id,
+            source_snapshot_id: adaptation.source_snapshot_id,
+            source_chapter_id: adaptation.source_chapter_id,
+            kind: adaptation.kind,
+            record_id: None,
+            expected_revision: None,
+            inputs: adaptation.inputs,
+            document: adaptation.document,
+        },
+    )
+    .await
+    .unwrap();
+    crate::media_authoring::adopt_authoring_document(&db, project_id, newer.id, newer.revision)
+        .await
+        .unwrap();
+    assert!(
+        sync_manga_page_prompts_by_chapter(&db, project_id, chapter_id, drafts, fixed_time(2))
+            .await
+            .unwrap_err()
+            .to_string()
+            .contains("对应版本的改编计划")
     );
 }
 

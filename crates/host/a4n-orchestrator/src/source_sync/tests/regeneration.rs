@@ -73,7 +73,7 @@ fn regenerate_scene_prepared_decision_preserves_validated_plan() {
             && generated_scene.title == "雨夜重逢"
             && generated_scene.lines.len() == 1
             && generated_scene.lines[0].text_anchor_id == Some(9001)
-            && stage_outputs_json.get("shooting_script_projection").is_some()
+            && stage_outputs_json.get("adaptation_projection").is_some()
     ));
 }
 
@@ -163,7 +163,7 @@ fn regenerate_scene_apply_plan_rejects_cross_chapter_anchor() {
 fn regenerate_scene_apply_plan_rejects_incomplete_stage_outputs() {
     let mut plan = valid_regenerate_scene_apply_plan();
     plan.stage_outputs_json = json!({
-        "shooting_script_projection": {
+        "adaptation_projection": {
             "scenes": [{
                 "index": 1,
                 "title": "雨夜",

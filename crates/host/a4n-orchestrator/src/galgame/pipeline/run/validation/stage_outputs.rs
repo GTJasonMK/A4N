@@ -2,14 +2,14 @@ use a4n_error::AppError;
 use serde_json::Value;
 
 use crate::galgame::{
-    branch_design_from_value, character_staging_from_value, script_adaptation_from_value,
-    shooting_script_projection_from_value, visual_plan_from_value,
+    adaptation_projection_from_value, branch_design_from_value, character_staging_from_value,
+    script_adaptation_from_value, visual_plan_from_value,
 };
 
 use super::super::contracts::{
-    SOURCE_SYNC_REGENERATION_STAGE_OUTPUT_KEYS, SOURCE_SYNC_STAGE_BRANCH_DESIGN,
-    SOURCE_SYNC_STAGE_CHARACTER_STAGING, SOURCE_SYNC_STAGE_SCRIPT_ADAPTATION,
-    SOURCE_SYNC_STAGE_SHOOTING_SCRIPT, SOURCE_SYNC_STAGE_VISUAL_PLANNING,
+    SOURCE_SYNC_REGENERATION_STAGE_OUTPUT_KEYS, SOURCE_SYNC_STAGE_ADAPTATION,
+    SOURCE_SYNC_STAGE_BRANCH_DESIGN, SOURCE_SYNC_STAGE_CHARACTER_STAGING,
+    SOURCE_SYNC_STAGE_SCRIPT_ADAPTATION, SOURCE_SYNC_STAGE_VISUAL_PLANNING,
 };
 use super::regeneration::{
     ensure_single_regenerated_scene_lines, ensure_single_regenerated_staged_lines,
@@ -38,18 +38,18 @@ pub(crate) fn validate_source_sync_scene_regeneration_stage_outputs(
         )));
     }
 
-    let shooting_script_projection = shooting_script_projection_from_value(
-        required_stage_output_value(object, SOURCE_SYNC_STAGE_SHOOTING_SCRIPT)?,
-        "stage_outputs.shooting_script_projection",
+    let adaptation_projection = adaptation_projection_from_value(
+        required_stage_output_value(object, SOURCE_SYNC_STAGE_ADAPTATION)?,
+        "stage_outputs.adaptation_projection",
     )?;
-    if shooting_script_projection.scenes.len() != 1
-        || shooting_script_projection
+    if adaptation_projection.scenes.len() != 1
+        || adaptation_projection
             .scenes
             .first()
             .is_none_or(|scene| scene.index != 1)
     {
         return Err(AppError::InvalidArgument(
-            "Galgame source sync stage_outputs.shooting_script_projection 必须只包含 scene_index=1 的单场"
+            "Galgame source sync stage_outputs.adaptation_projection 必须只包含 scene_index=1 的单场"
                 .to_string(),
         ));
     }
@@ -71,16 +71,29 @@ pub(crate) fn validate_source_sync_scene_regeneration_stage_outputs(
         "stage_outputs.visual_planning",
     )?;
     ensure_single_regenerated_visual_plan(&visual_plan)?;
-    if visual_plan.backgrounds[0].source_span_ids.is_empty()
-        || visual_plan
-            .event_cgs
+    let scene = &adaptation_projection.scenes[0];
+    a4n_domain::media_authoring::validate_adaptation_evidence(
+        scene.origin,
+        &visual_plan.backgrounds[0].source_span_ids,
+        &scene.source_span_ids.iter().cloned().collect(),
+    )
+    .map_err(|error| {
+        AppError::InvalidArgument(format!(
+            "stage_outputs.visual_planning.backgrounds[0].source_span_ids: {error}"
+        ))
+    })?;
+    for cg in &visual_plan.event_cgs {
+        let line = character_staging.scene_lines[0]
+            .lines
             .iter()
-            .any(|event_cg| event_cg.source_span_ids.is_empty())
-    {
-        return Err(AppError::InvalidArgument(
-            "Galgame source sync stage_outputs.visual_planning 必须保留背景/事件 CG 的 source_span_ids"
-                .to_string(),
-        ));
+            .find(|line| line.index == cg.line_index)
+            .ok_or_else(|| AppError::InvalidArgument("来源同步 CG 引用了未知剧本行".into()))?;
+        a4n_domain::media_authoring::validate_adaptation_evidence(
+            line.origin,
+            &cg.source_span_ids,
+            &line.source_span_ids.iter().cloned().collect(),
+        )
+        .map_err(AppError::InvalidArgument)?;
     }
 
     let branch_design = branch_design_from_value(

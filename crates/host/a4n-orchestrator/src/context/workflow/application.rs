@@ -3,6 +3,19 @@
 use super::*;
 
 impl WorkflowApplication {
+    pub(in crate::context) async fn continue_completed_workflow_run(
+        &self,
+        source_run_id: i64,
+        input: UpsertWorkflowRunInput,
+    ) -> Result<workflow_run::Model, AppError> {
+        a4n_db::workflow::continue_completed_workflow_run(
+            self.database.connection(),
+            source_run_id,
+            input,
+        )
+        .await
+        .map_err(workflow_write_app_error)
+    }
     pub(in crate::context) async fn workflow_run_summary(
         &self,
         workflow_run_id: i64,

@@ -32,6 +32,7 @@ where
     validate_director_constraints(
         db,
         (
+            input.source.requested_project_id,
             input.source.root_project_id,
             input.source.source_chapter_id,
             input.source.source_snapshot_id,
@@ -46,6 +47,7 @@ where
     let now = Utc::now().naive_utc();
     let record = chapter_shooting_script::ActiveModel {
         id: NotSet,
+        project_id: Set(input.source.requested_project_id),
         root_project_id: Set(input.source.root_project_id),
         source_chapter_id: Set(input.source.source_chapter_id),
         source_snapshot_id: Set(input.source.source_snapshot_id),
@@ -66,15 +68,6 @@ where
     }
     .insert(db)
     .await?;
-    if record.source_snapshot_id.is_none() {
-        crate::project::mark_derived_projects_root_updated_in_record(
-            db,
-            record.root_project_id,
-            Some(record.source_chapter_id),
-            now,
-        )
-        .await?;
-    }
     parse_record(record)
 }
 
@@ -110,6 +103,7 @@ where
     validate_director_constraints(
         db,
         (
+            current.project_id,
             current.root_project_id,
             current.source_chapter_id,
             current.source_snapshot_id,
@@ -179,15 +173,6 @@ where
             expected_revision: input.expected_revision,
         });
     }
-    if current.source_snapshot_id.is_none() {
-        crate::project::mark_derived_projects_root_updated_in_record(
-            db,
-            current.root_project_id,
-            Some(current.source_chapter_id),
-            Utc::now().naive_utc(),
-        )
-        .await?;
-    }
     chapter_shooting_script_by_id(db, input.record_id).await
 }
 
@@ -204,7 +189,7 @@ fn validate_visual_plan_identity(
 
 pub(super) async fn validate_director_constraints<C: ConnectionTrait>(
     db: &C,
-    source: (i64, i64, Option<i64>, Option<i64>),
+    source: (i64, i64, i64, Option<i64>, Option<i64>),
     identity: &super::contracts::ChapterVisualPlanIdentity,
     script: &a4n_domain::shooting_script::ChapterShootingScriptV2,
     previous: Option<&a4n_domain::shooting_script::ChapterShootingScriptV2>,
@@ -213,6 +198,7 @@ pub(super) async fn validate_director_constraints<C: ConnectionTrait>(
         .await
         .map_err(super::plan_rebase::visual_plan_error)?;
     if (
+        plan.record.project_id,
         plan.record.root_project_id,
         plan.record.source_chapter_id,
         plan.record.source_snapshot_id,

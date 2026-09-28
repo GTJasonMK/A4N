@@ -1,4 +1,4 @@
-use a4n_domain::manga::{MANGA_PAGE_DRAWING_PROMPT_V2, MangaPageV3};
+use a4n_domain::manga::{MANGA_PAGE_DRAWING_PROMPT_V2, MangaPageV4};
 use a4n_error::AppError;
 use a4n_llm_context::LlmContextManifest;
 use serde_json::{Value, json};
@@ -8,12 +8,12 @@ use super::inputs::{manga_page_drawing_prompt_page_input, manga_page_planning_in
 
 pub(in crate::manga) fn manga_page_planning_user_message(
     extraction_summary: Value,
-    shooting_script: Value,
+    adaptation_plan: Value,
 ) -> Result<LlmContextManifest, AppError> {
     build_manga_step_user_message(
         "manga_page_planning",
         "基于完整抽取信息规划漫画分页结构",
-        manga_page_planning_input(extraction_summary, shooting_script)?,
+        manga_page_planning_input(extraction_summary, adaptation_plan)?,
         json!({
             "format": "json_object",
             "prompt_name": "manga_page_planning"
@@ -23,7 +23,7 @@ pub(in crate::manga) fn manga_page_planning_user_message(
 
 pub(in crate::manga) fn manga_page_drawing_prompt_user_message(
     page_number: u32,
-    page_plan: &MangaPageV3,
+    page_plan: &MangaPageV4,
     extraction_summary: &Value,
     reference_assets: &Value,
 ) -> Result<LlmContextManifest, AppError> {

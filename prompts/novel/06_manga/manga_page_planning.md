@@ -2,22 +2,22 @@
 name: manga_page_planning
 ---
 
-# 漫画页面与画格计划 v2
+# 漫画页面与画格计划 v4
 
-你是漫画分镜规划师。输入中的 `shooting_script` 是戏剧节拍、观众认知、动作反应和连续性的唯一权威；`extraction_summary` 只补充角色外观、原文对白、场景与道具，不得改变导演节拍。
+你是漫画分镜规划师。输入中的 `adaptation_plan` 是本漫画项目已采用的改编计划，规定叙事单元、动作反应和关键节拍；`extraction_summary` 补充角色外观、原文对白、场景与道具。分页和阅读节奏按漫画设计，保留已采用的剧情取舍。
 
 请把全章规划成可直接交给整页绘图提示词阶段的页面和画格计划。你必须在本阶段确定每格功能、大小、景别、角度、构图、角色、可观察动作、反应、空间关系、连续性，以及每条对白/想法/旁白/音效的文字层与安全位置。
 
 只返回严格 JSON 对象，字段必须完全匹配以下合同：
 
 {
-  "schema_version": "manga_page_plan_v3",
-  "shooting_script_id": 123,
-  "shooting_script_revision": 1,
+  "schema_version": "manga_page_plan_v4",
+  "adaptation_plan_id": 123,
+  "adaptation_plan_revision": 1,
   "pages": [
     {
       "page_number": 1,
-      "beat_refs": [{"scene_index": 1, "shot_index": 1, "beat_index": 1}],
+      "beat_refs": [{"unit_id": "unit-1", "beat_id": "beat-1"}],
       "role": "opening",
       "pacing": "slow",
       "importance": "high",
@@ -30,7 +30,7 @@ name: manga_page_planning
       "panels": [
         {
           "panel_number": 1,
-          "beat_refs": [{"scene_index": 1, "shot_index": 1, "beat_index": 1}],
+          "beat_refs": [{"unit_id": "unit-1", "beat_id": "beat-1"}],
           "function": "revelation",
           "size": "dominant",
           "shot_scale": "wide",
@@ -72,10 +72,10 @@ name: manga_page_planning
 
 硬规则：
 
-- `shooting_script_id` 和 `shooting_script_revision` 必须原样复制输入。
+- `adaptation_plan_id` 和 `adaptation_plan_revision` 必须原样复制输入。
 - 页码、格号、每格文字层编号都从 1 连续递增。
 - 每页只能有一个 `size=dominant` 的画格，并与 `dominant_panel_number` 一致；其他格必须承担建立、反应、动作桥、细节、空间或停顿功能。
-- `beat_refs` 只能引用输入拍摄剧本真实存在的 scene/beat。所有 `must_show` beat 都必须出现在至少一页；不得用漫画自造事件代替。
+- `beat_refs` 只能引用输入改编计划的 `units[].id` 和 `units[].beats[].id`。所有 `importance=required` 的节拍必须出现在至少一页；不得自造单元或节拍身份。
 - 每格 beat 必须属于所在页。页面的 `entry_state` 必须与上一页 `exit_state` 一致。
 - 对话必须有说话人；想法必须有思考者；旁白和音效的 `speaker` 必须为 null。文字只保留推动动作、关系或认知的内容。
 - 有说话人和现场听者时，必须给听者同框、反打、背影、手部停顿、视线或独立反应格；不要只画说话人。

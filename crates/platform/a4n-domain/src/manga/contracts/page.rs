@@ -6,18 +6,18 @@ use super::versions::MangaPagePlanSchemaVersion;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, JsonSchema)]
 #[serde(deny_unknown_fields)]
-pub struct MangaPagePlanV3 {
+pub struct MangaPagePlanV4 {
     pub schema_version: MangaPagePlanSchemaVersion,
-    pub shooting_script_id: i64,
-    pub shooting_script_revision: i32,
-    pub pages: Vec<MangaPageV3>,
+    pub adaptation_plan_id: i64,
+    pub adaptation_plan_revision: i32,
+    pub pages: Vec<MangaPageV4>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, JsonSchema)]
 #[serde(deny_unknown_fields)]
-pub struct MangaPageV3 {
+pub struct MangaPageV4 {
     pub page_number: u32,
-    pub beat_refs: Vec<MangaShootingBeatRefV3>,
+    pub beat_refs: Vec<crate::media_authoring::AdaptationBeatRef>,
     pub role: MangaPageRoleV2,
     pub pacing: MangaPagePacingV2,
     pub importance: MangaPageImportanceV2,
@@ -28,16 +28,6 @@ pub struct MangaPageV3 {
     pub exit_state: String,
     pub dominant_panel_number: u32,
     pub panels: Vec<MangaPanelV2>,
-}
-
-#[derive(
-    Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Hash, JsonSchema,
-)]
-#[serde(deny_unknown_fields)]
-pub struct MangaShootingBeatRefV3 {
-    pub scene_index: u32,
-    pub shot_index: u32,
-    pub beat_index: u32,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, JsonSchema)]

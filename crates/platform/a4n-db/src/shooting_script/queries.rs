@@ -20,6 +20,7 @@ where
 {
     validate_source(source)?;
     chapter_shooting_script::Entity::find()
+        .filter(chapter_shooting_script::Column::ProjectId.eq(source.requested_project_id))
         .filter(chapter_shooting_script::Column::RootProjectId.eq(source.root_project_id))
         .filter(chapter_shooting_script::Column::SourceChapterId.eq(source.source_chapter_id))
         .filter(chapter_shooting_script::Column::SourceRevisionKey.eq(&source.source_revision_key))
@@ -50,11 +51,13 @@ where
     let rows = chapter_shooting_script::Entity::find()
         .filter(source_condition(sources))
         .distinct_on([
+            chapter_shooting_script::Column::ProjectId,
             chapter_shooting_script::Column::RootProjectId,
             chapter_shooting_script::Column::SourceChapterId,
             chapter_shooting_script::Column::SourceRevisionKey,
             chapter_shooting_script::Column::SourceContentSha256,
         ])
+        .order_by_asc(chapter_shooting_script::Column::ProjectId)
         .order_by_asc(chapter_shooting_script::Column::RootProjectId)
         .order_by_asc(chapter_shooting_script::Column::SourceChapterId)
         .order_by_asc(chapter_shooting_script::Column::SourceRevisionKey)
@@ -91,10 +94,11 @@ where
     parse_record(record)
 }
 
-type SourceIdentity = (i64, i64, String, String);
+type SourceIdentity = (i64, i64, i64, String, String);
 
 fn source_identity(source: &ResolvedChapterSource) -> SourceIdentity {
     (
+        source.requested_project_id,
         source.root_project_id,
         source.source_chapter_id,
         source.source_revision_key.clone(),
@@ -104,6 +108,7 @@ fn source_identity(source: &ResolvedChapterSource) -> SourceIdentity {
 
 fn source_identity_from_record(record: &chapter_shooting_script::Model) -> SourceIdentity {
     (
+        record.project_id,
         record.root_project_id,
         record.source_chapter_id,
         record.source_revision_key.clone(),
@@ -115,6 +120,7 @@ fn source_condition(sources: &[ResolvedChapterSource]) -> Condition {
     sources.iter().fold(Condition::any(), |condition, source| {
         condition.add(
             Condition::all()
+                .add(chapter_shooting_script::Column::ProjectId.eq(source.requested_project_id))
                 .add(chapter_shooting_script::Column::RootProjectId.eq(source.root_project_id))
                 .add(chapter_shooting_script::Column::SourceChapterId.eq(source.source_chapter_id))
                 .add(

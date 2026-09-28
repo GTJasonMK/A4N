@@ -1,5 +1,5 @@
 use a4n_domain::manga::{
-    MangaPageGenerationSchemaVersion, MangaPageV3, MangaPanelV2, MangaTextLayerKindV2,
+    MangaPageGenerationSchemaVersion, MangaPageV4, MangaPanelV2, MangaTextLayerKindV2,
 };
 use a4n_error::AppError;
 use serde_json::json;
@@ -8,7 +8,7 @@ use std::collections::HashMap;
 use super::super::super::output_sync::MangaPagePromptDraft;
 use super::super::super::reference_assets::page_reference_bindings;
 use super::contracts::MangaPipelinePersistInput;
-use a4n_domain::manga::MangaPageGenerationLayoutV2;
+use a4n_domain::manga::MangaPageGenerationLayoutV3;
 
 pub(super) fn pipeline_drafts(
     input: &MangaPipelinePersistInput<'_>,
@@ -50,9 +50,10 @@ pub(super) fn pipeline_drafts(
             image_prompt: drawing.image_prompt.clone(),
             dialogue_text: page_dialogue_text(page)?,
             characters_in_frame: Some(json!(page_characters(page))),
-            layout: Some(serde_json::to_value(MangaPageGenerationLayoutV2 {
-                schema_version: MangaPageGenerationSchemaVersion::V2,
+            layout: Some(serde_json::to_value(MangaPageGenerationLayoutV3 {
+                schema_version: MangaPageGenerationSchemaVersion::V3,
                 page_plan: page.clone(),
+                page_plan_ref: Some(input.page_plan_ref.clone()),
                 drawing_prompt: drawing.clone(),
                 reference_bindings: page_reference_bindings(page, input.reference_assets_metadata)
                     .map_err(AppError::InvalidArgument)?,
@@ -71,7 +72,7 @@ fn database_index(value: u32, label: &str) -> Result<i32, AppError> {
         .map_err(|_| AppError::InvalidArgument(format!("{label}超出 i32 范围: {value}")))
 }
 
-fn page_characters(page: &MangaPageV3) -> Vec<String> {
+fn page_characters(page: &MangaPageV4) -> Vec<String> {
     let mut names = page
         .panels
         .iter()
@@ -82,7 +83,7 @@ fn page_characters(page: &MangaPageV3) -> Vec<String> {
     names
 }
 
-fn page_dialogue_text(page: &MangaPageV3) -> Result<Option<String>, AppError> {
+fn page_dialogue_text(page: &MangaPageV4) -> Result<Option<String>, AppError> {
     let mut lines = Vec::new();
     for panel in &page.panels {
         if let Some(text) = panel_dialogue_text(panel)? {

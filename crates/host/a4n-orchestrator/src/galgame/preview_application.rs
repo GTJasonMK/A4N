@@ -12,10 +12,10 @@ use crate::{
 
 use super::{
     GALGAME_PIPELINE_WORKFLOW_KIND, GalgamePipelinePromptContext, GalgamePipelineStartStage,
-    branch_design_from_value, character_staging_from_value, galgame_branch_design_user_message,
+    adaptation_projection_from_value, branch_design_from_value, character_staging_from_value,
+    galgame_adaptation_projection, galgame_branch_design_user_message,
     galgame_character_staging_user_message, galgame_script_adaptation_user_message,
-    galgame_shooting_script_projection, galgame_visual_planning_user_message,
-    script_adaptation_from_value, shooting_script_projection_from_value, visual_plan_from_value,
+    galgame_visual_planning_user_message, script_adaptation_from_value, visual_plan_from_value,
 };
 
 const CHECKPOINT_SCENES: &str = "scenes";
@@ -60,12 +60,12 @@ impl OrchestratorContext {
         );
         let context = context_result?;
         let checkpoints = checkpoints_result?;
-        let shooting_script_projection = match checkpoints.prior_stage_input(
-            GalgamePipelineStartStage::ShootingScriptProjection,
+        let adaptation_projection = match checkpoints.prior_stage_input(
+            GalgamePipelineStartStage::AdaptationPlan,
             checkpoints.scenes.clone(),
         )? {
             Some(value) => value,
-            None => serde_json::to_value(galgame_shooting_script_projection(&context)?)?,
+            None => serde_json::to_value(galgame_adaptation_projection(&context)?)?,
         };
         let branch_design = checkpoints.prior_stage_input(
             GalgamePipelineStartStage::BranchDesign,
@@ -83,7 +83,7 @@ impl OrchestratorContext {
             prompt_renderer,
             start_from_stage,
             &context,
-            &shooting_script_projection,
+            &adaptation_projection,
             branch_design.as_ref(),
             script_adaptation.as_ref(),
             character_staging.as_ref(),
@@ -152,7 +152,7 @@ impl OrchestratorContext {
         prompt_renderer: &dyn PromptRenderer,
         start_from_stage: Option<GalgamePipelineStartStage>,
         context: &GalgamePipelinePromptContext,
-        shooting_script_projection: &Value,
+        adaptation_projection: &Value,
         branch_design: Option<&Value>,
         script_adaptation: Option<&Value>,
         character_staging: Option<&Value>,
@@ -168,7 +168,7 @@ impl OrchestratorContext {
                 "branch_design",
                 "分支设计",
                 "galgame_branch_design",
-                galgame_branch_design_user_message(shooting_script_projection)?,
+                galgame_branch_design_user_message(adaptation_projection)?,
             ));
         }
         if stage_filter(GalgamePipelineStartStage::ScriptAdaptation)
@@ -180,7 +180,7 @@ impl OrchestratorContext {
                 "galgame_script_adaptation",
                 galgame_script_adaptation_user_message(
                     &context.chapters,
-                    shooting_script_projection,
+                    adaptation_projection,
                     branch_design,
                 )?,
             ));
@@ -205,10 +205,7 @@ impl OrchestratorContext {
                 "visual_planning",
                 "视觉资产规划",
                 "galgame_visual_planning",
-                galgame_visual_planning_user_message(
-                    shooting_script_projection,
-                    character_staging,
-                )?,
+                galgame_visual_planning_user_message(adaptation_projection, character_staging)?,
             ));
         }
         futures::future::join_all(pending.into_iter().map(
@@ -249,10 +246,7 @@ impl PreviewCheckpointInputs {
             return Ok(());
         };
         for (stage, value) in [
-            (
-                GalgamePipelineStartStage::ShootingScriptProjection,
-                &self.scenes,
-            ),
+            (GalgamePipelineStartStage::AdaptationPlan, &self.scenes),
             (GalgamePipelineStartStage::BranchDesign, &self.branch_plan),
             (
                 GalgamePipelineStartStage::ScriptAdaptation,
@@ -333,7 +327,7 @@ fn galgame_preview_checkpoint_output(
     }
     match checkpoint_key {
         CHECKPOINT_SCENES => {
-            shooting_script_projection_from_value(output.clone(), checkpoint_key)?;
+            adaptation_projection_from_value(output.clone(), checkpoint_key)?;
         }
         CHECKPOINT_LINES_DRAFT => {
             script_adaptation_from_value(output.clone(), checkpoint_key)?;
@@ -366,5 +360,5 @@ fn invalid_checkpoint(operation: String) -> AppError {
 fn start_stage_key(stage: Option<GalgamePipelineStartStage>) -> &'static str {
     stage
         .map(GalgamePipelineStartStage::key)
-        .unwrap_or("shooting_script_projection")
+        .unwrap_or("adaptation_projection")
 }

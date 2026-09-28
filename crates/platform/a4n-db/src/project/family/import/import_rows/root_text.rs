@@ -11,6 +11,7 @@ use crate::project::family::import::{
     ImportIdMaps, ProjectFamilyImportError, ProjectFamilyImportPackage, map_required,
 };
 
+pub(in crate::project::family::import) use self::profiles::insert_scene_profiles;
 pub(super) use self::projects::{insert_derived_projects, insert_root_project};
 
 pub(super) async fn insert_text_core(

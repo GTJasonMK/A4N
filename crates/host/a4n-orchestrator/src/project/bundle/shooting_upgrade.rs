@@ -4,16 +4,7 @@ use a4n_domain::shooting_script::{
 };
 use serde_json::{Value, json};
 
-use super::{ProjectBundleHistoryRows, ProjectBundlePackage, ProjectFamilyPackage};
-
-impl ProjectBundlePackage {
-    pub(crate) fn upgrade_shooting_contract(&mut self) -> Result<(), String> {
-        if let Some(family) = self.family.as_mut() {
-            family.upgrade_shooting_contract(&mut self.history)?;
-        }
-        Ok(())
-    }
-}
+use super::{ProjectBundleHistoryRows, ProjectFamilyPackage};
 
 impl ProjectFamilyPackage {
     /// Upgrade only the already-supported legacy family formats before current validation.
@@ -143,7 +134,7 @@ impl ProjectFamilyPackage {
                 }
             }
         }
-        family.version = crate::project::family_package::PROJECT_FAMILY_PACKAGE_VERSION.into();
+        family.version = "project_family_v7".into();
         Ok(())
     }
 }

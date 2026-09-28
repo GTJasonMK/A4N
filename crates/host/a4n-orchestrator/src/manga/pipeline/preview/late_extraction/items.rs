@@ -66,7 +66,7 @@ pub(super) async fn preview_items(
         &items_json,
         &context.source_spans,
         &allowed_source_span_ids,
-        &crate::manga::shooting_script_projection::manga_beat_refs(&context.shooting_script.script),
+        &crate::manga::adaptation_projection::manga_beat_refs(&context.adaptation.plan),
     )?;
 
     Ok(Some(items_json))

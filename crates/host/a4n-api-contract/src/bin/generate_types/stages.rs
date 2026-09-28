@@ -1,4 +1,5 @@
 use super::*;
+use a4n_api_contract::media_authoring as authoring;
 
 pub(super) fn run() {
     let theme_output = [
@@ -399,6 +400,54 @@ pub(super) fn run() {
         &typescript_interface::<BatchExportInput>("BatchExportInput"),
         &typescript_interface::<ExportFileData>("ExportFileData"),
         &typescript_interface::<MangaPipelineStartInput>("MangaPipelineStartInput"),
+        &typescript_enum::<a4n_api_contract::manga::MangaPipelineStopAfter>(
+            "MangaPipelineStopAfter",
+        ),
+        &typescript_enum::<authoring::AdaptationTarget>("AdaptationTarget"),
+        &typescript_enum::<authoring::AdaptationPlanVersion>("AdaptationPlanVersion"),
+        &typescript_enum::<authoring::AdaptationOrigin>("AdaptationOrigin"),
+        &typescript_enum::<authoring::AdaptationImportance>("AdaptationImportance"),
+        &typescript_enum::<authoring::AdaptationBeatKind>("AdaptationBeatKind"),
+        &typescript_enum::<authoring::AuthoringDocumentKind>("AuthoringDocumentKind"),
+        &typescript_enum::<authoring::AuthoringDocumentStatus>("AuthoringDocumentStatus"),
+        &typescript_enum::<authoring::VideoReferenceStatus>("VideoReferenceStatus"),
+        &typescript_interface::<authoring::AdaptationBeat>("AdaptationBeat"),
+        &typescript_interface::<authoring::AdaptationUnit>("AdaptationUnit"),
+        &typescript_interface::<authoring::AdaptationUnitRef>("AdaptationUnitRef"),
+        &typescript_interface::<authoring::GalgameBranchDesign>("GalgameBranchDesign"),
+        &typescript_interface::<authoring::GalgamePipelineChoicePlan>("GalgamePipelineChoicePlan"),
+        &typescript_interface::<authoring::GalgamePipelineChoiceOptionPlan>(
+            "GalgamePipelineChoiceOptionPlan",
+        ),
+        &typescript_interface::<authoring::AdaptationDecision>("AdaptationDecision"),
+        &typescript_interface::<authoring::AdaptationPlanV1>("AdaptationPlanV1"),
+        &typescript_interface::<authoring::AuthoringSourceRef>("AuthoringSourceRef"),
+        &typescript_interface::<authoring::VideoAdaptationReference>("VideoAdaptationReference"),
+        &typescript_interface::<authoring::AuthoringDocumentRef>("AuthoringDocumentRef"),
+        &typescript_interface::<authoring::AuthoringDocumentInputs>("AuthoringDocumentInputs"),
+        &typescript_interface::<authoring::AuthoringDocumentRecord>("AuthoringDocumentRecord"),
+        &typescript_interface::<authoring::MediaAuthoringInput>("MediaAuthoringInput"),
+        &typescript_interface::<authoring::SaveAuthoringDocumentInput>(
+            "SaveAuthoringDocumentInput",
+        ),
+        &typescript_interface::<authoring::AdoptAuthoringDocumentInput>(
+            "AdoptAuthoringDocumentInput",
+        ),
+        &typescript_interface::<authoring::VideoScriptSelection>("VideoScriptSelection"),
+        &typescript_interface::<authoring::GenerateAdaptationPlanInput>(
+            "GenerateAdaptationPlanInput",
+        ),
+        &typescript_interface::<authoring::AuthoringSourceSpan>("AuthoringSourceSpan"),
+        &typescript_interface::<authoring::AuthoringChapter>("AuthoringChapter"),
+        &typescript_interface::<authoring::AuthoringDocumentView>("AuthoringDocumentView"),
+        &typescript_interface::<authoring::MediaAuthoringWorkspace>("MediaAuthoringWorkspace"),
+        &typescript_interface::<authoring::MediaAuthoringArtifactView>(
+            "MediaAuthoringArtifactView",
+        ),
+        &typescript_enum::<authoring::MediaAuthoringArtifactKind>("MediaAuthoringArtifactKind"),
+        &typescript_interface::<authoring::VideoScriptReferenceCandidate>(
+            "VideoScriptReferenceCandidate",
+        ),
         &typescript_interface::<MangaPipelineResumeInput>("MangaPipelineResumeInput"),
         &typescript_interface::<MangaChapterInput>("MangaChapterInput"),
         &typescript_interface::<BindMangaReferenceImageInput>("BindMangaReferenceImageInput"),
@@ -411,7 +460,7 @@ pub(super) fn run() {
         &typescript_enum::<MangaPageDrawingPromptSchemaVersion>(
             "MangaPageDrawingPromptSchemaVersion",
         ),
-        &typescript_interface::<MangaShootingBeatRefV3>("MangaShootingBeatRefV3"),
+        &typescript_interface::<AdaptationBeatRef>("AdaptationBeatRef"),
         &typescript_enum::<MangaPageRoleV2>("MangaPageRoleV2"),
         &typescript_enum::<MangaPagePacingV2>("MangaPagePacingV2"),
         &typescript_enum::<MangaPageImportanceV2>("MangaPageImportanceV2"),
@@ -424,7 +473,8 @@ pub(super) fn run() {
         &typescript_enum::<MangaTextPlacementV2>("MangaTextPlacementV2"),
         &typescript_interface::<MangaTextLayerV2>("MangaTextLayerV2"),
         &typescript_interface::<MangaPanelV2>("MangaPanelV2"),
-        &typescript_interface::<MangaPageV3>("MangaPageV3"),
+        &typescript_interface::<MangaPageV4>("MangaPageV4"),
+        &typescript_interface::<a4n_api_contract::manga::MangaPagePlanV4>("MangaPagePlanV4"),
         &typescript_interface::<MangaPageDrawingPromptV2>("MangaPageDrawingPromptV2"),
         &typescript_enum::<MangaReferenceAssetKind>("MangaReferenceAssetKind"),
         &typescript_interface::<MangaBoundReferenceAsset>("MangaBoundReferenceAsset"),
@@ -433,6 +483,9 @@ pub(super) fn run() {
         &typescript_interface::<MangaPagePromptSummary>("MangaPagePromptSummary"),
         &typescript_interface::<GalgameProjectInput>("GalgameProjectInput"),
         &typescript_interface::<StartGalgamePipelineInput>("StartGalgamePipelineInput"),
+        &typescript_enum::<a4n_api_contract::galgame::GalgamePipelineStopAfter>(
+            "GalgamePipelineStopAfter",
+        ),
         &typescript_interface::<PreviewGalgamePipelineInput>("PreviewGalgamePipelineInput"),
         &typescript_enum::<GalgamePipelineStartStage>("GalgamePipelineStartStage"),
         &typescript_interface::<GalgamePipelineStatusSummary>("GalgamePipelineStatusSummary"),
@@ -449,18 +502,19 @@ pub(super) fn run() {
         &typescript_interface::<GalgameLine>("GalgameLine"),
         &typescript_enum::<GalgameLineType>("GalgameLineType"),
         &typescript_enum::<GalgameStagePositionV2>("GalgameStagePositionV2"),
-        &typescript_interface::<GalgameLinePresentationDocumentV2>(
-            "GalgameLinePresentationDocumentV2",
+        &typescript_interface::<GalgameLinePresentationDocumentV3>(
+            "GalgameLinePresentationDocumentV3",
         ),
         &typescript_enum::<GalgameLinePresentationSchemaVersion>(
             "GalgameLinePresentationSchemaVersion",
         ),
+        &typescript_enum::<GalgameLineDocumentSchemaVersion>("GalgameLineDocumentSchemaVersion"),
         &typescript_interface::<GalgameVisibleCastMemberV2>("GalgameVisibleCastMemberV2"),
         &typescript_enum::<GalgameFacingV2>("GalgameFacingV2"),
         &typescript_enum::<GalgameStageLayerV2>("GalgameStageLayerV2"),
         &typescript_enum::<GalgameCgImportance>("GalgameCgImportance"),
         &typescript_enum::<GalgameTransition>("GalgameTransition"),
-        &typescript_interface::<GalgamePipelineBeatRefV3>("GalgamePipelineBeatRefV3"),
+        &typescript_interface::<GalgamePipelineBeatRefV4>("GalgamePipelineBeatRefV4"),
         &typescript_interface::<GalgameChoice>("GalgameChoice"),
         &typescript_interface::<GalgameMediaBindingSummary>("GalgameMediaBindingSummary"),
         &typescript_interface::<GalgameMediaBinding>("GalgameMediaBinding"),
@@ -824,6 +878,7 @@ pub(super) fn run() {
         &typescript_interface::<ChapterVisualPlanSourceView>("ChapterVisualPlanSourceView"),
         &typescript_interface::<ChapterVisualPlanView>("ChapterVisualPlanView"),
         &typescript_interface::<ChapterVisualPlanSetView>("ChapterVisualPlanSetView"),
+        &typescript_interface::<ChapterVisualPlanSceneChoice>("ChapterVisualPlanSceneChoice"),
         &typescript_interface::<ReadChapterVisualPlanInput>("ReadChapterVisualPlanInput"),
         &typescript_type::<VisualPlanReadView>("VisualPlanReadView"),
         &typescript_interface::<VisualPlanOutlineItem>("VisualPlanOutlineItem"),

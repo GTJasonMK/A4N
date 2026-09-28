@@ -32,28 +32,38 @@ pub(super) async fn insert_profile_rows(
         "导入物体档案失败",
         root_project_id
     );
-    insert_scene_profiles(txn, root_project_id, package, maps).await
+    insert_scene_profiles(txn, package, maps).await
 }
 
-async fn insert_scene_profiles(
+pub(in crate::project::family::import) async fn insert_scene_profiles(
     txn: &DatabaseTransaction,
-    root_project_id: i64,
     package: &ProjectFamilyImportPackage,
     maps: &mut ImportIdMaps,
 ) -> Result<(), ProjectFamilyImportError> {
-    if !package.text_core.scene_profiles.is_empty() {
-        let rows = package
-            .text_core
-            .scene_profiles
+    let profiles = package
+        .text_core
+        .scene_profiles
+        .iter()
+        .filter(|profile| {
+            maps.project_ids.contains_key(&profile.project_id)
+                && !maps.scene_profile_ids.contains_key(&profile.id)
+        })
+        .collect::<Vec<_>>();
+    if !profiles.is_empty() {
+        let rows = profiles
             .iter()
             .map(|profile| {
-                let mut active: scene_profile::ActiveModel = profile.clone().into();
+                let mut active: scene_profile::ActiveModel = (**profile).clone().into();
                 active.id = sea_orm::NotSet;
-                active.project_id = Set(root_project_id);
+                active.project_id = Set(map_required(
+                    &maps.project_ids,
+                    profile.project_id,
+                    "场景所属项目",
+                )?);
                 active.parent_scene_id = Set(None);
-                active
+                Ok(active)
             })
-            .collect::<Vec<_>>();
+            .collect::<Result<Vec<_>, ProjectFamilyImportError>>()?;
         let inserted = scene_profile::Entity::insert_many(rows)
             .exec_with_returning_many(txn)
             .await
@@ -61,20 +71,20 @@ async fn insert_scene_profiles(
                 context: "导入场景档案失败",
                 source,
             })?;
-        if inserted.len() != package.text_core.scene_profiles.len() {
+        if inserted.len() != profiles.len() {
             return Err(ProjectFamilyImportError::invalid_package(format!(
                 "导入场景档案批量写入返回行数不一致: inserted={}, expected={}",
                 inserted.len(),
-                package.text_core.scene_profiles.len()
+                profiles.len()
             )));
         }
-        for (profile, inserted) in package.text_core.scene_profiles.iter().zip(inserted) {
+        for (profile, inserted) in profiles.iter().zip(inserted) {
             maps.scene_profile_ids.insert(profile.id, inserted.id);
         }
     }
     let mut parent_scene_id_case = CaseStatement::new();
     let mut profile_ids = Vec::new();
-    for profile in &package.text_core.scene_profiles {
+    for profile in profiles {
         let Some(parent_id) = profile.parent_scene_id else {
             continue;
         };

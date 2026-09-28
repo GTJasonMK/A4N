@@ -1,14 +1,14 @@
 use serde_json::Value;
 
 use crate::galgame::{
-    GalgameBranchDesign, GalgameCharacterStaging, GalgamePipelinePromptChapter,
-    GalgamePipelineSourceSpan, GalgameShootingScriptProjection, GalgameVisualPlan,
+    GalgameAdaptationProjection, GalgameBranchDesign, GalgameCharacterStaging,
+    GalgamePipelinePromptChapter, GalgamePipelineSourceSpan, GalgameVisualPlan,
 };
 
 pub(super) struct PreparedGalgameSceneRegeneration {
     pub(super) prompt_chapter: GalgamePipelinePromptChapter,
     pub(super) persist_source_spans: Vec<GalgamePipelineSourceSpan>,
-    pub(super) shooting_script_projection: GalgameShootingScriptProjection,
+    pub(super) adaptation_projection: GalgameAdaptationProjection,
     pub(super) scenes_json: Value,
 }
 

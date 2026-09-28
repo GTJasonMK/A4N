@@ -20,6 +20,7 @@ pub async fn sync_manga_page_prompts_by_chapter(
     validate_manga_sync_drafts(&drafts, project_id, chapter_id)?;
 
     let txn = db.begin().await?;
+    super::validation::validate_adopted_manga_plan(&txn, project_id, chapter_id, &drafts).await?;
     let existing = chapter_manga_prompt::Entity::find()
         .filter(chapter_manga_prompt::Column::ProjectId.eq(project_id))
         .filter(chapter_manga_prompt::Column::ChapterId.eq(chapter_id))

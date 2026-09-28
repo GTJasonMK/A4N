@@ -1,6 +1,28 @@
 use super::builders::*;
 use serde_json::{Value, json};
 
+pub(crate) fn args_media_authoring() -> Value {
+    strict_typed_input_schema::<crate::media_authoring::MediaAuthoringInput>()
+}
+pub(crate) fn args_save_authoring_document() -> Value {
+    strict_typed_input_schema::<crate::media_authoring::SaveAuthoringDocumentInput>()
+}
+pub(crate) fn args_adopt_authoring_document() -> Value {
+    strict_typed_input_schema::<crate::media_authoring::AdoptAuthoringDocumentInput>()
+}
+pub(crate) fn args_generate_adaptation_plan() -> Value {
+    strict_runtime_typed_input_schema::<crate::media_authoring::GenerateAdaptationPlanInput>()
+}
+pub(crate) fn result_media_authoring_workspace() -> Value {
+    typed_schema::<crate::media_authoring::MediaAuthoringWorkspace>()
+}
+pub(crate) fn result_authoring_document() -> Value {
+    typed_schema::<crate::media_authoring::AuthoringDocumentRecord>()
+}
+pub(crate) fn result_video_reference_candidates() -> Value {
+    typed_schema::<Vec<crate::media_authoring::VideoScriptReferenceCandidate>>()
+}
+
 pub(crate) fn args_apply_assembly_postprocess_edit() -> Value {
     json!({
         "type": "object",
@@ -606,9 +628,6 @@ pub(crate) fn result_get_chapter_shooting_script() -> Value {
 }
 pub(crate) fn result_get_chapter_shooting_script_unit_progress() -> Value {
     typed_schema::<Option<crate::shooting_script::ChapterShootingScriptUnitProgressView>>()
-}
-pub(crate) fn result_get_galgame_script() -> Value {
-    typed_schema::<crate::galgame::GalgameScriptDetail>()
 }
 pub(crate) fn result_find_galgame_script() -> Value {
     typed_schema::<Option<crate::galgame::GalgameScriptDetail>>()

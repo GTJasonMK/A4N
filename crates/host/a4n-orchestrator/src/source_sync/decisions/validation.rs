@@ -124,7 +124,7 @@ pub(in crate::source_sync) fn validate_galgame_scene_regeneration_plan_for_apply
                 line.line_index
             )));
         }
-        parse_and_validate_presentation_projection(
+        let presentation = parse_and_validate_presentation_projection(
             &line.presentation_json,
             line.speaker_profile_id,
             line.expression.as_deref(),
@@ -132,7 +132,17 @@ pub(in crate::source_sync) fn validate_galgame_scene_regeneration_plan_for_apply
             line.position.as_deref(),
             &format!("Galgame source sync 重建计划第 {} 行", line.line_index),
         )?;
+        presentation
+            .validate_source_identity(line.text_anchor_id)
+            .map_err(AppError::InvalidArgument)?;
         let Some(text_anchor_id) = line.text_anchor_id else {
+            if matches!(
+                presentation.origin,
+                a4n_domain::media_authoring::AdaptationOrigin::Added
+                    | a4n_domain::media_authoring::AdaptationOrigin::Historical
+            ) {
+                continue;
+            }
             return Err(AppError::InvalidArgument(format!(
                 "Galgame source sync 重建计划第 {} 行缺少 text_anchor_id",
                 line.line_index

@@ -111,6 +111,23 @@ pub async fn resolve_chapter_source<C>(
 where
     C: ConnectionTrait,
 {
+    resolve_chapter_source_for_kind(db, project_id, source_chapter_id, None).await
+}
+
+pub async fn resolve_video_chapter_source<C: ConnectionTrait>(
+    db: &C,
+    project_id: i64,
+    source_chapter_id: i64,
+) -> Result<ResolvedChapterSource, ResolveChapterSourceError> {
+    resolve_chapter_source_for_kind(db, project_id, source_chapter_id, Some("video")).await
+}
+
+async fn resolve_chapter_source_for_kind<C: ConnectionTrait>(
+    db: &C,
+    project_id: i64,
+    source_chapter_id: i64,
+    required_kind: Option<&str>,
+) -> Result<ResolvedChapterSource, ResolveChapterSourceError> {
     validate_positive_i64(project_id, "project_id")
         .map_err(ResolveChapterSourceError::InvalidArgument)?;
     validate_positive_i64(source_chapter_id, "source_chapter_id")
@@ -125,6 +142,12 @@ where
         .one(db)
         .await?
         .ok_or_else(|| ResolveChapterSourceError::NotFound(format!("项目不存在: {project_id}")))?;
+
+    if required_kind.is_some_and(|kind| kind != project.project_kind) {
+        return Err(ResolveChapterSourceError::InvalidArgument(
+            "导演编排和拍摄剧本只能在视频派生项目中使用".into(),
+        ));
+    }
 
     match ProjectSourceMode::from_identity(
         &project.project_kind,

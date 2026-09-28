@@ -14,6 +14,17 @@
 # Prompts
 # ============================================================================
 prompts:
+  chapter_media_adaptation_plan:
+    path: "novel/06_manga/chapter_media_adaptation_plan.md"
+    title: "派生媒体章节改编计划"
+    category: "manga"
+    tags: ["manga", "galgame", "adaptation"]
+    version: "1.0"
+    used_by:
+      - "OrchestratorContext.generate_adaptation_plan"
+    dependencies: []
+    description: "依据原作快照和可选视频参考生成目标项目独立持有的改编单元"
+
   # ============= 01 构思 =============
   inspiration:
     path: "novel/01_inspiration/inspiration.md"

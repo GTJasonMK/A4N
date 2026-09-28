@@ -27,6 +27,7 @@ pub(crate) mod import_reverse;
 pub(crate) mod inspiration;
 pub(crate) mod manga;
 pub(crate) mod media;
+pub(crate) mod media_authoring;
 mod object_discovery;
 pub(crate) mod optimize;
 pub(crate) mod outline;

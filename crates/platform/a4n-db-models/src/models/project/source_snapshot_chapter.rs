@@ -21,9 +21,6 @@ pub struct Model {
     pub analysis_data_json: Option<serde_json::Value>,
     pub content_hash: String,
     pub analysis_hash: Option<String>,
-    pub visual_plan_id: Option<i64>,
-    pub visual_plan_version: Option<i32>,
-    pub visual_plan_sha256: Option<String>,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]

@@ -1,5 +1,5 @@
 use super::errors::{MangaPipelineDbError, MangaPromptRecordError};
-use a4n_domain::manga::MangaPageGenerationLayoutV2;
+use a4n_domain::manga::MangaPageGenerationLayoutV3;
 use serde_json::Value;
 
 pub(in crate::manga) fn require_positive_manga_id(
@@ -47,15 +47,15 @@ pub(in crate::manga) fn validate_manga_page_prompt_layout(
             "page_generation 必须使用 page_number>0".to_string(),
         ));
     }
-    let layout: MangaPageGenerationLayoutV2 =
+    let layout: MangaPageGenerationLayoutV3 =
         serde_json::from_value(layout.cloned().ok_or_else(|| {
             MangaPipelineDbError::InvalidArgument(
-                "manga_page_generation_v2 记录必须包含 layout".to_string(),
+                "manga_page_generation_v3 记录必须包含 layout".to_string(),
             )
         })?)
         .map_err(|error| {
             MangaPipelineDbError::InvalidArgument(format!(
-                "manga_page_generation_v2 layout 无效: {error}"
+                "manga_page_generation_v3 layout 无效: {error}"
             ))
         })?;
     layout

@@ -18,8 +18,8 @@ import {
   type SourceSnapshotChapterSummary,
 } from "../api/project";
 import { extractErrorMessage } from "../api";
-import { confirmDialog } from "../components/feedback/ConfirmDialog";
 import { useToast } from "../components/feedback/Toast";
+import { confirmDiscardMediaChanges } from "../components/feedback/UnsavedChangesGuard";
 import { BookButton, BookIconButton } from "../components/ui/BookButton";
 import { BackButton } from "../components/ui/BackButton";
 import { DerivedProjectHeader } from "../components/shell/DerivedProjectHeader";
@@ -74,10 +74,16 @@ export const VideoProjectWorkspace: React.FC = () => {
   const [project, setProject] = useState<NovelProject | null>(null);
   const [chapters, setChapters] = useState<SourceSnapshotChapterSummary[]>([]);
   const [selectedSourceChapterId, setSelectedSourceChapterId] = useState<number | null>(null);
+  const [workspaceDirty, setWorkspaceDirty] = useState(false);
+  const selectSourceChapter = async (chapterId: number) => {
+    if (chapterId === selectedSourceChapterId) return;
+    if (!await confirmDiscardMediaChanges(workspaceDirty || dirtyRegistry.hasDirty(), t)) return;
+    setWorkspaceDirty(false);
+    setSelectedSourceChapterId(chapterId);
+  };
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [sourceSyncOpen, setSourceSyncOpen] = useState(false);
-  const [videoDirty, setVideoDirty] = useState(false);
   const refreshRequestRef = useRef(0);
 
   const refresh = useCallback(async (): Promise<boolean> => {
@@ -186,21 +192,10 @@ export const VideoProjectWorkspace: React.FC = () => {
   const canEditProject =
     project?.my_role === "owner" || project?.my_role === "manager" || project?.my_role === "editor";
   const showChapterNavigation = chapters.length > 1;
-  const handleBack = async () => {
-    if (!(await confirmLeave(t("common.back")))) return;
+  const handleBack = () => {
     navigate("/");
   };
-  const confirmLeave = async (action: string): Promise<boolean> => {
-    if (!(videoDirty || dirtyRegistry.hasDirty())) return true;
-    return confirmDialog({
-      title: t("common.unsavedChangesTitle"),
-      message: t("common.unsavedChangesMessage", { name: t("video.projectWorkspace"), action }),
-      confirmText: t("common.discardDraft"),
-      dialogType: "warning",
-    });
-  };
-  const handleOpenCanvas = async () => {
-    if (!(await confirmLeave(t("video.canvasMode")))) return;
+  const handleOpenCanvas = () => {
     navigate(getProjectStudioRoute(projectId));
   };
 
@@ -220,7 +215,7 @@ export const VideoProjectWorkspace: React.FC = () => {
             {canEditProject ? (
               <BookIconButton
                 label={t("video.syncSource")}
-                onClick={() => setSourceSyncOpen(true)}
+                onClick={() => { void (async () => { if (await confirmDiscardMediaChanges(workspaceDirty || dirtyRegistry.hasDirty(), t)) setSourceSyncOpen(true); })(); }}
                 disabled={!project}
                 variant="secondary"
                 size="sm"
@@ -268,8 +263,8 @@ export const VideoProjectWorkspace: React.FC = () => {
           <div
             className={
               showChapterNavigation
-                ? "grid min-h-0 gap-3 md:h-full md:grid-cols-[220px_minmax(0,1fr)] md:gap-4"
-                : "flex min-h-0 flex-col gap-3 md:h-full"
+                ? "grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)] gap-3 md:grid-rows-1 md:grid-cols-[220px_minmax(0,1fr)] md:gap-4"
+                : "flex h-full min-h-0 flex-col gap-3"
             }
           >
             {showChapterNavigation ? (
@@ -278,7 +273,7 @@ export const VideoProjectWorkspace: React.FC = () => {
                   <span className="shrink-0 font-medium text-book-text-muted">{t("video.sourceChapter")}</span>
                   <ThemedSelect
                     value={selectedSourceChapterId ?? ""}
-                    onChange={(selectedValue) => setSelectedSourceChapterId(Number(selectedValue))}
+                    onChange={(selectedValue) => { void selectSourceChapter(Number(selectedValue)); }}
                     className="pyqt-input h-9 min-w-0 flex-1 !px-2 !py-1.5 text-xs"
                   >
                     {chapters.map((chapter) => {
@@ -303,7 +298,7 @@ export const VideoProjectWorkspace: React.FC = () => {
                         <button
                           key={chapter.id}
                           type="button"
-                          onClick={() => setSelectedSourceChapterId(chapter.source_chapter_id)}
+                          onClick={() => { void selectSourceChapter(chapter.source_chapter_id); }}
                           data-active={active ? "1" : undefined}
                           className="a4n-sidebar-item text-xs"
                         >
@@ -331,14 +326,15 @@ export const VideoProjectWorkspace: React.FC = () => {
                 </span>
               </div>
             ) : null}
-            <section className="min-h-[60vh] overflow-hidden md:min-h-0">
+            <section className="min-h-0 flex-1 overflow-hidden">
               <VideoTab
-                key={`${project.id}:${chapters[0].snapshot_id}`}
+                key={`${project.id}:${chapters[0].snapshot_id}:${selectedSourceChapterId}`}
                 projectId={project.id}
+                canEdit={canEditProject}
+                onDirtyChange={setWorkspaceDirty}
                 fixedChapter={selectedChapter}
                 imageProjectIds={imageProjectIds}
                 materialProjectId={project.root_project_id ?? project.id}
-                onDirtyChange={setVideoDirty}
               />
             </section>
           </div>

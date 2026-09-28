@@ -8,6 +8,7 @@ license.workspace = true
 a4n-config = { workspace = true }
 a4n-db-models = { workspace = true }
 a4n-domain = { workspace = true }
+a4n-service-protocol = { workspace = true }
 a4n-video-contract = { workspace = true }
 
 sea-orm = { workspace = true }

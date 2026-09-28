@@ -1,8 +1,8 @@
 use super::super::super::json::parse_manga_page_plan;
-use a4n_domain::manga::MangaPagePlanV3;
+use a4n_domain::manga::MangaPagePlanV4;
 use a4n_error::AppError;
 
-use super::super::super::super::shooting_script_projection::manga_page_planning_source;
+use super::super::super::super::adaptation_projection::manga_page_planning_source;
 use super::super::super::prompt::{
     MangaPromptGenerationTrace, MangaRenderTraceInput, manga_page_planning_user_message,
 };
@@ -11,14 +11,12 @@ use super::super::contracts::{MangaExtractionRun, MangaRunContext};
 pub(super) async fn generate_planning_trace(
     context: &MangaRunContext<'_>,
     extraction: &MangaExtractionRun,
-) -> Result<(MangaPromptGenerationTrace, MangaPagePlanV3), AppError> {
+) -> Result<(MangaPromptGenerationTrace, MangaPagePlanV4), AppError> {
     let extraction_summary = &extraction.extraction_summary;
-    let shooting_script = manga_page_planning_source(
-        context.shooting_script.record.id,
-        context.shooting_script.record.revision,
-        &context.shooting_script.script,
-    );
-    let plan_user = manga_page_planning_user_message(extraction_summary.clone(), shooting_script)?;
+    let plan_user = manga_page_planning_user_message(
+        extraction_summary.clone(),
+        manga_page_planning_source(&context.adaptation),
+    )?;
 
     context
         .service
@@ -35,7 +33,7 @@ pub(super) async fn generate_planning_trace(
                 user_content: plan_user,
                 temperature: 0.3,
             },
-            |value| parse_manga_page_plan(value, &context.shooting_script, "manga_page_planning"),
+            |value| parse_manga_page_plan(value, &context.adaptation, "manga_page_planning"),
         )
         .await
 }

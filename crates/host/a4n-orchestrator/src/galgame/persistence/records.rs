@@ -6,7 +6,7 @@ use a4n_error::AppError;
 use serde_json::json;
 
 use crate::galgame::{
-    GalgameChapterShootingScript, GalgamePersistChoice, GalgamePersistLine, GalgamePersistScene,
+    GalgameChapterAdaptation, GalgamePersistChoice, GalgamePersistLine, GalgamePersistScene,
     GalgameScriptPersistPlan, SCRIPT_STATUS_READY, normalize_optional_text, normalize_position,
     required_text,
 };
@@ -15,17 +15,19 @@ use a4n_db::project::ProjectFamilyContext;
 pub(crate) fn galgame_script_record_input(
     context: &ProjectFamilyContext,
     plan: GalgameScriptPersistPlan,
-    shooting_scripts: &[GalgameChapterShootingScript],
+    adaptations: &[GalgameChapterAdaptation],
+    branch_plan: a4n_domain::media_authoring::AuthoringDocumentRef,
 ) -> Result<PersistGalgameScriptRecordInput, AppError> {
     let scenes = plan
         .scenes
         .into_iter()
-        .map(|scene| galgame_scene_record_input(scene, shooting_scripts))
+        .map(|scene| galgame_scene_record_input(scene, adaptations))
         .collect::<Result<Vec<_>, _>>()?;
     Ok(PersistGalgameScriptRecordInput {
         project_id: context.project.id,
         root_project_id: context.root_project.id,
         source_snapshot_id: context.source_snapshot.id,
+        branch_plan: Some(branch_plan),
         title: context.project.title.clone(),
         style_config_json: json!({
             "pipeline": "galgame_v1",
@@ -37,36 +39,30 @@ pub(crate) fn galgame_script_record_input(
 
 fn galgame_scene_record_input(
     scene: GalgamePersistScene,
-    shooting_scripts: &[GalgameChapterShootingScript],
+    adaptations: &[GalgameChapterAdaptation],
 ) -> Result<PersistGalgameSceneRecordInput, AppError> {
-    let shooting_scene_identity = match &scene.shooting_source {
+    let adaptation_source = match &scene.adaptation_source {
         Some(source) => {
-            let shooting_scene = shooting_scripts
+            let unit = adaptations
                 .iter()
-                .find(|script| {
-                    script.shooting_script_id == source.script_id
-                        && script.shooting_script_revision == source.script_revision
-                        && script.source_snapshot_chapter_id == scene.source_snapshot_chapter_id
+                .find(|plan| {
+                    plan.adaptation_plan_id == source.plan_id
+                        && plan.adaptation_plan_revision == source.plan_revision
+                        && plan.source_snapshot_chapter_id == scene.source_snapshot_chapter_id
                 })
-                .and_then(|script| {
-                    script
-                        .script
-                        .scenes
-                        .iter()
-                        .find(|row| row.scene_index == source.scene_index)
-                })
+                .and_then(|plan| plan.plan.units.iter().find(|row| row.id == source.unit_id))
                 .ok_or_else(|| {
                     AppError::InvalidArgument(format!(
-                        "Galgame 场 {} 的拍摄剧本来源不在本次输入中",
+                        "Galgame 场 {} 的本地改编单元不在本次输入中",
                         scene.scene_index
                     ))
                 })?;
-            Some(shooting_scene.scene_identity.clone())
+            Some((source.plan_id, unit.id.clone()))
         }
         None if scene.entry_kind == crate::galgame::SCENE_ENTRY_BRANCH => None,
         None => {
             return Err(AppError::InvalidArgument(format!(
-                "Galgame 主线场 {} 缺少拍摄剧本来源",
+                "Galgame 主线场 {} 缺少本地改编单元",
                 scene.scene_index
             )));
         }
@@ -79,7 +75,8 @@ fn galgame_scene_record_input(
     Ok(PersistGalgameSceneRecordInput {
         scene_index: scene.scene_index,
         source_snapshot_chapter_id: scene.source_snapshot_chapter_id,
-        shooting_scene_identity,
+        adaptation_plan_id: adaptation_source.as_ref().map(|(id, _)| *id),
+        adaptation_unit_id: adaptation_source.map(|(_, id)| id),
         title: required_text(&scene.title, "scene.title")?.to_string(),
         location: normalize_optional_text(scene.location),
         time_of_day: normalize_optional_text(scene.time_of_day),

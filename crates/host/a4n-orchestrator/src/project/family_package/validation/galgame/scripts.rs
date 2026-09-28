@@ -6,6 +6,20 @@ pub(super) fn validate_galgame_scripts(
     snapshots: &HashMap<i64, &project_source_snapshot::Model>,
 ) -> Result<(), String> {
     for script in &package.galgame_scripts {
+        if let Some(id) = script.branch_plan_id {
+            let plan = package
+                .authoring_documents
+                .iter()
+                .find(|row| row.id == id)
+                .ok_or("游戏引用的分支计划不存在")?;
+            if plan.project_id != script.project_id
+                || plan.kind != "galgame_branch_plan"
+                || plan.source_snapshot_id != script.source_snapshot_id
+                || !matches!(plan.status.as_str(), "adopted" | "superseded")
+            {
+                return Err("游戏分支计划的归属或版本无效".into());
+            }
+        }
         let project = projects.get(&script.project_id).ok_or_else(|| {
             format!(
                 "项目族导入包 Galgame 剧本引用了不存在的项目: script_id={}, project_id={}",

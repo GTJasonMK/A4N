@@ -140,10 +140,11 @@ pub(super) fn validate_source(
     super::codec::validate_sha256(&source.content_sha256, "source_content_sha256")
 }
 
-type SourceIdentity = (i64, i64, Option<i64>, Option<i64>);
+type SourceIdentity = (i64, i64, i64, Option<i64>, Option<i64>);
 
 fn source_identity(source: &ResolvedChapterSource) -> SourceIdentity {
     (
+        source.requested_project_id,
         source.root_project_id,
         source.source_chapter_id,
         source.source_snapshot_id,
@@ -155,6 +156,7 @@ fn source_identity_from_record(
     record: &a4n_db_models::models::chapter::chapter_visual_plan::Model,
 ) -> SourceIdentity {
     (
+        record.project_id,
         record.root_project_id,
         record.source_chapter_id,
         record.source_snapshot_id,
@@ -200,6 +202,7 @@ fn lineage_condition(
     source: &ResolvedChapterSource,
 ) -> Result<Condition, ChapterVisualPlanDbError> {
     lineage_condition_for_identity(
+        source.requested_project_id,
         source.root_project_id,
         source.source_chapter_id,
         source.source_snapshot_id,
@@ -208,12 +211,14 @@ fn lineage_condition(
 }
 
 pub(super) fn lineage_condition_for_identity(
+    project_id: i64,
     root_project_id: i64,
     source_chapter_id: i64,
     source_snapshot_id: Option<i64>,
     source_snapshot_chapter_id: Option<i64>,
 ) -> Result<Condition, ChapterVisualPlanDbError> {
     let mut condition = Condition::all()
+        .add(chapter_visual_plan::Column::ProjectId.eq(project_id))
         .add(chapter_visual_plan::Column::RootProjectId.eq(root_project_id))
         .add(chapter_visual_plan::Column::SourceChapterId.eq(source_chapter_id));
     match (source_snapshot_id, source_snapshot_chapter_id) {
@@ -242,7 +247,7 @@ mod tests {
 
     #[test]
     fn incomplete_snapshot_identity_is_rejected() {
-        let error = lineage_condition_for_identity(1, 2, Some(3), None)
+        let error = lineage_condition_for_identity(4, 1, 2, Some(3), None)
             .expect_err("incomplete snapshot identity");
         assert!(matches!(error, ChapterVisualPlanDbError::InvalidState(_)));
     }

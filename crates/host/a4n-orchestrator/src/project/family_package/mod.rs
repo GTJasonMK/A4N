@@ -35,6 +35,8 @@ use std::collections::{BTreeSet, HashMap, HashSet};
 
 mod contracts;
 mod export_assembly;
+mod legacy;
+pub(crate) use legacy::maximum_manifest_id;
 mod validation;
 
 #[cfg(test)]
@@ -72,6 +74,8 @@ impl ProjectFamilyPackage {
             profile_evidence: self.profile_evidence,
             chapter_visual_plans: self.chapter_visual_plans,
             chapter_shooting_scripts: self.chapter_shooting_scripts,
+            authoring_documents: self.authoring_documents,
+            authoring_receipts: self.authoring_receipts,
             character_portraits: self.character_portraits,
             generated_images: self.generated_images,
             chapter_manga_prompts: self.chapter_manga_prompts,

@@ -312,14 +312,11 @@ impl OrchestratorContext {
             )
             .await
             .map_err(InternalTransferError::Message)?;
-        let mut package: ProjectBundlePackage =
-            a4n_import_core::parse_json_manifest_value(payload.manifest, "统一项目包清单")
-                .map_err(|error| InternalTransferError::Message(error.to_string()))?;
-        package
-            .upgrade_shooting_contract()
+        let mut media_bytes = payload.media_bytes;
+        let package = ProjectBundlePackage::from_manifest(payload.manifest, &mut media_bytes)
             .map_err(InternalTransferError::Message)?;
         package.validate().map_err(InternalTransferError::Message)?;
-        Ok((package, payload.media_bytes))
+        Ok((package, media_bytes))
     }
 
     async fn inspect_project_bundle_validated<Host>(
@@ -409,6 +406,7 @@ impl OrchestratorContext {
                 history_maps.chapter_ids = mappings.chapter_ids;
                 history_maps.source_snapshot_ids = mappings.source_snapshot_ids;
                 history_maps.source_snapshot_chapter_ids = mappings.source_snapshot_chapter_ids;
+                history_maps.entity_ids = mappings.entity_ids;
             }
 
             for mut canvas in package.canvas_projects.clone() {

@@ -30,7 +30,7 @@ async fn segment_plan_requires_current_shooting_script_before_llm() {
     assert!(matches!(
         error,
         AppError::NotFound(message)
-            if message.contains("拍摄剧本") && message.contains("同步来源")
+            if message.contains("拍摄剧本") && message.contains("本项目")
     ));
 }
 

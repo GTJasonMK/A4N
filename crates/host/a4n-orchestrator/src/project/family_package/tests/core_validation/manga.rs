@@ -14,20 +14,20 @@ fn validate_package_manifest_rejects_manga_layout_unknown_field() {
     let error = validate_package_manifest(&package)
         .expect_err("canonical manga layout must reject unknown fields");
 
-    assert!(error.contains("v2 layout 无效"));
+    assert!(error.contains("v3 layout 无效"));
     assert!(error.contains("unknown field"));
 }
 
 #[test]
-fn validate_package_manifest_rejects_manga_layout_missing_shooting_script() {
+fn validate_package_manifest_rejects_manga_layout_missing_adaptation_plan() {
     let mut package = package_with_part_outlines(Vec::new());
     package.text_core.chapters = vec![chapter_record(11, 1, None)];
     package.chapter_manga_prompts = vec![manga_prompt(21, 1, 11, valid_manga_layout(11))];
 
     let error = validate_package_manifest(&package)
-        .expect_err("manga layout must reference a packaged shooting script");
+        .expect_err("manga layout must reference its packaged adaptation plan");
 
-    assert!(error.contains("layout 引用了不存在的拍摄剧本"));
+    assert!(error.contains("layout 引用了不存在的改编计划"));
 }
 
 #[test]
@@ -121,10 +121,10 @@ fn generated_image(id: i64, project_id: i64, chapter_id: Option<i64>) -> generat
 
 fn valid_manga_layout(chapter_id: i64) -> Value {
     json!({
-        "schema_version": "manga_page_generation_v2",
+        "schema_version": "manga_page_generation_v3",
         "page_plan": {
             "page_number": 1,
-            "beat_refs": [{"scene_index": 1, "shot_index": 1, "beat_index": 1}],
+            "beat_refs": [{"unit_id": "unit-1", "beat_id": "beat-1"}],
             "role": "setup",
             "pacing": "medium",
             "importance": "normal",
@@ -136,7 +136,7 @@ fn valid_manga_layout(chapter_id: i64) -> Value {
             "dominant_panel_number": 1,
             "panels": [{
                 "panel_number": 1,
-                "beat_refs": [{"scene_index": 1, "shot_index": 1, "beat_index": 1}],
+                "beat_refs": [{"unit_id": "unit-1", "beat_id": "beat-1"}],
                 "function": "dialogue",
                 "size": "dominant",
                 "shot_scale": "medium",
@@ -164,9 +164,9 @@ fn valid_manga_layout(chapter_id: i64) -> Value {
             "source_snapshot_chapter_id": null,
             "source_revision_key": "revision:1",
             "content_sha256": "content-sha256",
-            "shooting_script_id": 71,
-            "shooting_script_revision": 1,
-            "shooting_script_sha256": "script-sha256"
+            "adaptation_plan_id": 71,
+            "adaptation_plan_revision": 1,
+            "adaptation_plan_sha256": "plan-sha256"
         }
     })
 }

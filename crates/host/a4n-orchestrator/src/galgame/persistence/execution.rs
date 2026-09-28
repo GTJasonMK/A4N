@@ -2,17 +2,57 @@ use a4n_error::AppError;
 
 use super::{records::galgame_script_record_input, validation::GalgamePersistValidationScope};
 use crate::galgame::{
-    GalgameChapterShootingScript, GalgameScriptDetail, GalgameScriptPersistPlan,
-    OrchestratorContext, galgame_script_record_error, parse_and_validate_presentation_projection,
+    GalgameChapterAdaptation, GalgameScriptDetail, GalgameScriptPersistPlan, OrchestratorContext,
+    galgame_script_record_error, parse_and_validate_presentation_projection,
     validate_line_semantics, validate_positive_id, validate_scene_entry_kind,
 };
 
 impl OrchestratorContext {
+    pub(in crate::galgame) async fn validate_line_adaptation_source(
+        &self,
+        project_id: i64,
+        scene: &a4n_db_models::models::galgame::galgame_scene::Model,
+        presentation: &crate::galgame::GalgameLinePresentationDocumentV3,
+        text_anchor_id: Option<i64>,
+    ) -> Result<(), AppError> {
+        presentation
+            .validate_source_identity(text_anchor_id)
+            .map_err(AppError::InvalidArgument)?;
+        if presentation.beat_ref.is_none() && presentation.after_beat_ref.is_none() {
+            return Ok(());
+        }
+        let plan_id = scene
+            .adaptation_plan_id
+            .ok_or_else(|| AppError::InvalidArgument("场景缺少本地改编来源".into()))?;
+        let unit_id = scene
+            .adaptation_unit_id
+            .as_deref()
+            .ok_or_else(|| AppError::InvalidArgument("场景缺少本地单元".into()))?;
+        let record = a4n_db::media_authoring::authoring_document(
+            self.database.connection(),
+            project_id,
+            plan_id,
+        )
+        .await
+        .map_err(crate::media_authoring::authoring_error)?;
+        let source = record
+            .inputs
+            .sources
+            .first()
+            .filter(|source| source.source_snapshot_chapter_id == scene.source_snapshot_chapter_id)
+            .ok_or_else(|| AppError::InvalidArgument("场景改编版本的原文不匹配".into()))?;
+        let plan = serde_json::from_value(record.document)?;
+        presentation
+            .validate_adaptation(&plan, source.source_chapter_id, unit_id, text_anchor_id)
+            .map_err(AppError::InvalidArgument)
+    }
+
     pub(in crate::galgame) async fn persist_pipeline_script(
         &self,
         project_id: i64,
         plan: GalgameScriptPersistPlan,
-        shooting_scripts: &[GalgameChapterShootingScript],
+        adaptations: &[GalgameChapterAdaptation],
+        branch_plan: a4n_domain::media_authoring::AuthoringDocumentRef,
     ) -> Result<GalgameScriptDetail, AppError> {
         validate_positive_id(project_id, "project_id")?;
         if plan.scenes.is_empty() {
@@ -72,7 +112,7 @@ impl OrchestratorContext {
             }
         }
 
-        let record_input = galgame_script_record_input(&context, plan, shooting_scripts)?;
+        let record_input = galgame_script_record_input(&context, plan, adaptations, branch_plan)?;
         a4n_db::galgame::replace_galgame_script_for_project_record(
             self.database.connection(),
             context.project.id,

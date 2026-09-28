@@ -21,6 +21,7 @@ import {
 import type { LoadedSegmentPlanDraft } from "./loadVideoTabData";
 
 interface VideoPlanningWorkspaceProps {
+  onDirtyChange?: (dirty: boolean) => void;
   prompt: ChapterVideoPrompt | null;
   previewSegments: Record<string, unknown>[];
   draft: LoadedSegmentPlanDraft | null;
@@ -39,7 +40,6 @@ interface VideoPlanningWorkspaceProps {
   onRetryLoad: () => void | Promise<void>;
   onDelete: (prompt: ChapterVideoPrompt) => void | Promise<void>;
   onSavePlan?: (segments: VideoSegmentPlanV2[]) => Promise<boolean>;
-  onDirtyChange?: (dirty: boolean) => void;
 }
 
 const textValue = (value: unknown): string | null =>
@@ -185,10 +185,8 @@ export const VideoPlanningWorkspace: React.FC<VideoPlanningWorkspaceProps> = ({
   const planDirty =
     planDraft != null &&
     JSON.stringify(planDraft) !== JSON.stringify(editableSegments);
-  useEffect(() => {
-    onDirtyChange?.(planDirty);
-    return () => onDirtyChange?.(false);
-  }, [onDirtyChange, planDirty]);
+  useEffect(() => { onDirtyChange?.(planDirty); }, [onDirtyChange, planDirty]);
+  useEffect(() => () => onDirtyChange?.(false), [onDirtyChange]);
   const canEditPlan = Boolean(
     onSavePlan &&
       prompt &&

@@ -76,7 +76,7 @@ use a4n_api_contract::{
     },
     chapter_visual_plan::{
         ChapterVisualPlanAuthoringMode, ChapterVisualPlanEditResult, ChapterVisualPlanReadResult,
-        ChapterVisualPlanRecordInput, ChapterVisualPlanRecordSummary,
+        ChapterVisualPlanRecordInput, ChapterVisualPlanRecordSummary, ChapterVisualPlanSceneChoice,
         ChapterVisualPlanSchemaVersion, ChapterVisualPlanSetView, ChapterVisualPlanSourceInput,
         ChapterVisualPlanSourceView, ChapterVisualPlanStatus, ChapterVisualPlanV3,
         ChapterVisualPlanValidationResult, ChapterVisualPlanView, ConfirmedChapterVisualPlanView,
@@ -179,14 +179,14 @@ use a4n_api_contract::{
     },
     logging::{LogReadResult, ReadLogsInput, SetLogLevelInput},
     manga::{
-        BindMangaReferenceImageInput, DeleteMangaPromptInput, MangaBoundReferenceAsset,
-        MangaCameraAngleV2, MangaChapterInput, MangaPageDrawingPromptSchemaVersion,
-        MangaPageDrawingPromptV2, MangaPageImportanceV2, MangaPagePacingV2,
-        MangaPagePlanSchemaVersion, MangaPagePromptSourceSummary, MangaPagePromptSummary,
-        MangaPageRoleV2, MangaPageV3, MangaPanelFunctionV2, MangaPanelSizeV2, MangaPanelV2,
-        MangaPipelineResumeInput, MangaPipelineStartInput, MangaPipelineStatusSummary,
-        MangaPipelineStatusesInput, MangaReadingFlowV2, MangaReferenceAssetKind,
-        MangaReferenceBindingSummary, MangaShootingBeatRefV3, MangaShotScaleV2,
+        AdaptationBeatRef, BindMangaReferenceImageInput, DeleteMangaPromptInput,
+        MangaBoundReferenceAsset, MangaCameraAngleV2, MangaChapterInput,
+        MangaPageDrawingPromptSchemaVersion, MangaPageDrawingPromptV2, MangaPageImportanceV2,
+        MangaPagePacingV2, MangaPagePlanSchemaVersion, MangaPagePromptSourceSummary,
+        MangaPagePromptSummary, MangaPageRoleV2, MangaPageV4, MangaPanelFunctionV2,
+        MangaPanelSizeV2, MangaPanelV2, MangaPipelineResumeInput, MangaPipelineStartInput,
+        MangaPipelineStatusSummary, MangaPipelineStatusesInput, MangaReadingFlowV2,
+        MangaReferenceAssetKind, MangaReferenceBindingSummary, MangaShotScaleV2,
         MangaTextLayerKindV2, MangaTextLayerV2, MangaTextPlacementV2, OptimizeMangaPromptInput,
         UpdateMangaPromptInput,
     },
@@ -345,8 +345,9 @@ use a4n_domain::character::{
 };
 use a4n_domain::galgame::{
     GalgameAudioRole, GalgameCgImportance, GalgameFacingV2, GalgameGenerationTargetKind,
-    GalgameLinePresentationDocumentV2, GalgameLinePresentationSchemaVersion, GalgameLineType,
-    GalgameMediaRole, GalgameMediaTargetKind, GalgamePipelineBeatRefV3, GalgamePipelineStartStage,
+    GalgameLineDocumentSchemaVersion, GalgameLinePresentationDocumentV3,
+    GalgameLinePresentationSchemaVersion, GalgameLineType, GalgameMediaRole,
+    GalgameMediaTargetKind, GalgamePipelineBeatRefV4, GalgamePipelineStartStage,
     GalgameSceneEntryKind, GalgameStageLayerV2, GalgameStagePositionV2, GalgameTargetEntityKind,
     GalgameTransition, GalgameVisibleCastMemberV2,
 };

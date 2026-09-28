@@ -13,7 +13,7 @@ pub(super) fn finalize_galgame_scene_regeneration(
     outputs: GalgameSceneRegenerationStageOutputs,
 ) -> Result<GalgameSceneRegenerationPlan, AppError> {
     let persist_plan = build_galgame_script_persist_plan(
-        &prepared.shooting_script_projection,
+        &prepared.adaptation_projection,
         &outputs.staging,
         &outputs.visual_plan,
         &outputs.branch_plan,
@@ -33,7 +33,7 @@ pub(super) fn finalize_galgame_scene_regeneration(
     Ok(GalgameSceneRegenerationPlan {
         scene,
         stage_outputs_json: json!({
-            "shooting_script_projection": prepared.scenes_json,
+            "adaptation_projection": prepared.scenes_json,
             "script_adaptation": outputs.lines_draft_json,
             "character_staging": outputs.lines_staged_json,
             "visual_planning": outputs.visual_plan_json,

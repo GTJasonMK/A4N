@@ -6,7 +6,7 @@ use a4n_db_models::models::generation::{workflow_checkpoint, workflow_run};
 use a4n_error::AppError;
 
 use crate::galgame::{
-    GalgameChapterShootingScript, GalgamePipelinePromptContext, OrchestratorContext,
+    GalgameChapterAdaptation, GalgamePipelinePromptContext, OrchestratorContext,
     galgame_pipeline_source_spans_from_prompt_chapters, galgame_prompt_chapter_from_snapshot,
     galgame_speaker_profiles_from_prompt_records, validate_positive_id,
 };
@@ -87,33 +87,25 @@ impl OrchestratorContext {
         )
         .await
         .map_err(resolve_source_error)?;
-        let resolved_scripts = self
-            .require_current_chapter_shooting_scripts_for_resolved_sources(sources)
-            .await?;
-        let mut shooting_scripts = Vec::with_capacity(context.chapters.len());
-        for (chapter, resolved) in context.chapters.iter().zip(resolved_scripts) {
-            if resolved.source.source_snapshot_chapter_id
-                != Some(chapter.source_snapshot_chapter_id)
-                || resolved.source.chapter_number != chapter.chapter_number
-            {
-                return Err(AppError::InvalidState {
-                    current: format!(
-                        "galgame_shooting_script_source_mismatch:source_chapter_id={}",
-                        chapter.source_chapter_id
-                    ),
-                    operation: "装配 Galgame 结构化拍摄剧本".to_string(),
-                });
-            }
-            shooting_scripts.push(GalgameChapterShootingScript {
+        for (chapter, source) in context.chapters.iter().zip(&sources) {
+            let Some(adaptation) = self
+                .load_current_adaptation(
+                    source,
+                    a4n_domain::media_authoring::AdaptationTarget::Galgame,
+                )
+                .await?
+            else {
+                continue;
+            };
+            context.adaptations.push(GalgameChapterAdaptation {
                 source_chapter_id: chapter.source_chapter_id,
                 source_snapshot_chapter_id: chapter.source_snapshot_chapter_id,
                 chapter_number: chapter.chapter_number,
-                shooting_script_id: resolved.shooting_script.record.id,
-                shooting_script_revision: resolved.shooting_script.record.revision,
-                script: resolved.shooting_script.script,
+                adaptation_plan_id: adaptation.record.id,
+                adaptation_plan_revision: adaptation.record.revision,
+                plan: adaptation.plan,
             });
         }
-        context.shooting_scripts = shooting_scripts;
         Ok(context)
     }
 }
@@ -146,6 +138,6 @@ pub(crate) fn galgame_pipeline_prompt_context_from_record(
         speaker_profiles: galgame_speaker_profiles_from_prompt_records(&record.speaker_profiles),
         chapters: prompt_chapters,
         source_spans,
-        shooting_scripts: Vec::new(),
+        adaptations: Vec::new(),
     })
 }

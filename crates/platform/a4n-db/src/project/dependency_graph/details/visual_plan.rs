@@ -15,6 +15,7 @@ use crate::project::dependency_graph::{
 #[derive(Debug, FromQueryResult)]
 struct VisualPlanDetailRow {
     id: i64,
+    project_id: i64,
     root_project_id: i64,
     source_chapter_id: i64,
     source_snapshot_id: Option<i64>,
@@ -42,6 +43,7 @@ where
     let rows = chapter_visual_plan::Entity::find()
         .select_only()
         .column(chapter_visual_plan::Column::Id)
+        .column(chapter_visual_plan::Column::ProjectId)
         .column(chapter_visual_plan::Column::RootProjectId)
         .column(chapter_visual_plan::Column::SourceChapterId)
         .column(chapter_visual_plan::Column::SourceSnapshotId)
@@ -103,8 +105,8 @@ where
             Ok(AssetLineageRecord {
                 id: format!("chapter_visual_plan:{}", plan.id),
                 label: format!(
-                    "章节 {} 导演编排 v{}",
-                    plan.source_chapter_id, plan.plan_version
+                    "视频项目 {} · 章节 {} 导演编排 v{}",
+                    plan.project_id, plan.source_chapter_id, plan.plan_version
                 ),
                 asset_kind: "chapter_visual_plan".to_string(),
                 asset_id: Some(plan.id),
@@ -120,6 +122,7 @@ where
                     "table": "chapter_visual_plan",
                     "record": {
                         "id": plan.id,
+                        "project_id": plan.project_id,
                         "root_project_id": plan.root_project_id,
                         "source_chapter_id": plan.source_chapter_id,
                         "source_snapshot_id": plan.source_snapshot_id,

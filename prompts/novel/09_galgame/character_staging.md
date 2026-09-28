@@ -15,7 +15,8 @@ name: galgame_character_staging
       "lines": [
         {
           "index": 1,
-          "beat_ref": {"scene_index": 1, "shot_index": 1, "beat_index": 1},
+          "origin": "adapted",
+          "beat_ref": {"source_chapter_id": 123, "unit_id": "unit-1", "beat_id": "beat-1"},
           "line_type": "dialogue",
           "speaker_profile_id": 12,
           "speaker_name": "角色名",
@@ -49,7 +50,8 @@ name: galgame_character_staging
       "lines": [
         {
           "index": 1,
-          "beat_ref": {"scene_index": 1, "shot_index": 1, "beat_index": 2},
+          "origin": "added",
+          "beat_ref": {"source_chapter_id": 123, "unit_id": "unit-1", "beat_id": "beat-2"},
           "line_type": "stage_direction",
           "speaker_profile_id": null,
           "speaker_name": "",
@@ -63,7 +65,7 @@ name: galgame_character_staging
             "hold": false,
             "player_knowledge": ["暗处的动静会引发对方警觉"]
           },
-          "source_span_ids": ["ch1:p1"]
+          "source_span_ids": []
         }
       ]
     }
@@ -74,7 +76,7 @@ name: galgame_character_staging
 
 - 只能使用输入人物档案中的 `profile_id`；无法可靠绑定时 `speaker_profile_id` 为 null，并保留 `speaker_name`。
 - 必须始终输出 `scene_lines` 和 `branch_scene_lines`；没有支线时显式输出空数组，不得省略字段。
-- 主线与支线每行都必须原样保留 `index`、`beat_ref`、`line_type`、`text` 和非空 `source_span_ids`；不得重新编号、改写 beat 锚点或丢弃支线。
+- 主线与支线每行原样保留 `index`、`origin`、`beat_ref`、`line_type`、`text` 和 `source_span_ids`，包括新增内容的空引用数组；不得重新编号、改写节拍身份或丢弃支线。
 - 每行必须输出 `presentation.schema_version = galgame_line_presentation_v2`。
 - `visible_cast` 是该行画面完成后的全量在场角色，而非相对上一行的差分；已绑定说话人的行必须包含该 `speaker_profile_id`。
 - 每个在场角色必须给出 `expression`、`pose`、`position`、`facing`、`layer`。表情只能使用 `neutral`、`smile`、`sad`、`angry`、`surprised`、`shy`、`serious`；站位只能使用 `left`、`center`、`right`；朝向只能使用 `left`、`right`、`front`；图层只能使用 `back`、`middle`、`front`。

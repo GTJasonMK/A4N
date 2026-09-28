@@ -9,12 +9,51 @@ from typing import Any
 from mock_openai.fixtures.entities import source_span_id
 from mock_openai.fixtures.reverse import embedded_json_objects
 from mock_openai.prompt_parsing import json_task_payload
-def galgame_beat_ref(scene: dict[str, Any]) -> dict[str, int]:
+from mock_openai.protocol import UnhandledPromptError
+
+
+def media_adaptation_response(combined: str) -> dict[str, Any]:
+    payloads = [value for value in embedded_json_objects(combined)
+                if value.get("target") in {"manga", "galgame"} and "chapter" in value and "source_spans" in value]
+    if not payloads:
+        raise UnhandledPromptError("adaptation prompt contains no source chapter")
+    payload = payloads[-1]
+    spans = [span["id"] for span in payload["source_spans"]]
+    if not spans:
+        raise UnhandledPromptError("adaptation prompt contains no source evidence")
+    result = {
+        "schema_version": "adaptation_plan_v1", "target": payload["target"],
+        "intention": "用可验证的异常推动林岚与周衡的关系变化", "decisions": [],
+        "units": [
+            {
+                "id": "station", "origin": "adapted", "title": "旧车站的七分钟", "location": "旧车站通道",
+                "participants": ["林岚", "周衡"], "dramatic_question": "眼前的异常是否真实", "objective": "确认怀表与来信的关联",
+                "obstacle": "周衡隐瞒过去", "entry_state": "林岚留在通道入口", "exit_state": "林岚决定进入机房", "source_span_ids": spans,
+                "beats": [{"id": "evidence", "origin": "adapted", "kind": "dialogue", "importance": "required", "is_climax": True,
+                    "action": "林岚核对怀表并追问周衡", "reaction": "周衡收紧工具箱提手", "dialogue_intent": "围绕齿轮暗记追问十年前的秘密",
+                    "entry_state": "双方彼此试探", "exit_state": "林岚决定独自查证", "source_span_ids": spans}],
+            },
+            {
+                "id": "machine-room", "origin": "adapted", "title": "地下机房的回声", "location": "地下机房入口",
+                "participants": ["林岚", "周衡"], "dramatic_question": "被隐藏的事故能否被还原", "objective": "进入机房核对第二份证据",
+                "obstacle": "机房门禁和周衡的沉默", "entry_state": "林岚走到机房门口", "exit_state": "林岚取得可验证的线索", "source_span_ids": spans,
+                "beats": [{"id": "machine-room-reveal", "origin": "adapted", "kind": "action", "importance": "required", "is_climax": False,
+                    "action": "林岚跨过门槛检查机房里的齿轮记录", "reaction": "周衡停在通道后方没有阻拦", "dialogue_intent": "让沉默的证据先于解释出现",
+                    "entry_state": "机房门半掩，灯光不稳", "exit_state": "林岚找到事故记录", "source_span_ids": spans}],
+            },
+        ],
+    }
+    if payload["target"] == "manga":
+        result["units"] = result["units"][:1]
+    return result
+
+
+def galgame_beat_ref(scene: dict[str, Any]) -> dict[str, Any]:
     beat = scene["beats"][0]
     return {
-        "scene_index": int(scene["index"]),
-        "shot_index": int(beat["shot_index"]),
-        "beat_index": int(beat["beat_index"]),
+        "source_chapter_id": int(scene["source_chapter_id"]),
+        "unit_id": scene["unit_id"],
+        "beat_id": beat["id"],
     }
 
 
@@ -27,9 +66,13 @@ def galgame_shared_step(combined: str, name: str) -> dict[str, Any]:
 
 
 def galgame_branch_design_response(combined: str) -> dict[str, Any]:
-    scene = galgame_shared_step(combined, "shooting_script_projection")["scenes"][0]
+    scenes = galgame_shared_step(combined, "adaptation_projection")["scenes"]
+    if len(scenes) < 2:
+        return {"choices": []}
+    scene = scenes[0]
     beat_ref = galgame_beat_ref(scene)
-    return_scene_index = int(scene["index"])
+    returns_to_scene = scenes[1]
+    returns_to = {"source_chapter_id": returns_to_scene["source_chapter_id"], "unit_id": returns_to_scene["unit_id"]}
     return {
         "choices": [
             {
@@ -44,7 +87,7 @@ def galgame_branch_design_response(combined: str) -> dict[str, Any]:
                         "dramatic_action": "林岚贴近表盘核对逆行秒针",
                         "reaction": "周衡下意识收紧工具箱提手",
                         "player_knowledge": ["怀表仍在逆行，异常具有可重复证据"],
-                        "returns_to_scene_index": return_scene_index,
+                        "returns_to": returns_to,
                     },
                     {
                         "branch_id": "question_zhou",
@@ -54,7 +97,7 @@ def galgame_branch_design_response(combined: str) -> dict[str, Any]:
                         "dramatic_action": "林岚把信封暗记转向周衡",
                         "reaction": "周衡避开视线，回答前明显停顿",
                         "player_knowledge": ["周衡认识齿轮暗记并隐瞒了信息"],
-                        "returns_to_scene_index": return_scene_index,
+                        "returns_to": returns_to,
                     },
                 ],
             }
@@ -73,7 +116,8 @@ def galgame_source_span_id(
 
 def galgame_script_adaptation_response(combined: str) -> dict[str, Any]:
     task_input = json_task_payload(combined)["input"]
-    scene = galgame_shared_step(combined, "shooting_script_projection")["scenes"][0]
+    scenes = galgame_shared_step(combined, "adaptation_projection")["scenes"]
+    scene = scenes[0]
     branch_design = galgame_shared_step(combined, "branch_design")
     beat_ref = galgame_beat_ref(scene)
     source_spans = task_input["chapters"][0]["source_spans"]
@@ -117,7 +161,7 @@ def galgame_script_adaptation_response(combined: str) -> dict[str, Any]:
                     ],
                 }
             )
-    return {
+    result = {
         "scene_lines": [
             {
                 "scene_index": int(scene["index"]),
@@ -155,10 +199,35 @@ def galgame_script_adaptation_response(combined: str) -> dict[str, Any]:
                         "source_span_ids": [final_span],
                     },
                 ],
-            }
+            },
+            *[{
+                "scene_index": int(follow_up_scene["index"]),
+                "lines": [
+                    {
+                        "index": 1,
+                        "beat_ref": galgame_beat_ref(follow_up_scene),
+                        "line_type": "stage_direction",
+                        "speaker_name": "",
+                        "text": "林岚跨过机房门槛，冷绿指示灯照出墙后的齿轮记录。",
+                        "source_span_ids": [final_span],
+                    },
+                    {
+                        "index": 2,
+                        "beat_ref": galgame_beat_ref(follow_up_scene),
+                        "line_type": "dialogue",
+                        "speaker_name": "林岚",
+                        "text": "记录还在，十年前的事故可以被重新核对。",
+                        "source_span_ids": [watch_span],
+                    },
+                ],
+            } for follow_up_scene in scenes[1:]],
         ],
         "branch_scene_lines": branch_lines,
     }
+    for scene_lines in [*result["scene_lines"], *result["branch_scene_lines"]]:
+        for line in scene_lines["lines"]:
+            line["origin"] = "adapted"
+    return result
 
 
 def galgame_visible_cast(profile_by_name: dict[str, int]) -> list[dict[str, Any]]:
@@ -200,6 +269,7 @@ def galgame_staged_line(
         focus = profile_by_name["林岚"]
     return {
         "index": line["index"],
+        "origin": line["origin"],
         "beat_ref": line["beat_ref"],
         "line_type": line["line_type"],
         "speaker_profile_id": speaker_profile_id,
@@ -250,8 +320,10 @@ def galgame_character_staging_response(combined: str) -> dict[str, Any]:
 
 
 def galgame_visual_planning_response(combined: str) -> dict[str, Any]:
-    scene = galgame_shared_step(combined, "shooting_script_projection")["scenes"][0]
-    staged_scene = galgame_shared_step(combined, "character_staging")["scene_lines"][0]
+    scenes = galgame_shared_step(combined, "adaptation_projection")["scenes"]
+    staged_scenes = galgame_shared_step(combined, "character_staging")["scene_lines"]
+    scene = scenes[0]
+    staged_scene = staged_scenes[0]
     source_span_ids = staged_scene["lines"][0]["source_span_ids"]
     cg_line = staged_scene["lines"][-1]
     return {
@@ -261,7 +333,13 @@ def galgame_visual_planning_response(combined: str) -> dict[str, Any]:
                 "background_note": "旧车站封闭通道，夜间停电，冷灰广告屏反光与地下机房冷绿指示灯形成纵深，墙面保留齿轮暗记。",
                 "scene_profile_id": None,
                 "source_span_ids": [source_span_ids[0]],
-            }
+            },
+            *[{
+                "scene_index": follow_up_scene["index"],
+                "background_note": "地下机房入口，冷绿指示灯照出齿轮记录，林岚在前景核对证据，周衡停在通道后方。",
+                "scene_profile_id": None,
+                "source_span_ids": [follow_up_staged_scene["lines"][0]["source_span_ids"][0]],
+            } for follow_up_scene, follow_up_staged_scene in zip(scenes[1:], staged_scenes[1:], strict=True)],
         ],
         "event_cgs": [
             {
@@ -270,38 +348,23 @@ def galgame_visual_planning_response(combined: str) -> dict[str, Any]:
                 "cg_note": "林岚合上逆行怀表，在墙面留下齿轮暗记后跨入地下机房；周衡提着工具箱停在后方。",
                 "importance": "high",
                 "source_span_ids": cg_line["source_span_ids"],
-            }
+            },
+            *[{
+                "scene_index": follow_up_scene["index"],
+                "line_index": follow_up_staged_scene["lines"][-1]["index"],
+                "cg_note": "林岚在地下机房找到齿轮记录，冷绿灯光把证据与她的怀表并置在同一画面中。",
+                "importance": "high",
+                "source_span_ids": follow_up_staged_scene["lines"][-1]["source_span_ids"],
+            } for follow_up_scene, follow_up_staged_scene in zip(scenes[1:], staged_scenes[1:], strict=True)],
         ],
     }
 
 
-def manga_beat_ref(combined: str) -> dict[str, int]:
+def manga_beat_ref(combined: str) -> dict[str, str]:
     for value in reversed(embedded_json_objects(combined)):
-        events = value.get("events")
-        if not isinstance(events, list):
-            continue
-        for event in events:
-            beat_ref = event.get("beat_ref") if isinstance(event, dict) else None
-            if isinstance(beat_ref, dict) and all(
-                isinstance(beat_ref.get(field), int)
-                for field in ("scene_index", "shot_index", "beat_index")
-            ):
-                return {
-                    "scene_index": beat_ref["scene_index"],
-                    "shot_index": beat_ref["shot_index"],
-                    "beat_index": beat_ref["beat_index"],
-                }
-    matches = re.findall(
-        r'"beat_ref"\s*:\s*\{\s*"scene_index"\s*:\s*(\d+)\s*,\s*'
-        r'"shot_index"\s*:\s*(\d+)\s*,\s*"beat_index"\s*:\s*(\d+)\s*\}',
-        combined,
-    )
-    scene_index, shot_index, beat_index = matches[-1] if matches else ("1", "1", "1")
-    return {
-        "scene_index": int(scene_index),
-        "shot_index": int(shot_index),
-        "beat_index": int(beat_index),
-    }
+        if all(isinstance(value.get(field), str) and value[field] for field in ("unit_id", "beat_id")):
+            return {"unit_id": value["unit_id"], "beat_id": value["beat_id"]}
+    raise UnhandledPromptError("manga prompt contains no local adaptation beat")
 
 
 def manga_available_source_span_ids(combined: str) -> list[str]:
@@ -433,10 +496,10 @@ def manga_synthesis_response() -> dict[str, Any]:
 
 
 def manga_page_plan_response(combined: str) -> dict[str, Any]:
-    script_ids = re.findall(r'"shooting_script_id"\s*:\s*(\d+)', combined)
-    script_revisions = re.findall(r'"shooting_script_revision"\s*:\s*(\d+)', combined)
-    if not script_ids or not script_revisions:
-        raise ValueError("manga page planning prompt contains no shooting script identity")
+    plan_ids = re.findall(r'"adaptation_plan_id"\s*:\s*(\d+)', combined)
+    plan_revisions = re.findall(r'"adaptation_plan_revision"\s*:\s*(\d+)', combined)
+    if not plan_ids or not plan_revisions:
+        raise ValueError("manga page planning prompt contains no adaptation plan identity")
 
     beat_ref = manga_beat_ref(combined)
     states = [
@@ -513,9 +576,9 @@ def manga_page_plan_response(combined: str) -> dict[str, Any]:
             }
         )
     return {
-        "schema_version": "manga_page_plan_v3",
-        "shooting_script_id": int(script_ids[-1]),
-        "shooting_script_revision": int(script_revisions[-1]),
+        "schema_version": "manga_page_plan_v4",
+        "adaptation_plan_id": int(plan_ids[-1]),
+        "adaptation_plan_revision": int(plan_revisions[-1]),
         "pages": pages,
     }
 

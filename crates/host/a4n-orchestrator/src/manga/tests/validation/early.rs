@@ -122,7 +122,7 @@ fn validate_manga_speech_selection_source_span_ids_accepts_known_ids() {
         &json!({
             "dialogues": [{
                 "index": 0,
-                "beat_ref": {"scene_index": 1, "shot_index": 1, "beat_index": 1},
+                "beat_ref": {"unit_id": "unit-1", "beat_id": "beat-1"},
                 "speaker": "林晓雨",
                 "content": "你好",
                 "emotion": "neutral",
@@ -133,7 +133,7 @@ fn validate_manga_speech_selection_source_span_ids_accepts_known_ids() {
             }],
             "narrations": [{
                 "index": 0,
-                "beat_ref": {"scene_index": 1, "shot_index": 1, "beat_index": 2},
+                "beat_ref": {"unit_id": "unit-1", "beat_id": "beat-2"},
                 "content": "三天后",
                 "narration_type": "time",
                 "position": "top",
@@ -141,7 +141,7 @@ fn validate_manga_speech_selection_source_span_ids_accepts_known_ids() {
             }]
         }),
         &source_spans,
-        &std::collections::HashSet::from([(1, 1, 1), (1, 1, 2)]),
+        &known_beats(&source_spans, 2),
     )
     .expect("known source spans should pass");
 }
@@ -153,7 +153,7 @@ fn validate_manga_speech_selection_source_span_ids_rejects_missing_or_unknown_id
         &json!({
             "dialogues": [{
                 "index": 0,
-                "beat_ref": {"scene_index": 1, "shot_index": 1, "beat_index": 1},
+                "beat_ref": {"unit_id": "unit-1", "beat_id": "beat-1"},
                 "speaker": "林晓雨",
                 "content": "你好",
                 "emotion": "neutral",
@@ -164,7 +164,7 @@ fn validate_manga_speech_selection_source_span_ids_rejects_missing_or_unknown_id
             "narrations": []
         }),
         &source_spans,
-        &std::collections::HashSet::from([(1, 1, 1)]),
+        &known_beats(&source_spans, 1),
     )
     .expect_err("missing source span id must fail");
     assert!(missing.to_string().contains("source_span_id"));
@@ -173,7 +173,7 @@ fn validate_manga_speech_selection_source_span_ids_rejects_missing_or_unknown_id
         &json!({
             "dialogues": [{
                 "index": 0,
-                "beat_ref": {"scene_index": 1, "shot_index": 1, "beat_index": 1},
+                "beat_ref": {"unit_id": "unit-1", "beat_id": "beat-1"},
                 "speaker": "林晓雨",
                 "content": "你好",
                 "emotion": "neutral",
@@ -185,10 +185,14 @@ fn validate_manga_speech_selection_source_span_ids_rejects_missing_or_unknown_id
             "narrations": []
         }),
         &source_spans,
-        &std::collections::HashSet::from([(1, 1, 1)]),
+        &known_beats(&source_spans, 1),
     )
     .expect_err("unknown source span id must fail");
-    assert!(unknown.to_string().contains("source_span_id 无效"));
+    assert!(
+        unknown
+            .to_string()
+            .contains("改编原文引用不存在或重复: ch1:s99:f99")
+    );
 }
 
 #[test]
@@ -205,7 +209,7 @@ fn validate_manga_speech_selection_source_span_ids_rejects_invalid_beat_ref() {
         &json!({
             "dialogues": [{
                 "index": 0,
-                "beat_ref": {"scene_index": 1, "shot_index": 1, "beat_index": "0"},
+                "beat_ref": {"unit_id": "unit-1", "beat_id": 0},
                 "speaker": "林晓雨",
                 "content": "你好",
                 "emotion": "neutral",
@@ -217,13 +221,13 @@ fn validate_manga_speech_selection_source_span_ids_rejects_invalid_beat_ref() {
             "narrations": []
         }),
         &source_spans,
-        &std::collections::HashSet::from([(1, 1, 1)]),
+        &known_beats(&source_spans, 1),
     )
     .expect_err("beat_ref must be typed");
 
     assert!(
         err.to_string()
-            .contains("manga_speech_selection.dialogues[0].beat_ref.beat_index")
+            .contains("manga_speech_selection.dialogues[0].beat_ref")
     );
-    assert!(err.to_string().contains("正整数"));
+    assert!(err.to_string().contains("expected a string"));
 }

@@ -430,6 +430,12 @@ impl AppState {
         self.galgame_media_mutation_application.as_ref()
     }
 
+    pub(crate) fn media_authoring_application(
+        &self,
+    ) -> &dyn a4n_api_contract::media_authoring::MediaAuthoringApplicationPort {
+        self.media_authoring_application.as_ref()
+    }
+
     pub(crate) fn manga_pipeline_execution_application(
         &self,
     ) -> &dyn a4n_api_contract::manga::MangaPipelineExecutionApplicationPort {

@@ -4,8 +4,8 @@ use a4n_error::AppError;
 use serde_json::Value;
 
 use super::super::super::{
-    GalgameBranchDesign, GalgameLinePresentationDocumentV2, GalgameLinePresentationSchemaVersion,
-    GalgameLinePresentationV2, GalgamePipelineBeatRefV3, GalgamePipelineBranchSceneLineStaged,
+    GalgameBranchDesign, GalgameLinePresentationDocumentV3, GalgameLinePresentationSchemaVersion,
+    GalgameLinePresentationV2, GalgamePipelineBeatRefV4, GalgamePipelineBranchSceneLineStaged,
     GalgamePipelineChoicePlan, GalgamePipelineScene, LINE_TYPE_CHOICE, SCENE_ENTRY_BRANCH,
 };
 use super::contracts::*;
@@ -18,35 +18,25 @@ use super::sources::text_anchor_id_for_line;
 pub(super) fn branch_choices_by_beat_ref<'a>(
     branch_design: &'a GalgameBranchDesign,
     scenes: &[GalgamePipelineScene],
-) -> Result<BTreeMap<GalgamePipelineBeatRefV3, &'a GalgamePipelineChoicePlan>, AppError> {
-    let scene_indexes = scenes
-        .iter()
-        .map(|scene| scene.index)
-        .collect::<BTreeSet<_>>();
+) -> Result<BTreeMap<GalgamePipelineBeatRefV4, &'a GalgamePipelineChoicePlan>, AppError> {
     let valid_beats = scenes
         .iter()
         .flat_map(|scene| {
             scene
                 .beats
                 .iter()
-                .map(move |beat| GalgamePipelineBeatRefV3 {
-                    scene_index: scene.index,
-                    shot_index: beat.shot_index,
-                    beat_index: beat.beat_index,
-                })
+                .map(move |beat| (scene.beat_ref(beat), scene.index))
         })
-        .collect::<BTreeSet<_>>();
+        .collect::<BTreeMap<_, _>>();
     let mut branch_ids = BTreeSet::new();
     let mut result = BTreeMap::new();
     for choice in &branch_design.choices {
-        if !valid_beats.contains(&choice.after_beat_ref) {
-            return Err(invalid(format!(
-                "Galgame branch_design after_beat_ref 不存在: scene_index={}, shot_index={}, beat_index={}",
-                choice.after_beat_ref.scene_index,
-                choice.after_beat_ref.shot_index,
-                choice.after_beat_ref.beat_index
-            )));
-        }
+        let source_index = valid_beats.get(&choice.after_beat_ref).ok_or_else(|| {
+            invalid(format!(
+                "Galgame branch_design after_beat_ref 不存在: {:?}",
+                choice.after_beat_ref
+            ))
+        })?;
         for option in &choice.options {
             if !branch_ids.insert(option.branch_id.as_str()) {
                 return Err(invalid(format!(
@@ -54,19 +44,18 @@ pub(super) fn branch_choices_by_beat_ref<'a>(
                     option.branch_id
                 )));
             }
-            let target_scene_index = option.returns_to_scene_index;
-            if !scene_indexes.contains(&target_scene_index) {
-                return Err(invalid(format!(
-                    "Galgame branch_design option returns_to_scene_index 不存在: {target_scene_index}"
-                )));
+            let target_scene_index = return_scene_index(&option.returns_to, scenes)?;
+            if target_scene_index <= *source_index {
+                return Err(invalid("Galgame 分支返回场必须晚于选择所在场"));
             }
         }
-        if result.insert(choice.after_beat_ref, choice).is_some() {
+        if result
+            .insert(choice.after_beat_ref.clone(), choice)
+            .is_some()
+        {
             return Err(invalid(format!(
-                "Galgame branch_design 同一拍摄节拍只能有一个选择点: scene_index={}, shot_index={}, beat_index={}",
-                choice.after_beat_ref.scene_index,
-                choice.after_beat_ref.shot_index,
-                choice.after_beat_ref.beat_index
+                "Galgame branch_design 同一改编节拍只能有一个选择点: {:?}",
+                choice.after_beat_ref
             )));
         }
     }
@@ -127,7 +116,7 @@ pub(super) fn choice_line_and_branch_scenes(
             *next_branch_scene_index = next_branch_scene_index
                 .checked_add(1)
                 .ok_or_else(|| invalid("Galgame branch scene_index 超出 i32 范围"))?;
-            let return_scene_index = option.returns_to_scene_index;
+            let return_scene_index = return_scene_index(&option.returns_to, context.scenes)?;
             let mut participants = BTreeMap::<i64, String>::new();
             let lines = staged_branch
                 .lines
@@ -173,7 +162,7 @@ pub(super) fn choice_line_and_branch_scenes(
                 })
                 .collect::<Result<Vec<_>, AppError>>()?;
             branch_scenes.push(GalgamePersistScene {
-                shooting_source: None,
+                adaptation_source: Some(context.adaptation_source.clone()),
                 scene_index: branch_scene_index,
                 source_snapshot_chapter_id: context.source_snapshot_chapter_id,
                 title: option.branch_title.clone(),
@@ -209,8 +198,8 @@ pub(super) fn choice_line_and_branch_scenes(
     ))
 }
 
-fn choice_presentation_json(beat_ref: &GalgamePipelineBeatRefV3) -> Result<Value, AppError> {
-    let mut presentation = GalgameLinePresentationDocumentV2::from(GalgameLinePresentationV2 {
+fn choice_presentation_json(beat_ref: &GalgamePipelineBeatRefV4) -> Result<Value, AppError> {
+    let mut presentation = GalgameLinePresentationDocumentV3::from(GalgameLinePresentationV2 {
         schema_version: GalgameLinePresentationSchemaVersion::V2,
         visible_cast: Vec::new(),
         enter: Vec::new(),
@@ -220,6 +209,25 @@ fn choice_presentation_json(beat_ref: &GalgamePipelineBeatRefV3) -> Result<Value
         player_knowledge: Vec::new(),
     });
     presentation.branch = Some(true);
-    presentation.after_beat_ref = Some(*beat_ref);
+    presentation.after_beat_ref = Some(beat_ref.clone());
     serde_json::to_value(presentation).map_err(AppError::Serialization)
+}
+
+fn return_scene_index(
+    reference: &a4n_domain::media_authoring::AdaptationUnitRef,
+    scenes: &[GalgamePipelineScene],
+) -> Result<i32, AppError> {
+    scenes
+        .iter()
+        .find(|scene| {
+            scene.source_chapter_id == reference.source_chapter_id
+                && scene.unit_id == reference.unit_id
+        })
+        .map(|scene| scene.index)
+        .ok_or_else(|| {
+            invalid(format!(
+                "Galgame 分支返回单元不存在: {} / {}",
+                reference.source_chapter_id, reference.unit_id
+            ))
+        })
 }

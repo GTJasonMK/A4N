@@ -1,17 +1,18 @@
 use serde_json::json;
 
 use super::{
-    MANGA_PAGE_DRAWING_PROMPT_V2, MANGA_PAGE_PLAN_V3, MangaCameraAngleV2,
+    MANGA_PAGE_DRAWING_PROMPT_V2, MANGA_PAGE_PLAN_V4, MangaCameraAngleV2,
     MangaPageDrawingPromptSchemaVersion, MangaPageDrawingPromptV2,
     MangaPageGenerationSchemaVersion, MangaPagePacingV2, MangaPagePlanSchemaVersion,
-    MangaPagePlanV3, MangaPageRoleV2, MangaPanelFunctionV2, MangaShootingBeatRefV3,
-    MangaShotScaleV2, MangaTextLayerKindV2, MangaTextPlacementV2,
+    MangaPagePlanV4, MangaPageRoleV2, MangaPanelFunctionV2, MangaShotScaleV2, MangaTextLayerKindV2,
+    MangaTextPlacementV2,
 };
+use crate::media_authoring::AdaptationBeatRef;
 
 #[test]
 fn manga_schema_versions_reject_retired_values() {
     assert!(
-        serde_json::from_value::<MangaPagePlanSchemaVersion>(json!("manga_page_plan_v2")).is_err()
+        serde_json::from_value::<MangaPagePlanSchemaVersion>(json!("manga_page_plan_v3")).is_err()
     );
     assert!(
         serde_json::from_value::<MangaPageDrawingPromptSchemaVersion>(json!(
@@ -21,7 +22,7 @@ fn manga_schema_versions_reject_retired_values() {
     );
     assert!(
         serde_json::from_value::<MangaPageGenerationSchemaVersion>(json!(
-            "manga_page_generation_v1"
+            "manga_page_generation_v2"
         ))
         .is_err()
     );
@@ -30,13 +31,13 @@ fn manga_schema_versions_reject_retired_values() {
 #[test]
 fn root_page_plan_and_drawing_prompt_reject_unknown_fields() {
     let plan = json!({
-        "schema_version": MANGA_PAGE_PLAN_V3,
-        "shooting_script_id": 1,
-        "shooting_script_revision": 2,
+        "schema_version": MANGA_PAGE_PLAN_V4,
+        "adaptation_plan_id": 1,
+        "adaptation_plan_revision": 2,
         "pages": [],
         "extra": true
     });
-    assert!(serde_json::from_value::<MangaPagePlanV3>(plan).is_err());
+    assert!(serde_json::from_value::<MangaPagePlanV4>(plan).is_err());
 
     let prompt = json!({
         "schema_version": MANGA_PAGE_DRAWING_PROMPT_V2,
@@ -48,24 +49,21 @@ fn root_page_plan_and_drawing_prompt_reject_unknown_fields() {
 }
 
 #[test]
-fn shooting_beat_reference_rejects_unknown_fields_and_preserves_order_traits() {
+fn adaptation_beat_reference_rejects_unknown_fields_and_preserves_identity() {
     let invalid = json!({
-        "scene_index": 1,
-        "shot_index": 2,
-        "beat_index": 3,
+        "unit_id": "door",
+        "beat_id": "open",
         "extra": true
     });
-    assert!(serde_json::from_value::<MangaShootingBeatRefV3>(invalid).is_err());
+    assert!(serde_json::from_value::<AdaptationBeatRef>(invalid).is_err());
 
-    let first = MangaShootingBeatRefV3 {
-        scene_index: 1,
-        shot_index: 1,
-        beat_index: 2,
+    let first = AdaptationBeatRef {
+        unit_id: "door".into(),
+        beat_id: "open".into(),
     };
-    let second = MangaShootingBeatRefV3 {
-        scene_index: 1,
-        shot_index: 2,
-        beat_index: 1,
+    let second = AdaptationBeatRef {
+        unit_id: "door".into(),
+        beat_id: "react".into(),
     };
     assert!(first < second);
 }

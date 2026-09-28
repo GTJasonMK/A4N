@@ -122,6 +122,8 @@ pub struct GalgameScriptDetailScriptRecord {
 pub struct GalgameScriptDetailSceneRecord {
     pub id: i64,
     pub source_snapshot_chapter_id: i64,
+    pub adaptation_plan_id: Option<i64>,
+    pub adaptation_unit_id: Option<String>,
     pub scene_index: i32,
     pub title: String,
     pub location: Option<String>,

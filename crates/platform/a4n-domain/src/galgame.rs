@@ -394,13 +394,48 @@ pub enum GalgameStageLayerV2 {
 }
 
 #[derive(
-    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, JsonSchema,
+    Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, JsonSchema,
 )]
 #[serde(deny_unknown_fields)]
-pub struct GalgamePipelineBeatRefV3 {
-    pub scene_index: i32,
-    pub shot_index: u32,
-    pub beat_index: u32,
+pub struct GalgamePipelineBeatRefV4 {
+    pub source_chapter_id: i64,
+    pub unit_id: String,
+    pub beat_id: String,
+}
+
+#[derive(
+    Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, JsonSchema,
+)]
+#[serde(deny_unknown_fields)]
+pub struct GalgameAdaptationUnitRef {
+    pub source_chapter_id: i64,
+    pub unit_id: String,
+}
+
+impl GalgamePipelineBeatRefV4 {
+    pub fn validate(&self) -> Result<(), String> {
+        if self.source_chapter_id <= 0 {
+            return Err("source_chapter_id 必须大于 0".into());
+        }
+        crate::media_authoring::AdaptationBeatRef {
+            unit_id: self.unit_id.clone(),
+            beat_id: self.beat_id.clone(),
+        }
+        .validate()
+    }
+
+    pub fn unit_ref(&self) -> GalgameAdaptationUnitRef {
+        GalgameAdaptationUnitRef {
+            source_chapter_id: self.source_chapter_id,
+            unit_id: self.unit_id.clone(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub enum GalgameLineDocumentSchemaVersion {
+    #[serde(rename = "galgame_line_presentation_v3")]
+    V3,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
@@ -429,8 +464,11 @@ pub struct GalgameLinePresentationV2 {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
-pub struct GalgameLinePresentationDocumentV2 {
-    pub schema_version: GalgameLinePresentationSchemaVersion,
+pub struct GalgameLinePresentationDocumentV3 {
+    pub schema_version: GalgameLineDocumentSchemaVersion,
+    pub origin: crate::media_authoring::AdaptationOrigin,
+    #[serde(deserialize_with = "deserialize_required_option")]
+    pub beat_ref: Option<GalgamePipelineBeatRefV4>,
     pub visible_cast: Vec<GalgameVisibleCastMemberV2>,
     pub enter: Vec<i64>,
     pub exit: Vec<i64>,
@@ -453,7 +491,7 @@ pub struct GalgameLinePresentationDocumentV2 {
     #[serde(deserialize_with = "deserialize_required_option")]
     pub returns_to_scene_index: Option<i32>,
     #[serde(deserialize_with = "deserialize_required_option")]
-    pub after_beat_ref: Option<GalgamePipelineBeatRefV3>,
+    pub after_beat_ref: Option<GalgamePipelineBeatRefV4>,
 }
 
 fn deserialize_required_option<'de, D, T>(deserializer: D) -> Result<Option<T>, D::Error>
@@ -464,10 +502,66 @@ where
     Option::<T>::deserialize(deserializer)
 }
 
-impl GalgameLinePresentationDocumentV2 {
+impl GalgameLinePresentationDocumentV3 {
+    pub fn validate_source_identity(&self, text_anchor_id: Option<i64>) -> Result<(), String> {
+        use crate::media_authoring::AdaptationOrigin;
+        match self.origin {
+            AdaptationOrigin::Source | AdaptationOrigin::Adapted if self.beat_ref.is_none() => {
+                return Err("原文或改编演出必须引用本地节拍".into());
+            }
+            AdaptationOrigin::Added if text_anchor_id.is_some() => {
+                return Err("新增演出不能冒充原文依据".into());
+            }
+            _ => {}
+        }
+        for reference in self.beat_ref.iter().chain(self.after_beat_ref.iter()) {
+            reference.validate()?;
+        }
+        Ok(())
+    }
+
+    pub fn validate_adaptation(
+        &self,
+        plan: &crate::media_authoring::AdaptationPlanV1,
+        chapter_id: i64,
+        unit_id: &str,
+        text_anchor_id: Option<i64>,
+    ) -> Result<(), String> {
+        self.validate_source_identity(text_anchor_id)?;
+        for reference in self.beat_ref.iter().chain(self.after_beat_ref.iter()) {
+            if reference.source_chapter_id != chapter_id
+                || reference.unit_id != unit_id
+                || plan
+                    .beat(&crate::media_authoring::AdaptationBeatRef {
+                        unit_id: reference.unit_id.clone(),
+                        beat_id: reference.beat_id.clone(),
+                    })
+                    .is_none()
+            {
+                return Err("演出引用的节拍不属于该场景的本地改编版本".into());
+            }
+        }
+        if matches!(
+            self.origin,
+            crate::media_authoring::AdaptationOrigin::Source
+                | crate::media_authoring::AdaptationOrigin::Adapted
+        ) && text_anchor_id.is_none()
+            && let Some(reference) = &self.beat_ref
+            && plan
+                .beat(&crate::media_authoring::AdaptationBeatRef {
+                    unit_id: reference.unit_id.clone(),
+                    beat_id: reference.beat_id.clone(),
+                })
+                .is_some_and(|beat| beat.source_span_ids.is_empty())
+        {
+            return Err("原文或改编演出的本地节拍缺少原文依据".into());
+        }
+        Ok(())
+    }
+
     pub fn directing_presentation(&self) -> GalgameLinePresentationV2 {
         GalgameLinePresentationV2 {
-            schema_version: self.schema_version,
+            schema_version: GalgameLinePresentationSchemaVersion::V2,
             visible_cast: self.visible_cast.clone(),
             enter: self.enter.clone(),
             exit: self.exit.clone(),
@@ -478,10 +572,12 @@ impl GalgameLinePresentationDocumentV2 {
     }
 }
 
-impl From<GalgameLinePresentationV2> for GalgameLinePresentationDocumentV2 {
+impl From<GalgameLinePresentationV2> for GalgameLinePresentationDocumentV3 {
     fn from(presentation: GalgameLinePresentationV2) -> Self {
         Self {
-            schema_version: presentation.schema_version,
+            schema_version: GalgameLineDocumentSchemaVersion::V3,
+            origin: crate::media_authoring::AdaptationOrigin::Added,
+            beat_ref: None,
             visible_cast: presentation.visible_cast,
             enter: presentation.enter,
             exit: presentation.exit,
@@ -503,7 +599,7 @@ impl From<GalgameLinePresentationV2> for GalgameLinePresentationDocumentV2 {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum GalgamePipelineStartStage {
-    ShootingScriptProjection,
+    AdaptationPlan,
     BranchDesign,
     ScriptAdaptation,
     CharacterStaging,
@@ -514,7 +610,7 @@ pub enum GalgamePipelineStartStage {
 
 impl GalgamePipelineStartStage {
     pub const ALL: [Self; 7] = [
-        Self::ShootingScriptProjection,
+        Self::AdaptationPlan,
         Self::BranchDesign,
         Self::ScriptAdaptation,
         Self::CharacterStaging,
@@ -537,7 +633,7 @@ impl GalgamePipelineStartStage {
 
     pub const fn checkpoint_keys_to_clear(self) -> &'static [&'static str] {
         match self {
-            Self::ShootingScriptProjection => &[
+            Self::AdaptationPlan => &[
                 "scenes",
                 "branch_plan",
                 "lines_draft",
@@ -575,9 +671,7 @@ impl GalgamePipelineStartStage {
 
     const fn status(self) -> (&'static str, i32, &'static str) {
         match self {
-            Self::ShootingScriptProjection => {
-                ("shooting_script_projection", 1, "正在投影结构化拍摄剧本")
-            }
+            Self::AdaptationPlan => ("adaptation_plan", 1, "正在准备本项目的改编计划"),
             Self::BranchDesign => ("branch_design", 2, "正在基于导演节拍设计 Galgame 分支"),
             Self::ScriptAdaptation => ("script_adaptation", 3, "正在改编 Galgame 主线与支线剧本行"),
             Self::CharacterStaging => ("character_staging", 4, "正在绑定角色并标注演出状态"),
@@ -590,13 +684,14 @@ impl GalgamePipelineStartStage {
 
 #[cfg(test)]
 mod tests {
-    use super::GalgameLinePresentationDocumentV2;
+    use super::GalgameLinePresentationDocumentV3;
     use serde_json::json;
 
     #[test]
     fn presentation_document_requires_nullable_wire_fields() {
         let canonical = json!({
-            "schema_version": "galgame_line_presentation_v2",
+            "schema_version": "galgame_line_presentation_v3",
+            "origin": "added", "beat_ref": null,
             "visible_cast": [],
             "enter": [],
             "exit": [],
@@ -613,9 +708,11 @@ mod tests {
             "after_beat_ref": null
         });
 
-        serde_json::from_value::<GalgameLinePresentationDocumentV2>(canonical.clone())
+        serde_json::from_value::<GalgameLinePresentationDocumentV3>(canonical.clone())
             .expect("canonical presentation");
         for field in [
+            "origin",
+            "beat_ref",
             "focus_character_profile_id",
             "cg",
             "cg_note",
@@ -632,7 +729,7 @@ mod tests {
                 .expect("presentation object")
                 .remove(field);
             assert!(
-                serde_json::from_value::<GalgameLinePresentationDocumentV2>(missing).is_err(),
+                serde_json::from_value::<GalgameLinePresentationDocumentV3>(missing).is_err(),
                 "missing {field} must fail"
             );
         }

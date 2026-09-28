@@ -55,6 +55,27 @@ pub(crate) fn ensure_checkpoint_parsed_output_matches<T: PartialEq + ?Sized>(
     Ok(())
 }
 
+pub(crate) fn restored_llm_stage_output<T, F>(
+    checkpoint_parsed_output: &serde_json::Value,
+    response_content: &str,
+    checkpoint_key: &str,
+    prompt_name: &str,
+    validate: F,
+) -> Result<(serde_json::Value, T), AppError>
+where
+    T: serde::Serialize,
+    F: Fn(serde_json::Value) -> Result<T, AppError>,
+{
+    let reparsed = validate(parse_strict_json_response(response_content, prompt_name)?)?;
+    let parsed_json = serde_json::to_value(&reparsed)?;
+    ensure_checkpoint_parsed_output_matches(
+        checkpoint_parsed_output,
+        &parsed_json,
+        checkpoint_key,
+    )?;
+    Ok((parsed_json, reparsed))
+}
+
 pub(crate) fn llm_response_preview(raw: &str) -> String {
     let trimmed = raw.trim();
     if trimmed.is_empty() {

@@ -4,7 +4,7 @@ use a4n_error::AppError;
 use serde_json::{Value, json};
 
 use super::super::super::{
-    GalgameLinePresentationDocumentV2, GalgamePipelineEventCgPlan, GalgamePipelineLineStaged,
+    GalgameLinePresentationDocumentV3, GalgamePipelineEventCgPlan, GalgamePipelineLineStaged,
     LINE_TYPE_CHOICE, LINE_TYPE_DIALOGUE, LINE_TYPE_MONOLOGUE, LINE_TYPE_NARRATION,
     LINE_TYPE_STAGE_DIRECTION,
 };
@@ -62,8 +62,10 @@ pub(super) fn to_i32(value: usize, label: &str) -> Result<i32, AppError> {
 pub(super) fn presentation_document_for_line(
     line: &GalgamePipelineLineStaged,
     cg: Option<&GalgamePipelineEventCgPlan>,
-) -> GalgameLinePresentationDocumentV2 {
-    let mut value = GalgameLinePresentationDocumentV2::from(line.presentation.clone());
+) -> GalgameLinePresentationDocumentV3 {
+    let mut value = GalgameLinePresentationDocumentV3::from(line.presentation.clone());
+    value.origin = line.origin;
+    value.beat_ref = Some(line.beat_ref.clone());
     if let Some(cg) = cg {
         value.cg = Some(true);
         value.cg_note = Some(cg.cg_note.clone());

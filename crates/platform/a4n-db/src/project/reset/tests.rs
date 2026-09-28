@@ -267,6 +267,22 @@ async fn reset_deletes_scene_occurrences_before_chapters() {
                 ChapterVisualPlanAuthoringMode, ChapterVisualPlanV3, ConfirmChapterVisualPlanInput,
                 SceneBindingV3,
             };
+            let video = crate::project::create_derived_project_record(
+                &db,
+                1,
+                crate::project::CreateDerivedProjectParams {
+                    root_project_id: project.id,
+                    derived_kind: "video".into(),
+                    title: "保留视频导演资源".into(),
+                    description: String::new(),
+                    chapter_scope: crate::project::DerivedChapterScope {
+                        start_chapter: 1,
+                        end_chapter: 1,
+                    },
+                },
+            )
+            .await
+            .unwrap();
             let mut plan = ChapterVisualPlanV3::starter();
             plan.points[0].image_id = Some(image.id);
             plan.segments[0].scene_binding = Some(SceneBindingV3::Scene {
@@ -276,7 +292,7 @@ async fn reset_deletes_scene_occurrences_before_chapters() {
             let saved = crate::chapter_visual_plan::save_chapter_visual_plan_draft(
                 &db,
                 SaveChapterVisualPlanDraftInput {
-                    source: crate::project::resolve_chapter_source(&db, project.id, chapter.id)
+                    source: crate::project::resolve_chapter_source(&db, video.id, chapter.id)
                         .await
                         .unwrap(),
                     author_user_id: 1,
@@ -293,22 +309,6 @@ async fn reset_deletes_scene_occurrences_before_chapters() {
                 ConfirmChapterVisualPlanInput {
                     record_id: saved.record.id,
                     expected_revision: saved.record.revision,
-                },
-            )
-            .await
-            .unwrap();
-            crate::project::create_derived_project_record(
-                &db,
-                1,
-                crate::project::CreateDerivedProjectParams {
-                    root_project_id: project.id,
-                    derived_kind: "galgame".into(),
-                    title: "保留冻结导演资源".into(),
-                    description: String::new(),
-                    chapter_scope: crate::project::DerivedChapterScope {
-                        start_chapter: 1,
-                        end_chapter: 1,
-                    },
                 },
             )
             .await

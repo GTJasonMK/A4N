@@ -4,8 +4,8 @@ use a4n_api_contract::manga::MangaPagePromptSourceSummary;
 use a4n_error::AppError;
 use serde_json::Value;
 
-use a4n_db::shooting_script::ParsedChapterShootingScript;
-use a4n_domain::manga::MangaPagePlanV3;
+use crate::media_authoring::PreparedAdaptation;
+use a4n_domain::manga::MangaPagePlanV4;
 use a4n_domain::source_spans::SourceSpan;
 use a4n_prompt::rendering::PromptRenderer;
 
@@ -16,11 +16,12 @@ pub(super) struct MangaRunContext<'a> {
     pub(super) service: &'a OrchestratorContext,
     pub(super) chapter_id: i64,
     pub(super) project_id: i64,
-    pub(super) shooting_script: ParsedChapterShootingScript,
+    pub(super) adaptation: PreparedAdaptation,
     pub(super) prompt_renderer: &'a dyn PromptRenderer,
     pub(super) task_id: &'a str,
     pub(super) workflow_run_id: i64,
     pub(super) resume_from_checkpoint: bool,
+    pub(super) stop_after: Option<a4n_api_contract::manga::MangaPipelineStopAfter>,
     pub(super) chapter_content: String,
     pub(super) source_spans: Vec<SourceSpan>,
     pub(super) variables: HashMap<String, Value>,
@@ -60,5 +61,6 @@ pub(super) struct MangaExtractionRun {
 
 pub(super) struct MangaPlanningRun {
     pub(super) extraction: MangaExtractionRun,
-    pub(super) plan: MangaPagePlanV3,
+    pub(super) plan: MangaPagePlanV4,
+    pub(super) page_plan_ref: a4n_domain::media_authoring::AuthoringDocumentRef,
 }

@@ -3,17 +3,17 @@
 use a4n_db_models::models::chapter::chapter_manga_prompt;
 use a4n_domain::{
     DownstreamConflictStrategy,
-    manga::{MangaBoundReferenceAsset, MangaPageGenerationLayoutV2},
+    manga::{MangaBoundReferenceAsset, MangaPageGenerationLayoutV3},
 };
 
 pub(crate) use a4n_manga_core::manga_page_generation_layout;
 
 /// 将参考素材绑定进整页漫画 layout 的指定角色。
 pub(crate) fn bind_reference_asset_in_layout(
-    mut layout: MangaPageGenerationLayoutV2,
+    mut layout: MangaPageGenerationLayoutV3,
     character_name: &str,
     bound_asset: MangaBoundReferenceAsset,
-) -> Result<MangaPageGenerationLayoutV2, String> {
+) -> Result<MangaPageGenerationLayoutV3, String> {
     for (index, binding) in layout.reference_bindings.iter_mut().enumerate() {
         let current_character_name = binding.character_name.trim();
         if current_character_name.is_empty() {
@@ -109,12 +109,12 @@ mod tests {
 
     fn layout_fixture(
         reference_bindings: Vec<MangaReferenceBindingSummary>,
-    ) -> MangaPageGenerationLayoutV2 {
+    ) -> MangaPageGenerationLayoutV3 {
         serde_json::from_value(json!({
-            "schema_version": "manga_page_generation_v2",
+            "schema_version": "manga_page_generation_v3",
             "page_plan": {
                     "page_number": 1,
-                    "beat_refs": [{"scene_index": 1, "shot_index": 1, "beat_index": 1}],
+                    "beat_refs": [{"unit_id": "unit-1", "beat_id": "beat-1"}],
                     "role": "setup",
                     "pacing": "medium",
                     "importance": "normal",
@@ -126,7 +126,7 @@ mod tests {
                     "dominant_panel_number": 1,
                     "panels": [{
                         "panel_number": 1,
-                        "beat_refs": [{"scene_index": 1, "shot_index": 1, "beat_index": 1}],
+                        "beat_refs": [{"unit_id": "unit-1", "beat_id": "beat-1"}],
                         "function": "dialogue",
                         "size": "dominant",
                         "shot_scale": "medium",
@@ -154,9 +154,9 @@ mod tests {
                 "source_snapshot_chapter_id": null,
                 "source_revision_key": "chapter:22:revision:1",
                 "content_sha256": "content-sha256",
-                "shooting_script_id": 71,
-                "shooting_script_revision": 2,
-                "shooting_script_sha256": "script-sha256"
+                "adaptation_plan_id": 71,
+                "adaptation_plan_revision": 2,
+                "adaptation_plan_sha256": "plan-sha256"
             }
         }))
         .expect("valid layout fixture")

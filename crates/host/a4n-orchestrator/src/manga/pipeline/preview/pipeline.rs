@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use a4n_domain::source_spans::source_spans_for_content;
 use a4n_error::AppError;
 
-use crate::shooting_script::ChapterShootingScriptSourceInput;
+use a4n_domain::media_authoring::AdaptationTarget;
 
 use super::super::super::reference_assets::manga_reference_assets_json;
 use super::super::super::{MangaPipelineRequestPreviewInput, OrchestratorContext};
@@ -24,16 +24,30 @@ impl OrchestratorContext {
             character_portraits,
             workflow_run_id,
             resume_from_checkpoint,
+            stop_after,
         } = input;
-        let resolved = self
-            .require_current_chapter_shooting_script(ChapterShootingScriptSourceInput {
-                project_id,
-                source_chapter_id: chapter_id,
-                visual_plan_id: None,
-            })
-            .await?;
-        let source = resolved.source;
-        let shooting_script = resolved.shooting_script;
+        let source = a4n_db::project::resolve_chapter_source(
+            self.database.connection(),
+            project_id,
+            chapter_id,
+        )
+        .await
+        .map_err(crate::shooting_script::errors::resolve_source_error)?;
+        let Some(adaptation) = self
+            .load_current_adaptation(&source, AdaptationTarget::Manga)
+            .await?
+        else {
+            let request = self
+                .preview_initial_adaptation(&source, AdaptationTarget::Manga, prompt_renderer)
+                .await?;
+            return Ok(vec![MangaPipelineRequestPreviewStep::ready(
+                "adaptation_plan",
+                "漫画改编计划",
+                "chapter_media_adaptation_plan",
+                None,
+                request,
+            )]);
+        };
         let chapter_content = source.content.clone();
         let source_spans =
             source_spans_for_content(chapter_id, source.chapter_number, &chapter_content);
@@ -42,10 +56,11 @@ impl OrchestratorContext {
             service: self,
             chapter_id,
             project_id,
-            shooting_script,
+            adaptation,
             prompt_renderer,
             workflow_run_id,
             resume_from_checkpoint,
+            stop_after,
             chapter_content,
             source_spans,
             variables: HashMap::new(),

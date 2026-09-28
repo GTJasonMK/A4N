@@ -28,6 +28,7 @@ pub struct GalgamePipelineApplicationInput {
     pub task_id: String,
     pub start_from_stage: Option<GalgamePipelineStartStage>,
     pub resume_from_checkpoint: bool,
+    pub stop_after: Option<a4n_api_contract::galgame::GalgamePipelineStopAfter>,
     pub progress_reporter: Option<GalgameProgressReporter>,
 }
 
@@ -80,7 +81,7 @@ impl OrchestratorContext {
         user_id: i64,
         input: GalgamePipelineApplicationInput,
         prompt_renderer: &dyn PromptRenderer,
-    ) -> Result<GalgameScriptDetail, AppError> {
+    ) -> Result<Option<GalgameScriptDetail>, AppError> {
         self.verify_galgame_project_access(user_id, input.project_id, ProjectAccessRole::Editor)
             .await?;
         self.run_galgame_pipeline_validated(input, prompt_renderer)
@@ -280,7 +281,15 @@ impl OrchestratorContext {
         &self,
         input: GalgamePipelineApplicationInput,
         prompt_renderer: &dyn PromptRenderer,
-    ) -> Result<GalgameScriptDetail, AppError> {
+    ) -> Result<Option<GalgameScriptDetail>, AppError> {
+        if input.stop_after
+            == Some(a4n_api_contract::galgame::GalgamePipelineStopAfter::BranchDesign)
+            && input.start_from_stage.is_some_and(|stage| {
+                stage.order() > GalgamePipelineStartStage::BranchDesign.order()
+            })
+        {
+            return Err(AppError::InvalidArgument("开始阶段不能晚于结束阶段".into()));
+        }
         let project = self
             .project_by_id(input.project_id)
             .await?
@@ -306,7 +315,7 @@ impl OrchestratorContext {
             })?;
         let initial_stage = input
             .start_from_stage
-            .unwrap_or(GalgamePipelineStartStage::ShootingScriptProjection);
+            .unwrap_or(GalgamePipelineStartStage::AdaptationPlan);
         let workflow_input = galgame_pipeline_workflow_run_input(
             project.id,
             root_project_id,
@@ -331,6 +340,7 @@ impl OrchestratorContext {
                     progress_reporter: input.progress_reporter,
                     resume_from_checkpoint: input.resume_from_checkpoint,
                     start_from_stage: input.start_from_stage,
+                    stop_after: input.stop_after,
                 },
             )
             .await;
@@ -382,7 +392,7 @@ impl a4n_api_contract::galgame::GalgamePipelineExecutionApplicationPort for Orch
         input: StartGalgamePipelineInput,
         progress_reporter: Option<GalgameProgressReporter>,
         prompt_renderer: &dyn a4n_api_contract::prompt::PromptRenderPort,
-    ) -> Result<GalgameScriptDetail, AppError> {
+    ) -> Result<Option<GalgameScriptDetail>, AppError> {
         let prompt_renderer = PromptRendererAdapter(prompt_renderer);
         self.run_galgame_pipeline_for_user_validated(
             user_id,
@@ -391,6 +401,7 @@ impl a4n_api_contract::galgame::GalgamePipelineExecutionApplicationPort for Orch
                 task_id: input.task_id,
                 start_from_stage: input.start_from_stage,
                 resume_from_checkpoint: input.resume_from_checkpoint,
+                stop_after: input.stop_after,
                 progress_reporter,
             },
             &prompt_renderer,
@@ -408,7 +419,7 @@ impl a4n_api_contract::galgame::GalgamePipelinePreviewApplicationPort for Orches
         prompt_renderer: &dyn a4n_api_contract::prompt::PromptRenderPort,
     ) -> Result<Vec<GalgamePipelinePreviewStep>, AppError> {
         let prompt_renderer = PromptRendererAdapter(prompt_renderer);
-        let steps = self
+        let mut steps = self
             .prepare_galgame_pipeline_preview_for_user_validated(
                 user_id,
                 input.project_id,
@@ -417,6 +428,12 @@ impl a4n_api_contract::galgame::GalgamePipelinePreviewApplicationPort for Orches
                 &prompt_renderer,
             )
             .await?;
+        if input.stop_after
+            == Some(a4n_api_contract::galgame::GalgamePipelineStopAfter::BranchDesign)
+            && let Some(index) = steps.iter().position(|step| step.key == "branch_design")
+        {
+            steps.truncate(index + 1);
+        }
         steps
             .into_iter()
             .map(galgame_pipeline_preview_step)

@@ -177,14 +177,10 @@ pub async fn cancel_workflow_run_persistence(
     active.progress_json = Set(Some(progress_json));
     active.updated_at = Set(now);
     active.completed_at = Set(Some(now));
-    let cancelled = active
+    active
         .update(&tx)
         .await
         .map_err(WorkflowWriteError::Database)?;
-    crate::shooting_script::mark_shooting_progress_source_updated(&tx, &cancelled)
-        .await
-        .map_err(WorkflowWriteError::Database)?;
-
     let event_index = workflow_progress_event::Entity::find()
         .filter(workflow_progress_event::Column::WorkflowRunId.eq(workflow_run_id))
         .order_by_desc(workflow_progress_event::Column::EventIndex)

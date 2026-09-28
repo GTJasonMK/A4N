@@ -1,3 +1,4 @@
+use crate::manga::adaptation_projection::MangaBeatIndex;
 use a4n_error::AppError;
 use serde_json::Value;
 
@@ -5,8 +6,9 @@ use a4n_domain::source_spans::SourceSpan;
 
 use super::common::{
     SourceSpanIndex, reject_manga_unknown_fields, required_manga_bool, required_manga_string,
-    validate_manga_beat_ref, validate_manga_characters_object_shape,
-    validate_manga_nonnegative_index, validate_manga_nullable_string,
+    validate_manga_adaptation_sources, validate_manga_beat_ref,
+    validate_manga_characters_object_shape, validate_manga_nonnegative_index,
+    validate_manga_nullable_string,
 };
 
 pub(in crate::manga) fn validate_manga_character_binding_source_span_ids(
@@ -31,7 +33,7 @@ pub(in crate::manga) fn validate_manga_character_binding_source_span_ids(
 pub(in crate::manga) fn validate_manga_speech_selection_source_span_ids(
     speech_json: &Value,
     source_spans: &[SourceSpan],
-    known_beats: &std::collections::HashSet<(i64, i64, i64)>,
+    known_beats: &MangaBeatIndex,
 ) -> Result<(), AppError> {
     reject_manga_unknown_fields(
         speech_json,
@@ -48,7 +50,7 @@ fn validate_speech_array(
     speech_json: &Value,
     source_spans: &SourceSpanIndex<'_>,
     field: &str,
-    known_beats: &std::collections::HashSet<(i64, i64, i64)>,
+    known_beats: &MangaBeatIndex,
 ) -> Result<(), AppError> {
     let context = "manga_speech_selection";
     let items = speech_json
@@ -105,25 +107,26 @@ fn validate_speech_array(
             required_manga_string(item, "narration_type", &item_context)?;
             required_manga_string(item, "position", &item_context)?;
         }
-        let source_span_id = item
-            .get("source_span_id")
-            .and_then(Value::as_str)
-            .map(str::trim)
-            .filter(|value| !value.is_empty())
-            .ok_or_else(|| {
-                AppError::InvalidArgument(format!(
-                    "{context}.{field}[{index}].source_span_id 不能为空"
-                ))
-            })?;
-        source_spans.resolve_text(source_span_id).map_err(|err| {
-            AppError::InvalidArgument(format!(
-                "{context}.{field}[{index}].source_span_id 无效：{err}"
-            ))
-        })?;
-        validate_manga_beat_ref(
+        let ids = match item.get("source_span_id") {
+            Some(Value::Null) => Vec::new(),
+            Some(Value::String(id)) if !id.trim().is_empty() => vec![id.clone()],
+            _ => {
+                return Err(AppError::InvalidArgument(format!(
+                    "{item_context}.source_span_id 必须明确提供引用或 null"
+                )));
+            }
+        };
+        let reference = validate_manga_beat_ref(
             item.get("beat_ref"),
             &format!("{context}.{field}[{index}].beat_ref"),
             known_beats,
+        )?;
+        validate_manga_adaptation_sources(
+            &ids,
+            &[reference],
+            known_beats,
+            source_spans,
+            &format!("{item_context}.source_span_id"),
         )?;
     }
     Ok(())

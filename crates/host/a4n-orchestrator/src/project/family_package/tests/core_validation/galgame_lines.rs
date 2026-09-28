@@ -131,7 +131,7 @@ fn validate_package_manifest_rejects_galgame_line_presentation_json_non_object()
     let err = validate_package_manifest(&package)
         .expect_err("Galgame presentation_json must remain an object in import packages");
 
-    assert!(err.contains("presentation_json 不符合 v2 合同"));
+    assert!(err.contains("presentation_json 不符合 v3 合同"));
     assert!(err.contains("Galgame 行 2301"));
 }
 
@@ -162,7 +162,7 @@ fn validate_package_manifest_rejects_galgame_line_invalid_cg_importance() {
     let err = validate_package_manifest(&package)
         .expect_err("event CG importance in packages must use the controlled enum");
 
-    assert!(err.contains("presentation_json 不符合 v2 合同"));
+    assert!(err.contains("presentation_json 不符合 v3 合同"));
     assert!(err.contains("major"));
 }
 
@@ -186,7 +186,7 @@ fn validate_package_manifest_rejects_galgame_line_empty_cg_importance() {
     let err = validate_package_manifest(&package)
         .expect_err("event CG importance must be an explicit canonical enum");
 
-    assert!(err.contains("presentation_json 不符合 v2 合同"));
+    assert!(err.contains("presentation_json 不符合 v3 合同"));
 }
 
 #[test]

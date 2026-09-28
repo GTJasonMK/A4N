@@ -5,9 +5,7 @@ use super::super::json::{
     validate_json_object_keys, validate_required_json_string_value,
     validate_required_non_negative_json_count, validate_required_result_json_id_ref,
 };
-use super::super::stages::{
-    validate_galgame_stage_outputs, validate_required_regenerate_scene_stage_outputs,
-};
+use super::super::stages::validate_galgame_stage_outputs;
 
 pub(super) fn validate_regenerate_scene_result(
     result_value: Option<&Value>,
@@ -127,6 +125,9 @@ pub(super) fn validate_regenerate_scene_result(
             "项目族导入包 regenerate_scene result.stage_outputs 必须是 JSON 对象: {owner_kind}_id={owner_id}"
         ));
     }
+    if a4n_domain::media_authoring::legacy::source_sync::archived_stage_outputs(stage_outputs)? {
+        return Ok(());
+    }
     let (expected_source_chapter_id, expected_chapter_number) = refs
         .source_snapshot_chapter_contexts
         .get(&new_source_snapshot_chapter_id)
@@ -143,7 +144,6 @@ pub(super) fn validate_regenerate_scene_result(
         expected_source_chapter_id,
         expected_chapter_number,
     };
-    validate_required_regenerate_scene_stage_outputs(stage_outputs, owner_kind, owner_id)?;
     validate_galgame_stage_outputs(
         stage_outputs,
         refs,
@@ -152,5 +152,7 @@ pub(super) fn validate_regenerate_scene_result(
         owner_id,
         "result.stage_outputs",
     )?;
+    crate::galgame::validate_source_sync_scene_regeneration_stage_outputs(stage_outputs)
+        .map_err(|error| format!("项目族导入包 {owner_kind}_id={owner_id}: {error}"))?;
     Ok(())
 }

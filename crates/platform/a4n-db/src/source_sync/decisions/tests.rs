@@ -128,6 +128,9 @@ fn prepared_decision_variant_metadata_is_stable() {
             expected_scene_index: 1,
             expected_source_snapshot_chapter_id: 100,
             generated_scene: SourceSyncGalgameSceneWriteRecordInput {
+                adaptation_plan_id: 10,
+                adaptation_plan_revision: 1,
+                adaptation_unit_id: "scene".into(),
                 title: "scene".to_string(),
                 location: None,
                 time_of_day: None,

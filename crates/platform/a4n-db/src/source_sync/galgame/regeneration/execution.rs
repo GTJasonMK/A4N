@@ -36,6 +36,55 @@ where
         &old_snapshot_chapter,
         &new_snapshot_chapter,
     )?;
+    let document = crate::media_authoring::authoring_document(
+        db,
+        run.derived_project_id,
+        generated_scene.adaptation_plan_id,
+    )
+    .await
+    .map_err(|error| match error {
+        crate::media_authoring::AuthoringDocumentError::Database(error) => {
+            SourceSyncDbError::Database(error)
+        }
+        error => SourceSyncDbError::InvalidArgument(error.to_string()),
+    })?;
+    if document.kind != a4n_domain::media_authoring::AuthoringDocumentKind::AdaptationPlan
+        || document.status == a4n_domain::media_authoring::AuthoringDocumentStatus::Draft
+        || document.source_snapshot_id != new_snapshot_chapter.snapshot_id
+        || document.source_chapter_id != Some(new_snapshot_chapter.source_chapter_id)
+        || document.revision != generated_scene.adaptation_plan_revision
+        || scene.adaptation_unit_id.as_deref() != Some(generated_scene.adaptation_unit_id.as_str())
+    {
+        return Err(SourceSyncDbError::InvalidArgument(
+            "源同步场景的改编来源不匹配".into(),
+        ));
+    }
+    let plan: a4n_domain::media_authoring::AdaptationPlanV1 =
+        serde_json::from_value(document.document)
+            .map_err(|error| SourceSyncDbError::InvalidArgument(error.to_string()))?;
+    if plan.target != a4n_domain::media_authoring::AdaptationTarget::Galgame
+        || !plan
+            .units
+            .iter()
+            .any(|unit| unit.id == generated_scene.adaptation_unit_id)
+    {
+        return Err(SourceSyncDbError::InvalidArgument(
+            "源同步目标改编单元不存在".into(),
+        ));
+    }
+    for line in &generated_scene.lines {
+        let presentation: a4n_domain::galgame::GalgameLinePresentationDocumentV3 =
+            serde_json::from_value(line.presentation_json.clone())
+                .map_err(|error| SourceSyncDbError::InvalidArgument(error.to_string()))?;
+        presentation
+            .validate_adaptation(
+                &plan,
+                new_snapshot_chapter.source_chapter_id,
+                &generated_scene.adaptation_unit_id,
+                line.text_anchor_id,
+            )
+            .map_err(SourceSyncDbError::InvalidArgument)?;
+    }
 
     let scene_id = scene.id;
     let cleanup =

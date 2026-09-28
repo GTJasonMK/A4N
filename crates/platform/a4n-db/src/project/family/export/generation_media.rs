@@ -17,7 +17,7 @@ use super::types::ProjectFamilyExportError;
 project_family_export_load_by_ids!(
     project_family_export_chapter_visual_plans,
     chapter_visual_plan::Entity,
-    chapter_visual_plan::Column::RootProjectId,
+    chapter_visual_plan::Column::ProjectId,
     chapter_visual_plan::Column::SourceChapterId,
     chapter_visual_plan::Column::PlanVersion,
     chapter_visual_plan::Column::Id,
@@ -26,7 +26,7 @@ project_family_export_load_by_ids!(
 project_family_export_load_by_ids!(
     project_family_export_chapter_shooting_scripts,
     chapter_shooting_script::Entity,
-    chapter_shooting_script::Column::RootProjectId,
+    chapter_shooting_script::Column::ProjectId,
     chapter_shooting_script::Column::SourceChapterId,
     chapter_shooting_script::Column::Id,
 );

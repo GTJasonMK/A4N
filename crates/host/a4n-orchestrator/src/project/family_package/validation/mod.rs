@@ -11,6 +11,7 @@ macro_rules! ensure_package {
 }
 
 mod anchors;
+mod authoring;
 mod common;
 mod galgame;
 mod generation;

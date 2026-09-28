@@ -7,16 +7,10 @@ use serde_json::{Value, json};
 
 fn directing_beat_json(beat_index: u32, source_span_id: &str) -> Value {
     json!({
-        "beat_index": beat_index,
-        "shot_index": 1,
-        "required": true,
-        "coverage": "must_show",
-        "objective": "推进当前戏剧目标",
-        "obstacle": "信息与行动受阻",
-        "visible_action": "角色做出可见行动",
+        "id": format!("beat-{beat_index}"),
+        "kind": "action", "is_climax": false, "origin": "source", "importance": "required",
+        "action": "角色做出可见行动",
         "reaction": "对方产生可见反应",
-        "audience_question": "行动会带来什么结果？",
-        "answer_or_delay": "暂时延迟答案",
         "dialogue_intent": null,
         "entry_state": "动作开始",
         "exit_state": "动作完成",
@@ -27,27 +21,30 @@ fn directing_beat_json(beat_index: u32, source_span_id: &str) -> Value {
 fn directing_scene_json(index: i32, source_span_id: &str) -> Value {
     json!({
         "index": index,
+        "origin": "source",
         "title": "雨夜重逢",
         "location": "车站",
         "time_of_day": "夜晚",
         "participants": ["林晓雨", "林晓雨"],
         "summary": "两人重逢",
         "source_span_ids": [source_span_id, source_span_id],
-        "shooting_script_id": 10,
-        "shooting_script_revision": 1,
+        "adaptation_plan_id": 10,
+        "adaptation_plan_revision": 1,
+        "source_chapter_id": 11,
+        "source_snapshot_chapter_id": 20,
         "chapter_number": 1,
-        "shooting_scene_index": index,
+        "unit_id": format!("unit-{index}"),
         "beats": [directing_beat_json(1, source_span_id)]
     })
 }
 
 #[test]
-fn parses_shooting_script_projection_contract() {
-    let parsed = shooting_script_projection_from_value(
+fn parses_adaptation_projection_contract() {
+    let parsed = adaptation_projection_from_value(
         json!({
             "scenes": [directing_scene_json(1, "ch1:p1")]
         }),
-        "galgame_shooting_script_projection",
+        "galgame_adaptation_projection",
     )
     .expect("directing projection");
 
@@ -57,12 +54,12 @@ fn parses_shooting_script_projection_contract() {
 }
 
 #[test]
-fn rejects_shooting_script_projection_with_gap_indexes() {
-    let err = shooting_script_projection_from_value(
+fn rejects_adaptation_projection_with_gap_indexes() {
+    let err = adaptation_projection_from_value(
         json!({
             "scenes": [directing_scene_json(2, "s1")]
         }),
-        "galgame_shooting_script_projection",
+        "galgame_adaptation_projection",
     )
     .expect_err("gap indexes");
 
@@ -70,27 +67,27 @@ fn rejects_shooting_script_projection_with_gap_indexes() {
 }
 
 #[test]
-fn rejects_shooting_script_projection_without_plan_identity() {
+fn rejects_adaptation_projection_without_plan_identity() {
     let mut scene = directing_scene_json(1, "s1");
     let scene = scene.as_object_mut().expect("scene object");
-    scene.remove("shooting_script_id");
-    scene.remove("shooting_script_revision");
-    let err = shooting_script_projection_from_value(
+    scene.remove("adaptation_plan_id");
+    scene.remove("adaptation_plan_revision");
+    let err = adaptation_projection_from_value(
         json!({"scenes": [scene]}),
-        "galgame_shooting_script_projection",
+        "galgame_adaptation_projection",
     )
     .expect_err("v2 directing projection must not accept legacy defaults");
 
-    assert!(err.to_string().contains("shooting_script_id"));
+    assert!(err.to_string().contains("adaptation_plan_id"));
 }
 
 #[test]
-fn rejects_shooting_script_projection_without_beats() {
+fn rejects_adaptation_projection_without_beats() {
     let mut scene = directing_scene_json(1, "s1");
     scene["beats"] = json!([]);
-    let err = shooting_script_projection_from_value(
+    let err = adaptation_projection_from_value(
         json!({"scenes": [scene]}),
-        "galgame_shooting_script_projection",
+        "galgame_adaptation_projection",
     )
     .expect_err("shooting script projection must preserve the performance beat ledger");
 
@@ -98,28 +95,25 @@ fn rejects_shooting_script_projection_without_beats() {
 }
 
 #[test]
-fn rejects_shooting_script_projection_with_gap_beat_indexes() {
+fn rejects_adaptation_projection_with_duplicate_beat_ids() {
     let mut scene = directing_scene_json(1, "s1");
-    scene["beats"] = json!([directing_beat_json(1, "s1"), directing_beat_json(3, "s1")]);
-    let err = shooting_script_projection_from_value(
+    scene["beats"] = json!([directing_beat_json(1, "s1"), directing_beat_json(1, "s1")]);
+    let err = adaptation_projection_from_value(
         json!({"scenes": [scene]}),
-        "galgame_shooting_script_projection",
+        "galgame_adaptation_projection",
     )
-    .expect_err("shooting beat refs must remain stable and contiguous");
+    .expect_err("local beat IDs must be unique within a unit");
 
-    assert!(
-        err.to_string()
-            .contains("必须按 shot_index、beat_index 连续排列")
-    );
+    assert!(err.to_string().contains("改编节拍 ID 重复"));
 }
 
 #[test]
-fn rejects_shooting_script_projection_with_cross_scene_beat_span() {
+fn rejects_adaptation_projection_with_cross_scene_beat_span() {
     let mut scene = directing_scene_json(1, "s1");
     scene["beats"] = json!([directing_beat_json(1, "s2")]);
-    let err = shooting_script_projection_from_value(
+    let err = adaptation_projection_from_value(
         json!({"scenes": [scene]}),
-        "galgame_shooting_script_projection",
+        "galgame_adaptation_projection",
     )
     .expect_err("directing beat evidence must belong to its scene");
 
@@ -127,15 +121,15 @@ fn rejects_shooting_script_projection_with_cross_scene_beat_span() {
 }
 
 #[test]
-fn rejects_shooting_script_projection_without_participants_field() {
+fn rejects_adaptation_projection_without_participants_field() {
     let mut scene = directing_scene_json(1, "s1");
     scene
         .as_object_mut()
         .expect("scene object")
         .remove("participants");
-    let err = shooting_script_projection_from_value(
+    let err = adaptation_projection_from_value(
         json!({"scenes": [scene]}),
-        "galgame_shooting_script_projection",
+        "galgame_adaptation_projection",
     )
     .expect_err("v2 projection must preserve an explicit participants array");
 
@@ -152,7 +146,7 @@ fn parses_script_adaptation_contract() {
                     "lines": [
                         {
                             "index": 1,
-                            "beat_ref": {"scene_index": 1, "shot_index": 1, "beat_index": 1},
+                            "origin": "adapted", "beat_ref": {"source_chapter_id": 11, "unit_id": "unit-1", "beat_id": "beat-1"},
                             "line_type": "dialogue",
                             "speaker_name": "林晓雨",
                             "text": "你终于来了。",
@@ -160,7 +154,7 @@ fn parses_script_adaptation_contract() {
                         },
                         {
                             "index": 2,
-                            "beat_ref": {"scene_index": 1, "shot_index": 1, "beat_index": 2},
+                            "origin": "adapted", "beat_ref": {"source_chapter_id": 11, "unit_id": "unit-1", "beat_id": "beat-2"},
                             "line_type": "narration",
                             "speaker_name": "",
                             "text": "雨声压过了脚步声。",
@@ -195,7 +189,7 @@ fn rejects_script_adaptation_dialogue_without_speaker() {
                 "scene_index": 1,
                 "lines": [{
                     "index": 1,
-                    "beat_ref": {"scene_index": 1, "shot_index": 1, "beat_index": 1},
+                    "origin": "adapted", "beat_ref": {"source_chapter_id": 11, "unit_id": "unit-1", "beat_id": "beat-1"},
                     "line_type": "dialogue",
                     "speaker_name": "",
                     "text": "没有说话人",
@@ -219,7 +213,7 @@ fn rejects_script_adaptation_line_without_source_span() {
                 "scene_index": 1,
                 "lines": [{
                     "index": 1,
-                    "beat_ref": {"scene_index": 1, "shot_index": 1, "beat_index": 1},
+                    "origin": "adapted", "beat_ref": {"source_chapter_id": 11, "unit_id": "unit-1", "beat_id": "beat-1"},
                     "line_type": "narration",
                     "speaker_name": "",
                     "text": "雨声压过了脚步声。",
@@ -232,7 +226,7 @@ fn rejects_script_adaptation_line_without_source_span() {
     )
     .expect_err("script adaptation lines must keep source evidence");
 
-    assert!(err.to_string().contains("source_span_ids 不能为空"));
+    assert!(err.to_string().contains("必须保留原文引用"));
 }
 
 #[test]
@@ -243,7 +237,7 @@ fn parses_character_staging_contract() {
                 "scene_index": 1,
                 "lines": [{
                     "index": 1,
-                    "beat_ref": {"scene_index": 1, "shot_index": 1, "beat_index": 1},
+                    "origin": "adapted", "beat_ref": {"source_chapter_id": 11, "unit_id": "unit-1", "beat_id": "beat-1"},
                     "line_type": "dialogue",
                     "speaker_profile_id": 7,
                     "speaker_name": "林晓雨",
@@ -325,7 +319,7 @@ fn rejects_character_staging_invalid_expression() {
                 "scene_index": 1,
                 "lines": [{
                     "index": 1,
-                    "beat_ref": {"scene_index": 1, "shot_index": 1, "beat_index": 1},
+                    "origin": "adapted", "beat_ref": {"source_chapter_id": 11, "unit_id": "unit-1", "beat_id": "beat-1"},
                     "line_type": "dialogue",
                     "speaker_profile_id": 7,
                     "speaker_name": "林晓雨",
@@ -366,7 +360,7 @@ fn rejects_character_staging_bound_dialogue_without_speaker_name() {
                 "scene_index": 1,
                 "lines": [{
                     "index": 1,
-                    "beat_ref": {"scene_index": 1, "shot_index": 1, "beat_index": 1},
+                    "origin": "adapted", "beat_ref": {"source_chapter_id": 11, "unit_id": "unit-1", "beat_id": "beat-1"},
                     "line_type": "dialogue",
                     "speaker_profile_id": 7,
                     "text": "你终于来了。",
@@ -406,7 +400,7 @@ fn rejects_character_staging_bound_character_without_expression() {
                 "scene_index": 1,
                 "lines": [{
                     "index": 1,
-                    "beat_ref": {"scene_index": 1, "shot_index": 1, "beat_index": 1},
+                    "origin": "adapted", "beat_ref": {"source_chapter_id": 11, "unit_id": "unit-1", "beat_id": "beat-1"},
                     "line_type": "dialogue",
                     "speaker_profile_id": 7,
                     "speaker_name": "林晓雨",
@@ -446,7 +440,7 @@ fn rejects_character_staging_line_without_source_span() {
                 "scene_index": 1,
                 "lines": [{
                     "index": 1,
-                    "beat_ref": {"scene_index": 1, "shot_index": 1, "beat_index": 1},
+                    "origin": "adapted", "beat_ref": {"source_chapter_id": 11, "unit_id": "unit-1", "beat_id": "beat-1"},
                     "line_type": "narration",
                     "speaker_profile_id": null,
                     "speaker_name": "",
@@ -469,7 +463,7 @@ fn rejects_character_staging_line_without_source_span() {
     )
     .expect_err("staged lines must keep source evidence");
 
-    assert!(err.to_string().contains("source_span_ids 不能为空"));
+    assert!(err.to_string().contains("必须保留原文引用"));
 }
 
 #[test]
@@ -522,7 +516,7 @@ fn rejects_branch_design_with_single_option() {
     let err = branch_design_from_value(
         json!({
             "choices": [{
-                "after_beat_ref": {"scene_index": 1, "shot_index": 1, "beat_index": 3},
+                "after_beat_ref": {"source_chapter_id": 11, "unit_id": "unit-1", "beat_id": "beat-3"},
                 "question": "怎么回应？",
                 "options": [{
                     "branch_id": "silent",
@@ -532,7 +526,7 @@ fn rejects_branch_design_with_single_option() {
                     "dramatic_action": "角色移开视线",
                     "reaction": "对方停顿观察",
                     "player_knowledge": ["对方注意到沉默"],
-                    "returns_to_scene_index": 2
+                    "returns_to": {"source_chapter_id": 11, "unit_id": "unit-2"}
                 }]
             }]
         }),
@@ -548,7 +542,7 @@ fn rejects_branch_design_option_without_return_scene() {
     let err = branch_design_from_value(
         json!({
             "choices": [{
-                "after_beat_ref": {"scene_index": 1, "shot_index": 1, "beat_index": 3},
+                "after_beat_ref": {"source_chapter_id": 11, "unit_id": "unit-1", "beat_id": "beat-3"},
                 "question": "怎么回应？",
                 "options": [
                     {
@@ -568,17 +562,14 @@ fn rejects_branch_design_option_without_return_scene() {
                         "dramatic_action": "角色向前一步追问",
                         "reaction": "对方下意识后退",
                         "player_knowledge": ["对方在回避问题"],
-                        "returns_to_scene_index": 2
+                        "returns_to": {"source_chapter_id": 11, "unit_id": "unit-2"}
                     }
                 ]
             }]
         }),
         "galgame_branch_design",
     )
-    .expect_err("missing returns_to_scene_index");
+    .expect_err("missing returns_to");
 
-    assert!(
-        err.to_string()
-            .contains("missing field `returns_to_scene_index`")
-    );
+    assert!(err.to_string().contains("missing field `returns_to`"));
 }

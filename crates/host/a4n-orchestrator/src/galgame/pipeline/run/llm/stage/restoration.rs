@@ -3,8 +3,8 @@ use serde_json::Value;
 
 use crate::galgame::OrchestratorContext;
 
-use super::super::super::checkpoints::restored_galgame_llm_stage_output;
 use super::{GalgameLlmStageInput, PreparedGalgameLlmStage};
+use crate::structured_llm::restored_llm_stage_output as restored_galgame_llm_stage_output;
 
 pub(super) async fn restore_galgame_llm_stage<T, F>(
     service: &OrchestratorContext,

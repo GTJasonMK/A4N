@@ -18,6 +18,7 @@ async fn persist_script_rejects_empty_scenes_before_database_access() {
         project_id: 1,
         root_project_id: 1,
         source_snapshot_id: 2,
+        branch_plan: None,
         title: "测试 Galgame".to_string(),
         style_config_json: json!({}),
         status: "draft".to_string(),
@@ -86,7 +87,7 @@ async fn persist_script_writes_scene_line_choice_graph_in_one_contract() {
         .unwrap()
         .unwrap();
     let presentation = json!({
-        "schema_version": "galgame_line_presentation_v2",
+        "schema_version": "galgame_line_presentation_v3", "origin": "added", "beat_ref": null,
         "visible_cast": [],
         "enter": [],
         "exit": [],
@@ -102,6 +103,70 @@ async fn persist_script_writes_scene_line_choice_graph_in_one_contract() {
         "returns_to_scene_index": null,
         "after_beat_ref": null
     });
+    let plan_inputs = a4n_domain::media_authoring::AuthoringDocumentInputs {
+        sources: vec![a4n_domain::media_authoring::AuthoringSourceRef {
+            root_project_id: root.id,
+            source_chapter_id: snapshot_chapter.source_chapter_id,
+            source_snapshot_id: snapshot_chapter.snapshot_id,
+            source_snapshot_chapter_id: snapshot_chapter.id,
+            content_sha256: snapshot_chapter.content_hash.clone(),
+        }],
+        dependencies: Vec::new(),
+        video_reference: None,
+    };
+    let units = (1..=2)
+        .map(|id| {
+            a4n_domain::media_authoring::legacy::historical_galgame_unit(
+                a4n_domain::media_authoring::legacy::HistoricalGalgameScene {
+                    id,
+                    title: format!("场景 {id}"),
+                    location: None,
+                    participants: Vec::new(),
+                    lines: Vec::new(),
+                },
+            )
+            .unwrap()
+        })
+        .collect::<Vec<_>>();
+    let adaptation = crate::media_authoring::save_authoring_document(&db, crate::media_authoring::SaveAuthoringDocument {
+        project_id: derived.id, source_snapshot_id: snapshot_chapter.snapshot_id, source_chapter_id: Some(snapshot_chapter.source_chapter_id),
+        kind: a4n_domain::media_authoring::AuthoringDocumentKind::AdaptationPlan, record_id: None, expected_revision: None,
+        inputs: plan_inputs.clone(), document: json!({"schema_version":"adaptation_plan_v1", "target":"galgame", "intention":"保存人工场景图", "decisions":[], "units":units}),
+    }).await.unwrap();
+    let adaptation = crate::media_authoring::adopt_authoring_document(
+        &db,
+        derived.id,
+        adaptation.id,
+        adaptation.revision,
+    )
+    .await
+    .unwrap();
+    let branch = crate::media_authoring::save_authoring_document(
+        &db,
+        crate::media_authoring::SaveAuthoringDocument {
+            project_id: derived.id,
+            source_snapshot_id: snapshot_chapter.snapshot_id,
+            source_chapter_id: None,
+            kind: a4n_domain::media_authoring::AuthoringDocumentKind::GalgameBranchPlan,
+            record_id: None,
+            expected_revision: None,
+            inputs: a4n_domain::media_authoring::AuthoringDocumentInputs {
+                dependencies: vec![adaptation.reference()],
+                ..plan_inputs
+            },
+            document: json!({"choices":[]}),
+        },
+    )
+    .await
+    .unwrap();
+    let branch = crate::media_authoring::adopt_authoring_document(
+        &db,
+        derived.id,
+        branch.id,
+        branch.revision,
+    )
+    .await
+    .unwrap();
     let script = crate::galgame::replace_galgame_script_for_project_record(
         &db,
         derived.id,
@@ -109,6 +174,7 @@ async fn persist_script_writes_scene_line_choice_graph_in_one_contract() {
             project_id: derived.id,
             root_project_id: root.id,
             source_snapshot_id: derived.source_snapshot_id.unwrap(),
+            branch_plan: Some(branch.reference()),
             title: "批量合同脚本".to_string(),
             style_config_json: json!({}),
             status: "draft".to_string(),
@@ -116,7 +182,8 @@ async fn persist_script_writes_scene_line_choice_graph_in_one_contract() {
                 crate::galgame::PersistGalgameSceneRecordInput {
                     scene_index: 1,
                     source_snapshot_chapter_id: snapshot_chapter.id,
-                    shooting_scene_identity: Some("unit:shot-1".to_string()),
+                    adaptation_plan_id: Some(adaptation.id),
+                    adaptation_unit_id: Some("legacy-scene-1".into()),
                     title: "序幕".to_string(),
                     location: Some("大厅".to_string()),
                     time_of_day: None,
@@ -164,7 +231,8 @@ async fn persist_script_writes_scene_line_choice_graph_in_one_contract() {
                 },
                 crate::galgame::PersistGalgameSceneRecordInput {
                     scene_index: 2,
-                    shooting_scene_identity: None,
+                    adaptation_plan_id: Some(adaptation.id),
+                    adaptation_unit_id: Some("legacy-scene-2".into()),
                     source_snapshot_chapter_id: snapshot_chapter.id,
                     title: "回收".to_string(),
                     location: Some("走廊".to_string()),

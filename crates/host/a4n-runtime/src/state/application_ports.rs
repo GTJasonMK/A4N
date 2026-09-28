@@ -641,6 +641,8 @@ pub struct ApplicationPorts {
     /// remains in the Manga owner; Runtime only schedules and routes results.
     pub manga_pipeline_execution_application:
         Arc<dyn a4n_api_contract::manga::MangaPipelineExecutionApplicationPort>,
+    pub media_authoring_application:
+        Arc<dyn a4n_api_contract::media_authoring::MediaAuthoringApplicationPort>,
     /// Host-facing Manga pipeline request-preview boundary.
     pub manga_pipeline_preview_application:
         Arc<dyn a4n_api_contract::manga::MangaPipelinePreviewApplicationPort>,

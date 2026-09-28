@@ -46,7 +46,8 @@ where
         .column(galgame_scene::Column::Id)
         .filter(galgame_scene::Column::ScriptId.eq(script_id))
         .filter(galgame_scene::Column::EntryKind.eq(GALGAME_REGENERATABLE_ENTRY_KIND.as_str()))
-        .filter(galgame_scene::Column::ShootingSceneIdentity.is_not_null())
+        .filter(galgame_scene::Column::AdaptationPlanId.is_not_null())
+        .filter(galgame_scene::Column::AdaptationUnitId.is_not_null())
         .into_tuple::<i64>()
         .all(db)
         .await?

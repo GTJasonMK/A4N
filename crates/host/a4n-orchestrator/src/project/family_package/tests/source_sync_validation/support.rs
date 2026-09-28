@@ -23,30 +23,26 @@ pub(super) fn package_with_regenerate_scene_decision(
 }
 
 pub(super) fn regenerate_scene_decision_payload() -> Value {
-    let shooting_script_projection = json!({
+    let adaptation_projection = json!({
         "scenes": [{
             "index": 1,
+            "origin": "adapted",
             "title": "雨后街道",
             "location": "街道",
             "time_of_day": "清晨",
             "participants": ["林晓雨"],
             "summary": "雨停后重新确认去向",
             "source_span_ids": ["ch1:ta702"],
-            "shooting_script_id": 9001,
-            "shooting_script_revision": 1,
+            "adaptation_plan_id": 2401,
+            "adaptation_plan_revision": 1,
+            "source_chapter_id": 2001,
+            "source_snapshot_chapter_id": 1001,
             "chapter_number": 1,
-            "shooting_scene_index": 1,
+            "unit_id": "opening",
             "beats": [{
-                "shot_index": 1,
-                "beat_index": 1,
-                "coverage": "must_show",
-                "required": true,
-                "objective": "确认下一步",
-                "obstacle": "信息不足",
-                "visible_action": "角色抬头观察雨后的街道",
+                "id": "narration", "kind": "action", "is_climax": false, "origin": "adapted", "importance": "required",
+                "action": "角色抬头观察雨后的街道",
                 "reaction": "同伴停下等待",
-                "audience_question": "他们会去哪里？",
-                "answer_or_delay": "暂缓回答",
                 "entry_state": "站在街道入口",
                 "exit_state": "确认街道出口",
                 "source_span_ids": ["ch1:ta702"]
@@ -58,8 +54,9 @@ pub(super) fn regenerate_scene_decision_payload() -> Value {
             "scene_index": 1,
             "lines": [{
                 "index": 1,
-                "beat_ref": {"scene_index": 1, "shot_index": 1, "beat_index": 1},
+                "origin": "adapted", "beat_ref": {"source_chapter_id":2001, "unit_id":"opening", "beat_id":"narration"},
                 "line_type": "narration",
+                "speaker_name": null,
                 "text": "雨停了。",
                 "source_span_ids": ["ch1:ta702"]
             }]
@@ -71,9 +68,10 @@ pub(super) fn regenerate_scene_decision_payload() -> Value {
             "scene_index": 1,
             "lines": [{
                 "index": 1,
-                "beat_ref": {"scene_index": 1, "shot_index": 1, "beat_index": 1},
+                "origin": "adapted", "beat_ref": {"source_chapter_id":2001, "unit_id":"opening", "beat_id":"narration"},
                 "line_type": "dialogue",
                 "speaker_profile_id": 601,
+                "speaker_name": "林晓雨",
                 "text": "雨停了。",
                 "presentation": {
                     "schema_version": "galgame_line_presentation_v2",
@@ -120,7 +118,7 @@ pub(super) fn regenerate_scene_decision_payload() -> Value {
             "resolved_related_conflict_count": 0,
             "mode": "llm_partial_regeneration",
             "stage_outputs": {
-                "shooting_script_projection": shooting_script_projection,
+                "adaptation_projection": adaptation_projection,
                 "script_adaptation": script_adaptation,
                 "character_staging": character_staging,
                 "visual_planning": visual_planning,

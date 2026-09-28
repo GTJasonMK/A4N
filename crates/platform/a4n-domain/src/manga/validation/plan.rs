@@ -1,14 +1,14 @@
-use super::super::contracts::{MangaPageDrawingPromptV2, MangaPagePlanV3};
+use super::super::contracts::{MangaPageDrawingPromptV2, MangaPagePlanV4};
 use super::MangaPlanValidationError;
 use super::page::validate_page;
 use super::rules::{index_u32, invalid, required_text};
 
-pub(super) fn validate_plan(plan: &MangaPagePlanV3) -> Result<(), MangaPlanValidationError> {
-    if plan.shooting_script_id <= 0 {
-        return invalid("shooting_script_id", "必须大于 0");
+pub(super) fn validate_plan(plan: &MangaPagePlanV4) -> Result<(), MangaPlanValidationError> {
+    if plan.adaptation_plan_id <= 0 {
+        return invalid("adaptation_plan_id", "必须大于 0");
     }
-    if plan.shooting_script_revision <= 0 {
-        return invalid("shooting_script_revision", "必须大于 0");
+    if plan.adaptation_plan_revision <= 0 {
+        return invalid("adaptation_plan_revision", "必须大于 0");
     }
     if plan.pages.is_empty() {
         return invalid("pages", "至少需要一页");

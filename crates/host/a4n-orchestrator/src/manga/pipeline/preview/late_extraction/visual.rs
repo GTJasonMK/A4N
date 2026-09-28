@@ -57,7 +57,7 @@ pub(super) async fn preview_visual(
     validate_manga_visual_anchor_source_span_ids(
         &visual_json,
         &context.source_spans,
-        &crate::manga::shooting_script_projection::manga_beat_refs(&context.shooting_script.script),
+        &crate::manga::adaptation_projection::manga_beat_refs(&context.adaptation.plan),
     )?;
 
     Ok(Some(visual_json))
