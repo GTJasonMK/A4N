@@ -14,6 +14,7 @@ import {
   extractChapterStorySection,
   filterStorySections,
   getStoryEventFilterOptions,
+  reconcileStoryEventFilters,
 } from "./story-events/storyEventUtils";
 import type { StoryEventFilters } from "./story-events/types";
 import { useChapterAnalysisLoader } from "./useNovelDetailLoader";
@@ -93,12 +94,20 @@ export const StoryEventsTab: React.FC<StoryEventsTabProps> = ({
   );
 
   const filterOptions = useMemo(
-    () => getStoryEventFilterOptions(sections, allEvents),
-    [sections, allEvents],
+    () => getStoryEventFilterOptions(allEvents),
+    [allEvents],
   );
+  const activeFilters = useMemo(
+    () => reconcileStoryEventFilters(filters, filterOptions),
+    [filterOptions, filters],
+  );
+  useEffect(() => {
+    if (activeFilters.character === filters.character && activeFilters.type === filters.type && activeFilters.importance === filters.importance) return;
+    setFilters(activeFilters);
+  }, [activeFilters, filters]);
   const filteredSections = useMemo(
-    () => filterStorySections(sections, filters),
-    [sections, filters],
+    () => filterStorySections(sections, activeFilters),
+    [activeFilters, sections],
   );
   const analyzedChapters = useMemo(() => countAnalyzedChapters(sections), [sections]);
   const openWritingDesk = useCallback(
@@ -111,6 +120,10 @@ export const StoryEventsTab: React.FC<StoryEventsTabProps> = ({
     },
     [addToast, canOpenWritingDesk, navigate, projectId, t],
   );
+  const handleRefresh = async () => {
+    setLoadErrors([]);
+    await load();
+  };
 
   if (displayLoading) {
     return (
@@ -133,7 +146,7 @@ export const StoryEventsTab: React.FC<StoryEventsTabProps> = ({
         eventCount={allEvents.length}
         foreshadowingCount={displayForeshadowing.length}
         loading={loading}
-        onRefresh={() => void load()}
+        onRefresh={() => void handleRefresh()}
       />
 
       <details className="min-w-0">
@@ -153,9 +166,9 @@ export const StoryEventsTab: React.FC<StoryEventsTabProps> = ({
         chaptersCount={displayChapters.length}
         analyzedChapters={analyzedChapters}
         sections={filteredSections}
-        filters={filters}
+        filters={activeFilters}
         filterOptions={filterOptions}
-        onFiltersChange={setFilters}
+        onFiltersChange={(nextFilters) => setFilters(reconcileStoryEventFilters(nextFilters, filterOptions))}
         onOpenChapter={canOpenWritingDesk ? openWritingDesk : undefined}
       />
     </div>

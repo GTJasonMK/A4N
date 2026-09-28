@@ -1,6 +1,6 @@
 import React, { memo } from "react";
 import { ArrowRight } from "lucide-react";
-import { importanceRank } from "./storyEventUtils";
+import { chapterEventImportanceFilterRank } from "../../../utils/chapterAnalysisPresentation";
 import type { ChapterStorySection } from "./types";
 import { useI18n } from "../../../i18n";
 
@@ -9,8 +9,8 @@ interface ChapterEventSectionProps {
   onOpenChapter?: (chapterNumber: number) => void;
 }
 
-const importanceClass = (importance: string): string => {
-  const rank = importanceRank(importance);
+const importanceClass = (importanceFilterKey: string): string => {
+  const rank = chapterEventImportanceFilterRank(importanceFilterKey as Parameters<typeof chapterEventImportanceFilterRank>[0]);
   if (rank >= 3) return "text-book-primary";
   if (rank === 2) return "text-warning";
   return "text-book-text-muted";
@@ -22,7 +22,7 @@ export const ChapterEventSection: React.FC<ChapterEventSectionProps> = memo(({
 }) => {
   const { t } = useI18n();
   return (
-  <section className="a4n-flat-surface p-3 sm:p-4">
+  <section className="a4n-story-event-section a4n-flat-surface p-3 sm:p-4 [content-visibility:auto] [contain-intrinsic-block-size:auto_40rem] print:[content-visibility:visible]">
     <div className="mb-2 flex min-w-0 items-start gap-3">
       <div className="min-w-0 flex-1">
         <h3 className="truncate text-sm font-semibold text-book-text-main">
@@ -78,7 +78,7 @@ export const ChapterEventSection: React.FC<ChapterEventSectionProps> = memo(({
               <div className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-caption text-book-text-muted">
                 <span>{event.type}</span>
                 <span aria-hidden="true">·</span>
-                <span className={importanceClass(event.importance)}>
+                <span className={importanceClass(event.importanceFilterValue)}>
                   {event.importance}
                 </span>
                 {event.involvedCharacters.length > 0 ? (

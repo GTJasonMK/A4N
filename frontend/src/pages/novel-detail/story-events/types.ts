@@ -7,7 +7,9 @@ export interface StoryEvent {
   chapterTitle: string;
   description: string;
   type: string;
+  typeFilterValue: string;
   importance: string;
+  importanceFilterValue: string;
   involvedCharacters: string[];
 }
 
@@ -36,6 +38,11 @@ export interface StoryEventFilters {
 
 export interface StoryEventFilterOptions {
   characters: string[];
-  eventTypes: string[];
-  importances: string[];
+  eventTypes: StoryEventFilterOption[];
+  importances: StoryEventFilterOption[];
+}
+
+export interface StoryEventFilterOption {
+  value: string;
+  label: string;
 }
