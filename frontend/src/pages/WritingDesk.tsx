@@ -65,7 +65,7 @@ import { WritingDeskView } from "./writing-desk/WritingDeskView";
 import { useWritingDeskResetGeneratedData } from "./writing-desk/useWritingDeskResetGeneratedData";
 import { useWritingDeskSaveContent } from "./writing-desk/useWritingDeskSaveContent";
 import { UnsavedNavigationGuard } from "../components/navigation/UnsavedNavigationGuard";
-import { useDirty } from "../components/navigation/dirtyRegistry";
+import { useDirty, useDirtyRegistry } from "../components/navigation/dirtyRegistry";
 import { formatNumber, useI18n } from "../i18n";
 import type { ContentDiffAction } from "../components/agent/ContentDiffPreview";
 import type { PendingContentDiff } from "../components/agent/contentOptimizationDiff";
@@ -89,6 +89,7 @@ export const WritingDesk: React.FC = () => {
   const projectId = Number(id);
   const navigate = useNavigate();
   const { addToast } = useToast();
+  const dirtyRegistry = useDirtyRegistry();
   const { locale, t } = useI18n();
   const agentRequested = searchParams.get("agent") === "1";
   const projectIdKey =
@@ -734,8 +735,9 @@ export const WritingDesk: React.FC = () => {
     if (streamBusy || resetGeneratedDataBusy || derivedSyncBusyRef.current) return false;
     setWritingNotesByChapter({});
     setGenerationWordCountByChapter({});
+    dirtyRegistry.set(`writing-generation:${projectIdKey || "unknown"}`, false);
     return true;
-  }, [resetGeneratedDataBusy, streamBusy]);
+  }, [dirtyRegistry, projectIdKey, resetGeneratedDataBusy, streamBusy]);
 
   useDirty(
     `writing-generation:${projectIdKey || "unknown"}`,

@@ -12,7 +12,7 @@ import {
   writeWritingDraft,
 } from "../../utils/writingDraft";
 import { formatDateTime, useI18n } from "../../i18n";
-import { useDirty } from "../../components/navigation/dirtyRegistry";
+import { useDirty, useDirtyRegistry } from "../../components/navigation/dirtyRegistry";
 
 type AddToast = (message: string, type: ToastType) => void;
 
@@ -39,6 +39,7 @@ export function useWritingDeskDrafts({
   addToast,
 }: UseWritingDeskDraftsParams) {
   const { locale, t } = useI18n();
+  const dirtyRegistry = useDirtyRegistry();
   const [editorContent, setEditorContent] = useState("");
   const [dirty, setDirty] = useState(false);
   const [draftRevision, setDraftRevision] = useState(0);
@@ -291,7 +292,8 @@ export function useWritingDeskDrafts({
   const markCurrentEditClean = useCallback(() => {
     dirtyRef.current = false;
     setDirty(false);
-  }, []);
+    dirtyRegistry.set(`writing-desk:${projectIdKey || "unknown"}`, false);
+  }, [dirtyRegistry, projectIdKey]);
 
   useDirty(`writing-desk:${projectIdKey || "unknown"}`, dirty, discardCurrentEdit, canDiscard);
 
