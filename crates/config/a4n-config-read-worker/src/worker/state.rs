@@ -9,17 +9,6 @@ impl WorkerState {
             .map_err(app_error)
     }
 
-    async fn baseline_llm(
-        &self,
-        request: WorkerEnvelope<CreateLlmCommand>,
-    ) -> Result<bool, WorkerFailure> {
-        validate_service_request(&request, CONFIG_MUTATION_BASELINE_LLM_OPERATION)?;
-        let input = llm_record_input(normalize_llm_input(request.payload.0).map_err(app_error)?);
-        a4n_db::config::insert_baseline_llm_config_if_empty(self.database.connection(), input)
-            .await
-            .map_err(app_error)
-    }
-
     async fn baseline_image(
         &self,
         request: WorkerEnvelope<CreateImageCommand>,
@@ -46,97 +35,6 @@ impl WorkerState {
         )
         .await
         .map_err(app_error)
-    }
-
-    async fn create_llm(
-        &self,
-        request: WorkerEnvelope<CreateLlmCommand>,
-    ) -> Result<LlmConfigSummary, WorkerFailure> {
-        validate_admin_request(
-            &request,
-            CONFIG_MUTATION_CREATE_LLM_OPERATION,
-            &self.database,
-        )
-        .await?;
-        let model = a4n_db::config::create_llm_config_record(
-            self.database.connection(),
-            llm_record_input(normalize_llm_input(request.payload.0).map_err(app_error)?),
-        )
-        .await
-        .map_err(app_error)?;
-        llm_summary(&model).map_err(app_error)
-    }
-
-    async fn update_llm(
-        &self,
-        request: WorkerEnvelope<UpdateLlmCommand>,
-    ) -> Result<LlmConfigSummary, WorkerFailure> {
-        validate_admin_request(
-            &request,
-            CONFIG_MUTATION_UPDATE_LLM_OPERATION,
-            &self.database,
-        )
-        .await?;
-        let existing = a4n_db::config::llm_config_by_id(
-            self.database.connection(),
-            positive_id(request.payload.config_id)?,
-        )
-        .await
-        .map_err(app_error)?;
-        let input =
-            normalize_update_llm_input(&existing, request.payload.input).map_err(app_error)?;
-        let model = a4n_db::config::update_llm_config_record(
-            self.database.connection(),
-            existing,
-            llm_record_input(input),
-        )
-        .await
-        .map_err(app_error)?;
-        llm_summary(&model).map_err(app_error)
-    }
-
-    async fn set_default_llm(
-        &self,
-        request: WorkerEnvelope<ConfigIdInput>,
-    ) -> Result<(), WorkerFailure> {
-        validate_admin_request(
-            &request,
-            CONFIG_MUTATION_SET_DEFAULT_LLM_OPERATION,
-            &self.database,
-        )
-        .await?;
-        let config_id = positive_id(request.payload.config_id)?;
-        let model = a4n_db::config::llm_config_by_id(self.database.connection(), config_id)
-            .await
-            .map_err(app_error)?;
-        validate_llm_config(&llm_config_snapshot(&model)).map_err(app_error)?;
-        a4n_db::config::set_default_provider_config(
-            self.database.connection(),
-            ProviderConfigKind::Llm,
-            config_id,
-        )
-        .await
-        .map_err(app_error)
-    }
-
-    async fn delete_llm(
-        &self,
-        request: WorkerEnvelope<ConfigIdInput>,
-    ) -> Result<(), WorkerFailure> {
-        validate_admin_request(
-            &request,
-            CONFIG_MUTATION_DELETE_LLM_OPERATION,
-            &self.database,
-        )
-        .await?;
-        let config_id = positive_id(request.payload.config_id)?;
-        let model = a4n_db::config::llm_config_by_id(self.database.connection(), config_id)
-            .await
-            .map_err(app_error)?;
-        ensure_default_config_delete_allowed(" LLM 配置", model.is_default).map_err(app_error)?;
-        a4n_db::config::delete_llm_config_record(self.database.connection(), config_id)
-            .await
-            .map_err(app_error)
     }
 
     async fn create_image(
