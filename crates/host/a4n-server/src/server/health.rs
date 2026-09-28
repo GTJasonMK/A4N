@@ -44,11 +44,7 @@ pub(crate) fn wait_for_managed_worker(
         child,
         config.address,
         &config.token,
-        if config.metadata.name == AGENT_WORKER_CATALOG_NAME {
-            AGENT_WORKER_AUTH_HEADER
-        } else {
-            WORKER_AUTH_HEADER
-        },
+        a4n_worker_contract::worker_auth_header(&config.metadata.name),
         (config.metadata.name != AGENT_WORKER_CATALOG_NAME).then_some(&config.metadata.name),
         &required,
         &config.metadata.capability_version,

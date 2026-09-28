@@ -12,17 +12,12 @@ use a4n_runtime::{AppState, RuntimeProfile, RuntimeRole};
 use a4n_service_protocol::MANAGED_SIDECARS_ENV;
 use a4n_storage::paths::AppPaths;
 use tauri::AppHandle;
-#[cfg(target_os = "macos")]
-use tauri::Manager;
 
 pub(crate) fn load_config(app: &AppHandle) -> Result<AppConfig, AppError> {
     config::load_config(app)
 }
 
 pub(crate) fn load_native_config(app: &AppHandle) -> Result<AppConfig, AppError> {
-    #[cfg(target_os = "macos")]
-    configure_bundled_sidecar_resources(app)?;
-
     config::load_config(app)
 }
 
@@ -47,27 +42,106 @@ pub async fn initialize(config: AppConfig) -> Result<AppState, AppError> {
     Ok(state)
 }
 
-#[cfg(target_os = "macos")]
-fn configure_bundled_sidecar_resources(app: &AppHandle) -> Result<(), AppError> {
-    let resource_dir = app
-        .path()
-        .resource_dir()
+pub(crate) fn configure_bundled_sidecar_resources(
+    package: &tauri::utils::PackageInfo,
+) -> Result<(), AppError> {
+    let resources = tauri::utils::platform::resource_dir(package, &tauri::utils::Env::default())
         .map_err(|error| AppError::ConfigError(format!("无法解析 Tauri 资源目录: {error}")))?;
-    if !resource_dir.join("libonnxruntime.dylib").is_file() {
-        return Ok(());
+    let prompts = resources.join("prompts");
+    let prompts_env = a4n_service_protocol::PROMPT_SERVICE_PROMPTS_DIR_ENV;
+    if a4n_config::optional_non_empty_env_path(prompts_env)?.is_none()
+        && a4n_config::optional_non_empty_env_path("A4N_PORTABLE_HOME")?.is_none()
+        && prompts.join("_registry.yaml").is_file()
+    {
+        // SAFETY: this function runs before application threads start.
+        unsafe { std::env::set_var(prompts_env, prompts) };
     }
-
-    let mut paths = vec![resource_dir];
-    if let Some(current) = std::env::var_os("DYLD_LIBRARY_PATH") {
+    let configured = a4n_config::optional_non_empty_env_path("A4N_ONNXRUNTIME_ROOT")?;
+    let Some(library_dir) = runtime_library_dir(&resources, configured.as_deref())? else {
+        return Ok(());
+    };
+    let loader_variable = if cfg!(target_os = "windows") {
+        "PATH"
+    } else if cfg!(target_os = "macos") {
+        "DYLD_LIBRARY_PATH"
+    } else {
+        "LD_LIBRARY_PATH"
+    };
+    let mut paths = vec![library_dir.clone()];
+    if let Some(current) = std::env::var_os(loader_variable) {
         paths.extend(std::env::split_paths(&current));
     }
     let value = std::env::join_paths(paths)
         .map_err(|error| AppError::ConfigError(format!("ONNX Runtime 资源路径无效: {error}")))?;
-    // SAFETY: Tauri setup runs before AppState starts managed sidecar processes.
+    // SAFETY: app::run calls this before logging, Tauri, or worker threads start.
     unsafe {
-        std::env::set_var("DYLD_LIBRARY_PATH", value);
+        std::env::set_var(loader_variable, value);
+        if configured.is_none() {
+            std::env::set_var("A4N_ONNXRUNTIME_ROOT", library_dir);
+        }
     }
     Ok(())
+}
+
+fn runtime_library_dir(
+    resources: &std::path::Path,
+    configured: Option<&std::path::Path>,
+) -> Result<Option<std::path::PathBuf>, AppError> {
+    let library = if cfg!(target_os = "linux") {
+        "libonnxruntime.so.1".to_string()
+    } else {
+        format!(
+            "{}onnxruntime{}",
+            std::env::consts::DLL_PREFIX,
+            std::env::consts::DLL_SUFFIX
+        )
+    };
+    let root = configured.unwrap_or(resources);
+    for directory in [root.join("lib"), root.to_path_buf()] {
+        if directory.join(&library).is_file() {
+            return Ok(Some(directory));
+        }
+    }
+    if configured.is_some() {
+        return Err(AppError::ConfigError(format!(
+            "ONNX Runtime 目录缺少 {library}: {}",
+            root.display()
+        )));
+    }
+    Ok(None)
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn bundled_runtime_preserves_explicit_roots_and_rejects_missing_libraries() {
+        let directory = tempfile::tempdir().unwrap();
+        let resources = directory.path().join("resources");
+        let custom = directory.path().join("custom");
+        assert_eq!(super::runtime_library_dir(&resources, None).unwrap(), None);
+        for root in [&resources, &custom.join("lib")] {
+            std::fs::create_dir_all(root).unwrap();
+            for name in [
+                "libonnxruntime.so.1",
+                "libonnxruntime.dylib",
+                "onnxruntime.dll",
+            ] {
+                std::fs::write(root.join(name), b"runtime").unwrap();
+            }
+        }
+        assert_eq!(
+            super::runtime_library_dir(&resources, None).unwrap(),
+            Some(resources.clone())
+        );
+        assert_eq!(
+            super::runtime_library_dir(&resources, Some(&custom)).unwrap(),
+            Some(custom.join("lib"))
+        );
+        assert!(
+            super::runtime_library_dir(&resources, Some(&directory.path().join("missing")))
+                .is_err()
+        );
+    }
 }
 
 fn runtime_profile_for_tauri_host() -> Result<RuntimeProfile, AppError> {

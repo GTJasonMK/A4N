@@ -8,10 +8,9 @@ use std::{
 };
 
 use a4n_process_catalog::stateful_worker_catalog_entry_ref;
-use a4n_worker_client::WORKER_AUTH_HEADER;
 use a4n_worker_contract::{
-    AGENT_WORKER_AUTH_HEADER, WORKER_CAPABILITIES_PATH, WORKER_HEALTH_PATH, WorkerCapabilities,
-    WorkerHealth, WorkerHealthStatus,
+    WORKER_CAPABILITIES_PATH, WORKER_HEALTH_PATH, WorkerCapabilities, WorkerHealth,
+    WorkerHealthStatus,
 };
 
 mod config;

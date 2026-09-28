@@ -128,6 +128,14 @@ impl ServerState {
             page_sessions: PageSessionRegistry::new(),
         }
     }
+
+    pub(crate) fn with_agent_worker_token(mut self, token: String) -> Result<Self, AppError> {
+        if token.trim().is_empty() {
+            return Err(AppError::ConfigError("Agent worker token 不能为空".into()));
+        }
+        self.agent_worker_token = Some(token);
+        Ok(self)
+    }
 }
 
 fn runtime_profile_for_server_host() -> Result<RuntimeProfile, AppError> {

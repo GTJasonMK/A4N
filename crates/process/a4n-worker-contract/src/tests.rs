@@ -5,6 +5,16 @@ use a4n_api_contract::agent::{
 
 use super::*;
 
+#[test]
+fn worker_auth_header_keeps_the_agent_protocol_distinct() {
+    assert_eq!(worker_auth_header("agent-worker"), AGENT_WORKER_AUTH_HEADER);
+    assert_eq!(worker_auth_header("admin-worker"), WORKER_AUTH_HEADER);
+    assert_eq!(
+        worker_auth_header("artifact-media-worker"),
+        WORKER_AUTH_HEADER
+    );
+}
+
 fn valid_request() -> WorkerEnvelope<serde_json::Value> {
     WorkerEnvelope {
         schema_version: WORKER_SCHEMA_VERSION,

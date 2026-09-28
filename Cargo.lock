@@ -2900,6 +2900,7 @@ dependencies = [
  "a4n-task-runtime",
  "a4n-test-support",
  "a4n-worker-client",
+ "a4n-worker-contract",
  "axum 0.8.9",
  "base64 0.22.1",
  "parking_lot",

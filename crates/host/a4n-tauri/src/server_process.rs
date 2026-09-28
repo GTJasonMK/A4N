@@ -16,11 +16,6 @@ const SERVER_BINARY_ENV: &str = "A4N_SERVER_BINARY";
 const CONTROL_BINARY_ENV: &str = "A4N_CONTROL_BINARY";
 const EDGE_BINARY_ENV: &str = "A4N_EDGE_BINARY";
 const MIGRATION_BINARY_ENV: &str = "A4N_MIGRATION_BINARY";
-const NATIVE_WORKER_NAMES: [&str; 3] = [
-    "admin-worker",
-    "canvas-record-worker",
-    "workflow-lifecycle-worker",
-];
 const NATIVE_WORKER_READY_TIMEOUT: Duration = Duration::from_secs(30);
 const NATIVE_WORKER_RETRY_INTERVAL: Duration = Duration::from_millis(100);
 
@@ -46,12 +41,14 @@ struct NativeWorkerSettingsEntry {
 #[derive(Default)]
 pub(crate) struct NativeWorkerProcesses {
     children: Mutex<Vec<(String, Child)>>,
+    control_task: Option<tauri::async_runtime::JoinHandle<()>>,
 }
 
 impl NativeWorkerSettings {
-    pub(crate) fn prepare() -> Result<Self, Box<dyn std::error::Error>> {
+    pub(crate) fn prepare() -> Result<(Self, TcpListener), Box<dyn std::error::Error>> {
         let catalog = a4n_process_catalog::stateful_worker_catalog()?;
-        let entries = select_native_worker_entries(&catalog)?;
+        let entries = &catalog;
+        let control = TcpListener::bind("127.0.0.1:0")?;
         let mut reservations = Vec::with_capacity(entries.len());
         let mut workers = Vec::with_capacity(entries.len());
 
@@ -91,6 +88,7 @@ impl NativeWorkerSettings {
         }
 
         // SAFETY: `prepare` is called before Tauri, logging, and worker threads start.
+        unsafe { std::env::set_var("A4N_CONTROL_ADDR", control.local_addr()?.to_string()) };
         for worker in &workers {
             unsafe {
                 std::env::set_var(&worker.metadata.addr_env, worker.address.to_string());
@@ -98,10 +96,34 @@ impl NativeWorkerSettings {
                 std::env::set_var(&worker.token_env, &worker.token);
             }
         }
-        Ok(Self {
+        Ok((
+            Self {
+                workers,
+                reservations,
+            },
+            control,
+        ))
+    }
+
+    pub(crate) fn split_agent(self) -> (Self, Self) {
+        let (agent, workers): (Vec<_>, Vec<_>) = self
+            .workers
+            .into_iter()
+            .zip(self.reservations)
+            .partition(|(worker, _)| worker.metadata.name == "agent-worker");
+        let (workers, reservations) = workers.into_iter().unzip();
+        let ordinary = Self {
             workers,
             reservations,
-        })
+        };
+        let (workers, reservations) = agent.into_iter().unzip();
+        (
+            ordinary,
+            Self {
+                workers,
+                reservations,
+            },
+        )
     }
 
     pub(crate) async fn start(
@@ -115,10 +137,22 @@ impl NativeWorkerSettings {
             let binary_env = stateful_worker_binary_env(&worker.metadata.name);
             let binary = resolve_binary(app, &worker.metadata.binary, &binary_env)?;
             let mut command = Command::new(&binary);
+            // Agent health reports a process identity, not the catalog service name.
+            let worker_id = if worker.metadata.name == "agent-worker" {
+                let identity = format!("a4n-agent:{}", uuid::Uuid::new_v4());
+                command.env("A4N_AGENT_WORKER_ID", &identity);
+                identity
+            } else {
+                worker.metadata.name.clone()
+            };
             command
                 .env(&worker.metadata.addr_env, worker.address.to_string())
                 .env(&worker.token_env, &worker.token)
                 .env("A4N_DATABASE_URL", &config.database_url)
+                .env("A4N_DATA_DIR", &config.data_dir)
+                .env("A4N_CACHE_DIR", &config.cache_dir)
+                .env("A4N_TEMP_DIR", &config.temp_dir)
+                .env("A4N_LOG_DIR", &config.log_dir)
                 .stdin(Stdio::null())
                 .stdout(Stdio::inherit())
                 .stderr(Stdio::inherit());
@@ -133,7 +167,10 @@ impl NativeWorkerSettings {
                     binary.display()
                 ))
             })?;
-            let client = HttpWorkerClient::new(&worker.url, &worker.metadata.name)
+            let client = HttpWorkerClient::new(&worker.url, worker_id)
+                .with_auth_header(a4n_worker_contract::worker_auth_header(
+                    &worker.metadata.name,
+                ))
                 .with_auth_token(worker.token.clone());
             if let Err(error) = wait_for_native_worker(&mut child, &client, &worker.metadata).await
             {
@@ -162,6 +199,37 @@ impl NativeWorkerSettings {
 }
 
 impl NativeWorkerProcesses {
+    pub(crate) fn serve_agent_host(
+        &mut self,
+        listener: TcpListener,
+        state: &a4n_runtime::AppState,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        let token = a4n_config::required_non_empty_env_string("A4N_AGENT_WORKER_TOKEN")?;
+        let router = a4n_control::native_agent_router(state.clone(), token)?;
+        listener.set_nonblocking(true)?;
+        let listener =
+            tauri::async_runtime::block_on(async { tokio::net::TcpListener::from_std(listener) })?;
+        self.control_task = Some(tauri::async_runtime::spawn(async move {
+            if let Err(error) = axum::serve(listener, router).await {
+                tracing::error!(%error, "Native Agent Host callback listener 退出");
+            }
+        }));
+        Ok(())
+    }
+
+    pub(crate) fn append(&mut self, mut other: Self) -> Result<(), io::Error> {
+        self.children
+            .get_mut()
+            .map_err(|_| io::Error::other("获取 Native worker 进程锁失败"))?
+            .append(
+                other
+                    .children
+                    .get_mut()
+                    .map_err(|_| io::Error::other("获取 Native worker 进程锁失败"))?,
+            );
+        Ok(())
+    }
+
     pub(crate) fn stop(&self) {
         let Ok(mut children) = self.children.lock() else {
             tracing::error!("获取 Native worker 进程锁失败");
@@ -173,6 +241,9 @@ impl NativeWorkerProcesses {
             {
                 tracing::warn!(worker = %name, %error, "停止 Native worker 失败");
             }
+        }
+        if let Some(task) = &self.control_task {
+            task.abort();
         }
     }
 }
@@ -237,40 +308,6 @@ fn validate_native_worker_capabilities(
     Ok(())
 }
 
-fn select_native_worker_entries(
-    catalog: &[StatefulWorkerCatalogEntry],
-) -> Result<Vec<&StatefulWorkerCatalogEntry>, io::Error> {
-    let names = select_native_worker_names(catalog.iter().map(|entry| entry.name.as_str()))?;
-    names
-        .into_iter()
-        .map(|name| {
-            catalog
-                .iter()
-                .find(|entry| entry.name == name)
-                .ok_or_else(|| io::Error::other(format!("Native worker {name} 丢失目录元数据")))
-        })
-        .collect()
-}
-
-fn select_native_worker_names<'a>(
-    catalog_names: impl IntoIterator<Item = &'a str>,
-) -> Result<Vec<&'static str>, io::Error> {
-    let catalog_names = catalog_names.into_iter().collect::<Vec<_>>();
-    let selected = NATIVE_WORKER_NAMES
-        .iter()
-        .filter(|name| catalog_names.contains(*name))
-        .copied()
-        .collect::<Vec<_>>();
-    if selected.is_empty() || selected.len() == NATIVE_WORKER_NAMES.len() {
-        return Ok(selected);
-    }
-    Err(io::Error::other(format!(
-        "Native worker catalog 必须同时包含 {}；当前仅包含 {}",
-        NATIVE_WORKER_NAMES.join(", "),
-        selected.join(", ")
-    )))
-}
-
 impl LocalServerProcess {
     pub(crate) async fn start(
         app: &AppHandle,
@@ -327,10 +364,6 @@ impl LocalServerProcess {
             command.env("A4N_WEB_ADDR", address.to_string());
         }
         configure_parent_death_signal(&mut command);
-
-        if let Some(sidecar_dir) = bundled_sidecar_dir(app, &server) {
-            command.env("A4N_SIDECAR_BIN_DIR", sidecar_dir);
-        }
 
         let child = command
             .spawn()
@@ -455,6 +488,14 @@ async fn wait_until_healthy(
     Err(format!("A4N Server 启动超时；请检查 Server 日志；最后连接错误: {last_error:?}").into())
 }
 
+pub(crate) fn run_native_migration(
+    app: &AppHandle,
+    config: &AppConfig,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let binary = resolve_binary(app, "a4n-migration", MIGRATION_BINARY_ENV)?;
+    run_migration(&binary, &config.database_url)
+}
+
 fn run_migration(binary: &Path, database_url: &str) -> Result<(), Box<dyn std::error::Error>> {
     let output = Command::new(binary)
         .env("A4N_DATABASE_URL", database_url)
@@ -564,16 +605,6 @@ fn resolve_binary_in_directories(
     Err(format!("未找到 {name}；请构建 Server，或设置 {env_name}").into())
 }
 
-fn bundled_sidecar_dir(app: &AppHandle, server: &Path) -> Option<PathBuf> {
-    let server_parent = server.parent()?;
-    let service_dir = server_parent.join("services");
-    if service_dir.is_dir() {
-        return Some(service_dir);
-    }
-    let resource_dir = app.path().resource_dir().ok()?;
-    resource_dir.is_dir().then_some(resource_dir)
-}
-
 fn server_portable_home() -> PathBuf {
     if let Some(path) = std::env::var_os("A4N_PORTABLE_HOME") {
         return PathBuf::from(path);
@@ -591,10 +622,44 @@ fn server_portable_home() -> PathBuf {
 #[cfg(test)]
 mod tests {
     use super::{
-        NATIVE_WORKER_NAMES, parse_local_server_address, read_server_address,
-        resolve_binary_in_directories, select_native_worker_names, stateful_worker_binary_env,
-        stateful_worker_env,
+        parse_local_server_address, read_server_address, resolve_binary_in_directories,
+        stateful_worker_binary_env, stateful_worker_env,
     };
+
+    #[test]
+    fn native_agent_starts_last_without_losing_catalog_workers_or_port_reservations() {
+        let catalog = a4n_process_catalog::stateful_worker_catalog().unwrap();
+        let mut workers = Vec::new();
+        let mut reservations = Vec::new();
+        for metadata in &catalog {
+            let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+            let address = listener.local_addr().unwrap();
+            workers.push(super::NativeWorkerSettingsEntry {
+                metadata: metadata.clone(),
+                address,
+                url: format!("http://{address}"),
+                url_env: metadata.url_env.clone().unwrap(),
+                token: "test-token".into(),
+                token_env: stateful_worker_env(&metadata.name, "TOKEN"),
+            });
+            reservations.push(listener);
+        }
+        let settings = super::NativeWorkerSettings {
+            workers,
+            reservations,
+        };
+        let (ordinary, agent) = settings.split_agent();
+        assert_eq!(agent.workers.len(), 1);
+        assert_eq!(agent.workers[0].metadata.name, "agent-worker");
+        assert_eq!(ordinary.workers.len() + agent.workers.len(), catalog.len());
+        for group in [&ordinary, &agent] {
+            assert_eq!(group.workers.len(), group.reservations.len());
+            for (worker, listener) in group.workers.iter().zip(&group.reservations) {
+                assert_eq!(worker.address, listener.local_addr().unwrap());
+                assert!(std::net::TcpListener::bind(worker.address).is_err());
+            }
+        }
+    }
 
     #[test]
     fn accepts_only_published_loopback_endpoints() {
@@ -655,20 +720,6 @@ mod tests {
         assert_eq!(
             stateful_worker_env("workflow-lifecycle-worker", "TOKEN"),
             "A4N_WORKFLOW_LIFECYCLE_WORKER_TOKEN"
-        );
-    }
-
-    #[test]
-    fn native_workers_are_optional_only_as_a_complete_catalog_set() {
-        assert!(
-            select_native_worker_names(std::iter::empty())
-                .unwrap()
-                .is_empty()
-        );
-        assert!(select_native_worker_names(["admin-worker"]).is_err());
-        assert_eq!(
-            select_native_worker_names(NATIVE_WORKER_NAMES).unwrap(),
-            NATIVE_WORKER_NAMES
         );
     }
 }

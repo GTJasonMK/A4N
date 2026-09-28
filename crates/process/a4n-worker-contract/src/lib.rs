@@ -15,6 +15,14 @@ pub const AGENT_HOST_COMMAND_OPERATION: &str = "agent.host_command";
 pub const AGENT_WORKER_AUTH_HEADER: &str = "x-a4n-agent-worker-token";
 pub const WORKER_AUTH_HEADER: &str = "x-a4n-worker-token";
 
+pub fn worker_auth_header(worker_name: &str) -> &'static str {
+    if worker_name == "agent-worker" {
+        AGENT_WORKER_AUTH_HEADER
+    } else {
+        WORKER_AUTH_HEADER
+    }
+}
+
 pub use a4n_api_contract::agent::AgentScope;
 
 mod capabilities;
