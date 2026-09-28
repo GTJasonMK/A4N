@@ -19,22 +19,34 @@ use a4n_domain::chapter::{EditChapterContentInput, ImportChapterContentInput};
 use a4n_worker_contract::WORKER_AUTH_HEADER;
 use a4n_worker_contract::{
     WORKER_CAPABILITIES_PATH, WORKER_HEALTH_PATH, WORKER_SCHEMA_VERSION, WorkerCapabilities,
-    WorkerCapability, WorkerEnvelope, WorkerError, WorkerErrorCode, WorkerHealth,
-    WorkerHealthStatus, WorkerOperationRef, WorkerOperationStatus, WorkerPrincipalKind,
-    WorkerResponse,
+    WorkerCapability, WorkerEnvelope, WorkerHealth, WorkerHealthStatus,
 };
 use axum::{
     Json, Router,
     extract::State,
-    http::{HeaderMap, StatusCode},
+    http::HeaderMap,
     response::{IntoResponse, Response},
     routing::{get, post},
 };
 use sea_orm::{
-    ConnectOptions, ConnectionTrait, Database, DatabaseConnection, DatabaseTransaction, Statement,
-    TransactionTrait,
+    ConnectOptions, ConnectionTrait, Database, DatabaseConnection, Statement, TransactionTrait,
 };
 use subtle::ConstantTimeEq;
+
+mod commands;
+mod errors;
+mod permissions;
+mod responses;
+mod transactions;
+mod validation;
+
+use errors::{
+    WorkerFailure, app_error, chapter_error, import_error, project_error, workflow_error,
+};
+use permissions::{verify_project_editor, verify_project_viewer};
+use responses::unauthorized;
+use transactions::finish_transaction;
+use validation::{positive, user_id, validate_request};
 
 const WORKER_ADDR_ENV: &str = "A4N_CHAPTER_CONTENT_WORKER_ADDR";
 const DATABASE_URL_ENV: &str = "A4N_DATABASE_URL";
@@ -51,13 +63,6 @@ struct WorkerState {
     database: DbHandle,
     worker_id: Arc<str>,
     auth_token: Arc<str>,
-}
-
-#[derive(Debug)]
-struct WorkerFailure {
-    code: WorkerErrorCode,
-    message: String,
-    retryable: bool,
 }
 
 impl ChapterContentWorker {
@@ -79,11 +84,20 @@ impl ChapterContentWorker {
         Router::new()
             .route(WORKER_HEALTH_PATH, get(health))
             .route(WORKER_CAPABILITIES_PATH, get(capabilities))
-            .route("/v1/commands/chapter.content.list", post(list))
-            .route("/v1/commands/chapter.content.index", post(index))
-            .route("/v1/commands/chapter.content.summary", post(summary))
-            .route("/v1/commands/chapter.content.update", post(update))
-            .route("/v1/commands/chapter.content.import", post(import_chapter))
+            .route("/v1/commands/chapter.content.list", post(commands::list))
+            .route("/v1/commands/chapter.content.index", post(commands::index))
+            .route(
+                "/v1/commands/chapter.content.summary",
+                post(commands::summary),
+            )
+            .route(
+                "/v1/commands/chapter.content.update",
+                post(commands::update),
+            )
+            .route(
+                "/v1/commands/chapter.content.import",
+                post(commands::import_chapter),
+            )
             .with_state(self.state.clone())
     }
 
@@ -170,71 +184,6 @@ async fn capabilities(State(state): State<WorkerState>, headers: HeaderMap) -> R
         }],
     })
     .into_response()
-}
-
-async fn list(
-    State(state): State<WorkerState>,
-    headers: HeaderMap,
-    Json(request): Json<WorkerEnvelope<ProjectInput>>,
-) -> Response {
-    command_response(&state, &headers, request, |request| state.list(request)).await
-}
-
-async fn index(
-    State(state): State<WorkerState>,
-    headers: HeaderMap,
-    Json(request): Json<WorkerEnvelope<ProjectInput>>,
-) -> Response {
-    command_response(&state, &headers, request, |request| state.index(request)).await
-}
-
-async fn summary(
-    State(state): State<WorkerState>,
-    headers: HeaderMap,
-    Json(request): Json<WorkerEnvelope<ChapterInput>>,
-) -> Response {
-    command_response(&state, &headers, request, |request| state.summary(request)).await
-}
-
-async fn update(
-    State(state): State<WorkerState>,
-    headers: HeaderMap,
-    Json(request): Json<WorkerEnvelope<UpdateChapterContentInput>>,
-) -> Response {
-    command_response(&state, &headers, request, |request| state.update(request)).await
-}
-
-async fn import_chapter(
-    State(state): State<WorkerState>,
-    headers: HeaderMap,
-    Json(request): Json<WorkerEnvelope<ImportChapterInput>>,
-) -> Response {
-    command_response(&state, &headers, request, |request| {
-        state.import_chapter(request)
-    })
-    .await
-}
-
-async fn command_response<T, O, F, Fut>(
-    state: &WorkerState,
-    headers: &HeaderMap,
-    request: WorkerEnvelope<T>,
-    command: F,
-) -> Response
-where
-    T: serde::Serialize + Clone,
-    O: serde::Serialize,
-    F: FnOnce(WorkerEnvelope<T>) -> Fut,
-    Fut: std::future::Future<Output = Result<O, WorkerFailure>>,
-{
-    if !state.authorized(headers) {
-        return unauthorized();
-    }
-    let response = match command(request.clone()).await {
-        Ok(payload) => completed(&request, payload),
-        Err(error) => failed(&request, error),
-    };
-    Json(response).into_response()
 }
 
 impl WorkerState {
@@ -483,297 +432,6 @@ impl WorkerState {
             .get(WORKER_AUTH_HEADER)
             .is_some_and(|value| bool::from(value.as_bytes().ct_eq(self.auth_token.as_bytes())))
     }
-}
-
-async fn verify_project_editor(
-    database: &DbHandle,
-    project_id: i64,
-    user_id: i64,
-) -> Result<(), WorkerFailure> {
-    a4n_db::collaboration::verify_project_permission(
-        database.connection(),
-        project_id,
-        user_id,
-        a4n_domain::collaboration::ProjectAccessRole::Editor,
-    )
-    .await
-    .map(|_| ())
-    .map_err(collaboration_error)
-}
-
-fn validate_request<T: serde::Serialize>(
-    request: &WorkerEnvelope<T>,
-    operation: &str,
-) -> Result<(), WorkerFailure> {
-    request
-        .validate()
-        .map_err(|error| WorkerFailure::invalid_request(error.to_string()))?;
-    if request.operation_id != operation {
-        return Err(WorkerFailure::invalid_request(format!(
-            "operation_id 不匹配: expected={operation}, actual={}",
-            request.operation_id
-        )));
-    }
-    if request.lease.worker_id != CHAPTER_CONTENT_WORKER_ID {
-        return Err(WorkerFailure::invalid_request(
-            "lease.worker_id 不属于 chapter content worker",
-        ));
-    }
-    Ok(())
-}
-
-fn user_id<T: serde::Serialize>(request: &WorkerEnvelope<T>) -> Result<i64, WorkerFailure> {
-    if request.principal.kind != WorkerPrincipalKind::User {
-        return Err(WorkerFailure::unauthorized("仅允许用户 principal"));
-    }
-    request
-        .principal
-        .subject
-        .parse::<i64>()
-        .ok()
-        .filter(|id| *id > 0)
-        .ok_or_else(|| WorkerFailure::unauthorized("用户 principal subject 无效"))
-}
-
-fn positive(field: &str, value: i64) -> Result<i64, WorkerFailure> {
-    if value <= 0 {
-        return Err(WorkerFailure::invalid_request(format!(
-            "{field} 必须大于 0"
-        )));
-    }
-    Ok(value)
-}
-
-async fn verify_project_viewer(
-    database: &DbHandle,
-    project_id: i64,
-    user_id: i64,
-) -> Result<(), WorkerFailure> {
-    a4n_db::collaboration::verify_project_permission(
-        database.connection(),
-        project_id,
-        user_id,
-        a4n_domain::collaboration::ProjectAccessRole::Viewer,
-    )
-    .await
-    .map(|_| ())
-    .map_err(collaboration_error)
-}
-
-fn chapter_error(error: a4n_db::chapter_content::ChapterContentEditError) -> WorkerFailure {
-    match error {
-        a4n_db::chapter_content::ChapterContentEditError::InvalidArgument(message) => {
-            WorkerFailure::invalid_request(message)
-        }
-        a4n_db::chapter_content::ChapterContentEditError::NotFound(message) => {
-            WorkerFailure::not_found(message)
-        }
-        a4n_db::chapter_content::ChapterContentEditError::InvalidState { current, operation } => {
-            WorkerFailure::conflict(format!("{current}: {operation}"))
-        }
-        a4n_db::chapter_content::ChapterContentEditError::Database(error) => {
-            WorkerFailure::unavailable(error.to_string())
-        }
-    }
-}
-
-fn import_error(error: a4n_db::chapter_content::ChapterContentImportError) -> WorkerFailure {
-    match error {
-        a4n_db::chapter_content::ChapterContentImportError::InvalidArgument(message) => {
-            WorkerFailure::invalid_request(message)
-        }
-        a4n_db::chapter_content::ChapterContentImportError::TargetChapterGenerating {
-            chapter_number,
-            status,
-            operation,
-        } => WorkerFailure::conflict(format!(
-            "第 {chapter_number} 章正在生成中，请等待当前生成完成后再{operation}（当前状态：{status}）"
-        )),
-        a4n_db::chapter_content::ChapterContentImportError::Database(error) => {
-            WorkerFailure::unavailable(error.to_string())
-        }
-    }
-}
-
-fn collaboration_error(error: a4n_db::collaboration::CollaborationDbError) -> WorkerFailure {
-    match error {
-        a4n_db::collaboration::CollaborationDbError::InvalidArgument(message) => {
-            WorkerFailure::invalid_request(message)
-        }
-        a4n_db::collaboration::CollaborationDbError::NotFound(message) => {
-            WorkerFailure::not_found(message)
-        }
-        a4n_db::collaboration::CollaborationDbError::Forbidden(message) => {
-            WorkerFailure::unauthorized(message)
-        }
-        a4n_db::collaboration::CollaborationDbError::InvalidState(message)
-        | a4n_db::collaboration::CollaborationDbError::Internal(message) => {
-            WorkerFailure::conflict(message)
-        }
-        a4n_db::collaboration::CollaborationDbError::Database(error) => {
-            WorkerFailure::unavailable(error.to_string())
-        }
-    }
-}
-
-fn project_error(error: a4n_db::project::ProjectMutationError) -> WorkerFailure {
-    match error {
-        a4n_db::project::ProjectMutationError::InvalidArgument(message) => {
-            WorkerFailure::invalid_request(message)
-        }
-        a4n_db::project::ProjectMutationError::NotFound(message) => {
-            WorkerFailure::not_found(message)
-        }
-        a4n_db::project::ProjectMutationError::Forbidden(message) => {
-            WorkerFailure::unauthorized(message)
-        }
-        a4n_db::project::ProjectMutationError::Internal(message) => {
-            WorkerFailure::conflict(message)
-        }
-        a4n_db::project::ProjectMutationError::Database(error) => {
-            WorkerFailure::unavailable(error.to_string())
-        }
-    }
-}
-
-fn workflow_error(error: a4n_db::workflow::WorkflowReadError) -> WorkerFailure {
-    match error {
-        a4n_db::workflow::WorkflowReadError::InvalidArgument(message) => {
-            WorkerFailure::invalid_request(message)
-        }
-        a4n_db::workflow::WorkflowReadError::NotFound(message) => WorkerFailure::not_found(message),
-        a4n_db::workflow::WorkflowReadError::InvalidData(message) => {
-            WorkerFailure::conflict(message)
-        }
-        a4n_db::workflow::WorkflowReadError::Database(error) => {
-            WorkerFailure::unavailable(error.to_string())
-        }
-    }
-}
-
-fn app_error(error: a4n_error::AppError) -> WorkerFailure {
-    match error {
-        a4n_error::AppError::InvalidArgument(message) => WorkerFailure::invalid_request(message),
-        a4n_error::AppError::NotFound(message) => WorkerFailure::not_found(message),
-        a4n_error::AppError::Forbidden(message) => WorkerFailure::unauthorized(message),
-        a4n_error::AppError::InvalidState { current, operation } => {
-            WorkerFailure::conflict(format!("{current}: {operation}"))
-        }
-        other => WorkerFailure::unavailable(other.to_string()),
-    }
-}
-
-async fn finish_transaction<T>(
-    tx: DatabaseTransaction,
-    result: Result<T, WorkerFailure>,
-    operation: &str,
-) -> Result<T, WorkerFailure> {
-    match result {
-        Ok(value) => {
-            tx.commit()
-                .await
-                .map_err(|error| WorkerFailure::unavailable(error.to_string()))?;
-            Ok(value)
-        }
-        Err(error) => {
-            tx.rollback().await.map_err(|rollback_error| {
-                WorkerFailure::unavailable(format!(
-                    "{operation}失败：{}；事务回滚失败：{rollback_error}",
-                    error.message
-                ))
-            })?;
-            Err(error)
-        }
-    }
-}
-
-impl WorkerFailure {
-    fn invalid_request(message: impl Into<String>) -> Self {
-        Self {
-            code: WorkerErrorCode::InvalidRequest,
-            message: message.into(),
-            retryable: false,
-        }
-    }
-    fn unauthorized(message: impl Into<String>) -> Self {
-        Self {
-            code: WorkerErrorCode::Unauthorized,
-            message: message.into(),
-            retryable: false,
-        }
-    }
-    fn not_found(message: impl Into<String>) -> Self {
-        Self {
-            code: WorkerErrorCode::NotFound,
-            message: message.into(),
-            retryable: false,
-        }
-    }
-    fn conflict(message: impl Into<String>) -> Self {
-        Self {
-            code: WorkerErrorCode::Conflict,
-            message: message.into(),
-            retryable: false,
-        }
-    }
-    fn unavailable(message: impl Into<String>) -> Self {
-        Self {
-            code: WorkerErrorCode::Unavailable,
-            message: message.into(),
-            retryable: true,
-        }
-    }
-}
-
-fn completed<T>(request: &WorkerEnvelope<impl serde::Serialize>, payload: T) -> WorkerResponse<T> {
-    WorkerResponse {
-        schema_version: WORKER_SCHEMA_VERSION,
-        request_id: request.request_id.clone(),
-        trace_id: request.trace_id.clone(),
-        operation: WorkerOperationRef {
-            operation_id: request.operation_id.clone(),
-            task_id: None,
-        },
-        status: WorkerOperationStatus::Completed,
-        payload: Some(payload),
-        resource_refs: Vec::new(),
-        committed_revision: None,
-        provider_job_id: None,
-        result_summary: None,
-        pagination: None,
-        error: None,
-    }
-}
-
-fn failed<T>(
-    request: &WorkerEnvelope<impl serde::Serialize>,
-    failure: WorkerFailure,
-) -> WorkerResponse<T> {
-    WorkerResponse {
-        schema_version: WORKER_SCHEMA_VERSION,
-        request_id: request.request_id.clone(),
-        trace_id: request.trace_id.clone(),
-        operation: WorkerOperationRef {
-            operation_id: request.operation_id.clone(),
-            task_id: None,
-        },
-        status: WorkerOperationStatus::Failed,
-        payload: None,
-        resource_refs: Vec::new(),
-        committed_revision: None,
-        provider_job_id: None,
-        result_summary: None,
-        pagination: None,
-        error: Some(WorkerError {
-            code: failure.code,
-            message: failure.message,
-            retryable: failure.retryable,
-        }),
-    }
-}
-
-fn unauthorized() -> Response {
-    StatusCode::UNAUTHORIZED.into_response()
 }
 
 async fn shutdown_signal() {
