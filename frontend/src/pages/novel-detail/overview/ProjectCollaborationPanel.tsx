@@ -55,14 +55,21 @@ export const ProjectCollaborationPanel: React.FC<ProjectCollaborationPanelProps>
   const busyActionKeysRef = useRef<Set<string>>(new Set());
   const submittingRef = useRef(false);
   const mountedRef = useRef(false);
+  const scopeRef = useRef("");
 
   const canManage = project.my_role === "owner" || project.my_role === "manager";
   const canLeave = project.my_role !== "owner";
   const rootProjectId = project.collaboration_root_project_id;
+  const scopeKey = `${project.id}:${rootProjectId}`;
+  scopeRef.current = scopeKey;
   const dirtyKey = `collaboration:${project.id}`;
   useNovelDetailDirty(dirtyKey, Boolean(identity.trim()), () => setIdentity(""), () => !submittingRef.current);
 
+  const isCurrentScope = (requestScope: string): boolean =>
+    mountedRef.current && scopeRef.current === requestScope;
+
   const load = useCallback(async (): Promise<boolean> => {
+    const requestScope = scopeRef.current;
     const requestSeq = loadSeqRef.current + 1;
     loadSeqRef.current = requestSeq;
     setLoading(true);
@@ -71,7 +78,7 @@ export const ProjectCollaborationPanel: React.FC<ProjectCollaborationPanelProps>
         listProjectMembers(rootProjectId),
         canManage ? listProjectInvites(rootProjectId) : Promise.resolve([]),
       ]);
-      if (!mountedRef.current || loadSeqRef.current !== requestSeq) return false;
+      if (!isCurrentScope(requestScope) || loadSeqRef.current !== requestSeq) return false;
       const errors: string[] = [];
       if (membersResult.status === "fulfilled") {
         setMembers(membersResult.value);
@@ -91,7 +98,7 @@ export const ProjectCollaborationPanel: React.FC<ProjectCollaborationPanelProps>
       }
       return errors.length === 0;
     } finally {
-      if (mountedRef.current && loadSeqRef.current === requestSeq) {
+      if (isCurrentScope(requestScope) && loadSeqRef.current === requestSeq) {
         setLoading(false);
       }
     }
@@ -128,6 +135,7 @@ export const ProjectCollaborationPanel: React.FC<ProjectCollaborationPanelProps>
   const handleInvite = async () => {
     const value = identity.trim();
     if (!value || submittingRef.current) return;
+    const requestScope = scopeRef.current;
     submittingRef.current = true;
     setSubmitting(true);
     try {
@@ -135,42 +143,50 @@ export const ProjectCollaborationPanel: React.FC<ProjectCollaborationPanelProps>
         username_or_email: value,
         role,
       });
-      if (!mountedRef.current) return;
+      if (!isCurrentScope(requestScope)) return;
       setIdentity("");
       await load();
+      if (!isCurrentScope(requestScope)) return;
       await onRefresh();
+      if (!isCurrentScope(requestScope)) return;
       addToast(t("novel.collaborationActions.inviteSent"), "success");
     } catch (err) {
-      if (mountedRef.current) {
+      if (isCurrentScope(requestScope)) {
         addToast(extractErrorMessage(err, t("novel.collaborationActions.inviteFailed")), "error");
       }
     } finally {
-      submittingRef.current = false;
-      if (mountedRef.current) setSubmitting(false);
+      if (isCurrentScope(requestScope)) {
+        submittingRef.current = false;
+        setSubmitting(false);
+      }
     }
   };
 
   const handleRoleChange = async (member: ProjectMember, nextRole: ProjectMemberRole) => {
     const actionKey = `role:${member.user_id}`;
     if (!beginAction(actionKey)) return;
+    const requestScope = scopeRef.current;
     try {
       await updateProjectMemberRole(rootProjectId, member.user_id, nextRole);
-      if (!mountedRef.current) return;
+      if (!isCurrentScope(requestScope)) return;
       await load();
+      if (!isCurrentScope(requestScope)) return;
       await onRefresh();
+      if (!isCurrentScope(requestScope)) return;
       addToast(t("novel.collaborationActions.roleUpdated"), "success");
     } catch (err) {
-      if (mountedRef.current) {
+      if (isCurrentScope(requestScope)) {
         addToast(extractErrorMessage(err, t("novel.collaborationActions.roleUpdateFailed")), "error");
       }
     } finally {
-      finishAction(actionKey);
+      if (isCurrentScope(requestScope)) finishAction(actionKey);
     }
   };
 
   const handleRemove = async (member: ProjectMember) => {
     const actionKey = `remove:${member.user_id}`;
     if (!beginAction(actionKey)) return;
+    const requestScope = scopeRef.current;
     const ok = await confirmDialog({
       title: t("novel.collaborationActions.removeTitle"),
       message: t("novel.collaborationActions.removeMessage", { username: member.username }),
@@ -183,40 +199,46 @@ export const ProjectCollaborationPanel: React.FC<ProjectCollaborationPanelProps>
     }
     try {
       await removeProjectMember(rootProjectId, member.user_id);
-      if (!mountedRef.current) return;
+      if (!isCurrentScope(requestScope)) return;
       await load();
+      if (!isCurrentScope(requestScope)) return;
       await onRefresh();
+      if (!isCurrentScope(requestScope)) return;
       addToast(t("novel.collaborationActions.removed"), "success");
     } catch (err) {
-      if (mountedRef.current) {
+      if (isCurrentScope(requestScope)) {
         addToast(extractErrorMessage(err, t("novel.collaborationActions.removeFailed")), "error");
       }
     } finally {
-      finishAction(actionKey);
+      if (isCurrentScope(requestScope)) finishAction(actionKey);
     }
   };
 
   const handleRevoke = async (invite: ProjectInvite) => {
     const actionKey = `revoke:${invite.id}`;
     if (!beginAction(actionKey)) return;
+    const requestScope = scopeRef.current;
     try {
       await revokeProjectInvite(rootProjectId, invite.id);
-      if (!mountedRef.current) return;
+      if (!isCurrentScope(requestScope)) return;
       await load();
+      if (!isCurrentScope(requestScope)) return;
       await onRefresh();
+      if (!isCurrentScope(requestScope)) return;
       addToast(t("novel.collaborationActions.inviteRevoked"), "success");
     } catch (err) {
-      if (mountedRef.current) {
+      if (isCurrentScope(requestScope)) {
         addToast(extractErrorMessage(err, t("novel.collaborationActions.revokeFailed")), "error");
       }
     } finally {
-      finishAction(actionKey);
+      if (isCurrentScope(requestScope)) finishAction(actionKey);
     }
   };
 
   const handleLeave = async () => {
     const actionKey = "leave";
     if (!beginAction(actionKey)) return;
+    const requestScope = scopeRef.current;
     const ok = await confirmDialog({
       title: t("novel.collaborationActions.leaveTitle"),
       message: t("novel.collaborationActions.leaveMessage"),
@@ -229,17 +251,17 @@ export const ProjectCollaborationPanel: React.FC<ProjectCollaborationPanelProps>
     }
     try {
       await leaveProject(rootProjectId);
-      if (!mountedRef.current) return;
+      if (!isCurrentScope(requestScope)) return;
       dirtyRegistry.set(dirtyKey, false);
       setIdentity("");
       addToast(t("novel.collaborationActions.left"), "success");
       navigate("/", { replace: true });
     } catch (err) {
-      if (mountedRef.current) {
+      if (isCurrentScope(requestScope)) {
         addToast(extractErrorMessage(err, t("novel.collaborationActions.leaveFailed")), "error");
       }
     } finally {
-      finishAction(actionKey);
+      if (isCurrentScope(requestScope)) finishAction(actionKey);
     }
   };
 

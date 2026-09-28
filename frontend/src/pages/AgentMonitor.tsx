@@ -146,12 +146,22 @@ export const AgentMonitor: React.FC = () => {
   const snapshotRef = useRef<AgentThreadSnapshot | null>(null);
   const eventCursorRef = useRef(0);
   const reloadInFlightRef = useRef(false);
+  const threadListRequestRef = useRef(0);
+  const mountedRef = useRef(false);
   const pendingEventsRef = useRef<AgentEvent[]>([]);
   const selectedThreadIdRef = useRef(selectedThreadId);
   const composingRef = useRef(false);
   const lastCompositionEndRef = useRef(0);
   const locateBaselineThreadRef = useRef<string | null>(null);
   const handledLocateMessageIdsRef = useRef<Set<string>>(new Set());
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      threadListRequestRef.current += 1;
+    };
+  }, []);
 
   const rememberStreamedMessages = useCallback((events: AgentEvent[], runId?: string) => {
     const ids = streamedAgentMessageIds(events, runId);
@@ -221,6 +231,9 @@ export const AgentMonitor: React.FC = () => {
   }, [pendingSubmission?.acceptedMessageId, snapshot]);
 
   const refreshThreads = useCallback(async (manual = false): Promise<boolean> => {
+    const requestId = threadListRequestRef.current + 1;
+    threadListRequestRef.current = requestId;
+    const isCurrent = () => mountedRef.current && threadListRequestRef.current === requestId;
     if (manual) setRefreshing(true);
     try {
       let next = await listAgentThreads({ include_archived: false, limit: 200 });
@@ -229,17 +242,20 @@ export const AgentMonitor: React.FC = () => {
       // default selection instead of treating the first child as global.
       const main = next.find((thread) => thread.kind === "main") ?? await ensureMainAgentThread({});
       if (!next.some((thread) => thread.id === main.id)) next = [main, ...next];
+      if (!isCurrent()) return false;
       setThreads(next);
       setSelectedThreadId((current) => current && next.some((thread) => thread.id === current)
         ? current : next.find((thread) => thread.kind === "main")?.id ?? next[0]?.id ?? null);
       setThreadsError(null);
       return true;
     } catch (err) {
-      setThreadsError(extractErrorMessage(err, t("agent.loadFailed")));
+      if (isCurrent()) setThreadsError(extractErrorMessage(err, t("agent.loadFailed")));
       return false;
     } finally {
-      setLoading(false);
-      if (manual) setRefreshing(false);
+      if (isCurrent()) {
+        setLoading(false);
+        if (manual) setRefreshing(false);
+      }
     }
   }, [t]);
 
@@ -248,7 +264,7 @@ export const AgentMonitor: React.FC = () => {
     const requestId = snapshotRequestRef.current + 1;
     snapshotRequestRef.current = requestId;
     reloadInFlightRef.current = true;
-    const isCurrent = () => selectedThreadIdRef.current === threadId && snapshotRequestRef.current === requestId;
+    const isCurrent = () => mountedRef.current && selectedThreadIdRef.current === threadId && snapshotRequestRef.current === requestId;
     if (!quiet) setSnapshotLoading(true);
     try {
       const next = await loadAgentSnapshotWithEvents(() => getAgentThread(threadId), pendingEventsRef.current, isCurrent);
@@ -423,15 +439,16 @@ export const AgentMonitor: React.FC = () => {
   };
 
   const control = async (action: AgentControlAction) => {
-    if (!selectedThreadId || !currentRun || controlBusy) return;
+    const requestThreadId = selectedThreadId;
+    if (!requestThreadId || !currentRun || controlBusy) return;
     if (action === "resume" && (currentRun.waiting_reason === "budget" || currentRun.budget_limiting_run_id)) {
       setBudgetRun(currentRun);
       return;
     }
     setControlBusy(action);
     try {
-      const updated = await controlAgentRun({ thread_id: selectedThreadId, run_id: currentRun.id, action });
-      if (selectedThreadIdRef.current === selectedThreadId) {
+      const updated = await controlAgentRun({ thread_id: requestThreadId, run_id: currentRun.id, action });
+      if (selectedThreadIdRef.current === requestThreadId) {
         const current = snapshotRef.current;
         if (current?.runs.some((run) => run.id === updated.id)) {
           const next = {
@@ -442,20 +459,23 @@ export const AgentMonitor: React.FC = () => {
           setSnapshot(next);
         }
       }
-      await Promise.all([loadSnapshot(selectedThreadId, true), refreshThreads()]);
+      await Promise.all([loadSnapshot(requestThreadId, true), refreshThreads()]);
     } catch (err) {
-      if (selectedThreadIdRef.current === selectedThreadId) {
+      if (selectedThreadIdRef.current === requestThreadId) {
         addToast(extractErrorMessage(err, locale === "zh-CN" ? "控制 Agent run 失败" : "Failed to control Agent run"), "error");
       }
-    } finally { setControlBusy(null); }
+    } finally {
+      if (selectedThreadIdRef.current === requestThreadId) setControlBusy(null);
+    }
   };
 
   const resolveApproval = async (approval: AgentApprovalView, decision: "approve" | "reject") => {
     if (approvalBusy) return;
+    const requestThreadId = selectedThreadId;
     setApprovalBusy(approval.id);
     try {
       const updated = await resolveAgentApproval({ approval_id: approval.id, decision });
-      if (selectedThreadId && selectedThreadIdRef.current === selectedThreadId) {
+      if (requestThreadId && selectedThreadIdRef.current === requestThreadId) {
         const current = snapshotRef.current;
         if (current?.approvals.some((item) => item.id === updated.id)) {
           const next = {
@@ -465,22 +485,27 @@ export const AgentMonitor: React.FC = () => {
           snapshotRef.current = next;
           setSnapshot(next);
         }
-        await loadSnapshot(selectedThreadId, true);
+        await loadSnapshot(requestThreadId, true);
       }
     } catch (err) {
-      if (selectedThreadIdRef.current === selectedThreadId) {
+      if (selectedThreadIdRef.current === requestThreadId) {
         addToast(extractErrorMessage(err, locale === "zh-CN" ? "处理审批失败" : "Failed to resolve approval"), "error");
       }
-    } finally { setApprovalBusy(null); }
+    } finally {
+      if (selectedThreadIdRef.current === requestThreadId) setApprovalBusy(null);
+    }
   };
 
   const createSubagent = async () => {
     const capability = createCapability.trim();
     if (!capability) return;
+    const requestSelection = selectedThreadIdRef.current;
     try {
       const created = await createAgentThread({ kind: "subagent", capability, title: createTitle.trim() || null });
+      if (!mountedRef.current) return;
       setCreateOpen(false); setCreateTitle(""); setCreateCapability("general");
       await refreshThreads();
+      if (!mountedRef.current || (requestSelection !== null && selectedThreadIdRef.current !== requestSelection)) return;
       setSelectedThreadId(created.id);
     } catch (err) {
       addToast(extractErrorMessage(err, locale === "zh-CN" ? "创建子 Agent 失败" : "Failed to create sub-agent"), "error");
@@ -513,6 +538,7 @@ export const AgentMonitor: React.FC = () => {
       setStreamedMessageIds(new Set());
       setPendingSubmission(null);
       await refreshThreads(true);
+      if (selectedThreadIdRef.current !== threadId) return;
       addToast(t("agent.clearContextSuccess"), "success");
     } catch (err) {
       const message = extractErrorMessage(err, t("agent.clearContextFailed"));

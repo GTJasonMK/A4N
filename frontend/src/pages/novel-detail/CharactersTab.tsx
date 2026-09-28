@@ -122,6 +122,10 @@ export const CharactersTab: React.FC<{ projectId: number }> = ({ projectId }) =>
         return;
       }
       await load({ silent: true, force: true });
+      if (
+        activeProjectIdRef.current !== requestProjectId ||
+        saveSeqRef.current !== requestSeq
+      ) return;
       setEditorOpen(false);
       setEditingProfile(null);
       addToast(
