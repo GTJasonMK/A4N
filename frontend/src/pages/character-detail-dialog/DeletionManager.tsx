@@ -1,6 +1,6 @@
 import { ThemedSelect } from "../../components/ui/ThemedSelect";
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { RotateCcw, Trash2 } from "lucide-react";
+import { RefreshCw, RotateCcw, Trash2 } from "lucide-react";
 import { LoadingSpinner } from "../../components/ui/LoadingSpinner";
 import { extractErrorMessage } from "../../api";
 import {
@@ -53,6 +53,7 @@ export const DeletionManager: React.FC<{
   const [marks, setMarks] = useState<DeletionMark[]>([]);
   const [loading, setLoading] = useState(false);
   const [loadedScopeKey, setLoadedScopeKey] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [chapterNumber, setChapterNumber] = useState(defaultChapter);
   const [category, setCategory] = useState("explicit");
   const [filterCategory, setFilterCategory] = useState("");
@@ -111,6 +112,7 @@ export const DeletionManager: React.FC<{
     setLoading(false);
     setLoadedScopeKey(null);
     setMarks([]);
+    setLoadError(null);
   }, []);
 
   const isCurrentLoad = useCallback((requestProfileId: number, requestKey: string, seq: number) => {
@@ -134,6 +136,7 @@ export const DeletionManager: React.FC<{
       loadInFlightKeyRef.current = requestKey;
       const categoryFilter = nextCategory.trim();
       setLoading(true);
+      setLoadError(null);
       try {
         const rows = await listDeletionMarks(requestProfileId, {
           category: categoryFilter ? categoryFilter : null,
@@ -142,10 +145,11 @@ export const DeletionManager: React.FC<{
         if (!isCurrentLoad(requestProfileId, requestKey, requestSeq)) return false;
         setMarks(rows);
         setLoadedScopeKey(requestKey);
+        setLoadError(null);
         return true;
       } catch (err) {
         if (!isCurrentLoad(requestProfileId, requestKey, requestSeq)) return false;
-        addToast(extractErrorMessage(err, t("characterDetail.deletion.loadFailed")), "error");
+        setLoadError(extractErrorMessage(err, t("characterDetail.deletion.loadFailed")));
         return false;
       } finally {
         if (loadInFlightKeyRef.current === requestKey) {
@@ -357,6 +361,15 @@ export const DeletionManager: React.FC<{
       <div className="text-small leading-relaxed text-book-text-muted">
         {t("characterDetail.deletion.hint")}
       </div>
+      {loadError ? (
+        <div role="alert" className="flex flex-wrap items-center gap-2 rounded-xl border border-error/40 bg-error-bg px-3 py-2 text-small text-error">
+          <span className="min-w-0 flex-1">{loadError}</span>
+          <BookButton variant="secondary" size="sm" onClick={() => void load()} disabled={loading}>
+            <RefreshCw size={13} className={loading ? "animate-spin" : undefined} />
+            {t("common.retry")}
+          </BookButton>
+        </div>
+      ) : null}
       <div className="flex flex-wrap items-end gap-2 text-small">
         <label className="flex items-center gap-1 text-book-text-muted">
           {t("characterDetail.deletion.category")}
@@ -490,7 +503,7 @@ export const DeletionManager: React.FC<{
       </details>
       {loading ? (
         <div className="text-small text-book-text-muted">{t("characterDetail.deletion.loading")}</div>
-      ) : !hasCurrentMarks ? (
+      ) : loadError && !hasCurrentMarks ? null : !hasCurrentMarks ? (
         <div className="text-small text-book-text-muted italic">{t("characterDetail.deletion.notLoaded")}</div>
       ) : marks.length === 0 ? (
         <div className="text-small text-book-text-muted italic">{t("characterDetail.deletion.empty")}</div>

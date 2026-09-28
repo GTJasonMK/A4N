@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
+import { RefreshCw } from "lucide-react";
 import { extractErrorMessage } from "../api";
 import {
   forwardProjectStatus,
@@ -11,6 +12,7 @@ import {
   type ProjectStatusMachineSummary,
 } from "../api/project";
 import { useToast } from "../components/feedback/Toast";
+import { BookButton } from "../components/ui/BookButton";
 import { LoadingSpinner } from "../components/ui/LoadingSpinner";
 import { Modal } from "../components/ui/Modal";
 import { ForwardActionCard } from "./status-machine-dialog/ForwardActionCard";
@@ -40,6 +42,7 @@ export const StatusMachineDialog: React.FC<StatusMachineDialogProps> = ({
   const addToast = useToast((state) => state.addToast);
   const { t } = useI18n();
   const [machine, setMachine] = useState<ProjectStatusMachineSummary | null>(null);
+  const [machineError, setMachineError] = useState<string | null>(null);
   const [loadingMachine, setLoadingMachine] = useState(false);
   const [acting, setActing] = useState<string | null>(null);
   const [rollbackTarget, setRollbackTarget] = useState<ProjectStatus | null>(null);
@@ -81,14 +84,16 @@ export const StatusMachineDialog: React.FC<StatusMachineDialogProps> = ({
     const requestSeq = machineSeqRef.current + 1;
     machineSeqRef.current = requestSeq;
     setLoadingMachine(true);
+    setMachineError(null);
     try {
       const data = await getProjectStatusMachine(project.id);
       if (!isCurrentRequest(requestScope, machineSeqRef, requestSeq)) return false;
       setMachine(data);
+      setMachineError(null);
       return true;
     } catch (err) {
       if (isCurrentRequest(requestScope, machineSeqRef, requestSeq)) {
-        addToast(extractErrorMessage(err, t("statusMachine.loadFailed")), "error");
+        setMachineError(extractErrorMessage(err, t("statusMachine.loadFailed")));
       }
       return false;
     } finally {
@@ -121,6 +126,7 @@ export const StatusMachineDialog: React.FC<StatusMachineDialogProps> = ({
     setRollbackTarget(null);
     setRollbackPreview(null);
     setMachine(null);
+    setMachineError(null);
     if (!open) {
       setLoadingMachine(false);
       return;
@@ -255,6 +261,14 @@ export const StatusMachineDialog: React.FC<StatusMachineDialogProps> = ({
       {loadingMachine && !machine ? (
         <div className="a4n-flat-surface inline-flex items-center gap-2 p-3 text-xs text-book-text-muted">
           <LoadingSpinner size="sm" /> {t("statusMachine.loading")}
+        </div>
+      ) : machineError ? (
+        <div role="alert" className="a4n-flat-surface flex flex-col items-start gap-3 p-3 text-xs text-error">
+          <span>{machineError}</span>
+          <BookButton variant="secondary" size="sm" onClick={() => void loadMachine()} disabled={loadingMachine}>
+            <RefreshCw size={13} className={loadingMachine ? "animate-spin" : undefined} />
+            {t("common.retry")}
+          </BookButton>
         </div>
       ) : machine ? (
         <div className="flex flex-col gap-3">

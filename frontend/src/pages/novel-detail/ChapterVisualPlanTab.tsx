@@ -1,6 +1,6 @@
 import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { useStore } from "zustand";
-import { BookOpen, Check, Film, ImagePlus, Images, Maximize, Mountain, Pause, Play, Plus, Redo2, Save, Settings2, SkipBack, SkipForward, Sparkles, Trash2, Undo2, Upload, X } from "lucide-react";
+import { BookOpen, Check, Film, ImagePlus, Images, Maximize, Mountain, Pause, Play, Plus, Redo2, RefreshCw, Save, Settings2, SkipBack, SkipForward, Sparkles, Trash2, Undo2, Upload, X } from "lucide-react";
 import { extractErrorMessage } from "../../api";
 import type { ChapterSummary } from "../../api/chapter";
 import type { ChapterVisualPlanV3, SceneBindingV3, VisualPointV3, VisualSegmentV3, VisualPlanPromptCandidate, VisualPlanEditOperation } from "../../api/chapterVisualPlan";
@@ -43,7 +43,6 @@ function directorCandidatePointId(image: GeneratedImage): string | null {
 export function ChapterVisualPlanTab({ projectId, canEdit, chapter, onDirtyChange }: { projectId: number; canEdit: boolean; chapter: Pick<ChapterSummary, "id" | "project_id" | "chapter_number" | "title"> | null; onDirtyChange?: (dirty: boolean) => void }) {
   const chapterId = chapter?.id ?? null;
   const model = useDirectorPlan(projectId, chapterId, canEdit);
-  const addToast = useToast((state) => state.addToast);
   const plan = model.plan;
   const total = plan ? durationMs(plan) : 0;
   const clock = useDirectorPlayback(total, `${projectId}:${chapterId}`);
@@ -77,6 +76,7 @@ export function ChapterVisualPlanTab({ projectId, canEdit, chapter, onDirtyChang
   const [split, setSplit] = useState<SplitDraft | null>(null);
   const [merge, setMerge] = useState<MergeDraft | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [assetLoadError, setAssetLoadError] = useState<string | null>(null);
   const frameRef = useRef<HTMLDivElement>(null);
   const assetScope = useRef(0);
   const names = useMemo(() => new Map(scenes.map((scene) => [scene.id, scene.name])), [scenes]);
@@ -145,6 +145,7 @@ export function ChapterVisualPlanTab({ projectId, canEdit, chapter, onDirtyChang
 
   const loadAssets = useCallback(async () => {
     const scope = ++assetScope.current;
+    setAssetLoadError(null);
     if (chapterId == null) { setImages([]); setScenes([]); return; }
     const results = await Promise.allSettled([
       listImagesByProjects([...new Set([projectId, chapter?.project_id ?? projectId])]),
@@ -156,10 +157,8 @@ export function ChapterVisualPlanTab({ projectId, canEdit, chapter, onDirtyChang
     else failures.push(extractErrorMessage(results[0].reason, "图片库加载失败"));
     if (results[1].status === "fulfilled") setScenes(results[1].value.scene_choices);
     else failures.push(extractErrorMessage(results[1].reason, "场景库加载失败"));
-    if (failures.length) {
-      addToast(failures.join("；"), "error", { label: "重试加载素材", onClick: () => void loadAssets() });
-    }
-  }, [addToast, projectId, chapterId, chapter?.project_id]);
+    setAssetLoadError(failures.length > 0 ? failures.join("；") : null);
+  }, [projectId, chapterId, chapter?.project_id]);
 
   useEffect(() => {
     setSelection(null);
@@ -413,6 +412,7 @@ export function ChapterVisualPlanTab({ projectId, canEdit, chapter, onDirtyChang
           : canEdit && <BookButton size="sm" onClick={() => void model.startEditing()} disabled={model.busy}>编辑新版本</BookButton>}
       </div>
     </header>
+    {assetLoadError ? <div role="alert" className="director-error flex flex-wrap items-center gap-2"><span className="min-w-0 flex-1">{assetLoadError}</span><BookButton variant="secondary" size="sm" onClick={() => void loadAssets()}><RefreshCw size={13} />重试加载素材</BookButton></div> : null}
     <div className="director-alerts">
     {model.recovery && <div className="director-notice">此页面有未同步的本地编辑。<BookButton variant="secondary" size="sm" onClick={() => { void confirmDialog({ title: "恢复未同步编辑", message: "将用本地保留的内容更新当前草稿，已确认版本不受影响。", confirmText: "恢复草稿" }).then((accepted) => { if (accepted) void model.restore(); }); }}>恢复草稿</BookButton></div>}
     {model.issues.length > 0 && <div className="director-error" role="alert">{model.issues.map((issue) => <button key={issue.path} type="button" onClick={() => {
