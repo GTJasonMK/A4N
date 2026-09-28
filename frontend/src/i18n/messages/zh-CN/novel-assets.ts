@@ -192,6 +192,8 @@ export const novelAssets = {
     author: "作者",
     authorPlaceholder: "输入作者名",
     exporting: "正在导出 {format}…",
+    navigationBlockedTitle: "导出尚未完成",
+    navigationBlocked: "正在生成并下载导出文件，请等待导出完成后再离开此页面。",
     download: "下载 {format}",
     structuredData: "结构数据",
     structuredDataHint: "大纲与角色 JSON",

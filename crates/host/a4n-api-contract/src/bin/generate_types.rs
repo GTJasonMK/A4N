@@ -299,7 +299,10 @@ use a4n_api_contract::{
         SourceSyncLocalStateKind, SourceSyncPlanSummary, SourceSyncProjectInput,
         SourceSyncResolutionStrategy, SourceSyncRunMode, SourceSyncRunStatus, SourceSyncRunSummary,
     },
-    storage::{OrphanProjectDataDirSummary, OrphanProjectDataDirsSummary, StoragePathsSummary},
+    storage::{
+        CleanupOrphanProjectDataDirsInput, OrphanProjectDataDirSummary,
+        OrphanProjectDataDirsSummary, StoragePathsSummary,
+    },
     task::{
         CancelTaskInput, GetTaskHistoryInput, QueueSlotStatsSummary, QueueStatsSummary,
         TaskInfoSummary, TaskProgressSummary,

@@ -13,6 +13,10 @@ import {
   LineMediaBindings,
 } from "./GalgameMediaBindings";
 import { useI18n } from "../../../i18n";
+import type {
+  GalgameFieldDraft,
+  GalgameSceneFieldValues,
+} from "./GalgameDrafts";
 import type { SourceSnapshotChapterSummary } from "../../../api/project";
 import type {
   GalgameCgImportance,
@@ -58,7 +62,10 @@ interface LineEditorProps {
   sceneById: Map<number, GalgameSceneDetail>;
   disabled: boolean;
   saving: boolean;
+  fieldDraftResetRevision: number;
+  fieldDraft: GalgameFieldDraft | null;
   onPatch: (patch: Partial<GalgameLine>) => void;
+  onDraftChange: (key: string, draft: GalgameFieldDraft | null) => void;
   onChoicesUpdate: (choices: UpdateGalgameChoiceOptionInput[]) => void;
   onMoveUp: () => void;
   onMoveDown: () => void;
@@ -71,12 +78,32 @@ interface LineEditorProps {
   onUnbindMedia: (binding: GalgameMediaBindingSummary) => void;
 }
 
+type SceneMetaDraft = GalgameSceneFieldValues;
+
+const sameSceneMetaDraft = (left: SceneMetaDraft, right: SceneMetaDraft) =>
+  left.title === right.title &&
+  left.location === right.location &&
+  left.time_of_day === right.time_of_day &&
+  left.background_note === right.background_note &&
+  left.next_scene_id === right.next_scene_id;
+
+const createSceneMetaDraft = (scene: GalgameScene): SceneMetaDraft => ({
+  title: scene.title,
+  location: scene.location ?? "",
+  time_of_day: scene.time_of_day ?? "",
+  background_note: scene.background_note ?? "",
+  next_scene_id: scene.next_scene_id?.toString() ?? "",
+});
+
 export const SceneMetaEditor: React.FC<{
   scene: GalgameScene;
   scenes: GalgameSceneDetail[];
   mediaBindings: GalgameMediaBindingSummary[];
   disabled: boolean;
+  fieldDraftResetRevision: number;
+  fieldDraft: GalgameFieldDraft | null;
   onPatch: (patch: Partial<GalgameScene>) => void;
+  onDraftChange: (key: string, draft: GalgameFieldDraft | null) => void;
   onBindMedia: (mediaAssetId: number) => void;
   onUnbindMedia: (binding: GalgameMediaBindingSummary) => void;
 }> = ({
@@ -84,18 +111,27 @@ export const SceneMetaEditor: React.FC<{
   scenes,
   mediaBindings,
   disabled,
+  fieldDraftResetRevision,
+  fieldDraft,
   onPatch,
+  onDraftChange,
   onBindMedia,
   onUnbindMedia,
 }) => {
   const { t } = useI18n();
-  const [draft, setDraft] = useState({
-    title: scene.title,
-    location: scene.location ?? "",
-    time_of_day: scene.time_of_day ?? "",
-    background_note: scene.background_note ?? "",
-    next_scene_id: scene.next_scene_id?.toString() ?? "",
-  });
+  const draftKey = `scene:${scene.id}`;
+  const savedDraft = fieldDraft?.kind === "scene" ? fieldDraft.value : null;
+  const [draft, setDraft] = useState(() => savedDraft ?? createSceneMetaDraft(scene));
+  const updateDraft = (patch: Partial<SceneMetaDraft>) => {
+    const next = { ...draft, ...patch };
+    setDraft(next);
+    onDraftChange(
+      draftKey,
+      sameSceneMetaDraft(next, createSceneMetaDraft(scene))
+        ? null
+        : { kind: "scene", value: next },
+    );
+  };
   const availableNextScenes = useMemo(
     () =>
       scenes.filter(
@@ -110,19 +146,17 @@ export const SceneMetaEditor: React.FC<{
     availableNextScenes.some((item) => item.scene.id === scene.next_scene_id);
 
   useEffect(() => {
-    setDraft({
-      title: scene.title,
-      location: scene.location ?? "",
-      time_of_day: scene.time_of_day ?? "",
-      background_note: scene.background_note ?? "",
-      next_scene_id: scene.next_scene_id?.toString() ?? "",
-    });
+    const next = fieldDraft?.kind === "scene" ? fieldDraft.value : createSceneMetaDraft(scene);
+    setDraft((current) => sameSceneMetaDraft(current, next) ? current : next);
   }, [
     scene.background_note,
+    scene.id,
     scene.location,
     scene.next_scene_id,
     scene.time_of_day,
     scene.title,
+    fieldDraftResetRevision,
+    fieldDraft,
   ]);
 
   const commit = (
@@ -153,9 +187,7 @@ export const SceneMetaEditor: React.FC<{
           className="pyqt-input text-book-text-main"
           value={draft.title}
           disabled={disabled}
-          onChange={(event) =>
-            setDraft((current) => ({ ...current, title: event.target.value }))
-          }
+          onChange={(event) => updateDraft({ title: event.target.value })}
           onBlur={() => commit("title", draft.title)}
         />
         </div>
@@ -165,12 +197,7 @@ export const SceneMetaEditor: React.FC<{
           value={draft.location}
           disabled={disabled}
           placeholder={t("galgame.location")}
-          onChange={(event) =>
-            setDraft((current) => ({
-              ...current,
-              location: event.target.value,
-            }))
-          }
+          onChange={(event) => updateDraft({ location: event.target.value })}
           onBlur={() => commit("location", draft.location)}
         />
         <BookInput
@@ -179,12 +206,7 @@ export const SceneMetaEditor: React.FC<{
           value={draft.time_of_day}
           disabled={disabled}
           placeholder={t("galgame.time")}
-          onChange={(event) =>
-            setDraft((current) => ({
-              ...current,
-              time_of_day: event.target.value,
-            }))
-          }
+          onChange={(event) => updateDraft({ time_of_day: event.target.value })}
           onBlur={() => commit("time_of_day", draft.time_of_day)}
         />
         <div className="col-span-2 md:col-span-3">
@@ -194,12 +216,7 @@ export const SceneMetaEditor: React.FC<{
           value={draft.background_note}
           disabled={disabled}
           placeholder={t("galgame.backgroundNeed")}
-          onChange={(event) =>
-            setDraft((current) => ({
-              ...current,
-              background_note: event.target.value,
-            }))
-          }
+          onChange={(event) => updateDraft({ background_note: event.target.value })}
           onBlur={() => commit("background_note", draft.background_note)}
         />
         </div>
@@ -211,7 +228,7 @@ export const SceneMetaEditor: React.FC<{
           value={draft.next_scene_id}
           disabled={disabled}
           onChange={(value) => {
-            setDraft((current) => ({ ...current, next_scene_id: value }));
+            updateDraft({ next_scene_id: value });
             onPatch({ next_scene_id: value ? Number(value) : null });
           }}
         >
@@ -277,7 +294,10 @@ export const LineEditor: React.FC<LineEditorProps> = ({
   sceneById,
   disabled,
   saving,
+  fieldDraftResetRevision,
+  fieldDraft,
   onPatch,
+  onDraftChange,
   onChoicesUpdate,
   onMoveUp,
   onMoveDown,
@@ -290,8 +310,10 @@ export const LineEditor: React.FC<LineEditorProps> = ({
   onUnbindMedia,
 }) => {
   const { t } = useI18n();
-  const [text, setText] = useState(line.text);
-  const [pose, setPose] = useState(line.pose ?? "");
+  const draftKey = `line:${line.id}`;
+  const savedDraft = fieldDraft?.kind === "line" ? fieldDraft.value : null;
+  const [text, setText] = useState(savedDraft?.text ?? line.text);
+  const [pose, setPose] = useState(savedDraft?.pose ?? line.pose ?? "");
   const isSpeakingLine = SPEAKING_LINE_TYPES.has(line.line_type);
   const isChoiceLine = line.line_type === "choice";
   const expressionValue = selectValue(line.expression, EXPRESSIONS);
@@ -305,10 +327,20 @@ export const LineEditor: React.FC<LineEditorProps> = ({
     [line.speaker_profile_id, speakerProfileById],
   );
 
+  const reportDraftChange = (nextText: string, nextPose: string) => {
+    const dirty = nextText !== line.text || poseStoredValue(nextPose, t) !== (line.pose ?? "");
+    onDraftChange(
+      draftKey,
+      dirty ? { kind: "line", value: { text: nextText, pose: nextPose } } : null,
+    );
+  };
+
   useEffect(() => {
-    setText(line.text);
-    setPose(line.pose ?? "");
-  }, [line.pose, line.text]);
+    const nextText = fieldDraft?.kind === "line" ? fieldDraft.value.text : line.text;
+    const nextPose = fieldDraft?.kind === "line" ? fieldDraft.value.pose : line.pose ?? "";
+    setText((current) => current === nextText ? current : nextText);
+    setPose((current) => current === nextPose ? current : nextPose);
+  }, [fieldDraftResetRevision, fieldDraft, line.id, line.pose, line.text]);
 
   const firstSpeakerId = speakerProfiles[0]?.id ?? null;
   const expressionLabel = EXPRESSIONS.find((item) => item.value === expressionValue);
@@ -484,9 +516,13 @@ export const LineEditor: React.FC<LineEditorProps> = ({
         className="pyqt-input min-h-20 w-full resize-y px-3 py-2 text-xs leading-relaxed text-book-text-main"
         value={text}
         disabled={disabled}
-        onChange={(event) => setText(event.target.value)}
+        onChange={(event) => {
+          setText(event.target.value);
+          reportDraftChange(event.target.value, pose);
+        }}
         onBlur={() => {
           if (text !== line.text) onPatch({ text });
+          else reportDraftChange(text, pose);
         }}
       />
       {!isChoiceLine ? (
@@ -537,11 +573,15 @@ export const LineEditor: React.FC<LineEditorProps> = ({
             aria-label={t("galgame.posePlaceholder")}
             disabled={disabled}
             placeholder={t("galgame.posePlaceholder")}
-            onChange={setPose}
+            onChange={(value) => {
+              setPose(value);
+              reportDraftChange(text, value);
+            }}
             onBlur={() => {
               const storedPose = poseStoredValue(pose, t);
               if (storedPose !== (line.pose ?? ""))
                 onPatch({ pose: storedPose || null });
+              else reportDraftChange(text, pose);
             }}
           />
           </div>

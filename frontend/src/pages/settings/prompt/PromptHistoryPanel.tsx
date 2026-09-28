@@ -25,6 +25,7 @@ export const PromptHistoryPanel: React.FC<PromptHistoryPanelProps> = ({ prompt }
   const [open, setOpen] = useState(false);
   const [history, setHistory] = useState<PromptVersion[]>([]);
   const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [diffPair, setDiffPair] = useState<string[]>([]);
   const [diffResult, setDiffResult] = useState<string | null>(null);
   const [diffLoading, setDiffLoading] = useState(false);
@@ -54,6 +55,7 @@ export const PromptHistoryPanel: React.FC<PromptHistoryPanelProps> = ({ prompt }
   const loadHistory = async () => {
     const targetScope = { name: prompt.name, token: scopeRef.current.token };
     setLoading(true);
+    setLoadError(null);
     setHistory([]);
     setDiffPair([]);
     setDiffResult(null);
@@ -65,7 +67,9 @@ export const PromptHistoryPanel: React.FC<PromptHistoryPanelProps> = ({ prompt }
       setHistory(data);
     } catch (err) {
       if (isCurrentScope(targetScope)) {
-        addToast(extractErrorMessage(err, t("settingsPrompt.loadHistoryFailed")), "error");
+        const message = extractErrorMessage(err, t("settingsPrompt.loadHistoryFailed"));
+        setLoadError(message);
+        addToast(message, "error");
       }
     } finally {
       if (isCurrentScope(targetScope)) {
@@ -83,6 +87,7 @@ export const PromptHistoryPanel: React.FC<PromptHistoryPanelProps> = ({ prompt }
     setDiffPair([]);
     setDiffResult(null);
     setDiffLoading(false);
+    setLoadError(null);
     setLoading(false);
     if (open) void loadHistory();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -133,7 +138,11 @@ export const PromptHistoryPanel: React.FC<PromptHistoryPanelProps> = ({ prompt }
   return (
     <details
       open={open}
-      onToggle={(event) => setOpen((event.target as HTMLDetailsElement).open)}
+      onToggle={(event) => {
+        const nextOpen = event.currentTarget.open;
+        if (nextOpen) setLoading(true);
+        setOpen(nextOpen);
+      }}
       className="py-2.5"
     >
       <summary className="cursor-pointer text-xs text-book-text-sub inline-flex items-center gap-1.5">
@@ -144,6 +153,8 @@ export const PromptHistoryPanel: React.FC<PromptHistoryPanelProps> = ({ prompt }
           <div className="text-small text-book-text-muted inline-flex items-center gap-1.5">
             <LoadingSpinner size="sm" /> {t("settingsPrompt.loadingHistory")}
           </div>
+        ) : loadError ? (
+          <p role="alert" className="text-small text-error">{loadError}</p>
         ) : history.length === 0 ? (
           <div className="text-small text-book-text-muted italic">
             {t("settingsPrompt.noHistory")}

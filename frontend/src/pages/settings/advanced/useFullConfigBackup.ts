@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { extractErrorMessage } from "../../../api";
 import { exportAllConfigsJson, importAllConfigs } from "../../../api/config";
 import { exportLocalRuntimeSettingsJson, importLocalRuntimeSettingsJson } from "../../../api/localRuntimeSettings";
@@ -7,9 +7,30 @@ import { useToast } from "../../../components/feedback/Toast";
 import { useAuthStore } from "../../../store/auth";
 import { loadAndApplyActiveTheme } from "../../../theme/activeTheme";
 import { downloadTextFile } from "../../../utils/downloadFile";
-import { useI18n } from "../../../i18n";
+import { getActiveLocale, translateMessage, type MessageKey } from "../../../i18n";
+
+const translateCurrent = (key: MessageKey, params?: Record<string, string | number>) =>
+  translateMessage(getActiveLocale(), key, params);
+
+type BackupOperation = "exporting" | "preparingImport" | "importing";
+
+const activeBackupOperations = new Map<string, BackupOperation>();
+const backupOperationListeners = new Set<() => void>();
+
+const subscribeBackupOperations = (listener: () => void) => {
+  backupOperationListeners.add(listener);
+  return () => backupOperationListeners.delete(listener);
+};
+
+const updateBackupOperation = (key: string, operation: BackupOperation | null) => {
+  if (operation) activeBackupOperations.set(key, operation);
+  else activeBackupOperations.delete(key);
+  backupOperationListeners.forEach((listener) => listener());
+};
 
 export type ConfigBackupScope = "local" | "server";
+
+const operationKey = (scope: ConfigBackupScope) => scope;
 
 const createDefaultConfigFileName = (scope: ConfigBackupScope) => {
   const timestamp = new Date()
@@ -22,121 +43,137 @@ const createDefaultConfigFileName = (scope: ConfigBackupScope) => {
 export const useFullConfigBackup = (scope: ConfigBackupScope) => {
   const { addToast } = useToast();
   const { user } = useAuthStore();
-  const { t } = useI18n();
   const [overwrite, setOverwrite] = useState(false);
-  const [exporting, setExporting] = useState(false);
-  const [importing, setImporting] = useState(false);
-  const [lastExportPath, setLastExportPath] = useState("");
+  const [lastExportFileName, setLastExportFileName] = useState("");
   const mountedRef = useRef(true);
-  const activeUserIdRef = useRef<number | null>(user?.id ?? null);
-  const operationInFlightRef = useRef(false);
-
-  activeUserIdRef.current = user?.id ?? null;
+  const requestKey = operationKey(scope);
+  const activeOperation = useSyncExternalStore(
+    subscribeBackupOperations,
+    () => activeBackupOperations.get(requestKey) ?? null,
+    () => null,
+  );
+  const exporting = activeOperation === "exporting";
+  const preparingImport = activeOperation === "preparingImport";
+  const importing = activeOperation === "importing";
 
   useEffect(() => {
     mountedRef.current = true;
     return () => {
       mountedRef.current = false;
-      operationInFlightRef.current = false;
     };
   }, []);
 
-  const isCurrentUser = (userId: number | null) =>
-    mountedRef.current && activeUserIdRef.current === userId;
+  const isSameUser = (userId: number | null) => useAuthStore.getState().user?.id === userId;
+  const isCurrentView = (userId: number | null) => mountedRef.current && isSameUser(userId);
 
   const handleExport = async () => {
-    if (operationInFlightRef.current) return;
-    operationInFlightRef.current = true;
     const requestUserId = user?.id ?? null;
-    setExporting(true);
+    if (activeBackupOperations.has(requestKey)) {
+      addToast(translateCurrent("settingsAdvanced.operationInProgress"), "info");
+      return;
+    }
+    updateBackupOperation(requestKey, "exporting");
     try {
       const fileName = createDefaultConfigFileName(scope);
       const settingsJson = scope === "local"
         ? exportLocalRuntimeSettingsJson()
         : await exportAllConfigsJson();
-      if (!isCurrentUser(requestUserId)) return;
+      if (!isSameUser(requestUserId)) return;
       downloadTextFile(
         fileName,
         settingsJson,
         "application/json;charset=utf-8",
       );
-      setLastExportPath(fileName);
-      addToast(t("settingsAdvanced.exportedFile", { name: fileName }), "success");
+      if (mountedRef.current) setLastExportFileName(fileName);
+      addToast(translateCurrent("settingsAdvanced.exportedFile", { name: fileName }), "success");
     } catch (err) {
-      if (isCurrentUser(requestUserId)) {
-        addToast(extractErrorMessage(err, t("settingsAdvanced.exportFailed")), "error");
+      if (isSameUser(requestUserId)) {
+        addToast(extractErrorMessage(err, translateCurrent("settingsAdvanced.exportFailed")), "error");
       }
     } finally {
-      operationInFlightRef.current = false;
-      if (mountedRef.current) setExporting(false);
+      updateBackupOperation(requestKey, null);
     }
   };
 
   const handleImportFile = async (file: File) => {
-    if (operationInFlightRef.current) return;
-    operationInFlightRef.current = true;
-    setImporting(true);
-    const requestOverwrite = overwrite;
     const requestUserId = user?.id ?? null;
-    let errorFallback = t("settingsAdvanced.readFileFailed");
+    if (activeBackupOperations.has(requestKey)) {
+      addToast(translateCurrent("settingsAdvanced.operationInProgress"), "info");
+      return;
+    }
+    updateBackupOperation(requestKey, "preparingImport");
+    const requestOverwrite = overwrite;
+    let errorFallbackKey:
+      | "settingsAdvanced.readFileFailed"
+      | "settingsAdvanced.importFailed" = "settingsAdvanced.readFileFailed";
     try {
       const settingsJson = await file.text();
-      if (!isCurrentUser(requestUserId)) return;
+      if (!isCurrentView(requestUserId)) return;
 
       const trimmedSettingsJson = settingsJson.trim();
       if (!trimmedSettingsJson) {
-        addToast(t("settingsAdvanced.emptyFile"), "error");
+        addToast(translateCurrent("settingsAdvanced.emptyFile"), "error");
         return;
       }
 
       const ok = await confirmDialog({
-        title: t("settingsAdvanced.importTitle"),
-        message: t("settingsAdvanced.importMessage", {
+        title: translateCurrent("settingsAdvanced.importTitle"),
+        message: translateCurrent("settingsAdvanced.importMessage", {
           name: file.name,
-          scope: t(scope === "local" ? "settingsAdvanced.localScope" : "settingsAdvanced.serverScope"),
+          scope: translateCurrent(scope === "local" ? "settingsAdvanced.localScope" : "settingsAdvanced.serverScope"),
           mode: scope === "local"
-            ? t("settingsAdvanced.replaceLocal")
-            : requestOverwrite ? t("settingsAdvanced.overwrite") : t("settingsAdvanced.keepExisting"),
+            ? translateCurrent("settingsAdvanced.replaceLocal")
+            : requestOverwrite
+              ? translateCurrent("settingsAdvanced.overwrite")
+              : translateCurrent("settingsAdvanced.keepExisting"),
         }),
-        confirmText: t("settingsAdvanced.import"),
+        confirmText: translateCurrent("settingsAdvanced.import"),
         dialogType: "warning",
       });
       if (!ok) return;
-      if (!isCurrentUser(requestUserId)) return;
+      if (!isCurrentView(requestUserId)) return;
 
-      errorFallback = t("settingsAdvanced.importFailed");
+      updateBackupOperation(requestKey, "importing");
+      errorFallbackKey = "settingsAdvanced.importFailed";
       let details: string[];
       if (scope === "local") {
         await importLocalRuntimeSettingsJson(trimmedSettingsJson);
-        details = [t("settingsAdvanced.localRestored")];
+        details = [translateCurrent("settingsAdvanced.localRestored")];
       } else {
         details = await importAllConfigs({
           settings_json: trimmedSettingsJson,
           overwrite: requestOverwrite,
         });
       }
-      if (!isCurrentUser(requestUserId)) return;
+      if (!isSameUser(requestUserId)) return;
       if (scope === "server" && !await loadAndApplyActiveTheme(requestUserId)) {
-        addToast(t("settingsAdvanced.importedDetails", { details: details.join(t("common.summarySeparator")) }), "info");
-        addToast(t("settingsAdvanced.themeRefreshFailed"), "error");
+        if (!isSameUser(requestUserId)) return;
+        addToast(translateCurrent("settingsAdvanced.importedDetails", {
+          details: details.join(translateCurrent("common.summarySeparator")),
+        }), "info");
+        addToast(translateCurrent("settingsAdvanced.themeRefreshFailed"), "error");
         return;
       }
-      addToast(t("settingsAdvanced.importedDetails", { details: details.join(t("common.summarySeparator")) }), "success");
+      if (isSameUser(requestUserId)) {
+        addToast(translateCurrent("settingsAdvanced.importedDetails", {
+          details: details.join(translateCurrent("common.summarySeparator")),
+        }), "success");
+      }
     } catch (err) {
-      if (isCurrentUser(requestUserId)) {
-        addToast(extractErrorMessage(err, errorFallback), "error");
+      if (isSameUser(requestUserId)) {
+        addToast(extractErrorMessage(err, translateCurrent(errorFallbackKey)), "error");
       }
     } finally {
-      operationInFlightRef.current = false;
-      if (mountedRef.current) setImporting(false);
+      updateBackupOperation(requestKey, null);
     }
   };
 
   return {
     overwrite,
     exporting,
+    preparingImport,
     importing,
-    lastExportPath,
+    lastExportFileName,
     setOverwrite,
     handleExport,
     handleImportFile,

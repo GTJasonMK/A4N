@@ -45,7 +45,7 @@ export const AgentTab: React.FC = () => {
   const [activeCapability, setActiveCapability] = useState<string>("main");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [loadError, setLoadError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<{ reason: unknown } | null>(null);
   const dirty = useMemo(() => settings?.profiles.some((profile) =>
     profile.skills.some((skill) => skill.enabled !== draft[profile.capability]?.has(skill.id)),
   ) ?? false, [draft, settings]);
@@ -63,11 +63,11 @@ export const AgentTab: React.FC = () => {
           : next.profiles[0]?.capability ?? "",
       );
     } catch (error) {
-      setLoadError(extractErrorMessage(error, t("settingsAgent.loadFailed")));
+      setLoadError({ reason: error });
     } finally {
       setLoading(false);
     }
-  }, [t]);
+  }, []);
 
   useEffect(() => {
     void refresh();
@@ -153,7 +153,9 @@ export const AgentTab: React.FC = () => {
 
       {loadError ? (
         <div role="alert" className="a4n-context-bar text-sm text-book-text-main">
-          <span className="min-w-0 flex-1">{loadError}</span>
+          <span className="min-w-0 flex-1">
+            {extractErrorMessage(loadError.reason, t("settingsAgent.loadFailed"))}
+          </span>
           <BookButton variant="secondary" size="sm" onClick={() => void refresh()} disabled={loading}>{t("common.retry")}</BookButton>
         </div>
       ) : null}

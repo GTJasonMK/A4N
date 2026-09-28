@@ -190,6 +190,46 @@ describe("real A4N postprocess window", () => {
     await browser.pause(100);
     const markerSample = await sample("after-marker-20");
     await waitForRatio(0.2, "real first marker did not present");
+    await browser.execute(() => {
+      const video = document.querySelector("video");
+      if (video) video.currentTime = video.duration * 0.5;
+    });
+    await browser.waitUntil(
+      () => browser.execute(() => {
+        const video = document.querySelector("video");
+        return Boolean(video && !video.seeking && Math.abs(video.currentTime / video.duration - 0.5) < 0.05);
+      }),
+      { timeout: 10_000, timeoutMsg: "native seek before marker keyboard checks did not settle" },
+    );
+    const focusedMarker = await browser.execute(() => {
+      const marker = document.querySelector('[role="slider"][aria-label^="剪辑竖线"]');
+      if (!(marker instanceof HTMLElement)) return false;
+      marker.focus();
+      marker.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true }));
+      return true;
+    });
+    assert.equal(focusedMarker, true, "keyboard marker was not available");
+    await browser.pause(80);
+    const enterOnMarkerCount = await browser.execute(() =>
+      document.querySelectorAll('[role="slider"][aria-label^="剪辑竖线"]').length,
+    );
+    assert.equal(enterOnMarkerCount, 1, "Enter on a marker added an unrelated timeline marker");
+    const focusedOutsideTimeline = await browser.execute(() => {
+      const timeline = document.querySelector('[aria-label="视频剪辑时间轴"]');
+      const marker = timeline?.querySelector('[role="slider"][aria-label^="剪辑竖线"]');
+      const outsideButton = [...document.querySelectorAll("button")].find((button) => !timeline?.contains(button));
+      if (!(marker instanceof HTMLElement) || !(outsideButton instanceof HTMLElement)) return false;
+      marker.focus();
+      outsideButton.focus();
+      outsideButton.dispatchEvent(new KeyboardEvent("keydown", { key: "Delete", bubbles: true, cancelable: true }));
+      return true;
+    });
+    assert.equal(focusedOutsideTimeline, true, "an outside button was not available for the Delete key check");
+    await browser.pause(80);
+    const deleteOutsideTimelineCount = await browser.execute(() =>
+      document.querySelectorAll('[role="slider"][aria-label^="剪辑竖线"]').length,
+    );
+    assert.equal(deleteOutsideTimelineCount, 1, "Delete outside the timeline removed the selected marker");
     const markerSettledSample = await sample("after-marker-20-1100ms");
     await browser.pause(2_000);
     const markerStableSample = await sample("after-marker-20-3100ms");

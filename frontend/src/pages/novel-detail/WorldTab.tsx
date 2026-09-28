@@ -44,6 +44,7 @@ export const WorldTab: React.FC<WorldTabProps> = ({
   const { runProgressTask } = useProgressTask();
   const [blueprint, setBlueprint] = useState<Blueprint | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<{ projectId: number; message: string } | null>(null);
   const [worldValue, setWorldValue] = useState<unknown | null>(null);
   const [editing, setEditing] = useState(false);
   const [editMode, setEditMode] = useState<WorldEditMode>("structured");
@@ -103,22 +104,23 @@ export const WorldTab: React.FC<WorldTabProps> = ({
       if (!isCurrentLoad(requestProjectId, requestSeq)) return false;
       setBlueprint(bp);
       setWorldValue(bp?.world_setting ?? null);
+      setLoadedProjectId(requestProjectId);
+      setLoadError(null);
       return true;
     } catch (err) {
       if (!isCurrentLoad(requestProjectId, requestSeq)) return false;
-      setBlueprint(null);
-      setWorldValue(null);
-      addToast(extractErrorMessage(err, t("novel.world.loadFailed")), "error");
+      const message = extractErrorMessage(err, t("novel.world.loadFailed"));
+      setLoadError({ projectId: requestProjectId, message });
       return false;
     } finally {
       if (isCurrentLoad(requestProjectId, requestSeq)) {
-        setLoadedProjectId(requestProjectId);
         setLoading(false);
       }
     }
   }, [addToast, isCurrentLoad, projectId, t]);
 
   useEffect(() => {
+    setLoadError(null);
     void load();
   }, [load]);
 
@@ -287,9 +289,9 @@ export const WorldTab: React.FC<WorldTabProps> = ({
   const displayNormalizedWorld = loadedProjectId === projectId ? normalizedWorld : null;
   const displayWorldObject = loadedProjectId === projectId ? worldObject : null;
   const displayHasWorldContent = loadedProjectId === projectId && hasWorldContent;
-  const displayLoading = loading || loadedProjectId !== projectId;
+  const displayLoadError = loadError?.projectId === projectId ? loadError.message : null;
 
-  if (displayLoading) {
+  if (loadedProjectId !== projectId && (loading || !displayLoadError)) {
     return (
       <div className="text-xs text-book-text-muted flex items-center gap-2">
         <LoadingSpinner size="sm" /> {t("novel.world.loading")}
@@ -297,8 +299,19 @@ export const WorldTab: React.FC<WorldTabProps> = ({
     );
   }
 
+  if (loadedProjectId !== projectId) {
+    return (
+      <div className="content-main">
+        <p role="alert" className="text-small text-error">{displayLoadError}</p>
+      </div>
+    );
+  }
+
   return (
     <div className="content-main space-y-3">
+      {displayLoadError ? (
+        <p role="alert" className="text-small text-error">{displayLoadError}</p>
+      ) : null}
       {editing ? (
         <section className="a4n-flat-surface p-4 sm:p-5">
           <WorldPanelHeader

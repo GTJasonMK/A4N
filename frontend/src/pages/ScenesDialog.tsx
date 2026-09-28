@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useBlocker, useBeforeUnload } from "react-router-dom";
 import { Modal } from "../components/ui/Modal";
 import { useToast } from "../components/feedback/Toast";
 import { confirmDialog } from "../components/feedback/ConfirmDialog";
@@ -26,6 +27,8 @@ import {
   createSceneEditForm,
   DEFAULT_SCENE_GENERATION_PROMPT,
   getNextSceneNumber,
+  sceneEditFormChanged,
+  sceneEditInput,
   sortScenes,
   type SceneEditForm,
 } from "./scenes-dialog/scenesDialogUtils";
@@ -48,6 +51,7 @@ export const ScenesDialog: React.FC<ScenesDialogProps> = ({
   const { addToast } = useToast();
   const { locale, t } = useI18n();
   const [scenes, setScenes] = useState<ChapterSceneSummary[]>([]);
+  const [loadedScope, setLoadedScope] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<Set<number>>(new Set());
@@ -76,8 +80,17 @@ export const ScenesDialog: React.FC<ScenesDialogProps> = ({
   const generatingRef = useRef(false);
   const actingKeysRef = useRef<Set<string>>(new Set());
   const loadInFlightScopeRef = useRef<string | null>(null);
+  const navigationPromptOpenRef = useRef(false);
+
+  const isMutationBusy = () =>
+    savingRef.current || generatingRef.current || actingKeysRef.current.size > 0;
 
   activeChapterIdRef.current = chapterId;
+  const sceneListReady = scopeKey != null && loadedScope === scopeKey;
+  const canStartMutation = () =>
+    sceneListReady && !loading && !isMutationBusy() && !previewingRef.current;
+  const canUseSceneList = () => canStartMutation() && loadError == null;
+  const canStartAction = () => canStartMutation();
 
   const isCurrentScope = (requestScope: string | null) =>
     mountedRef.current && activeScopeRef.current === requestScope;
@@ -94,8 +107,8 @@ export const ScenesDialog: React.FC<ScenesDialogProps> = ({
   const isCurrentChapter = (requestChapterId: number) =>
     mountedRef.current && activeChapterIdRef.current === requestChapterId;
 
-  const startAction = (key: string) => {
-    if (actingKeysRef.current.has(key)) return false;
+  const startAction = (key: string, requiresCurrentOrder = false) => {
+    if (!canStartAction() || (requiresCurrentOrder && loadError != null)) return false;
     const next = new Set(actingKeysRef.current);
     next.add(key);
     actingKeysRef.current = next;
@@ -139,13 +152,13 @@ export const ScenesDialog: React.FC<ScenesDialogProps> = ({
       const data = await listChapterScenes(chapterId);
       if (loadSeqRef.current !== requestSeq || !isCurrentScope(requestScope)) return false;
       setScenes(data);
+      setLoadedScope(requestScope);
       setLoadError(null);
       return true;
     } catch (err) {
       if (loadSeqRef.current !== requestSeq || !isCurrentScope(requestScope)) return false;
       const message = extractErrorMessage(err, t("scenes.loadFailed"));
       setLoadError(message);
-      addToast(message, "error");
       return false;
     } finally {
       if (loadSeqRef.current === requestSeq && isCurrentScope(requestScope)) {
@@ -162,10 +175,11 @@ export const ScenesDialog: React.FC<ScenesDialogProps> = ({
     loadSeqRef.current += 1;
     previewSeqRef.current += 1;
     setScenes([]);
+    setLoadedScope(null);
     setExpanded(new Set());
     setEditingId(null);
     setEditForm({});
-    setLoading(false);
+    setLoading(scopeKey != null);
     setLoadError(null);
     loadInFlightScopeRef.current = null;
     setRequestPreviewOpen(false);
@@ -201,6 +215,64 @@ export const ScenesDialog: React.FC<ScenesDialogProps> = ({
     });
   }, [scenes]);
 
+  const editingScene = editingId == null
+    ? null
+    : scenes.find((scene) => scene.id === editingId) ?? null;
+  const editDirty = editingScene != null && sceneEditFormChanged(editForm, editingScene);
+  const navigationDirty =
+    editDirty ||
+    genPrompt !== DEFAULT_SCENE_GENERATION_PROMPT ||
+    saving ||
+    generating ||
+    actingKeys.size > 0;
+  const navigationBlocker = useBlocker(navigationDirty);
+
+  useBeforeUnload((event) => {
+    if (!navigationDirty) return;
+    event.preventDefault();
+    event.returnValue = "";
+  });
+
+  useEffect(() => {
+    if (
+      navigationBlocker.state !== "blocked" ||
+      navigationPromptOpenRef.current ||
+      saving ||
+      generating ||
+      actingKeys.size > 0
+    ) return;
+    if (!navigationDirty) {
+      navigationBlocker.proceed();
+      return;
+    }
+    navigationPromptOpenRef.current = true;
+    void confirmDialog({
+      title: t("common.unsavedChangesTitle"),
+      message: t("common.unsavedChangesMessage", {
+        name: editDirty ? t("scenes.chapterScenes") : t("scenes.generateNext"),
+        action: t("common.back"),
+      }),
+      confirmText: t("common.discardDraft"),
+      cancelText: t("common.cancel"),
+      dialogType: "warning",
+    }).then((discard) => {
+      if (discard) navigationBlocker.proceed();
+      else navigationBlocker.reset();
+    }).finally(() => {
+      navigationPromptOpenRef.current = false;
+    });
+  }, [
+    actingKeys.size,
+    editDirty,
+    generating,
+    navigationBlocker.proceed,
+    navigationBlocker.reset,
+    navigationBlocker.state,
+    navigationDirty,
+    saving,
+    t,
+  ]);
+
   const toggleExpand = (id: number) => {
     setExpanded((prev) => {
       const next = new Set(prev);
@@ -222,8 +294,7 @@ export const ScenesDialog: React.FC<ScenesDialogProps> = ({
   };
 
   const handleSave = async () => {
-    if (editingId == null || chapterId == null) return;
-    if (savingRef.current) return;
+    if (editingId == null || chapterId == null || !editingScene || !editDirty || !canStartAction()) return;
     savingRef.current = true;
     const requestScope = scopeKey;
     const requestChapterId = chapterId;
@@ -231,18 +302,10 @@ export const ScenesDialog: React.FC<ScenesDialogProps> = ({
     saveSeqRef.current = requestSeq;
     setSaving(true);
     try {
-      await updateChapterScene({
-        scene_id: editingId,
-        title: editForm.title ?? null,
-        content: editForm.content ?? null,
-        summary: editForm.summary ?? null,
-        scene_type: editForm.scene_type ?? null,
-        location: editForm.location ?? null,
-        timeline_position: editForm.timeline_position ?? null,
-      });
+      const saved = await updateChapterScene(sceneEditInput(editingId, editForm, editingScene));
       if (!isCurrentMutation(requestChapterId, saveSeqRef, requestSeq)) return;
       if (isCurrentScope(requestScope)) {
-        if (!await load({ force: true })) return;
+        setScenes((current) => sortScenes(current.map((scene) => scene.id === saved.id ? saved : scene)));
         setEditingId(null);
         setEditForm({});
       }
@@ -260,11 +323,15 @@ export const ScenesDialog: React.FC<ScenesDialogProps> = ({
 
   const handleGenerate = async () => {
     if (chapterId == null) return;
+    if (editDirty) {
+      addToast(t("scenes.saveBeforeGenerate"), "info");
+      return;
+    }
     if (aiActionBlockedReason) {
       addToast(aiActionBlockedReason, "error");
       return;
     }
-    if (generatingRef.current) return;
+    if (!canUseSceneList()) return;
     generatingRef.current = true;
     const requestScope = scopeKey;
     const requestChapterId = chapterId;
@@ -298,7 +365,9 @@ export const ScenesDialog: React.FC<ScenesDialogProps> = ({
           ),
       );
       if (!isCurrentMutation(requestChapterId, generateSeqRef, requestSeq)) return;
-      if (isCurrentScope(requestScope) && !await load({ force: true })) return;
+      if (isCurrentScope(requestScope)) {
+        setScenes((current) => sortScenes([...current.filter((scene) => scene.id !== s.id), s]));
+      }
       addToast(t("scenes.generatedNumber", { number: formatNumber(s.scene_number, locale) }), "success");
     } catch (err) {
       if (!isCurrentMutation(requestChapterId, generateSeqRef, requestSeq)) return;
@@ -315,11 +384,15 @@ export const ScenesDialog: React.FC<ScenesDialogProps> = ({
 
   const handlePreviewGenerateRequest = async () => {
     if (chapterId == null) return;
+    if (editDirty) {
+      addToast(t("scenes.saveBeforeGenerate"), "info");
+      return;
+    }
     if (aiActionBlockedReason) {
       addToast(aiActionBlockedReason, "error");
       return;
     }
-    if (previewingRef.current) return;
+    if (!canUseSceneList()) return;
     previewingRef.current = true;
     const requestScope = scopeKey;
     const requestSeq = previewSeqRef.current + 1;
@@ -376,7 +449,15 @@ export const ScenesDialog: React.FC<ScenesDialogProps> = ({
     try {
       await deleteChapterScene(s.id);
       if (!isCurrentChapter(requestChapterId)) return;
-      if (isCurrentScope(requestScope) && !await load({ force: true })) return;
+      if (isCurrentScope(requestScope)) {
+        setScenes((current) => current.filter((scene) => scene.id !== s.id));
+        setExpanded((current) => {
+          if (!current.has(s.id)) return current;
+          const next = new Set(current);
+          next.delete(s.id);
+          return next;
+        });
+      }
       addToast(t("scenes.deleted"), "success");
     } catch (err) {
       if (!isCurrentChapter(requestChapterId)) return;
@@ -401,16 +482,20 @@ export const ScenesDialog: React.FC<ScenesDialogProps> = ({
     const b = sorted[swapIdx];
     const actionKey = `move-${s.id}`;
     if (!isCurrentChapter(requestChapterId)) return;
-    if (!startAction(actionKey)) return;
+    if (!startAction(actionKey, true)) return;
     try {
-      await reorderChapterScenes({
+      const reordered = await reorderChapterScenes({
         order: [
           [a.id, b.scene_number],
           [b.id, a.scene_number],
         ],
       });
       if (!isCurrentChapter(requestChapterId)) return;
-      if (isCurrentScope(requestScope)) await load({ force: true });
+      if (isCurrentScope(requestScope)) {
+        setScenes(sortScenes(reordered));
+        setLoadedScope(requestScope);
+        setLoadError(null);
+      }
     } catch (err) {
       if (!isCurrentChapter(requestChapterId)) return;
       addToast(extractErrorMessage(err, t("scenes.reorderFailed")), "error");
@@ -422,22 +507,19 @@ export const ScenesDialog: React.FC<ScenesDialogProps> = ({
   };
 
   const handleClose = async () => {
-    if (saving || generating) return;
-    if (editingId != null) {
-      const scene = scenes.find((item) => item.id === editingId);
-      const dirty = scene != null && JSON.stringify(editForm) !== JSON.stringify(createSceneEditForm(scene));
-      if (dirty && !(await confirmDialog({
+    if (isMutationBusy()) return;
+    if (editDirty && !(await confirmDialog({
         title: t("common.unsavedChangesTitle"),
         message: t("common.unsavedChangesMessage", { name: t("scenes.chapterScenes"), action: t("common.close") }),
         confirmText: t("common.discardDraft"),
         dialogType: "warning",
       }))) return;
-    }
     onClose();
   };
 
   const sortedScenes = useMemo(() => sortScenes(scenes), [scenes]);
-  const nextSceneNumber = useMemo(() => getNextSceneNumber(scenes), [scenes]);
+  const operationBusy = saving || generating || actingKeys.size > 0 || requestPreviewLoading || loading;
+  const nextSceneNumber = canUseSceneList() ? getNextSceneNumber(scenes) : null;
 
   return (
     <>
@@ -459,6 +541,8 @@ export const ScenesDialog: React.FC<ScenesDialogProps> = ({
             nextSceneNumber={nextSceneNumber}
             prompt={genPrompt}
             generating={generating}
+            canGenerate={canUseSceneList() && !editDirty && !operationBusy}
+            hasUnsavedSceneChanges={editDirty}
             previewing={requestPreviewLoading}
             aiActionBlockedReason={aiActionBlockedReason}
             onPromptChange={setGenPrompt}
@@ -474,6 +558,8 @@ export const ScenesDialog: React.FC<ScenesDialogProps> = ({
             editingId={editingId}
             editForm={editForm}
             saving={saving}
+            mutationBusy={operationBusy}
+            reorderDisabled={loadError != null}
             actingKeys={actingKeys}
             onToggleExpand={toggleExpand}
             onStartEdit={startEdit}
@@ -490,7 +576,11 @@ export const ScenesDialog: React.FC<ScenesDialogProps> = ({
         open={requestPreviewOpen}
         loading={requestPreviewLoading}
         data={requestPreviewData}
-        fallbackTitle={t("scenes.generateTitle", { number: formatNumber(nextSceneNumber, locale) })}
+        fallbackTitle={
+          nextSceneNumber == null
+            ? t("scenes.chapterScenes")
+            : t("scenes.generateTitle", { number: formatNumber(nextSceneNumber, locale) })
+        }
         onClose={() => {
           previewSeqRef.current += 1;
           previewingRef.current = false;

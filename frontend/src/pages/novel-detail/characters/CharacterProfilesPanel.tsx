@@ -43,9 +43,10 @@ const visibleAttributeEntries = (
 export const CharacterProfilesPanel: React.FC<{
   projectId: number;
   profiles: CharacterProfile[];
+  loadError: string | null;
   onChanged: () => boolean | void | Promise<boolean | void>;
   onEdit: (profile: CharacterProfile) => void;
-}> = ({ projectId, profiles, onChanged, onEdit }) => {
+}> = ({ projectId, profiles, loadError, onChanged, onEdit }) => {
   const { t } = useI18n();
   const [detailFor, setDetailFor] = useState<CharacterProfile | null>(null);
 
@@ -57,7 +58,7 @@ export const CharacterProfilesPanel: React.FC<{
   }, [profiles]);
 
   if (profiles.length === 0) {
-    return <EmptyHint text={t("characterDetail.profilesEmpty")} />;
+    return loadError ? null : <EmptyHint text={t("characterDetail.profilesEmpty")} />;
   }
 
   const latestSyncedChapter = profiles.reduce(

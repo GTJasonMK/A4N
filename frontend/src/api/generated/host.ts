@@ -1368,6 +1368,10 @@ export interface OrphanProjectDataDirsSummary {
   total_size_bytes: number;
 }
 
+export interface CleanupOrphanProjectDataDirsInput {
+  project_ids: number[];
+}
+
 export interface ImportProjectTextUploadInput {
   data_base64: string;
   file_name: string;

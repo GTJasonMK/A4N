@@ -134,7 +134,7 @@ export const RelationshipsTab: React.FC<{ projectId: number }> = ({
     },
     [projectId],
   );
-  const { loading, load } = useChapterAnalysisLoader(
+  const { loading, load, loadError } = useChapterAnalysisLoader(
     projectId,
     loadRelationships,
     t("novel.relationships.loadFailed"),
@@ -394,6 +394,7 @@ export const RelationshipsTab: React.FC<{ projectId: number }> = ({
 
   return (
     <div className="content-wide flex min-h-0 flex-col gap-3 lg:h-full">
+      {loadError ? <p role="alert" className="text-small text-error">{loadError}</p> : null}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="text-small leading-relaxed text-book-text-muted">
           {t("novel.relationships.beforeTimelineHint")}
@@ -413,11 +414,13 @@ export const RelationshipsTab: React.FC<{ projectId: number }> = ({
         </BookButton>
       </div>
 
-      <CurrentRelationshipsCard
-        projectId={projectId}
-        relationships={currentRels}
-        onOpen={setCurrentDetail}
-      />
+      {displayProfiles.length === 0 && loadError ? null : (
+        <CurrentRelationshipsCard
+          projectId={projectId}
+          relationships={currentRels}
+          onOpen={setCurrentDetail}
+        />
+      )}
 
       {currentDetail && (
         <CurrentRelationshipDetailDialog

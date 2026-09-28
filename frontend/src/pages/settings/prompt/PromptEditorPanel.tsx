@@ -16,6 +16,7 @@ interface PromptEditorPanelProps {
   dirty: boolean;
   saving: boolean;
   resetting: boolean;
+  mutationBusy: boolean;
   onDraftChange: (draft: string) => void;
   onSave: () => void;
   onReset: () => void;
@@ -28,6 +29,7 @@ export const PromptEditorPanel: React.FC<PromptEditorPanelProps> = ({
   dirty,
   saving,
   resetting,
+  mutationBusy,
   onDraftChange,
   onSave,
   onReset,
@@ -56,6 +58,7 @@ export const PromptEditorPanel: React.FC<PromptEditorPanelProps> = ({
             dirty={dirty}
             saving={saving}
             resetting={resetting}
+            mutationBusy={mutationBusy}
             onSave={onSave}
             onReset={onReset}
           />
@@ -110,9 +113,10 @@ const PromptEditorHeader: React.FC<{
   dirty: boolean;
   saving: boolean;
   resetting: boolean;
+  mutationBusy: boolean;
   onSave: () => void;
   onReset: () => void;
-}> = ({ prompt, dirty, saving, resetting, onSave, onReset }) => {
+}> = ({ prompt, dirty, saving, resetting, mutationBusy, onSave, onReset }) => {
   const { t } = useI18n();
   const moreItems: DropdownItem[] =
     prompt.is_modified && !resetting
@@ -120,6 +124,7 @@ const PromptEditorHeader: React.FC<{
           {
             label: t("settingsPrompt.restoreDefault"),
             icon: <RotateCcw size={12} />,
+            disabled: mutationBusy,
             onClick: onReset,
           },
         ]
@@ -155,7 +160,7 @@ const PromptEditorHeader: React.FC<{
             variant="primary"
             size="sm"
             onClick={onSave}
-            disabled={saving}
+            disabled={mutationBusy}
           >
             {saving ? <LoadingSpinner size="sm" /> : <Save size={13} />}
             {saving ? t("settingsPrompt.saving") : t("common.save")}

@@ -160,12 +160,6 @@
   }
 }
 
-@media (max-width: 639px) {
-  .a4n-toast-container {
-    top: calc(var(--a4n-page-header-height) + 2rem + env(safe-area-inset-top, 0px)) !important;
-  }
-}
-
 /* 横屏手机和触屏平板可能超过 767px；底栏规则在所有触控窄屏共用。 */
 @media (max-width: 767px), (pointer: coarse) {
   .a4n-status-bar__permanent [data-status-widget="user"] {

@@ -6,6 +6,7 @@ export const novelOverview = {
     legacy: "{count} 章尚未完成新版事实分析，可逐章分析或主动重建。",
     interval: "归纳周期（章）",
     intervalSaved: "归纳周期已保存",
+    saveIntervalBeforeRun: "请先保存归纳周期，再运行或预览正文事实反馈。",
     save: "保存周期",
     consolidate: "立即归纳",
     rebuild: "重建正文事实",

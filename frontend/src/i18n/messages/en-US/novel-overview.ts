@@ -6,6 +6,7 @@ export const novelOverview = {
     legacy: "{count} chapters need the new fact analysis. Analyze them individually or rebuild explicitly.",
     interval: "Consolidate every (chapters)",
     intervalSaved: "Consolidation interval saved",
+    saveIntervalBeforeRun: "Save the consolidation interval before running or previewing body fact feedback.",
     save: "Save interval",
     consolidate: "Consolidate now",
     rebuild: "Rebuild story facts",

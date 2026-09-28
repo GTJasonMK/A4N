@@ -89,6 +89,7 @@ export const useWritingDeskSaveContent = ({
     }
     let savedContent = contentToSave;
     let savedChapter: ChapterSummary | null = null;
+    const isCurrentChapter = () => activeNumberRef.current === chapterNumber;
     if (activeChapter) {
       const expectedRevision = editorRevisionRef.current;
       if (!expectedRevision) throw new Error(t("writing.editorRevisionUnavailable"));
@@ -121,11 +122,12 @@ export const useWritingDeskSaveContent = ({
       savedChapter = created ?? imported;
       savedContent = savedChapter.content;
     }
-    if (activeNumberRef.current === chapterNumber) {
+    if (isCurrentChapter()) {
       editorRevisionRef.current = savedChapter.edit_revision;
     }
+    if (!isCurrentChapter()) return;
     const saveStillMatchesEditor =
-      activeNumberRef.current === chapterNumber &&
+      isCurrentChapter() &&
       getCurrentEditorContent() === contentToSave;
     if (saveStillMatchesEditor) {
       await removeDraftForChapter(chapterNumber);
@@ -152,7 +154,9 @@ export const useWritingDeskSaveContent = ({
     await saveLocalDraftForCurrent();
     addToast(t("writing.savedBodyWithUnsavedEdits"), "info");
   } catch (err) {
-    addToast(extractErrorMessage(err, t("errors.saveFailed")), "error");
+    if (activeNumberRef.current === activeNumber) {
+      addToast(extractErrorMessage(err, t("errors.saveFailed")), "error");
+    }
   } finally {
     saveContentBusyRef.current = false;
     setSavingContent(false);

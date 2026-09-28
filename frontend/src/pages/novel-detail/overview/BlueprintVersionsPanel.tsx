@@ -29,7 +29,8 @@ export const BlueprintVersionsPanel: React.FC<BlueprintVersionsPanelProps> = ({
   const { addToast } = useToast();
   const { locale, t } = useI18n();
   const [versions, setVersions] = useState<BlueprintVersion[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [picked, setPicked] = useState<string[]>([]);
   const [diff, setDiff] = useState<unknown>(null);
   const [diffing, setDiffing] = useState(false);
@@ -71,6 +72,7 @@ export const BlueprintVersionsPanel: React.FC<BlueprintVersionsPanelProps> = ({
         return false;
       }
       setVersions(data);
+      setLoadError(null);
       return true;
     } catch (err) {
       if (
@@ -80,7 +82,11 @@ export const BlueprintVersionsPanel: React.FC<BlueprintVersionsPanelProps> = ({
       ) {
         return false;
       }
-      addToast(extractErrorMessage(err, t("novel.blueprintVersions.loadFailed")), "error");
+      const message = extractErrorMessage(err, t("novel.blueprintVersions.loadFailed"));
+      setVersions([]);
+      setPicked([]);
+      setDiff(null);
+      setLoadError(message);
       return false;
     } finally {
       if (loadSeqRef.current === requestSeq) loadingRef.current = false;
@@ -102,9 +108,10 @@ export const BlueprintVersionsPanel: React.FC<BlueprintVersionsPanelProps> = ({
     diffingRef.current = false;
     restoringRef.current = null;
     setVersions([]);
+    setLoadError(null);
     setPicked([]);
     setDiff(null);
-    setLoading(false);
+    setLoading(true);
     setDiffing(false);
     setRestoring(null);
   }, [projectId]);
@@ -275,15 +282,16 @@ export const BlueprintVersionsPanel: React.FC<BlueprintVersionsPanelProps> = ({
         </div>
       </div>
 
+      {loadError ? <p role="alert" className="text-small text-error">{loadError}</p> : null}
       {loading && versions.length === 0 ? (
         <div className="text-xs text-book-text-muted inline-flex items-center gap-2">
           <LoadingSpinner size="sm" /> {t("novel.blueprintVersions.loading")}
         </div>
-      ) : versions.length === 0 ? (
+      ) : versions.length === 0 && !loadError ? (
         <div className="text-xs text-book-text-muted py-3">
           {t("novel.blueprintVersions.empty")}
         </div>
-      ) : (
+      ) : versions.length === 0 ? null : (
         <>
           <ul className="a4n-flat-surface divide-y divide-book-border/35 overflow-hidden">
             {versions.map((version) => {

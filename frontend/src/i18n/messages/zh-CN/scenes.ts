@@ -2,6 +2,7 @@ export const scenes = {
   generateNext: "生成下一场景",
   generateHint: "将创建场景 {number}，可补充本场景需要遵循的方向。",
   generatePlaceholder: "例如：承接上一场景的紧张气氛，让人物在码头发现新的线索。",
+  saveBeforeGenerate: "请先保存当前场景修改，再预览或生成下一场景。",
   viewModelRequest: "查看模型请求",
   generating: "生成中…",
   generate: "生成场景",

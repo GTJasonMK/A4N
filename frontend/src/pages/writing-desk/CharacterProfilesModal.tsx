@@ -58,6 +58,7 @@ export const CharacterProfilesModal: React.FC<CharacterProfilesModalProps> = ({
   const [profiles, setProfiles] = useState<CharacterProfile[]>([]);
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [editorOpen, setEditorOpen] = useState(false);
   const [detailFor, setDetailFor] = useState<CharacterProfile | null>(null);
   const [detailEventFilter, setDetailEventFilter] =
@@ -142,6 +143,7 @@ export const CharacterProfilesModal: React.FC<CharacterProfilesModalProps> = ({
     try {
       const rows = await listProfiles(requestProjectId);
       if (!isCurrentWorkspace(requestProjectId) || loadSeqRef.current !== requestSeq) return false;
+      setLoadError(null);
       setProfiles(rows);
       setDetailFor((current) => {
         if (!current) return null;
@@ -156,7 +158,9 @@ export const CharacterProfilesModal: React.FC<CharacterProfilesModalProps> = ({
       return true;
     } catch (err) {
       if (!isCurrentWorkspace(requestProjectId) || loadSeqRef.current !== requestSeq) return false;
-      addToast(extractErrorMessage(err, t("characterDetail.profileLoadFailed")), "error");
+      const message = extractErrorMessage(err, t("characterDetail.profileLoadFailed"));
+      setLoadError(message);
+      addToast(message, "error");
       return false;
     } finally {
       if (isCurrentWorkspace(requestProjectId) && loadSeqRef.current === requestSeq) {
@@ -179,12 +183,13 @@ export const CharacterProfilesModal: React.FC<CharacterProfilesModalProps> = ({
     loadInFlightKeyRef.current = null;
     invalidateActionKeys();
     setProfiles([]);
+    setLoadError(null);
     setSelectedId(null);
     setDetailFor(null);
     setDetailEventFilter(null);
     setEditorOpen(false);
     setForm(EMPTY_PROFILE_FORM);
-    setLoading(false);
+    setLoading(open);
     setSaving(false);
     setDiscovering(false);
     setSyncingAll(false);
@@ -585,6 +590,7 @@ export const CharacterProfilesModal: React.FC<CharacterProfilesModalProps> = ({
             profiles={profiles}
             selectedId={selectedProfile?.id ?? null}
             loading={loading}
+            loadError={loadError}
             discovering={discovering}
             syncingAll={syncingAll}
             canSyncAll={activeChapterNumber != null}

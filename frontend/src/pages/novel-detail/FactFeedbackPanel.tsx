@@ -90,8 +90,17 @@ export const FactFeedbackPanel = ({ projectId, canEdit, refreshKey, onChanged }:
     return () => globalThis.clearInterval(timer);
   }, [data?.workflow_status, load]);
 
+  const intervalHasDraft =
+    intervalDirty.current && interval.trim() !== String(data?.interval_chapters ?? "");
+  const requireSavedInterval = () => {
+    if (!intervalHasDraft) return true;
+    addToast(t("novel.factFeedback.saveIntervalBeforeRun"), "info");
+    return false;
+  };
+
   const run = async (mode: RunProjectFactFeedbackInput["mode"], resume = false) => {
     if (!canEdit || operationBusy.current) return;
+    if (!requireSavedInterval()) return;
     operationBusy.current = true;
     setBusy(true);
     const requestProject = projectId;
@@ -113,7 +122,6 @@ export const FactFeedbackPanel = ({ projectId, canEdit, refreshKey, onChanged }:
       if (!mounted.current || currentProject.current !== requestProject) return;
       setData(result);
       setError(null);
-      if (result.error) addToast(result.error, "error");
     } catch (cause) {
       if (mounted.current && currentProject.current === requestProject) {
         setError(extractErrorMessage(cause, t("novel.factFeedback.runFailed")));
@@ -148,6 +156,7 @@ export const FactFeedbackPanel = ({ projectId, canEdit, refreshKey, onChanged }:
   };
 
   const showPreview = async () => {
+    if (operationBusy.current || !requireSavedInterval()) return;
     setPreviewOpen(true);
     setPreviewLoading(true);
     setPreview(null);
@@ -168,7 +177,7 @@ export const FactFeedbackPanel = ({ projectId, canEdit, refreshKey, onChanged }:
   const running = busy || data?.workflow_status === "running";
   useNovelDetailDirty(
     `fact-feedback:${projectId}`,
-    intervalDirty.current && interval.trim() !== String(data?.interval_chapters ?? ""),
+    intervalHasDraft,
   );
   return (
     <section aria-labelledby={headingId} className="a4n-flat-surface min-w-0 p-3 sm:p-4">

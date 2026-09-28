@@ -23,6 +23,7 @@ import {
 import { PageHeader } from "../components/shell/PageHeader";
 import { BackButton, useSmartBack } from "../components/ui/BackButton";
 import { BookButton, BookIconButton } from "../components/ui/BookButton";
+import { Modal } from "../components/ui/Modal";
 import { confirmDialog } from "../components/feedback/ConfirmDialog";
 import { FollowLatestButton } from "../components/ui/FollowLatestButton";
 import { LoadingSpinner } from "../components/ui/LoadingSpinner";
@@ -60,7 +61,7 @@ import {
   type AgentThreadView,
 } from "../api/agent";
 import { useI18n, type Locale } from "../i18n";
-import { useNavigate } from "react-router-dom";
+import { useBeforeUnload, useBlocker, useNavigate } from "react-router-dom";
 import { extractWritingTarget } from "./agentMonitorUtils";
 import {
   reduceAgentEvent,
@@ -125,6 +126,7 @@ export const AgentMonitor: React.FC = () => {
   const [snapshotLoading, setSnapshotLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [threadsError, setThreadsError] = useState<string | null>(null);
   const [connected, setConnected] = useState(false);
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [pendingSubmission, setPendingSubmission] = useState<PendingAgentMessage | null>(null);
@@ -180,15 +182,18 @@ export const AgentMonitor: React.FC = () => {
       createTitle.trim() ||
       createCapability !== "general",
   );
-  const safeSmartBack = async () => {
-    if (hasWorkspaceDraft && !(await confirmDialog({
-      title: t("common.unsavedChangesTitle"),
-      message: t("common.unsavedChangesMessage", { name: t("agent.workbench"), action: t("common.back") }),
-      confirmText: t("common.discardDraft"),
-      dialogType: "warning",
-    }))) return;
-    smartBack();
-  };
+  const clearWorkspaceDrafts = useCallback(() => {
+    setDrafts({});
+    setCreateOpen(false);
+    setCreateTitle("");
+    setCreateCapability("general");
+  }, []);
+  const navigationBlocker = useBlocker(hasWorkspaceDraft);
+  useBeforeUnload((event) => {
+    if (!hasWorkspaceDraft) return;
+    event.preventDefault();
+    event.returnValue = "";
+  });
   const closeCreateForm = async () => {
     if (createTitle.trim() || createCapability !== "general") {
       if (!(await confirmDialog({
@@ -225,10 +230,10 @@ export const AgentMonitor: React.FC = () => {
       setThreads(next);
       setSelectedThreadId((current) => current && next.some((thread) => thread.id === current)
         ? current : next.find((thread) => thread.kind === "main")?.id ?? next[0]?.id ?? null);
-      setError(null);
+      setThreadsError(null);
       return true;
     } catch (err) {
-      setError(extractErrorMessage(err, t("agent.loadFailed")));
+      setThreadsError(extractErrorMessage(err, t("agent.loadFailed")));
       return false;
     } finally {
       setLoading(false);
@@ -261,6 +266,14 @@ export const AgentMonitor: React.FC = () => {
       }
     }
   }, [t]);
+
+  const refreshWorkbench = async () => {
+    const threadId = selectedThreadIdRef.current;
+    await Promise.all([
+      refreshThreads(true),
+      threadId ? loadSnapshot(threadId) : Promise.resolve(null),
+    ]);
+  };
 
   useEffect(() => {
     void refreshThreads();
@@ -344,12 +357,12 @@ export const AgentMonitor: React.FC = () => {
       .reverse()
       .map((message) => ({ message, target: extractWritingTarget(message) }))
       .find(({ message, target }) => target != null && !handledLocateMessageIdsRef.current.has(message.id));
-    if (!next?.target) return;
+    if (!next?.target || navigationBlocker.state === "blocked") return;
     handledLocateMessageIdsRef.current.add(next.message.id);
     navigate(
       `/write/${next.target.projectId}?chapter=${next.target.chapterNumber}&agent=1`,
     );
-  }, [navigate, snapshot]);
+  }, [navigate, navigationBlocker.state, snapshot]);
 
   const currentRun = useMemo(() => activeAgentRun(snapshot), [snapshot]);
   const contextRun = currentRun ?? (
@@ -399,7 +412,9 @@ export const AgentMonitor: React.FC = () => {
     } catch (err) {
       setPendingSubmission((current) => current?.message.id === pendingMessage.id ? null : current);
       setDrafts((current) => ({ ...current, [threadId]: content }));
-      addToast(extractErrorMessage(err, locale === "zh-CN" ? "发送 Agent 消息失败" : "Failed to send Agent message"), "error");
+      if (selectedThreadIdRef.current === threadId) {
+        addToast(extractErrorMessage(err, locale === "zh-CN" ? "发送 Agent 消息失败" : "Failed to send Agent message"), "error");
+      }
     } finally {
       setSendingThreads((current) => ({ ...current, [threadId]: false }));
     }
@@ -413,10 +428,23 @@ export const AgentMonitor: React.FC = () => {
     }
     setControlBusy(action);
     try {
-      await controlAgentRun({ thread_id: selectedThreadId, run_id: currentRun.id, action });
+      const updated = await controlAgentRun({ thread_id: selectedThreadId, run_id: currentRun.id, action });
+      if (selectedThreadIdRef.current === selectedThreadId) {
+        const current = snapshotRef.current;
+        if (current?.runs.some((run) => run.id === updated.id)) {
+          const next = {
+            ...current,
+            runs: current.runs.map((run) => run.id === updated.id ? updated : run),
+          };
+          snapshotRef.current = next;
+          setSnapshot(next);
+        }
+      }
       await Promise.all([loadSnapshot(selectedThreadId, true), refreshThreads()]);
     } catch (err) {
-      addToast(extractErrorMessage(err, locale === "zh-CN" ? "控制 Agent run 失败" : "Failed to control Agent run"), "error");
+      if (selectedThreadIdRef.current === selectedThreadId) {
+        addToast(extractErrorMessage(err, locale === "zh-CN" ? "控制 Agent run 失败" : "Failed to control Agent run"), "error");
+      }
     } finally { setControlBusy(null); }
   };
 
@@ -424,10 +452,23 @@ export const AgentMonitor: React.FC = () => {
     if (approvalBusy) return;
     setApprovalBusy(approval.id);
     try {
-      await resolveAgentApproval({ approval_id: approval.id, decision });
-      if (selectedThreadId) await loadSnapshot(selectedThreadId, true);
+      const updated = await resolveAgentApproval({ approval_id: approval.id, decision });
+      if (selectedThreadId && selectedThreadIdRef.current === selectedThreadId) {
+        const current = snapshotRef.current;
+        if (current?.approvals.some((item) => item.id === updated.id)) {
+          const next = {
+            ...current,
+            approvals: current.approvals.map((item) => item.id === updated.id ? updated : item),
+          };
+          snapshotRef.current = next;
+          setSnapshot(next);
+        }
+        await loadSnapshot(selectedThreadId, true);
+      }
     } catch (err) {
-      addToast(extractErrorMessage(err, locale === "zh-CN" ? "处理审批失败" : "Failed to resolve approval"), "error");
+      if (selectedThreadIdRef.current === selectedThreadId) {
+        addToast(extractErrorMessage(err, locale === "zh-CN" ? "处理审批失败" : "Failed to resolve approval"), "error");
+      }
     } finally { setApprovalBusy(null); }
   };
 
@@ -459,6 +500,10 @@ export const AgentMonitor: React.FC = () => {
     setClearing(true);
     try {
       await clearAgentThreadContext(threadId, t("agent.clearContextTimeout"));
+      if (selectedThreadIdRef.current !== threadId) {
+        await refreshThreads();
+        return;
+      }
       snapshotRef.current = null;
       eventCursorRef.current = 0;
       pendingEventsRef.current = [];
@@ -469,8 +514,10 @@ export const AgentMonitor: React.FC = () => {
       addToast(t("agent.clearContextSuccess"), "success");
     } catch (err) {
       const message = extractErrorMessage(err, t("agent.clearContextFailed"));
-      setError(message);
-      addToast(message, "error");
+      if (selectedThreadIdRef.current === threadId) {
+        setError(message);
+        addToast(message, "error");
+      }
     } finally {
       setClearing(false);
     }
@@ -478,19 +525,40 @@ export const AgentMonitor: React.FC = () => {
 
   return (
     <div className="agent-monitor-page flex h-full min-h-0 flex-col bg-book-bg">
+      {navigationBlocker.state === "blocked" ? (
+        <Modal
+          isOpen
+          onClose={navigationBlocker.reset}
+          title={t("common.unsavedChangesTitle")}
+          tone="warning"
+          maxWidthClassName="max-w-xl"
+          footer={(
+            <>
+              <BookButton variant="secondary" onClick={navigationBlocker.reset}>{t("common.cancel")}</BookButton>
+              <BookButton variant="warning" onClick={() => {
+                clearWorkspaceDrafts();
+                navigationBlocker.proceed();
+              }}>{t("common.discardDraft")}</BookButton>
+            </>
+          )}
+        >
+          {t("common.unsavedChangesMessage", { name: t("agent.workbench"), action: t("common.back") })}
+        </Modal>
+      ) : null}
       {budgetRun ? <AgentBudgetDialog run={budgetRun} onClose={() => setBudgetRun(null)} onResumed={() => Promise.all([loadSnapshot(budgetRun.thread_id, true), refreshThreads()])} /> : null}
       <PageHeader
         className="agent-monitor-page-header"
-        leading={<BackButton iconOnly title={t("nav.backToPrevious")} onClick={() => void safeSmartBack()} />}
+        leading={<BackButton iconOnly title={t("nav.backToPrevious")} onClick={smartBack} />}
         icon={<span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-book-primary/10 text-book-primary"><Bot size={18} /></span>}
         eyebrow={t("agent.collaborationHub")}
         title={t("agent.workbench")}
         subtitle={locale === "zh-CN" ? "查看任务进度与待确认操作" : "Track progress and review pending actions"}
         meta={<span className={`inline-flex items-center gap-1.5 text-small ${connected ? "text-success" : "text-book-text-muted"}`}><span className={`h-1.5 w-1.5 rounded-full ${connected ? "bg-success" : "bg-book-text-muted/50"}`} />{connected ? (locale === "zh-CN" ? "事件流已连接" : "Event stream") : t("agent.polling")}</span>}
-        actions={<BookIconButton label={t("agent.refresh")} onClick={() => void refreshThreads(true)} variant="secondary" size="sm" disabled={refreshing}><RefreshCw size={14} className={refreshing ? "animate-spin" : undefined} /></BookIconButton>}
+        actions={<BookIconButton label={t("agent.refresh")} onClick={() => void refreshWorkbench()} variant="secondary" size="sm" disabled={refreshing || snapshotLoading}><RefreshCw size={14} className={refreshing || snapshotLoading ? "animate-spin" : undefined} /></BookIconButton>}
       />
       <main className="agent-monitor-body custom-scrollbar">
         {error ? <Notice>{error}</Notice> : null}
+        {threadsError ? <Notice>{threadsError}</Notice> : null}
         <section className="agent-monitor-layout">
           <aside className="agent-monitor-thread-rail a4n-flat-surface">
             <div className="agent-monitor-rail-head">

@@ -20,12 +20,14 @@ export const LogsTab: React.FC = () => {
   const user = useAuthStore((state) => state.user);
   const [activeTab, setActiveTab] = useState<"analytics" | "logs">("analytics");
   const [result, setResult] = useState<LogReadResult | null>(null);
+  const [resultKey, setResultKey] = useState<string | null>(null);
   const [logDir, setLogDir] = useState<string>("");
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [loadErrorKey, setLoadErrorKey] = useState<string | null>(null);
   const [lines, setLines] = useState(500);
   const [daysAgo, setDaysAgo] = useState(0);
   const [filterInput, setFilterInput] = useState("info,a4n=debug");
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [applyingFilter, setApplyingFilter] = useState(false);
   const [copied, setCopied] = useState(false);
   const requestKey = `${lines}:${daysAgo}`;
@@ -69,8 +71,10 @@ export const LogsTab: React.FC = () => {
     if (!canReadDiagnostics || callerUserId == null) {
       refreshInFlightKeyRef.current = null;
       setResult(null);
+      setResultKey(null);
       setLogDir("");
       setLoadError(null);
+      setLoadErrorKey(null);
       setLoading(false);
       return;
     }
@@ -83,6 +87,7 @@ export const LogsTab: React.FC = () => {
     refreshSeqRef.current = requestSeq;
     setLoading(true);
     setLoadError(null);
+    setLoadErrorKey(null);
     try {
       const res = await readRecentLogs({
         lines: requestLines,
@@ -90,6 +95,7 @@ export const LogsTab: React.FC = () => {
       });
       if (!isCurrentRefresh(key, requestSeq)) return;
       setResult(res);
+      setResultKey(key);
       setLoadError(null);
       const dir = await getLogDir();
       if (!isCurrentRefresh(key, requestSeq)) return;
@@ -98,6 +104,7 @@ export const LogsTab: React.FC = () => {
       if (!isCurrentRefresh(key, requestSeq)) return;
       const message = extractErrorMessage(err, t("settingsLogs.readFailed"));
       setLoadError(message);
+      setLoadErrorKey(key);
       addToast(message, "error");
       logger.scoped("LogsTab").error("refresh failed", { err });
     } finally {
@@ -119,9 +126,14 @@ export const LogsTab: React.FC = () => {
     requestKey,
   ]);
 
+  const visibleResult = resultKey === requestKey ? result : null;
+  const currentLoadError = loadErrorKey === requestKey ? loadError : null;
+  const displayLoading = loading || (resultKey !== requestKey && currentLoadError == null);
+
   useEffect(() => {
     setResult(null);
     setLoadError(null);
+    setLoadErrorKey(null);
     void refresh();
   }, [refresh]);
 
@@ -249,9 +261,9 @@ export const LogsTab: React.FC = () => {
               <option value={3}>{t("settingsLogs.daysAgo", { count: 3 })}</option>
               <option value={7}>{t("settingsLogs.daysAgo", { count: 7 })}</option>
             </ThemedSelect>
-            {result ? (
+            {visibleResult ? (
               <span className="text-book-text-muted sm:ml-auto">
-                {t("settingsLogs.lines", { returned: formatNumber(result.returned_lines, locale), total: formatNumber(result.total_lines, locale) })}
+                {t("settingsLogs.lines", { returned: formatNumber(visibleResult.returned_lines, locale), total: formatNumber(visibleResult.total_lines, locale) })}
               </span>
             ) : (
               <span className="flex-1" />
@@ -263,6 +275,10 @@ export const LogsTab: React.FC = () => {
               />
             </BookIconButton>
           </div>
+
+          {currentLoadError && visibleResult ? (
+            <p role="alert" className="text-xs text-error">{currentLoadError}</p>
+          ) : null}
 
           <details className="group border-y border-book-border/35 text-xs">
             <summary className="w-fit cursor-pointer py-2 text-book-text-muted transition-colors hover:text-book-text-main">
@@ -293,7 +309,7 @@ export const LogsTab: React.FC = () => {
             </summary>
             <div className="mt-2 flex flex-wrap items-center gap-2 break-all border-l border-book-border/40 pl-2.5">
               <span className="font-mono">
-                {logPathText(result?.file_path, logDir, t("settingsLogs.pathUnavailable"))}
+                {logPathText(visibleResult?.file_path, logDir, t("settingsLogs.pathUnavailable"))}
               </span>
               <BookIconButton
                 label={t("settingsLogs.copyPath")}
@@ -309,21 +325,21 @@ export const LogsTab: React.FC = () => {
           </details>
 
           <div className="a4n-flat-surface flex-1 min-h-0 p-3 overflow-y-auto custom-scrollbar font-mono text-small leading-relaxed bg-book-bg-tertiary/40">
-            {!result ? (
-              loading ? (
+            {!visibleResult ? (
+              displayLoading ? (
                 <div className="text-book-text-muted">{t("settingsLogs.loading")}</div>
-              ) : loadError ? (
+              ) : currentLoadError ? (
                 <div className="text-error whitespace-pre-wrap break-words">
-                  {loadError}
+                  {currentLoadError}
                 </div>
               ) : (
                 <div className="text-book-text-muted">{t("settingsLogs.noData")}</div>
               )
-            ) : result.lines.length === 0 ? (
+            ) : visibleResult.lines.length === 0 ? (
               <div className="text-book-text-muted italic">{t("settingsLogs.empty")}</div>
             ) : (
               <pre className="whitespace-pre-wrap break-words">
-                {result.lines.map((line, index) => (
+                {visibleResult.lines.map((line, index) => (
                   <div key={index} className={logLineClassName(line)}>
                     {line}
                   </div>

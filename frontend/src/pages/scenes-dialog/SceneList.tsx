@@ -10,7 +10,7 @@ import type { ChapterSceneSummary } from "../../api/chapter";
 import { Dropdown, type DropdownItem } from "../../components/ui/Dropdown";
 import { nonEmptyText } from "../../utils/text";
 import { SceneEditForm } from "./SceneEditForm";
-import type { SceneEditForm as SceneEditFormState } from "./scenesDialogUtils";
+import { sceneEditFormChanged, type SceneEditForm as SceneEditFormState } from "./scenesDialogUtils";
 import { formatNumber, useI18n, type MessageKey, type MessageTranslator } from "../../i18n";
 
 interface SceneListProps {
@@ -21,6 +21,8 @@ interface SceneListProps {
   editingId: number | null;
   editForm: SceneEditFormState;
   saving: boolean;
+  mutationBusy: boolean;
+  reorderDisabled: boolean;
   actingKeys: Set<string>;
   onToggleExpand: (sceneId: number) => void;
   onStartEdit: (scene: ChapterSceneSummary) => void;
@@ -39,6 +41,8 @@ export const SceneList: React.FC<SceneListProps> = ({
   editingId,
   editForm,
   saving,
+  mutationBusy,
+  reorderDisabled,
   actingKeys,
   onToggleExpand,
   onStartEdit,
@@ -57,9 +61,9 @@ export const SceneList: React.FC<SceneListProps> = ({
     );
   }
 
-  if (loadError) {
+  if (loadError && scenes.length === 0) {
     return (
-      <div className="border-l-2 border-error/55 py-2 pl-3 text-xs leading-relaxed text-error">
+      <div role="alert" className="border-l-2 border-error/55 py-2 pl-3 text-xs leading-relaxed text-error">
         {loadError}
       </div>
     );
@@ -74,28 +78,38 @@ export const SceneList: React.FC<SceneListProps> = ({
   }
 
   return (
-    <ul className="a4n-flat-surface divide-y divide-book-border/35">
-      {scenes.map((scene, index) => (
-        <SceneListItem
-          key={scene.id}
-          scene={scene}
-          isExpanded={expanded.has(scene.id)}
-          isEditing={editingId === scene.id}
-          isFirst={index === 0}
-          isLast={index === scenes.length - 1}
-          editForm={editForm}
-          saving={saving}
-          actingKeys={actingKeys}
-          onToggleExpand={onToggleExpand}
-          onStartEdit={onStartEdit}
-          onCancelEdit={onCancelEdit}
-          onEditFormChange={onEditFormChange}
-          onSave={onSave}
-          onMove={onMove}
-          onDelete={onDelete}
-        />
-      ))}
-    </ul>
+    <>
+      {loadError ? (
+        <div role="alert" className="mb-2 border-l-2 border-error/55 py-2 pl-3 text-xs leading-relaxed text-error">
+          {loadError}
+        </div>
+      ) : null}
+      <ul className="a4n-flat-surface divide-y divide-book-border/35">
+        {scenes.map((scene, index) => (
+          <SceneListItem
+            key={scene.id}
+            scene={scene}
+            isExpanded={expanded.has(scene.id)}
+            isEditing={editingId === scene.id}
+            isFirst={index === 0}
+            isLast={index === scenes.length - 1}
+            editForm={editForm}
+            editDirty={editingId === scene.id && sceneEditFormChanged(editForm, scene)}
+            saving={saving}
+            mutationBusy={mutationBusy}
+            reorderDisabled={reorderDisabled}
+            actingKeys={actingKeys}
+            onToggleExpand={onToggleExpand}
+            onStartEdit={onStartEdit}
+            onCancelEdit={onCancelEdit}
+            onEditFormChange={onEditFormChange}
+            onSave={onSave}
+            onMove={onMove}
+            onDelete={onDelete}
+          />
+        ))}
+      </ul>
+    </>
   );
 };
 
@@ -106,7 +120,10 @@ interface SceneListItemProps {
   isFirst: boolean;
   isLast: boolean;
   editForm: SceneEditFormState;
+  editDirty: boolean;
   saving: boolean;
+  mutationBusy: boolean;
+  reorderDisabled: boolean;
   actingKeys: Set<string>;
   onToggleExpand: (sceneId: number) => void;
   onStartEdit: (scene: ChapterSceneSummary) => void;
@@ -124,7 +141,10 @@ const SceneListItem: React.FC<SceneListItemProps> = ({
   isFirst,
   isLast,
   editForm,
+  editDirty,
   saving,
+  mutationBusy,
+  reorderDisabled,
   actingKeys,
   onToggleExpand,
   onStartEdit,
@@ -142,6 +162,7 @@ const SceneListItem: React.FC<SceneListItemProps> = ({
     actionItems.push({
       label: t("scenes.moveUp"),
       icon: <ChevronsUp size={12} />,
+      disabled: mutationBusy || reorderDisabled,
       onClick: () => onMove(scene, -1),
     });
   }
@@ -149,12 +170,14 @@ const SceneListItem: React.FC<SceneListItemProps> = ({
     actionItems.push({
       label: t("scenes.moveDown"),
       icon: <ChevronsDown size={12} />,
+      disabled: mutationBusy || reorderDisabled,
       onClick: () => onMove(scene, 1),
     });
   }
   actionItems.push({
     label: t("scenes.edit"),
     icon: <Pencil size={12} />,
+    disabled: mutationBusy,
     onClick: () => onStartEdit(scene),
   });
   actionItems.push({ type: "divider" });
@@ -162,6 +185,7 @@ const SceneListItem: React.FC<SceneListItemProps> = ({
     label: t("scenes.delete"),
     icon: <Trash2 size={12} />,
     danger: true,
+    disabled: mutationBusy,
     onClick: () => onDelete(scene),
   });
 
@@ -229,7 +253,9 @@ const SceneListItem: React.FC<SceneListItemProps> = ({
           ) : (
             <SceneEditForm
               form={editForm}
+              dirty={editDirty}
               saving={saving}
+              disabled={mutationBusy}
               onChange={onEditFormChange}
               onCancel={onCancelEdit}
               onSave={onSave}

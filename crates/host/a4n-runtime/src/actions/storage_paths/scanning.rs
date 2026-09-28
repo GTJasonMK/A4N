@@ -57,6 +57,38 @@ pub(super) fn orphan_project_data_dirs(
     })
 }
 
+pub(super) fn confirmed_orphan_project_data_dirs(
+    confirmed_project_ids: &[i64],
+    current: &OrphanProjectDataDirsSummary,
+) -> Result<OrphanProjectDataDirsSummary, String> {
+    if confirmed_project_ids.is_empty() {
+        return Err("未提供已确认的孤儿项目目录".to_string());
+    }
+
+    let mut selected_ids = HashSet::with_capacity(confirmed_project_ids.len());
+    for project_id in confirmed_project_ids {
+        if *project_id <= 0 || !selected_ids.insert(*project_id) {
+            return Err("已确认的项目编号无效".to_string());
+        }
+    }
+
+    let items: Vec<_> = current
+        .items
+        .iter()
+        .filter(|item| selected_ids.contains(&item.project_id))
+        .cloned()
+        .collect();
+    if items.len() != selected_ids.len() {
+        return Err("孤儿目录列表已变化，请重新扫描后再清理".to_string());
+    }
+
+    Ok(OrphanProjectDataDirsSummary {
+        total_count: items.len(),
+        total_size_bytes: items.iter().map(|item| item.size_bytes).sum(),
+        items,
+    })
+}
+
 fn dir_size_without_following_symlinks(path: &Path) -> Result<u64, String> {
     let mut total = 0_u64;
     let entries = std::fs::read_dir(path).map_err(|error| format!("读取目录大小失败：{error}"))?;

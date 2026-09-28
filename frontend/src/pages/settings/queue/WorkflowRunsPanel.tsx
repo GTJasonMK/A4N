@@ -102,7 +102,7 @@ const WorkflowRunRow: React.FC<{
       if (current) setDetailLoading(false);
     });
     return () => { current = false; };
-  }, [expanded, run.id, run.updated_at, run.status, t]);
+  }, [expanded, run.id, run.current_step_key, run.status, t]);
   const display = run.progress
       ? progressDisplayModel({
         ...run.progress,

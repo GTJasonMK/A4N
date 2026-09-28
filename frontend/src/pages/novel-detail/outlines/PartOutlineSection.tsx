@@ -11,6 +11,7 @@ import { useI18n } from "../../../i18n";
 
 interface PartOutlineSectionProps {
   parts: PartOutline[];
+  loaded: boolean;
   canEdit: boolean;
   partCount: NumberInputValue;
   chaptersPerPart: NumberInputValue;
@@ -28,6 +29,7 @@ interface PartOutlineSectionProps {
 
 export function PartOutlineSection({
   parts,
+  loaded,
   canEdit,
   partCount,
   chaptersPerPart,
@@ -57,7 +59,7 @@ export function PartOutlineSection({
           <p className="mt-0.5 text-small leading-relaxed text-book-text-muted">
             {hasParts
               ? t("outline.partSection.summary", { count: parts.length })
-              : t("outline.partSection.emptySummary")}
+              : loaded ? t("outline.partSection.emptySummary") : null}
           </p>
         </div>
         {canEdit ? (
@@ -66,14 +68,14 @@ export function PartOutlineSection({
               variant="secondary"
               size="sm"
               onClick={onCreatePart}
-              disabled={disabled}
+              disabled={disabled || !loaded}
             >
               <Plus size={13} /> {t("outline.partSection.directEntry")}
             </BookButton>
             <BookIconButton
               label={t("outline.partSection.openAdvanced")}
               onClick={onOpenAdvanced}
-              disabled={disabled}
+              disabled={disabled || !loaded}
               variant="ghost"
               size="sm"
             >
@@ -102,7 +104,7 @@ export function PartOutlineSection({
                 min={1}
                 step={1}
                 value={partCount}
-                disabled={disabled}
+                disabled={disabled || !loaded}
                 onChange={(event) => onPartCountChange(parseNumberInput(event.target.value))}
                 className="pyqt-input h-10 w-full"
               />
@@ -115,7 +117,7 @@ export function PartOutlineSection({
                 step={1}
                 placeholder={defaultChaptersPerPart === "" ? t("outline.partSection.autoPlan") : undefined}
                 value={chaptersPerPart}
-                disabled={disabled}
+                disabled={disabled || !loaded}
                 onChange={(event) =>
                   onChaptersPerPartChange(parseNumberInput(event.target.value))
                 }
@@ -129,7 +131,7 @@ export function PartOutlineSection({
                   variant="secondary"
                   size="md"
                   onClick={onPreviewGenerate}
-                  disabled={disabled}
+                  disabled={disabled || !loaded}
                   className="!h-10 !w-10"
                 >
                   <Eye size={14} />
@@ -139,7 +141,7 @@ export function PartOutlineSection({
                 variant="primary"
                 size="sm"
                 onClick={onGenerate}
-                disabled={disabled || generating}
+                disabled={disabled || !loaded || generating}
                 className="h-10 min-w-0 flex-1 !min-h-10 !px-4 !text-xs md:flex-none"
               >
                 {generating ? (
@@ -156,9 +158,9 @@ export function PartOutlineSection({
         </details>
       ) : null}
 
-      {parts.length === 0 ? (
+      {parts.length === 0 && loaded ? (
         <EmptyHint text={t("outline.partSection.empty")} />
-      ) : (
+      ) : parts.length > 0 ? (
         <ul className="space-y-2">
           {parts.map((part) => (
             <li
@@ -187,7 +189,7 @@ export function PartOutlineSection({
             </li>
           ))}
         </ul>
-      )}
+      ) : null}
     </section>
   );
 }

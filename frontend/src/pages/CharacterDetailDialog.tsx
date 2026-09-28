@@ -187,6 +187,8 @@ export const CharacterDetailDialog: React.FC<CharacterDetailDialogProps> = ({
   const [tab, setTab] = useState<CharacterDetailTab>("arc");
   const [arc, setArc] = useState<CharacterCacheValue<unknown> | null>(null);
   const [voice, setVoice] = useState<CharacterCacheValue<unknown> | null>(null);
+  const [arcLoadError, setArcLoadError] = useState<CharacterCacheValue<string> | null>(null);
+  const [voiceLoadError, setVoiceLoadError] = useState<CharacterCacheValue<string> | null>(null);
   const [conflicts, setConflicts] =
     useState<CharacterCacheValue<CharacterConflictSummary[]> | null>(null);
   const [conflictScopeDraft, setConflictScopeDraft] = useState<ConflictScopeDraft>(
@@ -203,9 +205,14 @@ export const CharacterDetailDialog: React.FC<CharacterDetailDialogProps> = ({
   const name = character?.name;
   const characterCacheKey =
     character && name ? `${projectId}:${character.id}:${name}` : null;
-  const currentArc = characterCacheKey && arc?.key === characterCacheKey ? arc.value : null;
-  const currentVoice =
-    characterCacheKey && voice?.key === characterCacheKey ? voice.value : null;
+  const currentArcCache = characterCacheKey && arc?.key === characterCacheKey ? arc : null;
+  const currentVoiceCache = characterCacheKey && voice?.key === characterCacheKey ? voice : null;
+  const currentArc = currentArcCache?.value ?? null;
+  const currentVoice = currentVoiceCache?.value ?? null;
+  const currentArcLoadError =
+    characterCacheKey && arcLoadError?.key === characterCacheKey ? arcLoadError.value : null;
+  const currentVoiceLoadError =
+    characterCacheKey && voiceLoadError?.key === characterCacheKey ? voiceLoadError.value : null;
   const activeConflictScopeKey = conflictScopeKey(conflictScopeDraft);
   const conflictCacheKey = characterCacheKey
     ? `${characterCacheKey}:conflict:${activeConflictScopeKey}`
@@ -260,6 +267,8 @@ export const CharacterDetailDialog: React.FC<CharacterDetailDialogProps> = ({
     requestPreviewSeqRef.current += 1;
     setArc(null);
     setVoice(null);
+    setArcLoadError(null);
+    setVoiceLoadError(null);
     setConflicts(null);
     setConflictScopeDraft(emptyConflictScopeDraft());
     setLoadingTab(null);
@@ -290,8 +299,8 @@ export const CharacterDetailDialog: React.FC<CharacterDetailDialogProps> = ({
 
   useEffect(() => {
     if (!open || !name || !characterCacheKey) return;
-    if (tab === "arc" && currentArc != null) return;
-    if (tab === "voice" && currentVoice != null) return;
+    if (tab === "arc" && currentArcCache != null) return;
+    if (tab === "voice" && currentVoiceCache != null) return;
     if (tab !== "arc" && tab !== "voice") return;
 
     let cancelled = false;
@@ -302,13 +311,23 @@ export const CharacterDetailDialog: React.FC<CharacterDetailDialogProps> = ({
       try {
         if (tab === "arc") {
           const data = await getCharacterArcStatus(projectId, name);
-          if (!cancelled) setArc({ key: cacheKey, value: data });
+          if (!cancelled) {
+            setArc({ key: cacheKey, value: data });
+            setArcLoadError(null);
+          }
         } else {
           const data = await getCharacterVoiceFingerprint(projectId, name);
-          if (!cancelled) setVoice({ key: cacheKey, value: data });
+          if (!cancelled) {
+            setVoice({ key: cacheKey, value: data });
+            setVoiceLoadError(null);
+          }
         }
       } catch (err) {
-        if (!cancelled) addToast(extractErrorMessage(err, t("characterDetail.loadFailed")), "error");
+        if (!cancelled) {
+          const message = extractErrorMessage(err, t("characterDetail.loadFailed"));
+          if (tab === "arc") setArcLoadError({ key: cacheKey, value: message });
+          else setVoiceLoadError({ key: cacheKey, value: message });
+        }
       } finally {
         if (!cancelled) setLoadingTab(null);
       }
@@ -318,8 +337,11 @@ export const CharacterDetailDialog: React.FC<CharacterDetailDialogProps> = ({
 
     return () => {
       cancelled = true;
+      if (mountedRef.current) {
+        setLoadingTab((current) => (current === tab ? null : current));
+      }
     };
-  }, [addToast, characterCacheKey, currentArc, currentVoice, name, open, projectId, tab, t]);
+  }, [addToast, characterCacheKey, currentArcCache, currentVoiceCache, name, open, projectId, tab, t]);
 
   const handleRefresh = async () => {
     if (!name || !characterCacheKey || tab === "manage") return;
@@ -395,14 +417,6 @@ export const CharacterDetailDialog: React.FC<CharacterDetailDialogProps> = ({
       }
       return;
     }
-    switch (tab) {
-      case "arc":
-        setArc(null);
-        break;
-      case "voice":
-        setVoice(null);
-        break;
-    }
     setLoadingTab(tab);
     try {
       const cacheKey = characterCacheKey;
@@ -418,6 +432,7 @@ export const CharacterDetailDialog: React.FC<CharacterDetailDialogProps> = ({
               return;
             }
             setArc({ key: cacheKey, value: data });
+            setArcLoadError(null);
           }
           break;
         case "voice":
@@ -434,12 +449,15 @@ export const CharacterDetailDialog: React.FC<CharacterDetailDialogProps> = ({
               key: cacheKey,
               value: data,
             });
+            setVoiceLoadError(null);
           }
           break;
       }
     } catch (err) {
       if (!isCurrentDialogScope(requestScope) || refreshSeqRef.current !== requestSeq) return;
-      addToast(extractErrorMessage(err, t("characterDetail.refreshFailed")), "error");
+      const message = extractErrorMessage(err, t("characterDetail.refreshFailed"));
+      if (requestTab === "arc") setArcLoadError({ key: requestScope, value: message });
+      else if (requestTab === "voice") setVoiceLoadError({ key: requestScope, value: message });
     } finally {
       if (isCurrentDialogScope(requestScope) && refreshSeqRef.current === requestSeq) {
         setLoadingTab((current) => (current === requestTab ? null : current));
@@ -558,8 +576,14 @@ export const CharacterDetailDialog: React.FC<CharacterDetailDialogProps> = ({
           addToast(t("characterDetail.syncSuccess"), "success");
         }
       }
-      setArc(null);
-      setVoice(null);
+      if (tab !== "arc") {
+        setArc(null);
+        setArcLoadError(null);
+      }
+      if (tab !== "voice") {
+        setVoice(null);
+        setVoiceLoadError(null);
+      }
       setConflicts(null);
       if (!isCurrentCharacterScope(requestScope) || syncSeqRef.current !== requestSeq) return;
       if (!isCurrentDialogScope(requestScope)) return;
@@ -571,9 +595,12 @@ export const CharacterDetailDialog: React.FC<CharacterDetailDialogProps> = ({
             key: cacheKey,
             value: data,
           });
+          setArcLoadError(null);
         } catch (err) {
           if (!isCurrentDialogScope(requestScope) || syncSeqRef.current !== requestSeq) return;
-          addToast(extractErrorMessage(err, t("characterDetail.refreshArcFailed")), "error");
+          const message = extractErrorMessage(err, t("characterDetail.refreshArcFailed"));
+          setArcLoadError({ key: cacheKey, value: message });
+          addToast(message, "error");
         }
       } else if (tab === "voice") {
         try {
@@ -583,9 +610,12 @@ export const CharacterDetailDialog: React.FC<CharacterDetailDialogProps> = ({
             key: cacheKey,
             value: data,
           });
+          setVoiceLoadError(null);
         } catch (err) {
           if (!isCurrentDialogScope(requestScope) || syncSeqRef.current !== requestSeq) return;
-          addToast(extractErrorMessage(err, t("characterDetail.refreshVoiceFailed")), "error");
+          const message = extractErrorMessage(err, t("characterDetail.refreshVoiceFailed"));
+          setVoiceLoadError({ key: cacheKey, value: message });
+          addToast(message, "error");
         }
       }
     } catch (err) {
@@ -777,11 +807,21 @@ export const CharacterDetailDialog: React.FC<CharacterDetailDialogProps> = ({
           ) : null}
 
           <div>
+            {tab === "arc" && currentArcLoadError ? (
+              <p role="alert" className="mb-2 text-small text-error">{currentArcLoadError}</p>
+            ) : null}
+            {tab === "voice" && currentVoiceLoadError ? (
+              <p role="alert" className="mb-2 text-small text-error">{currentVoiceLoadError}</p>
+            ) : null}
             <CharacterDetailContent
               tab={tab}
               loadingTab={loadingTab}
               arc={currentArc}
+              arcLoaded={currentArcCache != null}
+              arcLoadError={currentArcLoadError}
               voice={currentVoice}
+              voiceLoaded={currentVoiceCache != null}
+              voiceLoadError={currentVoiceLoadError}
               conflicts={currentConflicts}
               character={character}
               initialManageSection={initialTab === "manage" ? "event" : undefined}

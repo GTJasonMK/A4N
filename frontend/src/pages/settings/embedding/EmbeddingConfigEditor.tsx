@@ -23,6 +23,7 @@ interface EmbeddingConfigEditorProps {
   form: EmbeddingForm;
   providers: EmbeddingProviderDescriptor[];
   localModels: LocalEmbeddingModel[];
+  modelsLoading?: boolean;
   busyModel: string | null;
   readonly?: boolean;
   setForm: (form: EmbeddingForm) => void;
@@ -38,6 +39,7 @@ export const EmbeddingConfigEditor: React.FC<EmbeddingConfigEditorProps> = ({
   form,
   providers,
   localModels,
+  modelsLoading = false,
   busyModel,
   readonly = false,
   setForm,
@@ -122,7 +124,7 @@ export const EmbeddingConfigEditor: React.FC<EmbeddingConfigEditorProps> = ({
                 });
               }}
               className="pyqt-input w-full"
-              disabled={readonly}
+              disabled={readonly || modelsLoading}
             >
               {localModels.length === 0 ? (
                 <option value={form.model}>{form.model}</option>
@@ -156,6 +158,7 @@ export const EmbeddingConfigEditor: React.FC<EmbeddingConfigEditorProps> = ({
           model={resolveLocalModel(form.model)}
           downloadInfo={resolveDownloadInfo(form.model)}
           modelName={form.model}
+          modelLoading={modelsLoading}
           busy={busyModel === form.model}
           modelHostLabel={modelHostLabel}
           onDownload={() => void onDownloadModel(form.model)}

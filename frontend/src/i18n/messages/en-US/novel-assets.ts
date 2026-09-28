@@ -192,6 +192,8 @@ export const novelAssets = {
     author: "Author",
     authorPlaceholder: "Enter author name",
     exporting: "Exporting {format}…",
+    navigationBlockedTitle: "Export is still in progress",
+    navigationBlocked: "The export files are being created and downloaded. Wait for the export to finish before leaving this page.",
     download: "Download {format}",
     structuredData: "Structured data",
     structuredDataHint: "Outline and character JSON",

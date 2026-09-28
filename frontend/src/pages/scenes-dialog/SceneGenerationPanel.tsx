@@ -6,9 +6,11 @@ import { Dropdown } from "../../components/ui/Dropdown";
 import { useI18n } from "../../i18n";
 
 interface SceneGenerationPanelProps {
-  nextSceneNumber: number;
+  nextSceneNumber: number | null;
   prompt: string;
   generating: boolean;
+  canGenerate: boolean;
+  hasUnsavedSceneChanges: boolean;
   previewing: boolean;
   aiActionBlockedReason: string | null;
   onPromptChange: (prompt: string) => void;
@@ -20,6 +22,8 @@ export const SceneGenerationPanel: React.FC<SceneGenerationPanelProps> = ({
   nextSceneNumber,
   prompt,
   generating,
+  canGenerate,
+  hasUnsavedSceneChanges,
   previewing,
   aiActionBlockedReason,
   onPromptChange,
@@ -32,11 +36,18 @@ export const SceneGenerationPanel: React.FC<SceneGenerationPanelProps> = ({
     <label className="mb-1 block text-xs font-medium text-book-text-main" htmlFor="scene-generation-prompt">
       {t("scenes.generateNext")}
     </label>
-    <div className="mb-2 text-small text-book-text-muted">
-      {t("scenes.generateHint", { number: nextSceneNumber })}
-    </div>
+    {nextSceneNumber != null ? (
+      <div className="mb-2 text-small text-book-text-muted">
+        {t("scenes.generateHint", { number: nextSceneNumber })}
+      </div>
+    ) : null}
     {aiActionBlockedReason ? (
       <p className="mb-2 text-small leading-relaxed text-error">{aiActionBlockedReason}</p>
+    ) : null}
+    {hasUnsavedSceneChanges ? (
+      <p role="status" className="mb-2 text-small leading-relaxed text-book-text-muted">
+        {t("scenes.saveBeforeGenerate")}
+      </p>
     ) : null}
     <textarea
       id="scene-generation-prompt"
@@ -58,7 +69,7 @@ export const SceneGenerationPanel: React.FC<SceneGenerationPanelProps> = ({
             {
               label: t("scenes.viewModelRequest"),
               icon: <Eye size={12} />,
-              disabled: generating || aiActionBlockedReason != null,
+              disabled: !canGenerate || generating || aiActionBlockedReason != null,
               onClick: onPreviewRequest,
             },
           ]}
@@ -68,7 +79,7 @@ export const SceneGenerationPanel: React.FC<SceneGenerationPanelProps> = ({
         variant="primary"
         size="sm"
         onClick={onGenerate}
-        disabled={generating || aiActionBlockedReason != null}
+        disabled={!canGenerate || generating || aiActionBlockedReason != null}
         className="!min-h-8 !text-xs"
       >
         {generating ? (

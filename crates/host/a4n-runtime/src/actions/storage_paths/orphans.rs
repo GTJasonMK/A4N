@@ -24,18 +24,21 @@ pub async fn list_orphan_project_data_dirs(
 pub async fn cleanup_orphan_project_data_dirs(
     state: &AppState,
     caller_user_id: i64,
+    project_ids: &[i64],
 ) -> Result<OrphanProjectDataDirsSummary, String> {
     require_admin_permission(state, caller_user_id, AdminPermission::ManageSettings)
         .await
         .map_err(|error| error.to_string())?;
-    remove_unowned_project_data_dirs(state).await
+    remove_unowned_project_data_dirs(state, project_ids).await
 }
 
 async fn remove_unowned_project_data_dirs(
     state: &AppState,
+    project_ids: &[i64],
 ) -> Result<OrphanProjectDataDirsSummary, String> {
     let protected_project_ids = protected_project_ids(state).await?;
-    let summary = scanning::orphan_project_data_dirs(state.data_dir(), &protected_project_ids)?;
+    let current = scanning::orphan_project_data_dirs(state.data_dir(), &protected_project_ids)?;
+    let summary = scanning::confirmed_orphan_project_data_dirs(project_ids, &current)?;
     for item in &summary.items {
         if state
             .project_read_application()

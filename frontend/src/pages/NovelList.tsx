@@ -107,6 +107,8 @@ export const NovelList: React.FC<NovelListProps> = () => {
     PROJECT_KIND_FILTERS,
   );
   const [pendingInvites, setPendingInvites] = useState<ProjectInvite[]>([]);
+  const [pendingInvitesLoading, setPendingInvitesLoading] = useState(true);
+  const [pendingInvitesError, setPendingInvitesError] = useState<string | null>(null);
   const [tab, setTab] = usePersistedTab<ProjectTab>(
     "a4n:home:project-tab",
     "recent",
@@ -203,16 +205,22 @@ export const NovelList: React.FC<NovelListProps> = () => {
   const loadPendingInvites = async (): Promise<boolean> => {
     const requestSeq = inviteSeqRef.current + 1;
     inviteSeqRef.current = requestSeq;
+    setPendingInvitesLoading(true);
     try {
       const invites = await listMyProjectInvites();
       if (!mountedRef.current || inviteSeqRef.current !== requestSeq) return false;
       setPendingInvites(invites);
+      setPendingInvitesError(null);
       return true;
     } catch (err) {
       if (mountedRef.current && inviteSeqRef.current === requestSeq) {
-        addToast(extractErrorMessage(err, t("novel.projectLoadFailed")), "error");
+        const message = extractErrorMessage(err, t("novel.projectLoadFailed"));
+        setPendingInvitesError(message);
+        addToast(message, "error");
       }
       return false;
+    } finally {
+      if (mountedRef.current && inviteSeqRef.current === requestSeq) setPendingInvitesLoading(false);
     }
   };
 
@@ -741,6 +749,8 @@ export const NovelList: React.FC<NovelListProps> = () => {
           accessScope={accessScope}
           projectKindFilter={projectKindFilter}
           pendingInvites={pendingInvites}
+          pendingInvitesLoading={pendingInvitesLoading}
+          pendingInvitesError={pendingInvitesError}
           inviteActionIds={inviteActionIds}
           onTabChange={handleTabChange}
           onCreateProject={() => setCreateDialogOpen(true)}

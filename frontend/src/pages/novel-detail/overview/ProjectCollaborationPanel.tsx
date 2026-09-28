@@ -22,7 +22,7 @@ import { BookButton } from "../../../components/ui/BookButton";
 import { Dropdown } from "../../../components/ui/Dropdown";
 import { getProjectAccessRoleLabel } from "../../../utils/projectRouting";
 import { useI18n } from "../../../i18n";
-import { useNovelDetailDirty } from "../novelDetailDirty";
+import { useNovelDetailDirty, useNovelDetailDirtyRegistry } from "../novelDetailDirty";
 
 interface ProjectCollaborationPanelProps {
   project: NovelProject;
@@ -36,6 +36,7 @@ export const ProjectCollaborationPanel: React.FC<ProjectCollaborationPanelProps>
   const { addToast } = useToast();
   const { t } = useI18n();
   const navigate = useNavigate();
+  const dirtyRegistry = useNovelDetailDirtyRegistry();
   const memberRoleOptions: Array<{ value: ProjectMemberRole; label: string }> = [
     { value: "manager", label: t("novel.managerRole") },
     { value: "editor", label: t("novel.editorRole") },
@@ -43,9 +44,11 @@ export const ProjectCollaborationPanel: React.FC<ProjectCollaborationPanelProps>
   ];
   const [members, setMembers] = useState<ProjectMember[]>([]);
   const [invites, setInvites] = useState<ProjectInvite[]>([]);
+  const [membersLoadError, setMembersLoadError] = useState<string | null>(null);
+  const [invitesLoadError, setInvitesLoadError] = useState<string | null>(null);
   const [identity, setIdentity] = useState("");
   const [role, setRole] = useState<ProjectMemberRole>("editor");
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [busyActionKeys, setBusyActionKeys] = useState<ReadonlySet<string>>(new Set());
   const loadSeqRef = useRef(0);
@@ -56,7 +59,8 @@ export const ProjectCollaborationPanel: React.FC<ProjectCollaborationPanelProps>
   const canManage = project.my_role === "owner" || project.my_role === "manager";
   const canLeave = project.my_role !== "owner";
   const rootProjectId = project.collaboration_root_project_id;
-  useNovelDetailDirty(`collaboration:${project.id}`, Boolean(identity.trim()));
+  const dirtyKey = `collaboration:${project.id}`;
+  useNovelDetailDirty(dirtyKey, Boolean(identity.trim()));
 
   const load = useCallback(async (): Promise<boolean> => {
     const requestSeq = loadSeqRef.current + 1;
@@ -69,11 +73,22 @@ export const ProjectCollaborationPanel: React.FC<ProjectCollaborationPanelProps>
       ]);
       if (!mountedRef.current || loadSeqRef.current !== requestSeq) return false;
       const errors: string[] = [];
-      if (membersResult.status === "fulfilled") setMembers(membersResult.value);
-      else errors.push(extractErrorMessage(membersResult.reason, t("novel.collaborationActions.membersLoadFailed")));
-      if (invitesResult.status === "fulfilled") setInvites(invitesResult.value);
-      else errors.push(extractErrorMessage(invitesResult.reason, t("novel.collaborationActions.invitesLoadFailed")));
-      errors.forEach((message) => addToast(message, "error"));
+      if (membersResult.status === "fulfilled") {
+        setMembers(membersResult.value);
+        setMembersLoadError(null);
+      } else {
+        const message = extractErrorMessage(membersResult.reason, t("novel.collaborationActions.membersLoadFailed"));
+        setMembersLoadError(message);
+        errors.push(message);
+      }
+      if (invitesResult.status === "fulfilled") {
+        setInvites(invitesResult.value);
+        setInvitesLoadError(null);
+      } else {
+        const message = extractErrorMessage(invitesResult.reason, t("novel.collaborationActions.invitesLoadFailed"));
+        setInvitesLoadError(message);
+        errors.push(message);
+      }
       return errors.length === 0;
     } finally {
       if (mountedRef.current && loadSeqRef.current === requestSeq) {
@@ -211,6 +226,8 @@ export const ProjectCollaborationPanel: React.FC<ProjectCollaborationPanelProps>
     try {
       await leaveProject(rootProjectId);
       if (!mountedRef.current) return;
+      dirtyRegistry.set(dirtyKey, false);
+      setIdentity("");
       addToast(t("novel.collaborationActions.left"), "success");
       navigate("/", { replace: true });
     } catch (err) {
@@ -225,9 +242,11 @@ export const ProjectCollaborationPanel: React.FC<ProjectCollaborationPanelProps>
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between gap-2">
-        <p className="text-small leading-relaxed text-book-text-muted">
-          {loading ? t("novel.collaborationActions.loading") : t("novel.collaborationActions.memberCount", { count: members.length })}
-        </p>
+        {loading || !membersLoadError || members.length > 0 ? (
+          <p className="text-small leading-relaxed text-book-text-muted">
+            {loading ? t("novel.collaborationActions.loading") : t("novel.collaborationActions.memberCount", { count: members.length })}
+          </p>
+        ) : null}
         {canLeave ? (
           <Dropdown
             items={[
@@ -241,6 +260,8 @@ export const ProjectCollaborationPanel: React.FC<ProjectCollaborationPanelProps>
           />
         ) : null}
       </div>
+      {membersLoadError ? <p role="alert" className="text-small text-error">{membersLoadError}</p> : null}
+      {canManage && invitesLoadError ? <p role="alert" className="text-small text-error">{invitesLoadError}</p> : null}
 
       {canManage && (
         <div className="mb-3 grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 sm:grid-cols-[minmax(220px,1fr)_7rem_auto]">

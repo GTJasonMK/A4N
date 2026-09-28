@@ -29,12 +29,13 @@ export const GenerationCallAnalyticsPanel: React.FC = () => {
   const user = useAuthStore((state) => state.user);
   const [days, setDays] = useState(30);
   const [data, setData] = useState<GenerationCallAnalytics | null>(null);
+  const [dataKey, setDataKey] = useState<string | null>(null);
   const [loadedKey, setLoadedKey] = useState<string | null>(null);
   const [errorState, setErrorState] = useState<{
     key: string;
     message: string;
   } | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const mountedRef = useRef(true);
   const requestSeqRef = useRef(0);
   const refreshInFlightKeyRef = useRef<string | null>(null);
@@ -55,6 +56,7 @@ export const GenerationCallAnalyticsPanel: React.FC = () => {
     if (!canReadDiagnostics || callerUserId == null) {
       refreshInFlightKeyRef.current = null;
       setData(null);
+      setDataKey(null);
       setLoadedKey(null);
       setErrorState(null);
       setLoading(false);
@@ -74,12 +76,12 @@ export const GenerationCallAnalyticsPanel: React.FC = () => {
       });
       if (!mountedRef.current || requestSeqRef.current !== requestSeq) return;
       setData(result);
+      setDataKey(requestKey);
       setLoadedKey(requestKey);
       setErrorState(null);
     } catch (err) {
       if (!mountedRef.current || requestSeqRef.current !== requestSeq) return;
       const message = extractErrorMessage(err, t("settingsLogs.analyticsLoadFailed"));
-      setData(null);
       setLoadedKey(requestKey);
       setErrorState({ key: requestKey, message });
       logger
@@ -102,10 +104,10 @@ export const GenerationCallAnalyticsPanel: React.FC = () => {
     void refresh();
   }, [refresh]);
 
-  const displayData = loadedKey === activeKey ? data : null;
-  const displayLoading = loading && loadedKey !== activeKey;
+  const displayData = dataKey === activeKey ? data : null;
   const displayError =
     errorState?.key === activeKey ? errorState.message : null;
+  const displayLoading = loadedKey !== activeKey && displayError == null;
   const displayFailed = displayError != null && displayData == null;
 
   const overviewByKind = useMemo(() => {

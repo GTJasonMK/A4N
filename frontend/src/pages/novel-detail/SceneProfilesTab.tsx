@@ -105,6 +105,7 @@ export const SceneProfilesTab: React.FC<{
     profiles,
     profilesRef,
     loading,
+    loadError,
     busyId,
     setBusyId,
     detailFor,
@@ -420,7 +421,7 @@ export const SceneProfilesTab: React.FC<{
     }
   };
 
-  if (loading) {
+  if (loading && profiles.length === 0) {
     return (
       <div className="flex items-center gap-2 text-xs text-book-text-muted">
         <LoadingSpinner size="sm" /> {t("common.loading")}
@@ -473,7 +474,8 @@ export const SceneProfilesTab: React.FC<{
           </div>
         </header>
 
-        {profiles.length === 0 ? (
+        {loadError ? <p role="alert" className="mb-3 text-small text-error">{loadError}</p> : null}
+        {profiles.length === 0 && loadError ? null : profiles.length === 0 ? (
           <div className="a4n-flat-surface p-3">
             <EmptyHint text={t("novel.profile.noSceneProfiles")} />
           </div>

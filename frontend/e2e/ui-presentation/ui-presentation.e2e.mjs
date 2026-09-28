@@ -39,6 +39,92 @@ const finishAgentSend = (error = null) => browser.execute((errorMessage) => {
 }, error);
 const agentMessageCount = () => browser.execute(() => window.__uiAudit.agentMessages.length);
 const selectAgentThread = (title) => $(`//button[contains(@class,"a4n-sidebar-item") and .//span[text()="${title}"]]`).click();
+const promptCategories = [
+  { key: "writing", label: "写作", description: "写作相关提示词", order: 1 },
+  { key: "media", label: "素材", description: "素材相关提示词", order: 2 },
+];
+const storyPrompt = (content, isModified = false, version = "1") => ({
+  name: "story_prompt", title: "写作提示词", description: "写作流程", category: "writing",
+  content, dependencies: [], is_modified: isModified,
+  path: "prompts/writing/story.md", tags: [], used_by: [], version,
+});
+const imagePrompt = () => ({
+  name: "image_prompt", title: "画面提示词", description: "画面生成", category: "media",
+  content: "保持画面构图稳定。", dependencies: [], is_modified: false,
+  path: "prompts/media/image.md", tags: [], used_by: [], version: "1",
+});
+const openSettingsWithFixtures = async (tab, overrides = {}) => {
+  await installUiFixtures(browser, overrides);
+  await browser.url(`/settings#${tab}`);
+  await $(".a4n-settings-layout").waitForDisplayed();
+};
+const openStatusPanel = async () => {
+  const panel = $("#a4n-status-bar-panel");
+  if (!(await panel.isDisplayed())) {
+    await browser.execute(() => document.querySelector(".a4n-status-bar-orb")?.click());
+  }
+  await panel.waitForDisplayed();
+};
+const closeStatusPanel = async () => {
+  const panel = $("#a4n-status-bar-panel");
+  await browser.execute(() => document.querySelector("#a4n-status-bar-panel")?.focus());
+  await browser.keys("Escape");
+  await panel.waitForExist({ reverse: true });
+};
+const switchToEnglish = async () => {
+  await openStatusPanel();
+  await browser.execute(() => document.querySelector('button[aria-label="界面语言"]')?.click());
+  await $('[role="menu"]').waitForDisplayed();
+  await browser.execute(() => [...document.querySelectorAll('[role="menuitem"]')]
+    .find((item) => item.textContent?.trim() === "English")?.click());
+  await button("Interface language").waitForDisplayed();
+  await closeStatusPanel();
+};
+const switchToChinese = async () => {
+  await openStatusPanel();
+  await browser.execute(() => document.querySelector('button[aria-label="Interface language"]')?.click());
+  await $('[role="menu"]').waitForDisplayed();
+  await browser.execute(() => [...document.querySelectorAll('[role="menuitem"]')]
+    .find((item) => item.textContent?.trim() === "简体中文")?.click());
+  await button("界面语言").waitForDisplayed();
+  await closeStatusPanel();
+};
+const settleUi = () => browser.executeAsync((done) => requestAnimationFrame(() => requestAnimationFrame(done)));
+const deferUiCommand = (command) => browser.execute((name) => {
+  window.__uiAudit.deferred.push(name);
+}, command);
+const waitForUiCommand = (command) => browser.waitUntil(async () => browser.execute((name) => (
+  window.__uiAudit.pending.some((pending) => pending.command === name)
+), command));
+const resolveUiCommand = (command, value) => browser.execute((name, result) => {
+  const index = window.__uiAudit.pending.findIndex((pending) => pending.command === name);
+  if (index < 0) throw new Error(`No deferred UI command: ${name}`);
+  const [pending] = window.__uiAudit.pending.splice(index, 1);
+  pending.resolve(Response.json(result));
+}, command, value);
+const setPromptSnapshot = (prompts, categories = promptCategories) => browser.execute((items, nextCategories) => {
+  window.__uiAudit.fixtures.prompt_list = items;
+  window.__uiAudit.fixtures.prompt_list_categories = nextCategories;
+}, prompts, categories);
+const openPromptMenuItem = async (menuIndex, label) => {
+  const triggers = await $$("section.a4n-settings-content button[aria-label='更多操作']");
+  assert.ok(triggers.length > menuIndex, `Missing prompt action menu ${menuIndex}`);
+  await triggers[menuIndex].click();
+  const item = await $(`//div[@role="menu"]//button[normalize-space()="${label}"]`);
+  await item.waitForDisplayed();
+  return item;
+};
+const beginPromptReset = async () => {
+  await deferUiCommand("prompt_reset");
+  await (await openPromptMenuItem(1, "恢复默认内容")).click();
+  await $('//button[normalize-space()="重置"]').click();
+  await waitForUiCommand("prompt_reset");
+  assert.equal(await $("section.a4n-settings-content ul button").isEnabled(), false);
+  assert.equal(await $('//button[contains(@class,"pyqt-tab") and normalize-space()="素材"]').isEnabled(), false);
+};
+const settingsDraftIsDirty = () => browser.execute(() => (
+  document.querySelector('[data-settings-dirty="true"]') != null
+));
 
 describe("UI presentation and workspace continuity", () => {
   before(async () => installUiFixtures(browser));
@@ -413,6 +499,192 @@ describe("UI presentation and workspace continuity", () => {
       return active.join() === "素材" && (await $("textarea").getValue()) === "保持画面构图稳定。";
     });
     assert.equal(await $("textarea").getValue(), "保持画面构图稳定。");
+  });
+
+  it("keeps Agent skill edits when the global interface language changes", async () => {
+    await openSettingsWithFixtures("agent", {
+      list_agent_skills: {
+        profiles: [{
+          capability: "main",
+          skills: [{
+            capabilities: ["main"], content_hash: "fixture-hash", description: "Test skill",
+            enabled: true, id: "fixture-skill", name: "Fixture skill", source: "builtin", version: "1",
+          }],
+        }],
+      },
+    });
+    const skill = await $("input[type='checkbox']");
+    await skill.waitForDisplayed();
+    assert.equal(await skill.isSelected(), true);
+    await skill.click();
+    assert.equal(await skill.isSelected(), false);
+    await browser.pause(100);
+    const initialReads = await browser.execute(() => window.__uiAudit.commands.filter((cmd) => cmd === "list_agent_skills").length);
+
+    await switchToEnglish();
+    await $('//h2[normalize-space()="Agent skills"]').waitForDisplayed();
+    assert.equal(await $("input[type='checkbox']").isSelected(), false);
+
+    await deferUiCommand("update_agent_skill_configuration");
+    await $('//button[normalize-space()="Save"]').click();
+    await waitForUiCommand("update_agent_skill_configuration");
+    await switchToChinese();
+    await resolveUiCommand("update_agent_skill_configuration", {
+      capability: "main",
+      skills: [{
+        capabilities: ["main"], content_hash: "fixture-hash", description: "Test skill",
+        enabled: false, id: "fixture-skill", name: "Fixture skill", source: "builtin", version: "1",
+      }],
+    });
+    await browser.waitUntil(async () => !(await settingsDraftIsDirty()));
+    assert.equal(await $("input[type='checkbox']").isSelected(), false);
+    assert.equal(await browser.execute(() => window.__uiAudit.commands.filter((cmd) => cmd === "list_agent_skills").length), initialReads);
+  });
+
+  it("keeps web search settings drafts when the global interface language changes", async () => {
+    await openSettingsWithFixtures("web-search");
+    const provider = $("#web-tools-settings-form input[autocomplete='off']");
+    await provider.waitForDisplayed();
+    await replaceInput(provider, "draft-provider");
+
+    await switchToEnglish();
+    await $('//h2[normalize-space()="Web search"]').waitForDisplayed();
+    await settleUi();
+    assert.equal(await $("#web-tools-settings-form input[autocomplete='off']").getValue(), "draft-provider");
+  });
+
+  it("shows a persistent retry state when local web settings cannot be read", async () => {
+    await installUiFixtures(browser);
+    await browser.execute(() => localStorage.setItem("a4n:local-runtime-settings:v1", "{"));
+    await browser.url("/settings#web-search");
+
+    const alert = await $("section.a4n-settings-content [role='alert']");
+    await alert.waitForDisplayed();
+    assert.notEqual((await alert.getText()).trim(), "");
+    assert.equal(await $("#web-tools-settings-form input").isExisting(), false);
+    assert.equal(await alert.$("button").getText(), "重试");
+    await browser.execute(() => localStorage.removeItem("a4n:local-runtime-settings:v1"));
+  });
+
+  it("uses the saved prompt response as the baseline and locks competing prompt actions", async () => {
+    const original = "服务器已保存内容";
+    const submitted = "本次提交内容";
+    const savedPrompt = storyPrompt(submitted, true, "4");
+    await openSettingsWithFixtures("prompt", {
+      prompt_list: [storyPrompt(original, true, "3")],
+      prompt_list_categories: promptCategories,
+    });
+    const editor = $("textarea");
+    await editor.waitForDisplayed();
+    await replaceInput(editor, submitted);
+    await deferUiCommand("prompt_update");
+    await $('//button[normalize-space()="保存"]').click();
+    await waitForUiCommand("prompt_update");
+
+    assert.equal(await editor.isEnabled(), true, "later edits stay available while the submitted save is pending");
+    assert.equal(await $('//button[contains(@class,"pyqt-tab") and normalize-space()="素材"]').isEnabled(), false);
+    assert.equal(await $("section.a4n-settings-content ul button").isEnabled(), false);
+    assert.equal(await $("section.a4n-settings-content button[aria-label='刷新提示词']").isEnabled(), false);
+    await browser.setWindowSize(390, 900);
+    assert.equal(await $("section.a4n-settings-content button[aria-haspopup='dialog']").isEnabled(), false);
+    await browser.setWindowSize(1440, 900);
+
+    const toolbarDefaults = await openPromptMenuItem(0, "载入默认模板");
+    assert.equal(await toolbarDefaults.getAttribute("aria-disabled"), "true");
+    const beforeDisabledClick = (await commands()).filter((cmd) => cmd === "prompt_load_defaults").length;
+    await toolbarDefaults.click();
+    assert.equal((await commands()).filter((cmd) => cmd === "prompt_load_defaults").length, beforeDisabledClick);
+    await browser.keys("Escape");
+
+    const toolbarTrigger = (await $$("section.a4n-settings-content button[aria-label='更多操作']"))[0];
+    await toolbarTrigger.execute((element) => element.focus());
+    await browser.keys("Enter");
+    await $("[role='menu']").waitForDisplayed();
+    await browser.keys("Enter");
+    assert.equal((await commands()).filter((cmd) => cmd === "prompt_load_defaults").length, beforeDisabledClick);
+    await browser.keys("Escape");
+
+    const editorReset = await openPromptMenuItem(1, "恢复默认内容");
+    assert.equal(await editorReset.getAttribute("aria-disabled"), "true");
+    const beforeResetClick = (await commands()).filter((cmd) => cmd === "prompt_reset").length;
+    await editorReset.click();
+    assert.equal((await commands()).filter((cmd) => cmd === "prompt_reset").length, beforeResetClick);
+    await browser.keys("Escape");
+
+    const olderContent = original;
+    await replaceInput(editor, olderContent);
+    await resolveUiCommand("prompt_update", savedPrompt);
+    await browser.waitUntil(async () => settingsDraftIsDirty());
+    assert.equal(await editor.getValue(), olderContent);
+
+    await replaceInput(editor, submitted);
+    await browser.waitUntil(async () => !(await settingsDraftIsDirty()));
+  });
+
+  it("synchronizes a prompt reset even when the editor already has a draft", async () => {
+    await openSettingsWithFixtures("prompt", {
+      prompt_list: [storyPrompt("服务器自定义内容", true, "2")],
+      prompt_list_categories: promptCategories,
+    });
+    const editor = $("textarea");
+    await editor.waitForDisplayed();
+    await replaceInput(editor, "重置前的本地草稿");
+    await beginPromptReset();
+
+    await setPromptSnapshot([storyPrompt("默认提示词内容", false, "1")]);
+    await resolveUiCommand("prompt_reset", null);
+    await browser.waitUntil(async () => (await editor.getValue()) === "默认提示词内容");
+    assert.equal(await settingsDraftIsDirty(), false);
+  });
+
+  it("keeps edits made during prompt reset against the refreshed server baseline", async () => {
+    await openSettingsWithFixtures("prompt", {
+      prompt_list: [storyPrompt("服务器自定义内容", true, "2")],
+      prompt_list_categories: promptCategories,
+    });
+    const editor = $("textarea");
+    await editor.waitForDisplayed();
+    await beginPromptReset();
+    const laterDraft = "重置期间继续编辑";
+    await replaceInput(editor, laterDraft);
+
+    await setPromptSnapshot([storyPrompt("默认提示词内容", false, "1")]);
+    await resolveUiCommand("prompt_reset", null);
+    await browser.waitUntil(async () => (await editor.getValue()) === laterDraft && await settingsDraftIsDirty());
+
+    await replaceInput(editor, "默认提示词内容");
+    await browser.waitUntil(async () => !(await settingsDraftIsDirty()));
+  });
+
+  it("refreshes newly loaded defaults without replacing a concurrent prompt draft", async () => {
+    await openSettingsWithFixtures("prompt", {
+      prompt_list: [storyPrompt("当前写作内容")],
+      prompt_list_categories: promptCategories.slice(0, 1),
+    });
+    await deferUiCommand("prompt_load_defaults");
+    await (await openPromptMenuItem(0, "载入默认模板")).click();
+    await $('//button[normalize-space()="重新载入"]').click();
+    await waitForUiCommand("prompt_load_defaults");
+
+    const editor = $("textarea");
+    assert.equal(await editor.isEnabled(), true);
+    assert.equal(await $("section.a4n-settings-content ul button").isEnabled(), false);
+    assert.equal(await $("section.a4n-settings-content button[aria-label='刷新提示词']").isEnabled(), false);
+    const laterDraft = "默认模板载入期间的写作草稿";
+    await replaceInput(editor, laterDraft);
+    const addedPrompt = {
+      ...imagePrompt(), name: "outline_prompt", title: "缺失的默认模板", category: "outline",
+      path: "prompts/writing/outline.md",
+    };
+    await setPromptSnapshot(
+      [storyPrompt("当前写作内容"), imagePrompt(), addedPrompt],
+      [...promptCategories, { key: "outline", label: "大纲", description: "大纲提示词", order: 3 }],
+    );
+    await resolveUiCommand("prompt_load_defaults", 2);
+
+    await $('//button[.//div[normalize-space()="缺失的默认模板"]]').waitForDisplayed();
+    assert.equal(await editor.getValue(), laterDraft);
+    assert.equal(await settingsDraftIsDirty(), true);
   });
 
   it("keeps unsent Agent drafts with their thread", async () => {

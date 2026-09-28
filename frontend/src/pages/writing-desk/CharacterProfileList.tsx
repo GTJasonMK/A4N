@@ -11,6 +11,7 @@ export const CharacterProfileList: React.FC<{
   profiles: CharacterProfile[];
   selectedId: number | null;
   loading: boolean;
+  loadError: string | null;
   discovering: boolean;
   syncingAll: boolean;
   canSyncAll: boolean;
@@ -26,6 +27,7 @@ export const CharacterProfileList: React.FC<{
   profiles,
   selectedId,
   loading,
+  loadError,
   discovering,
   syncingAll,
   canSyncAll,
@@ -43,7 +45,13 @@ export const CharacterProfileList: React.FC<{
   <aside className="flex min-h-0 min-w-0 flex-col border-b border-book-border bg-book-bg-paper/45 p-3 md:border-b-0 md:border-r">
     <div className="mb-3 flex items-center gap-2">
       <p className="min-w-0 flex-1 text-small text-book-text-muted">
-        {profiles.length > 0 ? t("characterDetail.profileCount", { count: profiles.length }) : t("characterDetail.noProfiles")}
+        {profiles.length > 0
+          ? t("characterDetail.profileCount", { count: profiles.length })
+          : loading
+            ? t("characterDetail.loadingProfiles")
+            : loadError
+              ? ""
+              : t("characterDetail.noProfiles")}
       </p>
       <Dropdown
         items={[
@@ -118,12 +126,13 @@ export const CharacterProfileList: React.FC<{
     {aiActionBlockedReason ? (
       <p className="mb-3 text-caption leading-relaxed text-error">{aiActionBlockedReason}</p>
     ) : null}
+    {loadError ? <p role="alert" className="mb-3 text-small text-error">{loadError}</p> : null}
 
     {loading && profiles.length === 0 ? (
       <div className="flex items-center gap-2 text-xs text-book-text-muted">
         <LoadingSpinner size="sm" /> {t("characterDetail.loadingProfiles")}
       </div>
-    ) : profiles.length === 0 ? (
+    ) : profiles.length === 0 && loadError ? null : profiles.length === 0 ? (
       <div className="flex flex-col items-center gap-3 py-6 text-center">
         <p className="text-xs text-book-text-muted">{t("characterDetail.createFirstProfileHint")}</p>
         <BookButton variant="secondary" size="sm" onClick={onCreate}>

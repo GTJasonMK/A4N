@@ -4,7 +4,6 @@ import { getModelUsageReport, type ModelUsageReport } from "../../api/modelUsage
 import { extractErrorMessage } from "../../api";
 import { BookIconButton } from "../../components/ui/BookButton";
 import { LoadingSpinner } from "../../components/ui/LoadingSpinner";
-import { useToast } from "../../components/feedback/Toast";
 import { formatDateTime, formatNumber, useI18n, type MessageKey } from "../../i18n";
 import { getOperationStatusLabel } from "../../utils/workflowPresentation";
 
@@ -19,7 +18,6 @@ const CAPABILITY_LABELS: Record<string, MessageKey> = {
 
 export const ModelUsageCostPanel: React.FC<{ projectId: number | null }> = ({ projectId }) => {
   const { t, locale } = useI18n();
-  const { addToast } = useToast();
   const [result, setResult] = useState<{ projectId: number | null; report: ModelUsageReport } | null>(null);
   const report = result?.projectId === projectId ? result.report : null;
   const [loading, setLoading] = useState(true);
@@ -37,7 +35,6 @@ export const ModelUsageCostPanel: React.FC<{ projectId: number | null }> = ({ pr
       if (request !== requestRef.current) return;
       const message = extractErrorMessage(error, t("novel.costLoadFailed"));
       setLoadError(message);
-      addToast(message, "error");
     } finally {
       if (request === requestRef.current) setLoading(false);
     }

@@ -982,6 +982,17 @@ describe("Settings detail pages and complete dialog workflows", function () {
     const paths = await section("存储位置");
     await click(await paths.$("summary"), "查看全部存储位置");
     await capture("storage-locations", { anchor: 'section[aria-label="存储位置"]' });
+    await setFixtures({
+      get_storage_paths: { ...seed.invoke.get_storage_paths, qdrant_url: "" },
+    });
+    await click(await paths.$('button[aria-label="刷新路径"]'), "刷新未配置 Qdrant 的存储路径");
+    await browser.waitUntil(async () => (await paths.getText()).includes("未配置 A4N_QDRANT_URL"));
+    const qdrantHasCopyButton = await browser.execute(() => {
+      const label = [...document.querySelectorAll("span")]
+        .find((element) => element.textContent?.trim() === "RAG 索引 (Qdrant URL)");
+      return Boolean(label?.parentElement?.querySelector("button"));
+    });
+    assert.equal(qdrantHasCopyButton, false);
     const cleanup = await section("存储清理");
     await setFixtures({ list_orphan_project_data_dirs: seed.variants.orphanScan });
     await click(await cleanup.$("button=扫描"), "扫描独立的孤立目录测试场景");
@@ -991,23 +1002,104 @@ describe("Settings detail pages and complete dialog workflows", function () {
     await openMenu(cleanup);
     await click(await menuItem("清理孤儿项目目录"), "打开清理确认");
     await dialog("清理孤儿项目目录").waitForDisplayed();
+    assert((await dialog("清理孤儿项目目录").getText()).includes("项目编号：1"));
+    assert.equal(await cleanup.$('button[aria-haspopup="menu"]').isExisting(), false);
     await capture("orphan-cleanup-confirmation", {
       anchor: '//div[@role="dialog"][.//h3[normalize-space()="清理孤儿项目目录"]]',
     });
     await click(await dialog("清理孤儿项目目录").$('button=取消'), "先取消清理");
     await dialog("清理孤儿项目目录").waitForExist({ reverse: true });
     assert.equal(await browser.execute(() => window.__uiAudit.requests.some((item) => item.command === "cleanup_orphan_project_data_dirs")), false);
+    await defer("list_orphan_project_data_dirs");
+    await click(await cleanup.$("button=扫描"), "重新扫描并等待结果");
+    await pending("list_orphan_project_data_dirs");
+    assert.equal(await cleanup.$('button[aria-haspopup="menu"]').isExisting(), false);
+    await respond("list_orphan_project_data_dirs", {
+      code: "unavailable",
+      message: "模拟扫描失败，请重新扫描。",
+      retryable: true,
+      trace_id: "ui-orphan-scan-failure",
+      details: {},
+    }, { status: 503 });
+    await browser.execute((command) => {
+      const index = window.__uiAudit.deferred.indexOf(command);
+      if (index >= 0) window.__uiAudit.deferred.splice(index, 1);
+    }, "list_orphan_project_data_dirs");
+    await cleanup.$('[role="alert"]').waitForDisplayed();
+    assert.equal(await cleanup.$('button[aria-haspopup="menu"]').isExisting(), false);
+    await capture("orphan-scan-failed", { anchor: 'section[aria-label="存储清理"]' });
+    await defer("list_orphan_project_data_dirs");
+    await click(await cleanup.$("button=扫描"), "重新扫描孤儿目录");
+    await pending("list_orphan_project_data_dirs");
+    assert.equal((await cleanup.getText()).includes("1 个目录"), false);
+    assert.equal(await cleanup.$('button[aria-haspopup="menu"]').isExisting(), false);
+    await respond("list_orphan_project_data_dirs", seed.variants.orphanScan);
+    await browser.execute((command) => {
+      const index = window.__uiAudit.deferred.indexOf(command);
+      if (index >= 0) window.__uiAudit.deferred.splice(index, 1);
+    }, "list_orphan_project_data_dirs");
+    await browser.waitUntil(async () => (await cleanup.getText()).includes("1 个目录"));
+    await cleanup.$('[role="alert"]').waitForExist({ reverse: true });
+    await capture("orphan-rescan-recovered", { anchor: 'section[aria-label="存储清理"]' });
     await defer("cleanup_orphan_project_data_dirs");
     await openMenu(cleanup);
     await click(await menuItem("清理孤儿项目目录"), "重新请求清理");
     await dialog("清理孤儿项目目录").waitForDisplayed();
     await click(await dialog("清理孤儿项目目录").$('button=删除'), "确认清理模拟目录");
-    await pending("cleanup_orphan_project_data_dirs");
+    const cleanupRequest = await pending("cleanup_orphan_project_data_dirs");
+    assert.deepEqual(cleanupRequest.input.project_ids, [1]);
     await respond("cleanup_orphan_project_data_dirs", seed.variants.orphanScan, {
       fixtures: { list_orphan_project_data_dirs: { items: [], total_count: 0, total_size_bytes: 0 } },
     });
     await browser.waitUntil(async () => (await cleanup.getText()).includes("未发现可清理目录"));
     await capture("orphan-cleanup-result", { anchor: 'section[aria-label="存储清理"]' });
+  });
+
+  workflow("SD27-advanced-backup separates file preparation from the confirmed import", async () => {
+    await begin("advanced");
+    const panel = await section("服务器配置备份");
+    await capture("advanced-backup-default", { anchor: 'section[aria-label="服务器配置备份"]' });
+    await browser.execute(() => {
+      const panel = document.querySelector('section[aria-label="服务器配置备份"]');
+      const input = panel?.querySelector('input[type="file"]');
+      if (!(input instanceof HTMLInputElement)) throw new Error("Server backup file input not found");
+      const file = new File(["{}"], "ui-backup.json", { type: "application/json" });
+      Object.defineProperty(file, "text", {
+        value: () => new Promise((resolve) => { window.__uiAudit.resolveBackupRead = resolve; }),
+      });
+      const transfer = new DataTransfer();
+      transfer.items.add(file);
+      input.files = transfer.files;
+      input.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+    await browser.waitUntil(async () => (await panel.getText()).includes("正在准备导入…"));
+    await capture("advanced-backup-preparing", { anchor: 'section[aria-label="服务器配置备份"]' });
+    await browser.execute(() => window.__uiAudit.resolveBackupRead("{}"));
+    const confirmation = await dialog("导入配置");
+    await confirmation.waitForDisplayed();
+    assert((await confirmation.getText()).includes("服务器密钥"));
+    await capture("advanced-backup-confirmation", { anchor: '//div[@role="dialog"][.//h3[normalize-space()="导入配置"]]' });
+    await defer("import_all_configs");
+    assert.equal(await browser.execute(() => window.__uiAudit.requests.some((item) => item.command === "import_all_configs")), false);
+    await click(await confirmation.$("button=导入完整配置"), "确认导入备份");
+    const request = await pending("import_all_configs");
+    assert.equal(request.input.settings_json, "{}");
+    assert.equal(request.input.overwrite, false);
+    assert((await panel.getText()).includes("导入中…"));
+    await capture("advanced-backup-importing", { anchor: 'section[aria-label="服务器配置备份"]' });
+    await click(await $('nav').$("button=账户与应用"), "离开仍在执行导入的高级设置页");
+    await click(await $('nav').$("button=高级配置"), "返回高级设置页");
+    const remountedPanel = await section("服务器配置备份");
+    await browser.waitUntil(async () => (await remountedPanel.getText()).includes("导入中…"));
+    assert.equal(await remountedPanel.$("button*=导入配置文件").isEnabled(), false);
+    await click(await remountedPanel.$("summary=导入选项"), "查看导入进行中的选项状态");
+    assert.equal(await remountedPanel.$('[role="switch"]').isEnabled(), false);
+    assert.equal(await browser.execute(() => window.__uiAudit.requests.filter((item) => item.command === "import_all_configs").length), 1);
+    await capture("advanced-backup-remount-importing", { anchor: 'section[aria-label="服务器配置备份"]' });
+    await respond("import_all_configs", ["模拟设置已导入"]);
+    await browser.waitUntil(async () => (await remountedPanel.getText()).includes("从 JSON 备份恢复配置"));
+    await browser.waitUntil(async () => (await browser.execute(() => document.body.innerText)).includes("导入完成：模拟设置已导入"));
+    await capture("advanced-backup-completed", { anchor: 'section[aria-label="服务器配置备份"]' });
   });
 
   workflow("SD25-auth-login-register keeps failed submissions recoverable", async () => {

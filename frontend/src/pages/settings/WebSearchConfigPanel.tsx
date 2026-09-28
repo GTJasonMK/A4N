@@ -66,9 +66,11 @@ export const WebSearchConfigPanel: React.FC = () => {
   const [savedFetch, setSavedFetch] = useState<WebFetchForm | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [loadError, setLoadError] = useState<{ reason: unknown } | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
+    setLoadError(null);
     try {
       const nextConfig = getLocalWebSearchConfigSummary();
       setConfig(nextConfig);
@@ -77,11 +79,11 @@ export const WebSearchConfigPanel: React.FC = () => {
       setFetchForm(nextFetch);
       setSavedFetch(nextFetch);
     } catch (error) {
-      addToast(extractErrorMessage(error, t("settings.webSearchLoadFailed")), "error");
+      setLoadError({ reason: error });
     } finally {
       setLoading(false);
     }
-  }, [addToast, t]);
+  }, []);
 
   useEffect(() => {
     void load();
@@ -145,6 +147,7 @@ export const WebSearchConfigPanel: React.FC = () => {
         max_body_chars: integer(fetchForm.max_body_chars, t("settings.webFetchMaxBodyChars")),
         max_output_chars: integer(fetchForm.max_output_chars, t("settings.webFetchMaxOutputChars")),
       });
+      setLoadError(null);
       setConfig(saved.search);
       setForm(formFromConfig(saved.search));
       setFetchForm(formFromFetchConfig(saved.fetch));
@@ -183,6 +186,22 @@ export const WebSearchConfigPanel: React.FC = () => {
           <RefreshCw size={14} className={loading ? "animate-spin" : undefined} />
         </BookIconButton>
       </div>
+
+      {loadError ? (
+        <div role="alert" className="a4n-context-bar mb-3 text-sm text-book-text-main">
+          <span className="min-w-0 flex-1">
+            {extractErrorMessage(loadError.reason, t("settings.webSearchLoadFailed"))}
+          </span>
+          <BookButton
+            variant="secondary"
+            size="sm"
+            onClick={() => void refresh()}
+            disabled={loading || saving}
+          >
+            {t("common.retry")}
+          </BookButton>
+        </div>
+      ) : null}
 
       <form
         id="web-tools-settings-form"

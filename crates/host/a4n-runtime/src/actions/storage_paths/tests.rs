@@ -1,4 +1,8 @@
-use super::{paths::path_to_string, scanning::orphan_project_data_dirs};
+use super::{
+    OrphanProjectDataDirSummary, OrphanProjectDataDirsSummary,
+    paths::path_to_string,
+    scanning::{confirmed_orphan_project_data_dirs, orphan_project_data_dirs},
+};
 use std::{
     collections::HashSet,
     path::PathBuf,
@@ -52,4 +56,49 @@ fn orphan_project_data_dirs_accepts_missing_projects_dir() {
     assert!(summary.items.is_empty());
 
     let _ = std::fs::remove_dir_all(&data_dir);
+}
+
+#[test]
+fn cleanup_selection_contains_only_confirmed_orphans() {
+    let current = OrphanProjectDataDirsSummary {
+        items: vec![
+            OrphanProjectDataDirSummary {
+                project_id: 2,
+                path: "projects/2".to_string(),
+                size_bytes: 4,
+            },
+            OrphanProjectDataDirSummary {
+                project_id: 3,
+                path: "projects/3".to_string(),
+                size_bytes: 8,
+            },
+        ],
+        total_count: 2,
+        total_size_bytes: 12,
+    };
+
+    let selected =
+        confirmed_orphan_project_data_dirs(&[2], &current).expect("select confirmed project only");
+
+    assert_eq!(selected.total_count, 1);
+    assert_eq!(selected.total_size_bytes, 4);
+    assert_eq!(selected.items[0].project_id, 2);
+}
+
+#[test]
+fn cleanup_selection_rejects_stale_and_invalid_ids() {
+    let current = OrphanProjectDataDirsSummary {
+        items: vec![OrphanProjectDataDirSummary {
+            project_id: 2,
+            path: "projects/2".to_string(),
+            size_bytes: 4,
+        }],
+        total_count: 1,
+        total_size_bytes: 4,
+    };
+
+    assert!(confirmed_orphan_project_data_dirs(&[3], &current).is_err());
+    assert!(confirmed_orphan_project_data_dirs(&[], &current).is_err());
+    assert!(confirmed_orphan_project_data_dirs(&[2, 2], &current).is_err());
+    assert!(confirmed_orphan_project_data_dirs(&[-2], &current).is_err());
 }

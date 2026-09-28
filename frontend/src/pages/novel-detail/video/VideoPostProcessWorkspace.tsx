@@ -522,6 +522,7 @@ export const VideoPostProcessWorkspace: React.FC<
         return;
       }
       const target = event.target;
+      if (!(target instanceof Node) || !timelineRef.current?.contains(target)) return;
       if (
         target instanceof HTMLInputElement ||
         target instanceof HTMLTextAreaElement ||

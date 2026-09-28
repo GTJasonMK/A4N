@@ -79,23 +79,29 @@ export function ConfigEditorPanel<C>({
       }`}
     >
       {empty ? (
-        <div className="a4n-empty-state min-h-[148px]">
-          <Edit3 size={24} className="text-book-primary/30" />
-          <p className="text-sm">
-            {itemCount === 0 ? (
-              <>
-                {t("settings.noConfig", { name: title })}
-                <br />
-                {t("settings.clickCreateToStart")}
-              </>
-            ) : (
-              <>
-                {t("settings.selectConfigToEdit", { action: createLabel })}
-                <br />
-              </>
-            )}
-          </p>
-        </div>
+        busy && itemCount === 0 ? (
+          <div role="status" className="a4n-empty-state min-h-[148px] gap-2 text-sm text-book-text-muted">
+            <LoadingSpinner size="sm" /> {t("common.loading")}
+          </div>
+        ) : (
+          <div className="a4n-empty-state min-h-[148px]">
+            <Edit3 size={24} className="text-book-primary/30" />
+            <p className="text-sm">
+              {itemCount === 0 ? (
+                <>
+                  {t("settings.noConfig", { name: title })}
+                  <br />
+                  {t("settings.clickCreateToStart")}
+                </>
+              ) : (
+                <>
+                  {t("settings.selectConfigToEdit", { action: createLabel })}
+                  <br />
+                </>
+              )}
+            </p>
+          </div>
+        )
       ) : (
         <div className="flex min-h-0 flex-1 flex-col">
           <div className="mb-4 flex min-w-0 flex-wrap items-start gap-3 border-b border-book-border/60 pb-3">

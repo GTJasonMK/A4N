@@ -76,7 +76,8 @@ export const VideoMaterialWorkspace: React.FC<VideoMaterialWorkspaceProps> = ({
     setSize: setImageSize,
   } = useImageGenerationSize();
   const [groups, setGroups] = useState<ProfileMaterialGroup[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [busyKey, setBusyKey] = useState<string | null>(null);
   const [batchBusy, setBatchBusy] = useState(false);
   const [kindFilter, setKindFilter] = useState<ProfileMaterialKindFilter>("all");
@@ -112,17 +113,18 @@ export const VideoMaterialWorkspace: React.FC<VideoMaterialWorkspaceProps> = ({
     : customStyle;
   useNovelDetailDirty(
     `video-material-style:${projectId}`,
-    selectedStyleTemplateId === CUSTOM_STYLE_VALUE && customStyle.trim().length > 0,
+    selectedStyleTemplateId !== DEFAULT_STYLE_TEMPLATE_ID,
   );
 
   useLayoutEffect(() => {
     activeProjectRef.current = projectId;
     setGroups([]);
+    setLoadError(null);
     setImageDetails(null);
     setUploadTarget(null);
     setBusyKey(null);
     setBatchBusy(false);
-    setLoading(false);
+    setLoading(true);
     loadInFlightRef.current = null;
     actionBusyRef.current = false;
   }, [projectId]);
@@ -131,6 +133,9 @@ export const VideoMaterialWorkspace: React.FC<VideoMaterialWorkspaceProps> = ({
     activeLoadKeyRef.current = loadRequestKey;
     loadSeqRef.current += 1;
     loadInFlightRef.current = null;
+    setGroups([]);
+    setLoadError(null);
+    setLoading(true);
   }, [loadRequestKey]);
 
   useEffect(
@@ -177,10 +182,13 @@ export const VideoMaterialWorkspace: React.FC<VideoMaterialWorkspaceProps> = ({
         });
         if (loadSeqRef.current !== requestSeq || activeLoadKeyRef.current !== requestKey) return false;
         setGroups(result);
+        setLoadError(null);
         return true;
       } catch (err) {
         if (loadSeqRef.current !== requestSeq || activeLoadKeyRef.current !== requestKey) return false;
-        onToast(extractErrorMessage(err, t("video.material.loadFailed")), "error");
+        const message = extractErrorMessage(err, t("video.material.loadFailed"));
+        setLoadError(message);
+        onToast(message, "error");
         return false;
       } finally {
         if (loadSeqRef.current === requestSeq && activeLoadKeyRef.current === requestKey) {
@@ -713,7 +721,12 @@ export const VideoMaterialWorkspace: React.FC<VideoMaterialWorkspaceProps> = ({
       </section>
 
       <div className="min-h-0 flex-1 overflow-y-auto custom-scrollbar pr-1">
-        {groups.length === 0 ? (
+        {groups.length > 0 && loadError ? <p role="alert" className="mb-2 text-small text-error">{loadError}</p> : null}
+        {groups.length === 0 && loadError ? (
+          <div role="alert" className="flex h-full min-h-[180px] items-center justify-center rounded-2xl border border-error/30 bg-error-bg/30 px-4 text-center text-xs text-error">
+            {loadError}
+          </div>
+        ) : groups.length === 0 ? (
           <div className="flex h-full min-h-[180px] items-center justify-center rounded-2xl border border-dashed border-book-border/50 bg-book-bg-paper/30 text-xs text-book-text-muted">
             {loading ? t("video.material.loading") : t("video.material.empty")}
           </div>

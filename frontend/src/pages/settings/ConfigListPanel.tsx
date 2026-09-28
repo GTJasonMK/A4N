@@ -177,7 +177,7 @@ export function ConfigListPanel<C>({
   };
 
   const handleStartCreate = async () => {
-    if (savingRef.current || refreshingRef.current || draftTransitionRef.current) return;
+    if (loading || savingRef.current || refreshingRef.current || draftTransitionRef.current) return;
     draftTransitionRef.current = true;
     try {
       if (!(await confirmDiscardDraft(t("settings.createConfig", { name: title })))) return;
@@ -234,6 +234,7 @@ export function ConfigListPanel<C>({
 
   const handleSave = async () => {
     if (
+      loading ||
       savingRef.current ||
       refreshingRef.current ||
       activatingRef.current != null ||
@@ -588,7 +589,7 @@ export function ConfigListPanel<C>({
     >
       <ConfigListToolbar
         title={title}
-        itemCount={loadError && items.length === 0 ? null : items.length}
+        itemCount={(loading || loadError != null) && items.length === 0 ? null : items.length}
         loading={loading}
         busy={itemActionBusy}
         onCreate={() => void handleStartCreate()}

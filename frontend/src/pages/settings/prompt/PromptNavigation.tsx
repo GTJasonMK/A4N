@@ -8,6 +8,7 @@ interface PromptCategoryTabsProps {
   categories: CategoryInfo[];
   activeCategory: string;
   filteredCount: number;
+  disabled?: boolean;
   onCategoryChange: (category: string) => void | Promise<boolean>;
 }
 
@@ -15,6 +16,7 @@ export const PromptCategoryTabs: React.FC<PromptCategoryTabsProps> = ({
   categories,
   activeCategory,
   filteredCount,
+  disabled = false,
   onCategoryChange,
 }) => {
   const { t } = useI18n();
@@ -41,6 +43,7 @@ export const PromptCategoryTabs: React.FC<PromptCategoryTabsProps> = ({
         <button
           type="button"
           onClick={() => setCategoryDialogOpen(true)}
+          disabled={disabled}
           aria-haspopup="dialog"
           aria-expanded={categoryDialogOpen}
           className="a4n-touch-target flex min-w-0 flex-1 items-center gap-2 rounded-xl border border-book-border/70 bg-book-bg-tertiary/70 px-3 py-2 text-left text-xs text-book-text-main transition-colors hover:border-book-primary/55 hover:bg-book-bg-tertiary focus-visible:outline-2 focus-visible:outline-book-primary"
@@ -65,6 +68,7 @@ export const PromptCategoryTabs: React.FC<PromptCategoryTabsProps> = ({
             key={category.key}
             type="button"
             onClick={() => void onCategoryChange(category.key)}
+            disabled={disabled}
             aria-pressed={activeCategory === category.key}
             data-active={activeCategory === category.key ? "1" : undefined}
             className="pyqt-tab"
@@ -93,6 +97,7 @@ export const PromptCategoryTabs: React.FC<PromptCategoryTabsProps> = ({
                 <button
                   type="button"
                   onClick={() => selectCategory(category.key)}
+                  disabled={disabled}
                   aria-pressed={isActive}
                   className={`flex min-h-11 w-full items-center justify-between gap-3 rounded-xl border px-3 py-2.5 text-left text-sm transition-colors focus-visible:outline-2 focus-visible:outline-book-primary ${
                     isActive

@@ -82,6 +82,11 @@ export function ImageActionDialog({
     [canEditImages],
   );
   const activeTab: ImageDialogTab = canEditImages || tab !== "manage" ? tab : "overview";
+  const scoreValue = scoreInput.trim() ? Number(scoreInput) : Number.NaN;
+  const scoreValid = Number.isFinite(scoreValue) && scoreValue >= 0 && scoreValue <= 1;
+  const scoreDirty = image != null && scoreValid && (
+    image.ai_score == null || Math.abs(scoreValue - image.ai_score) > 0.000_001
+  );
 
   useEffect(() => {
     savingEditRef.current = false;
@@ -102,7 +107,7 @@ export function ImageActionDialog({
     editPrompt.trim() !== image.prompt.trim() ||
     (!image.is_system_managed && editType.trim() !== image.image_type.trim()) ||
     (!image.is_system_managed && editPanelId.trim() !== (image.panel_id ?? "")) ||
-    scoreEdited
+    (scoreEdited && (!scoreValid || scoreDirty))
   );
   useNovelDetailDirty("image-action-editor", imageDraftDirty);
 
@@ -136,13 +141,6 @@ export function ImageActionDialog({
     editPrompt.trim() !== image.prompt.trim() ||
     (!systemManagedImageType && editType.trim() !== image.image_type.trim()) ||
     (!systemManagedImageType && editPanelId.trim() !== (image.panel_id ?? ""));
-  const scoreValue = scoreInput.trim() ? Number(scoreInput) : Number.NaN;
-  const scoreValid =
-    Number.isFinite(scoreValue) && scoreValue >= 0 && scoreValue <= 1;
-  const scoreDirty =
-    scoreValid &&
-    (image.ai_score == null || Math.abs(scoreValue - image.ai_score) > 0.000_001);
-
   const requestClose = async () => {
     if (busy) return;
     if ((editDirty || (scoreEdited && (!scoreValid || scoreDirty))) && !(await confirmDialog({

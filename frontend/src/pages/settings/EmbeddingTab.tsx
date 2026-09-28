@@ -76,6 +76,7 @@ export const EmbeddingTab: React.FC<EmbeddingTabProps> = ({
     : t("settingsEmbedding.thisDevice");
   const { runProgressTask } = useProgressTask();
   const [localModels, setLocalModels] = useState<LocalEmbeddingModel[]>([]);
+  const [modelsLoading, setModelsLoading] = useState(true);
   const [modelLoadError, setModelLoadError] = useState<string | null>(null);
   const [busyModel, setBusyModel] = useState<string | null>(null);
   const [downloadInfoByModel, setDownloadInfoByModel] = useState<
@@ -135,6 +136,7 @@ export const EmbeddingTab: React.FC<EmbeddingTabProps> = ({
     const requestSeq = refreshSeqRef.current + 1;
     refreshSeqRef.current = requestSeq;
     setModelLoadError(null);
+    setModelsLoading(true);
     try {
       const models = await listLocalEmbeddingModels(scope);
       if (!isCurrentRefresh(requestSeq)) return false;
@@ -146,6 +148,8 @@ export const EmbeddingTab: React.FC<EmbeddingTabProps> = ({
         extractErrorMessage(error, t("settingsEmbedding.directoryReadFailed", { host: modelHostLabel })),
       );
       return false;
+    } finally {
+      if (isCurrentRefresh(requestSeq)) setModelsLoading(false);
     }
   }, [isCurrentRefresh, modelHostLabel, scope, t]);
 
@@ -396,6 +400,7 @@ export const EmbeddingTab: React.FC<EmbeddingTabProps> = ({
               form={form}
               providers={selectableProviders}
               localModels={localModels}
+              modelsLoading={modelsLoading}
               busyModel={busyModel}
               readonly={context.readonly}
               setForm={setForm}

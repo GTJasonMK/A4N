@@ -1,9 +1,11 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { Copy,
+import {
+  Copy,
   Database,
   FolderOpen,
   RefreshCw,
-  Trash2, } from "lucide-react";
+  Trash2,
+} from "lucide-react";
 import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
 import { BookButton, BookIconButton } from "../../../components/ui/BookButton";
 import { Dropdown } from "../../../components/ui/Dropdown";
@@ -18,7 +20,16 @@ import {
   type StoragePathsSummary,
 } from "../../../api/storagePaths";
 import { copyTextToClipboard } from "../../../utils/clipboard";
-import { formatNumber, useI18n } from "../../../i18n";
+import {
+  formatNumber,
+  getActiveLocale,
+  translateMessage,
+  useI18n,
+  type MessageKey,
+} from "../../../i18n";
+
+const translateCurrent = (key: MessageKey, params?: Record<string, string | number>) =>
+  translateMessage(getActiveLocale(), key, params);
 
 interface StoragePathsPanelProps {
   isAdmin?: boolean;
@@ -51,8 +62,9 @@ export const StoragePathsPanel: React.FC<StoragePathsPanelProps> = ({
     useState<OrphanProjectDataDirsSummary | null>(null);
   const [orphanLoading, setOrphanLoading] = useState(false);
   const [orphanError, setOrphanError] = useState<string | null>(null);
+  const [orphanConfirming, setOrphanConfirming] = useState(false);
   const [orphanCleaning, setOrphanCleaning] = useState(false);
-  const [copiedKey, setCopiedKey] = useState<string | null>(null);
+  const [copiedKey, setCopiedKey] = useState<MessageKey | null>(null);
   const mountedRef = useRef(true);
   const refreshSeqRef = useRef(0);
   const refreshInFlightRef = useRef(false);
@@ -98,7 +110,7 @@ export const StoragePathsPanel: React.FC<StoragePathsPanelProps> = ({
       setPaths(nextPaths);
     } catch (err) {
       if (!mountedRef.current || refreshSeqRef.current !== requestSeq) return;
-      const message = extractErrorMessage(err, t("settingsAbout.loadStoragePathsFailed"));
+      const message = extractErrorMessage(err, translateCurrent("settingsAbout.loadStoragePathsFailed"));
       setLoadError(message);
       addToast(message, "error");
     } finally {
@@ -113,7 +125,7 @@ export const StoragePathsPanel: React.FC<StoragePathsPanelProps> = ({
     void refresh();
   }, [refresh]);
 
-  const copyPath = async (key: string, value?: string | null) => {
+  const copyPath = async (key: MessageKey, value?: string | null) => {
     if (!value) return;
     const requestSeq = copySeqRef.current + 1;
     copySeqRef.current = requestSeq;
@@ -129,7 +141,7 @@ export const StoragePathsPanel: React.FC<StoragePathsPanelProps> = ({
       }, 1500);
     } catch {
       if (!mountedRef.current || copySeqRef.current !== requestSeq) return;
-      addToast(t("settingsAbout.copyPathFailed"), "error");
+      addToast(translateCurrent("settingsAbout.copyPathFailed"), "error");
     }
   };
 
@@ -144,6 +156,7 @@ export const StoragePathsPanel: React.FC<StoragePathsPanelProps> = ({
     orphanScanningRef.current = true;
     const requestSeq = orphanSeqRef.current + 1;
     orphanSeqRef.current = requestSeq;
+    setOrphanSummary(null);
     setOrphanLoading(true);
     setOrphanError(null);
     try {
@@ -152,9 +165,8 @@ export const StoragePathsPanel: React.FC<StoragePathsPanelProps> = ({
       setOrphanSummary(summary);
     } catch (err) {
       if (!mountedRef.current || orphanSeqRef.current !== requestSeq) return;
-      const message = extractErrorMessage(err, t("settingsAbout.scanOrphansFailed"));
+      const message = extractErrorMessage(err, translateCurrent("settingsAbout.scanOrphansFailed"));
       setOrphanError(message);
-      addToast(message, "error");
     } finally {
       if (orphanSeqRef.current === requestSeq) {
         orphanScanningRef.current = false;
@@ -174,37 +186,75 @@ export const StoragePathsPanel: React.FC<StoragePathsPanelProps> = ({
       return;
     }
     const summary = orphanSummary;
-    if (!summary || summary.total_count <= 0) return;
+    if (!summary || summary.items.length === 0) return;
+    const projectIds = summary.items.map((item) => item.project_id);
+    const confirmedSize = summary.items.reduce((total, item) => total + item.size_bytes, 0);
     orphanCleaningRef.current = true;
-    setOrphanCleaning(true);
-    const confirmed = await confirmDialog({
-      title: t("settingsAbout.cleanupOrphans"),
-      message: t("settingsAbout.cleanupOrphansMessage", { count: summary.total_count, size: formatBytes(summary.total_size_bytes, locale) }),
-      confirmText: t("common.delete"),
-      cancelText: t("common.cancel"),
-      dialogType: "danger",
-    });
-    if (!confirmed) {
+    setOrphanConfirming(true);
+    let confirmed: boolean;
+    try {
+      confirmed = await confirmDialog({
+        title: translateCurrent("settingsAbout.cleanupOrphans"),
+        message: translateCurrent("settingsAbout.cleanupOrphansMessage", {
+          count: projectIds.length,
+          size: formatBytes(confirmedSize, getActiveLocale()),
+          projectIds: projectIds.join(", "),
+        }),
+        confirmText: translateCurrent("common.delete"),
+        cancelText: translateCurrent("common.cancel"),
+        dialogType: "danger",
+      });
+    } catch (err) {
       orphanCleaningRef.current = false;
-      if (mountedRef.current) setOrphanCleaning(false);
+      if (mountedRef.current) setOrphanConfirming(false);
+      if (mountedRef.current) {
+        addToast(extractErrorMessage(err, translateCurrent("settingsAbout.cleanupOrphansFailed")), "error");
+      }
       return;
     }
+    if (!confirmed || !mountedRef.current) {
+      orphanCleaningRef.current = false;
+      if (mountedRef.current) setOrphanConfirming(false);
+      return;
+    }
+    setOrphanConfirming(false);
+    setOrphanCleaning(true);
     const requestSeq = orphanSeqRef.current + 1;
     orphanSeqRef.current = requestSeq;
+    setOrphanSummary(null);
     setOrphanError(null);
     try {
-      const summary = await cleanupOrphanProjectDataDirs();
+      const cleaned = await cleanupOrphanProjectDataDirs({ project_ids: projectIds });
       if (!mountedRef.current || orphanSeqRef.current !== requestSeq) return;
-      setOrphanSummary({ items: [], total_count: 0, total_size_bytes: 0 });
       addToast(
-        t("settingsAbout.cleanedOrphans", { count: summary.total_count, size: formatBytes(summary.total_size_bytes, locale) }),
+        translateCurrent("settingsAbout.cleanedOrphans", {
+          count: cleaned.total_count,
+          size: formatBytes(cleaned.total_size_bytes, getActiveLocale()),
+        }),
         "success",
       );
+      try {
+        orphanCleaningRef.current = false;
+        setOrphanCleaning(false);
+        orphanScanningRef.current = true;
+        setOrphanLoading(true);
+        const nextSummary = await listOrphanProjectDataDirs();
+        if (!mountedRef.current || orphanSeqRef.current !== requestSeq) return;
+        setOrphanSummary(nextSummary);
+      } catch (err) {
+        if (!mountedRef.current || orphanSeqRef.current !== requestSeq) return;
+        const message = extractErrorMessage(err, translateCurrent("settingsAbout.scanOrphansFailed"));
+        setOrphanError(message);
+      } finally {
+        if (orphanSeqRef.current === requestSeq) {
+          orphanScanningRef.current = false;
+          if (mountedRef.current) setOrphanLoading(false);
+        }
+      }
     } catch (err) {
       if (!mountedRef.current || orphanSeqRef.current !== requestSeq) return;
-      const message = extractErrorMessage(err, t("settingsAbout.cleanupOrphansFailed"));
+      const message = extractErrorMessage(err, translateCurrent("settingsAbout.cleanupOrphansFailed"));
       setOrphanError(message);
-      addToast(message, "error");
     } finally {
       if (orphanSeqRef.current === requestSeq) {
         orphanCleaningRef.current = false;
@@ -215,24 +265,27 @@ export const StoragePathsPanel: React.FC<StoragePathsPanelProps> = ({
     }
   }, [addToast, isAdmin, orphanSummary]);
 
-  const rows = paths
+  const orphanCount = orphanSummary?.items.length ?? 0;
+  const orphanSize = orphanSummary?.items.reduce((total, item) => total + item.size_bytes, 0) ?? 0;
+
+  const rows: Array<{ label: MessageKey; value: string }> = paths
     ? [
-        [t("settingsAbout.storageApplication"), paths.application_home],
-        [t("settingsAbout.storageData"), paths.data_dir],
-        [t("settingsAbout.storageConfig"), paths.config_file],
-        [t("settingsAbout.storageDatabase"), paths.database_url],
-        [t("settingsAbout.storageProjects"), paths.projects_dir],
-        [t("settingsAbout.storageExports"), paths.exports_dir],
-        [t("settingsAbout.storageBackups"), paths.backups_dir],
-        [t("settingsAbout.storageLogs"), paths.log_dir],
-        [t("settingsAbout.storageWebview"), paths.webview_dir],
-        [t("settingsAbout.storageFrontendState"), paths.frontend_state_file],
-        [t("settingsAbout.storageCache"), paths.cache_dir],
-        [t("settingsAbout.storageEmbedding"), paths.embedding_models_dir],
-        [t("settingsAbout.storageTemp"), paths.temp_dir],
-        [t("settingsAbout.storagePromptHistory"), paths.prompts_git_dir],
-        [t("settingsAbout.storageRagIndex"), paths.qdrant_url || t("settingsAbout.storageUnsetQdrant")],
-        [t("settingsAbout.storageRagCollection"), paths.qdrant_collection],
+        { label: "settingsAbout.storageApplication", value: paths.application_home },
+        { label: "settingsAbout.storageData", value: paths.data_dir },
+        { label: "settingsAbout.storageConfig", value: paths.config_file },
+        { label: "settingsAbout.storageDatabase", value: paths.database_url },
+        { label: "settingsAbout.storageProjects", value: paths.projects_dir },
+        { label: "settingsAbout.storageExports", value: paths.exports_dir },
+        { label: "settingsAbout.storageBackups", value: paths.backups_dir },
+        { label: "settingsAbout.storageLogs", value: paths.log_dir },
+        { label: "settingsAbout.storageWebview", value: paths.webview_dir },
+        { label: "settingsAbout.storageFrontendState", value: paths.frontend_state_file },
+        { label: "settingsAbout.storageCache", value: paths.cache_dir },
+        { label: "settingsAbout.storageEmbedding", value: paths.embedding_models_dir },
+        { label: "settingsAbout.storageTemp", value: paths.temp_dir },
+        { label: "settingsAbout.storagePromptHistory", value: paths.prompts_git_dir },
+        { label: "settingsAbout.storageRagIndex", value: paths.qdrant_url },
+        { label: "settingsAbout.storageRagCollection", value: paths.qdrant_collection },
       ]
     : [];
 
@@ -268,34 +321,41 @@ export const StoragePathsPanel: React.FC<StoragePathsPanelProps> = ({
               <span className="text-small text-book-text-muted">{t("settingsAbout.storageItemCount", { count: rows.length })}</span>
             </summary>
             <div className="mt-2 divide-y divide-book-border/30 border-y border-book-border/30">
-              {rows.map(([label, value]) => (
-                <div
-                  key={label}
-                  className="grid grid-cols-[72px_minmax(0,1fr)_auto] items-center gap-2 py-2"
-                >
-                  <span className="text-book-text-muted">{label}</span>
-                  <span className="break-all font-mono text-small text-book-text-main">
-                    {storageValueForDisplay(label, value, t("settingsAbout.storageDatabase"), t)}
-                  </span>
-                  {label === t("settingsAbout.storageDatabase") ? (
-                    <span className="h-8 w-8" aria-hidden="true" />
-                  ) : (
-                    <BookIconButton
-                      label={t("settingsAbout.copyPath", { label })}
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => copyPath(label, value)}
-                    >
-                      <Copy size={11} />
-                    </BookIconButton>
-                  )}
-                </div>
-              ))}
+              {rows.map(({ label: labelKey, value }) => {
+                const label = t(labelKey);
+                const isDatabase = labelKey === "settingsAbout.storageDatabase";
+                const isUnsetQdrant = labelKey === "settingsAbout.storageRagIndex" && !value;
+                return (
+                  <div
+                    key={labelKey}
+                    className="grid grid-cols-[72px_minmax(0,1fr)_auto] items-center gap-2 py-2"
+                  >
+                    <span className="text-book-text-muted">{label}</span>
+                    <span className="break-all font-mono text-small text-book-text-main">
+                      {isUnsetQdrant
+                        ? t("settingsAbout.storageUnsetQdrant")
+                        : storageValueForDisplay(value, isDatabase, t)}
+                    </span>
+                    {isDatabase || !value ? (
+                      <span className="h-8 w-8" aria-hidden="true" />
+                    ) : (
+                      <BookIconButton
+                        label={t("settingsAbout.copyPath", { label })}
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => copyPath(labelKey, value)}
+                      >
+                        <Copy size={11} />
+                      </BookIconButton>
+                    )}
+                  </div>
+                );
+              })}
             </div>
             {copiedKey && (
               <div className="mt-2 inline-flex items-center gap-1 text-success">
                 <Database size={11} />
-                {t("settingsAbout.copiedPath", { label: copiedKey })}
+                {t("settingsAbout.copiedPath", { label: t(copiedKey) })}
               </div>
             )}
           </details>
@@ -319,8 +379,8 @@ export const StoragePathsPanel: React.FC<StoragePathsPanelProps> = ({
               <div className="font-medium text-book-text-main">{t("settingsAbout.orphanProjectDirs")}</div>
               <div className="mt-0.5 text-small text-book-text-muted">
                 {orphanSummary
-                  ? orphanSummary.total_count > 0
-                    ? t("settingsAbout.orphanSummary", { count: orphanSummary.total_count, size: formatBytes(orphanSummary.total_size_bytes, locale) })
+                  ? orphanCount > 0
+                    ? t("settingsAbout.orphanSummary", { count: orphanCount, size: formatBytes(orphanSize, locale) })
                     : t("settingsAbout.noOrphans")
                   : orphanError ? t("settingsAbout.scanOrphansFailed") : t("settingsAbout.notScanned")}
               </div>
@@ -329,7 +389,7 @@ export const StoragePathsPanel: React.FC<StoragePathsPanelProps> = ({
               variant="secondary"
               size="sm"
               onClick={scanOrphanProjectDirs}
-              disabled={orphanLoading || orphanCleaning}
+              disabled={orphanLoading || orphanConfirming || orphanCleaning}
             >
               {orphanLoading ? <LoadingSpinner size="sm" /> : null}
               {orphanLoading ? t("settingsAbout.scanning") : t("settingsAbout.scan")}
@@ -339,7 +399,7 @@ export const StoragePathsPanel: React.FC<StoragePathsPanelProps> = ({
                 <LoadingSpinner size="sm" />
                 {t("settingsAbout.cleaning")}
               </span>
-            ) : (orphanSummary?.total_count ?? 0) > 0 ? (
+            ) : !orphanConfirming && orphanCount > 0 ? (
               <Dropdown
                 items={[
                   {
@@ -375,12 +435,11 @@ export const StoragePathsPanel: React.FC<StoragePathsPanelProps> = ({
 };
 
 function storageValueForDisplay(
-  label: string,
   value: string,
-  databaseLabel: string,
+  isDatabase: boolean,
   t: ReturnType<typeof useI18n>["t"],
 ): string {
-  if (label !== databaseLabel) return value;
+  if (!isDatabase) return value;
   try {
     const url = new URL(value);
     const databaseName = url.pathname.replace(/^\//, "");

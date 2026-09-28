@@ -7,7 +7,9 @@ import { useI18n } from "../../i18n";
 
 interface SceneEditFormProps {
   form: SceneEditFormState;
+  dirty: boolean;
   saving: boolean;
+  disabled: boolean;
   onChange: (patch: Partial<SceneEditFormState>) => void;
   onCancel: () => void;
   onSave: () => void;
@@ -15,7 +17,9 @@ interface SceneEditFormProps {
 
 export const SceneEditForm: React.FC<SceneEditFormProps> = ({
   form,
+  dirty,
   saving,
+  disabled,
   onChange,
   onCancel,
   onSave,
@@ -30,7 +34,7 @@ export const SceneEditForm: React.FC<SceneEditFormProps> = ({
           type="text"
           value={editTextValue(form.title)}
           onChange={(event) => onChange({ title: event.target.value })}
-          disabled={saving}
+          disabled={disabled || saving}
           className="pyqt-input !py-1 text-xs"
         />
       </label>
@@ -40,7 +44,7 @@ export const SceneEditForm: React.FC<SceneEditFormProps> = ({
           type="text"
           value={editTextValue(form.scene_type)}
           onChange={(event) => onChange({ scene_type: event.target.value })}
-          disabled={saving}
+          disabled={disabled || saving}
           placeholder={t("scenes.typePlaceholder")}
           className="pyqt-input !py-1 text-xs"
         />
@@ -51,7 +55,7 @@ export const SceneEditForm: React.FC<SceneEditFormProps> = ({
           type="text"
           value={editTextValue(form.location)}
           onChange={(event) => onChange({ location: event.target.value })}
-          disabled={saving}
+          disabled={disabled || saving}
           className="pyqt-input !py-1 text-xs"
         />
       </label>
@@ -61,7 +65,7 @@ export const SceneEditForm: React.FC<SceneEditFormProps> = ({
           type="text"
           value={editTextValue(form.timeline_position)}
           onChange={(event) => onChange({ timeline_position: event.target.value })}
-          disabled={saving}
+          disabled={disabled || saving}
           className="pyqt-input !py-1 text-xs"
         />
       </label>
@@ -71,7 +75,7 @@ export const SceneEditForm: React.FC<SceneEditFormProps> = ({
       <textarea
         value={editTextValue(form.summary)}
         onChange={(event) => onChange({ summary: event.target.value })}
-        disabled={saving}
+        disabled={disabled || saving}
         className="book-control min-h-[48px] resize-none rounded-xl p-2 text-xs"
       />
     </label>
@@ -80,16 +84,16 @@ export const SceneEditForm: React.FC<SceneEditFormProps> = ({
       <textarea
         value={editTextValue(form.content)}
         onChange={(event) => onChange({ content: event.target.value })}
-        disabled={saving}
+        disabled={disabled || saving}
         spellCheck={false}
         className="book-control min-h-[140px] resize-y rounded-xl p-2 font-serif text-xs leading-relaxed"
       />
     </label>
     <div className="flex items-center justify-end gap-2 mt-1">
-      <BookButton variant="secondary" size="sm" onClick={onCancel} disabled={saving}>
+      <BookButton variant="secondary" size="sm" onClick={onCancel} disabled={disabled || saving}>
         {t("common.cancel")}
       </BookButton>
-      <BookButton variant="primary" size="sm" onClick={onSave} disabled={saving}>
+      <BookButton variant="primary" size="sm" onClick={onSave} disabled={disabled || saving || !dirty}>
         {saving ? (
           <span className="inline-flex items-center gap-2">
             <LoadingSpinner size="sm" /> {t("scenes.saving")}

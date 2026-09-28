@@ -1,10 +1,12 @@
 import { apiInvoke } from "./index";
 import type {
+  CleanupOrphanProjectDataDirsInput,
   OrphanProjectDataDirsSummary,
   StoragePathsSummary,
 } from "./generated/host";
 
 export type {
+  CleanupOrphanProjectDataDirsInput,
   OrphanProjectDataDirsSummary,
   StoragePathsSummary,
 } from "./generated/host";
@@ -17,6 +19,10 @@ export async function listOrphanProjectDataDirs(): Promise<OrphanProjectDataDirs
   return apiInvoke<OrphanProjectDataDirsSummary>("list_orphan_project_data_dirs");
 }
 
-export async function cleanupOrphanProjectDataDirs(): Promise<OrphanProjectDataDirsSummary> {
-  return apiInvoke<OrphanProjectDataDirsSummary>("cleanup_orphan_project_data_dirs");
+export async function cleanupOrphanProjectDataDirs(
+  input: CleanupOrphanProjectDataDirsInput,
+): Promise<OrphanProjectDataDirsSummary> {
+  return apiInvoke<OrphanProjectDataDirsSummary>("cleanup_orphan_project_data_dirs", {
+    input,
+  });
 }

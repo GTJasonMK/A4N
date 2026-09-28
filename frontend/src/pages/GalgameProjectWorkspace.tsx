@@ -59,6 +59,7 @@ export const GalgameProjectWorkspace: React.FC = () => {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [sourceSyncOpen, setSourceSyncOpen] = useState(false);
   const [resetting, setResetting] = useState(false);
+  const [resetPollError, setResetPollError] = useState<string | null>(null);
   const [workspaceVersion, setWorkspaceVersion] = useState(0);
   const refreshRequestRef = useRef(0);
   const resetBusyRef = useRef(false);
@@ -70,7 +71,6 @@ export const GalgameProjectWorkspace: React.FC = () => {
     if (!Number.isFinite(projectId) || projectId <= 0) {
       const message = translatorRef.current("galgame.projectInvalid");
       setLoadError(message);
-      addToast(message, "error");
       setProject(null);
       setChapters([]);
       setLoading(false);
@@ -100,14 +100,15 @@ export const GalgameProjectWorkspace: React.FC = () => {
           translatorRef.current("galgame.loadFailed"),
         );
         setLoadError(message);
-        addToast(message, "error");
+        setChapters([]);
       }
       return chaptersResult.status === "fulfilled";
     } catch (err) {
       if (refreshRequestRef.current === requestId) {
         const message = extractErrorMessage(err, translatorRef.current("galgame.loadFailed"));
         setLoadError(message);
-        addToast(message, "error");
+        setProject(null);
+        setChapters([]);
       }
       return false;
     } finally {
@@ -137,6 +138,7 @@ export const GalgameProjectWorkspace: React.FC = () => {
     if (project?.lifecycle_gate !== "resetting") return;
     let checking = false;
     let errorReported = false;
+    setResetPollError(null);
     const timer = window.setInterval(() => {
       if (checking) return;
       checking = true;
@@ -144,6 +146,7 @@ export const GalgameProjectWorkspace: React.FC = () => {
         .then(async (nextProject) => {
           if (nextProject.lifecycle_gate !== "active") return;
           window.clearInterval(timer);
+          setResetPollError(null);
           if (!await refresh()) return;
           setWorkspaceVersion((value) => value + 1);
           addToast(t("galgame.resetCompleted"), "success");
@@ -151,7 +154,7 @@ export const GalgameProjectWorkspace: React.FC = () => {
         .catch((error) => {
           if (errorReported) return;
           errorReported = true;
-          addToast(extractErrorMessage(error, t("galgame.resetQueryFailed")), "error");
+          setResetPollError(extractErrorMessage(error, t("galgame.resetQueryFailed")));
         })
         .finally(() => {
           checking = false;
@@ -303,6 +306,11 @@ export const GalgameProjectWorkspace: React.FC = () => {
         >
           {lifecycleBlockedReason}
         </div>
+      ) : null}
+      {resetPollError ? (
+        <p role="alert" className="shrink-0 border-b border-error/30 bg-error-bg px-4 py-2 text-small text-error">
+          {resetPollError}
+        </p>
       ) : null}
 
       {project ? (

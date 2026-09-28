@@ -2,6 +2,7 @@ export const scenes = {
   generateNext: "Generate next scene",
   generateHint: "Scene {number} will be created. Add any direction this scene should follow.",
   generatePlaceholder: "For example: Carry the tension from the previous scene into a new clue at the docks.",
+  saveBeforeGenerate: "Save the current scene changes before previewing or generating the next scene.",
   viewModelRequest: "View model request",
   generating: "Generating…",
   generate: "Generate scene",

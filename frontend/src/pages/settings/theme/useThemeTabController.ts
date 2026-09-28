@@ -63,7 +63,7 @@ export const useThemeTabController = () => {
   const { t } = useI18n();
   const [themes, setThemes] = useState<Theme[]>([]);
   const [scope, setScope] = useState<ThemeScope>("all");
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [activating, setActivating] = useState<number | null>(null);
   const [deleting, setDeleting] = useState<number | null>(null);
@@ -87,6 +87,7 @@ export const useThemeTabController = () => {
   const mountedRef = useRef(true);
   const activeUserKeyRef = useRef(userKey);
   const refreshSeqRef = useRef(0);
+  const hasLoadedThemesRef = useRef(false);
   const refreshInFlightUserRef = useRef<string | null>(null);
   const mutationInFlightRef = useRef(false);
   const exportInFlightRef = useRef(false);
@@ -127,7 +128,10 @@ export const useThemeTabController = () => {
       setLoadError(null);
       try {
         const data = user ? await listThemes() : [];
-        if (isCurrentRefresh(requestUserKey, requestSeq)) setThemes(data);
+        if (isCurrentRefresh(requestUserKey, requestSeq)) {
+          hasLoadedThemesRef.current = true;
+          setThemes(data);
+        }
       } catch (err) {
         if (isCurrentRefresh(requestUserKey, requestSeq)) {
           const message = extractErrorMessage(err, t("settingsTheme.loadFailed"));
@@ -161,10 +165,12 @@ export const useThemeTabController = () => {
   useEffect(() => {
     mutationInFlightRef.current = false;
     exportInFlightRef.current = false;
+    hasLoadedThemesRef.current = false;
     if (refreshInFlightUserRef.current !== userKey)
       refreshInFlightUserRef.current = null;
     setThemes([]);
     setLoadError(null);
+    setLoading(true);
     setActivating(null);
     setDeleting(null);
     setBulkDeleting(false);
@@ -215,7 +221,7 @@ export const useThemeTabController = () => {
     refreshInFlightUserRef.current = null;
     setThemes(update);
     setLoading(false);
-    setLoadError(null);
+    if (hasLoadedThemesRef.current) setLoadError(null);
   };
 
   const commitTheme = (saved: Theme) => {

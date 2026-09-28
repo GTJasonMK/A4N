@@ -87,7 +87,6 @@ export const VideoProjectWorkspace: React.FC = () => {
     if (!Number.isFinite(projectId) || projectId <= 0) {
       const message = translatorRef.current("video.projectInvalid");
       setLoadError(message);
-      addToast(message, "error");
       setProject(null);
       setChapters([]);
       setSelectedSourceChapterId(null);
@@ -132,14 +131,17 @@ export const VideoProjectWorkspace: React.FC = () => {
           translatorRef.current("video.loadProjectFailed"),
         );
         setLoadError(message);
-        addToast(message, "error");
+        setChapters([]);
+        setSelectedSourceChapterId(null);
       }
       return chaptersResult.status === "fulfilled";
     } catch (err) {
       if (refreshRequestRef.current === requestId) {
         const message = extractErrorMessage(err, translatorRef.current("video.loadProjectFailed"));
         setLoadError(message);
-        addToast(message, "error");
+        setProject(null);
+        setChapters([]);
+        setSelectedSourceChapterId(null);
       }
       return false;
     } finally {

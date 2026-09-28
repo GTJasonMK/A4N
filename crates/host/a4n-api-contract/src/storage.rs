@@ -36,3 +36,10 @@ pub struct OrphanProjectDataDirsSummary {
     pub total_count: usize,
     pub total_size_bytes: u64,
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct CleanupOrphanProjectDataDirsInput {
+    #[schemars(length(min = 1))]
+    pub project_ids: Vec<i64>,
+}

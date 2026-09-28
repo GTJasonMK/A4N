@@ -31,6 +31,8 @@ export function useProjectProfileCollection<T extends ProjectProfile>({
 }) {
   const [profiles, setProfiles] = useState<T[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadedProjectId, setLoadedProjectId] = useState<number | null>(null);
+  const [loadError, setLoadError] = useState<{ projectId: number; message: string } | null>(null);
   const [busyId, setBusyId] = useState<number | null>(null);
   const [detailFor, setDetailFor] = useState<T | null>(null);
   const [editingProfile, setEditingProfile] = useState<T | "new" | null>(null);
@@ -45,6 +47,8 @@ export function useProjectProfileCollection<T extends ProjectProfile>({
   } | null>(null);
   const actionSeqRef = useRef(0);
   const actionBusyRef = useRef(false);
+
+  activeProjectIdRef.current = projectId;
 
   const isCurrentProject = useCallback(
     (requestProjectId: number) =>
@@ -99,10 +103,15 @@ export function useProjectProfileCollection<T extends ProjectProfile>({
           }
           profilesRef.current = nextProfiles;
           setProfiles(nextProfiles);
+          setLoadedProjectId(requestProjectId);
+          setLoadError(null);
           return true;
         } catch (err) {
           if (isCurrentProject(requestProjectId) && loadSeqRef.current === requestSeq) {
-            addToast(extractErrorMessage(err, t("novel.profile.loadFailed", { name: entityLabel })), "error");
+            const message = extractErrorMessage(err, t("novel.profile.loadFailed", { name: entityLabel }));
+            setLoadedProjectId(requestProjectId);
+            setLoadError({ projectId: requestProjectId, message });
+            addToast(message, "error");
           }
           return false;
         } finally {
@@ -146,6 +155,8 @@ export function useProjectProfileCollection<T extends ProjectProfile>({
     actionBusyRef.current = false;
     profilesRef.current = [];
     setProfiles([]);
+    setLoadedProjectId(null);
+    setLoadError(null);
     setDetailFor(null);
     setEditingProfile(null);
     setBusyId(null);
@@ -170,10 +181,13 @@ export function useProjectProfileCollection<T extends ProjectProfile>({
     setEditingProfile(null);
   }, [canEditProfiles]);
 
+  const currentProject = loadedProjectId === projectId;
+
   return {
-    profiles,
+    profiles: currentProject ? profiles : [],
     profilesRef,
-    loading,
+    loading: loading || !currentProject,
+    loadError: loadError?.projectId === projectId ? loadError.message : null,
     busyId,
     setBusyId,
     detailFor,

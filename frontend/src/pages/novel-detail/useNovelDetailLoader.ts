@@ -5,7 +5,6 @@ import {
   listenAppEvent,
   type UnlistenFn,
 } from "../../api/runtime";
-import { useToast } from "../../components/feedback/Toast";
 
 interface NovelDetailLoadOptions {
   silent?: boolean;
@@ -20,8 +19,8 @@ export function useNovelDetailLoader(
   loadData: (isCurrent: () => boolean) => Promise<void>,
   errorMessage: string,
 ) {
-  const addToast = useToast((state) => state.addToast);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const mountedRef = useRef(false);
   const requestSeqRef = useRef(0);
   const loadInFlightRef = useRef<{
@@ -46,10 +45,12 @@ export function useNovelDetailLoader(
       if (!silent) setLoading(true);
       try {
         await loadData(isCurrent);
+        if (isCurrent()) setLoadError(null);
         return true;
       } catch (err) {
         if (isCurrent()) {
-          addToast(extractErrorMessage(err, errorMessage), "error");
+          const message = extractErrorMessage(err, errorMessage);
+          setLoadError(message);
         }
         return false;
       } finally {
@@ -63,7 +64,7 @@ export function useNovelDetailLoader(
     })();
     loadInFlightRef.current = { token: requestToken, promise };
     return promise;
-  }, [addToast, errorMessage, loadData]);
+  }, [errorMessage, loadData]);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -84,7 +85,7 @@ export function useNovelDetailLoader(
     };
   }, [load]);
 
-  return { loading, load };
+  return { loading, load, loadError };
 }
 
 export function useChapterAnalysisLoader(

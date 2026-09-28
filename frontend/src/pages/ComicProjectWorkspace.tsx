@@ -65,7 +65,6 @@ export const ComicProjectWorkspace: React.FC = () => {
     if (!Number.isFinite(projectId) || projectId <= 0) {
       const message = translatorRef.current("comic.projectInvalid");
       setLoadError(message);
-      addToast(message, "error");
       setProject(null);
       setChapters([]);
       setLoading(false);
@@ -95,14 +94,15 @@ export const ComicProjectWorkspace: React.FC = () => {
           translatorRef.current("comic.loadProjectFailed"),
         );
         setLoadError(message);
-        addToast(message, "error");
+        setChapters([]);
       }
       return chaptersResult.status === "fulfilled";
     } catch (err) {
       if (refreshRequestRef.current === requestId) {
         const message = extractErrorMessage(err, translatorRef.current("comic.loadProjectFailed"));
         setLoadError(message);
-        addToast(message, "error");
+        setProject(null);
+        setChapters([]);
       }
       return false;
     } finally {

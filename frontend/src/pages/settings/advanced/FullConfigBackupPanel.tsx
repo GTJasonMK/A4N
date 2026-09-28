@@ -8,8 +8,9 @@ interface FullConfigBackupPanelProps {
   scope: ConfigBackupScope;
   overwrite: boolean;
   exporting: boolean;
+  preparingImport: boolean;
   importing: boolean;
-  lastExportPath: string;
+  lastExportFileName: string;
   onOverwriteChange: (value: boolean) => void;
   onExport: () => void;
   onImportFile: (file: File) => Promise<void> | void;
@@ -19,8 +20,9 @@ export const FullConfigBackupPanel: React.FC<FullConfigBackupPanelProps> = ({
   scope,
   overwrite,
   exporting,
+  preparingImport,
   importing,
-  lastExportPath,
+  lastExportFileName,
   onOverwriteChange,
   onExport,
   onImportFile,
@@ -28,6 +30,7 @@ export const FullConfigBackupPanel: React.FC<FullConfigBackupPanelProps> = ({
   const { t } = useI18n();
   const title = t(scope === "local" ? "settingsAdvanced.localBackup" : "settingsAdvanced.serverBackup");
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const busy = exporting || preparingImport || importing;
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -48,7 +51,7 @@ export const FullConfigBackupPanel: React.FC<FullConfigBackupPanelProps> = ({
           <button
             type="button"
             onClick={onExport}
-            disabled={exporting || importing}
+            disabled={busy}
             className="flex min-h-11 w-full items-center gap-3 px-3 py-3 text-left text-book-text-main transition-colors hover:bg-book-bg-tertiary/40 hover:text-book-primary disabled:opacity-50"
           >
             {exporting ? <LoadingSpinner size="sm" /> : <Download size={14} />}
@@ -60,13 +63,13 @@ export const FullConfigBackupPanel: React.FC<FullConfigBackupPanelProps> = ({
             </span>
             <ChevronRight size={13} className="text-book-text-muted" />
           </button>
-          {lastExportPath ? (
+          {lastExportFileName ? (
             <details className="border-t border-book-border/35 text-small text-book-text-muted">
               <summary className="cursor-pointer px-3 py-2.5 transition-colors hover:bg-book-bg-tertiary/40 hover:text-book-text-main">
                 {t("settingsAdvanced.lastExportLocation")}
               </summary>
               <div className="break-all border-t border-book-border/35 px-3 py-2.5 font-mono text-book-text-sub">
-                {lastExportPath}
+                {lastExportFileName}
               </div>
             </details>
           ) : null}
@@ -76,14 +79,18 @@ export const FullConfigBackupPanel: React.FC<FullConfigBackupPanelProps> = ({
           <button
             type="button"
             onClick={() => fileInputRef.current?.click()}
-            disabled={importing || exporting}
+            disabled={busy}
             className="flex min-h-11 w-full items-center gap-3 px-3 py-3 text-left text-book-text-main transition-colors hover:bg-book-bg-tertiary/40 hover:text-book-primary disabled:opacity-50"
           >
-            {importing ? <LoadingSpinner size="sm" /> : <Upload size={14} />}
+            {preparingImport || importing ? <LoadingSpinner size="sm" /> : <Upload size={14} />}
             <span className="min-w-0 flex-1">
               <span className="block font-medium">{t("settingsAdvanced.importFile")}</span>
               <span className="mt-0.5 block text-small text-book-text-muted">
-                {t("settingsAdvanced.importFileHint")}
+                {importing
+                  ? t("settingsAdvanced.importing")
+                  : preparingImport
+                    ? t("settingsAdvanced.preparingImport")
+                    : t("settingsAdvanced.importFileHint")}
               </span>
             </span>
             <ChevronRight size={13} className="text-book-text-muted" />
@@ -104,7 +111,7 @@ export const FullConfigBackupPanel: React.FC<FullConfigBackupPanelProps> = ({
               role="switch"
               aria-checked={overwrite}
               onClick={() => onOverwriteChange(!overwrite)}
-              disabled={exporting || importing}
+              disabled={busy}
               className="flex w-full items-center gap-3 border-t border-book-border/35 px-3 py-3 text-left disabled:cursor-not-allowed disabled:opacity-50"
               title={t("settingsAdvanced.overwriteTitle")}
             >

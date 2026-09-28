@@ -15,7 +15,11 @@ interface CharacterDetailContentProps {
   tab: CharacterDetailTab;
   loadingTab: CharacterDetailTab | null;
   arc: unknown;
+  arcLoaded: boolean;
+  arcLoadError: string | null;
   voice: unknown;
+  voiceLoaded: boolean;
+  voiceLoadError: string | null;
   conflicts: CharacterConflictSummary[] | null;
   character: CharacterProfile;
   initialManageSection?: "event";
@@ -28,7 +32,11 @@ export const CharacterDetailContent: React.FC<CharacterDetailContentProps> = ({
   tab,
   loadingTab,
   arc,
+  arcLoaded,
+  arcLoadError,
   voice,
+  voiceLoaded,
+  voiceLoadError,
   conflicts,
   character,
   initialManageSection,
@@ -37,7 +45,11 @@ export const CharacterDetailContent: React.FC<CharacterDetailContentProps> = ({
   onRefresh,
 }) => {
   const { t } = useI18n();
-  if (loadingTab === tab) {
+  const hasCurrentResult =
+    (tab === "arc" && arcLoaded) ||
+    (tab === "voice" && voiceLoaded) ||
+    (tab === "conflict" && conflicts != null);
+  if (loadingTab === tab && !hasCurrentResult) {
     return (
       <div className="py-10 flex flex-col items-center gap-2 text-book-text-muted">
         <LoadingSpinner size="lg" />
@@ -47,10 +59,12 @@ export const CharacterDetailContent: React.FC<CharacterDetailContentProps> = ({
   }
 
   if (tab === "arc") {
+    if (!arcLoaded && arcLoadError) return null;
     return <ArcView data={arc} />;
   }
 
   if (tab === "voice") {
+    if (!voiceLoaded && voiceLoadError) return null;
     return <VoiceView data={voice} />;
   }
 

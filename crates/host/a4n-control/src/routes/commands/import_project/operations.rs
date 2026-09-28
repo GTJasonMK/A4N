@@ -1,6 +1,6 @@
 use super::super::{
     ApiError, command_input, empty_command_args, generation_analytics_actions, logging_actions,
-    reject_unknown_command_args, storage_paths_actions, to_value,
+    reject_unknown_command_args, storage_paths_actions, strict_command_input, to_value,
 };
 use crate::state::ServerState;
 use a4n_runtime::host_api::model_usage as model_usage_actions;
@@ -32,10 +32,15 @@ pub(in crate::routes::commands) async fn cleanup_orphan_project_data_dirs(
     user_id: i64,
     args: &Value,
 ) -> Result<Value, ApiError> {
-    empty_command_args(args, "cleanup_orphan_project_data_dirs")?;
-    let result = storage_paths_actions::cleanup_orphan_project_data_dirs(state.runtime(), user_id)
-        .await
-        .map_err(ApiError::bad_request)?;
+    let input: a4n_api_contract::storage::CleanupOrphanProjectDataDirsInput =
+        strict_command_input(args, "cleanup_orphan_project_data_dirs")?;
+    let result = storage_paths_actions::cleanup_orphan_project_data_dirs(
+        state.runtime(),
+        user_id,
+        &input.project_ids,
+    )
+    .await
+    .map_err(ApiError::bad_request)?;
     to_value(result)
 }
 

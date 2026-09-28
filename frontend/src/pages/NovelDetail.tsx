@@ -1,5 +1,5 @@
 import React, { lazy, Suspense, useEffect, useRef, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useBeforeUnload, useBlocker, useNavigate, useParams } from "react-router-dom";
 import {
   ArrowLeft,
   Database,
@@ -198,6 +198,21 @@ export const NovelDetail: React.FC = () => {
   const [collaborationOpen, setCollaborationOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
   const [exportBusy, setExportBusy] = useState(false);
+  const dirtyNavigationBlocker = useBlocker(() => dirtyRegistry.hasDirty() || exportBusy);
+  useBeforeUnload((event) => {
+    if (!dirtyRegistry.hasDirty() && !exportBusy) return;
+    event.preventDefault();
+    event.returnValue = "";
+  });
+  useEffect(() => {
+    if (
+      dirtyNavigationBlocker.state === "blocked" &&
+      !exportBusy &&
+      !dirtyRegistry.hasDirty()
+    ) {
+      dirtyNavigationBlocker.proceed();
+    }
+  }, [dirtyNavigationBlocker.proceed, dirtyNavigationBlocker.state, dirtyRegistry, exportBusy]);
   const mountedRef = useRef(false);
   const activeProjectIdRef = useRef(projectId);
   const refreshSeqRef = useRef(0);
@@ -401,10 +416,6 @@ export const NovelDetail: React.FC = () => {
     if (nextTab === tab) return;
     if (!(await confirmDirtyNavigation(t("common.switchTab")))) return;
     setTab(nextTab);
-  };
-  const guardNavigation = async (action: () => void) => {
-    if (!(await confirmDirtyNavigation(t("common.back")))) return;
-    action();
   };
   const workspaceRoute = getProjectWorkspaceRoute(project);
   const workspaceLabel = getProjectWorkspaceLabel(project, t);
@@ -630,6 +641,15 @@ export const NovelDetail: React.FC = () => {
     setExportBusy(false);
     setExportOpen(true);
   };
+  const closeCollaboration = async () => {
+    if (dirtyRegistry.hasDirty(`collaboration:${project.id}`) && !(await confirmDialog({
+      title: t("common.unsavedChangesTitle"),
+      message: t("common.unsavedChangesMessage", { name: t("novel.collaborationTitle"), action: t("common.close") }),
+      confirmText: t("common.discardDraft"),
+      dialogType: "warning",
+    }))) return;
+    setCollaborationOpen(false);
+  };
   const closeExport = async () => {
     if (exportBusy) return;
     if (dirtyRegistry.hasDirty(`export:${project.id}`) && !(await confirmDialog({
@@ -644,10 +664,29 @@ export const NovelDetail: React.FC = () => {
   return (
     <NovelDetailDirtyProvider>
       <div className="h-full w-full flex flex-col bg-book-bg">
+      {dirtyNavigationBlocker.state === "blocked" ? (
+        <Modal
+          isOpen
+          onClose={dirtyNavigationBlocker.reset}
+          title={exportBusy ? t("novel.exportPanel.navigationBlockedTitle") : t("common.unsavedChangesTitle")}
+          tone="warning"
+          maxWidthClassName="max-w-xl"
+          footer={(
+            <>
+              <BookButton variant="secondary" onClick={dirtyNavigationBlocker.reset}>{t("common.cancel")}</BookButton>
+              {!exportBusy ? <BookButton variant="warning" onClick={dirtyNavigationBlocker.proceed}>{t("common.discardDraft")}</BookButton> : null}
+            </>
+          )}
+        >
+          {exportBusy
+            ? t("novel.exportPanel.navigationBlocked")
+            : t("common.unsavedChangesMessage", { name: t("novel.detailTabs"), action: t("common.back") })}
+        </Modal>
+      ) : null}
       {/* 项目身份、当前进度和高频入口；维护操作统一收进更多菜单。 */}
       <PageHeader
         className="a4n-app-page-header--detail h-auto shrink-0 py-2 sm:flex-nowrap sm:py-0"
-        leading={<BackButton iconOnly title={t("novel.backToPreviousPage")} onClick={() => void guardNavigation(smartBack)} />}
+        leading={<BackButton iconOnly title={t("novel.backToPreviousPage")} onClick={smartBack} />}
         title={project.title}
         subtitle={getProjectProgressText(project, t)}
         actions={
@@ -656,7 +695,7 @@ export const NovelDetail: React.FC = () => {
               <BookButton
                 variant="secondary"
                 size="sm"
-                onClick={() => void guardNavigation(() => navigate(homeEntryRoute))}
+                onClick={() => navigate(homeEntryRoute)}
                 title={homeEntryLabel}
                 className="!min-h-8 !px-2.5 !text-xs"
               >
@@ -668,7 +707,7 @@ export const NovelDetail: React.FC = () => {
               <BookButton
                 variant="primary"
                 size="sm"
-                onClick={() => void guardNavigation(() => navigate(workspaceRoute))}
+                onClick={() => navigate(workspaceRoute)}
                 title={workspaceLabel}
                 aria-label={workspaceLabel}
                 className="!min-h-8 !px-3 !text-xs"
@@ -857,7 +896,7 @@ export const NovelDetail: React.FC = () => {
                   description={t("novel.inspirationDescription")}
                   onClick={() => {
                     setActionsOpen(false);
-                    void guardNavigation(() => navigate(`/inspiration/${projectId}`));
+                    navigate(`/inspiration/${projectId}`);
                   }}
                 />
               ) : null}
@@ -906,7 +945,7 @@ export const NovelDetail: React.FC = () => {
 
       <Modal
         isOpen={collaborationOpen}
-        onClose={() => setCollaborationOpen(false)}
+        onClose={() => void closeCollaboration()}
         title={t("novel.collaborationTitle")}
         subtitle={t("novel.collaborationSubtitle")}
         icon={<Users size={15} />}

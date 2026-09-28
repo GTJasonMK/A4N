@@ -62,7 +62,11 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
   const { run: runOutlineGeneration } = useOutlineGeneration();
   const [parts, setParts] = useState<PartOutline[]>([]);
   const [outlines, setOutlines] = useState<ChapterOutline[]>([]);
+  const [loadedProjectId, setLoadedProjectId] = useState<number | null>(null);
+  const [partsLoaded, setPartsLoaded] = useState(false);
+  const [outlinesLoaded, setOutlinesLoaded] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<{ projectId: number; message: string } | null>(null);
   const [requestPreviewOpen, setRequestPreviewOpen] = useState(false);
   const [requestPreviewLoading, setRequestPreviewLoading] = useState(false);
   const [requestPreviewData, setRequestPreviewData] = useState<ModelRequestPreview | null>(null);
@@ -171,17 +175,22 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
         listChapterOutlines(requestProjectId),
       ]);
       if (!isLoadCurrent(requestProjectId, requestSeq)) return false;
+      const errors: string[] = [];
       if (partsResult.status === "rejected") {
-        addToast(extractErrorMessage(partsResult.reason, t("outline.loadFailed")), "error");
+        const message = extractErrorMessage(partsResult.reason, t("outline.loadFailed"));
+        errors.push(message);
       }
       if (outlinesResult.status === "rejected") {
-        addToast(extractErrorMessage(outlinesResult.reason, t("outline.loadFailed")), "error");
+        const message = extractErrorMessage(outlinesResult.reason, t("outline.loadFailed"));
+        errors.push(message);
       }
-      if (partsResult.status === "rejected" && outlinesResult.status === "rejected") {
-        return false;
-      }
-      const pp = partsResult.status === "fulfilled" ? partsResult.value : partsRef.current;
-      const oo = outlinesResult.status === "fulfilled" ? outlinesResult.value : outlinesRef.current;
+      setLoadError(
+        errors.length > 0
+          ? { projectId: requestProjectId, message: errors.join(t("common.summarySeparator")) }
+          : null,
+      );
+      const pp = partsResult.status === "fulfilled" ? partsResult.value : [];
+      const oo = outlinesResult.status === "fulfilled" ? outlinesResult.value : [];
       const foreignPart = pp.find((part) => part.project_id !== requestProjectId);
       if (foreignPart) {
         throw new Error(`分部大纲接口返回了其他项目的数据：part_id=${foreignPart.id}`);
@@ -194,10 +203,21 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
       outlinesRef.current = oo;
       setParts(pp);
       setOutlines(oo);
+      setLoadedProjectId(requestProjectId);
+      setPartsLoaded(partsResult.status === "fulfilled");
+      setOutlinesLoaded(outlinesResult.status === "fulfilled");
       return partsResult.status === "fulfilled" && outlinesResult.status === "fulfilled";
     } catch (err) {
       if (isLoadCurrent(requestProjectId, requestSeq)) {
-        addToast(extractErrorMessage(err, t("outline.loadFailed")), "error");
+        const message = extractErrorMessage(err, t("outline.loadFailed"));
+        partsRef.current = [];
+        outlinesRef.current = [];
+        setParts([]);
+        setOutlines([]);
+        setPartsLoaded(false);
+        setOutlinesLoaded(false);
+        setLoadedProjectId(requestProjectId);
+        setLoadError({ projectId: requestProjectId, message });
       }
       return false;
     } finally {
@@ -228,8 +248,12 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
     confirmBusyRef.current = false;
     partsRef.current = [];
     outlinesRef.current = [];
+    setLoadedProjectId(null);
     setParts([]);
     setOutlines([]);
+    setPartsLoaded(false);
+    setOutlinesLoaded(false);
+    setLoadError(null);
     setLoading(true);
     setRequestPreviewOpen(false);
     setRequestPreviewLoading(false);
@@ -1104,14 +1128,24 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
     regenLastPart ||
     partRegenId != null;
   const interactionBusy = mutationBusy || requestPreviewLoading;
+  const currentProjectLoaded = loadedProjectId === projectId;
+  const currentLoadError = loadError?.projectId === projectId ? loadError.message : null;
 
   return (
-    <OutlinesTabView
+    <>
+      {currentLoadError ? (
+        <div role="alert" className="mb-3 rounded-xl border border-error/40 bg-error-bg px-3 py-2 text-small text-error">
+          {currentLoadError}
+        </div>
+      ) : null}
+      <OutlinesTabView
       projectId={projectId}
-      loading={loading}
+      loading={loading || !currentProjectLoaded}
+      partsLoaded={currentProjectLoaded && partsLoaded}
+      outlinesLoaded={currentProjectLoaded && outlinesLoaded}
       activeOutlineView={activeOutlineView}
-      parts={parts}
-      outlines={outlines}
+      parts={currentProjectLoaded ? parts : []}
+      outlines={currentProjectLoaded ? outlines : []}
       canEditOutlines={canEditOutlines}
       partCount={partCount}
       chaptersPerPart={chaptersPerPart}
@@ -1190,6 +1224,7 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
       onDeleteLatestOutlines={() => void handleDeleteLatestOutlines()}
       onChanged={() => load({ showLoading: false })}
       onCloseRequestPreview={closeRequestPreview}
-    />
+      />
+    </>
   );
 };

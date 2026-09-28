@@ -163,7 +163,7 @@ export const ExportPanel: React.FC<{
     setActing(key);
     setLastResult(null);
     try {
-      const r = await runProgressTask(
+      const result = await runProgressTask(
         {
           cancelTaskId: taskId,
           cancelTask: cancelWorkflowTask,
@@ -176,20 +176,23 @@ export const ExportPanel: React.FC<{
           cancelLabel: t("novel.exportPanel.stop"),
           runningHint: t("novel.exportPanel.runningHint"),
         },
-        () => {
+        async () => {
           if (!isCurrentExport(requestProjectId, requestSeq)) {
-            return Promise.reject(new Error(t("workflow.cancelled")));
+            throw new Error(t("workflow.cancelled"));
           }
-          return fn(taskId);
+          const exported = await fn(taskId);
+          if (!isCurrentExport(requestProjectId, requestSeq)) {
+            throw new Error(t("workflow.cancelled"));
+          }
+          const files = Array.isArray(exported) ? exported : [exported];
+          return { fileNames: downloadExportFiles(files), fileCount: files.length };
         },
       );
       if (!isCurrentExport(requestProjectId, requestSeq)) return;
-      const files = Array.isArray(r) ? r : [r];
-      const fileNames = downloadExportFiles(files);
-      setLastResult(fileNames);
+      setLastResult(result.fileNames);
       addToast(
-        files.length > 1
-          ? t("novel.exportPanel.downloadedFiles", { count: files.length })
+        result.fileCount > 1
+          ? t("novel.exportPanel.downloadedFiles", { count: result.fileCount })
           : t("novel.exportPanel.downloadComplete"),
         "success",
       );

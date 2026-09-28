@@ -14,6 +14,7 @@ interface FastembedModelPanelProps {
   model: LocalEmbeddingModel | null;
   downloadInfo: EmbeddingModelDownloadInfo | null;
   modelName: string;
+  modelLoading?: boolean;
   busy: boolean;
   modelHostLabel: string;
   onDownload: () => void;
@@ -24,6 +25,7 @@ export const FastembedModelPanel: React.FC<FastembedModelPanelProps> = ({
   model,
   downloadInfo,
   modelName,
+  modelLoading = false,
   busy,
   modelHostLabel,
   onDownload,
@@ -48,11 +50,17 @@ export const FastembedModelPanel: React.FC<FastembedModelPanelProps> = ({
             {model?.name ?? modelName}
           </div>
           <div className="mt-0.5 flex flex-wrap gap-x-1.5 gap-y-0.5 text-small text-book-text-muted">
-            <span className={model?.downloaded ? "text-success" : "text-warning"}>
-              {model?.downloaded
-                ? t("settingsEmbedding.downloaded")
-                : t("settingsEmbedding.notDownloaded")}
-            </span>
+            {modelLoading && !model ? (
+              <span role="status" className="inline-flex items-center gap-1.5">
+                <LoadingSpinner size="sm" /> {t("common.loading")}
+              </span>
+            ) : (
+              <span className={model?.downloaded ? "text-success" : "text-warning"}>
+                {model?.downloaded
+                  ? t("settingsEmbedding.downloaded")
+                  : t("settingsEmbedding.notDownloaded")}
+              </span>
+            )}
             {model ? (
               <>
                 <span aria-hidden="true">·</span>
@@ -64,12 +72,12 @@ export const FastembedModelPanel: React.FC<FastembedModelPanelProps> = ({
                   </>
                 ) : null}
               </>
-            ) : (
+            ) : !modelLoading ? (
               <>
                 <span aria-hidden="true">·</span>
                 <span>{t("settingsEmbedding.modelDirectoryUnavailable", { host: modelHostLabel })}</span>
               </>
-            )}
+            ) : null}
           </div>
         </div>
         {busy && model?.downloaded ? (

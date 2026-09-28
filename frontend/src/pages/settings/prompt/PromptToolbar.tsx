@@ -9,6 +9,7 @@ import { useI18n } from "../../../i18n";
 interface PromptToolbarProps {
   keyword: string;
   loading: boolean;
+  mutationBusy: boolean;
   reloadingDefaults: boolean;
   onKeywordChange: (keyword: string) => void;
   onLoadDefaults: () => void;
@@ -18,6 +19,7 @@ interface PromptToolbarProps {
 export const PromptToolbar: React.FC<PromptToolbarProps> = ({
   keyword,
   loading,
+  mutationBusy,
   reloadingDefaults,
   onKeywordChange,
   onLoadDefaults,
@@ -43,7 +45,7 @@ export const PromptToolbar: React.FC<PromptToolbarProps> = ({
       label={t("settingsPrompt.refresh")}
       onClick={onRefresh}
       size="sm"
-      disabled={loading}
+      disabled={mutationBusy}
     >
       <Loader2 size={14} className={loading ? "animate-spin" : "hidden"} />
       {!loading && <RotateCcw size={14} />}
@@ -61,6 +63,7 @@ export const PromptToolbar: React.FC<PromptToolbarProps> = ({
           {
             label: t("settingsPrompt.loadDefaults"),
             icon: <DownloadCloud size={12} />,
+            disabled: mutationBusy,
             onClick: onLoadDefaults,
           },
         ]}

@@ -6,6 +6,8 @@ import { useI18n } from "../../../i18n";
 interface PromptListProps {
   prompts: PromptEntry[];
   loading: boolean;
+  disabled?: boolean;
+  unavailable?: boolean;
   selectedName: string | null;
   onSelect: (name: string) => void;
 }
@@ -13,6 +15,8 @@ interface PromptListProps {
 export const PromptList: React.FC<PromptListProps> = ({
   prompts,
   loading,
+  disabled = false,
+  unavailable = false,
   selectedName,
   onSelect,
 }) => {
@@ -39,7 +43,7 @@ export const PromptList: React.FC<PromptListProps> = ({
           <LoadingSpinner size="sm" /> {t("settingsPrompt.loading")}
         </li>
       )}
-      {!loading && prompts.length === 0 && (
+      {!loading && !unavailable && prompts.length === 0 && (
         <li className="p-3 text-center text-xs text-book-text-muted">
           {t("settingsPrompt.noMatchingPrompts")}
         </li>
@@ -52,6 +56,7 @@ export const PromptList: React.FC<PromptListProps> = ({
               ref={isSelected ? selectedRef : undefined}
               type="button"
               onClick={() => onSelect(prompt.name)}
+              disabled={disabled}
               aria-current={isSelected ? "true" : undefined}
               className={`w-full px-3 py-2.5 text-left text-xs transition-colors ${
                 isSelected

@@ -2,7 +2,6 @@ import { ThemedSelect } from "../../../components/ui/ThemedSelect";
 import React, { useEffect, useState } from "react";
 import { extractErrorMessage } from "../../../api";
 import { listAllProjects, type NovelProject } from "../../../api/project";
-import { useToast } from "../../../components/feedback/Toast";
 import { useI18n } from "../../../i18n";
 
 interface PromptProjectSelectProps {
@@ -20,20 +19,21 @@ export const PromptProjectSelect: React.FC<PromptProjectSelectProps> = ({
   ariaLabel,
   className = "",
 }) => {
-  const addToast = useToast((state) => state.addToast);
   const { t } = useI18n();
   const [projects, setProjects] = useState<NovelProject[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
     setLoading(true);
+    setLoadError(null);
     void listAllProjects({ access_scope: "all" })
       .then((items) => {
         if (active) setProjects(items);
       })
       .catch((error) => {
-        if (active) addToast(extractErrorMessage(error, t("settingsPrompt.loadProjectsFailed")), "error");
+        if (active) setLoadError(extractErrorMessage(error, t("settingsPrompt.loadProjectsFailed")));
       })
       .finally(() => {
         if (active) setLoading(false);
@@ -41,9 +41,10 @@ export const PromptProjectSelect: React.FC<PromptProjectSelectProps> = ({
     return () => {
       active = false;
     };
-  }, [addToast]);
+  }, []);
 
   return (
+    <>
     <ThemedSelect
       value={value ?? ""}
       onChange={(selectedValue) => {
@@ -52,10 +53,10 @@ export const PromptProjectSelect: React.FC<PromptProjectSelectProps> = ({
       }}
       className={`pyqt-input min-w-0 ${className}`}
       aria-label={ariaLabel}
-      disabled={loading}
+      disabled={loading || (loadError != null && !allowEmpty)}
     >
       <option value="">
-        {loading ? t("settingsPrompt.loadingProjects") : allowEmpty ? t("settingsPrompt.noProjectContext") : t("settingsPrompt.selectProject")}
+        {loadError ? t("settingsPrompt.loadProjectsFailed") : loading ? t("settingsPrompt.loadingProjects") : allowEmpty ? t("settingsPrompt.noProjectContext") : t("settingsPrompt.selectProject")}
       </option>
       {projects.map((project) => (
         <option key={project.id} value={project.id}>
@@ -63,5 +64,7 @@ export const PromptProjectSelect: React.FC<PromptProjectSelectProps> = ({
         </option>
       ))}
     </ThemedSelect>
+    {loadError ? <span role="alert" className="block text-small text-error">{loadError}</span> : null}
+    </>
   );
 };

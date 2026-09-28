@@ -1,3 +1,4 @@
+import { useLayoutEffect, useState, type CSSProperties } from "react";
 import { X, CheckCircle, AlertCircle, Info } from 'lucide-react';
 import { useI18n } from '../../i18n';
 import { useToast } from "./toastStore";
@@ -9,6 +10,44 @@ export type { ToastAction, ToastType } from "./toastStore";
 export function ToastContainer() {
   const { toasts, removeToast } = useToast();
   const { t } = useI18n();
+  const [mobileTop, setMobileTop] = useState(88);
+
+  useLayoutEffect(() => {
+    const updatePosition = () => {
+      const candidates = [
+        ...document.querySelectorAll<HTMLElement>(".a4n-page-header"),
+        ...document.querySelectorAll<HTMLElement>(".a4n-settings-layout > div:first-child"),
+      ];
+      const visibleBottoms = candidates
+        .filter((element) => {
+          const rect = element.getBoundingClientRect();
+          return rect.width > 0 && rect.height > 0 && getComputedStyle(element).display !== "none";
+        })
+        .map((element) => element.getBoundingClientRect().bottom)
+        .filter((bottom) => bottom >= 0 && bottom <= window.innerHeight);
+      const nextTop = Math.ceil((visibleBottoms.length > 0 ? Math.max(...visibleBottoms) : 56) + 8);
+      setMobileTop((current) => current === nextTop ? current : nextTop);
+    };
+
+    updatePosition();
+    window.addEventListener("resize", updatePosition);
+    const headerObserver = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(updatePosition);
+    const observeHeaders = () => {
+      headerObserver?.disconnect();
+      document.querySelectorAll<HTMLElement>(
+        ".a4n-page-header, .a4n-settings-layout > div:first-child",
+      ).forEach((element) => headerObserver?.observe(element));
+      updatePosition();
+    };
+    const observer = new MutationObserver(observeHeaders);
+    observer.observe(document.body, { childList: true, subtree: true });
+    observeHeaders();
+    return () => {
+      window.removeEventListener("resize", updatePosition);
+      observer.disconnect();
+      headerObserver?.disconnect();
+    };
+  }, [toasts.length]);
 
   const iconMap = {
     success: <CheckCircle size={14} className="text-success" />,
@@ -23,7 +62,12 @@ export function ToastContainer() {
   } satisfies Record<ToastType, string>;
 
   return (
-    <div aria-live="polite" aria-relevant="additions removals" className="a4n-toast-container pointer-events-none fixed inset-x-3 top-[calc(var(--a4n-page-header-height)+2rem)] z-[140] flex flex-col items-end gap-2 sm:inset-x-auto sm:bottom-3 sm:left-3 sm:top-auto sm:w-[min(92vw,23rem)]">
+    <div
+      aria-live="polite"
+      aria-relevant="additions removals"
+      style={{ "--a4n-toast-mobile-top": `${mobileTop}px` } as CSSProperties}
+      className="a4n-toast-container pointer-events-none fixed inset-x-3 top-[var(--a4n-toast-mobile-top)] z-[110] flex flex-col items-end gap-2 sm:inset-x-auto sm:bottom-3 sm:left-3 sm:top-auto sm:w-[min(92vw,23rem)]"
+    >
       {toasts.map((toast) => (
         <div
           key={toast.id}

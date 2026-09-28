@@ -383,11 +383,12 @@ export const SessionManager: React.FC = () => {
   const { addToast } = useToast();
   const { t } = useI18n();
   const [sessions, setSessions] = useState<SessionSummary[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [refreshBusy, setRefreshBusy] = useState(false);
   const mountedRef = useRef(false);
   const refreshBusyRef = useRef(false);
+  const loadSeqRef = useRef(0);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -398,21 +399,22 @@ export const SessionManager: React.FC = () => {
   }, []);
 
   const load = async (): Promise<boolean> => {
+    const requestSeq = ++loadSeqRef.current;
     setLoading(true);
     setLoadError(null);
     try {
       const nextSessions = await listSessions();
-      if (!mountedRef.current) return false;
+      if (!mountedRef.current || loadSeqRef.current !== requestSeq) return false;
       setSessions(nextSessions);
       return true;
     } catch (err) {
-      if (!mountedRef.current) return false;
+      if (!mountedRef.current || loadSeqRef.current !== requestSeq) return false;
       const message = extractErrorMessage(err, t("settingsAbout.loadSessionsFailed"));
       setLoadError(message);
       addToast(message, "error");
       return false;
     } finally {
-      if (mountedRef.current) setLoading(false);
+      if (mountedRef.current && loadSeqRef.current === requestSeq) setLoading(false);
     }
   };
 
@@ -428,9 +430,8 @@ export const SessionManager: React.FC = () => {
     try {
       await refreshToken();
       if (!mountedRef.current) return;
-      if (!await load()) return;
-      if (!mountedRef.current) return;
       addToast(t("settingsAbout.credentialUpdated"), "success");
+      await load();
     } catch (err) {
       if (!mountedRef.current) return;
       addToast(extractErrorMessage(err, t("settingsAbout.refreshFailed")), "error");

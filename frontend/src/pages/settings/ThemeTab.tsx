@@ -65,7 +65,7 @@ export const ThemeTab: React.FC = () => {
   };
 
   const handleThemeActionStart = (action: Exclude<ThemeAction, null>) => {
-    if (themeTab.mutationBusy) return;
+    if (themeTab.loading || themeTab.mutationBusy) return;
     setThemeAction(action);
   };
 
@@ -157,7 +157,7 @@ export const ThemeTab: React.FC = () => {
         renamingId={themeTab.renamingId}
         renameValue={themeTab.renameValue}
         renameSaving={themeTab.renameSaving}
-        mutationBusy={themeTab.mutationBusy}
+        mutationBusy={themeTab.mutationBusy || themeTab.loading}
         onScopeChange={themeTab.setScope}
         onRefresh={themeTab.refresh}
         onRenameInput={themeTab.setRenameValue}

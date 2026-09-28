@@ -28,6 +28,8 @@ interface ProjectListPanelProps {
   accessScope: ProjectAccessScope;
   projectKindFilter: ProjectKindFilter;
   pendingInvites: ProjectInvite[];
+  pendingInvitesLoading: boolean;
+  pendingInvitesError: string | null;
   inviteActionIds: ReadonlySet<number>;
   onTabChange: (tab: ProjectTab) => void;
   onCreateProject: () => void;
@@ -53,6 +55,8 @@ export const ProjectListPanel: React.FC<ProjectListPanelProps> = ({
   accessScope,
   projectKindFilter,
   pendingInvites,
+  pendingInvitesLoading,
+  pendingInvitesError,
   inviteActionIds,
   onTabChange,
   onCreateProject,
@@ -177,6 +181,16 @@ export const ProjectListPanel: React.FC<ProjectListPanelProps> = ({
       key={`${tab}:${accessScope}:${projectKindFilter}`}
       className="content-wide min-h-0 flex-1 overflow-visible pr-0 md:overflow-y-auto md:pr-2 custom-scrollbar"
     >
+      {pendingInvitesError ? (
+        <div role="alert" className="a4n-flat-surface mb-3 flex items-start gap-3 px-4 py-3 text-small text-error">
+          <AlertCircle size={16} aria-hidden="true" />
+          <span className="min-w-0 flex-1">{pendingInvitesError}</span>
+        </div>
+      ) : pendingInvitesLoading && pendingInvites.length === 0 ? (
+        <div role="status" className="mb-3 inline-flex items-center gap-2 text-small text-book-text-muted">
+          <LoadingSpinner size="sm" /> {t("common.loading")}
+        </div>
+      ) : null}
       {pendingInvites.length > 0 && (
         <ProjectInviteBanner
           invites={pendingInvites}

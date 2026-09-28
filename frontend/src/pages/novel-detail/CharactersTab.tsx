@@ -60,7 +60,7 @@ export const CharactersTab: React.FC<{ projectId: number }> = ({ projectId }) =>
     },
     [projectId],
   );
-  const { loading, load } = useChapterAnalysisLoader(
+  const { load, loadError } = useChapterAnalysisLoader(
     projectId,
     loadProfiles,
     t("characterDetail.loadFailed"),
@@ -167,7 +167,7 @@ export const CharactersTab: React.FC<{ projectId: number }> = ({ projectId }) =>
   };
 
   const displayProfiles = loadedProjectId === projectId ? profiles : [];
-  const displayLoading = loading || loadedProjectId !== projectId;
+  const displayLoading = loadedProjectId !== projectId;
 
   if (displayLoading) {
     return (
@@ -179,6 +179,9 @@ export const CharactersTab: React.FC<{ projectId: number }> = ({ projectId }) =>
 
   return (
     <div className="content-main flex min-h-0 flex-col gap-3">
+      {loadError ? (
+        <p role="alert" className="text-small text-error">{loadError}</p>
+      ) : null}
       <div className="flex items-center justify-between gap-2">
         <SegmentedControl
           ariaLabel={t("characterDetail.profileWorkspaceAria")}
@@ -200,6 +203,7 @@ export const CharactersTab: React.FC<{ projectId: number }> = ({ projectId }) =>
         <CharacterProfilesPanel
           projectId={projectId}
           profiles={displayProfiles}
+          loadError={loadError}
           onChanged={() => load({ silent: true, force: true })}
           onEdit={openEdit}
         />

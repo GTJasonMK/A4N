@@ -81,6 +81,43 @@ describe("EmbeddingConfigEditor", () => {
     expect(html).toContain('>BGEBaseENV15</span>');
   });
 
+  it("shows a pending local model directory as loading instead of unavailable", () => {
+    const form: EmbeddingForm = {
+      name: "env15",
+      backend: "fastembed",
+      model: "BGEBaseENV15",
+      api_base_url: "",
+      api_key: "",
+      has_api_key: false,
+      clear_api_key: false,
+      dimension: "768",
+      batch_size: "32",
+      local_model_path: "",
+      pricing: DEFAULT_PRICING_PLAN,
+    };
+    const html = renderToStaticMarkup(
+      <I18nProvider initialLocale="zh-CN">
+        <EmbeddingConfigEditor
+          form={form}
+          providers={[{ id: "fastembed", display_name: "FastEmbed 本地模型" }]}
+          localModels={[]}
+          modelsLoading
+          busyModel={null}
+          setForm={() => undefined}
+          pickFastembedModel={() => null}
+          resolveLocalModel={() => null}
+          resolveDownloadInfo={() => null}
+          modelHostLabel="本机"
+          onDownloadModel={() => undefined}
+          onDeleteModel={() => undefined}
+        />
+      </I18nProvider>,
+    );
+
+    expect(html).toContain("加载中…");
+    expect(html).not.toContain("未加载到本机模型目录");
+  });
+
   it("keeps model options compact when download metadata is available", () => {
     const model: LocalEmbeddingModel = {
       name: "BGESmallZHV15",

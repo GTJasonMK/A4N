@@ -58,6 +58,9 @@ pub(crate) fn args_create_invite_code() -> Value {
 pub(crate) fn args_create_user() -> Value {
     strict_typed_input_schema::<crate::admin::CreateUserInput>()
 }
+pub(crate) fn args_cleanup_orphan_project_data_dirs() -> Value {
+    strict_typed_input_schema::<crate::storage::CleanupOrphanProjectDataDirsInput>()
+}
 pub(crate) fn args_delete_local_embedding_model() -> Value {
     typed_input_schema::<crate::embedding::EmbeddingModelInput>()
 }

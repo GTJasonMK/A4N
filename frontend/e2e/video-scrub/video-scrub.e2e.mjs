@@ -334,6 +334,52 @@ describe("video timeline scrubbing", () => {
     );
   });
 
+  it("keeps marker keyboard events inside the timeline", async () => {
+    await openHarness();
+    const timeline = await $('[aria-label="视频剪辑时间轴"]');
+    await timeline.waitForDisplayed();
+    await browser.execute(() => document.querySelector("video").pause());
+    await browser.execute(() => {
+      const video = document.querySelector("video");
+      video.currentTime = video.duration * 0.2;
+      document.querySelector('[aria-label="视频剪辑时间轴"]').focus();
+    });
+    await browser.waitUntil(() => browser.execute(() => {
+      const video = document.querySelector("video");
+      return Boolean(video && !video.seeking && Math.abs(video.currentTime / video.duration - 0.2) < 0.05);
+    }));
+    await browser.keys("Enter");
+    await browser.waitUntil(
+      () => browser.execute(() => document.querySelectorAll('[role="slider"][aria-label^="剪辑竖线"]').length === 1),
+    );
+
+    await browser.execute(() => {
+      const video = document.querySelector("video");
+      video.currentTime = video.duration * 0.6;
+      document.querySelector('[aria-label="剪辑竖线 1"]').focus();
+    });
+    await browser.waitUntil(() => browser.execute(() => !document.querySelector("video").seeking));
+    await browser.keys("Enter");
+    await browser.pause(80);
+    assert.equal(
+      await browser.execute(() => document.querySelectorAll('[role="slider"][aria-label^="剪辑竖线"]').length),
+      1,
+      "Enter on the marker must not add a timeline marker",
+    );
+
+    await browser.execute(() => {
+      const timeline = document.querySelector('[aria-label="视频剪辑时间轴"]');
+      [...document.querySelectorAll("button")].find((button) => !button.disabled && !timeline.contains(button))?.focus();
+    });
+    await browser.keys("Delete");
+    await browser.pause(80);
+    assert.equal(
+      await browser.execute(() => document.querySelectorAll('[role="slider"][aria-label^="剪辑竖线"]').length),
+      1,
+      "Delete outside the timeline must not remove its selected marker",
+    );
+  });
+
   it("keeps the playback controls usable at wide and narrow widths", async () => {
     try {
       for (const width of [1440, 1024, 390]) {

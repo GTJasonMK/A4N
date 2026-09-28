@@ -45,7 +45,7 @@ command_specs! {
     "check_implicit_update" => args_check_implicit_update, result_check_implicit_update, "profile", effect(READ_EFFECT), secrets(RUNTIME_SECRET_POINTERS), runtime(RuntimeConfigPolicy::Full);
     "check_import_dedup" => args_check_import_dedup, result_dedup, "import", context(NO_CONTEXT), effect(READ_EFFECT), capabilities(CAPABILITIES_IMPORT);
     "check_profile_sync_conflict" => args_check_profile_sync_conflict, result_check_profile_sync_conflict, "profile", effect(READ_EFFECT);
-    "cleanup_orphan_project_data_dirs" => empty_args_schema, result_cleanup_orphan_project_data_dirs, "project", identity(ADMIN_IDENTITY), effect(DESTRUCTIVE_EFFECT), references(REFERENCES_PROJECT_IDS);
+    "cleanup_orphan_project_data_dirs" => args_cleanup_orphan_project_data_dirs, result_cleanup_orphan_project_data_dirs, "project", identity(ADMIN_IDENTITY), effect(DESTRUCTIVE_EFFECT), references(REFERENCES_PROJECT_IDS);
     "commit_inserted_segment_draft" => args_commit_inserted_segment_draft, result_video_timeline, "video";
     "confirm_chapter_visual_plan" => args_chapter_visual_plan_record, result_confirmed_chapter_visual_plan, "chapter", effect(DESTRUCTIVE_EFFECT), references(REFERENCES_PROJECT_IDS);
     "confirm_reverse_engineering_candidate" => args_confirm_reverse_engineering_candidate, result_reverse_engineering_candidate, "workflow", context(NO_CONTEXT), effect(DESTRUCTIVE_EFFECT), execution("workflow"), secrets(RUNTIME_SECRET_POINTERS), references(REFERENCES_WORKFLOW_RUN_IDS), runtime(RuntimeConfigPolicy::Full), idempotency("safe");

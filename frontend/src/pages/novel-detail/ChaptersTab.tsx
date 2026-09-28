@@ -93,7 +93,7 @@ export const ChaptersTab: React.FC<ChaptersTabProps> = ({ projectId, canEditChap
       throw err;
     }
   }, [projectId]);
-  const { loading, load } = useNovelDetailLoader(loadChapters, t("novel.loadChaptersFailed"));
+  const { load, loadError } = useNovelDetailLoader(loadChapters, t("novel.loadChaptersFailed"));
 
   useEffect(() => {
     mountedRef.current = true;
@@ -205,7 +205,7 @@ export const ChaptersTab: React.FC<ChaptersTabProps> = ({ projectId, canEditChap
 
   const displayChapters = loadedProjectId === projectId ? chapters : [];
   const previewChapter = displayChapters.find((chapter) => chapter.id === previewChapterId);
-  const displayLoading = loading || loadedProjectId !== projectId;
+  const displayLoading = loadedProjectId !== projectId;
   const importReady =
     Number.isInteger(importForm.chapter_number) &&
     importForm.chapter_number > 0 &&
@@ -225,6 +225,9 @@ export const ChaptersTab: React.FC<ChaptersTabProps> = ({ projectId, canEditChap
 
   return (
     <div className="content-main flex flex-col gap-3">
+      {loadError ? (
+        <p role="alert" className="text-small text-error">{loadError}</p>
+      ) : null}
       <div className="flex min-h-8 items-center gap-3">
         {displayChapters.length > 0 ? (
           <span className="min-w-0 flex-1 truncate text-xs text-book-text-muted">
@@ -246,7 +249,7 @@ export const ChaptersTab: React.FC<ChaptersTabProps> = ({ projectId, canEditChap
         ) : null}
       </div>
       <section className="a4n-flat-surface overflow-hidden">
-        {displayChapters.length === 0 ? (
+        {displayChapters.length === 0 && loadError ? null : displayChapters.length === 0 ? (
           <div className="p-4">
             <EmptyHint
               text={t("writing.noChaptersHint")}

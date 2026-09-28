@@ -79,9 +79,11 @@ export const UsersSection: React.FC<{ currentUserId: number }> = ({
     useState<CreateUserInput>(emptyCreateUserForm);
   const [tokenFor, setTokenFor] = useState<number | null>(null);
   const [tokenInfo, setTokenInfo] = useState<unknown>(null);
+  const [tokenError, setTokenError] = useState<string | null>(null);
   const [tokenLoadingFor, setTokenLoadingFor] = useState<number | null>(null);
   const [usageFor, setUsageFor] = useState<number | null>(null);
   const [usageInfo, setUsageInfo] = useState<UsageLogSummary[] | null>(null);
+  const [usageError, setUsageError] = useState<string | null>(null);
   const [usageLoadingFor, setUsageLoadingFor] = useState<number | null>(null);
   const actingKeysRef = useRef<Set<string>>(new Set());
   const tokenSeqRef = useRef(0);
@@ -142,7 +144,7 @@ export const UsersSection: React.FC<{ currentUserId: number }> = ({
     },
     [],
   );
-  const { loading, error, load, isCurrentScope: isCurrentUser } =
+  const { loading, error, load, reload, isCurrentScope: isCurrentUser } =
     useAdminSectionLoader(
       currentUserId,
       loadUsers,
@@ -158,10 +160,12 @@ export const UsersSection: React.FC<{ currentUserId: number }> = ({
     createFormVersionRef.current += 1;
     setTokenFor(null);
     setTokenInfo(null);
+    setTokenError(null);
     setTokenLoadingFor(null);
     tokenInFlightForRef.current = null;
     setUsageFor(null);
     setUsageInfo(null);
+    setUsageError(null);
     setUsageLoadingFor(null);
     usageInFlightForRef.current = null;
   }, [currentUserId]);
@@ -240,7 +244,7 @@ export const UsersSection: React.FC<{ currentUserId: number }> = ({
     try {
       await createAdminUser(input);
       if (!isCurrentUser(requestCurrentUserId)) return;
-      const refreshed = await load();
+      const refreshed = await reload();
       if (!refreshed) return;
       if (createFormVersionRef.current === requestFormVersion && createOpen) {
         addToast(t("settingsAdmin.userCreated"), "success");
@@ -278,7 +282,7 @@ export const UsersSection: React.FC<{ currentUserId: number }> = ({
       if (!isCurrentUser(requestCurrentUserId)) return;
       await createInviteCode({ code: trimmedCode });
       if (!isCurrentUser(requestCurrentUserId)) return;
-      const refreshed = await load();
+      const refreshed = await reload();
       if (!refreshed) return;
       addToast(t("settingsAdmin.inviteCreated"), "success");
     } catch (err) {
@@ -313,6 +317,7 @@ export const UsersSection: React.FC<{ currentUserId: number }> = ({
         addToast(t("settingsAdmin.invalidRole"), "error");
         return;
       }
+      if (role === u.role) return;
       const updated = await updateUserRole(u.id, role);
       if (!isCurrentUser(requestCurrentUserId)) return;
       if (updated.id === requestCurrentUserId) {
@@ -322,7 +327,7 @@ export const UsersSection: React.FC<{ currentUserId: number }> = ({
           return;
         }
       }
-      const refreshed = await load();
+      const refreshed = await reload();
       if (!refreshed) return;
       addToast(t("settingsAdmin.roleUpdated"), "success");
     } catch (err) {
@@ -352,7 +357,7 @@ export const UsersSection: React.FC<{ currentUserId: number }> = ({
       if (!isCurrentUser(requestCurrentUserId)) return;
       await disableUser(u.id);
       if (!isCurrentUser(requestCurrentUserId)) return;
-      const refreshed = await load();
+      const refreshed = await reload();
       if (!refreshed) return;
       addToast(t("settingsAdmin.disabled"), "success");
     } catch (err) {
@@ -371,6 +376,7 @@ export const UsersSection: React.FC<{ currentUserId: number }> = ({
     tokenInFlightForRef.current = u.id;
     setTokenFor(u.id);
     setTokenInfo(null);
+    setTokenError(null);
     setTokenLoadingFor(u.id);
     try {
       const nextTokenInfo = await getTokenSummary(u.id);
@@ -386,7 +392,9 @@ export const UsersSection: React.FC<{ currentUserId: number }> = ({
         tokenSeqRef.current !== requestSeq
       )
         return;
-      addToast(extractErrorMessage(err, t("settingsAdmin.loadTokenFailed")), "error");
+      const message = extractErrorMessage(err, t("settingsAdmin.loadTokenFailed"));
+      setTokenError(message);
+      addToast(message, "error");
     } finally {
       if (
         isCurrentUser(requestCurrentUserId) &&
@@ -406,6 +414,7 @@ export const UsersSection: React.FC<{ currentUserId: number }> = ({
     usageInFlightForRef.current = u.id;
     setUsageFor(u.id);
     setUsageInfo(null);
+    setUsageError(null);
     setUsageLoadingFor(u.id);
     try {
       const data = await getUserUsage(u.id, 20);
@@ -421,7 +430,9 @@ export const UsersSection: React.FC<{ currentUserId: number }> = ({
         usageSeqRef.current !== requestSeq
       )
         return;
-      addToast(extractErrorMessage(err, t("settingsAdmin.loadUsageFailed")), "error");
+      const message = extractErrorMessage(err, t("settingsAdmin.loadUsageFailed"));
+      setUsageError(message);
+      addToast(message, "error");
     } finally {
       if (
         isCurrentUser(requestCurrentUserId) &&
@@ -442,6 +453,7 @@ export const UsersSection: React.FC<{ currentUserId: number }> = ({
     tokenInFlightForRef.current = null;
     setTokenFor(null);
     setTokenInfo(null);
+    setTokenError(null);
     setTokenLoadingFor(null);
   };
 
@@ -450,6 +462,7 @@ export const UsersSection: React.FC<{ currentUserId: number }> = ({
     usageInFlightForRef.current = null;
     setUsageFor(null);
     setUsageInfo(null);
+    setUsageError(null);
     setUsageLoadingFor(null);
   };
 
@@ -592,7 +605,7 @@ export const UsersSection: React.FC<{ currentUserId: number }> = ({
         title={`${tokenUserLabel} · ${t("settingsAdmin.tokenSummary")}`}
         maxWidthClassName="max-w-xl"
       >
-        <TokenSummaryPanel data={tokenInfo} loading={tokenLoadingFor === tokenFor} />
+        <TokenSummaryPanel data={tokenInfo} loading={tokenLoadingFor === tokenFor} error={tokenError} />
       </Modal>
       <Modal
         isOpen={usageFor != null}
@@ -600,7 +613,7 @@ export const UsersSection: React.FC<{ currentUserId: number }> = ({
         title={`${usageUserLabel} · ${t("settingsAdmin.recentUsage")}`}
         maxWidthClassName="max-w-2xl"
       >
-        <UsageRecordsPanel data={usageInfo} loading={usageLoadingFor === usageFor} />
+        <UsageRecordsPanel data={usageInfo} loading={usageLoadingFor === usageFor} error={usageError} />
       </Modal>
       <Modal
         isOpen={createOpen}
@@ -683,7 +696,8 @@ export const UsersSection: React.FC<{ currentUserId: number }> = ({
 const TokenSummaryPanel: React.FC<{
   data: unknown;
   loading: boolean;
-}> = ({ data, loading }) => {
+  error: string | null;
+}> = ({ data, loading, error }) => {
   const { t, locale } = useI18n();
   const record = data && typeof data === "object" && !Array.isArray(data)
     ? data as Record<string, unknown>
@@ -703,7 +717,9 @@ const TokenSummaryPanel: React.FC<{
 
   return (
     <div className="overflow-hidden">
-      {loading && !record ? (
+      {error ? (
+        <p role="alert" className="px-3 py-3 text-small text-error">{error}</p>
+      ) : loading && !record ? (
         <div className="inline-flex items-center gap-1.5 px-3 py-3 text-small text-book-text-muted">
           <LoadingSpinner size="sm" /> {t("settingsAdmin.loadingData")}
         </div>
@@ -736,11 +752,14 @@ const TokenSummaryPanel: React.FC<{
 const UsageRecordsPanel: React.FC<{
   data: UsageLogSummary[] | null;
   loading: boolean;
-}> = ({ data, loading }) => {
+  error: string | null;
+}> = ({ data, loading, error }) => {
   const { t, locale } = useI18n();
   return (
   <div className="overflow-hidden">
-    {loading && data == null ? (
+    {error ? (
+      <p role="alert" className="px-3 py-3 text-small text-error">{error}</p>
+    ) : loading && data == null ? (
       <div className="inline-flex items-center gap-1.5 px-3 py-3 text-small text-book-text-muted">
         <LoadingSpinner size="sm" /> {t("settingsAdmin.loadingData")}
       </div>

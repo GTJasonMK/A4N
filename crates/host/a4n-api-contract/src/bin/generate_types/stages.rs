@@ -274,6 +274,9 @@ pub(super) fn run() {
         &typescript_interface::<StoragePathsSummary>("StoragePathsSummary"),
         &typescript_interface::<OrphanProjectDataDirSummary>("OrphanProjectDataDirSummary"),
         &typescript_interface::<OrphanProjectDataDirsSummary>("OrphanProjectDataDirsSummary"),
+        &typescript_interface::<CleanupOrphanProjectDataDirsInput>(
+            "CleanupOrphanProjectDataDirsInput",
+        ),
         &typescript_interface::<ImportProjectTextUploadInput>("ImportProjectTextUploadInput"),
         &typescript_enum::<ImportAnalysisStatus>("ImportAnalysisStatus"),
         &typescript_enum::<ImportAnalysisStageKey>("ImportAnalysisStageKey"),

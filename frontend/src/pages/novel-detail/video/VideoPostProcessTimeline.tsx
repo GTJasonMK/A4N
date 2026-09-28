@@ -74,6 +74,7 @@ export const VideoPostProcessTimeline: React.FC<VideoPostProcessTimelineProps> =
                 }
                 onClick={handleTimelineClick}
                 onKeyDown={(event) => {
+                  if (event.target !== event.currentTarget) return;
                   if (event.key === "Enter" || event.key === " ") {
                     event.preventDefault();
                     addMarker();

@@ -38,9 +38,9 @@ export const QueueTab: React.FC = () => {
   const user = useAuthStore((state) => state.user);
   const canReadQueueDiagnostics = user?.role === "admin";
   const [stats, setStats] = useState<QueueStatsSummary | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [tasks, setTasks] = useState<TaskInfoSummary[]>([]);
-  const [tasksLoading, setTasksLoading] = useState(false);
+  const [tasksLoading, setTasksLoading] = useState(true);
   const [cancellingTaskIds, setCancellingTaskIds] = useState<Set<string>>(() => new Set());
   const [workflows, setWorkflows] = useState<WorkflowStateSummary[]>([]);
   const [workflowRuns, setWorkflowRuns] = useState<WorkflowRunSummary[]>([]);

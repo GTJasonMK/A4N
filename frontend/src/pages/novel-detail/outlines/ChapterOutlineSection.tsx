@@ -20,6 +20,7 @@ export interface ChapterOutlineEditForm {
 
 interface ChapterOutlineSectionProps {
   outlines: ChapterOutline[];
+  loaded: boolean;
   canEdit: boolean;
   chapterCount: number;
   generating: boolean;
@@ -42,6 +43,7 @@ interface ChapterOutlineSectionProps {
 
 export function ChapterOutlineSection({
   outlines,
+  loaded,
   canEdit,
   chapterCount,
   generating,
@@ -89,7 +91,7 @@ export function ChapterOutlineSection({
                       ? t("outline.chapterSection.derived", { count: derivedCount })
                       : "",
                 })
-              : t("outline.chapterSection.emptySummary")}
+              : loaded ? t("outline.chapterSection.emptySummary") : null}
           </p>
         </div>
         {canEdit ? (
@@ -97,7 +99,7 @@ export function ChapterOutlineSection({
             variant="secondary"
             size="sm"
             onClick={onCreate}
-            disabled={disabled}
+            disabled={disabled || !loaded}
             className="shrink-0"
           >
             <Plus size={13} /> {t("outline.chapterSection.directEntry")}
@@ -123,7 +125,7 @@ export function ChapterOutlineSection({
                 min={1}
                 max={50}
                 value={chapterCount}
-                disabled={disabled}
+                disabled={disabled || !loaded}
                 onChange={(event) => onChapterCountChange(Number(event.target.value))}
                 className="pyqt-input h-10 w-full"
               />
@@ -135,7 +137,7 @@ export function ChapterOutlineSection({
                   variant="secondary"
                   size="md"
                   onClick={onPreviewGenerate}
-                  disabled={disabled}
+                  disabled={disabled || !loaded}
                   className="!h-10 !w-10"
                 >
                   <Eye size={14} />
@@ -145,7 +147,7 @@ export function ChapterOutlineSection({
                 variant="primary"
                 size="sm"
                 onClick={onGenerate}
-                disabled={disabled || generating}
+                disabled={disabled || !loaded || generating}
                 className="h-10 min-w-0 flex-1 !min-h-10 !px-4 !text-xs md:flex-none"
               >
                 {generating ? (
@@ -162,9 +164,9 @@ export function ChapterOutlineSection({
         </details>
       ) : null}
 
-      {outlines.length === 0 ? (
+      {outlines.length === 0 && loaded ? (
         <EmptyHint text={t("outline.chapterSection.empty")} />
-      ) : (
+      ) : outlines.length > 0 ? (
         <ul className="space-y-2">
           {outlines.map((outline) => {
             const isEditing = editingId === outline.id;
@@ -273,7 +275,7 @@ export function ChapterOutlineSection({
             );
           })}
         </ul>
-      )}
+      ) : null}
     </section>
   );
 }

@@ -32,6 +32,8 @@ interface ManualPartEditor {
 export interface OutlinesTabViewProps {
   projectId: number;
   loading: boolean;
+  partsLoaded: boolean;
+  outlinesLoaded: boolean;
   activeOutlineView: OutlineView;
   parts: PartOutline[];
   outlines: ChapterOutline[];
@@ -106,6 +108,8 @@ export interface OutlinesTabViewProps {
 export const OutlinesTabView: React.FC<OutlinesTabViewProps> = ({
   projectId,
   loading,
+  partsLoaded,
+  outlinesLoaded,
   activeOutlineView,
   parts,
   outlines,
@@ -178,7 +182,7 @@ export const OutlinesTabView: React.FC<OutlinesTabViewProps> = ({
 }) => {
   const { t } = useI18n();
 
-  if (loading) {
+  if (loading && !partsLoaded && !outlinesLoaded) {
     return (
       <div className="flex items-center gap-2 text-xs text-book-text-muted">
         <LoadingSpinner size="sm" /> {t("outline.loading")}
@@ -223,12 +227,13 @@ export const OutlinesTabView: React.FC<OutlinesTabViewProps> = ({
         <div id="outline-parts-panel" role="tabpanel" aria-labelledby="outline-parts-tab" className="min-w-0">
           <PartOutlineSection
             parts={parts}
+            loaded={partsLoaded}
             canEdit={canEditOutlines}
             partCount={partCount}
             chaptersPerPart={chaptersPerPart}
             defaultChaptersPerPart={defaultChaptersPerPart}
             generating={generatingParts}
-            disabled={interactionBusy}
+            disabled={interactionBusy || !partsLoaded}
             onPartCountChange={onPartCountChange}
             onChaptersPerPartChange={onChaptersPerPartChange}
             onGenerate={onGenerateParts}
@@ -242,6 +247,7 @@ export const OutlinesTabView: React.FC<OutlinesTabViewProps> = ({
         <div id="outline-chapters-panel" role="tabpanel" aria-labelledby="outline-chapters-tab" className="min-w-0">
           <ChapterOutlineSection
             outlines={outlines}
+            loaded={outlinesLoaded}
             canEdit={canEditOutlines}
             chapterCount={chapterCount}
             generating={generatingOutlines}
@@ -250,7 +256,7 @@ export const OutlinesTabView: React.FC<OutlinesTabViewProps> = ({
             savingId={savingId}
             regenId={regenId}
             delActing={delActing}
-            disabled={interactionBusy}
+            disabled={interactionBusy || !outlinesLoaded}
             onChapterCountChange={onChapterCountChange}
             onGenerate={onGenerateChapterOutlines}
             onPreviewGenerate={onPreviewGenerateChapterOutlines}

@@ -812,6 +812,22 @@
     }
 
     #[test]
+    fn orphan_cleanup_requires_the_confirmed_project_id_set() {
+        let descriptor = command_descriptor("cleanup_orphan_project_data_dirs").unwrap();
+        let project_ids =
+            &descriptor.args_schema["properties"]["input"]["properties"]["project_ids"];
+
+        assert_eq!(project_ids["type"], "array");
+        assert_eq!(project_ids["minItems"], 1);
+        assert_eq!(project_ids["items"]["type"], "integer");
+        assert!(descriptor.args_schema["required"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|argument| argument == "input"));
+    }
+
+    #[test]
     fn package_contract_covers_all_commands_and_representative_boundaries() {
         use crate::package::{PackageCommandCategory, PackageId, package_catalog};
 

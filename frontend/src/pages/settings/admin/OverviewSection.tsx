@@ -20,7 +20,7 @@ export const OverviewSection: React.FC = () => {
   const { addToast } = useToast();
   const [overview, setOverview] = useState<AdminOverviewSummary | null>(null);
   const [health, setHealth] = useState<AdminHealthCheck | null>(null);
-  const [healthLoading, setHealthLoading] = useState(false);
+  const [healthLoading, setHealthLoading] = useState(true);
   const [healthError, setHealthError] = useState<string | null>(null);
   const loadOverview = useCallback(() => getAdminOverview(), []);
   const applyOverview = useCallback((nextOverview: AdminOverviewSummary) => {
