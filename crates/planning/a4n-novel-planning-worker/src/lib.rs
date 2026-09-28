@@ -151,8 +151,9 @@ impl NovelPlanningWorker {
 
 include!("worker/runtime.rs");
 include!("worker/routes.rs");
-include!("worker/state.rs");
+include!("worker/shooting_script.rs");
 include!("worker/helpers.rs");
+include!("worker/visual_plan.rs");
 
 #[cfg(test)]
 mod tests {
