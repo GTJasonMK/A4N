@@ -152,9 +152,7 @@ export const ObjectProfilesTab: React.FC<{
             throw new Error("任务已停止");
           }
           await verifyImageGenerationResult(task, requestProjectId);
-          if (!await load({ silent: true, force: true, projectId: requestProjectId })) {
-            throw new Error(t("novel.profile.generateError", { name: t("novel.profile.object") }));
-          }
+          await load({ silent: true, force: true, projectId: requestProjectId });
         },
       );
       if (!isCurrentAction(requestProjectId, requestSeq)) return;

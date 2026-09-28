@@ -288,8 +288,7 @@ export function useVideoRecordActions({
       const result = await fn(() => isCurrentActionScope(requestScope));
       if (!isCurrentActionScope(requestScope)) return;
       if (result) upsertVideo(result);
-      const refreshed = await loadAll();
-      if (refreshed === false) return;
+      await loadAll();
       addToast(ok, "success");
     } catch (err) {
       if (!isCurrentActionScope(requestScope)) return;
@@ -467,8 +466,7 @@ export function useVideoRecordActions({
           duration_secs: updated.duration_secs,
         });
       }
-      const refreshed = await loadAll();
-      if (refreshed === false) return updated;
+      await loadAll();
       addToast(t("video.actions.promptSaved"), "success");
       return updated;
     } catch (err) {
@@ -608,8 +606,7 @@ export function useVideoRecordActions({
       setSelectedVideoId(row.id);
       setPendingVideoId(null);
       upsertVideo(row);
-      const refreshed = await loadAll();
-      if (refreshed === false) return;
+      await loadAll();
       addToast(t("video.actions.videoImported"), "success");
     } catch (err) {
       if (!isCurrentActionScope(requestScope)) return;
@@ -750,8 +747,7 @@ export function useVideoRecordActions({
       if (!isCurrentActionScope(requestScope)) return;
       setSelectedVideoId(row.id);
       upsertVideo(row);
-      const refreshed = await loadAll();
-      if (refreshed === false) return;
+      await loadAll();
       addToast(t("video.actions.videoRecordSaved"), "success");
     } catch (err) {
       if (!isCurrentActionScope(requestScope)) return;

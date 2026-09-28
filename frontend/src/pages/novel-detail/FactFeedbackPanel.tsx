@@ -116,7 +116,7 @@ export const FactFeedbackPanel = ({ projectId, canEdit, refreshKey, onChanged }:
         const next = await runProjectFactFeedback({ project_id: requestProject, mode, workflow_run_id: resume ? data?.workflow_run_id ?? null : null }, taskId);
         if (!mounted.current || currentProject.current !== requestProject) return next;
         refreshAttempted = onChanged != null;
-        if (await onChanged?.() === false) throw new Error(t("novel.factFeedback.loadFailed"));
+        await onChanged?.();
         return next;
       });
       if (!mounted.current || currentProject.current !== requestProject) return;
