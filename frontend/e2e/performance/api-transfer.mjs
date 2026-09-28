@@ -20,7 +20,7 @@ const rounds = Number(process.env.A4N_PERF_ROUNDS ?? 3);
 const driverPort = Number(process.env.A4N_PERF_DRIVER_PORT ?? 49021);
 assert.ok(Number.isInteger(rounds) && rounds > 0);
 await mkdir(artifacts, { recursive: true });
-const temp = await mkdtemp(path.join(workspace, ".dev-runtime", "api-transfer-"));
+const temp = await mkdtemp(path.join(workspace, ".dev-runtime", "ap-"));
 const sourcePaths = execFileSync("rg", ["--files", "prompts", "-g", "*.md"], { cwd: workspace, encoding: "utf8" }).trim().split("\n").sort();
 const corpus = (await Promise.all(sourcePaths.map((file) => readFile(path.join(workspace, file), "utf8")))).join("\n");
 const corpusBytes = Buffer.byteLength(corpus);
@@ -50,6 +50,7 @@ const control = createServer((req, res) => {
   }
   const headers = { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store", "Vary": "origin" };
   if (url.pathname === "/api/performance/no-transform") headers["Cache-Control"] = "no-transform";
+  if (url.pathname === "/api/performance/etag") headers.ETag = '"fixture-validator"';
   if (url.pathname === "/api/performance/encoded") {
     const encoded = gzipSync(body); headers["Content-Encoding"] = "gzip";
     headers["Content-Length"] = String(encoded.length); res.writeHead(200, headers); res.end(encoded); return;
@@ -115,7 +116,7 @@ try {
       assert.equal(compressed.headers["content-encoding"], "gzip");
       assert.match(compressed.headers.vary, /accept-encoding/i); assert.match(compressed.headers.vary, /origin/i);
     }
-    for (const endpoint of ["tiny", "no-transform", "range"]) {
+    for (const endpoint of ["tiny", "no-transform", "etag", "range"]) {
       const response = await raw(`${variant.url}/api/performance/${endpoint}`, { "Accept-Encoding": "gzip" });
       assert.equal(response.headers["content-encoding"], undefined, endpoint);
       assert.deepEqual(response.body, endpoint === "tiny" ? Buffer.from('{"ok":true}') : endpoint === "range" ? payloads["1"].subarray(0, 4096) : payloads["1"]);
