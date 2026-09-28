@@ -1,11 +1,8 @@
 //! Typed Host adapter for the source snapshot read worker.
 
-use a4n_api_contract::project::{
-    ProjectSourceSnapshotReadApplicationPort, SourceSnapshotChapterSummary,
-};
 use a4n_error::AppError;
 use a4n_source_snapshot_worker_contract::{
-    SOURCE_SNAPSHOT_CHAPTERS_OPERATION, SOURCE_SNAPSHOT_WORKER_ID, SourceSnapshotProjectInput,
+    SOURCE_SNAPSHOT_CHAPTERS_OPERATION, SOURCE_SNAPSHOT_WORKER_ID,
 };
 use a4n_worker_client::{HttpWorkerClient, WorkerClientError};
 use a4n_worker_contract::{
@@ -16,6 +13,8 @@ use a4n_worker_contract::{
 const DEFAULT_WORKER_URL: &str = "http://127.0.0.1:47660";
 const CONTROL_LEASE_FENCE: &str = "control-request";
 const CONTROL_LEASE_EXPIRY: &str = "9999-12-31T23:59:59Z";
+
+mod reads;
 
 #[derive(Clone)]
 pub struct SourceSnapshotWorkerClient {
@@ -99,22 +98,6 @@ impl SourceSnapshotWorkerClient {
                 "source snapshot worker 返回未完成状态: {status:?}"
             ))),
         }
-    }
-}
-
-#[async_trait::async_trait]
-impl ProjectSourceSnapshotReadApplicationPort for SourceSnapshotWorkerClient {
-    async fn chapters(
-        &self,
-        user_id: i64,
-        project_id: i64,
-    ) -> Result<Vec<SourceSnapshotChapterSummary>, AppError> {
-        self.command(
-            user_id,
-            project_id,
-            SourceSnapshotProjectInput { project_id },
-        )
-        .await
     }
 }
 
