@@ -127,7 +127,7 @@ async fn import_service_process_serves_typed_media_package_and_stops() {
         IMPORT_TRANSFORM_CAPABILITY_VERSION,
         a4n_import_contract::ImportParseDocumentInput {
             file_type: "markdown".into(),
-                bytes_base64: BASE64.encode("# 第1章 开始\n开篇正文\n\n# 第2章 继续\n后续正文"),
+            bytes_base64: BASE64.encode("# 第1章 开始\n开篇正文\n\n# 第2章 继续\n后续正文"),
             document_title: "作品".into(),
         },
     )

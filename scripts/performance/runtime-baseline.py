@@ -350,6 +350,12 @@ SELECT json_build_object(
                           and item["derived_sync_workflow_run_id"] > 0
                           and item["material_sync"]["content_index"] == "completed")) for item in value)),
         ]
+        if args.chapter_index_checks:
+            cases.extend([
+                ("list_chapter_index", {"projectId": project_id}, lambda value: value == index),
+                ("get_chapter", {"input": {"project_id": project_id, "chapter_id": plain[0]["id"]}},
+                 lambda value: value == plain[0]),
+            ])
         for name, payload, check in cases:
             for concurrency in args.concurrency:
                 def series(_):
