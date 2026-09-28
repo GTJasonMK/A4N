@@ -2,35 +2,25 @@
 
 use std::{env, net::SocketAddr, sync::Arc};
 
-use a4n_chapter_content_worker_contract::{
-    CHAPTER_CONTENT_CAPABILITY, CHAPTER_CONTENT_WORKER_CONTRACT_VERSION, CHAPTER_CONTENT_WORKER_ID,
-};
+use a4n_chapter_content_worker_contract::CHAPTER_CONTENT_WORKER_ID;
 use a4n_db::DbHandle;
-use a4n_worker_contract::WORKER_AUTH_HEADER;
-use a4n_worker_contract::{
-    WORKER_CAPABILITIES_PATH, WORKER_HEALTH_PATH, WORKER_SCHEMA_VERSION, WorkerCapabilities,
-    WorkerCapability, WorkerHealth, WorkerHealthStatus,
-};
+use a4n_worker_contract::{WORKER_CAPABILITIES_PATH, WORKER_HEALTH_PATH};
 use axum::{
-    Json, Router,
-    extract::State,
-    http::HeaderMap,
-    response::{IntoResponse, Response},
+    Router,
     routing::{get, post},
 };
-use sea_orm::{ConnectOptions, ConnectionTrait, Database, DatabaseConnection, Statement};
-use subtle::ConstantTimeEq;
+use sea_orm::{ConnectOptions, Database, DatabaseConnection};
 
+mod auth;
 mod commands;
 mod errors;
+mod health;
 mod mutations;
 mod permissions;
 mod reads;
 mod responses;
 mod transactions;
 mod validation;
-
-use responses::unauthorized;
 
 const WORKER_ADDR_ENV: &str = "A4N_CHAPTER_CONTENT_WORKER_ADDR";
 const DATABASE_URL_ENV: &str = "A4N_DATABASE_URL";
@@ -66,8 +56,8 @@ impl ChapterContentWorker {
 
     pub fn router(&self) -> Router {
         Router::new()
-            .route(WORKER_HEALTH_PATH, get(health))
-            .route(WORKER_CAPABILITIES_PATH, get(capabilities))
+            .route(WORKER_HEALTH_PATH, get(health::health))
+            .route(WORKER_CAPABILITIES_PATH, get(health::capabilities))
             .route("/v1/commands/chapter.content.list", post(commands::list))
             .route("/v1/commands/chapter.content.index", post(commands::index))
             .route(
@@ -127,55 +117,6 @@ fn worker_addr() -> anyhow::Result<SocketAddr> {
         anyhow::bail!("{WORKER_ADDR_ENV} 必须是 loopback 且端口大于 0")
     }
     Ok(address)
-}
-
-async fn health(State(state): State<WorkerState>, headers: HeaderMap) -> Response {
-    if !state.authorized(&headers) {
-        return unauthorized();
-    }
-    let status = match state
-        .database
-        .connection()
-        .execute(Statement::from_string(
-            sea_orm::DatabaseBackend::Postgres,
-            "SELECT 1",
-        ))
-        .await
-    {
-        Ok(_) => WorkerHealthStatus::Healthy,
-        Err(_) => WorkerHealthStatus::Degraded,
-    };
-    Json(WorkerHealth {
-        schema_version: WORKER_SCHEMA_VERSION,
-        worker_id: state.worker_id.to_string(),
-        status,
-        version: env!("CARGO_PKG_VERSION").into(),
-    })
-    .into_response()
-}
-
-async fn capabilities(State(state): State<WorkerState>, headers: HeaderMap) -> Response {
-    if !state.authorized(&headers) {
-        return unauthorized();
-    }
-    Json(WorkerCapabilities {
-        schema_version: WORKER_SCHEMA_VERSION,
-        worker_id: state.worker_id.to_string(),
-        capabilities: vec![WorkerCapability {
-            name: CHAPTER_CONTENT_CAPABILITY.into(),
-            version: CHAPTER_CONTENT_WORKER_CONTRACT_VERSION.into(),
-            enabled: true,
-        }],
-    })
-    .into_response()
-}
-
-impl WorkerState {
-    fn authorized(&self, headers: &HeaderMap) -> bool {
-        headers
-            .get(WORKER_AUTH_HEADER)
-            .is_some_and(|value| bool::from(value.as_bytes().ct_eq(self.auth_token.as_bytes())))
-    }
 }
 
 async fn shutdown_signal() {
