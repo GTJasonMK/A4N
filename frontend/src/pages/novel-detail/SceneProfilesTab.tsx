@@ -189,9 +189,7 @@ export const SceneProfilesTab: React.FC<{
           if (!isCurrentAction(requestProjectId, requestSeq)) {
             throw new Error("任务已停止");
           }
-          if (!await load({ silent: true, force: true, projectId: requestProjectId })) {
-            throw new Error(t("novel.profile.syncError"));
-          }
+          await load({ silent: true, force: true, projectId: requestProjectId });
         },
       );
       if (!isCurrentAction(requestProjectId, requestSeq)) return;
@@ -252,9 +250,7 @@ export const SceneProfilesTab: React.FC<{
             throw new Error("任务已停止");
           }
           await verifyImageGenerationResult(task, requestProjectId);
-          if (!await load({ silent: true, force: true, projectId: requestProjectId })) {
-            throw new Error(t("novel.profile.generateError", { name: t("novel.profile.scene") }));
-          }
+          await load({ silent: true, force: true, projectId: requestProjectId });
         },
       );
       if (!isCurrentAction(requestProjectId, requestSeq)) return;
@@ -319,7 +315,7 @@ export const SceneProfilesTab: React.FC<{
     try {
       const result = await deleteSceneProfile(requestProfile.id, downstreamStrategy);
       if (!isCurrentAction(requestProjectId, requestSeq)) return;
-      if (!await load({ silent: true, force: true, projectId: requestProjectId })) return;
+      await load({ silent: true, force: true, projectId: requestProjectId });
       if (!isCurrentAction(requestProjectId, requestSeq)) return;
       setDetailFor((current) => (current?.id === requestProfile.id ? null : current));
       addToast(
@@ -395,7 +391,7 @@ export const SceneProfilesTab: React.FC<{
       if (saved.project_id !== requestProjectId) {
         throw new Error("保存场景档案返回了其他项目的数据");
       }
-      if (!await load({ silent: true, force: true, projectId: requestProjectId })) return;
+      await load({ silent: true, force: true, projectId: requestProjectId });
       if (!isCurrentAction(requestProjectId, requestSeq)) return;
       setDetailFor(saved);
       setEditingProfile(null);

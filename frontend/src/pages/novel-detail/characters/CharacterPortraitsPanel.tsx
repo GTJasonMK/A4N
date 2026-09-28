@@ -189,7 +189,6 @@ export const CharacterPortraitsPanel: React.FC<{ projectId: number }> = ({
     const requestProjectId = projectId;
     generatingRef.current = true;
     setGenerating(true);
-    let refreshSucceeded = true;
     try {
       const handle = await startPortraitGeneration({
         project_id: requestProjectId,
@@ -212,13 +211,12 @@ export const CharacterPortraitsPanel: React.FC<{ projectId: number }> = ({
         async (task) => {
           const generated = await verifyPortraitGenerationResult(task, requestProjectId);
           if (!isCurrentProject(requestProjectId)) throw new Error(t("characterDetail.taskStopped"));
-          refreshSucceeded = await load();
+          await load();
           if (!isCurrentProject(requestProjectId)) throw new Error(t("characterDetail.taskStopped"));
           return generated.length;
         },
       );
       if (!isCurrentProject(requestProjectId)) return;
-      if (!refreshSucceeded) return;
       addToast(t("characterDetail.portrait.batchGenerated", { count: createdCount }), "success");
     } catch (err) {
       if (!isCurrentProject(requestProjectId)) return;
@@ -295,7 +293,7 @@ export const CharacterPortraitsPanel: React.FC<{ projectId: number }> = ({
         },
       );
       if (!isCurrentProject(requestProjectId)) return;
-      if (!await load()) return;
+      await load();
       addToast(t("characterDetail.portrait.redrawSuccess"), "success");
       if (!isCurrentProject(requestProjectId)) return;
       setActionPortrait(null);
@@ -351,7 +349,7 @@ export const CharacterPortraitsPanel: React.FC<{ projectId: number }> = ({
     try {
       await setPrimaryPortrait(portrait.id);
       if (!isCurrentProject(requestProjectId)) return;
-      if (!await load()) return;
+      await load();
       addToast(t("characterDetail.portrait.primarySet"), "success");
       if (!isCurrentProject(requestProjectId)) return;
       setActionPortrait(null);
@@ -437,7 +435,7 @@ export const CharacterPortraitsPanel: React.FC<{ projectId: number }> = ({
           onClose={() => setShowSingle(false)}
           onCreated={async () => {
             if (!isCurrentProject(projectId)) return false;
-            if (!await load()) return false;
+            await load();
             setShowSingle(false);
             return true;
           }}
@@ -451,7 +449,7 @@ export const CharacterPortraitsPanel: React.FC<{ projectId: number }> = ({
           onClose={() => setShowUpload(false)}
           onUploaded={async () => {
             if (!isCurrentProject(projectId)) return false;
-            if (!await load()) return false;
+            await load();
             setShowUpload(false);
             return true;
           }}
@@ -465,7 +463,7 @@ export const CharacterPortraitsPanel: React.FC<{ projectId: number }> = ({
           onClose={() => setShowAge(null)}
           onCreated={async () => {
             if (!isCurrentProject(projectId)) return false;
-            if (!await load()) return false;
+            await load();
             setShowAge(null);
             return true;
           }}

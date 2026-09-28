@@ -285,8 +285,8 @@ export const EventManager: React.FC<{
       const successMessage = requestMode === "add"
         ? t("characterDetail.event.added")
         : t("characterDetail.event.modified");
-      if (!await load()) return;
-      if (await onChanged?.() === false) return;
+      await load();
+      await onChanged?.();
       addToast(successMessage, "success");
       setKey("");
       setValueText("");

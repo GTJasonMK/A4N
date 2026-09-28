@@ -14,9 +14,11 @@ const port = Number(process.env.A4N_PERF_PORT ?? 48966);
 const outDir = path.join(artifacts, "dist");
 const baselineRef = process.env.A4N_PERF_BASELINE_REF;
 const scenario = process.env.A4N_PERF_CASE ?? "core";
-assert.ok(["core", "sidebar"].includes(scenario));
-const entry = scenario === "sidebar" ? "sidebar.html" : "index.html";
-const sourceFiles = scenario === "sidebar"
+assert.ok(["core", "sidebar", "story-events"].includes(scenario));
+const entry = scenario === "sidebar" ? "sidebar.html" : scenario === "story-events" ? "story-events.html" : "index.html";
+const sourceFiles = scenario === "story-events"
+  ? ["src/pages/novel-detail/story-events/storyEventUtils.ts", "src/pages/novel-detail/story-events/ChapterEventSection.tsx"]
+  : scenario === "sidebar"
   ? ["src/pages/writing-desk/ChapterSidebar.tsx", "src/pages/writing-desk/ChapterCard.tsx"]
   : ["src/hooks/usePacedStreamText.ts", "src/i18n/format.ts", "src/components/ui/MarkdownText.tsx"];
 const baselineSources = new Map(baselineRef ? sourceFiles.map((file) => [
@@ -87,6 +89,26 @@ try {
     for (const count of [100, 1000]) sidebar.push(await browser.execute((count) => window.measureSidebar(count, 4000), count));
     report = { success: true, scenario, baselineRef: baselineRef ?? null, browser: browser.capabilities.browserVersion,
       viewports: [1440, 390], trace: traces[0], sidebar };
+  } else if (scenario === "story-events") {
+    const traces = [];
+    for (const width of [1440, 390]) {
+      await browser.setViewport({ width, height: 900 });
+      const trace = [];
+      for (const locale of ["zh-CN", "en-US"]) {
+        trace.push(await browser.execute((locale) => window.verifyStoryEvents(locale), locale));
+        await browser.execute(() => document.querySelector("section section button").focus());
+        await browser.keys("Enter");
+        assert.deepEqual(await browser.execute(() => window.storyEventsOpened()), [1001]);
+      }
+      traces.push(trace);
+      assert.equal(await browser.execute(() => document.documentElement.scrollWidth - document.documentElement.clientWidth), 0);
+      await browser.saveScreenshot(path.join(artifacts, `story-events-${width}.png`));
+    }
+    assert.deepEqual(traces[0], traces[1]);
+    const storyEvents = [];
+    for (const count of [100, 1000]) storyEvents.push(await browser.execute((count) => window.measureStoryEvents(count), count));
+    report = { success: true, scenario, baselineRef: baselineRef ?? null, browser: browser.capabilities.browserVersion,
+      viewports: [1440, 390], trace: traces[0], storyEvents };
   } else {
     const traces = [];
     for (const width of [1440, 390]) {

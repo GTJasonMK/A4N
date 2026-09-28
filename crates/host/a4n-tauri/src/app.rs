@@ -6,6 +6,9 @@ use a4n_storage::paths::AppPaths;
 use tauri::Manager;
 
 pub(crate) fn run() {
+    let context = tauri::generate_context!();
+    setup::configure_bundled_sidecar_resources(context.package_info())
+        .expect("配置 ONNX Runtime 资源失败");
     let native_worker_settings = match environment::api_mode() {
         Ok(environment::ApiMode::Native) => match server_process::NativeWorkerSettings::prepare() {
             Ok(settings) => Some(settings),
@@ -52,7 +55,7 @@ pub(crate) fn run() {
             Ok(())
         })
         .invoke_handler(command_registry::handler())
-        .build(tauri::generate_context!())
+        .build(context)
         .expect("启动 A4N 应用失败");
 
     app.run(|app_handle, event| match event {
@@ -135,15 +138,24 @@ fn configure_local_server_runtime() {
 
 fn setup_local_runtime(
     app: &mut tauri::App,
-    worker_settings: server_process::NativeWorkerSettings,
+    (worker_settings, control_listener): (
+        server_process::NativeWorkerSettings,
+        std::net::TcpListener,
+    ),
 ) -> Result<(), Box<dyn std::error::Error>> {
     let config = setup::load_native_config(app.handle())?;
-    let workers = tauri::async_runtime::block_on(worker_settings.start(app.handle(), &config))?;
-    app.manage(workers);
+    app_paths(&config).ensure_dirs()?;
+    server_process::run_native_migration(app.handle(), &config)?;
+    let (worker_settings, agent_settings) = worker_settings.split_agent();
+    let mut workers = tauri::async_runtime::block_on(worker_settings.start(app.handle(), &config))?;
     let app_state = tauri::async_runtime::block_on(crate::setup::initialize(config))?;
     let app_state = std::sync::Arc::new(app_state);
     a4n_control::install_agent_host_dispatcher(&app_state)?;
-    tauri::async_runtime::block_on(app_state.spawn_agent_worker())?;
+    workers.serve_agent_host(control_listener, &app_state)?;
+    workers.append(tauri::async_runtime::block_on(
+        agent_settings.start(app.handle(), app_state.host_app_config()),
+    )?)?;
+    app.manage(workers);
     app.manage(commands::frontend_state::FrontendStatePath(
         app_paths(app_state.host_app_config()).frontend_state_file(),
     ));

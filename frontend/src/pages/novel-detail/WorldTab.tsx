@@ -200,7 +200,7 @@ export const WorldTab: React.FC<WorldTabProps> = ({
       });
       if (!isCurrentProject(requestProjectId)) return;
       const notice = worldSettingSaveNotice(result.warnings, t);
-      if (!await load()) return;
+      await load();
       addToast(notice.message, notice.type);
       setEditing(false);
     } catch (err) {

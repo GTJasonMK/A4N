@@ -14,6 +14,12 @@ pub use routes::{
 };
 pub use state::{ServerConfig, ServerState};
 
+/// Serve the existing authenticated Agent callbacks against the native Host's runtime.
+pub fn native_agent_router(runtime: AppState, token: String) -> Result<Router, AppError> {
+    let state = ServerState::from_runtime(runtime).with_agent_worker_token(token)?;
+    Ok(Router::new().nest("/internal", routes::internal_router(state)))
+}
+
 /// Installs the Control-owned dispatcher for dynamically discovered Agent tools.
 ///
 /// The same Runtime can be hosted by the Web Control process or by Tauri. Keep

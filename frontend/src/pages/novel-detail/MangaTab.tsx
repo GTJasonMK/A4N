@@ -1096,9 +1096,7 @@ export const MangaTab: React.FC<MangaTabProps> = ({
           const generated = await verifyPortraitGenerationResult(task, requestAssetProjectId);
           if (!isActionCurrent(requestProjectId, actionSeq))
             throw new Error("任务已停止");
-          if (!await loadCharacterAssets(requestProjectId, requestAssetProjectId)) {
-            throw new Error(t("comic.loadCharacterAssetsFailed"));
-          }
+          await loadCharacterAssets(requestProjectId, requestAssetProjectId);
           if (!isActionCurrent(requestProjectId, actionSeq))
             throw new Error("任务已停止");
           return generated.length;

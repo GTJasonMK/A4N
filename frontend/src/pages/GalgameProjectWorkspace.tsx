@@ -150,7 +150,7 @@ export const GalgameProjectWorkspace: React.FC = () => {
           if (nextProject.lifecycle_gate !== "active") return;
           window.clearInterval(timer);
           setResetPollError(null);
-          if (!await refresh()) return;
+          await refresh();
           setWorkspaceVersion((value) => value + 1);
           addToast(t("galgame.resetCompleted"), "success");
         })

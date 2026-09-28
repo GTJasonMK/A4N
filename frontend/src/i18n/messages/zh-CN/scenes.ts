@@ -17,6 +17,7 @@ export const scenes = {
   moveUp: "上移场景",
   moveDown: "下移场景",
   edit: "编辑场景",
+  switchEditTarget: "切换到其他场景编辑",
   delete: "删除场景",
   title: "标题",
   type: "场景类型",

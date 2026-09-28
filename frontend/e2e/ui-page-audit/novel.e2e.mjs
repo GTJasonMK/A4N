@@ -383,6 +383,7 @@ async function matrix(spec, selectedWidths = widths) {
         failures.push(...await snapshot(spec.id, width, "last", scope, { last }));
         if (!last.reached) failures.push(width + ": last item is obscured or cannot be user-scrolled: " + last.label);
       }
+      if (spec.cleanup) current.cleanup = await spec.cleanup(scope, width);
       current.visited.push(width);
     }
     assert.deepEqual(failures, [], spec.id + " measured findings");
@@ -828,7 +829,18 @@ describe("Novel page audit - ordinary populated pages", function () {
       await input.setValue("35 岁");
       await (await textButton("生成变体", form)).waitForEnabled({ timeout });
       return form;
-    }, text: ["林岚"], last: async (scope) => textButton("生成变体", scope) },
+    }, text: ["林岚"], last: async (scope) => textButton("生成变体", scope), cleanup: async (scope) => {
+      await browser.keys("Escape");
+      const confirmation = await dialog("未保存修改");
+      await clickText("取消", confirmation);
+      assert.equal(await scope.$("input").getValue(), "35 岁", "Cancel must preserve the entered age");
+      await browser.keys("Escape");
+      const discard = await dialog("未保存修改");
+      await clickText("放弃草稿", discard);
+      await browser.waitUntil(async () => !await browser.execute(() => [...document.querySelectorAll('[role="dialog"]')]
+        .some((item) => item.textContent?.includes("生成年龄变体"))));
+      return { closeConfirmationPreservedDraft: true, discardClosedDialog: true };
+    } },
     { id: "N03-portrait-prompt", task: "读取当前人物的完整立绘提示词，保留渲染和请求预览入口", open: async () => {
       const scope = await portraits();
       const picture = await scope.$('button[title="管理人物三视图拆解"] img');
@@ -865,7 +877,20 @@ describe("Novel page audit - ordinary populated pages", function () {
       assert.equal(await (await textButton("上传立绘", form)).isEnabled(), true);
       assert.equal(await browser.execute(() => window.__uiAudit.commands.includes("upload_portrait")), false);
       return form;
-    }, text: ["林岚", "thelittleprince.png", "更换图片"], last: async (scope) => scope.$('[role="switch"]') },
+    }, text: ["林岚", "thelittleprince.png", "更换图片"], last: async (scope) => scope.$('[role="switch"]'), cleanup: async (scope) => {
+      const prompt = await scope.$("textarea");
+      const draft = await prompt.getValue();
+      await browser.keys("Escape");
+      const confirmation = await dialog("未保存修改");
+      await clickText("取消", confirmation);
+      assert.equal(await prompt.getValue(), draft, "Cancel must preserve the selected file's upload description");
+      await browser.keys("Escape");
+      const discard = await dialog("未保存修改");
+      await clickText("放弃草稿", discard);
+      await browser.waitUntil(async () => !await browser.execute(() => [...document.querySelectorAll('[role="dialog"]')]
+        .some((item) => item.textContent?.includes("上传角色立绘"))));
+      return { closeConfirmationPreservedDraft: true, discardClosedDialog: true };
+    } },
     { id: "N03-portrait-preview", task: "独立预览立绘并用 Escape 返回原按钮", open: async () => {
       const scope = await portraits();
       const card = await scope.$('button[title="管理人物三视图拆解"]').$("..");
@@ -905,6 +930,18 @@ describe("Novel page audit - ordinary populated pages", function () {
       const visible = await wheelTo(count);
       assert.ok(visible.reached && visible.wheelSteps === 0, "Selected-reference count must remain visible at the end of the gallery");
       return lastImage;
+    }, cleanup: async (scope) => {
+      const selected = await scope.$('button[aria-pressed="true"]');
+      await browser.keys("Escape");
+      const confirmation = await dialog("未保存修改");
+      await clickText("取消", confirmation);
+      assert.equal(await selected.getAttribute("aria-pressed"), "true", "Cancel must preserve the selected reference");
+      await browser.keys("Escape");
+      const discard = await dialog("未保存修改");
+      await clickText("放弃草稿", discard);
+      await browser.waitUntil(async () => !await browser.execute(() => [...document.querySelectorAll('[role="dialog"]')]
+        .some((item) => item.textContent?.includes("生成人物三视图拆解"))));
+      return { closeConfirmationPreservedSelection: true, discardClosedDialog: true };
     } },
     ...[
       ["behavior", "行为", 6], ["implicit", "复审", 3], ["event", "属性", 6],
@@ -1522,14 +1559,23 @@ describe("Novel page audit - ordinary populated pages", function () {
     const initialTitle = await title.getText();
     await press(await row.$('button[aria-haspopup="menu"]'));
     await menuItem("编辑场景");
-    await row.$("input").setValue(initialTitle + " · 未保存");
+    const dirtyTitle = initialTitle + " · 未保存";
+    await row.$("input").setValue(dirtyTitle);
+
+    const secondRow = await scope.$("li:nth-of-type(2)");
+    await press(await secondRow.$('button[aria-haspopup="menu"]'));
+    await menuItem("编辑场景");
+    const switchConfirmation = await dialog("未保存修改");
+    await clickText("取消", switchConfirmation);
+    assert.equal(await row.$("input").getValue(), dirtyTitle, "Cancel must keep the original scene edit when switching targets");
+
     await press(await scope.$('button[title^="关闭"]'));
 
     const confirmation = await dialog("未保存修改");
     const openConfirmations = await browser.execute(() => [...document.querySelectorAll('[role="dialog"] h3')]
       .filter((heading) => heading.textContent?.trim() === "未保存修改").length);
     assert.equal(openConfirmations, 1);
-    current.evidence = { dirtySceneTitle: true, dirtyGenerationPrompt: true, openConfirmations };
+    current.evidence = { dirtySceneTitle: true, dirtyGenerationPrompt: true, sceneTargetSwitchBlocked: true, openConfirmations };
     await snapshot(current.id, 390, "single-discard-confirmation", confirmation, current.evidence);
     await clickText("放弃草稿", confirmation);
     await browser.waitUntil(async () => !await browser.execute(() => [...document.querySelectorAll('[role="dialog"]')]
@@ -1547,6 +1593,57 @@ describe("Novel page audit - ordinary populated pages", function () {
     await browser.waitUntil(async () => !await browser.execute(() => [...document.querySelectorAll('[role="dialog"]')]
       .some((element) => element.textContent?.includes("章节场景"))));
     current.visited.push(390);
+  });
+
+  it("UX-B60 keeps an edited foreshadowing draft behind the project route guard", async () => {
+    current = { id: "UX-B60-foreshadowing", task: "浏览器返回时保留未保存伏笔编辑", visited: [], plannedWidths: [1440], width: 1440 };
+    await browser.setWindowSize(1440, height);
+    const page = await project("事件");
+    await press(await containing("伏笔", page, "summary"));
+    await press(await page.$('button[aria-label^="编辑伏笔"]'));
+    const form = await dialog();
+    const description = await form.$("textarea");
+    const draft = `${await description.getValue()}\n仅用于当前伏笔编辑的草稿。`;
+    await description.setValue(draft);
+    const originalUrl = await browser.getUrl();
+
+    await browser.back();
+    let confirmation = await dialog("未保存修改");
+    await clickText("取消", confirmation);
+    assert.equal(await browser.getUrl(), originalUrl, "Cancel must keep the current route");
+    assert.equal(await description.getValue(), draft, "Cancel must keep the foreshadowing text");
+
+    await browser.back();
+    confirmation = await dialog("未保存修改");
+    await clickText("放弃草稿", confirmation);
+    await browser.waitUntil(async () => (await browser.getUrl()) !== originalUrl);
+    current.visited.push(1440);
+  });
+
+  it("UX-B60 protects a custom beat map when leaving advanced outlines", async () => {
+    current = { id: "UX-B60-beat-map", task: "浏览器返回时保护未应用的节拍映射 JSON", visited: [], plannedWidths: [1440], width: 1440 };
+    await browser.setWindowSize(1440, height);
+    const page = await project("大纲");
+    await press(await page.$('button[aria-label="打开大纲高级工具"]'));
+    const form = await dialog();
+    await press(await containing("节拍映射", form, "summary"));
+    const field = await form.$("textarea");
+    assert((await field.getValue()).includes('"beats"'));
+    const draft = `${await field.getValue()}\n `;
+    await field.setValue(draft);
+    const originalUrl = await browser.getUrl();
+
+    await browser.back();
+    let confirmation = await dialog("未保存修改");
+    await clickText("取消", confirmation);
+    assert.equal(await browser.getUrl(), originalUrl, "Cancel must keep advanced outlines open");
+    assert.equal(await field.getValue(), draft, "Cancel must preserve the beat-map input");
+
+    await browser.back();
+    confirmation = await dialog("未保存修改");
+    await clickText("放弃草稿", confirmation);
+    await browser.waitUntil(async () => (await browser.getUrl()) !== originalUrl);
+    current.visited.push(1440);
   });
 
   const inspirationPages = [

@@ -1,6 +1,6 @@
 import React from "react";
 import { createRoot } from "react-dom/client";
-import { MemoryRouter, Route, Routes } from "react-router-dom";
+import { createMemoryRouter, RouterProvider } from "react-router-dom";
 import { WritingDesk } from "../../src/pages/WritingDesk";
 import { ChaptersTab } from "../../src/pages/novel-detail/ChaptersTab";
 import { StatusBarProvider } from "../../src/components/ui/StatusBar";
@@ -17,16 +17,15 @@ const root = createRoot(document.getElementById("root")!);
 let version = 0;
 function mount(chapter = 1, view = "desk") {
   const key = ++version;
-  root.render(<I18nProvider initialLocale="zh-CN" key={key}>
-    <MemoryRouter initialEntries={[`/write/1?chapter=${chapter}`]}>
-      <StatusBarProvider>
+  const router = createMemoryRouter([{ path: "/write/:id", element: <StatusBarProvider>
         <ProgressTaskProvider>
-        {view === "desk" ? <Routes><Route path="/write/:id" element={<WritingDesk />} /></Routes>
+        {view === "desk" ? <WritingDesk />
           : <ChaptersTab projectId={1} canEditChapters={false} />}
         <ConfirmDialogHost /><PromptDialogHost /><ToastContainer />
         </ProgressTaskProvider>
-      </StatusBarProvider>
-    </MemoryRouter>
+      </StatusBarProvider> }], { initialEntries: [`/write/1?chapter=${chapter}`] });
+  root.render(<I18nProvider initialLocale="zh-CN" key={key}>
+    <RouterProvider router={router} />
   </I18nProvider>);
 }
 

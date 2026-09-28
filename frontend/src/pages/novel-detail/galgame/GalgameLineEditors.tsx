@@ -64,6 +64,8 @@ interface LineEditorProps {
   saving: boolean;
   fieldDraftResetRevision: number;
   fieldDraft: GalgameFieldDraft | null;
+  mediaAssetDrafts: Record<string, string>;
+  onMediaAssetDraftChange: (key: string, value: string) => void;
   onPatch: (patch: Partial<GalgameLine>) => void;
   onDraftChange: (key: string, draft: GalgameFieldDraft | null) => void;
   onChoicesUpdate: (choices: UpdateGalgameChoiceOptionInput[]) => void;
@@ -74,7 +76,7 @@ interface LineEditorProps {
   onInsertAfter: () => void;
   onDelete: () => void;
   onImportAudio: (role: "bgm" | "sfx") => void;
-  onBindMedia: (role: "cg" | "bgm" | "sfx", mediaAssetId: number) => void;
+  onBindMedia: (role: "cg" | "bgm" | "sfx", mediaAssetId: number) => Promise<boolean>;
   onUnbindMedia: (binding: GalgameMediaBindingSummary) => void;
 }
 
@@ -102,9 +104,11 @@ export const SceneMetaEditor: React.FC<{
   disabled: boolean;
   fieldDraftResetRevision: number;
   fieldDraft: GalgameFieldDraft | null;
+  mediaAssetIdDraft: string;
+  onMediaAssetIdDraftChange: (value: string) => void;
   onPatch: (patch: Partial<GalgameScene>) => void;
   onDraftChange: (key: string, draft: GalgameFieldDraft | null) => void;
-  onBindMedia: (mediaAssetId: number) => void;
+  onBindMedia: (mediaAssetId: number) => Promise<boolean>;
   onUnbindMedia: (binding: GalgameMediaBindingSummary) => void;
 }> = ({
   scene,
@@ -113,6 +117,8 @@ export const SceneMetaEditor: React.FC<{
   disabled,
   fieldDraftResetRevision,
   fieldDraft,
+  mediaAssetIdDraft,
+  onMediaAssetIdDraftChange,
   onPatch,
   onDraftChange,
   onBindMedia,
@@ -267,6 +273,8 @@ export const SceneMetaEditor: React.FC<{
               <MediaAssetIdBinder
                 label={t("galgame.bindBackground")}
                 disabled={disabled}
+                value={mediaAssetIdDraft}
+                onChange={onMediaAssetIdDraftChange}
                 onBind={onBindMedia}
               />
             }
@@ -296,6 +304,8 @@ export const LineEditor: React.FC<LineEditorProps> = ({
   saving,
   fieldDraftResetRevision,
   fieldDraft,
+  mediaAssetDrafts,
+  onMediaAssetDraftChange,
   onPatch,
   onDraftChange,
   onChoicesUpdate,
@@ -610,11 +620,14 @@ export const LineEditor: React.FC<LineEditorProps> = ({
         />
       )}
       <LineMediaBindings
+        lineId={line.id}
         bindings={mediaBindings}
         disabled={disabled}
         onImportAudio={onImportAudio}
         onBindMedia={onBindMedia}
         onUnbindMedia={onUnbindMedia}
+        mediaAssetDrafts={mediaAssetDrafts}
+        onMediaAssetDraftChange={onMediaAssetDraftChange}
       />
     </article>
   );

@@ -10,6 +10,7 @@ import {
   type Portrait,
 } from "../../../api/portrait";
 import type { ModelRequestPreview } from "../../../api/requestPreview";
+import { confirmDialog } from "../../../components/feedback/ConfirmDialog";
 import { RequestPreviewModal } from "../../../components/feedback/RequestPreviewModal";
 import { useToast } from "../../../components/feedback/Toast";
 import { BookButton } from "../../../components/ui/BookButton";
@@ -20,6 +21,7 @@ import { runGenerationProgressTaskThen } from "../../../hooks/runGenerationProgr
 import { useProgressTask } from "../../../hooks/useProgressTask";
 import { isCancelledOperation } from "../../../utils/cancellation";
 import { useI18n } from "../../../i18n";
+import { useNovelDetailDirty } from "../novelDetailDirty";
 
 interface AgeVariantDialogProps {
   portrait: Portrait;
@@ -46,6 +48,14 @@ export const AgeVariantDialog: React.FC<AgeVariantDialogProps> = ({
   } = useImageGenerationSize();
   const [age, setAge] = useState("");
   const [busy, setBusy] = useState(false);
+  const draftDirty = age.trim().length > 0;
+
+  useNovelDetailDirty(
+    `portrait-age:${portrait.project_id}:${portrait.id}`,
+    draftDirty || busy,
+    onClose,
+    () => !busy,
+  );
   const [requestPreviewOpen, setRequestPreviewOpen] = useState(false);
   const [requestPreviewLoading, setRequestPreviewLoading] = useState(false);
   const [requestPreviewData, setRequestPreviewData] =
@@ -81,6 +91,20 @@ export const AgeVariantDialog: React.FC<AgeVariantDialogProps> = ({
   const isCurrentPortrait = useCallback((scope: string) => {
     return mountedRef.current && activePortraitScopeRef.current === scope;
   }, []);
+
+  const requestClose = async () => {
+    if (busy) return;
+    if (draftDirty && !(await confirmDialog({
+      title: t("common.unsavedChangesTitle"),
+      message: t("common.unsavedChangesMessage", {
+        name: t("characterDetail.portrait.ageTitle"),
+        action: t("common.close"),
+      }),
+      confirmText: t("common.discardDraft"),
+      dialogType: "warning",
+    }))) return;
+    onClose();
+  };
 
   const handleSubmit = async () => {
     if (submitBusyRef.current) return;
@@ -191,9 +215,7 @@ export const AgeVariantDialog: React.FC<AgeVariantDialogProps> = ({
     <>
       <Modal
         isOpen
-        onClose={() => {
-          if (!busy) onClose();
-        }}
+        onClose={() => void requestClose()}
         title={t("characterDetail.portrait.ageTitle")}
         subtitle={profileName}
         maxWidthClassName="max-w-sm"

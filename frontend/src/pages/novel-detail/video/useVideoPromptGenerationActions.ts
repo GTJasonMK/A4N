@@ -408,8 +408,7 @@ export function useVideoPromptGenerationActions({
         metadata_json: buildVideoFrameImageTraceMetadata(prompt, source, t),
       });
       if (!isCurrentActionScope(requestScope)) return;
-      const refreshed = await loadAll();
-      if (refreshed === false) return;
+      await loadAll();
       addToast(t("video.actions.frameImageImported", { label: frameLabel }), "success");
     } catch (err) {
       if (!isCurrentActionScope(requestScope)) return;

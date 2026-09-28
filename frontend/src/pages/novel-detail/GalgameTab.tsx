@@ -132,6 +132,7 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
   } = useImageGenerationSize();
   const { runProgressTask } = useProgressTask();
   const [detail, setDetail] = useState<GalgameScriptDetail | null>(null);
+  const [assetBindingDrafts, setAssetBindingDrafts] = useState<Record<string, string>>({});
   const [pipelineStatus, setPipelineStatus] =
     useState<GalgamePipelineStatusSummary | null>(null);
   const [selectedSceneId, setSelectedSceneId] = useState<number | null>(null);
@@ -217,6 +218,10 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
       requestSeqRef.current += 1;
     };
   }, [load]);
+
+  useEffect(() => {
+    setAssetBindingDrafts({});
+  }, [projectId]);
 
   const commitDetail = (update: (current: GalgameScriptDetail) => GalgameScriptDetail) => {
     requestSeqRef.current += 1;
@@ -322,10 +327,20 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
     fieldDrafts, fieldDraftResetRevision, updateFieldDraft, clearFieldDraft,
     updateChoiceDraft, updateCgDraft, clearChoiceDraft, clearCgDraft, clearDrafts, saveCgDraft,
   } = useGalgameDrafts(projectId, choicesByLine);
-  const hasUnsavedChanges = hasUnsavedDrafts || authoringDirty;
+  const updateAssetBindingDraft = (key: string, value: string) => {
+    setAssetBindingDrafts((current) => {
+      if (value !== "") return { ...current, [key]: value };
+      if (!(key in current)) return current;
+      const next = { ...current };
+      delete next[key];
+      return next;
+    });
+  };
+  const assetBindingDraftDirty = Object.values(assetBindingDrafts).some((value) => value.length > 0);
+  const hasUnsavedChanges = hasUnsavedDrafts || authoringDirty || assetBindingDraftDirty;
   useEffect(() => { onDirtyChange?.(hasUnsavedChanges); }, [hasUnsavedChanges, onDirtyChange]);
   useEffect(() => () => onDirtyChange?.(false), [onDirtyChange]);
-  const discardAllDrafts = () => { clearDrafts(); setAuthoringDirty(false); setDiscardVersion((version) => version + 1); };
+  const discardAllDrafts = () => { clearDrafts(); setAssetBindingDrafts({}); setAuthoringDirty(false); setDiscardVersion((version) => version + 1); };
   useDirty(`galgame-editor:${projectId}`, hasUnsavedChanges, discardAllDrafts, () => busyTarget == null && !generating && !pipelineCancelling && !planningAssets && !generatingAssets && generatingAssetSpecId == null && !exportingWebgal);
   const confirmLeaveStage = async () => {
     if (busyTarget != null) return false;
@@ -336,9 +351,12 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
   };
 
   const confirmDiscardScriptDrafts = async () => {
-    if (!hasUnsavedDrafts) return true;
+    if (!hasUnsavedDrafts && !assetBindingDraftDirty) return true;
     const discard = await confirmDiscardMediaChanges(true, t);
-    if (discard) clearDrafts();
+    if (discard) {
+      clearDrafts();
+      setAssetBindingDrafts({});
+    }
     return discard;
   };
 
@@ -515,8 +533,7 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
         width: requestSize.width,
         height: requestSize.height,
       });
-      const refreshed = await load();
-      if (!refreshed) return;
+      await load();
       addToast(
         t("galgame.assetGenerationSummary", {
           generated: result.generated_count,
@@ -554,8 +571,7 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
         width: requestSize.width,
         height: requestSize.height,
       });
-      const refreshed = await load();
-      if (!refreshed) return;
+      await load();
       addToast(
         result.generated_count > 0
           ? t("galgame.portraitGenerated")
@@ -602,7 +618,8 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
       }));
       if ("text" in patch || "pose" in patch) clearFieldDraft(`line:${line.id}`);
       if (patch.line_type != null && patch.line_type !== "choice") clearChoiceDraft(line.id);
-      if (!await load()) return false;
+      await load();
+      addToast(t("galgame.lineSaved"), "success");
       return true;
     } catch (err) {
       addToast(extractErrorMessage(err, t("galgame.saveLineFailed")), "error");
@@ -633,7 +650,8 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
         scenes: current.scenes.map((item) => item.scene.id === saved.id ? { ...item, scene: saved } : item),
       }));
       clearFieldDraft(`scene:${scene.id}`);
-      if (!await load()) return;
+      await load();
+      addToast(t("galgame.sceneSaved"), "success");
     } catch (err) {
       addToast(extractErrorMessage(err, t("galgame.saveSceneFailed")), "error");
     } finally {
@@ -668,7 +686,8 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
         presentation: emptyGalgamePresentation(),
         text_anchor_id: null,
       });
-      if (!await load()) return;
+      await load();
+      addToast(t("galgame.lineInserted"), "success");
     } catch (err) {
       addToast(extractErrorMessage(err, t("galgame.insertLineFailed")), "error");
     } finally {
@@ -684,7 +703,11 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
       clearChoiceDraft(line.id);
       clearCgDraft(line.id);
       clearFieldDraft(`line:${line.id}`);
-      if (!await load()) return;
+      setAssetBindingDrafts((current) => Object.fromEntries(
+        Object.entries(current).filter(([key]) => !key.startsWith(`line:${line.id}:`)),
+      ));
+      await load();
+      addToast(t("galgame.lineDeleted"), "success");
     } catch (err) {
       addToast(extractErrorMessage(err, t("galgame.deleteLineFailed")), "error");
     } finally {
@@ -709,7 +732,8 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
         scene_id: scene.scene.id,
         line_ids: lineIds,
       });
-      if (!await load()) return;
+      await load();
+      addToast(t("galgame.lineReordered"), "success");
     } catch (err) {
       addToast(extractErrorMessage(err, t("galgame.reorderLineFailed")), "error");
     } finally {
@@ -729,8 +753,9 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
         line_id: line.id,
         choices,
       });
-      if (!await load()) return;
+      await load();
       acceptChoiceDraft(line.id, submittedDraft);
+      addToast(t("galgame.choicesSaved"), "success");
     } catch (err) {
       addToast(extractErrorMessage(err, t("galgame.saveChoicesFailed")), "error");
     } finally {
@@ -799,8 +824,8 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
     targetId: number,
     role: "background" | "cg" | "bgm" | "sfx",
     mediaAssetId: number,
-  ) => {
-    if (!canEditGalgame || busyTarget != null) return;
+  ): Promise<boolean> => {
+    if (!canEditGalgame || busyTarget != null) return false;
     setBusyTarget(bindMediaBusyTarget(targetKind, targetId, role));
     try {
       const saved = await bindGalgameMedia({
@@ -812,8 +837,10 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
       });
       commitMediaBinding(saved);
       addToast(t("galgame.mediaBound"), "success");
+      return true;
     } catch (err) {
       addToast(extractErrorMessage(err, t("galgame.bindMediaFailed")), "error");
+      return false;
     } finally {
       setBusyTarget(null);
     }
@@ -1175,6 +1202,10 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
               disabled={!canEditGalgame || busyTarget != null}
               fieldDraftResetRevision={fieldDraftResetRevision}
               fieldDraft={fieldDrafts[`scene:${selectedScene.scene.id}`] ?? null}
+              mediaAssetIdDraft={assetBindingDrafts[`scene:${selectedScene.scene.id}:background`] ?? ""}
+              onMediaAssetIdDraftChange={(value) =>
+                updateAssetBindingDraft(`scene:${selectedScene.scene.id}:background`, value)
+              }
               onPatch={(patch) => handleScenePatch(selectedScene.scene, patch)}
               onDraftChange={updateFieldDraft}
               onBindMedia={(mediaAssetId) =>
@@ -1231,6 +1262,8 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
                     saving={busyTarget === lineBusyTarget(line.id)}
                     fieldDraftResetRevision={fieldDraftResetRevision}
                     fieldDraft={fieldDrafts[`line:${line.id}`] ?? null}
+                    mediaAssetDrafts={assetBindingDrafts}
+                    onMediaAssetDraftChange={updateAssetBindingDraft}
                     onDraftChange={updateFieldDraft}
                     mediaBindings={mediaBindingsByLine.get(line.id) ?? []}
                     choiceDrafts={choiceDrafts[line.id] ?? buildChoiceDrafts(choicesByLine.get(line.id) ?? [])}

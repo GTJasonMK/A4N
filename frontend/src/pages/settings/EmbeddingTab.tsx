@@ -274,7 +274,7 @@ export const EmbeddingTab: React.FC<EmbeddingTabProps> = ({
           );
         },
       );
-      if (!await refreshModels()) return;
+      await refreshModels();
       addToast(t("settingsEmbedding.downloadedTo", { host: modelHostLabel }), "success");
     } catch (err) {
       const message = extractErrorMessage(err, t("settingsEmbedding.downloadFailed"));
@@ -314,7 +314,7 @@ export const EmbeddingTab: React.FC<EmbeddingTabProps> = ({
       setBusyModel(model);
       await deleteLocalEmbeddingModel(model, scope);
       setDownloadInfoByModel({});
-      if (!await refreshModels()) return;
+      await refreshModels();
       addToast(t("settingsEmbedding.cacheDeleted", { host: modelHostLabel }), "success");
     } catch (err) {
       addToast(extractErrorMessage(err, t("settingsEmbedding.deleteFailed")), "error");

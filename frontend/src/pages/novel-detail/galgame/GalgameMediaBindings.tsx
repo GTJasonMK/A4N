@@ -7,12 +7,15 @@ import { useI18n } from "../../../i18n";
 import type { GalgameMediaBindingSummary } from "../../../api/galgame";
 
 export const LineMediaBindings: React.FC<{
+  lineId: number;
   bindings: GalgameMediaBindingSummary[];
   disabled: boolean;
   onImportAudio: (role: "bgm" | "sfx") => void;
-  onBindMedia: (role: "cg" | "bgm" | "sfx", mediaAssetId: number) => void;
+  onBindMedia: (role: "cg" | "bgm" | "sfx", mediaAssetId: number) => Promise<boolean>;
   onUnbindMedia: (binding: GalgameMediaBindingSummary) => void;
-}> = ({ bindings, disabled, onImportAudio, onBindMedia, onUnbindMedia }) => {
+  mediaAssetDrafts: Record<string, string>;
+  onMediaAssetDraftChange: (key: string, value: string) => void;
+}> = ({ lineId, bindings, disabled, onImportAudio, onBindMedia, onUnbindMedia, mediaAssetDrafts, onMediaAssetDraftChange }) => {
   const { t } = useI18n();
   const audioBindings = bindings.filter(
     (item) => item.binding.role === "bgm" || item.binding.role === "sfx",
@@ -37,6 +40,8 @@ export const LineMediaBindings: React.FC<{
             <MediaAssetIdBinder
               label={t("galgame.bindCg")}
               disabled={disabled}
+              value={mediaAssetDrafts[`line:${lineId}:cg`] ?? ""}
+              onChange={(value) => onMediaAssetDraftChange(`line:${lineId}:cg`, value)}
               onBind={(mediaAssetId) => onBindMedia("cg", mediaAssetId)}
             />
           }
@@ -48,12 +53,16 @@ export const LineMediaBindings: React.FC<{
             disabled={disabled}
             onImport={() => onImportAudio("bgm")}
             onBind={(mediaAssetId) => onBindMedia("bgm", mediaAssetId)}
+            value={mediaAssetDrafts[`line:${lineId}:bgm`] ?? ""}
+            onChange={(value) => onMediaAssetDraftChange(`line:${lineId}:bgm`, value)}
           />
           <AudioBindingControl
             label="SFX"
             disabled={disabled}
             onImport={() => onImportAudio("sfx")}
             onBind={(mediaAssetId) => onBindMedia("sfx", mediaAssetId)}
+            value={mediaAssetDrafts[`line:${lineId}:sfx`] ?? ""}
+            onChange={(value) => onMediaAssetDraftChange(`line:${lineId}:sfx`, value)}
           />
         </div>
         {audioBindings.length ? (
@@ -175,8 +184,10 @@ const AudioBindingControl: React.FC<{
   label: string;
   disabled: boolean;
   onImport: () => void;
-  onBind: (mediaAssetId: number) => void;
-}> = ({ label, disabled, onImport, onBind }) => {
+  onBind: (mediaAssetId: number) => Promise<boolean>;
+  value: string;
+  onChange: (value: string) => void;
+}> = ({ label, disabled, onImport, onBind, value, onChange }) => {
   const { t } = useI18n();
   return (
     <section className="p-2.5">
@@ -196,6 +207,8 @@ const AudioBindingControl: React.FC<{
       <MediaAssetIdBinder
         label={t("galgame.bindAudio", { label })}
         disabled={disabled}
+        value={value}
+        onChange={onChange}
         onBind={onBind}
       />
     </section>

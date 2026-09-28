@@ -336,7 +336,7 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
         total_chapters: totalChapters,
       });
       if (!isCurrentProject(requestProjectId)) return;
-      if (!await load()) return;
+      await load();
       if (!isCurrentProject(requestProjectId)) return;
       await onRefresh();
       if (!isCurrentProject(requestProjectId)) return;
@@ -391,7 +391,7 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
         />
 
         <div className="min-w-0 lg:col-span-2">
-          <FactFeedbackPanel key={project.id} projectId={project.id} canEdit={canEditProject} refreshKey={project.updated_at} onChanged={async () => { if (!await load()) return false; return onRefresh(); }} />
+          <FactFeedbackPanel key={project.id} projectId={project.id} canEdit={canEditProject} refreshKey={project.updated_at} onChanged={async () => { await load(); await onRefresh(); }} />
         </div>
 
         <nav

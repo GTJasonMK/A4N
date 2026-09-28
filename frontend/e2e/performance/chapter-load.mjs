@@ -16,6 +16,8 @@ const root = path.resolve(frontend, "..");
 const artifacts = path.resolve(process.env.A4N_PERF_ARTIFACTS ?? path.join(root, "data/performance-audit-20260927/b08/browser"));
 const port = Number(process.env.A4N_PERF_PORT ?? 49030);
 const baseline = process.env.A4N_PERF_BASELINE_REF;
+const continueText = baseline ? "继续" : "放弃草稿";
+const stayText = baseline ? "留在当前" : "取消";
 const rounds = Number(process.env.A4N_PERF_ROUNDS ?? 3);
 const digest = (body) => createHash("sha256").update(body).digest("hex");
 await mkdir(artifacts, { recursive: true });
@@ -158,7 +160,7 @@ try {
       const timer = setInterval(() => {
         if (window.fixtureErrors.length) { clearInterval(timer); done({ error: window.fixtureErrors }); return; }
         const editor = document.querySelector(".a4n-writing-workspace textarea");
-        if (!editor?.value) return;
+        if (!editor?.value || editor.readOnly || editor.disabled) return;
         clearInterval(timer); done({ elapsedMs: performance.now() - started, body: editor.value,
           resources: performance.getEntriesByType("resource").filter((entry) => entry.startTime >= started && entry.name.includes("/api/"))
             .map((entry) => ({ name: entry.name, encoded: entry.encodedBodySize, decoded: entry.decodedBodySize })) });
@@ -177,13 +179,38 @@ try {
   await waitBody(chapters[0].content);
   await editor().setValue("未保存🙂é");
   await clickChapter(2);
-  await (await button("留在当前")).click();
+  await (await button(stayText)).click();
   await waitBody("未保存🙂é");
   await clickChapter(2);
-  await (await button("继续")).click();
+  if (!baseline) await browser.execute(() => {
+    window.originalStorageSetItem = Storage.prototype.setItem;
+    Storage.prototype.setItem = function(key, value) {
+      if (key.startsWith("a4n:writing_draft:")) throw new Error("fixture local draft write failed");
+      return window.originalStorageSetItem.call(this, key, value);
+    };
+  });
+  await (await button(continueText)).click();
+  if (!baseline) {
+    await browser.waitUntil(() => browser.execute(() => window.chapterLoad.toasts().some((toast) => toast.message.includes("fixture local draft write failed"))));
+    await waitBody("未保存🙂é");
+    assert.equal(await (await button(continueText)).isDisplayed(), true);
+    await browser.execute(() => { Storage.prototype.setItem = window.originalStorageSetItem; });
+    await (await button(continueText)).click();
+    report.checks.push("draft write failure blocks navigation and keeps unsaved content");
+  }
   await waitBody(chapters[1].content);
   assert.equal(await browser.execute(() => JSON.parse(localStorage.getItem("a4n:writing_draft:1:1")).content), "未保存🙂é");
   report.checks.push("unsaved switch cancellation and old-chapter draft identity");
+  const readsBeforeContext = requests.filter((req) => req.command === "get_chapter").length;
+  await (await button("写作助手")).click();
+  const context = await browser.$("summary*=参考上下文"); await context.waitForDisplayed();
+  assert.equal(requests.filter((req) => req.command === "get_chapter").length, readsBeforeContext);
+  await context.click();
+  const previousTail = chapters[0].content.trim().slice(-180);
+  await browser.waitUntil(async () => (await browser.$('aside[aria-label="写作助手"]').getProperty("textContent")).includes(previousTail));
+  if (!baseline) assert.equal(requests.filter((req) => req.command === "get_chapter").length, readsBeforeContext + 1);
+  await (await button("写作助手")).click();
+  report.checks.push("previous chapter context is loaded when expanded and retains its exact ending");
   if (!baseline) {
     readDelays.set(1, 500); readDelays.set(3, 80);
     await clickChapter(1); await clickChapter(3); await waitBody(chapters[2].content); await delay(600);
@@ -204,11 +231,37 @@ try {
   await browser.waitUntil(() => chapters[2].content === "保存失败保留草稿");
   await waitBody("保存失败保留草稿");
   report.checks.push("save failure preserves editor; explicit retry commits exact content");
+  saveDelay = 300;
+  await editor().setValue("保存中的正文");
+  await browser.keys(["Control", "s", "NULL"]);
+  await editor().setValue("保存中的正文，继续修改🙂");
+  await browser.waitUntil(() => chapters[2].content === "保存中的正文");
+  await delay(350); await waitBody("保存中的正文，继续修改🙂"); saveDelay = 0;
+  report.checks.push("edits made during save are not overwritten by its response");
+  if (!baseline) readDelays.set(1, 1000);
+  await clickChapter(1); await (await button(continueText)).click();
+  if (!baseline) {
+    await delay(250);
+    assert.equal(await browser.$("button*=恢复草稿").isExisting(), false);
+  }
+  await (await button("恢复草稿")).click(); await waitBody("未保存🙂é");
+  readDelays.clear();
+  report.checks.push("draft is restored only after the selected persisted chapter is available");
   for (const width of [1440, 390]) {
     await browser.setWindowSize(width, 900);
     assert.equal(await browser.execute(() => document.documentElement.scrollWidth - document.documentElement.clientWidth), 0);
     await browser.saveScreenshot(path.join(artifacts, `writing-${width}.png`));
   }
+  await browser.setWindowSize(1440, 900);
+  requests = [];
+  await browser.execute(() => window.chapterLoad.mount(1, "preview"));
+  await (await button("章节 2")).click();
+  const article = await browser.$("article");
+  await browser.waitUntil(async () => await article.isExisting() && await article.getProperty("textContent") === chapters[1].content);
+  await browser.keys("Escape");
+  await browser.waitUntil(async () => !await browser.$("article").isExisting());
+  if (!baseline) assert.deepEqual(requests.filter((req) => req.command === "get_chapter").map((req) => req.body.input.chapter_id), [2]);
+  report.checks.push("read-only chapter preview fetches the selected body and closes with Escape");
   assert.deepEqual(unexpected, []);
   report.corpusSha256 = digest(corpus);
   report.success = true;

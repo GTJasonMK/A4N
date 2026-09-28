@@ -243,7 +243,17 @@ export const ScenesDialog: React.FC<ScenesDialogProps> = ({
     });
   };
 
-  const startEdit = (s: ChapterSceneSummary) => {
+  const startEdit = async (s: ChapterSceneSummary) => {
+    if (editingId === s.id) return;
+    if (editDirty && !(await confirmDialog({
+      title: t("common.unsavedChangesTitle"),
+      message: t("common.unsavedChangesMessage", {
+        name: t("scenes.chapterScenes"),
+        action: t("scenes.switchEditTarget"),
+      }),
+      confirmText: t("common.discardDraft"),
+      dialogType: "warning",
+    }))) return;
     setEditingId(s.id);
     setEditForm(createSceneEditForm(s));
     setExpanded((prev) => new Set(prev).add(s.id));

@@ -68,7 +68,7 @@ export function MediaStageHeader<T extends string>({
       <label className="grid min-w-0 gap-1 text-xs text-book-text-muted sm:hidden">
         <span>{label}</span>
         <ThemedSelect id={`${id}-select`} aria-label={label} className="w-full min-w-0 text-sm" value={activeTab}
-          onChange={(value) => { void onTabChange(value as T); }}>
+          onChange={(value) => { if (value !== activeTab) void onTabChange(value as T); }}>
           {tabs.map((tab, index) => <option key={tab.id} value={tab.id}>{index + 1} / {tabs.length} · {tab.label}{tab.status ? ` · ${tab.status}` : ""}</option>)}
         </ThemedSelect>
       </label>
@@ -96,7 +96,10 @@ export function MediaStageHeader<T extends string>({
                 aria-selected={active}
                 aria-controls={`${id}-panel`}
                 tabIndex={active ? 0 : -1}
-                onClick={async () => { if (await onTabChange(tab.id) === false) activeTabRef.current?.focus(); }}
+                onClick={async () => {
+                  if (tab.id === activeTab) return;
+                  if (await onTabChange(tab.id) === false) activeTabRef.current?.focus();
+                }}
                 onKeyDown={async (event) => {
                   const target = event.key === "Home" ? 0
                     : event.key === "End" ? tabs.length - 1
@@ -105,7 +108,12 @@ export function MediaStageHeader<T extends string>({
                           : null;
                   if (target == null) return;
                   event.preventDefault();
-                  if (await onTabChange(tabs[target].id) === false) return;
+                  const nextTab = tabs[target].id;
+                  if (nextTab === activeTab) {
+                    tabListRef.current?.querySelectorAll<HTMLButtonElement>("[role=tab]")[target]?.focus();
+                    return;
+                  }
+                  if (await onTabChange(nextTab) === false) return;
                   tabListRef.current?.querySelectorAll<HTMLButtonElement>("[role=tab]")[target]?.focus();
                 }}
                 onFocus={(event) =>

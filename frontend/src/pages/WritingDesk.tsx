@@ -494,7 +494,7 @@ export const WritingDesk: React.FC = () => {
       setActiveNumber(chapterNumber);
       return true;
     },
-    [confirmCurrentEdit, setActiveNumber],
+    [confirmCurrentEdit, setActiveNumber, t],
   );
 
   const handleCreateChapter = useCallback(async () => {
@@ -544,7 +544,7 @@ export const WritingDesk: React.FC = () => {
 
     setChapterQuery("");
     setActiveNumber(chapterNumber);
-  }, [addToast, chapters, confirmCurrentEdit, lifecycleBlockedReason, outlines, setActiveNumber]);
+  }, [addToast, chapters, confirmCurrentEdit, lifecycleBlockedReason, outlines, setActiveNumber, t]);
 
   const safeNavigateTo = useCallback(
     async (to: string) => {
@@ -694,7 +694,7 @@ export const WritingDesk: React.FC = () => {
     derivedSyncBusyRef.current = true;
     try {
       await resumeWorkflowRun(workflowRunId);
-      if (!await reloadChapters({ force: true })) return;
+      await reloadChapters({ force: true });
       addToast(t("writing.derivedMaterialsSynced"), "success");
     } catch (error) {
       await reloadChapters({ force: true });

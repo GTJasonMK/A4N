@@ -618,9 +618,10 @@ export const NovelDetail: React.FC = () => {
         titleSeqRef.current = requestSeq;
         setSaving(true);
         try {
-          await updateProject(requestProjectId, { title: next.trim() });
+          const updatedProject = await updateProject(requestProjectId, { title: next.trim() });
           if (!isCurrentAction(requestProjectId, titleSeqRef, requestSeq)) return;
-          if (!await refresh(requestProjectId)) return;
+          setProject(updatedProject);
+          await refresh(requestProjectId);
           addToast(t("novel.projectTitleUpdated"), "success");
         } catch (err) {
           if (isCurrentAction(requestProjectId, titleSeqRef, requestSeq)) {

@@ -282,16 +282,11 @@ export function useWritingDeskDrafts({
 
   const discardCurrentEdit = useCallback(async () => {
     if (!canDiscard()) return false;
-    const chapterNumber = activeNumberRef.current;
-    try {
-      if (chapterNumber != null) await removeDraftForChapter(chapterNumber);
-      setEditorState(chapterContentForEditor(activeChapter), false);
-      return true;
-    } catch (error) {
-      reportDraftError(error);
-      return false;
-    }
-  }, [activeChapter, canDiscard, removeDraftForChapter, reportDraftError, setEditorState]);
+    // Leaving abandons the editor buffer, while its local recovery copy remains available.
+    if (!await saveLocalDraftForCurrent()) return false;
+    setEditorState(chapterContentForEditor(activeChapter), false);
+    return true;
+  }, [activeChapter, canDiscard, saveLocalDraftForCurrent, setEditorState]);
 
   useDirty(`writing-desk:${projectIdKey || "unknown"}`, dirty, discardCurrentEdit, canDiscard);
 
