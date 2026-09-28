@@ -3,7 +3,7 @@ use axum::{
     Router,
     body::Body,
     extract::State,
-    http::{HeaderName, HeaderValue, Request, StatusCode, header},
+    http::{Extensions, HeaderMap, HeaderName, HeaderValue, Request, StatusCode, Version, header},
     middleware,
     response::{IntoResponse, Response},
     routing::any,
@@ -21,6 +21,10 @@ use std::{
     time::Duration,
 };
 use tower_http::{
+    compression::{
+        CompressionLayer, CompressionLevel,
+        predicate::{Predicate, SizeAbove},
+    },
     cors::CorsLayer,
     services::{ServeDir, ServeFile},
     trace::TraceLayer,
@@ -177,10 +181,38 @@ fn router(state: EdgeState, frontend_dist: PathBuf) -> Router {
     Router::new()
         .route("/api", any(proxy))
         .route("/api/{*path}", any(proxy))
+        .route_layer(
+            CompressionLayer::new()
+                .quality(CompressionLevel::Fastest)
+                .compress_when(SizeAbove::new(1024).and(compress_api_json)),
+        )
         .fallback_service(static_files)
         .layer(TraceLayer::new_for_http())
         .layer(CorsLayer::permissive())
         .with_state(state)
+}
+
+fn compress_api_json(status: StatusCode, _: Version, headers: &HeaderMap, _: &Extensions) -> bool {
+    status == StatusCode::OK
+        && !headers.contains_key(header::ETAG)
+        && headers
+            .get(header::CONTENT_TYPE)
+            .and_then(|value| value.to_str().ok())
+            .is_some_and(|value| {
+                value
+                    .split(';')
+                    .next()
+                    .unwrap_or("")
+                    .trim()
+                    .eq_ignore_ascii_case("application/json")
+            })
+        && !headers.get_all(header::CACHE_CONTROL).iter().any(|value| {
+            value.to_str().map_or(true, |value| {
+                value
+                    .split(',')
+                    .any(|directive| directive.trim().eq_ignore_ascii_case("no-transform"))
+            })
+        })
 }
 
 async fn proxy(State(state): State<EdgeState>, request: Request<Body>) -> Response {

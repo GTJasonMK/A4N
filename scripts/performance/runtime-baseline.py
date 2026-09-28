@@ -4,6 +4,7 @@
 import argparse
 from concurrent.futures import ThreadPoolExecutor
 import hashlib
+import gzip
 import http.client
 import json
 import math
@@ -66,10 +67,12 @@ def resources(pid):
             "total_threads": sum(row["threads"] for row in rows)}
 
 
-def command(connection, name, args, token=None):
+def command(connection, name, args, token=None, accept_gzip=False):
     headers = {"Content-Type": "application/json"}
     if token:
         headers["Authorization"] = f"Bearer {token}"
+    if accept_gzip:
+        headers["Accept-Encoding"] = "gzip"
     body = json.dumps(args, ensure_ascii=False).encode()
     started = time.perf_counter()
     connection.request("POST", f"/api/commands/{name}", body, headers)
@@ -78,7 +81,10 @@ def command(connection, name, args, token=None):
     elapsed_ms = (time.perf_counter() - started) * 1000
     if response.status != 200:
         raise RuntimeError(f"{name}: HTTP {response.status}: {payload[:500].decode(errors='replace')}")
-    return json.loads(payload), elapsed_ms, len(payload)
+    encoding = response.getheader("Content-Encoding")
+    if encoding not in (None, "gzip"):
+        raise RuntimeError(f"Unsupported response encoding: {encoding}")
+    return json.loads(gzip.decompress(payload) if encoding == "gzip" else payload), elapsed_ms, len(payload)
 
 
 def cli_checks(binaries, output, env, server_url, credentials):
@@ -303,6 +309,11 @@ SELECT json_build_object(
                 or report["fixture"]["analysis_runs"] != 0
                 or report["fixture"]["checkpoints"] != 2 * args.chapter_count * args.chapter_history):
             raise RuntimeError("Fixture history differs from --chapter-history; use a fresh isolated database")
+        plain, _, plain_bytes = command(connection, "list_chapters", {"projectId": project_id}, token)
+        encoded, _, encoded_bytes = command(connection, "list_chapters", {"projectId": project_id}, token, accept_gzip=True)
+        assert encoded == plain, "Negotiated compression changed the real chapter response"
+        report["compression_probe"] = {"identity_bytes": plain_bytes, "gzip_wire_bytes": encoded_bytes,
+                                       "payloads_identical": True}
         connection.close()
         cases = [
             ("get_current_user", {}, lambda value: value["username"] == credentials["username"]),
