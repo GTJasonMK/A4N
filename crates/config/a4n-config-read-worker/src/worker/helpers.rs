@@ -239,39 +239,6 @@ fn merge_api_key_update(
     update.unwrap_or(existing)
 }
 
-fn parse_settings_export(settings_json: &str) -> Result<AllConfigsExport, WorkerFailure> {
-    serde_json::from_str(settings_json)
-        .map_err(|error| WorkerFailure::invalid_request(format!("JSON 解析失败：{error}")))
-}
-
-fn settings_import_input(
-    incoming: &AllConfigsExport,
-    overwrite: bool,
-) -> SettingsAllConfigImportInput {
-    SettingsAllConfigImportInput {
-        overwrite,
-        rows: SettingsAllConfigRows {
-            llm_configs: incoming.llm_configs.clone(),
-            embedding_configs: incoming.embedding_configs.clone(),
-            image_configs: incoming.image_configs.clone(),
-            video_configs: incoming.video_configs.clone(),
-            themes: incoming.themes.clone(),
-            system_settings: incoming.system_settings.clone(),
-        },
-    }
-}
-
-fn settings_import_error(error: a4n_db::config::SettingsAllConfigImportError) -> WorkerFailure {
-    match error {
-        a4n_db::config::SettingsAllConfigImportError::InvalidArgument(message) => {
-            WorkerFailure::invalid_request(message)
-        }
-        a4n_db::config::SettingsAllConfigImportError::Database { source, .. } => {
-            WorkerFailure::unavailable(source.to_string())
-        }
-    }
-}
-
 async fn validate_admin_request<T: serde::Serialize>(
     request: &WorkerEnvelope<T>,
     operation: &str,
