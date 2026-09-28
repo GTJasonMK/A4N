@@ -21,6 +21,9 @@ const DEFAULT_WORKER_URL: &str = "http://127.0.0.1:47656";
 const CONTROL_LEASE_FENCE: &str = "control-request";
 const CONTROL_LEASE_EXPIRY: &str = "9999-12-31T23:59:59Z";
 
+mod mutations;
+mod reads;
+
 #[derive(Clone)]
 pub struct ForeshadowingWorkerClient {
     transport: HttpWorkerClient,
@@ -114,98 +117,6 @@ impl ForeshadowingWorkerClient {
                 "foreshadowing worker 返回未完成状态: operation={operation_id}, status={status:?}"
             ))),
         }
-    }
-}
-
-#[async_trait::async_trait]
-impl ForeshadowingReadApplicationPort for ForeshadowingWorkerClient {
-    async fn list(
-        &self,
-        user_id: i64,
-        project_id: i64,
-    ) -> Result<Vec<ForeshadowingSummary>, AppError> {
-        self.command(
-            user_id,
-            project_id,
-            FORESHADOWING_LIST_OPERATION,
-            ForeshadowingProjectInput { project_id },
-        )
-        .await
-    }
-}
-
-#[async_trait::async_trait]
-impl ForeshadowingMutationApplicationPort for ForeshadowingWorkerClient {
-    async fn create(
-        &self,
-        user_id: i64,
-        host_port: &dyn ForeshadowingRagSyncHostPort,
-        input: CreateForeshadowingInput,
-    ) -> Result<ForeshadowingWriteResult, AppError> {
-        let result: ForeshadowingMutationResult = self
-            .command(
-                user_id,
-                input.project_id,
-                FORESHADOWING_CREATE_OPERATION,
-                CreateInput(input),
-            )
-            .await?;
-        Ok(sync_warning(
-            host_port
-                .sync_record(result.project_id, result.foreshadowing_id)
-                .await,
-            result.project_id,
-            result.foreshadowing_id,
-            "伏笔已保存，但检索索引更新失败，可稍后重试",
-        ))
-    }
-
-    async fn update(
-        &self,
-        user_id: i64,
-        host_port: &dyn ForeshadowingRagSyncHostPort,
-        input: UpdateForeshadowingInput,
-    ) -> Result<ForeshadowingWriteResult, AppError> {
-        let result: ForeshadowingMutationResult = self
-            .command(
-                user_id,
-                input.project_id,
-                FORESHADOWING_UPDATE_OPERATION,
-                UpdateInput(input),
-            )
-            .await?;
-        Ok(sync_warning(
-            host_port
-                .sync_record(result.project_id, result.foreshadowing_id)
-                .await,
-            result.project_id,
-            result.foreshadowing_id,
-            "伏笔已保存，但检索索引更新失败，可稍后重试",
-        ))
-    }
-
-    async fn delete(
-        &self,
-        user_id: i64,
-        host_port: &dyn ForeshadowingRagSyncHostPort,
-        input: DeleteForeshadowingInput,
-    ) -> Result<ForeshadowingWriteResult, AppError> {
-        let result: ForeshadowingMutationResult = self
-            .command(
-                user_id,
-                input.project_id,
-                FORESHADOWING_DELETE_OPERATION,
-                DeleteInput(input),
-            )
-            .await?;
-        Ok(sync_warning(
-            host_port
-                .delete_record(result.project_id, result.foreshadowing_id)
-                .await,
-            result.project_id,
-            result.foreshadowing_id,
-            "伏笔已删除，但检索索引清理失败，可稍后重试",
-        ))
     }
 }
 
