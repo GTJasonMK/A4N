@@ -3,46 +3,31 @@
 use std::{env, net::SocketAddr, sync::Arc};
 
 use a4n_api_contract::config::{
-    CreateEmbeddingInput, EmbeddingConfigSummary, ImageConfigForConnectivityTest, ImageConfigInput,
-    ImageConfigSummary, LlmConfigSummary, VideoConfigInput, VideoConfigSummary,
+    EmbeddingConfigSummary, ImageConfigForConnectivityTest, ImageConfigSummary, LlmConfigSummary,
+    VideoConfigSummary,
 };
-use a4n_config::{
-    ensure_default_config_delete_allowed, image_sizes_to_json, validate_embedding_config_params,
-    validate_image_config_params,
-};
+use a4n_config::ensure_default_config_delete_allowed;
 use a4n_config_read_core::{
     embedding_provider_config, embedding_summary, image_connectivity_config, image_summary,
     llm_provider_config, llm_summary, video_summary,
 };
 use a4n_config_read_worker_contract::{
-    CONFIG_MUTATION_BASELINE_EMBEDDING_OPERATION, CONFIG_MUTATION_BASELINE_IMAGE_OPERATION,
-    CONFIG_MUTATION_BASELINE_VIDEO_OPERATION, CONFIG_MUTATION_CAPABILITY,
-    CONFIG_MUTATION_CREATE_EMBEDDING_OPERATION, CONFIG_MUTATION_CREATE_IMAGE_OPERATION,
-    CONFIG_MUTATION_CREATE_VIDEO_OPERATION, CONFIG_MUTATION_DELETE_EMBEDDING_OPERATION,
-    CONFIG_MUTATION_DELETE_IMAGE_OPERATION, CONFIG_MUTATION_DELETE_VIDEO_OPERATION,
-    CONFIG_MUTATION_SET_DEFAULT_EMBEDDING_OPERATION, CONFIG_MUTATION_SET_DEFAULT_IMAGE_OPERATION,
-    CONFIG_MUTATION_SET_DEFAULT_VIDEO_OPERATION, CONFIG_MUTATION_UPDATE_EMBEDDING_OPERATION,
-    CONFIG_MUTATION_UPDATE_IMAGE_OPERATION, CONFIG_MUTATION_UPDATE_VIDEO_OPERATION,
-    CONFIG_READ_CAPABILITY, CONFIG_READ_EMBEDDING_CONNECTIVITY_OPERATION,
-    CONFIG_READ_EMBEDDING_LIST_OPERATION, CONFIG_READ_IMAGE_CONNECTIVITY_OPERATION,
-    CONFIG_READ_IMAGE_EXISTS_OPERATION, CONFIG_READ_IMAGE_LIST_OPERATION,
-    CONFIG_READ_LLM_CONNECTIVITY_OPERATION, CONFIG_READ_LLM_EXISTS_OPERATION,
-    CONFIG_READ_LLM_LIST_OPERATION, CONFIG_READ_SAVED_API_KEY_OPERATION,
-    CONFIG_READ_VIDEO_EXISTS_OPERATION, CONFIG_READ_VIDEO_LIST_OPERATION,
-    CONFIG_READ_WORKER_CONTRACT_VERSION, CONFIG_READ_WORKER_ID, CONFIG_SETTINGS_CAPABILITY,
-    ConfigIdInput, ConfigProviderKindWire, CreateEmbeddingCommand, CreateImageCommand,
-    CreateLlmCommand, CreateVideoCommand, EmptyInput, SavedApiKeyInput, SettingsExportInput,
-    SettingsImportCommand, SettingsPrepareImportResult, UpdateEmbeddingCommand, UpdateImageCommand,
-    UpdateLlmCommand, UpdateVideoCommand,
+    CONFIG_MUTATION_CAPABILITY, CONFIG_READ_CAPABILITY,
+    CONFIG_READ_EMBEDDING_CONNECTIVITY_OPERATION, CONFIG_READ_EMBEDDING_LIST_OPERATION,
+    CONFIG_READ_IMAGE_CONNECTIVITY_OPERATION, CONFIG_READ_IMAGE_EXISTS_OPERATION,
+    CONFIG_READ_IMAGE_LIST_OPERATION, CONFIG_READ_LLM_CONNECTIVITY_OPERATION,
+    CONFIG_READ_LLM_EXISTS_OPERATION, CONFIG_READ_LLM_LIST_OPERATION,
+    CONFIG_READ_SAVED_API_KEY_OPERATION, CONFIG_READ_VIDEO_EXISTS_OPERATION,
+    CONFIG_READ_VIDEO_LIST_OPERATION, CONFIG_READ_WORKER_CONTRACT_VERSION, CONFIG_READ_WORKER_ID,
+    CONFIG_SETTINGS_CAPABILITY, ConfigIdInput, ConfigProviderKindWire, CreateEmbeddingCommand,
+    CreateImageCommand, CreateLlmCommand, CreateVideoCommand, EmptyInput, SavedApiKeyInput,
+    SettingsExportInput, SettingsImportCommand, SettingsPrepareImportResult,
+    UpdateEmbeddingCommand, UpdateImageCommand, UpdateLlmCommand, UpdateVideoCommand,
 };
 use a4n_db::DbHandle;
-use a4n_db::config::{
-    EmbeddingConfigRecordInput, ImageConfigRecordInput, ProviderConfigKind, VideoConfigRecordInput,
-};
+use a4n_db::config::ProviderConfigKind;
 use a4n_db_models::models::user::role::{UserRole, parse_user_role};
-use a4n_domain::embedding::CreateEmbeddingConfigParams;
 use a4n_provider_contract::{EmbeddingProviderConfig, LlmProviderConfig};
-use a4n_video::{VideoConfigParams, validate_video_config_params};
 use a4n_worker_client::WORKER_AUTH_HEADER;
 use a4n_worker_contract::{
     WORKER_CAPABILITIES_PATH, WORKER_HEALTH_PATH, WORKER_SCHEMA_VERSION, WorkerCapabilities,
@@ -223,6 +208,6 @@ include!("worker/runtime.rs");
 include!("worker/routes.rs");
 include!("worker/reads.rs");
 include!("worker/llm.rs");
-include!("worker/state.rs");
+include!("worker/mutations.rs");
 include!("worker/settings.rs");
 include!("worker/helpers.rs");
