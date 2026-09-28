@@ -144,8 +144,8 @@ export const FactFeedbackPanel = ({ projectId, canEdit, refreshKey, onChanged }:
       await updateProject(requestProject, { title: null, description: null, fact_feedback_interval_chapters: value });
       if (!mounted.current || currentProject.current !== requestProject) return;
       intervalDirty.current = false;
-      if (!await load()) return;
-      if (await onChanged?.() === false) return;
+      await load();
+      await onChanged?.();
       addToast(t("novel.factFeedback.intervalSaved"), "success");
     } catch (cause) {
       if (mounted.current && currentProject.current === requestProject) setError(extractErrorMessage(cause, t("novel.factFeedback.saveFailed")));

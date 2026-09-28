@@ -515,8 +515,7 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
         width: requestSize.width,
         height: requestSize.height,
       });
-      const refreshed = await load();
-      if (!refreshed) return;
+      await load();
       addToast(
         t("galgame.assetGenerationSummary", {
           generated: result.generated_count,
@@ -554,8 +553,7 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
         width: requestSize.width,
         height: requestSize.height,
       });
-      const refreshed = await load();
-      if (!refreshed) return;
+      await load();
       addToast(
         result.generated_count > 0
           ? t("galgame.portraitGenerated")
