@@ -32,6 +32,7 @@ import {
 } from "../../utils/writingDraft";
 import type { GenerationWordCountRange } from "./generationWordCount";
 import { formatNumber, useI18n } from "../../i18n";
+import type { ReloadChapters } from "./chapterIndex";
 
 interface UseChapterStreamGenerationParams {
   projectId: number;
@@ -48,7 +49,7 @@ interface UseChapterStreamGenerationParams {
   setEditorState: (content: string, isDirty: boolean) => void;
   getCurrentEditorContent: () => string;
   dirtyRef: { current: boolean };
-  reloadChapters: (options?: { force?: boolean }) => Promise<ChapterSummary[] | null>;
+  reloadChapters: ReloadChapters;
   onDraftRemoved: () => void;
   onShowContentTab: () => void;
 }
@@ -291,11 +292,15 @@ export const useChapterStreamGeneration = ({
       let message: string;
       let toastType: ToastType;
       if (status === "completed" || recoveryIssue) {
-        const refreshed = await reloadChapters({ force: true });
         const resultRef = generationTask.resultRef;
         const resultId = resultRef ? Number(resultRef.id) : NaN;
+        const refreshed = await reloadChapters({
+          force: true,
+          chapterId: resultRef?.kind === "chapter" && Number.isSafeInteger(resultId)
+            && resultId > 0 ? resultId : undefined,
+        });
         const persisted = resultRef?.kind === "chapter" && Number.isSafeInteger(resultId)
-          ? refreshed?.find((chapter) => chapter.id === resultId) ?? null
+          && refreshed?.chapter?.id === resultId ? refreshed.chapter
           : null;
         const persistedHash = persisted ? await sha256Hex(persisted.content) : null;
         if (!isCurrentTask()) return;

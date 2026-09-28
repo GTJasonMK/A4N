@@ -41,7 +41,7 @@ function directorCandidatePointId(image: GeneratedImage): string | null {
   return typeof pointId === "string" ? pointId : null;
 }
 
-export function ChapterVisualPlanTab({ projectId, canEdit, chapter, onDirtyChange }: { projectId: number; canEdit: boolean; chapter: Pick<ChapterSummary, "id" | "project_id" | "chapter_number" | "title"> | null; onDirtyChange?: (dirty: boolean) => void }) {
+export function ChapterVisualPlanTab({ projectId, canEdit, chapter, onDirtyChange, onBusyChange }: { projectId: number; canEdit: boolean; chapter: Pick<ChapterSummary, "id" | "project_id" | "chapter_number" | "title"> | null; onDirtyChange?: (dirty: boolean) => void; onBusyChange?: (busy: boolean) => void }) {
   const chapterId = chapter?.id ?? null;
   const model = useDirectorPlan(projectId, chapterId, canEdit);
   const plan = model.plan;
@@ -106,10 +106,14 @@ export function ChapterVisualPlanTab({ projectId, canEdit, chapter, onDirtyChang
   const hasModal = Boolean(split || merge || (modalPanel && !agentSidebarOpen) || (narrow && inspectorOpen));
   const dirty = Boolean(model.dirty || split?.dirty || merge?.dirty);
   useEffect(() => { onDirtyChange?.(dirty); }, [dirty, onDirtyChange]);
+  useEffect(() => { onBusyChange?.(model.busy || model.saving || uploading); }, [model.busy, model.saving, onBusyChange, uploading]);
+  useEffect(() => () => onBusyChange?.(false), [onBusyChange]);
   useEffect(() => () => onDirtyChange?.(false), [onDirtyChange]);
   useNovelDetailDirty(
     `visual-plan:${projectId}:${chapterId ?? "none"}`,
     dirty,
+    undefined,
+    () => !model.busy && !model.saving && !uploading,
   );
   const openModal = (next: ModalPanel) => {
     setModalPanel(next);

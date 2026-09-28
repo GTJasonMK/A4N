@@ -40,6 +40,16 @@ impl<'a> ExportProgress<'a> {
     }
 }
 
+impl a4n_export_contract::ExportRenderObserver for ExportProgress<'_> {
+    fn progress(&self, current: u32, total: u32, message: &str) {
+        self.progress(current, total, message);
+    }
+
+    fn is_cancelled(&self) -> bool {
+        self.cancel_checker.is_some_and(|check| check())
+    }
+}
+
 /// Host-facing project export boundary.
 #[async_trait::async_trait]
 pub trait ProjectExportApplicationPort: Send + Sync {

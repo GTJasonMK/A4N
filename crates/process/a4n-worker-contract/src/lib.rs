@@ -13,6 +13,7 @@ pub const WORKER_SCHEMA_VERSION: u32 = 6;
 pub const AGENT_RUN_OPERATION: &str = "agent.run";
 pub const AGENT_HOST_COMMAND_OPERATION: &str = "agent.host_command";
 pub const AGENT_WORKER_AUTH_HEADER: &str = "x-a4n-agent-worker-token";
+pub const WORKER_AUTH_HEADER: &str = "x-a4n-worker-token";
 
 pub use a4n_api_contract::agent::AgentScope;
 

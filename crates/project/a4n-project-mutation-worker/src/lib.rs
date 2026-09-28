@@ -14,7 +14,7 @@ use a4n_project_mutation_worker_contract::{
     PROJECT_MUTATION_UPDATE_OPERATION, PROJECT_MUTATION_WORKER_CONTRACT_VERSION,
     PROJECT_MUTATION_WORKER_ID, ProjectSummary, UpdateProjectInput,
 };
-use a4n_worker_client::WORKER_AUTH_HEADER;
+use a4n_worker_contract::WORKER_AUTH_HEADER;
 use a4n_worker_contract::{
     WORKER_CAPABILITIES_PATH, WORKER_HEALTH_PATH, WORKER_SCHEMA_VERSION, WorkerCapabilities,
     WorkerCapability, WorkerEnvelope, WorkerError, WorkerErrorCode, WorkerHealth,

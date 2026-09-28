@@ -116,7 +116,7 @@ export const FactFeedbackPanel = ({ projectId, canEdit, refreshKey, onChanged }:
         const next = await runProjectFactFeedback({ project_id: requestProject, mode, workflow_run_id: resume ? data?.workflow_run_id ?? null : null }, taskId);
         if (!mounted.current || currentProject.current !== requestProject) return next;
         refreshAttempted = onChanged != null;
-        if (await onChanged?.() === false) throw new Error(t("novel.factFeedback.loadFailed"));
+        await onChanged?.();
         return next;
       });
       if (!mounted.current || currentProject.current !== requestProject) return;
@@ -144,8 +144,8 @@ export const FactFeedbackPanel = ({ projectId, canEdit, refreshKey, onChanged }:
       await updateProject(requestProject, { title: null, description: null, fact_feedback_interval_chapters: value });
       if (!mounted.current || currentProject.current !== requestProject) return;
       intervalDirty.current = false;
-      if (!await load()) return;
-      if (await onChanged?.() === false) return;
+      await load();
+      await onChanged?.();
       addToast(t("novel.factFeedback.intervalSaved"), "success");
     } catch (cause) {
       if (mounted.current && currentProject.current === requestProject) setError(extractErrorMessage(cause, t("novel.factFeedback.saveFailed")));
@@ -178,6 +178,8 @@ export const FactFeedbackPanel = ({ projectId, canEdit, refreshKey, onChanged }:
   useNovelDetailDirty(
     `fact-feedback:${projectId}`,
     intervalHasDraft,
+    undefined,
+    () => !operationBusy.current && !busy && !previewLoading,
   );
   return (
     <section aria-labelledby={headingId} className="a4n-flat-surface min-w-0 p-3 sm:p-4">

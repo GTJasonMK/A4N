@@ -53,7 +53,6 @@ mod video;
 mod workflow;
 
 use a4n_agent_application::agent::AgentApplication;
-use admin::AdminApplication;
 use asset::AssetApplication;
 use auth::AuthApplication;
 use canvas::CanvasApplication;
@@ -94,7 +93,6 @@ use workflow::WorkflowApplication;
 pub struct OrchestratorContext {
     /// 仅供尚未迁入 application owner 的遗留领域路径；runtime 不得直连。
     pub(crate) database: DbHandle,
-    admin: AdminApplication,
     agent: Arc<AgentApplication>,
     asset: AssetApplication,
     auth: AuthApplication,
@@ -143,5 +141,5 @@ pub struct OrchestratorContext {
     llm: Arc<dyn a4n_llm_provider_contract::provider::LlmProvider>,
     engine: Arc<a4n_prompt::tera_engine::TeraPromptEngine>,
     embedding: Arc<dyn a4n_embedding_provider_contract::EmbeddingProvider>,
-    document_export_renderer: Option<Arc<dyn a4n_export_contract::ExportDocumentRenderer>>,
+    document_export_renderer: Arc<dyn a4n_export_contract::ExportDocumentRenderer>,
 }

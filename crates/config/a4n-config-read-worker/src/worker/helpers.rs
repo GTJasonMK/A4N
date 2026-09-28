@@ -239,6 +239,22 @@ fn merge_api_key_update(
     update.unwrap_or(existing)
 }
 
+#[test]
+fn config_mutation_preserves_clears_and_replaces_keys_and_rejects_invalid_ids() {
+    assert_eq!(
+        merge_api_key_update(None, Some("saved".into())),
+        Some("saved".into())
+    );
+    assert_eq!(merge_api_key_update(Some(None), Some("saved".into())), None);
+    assert_eq!(
+        merge_api_key_update(Some(Some("new".into())), Some("saved".into())),
+        Some("new".into())
+    );
+    assert!(positive_id(1).is_ok());
+    assert!(positive_id(0).is_err());
+    assert!(positive_id(-1).is_err());
+}
+
 fn parse_settings_export(settings_json: &str) -> Result<AllConfigsExport, WorkerFailure> {
     serde_json::from_str(settings_json)
         .map_err(|error| WorkerFailure::invalid_request(format!("JSON 解析失败：{error}")))

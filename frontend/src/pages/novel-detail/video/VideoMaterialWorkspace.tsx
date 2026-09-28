@@ -318,7 +318,7 @@ export const VideoMaterialWorkspace: React.FC<VideoMaterialWorkspaceProps> = ({
       );
       if (!isCurrentProject(requestProjectId)) return;
       if (options.refresh !== false) {
-        if (!await refreshAfterMaterialChange()) return;
+        await refreshAfterMaterialChange();
         onToast(t("video.material.generatedProjectMaterial", { name: group.profile.name }), "success");
       }
     } catch (err) {
@@ -432,7 +432,7 @@ export const VideoMaterialWorkspace: React.FC<VideoMaterialWorkspaceProps> = ({
       });
       if (!isCurrentProject(requestProjectId)) return;
       setUploadTarget(null);
-      if (!await refreshAfterMaterialChange()) return;
+      await refreshAfterMaterialChange();
       if (!isCurrentProject(requestProjectId)) return;
       onToast(uploadSetPrimary ? t("video.material.uploadedPrimary") : t("video.material.uploaded"), "success");
     } catch (err) {
@@ -464,7 +464,7 @@ export const VideoMaterialWorkspace: React.FC<VideoMaterialWorkspaceProps> = ({
         await generateMaterialCore(group, requestProjectId, requestSize, { refresh: false });
       }
       if (!isCurrentProject(requestProjectId)) return;
-      if (!await refreshAfterMaterialChange()) return;
+      await refreshAfterMaterialChange();
       if (!isCurrentProject(requestProjectId)) return;
       onToast(t("video.material.batchCompleted", { count: targets.length }), "success");
     } finally {
@@ -490,7 +490,7 @@ export const VideoMaterialWorkspace: React.FC<VideoMaterialWorkspaceProps> = ({
       const updated = await updateImage(image.id, { is_favorite: !image.is_favorite });
       if (!isCurrentProject(requestProjectId)) return;
       setImageDetails((current) => (current?.id === updated.id ? updated : current));
-      if (!await loadMaterials({ force: true })) return;
+      await loadMaterials({ force: true });
       if (!isCurrentProject(requestProjectId)) return;
       onToast(updated.is_favorite ? t("video.material.favorited") : t("video.material.unfavorited"), "success");
     } catch (err) {
@@ -515,7 +515,7 @@ export const VideoMaterialWorkspace: React.FC<VideoMaterialWorkspaceProps> = ({
       const updated = await updateImage(image.id, { ai_score: score });
       if (!isCurrentProject(requestProjectId)) return;
       setImageDetails((current) => (current?.id === updated.id ? updated : current));
-      if (!await loadMaterials({ force: true })) return;
+      await loadMaterials({ force: true });
       if (!isCurrentProject(requestProjectId)) return;
       onToast(t("video.material.scored", { score }), "success");
     } catch (err) {
@@ -535,7 +535,7 @@ export const VideoMaterialWorkspace: React.FC<VideoMaterialWorkspaceProps> = ({
       const updated = await updateImage(image.id, input);
       if (!isCurrentProject(requestProjectId)) return;
       setImageDetails((current) => (current?.id === updated.id ? updated : current));
-      if (!await loadMaterials({ force: true })) return;
+      await loadMaterials({ force: true });
       if (!isCurrentProject(requestProjectId)) return;
       onToast(t("video.material.imageUpdated"), "success");
     } catch (err) {
@@ -564,7 +564,7 @@ export const VideoMaterialWorkspace: React.FC<VideoMaterialWorkspaceProps> = ({
       await deleteImage(image.id);
       if (!isCurrentProject(requestProjectId)) return;
       setImageDetails(null);
-      if (!await refreshAfterMaterialChange()) return;
+      await refreshAfterMaterialChange();
       if (!isCurrentProject(requestProjectId)) return;
       onToast(t("video.material.deleted"), "success");
     } catch (err) {
@@ -588,7 +588,7 @@ export const VideoMaterialWorkspace: React.FC<VideoMaterialWorkspaceProps> = ({
         image_id: imageId,
       });
       if (!isCurrentProject(requestProjectId)) return;
-      if (!await refreshAfterMaterialChange()) return;
+      await refreshAfterMaterialChange();
       if (!isCurrentProject(requestProjectId)) return;
       onToast(imageId == null ? t("video.material.primaryCleared") : t("video.material.primarySet"), "success");
     } catch (err) {

@@ -532,7 +532,7 @@ export const CharacterDetailDialog: React.FC<CharacterDetailDialogProps> = ({
         },
       );
       if (!isCurrentCharacterScope(requestScope) || syncSeqRef.current !== requestSeq) return;
-      if (await onChanged?.() === false) return;
+      await onChanged?.();
       if (result.status === "skipped") {
         addToast(t("characterDetail.noSyncNeeded"), "info");
       } else {

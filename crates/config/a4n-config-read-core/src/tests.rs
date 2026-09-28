@@ -1,23 +1,10 @@
-//! 配置映射与输入 helper 测试。
-
 use super::{
-    embedding_provider_config_from_model, image_config_for_connectivity_test_from_model,
-    llm_provider_config_from_model, merge_api_key_update, pricing_from_json,
-    validate_positive_config_id,
+    embedding_provider_config as embedding_provider_config_from_model,
+    image_connectivity_config as image_config_for_connectivity_test_from_model,
+    llm_provider_config as llm_provider_config_from_model, pricing_from_json,
 };
 use a4n_db_models::models::ai::{embedding_config, image_gen_config, llm_config};
 use serde_json::json;
-
-#[test]
-fn api_key_update_preserves_clears_and_replaces_explicitly() {
-    let existing = Some("saved".to_string());
-    assert_eq!(merge_api_key_update(None, existing.clone()), existing);
-    assert_eq!(merge_api_key_update(Some(None), Some("saved".into())), None);
-    assert_eq!(
-        merge_api_key_update(Some(Some("new".into())), Some("saved".into())),
-        Some("new".into())
-    );
-}
 
 #[test]
 fn invalid_pricing_json_is_rejected_instead_of_defaulting() {
@@ -94,11 +81,4 @@ fn connectivity_config_mapping_preserves_provider_fields() {
         image.supported_sizes_json,
         json!([{"width": 1024, "height": 1024}])
     );
-}
-
-#[test]
-fn connectivity_config_id_must_be_positive() {
-    assert!(validate_positive_config_id(1).is_ok());
-    assert!(validate_positive_config_id(0).is_err());
-    assert!(validate_positive_config_id(-1).is_err());
 }

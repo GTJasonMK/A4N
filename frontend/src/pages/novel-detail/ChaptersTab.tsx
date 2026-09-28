@@ -188,7 +188,7 @@ export const ChaptersTab: React.FC<ChaptersTabProps> = ({ projectId, canEditChap
         : imported.derived_sync_status === "running"
           ? t("novel.chapterImportedSyncRunning", { chapter: requestForm.chapter_number })
           : t("novel.chapterImported", { chapter: requestForm.chapter_number });
-      if (!await load({ force: true })) return;
+      await load({ force: true });
       addToast(message, chapterContentCommitToastType(imported.derived_sync_status));
       setImportOpen(false);
       setImportForm({ chapter_number: requestForm.chapter_number + 1, title: "", content: "" });

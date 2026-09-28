@@ -8,7 +8,7 @@ use a4n_source_snapshot_worker_contract::{
     SOURCE_SNAPSHOT_CHAPTERS_OPERATION, SOURCE_SNAPSHOT_READ_CAPABILITY,
     SOURCE_SNAPSHOT_WORKER_CONTRACT_VERSION, SOURCE_SNAPSHOT_WORKER_ID, SourceSnapshotProjectInput,
 };
-use a4n_worker_client::WORKER_AUTH_HEADER;
+use a4n_worker_contract::WORKER_AUTH_HEADER;
 use a4n_worker_contract::{
     WORKER_CAPABILITIES_PATH, WORKER_HEALTH_PATH, WORKER_SCHEMA_VERSION, WorkerCapabilities,
     WorkerCapability, WorkerEnvelope, WorkerError, WorkerErrorCode, WorkerHealth,

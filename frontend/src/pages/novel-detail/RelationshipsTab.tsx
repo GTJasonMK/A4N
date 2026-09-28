@@ -164,7 +164,7 @@ export const RelationshipsTab: React.FC<{ projectId: number }> = ({
     editor.target !== editor.initialTarget ||
     editor.description !== editor.initialDescription
   );
-  useNovelDetailDirty(`relationships:${projectId}`, editorDirty);
+  useNovelDetailDirty(`relationships:${projectId}`, editorDirty, undefined, () => !mutationInFlightRef.current);
 
   useEffect(() => {
     setCurrentDetail((current) => {

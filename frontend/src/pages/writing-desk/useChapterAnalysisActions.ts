@@ -3,8 +3,6 @@ import {
   useEffect,
   useRef,
   useState,
-  type Dispatch,
-  type SetStateAction,
 } from "react";
 import { extractErrorMessage } from "../../api";
 import {
@@ -26,6 +24,7 @@ import { choiceDialog } from "../../components/feedback/ConfirmDialog";
 import { createWorkflowTaskId, useProgressTask } from "../../hooks/useProgressTask";
 import { isCancelledOperation } from "../../utils/cancellation";
 import { useI18n } from "../../i18n";
+import type { ReloadChapters } from "./chapterIndex";
 
 type AddToast = (message: string, type: ToastType) => void;
 
@@ -47,9 +46,9 @@ interface UseChapterAnalysisActionsParams {
   analysisBlockedReason: string | null;
   dirtyRef: { current: boolean };
   addToast: AddToast;
-  reloadChapters: (options?: { force?: boolean }) => Promise<ChapterSummary[] | null>;
+  reloadChapters: ReloadChapters;
   reloadOutlines: () => Promise<boolean>;
-  setChapters: Dispatch<SetStateAction<ChapterSummary[]>>;
+  applyChapter: (chapter: ChapterSummary) => void;
   refreshProfiles: () => void;
 }
 
@@ -63,7 +62,7 @@ export function useChapterAnalysisActions({
   addToast,
   reloadChapters,
   reloadOutlines,
-  setChapters,
+  applyChapter,
   refreshProfiles,
 }: UseChapterAnalysisActionsParams) {
   const { runProgressTask } = useProgressTask();
@@ -244,9 +243,7 @@ export function useChapterAnalysisActions({
         },
       );
       const updated = mutation.chapter;
-      setChapters((prev) =>
-        prev.map((item) => (item.id === updated.id ? updated : item)),
-      );
+      applyChapter(updated);
       refreshProfiles();
       if (mutation.warnings.length > 0) {
         addToast(
@@ -268,7 +265,7 @@ export function useChapterAnalysisActions({
         refreshProfiles();
       }
       const refreshedChapter =
-        refreshed?.find((item) => item.id === activeChapterIdRef.current) ?? null;
+        refreshed?.index.find((item) => item.id === activeChapterIdRef.current) ?? null;
       if (isCancelledOperation(errorMessage)) {
         addToast(t("writing.analysisStopped"), "info");
         return;
@@ -299,7 +296,7 @@ export function useChapterAnalysisActions({
     reloadOutlines,
     requireSavedAnalyzableChapter,
     runProgressTask,
-    setChapters,
+    applyChapter,
     t,
   ]);
 
@@ -362,12 +359,10 @@ export function useChapterAnalysisActions({
         );
       }
       if (updated) {
-        setChapters((prev) =>
-          prev.map((item) => (item.id === updated.id ? updated : item)),
-        );
+        applyChapter(updated);
       }
       readModelRefreshAttempted = true;
-      if (!(await reloadChapters({ force: true })) || !(await reloadOutlines())) {
+      if (!(await reloadChapters({ force: true, chapterId: chapter.id })) || !(await reloadOutlines())) {
         throw new Error(t("writing.resumeAnalysisFailed"));
       }
       refreshProfiles();
@@ -395,7 +390,7 @@ export function useChapterAnalysisActions({
     reloadOutlines,
     requireSavedAnalyzableChapter,
     runAnalysisProgressTask,
-    setChapters,
+    applyChapter,
     t,
   ]);
 

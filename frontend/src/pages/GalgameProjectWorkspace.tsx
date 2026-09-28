@@ -23,6 +23,7 @@ import { getDerivedProjectSubtitle } from "../utils/projectRouting";
 import { getProjectLifecycleBlockedReason } from "../utils/projectStatus";
 import { useI18n } from "../i18n";
 import { confirmDiscardMediaChanges } from "../components/feedback/UnsavedChangesGuard";
+import { UnsavedNavigationGuard } from "../components/navigation/UnsavedNavigationGuard";
 
 export const GalgameProjectWorkspace: React.FC = () => {
   const { id } = useParams();
@@ -149,7 +150,7 @@ export const GalgameProjectWorkspace: React.FC = () => {
           if (nextProject.lifecycle_gate !== "active") return;
           window.clearInterval(timer);
           setResetPollError(null);
-          if (!await refresh()) return;
+          await refresh();
           setWorkspaceVersion((value) => value + 1);
           addToast(t("galgame.resetCompleted"), "success");
         })
@@ -253,6 +254,7 @@ export const GalgameProjectWorkspace: React.FC = () => {
 
   return (
     <div className="h-full min-h-0 flex flex-col bg-book-bg">
+      <UnsavedNavigationGuard dirty={workspaceDirty} name={t("galgame.workspace")} action={t("common.leavePage")} />
       <DerivedProjectHeader
         leading={<BackButton iconOnly title={t("a11y.back")} onClick={() => navigate("/")} />}
         icon={<Gamepad2 size={15} />}

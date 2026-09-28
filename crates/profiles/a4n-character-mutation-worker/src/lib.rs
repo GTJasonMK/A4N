@@ -37,7 +37,7 @@ use a4n_domain::character::{
     CharacterAttributeValueChangeInput, CharacterTimelineSourceKind,
 };
 use a4n_domain::collaboration::ProjectAccessRole;
-use a4n_worker_client::WORKER_AUTH_HEADER;
+use a4n_worker_contract::WORKER_AUTH_HEADER;
 use a4n_worker_contract::{
     WORKER_CAPABILITIES_PATH, WORKER_HEALTH_PATH, WORKER_SCHEMA_VERSION, WorkerCapabilities,
     WorkerCapability, WorkerEnvelope, WorkerError, WorkerErrorCode, WorkerHealth,

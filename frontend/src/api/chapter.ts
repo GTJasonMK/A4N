@@ -8,6 +8,7 @@ import type {
 import type {
   ChapterAnalysisInput,
   ChapterAnalysisMutationResult,
+  ChapterIndexEntry,
   ChapterSceneSummary,
   ChapterSummary,
   GenerateChapterSceneInput,
@@ -38,6 +39,8 @@ import { canUseLocalDesktopEmbedding } from "../utils/runtimeMode";
 export type {
   ChapterAnalysisInput,
   ChapterAnalysisMutationResult,
+  ChapterIndexEntry,
+  ChapterMetadata,
   ChapterMaterialSyncState,
   ChapterMaterialSyncStatus,
   ChapterMaterialUpdate,
@@ -74,6 +77,18 @@ interface PreparedClientGenerationRagQuery {
 export async function listChapters(projectId: Id): Promise<ChapterSummary[]> {
   return apiInvoke<ChapterSummary[]>("list_chapters", {
     projectId: idNum(projectId),
+  });
+}
+
+export async function listChapterIndex(projectId: Id): Promise<ChapterIndexEntry[]> {
+  return apiInvoke<ChapterIndexEntry[]>("list_chapter_index", {
+    projectId: idNum(projectId),
+  });
+}
+
+export async function getChapter(projectId: Id, chapterId: Id): Promise<ChapterSummary> {
+  return apiInvoke<ChapterSummary>("get_chapter", {
+    input: { project_id: idNum(projectId), chapter_id: idNum(chapterId) },
   });
 }
 

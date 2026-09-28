@@ -6,7 +6,7 @@ use thiserror::Error;
 use crate::MediaRoots;
 
 const SCRUB_PROXY_STDERR_PREVIEW_CHARS: usize = 800;
-pub const VIDEO_SCRUB_FRAMES_PER_SECOND: u32 = 12;
+pub use a4n_media_contract::VIDEO_SCRUB_FRAMES_PER_SECOND;
 const STDERR_PREVIEW_CHARS: usize = 800;
 
 #[derive(Debug, Error)]

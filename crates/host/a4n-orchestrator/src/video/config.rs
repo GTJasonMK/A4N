@@ -16,13 +16,6 @@ use a4n_video::{
     validate_video_duration_for_params_secs,
 };
 
-pub fn validate_video_config_model(
-    cfg: &video_gen_config::Model,
-) -> Result<VideoConfigParams, String> {
-    let provider_config = video_provider_config_from_model(cfg)?;
-    validate_video_provider_config(&provider_config)
-}
-
 pub fn video_provider_config_from_model(
     cfg: &video_gen_config::Model,
 ) -> Result<VideoProviderConfig, String> {
@@ -47,10 +40,6 @@ pub fn video_provider_config_from_model(
         is_default: cfg.is_default,
         pricing,
     })
-}
-
-fn validate_video_provider_config(cfg: &VideoProviderConfig) -> Result<VideoConfigParams, String> {
-    a4n_video::validate_video_config_params(video_config_params(cfg)?)
 }
 
 pub fn duration_capability_for_provider_config(

@@ -73,7 +73,7 @@ fn read_video_playback_data(
         .map(|path| {
             read_inline_file(path, "剪辑拖动帧数据").map(|bytes| VideoScrubFramesData {
                 data_base64: base64::engine::general_purpose::STANDARD.encode(bytes),
-                frames_per_second: a4n_media_processing_core::VIDEO_SCRUB_FRAMES_PER_SECOND,
+                frames_per_second: a4n_media_contract::VIDEO_SCRUB_FRAMES_PER_SECOND,
                 mime_type: "image/jpeg".to_string(),
             })
         })

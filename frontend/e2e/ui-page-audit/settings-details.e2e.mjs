@@ -223,7 +223,13 @@ async function capture(state, { anchor, prepare, verify } = {}) {
 }
 
 async function install(overrides = {}) {
-  const data = JSON.parse(JSON.stringify({ ...visualFixtures, ...seed.invoke, pageSessions: seed.rest.pageSessions, ...overrides }), (_key, value) =>
+  const data = JSON.parse(JSON.stringify({
+    ...visualFixtures,
+    ...seed.invoke,
+    pageSessions: seed.rest.pageSessions,
+    oauth2_available_providers: ["google"],
+    ...overrides,
+  }), (_key, value) =>
     typeof value === "string"
       ? value.replace(/https:\/\/ui\.invalid\/image-(\d+)\.png/g, (_match, number) => `${browser.options.baseUrl}/e2e/ui-page-audit/media/image-${number}.svg`)
       : value);
@@ -317,6 +323,34 @@ describe("Settings detail pages and complete dialog workflows", function () {
     await dialog("未保存修改").waitForExist({ reverse: true });
     assert((await editor.getValue()).includes("尚未保存的第二次修改"));
     await editor.setValue(content);
+
+    const savedDuringLeave = content + "\n保存完成后继续离开。";
+    await editor.setValue(savedDuringLeave);
+    await defer("prompt_update");
+    await click(await button("保存"), "提交离页期间仍在保存的提示词");
+    const saveRequest = await pending("prompt_update");
+    await click(await $("nav").$("button=高级配置"), "保存未完成时请求切换设置页");
+    const operationDialog = await dialog("未保存修改");
+    await operationDialog.waitForDisplayed();
+    assert((await operationDialog.getText()).includes("操作仍在进行"));
+    assert.equal(await operationDialog.$("button=放弃草稿").isEnabled(), false);
+    await capture("save-blocked-navigation");
+    await respond("prompt_update", { ...prompt, content: savedDuringLeave, is_modified: true, version: "ui-details-leave-save" }, {
+      fixtures: { prompt_list: seed.invoke.prompt_list.map((item) => item.name === prompt.name
+        ? { ...item, content: savedDuringLeave, is_modified: true, version: "ui-details-leave-save" }
+        : item) },
+    });
+    await browser.waitUntil(async () => await browser.execute(() => location.hash === "#advanced"));
+    await operationDialog.waitForExist({ reverse: true });
+    step("保存成功后完成先前请求的设置页切换", { name: saveRequest.input.name });
+    await capture("saved-departure");
+    const toastCoversTitle = await browser.execute(() => {
+      const toast = document.querySelector(".a4n-toast")?.getBoundingClientRect();
+      const title = document.querySelector('section[aria-label="服务器配置备份"] h3')?.getBoundingClientRect();
+      if (!toast || !title) throw new Error("Expected the save confirmation toast and advanced settings title");
+      return toast.left < title.right && toast.right > title.left && toast.top < title.bottom && toast.bottom > title.top;
+    });
+    assert.equal(toastCoversTitle, false, "The mobile save confirmation must not cover the active page title");
   });
 
   workflow("SD02-prompt-history opens versions and compares the selected pair", async () => {
@@ -662,6 +696,36 @@ describe("Settings detail pages and complete dialog workflows", function () {
     });
     await browser.waitUntil(async () => (await $$(".a4n-settings-content li")).length === seed.invoke.list_pending_tasks.length - 1);
     await capture("task-cancelled");
+  });
+
+  workflow("UX-695 keeps the admin section while its server config save is pending", async () => {
+    await openAdmin("配置");
+    const types = await $('[aria-label="API 配置类型"]');
+    await click(await types.$("button=LLM 服务"), "打开服务器 LLM 配置");
+    const config = seed.invoke.list_llm_config.find((item) => item.is_default);
+    const row = await rowWith(config.name);
+    await click(await row.$("button"), "选择默认服务器 LLM 配置");
+    const name = await $(`input[value=${JSON.stringify(config.name)}]`);
+    await name.setValue(config.name + " · 保存中");
+    await defer("update_llm_config");
+    await click(await $(".a4n-config-editor").$("button=保存"), "提交服务器配置变更");
+    const request = await pending("update_llm_config");
+    assert.equal(request.input.name, config.name + " · 保存中");
+
+    const content = await $(".a4n-settings-content");
+    await click(await content.$("button=用户"), "保存未完成时尝试切换管理员区块");
+    await browser.waitUntil(async () => (await $(".a4n-toast").getText()).includes("操作仍在进行"));
+    assert.equal(await content.$("button=配置").getAttribute("aria-pressed"), "true");
+    assert.equal(await content.$("button=用户").getAttribute("aria-pressed"), "false");
+    assert.equal(await dialog("未保存修改").isExisting(), false);
+    await capture("admin-section-blocked");
+
+    const updated = { ...config, name: request.input.name };
+    await respond("update_llm_config", updated, {
+      fixtures: { list_llm_config: seed.invoke.list_llm_config.map((item) => item.id === config.id ? updated : item) },
+    });
+    await browser.waitUntil(async () => await $(`input[value=${JSON.stringify(updated.name)}]`).isExisting());
+    assert.equal(await content.$("button=配置").getAttribute("aria-pressed"), "true");
   });
 
   for (const [kind, label, command] of [
@@ -1143,7 +1207,7 @@ describe("Settings detail pages and complete dialog workflows", function () {
   workflow("SD26-auth-oauth exposes provider choice, waiting and callback errors", async () => {
     await browser.setWindowSize(1440, 1000);
     await browser.url("/?ui-auth=1");
-    await click(await button("使用 GitHub 或 Google 登录"), "打开第三方登录");
+    await click(await button("使用第三方账号登录"), "打开第三方登录");
     await $("#oauth-login-panel").waitForDisplayed();
     await choose(await $("#oauth-login-panel").$('button[role="combobox"]'), "Google");
     await capture("oauth-provider-choice");

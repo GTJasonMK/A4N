@@ -60,7 +60,7 @@ export const ProjectCollaborationPanel: React.FC<ProjectCollaborationPanelProps>
   const canLeave = project.my_role !== "owner";
   const rootProjectId = project.collaboration_root_project_id;
   const dirtyKey = `collaboration:${project.id}`;
-  useNovelDetailDirty(dirtyKey, Boolean(identity.trim()));
+  useNovelDetailDirty(dirtyKey, Boolean(identity.trim()), () => setIdentity(""), () => !submittingRef.current);
 
   const load = useCallback(async (): Promise<boolean> => {
     const requestSeq = loadSeqRef.current + 1;
@@ -137,7 +137,7 @@ export const ProjectCollaborationPanel: React.FC<ProjectCollaborationPanelProps>
       });
       if (!mountedRef.current) return;
       setIdentity("");
-      if (!await load()) return;
+      await load();
       await onRefresh();
       addToast(t("novel.collaborationActions.inviteSent"), "success");
     } catch (err) {
@@ -156,7 +156,7 @@ export const ProjectCollaborationPanel: React.FC<ProjectCollaborationPanelProps>
     try {
       await updateProjectMemberRole(rootProjectId, member.user_id, nextRole);
       if (!mountedRef.current) return;
-      if (!await load()) return;
+      await load();
       await onRefresh();
       addToast(t("novel.collaborationActions.roleUpdated"), "success");
     } catch (err) {
@@ -184,7 +184,7 @@ export const ProjectCollaborationPanel: React.FC<ProjectCollaborationPanelProps>
     try {
       await removeProjectMember(rootProjectId, member.user_id);
       if (!mountedRef.current) return;
-      if (!await load()) return;
+      await load();
       await onRefresh();
       addToast(t("novel.collaborationActions.removed"), "success");
     } catch (err) {
@@ -202,7 +202,7 @@ export const ProjectCollaborationPanel: React.FC<ProjectCollaborationPanelProps>
     try {
       await revokeProjectInvite(rootProjectId, invite.id);
       if (!mountedRef.current) return;
-      if (!await load()) return;
+      await load();
       await onRefresh();
       addToast(t("novel.collaborationActions.inviteRevoked"), "success");
     } catch (err) {

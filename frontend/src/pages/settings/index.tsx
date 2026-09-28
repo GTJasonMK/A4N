@@ -13,6 +13,7 @@ import { LlmTab } from "./LlmTab";
 import { TABS, TAB_IDS, type TabId } from "./settingsTabs";
 import { useI18n } from "../../i18n";
 import { confirmDialog } from "../../components/feedback/ConfirmDialog";
+import { useToast } from "../../components/feedback/Toast";
 import { useDirtyRegistry, useDirtyRegistryVersion } from "../../components/navigation/dirtyRegistry";
 
 const EmbeddingTab = lazy(() =>
@@ -69,11 +70,13 @@ export const SettingsPage: React.FC = () => {
   const tab = requestedTab ?? lastTab;
   const { user, logout } = useAuthStore();
   const { t } = useI18n();
+  const addToast = useToast((state) => state.addToast);
   const activeTab = TABS.find((item) => item.id === tab);
   const smartBack = useSmartBack();
   const dirtyRegistry = useDirtyRegistry();
-  useDirtyRegistryVersion();
+  const dirtyRegistryVersion = useDirtyRegistryVersion();
   const hasUnsavedSettings = () => dirtyRegistry.hasDirty();
+  const canDiscardSettings = dirtyRegistry.canDiscardDirty();
   const blocker = useBlocker(({ currentLocation, nextLocation }) =>
     (currentLocation.pathname !== nextLocation.pathname ||
       currentLocation.search !== nextLocation.search ||
@@ -84,6 +87,9 @@ export const SettingsPage: React.FC = () => {
     event.preventDefault();
     event.returnValue = "";
   });
+  useEffect(() => {
+    if (blocker.state === "blocked" && !dirtyRegistry.hasDirty()) blocker.proceed();
+  }, [blocker.proceed, blocker.state, dirtyRegistry, dirtyRegistryVersion]);
 
   const selectTab = (nextTab: TabId) => {
     if (nextTab === tab) return;
@@ -91,12 +97,22 @@ export const SettingsPage: React.FC = () => {
   };
 
   const handleLogout = async () => {
-    if (hasUnsavedSettings() && !(await confirmDialog({
-      title: t("common.unsavedChangesTitle"),
-      message: t("common.unsavedChangesMessage", { name: t("settings.title"), action: t("auth.logout") }),
-      confirmText: t("common.discardDraft"),
-      dialogType: "warning",
-    }))) return;
+    if (hasUnsavedSettings()) {
+      if (!canDiscardSettings) {
+        addToast(t("common.operationInProgress"), "info");
+        return;
+      }
+      if (!(await confirmDialog({
+        title: t("common.unsavedChangesTitle"),
+        message: t("common.unsavedChangesMessage", { name: t("settings.title"), action: t("auth.logout") }),
+        confirmText: t("common.discardDraft"),
+        dialogType: "warning",
+      }))) return;
+      if (!dirtyRegistry.canDiscardDirty()) {
+        addToast(t("common.operationInProgress"), "info");
+        return;
+      }
+    }
     await logout();
   };
 
@@ -213,14 +229,16 @@ export const SettingsPage: React.FC = () => {
           footer={
             <>
               <BookButton variant="secondary" onClick={blocker.reset}>{t("common.cancel")}</BookButton>
-              <BookButton variant="warning" onClick={() => { void dirtyRegistry.discardDirty().then(blocker.proceed); }}>{t("common.discardDraft")}</BookButton>
+              <BookButton variant="warning" disabled={!canDiscardSettings} onClick={() => { void dirtyRegistry.discardDirty().then((discarded) => { if (discarded) blocker.proceed(); }); }}>{t("common.discardDraft")}</BookButton>
             </>
           }
         >
-          {t("common.unsavedChangesMessage", {
-            name: t("settings.title"),
-            action: t("nav.backToPrevious"),
-          })}
+          {canDiscardSettings
+            ? t("common.unsavedChangesMessage", {
+                name: t("settings.title"),
+                action: t("nav.backToPrevious"),
+              })
+            : t("common.operationInProgress")}
         </Modal>
       )}
     </div>

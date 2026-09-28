@@ -174,7 +174,7 @@ export const filterStorySections = (
 
     const sectionMatches = Boolean(normalizedQuery) && sectionText.includes(normalizedQuery);
     if (events.length > 0 || sectionMatches) {
-      visibleSections.push({ ...section, events });
+      visibleSections.push(events.length === section.events.length ? section : { ...section, events });
     }
   }
 

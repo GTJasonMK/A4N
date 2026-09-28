@@ -121,7 +121,7 @@ export const CharactersTab: React.FC<{ projectId: number }> = ({ projectId }) =>
       ) {
         return;
       }
-      if (!await load({ silent: true, force: true })) return;
+      await load({ silent: true, force: true });
       setEditorOpen(false);
       setEditingProfile(null);
       addToast(

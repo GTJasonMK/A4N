@@ -408,7 +408,7 @@ export function useCanvasWorkflowActions({
     startWorkflowDiscovery(graphId, document.graph.version, Date.now());
     try {
       const result = await runCanvasNode(projectId, graphId, nodeId);
-      if (!await loadWorkflowStatus(result.workflow_run_id)) return;
+      await loadWorkflowStatus(result.workflow_run_id);
       addToast(
         result.error_message ?? t("video.runOnlyNodeSubmitted"),
         result.status === "failed" ? "info" : "success",
@@ -465,7 +465,7 @@ export function useCanvasWorkflowActions({
     startWorkflowDiscovery(graphId, document.graph.version, Date.now());
     try {
       const result = await runCanvasGraphToNode(projectId, graphId, nodeId);
-      if (!await loadWorkflowStatus(result.workflow_run_id)) return;
+      await loadWorkflowStatus(result.workflow_run_id);
       addToast(
         result.error_message ?? t("video.runToNodeSubmitted"),
         result.status === "failed" ? "info" : "success",
@@ -501,7 +501,7 @@ export function useCanvasWorkflowActions({
     startWorkflowDiscovery(graphId, document.graph.version, Date.now());
     try {
       const result = await runCanvasGraph(projectId, graphId);
-      if (!await loadWorkflowStatus(result.workflow_run_id)) return;
+      await loadWorkflowStatus(result.workflow_run_id);
       addToast(
         result.error_message ?? t("video.submittedRunCanvas"),
         result.status === "failed" ? "info" : "success",
@@ -694,7 +694,7 @@ export function useCanvasWorkflowActions({
         workflow_run_id: workflowRunId,
       });
       if (workflowRunId) {
-        if (!await loadWorkflowStatus(workflowRunId)) return;
+        await loadWorkflowStatus(workflowRunId);
       }
       addToast(t("video.cancelRunRequested"), "info");
     } catch (err) {
@@ -711,7 +711,7 @@ export function useCanvasWorkflowActions({
     try {
       const run = await resumeWorkflowRun(workflowRunId);
       workflowRuntimeRefreshSignatureRef.current = null;
-      if (!await loadWorkflowStatus(run.id)) return;
+      await loadWorkflowStatus(run.id);
       addToast(t("video.resumeRunSuccess"), "success");
     } catch (err) {
       addToast(extractErrorMessage(err, t("video.resumeRunFailed")), "error");

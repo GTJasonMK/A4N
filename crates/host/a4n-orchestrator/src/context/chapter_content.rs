@@ -1,6 +1,9 @@
 use super::OrchestratorContext;
 use crate::chapter_content_edit_error_to_app_error;
-use a4n_api_contract::{chapter::ChapterSummary, collaboration::ProjectAccessRole};
+use a4n_api_contract::{
+    chapter::{ChapterIndexEntry, ChapterMetadata, ChapterSummary},
+    collaboration::ProjectAccessRole,
+};
 use a4n_db::DbHandle;
 use a4n_db_models::models::{chapter::chapter, generation::workflow_run};
 use a4n_error::AppError;
@@ -160,10 +163,28 @@ impl OrchestratorContext {
         user_id: i64,
         chapter_id: i64,
     ) -> Result<ChapterSummary, AppError> {
+        self.chapter_summary_for_user_in_project(user_id, chapter_id, None)
+            .await
+    }
+
+    async fn chapter_summary_for_user_in_project(
+        &self,
+        user_id: i64,
+        chapter_id: i64,
+        project_id: Option<i64>,
+    ) -> Result<ChapterSummary, AppError> {
+        if project_id.is_some_and(|id| id <= 0) {
+            return Err(AppError::InvalidArgument("project_id 必须大于 0".into()));
+        }
         let chapter = self
             .chapter_by_id(chapter_id)
             .await?
             .ok_or_else(|| AppError::NotFound(format!("章节不存在: chapter_id={chapter_id}")))?;
+        if project_id.is_some_and(|id| id != chapter.project_id) {
+            return Err(AppError::NotFound(format!(
+                "章节不属于指定项目: {chapter_id}"
+            )));
+        }
         self.verify_project_permission(chapter.project_id, user_id, ProjectAccessRole::Viewer)
             .await?;
         self::chapter_summary_with_sync_state(self, &chapter).await
@@ -209,13 +230,37 @@ impl OrchestratorContext {
 
 #[async_trait::async_trait]
 impl a4n_api_contract::chapter::ChapterContentReadApplicationPort for OrchestratorContext {
+    async fn index(
+        &self,
+        user_id: i64,
+        project_id: i64,
+    ) -> Result<Vec<ChapterIndexEntry>, AppError> {
+        self.verify_project_permission(project_id, user_id, ProjectAccessRole::Viewer)
+            .await?;
+        let chapters = self.chapters_for_project(project_id).await?;
+        let metadata = chapter_metadata_with_sync_state(self, &chapters).await?;
+        Ok(chapters
+            .iter()
+            .zip(metadata)
+            .map(|(chapter, metadata)| {
+                a4n_chapter_content_core::chapter_index_entry(chapter, metadata)
+            })
+            .collect())
+    }
+
     async fn list(&self, user_id: i64, project_id: i64) -> Result<Vec<ChapterSummary>, AppError> {
         self.list_chapter_summaries_for_user(user_id, project_id)
             .await
     }
 
-    async fn summary(&self, user_id: i64, chapter_id: i64) -> Result<ChapterSummary, AppError> {
-        self.chapter_summary_for_user(user_id, chapter_id).await
+    async fn summary(
+        &self,
+        user_id: i64,
+        chapter_id: i64,
+        project_id: Option<i64>,
+    ) -> Result<ChapterSummary, AppError> {
+        self.chapter_summary_for_user_in_project(user_id, chapter_id, project_id)
+            .await
     }
 }
 
@@ -229,14 +274,24 @@ mod post_process_tests {
     }
 }
 
-pub(crate) fn chapter_summary(chapter: &chapter::Model) -> ChapterSummary {
-    a4n_chapter_content_core::chapter_summary(chapter)
-}
-
 pub(crate) async fn chapter_summaries_with_sync_state(
     state: &OrchestratorContext,
     chapters: &[chapter::Model],
 ) -> Result<Vec<ChapterSummary>, AppError> {
+    let metadata = chapter_metadata_with_sync_state(state, chapters).await?;
+    Ok(chapters
+        .iter()
+        .zip(metadata)
+        .map(|(chapter, metadata)| {
+            a4n_chapter_content_core::chapter_summary_with_metadata(chapter, metadata)
+        })
+        .collect())
+}
+
+async fn chapter_metadata_with_sync_state(
+    state: &OrchestratorContext,
+    chapters: &[chapter::Model],
+) -> Result<Vec<ChapterMetadata>, AppError> {
     let Some(project_id) = chapters.first().map(|chapter| chapter.project_id) else {
         return Ok(Vec::new());
     };
@@ -260,7 +315,10 @@ pub(crate) async fn chapter_summaries_with_sync_state(
         .map(|run| run.id)
         .collect::<Vec<_>>();
     let checkpoints = state.workflow_checkpoint_models_for_runs(&run_ids).await?;
-    let mut summaries = chapters.iter().map(chapter_summary).collect::<Vec<_>>();
+    let mut summaries = chapters
+        .iter()
+        .map(a4n_chapter_content_core::chapter_metadata)
+        .collect::<Vec<_>>();
     a4n_chapter_content_core::attach_chapter_sync_state(
         chapters,
         &mut summaries,

@@ -53,8 +53,9 @@ import { MangaChapterList } from "./manga/MangaChapterList";
 import { MANGA_PIPELINE_TOTAL_STEPS } from "./manga/mangaTabUtils";
 import { useProgressTask } from "../../hooks/useProgressTask";
 import { usePersistedTab } from "../../hooks/usePersistedTab";
+import { useNovelDetailDirty } from "./novelDetailDirty";
 import { MediaStageHeader } from "../../components/shell/MediaStageHeader";
-import { UnsavedChangesGuard, confirmDiscardMediaChanges } from "../../components/feedback/UnsavedChangesGuard";
+import { confirmDiscardMediaChanges } from "../../components/feedback/UnsavedChangesGuard";
 import { BookButton } from "../../components/ui/BookButton";
 import { MediaAuthoringPanel } from "../derived/MediaAuthoringPanel";
 import { useMediaAuthoring, authoringStageLabel } from "../derived/useMediaAuthoring";
@@ -87,13 +88,29 @@ export const MangaTab: React.FC<MangaTabProps> = ({
   const { t } = useI18n();
   const staged = snapshotChapters !== undefined;
   const [authoringDirty, setAuthoringDirty] = useState(false);
+  const [authoringBusy, setAuthoringBusy] = useState(false);
   const [promptDirty, setPromptDirty] = useState(false);
   const [discardVersion, setDiscardVersion] = useState(0);
+  const discardStageDrafts = () => {
+    setAuthoringDirty(false);
+    setPromptDirty(false);
+    setDiscardVersion((version) => version + 1);
+  };
+  const isMutationBusy = () => actionBusyKeyRef.current != null || pipelineTaskId != null || authoringBusy;
   useEffect(() => { onDirtyChange?.(authoringDirty || promptDirty); }, [authoringDirty, promptDirty, onDirtyChange]);
   useEffect(() => () => onDirtyChange?.(false), [onDirtyChange]);
+  const discardMangaDrafts = () => {
+    if (isMutationBusy() || acting != null || pipelineCancelling) return false;
+    discardStageDrafts();
+  };
+  useNovelDetailDirty(`manga-editor:${projectId}`, authoringDirty || promptDirty, discardMangaDrafts, () => !isMutationBusy() && acting == null && !pipelineCancelling);
   const authoring = useMediaAuthoring(projectId, staged);
   const stageId = `comic-stages-${projectId}`;
   const confirmLeaveStage = async () => {
+    if (isMutationBusy()) {
+      addToast(t("common.operationInProgress"), "info");
+      return false;
+    }
     if (!authoringDirty && !promptDirty) return true;
     const confirmed = await confirmDiscardMediaChanges(true, t);
     if (confirmed) { setAuthoringDirty(false); setPromptDirty(false); setDiscardVersion((version) => version + 1); }
@@ -1079,9 +1096,7 @@ export const MangaTab: React.FC<MangaTabProps> = ({
           const generated = await verifyPortraitGenerationResult(task, requestAssetProjectId);
           if (!isActionCurrent(requestProjectId, actionSeq))
             throw new Error("任务已停止");
-          if (!await loadCharacterAssets(requestProjectId, requestAssetProjectId)) {
-            throw new Error(t("comic.loadCharacterAssetsFailed"));
-          }
+          await loadCharacterAssets(requestProjectId, requestAssetProjectId);
           if (!isActionCurrent(requestProjectId, actionSeq))
             throw new Error("任务已停止");
           return generated.length;
@@ -1219,6 +1234,7 @@ export const MangaTab: React.FC<MangaTabProps> = ({
         key={`${projectId}:${selectedChapter?.id}:${workspaceStage}:${discardVersion}`} projectId={projectId} kind={workspaceStage === "adaptation" ? "adaptation_plan" : "manga_page_plan"}
         workspace={authoring.workspace} loading={authoring.loading} error={authoring.error} chapterId={selectedChapter?.id ?? null}
         canEdit={canEditManga} stageRunning={selectedStatus?.can_cancel === true} onReload={authoring.reload} onDirtyChange={setAuthoringDirty}
+        onBusyChange={setAuthoringBusy}
         onGenerateStage={() => handleRunPipeline("start", "page_planning", false)}
         onNext={() => setWorkspaceStage(workspaceStage === "adaptation" ? "page_plan" : "prompts")}
       /> : workspaceStage === "materials" ? <BaseMaterialsWorkspace projectId={characterAssetProjectId} canEdit={canEditManga}
@@ -1334,7 +1350,6 @@ export const MangaTab: React.FC<MangaTabProps> = ({
         onClose={closeRequestPreview}
       />
       </div>
-      <UnsavedChangesGuard dirty={authoringDirty || promptDirty} onDiscard={() => { setAuthoringDirty(false); setPromptDirty(false); }} />
     </div>
   );
 };

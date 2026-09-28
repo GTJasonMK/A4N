@@ -16,16 +16,3 @@ where
         }
     })
 }
-
-pub fn parse_json_manifest_value<T>(
-    manifest: serde_json::Value,
-    label: impl Into<String>,
-) -> Result<T, ImportTransformError>
-where
-    T: DeserializeOwned,
-{
-    serde_json::from_value(manifest).map_err(|source| ImportTransformError::InvalidManifestJson {
-        label: label.into(),
-        source,
-    })
-}

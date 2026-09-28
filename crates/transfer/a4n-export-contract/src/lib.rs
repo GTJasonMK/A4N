@@ -64,7 +64,22 @@ pub trait ExportDocumentRenderer: Send + Sync {
         input: ExportRenderDocumentInput,
         project_id: Option<i64>,
         root_project_id: Option<i64>,
-    ) -> Result<ExportRenderDocumentOutput, String>;
+        progress: Option<&dyn ExportRenderObserver>,
+    ) -> Result<ExportRenderDocumentOutput, ExportRenderFailure>;
+}
+
+/// In-process progress only; transport adapters retain Host-owned cancellation.
+pub trait ExportRenderObserver: Send + Sync {
+    fn progress(&self, current: u32, total: u32, message: &str);
+    fn is_cancelled(&self) -> bool;
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum ExportRenderFailure {
+    #[error("导出已取消")]
+    Cancelled,
+    #[error("{0}")]
+    Failed(String),
 }
 
 #[derive(Debug, thiserror::Error)]

@@ -1,8 +1,8 @@
 //! Typed client for the import sidecar service.
 
 use a4n_import_contract::{
-    IMPORT_SERVICE_NAME, IMPORT_TRANSFORM_CAPABILITY_VERSION, ImportReadMediaPackageZipInput,
-    ImportReadMediaPackageZipOutput,
+    IMPORT_SERVICE_NAME, IMPORT_TRANSFORM_CAPABILITY_VERSION, ImportParseDocumentInput,
+    ImportParseDocumentOutput, ImportReadMediaPackageZipInput, ImportReadMediaPackageZipOutput,
 };
 use a4n_service_client::{
     HttpClientFactory, HttpSidecarTransport, ServiceClient, ServiceClientConfig,
@@ -55,6 +55,10 @@ impl ServiceClient for HttpImportClient {
 
 #[async_trait]
 pub trait ImportClient: ServiceClient {
+    async fn parse_document(
+        &self,
+        request: ServiceRequest<ImportParseDocumentInput>,
+    ) -> ServiceClientResult<ServiceResponse<ImportParseDocumentOutput>>;
     async fn read_media_package_zip(
         &self,
         request: ServiceRequest<ImportReadMediaPackageZipInput>,
@@ -63,6 +67,12 @@ pub trait ImportClient: ServiceClient {
 
 #[async_trait]
 impl ImportClient for HttpImportClient {
+    async fn parse_document(
+        &self,
+        request: ServiceRequest<ImportParseDocumentInput>,
+    ) -> ServiceClientResult<ServiceResponse<ImportParseDocumentOutput>> {
+        self.transport.post("/import/parse_document", request).await
+    }
     async fn read_media_package_zip(
         &self,
         request: ServiceRequest<ImportReadMediaPackageZipInput>,

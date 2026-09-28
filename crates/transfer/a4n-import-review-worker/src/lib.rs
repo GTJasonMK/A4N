@@ -12,7 +12,7 @@ use a4n_import_review_worker_contract::{
     IMPORT_REVIEW_REJECT_OPERATION, ImportProjectReviewsInput, ImportReviewIdInput,
     ImportReviewSummary,
 };
-use a4n_worker_client::WORKER_AUTH_HEADER;
+use a4n_worker_contract::WORKER_AUTH_HEADER;
 use a4n_worker_contract::{
     WORKER_CAPABILITIES_PATH, WORKER_HEALTH_PATH, WORKER_SCHEMA_VERSION, WorkerCapabilities,
     WorkerCapability, WorkerEnvelope, WorkerError, WorkerErrorCode, WorkerHealth,

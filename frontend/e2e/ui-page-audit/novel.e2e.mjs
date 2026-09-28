@@ -1506,6 +1506,49 @@ describe("Novel page audit - ordinary populated pages", function () {
     } else it(spec.id + " exercises its inner page", async () => matrix(spec));
   }
 
+  it("UX-698 closes scene and generation drafts after one confirmation", async () => {
+    current = { id: "UX-698", task: "同时丢弃场景字段和下一场景提示词草稿", visited: [], plannedWidths: [390] };
+    await browser.setWindowSize(390, height);
+    const panel = await writingPanel("写作助手");
+    await press(await panel.$('button[aria-label="更多操作"]'));
+    await menuItem("场景管理");
+    const scope = await dialog("章节场景");
+    const prompt = await scope.$("#scene-generation-prompt");
+    const initialPrompt = await prompt.getValue();
+    await prompt.setValue(initialPrompt + "\n只用于本次场景生成的临时要求。");
+
+    const row = await scope.$("li");
+    const title = await row.$(".text-sm");
+    const initialTitle = await title.getText();
+    await press(await row.$('button[aria-haspopup="menu"]'));
+    await menuItem("编辑场景");
+    await row.$("input").setValue(initialTitle + " · 未保存");
+    await press(await scope.$('button[title^="关闭"]'));
+
+    const confirmation = await dialog("未保存修改");
+    const openConfirmations = await browser.execute(() => [...document.querySelectorAll('[role="dialog"] h3')]
+      .filter((heading) => heading.textContent?.trim() === "未保存修改").length);
+    assert.equal(openConfirmations, 1);
+    current.evidence = { dirtySceneTitle: true, dirtyGenerationPrompt: true, openConfirmations };
+    await snapshot(current.id, 390, "single-discard-confirmation", confirmation, current.evidence);
+    await clickText("放弃草稿", confirmation);
+    await browser.waitUntil(async () => !await browser.execute(() => [...document.querySelectorAll('[role="dialog"]')]
+      .some((element) => element.textContent?.includes("章节场景"))));
+    await browser.waitUntil(async () => !await browser.execute(() => [...document.querySelectorAll('[role="dialog"] h3')]
+      .some((heading) => heading.textContent?.trim() === "未保存修改")));
+
+    const reopenedPanel = await writingPanel("写作助手");
+    await press(await reopenedPanel.$('button[aria-label="更多操作"]'));
+    await menuItem("场景管理");
+    const reopened = await dialog("章节场景");
+    assert.equal(await reopened.$("#scene-generation-prompt").getValue(), initialPrompt);
+    assert.equal(await reopened.$("li .text-sm").getText(), initialTitle);
+    await press(await reopened.$('button[title^="关闭"]'));
+    await browser.waitUntil(async () => !await browser.execute(() => [...document.querySelectorAll('[role="dialog"]')]
+      .some((element) => element.textContent?.includes("章节场景"))));
+    current.visited.push(390);
+  });
+
   const inspirationPages = [
     { id: "I01-conversation", task: "阅读十轮灵感对话并到达最后一个建议", open: inspiration,
       text: ["三种路径都保留书店", "先核对地图", "先听完周衡", "先验证门外信号"],

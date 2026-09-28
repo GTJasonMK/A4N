@@ -248,7 +248,19 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
     blueprintDraft.fullSynopsis.trim() !== (displayBlueprint?.full_synopsis ?? "").trim() ||
     blueprintDraft.totalChapters.trim() !== String(displayBlueprint?.total_chapters ?? project.total_chapters ?? ""),
   );
-  useNovelDetailDirty(`overview:${project.id}`, blueprintDraftDirty);
+  const discardBlueprintDraft = useCallback(() => {
+    setBlueprintEditorOpen(false);
+    setBlueprintDraft({
+      genre: displayBlueprint?.genre ?? "",
+      style: displayBlueprint?.style ?? "",
+      tone: displayBlueprint?.tone ?? "",
+      targetAudience: displayBlueprint?.target_audience ?? "",
+      oneSentenceSummary: displayBlueprint?.one_sentence_summary ?? "",
+      fullSynopsis: displayBlueprint?.full_synopsis ?? "",
+      totalChapters: String(displayBlueprint?.total_chapters ?? project.total_chapters ?? ""),
+    });
+  }, [displayBlueprint, project.total_chapters]);
+  useNovelDetailDirty(`overview:${project.id}`, blueprintDraftDirty, discardBlueprintDraft, () => !blueprintSaving);
   const closeBlueprintEditor = async () => {
     if (blueprintSaving) return;
     if (blueprintDraftDirty && !(await confirmDialog({
@@ -260,12 +272,14 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
     setBlueprintEditorOpen(false);
   };
   const closeCollaboration = async () => {
-    if (dirtyRegistry.hasDirty(`collaboration:${project.id}`) && !(await confirmDialog({
+    const key = `collaboration:${project.id}`;
+    if (dirtyRegistry.hasDirty(key) && !(await confirmDialog({
       title: t("common.unsavedChangesTitle"),
       message: t("common.unsavedChangesMessage", { name: t("novel.collaborationTitle"), action: t("common.close") }),
       confirmText: t("common.discardDraft"),
       dialogType: "warning",
     }))) return;
+    if (!await dirtyRegistry.discardDirty(key)) return;
     setCollabOpen(false);
   };
   const displayLoading = loading || loadedProjectId !== project.id;
@@ -322,7 +336,7 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
         total_chapters: totalChapters,
       });
       if (!isCurrentProject(requestProjectId)) return;
-      if (!await load()) return;
+      await load();
       if (!isCurrentProject(requestProjectId)) return;
       await onRefresh();
       if (!isCurrentProject(requestProjectId)) return;
@@ -377,7 +391,7 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
         />
 
         <div className="min-w-0 lg:col-span-2">
-          <FactFeedbackPanel key={project.id} projectId={project.id} canEdit={canEditProject} refreshKey={project.updated_at} onChanged={async () => { if (!await load()) return false; return onRefresh(); }} />
+          <FactFeedbackPanel key={project.id} projectId={project.id} canEdit={canEditProject} refreshKey={project.updated_at} onChanged={async () => { await load(); await onRefresh(); }} />
         </div>
 
         <nav

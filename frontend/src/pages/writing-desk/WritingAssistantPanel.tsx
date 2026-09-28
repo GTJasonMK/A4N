@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { Eye, Film, RotateCcw, Wand2 } from "lucide-react";
-import { type ChapterSummary } from "../../api/chapter";
+import { type ChapterMetadata, type ChapterSummary } from "../../api/chapter";
 import { type ChapterOutline } from "../../api/outline";
 import { BookInput, BookTextarea } from "../../components/ui/BookInput";
 import { Dropdown } from "../../components/ui/Dropdown";
@@ -31,7 +31,7 @@ interface WritingAssistantPanelProps {
   resetBusy: boolean;
   canResetGeneratedData: boolean;
   previewing: boolean;
-  chapters: ChapterSummary[];
+  chapters: ChapterMetadata[];
   outlines: ChapterOutline[];
   onWritingNotesChange: (value: string) => void;
   onMinWordCountChange: (value: string) => void;
@@ -224,6 +224,7 @@ export const WritingAssistantPanel: React.FC<WritingAssistantPanelProps> = ({
 
             {!generationActive ? (
               <AssistantContextPanel
+                projectId={projectId}
                 chapters={chapters}
                 outlines={outlines}
                 activeNumber={activeNumber}

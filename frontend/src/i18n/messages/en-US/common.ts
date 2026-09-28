@@ -90,6 +90,7 @@ export const common = {
     unsaved: "This stage has unsaved changes. Leaving will discard them.",
   },
   discardDraft: "Discard draft",
+  operationInProgress: "An operation is still in progress. Wait for it to finish before leaving.",
   leavePage: "Leave this page",
   switchTab: "switching pages",
   deleteConfirm: "Delete {name}? This cannot be undone.",

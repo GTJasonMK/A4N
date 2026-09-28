@@ -448,8 +448,8 @@ export const SnapshotManager: React.FC<{
       );
       if (!isCurrentRequest(requestProfileId, rollbackSeqRef, requestSeq))
         return;
-      if (!await load()) return;
-      if (await onChanged?.() === false) return;
+      await load();
+      await onChanged?.();
       addToast(
         t("characterDetail.snapshot.rollbackSummary", {
           events: r.deleted_events,

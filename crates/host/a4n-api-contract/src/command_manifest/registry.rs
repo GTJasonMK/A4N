@@ -132,6 +132,7 @@ command_specs! {
     "get_blueprint" => args_project_id, result_get_blueprint, "blueprint", context(PROJECT_CONTEXT), effect(READ_EFFECT);
     "get_canvas_graph" => args_get_canvas_graph, result_get_canvas_graph, "canvas", context(NO_CONTEXT), effect(READ_EFFECT);
     "get_canvas_node_contracts" => args_get_canvas_node_contracts, result_get_canvas_node_contracts, "canvas", context(NO_CONTEXT), effect(READ_EFFECT);
+    "get_chapter" => args_get_chapter, result_chapter_summary, "chapter", context(PROJECT_CONTEXT), effect(READ_EFFECT), references(REFERENCES_CHAPTER_IDS);
     "get_chapter_outlines_pacing" => args_project_id, result_chapter_outline_pacing, "chapter", context(PROJECT_CONTEXT), effect(READ_EFFECT);
     "get_chapter_shooting_script" => args_get_chapter_shooting_script, result_get_chapter_shooting_script, "chapter", effect(READ_EFFECT);
     "get_chapter_shooting_script_unit_progress" => args_get_chapter_shooting_script, result_get_chapter_shooting_script_unit_progress, "chapter", effect(READ_EFFECT);
@@ -196,6 +197,7 @@ command_specs! {
     "list_all_users" => empty_args_schema, result_users, "auth", identity(ADMIN_IDENTITY), effect(READ_EFFECT);
     "list_behaviors" => args_list_behaviors, result_list_behaviors, "profile", effect(READ_EFFECT);
     "list_blueprint_versions" => args_list_blueprint_versions, result_list_blueprint_versions, "blueprint", context(NO_CONTEXT), effect(READ_EFFECT);
+    "list_chapter_index" => args_project_id, result_chapter_index, "chapter", context(PROJECT_CONTEXT), effect(READ_EFFECT), references(REFERENCES_CHAPTER_IDS);
     "list_chapter_outlines" => args_project_id, result_chapter_outlines, "chapter", context(PROJECT_CONTEXT), effect(READ_EFFECT), references(REFERENCES_CHAPTER_IDS);
     "list_chapter_scenes" => args_list_chapter_scenes, result_chapter_scenes, "chapter", context(CHAPTER_CONTEXT), effect(READ_EFFECT), references(REFERENCES_CHAPTER_IDS);
     "list_chapter_video_prompts" => args_list_chapter_video_prompts, result_list_chapter_video_prompts, "video", context(PROJECT_CHAPTER_CONTEXT), effect(READ_EFFECT);

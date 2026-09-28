@@ -1,5 +1,7 @@
 #[derive(Debug, thiserror::Error)]
 pub enum ExportRenderError {
+    #[error("导出已取消")]
+    Cancelled,
     #[error("导出 JSON 序列化失败：{0}")]
     Json(#[from] serde_json::Error),
     #[error("{label}序列化失败：{source}")]

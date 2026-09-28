@@ -48,8 +48,7 @@ export const useVideoImageActions = ({
       try {
         await deleteImage(image.id);
         if (!isCurrentActionScope(requestScope)) return;
-        const refreshed = await loadAll();
-        if (refreshed === false) return;
+        await loadAll();
         if (!isCurrentActionScope(requestScope)) return;
         addToast(t("video.material.deleted"), "success");
       } catch (err) {

@@ -5,7 +5,6 @@
 
 pub(crate) mod admin;
 mod asset;
-pub(crate) mod auth;
 mod blueprint;
 pub(crate) mod canvas;
 pub mod chapter_analysis;
@@ -41,7 +40,6 @@ pub(crate) mod shooting_script;
 pub(crate) mod source_sync;
 mod structured_llm;
 mod text_anchor;
-mod theme;
 pub(crate) mod video;
 pub(crate) mod workflow;
 

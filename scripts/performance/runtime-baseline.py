@@ -35,6 +35,7 @@ def arguments():
     parser.add_argument("--chapter-count", type=int, default=100)
     parser.add_argument("--concurrency", type=int, nargs="+", default=[1, 4, 8])
     parser.add_argument("--cli-checks", action="store_true", help="run existing CLI/Mock Provider suites after measurement; use a separate disposable database")
+    parser.add_argument("--chapter-index-checks", action="store_true", help="verify narrow chapter reads against every full response and reject wrong scope")
     return parser.parse_args()
 
 
@@ -314,6 +315,29 @@ SELECT json_build_object(
         assert encoded == plain, "Negotiated compression changed the real chapter response"
         report["compression_probe"] = {"identity_bytes": plain_bytes, "gzip_wire_bytes": encoded_bytes,
                                        "payloads_identical": True}
+        if args.chapter_index_checks:
+            index, index_ms, index_bytes = command(connection, "list_chapter_index", {"projectId": project_id}, token)
+            heavy_fields = {"content", "edit_revision", "style_tags", "analysis_data"}
+            assert index == [{**{key: value for key, value in chapter.items() if key not in heavy_fields},
+                              "body_character_count": len(chapter["content"])} for chapter in plain]
+            for chapter in [plain[0], plain[len(plain) // 2], plain[-1]]:
+                detail, _, _ = command(connection, "get_chapter", {"input": {"project_id": project_id, "chapter_id": chapter["id"]}}, token)
+                assert detail == chapter, "Scoped chapter differs from the full API"
+            other_project = next(item["id"] for item in page["items"] if item["id"] != project_id)
+            rejections = []
+            for name, payload, headers, expected in [
+                ("get_chapter", {"input": {"project_id": other_project, "chapter_id": plain[0]["id"]}}, {"Authorization": f"Bearer {token}"}, 404),
+                ("get_chapter", {"input": {"project_id": 0, "chapter_id": plain[0]["id"]}}, {"Authorization": f"Bearer {token}"}, 400),
+                ("get_chapter", {"input": {"project_id": project_id, "chapter_id": plain[0]["id"]}}, {}, 401),
+                ("list_chapter_index", {"projectId": project_id}, {}, 401),
+            ]:
+                connection.request("POST", f"/api/commands/{name}", json.dumps(payload), {"Content-Type": "application/json", **headers})
+                response = connection.getresponse()
+                error = json.loads(response.read())
+                assert response.status == expected, (name, response.status, error)
+                rejections.append({"command": name, "status": response.status})
+            report["chapter_index"] = {"elapsed_ms": index_ms, "response_bytes": index_bytes,
+                                        "all_metadata_equal": True, "sampled_bodies_equal": True, "rejections": rejections}
         connection.close()
         cases = [
             ("get_current_user", {}, lambda value: value["username"] == credentials["username"]),
@@ -326,6 +350,12 @@ SELECT json_build_object(
                           and item["derived_sync_workflow_run_id"] > 0
                           and item["material_sync"]["content_index"] == "completed")) for item in value)),
         ]
+        if args.chapter_index_checks:
+            cases.extend([
+                ("list_chapter_index", {"projectId": project_id}, lambda value: value == index),
+                ("get_chapter", {"input": {"project_id": project_id, "chapter_id": plain[0]["id"]}},
+                 lambda value: value == plain[0]),
+            ])
         for name, payload, check in cases:
             for concurrency in args.concurrency:
                 def series(_):

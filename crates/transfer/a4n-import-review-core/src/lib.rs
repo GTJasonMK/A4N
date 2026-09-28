@@ -3,7 +3,7 @@
 use a4n_api_contract::import_review::{DedupResult, ImportReviewSummary};
 use a4n_db_models::models::project::import_review_queue;
 use a4n_error::AppError;
-use a4n_import_core::dedup;
+mod dedup;
 
 const SIMHASH_NGRAM: usize = 3;
 const DUPLICATE_HAMMING_THRESHOLD: u32 = 3;

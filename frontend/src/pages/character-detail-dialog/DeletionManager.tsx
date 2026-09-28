@@ -211,7 +211,7 @@ export const DeletionManager: React.FC<{
     try {
       const deletedMarks = await resetDeletionMarks(requestProfileId, category, key);
       if (!isCurrentProfile(requestProfileId) || resetSeqRef.current !== requestSeq) return;
-      if (!await load()) return;
+      await load();
       addToast(
         t("characterDetail.deletion.resetSuccess", {
           attribute: attributeKeyLabel(key, t),
@@ -261,7 +261,7 @@ export const DeletionManager: React.FC<{
         evidence: requestPayload.evidence,
       });
       if (!isCurrentProfile(requestProfileId) || requestSeqRef.current !== requestSeq) return;
-      if (!await load()) return;
+      await load();
       addToast(
         mark.consecutive_count >= CHARACTER_DELETION_THRESHOLD
           ? t("characterDetail.deletion.thresholdReached", {
@@ -329,8 +329,8 @@ export const DeletionManager: React.FC<{
         evidence: mark.evidence,
       });
       if (!isCurrentProfile(requestProfileId) || executeSeqRef.current !== requestSeq) return;
-      if (!await load()) return;
-      if (await onChanged?.() === false) return;
+      await load();
+      await onChanged?.();
       addToast(
         t("characterDetail.deletion.executeSuccess", {
           attribute: attributeKeyLabel(mark.key, t),

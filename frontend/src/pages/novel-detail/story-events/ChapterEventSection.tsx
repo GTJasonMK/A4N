@@ -1,4 +1,4 @@
-import React from "react";
+import React, { memo } from "react";
 import { ArrowRight } from "lucide-react";
 import { importanceRank } from "./storyEventUtils";
 import type { ChapterStorySection } from "./types";
@@ -16,7 +16,7 @@ const importanceClass = (importance: string): string => {
   return "text-book-text-muted";
 };
 
-export const ChapterEventSection: React.FC<ChapterEventSectionProps> = ({
+export const ChapterEventSection: React.FC<ChapterEventSectionProps> = memo(({
   section,
   onOpenChapter,
 }) => {
@@ -106,4 +106,4 @@ export const ChapterEventSection: React.FC<ChapterEventSectionProps> = ({
     )}
   </section>
   );
-};
+});

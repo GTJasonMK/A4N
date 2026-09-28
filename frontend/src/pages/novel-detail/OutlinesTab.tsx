@@ -148,12 +148,17 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
   const editingOutline = editingId == null
     ? null
     : outlines.find((outline) => outline.id === editingId) ?? null;
+  const mutationBusy = generatingParts || generatingOutlines || savingId != null
+    || manualSaving != null || regenId != null || delActing != null
+    || regenLastPart || partRegenId != null;
   useNovelDetailDirty(
     `outlines:${projectId}`,
     editingOutline != null && (
       editForm.title !== editingOutline.title ||
       editForm.summary !== editingOutline.summary
     ),
+    undefined,
+    () => !mutationBusy && !requestPreviewLoading,
   );
 
   const closeRequestPreview = useCallback(() => {
@@ -581,7 +586,7 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
         summary: formSnapshot.summary,
       });
       if (!isActionCurrent(requestProjectId, actionSeq)) return;
-      if (!await load()) return;
+      await load();
       addOutlineMutationToast(t("outline.chapterSaved", { chapter: o.chapter_number }), result.warnings);
       cancelEdit();
     } catch (err) {
@@ -626,7 +631,7 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
         summary: form.summary,
       });
       if (!isActionCurrent(requestProjectId, actionSeq)) return;
-      if (!await load({ showLoading: false })) return;
+      await load({ showLoading: false });
       addOutlineMutationToast(t("outline.chapterCreated", { chapter: form.chapterNumber }), result.warnings);
       setManualChapterInitial(null);
     } catch (err) {
@@ -712,7 +717,7 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
         theme: form.theme,
       });
       if (!isActionCurrent(requestProjectId, actionSeq)) return;
-      if (!await load({ showLoading: false })) return;
+      await load({ showLoading: false });
       addOutlineMutationToast(t("outline.partSaved", { part: form.partNumber }), result.warnings);
       setManualPartEditor(null);
     } catch (err) {
@@ -926,7 +931,7 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
     try {
       const result = await deleteLatestChapterOutlines(requestProjectId, targets);
       if (!isActionCurrent(requestProjectId, actionSeq)) return;
-      if (!await load()) return;
+      await load();
       addOutlineMutationToast(t("outline.deletedChapters", { count }), result.warnings);
     } catch (err) {
       if (isActionCurrent(requestProjectId, actionSeq)) {
@@ -977,7 +982,7 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
     try {
       const result = await deleteLatestParts(requestProjectId, targets);
       if (!isActionCurrent(requestProjectId, actionSeq)) return;
-      if (!await load()) return;
+      await load();
       addOutlineMutationToast(t("outline.deletedParts", { count: requestPartCount }), result.warnings);
     } catch (err) {
       if (isActionCurrent(requestProjectId, actionSeq)) {
@@ -1028,7 +1033,7 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
     try {
       const result = await deleteLatestChapterOutlines(requestProjectId, targets);
       if (!isActionCurrent(requestProjectId, actionSeq)) return;
-      if (!await load()) return;
+      await load();
       addOutlineMutationToast(
         t("outline.deletedOutlines", { count: requestChapterCount }),
         result.warnings,
@@ -1118,15 +1123,6 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
     }
   };
 
-  const mutationBusy =
-    generatingParts ||
-    generatingOutlines ||
-    savingId != null ||
-    manualSaving != null ||
-    regenId != null ||
-    delActing != null ||
-    regenLastPart ||
-    partRegenId != null;
   const interactionBusy = mutationBusy || requestPreviewLoading;
   const currentProjectLoaded = loadedProjectId === projectId;
   const currentLoadError = loadError?.projectId === projectId ? loadError.message : null;

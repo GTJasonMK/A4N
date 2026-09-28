@@ -199,7 +199,7 @@ export const UsersSection: React.FC<{ currentUserId: number }> = ({
     createForm.email.trim().length > 0 ||
     createForm.password.length > 0 ||
     createForm.role !== emptyCreateUserForm.role;
-  useDirty("settings-admin-create-user", createDirty);
+  useDirty("settings-admin-create-user", createDirty, undefined, () => !createBusy);
 
   const closeCreate = async () => {
     if (createBusy) return;
@@ -246,8 +246,7 @@ export const UsersSection: React.FC<{ currentUserId: number }> = ({
     try {
       await createAdminUser(input);
       if (!isCurrentUser(requestCurrentUserId)) return;
-      const refreshed = await reload();
-      if (!refreshed) return;
+      await reload();
       if (createFormVersionRef.current === requestFormVersion && createOpen) {
         addToast(t("settingsAdmin.userCreated"), "success");
         resetCreate();
@@ -284,8 +283,7 @@ export const UsersSection: React.FC<{ currentUserId: number }> = ({
       if (!isCurrentUser(requestCurrentUserId)) return;
       await createInviteCode({ code: trimmedCode });
       if (!isCurrentUser(requestCurrentUserId)) return;
-      const refreshed = await reload();
-      if (!refreshed) return;
+      await reload();
       addToast(t("settingsAdmin.inviteCreated"), "success");
     } catch (err) {
       if (!isCurrentUser(requestCurrentUserId)) return;
@@ -329,8 +327,7 @@ export const UsersSection: React.FC<{ currentUserId: number }> = ({
           return;
         }
       }
-      const refreshed = await reload();
-      if (!refreshed) return;
+      await reload();
       addToast(t("settingsAdmin.roleUpdated"), "success");
     } catch (err) {
       if (!isCurrentUser(requestCurrentUserId)) return;
@@ -359,8 +356,7 @@ export const UsersSection: React.FC<{ currentUserId: number }> = ({
       if (!isCurrentUser(requestCurrentUserId)) return;
       await disableUser(u.id);
       if (!isCurrentUser(requestCurrentUserId)) return;
-      const refreshed = await reload();
-      if (!refreshed) return;
+      await reload();
       addToast(t("settingsAdmin.disabled"), "success");
     } catch (err) {
       if (!isCurrentUser(requestCurrentUserId)) return;

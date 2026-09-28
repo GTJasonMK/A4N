@@ -166,6 +166,26 @@ mod tests {
     const PNG_1X1: &str = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=";
 
     #[test]
+    fn supported_codecs_decode_uploads_and_provider_dimensions() {
+        let image = image::DynamicImage::new_rgb8(3, 2);
+        for (format, mime, name) in [
+            (image::ImageFormat::Png, "image/png", "test.png"),
+            (image::ImageFormat::Jpeg, "image/jpeg", "test.jpg"),
+            (image::ImageFormat::WebP, "image/webp", "test.webp"),
+        ] {
+            let mut bytes = Cursor::new(Vec::new());
+            image.write_to(&mut bytes, format).unwrap();
+            assert_eq!(
+                image_dimensions_from_bytes(bytes.get_ref()).unwrap(),
+                (3, 2)
+            );
+            let encoded = base64::engine::general_purpose::STANDARD.encode(bytes.get_ref());
+            let decoded = decode_uploaded_image_data(name, mime, &encoded, 1024 * 1024).unwrap();
+            assert_eq!((decoded.width, decoded.height), (3, 2));
+        }
+    }
+
+    #[test]
     fn uploaded_audio_requires_plain_matching_file_name() {
         assert!(decode_uploaded_audio_data("dir/voice.mp3", "audio/mpeg", "SUQz").is_err());
         assert!(decode_uploaded_audio_data("voice.wav", "audio/mpeg", "SUQz").is_err());

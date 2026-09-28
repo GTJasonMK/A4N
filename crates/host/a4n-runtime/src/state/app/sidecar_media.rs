@@ -191,14 +191,19 @@ impl AppState {
             return typed_response_payload(response, "media");
         }
 
-        let data_dir = self.config.data_dir.clone();
-        let temp_dir = self.config.temp_dir.clone();
-        tokio::task::spawn_blocking(move || {
-            let roots = a4n_media_processing_core::MediaRoots::new(&data_dir, &temp_dir)?;
-            a4n_media_processing_core::execute(&roots, input)
-        })
-        .await
-        .map_err(|error| format!("本地媒体处理任务异常终止：{error}"))?
+        #[cfg(feature = "embedded-transforms")]
+        {
+            let data_dir = self.config.data_dir.clone();
+            let temp_dir = self.config.temp_dir.clone();
+            tokio::task::spawn_blocking(move || {
+                let roots = a4n_media_processing_core::MediaRoots::new(&data_dir, &temp_dir)?;
+                a4n_media_processing_core::execute(&roots, input)
+            })
+            .await
+            .map_err(|error| format!("本地媒体处理任务异常终止：{error}"))?
+        }
+        #[cfg(not(feature = "embedded-transforms"))]
+        Err("本地媒体处理需要 embedded-transforms 构建功能".to_string())
     }
 
     pub(crate) fn data_media_file_ref(
@@ -222,7 +227,7 @@ impl AppState {
         path: &Path,
         root: a4n_media_contract::MediaRoot,
         label: &str,
-    ) -> Result<a4n_media_processing_core::VideoProbeProperties, String> {
+    ) -> Result<a4n_media_contract::VideoProbeProperties, String> {
         let input = self.media_file_ref(path, root, label)?;
         let output = self
             .execute_media(a4n_media_contract::MediaExecuteInput::ProbeVideoProperties { input })
@@ -236,7 +241,7 @@ impl AppState {
                 codec_name,
                 profile,
                 has_b_frames,
-            } => Ok(a4n_media_processing_core::VideoProbeProperties {
+            } => Ok(a4n_media_contract::VideoProbeProperties {
                 width,
                 height,
                 duration_secs,

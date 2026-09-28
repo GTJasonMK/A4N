@@ -5,18 +5,19 @@
 //! business concerns.
 
 mod archive;
-pub mod dedup;
+mod document;
 mod errors;
 pub mod file_parsers;
 mod json;
 mod media_package;
 
+pub use a4n_import_contract::parse_json_manifest_value;
 pub use a4n_import_contract::{
     ImportReadMediaPackageZipEntryOutput, ImportReadMediaPackageZipInput,
     ImportReadMediaPackageZipOutput,
 };
+pub use document::{parse_document, parse_import_file_bytes};
 pub use errors::ImportTransformError;
-pub use json::parse_json_manifest_value;
 pub use media_package::{
     read_media_package_zip, read_media_package_zip_bytes, read_media_package_zip_reader,
 };

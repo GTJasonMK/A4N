@@ -664,9 +664,7 @@ export const ImagesTab: React.FC<ImagesTabProps> = ({
           const images = await verifyImageGenerationResult(task, requestProjectId);
           ensureCurrentAction(requestScope, actionSeq);
           images.forEach(commitImage);
-          if (!await loadObjectProfiles(false)) {
-            throw new Error(t("novel.imageLibrary.loadProfilesFailed"));
-          }
+          await loadObjectProfiles(false);
           ensureCurrentAction(requestScope, actionSeq);
         },
       );

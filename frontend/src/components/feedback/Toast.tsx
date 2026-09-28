@@ -10,7 +10,7 @@ export type { ToastAction, ToastType } from "./toastStore";
 export function ToastContainer() {
   const { toasts, removeToast } = useToast();
   const { t } = useI18n();
-  const [mobileTop, setMobileTop] = useState(88);
+  const [mobileTop, setMobileTop] = useState<number | null>(88);
 
   useLayoutEffect(() => {
     const updatePosition = () => {
@@ -26,7 +26,21 @@ export function ToastContainer() {
         .map((element) => element.getBoundingClientRect().bottom)
         .filter((bottom) => bottom >= 0 && bottom <= window.innerHeight);
       const nextTop = Math.ceil((visibleBottoms.length > 0 ? Math.max(...visibleBottoms) : 56) + 8);
-      setMobileTop((current) => current === nextTop ? current : nextTop);
+      const toastContainer = document.querySelector<HTMLElement>(".a4n-toast-container");
+      const toastRect = toastContainer?.getBoundingClientRect();
+      const toastHeight = toastRect?.height || 72;
+      const coversContent = window.innerWidth < 640 && toastRect != null && [
+        ...document.querySelectorAll<HTMLElement>("h1:not(.sr-only), h2, h3, button, input, textarea, select, [role='button']"),
+      ].some((element) => {
+        if (element.closest(".a4n-toast-container, .a4n-page-header, .sr-only, [aria-hidden='true'], [role='dialog']")) return false;
+        const rect = element.getBoundingClientRect();
+        const style = getComputedStyle(element);
+        return rect.width > 0 && rect.height > 0 && style.display !== "none" && style.visibility !== "hidden"
+          && rect.left < toastRect.right && rect.right > toastRect.left
+          && rect.top < nextTop + toastHeight && rect.bottom > nextTop;
+      });
+      const position = coversContent ? null : nextTop;
+      setMobileTop((current) => current === position ? current : position);
     };
 
     updatePosition();
@@ -65,8 +79,8 @@ export function ToastContainer() {
     <div
       aria-live="polite"
       aria-relevant="additions removals"
-      style={{ "--a4n-toast-mobile-top": `${mobileTop}px` } as CSSProperties}
-      className="a4n-toast-container pointer-events-none fixed inset-x-3 top-[var(--a4n-toast-mobile-top)] z-[110] flex flex-col items-end gap-2 sm:inset-x-auto sm:bottom-3 sm:left-3 sm:top-auto sm:w-[min(92vw,23rem)]"
+      style={mobileTop == null ? undefined : { "--a4n-toast-mobile-top": `${mobileTop}px` } as CSSProperties}
+      className={`a4n-toast-container pointer-events-none fixed inset-x-3 ${mobileTop == null ? "bottom-3 top-auto" : "top-[var(--a4n-toast-mobile-top)]"} z-[110] flex flex-col items-end gap-2 sm:inset-x-auto sm:bottom-3 sm:left-3 sm:top-auto sm:w-[min(92vw,23rem)]`}
     >
       {toasts.map((toast) => (
         <div

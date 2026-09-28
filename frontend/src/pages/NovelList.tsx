@@ -344,7 +344,7 @@ export const NovelList: React.FC<NovelListProps> = () => {
               project_type: "novel_long",
             });
       if (!mountedRef.current || createSeqRef.current !== requestSeq) return;
-      if (!await refresh(activeTabRef.current)) return;
+      await refresh(activeTabRef.current);
       addToast(t("novel.projectListActions.created", { title: project.title }), "success");
       setCreateDialogOpen(false);
       if (!mountedRef.current || createSeqRef.current !== requestSeq) return;
@@ -394,7 +394,7 @@ export const NovelList: React.FC<NovelListProps> = () => {
     try {
       const np = await duplicateProject(project.id, title.trim());
       if (!mountedRef.current) return;
-      if (!await refresh(activeTabRef.current)) return;
+      await refresh(activeTabRef.current);
       addToast(t("novel.projectListActions.duplicated", { title: np.title }), "success");
       if (!mountedRef.current) return;
       await syncCreatedProjectMaterials(np);
@@ -479,7 +479,7 @@ export const NovelList: React.FC<NovelListProps> = () => {
         end_chapter: end,
       });
       if (!mountedRef.current) return;
-      if (!await refresh(activeTabRef.current)) return;
+      await refresh(activeTabRef.current);
       addToast(t("novel.projectListActions.derivedCreated", { label, title: derived.title }), "success");
       if (!mountedRef.current) return;
       navigate(getProjectHomeEntryRoute(derived));
@@ -547,7 +547,7 @@ export const NovelList: React.FC<NovelListProps> = () => {
     try {
       await deleteProject(project.id);
       if (!mountedRef.current) return;
-      if (!await refresh(activeTabRef.current)) return;
+      await refresh(activeTabRef.current);
       addToast(t("novel.projectListActions.deleted", { title: project.title }), "success");
     } catch (err) {
       if (mountedRef.current) {
@@ -604,7 +604,7 @@ export const NovelList: React.FC<NovelListProps> = () => {
         );
       }
       setImportDialogOpenState(false);
-      if (!await refresh(activeTabRef.current)) return;
+      await refresh(activeTabRef.current);
       if (!mountedRef.current || importSeqRef.current !== requestSeq) return;
       if (importedTextProject) await syncCreatedProjectMaterials(importedTextProject);
       if (importSuccessMessage) addToast(importSuccessMessage, "success");
@@ -681,7 +681,7 @@ export const NovelList: React.FC<NovelListProps> = () => {
     try {
       await acceptProjectInvite(invite.id);
       if (!mountedRef.current) return;
-      if (!await loadPendingInvites()) return;
+      await loadPendingInvites();
       await refresh(activeTabRef.current);
       addToast(t("novel.projectListActions.inviteAccepted"), "success");
     } catch (err) {
@@ -698,7 +698,7 @@ export const NovelList: React.FC<NovelListProps> = () => {
     try {
       await declineProjectInvite(invite.id);
       if (!mountedRef.current) return;
-      if (!await loadPendingInvites()) return;
+      await loadPendingInvites();
       addToast(t("novel.projectListActions.inviteDeclined"), "success");
     } catch (err) {
       if (mountedRef.current) {

@@ -1,7 +1,7 @@
 import React, { lazy, Suspense } from "react";
 import { LoadingSpinner } from "../../components/ui/LoadingSpinner";
 import { Modal } from "../../components/ui/Modal";
-import type { ChapterSummary } from "../../api/chapter";
+import type { ChapterMetadata } from "../../api/chapter";
 import type { ChapterOutline } from "../../api/outline";
 import type { ModelRequestPreview } from "../../api/requestPreview";
 import { ChapterSidebar } from "./ChapterSidebar";
@@ -37,9 +37,10 @@ type AssistantProps = React.ComponentProps<typeof WritingAssistantPanel>;
 export interface WritingDeskViewProps {
   projectId: number;
   activeNumber: number | null;
-  chapters: ChapterSummary[];
+  chapters: ChapterMetadata[];
   outlines: ChapterOutline[];
   lifecycleBlockedReason: string | null;
+  chapterReadBlockedReason: string | null;
   isMobileLayout: boolean;
   leftSidebarVisible: boolean;
   rightPanel: RightPanel;
@@ -67,6 +68,7 @@ export const WritingDeskView: React.FC<WritingDeskViewProps> = ({
   chapters,
   outlines,
   lifecycleBlockedReason,
+  chapterReadBlockedReason,
   isMobileLayout,
   leftSidebarVisible,
   rightPanel,
@@ -101,7 +103,7 @@ export const WritingDeskView: React.FC<WritingDeskViewProps> = ({
         </div>
       ) : null}
 
-      {!lifecycleBlockedReason && outlines.length === 0 && chapters.length === 0 && (
+      {!lifecycleBlockedReason && !chapterReadBlockedReason && outlines.length === 0 && chapters.length === 0 && (
         <MissingOutlineBanner onOpenProjectDetail={headerProps.onOpenProjectDetail} />
       )}
 
@@ -112,7 +114,9 @@ export const WritingDeskView: React.FC<WritingDeskViewProps> = ({
         style={{ gridTemplateColumns: writingDeskGridTemplateColumns }}
       >
         {!isMobileLayout && leftSidebarVisible && <ChapterSidebar {...sidebarProps} />}
-        <ChapterWorkspace {...workspaceProps} />
+        {chapterReadBlockedReason ? (
+          <div role="status" className="flex min-w-0 items-center justify-center p-4 text-book-text-muted">{chapterReadBlockedReason}</div>
+        ) : <ChapterWorkspace {...workspaceProps} />}
 
         {!isMobileLayout && resizeProps && (
           <RightPanelResizeHandle {...resizeProps} />

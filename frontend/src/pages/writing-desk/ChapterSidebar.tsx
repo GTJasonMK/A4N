@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from "react";
 import { Plus, RefreshCw, Search, X } from "lucide-react";
-import { type ChapterSummary } from "../../api/chapter";
+import { type ChapterIndexEntry } from "../../api/chapter";
 import {
   isDerivedChapterOutline,
   isRetrospectiveChapterOutline,
@@ -15,7 +15,7 @@ import { useI18n } from "../../i18n";
 
 interface ChapterSidebarProps {
   projectId: number;
-  chapters: ChapterSummary[];
+  chapters: ChapterIndexEntry[];
   outlines: ChapterOutline[];
   chapterNumbers: number[];
   filteredChapterNumbers: number[];
@@ -34,7 +34,7 @@ interface ChapterSidebarProps {
 }
 
 const chapterTitle = (
-  chapter: ChapterSummary | undefined,
+  chapter: ChapterIndexEntry | undefined,
   outline: ChapterOutline | undefined,
 ): string | null => {
   const chapterTitle = chapter?.title?.trim();
@@ -81,7 +81,7 @@ export const ChapterSidebar: React.FC<ChapterSidebarProps> = ({
   const chaptersByNumber = useMemo(
     () => new Map(chapters.map((chapter) => [chapter.chapter_number, {
       chapter,
-      wordCount: countChapterBodyCharacters(chapter.content),
+      wordCount: chapter.body_character_count,
     }])),
     [chapters],
   );
@@ -180,11 +180,9 @@ export const ChapterSidebar: React.FC<ChapterSidebarProps> = ({
               const entry = chaptersByNumber.get(chapterNumber);
               const chapter = entry?.chapter;
               const outline = outlinesByNumber.get(chapterNumber);
-              const bodyContent =
-                chapterNumber === activeNumber ? activeEditorContent : chapter?.content;
               const wordCount =
-                bodyContent == null ? null : chapterNumber === activeNumber
-                  ? countChapterBodyCharacters(bodyContent)
+                chapterNumber === activeNumber
+                  ? countChapterBodyCharacters(activeEditorContent)
                   : entry?.wordCount ?? null;
               return (
                 <li key={chapterNumber}>

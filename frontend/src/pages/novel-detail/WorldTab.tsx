@@ -92,7 +92,7 @@ export const WorldTab: React.FC<WorldTabProps> = ({
     jsonDraft !== editBaselineRef.current.json ||
     textDraft !== editBaselineRef.current.text
   );
-  useNovelDetailDirty(`world:${projectId}`, editDirty);
+  useNovelDetailDirty(`world:${projectId}`, editDirty, undefined, () => !saveBusyRef.current && !refineBusyRef.current);
 
   const load = useCallback(async (): Promise<boolean> => {
     const requestProjectId = projectId;
@@ -200,7 +200,7 @@ export const WorldTab: React.FC<WorldTabProps> = ({
       });
       if (!isCurrentProject(requestProjectId)) return;
       const notice = worldSettingSaveNotice(result.warnings, t);
-      if (!await load()) return;
+      await load();
       addToast(notice.message, notice.type);
       setEditing(false);
     } catch (err) {

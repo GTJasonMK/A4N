@@ -49,6 +49,7 @@ import { runBlueprintRefinementWithProgress } from "./novel-detail/blueprintRefi
 import {
   NovelDetailDirtyProvider,
   useNovelDetailDirtyRegistry,
+  useNovelDetailDirtyVersion,
 } from "./novel-detail/novelDetailDirty";
 
 const AssetDependencyGraphDialog = lazy(() =>
@@ -174,6 +175,8 @@ export const NovelDetail: React.FC = () => {
   const { runProgressTask } = useProgressTask();
   const { locale, t } = useI18n();
   const dirtyRegistry = useNovelDetailDirtyRegistry();
+  const dirtyRegistryVersion = useNovelDetailDirtyVersion();
+  const canDiscardDirty = dirtyRegistry.canDiscardDirty();
   const smartBack = useSmartBack();
   const { isVisible: isPackageVisible } = usePackagePreferences();
   const tabs = TABS.filter(item => item.id !== "imports" || isPackageVisible("external-import")).map((item) => ({
@@ -212,7 +215,7 @@ export const NovelDetail: React.FC = () => {
     ) {
       dirtyNavigationBlocker.proceed();
     }
-  }, [dirtyNavigationBlocker.proceed, dirtyNavigationBlocker.state, dirtyRegistry, exportBusy]);
+  }, [dirtyNavigationBlocker.proceed, dirtyNavigationBlocker.state, dirtyRegistry, dirtyRegistryVersion, exportBusy]);
   const mountedRef = useRef(false);
   const activeProjectIdRef = useRef(projectId);
   const refreshSeqRef = useRef(0);
@@ -415,7 +418,10 @@ export const NovelDetail: React.FC = () => {
   const handleTabChange = async (nextTab: Tab) => {
     if (nextTab === tab) return;
     if (!(await confirmDirtyNavigation(t("common.switchTab")))) return;
-    await dirtyRegistry.discardDirty();
+    if (!await dirtyRegistry.discardDirty()) {
+      addToast(t("common.operationInProgress"), "info");
+      return;
+    }
     setTab(nextTab);
   };
   const workspaceRoute = getProjectWorkspaceRoute(project);
@@ -612,9 +618,10 @@ export const NovelDetail: React.FC = () => {
         titleSeqRef.current = requestSeq;
         setSaving(true);
         try {
-          await updateProject(requestProjectId, { title: next.trim() });
+          const updatedProject = await updateProject(requestProjectId, { title: next.trim() });
           if (!isCurrentAction(requestProjectId, titleSeqRef, requestSeq)) return;
-          if (!await refresh(requestProjectId)) return;
+          setProject(updatedProject);
+          await refresh(requestProjectId);
           addToast(t("novel.projectTitleUpdated"), "success");
         } catch (err) {
           if (isCurrentAction(requestProjectId, titleSeqRef, requestSeq)) {
@@ -649,7 +656,7 @@ export const NovelDetail: React.FC = () => {
       confirmText: t("common.discardDraft"),
       dialogType: "warning",
     }))) return;
-    await dirtyRegistry.discardDirty(`collaboration:${project.id}`);
+    if (!await dirtyRegistry.discardDirty(`collaboration:${project.id}`)) return;
     setCollaborationOpen(false);
   };
   const closeExport = async () => {
@@ -660,7 +667,7 @@ export const NovelDetail: React.FC = () => {
       confirmText: t("common.discardDraft"),
       dialogType: "warning",
     }))) return;
-    await dirtyRegistry.discardDirty(`export:${project.id}`);
+    if (!await dirtyRegistry.discardDirty(`export:${project.id}`)) return;
     setExportOpen(false);
   };
 
@@ -677,13 +684,15 @@ export const NovelDetail: React.FC = () => {
           footer={(
             <>
               <BookButton variant="secondary" onClick={dirtyNavigationBlocker.reset}>{t("common.cancel")}</BookButton>
-              {!exportBusy ? <BookButton variant="warning" onClick={() => { void dirtyRegistry.discardDirty().then(dirtyNavigationBlocker.proceed); }}>{t("common.discardDraft")}</BookButton> : null}
+              {!exportBusy ? <BookButton variant="warning" disabled={!canDiscardDirty} onClick={() => { void dirtyRegistry.discardDirty().then((discarded) => { if (discarded) dirtyNavigationBlocker.proceed(); }); }}>{t("common.discardDraft")}</BookButton> : null}
             </>
           )}
         >
           {exportBusy
             ? t("novel.exportPanel.navigationBlocked")
-            : t("common.unsavedChangesMessage", { name: t("novel.detailTabs"), action: t("common.back") })}
+            : canDiscardDirty
+              ? t("common.unsavedChangesMessage", { name: t("novel.detailTabs"), action: t("common.back") })
+              : t("common.operationInProgress")}
         </Modal>
       ) : null}
       {/* 项目身份、当前进度和高频入口；维护操作统一收进更多菜单。 */}

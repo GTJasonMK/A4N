@@ -116,6 +116,10 @@ export const ExportPanel: React.FC<{
     meta.title.trim() !== project.title.trim() ||
       meta.author.trim().length > 0 ||
       selectedFormat !== "txt",
+    () => {
+      setMeta({ title: project.title, author: "" });
+      setSelectedFormat("txt");
+    },
   );
 
   useEffect(() => {

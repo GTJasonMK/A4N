@@ -77,12 +77,13 @@ import { LineEditor, SceneMetaEditor } from "./galgame/GalgameLineEditors";
 import { buildChoiceDrafts } from "./galgame/GalgameChoiceEditor";
 import { buildCgDraft } from "./galgame/presentation";
 import { useGalgameDrafts } from "./galgame/GalgameDrafts";
-import { UnsavedChangesGuard, confirmDiscardMediaChanges } from "../../components/feedback/UnsavedChangesGuard";
+import { confirmDiscardMediaChanges } from "../../components/feedback/UnsavedChangesGuard";
 import { MediaStageHeader } from "../../components/shell/MediaStageHeader";
 import { MediaAuthoringPanel } from "../derived/MediaAuthoringPanel";
 import { useMediaAuthoring, authoringStageLabel } from "../derived/useMediaAuthoring";
 import type { GalgamePipelineStopAfter } from "../../api/generated/host";
 import { usePersistedTab } from "../../hooks/usePersistedTab";
+import { useDirty } from "../../components/navigation/dirtyRegistry";
 import { BaseMaterialsWorkspace } from "../derived/BaseMaterialsWorkspace";
 
 
@@ -325,6 +326,7 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
   useEffect(() => { onDirtyChange?.(hasUnsavedChanges); }, [hasUnsavedChanges, onDirtyChange]);
   useEffect(() => () => onDirtyChange?.(false), [onDirtyChange]);
   const discardAllDrafts = () => { clearDrafts(); setAuthoringDirty(false); setDiscardVersion((version) => version + 1); };
+  useDirty(`galgame-editor:${projectId}`, hasUnsavedChanges, discardAllDrafts, () => busyTarget == null && !generating && !pipelineCancelling && !planningAssets && !generatingAssets && generatingAssetSpecId == null && !exportingWebgal);
   const confirmLeaveStage = async () => {
     if (busyTarget != null) return false;
     if (!hasUnsavedChanges) return true;
@@ -513,8 +515,7 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
         width: requestSize.width,
         height: requestSize.height,
       });
-      const refreshed = await load();
-      if (!refreshed) return;
+      await load();
       addToast(
         t("galgame.assetGenerationSummary", {
           generated: result.generated_count,
@@ -552,8 +553,7 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
         width: requestSize.width,
         height: requestSize.height,
       });
-      const refreshed = await load();
-      if (!refreshed) return;
+      await load();
       addToast(
         result.generated_count > 0
           ? t("galgame.portraitGenerated")
@@ -600,7 +600,8 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
       }));
       if ("text" in patch || "pose" in patch) clearFieldDraft(`line:${line.id}`);
       if (patch.line_type != null && patch.line_type !== "choice") clearChoiceDraft(line.id);
-      if (!await load()) return false;
+      await load();
+      addToast(t("galgame.lineSaved"), "success");
       return true;
     } catch (err) {
       addToast(extractErrorMessage(err, t("galgame.saveLineFailed")), "error");
@@ -631,7 +632,8 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
         scenes: current.scenes.map((item) => item.scene.id === saved.id ? { ...item, scene: saved } : item),
       }));
       clearFieldDraft(`scene:${scene.id}`);
-      if (!await load()) return;
+      await load();
+      addToast(t("galgame.sceneSaved"), "success");
     } catch (err) {
       addToast(extractErrorMessage(err, t("galgame.saveSceneFailed")), "error");
     } finally {
@@ -666,7 +668,8 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
         presentation: emptyGalgamePresentation(),
         text_anchor_id: null,
       });
-      if (!await load()) return;
+      await load();
+      addToast(t("galgame.lineInserted"), "success");
     } catch (err) {
       addToast(extractErrorMessage(err, t("galgame.insertLineFailed")), "error");
     } finally {
@@ -682,7 +685,8 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
       clearChoiceDraft(line.id);
       clearCgDraft(line.id);
       clearFieldDraft(`line:${line.id}`);
-      if (!await load()) return;
+      await load();
+      addToast(t("galgame.lineDeleted"), "success");
     } catch (err) {
       addToast(extractErrorMessage(err, t("galgame.deleteLineFailed")), "error");
     } finally {
@@ -707,7 +711,8 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
         scene_id: scene.scene.id,
         line_ids: lineIds,
       });
-      if (!await load()) return;
+      await load();
+      addToast(t("galgame.lineReordered"), "success");
     } catch (err) {
       addToast(extractErrorMessage(err, t("galgame.reorderLineFailed")), "error");
     } finally {
@@ -727,8 +732,9 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
         line_id: line.id,
         choices,
       });
-      if (!await load()) return;
+      await load();
       acceptChoiceDraft(line.id, submittedDraft);
+      addToast(t("galgame.choicesSaved"), "success");
     } catch (err) {
       addToast(extractErrorMessage(err, t("galgame.saveChoicesFailed")), "error");
     } finally {
@@ -1274,7 +1280,6 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
         fallbackTitle={t("galgame.requestTitle")}
         onClose={closeRequestPreview}
       />
-      <UnsavedChangesGuard dirty={hasUnsavedChanges} saving={busyTarget != null} onDiscard={discardAllDrafts} />
     </div>
   );
 };

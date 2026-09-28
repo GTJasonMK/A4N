@@ -34,6 +34,7 @@ import { useNovelDetailDirty } from "./novelDetailDirty";
 
 interface ShootingScriptTabProps {
   onDirtyChange?: (dirty: boolean) => void;
+  onBusyChange?: (busy: boolean) => void;
   projectId: number;
   canEdit: boolean;
   chapter: Pick<ChapterSummary, "id"> | null;
@@ -41,6 +42,7 @@ interface ShootingScriptTabProps {
 
 export const ShootingScriptTab: React.FC<ShootingScriptTabProps> = ({
   onDirtyChange,
+  onBusyChange,
   projectId,
   canEdit,
   chapter,
@@ -78,10 +80,12 @@ export const ShootingScriptTab: React.FC<ShootingScriptTabProps> = ({
         JSON.stringify(draft)),
     [draft, unitProgress, view, rebindShotIds],
   );
-  useNovelDetailDirty(`shooting-script:${projectId}:${chapterId ?? "none"}`, isDirty);
+  useNovelDetailDirty(`shooting-script:${projectId}:${chapterId ?? "none"}`, isDirty, undefined, () => !saving && !deleting && !generating);
 
   useEffect(() => { onDirtyChange?.(isDirty); }, [isDirty, onDirtyChange]);
   useEffect(() => () => onDirtyChange?.(false), [onDirtyChange]);
+  useEffect(() => { onBusyChange?.(saving || deleting || generating); }, [deleting, generating, onBusyChange, saving]);
+  useEffect(() => () => onBusyChange?.(false), [onBusyChange]);
 
   const applyScriptData = (
     nextView: ChapterShootingScriptView | null,

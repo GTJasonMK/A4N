@@ -17,7 +17,7 @@ pub use a4n_worker_contract::{
     WorkerResourceRef, WorkerResponse, WorkerRevision, WorkerScope,
 };
 
-pub const WORKER_AUTH_HEADER: &str = "x-a4n-worker-token";
+pub use a4n_worker_contract::WORKER_AUTH_HEADER;
 pub const WORKER_COMMANDS_PATH: &str = "/v1/commands";
 pub const WORKER_OPERATIONS_PATH: &str = "/v1/operations";
 

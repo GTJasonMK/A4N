@@ -4,18 +4,19 @@ use std::{env, net::SocketAddr, sync::Arc};
 
 use a4n_chapter_content_core::{
     CHAPTER_CONTENT_SYNC_WORKFLOW_KIND, attach_chapter_sync_state,
-    begin_chapter_content_sync_in_transaction, chapter_summary,
+    begin_chapter_content_sync_in_transaction, chapter_index_entry, chapter_metadata,
+    chapter_summary_with_metadata,
 };
 use a4n_chapter_content_worker_contract::{
-    CHAPTER_CONTENT_CAPABILITY, CHAPTER_CONTENT_IMPORT_OPERATION, CHAPTER_CONTENT_LIST_OPERATION,
-    CHAPTER_CONTENT_SUMMARY_OPERATION, CHAPTER_CONTENT_UPDATE_OPERATION,
-    CHAPTER_CONTENT_WORKER_CONTRACT_VERSION, CHAPTER_CONTENT_WORKER_ID,
-    ChapterContentMutationResult, ChapterInput, ChapterSummary, ImportChapterInput, ProjectInput,
-    UpdateChapterContentInput,
+    CHAPTER_CONTENT_CAPABILITY, CHAPTER_CONTENT_IMPORT_OPERATION, CHAPTER_CONTENT_INDEX_OPERATION,
+    CHAPTER_CONTENT_LIST_OPERATION, CHAPTER_CONTENT_SUMMARY_OPERATION,
+    CHAPTER_CONTENT_UPDATE_OPERATION, CHAPTER_CONTENT_WORKER_CONTRACT_VERSION,
+    CHAPTER_CONTENT_WORKER_ID, ChapterContentMutationResult, ChapterIndexEntry, ChapterInput,
+    ChapterMetadata, ChapterSummary, ImportChapterInput, ProjectInput, UpdateChapterContentInput,
 };
 use a4n_db::DbHandle;
 use a4n_domain::chapter::{EditChapterContentInput, ImportChapterContentInput};
-use a4n_worker_client::WORKER_AUTH_HEADER;
+use a4n_worker_contract::WORKER_AUTH_HEADER;
 use a4n_worker_contract::{
     WORKER_CAPABILITIES_PATH, WORKER_HEALTH_PATH, WORKER_SCHEMA_VERSION, WorkerCapabilities,
     WorkerCapability, WorkerEnvelope, WorkerError, WorkerErrorCode, WorkerHealth,
@@ -79,6 +80,7 @@ impl ChapterContentWorker {
             .route(WORKER_HEALTH_PATH, get(health))
             .route(WORKER_CAPABILITIES_PATH, get(capabilities))
             .route("/v1/commands/chapter.content.list", post(list))
+            .route("/v1/commands/chapter.content.index", post(index))
             .route("/v1/commands/chapter.content.summary", post(summary))
             .route("/v1/commands/chapter.content.update", post(update))
             .route("/v1/commands/chapter.content.import", post(import_chapter))
@@ -176,6 +178,14 @@ async fn list(
     Json(request): Json<WorkerEnvelope<ProjectInput>>,
 ) -> Response {
     command_response(&state, &headers, request, |request| state.list(request)).await
+}
+
+async fn index(
+    State(state): State<WorkerState>,
+    headers: HeaderMap,
+    Json(request): Json<WorkerEnvelope<ProjectInput>>,
+) -> Response {
+    command_response(&state, &headers, request, |request| state.index(request)).await
 }
 
 async fn summary(
@@ -326,12 +336,38 @@ impl WorkerState {
     ) -> Result<Vec<ChapterSummary>, WorkerFailure> {
         validate_request(&request, CHAPTER_CONTENT_LIST_OPERATION)?;
         let project_id = positive("project_id", request.payload.project_id)?;
-        verify_project_viewer(&self.database, project_id, user_id(&request)?).await?;
-        let chapters =
-            a4n_db::chapter_content::chapters_for_project(self.database.connection(), project_id)
-                .await
-                .map_err(|error| WorkerFailure::unavailable(error.to_string()))?;
+        let chapters = self
+            .chapters_for_viewer(user_id(&request)?, project_id)
+            .await?;
         self.project_summaries(project_id, chapters).await
+    }
+
+    async fn index(
+        &self,
+        request: WorkerEnvelope<ProjectInput>,
+    ) -> Result<Vec<ChapterIndexEntry>, WorkerFailure> {
+        validate_request(&request, CHAPTER_CONTENT_INDEX_OPERATION)?;
+        let project_id = positive("project_id", request.payload.project_id)?;
+        let chapters = self
+            .chapters_for_viewer(user_id(&request)?, project_id)
+            .await?;
+        let metadata = self.project_metadata(project_id, &chapters).await?;
+        Ok(chapters
+            .iter()
+            .zip(metadata)
+            .map(|(chapter, metadata)| chapter_index_entry(chapter, metadata))
+            .collect())
+    }
+
+    async fn chapters_for_viewer(
+        &self,
+        user_id: i64,
+        project_id: i64,
+    ) -> Result<Vec<a4n_db_models::models::chapter::chapter::Model>, WorkerFailure> {
+        verify_project_viewer(&self.database, project_id, user_id).await?;
+        a4n_db::chapter_content::chapters_for_project(self.database.connection(), project_id)
+            .await
+            .map_err(|error| WorkerFailure::unavailable(error.to_string()))
     }
 
     async fn summary(
@@ -346,6 +382,14 @@ impl WorkerState {
         )
         .await
         .map_err(chapter_error)?;
+        if request
+            .project_id
+            .is_some_and(|project_id| project_id != chapter.project_id)
+        {
+            return Err(WorkerFailure::not_found(format!(
+                "章节不属于指定项目: {chapter_id}"
+            )));
+        }
         verify_project_viewer(&self.database, chapter.project_id, user_id(&request)?).await?;
         let mut summaries = self
             .project_summaries(chapter.project_id, vec![chapter.clone()])
@@ -379,6 +423,19 @@ impl WorkerState {
         project_id: i64,
         chapters: Vec<a4n_db_models::models::chapter::chapter::Model>,
     ) -> Result<Vec<ChapterSummary>, WorkerFailure> {
+        let metadata = self.project_metadata(project_id, &chapters).await?;
+        Ok(chapters
+            .iter()
+            .zip(metadata)
+            .map(|(chapter, metadata)| chapter_summary_with_metadata(chapter, metadata))
+            .collect())
+    }
+
+    async fn project_metadata(
+        &self,
+        project_id: i64,
+        chapters: &[a4n_db_models::models::chapter::chapter::Model],
+    ) -> Result<Vec<ChapterMetadata>, WorkerFailure> {
         let chapter_ids = chapters
             .iter()
             .map(|chapter| chapter.id)
@@ -409,9 +466,9 @@ impl WorkerState {
         )
         .await
         .map_err(workflow_error)?;
-        let mut summaries = chapters.iter().map(chapter_summary).collect::<Vec<_>>();
+        let mut summaries = chapters.iter().map(chapter_metadata).collect::<Vec<_>>();
         attach_chapter_sync_state(
-            &chapters,
+            chapters,
             &mut summaries,
             &analysis_runs,
             &content_runs,

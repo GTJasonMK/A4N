@@ -184,8 +184,7 @@ export function useVideoTabActions(context: VideoTabActionInput) {
         setPrompts((previous) =>
           previous.map((item) => (item.id === updated.id ? updated : item)),
         );
-        const refreshed = await loadAll();
-        if (refreshed === false) return false;
+        await loadAll();
         addToast(t("video.chapter.planSaved"), "success");
         return true;
       } catch (error) {
@@ -335,8 +334,7 @@ export function useVideoTabActions(context: VideoTabActionInput) {
         targetSegment,
       );
       if (!isCurrentVideoActionScope(requestScope)) return;
-      const refreshed = await loadAll();
-      if (refreshed === false) return;
+      await loadAll();
       addToast(t("video.chapter.adoptedSegment", { number: shotNumber }), "success");
     } catch (err) {
       if (!isCurrentVideoActionScope(requestScope)) return;
@@ -562,8 +560,7 @@ export function useVideoTabActions(context: VideoTabActionInput) {
       });
       if (!isCurrentVideoActionScope(requestScope)) return false;
       setTimeline(nextTimeline);
-      const refreshed = await loadAll();
-      if (refreshed === false) return false;
+      await loadAll();
       addToast(t("video.chapter.insertedSubmitted"), "success");
       return true;
     } catch (error) {
@@ -603,8 +600,7 @@ export function useVideoTabActions(context: VideoTabActionInput) {
       const nextTimeline = await moveInsertedSegment(input);
       if (!isCurrentVideoActionScope(requestScope)) return;
       setTimeline(nextTimeline);
-      const refreshed = await loadAll();
-      if (refreshed === false) return;
+      await loadAll();
       addToast(t("video.chapter.insertedPositionUpdated"), "success");
     } catch (error) {
       if (!isCurrentVideoActionScope(requestScope)) return;
@@ -634,8 +630,7 @@ export function useVideoTabActions(context: VideoTabActionInput) {
       const nextTimeline = await deleteInsertedSegment(input);
       if (!isCurrentVideoActionScope(requestScope)) return;
       setTimeline(nextTimeline);
-      const refreshed = await loadAll();
-      if (refreshed === false) return;
+      await loadAll();
       addToast(t("video.chapter.insertedRemoved"), "success");
     } catch (error) {
       if (!isCurrentVideoActionScope(requestScope)) return;
@@ -684,8 +679,7 @@ export function useVideoTabActions(context: VideoTabActionInput) {
         },
       );
       if (!isCurrentVideoActionScope(requestScope)) return;
-      const refreshed = await loadAll();
-      if (refreshed === false) return;
+      await loadAll();
       addToast(t("video.chapter.insertedVideoGenerated"), "success");
     } catch (error) {
       if (isCurrentVideoActionScope(requestScope)) {
@@ -1113,8 +1107,7 @@ export function useVideoTabActions(context: VideoTabActionInput) {
       if (!isCurrentVideoActionScope(requestScope)) return;
       setSelectedVideoId(row.id);
       setPendingVideoId(null);
-      const refreshed = await loadAll();
-      if (refreshed === false) return;
+      await loadAll();
       addToast(t("video.chapter.importedReferenceMediaVideo"), "success");
     } catch (err) {
       if (isCurrentVideoActionScope(requestScope)) {

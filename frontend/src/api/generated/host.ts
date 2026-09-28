@@ -121,6 +121,7 @@ export const HOST_API_COMMANDS = [
   "get_blueprint",
   "get_canvas_graph",
   "get_canvas_node_contracts",
+  "get_chapter",
   "get_chapter_outlines_pacing",
   "get_chapter_shooting_script",
   "get_chapter_shooting_script_unit_progress",
@@ -185,6 +186,7 @@ export const HOST_API_COMMANDS = [
   "list_all_users",
   "list_behaviors",
   "list_blueprint_versions",
+  "list_chapter_index",
   "list_chapter_outlines",
   "list_chapter_scenes",
   "list_chapter_video_prompts",
@@ -1567,6 +1569,60 @@ export interface ChapterSummary {
   title: string | null;
   updated_at: string | null;
   word_count: number;
+}
+
+export interface ChapterMetadata {
+  analysis_sync_can_resume: boolean;
+  analysis_sync_error: string | null;
+  analysis_sync_has_saved_analysis: boolean;
+  analysis_sync_resume_block_reason: string | null;
+  analysis_sync_status: string | null;
+  chapter_number: number;
+  created_at: string | null;
+  derived_sync_can_resume: boolean;
+  derived_sync_error: string | null;
+  derived_sync_status: string | null;
+  derived_sync_workflow_run_id: number | null;
+  id: number;
+  material_sync: ChapterMaterialSyncState;
+  material_updates: ChapterMaterialUpdate[];
+  outline_id: number | null;
+  project_id: number;
+  status: string;
+  summary: string | null;
+  title: string | null;
+  updated_at: string | null;
+  word_count: number;
+}
+
+export interface ChapterIndexEntry {
+  analysis_sync_can_resume: boolean;
+  analysis_sync_error: string | null;
+  analysis_sync_has_saved_analysis: boolean;
+  analysis_sync_resume_block_reason: string | null;
+  analysis_sync_status: string | null;
+  body_character_count: number;
+  chapter_number: number;
+  created_at: string | null;
+  derived_sync_can_resume: boolean;
+  derived_sync_error: string | null;
+  derived_sync_status: string | null;
+  derived_sync_workflow_run_id: number | null;
+  id: number;
+  material_sync: ChapterMaterialSyncState;
+  material_updates: ChapterMaterialUpdate[];
+  outline_id: number | null;
+  project_id: number;
+  status: string;
+  summary: string | null;
+  title: string | null;
+  updated_at: string | null;
+  word_count: number;
+}
+
+export interface GetChapterInput {
+  chapter_id: number;
+  project_id: number;
 }
 
 export interface ChapterAnalysisMutationResult {

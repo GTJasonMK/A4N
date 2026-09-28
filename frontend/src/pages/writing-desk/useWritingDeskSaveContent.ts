@@ -1,8 +1,6 @@
 import {
   useCallback,
-  type Dispatch,
   type MutableRefObject,
-  type SetStateAction,
 } from "react";
 import { extractErrorMessage } from "../../api";
 import {
@@ -14,6 +12,7 @@ import {
 import type { ChapterOutline } from "../../api/outline";
 import type { Locale, MessageTranslator } from "../../i18n";
 import { formatNumber } from "../../i18n";
+import type { ReloadChapters } from "./chapterIndex";
 
 interface UseWritingDeskSaveContentParams {
   projectId: number;
@@ -31,8 +30,8 @@ interface UseWritingDeskSaveContentParams {
   addToast: (message: string, type: "success" | "error" | "info") => void;
   t: MessageTranslator;
   setSavingContent: (saving: boolean) => void;
-  setChapters: Dispatch<SetStateAction<ChapterSummary[]>>;
-  reloadChapters: (options?: { force?: boolean }) => Promise<ChapterSummary[] | null>;
+  applyChapter: (chapter: ChapterSummary) => void;
+  reloadChapters: ReloadChapters;
   getCurrentEditorContent: () => string;
   removeDraftForChapter: (chapterNumber: number) => Promise<void>;
   setEditorState: (content: string, dirty: boolean) => void;
@@ -55,7 +54,7 @@ export const useWritingDeskSaveContent = ({
   addToast,
   t,
   setSavingContent,
-  setChapters,
+  applyChapter,
   reloadChapters,
   getCurrentEditorContent,
   removeDraftForChapter,
@@ -101,9 +100,7 @@ export const useWritingDeskSaveContent = ({
       });
       savedContent = updated.content;
       savedChapter = updated;
-      setChapters((prev) =>
-        prev.map((chapter) => (chapter.id === updated.id ? updated : chapter)),
-      );
+      applyChapter(updated);
     } else {
       const title =
         activeOutline?.title?.trim() ||
@@ -114,12 +111,10 @@ export const useWritingDeskSaveContent = ({
         content: contentToSave,
         title,
       });
-      const nextChapters = await reloadChapters({ force: true });
+      const nextChapters = await reloadChapters({ force: true, chapterId: imported.id });
       if (!nextChapters) throw new Error(t("writing.refreshChaptersFailed"));
-      const created = nextChapters?.find(
-        (chapter) => chapter.chapter_number === chapterNumber,
-      );
-      savedChapter = created ?? imported;
+      savedChapter = nextChapters.chapter;
+      if (!savedChapter) throw new Error(t("writing.refreshChaptersFailed"));
       savedContent = savedChapter.content;
     }
     if (isCurrentChapter()) {
@@ -179,7 +174,7 @@ export const useWritingDeskSaveContent = ({
   removeDraftForChapter,
   saveContentBusyRef,
   saveLocalDraftForCurrent,
-  setChapters,
+  applyChapter,
   setEditorState,
   setSavingContent,
   t,
