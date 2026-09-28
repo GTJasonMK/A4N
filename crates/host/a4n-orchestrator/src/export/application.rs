@@ -3,16 +3,9 @@ use a4n_api_contract::export::{
     GalgameExportApplicationPort, ProjectExportApplicationPort,
 };
 use a4n_db::export::{export_characters_json, export_document, export_outline_json};
-use a4n_document_export_core::{chapter_heading, render_markdown_document, render_txt_document};
-use a4n_document_export_core::{
-    epub::{EpubBuilder, EpubChapter, EpubMetadata, builtin_epub_stylesheet},
-    pdf::render_text_pdf,
-};
 use a4n_domain::project::required_text;
 use a4n_error::AppError;
-use a4n_export_contract::{
-    ExportChapter, ExportDocument, ExportDocumentFormat, ExportRenderDocumentInput,
-};
+use a4n_export_contract::{ExportDocument, ExportDocumentFormat, ExportRenderDocumentInput};
 use base64::Engine as _;
 
 use crate::{OrchestratorContext, project::ensure_positive_project_id};
@@ -256,88 +249,57 @@ impl OrchestratorContext {
             progress.progress(0, 1, "正在渲染导出文件");
         }
 
-        if let Some(renderer) = self.document_export_renderer() {
-            let output = renderer
-                .render_document(
-                    ExportRenderDocumentInput {
-                        document,
-                        format,
-                        author: author.map(str::to_string),
-                    },
-                    Some(project_id),
-                    None,
-                )
-                .await
-                .map_err(|error| AppError::InvalidState {
+        let renderer = self.document_export_renderer();
+        let output = renderer
+            .render_document(
+                ExportRenderDocumentInput {
+                    document,
+                    format,
+                    author: author.map(str::to_string),
+                },
+                Some(project_id),
+                None,
+                progress.map(|progress| progress as &dyn a4n_export_contract::ExportRenderObserver),
+            )
+            .await
+            .map_err(|error| match error {
+                a4n_export_contract::ExportRenderFailure::Cancelled => AppError::Cancelled,
+                error => AppError::InvalidState {
                     current: format!("export_renderer: {error}"),
                     operation: "渲染文档导出文件".to_string(),
-                })?;
-            let expected = match format {
-                ExportDocumentFormat::Txt => ("txt", "text/plain;charset=utf-8"),
-                ExportDocumentFormat::Markdown => ("md", "text/markdown;charset=utf-8"),
-                ExportDocumentFormat::Epub => ("epub", "application/epub+zip"),
-                ExportDocumentFormat::Pdf => ("pdf", "application/pdf"),
-            };
-            if output.extension != expected.0 || output.content_type != expected.1 {
-                return Err(AppError::InvalidState {
-                    current: format!(
-                        "export_renderer 返回非法格式: extension={}, content_type={}",
-                        output.extension, output.content_type
-                    ),
-                    operation: "校验文档导出渲染结果".to_string(),
-                });
-            }
-            let data = output
-                .clone()
-                .into_bytes()
-                .map_err(|error| AppError::InvalidState {
-                    current: format!("export_renderer 返回非法 base64: {error}"),
-                    operation: "校验文档导出渲染结果".to_string(),
-                })?;
-            if let Some(progress) = progress {
-                progress.progress(1, 1, "导出文件渲染完成");
-            }
-            return Ok(ExportFileData {
-                file_name: export_file_name(project_id, &output.extension),
-                mime_type: output.content_type,
-                data_base64: base64::engine::general_purpose::STANDARD.encode(data),
+                },
+            })?;
+        let expected = match format {
+            ExportDocumentFormat::Txt => ("txt", "text/plain;charset=utf-8"),
+            ExportDocumentFormat::Markdown => ("md", "text/markdown;charset=utf-8"),
+            ExportDocumentFormat::Epub => ("epub", "application/epub+zip"),
+            ExportDocumentFormat::Pdf => ("pdf", "application/pdf"),
+        };
+        if output.extension != expected.0 || output.content_type != expected.1 {
+            return Err(AppError::InvalidState {
+                current: format!(
+                    "export_renderer 返回非法格式: extension={}, content_type={}",
+                    output.extension, output.content_type
+                ),
+                operation: "校验文档导出渲染结果".to_string(),
             });
         }
-
-        let result = match format {
-            ExportDocumentFormat::Txt => export_txt_file_data(project_id, &document.chapters),
-            ExportDocumentFormat::Markdown => {
-                let author = required_text(author.unwrap_or_default(), "Markdown 作者")
-                    .map_err(AppError::InvalidArgument)?;
-                export_markdown_file_data(project_id, &document.chapters, &document.title, author)
-            }
-            ExportDocumentFormat::Epub => {
-                let author = required_text(author.unwrap_or_default(), "EPUB 作者")
-                    .map_err(AppError::InvalidArgument)?;
-                let progress = progress.ok_or_else(|| AppError::InvalidState {
-                    current: "EPUB 导出缺少进度上下文".to_string(),
-                    operation: "渲染 EPUB".to_string(),
-                })?;
-                export_epub_file_data(
-                    project_id,
-                    &document.title,
-                    author,
-                    &document.chapters,
-                    progress,
-                )?
-            }
-            ExportDocumentFormat::Pdf => {
-                let progress = progress.ok_or_else(|| AppError::InvalidState {
-                    current: "PDF 导出缺少进度上下文".to_string(),
-                    operation: "渲染 PDF".to_string(),
-                })?;
-                export_pdf_file_data(project_id, &document.title, &document.chapters, progress)?
-            }
-        };
+        let data = output
+            .clone()
+            .into_bytes()
+            .map_err(|error| AppError::InvalidState {
+                current: format!("export_renderer 返回非法 base64: {error}"),
+                operation: "校验文档导出渲染结果".to_string(),
+            })?;
         if let Some(progress) = progress {
+            progress.check_cancelled()?;
             progress.progress(1, 1, "导出文件渲染完成");
         }
-        Ok(result)
+        return Ok(ExportFileData {
+            file_name: export_file_name(project_id, &output.extension),
+            mime_type: output.content_type,
+            data_base64: base64::engine::general_purpose::STANDARD.encode(data),
+        });
     }
 }
 
@@ -431,75 +393,6 @@ impl GalgameExportApplicationPort for OrchestratorContext {
     }
 }
 
-fn export_epub_file_data(
-    project_id: i64,
-    title: &str,
-    author: &str,
-    chapters: &[ExportChapter],
-    progress: &ExportProgress<'_>,
-) -> Result<ExportFileData, AppError> {
-    let total = export_chapter_count_total(chapters.len(), 4)?;
-    progress.progress(
-        1,
-        total,
-        &format!("已读取 {} 章，正在生成 EPUB", chapters.len()),
-    );
-
-    let mut builder = new_epub_builder(title, author);
-    add_export_chapters_to_epub(&mut builder, chapters, |index, chapter| {
-        progress.check_cancelled()?;
-        let current = u32::try_from(index).map_err(|_| {
-            AppError::InvalidArgument(format!("EPUB 章节索引超过 u32 上限：{index}"))
-        })? + 2;
-        progress.progress(
-            current,
-            total,
-            &format!("正在写入 EPUB 第{}章", chapter.chapter_number),
-        );
-        Ok(())
-    })?;
-
-    progress.check_cancelled()?;
-    progress.progress(total - 2, total, "正在打包 EPUB");
-    let epub = builder.build().map_err(|error| AppError::InvalidState {
-        current: "epub_rendering".to_string(),
-        operation: error.to_string(),
-    })?;
-    progress.progress(total, total, "EPUB 导出完成");
-    Ok(export_binary_file_data(
-        project_id,
-        "epub",
-        "application/epub+zip",
-        epub,
-    ))
-}
-
-fn export_pdf_file_data(
-    project_id: i64,
-    title: &str,
-    chapters: &[ExportChapter],
-    progress: &ExportProgress<'_>,
-) -> Result<ExportFileData, AppError> {
-    let total = export_chapter_count_total(chapters.len(), 5)?;
-    progress.progress(
-        2,
-        total,
-        &format!("已读取 {} 章，正在排版 PDF", chapters.len()),
-    );
-    let mut current = 2;
-    let paragraphs = render_pdf_paragraphs(chapters, progress, &mut current, total)?;
-    progress.check_cancelled()?;
-    progress.progress(total - 1, total, "正在生成 PDF 文件");
-    let pdf = render_text_pdf(title, &paragraphs);
-    progress.progress(total, total, "PDF 导出完成");
-    Ok(export_binary_file_data(
-        project_id,
-        "pdf",
-        "application/pdf",
-        pdf,
-    ))
-}
-
 fn validate_batch_formats(formats: &[BatchExportFormat]) -> Result<(), AppError> {
     if formats.is_empty() {
         return Err(AppError::InvalidArgument(
@@ -515,29 +408,6 @@ fn validate_batch_formats(formats: &[BatchExportFormat]) -> Result<(), AppError>
         }
     }
     Ok(())
-}
-
-fn export_txt_file_data(project_id: i64, chapters: &[ExportChapter]) -> ExportFileData {
-    export_text_file_data(
-        project_id,
-        "txt",
-        "text/plain;charset=utf-8",
-        render_txt_document(chapters),
-    )
-}
-
-fn export_markdown_file_data(
-    project_id: i64,
-    chapters: &[ExportChapter],
-    title: &str,
-    author: &str,
-) -> ExportFileData {
-    export_text_file_data(
-        project_id,
-        "md",
-        "text/markdown;charset=utf-8",
-        render_markdown_document(chapters, title, author),
-    )
 }
 
 fn export_json_file_data(
@@ -579,112 +449,9 @@ fn export_binary_file_data(
     }
 }
 
-fn export_chapter_count_total(chapter_count: usize, extra_steps: u32) -> Result<u32, AppError> {
-    let chapter_count = u32::try_from(chapter_count).map_err(|_| {
-        AppError::InvalidArgument(format!("导出章节数超过 u32 上限：{chapter_count}"))
-    })?;
-    chapter_count.checked_add(extra_steps).ok_or_else(|| {
-        AppError::InvalidArgument(format!(
-            "导出总进度超过 u32 上限：{chapter_count} + {extra_steps}"
-        ))
-    })
-}
-
-fn epub_chapter_from_export_chapter(chapter: &ExportChapter, order: usize) -> EpubChapter {
-    EpubChapter {
-        title: chapter_heading(chapter.chapter_number, chapter.title.as_deref()),
-        content: chapter.content.clone(),
-        order,
-    }
-}
-
-fn new_epub_builder(title: &str, author: &str) -> EpubBuilder {
-    let metadata = EpubMetadata {
-        title: title.to_string(),
-        author: author.to_string(),
-        language: "zh-CN".into(),
-        publisher: None,
-        date: None,
-        description: None,
-        cover_image: None,
-        cover_mime: None,
-    };
-    EpubBuilder::new(metadata, builtin_epub_stylesheet().to_string())
-}
-
-fn add_export_chapters_to_epub(
-    builder: &mut EpubBuilder,
-    chapters: &[ExportChapter],
-    mut before_chapter: impl FnMut(usize, &ExportChapter) -> Result<(), AppError>,
-) -> Result<(), AppError> {
-    for (index, chapter) in chapters.iter().enumerate() {
-        before_chapter(index, chapter)?;
-        builder.add_chapter(epub_chapter_from_export_chapter(chapter, index + 1));
-    }
-    Ok(())
-}
-
-fn render_pdf_paragraphs(
-    chapters: &[ExportChapter],
-    progress: &ExportProgress<'_>,
-    current: &mut u32,
-    total: u32,
-) -> Result<Vec<String>, AppError> {
-    let mut paragraphs = vec![String::new()];
-    for chapter in chapters {
-        progress.check_cancelled()?;
-        *current += 1;
-        progress.progress(
-            *current,
-            total,
-            &format!("正在排版 PDF 第{}章", chapter.chapter_number),
-        );
-        paragraphs.push(chapter_heading(
-            chapter.chapter_number,
-            chapter.title.as_deref(),
-        ));
-        paragraphs.push(chapter.content.clone());
-    }
-    Ok(paragraphs)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn epub_chapter_uses_plain_content_without_html_wrapper() {
-        let chapter = ExportChapter {
-            chapter_number: 3,
-            title: Some("风起".to_string()),
-            content: "正文第一段\n\n正文第二段".to_string(),
-        };
-        let epub_chapter = epub_chapter_from_export_chapter(&chapter, 1);
-        assert_eq!(epub_chapter.title, "第3章 风起");
-        assert_eq!(epub_chapter.content, "正文第一段\n\n正文第二段");
-        assert!(!epub_chapter.content.contains("<html"));
-    }
-
-    #[test]
-    fn epub_builder_accepts_export_chapters() {
-        let chapters = vec![ExportChapter {
-            chapter_number: 1,
-            title: Some("开端".to_string()),
-            content: "第一章正文".to_string(),
-        }];
-        let mut builder = new_epub_builder("测试书名", "测试作者");
-        add_export_chapters_to_epub(&mut builder, &chapters, |_, _| Ok(()))
-            .expect("chapters should be accepted");
-        let epub_data = builder.build().expect("epub should build");
-        assert_eq!(&epub_data[0..2], b"PK");
-    }
-
-    #[test]
-    fn export_chapter_count_rejects_progress_overflow() {
-        let error = export_chapter_count_total(u32::MAX as usize, 1)
-            .expect_err("export progress overflow must be visible");
-        assert!(error.to_string().contains("导出总进度超过 u32 上限"));
-    }
 
     #[test]
     fn batch_formats_reject_empty_and_duplicate_values() {

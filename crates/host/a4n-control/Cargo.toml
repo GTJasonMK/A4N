@@ -6,6 +6,7 @@ license.workspace = true
 
 [features]
 default = []
+embedded-transforms = ["a4n-runtime/embedded-transforms"]
 embedded-capabilities = [
     "a4n-runtime/embedded-capabilities",
 ]

@@ -833,7 +833,7 @@ impl CanvasVideoGenerationHostPort for RuntimeVideoProviderHostPort<'_> {
                     "画布视频",
                 )
                 .await
-                .map(|probe| probe.file_properties(file_size))
+                .map(|probe| a4n_media::video_file_properties(&probe, file_size))
         })
         .await
         .map_err(host_error)?;

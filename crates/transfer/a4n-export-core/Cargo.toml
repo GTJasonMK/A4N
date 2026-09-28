@@ -5,6 +5,7 @@ edition = "2024"
 license.workspace = true
 
 [dependencies]
+async-trait = { workspace = true }
 a4n-archive-core = { workspace = true }
 a4n-document-export-core = { workspace = true }
 a4n-export-contract = { workspace = true }

@@ -15,7 +15,7 @@ use a4n_chapter_content_worker_contract::{
 };
 use a4n_db::DbHandle;
 use a4n_domain::chapter::{EditChapterContentInput, ImportChapterContentInput};
-use a4n_worker_client::WORKER_AUTH_HEADER;
+use a4n_worker_contract::WORKER_AUTH_HEADER;
 use a4n_worker_contract::{
     WORKER_CAPABILITIES_PATH, WORKER_HEALTH_PATH, WORKER_SCHEMA_VERSION, WorkerCapabilities,
     WorkerCapability, WorkerEnvelope, WorkerError, WorkerErrorCode, WorkerHealth,

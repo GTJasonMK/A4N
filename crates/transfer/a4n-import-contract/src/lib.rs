@@ -12,9 +12,49 @@ pub const IMPORT_SERVICE_NAME: &str = "import";
 pub const IMPORT_TRANSFORM_CAPABILITY_VERSION: &str = "import-transform-v3";
 pub const IMPORT_SERVICE_ADDR_ENV: &str = "A4N_IMPORT_SERVICE_ADDR";
 pub const IMPORT_SERVICE_DEFAULT_ADDR: &str = "127.0.0.1:47647";
+pub const MAX_PROJECT_TEXT_UPLOAD_BYTES: usize = 100 * 1024 * 1024;
+
+/// Additive operation: v3 archive requests and responses remain unchanged.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct ImportParseDocumentInput {
+    pub file_type: String,
+    pub bytes_base64: String,
+    pub document_title: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct ImportParsedChapter {
+    pub number: i32,
+    pub title: String,
+    pub content: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct ImportParseDocumentOutput {
+    pub chapters: Vec<ImportParsedChapter>,
+}
+
+pub fn parse_json_manifest_value<T: serde::de::DeserializeOwned>(
+    manifest: serde_json::Value,
+    label: impl Into<String>,
+) -> Result<T, ImportContractError> {
+    serde_json::from_value(manifest).map_err(|source| ImportContractError::InvalidManifestJson {
+        label: label.into(),
+        source,
+    })
+}
 
 #[derive(Debug, thiserror::Error)]
 pub enum ImportContractError {
+    #[error("{label}解析失败：{source}")]
+    InvalidManifestJson {
+        label: String,
+        #[source]
+        source: serde_json::Error,
+    },
     #[error("{label} base64 解码失败：{source}")]
     Base64Decode {
         label: String,

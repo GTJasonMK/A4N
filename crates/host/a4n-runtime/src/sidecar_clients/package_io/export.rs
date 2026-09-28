@@ -1,7 +1,7 @@
 use a4n_export_client::ExportClient;
 use a4n_export_contract::{
     EXPORT_RENDER_CAPABILITY_VERSION, ExportDocumentRenderer, ExportRenderDocumentInput,
-    ExportRenderDocumentOutput,
+    ExportRenderDocumentOutput, ExportRenderFailure, ExportRenderObserver,
 };
 use async_trait::async_trait;
 use std::sync::Arc;
@@ -15,15 +15,16 @@ use super::super::{
 pub(crate) fn document_export_renderer(
     profile: RuntimeProfile,
     client: Option<Arc<dyn ExportClient>>,
-) -> Result<Option<Arc<dyn ExportDocumentRenderer>>, String> {
+) -> Result<Arc<dyn ExportDocumentRenderer>, String> {
     if !profile.uses_sidecars() {
-        return Ok(None);
+        #[cfg(feature = "embedded-transforms")]
+        return Ok(Arc::new(a4n_export_core::LocalDocumentExportRenderer));
+        #[cfg(not(feature = "embedded-transforms"))]
+        return Err("本地文档导出需要 embedded-transforms 构建功能".into());
     }
     let client = client
         .ok_or_else(|| "export sidecar capability 未配置，无法启用 sidecar profile".to_string())?;
-    Ok(Some(
-        Arc::new(SidecarDocumentExportRenderer { client }) as Arc<dyn ExportDocumentRenderer>
-    ))
+    Ok(Arc::new(SidecarDocumentExportRenderer { client }))
 }
 
 struct SidecarDocumentExportRenderer {
@@ -37,17 +38,21 @@ impl ExportDocumentRenderer for SidecarDocumentExportRenderer {
         input: ExportRenderDocumentInput,
         project_id: Option<i64>,
         root_project_id: Option<i64>,
-    ) -> Result<ExportRenderDocumentOutput, String> {
+        _progress: Option<&dyn ExportRenderObserver>,
+    ) -> Result<ExportRenderDocumentOutput, ExportRenderFailure> {
         let response = self
             .client
-            .render_document(pure_transform_typed_service_request(
-                EXPORT_RENDER_CAPABILITY_VERSION,
-                input,
-                project_id,
-                root_project_id,
-            )?)
+            .render_document(
+                pure_transform_typed_service_request(
+                    EXPORT_RENDER_CAPABILITY_VERSION,
+                    input,
+                    project_id,
+                    root_project_id,
+                )
+                .map_err(ExportRenderFailure::Failed)?,
+            )
             .await
-            .map_err(service_error_string)?;
-        typed_response_payload(response, "export")
+            .map_err(|error| ExportRenderFailure::Failed(service_error_string(error)))?;
+        typed_response_payload(response, "export").map_err(ExportRenderFailure::Failed)
     }
 }

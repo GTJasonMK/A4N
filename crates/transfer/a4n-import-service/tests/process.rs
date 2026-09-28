@@ -113,6 +113,38 @@ async fn import_service_process_serves_typed_media_package_and_stops() {
         Some(b"process media payload".as_slice())
     );
 
+    // The new operation must work alongside the existing v3 archive endpoint.
+    assert_protected_route_rejects_invalid_auth(&sidecar_base_url(addr), "/import/parse_document")
+        .await;
+    let document_request = ServiceRequestContext::deny_all(
+        "import-process-document",
+        TraceContext {
+            trace_id: "import-process-document-trace".into(),
+            parent_span_id: None,
+        },
+    )
+    .with_payload(
+        IMPORT_TRANSFORM_CAPABILITY_VERSION,
+        a4n_import_contract::ImportParseDocumentInput {
+            file_type: "markdown".into(),
+                bytes_base64: BASE64.encode("# 第1章 开始\n开篇正文\n\n# 第2章 继续\n后续正文"),
+            document_title: "作品".into(),
+        },
+    )
+    .unwrap();
+    assert_route_rejects_unknown_payload_field(
+        &sidecar_base_url(addr),
+        "/import/parse_document",
+        &document_request,
+    )
+    .await;
+    let document = client.parse_document(document_request).await.unwrap();
+    assert_eq!(document.status, ServiceStatus::Ok);
+    let chapters = document.payload.unwrap().chapters;
+    assert_eq!(chapters.len(), 2);
+    assert_eq!(chapters[0].number, 1);
+    assert!(chapters[1].content.contains("后续正文"));
+
     disconnect_during_request_body(addr, "/import/read_media_package_zip").await;
     let invalid_zip = client
         .read_media_package_zip(

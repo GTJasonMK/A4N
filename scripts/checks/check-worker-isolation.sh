@@ -100,6 +100,23 @@ if grep -Eq '(^|[[:space:]])(a4n-(db|db-models|runtime|orchestrator)|sea-orm|sql
 fi
 
 control_tree="$(cargo tree --locked -e normal,build -p a4n-control --no-default-features)"
+for tree in "$control_tree" "$host_tree"; do
+    if grep -Eq 'a4n-(import|export|document-export|media-processing|media-render)-core v' <<<"$tree"; then
+        echo "default Host must use transform clients, not embedded implementations" >&2
+        exit 1
+    fi
+done
+for worker in "${STATEFUL_WORKER_PACKAGES[@]}"; do
+    worker_tree="$(cargo tree --locked -e normal -p "$worker")"
+    if grep -Eq 'a4n-(worker-client|runtime|orchestrator) v' <<<"$worker_tree"; then
+        echo "$worker must not depend on Host implementations or client transport for protocol constants" >&2
+        exit 1
+    fi
+    if [[ "$worker" == a4n-import-review-worker ]] && grep -q 'a4n-import-core v' <<<"$worker_tree"; then
+        echo "import review must not pull document/archive parsers for SimHash" >&2
+        exit 1
+    fi
+done
 for package in "${STATEFUL_WORKER_PACKAGES[@]}"; do
     if grep -Eq "(^|[[:space:]])${package}([[:space:]]|v|$)" <<<"$control_tree"; then
         echo "Control dependency tree unexpectedly contains Worker implementation: $package" >&2

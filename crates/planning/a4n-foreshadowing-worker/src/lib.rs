@@ -11,7 +11,7 @@ use a4n_foreshadowing_worker_contract::{
     FORESHADOWING_UPDATE_OPERATION, FORESHADOWING_WORKER_CONTRACT_VERSION, FORESHADOWING_WORKER_ID,
     ForeshadowingMutationResult, ForeshadowingProjectInput, UpdateInput,
 };
-use a4n_worker_client::WORKER_AUTH_HEADER;
+use a4n_worker_contract::WORKER_AUTH_HEADER;
 use a4n_worker_contract::{
     WORKER_CAPABILITIES_PATH, WORKER_HEALTH_PATH, WORKER_SCHEMA_VERSION, WorkerCapabilities,
     WorkerCapability, WorkerEnvelope, WorkerError, WorkerErrorCode, WorkerHealth,

@@ -398,12 +398,13 @@ fn result_refs_request_validates_its_lease_and_snapshot_round_trips() {
 }
 
 #[test]
-fn run_status_snapshot_round_trips() {
-    let snapshot = AgentWorkerRunStatusSnapshotWire { terminal: true };
-    let encoded = serde_json::to_string(&snapshot).expect("run status should serialize");
-    let decoded: AgentWorkerRunStatusSnapshotWire =
-        serde_json::from_str(&encoded).expect("run status should deserialize");
-    assert!(decoded.terminal);
+fn legacy_terminal_only_run_status_is_rejected() {
+    // The current run snapshot carries identity, lease and status; a boolean
+    // from the retired status-only contract must not masquerade as that state.
+    let error =
+        serde_json::from_value::<AgentWorkerRunSnapshotWire>(serde_json::json!({"terminal": true}))
+            .expect_err("retired run status wire format must fail");
+    assert!(error.to_string().contains("unknown field"));
 }
 
 #[test]

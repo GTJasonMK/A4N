@@ -1,7 +1,7 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-pub const MAX_PROJECT_TEXT_UPLOAD_BYTES: usize = 100 * 1024 * 1024;
+pub use a4n_import_contract::MAX_PROJECT_TEXT_UPLOAD_BYTES;
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
 #[serde(deny_unknown_fields)]

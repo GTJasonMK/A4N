@@ -267,7 +267,7 @@ base64 = "0.22"
 schemars = "1"
 
 # ORM 与数据库
-sea-orm = { version = "1", features = ["sqlx-postgres", "runtime-tokio", "macros"] }
+sea-orm = { version = "1", default-features = false, features = ["sqlx-postgres", "runtime-tokio", "macros", "with-chrono", "with-json", "with-uuid", "postgres-array"] }
 
 # 模板引擎
 tera = "1"
@@ -297,7 +297,7 @@ tracing = "0.1"
 tracing-subscriber = "0.3"
 
 # Tauri
-tauri = { version = "2", features = ["devtools"] }
+tauri = { version = "2" }
 tauri-build = "2"
 
 # 密码学
@@ -324,7 +324,7 @@ htmd = "0.5"
 encoding_rs = "0.8"
 
 # 图片处理
-image = "0.25"
+image = { version = "0.25", default-features = false, features = ["png", "jpeg", "webp"] }
 
 [profile.release]
 opt-level = 3

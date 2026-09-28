@@ -16,7 +16,7 @@ use a4n_manga_record_worker_contract::{
     MANGA_RECORD_WORKER_CONTRACT_VERSION, MANGA_RECORD_WORKER_ID, MangaChapterInput,
     MangaPipelineStatusesInput,
 };
-use a4n_worker_client::WORKER_AUTH_HEADER;
+use a4n_worker_contract::WORKER_AUTH_HEADER;
 use a4n_worker_contract::{
     WORKER_CAPABILITIES_PATH, WORKER_HEALTH_PATH, WORKER_SCHEMA_VERSION, WorkerCapabilities,
     WorkerCapability, WorkerEnvelope, WorkerError, WorkerErrorCode, WorkerHealth,

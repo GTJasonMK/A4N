@@ -9,9 +9,9 @@ use a4n_rag_core::vector_store::VectorStore;
 use a4n_service_manager::ServiceManager;
 
 use super::{
-    AdminApplication, AssetApplication, AuthApplication, CanvasApplication,
-    ChapterContentApplication, CharacterApplication, CollaborationApplication, ConfigApplication,
-    GalgameApplication, GenerationApplication, ImportReverseApplication, ImportReviewApplication,
+    AssetApplication, AuthApplication, CanvasApplication, ChapterContentApplication,
+    CharacterApplication, CollaborationApplication, ConfigApplication, GalgameApplication,
+    GenerationApplication, ImportReverseApplication, ImportReviewApplication,
     InspirationApplication, LlmContextApplication, MangaApplication, OptimizeApplication,
     OrchestratorContext, ProfileMaterialApplication, ProjectBlueprintApplication,
     ProjectChapterContextApplication, ProjectChapterRecordsApplication,
@@ -29,7 +29,7 @@ use a4n_task_runtime::persistent::PersistentTaskQueue;
 impl OrchestratorContext {
     pub(crate) fn document_export_renderer(
         &self,
-    ) -> Option<Arc<dyn a4n_export_contract::ExportDocumentRenderer>> {
+    ) -> Arc<dyn a4n_export_contract::ExportDocumentRenderer> {
         self.document_export_renderer.clone()
     }
 
@@ -52,7 +52,7 @@ impl OrchestratorContext {
         rag_store: Arc<dyn VectorStore>,
         task_queue: Arc<PersistentTaskQueue>,
         engine: Arc<a4n_prompt::tera_engine::TeraPromptEngine>,
-        document_export_renderer: Option<Arc<dyn a4n_export_contract::ExportDocumentRenderer>>,
+        document_export_renderer: Arc<dyn a4n_export_contract::ExportDocumentRenderer>,
         shooting_script_publication: Arc<
             dyn a4n_api_contract::shooting_script::ShootingScriptRecordMutationApplicationPort,
         >,
@@ -69,7 +69,6 @@ impl OrchestratorContext {
         let db = DbHandle::new(db);
         let chapter =
             crate::chapter_generation::ChapterGenerationService::new(db.shared_connection());
-        let admin = AdminApplication::new(db.clone());
         let agent = Arc::new(AgentApplication::new(db.clone()));
         let asset = AssetApplication::new(db.clone());
         let auth = AuthApplication::new(db.clone());
@@ -117,7 +116,6 @@ impl OrchestratorContext {
         let (llm, embedding) = provider_factory(provider_port)?;
         Ok(Self {
             database: db,
-            admin,
             agent,
             asset,
             auth,

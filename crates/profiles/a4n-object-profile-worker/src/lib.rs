@@ -18,7 +18,7 @@ use a4n_object_profile_worker_contract::{
     OBJECT_PROFILE_WORKER_CONTRACT_VERSION, OBJECT_PROFILE_WORKER_ID, ObjectProfileDeleteResponse,
     ObjectProfileMutationResponse, ObjectProfileProjectInput,
 };
-use a4n_worker_client::WORKER_AUTH_HEADER;
+use a4n_worker_contract::WORKER_AUTH_HEADER;
 use a4n_worker_contract::{
     WORKER_CAPABILITIES_PATH, WORKER_HEALTH_PATH, WORKER_SCHEMA_VERSION, WorkerCapabilities,
     WorkerCapability, WorkerEnvelope, WorkerError, WorkerErrorCode, WorkerHealth,

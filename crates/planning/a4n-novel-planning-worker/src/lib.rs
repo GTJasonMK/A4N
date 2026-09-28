@@ -30,7 +30,7 @@ use a4n_novel_planning_worker_contract::{
     SHOOTING_SCRIPT_UNIT_PROGRESS_CAPABILITY, VALIDATE_VISUAL_PLAN_OPERATION,
     VISUAL_PLAN_PERSISTENCE_CAPABILITY,
 };
-use a4n_worker_client::WORKER_AUTH_HEADER;
+use a4n_worker_contract::WORKER_AUTH_HEADER;
 use a4n_worker_contract::{
     WORKER_CAPABILITIES_PATH, WORKER_HEALTH_PATH, WORKER_SCHEMA_VERSION, WorkerCapabilities,
     WorkerCapability, WorkerEnvelope, WorkerError, WorkerErrorCode, WorkerHealth,

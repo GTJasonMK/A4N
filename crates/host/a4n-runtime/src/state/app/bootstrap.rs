@@ -110,8 +110,7 @@ impl RuntimeBootstrap {
 
     pub fn document_export_renderer(
         &self,
-    ) -> Result<Option<Arc<dyn a4n_export_contract::ExportDocumentRenderer>>, a4n_error::AppError>
-    {
+    ) -> Result<Arc<dyn a4n_export_contract::ExportDocumentRenderer>, a4n_error::AppError> {
         crate::sidecar_clients::document_export_renderer(
             self.runtime_profile,
             self.capabilities.export.clone(),

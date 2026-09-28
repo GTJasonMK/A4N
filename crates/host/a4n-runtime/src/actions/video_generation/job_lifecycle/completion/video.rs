@@ -41,7 +41,7 @@ pub(in crate::actions::video_generation) async fn persist_video_result(
         state
             .probe_media_video_properties(&path, MediaRoot::Data, "生成视频")
             .await
-            .map(|probe| probe.file_properties(file_size))
+            .map(|probe| a4n_media::video_file_properties(&probe, file_size))
     })
     .await?;
     let thumbnail_path = best_effort_video_thumbnail_path(

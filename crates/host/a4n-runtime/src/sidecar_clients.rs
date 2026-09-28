@@ -18,7 +18,9 @@ pub(crate) use image::{generate_image, preview_image_provider_request};
 pub(crate) use llm::create_llm_provider;
 use llm::{missing_sidecar_capability_message, required_sidecar_client};
 pub(crate) use model_discovery::{ModelDiscoveryKind, discover_models};
-pub(crate) use package_io::{document_export_renderer, read_import_media_package_zip};
+pub(crate) use package_io::{
+    document_export_renderer, parse_import_document, read_import_media_package_zip,
+};
 pub(crate) use rag::{
     chapter_rag_cleanup_operation_trace_id, character_profile_delete_rag_operation_trace_id,
     character_profile_rollback_rag_operation_trace_id, create_sidecar_rag_store,

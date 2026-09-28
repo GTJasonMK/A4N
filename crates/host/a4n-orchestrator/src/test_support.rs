@@ -105,7 +105,7 @@ impl TestOrchestratorBuilder {
             rag_store,
             task_queue,
             engine,
-            None,
+            Arc::new(a4n_export_core::LocalDocumentExportRenderer),
             shooting_script_publication,
             move |_| Ok((llm, embedding)),
         )

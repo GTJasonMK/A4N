@@ -8,6 +8,19 @@ pub const MEDIA_SERVICE_NAME: &str = "media";
 pub const MEDIA_FFMPEG_CAPABILITY_VERSION: &str = "media-ffmpeg-v1";
 pub const MEDIA_SERVICE_ADDR_ENV: &str = "A4N_MEDIA_SERVICE_ADDR";
 pub const MEDIA_SERVICE_DEFAULT_ADDR: &str = "127.0.0.1:47649";
+pub const VIDEO_SCRUB_FRAMES_PER_SECOND: u32 = 12;
+
+/// Probe data shared by the Host and the media implementation.
+#[derive(Debug, Clone, PartialEq)]
+pub struct VideoProbeProperties {
+    pub width: i32,
+    pub height: i32,
+    pub duration_secs: f32,
+    pub fps: i32,
+    pub codec_name: Option<String>,
+    pub profile: Option<String>,
+    pub has_b_frames: Option<i32>,
+}
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]

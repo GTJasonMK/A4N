@@ -25,6 +25,7 @@ PREPARE_ARGS=()
 TAURI_ARGS=()
 CARGO_BUILD_ARGS=()
 FULL_HOST=false
+BUNDLE_DEBUG=false
 DRY_RUN=false
 
 print_command() {
@@ -47,6 +48,7 @@ while [[ $# -gt 0 ]]; do
             shift 2
             ;;
         --debug)
+            BUNDLE_DEBUG=true
             PREPARE_ARGS+=(--debug)
             TAURI_ARGS+=(--debug)
             shift
@@ -103,11 +105,19 @@ while IFS= read -r binary; do
 done <<<"$tool_binary_lines"
 tauri_config="$(ruby -rjson -e '
   config = JSON.parse(File.read(ARGV.fetch(0)))
-  binaries = ARGV.drop(1)
+  external_dir = File.join(File.expand_path(ARGV.fetch(1)), "tauri-sidecars")
+  binaries = ARGV.drop(3)
   abort "release externalBin entries are duplicated" unless binaries.uniq.length == binaries.length
-  config.fetch("bundle")["externalBin"] = binaries.map { |binary| "../../../target/tauri-sidecars/#{binary}" }
+  bundle = config.fetch("bundle")
+  bundle["externalBin"] = binaries.map { |binary| File.join(external_dir, binary) }
+  bundle.fetch("resources").delete("../../../target/tauri-sidecars/*onnxruntime*")
+  bundle.fetch("resources")[File.join(external_dir, "*onnxruntime*")] = ""
+  unless ARGV.fetch(2) == "true"
+    windows = JSON.parse(File.read(File.join(File.dirname(ARGV.fetch(0)), "tauri.conf.json"))).fetch("app").fetch("windows")
+    config["app"] = { "windows" => windows.map { |window| window.merge("devtools" => false) } }
+  end
   print JSON.generate(config)
-' "$TAURI_SIDECAR_CONFIG" "${BUNDLE_BINARIES[@]}")"
+' "$TAURI_SIDECAR_CONFIG" "$CARGO_TARGET_DIR" "$BUNDLE_DEBUG" "${BUNDLE_BINARIES[@]}")"
 tauri_command=(cargo tauri build --config "$tauri_config" "${TAURI_ARGS[@]}")
 if [[ ${#CARGO_BUILD_ARGS[@]} -gt 0 ]]; then
     tauri_command+=(-- "${CARGO_BUILD_ARGS[@]}")
@@ -119,7 +129,7 @@ if $DRY_RUN; then
     print_command "${prepare_command[@]}"
     log_info "build tauri:"
     log_info "config: tauri.sidecars.conf.json + process-catalog/service-catalog.json + release-tools.json"
-    print_command cargo tauri build --config '<generated>' "${TAURI_ARGS[@]}"
+    print_command "${tauri_command[@]}"
     exit 0
 fi
 

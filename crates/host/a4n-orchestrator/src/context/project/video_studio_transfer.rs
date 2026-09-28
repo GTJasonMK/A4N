@@ -79,8 +79,11 @@ impl OrchestratorContext {
             .await
             .map_err(ProjectPackageTransferError::Message)?;
         let package: crate::project::VideoStudioProjectPackage =
-            a4n_import_core::parse_json_manifest_value(read_package.manifest, "视频画布项目清单")
-                .map_err(|error| ProjectPackageTransferError::Message(error.to_string()))?;
+            a4n_import_contract::parse_json_manifest_value(
+                read_package.manifest,
+                "视频画布项目清单",
+            )
+            .map_err(|error| ProjectPackageTransferError::Message(error.to_string()))?;
         let media_payload =
             index_import_media_payload(&package.media_files, read_package.media_bytes)
                 .map_err(ProjectPackageTransferError::Message)?;

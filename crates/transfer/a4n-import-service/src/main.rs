@@ -1,6 +1,7 @@
 use a4n_import_contract::{
     IMPORT_SERVICE_ADDR_ENV, IMPORT_SERVICE_DEFAULT_ADDR, IMPORT_SERVICE_NAME,
-    ImportReadMediaPackageZipInput, ImportReadMediaPackageZipOutput,
+    ImportParseDocumentInput, ImportParseDocumentOutput, ImportReadMediaPackageZipInput,
+    ImportReadMediaPackageZipOutput, MAX_PROJECT_TEXT_UPLOAD_BYTES,
 };
 use a4n_import_core::read_media_package_zip;
 use a4n_service_protocol::{
@@ -25,6 +26,12 @@ async fn main() -> anyhow::Result<()> {
         .expect("import sidecar must have a resource policy");
     let app = Router::new()
         .route(SIDECAR_HEALTH_PATH, get(healthz))
+        .route(
+            "/import/parse_document",
+            post(parse_document_route).layer(DefaultBodyLimit::max(
+                MAX_PROJECT_TEXT_UPLOAD_BYTES.div_ceil(3) * 4 + policy.json_body_limit_bytes,
+            )),
+        )
         .route(
             "/import/read_media_package_zip",
             post(read_media_package_zip_route).layer(DefaultBodyLimit::max(
@@ -60,4 +67,14 @@ fn operation_error(error: impl std::fmt::Display) -> ServiceError {
         ServiceErrorCode::ConfigurationError,
         redact_sensitive_message(error.to_string()),
     )
+}
+
+async fn parse_document_route(
+    Json(request): Json<ServiceRequest<ImportParseDocumentInput>>,
+) -> Json<ServiceResponse<ImportParseDocumentOutput>> {
+    Json(request.execute_known_service(
+        IMPORT_SERVICE_NAME,
+        a4n_import_core::parse_document,
+        operation_error,
+    ))
 }

@@ -79,7 +79,7 @@ pub(in crate::actions::video_records) async fn complete_video_record(
         Ok(output_path) => {
             probe_video_properties(state, &output_path, MediaRoot::Data, failure_prefix)
                 .await
-                .map(|properties| properties.file_properties(file_size))
+                .map(|properties| a4n_media::video_file_properties(&properties, file_size))
                 .map_err(|error| format!("{failure_prefix}：{error}"))
         }
     };

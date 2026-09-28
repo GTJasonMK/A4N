@@ -1,6 +1,6 @@
 #[test]
 fn video_probe_error_mapping_preserves_invalid_json_label() {
-    let error = a4n_media::parse_video_probe_properties(b"{not-json")
+    let error = a4n_media_processing_core::parse_video_probe_properties(b"{not-json")
         .expect_err("invalid ffprobe JSON should fail");
 
     let message = video_probe_error_message("导入参考媒体视频", error);
@@ -10,7 +10,7 @@ fn video_probe_error_mapping_preserves_invalid_json_label() {
 
 #[test]
 fn video_probe_error_mapping_preserves_missing_stream_message() {
-    let error = a4n_media::parse_video_probe_properties(
+    let error = a4n_media_processing_core::parse_video_probe_properties(
         br#"{
             "streams": [],
             "format": {
@@ -28,7 +28,7 @@ fn video_probe_error_mapping_preserves_missing_stream_message() {
 
 #[test]
 fn video_probe_error_mapping_preserves_invalid_duration_message() {
-    let error = a4n_media::parse_video_probe_properties(
+    let error = a4n_media_processing_core::parse_video_probe_properties(
         br#"{
             "streams": [
                 {

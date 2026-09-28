@@ -16,16 +16,7 @@ pub use self::docx::DocxParser;
 pub use self::epub::EpubParser;
 pub use self::txt::TxtParser;
 
-/// 解析后的章节
-#[derive(Debug, Clone)]
-pub struct ParsedChapter {
-    /// 章节序号（从1开始）
-    pub number: i32,
-    /// 章节标题
-    pub title: String,
-    /// 章节正文
-    pub content: String,
-}
+pub use a4n_import_contract::ImportParsedChapter as ParsedChapter;
 
 /// 文件解析结果
 #[derive(Debug, Clone)]

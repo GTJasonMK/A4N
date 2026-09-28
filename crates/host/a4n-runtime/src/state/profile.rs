@@ -51,11 +51,17 @@ impl RuntimeProfile {
     }
 
     pub(crate) fn validate_build_capabilities(self) -> Result<(), AppError> {
+        if self == Self::Minimal && !cfg!(feature = "embedded-transforms") {
+            return Err(AppError::ConfigError(
+                "minimal runtime profile 要求 --features embedded-transforms 构建".into(),
+            ));
+        }
         if self != Self::Full {
             return Ok(());
         }
 
         let missing = [
+            ("embedded-transforms", cfg!(feature = "embedded-transforms")),
             ("embedded-prompt-git", cfg!(feature = "embedded-prompt-git")),
             (
                 "embedded-llm-provider",

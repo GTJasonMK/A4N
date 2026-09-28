@@ -9,28 +9,7 @@ use thiserror::Error;
 
 const STDERR_PREVIEW_CHARS: usize = 500;
 
-#[derive(Debug, Clone, PartialEq)]
-pub struct VideoProbeProperties {
-    pub width: i32,
-    pub height: i32,
-    pub duration_secs: f32,
-    pub fps: i32,
-    pub codec_name: Option<String>,
-    pub profile: Option<String>,
-    pub has_b_frames: Option<i32>,
-}
-
-impl VideoProbeProperties {
-    pub fn file_properties(&self, file_size: i64) -> a4n_domain::media::VideoFileProperties {
-        a4n_domain::media::VideoFileProperties {
-            width: self.width,
-            height: self.height,
-            duration_secs: self.duration_secs,
-            fps: self.fps,
-            file_size,
-        }
-    }
-}
+pub use a4n_media_contract::VideoProbeProperties;
 
 #[derive(Debug, Error)]
 pub enum FfprobeCommandError {
