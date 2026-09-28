@@ -412,7 +412,7 @@ export const CharacterPortraitsPanel: React.FC<{ projectId: number }> = ({
         emptyText={
           selectedProfile
             ? t("characterDetail.portrait.emptySelected", { name: selectedProfile.name })
-            : undefined
+            : displayProfiles.length > 0 ? t("characterDetail.portrait.emptyWithProfiles") : undefined
         }
       />
 

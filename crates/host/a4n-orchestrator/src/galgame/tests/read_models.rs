@@ -19,9 +19,9 @@ use crate::media::MEDIA_BINDING_ROLE_BACKGROUND;
 
 use super::super::read_models::galgame_pipeline_status_summary;
 use super::super::{
-    GALGAME_ENTITY_SCENE, GalgameFacingV2, GalgameLinePresentationDocumentV2,
-    GalgameLinePresentationSchemaVersion, GalgamePersistValidationScope, GalgameStageLayerV2,
-    GalgameStagePositionV2, GalgameVisibleCastMemberV2, galgame_media_binding_summaries,
+    GALGAME_ENTITY_SCENE, GalgameFacingV2, GalgameLinePresentationDocumentV3,
+    GalgamePersistValidationScope, GalgameStageLayerV2, GalgameStagePositionV2,
+    GalgameVisibleCastMemberV2, galgame_media_binding_summaries,
     galgame_pipeline_prompt_context_from_record, galgame_script_detail_from_read_model,
 };
 use super::fixtures::{test_line_with, test_text_anchor};
@@ -207,8 +207,10 @@ fn script_detail_read_model_groups_lines_choices_refs_and_media() {
     );
     line.scene_id = 30;
     line.speaker_profile_id = Some(7);
-    line.presentation_json = serde_json::to_value(GalgameLinePresentationDocumentV2 {
-        schema_version: GalgameLinePresentationSchemaVersion::V2,
+    line.presentation_json = serde_json::to_value(GalgameLinePresentationDocumentV3 {
+        schema_version: a4n_domain::galgame::GalgameLineDocumentSchemaVersion::V3,
+        origin: a4n_domain::media_authoring::AdaptationOrigin::Historical,
+        beat_ref: None,
         visible_cast: vec![GalgameVisibleCastMemberV2 {
             character_profile_id: 7,
             expression: "smile".to_string(),
@@ -259,6 +261,8 @@ fn script_detail_read_model_groups_lines_choices_refs_and_media() {
             }],
         },
         scenes: vec![GalgameScriptDetailSceneRecord {
+            adaptation_plan_id: None,
+            adaptation_unit_id: None,
             id: 30,
             source_snapshot_chapter_id: 20,
             scene_index: 1,

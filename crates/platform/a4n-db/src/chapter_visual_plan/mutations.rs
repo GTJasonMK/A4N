@@ -79,6 +79,7 @@ pub async fn save_chapter_visual_plan_draft(
     }
     let existing = chapter_visual_plan::Entity::find()
         .filter(lineage_condition_for_identity(
+            input.source.requested_project_id,
             input.source.root_project_id,
             input.source.source_chapter_id,
             input.source.source_snapshot_id,
@@ -186,6 +187,7 @@ pub async fn save_chapter_visual_plan_draft(
                 .await?;
         }
         let latest = chapter_visual_plan::Entity::find()
+            .filter(chapter_visual_plan::Column::ProjectId.eq(input.source.requested_project_id))
             .filter(chapter_visual_plan::Column::RootProjectId.eq(input.source.root_project_id))
             .filter(chapter_visual_plan::Column::SourceChapterId.eq(input.source.source_chapter_id))
             .order_by_desc(chapter_visual_plan::Column::PlanVersion)
@@ -200,6 +202,7 @@ pub async fn save_chapter_visual_plan_draft(
         let now = Utc::now().naive_utc();
         let record = chapter_visual_plan::ActiveModel {
             id: NotSet,
+            project_id: Set(input.source.requested_project_id),
             root_project_id: Set(input.source.root_project_id),
             source_chapter_id: Set(input.source.source_chapter_id),
             source_snapshot_id: Set(input.source.source_snapshot_id),
@@ -273,6 +276,7 @@ pub async fn confirm_chapter_visual_plan(
             Expr::value(Utc::now().naive_utc()),
         )
         .filter(lineage_condition_for_identity(
+            current.record.project_id,
             current.record.root_project_id,
             current.record.source_chapter_id,
             current.record.source_snapshot_id,
@@ -308,34 +312,7 @@ pub async fn confirm_chapter_visual_plan(
             expected_revision: current.record.revision,
         });
     }
-    if let Some(snapshot_chapter_id) = current.record.source_snapshot_chapter_id {
-        source_snapshot_chapter::Entity::update_many()
-            .col_expr(
-                source_snapshot_chapter::Column::VisualPlanId,
-                Expr::value(current.record.id),
-            )
-            .col_expr(
-                source_snapshot_chapter::Column::VisualPlanVersion,
-                Expr::value(current.record.plan_version),
-            )
-            .col_expr(
-                source_snapshot_chapter::Column::VisualPlanSha256,
-                Expr::value(current.record.plan_sha256.clone()),
-            )
-            .filter(source_snapshot_chapter::Column::Id.eq(snapshot_chapter_id))
-            .exec(&tx)
-            .await?;
-    }
     let visual_plan = chapter_visual_plan_by_id(&tx, current.record.id).await?;
-    if current.record.source_snapshot_id.is_none() {
-        crate::project::mark_derived_projects_root_updated_in_record(
-            &tx,
-            current.record.root_project_id,
-            Some(current.record.source_chapter_id),
-            now,
-        )
-        .await?;
-    }
     let rebased_script =
         crate::shooting_script::rebase_chapter_shooting_script_onto_plan(&tx, &visual_plan)
             .await
@@ -344,12 +321,7 @@ pub async fn confirm_chapter_visual_plan(
     let invalidated_project_ids = if rebased_script.as_ref().is_some_and(|(_, changed)| !changed) {
         Vec::new()
     } else {
-        crate::project::projects_using_source_snapshot(
-            &tx,
-            current.record.root_project_id,
-            current.record.source_snapshot_id,
-        )
-        .await?
+        vec![current.record.project_id]
     };
     tx.commit().await?;
     Ok(ConfirmChapterVisualPlanOutcome {

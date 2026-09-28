@@ -47,6 +47,7 @@ pub struct ProjectBundleEntityIdMaps {
     pub chapter_ids: HashMap<i64, i64>,
     pub source_snapshot_ids: HashMap<i64, i64>,
     pub source_snapshot_chapter_ids: HashMap<i64, i64>,
+    pub entity_ids: HashMap<String, HashMap<i64, i64>>,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -379,6 +380,16 @@ pub async fn import_project_bundle_history(
         let mut active: generation_run_target::ActiveModel = source.clone().into();
         active.id = sea_orm::NotSet;
         active.generation_run_id = Set(generation_run_id);
+        if let Some(mapped) = history_entity_map(&source.target_table, maps)
+            .and_then(|ids| ids.get(&source.target_id))
+        {
+            active.target_id = Set(*mapped);
+        } else if !source.target_table.starts_with("source_archive:") {
+            // The package can retain calls for entities it does not export.
+            // Keep those source IDs in an explicit archive namespace; they must
+            // never resolve to unrelated rows in the receiving database.
+            active.target_table = Set(format!("source_archive:{}", source.target_table));
+        }
         active.insert(&txn).await?;
     }
 
@@ -581,9 +592,13 @@ fn remap_workflow_scope(
     };
     let mapped = match scope_table {
         "project" | "novel_project" => maps.project_ids.get(&scope_id).copied(),
-        "chapter" => maps.chapter_ids.get(&scope_id).copied(),
+        "chapter" | "chapter_shooting_script" => maps.chapter_ids.get(&scope_id).copied(),
         "source_snapshot" => maps.source_snapshot_ids.get(&scope_id).copied(),
-        _ => None,
+        table => maps
+            .entity_ids
+            .get(table)
+            .and_then(|ids| ids.get(&scope_id))
+            .copied(),
     };
     match mapped {
         Some(mapped) => (Some(scope_table.to_string()), Some(mapped), true),
@@ -597,10 +612,15 @@ fn imported_status(
     resume_block_reason: Option<String>,
 ) -> (String, bool, Option<String>, bool) {
     if matches!(status, "running" | "interrupted") {
+        // A migration or source boundary can explicitly prohibit resuming. An
+        // import must not turn that prohibition into runtime-restart recovery.
+        let resumable = can_resume || resume_block_reason.is_none();
         return (
             "interrupted".to_string(),
-            true,
-            Some("原机器的运行时任务不能跨机器接管；恢复时将重新提交当前步骤".to_string()),
+            resumable,
+            resume_block_reason.or_else(|| {
+                Some("原机器的运行时任务不能跨机器接管；恢复时将重新提交当前步骤".to_string())
+            }),
             status == "running",
         );
     }
@@ -655,6 +675,19 @@ fn remap_history_json(
     Ok(Some(value))
 }
 
+fn history_entity_map<'a>(
+    table: &str,
+    maps: &'a ProjectBundleEntityIdMaps,
+) -> Option<&'a HashMap<i64, i64>> {
+    match table {
+        "project" | "novel_project" => Some(&maps.project_ids),
+        "chapter" => Some(&maps.chapter_ids),
+        "source_snapshot" | "project_source_snapshot" => Some(&maps.source_snapshot_ids),
+        "source_snapshot_chapter" => Some(&maps.source_snapshot_chapter_ids),
+        table => maps.entity_ids.get(table),
+    }
+}
+
 fn remap_history_value(
     value: &mut Value,
     maps: &ProjectBundleEntityIdMaps,
@@ -684,7 +717,27 @@ fn remap_history_value(
                             &maps.source_snapshot_chapter_ids,
                             "history.source_snapshot_chapter_id",
                         )),
-                        _ => None,
+                        key => {
+                            let table = match key {
+                                "visual_plan_id" => "chapter_visual_plan",
+                                "shooting_script_id" => "chapter_shooting_script",
+                                "adaptation_plan_id"
+                                | "branch_plan_id"
+                                | "authoring_document_id" => "media_authoring_document",
+                                "galgame_scene_id" => "galgame_scene",
+                                "galgame_line_id" => "galgame_line",
+                                "galgame_script_id" => "galgame_script",
+                                "text_anchor_id" => "text_anchor",
+                                "scene_profile_id" => "scene_profile",
+                                "speaker_profile_id" | "character_profile_id" => {
+                                    "protagonist_profile"
+                                }
+                                _ => "",
+                            };
+                            maps.entity_ids
+                                .get(table)
+                                .map(|ids| (ids, "history.entity_id"))
+                        }
                     };
                     if let Some((map, field)) = mapping {
                         *value = Value::from(map_required(map, old_id, field)?);
@@ -807,6 +860,12 @@ mod tests {
         assert!(can_resume);
         assert!(reason.is_some());
         assert!(interrupted);
+        let blocked = Some("旧媒体依赖已经退役".to_string());
+        let (status, can_resume, reason, _) =
+            imported_status("interrupted", false, blocked.clone());
+        assert_eq!(status, "interrupted");
+        assert!(!can_resume);
+        assert_eq!(reason, blocked);
     }
 
     #[test]

@@ -20,17 +20,17 @@ pub(super) fn validate_visual_plan_manifest(package: &ProjectFamilyPackage) -> R
         .iter()
         .map(|row| (row.id, row))
         .collect::<HashMap<_, _>>();
-    let plans = package
-        .chapter_visual_plans
-        .iter()
-        .map(|row| (row.id, row))
-        .collect::<HashMap<_, _>>();
     let mut versions = HashSet::new();
     let mut mutable_heads = HashSet::new();
 
     for plan in &package.chapter_visual_plans {
         validate_plan_record(package, plan, &chapters, &snapshot_chapters)?;
-        if !versions.insert((plan.source_chapter_id, plan.plan_version)) {
+        if !versions.insert((
+            plan.project_id,
+            plan.source_chapter_id,
+            plan.source_snapshot_id,
+            plan.plan_version,
+        )) {
             return Err(format!(
                 "项目族导入包章节视觉编排版本重复: source_chapter_id={}, plan_version={}",
                 plan.source_chapter_id, plan.plan_version
@@ -38,6 +38,7 @@ pub(super) fn validate_visual_plan_manifest(package: &ProjectFamilyPackage) -> R
         }
         if matches!(plan.status.as_str(), "draft" | "confirmed")
             && !mutable_heads.insert((
+                plan.project_id,
                 plan.source_chapter_id,
                 plan.source_snapshot_id,
                 plan.source_snapshot_chapter_id,
@@ -54,9 +55,6 @@ pub(super) fn validate_visual_plan_manifest(package: &ProjectFamilyPackage) -> R
         }
     }
 
-    for chapter in &package.source_snapshot_chapters {
-        validate_snapshot_visual_plan_identity(chapter, &plans)?;
-    }
     Ok(())
 }
 
@@ -66,7 +64,14 @@ fn validate_plan_record(
     chapters: &HashMap<i64, &chapter::Model>,
     snapshot_chapters: &HashMap<i64, &source_snapshot_chapter::Model>,
 ) -> Result<(), String> {
-    if plan.id <= 0 || plan.root_project_id != package.root_project_id {
+    if plan.id <= 0
+        || plan.root_project_id != package.root_project_id
+        || !package.projects.iter().any(|project| {
+            project.id == plan.project_id
+                && project.project_kind == "video"
+                && project.root_project_id == Some(plan.root_project_id)
+        })
+    {
         return Err(format!(
             "项目族导入包章节视觉编排身份无效: visual_plan_id={}",
             plan.id
@@ -106,13 +111,6 @@ fn validate_plan_record(
         plan.source_snapshot_id,
         plan.source_snapshot_chapter_id,
     ) {
-        (None, None) => (
-            chapter.content.as_str(),
-            format!(
-                "live:{}:{}",
-                plan.source_chapter_id, plan.source_content_sha256
-            ),
-        ),
         (Some(snapshot_id), Some(snapshot_chapter_id)) => {
             let snapshot_chapter = snapshot_chapters
                 .get(&snapshot_chapter_id)
@@ -168,12 +166,18 @@ fn validate_plan_record(
     let image_ids = package
         .generated_images
         .iter()
+        .filter(|image| {
+            image.project_id == package.root_project_id || image.project_id == plan.project_id
+        })
         .map(|image| image.id)
         .collect::<HashSet<_>>();
     let scene_ids = package
         .text_core
         .scene_profiles
         .iter()
+        .filter(|scene| {
+            scene.project_id == package.root_project_id || scene.project_id == plan.project_id
+        })
         .map(|scene| scene.id)
         .collect::<HashSet<_>>();
     if typed
@@ -196,49 +200,6 @@ fn validate_plan_record(
         return Err(format!(
             "项目族导入包章节视觉编排规范 JSON 或哈希不一致: visual_plan_id={}",
             plan.id
-        ));
-    }
-    Ok(())
-}
-
-fn validate_snapshot_visual_plan_identity(
-    chapter: &source_snapshot_chapter::Model,
-    plans: &HashMap<i64, &chapter_visual_plan::Model>,
-) -> Result<(), String> {
-    let (Some(plan_id), Some(plan_version), Some(plan_sha256)) = (
-        chapter.visual_plan_id,
-        chapter.visual_plan_version,
-        chapter.visual_plan_sha256.as_deref(),
-    ) else {
-        if chapter.visual_plan_id.is_none()
-            && chapter.visual_plan_version.is_none()
-            && chapter.visual_plan_sha256.is_none()
-        {
-            return Ok(());
-        }
-        return Err(format!(
-            "项目族导入包源快照章节 visual plan 身份不完整: source_snapshot_chapter_id={}",
-            chapter.id
-        ));
-    };
-    let plan = plans.get(&plan_id).copied().ok_or_else(|| {
-        format!(
-            "项目族导入包源快照章节引用了不存在的 visual plan: source_snapshot_chapter_id={}, visual_plan_id={plan_id}",
-            chapter.id
-        )
-    })?;
-    if plan.status != "confirmed"
-        || plan.plan_version != plan_version
-        || plan.plan_sha256 != plan_sha256
-        || plan.root_project_id != chapter.root_project_id
-        || plan.source_chapter_id != chapter.source_chapter_id
-        || plan.source_snapshot_id != Some(chapter.snapshot_id)
-        || plan.source_snapshot_chapter_id != Some(chapter.id)
-        || plan.source_content_sha256 != chapter.content_hash
-    {
-        return Err(format!(
-            "项目族导入包源快照章节 visual plan 身份不一致: source_snapshot_chapter_id={}",
-            chapter.id
         ));
     }
     Ok(())

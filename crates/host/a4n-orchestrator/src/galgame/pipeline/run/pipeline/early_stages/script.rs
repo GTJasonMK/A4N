@@ -2,8 +2,8 @@ use a4n_error::AppError;
 use serde_json::Value;
 
 use crate::galgame::{
-    GalgameBranchDesign, GalgamePipelineStartStage, GalgameScriptAdaptation,
-    GalgameShootingScriptProjection, galgame_script_adaptation_session_user_message,
+    GalgameAdaptationProjection, GalgameBranchDesign, GalgamePipelineStartStage,
+    GalgameScriptAdaptation, galgame_script_adaptation_session_user_message,
     galgame_script_adaptation_user_message, script_adaptation_from_value,
 };
 
@@ -15,7 +15,7 @@ use super::super::contracts::GalgamePipelineExecution;
 pub(super) async fn run_script_adaptation_stage(
     execution: &GalgamePipelineExecution<'_>,
     scenes_json: &Value,
-    scenes: &GalgameShootingScriptProjection,
+    scenes: &GalgameAdaptationProjection,
     branch_plan_json: &Value,
     branch: &GalgameBranchDesign,
 ) -> Result<(Value, GalgameScriptAdaptation), AppError> {
@@ -55,7 +55,7 @@ pub(super) async fn run_script_adaptation_stage(
                 prompt_name: "galgame_script_adaptation",
                 user_prompt,
                 request_user_prompt,
-                shared_shooting_script_projection: scenes_json,
+                shared_adaptation_projection: scenes_json,
                 restore_from_checkpoint: execution.should_restore(stage),
                 restore_required: execution.restore_required(stage),
             },

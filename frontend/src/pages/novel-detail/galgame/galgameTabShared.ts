@@ -3,7 +3,7 @@ import type {
   GalgameCgImportance,
   GalgameLine,
   GalgameLineType,
-  GalgameLinePresentationDocumentV2,
+  GalgameLinePresentationDocumentV3,
   GalgamePipelineStartStage,
   GalgameScene,
   GalgameSpeakerProfile,
@@ -87,7 +87,7 @@ export const PIPELINE_START_STAGES: Array<{
   labelKey: MessageKey;
 }> = [
   { value: "", labelKey: "galgame.startStage.all" },
-  { value: "shooting_script_projection", labelKey: "galgame.startStage.shootingScript" },
+  { value: "adaptation_plan", labelKey: "galgame.startStage.adaptationPlan" },
   { value: "script_adaptation", labelKey: "galgame.startStage.adaptation" },
   { value: "character_staging", labelKey: "galgame.startStage.staging" },
   { value: "visual_planning", labelKey: "galgame.startStage.planning" },
@@ -261,7 +261,7 @@ export function requireStringValue(value: unknown, fieldName: string): string {
   throw new Error(`${fieldName} 必须是非空字符串`);
 }
 
-export function emptyGalgamePresentation(): GalgameLinePresentationDocumentV2 {
+export function emptyGalgamePresentation(): GalgameLinePresentationDocumentV3 {
   return {
     after_beat_ref: null,
     branch: null,
@@ -269,7 +269,9 @@ export function emptyGalgamePresentation(): GalgameLinePresentationDocumentV2 {
     cg: null,
     cg_importance: null,
     cg_note: null,
-    schema_version: "galgame_line_presentation_v2",
+    schema_version: "galgame_line_presentation_v3",
+    origin: "added",
+    beat_ref: null,
     visible_cast: [],
     enter: [],
     exit: [],
@@ -284,9 +286,9 @@ export function emptyGalgamePresentation(): GalgameLinePresentationDocumentV2 {
 export function presentationForLinePatch(
   line: GalgameLine,
   patch: Partial<GalgameLine>,
-): GalgameLinePresentationDocumentV2 {
+): GalgameLinePresentationDocumentV3 {
   const direct = patch.presentation_json ?? line.presentation_json;
-  const presentation: GalgameLinePresentationDocumentV2 = {
+  const presentation: GalgameLinePresentationDocumentV3 = {
     ...direct,
     visible_cast: direct.visible_cast.map((member) => ({ ...member })),
     enter: [...direct.enter],

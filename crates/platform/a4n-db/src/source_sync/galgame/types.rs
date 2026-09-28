@@ -71,6 +71,9 @@ pub struct SourceSyncGalgameSceneLineWriteRecordInput {
 
 #[derive(Debug, Clone)]
 pub struct SourceSyncGalgameSceneWriteRecordInput {
+    pub adaptation_plan_id: i64,
+    pub adaptation_plan_revision: i32,
+    pub adaptation_unit_id: String,
     pub title: String,
     pub location: Option<String>,
     pub time_of_day: Option<String>,

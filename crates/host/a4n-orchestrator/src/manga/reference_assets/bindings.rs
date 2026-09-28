@@ -1,12 +1,12 @@
 use std::collections::{HashMap, HashSet};
 
 use a4n_domain::manga::{
-    MangaBoundReferenceAsset, MangaPageV3, MangaReferenceAssetKind, MangaReferenceBindingSummary,
+    MangaBoundReferenceAsset, MangaPageV4, MangaReferenceAssetKind, MangaReferenceBindingSummary,
 };
 use serde_json::Value;
 
 pub(in crate::manga) fn page_reference_bindings(
-    page: &MangaPageV3,
+    page: &MangaPageV4,
     reference_assets_metadata: &Value,
 ) -> Result<Vec<MangaReferenceBindingSummary>, String> {
     let portraits = reference_assets_metadata

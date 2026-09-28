@@ -340,32 +340,34 @@ fn remap_video_execution_identity(
             "视频 shooting_script_identity.record_id",
         )?),
     );
-    identity.insert(
-        "source_revision_key".to_string(),
-        Value::String(
+    let source = maps
+        .shooting_script_sources
+        .get(&old_id)
+        .ok_or_else(|| ProjectFamilyImportError::invalid_package("视频剧本原始身份缺失"))?;
+    if identity.get("source_revision_key").and_then(Value::as_str)
+        == Some(source.source_revision_key.as_str())
+    {
+        identity.insert(
+            "source_revision_key".into(),
             maps.shooting_script_revision_keys
                 .get(&old_id)
-                .cloned()
-                .ok_or_else(|| {
-                    ProjectFamilyImportError::invalid_package(format!(
-                        "视频 shooting_script_identity 引用了尚未导入的拍摄剧本: {old_id}"
-                    ))
-                })?,
-        ),
-    );
-    identity.insert(
-        "script_sha256".into(),
-        Value::String(
+                .ok_or_else(|| ProjectFamilyImportError::invalid_package("视频剧本来源映射缺失"))?
+                .clone()
+                .into(),
+        );
+    }
+    if identity.get("revision").and_then(Value::as_i64) == Some(i64::from(source.revision))
+        && identity.get("script_sha256").and_then(Value::as_str) == Some(source.sha256.as_str())
+    {
+        identity.insert(
+            "script_sha256".into(),
             maps.shooting_script_sha256s
                 .get(&old_id)
-                .cloned()
-                .ok_or_else(|| {
-                    ProjectFamilyImportError::invalid_package(format!(
-                        "视频来源缺少拍摄剧本哈希: {old_id}"
-                    ))
-                })?,
-        ),
-    );
+                .ok_or_else(|| ProjectFamilyImportError::invalid_package("视频剧本哈希映射缺失"))?
+                .clone()
+                .into(),
+        );
+    }
     Ok(())
 }
 

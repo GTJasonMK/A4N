@@ -16,6 +16,7 @@ import { BookButton } from "../../components/ui/BookButton";
 import { LoadingSpinner } from "../../components/ui/LoadingSpinner";
 import { formatNumber, useI18n, type MessageKey } from "../../i18n";
 import { getScrollRailCue, scrollRailItemIntoView } from "../../utils/scrollRail";
+import { VideoAuthoringRedirect } from "./VideoAuthoringRedirect";
 
 const AnalysisSubTab = lazy(() =>
   import("./AnalysisSubTab").then((module) => ({
@@ -25,16 +26,6 @@ const AnalysisSubTab = lazy(() =>
 const ImagesTab = lazy(() =>
   import("../novel-detail/ImagesTab").then((module) => ({
     default: module.ImagesTab,
-  })),
-);
-const ChapterVisualPlanTab = lazy(() =>
-  import("../novel-detail/ChapterVisualPlanTab").then((module) => ({
-    default: module.ChapterVisualPlanTab,
-  })),
-);
-const ShootingScriptTab = lazy(() =>
-  import("../novel-detail/ShootingScriptTab").then((module) => ({
-    default: module.ShootingScriptTab,
   })),
 );
 export type BottomTab =
@@ -79,8 +70,6 @@ const TABS: ReadonlyArray<readonly [BottomTab, MessageKey]> = [
   ["content", "writing.body"],
   ["analysis", "writing.analysis"],
   ["images", "writing.images"],
-  ["visual_plan", "writing.visualPlan"],
-  ["shooting_script", "shootingScript.title"],
 ];
 
 const selectedChapterTitle = (
@@ -224,7 +213,7 @@ export const ChapterWorkspace: React.FC<ChapterWorkspaceProps> = ({
         </div>
       ) : (
         <>
-          {bottomTab !== "visual_plan" && <div className="mb-2.5 flex min-w-0 shrink-0 flex-wrap items-center gap-2">
+          <div className="mb-2.5 flex min-w-0 shrink-0 flex-wrap items-center gap-2">
             <h2 className="min-w-0 flex-1 truncate px-1 py-1 font-serif text-xl font-semibold text-book-text-main">
               {selectedChapterTitle(activeChapter, activeOutline) || t("writing.chapterLabel", { number: activeNumber })}
             </h2>
@@ -259,7 +248,7 @@ export const ChapterWorkspace: React.FC<ChapterWorkspaceProps> = ({
                 </span>
               ) : null}
             </div>
-          </div>}
+          </div>
 
           {activeChapter && derivedSyncIncomplete ? (
             <div
@@ -428,26 +417,9 @@ export const ChapterWorkspace: React.FC<ChapterWorkspaceProps> = ({
                 </Suspense>
               </div>
             )}
-            {bottomTab === "visual_plan" && (
+            {(bottomTab === "visual_plan" || bottomTab === "shooting_script") && (
               <div className="h-full min-h-0 overflow-y-auto custom-scrollbar">
-                <Suspense fallback={<WorkspaceTabFallback text={t("writing.loadingVisualPlan")} />}>
-                  <ChapterVisualPlanTab
-                    projectId={projectId}
-                    canEdit={canEdit}
-                    chapter={activeChapter}
-                  />
-                </Suspense>
-              </div>
-            )}
-            {bottomTab === "shooting_script" && (
-              <div className="h-full min-h-0 overflow-y-auto custom-scrollbar">
-                <Suspense fallback={<WorkspaceTabFallback text={t("writing.loadingShootingScript")} />}>
-                  <ShootingScriptTab
-                    projectId={projectId}
-                    canEdit={canEdit}
-                    chapter={activeChapter}
-                  />
-                </Suspense>
+                <VideoAuthoringRedirect projectId={projectId} />
               </div>
             )}
             {bottomTab === "analysis" && !activeChapter && (

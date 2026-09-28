@@ -6,12 +6,12 @@ mod scene_script;
 mod staging;
 mod visual_branch;
 
+pub(super) use scene_script::{AdaptationProjectionRaw, LineDraftRaw, ScriptAdaptationRaw};
 pub use scene_script::{
-    GalgamePipelineBeatRefV3, GalgamePipelineBranchSceneLineDraft, GalgamePipelineLineDraft,
-    GalgamePipelineScene, GalgamePipelineSceneLineDraft, GalgamePipelineShootingBeat,
-    GalgameScriptAdaptation, GalgameShootingScriptProjection,
+    GalgameAdaptationProjection, GalgamePipelineBeatRefV4, GalgamePipelineBranchSceneLineDraft,
+    GalgamePipelineLineDraft, GalgamePipelineScene, GalgamePipelineSceneLineDraft,
+    GalgameScriptAdaptation,
 };
-pub(super) use scene_script::{LineDraftRaw, ScriptAdaptationRaw, ShootingScriptProjectionRaw};
 pub(super) use staging::{CharacterStagingRaw, LineStagedRaw};
 pub use staging::{
     GalgameCharacterStaging, GalgameLinePresentationV2, GalgamePipelineBranchSceneLineStaged,

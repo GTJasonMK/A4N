@@ -1,6 +1,6 @@
 use std::collections::HashSet;
 
-use a4n_domain::manga::MangaPageV3;
+use a4n_domain::manga::MangaPageV4;
 use a4n_error::AppError;
 use serde_json::{Value, json};
 
@@ -34,6 +34,9 @@ pub(in crate::manga) fn manga_item_available_source_span_ids(
             AppError::InvalidArgument(format!("manga_speech_selection.{field} 必须是数组"))
         })?;
         for (index, item) in items.iter().enumerate() {
+            if item.get("source_span_id").is_some_and(Value::is_null) {
+                continue;
+            }
             push_unique_source_span_id(
                 item.get("source_span_id"),
                 &format!("manga_speech_selection.{field}[{index}].source_span_id"),
@@ -75,7 +78,7 @@ pub(in crate::manga) fn manga_item_available_source_span_ids(
 
 pub(in crate::manga) fn manga_page_planning_input(
     extraction_summary: Value,
-    shooting_script: Value,
+    adaptation_plan: Value,
 ) -> Result<Value, AppError> {
     let required = |key: &str| {
         extraction_summary
@@ -91,12 +94,12 @@ pub(in crate::manga) fn manga_page_planning_input(
             "items": required("items")?,
             "comic_synthesis": required("comic_synthesis")?,
         },
-        "shooting_script": shooting_script
+        "adaptation_plan": adaptation_plan
     }))
 }
 
 pub(in crate::manga) fn manga_page_drawing_prompt_page_input(
-    page_plan: &MangaPageV3,
+    page_plan: &MangaPageV4,
     extraction_summary: &Value,
     reference_assets: &Value,
 ) -> Result<Value, AppError> {

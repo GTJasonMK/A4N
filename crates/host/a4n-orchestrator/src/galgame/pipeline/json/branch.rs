@@ -13,20 +13,10 @@ pub fn branch_design_from_value(
         .choices
         .into_iter()
         .map(|choice| {
-            require_positive(
-                choice.after_beat_ref.scene_index,
-                &format!("{context}.choices[].after_beat_ref.scene_index"),
-            )?;
-            if choice.after_beat_ref.shot_index == 0 {
-                return Err(invalid(format!(
-                    "{context}.choices[].after_beat_ref.shot_index 必须大于 0"
-                )));
-            }
-            if choice.after_beat_ref.beat_index == 0 {
-                return Err(invalid(format!(
-                    "{context}.choices[].after_beat_ref.beat_index 必须大于 0"
-                )));
-            }
+            choice
+                .after_beat_ref
+                .validate()
+                .map_err(|error| invalid(format!("{context}.choices[].after_beat_ref: {error}")))?;
             if !(2..=3).contains(&choice.options.len()) {
                 return Err(invalid(format!(
                     "{context}.choices[].options 必须包含 2 到 3 个选项"
@@ -36,15 +26,7 @@ pub fn branch_design_from_value(
                 .options
                 .into_iter()
                 .map(|option| {
-                    require_positive(
-                        option.returns_to_scene_index,
-                        &format!("{context}.choices[].options[].returns_to_scene_index"),
-                    )?;
-                    if option.returns_to_scene_index <= choice.after_beat_ref.scene_index {
-                        return Err(invalid(format!(
-                            "{context}.choices[].options[].returns_to_scene_index 必须晚于选择所在场"
-                        )));
-                    }
+                    option.returns_to.validate().map_err(invalid)?;
                     Ok(GalgamePipelineChoiceOptionPlan {
                         branch_id: required_text(
                             option.branch_id,
@@ -74,7 +56,7 @@ pub fn branch_design_from_value(
                             option.player_knowledge,
                             &format!("{context}.choices[].options[].player_knowledge"),
                         )?,
-                        returns_to_scene_index: option.returns_to_scene_index,
+                        returns_to: option.returns_to,
                     })
                 })
                 .collect::<Result<Vec<_>, AppError>>()?;

@@ -226,6 +226,7 @@ pub(crate) fn visual_plan_fixture(source: &ResolvedChapterSource) -> ParsedChapt
     ParsedChapterVisualPlan {
         record: a4n_db_models::models::chapter::chapter_visual_plan::Model {
             id: 1,
+            project_id: source.requested_project_id,
             root_project_id: source.root_project_id,
             source_chapter_id: source.source_chapter_id,
             source_snapshot_id: source.source_snapshot_id,

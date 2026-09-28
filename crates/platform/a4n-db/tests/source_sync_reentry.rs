@@ -17,6 +17,9 @@ use chrono::Utc;
 use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, Set};
 use serde_json::json;
 
+#[path = "support/media_authoring.rs"]
+mod authoring;
+
 fn keep(conflict_id: i64) -> PreparedSourceSyncDecisionRecordInput {
     PreparedSourceSyncDecisionRecordInput::KeepLocal {
         conflict_id,
@@ -90,9 +93,11 @@ async fn partial_sync_survives_recheck_and_kept_scenes_participate_in_later_upda
     .await
     .unwrap();
     let mut scene_ids = Vec::new();
+    let initial_plan = authoring::adopt_historical_game_plan(&db, derived.id, &source).await;
     for (index, kind) in ["main", "branch"].into_iter().enumerate() {
         let scene = galgame_scene::ActiveModel {
-            shooting_scene_identity: Set(Some(format!("unit:scene-{index}"))),
+            adaptation_plan_id: Set(Some(initial_plan.id)),
+            adaptation_unit_id: Set(Some(format!("legacy-scene-{}", index + 1))),
             script_id: Set(script.id),
             source_snapshot_chapter_id: Set(source.id),
             scene_index: Set(index as i32 + 1),
@@ -153,10 +158,11 @@ async fn partial_sync_survives_recheck_and_kept_scenes_participate_in_later_upda
     .await
     .unwrap();
     assert_eq!(partial.run.status, "applying");
-    for identity in [None, Some("unit:scene-0".to_string())] {
+    for identity in [None, Some("legacy-scene-1".to_string())] {
         galgame_scene::ActiveModel {
             id: Set(scene_ids[0]),
-            shooting_scene_identity: Set(identity.clone()),
+            adaptation_plan_id: Set(identity.as_ref().map(|_| initial_plan.id)),
+            adaptation_unit_id: Set(identity.clone()),
             ..Default::default()
         }
         .update(&db)
@@ -243,6 +249,9 @@ async fn partial_sync_survives_recheck_and_kept_scenes_participate_in_later_upda
     );
     let target_chapter = regeneration.new_snapshot_chapter.id;
     let target_anchor = regeneration.anchors.first().expect("target anchor").id;
+    let target_plan =
+        authoring::adopt_historical_game_plan(&db, derived.id, &regeneration.new_snapshot_chapter)
+            .await;
     let regenerated = apply_prepared_source_sync_decisions_records_transaction(
         &db,
         next.run.id,
@@ -253,6 +262,9 @@ async fn partial_sync_survives_recheck_and_kept_scenes_participate_in_later_upda
             expected_scene_index: 1,
             expected_source_snapshot_chapter_id: target_chapter,
             generated_scene: SourceSyncGalgameSceneWriteRecordInput {
+                adaptation_plan_id: target_plan.id,
+                adaptation_plan_revision: target_plan.revision,
+                adaptation_unit_id: "legacy-scene-1".into(),
                 title: "更新后的主线".into(),
                 location: None,
                 time_of_day: None,
@@ -268,7 +280,8 @@ async fn partial_sync_survives_recheck_and_kept_scenes_participate_in_later_upda
                     position: None,
                     text_anchor_id: Some(target_anchor),
                     presentation_json: json!({
-                        "schema_version": "galgame_line_presentation_v2",
+                        "schema_version": "galgame_line_presentation_v3", "origin": "historical",
+                        "beat_ref": {"source_chapter_id": chapter.id, "unit_id": "legacy-scene-1", "beat_id": "unfinished"},
                         "visible_cast": [], "enter": [], "exit": [],
                         "focus_character_profile_id": null, "hold": false,
                         "player_knowledge": [], "cg": null, "cg_note": null,

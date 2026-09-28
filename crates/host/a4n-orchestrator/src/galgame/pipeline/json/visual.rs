@@ -34,7 +34,7 @@ pub fn visual_plan_from_value(value: Value, context: &str) -> Result<GalgameVisu
                 source_span_ids: normalize_source_span_ids(
                     background.source_span_ids,
                     &format!("{context}.backgrounds[].source_span_ids"),
-                    true,
+                    false,
                 )?,
             })
         })
@@ -60,7 +60,7 @@ pub fn visual_plan_from_value(value: Value, context: &str) -> Result<GalgameVisu
                 source_span_ids: normalize_source_span_ids(
                     cg.source_span_ids,
                     &format!("{context}.event_cgs[].source_span_ids"),
-                    true,
+                    false,
                 )?,
             })
         })

@@ -17,6 +17,14 @@ pub(in crate::source_sync) fn validate_prepared_galgame_scene_regeneration_recor
     expected_source_snapshot_chapter_id: i64,
     generated_scene: &SourceSyncGalgameSceneWriteRecordInput,
 ) -> Result<(), SourceSyncDbError> {
+    validate_positive_id(generated_scene.adaptation_plan_id, "adaptation_plan_id")?;
+    if generated_scene.adaptation_plan_revision <= 0
+        || generated_scene.adaptation_unit_id.trim().is_empty()
+    {
+        return Err(SourceSyncDbError::InvalidArgument(
+            "场景改编来源版本或单元身份无效".into(),
+        ));
+    }
     if source.scene.scene_index != expected_scene_index {
         return Err(SourceSyncDbError::InvalidArgument(format!(
             "Galgame source sync 重建计划 scene_index 不匹配: expected={}, actual={}",
@@ -35,7 +43,20 @@ pub(in crate::source_sync) fn validate_prepared_galgame_scene_regeneration_recor
         .map(|anchor| anchor.id)
         .collect::<HashSet<_>>();
     for line in &generated_scene.lines {
+        let presentation: a4n_domain::galgame::GalgameLinePresentationDocumentV3 =
+            serde_json::from_value(line.presentation_json.clone())
+                .map_err(|error| SourceSyncDbError::InvalidArgument(error.to_string()))?;
+        presentation
+            .validate_source_identity(line.text_anchor_id)
+            .map_err(SourceSyncDbError::InvalidArgument)?;
         let Some(text_anchor_id) = line.text_anchor_id else {
+            if matches!(
+                presentation.origin,
+                a4n_domain::media_authoring::AdaptationOrigin::Added
+                    | a4n_domain::media_authoring::AdaptationOrigin::Historical
+            ) {
+                continue;
+            }
             return Err(SourceSyncDbError::InvalidArgument(format!(
                 "Galgame source sync 重建计划第 {} 行缺少 text_anchor_id",
                 line.line_index

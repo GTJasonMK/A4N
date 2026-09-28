@@ -3,7 +3,7 @@ use serde_json::json;
 use super::super::super::{
     GALGAME_PIPELINE_TOTAL_STEPS, GalgameCgImportance, GalgameCharacterStaging,
     GalgameLinePresentationSchemaVersion, GalgameLinePresentationV2, GalgamePipelineBackgroundPlan,
-    GalgamePipelineBeatRefV3, GalgamePipelineEventCgPlan, GalgamePipelineLineDraft,
+    GalgamePipelineBeatRefV4, GalgamePipelineEventCgPlan, GalgamePipelineLineDraft,
     GalgamePipelineLineStaged, GalgamePipelineSceneLineDraft, GalgamePipelineSceneLineStaged,
     GalgamePipelineStartStage, GalgameScriptAdaptation, GalgameVisualPlan, LINE_TYPE_NARRATION,
 };
@@ -19,12 +19,20 @@ fn narration_presentation() -> GalgameLinePresentationV2 {
         player_knowledge: Vec::new(),
     }
 }
-use super::checkpoints::restored_galgame_llm_stage_output;
+
+fn beat_reference(scene: i64) -> GalgamePipelineBeatRefV4 {
+    GalgamePipelineBeatRefV4 {
+        source_chapter_id: scene,
+        unit_id: format!("scene-{scene}"),
+        beat_id: "beat-1".into(),
+    }
+}
 use super::progress::galgame_progress_update;
 use super::validation::{
     ensure_single_regenerated_scene_lines, ensure_single_regenerated_staged_lines,
     ensure_single_regenerated_visual_plan,
 };
+use crate::structured_llm::restored_llm_stage_output as restored_galgame_llm_stage_output;
 
 #[test]
 fn restored_galgame_llm_stage_output_revalidates_parsed_output() {
@@ -87,7 +95,7 @@ fn galgame_progress_update_uses_galgame_generation_meta_contract() {
 #[test]
 fn galgame_progress_update_rejects_zero_current() {
     let error = galgame_progress_update(
-        GalgamePipelineStartStage::ShootingScriptProjection,
+        GalgamePipelineStartStage::AdaptationPlan,
         0,
         "正在投影结构化拍摄剧本",
     )
@@ -109,11 +117,8 @@ fn source_sync_scene_regeneration_requires_one_non_empty_scene() {
             scene_index: 2,
             lines: vec![GalgamePipelineLineDraft {
                 index: 1,
-                beat_ref: GalgamePipelineBeatRefV3 {
-                    scene_index: 2,
-                    shot_index: 1,
-                    beat_index: 1,
-                },
+                origin: a4n_domain::media_authoring::AdaptationOrigin::Source,
+                beat_ref: beat_reference(2),
                 line_type: LINE_TYPE_NARRATION.to_string(),
                 speaker_name: None,
                 text: "雨停了。".to_string(),
@@ -129,11 +134,8 @@ fn source_sync_scene_regeneration_requires_one_non_empty_scene() {
             scene_index: 1,
             lines: vec![GalgamePipelineLineDraft {
                 index: 1,
-                beat_ref: GalgamePipelineBeatRefV3 {
-                    scene_index: 1,
-                    shot_index: 1,
-                    beat_index: 1,
-                },
+                origin: a4n_domain::media_authoring::AdaptationOrigin::Source,
+                beat_ref: beat_reference(1),
                 line_type: LINE_TYPE_NARRATION.to_string(),
                 speaker_name: None,
                 text: "雨停了。".to_string(),
@@ -158,11 +160,8 @@ fn source_sync_scene_regeneration_requires_one_non_empty_staged_scene() {
             scene_index: 2,
             lines: vec![GalgamePipelineLineStaged {
                 index: 1,
-                beat_ref: GalgamePipelineBeatRefV3 {
-                    scene_index: 2,
-                    shot_index: 1,
-                    beat_index: 1,
-                },
+                origin: a4n_domain::media_authoring::AdaptationOrigin::Source,
+                beat_ref: beat_reference(2),
                 line_type: LINE_TYPE_NARRATION.to_string(),
                 speaker_profile_id: None,
                 speaker_name: None,
@@ -180,11 +179,8 @@ fn source_sync_scene_regeneration_requires_one_non_empty_staged_scene() {
             scene_index: 1,
             lines: vec![GalgamePipelineLineStaged {
                 index: 1,
-                beat_ref: GalgamePipelineBeatRefV3 {
-                    scene_index: 1,
-                    shot_index: 1,
-                    beat_index: 1,
-                },
+                origin: a4n_domain::media_authoring::AdaptationOrigin::Source,
+                beat_ref: beat_reference(1),
                 line_type: LINE_TYPE_NARRATION.to_string(),
                 speaker_profile_id: None,
                 speaker_name: None,

@@ -2,26 +2,23 @@
 
 use std::collections::BTreeSet;
 
-use super::super::contracts::MangaShootingBeatRefV3;
 use super::MangaPlanValidationError;
+use crate::media_authoring::AdaptationBeatRef;
 
 pub(super) fn unique_required_beat_refs(
-    refs: &[MangaShootingBeatRefV3],
+    refs: &[AdaptationBeatRef],
     path: String,
-) -> Result<BTreeSet<MangaShootingBeatRefV3>, MangaPlanValidationError> {
+) -> Result<BTreeSet<AdaptationBeatRef>, MangaPlanValidationError> {
     if refs.is_empty() {
-        return invalid(path, "至少需要一个拍摄节拍引用");
+        return invalid(path, "至少需要一个本项目改编节拍引用");
     }
     let mut seen = BTreeSet::new();
-    for (index, beat_ref) in refs.iter().copied().enumerate() {
-        if beat_ref.scene_index == 0 || beat_ref.shot_index == 0 || beat_ref.beat_index == 0 {
-            return invalid(
-                format!("{path}[{index}]"),
-                "scene_index、shot_index 和 beat_index 必须大于 0",
-            );
-        }
+    for (index, beat_ref) in refs.iter().cloned().enumerate() {
+        beat_ref
+            .validate()
+            .map_err(|message| validation_error(format!("{path}[{index}]"), message))?;
         if !seen.insert(beat_ref) {
-            return invalid(format!("{path}[{index}]"), "拍摄节拍引用重复");
+            return invalid(format!("{path}[{index}]"), "改编节拍引用重复");
         }
     }
     Ok(seen)

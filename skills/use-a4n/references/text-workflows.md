@@ -15,7 +15,7 @@
 3. 生成蓝图并确认：`start_blueprint_generation`、`start_blueprint_refinement`、`get_blueprint`、`save_blueprint`。需要版本回退时先比较 `diff_blueprint_versions`，再 `restore_blueprint_version`。
 4. 生成分部和章节大纲：使用 `start_outline_generation` 或当前 outline descriptor；保存/修改前检查大纲范围和顺序。
 5. 生成或导入正文：`start_chapter_generation` 返回 generation task；手工文本使用 `chapter import`/`chapter update`。等待 task 终态后再把正文当作后续输入。
-6. 进入写作桌，先保存正文，再运行章节分析、角色/场景同步和拍摄剧本生成。
+6. 进入写作桌，先保存正文，再运行章节分析和角色/场景同步。影视改编在视频派生项目中进行。
 
 模型请求预览只读，不会写入资料；生成结果提交、确认、恢复和批量应用可能改变项目结构，先向用户展示候选和警告。
 
@@ -35,7 +35,7 @@
 
 ## 拍摄剧本
 
-先保存正文，再用 `generate_chapter_shooting_script` 生成完整剧本，或用 `generate_next_chapter_shooting_script_unit` 继续生成场景；只观察实际返回的非终态 workflow。读取用 `get_chapter_shooting_script`，结构化修改用 `edit_chapter_shooting_script`。保存前检查场景、镜头、人物调度、对白、声音和转场引用，避免下游漫画/视频继续使用旧剧本。
+导演编排和拍摄剧本属于视频派生项目，按章节独立管理。先创建或选择视频项目，再进入其前两步；命令中的 `project_id` 必须使用该视频项目 ID。原作写作桌保留跳转入口。漫画/Galgame 独立改编，可选引用视频的固定版本。具体操作见 [video-canvas.md](video-canvas.md)。
 
 ## 写作优化
 

@@ -7,17 +7,18 @@ use a4n_prompt::rendering::PromptRenderer;
 
 use crate::OrchestratorContext;
 
+mod adaptation_projection;
 mod application;
 mod layout_rules;
 mod output_sync;
 mod prompt_optimization;
 mod record_errors;
 mod reference_assets;
-mod shooting_script_projection;
 mod source;
 mod workflow;
 
 pub(crate) use layout_rules::manga_page_generation_layout;
+pub(crate) use pipeline::json::parse_manga_page_plan;
 pub(in crate::manga) use pipeline::preview::MangaPipelineRequestPreviewStep;
 pub(in crate::manga) use pipeline::state::{MANGA_PIPELINE_TOTAL_STEPS, MangaPipelineStage};
 pub(in crate::manga) use prompt_optimization::MangaPromptOptimizationInput;
@@ -33,6 +34,7 @@ pub struct MangaGeneratePagePromptsInput<'a> {
     pub task_id: &'a str,
     pub workflow_run_id: i64,
     pub resume_from_checkpoint: bool,
+    pub stop_after: Option<a4n_api_contract::manga::MangaPipelineStopAfter>,
 }
 
 pub struct MangaPipelineRequestPreviewInput<'a> {
@@ -42,6 +44,7 @@ pub struct MangaPipelineRequestPreviewInput<'a> {
     pub character_portraits: Vec<MangaCharacterPortraitRefSummary>,
     pub workflow_run_id: Option<i64>,
     pub resume_from_checkpoint: bool,
+    pub stop_after: Option<a4n_api_contract::manga::MangaPipelineStopAfter>,
 }
 
 #[cfg(test)]
@@ -56,6 +59,27 @@ use a4n_db_models::models::generation::workflow_run;
 use a4n_error::AppError;
 
 impl OrchestratorContext {
+    async fn completed_manga_plan_workflow(
+        &self,
+        project_id: i64,
+        chapter_id: i64,
+        fingerprint: &serde_json::Value,
+        stop_after: Option<a4n_api_contract::manga::MangaPipelineStopAfter>,
+    ) -> Result<Option<workflow_run::Model>, AppError> {
+        if stop_after == Some(a4n_api_contract::manga::MangaPipelineStopAfter::PagePlanning) {
+            return Ok(None);
+        }
+        Ok(self
+            .latest_workflow_run_by_business_key(&manga_pipeline_business_key(
+                project_id, chapter_id,
+            ))
+            .await?
+            .filter(|run| {
+                run.status == WORKFLOW_STATUS_COMPLETED
+                    && run.current_step_key.as_deref() == Some("page_planning")
+                    && run.input_fingerprint_json.as_ref() == Some(fingerprint)
+            }))
+    }
     pub(crate) async fn resumable_manga_workflow_validated(
         &self,
         project_id: i64,
@@ -132,7 +156,8 @@ impl OrchestratorContext {
         character_portraits: &[MangaCharacterPortraitRefSummary],
         task_id: String,
         resume_from_checkpoint: bool,
-    ) -> Result<workflow_run::Model, AppError> {
+        stop_after: Option<a4n_api_contract::manga::MangaPipelineStopAfter>,
+    ) -> Result<(workflow_run::Model, bool), AppError> {
         if project_id <= 0 {
             return Err(AppError::InvalidArgument("项目 ID 必须大于 0".to_string()));
         }
@@ -153,7 +178,7 @@ impl OrchestratorContext {
             input_fingerprint_json: Some(input_fingerprint.clone()),
             status: WORKFLOW_STATUS_RUNNING.to_string(),
             current_step_key: None,
-            active_task_id: Some(task_id),
+            active_task_id: Some(task_id.clone()),
             can_resume: true,
             resume_block_reason: None,
             error_message: None,
@@ -162,9 +187,22 @@ impl OrchestratorContext {
             let run = self
                 .resumable_manga_workflow_validated(project_id, chapter_id, &input_fingerprint)
                 .await?;
-            self.mark_workflow_running_validated(run.id).await
-        } else {
-            self.begin_workflow_run_validated(input).await
+            return self
+                .resume_workflow_run_with_active_task_validated(run.id, &task_id)
+                .await
+                .map(|run| (run, true));
         }
+        if let Some(previous) = self
+            .completed_manga_plan_workflow(project_id, chapter_id, &input_fingerprint, stop_after)
+            .await?
+        {
+            return self
+                .continue_completed_workflow_run_validated(previous.id, input)
+                .await
+                .map(|run| (run, true));
+        }
+        self.begin_workflow_run_validated(input)
+            .await
+            .map(|run| (run, false))
     }
 }

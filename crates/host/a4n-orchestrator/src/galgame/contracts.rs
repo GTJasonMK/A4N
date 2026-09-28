@@ -1,5 +1,5 @@
 use super::{GalgamePipelinePromptChapter, GalgamePipelineSourceSpan};
-use a4n_domain::shooting_script::ChapterShootingScriptV2;
+use a4n_domain::media_authoring::AdaptationPlanV1;
 use serde::Serialize;
 
 pub(crate) use a4n_api_contract::galgame::{
@@ -15,9 +15,9 @@ pub(crate) use a4n_domain::galgame::{
     GALGAME_ENTITY_CHARACTER_PROFILE, GALGAME_ENTITY_LINE, GALGAME_ENTITY_SCENE,
     GALGAME_EXPRESSIONS, GALGAME_PIPELINE_TOTAL_STEPS, GALGAME_TARGET_BACKGROUND,
     GALGAME_TARGET_CG, GALGAME_TARGET_PORTRAIT_EXPRESSION, GalgameAudioRole, GalgameCgImportance,
-    GalgameGenerationTargetKind, GalgameLinePresentationDocumentV2,
+    GalgameGenerationTargetKind, GalgameLinePresentationDocumentV3,
     GalgameLinePresentationSchemaVersion, GalgameLinePresentationV2, GalgameLineType,
-    GalgameMediaRole, GalgameMediaTargetKind, GalgamePipelineBeatRefV3, GalgamePipelineStartStage,
+    GalgameMediaRole, GalgameMediaTargetKind, GalgamePipelineBeatRefV4, GalgamePipelineStartStage,
     GalgameSceneEntryKind, GalgameStagePositionV2, GalgameTargetEntityKind,
     GalgameVisibleCastMemberV2, LINE_TYPE_CHOICE, LINE_TYPE_DIALOGUE, LINE_TYPE_MONOLOGUE,
     LINE_TYPE_NARRATION, LINE_TYPE_STAGE_DIRECTION, SCENE_ENTRY_BRANCH, SCENE_ENTRY_MAIN,
@@ -33,15 +33,15 @@ pub struct GalgamePipelinePromptContext {
     pub chapters: Vec<GalgamePipelinePromptChapter>,
     pub source_spans: Vec<GalgamePipelineSourceSpan>,
     pub speaker_profiles: Vec<GalgameSpeakerProfile>,
-    pub shooting_scripts: Vec<GalgameChapterShootingScript>,
+    pub adaptations: Vec<GalgameChapterAdaptation>,
 }
 
 #[derive(Debug, Clone, Serialize)]
-pub struct GalgameChapterShootingScript {
+pub struct GalgameChapterAdaptation {
     pub source_chapter_id: i64,
     pub source_snapshot_chapter_id: i64,
     pub chapter_number: i32,
-    pub shooting_script_id: i64,
-    pub shooting_script_revision: i32,
-    pub script: ChapterShootingScriptV2,
+    pub adaptation_plan_id: i64,
+    pub adaptation_plan_revision: i32,
+    pub plan: AdaptationPlanV1,
 }

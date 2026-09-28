@@ -17,6 +17,7 @@ mod dispatch {
     mod config_and_rag;
     mod galgame;
     mod manga;
+    mod media_authoring;
     mod projects_and_content;
     mod system_and_collaboration;
     mod video;
@@ -73,6 +74,11 @@ mod dispatch {
             return Ok(result);
         }
         if let Some(result) = Box::pin(manga::try_dispatch(state, user_id, args, cmd)).await? {
+            return Ok(result);
+        }
+        if let Some(result) =
+            Box::pin(media_authoring::try_dispatch(state, user_id, args, cmd)).await?
+        {
             return Ok(result);
         }
         if let Some(result) = Box::pin(galgame::try_dispatch(state, user_id, args, cmd)).await? {

@@ -8,6 +8,7 @@ pub async fn run_manga_pipeline(
     chapter_number: i32,
     task_id: &str,
     resume_from_checkpoint: bool,
+    stop_after: Option<a4n_api_contract::manga::MangaPipelineStopAfter>,
 ) -> Result<(), AppError> {
     let prompt_renderer = state;
     state
@@ -18,6 +19,7 @@ pub async fn run_manga_pipeline(
             chapter_number,
             task_id.to_string(),
             resume_from_checkpoint,
+            stop_after,
             prompt_renderer,
         )
         .await

@@ -28,12 +28,40 @@ pub async fn scene_profiles_for_source<C: ConnectionTrait>(
     if ids.is_empty() {
         return Ok(Vec::new());
     }
-    let profiles = if let Some(snapshot_id) = source.source_snapshot_id {
-        let rows = source_snapshot_profile::Entity::find()
+    let profiles = load_authoring_scene_profiles(db, source, Some(&ids)).await?;
+    if profiles.len() != ids.len() {
+        return Err(ResolveChapterSourceError::NotFound(format!(
+            "章节来源 {} 缺少引用的场景档案",
+            source.source_revision_key
+        )));
+    }
+    Ok(profiles)
+}
+
+pub async fn authoring_scene_profiles<C: ConnectionTrait>(
+    db: &C,
+    source: &ResolvedChapterSource,
+) -> Result<Vec<scene_profile::Model>, crate::project::ResolveChapterSourceError> {
+    load_authoring_scene_profiles(db, source, None).await
+}
+
+async fn load_authoring_scene_profiles<C: ConnectionTrait>(
+    db: &C,
+    source: &ResolvedChapterSource,
+    ids: Option<&std::collections::BTreeSet<i64>>,
+) -> Result<Vec<scene_profile::Model>, crate::project::ResolveChapterSourceError> {
+    use crate::project::ResolveChapterSourceError;
+    let mut profiles = if let Some(snapshot_id) = source.source_snapshot_id {
+        let mut query = source_snapshot_profile::Entity::find()
             .filter(source_snapshot_profile::Column::SnapshotId.eq(snapshot_id))
             .filter(source_snapshot_profile::Column::RootProjectId.eq(source.root_project_id))
-            .filter(source_snapshot_profile::Column::ProfileKind.eq("scene"))
-            .filter(source_snapshot_profile::Column::SourceProfileId.is_in(ids.iter().copied()))
+            .filter(source_snapshot_profile::Column::ProfileKind.eq("scene"));
+        if let Some(ids) = ids {
+            query = query.filter(
+                source_snapshot_profile::Column::SourceProfileId.is_in(ids.iter().copied()),
+            );
+        }
+        let rows = query
             .order_by_asc(source_snapshot_profile::Column::SourceProfileId)
             .all(db)
             .await?;
@@ -64,18 +92,29 @@ pub async fn scene_profiles_for_source<C: ConnectionTrait>(
             })
             .collect::<Result<Vec<_>, _>>()?
     } else {
-        scene_profile::Entity::find()
-            .filter(scene_profile::Column::ProjectId.eq(source.root_project_id))
-            .filter(scene_profile::Column::Id.is_in(ids.iter().copied()))
+        let mut query = scene_profile::Entity::find()
+            .filter(scene_profile::Column::ProjectId.eq(source.root_project_id));
+        if let Some(ids) = ids {
+            query = query.filter(scene_profile::Column::Id.is_in(ids.iter().copied()));
+        }
+        query
             .order_by_asc(scene_profile::Column::Id)
             .all(db)
             .await?
     };
-    if profiles.len() != ids.len() {
-        return Err(ResolveChapterSourceError::NotFound(format!(
-            "章节来源 {} 缺少引用的场景档案",
-            source.source_revision_key
-        )));
+    if source.requested_project_id != source.root_project_id {
+        let mut query = scene_profile::Entity::find()
+            .filter(scene_profile::Column::ProjectId.eq(source.requested_project_id));
+        if let Some(ids) = ids {
+            query = query.filter(scene_profile::Column::Id.is_in(ids.iter().copied()));
+        }
+        profiles.extend(query.all(db).await?);
+    }
+    profiles.sort_by_key(|profile| profile.id);
+    if profiles.windows(2).any(|pair| pair[0].id == pair[1].id) {
+        return Err(ResolveChapterSourceError::InvalidState(
+            "原作快照与本项目场景身份重复".into(),
+        ));
     }
     Ok(profiles)
 }

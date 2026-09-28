@@ -127,7 +127,7 @@ impl OrchestratorContext {
         project_id: i64,
         source_chapter_id: i64,
     ) -> Result<ResolvedChapterSource, AppError> {
-        a4n_db::project::resolve_chapter_source(
+        a4n_db::project::resolve_video_chapter_source(
             self.database.connection(),
             project_id,
             source_chapter_id,
@@ -289,7 +289,8 @@ fn ensure_plan_belongs_to_source(
     plan: &ParsedChapterVisualPlan,
     source: &ResolvedChapterSource,
 ) -> Result<(), AppError> {
-    if plan.record.root_project_id != source.root_project_id
+    if plan.record.project_id != source.requested_project_id
+        || plan.record.root_project_id != source.root_project_id
         || plan.record.source_chapter_id != source.source_chapter_id
         || plan.record.source_snapshot_id != source.source_snapshot_id
         || plan.record.source_snapshot_chapter_id != source.source_snapshot_chapter_id

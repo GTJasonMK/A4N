@@ -1,6 +1,5 @@
-use a4n_db_models::models::{chapter::chapter_visual_plan, project::source_snapshot_chapter};
-use sea_orm::sea_query::{CaseStatement, Expr};
-use sea_orm::{ActiveModelTrait, ColumnTrait, DatabaseTransaction, EntityTrait, QueryFilter, Set};
+use a4n_db_models::models::chapter::chapter_visual_plan;
+use sea_orm::{ActiveModelTrait, DatabaseTransaction, Set};
 
 use crate::project::family::import::{
     ImportIdMaps, ProjectFamilyImportError, ProjectFamilyImportPackage, map_optional, map_required,
@@ -21,6 +20,11 @@ pub(super) async fn insert_visual_plan_rows(
         maps.visual_plan_ids,
         "导入章节视觉编排失败",
         |active| {
+            active.project_id = Set(map_required(
+                &maps.project_ids,
+                plan.project_id,
+                "导演编排所属视频项目",
+            )?);
             let source_chapter_id = map_required(
                 &maps.chapter_ids,
                 plan.source_chapter_id,
@@ -68,77 +72,6 @@ pub(super) async fn insert_visual_plan_rows(
             .insert(plan.id, plan.plan_sha256.clone());
     }
 
-    let mut visual_plan_id_case = CaseStatement::new();
-    let mut visual_plan_version_case = CaseStatement::new();
-    let mut visual_plan_sha256_case = CaseStatement::new();
-    let mut chapter_ids = Vec::new();
-    for chapter in &package.source_snapshot_chapters {
-        let (visual_plan_id, visual_plan_version, visual_plan_sha256) = remap_visual_plan_identity(
-            chapter.visual_plan_id,
-            chapter.visual_plan_version,
-            chapter.visual_plan_sha256.as_deref(),
-            maps,
-            "源快照章节 visual plan",
-        )?;
-        let Some(visual_plan_id) = visual_plan_id else {
-            continue;
-        };
-        let new_chapter_id = map_required(
-            &maps.source_snapshot_chapter_ids,
-            chapter.id,
-            "源快照章节 visual plan 回填",
-        )?;
-        visual_plan_id_case = visual_plan_id_case.case(
-            source_snapshot_chapter::Column::Id.eq(new_chapter_id),
-            Expr::value(Some(visual_plan_id)),
-        );
-        visual_plan_version_case = visual_plan_version_case.case(
-            source_snapshot_chapter::Column::Id.eq(new_chapter_id),
-            Expr::value(visual_plan_version),
-        );
-        visual_plan_sha256_case = visual_plan_sha256_case.case(
-            source_snapshot_chapter::Column::Id.eq(new_chapter_id),
-            Expr::value(visual_plan_sha256),
-        );
-        chapter_ids.push(new_chapter_id);
-    }
-    if !chapter_ids.is_empty() {
-        let updated = source_snapshot_chapter::Entity::update_many()
-            .col_expr(
-                source_snapshot_chapter::Column::VisualPlanId,
-                visual_plan_id_case
-                    .finally(Expr::col(source_snapshot_chapter::Column::VisualPlanId))
-                    .into(),
-            )
-            .col_expr(
-                source_snapshot_chapter::Column::VisualPlanVersion,
-                visual_plan_version_case
-                    .finally(Expr::col(
-                        source_snapshot_chapter::Column::VisualPlanVersion,
-                    ))
-                    .into(),
-            )
-            .col_expr(
-                source_snapshot_chapter::Column::VisualPlanSha256,
-                visual_plan_sha256_case
-                    .finally(Expr::col(source_snapshot_chapter::Column::VisualPlanSha256))
-                    .into(),
-            )
-            .filter(source_snapshot_chapter::Column::Id.is_in(chapter_ids.clone()))
-            .exec(txn)
-            .await
-            .map_err(|source| ProjectFamilyImportError::DatabaseContext {
-                context: "回填源快照章节视觉编排身份失败",
-                source,
-            })?;
-        if updated.rows_affected != chapter_ids.len() as u64 {
-            return Err(ProjectFamilyImportError::invalid_package(format!(
-                "源快照章节 visual plan 回填数量不一致: updated={}, expected={}",
-                updated.rows_affected,
-                chapter_ids.len()
-            )));
-        }
-    }
     Ok(())
 }
 
@@ -183,18 +116,6 @@ pub(super) async fn remap_visual_plan_resources(
             context: "重映射导演编排资源失败",
             source,
         })?;
-        source_snapshot_chapter::Entity::update_many()
-            .col_expr(
-                source_snapshot_chapter::Column::VisualPlanSha256,
-                Expr::value(Some(hash.clone())),
-            )
-            .filter(source_snapshot_chapter::Column::VisualPlanId.eq(id))
-            .exec(txn)
-            .await
-            .map_err(|source| ProjectFamilyImportError::DatabaseContext {
-                context: "更新导演来源快照哈希失败",
-                source,
-            })?;
         maps.visual_plan_sha256s.insert(original.id, hash);
     }
     for original in &package.chapter_shooting_scripts {

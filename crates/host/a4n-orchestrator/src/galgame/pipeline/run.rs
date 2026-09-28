@@ -1,4 +1,3 @@
-mod checkpoints;
 mod contracts;
 mod llm;
 mod pipeline;
@@ -15,7 +14,7 @@ mod validation;
 pub use contracts::{
     GalgamePipelineRunOptions, GalgameSceneRegenerationInput, GalgameSceneRegenerationPlan,
 };
-pub use pipeline::galgame_shooting_script_projection;
+pub use pipeline::galgame_adaptation_projection;
 pub(crate) use validation::validate_source_sync_scene_regeneration_stage_outputs;
 
 #[cfg(test)]

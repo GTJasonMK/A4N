@@ -42,6 +42,8 @@ import {
 import { useI18n } from "../../../i18n";
 
 interface MangaPagePromptListProps {
+  stageMode?: "prompts" | "images";
+  onDirtyChange?: (dirty: boolean) => void;
   prompts: MangaPagePromptSummary[];
   promptsLoading: boolean;
   currentContentHash: string | null;
@@ -66,6 +68,8 @@ interface MangaPagePromptListProps {
 }
 
 export const MangaPagePromptList: React.FC<MangaPagePromptListProps> = ({
+  stageMode,
+  onDirtyChange,
   prompts,
   promptsLoading,
   currentContentHash,
@@ -161,7 +165,10 @@ export const MangaPagePromptList: React.FC<MangaPagePromptListProps> = ({
 
   const activePage =
     pagePrompts.find((page) => page.pageNumber === selectedPage) ?? pagePrompts[0] ?? null;
-  const activeDetailView = detailView ?? (activePage?.prompt.generated_image_id != null ? "image" : "prompt");
+  const activeDetailView = stageMode === "prompts" ? "prompt" : stageMode === "images" ? "image" : detailView ?? (activePage?.prompt.generated_image_id != null ? "image" : "prompt");
+  const hasUnsavedPrompt = Object.entries(promptDrafts).some(([id, draft]) => draft !== prompts.find((prompt) => prompt.id === Number(id))?.image_prompt);
+  useEffect(() => { onDirtyChange?.(hasUnsavedPrompt); }, [hasUnsavedPrompt, onDirtyChange]);
+  useEffect(() => () => onDirtyChange?.(false), [onDirtyChange]);
   const editingPromptId = activePage && promptDrafts[activePage.prompt.id] !== undefined ? activePage.prompt.id : null;
   const promptDraft = editingPromptId == null ? "" : promptDrafts[editingPromptId];
   const setPromptDraft = (value: string) => {
@@ -365,7 +372,7 @@ export const MangaPagePromptList: React.FC<MangaPagePromptListProps> = ({
       });
     }
   }
-  if (activePage && canEditManga && editingPromptId !== activePage.prompt.id) {
+  if (activePage && canEditManga && stageMode !== "images" && editingPromptId !== activePage.prompt.id) {
     if (onOptimizePrompt) {
       activePromptMenuItems.push({
         label: t("comic.prompt.optimize"),
@@ -488,7 +495,7 @@ export const MangaPagePromptList: React.FC<MangaPagePromptListProps> = ({
                   </div>
                 </header>
 
-                <div className="border-b border-book-border/40 px-3 py-2">
+                {!stageMode && <div className="border-b border-book-border/40 px-3 py-2">
                   <SegmentedControl
                     ariaLabel={t("comic.prompt.pageTitle")}
                     value={activeDetailView}
@@ -498,7 +505,7 @@ export const MangaPagePromptList: React.FC<MangaPagePromptListProps> = ({
                       { id: "image", label: t("comic.prompt.imageView") },
                     ]}
                   />
-                </div>
+                </div>}
 
                 <div className="p-3">
                   {activeDetailView === "image" ? (

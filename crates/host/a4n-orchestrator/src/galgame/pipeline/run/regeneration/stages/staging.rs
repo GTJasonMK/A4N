@@ -7,8 +7,8 @@ use crate::galgame::{
 };
 use a4n_prompt::rendering::PromptRenderer;
 
-use super::super::super::llm::GalgameLlmOnceInput;
 use super::super::super::validation::ensure_single_regenerated_staged_lines;
+use crate::workflow::WorkflowLlmOnceInput;
 
 pub(super) async fn run_character_staging_stage(
     service: &OrchestratorContext,
@@ -17,8 +17,9 @@ pub(super) async fn run_character_staging_stage(
     prompt_renderer: &dyn PromptRenderer,
 ) -> Result<(Value, GalgameCharacterStaging), AppError> {
     service
-        .run_galgame_llm_once(
-            GalgameLlmOnceInput {
+        .run_workflow_llm_once(
+            WorkflowLlmOnceInput {
+                stage_key: "character_staging",
                 prompt_renderer,
                 project_id: input.project_id,
                 root_project_id: input.root_project_id,

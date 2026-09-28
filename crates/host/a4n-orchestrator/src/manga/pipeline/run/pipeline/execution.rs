@@ -5,7 +5,7 @@ use a4n_db_models::models::chapter::chapter_manga_prompt;
 use a4n_domain::source_spans::source_spans_for_content;
 use a4n_error::AppError;
 
-use crate::shooting_script::ChapterShootingScriptSourceInput;
+use a4n_domain::media_authoring::AdaptationTarget;
 
 use super::super::super::super::reference_assets::manga_reference_assets_json;
 use super::super::super::super::{
@@ -32,36 +32,43 @@ impl OrchestratorContext {
             task_id,
             workflow_run_id,
             resume_from_checkpoint,
+            stop_after,
         } = input;
-        let script_context = self
-            .require_current_chapter_shooting_script(ChapterShootingScriptSourceInput {
-                project_id,
-                source_chapter_id: chapter_id,
-                visual_plan_id: None,
-            })
+        let source = a4n_db::project::resolve_chapter_source(
+            self.database.connection(),
+            project_id,
+            chapter_id,
+        )
+        .await
+        .map_err(crate::shooting_script::errors::resolve_source_error)?;
+        let adaptation = self
+            .ensure_adaptation_plan(
+                &source,
+                AdaptationTarget::Manga,
+                workflow_run_id,
+                "manga_pipeline",
+                prompt_renderer,
+            )
             .await?;
-        if script_context.source.source_chapter_id != chapter_id {
+        if source.source_chapter_id != chapter_id {
             return Err(AppError::InvalidArgument(format!(
                 "漫画章节 ID 与统一来源解析结果不一致: requested={chapter_id}, resolved={}",
-                script_context.source.source_chapter_id
+                source.source_chapter_id
             )));
         }
-        let chapter_content = script_context.source.content.clone();
-        let source_spans = source_spans_for_content(
-            chapter_id,
-            script_context.source.chapter_number,
-            &chapter_content,
-        );
+        let chapter_content = source.content.clone();
+        let source_spans =
+            source_spans_for_content(chapter_id, source.chapter_number, &chapter_content);
         let source_metadata = MangaPagePromptSourceSummary {
-            root_project_id: script_context.source.root_project_id,
-            source_chapter_id: script_context.source.source_chapter_id,
-            source_snapshot_id: script_context.source.source_snapshot_id,
-            source_snapshot_chapter_id: script_context.source.source_snapshot_chapter_id,
-            source_revision_key: script_context.source.source_revision_key.clone(),
-            content_sha256: script_context.source.content_sha256.clone(),
-            shooting_script_id: script_context.shooting_script.record.id,
-            shooting_script_revision: script_context.shooting_script.record.revision,
-            shooting_script_sha256: script_context.shooting_script.record.script_sha256.clone(),
+            root_project_id: source.root_project_id,
+            source_chapter_id: source.source_chapter_id,
+            source_snapshot_id: source.source_snapshot_id,
+            source_snapshot_chapter_id: source.source_snapshot_chapter_id,
+            source_revision_key: source.source_revision_key.clone(),
+            content_sha256: source.content_sha256.clone(),
+            adaptation_plan_id: adaptation.record.id,
+            adaptation_plan_revision: adaptation.record.revision,
+            adaptation_plan_sha256: adaptation.record.sha256.clone(),
         };
         let (initial_stage, initial_current, initial_message) =
             manga_pipeline_stage_status(MangaPipelineStage::CharacterBinding);
@@ -83,11 +90,12 @@ impl OrchestratorContext {
             service: self,
             chapter_id,
             project_id,
-            shooting_script: script_context.shooting_script,
+            adaptation,
             prompt_renderer,
             task_id,
             workflow_run_id,
             resume_from_checkpoint,
+            stop_after,
             chapter_content,
             source_spans,
             variables,
@@ -99,6 +107,17 @@ impl OrchestratorContext {
         let early = run_early_extraction(&context).await?;
         let extraction = run_late_extraction(&context, early).await?;
         let planning = run_planning(&context, extraction).await?;
+        if stop_after == Some(a4n_api_contract::manga::MangaPipelineStopAfter::PagePlanning) {
+            self.record_manga_pipeline_progress(
+                workflow_run_id,
+                task_id,
+                "page_planning",
+                6,
+                "分页分镜草稿已保存，可以检查、编辑后采用",
+            )
+            .await?;
+            return Ok(Vec::new());
+        }
         complete_pipeline(&context, planning).await
     }
 }

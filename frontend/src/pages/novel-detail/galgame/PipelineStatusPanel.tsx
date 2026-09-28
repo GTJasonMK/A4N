@@ -35,6 +35,8 @@ function pipelineStatusLabel(status: string, t: MessageTranslator): string {
 
 function pipelineStepLabel(stepKey: string, t: MessageTranslator): string {
   switch (stepKey) {
+    case "adaptation_plan":
+      return t("galgame.startStage.adaptationPlan");
     case "shooting_script_projection":
     case "scenes":
       return t("workflow.shootingScriptProjection");

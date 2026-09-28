@@ -31,6 +31,17 @@ pub(in crate::project::family::import::remap::generation) fn remap_galgame_cg_pa
             ("speaker_profile_id", &maps.character_profile_ids),
         ],
     )?;
+    if let Some(line) = object.get_mut("line").and_then(Value::as_object_mut) {
+        for field in ["presentation", "presentation_json"] {
+            if let Some(presentation) = line.get_mut(field).filter(|value| !value.is_null()) {
+                *presentation = super::super::super::galgame::remap_galgame_presentation_json(
+                    presentation,
+                    maps,
+                    "Galgame CG 演出",
+                )?;
+            }
+        }
+    }
     remap_nested_object_ids(
         object,
         "scene",

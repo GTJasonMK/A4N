@@ -110,7 +110,7 @@ async fn resolve_source(
     project_id: i64,
     source_chapter_id: i64,
 ) -> Result<a4n_domain::chapter::ResolvedChapterSource, WorkerFailure> {
-    a4n_db::project::resolve_chapter_source(
+    a4n_db::project::resolve_video_chapter_source(
         state.database.connection(),
         project_id,
         source_chapter_id,
@@ -130,7 +130,8 @@ async fn ensure_visual_plan_belongs_to_source(
     )
     .await
     .map_err(visual_plan_error)?;
-    if plan.record.root_project_id != source.root_project_id
+    if plan.record.project_id != source.requested_project_id
+        || plan.record.root_project_id != source.root_project_id
         || plan.record.source_chapter_id != source.source_chapter_id
         || plan.record.source_snapshot_id != source.source_snapshot_id
         || plan.record.source_snapshot_chapter_id != source.source_snapshot_chapter_id
@@ -176,7 +177,8 @@ fn ensure_visual_plan_belongs_to_source_record(
     plan: &a4n_db::chapter_visual_plan::ParsedChapterVisualPlan,
     source: &a4n_domain::chapter::ResolvedChapterSource,
 ) -> Result<(), WorkerFailure> {
-    if plan.record.root_project_id != source.root_project_id
+    if plan.record.project_id != source.requested_project_id
+        || plan.record.root_project_id != source.root_project_id
         || plan.record.source_chapter_id != source.source_chapter_id
         || plan.record.source_snapshot_id != source.source_snapshot_id
         || plan.record.source_snapshot_chapter_id != source.source_snapshot_chapter_id

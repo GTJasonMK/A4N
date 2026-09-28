@@ -7,11 +7,13 @@ import { idNum, type ApiId as Id } from "../shared";
 export async function startMangaPipeline(
   projectId: Id,
   chapterNumber: number,
+  stopAfter: Host.MangaPipelineStopAfter | null = null,
 ): Promise<string> {
   return apiInvoke<string>("start_manga_pipeline", {
     input: {
       project_id: idNum(projectId),
       chapter_number: chapterNumber,
+      stop_after: stopAfter,
     } satisfies Host.MangaPipelineStartInput,
   });
 }
@@ -19,11 +21,13 @@ export async function startMangaPipeline(
 export async function previewStartMangaPipelineRequest(
   projectId: Id,
   chapterNumber: number,
+  stopAfter: Host.MangaPipelineStopAfter | null = null,
 ): Promise<ModelRequestPreview> {
   return apiInvoke<ModelRequestPreview>("preview_start_manga_pipeline_request", {
     input: {
       project_id: idNum(projectId),
       chapter_number: chapterNumber,
+      stop_after: stopAfter,
     } satisfies Host.MangaPipelineStartInput,
   });
 }
@@ -32,11 +36,13 @@ export async function previewStartMangaPipelineRequest(
 export async function resumeMangaPipeline(
   projectId: Id,
   chapterNumber: number,
+  stopAfter: Host.MangaPipelineStopAfter | null = null,
 ): Promise<string> {
   return apiInvoke<string>("resume_manga_pipeline", {
     input: {
       project_id: idNum(projectId),
       chapter_number: chapterNumber,
+      stop_after: stopAfter,
     } satisfies Host.MangaPipelineResumeInput,
   });
 }
@@ -44,11 +50,13 @@ export async function resumeMangaPipeline(
 export async function previewResumeMangaPipelineRequest(
   projectId: Id,
   chapterNumber: number,
+  stopAfter: Host.MangaPipelineStopAfter | null = null,
 ): Promise<ModelRequestPreview> {
   return apiInvoke<ModelRequestPreview>("preview_resume_manga_pipeline_request", {
     input: {
       project_id: idNum(projectId),
       chapter_number: chapterNumber,
+      stop_after: stopAfter,
     } satisfies Host.MangaPipelineResumeInput,
   });
 }

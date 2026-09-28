@@ -2,11 +2,11 @@ use super::*;
 
 #[test]
 fn rejects_persist_plan_when_scene_source_span_is_unknown() {
-    let scenes = shooting_script_projection_from_value(
+    let scenes = adaptation_projection_from_value(
         json!({
             "scenes": [directing_scene_value(1, "雨夜重逢", "missing")]
         }),
-        "galgame_shooting_script_projection",
+        "galgame_adaptation_projection",
     )
     .expect("scenes");
     let staging = character_staging_from_value(
@@ -15,7 +15,7 @@ fn rejects_persist_plan_when_scene_source_span_is_unknown() {
                 "scene_index": 1,
                 "lines": [{
                     "index": 1,
-                    "beat_ref": {"scene_index": 1, "shot_index": 1, "beat_index": 1},
+                    "origin": "source", "beat_ref": beat_reference(1, 1),
                     "line_type": "narration",
                     "text": "雨声压过脚步。",
                     "presentation": narration_presentation(),
@@ -42,17 +42,14 @@ fn rejects_persist_plan_when_scene_source_span_is_unknown() {
 
 #[test]
 fn rejects_persist_plan_when_staged_line_has_no_source_span() {
-    let scenes = single_shooting_script_projection();
+    let scenes = single_adaptation_projection();
     let staging = GalgameCharacterStaging {
         scene_lines: vec![GalgamePipelineSceneLineStaged {
             scene_index: 1,
             lines: vec![GalgamePipelineLineStaged {
                 index: 1,
-                beat_ref: GalgamePipelineBeatRefV3 {
-                    scene_index: 1,
-                    shot_index: 1,
-                    beat_index: 1,
-                },
+                origin: a4n_domain::media_authoring::AdaptationOrigin::Source,
+                beat_ref: beat_reference(1, 1),
                 line_type: LINE_TYPE_NARRATION.to_string(),
                 speaker_profile_id: None,
                 speaker_name: None,
@@ -80,17 +77,14 @@ fn rejects_persist_plan_when_staged_line_has_no_source_span() {
 
 #[test]
 fn rejects_persist_plan_when_secondary_line_source_span_is_unknown() {
-    let scenes = single_shooting_script_projection();
+    let scenes = single_adaptation_projection();
     let staging = GalgameCharacterStaging {
         scene_lines: vec![GalgamePipelineSceneLineStaged {
             scene_index: 1,
             lines: vec![GalgamePipelineLineStaged {
                 index: 1,
-                beat_ref: GalgamePipelineBeatRefV3 {
-                    scene_index: 1,
-                    shot_index: 1,
-                    beat_index: 1,
-                },
+                origin: a4n_domain::media_authoring::AdaptationOrigin::Source,
+                beat_ref: beat_reference(1, 1),
                 line_type: LINE_TYPE_NARRATION.to_string(),
                 speaker_profile_id: None,
                 speaker_name: None,
@@ -117,17 +111,14 @@ fn rejects_persist_plan_when_secondary_line_source_span_is_unknown() {
 
 #[test]
 fn rejects_persist_plan_when_line_source_span_crosses_scene_chapter() {
-    let scenes = single_shooting_script_projection();
+    let scenes = single_adaptation_projection();
     let staging = GalgameCharacterStaging {
         scene_lines: vec![GalgamePipelineSceneLineStaged {
             scene_index: 1,
             lines: vec![GalgamePipelineLineStaged {
                 index: 1,
-                beat_ref: GalgamePipelineBeatRefV3 {
-                    scene_index: 1,
-                    shot_index: 1,
-                    beat_index: 1,
-                },
+                origin: a4n_domain::media_authoring::AdaptationOrigin::Source,
+                beat_ref: beat_reference(1, 1),
                 line_type: LINE_TYPE_NARRATION.to_string(),
                 speaker_profile_id: None,
                 speaker_name: None,
@@ -170,32 +161,38 @@ fn rejects_persist_plan_when_line_source_span_crosses_scene_chapter() {
 }
 
 #[test]
-fn director_scene_without_text_spans_uses_its_declared_source_chapter() {
-    let mut scenes = single_shooting_script_projection();
+fn historical_scene_without_text_spans_uses_its_declared_source_chapter() {
+    let mut scenes = single_adaptation_projection();
+    scenes.scenes[0].origin = a4n_domain::media_authoring::AdaptationOrigin::Historical;
     scenes.scenes[0].source_span_ids.clear();
     for beat in &mut scenes.scenes[0].beats {
+        beat.origin = a4n_domain::media_authoring::AdaptationOrigin::Historical;
         beat.source_span_ids.clear();
     }
-    let scenes = shooting_script_projection_from_value(
-        serde_json::to_value(scenes).unwrap(),
-        "director scene",
-    )
-    .expect("director scenes may be based on user additions");
+    let scenes =
+        adaptation_projection_from_value(serde_json::to_value(scenes).unwrap(), "director scene")
+            .expect("director scenes may be based on user additions");
+    let mut staging = single_narration_staging();
+    staging.scene_lines[0].lines[0].origin =
+        a4n_domain::media_authoring::AdaptationOrigin::Historical;
+    staging.scene_lines[0].lines[0].source_span_ids.clear();
+    let mut visual = single_visual_plan();
+    visual.backgrounds[0].source_span_ids.clear();
     let plan = build_galgame_script_persist_plan(
         &scenes,
-        &single_narration_staging(),
-        &single_visual_plan(),
+        &staging,
+        &visual,
         &empty_branch_design(),
         &single_source_span(),
     )
-    .expect("line evidence belongs to the declared chapter");
+    .expect("historical edits keep their declared chapter without inventing evidence");
     assert_eq!(plan.scenes[0].source_snapshot_chapter_id, 20);
-    assert_eq!(plan.scenes[0].lines[0].text_anchor_id, Some(100));
+    assert_eq!(plan.scenes[0].lines[0].text_anchor_id, None);
 }
 
 #[test]
 fn rejects_persist_plan_when_staging_references_unknown_scene() {
-    let scenes = single_shooting_script_projection();
+    let scenes = single_adaptation_projection();
     let staging = character_staging_from_value(
         json!({
             "scene_lines": [
@@ -203,7 +200,7 @@ fn rejects_persist_plan_when_staging_references_unknown_scene() {
                     "scene_index": 1,
                     "lines": [{
                         "index": 1,
-                        "beat_ref": {"scene_index": 1, "shot_index": 1, "beat_index": 1},
+                        "origin": "source", "beat_ref": beat_reference(1, 1),
                         "line_type": "narration",
                         "text": "雨声压过脚步。",
                         "presentation": narration_presentation(),
@@ -214,7 +211,7 @@ fn rejects_persist_plan_when_staging_references_unknown_scene() {
                     "scene_index": 2,
                     "lines": [{
                         "index": 1,
-                        "beat_ref": {"scene_index": 2, "shot_index": 1, "beat_index": 1},
+                        "origin": "source", "beat_ref": beat_reference(2, 1),
                         "line_type": "narration",
                         "text": "不存在的场。",
                         "presentation": narration_presentation(),

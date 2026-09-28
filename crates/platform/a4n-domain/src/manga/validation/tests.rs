@@ -1,23 +1,23 @@
 use super::super::contracts::*;
 use super::super::{
-    MangaPageGenerationLayoutV2, MangaPagePromptSourceSummary, MangaReferenceBindingSummary,
+    MangaPageGenerationLayoutV3, MangaPagePromptSourceSummary, MangaReferenceBindingSummary,
 };
+use crate::media_authoring::AdaptationBeatRef;
 use serde_json::json;
 
-fn beat_ref() -> MangaShootingBeatRefV3 {
-    MangaShootingBeatRefV3 {
-        scene_index: 1,
-        shot_index: 1,
-        beat_index: 1,
+fn beat_ref() -> AdaptationBeatRef {
+    AdaptationBeatRef {
+        unit_id: "door".into(),
+        beat_id: "open".into(),
     }
 }
 
-fn valid_plan() -> MangaPagePlanV3 {
-    MangaPagePlanV3 {
-        schema_version: MangaPagePlanSchemaVersion::V3,
-        shooting_script_id: 3,
-        shooting_script_revision: 1,
-        pages: vec![MangaPageV3 {
+fn valid_plan() -> MangaPagePlanV4 {
+    MangaPagePlanV4 {
+        schema_version: MangaPagePlanSchemaVersion::V4,
+        adaptation_plan_id: 3,
+        adaptation_plan_revision: 1,
+        pages: vec![MangaPageV4 {
             page_number: 1,
             beat_refs: vec![beat_ref()],
             role: MangaPageRoleV2::Opening,
@@ -85,18 +85,19 @@ fn rejects_missing_single_dominant_panel() {
 #[test]
 fn rejects_panel_beat_outside_page() {
     let mut plan = valid_plan();
-    plan.pages[0].panels[0].beat_refs[0].beat_index = 2;
+    plan.pages[0].panels[0].beat_refs[0].beat_id = "other".into();
 
     let error = plan.validate().expect_err("foreign beat ref must fail");
     assert_eq!(error.path, "pages[0].panels[0].beat_refs");
 }
 
 #[test]
-fn page_generation_layout_keeps_script_identity_only_in_source() {
+fn page_generation_layout_keeps_adaptation_identity_only_in_source() {
     let page = valid_plan().pages.remove(0);
-    let mut layout = MangaPageGenerationLayoutV2 {
-        schema_version: MangaPageGenerationSchemaVersion::V2,
+    let mut layout = MangaPageGenerationLayoutV3 {
+        schema_version: MangaPageGenerationSchemaVersion::V3,
         page_plan: page,
+        page_plan_ref: None,
         drawing_prompt: MangaPageDrawingPromptV2 {
             schema_version: MangaPageDrawingPromptSchemaVersion::V2,
             page_number: 1,
@@ -110,24 +111,25 @@ fn page_generation_layout_keeps_script_identity_only_in_source() {
         source: MangaPagePromptSourceSummary {
             root_project_id: 1,
             source_chapter_id: 2,
-            source_snapshot_id: None,
-            source_snapshot_chapter_id: None,
-            source_revision_key: "live:2:content".to_string(),
+            source_snapshot_id: Some(4),
+            source_snapshot_chapter_id: Some(5),
+            source_revision_key: "snapshot:4:chapter:5:content".to_string(),
             content_sha256: "content".to_string(),
-            shooting_script_id: 3,
-            shooting_script_revision: 1,
-            shooting_script_sha256: "script".to_string(),
+            adaptation_plan_id: 3,
+            adaptation_plan_revision: 1,
+            adaptation_plan_sha256: "plan".to_string(),
         },
     };
 
     layout.validate(1).expect("canonical layout should pass");
     let serialized = serde_json::to_value(&layout).expect("layout should serialize");
-    assert!(serialized.get("shooting_script_id").is_none());
-    assert!(serialized.get("shooting_script_revision").is_none());
+    assert!(serialized.get("adaptation_plan_id").is_none());
+    assert!(serialized.get("adaptation_plan_revision").is_none());
+    assert!(!serialized.to_string().contains("shooting_script"));
 
-    layout.source.shooting_script_id = 0;
+    layout.source.adaptation_plan_id = 0;
     let error = layout
         .validate(1)
-        .expect_err("invalid source script identity must fail");
-    assert_eq!(error.path, "source.shooting_script_id");
+        .expect_err("invalid source adaptation identity must fail");
+    assert_eq!(error.path, "source.adaptation_plan_id");
 }

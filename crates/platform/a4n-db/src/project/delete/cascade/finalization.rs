@@ -2,9 +2,7 @@ use a4n_db_models::models::project::{
     novel_project, project_invite, project_member, project_source_snapshot,
     source_snapshot_chapter, source_snapshot_outline, source_snapshot_profile,
 };
-use sea_orm::{
-    ColumnTrait, Condition, ConnectionTrait, EntityTrait, QueryFilter, QuerySelect, QueryTrait,
-};
+use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QuerySelect, QueryTrait};
 
 use crate::project as project_db;
 use crate::project::delete::ProjectDeleteDbError;
@@ -12,16 +10,13 @@ use crate::project::delete::ProjectDeleteDbError;
 pub(super) async fn delete_project_final_records<C>(
     db: &C,
     project_id: i64,
-    source_snapshot_id: Option<i64>,
 ) -> Result<(), ProjectDeleteDbError>
 where
     C: ConnectionTrait,
 {
-    let mut snapshot_scope =
-        Condition::any().add(project_source_snapshot::Column::RootProjectId.eq(project_id));
-    if let Some(id) = source_snapshot_id {
-        snapshot_scope = snapshot_scope.add(project_source_snapshot::Column::Id.eq(id));
-    }
+    // Frozen text belongs to the root project. Derived projects and saved video
+    // references can share it, so deleting a derivative must not delete it.
+    let snapshot_scope = project_source_snapshot::Column::RootProjectId.eq(project_id);
     let snapshots = project_source_snapshot::Entity::find()
         .select_only()
         .column(project_source_snapshot::Column::Id)

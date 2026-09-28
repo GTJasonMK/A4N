@@ -10,10 +10,10 @@ pub(super) fn valid_regenerate_scene_apply_plan() -> GalgameSceneRegenerationPla
         scene: GalgamePersistScene {
             scene_index: 7,
             source_snapshot_chapter_id: 1010,
-            shooting_source: Some(crate::galgame::GalgameShootingSceneRef {
-                script_id: 99,
-                script_revision: 1,
-                scene_index: 1,
+            adaptation_source: Some(crate::galgame::GalgameAdaptationSceneRef {
+                plan_id: 99,
+                plan_revision: 1,
+                unit_id: "scene-1".into(),
             }),
             title: "雨夜重逢".to_string(),
             location: Some("旧车站".to_string()),
@@ -31,7 +31,8 @@ pub(super) fn valid_regenerate_scene_apply_plan() -> GalgameSceneRegenerationPla
                 pose: Some("standing".to_string()),
                 position: Some("left".to_string()),
                 presentation_json: json!({
-                    "schema_version": "galgame_line_presentation_v2",
+                    "schema_version": "galgame_line_presentation_v3", "origin": "source",
+                    "beat_ref": {"source_chapter_id":1, "unit_id":"scene-1", "beat_id":"beat-1"},
                     "visible_cast": [{
                         "character_profile_id": 7,
                         "expression": "smile",
@@ -59,31 +60,27 @@ pub(super) fn valid_regenerate_scene_apply_plan() -> GalgameSceneRegenerationPla
             }],
         },
         stage_outputs_json: json!({
-            "shooting_script_projection": {
+            "adaptation_projection": {
                 "scenes": [{
                     "index": 1,
+                    "origin": "adapted",
                     "title": "雨夜重逢",
                     "location": "旧车站",
                     "time_of_day": "night",
                     "participants": ["林晓雨"],
                     "summary": "旧车站的雨夜月台。",
                     "source_span_ids": ["s1"],
-                    "shooting_script_id": 99,
-                    "shooting_script_revision": 1,
+                    "adaptation_plan_id": 99,
+                    "adaptation_plan_revision": 1,
+                    "source_chapter_id": 1,
+                    "source_snapshot_chapter_id": 1010,
                     "chapter_number": 1,
-                    "shooting_scene_index": 1,
+                    "unit_id": "scene-1",
                     "beats": [{
-                        "shot_index": 1,
-                        "beat_index": 1,
-                        "coverage": "must_show",
-                        "required": true,
-                        "objective": "确认对方到来",
-                        "obstacle": "双方仍有戒心",
-                        "visible_action": "林晓雨开口确认",
+                        "id": "beat-1", "kind": "dialogue", "is_climax": false, "origin": "adapted", "importance": "required",
+                        "action": "林晓雨开口确认",
                         "reaction": "对方停下脚步",
                         "dialogue_intent": "确认对方是否如约抵达",
-                        "audience_question": "重逢会如何发展？",
-                        "answer_or_delay": "暂缓回答",
                         "entry_state": "双方隔着雨幕对视",
                         "exit_state": "林晓雨率先打破沉默",
                         "source_span_ids": ["s1"]
@@ -95,7 +92,7 @@ pub(super) fn valid_regenerate_scene_apply_plan() -> GalgameSceneRegenerationPla
                     "scene_index": 1,
                     "lines": [{
                         "index": 1,
-                        "beat_ref": {"scene_index": 1, "shot_index": 1, "beat_index": 1},
+                        "origin": "adapted", "beat_ref": {"source_chapter_id":1, "unit_id":"scene-1", "beat_id":"beat-1"},
                         "line_type": "dialogue",
                         "speaker_name": "林晓雨",
                         "text": "你终于来了。",
@@ -109,7 +106,7 @@ pub(super) fn valid_regenerate_scene_apply_plan() -> GalgameSceneRegenerationPla
                     "scene_index": 1,
                     "lines": [{
                         "index": 1,
-                        "beat_ref": {"scene_index": 1, "shot_index": 1, "beat_index": 1},
+                        "origin": "adapted", "beat_ref": {"source_chapter_id":1, "unit_id":"scene-1", "beat_id":"beat-1"},
                         "line_type": "dialogue",
                         "speaker_profile_id": 7,
                         "speaker_name": "林晓雨",

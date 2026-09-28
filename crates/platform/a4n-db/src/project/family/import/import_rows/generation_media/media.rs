@@ -106,6 +106,16 @@ where
                 inserted.id,
                 THUMBNAIL_PATH_FIELD,
             )?;
+            if original_status == "completed"
+                && file_path
+                    .as_deref()
+                    .is_none_or(|path| path.trim().is_empty())
+            {
+                return Err(ProjectFamilyImportError::invalid_package(format!(
+                    "已完成媒体资产 {} 缺少文件",
+                    asset.id
+                )));
+            }
             file_path_case = file_path_case.case(
                 media_asset::Column::Id.eq(inserted.id),
                 Expr::value(file_path),

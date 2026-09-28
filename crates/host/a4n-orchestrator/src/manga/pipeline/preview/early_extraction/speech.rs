@@ -65,7 +65,7 @@ pub(super) async fn preview_speech(
     validate_manga_speech_selection_source_span_ids(
         &speech_json,
         &context.source_spans,
-        &crate::manga::shooting_script_projection::manga_beat_refs(&context.shooting_script.script),
+        &crate::manga::adaptation_projection::manga_beat_refs(&context.adaptation.plan),
     )?;
 
     Ok(Some(speech_json))

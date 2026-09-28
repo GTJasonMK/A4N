@@ -72,7 +72,7 @@ fn rewrite(sql: &str, changes: &[(&str, &str, usize)]) -> Result<String, DbErr> 
     Ok(sql)
 }
 
-fn contracts() -> Result<Vec<String>, DbErr> {
+pub(crate) fn contracts() -> Result<Vec<String>, DbErr> {
     Ok(vec![
         PROJECT_SNAPSHOT_SCOPE_SQL.to_string(),
         rewrite(

@@ -1,6 +1,6 @@
 import type {
   GalgameCgImportance,
-  GalgameLinePresentationDocumentV2,
+  GalgameLinePresentationDocumentV3,
   GalgameTransition,
 } from "../../../api/galgame";
 
@@ -17,7 +17,7 @@ export interface CgDraft {
   cgImportance: GalgameCgImportance | "";
 }
 
-export function buildCgDraft(value: GalgameLinePresentationDocumentV2): CgDraft {
+export function buildCgDraft(value: GalgameLinePresentationDocumentV3): CgDraft {
   return {
     cgEnabled: value.cg === true,
     cgNote: presentationCgNote(value),
@@ -26,15 +26,15 @@ export function buildCgDraft(value: GalgameLinePresentationDocumentV2): CgDraft 
 }
 
 export function presentationCgNote(
-  value: GalgameLinePresentationDocumentV2,
+  value: GalgameLinePresentationDocumentV3,
 ): string {
   return value.cg_note ?? "";
 }
 
 export function updatePresentationJson(
-  current: GalgameLinePresentationDocumentV2,
+  current: GalgameLinePresentationDocumentV3,
   patch: PresentationPatch,
-): GalgameLinePresentationDocumentV2 {
+): GalgameLinePresentationDocumentV3 {
   const next = { ...current };
 
   if (patch.cgEnabled === false) clearEventCgPresentation(next);
@@ -68,7 +68,7 @@ export function updatePresentationJson(
 }
 
 function clearEventCgPresentation(
-  value: GalgameLinePresentationDocumentV2,
+  value: GalgameLinePresentationDocumentV3,
 ): void {
   value.cg = null;
   value.cg_note = null;

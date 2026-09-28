@@ -103,9 +103,6 @@ pub(in crate::project::family::import::import_rows) async fn insert_source_snaps
                 chapter.source_chapter_id,
                 "源快照章节 source_chapter_id",
             )?);
-            active.visual_plan_id = Set(None);
-            active.visual_plan_version = Set(None);
-            active.visual_plan_sha256 = Set(None);
         }
     );
     insert_import_rows!(

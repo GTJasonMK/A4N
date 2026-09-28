@@ -20,7 +20,7 @@ use a4n_db_models::models::{
 };
 use serde::{Deserialize, Serialize};
 
-pub const PROJECT_FAMILY_PACKAGE_VERSION: &str = "project_family_v7";
+pub const PROJECT_FAMILY_PACKAGE_VERSION: &str = "project_family_v8";
 pub const MANIFEST_PATH: &str = "a4n-project-family.json";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -39,6 +39,9 @@ pub struct ProjectFamilyPackage {
     pub profile_evidence: Vec<profile_evidence::Model>,
     pub chapter_visual_plans: Vec<chapter_visual_plan::Model>,
     pub chapter_shooting_scripts: Vec<chapter_shooting_script::Model>,
+    pub authoring_documents: Vec<a4n_db_models::models::project::media_authoring_document::Model>,
+    pub authoring_receipts:
+        Vec<a4n_db_models::models::project::media_authoring_migration_receipt::Model>,
     pub character_portraits: Vec<character_portrait::Model>,
     pub generated_images: Vec<generated_image::Model>,
     pub chapter_manga_prompts: Vec<chapter_manga_prompt::Model>,

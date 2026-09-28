@@ -22,6 +22,7 @@ import { GalgameTab } from "./novel-detail/GalgameTab";
 import { getDerivedProjectSubtitle } from "../utils/projectRouting";
 import { getProjectLifecycleBlockedReason } from "../utils/projectStatus";
 import { useI18n } from "../i18n";
+import { confirmDiscardMediaChanges } from "../components/feedback/UnsavedChangesGuard";
 
 export const GalgameProjectWorkspace: React.FC = () => {
   const { id } = useParams();
@@ -58,6 +59,7 @@ export const GalgameProjectWorkspace: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [sourceSyncOpen, setSourceSyncOpen] = useState(false);
+  const [workspaceDirty, setWorkspaceDirty] = useState(false);
   const [resetting, setResetting] = useState(false);
   const [workspaceVersion, setWorkspaceVersion] = useState(0);
   const refreshRequestRef = useRef(0);
@@ -253,7 +255,7 @@ export const GalgameProjectWorkspace: React.FC = () => {
             {canEditProject ? (
               <BookIconButton
                 label={t("galgame.syncSource")}
-                onClick={() => setSourceSyncOpen(true)}
+                  onClick={() => { void (async () => { if (await confirmDiscardMediaChanges(workspaceDirty, t)) setSourceSyncOpen(true); })(); }}
                 disabled={!project || resetInProgress}
                 variant="secondary"
                 size="sm"
@@ -319,7 +321,9 @@ export const GalgameProjectWorkspace: React.FC = () => {
           <GalgameTab
             key={workspaceVersion}
             projectId={project.id}
+            materialProjectId={project.root_project_id ?? project.id}
             canEditGalgame={canEditProject}
+            onDirtyChange={setWorkspaceDirty}
             snapshotChapters={chapters}
           />
         ) : null}

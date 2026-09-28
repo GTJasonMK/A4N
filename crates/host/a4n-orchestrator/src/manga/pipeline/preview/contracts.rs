@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use a4n_llm_provider_contract::provider::ChatRequest;
 use serde_json::Value;
 
-use a4n_db::shooting_script::ParsedChapterShootingScript;
+use crate::media_authoring::PreparedAdaptation;
 use a4n_domain::source_spans::SourceSpan;
 use a4n_prompt::rendering::PromptRenderer;
 
@@ -42,10 +42,11 @@ pub(super) struct MangaPreviewContext<'a> {
     pub(super) service: &'a OrchestratorContext,
     pub(super) chapter_id: i64,
     pub(super) project_id: i64,
-    pub(super) shooting_script: ParsedChapterShootingScript,
+    pub(super) adaptation: PreparedAdaptation,
     pub(super) prompt_renderer: &'a dyn PromptRenderer,
     pub(super) workflow_run_id: Option<i64>,
     pub(super) resume_from_checkpoint: bool,
+    pub(super) stop_after: Option<a4n_api_contract::manga::MangaPipelineStopAfter>,
     pub(super) chapter_content: String,
     pub(super) source_spans: Vec<SourceSpan>,
     pub(super) variables: HashMap<String, Value>,

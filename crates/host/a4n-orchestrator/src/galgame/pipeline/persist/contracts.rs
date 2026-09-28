@@ -15,7 +15,9 @@ pub struct GalgameScriptPersistPlan {
 }
 
 pub(super) struct GalgameBranchSceneContext<'a> {
+    pub(super) scenes: &'a [super::super::super::GalgamePipelineScene],
     pub(super) source_snapshot_chapter_id: i64,
+    pub(super) adaptation_source: GalgameAdaptationSceneRef,
     pub(super) location: Option<String>,
     pub(super) time_of_day: Option<String>,
     pub(super) source_scene_summary: Option<String>,
@@ -28,17 +30,17 @@ pub(super) struct GalgameBranchSceneContext<'a> {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct GalgameShootingSceneRef {
-    pub script_id: i64,
-    pub script_revision: i32,
-    pub scene_index: u32,
+pub struct GalgameAdaptationSceneRef {
+    pub plan_id: i64,
+    pub plan_revision: i32,
+    pub unit_id: String,
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct GalgamePersistScene {
     pub scene_index: i32,
     pub source_snapshot_chapter_id: i64,
-    pub shooting_source: Option<GalgameShootingSceneRef>,
+    pub adaptation_source: Option<GalgameAdaptationSceneRef>,
     pub title: String,
     pub location: Option<String>,
     pub time_of_day: Option<String>,

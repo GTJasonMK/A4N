@@ -800,6 +800,12 @@ export function useVideoTabViewState({
     },
     [handleSelectSegment, loadAll, selectedSegmentNumber],
   );
+  const discardSelectedPromptDraft = useCallback(() => setDraft(selectedPrompt ? {
+    visual_prompt: selectedPrompt.visual_prompt,
+    motion_prompt: textInputValue(selectedPrompt.motion_prompt),
+    negative_prompt: textInputValue(selectedPrompt.negative_prompt),
+    duration_secs: selectedPrompt.duration_secs,
+  } : DEFAULT_DRAFT), [selectedPrompt, setDraft]);
   const handleCloseSegmentConfig = useCallback(async () => {
     if (!segmentConfigOpen) return;
     if (selectedPromptDirty) {
@@ -812,16 +818,7 @@ export function useVideoTabViewState({
         dialogType: "warning",
       });
       if (!discard) return;
-      setDraft(
-        selectedPrompt
-          ? {
-              visual_prompt: selectedPrompt.visual_prompt,
-              motion_prompt: textInputValue(selectedPrompt.motion_prompt),
-              negative_prompt: textInputValue(selectedPrompt.negative_prompt),
-              duration_secs: selectedPrompt.duration_secs,
-            }
-          : DEFAULT_DRAFT,
-      );
+      discardSelectedPromptDraft();
     }
     if (selectedSegmentNumber != null && referenceMediaDraftDirty) {
       try {
@@ -878,5 +875,6 @@ export function useVideoTabViewState({
     handleSelectPrompt,
     handleActivateSegment,
     handleCloseSegmentConfig,
+    discardSelectedPromptDraft,
   };
 }

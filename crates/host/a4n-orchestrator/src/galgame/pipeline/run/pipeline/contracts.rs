@@ -1,8 +1,8 @@
 use serde_json::Value;
 
 use crate::galgame::{
-    GalgameBranchDesign, GalgameCharacterStaging, GalgamePipelinePromptContext,
-    GalgamePipelineRunOptions, GalgamePipelineStartStage, GalgameShootingScriptProjection,
+    GalgameAdaptationProjection, GalgameBranchDesign, GalgameCharacterStaging,
+    GalgamePipelinePromptContext, GalgamePipelineRunOptions, GalgamePipelineStartStage,
     GalgameVisualPlan, OrchestratorContext, should_restore_galgame_stage_checkpoint,
 };
 use a4n_prompt::rendering::PromptRenderer;
@@ -33,8 +33,9 @@ impl GalgamePipelineExecution<'_> {
 
 pub(super) struct GalgamePipelineEarlyOutputs {
     pub(super) scenes_json: Value,
-    pub(super) scenes: GalgameShootingScriptProjection,
+    pub(super) scenes: GalgameAdaptationProjection,
     pub(super) branch_plan: GalgameBranchDesign,
+    pub(super) branch_plan_ref: a4n_domain::media_authoring::AuthoringDocumentRef,
     pub(super) lines_staged_json: Value,
     pub(super) staging: GalgameCharacterStaging,
 }

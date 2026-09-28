@@ -5,10 +5,14 @@ fn legacy_v5_package_without_feedback_remains_importable() {
     let mut package = package_with_part_outlines(Vec::new());
     package.version = "project_family_v5".into();
     package.text_core.fact_feedback = None;
-    package
-        .upgrade_shooting_contract(&mut Default::default())
-        .unwrap();
-    assert_eq!(package.version, "project_family_v7");
+    let package = ProjectFamilyPackage::from_manifest(
+        serde_json::to_value(package).unwrap(),
+        &mut Default::default(),
+        &mut Default::default(),
+        0,
+    )
+    .unwrap();
+    assert_eq!(package.version, "project_family_v8");
     validate_package_manifest(&package).unwrap();
 }
 
@@ -27,6 +31,7 @@ fn legacy_upgrade_keeps_unconfirmed_director_drafts() {
         .chapter_visual_plans
         .push(chapter_visual_plan::Model {
             id: 1,
+            project_id: package.root_project_id,
             root_project_id: package.root_project_id,
             source_chapter_id: 1,
             source_snapshot_id: None,

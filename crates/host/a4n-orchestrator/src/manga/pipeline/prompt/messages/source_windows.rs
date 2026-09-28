@@ -2,6 +2,7 @@ use std::collections::{HashMap, HashSet};
 
 use serde_json::{Value, json};
 
+use a4n_domain::media_authoring::AdaptationBeatRef;
 use a4n_domain::source_spans::SourceSpan;
 use a4n_domain::source_spans::source_span_prompt_value;
 use a4n_error::AppError;
@@ -47,7 +48,7 @@ pub(super) fn event_source_span_windows(
     let mut seen_available = HashSet::new();
     let events = events_json
         .as_array()
-        .ok_or_else(|| AppError::InvalidArgument("漫画导演事件投影必须是数组".to_string()))?;
+        .ok_or_else(|| AppError::InvalidArgument("漫画改编事件投影必须是数组".to_string()))?;
     let source_spans_by_id = source_spans.iter().fold(
         HashMap::with_capacity(source_spans.len()),
         |mut spans_by_id, span| {
@@ -61,13 +62,13 @@ pub(super) fn event_source_span_windows(
         let mut seen_ids = HashSet::new();
         push_unique_source_span_ids_from_array(
             event.get("source_span_ids"),
-            &format!("漫画导演事件[{event_index}].source_span_ids"),
+            &format!("漫画改编事件[{event_index}].source_span_ids"),
             &mut ids,
             &mut seen_ids,
         )?;
-        if ids.is_empty() {
+        if ids.is_empty() && event.get("origin").and_then(Value::as_str) == Some("source") {
             return Err(AppError::InvalidArgument(format!(
-                "漫画导演事件[{event_index}].source_span_ids 不能为空"
+                "漫画改编事件[{event_index}].source_span_ids 不能为空"
             )));
         }
         let mut text_parts = Vec::new();
@@ -77,7 +78,7 @@ pub(super) fn event_source_span_windows(
                 .copied()
                 .ok_or_else(|| {
                     AppError::InvalidArgument(format!(
-                        "漫画导演事件[{event_index}] 引用了不存在的 source_span_id: {id}"
+                        "漫画改编事件[{event_index}] 引用了不存在的 source_span_id: {id}"
                     ))
                 })?;
             text_parts.push(span.text.clone());
@@ -85,33 +86,13 @@ pub(super) fn event_source_span_windows(
                 available_source_span_ids.push(source_span_prompt_value(span));
             }
         }
-        let beat_ref = event
+        let raw_ref = event
             .get("beat_ref")
-            .and_then(Value::as_object)
-            .ok_or_else(|| AppError::InvalidArgument("漫画导演事件缺少 beat_ref".to_string()))?;
-        let scene_index = beat_ref
-            .get("scene_index")
-            .and_then(Value::as_u64)
-            .filter(|value| *value > 0)
-            .ok_or_else(|| {
-                AppError::InvalidArgument("漫画导演事件 beat_ref.scene_index 无效".to_string())
-            })?;
-        let beat_index = beat_ref
-            .get("beat_index")
-            .and_then(Value::as_u64)
-            .filter(|value| *value > 0)
-            .ok_or_else(|| {
-                AppError::InvalidArgument("漫画导演事件 beat_ref.beat_index 无效".to_string())
-            })?;
-        let shot_index = beat_ref
-            .get("shot_index")
-            .and_then(Value::as_u64)
-            .filter(|value| *value > 0)
-            .ok_or_else(|| {
-                AppError::InvalidArgument("漫画拍摄事件 beat_ref.shot_index 无效".to_string())
-            })?;
+            .ok_or_else(|| AppError::InvalidArgument("漫画改编事件缺少 beat_ref".to_string()))?;
+        let beat_ref: AdaptationBeatRef = serde_json::from_value(raw_ref.clone())?;
+        beat_ref.validate().map_err(AppError::InvalidArgument)?;
         windows.push(json!({
-            "window_id": format!("beat_{scene_index}_{shot_index}_{beat_index}"),
+            "window_id": serde_json::to_string(&beat_ref)?,
             "beat_ref": beat_ref,
             "event": event,
             "source_span_ids": ids,

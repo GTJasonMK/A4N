@@ -3,7 +3,8 @@ use std::collections::{BTreeMap, BTreeSet};
 use a4n_error::AppError;
 
 use super::super::super::{
-    GalgamePipelineBackgroundPlan, GalgamePipelineEventCgPlan, GalgameVisualPlan,
+    GalgameCharacterStaging, GalgamePipelineBackgroundPlan, GalgamePipelineEventCgPlan,
+    GalgamePipelineScene, GalgameVisualPlan,
 };
 use super::contracts::*;
 use super::rules::invalid;
@@ -29,23 +30,35 @@ pub(super) type VisualPlanMappings<'a> = (
 
 pub(super) fn visual_plan_mappings<'a>(
     visual_plan: &'a GalgameVisualPlan,
-    scene_indexes: &BTreeSet<i32>,
-    staged_line_indexes_by_scene: &BTreeMap<i32, BTreeSet<i32>>,
+    scenes: &[GalgamePipelineScene],
+    staging: &GalgameCharacterStaging,
     source_span_by_id: &BTreeMap<&str, &GalgamePipelineSourceSpan>,
 ) -> Result<VisualPlanMappings<'a>, AppError> {
+    let scenes_by_index = scenes
+        .iter()
+        .map(|scene| (scene.index, scene))
+        .collect::<BTreeMap<_, _>>();
+    let staged_by_scene = staging
+        .scene_lines
+        .iter()
+        .map(|scene| (scene.scene_index, scene))
+        .collect::<BTreeMap<_, _>>();
     let mut background_by_scene = BTreeMap::new();
     for background in &visual_plan.backgrounds {
+        let scene = scenes_by_index
+            .get(&background.scene_index)
+            .ok_or_else(|| invalid("背景引用的改编场景不存在"))?;
+        a4n_domain::media_authoring::validate_adaptation_evidence(
+            scene.origin,
+            &background.source_span_ids,
+            &scene.source_span_ids.iter().cloned().collect(),
+        )
+        .map_err(invalid)?;
         validate_visual_source_spans(
             &background.source_span_ids,
             source_span_by_id,
             "Galgame visual_planning background",
         )?;
-        if !scene_indexes.contains(&background.scene_index) {
-            return Err(invalid(format!(
-                "Galgame visual_planning background 引用不存在的 scene_index: {}",
-                background.scene_index
-            )));
-        }
         if background_by_scene
             .insert(background.scene_index, background)
             .is_some()
@@ -56,7 +69,7 @@ pub(super) fn visual_plan_mappings<'a>(
             )));
         }
     }
-    for scene_index in scene_indexes {
+    for scene_index in scenes_by_index.keys() {
         if !background_by_scene.contains_key(scene_index) {
             return Err(invalid(format!(
                 "Galgame visual_planning 缺少 scene_index={} 的 background",
@@ -67,23 +80,21 @@ pub(super) fn visual_plan_mappings<'a>(
 
     let mut cg_by_scene_line = BTreeMap::new();
     for cg in &visual_plan.event_cgs {
+        let line = staged_by_scene
+            .get(&cg.scene_index)
+            .and_then(|scene| scene.lines.iter().find(|line| line.index == cg.line_index))
+            .ok_or_else(|| invalid("CG 引用的剧本行不存在"))?;
+        a4n_domain::media_authoring::validate_adaptation_evidence(
+            line.origin,
+            &cg.source_span_ids,
+            &line.source_span_ids.iter().cloned().collect(),
+        )
+        .map_err(invalid)?;
         validate_visual_source_spans(
             &cg.source_span_ids,
             source_span_by_id,
             "Galgame visual_planning event_cg",
         )?;
-        let Some(line_indexes) = staged_line_indexes_by_scene.get(&cg.scene_index) else {
-            return Err(invalid(format!(
-                "Galgame visual_planning event_cg 引用不存在的 scene_index: {}",
-                cg.scene_index
-            )));
-        };
-        if !line_indexes.contains(&cg.line_index) {
-            return Err(invalid(format!(
-                "Galgame visual_planning event_cg line_index 不存在: scene_index={}, line_index={}",
-                cg.scene_index, cg.line_index
-            )));
-        }
         if cg_by_scene_line
             .insert((cg.scene_index, cg.line_index), cg)
             .is_some()

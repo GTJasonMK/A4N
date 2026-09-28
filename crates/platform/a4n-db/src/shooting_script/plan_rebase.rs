@@ -62,6 +62,7 @@ where
     C: ConnectionTrait,
 {
     let Some(record) = chapter_shooting_script::Entity::find()
+        .filter(chapter_shooting_script::Column::ProjectId.eq(plan.record.project_id))
         .filter(chapter_shooting_script::Column::RootProjectId.eq(plan.record.root_project_id))
         .filter(chapter_shooting_script::Column::SourceChapterId.eq(plan.record.source_chapter_id))
         .filter(

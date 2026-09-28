@@ -1,12 +1,14 @@
 use super::super::{
-    GalgameCgImportance, GalgameLinePresentationDocumentV2, GalgameLinePresentationSchemaVersion,
-    LINE_TYPE_DIALOGUE, LINE_TYPE_MONOLOGUE, SCENE_ENTRY_BRANCH, SCENE_ENTRY_MAIN,
-    validate_and_project_presentation, validate_line_semantics, validate_scene_entry_kind,
+    GalgameCgImportance, GalgameLinePresentationDocumentV3, LINE_TYPE_DIALOGUE,
+    LINE_TYPE_MONOLOGUE, SCENE_ENTRY_BRANCH, SCENE_ENTRY_MAIN, validate_and_project_presentation,
+    validate_line_semantics, validate_scene_entry_kind,
 };
 
-fn empty_presentation() -> GalgameLinePresentationDocumentV2 {
-    GalgameLinePresentationDocumentV2 {
-        schema_version: GalgameLinePresentationSchemaVersion::V2,
+fn empty_presentation() -> GalgameLinePresentationDocumentV3 {
+    GalgameLinePresentationDocumentV3 {
+        schema_version: a4n_domain::galgame::GalgameLineDocumentSchemaVersion::V3,
+        origin: a4n_domain::media_authoring::AdaptationOrigin::Added,
+        beat_ref: None,
         visible_cast: Vec::new(),
         enter: Vec::new(),
         exit: Vec::new(),

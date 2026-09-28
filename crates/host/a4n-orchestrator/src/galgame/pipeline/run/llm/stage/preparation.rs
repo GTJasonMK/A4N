@@ -30,7 +30,7 @@ pub(super) async fn prepare_galgame_llm_stage(
     let request_messages = galgame_pipeline_session_messages(
         session_prompt,
         stage_prompt.clone(),
-        input.shared_shooting_script_projection,
+        input.shared_adaptation_projection,
         input.request_user_prompt.clone(),
     )?;
     let mut fingerprint_json = json!({
@@ -43,8 +43,8 @@ pub(super) async fn prepare_galgame_llm_stage(
         "temperature": 0.25,
     });
     if input.stage == crate::galgame::GalgamePipelineStartStage::CharacterStaging {
-        fingerprint_json["shared_shooting_script_projection"] =
-            input.shared_shooting_script_projection.clone();
+        fingerprint_json["shared_adaptation_projection"] =
+            input.shared_adaptation_projection.clone();
     }
     let input_fingerprint_sha256 =
         workflow::llm_call_checkpoint_fingerprint_sha256(&fingerprint_json)
@@ -59,12 +59,12 @@ pub(super) async fn prepare_galgame_llm_stage(
 fn galgame_pipeline_session_messages(
     session_prompt: String,
     stage_prompt: String,
-    shooting_script_projection: &serde_json::Value,
+    adaptation_projection: &serde_json::Value,
     user_prompt: String,
 ) -> Result<Vec<ChatMessage>, AppError> {
     let shared_context = serde_json::to_string(&json!({
         "shared_context": {
-            "shooting_script_projection": shooting_script_projection,
+            "adaptation_projection": adaptation_projection,
         },
     }))
     .map_err(AppError::Serialization)?;

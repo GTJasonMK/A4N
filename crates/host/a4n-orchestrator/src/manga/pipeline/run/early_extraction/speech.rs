@@ -49,9 +49,7 @@ pub(super) async fn run_speech_selection_stage(
                 validate_manga_speech_selection_source_span_ids(
                     value,
                     &context.source_spans,
-                    &crate::manga::shooting_script_projection::manga_beat_refs(
-                        &context.shooting_script.script,
-                    ),
+                    &crate::manga::adaptation_projection::manga_beat_refs(&context.adaptation.plan),
                 )?;
                 Ok(value.clone())
             },

@@ -3,9 +3,9 @@ use std::collections::{BTreeMap, BTreeSet};
 use a4n_error::AppError;
 
 use crate::galgame::{
-    GalgameBranchDesign, GalgameCharacterStaging, GalgamePipelineBeatRefV3,
+    GalgameAdaptationProjection, GalgameBranchDesign, GalgameCharacterStaging,
     GalgamePipelineLineDraft, GalgamePipelineLineStaged, GalgamePipelineSourceSpan,
-    GalgameScriptAdaptation, GalgameShootingScriptProjection, GalgameSpeakerProfile,
+    GalgameScriptAdaptation, GalgameSpeakerProfile,
 };
 
 use super::{
@@ -14,16 +14,16 @@ use super::{
     sources::{source_snapshot_chapter_id_for_scene, source_snapshot_chapter_id_for_spans},
 };
 
-pub(in crate::galgame) fn validate_galgame_branch_design(
+pub(crate) fn validate_galgame_branch_design(
     branch: &GalgameBranchDesign,
-    scenes: &GalgameShootingScriptProjection,
+    scenes: &GalgameAdaptationProjection,
 ) -> Result<(), AppError> {
     branch_choices_by_beat_ref(branch, &scenes.scenes).map(drop)
 }
 
 pub(in crate::galgame) fn validate_galgame_script_adaptation(
     script: &GalgameScriptAdaptation,
-    scenes: &GalgameShootingScriptProjection,
+    scenes: &GalgameAdaptationProjection,
     branch: &GalgameBranchDesign,
     source_spans: &[GalgamePipelineSourceSpan],
 ) -> Result<(), AppError> {
@@ -36,16 +36,16 @@ pub(in crate::galgame) fn validate_galgame_script_adaptation(
         .iter()
         .map(|span| (span.id.as_str(), span))
         .collect::<BTreeMap<_, _>>();
-    let branches = branch
-        .choices
-        .iter()
-        .flat_map(|choice| {
-            choice
-                .options
-                .iter()
-                .map(move |option| (option.branch_id.as_str(), choice.after_beat_ref.scene_index))
-        })
-        .collect::<BTreeMap<_, _>>();
+    let mut branches = BTreeMap::new();
+    for choice in &branch.choices {
+        let scene = scenes
+            .values()
+            .find(|scene| scene.contains_beat(&choice.after_beat_ref))
+            .ok_or_else(|| invalid("Galgame 分支引用了不存在的改编单元"))?;
+        for option in &choice.options {
+            branches.insert(option.branch_id.as_str(), scene.index);
+        }
+    }
     if script
         .scene_lines
         .iter()
@@ -73,31 +73,45 @@ pub(in crate::galgame) fn validate_galgame_script_adaptation(
         let beats = scene
             .beats
             .iter()
-            .map(|beat| GalgamePipelineBeatRefV3 {
-                scene_index,
-                shot_index: beat.shot_index,
-                beat_index: beat.beat_index,
-            })
-            .collect::<BTreeSet<_>>();
+            .enumerate()
+            .map(|(position, beat)| (scene.beat_ref(beat), position))
+            .collect::<BTreeMap<_, _>>();
         let mut previous = None;
         for line in lines {
-            if !beats.contains(&line.beat_ref)
-                || (ordered && previous.is_some_and(|previous| previous > line.beat_ref))
-            {
+            let position = beats
+                .get(&line.beat_ref)
+                .copied()
+                .ok_or_else(|| invalid(format!("Galgame 行 {} 引用未知改编节拍", line.index)))?;
+            if ordered && previous.is_some_and(|previous| previous > position) {
                 return Err(invalid(format!(
-                    "Galgame script_adaptation line {} 引用了不存在或乱序的拍摄节拍",
+                    "Galgame script_adaptation line {} 引用了乱序的改编节拍",
                     line.index
                 )));
             }
-            if source_snapshot_chapter_id_for_spans(&line.source_span_ids, &source_spans)?
-                != chapter_id
+            let beat = &scene.beats[position];
+            if (beat.origin == a4n_domain::media_authoring::AdaptationOrigin::Added
+                && line.origin != beat.origin)
+                || (line.origin == a4n_domain::media_authoring::AdaptationOrigin::Historical
+                    && line.origin != beat.origin)
+            {
+                return Err(invalid("剧本行的内容来源与改编节拍不一致"));
+            }
+            a4n_domain::media_authoring::validate_adaptation_evidence(
+                line.origin,
+                &line.source_span_ids,
+                &beat.source_span_ids.iter().cloned().collect(),
+            )
+            .map_err(invalid)?;
+            if !line.source_span_ids.is_empty()
+                && source_snapshot_chapter_id_for_spans(&line.source_span_ids, &source_spans)?
+                    != chapter_id
             {
                 return Err(invalid(format!(
                     "Galgame script_adaptation line {} 来源不属于当前场章节",
                     line.index
                 )));
             }
-            previous = Some(line.beat_ref);
+            previous = Some(position);
         }
         Ok(())
     };
@@ -110,8 +124,20 @@ pub(in crate::galgame) fn validate_galgame_script_adaptation(
     let used_beats = script
         .scene_lines
         .iter()
-        .flat_map(|scene| scene.lines.iter().map(|line| line.beat_ref))
+        .flat_map(|scene| scene.lines.iter().map(|line| line.beat_ref.clone()))
         .collect::<BTreeSet<_>>();
+    for scene in scenes.values() {
+        for beat in &scene.beats {
+            if beat.importance == a4n_domain::media_authoring::AdaptationImportance::Required
+                && !used_beats.contains(&scene.beat_ref(beat))
+            {
+                return Err(invalid(format!(
+                    "Galgame 剧本遗漏必须保留的改编节拍: {} / {}",
+                    scene.unit_id, beat.id
+                )));
+            }
+        }
+    }
     if branch
         .choices
         .iter()
@@ -155,6 +181,7 @@ pub(in crate::galgame) fn validate_galgame_staging(
         }
         for (line, draft) in lines.iter().zip(expected) {
             if line.index != draft.index
+                || line.origin != draft.origin
                 || line.beat_ref != draft.beat_ref
                 || line.line_type != draft.line_type
                 || line.text != draft.text

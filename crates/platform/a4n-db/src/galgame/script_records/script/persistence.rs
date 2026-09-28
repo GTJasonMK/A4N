@@ -26,6 +26,7 @@ where
         project_id: Set(input.project_id),
         root_project_id: Set(input.root_project_id),
         source_snapshot_id: Set(input.source_snapshot_id),
+        branch_plan_id: Set(input.branch_plan.as_ref().map(|plan| plan.id)),
         title: Set(input.title),
         style_config_json: Set(input.style_config_json),
         status: Set(input.status),
@@ -44,7 +45,8 @@ where
         let crate::galgame::PersistGalgameSceneRecordInput {
             scene_index,
             source_snapshot_chapter_id,
-            shooting_scene_identity,
+            adaptation_plan_id,
+            adaptation_unit_id,
             title,
             location,
             time_of_day,
@@ -57,7 +59,8 @@ where
         scene_rows.push(galgame_scene::ActiveModel {
             script_id: Set(script.id),
             source_snapshot_chapter_id: Set(source_snapshot_chapter_id),
-            shooting_scene_identity: Set(shooting_scene_identity),
+            adaptation_plan_id: Set(adaptation_plan_id),
+            adaptation_unit_id: Set(adaptation_unit_id),
             scene_index: Set(scene_index),
             title: Set(title),
             location: Set(location),

@@ -7,9 +7,9 @@ use crate::galgame::{
 };
 use a4n_prompt::rendering::PromptRenderer;
 
-use super::super::super::llm::GalgameLlmOnceInput;
 use super::super::super::validation::ensure_single_regenerated_visual_plan;
 use super::super::contracts::PreparedGalgameSceneRegeneration;
+use crate::workflow::WorkflowLlmOnceInput;
 
 pub(super) async fn run_visual_planning_stage(
     service: &OrchestratorContext,
@@ -20,8 +20,9 @@ pub(super) async fn run_visual_planning_stage(
     prompt_renderer: &dyn PromptRenderer,
 ) -> Result<(Value, GalgameVisualPlan), AppError> {
     service
-        .run_galgame_llm_once(
-            GalgameLlmOnceInput {
+        .run_workflow_llm_once(
+            WorkflowLlmOnceInput {
+                stage_key: "visual_planning",
                 prompt_renderer,
                 project_id: input.project_id,
                 root_project_id: input.root_project_id,
@@ -39,7 +40,7 @@ pub(super) async fn run_visual_planning_stage(
                 let parsed = visual_plan_from_value(value, "galgame_visual_planning")?;
                 ensure_single_regenerated_visual_plan(&parsed)?;
                 crate::galgame::build_galgame_script_persist_plan(
-                    &prepared.shooting_script_projection,
+                    &prepared.adaptation_projection,
                     &staging.1,
                     &parsed,
                     branch,

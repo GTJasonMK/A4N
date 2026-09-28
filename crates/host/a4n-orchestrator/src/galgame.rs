@@ -32,10 +32,10 @@ pub(crate) use contracts::{
     GALGAME_ENTITY_SCENE, GALGAME_EXPRESSIONS, GALGAME_PIPELINE_TOTAL_STEPS,
     GALGAME_TARGET_BACKGROUND, GALGAME_TARGET_CG, GALGAME_TARGET_PORTRAIT_EXPRESSION,
     GalgameAssetGenerationItem, GalgameAssetGenerationSummary, GalgameAssetPlan, GalgameAudioRole,
-    GalgameCgImportance, GalgameChapterShootingScript, GalgameChoice, GalgameGenerationTargetKind,
-    GalgameLine, GalgameLinePresentationDocumentV2, GalgameLinePresentationSchemaVersion,
+    GalgameCgImportance, GalgameChapterAdaptation, GalgameChoice, GalgameGenerationTargetKind,
+    GalgameLine, GalgameLinePresentationDocumentV3, GalgameLinePresentationSchemaVersion,
     GalgameLinePresentationV2, GalgameLineType, GalgameMediaAsset, GalgameMediaBinding,
-    GalgameMediaBindingSummary, GalgameMediaRole, GalgameMediaTargetKind, GalgamePipelineBeatRefV3,
+    GalgameMediaBindingSummary, GalgameMediaRole, GalgameMediaTargetKind, GalgamePipelineBeatRefV4,
     GalgamePipelinePromptContext, GalgamePipelineStartStage, GalgameScene, GalgameSceneDetail,
     GalgameSceneEntryKind, GalgameScriptDetail, GalgameSpeakerProfile, GalgameStagePositionV2,
     GalgameTargetEntityKind, GalgameTextAnchorSummary, GalgameVisibleCastMemberV2,
@@ -54,20 +54,20 @@ pub(crate) use errors::{
 use persistence::GalgamePersistValidationScope;
 pub(in crate::galgame) use pipeline::json::validate_staged_presentation;
 pub(crate) use pipeline::json::{
-    GalgameBranchDesign, GalgameCharacterStaging, GalgamePipelineBackgroundPlan,
-    GalgamePipelineBranchSceneLineStaged, GalgamePipelineChoicePlan, GalgamePipelineEventCgPlan,
-    GalgamePipelineLineDraft, GalgamePipelineLineStaged, GalgamePipelineScene,
-    GalgamePipelineShootingBeat, GalgameScriptAdaptation, GalgameShootingScriptProjection,
-    GalgameVisualPlan, branch_design_from_value, character_staging_from_value,
-    script_adaptation_from_value, shooting_script_projection_from_value, visual_plan_from_value,
+    GalgameAdaptationProjection, GalgameBranchDesign, GalgameCharacterStaging,
+    GalgamePipelineBackgroundPlan, GalgamePipelineBranchSceneLineStaged, GalgamePipelineChoicePlan,
+    GalgamePipelineEventCgPlan, GalgamePipelineLineDraft, GalgamePipelineLineStaged,
+    GalgamePipelineScene, GalgameScriptAdaptation, GalgameVisualPlan,
+    adaptation_projection_from_value, branch_design_from_value, character_staging_from_value,
+    script_adaptation_from_value, visual_plan_from_value,
 };
 #[cfg(test)]
 use pipeline::json::{GalgamePipelineSceneLineDraft, GalgamePipelineSceneLineStaged};
 #[cfg(test)]
-pub(crate) use pipeline::persist::GalgameShootingSceneRef;
+pub(crate) use pipeline::persist::GalgameAdaptationSceneRef;
 pub(crate) use pipeline::persist::{
     GalgamePersistChoice, GalgamePersistLine, GalgamePersistScene, GalgamePipelineSourceSpan,
-    GalgameScriptPersistPlan, build_galgame_script_persist_plan,
+    GalgameScriptPersistPlan, build_galgame_script_persist_plan, validate_galgame_branch_design,
 };
 pub(crate) use pipeline::prompt::{
     GalgamePipelinePromptChapter, GalgamePipelinePromptSourceSpan,
@@ -83,7 +83,7 @@ pub(in crate::galgame) use pipeline::prompt::{
 pub(crate) use pipeline::run::validate_source_sync_scene_regeneration_stage_outputs;
 pub(crate) use pipeline::run::{
     GalgamePipelineRunOptions, GalgameSceneRegenerationInput, GalgameSceneRegenerationPlan,
-    galgame_shooting_script_projection,
+    galgame_adaptation_projection,
 };
 pub(crate) use pipeline::state::should_restore_galgame_stage_checkpoint;
 pub use preview_application::GalgamePipelinePreviewRequest;

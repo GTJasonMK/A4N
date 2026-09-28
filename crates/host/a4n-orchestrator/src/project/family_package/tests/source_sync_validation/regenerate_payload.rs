@@ -287,7 +287,7 @@ fn validate_package_manifest_rejects_regenerate_scene_missing_stage_output() {
     let err = validate_package_manifest(&package)
         .expect_err("regenerate_scene stage_outputs must contain all runtime stages");
 
-    assert!(err.contains("result.stage_outputs.visual_planning 缺失"));
+    assert!(err.contains("stage_outputs 缺少 visual_planning"));
 }
 
 #[test]
@@ -302,5 +302,5 @@ fn validate_package_manifest_rejects_regenerate_scene_unknown_stage_output() {
     let err = validate_package_manifest(&package)
         .expect_err("regenerate_scene stage_outputs must reject unknown stages");
 
-    assert!(err.contains("regenerate_scene result.stage_outputs.legacy_anchor_rebuild 是未知字段"));
+    assert!(err.contains("stage_outputs 包含未知阶段: legacy_anchor_rebuild"));
 }

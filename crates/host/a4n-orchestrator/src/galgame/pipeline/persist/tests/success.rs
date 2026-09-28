@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn builds_persist_plan_from_staged_pipeline_outputs() {
-    let scenes = shooting_script_projection_from_value(
+    let scenes = adaptation_projection_from_value(
         json!({
             "scenes": [directing_scene_value_with_beats(
                 1,
@@ -11,7 +11,7 @@ fn builds_persist_plan_from_staged_pipeline_outputs() {
                 vec![directing_beat(1, "s1"), directing_beat(2, "s1")]
             )]
         }),
-        "galgame_shooting_script_projection",
+        "galgame_adaptation_projection",
     )
     .expect("scenes");
     let staging = character_staging_from_value(
@@ -21,7 +21,7 @@ fn builds_persist_plan_from_staged_pipeline_outputs() {
                 "lines": [
                     {
                         "index": 1,
-                        "beat_ref": {"scene_index": 1, "shot_index": 1, "beat_index": 1},
+                        "origin": "source", "beat_ref": beat_reference(1, 1),
                         "line_type": "dialogue",
                         "speaker_profile_id": 7,
                         "speaker_name": "林晓雨",
@@ -31,7 +31,7 @@ fn builds_persist_plan_from_staged_pipeline_outputs() {
                     },
                     {
                         "index": 2,
-                        "beat_ref": {"scene_index": 1, "shot_index": 1, "beat_index": 2},
+                        "origin": "source", "beat_ref": beat_reference(1, 2),
                         "line_type": "narration",
                         "speaker_name": "",
                         "text": "雨声压过脚步。",
@@ -96,7 +96,7 @@ fn builds_persist_plan_from_staged_pipeline_outputs() {
     );
     assert_eq!(plan.scenes[0].lines[0].text_anchor_id, Some(100));
     assert_eq!(plan.scenes[0].lines[0].presentation_json["cg"], json!(true));
-    serde_json::from_value::<GalgameLinePresentationDocumentV2>(
+    serde_json::from_value::<GalgameLinePresentationDocumentV3>(
         plan.scenes[0].lines[0].presentation_json.clone(),
     )
     .expect("persisted presentation must use the complete v2 document");

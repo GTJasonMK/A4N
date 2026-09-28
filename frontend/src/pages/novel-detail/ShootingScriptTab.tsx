@@ -32,12 +32,14 @@ import { useI18n } from "../../i18n";
 import { loadShootingScriptData, loadShootingScriptOrProgress } from "./loadShootingScriptData";
 
 interface ShootingScriptTabProps {
+  onDirtyChange?: (dirty: boolean) => void;
   projectId: number;
   canEdit: boolean;
-  chapter: ChapterSummary | null;
+  chapter: Pick<ChapterSummary, "id"> | null;
 }
 
 export const ShootingScriptTab: React.FC<ShootingScriptTabProps> = ({
+  onDirtyChange,
   projectId,
   canEdit,
   chapter,
@@ -75,6 +77,9 @@ export const ShootingScriptTab: React.FC<ShootingScriptTabProps> = ({
         JSON.stringify(draft)),
     [draft, unitProgress, view, rebindShotIds],
   );
+
+  useEffect(() => { onDirtyChange?.(isDirty); }, [isDirty, onDirtyChange]);
+  useEffect(() => () => onDirtyChange?.(false), [onDirtyChange]);
 
   const applyScriptData = (
     nextView: ChapterShootingScriptView | null,

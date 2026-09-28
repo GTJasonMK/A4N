@@ -793,13 +793,12 @@ class MockOpenAIProviderTest(unittest.TestCase):
                             "task": {"prompt_name": "manga_item_extraction"},
                             "input": {
                                 "available_source_span_ids": ["ch1:s26:f2"],
-                                "shooting_script": {
+                                "adaptation_plan": {
                                     "events": [
                                         {
                                             "beat_ref": {
-                                                "scene_index": 1,
-                                                "shot_index": 36,
-                                                "beat_index": 1,
+                                                "unit_id": "station",
+                                                "beat_id": "evidence",
                                             }
                                         }
                                     ]
@@ -815,7 +814,7 @@ class MockOpenAIProviderTest(unittest.TestCase):
         self.assertEqual(response["items"][0]["source_span_ids"], ["ch1:s26:f2"])
         self.assertEqual(
             response["items"][0]["first_appearance_beat_ref"],
-            {"scene_index": 1, "shot_index": 36, "beat_index": 1},
+            {"unit_id": "station", "beat_id": "evidence"},
         )
 
     def test_galgame_branch_resolves_shared_context_reference(self) -> None:
@@ -823,16 +822,22 @@ class MockOpenAIProviderTest(unittest.TestCase):
             "scenes": [
                 {
                     "index": 1,
-                    "beats": [{"shot_index": 36, "beat_index": 1}],
-                }
+                    "source_chapter_id": 11, "unit_id": "station",
+                    "beats": [{"id": "evidence"}],
+                },
+                {
+                    "index": 2,
+                    "source_chapter_id": 11, "unit_id": "machine-room",
+                    "beats": [{"id": "machine-room-reveal"}],
+                },
             ]
         }
         payload = {
             "task": {"prompt_name": "galgame_branch_design"},
             "input": {
                 "previous_step": {
-                    "shooting_script_projection": {
-                        "$ref": "system.shared_context.shooting_script_projection"
+                    "adaptation_projection": {
+                        "$ref": "system.shared_context.adaptation_projection"
                     }
                 }
             },
@@ -842,7 +847,7 @@ class MockOpenAIProviderTest(unittest.TestCase):
                 {
                     "role": "system",
                     "content": json.dumps(
-                        {"shared_context": {"shooting_script_projection": projection}}
+                        {"shared_context": {"adaptation_projection": projection}}
                     ),
                 },
                 {
@@ -855,8 +860,13 @@ class MockOpenAIProviderTest(unittest.TestCase):
         response = json.loads(response_for(body))
         self.assertEqual(
             response["choices"][0]["after_beat_ref"],
-            {"scene_index": 1, "shot_index": 36, "beat_index": 1},
+            {"source_chapter_id": 11, "unit_id": "station", "beat_id": "evidence"},
         )
+        for option in response["choices"][0]["options"]:
+            self.assertEqual(option["returns_to"], {"source_chapter_id": 11, "unit_id": "machine-room"})
+        projection["scenes"] = projection["scenes"][:1]
+        body["messages"][0]["content"] = json.dumps({"shared_context": {"adaptation_projection": projection}})
+        self.assertEqual(json.loads(response_for(body)), {"choices": []})
 
     def test_chapter_material_fixtures_use_current_source_anchors(self) -> None:
         quotes = [

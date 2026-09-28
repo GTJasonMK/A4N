@@ -4,8 +4,9 @@ import { BookOpen, Check, Film, ImagePlus, Images, Maximize, Mountain, Pause, Pl
 import { extractErrorMessage } from "../../api";
 import type { ChapterSummary } from "../../api/chapter";
 import type { ChapterVisualPlanV3, SceneBindingV3, VisualPointV3, VisualSegmentV3, VisualPlanPromptCandidate, VisualPlanEditOperation } from "../../api/chapterVisualPlan";
+import { getChapterVisualPlan } from "../../api/chapterVisualPlan";
 import { IMAGE_TYPE_DIRECTOR_STORYBOARD_FRAME, listImagesByProjects, uploadImage, type GeneratedImage, type ImageSize } from "../../api/image";
-import { createSceneProfile, listSceneProfiles, type SceneProfile } from "../../api/sceneProfiles";
+import { createSceneProfile, type SceneProfile } from "../../api/sceneProfiles";
 import { respondAgentEditor, type AgentEditorRequest, type AgentEditorResponse, type AgentEditorSource } from "../../api/agent";
 import { DomainAgentConsole } from "../../components/agent/DomainAgentConsole";
 import { confirmDialog } from "../../components/feedback/ConfirmDialog";
@@ -38,9 +39,11 @@ function directorCandidatePointId(image: GeneratedImage): string | null {
   return typeof pointId === "string" ? pointId : null;
 }
 
-export function ChapterVisualPlanTab({ projectId, canEdit, chapter }: { projectId: number; canEdit: boolean; chapter: ChapterSummary | null }) {
+export function ChapterVisualPlanTab({ projectId, canEdit, chapter, onDirtyChange }: { projectId: number; canEdit: boolean; chapter: Pick<ChapterSummary, "id" | "project_id" | "chapter_number" | "title"> | null; onDirtyChange?: (dirty: boolean) => void }) {
   const chapterId = chapter?.id ?? null;
   const model = useDirectorPlan(projectId, chapterId, canEdit);
+  useEffect(() => { onDirtyChange?.(model.dirty); }, [model.dirty, onDirtyChange]);
+  useEffect(() => () => onDirtyChange?.(false), [onDirtyChange]);
   const addToast = useToast((state) => state.addToast);
   const plan = model.plan;
   const total = plan ? durationMs(plan) : 0;
@@ -69,7 +72,7 @@ export function ChapterVisualPlanTab({ projectId, canEdit, chapter }: { projectI
     return () => observer.disconnect();
   }, [model.loading, plan != null]);
   const [images, setImages] = useState<GeneratedImage[]>([]);
-  const [scenes, setScenes] = useState<SceneProfile[]>([]);
+  const [scenes, setScenes] = useState<Array<Pick<SceneProfile, "id" | "project_id" | "name">>>([]);
   const imageSizeState = useImageGenerationSize();
   const [selectedImageSize, setSelectedImageSize] = useState<ImageSize | null>(null);
   const [split, setSplit] = useState<SplitDraft | null>(null);
@@ -118,20 +121,21 @@ export function ChapterVisualPlanTab({ projectId, canEdit, chapter }: { projectI
 
   const loadAssets = useCallback(async () => {
     const scope = ++assetScope.current;
+    if (chapterId == null) { setImages([]); setScenes([]); return; }
     const results = await Promise.allSettled([
       listImagesByProjects([...new Set([projectId, chapter?.project_id ?? projectId])]),
-      listSceneProfiles(chapter?.project_id ?? projectId),
+      getChapterVisualPlan(projectId, chapterId),
     ]);
     if (scope !== assetScope.current) return;
     const failures: string[] = [];
     if (results[0].status === "fulfilled") setImages(results[0].value);
     else failures.push(extractErrorMessage(results[0].reason, "图片库加载失败"));
-    if (results[1].status === "fulfilled") setScenes(results[1].value);
+    if (results[1].status === "fulfilled") setScenes(results[1].value.scene_choices);
     else failures.push(extractErrorMessage(results[1].reason, "场景库加载失败"));
     if (failures.length) {
       addToast(failures.join("；"), "error", { label: "重试加载素材", onClick: () => void loadAssets() });
     }
-  }, [addToast, projectId, chapter?.project_id]);
+  }, [addToast, projectId, chapterId, chapter?.project_id]);
 
   useEffect(() => {
     setSelection(null);
@@ -370,7 +374,7 @@ export function ChapterVisualPlanTab({ projectId, canEdit, chapter }: { projectI
             onImageGenerated={rememberImage}
             onAdoptPrompt={adoptPrompt}
           />
-          <SceneBindingEditor key={`segment-scene:${segment.id}`} projectId={chapter.project_id} chapterNumber={chapter.chapter_number} binding={segment.scene_binding} scenes={scenes} disabled={disabled} onSceneCreated={rememberScene} onChange={(binding) => updateSegment(segment.id, { scene_binding: binding })} />
+          <SceneBindingEditor key={`segment-scene:${segment.id}`} projectId={projectId} chapterNumber={chapter.chapter_number} binding={segment.scene_binding} scenes={scenes} disabled={disabled} onSceneCreated={rememberScene} onChange={(binding) => updateSegment(segment.id, { scene_binding: binding })} />
           <label className="director-checkbox" title="默认只使用起点和段内关键帧，结束点可以是下一镜头。"><input type="checkbox" checked={segment.use_end_point_image} onChange={(event) => updateSegment(segment.id, { use_end_point_image: event.target.checked })} />使用结束点图片作为目标尾帧</label>
           <div className="director-inline-actions"><BookButton variant="ghost" size="sm" onClick={openSplit}>拆分镜头</BookButton><BookButton variant="ghost" size="sm" onClick={openMerge} disabled={disabled || segment.id === plan.segments.at(-1)?.id}>与后一段合并</BookButton></div>
         </fieldset>}
@@ -443,7 +447,7 @@ export function ChapterVisualPlanTab({ projectId, canEdit, chapter }: { projectI
 
     <Modal isOpen={inspectorOpen && narrow} title={point ? "图片点属性" : "镜头段属性"} onClose={() => setInspectorOpen(false)} className="director-mobile-inspector" footer={narrow ? pointActions : undefined}>{inspector}</Modal>
     <Modal isOpen={modalPanel === "source"} title="章节原文" onClose={closeModal} maxWidthClassName="max-w-3xl"><div className="director-source">{model.set?.source.content}</div></Modal>
-    <Modal isOpen={modalPanel === "scenes"} title="场景库" onClose={() => { closeModal(); void loadAssets(); }} maxWidthClassName="max-w-6xl"><Suspense fallback={<LoadingSpinner text="加载场景库…" />}><SceneLibrary projectId={chapter.project_id} canEditProfiles={canEdit} /></Suspense></Modal>
+    <Modal isOpen={modalPanel === "scenes"} title="本项目场景库" onClose={() => { closeModal(); void loadAssets(); }} maxWidthClassName="max-w-6xl"><Suspense fallback={<LoadingSpinner text="加载场景库…" />}><SceneLibrary projectId={projectId} canEditProfiles={canEdit} /></Suspense></Modal>
     <Modal isOpen={modalPanel === "agent" && narrow} title="导演 Agent" onClose={closeModal} maxWidthClassName="max-w-4xl">
       <DomainAgentConsole capability="director" projectId={projectId} chapterId={chapter.id} resourceLabel={chapter.title} className="director-agent-console director-agent-modal-console" onResourceChanged={() => model.reload()} getEditorSource={getEditorSource} onEditorRequest={editorRequest} />
     </Modal>
@@ -481,11 +485,11 @@ export function ChapterVisualPlanTab({ projectId, canEdit, chapter }: { projectI
     </Modal>
     {split && <Modal isOpen title="拆分镜头" onClose={() => setSplit(null)} footer={<BookButton disabled={model.busy} onClick={() => { void model.mutate({ kind: "split_segment", segment_id: split.segmentId, point_id: split.pointId, right_segment_id: crypto.randomUUID(), left_prompt: split.leftPrompt, right_prompt: split.rightPrompt, left_scene_binding: split.leftScene, right_scene_binding: split.rightScene }).then((succeeded) => { if (succeeded) setSplit(null); }); }}>拆分镜头</BookButton>}>
       <div className="director-fields"><label>分镜位置<ThemedSelect className="director-select" aria-label="分镜位置" value={split.pointId} onChange={(selectedValue) => setSplit({ ...split, pointId: selectedValue })}>{plan.points.filter((point) => { const target = plan.segments.find((segment) => segment.id === split.segmentId)!; const [start, end] = segmentTimes(plan, target); return point.at_ms > start && point.at_ms < end; }).map((point) => <option key={point.id} value={point.id}>{formatTime(point.at_ms)} · {point.label}</option>)}</ThemedSelect></label>
-        <label>前段描述<textarea rows={4} value={split.leftPrompt} onChange={(event) => setSplit({ ...split, leftPrompt: event.target.value })} /></label><SceneBindingEditor projectId={chapter.project_id} chapterNumber={chapter.chapter_number} binding={split.leftScene} scenes={scenes} disabled={model.busy} onSceneCreated={rememberScene} onChange={(leftScene) => setSplit({ ...split, leftScene })} />
-        <label>后段描述<textarea rows={4} value={split.rightPrompt} onChange={(event) => setSplit({ ...split, rightPrompt: event.target.value })} placeholder="为新镜头填写描述，也可以拆分后生成。" /></label><SceneBindingEditor projectId={chapter.project_id} chapterNumber={chapter.chapter_number} binding={split.rightScene} scenes={scenes} disabled={model.busy} onSceneCreated={rememberScene} onChange={(rightScene) => setSplit({ ...split, rightScene })} /></div>
+        <label>前段描述<textarea rows={4} value={split.leftPrompt} onChange={(event) => setSplit({ ...split, leftPrompt: event.target.value })} /></label><SceneBindingEditor projectId={projectId} chapterNumber={chapter.chapter_number} binding={split.leftScene} scenes={scenes} disabled={model.busy} onSceneCreated={rememberScene} onChange={(leftScene) => setSplit({ ...split, leftScene })} />
+        <label>后段描述<textarea rows={4} value={split.rightPrompt} onChange={(event) => setSplit({ ...split, rightPrompt: event.target.value })} placeholder="为新镜头填写描述，也可以拆分后生成。" /></label><SceneBindingEditor projectId={projectId} chapterNumber={chapter.chapter_number} binding={split.rightScene} scenes={scenes} disabled={model.busy} onSceneCreated={rememberScene} onChange={(rightScene) => setSplit({ ...split, rightScene })} /></div>
     </Modal>}
     {merge && <Modal isOpen title="合并镜头" onClose={() => setMerge(null)} footer={<BookButton disabled={model.busy} onClick={() => { void model.mutate({ kind: "merge_segments", left_segment_id: merge.leftId, right_segment_id: merge.rightId, prompt: merge.prompt, scene_binding: merge.scene }).then((succeeded) => { if (succeeded) setMerge(null); }); }}>{merge.prompt.trim() ? "合并镜头" : "合并为待完善镜头"}</BookButton>}>
-      <div className="director-fields"><details open><summary>原镜头描述</summary>{[merge.leftId, merge.rightId].map((id) => <p key={id}>{plan.segments.find((segment) => segment.id === id)?.prompt || "尚未填写"}</p>)}</details><label>合并后的变化描述<textarea rows={6} value={merge.prompt} onChange={(event) => setMerge({ ...merge, prompt: event.target.value })} /></label><SceneBindingEditor projectId={chapter.project_id} chapterNumber={chapter.chapter_number} binding={merge.scene} scenes={scenes} disabled={model.busy} onSceneCreated={rememberScene} onChange={(scene) => setMerge({ ...merge, scene })} /><p className="director-context-line">原有图片点都会保留。可在合并后继续填写或生成描述。</p></div>
+      <div className="director-fields"><details open><summary>原镜头描述</summary>{[merge.leftId, merge.rightId].map((id) => <p key={id}>{plan.segments.find((segment) => segment.id === id)?.prompt || "尚未填写"}</p>)}</details><label>合并后的变化描述<textarea rows={6} value={merge.prompt} onChange={(event) => setMerge({ ...merge, prompt: event.target.value })} /></label><SceneBindingEditor projectId={projectId} chapterNumber={chapter.chapter_number} binding={merge.scene} scenes={scenes} disabled={model.busy} onSceneCreated={rememberScene} onChange={(scene) => setMerge({ ...merge, scene })} /><p className="director-context-line">原有图片点都会保留。可在合并后继续填写或生成描述。</p></div>
     </Modal>}
   </section>;
 }
@@ -501,7 +505,7 @@ function SceneBindingEditor({ projectId, chapterNumber, binding, scenes, disable
   projectId: number;
   chapterNumber: number;
   binding: SceneBindingV3 | null;
-  scenes: SceneProfile[];
+  scenes: Array<Pick<SceneProfile, "id" | "project_id" | "name">>;
   disabled?: boolean;
   onSceneCreated: (scene: SceneProfile) => void;
   onChange: (binding: SceneBindingV3 | null) => void;

@@ -22,12 +22,12 @@ fn validate_manga_visual_anchor_source_span_ids_accepts_known_ids() {
                 "lighting": "dim",
                 "indoor_outdoor": "outdoor",
                 "description": "门口雨幕中站着陌生人",
-                "beat_refs": [{"scene_index": 1, "shot_index": 1, "beat_index": 1}],
+                "beat_refs": [{"unit_id": "unit-1", "beat_id": "beat-1"}],
                 "source_span_ids": [scene_span_id]
             }]
         }),
         &source_spans,
-        &std::collections::HashSet::from([(1, 1, 1)]),
+        &known_beats(&source_spans, 1),
     )
     .expect("known source span ids should pass");
 }
@@ -47,11 +47,11 @@ fn validate_manga_visual_anchor_source_span_ids_rejects_missing_or_unknown_id() 
                 "lighting": "dim",
                 "indoor_outdoor": "outdoor",
                 "description": "门口雨幕中站着陌生人",
-                "beat_refs": [{"scene_index": 1, "shot_index": 1, "beat_index": 1}]
+                "beat_refs": [{"unit_id": "unit-1", "beat_id": "beat-1"}]
             }]
         }),
         &source_spans,
-        &std::collections::HashSet::from([(1, 1, 1)]),
+        &known_beats(&source_spans, 1),
     )
     .expect_err("missing source span ids must fail");
     assert!(missing.to_string().contains("source_span_ids"));
@@ -68,12 +68,12 @@ fn validate_manga_visual_anchor_source_span_ids_rejects_missing_or_unknown_id() 
                 "lighting": "dim",
                 "indoor_outdoor": "outdoor",
                 "description": "门口雨幕中站着陌生人",
-                "beat_refs": [{"scene_index": 1, "shot_index": 1, "beat_index": 1}],
+                "beat_refs": [{"unit_id": "unit-1", "beat_id": "beat-1"}],
                 "source_span_ids": ["ch1:s99:f99"]
             }]
         }),
         &source_spans,
-        &std::collections::HashSet::from([(1, 1, 1)]),
+        &known_beats(&source_spans, 1),
     )
     .expect_err("unknown source span ids must fail");
     assert!(unknown.to_string().contains("source_span_ids"));
@@ -102,20 +102,20 @@ fn validate_manga_visual_anchor_source_span_ids_rejects_invalid_beat_refs() {
                 "lighting": "dim",
                 "indoor_outdoor": "outdoor",
                 "description": "门口雨幕中站着陌生人",
-                "beat_refs": [{"scene_index": 1, "shot_index": 1, "beat_index": "0"}],
+                "beat_refs": [{"unit_id": "unit-1", "beat_id": 0}],
                 "source_span_ids": [scene_span_id.clone()]
             }]
         }),
         &source_spans,
-        &std::collections::HashSet::from([(1, 1, 1)]),
+        &known_beats(&source_spans, 1),
     )
     .expect_err("beat_refs must contain typed refs");
     assert!(
         invalid_type
             .to_string()
-            .contains("manga_visual_anchor_extraction.scenes[0].beat_refs[0].beat_index")
+            .contains("manga_visual_anchor_extraction.scenes[0].beat_refs[0]")
     );
-    assert!(invalid_type.to_string().contains("正整数"));
+    assert!(invalid_type.to_string().contains("expected a string"));
 
     let duplicate = validate_manga_visual_anchor_source_span_ids(
         &json!({
@@ -130,17 +130,17 @@ fn validate_manga_visual_anchor_source_span_ids_rejects_invalid_beat_refs() {
                 "indoor_outdoor": "outdoor",
                 "description": "门口雨幕中站着陌生人",
                 "beat_refs": [
-                    {"scene_index": 1, "shot_index": 1, "beat_index": 1},
-                    {"scene_index": 1, "shot_index": 1, "beat_index": 1}
+                    {"unit_id": "unit-1", "beat_id": "beat-1"},
+                    {"unit_id": "unit-1", "beat_id": "beat-1"}
                 ],
                 "source_span_ids": [scene_span_id]
             }]
         }),
         &source_spans,
-        &std::collections::HashSet::from([(1, 1, 1)]),
+        &known_beats(&source_spans, 1),
     )
     .expect_err("duplicate beat_refs must fail");
-    assert!(duplicate.to_string().contains("重复拍摄节拍引用"));
+    assert!(duplicate.to_string().contains("重复改编节拍引用"));
 }
 
 #[test]
@@ -161,14 +161,14 @@ fn validate_manga_item_extraction_source_span_ids_accepts_known_allowed_ids() {
                 "description": "落在门边的旧钥匙",
                 "description_en": "暗铜色旧钥匙",
                 "importance": "key_item",
-                "first_appearance_beat_ref": {"scene_index": 1, "shot_index": 1, "beat_index": 1},
+                "first_appearance_beat_ref": {"unit_id": "unit-1", "beat_id": "beat-1"},
                 "visual_features": "暗铜色、边缘磨损",
                 "source_span_ids": [item_span_id]
             }]
         }),
         &source_spans,
         &allowed_source_span_ids,
-        &std::collections::HashSet::from([(1, 1, 1)]),
+        &known_beats(&source_spans, 1),
     )
     .expect("known allowed source span ids should pass");
 }
@@ -196,13 +196,13 @@ fn validate_manga_item_extraction_source_span_ids_rejects_missing_unknown_or_dis
                 "description": "落在门边的旧钥匙",
                 "description_en": "暗铜色旧钥匙",
                 "importance": "key_item",
-                "first_appearance_beat_ref": {"scene_index": 1, "shot_index": 1, "beat_index": 1},
+                "first_appearance_beat_ref": {"unit_id": "unit-1", "beat_id": "beat-1"},
                 "visual_features": "暗铜色、边缘磨损"
             }]
         }),
         &source_spans,
         std::slice::from_ref(&item_span_id),
-        &std::collections::HashSet::from([(1, 1, 1)]),
+        &known_beats(&source_spans, 1),
     )
     .expect_err("missing source span ids must fail");
     assert!(missing.to_string().contains("source_span_ids"));
@@ -214,14 +214,14 @@ fn validate_manga_item_extraction_source_span_ids_rejects_missing_unknown_or_dis
                 "description": "落在门边的旧钥匙",
                 "description_en": "暗铜色旧钥匙",
                 "importance": "key_item",
-                "first_appearance_beat_ref": {"scene_index": 1, "shot_index": 1, "beat_index": 1},
+                "first_appearance_beat_ref": {"unit_id": "unit-1", "beat_id": "beat-1"},
                 "visual_features": "暗铜色、边缘磨损",
                 "source_span_ids": ["ch1:s99:f99"]
             }]
         }),
         &source_spans,
         std::slice::from_ref(&item_span_id),
-        &std::collections::HashSet::from([(1, 1, 1)]),
+        &known_beats(&source_spans, 1),
     )
     .expect_err("unknown source span ids must fail");
     assert!(unknown.to_string().contains("source_span_ids"));
@@ -234,14 +234,14 @@ fn validate_manga_item_extraction_source_span_ids_rejects_missing_unknown_or_dis
                 "description": "落在门边的旧钥匙",
                 "description_en": "暗铜色旧钥匙",
                 "importance": "key_item",
-                "first_appearance_beat_ref": {"scene_index": 1, "shot_index": 1, "beat_index": 1},
+                "first_appearance_beat_ref": {"unit_id": "unit-1", "beat_id": "beat-1"},
                 "visual_features": "暗铜色、边缘磨损",
                 "source_span_ids": [door_span_id]
             }]
         }),
         &source_spans,
         std::slice::from_ref(&item_span_id),
-        &std::collections::HashSet::from([(1, 1, 1)]),
+        &known_beats(&source_spans, 1),
     )
     .expect_err("source span ids outside available candidates must fail");
     assert!(disallowed.to_string().contains("available_source_span_ids"));
@@ -264,20 +264,20 @@ fn validate_manga_item_extraction_source_span_ids_rejects_invalid_first_appearan
                 "description": "落在门边的旧钥匙",
                 "description_en": "暗铜色旧钥匙",
                 "importance": "key_item",
-                "first_appearance_beat_ref": {"scene_index": 1, "shot_index": 1, "beat_index": "0"},
+                "first_appearance_beat_ref": {"unit_id": "unit-1", "beat_id": 0},
                 "visual_features": "暗铜色、边缘磨损",
                 "source_span_ids": [item_span_id.clone()]
             }]
         }),
         &source_spans,
         std::slice::from_ref(&item_span_id),
-        &std::collections::HashSet::from([(1, 1, 1)]),
+        &known_beats(&source_spans, 1),
     )
     .expect_err("first_appearance_beat_ref must be typed");
 
     assert!(
         err.to_string()
-            .contains("manga_item_extraction.items[0].first_appearance_beat_ref.beat_index")
+            .contains("manga_item_extraction.items[0].first_appearance_beat_ref")
     );
-    assert!(err.to_string().contains("正整数"));
+    assert!(err.to_string().contains("expected a string"));
 }

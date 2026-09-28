@@ -186,10 +186,19 @@ mod tests {
         let presentation = row
             .try_get::<serde_json::Value>("", "presentation_json")
             .unwrap();
-        serde_json::from_value::<a4n_domain::galgame::GalgameLinePresentationDocumentV2>(
-            presentation,
+        assert_eq!(
+            presentation["schema_version"],
+            "galgame_line_presentation_v2"
+        );
+        a4n_domain::media_authoring::legacy::upgrade_galgame_presentation(
+            &presentation,
+            a4n_domain::galgame::GalgamePipelineBeatRefV4 {
+                source_chapter_id: 1,
+                unit_id: "legacy-scene-1".into(),
+                beat_id: "legacy-line-1".into(),
+            },
         )
-        .expect("cleanup must produce the complete v2 document");
+        .expect("cleanup must produce a complete v2 document accepted by the explicit upgrade");
 
         db.execute_unprepared(
             r#"

@@ -1,5 +1,5 @@
 use a4n_domain::manga::{
-    MangaPageGenerationLayoutV2, MangaPagePromptSourceSummary, MangaReferenceAssetKind,
+    MangaPageGenerationLayoutV3, MangaPagePromptSourceSummary, MangaReferenceAssetKind,
     MangaReferenceBindingSummary,
 };
 use serde_json::Value;
@@ -14,7 +14,7 @@ pub(in crate::project::family::import) fn remap_manga_page_layout(
     expected_page_number: u32,
     label: &str,
 ) -> Result<Value, ProjectFamilyImportError> {
-    let mut layout: MangaPageGenerationLayoutV2 =
+    let mut layout: MangaPageGenerationLayoutV3 =
         serde_json::from_value(value.clone()).map_err(|error| {
             ProjectFamilyImportError::invalid_package(format!("{label} 无效: {error}"))
         })?;
@@ -23,6 +23,15 @@ pub(in crate::project::family::import) fn remap_manga_page_layout(
     })?;
 
     remap_manga_page_source(&mut layout.source, maps, label)?;
+    if let Some(reference) = layout.page_plan_ref.as_mut() {
+        let old = reference.id;
+        reference.id = map_required(&maps.authoring_document_ids, old, "漫画分页计划")?;
+        reference.sha256 = maps
+            .authoring_document_sha256s
+            .get(&old)
+            .cloned()
+            .ok_or_else(|| ProjectFamilyImportError::invalid_package("漫画分页计划哈希映射缺失"))?;
+    }
     remap_manga_reference_bindings(&mut layout.reference_bindings, maps, label)?;
     serde_json::to_value(layout).map_err(|error| {
         ProjectFamilyImportError::invalid_package(format!("{label} 序列化失败: {error}"))
@@ -90,19 +99,19 @@ fn remap_manga_page_source(
         old_snapshot_chapter_id,
         &format!("{label}.source.source_snapshot_chapter_id"),
     )?;
-    let old_shooting_script_id = source.shooting_script_id;
-    source.shooting_script_id = map_required(
-        &maps.shooting_script_ids,
-        old_shooting_script_id,
-        &format!("{label}.source.shooting_script_id"),
+    let old_plan_id = source.adaptation_plan_id;
+    source.adaptation_plan_id = map_required(
+        &maps.authoring_document_ids,
+        old_plan_id,
+        &format!("{label}.source.adaptation_plan_id"),
     )?;
-    source.shooting_script_sha256 = maps
-        .shooting_script_sha256s
-        .get(&old_shooting_script_id)
+    source.adaptation_plan_sha256 = maps
+        .authoring_document_sha256s
+        .get(&old_plan_id)
         .cloned()
         .ok_or_else(|| {
             ProjectFamilyImportError::invalid_package(format!(
-                "{label}.source.shooting_script_sha256 引用了导入包外或尚未导入的拍摄剧本: {old_shooting_script_id}"
+                "{label}.source.adaptation_plan_sha256 引用了导入包外或尚未导入的改编计划: {old_plan_id}"
             ))
         })?;
     source.source_revision_key =

@@ -30,6 +30,18 @@ fn mixed_scene_sources_preserve_separate_portrait_intents() {
         .unwrap()
         .source_snapshot_id = Some(902);
     package.galgame_scenes[0].source_snapshot_chapter_id = 11_001;
+    let mut new_plan = package.authoring_documents[0].clone();
+    new_plan.id += 10_000;
+    new_plan.source_snapshot_id = 902;
+    new_plan.inputs_json["sources"][0]["source_snapshot_id"] = json!(902);
+    new_plan.inputs_json["sources"][0]["source_snapshot_chapter_id"] = json!(11_001);
+    new_plan.document_sha256 = a4n_db::generation::canonical_json_sha256(&(
+        &new_plan.inputs_json,
+        &new_plan.document_json,
+    ))
+    .unwrap();
+    package.galgame_scenes[0].adaptation_plan_id = Some(new_plan.id);
+    package.authoring_documents.push(new_plan);
     let mut old_scene = galgame_scene_record_with_id(2202, 1001, "main", None);
     old_scene.scene_index = 2;
     package.galgame_scenes.push(old_scene);

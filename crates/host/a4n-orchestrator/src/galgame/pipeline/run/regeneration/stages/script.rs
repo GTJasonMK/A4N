@@ -7,9 +7,9 @@ use crate::galgame::{
 };
 use a4n_prompt::rendering::PromptRenderer;
 
-use super::super::super::llm::GalgameLlmOnceInput;
 use super::super::super::validation::ensure_single_regenerated_scene_lines;
 use super::super::contracts::PreparedGalgameSceneRegeneration;
+use crate::workflow::WorkflowLlmOnceInput;
 
 pub(super) async fn run_script_adaptation_stage(
     service: &OrchestratorContext,
@@ -19,8 +19,9 @@ pub(super) async fn run_script_adaptation_stage(
     prompt_renderer: &dyn PromptRenderer,
 ) -> Result<(Value, GalgameScriptAdaptation), AppError> {
     service
-        .run_galgame_llm_once(
-            GalgameLlmOnceInput {
+        .run_workflow_llm_once(
+            WorkflowLlmOnceInput {
+                stage_key: "script_adaptation",
                 prompt_renderer,
                 project_id: input.project_id,
                 root_project_id: input.root_project_id,
@@ -40,7 +41,7 @@ pub(super) async fn run_script_adaptation_stage(
                 ensure_single_regenerated_scene_lines(&parsed)?;
                 crate::galgame::pipeline::persist::validate_galgame_script_adaptation(
                     &parsed,
-                    &prepared.shooting_script_projection,
+                    &prepared.adaptation_projection,
                     &branch.1,
                     &prepared.persist_source_spans,
                 )?;

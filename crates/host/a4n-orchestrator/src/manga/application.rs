@@ -17,10 +17,7 @@ use super::{
     MangaPipelineRequestPreviewStep, MangaPromptOptimizationInput, ensure_manga_source_can_write,
     manga_pipeline_fingerprint,
 };
-use crate::{
-    OrchestratorContext, prompt_records::PromptRendererAdapter,
-    shooting_script::ChapterShootingScriptSourceInput,
-};
+use crate::{OrchestratorContext, prompt_records::PromptRendererAdapter};
 use a4n_domain::collaboration::ProjectAccessRole;
 use a4n_manga_core::manga_page_prompt_summary;
 
@@ -29,6 +26,7 @@ pub struct MangaPipelineApplicationInput<'a> {
     pub chapter_number: i32,
     pub task_id: &'a str,
     pub resume_from_checkpoint: bool,
+    pub stop_after: Option<a4n_api_contract::manga::MangaPipelineStopAfter>,
     pub prompt_renderer: &'a dyn PromptRenderer,
 }
 
@@ -36,6 +34,7 @@ pub struct MangaPipelinePreviewApplicationInput<'a> {
     pub project_id: i64,
     pub chapter_number: i32,
     pub resume_from_checkpoint: bool,
+    pub stop_after: Option<a4n_api_contract::manga::MangaPipelineStopAfter>,
     pub prompt_renderer: &'a dyn PromptRenderer,
 }
 
@@ -49,12 +48,6 @@ impl OrchestratorContext {
             .chapter_manga_source_by_number(project_id, chapter_number, true)
             .await?;
         ensure_manga_source_can_write(&source, "启动漫画流水线")?;
-        self.require_current_chapter_shooting_script(ChapterShootingScriptSourceInput {
-            project_id,
-            source_chapter_id: source.chapter_id,
-            visual_plan_id: None,
-        })
-        .await?;
         Ok(())
     }
 
@@ -69,7 +62,7 @@ impl OrchestratorContext {
         let source = source_result?;
         ensure_manga_source_can_write(&source, "启动漫画流水线")?;
         let character_portraits = character_portraits_result?;
-        let workflow = self
+        let (workflow, restore_from_checkpoint) = self
             .begin_manga_pipeline_workflow_validated(
                 input.project_id,
                 source.chapter_id,
@@ -77,6 +70,7 @@ impl OrchestratorContext {
                 &character_portraits,
                 input.task_id.to_string(),
                 input.resume_from_checkpoint,
+                input.stop_after,
             )
             .await?;
         let result = self
@@ -87,7 +81,8 @@ impl OrchestratorContext {
                 character_portraits,
                 task_id: input.task_id,
                 workflow_run_id: workflow.id,
-                resume_from_checkpoint: input.resume_from_checkpoint,
+                resume_from_checkpoint: restore_from_checkpoint,
+                stop_after: input.stop_after,
             })
             .await;
         self.finalize_workflow_result(workflow.id, result, "漫画流水线")
@@ -118,7 +113,14 @@ impl OrchestratorContext {
                 .id,
             )
         } else {
-            None
+            self.completed_manga_plan_workflow(
+                input.project_id,
+                source.chapter_id,
+                &workflow_fingerprint,
+                input.stop_after,
+            )
+            .await?
+            .map(|run| run.id)
         };
         self.preview_generate_page_prompt_requests(MangaPipelineRequestPreviewInput {
             chapter_id: source.chapter_id,
@@ -126,7 +128,8 @@ impl OrchestratorContext {
             prompt_renderer: input.prompt_renderer,
             character_portraits,
             workflow_run_id,
-            resume_from_checkpoint: input.resume_from_checkpoint,
+            resume_from_checkpoint: workflow_run_id.is_some(),
+            stop_after: input.stop_after,
         })
         .await
     }
@@ -334,6 +337,7 @@ impl a4n_api_contract::manga::MangaPipelineExecutionApplicationPort for Orchestr
         chapter_number: i32,
         task_id: String,
         resume_from_checkpoint: bool,
+        stop_after: Option<a4n_api_contract::manga::MangaPipelineStopAfter>,
         prompt_renderer: &dyn a4n_api_contract::prompt::PromptRenderPort,
     ) -> Result<(), AppError> {
         let prompt_renderer = PromptRendererAdapter(prompt_renderer);
@@ -344,6 +348,7 @@ impl a4n_api_contract::manga::MangaPipelineExecutionApplicationPort for Orchestr
             chapter_number,
             task_id: &task_id,
             resume_from_checkpoint,
+            stop_after,
             prompt_renderer: &prompt_renderer,
         })
         .await
@@ -359,6 +364,7 @@ impl a4n_api_contract::manga::MangaPipelinePreviewApplicationPort for Orchestrat
         project_id: i64,
         chapter_number: i32,
         resume_from_checkpoint: bool,
+        stop_after: Option<a4n_api_contract::manga::MangaPipelineStopAfter>,
         prompt_renderer: &dyn a4n_api_contract::prompt::PromptRenderPort,
     ) -> Result<Vec<MangaPipelinePreviewStep>, AppError> {
         let prompt_renderer = PromptRendererAdapter(prompt_renderer);
@@ -368,6 +374,7 @@ impl a4n_api_contract::manga::MangaPipelinePreviewApplicationPort for Orchestrat
             project_id,
             chapter_number,
             resume_from_checkpoint,
+            stop_after,
             prompt_renderer: &prompt_renderer,
         })
         .await?

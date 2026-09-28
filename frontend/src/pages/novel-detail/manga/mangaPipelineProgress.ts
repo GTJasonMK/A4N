@@ -10,6 +10,7 @@ import { explainMangaPipelineAiConfigError } from "./mangaPipelineErrors";
 import { MANGA_PIPELINE_TOTAL_STEPS, mangaStageLabel } from "./mangaTabUtils";
 
 export interface MangaTabProps {
+  onDirtyChange?: (dirty: boolean) => void;
   projectId: number;
   canEditManga?: boolean;
   snapshotChapters?: import("../../../api/project").SourceSnapshotChapterSummary[];

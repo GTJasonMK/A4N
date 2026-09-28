@@ -1,9 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { useBeforeUnload, useBlocker } from "react-router-dom";
 import type { GalgameChoice, GalgameLine } from "../../../api/galgame";
-import { BookButton } from "../../../components/ui/BookButton";
-import { Modal } from "../../../components/ui/Modal";
-import { useI18n } from "../../../i18n";
 import { buildChoiceDrafts, type ChoiceDraft } from "./GalgameChoiceEditor";
 import { buildCgDraft, updatePresentationJson, type CgDraft } from "./presentation";
 
@@ -72,35 +68,4 @@ export function useGalgameDrafts(projectId: number, choicesByLine: ReadonlyMap<n
     hasUnsavedDrafts: Object.keys(choiceDrafts).length > 0 || Object.keys(cgDrafts).length > 0,
     updateChoiceDraft, updateCgDraft, clearChoiceDraft, clearCgDraft, clearDrafts, saveCgDraft,
   };
-}
-
-export function GalgameDraftGuard({ dirty, onDiscard }: { dirty: boolean; onDiscard: () => void }) {
-  const { t } = useI18n();
-  const blocker = useBlocker(dirty);
-  useBeforeUnload((event) => {
-    if (!dirty) return;
-    event.preventDefault();
-    event.returnValue = "";
-  });
-  if (blocker.state !== "blocked") return null;
-  return (
-    <Modal
-      isOpen
-      onClose={blocker.reset}
-      title={t("common.unsavedChangesTitle")}
-      tone="warning"
-      maxWidthClassName="max-w-xl"
-      footer={
-        <>
-          <BookButton variant="secondary" onClick={blocker.reset}>{t("common.cancel")}</BookButton>
-          <BookButton variant="warning" onClick={() => {
-            onDiscard();
-            blocker.proceed();
-          }}>{t("common.discardDraft")}</BookButton>
-        </>
-      }
-    >
-      {t("galgame.unsavedChoices")}
-    </Modal>
-  );
 }

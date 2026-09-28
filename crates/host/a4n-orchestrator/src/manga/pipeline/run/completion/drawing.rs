@@ -13,7 +13,11 @@ pub(super) async fn run_completion_drawing(
     let chapter_id = context.chapter_id;
     let project_id = context.project_id;
     let reference_assets = context.reference_assets.clone();
-    let MangaPlanningRun { extraction, plan } = planning;
+    let MangaPlanningRun {
+        extraction,
+        plan,
+        page_plan_ref,
+    } = planning;
     let extraction_summary = extraction.extraction_summary;
 
     let dp_step = service
@@ -44,6 +48,7 @@ pub(super) async fn run_completion_drawing(
 
     Ok(MangaCompletionArtifacts {
         plan,
+        page_plan_ref,
         page_prompts,
         page_traces,
     })

@@ -4,7 +4,7 @@ use crate::galgame::galgame_line_from_model;
 
 pub(in super::super) fn validate_galgame_line_semantics(
     line: &galgame_line::Model,
-) -> Result<(), String> {
+) -> Result<crate::galgame::GalgameLine, String> {
     if line.line_index <= 0 {
         return Err(format!(
             "项目族导入包 Galgame 行 line_index 必须是正整数: line_id={}, line_index={}",
@@ -17,7 +17,5 @@ pub(in super::super) fn validate_galgame_line_semantics(
             line.id
         ));
     }
-    galgame_line_from_model(line.clone())
-        .map(|_| ())
-        .map_err(|error| format!("项目族导入包 {error}"))
+    galgame_line_from_model(line.clone()).map_err(|error| format!("项目族导入包 {error}"))
 }

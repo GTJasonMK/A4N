@@ -112,12 +112,14 @@ fn build_manga_step_user_message_uses_json_payload() {
         }),
     )
     .expect("manga step message should build");
-    let message = render_manifest(message);
-
-    assert!(message.contains(r#""prompt_name": "manga_speech_selection""#));
-    assert!(message.contains(r#""input": {"#));
-    assert!(message.contains(r#""output_contract": {"#));
-    assert!(!message.contains("## 章节内容"));
+    let payload: Value = serde_json::from_str(
+        a4n_prompt::request::json_user_message_payload(&message.dynamic_user_content).unwrap(),
+    )
+    .unwrap();
+    assert_eq!(payload["task"]["prompt_name"], "manga_speech_selection");
+    assert!(payload["input"].is_object());
+    assert!(payload["output_contract"].is_object());
+    assert!(render_manifest(message).contains("章节正文"));
 }
 
 #[test]
@@ -132,15 +134,29 @@ fn manga_speech_selection_user_message_uses_event_windows() {
         .clone();
     let message = manga_speech_selection_user_message(
         json!({"林晓雨": {"name": "林晓雨"}}),
-        json!([{"beat_ref": {"scene_index": 1, "shot_index": 1, "beat_index": 1}, "description": "林晓雨与陌生人对话", "source_span_ids": [span_id]}]),
+        json!([{"beat_ref": {"unit_id": "unit-1", "beat_id": "beat-1"}, "description": "林晓雨与陌生人对话", "source_span_ids": [span_id]}]),
         &source_spans,
         json!({"character_portraits": []}),
     )
     .expect("speech selection prompt should serialize");
+    let chapter = message
+        .packs
+        .iter()
+        .find_map(|pack| {
+            pack.variants[0]
+                .canonical_content_json
+                .pointer("/input/chapter")
+        })
+        .unwrap();
+    assert_eq!(chapter["source_windows"].as_array().unwrap().len(), 1);
+    assert!(
+        !chapter["available_source_spans"]
+            .as_array()
+            .unwrap()
+            .is_empty()
+    );
     let message = render_manifest(message);
 
-    assert!(message.contains(r#""source_windows": ["#));
-    assert!(message.contains(r#""available_source_spans": ["#));
     assert!(!message.contains(r#""content": "林晓雨低声说，你好。她忽然意识到这不是巧合。""#));
     assert!(message.contains(r#""source_span_rule""#));
     assert!(message.contains("input.chapter.available_source_spans"));
@@ -163,14 +179,28 @@ fn manga_visual_anchor_extraction_user_message_uses_event_windows() {
         .id
         .clone();
     let message = manga_visual_anchor_extraction_user_message(
-        json!([{"beat_ref": {"scene_index": 1, "shot_index": 1, "beat_index": 1}, "description": "林晓雨推门", "source_span_ids": [span_id]}]),
+        json!([{"beat_ref": {"unit_id": "unit-1", "beat_id": "beat-1"}, "description": "林晓雨推门", "source_span_ids": [span_id]}]),
         &source_spans,
     )
     .expect("visual anchor prompt should serialize");
+    let chapter = message
+        .packs
+        .iter()
+        .find_map(|pack| {
+            pack.variants[0]
+                .canonical_content_json
+                .pointer("/input/chapter")
+        })
+        .unwrap();
+    assert_eq!(chapter["source_windows"].as_array().unwrap().len(), 1);
+    assert!(
+        !chapter["available_source_spans"]
+            .as_array()
+            .unwrap()
+            .is_empty()
+    );
     let message = render_manifest(message);
 
-    assert!(message.contains(r#""source_windows": ["#));
-    assert!(message.contains(r#""available_source_spans": ["#));
     assert!(!message.contains(r#""content": "林晓雨推开门。陌生人站在雨里。""#));
     assert!(message.contains(r#""source_span_rule""#));
     assert!(message.contains("input.chapter.available_source_spans"));

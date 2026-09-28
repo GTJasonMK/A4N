@@ -1,7 +1,7 @@
 use super::*;
-use a4n_domain::manga::MangaPageV3;
+use a4n_domain::manga::MangaPageV4;
 
-fn manga_page_with_participants(participants: &[&str]) -> MangaPageV3 {
+fn manga_page_with_participants(participants: &[&str]) -> MangaPageV4 {
     serde_json::from_value(json!({
         "page_number": 2,
         "beat_refs": [],

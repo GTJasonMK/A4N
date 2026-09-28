@@ -182,7 +182,7 @@ export const galgame = {
   pose: { natural: "自然", standing: "站立", sitting: "坐姿", walking: "行走", turning: "转身", closeUp: "近景" },
   cgImportance: { normal: "普通", high: "重要", critical: "关键" },
   transition: { none: "无转场", cut: "直接切换", fade: "淡入淡出", dissolve: "叠化" },
-  startStage: { all: "自动选择起点", shootingScript: "拍摄剧本投影", adaptation: "剧本改编", staging: "角色演出", planning: "视觉规划", branch: "分支设计", persist: "写入剧本", asset: "资产意图" },
+  startStage: { all: "自动选择起点", adaptationPlan: "改编计划", shootingScript: "拍摄剧本投影（旧版）", adaptation: "剧本改编", staging: "角色演出", planning: "视觉规划", branch: "分支设计", persist: "写入剧本", asset: "资产意图" },
   sceneEntry: { main: "主线", branch: "支线", other: "其他场次" },
   assetOutcome: { created: "新增", updated: "更新", reused: "复用", other: "其他结果" },
   assetStatus: { draft: "待生成", completed: "已完成", failed: "失败", running: "生成中" },

@@ -83,6 +83,7 @@ async fn deleting_script_is_revision_fenced_and_preserves_downstream_state() {
         .unwrap();
     let record = chapter_shooting_script::ActiveModel {
         id: NotSet,
+        project_id: Set(downstream.id),
         root_project_id: Set(root.id),
         source_chapter_id: Set(chapter.id),
         source_snapshot_id: Set(None),

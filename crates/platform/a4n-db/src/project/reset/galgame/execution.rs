@@ -39,6 +39,12 @@ pub(in crate::project::reset) async fn reset_galgame_generated_data_in_tx(
     let generation_media_cleanup =
         project_db::delete_project_generation_media_graph(&tx, project_id).await?;
     let galgame_cleanup = delete_galgame_script_records_for_project(&tx, project_id).await?;
+    project_db::delete_project_chapter_adaptation_records(
+        &tx,
+        project_id,
+        project_db::ProjectChapterAdaptationDeleteScope::Project,
+    )
+    .await?;
     let conversation_cleanup = project_db::delete_project_conversations(&tx, project_id).await?;
     let task_cleanup = project_db::delete_project_task_queue_records(&tx, project_id).await?;
 

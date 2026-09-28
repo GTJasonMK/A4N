@@ -7,7 +7,7 @@ pub async fn start_galgame_pipeline(
     state: &AppState,
     user_id: i64,
     input: StartGalgamePipelineInput,
-) -> Result<GalgameScriptDetail, String> {
+) -> Result<Option<GalgameScriptDetail>, String> {
     start_galgame_pipeline_with_progress(state, user_id, input, None).await
 }
 
@@ -16,7 +16,7 @@ pub async fn start_galgame_pipeline_with_progress(
     user_id: i64,
     input: StartGalgamePipelineInput,
     progress_reporter: Option<GalgameProgressReporter>,
-) -> Result<GalgameScriptDetail, String> {
+) -> Result<Option<GalgameScriptDetail>, String> {
     let prompt_renderer = state;
     state
         .galgame_pipeline_execution_application()

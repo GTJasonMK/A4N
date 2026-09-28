@@ -57,6 +57,8 @@ where
 
     let mut active_scene: galgame_scene::ActiveModel = scene.clone().into();
     active_scene.source_snapshot_chapter_id = Set(new_source_snapshot_chapter_id);
+    active_scene.adaptation_plan_id = Set(Some(generated_scene.adaptation_plan_id));
+    active_scene.adaptation_unit_id = Set(Some(generated_scene.adaptation_unit_id));
     active_scene.title = Set(generated_scene.title);
     active_scene.location = Set(generated_scene.location);
     active_scene.time_of_day = Set(generated_scene.time_of_day);

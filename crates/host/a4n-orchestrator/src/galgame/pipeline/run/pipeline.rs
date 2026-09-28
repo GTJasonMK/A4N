@@ -5,4 +5,4 @@ mod late_stages;
 mod orchestration;
 mod preparation;
 
-pub use early_stages::scene::galgame_shooting_script_projection;
+pub use early_stages::scene::galgame_adaptation_projection;

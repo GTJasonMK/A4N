@@ -1,12 +1,6 @@
-use a4n_db_models::models::{
-    chapter::chapter_visual_plan,
-    project::{project_source_snapshot, source_snapshot_chapter},
-};
+use a4n_db_models::models::project::{project_source_snapshot, source_snapshot_chapter};
 use chrono::NaiveDateTime;
-use sea_orm::{
-    ActiveModelTrait, ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QueryOrder,
-    QuerySelect, Set,
-};
+use sea_orm::{ActiveModelTrait, ConnectionTrait, EntityTrait, Set};
 use serde_json::Value;
 use std::collections::HashMap;
 
@@ -55,34 +49,6 @@ where
     .await
     .map_err(ProjectMutationError::Database)?;
 
-    let chapter_ids = data
-        .chapters
-        .iter()
-        .map(|chapter| chapter.id)
-        .collect::<Vec<_>>();
-    let latest_plan_version_by_chapter = chapter_visual_plan::Entity::find()
-        .select_only()
-        .column(chapter_visual_plan::Column::SourceChapterId)
-        .column(chapter_visual_plan::Column::PlanVersion)
-        .filter(chapter_visual_plan::Column::RootProjectId.eq(root_project_id))
-        .filter(chapter_visual_plan::Column::SourceChapterId.is_in(chapter_ids.iter().copied()))
-        .distinct_on([chapter_visual_plan::Column::SourceChapterId])
-        .order_by_asc(chapter_visual_plan::Column::SourceChapterId)
-        .order_by_desc(chapter_visual_plan::Column::PlanVersion)
-        .order_by_desc(chapter_visual_plan::Column::Id)
-        .into_tuple::<(i64, i32)>()
-        .all(db)
-        .await
-        .map_err(ProjectMutationError::Database)?
-        .into_iter()
-        .fold(
-            HashMap::new(),
-            |mut versions, (source_chapter_id, version)| {
-                versions.entry(source_chapter_id).or_insert(version);
-                versions
-            },
-        );
-
     let snapshot_chapter_rows = data
         .chapters
         .iter()
@@ -130,7 +96,7 @@ where
 
     let mut pending_anchors = Vec::with_capacity(data.chapters.len());
     for chapter in data.chapters {
-        let mut snapshot_chapter = snapshot_chapters_by_source_id
+        let snapshot_chapter = snapshot_chapters_by_source_id
             .remove(&chapter.id)
             .ok_or_else(|| {
                 ProjectMutationError::Internal(format!(
@@ -138,93 +104,6 @@ where
                     chapter.id
                 ))
             })?;
-        if let Some(live_plan) = data.visual_plans.get(&chapter.id) {
-            let source_revision_key = format!(
-                "snapshot:{}:chapter:{}:{}",
-                snapshot.id, snapshot_chapter.id, snapshot_chapter.content_hash
-            );
-            let snapshot_plan_version = latest_plan_version_by_chapter
-                .get(&chapter.id)
-                .copied()
-                .map_or(Ok(1), |version| {
-                    version.checked_add(1).ok_or_else(|| {
-                        ProjectMutationError::Internal("章节视觉编排版本超出 i32 范围".to_string())
-                    })
-                })?;
-            let snapshot_plan = chapter_visual_plan::ActiveModel {
-                root_project_id: Set(live_plan.root_project_id),
-                source_chapter_id: Set(live_plan.source_chapter_id),
-                source_snapshot_id: Set(Some(snapshot.id)),
-                source_snapshot_chapter_id: Set(Some(snapshot_chapter.id)),
-                source_revision_key: Set(source_revision_key.clone()),
-                source_content_sha256: Set(live_plan.source_content_sha256.clone()),
-                contract_version: Set(live_plan.contract_version.clone()),
-                plan_version: Set(snapshot_plan_version),
-                revision: Set(live_plan.revision),
-                status: Set(live_plan.status.clone()),
-                authoring_mode: Set(live_plan.authoring_mode.clone()),
-                plan_sha256: Set(live_plan.plan_sha256.clone()),
-                plan_json: Set(live_plan.plan_json.clone()),
-                author_user_id: Set(live_plan.author_user_id),
-                confirmed_at: Set(live_plan.confirmed_at),
-                created_at: Set(now),
-                updated_at: Set(now),
-                ..Default::default()
-            }
-            .insert(db)
-            .await
-            .map_err(ProjectMutationError::Database)?;
-            let mut snapshot_chapter_update: source_snapshot_chapter::ActiveModel =
-                snapshot_chapter.clone().into();
-            snapshot_chapter_update.visual_plan_id = Set(Some(snapshot_plan.id));
-            snapshot_chapter_update.visual_plan_version = Set(Some(snapshot_plan.plan_version));
-            snapshot_chapter_update.visual_plan_sha256 =
-                Set(Some(snapshot_plan.plan_sha256.clone()));
-            snapshot_chapter = snapshot_chapter_update
-                .update(db)
-                .await
-                .map_err(ProjectMutationError::Database)?;
-            if let Some(live_script) = data.shooting_scripts.get(&chapter.id) {
-                let mut script: a4n_domain::shooting_script::ChapterShootingScriptV2 =
-                    serde_json::from_value(live_script.script_json.clone()).map_err(|error| {
-                        ProjectMutationError::Internal(format!("解析源拍摄剧本失败: {error}"))
-                    })?;
-                script.visual_plan_source =
-                    Some(a4n_domain::shooting_script::ShootingVisualPlanSourceV1 {
-                        plan_id: snapshot_plan.id,
-                        plan_version: snapshot_plan.plan_version,
-                        plan_sha256: snapshot_plan.plan_sha256.clone(),
-                    });
-                crate::shooting_script::insert_chapter_shooting_script(
-                    db,
-                    crate::shooting_script::InsertChapterShootingScriptInput {
-                        source: a4n_domain::chapter::ResolvedChapterSource {
-                            requested_project_id: root_project_id,
-                            root_project_id,
-                            source_chapter_id: chapter.id,
-                            source_snapshot_id: Some(snapshot.id),
-                            source_snapshot_chapter_id: Some(snapshot_chapter.id),
-                            chapter_number: snapshot_chapter.chapter_number,
-                            title: snapshot_chapter.title.clone(),
-                            summary: snapshot_chapter.summary.clone(),
-                            analysis_data_json: snapshot_chapter.analysis_data_json.clone(),
-                            content: snapshot_chapter.content.clone(),
-                            content_sha256: snapshot_chapter.content_hash.clone(),
-                            source_revision_key,
-                        },
-                        input_fingerprint_sha256: live_script.input_fingerprint_sha256.clone(),
-                        visual_plan: crate::shooting_script::ChapterVisualPlanIdentity {
-                            id: snapshot_plan.id,
-                            version: snapshot_plan.plan_version,
-                            sha256: snapshot_plan.plan_sha256,
-                        },
-                        script,
-                        workflow_run_id: None,
-                    },
-                )
-                .await?;
-            }
-        }
         pending_anchors.push(PendingSnapshotAnchor {
             source_chapter_id: snapshot_chapter.source_chapter_id,
             source_snapshot_chapter_id: snapshot_chapter.id,

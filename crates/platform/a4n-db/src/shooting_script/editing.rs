@@ -59,12 +59,7 @@ pub async fn edit_chapter_shooting_script_and_invalidate(
             invalidated_project_ids: Vec::new(),
         });
     }
-    let invalidated_project_ids = crate::project::projects_using_source_snapshot(
-        &tx,
-        current.record.root_project_id,
-        current.record.source_snapshot_id,
-    )
-    .await?;
+    let invalidated_project_ids = vec![current.record.project_id];
     tx.commit().await?;
     Ok(EditChapterShootingScriptOutcome {
         shooting_script,

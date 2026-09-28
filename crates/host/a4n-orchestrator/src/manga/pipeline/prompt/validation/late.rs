@@ -1,5 +1,6 @@
 use std::collections::HashSet;
 
+use crate::manga::adaptation_projection::MangaBeatIndex;
 use a4n_error::AppError;
 use serde_json::Value;
 
@@ -7,14 +8,14 @@ use a4n_domain::source_spans::SourceSpan;
 
 use super::common::{
     SourceSpanIndex, reject_manga_unknown_fields, required_manga_enum, required_manga_string,
-    validate_manga_beat_ref, validate_manga_beat_refs, validate_manga_nonnegative_index,
-    validate_manga_nullable_string, validate_manga_source_span_id_array,
+    validate_manga_adaptation_sources, validate_manga_beat_ref, validate_manga_beat_refs,
+    validate_manga_nonnegative_index, validate_manga_nullable_string,
 };
 
 pub(in crate::manga) fn validate_manga_visual_anchor_source_span_ids(
     visual_json: &Value,
     source_spans: &[SourceSpan],
-    known_beats: &HashSet<(i64, i64, i64)>,
+    known_beats: &MangaBeatIndex,
 ) -> Result<(), AppError> {
     reject_manga_unknown_fields(visual_json, &["scenes"], "manga_visual_anchor_extraction")?;
     let scenes = visual_json
@@ -52,15 +53,21 @@ pub(in crate::manga) fn validate_manga_visual_anchor_source_span_ids(
         required_manga_string(scene, "lighting", &path)?;
         required_manga_enum(scene, "indoor_outdoor", &path, &["indoor", "outdoor"])?;
         required_manga_string(scene, "description", &path)?;
-        validate_manga_source_span_id_array(
-            scene,
-            &source_spans,
-            &format!("{path}.source_span_ids"),
-        )?;
-        validate_manga_beat_refs(
+        let references = validate_manga_beat_refs(
             scene.get("beat_refs"),
             &format!("{path}.beat_refs"),
             known_beats,
+        )?;
+        let ids: Vec<String> =
+            serde_json::from_value(scene.get("source_span_ids").cloned().ok_or_else(|| {
+                AppError::InvalidArgument(format!("{path}.source_span_ids 缺失"))
+            })?)?;
+        validate_manga_adaptation_sources(
+            &ids,
+            &references,
+            known_beats,
+            &source_spans,
+            &format!("{path}.source_span_ids"),
         )?;
     }
     Ok(())
@@ -70,7 +77,7 @@ pub(in crate::manga) fn validate_manga_item_extraction_source_span_ids(
     items_json: &Value,
     source_spans: &[SourceSpan],
     allowed_source_span_ids: &[String],
-    known_beats: &HashSet<(i64, i64, i64)>,
+    known_beats: &MangaBeatIndex,
 ) -> Result<(), AppError> {
     reject_manga_unknown_fields(items_json, &["items"], "manga_item_extraction")?;
     let items = items_json
@@ -105,11 +112,22 @@ pub(in crate::manga) fn validate_manga_item_extraction_source_span_ids(
         required_manga_string(item, "importance", &path)?;
         required_manga_string(item, "visual_features", &path)?;
         let source_span_path = format!("{path}.source_span_ids");
-        validate_manga_source_span_id_array(item, &source_spans, &source_span_path)?;
-        validate_manga_beat_ref(
+        let reference = validate_manga_beat_ref(
             item.get("first_appearance_beat_ref"),
             &format!("{path}.first_appearance_beat_ref"),
             known_beats,
+        )?;
+        let source_ids: Vec<String> = serde_json::from_value(
+            item.get("source_span_ids")
+                .cloned()
+                .ok_or_else(|| AppError::InvalidArgument(format!("{source_span_path} 缺失")))?,
+        )?;
+        validate_manga_adaptation_sources(
+            &source_ids,
+            &[reference],
+            known_beats,
+            &source_spans,
+            &source_span_path,
         )?;
         let ids = item
             .get("source_span_ids")

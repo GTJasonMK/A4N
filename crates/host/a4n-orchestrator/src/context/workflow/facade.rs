@@ -361,6 +361,18 @@ impl OrchestratorContext {
         self.workflow.resume_or_upsert_workflow_run(input).await
     }
 
+    pub(crate) async fn continue_completed_workflow_run_validated(
+        &self,
+        source_run_id: i64,
+        input: UpsertWorkflowRunInput,
+    ) -> Result<workflow_run::Model, AppError> {
+        crate::workflow::validate_begin_workflow_run_input(&input)
+            .map_err(AppError::InvalidArgument)?;
+        self.workflow
+            .continue_completed_workflow_run(source_run_id, input)
+            .await
+    }
+
     pub(crate) async fn finalize_workflow_result<T>(
         &self,
         workflow_run_id: i64,

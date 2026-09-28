@@ -37,6 +37,9 @@ pub(super) async fn preview_planning(
     let Some(plan) = preview_page_plan(context, steps, &extraction_summary).await? else {
         return Ok(());
     };
+    if context.stop_after == Some(a4n_api_contract::manga::MangaPipelineStopAfter::PagePlanning) {
+        return Ok(());
+    }
     preview_page_drawing_prompts(
         context,
         steps,

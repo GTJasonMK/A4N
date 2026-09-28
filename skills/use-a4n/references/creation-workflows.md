@@ -10,7 +10,7 @@ Do not hardcode generation payloads. For each named command, run `capabilities d
 4. Generate and refine a blueprint (`start_blueprint_generation`, `start_blueprint_refinement`), then confirm it.
 5. Generate part/chapter outlines (`start_outline_generation` and the current outline commands).
 6. Generate or import chapter text (`start_chapter_generation` or `chapter import`).
-7. Analyze chapters, sync character/scene/object profiles, and optionally build shooting scripts.
+7. Analyze chapters and sync character/scene/object profiles.
 8. Add Embedding/RAG, images, manga, video, or GALGame only when needed.
 
 Watch each returned handle only when its response/state is non-terminal. Consume synchronous completed results directly.
@@ -26,12 +26,14 @@ Watch each returned handle only when its response/state is non-terminal. Consume
 
 ## Derive manga, video, or GALGame
 
-1. Ensure source chapters have current content; generate matching shooting scripts where the target workflow requires them.
+1. Ensure source chapters have saved content.
 2. Inspect `create_derived_project`, select kind and chapter range, and create the derived project.
 3. Select the new project context.
-4. Run the domain pipeline (`start_manga_pipeline`, video planning/generation commands, or Galgame pipeline commands).
+4. In a video project, create the chapter's director plan and shooting script before planning media. Manga and Galgame create their own adaptation plans from the frozen text; a captured script version from a sibling video is optional.
 5. Watch workflows, review generated assets, then export/download.
 6. When source text changes, run `preview_source_sync` before `apply_source_sync_decisions`; never apply conflicts blindly.
+
+Each media workspace shows explicit stages. Manga can stop at page planning and Galgame at branch design for review and adoption. Their default one-click text pipelines do not generate paid media. See [manga-galgame.md](manga-galgame.md) for plan versions and optional video references.
 
 ## Freeform video canvas
 

@@ -32,6 +32,7 @@ where
     insert_character_portraits(txn, package, maps, media_importer).await?;
     insert_generated_images(txn, package, maps, media_importer).await?;
     super::visual_plan::remap_visual_plan_resources(txn, package, maps).await?;
+    super::authoring::remap_authoring_documents(txn, package, maps).await?;
     insert_manga_prompts(txn, package, maps).await?;
     update_generated_image_metadata(txn, package, maps).await
 }
@@ -49,6 +50,8 @@ async fn insert_shooting_scripts(
         maps.shooting_script_ids,
         "导入章节拍摄剧本失败",
         |active| {
+            maps.shooting_script_sources
+                .insert(script.id, script.into());
             let source_chapter_id = map_required(
                 &maps.chapter_ids,
                 script.source_chapter_id,
@@ -105,6 +108,11 @@ async fn insert_shooting_scripts(
                 .insert(script.id, source_revision_key.clone());
             maps.shooting_script_sha256s
                 .insert(script.id, script_sha256.clone());
+            active.project_id = Set(map_required(
+                &maps.project_ids,
+                script.project_id,
+                "拍摄剧本所属视频项目",
+            )?);
             active.root_project_id = Set(map_required(
                 &maps.project_ids,
                 script.root_project_id,

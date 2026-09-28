@@ -15,6 +15,11 @@ pub(super) async fn insert_galgame_rows(
         maps.galgame_script_ids,
         "导入 Galgame 剧本失败",
         |active| {
+            active.branch_plan_id = Set(map_optional(
+                &maps.authoring_document_ids,
+                script.branch_plan_id,
+                "Galgame 已采用分支计划",
+            )?);
             active.project_id = Set(map_required(
                 &maps.project_ids,
                 script.project_id,
@@ -40,6 +45,11 @@ pub(super) async fn insert_galgame_rows(
         maps.galgame_scene_ids,
         "导入 Galgame 场失败",
         |active| {
+            active.adaptation_plan_id = Set(map_optional(
+                &maps.authoring_document_ids,
+                scene.adaptation_plan_id,
+                "Galgame 场改编计划",
+            )?);
             active.script_id = Set(map_required(
                 &maps.galgame_script_ids,
                 scene.script_id,

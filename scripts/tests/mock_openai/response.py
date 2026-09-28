@@ -9,6 +9,7 @@ import time
 from typing import Any
 
 from mock_openai.fixtures.adaptations import (
+    media_adaptation_response,
     galgame_branch_design_response,
     galgame_character_staging_response,
     galgame_script_adaptation_response,
@@ -103,21 +104,21 @@ def response_for(body: dict[str, Any]) -> str:
         elif fault == "inspiration" and "conversation_state" in value:
             del value["conversation_state"]["genre"]
         elif fault == "galgame-branch" and "choices" in value:
-            value["choices"][0]["after_beat_ref"]["beat_index"] = 999
+            value["choices"][0]["after_beat_ref"]["beat_id"] = "missing-beat"
         elif fault == "galgame-script" and "scene_lines" in value and "presentation" not in value["scene_lines"][0]["lines"][0]:
-            value["scene_lines"][0]["lines"][0]["beat_ref"]["beat_index"] = 999
+            value["scene_lines"][0]["lines"][0]["beat_ref"]["beat_id"] = "missing-beat"
         elif fault == "galgame-staging" and "scene_lines" in value and "presentation" in value["scene_lines"][0]["lines"][0]:
             value["scene_lines"][0]["lines"][0]["text"] = "未经允许改写的剧情"
         elif fault == "galgame-visual" and "backgrounds" in value:
             value["backgrounds"][0]["scene_index"] = 999
         elif fault == "manga-speech" and "dialogues" in value:
-            (value["dialogues"] or value["narrations"])[0]["beat_ref"]["beat_index"] = 999
+            (value["dialogues"] or value["narrations"])[0]["beat_ref"]["beat_id"] = "missing-beat"
         elif fault == "manga-visual" and "scenes" in value:
-            value["scenes"][0]["beat_refs"][0]["beat_index"] = 999
+            value["scenes"][0]["beat_refs"][0]["beat_id"] = "missing-beat"
         elif fault == "manga-items" and "items" in value:
-            value["items"][0]["first_appearance_beat_ref"]["beat_index"] = 999
-        elif fault == "manga-planning" and value.get("schema_version") == "manga_page_plan_v3":
-            value["pages"][0]["beat_refs"][0]["beat_index"] = 999
+            value["items"][0]["first_appearance_beat_ref"]["beat_id"] = "missing-beat"
+        elif fault == "manga-planning" and value.get("schema_version") == "manga_page_plan_v4":
+            value["pages"][0]["beat_refs"][0]["beat_id"] = "missing-beat"
         elif fault == "manga-drawing" and value.get("schema_version") == "manga_page_drawing_prompt_v2" and value["page_number"] == 2:
             value["image_prompt"] = " "
         elif fault == "manga-optimization" and "image_prompt" in value:
@@ -136,6 +137,8 @@ def response_for(body: dict[str, Any]) -> str:
         return "pong"
 
     prompt_name = current_task_prompt_name(combined)
+    if "你负责把原作章节改编为指定媒介的叙事计划" in system:
+        return json.dumps(media_adaptation_response(combined), ensure_ascii=False)
     if body.get("model") == "a4n-fact-feedback-identity" and "chapter_foreshadowing_events" in combined:
         return json.dumps(identity_feedback_response(combined), ensure_ascii=False)
     if body.get("model") in {"a4n-fact-feedback", "a4n-fact-feedback-invalid"}:

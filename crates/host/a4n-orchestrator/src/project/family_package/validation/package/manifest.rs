@@ -45,6 +45,7 @@ fn validate_package_manifest_inner(
     validate_package_projects(package)?;
     validate_package_uniqueness(package)?;
     validate_source_snapshot_manifest(package)?;
+    super::super::authoring::validate_authoring_manifest(package)?;
     validate_visual_plan_manifest(package)?;
     validate_text_core_part_outline_ranges(package)?;
     validate_text_core_chapter_outline_statuses(package)?;

@@ -17,6 +17,7 @@ import { MangaTab } from "./novel-detail/MangaTab";
 import { SourceSyncDialog } from "./derived/SourceSyncDialog";
 import { getDerivedProjectSubtitle } from "../utils/projectRouting";
 import { useI18n } from "../i18n";
+import { confirmDiscardMediaChanges } from "../components/feedback/UnsavedChangesGuard";
 
 export const ComicProjectWorkspace: React.FC = () => {
   const { id } = useParams();
@@ -53,6 +54,7 @@ export const ComicProjectWorkspace: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [sourceSyncOpen, setSourceSyncOpen] = useState(false);
+  const [workspaceDirty, setWorkspaceDirty] = useState(false);
   const refreshRequestRef = useRef(0);
 
   const refresh = useCallback(async () => {
@@ -134,7 +136,7 @@ export const ComicProjectWorkspace: React.FC = () => {
             {canEditProject ? (
               <BookIconButton
                 label={t("comic.syncSource")}
-                onClick={() => setSourceSyncOpen(true)}
+                onClick={() => { void (async () => { if (await confirmDiscardMediaChanges(workspaceDirty, t)) setSourceSyncOpen(true); })(); }}
                 disabled={!project}
                 variant="secondary"
                 size="sm"
@@ -169,6 +171,7 @@ export const ComicProjectWorkspace: React.FC = () => {
           <MangaTab
             projectId={project.id}
             canEditManga={canEditProject}
+            onDirtyChange={setWorkspaceDirty}
             snapshotChapters={chapters}
             assetProjectId={project.root_project_id ?? project.id}
             imageProjectIds={imageProjectIds}

@@ -1,13 +1,15 @@
 use super::*;
-use a4n_domain::shooting_script::ShootingCoverageV1;
+use a4n_domain::media_authoring::{
+    AdaptationBeat, AdaptationBeatKind, AdaptationImportance, AdaptationOrigin,
+};
 use serde_json::Value;
 
-pub(super) fn single_shooting_script_projection() -> GalgameShootingScriptProjection {
-    shooting_script_projection_from_value(
+pub(super) fn single_adaptation_projection() -> GalgameAdaptationProjection {
+    adaptation_projection_from_value(
         json!({
             "scenes": [directing_scene_value(1, "雨夜重逢", "s1")]
         }),
-        "galgame_shooting_script_projection",
+        "galgame_adaptation_projection",
     )
     .expect("single directing projection")
 }
@@ -25,16 +27,19 @@ pub(super) fn directing_scene_value_with_beats(
     index: i32,
     title: &str,
     source_span_id: &str,
-    beats: Vec<GalgamePipelineShootingBeat>,
+    beats: Vec<AdaptationBeat>,
 ) -> Value {
     json!({
         "index": index,
+        "origin": "source",
         "title": title,
         "source_span_ids": [source_span_id],
-        "shooting_script_id": 10,
-        "shooting_script_revision": 1,
-        "chapter_number": 1,
-        "shooting_scene_index": index,
+        "adaptation_plan_id": index + 9,
+        "adaptation_plan_revision": 1,
+        "source_chapter_id": index,
+        "source_snapshot_chapter_id": index + 19,
+        "chapter_number": index,
+        "unit_id": format!("scene-{index}"),
         "participants": [],
         "beats": beats
     })
@@ -54,22 +59,27 @@ pub(super) fn empty_branch_design() -> GalgameBranchDesign {
         .expect("empty branch design")
 }
 
-pub(super) fn directing_beat(beat_index: u32, source_span_id: &str) -> GalgamePipelineShootingBeat {
-    GalgamePipelineShootingBeat {
-        shot_index: 1,
-        beat_index,
-        coverage: ShootingCoverageV1::MustShow,
-        required: true,
-        objective: "推进当前戏剧目标".to_string(),
-        obstacle: "信息与行动受阻".to_string(),
-        visible_action: "角色做出可见行动".to_string(),
+pub(super) fn directing_beat(beat_index: u32, source_span_id: &str) -> AdaptationBeat {
+    AdaptationBeat {
+        id: format!("beat-{beat_index}"),
+        origin: AdaptationOrigin::Source,
+        importance: AdaptationImportance::Required,
+        kind: AdaptationBeatKind::Action,
+        is_climax: false,
+        action: "角色做出可见行动".to_string(),
         reaction: Some("对方产生可见反应".to_string()),
         dialogue_intent: None,
-        audience_question: "行动会带来什么结果？".to_string(),
-        answer_or_delay: "暂时延迟答案".to_string(),
         entry_state: "动作开始".to_string(),
         exit_state: "动作完成".to_string(),
         source_span_ids: vec![source_span_id.to_string()],
+    }
+}
+
+pub(super) fn beat_reference(scene: i32, beat: u32) -> GalgamePipelineBeatRefV4 {
+    GalgamePipelineBeatRefV4 {
+        source_chapter_id: i64::from(scene),
+        unit_id: format!("scene-{scene}"),
+        beat_id: format!("beat-{beat}"),
     }
 }
 
@@ -111,7 +121,8 @@ pub(super) fn single_narration_staging() -> GalgameCharacterStaging {
                 "scene_index": 1,
                 "lines": [{
                     "index": 1,
-                    "beat_ref": {"scene_index": 1, "shot_index": 1, "beat_index": 1},
+                    "origin": "source",
+                    "beat_ref": beat_reference(1, 1),
                     "line_type": "narration",
                     "text": "雨声压过脚步。",
                     "presentation": {

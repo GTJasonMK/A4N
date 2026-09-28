@@ -41,8 +41,7 @@ pub async fn chapter_shooting_script_progress_for_source<C: ConnectionTrait>(
 }
 
 /// Only progress owned by this project and the exact confirmed plan is eligible.
-/// Frozen projects acquire root progress by copying it during explicit source sync.
-pub(crate) async fn chapter_shooting_script_progress_for_plans<C: ConnectionTrait>(
+async fn chapter_shooting_script_progress_for_plans<C: ConnectionTrait>(
     db: &C,
     project_id: i64,
     plans: &[&chapter_visual_plan::Model],
@@ -125,29 +124,6 @@ pub(crate) async fn chapter_shooting_script_progress_for_plans<C: ConnectionTrai
     Ok(result)
 }
 
-pub(crate) async fn mark_shooting_progress_source_updated<C: ConnectionTrait>(
-    db: &C,
-    run: &workflow_run::Model,
-) -> Result<(), sea_orm::DbErr> {
-    if run.workflow_kind == "chapter_shooting_script"
-        && run
-            .progress_json
-            .as_ref()
-            .and_then(|value| value.get("snapshot"))
-            .is_some()
-        && let (Some(project_id), Some(chapter_id)) = (run.project_id, run.chapter_id)
-    {
-        crate::project::mark_derived_projects_root_updated_in_record(
-            db,
-            project_id,
-            Some(chapter_id),
-            run.updated_at,
-        )
-        .await?;
-    }
-    Ok(())
-}
-
 pub async fn edit_chapter_shooting_script_progress(
     db: &DatabaseConnection,
     input: EditChapterShootingScriptProgressInput,
@@ -156,23 +132,26 @@ pub async fn edit_chapter_shooting_script_progress(
     require_positive(input.source_chapter_id, "source_chapter_id")?;
     require_positive(input.workflow_run_id, "workflow_run_id")?;
     let tx = db.begin().await?;
-    let source =
-        crate::project::resolve_chapter_source(&tx, input.project_id, input.source_chapter_id)
-            .await
-            .map_err(|error| match error {
-                crate::project::ResolveChapterSourceError::Database(error) => {
-                    ShootingScriptDbError::Database(error)
-                }
-                crate::project::ResolveChapterSourceError::NotFound(message) => {
-                    ShootingScriptDbError::NotFound(message)
-                }
-                crate::project::ResolveChapterSourceError::InvalidArgument(message) => {
-                    ShootingScriptDbError::InvalidArgument(message)
-                }
-                crate::project::ResolveChapterSourceError::InvalidState(message) => {
-                    ShootingScriptDbError::InvalidState(message)
-                }
-            })?;
+    let source = crate::project::resolve_video_chapter_source(
+        &tx,
+        input.project_id,
+        input.source_chapter_id,
+    )
+    .await
+    .map_err(|error| match error {
+        crate::project::ResolveChapterSourceError::Database(error) => {
+            ShootingScriptDbError::Database(error)
+        }
+        crate::project::ResolveChapterSourceError::NotFound(message) => {
+            ShootingScriptDbError::NotFound(message)
+        }
+        crate::project::ResolveChapterSourceError::InvalidArgument(message) => {
+            ShootingScriptDbError::InvalidArgument(message)
+        }
+        crate::project::ResolveChapterSourceError::InvalidState(message) => {
+            ShootingScriptDbError::InvalidState(message)
+        }
+    })?;
     let content = crate::chapter_content::chapter_by_id_for_analysis(&tx, input.source_chapter_id)
         .await
         .map_err(|error| ShootingScriptDbError::InvalidState(error.to_string()))?
@@ -279,6 +258,7 @@ pub async fn edit_chapter_shooting_script_progress(
     validate_director_constraints(
         &tx,
         (
+            source.requested_project_id,
             source.root_project_id,
             source.source_chapter_id,
             source.source_snapshot_id,
@@ -307,21 +287,7 @@ pub async fn edit_chapter_shooting_script_progress(
     active.progress_json = Set(Some(progress_json));
     active.updated_at = Set(Utc::now().naive_utc());
     active.update(&tx).await?;
-    if source.source_snapshot_id.is_none() {
-        crate::project::mark_derived_projects_root_updated_in_record(
-            &tx,
-            source.root_project_id,
-            Some(source.source_chapter_id),
-            Utc::now().naive_utc(),
-        )
-        .await?;
-    }
-    let invalidated_project_ids = crate::project::projects_using_source_snapshot(
-        &tx,
-        source.root_project_id,
-        source.source_snapshot_id,
-    )
-    .await?;
+    let invalidated_project_ids = vec![source.requested_project_id];
     tx.commit().await?;
     Ok(EditedChapterShootingScriptProgressView {
         progress: checkpoint.progress,

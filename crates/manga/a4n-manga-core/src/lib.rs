@@ -2,7 +2,7 @@
 
 use a4n_api_contract::manga::MangaPagePromptSummary;
 use a4n_db_models::models::chapter::chapter_manga_prompt;
-use a4n_domain::manga::{MangaPageGenerationLayoutV2, MangaPortraitReference};
+use a4n_domain::manga::{MangaPageGenerationLayoutV3, MangaPortraitReference};
 use a4n_domain::source_spans::{ChapterSourceContext, source_metadata};
 use serde_json::{Value, json};
 
@@ -27,6 +27,7 @@ pub fn manga_pipeline_fingerprint<P: MangaPortraitReference>(
     character_portraits: &[P],
 ) -> Value {
     json!({
+        "authoring_contract": a4n_domain::media_authoring::MEDIA_AUTHORING_PIPELINE_VERSION,
         "source": source_metadata(ChapterSourceContext { content }),
         "reference_assets": manga_reference_assets_json(character_portraits),
     })
@@ -34,21 +35,21 @@ pub fn manga_pipeline_fingerprint<P: MangaPortraitReference>(
 
 pub fn manga_page_generation_layout(
     prompt: &chapter_manga_prompt::Model,
-) -> Result<MangaPageGenerationLayoutV2, String> {
-    let layout: MangaPageGenerationLayoutV2 = serde_json::from_value(
+) -> Result<MangaPageGenerationLayoutV3, String> {
+    let layout: MangaPageGenerationLayoutV3 = serde_json::from_value(
         prompt
             .layout
             .clone()
-            .ok_or_else(|| format!("漫画页面提示词 #{} 缺少 v2 layout", prompt.id))?,
+            .ok_or_else(|| format!("漫画页面提示词 #{} 缺少 v3 layout", prompt.id))?,
     )
-    .map_err(|error| format!("漫画页面提示词 #{} 的 v2 layout 无效: {error}", prompt.id))?;
+    .map_err(|error| format!("漫画页面提示词 #{} 的 v3 layout 无效: {error}", prompt.id))?;
     let page_number = u32::try_from(prompt.page_number)
         .ok()
         .filter(|page_number| *page_number > 0)
         .ok_or_else(|| format!("漫画页面提示词 #{} 的 page_number 必须大于 0", prompt.id))?;
     layout
         .validate(page_number)
-        .map_err(|error| format!("漫画页面提示词 #{} 的 v2 layout 无效: {error}", prompt.id))?;
+        .map_err(|error| format!("漫画页面提示词 #{} 的 v3 layout 无效: {error}", prompt.id))?;
     Ok(layout)
 }
 

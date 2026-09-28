@@ -10,19 +10,10 @@ pub(super) fn source_snapshot_chapter_id_for_scene(
     scene: &GalgamePipelineScene,
     source_span_by_id: &BTreeMap<&str, &GalgamePipelineSourceSpan>,
 ) -> Result<i64, AppError> {
-    let mut chapter_spans = source_span_by_id
-        .values()
-        .filter(|span| span.chapter_number == scene.chapter_number);
-    let source = chapter_spans.next().ok_or_else(|| {
-        invalid(format!(
-            "Galgame 场 {} 的来源章节 {} 不存在",
-            scene.index, scene.chapter_number
-        ))
-    })?;
-    let chapter_id = source.source_snapshot_chapter_id;
-    if chapter_id <= 0 || chapter_spans.any(|span| span.source_snapshot_chapter_id != chapter_id) {
+    let chapter_id = scene.source_snapshot_chapter_id;
+    if chapter_id <= 0 {
         return Err(invalid(format!(
-            "Galgame 来源章节 {} 的快照归属不唯一",
+            "Galgame 来源章节 {} 的快照身份无效",
             scene.chapter_number
         )));
     }
@@ -75,11 +66,21 @@ pub(super) fn text_anchor_id_for_line(
     source_snapshot_chapter_id: i64,
 ) -> Result<Option<i64>, AppError> {
     let Some(first_span_id) = line.source_span_ids.first() else {
+        if matches!(
+            line.origin,
+            a4n_domain::media_authoring::AdaptationOrigin::Added
+                | a4n_domain::media_authoring::AdaptationOrigin::Historical
+        ) {
+            return Ok(None);
+        }
         return Err(invalid(format!(
             "Galgame persist 行缺少 source_span_ids: line_index={}",
             line.index
         )));
     };
+    if line.origin == a4n_domain::media_authoring::AdaptationOrigin::Added {
+        return Err(invalid("新增剧本行不能声明原文锚点"));
+    }
     let span = source_span_by_id
         .get(first_span_id.as_str())
         .ok_or_else(|| {

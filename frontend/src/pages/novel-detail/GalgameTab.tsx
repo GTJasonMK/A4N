@@ -51,7 +51,6 @@ import type { ModelRequestPreview } from "../../api/requestPreview";
 import { extractErrorMessage } from "../../api";
 import { RequestPreviewModal } from "../../components/feedback/RequestPreviewModal";
 import { useToast } from "../../components/feedback/Toast";
-import { confirmDialog } from "../../components/feedback/ConfirmDialog";
 import { BookButton } from "../../components/ui/BookButton";
 import { Dropdown } from "../../components/ui/Dropdown";
 import { SegmentedControl } from "../../components/ui/SegmentedControl";
@@ -77,21 +76,59 @@ import { AssetPlanPanel } from "./galgame/AssetPlanPanels";
 import { LineEditor, SceneMetaEditor } from "./galgame/GalgameLineEditors";
 import { buildChoiceDrafts } from "./galgame/GalgameChoiceEditor";
 import { buildCgDraft } from "./galgame/presentation";
-import { GalgameDraftGuard, useGalgameDrafts } from "./galgame/GalgameDrafts";
+import { useGalgameDrafts } from "./galgame/GalgameDrafts";
+import { UnsavedChangesGuard, confirmDiscardMediaChanges } from "../../components/feedback/UnsavedChangesGuard";
+import { MediaStageHeader } from "../../components/shell/MediaStageHeader";
+import { MediaAuthoringPanel } from "../derived/MediaAuthoringPanel";
+import { useMediaAuthoring, authoringStageLabel } from "../derived/useMediaAuthoring";
+import type { GalgamePipelineStopAfter } from "../../api/generated/host";
+import { usePersistedTab } from "../../hooks/usePersistedTab";
+import { BaseMaterialsWorkspace } from "../derived/BaseMaterialsWorkspace";
+
 
 interface GalgameTabProps {
+  onDirtyChange?: (dirty: boolean) => void;
   projectId: number;
+  materialProjectId: number;
   canEditGalgame: boolean;
   snapshotChapters: SourceSnapshotChapterSummary[];
 }
 
 export const GalgameTab: React.FC<GalgameTabProps> = ({
   projectId,
+  materialProjectId,
   canEditGalgame,
   snapshotChapters,
+  onDirtyChange,
 }) => {
   const { addToast } = useToast();
   const { t } = useI18n();
+  const [authoringDirty, setAuthoringDirty] = useState(false);
+  const [discardVersion, setDiscardVersion] = useState(0);
+  const [editorDirtyKeys, setEditorDirtyKeys] = useState<Set<string>>(() => new Set());
+  const updateEditorDirty = React.useCallback((key: string, dirty: boolean) => setEditorDirtyKeys((current) => {
+    if (current.has(key) === dirty) return current;
+    const next = new Set(current);
+    if (dirty) next.add(key); else next.delete(key);
+    return next;
+  }), []);
+  const authoring = useMediaAuthoring(projectId);
+  const stageId = `galgame-stages-${projectId}`;
+  const outputState = authoring.workspace?.artifacts.find((artifact) => artifact.kind === "galgame_script");
+  const stageTabs = useMemo(() => [
+    { id: "materials" as const, label: t("common.mediaAuthoring.materials") },
+    { id: "adaptation" as const, label: t("common.mediaAuthoring.adaptation"), status: authoringStageLabel(authoring.workspace, "adaptation_plan", undefined, t) },
+    { id: "branches" as const, label: t("common.mediaAuthoring.branches"), status: authoringStageLabel(authoring.workspace, "galgame_branch_plan", undefined, t) },
+    { id: "script" as const, label: t("common.mediaAuthoring.script"), status: outputState?.count ? t(outputState.stale ? "common.mediaAuthoring.needsUpdate" : "common.mediaAuthoring.ready") : undefined },
+    { id: "asset_plan" as const, label: t("common.mediaAuthoring.assetPlan") },
+    { id: "asset_generation" as const, label: t("common.mediaAuthoring.assetGeneration") },
+    { id: "export" as const, label: t("common.mediaAuthoring.export") },
+  ], [authoring.workspace, outputState, t]);
+  const [workspaceStage, setWorkspaceStage] = usePersistedTab(
+    `a4n:galgame:${projectId}:stage`,
+    "materials",
+    stageTabs.map((tab) => tab.id),
+  );
   const {
     error: imageSizeError,
     loading: imageSizeLoading,
@@ -289,6 +326,16 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
     choiceDrafts, cgDrafts, acceptChoiceDraft, hasUnsavedDrafts,
     updateChoiceDraft, updateCgDraft, clearChoiceDraft, clearCgDraft, clearDrafts, saveCgDraft,
   } = useGalgameDrafts(projectId, choicesByLine);
+  const hasUnsavedChanges = hasUnsavedDrafts || authoringDirty || editorDirtyKeys.size > 0;
+  useEffect(() => { onDirtyChange?.(hasUnsavedChanges); }, [hasUnsavedChanges, onDirtyChange]);
+  useEffect(() => () => onDirtyChange?.(false), [onDirtyChange]);
+  const discardAllDrafts = () => { clearDrafts(); setAuthoringDirty(false); setEditorDirtyKeys(new Set()); setDiscardVersion((version) => version + 1); };
+  const confirmLeaveStage = async () => {
+    if (!hasUnsavedChanges) return true;
+    const discard = await confirmDiscardMediaChanges(true, t);
+    if (discard) discardAllDrafts();
+    return discard;
+  };
 
   const currentPipelineStartStage = (): GalgamePipelineStartStage | null =>
     pipelineStartStage || null;
@@ -309,18 +356,9 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
     if (pipelineRunning || (!loading && !detail)) setPipelineControlsOpen(true);
   }, [detail, loading, pipelineRunning]);
 
-  const handleGenerate = async (resumeFromCheckpoint = false) => {
+  const handleGenerate = async (resumeFromCheckpoint = false, stopAfter: GalgamePipelineStopAfter | null = "script", guard = true) => {
     if (!canEditGalgame || generating || (!detail && (loading || loadError))) return;
-    if (hasUnsavedDrafts) {
-      const discard = await confirmDialog({
-        title: t("common.unsavedChangesTitle"),
-        message: t("galgame.unsavedChoices"),
-        confirmText: t("common.discardDraft"),
-        dialogType: "warning",
-      });
-      if (!discard) return;
-      clearDrafts();
-    }
+    if (guard && !await confirmLeaveStage()) return;
     const taskId = createWorkflowTaskId("galgame-pipeline", projectId);
     setPipelineStatus(null);
     setGenerating(true);
@@ -346,15 +384,19 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
           const result = await startGalgamePipeline({
             project_id: projectId,
             task_id: taskId,
-            start_from_stage: currentPipelineStartStage(),
+            start_from_stage: stopAfter === "branch_design" ? "branch_design" : currentPipelineStartStage(),
             resume_from_checkpoint: resumeFromCheckpoint,
+            stop_after: stopAfter,
           });
           setProgress(t("galgame.refreshingPipeline"), 7, 7);
           return result;
         },
       );
-      setDetail(next);
-      setSelectedSceneId(next.scenes[0]?.scene.id ?? null);
+      if (next) {
+        setDetail(next);
+        setSelectedSceneId(next.scenes[0]?.scene.id ?? null);
+      }
+      await authoring.reload();
       addToast(t("galgame.pipelineCompleted"), "success");
       try {
         setPipelineStatus(await getGalgamePipelineStatus(projectId));
@@ -410,6 +452,7 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
         project_id: projectId,
         start_from_stage: currentPipelineStartStage(),
         resume_from_checkpoint: false,
+        stop_after: workspaceStage === "branches" ? "branch_design" : "script",
       });
       if (previewSeqRef.current !== seq) return;
       setRequestPreviewData(preview);
@@ -780,6 +823,32 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
   return (
     <div className="flex min-h-[60vh] flex-col gap-3 lg:h-full lg:min-h-0">
       {loadError ? <p role="alert" className="text-small text-error">{loadError}</p> : null}
+      <MediaStageHeader id={stageId} label={t("common.mediaAuthoring.stages")} tabs={stageTabs} activeTab={workspaceStage}
+        onTabChange={async (stage) => { if (!await confirmLeaveStage()) return false; if (workspaceStage === "materials") void load(); setWorkspaceStage(stage); return true; }}>
+        {canEditGalgame && <BookButton size="sm" variant="secondary" disabled={pipelineRunning || loading} onClick={() => void handleGenerate(false, null)}>{t("common.mediaAuthoring.oneClick")}</BookButton>}
+      </MediaStageHeader>
+      {outputState?.stale && workspaceStage !== "adaptation" && workspaceStage !== "branches" && <p role="status" className="text-xs text-warning">{t("common.mediaAuthoring.outputsStale")}</p>}
+      {authoring.error && workspaceStage !== "adaptation" && workspaceStage !== "branches" && <p role="alert" className="text-xs text-error">{authoring.error}</p>}
+      <div id={`${stageId}-panel`} role="tabpanel" aria-labelledby={`${stageId}-tab-${workspaceStage}`} className="flex min-h-0 flex-1 flex-col gap-3">
+      {workspaceStage === "materials" ? <BaseMaterialsWorkspace projectId={materialProjectId} canEdit={canEditGalgame}
+        onChanged={load} onNext={() => { void load(); setWorkspaceStage("adaptation"); }} />
+      : workspaceStage === "adaptation" || workspaceStage === "branches" ? <MediaAuthoringPanel key={`${projectId}:${workspaceStage}:${discardVersion}`} projectId={projectId}
+        kind={workspaceStage === "adaptation" ? "adaptation_plan" : "galgame_branch_plan"}
+        workspace={authoring.workspace} loading={authoring.loading} error={authoring.error} canEdit={canEditGalgame} stageRunning={pipelineRunning}
+        onReload={authoring.reload} onDirtyChange={setAuthoringDirty} onGenerateStage={() => handleGenerate(false, "branch_design", false)}
+        onNext={() => setWorkspaceStage(workspaceStage === "adaptation" ? "branches" : "script")} />
+      : workspaceStage === "asset_plan" || workspaceStage === "asset_generation" ? <AssetPlanPanel inline mode={workspaceStage === "asset_plan" ? "planning" : "generation"}
+        plan={assetPlan} error={assetPlanError} speakerProfiles={detail?.speaker_profiles ?? []} loading={planningAssets || loading}
+        generating={generatingAssets} generatingSpecId={generatingAssetSpecId} imageSize={imageSize} imageSizes={imageSizes}
+        imageSizeLoading={imageSizeLoading} imageSizeError={imageSizeError} onImageSizeChange={setImageSize}
+        disabled={!canEditGalgame || planningAssets || generatingAssets || generatingAssetSpecId != null || !detail}
+        onPlan={handlePlanAssets} onGenerate={handleGenerateAssets} onGenerateSpec={handleGenerateAssetSpec} />
+      : workspaceStage === "export" ? <section className="space-y-4 overflow-y-auto p-1 custom-scrollbar">
+        <h2 className="text-base font-semibold">{t("common.mediaAuthoring.export")}</h2>
+        <p className="text-sm text-book-text-muted">{t("common.mediaAuthoring.exportHint")}</p>
+        {detail && <p className="text-sm">{t("galgame.sceneCount", { scenes: detail.scenes.length, lines: totalLines })}</p>}
+        <BookButton size="sm" disabled={!canEditGalgame || !detail || exportingWebgal} onClick={handleExportWebgal}>{exportingWebgal ? <LoadingSpinner size="sm" /> : <Download size={14} />}{t("galgame.exportWebgal")}</BookButton>
+      </section> : <>
       <div className="lg:hidden">
         <SegmentedControl
           ariaLabel={t("galgame.mobileWorkspace")}
@@ -980,10 +1049,7 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
                         ? "bg-book-primary/8 text-book-text-main shadow-[inset_3px_0_0_rgb(var(--color-primary))]"
                         : "text-book-text-muted hover:bg-book-bg-tertiary/55 hover:text-book-text-main"
                     }`}
-                    onClick={() => {
-                      setSelectedSceneId(item.scene.id);
-                      setMobileWorkspaceView("editor");
-                    }}
+                    onClick={() => { void (async () => { if (await confirmLeaveStage()) { setSelectedSceneId(item.scene.id); setMobileWorkspaceView("editor"); } })(); }}
                   >
                     <div className="truncate font-semibold">
                       {item.scene.scene_index}. {item.scene.title}
@@ -1032,29 +1098,6 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
               })}
             </div>
           ) : null}
-          <AssetPlanPanel
-            plan={assetPlan}
-            error={assetPlanError}
-            speakerProfiles={detail?.speaker_profiles ?? []}
-            loading={planningAssets || loading}
-            generating={generatingAssets}
-            generatingSpecId={generatingAssetSpecId}
-            imageSize={imageSize}
-            imageSizes={imageSizes}
-            imageSizeLoading={imageSizeLoading}
-            imageSizeError={imageSizeError}
-            onImageSizeChange={setImageSize}
-            disabled={
-              !canEditGalgame ||
-              planningAssets ||
-              generatingAssets ||
-              generatingAssetSpecId != null ||
-              !detail
-            }
-            onPlan={handlePlanAssets}
-            onGenerate={handleGenerateAssets}
-            onGenerateSpec={handleGenerateAssetSpec}
-          />
         </aside>
 
         <section
@@ -1106,6 +1149,8 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
 
           {selectedScene ? (
             <SceneMetaEditor
+              key={`${selectedScene.scene.id}:${discardVersion}`}
+              onDirtyChange={updateEditorDirty}
               scene={selectedScene.scene}
               scenes={detail?.scenes ?? []}
               mediaBindings={
@@ -1146,7 +1191,8 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
               <div className="divide-y divide-book-border/40">
                 {selectedScene.lines.map((line, index) => (
                   <LineEditor
-                    key={line.id}
+                    key={`${line.id}:${discardVersion}`}
+                    onDirtyChange={updateEditorDirty}
                     line={line}
                     speakerProfiles={detail?.speaker_profiles ?? []}
                     speakerProfileById={speakerProfileById}
@@ -1200,6 +1246,8 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
           </div>
         </section>
       </div>
+      </>}
+      </div>
       <RequestPreviewModal
         open={requestPreviewOpen}
         loading={requestPreviewLoading}
@@ -1207,7 +1255,7 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
         fallbackTitle={t("galgame.requestTitle")}
         onClose={closeRequestPreview}
       />
-      <GalgameDraftGuard dirty={hasUnsavedDrafts} onDiscard={clearDrafts} />
+      <UnsavedChangesGuard dirty={hasUnsavedChanges} onDiscard={discardAllDrafts} />
     </div>
   );
 };

@@ -14,13 +14,13 @@ pub(super) const CHECKPOINT_VISUAL_PLAN: &str = "visual_plan";
 pub(super) const CHECKPOINT_BRANCH_PLAN: &str = "branch_plan";
 pub(super) const CHECKPOINT_PERSIST_SCRIPT: &str = "persist_script";
 pub(super) const CHECKPOINT_ASSET_GENERATION: &str = "asset_generation";
-pub(super) const SOURCE_SYNC_STAGE_SHOOTING_SCRIPT: &str = "shooting_script_projection";
+pub(super) const SOURCE_SYNC_STAGE_ADAPTATION: &str = "adaptation_projection";
 pub(super) const SOURCE_SYNC_STAGE_SCRIPT_ADAPTATION: &str = "script_adaptation";
 pub(super) const SOURCE_SYNC_STAGE_CHARACTER_STAGING: &str = "character_staging";
 pub(super) const SOURCE_SYNC_STAGE_VISUAL_PLANNING: &str = "visual_planning";
 pub(super) const SOURCE_SYNC_STAGE_BRANCH_DESIGN: &str = "branch_design";
 pub(super) const SOURCE_SYNC_REGENERATION_STAGE_OUTPUT_KEYS: &[&str] = &[
-    SOURCE_SYNC_STAGE_SHOOTING_SCRIPT,
+    SOURCE_SYNC_STAGE_ADAPTATION,
     SOURCE_SYNC_STAGE_SCRIPT_ADAPTATION,
     SOURCE_SYNC_STAGE_CHARACTER_STAGING,
     SOURCE_SYNC_STAGE_VISUAL_PLANNING,
@@ -43,6 +43,7 @@ pub struct GalgamePipelineRunOptions {
     pub progress_reporter: Option<GalgameProgressReporter>,
     pub resume_from_checkpoint: bool,
     pub start_from_stage: Option<GalgamePipelineStartStage>,
+    pub stop_after: Option<a4n_api_contract::galgame::GalgamePipelineStopAfter>,
 }
 
 #[derive(Debug, Clone)]

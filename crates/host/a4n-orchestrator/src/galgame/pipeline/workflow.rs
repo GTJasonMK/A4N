@@ -7,7 +7,8 @@ use crate::workflow::{UpsertWorkflowRunInput, WORKFLOW_STATUS_RUNNING};
 /// Galgame 管线 workflow kind。
 pub(in crate::galgame) const GALGAME_PIPELINE_WORKFLOW_KIND: &str = "galgame_pipeline";
 /// Galgame 管线 mode。
-const GALGAME_PIPELINE_MODE_FULL: &str = "full_pipeline_v1";
+const GALGAME_PIPELINE_MODE_FULL: &str =
+    a4n_domain::media_authoring::MEDIA_AUTHORING_PIPELINE_VERSION;
 
 /// exclusive business key。
 fn galgame_pipeline_business_key(project_id: i64) -> String {

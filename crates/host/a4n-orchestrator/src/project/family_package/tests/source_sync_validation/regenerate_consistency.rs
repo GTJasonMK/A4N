@@ -67,6 +67,7 @@ fn validate_package_manifest_rejects_regenerate_scene_result_new_chapter_scene_m
     decision.decision_payload_json = payload.clone();
     let mut package = package_with_regenerate_scene_decision(payload);
     package.galgame_scenes[0].source_snapshot_chapter_id = 1002;
+    package.galgame_scenes[0].adaptation_plan_id = Some(2402);
     package.source_sync_decisions = vec![decision];
 
     let err = validate_package_manifest(&package)
@@ -83,7 +84,7 @@ fn validate_package_manifest_rejects_regenerate_scene_result_new_chapter_scene_m
 #[test]
 fn validate_package_manifest_rejects_regenerate_scene_stage_output_chapter_mismatch() {
     let mut payload = regenerate_scene_decision_payload();
-    payload["result"]["stage_outputs"]["shooting_script_projection"]["scenes"][0]["chapter_number"] =
+    payload["result"]["stage_outputs"]["adaptation_projection"]["scenes"][0]["chapter_number"] =
         json!(2);
     let mut decision = source_sync_decision_record("regenerate_scene");
     decision.decision_payload_json = payload.clone();
@@ -101,9 +102,9 @@ fn validate_package_manifest_rejects_regenerate_scene_stage_output_chapter_misma
 #[test]
 fn validate_package_manifest_rejects_regenerate_scene_source_span_chapter_mismatch() {
     let mut payload = regenerate_scene_decision_payload();
-    payload["result"]["stage_outputs"]["shooting_script_projection"]["scenes"][0]["source_span_ids"] =
+    payload["result"]["stage_outputs"]["adaptation_projection"]["scenes"][0]["source_span_ids"] =
         json!(["ch2:ta702"]);
-    payload["result"]["stage_outputs"]["shooting_script_projection"]["scenes"][0]["beats"][0]["source_span_ids"] =
+    payload["result"]["stage_outputs"]["adaptation_projection"]["scenes"][0]["beats"][0]["source_span_ids"] =
         json!(["ch2:ta702"]);
     let mut decision = source_sync_decision_record("regenerate_scene");
     decision.decision_payload_json = payload.clone();
@@ -121,9 +122,9 @@ fn validate_package_manifest_rejects_regenerate_scene_source_span_chapter_mismat
 #[test]
 fn validate_package_manifest_rejects_regenerate_scene_source_span_outside_target_chapter() {
     let mut payload = regenerate_scene_decision_payload();
-    payload["result"]["stage_outputs"]["shooting_script_projection"]["scenes"][0]["source_span_ids"] =
+    payload["result"]["stage_outputs"]["adaptation_projection"]["scenes"][0]["source_span_ids"] =
         json!(["ch2:ta703"]);
-    payload["result"]["stage_outputs"]["shooting_script_projection"]["scenes"][0]["beats"][0]["source_span_ids"] =
+    payload["result"]["stage_outputs"]["adaptation_projection"]["scenes"][0]["beats"][0]["source_span_ids"] =
         json!(["ch2:ta703"]);
     let mut decision = source_sync_decision_record("regenerate_scene");
     decision.decision_payload_json = payload.clone();
@@ -142,12 +143,20 @@ fn validate_package_manifest_rejects_regenerate_scene_source_span_outside_target
 }
 
 #[test]
-fn validate_package_manifest_accepts_director_scene_without_text_spans() {
+fn validate_package_manifest_accepts_historical_scene_without_text_spans() {
     let mut payload = regenerate_scene_decision_payload();
-    payload["result"]["stage_outputs"]["shooting_script_projection"]["scenes"][0]["source_span_ids"] =
+    payload["result"]["stage_outputs"]["adaptation_projection"]["scenes"][0]["source_span_ids"] =
         json!([]);
-    payload["result"]["stage_outputs"]["shooting_script_projection"]["scenes"][0]["beats"][0]["source_span_ids"] =
+    payload["result"]["stage_outputs"]["adaptation_projection"]["scenes"][0]["beats"][0]["source_span_ids"] =
         json!([]);
+    let stages = &mut payload["result"]["stage_outputs"];
+    stages["adaptation_projection"]["scenes"][0]["origin"] = json!("historical");
+    stages["adaptation_projection"]["scenes"][0]["beats"][0]["origin"] = json!("historical");
+    for name in ["script_adaptation", "character_staging"] {
+        stages[name]["scene_lines"][0]["lines"][0]["origin"] = json!("historical");
+        stages[name]["scene_lines"][0]["lines"][0]["source_span_ids"] = json!([]);
+    }
+    stages["visual_planning"]["backgrounds"][0]["source_span_ids"] = json!([]);
     let mut decision = source_sync_decision_record("regenerate_scene");
     decision.decision_payload_json = payload.clone();
     let mut package = package_with_regenerate_scene_decision(payload);

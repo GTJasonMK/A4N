@@ -1,6 +1,8 @@
 mod checkpoint;
 mod errors;
+mod llm_once;
 mod rules;
+pub(crate) use llm_once::{WorkflowLlmOnceInput, workflow_json_request};
 /// Projects the workflow owner's persistence summary for Host-facing ports.
 pub(crate) fn workflow_run_summary_to_api(
     run: a4n_db::workflow::WorkflowRunSummary,

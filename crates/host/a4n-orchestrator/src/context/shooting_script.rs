@@ -1,6 +1,6 @@
 //! 拍摄剧本领域私有 owner。
 //!
-//! 持有 `DbHandle`，封装章节共享拍摄剧本的加载与生成发布落库。
+//! 持有 `DbHandle`，封装视频项目拍摄剧本的加载与生成发布落库。
 //! LLM 生成编排仍在 `shooting_script/` 模块，但 DB 只经本 owner。
 
 use std::sync::Arc;
@@ -45,7 +45,7 @@ impl ShootingScriptApplication {
         &self,
         input: &ChapterShootingScriptSourceInput,
     ) -> Result<(ResolvedChapterSource, Option<ParsedChapterShootingScript>), AppError> {
-        let source = a4n_db::project::resolve_chapter_source(
+        let source = a4n_db::project::resolve_video_chapter_source(
             self.connection(),
             input.project_id,
             input.source_chapter_id,
@@ -84,38 +84,6 @@ impl ShootingScriptApplication {
         Ok(current_script_for_confirmed_visual_plan(
             existing, &confirmed,
         ))
-    }
-
-    async fn load_current_chapter_shooting_scripts_for_sources(
-        &self,
-        sources: &[ResolvedChapterSource],
-    ) -> Result<Vec<(ResolvedChapterSource, Option<ParsedChapterShootingScript>)>, AppError> {
-        let existing = a4n_db::shooting_script::chapter_shooting_scripts_for_sources(
-            self.connection(),
-            sources,
-        )
-        .await
-        .map_err(shooting_script_db_error)?;
-        let visual_plans = a4n_db::chapter_visual_plan::chapter_visual_plans_for_sources(
-            self.connection(),
-            sources,
-        )
-        .await
-        .map_err(visual_plan_db_error)?;
-        Ok(sources
-            .iter()
-            .cloned()
-            .zip(existing)
-            .zip(visual_plans)
-            .map(|((source, existing), plans)| {
-                (
-                    source,
-                    plans.confirmed.as_ref().and_then(|confirmed| {
-                        current_script_for_confirmed_visual_plan(existing, confirmed)
-                    }),
-                )
-            })
-            .collect())
     }
 
     async fn publish_chapter_shooting_script(
@@ -214,18 +182,6 @@ impl OrchestratorContext {
         Ok((source, current))
     }
 
-    pub(crate) async fn require_current_chapter_shooting_scripts_for_resolved_sources(
-        &self,
-        sources: Vec<ResolvedChapterSource>,
-    ) -> Result<Vec<ResolvedChapterShootingScript>, AppError> {
-        self.shooting_script
-            .load_current_chapter_shooting_scripts_for_sources(&sources)
-            .await?
-            .into_iter()
-            .map(|(source, current)| require_current_chapter_shooting_script(source, current))
-            .collect()
-    }
-
     pub(crate) async fn publish_chapter_shooting_script(
         &self,
         user_id: i64,
@@ -285,7 +241,7 @@ fn require_current_chapter_shooting_script(
             shooting_script,
         }),
         None => Err(AppError::NotFound(format!(
-            "项目 {} 的第 {} 章（章节 ID {}）未找到与当前来源版本匹配的拍摄剧本；请先在文本工作台的“拍摄剧本”中生成场景，派生项目还需同步来源",
+            "视频项目 {} 的第 {} 章（章节 ID {}）未找到与当前来源版本匹配的拍摄剧本；请在本项目的“拍摄剧本”阶段生成场景",
             source.requested_project_id, source.chapter_number, source.source_chapter_id
         ))),
     }

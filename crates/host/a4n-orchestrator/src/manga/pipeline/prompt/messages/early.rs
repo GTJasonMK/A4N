@@ -58,7 +58,7 @@ pub(in crate::manga) fn manga_speech_selection_user_message(
             "format": "json_object",
             "prompt_name": "manga_speech_selection",
             "required_fields": ["dialogues", "narrations"],
-            "source_span_rule": "dialogues[] 和 narrations[] 每项必须输出 source_span_id；只能从 input.chapter.available_source_spans 中选择，不要自造 ID",
+            "source_span_rule": "dialogues[] 和 narrations[] 每项必须输出 source_span_id。原文/改编节拍只能从 input.chapter.available_source_spans 和该节拍的原文引用中选择；新增节拍或没有原文依据的历史节拍填写 null，不得自造 ID",
             "limits": {
                 "dialogues_max": 24,
                 "narrations_max": 8,

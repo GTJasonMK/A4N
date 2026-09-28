@@ -26,6 +26,13 @@ impl OrchestratorContext {
         let scene = self
             .load_scene_in_project(context.project.id, input.scene_id)
             .await?;
+        self.validate_line_adaptation_source(
+            project_id,
+            &scene,
+            &input.presentation,
+            input.text_anchor_id,
+        )
+        .await?;
         if let Some(anchor_id) = input.text_anchor_id {
             self.validate_text_anchor(&context, anchor_id, Some(scene.source_snapshot_chapter_id))
                 .await?;

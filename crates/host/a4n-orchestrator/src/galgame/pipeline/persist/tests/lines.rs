@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn generated_script_and_staging_are_checked_before_following_calls() {
-    let scenes = single_shooting_script_projection();
+    let scenes = single_adaptation_projection();
     let mut staging = single_narration_staging();
     let line = &staging.scene_lines[0].lines[0];
     let mut script = GalgameScriptAdaptation {
@@ -10,7 +10,8 @@ fn generated_script_and_staging_are_checked_before_following_calls() {
             scene_index: 1,
             lines: vec![GalgamePipelineLineDraft {
                 index: line.index,
-                beat_ref: line.beat_ref,
+                origin: line.origin,
+                beat_ref: line.beat_ref.clone(),
                 line_type: line.line_type.clone(),
                 speaker_name: line.speaker_name.clone(),
                 text: line.text.clone(),
@@ -29,7 +30,7 @@ fn generated_script_and_staging_are_checked_before_following_calls() {
         .is_ok()
     );
     assert!(validate_galgame_staging(&staging, &script, &[]).is_ok());
-    script.scene_lines[0].lines[0].beat_ref.beat_index = 99;
+    script.scene_lines[0].lines[0].beat_ref.beat_id = "missing".into();
     assert!(
         validate_galgame_script_adaptation(
             &script,
@@ -39,7 +40,7 @@ fn generated_script_and_staging_are_checked_before_following_calls() {
         )
         .is_err()
     );
-    script.scene_lines[0].lines[0].beat_ref.beat_index = 1;
+    script.scene_lines[0].lines[0].beat_ref.beat_id = "beat-1".into();
     staging.scene_lines[0].lines[0].text = "改写的事实".into();
     assert!(validate_galgame_staging(&staging, &script, &[]).is_err());
     staging.scene_lines[0].lines[0].text = script.scene_lines[0].lines[0].text.clone();
@@ -49,11 +50,11 @@ fn generated_script_and_staging_are_checked_before_following_calls() {
 
 #[test]
 fn rejects_persist_plan_when_dialogue_has_no_profile() {
-    let scenes = shooting_script_projection_from_value(
+    let scenes = adaptation_projection_from_value(
         json!({
             "scenes": [directing_scene_value(1, "雨夜重逢", "s1")]
         }),
-        "galgame_shooting_script_projection",
+        "galgame_adaptation_projection",
     )
     .expect("scenes");
     let staging = character_staging_from_value(
@@ -62,7 +63,7 @@ fn rejects_persist_plan_when_dialogue_has_no_profile() {
                 "scene_index": 1,
                 "lines": [{
                     "index": 1,
-                    "beat_ref": {"scene_index": 1, "shot_index": 1, "beat_index": 1},
+                    "origin": "source", "beat_ref": beat_reference(1, 1),
                     "line_type": "dialogue",
                     "speaker_name": "林晓雨",
                     "text": "你终于来了。",
@@ -96,17 +97,14 @@ fn rejects_persist_plan_when_dialogue_has_no_profile() {
 
 #[test]
 fn rejects_persist_plan_when_dialogue_speaker_is_missing_from_visible_cast() {
-    let scenes = single_shooting_script_projection();
+    let scenes = single_adaptation_projection();
     let staging = GalgameCharacterStaging {
         scene_lines: vec![GalgamePipelineSceneLineStaged {
             scene_index: 1,
             lines: vec![GalgamePipelineLineStaged {
                 index: 1,
-                beat_ref: GalgamePipelineBeatRefV3 {
-                    scene_index: 1,
-                    shot_index: 1,
-                    beat_index: 1,
-                },
+                origin: a4n_domain::media_authoring::AdaptationOrigin::Source,
+                beat_ref: beat_reference(1, 1),
                 line_type: LINE_TYPE_DIALOGUE.to_string(),
                 speaker_profile_id: Some(7),
                 speaker_name: Some("林晓雨".to_string()),
@@ -133,17 +131,14 @@ fn rejects_persist_plan_when_dialogue_speaker_is_missing_from_visible_cast() {
 
 #[test]
 fn rejects_persist_plan_when_expression_is_invalid() {
-    let scenes = single_shooting_script_projection();
+    let scenes = single_adaptation_projection();
     let staging = GalgameCharacterStaging {
         scene_lines: vec![GalgamePipelineSceneLineStaged {
             scene_index: 1,
             lines: vec![GalgamePipelineLineStaged {
                 index: 1,
-                beat_ref: GalgamePipelineBeatRefV3 {
-                    scene_index: 1,
-                    shot_index: 1,
-                    beat_index: 1,
-                },
+                origin: a4n_domain::media_authoring::AdaptationOrigin::Source,
+                beat_ref: beat_reference(1, 1),
                 line_type: LINE_TYPE_DIALOGUE.to_string(),
                 speaker_profile_id: Some(7),
                 speaker_name: Some("林晓雨".to_string()),
@@ -170,17 +165,14 @@ fn rejects_persist_plan_when_expression_is_invalid() {
 
 #[test]
 fn stage_direction_text_does_not_infer_transition_instruction() {
-    let scenes = single_shooting_script_projection();
+    let scenes = single_adaptation_projection();
     let staging = GalgameCharacterStaging {
         scene_lines: vec![GalgamePipelineSceneLineStaged {
             scene_index: 1,
             lines: vec![GalgamePipelineLineStaged {
                 index: 1,
-                beat_ref: GalgamePipelineBeatRefV3 {
-                    scene_index: 1,
-                    shot_index: 1,
-                    beat_index: 1,
-                },
+                origin: a4n_domain::media_authoring::AdaptationOrigin::Source,
+                beat_ref: beat_reference(1, 1),
                 line_type: LINE_TYPE_STAGE_DIRECTION.to_string(),
                 speaker_profile_id: None,
                 speaker_name: None,

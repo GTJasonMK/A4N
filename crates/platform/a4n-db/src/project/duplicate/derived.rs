@@ -1,25 +1,17 @@
-use a4n_db_models::models::project::{novel_project, project_source_snapshot};
+use a4n_db_models::models::project::novel_project;
 use a4n_domain::project::ProjectMediaFileCopier;
-use chrono::{NaiveDateTime, Utc};
-use sea_orm::{ConnectionTrait, DatabaseConnection, TransactionTrait};
-use std::collections::HashMap;
+use chrono::Utc;
+use sea_orm::{DatabaseConnection, TransactionTrait};
 
 use super::ProjectDuplicateError;
 
 mod assembly;
 mod generation;
-mod media;
-mod snapshot;
-mod types;
-mod workflow;
 
 pub(super) use assembly::{copy_derived_assembly_clips, copy_derived_media_bindings};
 pub(super) use generation::{
     copy_derived_generation_spec_media_refs, copy_derived_prompt_artifacts,
 };
-use types::DuplicatedDerivedSourceSnapshot;
-
-use snapshot::copy_derived_project_graph_record;
 
 pub async fn duplicate_derived_project_record<Copier>(
     db: &DatabaseConnection,
@@ -33,15 +25,46 @@ where
 {
     let txn = db.begin().await?;
     let now = Utc::now().naive_utc();
-    let project = copy_derived_project_graph_record(
+    if original.project_kind == crate::project::PROJECT_KIND_TEXT
+        || original.root_project_id.is_none()
+        || original.source_snapshot_id.is_none()
+    {
+        return Err(ProjectDuplicateError::InvalidArgument(
+            "复制派生项目需要原作和冻结原文".into(),
+        ));
+    }
+    let project = super::shared::insert_project_copy_record(
         &txn,
         original,
-        user_id,
-        new_title,
+        super::shared::ProjectCopyInsert {
+            user_id,
+            title: new_title.into(),
+            root_project_id: original.root_project_id,
+            source_snapshot_id: original.source_snapshot_id,
+            status: original.status.clone(),
+            current_chapter: original.current_chapter,
+            total_chapters: original.total_chapters,
+            raw_blueprint: None,
+        },
         now,
-        media_file_copier,
     )
     .await?;
+    crate::project::family::import::copy_derived_media_rows(
+        &txn,
+        original,
+        &project,
+        media_file_copier,
+    )
+    .await
+    .map_err(|error| match error {
+        crate::project::family::import::ProjectFamilyImportError::Database(error) => {
+            ProjectDuplicateError::Database(error)
+        }
+        error => ProjectDuplicateError::InvalidState {
+            current: error.to_string(),
+            operation: "复制派生项目".into(),
+        },
+    })?;
     txn.commit().await?;
     Ok(project)
 }

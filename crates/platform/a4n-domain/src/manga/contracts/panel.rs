@@ -3,14 +3,14 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use super::page::MangaShootingBeatRefV3;
 use super::text::MangaTextLayerV2;
+use crate::media_authoring::AdaptationBeatRef;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct MangaPanelV2 {
     pub panel_number: u32,
-    pub beat_refs: Vec<MangaShootingBeatRefV3>,
+    pub beat_refs: Vec<AdaptationBeatRef>,
     pub function: MangaPanelFunctionV2,
     pub size: MangaPanelSizeV2,
     pub shot_scale: MangaShotScaleV2,

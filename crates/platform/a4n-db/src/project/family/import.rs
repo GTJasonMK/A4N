@@ -1,4 +1,5 @@
 mod contracts;
+mod duplicate;
 mod errors;
 mod execution;
 mod import_rows;
@@ -9,6 +10,7 @@ use contracts::ImportIdMaps;
 pub use contracts::{
     ProjectFamilyImportMappings, ProjectFamilyImportPackage, ProjectFamilyMediaFileImporter,
 };
+pub(crate) use duplicate::copy_derived_media_rows;
 pub use errors::{ProjectFamilyImportError, ProjectFamilyMediaImportError};
 pub use execution::{
     import_project_family_package_rows, import_project_family_package_rows_with_mappings,

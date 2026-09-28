@@ -55,6 +55,7 @@ pub(in crate::routes::commands) async fn start_manga_pipeline(
         input.project_id,
         input.chapter_number,
         false,
+        input.stop_after,
     )
     .await
 }
@@ -66,8 +67,15 @@ pub(in crate::routes::commands) async fn resume_manga_pipeline(
 ) -> Result<Value, ApiError> {
     let input: manga_pipeline_actions::MangaPipelineResumeInput =
         command_input(args, "resume_manga_pipeline")?;
-    start_or_resume_manga_pipeline(state, user_id, input.project_id, input.chapter_number, true)
-        .await
+    start_or_resume_manga_pipeline(
+        state,
+        user_id,
+        input.project_id,
+        input.chapter_number,
+        true,
+        input.stop_after,
+    )
+    .await
 }
 
 pub(in crate::routes::commands) async fn start_or_resume_manga_pipeline(
@@ -76,6 +84,7 @@ pub(in crate::routes::commands) async fn start_or_resume_manga_pipeline(
     project_id: i64,
     chapter_number: i32,
     resume_from_checkpoint: bool,
+    stop_after: Option<a4n_api_contract::manga::MangaPipelineStopAfter>,
 ) -> Result<Value, ApiError> {
     manga_pipeline_actions::preflight_manga_pipeline(
         state.runtime(),
@@ -101,6 +110,7 @@ pub(in crate::routes::commands) async fn start_or_resume_manga_pipeline(
                     chapter_number,
                     &task_id_clone,
                     resume_from_checkpoint,
+                    stop_after,
                 )
                 .await
                 {

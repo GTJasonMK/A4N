@@ -2,7 +2,7 @@ use a4n_error::AppError;
 use serde_json::Value;
 
 use super::{
-    GALGAME_EXPRESSIONS, GalgameLinePresentationDocumentV2, LINE_TYPE_CHOICE, LINE_TYPE_DIALOGUE,
+    GALGAME_EXPRESSIONS, GalgameLinePresentationDocumentV3, LINE_TYPE_CHOICE, LINE_TYPE_DIALOGUE,
     LINE_TYPE_MONOLOGUE, LINE_TYPE_NARRATION, LINE_TYPE_STAGE_DIRECTION, SCENE_ENTRY_BRANCH,
     SCENE_ENTRY_MAIN, validate_staged_presentation,
 };
@@ -28,10 +28,13 @@ pub(crate) fn normalize_line_type(value: &str) -> Result<&str, AppError> {
 }
 
 pub(crate) fn validate_and_project_presentation(
-    presentation: &GalgameLinePresentationDocumentV2,
+    presentation: &GalgameLinePresentationDocumentV3,
     speaker_profile_id: Option<i64>,
     context: &str,
 ) -> Result<(Option<String>, Option<String>, Option<String>), AppError> {
+    presentation
+        .validate_source_identity(None)
+        .map_err(AppError::InvalidArgument)?;
     let directing = presentation.directing_presentation();
     validate_staged_presentation(&directing, speaker_profile_id, context)?;
     validate_presentation_directives(presentation, context)?;
@@ -61,12 +64,12 @@ pub(crate) fn parse_and_validate_presentation_projection(
     pose: Option<&str>,
     position: Option<&str>,
     context: &str,
-) -> Result<GalgameLinePresentationDocumentV2, AppError> {
+) -> Result<GalgameLinePresentationDocumentV3, AppError> {
     let presentation =
-        serde_json::from_value::<GalgameLinePresentationDocumentV2>(presentation_json.clone())
+        serde_json::from_value::<GalgameLinePresentationDocumentV3>(presentation_json.clone())
             .map_err(|error| {
                 AppError::InvalidArgument(format!(
-                    "{context} presentation_json 不符合 v2 合同: {error}"
+                    "{context} presentation_json 不符合 v3 合同: {error}"
                 ))
             })?;
     let projected = validate_and_project_presentation(&presentation, speaker_profile_id, context)?;
@@ -82,7 +85,7 @@ pub(crate) fn parse_and_validate_presentation_projection(
 }
 
 fn validate_presentation_directives(
-    presentation: &GalgameLinePresentationDocumentV2,
+    presentation: &GalgameLinePresentationDocumentV3,
     context: &str,
 ) -> Result<(), AppError> {
     if presentation.cg == Some(true) {

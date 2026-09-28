@@ -2,7 +2,9 @@ use a4n_db_models::models::ai::{generated_image, generated_video};
 use a4n_db_models::models::canvas::{canvas_graph, canvas_node};
 use a4n_db_models::models::chapter::{chapter, chapter_video_prompt};
 use a4n_db_models::models::generation::{generation_run, generation_run_target, workflow_run};
-use a4n_db_models::models::project::novel_project;
+use a4n_db_models::models::project::{
+    novel_project, project_source_snapshot, source_snapshot_chapter,
+};
 use a4n_domain::image::{
     IMAGE_GENERATION_SOURCE_VIDEO_BOUNDARY_FRAME_PROMPT,
     IMAGE_GENERATION_SOURCE_VIDEO_FIRST_FRAME_PROMPT,
@@ -82,7 +84,7 @@ pub(in crate::video) async fn insert_video_project(
     title: &str,
 ) -> novel_project::Model {
     let now = fixed_time(3);
-    novel_project::ActiveModel {
+    let root = novel_project::ActiveModel {
         user_id: Set(1),
         title: Set(title.to_string()),
         description: Set("视频测试项目".to_string()),
@@ -105,7 +107,19 @@ pub(in crate::video) async fn insert_video_project(
     }
     .insert(db)
     .await
-    .unwrap()
+    .unwrap();
+    let scope = json!({"start":1,"end":1});
+    let snapshot = project_source_snapshot::ActiveModel {
+        root_project_id: Set(root.id), chapter_scope_json: Set(scope.clone()), chapter_hashes_json: Set(json!([])), profile_hashes_json: Set(json!([])),
+        source_version_hash: Set(a4n_domain::shooting_script::compat::serialized_sha256(&json!({"root_project_id":root.id,"chapter_scope":scope,"chapter_hashes":[],"profile_hashes":[],"blueprint_version_id":null})).unwrap()),
+        created_at: Set(now), ..Default::default()
+    }.insert(db).await.unwrap();
+    let mut video: novel_project::ActiveModel = root.clone().into();
+    video.id = sea_orm::NotSet;
+    video.project_kind = Set("video".into());
+    video.root_project_id = Set(Some(root.id));
+    video.source_snapshot_id = Set(Some(snapshot.id));
+    video.insert(db).await.unwrap()
 }
 
 pub(in crate::video) async fn insert_derived_video_project(
@@ -113,7 +127,13 @@ pub(in crate::video) async fn insert_derived_video_project(
     root_project_id: i64,
     title: &str,
 ) -> novel_project::Model {
-    create_derived_project_record(
+    let source_project = novel_project::Entity::find_by_id(root_project_id)
+        .one(db.as_ref())
+        .await
+        .unwrap()
+        .unwrap();
+    let root_project_id = source_project.root_project_id.unwrap_or(source_project.id);
+    let video = create_derived_project_record(
         db.as_ref(),
         1,
         CreateDerivedProjectParams {
@@ -128,7 +148,19 @@ pub(in crate::video) async fn insert_derived_video_project(
         },
     )
     .await
-    .unwrap()
+    .unwrap();
+    let chapters = a4n_db::project::source_snapshot_chapters(db.as_ref(), video.id)
+        .await
+        .unwrap();
+    for source in chapters {
+        let chapter = chapter::Entity::find_by_id(source.source_chapter_id)
+            .one(db.as_ref())
+            .await
+            .unwrap()
+            .unwrap();
+        insert_confirmed_visual_plan_and_shooting_script(db.as_ref(), video.id, &chapter).await;
+    }
+    video
 }
 
 async fn insert_video_chapter(
@@ -159,7 +191,8 @@ pub(super) async fn insert_confirmed_visual_plan_and_shooting_script(
         &chapter.content,
     );
     let mut plan = crate::shooting_script::visual_plan_fixture(&source).plan;
-    let scene_id = crate::shooting_script::seed_visual_plan_scene(db, source.root_project_id).await;
+    let scene_id =
+        crate::shooting_script::seed_visual_plan_scene(db, source.requested_project_id).await;
     for segment in &mut plan.segments {
         segment.scene_binding = Some(a4n_domain::chapter_visual_plan::SceneBindingV3::Scene {
             scene_profile_id: scene_id,
@@ -252,8 +285,14 @@ pub(in crate::video) async fn insert_video_chapter_without_shooting_script(
 ) -> chapter::Model {
     const TEST_WORKFLOW_RUN_POOL_SIZE: i64 = 64;
     let now = fixed_time(3);
+    let project = novel_project::Entity::find_by_id(project_id)
+        .one(db)
+        .await
+        .unwrap()
+        .unwrap();
+    let root_project_id = project.root_project_id.unwrap_or(project_id);
     let chapter = chapter::ActiveModel {
-        project_id: Set(project_id),
+        project_id: Set(root_project_id),
         outline_id: Set(None),
         chapter_number: Set(chapter_number),
         title: Set(Some(format!("视频章节 {chapter_number}"))),
@@ -270,13 +309,44 @@ pub(in crate::video) async fn insert_video_chapter_without_shooting_script(
     .insert(db)
     .await
     .unwrap();
+    if let Some(snapshot_id) = project.source_snapshot_id {
+        // Assemble a complete frozen source fixture before exercising the
+        // application. The real source-capture API is covered separately.
+        source_snapshot_chapter::ActiveModel {
+            snapshot_id: Set(snapshot_id),
+            root_project_id: Set(root_project_id),
+            source_chapter_id: Set(chapter.id),
+            chapter_number: Set(chapter.chapter_number),
+            title: Set(chapter.title.clone()),
+            content: Set(chapter.content.clone()),
+            summary: Set(chapter.summary.clone()),
+            analysis_data_json: Set(chapter.analysis_data.clone()),
+            content_hash: Set(a4n_domain::source_text_hash(&chapter.content)),
+            analysis_hash: Set(None),
+            ..Default::default()
+        }
+        .insert(db)
+        .await
+        .unwrap();
+        let chapters = source_snapshot_chapter::Entity::find()
+            .filter(source_snapshot_chapter::Column::SnapshotId.eq(snapshot_id))
+            .order_by_asc(source_snapshot_chapter::Column::ChapterNumber)
+            .all(db)
+            .await
+            .unwrap();
+        let scope = json!({"start": chapters.first().unwrap().chapter_number, "end": chapters.last().unwrap().chapter_number});
+        let hashes = json!(chapters.iter().map(|row| json!({"source_chapter_id":row.source_chapter_id,"chapter_number":row.chapter_number,"content_hash":row.content_hash,"analysis_hash":row.analysis_hash})).collect::<Vec<_>>());
+        project_source_snapshot::ActiveModel { id: Set(snapshot_id), chapter_scope_json: Set(scope.clone()), chapter_hashes_json: Set(hashes.clone()),
+            source_version_hash: Set(a4n_domain::shooting_script::compat::serialized_sha256(&json!({"root_project_id":root_project_id,"chapter_scope":scope,"chapter_hashes":hashes,"profile_hashes":[],"blueprint_version_id":null})).unwrap()),
+            ..Default::default() }.update(db).await.unwrap();
+    }
     let workflow_runs = (1..=TEST_WORKFLOW_RUN_POOL_SIZE).map(|slot| workflow_run::ActiveModel {
         id: Set(chapter.id * 100 + slot),
         business_key: Set(format!("video-test:{project_id}:{}:{slot}", chapter.id)),
         workflow_kind: Set("chapter_video_prompt_generation".to_string()),
         project_id: Set(Some(project_id)),
-        root_project_id: Set(Some(project_id)),
-        source_snapshot_id: Set(None),
+        root_project_id: Set(Some(root_project_id)),
+        source_snapshot_id: Set(project.source_snapshot_id),
         scope_table: Set(Some("chapter".to_string())),
         scope_id: Set(Some(chapter.id)),
         chapter_id: Set(Some(chapter.id)),

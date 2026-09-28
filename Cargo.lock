@@ -1689,6 +1689,7 @@ dependencies = [
  "a4n-config",
  "a4n-db-models",
  "a4n-domain",
+ "a4n-service-protocol",
  "a4n-video-contract",
  "sea-orm",
  "sea-orm-migration",

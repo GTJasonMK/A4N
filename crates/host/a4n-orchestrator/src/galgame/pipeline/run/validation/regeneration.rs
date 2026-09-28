@@ -5,7 +5,8 @@ use crate::galgame::{GalgameCharacterStaging, GalgameScriptAdaptation, GalgameVi
 pub(in crate::galgame::pipeline::run) fn ensure_single_regenerated_scene_lines(
     script_adaptation: &GalgameScriptAdaptation,
 ) -> Result<(), AppError> {
-    if script_adaptation.scene_lines.len() != 1
+    if !script_adaptation.branch_scene_lines.is_empty()
+        || script_adaptation.scene_lines.len() != 1
         || script_adaptation
             .scene_lines
             .first()
@@ -21,7 +22,8 @@ pub(in crate::galgame::pipeline::run) fn ensure_single_regenerated_scene_lines(
 pub(in crate::galgame::pipeline::run) fn ensure_single_regenerated_staged_lines(
     character_staging: &GalgameCharacterStaging,
 ) -> Result<(), AppError> {
-    if character_staging.scene_lines.len() != 1
+    if !character_staging.branch_scene_lines.is_empty()
+        || character_staging.scene_lines.len() != 1
         || character_staging
             .scene_lines
             .first()

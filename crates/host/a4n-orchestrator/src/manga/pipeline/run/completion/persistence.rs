@@ -11,6 +11,7 @@ pub(super) async fn persist_completion_outputs(
 ) -> Result<Vec<chapter_manga_prompt::Model>, AppError> {
     let MangaCompletionArtifacts {
         plan,
+        page_plan_ref,
         page_prompts,
         page_traces,
     } = artifacts;
@@ -24,6 +25,7 @@ pub(super) async fn persist_completion_outputs(
             reference_assets_metadata: &context.reference_assets_metadata,
             prompt_fingerprint: &context.prompt_fingerprint,
             plan: &plan,
+            page_plan_ref: &page_plan_ref,
             page_traces,
             page_prompts,
         })

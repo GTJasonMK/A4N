@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { ChevronRight, Plus, Trash2 } from "lucide-react";
 import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
 import { Dropdown } from "../../../components/ui/Dropdown";
@@ -17,7 +17,7 @@ import type { SourceSnapshotChapterSummary } from "../../../api/project";
 import type {
   GalgameCgImportance,
   GalgameLine,
-  GalgameLinePresentationDocumentV2,
+  GalgameLinePresentationDocumentV3,
   GalgameLineType,
   GalgameMediaBindingSummary,
   GalgameScene,
@@ -43,6 +43,7 @@ import {
 } from "./galgameTabShared";
 
 interface LineEditorProps {
+  onDirtyChange?: (key: string, dirty: boolean) => void;
   line: GalgameLine;
   speakerProfiles: GalgameSpeakerProfile[];
   speakerProfileById: ReadonlyMap<number, GalgameSpeakerProfile>;
@@ -72,6 +73,7 @@ interface LineEditorProps {
 }
 
 export const SceneMetaEditor: React.FC<{
+  onDirtyChange?: (key: string, dirty: boolean) => void;
   scene: GalgameScene;
   scenes: GalgameSceneDetail[];
   mediaBindings: GalgameMediaBindingSummary[];
@@ -80,6 +82,7 @@ export const SceneMetaEditor: React.FC<{
   onBindMedia: (mediaAssetId: number) => void;
   onUnbindMedia: (binding: GalgameMediaBindingSummary) => void;
 }> = ({
+  onDirtyChange,
   scene,
   scenes,
   mediaBindings,
@@ -96,6 +99,12 @@ export const SceneMetaEditor: React.FC<{
     background_note: scene.background_note ?? "",
     next_scene_id: scene.next_scene_id?.toString() ?? "",
   });
+  const baseline = useRef(draft);
+  const dirty = draft.title !== scene.title || draft.location !== (scene.location ?? "")
+    || draft.time_of_day !== (scene.time_of_day ?? "") || draft.background_note !== (scene.background_note ?? "")
+    || draft.next_scene_id !== (scene.next_scene_id?.toString() ?? "");
+  useEffect(() => { onDirtyChange?.(`scene:${scene.id}`, dirty); }, [dirty, onDirtyChange, scene.id]);
+  useEffect(() => () => onDirtyChange?.(`scene:${scene.id}`, false), [onDirtyChange, scene.id]);
   const availableNextScenes = useMemo(
     () =>
       scenes.filter(
@@ -110,13 +119,18 @@ export const SceneMetaEditor: React.FC<{
     availableNextScenes.some((item) => item.scene.id === scene.next_scene_id);
 
   useEffect(() => {
-    setDraft({
+    const next = {
       title: scene.title,
       location: scene.location ?? "",
       time_of_day: scene.time_of_day ?? "",
       background_note: scene.background_note ?? "",
       next_scene_id: scene.next_scene_id?.toString() ?? "",
-    });
+    };
+    const previous = baseline.current;
+    setDraft((current) => Object.fromEntries(Object.entries(next).map(([key, value]) => [key,
+      current[key as keyof typeof current] === previous[key as keyof typeof previous] ? value : current[key as keyof typeof current],
+    ])) as typeof current);
+    baseline.current = next;
   }, [
     scene.background_note,
     scene.location,
@@ -262,6 +276,7 @@ export const SceneMetaEditor: React.FC<{
 };
 
 export const LineEditor: React.FC<LineEditorProps> = ({
+  onDirtyChange,
   line,
   speakerProfiles,
   speakerProfileById,
@@ -292,6 +307,10 @@ export const LineEditor: React.FC<LineEditorProps> = ({
   const { t } = useI18n();
   const [text, setText] = useState(line.text);
   const [pose, setPose] = useState(line.pose ?? "");
+  const baseline = useRef({ text: line.text, pose: line.pose ?? "" });
+  const dirty = text !== line.text || pose !== (line.pose ?? "");
+  useEffect(() => { onDirtyChange?.(`line:${line.id}`, dirty); }, [dirty, line.id, onDirtyChange]);
+  useEffect(() => () => onDirtyChange?.(`line:${line.id}`, false), [line.id, onDirtyChange]);
   const isSpeakingLine = SPEAKING_LINE_TYPES.has(line.line_type);
   const isChoiceLine = line.line_type === "choice";
   const expressionValue = selectValue(line.expression, EXPRESSIONS);
@@ -306,8 +325,10 @@ export const LineEditor: React.FC<LineEditorProps> = ({
   );
 
   useEffect(() => {
-    setText(line.text);
-    setPose(line.pose ?? "");
+    const previous = baseline.current;
+    setText((current) => current === previous.text ? line.text : current);
+    setPose((current) => current === previous.pose ? line.pose ?? "" : current);
+    baseline.current = { text: line.text, pose: line.pose ?? "" };
   }, [line.pose, line.text]);
 
   const firstSpeakerId = speakerProfiles[0]?.id ?? null;
@@ -586,7 +607,7 @@ const PresentationEditor: React.FC<{
   onDraftChange: (draft: CgDraft) => void;
   onSave: (draft: CgDraft) => void;
   disabled: boolean;
-  onPatch: (presentationJson: GalgameLinePresentationDocumentV2) => void;
+  onPatch: (presentationJson: GalgameLinePresentationDocumentV3) => void;
 }> = ({ line, draft, onDraftChange, onSave, disabled, onPatch }) => {
   const { t } = useI18n();
   const presentation = line.presentation_json;

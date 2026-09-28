@@ -79,6 +79,7 @@ pub mod manga_reference_binding_contract_cleanup;
 pub mod manga_reference_binding_payload_cleanup;
 pub mod media_asset_generation_ref_contract;
 pub mod media_asset_snapshot_context;
+pub mod media_authoring;
 pub mod media_provenance_snapshot_context;
 pub mod media_provider_options;
 pub mod media_workflow_reset_retirement;

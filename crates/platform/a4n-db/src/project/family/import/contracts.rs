@@ -38,6 +38,9 @@ pub struct ProjectFamilyImportPackage {
     pub profile_evidence: Vec<profile_evidence::Model>,
     pub chapter_visual_plans: Vec<chapter_visual_plan::Model>,
     pub chapter_shooting_scripts: Vec<chapter_shooting_script::Model>,
+    pub authoring_documents: Vec<a4n_db_models::models::project::media_authoring_document::Model>,
+    pub authoring_receipts:
+        Vec<a4n_db_models::models::project::media_authoring_migration_receipt::Model>,
     pub character_portraits: Vec<character_portrait::Model>,
     pub generated_images: Vec<generated_image::Model>,
     pub chapter_manga_prompts: Vec<chapter_manga_prompt::Model>,
@@ -68,6 +71,7 @@ pub struct ProjectFamilyImportMappings {
     pub chapter_ids: HashMap<i64, i64>,
     pub source_snapshot_ids: HashMap<i64, i64>,
     pub source_snapshot_chapter_ids: HashMap<i64, i64>,
+    pub entity_ids: HashMap<String, HashMap<i64, i64>>,
 }
 
 #[derive(Default)]
@@ -94,6 +98,9 @@ pub(super) struct ImportIdMaps {
     pub(super) visual_plan_ids: HashMap<i64, i64>,
     pub(super) visual_plan_sha256s: HashMap<i64, String>,
     pub(super) shooting_script_ids: HashMap<i64, i64>,
+    pub(super) shooting_script_sources: HashMap<i64, ShootingScriptImportSource>,
+    pub(super) authoring_document_ids: HashMap<i64, i64>,
+    pub(super) authoring_document_sha256s: HashMap<i64, String>,
     pub(super) shooting_script_revision_keys: HashMap<i64, String>,
     pub(super) shooting_script_sha256s: HashMap<i64, String>,
     pub(super) shooting_script_shot_fingerprints: HashMap<i64, HashMap<String, (String, String)>>,
@@ -119,6 +126,24 @@ pub(super) struct ImportIdMaps {
     pub(super) assembly_clip_ids: HashMap<i64, i64>,
     pub(super) source_sync_run_ids: HashMap<i64, i64>,
     pub(super) source_sync_conflict_ids: HashMap<i64, i64>,
+}
+
+pub(super) struct ShootingScriptImportSource {
+    pub project_id: i64,
+    pub revision: i32,
+    pub sha256: String,
+    pub source_revision_key: String,
+}
+
+impl From<&chapter_shooting_script::Model> for ShootingScriptImportSource {
+    fn from(script: &chapter_shooting_script::Model) -> Self {
+        Self {
+            project_id: script.project_id,
+            revision: script.revision,
+            sha256: script.script_sha256.clone(),
+            source_revision_key: script.source_revision_key.clone(),
+        }
+    }
 }
 
 pub trait ProjectFamilyMediaFileImporter {

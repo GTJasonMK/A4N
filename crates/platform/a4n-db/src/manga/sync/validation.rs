@@ -2,6 +2,98 @@ use crate::manga::{MangaPipelineDbError, validate_manga_page_prompt_layout};
 use a4n_domain::manga::MangaPagePromptSyncDraft;
 use std::collections::HashSet;
 
+pub(super) async fn validate_adopted_manga_plan(
+    db: &sea_orm::DatabaseTransaction,
+    project_id: i64,
+    chapter_id: i64,
+    drafts: &[MangaPagePromptSyncDraft],
+) -> Result<(), MangaPipelineDbError> {
+    use a4n_db_models::models::project::novel_project;
+    use a4n_domain::{
+        manga::{MangaPageGenerationLayoutV3, MangaPagePlanV4},
+        media_authoring::{AuthoringDocumentKind, AuthoringDocumentStatus},
+    };
+    use sea_orm::{EntityTrait, QuerySelect};
+    let invalid = |message: &str| MangaPipelineDbError::InvalidArgument(message.into());
+    let project = novel_project::Entity::find_by_id(project_id)
+        .lock_exclusive()
+        .one(db)
+        .await?
+        .ok_or_else(|| invalid("漫画项目不存在"))?;
+    if project.project_kind != "comic" || project.lifecycle_gate != "active" {
+        return Err(invalid("漫画项目不可写"));
+    }
+    let layouts = drafts
+        .iter()
+        .map(|draft| {
+            serde_json::from_value::<MangaPageGenerationLayoutV3>(
+                draft
+                    .layout
+                    .clone()
+                    .ok_or_else(|| invalid("漫画页面缺少布局"))?,
+            )
+            .map_err(|error| MangaPipelineDbError::InvalidArgument(error.to_string()))
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    let first = layouts
+        .first()
+        .ok_or_else(|| invalid("生成漫画页面不能为空"))?;
+    let reference = first
+        .page_plan_ref
+        .as_ref()
+        .ok_or_else(|| invalid("生成漫画页面必须记录已采用分页计划"))?;
+    let plan = crate::media_authoring::authoring_document(db, project_id, reference.id)
+        .await
+        .map_err(authoring_error)?;
+    if plan.kind != AuthoringDocumentKind::MangaPagePlan
+        || plan.status != AuthoringDocumentStatus::Adopted
+        || plan.reference() != *reference
+        || plan.source_chapter_id != Some(chapter_id)
+        || Some(plan.source_snapshot_id) != project.source_snapshot_id
+    {
+        return Err(invalid("已采用分页计划或原文已变化，请重新准备页面"));
+    }
+    let ([source], [dependency]) = (
+        plan.inputs.sources.as_slice(),
+        plan.inputs.dependencies.as_slice(),
+    ) else {
+        return Err(invalid("分页计划必须对应一个原文章节和改编版本"));
+    };
+    if !first.source.matches_authoring(source, dependency) {
+        return Err(invalid("漫画页面来源与采用的改编版本不一致"));
+    }
+    crate::media_authoring::validate_adopted_authoring_dependencies(
+        db,
+        project_id,
+        &plan.inputs.dependencies,
+    )
+    .await
+    .map_err(authoring_error)?;
+    let document: MangaPagePlanV4 = serde_json::from_value(plan.document)
+        .map_err(|error| MangaPipelineDbError::InvalidArgument(error.to_string()))?;
+    if document.adaptation_plan_id != dependency.id
+        || document.adaptation_plan_revision != dependency.revision
+        || document.pages.len() != layouts.len()
+        || layouts.iter().any(|layout| {
+            layout.page_plan_ref != first.page_plan_ref
+                || layout.source != first.source
+                || !document.pages.contains(&layout.page_plan)
+        })
+    {
+        return Err(invalid("漫画页面与实际采用的分页计划不一致"));
+    }
+    Ok(())
+}
+
+fn authoring_error(error: crate::media_authoring::AuthoringDocumentError) -> MangaPipelineDbError {
+    match error {
+        crate::media_authoring::AuthoringDocumentError::Database(error) => {
+            MangaPipelineDbError::Database(error)
+        }
+        error => MangaPipelineDbError::InvalidArgument(error.to_string()),
+    }
+}
+
 pub(super) fn validate_manga_sync_drafts(
     drafts: &[MangaPagePromptSyncDraft],
     project_id: i64,
@@ -38,10 +130,10 @@ mod tests {
             dialogue_text: None,
             characters_in_frame: None,
             layout: Some(json!({
-                "schema_version": "manga_page_generation_v2",
+                "schema_version": "manga_page_generation_v3",
                 "page_plan": {
                     "page_number": 1,
-                    "beat_refs": [{"scene_index": 1, "shot_index": 1, "beat_index": 1}],
+                    "beat_refs": [{"unit_id": "unit-1", "beat_id": "beat-1"}],
                     "role": "setup",
                     "pacing": "medium",
                     "importance": "normal",
@@ -53,7 +145,7 @@ mod tests {
                     "dominant_panel_number": 1,
                     "panels": [{
                         "panel_number": 1,
-                        "beat_refs": [{"scene_index": 1, "shot_index": 1, "beat_index": 1}],
+                        "beat_refs": [{"unit_id": "unit-1", "beat_id": "beat-1"}],
                         "function": "dialogue",
                         "size": "dominant",
                         "shot_scale": "medium",
@@ -81,9 +173,9 @@ mod tests {
                     "source_snapshot_chapter_id": null,
                     "source_revision_key": "live:12:content-sha256",
                     "content_sha256": "content-sha256",
-                    "shooting_script_id": 71,
-                    "shooting_script_revision": 2,
-                    "shooting_script_sha256": "script-sha256"
+                    "adaptation_plan_id": 71,
+                    "adaptation_plan_revision": 2,
+                    "adaptation_plan_sha256": "plan-sha256"
                 }
             })),
             status: "pending".to_string(),

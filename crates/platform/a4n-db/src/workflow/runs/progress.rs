@@ -132,9 +132,6 @@ pub async fn persist_workflow_progress_snapshot(
         .update(&tx)
         .await
         .map_err(WorkflowWriteError::Database)?;
-    crate::shooting_script::mark_shooting_progress_source_updated(&tx, &updated)
-        .await
-        .map_err(WorkflowWriteError::Database)?;
     tx.commit().await.map_err(WorkflowWriteError::Database)?;
     Ok(updated)
 }
