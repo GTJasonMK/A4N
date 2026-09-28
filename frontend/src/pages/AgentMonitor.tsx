@@ -480,7 +480,7 @@ export const AgentMonitor: React.FC = () => {
     try {
       const created = await createAgentThread({ kind: "subagent", capability, title: createTitle.trim() || null });
       setCreateOpen(false); setCreateTitle(""); setCreateCapability("general");
-      if (!await refreshThreads()) return;
+      await refreshThreads();
       setSelectedThreadId(created.id);
     } catch (err) {
       addToast(extractErrorMessage(err, locale === "zh-CN" ? "创建子 Agent 失败" : "Failed to create sub-agent"), "error");
@@ -512,7 +512,7 @@ export const AgentMonitor: React.FC = () => {
       setSnapshot(null);
       setStreamedMessageIds(new Set());
       setPendingSubmission(null);
-      if (!await refreshThreads(true)) return;
+      await refreshThreads(true);
       addToast(t("agent.clearContextSuccess"), "success");
     } catch (err) {
       const message = extractErrorMessage(err, t("agent.clearContextFailed"));
