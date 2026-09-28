@@ -53,7 +53,11 @@ export function ConfigListPanel<C>({
   const [creating, setCreating] = useState(false);
   const [form, setForm] = useState<C>(defaultForm);
   const [dirty, setDirty] = useState(false);
-  useDirty(`settings-config:${title}`, dirty);
+  useDirty(`settings-config:${title}`, dirty, undefined, () =>
+    !savingRef.current && !refreshingRef.current && !draftTransitionRef.current
+      && activatingRef.current == null && deletingRef.current == null
+      && testingRef.current == null && !previewLoadingRef.current,
+  );
   const [saving, setSaving] = useState(false);
   const [activating, setActivating] = useState<number | null>(null);
   const [deleting, setDeleting] = useState<number | null>(null);

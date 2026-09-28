@@ -50,7 +50,7 @@ export const AgentTab: React.FC = () => {
   const dirty = useMemo(() => settings?.profiles.some((profile) =>
     profile.skills.some((skill) => skill.enabled !== draft[profile.capability]?.has(skill.id)),
   ) ?? false, [draft, settings]);
-  useDirty("settings-agent-skills", dirty);
+  useDirty("settings-agent-skills", dirty, undefined, () => !saving);
 
   const refresh = useCallback(async () => {
     setLoading(true);

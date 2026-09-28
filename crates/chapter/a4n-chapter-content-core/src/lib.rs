@@ -7,8 +7,8 @@
 use std::collections::{HashMap, HashSet};
 
 use a4n_api_contract::chapter::{
-    ChapterMaterialSyncState, ChapterMaterialSyncStatus, ChapterMaterialUpdate,
-    ChapterMaterialUpdateAction, ChapterMaterialUpdateKind, ChapterSummary,
+    ChapterIndexEntry, ChapterMaterialSyncState, ChapterMaterialSyncStatus, ChapterMaterialUpdate,
+    ChapterMaterialUpdateAction, ChapterMaterialUpdateKind, ChapterMetadata, ChapterSummary,
 };
 use a4n_db_models::models::{
     chapter::chapter,
@@ -48,27 +48,50 @@ pub const WORKFLOW_STATUS_INTERRUPTED: &str = "interrupted";
 pub const WORKFLOW_STATUS_RUNNING: &str = "running";
 
 pub fn chapter_summary(chapter: &chapter::Model) -> ChapterSummary {
-    let initial_material_status = if chapter.analysis_data.is_some() {
-        ChapterMaterialSyncStatus::Unknown
-    } else {
-        ChapterMaterialSyncStatus::NotAnalyzed
-    };
+    chapter_summary_with_metadata(chapter, chapter_metadata(chapter))
+}
+
+pub fn chapter_index_entry(
+    chapter: &chapter::Model,
+    metadata: ChapterMetadata,
+) -> ChapterIndexEntry {
+    ChapterIndexEntry {
+        metadata,
+        body_character_count: chapter.content.chars().count(),
+    }
+}
+
+pub fn chapter_summary_with_metadata(
+    chapter: &chapter::Model,
+    metadata: ChapterMetadata,
+) -> ChapterSummary {
     ChapterSummary {
-        id: chapter.id,
-        project_id: chapter.project_id,
-        outline_id: chapter.outline_id,
-        chapter_number: chapter.chapter_number,
-        title: chapter.title.clone(),
+        metadata,
         content: chapter.content.clone(),
         edit_revision: a4n_domain::chapter::chapter_edit_revision(
             &chapter.content,
             chapter.title.as_deref(),
         ),
+        style_tags: chapter.style_tags.clone(),
+        analysis_data: chapter.analysis_data.clone(),
+    }
+}
+
+pub fn chapter_metadata(chapter: &chapter::Model) -> ChapterMetadata {
+    let initial_material_status = if chapter.analysis_data.is_some() {
+        ChapterMaterialSyncStatus::Unknown
+    } else {
+        ChapterMaterialSyncStatus::NotAnalyzed
+    };
+    ChapterMetadata {
+        id: chapter.id,
+        project_id: chapter.project_id,
+        outline_id: chapter.outline_id,
+        chapter_number: chapter.chapter_number,
+        title: chapter.title.clone(),
         word_count: chapter.word_count,
         status: chapter.status.clone(),
         summary: chapter.summary.clone(),
-        style_tags: chapter.style_tags.clone(),
-        analysis_data: chapter.analysis_data.clone(),
         analysis_sync_status: None,
         analysis_sync_can_resume: false,
         analysis_sync_has_saved_analysis: false,
@@ -221,7 +244,7 @@ pub fn chapter_analysis_run_has_saved_analysis_from_checkpoints(
 
 pub fn attach_chapter_sync_state(
     chapters: &[chapter::Model],
-    summaries: &mut [ChapterSummary],
+    summaries: &mut [ChapterMetadata],
     analysis_runs: &[workflow_run::Model],
     content_runs: &[workflow_run::Model],
     checkpoints: Vec<workflow_checkpoint::Model>,
@@ -288,7 +311,7 @@ fn material_sync_state(status: ChapterMaterialSyncStatus) -> ChapterMaterialSync
 
 fn attach_chapter_content_sync_state(
     chapters: &[chapter::Model],
-    summaries: &mut [ChapterSummary],
+    summaries: &mut [ChapterMetadata],
     runs: &[workflow_run::Model],
     checkpoints_by_run: &HashMap<i64, Vec<workflow_checkpoint::Model>>,
 ) -> Result<(), AppError> {
@@ -601,7 +624,7 @@ mod tests {
             outline_id: None,
             chapter_number: 1,
             title: Some("第一章".into()),
-            content: "正文".into(),
+            content: "正文🙂e\u{301}\r\n".into(),
             word_count: 2,
             status: "draft".into(),
             summary: None,
@@ -610,10 +633,31 @@ mod tests {
             created_at: now,
             updated_at: now,
         };
+        let summary = chapter_summary(&chapter);
         assert_eq!(
-            chapter_summary(&chapter).material_sync.content_index,
+            summary.material_sync.content_index,
             ChapterMaterialSyncStatus::NotAnalyzed
         );
+        let mut full = serde_json::to_value(&summary).unwrap();
+        assert_eq!(full.as_object().unwrap().len(), 25);
+        assert!(
+            full.get("metadata").is_none(),
+            "the full response stays flat"
+        );
+        assert_eq!(full["content"], chapter.content);
+        assert_eq!(
+            full["word_count"], 2,
+            "stored counts retain their existing meaning"
+        );
+        for field in ["content", "edit_revision", "style_tags", "analysis_data"] {
+            assert!(full.as_object_mut().unwrap().remove(field).is_some());
+        }
+        assert_eq!(full, serde_json::to_value(&summary.metadata).unwrap());
+        let index = chapter_index_entry(&chapter, summary.metadata);
+        assert_eq!(index.body_character_count, 7);
+        let index_json = serde_json::to_value(index).unwrap();
+        assert!(index_json.get("content").is_none());
+        assert!(index_json.get("analysis_data").is_none());
     }
 
     #[test]
@@ -672,7 +716,7 @@ mod tests {
         let mut summary = chapter_summary(&chapter);
         attach_chapter_sync_state(
             std::slice::from_ref(&chapter),
-            std::slice::from_mut(&mut summary),
+            std::slice::from_mut(&mut summary.metadata),
             std::slice::from_ref(&run),
             &[],
             Vec::new(),

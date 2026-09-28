@@ -68,9 +68,10 @@ use a4n_api_contract::{
     },
     chapter::{
         CHAPTER_ANALYSIS_PROGRESS_TOTAL, CHAPTER_SCENE_PROGRESS_TOTAL, ChapterAnalysisInput,
-        ChapterAnalysisMutationResult, ChapterMaterialSyncState, ChapterMaterialSyncStatus,
-        ChapterMaterialUpdate, ChapterMaterialUpdateAction, ChapterMaterialUpdateKind,
-        ChapterSceneSummary, ChapterSummary, GenerateChapterSceneInput, ImportChapterInput,
+        ChapterAnalysisMutationResult, ChapterIndexEntry, ChapterMaterialSyncState,
+        ChapterMaterialSyncStatus, ChapterMaterialUpdate, ChapterMaterialUpdateAction,
+        ChapterMaterialUpdateKind, ChapterMetadata, ChapterSceneSummary, ChapterSummary,
+        GenerateChapterSceneInput, GetChapterInput, ImportChapterInput,
         PreparedGenerationRagEmbeddingRequest, ReorderChapterScenesInput,
         UpdateChapterContentInput, UpdateChapterSceneInput,
     },

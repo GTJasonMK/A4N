@@ -17,6 +17,7 @@ import { RequestPreviewModal } from "../../components/feedback/RequestPreviewMod
 import { useToast } from "../../components/feedback/Toast";
 import { useProgressTask } from "../../hooks/useProgressTask";
 import { useI18n } from "../../i18n";
+import { useDirty } from "../../components/navigation/dirtyRegistry";
 import { AdaptationPlanEditor, newAdaptationUnit, PlanTextField } from "./AdaptationPlanEditor";
 import { GalgameBranchPlanEditor, MangaPagePlanEditor } from "./MediaPlanEditors";
 
@@ -34,10 +35,11 @@ interface Props {
   onReload: () => Promise<void>;
   onGenerateStage?: () => Promise<void>;
   onDirtyChange: (dirty: boolean) => void;
+  onBusyChange?: (busy: boolean) => void;
   onNext?: () => void;
 }
 
-export function MediaAuthoringPanel({ projectId, kind, workspace, loading, error, chapterId: fixedChapterId, canEdit, stageRunning = false, onReload, onGenerateStage, onDirtyChange, onNext }: Props) {
+export function MediaAuthoringPanel({ projectId, kind, workspace, loading, error, chapterId: fixedChapterId, canEdit, stageRunning = false, onReload, onGenerateStage, onDirtyChange, onBusyChange, onNext }: Props) {
   const { t } = useI18n();
   const addToast = useToast((state) => state.addToast);
   const { runProgressTask } = useProgressTask();
@@ -55,6 +57,7 @@ export function MediaAuthoringPanel({ projectId, kind, workspace, loading, error
   const busyRef = useRef(false);
   const sourceChapterId = fixedChapterId ?? selectedChapterId ?? workspace?.chapters[0]?.source.source_chapter_id ?? null;
   const scope = `${projectId}:${kind}:${sourceChapterId}`;
+  const dirtyKey = `media-authoring:${scope}`;
   const scopeRef = useRef(scope);
   scopeRef.current = scope;
   useEffect(() => { scopeRef.current = scope; return () => { scopeRef.current = ""; }; }, [scope]);
@@ -69,8 +72,18 @@ export function MediaAuthoringPanel({ projectId, kind, workspace, loading, error
   const title = kind === "adaptation_plan" ? t("common.mediaAuthoring.adaptation")
     : kind === "manga_page_plan" ? t("common.mediaAuthoring.pagePlanning") : t("common.mediaAuthoring.branches");
 
-  useEffect(() => { onDirtyChange(dirty); }, [dirty, onDirtyChange]);
+  const discard = () => {
+    if (busy) return false;
+    setEditor(null);
+    setVersionId(null);
+    onDirtyChange(false);
+    return true;
+  };
+  useDirty(dirtyKey, dirty || busy, discard, () => !busy);
+  useEffect(() => { onDirtyChange(dirty || busy); }, [dirty, busy, onDirtyChange]);
   useEffect(() => () => onDirtyChange(false), [onDirtyChange]);
+  useEffect(() => { onBusyChange?.(busy); }, [busy, onBusyChange]);
+  useEffect(() => () => onBusyChange?.(false), [onBusyChange]);
   useEffect(() => {
     setVersionId(null);
     setEditor(null);

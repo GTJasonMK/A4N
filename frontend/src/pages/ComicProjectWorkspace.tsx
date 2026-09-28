@@ -19,6 +19,7 @@ import { getDerivedProjectSubtitle } from "../utils/projectRouting";
 import { useI18n } from "../i18n";
 import { useNovelDetailDirtyRegistry } from "./novel-detail/novelDetailDirty";
 import { confirmDiscardMediaChanges } from "../components/feedback/UnsavedChangesGuard";
+import { UnsavedNavigationGuard } from "../components/navigation/UnsavedNavigationGuard";
 
 export const ComicProjectWorkspace: React.FC = () => {
   const { id } = useParams();
@@ -133,6 +134,7 @@ export const ComicProjectWorkspace: React.FC = () => {
 
   return (
     <div className="h-full min-h-0 flex flex-col bg-book-bg">
+      <UnsavedNavigationGuard dirty={workspaceDirty} name={t("comic.workspace")} action={t("common.leavePage")} />
       <DerivedProjectHeader
         leading={<BackButton iconOnly title={t("a11y.back")} onClick={() => navigate("/")} />}
         icon={<PanelsTopLeft size={15} />}

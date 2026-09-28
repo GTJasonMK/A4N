@@ -220,7 +220,7 @@ export const ThemeEditorPanel: React.FC<ThemeEditorPanelProps> = ({
     JSON.stringify(document) !== JSON.stringify(cloneDocument(theme)) ||
     Object.keys(pendingFiles).length > 0 ||
     deleteResourceIds.length > 0;
-  useDirty("settings-theme-editor", isDirty);
+  useDirty("settings-theme-editor", isDirty, undefined, () => !saving);
 
   useEffect(() => {
     onDirtyChange?.(isDirty);

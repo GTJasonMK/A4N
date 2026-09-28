@@ -148,12 +148,17 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
   const editingOutline = editingId == null
     ? null
     : outlines.find((outline) => outline.id === editingId) ?? null;
+  const mutationBusy = generatingParts || generatingOutlines || savingId != null
+    || manualSaving != null || regenId != null || delActing != null
+    || regenLastPart || partRegenId != null;
   useNovelDetailDirty(
     `outlines:${projectId}`,
     editingOutline != null && (
       editForm.title !== editingOutline.title ||
       editForm.summary !== editingOutline.summary
     ),
+    undefined,
+    () => !mutationBusy && !requestPreviewLoading,
   );
 
   const closeRequestPreview = useCallback(() => {
@@ -1118,15 +1123,6 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
     }
   };
 
-  const mutationBusy =
-    generatingParts ||
-    generatingOutlines ||
-    savingId != null ||
-    manualSaving != null ||
-    regenId != null ||
-    delActing != null ||
-    regenLastPart ||
-    partRegenId != null;
   const interactionBusy = mutationBusy || requestPreviewLoading;
   const currentProjectLoaded = loadedProjectId === projectId;
   const currentLoadError = loadError?.projectId === projectId ? loadError.message : null;

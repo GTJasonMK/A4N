@@ -1,5 +1,5 @@
 import { useEffect, useId } from "react";
-import { useBlocker } from "react-router-dom";
+import { useBeforeUnload, useBlocker } from "react-router-dom";
 import { useI18n } from "../../i18n";
 import { useDirty, useDirtyRegistry, useDirtyRegistryVersion } from "./dirtyRegistry";
 import { Modal } from "../ui/Modal";
@@ -22,6 +22,12 @@ export const UnsavedNavigationGuard = ({
   const id = useId();
   useDirty(`route-guard:${id}`, dirty);
   const isDirty = dirty || registry.hasDirty();
+  const canDiscard = registry.canDiscardDirty();
+  useBeforeUnload((event) => {
+    if (!isDirty) return;
+    event.preventDefault();
+    event.returnValue = "";
+  });
   const blocker = useBlocker(({ currentLocation, nextLocation }) =>
     isDirty && (
       currentLocation.pathname !== nextLocation.pathname ||
@@ -47,8 +53,11 @@ export const UnsavedNavigationGuard = ({
           <BookButton variant="secondary" onClick={blocker.reset}>{t("common.cancel")}</BookButton>
           <BookButton
             variant="warning"
+            disabled={!canDiscard}
             onClick={() => {
-              void registry.discardDirty().then(blocker.proceed);
+              void registry.discardDirty().then((discarded) => {
+                if (discarded) blocker.proceed();
+              });
             }}
           >
             {t("common.discardDraft")}
@@ -56,7 +65,9 @@ export const UnsavedNavigationGuard = ({
         </>
       )}
     >
-      {t("common.unsavedChangesMessage", { name, action })}
+      {canDiscard
+        ? t("common.unsavedChangesMessage", { name, action })
+        : t("common.operationInProgress")}
     </Modal>
   );
 };

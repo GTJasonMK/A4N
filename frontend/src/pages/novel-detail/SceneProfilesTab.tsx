@@ -658,6 +658,8 @@ function SceneProfileEditModal({
   useNovelDetailDirty(
     "scene-profile-editor",
     profile != null && JSON.stringify(draft) !== JSON.stringify(initialDraftRef.current),
+    undefined,
+    () => !saving,
   );
 
   if (!profile) return null;

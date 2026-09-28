@@ -178,6 +178,8 @@ export const FactFeedbackPanel = ({ projectId, canEdit, refreshKey, onChanged }:
   useNovelDetailDirty(
     `fact-feedback:${projectId}`,
     intervalHasDraft,
+    undefined,
+    () => !operationBusy.current && !busy && !previewLoading,
   );
   return (
     <section aria-labelledby={headingId} className="a4n-flat-surface min-w-0 p-3 sm:p-4">

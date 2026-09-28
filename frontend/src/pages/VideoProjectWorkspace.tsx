@@ -32,6 +32,7 @@ import {
 import { formatNumber, useI18n } from "../i18n";
 import { usePackagePreferences } from "../store/packagePreferences";
 import { useNovelDetailDirtyRegistry } from "./novel-detail/novelDetailDirty";
+import { UnsavedNavigationGuard } from "../components/navigation/UnsavedNavigationGuard";
 
 const SourceSyncDialog = lazy(() =>
   import("./derived/SourceSyncDialog").then((module) => ({
@@ -201,6 +202,7 @@ export const VideoProjectWorkspace: React.FC = () => {
 
   return (
     <div className="h-full min-h-0 flex flex-col bg-book-bg">
+      <UnsavedNavigationGuard dirty={workspaceDirty} name={t("video.projectWorkspace")} action={t("common.leavePage")} />
       <DerivedProjectHeader
         leading={<BackButton iconOnly title={t("a11y.back")} onClick={() => void handleBack()} />}
         icon={<Film size={15} />}

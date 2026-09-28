@@ -48,12 +48,13 @@ import { useVideoTabState } from "./video/useVideoTabState";
 import { useVideoTabLoading } from "./video/useVideoTabLoading";
 import { useVideoTabViewState } from "./video/useVideoTabViewState";
 import { MediaStageHeader } from "../../components/shell/MediaStageHeader";
-import { UnsavedChangesGuard, confirmDiscardMediaChanges } from "../../components/feedback/UnsavedChangesGuard";
+import { confirmDiscardMediaChanges } from "../../components/feedback/UnsavedChangesGuard";
 import { useVideoTabActions } from "./video/useVideoTabActions";
 import {
   useNovelDetailDirty,
   useNovelDetailDirtyRegistry,
 } from "./novelDetailDirty";
+import { useDirtyRegistryVersion } from "../../components/navigation/dirtyRegistry";
 import { BaseMaterialsWorkspace } from "../derived/BaseMaterialsWorkspace";
 
 const ChapterVisualPlanTab = lazy(() => import("./ChapterVisualPlanTab").then((module) => ({ default: module.ChapterVisualPlanTab })));
@@ -100,7 +101,9 @@ export const VideoTab: React.FC<VideoTabProps> = ({
   const { addToast } = useToast();
   const { locale, t } = useI18n();
   const dirtyRegistry = useNovelDetailDirtyRegistry();
+  useDirtyRegistryVersion();
   const [authoringDirty, setAuthoringDirty] = useState(false);
+  const [authoringBusy, setAuthoringBusy] = useState(false);
   const workspaceTabs = useMemo(
     () => [
       { id: "materials" as const, label: t("common.mediaAuthoring.materials"), icon: <ImagePlus size={13} /> },
@@ -318,14 +321,28 @@ export const VideoTab: React.FC<VideoTabProps> = ({
   } = viewState;
 
   const dirty = authoringDirty || selectedPromptDirty || referenceMediaDraftDirty || segmentPlanDirty;
+  const discardStageDrafts = () => {
+    setAuthoringDirty(false);
+    setSegmentPlanDirty(false);
+    viewState.discardSelectedPromptDraft();
+    videoTabState.setReferenceMediaDraftDirty(false);
+  };
   useEffect(() => { onDirtyChange?.(dirty); }, [dirty, onDirtyChange]);
   useEffect(() => () => onDirtyChange?.(false), [onDirtyChange]);
   useNovelDetailDirty(
     `video:${projectId}:${chapterId ?? "none"}`,
     dirty,
+    discardStageDrafts,
+    () => !authoringBusy && acting == null
+      && (selectedSegmentNumber == null || !savingRecipeSegments.has(selectedSegmentNumber)),
   );
   const handleWorkspaceTabChange = async (nextTab: typeof workspaceTab) => {
     if (nextTab === workspaceTab) return true;
+    if (authoringBusy || acting != null
+      || (selectedSegmentNumber != null && savingRecipeSegments.has(selectedSegmentNumber))) {
+      addToast(t("common.operationInProgress"), "info");
+      return false;
+    }
     if (!await confirmDiscardMediaChanges(dirty || dirtyRegistry.hasDirty(), t)) return false;
     discardStageDrafts();
     if (workspaceTab === "materials") void loadAll();
@@ -480,12 +497,6 @@ export const VideoTab: React.FC<VideoTabProps> = ({
     handleSavePromptRow,
   });
 
-  const discardStageDrafts = () => {
-    setAuthoringDirty(false); setSegmentPlanDirty(false);
-    viewState.discardSelectedPromptDraft();
-    videoTabState.setReferenceMediaDraftDirty(false);
-  };
-
   if (!chapter) {
     return <EmptyHint text={t("video.chapter.noChapterSelectedForVideo")} />;
   }
@@ -612,13 +623,13 @@ export const VideoTab: React.FC<VideoTabProps> = ({
         {workspaceTab === "director" ? (
           <div className="min-h-0 flex-1 overflow-y-auto custom-scrollbar">
             <Suspense fallback={<VideoWorkspaceFallback text={t("writing.loadingVisualPlan")} />}>
-              <ChapterVisualPlanTab projectId={projectId} canEdit={canEdit} chapter={authoringChapter} onDirtyChange={setAuthoringDirty} />
+              <ChapterVisualPlanTab projectId={projectId} canEdit={canEdit} chapter={authoringChapter} onDirtyChange={setAuthoringDirty} onBusyChange={setAuthoringBusy} />
             </Suspense>
           </div>
         ) : workspaceTab === "screenplay" ? (
           <div className="min-h-0 flex-1 overflow-y-auto custom-scrollbar">
             <Suspense fallback={<VideoWorkspaceFallback text={t("writing.loadingShootingScript")} />}>
-              <ShootingScriptTab projectId={projectId} canEdit={canEdit} chapter={authoringChapter} onDirtyChange={setAuthoringDirty} />
+              <ShootingScriptTab projectId={projectId} canEdit={canEdit} chapter={authoringChapter} onDirtyChange={setAuthoringDirty} onBusyChange={setAuthoringBusy} />
             </Suspense>
           </div>
         ) : workspaceTab === "materials" ? (
@@ -800,7 +811,6 @@ export const VideoTab: React.FC<VideoTabProps> = ({
         )}
         </section>
       </div>
-      <UnsavedChangesGuard dirty={dirty} onDiscard={discardStageDrafts} />
       {workspaceTab === "video" ? (
         <InsertedSegmentTimelinePanel
           ref={insertedSegmentPanelRef}

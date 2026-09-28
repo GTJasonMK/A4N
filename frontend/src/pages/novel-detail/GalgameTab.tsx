@@ -77,12 +77,13 @@ import { LineEditor, SceneMetaEditor } from "./galgame/GalgameLineEditors";
 import { buildChoiceDrafts } from "./galgame/GalgameChoiceEditor";
 import { buildCgDraft } from "./galgame/presentation";
 import { useGalgameDrafts } from "./galgame/GalgameDrafts";
-import { UnsavedChangesGuard, confirmDiscardMediaChanges } from "../../components/feedback/UnsavedChangesGuard";
+import { confirmDiscardMediaChanges } from "../../components/feedback/UnsavedChangesGuard";
 import { MediaStageHeader } from "../../components/shell/MediaStageHeader";
 import { MediaAuthoringPanel } from "../derived/MediaAuthoringPanel";
 import { useMediaAuthoring, authoringStageLabel } from "../derived/useMediaAuthoring";
 import type { GalgamePipelineStopAfter } from "../../api/generated/host";
 import { usePersistedTab } from "../../hooks/usePersistedTab";
+import { useDirty } from "../../components/navigation/dirtyRegistry";
 import { BaseMaterialsWorkspace } from "../derived/BaseMaterialsWorkspace";
 
 
@@ -325,6 +326,7 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
   useEffect(() => { onDirtyChange?.(hasUnsavedChanges); }, [hasUnsavedChanges, onDirtyChange]);
   useEffect(() => () => onDirtyChange?.(false), [onDirtyChange]);
   const discardAllDrafts = () => { clearDrafts(); setAuthoringDirty(false); setDiscardVersion((version) => version + 1); };
+  useDirty(`galgame-editor:${projectId}`, hasUnsavedChanges, discardAllDrafts, () => busyTarget == null && !generating && !pipelineCancelling && !planningAssets && !generatingAssets && generatingAssetSpecId == null && !exportingWebgal);
   const confirmLeaveStage = async () => {
     if (busyTarget != null) return false;
     if (!hasUnsavedChanges) return true;
@@ -1274,7 +1276,6 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
         fallbackTitle={t("galgame.requestTitle")}
         onClose={closeRequestPreview}
       />
-      <UnsavedChangesGuard dirty={hasUnsavedChanges} saving={busyTarget != null} onDiscard={discardAllDrafts} />
     </div>
   );
 };

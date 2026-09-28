@@ -3,6 +3,7 @@ import { createRoot } from "react-dom/client";
 import { flushSync } from "react-dom";
 import { ChapterSidebar } from "../../src/pages/writing-desk/ChapterSidebar";
 import { countChapterBodyCharacters } from "../../src/pages/writing-desk/wordCount";
+import { chapterIndexEntry } from "../../src/pages/writing-desk/chapterIndex";
 import { I18nProvider, formatNumber, translateMessage, type Locale } from "../../src/i18n";
 import { writeCurrentTokens } from "../../src/api/authStorage";
 import type { ChapterSummary } from "../../src/api/chapter";
@@ -51,14 +52,14 @@ function session(chapters: ChapterSummary[], locale: Locale) {
   const key = ++sessionNumber;
   selectionLog = [];
   let props: React.ComponentProps<typeof ChapterSidebar> = {
-    projectId: 1, chapters, outlines: [], chapterNumbers: chapters.map((item) => item.chapter_number),
+    projectId: 1, chapters: chapters.map((chapter) => ({ ...chapter, ...chapterIndexEntry(chapter) })), outlines: [], chapterNumbers: chapters.map((item) => item.chapter_number),
     filteredChapterNumbers: chapters.map((item) => item.chapter_number), activeNumber: 1,
     activeEditorContent: chapters[0]?.content ?? "", activeOutline: null, chapterQuery: "", draftSet: new Set(),
     profilesRefreshKey: 0, onChapterQueryChange() {}, onClearChapterQuery() {}, onOpenProfiles() {},
     onRefreshChapters() {}, onCreateChapter() {},
     onSelectChapter(number) {
       selectionLog.push(number);
-      render({ activeNumber: number, activeEditorContent: props.chapters.find((item) => item.chapter_number === number)?.content ?? "" });
+      render({ activeNumber: number, activeEditorContent: chapters.find((item) => item.chapter_number === number)?.content ?? "" });
     },
   };
   function render(changes: Partial<typeof props> = {}) {
@@ -98,7 +99,7 @@ async function verifySidebar(locale: Locale) {
   cardCount(2, 5, locale);
   capture();
   chapters = chapters.map((item) => item.id === 2 ? { ...item, content: "更新𠮷" } : item);
-  probe.render({ chapters });
+  probe.render({ chapters: chapters.map((chapter) => ({ ...chapter, ...chapterIndexEntry(chapter) })) });
   cardCount(1, 3, locale);
   capture();
   probe.render({ chapterNumbers: [1, 2, 3, 4], filteredChapterNumbers: [2, 4], activeNumber: 4,

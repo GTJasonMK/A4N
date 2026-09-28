@@ -1,23 +1,16 @@
-import React from "react";
+import React, { useState } from "react";
 import { useI18n } from "../../i18n";
-import { type ChapterSummary } from "../../api/chapter";
+import { type ChapterMetadata } from "../../api/chapter";
+import { useChapterDetail } from "../../hooks/useChapterDetail";
+import { LoadingSpinner } from "../../components/ui/LoadingSpinner";
 import { isDerivedChapterOutline, type ChapterOutline } from "../../api/outline";
 
 interface AssistantContextPanelProps {
-  chapters: ChapterSummary[];
+  projectId: number;
+  chapters: ChapterMetadata[];
   outlines: ChapterOutline[];
   activeNumber: number | null;
 }
-
-const previousChapterTail = (
-  chapters: ChapterSummary[],
-  activeNumber: number | null,
-): string | null => {
-  if (activeNumber == null) return null;
-  const previous = chapters.find((chapter) => chapter.chapter_number === activeNumber - 1);
-  const content = previous?.content.trim();
-  return content ? content.slice(-180) : null;
-};
 
 const nextOutlineText = (
   outlines: ChapterOutline[],
@@ -39,20 +32,27 @@ const nextOutlineText = (
 };
 
 export const AssistantContextPanel: React.FC<AssistantContextPanelProps> = ({
+  projectId,
   chapters,
   outlines,
   activeNumber,
 }) => {
   const { t } = useI18n();
-  const previousTail = previousChapterTail(chapters, activeNumber);
+  const [open, setOpen] = useState(false);
+  const previous = activeNumber == null ? null
+    : chapters.find((chapter) => chapter.chapter_number === activeNumber - 1);
+  const detail = useChapterDetail(projectId, open ? previous?.id ?? null : null);
+  const previousTail = detail.chapter?.content.trim().slice(-180);
   const nextOutline = nextOutlineText(outlines, activeNumber);
 
-  if (!previousTail && !nextOutline) return null;
+  if (!previous && !nextOutline) return null;
 
   return (
-    <details className="text-xs text-book-text-muted">
+    <details className="text-xs text-book-text-muted" onToggle={(event) => setOpen(event.currentTarget.open)}>
       <summary className="w-fit cursor-pointer hover:text-book-text-main">{t("writing.contextReference")}</summary>
       <div className="a4n-flat-surface mt-2 divide-y divide-book-border/40 overflow-hidden leading-relaxed">
+        {detail.loading && <LoadingSpinner size="sm" />}
+        {detail.error && <p role="alert">{detail.error}</p>}
         {previousTail && (
           <section className="px-3 py-2.5">
             <div className="mb-1 font-semibold text-book-text-main">{t("writing.previousChapterEnding")}</div>

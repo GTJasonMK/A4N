@@ -146,6 +146,8 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({
   useNovelDetailDirty(
     `imports:${projectId}`,
     activeReviewJsonDirty || Boolean(importFileName.trim() || dedupText.trim() || reverseSample.trim()),
+    undefined,
+    () => !writeBusy && !dedupBusy && !requestPreviewLoading,
   );
 
   useEffect(() => {

@@ -530,6 +530,15 @@ fn chapter_content_commands_expose_the_immediate_strict_contract() {
 
     let list = command_descriptor("list_chapters").unwrap();
     assert_eq!(list.result_schema["x-a4n-schema-quality"], "typed");
+    let index = command_descriptor("list_chapter_index").unwrap();
+    assert_eq!(index.effect, "read");
+    assert_eq!(index.result_schema["x-a4n-schema-quality"], "typed");
+    let get = command_descriptor("get_chapter").unwrap();
+    assert_eq!(get.effect, "read");
+    assert_eq!(get.args_schema["properties"]["input"]["additionalProperties"], false);
+    for id in ["project_id", "chapter_id"] {
+        assert_eq!(get.args_schema["properties"]["input"]["properties"][id]["minimum"], 1);
+    }
 }
 
 #[test]

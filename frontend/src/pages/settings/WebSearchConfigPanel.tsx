@@ -94,7 +94,7 @@ export const WebSearchConfigPanel: React.FC = () => {
     JSON.stringify(form) !== JSON.stringify(formFromConfig(config))
     || JSON.stringify(fetchForm) !== JSON.stringify(savedFetch)
   );
-  useDirty("settings-web-search", dirty);
+  useDirty("settings-web-search", dirty, undefined, () => !saving);
 
   const refresh = async () => {
     if (dirty && !(await confirmDialog({

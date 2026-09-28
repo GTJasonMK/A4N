@@ -1,5 +1,4 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { useBlocker, useBeforeUnload } from "react-router-dom";
 import { Modal } from "../components/ui/Modal";
 import { useToast } from "../components/feedback/Toast";
 import { confirmDialog } from "../components/feedback/ConfirmDialog";
@@ -81,7 +80,6 @@ export const ScenesDialog: React.FC<ScenesDialogProps> = ({
   const generatingRef = useRef(false);
   const actingKeysRef = useRef<Set<string>>(new Set());
   const loadInFlightScopeRef = useRef<string | null>(null);
-  const navigationPromptOpenRef = useRef(false);
 
   const isMutationBusy = () =>
     savingRef.current || generatingRef.current || actingKeysRef.current.size > 0;
@@ -221,60 +219,20 @@ export const ScenesDialog: React.FC<ScenesDialogProps> = ({
     ? null
     : scenes.find((scene) => scene.id === editingId) ?? null;
   const editDirty = editingScene != null && sceneEditFormChanged(editForm, editingScene);
-  const navigationDirty =
-    editDirty ||
-    genPrompt !== DEFAULT_SCENE_GENERATION_PROMPT ||
-    saving ||
-    generating ||
-    actingKeys.size > 0;
-  useDirty("scenes-dialog-workspace", navigationDirty);
-  const navigationBlocker = useBlocker(navigationDirty);
-
-  useBeforeUnload((event) => {
-    if (!navigationDirty) return;
-    event.preventDefault();
-    event.returnValue = "";
-  });
-
-  useEffect(() => {
-    if (
-      navigationBlocker.state !== "blocked" ||
-      navigationPromptOpenRef.current ||
-      saving ||
-      generating ||
-      actingKeys.size > 0
-    ) return;
-    if (!navigationDirty) {
-      navigationBlocker.proceed();
-      return;
-    }
-    navigationPromptOpenRef.current = true;
-    void confirmDialog({
-      title: t("common.unsavedChangesTitle"),
-      message: t("common.unsavedChangesMessage", {
-        name: editDirty ? t("scenes.chapterScenes") : t("scenes.generateNext"),
-        action: t("common.back"),
-      }),
-      confirmText: t("common.discardDraft"),
-      cancelText: t("common.cancel"),
-      dialogType: "warning",
-    }).then((discard) => {
-      if (discard) navigationBlocker.proceed();
-      else navigationBlocker.reset();
-    }).finally(() => {
-      navigationPromptOpenRef.current = false;
-    });
-  }, [
-    actingKeys.size,
-    editDirty,
-    generating,
-    navigationBlocker.proceed,
-    navigationBlocker.reset,
-    navigationBlocker.state,
-    navigationDirty,
-    saving,
-    t,
-  ]);
+  const discardNavigationDraft = useCallback(async () => {
+    if (isMutationBusy()) return false;
+    if (!isCurrentScope(scopeKey)) return false;
+    setEditingId(null);
+    setEditForm({});
+    setGenPrompt(DEFAULT_SCENE_GENERATION_PROMPT);
+    return true;
+  }, [scopeKey, isCurrentScope]);
+  useDirty(
+    "scenes-dialog-workspace",
+    editDirty || genPrompt !== DEFAULT_SCENE_GENERATION_PROMPT || saving || generating || actingKeys.size > 0,
+    discardNavigationDraft,
+    () => !isMutationBusy(),
+  );
 
   const toggleExpand = (id: number) => {
     setExpanded((prev) => {
@@ -510,7 +468,10 @@ export const ScenesDialog: React.FC<ScenesDialogProps> = ({
   };
 
   const handleClose = async () => {
-    if (isMutationBusy()) return;
+    if (isMutationBusy()) {
+      addToast(t("common.operationInProgress"), "info");
+      return;
+    }
     const hasDraft = editDirty || genPrompt !== DEFAULT_SCENE_GENERATION_PROMPT;
     if (hasDraft && !(await confirmDialog({
       title: t("common.unsavedChangesTitle"),
@@ -521,7 +482,7 @@ export const ScenesDialog: React.FC<ScenesDialogProps> = ({
       confirmText: t("common.discardDraft"),
       dialogType: "warning",
     }))) return;
-    setGenPrompt(DEFAULT_SCENE_GENERATION_PROMPT);
+    if (!await discardNavigationDraft()) return;
     onClose();
   };
 

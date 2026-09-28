@@ -199,7 +199,7 @@ export const UsersSection: React.FC<{ currentUserId: number }> = ({
     createForm.email.trim().length > 0 ||
     createForm.password.length > 0 ||
     createForm.role !== emptyCreateUserForm.role;
-  useDirty("settings-admin-create-user", createDirty);
+  useDirty("settings-admin-create-user", createDirty, undefined, () => !createBusy);
 
   const closeCreate = async () => {
     if (createBusy) return;

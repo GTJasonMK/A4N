@@ -85,7 +85,7 @@ export const ProfileEditor: React.FC<{ userId: number; embedded?: boolean }> = (
   const profileDirty =
     email !== savedProfileRef.current.email ||
     avatar !== savedProfileRef.current.avatar;
-  useDirty(`settings-account-profile:${userId}`, profileDirty);
+  useDirty(`settings-account-profile:${userId}`, profileDirty, undefined, () => !busyRef.current);
 
   activeUserIdRef.current = userId;
 
@@ -284,7 +284,7 @@ export const PasswordChanger: React.FC<{ embedded?: boolean }> = ({ embedded = f
     setNewPwd(value);
   };
   const passwordDirty = oldPwd.length > 0 || newPwd.length > 0;
-  useDirty("settings-account-password", passwordDirty);
+  useDirty("settings-account-password", passwordDirty, undefined, () => !busyRef.current);
 
   const handleChange = async () => {
     if (busyRef.current) return;

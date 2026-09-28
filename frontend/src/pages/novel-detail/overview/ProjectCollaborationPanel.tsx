@@ -60,7 +60,7 @@ export const ProjectCollaborationPanel: React.FC<ProjectCollaborationPanelProps>
   const canLeave = project.my_role !== "owner";
   const rootProjectId = project.collaboration_root_project_id;
   const dirtyKey = `collaboration:${project.id}`;
-  useNovelDetailDirty(dirtyKey, Boolean(identity.trim()));
+  useNovelDetailDirty(dirtyKey, Boolean(identity.trim()), () => setIdentity(""), () => !submittingRef.current);
 
   const load = useCallback(async (): Promise<boolean> => {
     const requestSeq = loadSeqRef.current + 1;

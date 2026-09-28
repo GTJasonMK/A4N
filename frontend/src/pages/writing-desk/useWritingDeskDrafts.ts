@@ -26,6 +26,7 @@ interface UseWritingDeskDraftsParams {
   activeNumber: number | null;
   activeChapter: ChapterSummary | null;
   chapterReady: boolean;
+  canDiscard?: () => boolean;
   addToast: AddToast;
 }
 
@@ -34,6 +35,7 @@ export function useWritingDeskDrafts({
   activeNumber,
   activeChapter,
   chapterReady,
+  canDiscard = () => true,
   addToast,
 }: UseWritingDeskDraftsParams) {
   const { locale, t } = useI18n();
@@ -279,12 +281,19 @@ export function useWritingDeskDrafts({
   );
 
   const discardCurrentEdit = useCallback(async () => {
+    if (!canDiscard()) return false;
     const chapterNumber = activeNumberRef.current;
-    if (chapterNumber != null) await removeDraftForChapter(chapterNumber);
-    setEditorState(chapterContentForEditor(activeChapter), false);
-  }, [activeChapter, removeDraftForChapter, setEditorState]);
+    try {
+      if (chapterNumber != null) await removeDraftForChapter(chapterNumber);
+      setEditorState(chapterContentForEditor(activeChapter), false);
+      return true;
+    } catch (error) {
+      reportDraftError(error);
+      return false;
+    }
+  }, [activeChapter, canDiscard, removeDraftForChapter, reportDraftError, setEditorState]);
 
-  useDirty(`writing-desk:${projectIdKey || "unknown"}`, dirty, discardCurrentEdit);
+  useDirty(`writing-desk:${projectIdKey || "unknown"}`, dirty, discardCurrentEdit, canDiscard);
 
   const clearProjectDrafts = useCallback(async () => {
     if (!projectIdKey) return;

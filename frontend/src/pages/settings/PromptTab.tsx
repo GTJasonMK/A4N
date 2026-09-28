@@ -38,7 +38,6 @@ export const PromptTab: React.FC = () => {
   const [selectedName, setSelectedName] = useState<string | null>(null);
   const [draft, setDraft] = useState<string>("");
   const [dirty, setDirty] = useState(false);
-  useDirty("settings-prompt-editor", dirty);
   const [saving, setSaving] = useState(false);
   const [resetting, setResetting] = useState(false);
   const [reloadingDefaults, setReloadingDefaults] = useState(false);
@@ -192,6 +191,7 @@ export const PromptTab: React.FC = () => {
     saveBusyRef.current ||
     resetBusyRef.current ||
     defaultsBusyRef.current;
+  useDirty("settings-prompt-editor", dirty, undefined, () => !isPromptOperationBusy());
 
   const handleCategoryChange = async (nextCategory: string): Promise<boolean> => {
     if (isPromptOperationBusy()) return false;

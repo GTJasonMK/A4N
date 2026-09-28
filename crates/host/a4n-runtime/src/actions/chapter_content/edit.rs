@@ -14,7 +14,7 @@ pub async fn update_chapter_content(
         .await?;
     state
         .chapter_content_read_application()
-        .summary(user_id, chapter_id)
+        .summary(user_id, chapter_id, None)
         .await
 }
 

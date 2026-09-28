@@ -513,6 +513,12 @@ pub(crate) fn result_attribute_history() -> Value {
 pub(crate) fn result_chapter_summary() -> Value {
     typed_schema::<crate::chapter::ChapterSummary>()
 }
+pub(crate) fn args_get_chapter() -> Value {
+    strict_typed_input_schema::<crate::chapter::GetChapterInput>()
+}
+pub(crate) fn result_chapter_index() -> Value {
+    typed_schema::<Vec<crate::chapter::ChapterIndexEntry>>()
+}
 pub(crate) fn result_chapter_summaries() -> Value {
     typed_schema::<Vec<crate::chapter::ChapterSummary>>()
 }

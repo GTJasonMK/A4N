@@ -2,6 +2,7 @@ import React, { useRef, useState } from "react";
 import { Shield } from "lucide-react";
 import { useAuthStore } from "../../store/auth";
 import { confirmDialog } from "../../components/feedback/ConfirmDialog";
+import { useToast } from "../../components/feedback/Toast";
 import { OverviewSection } from "./admin/OverviewSection";
 import { ApiConfigSection } from "./admin/ApiConfigSection";
 import { ProjectsSection } from "./admin/ProjectsSection";
@@ -17,8 +18,10 @@ type Section = "overview" | "users" | "projects" | "tasks" | "api" | "trends" | 
 export const AdminTab: React.FC = () => {
   const { user } = useAuthStore();
   const { t } = useI18n();
+  const addToast = useToast((state) => state.addToast);
   const dirtyRegistry = useDirtyRegistry();
   useDirtyRegistryVersion();
+  const canDiscardDirty = dirtyRegistry.canDiscardDirty();
   const [section, setSection] = useState<Section>("overview");
   const navigationGuardRef = useRef(false);
   const sectionDefs: { id: Section; label: string }[] = [
@@ -34,6 +37,10 @@ export const AdminTab: React.FC = () => {
   const selectSection = async (nextSection: Section) => {
     if (nextSection === section) return;
     if (dirtyRegistry.hasDirty()) {
+      if (!canDiscardDirty) {
+        addToast(t("common.operationInProgress"), "info");
+        return;
+      }
       if (navigationGuardRef.current) return;
       navigationGuardRef.current = true;
       try {
@@ -47,6 +54,10 @@ export const AdminTab: React.FC = () => {
           dialogType: "warning",
         });
         if (!ok) return;
+        if (!await dirtyRegistry.discardDirty()) {
+          addToast(t("common.operationInProgress"), "info");
+          return;
+        }
       } finally {
         navigationGuardRef.current = false;
       }

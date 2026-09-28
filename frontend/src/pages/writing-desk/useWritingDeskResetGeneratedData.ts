@@ -2,13 +2,13 @@ import { useCallback, useMemo, type Dispatch, type MutableRefObject, type SetSta
 import { extractErrorMessage } from "../../api";
 import { getProject, resetProjectGeneratedData, type NovelProject } from "../../api/project";
 import { confirmDialog } from "../../components/feedback/ConfirmDialog";
-import type { ChapterSummary } from "../../api/chapter";
+import type { ChapterMetadata } from "../../api/chapter";
 import type { MessageTranslator } from "../../i18n";
 
 interface UseWritingDeskResetGeneratedDataParams {
   projectId: number;
   project: NovelProject | null;
-  chapters: ChapterSummary[];
+  chapters: ChapterMetadata[];
   lifecycleBlockedReason: string | null;
   resetGeneratedDataBusy: boolean;
   streamTaskId: string | null;

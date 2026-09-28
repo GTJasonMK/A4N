@@ -92,7 +92,7 @@ export const WorldTab: React.FC<WorldTabProps> = ({
     jsonDraft !== editBaselineRef.current.json ||
     textDraft !== editBaselineRef.current.text
   );
-  useNovelDetailDirty(`world:${projectId}`, editDirty);
+  useNovelDetailDirty(`world:${projectId}`, editDirty, undefined, () => !saveBusyRef.current && !refineBusyRef.current);
 
   const load = useCallback(async (): Promise<boolean> => {
     const requestProjectId = projectId;

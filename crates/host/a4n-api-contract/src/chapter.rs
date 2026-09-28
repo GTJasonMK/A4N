@@ -253,19 +253,15 @@ pub struct ChapterMaterialUpdate {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
-pub struct ChapterSummary {
+pub struct ChapterMetadata {
     pub id: i64,
     pub project_id: i64,
     pub outline_id: Option<i64>,
     pub chapter_number: i32,
     pub title: Option<String>,
-    pub content: String,
-    pub edit_revision: String,
     pub word_count: i32,
     pub status: String,
     pub summary: Option<String>,
-    pub style_tags: Option<Value>,
-    pub analysis_data: Option<Value>,
     pub analysis_sync_status: Option<String>,
     pub analysis_sync_can_resume: bool,
     pub analysis_sync_has_saved_analysis: bool,
@@ -281,12 +277,60 @@ pub struct ChapterSummary {
     pub updated_at: Option<String>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
+pub struct ChapterSummary {
+    #[serde(flatten)]
+    pub metadata: ChapterMetadata,
+    pub content: String,
+    pub edit_revision: String,
+    pub style_tags: Option<Value>,
+    pub analysis_data: Option<Value>,
+}
+
+impl std::ops::Deref for ChapterSummary {
+    type Target = ChapterMetadata;
+
+    fn deref(&self) -> &Self::Target {
+        &self.metadata
+    }
+}
+
+impl std::ops::DerefMut for ChapterSummary {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.metadata
+    }
+}
+
+/// A chapter directory entry. Body and analysis are available through the single-chapter read.
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
+pub struct ChapterIndexEntry {
+    #[serde(flatten)]
+    pub metadata: ChapterMetadata,
+    /// Unicode scalar count of the saved body, matching the editor's code-point count.
+    pub body_character_count: usize,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct GetChapterInput {
+    #[schemars(range(min = 1))]
+    pub project_id: i64,
+    #[schemars(range(min = 1))]
+    pub chapter_id: i64,
+}
+
 /// Host-facing chapter content read boundary.
 ///
 /// Chapter persistence, workflow status projection and project visibility stay
 /// with the chapter owner; Runtime only routes complete API summaries.
 #[async_trait::async_trait]
 pub trait ChapterContentReadApplicationPort: Send + Sync {
+    async fn index(
+        &self,
+        user_id: i64,
+        project_id: i64,
+    ) -> Result<Vec<ChapterIndexEntry>, a4n_error::AppError>;
+
     async fn list(
         &self,
         user_id: i64,
@@ -297,6 +341,7 @@ pub trait ChapterContentReadApplicationPort: Send + Sync {
         &self,
         user_id: i64,
         chapter_id: i64,
+        project_id: Option<i64>,
     ) -> Result<ChapterSummary, a4n_error::AppError>;
 }
 

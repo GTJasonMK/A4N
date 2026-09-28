@@ -13,7 +13,7 @@ import {
   Wand2,
 } from "lucide-react";
 import { type NovelProject } from "../../api/project";
-import { type ChapterSummary } from "../../api/chapter";
+import { type ChapterMetadata } from "../../api/chapter";
 import { type ChapterOutline } from "../../api/outline";
 import { BookButton, BookIconButton } from "../../components/ui/BookButton";
 import { BackButton } from "../../components/ui/BackButton";
@@ -34,7 +34,7 @@ interface WritingDeskHeaderProps {
   canGoPrev: boolean;
   canGoNext: boolean;
   chapterNumbers: number[];
-  chapters: ChapterSummary[];
+  chapters: ChapterMetadata[];
   outlines: ChapterOutline[];
   leftSidebarVisible: boolean;
   rightPanel: RightPanel;

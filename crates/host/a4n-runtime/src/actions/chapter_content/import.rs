@@ -14,6 +14,6 @@ pub async fn import_chapter(
         .await?;
     state
         .chapter_content_read_application()
-        .summary(user_id, chapter_id)
+        .summary(user_id, chapter_id, None)
         .await
 }

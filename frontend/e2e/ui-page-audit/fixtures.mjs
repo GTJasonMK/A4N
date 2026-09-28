@@ -68,6 +68,7 @@ export async function buildPageFixtures(baseUrl) {
   }
   for (const [id, values] of Object.entries(data.byChapter)) {
     values.list_images_by_chapter = images.filter((image) => image.chapter_id === Number(id));
+    values.get_chapter = data.list_chapters.find((chapter) => chapter.id === Number(id));
   }
   data.videoDurations = Object.fromEntries([
     ...Object.values(data.byChapter).flatMap((values) => values.list_videos_by_chapter ?? []),
@@ -100,6 +101,8 @@ export async function buildPageFixtures(baseUrl) {
   }
   return browser.execute(async (encoded) => {
     const data = JSON.parse(decodeURIComponent(encoded));
+    const { chapterIndexEntry } = await import("/src/pages/writing-desk/chapterIndex.ts");
+    data.list_chapter_index = data.list_chapters.map(chapterIndexEntry);
     const { videoSegmentRecipeFrameFingerprintJson: frame, videoSegmentRecipeGenerationFingerprintJson: generation } =
       await import("/src/pages/novel-detail/video/videoSegmentPlan.ts");
     const { sha256Hex } = await import("/src/utils/contentHash.ts");

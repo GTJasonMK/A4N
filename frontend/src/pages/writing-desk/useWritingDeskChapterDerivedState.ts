@@ -1,11 +1,12 @@
 import { useDeferredValue, useMemo } from "react";
-import type { ChapterSummary } from "../../api/chapter";
+import type { ChapterMetadata, ChapterSummary } from "../../api/chapter";
 import type { ChapterOutline } from "../../api/outline";
 import type { ChapterRow } from "../novel-detail/shared";
 import { useI18n } from "../../i18n";
 
 interface UseWritingDeskChapterDerivedStateParams {
-  chapters: ChapterSummary[];
+  chapters: ChapterMetadata[];
+  activeChapter: ChapterSummary | null;
   outlines: ChapterOutline[];
   activeNumber: number | null;
   chapterQuery: string;
@@ -13,6 +14,7 @@ interface UseWritingDeskChapterDerivedStateParams {
 
 export function useWritingDeskChapterDerivedState({
   chapters,
+  activeChapter,
   outlines,
   activeNumber,
   chapterQuery,
@@ -25,10 +27,6 @@ export function useWritingDeskChapterDerivedState({
   const outlinesByNumber = useMemo(
     () => new Map(outlines.map((outline) => [outline.chapter_number, outline])),
     [outlines],
-  );
-  const activeChapter = useMemo(
-    () => (activeNumber == null ? null : chaptersByNumber.get(activeNumber) ?? null),
-    [activeNumber, chaptersByNumber],
   );
   const activeOutline = useMemo(
     () => (activeNumber == null ? null : outlinesByNumber.get(activeNumber) ?? null),

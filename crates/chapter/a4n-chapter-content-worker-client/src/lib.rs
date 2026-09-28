@@ -1,13 +1,14 @@
 //! Typed Host adapter for the chapter-content worker.
 
 use a4n_api_contract::chapter::{
-    ChapterContentReadApplicationPort, ChapterSummary, ImportChapterInput,
+    ChapterContentReadApplicationPort, ChapterIndexEntry, ChapterSummary, ImportChapterInput,
     UpdateChapterContentInput,
 };
 use a4n_chapter_content_worker_contract::{
-    CHAPTER_CONTENT_IMPORT_OPERATION, CHAPTER_CONTENT_LIST_OPERATION,
-    CHAPTER_CONTENT_SUMMARY_OPERATION, CHAPTER_CONTENT_UPDATE_OPERATION, CHAPTER_CONTENT_WORKER_ID,
-    ChapterContentMutationResult, ChapterInput, ProjectInput,
+    CHAPTER_CONTENT_IMPORT_OPERATION, CHAPTER_CONTENT_INDEX_OPERATION,
+    CHAPTER_CONTENT_LIST_OPERATION, CHAPTER_CONTENT_SUMMARY_OPERATION,
+    CHAPTER_CONTENT_UPDATE_OPERATION, CHAPTER_CONTENT_WORKER_ID, ChapterContentMutationResult,
+    ChapterInput, ProjectInput,
 };
 use a4n_error::AppError;
 use a4n_worker_client::{HttpWorkerClient, WorkerClientError};
@@ -180,6 +181,21 @@ impl ChapterContentWorkerClient {
 
 #[async_trait::async_trait]
 impl ChapterContentReadApplicationPort for ChapterContentWorkerClient {
+    async fn index(
+        &self,
+        user_id: i64,
+        project_id: i64,
+    ) -> Result<Vec<ChapterIndexEntry>, AppError> {
+        let project_id = Self::positive("project_id", project_id)?;
+        self.command(
+            user_id,
+            project_id,
+            CHAPTER_CONTENT_INDEX_OPERATION,
+            ProjectInput { project_id },
+        )
+        .await
+    }
+
     async fn list(&self, user_id: i64, project_id: i64) -> Result<Vec<ChapterSummary>, AppError> {
         let project_id = Self::positive("project_id", project_id)?;
         self.command(
@@ -191,10 +207,16 @@ impl ChapterContentReadApplicationPort for ChapterContentWorkerClient {
         .await
     }
 
-    async fn summary(&self, user_id: i64, chapter_id: i64) -> Result<ChapterSummary, AppError> {
+    async fn summary(
+        &self,
+        user_id: i64,
+        chapter_id: i64,
+        project_id: Option<i64>,
+    ) -> Result<ChapterSummary, AppError> {
         let chapter_id = Self::positive("chapter_id", chapter_id)?;
-        self.command_global(
+        self.command_with_project(
             user_id,
+            project_id,
             CHAPTER_CONTENT_SUMMARY_OPERATION,
             ChapterInput { chapter_id },
         )
