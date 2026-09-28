@@ -259,7 +259,7 @@ export const CharacterProfilesModal: React.FC<CharacterProfilesModalProps> = ({
         base_attributes: profileFormBaseAttributes(form),
       });
       if (!isCurrentWorkspace(requestProjectId) || saveSeqRef.current !== requestSeq) return;
-      if (!await load(result.profile_id)) return;
+      await load(result.profile_id);
       addToast(
         result.warnings.length > 0
           ? t("characterDetail.profileCreatedWithWarnings", {
@@ -295,7 +295,7 @@ export const CharacterProfilesModal: React.FC<CharacterProfilesModalProps> = ({
       if (!ok || !isCurrentWorkspace(requestProjectId)) return;
       const result = await deleteProfile(profile.id);
       if (!isCurrentWorkspace(requestProjectId)) return;
-      if (!await load(selectedId === profile.id ? null : selectedId)) return;
+      await load(selectedId === profile.id ? null : selectedId);
       addToast(
         result.warnings.length > 0
           ? t("characterDetail.profileDeletedWithWarnings", {
@@ -340,9 +340,7 @@ export const CharacterProfilesModal: React.FC<CharacterProfilesModalProps> = ({
         async () => {
           const next = await discoverCharacterProfiles(requestProjectId, activeChapterNumber, taskId);
           profileRefreshAttempted = true;
-          if (!await load(next.created[0]?.id ?? selectedId)) {
-            throw new Error(t("characterDetail.discoveryFailed"));
-          }
+          await load(next.created[0]?.id ?? selectedId);
           return next;
         },
       );
@@ -466,13 +464,9 @@ export const CharacterProfilesModal: React.FC<CharacterProfilesModalProps> = ({
         async () => {
           const next = await syncAllCharacterProfiles(requestProjectId, activeChapterNumber, taskId);
           profileRefreshAttempted = true;
-          if (!await load(selectedId)) {
-            throw new Error(t("characterDetail.syncAllFailed"));
-          }
+          await load(selectedId);
           materialSyncAttempted = true;
-          if (await onMaterialSync(requestProjectId) === false) {
-            throw new Error(t("characterDetail.syncAllFailed"));
-          }
+          await onMaterialSync(requestProjectId);
           return next;
         },
       );

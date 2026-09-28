@@ -331,8 +331,8 @@ export const ImplicitReviewManager: React.FC<{
       });
       if (!isCurrentProfile(requestProfileId) || applySeqRef.current !== requestSeq) return;
 
-      if (!await load()) return;
-      if (await onChanged?.() === false) return;
+      await load();
+      await onChanged?.();
       if (result.action === "modify") {
         addToast(t("characterDetail.implicit.applied"), "success");
       } else if (result.action === "mark_deletion" && result.deletion_mark) {
