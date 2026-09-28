@@ -87,55 +87,55 @@ impl NovelPlanningWorker {
 
     pub fn router(&self) -> Router {
         Router::new()
-            .route(WORKER_HEALTH_PATH, get(health))
-            .route(WORKER_CAPABILITIES_PATH, get(capabilities))
+            .route(WORKER_HEALTH_PATH, get(worker::routes::health))
+            .route(WORKER_CAPABILITIES_PATH, get(worker::routes::capabilities))
             .route(
                 "/v1/commands/novel_planning.shooting_script.current",
-                post(current),
+                post(worker::routes::current),
             )
             .route(
                 "/v1/commands/novel_planning.shooting_script.unit_progress",
-                post(unit_progress),
+                post(worker::routes::unit_progress),
             )
             .route(
                 "/v1/commands/novel_planning.shooting_script.edit",
-                post(edit),
+                post(worker::routes::edit),
             )
             .route(
                 "/v1/commands/novel_planning.shooting_script.edit_progress",
-                post(edit_progress),
+                post(worker::routes::edit_progress),
             )
             .route(
                 "/v1/commands/novel_planning.shooting_script.delete",
-                post(delete),
+                post(worker::routes::delete),
             )
             .route(
                 "/v1/commands/novel_planning.shooting_script.publish",
-                post(publish),
+                post(worker::routes::publish),
             )
             .route(
                 "/v1/commands/novel_planning.visual_plan.save_draft",
-                post(save_visual_plan_draft),
+                post(worker::routes::save_visual_plan_draft),
             )
             .route(
                 "/v1/commands/novel_planning.visual_plan.confirm",
-                post(confirm_visual_plan),
+                post(worker::routes::confirm_visual_plan),
             )
             .route(
                 "/v1/commands/novel_planning.visual_plan.discard",
-                post(discard_visual_plan),
+                post(worker::routes::discard_visual_plan),
             )
             .route(
                 "/v1/commands/novel_planning.visual_plan.get",
-                post(get_visual_plan),
+                post(worker::routes::get_visual_plan),
             )
             .route(
                 "/v1/commands/novel_planning.visual_plan.read",
-                post(read_visual_plan),
+                post(worker::routes::read_visual_plan),
             )
             .route(
                 "/v1/commands/novel_planning.visual_plan.validate",
-                post(validate_visual_plan),
+                post(worker::routes::validate_visual_plan),
             )
             .with_state(self.state.clone())
     }
@@ -143,20 +143,20 @@ impl NovelPlanningWorker {
     pub async fn serve(self, address: SocketAddr) -> anyhow::Result<()> {
         let listener = tokio::net::TcpListener::bind(address).await?;
         axum::serve(listener, self.router())
-            .with_graceful_shutdown(shutdown_signal())
+            .with_graceful_shutdown(worker::helpers::shutdown_signal())
             .await
             .map_err(anyhow::Error::from)
     }
 }
 
-include!("worker/runtime.rs");
-include!("worker/routes.rs");
-include!("worker/state.rs");
-include!("worker/helpers.rs");
+mod worker;
+
+pub use worker::runtime::run;
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::worker::errors::shooting_script_error;
     use a4n_worker_contract::WorkerResponse;
     use axum::{
         body::Body,

@@ -1,4 +1,7 @@
-async fn health(State(state): State<WorkerState>, headers: HeaderMap) -> Response {
+use super::helpers::{completed, failed, unauthorized};
+use crate::*;
+
+pub(crate) async fn health(State(state): State<WorkerState>, headers: HeaderMap) -> Response {
     if !state.authorized(&headers) {
         return unauthorized();
     }
@@ -23,7 +26,7 @@ async fn health(State(state): State<WorkerState>, headers: HeaderMap) -> Respons
     .into_response()
 }
 
-async fn capabilities(State(state): State<WorkerState>, headers: HeaderMap) -> Response {
+pub(crate) async fn capabilities(State(state): State<WorkerState>, headers: HeaderMap) -> Response {
     if !state.authorized(&headers) {
         return unauthorized();
     }
@@ -71,7 +74,7 @@ async fn capabilities(State(state): State<WorkerState>, headers: HeaderMap) -> R
     .into_response()
 }
 
-async fn current(
+pub(crate) async fn current(
     State(state): State<WorkerState>,
     headers: HeaderMap,
     Json(request): Json<WorkerEnvelope<ChapterShootingScriptSourceInput>>,
@@ -86,7 +89,7 @@ async fn current(
     Json(response).into_response()
 }
 
-async fn unit_progress(
+pub(crate) async fn unit_progress(
     State(state): State<WorkerState>,
     headers: HeaderMap,
     Json(request): Json<WorkerEnvelope<ChapterShootingScriptSourceInput>>,
@@ -101,7 +104,7 @@ async fn unit_progress(
     Json(response).into_response()
 }
 
-async fn edit(
+pub(crate) async fn edit(
     State(state): State<WorkerState>,
     headers: HeaderMap,
     Json(request): Json<WorkerEnvelope<EditChapterShootingScriptInput>>,
@@ -116,7 +119,7 @@ async fn edit(
     Json(response).into_response()
 }
 
-async fn edit_progress(
+pub(crate) async fn edit_progress(
     State(state): State<WorkerState>,
     headers: HeaderMap,
     Json(request): Json<WorkerEnvelope<EditChapterShootingScriptProgressInput>>,
@@ -131,7 +134,7 @@ async fn edit_progress(
     Json(response).into_response()
 }
 
-async fn delete(
+pub(crate) async fn delete(
     State(state): State<WorkerState>,
     headers: HeaderMap,
     Json(request): Json<WorkerEnvelope<DeleteChapterShootingScriptInput>>,
@@ -146,7 +149,7 @@ async fn delete(
     Json(response).into_response()
 }
 
-async fn publish(
+pub(crate) async fn publish(
     State(state): State<WorkerState>,
     headers: HeaderMap,
     Json(request): Json<WorkerEnvelope<PublishChapterShootingScriptInput>>,
@@ -161,7 +164,7 @@ async fn publish(
     Json(response).into_response()
 }
 
-async fn save_visual_plan_draft(
+pub(crate) async fn save_visual_plan_draft(
     State(state): State<WorkerState>,
     headers: HeaderMap,
     Json(request): Json<WorkerEnvelope<SaveChapterVisualPlanDraftInput>>,
@@ -176,7 +179,7 @@ async fn save_visual_plan_draft(
     Json(response).into_response()
 }
 
-async fn confirm_visual_plan(
+pub(crate) async fn confirm_visual_plan(
     State(state): State<WorkerState>,
     headers: HeaderMap,
     Json(request): Json<WorkerEnvelope<ChapterVisualPlanRecordInput>>,
@@ -191,7 +194,7 @@ async fn confirm_visual_plan(
     Json(response).into_response()
 }
 
-async fn discard_visual_plan(
+pub(crate) async fn discard_visual_plan(
     State(state): State<WorkerState>,
     headers: HeaderMap,
     Json(request): Json<WorkerEnvelope<ChapterVisualPlanRecordInput>>,
@@ -206,7 +209,7 @@ async fn discard_visual_plan(
     Json(response).into_response()
 }
 
-async fn get_visual_plan(
+pub(crate) async fn get_visual_plan(
     State(state): State<WorkerState>,
     headers: HeaderMap,
     Json(request): Json<WorkerEnvelope<ChapterVisualPlanSourceInput>>,
@@ -221,7 +224,7 @@ async fn get_visual_plan(
     Json(response).into_response()
 }
 
-async fn read_visual_plan(
+pub(crate) async fn read_visual_plan(
     State(state): State<WorkerState>,
     headers: HeaderMap,
     Json(request): Json<WorkerEnvelope<ReadChapterVisualPlanInput>>,
@@ -236,7 +239,7 @@ async fn read_visual_plan(
     Json(response).into_response()
 }
 
-async fn validate_visual_plan(
+pub(crate) async fn validate_visual_plan(
     State(state): State<WorkerState>,
     headers: HeaderMap,
     Json(request): Json<WorkerEnvelope<ValidateChapterVisualPlanInput>>,

@@ -1,4 +1,7 @@
-async fn verify_family_permission(
+use super::errors::{collaboration_error, project_family_error, source_error, visual_plan_error};
+use crate::*;
+
+pub(super) async fn verify_family_permission(
     db: &DatabaseConnection,
     project_id: i64,
     user_id: i64,
@@ -25,7 +28,10 @@ async fn verify_family_permission(
     Ok(())
 }
 
-fn validate_request<T>(request: &WorkerEnvelope<T>, operation: &str) -> Result<(), WorkerFailure> {
+pub(super) fn validate_request<T>(
+    request: &WorkerEnvelope<T>,
+    operation: &str,
+) -> Result<(), WorkerFailure> {
     request
         .validate()
         .map_err(|error| WorkerFailure::invalid_request(error.to_string()))?;
@@ -43,7 +49,7 @@ fn validate_request<T>(request: &WorkerEnvelope<T>, operation: &str) -> Result<(
     Ok(())
 }
 
-fn validate_project_scope<T>(
+pub(super) fn validate_project_scope<T>(
     request: &WorkerEnvelope<T>,
     project_id: i64,
 ) -> Result<(), WorkerFailure> {
@@ -56,7 +62,7 @@ fn validate_project_scope<T>(
     Ok(())
 }
 
-fn validate_target_revision<T>(
+pub(super) fn validate_target_revision<T>(
     request: &WorkerEnvelope<T>,
     expected_revision: i32,
 ) -> Result<(), WorkerFailure> {
@@ -69,7 +75,7 @@ fn validate_target_revision<T>(
     Ok(())
 }
 
-fn validate_optional_target_revision<T>(
+pub(super) fn validate_optional_target_revision<T>(
     request: &WorkerEnvelope<T>,
     expected_revision: Option<i32>,
 ) -> Result<(), WorkerFailure> {
@@ -82,7 +88,7 @@ fn validate_optional_target_revision<T>(
     }
 }
 
-fn user_id<T>(request: &WorkerEnvelope<T>) -> Result<i64, WorkerFailure> {
+pub(super) fn user_id<T>(request: &WorkerEnvelope<T>) -> Result<i64, WorkerFailure> {
     if request.principal.kind != a4n_worker_contract::WorkerPrincipalKind::User {
         return Err(WorkerFailure::unauthorized("仅允许用户 principal"));
     }
@@ -96,7 +102,7 @@ fn user_id<T>(request: &WorkerEnvelope<T>) -> Result<i64, WorkerFailure> {
     Ok(user_id)
 }
 
-fn ensure_record_id(expected: i64, actual: i64) -> Result<(), WorkerFailure> {
+pub(super) fn ensure_record_id(expected: i64, actual: i64) -> Result<(), WorkerFailure> {
     if expected != actual {
         return Err(WorkerFailure::invalid_request(format!(
             "拍摄剧本与当前章节来源不匹配: expected_record_id={expected}, actual_record_id={actual}"
@@ -105,7 +111,7 @@ fn ensure_record_id(expected: i64, actual: i64) -> Result<(), WorkerFailure> {
     Ok(())
 }
 
-async fn resolve_source(
+pub(super) async fn resolve_source(
     state: &WorkerState,
     project_id: i64,
     source_chapter_id: i64,
@@ -119,7 +125,7 @@ async fn resolve_source(
     .map_err(source_error)
 }
 
-async fn ensure_visual_plan_belongs_to_source(
+pub(super) async fn ensure_visual_plan_belongs_to_source(
     state: &WorkerState,
     input: &ChapterVisualPlanRecordInput,
 ) -> Result<(), WorkerFailure> {
@@ -143,7 +149,7 @@ async fn ensure_visual_plan_belongs_to_source(
     Ok(())
 }
 
-fn visual_plan_view(
+pub(super) fn visual_plan_view(
     value: a4n_db::chapter_visual_plan::ParsedChapterVisualPlan,
 ) -> ChapterVisualPlanView {
     ChapterVisualPlanView {
@@ -161,7 +167,7 @@ fn visual_plan_view(
     }
 }
 
-fn visual_plan_resource(
+pub(super) fn visual_plan_resource(
     current: &a4n_db::chapter_visual_plan::ParsedChapterVisualPlan,
 ) -> a4n_api_contract::agent::AgentResourceRef {
     a4n_api_contract::agent::AgentResourceRef {
@@ -173,7 +179,7 @@ fn visual_plan_resource(
     }
 }
 
-fn ensure_visual_plan_belongs_to_source_record(
+pub(super) fn ensure_visual_plan_belongs_to_source_record(
     plan: &a4n_db::chapter_visual_plan::ParsedChapterVisualPlan,
     source: &a4n_domain::chapter::ResolvedChapterSource,
 ) -> Result<(), WorkerFailure> {
@@ -190,13 +196,16 @@ fn ensure_visual_plan_belongs_to_source_record(
     Ok(())
 }
 
-fn visual_plan_revision_conflict(record_id: i64, expected_revision: i32) -> WorkerFailure {
+pub(super) fn visual_plan_revision_conflict(
+    record_id: i64,
+    expected_revision: i32,
+) -> WorkerFailure {
     WorkerFailure::conflict(format!(
         "chapter_visual_plan_revision_conflict:id={record_id},expected={expected_revision}"
     ))
 }
 
-fn page_range(
+pub(super) fn page_range(
     offset: u32,
     limit: Option<u32>,
     total: usize,
@@ -213,14 +222,14 @@ fn page_range(
     Ok((start, start.saturating_add(limit as usize).min(total)))
 }
 
-fn next_offset(end: usize, total: usize) -> Result<Option<u32>, WorkerFailure> {
+pub(super) fn next_offset(end: usize, total: usize) -> Result<Option<u32>, WorkerFailure> {
     (end < total)
         .then(|| u32::try_from(end))
         .transpose()
         .map_err(|_| WorkerFailure::invalid_request("分页长度超出 u32"))
 }
 
-fn projection_error(
+pub(super) fn projection_error(
     error: a4n_api_contract::chapter_visual_plan::VisualPlanProjectionError,
 ) -> WorkerFailure {
     match error {
@@ -233,7 +242,7 @@ fn projection_error(
     }
 }
 
-fn record_summary(
+pub(super) fn record_summary(
     record: a4n_db_models::models::chapter::chapter_shooting_script::Model,
 ) -> ChapterShootingScriptRecordSummary {
     ChapterShootingScriptRecordSummary {
@@ -245,7 +254,10 @@ fn record_summary(
     }
 }
 
-fn completed<T>(request: &WorkerEnvelope<impl serde::Serialize>, payload: T) -> WorkerResponse<T> {
+pub(super) fn completed<T>(
+    request: &WorkerEnvelope<impl serde::Serialize>,
+    payload: T,
+) -> WorkerResponse<T> {
     WorkerResponse {
         schema_version: WORKER_SCHEMA_VERSION,
         request_id: request.request_id.clone(),
@@ -265,7 +277,7 @@ fn completed<T>(request: &WorkerEnvelope<impl serde::Serialize>, payload: T) -> 
     }
 }
 
-fn failed<T>(
+pub(super) fn failed<T>(
     request: &WorkerEnvelope<impl serde::Serialize>,
     failure: WorkerFailure,
 ) -> WorkerResponse<T> {
@@ -292,141 +304,7 @@ fn failed<T>(
     }
 }
 
-impl WorkerFailure {
-    fn invalid_request(message: impl Into<String>) -> Self {
-        Self {
-            code: WorkerErrorCode::InvalidRequest,
-            message: message.into(),
-            retryable: false,
-        }
-    }
-
-    fn unauthorized(message: impl Into<String>) -> Self {
-        Self {
-            code: WorkerErrorCode::Unauthorized,
-            message: message.into(),
-            retryable: false,
-        }
-    }
-
-    fn not_found(message: impl Into<String>) -> Self {
-        Self {
-            code: WorkerErrorCode::NotFound,
-            message: message.into(),
-            retryable: false,
-        }
-    }
-
-    fn conflict(message: impl Into<String>) -> Self {
-        Self {
-            code: WorkerErrorCode::Conflict,
-            message: message.into(),
-            retryable: false,
-        }
-    }
-
-    fn unavailable(message: impl Into<String>) -> Self {
-        Self {
-            code: WorkerErrorCode::Unavailable,
-            message: message.into(),
-            retryable: true,
-        }
-    }
-}
-
-fn source_error(error: a4n_db::project::ResolveChapterSourceError) -> WorkerFailure {
-    match error {
-        a4n_db::project::ResolveChapterSourceError::InvalidArgument(message) => {
-            WorkerFailure::invalid_request(message)
-        }
-        a4n_db::project::ResolveChapterSourceError::InvalidState(message) => {
-            WorkerFailure::conflict(message)
-        }
-        a4n_db::project::ResolveChapterSourceError::NotFound(message) => {
-            WorkerFailure::not_found(message)
-        }
-        a4n_db::project::ResolveChapterSourceError::Database(error) => {
-            WorkerFailure::unavailable(error.to_string())
-        }
-    }
-}
-
-fn project_family_error(error: a4n_db::project::ProjectFamilyDbError) -> WorkerFailure {
-    match error {
-        a4n_db::project::ProjectFamilyDbError::InvalidArgument(message) => {
-            WorkerFailure::invalid_request(message)
-        }
-        a4n_db::project::ProjectFamilyDbError::NotFound(message) => {
-            WorkerFailure::not_found(message)
-        }
-        a4n_db::project::ProjectFamilyDbError::Database(error) => {
-            WorkerFailure::unavailable(error.to_string())
-        }
-    }
-}
-
-fn collaboration_error(error: a4n_db::collaboration::CollaborationDbError) -> WorkerFailure {
-    match error {
-        a4n_db::collaboration::CollaborationDbError::InvalidArgument(message) => {
-            WorkerFailure::invalid_request(message)
-        }
-        a4n_db::collaboration::CollaborationDbError::NotFound(message) => {
-            WorkerFailure::not_found(message)
-        }
-        a4n_db::collaboration::CollaborationDbError::Forbidden(message) => {
-            WorkerFailure::unauthorized(message)
-        }
-        a4n_db::collaboration::CollaborationDbError::InvalidState(message)
-        | a4n_db::collaboration::CollaborationDbError::Internal(message) => {
-            WorkerFailure::conflict(message)
-        }
-        a4n_db::collaboration::CollaborationDbError::Database(error) => {
-            WorkerFailure::unavailable(error.to_string())
-        }
-    }
-}
-
-fn visual_plan_error(error: ChapterVisualPlanDbError) -> WorkerFailure {
-    match error {
-        ChapterVisualPlanDbError::InvalidArgument(message) => {
-            WorkerFailure::invalid_request(message)
-        }
-        ChapterVisualPlanDbError::InvalidState(message) => WorkerFailure::conflict(message),
-        ChapterVisualPlanDbError::NotFound(message) => WorkerFailure::not_found(message),
-        ChapterVisualPlanDbError::RevisionConflict {
-            record_id,
-            expected_revision,
-        } => WorkerFailure::conflict(format!(
-            "chapter_visual_plan_revision_conflict:id={record_id},expected={expected_revision}"
-        )),
-        ChapterVisualPlanDbError::Database(error) => WorkerFailure::unavailable(error.to_string()),
-    }
-}
-
-fn shooting_script_error(error: a4n_db::shooting_script::ShootingScriptDbError) -> WorkerFailure {
-    match error {
-        a4n_db::shooting_script::ShootingScriptDbError::InvalidArgument(message) => {
-            WorkerFailure::invalid_request(message)
-        }
-        a4n_db::shooting_script::ShootingScriptDbError::InvalidState(message) => {
-            WorkerFailure::conflict(message)
-        }
-        a4n_db::shooting_script::ShootingScriptDbError::NotFound(message) => {
-            WorkerFailure::not_found(message)
-        }
-        a4n_db::shooting_script::ShootingScriptDbError::RevisionConflict {
-            record_id,
-            expected_revision,
-        } => WorkerFailure::conflict(format!(
-            "shooting_script_revision_conflict:id={record_id},expected={expected_revision}"
-        )),
-        a4n_db::shooting_script::ShootingScriptDbError::Database(error) => {
-            WorkerFailure::unavailable(error.to_string())
-        }
-    }
-}
-
-fn unauthorized() -> Response {
+pub(super) fn unauthorized() -> Response {
     (
         StatusCode::UNAUTHORIZED,
         "novel-planning worker authentication required",
@@ -434,13 +312,13 @@ fn unauthorized() -> Response {
         .into_response()
 }
 
-fn init_tracing() {
+pub(super) fn init_tracing() {
     let filter = tracing_subscriber::EnvFilter::try_from_default_env()
         .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info"));
     let _ = tracing_subscriber::fmt().with_env_filter(filter).try_init();
 }
 
-async fn shutdown_signal() {
+pub(crate) async fn shutdown_signal() {
     #[cfg(unix)]
     {
         let mut terminate =

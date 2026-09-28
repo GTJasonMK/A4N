@@ -1,3 +1,6 @@
+use super::helpers::init_tracing;
+use crate::*;
+
 pub fn run() -> anyhow::Result<()> {
     tokio::runtime::Builder::new_multi_thread()
         .enable_all()

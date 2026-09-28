@@ -1,11 +1,17 @@
+use super::{
+    errors::{shooting_script_error, source_error, visual_plan_error},
+    helpers::*,
+};
+use crate::*;
+
 impl WorkerState {
-    fn authorized(&self, headers: &HeaderMap) -> bool {
+    pub(super) fn authorized(&self, headers: &HeaderMap) -> bool {
         headers
             .get(WORKER_AUTH_HEADER)
             .is_some_and(|value| bool::from(value.as_bytes().ct_eq(self.auth_token.as_bytes())))
     }
 
-    async fn current(
+    pub(super) async fn current(
         &self,
         request: WorkerEnvelope<ChapterShootingScriptSourceInput>,
     ) -> Result<Option<ChapterShootingScriptView>, WorkerFailure> {
@@ -26,7 +32,7 @@ impl WorkerState {
         }
     }
 
-    async fn unit_progress(
+    pub(super) async fn unit_progress(
         &self,
         request: WorkerEnvelope<ChapterShootingScriptSourceInput>,
     ) -> Result<Option<ChapterShootingScriptUnitProgressView>, WorkerFailure> {
@@ -54,7 +60,7 @@ impl WorkerState {
         .map_err(shooting_script_error)
     }
 
-    async fn edit(
+    pub(super) async fn edit(
         &self,
         request: WorkerEnvelope<EditChapterShootingScriptInput>,
     ) -> Result<EditedChapterShootingScriptView, WorkerFailure> {
@@ -100,7 +106,7 @@ impl WorkerState {
         })
     }
 
-    async fn edit_progress(
+    pub(super) async fn edit_progress(
         &self,
         request: WorkerEnvelope<EditChapterShootingScriptProgressInput>,
     ) -> Result<EditedChapterShootingScriptProgressView, WorkerFailure> {
@@ -122,7 +128,7 @@ impl WorkerState {
         .map_err(shooting_script_error)
     }
 
-    async fn publish(
+    pub(super) async fn publish(
         &self,
         request: WorkerEnvelope<PublishChapterShootingScriptInput>,
     ) -> Result<ChapterShootingScriptView, WorkerFailure> {
@@ -221,7 +227,7 @@ impl WorkerState {
         self.shooting_script_view(record).await
     }
 
-    async fn save_visual_plan_draft(
+    pub(super) async fn save_visual_plan_draft(
         &self,
         request: WorkerEnvelope<SaveChapterVisualPlanDraftInput>,
     ) -> Result<ChapterVisualPlanView, WorkerFailure> {
@@ -272,7 +278,7 @@ impl WorkerState {
         Ok(visual_plan_view(record))
     }
 
-    async fn confirm_visual_plan(
+    pub(super) async fn confirm_visual_plan(
         &self,
         request: WorkerEnvelope<ChapterVisualPlanRecordInput>,
     ) -> Result<ConfirmedChapterVisualPlanView, WorkerFailure> {
@@ -304,7 +310,7 @@ impl WorkerState {
         })
     }
 
-    async fn discard_visual_plan(
+    pub(super) async fn discard_visual_plan(
         &self,
         request: WorkerEnvelope<ChapterVisualPlanRecordInput>,
     ) -> Result<(), WorkerFailure> {
@@ -331,7 +337,7 @@ impl WorkerState {
         .map_err(visual_plan_error)
     }
 
-    async fn get_visual_plan(
+    pub(super) async fn get_visual_plan(
         &self,
         request: WorkerEnvelope<ChapterVisualPlanSourceInput>,
     ) -> Result<ChapterVisualPlanSetView, WorkerFailure> {
@@ -357,10 +363,19 @@ impl WorkerState {
         )
         .await
         .map_err(visual_plan_error)?;
-        let scene_choices = a4n_db::project::authoring_scene_profiles(self.database.connection(), &source)
-            .await.map_err(source_error)?.into_iter().map(|profile| a4n_api_contract::chapter_visual_plan::ChapterVisualPlanSceneChoice {
-                id: profile.id, project_id: profile.project_id, name: profile.name,
-            }).collect();
+        let scene_choices =
+            a4n_db::project::authoring_scene_profiles(self.database.connection(), &source)
+                .await
+                .map_err(source_error)?
+                .into_iter()
+                .map(|profile| {
+                    a4n_api_contract::chapter_visual_plan::ChapterVisualPlanSceneChoice {
+                        id: profile.id,
+                        project_id: profile.project_id,
+                        name: profile.name,
+                    }
+                })
+                .collect();
         Ok(ChapterVisualPlanSetView {
             scene_choices,
             source: a4n_api_contract::chapter_visual_plan::ChapterVisualPlanSourceView {
@@ -375,7 +390,7 @@ impl WorkerState {
         })
     }
 
-    async fn read_visual_plan(
+    pub(super) async fn read_visual_plan(
         &self,
         request: WorkerEnvelope<ReadChapterVisualPlanInput>,
     ) -> Result<ChapterVisualPlanReadResult, WorkerFailure> {
@@ -465,7 +480,7 @@ impl WorkerState {
         })
     }
 
-    async fn validate_visual_plan(
+    pub(super) async fn validate_visual_plan(
         &self,
         request: WorkerEnvelope<ValidateChapterVisualPlanInput>,
     ) -> Result<ChapterVisualPlanValidationResult, WorkerFailure> {
@@ -527,7 +542,7 @@ impl WorkerState {
         })
     }
 
-    async fn delete(
+    pub(super) async fn delete(
         &self,
         request: WorkerEnvelope<DeleteChapterShootingScriptInput>,
     ) -> Result<(), WorkerFailure> {
@@ -567,7 +582,7 @@ impl WorkerState {
         .map_err(shooting_script_error)
     }
 
-    async fn shooting_script_view(
+    pub(super) async fn shooting_script_view(
         &self,
         record: a4n_db::shooting_script::ParsedChapterShootingScript,
     ) -> Result<ChapterShootingScriptView, WorkerFailure> {
@@ -584,7 +599,7 @@ impl WorkerState {
         })
     }
 
-    async fn current_record(
+    pub(super) async fn current_record(
         &self,
         input: &ChapterShootingScriptSourceInput,
     ) -> Result<Option<a4n_db::shooting_script::ParsedChapterShootingScript>, WorkerFailure> {
@@ -626,5 +641,4 @@ impl WorkerState {
                     == Some(confirmed.record.plan_sha256.as_str())
         }))
     }
-
 }
