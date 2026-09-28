@@ -225,6 +225,7 @@ export const BlueprintVersionsPanel: React.FC<BlueprintVersionsPanelProps> = ({
       await onMutated();
       if (!mountedRef.current || activeProjectRef.current !== requestProjectId) return;
       await load();
+      if (!mountedRef.current || activeProjectRef.current !== requestProjectId) return;
       addToast(
         result.warnings.length > 0
           ? t("novel.blueprintVersions.restoredWithWarnings", {
