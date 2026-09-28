@@ -2,7 +2,6 @@ use a4n_canvas_host_contract::{
     CanvasVideoFileInput, CanvasVideoGenerationHostPort, CanvasVideoPersistedFile,
     CanvasVideoProviderInput,
 };
-use a4n_config::optional_non_empty_env_string;
 use a4n_domain::cost::{
     ModelCapability, ModelUsageMeter, ModelUsageRecordCompletion, ModelUsageRecordStart,
 };
@@ -45,9 +44,9 @@ use crate::{
             delete_video_tail_frame_assets, media_bytes_to_remote_temp_media_url,
             persist_canvas_video_bytes, reference_image_provider_input_by_id,
             reference_image_provider_inputs_by_ids, reference_image_request_preview_url_by_id,
-            reference_image_request_preview_urls_by_ids, remote_temp_upload_config,
+            reference_image_request_preview_urls_by_ids,
         },
-        resolve_video_config, video_sidecar_root_project_id,
+        video_sidecar_root_project_id,
     },
     cleanup_outbox::enqueue_file_artifact_cleanup_by_project,
     file_utils::inspect_generated_media_file,
@@ -66,48 +65,14 @@ impl<'state> RuntimeVideoProviderHostPort<'state> {
         &self,
         config_id: Option<i64>,
     ) -> Result<VideoProviderConfig, AppError> {
-        resolve_video_config(
-            self.state.video_provider_config(),
-            config_id,
-            self.state.provider_runtime().allows_host_provider_config(),
-        )
-        .await
-        .map_err(host_error)
+        super::config::resolve_provider_config(self.state, config_id).await
     }
 
     fn resolve_image_transport_setting(
         &self,
         backend: &str,
     ) -> Result<ProviderImageInputTransport, AppError> {
-        let override_value = optional_non_empty_env_string("A4N_VIDEO_IMAGE_INPUT_TRANSPORT")?;
-        if let Some(transport) = a4n_video::provider_image_input_transport_for_backend(
-            backend,
-            override_value.as_deref(),
-        )
-        .map_err(host_error)?
-        {
-            return Ok(transport);
-        }
-
-        let remote_url = optional_non_empty_env_string("A4N_VIDEO_REMOTE_TEMP_UPLOAD_URL")?;
-        let remote_token = optional_non_empty_env_string("A4N_VIDEO_REMOTE_TEMP_UPLOAD_TOKEN")?;
-        match (remote_url, remote_token) {
-            (Some(_), Some(_)) => {
-                remote_temp_upload_config().map_err(host_error)?;
-                return Ok(ProviderImageInputTransport::RemoteTempUpload);
-            }
-            (Some(_), None) | (None, Some(_)) => {
-                return Err(host_error(
-                    "auto 传输已检测到不完整的远端临时媒体配置；A4N_VIDEO_REMOTE_TEMP_UPLOAD_URL 和 A4N_VIDEO_REMOTE_TEMP_UPLOAD_TOKEN 必须同时配置".to_string(),
-                ));
-            }
-            (None, None) => {}
-        }
-
-        if optional_non_empty_env_string("A4N_PUBLIC_APP_URL")?.is_some() {
-            return Ok(ProviderImageInputTransport::PublicUrl);
-        }
-        Ok(ProviderImageInputTransport::InlineDataUrl)
+        super::config::resolve_image_transport(backend)
     }
 
     async fn provider_request_body(
@@ -935,6 +900,6 @@ impl ChapterVideoGenerationHostPort for RuntimeVideoProviderHostPort<'_> {
     }
 }
 
-fn host_error(message: String) -> AppError {
+pub(super) fn host_error(message: String) -> AppError {
     AppError::ConfigError(message)
 }

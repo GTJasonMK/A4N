@@ -4,6 +4,7 @@ use crate::actions::request_preview::{model_request_preview, provider_request_st
 mod canvas;
 mod chapter;
 mod common;
+mod config;
 mod config_state;
 mod generation_task;
 mod job_lifecycle;
