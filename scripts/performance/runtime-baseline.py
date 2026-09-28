@@ -31,6 +31,8 @@ def arguments():
     parser.add_argument("--postgres-container", default="debug-postgres-1")
     parser.add_argument("--qdrant-url", default="http://127.0.0.1:6334", help="loopback Qdrant gRPC endpoint")
     parser.add_argument("--chapter-history", type=int, default=0, help="completed content-sync runs per fixture chapter")
+    parser.add_argument("--chapter-count", type=int, default=100)
+    parser.add_argument("--concurrency", type=int, nargs="+", default=[1, 4, 8])
     parser.add_argument("--cli-checks", action="store_true", help="run existing CLI/Mock Provider suites after measurement; use a separate disposable database")
     return parser.parse_args()
 
@@ -123,6 +125,8 @@ def main():
     args = arguments()
     if not 0 <= args.chapter_history <= 20:
         raise RuntimeError("chapter-history must be between 0 and 20")
+    if not 1 <= args.chapter_count <= 1000 or any(n not in (1, 4, 8) for n in args.concurrency):
+        raise RuntimeError("chapter-count must be 1..1000 and concurrency must use 1, 4 or 8")
     qdrant_url = urlsplit(args.qdrant_url)
     if qdrant_url.scheme != "http" or qdrant_url.hostname != "127.0.0.1" or not qdrant_url.port:
         raise RuntimeError("Requires a loopback Qdrant gRPC endpoint")
@@ -237,16 +241,18 @@ def main():
 INSERT INTO chapter (project_id, chapter_number, title, content, word_count, status, created_at, updated_at)
 SELECT :'project_id'::bigint, i, '性能基准章节 ' || i, repeat('章节性能内容。', 512),
        char_length(repeat('章节性能内容。', 512)), 'draft', now(), now()
-FROM generate_series(1, 100) i
+FROM generate_series(1, :'chapter_count'::integer) i
 WHERE NOT EXISTS (SELECT 1 FROM chapter WHERE project_id = :'project_id'::bigint);
 """
         seeded = subprocess.run(["docker", "exec", "-i", args.postgres_container, "psql", "-U", database.username,
-                                 "-d", database.path[1:], "-v", "ON_ERROR_STOP=1", "-v", f"project_id={project_id}"],
+                                 "-d", database.path[1:], "-v", "ON_ERROR_STOP=1", "-v", f"project_id={project_id}",
+                                 "-v", f"chapter_count={args.chapter_count}"],
                                 input=sql, text=True, capture_output=True, timeout=60)
         if seeded.returncode:
             raise RuntimeError(seeded.stderr)
         report["project_id"] = project_id
         report["chapter_history"] = args.chapter_history
+        report["chapter_count"] = args.chapter_count
         if args.chapter_history:
             history_sql = """
 INSERT INTO workflow_run (business_key, workflow_kind, project_id, chapter_id,
@@ -293,24 +299,24 @@ SELECT json_build_object(
         if fixture_result.returncode:
             raise RuntimeError(fixture_result.stderr)
         report["fixture"] = json.loads(fixture_result.stdout)
-        if (report["fixture"]["content_sync_runs"] != 100 * args.chapter_history
+        if (report["fixture"]["content_sync_runs"] != args.chapter_count * args.chapter_history
                 or report["fixture"]["analysis_runs"] != 0
-                or report["fixture"]["checkpoints"] != 200 * args.chapter_history):
+                or report["fixture"]["checkpoints"] != 2 * args.chapter_count * args.chapter_history):
             raise RuntimeError("Fixture history differs from --chapter-history; use a fresh isolated database")
         connection.close()
         cases = [
             ("get_current_user", {}, lambda value: value["username"] == credentials["username"]),
             ("list_projects", listing, lambda value: value["total"] == 20 and len(value["items"]) == 20),
             ("get_project", {"projectId": project_id}, lambda value: value["id"] == project_id),
-            ("list_chapters", {"projectId": project_id}, lambda value: len(value) == 100
-             and [item["chapter_number"] for item in value] == list(range(1, 101))
+            ("list_chapters", {"projectId": project_id}, lambda value: len(value) == args.chapter_count
+             and [item["chapter_number"] for item in value] == list(range(1, args.chapter_count + 1))
              and all(item["content"] == "章节性能内容。" * 512
                      and (not args.chapter_history or (item["derived_sync_status"] == "completed"
                           and item["derived_sync_workflow_run_id"] > 0
                           and item["material_sync"]["content_index"] == "completed")) for item in value)),
         ]
         for name, payload, check in cases:
-            for concurrency in [1, 4, 8]:
+            for concurrency in args.concurrency:
                 def series(_):
                     client = http.client.HTTPConnection("127.0.0.1", web_port, timeout=60)
                     measurements = []

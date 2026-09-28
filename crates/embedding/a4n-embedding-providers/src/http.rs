@@ -5,6 +5,7 @@
 use async_trait::async_trait;
 use reqwest::Client;
 use serde_json::Value;
+use std::sync::LazyLock;
 use std::time::Duration;
 
 use a4n_domain::ProviderError as AppError;
@@ -54,13 +55,15 @@ impl HttpEmbeddingProvider {
         api_key: Option<String>,
         batch_size: usize,
     ) -> Self {
-        let client = Client::builder()
-            .timeout(Duration::from_secs(60))
-            .build()
-            .expect("创建 HTTP 客户端失败");
+        static CLIENT: LazyLock<Client> = LazyLock::new(|| {
+            Client::builder()
+                .timeout(Duration::from_secs(60))
+                .build()
+                .expect("创建 HTTP 客户端失败")
+        });
 
         Self {
-            client,
+            client: CLIENT.clone(),
             base_url: base_url.into().trim_end_matches('/').to_string(),
             api_key,
             model: model.into(),

@@ -7,6 +7,7 @@ use a4n_embedding_contract::LocalEmbeddingModelSummary;
 use fastembed::{EmbeddingModel, ModelInfo, TextEmbedding};
 
 use crate::cache::{dir_size, model_cache_path, repo_folder_name, snapshot_with_required_files};
+use crate::provider::ModelFilesMutation;
 
 /// 设置页默认推荐的本地模型：中文检索质量和体积之间比较均衡。
 pub const DEFAULT_FASTEMBED_MODEL: &str = "BGESmallZHV15";
@@ -42,6 +43,7 @@ pub fn delete_fastembed_model(model_name: &str, cache_dir: &Path) -> Result<(), 
         )));
     }
 
+    let _model_files_mutation = ModelFilesMutation::new();
     std::fs::remove_dir_all(&repo_path)?;
 
     let locks_path = cache_dir

@@ -1,21 +1,60 @@
 use std::path::PathBuf;
+use std::sync::{Arc, Mutex as StdMutex, OnceLock};
 
 use a4n_domain::ProviderError as AppError;
 use a4n_embedding_provider_contract::{EmbeddingBackend, EmbeddingProvider};
 use async_trait::async_trait;
 use fastembed::{EmbeddingModel, ModelInfo, TextEmbedding, TextInitOptions};
-use tokio::sync::Mutex;
+use tokio::sync::{Mutex, OwnedMutexGuard};
 
 use crate::cache::{model_cache_path, snapshot_with_required_files};
 use crate::models::resolve_model_info;
 use crate::proxy::ScopedHfHubEnv;
+
+type ModelSlot = Arc<Mutex<Option<TextEmbedding>>>;
+
+struct RetainedModel {
+    model_name: String,
+    cache_dir: PathBuf,
+    slot: ModelSlot,
+}
+
+// Keep one otherwise-unused model alive for stateless RPC providers. Live
+// providers still own their slots, including when another model is selected.
+// ponytail: one retained configuration; add a bounded pool only if mixed-model load justifies its RAM.
+static RETAINED_MODEL: StdMutex<Option<RetainedModel>> = StdMutex::new(None);
+
+fn clear_retained_model() {
+    let previous = RETAINED_MODEL
+        .lock()
+        .expect("model retention lock poisoned")
+        .take();
+    drop(previous);
+}
+
+pub(super) struct ModelFilesMutation;
+
+impl ModelFilesMutation {
+    pub(super) fn new() -> Self {
+        clear_retained_model();
+        Self
+    }
+}
+
+impl Drop for ModelFilesMutation {
+    fn drop(&mut self) {
+        // Also invalidate models opened while a download/delete was running,
+        // including when its future is cancelled or the mutation fails.
+        clear_retained_model();
+    }
+}
 
 pub struct FastEmbedProvider {
     model_name: String,
     model_info: ModelInfo<EmbeddingModel>,
     batch_size: usize,
     cache_dir: PathBuf,
-    inner: Mutex<Option<TextEmbedding>>,
+    inner: OnceLock<ModelSlot>,
 }
 
 impl FastEmbedProvider {
@@ -36,7 +75,7 @@ impl FastEmbedProvider {
             model_info: resolved.info,
             batch_size,
             cache_dir,
-            inner: Mutex::new(None),
+            inner: OnceLock::new(),
         })
     }
 
@@ -51,17 +90,45 @@ impl FastEmbedProvider {
         )))
     }
 
-    async fn take_or_init_model(&self) -> Result<TextEmbedding, AppError> {
-        let mut guard = self.inner.lock().await;
-        if let Some(model) = guard.take() {
-            return Ok(model);
+    fn model_slot(&self) -> ModelSlot {
+        self.inner
+            .get_or_init(|| {
+                let mut retained = RETAINED_MODEL
+                    .lock()
+                    .expect("model retention lock poisoned");
+                if let Some(current) = retained.as_ref()
+                    && current.model_name == self.model_name
+                    && current.cache_dir == self.cache_dir
+                {
+                    return current.slot.clone();
+                }
+                let slot = Arc::new(Mutex::new(None));
+                let previous = retained.replace(RetainedModel {
+                    model_name: self.model_name.clone(),
+                    cache_dir: self.cache_dir.clone(),
+                    slot: slot.clone(),
+                });
+                drop(retained);
+                // Releasing a large ONNX session must not hold the registry lock.
+                drop(previous);
+                slot
+            })
+            .clone()
+    }
+
+    async fn model_guard(&self) -> Result<OwnedMutexGuard<Option<TextEmbedding>>, AppError> {
+        let mut guard = self.model_slot().lock_owned().await;
+        if guard.is_some() {
+            return Ok(guard);
         }
 
         let model = self.model_info.model.clone();
         let cache_dir = self.cache_dir.clone();
-        drop(guard);
 
-        tokio::task::spawn_blocking(move || build_text_embedding(model, cache_dir))
+        tokio::task::spawn_blocking(move || -> Result<_, String> {
+            *guard = Some(build_text_embedding(model, cache_dir)?);
+            Ok(guard)
+        })
             .await
             .map_err(|err| {
                 AppError::Embedding(format!("初始化 fastembed 线程失败: {err}"))
@@ -82,18 +149,20 @@ impl EmbeddingProvider for FastEmbedProvider {
         }
         self.ensure_downloaded()?;
 
-        let mut model = self.take_or_init_model().await?;
+        let mut guard = self.model_guard().await?;
         let batch_size = self.batch_size;
-        let (model, embeddings) = tokio::task::spawn_blocking(move || {
+        tokio::task::spawn_blocking(move || {
+            // The blocking operation owns the lock, so dropping the request
+            // cannot let another request initialize a second copy mid-inference.
+            let mut model = guard.take().expect("initialized fastembed model");
             let embeddings = model
                 .embed(texts, Some(batch_size))
                 .map_err(|err| AppError::Embedding(format!("fastembed 嵌入失败: {err}")));
-            (model, embeddings)
+            *guard = Some(model);
+            embeddings
         })
         .await
-        .map_err(|err| AppError::Embedding(format!("执行 fastembed 线程失败: {err}")))?;
-        *self.inner.lock().await = Some(model);
-        embeddings
+        .map_err(|err| AppError::Embedding(format!("执行 fastembed 线程失败: {err}")))?
     }
 
     fn dimension(&self) -> usize {
@@ -132,4 +201,30 @@ fn format_error_chain(err: &anyhow::Error) -> String {
         .map(ToString::to_string)
         .collect::<Vec<_>>()
         .join("；")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn live_provider_ownership_survives_registry_invalidation() {
+        let directory = tempfile::tempdir().unwrap();
+        let provider =
+            FastEmbedProvider::try_new("BGESmallZHV15", 32, directory.path().to_path_buf())
+                .unwrap();
+        let original = provider.model_slot();
+        let mutation = ModelFilesMutation::new();
+        let during = FastEmbedProvider::try_new("BGESmallZHV15", 1, directory.path().to_path_buf())
+            .unwrap()
+            .model_slot();
+        assert!(!Arc::ptr_eq(&original, &during));
+        drop(mutation);
+        let after = FastEmbedProvider::try_new("BGESmallZHV15", 32, directory.path().to_path_buf())
+            .unwrap()
+            .model_slot();
+        assert!(!Arc::ptr_eq(&during, &after));
+        assert!(Arc::ptr_eq(&provider.model_slot(), &original));
+        clear_retained_model();
+    }
 }

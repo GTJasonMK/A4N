@@ -15,7 +15,7 @@ use super::metadata::collect_required_download_files;
 use super::progress::{AggregatedDownloadProgress, format_bytes, send_download_progress};
 use super::transfer::download_required_file;
 use crate::models::{model_status_from_info, resolve_model_info};
-use crate::provider::build_text_embedding;
+use crate::provider::{ModelFilesMutation, build_text_embedding};
 
 pub async fn download_fastembed_model(
     model_name: &str,
@@ -24,6 +24,7 @@ pub async fn download_fastembed_model(
     cancel_token: CancellationToken,
 ) -> Result<LocalEmbeddingModelSummary, AppError> {
     let resolved = resolve_model_info(model_name)?;
+    let _model_files_mutation = ModelFilesMutation::new();
     send_download_progress(progress_tx.as_ref(), 0, 0, "正在读取模型文件大小...");
 
     let model = resolved.info.model.clone();
