@@ -66,6 +66,8 @@ export const GalgameProjectWorkspace: React.FC = () => {
   const [workspaceVersion, setWorkspaceVersion] = useState(0);
   const refreshRequestRef = useRef(0);
   const resetBusyRef = useRef(false);
+  const activeProjectIdRef = useRef(projectId);
+  activeProjectIdRef.current = projectId;
 
   const refresh = useCallback(async (): Promise<boolean> => {
     const requestId = refreshRequestRef.current + 1;
@@ -151,6 +153,7 @@ export const GalgameProjectWorkspace: React.FC = () => {
           window.clearInterval(timer);
           setResetPollError(null);
           await refresh();
+          if (activeProjectIdRef.current !== projectId) return;
           setWorkspaceVersion((value) => value + 1);
           addToast(t("galgame.resetCompleted"), "success");
         })

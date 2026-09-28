@@ -150,6 +150,7 @@ export const FactFeedbackPanel = ({ projectId, canEdit, refreshKey, onChanged }:
       if (!mounted.current || currentProject.current !== requestProject) return;
       intervalDirty.current = false;
       await load();
+      if (!mounted.current || currentProject.current !== requestProject) return;
       let refreshFailed = false;
       try {
         refreshFailed = (await onChanged?.()) === false;
