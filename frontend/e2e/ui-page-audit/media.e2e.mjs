@@ -1053,4 +1053,97 @@ describe("Populated media pages and task dialogs", () => {
       }
     });
   }
+
+  it("UX-B60 ignores an active Manga stage click while keeping its page draft", async function () {
+    this.mediaRecord = { id: "UX-B60-Manga", title: "漫画当前阶段点击", width: 1440, task: "当前阶段不应触发放弃提示" };
+    await browser.setWindowSize(1440, 1000);
+    await browser.url("/");
+    await browser.execute(() => localStorage.setItem("a4n:comic:2:stage", "prompts"));
+    await openRoute("/comic-project/2");
+    const chapterButtons = await $('nav[aria-label="漫画章节"]').$$("button");
+    await chapterButtons[0].click();
+    await $('nav[aria-label="漫画页列表"]').waitForDisplayed();
+    await selectComicPage(3);
+    await openMenu(comicPrompt, "编辑提示词");
+    const prompt = await $(`${comicPrompt} textarea`);
+    const original = await prompt.getValue();
+    const draft = `${original}\n当前漫画页保留的草稿。`;
+    await prompt.setValue(draft);
+    const activeStage = await $('button[id="comic-stages-2-tab-prompts"]');
+    assert.equal(await activeStage.getAttribute("aria-selected"), "true");
+    await activeStage.click();
+    assert.equal(await $$('[role="dialog"]').length, 0, "Clicking the active Manga stage must not prompt for discard");
+    assert.equal(await prompt.getValue(), draft);
+    await $(comicPrompt).$('.//button[normalize-space()="取消"]').click();
+    this.mediaRecord.interaction = { activeStageClickPreservedPromptDraft: true, explicitCancelCleanedDraft: true };
+  });
+
+  it("UX-B60 protects Galgame drafts only when the user changes stage", async function () {
+    const record = this.mediaRecord = { id: "UX-B60", title: "Galgame阶段草稿边界", width: 1440, task: "验证阶段自点击无副作用，并在真实阶段切换前保护输入" };
+    await browser.setWindowSize(1440, 1000);
+    await browser.url("/");
+    await browser.execute(() => localStorage.setItem("a4n:galgame:5:stage", "script"));
+    await openGalgamePerformance(6);
+
+    const scriptStage = await $('button[id="galgame-stages-5-tab-script"]');
+    assert.equal(await scriptStage.getAttribute("aria-selected"), "true");
+    const cgPrompt = await $('section[aria-label="编辑"] textarea[placeholder="事件 CG 画面描述"]');
+    const originalCgPrompt = await cgPrompt.getValue();
+    const cgDraft = `${originalCgPrompt}\n当前舞台内保留的草稿。`;
+    await cgPrompt.setValue(cgDraft);
+    await scriptStage.click();
+    await browser.waitUntil(async () => (await cgPrompt.getValue()) === cgDraft);
+    assert.equal(await $$('[role="dialog"]').length, 0, "Clicking the active stage must not ask to discard its draft");
+
+    const adaptationStage = await $('button[id="galgame-stages-5-tab-adaptation"]');
+    await adaptationStage.click();
+    await $(dialog).waitForDisplayed();
+    await $(dialog).$('.//button[normalize-space()="取消"]').click();
+    assert.equal(await scriptStage.getAttribute("aria-selected"), "true");
+    assert.equal(await cgPrompt.getValue(), cgDraft, "Cancel must preserve the Galgame CG draft");
+    await adaptationStage.click();
+    await $(dialog).waitForDisplayed();
+    await $(dialog).$('.//button[normalize-space()="放弃草稿"]').click();
+    await browser.waitUntil(async () => (await adaptationStage.getAttribute("aria-selected")) === "true");
+    const instruction = await $('//label[.//span[normalize-space()="本次改编要求"]]/textarea');
+    await instruction.waitForDisplayed();
+    const instructionDraft = `${await instruction.getValue()}\n只用于这次改编的要求。`;
+    await instruction.setValue(instructionDraft);
+    await scriptStage.click();
+    await $(dialog).waitForDisplayed();
+    await $(dialog).$('.//button[normalize-space()="取消"]').click();
+    assert.equal(await adaptationStage.getAttribute("aria-selected"), "true");
+    assert.equal(await instruction.getValue(), instructionDraft, "Cancel must preserve the generation instruction");
+    await scriptStage.click();
+    await $(dialog).waitForDisplayed();
+    await $(dialog).$('.//button[normalize-space()="放弃草稿"]').click();
+    await browser.waitUntil(async () => (await scriptStage.getAttribute("aria-selected")) === "true");
+
+    const editor = await $(galgameEditor);
+    const backgroundDetails = await editor.$("details");
+    const backgroundSummary = await backgroundDetails.$("summary");
+    assert((await backgroundSummary.getText()).includes("背景"));
+    await backgroundSummary.click();
+    const binderDetails = await backgroundDetails.$("details");
+    await binderDetails.$("summary").click();
+    const mediaId = await binderDetails.$('input[aria-label="素材编号"]');
+    await mediaId.setValue("123456");
+    const materialsStage = await $('button[id="galgame-stages-5-tab-materials"]');
+    await materialsStage.click();
+    await $(dialog).waitForDisplayed();
+    await $(dialog).$('.//button[normalize-space()="取消"]').click();
+    assert.equal(await mediaId.getValue(), "123456", "Cancel must preserve the local asset id");
+    await materialsStage.click();
+    await $(dialog).waitForDisplayed();
+    await $(dialog).$('.//button[normalize-space()="放弃草稿"]').click();
+    await browser.waitUntil(async () => (await materialsStage.getAttribute("aria-selected")) === "true");
+    await scriptStage.click();
+    await browser.waitUntil(async () => (await scriptStage.getAttribute("aria-selected")) === "true");
+    const reopenedBackground = await $(galgameEditor).$("details");
+    await reopenedBackground.$("summary").click();
+    const reopenedBinder = await reopenedBackground.$("details");
+    await reopenedBinder.$("summary").click();
+    assert.equal(await reopenedBinder.$('input[aria-label="素材编号"]').getValue(), "");
+    record.interaction = { activeStageClickPreservedCgDraft: true, instructionGuarded: true, assetIdDraftGuarded: true };
+  });
 });

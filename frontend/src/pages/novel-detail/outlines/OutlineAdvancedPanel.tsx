@@ -32,6 +32,7 @@ import {
   type Locale,
   type MessageTranslator,
 } from "../../../i18n";
+import { useNovelDetailDirty } from "../novelDetailDirty";
 import type { RunOutlineGeneration } from "./useOutlineGeneration";
 import { outlineOptimizationVariables } from "./outlineTabUtils";
 import { AdvancedActionRow } from "./OutlineAdvancedPanelSections";
@@ -46,6 +47,9 @@ interface OutlineAdvancedPanelProps {
   onChanged: () => boolean | void | Promise<boolean | void>;
   onBusyChange?: (busy: boolean) => void;
 }
+
+const DEFAULT_BEAT_MAP_JSON =
+  '{"beats": [{"chapter": 1, "beat": "起"}, {"chapter": 5, "beat": "承"}]}';
 
 const partOptionLabel = (
   part: PartOutline,
@@ -95,10 +99,17 @@ export const OutlineAdvancedPanel: React.FC<OutlineAdvancedPanelProps> = ({
   const [pacing, setPacing] = useState<ChapterOutlinePacing | null>(null);
   const [pacingLoading, setPacingLoading] = useState(false);
 
-  const [beatJson, setBeatJson] = useState<string>(
-    '{"beats": [{"chapter": 1, "beat": "起"}, {"chapter": 5, "beat": "承"}]}',
-  );
+  const [beatJson, setBeatJson] = useState<string>(DEFAULT_BEAT_MAP_JSON);
+  const [appliedBeatJson, setAppliedBeatJson] = useState(DEFAULT_BEAT_MAP_JSON);
   const [beatBusy, setBeatBusy] = useState(false);
+  const beatMapDirty = beatJson !== appliedBeatJson;
+
+  useNovelDetailDirty(
+    `outline-beat-map:${projectId}`,
+    beatMapDirty || beatBusy,
+    () => setBeatJson(appliedBeatJson),
+    () => !beatBusy,
+  );
 
   const [selectedPartId, setSelectedPartId] = useState<number | "">("");
   const [partGenBusy, setPartGenBusy] = useState(false);
@@ -363,6 +374,8 @@ export const OutlineAdvancedPanel: React.FC<OutlineAdvancedPanelProps> = ({
     setRegenPartsBusy(false);
     setBatchBusy(false);
     setSelectedPartId("");
+    setBeatJson(DEFAULT_BEAT_MAP_JSON);
+    setAppliedBeatJson(DEFAULT_BEAT_MAP_JSON);
   }, [onBusyChange, projectId]);
 
   useEffect(() => {
@@ -478,6 +491,7 @@ export const OutlineAdvancedPanel: React.FC<OutlineAdvancedPanelProps> = ({
         },
       );
       if (!isActionCurrent(requestProjectId, actionSeq)) return;
+      setAppliedBeatJson(beatJson);
       showGenerationSuccess(t("outline.advancedPanel.beatApplied"), warnings);
     } catch (err) {
       if (isActionCurrent(requestProjectId, actionSeq)) {

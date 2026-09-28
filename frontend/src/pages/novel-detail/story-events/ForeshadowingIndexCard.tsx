@@ -16,6 +16,7 @@ import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
 import { Modal } from "../../../components/ui/Modal";
 import { EmptyHint, NumberField, SelectField, TextAreaField, splitLines } from "../shared";
 import { useI18n, type MessageKey } from "../../../i18n";
+import { useNovelDetailDirty } from "../novelDetailDirty";
 
 const STATUS_LABELS: Record<ForeshadowingStatus, MessageKey> = {
   pending: "novel.foreshadowing.statusPending",
@@ -55,6 +56,17 @@ export const ForeshadowingIndexCard: React.FC<ForeshadowingIndexCardProps> = ({
   const [draft, setDraft] = useState<Draft>(() => emptyDraft());
   const initialDraftRef = useRef<Draft>(emptyDraft());
   const [busyId, setBusyId] = useState<number | null>(null);
+  const draftDirty = editing != null && JSON.stringify(draft) !== JSON.stringify(initialDraftRef.current);
+
+  useNovelDetailDirty(
+    `foreshadowing-editor:${projectId}`,
+    draftDirty,
+    () => {
+      setEditing(null);
+      setDraft(initialDraftRef.current);
+    },
+    () => busyId == null,
+  );
 
   useEffect(() => {
     setEditing(null);
@@ -70,7 +82,7 @@ export const ForeshadowingIndexCard: React.FC<ForeshadowingIndexCardProps> = ({
 
   const closeEditor = async () => {
     if (busyId != null) return;
-    if (editing && JSON.stringify(draft) !== JSON.stringify(initialDraftRef.current) && !(await confirmDialog({
+    if (draftDirty && !(await confirmDialog({
       title: t("common.unsavedChangesTitle"),
       message: t("common.unsavedChangesMessage", { name: t("novel.foreshadowing.title"), action: t("common.close") }),
       confirmText: t("common.discardDraft"),

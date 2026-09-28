@@ -17,6 +17,7 @@ export const scenes = {
   moveUp: "Move scene up",
   moveDown: "Move scene down",
   edit: "Edit scene",
+  switchEditTarget: "Switch to editing another scene",
   delete: "Delete scene",
   title: "Title",
   type: "Scene type",

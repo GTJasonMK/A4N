@@ -13,6 +13,7 @@ import {
 } from "../../../api/portrait";
 import type { ModelRequestPreview } from "../../../api/requestPreview";
 import { RequestPreviewModal } from "../../../components/feedback/RequestPreviewModal";
+import { confirmDialog } from "../../../components/feedback/ConfirmDialog";
 import { useToast } from "../../../components/feedback/Toast";
 import { BookButton } from "../../../components/ui/BookButton";
 import { BookInput } from "../../../components/ui/BookInput";
@@ -35,6 +36,7 @@ import {
   supportedImageAccept,
 } from "../../../utils/imageUpload";
 import { useI18n } from "../../../i18n";
+import { useNovelDetailDirty } from "../novelDetailDirty";
 
 const MAX_REFERENCE_IMAGES = 4;
 
@@ -62,6 +64,7 @@ export const SinglePortraitDialog: React.FC<SinglePortraitDialogProps> = ({
     setSize: setImageSize,
   } = useImageGenerationSize();
   const [name, setName] = useState(firstProfileName(profiles));
+  const initialNameRef = useRef(name);
   const [style, setStyle] = useState(DEFAULT_IMAGE_STYLE);
   const [expressionInput, setExpressionInput] = useState("");
   const [referenceImages, setReferenceImages] = useState<GeneratedImage[]>([]);
@@ -80,6 +83,18 @@ export const SinglePortraitDialog: React.FC<SinglePortraitDialogProps> = ({
   const uploadReferenceBusyRef = useRef(false);
   const submitBusyRef = useRef(false);
   const previewBusyRef = useRef(false);
+  const draftDirty = name !== initialNameRef.current ||
+    style !== DEFAULT_IMAGE_STYLE ||
+    expressionInput.trim().length > 0 ||
+    selectedReferenceImageIds.length > 0;
+  const closeBusy = busy || uploadingReference;
+
+  useNovelDetailDirty(
+    `portrait-single:${projectId}`,
+    draftDirty || closeBusy,
+    onClose,
+    () => !closeBusy,
+  );
 
   activeProjectIdRef.current = projectId;
 
@@ -333,19 +348,32 @@ export const SinglePortraitDialog: React.FC<SinglePortraitDialogProps> = ({
   };
 
   const canSubmit = Boolean(name.trim());
+  const requestClose = async () => {
+    if (closeBusy) return;
+    if (draftDirty && !(await confirmDialog({
+      title: t("common.unsavedChangesTitle"),
+      message: t("common.unsavedChangesMessage", {
+        name: t("characterDetail.portrait.generationTitle"),
+        action: t("common.close"),
+      }),
+      confirmText: t("common.discardDraft"),
+      dialogType: "warning",
+    }))) return;
+    onClose();
+  };
 
   return (
     <>
       <Modal
         isOpen
-        onClose={onClose}
+        onClose={() => void requestClose()}
         title={t("characterDetail.portrait.generationTitle")}
         subtitle={t("characterDetail.portrait.generationSubtitle")}
         icon={<Images size={15} />}
         maxWidthClassName="max-w-3xl"
-        closeOnBackdrop={!busy}
-        closeOnEscape={!busy}
-        showCloseButton={!busy}
+        closeOnBackdrop={!closeBusy}
+        closeOnEscape={!closeBusy}
+        showCloseButton={!closeBusy}
         footer={
           <div className="flex w-full items-center gap-2">
             <Dropdown

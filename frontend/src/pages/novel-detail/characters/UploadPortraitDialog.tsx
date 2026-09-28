@@ -5,6 +5,7 @@ import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
 import { extractErrorMessage } from "../../../api";
 import type { CharacterProfile } from "../../../api/character";
 import { uploadPortrait, type PortraitType } from "../../../api/portrait";
+import { confirmDialog } from "../../../components/feedback/ConfirmDialog";
 import { useToast } from "../../../components/feedback/Toast";
 import { BookButton } from "../../../components/ui/BookButton";
 import { BookInput, BookTextarea } from "../../../components/ui/BookInput";
@@ -17,6 +18,7 @@ import {
   supportedImageAccept,
 } from "../../../utils/imageUpload";
 import { useI18n, type MessageTranslator } from "../../../i18n";
+import { useNovelDetailDirty } from "../novelDetailDirty";
 
 interface UploadPortraitDialogProps {
   projectId: number;
@@ -71,6 +73,21 @@ export const UploadPortraitDialog: React.FC<UploadPortraitDialogProps> = ({
     () => profiles.find((profile) => profile.id === profileId) ?? null,
     [profileId, profiles],
   );
+  const draftDirty = profileId !== (profiles[0]?.id ?? 0) ||
+    portraitType !== "full_body" ||
+    prompt.trim().length > 0 ||
+    expression.trim().length > 0 ||
+    pose.trim().length > 0 ||
+    setPrimary !== true ||
+    file != null;
+
+  useNovelDetailDirty(
+    `portrait-upload:${projectId}`,
+    draftDirty || busy,
+    onClose,
+    () => !busy,
+  );
+
   const canSubmit =
     selectedProfile != null && file != null && prompt.trim().length > 0;
 
@@ -158,10 +175,24 @@ export const UploadPortraitDialog: React.FC<UploadPortraitDialogProps> = ({
     }
   };
 
+  const requestClose = async () => {
+    if (busy) return;
+    if (draftDirty && !(await confirmDialog({
+      title: t("common.unsavedChangesTitle"),
+      message: t("common.unsavedChangesMessage", {
+        name: t("characterDetail.portrait.uploadTitle"),
+        action: t("common.close"),
+      }),
+      confirmText: t("common.discardDraft"),
+      dialogType: "warning",
+    }))) return;
+    onClose();
+  };
+
   return (
     <Modal
       isOpen
-      onClose={onClose}
+      onClose={() => void requestClose()}
       title={t("characterDetail.portrait.uploadTitle")}
       subtitle={t("characterDetail.portrait.uploadSubtitle")}
       icon={<Upload size={15} />}

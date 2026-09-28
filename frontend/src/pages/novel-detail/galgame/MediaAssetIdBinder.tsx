@@ -12,7 +12,9 @@ import { useI18n } from "../../../i18n";
 interface MediaAssetIdBinderProps {
   label: string;
   disabled: boolean;
-  onBind: (mediaAssetId: number) => void;
+  value: string;
+  onChange: (value: string) => void;
+  onBind: (mediaAssetId: number) => Promise<boolean>;
 }
 
 function parsePositiveInteger(value: string): number | null {
@@ -25,20 +27,21 @@ function parsePositiveInteger(value: string): number | null {
 export const MediaAssetIdBinder: React.FC<MediaAssetIdBinderProps> = ({
   label,
   disabled,
+  value,
+  onChange,
   onBind,
 }) => {
   const { t } = useI18n();
-  const [draft, setDraft] = useState("");
   const [error, setError] = useState("");
-  const mediaAssetId = parsePositiveInteger(draft);
+  const mediaAssetId = parsePositiveInteger(value);
 
-  const submit = () => {
+  const submit = async () => {
     if (mediaAssetId == null) {
       setError(t("galgame.invalidMediaAssetId"));
       return;
     }
     setError("");
-    onBind(mediaAssetId);
+    if (await onBind(mediaAssetId)) onChange("");
   };
 
   return (
@@ -50,23 +53,23 @@ export const MediaAssetIdBinder: React.FC<MediaAssetIdBinderProps> = ({
         <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2">
           <input
             className="min-w-0 border border-book-border bg-book-bg px-2 py-1 text-xs text-book-text-main outline-none focus:border-book-primary"
-            value={draft}
+            value={value}
             disabled={disabled}
             inputMode="numeric"
             aria-label={t("galgame.mediaAssetId")}
             placeholder={t("galgame.mediaAssetId")}
             onChange={(event) => {
-              setDraft(event.target.value);
+              onChange(event.target.value);
               if (error) setError("");
             }}
             onKeyDown={(event) => {
-              if (event.key === "Enter") submit();
+              if (event.key === "Enter") void submit();
             }}
           />
           <BookButton
             variant="secondary"
             size="sm"
-            onClick={submit}
+            onClick={() => void submit()}
             disabled={disabled || mediaAssetId == null}
           >
             <Images size={13} />

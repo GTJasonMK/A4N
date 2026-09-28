@@ -52,6 +52,7 @@ export function MediaAuthoringPanel({ projectId, kind, workspace, loading, error
   const [references, setReferences] = useState<VideoScriptReferenceCandidate[]>([]);
   const [referenceError, setReferenceError] = useState<string | null>(null);
   const [referenceChoice, setReferenceChoice] = useState("saved");
+  const [submittedOptions, setSubmittedOptions] = useState({ instruction: "", referenceChoice: "saved" });
   const [preview, setPreview] = useState<ModelRequestPreview | null>(null);
   const [previewOpen, setPreviewOpen] = useState(false);
   const busyRef = useRef(false);
@@ -68,6 +69,11 @@ export function MediaAuthoringPanel({ projectId, kind, workspace, loading, error
     ?? versions.find(({ record }) => record.source_snapshot_id === workspace?.source_snapshot_id && record.status === "adopted");
   const selected = versions.find(({ record }) => record.id === versionId) ?? current;
   const dirty = editor != null && JSON.stringify(editor.document) !== editor.baseline;
+  const generationOptionsDirty = kind === "adaptation_plan" && (
+    instruction.trim() !== submittedOptions.instruction.trim() ||
+    referenceChoice !== submittedOptions.referenceChoice
+  );
+  const draftDirty = dirty || generationOptionsDirty;
   const disabled = !canEdit || busy || stageRunning;
   const title = kind === "adaptation_plan" ? t("common.mediaAuthoring.adaptation")
     : kind === "manga_page_plan" ? t("common.mediaAuthoring.pagePlanning") : t("common.mediaAuthoring.branches");
@@ -76,11 +82,13 @@ export function MediaAuthoringPanel({ projectId, kind, workspace, loading, error
     if (busy) return false;
     setEditor(null);
     setVersionId(null);
+    setInstruction(submittedOptions.instruction);
+    setReferenceChoice(submittedOptions.referenceChoice);
     onDirtyChange(false);
     return true;
   };
-  useDirty(dirtyKey, dirty || busy, discard, () => !busy);
-  useEffect(() => { onDirtyChange(dirty || busy); }, [dirty, busy, onDirtyChange]);
+  useDirty(dirtyKey, draftDirty || busy, discard, () => !busy);
+  useEffect(() => { onDirtyChange(draftDirty || busy); }, [draftDirty, busy, onDirtyChange]);
   useEffect(() => () => onDirtyChange(false), [onDirtyChange]);
   useEffect(() => { onBusyChange?.(busy); }, [busy, onBusyChange]);
   useEffect(() => () => onBusyChange?.(false), [onBusyChange]);
@@ -89,6 +97,7 @@ export function MediaAuthoringPanel({ projectId, kind, workspace, loading, error
     setEditor(null);
     setActionError(null);
     setReferenceChoice("saved");
+    setSubmittedOptions((current) => ({ ...current, referenceChoice: "saved" }));
   }, [scope]);
   useEffect(() => {
     if (dirty) return;
@@ -108,7 +117,12 @@ export function MediaAuthoringPanel({ projectId, kind, workspace, loading, error
     return () => { active = false; };
   }, [kind, projectId, sourceChapterId, t]);
 
-  const confirmDiscard = () => confirmDiscardMediaChanges(dirty, t);
+  const confirmDiscardDrafts = async () => {
+    if (!await confirmDiscardMediaChanges(draftDirty, t)) return false;
+    setInstruction(submittedOptions.instruction);
+    setReferenceChoice(submittedOptions.referenceChoice);
+    return true;
+  };
   const commitEditor = (record: AuthoringDocumentRecord) => {
     if (scopeRef.current !== scope) return;
     setVersionId(record.id);
@@ -149,7 +163,7 @@ export function MediaAuthoringPanel({ projectId, kind, workspace, loading, error
     };
   };
   const generate = async () => {
-    if (!await confirmDiscard()) return;
+    if (!await confirmDiscardMediaChanges(dirty, t)) return;
     const requestScope = scope;
     if (kind !== "adaptation_plan") {
       setEditor(null); setVersionId(null); onDirtyChange(false);
@@ -160,7 +174,10 @@ export function MediaAuthoringPanel({ projectId, kind, workspace, loading, error
     const result = await runProgressTask({ title, startMessage: t("common.mediaAuthoring.generating"), successMessage: t("common.mediaAuthoring.draftSaved"), errorMessage: t("common.mediaAuthoring.generationFailed"), total: 1,
       cancelTaskId: input.task_id, cancelTask: cancelWorkflowTask, pollTaskProgress: true,
     }, () => generateMediaAdaptationPlan(input));
-    if (scopeRef.current === requestScope) commitEditor(result);
+    if (scopeRef.current === requestScope) {
+      setSubmittedOptions({ instruction, referenceChoice });
+      commitEditor(result);
+    }
     await onReload();
   };
 
@@ -172,12 +189,12 @@ export function MediaAuthoringPanel({ projectId, kind, workspace, loading, error
       </div>
       <div className="flex flex-wrap items-end gap-2">
         {kind !== "galgame_branch_plan" && fixedChapterId === undefined && <label className="grid gap-1 text-xs text-book-text-sub"><span>{t("common.mediaAuthoring.chooseChapter")}</span>
-          <ThemedSelect aria-label={t("common.mediaAuthoring.chooseChapter")} className="max-w-full" value={sourceChapterId ?? ""} disabled={busy || stageRunning} onChange={(value) => { const next = Number(value); void (async () => { if (await confirmDiscard()) { setEditor(null); onDirtyChange(false); setSelectedChapterId(next); } })(); }}>
+          <ThemedSelect aria-label={t("common.mediaAuthoring.chooseChapter")} className="max-w-full" value={sourceChapterId ?? ""} disabled={busy || stageRunning} onChange={(value) => { const next = Number(value); void (async () => { if (await confirmDiscardDrafts()) { setEditor(null); onDirtyChange(false); setSelectedChapterId(next); } })(); }}>
             {workspace?.chapters.map((item) => <option key={item.source.source_chapter_id} value={item.source.source_chapter_id}>{item.chapter_number} · {item.title}</option>)}
           </ThemedSelect>
         </label>}
         {versions.length > 0 && <label className="grid gap-1 text-xs text-book-text-sub"><span>{t("common.mediaAuthoring.version")}</span>
-          <ThemedSelect aria-label={t("common.mediaAuthoring.version")} value={selected?.record.id ?? ""} disabled={busy || stageRunning} onChange={(value) => { const next = Number(value); void (async () => { if (await confirmDiscard()) { setEditor(null); onDirtyChange(false); setVersionId(next); } })(); }}>
+          <ThemedSelect aria-label={t("common.mediaAuthoring.version")} value={selected?.record.id ?? ""} disabled={busy || stageRunning} onChange={(value) => { const next = Number(value); void (async () => { if (await confirmDiscardDrafts()) { setEditor(null); onDirtyChange(false); setVersionId(next); } })(); }}>
             {versions.map(({ record }) => <option key={record.id} value={record.id}>{record.version} · {record.status === "draft" ? t("common.mediaAuthoring.draft") : record.status === "adopted" ? t("common.mediaAuthoring.adopted") : t("common.mediaAuthoring.history")}</option>)}
           </ThemedSelect>
         </label>}
@@ -227,7 +244,7 @@ export function MediaAuthoringPanel({ projectId, kind, workspace, loading, error
       <span className="mr-auto text-xs text-book-text-muted" role="status">{dirty ? t("common.unsavedChangesTitle") : editor.record?.status === "adopted" ? t("common.mediaAuthoring.adopted") : editor.record ? t("common.mediaAuthoring.draftSaved") : ""}</span>
       <BookButton size="sm" variant="secondary" disabled={disabled || !dirty || selected?.stale} onClick={() => void run(async () => { await save(); })}>{t("common.mediaAuthoring.saveDraft")}</BookButton>
       <BookButton size="sm" disabled={disabled || selected?.stale || (!dirty && editor.record?.status === "adopted")} onClick={() => void run(adopt)}>{t("common.mediaAuthoring.adopt")}</BookButton>
-      {onNext && <BookButton size="sm" variant="secondary" disabled={disabled || dirty || editor.record?.status !== "adopted" || selected?.stale} onClick={onNext}>{t("common.mediaAuthoring.nextStage")}</BookButton>}
+      {onNext && <BookButton size="sm" variant="secondary" disabled={disabled || dirty || editor.record?.status !== "adopted" || selected?.stale} onClick={() => { void (async () => { if (await confirmDiscardDrafts()) { onDirtyChange(false); onNext(); } })(); }}>{t("common.mediaAuthoring.nextStage")}</BookButton>}
     </footer>}
     <RequestPreviewModal open={previewOpen} loading={false} data={preview} fallbackTitle={t("common.mediaAuthoring.previewRequest")} onClose={() => setPreviewOpen(false)} />
   </div>;
