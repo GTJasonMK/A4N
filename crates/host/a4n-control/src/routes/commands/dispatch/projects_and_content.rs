@@ -17,9 +17,9 @@ use super::super::{
     get_optimize_session, get_profile_state_at_chapter, get_project,
     get_project_import_analysis_progress, get_project_status_machine, import_chapter,
     import_project_bundle_upload, import_project_family_upload, inspect_project_bundle_upload,
-    invite_project_member, leave_project, list_blueprint_versions, list_chapter_index,
-    list_chapter_outlines, list_chapter_scenes, list_chapters, list_my_project_invites,
-    list_optimize_patch_sets, list_optimize_sessions, list_optimize_turns,
+    invite_project_member, leave_project, list_blueprint_versions, list_chapter_analyses,
+    list_chapter_index, list_chapter_outlines, list_chapter_scenes, list_chapters,
+    list_my_project_invites, list_optimize_patch_sets, list_optimize_sessions, list_optimize_turns,
     list_orphan_project_data_dirs, list_project_invites, list_project_members, list_projects,
     list_source_snapshot_chapters, preview_apply_beat_mapping_request,
     preview_batch_generate_part_outlines_request, preview_chapter_analysis_request,
@@ -163,6 +163,7 @@ async fn try_dispatch_content(
 ) -> Result<Option<Value>, ApiError> {
     let result = match cmd {
         "list_chapters" => list_chapters(state, user_id, args).await?,
+        "list_chapter_analyses" => list_chapter_analyses(state, user_id, args).await?,
         "list_chapter_index" => list_chapter_index(state, user_id, args).await?,
         "get_chapter" => get_chapter(state, user_id, args).await?,
         "preview_chapter_prompt" => preview_chapter_prompt(state, user_id, args).await?,

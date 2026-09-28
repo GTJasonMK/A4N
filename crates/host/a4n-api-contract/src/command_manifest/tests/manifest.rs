@@ -533,6 +533,10 @@ fn chapter_content_commands_expose_the_immediate_strict_contract() {
     let index = command_descriptor("list_chapter_index").unwrap();
     assert_eq!(index.effect, "read");
     assert_eq!(index.result_schema["x-a4n-schema-quality"], "typed");
+    let analyses = command_descriptor("list_chapter_analyses").unwrap();
+    assert_eq!(analyses.effect, "read");
+    assert_eq!(analyses.result_schema["x-a4n-schema-quality"], "typed");
+    assert_eq!(analyses.args_schema["additionalProperties"], false);
     let get = command_descriptor("get_chapter").unwrap();
     assert_eq!(get.effect, "read");
     assert_eq!(get.args_schema["properties"]["input"]["additionalProperties"], false);

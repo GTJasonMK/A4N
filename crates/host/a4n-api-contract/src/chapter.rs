@@ -1,4 +1,5 @@
 use super::{embedding::EmbeddingModelIdentity, generation_tasks::GenerationStartRequestMeta};
+pub use a4n_domain::chapter::ChapterAnalysisEntry;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -322,9 +323,14 @@ pub struct GetChapterInput {
 /// Host-facing chapter content read boundary.
 ///
 /// Chapter persistence, workflow status projection and project visibility stay
-/// with the chapter owner; Runtime only routes complete API summaries.
+/// with the chapter owner; Runtime only routes typed read models.
 #[async_trait::async_trait]
 pub trait ChapterContentReadApplicationPort: Send + Sync {
+    async fn analyses(
+        &self,
+        user_id: i64,
+        project_id: i64,
+    ) -> Result<Vec<ChapterAnalysisEntry>, a4n_error::AppError>;
     async fn index(
         &self,
         user_id: i64,

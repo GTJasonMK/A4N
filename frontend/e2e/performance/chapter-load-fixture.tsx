@@ -3,6 +3,7 @@ import { createRoot } from "react-dom/client";
 import { createMemoryRouter, RouterProvider } from "react-router-dom";
 import { WritingDesk } from "../../src/pages/WritingDesk";
 import { ChaptersTab } from "../../src/pages/novel-detail/ChaptersTab";
+import { StoryEventsTab } from "../../src/pages/novel-detail/StoryEventsTab";
 import { StatusBarProvider } from "../../src/components/ui/StatusBar";
 import { ProgressTaskProvider } from "../../src/hooks/useProgressTask";
 import { ConfirmDialogHost } from "../../src/components/feedback/ConfirmDialog";
@@ -19,7 +20,7 @@ function mount(chapter = 1, view = "desk") {
   const key = ++version;
   const router = createMemoryRouter([{ path: "/write/:id", element: <StatusBarProvider>
         <ProgressTaskProvider>
-        {view === "desk" ? <WritingDesk />
+        {view === "desk" ? <WritingDesk /> : view === "story" ? <StoryEventsTab projectId={1} canOpenWritingDesk={false} />
           : <ChaptersTab projectId={1} canEditChapters={false} />}
         <ConfirmDialogHost /><PromptDialogHost /><ToastContainer />
         </ProgressTaskProvider>

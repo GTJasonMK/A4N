@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { extractErrorMessage } from "../../api";
 import { LoadingSpinner } from "../../components/ui/LoadingSpinner";
 import { useToast } from "../../components/feedback/Toast";
-import { listChapters, type ChapterSummary } from "../../api/chapter";
+import { listChapterAnalyses, type ChapterAnalysisEntry } from "../../api/chapter";
 import { listForeshadowing, type Foreshadowing } from "../../api/foreshadowing";
 import { ForeshadowingIndexCard } from "./story-events/ForeshadowingIndexCard";
 import { StoryEventsListCard } from "./story-events/StoryEventsListCard";
@@ -31,7 +31,7 @@ export const StoryEventsTab: React.FC<StoryEventsTabProps> = ({
   const navigate = useNavigate();
   const { addToast } = useToast();
   const { t } = useI18n();
-  const [chapters, setChapters] = useState<ChapterSummary[]>([]);
+  const [chapters, setChapters] = useState<ChapterAnalysisEntry[]>([]);
   const [foreshadowing, setForeshadowing] = useState<Foreshadowing[]>([]);
   const [filters, setFilters] = useState<StoryEventFilters>(DEFAULT_STORY_EVENT_FILTERS);
   const [loadedProjectId, setLoadedProjectId] = useState<number | null>(null);
@@ -42,7 +42,7 @@ export const StoryEventsTab: React.FC<StoryEventsTabProps> = ({
   const loadChapters = useCallback(
     async (isCurrent: () => boolean) => {
       const [chaptersResult, foreshadowingResult] = await Promise.allSettled([
-        listChapters(projectId),
+        listChapterAnalyses(projectId),
         listForeshadowing(projectId),
       ]);
       if (!isCurrent()) return;

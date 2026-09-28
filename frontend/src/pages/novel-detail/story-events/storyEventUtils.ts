@@ -1,4 +1,4 @@
-import type { ChapterSummary } from "../../../api/chapter";
+import type { ChapterAnalysisEntry } from "../../../api/chapter";
 import {
   analysisTextList,
   analysisTextValue,
@@ -36,10 +36,10 @@ const eventDescription = (raw: unknown): string => {
   return firstAnalysisText(record, ["description", "summary", "event", "title"]);
 };
 
-const chapterTitle = (chapter: ChapterSummary, t: MessageTranslator): string =>
+const chapterTitle = (chapter: ChapterAnalysisEntry, t: MessageTranslator): string =>
   chapter.title?.trim() || t("writing.chapterLabel", { number: chapter.chapter_number });
 
-const analysisSummary = (analysis: JsonRecord | null, chapter: ChapterSummary): string => {
+const analysisSummary = (analysis: JsonRecord | null, chapter: ChapterAnalysisEntry): string => {
   const summaries = asRecord(analysis?.summaries);
   return (
     firstAnalysisText(summaries, ["compressed", "summary", "short"]) ||
@@ -71,7 +71,7 @@ const sectionSearchText = (section: ChapterStorySection): string =>
   ].join(" ");
 
 export const extractChapterStorySection = (
-  chapter: ChapterSummary,
+  chapter: ChapterAnalysisEntry,
   t: MessageTranslator,
 ): ChapterStorySection => {
   const analysis = asRecord(chapter.analysis_data);

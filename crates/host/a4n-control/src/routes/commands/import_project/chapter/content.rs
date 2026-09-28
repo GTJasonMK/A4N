@@ -2,6 +2,18 @@ use crate::routes::commands::{ApiError, chapter_content_actions, command_input, 
 use crate::state::ServerState;
 use serde_json::{Value, json};
 
+pub(in crate::routes::commands) async fn list_chapter_analyses(
+    state: &ServerState,
+    user_id: i64,
+    args: &Value,
+) -> Result<Value, ApiError> {
+    let project_id = i64_arg(args, "projectId")?;
+    Ok(json!(
+        chapter_content_actions::list_chapter_analyses(state.runtime(), user_id, project_id)
+            .await?
+    ))
+}
+
 pub(in crate::routes::commands) async fn list_chapter_index(
     state: &ServerState,
     user_id: i64,

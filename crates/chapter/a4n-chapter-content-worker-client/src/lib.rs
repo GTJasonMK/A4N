@@ -1,14 +1,14 @@
 //! Typed Host adapter for the chapter-content worker.
 
 use a4n_api_contract::chapter::{
-    ChapterContentReadApplicationPort, ChapterIndexEntry, ChapterSummary, ImportChapterInput,
-    UpdateChapterContentInput,
+    ChapterAnalysisEntry, ChapterContentReadApplicationPort, ChapterIndexEntry, ChapterSummary,
+    ImportChapterInput, UpdateChapterContentInput,
 };
 use a4n_chapter_content_worker_contract::{
-    CHAPTER_CONTENT_IMPORT_OPERATION, CHAPTER_CONTENT_INDEX_OPERATION,
-    CHAPTER_CONTENT_LIST_OPERATION, CHAPTER_CONTENT_SUMMARY_OPERATION,
-    CHAPTER_CONTENT_UPDATE_OPERATION, CHAPTER_CONTENT_WORKER_ID, ChapterContentMutationResult,
-    ChapterInput, ProjectInput,
+    CHAPTER_CONTENT_ANALYSES_OPERATION, CHAPTER_CONTENT_IMPORT_OPERATION,
+    CHAPTER_CONTENT_INDEX_OPERATION, CHAPTER_CONTENT_LIST_OPERATION,
+    CHAPTER_CONTENT_SUMMARY_OPERATION, CHAPTER_CONTENT_UPDATE_OPERATION, CHAPTER_CONTENT_WORKER_ID,
+    ChapterContentMutationResult, ChapterInput, ProjectInput,
 };
 use a4n_error::AppError;
 use a4n_worker_client::{HttpWorkerClient, WorkerClientError};
@@ -181,6 +181,21 @@ impl ChapterContentWorkerClient {
 
 #[async_trait::async_trait]
 impl ChapterContentReadApplicationPort for ChapterContentWorkerClient {
+    async fn analyses(
+        &self,
+        user_id: i64,
+        project_id: i64,
+    ) -> Result<Vec<ChapterAnalysisEntry>, AppError> {
+        let project_id = Self::positive("project_id", project_id)?;
+        self.command(
+            user_id,
+            project_id,
+            CHAPTER_CONTENT_ANALYSES_OPERATION,
+            ProjectInput { project_id },
+        )
+        .await
+    }
+
     async fn index(
         &self,
         user_id: i64,

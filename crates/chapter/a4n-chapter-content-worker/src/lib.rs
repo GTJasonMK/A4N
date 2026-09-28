@@ -8,11 +8,13 @@ use a4n_chapter_content_core::{
     chapter_summary_with_metadata,
 };
 use a4n_chapter_content_worker_contract::{
-    CHAPTER_CONTENT_CAPABILITY, CHAPTER_CONTENT_IMPORT_OPERATION, CHAPTER_CONTENT_INDEX_OPERATION,
+    CHAPTER_CONTENT_ANALYSES_OPERATION, CHAPTER_CONTENT_CAPABILITY,
+    CHAPTER_CONTENT_IMPORT_OPERATION, CHAPTER_CONTENT_INDEX_OPERATION,
     CHAPTER_CONTENT_LIST_OPERATION, CHAPTER_CONTENT_SUMMARY_OPERATION,
     CHAPTER_CONTENT_UPDATE_OPERATION, CHAPTER_CONTENT_WORKER_CONTRACT_VERSION,
-    CHAPTER_CONTENT_WORKER_ID, ChapterContentMutationResult, ChapterIndexEntry, ChapterInput,
-    ChapterMetadata, ChapterSummary, ImportChapterInput, ProjectInput, UpdateChapterContentInput,
+    CHAPTER_CONTENT_WORKER_ID, ChapterAnalysisEntry, ChapterContentMutationResult,
+    ChapterIndexEntry, ChapterInput, ChapterMetadata, ChapterSummary, ImportChapterInput,
+    ProjectInput, UpdateChapterContentInput,
 };
 use a4n_db::DbHandle;
 use a4n_domain::chapter::{EditChapterContentInput, ImportChapterContentInput};
@@ -79,6 +81,7 @@ impl ChapterContentWorker {
         Router::new()
             .route(WORKER_HEALTH_PATH, get(health))
             .route(WORKER_CAPABILITIES_PATH, get(capabilities))
+            .route("/v1/commands/chapter.content.analyses", post(analyses))
             .route("/v1/commands/chapter.content.list", post(list))
             .route("/v1/commands/chapter.content.index", post(index))
             .route("/v1/commands/chapter.content.summary", post(summary))
@@ -180,6 +183,14 @@ async fn list(
     command_response(&state, &headers, request, |request| state.list(request)).await
 }
 
+async fn analyses(
+    State(state): State<WorkerState>,
+    headers: HeaderMap,
+    Json(request): Json<WorkerEnvelope<ProjectInput>>,
+) -> Response {
+    command_response(&state, &headers, request, |request| state.analyses(request)).await
+}
+
 async fn index(
     State(state): State<WorkerState>,
     headers: HeaderMap,
@@ -238,6 +249,21 @@ where
 }
 
 impl WorkerState {
+    async fn analyses(
+        &self,
+        request: WorkerEnvelope<ProjectInput>,
+    ) -> Result<Vec<ChapterAnalysisEntry>, WorkerFailure> {
+        validate_request(&request, CHAPTER_CONTENT_ANALYSES_OPERATION)?;
+        let project_id = positive("project_id", request.payload.project_id)?;
+        verify_project_viewer(&self.database, project_id, user_id(&request)?).await?;
+        a4n_db::chapter_content::chapter_analyses_for_project(
+            self.database.connection(),
+            project_id,
+        )
+        .await
+        .map_err(|error| WorkerFailure::unavailable(error.to_string()))
+    }
+
     async fn update(
         &self,
         request: WorkerEnvelope<UpdateChapterContentInput>,

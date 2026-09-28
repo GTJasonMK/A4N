@@ -186,6 +186,7 @@ export const HOST_API_COMMANDS = [
   "list_all_users",
   "list_behaviors",
   "list_blueprint_versions",
+  "list_chapter_analyses",
   "list_chapter_index",
   "list_chapter_outlines",
   "list_chapter_scenes",
@@ -1601,6 +1602,14 @@ export interface ChapterIndexEntry {
   title: string | null;
   updated_at: string | null;
   word_count: number;
+}
+
+export interface ChapterAnalysisEntry {
+  analysis_data: unknown;
+  chapter_number: number;
+  id: number;
+  summary: string | null;
+  title: string | null;
 }
 
 export interface GetChapterInput {

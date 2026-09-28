@@ -170,6 +170,25 @@
       }
     },
     {
+      "name": "read chapter directory without bodies",
+      "command": "list_chapter_index",
+      "args": { "projectId": "${project_id}" },
+      "capture": { "indexed_chapter_id": "/data/0/id" }
+    },
+    {
+      "name": "read one chapter in its project",
+      "command": "get_chapter",
+      "args": {
+        "input": { "project_id": "${project_id}", "chapter_id": "${indexed_chapter_id}" }
+      }
+    },
+    {
+      "name": "read chapter analysis projection",
+      "command": "list_chapter_analyses",
+      "args": { "projectId": "${project_id}" },
+      "capture": { "analysis_chapter_id": "/data/0/id" }
+    },
+    {
       "name": "export generated novel",
       "command": "export_markdown_data",
       "args": {

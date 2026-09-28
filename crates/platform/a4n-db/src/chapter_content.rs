@@ -21,7 +21,7 @@ pub use generation::{
     restore_chapter_generation_status_record,
 };
 pub use import::import_chapter_content_record;
-pub use queries::{chapter_by_id_for_analysis, chapters_for_project};
+pub use queries::{chapter_analyses_for_project, chapter_by_id_for_analysis, chapters_for_project};
 pub use types::{
     ChapterContentEditError, ChapterContentImportError, ChapterGenerationExistingRecord,
     ChapterGenerationLifecycleError, GeneratedChapterContentRecordInput,

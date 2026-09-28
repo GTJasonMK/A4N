@@ -6,6 +6,7 @@ import type {
   StartChapterGenerationInput,
 } from "./generated/generationContracts";
 import type {
+  ChapterAnalysisEntry,
   ChapterAnalysisInput,
   ChapterAnalysisMutationResult,
   ChapterIndexEntry,
@@ -37,6 +38,7 @@ import { canUseLocalDesktopEmbedding } from "../utils/runtimeMode";
  */
 
 export type {
+  ChapterAnalysisEntry,
   ChapterAnalysisInput,
   ChapterAnalysisMutationResult,
   ChapterIndexEntry,
@@ -82,6 +84,12 @@ export async function listChapters(projectId: Id): Promise<ChapterSummary[]> {
 
 export async function listChapterIndex(projectId: Id): Promise<ChapterIndexEntry[]> {
   return apiInvoke<ChapterIndexEntry[]>("list_chapter_index", {
+    projectId: idNum(projectId),
+  });
+}
+
+export async function listChapterAnalyses(projectId: Id): Promise<ChapterAnalysisEntry[]> {
+  return apiInvoke<ChapterAnalysisEntry[]>("list_chapter_analyses", {
     projectId: idNum(projectId),
   });
 }

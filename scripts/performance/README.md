@@ -34,6 +34,7 @@
 | [PERF-016](../../crates/host/a4n-edge/src/lib.rs) | Web → Edge → 大型 JSON；真实模板语料组成约 1.1／11 MB 响应，4 Mbps／50 ms | JSON 原先按完整字节交付；启用现有 Tower HTTP 的 gzip，最快压缩等级，只处理符合条件的大型 200 JSON 响应 | 三轮中位数 **2332.8 → 1073.3 ms（53.99%）／22225.3 → 9826.0 ms（55.79%）**；全部解压后字节摘要一致 |
 | [PERF-017](../../frontend/src/pages/WritingDesk.tsx) | 写作桌/只读目录/导入预览 → Chapter Content Worker；1000章、4Mbps/50ms | 目录原先携带整本正文/分析；目录窄投影与带项目归属的单章读取共用权限/状态规则，正文按选择读取 | 页面可编辑中位数 **5264.6 → 741.1 ms（85.92%）**；真实千章目录 **11,601,686 → 742,686 字节（93.60%）**；业务/权限/草稿回归通过 |
 | [PERF-018](../../frontend/src/pages/novel-detail/story-events/ChapterEventSection.tsx) | 故事事件筛选 → 章节卡片渲染；100／1000 章，每章 5 事件，连续 8 次含收窄和放宽的筛选 | 原过滤为所有匹配章节创建新对象，未变化卡片也反复渲染；完整保留的章节维持原对象，卡片使用 React 原生 memo | CPU18/19 三轮交错中位数 **135.2 → 50.4 ms（62.72%）／1328.1 → 503.9 ms（62.06%）**；完整 DOM 和筛选行为一致 |
+| [PERF-019](../../crates/platform/a4n-db/src/chapter_content/queries.rs) | 故事事件初载/刷新 → Control → Chapter Content Worker → PostgreSQL；1000章、900章有分析、4500事件 | 旧接口读取正文并生成未使用的同步状态；新分析读口仅选取 id/章号/标题/摘要/分析五列，复用项目权限和删除过滤 | 三轮真实 API P50 **126.56 → 43.34 ms（65.76%）**，P95 **160.61 → 66.36 ms（58.68%）**；JSON **13,650,788 → 2,172,288 字节（84.09%）** |
 
 较小输入同样保留记录：OpenAI 1/32/256 事件分别下降 6.66%/6.74%/26.08%，Anthropic 分别下降 7.45%/10.30%/35.55%。1000 字符、995 次显示更新为 27.4 → 20.1 ms（26.64%）。这些没有达到 30% 的小输入结果不作为主要验收收益，不把压力批次的提升外推到单事件请求。
 
@@ -52,7 +53,7 @@ Intl 的四组对照（每组 2000 次）：中文数字 75.7 → 2.3 ms、中�
 | LLM 上游连接 | PERF-012 保留每次构造 provider 的配置与凭证隔离，仅延长 HTTP Client 的生命周期。原连接／逐次读取超时、错误、取消与背压检查通过；不缓存模型响应。 |
 | 嵌入模型生命周期 | PERF-014／015 已处理本地模型和 API 连接的重复初始化。模型文件删除／下载会使额外持有的资源失效；仍存活的 provider 保留原有拥有权，避免破坏已在使用的模型。没有缓存业务向量结果。 |
 | 语义分块 | 已复用向量范数并利用相似矩阵对称性；本次只消除额外矩阵。将全矩阵换成局部带状算法可能改变浮点抵消和相同分数时的切分，未作为无风险替换。 |
-| 故事事件 | PERF-018 已减少筛选时未变化卡片的重复渲染。该页面仍通过完整章节接口取得分析字段，也携带未使用正文；读取投影仍待处理，不能由 CPU 改善代替。 |
+| 故事事件 | PERF-018 减少筛选时未变化卡片的重复渲染；PERF-019 从数据库到前端仅读取所需的五个分析字段。千章/4500事件首屏仍需渲染大量卡片，页面总体加载提升仅约12.5%，未将 API 提升外推为首屏提升。 |
 | 漫画来源读取 | 当前 MangaTab 唯一产品入口 ComicProjectWorkspace 总是传入 snapshotChapters，旧 listChapters 分支不是活跃瓶颈；真实入口使用 listSourceSnapshotChapters，仍需测量大范围来源快照的载荷。 |
 
 ## 可复现入口
@@ -235,3 +236,14 @@ A4N_PERF_ARTIFACTS=/path/inside/worktree/data/api-transfer \
 证据为 `data/performance-audit-20260927/b09/summary.json`，包含源码指纹。`before-1..3` / `after-1..3` 固定 CPU18/19 交错运行，每轮预热两次后取五次样本中位数。100／1000 章分别有 500／5000 个事件；八次查询包含共同前缀、特定事件收窄和放宽。结果是这八次同步过滤与 React 提交的总耗时，不是首次加载或后端延时。六轮完整 DOM 摘要及中英文、1440/390px 筛选追踪相同；替换打开章节回调后 Enter 正确调用新回调，无页面横向溢出。最终 445 项前端测试和 TypeScript/Vite 构建通过。
 
 复现：从 `frontend` 执行 `A4N_PERF_CASE=story-events A4N_PERF_ARTIFACTS=<独立目录> taskset -c 18,19 node e2e/performance/check.mjs`；旧版加 `A4N_PERF_BASELINE_REF=ff9fb6823`。只替换两个被测生产模块，其他夹具和依赖相同。
+
+### PERF-019：故事事件的五列读取
+
+`ChapterAnalysisEntry` 在 Domain 定义，由 API 合同直接重导出；DB 查询绑定 project_id，沿用 `find_current()` 和章节号排序。新增 `list_chapter_analyses` 经过现有章节读端口，Chapter Content Worker 合同升级为 v5；原完整章节接口保持不变。前端事件提取、筛选和显示规则未改变，仅更换读取合同。不请求或构造页面未使用的正文、修订及同步状态。
+
+- `b10/runtime-01..03/report.json`：同一套真实 Server/Control/Worker/PG 上，分别测原完整接口与新投影，每个接口35次请求、前5次预热；最终取三轮P50/P95中位数。1000章中100章无分析，另有软删除章与其他项目章用于边界验证。全部五列逐值一致，删除/项目隔离、401/400/403拒绝及viewer可读均通过。
+- `b10/browser-before-checked` / `browser-after-checked`：生产 StoryEventsTab 渲染真实API返回的合成夹具；六次页面完整文本摘要一致，4500事件全部呈现，错误可见、刷新恢复、1440/390px无横向溢出。4Mbps/50ms下页面中位 **1948.8 → 1704.8 ms（约12.5%）**，未达到30%，不作为本项主要验收收益；本项验收依据为真实API的65.76%/58.68%时延改善。
+- 最终API106项/Worker合同2项、前端445项、类型/Vite构建、web-api-parity及2387组校验对照、全仓rustfmt/diff通过。`cli-final-02` 的core16/scene7/llm8共 **31项** 通过，新增场景实际调用目录、项目作用域单章及分析投影。
+- 所有失败均保留：首次发布构建遇到并行健康检查接口尚未补齐；首次CLI的旧Import sidecar缺少新的解析路由；随后一轮错误复用了已被CLI写入的测试库。已重编译对应程序、替换Import/Export/Media sidecar，并按CLI运行分配新数据库。浏览器恢复测试曾过早把“错误暂时隐藏于加载状态”当完成，现同时等待全部事件恢复。
+
+证据目录：`data/performance-audit-20260927/b10/`，最终程序与哈希在 `frozen-candidate` / `binaries-final.json`。真实基准在 `runtime-baseline.py` 增加 `--chapter-analysis-checks`；它准备专用合成数据并与旧接口逐值对比。浏览器使用 `A4N_PERF_VIEW=story`、`A4N_PERF_CHAPTER_FIXTURE=<该运行的chapter-fixture.json>` 调用 `chapter-load.mjs`；旧版加 `A4N_PERF_BASELINE_REF=ecd9fb5b7`。

@@ -67,12 +67,12 @@ use a4n_api_contract::{
         RunCanvasNodeInput, SaveCanvasGraphInput, SaveCanvasTextAssetInput,
     },
     chapter::{
-        CHAPTER_ANALYSIS_PROGRESS_TOTAL, CHAPTER_SCENE_PROGRESS_TOTAL, ChapterAnalysisInput,
-        ChapterAnalysisMutationResult, ChapterIndexEntry, ChapterMaterialSyncState,
-        ChapterMaterialSyncStatus, ChapterMaterialUpdate, ChapterMaterialUpdateAction,
-        ChapterMaterialUpdateKind, ChapterMetadata, ChapterSceneSummary, ChapterSummary,
-        GenerateChapterSceneInput, GetChapterInput, ImportChapterInput,
-        PreparedGenerationRagEmbeddingRequest, ReorderChapterScenesInput,
+        CHAPTER_ANALYSIS_PROGRESS_TOTAL, CHAPTER_SCENE_PROGRESS_TOTAL, ChapterAnalysisEntry,
+        ChapterAnalysisInput, ChapterAnalysisMutationResult, ChapterIndexEntry,
+        ChapterMaterialSyncState, ChapterMaterialSyncStatus, ChapterMaterialUpdate,
+        ChapterMaterialUpdateAction, ChapterMaterialUpdateKind, ChapterMetadata,
+        ChapterSceneSummary, ChapterSummary, GenerateChapterSceneInput, GetChapterInput,
+        ImportChapterInput, PreparedGenerationRagEmbeddingRequest, ReorderChapterScenesInput,
         UpdateChapterContentInput, UpdateChapterSceneInput,
     },
     chapter_visual_plan::{

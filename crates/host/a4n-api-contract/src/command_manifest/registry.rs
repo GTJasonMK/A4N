@@ -197,6 +197,7 @@ command_specs! {
     "list_all_users" => empty_args_schema, result_users, "auth", identity(ADMIN_IDENTITY), effect(READ_EFFECT);
     "list_behaviors" => args_list_behaviors, result_list_behaviors, "profile", effect(READ_EFFECT);
     "list_blueprint_versions" => args_list_blueprint_versions, result_list_blueprint_versions, "blueprint", context(NO_CONTEXT), effect(READ_EFFECT);
+    "list_chapter_analyses" => args_project_id, result_chapter_analyses, "chapter", context(PROJECT_CONTEXT), effect(READ_EFFECT), references(REFERENCES_CHAPTER_IDS);
     "list_chapter_index" => args_project_id, result_chapter_index, "chapter", context(PROJECT_CONTEXT), effect(READ_EFFECT), references(REFERENCES_CHAPTER_IDS);
     "list_chapter_outlines" => args_project_id, result_chapter_outlines, "chapter", context(PROJECT_CONTEXT), effect(READ_EFFECT), references(REFERENCES_CHAPTER_IDS);
     "list_chapter_scenes" => args_list_chapter_scenes, result_chapter_scenes, "chapter", context(CHAPTER_CONTEXT), effect(READ_EFFECT), references(REFERENCES_CHAPTER_IDS);
