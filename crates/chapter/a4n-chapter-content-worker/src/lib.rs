@@ -2,24 +2,14 @@
 
 use std::{env, net::SocketAddr, sync::Arc};
 
-use a4n_chapter_content_core::{
-    CHAPTER_CONTENT_SYNC_WORKFLOW_KIND, attach_chapter_sync_state,
-    begin_chapter_content_sync_in_transaction, chapter_index_entry, chapter_metadata,
-    chapter_summary_with_metadata,
-};
 use a4n_chapter_content_worker_contract::{
-    CHAPTER_CONTENT_CAPABILITY, CHAPTER_CONTENT_IMPORT_OPERATION, CHAPTER_CONTENT_INDEX_OPERATION,
-    CHAPTER_CONTENT_LIST_OPERATION, CHAPTER_CONTENT_SUMMARY_OPERATION,
-    CHAPTER_CONTENT_UPDATE_OPERATION, CHAPTER_CONTENT_WORKER_CONTRACT_VERSION,
-    CHAPTER_CONTENT_WORKER_ID, ChapterContentMutationResult, ChapterIndexEntry, ChapterInput,
-    ChapterMetadata, ChapterSummary, ImportChapterInput, ProjectInput, UpdateChapterContentInput,
+    CHAPTER_CONTENT_CAPABILITY, CHAPTER_CONTENT_WORKER_CONTRACT_VERSION, CHAPTER_CONTENT_WORKER_ID,
 };
 use a4n_db::DbHandle;
-use a4n_domain::chapter::{EditChapterContentInput, ImportChapterContentInput};
 use a4n_worker_contract::WORKER_AUTH_HEADER;
 use a4n_worker_contract::{
     WORKER_CAPABILITIES_PATH, WORKER_HEALTH_PATH, WORKER_SCHEMA_VERSION, WorkerCapabilities,
-    WorkerCapability, WorkerEnvelope, WorkerHealth, WorkerHealthStatus,
+    WorkerCapability, WorkerHealth, WorkerHealthStatus,
 };
 use axum::{
     Json, Router,
@@ -28,25 +18,19 @@ use axum::{
     response::{IntoResponse, Response},
     routing::{get, post},
 };
-use sea_orm::{
-    ConnectOptions, ConnectionTrait, Database, DatabaseConnection, Statement, TransactionTrait,
-};
+use sea_orm::{ConnectOptions, ConnectionTrait, Database, DatabaseConnection, Statement};
 use subtle::ConstantTimeEq;
 
 mod commands;
 mod errors;
+mod mutations;
 mod permissions;
+mod reads;
 mod responses;
 mod transactions;
 mod validation;
 
-use errors::{
-    WorkerFailure, app_error, chapter_error, import_error, project_error, workflow_error,
-};
-use permissions::{verify_project_editor, verify_project_viewer};
 use responses::unauthorized;
-use transactions::finish_transaction;
-use validation::{positive, user_id, validate_request};
 
 const WORKER_ADDR_ENV: &str = "A4N_CHAPTER_CONTENT_WORKER_ADDR";
 const DATABASE_URL_ENV: &str = "A4N_DATABASE_URL";
@@ -187,246 +171,6 @@ async fn capabilities(State(state): State<WorkerState>, headers: HeaderMap) -> R
 }
 
 impl WorkerState {
-    async fn update(
-        &self,
-        request: WorkerEnvelope<UpdateChapterContentInput>,
-    ) -> Result<ChapterContentMutationResult, WorkerFailure> {
-        validate_request(&request, CHAPTER_CONTENT_UPDATE_OPERATION)?;
-        let user_id = user_id(&request)?;
-        let chapter_id = positive("chapter_id", request.payload.chapter_id)?;
-        let existing = a4n_db::chapter_content::chapter_by_id_for_analysis(
-            self.database.connection(),
-            chapter_id,
-        )
-        .await
-        .map_err(chapter_error)?;
-        self.verify_text_project_editor(existing.project_id, user_id, "更新章节正文")
-            .await?;
-
-        let input = request.payload;
-        let tx = self
-            .database
-            .connection()
-            .begin()
-            .await
-            .map_err(|error| WorkerFailure::unavailable(error.to_string()))?;
-        let result = async {
-            let chapter = a4n_db::chapter_content::save_chapter_content_edit_record(
-                &tx,
-                EditChapterContentInput {
-                    chapter_id: input.chapter_id,
-                    expected_revision: input.expected_revision,
-                    content: input.content,
-                    title: input.title,
-                },
-            )
-            .await
-            .map_err(chapter_error)?;
-            let run = begin_chapter_content_sync_in_transaction(&tx, &chapter)
-                .await
-                .map_err(app_error)?;
-            Ok(ChapterContentMutationResult {
-                chapter_id: chapter.id,
-                workflow_run_id: run.id,
-            })
-        }
-        .await;
-        finish_transaction(tx, result, "保存章节正文并登记资料同步").await
-    }
-
-    async fn import_chapter(
-        &self,
-        request: WorkerEnvelope<ImportChapterInput>,
-    ) -> Result<ChapterContentMutationResult, WorkerFailure> {
-        validate_request(&request, CHAPTER_CONTENT_IMPORT_OPERATION)?;
-        let user_id = user_id(&request)?;
-        let input = request.payload;
-        let project_id = positive("project_id", input.project_id)?;
-        if input.chapter_number <= 0 {
-            return Err(WorkerFailure::invalid_request("章节序号必须大于 0"));
-        }
-        self.verify_text_project_editor(project_id, user_id, "导入章节正文")
-            .await?;
-
-        let tx = self
-            .database
-            .connection()
-            .begin()
-            .await
-            .map_err(|error| WorkerFailure::unavailable(error.to_string()))?;
-        let result = async {
-            let chapter = a4n_db::chapter_content::import_chapter_content_record(
-                &tx,
-                ImportChapterContentInput {
-                    project_id: input.project_id,
-                    chapter_number: input.chapter_number,
-                    content: input.content,
-                    title: input.title,
-                },
-                "导入覆盖正文",
-            )
-            .await
-            .map_err(import_error)?;
-            let run = begin_chapter_content_sync_in_transaction(&tx, &chapter)
-                .await
-                .map_err(app_error)?;
-            Ok(ChapterContentMutationResult {
-                chapter_id: chapter.id,
-                workflow_run_id: run.id,
-            })
-        }
-        .await;
-        finish_transaction(tx, result, "导入章节正文并登记资料同步").await
-    }
-
-    async fn list(
-        &self,
-        request: WorkerEnvelope<ProjectInput>,
-    ) -> Result<Vec<ChapterSummary>, WorkerFailure> {
-        validate_request(&request, CHAPTER_CONTENT_LIST_OPERATION)?;
-        let project_id = positive("project_id", request.payload.project_id)?;
-        let chapters = self
-            .chapters_for_viewer(user_id(&request)?, project_id)
-            .await?;
-        self.project_summaries(project_id, chapters).await
-    }
-
-    async fn index(
-        &self,
-        request: WorkerEnvelope<ProjectInput>,
-    ) -> Result<Vec<ChapterIndexEntry>, WorkerFailure> {
-        validate_request(&request, CHAPTER_CONTENT_INDEX_OPERATION)?;
-        let project_id = positive("project_id", request.payload.project_id)?;
-        let chapters = self
-            .chapters_for_viewer(user_id(&request)?, project_id)
-            .await?;
-        let metadata = self.project_metadata(project_id, &chapters).await?;
-        Ok(chapters
-            .iter()
-            .zip(metadata)
-            .map(|(chapter, metadata)| chapter_index_entry(chapter, metadata))
-            .collect())
-    }
-
-    async fn chapters_for_viewer(
-        &self,
-        user_id: i64,
-        project_id: i64,
-    ) -> Result<Vec<a4n_db_models::models::chapter::chapter::Model>, WorkerFailure> {
-        verify_project_viewer(&self.database, project_id, user_id).await?;
-        a4n_db::chapter_content::chapters_for_project(self.database.connection(), project_id)
-            .await
-            .map_err(|error| WorkerFailure::unavailable(error.to_string()))
-    }
-
-    async fn summary(
-        &self,
-        request: WorkerEnvelope<ChapterInput>,
-    ) -> Result<ChapterSummary, WorkerFailure> {
-        validate_request(&request, CHAPTER_CONTENT_SUMMARY_OPERATION)?;
-        let chapter_id = positive("chapter_id", request.payload.chapter_id)?;
-        let chapter = a4n_db::chapter_content::chapter_by_id_for_analysis(
-            self.database.connection(),
-            chapter_id,
-        )
-        .await
-        .map_err(chapter_error)?;
-        if request
-            .project_id
-            .is_some_and(|project_id| project_id != chapter.project_id)
-        {
-            return Err(WorkerFailure::not_found(format!(
-                "章节不属于指定项目: {chapter_id}"
-            )));
-        }
-        verify_project_viewer(&self.database, chapter.project_id, user_id(&request)?).await?;
-        let mut summaries = self
-            .project_summaries(chapter.project_id, vec![chapter.clone()])
-            .await?;
-        summaries
-            .pop()
-            .ok_or_else(|| WorkerFailure::unavailable("章节摘要投影为空"))
-    }
-
-    async fn verify_text_project_editor(
-        &self,
-        project_id: i64,
-        user_id: i64,
-        operation: &str,
-    ) -> Result<(), WorkerFailure> {
-        verify_project_editor(&self.database, project_id, user_id).await?;
-        let project = a4n_db::project::project_by_id_record(self.database.connection(), project_id)
-            .await
-            .map_err(project_error)?
-            .ok_or_else(|| WorkerFailure::not_found(format!("项目不存在: {project_id}")))?;
-        if project.project_kind != a4n_db::project::PROJECT_KIND_TEXT {
-            return Err(WorkerFailure::invalid_request(format!(
-                "{operation}只能作用于文本项目"
-            )));
-        }
-        Ok(())
-    }
-
-    async fn project_summaries(
-        &self,
-        project_id: i64,
-        chapters: Vec<a4n_db_models::models::chapter::chapter::Model>,
-    ) -> Result<Vec<ChapterSummary>, WorkerFailure> {
-        let metadata = self.project_metadata(project_id, &chapters).await?;
-        Ok(chapters
-            .iter()
-            .zip(metadata)
-            .map(|(chapter, metadata)| chapter_summary_with_metadata(chapter, metadata))
-            .collect())
-    }
-
-    async fn project_metadata(
-        &self,
-        project_id: i64,
-        chapters: &[a4n_db_models::models::chapter::chapter::Model],
-    ) -> Result<Vec<ChapterMetadata>, WorkerFailure> {
-        let chapter_ids = chapters
-            .iter()
-            .map(|chapter| chapter.id)
-            .collect::<Vec<_>>();
-        let (analysis_runs, content_runs) = tokio::try_join!(
-            a4n_db::workflow::latest_workflow_runs_for_chapters(
-                self.database.connection(),
-                project_id,
-                "chapter_analysis",
-                &chapter_ids,
-            ),
-            a4n_db::workflow::latest_workflow_runs_for_chapters(
-                self.database.connection(),
-                project_id,
-                CHAPTER_CONTENT_SYNC_WORKFLOW_KIND,
-                &chapter_ids,
-            ),
-        )
-        .map_err(workflow_error)?;
-        let run_ids = analysis_runs
-            .iter()
-            .chain(&content_runs)
-            .map(|run| run.id)
-            .collect::<Vec<_>>();
-        let checkpoints = a4n_db::workflow::workflow_checkpoint_models_for_runs(
-            self.database.connection(),
-            &run_ids,
-        )
-        .await
-        .map_err(workflow_error)?;
-        let mut summaries = chapters.iter().map(chapter_metadata).collect::<Vec<_>>();
-        attach_chapter_sync_state(
-            chapters,
-            &mut summaries,
-            &analysis_runs,
-            &content_runs,
-            checkpoints,
-        )
-        .map_err(app_error)?;
-        Ok(summaries)
-    }
-
     fn authorized(&self, headers: &HeaderMap) -> bool {
         headers
             .get(WORKER_AUTH_HEADER)
