@@ -600,7 +600,8 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
       }));
       if ("text" in patch || "pose" in patch) clearFieldDraft(`line:${line.id}`);
       if (patch.line_type != null && patch.line_type !== "choice") clearChoiceDraft(line.id);
-      if (!await load()) return false;
+      await load();
+      addToast(t("galgame.lineSaved"), "success");
       return true;
     } catch (err) {
       addToast(extractErrorMessage(err, t("galgame.saveLineFailed")), "error");
@@ -631,7 +632,8 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
         scenes: current.scenes.map((item) => item.scene.id === saved.id ? { ...item, scene: saved } : item),
       }));
       clearFieldDraft(`scene:${scene.id}`);
-      if (!await load()) return;
+      await load();
+      addToast(t("galgame.sceneSaved"), "success");
     } catch (err) {
       addToast(extractErrorMessage(err, t("galgame.saveSceneFailed")), "error");
     } finally {
@@ -666,7 +668,8 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
         presentation: emptyGalgamePresentation(),
         text_anchor_id: null,
       });
-      if (!await load()) return;
+      await load();
+      addToast(t("galgame.lineInserted"), "success");
     } catch (err) {
       addToast(extractErrorMessage(err, t("galgame.insertLineFailed")), "error");
     } finally {
@@ -682,7 +685,8 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
       clearChoiceDraft(line.id);
       clearCgDraft(line.id);
       clearFieldDraft(`line:${line.id}`);
-      if (!await load()) return;
+      await load();
+      addToast(t("galgame.lineDeleted"), "success");
     } catch (err) {
       addToast(extractErrorMessage(err, t("galgame.deleteLineFailed")), "error");
     } finally {
@@ -707,7 +711,8 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
         scene_id: scene.scene.id,
         line_ids: lineIds,
       });
-      if (!await load()) return;
+      await load();
+      addToast(t("galgame.lineReordered"), "success");
     } catch (err) {
       addToast(extractErrorMessage(err, t("galgame.reorderLineFailed")), "error");
     } finally {
@@ -727,8 +732,9 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
         line_id: line.id,
         choices,
       });
-      if (!await load()) return;
+      await load();
       acceptChoiceDraft(line.id, submittedDraft);
+      addToast(t("galgame.choicesSaved"), "success");
     } catch (err) {
       addToast(extractErrorMessage(err, t("galgame.saveChoicesFailed")), "error");
     } finally {
