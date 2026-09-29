@@ -299,41 +299,82 @@ pub(super) async fn source_for_record<C: ConnectionTrait>(
         .get("source_content_sha256")
         .and_then(Value::as_str)
         .ok_or_else(|| failure("历史来源缺少正文哈希"))?;
-    match (
-        optional_id(value, "source_snapshot_id")?,
-        optional_id(value, "source_snapshot_chapter_id")?,
-    ) {
+    let snapshot_id = optional_id(value, "source_snapshot_id")?;
+    let source_id = optional_id(value, "source_snapshot_chapter_id")?;
+    match (snapshot_id, source_id) {
         (Some(snapshot_id), Some(source_id)) => {
             let snapshot = project_source_snapshot::Entity::find_by_id(snapshot_id)
                 .one(db)
-                .await?
-                .ok_or_else(|| failure("历史来源快照不存在"))?;
+                .await?;
             let source = source_snapshot_chapter::Entity::find_by_id(source_id)
                 .one(db)
-                .await?
-                .ok_or_else(|| failure("历史来源快照章节不存在"))?;
-            if snapshot.root_project_id != root.id
-                || source.root_project_id != root.id
-                || source.snapshot_id != snapshot_id
-                || source.source_chapter_id != chapter_id
-                || source.content_hash != hash
-                || a4n_domain::source_text_hash(&source.content) != hash
+                .await?;
+            if let Some(snapshot) = &snapshot
+                && snapshot.root_project_id != root.id
             {
+                return Err(failure("历史来源快照不属于根项目"));
+            }
+            if let Some(source) = &source
+                && (source.root_project_id != root.id
+                    || source.source_chapter_id != chapter_id
+                    || source.content_hash != hash
+                    || a4n_domain::source_text_hash(&source.content) != hash)
+            {
+                return Err(failure("历史导演或剧本的正文来源不一致"));
+            }
+            let (Some(snapshot), Some(source)) = (snapshot, source) else {
+                // ponytail: exact body hash can recover a deleted snapshot; missing profile/blueprint history stays explicit.
+                return recovered_source(
+                    db,
+                    root,
+                    chapter_id,
+                    hash,
+                    format!("missing:{snapshot_id}:{source_id}:{hash}"),
+                    now,
+                    cache,
+                )
+                .await;
+            };
+            if source.snapshot_id != snapshot_id {
                 return Err(failure("历史导演或剧本的正文来源不一致"));
             }
             Ok((snapshot, source))
         }
         (None, None) => {
-            let key = (root.id, chapter_id, hash.to_owned());
-            if let Some(source) = cache.get(&key) {
-                return Ok(source.clone());
-            }
-            let source = freeze_live_source(db, root, chapter_id, hash, now).await?;
-            cache.insert(key, source.clone());
-            Ok(source)
+            recovered_source(db, root, chapter_id, hash, hash.to_owned(), now, cache).await
         }
         _ => Err(failure("历史导演来源快照身份不完整")),
     }
+}
+
+async fn recovered_source<C: ConnectionTrait>(
+    db: &C,
+    root: &novel_project::Model,
+    chapter_id: i64,
+    hash: &str,
+    cache_key: String,
+    now: sea_orm::prelude::DateTime,
+    cache: &mut HashMap<
+        (i64, i64, String),
+        (
+            project_source_snapshot::Model,
+            source_snapshot_chapter::Model,
+        ),
+    >,
+) -> Result<
+    (
+        project_source_snapshot::Model,
+        source_snapshot_chapter::Model,
+    ),
+    DbErr,
+> {
+    let key = (root.id, chapter_id, cache_key);
+    if let Some(source) = cache.get(&key) {
+        return Ok(source.clone());
+    }
+    let source = freeze_live_source(db, root, chapter_id, hash, now).await?;
+    cache.insert(key, source.clone());
+    Ok(source)
 }
 
 async fn historical_video<C: ConnectionTrait>(
