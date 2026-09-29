@@ -30,7 +30,6 @@ use a4n_novel_planning_worker_contract::{
     SHOOTING_SCRIPT_UNIT_PROGRESS_CAPABILITY, VALIDATE_VISUAL_PLAN_OPERATION,
     VISUAL_PLAN_PERSISTENCE_CAPABILITY,
 };
-use a4n_worker_contract::WORKER_AUTH_HEADER;
 use a4n_worker_contract::{
     WORKER_CAPABILITIES_PATH, WORKER_HEALTH_PATH, WORKER_SCHEMA_VERSION, WorkerCapabilities,
     WorkerCapability, WorkerEnvelope, WorkerError, WorkerErrorCode, WorkerHealth,
@@ -44,7 +43,6 @@ use axum::{
     routing::{get, post},
 };
 use sea_orm::{ConnectOptions, ConnectionTrait, Database, DatabaseConnection, Statement};
-use subtle::ConstantTimeEq;
 
 #[cfg(test)]
 use axum::http::StatusCode;
@@ -160,6 +158,7 @@ pub use worker::runtime::run;
 mod tests {
     use super::*;
     use crate::worker::errors::shooting_script_error;
+    use a4n_worker_contract::WORKER_AUTH_HEADER;
     use a4n_worker_contract::WorkerResponse;
     use axum::{
         body::Body,
