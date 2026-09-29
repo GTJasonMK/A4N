@@ -25,6 +25,7 @@ import {
   SnapshotDetail,
 } from "./SnapshotViews";
 import { useI18n, type MessageTranslator } from "../../i18n";
+import { parsePositiveChapterNumber } from "./manageViewUtils";
 
 const snapshotReferenceCountText = (
   snapshot: SnapshotReference,
@@ -59,16 +60,10 @@ const rollbackChapterOptions = (
   return snapshots.map((snapshot) => snapshot.chapter_number);
 };
 
-const parsePositiveInput = (raw: string): number | "" | null => {
-  if (!raw) return "";
-  const parsed = Number(raw);
-  return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : null;
-};
-
 const snapshotLoadKey = (
   profileId: number,
-  startChapter: number | "",
-  endChapter: number | "",
+  startChapter: string,
+  endChapter: string,
 ): string =>
   `${profileId}:${startChapter === "" ? "all" : startChapter}:${endChapter === "" ? "all" : endChapter}`;
 
@@ -94,10 +89,8 @@ export const SnapshotManager: React.FC<{
   const [diffFromChapter, setDiffFromChapter] = useState(0);
   const [diffToChapter, setDiffToChapter] = useState<number | null>(null);
   const [rollbackChapter, setRollbackChapter] = useState<number | null>(null);
-  const [snapshotStartChapter, setSnapshotStartChapter] = useState<number | "">(
-    "",
-  );
-  const [snapshotEndChapter, setSnapshotEndChapter] = useState<number | "">("");
+  const [snapshotStartChapter, setSnapshotStartChapter] = useState("");
+  const [snapshotEndChapter, setSnapshotEndChapter] = useState("");
   const [loadedScopeKey, setLoadedScopeKey] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const mountedRef = useRef(true);
@@ -156,8 +149,8 @@ export const SnapshotManager: React.FC<{
 
   const isCurrentLoad = (
     requestProfileId: number,
-    requestStartChapter: number | "",
-    requestEndChapter: number | "",
+    requestStartChapter: string,
+    requestEndChapter: string,
     requestSeq: number,
   ) =>
     isCurrentProfile(requestProfileId) &&
@@ -195,6 +188,28 @@ export const SnapshotManager: React.FC<{
       requestStartChapter,
       requestEndChapter,
     );
+    const startChapter = requestStartChapter
+      ? parsePositiveChapterNumber(requestStartChapter)
+      : null;
+    const endChapter = requestEndChapter
+      ? parsePositiveChapterNumber(requestEndChapter)
+      : null;
+    if (
+      (requestStartChapter && startChapter == null) ||
+      (requestEndChapter && endChapter == null)
+    ) {
+      const label = requestStartChapter && startChapter == null
+        ? t("characterDetail.snapshot.startChapter")
+        : t("characterDetail.snapshot.endChapter");
+      setLoadError(t("characterDetail.invalidChapterInteger", { label }));
+      setLoadedScopeKey(null);
+      return false;
+    }
+    if (startChapter != null && endChapter != null && startChapter > endChapter) {
+      setLoadError(t("characterDetail.invalidChapterRange"));
+      setLoadedScopeKey(null);
+      return false;
+    }
     loadSeqRef.current = requestSeq;
     loadingRef.current = true;
     setLoading(true);
@@ -208,9 +223,8 @@ export const SnapshotManager: React.FC<{
     try {
       const [snapshotsResult, conflictResult] = await Promise.allSettled([
         listSnapshots(requestProfileId, {
-          start_chapter:
-            requestStartChapter === "" ? null : requestStartChapter,
-          end_chapter: requestEndChapter === "" ? null : requestEndChapter,
+          start_chapter: startChapter,
+          end_chapter: endChapter,
         }),
         checkProfileSyncConflict(requestProfileId),
       ]);
@@ -502,15 +516,13 @@ export const SnapshotManager: React.FC<{
           <input
             type="number"
             min={1}
+            step={1}
             value={snapshotStartChapter}
             disabled={loading}
             onChange={(event) => {
-              const parsed = parsePositiveInput(event.target.value);
-              if (parsed !== null) {
-                if (snapshotStartChapterRef.current !== parsed)
-                  invalidateSnapshotScope();
-                setSnapshotStartChapter(parsed);
-              }
+              const next = event.target.value;
+              if (snapshotStartChapterRef.current !== next) invalidateSnapshotScope();
+              setSnapshotStartChapter(next);
             }}
             className="pyqt-input !w-20 !px-2 !py-1"
             placeholder={t("characterDetail.behavior.all")}
@@ -521,15 +533,13 @@ export const SnapshotManager: React.FC<{
           <input
             type="number"
             min={1}
+            step={1}
             value={snapshotEndChapter}
             disabled={loading}
             onChange={(event) => {
-              const parsed = parsePositiveInput(event.target.value);
-              if (parsed !== null) {
-                if (snapshotEndChapterRef.current !== parsed)
-                  invalidateSnapshotScope();
-                setSnapshotEndChapter(parsed);
-              }
+              const next = event.target.value;
+              if (snapshotEndChapterRef.current !== next) invalidateSnapshotScope();
+              setSnapshotEndChapter(next);
             }}
             className="pyqt-input !w-20 !px-2 !py-1"
             placeholder={t("characterDetail.behavior.all")}

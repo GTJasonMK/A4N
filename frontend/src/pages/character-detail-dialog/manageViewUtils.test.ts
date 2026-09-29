@@ -4,7 +4,16 @@ import {
   CHARACTER_DETAIL_DRAFT_SECTIONS,
   attributeKeyLabel,
   characterDetailDraftKey,
+  parsePositiveChapterNumber,
 } from "./manageViewUtils";
+
+it("parses only safe positive whole chapter numbers", () => {
+  expect(parsePositiveChapterNumber("12")).toBe(12);
+  expect(parsePositiveChapterNumber("")).toBeNull();
+  expect(parsePositiveChapterNumber("0")).toBeNull();
+  expect(parsePositiveChapterNumber("2.5")).toBeNull();
+  expect(parsePositiveChapterNumber("9007199254740992")).toBeNull();
+});
 
 it("keeps custom attribute identities distinct in records and deletion confirmations", () => {
   const t: MessageTranslator = (key) => key;

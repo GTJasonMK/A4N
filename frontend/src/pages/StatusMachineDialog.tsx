@@ -205,6 +205,7 @@ export const StatusMachineDialog: React.FC<StatusMachineDialogProps> = ({
         setRollbackPreview(data);
       } catch (err) {
         if (isCurrentRequest(requestScope, rollbackPreviewSeqRef, requestSeq)) {
+          setRollbackTarget(null);
           addToast(extractErrorMessage(err, t("statusMachine.previewFailed")), "error");
         }
       } finally {

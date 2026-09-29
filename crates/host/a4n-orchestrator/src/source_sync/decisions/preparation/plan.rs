@@ -92,6 +92,7 @@ pub(super) async fn build_prepared_galgame_scene_regeneration_plan(
             workflow_run_id: galgame_execution.workflow_run_id,
             workflow: "source_sync",
             renderer: galgame_execution.prompt_renderer,
+            stream_reporter: None,
         }).await?;
     }
     let adaptation = service

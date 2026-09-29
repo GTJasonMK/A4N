@@ -50,6 +50,14 @@ fn validate_chapter_outline_generation_request_rejects_non_positive_and_overflow
         Err(AppError::InvalidArgument(_))
     ));
     assert!(matches!(
+        validate_chapter_outline_generation_request(1, 51),
+        Err(AppError::InvalidArgument(_))
+    ));
+    assert_eq!(
+        validate_chapter_outline_generation_request(1, 50).unwrap(),
+        50
+    );
+    assert!(matches!(
         validate_chapter_outline_generation_request(i32::MAX, 2),
         Err(AppError::InvalidArgument(_))
     ));

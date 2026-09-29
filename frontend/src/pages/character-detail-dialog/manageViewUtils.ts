@@ -8,6 +8,13 @@ export const characterDetailDraftKey = (
   section: CharacterDetailDraftSection,
 ): string => `character-detail:${profileId}:${section}`;
 
+export const parsePositiveChapterNumber = (raw: string): number | null => {
+  const text = raw.trim();
+  if (!text) return null;
+  const value = Number(text);
+  return Number.isSafeInteger(value) && value > 0 ? value : null;
+};
+
 type CharacterLabelKey = keyof Messages["characterDetail"]["labels"];
 
 const label = (t: MessageTranslator, key: CharacterLabelKey): string =>

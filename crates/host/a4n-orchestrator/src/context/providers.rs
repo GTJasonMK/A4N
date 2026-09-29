@@ -16,10 +16,19 @@ impl OrchestratorContext {
         &self,
         request: ChatRequest,
     ) -> Result<ChatResponse, AppError> {
-        crate::generation::stream::execute_llm_chat_response(
+        self.stream_complete_llm_with_sink(request, None).await
+    }
+
+    pub(crate) async fn stream_complete_llm_with_sink(
+        &self,
+        request: ChatRequest,
+        stream_reporter: Option<&(dyn Fn(&str) + Send + Sync)>,
+    ) -> Result<ChatResponse, AppError> {
+        crate::generation::stream::execute_llm_chat_response_with_sink(
             self.llm.as_ref(),
             request,
             CancellationToken::new(),
+            stream_reporter,
         )
         .await
     }

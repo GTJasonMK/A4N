@@ -7,5 +7,3 @@ license.workspace = true
 [dependencies]
 a4n-api-contract = { workspace = true }
 a4n-worker-contract = { workspace = true }
-
-serde = { workspace = true }

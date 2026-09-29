@@ -42,7 +42,7 @@ export interface OutlinesTabViewProps {
   chaptersPerPart: NumberInputValue;
   defaultChaptersPerPart: NumberInputValue;
   generatingParts: boolean;
-  chapterCount: number;
+  chapterCount: NumberInputValue;
   generatingOutlines: boolean;
   editingId: number | null;
   editForm: ChapterOutlineEditForm;
@@ -55,8 +55,10 @@ export interface OutlinesTabViewProps {
   outlineDetail: ChapterOutline | null;
   outlineAction: ChapterOutline | null;
   advancedOpen: boolean;
-  delPartCount: number;
-  delChapterCount: number;
+  delPartCount: NumberInputValue;
+  delChapterCount: NumberInputValue;
+  delPartCountError: string | null;
+  delChapterCountError: string | null;
   delActing: string | null;
   regenLastPart: boolean;
   interactionBusy: boolean;
@@ -72,7 +74,7 @@ export interface OutlinesTabViewProps {
   onCreatePart: () => void;
   onOpenAdvanced: () => void;
   onOpenPart: (part: PartOutline) => void;
-  onChapterCountChange: (value: number) => void;
+  onChapterCountChange: (value: NumberInputValue) => void;
   onGenerateChapterOutlines: () => void;
   onPreviewGenerateChapterOutlines: () => void;
   onCreateChapter: () => void;
@@ -95,8 +97,8 @@ export interface OutlinesTabViewProps {
   onPreviewRegenerateOutline: (outline: ChapterOutline) => void | Promise<void>;
   onDeleteOutline: (outline: ChapterOutline) => void | Promise<void>;
   onCloseAdvanced: () => void;
-  onDelPartCountChange: (value: number) => void;
-  onDelChapterCountChange: (value: number) => void;
+  onDelPartCountChange: (value: NumberInputValue) => void;
+  onDelChapterCountChange: (value: NumberInputValue) => void;
   onRegenLastPart: () => void;
   onPreviewRegenLastPart: () => void;
   onDeleteLatestParts: () => void;
@@ -133,6 +135,8 @@ export const OutlinesTabView: React.FC<OutlinesTabViewProps> = ({
   advancedOpen,
   delPartCount,
   delChapterCount,
+  delPartCountError,
+  delChapterCountError,
   delActing,
   regenLastPart,
   interactionBusy,
@@ -334,6 +338,8 @@ export const OutlinesTabView: React.FC<OutlinesTabViewProps> = ({
           chaptersPerPart={chaptersPerPart}
           delPartCount={delPartCount}
           delChapterCount={delChapterCount}
+          delPartCountError={delPartCountError}
+          delChapterCountError={delChapterCountError}
           delActing={delActing}
           regenLastPart={regenLastPart}
           runGeneration={runOutlineGeneration}

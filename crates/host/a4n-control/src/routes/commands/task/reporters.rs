@@ -40,3 +40,13 @@ pub(in crate::routes::commands) fn web_stream_reporter(
         }
     }
 }
+
+pub(in crate::routes::commands) fn web_stream_delta_reporter(
+    task: Option<Arc<TaskHandle>>,
+) -> impl Fn(&str) + Send + Sync + 'static {
+    move |delta| {
+        if let Some(handle) = task.as_ref() {
+            handle.append_stream_text(delta);
+        }
+    }
+}

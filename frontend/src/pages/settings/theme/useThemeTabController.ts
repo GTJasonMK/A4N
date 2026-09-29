@@ -64,7 +64,7 @@ export const useThemeTabController = () => {
   const [themes, setThemes] = useState<Theme[]>([]);
   const [scope, setScope] = useState<ThemeScope>("all");
   const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<{ reason: unknown } | null>(null);
   const [activating, setActivating] = useState<number | null>(null);
   const [deleting, setDeleting] = useState<number | null>(null);
   const [bulkDeleting, setBulkDeleting] = useState(false);
@@ -134,9 +134,7 @@ export const useThemeTabController = () => {
         }
       } catch (err) {
         if (isCurrentRefresh(requestUserKey, requestSeq)) {
-          const message = extractErrorMessage(err, t("settingsTheme.loadFailed"));
-          setLoadError(message);
-          addToast(message, "error");
+          setLoadError({ reason: err });
         }
       } finally {
         if (
@@ -148,7 +146,7 @@ export const useThemeTabController = () => {
         if (isCurrentRefresh(requestUserKey, requestSeq)) setLoading(false);
       }
     },
-    [addToast, isCurrentRefresh, t, user, userKey],
+    [isCurrentRefresh, user, userKey],
   );
 
   useEffect(() => {
@@ -586,7 +584,12 @@ export const useThemeTabController = () => {
     themes: visibleThemes,
     scope,
     loading,
-    loadError,
+    loadError: loadError
+      ? extractErrorMessage(
+          loadError.reason,
+          t("settingsTheme.loadFailed"),
+        )
+      : null,
     activating,
     deleting,
     bulkDeleting,

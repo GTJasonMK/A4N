@@ -782,21 +782,21 @@ export const WritingDesk: React.FC = () => {
   }, [confirmCurrentEdit, dirty, generationDraftDirty, saveLocalDraftForCurrent, t]);
 
   const prepareWritingDeskNavigation = useCallback(() => {
+    if (!canDiscardWritingDraft()) {
+      addToast(t("common.operationInProgress"), "info");
+      return false;
+    }
     if (generationDraftDirty && !discardGenerationDraft()) return false;
     markCurrentEditClean();
     return true;
-  }, [discardGenerationDraft, generationDraftDirty, markCurrentEditClean]);
+  }, [addToast, canDiscardWritingDraft, discardGenerationDraft, generationDraftDirty, markCurrentEditClean, t]);
 
   const safeSelectChapter = useCallback(
     async (chapterNumber: number) => {
       if (chapterNumber === activeNumberRef.current) return true;
       if (!await confirmWritingDeskAction(t("writing.switchChapter"))) return false;
       if (!prepareWritingDeskNavigation()) return false;
-      confirmedChapterNavigationRef.current = {
-        from: activeNumberRef.current,
-        to: chapterNumber,
-      };
-      dirtyRegistry.set(`writing-desk:${projectIdKey || "unknown"}`, false);
+      confirmedChapterNavigationRef.current = { from: activeNumberRef.current, to: chapterNumber };
       setActiveNumber(chapterNumber);
       return true;
     },
@@ -848,11 +848,7 @@ export const WritingDesk: React.FC = () => {
     }
 
     if (!prepareWritingDeskNavigation()) return;
-    confirmedChapterNavigationRef.current = {
-      from: activeNumberRef.current,
-      to: chapterNumber,
-    };
-    dirtyRegistry.set(`writing-desk:${projectIdKey || "unknown"}`, false);
+    confirmedChapterNavigationRef.current = { from: activeNumberRef.current, to: chapterNumber };
     setChapterQuery("");
     setActiveNumber(chapterNumber);
   }, [addToast, chapters, chapterLoadError, confirmWritingDeskAction, lifecycleBlockedReason, locale, outlines, prepareWritingDeskNavigation, setActiveNumber, t]);
@@ -1365,25 +1361,17 @@ export const WritingDesk: React.FC = () => {
       action={t("common.leavePage")}
       allowSearchChange={(current, next) => {
         const authorized = confirmedChapterNavigationRef.current;
-        if (!authorized) return false;
-        if (!dirtyRegistry.canDiscardDirty()) return false;
-        if (current.pathname !== next.pathname || current.hash !== next.hash) {
-          confirmedChapterNavigationRef.current = null;
-          return false;
-        }
+        confirmedChapterNavigationRef.current = null;
+        if (!authorized || !dirtyRegistry.canDiscardDirty()) return false;
         const currentSearch = new URLSearchParams(current.search);
         const nextSearch = new URLSearchParams(next.search);
         const currentChapter = currentSearch.get("chapter");
         const nextChapter = nextSearch.get("chapter");
         currentSearch.delete("chapter");
         nextSearch.delete("chapter");
-        if (
-          currentChapter !== (authorized.from == null ? null : String(authorized.from)) ||
-          nextChapter !== String(authorized.to) ||
-          currentSearch.toString() !== nextSearch.toString()
-        ) return false;
-        confirmedChapterNavigationRef.current = null;
-        return true;
+        return currentChapter === (authorized.from == null ? null : String(authorized.from))
+          && nextChapter === String(authorized.to)
+          && currentSearch.toString() === nextSearch.toString();
       }}
     />
     </>

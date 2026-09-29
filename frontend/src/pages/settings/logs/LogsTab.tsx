@@ -12,7 +12,7 @@ import { useAuthStore } from "../../../store/auth";
 import { GenerationCallAnalyticsPanel } from "./GenerationCallAnalyticsPanel";
 import { ModelUsageCostPanel } from "../../novel-detail/ModelUsageCostPanel";
 import { logLineClassName, logPathText, type LogReadResult } from "./logUtils";
-import { formatNumber, useI18n } from "../../../i18n";
+import { formatNumber, getActiveLocale, translateMessage, useI18n } from "../../../i18n";
 
 export const LogsTab: React.FC = () => {
   const { addToast } = useToast();
@@ -22,7 +22,7 @@ export const LogsTab: React.FC = () => {
   const [result, setResult] = useState<LogReadResult | null>(null);
   const [resultKey, setResultKey] = useState<string | null>(null);
   const [logDir, setLogDir] = useState<string>("");
-  const [loadError, setLoadError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<{ reason: unknown } | null>(null);
   const [loadErrorKey, setLoadErrorKey] = useState<string | null>(null);
   const [lines, setLines] = useState(500);
   const [daysAgo, setDaysAgo] = useState(0);
@@ -102,8 +102,8 @@ export const LogsTab: React.FC = () => {
       setLogDir(dir);
     } catch (err) {
       if (!isCurrentRefresh(key, requestSeq)) return;
-      const message = extractErrorMessage(err, t("settingsLogs.readFailed"));
-      setLoadError(message);
+      const message = extractErrorMessage(err, translateMessage(getActiveLocale(), "settingsLogs.readFailed"));
+      setLoadError({ reason: err });
       setLoadErrorKey(key);
       addToast(message, "error");
       logger.scoped("LogsTab").error("refresh failed", { err });
@@ -127,7 +127,9 @@ export const LogsTab: React.FC = () => {
   ]);
 
   const visibleResult = resultKey === requestKey ? result : null;
-  const currentLoadError = loadErrorKey === requestKey ? loadError : null;
+  const currentLoadError = loadErrorKey === requestKey && loadError
+    ? extractErrorMessage(loadError.reason, t("settingsLogs.readFailed"))
+    : null;
   const displayLoading = loading || (resultKey !== requestKey && currentLoadError == null);
 
   useEffect(() => {

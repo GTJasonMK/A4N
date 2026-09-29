@@ -12,6 +12,7 @@ pub(super) async fn execute_workflow_llm_once<T, F>(
     service: &OrchestratorContext,
     input: &WorkflowLlmOnceInput<'_>,
     prepared: PreparedWorkflowLlmOnce,
+    stream_reporter: Option<&(dyn Fn(&str) + Send + Sync)>,
     validate: F,
 ) -> Result<(Value, T), AppError>
 where
@@ -31,7 +32,9 @@ where
             context_plan_json: None,
             context_pack_refs_json: None,
         });
-    let response = service.stream_complete_llm(request).await?;
+    let response = service
+        .stream_complete_llm_with_sink(request, stream_reporter)
+        .await?;
     if service
         .workflow_run_status_record_by_id(input.workflow_run_id)
         .await?

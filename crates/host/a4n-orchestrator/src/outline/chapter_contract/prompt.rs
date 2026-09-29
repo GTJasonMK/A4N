@@ -3,6 +3,8 @@ use a4n_error::AppError;
 use a4n_prompt::request::build_json_task_user_message;
 use serde_json::{Value, json};
 
+pub(super) const MAX_CHAPTER_OUTLINE_GENERATION_COUNT: i32 = 50;
+
 pub(in crate::outline) fn validate_chapter_outline_generation_request(
     start_chapter: i32,
     count: i32,
@@ -16,6 +18,11 @@ pub(in crate::outline) fn validate_chapter_outline_generation_request(
         return Err(AppError::InvalidArgument(
             "章节大纲生成 count 必须大于 0".to_string(),
         ));
+    }
+    if count > MAX_CHAPTER_OUTLINE_GENERATION_COUNT {
+        return Err(AppError::InvalidArgument(format!(
+            "章节大纲生成 count 不能超过 {MAX_CHAPTER_OUTLINE_GENERATION_COUNT}"
+        )));
     }
     start_chapter
         .checked_add(count - 1)

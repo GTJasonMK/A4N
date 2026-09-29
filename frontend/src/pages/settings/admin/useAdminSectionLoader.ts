@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { extractErrorMessage } from "../../../api";
 import { useToast } from "../../../components/feedback/Toast";
+import { getActiveLocale, translateMessage, useI18n, type MessageKey } from "../../../i18n";
 
 interface AdminSectionLoaderOptions {
   intervalMs?: number;
@@ -12,12 +13,13 @@ export function useAdminSectionLoader<T>(
   scopeKey: AdminSectionScope,
   loadData: () => Promise<T>,
   applyData: (data: T) => void,
-  errorMessage: string,
+  errorMessage: MessageKey,
   options: AdminSectionLoaderOptions = {},
 ) {
   const addToast = useToast((state) => state.addToast);
+  const { t } = useI18n();
   const [loading, setLoading] = useState(true);
-  const [failure, setFailure] = useState<{ scope: AdminSectionScope; message: string } | null>(null);
+  const [failure, setFailure] = useState<{ scope: AdminSectionScope; reason: unknown } | null>(null);
   const { intervalMs } = options;
   const mountedRef = useRef(true);
   const activeScopeRef = useRef(scopeKey);
@@ -68,8 +70,8 @@ export function useAdminSectionLoader<T>(
       return true;
     } catch (err) {
       if (!isCurrentLoad(scopeKey, requestSeq)) return false;
-      const message = extractErrorMessage(err, errorMessage);
-      setFailure({ scope: scopeKey, message });
+      const message = extractErrorMessage(err, translateMessage(getActiveLocale(), errorMessage));
+      setFailure({ scope: scopeKey, reason: err });
       addToast(message, "error");
       return false;
     } finally {
@@ -92,6 +94,8 @@ export function useAdminSectionLoader<T>(
     return () => window.clearInterval(timer);
   }, [intervalMs, load]);
 
-  const error = failure && Object.is(failure.scope, scopeKey) ? failure.message : null;
+  const error = failure && Object.is(failure.scope, scopeKey)
+    ? extractErrorMessage(failure.reason, t(errorMessage))
+    : null;
   return { loading, error, load, reload, isCurrentScope };
 }

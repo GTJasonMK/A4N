@@ -111,6 +111,20 @@ impl TaskHandle {
         p.stream_text = Some(tail_stream_text(text));
     }
 
+    /// Append a model text delta while keeping only the live tail.
+    pub fn append_stream_text(&self, delta: &str) {
+        if delta.is_empty() {
+            return;
+        }
+        let mut p = self.progress.write();
+        if self.is_cancelled() {
+            return;
+        }
+        let mut text = p.stream_text.take().unwrap_or_default();
+        text.push_str(delta);
+        p.stream_text = Some(tail_stream_text(&text));
+    }
+
     pub fn update_progress_bytes(
         &self,
         current: u64,

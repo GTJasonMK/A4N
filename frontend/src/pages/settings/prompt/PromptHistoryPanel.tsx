@@ -10,7 +10,7 @@ import {
   type PromptEntry,
   type PromptVersion,
 } from "../../../api/prompt";
-import { formatDateTime, useI18n } from "../../../i18n";
+import { formatDateTime, getActiveLocale, translateMessage, useI18n } from "../../../i18n";
 
 const promptVersionLabel = (index: number, t: ReturnType<typeof useI18n>["t"]): string =>
   index === 0 ? t("settingsPrompt.latestVersion") : t("settingsPrompt.historyVersion", { count: index });
@@ -25,7 +25,7 @@ export const PromptHistoryPanel: React.FC<PromptHistoryPanelProps> = ({ prompt }
   const [open, setOpen] = useState(false);
   const [history, setHistory] = useState<PromptVersion[]>([]);
   const [loading, setLoading] = useState(false);
-  const [loadError, setLoadError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<{ reason: unknown } | null>(null);
   const [diffPair, setDiffPair] = useState<string[]>([]);
   const [diffResult, setDiffResult] = useState<string | null>(null);
   const [diffLoading, setDiffLoading] = useState(false);
@@ -67,9 +67,7 @@ export const PromptHistoryPanel: React.FC<PromptHistoryPanelProps> = ({ prompt }
       setHistory(data);
     } catch (err) {
       if (isCurrentScope(targetScope)) {
-        const message = extractErrorMessage(err, t("settingsPrompt.loadHistoryFailed"));
-        setLoadError(message);
-        addToast(message, "error");
+        setLoadError({ reason: err });
       }
     } finally {
       if (isCurrentScope(targetScope)) {
@@ -125,7 +123,7 @@ export const PromptHistoryPanel: React.FC<PromptHistoryPanelProps> = ({ prompt }
       setDiffResult(text);
     } catch (err) {
       if (isCurrentScope(targetScope) && diffSeqRef.current === requestSeq) {
-        addToast(extractErrorMessage(err, t("settingsPrompt.compareFailed")), "error");
+        addToast(extractErrorMessage(err, translateMessage(getActiveLocale(), "settingsPrompt.compareFailed")), "error");
       }
     } finally {
       if (diffSeqRef.current === requestSeq) diffLoadingRef.current = false;
@@ -134,6 +132,10 @@ export const PromptHistoryPanel: React.FC<PromptHistoryPanelProps> = ({ prompt }
       }
     }
   };
+
+  const loadErrorMessage = loadError
+    ? extractErrorMessage(loadError.reason, t("settingsPrompt.loadHistoryFailed"))
+    : null;
 
   return (
     <details
@@ -153,8 +155,8 @@ export const PromptHistoryPanel: React.FC<PromptHistoryPanelProps> = ({ prompt }
           <div className="text-small text-book-text-muted inline-flex items-center gap-1.5">
             <LoadingSpinner size="sm" /> {t("settingsPrompt.loadingHistory")}
           </div>
-        ) : loadError ? (
-          <p role="alert" className="text-small text-error">{loadError}</p>
+        ) : loadErrorMessage ? (
+          <p role="alert" className="text-small text-error">{loadErrorMessage}</p>
         ) : history.length === 0 ? (
           <div className="text-small text-book-text-muted italic">
             {t("settingsPrompt.noHistory")}

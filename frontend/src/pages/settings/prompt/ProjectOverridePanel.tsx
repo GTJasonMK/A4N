@@ -28,7 +28,7 @@ export const ProjectOverridePanel: React.FC<ProjectOverridePanelProps> = ({ prom
   const [projectId, setProjectId] = useState<number | null>(null);
   const [overrides, setOverrides] = useState<ProjectPromptOverrideSummary[]>([]);
   const [loading, setLoading] = useState(false);
-  const [loadError, setLoadError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<{ reason: unknown } | null>(null);
   const [setting, setSetting] = useState(false);
   const [removing, setRemoving] = useState(false);
   const mountedRef = useRef(true);
@@ -65,9 +65,7 @@ export const ProjectOverridePanel: React.FC<ProjectOverridePanelProps> = ({ prom
       return true;
     } catch (error) {
       if (mountedRef.current && listSeqRef.current === requestSeq) {
-        const message = extractErrorMessage(error, t("settingsPrompt.loadOverrideFailed"));
-        setLoadError(message);
-        addToast(message, "error");
+        setLoadError({ reason: error });
       }
       return false;
     } finally {
@@ -86,6 +84,9 @@ export const ProjectOverridePanel: React.FC<ProjectOverridePanelProps> = ({ prom
   };
 
   const currentOverride = overrides.find((item) => item.prompt_name === prompt.name) ?? null;
+  const loadErrorMessage = loadError
+    ? extractErrorMessage(loadError.reason, t("settingsPrompt.loadOverrideFailed"))
+    : null;
 
   const handleSetOverride = async () => {
     const targetProjectId = projectIdRef.current;
@@ -169,8 +170,8 @@ export const ProjectOverridePanel: React.FC<ProjectOverridePanelProps> = ({ prom
           <div className="inline-flex items-center gap-1.5 text-small text-book-text-muted">
             <LoadingSpinner size="sm" /> {t("settingsPrompt.loadingProjectOverride")}
           </div>
-        ) : loadError ? (
-          <p role="alert" className="border-l border-error/40 pl-2.5 text-small text-error">{loadError}</p>
+        ) : loadErrorMessage ? (
+          <p role="alert" className="border-l border-error/40 pl-2.5 text-small text-error">{loadErrorMessage}</p>
         ) : dirty ? (
           <div className="border-l border-warning/45 pl-2.5 text-small text-warning">
             {t("settingsPrompt.saveBeforeOverride")}

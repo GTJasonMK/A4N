@@ -15,7 +15,6 @@ dependencies = [
  "a4n-worker-contract",
  "anyhow",
  "axum 0.8.9",
- "chrono",
  "sea-orm",
  "serde",
  "serde_json",
@@ -383,9 +382,7 @@ dependencies = [
  "a4n-canvas-record-worker-contract",
  "a4n-config",
  "a4n-db",
- "a4n-db-models",
  "a4n-domain",
- "a4n-error",
  "a4n-worker-contract",
  "anyhow",
  "axum 0.8.9",
@@ -419,7 +416,6 @@ version = "0.1.0"
 dependencies = [
  "a4n-api-contract",
  "a4n-worker-contract",
- "serde",
 ]
 
 [[package]]
@@ -1857,7 +1853,6 @@ dependencies = [
  "a4n-import-contract",
  "a4n-import-core",
  "a4n-inspiration-host-contract",
- "a4n-llm-config",
  "a4n-llm-context",
  "a4n-llm-provider-contract",
  "a4n-llm-structured-stream",
@@ -2727,7 +2722,6 @@ dependencies = [
  "a4n-source-snapshot-worker",
  "a4n-theme-read-worker",
  "a4n-video-record-worker",
- "a4n-worker-client",
  "a4n-worker-contract",
  "a4n-workflow-lifecycle-worker",
  "a4n-workflow-read-worker",
@@ -3113,7 +3107,6 @@ dependencies = [
  "a4n-domain",
  "a4n-error",
  "a4n-migration",
- "a4n-video",
  "a4n-video-contract",
  "a4n-video-record-worker-contract",
  "a4n-worker-contract",

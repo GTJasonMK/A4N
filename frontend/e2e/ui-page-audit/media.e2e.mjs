@@ -1198,4 +1198,48 @@ describe("Populated media pages and task dialogs", () => {
     }
     this.mediaRecord.interaction = results;
   });
+
+  it("UX-B73 preserves duration drafts and fractional time-block edits", async function () {
+    const results = [];
+    for (const width of [1440, 390]) {
+      this.mediaRecord = { id: `UX-B73-${width}`, title: "视频数值字段键盘编辑", width, task: "清空并重输视频时长和带小数的分段时间" };
+      await browser.setWindowSize(width, 1000);
+      await openSegment(1);
+
+      const duration = await $('//div[@role="dialog"]//label[.//span[normalize-space()="视频时长"]]//input');
+      assert.equal(await duration.isExisting(), true, "The range-duration field must be available in the selected workflow");
+      const originalDuration = await duration.getValue();
+      await duration.click();
+      await browser.keys(["CTRL", "A"]);
+      await browser.keys("BACKSPACE");
+      assert.equal(await duration.getValue(), "", "An empty duration must remain a draft while the user edits");
+      await duration.setValue("12");
+      assert.equal(await duration.getValue(), "12");
+      await duration.setValue(originalDuration);
+
+      await openVideo("片段规划");
+      await buttonText("编辑规划").click();
+      const segment = await $('section[aria-label="视频片段规划"] fieldset > details');
+      if (!(await segment.getProperty("open"))) await segment.$("summary").click();
+      const performance = await segment.$('.//details[.//summary[contains(normalize-space(.),"表演与时间设计")]]');
+      if (!(await performance.getProperty("open"))) await performance.$("summary").click();
+      const timeBlocks = await performance.$('.//details[.//summary[normalize-space(.)="时间段"]]');
+      if (!(await timeBlocks.getProperty("open"))) await timeBlocks.$("summary").click();
+      const start = await timeBlocks.$('.//label[.//span[normalize-space(.)="起始秒"]]/input');
+      const end = await timeBlocks.$('.//label[.//span[normalize-space(.)="结束秒"]]/input');
+      for (const [field, decimal] of [[start, "1.5"], [end, "2.5"]]) {
+        const original = await field.getValue();
+        await field.click();
+        await browser.keys(["CTRL", "A"]);
+        await browser.keys("BACKSPACE");
+        assert.equal(await field.getValue(), "", "An empty time draft must remain visible during entry");
+        await field.setValue(decimal);
+        assert.equal(await field.getValue(), decimal, "Fractional seconds must survive controlled rerenders");
+        await field.setValue(original);
+      }
+      await browser.saveScreenshot(`${output}/${phase}-UX-B73-${width}.png`);
+      results.push({ width, emptyDraftPreserved: true, fractionalSecondsPreserved: true });
+    }
+    this.mediaRecord.interaction = results;
+  });
 });

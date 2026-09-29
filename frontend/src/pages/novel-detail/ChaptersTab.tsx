@@ -63,7 +63,7 @@ export const ChaptersTab: React.FC<ChaptersTabProps> = ({ projectId, canEditChap
   const preview = useChapterDetail(projectId, previewChapterId);
   const [importOpen, setImportOpen] = useState(false);
   const [importForm, setImportForm] = useState({
-    chapter_number: 1,
+    chapter_number: "1",
     title: "",
     content: "",
   });
@@ -77,13 +77,13 @@ export const ChaptersTab: React.FC<ChaptersTabProps> = ({ projectId, canEditChap
   const importDraftDirty = importOpen && Boolean(
     importForm.title.trim() ||
     importForm.content.trim() ||
-    importForm.chapter_number !== nextImportChapterNumber(chapters),
+    importForm.chapter_number !== String(nextImportChapterNumber(chapters)),
   );
   const discardImportDraft = useCallback(() => {
     if (importing) return false;
     setImportOpen(false);
     setImportForm({
-      chapter_number: nextImportChapterNumber(chapters),
+      chapter_number: String(nextImportChapterNumber(chapters)),
       title: "",
       content: "",
     });
@@ -147,7 +147,7 @@ export const ChaptersTab: React.FC<ChaptersTabProps> = ({ projectId, canEditChap
       return;
     }
     setImportForm({
-      chapter_number: nextImportChapterNumber(displayChapters),
+      chapter_number: String(nextImportChapterNumber(displayChapters)),
       title: "",
       content: "",
     });
@@ -183,7 +183,7 @@ export const ChaptersTab: React.FC<ChaptersTabProps> = ({ projectId, canEditChap
     }
     const requestProjectId = projectId;
     const requestForm = {
-      chapter_number: importForm.chapter_number,
+      chapter_number: Number(importForm.chapter_number),
       title: importForm.title,
       content: importForm.content,
     };
@@ -217,7 +217,7 @@ export const ChaptersTab: React.FC<ChaptersTabProps> = ({ projectId, canEditChap
       if (!isCurrentImport(requestProjectId, requestSeq)) return;
       addToast(message, chapterContentCommitToastType(imported.derived_sync_status));
       setImportOpen(false);
-      setImportForm({ chapter_number: requestForm.chapter_number + 1, title: "", content: "" });
+      setImportForm({ chapter_number: String(requestForm.chapter_number + 1), title: "", content: "" });
     } catch (err) {
       if (isCurrentImport(requestProjectId, requestSeq)) {
         addToast(extractErrorMessage(err, t("novel.importChapterFailed")), "error");
@@ -235,10 +235,7 @@ export const ChaptersTab: React.FC<ChaptersTabProps> = ({ projectId, canEditChap
   const displayChapters = loadedProjectId === projectId ? chapters : [];
   const previewChapter = displayChapters.find((chapter) => chapter.id === previewChapterId);
   const displayLoading = loadedProjectId !== projectId;
-  const importReady =
-    Number.isInteger(importForm.chapter_number) &&
-    importForm.chapter_number > 0 &&
-    importForm.content.trim().length > 0;
+  const importReady = importForm.content.trim().length > 0;
   const totalWords = useMemo(
     () => displayChapters.reduce((sum, chapter) => sum + chapterWordCount(chapter), 0),
     [displayChapters],
@@ -356,12 +353,13 @@ export const ChaptersTab: React.FC<ChaptersTabProps> = ({ projectId, canEditChap
                 <span className="text-xs text-book-text-sub">{t("novel.chapterNumber")}</span>
                 <input
                   type="number"
+                  required
                   min={1}
                   value={importForm.chapter_number}
                   onChange={(e) =>
                     setImportForm({
                       ...importForm,
-                      chapter_number: Number(e.target.value),
+                      chapter_number: e.target.value,
                     })
                   }
                   disabled={importing}

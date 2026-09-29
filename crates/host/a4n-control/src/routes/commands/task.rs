@@ -7,7 +7,8 @@ pub(in crate::routes::commands) use completion::{finish_web_task, string_action_
 pub(in crate::routes::commands) use identity::{sanitize_optional_task_id, sanitize_task_id};
 pub(in crate::routes::commands) use registration::register_web_task;
 pub(in crate::routes::commands) use reporters::{
-    web_fire_and_forget_progress_reporter, web_progress_reporter, web_stream_reporter,
+    web_fire_and_forget_progress_reporter, web_progress_reporter, web_stream_delta_reporter,
+    web_stream_reporter,
 };
 
 #[cfg(test)]

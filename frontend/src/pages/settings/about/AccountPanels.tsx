@@ -74,7 +74,7 @@ export const ProfileEditor: React.FC<{ userId: number; embedded?: boolean }> = (
   const [avatar, setAvatar] = useState("");
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<{ reason: unknown } | null>(null);
   const mountedRef = useRef(false);
   const activeUserIdRef = useRef(userId);
   const loadSeqRef = useRef(0);
@@ -134,14 +134,12 @@ export const ProfileEditor: React.FC<{ userId: number; embedded?: boolean }> = (
         setAvatar(savedProfileRef.current.avatar);
       } catch (err) {
         if (!isCurrentUser(requestUserId) || loadSeqRef.current !== requestSeq) return;
-        const message = extractErrorMessage(err, t("settingsAbout.loadProfileFailed"));
-        setLoadError(message);
-        addToast(message, "error");
+        setLoadError({ reason: err });
       } finally {
         if (isCurrentUser(requestUserId) && loadSeqRef.current === requestSeq) setLoading(false);
       }
     })();
-  }, [addToast, isCurrentUser, userId]);
+  }, [isCurrentUser, userId]);
 
   const handleSave = async () => {
     if (busyRef.current || !profileDirty) return;
@@ -210,7 +208,9 @@ export const ProfileEditor: React.FC<{ userId: number; embedded?: boolean }> = (
             <LoadingSpinner size="sm" /> {t("settingsAbout.loading")}
           </div>
         ) : loadError ? (
-          <div className="text-error">{loadError}</div>
+          <div role="alert" className="text-error">
+            {extractErrorMessage(loadError.reason, t("settingsAbout.loadProfileFailed"))}
+          </div>
         ) : (
           <>
             <BookInput
@@ -258,7 +258,7 @@ export const PasswordChanger: React.FC<{ embedded?: boolean }> = ({ embedded = f
   const [oldPwd, setOldPwd] = useState("");
   const [newPwd, setNewPwd] = useState("");
   const [busy, setBusy] = useState(false);
-  const [saveError, setSaveError] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState<{ reason: unknown } | null>(null);
   const passwordReady = oldPwd.length > 0 && newPwd.length > 0;
   const mountedRef = useRef(false);
   const changeSeqRef = useRef(0);
@@ -313,9 +313,7 @@ export const PasswordChanger: React.FC<{ embedded?: boolean }> = ({ embedded = f
       }
     } catch (err) {
       if (!mountedRef.current || changeSeqRef.current !== requestSeq) return;
-      const message = extractErrorMessage(err, t("settingsAbout.updatePasswordFailed"));
-      setSaveError(message);
-      addToast(message, "error");
+      setSaveError({ reason: err });
     } finally {
       if (changeSeqRef.current === requestSeq) busyRef.current = false;
       if (mountedRef.current && changeSeqRef.current === requestSeq) setBusy(false);
@@ -360,7 +358,11 @@ export const PasswordChanger: React.FC<{ embedded?: boolean }> = ({ embedded = f
           value={newPwd}
           onChange={(e) => updateNewPwd(e.target.value)}
         />
-        {saveError ? <p role="alert" className="text-error">{saveError}</p> : null}
+        {saveError ? (
+          <p role="alert" className="text-error">
+            {extractErrorMessage(saveError.reason, t("settingsAbout.updatePasswordFailed"))}
+          </p>
+        ) : null}
         <div className="flex justify-end">
           <BookButton
             variant="primary"
@@ -387,7 +389,7 @@ export const SessionManager: React.FC = () => {
   const { t } = useI18n();
   const [sessions, setSessions] = useState<SessionSummary[]>([]);
   const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<{ reason: unknown } | null>(null);
   const [refreshBusy, setRefreshBusy] = useState(false);
   const mountedRef = useRef(false);
   const refreshBusyRef = useRef(false);
@@ -412,9 +414,7 @@ export const SessionManager: React.FC = () => {
       return true;
     } catch (err) {
       if (!mountedRef.current || loadSeqRef.current !== requestSeq) return false;
-      const message = extractErrorMessage(err, t("settingsAbout.loadSessionsFailed"));
-      setLoadError(message);
-      addToast(message, "error");
+      setLoadError({ reason: err });
       return false;
     } finally {
       if (mountedRef.current && loadSeqRef.current === requestSeq) setLoading(false);
@@ -455,7 +455,9 @@ export const SessionManager: React.FC = () => {
         </div>
       </div>
       {loadError ? <div className="flex items-start justify-between gap-3">
-        <p role="alert" className="text-error">{loadError}</p>
+        <p role="alert" className="text-error">
+          {extractErrorMessage(loadError.reason, t("settingsAbout.loadSessionsFailed"))}
+        </p>
         <BookButton size="sm" variant="secondary" onClick={() => void load()} disabled={loading}>{t("common.retry")}</BookButton>
       </div> : null}
       {loading ? (

@@ -12,6 +12,11 @@ import {
   type ChapterOutline,
 } from "../../../api/outline";
 import { useI18n } from "../../../i18n";
+import {
+  MAX_CHAPTER_OUTLINE_GENERATION_COUNT,
+  parseNumberInput,
+  type NumberInputValue,
+} from "./outlineTabUtils";
 
 export interface ChapterOutlineEditForm {
   title: string;
@@ -22,7 +27,7 @@ interface ChapterOutlineSectionProps {
   outlines: ChapterOutline[];
   loaded: boolean;
   canEdit: boolean;
-  chapterCount: number;
+  chapterCount: NumberInputValue;
   generating: boolean;
   editingId: number | null;
   editForm: ChapterOutlineEditForm;
@@ -30,7 +35,7 @@ interface ChapterOutlineSectionProps {
   regenId: number | null;
   delActing: string | null;
   disabled?: boolean;
-  onChapterCountChange: (value: number) => void;
+  onChapterCountChange: (value: NumberInputValue) => void;
   onGenerate: () => void;
   onPreviewGenerate: () => void;
   onCreate: () => void;
@@ -123,10 +128,10 @@ export function ChapterOutlineSection({
               <input
                 type="number"
                 min={1}
-                max={50}
+                max={MAX_CHAPTER_OUTLINE_GENERATION_COUNT}
                 value={chapterCount}
                 disabled={disabled || !loaded}
-                onChange={(event) => onChapterCountChange(Number(event.target.value))}
+                onChange={(event) => onChapterCountChange(parseNumberInput(event.target.value))}
                 className="pyqt-input h-10 w-full"
               />
             </label>

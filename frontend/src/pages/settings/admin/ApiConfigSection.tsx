@@ -146,7 +146,7 @@ const ApiConfigOverview: React.FC = () => {
     }));
   }, []);
   const { loading, error, load } = useAdminSectionLoader(
-    "admin-api-defaults", loadSnapshot, applySnapshot, t("settingsAdmin.loadApiConfigFailed"),
+    "admin-api-defaults", loadSnapshot, applySnapshot, "settingsAdmin.loadApiConfigFailed",
   );
 
   const defaults = useMemo(() => {

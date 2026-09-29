@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { ChevronRight, Plus, Trash2 } from "lucide-react";
 import type {
   ShootingEditingModeV1,
@@ -409,12 +409,46 @@ const NumberField: React.FC<{
   value: number;
   path: ValuePath;
   onChange: UpdateValue;
-}> = ({ label, value, path, onChange }) => (
-  <label className="block min-w-0">
-    <span className="mb-1 block text-small text-book-text-muted">{label}</span>
-    <input type="number" step="any" value={value} onChange={(event) => onChange(path, Number(event.target.value))} className="pyqt-input w-full text-xs" />
-  </label>
-);
+}> = ({ label, value, path, onChange }) => {
+  const [text, setText] = useState(String(value));
+  const focused = useRef(false);
+
+  useEffect(() => {
+    if (!focused.current) setText(String(value));
+  }, [value]);
+
+  return (
+    <label className="block min-w-0">
+      <span className="mb-1 block text-small text-book-text-muted">{label}</span>
+      <input
+        type="number"
+        step="any"
+        required
+        value={text}
+        onFocus={() => { focused.current = true; }}
+        onChange={(event) => {
+          const nextText = event.currentTarget.value;
+          setText(nextText);
+          if (nextText.trim() && Number.isFinite(Number(nextText))) {
+            onChange(path, Number(nextText));
+          }
+        }}
+        onBlur={(event) => {
+          focused.current = false;
+          const nextText = event.currentTarget.value;
+          const nextValue = Number(nextText);
+          if (nextText.trim() && Number.isFinite(nextValue)) {
+            onChange(path, nextValue);
+            setText(String(nextValue));
+          } else {
+            setText(String(value));
+          }
+        }}
+        className="pyqt-input w-full text-xs"
+      />
+    </label>
+  );
+};
 
 const SelectField: React.FC<{
   label: string;

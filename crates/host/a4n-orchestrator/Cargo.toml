@@ -44,7 +44,6 @@ a4n-llm-context = { workspace = true }
 a4n-llm-provider-contract = { workspace = true }
 a4n-novel-host-contract = { workspace = true }
 a4n-llm-structured-stream = { workspace = true }
-a4n-llm-config = { workspace = true }
 a4n-llm-trace = { workspace = true }
 a4n-prompt = { workspace = true }
 a4n-prompt-client = { workspace = true }

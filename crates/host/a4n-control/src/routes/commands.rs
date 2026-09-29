@@ -240,7 +240,7 @@ use self::source_sync::{apply_source_sync_decisions, detach_derived_project, pre
 use self::task::{
     finish_web_task, register_web_task, sanitize_optional_task_id, sanitize_task_id,
     string_action_result, web_fire_and_forget_progress_reporter, web_progress_reporter,
-    web_stream_reporter,
+    web_stream_delta_reporter, web_stream_reporter,
 };
 
 use super::auth::{authenticated_user, user_agent};

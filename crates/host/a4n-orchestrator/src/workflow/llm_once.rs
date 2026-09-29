@@ -56,6 +56,20 @@ impl OrchestratorContext {
         T: serde::Serialize,
         F: Fn(Value) -> Result<T, AppError>,
     {
+        self.run_workflow_llm_once_with_stream_reporter(input, None, validate)
+            .await
+    }
+
+    pub(crate) async fn run_workflow_llm_once_with_stream_reporter<T, F>(
+        &self,
+        input: WorkflowLlmOnceInput<'_>,
+        stream_reporter: Option<&(dyn Fn(&str) + Send + Sync)>,
+        validate: F,
+    ) -> Result<(Value, T), AppError>
+    where
+        T: serde::Serialize,
+        F: Fn(Value) -> Result<T, AppError>,
+    {
         if self
             .workflow_run_status_record_by_id(input.workflow_run_id)
             .await?
@@ -72,6 +86,6 @@ impl OrchestratorContext {
         {
             return Ok(restored);
         }
-        execute_workflow_llm_once(self, &input, prepared, validate).await
+        execute_workflow_llm_once(self, &input, prepared, stream_reporter, validate).await
     }
 }

@@ -56,7 +56,7 @@ export const DeletionManager: React.FC<{
   const [loading, setLoading] = useState(false);
   const [loadedScopeKey, setLoadedScopeKey] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [chapterNumber, setChapterNumber] = useState(defaultChapter);
+  const [chapterNumber, setChapterNumber] = useState(String(defaultChapter));
   const [category, setCategory] = useState("explicit");
   const [filterCategory, setFilterCategory] = useState("");
   const [filterStatus, setFilterStatus] = useState<DeletionMarkStatusFilter>("all");
@@ -89,7 +89,7 @@ export const DeletionManager: React.FC<{
   currentLoadScopeKeyRef.current = currentLoadScopeKey;
   const hasCurrentMarks = loadedScopeKey === currentLoadScopeKey;
   const formDirty =
-    chapterNumber !== defaultChapter ||
+    chapterNumber !== String(defaultChapter) ||
     category !== "explicit" ||
     key.trim().length > 0 ||
     reason.trim().length > 0 ||
@@ -97,7 +97,7 @@ export const DeletionManager: React.FC<{
 
   const discardFormDraft = useCallback(() => {
     if (requesting) return false;
-    setChapterNumber(defaultChapter);
+    setChapterNumber(String(defaultChapter));
     setCategory("explicit");
     setKey("");
     setReason("");
@@ -200,7 +200,7 @@ export const DeletionManager: React.FC<{
     requestingRef.current = false;
     executingRef.current = false;
     resettingRef.current = null;
-    setChapterNumber(defaultChapter);
+    setChapterNumber(String(defaultChapter));
     setKey("");
     setReason("");
     setEvidence("");
@@ -257,17 +257,18 @@ export const DeletionManager: React.FC<{
 
   const handleRequestDeletion = async () => {
     if (requestingRef.current) return;
+    const chapter = Number(chapterNumber);
     const attrKey = key.trim();
     const deletionReason = reason.trim();
     const deletionEvidence = evidence.trim();
-    if (!attrKey || !deletionReason || !deletionEvidence) {
+    if (!Number.isSafeInteger(chapter) || chapter <= 0 || !attrKey || !deletionReason || !deletionEvidence) {
       addToast(t("characterDetail.deletion.required"), "error");
       return;
     }
     requestingRef.current = true;
     const requestProfileId = profileId;
     const requestPayload = {
-      chapter_number: chapterNumber,
+      chapter_number: chapter,
       category,
       key: attrKey,
       reason: deletionReason,
@@ -383,6 +384,8 @@ export const DeletionManager: React.FC<{
   };
 
   const deletionRequestReady =
+    Number.isSafeInteger(Number(chapterNumber)) &&
+    Number(chapterNumber) > 0 &&
     key.trim().length > 0 &&
     reason.trim().length > 0 &&
     evidence.trim().length > 0;
@@ -455,18 +458,14 @@ export const DeletionManager: React.FC<{
         </summary>
         <div className="mt-1.5 grid gap-2 rounded-xl bg-book-bg-tertiary/40 p-3 text-small md:grid-cols-6">
           <label className="flex flex-col gap-1">
-            <span className="text-caption text-book-text-muted">{t("characterDetail.deletion.chapter")}</span>
+            <span className="text-caption text-book-text-muted">{t("characterDetail.deletion.chapter")} *</span>
             <input
               type="number"
               min={1}
+              required
               value={chapterNumber}
               disabled={requesting}
-              onChange={(event) => {
-                const parsed = Number(event.target.value);
-                if (Number.isFinite(parsed) && parsed > 0) {
-                  setChapterNumber(Math.floor(parsed));
-                }
-              }}
+              onChange={(event) => setChapterNumber(event.target.value)}
               className="pyqt-input !px-2 !py-1"
             />
           </label>

@@ -57,11 +57,11 @@ export const StoragePathsPanel: React.FC<StoragePathsPanelProps> = ({
   const { t, locale } = useI18n();
   const [paths, setPaths] = useState<StoragePathsSummary | null>(null);
   const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<{ reason: unknown } | null>(null);
   const [orphanSummary, setOrphanSummary] =
     useState<OrphanProjectDataDirsSummary | null>(null);
   const [orphanLoading, setOrphanLoading] = useState(false);
-  const [orphanError, setOrphanError] = useState<string | null>(null);
+  const [orphanError, setOrphanError] = useState<{ reason: unknown } | null>(null);
   const [orphanConfirming, setOrphanConfirming] = useState(false);
   const [orphanCleaning, setOrphanCleaning] = useState(false);
   const [copiedKey, setCopiedKey] = useState<MessageKey | null>(null);
@@ -110,9 +110,7 @@ export const StoragePathsPanel: React.FC<StoragePathsPanelProps> = ({
       setPaths(nextPaths);
     } catch (err) {
       if (!mountedRef.current || refreshSeqRef.current !== requestSeq) return;
-      const message = extractErrorMessage(err, translateCurrent("settingsAbout.loadStoragePathsFailed"));
-      setLoadError(message);
-      addToast(message, "error");
+      setLoadError({ reason: err });
     } finally {
       if (mountedRef.current && refreshSeqRef.current === requestSeq) {
         setLoading(false);
@@ -165,8 +163,7 @@ export const StoragePathsPanel: React.FC<StoragePathsPanelProps> = ({
       setOrphanSummary(summary);
     } catch (err) {
       if (!mountedRef.current || orphanSeqRef.current !== requestSeq) return;
-      const message = extractErrorMessage(err, translateCurrent("settingsAbout.scanOrphansFailed"));
-      setOrphanError(message);
+      setOrphanError({ reason: err });
     } finally {
       if (orphanSeqRef.current === requestSeq) {
         orphanScanningRef.current = false;
@@ -243,8 +240,7 @@ export const StoragePathsPanel: React.FC<StoragePathsPanelProps> = ({
         setOrphanSummary(nextSummary);
       } catch (err) {
         if (!mountedRef.current || orphanSeqRef.current !== requestSeq) return;
-        const message = extractErrorMessage(err, translateCurrent("settingsAbout.scanOrphansFailed"));
-        setOrphanError(message);
+        setOrphanError({ reason: err });
       } finally {
         if (orphanSeqRef.current === requestSeq) {
           orphanScanningRef.current = false;
@@ -253,8 +249,7 @@ export const StoragePathsPanel: React.FC<StoragePathsPanelProps> = ({
       }
     } catch (err) {
       if (!mountedRef.current || orphanSeqRef.current !== requestSeq) return;
-      const message = extractErrorMessage(err, translateCurrent("settingsAbout.cleanupOrphansFailed"));
-      setOrphanError(message);
+      setOrphanError({ reason: err });
     } finally {
       if (orphanSeqRef.current === requestSeq) {
         orphanCleaningRef.current = false;
@@ -309,7 +304,11 @@ export const StoragePathsPanel: React.FC<StoragePathsPanelProps> = ({
           </BookIconButton>
         </div>
 
-        {loadError ? <p role="alert" className="text-error">{loadError}</p> : null}
+        {loadError ? (
+          <p role="alert" className="text-error">
+            {extractErrorMessage(loadError.reason, t("settingsAbout.loadStoragePathsFailed"))}
+          </p>
+        ) : null}
         {loading && !paths ? (
           <div className="inline-flex items-center gap-1.5 text-book-text-muted">
             <LoadingSpinner size="sm" /> {t("settingsAbout.loading")}
@@ -413,7 +412,11 @@ export const StoragePathsPanel: React.FC<StoragePathsPanelProps> = ({
             ) : null}
           </div>
 
-          {orphanError ? <p role="alert" className="text-error">{orphanError}</p> : null}
+          {orphanError ? (
+            <p role="alert" className="text-error">
+              {extractErrorMessage(orphanError.reason, t("settingsAbout.scanOrphansFailed"))}
+            </p>
+          ) : null}
           {orphanSummary && orphanSummary.items.length > 0 ? (
             <details className="border-t border-book-border/35 pt-2 text-caption text-book-text-muted">
               <summary className="w-fit cursor-pointer hover:text-book-text-main">

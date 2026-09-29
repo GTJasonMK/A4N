@@ -10,12 +10,13 @@ import {
   behaviorTypeLabel,
   jsonPreview,
   listPreview,
+  parsePositiveChapterNumber,
   sourceKindLabel,
 } from "./manageViewUtils";
 
 const behaviorLoadKey = (
   profileId: number,
-  chapterFilter: number | "",
+  chapterFilter: string,
   limit: number,
 ): string => `${profileId}:${chapterFilter === "" ? "all" : chapterFilter}:${limit}`;
 
@@ -25,7 +26,8 @@ export const BehaviorManager: React.FC<{ profileId: number }> = ({ profileId }) 
   const [items, setItems] = useState<BehaviorRecord[]>([]);
   const [loading, setLoading] = useState(false);
   const [loadedScopeKey, setLoadedScopeKey] = useState<string | null>(null);
-  const [chapterFilter, setChapterFilter] = useState<number | "">("");
+  const [chapterFilterError, setChapterFilterError] = useState<string | null>(null);
+  const [chapterFilter, setChapterFilter] = useState("");
   const [limit, setLimit] = useState(20);
   const mountedRef = useRef(true);
   const activeProfileIdRef = useRef(profileId);
@@ -60,7 +62,7 @@ export const BehaviorManager: React.FC<{ profileId: number }> = ({ profileId }) 
 
   const isCurrentLoad = useCallback((
     requestProfileId: number,
-    requestChapterFilter: number | "",
+    requestChapterFilter: string,
     requestLimit: number,
     seq: number,
   ) => {
@@ -78,13 +80,22 @@ export const BehaviorManager: React.FC<{ profileId: number }> = ({ profileId }) 
     const requestChapterFilter = chapterFilterRef.current;
     const requestLimit = limitRef.current;
     const requestKey = behaviorLoadKey(requestProfileId, requestChapterFilter, requestLimit);
+    const chapter = requestChapterFilter
+      ? parsePositiveChapterNumber(requestChapterFilter)
+      : null;
+    if (requestChapterFilter && chapter == null) {
+      setChapterFilterError(t("characterDetail.invalidChapterInteger", {
+        label: t("characterDetail.behavior.chapter"),
+      }));
+      return;
+    }
+    setChapterFilterError(null);
     if (loadInFlightKeyRef.current === requestKey) return;
     const requestSeq = loadSeqRef.current + 1;
     loadSeqRef.current = requestSeq;
     loadInFlightKeyRef.current = requestKey;
     setLoading(true);
     try {
-      const chapter = typeof requestChapterFilter === "number" ? requestChapterFilter : null;
       const rows = await listBehaviors({
         profile_id: requestProfileId,
         chapter_from: chapter,
@@ -108,6 +119,7 @@ export const BehaviorManager: React.FC<{ profileId: number }> = ({ profileId }) 
   }, [addToast, isCurrentLoad, profileId, t]);
 
   useEffect(() => {
+    setChapterFilterError(null);
     invalidateLoadedResults();
   }, [invalidateLoadedResults, profileId]);
 
@@ -126,25 +138,25 @@ export const BehaviorManager: React.FC<{ profileId: number }> = ({ profileId }) 
           <input
             type="number"
             min={1}
+            step={1}
+            aria-invalid={chapterFilterError != null}
+            aria-describedby={chapterFilterError ? "behavior-chapter-filter-error" : undefined}
             value={chapterFilter}
             disabled={loading}
             onChange={(event) => {
               const value = event.target.value;
-              if (!value) {
-                if (chapterFilterRef.current !== "") invalidateLoadedResults();
-                setChapterFilter("");
-                return;
-              }
-              const parsed = Number(value);
-              if (Number.isFinite(parsed) && parsed > 0) {
-                const next = Math.floor(parsed);
-                if (chapterFilterRef.current !== next) invalidateLoadedResults();
-                setChapterFilter(next);
-              }
+              if (chapterFilterRef.current !== value) invalidateLoadedResults();
+              setChapterFilterError(null);
+              setChapterFilter(value);
             }}
             className="pyqt-input w-full !px-2 !py-1 sm:w-24"
             placeholder={t("characterDetail.behavior.all")}
           />
+          {chapterFilterError ? (
+            <span id="behavior-chapter-filter-error" role="alert" className="text-caption text-error">
+              {chapterFilterError}
+            </span>
+          ) : null}
         </label>
         <label className="flex min-w-0 flex-col gap-1 text-book-text-muted">
           <span>{t("characterDetail.behavior.displayCount")}</span>

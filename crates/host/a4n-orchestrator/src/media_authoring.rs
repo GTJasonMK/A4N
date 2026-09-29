@@ -1,5 +1,6 @@
 use std::collections::BTreeSet;
 
+use a4n_api_contract::media_authoring::MediaAuthoringStreamReporter;
 use a4n_db::media_authoring::{self as records, AuthoringDocumentError, SaveAuthoringDocument};
 use a4n_domain::{
     chapter::ResolvedChapterSource,
@@ -36,6 +37,7 @@ pub(crate) struct GenerateAdaptation<'a> {
     pub workflow_run_id: i64,
     pub workflow: &'a str,
     pub renderer: &'a dyn PromptRenderer,
+    pub stream_reporter: Option<&'a MediaAuthoringStreamReporter>,
 }
 
 impl OrchestratorContext {
@@ -133,6 +135,7 @@ impl OrchestratorContext {
                 workflow_run_id,
                 workflow,
                 renderer,
+                stream_reporter: None,
             })
             .await?;
         let record = records::adopt_authoring_document(
@@ -178,7 +181,7 @@ impl OrchestratorContext {
             )
             .await?;
         let (_, plan) = self
-            .run_workflow_llm_once(
+            .run_workflow_llm_once_with_stream_reporter(
                 WorkflowLlmOnceInput {
                     stage_key: "adaptation_plan",
                     prompt_renderer: input.renderer,
@@ -191,6 +194,7 @@ impl OrchestratorContext {
                     prompt_name: "chapter_media_adaptation_plan",
                     user_prompt,
                 },
+                input.stream_reporter,
                 |value| {
                     let plan: AdaptationPlanV1 = serde_json::from_value(value)?;
                     if plan.target != input.target {

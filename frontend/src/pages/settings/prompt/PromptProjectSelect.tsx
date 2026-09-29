@@ -22,7 +22,7 @@ export const PromptProjectSelect: React.FC<PromptProjectSelectProps> = ({
   const { t } = useI18n();
   const [projects, setProjects] = useState<NovelProject[]>([]);
   const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<{ reason: unknown } | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -33,7 +33,7 @@ export const PromptProjectSelect: React.FC<PromptProjectSelectProps> = ({
         if (active) setProjects(items);
       })
       .catch((error) => {
-        if (active) setLoadError(extractErrorMessage(error, t("settingsPrompt.loadProjectsFailed")));
+        if (active) setLoadError({ reason: error });
       })
       .finally(() => {
         if (active) setLoading(false);
@@ -64,7 +64,11 @@ export const PromptProjectSelect: React.FC<PromptProjectSelectProps> = ({
         </option>
       ))}
     </ThemedSelect>
-    {loadError ? <span role="alert" className="block text-small text-error">{loadError}</span> : null}
+    {loadError ? (
+      <span role="alert" className="block text-small text-error">
+        {extractErrorMessage(loadError.reason, t("settingsPrompt.loadProjectsFailed"))}
+      </span>
+    ) : null}
     </>
   );
 };

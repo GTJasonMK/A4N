@@ -28,7 +28,7 @@ export const TrendsSection: React.FC = () => {
     activeKey,
     loadTrends,
     applyTrends,
-    t("settingsAdmin.loadFailed"),
+    "settingsAdmin.loadFailed",
   );
 
   const displayTrends = loadedKey === activeKey ? trends : [];

@@ -1,5 +1,5 @@
 import { ThemedSelect } from "../../../components/ui/ThemedSelect";
-import React, { useMemo } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertCircle,
   CheckCircle2,
@@ -141,6 +141,11 @@ export const VideoGenerationEditor: React.FC<VideoGenerationEditorProps> = ({
   const { locale, t } = useI18n();
   const updateDraft = (patch: Partial<PromptDraft>) =>
     onDraftChange({ ...draft, ...patch });
+  const [durationText, setDurationText] = useState(String(draft.duration_secs));
+  const durationFocused = useRef(false);
+  useEffect(() => {
+    if (!durationFocused.current) setDurationText(String(draft.duration_secs));
+  }, [draft.duration_secs]);
 
   const frameInputStateForPrompt = (
     prompt: ChapterVideoPrompt,
@@ -901,10 +906,26 @@ export const VideoGenerationEditor: React.FC<VideoGenerationEditorProps> = ({
                 min={durationLimits.minDurationSecs}
                 max={durationLimits.maxDurationSecs}
                 step={1}
-                value={draft.duration_secs}
-                onChange={(event) =>
-                  updateDraft({ duration_secs: Number(event.target.value) })
-                }
+                value={durationText}
+                onFocus={() => { durationFocused.current = true; }}
+                onChange={(event) => {
+                  const nextText = event.currentTarget.value;
+                  setDurationText(nextText);
+                  if (nextText.trim() && Number.isSafeInteger(Number(nextText))) {
+                    updateDraft({ duration_secs: Number(nextText) });
+                  }
+                }}
+                onBlur={(event) => {
+                  durationFocused.current = false;
+                  const nextText = event.currentTarget.value;
+                  const nextValue = Number(nextText);
+                  if (nextText.trim() && Number.isSafeInteger(nextValue)) {
+                    updateDraft({ duration_secs: nextValue });
+                    setDurationText(String(nextValue));
+                  } else {
+                    setDurationText(String(draft.duration_secs));
+                  }
+                }}
                 disabled={selectedPromptRunning}
                 className="book-control h-9 px-2 text-xs"
               />

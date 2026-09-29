@@ -31,7 +31,7 @@ export const TasksSection: React.FC = () => {
 
   const loadTasks = useCallback(() => listPendingTasks(), []);
   const { loading, error, load, reload } =
-    useAdminSectionLoader("admin-tasks", loadTasks, setTasks, t("settingsAdmin.loadFailed"), {
+    useAdminSectionLoader("admin-tasks", loadTasks, setTasks, "settingsAdmin.loadFailed", {
       intervalMs: 5000,
     });
 

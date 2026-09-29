@@ -136,6 +136,8 @@ pub struct VideoScriptReferenceCandidate {
     pub same_source_content: bool,
 }
 
+pub type MediaAuthoringStreamReporter = dyn Fn(&str) + Send + Sync;
+
 #[async_trait::async_trait]
 pub trait MediaAuthoringApplicationPort: Send + Sync {
     async fn workspace(
@@ -163,6 +165,7 @@ pub trait MediaAuthoringApplicationPort: Send + Sync {
         user_id: i64,
         input: GenerateAdaptationPlanInput,
         renderer: &dyn crate::prompt::PromptRenderPort,
+        stream_reporter: Option<&MediaAuthoringStreamReporter>,
     ) -> Result<AuthoringDocumentRecord, a4n_error::AppError>;
     async fn preview(
         &self,

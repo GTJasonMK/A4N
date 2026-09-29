@@ -18,6 +18,7 @@ import {
   categoryLabel,
   characterDetailDraftKey,
   operationLabel,
+  parsePositiveChapterNumber,
   sourceKindLabel,
 } from "./manageViewUtils";
 import { nonEmptyText } from "../../utils/text";
@@ -41,8 +42,8 @@ const nullableFilterValue = (value: string): string | null => {
 
 const eventLoadKey = (
   profileId: number,
-  chapterFrom: number | "",
-  chapterTo: number | "",
+  chapterFrom: string,
+  chapterTo: string,
   category: string,
   key: string,
   operation: string,
@@ -67,18 +68,20 @@ export const EventManager: React.FC<{
   const [events, setEvents] = useState<AttributeEvent[]>([]);
   const [loading, setLoading] = useState(false);
   const [loadedScopeKey, setLoadedScopeKey] = useState<string | null>(null);
-  const [filterChapterFrom, setFilterChapterFrom] = useState<number | "">("");
-  const [filterChapterTo, setFilterChapterTo] = useState<number | "">("");
+  const [filterError, setFilterError] = useState<string | null>(null);
+  const [filterChapterFrom, setFilterChapterFrom] = useState("");
+  const [filterChapterTo, setFilterChapterTo] = useState("");
   const [filterCategory, setFilterCategory] = useState(initialCategory);
   const [filterKey, setFilterKey] = useState(initialKey);
   const [filterOperation, setFilterOperation] = useState("");
   const [mode, setMode] = useState<"add" | "modify">("add");
-  const [chapterNumber, setChapterNumber] = useState(defaultChapter);
+  const [chapterNumber, setChapterNumber] = useState(String(defaultChapter));
   const [category, setCategory] = useState("explicit");
   const [key, setKey] = useState("");
   const [valueText, setValueText] = useState("");
   const [cause, setCause] = useState("");
   const [evidence, setEvidence] = useState("");
+  const [chapterError, setChapterError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const mountedRef = useRef(true);
   const activeProfileIdRef = useRef(profileId);
@@ -114,7 +117,7 @@ export const EventManager: React.FC<{
   const defaultMode = defaultKey ? "modify" : "add";
   const formDirty =
     mode !== defaultMode ||
-    chapterNumber !== defaultChapter ||
+    chapterNumber !== String(defaultChapter) ||
     category !== defaultCategory ||
     key.trim().length > 0 ||
     valueText.trim().length > 0 ||
@@ -124,7 +127,8 @@ export const EventManager: React.FC<{
   const discardFormDraft = useCallback(() => {
     if (saving) return false;
     setMode(defaultMode);
-    setChapterNumber(defaultChapter);
+    setChapterNumber(String(defaultChapter));
+    setChapterError(null);
     setCategory(defaultCategory);
     setKey(defaultKey);
     setValueText("");
@@ -173,8 +177,8 @@ export const EventManager: React.FC<{
 
   const load = useCallback(
     async (
-      nextChapterFrom: number | "" = filterChapterFromRef.current,
-      nextChapterTo: number | "" = filterChapterToRef.current,
+      nextChapterFrom: string = filterChapterFromRef.current,
+      nextChapterTo: string = filterChapterToRef.current,
       nextCategory = filterCategoryRef.current,
       nextKey = filterKeyRef.current,
       nextOperation = filterOperationRef.current,
@@ -188,6 +192,19 @@ export const EventManager: React.FC<{
         nextKey,
         nextOperation,
       );
+      const chapterFrom = nextChapterFrom ? parsePositiveChapterNumber(nextChapterFrom) : null;
+      const chapterTo = nextChapterTo ? parsePositiveChapterNumber(nextChapterTo) : null;
+      if ((nextChapterFrom && chapterFrom == null) || (nextChapterTo && chapterTo == null)) {
+        setFilterError(t("characterDetail.invalidChapterInteger", {
+          label: t("characterDetail.event.chapter"),
+        }));
+        return false;
+      }
+      if (chapterFrom != null && chapterTo != null && chapterFrom > chapterTo) {
+        setFilterError(t("characterDetail.invalidChapterRange"));
+        return false;
+      }
+      setFilterError(null);
       if (loadInFlightKeyRef.current === requestKey) return false;
       const requestSeq = loadSeqRef.current + 1;
       loadSeqRef.current = requestSeq;
@@ -195,8 +212,8 @@ export const EventManager: React.FC<{
       setLoading(true);
       try {
         const rows = await attributeHistory(requestProfileId, {
-          chapter_from: nextChapterFrom === "" ? null : nextChapterFrom,
-          chapter_to: nextChapterTo === "" ? null : nextChapterTo,
+          chapter_from: chapterFrom,
+          chapter_to: chapterTo,
           category: nullableFilterValue(nextCategory),
           key: nonEmptyText(nextKey),
           operation: nullableFilterValue(nextOperation),
@@ -231,6 +248,7 @@ export const EventManager: React.FC<{
     setFilterCategory(nextCategory);
     setFilterKey(nextKey);
     setFilterOperation("");
+    setFilterError(null);
     invalidateLoadedEvents();
     void load(
       "",
@@ -245,7 +263,8 @@ export const EventManager: React.FC<{
     saveSeqRef.current += 1;
     saveInFlightRef.current = false;
     setSaving(false);
-    setChapterNumber(defaultChapter);
+    setChapterNumber(String(defaultChapter));
+    setChapterError(null);
     const nextCategory = initialCategory.trim() || "explicit";
     const nextKey = initialKey.trim();
     setMode(nextKey ? "modify" : "add");
@@ -264,6 +283,7 @@ export const EventManager: React.FC<{
     setFilterCategory("");
     setFilterKey("");
     setFilterOperation("");
+    setFilterError(null);
     invalidateLoadedEvents();
     await load("", "", "", "", "");
   };
@@ -276,11 +296,19 @@ export const EventManager: React.FC<{
       addToast(t("characterDetail.event.required"), "error");
       return;
     }
+    const parsedChapterNumber = parsePositiveChapterNumber(chapterNumber);
+    if (parsedChapterNumber == null) {
+      setChapterError(t("characterDetail.invalidChapterInteger", {
+        label: t("characterDetail.event.chapter"),
+      }));
+      return;
+    }
+    setChapterError(null);
     if (saveInFlightRef.current) return;
     const requestProfileId = profileId;
     const requestMode = mode;
     const requestPayload = {
-      chapter_number: chapterNumber,
+      chapter_number: parsedChapterNumber,
       category,
       key: attrKey,
       value: parseAttributeValue(valueText),
@@ -379,6 +407,9 @@ export const EventManager: React.FC<{
       <div className="text-caption text-book-text-muted">
         {t("characterDetail.event.description")}
       </div>
+      {filterError ? (
+        <p id="event-filter-error" role="alert" className="text-small text-error">{filterError}</p>
+      ) : null}
       <details className="border-y border-book-border/35 py-1">
         <summary className="flex cursor-pointer list-none items-center gap-2 py-1 text-small [&::-webkit-details-marker]:hidden">
           <span className="font-medium text-book-text-main">{t("characterDetail.event.filter")}</span>
@@ -393,13 +424,14 @@ export const EventManager: React.FC<{
             <input
               type="number"
               min={1}
+              step={1}
+              aria-invalid={filterError != null}
+              aria-describedby={filterError ? "event-filter-error" : undefined}
               value={filterChapterFrom}
               onChange={(event) => {
-                const next = Number(event.target.value);
-                const nextValue = event.target.value
-                  ? Math.max(1, Number.isFinite(next) ? Math.floor(next) : 1)
-                  : "";
+                const nextValue = event.target.value;
                 if (filterChapterFromRef.current !== nextValue) invalidateLoadedEvents();
+                setFilterError(null);
                 setFilterChapterFrom(nextValue);
               }}
               className="pyqt-input w-full !px-2 !py-1"
@@ -410,13 +442,14 @@ export const EventManager: React.FC<{
             <input
               type="number"
               min={1}
+              step={1}
+              aria-invalid={filterError != null}
+              aria-describedby={filterError ? "event-filter-error" : undefined}
               value={filterChapterTo}
               onChange={(event) => {
-                const next = Number(event.target.value);
-                const nextValue = event.target.value
-                  ? Math.max(1, Number.isFinite(next) ? Math.floor(next) : 1)
-                  : "";
+                const nextValue = event.target.value;
                 if (filterChapterToRef.current !== nextValue) invalidateLoadedEvents();
+                setFilterError(null);
                 setFilterChapterTo(nextValue);
               }}
               className="pyqt-input w-full !px-2 !py-1"
@@ -428,6 +461,7 @@ export const EventManager: React.FC<{
               value={filterCategory}
               onChange={(nextValue) => {
                 if (filterCategoryRef.current !== nextValue) invalidateLoadedEvents();
+                setFilterError(null);
                 setFilterCategory(nextValue);
               }}
               className="pyqt-input w-full !px-2 !py-1"
@@ -446,6 +480,7 @@ export const EventManager: React.FC<{
               value={filterOperation}
               onChange={(nextValue) => {
                 if (filterOperationRef.current !== nextValue) invalidateLoadedEvents();
+                setFilterError(null);
                 setFilterOperation(nextValue);
               }}
               className="pyqt-input w-full !px-2 !py-1"
@@ -465,6 +500,7 @@ export const EventManager: React.FC<{
               onChange={(event) => {
                 const nextValue = event.target.value;
                 if (filterKeyRef.current !== nextValue) invalidateLoadedEvents();
+                setFilterError(null);
                 setFilterKey(nextValue);
               }}
               className="pyqt-input w-full !px-2 !py-1"
@@ -509,16 +545,21 @@ export const EventManager: React.FC<{
             <input
               type="number"
               min={1}
+              step={1}
+              aria-invalid={chapterError != null}
+              aria-describedby={chapterError ? "event-chapter-error" : undefined}
               value={chapterNumber}
               disabled={saving}
               onChange={(event) => {
-                const parsed = Number(event.target.value);
-                if (Number.isFinite(parsed) && parsed > 0) {
-                  setChapterNumber(Math.floor(parsed));
-                }
+                const nextValue = event.target.value;
+                setChapterNumber(nextValue);
+                if (parsePositiveChapterNumber(nextValue) != null) setChapterError(null);
               }}
               className="pyqt-input !px-2 !py-1"
             />
+            {chapterError ? (
+              <p id="event-chapter-error" role="alert" className="text-small text-error">{chapterError}</p>
+            ) : null}
           </label>
           <label className="flex flex-col gap-1">
             <span className="text-caption text-book-text-muted">{t("characterDetail.event.category")}</span>

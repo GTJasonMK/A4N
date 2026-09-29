@@ -13,6 +13,7 @@ use a4n_llm_provider_contract::provider::ChatRequest;
 use a4n_prompt::variables::parse_template_variables_app_error;
 use serde_json::json;
 
+use super::chapter_contract::validate_chapter_outline_generation_request;
 use super::context::load_chapter_outline_generation_context;
 use super::{
     BeatMappingApplyInput, ChapterOutlineCountGenerationInput, ChapterOutlineGenerationInput,
@@ -429,6 +430,7 @@ impl OrchestratorContext {
         input: GenerateChapterOutlinesByCountInput,
         progress: ProgressReporter<'_>,
     ) -> Result<Vec<chapter_outline::Model>, AppError> {
+        validate_chapter_outline_generation_request(input.start_chapter, input.count)?;
         report_application_progress(
             progress,
             0,

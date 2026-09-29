@@ -3,6 +3,24 @@ import type { MessageTranslator } from "../../../i18n";
 import { nonEmptyText } from "../../../utils/text";
 
 export type NumberInputValue = number | "";
+export const MAX_CHAPTER_OUTLINE_GENERATION_COUNT = 50;
+
+export const isValidChapterOutlineCount = (
+  value: NumberInputValue,
+): value is number =>
+  typeof value === "number" &&
+  Number.isInteger(value) &&
+  value >= 1 &&
+  value <= MAX_CHAPTER_OUTLINE_GENERATION_COUNT;
+
+export const isValidDeletionCount = (
+  value: NumberInputValue,
+  available: number,
+): value is number =>
+  typeof value === "number" &&
+  Number.isSafeInteger(value) &&
+  value >= 1 &&
+  value <= available;
 
 export const parseNumberInput = (value: string): NumberInputValue => {
   const text = value.trim();

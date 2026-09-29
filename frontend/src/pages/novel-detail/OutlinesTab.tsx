@@ -27,7 +27,9 @@ import {
   DELETE_LATEST_CHAPTER_OUTLINES_ACTION,
   DELETE_LATEST_PARTS_ACTION,
   deleteChapterOutlinesFromAction,
+  isValidDeletionCount,
   isPositiveInteger,
+  isValidChapterOutlineCount,
   outlineOptimizationVariables,
   type NumberInputValue,
 } from "./outlines/outlineTabUtils";
@@ -77,7 +79,7 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
   const [chaptersPerPart, setChaptersPerPart] =
     useState<NumberInputValue>(defaultChaptersPerPart);
   const [generatingParts, setGeneratingParts] = useState(false);
-  const [chapterCount, setChapterCount] = useState(10);
+  const [chapterCount, setChapterCount] = useState<NumberInputValue>(10);
   const [generatingOutlines, setGeneratingOutlines] = useState(false);
   const [activeOutlineView, setActiveOutlineView] = useState<OutlineView>("parts");
 
@@ -102,8 +104,10 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
   const [outlineAction, setOutlineAction] = useState<ChapterOutline | null>(null);
   const [advancedOpen, setAdvancedOpen] = useState(false);
   // 危险操作
-  const [delPartCount, setDelPartCount] = useState(1);
-  const [delChapterCount, setDelChapterCount] = useState(1);
+  const [delPartCount, setDelPartCount] = useState<NumberInputValue>(1);
+  const [delChapterCount, setDelChapterCount] = useState<NumberInputValue>(1);
+  const [delPartCountError, setDelPartCountError] = useState<string | null>(null);
+  const [delChapterCountError, setDelChapterCountError] = useState<string | null>(null);
   const [delActing, setDelActing] = useState<string | null>(null);
   const [regenLastPart, setRegenLastPart] = useState(false);
 
@@ -444,11 +448,11 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
       addToast(t("outline.readOnlyGenerateChapters"), "error");
       return;
     }
-    const requestedChapterCount = chapterCount;
-    if (chapterCount <= 0) {
+    if (!isValidChapterOutlineCount(chapterCount)) {
       addToast(t("outline.chapterCountPositive"), "error");
       return;
     }
+    const requestedChapterCount = chapterCount;
     const actionSeq = beginAction(requestProjectId);
     if (actionSeq == null) return;
     setGeneratingOutlines(true);
@@ -506,11 +510,11 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
       addToast(t("outline.readOnlyPreview"), "error");
       return;
     }
-    const requestedChapterCount = chapterCount;
-    if (requestedChapterCount <= 0) {
+    if (!isValidChapterOutlineCount(chapterCount)) {
       addToast(t("outline.chapterCountPositive"), "error");
       return;
     }
+    const requestedChapterCount = chapterCount;
     const previewSeq = beginPreview(requestProjectId);
     if (previewSeq == null) return;
     const startChapter =
@@ -952,10 +956,11 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
     const requestPartCount = delPartCount;
     const requestParts = partsRef.current;
     const availableParts = requestParts.length;
-    if (requestPartCount <= 0 || requestPartCount > availableParts) {
-      addToast(t("outline.partCountRange", { count: availableParts }), "error");
+    if (!isValidDeletionCount(requestPartCount, availableParts)) {
+      setDelPartCountError(t("outline.partCountRange", { count: availableParts }));
       return;
     }
+    setDelPartCountError(null);
     if (!beginConfirmAction(requestProjectId)) return;
     const ok = await confirmDialog({
       title: t("outline.deletePartsTitle"),
@@ -1003,10 +1008,11 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
     const requestChapterCount = delChapterCount;
     const requestOutlines = outlinesRef.current;
     const availableOutlines = requestOutlines.length;
-    if (requestChapterCount <= 0 || requestChapterCount > availableOutlines) {
-      addToast(t("outline.outlineCountRange", { count: availableOutlines }), "error");
+    if (!isValidDeletionCount(requestChapterCount, availableOutlines)) {
+      setDelChapterCountError(t("outline.outlineCountRange", { count: availableOutlines }));
       return;
     }
+    setDelChapterCountError(null);
     if (!beginConfirmAction(requestProjectId)) return;
     const ok = await confirmDialog({
       title: t("outline.deleteOutlinesTitle"),
@@ -1162,6 +1168,8 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
       advancedOpen={advancedOpen}
       delPartCount={delPartCount}
       delChapterCount={delChapterCount}
+      delPartCountError={delPartCountError}
+      delChapterCountError={delChapterCountError}
       delActing={delActing}
       regenLastPart={regenLastPart}
       interactionBusy={interactionBusy}
@@ -1180,6 +1188,8 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
           addToast(t("outline.readOnlyTools"), "error");
           return;
         }
+        setDelPartCountError(null);
+        setDelChapterCountError(null);
         setAdvancedOpen(true);
       }}
       onOpenPart={setPartDetail}
@@ -1211,9 +1221,19 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
       onRegenerateOutline={(outline) => void handleRegenOutline(outline)}
       onPreviewRegenerateOutline={(outline) => void handlePreviewRegenOutline(outline)}
       onDeleteOutline={(outline) => void handleDeleteOutline(outline)}
-      onCloseAdvanced={() => setAdvancedOpen(false)}
-      onDelPartCountChange={setDelPartCount}
-      onDelChapterCountChange={setDelChapterCount}
+      onCloseAdvanced={() => {
+        setAdvancedOpen(false);
+        setDelPartCountError(null);
+        setDelChapterCountError(null);
+      }}
+      onDelPartCountChange={(value) => {
+        setDelPartCount(value);
+        setDelPartCountError(null);
+      }}
+      onDelChapterCountChange={(value) => {
+        setDelChapterCount(value);
+        setDelChapterCountError(null);
+      }}
       onRegenLastPart={() => void handleRegenLastPart()}
       onPreviewRegenLastPart={() => void handlePreviewRegenLastPart()}
       onDeleteLatestParts={() => void handleDeleteLatestParts()}

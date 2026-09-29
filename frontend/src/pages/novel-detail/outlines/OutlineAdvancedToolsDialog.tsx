@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Eye, SlidersHorizontal } from "lucide-react";
 import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
 import { BookButton } from "../../../components/ui/BookButton";
@@ -9,6 +9,7 @@ import type { RunOutlineGeneration } from "./useOutlineGeneration";
 import {
   DELETE_LATEST_CHAPTER_OUTLINES_ACTION,
   DELETE_LATEST_PARTS_ACTION,
+  parseNumberInput,
   type NumberInputValue,
 } from "./outlineTabUtils";
 import type { ChapterOutline, PartOutline } from "../../../api/outline";
@@ -20,15 +21,17 @@ interface OutlineAdvancedToolsDialogProps {
   parts: PartOutline[];
   outlines: ChapterOutline[];
   chaptersPerPart: NumberInputValue;
-  delPartCount: number;
-  delChapterCount: number;
+  delPartCount: NumberInputValue;
+  delChapterCount: NumberInputValue;
+  delPartCountError: string | null;
+  delChapterCountError: string | null;
   delActing: string | null;
   regenLastPart: boolean;
   runGeneration: RunOutlineGeneration;
   disabled?: boolean;
   onClose: () => void;
-  onDelPartCountChange: (value: number) => void;
-  onDelChapterCountChange: (value: number) => void;
+  onDelPartCountChange: (value: NumberInputValue) => void;
+  onDelChapterCountChange: (value: NumberInputValue) => void;
   onRegenLastPart: () => void;
   onPreviewRegenLastPart: () => void;
   onDeleteLatestParts: () => void;
@@ -44,6 +47,8 @@ export function OutlineAdvancedToolsDialog({
   chaptersPerPart,
   delPartCount,
   delChapterCount,
+  delPartCountError,
+  delChapterCountError,
   delActing,
   regenLastPart,
   runGeneration,
@@ -59,6 +64,10 @@ export function OutlineAdvancedToolsDialog({
 }: OutlineAdvancedToolsDialogProps) {
   const { t } = useI18n();
   const [advancedBusy, setAdvancedBusy] = useState(false);
+  const delPartCountInput = useRef<HTMLInputElement>(null);
+  const delChapterCountInput = useRef<HTMLInputElement>(null);
+  const delPartCountErrorText = useRef<HTMLParagraphElement>(null);
+  const delChapterCountErrorText = useRef<HTMLParagraphElement>(null);
   const deletingParts = delActing === DELETE_LATEST_PARTS_ACTION;
   const deletingChapterOutlines =
     delActing === DELETE_LATEST_CHAPTER_OUTLINES_ACTION;
@@ -69,6 +78,20 @@ export function OutlineAdvancedToolsDialog({
   useEffect(() => {
     setAdvancedBusy(false);
   }, [projectId]);
+
+  useEffect(() => {
+    if (delPartCountError) {
+      delPartCountInput.current?.focus();
+      delPartCountErrorText.current?.scrollIntoView({ block: "nearest" });
+    }
+  }, [delPartCountError]);
+
+  useEffect(() => {
+    if (delChapterCountError) {
+      delChapterCountInput.current?.focus();
+      delChapterCountErrorText.current?.scrollIntoView({ block: "nearest" });
+    }
+  }, [delChapterCountError]);
 
   const handleAdvancedBusyChange = useCallback((busy: boolean) => {
     setAdvancedBusy(busy);
@@ -155,23 +178,24 @@ export function OutlineAdvancedToolsDialog({
                 <p className="mt-1 text-small leading-relaxed text-book-text-muted">
                   {t("outline.advanced.deleteRecentPartsDescription")}
                 </p>
+                {delPartCountError ? (
+                  <p ref={delPartCountErrorText} id="outline-delete-parts-error" role="alert" className="mt-1 text-small text-error">
+                    {delPartCountError}
+                  </p>
+                ) : null}
               </div>
               <div className="flex items-center justify-end gap-2 sm:shrink-0">
                 <label className="inline-flex items-center gap-1.5 text-book-text-muted">
                   <input
+                    ref={delPartCountInput}
                     type="number"
                     min={1}
                     max={Math.max(parts.length, 1)}
                     value={delPartCount}
                     disabled={maintenanceBusy}
-                    onChange={(event) => {
-                      const value = Number(event.target.value);
-                      onDelPartCountChange(
-                        Number.isFinite(value)
-                          ? Math.min(Math.max(Math.trunc(value), 1), Math.max(parts.length, 1))
-                          : 1,
-                      );
-                    }}
+                    aria-invalid={delPartCountError != null}
+                    aria-describedby={delPartCountError ? "outline-delete-parts-error" : undefined}
+                    onChange={(event) => onDelPartCountChange(parseNumberInput(event.target.value))}
                     className="pyqt-input !w-16"
                   />
                   {t("outline.advanced.partUnit")}
@@ -200,23 +224,24 @@ export function OutlineAdvancedToolsDialog({
                 <p className="mt-1 text-small leading-relaxed text-book-text-muted">
                   {t("outline.advanced.deleteRecentOutlinesDescription")}
                 </p>
+                {delChapterCountError ? (
+                  <p ref={delChapterCountErrorText} id="outline-delete-chapters-error" role="alert" className="mt-1 text-small text-error">
+                    {delChapterCountError}
+                  </p>
+                ) : null}
               </div>
               <div className="flex items-center justify-end gap-2 sm:shrink-0">
                 <label className="inline-flex items-center gap-1.5 text-book-text-muted">
                   <input
+                    ref={delChapterCountInput}
                     type="number"
                     min={1}
                     max={Math.max(outlines.length, 1)}
                     value={delChapterCount}
                     disabled={maintenanceBusy}
-                    onChange={(event) => {
-                      const value = Number(event.target.value);
-                      onDelChapterCountChange(
-                        Number.isFinite(value)
-                          ? Math.min(Math.max(Math.trunc(value), 1), Math.max(outlines.length, 1))
-                          : 1,
-                      );
-                    }}
+                    aria-invalid={delChapterCountError != null}
+                    aria-describedby={delChapterCountError ? "outline-delete-chapters-error" : undefined}
+                    onChange={(event) => onDelChapterCountChange(parseNumberInput(event.target.value))}
                     className="pyqt-input !w-16"
                   />
                   {t("outline.advanced.chapterUnit")}

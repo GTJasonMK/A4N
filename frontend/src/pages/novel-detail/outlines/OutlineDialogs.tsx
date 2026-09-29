@@ -33,6 +33,16 @@ export interface ManualPartOutlineForm {
   theme: string;
 }
 
+type ManualChapterOutlineDraft = Omit<ManualChapterOutlineForm, "chapterNumber"> & {
+  chapterNumber: string;
+};
+
+type ManualPartOutlineDraft = Omit<ManualPartOutlineForm, "partNumber" | "startChapter" | "endChapter"> & {
+  partNumber: string;
+  startChapter: string;
+  endChapter: string;
+};
+
 export function ManualChapterOutlineDialog({
   initial,
   saving,
@@ -45,12 +55,20 @@ export function ManualChapterOutlineDialog({
   onSave: (form: ManualChapterOutlineForm) => Promise<void>;
 }) {
   const { t } = useI18n();
-  const [form, setForm] = useState(initial);
-  useNovelDetailDirty("outline-manual-chapter", JSON.stringify(form) !== JSON.stringify(initial));
+  const [form, setForm] = useState<ManualChapterOutlineDraft>(() => ({
+    ...initial,
+    chapterNumber: String(initial.chapterNumber),
+  }));
+  const initialDraft: ManualChapterOutlineDraft = {
+    ...initial,
+    chapterNumber: String(initial.chapterNumber),
+  };
+  const dirty = JSON.stringify(form) !== JSON.stringify(initialDraft);
+  useNovelDetailDirty("outline-manual-chapter", dirty);
   const formId = "manual-chapter-outline-form";
   const close = async () => {
     if (saving) return;
-    if (JSON.stringify(form) !== JSON.stringify(initial) && !(await confirmDialog({
+    if (dirty && !(await confirmDialog({
       title: t("common.unsavedChangesTitle"),
       message: t("common.unsavedChangesMessage", { name: t("outline.dialogs.directChapterTitle"), action: t("common.close") }),
       confirmText: t("common.discardDraft"),
@@ -85,7 +103,7 @@ export function ManualChapterOutlineDialog({
         className="space-y-4"
         onSubmit={(event) => {
           event.preventDefault();
-          void onSave(form);
+          void onSave({ ...form, chapterNumber: Number(form.chapterNumber) });
         }}
       >
         <label className="block text-small text-book-text-muted">
@@ -98,7 +116,7 @@ export function ManualChapterOutlineDialog({
             value={form.chapterNumber}
             disabled={saving}
             onChange={(event) =>
-              setForm({ ...form, chapterNumber: Number(event.target.value) })
+              setForm({ ...form, chapterNumber: event.target.value })
             }
             className="pyqt-input mt-1 h-10 w-full"
           />
@@ -145,12 +163,24 @@ export function ManualPartOutlineDialog({
   onSave: (form: ManualPartOutlineForm) => Promise<void>;
 }) {
   const { t } = useI18n();
-  const [form, setForm] = useState(initial);
-  useNovelDetailDirty("outline-manual-part", JSON.stringify(form) !== JSON.stringify(initial));
+  const [form, setForm] = useState<ManualPartOutlineDraft>(() => ({
+    ...initial,
+    partNumber: String(initial.partNumber),
+    startChapter: String(initial.startChapter),
+    endChapter: String(initial.endChapter),
+  }));
+  const initialDraft: ManualPartOutlineDraft = {
+    ...initial,
+    partNumber: String(initial.partNumber),
+    startChapter: String(initial.startChapter),
+    endChapter: String(initial.endChapter),
+  };
+  const dirty = JSON.stringify(form) !== JSON.stringify(initialDraft);
+  useNovelDetailDirty("outline-manual-part", dirty);
   const formId = "manual-part-outline-form";
   const close = async () => {
     if (saving) return;
-    if (JSON.stringify(form) !== JSON.stringify(initial) && !(await confirmDialog({
+    if (dirty && !(await confirmDialog({
       title: t("common.unsavedChangesTitle"),
       message: t("common.unsavedChangesMessage", { name: t("outline.dialogs.directPartTitle"), action: t("common.close") }),
       confirmText: t("common.discardDraft"),
@@ -185,7 +215,12 @@ export function ManualPartOutlineDialog({
         className="space-y-4"
         onSubmit={(event) => {
           event.preventDefault();
-          void onSave(form);
+          void onSave({
+            ...form,
+            partNumber: Number(form.partNumber),
+            startChapter: Number(form.startChapter),
+            endChapter: Number(form.endChapter),
+          });
         }}
       >
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
@@ -199,7 +234,7 @@ export function ManualPartOutlineDialog({
               value={form.partNumber}
               disabled={saving}
               onChange={(event) =>
-                setForm({ ...form, partNumber: Number(event.target.value) })
+                setForm({ ...form, partNumber: event.target.value })
               }
               className="pyqt-input mt-1 h-10 w-full"
             />
@@ -214,7 +249,7 @@ export function ManualPartOutlineDialog({
               value={form.startChapter}
               disabled={saving}
               onChange={(event) =>
-                setForm({ ...form, startChapter: Number(event.target.value) })
+                setForm({ ...form, startChapter: event.target.value })
               }
               className="pyqt-input mt-1 h-10 w-full"
             />
@@ -229,7 +264,7 @@ export function ManualPartOutlineDialog({
               value={form.endChapter}
               disabled={saving}
               onChange={(event) =>
-                setForm({ ...form, endChapter: Number(event.target.value) })
+                setForm({ ...form, endChapter: event.target.value })
               }
               className="pyqt-input mt-1 h-10 w-full"
             />

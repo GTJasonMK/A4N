@@ -15,7 +15,7 @@ export const outline = {
   partsAppendFailed: "Failed to append parts",
   refreshing: "Refreshing…",
   readOnlyGenerateChapters: "Read-only collaborators cannot generate chapter outlines",
-  chapterCountPositive: "The chapter count must be greater than 0",
+  chapterCountPositive: "The chapter count must be an integer from 1 to 50",
   continueChaptersTitle: "Continue generating chapter outlines",
   generateChaptersTitle: "Generate chapter outlines",
   generatingChapters: "The model is generating {count} outlines starting at chapter {start}…",

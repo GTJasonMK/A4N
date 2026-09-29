@@ -395,7 +395,7 @@ export const characterDetail = {
     reset: "重置",
     resetSuccess: "已重置“{attribute}”的 {count} 个标记",
     resetFailed: "重置失败",
-    required: "属性名称、删除原因和证据不能为空",
+    required: "章节、属性名称、删除原因和证据不能为空",
     thresholdReached: "删除标记已达到阈值 {count}/{threshold}",
     marked: "已记录删除标记 {count}/{threshold}",
     requestFailed: "请求删除失败",

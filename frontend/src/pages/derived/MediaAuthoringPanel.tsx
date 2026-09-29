@@ -189,7 +189,7 @@ export function MediaAuthoringPanel({ projectId, kind, workspace, loading, error
       return;
     }
     const input = generationInput();
-    const result = await runProgressTask({ title, startMessage: t("common.mediaAuthoring.generating"), successMessage: t("common.mediaAuthoring.draftSaved"), errorMessage: t("common.mediaAuthoring.generationFailed"), total: 1,
+    const result = await runProgressTask({ title, startMessage: t("common.mediaAuthoring.generating"), successMessage: t("common.mediaAuthoring.draftSaved"), errorMessage: t("common.mediaAuthoring.generationFailed"), total: 1, streaming: true,
       cancelTaskId: input.task_id, cancelTask: cancelWorkflowTask, pollTaskProgress: true,
     }, () => generateMediaAdaptationPlan(input));
     if (scopeRef.current === requestScope) {

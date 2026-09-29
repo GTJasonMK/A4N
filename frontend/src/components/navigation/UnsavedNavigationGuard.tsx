@@ -34,13 +34,15 @@ export const UnsavedNavigationGuard = ({
     event.returnValue = "";
   });
   const blocker = useBlocker(({ currentLocation, nextLocation }) => {
-    if (!isDirty) return false;
     const samePathAndHash =
       currentLocation.pathname === nextLocation.pathname &&
       currentLocation.hash === nextLocation.hash;
-    if (samePathAndHash && currentLocation.search !== nextLocation.search) {
-      return !allowSearchChange?.(currentLocation, nextLocation);
-    }
+    if (
+      samePathAndHash &&
+      currentLocation.search !== nextLocation.search &&
+      allowSearchChange?.(currentLocation, nextLocation)
+    ) return false;
+    if (!isDirty) return false;
     return !samePathAndHash || currentLocation.search !== nextLocation.search;
   });
 

@@ -5,10 +5,9 @@ use a4n_video_sidecar_contract::{
     validate_video_image_artifact,
 };
 use base64::Engine as _;
-use image::GenericImageView;
 use sha2::{Digest, Sha256};
 use std::{
-    io::Read,
+    io::{Cursor, Read},
     path::{Path, PathBuf},
 };
 
@@ -32,28 +31,64 @@ const INLINE_IMAGE_MAX_BYTES: usize = 1024 * 1024;
 const INLINE_IMAGE_JPEG_QUALITY: u8 = 85;
 
 fn inline_image_data_url(mime: &str, bytes: &[u8]) -> Result<String, ProviderError> {
-    let image = image::load_from_memory(bytes)
-        .map_err(|error| ProviderError::InvalidArgument(format!("视频图片压缩失败：{error}")))?;
-    let (width, height) = image.dimensions();
-    let (mime, bytes) = if bytes.len() <= INLINE_IMAGE_MAX_BYTES
+    let reader = image::ImageReader::new(Cursor::new(bytes))
+        .with_guessed_format()
+        .map_err(|error| {
+            ProviderError::InvalidArgument(format!("视频图片格式无法识别：{error}"))
+        })?;
+    let actual_mime = match reader.format() {
+        Some(image::ImageFormat::Png) => "image/png",
+        Some(image::ImageFormat::Jpeg) => "image/jpeg",
+        Some(image::ImageFormat::WebP) => "image/webp",
+        Some(_) => {
+            return Err(ProviderError::InvalidArgument("视频图片格式不支持".into()));
+        }
+        None => {
+            return Err(ProviderError::InvalidArgument(
+                "视频图片格式无法识别".into(),
+            ));
+        }
+    };
+    if actual_mime != mime {
+        return Err(ProviderError::InvalidArgument(
+            "视频图片 MIME 与文件格式不一致".into(),
+        ));
+    }
+    let image = reader
+        .decode()
+        .map_err(|error| ProviderError::InvalidArgument(format!("视频图片解码失败：{error}")))?;
+    let (width, height) = (image.width(), image.height());
+    if bytes.len() <= INLINE_IMAGE_MAX_BYTES
         && width <= INLINE_IMAGE_MAX_SIDE
         && height <= INLINE_IMAGE_MAX_SIDE
     {
-        (mime, bytes.to_vec())
+        return Ok(format!(
+            "data:{mime};base64,{}",
+            base64::engine::general_purpose::STANDARD.encode(bytes)
+        ));
+    }
+
+    let resized = image.thumbnail(INLINE_IMAGE_MAX_SIDE, INLINE_IMAGE_MAX_SIDE);
+    let mut compressed = Vec::new();
+    let mime = if resized.color().has_alpha() {
+        resized
+            .write_to(&mut Cursor::new(&mut compressed), image::ImageFormat::Png)
+            .map_err(|error| {
+                ProviderError::InvalidArgument(format!("视频图片压缩失败：{error}"))
+            })?;
+        "image/png"
     } else {
-        let resized = image.thumbnail(INLINE_IMAGE_MAX_SIDE, INLINE_IMAGE_MAX_SIDE);
-        let mut compressed = Vec::new();
         image::codecs::jpeg::JpegEncoder::new_with_quality(
             &mut compressed,
             INLINE_IMAGE_JPEG_QUALITY,
         )
         .encode_image(&image::DynamicImage::ImageRgb8(resized.to_rgb8()))
         .map_err(|error| ProviderError::InvalidArgument(format!("视频图片压缩失败：{error}")))?;
-        ("image/jpeg", compressed)
+        "image/jpeg"
     };
     Ok(format!(
         "data:{mime};base64,{}",
-        base64::engine::general_purpose::STANDARD.encode(bytes)
+        base64::engine::general_purpose::STANDARD.encode(compressed)
     ))
 }
 
@@ -223,5 +258,31 @@ mod tests {
         let decoded = image::load_from_memory(&compressed).unwrap();
         assert!(decoded.width() <= INLINE_IMAGE_MAX_SIDE);
         assert!(decoded.height() <= INLINE_IMAGE_MAX_SIDE);
+    }
+
+    #[test]
+    fn small_inline_images_with_valid_headers_but_broken_data_are_rejected() {
+        let image = image::RgbImage::from_pixel(2, 2, image::Rgb([20, 40, 60]));
+        let mut bytes = Vec::new();
+        image::DynamicImage::ImageRgb8(image)
+            .write_to(
+                &mut std::io::Cursor::new(&mut bytes),
+                image::ImageFormat::Png,
+            )
+            .unwrap();
+        let truncated = &bytes[..41]; // PNG and IHDR/IDAT headers are intact; image data is absent.
+        assert!(
+            image::ImageReader::new(Cursor::new(truncated))
+                .with_guessed_format()
+                .unwrap()
+                .into_dimensions()
+                .is_ok()
+        );
+        assert!(
+            inline_image_data_url("image/png", truncated)
+                .unwrap_err()
+                .to_string()
+                .contains("解码失败")
+        );
     }
 }

@@ -11,17 +11,15 @@ import {
   type AdminServiceHealth,
 } from "../../../api/admin";
 import { BookIconButton } from "../../../components/ui/BookButton";
-import { useToast } from "../../../components/feedback/Toast";
 import { useAdminSectionLoader } from "./useAdminSectionLoader";
 import { formatNumber, useI18n } from "../../../i18n";
 
 export const OverviewSection: React.FC = () => {
   const { t } = useI18n();
-  const { addToast } = useToast();
   const [overview, setOverview] = useState<AdminOverviewSummary | null>(null);
   const [health, setHealth] = useState<AdminHealthCheck | null>(null);
   const [healthLoading, setHealthLoading] = useState(true);
-  const [healthError, setHealthError] = useState<string | null>(null);
+  const [healthError, setHealthError] = useState<{ reason: unknown } | null>(null);
   const loadOverview = useCallback(() => getAdminOverview(), []);
   const applyOverview = useCallback((nextOverview: AdminOverviewSummary) => {
     setOverview(nextOverview);
@@ -30,7 +28,7 @@ export const OverviewSection: React.FC = () => {
     "admin-overview",
     loadOverview,
     applyOverview,
-    t("settingsAdmin.loadFailed"),
+    "settingsAdmin.loadFailed",
   );
   const refreshHealth = useCallback(async () => {
     setHealthLoading(true);
@@ -38,13 +36,11 @@ export const OverviewSection: React.FC = () => {
     try {
       setHealth(await healthCheck());
     } catch (error) {
-      const message = extractErrorMessage(error, t("settingsAdmin.healthCheckFailed"));
-      setHealthError(message);
-      addToast(message, "error");
+      setHealthError({ reason: error });
     } finally {
       setHealthLoading(false);
     }
-  }, [addToast, t]);
+  }, []);
   const refresh = useCallback(async () => {
     await Promise.all([load(), refreshHealth()]);
   }, [load, refreshHealth]);
@@ -57,7 +53,11 @@ export const OverviewSection: React.FC = () => {
     <div className="flex flex-col gap-3">
       <OverviewSummary overview={overview} loading={loading || healthLoading} onRefresh={refresh} />
       {error ? <p role="alert" className="text-xs text-error">{error}</p> : null}
-      {healthError ? <p role="alert" className="text-xs text-error">{healthError}</p> : null}
+      {healthError ? (
+        <p role="alert" className="text-xs text-error">
+          {extractErrorMessage(healthError.reason, t("settingsAdmin.healthCheckFailed"))}
+        </p>
+      ) : null}
       <ServiceHealthPanel health={health} loading={healthLoading} />
     </div>
   );

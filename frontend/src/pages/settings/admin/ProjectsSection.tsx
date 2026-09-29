@@ -16,7 +16,7 @@ export const ProjectsSection: React.FC = () => {
     "admin-projects",
     loadProjects,
     setProjects,
-    t("settingsAdmin.loadFailed"),
+    "settingsAdmin.loadFailed",
   );
 
   return (

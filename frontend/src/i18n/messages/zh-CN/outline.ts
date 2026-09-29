@@ -15,7 +15,7 @@ export const outline = {
   partsAppendFailed: "追加分部失败",
   refreshing: "正在刷新…",
   readOnlyGenerateChapters: "只读协作者不能生成章节大纲",
-  chapterCountPositive: "章数必须大于 0",
+  chapterCountPositive: "章数必须是 1 到 50 之间的整数",
   continueChaptersTitle: "继续生成章纲",
   generateChaptersTitle: "生成章节大纲",
   generatingChapters: "模型正在生成第 {start} 章起的 {count} 个章纲…",

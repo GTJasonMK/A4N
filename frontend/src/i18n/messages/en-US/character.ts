@@ -395,7 +395,7 @@ export const characterDetail = {
     reset: "Reset",
     resetSuccess: "Reset {count} marks for {attribute}",
     resetFailed: "Reset failed",
-    required: "Attribute name, deletion reason, and evidence are required",
+    required: "Chapter, attribute name, deletion reason, and evidence are required",
     thresholdReached: "Deletion mark threshold reached: {count}/{threshold}",
     marked: "Deletion mark recorded: {count}/{threshold}",
     requestFailed: "Failed to request deletion",

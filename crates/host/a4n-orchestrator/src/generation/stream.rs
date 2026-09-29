@@ -62,20 +62,22 @@ pub(crate) struct LlmGenerationOutput {
 /// 工作流领域在尚未接入 generation session 时使用的 publisher。
 /// 仍走统一 stream driver（超时/截断/finish_reason）；有 session 的任务必须用
 /// `SessionGenerationEventPublisher`。
-#[derive(Default)]
-struct WorkflowStreamPublisher;
+struct WorkflowStreamPublisher<'a> {
+    stream_reporter: Option<&'a (dyn Fn(&str) + Send + Sync)>,
+}
 
 #[async_trait]
-impl GenerationEventPublisher for WorkflowStreamPublisher {
+impl GenerationEventPublisher for WorkflowStreamPublisher<'_> {
     async fn progress(&self, _event: ProgressEvent) -> Result<(), GenerationSessionError> {
         Ok(())
     }
 
-    async fn text_delta(
-        &self,
-        _stream_id: &str,
-        _delta: &str,
-    ) -> Result<(), GenerationSessionError> {
+    async fn text_delta(&self, stream_id: &str, delta: &str) -> Result<(), GenerationSessionError> {
+        if stream_id == "main"
+            && let Some(reporter) = self.stream_reporter
+        {
+            reporter(delta);
+        }
         Ok(())
     }
 
@@ -90,7 +92,16 @@ pub(crate) async fn execute_llm_chat_response(
     request: ChatRequest,
     cancellation: CancellationToken,
 ) -> Result<ChatResponse, AppError> {
-    let publisher = WorkflowStreamPublisher;
+    execute_llm_chat_response_with_sink(llm, request, cancellation, None).await
+}
+
+pub(crate) async fn execute_llm_chat_response_with_sink(
+    llm: &dyn LlmProvider,
+    request: ChatRequest,
+    cancellation: CancellationToken,
+    stream_reporter: Option<&(dyn Fn(&str) + Send + Sync)>,
+) -> Result<ChatResponse, AppError> {
+    let publisher = WorkflowStreamPublisher { stream_reporter };
     let output = execute_llm_generation(
         llm,
         &publisher,

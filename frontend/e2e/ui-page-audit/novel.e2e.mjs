@@ -47,6 +47,11 @@ async function press(element) {
   await element.click();
   return element;
 }
+async function clearByKeyboard(element) {
+  await element.click();
+  await browser.keys(["CTRL", "A"]);
+  await browser.keys("BACKSPACE");
+}
 async function clickText(label, scope) {
   return press(await textButton(label, scope));
 }
@@ -519,6 +524,271 @@ describe("Novel page audit - ordinary populated pages", function () {
   for (const page of pages) it(page.id + " follows its real entry and checks all widths", async () => matrix({
     ...page, open: page.open ?? (() => project(page.tab)),
   }));
+
+  it("UX-B73 keeps empty number drafts editable and validates chapter import", async function () {
+    const widthsToCheck = [1440, 390];
+    for (const width of widthsToCheck) {
+      await browser.setWindowSize(width, height);
+
+      let page = await project("大纲");
+      await clickText("分部大纲", page);
+      await clickText("直接录入", page);
+      let form = await dialog();
+      const partNumberFields = await form.$$('input[type="number"]');
+      assert.equal(partNumberFields.length, 3);
+      for (const field of partNumberFields) {
+        const original = await field.getValue();
+        await clearByKeyboard(field);
+        assert.equal(await field.getValue(), "", "A cleared part number must remain empty while editing");
+        await field.setValue(original);
+        assert.equal(await field.getValue(), original);
+      }
+      await clickText("取消", form);
+
+      page = await project("大纲");
+      await clickText("章节大纲", page);
+      await clickText("直接录入", page);
+      form = await dialog();
+      const chapterNumberField = await form.$('input[type="number"]');
+      const initialChapterNumber = await chapterNumberField.getValue();
+      await clearByKeyboard(chapterNumberField);
+      assert.equal(await chapterNumberField.getValue(), "", "A cleared chapter number must remain empty while editing");
+      await form.$('button[type="submit"]').click();
+      assert.equal(await browser.execute(() => window.__uiAudit.commands.includes("save_chapter_outline")), false,
+        "The form must not submit an empty required chapter number");
+      await chapterNumberField.setValue(initialChapterNumber);
+      await clickText("取消", form);
+
+      page = await project("大纲");
+      await clickText("章节大纲", page);
+      const generationDetails = await page.$("section details.a4n-flat-surface.group");
+      if (!(await generationDetails.getProperty("open"))) await generationDetails.$("summary").click();
+      const countField = await page.$('input[type="number"][max="50"]');
+      const initialCount = await countField.getValue();
+      await clearByKeyboard(countField);
+      assert.equal(await countField.getValue(), "", "An empty chapter generation count must remain editable");
+      await countField.setValue("12");
+      assert.equal(await countField.getValue(), "12");
+      await browser.saveScreenshot(output + phase + "-b73-number-inputs-" + width + ".png");
+      await countField.setValue(initialCount);
+
+      page = await project("章节");
+      await clickText("导入章节", page);
+      form = await dialog();
+      const importChapterNumber = await form.$('input[type="number"]');
+      const initialImportNumber = await importChapterNumber.getValue();
+      await clearByKeyboard(importChapterNumber);
+      assert.equal(await importChapterNumber.getValue(), "", "A cleared import chapter number must remain empty");
+      await form.$("textarea").setValue("用于验证章节号边界的正文");
+      const confirmImport = await textButton("确认导入", form);
+      assert.equal(await confirmImport.isEnabled(), true, "The action must reach its explicit chapter-number validation");
+      await confirmImport.click();
+      await browser.waitUntil(async () => {
+        const alerts = await browser.$$('[role="alert"]');
+        for (const alert of alerts) {
+          if (await alert.isDisplayed() && (await alert.getText()).includes("章节号必须是正整数")) return true;
+        }
+        return false;
+      }, {
+        timeout, timeoutMsg: "An invalid chapter number must produce visible feedback",
+      });
+      assert.equal(await browser.execute(() => window.__uiAudit.commands.includes("import_chapter")), false,
+        "An invalid chapter number must not reach the import command");
+      await form.$("textarea").clearValue();
+      await importChapterNumber.setValue(initialImportNumber);
+
+      const deletion = await characterTab("管理", "删除");
+      const deletionRequest = await deletion.$('//details[.//summary[normalize-space(.)="请求删除属性"]]');
+      await deletionRequest.$("summary").click();
+      const deletionChapter = await deletionRequest.$('input[type="number"]');
+      const initialDeletionChapter = await deletionChapter.getValue();
+      await clearByKeyboard(deletionChapter);
+      assert.equal(await deletionChapter.getValue(), "", "A cleared deletion chapter must remain editable");
+      await deletionChapter.setValue("12");
+      assert.equal(await deletionChapter.getValue(), "12");
+      await deletionChapter.setValue(initialDeletionChapter);
+    }
+  });
+
+  it("UX-B74 preserves chapter/count drafts and rejects invalid ranges", async function () {
+    const requestCount = (command) => browser.execute((name) =>
+      window.__uiAudit.requests.filter((item) => item.command === name).length, command);
+    const latestRequest = (command) => browser.execute((name) =>
+      window.__uiAudit.requests.findLast((item) => item.command === name)?.body.input, command);
+    const waitForRequest = async (command, previousCount) => browser.waitUntil(
+      async () => (await requestCount(command)) > previousCount,
+      { timeout, timeoutMsg: "Expected request: " + command },
+    );
+    const displayedDialogCount = () => browser.execute(() =>
+      [...document.querySelectorAll('[role="dialog"]')]
+        .filter((node) => node.getClientRects().length > 0).length,
+    );
+
+    current = { id: "UX-B74", task: "Edit outline delete counts and character chapter filters", visited: [] };
+    for (const width of [1440, 390]) {
+      current.width = width;
+      await browser.setWindowSize(width, height);
+
+      let page = await project("大纲");
+      await clickText("分部大纲", page);
+      const openAdvanced = await ariaButton("打开大纲高级工具", page);
+      await openAdvanced.waitForEnabled({ timeout });
+      await press(openAdvanced);
+      let advanced = await dialog("大纲高级工具");
+      await press(await advanced.$('details[aria-label="末尾维护与删除"] > summary'));
+      for (const [label, command, confirmationTitle, confirmationText] of [
+        ["删除最近分部", "delete_latest_parts", "删除分部大纲", "删除最近 2 个分部"],
+        ["删除最近章纲", "delete_latest_chapter_outlines", "删除章纲", "删除最近 2 个章纲"],
+      ]) {
+        const section = await advanced.$('.//section[.//h3[normalize-space(.)=' + literal(label) + ']]');
+        const count = await section.$('input[type="number"]');
+        await clearByKeyboard(count);
+        assert.equal(await count.getValue(), "", label + " must preserve the empty editing state");
+        assert.deepEqual(await snapshot("UX-B74-delete-count", width, label + "-empty", advanced), []);
+        const before = await requestCount(command);
+        await press(await textButton("删除", section));
+        const countError = await section.$('[role="alert"]');
+        await countError.waitForDisplayed({ timeout });
+        assert.match(await countError.getText(), /输入 1 ~/);
+        assert.equal(await count.getAttribute("aria-invalid"), "true");
+        await browser.waitUntil(async () => count.isFocused(), { timeout });
+        assert.equal(await countError.execute((node) => {
+          const rect = node.getBoundingClientRect();
+          return rect.top >= 0 && rect.bottom <= innerHeight;
+        }), true, "The full delete-count error must scroll into view");
+        assert.deepEqual(await snapshot("UX-B74-delete-count", width, label + "-empty-error", advanced), []);
+        assert.equal(await displayedDialogCount(), 1, "An empty count must not open destructive confirmation");
+        assert.equal(await requestCount(command), before, "An empty count must not send a delete request");
+        await count.setValue("2");
+        assert.equal(await count.getValue(), "2");
+        await press(await textButton("删除", section));
+        const confirmation = await dialog(confirmationTitle);
+        await waitText(confirmation, confirmationText);
+        assert.deepEqual(await snapshot("UX-B74-delete-count", width, label + "-confirmation", confirmation), []);
+        assert.equal(await requestCount(command), before, "Cancelling must not send a delete request");
+        await clickText("取消", confirmation);
+        await browser.waitUntil(async () => !await confirmation.isDisplayed(), { timeout });
+      }
+      await closeDialog();
+      current.visited.push(width);
+
+      let detail = await characterTab("管理", "属性");
+      const maintain = await detail.$('.//details[.//summary[normalize-space(.)="手动维护属性"]]');
+      await press(await maintain.$("summary"));
+      const chapter = await maintain.$('input[type="number"]');
+      const originalChapter = await chapter.getValue();
+      await clearByKeyboard(chapter);
+      assert.equal(await chapter.getValue(), "", "Event chapter edits must keep an empty draft");
+      await chapter.setValue("7");
+      assert.equal(await chapter.getValue(), "7", "Re-entry must replace the old chapter number");
+      await chapter.setValue("2.5");
+      const key = await maintain.$('.//label[.//span[normalize-space(.)="属性名称"]]/input');
+      const cause = await maintain.$('.//label[.//span[normalize-space(.)="原因"]]/textarea');
+      const evidence = await maintain.$('.//label[.//span[normalize-space(.)="证据"]]/textarea');
+      await key.setValue("UX-B74 输入边界");
+      await cause.setValue("输入的小数章节号必须被拒绝");
+      await evidence.setValue("隔离 UI 夹具");
+      const addCount = await requestCount("add_profile_attribute");
+      await press(await textButton("新增属性", maintain));
+      const chapterError = await maintain.$("#event-chapter-error");
+      await chapterError.waitForDisplayed({ timeout });
+      assert.match(await chapterError.getText(), /章节必须是整数/);
+      assert.equal(await chapter.getAttribute("aria-invalid"), "true");
+      assert.equal(await chapter.getValue(), "2.5", "Invalid text must stay visible for correction");
+      assert.equal(await requestCount("add_profile_attribute"), addCount, "Invalid chapter numbers must not reach the write command");
+      assert.deepEqual(await snapshot("UX-B74-event-chapter", width, "invalid-decimal", detail), []);
+      await chapter.setValue("7");
+      assert.equal(await chapter.getValue(), "7", "An integer re-entry must replace the previous chapter number");
+      await chapter.setValue(originalChapter);
+      await key.clearValue();
+      await cause.clearValue();
+      await evidence.clearValue();
+
+      const filter = await detail.$('.//details[.//summary[contains(normalize-space(.),"筛选事件")]]');
+      await press(await filter.$("summary"));
+      const eventRange = await filter.$$('input[type="number"]');
+      assert.equal(eventRange.length, 2);
+      const applyEventFilter = await textButton("应用筛选", filter);
+      await applyEventFilter.waitForEnabled({ timeout });
+      let eventHistoryCount = await requestCount("attribute_history");
+      await eventRange[0].setValue("2.5");
+      await eventRange[1].setValue("3");
+      await press(await textButton("应用筛选", filter));
+      const eventFilterError = await detail.$("#event-filter-error");
+      await eventFilterError.waitForDisplayed({ timeout });
+      assert.match(await eventFilterError.getText(), /章节必须是整数/);
+      assert.equal(await requestCount("attribute_history"), eventHistoryCount, "Fractional event filters must not be queried");
+      await eventRange[0].setValue("3");
+      await eventRange[1].setValue("1");
+      await press(await textButton("应用筛选", filter));
+      await browser.waitUntil(async () => (await eventFilterError.getText()).includes("章节范围无效"), { timeout });
+      assert.equal(await requestCount("attribute_history"), eventHistoryCount, "Reversed event ranges must not be queried");
+      await eventRange[0].setValue("1");
+      await eventRange[1].setValue("3");
+      await press(await textButton("应用筛选", filter));
+      await waitForRequest("attribute_history", eventHistoryCount);
+      assert.deepEqual(await latestRequest("attribute_history"), {
+        profile_id: 1011, chapter_from: 1, chapter_to: 3,
+        category: null, key: null, operation: null, limit: null,
+      });
+      assert.deepEqual(await snapshot("UX-B74-event-filter", width, "valid-range", detail), []);
+
+      detail = await characterTab("管理", "快照");
+      const snapshotRange = await detail.$$('input[type="number"]');
+      assert.equal(snapshotRange.length, 2);
+      const refreshSnapshots = await textButton("刷新", detail);
+      await refreshSnapshots.waitForEnabled({ timeout });
+      let snapshotCount = await requestCount("list_snapshots");
+      const conflictCount = await requestCount("check_profile_sync_conflict");
+      await snapshotRange[0].setValue("2.5");
+      await snapshotRange[1].setValue("3");
+      await press(refreshSnapshots);
+      const snapshotError = await detail.$('[role="alert"]');
+      await snapshotError.waitForDisplayed({ timeout });
+      assert.match(await snapshotError.getText(), /起始章必须是整数/);
+      assert.equal(await requestCount("list_snapshots"), snapshotCount, "Fractional snapshot filters must not be queried");
+      assert.equal(await requestCount("check_profile_sync_conflict"), conflictCount, "Invalid snapshot filters must not start adjacent reads");
+      assert.deepEqual(await snapshot("UX-B74-snapshot-filter", width, "invalid-decimal", detail), []);
+      await snapshotRange[0].setValue("3");
+      await snapshotRange[1].setValue("2");
+      await press(refreshSnapshots);
+      await browser.waitUntil(async () => (await snapshotError.getText()).includes("章节范围无效"), { timeout });
+      assert.equal(await requestCount("list_snapshots"), snapshotCount, "Reversed snapshot ranges must not be queried");
+      assert.equal(await requestCount("check_profile_sync_conflict"), conflictCount);
+      await snapshotRange[0].setValue("1");
+      await snapshotRange[1].setValue("3");
+      await press(refreshSnapshots);
+      await waitForRequest("list_snapshots", snapshotCount);
+      const snapshotRequest = await latestRequest("list_snapshots");
+      assert.equal(snapshotRequest.profile_id, 1011);
+      assert.equal(snapshotRequest.start_chapter, 1);
+      assert.equal(snapshotRequest.end_chapter, 3);
+      snapshotCount = await requestCount("list_snapshots");
+      assert.deepEqual(await snapshot("UX-B74-snapshot-filter", width, "valid-range", detail), []);
+
+      detail = await characterTab("管理", "行为");
+      const behaviorChapter = await detail.$('input[type="number"]');
+      const refreshBehaviors = await textButton("刷新", detail);
+      await refreshBehaviors.waitForEnabled({ timeout });
+      let behaviorCount = await requestCount("list_behaviors");
+      await behaviorChapter.setValue("2.5");
+      await press(refreshBehaviors);
+      const behaviorError = await detail.$("#behavior-chapter-filter-error");
+      await behaviorError.waitForDisplayed({ timeout });
+      assert.match(await behaviorError.getText(), /章节必须是整数/);
+      assert.equal(await behaviorChapter.getAttribute("aria-invalid"), "true");
+      assert.equal(await requestCount("list_behaviors"), behaviorCount, "Fractional behavior filters must not be queried");
+      assert.deepEqual(await snapshot("UX-B74-behavior-filter", width, "invalid-decimal", detail), []);
+      await behaviorChapter.setValue("2");
+      await press(refreshBehaviors);
+      await waitForRequest("list_behaviors", behaviorCount);
+      assert.deepEqual(await latestRequest("list_behaviors"), {
+        profile_id: 1011, chapter_from: 2, chapter_to: 2, limit: 20,
+      });
+      behaviorCount = await requestCount("list_behaviors");
+      current.visited.push(width);
+    }
+  });
 
   for (const [id, tab, expected] of [
     ["W01-body", "正文", null], ["W02-analysis", "分析", "林岚"],

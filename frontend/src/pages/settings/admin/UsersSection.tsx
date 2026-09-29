@@ -150,7 +150,7 @@ export const UsersSection: React.FC<{ currentUserId: number }> = ({
       currentUserId,
       loadUsers,
       applyUsers,
-      t("settingsAdmin.loadUsersFailed"),
+      "settingsAdmin.loadUsersFailed",
     );
 
   useEffect(() => {
