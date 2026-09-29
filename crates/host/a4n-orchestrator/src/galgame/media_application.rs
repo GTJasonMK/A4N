@@ -1,4 +1,6 @@
-use a4n_api_contract::media::MediaAudioProbeHostPort;
+use a4n_api_contract::{
+    galgame::GalgameMediaMutationApplicationPort, media::MediaAudioProbeHostPort,
+};
 use a4n_error::AppError;
 use a4n_media::decode_uploaded_audio_data;
 use a4n_storage::remove_existing_data_file;
@@ -211,6 +213,37 @@ impl OrchestratorContext {
                 Err(append_cleanup_error(error, cleanup_result.err()))
             }
         }
+    }
+}
+
+#[async_trait::async_trait]
+impl GalgameMediaMutationApplicationPort for OrchestratorContext {
+    async fn bind_media(
+        &self,
+        user_id: i64,
+        input: BindGalgameMediaInput,
+    ) -> Result<GalgameMediaBindingSummary, AppError> {
+        self.bind_galgame_media_for_user_validated(user_id, input)
+            .await
+    }
+
+    async fn unbind_media(
+        &self,
+        user_id: i64,
+        input: UnbindGalgameMediaInput,
+    ) -> Result<u64, AppError> {
+        self.unbind_galgame_media_for_user_validated(user_id, input)
+            .await
+    }
+
+    async fn import_audio(
+        &self,
+        host_port: &dyn a4n_api_contract::media::MediaAudioProbeHostPort,
+        user_id: i64,
+        input: ImportGalgameAudioInput,
+    ) -> Result<GalgameMediaBindingSummary, AppError> {
+        self.import_galgame_audio_for_user_validated(host_port, user_id, input)
+            .await
     }
 }
 
