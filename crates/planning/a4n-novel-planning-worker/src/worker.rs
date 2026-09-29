@@ -4,3 +4,4 @@ pub mod responses;
 pub mod routes;
 pub mod runtime;
 pub mod state;
+pub mod visual_plan;
