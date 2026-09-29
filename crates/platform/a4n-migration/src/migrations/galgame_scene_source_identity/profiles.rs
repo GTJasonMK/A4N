@@ -11,6 +11,7 @@ pub(super) async fn restore_snapshot_referenced_profiles<C: ConnectionTrait>(
     let rows = db.query_all(Statement::from_string(DbBackend::Postgres, r#"
         SELECT snapshot.root_project_id, snapshot.source_profile_id, snapshot.payload_json
         FROM source_snapshot_profile snapshot
+        JOIN novel_project root ON root.id = snapshot.root_project_id
         WHERE snapshot.profile_kind = 'character'
           AND NOT EXISTS (SELECT 1 FROM protagonist_profile profile WHERE profile.id = snapshot.source_profile_id)
         ORDER BY snapshot.root_project_id, snapshot.source_profile_id, snapshot.id

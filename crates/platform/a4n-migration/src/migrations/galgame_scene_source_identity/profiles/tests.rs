@@ -17,8 +17,10 @@ async fn snapshot_repair_restores_identity_without_old_facts_or_overwriting_live
     let tx = db.begin().await.unwrap();
     tx.execute_unprepared(r#"
         CREATE TEMP TABLE protagonist_profile (LIKE protagonist_profile INCLUDING DEFAULTS) ON COMMIT DROP;
+        CREATE TEMP TABLE novel_project (id bigint PRIMARY KEY) ON COMMIT DROP;
         CREATE TEMP TABLE source_snapshot_profile (id bigint, root_project_id bigint, source_profile_id bigint,
             profile_kind text, payload_json jsonb) ON COMMIT DROP;
+        INSERT INTO novel_project VALUES (10);
     "#).await.unwrap();
     let live: protagonist_profile::Model = serde_json::from_value(payload(1, "现存角色")).unwrap();
     let active: protagonist_profile::ActiveModel = live.clone().into();
@@ -103,6 +105,24 @@ async fn snapshot_repair_restores_identity_without_old_facts_or_overwriting_live
     );
     assert!(
         protagonist_profile::Entity::find_by_id(4)
+            .one(&tx)
+            .await
+            .unwrap()
+            .is_none()
+    );
+    tx.execute_unprepared("DELETE FROM source_snapshot_profile WHERE id = 6")
+        .await
+        .unwrap();
+    tx.execute(Statement::from_sql_and_values(
+        DbBackend::Postgres,
+        "INSERT INTO source_snapshot_profile VALUES (7,999,5,'character',$1)",
+        [payload(5, "已删除项目角色").into()],
+    ))
+    .await
+    .unwrap();
+    restore_snapshot_referenced_profiles(&tx).await.unwrap();
+    assert!(
+        protagonist_profile::Entity::find_by_id(5)
             .one(&tx)
             .await
             .unwrap()
