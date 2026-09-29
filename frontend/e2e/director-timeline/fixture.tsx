@@ -3,7 +3,9 @@ import { useState } from "react";
 import { I18nProvider } from "../../src/i18n";
 import { ConfirmDialogHost } from "../../src/components/feedback/ConfirmDialog";
 import { ToastContainer } from "../../src/components/feedback/Toast";
-import { ChapterWorkspace, type BottomTab } from "../../src/pages/writing-desk/ChapterWorkspace";
+import { ImageLightboxProvider } from "../../src/components/ui/ImageLightbox";
+import { ChapterVisualPlanTab } from "../../src/pages/novel-detail/ChapterVisualPlanTab";
+import { planChanges } from "../../src/pages/novel-detail/visual-plan/changes";
 import { writeFixtureAuth } from "../fixtureAuth";
 import type { ChapterVisualPlanV3 } from "../../src/api/chapterVisualPlan";
 import type { ChapterSummary } from "../../src/api/chapter";
@@ -68,23 +70,58 @@ const agentSnapshot = {
   })),
   delegations: [], approvals: [], inbox: [], memories: [], events: [],
 };
-const view = () => ({ record: { id: 10, plan_version: 1, revision, status: "draft", authoring_mode: "collaborative", source_content_sha256: "a".repeat(64), plan_sha256: "b".repeat(64), confirmed_at: null }, plan });
+const view = () => ({ edit_receipt: null, record: { id: 10, plan_version: 1, revision, status: "draft", authoring_mode: "collaborative", source_content_sha256: "a".repeat(64), plan_sha256: "b".repeat(64), confirmed_at: null }, plan });
+const savedView = (before: ChapterVisualPlanV3, operationId: string) => ({ ...view(), edit_receipt: {
+  sequence: revision, operation_id: operationId, project_id: 1, source_chapter_id: 1,
+  source_revision_key: "fixture", author_user_id: 1,
+  before: { record_id: 10, revision: revision - 1, plan_sha256: "b".repeat(64) },
+  after: { record_id: 10, revision, plan_sha256: "b".repeat(64) },
+  changes: planChanges(before, plan).map((change) => ({ collection: change.collection, object_id: change.id, field: change.field, before: change.before ?? null, after: change.after ?? null })),
+} });
 const secondPlan = structuredClone(plan);
 let holdEdit = false;
 let releaseEdit: (() => void) | null = null;
 let completedEdits = 0;
 let imageGenerationCount = 0;
+const editStreams = new Set<ReadableStreamDefaultController<Uint8Array>>();
+let holdSave = false;
+let releaseSave: (() => void) | null = null;
+Object.assign(window, {
+  holdDirectorSave: () => { holdSave = true; },
+  releaseDirectorSave: () => releaseSave?.(),
+  emitDirectorPointChange: (id: string, fields: Record<string, unknown>) => {
+    const before = structuredClone(plan);
+    plan = { ...plan, points: plan.points.map((point) => point.id === id ? { ...point, ...fields } : point) };
+    revision += 1;
+    const saved = savedView(before, `remote-${revision}`);
+    const bytes = new TextEncoder().encode(`id: ${revision}\nevent: visual_plan_edit\ndata: ${JSON.stringify(saved)}\n\n`);
+    editStreams.forEach((controller) => controller.enqueue(bytes));
+  },
+});
 Object.assign(window, { holdDirectorEdit: () => { holdEdit = true; }, releaseDirectorEdit: () => releaseEdit?.() });
 const originalFetch = window.fetch.bind(window);
 window.fetch = async (resource, options) => {
   const url = new URL(typeof resource === "string" ? resource : resource instanceof URL ? resource.href : resource.url, location.href);
+  if (url.pathname === "/api/agent-runs/director-agent-run/control") {
+    commands.push({ command: "control_agent_run", input: JSON.parse(String(options?.body)) });
+    return new Response(JSON.stringify({ ...agentSnapshot.runs[0], status: "paused" }), { status: 200, headers: { "content-type": "application/json" } });
+  }
+  if (url.pathname === "/api/visual-plan-edits") {
+    return new Response(new ReadableStream({ start(controller) {
+      editStreams.add(controller);
+      options?.signal?.addEventListener("abort", () => { editStreams.delete(controller); controller.close(); }, { once: true });
+    } }), { headers: { "content-type": "text/event-stream" } });
+  }
+  if (url.pathname === "/api/agent-threads" && options?.method === "POST") {
+    return new Response(JSON.stringify(agentThread), { status: 201, headers: { "content-type": "application/json" } });
+  }
   if (url.pathname === "/api/agent-threads" && options?.method !== "POST") {
     return new Response(JSON.stringify([agentThread]), { status: 200, headers: { "content-type": "application/json" } });
   }
   const agentPath = url.pathname.match(/^\/api\/agent-threads\/(director-agent-thread)(?:\/(messages|events))?$/);
   if (agentPath) {
     if (agentPath[2] === "events") {
-      return new Response(new ReadableStream({ start(controller) { controller.close(); } }), { headers: { "content-type": "text/event-stream" } });
+      return new Response(new ReadableStream({ start(controller) { options?.signal?.addEventListener("abort", () => controller.close(), { once: true }); } }), { headers: { "content-type": "text/event-stream" } });
     }
     if (agentPath[2] === "messages" && options?.method === "POST") {
       return new Response(JSON.stringify({ created_run: false, message_id: "director-agent-message", run_id: "director-agent-run", turn_id: "director-agent-turn", thread_id: agentThread.id, status: "completed" }), { status: 200, headers: { "content-type": "application/json" } });
@@ -106,7 +143,7 @@ window.fetch = async (resource, options) => {
   }
   let result: unknown;
   switch (command) {
-    case "get_chapter_visual_plan": result = { source: { chapter_number: input.source_chapter_id, title: chapter.title, content: chapter.content, content_sha256: "a".repeat(64) }, starter_plan: plan, draft: input.source_chapter_id === 2 ? { record: { ...view().record, id: 20, revision: 1 }, plan: secondPlan } : view(), confirmed: null }; break;
+    case "get_chapter_visual_plan": result = { scene_choices: [{ id: 11, project_id: 1, name: "雨夜街道" }, { id: 22, project_id: 1, name: "旧书店内" }], source: { chapter_number: input.source_chapter_id, title: chapter.title, content: chapter.content, content_sha256: "a".repeat(64) }, starter_plan: plan, draft: input.source_chapter_id === 2 ? { record: { ...view().record, id: 20, revision: 1 }, plan: secondPlan, edit_receipt: null } : view(), confirmed: null }; break;
     case "list_images_by_projects": result = [
       ...plan.points.slice(0, -1).map((point, index) => ({ id: index + 1, project_id: 1, image_type: "director_storyboard_frame", file_path: `${location.origin}/e2e/director-timeline/${index < 4 ? "street" : "interior"}.svg?frame=${index}`, prompt: point.description, model: "browser-fixture", width: 1920, height: 1080, file_size: 1000, ai_score: null, is_favorite: false, chapter_id: 1, panel_id: null, metadata_json: null, created_at: null })),
       ...[8, 9].map((id, index) => ({ id, project_id: 1, image_type: "director_storyboard_frame", file_path: `${location.origin}/e2e/director-timeline/street.svg?candidate=${id}`, prompt: `图片点候选 ${index + 1}`, model: "browser-fixture", width: 1920, height: 1080, file_size: 1000, ai_score: null, is_favorite: false, chapter_id: 1, panel_id: null, metadata_json: { director_candidate: { point_id: "p1" } }, created_at: `2026-09-13T00:0${index}:00Z` })),
@@ -114,8 +151,18 @@ window.fetch = async (resource, options) => {
     case "list_scene_profiles": result = [{ id: 11, project_id: 1, name: "雨夜街道" }, { id: 22, project_id: 1, name: "旧书店内" }]; break;
     case "list_image_configs": result = [{ id: 7, name: "测试图片模型", model: "fixture-image-model", backend: "openai", base_url: "http://fixture.invalid", has_api_key: true, is_default: true, max_concurrent: 1, supported_sizes: [{ width: 1920, height: 1080 }] }]; break;
     case "preview_visual_plan_point_generation": result = { aspect_ratio: "16:9", plan_sha256: "b".repeat(64), prompt: input.options.user_description, reference_image_ids: [] }; break;
-    case "save_chapter_visual_plan_draft": plan = input.plan; revision += 1; result = view(); break;
+    case "save_chapter_visual_plan_draft": {
+      const before = plan; plan = input.plan; revision += 1; result = savedView(before, input.operation_id);
+      if (holdSave) {
+        holdSave = false;
+        Object.assign(window, { directorSaveHeld: true });
+        await new Promise<void>((resolve) => { releaseSave = resolve; });
+        Object.assign(window, { directorSaveHeld: false });
+      }
+      break;
+    }
     case "edit_chapter_visual_plan_draft": {
+      const before = structuredClone(plan);
       if (holdEdit) { holdEdit = false; await new Promise<void>((resolve) => { releaseEdit = resolve; }); }
       if (input.operation.kind === "scale_timeline") {
         const ratio = input.operation.duration_ms / plan.points.at(-1)!.at_ms;
@@ -129,7 +176,7 @@ window.fetch = async (resource, options) => {
         plan = { ...plan, frame: input.operation.frame };
       } else return new Response(JSON.stringify({ message: "UI fixture does not implement this domain edit" }), { status: 501 });
       revision += 1;
-      result = { resource: { kind: "chapter_visual_plan", id: "10", revision: String(revision), hash: null, label: null }, changed: true, changes: [], validation: { valid: true, diagnostics: [], mode: "draft" }, visual_plan: view() };
+      result = { resource: { kind: "chapter_visual_plan", id: "10", revision: String(revision), hash: null, label: null }, changed: true, changes: [], validation: { valid: true, diagnostics: [], mode: "draft" }, visual_plan: savedView(before, input.operation_id) };
       Object.assign(window, { directorEditFinished: ++completedEdits });
       break;
     }
@@ -140,27 +187,16 @@ window.fetch = async (resource, options) => {
 
 function Fixture() {
   const [chapterId, setChapterId] = useState(1);
-  const [bottomTab, setBottomTab] = useState<BottomTab>("visual_plan");
   const [canEdit, setCanEdit] = useState(true);
   Object.assign(window, { switchDirectorChapter: setChapterId });
   Object.assign(window, { setDirectorCanEdit: setCanEdit });
-  const unavailable = () => { throw new Error("This fixture only exercises the director workspace"); };
-  return <I18nProvider initialLocale="zh-CN"><div className="a4n-app-shell flex h-dvh flex-col bg-book-bg">
+  return <I18nProvider initialLocale="zh-CN"><ImageLightboxProvider><div className="a4n-app-shell flex h-dvh flex-col bg-book-bg">
     <main className="grid min-h-0 flex-1 p-2 sm:p-3">
-      <ChapterWorkspace
-        projectId={1} activeNumber={chapterId}
-        activeChapter={{ ...chapter, id: chapterId, chapter_number: chapterId, title: chapterId === 1 ? chapter.title : "第二章" }}
-        activeOutline={null} activeChapterContext={null} activeChapterBusy={false}
-        activeChapterGeneratingMessage="" analysisBlockedReason={null}
-        editorContent={chapter.content} dirty={false} savingContent={false}
-        autoScrollEditorContent={false} wordCount={chapter.word_count}
-        generatingAnalysis={false} bottomTab={bottomTab} onBottomTabChange={setBottomTab}
-        onEditorContentChange={unavailable} onGenerateAnalysis={unavailable}
-        onPreviewGenerateAnalysis={unavailable} onResumeAnalysisSync={unavailable}
-        onPreviewResumeAnalysisSync={unavailable} onResumeDerivedSync={unavailable}
-        onOpenEmbeddingSettings={unavailable} canEdit={canEdit}
+      <ChapterVisualPlanTab
+        projectId={1} canEdit={canEdit}
+        chapter={{ ...chapter, id: chapterId, chapter_number: chapterId, title: chapterId === 1 ? chapter.title : "第二章" }}
       />
     </main>
-  </div><ConfirmDialogHost /><ToastContainer /></I18nProvider>;
+  </div><ConfirmDialogHost /><ToastContainer /></ImageLightboxProvider></I18nProvider>;
 }
 createRoot(document.getElementById("root")!).render(<Fixture />);

@@ -256,7 +256,11 @@ impl WorkerState {
                 ));
             }
         };
-        let record = a4n_db::chapter_visual_plan::save_chapter_visual_plan_draft(
+        let operation_id = request
+            .payload
+            .operation_id
+            .unwrap_or(request.idempotency_key);
+        let record = a4n_db::chapter_visual_plan::save_chapter_visual_plan_draft_with_operation(
             self.database.connection(),
             a4n_db::chapter_visual_plan::SaveChapterVisualPlanDraftInput {
                 source,
@@ -266,6 +270,7 @@ impl WorkerState {
                 expected_source_hash: request.payload.expected_source_hash,
                 plan: request.payload.plan,
             },
+            &operation_id,
         )
         .await
         .map_err(visual_plan_error)?;
@@ -357,11 +362,26 @@ impl WorkerState {
         )
         .await
         .map_err(visual_plan_error)?;
-        let scene_choices = a4n_db::project::authoring_scene_profiles(self.database.connection(), &source)
-            .await.map_err(source_error)?.into_iter().map(|profile| a4n_api_contract::chapter_visual_plan::ChapterVisualPlanSceneChoice {
-                id: profile.id, project_id: profile.project_id, name: profile.name,
-            }).collect();
+        let scene_choices =
+            a4n_db::project::authoring_scene_profiles(self.database.connection(), &source)
+                .await
+                .map_err(source_error)?
+                .into_iter()
+                .map(|profile| {
+                    a4n_api_contract::chapter_visual_plan::ChapterVisualPlanSceneChoice {
+                        id: profile.id,
+                        project_id: profile.project_id,
+                        name: profile.name,
+                    }
+                })
+                .collect();
         Ok(ChapterVisualPlanSetView {
+            edit_cursor: a4n_db::chapter_visual_plan::visual_plan_edit_cursor(
+                self.database.connection(),
+                plans.draft.as_ref().or(plans.confirmed.as_ref()),
+            )
+            .await
+            .map_err(visual_plan_error)?,
             scene_choices,
             source: a4n_api_contract::chapter_visual_plan::ChapterVisualPlanSourceView {
                 chapter_number: source.chapter_number,
@@ -425,6 +445,23 @@ impl WorkerState {
         let resource = current.as_ref().map(visual_plan_resource);
         let starter_plan = a4n_domain::chapter_visual_plan::ChapterVisualPlanV3::starter();
         let projection = match &request.payload.view {
+            VisualPlanReadView::Edits { after_sequence } => {
+                let items = a4n_db::chapter_visual_plan::visual_plan_edits(
+                    self.database.connection(),
+                    &source,
+                    *after_sequence,
+                )
+                .await
+                .map_err(visual_plan_error)?;
+                let next_sequence = items
+                    .last()
+                    .and_then(|item| item.edit_receipt.as_ref())
+                    .map_or(*after_sequence, |receipt| receipt.sequence);
+                VisualPlanProjection::Edits {
+                    items: items.into_iter().map(visual_plan_view).collect(),
+                    next_sequence,
+                }
+            }
             VisualPlanReadView::Source {
                 offset,
                 limit,
@@ -626,5 +663,4 @@ impl WorkerState {
                     == Some(confirmed.record.plan_sha256.as_str())
         }))
     }
-
 }

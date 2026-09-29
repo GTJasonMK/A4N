@@ -768,6 +768,7 @@ fn worker_read_requests_validate_boundary_values() {
         user_id: 1,
         project_id: 2,
         chapter_ids: vec![3],
+        source_chapter_ids: vec![4],
     }
     .validate()
     .expect("chapter scope should be valid");
@@ -845,6 +846,7 @@ fn editor_wait_request_validates_run_lease_and_execution() {
         editor_request: AgentEditorRequest {
             execution_id: "execution-1".into(),
             source: a4n_api_contract::agent::AgentEditorSource {
+                protocol_version: 2,
                 view_instance_id: "view-1".into(),
                 project_id: 7,
                 chapter_id: 8,

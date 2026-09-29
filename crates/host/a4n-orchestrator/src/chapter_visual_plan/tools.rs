@@ -12,6 +12,11 @@ impl OrchestratorContext {
         validate_ids(input.project_id, input.source_chapter_id)?;
         self.verify_project_or_derived_family_editor_validated(user_id, input.project_id)
             .await?;
+        let payload_hash = a4n_domain::generation::canonical_json_sha256(&(user_id, &input))?;
+        let operation_id = input
+            .operation_id
+            .clone()
+            .unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
         let source = self
             .resolve_visual_plan_source(input.project_id, input.source_chapter_id)
             .await?;
@@ -24,20 +29,72 @@ impl OrchestratorContext {
                 "原文版本已变化，不能提交基于旧原文的修改".into(),
             ));
         }
-        let mut current = a4n_db::chapter_visual_plan::chapter_visual_plan_by_id(
+        if let Some((_, saved)) = a4n_db::chapter_visual_plan::replay_visual_plan_edit(
+            self.database.connection(),
+            input.project_id,
+            &operation_id,
+            &payload_hash,
+        )
+        .await
+        .map_err(visual_plan_db_error)?
+        {
+            ensure_plan_belongs_to_source(&saved, &source)?;
+            return edit_result(saved);
+        }
+        let mut current = a4n_db::chapter_visual_plan::visual_plan_revision(
             self.database.connection(),
             input.record_id,
+            input.expected_revision,
         )
         .await
         .map_err(visual_plan_db_error)?;
         ensure_plan_belongs_to_source(&current, &source)?;
-        check_revision(&current, input.expected_revision)?;
-        if current.status != ChapterVisualPlanStatus::Draft {
+        if !matches!(
+            current.status,
+            ChapterVisualPlanStatus::Draft | ChapterVisualPlanStatus::Confirmed
+        ) {
             return Err(AppError::InvalidArgument(
-                "局部编辑只接受已保存的 draft；请先保存 collaborative 草稿".into(),
+                "编排状态已变化，请重新读取可编辑版本".into(),
             ));
         }
+        let base = current.plan.clone();
         let changes = apply_operation(&mut current.plan, &input.operation)?;
+        if changes.is_empty() {
+            let saved = a4n_db::chapter_visual_plan::record_visual_plan_noop(
+                self.database.connection(),
+                &current,
+                &operation_id,
+                &payload_hash,
+            )
+            .await
+            .map_err(visual_plan_db_error)?;
+            return edit_result(saved);
+        }
+        let expected = if current.status == ChapterVisualPlanStatus::Confirmed {
+            let plans = a4n_db::chapter_visual_plan::chapter_visual_plans_for_source(
+                self.database.connection(),
+                &source,
+            )
+            .await
+            .map_err(visual_plan_db_error)?;
+            if let Some(draft) = plans.draft {
+                current.plan = draft
+                    .plan
+                    .merge_edit(&base, &current.plan)
+                    .map_err(|error| AppError::InvalidArgument(error.to_string()))?;
+                Some(a4n_domain::chapter_visual_plan::ExpectedVisualPlanDraft {
+                    record_id: draft.record.id,
+                    revision: draft.record.revision,
+                })
+            } else {
+                None
+            }
+        } else {
+            Some(a4n_domain::chapter_visual_plan::ExpectedVisualPlanDraft {
+                record_id: input.record_id,
+                revision: input.expected_revision,
+            })
+        };
         let validation = validate_plan(&current.plan, VisualPlanValidationMode::Draft);
         if !validation.valid {
             let diagnostic = &validation.diagnostics[0];
@@ -46,32 +103,54 @@ impl OrchestratorContext {
                 diagnostic.path, diagnostic.message
             )));
         }
-        if !changes.is_empty() {
-            current = a4n_db::chapter_visual_plan::save_chapter_visual_plan_draft(
-                self.database.connection(),
-                a4n_db::chapter_visual_plan::SaveChapterVisualPlanDraftInput {
-                    source,
-                    author_user_id: user_id,
-                    authoring_mode: ChapterVisualPlanAuthoringMode::Collaborative,
-                    expected: Some(a4n_domain::chapter_visual_plan::ExpectedVisualPlanDraft {
-                        record_id: input.record_id,
-                        revision: input.expected_revision,
-                    }),
-                    expected_source_hash: input.expected_source_hash,
-                    plan: current.plan,
-                },
-            )
-            .await
-            .map_err(visual_plan_db_error)?;
-        }
-        Ok(ChapterVisualPlanEditResult {
-            resource: resource_ref(&current),
-            changed: !changes.is_empty(),
-            changes,
-            validation,
-            visual_plan: super::chapter_visual_plan_view(current),
-        })
+        current = a4n_db::chapter_visual_plan::save_chapter_visual_plan_edit(
+            self.database.connection(),
+            a4n_db::chapter_visual_plan::SaveChapterVisualPlanDraftInput {
+                source,
+                author_user_id: user_id,
+                authoring_mode: ChapterVisualPlanAuthoringMode::Collaborative,
+                expected,
+                expected_source_hash: input.expected_source_hash,
+                plan: current.plan,
+            },
+            &operation_id,
+            &payload_hash,
+        )
+        .await
+        .map_err(visual_plan_db_error)?;
+        edit_result(current)
     }
+}
+
+fn edit_result(current: ParsedChapterVisualPlan) -> Result<ChapterVisualPlanEditResult, AppError> {
+    let receipt = current
+        .edit_receipt
+        .as_ref()
+        .ok_or_else(|| AppError::InvalidState {
+            current: "保存结果缺少编辑回执".into(),
+            operation: "返回导演编辑结果".into(),
+        })?;
+    let changes = field_changes(receipt.changes.clone());
+    Ok(ChapterVisualPlanEditResult {
+        resource: resource_ref(&current),
+        changed: !changes.is_empty(),
+        changes,
+        validation: validate_plan(&current.plan, VisualPlanValidationMode::Draft),
+        visual_plan: super::chapter_visual_plan_view(current),
+    })
+}
+
+fn field_changes(changes: Vec<VisualPlanChange>) -> Vec<VisualPlanFieldChange> {
+    changes
+        .into_iter()
+        .map(|change| VisualPlanFieldChange {
+            object_id: change.object_id,
+            collection: change.collection,
+            field: change.field,
+            before: change.before.map(|value| value.to_string()),
+            after: change.after.map(|value| value.to_string()),
+        })
+        .collect()
 }
 
 fn resource_ref(current: &ParsedChapterVisualPlan) -> AgentResourceRef {
@@ -93,18 +172,6 @@ fn validate_ids(project_id: i64, chapter_id: i64) -> Result<(), AppError> {
     Ok(())
 }
 
-fn check_revision(current: &ParsedChapterVisualPlan, expected: i32) -> Result<(), AppError> {
-    if expected <= 0 || current.record.revision != expected {
-        return Err(visual_plan_db_error(
-            a4n_db::chapter_visual_plan::ChapterVisualPlanDbError::RevisionConflict {
-                record_id: current.record.id,
-                expected_revision: expected,
-            },
-        ));
-    }
-    Ok(())
-}
-
 fn apply_operation(
     plan: &mut ChapterVisualPlanV3,
     operation: &VisualPlanEditOperation,
@@ -112,19 +179,7 @@ fn apply_operation(
     let next = plan
         .edited(operation)
         .map_err(|error| AppError::InvalidArgument(error.to_string()))?;
-    let before = serde_json::to_value(&*plan)?;
-    let after = serde_json::to_value(&next)?;
-    let mut changes = Vec::new();
-    for field in ["frame", "points", "segments"] {
-        if before[field] != after[field] {
-            changes.push(VisualPlanFieldChange {
-                object_id: "timeline".into(),
-                field: field.into(),
-                before: Some(before[field].to_string()),
-                after: Some(after[field].to_string()),
-            });
-        }
-    }
+    let changes = field_changes(plan.changes_to(&next));
     *plan = next;
     Ok(changes)
 }

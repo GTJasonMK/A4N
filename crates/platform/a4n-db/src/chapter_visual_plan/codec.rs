@@ -54,6 +54,7 @@ pub(super) fn parse_record(
         )));
     }
     Ok(ParsedChapterVisualPlan {
+        edit_receipt: None,
         record,
         status,
         authoring_mode,

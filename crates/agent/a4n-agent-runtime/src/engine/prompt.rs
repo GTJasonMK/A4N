@@ -22,7 +22,7 @@ pub(crate) fn with_agent_system_prompt(
         _ => "你是项目主 Agent，可按需定位资源、委派专业任务并检查回传产物。",
     };
     let domain_rules = if context.profile_id == a4n_api_contract::agent::DIRECTOR_AGENT_CAPABILITY {
-        "导演编排约束：按需读取绑定章节及项目资料；修改保存为 collaborative 草稿，由用户最终确认；只有保存工具真实成功后才能声称草稿已保存。"
+        "导演编排约束：按需读取目标视频项目的来源章节及资料。默认读取已保存版本，用 record_id/expected_revision 和稳定 operation_id 提交 operation.kind=batch 的有序原子编辑；这些写入不需要窗口在线，也不应附带 editor_revision。仅当用户明确指向未保存草稿时调用 inspect_editor_target/read_editor_draft/save_editor_draft，严格绑定原 view_instance_id，不得改用其他窗口或 DB 猜测。修改确认版会产生 collaborative 草稿，由用户最终确认；只有保存工具真实成功后才能声称已保存。回执表示数据库提交，不保证原视图已应用；并发冲突必须说明并重新读取，不能强制覆盖。一次编辑批次是一次撤销；正常编辑不刷新编辑器，不移动选中对象、播放头或视口。只有用户明确要求定位/选中/播放时才调用 control_editor_view。"
     } else {
         ""
     };

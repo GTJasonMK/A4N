@@ -1,5 +1,77 @@
 use super::*;
 
+pub(super) fn approval_authorizes_execution(
+    status: &str,
+    replay_policy: Option<&str>,
+    execution_status: &str,
+) -> bool {
+    status == "approved"
+        || (status == "consumed"
+            && replay_policy == Some("idempotent")
+            && matches!(execution_status, "dispatching" | "running"))
+}
+
+pub async fn approved_execution<C: ConnectionTrait>(
+    db: &C,
+    thread_id: i64,
+    execution_id: i64,
+) -> Result<Option<approval::Model>, AgentDbError> {
+    let Some(grant) = approval::Entity::find()
+        .filter(approval::Column::ThreadId.eq(thread_id))
+        .filter(approval::Column::ExecutionId.eq(execution_id))
+        .one(db)
+        .await?
+    else {
+        return Ok(None);
+    };
+    let execution = execution::Entity::find_by_id(execution_id)
+        .one(db)
+        .await?
+        .ok_or_else(|| AgentDbError::NotFound(format!("Agent execution 不存在: {execution_id}")))?;
+    if execution.run_id != grant.run_id {
+        return Err(AgentDbError::Conflict("审批与执行的 run 不一致".into()));
+    }
+    Ok(approval_authorizes_execution(
+        &grant.status,
+        execution.replay_policy.as_deref(),
+        &execution.status,
+    )
+    .then_some(grant))
+}
+
+#[cfg(test)]
+mod replay_tests {
+    use super::approval_authorizes_execution;
+    #[test]
+    fn consumption_only_authorizes_recovery_of_the_same_idempotent_execution() {
+        assert!(approval_authorizes_execution(
+            "approved",
+            Some("never"),
+            "awaiting_user"
+        ));
+        assert!(approval_authorizes_execution(
+            "consumed",
+            Some("idempotent"),
+            "running"
+        ));
+        assert!(!approval_authorizes_execution(
+            "consumed",
+            Some("never"),
+            "running"
+        ));
+        assert!(!approval_authorizes_execution(
+            "consumed",
+            Some("idempotent"),
+            "prepared"
+        ));
+        assert!(!approval_authorizes_execution(
+            "rejected",
+            Some("idempotent"),
+            "running"
+        ));
+    }
+}
+
 pub(crate) async fn create_approval<C>(
     db: &C,
     input: AgentApprovalInput,

@@ -283,6 +283,8 @@ pub struct AgentWorkerChapterScopeRequest {
     pub user_id: i64,
     pub project_id: i64,
     pub chapter_ids: Vec<i64>,
+    #[serde(default)]
+    pub source_chapter_ids: Vec<i64>,
 }
 
 impl AgentWorkerChapterScopeRequest {
@@ -291,6 +293,9 @@ impl AgentWorkerChapterScopeRequest {
         validate_positive_id("project_id", self.project_id)?;
         for chapter_id in &self.chapter_ids {
             validate_positive_id("chapter_ids[]", *chapter_id)?;
+        }
+        for chapter_id in &self.source_chapter_ids {
+            validate_positive_id("source_chapter_ids[]", *chapter_id)?;
         }
         Ok(())
     }

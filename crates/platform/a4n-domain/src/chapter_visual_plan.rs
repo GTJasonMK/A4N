@@ -3,11 +3,13 @@
 //! 该合同只表达用户确认过的叙事、时间和画面约束；视频、漫画与 Galgame
 //! 可以从同一份方案投影，不能各自重新解释章节。
 
+mod changes;
 mod contracts;
 mod contracts_v3;
 mod editing_v3;
 mod validation_v3;
 
+pub use changes::*;
 pub use contracts::*;
 pub use contracts_v3::*;
 

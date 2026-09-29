@@ -357,6 +357,7 @@ impl AgentRuntimeHost for HttpAgentRuntimeHost {
                 request.user_id,
                 request.project_id,
                 &request.chapter_ids,
+                &request.source_chapter_ids,
             )
             .await
     }

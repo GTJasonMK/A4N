@@ -39,11 +39,18 @@ impl AgentApplication {
             )?;
         }
         let chapter_number = if let Some(chapter_id) = chapter_id {
-            let chapter = a4n_db::project::chapter_by_id(self.connection(), chapter_id)
-                .await?
-                .ok_or_else(|| AppError::NotFound(format!("章节不存在: {chapter_id}")))?;
-            merge_scope_id(&mut project_id, chapter.project_id, "project_id")?;
-            Some(chapter.chapter_number)
+            match project_id {
+                Some(project_id) => {
+                    Some(scope_chapter_number(self.connection(), project_id, chapter_id).await?)
+                }
+                None => {
+                    let chapter = a4n_db::project::chapter_by_id(self.connection(), chapter_id)
+                        .await?
+                        .ok_or_else(|| AppError::NotFound(format!("章节不存在: {chapter_id}")))?;
+                    project_id = Some(chapter.project_id);
+                    Some(chapter.chapter_number)
+                }
+            }
         } else {
             None
         };
@@ -73,19 +80,17 @@ impl AgentApplication {
             scope.chapter_number = None;
             return Ok(());
         };
-        let chapter = a4n_db::project::chapter_by_id(self.connection(), chapter_id)
-            .await?
-            .ok_or_else(|| AppError::NotFound(format!("章节不存在: {chapter_id}")))?;
-        if scope
-            .project_id
-            .is_some_and(|project_id| project_id != chapter.project_id)
-        {
-            return Err(AppError::Forbidden(format!(
-                "章节 {chapter_id} 不属于 Agent scope 项目 {}",
-                scope.project_id.expect("checked Some")
-            )));
-        }
-        scope.chapter_number = Some(chapter.chapter_number);
+        let project_id = match scope.project_id {
+            Some(project_id) => project_id,
+            None => {
+                a4n_db::project::chapter_by_id(self.connection(), chapter_id)
+                    .await?
+                    .ok_or_else(|| AppError::NotFound(format!("章节不存在: {chapter_id}")))?
+                    .project_id
+            }
+        };
+        scope.chapter_number =
+            Some(scope_chapter_number(self.connection(), project_id, chapter_id).await?);
         Ok(())
     }
 
@@ -98,6 +103,7 @@ impl AgentApplication {
         user_id: i64,
         project_id: i64,
         chapter_ids: &[i64],
+        source_chapter_ids: &[i64],
     ) -> Result<(), AppError> {
         validate_user_id(user_id)?;
         if project_id <= 0 {
@@ -127,6 +133,9 @@ impl AgentApplication {
                     "章节 {chapter_id} 不属于 Agent scope 项目 {project_id}"
                 )));
             }
+        }
+        for chapter_id in source_chapter_ids {
+            scope_chapter_number(self.connection(), project_id, *chapter_id).await?;
         }
         Ok(())
     }

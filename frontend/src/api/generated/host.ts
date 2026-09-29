@@ -671,6 +671,7 @@ export interface AgentEditorSource {
   entity_id: string | null;
   keyframe_id: string | null;
   project_id: number;
+  protocol_version: number;
   scene_id: string | null;
   shot_id: string | null;
   view_instance_id: string;
@@ -682,9 +683,25 @@ export interface AgentEditorState {
   has_uncommitted_dialog: boolean;
   record_id: number | null;
   record_revision: number | null;
+  view: AgentEditorViewState | null;
 }
 
-export type AgentEditorOperation = { kind: "inspect" } | { input: ReadEditorDraftInput; kind: "read" } | { input: SaveEditorDraftInput; kind: "save" } | { expected_editor_revision: string; kind: "prepare_write"; record_id?: number | null; record_revision?: number | null };
+export interface AgentEditorViewState {
+  available_actions: string[];
+  blockers: string[];
+  editable: boolean;
+  playhead_ms: number;
+  playing: boolean;
+  selected_ids: string[];
+  status: string;
+  visible_range_ms: number[];
+}
+
+export type ControlEditorViewInput = { action: ControlEditorViewAction };
+
+export type ControlEditorViewAction = { kind: "select"; object_id: string; object_kind: string } | { at_ms: number; kind: "locate" } | { at_ms: number; kind: "seek" } | { kind: "play" } | { kind: "pause" } | { kind: "fit" };
+
+export type AgentEditorOperation = { input: ControlEditorViewInput; kind: "control" } | { kind: "inspect" } | { input: ReadEditorDraftInput; kind: "read" } | { input: SaveEditorDraftInput; kind: "save" } | { expected_editor_revision: string; kind: "prepare_write"; record_id?: number | null; record_revision?: number | null };
 
 export interface AgentEditorRequest {
   execution_id: string;
@@ -5230,6 +5247,7 @@ export interface SaveChapterVisualPlanDraftInput {
   editor_revision?: string | null;
   expected_revision?: number | null;
   expected_source_hash?: string | null;
+  operation_id?: string | null;
   plan: ChapterVisualPlanV3;
   project_id: number;
   record_id?: number | null;
@@ -5262,13 +5280,41 @@ export interface ChapterVisualPlanSourceView {
 }
 
 export interface ChapterVisualPlanView {
+  edit_receipt: VisualPlanEditReceipt | null;
   plan: ChapterVisualPlanV3;
   record: ChapterVisualPlanRecordSummary;
+}
+
+export interface VisualPlanChange {
+  after: unknown;
+  before: unknown;
+  collection: string;
+  field: string;
+  object_id: string;
+}
+
+export interface VisualPlanEditVersion {
+  plan_sha256: string;
+  record_id: number;
+  revision: number;
+}
+
+export interface VisualPlanEditReceipt {
+  after: VisualPlanEditVersion;
+  author_user_id: number;
+  before: VisualPlanEditVersion | null;
+  changes: VisualPlanChange[];
+  operation_id: string;
+  project_id: number;
+  sequence: number;
+  source_chapter_id: number;
+  source_revision_key: string;
 }
 
 export interface ChapterVisualPlanSetView {
   confirmed: ChapterVisualPlanView | null;
   draft: ChapterVisualPlanView | null;
+  edit_cursor: number;
   scene_choices: ChapterVisualPlanSceneChoice[];
   source: ChapterVisualPlanSourceView;
   starter_plan: ChapterVisualPlanV3;
@@ -5288,7 +5334,7 @@ export interface ReadChapterVisualPlanInput {
   view: VisualPlanReadView;
 }
 
-export type VisualPlanReadView = { kind: "outline"; limit?: number | null; offset?: number } | { kind: "point"; point_id: string } | { kind: "segment"; segment_id: string } | { expected_hash?: string | null; kind: "source"; limit?: number | null; offset?: number };
+export type VisualPlanReadView = { after_sequence: number; kind: "edits" } | { kind: "outline"; limit?: number | null; offset?: number } | { kind: "point"; point_id: string } | { kind: "segment"; segment_id: string } | { expected_hash?: string | null; kind: "source"; limit?: number | null; offset?: number };
 
 export interface VisualPlanOutlineItem {
   end_ms: number;
@@ -5299,7 +5345,7 @@ export interface VisualPlanOutlineItem {
   title: string;
 }
 
-export type VisualPlanProjection = { items: VisualPlanOutlineItem[]; kind: "outline"; next_offset?: number | null; total: number } | { kind: "point"; point: VisualPointV3 } | { kind: "segment"; points: VisualPointV3[]; segment: VisualSegmentV3 } | { kind: "source"; next_offset?: number | null; offset: number; text: string; total_chars: number };
+export type VisualPlanProjection = { items: ChapterVisualPlanView[]; kind: "edits"; next_sequence: number } | { items: VisualPlanOutlineItem[]; kind: "outline"; next_offset?: number | null; total: number } | { kind: "point"; point: VisualPointV3 } | { kind: "segment"; points: VisualPointV3[]; segment: VisualSegmentV3 } | { kind: "source"; next_offset?: number | null; offset: number; text: string; total_chars: number };
 
 export interface ChapterVisualPlanReadResult {
   chapter_id: number;
@@ -5309,13 +5355,14 @@ export interface ChapterVisualPlanReadResult {
   source_hash: string;
 }
 
-export type VisualPlanEditOperation = { kind: "insert_point"; point: VisualPointV3 } | { kind: "update_point"; point: VisualPointV3 } | { at_ms: number; kind: "move_point"; point_id: string } | { kind: "remove_point"; point_id: string } | { kind: "remove"; point_ids: string[]; segment_ids: string[] } | { kind: "remove_points"; point_ids: string[] } | { kind: "update_segment"; segment: VisualSegmentV3 } | { kind: "split_segment"; left_prompt: string; left_scene_binding?: SceneBindingV3 | null; point_id: string; right_prompt: string; right_scene_binding?: SceneBindingV3 | null; right_segment_id: string; segment_id: string } | { kind: "merge_segments"; left_segment_id: string; prompt: string; right_segment_id: string; scene_binding?: SceneBindingV3 | null } | { kind: "move_segment_boundary"; left_segment_id: string; point_id: string } | { duration_ms: number; kind: "scale_timeline" } | { frame: VisualFrameV3; kind: "set_frame" };
+export type VisualPlanEditOperation = { kind: "batch"; operations: unknown[] } | { kind: "insert_point"; point: VisualPointV3 } | { kind: "update_point"; point: VisualPointV3 } | { at_ms: number; kind: "move_point"; point_id: string } | { kind: "remove_point"; point_id: string } | { kind: "remove"; point_ids: string[]; segment_ids: string[] } | { kind: "remove_points"; point_ids: string[] } | { kind: "update_segment"; segment: VisualSegmentV3 } | { kind: "split_segment"; left_prompt: string; left_scene_binding?: SceneBindingV3 | null; point_id: string; right_prompt: string; right_scene_binding?: SceneBindingV3 | null; right_segment_id: string; segment_id: string } | { kind: "merge_segments"; left_segment_id: string; prompt: string; right_segment_id: string; scene_binding?: SceneBindingV3 | null } | { kind: "move_segment_boundary"; left_segment_id: string; point_id: string } | { duration_ms: number; kind: "scale_timeline" } | { frame: VisualFrameV3; kind: "set_frame" };
 
 export interface EditChapterVisualPlanDraftInput {
   editor_revision?: string | null;
   expected_revision: number;
   expected_source_hash?: string | null;
   operation: VisualPlanEditOperation;
+  operation_id?: string | null;
   project_id: number;
   record_id: number;
   source_chapter_id: number;
@@ -5324,6 +5371,7 @@ export interface EditChapterVisualPlanDraftInput {
 export interface VisualPlanFieldChange {
   after: string | null;
   before: string | null;
+  collection: string;
   field: string;
   object_id: string;
 }

@@ -22,8 +22,10 @@ use super::{
     queries::{chapter_visual_plan_by_id, lineage_condition_for_identity, validate_source},
 };
 
-pub async fn save_chapter_visual_plan_draft(
-    db: &sea_orm::DatabaseConnection,
+pub(super) async fn save_chapter_visual_plan_draft_in<
+    C: sea_orm::ConnectionTrait + TransactionTrait,
+>(
+    db: &C,
     input: SaveChapterVisualPlanDraftInput,
 ) -> Result<ParsedChapterVisualPlan, ChapterVisualPlanDbError> {
     validate_source(&input.source)?;
@@ -35,7 +37,11 @@ pub async fn save_chapter_visual_plan_draft(
     let (plan_json, plan_sha256) = serialize_plan(&input.plan)?;
     let tx = db.begin().await?;
     super::resources::validate_resources(&tx, input.source.root_project_id, &input.plan).await?;
-    if let Some(expected_hash) = input.expected_source_hash.as_deref() {
+    {
+        let expected_hash = input
+            .expected_source_hash
+            .as_deref()
+            .unwrap_or(&input.source.content_sha256);
         super::codec::validate_sha256(expected_hash, "expected_source_hash")?;
         // Keep the source and its project binding stable through the plan CAS.
         // The initial source read in the application cannot close this race.
@@ -238,8 +244,11 @@ pub async fn confirm_chapter_visual_plan(
             "record_id 和 expected_revision 必须大于 0".into(),
         ));
     }
+    let identity = chapter_visual_plan_by_id(db, input.record_id).await?;
     let tx = db.begin().await?;
+    super::receipts::lock_project(&tx, identity.record.project_id).await?;
     let current = chapter_visual_plan_by_id(&tx, input.record_id).await?;
+    super::queries::ensure_current_plan_source(&tx, &current).await?;
     if current.record.revision != input.expected_revision {
         return Err(ChapterVisualPlanDbError::RevisionConflict {
             record_id: input.record_id,
@@ -312,7 +321,7 @@ pub async fn confirm_chapter_visual_plan(
             expected_revision: current.record.revision,
         });
     }
-    let visual_plan = chapter_visual_plan_by_id(&tx, current.record.id).await?;
+    let mut visual_plan = chapter_visual_plan_by_id(&tx, current.record.id).await?;
     let rebased_script =
         crate::shooting_script::rebase_chapter_shooting_script_onto_plan(&tx, &visual_plan)
             .await
@@ -323,6 +332,15 @@ pub async fn confirm_chapter_visual_plan(
     } else {
         vec![current.record.project_id]
     };
+    let operation_id = format!("confirm:{}:{}", current.record.id, current.record.revision);
+    super::receipts::record_edit(
+        &tx,
+        Some(&current),
+        &mut visual_plan,
+        &operation_id,
+        &operation_id,
+    )
+    .await?;
     tx.commit().await?;
     Ok(ConfirmChapterVisualPlanOutcome {
         visual_plan,

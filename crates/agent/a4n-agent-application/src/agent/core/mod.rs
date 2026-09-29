@@ -38,16 +38,18 @@ impl AgentApplication {
                 operation: operation.into(),
             });
         }
-        let existing_scope: AgentScope =
+        let mut existing_scope: AgentScope =
             from_json(existing.scope_json.clone(), "agent_thread.scope_json")?;
         let mut requested: AgentScope = from_json(requested_scope.clone(), "requested_scope")?;
+        complete_canonical_resource(&mut existing_scope, &existing)?;
+        complete_canonical_resource(&mut requested, &existing)?;
         inherit_subagent_allowlists(&existing_scope, &mut requested)?;
         if !agent_scopes_match_except_chapter_number(&existing_scope, &requested) {
             return Err(AppError::InvalidArgument(
                 "canonical Agent thread 已有不同 scope；请通过 update_agent_thread 显式修改，不能在重用时覆盖权限".into(),
             ));
         }
-        if existing_scope.chapter_number == requested.chapter_number {
+        if serde_json::to_value(&requested)? == existing.scope_json {
             return Ok(existing);
         }
 
@@ -66,13 +68,15 @@ impl AgentApplication {
         let mut existing_scope: AgentScope =
             from_json(existing.scope_json.clone(), "agent_thread.scope_json")?;
         let mut requested: AgentScope = from_json(requested_scope.clone(), "requested_scope")?;
+        complete_canonical_resource(&mut existing_scope, &existing)?;
+        complete_canonical_resource(&mut requested, &existing)?;
         inherit_subagent_allowlists(&existing_scope, &mut requested)?;
         if !agent_scopes_match_except_chapter_number(&existing_scope, &requested) {
             return Err(AppError::InvalidArgument(
                 "canonical Agent thread 已有不同 scope；请通过 update_agent_thread 显式修改，不能在重用时覆盖权限".into(),
             ));
         }
-        if existing_scope.chapter_number == requested.chapter_number {
+        if serde_json::to_value(&requested)? == existing.scope_json {
             tx.commit().await?;
             return Ok(existing);
         }
@@ -84,6 +88,22 @@ impl AgentApplication {
         let updated = active.update(&tx).await.map_err(AppError::Database)?;
         tx.commit().await?;
         Ok(updated)
+    }
+}
+
+fn complete_canonical_resource(
+    scope: &mut AgentScope,
+    thread: &thread::Model,
+) -> Result<(), AppError> {
+    match (
+        thread.resource_type.as_deref(),
+        thread.resource_id.as_deref(),
+    ) {
+        (Some(kind), Some(id)) => complete_scope_resource(scope, kind, id),
+        (None, None) => Ok(()),
+        _ => Err(AppError::InvalidArgument(
+            "canonical Agent 资源身份不完整".into(),
+        )),
     }
 }
 

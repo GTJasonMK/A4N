@@ -193,19 +193,27 @@ pub async fn update_execution_for_run_lease(
     // Approval is evidence until the side effect has actually succeeded.
     // Consuming it while entering `dispatching` loses the authorization when
     // a provider fails and makes a retry appear unapproved.
+    // Recovering an idempotent execution reuses its consumed grant and keeps
+    // the original consumption timestamp; it does not approve a new operation.
     if status == "succeeded"
         && let Some(approval) = approval_row
     {
-        if approval.status != "approved" {
+        if !super::approvals::approval_authorizes_execution(
+            &approval.status,
+            row.replay_policy.as_deref(),
+            &row.status,
+        ) {
             return Err(AgentDbError::Conflict(format!(
                 "Agent execution approval 不可消费: {execution_id} ({})",
                 approval.status
             )));
         }
-        let mut active: approval::ActiveModel = approval.into();
-        active.status = Set("consumed".to_string());
-        active.consumed_at = Set(Some(timestamp));
-        active.update(&tx).await?;
+        if approval.status == "approved" {
+            let mut active: approval::ActiveModel = approval.into();
+            active.status = Set("consumed".to_string());
+            active.consumed_at = Set(Some(timestamp));
+            active.update(&tx).await?;
+        }
     }
     let terminal = is_execution_terminal(status);
     let mut active: execution::ActiveModel = row.into();

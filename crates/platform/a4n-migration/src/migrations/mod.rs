@@ -1,6 +1,7 @@
 //! PostgreSQL baseline schema.
 
 pub mod agent_history_contract_canonicalization;
+pub mod agent_project_binding;
 pub mod agent_replay_policy_canonicalization;
 pub mod agent_runtime;
 pub mod agent_runtime_checkpoint_cleanup;

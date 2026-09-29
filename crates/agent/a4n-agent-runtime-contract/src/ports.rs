@@ -402,6 +402,7 @@ pub trait AgentWorkerReadApplicationPort: Send + Sync {
         user_id: i64,
         project_id: i64,
         chapter_ids: &[i64],
+        source_chapter_ids: &[i64],
     ) -> Result<(), AppError>;
 
     async fn read_memory_for_run(

@@ -25,7 +25,8 @@ use std::collections::HashSet;
 
 mod approvals;
 pub use approvals::{
-    expire_pending_approvals, request_approval_for_run_lease, resolve_approval_for_run,
+    approved_execution, expire_pending_approvals, request_approval_for_run_lease,
+    resolve_approval_for_run,
 };
 mod delegations;
 pub use delegations::{

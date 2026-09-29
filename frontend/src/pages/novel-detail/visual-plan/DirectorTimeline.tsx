@@ -1,26 +1,35 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useImperativeHandle, useRef, useState } from "react";
 import { useStore } from "zustand";
 import { Clock3, Plus, Scissors, ZoomIn, ZoomOut } from "lucide-react";
-import type { ChapterVisualPlanV3, VisualPlanEditOperation } from "../../../api/chapterVisualPlan";
+import type { ChapterVisualPlanV3, ChapterVisualPlanView, VisualPlanEditOperation } from "../../../api/chapterVisualPlan";
 import { BookButton } from "../../../components/ui/BookButton";
 import { Modal } from "../../../components/ui/Modal";
 import { durationMs, formatTime, segmentBackground, sceneLabel, segmentTimes, timelineTrackWidth, type DirectorSelection } from "./timeline";
 import type { DirectorPlayback } from "./playback";
 
 interface Props {
+  viewRef?: React.Ref<DirectorTimelineView>;
   plan: ChapterVisualPlanV3;
+  record: ChapterVisualPlanView | null;
   selection: DirectorSelection | null;
   clock: DirectorPlayback;
   editable: boolean;
   sceneNames: ReadonlyMap<number, string>;
   onSelect: (selection: DirectorSelection, atMs: number) => void;
-  onEdit: (operation: VisualPlanEditOperation) => Promise<void>;
+  onEdit: (operation: VisualPlanEditOperation, base?: ChapterVisualPlanView) => Promise<void>;
+  onError: (error: Error) => void;
   onSplit: () => void;
 }
 
-type Drag = { kind: "point" | "boundary"; id: string; startX: number; startTime: number; width: number; value: number };
+export interface DirectorTimelineView {
+  fit: () => void;
+  locate: (atMs: number) => void;
+  visibleRange: () => [number, number];
+}
 
-export function DirectorTimeline({ plan, selection, clock, editable, sceneNames, onSelect, onEdit, onSplit }: Props) {
+type Drag = { kind: "point" | "boundary"; id: string; startX: number; startTime: number; width: number; value: number; plan: ChapterVisualPlanV3; base: ChapterVisualPlanView | null };
+
+export function DirectorTimeline({ plan, record, selection, clock, editable, sceneNames, onSelect, onEdit, onSplit, onError, viewRef }: Props) {
   const [zoom, setZoom] = useState(1);
   const [fit, setFit] = useState(true);
   const [drag, setDrag] = useState<Drag | null>(null);
@@ -30,8 +39,31 @@ export function DirectorTimeline({ plan, selection, clock, editable, sceneNames,
   const rail = useRef<HTMLDivElement>(null);
   const scaleStart = useRef(durationMs(plan));
   const total = durationMs(plan);
+  useImperativeHandle(viewRef, () => ({
+    fit: () => { setFit(true); setZoom(1); },
+    locate: (atMs) => {
+      const track = rail.current;
+      const viewport = track?.parentElement;
+      if (!track || !viewport) throw new Error("时间线视图尚未就绪");
+      viewport.scrollTo({ left: Math.max(0, atMs / total * track.clientWidth - viewport.clientWidth / 2) });
+    },
+    visibleRange: () => {
+      const track = rail.current;
+      const viewport = track?.parentElement;
+      if (!track || !viewport || !track.clientWidth) return [0, total];
+      return [Math.round(viewport.scrollLeft / track.clientWidth * total), Math.min(total, Math.round((viewport.scrollLeft + viewport.clientWidth) / track.clientWidth * total))];
+    },
+  }), [total]);
   const percent = (time: number) => `${Math.max(0, Math.min(100, time / total * 100))}%`;
   useEffect(() => { setDuration(String(total / 1000)); setScale(100); }, [total]);
+  useEffect(() => {
+    if (!drag) return;
+    const items = drag.kind === "point" ? plan.points : plan.segments;
+    if (!items.some((item) => item.id === drag.id)) {
+      setDrag(null);
+      onError(new Error("正在拖动的对象已被其他编辑删除，本次拖动未提交。"));
+    }
+  }, [drag, onError, plan]);
 
   const seek = (event: React.PointerEvent<HTMLElement>) => {
     const box = event.currentTarget.getBoundingClientRect();
@@ -40,11 +72,12 @@ export function DirectorTimeline({ plan, selection, clock, editable, sceneNames,
   const startDrag = (event: React.PointerEvent<HTMLButtonElement>, kind: Drag["kind"], id: string, time: number) => {
     if (!editable || event.button !== 0 || !rail.current) return;
     event.currentTarget.setPointerCapture(event.pointerId);
-    setDrag({ kind, id, startX: event.clientX, startTime: time, width: rail.current.getBoundingClientRect().width, value: time });
+    setDrag({ kind, id, startX: event.clientX, startTime: time, width: rail.current.getBoundingClientRect().width, value: time, plan, base: record });
   };
   const move = (event: React.PointerEvent<HTMLButtonElement>) => {
     if (!drag) return;
-    let value = Math.round(drag.startTime + (event.clientX - drag.startX) / drag.width * total);
+    const plan = drag.plan;
+    let value = Math.round(drag.startTime + (event.clientX - drag.startX) / drag.width * durationMs(plan));
     if (drag.kind === "point") {
       const index = plan.points.findIndex((point) => point.id === drag.id);
       value = Math.max(plan.points[index - 1].at_ms + 1, Math.min(plan.points[index + 1].at_ms - 1, value));
@@ -59,12 +92,12 @@ export function DirectorTimeline({ plan, selection, clock, editable, sceneNames,
   };
   const finish = (event: React.PointerEvent<HTMLButtonElement>) => {
     if (!drag) return;
-    event.currentTarget.releasePointerCapture(event.pointerId);
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
     if (Math.abs(event.clientX - drag.startX) > 3 && drag.value !== drag.startTime) {
-      if (drag.kind === "point") void onEdit({ kind: "move_point", point_id: drag.id, at_ms: drag.value });
+      if (drag.kind === "point") void onEdit({ kind: "move_point", point_id: drag.id, at_ms: drag.value }, drag.base ?? undefined);
       else {
-        const point = plan.points.find((point) => point.at_ms === drag.value);
-        if (point) void onEdit({ kind: "move_segment_boundary", left_segment_id: drag.id, point_id: point.id });
+        const point = drag.plan.points.find((point) => point.at_ms === drag.value);
+        if (point) void onEdit({ kind: "move_segment_boundary", left_segment_id: drag.id, point_id: point.id }, drag.base ?? undefined);
       }
     }
     setDrag(null);

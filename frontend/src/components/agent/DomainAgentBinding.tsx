@@ -16,6 +16,10 @@ export interface DomainAgentBinding {
   resourceId: string;
 }
 
+export function domainAgentBindingKey(binding: DomainAgentBinding): string {
+  return `${binding.capability}:${binding.projectId}:${binding.resourceKind}:${binding.resourceId}`;
+}
+
 export function positiveId(value: number | null | undefined): value is number {
   return typeof value === "number" && Number.isSafeInteger(value) && value > 0;
 }

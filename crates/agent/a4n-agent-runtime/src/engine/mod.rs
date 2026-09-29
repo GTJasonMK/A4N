@@ -74,9 +74,9 @@ pub use observation::{bounded_observation, tool_error_code};
 pub use tool_calls::{append_tool_observation, is_correctable_tool_error};
 pub use tool_window::{enum_string, json_u64};
 pub use tools::{
-    collect_scope_ids, editor_request_for_call, ensure_argument_scope, ensure_chapter_scope,
-    ensure_project_scope, parse_arguments, should_request_approval, tool_descriptor,
-    tool_result_refs,
+    collect_argument_chapter_targets, collect_scope_ids, editor_request_for_call,
+    ensure_argument_scope, ensure_chapter_scope, ensure_project_scope, parse_arguments,
+    should_request_approval, tool_descriptor, tool_result_refs,
 };
 pub use wire::agent_worker_run_from_wire;
 
@@ -274,5 +274,32 @@ mod tests {
 
         let advice_only = approval_context("advice_only");
         assert!(should_request_approval(&advice_only, "edit_article", "write").is_err());
+    }
+
+    #[test]
+    fn director_draft_writes_follow_the_selected_execution_mode() {
+        for name in [
+            "save_chapter_visual_plan_draft",
+            "edit_chapter_visual_plan_draft",
+            "save_editor_draft",
+        ] {
+            assert!(
+                !should_request_approval(&approval_context("autonomous"), name, "write").unwrap()
+            );
+            assert!(
+                should_request_approval(&approval_context("review_writes"), name, "write").unwrap()
+            );
+            assert!(
+                should_request_approval(&approval_context("advice_only"), name, "write").is_err()
+            );
+        }
+        assert!(
+            should_request_approval(
+                &approval_context("autonomous"),
+                "confirm_chapter_visual_plan",
+                "destructive"
+            )
+            .unwrap()
+        );
     }
 }

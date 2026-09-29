@@ -169,8 +169,16 @@ impl AgentWorkerReadApplicationPort for AgentApplication {
         user_id: i64,
         project_id: i64,
         chapter_ids: &[i64],
+        source_chapter_ids: &[i64],
     ) -> Result<(), AppError> {
-        AgentApplication::verify_chapters_in_project(self, user_id, project_id, chapter_ids).await
+        AgentApplication::verify_chapters_in_project(
+            self,
+            user_id,
+            project_id,
+            chapter_ids,
+            source_chapter_ids,
+        )
+        .await
     }
 
     async fn read_memory_for_run(

@@ -650,7 +650,7 @@ async fn execute_tool_call_inner(
         return Ok((RunProgress::Released, Vec::new()));
     }
 
-    if context.editor_source.is_some() && editor::needs_editor(&call.name) {
+    if context.editor_source.is_some() && editor::needs_editor(&call.name, &call.arguments) {
         match editor_request_for_call(context, execution, call) {
             Ok(request) => {
                 state.wait_for_editor(claimed, &request).await?;

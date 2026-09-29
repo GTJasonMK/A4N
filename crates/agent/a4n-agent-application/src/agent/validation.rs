@@ -72,6 +72,11 @@ pub(super) fn validate_editor_source(
     capability: &str,
     scope: &AgentScope,
 ) -> Result<(), AppError> {
+    if source.protocol_version != 2 {
+        return Err(AppError::InvalidArgument(
+            "编辑器协议不兼容，请重新打开编辑器并发起新请求；旧请求不会自动重放".into(),
+        ));
+    }
     if capability != a4n_api_contract::agent::DIRECTOR_AGENT_CAPABILITY
         || scope.project_id != Some(source.project_id)
         || scope.chapter_id != Some(source.chapter_id)
@@ -114,6 +119,24 @@ pub(super) fn agent_scopes_match_except_chapter_number(
     left == right
 }
 
+pub(super) fn complete_scope_resource(
+    scope: &mut AgentScope,
+    kind: &str,
+    id: &str,
+) -> Result<(), AppError> {
+    if (scope.resource_kind.is_some() || scope.resource_id.is_some())
+        && (scope.resource_kind.as_deref() != Some(kind)
+            || scope.resource_id.as_deref() != Some(id))
+    {
+        return Err(AppError::InvalidArgument(
+            "Agent scope 与 bound_resource 不一致".into(),
+        ));
+    }
+    scope.resource_kind = Some(kind.into());
+    scope.resource_id = Some(id.into());
+    Ok(())
+}
+
 pub(super) async fn canonicalize_editor_source(
     database: &sea_orm::DatabaseConnection,
     source: a4n_api_contract::agent::AgentEditorSource,
@@ -121,16 +144,67 @@ pub(super) async fn canonicalize_editor_source(
 ) -> Result<a4n_api_contract::agent::AgentEditorSource, AppError> {
     let scope: AgentScope = from_json(thread.scope_json.clone(), "agent_thread.scope_json")?;
     validate_editor_source(&source, &thread.profile_id, &scope)?;
-    let chapter = a4n_db::project::chapter_by_id(database, source.chapter_id)
-        .await?
-        .ok_or_else(|| AppError::NotFound(format!("章节不存在: {}", source.chapter_id)))?;
-    if chapter.project_id != source.project_id {
-        return Err(AppError::Forbidden("编辑器来源章节不属于声明的项目".into()));
-    }
+    let chapter_number = a4n_db::project::resolve_video_chapter_source(
+        database,
+        source.project_id,
+        source.chapter_id,
+    )
+    .await
+    .map_err(agent_source_error)?
+    .chapter_number;
     Ok(a4n_api_contract::agent::AgentEditorSource {
-        chapter_number: Some(chapter.chapter_number),
+        chapter_number: Some(chapter_number),
         ..source
     })
+}
+
+// Binding a derived source permits context access, not mutation of the original
+// chapter. Chapter-only command authorization retains its ownership check.
+pub(super) async fn scope_chapter_number(
+    database: &sea_orm::DatabaseConnection,
+    project_id: i64,
+    chapter_id: i64,
+) -> Result<i32, AppError> {
+    let chapter = a4n_db::project::chapter_by_id(database, chapter_id).await?;
+    if let Some(chapter) = chapter.filter(|chapter| chapter.project_id == project_id) {
+        return Ok(chapter.chapter_number);
+    }
+    a4n_db::project::resolve_chapter_source(database, project_id, chapter_id)
+        .await
+        .map(|source| source.chapter_number)
+        .map_err(agent_source_error)
+}
+
+pub(super) async fn verify_director_source(
+    database: &sea_orm::DatabaseConnection,
+    capability: &str,
+    scope: &AgentScope,
+) -> Result<(), AppError> {
+    if capability == a4n_api_contract::agent::DIRECTOR_AGENT_CAPABILITY {
+        let project_id = scope
+            .project_id
+            .ok_or_else(|| AppError::InvalidArgument("导演 Agent 缺少目标视频项目".into()))?;
+        let chapter_id = scope
+            .chapter_id
+            .ok_or_else(|| AppError::InvalidArgument("导演 Agent 缺少来源章节".into()))?;
+        a4n_db::project::resolve_video_chapter_source(database, project_id, chapter_id)
+            .await
+            .map_err(agent_source_error)?;
+    }
+    Ok(())
+}
+
+fn agent_source_error(error: a4n_db::project::ResolveChapterSourceError) -> AppError {
+    use a4n_db::project::ResolveChapterSourceError;
+    match error {
+        ResolveChapterSourceError::Database(error) => AppError::Database(error),
+        ResolveChapterSourceError::NotFound(message) => AppError::NotFound(message),
+        ResolveChapterSourceError::InvalidArgument(message) => AppError::Forbidden(message),
+        ResolveChapterSourceError::InvalidState(current) => AppError::InvalidState {
+            current,
+            operation: "解析 Agent 章节来源".into(),
+        },
+    }
 }
 
 pub(super) async fn parse_persisted_editor_source(
@@ -457,13 +531,20 @@ pub fn inherit_subagent_allowlists(
 
 pub(super) fn canonical_subagent_binding_key(
     capability: &str,
+    project_id: Option<i64>,
     resource: &AgentResourceRef,
 ) -> Result<String, AppError> {
     let capability = required_text(capability.to_string(), "capability")?;
     let kind = required_text(resource.kind.clone(), "bound_resource.kind")?;
     let id = required_text(resource.id.clone(), "bound_resource.id")?;
+    if kind == "chapter" && project_id.is_none() {
+        return Err(AppError::InvalidArgument(
+            "章节绑定必须声明 project_id".into(),
+        ));
+    }
     Ok(a4n_api_contract::agent::canonical_subagent_binding_key(
         &capability,
+        project_id,
         &kind,
         &id,
     ))
