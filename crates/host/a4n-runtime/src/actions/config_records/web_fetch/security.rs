@@ -88,3 +88,36 @@ pub(super) fn validate_redirect(current: &Url, next: &Url) -> Result<(), AppErro
     }
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn same_origin_redirect_allows_path_changes() {
+        let current = Url::parse("https://example.com/start").unwrap();
+        let next = Url::parse("https://example.com/articles/1").unwrap();
+        assert!(validate_redirect(&current, &next).is_ok());
+    }
+
+    #[test]
+    fn redirect_rejects_cross_origin_scheme_port_and_credentials() {
+        let current = Url::parse("https://example.com/start").unwrap();
+        for target in [
+            "https://other.example/articles/1",
+            "http://example.com/articles/1",
+            "https://example.com:444/articles/1",
+            "https://user:password@example.com/articles/1",
+            "ftp://example.com/articles/1",
+        ] {
+            let next = Url::parse(target).unwrap();
+            assert!(validate_redirect(&current, &next).is_err(), "{target}");
+        }
+    }
+
+    #[test]
+    fn blocks_private_ipv4_mapped_ipv6_addresses() {
+        let address = "::ffff:127.0.0.1".parse::<Ipv6Addr>().unwrap();
+        assert!(!is_public_ip(IpAddr::V6(address)));
+    }
+}
