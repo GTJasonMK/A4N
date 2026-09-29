@@ -1,8 +1,6 @@
 use a4n_api_contract::image::{
-    DeleteImageInput, GeneratedImageSummary, ImageLibraryReadApplicationPort,
-    ImageRecordMutationApplicationPort, ImageReferenceReadApplicationPort,
-    ListImagesByChapterInput, ListImagesByProjectInput, ListImagesByProjectsInput,
-    UpdateGeneratedImageInput,
+    DeleteImageInput, GeneratedImageSummary, ListImagesByChapterInput, ListImagesByProjectInput,
+    ListImagesByProjectsInput, UpdateGeneratedImageInput,
 };
 use a4n_artifact_media_contract::{
     ARTIFACT_MEDIA_IMAGE_BY_ID_COMMAND, ARTIFACT_MEDIA_IMAGE_DELETE_COMMAND,
@@ -24,6 +22,10 @@ use a4n_worker_contract::WORKER_SCHEMA_VERSION;
 use chrono::{Duration as ChronoDuration, Utc};
 use serde::de::DeserializeOwned;
 use uuid::Uuid;
+
+mod images;
+mod publication;
+mod references;
 
 #[derive(Debug, thiserror::Error)]
 pub enum ArtifactMediaClientError {
@@ -382,148 +384,8 @@ impl ArtifactMediaWorkerClient {
     }
 }
 
-#[async_trait::async_trait]
-impl a4n_artifact_media_contract::ArtifactMediaPublicationPort for ArtifactMediaWorkerClient {
-    async fn publish_image(
-        &self,
-        actor_user_id: i64,
-        request: PublishImageRequest,
-    ) -> Result<PublishedImageResponse, String> {
-        self.publish_image(actor_user_id, request)
-            .await
-            .map_err(|error| error.to_string())
-    }
-}
-
-#[async_trait::async_trait]
-impl a4n_artifact_media_contract::ArtifactMediaReferencePort for ArtifactMediaWorkerClient {
-    async fn unreferenced_paths(&self, request: MediaPathsRequest) -> Result<Vec<String>, String> {
-        ArtifactMediaWorkerClient::unreferenced_paths(self, request)
-            .await
-            .map_err(|error| error.to_string())
-    }
-
-    async fn path_prefix_has_reference(
-        &self,
-        request: MediaPathPrefixRequest,
-    ) -> Result<bool, String> {
-        ArtifactMediaWorkerClient::path_prefix_has_reference(self, request)
-            .await
-            .map_err(|error| error.to_string())
-    }
-
-    async fn project_has_publication(
-        &self,
-        request: ProjectPublicationRequest,
-    ) -> Result<bool, String> {
-        ArtifactMediaWorkerClient::project_has_publication(self, request)
-            .await
-            .map_err(|error| error.to_string())
-    }
-
-    async fn protected_paths(&self, request: ProjectPathsRequest) -> Result<Vec<String>, String> {
-        ArtifactMediaWorkerClient::protected_paths(self, request)
-            .await
-            .map_err(|error| error.to_string())
-    }
-}
-
 fn app_error(error: ArtifactMediaClientError) -> a4n_error::AppError {
     a4n_error::AppError::ConfigError(error.to_string())
-}
-
-#[async_trait::async_trait]
-impl ImageLibraryReadApplicationPort for ArtifactMediaWorkerClient {
-    async fn by_id(
-        &self,
-        user_id: i64,
-        image_id: i64,
-    ) -> Result<Option<GeneratedImageSummary>, a4n_error::AppError> {
-        if user_id <= 0 || image_id <= 0 {
-            return Err(a4n_error::AppError::InvalidArgument(
-                "user_id 和 image_id 必须大于 0".into(),
-            ));
-        }
-        self.image_by_id(user_id, image_id).await.map_err(app_error)
-    }
-
-    async fn list_by_project(
-        &self,
-        user_id: i64,
-        input: ListImagesByProjectInput,
-    ) -> Result<Vec<GeneratedImageSummary>, a4n_error::AppError> {
-        if user_id <= 0 {
-            return Err(a4n_error::AppError::InvalidArgument(
-                "user_id 必须大于 0".into(),
-            ));
-        }
-        self.image_list_by_project(user_id, input)
-            .await
-            .map_err(app_error)
-    }
-
-    async fn list_by_projects(
-        &self,
-        user_id: i64,
-        input: ListImagesByProjectsInput,
-    ) -> Result<Vec<GeneratedImageSummary>, a4n_error::AppError> {
-        if user_id <= 0 {
-            return Err(a4n_error::AppError::InvalidArgument(
-                "user_id 必须大于 0".into(),
-            ));
-        }
-        self.image_list_by_projects(user_id, input)
-            .await
-            .map_err(app_error)
-    }
-
-    async fn list_by_chapter(
-        &self,
-        user_id: i64,
-        input: ListImagesByChapterInput,
-    ) -> Result<Vec<GeneratedImageSummary>, a4n_error::AppError> {
-        if user_id <= 0 {
-            return Err(a4n_error::AppError::InvalidArgument(
-                "user_id 必须大于 0".into(),
-            ));
-        }
-        self.image_list_by_chapter(user_id, input)
-            .await
-            .map_err(app_error)
-    }
-}
-
-#[async_trait::async_trait]
-impl ImageReferenceReadApplicationPort for ArtifactMediaWorkerClient {
-    async fn reference_by_ids(
-        &self,
-        user_id: i64,
-        project_id: i64,
-        image_ids: &[i64],
-    ) -> Result<Vec<GeneratedImageSummary>, a4n_error::AppError> {
-        self.image_reference_by_ids(user_id, project_id, image_ids)
-            .await
-            .map_err(app_error)
-    }
-}
-
-#[async_trait::async_trait]
-impl ImageRecordMutationApplicationPort for ArtifactMediaWorkerClient {
-    async fn update(
-        &self,
-        user_id: i64,
-        input: UpdateGeneratedImageInput,
-    ) -> Result<GeneratedImageSummary, a4n_error::AppError> {
-        self.update_image(user_id, input).await.map_err(app_error)
-    }
-
-    async fn delete(
-        &self,
-        user_id: i64,
-        input: DeleteImageInput,
-    ) -> Result<(), a4n_error::AppError> {
-        self.delete_image(user_id, input).await.map_err(app_error)
-    }
 }
 
 #[cfg(test)]
