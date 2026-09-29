@@ -14,13 +14,15 @@ async fn restores_deleted_identity_without_replacing_current_chapter_and_protect
             style_tags jsonb, analysis_data jsonb,
             created_at timestamp NOT NULL, updated_at timestamp NOT NULL
         ) ON COMMIT DROP;
+        CREATE TEMP TABLE novel_project (id bigint PRIMARY KEY) ON COMMIT DROP;
         CREATE UNIQUE INDEX idx_chapter_project_number_unique ON chapter(project_id, chapter_number);
         CREATE TEMP TABLE source_snapshot_chapter (
             id bigint, source_chapter_id bigint, root_project_id bigint, chapter_number integer
         ) ON COMMIT DROP;
+        INSERT INTO novel_project VALUES (1);
         INSERT INTO chapter (id,project_id,chapter_number,title,content,word_count,status,created_at,updated_at)
             VALUES (11,1,1,'新标题','新正文',3,'draft',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP);
-        INSERT INTO source_snapshot_chapter VALUES (1,10,1,1),(2,10,1,1),(3,11,1,1);
+        INSERT INTO source_snapshot_chapter VALUES (1,10,1,1),(2,10,1,1),(3,11,1,1),(4,20,999,2);
     "#).await.unwrap();
     let current = chapter::Entity::find_by_id(11)
         .one(&tx)
@@ -40,6 +42,13 @@ async fn restores_deleted_identity_without_replacing_current_chapter_and_protect
     assert_eq!(restored.word_count, 0);
     assert_eq!(restored.title, None);
     assert_eq!(restored.analysis_data, None);
+    assert!(
+        chapter::Entity::find_by_id(20)
+            .one(&tx)
+            .await
+            .unwrap()
+            .is_none()
+    );
     assert_eq!(
         chapter::Entity::find_current().all(&tx).await.unwrap(),
         vec![current]

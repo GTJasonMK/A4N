@@ -22,6 +22,14 @@ impl MigrationTrait for Migration {
 }
 
 const IDENTITY_SQL: &str = r#"
+-- A deleted root project cannot own a chapter anymore. These legacy snapshot
+-- rows have no usable parent and would otherwise fail the identity FK below.
+DELETE FROM source_snapshot_chapter AS snapshot
+WHERE NOT EXISTS (
+    SELECT 1 FROM novel_project root
+    WHERE root.id = snapshot.root_project_id
+);
+
 DO $$
 BEGIN
     IF EXISTS (
@@ -47,6 +55,7 @@ INSERT INTO chapter (id, project_id, chapter_number, content, word_count, status
 SELECT DISTINCT s.source_chapter_id, s.root_project_id, s.chapter_number, '', 0, 'deleted',
        CURRENT_TIMESTAMP AT TIME ZONE 'UTC', CURRENT_TIMESTAMP AT TIME ZONE 'UTC'
 FROM source_snapshot_chapter s
+JOIN novel_project root ON root.id = s.root_project_id
 WHERE NOT EXISTS (SELECT 1 FROM chapter c WHERE c.id = s.source_chapter_id);
 
 SELECT setval(pg_get_serial_sequence('chapter', 'id'),
