@@ -182,3 +182,66 @@ fn completed_calls_require_intact_fingerprints_and_preserve_wire_evidence() {
     corrupt["parsed_output"]["shots"][0]["purpose"] = json!("changed");
     assert!(validate_checkpoint_upgrade(&corrupt, artifacts.as_ref().unwrap()).is_err());
 }
+
+#[test]
+fn embedded_legacy_scripts_drop_removed_visual_constraint_events() {
+    use crate::chapter_visual_plan::{ChapterVisualPlanV3, SceneBindingV3};
+
+    let mut value = fixture();
+    let mut plan = ChapterVisualPlanV3::starter();
+    plan.segments[0].prompt = "推进当前动作".into();
+    plan.segments[0].scene_binding = Some(SceneBindingV3::Scene { scene_profile_id: 1 });
+    let projection = plan.project().unwrap().remove(0);
+    value["scenes"][0]["shots"][0]["visual_constraints"] =
+        serde_json::to_value(projection).unwrap();
+    value["scenes"][0]["shots"][0]["visual_constraints"]["camera_events"] =
+        serde_json::json!([]);
+
+    let mut hashes = HashUpgrades::default();
+    assert!(hashes.upgrade_embedded(&mut value).unwrap());
+    assert!(value["scenes"][0]["shots"][0]["visual_constraints"]
+        .get("camera_events")
+        .is_none());
+}
+
+#[test]
+fn completed_scene_checkpoint_drops_removed_visual_constraint_events() {
+    use super::checkpoint::upgrade_completed_checkpoint;
+    use crate::chapter_visual_plan::{ChapterVisualPlanV3, SceneBindingV3};
+    use crate::generation::canonical_json_sha256;
+
+    let mut plan = ChapterVisualPlanV3::starter();
+    plan.segments[0].prompt = "推进当前动作".into();
+    plan.segments[0].scene_binding = Some(SceneBindingV3::Scene { scene_profile_id: 1 });
+    let projection = plan.project().unwrap().remove(0);
+    let mut scene = fixture()["scenes"][0].clone();
+    scene["shots"][0]["visual_constraints"] = serde_json::to_value(projection).unwrap();
+    scene["shots"][0]["visual_constraints"]["camera_events"] = json!([]);
+
+    let step = "shooting_design_shot:1:shot-1";
+    let input = json!({"legacy_contract": "ShootingSceneV1 estimated_seconds"});
+    let input_hash = canonical_json_sha256(&input).unwrap();
+    let response_content = scene.to_string();
+    let mut checkpoint = json!({
+        "parsed_output": scene,
+        "response_content": response_content,
+        "usage": {"total_tokens": 23},
+        "finish_reason": "stop"
+    });
+    let original_response = checkpoint["response_content"].clone();
+    let mut artifacts = None;
+
+    assert!(upgrade_completed_checkpoint(
+        step,
+        Some(&input),
+        Some(&input_hash),
+        &mut checkpoint,
+        &mut artifacts,
+        &mut HashUpgrades::default(),
+    )
+    .unwrap());
+    assert_eq!(checkpoint["response_content"], original_response);
+    assert!(checkpoint["parsed_output"]["shots"][0]["visual_constraints"]
+        .get("camera_events")
+        .is_none());
+}

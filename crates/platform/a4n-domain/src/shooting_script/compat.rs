@@ -41,8 +41,34 @@ fn remove_script_estimates(script: &mut Value) {
     }
 }
 
+fn remove_legacy_visual_constraint_events(scene: &mut Value) {
+    let Some(shots) = scene.get_mut("shots").and_then(Value::as_array_mut) else {
+        return;
+    };
+    for shot in shots {
+        let Some(fields) = shot
+            .get_mut("visual_constraints")
+            .and_then(Value::as_object_mut)
+        else {
+            continue;
+        };
+        for field in [
+            "entity_events",
+            "camera_events",
+            "sound_events",
+            "technique_events",
+            "continuity_notes",
+            "transition_to_next",
+        ] {
+            fields.remove(field);
+        }
+    }
+}
+
 fn upgrade_scene(value: &Value) -> Result<super::ShootingSceneV2, serde_json::Error> {
-    let legacy: v1::ShootingSceneV1 = serde_json::from_value(value.clone())?;
+    let mut value = value.clone();
+    remove_legacy_visual_constraint_events(&mut value);
+    let legacy: v1::ShootingSceneV1 = serde_json::from_value(value)?;
     let mut value = serde_json::to_value(legacy)?;
     remove_scene_estimates(&mut value);
     serde_json::from_value(value)

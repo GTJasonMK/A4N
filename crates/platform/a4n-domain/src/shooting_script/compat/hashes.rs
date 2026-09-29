@@ -106,8 +106,14 @@ impl HashUpgrades {
     pub fn upgrade_embedded(&mut self, value: &mut Value) -> Result<bool, String> {
         if value.get("schema_version").and_then(Value::as_str) == Some("chapter_shooting_script_v1")
         {
+            let mut legacy = value.clone();
+            if let Some(scenes) = legacy.get_mut("scenes").and_then(Value::as_array_mut) {
+                for scene in scenes {
+                    super::remove_legacy_visual_constraint_events(scene);
+                }
+            }
             let old: v1::ChapterShootingScriptV1 =
-                serde_json::from_value(value.clone()).map_err(|e| e.to_string())?;
+                serde_json::from_value(legacy).map_err(|e| e.to_string())?;
             let script = old.upgrade().map_err(|e| e.to_string())?;
             self.record_script_change(&old, &script)?;
             *value = serde_json::to_value(script).map_err(|e| e.to_string())?;
