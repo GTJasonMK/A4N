@@ -1,7 +1,5 @@
-use a4n_db_models::models::{
-    galgame::galgame_line,
-    media::{media_asset, media_binding, media_provenance},
-};
+use a4n_db_models::models::media::{media_asset, media_binding, media_provenance};
+use a4n_domain::galgame::GalgameLineRecord;
 use sea_orm::FromQueryResult;
 use serde::{Deserialize, Serialize};
 
@@ -107,7 +105,7 @@ pub struct GalgameScriptDetailReadModel {
     pub text_anchors: Vec<GalgamePipelinePromptTextAnchorRecord>,
     pub media_bindings: GalgameMediaBindingReadModel,
     pub scenes: Vec<GalgameScriptDetailSceneRecord>,
-    pub lines: Vec<galgame_line::Model>,
+    pub lines: Vec<GalgameLineRecord>,
     pub choices: Vec<GalgameScriptDetailChoiceRecord>,
 }
 
@@ -145,7 +143,7 @@ pub struct GalgameScriptDetailChoiceRecord {
 #[derive(Debug, Clone)]
 pub struct GalgameAssetPlanningReadModel {
     pub scenes: Vec<GalgameAssetPlanningSceneRecord>,
-    pub lines: Vec<galgame_line::Model>,
+    pub lines: Vec<GalgameLineRecord>,
     pub source_snapshot_chapters: Vec<GalgameAssetPlanningSourceChapterRecord>,
 }
 

@@ -87,9 +87,9 @@ pub(crate) use pipeline::run::{
 };
 pub(crate) use pipeline::state::should_restore_galgame_stage_checkpoint;
 pub use preview_application::GalgamePipelinePreviewRequest;
-pub(crate) use read_models::galgame_line_from_model;
 #[cfg(test)]
 use read_models::galgame_media_binding_summaries;
+pub(crate) use read_models::{galgame_line_from_model, galgame_line_from_record};
 #[cfg(test)]
 use read_models::{
     galgame_pipeline_prompt_context_from_record, galgame_script_detail_from_read_model,

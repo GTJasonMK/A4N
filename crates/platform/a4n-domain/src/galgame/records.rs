@@ -1,4 +1,20 @@
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct GalgameLineRecord {
+    pub id: i64,
+    pub scene_id: i64,
+    pub line_index: i32,
+    pub line_type: String,
+    pub speaker_profile_id: Option<i64>,
+    pub text: String,
+    pub expression: Option<String>,
+    pub pose: Option<String>,
+    pub position: Option<String>,
+    pub presentation_json: Value,
+    pub text_anchor_id: Option<i64>,
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GalgameGenerationSpecUpsertInput {
