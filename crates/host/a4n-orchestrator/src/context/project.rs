@@ -2,6 +2,7 @@ pub(super) mod blueprint;
 pub(super) mod bundle_transfer;
 pub(super) mod chapter_context;
 pub(super) mod chapter_records;
+pub(super) mod cleanup;
 pub(super) mod duplication;
 pub(super) mod family;
 
