@@ -172,9 +172,13 @@ pub fn validate_image_config_params(
     params.name = normalize_config_name(params.name, "图片配置")?;
     params.backend = required_config_value(&params.backend, "图片生成配置", "backend")?;
     params.model = required_config_value(&params.model, "图片生成配置", "model")?;
-    params.base_url = required_config_value(&params.base_url, "图片生成配置", "base_url")?;
     params.api_key_encrypted =
         normalize_image_backend_api_key(&params.backend, params.api_key_encrypted)?;
+    params.base_url = crate::config::validate_http_base_url(
+        &params.base_url,
+        "图片生成配置",
+        params.api_key_encrypted.as_deref(),
+    )?;
     params.max_concurrent = positive_i32(params.max_concurrent, "图片配置 max_concurrent")?;
     validate_image_sizes(&params.supported_sizes)?;
     Ok(params)
@@ -398,6 +402,37 @@ mod tests {
         assert!(is_system_managed_image_type(" project_reference "));
         assert!(is_system_managed_image_type(IMAGE_TYPE_VIDEO_TAIL_FRAME));
         assert!(!is_system_managed_image_type("custom_reference"));
+    }
+
+    #[test]
+    fn image_configs_reject_invalid_and_credential_leaking_endpoints() {
+        let mut params = CreateImageConfigParams {
+            name: "test image".to_string(),
+            backend: OPENAI_COMPATIBLE_IMAGE_BACKEND.to_string(),
+            base_url: "http://api.example/v1".to_string(),
+            api_key_encrypted: Some("secret".to_string()),
+            model: "image-model".to_string(),
+            max_concurrent: 1,
+            supported_sizes: vec![ImageSize {
+                width: 1024,
+                height: 1024,
+            }],
+        };
+        assert!(
+            validate_image_config_params(params.clone())
+                .unwrap_err()
+                .contains("必须使用 HTTPS")
+        );
+
+        params.base_url = "not-a-url".to_string();
+        assert!(
+            validate_image_config_params(params.clone())
+                .unwrap_err()
+                .contains("不是有效 URL")
+        );
+
+        params.base_url = "http://127.0.0.1:7860".to_string();
+        assert!(validate_image_config_params(params).is_ok());
     }
 
     #[test]

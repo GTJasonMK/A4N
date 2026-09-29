@@ -83,7 +83,7 @@ export const ImageConfigEditor: React.FC<ImageConfigEditorProps> = ({
             value={form.model}
             onChange={(model) => setForm({ ...form, model })}
             placeholder={t("settingsForm.imageModelPlaceholder")}
-            disabled={readonly || !selectedProvider}
+            disabled={structureDisabled || !selectedProvider}
             inputDisabled={structureDisabled}
             discoveryKey={modelDiscovery.discoveryKey}
             detectModels={() => detectImageConfigModels(modelDiscovery.input, scope)}
@@ -104,6 +104,7 @@ export const ImageConfigEditor: React.FC<ImageConfigEditorProps> = ({
 
       <FormField
         label={t("settingsForm.apiKey")}
+        required={selectedProvider?.requires_api_key}
         hint={
           templateLocked
             ? t("settingsForm.personalApiKeyHint")

@@ -1,7 +1,6 @@
 use a4n_domain::config::{normalize_config_name, positive_i32, required_config_value};
 use a4n_error::AppError;
 use serde_json::Value;
-use url::{Host, Url};
 
 use a4n_domain::agent::valid_agent_protocol;
 use a4n_llm_provider_contract::{
@@ -31,35 +30,8 @@ pub(super) fn normalize_llm_base_url(
     value: &str,
     api_key: Option<&str>,
 ) -> Result<String, AppError> {
-    let value =
-        required_config_value(value, "LLM配置", "base_url").map_err(AppError::InvalidArgument)?;
-    let url = Url::parse(&value).map_err(|error| {
-        AppError::InvalidArgument(format!("LLM配置 base_url 不是有效 URL：{error}"))
-    })?;
-    if !matches!(url.scheme(), "http" | "https") || url.host().is_none() {
-        return Err(AppError::InvalidArgument(
-            "LLM配置 base_url 必须是有效的 http:// 或 https:// URL".to_string(),
-        ));
-    }
-    let has_api_key = api_key.is_some_and(|key| !key.trim().is_empty());
-    if url.scheme() == "http" && has_api_key && !is_loopback_host(url.host()) {
-        return Err(AppError::InvalidArgument(
-            "携带 API Key 的远程 LLM Base URL 必须使用 HTTPS；HTTP 重定向会丢失 Authorization，且明文传输可能泄露密钥。HTTP 仅允许 localhost 或回环地址"
-                .to_string(),
-        ));
-    }
-    Ok(value)
-}
-
-fn is_loopback_host(host: Option<Host<&str>>) -> bool {
-    match host {
-        Some(Host::Domain(host)) => {
-            host.eq_ignore_ascii_case("localhost") || host.ends_with(".localhost")
-        }
-        Some(Host::Ipv4(address)) => address.is_loopback(),
-        Some(Host::Ipv6(address)) => address.is_loopback(),
-        None => false,
-    }
+    a4n_domain::config::validate_http_base_url(value, "LLM配置", api_key)
+        .map_err(AppError::InvalidArgument)
 }
 
 pub fn validate_llm_config(model: &super::contracts::LlmConfigSnapshot) -> Result<(), AppError> {

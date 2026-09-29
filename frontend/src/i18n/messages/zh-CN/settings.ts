@@ -192,6 +192,7 @@ export const settingsForm = {
   notConfigured: "未配置",
   nameRequired: "请填写配置名称",
   modelRequired: "请填写模型名",
+  apiKeyRequired: "当前图片服务商需要访问密钥",
   endpointRequired: "请填写 API Base URL",
   endpointUrlInvalid: "API Base URL 必须是有效的 http:// 或 https:// URL",
   remoteHttpApiKey: "携带 API Key 的远程 LLM 地址必须使用 HTTPS；HTTP 重定向会丢失鉴权信息",

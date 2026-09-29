@@ -3,6 +3,7 @@ import { DEFAULT_IMAGE_SIZES, imageSizeLabel } from "../../../api/image";
 import type { ConfigItem } from "../ConfigListPanel";
 import type { ImageForm } from "./types";
 import type { MessageKey, MessageParams } from "../../../i18n";
+import type { ImageProviderDescriptor } from "../../../api/generated/config";
 import { clonePricingPlan, DEFAULT_PRICING_PLAN } from "../config-list/pricing";
 
 type Translate = (key: MessageKey, params?: MessageParams) => string;
@@ -20,10 +21,22 @@ export const DEFAULT_IMAGE_FORM: ImageForm = {
   pricing: DEFAULT_PRICING_PLAN,
 };
 
-export function validateImageForm(form: ImageForm, t: Translate): string | null {
+export function validateImageForm(
+  form: ImageForm,
+  t: Translate,
+  provider?: ImageProviderDescriptor,
+): string | null {
   if (!form.name.trim()) return t("settingsForm.nameRequired");
   if (!form.model.trim()) return t("settingsForm.modelRequired");
   if (!form.api_base_url.trim()) return t("settingsForm.baseUrlRequired");
+  if (
+    provider?.id === form.provider &&
+    provider.requires_api_key &&
+    !form.api_key.trim() &&
+    (!form.has_api_key || form.clear_api_key)
+  ) {
+    return t("settingsForm.apiKeyRequired");
+  }
   if (form.supported_sizes.length === 0) {
     return t("settingsForm.imageSizesRequired");
   }

@@ -91,7 +91,6 @@ pub fn validate_video_config_params(
 ) -> Result<VideoConfigParams, String> {
     params.name = required_video_config_value(params.name, "name")?;
     params.backend = required_video_config_value(params.backend, "backend")?;
-    params.base_url = required_video_config_value(params.base_url, "base_url")?;
     params.model = required_video_config_value(params.model, "model")?;
 
     let capabilities = video_provider_capabilities(&params.backend)
@@ -100,6 +99,11 @@ pub fn validate_video_config_params(
         .api_key_encrypted
         .map(|value| value.trim().to_string())
         .filter(|value| !value.is_empty());
+    params.base_url = a4n_domain::config::validate_http_base_url(
+        &params.base_url,
+        "视频生成配置",
+        params.api_key_encrypted.as_deref(),
+    )?;
 
     validate_video_max_concurrent(params.max_concurrent)?;
     validate_i32_positive(params.default_width, "default_width")?;
@@ -381,6 +385,27 @@ mod tests {
         assert_eq!(params.name, "默认视频");
         assert_eq!(params.api_key_encrypted.as_deref(), Some("secret"));
         assert!(validate_video_duration_for_params_secs(&params, 5).is_ok());
+    }
+
+    #[test]
+    fn video_configs_reject_invalid_and_credential_leaking_endpoints() {
+        let mut params = valid_params();
+        params.base_url = "not-a-url".to_string();
+        assert!(
+            validate_video_config_params(params.clone())
+                .unwrap_err()
+                .contains("不是有效 URL")
+        );
+
+        params.base_url = "http://video.example/v1".to_string();
+        assert!(
+            validate_video_config_params(params.clone())
+                .unwrap_err()
+                .contains("必须使用 HTTPS")
+        );
+
+        params.base_url = "http://127.0.0.1:8080/v1".to_string();
+        assert!(validate_video_config_params(params).is_ok());
     }
 
     #[test]

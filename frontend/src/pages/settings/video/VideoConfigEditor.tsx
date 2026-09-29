@@ -112,7 +112,7 @@ export const VideoConfigEditor: React.FC<VideoConfigEditorProps> = ({
             value={form.model}
             onChange={(model) => setForm({ ...form, model })}
             placeholder={t("settingsForm.videoModelPlaceholder")}
-            disabled={readonly || !selectedProvider}
+            disabled={structureDisabled || !selectedProvider}
             inputDisabled={structureDisabled}
             discoveryKey={modelDiscovery.discoveryKey}
             detectModels={() => detectVideoConfigModels(modelDiscovery.input, scope)}
