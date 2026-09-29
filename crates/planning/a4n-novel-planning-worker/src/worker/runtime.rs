@@ -1,4 +1,3 @@
-use super::helpers::init_tracing;
 use crate::*;
 
 pub fn run() -> anyhow::Result<()> {
@@ -34,4 +33,27 @@ fn worker_addr() -> anyhow::Result<SocketAddr> {
         anyhow::bail!("{WORKER_ADDR_ENV} 必须是 loopback 且端口大于 0")
     }
     Ok(address)
+}
+
+fn init_tracing() {
+    let filter = tracing_subscriber::EnvFilter::try_from_default_env()
+        .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info"));
+    let _ = tracing_subscriber::fmt().with_env_filter(filter).try_init();
+}
+
+pub(crate) async fn shutdown_signal() {
+    #[cfg(unix)]
+    {
+        let mut terminate =
+            tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
+                .expect("install SIGTERM handler");
+        tokio::select! {
+            _ = tokio::signal::ctrl_c() => {},
+            _ = terminate.recv() => {},
+        }
+    }
+    #[cfg(not(unix))]
+    {
+        let _ = tokio::signal::ctrl_c().await;
+    }
 }

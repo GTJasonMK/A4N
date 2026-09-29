@@ -327,3 +327,24 @@ impl WorkerState {
         }))
     }
 }
+
+fn ensure_record_id(expected: i64, actual: i64) -> Result<(), WorkerFailure> {
+    if expected != actual {
+        return Err(WorkerFailure::invalid_request(format!(
+            "拍摄剧本与当前章节来源不匹配: expected_record_id={expected}, actual_record_id={actual}"
+        )));
+    }
+    Ok(())
+}
+
+fn record_summary(
+    record: a4n_db_models::models::chapter::chapter_shooting_script::Model,
+) -> ChapterShootingScriptRecordSummary {
+    ChapterShootingScriptRecordSummary {
+        id: record.id,
+        revision: record.revision,
+        visual_plan_id: record.visual_plan_id,
+        visual_plan_version: record.visual_plan_version,
+        visual_plan_sha256: record.visual_plan_sha256,
+    }
+}

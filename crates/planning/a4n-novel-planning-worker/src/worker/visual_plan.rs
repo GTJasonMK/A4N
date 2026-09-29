@@ -346,3 +346,118 @@ impl WorkerState {
         })
     }
 }
+
+async fn ensure_visual_plan_belongs_to_source(
+    state: &WorkerState,
+    input: &ChapterVisualPlanRecordInput,
+) -> Result<(), WorkerFailure> {
+    let source = resolve_source(state, input.project_id, input.source_chapter_id).await?;
+    let plan = a4n_db::chapter_visual_plan::chapter_visual_plan_by_id(
+        state.database.connection(),
+        input.record_id,
+    )
+    .await
+    .map_err(visual_plan_error)?;
+    if plan.record.project_id != source.requested_project_id
+        || plan.record.root_project_id != source.root_project_id
+        || plan.record.source_chapter_id != source.source_chapter_id
+        || plan.record.source_snapshot_id != source.source_snapshot_id
+        || plan.record.source_snapshot_chapter_id != source.source_snapshot_chapter_id
+    {
+        return Err(WorkerFailure::invalid_request(
+            "章节视觉编排与当前章节正文不匹配",
+        ));
+    }
+    Ok(())
+}
+
+fn visual_plan_view(
+    value: a4n_db::chapter_visual_plan::ParsedChapterVisualPlan,
+) -> ChapterVisualPlanView {
+    ChapterVisualPlanView {
+        edit_receipt: value.edit_receipt,
+        record: ChapterVisualPlanRecordSummary {
+            id: value.record.id,
+            plan_version: value.record.plan_version,
+            revision: value.record.revision,
+            status: value.status,
+            authoring_mode: value.authoring_mode,
+            source_content_sha256: value.record.source_content_sha256,
+            plan_sha256: value.record.plan_sha256,
+            confirmed_at: value.record.confirmed_at.map(|value| value.to_string()),
+        },
+        plan: value.plan,
+    }
+}
+
+fn visual_plan_resource(
+    current: &a4n_db::chapter_visual_plan::ParsedChapterVisualPlan,
+) -> a4n_api_contract::agent::AgentResourceRef {
+    a4n_api_contract::agent::AgentResourceRef {
+        kind: "chapter_visual_plan".into(),
+        id: current.record.id.to_string(),
+        revision: Some(current.record.revision.to_string()),
+        hash: Some(current.record.plan_sha256.clone()),
+        label: Some(current.record.status.clone()),
+    }
+}
+
+fn ensure_visual_plan_belongs_to_source_record(
+    plan: &a4n_db::chapter_visual_plan::ParsedChapterVisualPlan,
+    source: &a4n_domain::chapter::ResolvedChapterSource,
+) -> Result<(), WorkerFailure> {
+    if plan.record.project_id != source.requested_project_id
+        || plan.record.root_project_id != source.root_project_id
+        || plan.record.source_chapter_id != source.source_chapter_id
+        || plan.record.source_snapshot_id != source.source_snapshot_id
+        || plan.record.source_snapshot_chapter_id != source.source_snapshot_chapter_id
+    {
+        return Err(WorkerFailure::invalid_request(
+            "章节视觉编排与当前章节正文不匹配",
+        ));
+    }
+    Ok(())
+}
+
+fn visual_plan_revision_conflict(record_id: i64, expected_revision: i32) -> WorkerFailure {
+    WorkerFailure::conflict(format!(
+        "chapter_visual_plan_revision_conflict:id={record_id},expected={expected_revision}"
+    ))
+}
+
+fn page_range(
+    offset: u32,
+    limit: Option<u32>,
+    total: usize,
+    default: u32,
+    max: u32,
+) -> Result<(usize, usize), WorkerFailure> {
+    let limit = limit.unwrap_or(default);
+    if limit == 0 || limit > max || offset as usize > total {
+        return Err(WorkerFailure::invalid_request(format!(
+            "分页范围无效：offset={offset}，limit 须为 1..={max}，total={total}"
+        )));
+    }
+    let start = offset as usize;
+    Ok((start, start.saturating_add(limit as usize).min(total)))
+}
+
+fn next_offset(end: usize, total: usize) -> Result<Option<u32>, WorkerFailure> {
+    (end < total)
+        .then(|| u32::try_from(end))
+        .transpose()
+        .map_err(|_| WorkerFailure::invalid_request("分页长度超出 u32"))
+}
+
+fn projection_error(
+    error: a4n_api_contract::chapter_visual_plan::VisualPlanProjectionError,
+) -> WorkerFailure {
+    match error {
+        a4n_api_contract::chapter_visual_plan::VisualPlanProjectionError::InvalidRequest(
+            message,
+        ) => WorkerFailure::invalid_request(message),
+        a4n_api_contract::chapter_visual_plan::VisualPlanProjectionError::NotFound(message) => {
+            WorkerFailure::not_found(message)
+        }
+    }
+}
