@@ -5,6 +5,7 @@ pub(super) mod chapter_records;
 pub(super) mod cleanup;
 pub(super) mod duplication;
 pub(super) mod family;
+pub(super) mod family_transfer;
 
 pub(super) mod mutation;
 pub(super) mod outline_records;
