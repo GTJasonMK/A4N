@@ -18,6 +18,7 @@ use crate::{OrchestratorContext, workflow::WorkflowLlmOnceInput};
 const DEFAULT_INSTRUCTION: &str = "按目标媒介独立改编，保留原作关键因果和人物动机";
 mod application;
 mod artifacts;
+mod ports;
 mod references;
 
 pub(crate) struct PreparedAdaptation {
