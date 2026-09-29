@@ -1,13 +1,10 @@
 use a4n_db::import_reverse::ImportReverseDbError;
-use a4n_novel_host_contract::{
-    ImportReverseGenerationApplicationPort, ImportReversePreviewApplicationPort,
-};
-
 mod application;
 mod candidate;
 mod context;
 mod execution;
 mod json;
+mod ports;
 mod request;
 mod target;
 mod workflow_rules;
