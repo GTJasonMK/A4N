@@ -64,6 +64,7 @@ export const OptimizeTab: React.FC<OptimizeTabProps> = ({
       <DomainAgentConsole
         capability="content_optimization"
         projectId={projectId}
+        composerDirtyKey={`domain-agent-composer:content-optimization:${projectId}`}
         chapterId={boundChapterId}
         resourceLabel={activeChapter?.title ?? null}
         onResourceChanged={

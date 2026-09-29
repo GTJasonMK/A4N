@@ -8,8 +8,14 @@ import { getChapterVisualPlan } from "../../api/chapterVisualPlan";
 import { IMAGE_TYPE_DIRECTOR_STORYBOARD_FRAME, listImagesByProjects, uploadImage, type GeneratedImage, type ImageSize } from "../../api/image";
 import { createSceneProfile, type SceneProfile } from "../../api/sceneProfiles";
 import { respondAgentEditor, type AgentEditorRequest, type AgentEditorResponse, type AgentEditorSource, type AgentExecutionMode } from "../../api/agent";
-import { DomainAgentConsole } from "../../components/agent/DomainAgentConsole";
 import { useDirectorAgentBridge } from "./visual-plan/useDirectorAgentBridge";
+import { DomainAgentConsole } from "../../components/agent/DomainAgentConsole";
+import {
+  domainAgentComposerOwnerKey,
+  domainAgentOperationInFlightForOwner,
+  hasDomainAgentComposerDraftForOwner,
+  clearDomainAgentComposerDraftForOwner,
+} from "../../components/agent/domainAgentDrafts";
 import { confirmDialog } from "../../components/feedback/ConfirmDialog";
 import { useToast } from "../../components/feedback/Toast";
 import { BookButton, BookIconButton } from "../../components/ui/BookButton";
@@ -25,6 +31,7 @@ import { DirectorScrubber, DirectorTimeline, type DirectorTimelineView } from ".
 import { useDirectorPlan } from "./visual-plan/useDirectorPlan";
 import { useDirectorPlayback, type DirectorPlayback } from "./visual-plan/playback";
 import { useNovelDetailDirty } from "./novelDetailDirty";
+import { useI18n } from "../../i18n";
 import { durationMs, formatTime, pointAt, segmentAt, segmentTimes, type DirectorSelection } from "./visual-plan/timeline";
 import "./visual-plan/director.css";
 
@@ -42,6 +49,10 @@ function directorCandidatePointId(image: GeneratedImage): string | null {
 }
 
 export function ChapterVisualPlanTab({ projectId, canEdit, chapter, onDirtyChange, onBusyChange }: { projectId: number; canEdit: boolean; chapter: Pick<ChapterSummary, "id" | "project_id" | "chapter_number" | "title"> | null; onDirtyChange?: (dirty: boolean) => void; onBusyChange?: (busy: boolean) => void }) {
+  const { t } = useI18n();
+  const { addToast } = useToast();
+  const agentComposerDirtyKey = `domain-agent-composer:director:${projectId}`;
+  const agentComposerOwnerKey = domainAgentComposerOwnerKey(agentComposerDirtyKey);
   const chapterId = chapter?.id ?? null;
   const model = useDirectorPlan(projectId, chapterId, canEdit);
   const plan = model.plan;
@@ -130,6 +141,24 @@ export function ChapterVisualPlanTab({ projectId, canEdit, chapter, onDirtyChang
   const clearInspectorDraft = useCallback(() => {
     setSceneBindingDirtyKeys((current) => new Set([...current].filter((key) => key !== inspectorSceneBindingKey && key !== inspectorCandidateKey)));
   }, [inspectorCandidateKey, inspectorSceneBindingKey]);
+  const discardAgentComposer = async (action: string) => {
+    if (domainAgentOperationInFlightForOwner(agentComposerOwnerKey)) {
+      addToast(t("common.operationInProgress"), "info");
+      return false;
+    }
+    if (!hasDomainAgentComposerDraftForOwner(agentComposerOwnerKey)) return true;
+    if (!(await confirmDialog({
+      title: t("common.unsavedChangesTitle"),
+      message: t("common.unsavedChangesMessage", {
+        name: t("agent.domain.consoleLabel"),
+        action,
+      }),
+      confirmText: t("common.discardDraft"),
+      dialogType: "warning",
+    }))) return false;
+    clearDomainAgentComposerDraftForOwner(agentComposerOwnerKey);
+    return true;
+  };
   useEffect(() => {
     setSceneBindingDirtyKeys(new Set());
     setSceneCreationKeys(new Set());
@@ -160,12 +189,14 @@ export function ChapterVisualPlanTab({ projectId, canEdit, chapter, onDirtyChang
   const openModal = async (next: ModalPanel) => {
     if (sceneCreationBusy) { reportSceneCreationBusy(); return; }
     const closesInspector = (next === "agent" && !narrow) || (narrow && inspectorOpen);
+    const closesAgentConsole = (agentSidebarOpen || (narrow && modalPanel === "agent")) && next !== "agent";
     if (closesInspector && inspectorDraftDirty && !(await confirmDialog({
       title: "放弃属性面板编辑？",
       message: "当前属性面板有未保存编辑，打开其他面板后将丢失。",
       confirmText: "放弃编辑",
       dialogType: "warning",
     }))) return;
+    if (closesAgentConsole && !(await discardAgentComposer(t("common.close")))) return;
     if (closesInspector) clearInspectorDraft();
     setModalPanel(next);
     if (next === "agent" && !narrow) {
@@ -183,6 +214,7 @@ export function ChapterVisualPlanTab({ projectId, canEdit, chapter, onDirtyChang
       confirmText: "放弃编辑",
       dialogType: "warning",
     }))) return;
+    if (!(await discardAgentComposer(t("common.close")))) return;
     clearInspectorDraft();
     setModalPanel(null);
     setInspectorOpen(false);
@@ -638,6 +670,7 @@ export function ChapterVisualPlanTab({ projectId, canEdit, chapter, onDirtyChang
           executionMode={agentExecutionMode} onExecutionModeChange={setAgentExecutionMode}
           capability="director"
           projectId={projectId}
+          composerDirtyKey={agentComposerDirtyKey}
           chapterId={chapter.id}
           resourceLabel={chapter.title}
           fill
@@ -651,8 +684,16 @@ export function ChapterVisualPlanTab({ projectId, canEdit, chapter, onDirtyChang
     <Modal isOpen={inspectorOpen && narrow} title={point ? "图片点属性" : "镜头段属性"} onClose={() => void closeInspector()} className="director-mobile-inspector" footer={narrow ? pointActions : undefined}>{inspector}</Modal>
     <Modal isOpen={modalPanel === "source"} title="章节原文" onClose={closeModal} maxWidthClassName="max-w-3xl"><div className="director-source">{model.set?.source.content}</div></Modal>
     <Modal isOpen={modalPanel === "scenes"} title="本项目场景库" onClose={closeSceneLibrary} maxWidthClassName="max-w-6xl"><Suspense fallback={<LoadingSpinner text="加载场景库…" />}><SceneLibrary projectId={projectId} canEditProfiles={canEdit} /></Suspense></Modal>
-    <Modal isOpen={modalPanel === "agent" && narrow} title="导演 Agent" onClose={closeModal} maxWidthClassName="max-w-4xl">
-      <DomainAgentConsole capability="director" projectId={projectId} chapterId={chapter.id} resourceLabel={chapter.title} className="director-agent-console director-agent-modal-console" getEditorSource={getEditorSource} executionMode={agentExecutionMode} onExecutionModeChange={setAgentExecutionMode} />
+    <Modal
+      isOpen={modalPanel === "agent" && narrow}
+      title="导演 Agent"
+      onClose={closeModal}
+      maxWidthClassName="max-w-4xl"
+      closeOnBackdrop={false}
+      closeOnEscape={false}
+      showCloseButton={false}
+    >
+      <DomainAgentConsole capability="director" projectId={projectId} composerDirtyKey={agentComposerDirtyKey} chapterId={chapter.id} resourceLabel={chapter.title} className="director-agent-console director-agent-modal-console" onClose={closeModal} getEditorSource={getEditorSource} executionMode={agentExecutionMode} onExecutionModeChange={setAgentExecutionMode} />
     </Modal>
     <Modal isOpen={modalPanel === "settings"} title="画幅" onClose={closeModal}>
       <div className="director-inline-actions">{[[1920, 1080, "16:9 横屏"], [1080, 1920, "9:16 竖屏"], [1080, 1080, "1:1 方形"], [1440, 1080, "4:3"]].map(([width, height, label]) => {

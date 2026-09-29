@@ -132,7 +132,7 @@ export const VideoAssemblyWorkspace: React.FC<VideoAssemblyWorkspaceProps> = ({
   const [cacheLoading, setCacheLoading] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [pushing, setPushing] = useState(false);
-  const [pushClipCount, setPushClipCount] = useState(1);
+  const [pushClipCount, setPushClipCount] = useState<number | null>(1);
   const [acting, setActing] = useState<string | null>(null);
   const [videoLoading, setVideoLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -231,7 +231,7 @@ export const VideoAssemblyWorkspace: React.FC<VideoAssemblyWorkspaceProps> = ({
     [clips, pushedPrefixLength],
   );
   const normalizedPushClipCount =
-    pushableClips.length === 0
+    pushableClips.length === 0 || pushClipCount == null
       ? 0
       : Math.max(1, Math.min(pushClipCount, pushableClips.length));
   const selectedPushRange = useMemo(() => {
@@ -326,7 +326,7 @@ export const VideoAssemblyWorkspace: React.FC<VideoAssemblyWorkspaceProps> = ({
 
   useEffect(() => {
     setPushClipCount((current) =>
-      pushableClips.length === 0
+      pushableClips.length === 0 || current == null
         ? 1
         : Math.max(1, Math.min(current, pushableClips.length)),
     );
@@ -642,9 +642,15 @@ export const VideoAssemblyWorkspace: React.FC<VideoAssemblyWorkspaceProps> = ({
                 min={1}
                 max={Math.max(1, pushableClips.length)}
                 value={
-                  pushableClips.length === 0 ? "" : normalizedPushClipCount
+                  pushableClips.length === 0 || pushClipCount == null
+                    ? ""
+                    : pushClipCount
                 }
                 onChange={(event) => {
+                  if (event.target.value === "") {
+                    setPushClipCount(null);
+                    return;
+                  }
                   const value = Number(event.target.value);
                   if (!Number.isFinite(value)) return;
                   setPushClipCount(

@@ -147,7 +147,7 @@ export const agent = {
   loadFailed: "Failed to load Agent status",
   clearContext: "Clear Agent context",
   clearContextTitle: "Clear Agent context",
-  clearContextMessage: "The current conversation will be archived and replaced with a new empty one. Its old messages will remain in history but will no longer be sent to the Agent. Any running task will be cancelled first. Continue?",
+  clearContextMessage: "The current conversation will be archived and replaced with a new empty one. Its old messages will remain in history but will no longer be sent to the Agent. Any unsent message draft will also be discarded. Any running task will be cancelled first. Continue?",
   clearContextConfirm: "Clear context",
   clearContextSuccess: "Agent context cleared",
   clearContextFailed: "Failed to clear Agent context",

@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { RefreshCw, Save, Sparkles } from "lucide-react";
 import { extractErrorMessage } from "../../api";
 import {
@@ -9,6 +9,7 @@ import {
   type AgentSkillSettingsView,
 } from "../../api/agent";
 import { useToast } from "../../components/feedback/Toast";
+import { confirmDialog } from "../../components/feedback/ConfirmDialog";
 import { BookButton, BookIconButton } from "../../components/ui/BookButton";
 import { ThemedSelect } from "../../components/ui/ThemedSelect";
 import { useI18n } from "../../i18n";
@@ -50,26 +51,62 @@ export const AgentTab: React.FC = () => {
   const dirty = useMemo(() => settings?.profiles.some((profile) =>
     profile.skills.some((skill) => skill.enabled !== draft[profile.capability]?.has(skill.id)),
   ) ?? false, [draft, settings]);
+  const dirtyRef = useRef(dirty);
+  const tRef = useRef(t);
+  const mountedRef = useRef(true);
+  const refreshInFlightRef = useRef(false);
+  const savingRef = useRef(false);
+  dirtyRef.current = dirty;
+  tRef.current = t;
   useDirty("settings-agent-skills", dirty, undefined, () => !saving);
 
-  const refresh = useCallback(async () => {
-    setLoading(true);
-    setLoadError(null);
-    try {
-      const next = await listAgentSkills();
-      setSettings(next);
-      setDraft(cloneProfiles(next));
-      setActiveCapability((current) =>
-        next.profiles.some((profile) => profile.capability === current)
-          ? current
-          : next.profiles[0]?.capability ?? "",
-      );
-    } catch (error) {
-      setLoadError({ reason: error });
-    } finally {
-      setLoading(false);
-    }
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
   }, []);
+
+  const refresh = useCallback(async () => {
+    if (refreshInFlightRef.current) return;
+    if (savingRef.current) {
+      addToast(tRef.current("common.operationInProgress"), "info");
+      return;
+    }
+    refreshInFlightRef.current = true;
+    try {
+      if (dirtyRef.current && !(await confirmDialog({
+        title: tRef.current("common.unsavedChangesTitle"),
+        message: tRef.current("common.unsavedChangesMessage", {
+          name: tRef.current("settingsAgent.title"),
+          action: tRef.current("settingsAgent.refresh"),
+        }),
+        confirmText: tRef.current("common.discardDraft"),
+        dialogType: "warning",
+      }))) return;
+      if (!mountedRef.current) return;
+      setLoading(true);
+      setLoadError(null);
+      try {
+        const next = await listAgentSkills();
+        if (!mountedRef.current) return;
+        setSettings(next);
+        setDraft(cloneProfiles(next));
+        setActiveCapability((current) =>
+          next.profiles.some((profile) => profile.capability === current)
+            ? current
+            : next.profiles[0]?.capability ?? "",
+        );
+      } catch (error) {
+        if (!mountedRef.current) return;
+        setLoadError({ reason: error });
+      } finally {
+        if (mountedRef.current) setLoading(false);
+      }
+    } finally {
+      refreshInFlightRef.current = false;
+    }
+  }, [addToast]);
 
   useEffect(() => {
     void refresh();
@@ -93,6 +130,7 @@ export const AgentTab: React.FC = () => {
     const profile = settings.profiles.find((item) => item.capability === activeCapability);
     if (!profile) return;
     const submitted = activeEnabled;
+    savingRef.current = true;
     setSaving(true);
     try {
       const updated = await updateAgentSkillConfiguration({
@@ -119,6 +157,7 @@ export const AgentTab: React.FC = () => {
     } catch (error) {
       addToast(extractErrorMessage(error, t("settingsAgent.saveFailed")), "error");
     } finally {
+      savingRef.current = false;
       setSaving(false);
     }
   };

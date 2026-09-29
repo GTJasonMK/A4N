@@ -16,15 +16,17 @@ import "../../src/index.css";
 
 const root = createRoot(document.getElementById("root")!);
 let version = 0;
-function mount(chapter = 1, view = "desk") {
+let activeRouter: ReturnType<typeof createMemoryRouter>;
+function mount(chapter = 1, view = "desk", canOpenWritingDesk = false) {
   const key = ++version;
   const router = createMemoryRouter([{ path: "/write/:id", element: <StatusBarProvider>
         <ProgressTaskProvider>
-        {view === "desk" ? <WritingDesk /> : view === "story" ? <StoryEventsTab projectId={1} canOpenWritingDesk={false} />
+        {view === "desk" ? <WritingDesk /> : view === "story" ? <div id="story-scroll" className="h-full min-h-0 overflow-y-auto custom-scrollbar a4n-page-container"><StoryEventsTab projectId={1} canOpenWritingDesk={canOpenWritingDesk} /></div>
           : <ChaptersTab projectId={1} canEditChapters={false} />}
         <ConfirmDialogHost /><PromptDialogHost /><ToastContainer />
         </ProgressTaskProvider>
       </StatusBarProvider> }], { initialEntries: [`/write/1?chapter=${chapter}`] });
+  activeRouter = router;
   root.render(<I18nProvider initialLocale="zh-CN" key={key}>
     <RouterProvider router={router} />
   </I18nProvider>);
@@ -37,6 +39,7 @@ void (async () => {
   Object.assign(window, {
     chapterLoad: {
       mount,
+      route: () => activeRouter.state.location.pathname + activeRouter.state.location.search,
       draft: (chapter: number, body: string) => writeWritingDraft(getWritingDraftKey("1", chapter), body),
       toasts: () => useToast.getState().toasts,
     },

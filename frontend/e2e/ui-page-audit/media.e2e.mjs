@@ -94,9 +94,25 @@ async function selectComicPage(page) {
 
 async function openVideo(tab = "片段生成") {
   await openRoute("/video-project/3");
-  const target = await $(`//*[@role="tab" and normalize-space()=${JSON.stringify(tab)}]`);
-  await target.waitForClickable();
-  await target.click();
+  if (await browser.execute(() => innerWidth) < 640) {
+    const mobileSelector = await $('[role="combobox"][id="video-stages-3-select"]');
+    await mobileSelector.waitForDisplayed();
+    await mobileSelector.click();
+    const option = await $(`//*[@role="option" and contains(normalize-space(.), ${JSON.stringify(tab)})]`);
+    await option.waitForClickable();
+    await option.click();
+  } else {
+    const target = await $(`//*[@role="tab" and contains(normalize-space(.), ${JSON.stringify(tab)})]`);
+    await target.waitForClickable();
+    await target.click();
+  }
+  await ready();
+}
+
+async function openVideoMaterials() {
+  await openVideo("基础素材");
+  await buttonText("场景与道具").click();
+  await $("article[data-state]").waitForDisplayed();
   await ready();
 }
 
@@ -147,7 +163,7 @@ async function openVideoPrompt(edit = false) {
 }
 
 async function openMaterialDetails(tab = "概览") {
-  await openVideo("素材生成");
+  await openVideoMaterials();
   const target = await $('article[data-state="ready"] button[aria-label="打开素材图"]');
   await target.waitForClickable();
   await target.click();
@@ -660,10 +676,10 @@ const cases = [
     return { savedPromptId: 21003, preservedPromptId: 21005, fullTextsMatch: true };
   }, note: "精准延迟单个保存，核对请求全文/目标、返回全文和其他页未提交的独立草稿。" },
 
-  { id: "MV01", title: "视频素材", task: "核对场景和物体的正常、缺失和过期素材", open: () => openVideo("素材生成"), count: ["article[data-state]", 6], expected: ["旧书店", "旧怀表"], note: "素材主操作是否藏在默认折叠的生成设置内。" },
-  { id: "MV02", title: "素材生成设置", task: "查看尺寸、风格及批量补全入口", open: async () => { await openVideo("素材生成"); await $('//summary[.//span[normalize-space()="生成设置"]]').click(); }, expected: ["补齐", "缺失"], note: "尺寸与风格可折叠，主要补全任务应易发现。" },
-  { id: "MV03", title: "素材缺失筛选", task: "用已有筛选仅查看缺失素材", open: async () => { await openVideo("素材生成"); const trigger = await $('//label[.//span[normalize-space()="状态"]]//button[@role="combobox"]'); await selectOption(trigger, "缺失"); }, count: ["article[data-state]", 2], note: "真实筛选结果应改变，不用相同数组冒充筛选成功。" },
-  { id: "MV04", title: "素材上传对话框", task: "查看上传前的角色/场景归属与主图开关", open: async () => { await openVideo("素材生成"); await openMenu('article[data-state="ready"]', "上传素材图"); await $(dialog).waitForDisplayed(); }, scope: dialog, expected: ["上传", "主"], note: "保留文件选择和上传后设为主图；本例不上传文件。" },
+  { id: "MV01", title: "视频素材", task: "核对场景和物体的正常、缺失和过期素材", open: openVideoMaterials, count: ["article[data-state]", 6], expected: ["旧书店", "旧怀表"], note: "素材主操作是否藏在默认折叠的生成设置内。" },
+  { id: "MV02", title: "素材生成设置", task: "查看尺寸、风格及批量补全入口", open: async () => { await openVideoMaterials(); await $('//summary[.//span[normalize-space()="生成设置"]]').click(); }, expected: ["补齐", "缺失"], note: "尺寸与风格可折叠，主要补全任务应易发现。" },
+  { id: "MV03", title: "素材缺失筛选", task: "用已有筛选仅查看缺失素材", open: async () => { await openVideoMaterials(); const trigger = await $('//label[.//span[normalize-space()="状态"]]//button[@role="combobox"]'); await selectOption(trigger, "缺失"); }, count: ["article[data-state]", 2], note: "真实筛选结果应改变，不用相同数组冒充筛选成功。" },
+  { id: "MV04", title: "素材上传对话框", task: "查看上传前的角色/场景归属与主图开关", open: async () => { await openVideoMaterials(); await openMenu('article[data-state="ready"]', "上传素材图"); await $(dialog).waitForDisplayed(); }, scope: dialog, expected: ["上传", "主"], note: "保留文件选择和上传后设为主图；本例不上传文件。" },
   ...["概览", "来源", "管理"].map((tab, index) => ({ id: `MV0${5 + index}`, title: `素材图${tab}`, task: `打开图片详情的${tab}模式`, open: () => openMaterialDetails(tab), scope: dialog, expected: tab === "来源" ? ["书店素材图 · UI样本", "旧书店场景参考图"] : [tab], images: tab === "概览" ? 1 : 0, note: "三种详情模式独立截图，来源必须展示实际元数据，不能由空提示替代。" })),
   { id: "MV08", title: "片段规划", task: "逐段阅读场景、动作与调度摘要", open: () => openVideo("片段规划"), count: ['section[aria-label="视频片段规划"] ol > li', 6], expected: ["街口雨幕", "后门敲响"], note: "摘要与调度被截断时，应有完整阅读路径。" },
   { id: "MV09", title: "规划参数", task: "查看比例、语言、时长候选和公共风格", open: async () => { await openVideo("片段规划"); await $('//summary[.//span[normalize-space()="规划配置"]]').click(); }, expected: ["候选", "风格"], note: "三列参数在390px下必须保持标签和控件可读。" },
@@ -1145,5 +1161,41 @@ describe("Populated media pages and task dialogs", () => {
     await reopenedBinder.$("summary").click();
     assert.equal(await reopenedBinder.$('input[aria-label="素材编号"]').getValue(), "");
     record.interaction = { activeStageClickPreservedCgDraft: true, instructionGuarded: true, assetIdDraftGuarded: true };
+  });
+
+  it("UX-B72 protects material-generation settings through the next-stage shortcut", async function () {
+    const results = [];
+    for (const width of [1440, 390]) {
+      this.mediaRecord = { id: `UX-B72-${width}`, title: "素材下一阶段草稿保护", width, task: "下一阶段入口沿用统一的未保存修改确认" };
+      await browser.setWindowSize(width, 1000);
+      await openVideoMaterials();
+      await openDetails('//details[summary//span[normalize-space()="生成设置"]]');
+      const style = await $('//label[span[normalize-space()="风格模板"]]/button[@role="combobox"]');
+      await selectOption(style, "自定义/后端默认");
+
+      const nextStage = await buttonText("下一阶段");
+      await nextStage.click();
+      await $('[role="dialog"]').waitForDisplayed();
+      assert((await $('[role="dialog"]').getText()).includes("未保存修改"));
+      await $('[role="dialog"]').$('.//button[normalize-space()="取消"]').click();
+      assert.equal(await style.getText(), "自定义/后端默认", "Cancel must preserve the selected material style");
+
+      const stageControl = width < 640
+        ? await $('[role="combobox"][id="video-stages-3-select"]')
+        : await $('button[id="video-stages-3-tab-materials"]');
+      if (width < 640) assert((await stageControl.getText()).includes("基础素材"));
+      else assert.equal(await stageControl.getAttribute("aria-selected"), "true");
+
+      await nextStage.click();
+      await $('[role="dialog"]').waitForDisplayed();
+      await $('[role="dialog"]').$('.//button[normalize-space()="放弃草稿"]').click();
+      if (width < 640) {
+        await browser.waitUntil(async () => (await stageControl.getText()).includes("导演编排"));
+      } else {
+        await browser.waitUntil(async () => (await $('button[id="video-stages-3-tab-director"]').getAttribute("aria-selected")) === "true");
+      }
+      results.push({ width, cancelPreservedStyleSelection: true, confirmOpenedDirectorStage: true });
+    }
+    this.mediaRecord.interaction = results;
   });
 });

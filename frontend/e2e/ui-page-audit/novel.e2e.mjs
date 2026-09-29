@@ -237,12 +237,13 @@ async function writing(tab = "正文") {
   await home();
   const row = await rootRow();
   await press(await row.$('button[aria-label$=" · 进入写作台"]'));
-  await $(".a4n-writing-workspace").waitForDisplayed({ timeout });
+  await $(".a4n-writing-panel-toggle").waitForDisplayed({ timeout });
   const activePanel = await $('.a4n-writing-panel-toggle button[aria-pressed="true"]');
   if (await activePanel.isExisting()) {
     if (await $('[role="dialog"]').isDisplayed()) await closeDialog();
     else await press(activePanel);
   }
+  await $(".a4n-writing-workspace").waitForDisplayed({ timeout });
   // The workspace deliberately remembers its last tab across page visits.
   await clickText("正文", await $(".a4n-writing-tabs"));
   const editor = await $('textarea[aria-label="章节正文"]');
@@ -263,6 +264,11 @@ async function closeDialog() {
   const closing = await dialog();
   await browser.keys("Escape");
   await browser.waitUntil(async () => !await closing.isDisplayed(), { timeout, timeoutMsg: "Escape did not close the active dialog" });
+}
+async function closeDomainAgentDialog() {
+  const closing = await dialog();
+  await press(await ariaButton("关闭"));
+  await browser.waitUntil(async () => !await closing.isDisplayed(), { timeout, timeoutMsg: "The Agent close control did not close the active dialog" });
 }
 async function wheelTo(element, anchor = "center") {
   await element.waitForExist({ timeout });
@@ -375,15 +381,17 @@ async function matrix(spec, selectedWidths = widths) {
       await browser.setWindowSize(width, height);
       const scope = await spec.open(width);
       for (const text of spec.text ?? []) await waitText(scope, text);
-      const evidence = spec.check ? await spec.check(scope, width) : {};
-      failures.push(...await snapshot(spec.id, width, "initial", scope, evidence));
+      const result = spec.check ? await spec.check(scope, width) : {};
+      const captureScope = result?.scope ?? scope;
+      const evidence = Object.fromEntries(Object.entries(result ?? {}).filter(([key]) => key !== "scope"));
+      failures.push(...await snapshot(spec.id, width, "initial", captureScope, evidence));
       if (spec.last) {
-        const target = await spec.last(scope);
+        const target = await spec.last(captureScope);
         const last = await reach(target);
-        failures.push(...await snapshot(spec.id, width, "last", scope, { last }));
+        failures.push(...await snapshot(spec.id, width, "last", captureScope, { last }));
         if (!last.reached) failures.push(width + ": last item is obscured or cannot be user-scrolled: " + last.label);
       }
-      if (spec.cleanup) current.cleanup = await spec.cleanup(scope, width);
+      if (spec.cleanup) current.cleanup = await spec.cleanup(captureScope, width);
       current.visited.push(width);
     }
     assert.deepEqual(failures, [], spec.id + " measured findings");
@@ -1763,7 +1771,7 @@ describe("Novel page audit - Runtime blueprints and bound optimizer", function (
       const scope = await panel.$('[aria-label="领域 Agent 控制台"]');
       await waitText(scope, "当前停在讨论阶段");
       return scope;
-    }, text: ["正文优化 Agent", "雨夜来信"], check: async (scope) => {
+    }, text: ["正文优化 Agent", "雨夜来信"], check: async (scope, width) => {
       const rows = await scope.$$(".agent-message-list > *");
       assert.equal(rows.length, runtimeSeed.agent.snapshot.messages.length);
       const commands = await browser.execute(() => [...window.__uiAudit.commands]);
@@ -1775,7 +1783,67 @@ describe("Novel page audit - Runtime blueprints and bound optimizer", function (
       const send = await ariaButton("发送给领域 Agent", scope);
       await send.waitForDisplayed({ timeout });
       assert.ok(await send.isEnabled(), "The populated optimizer message must be sendable");
-      return { boundThread: runtimeSeed.agent.snapshot.thread.id, messages: rows.length, composer, sendEnabled: true, runCoverage: "idle only" };
+      const draft = await input.getValue();
+      await browser.execute((sourceThreadId) => {
+        const fixtures = window.__uiAudit.fixtures;
+        const source = fixtures.agentSnapshots.find((item) => item.thread.id === sourceThreadId);
+        const next = structuredClone(source);
+        next.thread.id = "optimizer-chapter-2-fixture";
+        next.thread.bound_resource = { ...next.thread.bound_resource, id: "2", label: "纸上的地图" };
+        next.thread.title = "纸上的地图 · 正文优化";
+        next.thread.scope = { ...next.thread.scope, resource_id: "2", chapter_id: 2, chapter_number: 2 };
+        next.messages = [];
+        next.events = [];
+        next.executions = [];
+        next.approvals = [];
+        next.inbox = [];
+        next.memories = [];
+        next.runs = [];
+        next.turns = [];
+        fixtures.agentSnapshots.push(next);
+      }, runtimeSeed.agent.snapshot.thread.id);
+      const editor = await $('textarea[aria-label="章节正文"]');
+      const panelToggle = async () => press(await $('.a4n-writing-panel-toggle button[title^="写作助手"]'));
+      let activeScope = scope;
+      if (width < 768) await closeDomainAgentDialog();
+      await press(await ariaButton("下一章"));
+      await browser.waitUntil(async () => (await editor.getValue()) === seed.commands.list_chapters[1].content, { timeout });
+      if (width < 768) {
+        await panelToggle();
+        const panel = await $('aside[aria-label="写作助手"]');
+        await clickText("优化", panel);
+        activeScope = await panel.$('[aria-label="领域 Agent 控制台"]');
+      }
+      await waitText(activeScope, "纸上的地图");
+      await browser.waitUntil(async () => (await activeScope.$("textarea").getValue()) === "", { timeout });
+      if (width < 768) await closeDomainAgentDialog();
+      await press(await ariaButton("上一章"));
+      await browser.waitUntil(async () => (await editor.getValue()) === seed.commands.list_chapters[0].content, { timeout });
+      if (width < 768) {
+        await panelToggle();
+        const panel = await $('aside[aria-label="写作助手"]');
+        await clickText("优化", panel);
+        activeScope = await panel.$('[aria-label="领域 Agent 控制台"]');
+      }
+      await waitText(activeScope, "雨夜来信");
+      await browser.waitUntil(async () => (await activeScope.$("textarea").getValue()) === draft, { timeout });
+      assert.equal(await activeScope.$("textarea").getValue(), draft, "Switching the bound chapter must preserve its composer draft");
+      if (width < 768) await closeDomainAgentDialog();
+      const beforeLeave = await browser.getUrl();
+      await press(await ariaButton("返回上一页"));
+      const leaveGuard = await dialog("未保存修改");
+      await waitText(leaveGuard, "离开此页");
+      await clickText("取消", leaveGuard);
+      await browser.waitUntil(async () => await browser.getUrl() === beforeLeave, { timeout });
+      if (width < 768) {
+        await panelToggle();
+        const panel = await $('aside[aria-label="写作助手"]');
+        await clickText("优化", panel);
+        activeScope = await panel.$('[aria-label="领域 Agent 控制台"]');
+      }
+      await browser.waitUntil(async () => (await activeScope.$("textarea").getValue()) === draft, { timeout });
+      await activeScope.$("textarea").clearValue();
+      return { scope: activeScope, boundThread: runtimeSeed.agent.snapshot.thread.id, messages: rows.length, composer, sendEnabled: true, chapterSwitch: "draft preserved", routeLeave: "blocked and cancelled", runCoverage: "idle only" };
     }, last: async (scope) => (await scope.$$(".agent-message-list > *")).at(-1) },
   ];
   for (const spec of pages) it(spec.id + " follows the runtime-backed UI path", async () => matrix(spec));

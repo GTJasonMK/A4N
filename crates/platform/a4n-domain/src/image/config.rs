@@ -103,9 +103,13 @@ pub fn validate_image_config_params(
     params.name = normalize_config_name(params.name, "图片配置")?;
     params.backend = required_config_value(&params.backend, "图片生成配置", "backend")?;
     params.model = required_config_value(&params.model, "图片生成配置", "model")?;
-    params.base_url = required_config_value(&params.base_url, "图片生成配置", "base_url")?;
     params.api_key_encrypted =
         normalize_image_backend_api_key(&params.backend, params.api_key_encrypted)?;
+    params.base_url = crate::config::validate_http_base_url(
+        &params.base_url,
+        "图片生成配置",
+        params.api_key_encrypted.as_deref(),
+    )?;
     params.max_concurrent = positive_i32(params.max_concurrent, "图片配置 max_concurrent")?;
     validate_image_sizes(&params.supported_sizes)?;
     Ok(params)

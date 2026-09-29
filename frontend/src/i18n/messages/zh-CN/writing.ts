@@ -203,6 +203,8 @@ export const writing = {
   unsavedEditTitle: "未保存修改",
   unsavedEditMessage: "当前章节有未保存修改。\n{action}前已自动保存本地草稿，可随时恢复。\n是否继续？",
   unsavedEditMessageNoDraft: "当前章节有未保存修改。\n本地草稿保存失败，{action}可能丢失未保存内容。\n是否继续？",
+  unsavedEditMessageWithGeneration: "当前章节正文和创作要求都有未保存内容。\n正文已保存为可恢复的本地草稿；创作简报和字数范围将在继续后丢弃。\n是否继续{action}？",
+  unsavedEditMessageNoDraftWithGeneration: "当前章节正文和创作要求都有未保存内容。\n正文本地草稿保存失败，正文可能丢失；创作简报和字数范围将在继续后丢弃。\n是否继续{action}？",
   continueAction: "继续",
   stayCurrent: "留在当前",
   restoreDraftTitle: "恢复草稿",

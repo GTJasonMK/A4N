@@ -16,11 +16,19 @@ const root = path.resolve(frontend, "..");
 const artifacts = path.resolve(process.env.A4N_PERF_ARTIFACTS ?? path.join(root, "data/performance-audit-20260927/b08/browser"));
 const port = Number(process.env.A4N_PERF_PORT ?? 49030);
 const baseline = process.env.A4N_PERF_BASELINE_REF;
+const sourceRef = process.env.A4N_PERF_SOURCE_REF;
+const baselineCase = process.env.A4N_PERF_BASELINE_CASE ?? "reads";
+assert.ok(["reads", "layout"].includes(baselineCase));
+const legacyReads = Boolean(baseline && baselineCase === "reads");
 const view = process.env.A4N_PERF_VIEW ?? "desk";
 assert.ok(["desk", "story"].includes(view));
-const continueText = baseline ? "继续" : "放弃草稿";
-const stayText = baseline ? "留在当前" : "取消";
+if (baselineCase === "layout") assert.equal(view, "story");
+const continueText = legacyReads ? "继续" : "放弃草稿";
+const stayText = legacyReads ? "留在当前" : "取消";
 const rounds = Number(process.env.A4N_PERF_ROUNDS ?? 3);
+const profile = process.env.A4N_PERF_PROFILE === "1";
+const layoutAudit = process.env.A4N_PERF_LAYOUT_AUDIT === "1";
+const screenReader = process.env.A4N_PERF_ACCESSIBILITY === "1";
 const digest = (body) => createHash("sha256").update(body).digest("hex");
 await mkdir(artifacts, { recursive: true });
 const temp = await mkdtemp(path.join(root, ".dev-runtime", "cl-"));
@@ -54,7 +62,7 @@ let saveDelay = 0;
 let listingFailure = false;
 const unexpected = [];
 const apiError = (message) => ({ code: "internal", message, retryable: false, trace_id: null, details: {} });
-const report = { success: false, baseline: baseline ?? null, samples: [], checks: [] };
+const report = { success: false, baseline: baseline ?? null, sourceRef: sourceRef ?? null, baselineCase, screenReader, samples: [], checks: [] };
 const server = createServer(async (req, res) => {
   try {
     const chunks = [];
@@ -136,13 +144,20 @@ async function clickChapter(number) {
 }
 try {
   await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
-  const sourceFiles = ["src/pages/WritingDesk.tsx", "src/pages/novel-detail/ChaptersTab.tsx", "src/pages/novel-detail/StoryEventsTab.tsx", "src/pages/novel-detail/OptimizeTab.tsx",
+  const sourceFiles = baselineCase === "layout" ? ["src/pages/novel-detail/story-events/ChapterEventSection.tsx"] : ["src/pages/WritingDesk.tsx", "src/pages/novel-detail/ChaptersTab.tsx", "src/pages/novel-detail/StoryEventsTab.tsx", "src/pages/novel-detail/OptimizeTab.tsx",
     "src/pages/novel-detail/optimize/OptimizeHeader.tsx", ...execFileSync("rg", ["--files", "src/pages/writing-desk"], { cwd: frontend, encoding: "utf8" }).trim().split("\n")];
   const override = new Map(baseline ? sourceFiles.filter((file) => !file.endsWith("/chapterIndex.ts")).map((file) => [path.join(frontend, file),
     execFileSync("git", ["show", `${baseline}:frontend/${file}`], { cwd: root, encoding: "utf8" })]) : []);
+  if (sourceRef) {
+    const changed = execFileSync("git", ["diff", "--diff-filter=MD", "--name-only", sourceRef, "--", "frontend/src"], { cwd: root, encoding: "utf8" }).trim().split("\n");
+    for (const file of changed.filter((file) => /\.(tsx?|css|json)$/.test(file))) {
+      if (file === "frontend/src/pages/novel-detail/story-events/ChapterEventSection.tsx") continue;
+      override.set(path.join(root, file), execFileSync("git", ["show", `${sourceRef}:${file}`], { cwd: root, encoding: "utf8" }));
+    }
+  }
   // Keep unrelated concurrent WIP out of this reproducible build without touching its files.
   const unrelated = ["src/components/feedback/UnsavedChangesGuard.tsx"];
-  for (const file of unrelated) override.set(path.join(frontend, file), execFileSync("git", ["show", `HEAD:frontend/${file}`], { cwd: root, encoding: "utf8" }));
+  for (const file of unrelated) if (!override.has(path.join(frontend, file))) override.set(path.join(frontend, file), execFileSync("git", ["show", `HEAD:frontend/${file}`], { cwd: root, encoding: "utf8" }));
   const outDir = path.resolve(process.env.A4N_PERF_DIST ?? path.join(artifacts, "dist"));
   if (!process.env.A4N_PERF_DIST) await build({ root: frontend, logLevel: "warn", plugins: [{ name: "chapter-baseline", enforce: "pre", load: (id) => override.get(id) }],
     build: { outDir, emptyOutDir: true, rollupOptions: { input: path.join(frontend, "e2e/performance/chapter-load.html") } } });
@@ -155,7 +170,7 @@ try {
     await delay(100);
   }
   browser = await remote({ hostname: "127.0.0.1", port: port + 1, logLevel: "error", capabilities: { browserName: "chrome",
-    "goog:chromeOptions": { binary: "/usr/bin/chromium", args: ["--headless=new", "--no-sandbox", "--disable-dev-shm-usage", `--user-data-dir=${path.join(temp, "p")}`] } } });
+    "goog:chromeOptions": { binary: "/usr/bin/chromium", args: ["--headless=new", "--no-sandbox", "--disable-dev-shm-usage", ...(screenReader ? ["--force-renderer-accessibility"] : []), `--user-data-dir=${path.join(temp, "p")}`] } } });
   await browser.setWindowSize(1440, 900);
   await browser.url(`http://127.0.0.1:${port}/e2e/performance/chapter-load.html`);
   await browser.waitUntil(() => browser.execute(() => Boolean(window.chapterLoad)), { timeout: 30000 });
@@ -165,12 +180,14 @@ try {
     window.addEventListener("unhandledrejection", (event) => window.fixtureErrors.push(String(event.reason)));
   });
   await cdp("Network.enable");
+  if (profile) await cdp("Performance.enable");
   await cdp("Network.emulateNetworkConditions", { offline: false, latency: 50, downloadThroughput: 500000, uploadThroughput: 500000 });
   if (view === "story") {
     const expectedEvents = chapters.reduce((sum, chapter) => sum + (chapter.analysis_data?.key_events?.length ?? 0), 0);
     assert.ok(expectedEvents > 0, "Story page requires a persisted analysis fixture");
     for (let round = 0; round < rounds; round++) {
       requests = [];
+      const metricsBefore = profile ? Object.fromEntries((await cdp("Performance.getMetrics")).metrics.map(({ name, value }) => [name, value])) : null;
       const result = await browser.executeAsync((expectedEvents, done) => {
         const started = performance.now(); window.chapterLoad.mount(1, "story");
         const timer = setInterval(() => {
@@ -183,8 +200,16 @@ try {
         }, 10);
       }, expectedEvents);
       assert.equal(result.error, undefined, JSON.stringify(result.error));
-      assert.equal(requests.filter((req) => req.command === "list_chapters").length, baseline ? 1 : 0);
-      assert.equal(requests.filter((req) => req.command === "list_chapter_analyses").length, baseline ? 0 : 1);
+      if (profile) {
+        await browser.execute(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
+        const current = Object.fromEntries((await cdp("Performance.getMetrics")).metrics.map(({ name, value }) => [name, value]));
+        result.profile = {
+          durationsMs: Object.fromEntries(["ScriptDuration", "LayoutDuration", "RecalcStyleDuration", "TaskDuration"].map((name) => [name, 1000 * (current[name] - metricsBefore[name])])),
+          nodes: current.Nodes, jsHeapUsedBytes: current.JSHeapUsedSize,
+        };
+      }
+      assert.equal(requests.filter((req) => req.command === "list_chapters").length, legacyReads ? 1 : 0);
+      assert.equal(requests.filter((req) => req.command === "list_chapter_analyses").length, legacyReads ? 0 : 1);
       for (const chapter of chapters) {
         if (!chapter.analysis_data) continue;
         for (const event of chapter.analysis_data.key_events) assert.ok(result.text.includes(event.description));
@@ -198,7 +223,7 @@ try {
     listingFailure = false;
     await browser.$("button[aria-label]").click();
     await browser.waitUntil(() => browser.execute((count) => !document.body.textContent.includes("fixture analysis read failed")
-      && document.querySelectorAll("ol > li").length === count, expectedEvents));
+      && document.querySelectorAll("ol > li").length === count, expectedEvents), { timeout: 15000 });
     assert.equal((await browser.$$("ol > li")).length, expectedEvents);
     report.checks.push("read failure remains visible without discarding existing analysis; explicit refresh recovers");
     for (const width of [1440, 390]) {
@@ -207,6 +232,102 @@ try {
       await browser.saveScreenshot(path.join(artifacts, `story-page-${width}.png`));
     }
     report.checks.push("all persisted events rendered; old and new API request counts; 1440/390px overflow");
+    if (layoutAudit) {
+      const lastChapter = [...chapters].reverse().find((chapter) => chapter.analysis_data?.key_events?.length);
+      const findText = lastChapter.analysis_data.summaries.compressed;
+      await cdp("Accessibility.enable");
+      await browser.execute(() => window.chapterLoad.mount(1, "story", true));
+      await browser.waitUntil(() => browser.execute((count) => document.querySelectorAll("ol > li").length === count, expectedEvents), { timeout: 15000 });
+      const accessibility = await cdp("Accessibility.getFullAXTree");
+      await writeFile(path.join(artifacts, "accessibility-summary.json"), JSON.stringify({ count: accessibility.nodes.length,
+        lateChapter: accessibility.nodes.filter((node) => node.name?.value?.includes(String(lastChapter.chapter_number))).map(({ role, name, ignored, ignoredReasons }) => ({ role, name, ignored, ignoredReasons })) }, null, 2));
+      const lastChapterPresent = accessibility.nodes.some((node) => !node.ignored && node.name?.value === findText);
+      const accessibleText = new Map();
+      for (const node of accessibility.nodes) {
+        if (!node.ignored && node.role?.value === "StaticText") accessibleText.set(node.name?.value ?? "", (accessibleText.get(node.name?.value ?? "") ?? 0) + 1);
+      }
+      if (screenReader) {
+        assert.ok(lastChapterPresent, "Offscreen analysis must remain available with renderer accessibility enabled");
+        for (const chapter of chapters) {
+          if (chapter.analysis_data?.summaries?.compressed) assert.ok(accessibleText.has(chapter.analysis_data.summaries.compressed));
+        }
+        report.checks.push("all chapter summaries available in screen-reader accessibility mode");
+      }
+      report.accessibility = { nodes: accessibility.nodes.length, lastChapterPresent,
+        textSha256: digest(JSON.stringify([...accessibleText].sort(([a], [b]) => a.localeCompare(b)))) };
+      report.geometry = [];
+      report.find = [];
+      for (const width of [1440, 1024, 390]) {
+        await browser.setWindowSize(width, 900);
+        await browser.execute(() => { window.getSelection().removeAllRanges(); document.getElementById("story-scroll").scrollTo(0, 0); });
+        const geometry = await browser.execute(async () => {
+          await document.fonts.ready;
+          const frame = () => new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done)));
+          const cards = [...document.querySelectorAll(".grid.items-start > section")];
+          const result = [];
+          for (const index of [0, 10, Math.floor(cards.length / 2), cards.length - 1]) {
+            cards[index].scrollIntoView({ block: "start", behavior: "instant" });
+            await frame();
+            const rect = cards[index].getBoundingClientRect();
+            await frame();
+            const settled = cards[index].getBoundingClientRect();
+            result.push({ index, width: rect.width, height: rect.height, title: cards[index].querySelector("h3").textContent,
+              inViewport: rect.bottom > 0 && rect.top < innerHeight,
+              anchorShift: Math.abs(settled.top - rect.top) });
+          }
+          return result;
+        });
+        assert.ok(geometry.every((row) => row.inViewport && row.height > 0 && row.anchorShift < 1), JSON.stringify(geometry));
+        report.geometry.push({ width, cards: geometry });
+        await browser.saveScreenshot(path.join(artifacts, `story-last-${width}.png`));
+        await browser.execute(() => { window.getSelection().removeAllRanges(); document.getElementById("story-scroll").scrollTo(0, 0); });
+        const found = await browser.execute((text) => window.find(text, false, false, true), findText);
+        assert.equal(found, true, "Browser find must discover an offscreen chapter");
+        const foundInViewport = await browser.execute(async () => {
+          await new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done)));
+          const rect = window.getSelection().getRangeAt(0).getBoundingClientRect();
+          return rect.width > 0 && rect.bottom > 0 && rect.top < innerHeight;
+        });
+        report.find.push({ width, found, scrolledNatively: foundInViewport });
+        assert.equal(await browser.execute(() => window.getSelection().toString()), findText);
+        // window.find selects offscreen text without scrolling this scrollport in the baseline too.
+        await browser.execute(() => window.getSelection().getRangeAt(0).startContainer.parentElement.scrollIntoView({ block: "center", behavior: "instant" }));
+        await browser.waitUntil(() => browser.execute(() => {
+          const rect = window.getSelection().getRangeAt(0).getBoundingClientRect();
+          return rect.width > 0 && rect.bottom > 0 && rect.top < innerHeight;
+        }));
+        await browser.execute(() => {
+          window.getSelection().removeAllRanges();
+          const buttons = document.querySelectorAll(".grid.items-start > section button");
+          buttons[buttons.length - 2].focus();
+        });
+        await browser.keys("Tab");
+        assert.equal(await browser.execute(() => {
+          const buttons = document.querySelectorAll(".grid.items-start > section button");
+          const last = buttons[buttons.length - 1]; const rect = last.getBoundingClientRect();
+          return document.activeElement === last && rect.top >= 0 && rect.bottom <= innerHeight;
+        }), true, "Tab must reveal the next offscreen chapter control");
+        await browser.keys("Enter");
+        assert.equal(await browser.execute(() => window.chapterLoad.route()), `/write/1?chapter=${lastChapter.chapter_number}`);
+        assert.equal(await browser.execute(() => document.documentElement.scrollWidth - document.documentElement.clientWidth), 0);
+      }
+      const selectedText = await browser.execute(() => {
+        const selection = window.getSelection();
+        selection.selectAllChildren(document.getElementById("story-scroll"));
+        const text = selection.toString();
+        selection.removeAllRanges();
+        return text;
+      });
+      for (const chapter of chapters) {
+        if (chapter.analysis_data?.summaries?.compressed) assert.ok(selectedText.includes(chapter.analysis_data.summaries.compressed));
+      }
+      report.selectionTextSha256 = digest(selectedText);
+      await cdp("Emulation.setEmulatedMedia", { media: "print" });
+      assert.equal(await browser.execute(() => [...document.querySelectorAll(".grid.items-start > section")]
+        .every((card) => getComputedStyle(card).contentVisibility === "visible")), true, "Printing must render every chapter");
+      await cdp("Emulation.setEmulatedMedia", { media: "" });
+      report.checks.push("native find, full text selection, stable scroll targets, Tab/Enter, print and 1024px overflow");
+    }
   } else {
   for (let round = 0; round < rounds; round++) {
     requests = [];

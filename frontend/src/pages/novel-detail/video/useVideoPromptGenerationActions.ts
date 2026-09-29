@@ -409,6 +409,7 @@ export function useVideoPromptGenerationActions({
       });
       if (!isCurrentActionScope(requestScope)) return;
       await loadAll();
+      if (!isCurrentActionScope(requestScope)) return;
       addToast(t("video.actions.frameImageImported", { label: frameLabel }), "success");
     } catch (err) {
       if (!isCurrentActionScope(requestScope)) return;

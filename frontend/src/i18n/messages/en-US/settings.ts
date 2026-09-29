@@ -192,6 +192,7 @@ export const settingsForm = {
   notConfigured: "Not configured",
   nameRequired: "Enter a configuration name",
   modelRequired: "Enter a model name",
+  apiKeyRequired: "This image provider requires an API key",
   endpointRequired: "Enter an API Base URL",
   endpointUrlInvalid: "API Base URL must be a valid http:// or https:// URL",
   remoteHttpApiKey: "Remote LLM endpoints with an API key must use HTTPS; HTTP redirects can lose authentication",

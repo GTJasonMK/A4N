@@ -36,7 +36,18 @@ export const ThemeTab: React.FC = () => {
       (themeTab.newName.trim().length > 0 || themeTab.newMode !== "light")) ||
     (themeAction === "import" && themeTab.importText.trim().length > 0) ||
     hasRenameDraft;
-  useDirty("settings-theme-draft", hasThemeDraft);
+  useDirty(
+    "settings-theme-draft",
+    hasThemeDraft || editorDirtyRef.current,
+    undefined,
+    () => !themeTab.operationInFlight,
+  );
+  useDirty(
+    "settings-theme-operation",
+    themeTab.operationInFlight,
+    undefined,
+    () => !themeTab.operationInFlight && !themeTab.editorSaving,
+  );
 
   const confirmDiscardThemeDraft = async (action: string): Promise<boolean> => {
     if (!hasThemeDraft) return true;

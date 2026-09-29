@@ -9,12 +9,17 @@ interface UnsavedNavigationGuardProps {
   dirty?: boolean;
   name: string;
   action: string;
+  allowSearchChange?: (
+    currentLocation: { pathname: string; search: string; hash: string },
+    nextLocation: { pathname: string; search: string; hash: string },
+  ) => boolean;
 }
 
 export const UnsavedNavigationGuard = ({
   dirty = false,
   name,
   action,
+  allowSearchChange,
 }: UnsavedNavigationGuardProps) => {
   const { t } = useI18n();
   const registry = useDirtyRegistry();
@@ -28,13 +33,16 @@ export const UnsavedNavigationGuard = ({
     event.preventDefault();
     event.returnValue = "";
   });
-  const blocker = useBlocker(({ currentLocation, nextLocation }) =>
-    isDirty && (
-      currentLocation.pathname !== nextLocation.pathname ||
-      currentLocation.search !== nextLocation.search ||
-      currentLocation.hash !== nextLocation.hash
-    ),
-  );
+  const blocker = useBlocker(({ currentLocation, nextLocation }) => {
+    if (!isDirty) return false;
+    const samePathAndHash =
+      currentLocation.pathname === nextLocation.pathname &&
+      currentLocation.hash === nextLocation.hash;
+    if (samePathAndHash && currentLocation.search !== nextLocation.search) {
+      return !allowSearchChange?.(currentLocation, nextLocation);
+    }
+    return !samePathAndHash || currentLocation.search !== nextLocation.search;
+  });
 
   useEffect(() => {
     if (blocker.state === "blocked" && !isDirty) blocker.proceed();

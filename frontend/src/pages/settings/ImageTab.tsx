@@ -99,7 +99,11 @@ export const ImageTab: React.FC<ImageTabProps> = ({ scope = "local" }) => {
       loadError={error}
       onRefresh={refresh}
       defaultForm={DEFAULT_IMAGE_FORM}
-      validate={(form) => validateImageForm(form, t)}
+      validate={(form) => validateImageForm(
+        form,
+        t,
+        catalog?.image.find((provider) => provider.id === form.provider),
+      )}
       activeLabel={serverScope ? t("settings.globalDefault") : t("settings.currentDefault")}
       activateText={serverScope ? t("settings.setGlobalDefault") : t("settings.setDefault")}
       activateSuccessMessage={

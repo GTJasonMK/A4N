@@ -147,7 +147,7 @@ export const agent = {
   loadFailed: "加载 Agent 状态失败",
   clearContext: "清空 Agent 上下文",
   clearContextTitle: "清空 Agent 上下文",
-  clearContextMessage: "将归档当前会话并创建一个新的空会话。旧消息会保留在历史记录中，但不会再发送给 Agent。若当前有运行中的任务，会先取消它。是否继续？",
+  clearContextMessage: "将归档当前会话并创建一个新的空会话。旧消息会保留在历史记录中，但不会再发送给 Agent。未发送的输入草稿也会被丢弃。若当前有运行中的任务，会先取消它。是否继续？",
   clearContextConfirm: "清空上下文",
   clearContextSuccess: "Agent 上下文已清空",
   clearContextFailed: "清空 Agent 上下文失败",

@@ -295,4 +295,31 @@ describe("Settings pages with populated records", () => {
     assert.equal(await $$('input[type="checkbox"]')[1].isSelected(), expected);
     assert.equal(await browser.execute(() => document.querySelector('[data-settings-dirty="true"]') !== null), true);
   });
+
+  it("S06-retry asks before replacing unsaved skill changes", async () => {
+    await browser.setWindowSize(1440, 1000);
+    await browser.url("/");
+    await browser.url("/settings#agent");
+    const checkbox = await $('input[type="checkbox"]');
+    await checkbox.waitForDisplayed();
+    const before = await checkbox.isSelected();
+    await browser.execute(() => { window.__uiAudit.deferred.push("list_agent_skills"); });
+    await $('[aria-label="刷新技能配置"]').click();
+    await browser.waitUntil(async () => browser.execute(() => window.__uiAudit.pending.some((item) => item.command === "list_agent_skills")));
+    await browser.execute(() => {
+      const pending = window.__uiAudit.pending.find((item) => item.command === "list_agent_skills");
+      pending.resolve(Response.json({ message: "fixture read failure" }, { status: 503 }));
+    });
+    const retry = await $('//button[normalize-space()="重试"]');
+    await retry.waitForDisplayed();
+    await checkbox.click();
+    const edited = await checkbox.isSelected();
+    assert.notEqual(edited, before);
+    await retry.click();
+    const discardDialog = await $('[role="dialog"]');
+    await discardDialog.waitForDisplayed();
+    await discardDialog.$('//button[normalize-space()="取消"]').click();
+    assert.equal(await $('input[type="checkbox"]').isSelected(), edited);
+    assert.equal(await $('//button[normalize-space()="保存"]').isEnabled(), true);
+  });
 });

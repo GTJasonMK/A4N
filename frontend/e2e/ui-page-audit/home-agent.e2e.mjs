@@ -329,6 +329,32 @@ describe("Home and global Agent page audit", function () {
       assert.ok(await (await button("批准", scope)).isEnabled()); assert.ok(await (await button("拒绝", scope)).isEnabled());
       return { approvalId: mainSeed.approvals[0].id, command: mainSeed.approvals[0].command };
     }, last: async (scope) => button("拒绝", scope) },
+    { id: "A04a-approval-exclusion", task: "处理一项审批时锁定同线程其他待审批项", open: async () => {
+      const scope = await agent();
+      mainSeed.approvals.push({
+        ...structuredClone(mainSeed.approvals[0]),
+        id: "home-approval-second",
+        execution_id: "home-execution-second-approval",
+        command: "update_project_material",
+        reason: "用于验证同线程只能同时处理一项审批。",
+      });
+      const firstApproval = mainSeed.approvals[0];
+      const firstCard = await scope.$(`[data-approval-id="${firstApproval.id}"]`);
+      await click("批准", firstCard);
+      await browser.waitUntil(async () => window.__uiAudit.pending.some((item) => item.command === "resolve_agent_approval"), { timeout });
+      const secondCard = await scope.$('[data-approval-id="home-approval-second"]');
+      assert.equal(await (await button("批准", secondCard)).isEnabled(), false);
+      assert.equal(await (await button("拒绝", secondCard)).isEnabled(), false);
+      const pending = window.__uiAudit.pending.find((item) => item.command === "resolve_agent_approval");
+      Object.assign(firstApproval, { status: "approved", decision: "approve" });
+      pending.resolve(Response.json(firstApproval));
+      await browser.waitUntil(async () => (await button("批准", secondCard)).isEnabled(), { timeout });
+      assert.equal(window.__uiAudit.requests.filter((item) => item.command === "resolve_agent_approval").length, 1);
+      return scope;
+    }, text: "用于验证同线程只能同时处理一项审批。", check: async (scope) => {
+      assert.equal(await (await button("批准", await scope.$('[data-approval-id="home-approval-second"]'))).isEnabled(), true);
+      return { approvalRequests: 1, secondApprovalEnabledAfterCompletion: true };
+    } },
     { id: "A05-executions", task: "查看读取、模型、委派与待审阅执行记录", open: () => activitySection("执行"), text: "list_chapters", check: async (scope) => {
       assert.equal((await scope.$$(":scope > div > div")).length, mainSeed.executions.length);
       return { executionRecords: mainSeed.executions.length };

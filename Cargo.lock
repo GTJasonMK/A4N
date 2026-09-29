@@ -847,6 +847,7 @@ dependencies = [
  "serde_json_canonicalizer",
  "sha2",
  "thiserror 2.0.18",
+ "url",
 ]
 
 [[package]]
@@ -1452,7 +1453,6 @@ dependencies = [
  "a4n-error",
  "a4n-llm-provider-contract",
  "serde_json",
- "url",
 ]
 
 [[package]]

@@ -1015,10 +1015,15 @@ export const VideoStudioCanvas: React.FC = () => {
           icon={<Bot size={14} />}
           maxWidthClassName="max-w-2xl"
           bodyClassName="min-h-0 flex-1 overflow-hidden p-0"
+          closeOnBackdrop={false}
+          closeOnEscape={false}
+          showCloseButton={false}
         >
           <DomainAgentConsole
             capability="canvas"
             projectId={projectId}
+            composerDirtyKey={`domain-agent-composer:canvas:${projectId}`}
+            onClose={() => setAgentConsoleOpen(false)}
             resourceLabel={project?.title}
             onResourceChanged={() => {
               if (dirty) {

@@ -116,6 +116,8 @@ export const SceneProfilesTab: React.FC<{
     isCurrentAction,
     beginAction,
     finishAction,
+    commitProfile,
+    removeProfile,
   } = useProjectProfileCollection<SceneProfile>({
     projectId,
     canEditProfiles,
@@ -126,6 +128,12 @@ export const SceneProfilesTab: React.FC<{
   });
 
   useEffect(() => setSyncing(false), [projectId]);
+  useNovelDetailDirty(
+    `scene-profile-actions:${projectId}`,
+    syncing || busyId != null,
+    undefined,
+    () => !syncing && busyId == null,
+  );
 
   const stats = useMemo(() => {
     return {
@@ -315,6 +323,7 @@ export const SceneProfilesTab: React.FC<{
     try {
       const result = await deleteSceneProfile(requestProfile.id, downstreamStrategy);
       if (!isCurrentAction(requestProjectId, requestSeq)) return;
+      removeProfile(requestProfile.id);
       await load({ silent: true, force: true, projectId: requestProjectId });
       if (!isCurrentAction(requestProjectId, requestSeq)) return;
       setDetailFor((current) => (current?.id === requestProfile.id ? null : current));
@@ -391,6 +400,7 @@ export const SceneProfilesTab: React.FC<{
       if (saved.project_id !== requestProjectId) {
         throw new Error("保存场景档案返回了其他项目的数据");
       }
+      commitProfile(saved);
       await load({ silent: true, force: true, projectId: requestProjectId });
       if (!isCurrentAction(requestProjectId, requestSeq)) return;
       setDetailFor(saved);

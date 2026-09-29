@@ -3,6 +3,7 @@ use a4n_db::project::{
     create_derived_project_record, create_project_record, resolve_chapter_source,
 };
 use a4n_db_models::models::{
+    chapter::chapter_visual_plan,
     galgame::{galgame_line, galgame_scene, galgame_script},
     generation::{
         generation_run, generation_run_target, generation_task_checkpoint, workflow_checkpoint,
@@ -12,7 +13,10 @@ use a4n_db_models::models::{
     task::task_queue,
 };
 use a4n_domain::{chapter::ImportChapterContentInput, generation::canonical_json_sha256};
-use sea_orm::{ActiveModelTrait, ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, Set};
+use sea_orm::{
+    ActiveModelTrait, ColumnTrait, ConnectionTrait, DbBackend, EntityTrait, QueryFilter, Set,
+    Statement,
+};
 use serde_json::json;
 
 async fn source(
@@ -61,6 +65,76 @@ async fn source(
     resolve_chapter_source(db, project.id, chapter.id)
         .await
         .unwrap()
+}
+
+#[tokio::test]
+async fn legacy_film_with_deleted_snapshot_recovers_from_exact_live_body() {
+    let db = a4n_migration::test_support::connect_test_database().await;
+    let root = create_project_record(
+        &db,
+        CreateProjectRecordInput {
+            user_id: 1,
+            title: "丢失快照的历史媒体".into(),
+            description: String::new(),
+            project_type: "novel_long".into(),
+        },
+    )
+    .await
+    .unwrap();
+    let chapter = a4n_db::chapter_content::import_chapter_content_record(
+        &db,
+        ImportChapterContentInput {
+            project_id: root.id,
+            chapter_number: 1,
+            content: "她推开门。".into(),
+            title: None,
+        },
+        "missing snapshot migration fixture",
+    )
+    .await
+    .unwrap();
+    let plan = a4n_domain::chapter_visual_plan::ChapterVisualPlanV3::starter();
+    plan.validate_draft().unwrap();
+    let plan_json = serde_json::to_value(&plan).unwrap();
+    let plan_hash = a4n_domain::generation::canonical_json_sha256(&plan).unwrap();
+    let content_hash = a4n_domain::source_text_hash(&chapter.content);
+
+    db.execute_unprepared(
+        "DROP TRIGGER IF EXISTS video_visual_plan_owner ON chapter_visual_plan; ALTER TABLE chapter_visual_plan ALTER COLUMN project_id DROP NOT NULL",
+    )
+    .await
+    .unwrap();
+    let row = db
+        .query_one(Statement::from_sql_and_values(
+            DbBackend::Postgres,
+            "INSERT INTO chapter_visual_plan(root_project_id, source_chapter_id, source_snapshot_id, source_snapshot_chapter_id, source_revision_key, source_content_sha256, contract_version, plan_version, revision, status, authoring_mode, plan_sha256, plan_json, author_user_id, created_at, updated_at) VALUES($1,$2,999,999,$3,$4,'chapter_visual_plan_v3',1,1,'draft','manual',$5,$6,1,LOCALTIMESTAMP,LOCALTIMESTAMP) RETURNING id",
+            [
+                root.id.into(),
+                chapter.id.into(),
+                format!("snapshot:999:chapter:999:{content_hash}").into(),
+                content_hash.clone().into(),
+                plan_hash.into(),
+                plan_json.into(),
+            ],
+        ))
+        .await
+        .unwrap()
+        .unwrap();
+    let plan_id: i64 = row.try_get("", "id").unwrap();
+
+    a4n_migration::migrations::media_authoring::migrate_legacy_media(&db)
+        .await
+        .unwrap();
+
+    let migrated = chapter_visual_plan::Entity::find_by_id(plan_id)
+        .one(&db)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_ne!(migrated.source_snapshot_id, Some(999));
+    assert_ne!(migrated.source_snapshot_chapter_id, Some(999));
+    assert_eq!(migrated.source_content_sha256, content_hash);
+    assert!(migrated.project_id > 0);
 }
 
 #[tokio::test]

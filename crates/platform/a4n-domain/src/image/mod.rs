@@ -48,6 +48,37 @@ mod tests {
     }
 
     #[test]
+    fn image_configs_reject_invalid_and_credential_leaking_endpoints() {
+        let mut params = CreateImageConfigParams {
+            name: "test image".to_string(),
+            backend: OPENAI_COMPATIBLE_IMAGE_BACKEND.to_string(),
+            base_url: "http://api.example/v1".to_string(),
+            api_key_encrypted: Some("secret".to_string()),
+            model: "image-model".to_string(),
+            max_concurrent: 1,
+            supported_sizes: vec![ImageSize {
+                width: 1024,
+                height: 1024,
+            }],
+        };
+        assert!(
+            validate_image_config_params(params.clone())
+                .unwrap_err()
+                .contains("必须使用 HTTPS")
+        );
+
+        params.base_url = "not-a-url".to_string();
+        assert!(
+            validate_image_config_params(params.clone())
+                .unwrap_err()
+                .contains("不是有效 URL")
+        );
+
+        params.base_url = "http://127.0.0.1:7860".to_string();
+        assert!(validate_image_config_params(params).is_ok());
+    }
+
+    #[test]
     fn reference_image_ids_are_positive_unique_and_ordered() {
         assert_eq!(validate_reference_image_ids(&[3, 5]).unwrap(), vec![3, 5]);
         assert_eq!(

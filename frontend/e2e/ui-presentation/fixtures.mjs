@@ -245,6 +245,18 @@ export async function installUiFixtures(browser, overrides = {}) {
           if (!agentPath[2]) return new Response(JSON.stringify(snapshot), { headers: { "Content-Type": "application/json" } });
           throw new Error(`Unexpected Agent fixture request: ${options.method} ${url.pathname}`);
         }
+        if (url.pathname.startsWith("/api/agent-approvals/") && options?.method === "POST") {
+          const approvalId = url.pathname.split("/").at(-1);
+          const approval = fixtures.agentSnapshots.flatMap((item) => item.approvals).find((item) => item.id === approvalId);
+          if (!approval) throw new Error(`Missing Agent approval fixture: ${approvalId}`);
+          Object.assign(approval, {
+            status: body.decision === "approve" ? "approved" : "rejected",
+            decision: body.decision,
+            decided_at: new Date().toISOString(),
+            decided_by_user_id: 1,
+          });
+          return Response.json(approval);
+        }
         if (command === "get_project") {
           const projectId = JSON.parse(options.body).projectId;
           const record = fixtures.projectRecords.find((item) => item.id === projectId);

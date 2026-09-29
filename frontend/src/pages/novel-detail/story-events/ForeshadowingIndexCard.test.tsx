@@ -26,7 +26,9 @@ describe("ForeshadowingIndexCard", () => {
         records={[record]}
         canEdit
         loading={false}
+        loadError={null}
         onReload={async () => undefined}
+        onDeleted={() => undefined}
         />
       </I18nProvider>,
     );
@@ -42,11 +44,32 @@ describe("ForeshadowingIndexCard", () => {
         records={[record]}
         canEdit={false}
         loading={false}
+        loadError={null}
         onReload={async () => undefined}
+        onDeleted={() => undefined}
         />
       </I18nProvider>,
     );
     expect(readonly).not.toContain("新增伏笔");
     expect(readonly).not.toContain("编辑伏笔：门后的脚步声");
+  });
+
+  it("does not present a failed index read as an empty collection", () => {
+    const markup = renderToStaticMarkup(
+      <I18nProvider initialLocale="zh-CN">
+        <ForeshadowingIndexCard
+          projectId={3}
+          records={[]}
+          canEdit
+          loading={false}
+          loadError="伏笔读取失败"
+          onReload={async () => false}
+          onDeleted={() => undefined}
+        />
+      </I18nProvider>,
+    );
+
+    expect(markup).not.toContain("还没有正式伏笔");
+    expect(markup).toContain("disabled");
   });
 });

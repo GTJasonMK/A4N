@@ -84,7 +84,7 @@ export const LlmConfigEditor: React.FC<LlmConfigEditorProps> = ({
             value={form.model}
             onChange={(model) => setForm({ ...form, model })}
             placeholder={t("settingsForm.llmModelPlaceholder")}
-            disabled={readonly || !selectedProvider}
+            disabled={structureDisabled || !selectedProvider}
             inputDisabled={structureDisabled}
             discoveryKey={modelDiscovery.discoveryKey}
             detectModels={() => detectLlmConfigModels(modelDiscovery.input, scope)}
