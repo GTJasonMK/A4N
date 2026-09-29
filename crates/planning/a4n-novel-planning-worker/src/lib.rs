@@ -39,12 +39,15 @@ use a4n_worker_contract::{
 use axum::{
     Json, Router,
     extract::State,
-    http::{HeaderMap, StatusCode},
+    http::HeaderMap,
     response::{IntoResponse, Response},
     routing::{get, post},
 };
 use sea_orm::{ConnectOptions, ConnectionTrait, Database, DatabaseConnection, Statement};
 use subtle::ConstantTimeEq;
+
+#[cfg(test)]
+use axum::http::StatusCode;
 
 const WORKER_ADDR_ENV: &str = "A4N_NOVEL_PLANNING_WORKER_ADDR";
 const DATABASE_URL_ENV: &str = "A4N_DATABASE_URL";

@@ -1,4 +1,4 @@
-use super::helpers::{completed, failed, unauthorized};
+use super::responses::{completed, failed, unauthorized};
 use crate::*;
 
 pub(crate) async fn health(State(state): State<WorkerState>, headers: HeaderMap) -> Response {
