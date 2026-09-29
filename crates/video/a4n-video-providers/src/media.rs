@@ -5,6 +5,7 @@ use a4n_video_sidecar_contract::{
     validate_video_image_artifact,
 };
 use base64::Engine as _;
+use image::GenericImageView;
 use sha2::{Digest, Sha256};
 use std::{
     io::Read,
@@ -24,6 +25,36 @@ pub async fn materialize_video_input(
     tokio::task::spawn_blocking(move || materialize_images(request, Some(&data_dir)))
         .await
         .map_err(|error| ProviderError::Internal(format!("读取视频图片任务失败：{error}")))?
+}
+
+const INLINE_IMAGE_MAX_SIDE: u32 = 1024;
+const INLINE_IMAGE_MAX_BYTES: usize = 1024 * 1024;
+const INLINE_IMAGE_JPEG_QUALITY: u8 = 85;
+
+fn inline_image_data_url(mime: &str, bytes: &[u8]) -> Result<String, ProviderError> {
+    let image = image::load_from_memory(bytes)
+        .map_err(|error| ProviderError::InvalidArgument(format!("视频图片压缩失败：{error}")))?;
+    let (width, height) = image.dimensions();
+    let (mime, bytes) = if bytes.len() <= INLINE_IMAGE_MAX_BYTES
+        && width <= INLINE_IMAGE_MAX_SIDE
+        && height <= INLINE_IMAGE_MAX_SIDE
+    {
+        (mime, bytes.to_vec())
+    } else {
+        let resized = image.thumbnail(INLINE_IMAGE_MAX_SIDE, INLINE_IMAGE_MAX_SIDE);
+        let mut compressed = Vec::new();
+        image::codecs::jpeg::JpegEncoder::new_with_quality(
+            &mut compressed,
+            INLINE_IMAGE_JPEG_QUALITY,
+        )
+        .encode_image(&image::DynamicImage::ImageRgb8(resized.to_rgb8()))
+        .map_err(|error| ProviderError::InvalidArgument(format!("视频图片压缩失败：{error}")))?;
+        ("image/jpeg", compressed)
+    };
+    Ok(format!(
+        "data:{mime};base64,{}",
+        base64::engine::general_purpose::STANDARD.encode(bytes)
+    ))
 }
 
 fn materialize_images(
@@ -70,10 +101,7 @@ fn materialize_images(
                     "视频图片内容已变化，请重新准备请求".into(),
                 ));
             }
-            Ok(format!(
-                "data:{mime};base64,{}",
-                base64::engine::general_purpose::STANDARD.encode(bytes)
-            ))
+            inline_image_data_url(mime, &bytes)
         }
     })
 }
@@ -173,5 +201,27 @@ mod tests {
             .await
             .unwrap_err();
         assert!(error.to_string().contains("其他项目"));
+    }
+
+    #[test]
+    fn oversized_inline_images_are_resized_and_reencoded() {
+        let image = image::RgbImage::from_pixel(2048, 1024, image::Rgb([20, 40, 60]));
+        let mut bytes = Vec::new();
+        image::DynamicImage::ImageRgb8(image)
+            .write_to(
+                &mut std::io::Cursor::new(&mut bytes),
+                image::ImageFormat::Png,
+            )
+            .unwrap();
+
+        let data_url = inline_image_data_url("image/png", &bytes).unwrap();
+        assert!(data_url.starts_with("data:image/jpeg;base64,"));
+        let encoded = data_url.split_once(',').unwrap().1;
+        let compressed = base64::engine::general_purpose::STANDARD
+            .decode(encoded)
+            .unwrap();
+        let decoded = image::load_from_memory(&compressed).unwrap();
+        assert!(decoded.width() <= INLINE_IMAGE_MAX_SIDE);
+        assert!(decoded.height() <= INLINE_IMAGE_MAX_SIDE);
     }
 }

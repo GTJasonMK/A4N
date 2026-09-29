@@ -3093,6 +3093,7 @@ dependencies = [
  "a4n-video-sidecar-contract",
  "async-trait",
  "base64 0.22.1",
+ "image",
  "reqwest 0.12.28",
  "serde_json",
  "sha2",
