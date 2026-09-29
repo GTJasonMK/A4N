@@ -1,3 +1,5 @@
+mod responses;
+
 use std::{net::SocketAddr, sync::Arc};
 
 use a4n_agent_application::agent::AgentApplication;
@@ -25,15 +27,13 @@ use a4n_error::AppError;
 use a4n_worker_contract::{
     AGENT_HOST_COMMAND_OPERATION, AGENT_RUN_OPERATION, AGENT_WORKER_AUTH_HEADER,
     WORKER_CAPABILITIES_PATH, WORKER_HEALTH_PATH, WORKER_SCHEMA_VERSION, WorkerCapabilities,
-    WorkerCapability, WorkerEnvelope, WorkerError, WorkerErrorCode, WorkerHealth,
-    WorkerHealthStatus, WorkerOperationRef, WorkerOperationStatus, WorkerPrincipalKind,
-    WorkerResponse,
+    WorkerCapability, WorkerEnvelope, WorkerHealth, WorkerHealthStatus, WorkerPrincipalKind,
 };
 use anyhow::anyhow;
 use axum::{
     Json, Router,
     extract::State,
-    http::{HeaderMap, StatusCode},
+    http::HeaderMap,
     response::{IntoResponse, Response},
     routing::get,
 };
@@ -41,6 +41,8 @@ use serde::{Serialize, de::DeserializeOwned};
 use serde_json::Value;
 use subtle::ConstantTimeEq;
 use tokio::{net::TcpListener, sync::oneshot};
+
+use self::responses::{WorkerFailure, app_error_failure, completed, failed, unauthorized};
 
 const WORKER_ADDR_ENV: &str = "A4N_AGENT_WORKER_ADDR";
 const HEALTH_PATH: &str = WORKER_HEALTH_PATH;
@@ -763,109 +765,6 @@ fn decode_payload<T: DeserializeOwned>(payload: Value) -> Result<T, AppError> {
     serde_json::from_value(payload).map_err(|error| AppError::InvalidArgument(error.to_string()))
 }
 
-fn app_error_failure(error: AppError) -> WorkerFailure {
-    match error {
-        AppError::InvalidArgument(message) => WorkerFailure::invalid_request(message),
-        AppError::NotFound(message) => WorkerFailure::not_found(message),
-        AppError::Forbidden(message) | AppError::Unauthorized(message) => {
-            WorkerFailure::unauthorized(message)
-        }
-        AppError::InvalidState { current, operation } => {
-            WorkerFailure::conflict(format!("{current}; operation={operation}"))
-        }
-        other => WorkerFailure::internal(other.to_string()),
-    }
-}
-
-#[derive(Debug)]
-struct WorkerFailure {
-    code: WorkerErrorCode,
-    message: String,
-    retryable: bool,
-}
-
-impl WorkerFailure {
-    fn invalid_request(message: impl Into<String>) -> Self {
-        Self {
-            code: WorkerErrorCode::InvalidRequest,
-            message: message.into(),
-            retryable: false,
-        }
-    }
-    fn unauthorized(message: impl Into<String>) -> Self {
-        Self {
-            code: WorkerErrorCode::Unauthorized,
-            message: message.into(),
-            retryable: false,
-        }
-    }
-    fn not_found(message: impl Into<String>) -> Self {
-        Self {
-            code: WorkerErrorCode::NotFound,
-            message: message.into(),
-            retryable: false,
-        }
-    }
-    fn conflict(message: impl Into<String>) -> Self {
-        Self {
-            code: WorkerErrorCode::Conflict,
-            message: message.into(),
-            retryable: false,
-        }
-    }
-    fn internal(message: impl Into<String>) -> Self {
-        Self {
-            code: WorkerErrorCode::Internal,
-            message: message.into(),
-            retryable: false,
-        }
-    }
-}
-
-fn completed<T: Serialize>(request: &WorkerEnvelope<Value>, payload: T) -> WorkerResponse<T> {
-    WorkerResponse {
-        schema_version: WORKER_SCHEMA_VERSION,
-        request_id: request.request_id.clone(),
-        trace_id: request.trace_id.clone(),
-        operation: WorkerOperationRef {
-            operation_id: request.operation_id.clone(),
-            task_id: None,
-        },
-        status: WorkerOperationStatus::Completed,
-        payload: Some(payload),
-        resource_refs: Vec::new(),
-        committed_revision: None,
-        provider_job_id: None,
-        result_summary: None,
-        pagination: None,
-        error: None,
-    }
-}
-
-fn failed<T>(request: &WorkerEnvelope<Value>, failure: WorkerFailure) -> WorkerResponse<T> {
-    WorkerResponse {
-        schema_version: WORKER_SCHEMA_VERSION,
-        request_id: request.request_id.clone(),
-        trace_id: request.trace_id.clone(),
-        operation: WorkerOperationRef {
-            operation_id: request.operation_id.clone(),
-            task_id: None,
-        },
-        status: WorkerOperationStatus::Failed,
-        payload: None,
-        resource_refs: Vec::new(),
-        committed_revision: None,
-        provider_job_id: None,
-        result_summary: None,
-        pagination: None,
-        error: Some(WorkerError {
-            code: failure.code,
-            message: failure.message,
-            retryable: failure.retryable,
-        }),
-    }
-}
-
 pub(crate) fn bind_addr(control_addr: SocketAddr) -> anyhow::Result<SocketAddr> {
     let configured = a4n_config::optional_non_empty_env_string(WORKER_ADDR_ENV)?;
     parse_bind_addr(configured.as_deref(), control_addr)
@@ -937,18 +836,13 @@ impl HealthState {
     }
 }
 
-fn unauthorized() -> Response {
-    (
-        StatusCode::UNAUTHORIZED,
-        "Agent worker authentication required",
-    )
-        .into_response()
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use axum::{body::Body, http::Request};
+    use axum::{
+        body::Body,
+        http::{Request, StatusCode},
+    };
     use serde_json::Value;
     use std::time::Duration;
     use tokio::time::timeout;
