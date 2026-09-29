@@ -1,4 +1,5 @@
 mod content;
+mod security;
 
 use a4n_api_contract::runtime_config::RuntimeWebFetchConfig;
 use a4n_api_contract::web_fetch::{
@@ -7,27 +8,10 @@ use a4n_api_contract::web_fetch::{
 use a4n_error::AppError;
 use futures::StreamExt;
 use reqwest::{Response, header};
-use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr};
 use std::time::Duration;
 use url::Url;
 
 const USER_AGENT: &str = "A4N/1.0 (+https://github.com/a4n)";
-const BLOCKED_IPV4_RANGES: &[(u32, u32)] = &[
-    (0x0000_0000, 8),
-    (0x0a00_0000, 8),
-    (0x6440_0000, 10),
-    (0x7f00_0000, 8),
-    (0xa9fe_0000, 16),
-    (0xac10_0000, 12),
-    (0xc000_0000, 24),
-    (0xc000_0200, 24),
-    (0xc0a8_0000, 16),
-    (0xc612_0000, 15),
-    (0xc633_6400, 24),
-    (0xcb00_7100, 24),
-    (0xe000_0000, 4),
-    (0xf000_0000, 4),
-];
 
 pub async fn web_fetch(input: WebFetchInput) -> Result<WebFetchResult, AppError> {
     let url = input.normalized_url().map_err(AppError::InvalidArgument)?;
@@ -84,7 +68,7 @@ async fn fetch_url(
                     current: format!("网页读取重定向 URL 无效: {error}"),
                     operation: "读取网页重定向".into(),
                 })?;
-            validate_redirect(&current_url, &next_url)?;
+            security::validate_redirect(&current_url, &next_url)?;
             current_url = next_url;
             redirects += 1;
             continue;
@@ -104,7 +88,7 @@ async fn client_for(
     let port = url
         .port_or_known_default()
         .ok_or_else(|| AppError::InvalidArgument("网页读取 URL 缺少有效端口".into()))?;
-    let address = resolve_public_address(host, port).await?;
+    let address = security::resolve_public_address(host, port).await?;
     reqwest::Client::builder()
         .redirect(reqwest::redirect::Policy::none())
         .timeout(Duration::from_secs(config.timeout_secs as u64))
@@ -114,76 +98,6 @@ async fn client_for(
         .map_err(|error| {
             AppError::Internal(anyhow::anyhow!("网页读取 HTTP 客户端创建失败: {error}"))
         })
-}
-
-async fn resolve_public_address(host: &str, port: u16) -> Result<SocketAddr, AppError> {
-    if let Ok(ip) = host.parse::<IpAddr>() {
-        return public_socket(ip, port);
-    }
-    let mut addresses = tokio::net::lookup_host((host, port))
-        .await
-        .map_err(|error| AppError::Internal(anyhow::anyhow!("网页读取 DNS 解析失败: {error}")))?;
-    addresses
-        .find(|address| is_public_ip(address.ip()))
-        .ok_or_else(|| AppError::Forbidden(format!("网页读取目标不是公开网络地址: {host}")))
-}
-
-fn public_socket(ip: IpAddr, port: u16) -> Result<SocketAddr, AppError> {
-    if is_public_ip(ip) {
-        Ok(SocketAddr::new(ip, port))
-    } else {
-        Err(AppError::Forbidden(format!(
-            "网页读取目标不是公开网络地址: {ip}"
-        )))
-    }
-}
-
-fn is_public_ip(ip: IpAddr) -> bool {
-    match ip {
-        IpAddr::V4(ip) => !blocked_ipv4(ip),
-        IpAddr::V6(ip) => !blocked_ipv6(ip),
-    }
-}
-
-fn blocked_ipv4(ip: Ipv4Addr) -> bool {
-    let value = u32::from(ip);
-    BLOCKED_IPV4_RANGES.iter().any(|(network, prefix)| {
-        let mask = if *prefix == 0 {
-            0
-        } else {
-            u32::MAX << (32 - prefix)
-        };
-        value & mask == network & mask
-    })
-}
-
-fn blocked_ipv6(ip: Ipv6Addr) -> bool {
-    ip.is_unspecified()
-        || ip.is_loopback()
-        || ip.is_multicast()
-        || ip.is_unique_local()
-        || ip.is_unicast_link_local()
-        || ip.segments()[0] == 0x2001 && ip.segments()[1] == 0x0db8
-        || ip.to_ipv4_mapped().is_some_and(blocked_ipv4)
-}
-
-fn validate_redirect(current: &Url, next: &Url) -> Result<(), AppError> {
-    if !matches!(next.scheme(), "http" | "https")
-        || next.host_str().is_none()
-        || !next.username().is_empty()
-        || next.password().is_some()
-    {
-        return Err(AppError::Forbidden("网页读取重定向目标无效或不安全".into()));
-    }
-    if current.scheme() != next.scheme()
-        || current.host_str() != next.host_str()
-        || current.port_or_known_default() != next.port_or_known_default()
-    {
-        return Err(AppError::Forbidden(
-            "网页读取不自动跟随跨源重定向，请单独读取目标 URL".into(),
-        ));
-    }
-    Ok(())
 }
 
 async fn read_result(
@@ -254,8 +168,8 @@ fn request_error(error: reqwest::Error, url: &Url) -> AppError {
 
 #[cfg(test)]
 mod tests {
-    use super::content::{classify_content_type, format_fetch_output, render_body};
-    use super::{blocked_ipv4, content::BodyKind, is_public_ip};
+    use super::content::{BodyKind, classify_content_type, format_fetch_output, render_body};
+    use super::security::{blocked_ipv4, is_public_ip};
     use reqwest::StatusCode;
     use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
     use url::Url;
