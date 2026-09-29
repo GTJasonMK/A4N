@@ -91,6 +91,8 @@ export const ObjectProfilesTab: React.FC<{
     isCurrentAction,
     beginAction,
     finishAction,
+    commitProfile,
+    removeProfile,
   } = useProjectProfileCollection<ObjectProfile>({
     projectId,
     canEditProfiles,
@@ -99,6 +101,12 @@ export const ObjectProfilesTab: React.FC<{
     listProfiles: listObjectProfiles,
     addToast,
   });
+  useNovelDetailDirty(
+    `object-profile-actions:${projectId}`,
+    busyId != null,
+    undefined,
+    () => busyId == null,
+  );
 
   const stats = useMemo(() => {
     return {
@@ -217,6 +225,7 @@ export const ObjectProfilesTab: React.FC<{
     try {
       const result = await deleteObjectProfile(requestProfile.id, downstreamStrategy);
       if (!isCurrentAction(requestProjectId, requestSeq)) return;
+      removeProfile(requestProfile.id);
       await load({ silent: true, force: true, projectId: requestProjectId });
       if (!isCurrentAction(requestProjectId, requestSeq)) return;
       setDetailFor((current) => (current?.id === requestProfile.id ? null : current));
@@ -293,6 +302,7 @@ export const ObjectProfilesTab: React.FC<{
       if (saved.project_id !== requestProjectId) {
         throw new Error("保存物体档案返回了其他项目的数据");
       }
+      commitProfile(saved);
       await load({ silent: true, force: true, projectId: requestProjectId });
       if (!isCurrentAction(requestProjectId, requestSeq)) return;
       setDetailFor(saved);

@@ -147,6 +147,7 @@ export const WritingDesk: React.FC = () => {
   const [generationWordCountByChapter, setGenerationWordCountByChapter] = useState<
     Record<string, { min: string; max: string }>
   >({});
+  const confirmedChapterNavigationRef = useRef<{ from: number | null; to: number } | null>(null);
   const [savingContent, setSavingContent] = useState(false);
   const [pendingContentDiff, setPendingContentDiff] = useState<PendingContentDiff | null>(null);
   const [contentDiffAction, setContentDiffAction] = useState<ContentDiffAction | null>(null);
@@ -222,15 +223,17 @@ export const WritingDesk: React.FC = () => {
       }
       setRightPanel(panel);
     },
-    [addToast, rightPanelAvailable, rightPanelUnavailableTip],
+    [addToast, rightPanelAvailable, rightPanelUnavailableTip, setRightPanel],
   );
 
   const handleBottomTabChange = useCallback((tab: BottomTab) => {
     setBottomTab(tab);
-    if (tab !== "content") {
-      setRightPanel("none");
-    }
-  }, []);
+    if (tab !== "content") setRightPanel("none");
+  }, [setBottomTab, setRightPanel]);
+
+  const handleCloseRightPanel = useCallback(() => {
+    setRightPanel("none");
+  }, [setRightPanel]);
 
   useEffect(() => {
     if (lifecycleBlockedReason) setRightPanel("none");
@@ -753,8 +756,8 @@ export const WritingDesk: React.FC = () => {
       const ok = await confirmDialog({
         title: t("writing.unsavedEditTitle"),
         message: draftOk
-          ? t("writing.unsavedEditMessage", { action })
-          : t("writing.unsavedEditMessageNoDraft", { action }),
+          ? t("writing.unsavedEditMessageWithGeneration", { action })
+          : t("writing.unsavedEditMessageNoDraftWithGeneration", { action }),
         confirmText: t("writing.continueAction"),
         cancelText: t("writing.stayCurrent"),
         dialogType: "warning",
@@ -789,6 +792,11 @@ export const WritingDesk: React.FC = () => {
       if (chapterNumber === activeNumberRef.current) return true;
       if (!await confirmWritingDeskAction(t("writing.switchChapter"))) return false;
       if (!prepareWritingDeskNavigation()) return false;
+      confirmedChapterNavigationRef.current = {
+        from: activeNumberRef.current,
+        to: chapterNumber,
+      };
+      dirtyRegistry.set(`writing-desk:${projectIdKey || "unknown"}`, false);
       setActiveNumber(chapterNumber);
       return true;
     },
@@ -840,6 +848,11 @@ export const WritingDesk: React.FC = () => {
     }
 
     if (!prepareWritingDeskNavigation()) return;
+    confirmedChapterNavigationRef.current = {
+      from: activeNumberRef.current,
+      to: chapterNumber,
+    };
+    dirtyRegistry.set(`writing-desk:${projectIdKey || "unknown"}`, false);
     setChapterQuery("");
     setActiveNumber(chapterNumber);
   }, [addToast, chapters, chapterLoadError, confirmWritingDeskAction, lifecycleBlockedReason, locale, outlines, prepareWritingDeskNavigation, setActiveNumber, t]);
@@ -1221,7 +1234,7 @@ export const WritingDesk: React.FC = () => {
       rightPanel={rightPanel}
       assistantOpen={assistantOpen}
       writingDeskGridTemplateColumns={writingDeskGridTemplateColumns}
-      onCloseRightPanel={() => setRightPanel("none")}
+      onCloseRightPanel={handleCloseRightPanel}
       onCloseAnalysisRequestPreview={() => setAnalysisRequestPreviewOpen(false)}
       headerProps={{
         project,
@@ -1347,7 +1360,32 @@ export const WritingDesk: React.FC = () => {
       analysisRequestPreviewLoading={analysisRequestPreviewLoading}
       analysisRequestPreviewData={analysisRequestPreviewData}
     />
-    <UnsavedNavigationGuard name={t("writing.writingDesk")} action={t("common.leavePage")} />
+    <UnsavedNavigationGuard
+      name={t("writing.writingDesk")}
+      action={t("common.leavePage")}
+      allowSearchChange={(current, next) => {
+        const authorized = confirmedChapterNavigationRef.current;
+        if (!authorized) return false;
+        if (!dirtyRegistry.canDiscardDirty()) return false;
+        if (current.pathname !== next.pathname || current.hash !== next.hash) {
+          confirmedChapterNavigationRef.current = null;
+          return false;
+        }
+        const currentSearch = new URLSearchParams(current.search);
+        const nextSearch = new URLSearchParams(next.search);
+        const currentChapter = currentSearch.get("chapter");
+        const nextChapter = nextSearch.get("chapter");
+        currentSearch.delete("chapter");
+        nextSearch.delete("chapter");
+        if (
+          currentChapter !== (authorized.from == null ? null : String(authorized.from)) ||
+          nextChapter !== String(authorized.to) ||
+          currentSearch.toString() !== nextSearch.toString()
+        ) return false;
+        confirmedChapterNavigationRef.current = null;
+        return true;
+      }}
+    />
     </>
   );
 };

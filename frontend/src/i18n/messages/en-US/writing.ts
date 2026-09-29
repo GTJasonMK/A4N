@@ -203,6 +203,8 @@ export const writing = {
   unsavedEditTitle: "Unsaved changes",
   unsavedEditMessage: "This chapter has unsaved changes.\nA local draft was saved before {action}; you can restore it later.\nContinue?",
   unsavedEditMessageNoDraft: "This chapter has unsaved changes.\nThe local draft could not be saved, so {action} may lose unsaved content.\nContinue?",
+  unsavedEditMessageWithGeneration: "This chapter body and its writing requirements both have unsaved changes.\nThe body was saved as a recoverable local draft; the chapter brief and word-count range will be discarded if you continue.\nContinue to {action}?",
+  unsavedEditMessageNoDraftWithGeneration: "This chapter body and its writing requirements both have unsaved changes.\nSaving the body draft failed, so the body may be lost; the chapter brief and word-count range will be discarded if you continue.\nContinue to {action}?",
   continueAction: "Continue",
   stayCurrent: "Stay here",
   restoreDraftTitle: "Restore draft",

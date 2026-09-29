@@ -569,6 +569,18 @@ export const useThemeTabController = () => {
     scope === "user" && user
       ? themes.filter((theme) => theme.user_id === user.id)
       : themes;
+  const operationInFlight =
+    activating != null ||
+    deleting != null ||
+    bulkDeleting ||
+    creating ||
+    exportingId != null ||
+    importing ||
+    renameSaving ||
+    appearanceSaving ||
+    editorSaving ||
+    packageExportingId != null ||
+    packageImporting;
 
   return {
     themes: visibleThemes,
@@ -593,20 +605,11 @@ export const useThemeTabController = () => {
     editorSaving,
     packageExportingId,
     packageImporting,
+    operationInFlight,
     mutationBusy:
-      activating != null ||
-      deleting != null ||
-      bulkDeleting ||
-      creating ||
-      exportingId != null ||
-      importing ||
+      operationInFlight ||
       renamingId != null ||
-      renameSaving ||
-      appearanceSaving ||
-      editingId != null ||
-      editorSaving ||
-      packageExportingId != null ||
-      packageImporting,
+      editingId != null,
     hasUser: Boolean(user),
     refresh,
     setScope,

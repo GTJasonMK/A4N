@@ -37,6 +37,7 @@ export const StoryEventsTab: React.FC<StoryEventsTabProps> = ({
   const [filters, setFilters] = useState<StoryEventFilters>(DEFAULT_STORY_EVENT_FILTERS);
   const [loadedProjectId, setLoadedProjectId] = useState<number | null>(null);
   const [loadErrors, setLoadErrors] = useState<string[]>([]);
+  const [foreshadowingLoadError, setForeshadowingLoadError] = useState<string | null>(null);
   const chaptersProjectIdRef = useRef<number | null>(null);
   const foreshadowingProjectIdRef = useRef<number | null>(null);
 
@@ -59,10 +60,13 @@ export const StoryEventsTab: React.FC<StoryEventsTabProps> = ({
       if (foreshadowingResult.status === "fulfilled") {
         setForeshadowing(foreshadowingResult.value);
         foreshadowingProjectIdRef.current = projectId;
+        setForeshadowingLoadError(null);
       }
       else {
         if (foreshadowingProjectIdRef.current !== projectId) setForeshadowing([]);
-        errors.push(extractErrorMessage(foreshadowingResult.reason, t("novel.storyEvents.foreshadowingLoadFailed")));
+        const message = extractErrorMessage(foreshadowingResult.reason, t("novel.storyEvents.foreshadowingLoadFailed"));
+        setForeshadowingLoadError(message);
+        errors.push(message);
       }
       setLoadErrors(errors);
       setLoadedProjectId(projectId);
@@ -151,14 +155,16 @@ export const StoryEventsTab: React.FC<StoryEventsTabProps> = ({
 
       <details className="min-w-0">
         <summary className="mb-2 cursor-pointer text-sm font-medium text-book-text-main">
-          {t("novel.foreshadowing.title")} · {displayForeshadowing.length}
+          {t("novel.foreshadowing.title")}{foreshadowingLoadError ? "" : ` · ${displayForeshadowing.length}`}
         </summary>
         <ForeshadowingIndexCard
         projectId={projectId}
         records={displayForeshadowing}
         canEdit={canOpenWritingDesk}
         loading={loading}
+        loadError={foreshadowingLoadError}
         onReload={() => load({ silent: true, force: true })}
+        onDeleted={(id) => setForeshadowing((current) => current.filter((record) => record.id !== id))}
       />
       </details>
 

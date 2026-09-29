@@ -54,9 +54,11 @@ function executionTone(execution: AgentExecutionView): string {
 export function ExecutionRow({
   execution,
   locale,
+  onSelectThread,
 }: {
   execution: AgentExecutionView;
   locale: Locale;
+  onSelectThread?: (threadId: string) => void;
 }) {
   return (
     <div className="min-w-0 rounded-lg border border-book-border/35 bg-book-bg-paper px-2 py-1.5">
@@ -69,6 +71,16 @@ export function ExecutionRow({
           {labelFor(execution.status, locale)}
         </span>
       </div>
+      {execution.result_refs.filter((ref) => ref.kind === "agent_thread" && ref.id).map((ref) => (
+        <button
+          key={ref.id}
+          type="button"
+          className="mt-1 max-w-full truncate text-left font-mono text-[10px] text-book-primary hover:underline"
+          onClick={() => onSelectThread?.(ref.id)}
+        >
+          {locale === "zh-CN" ? "打开子线程" : "Open child thread"} · #{ref.id}
+        </button>
+      ))}
       {execution.result_summary ? (
         <p className="mt-0.5 break-words text-[10px] leading-relaxed text-book-text-muted">
           {compactAgentValue(execution.result_summary)}
@@ -98,7 +110,7 @@ export function ApprovalRow({
   ) => void;
 }) {
   return (
-    <div className="min-w-0 rounded-xl border border-warning/35 bg-warning-bg/55 p-2">
+    <div data-approval-id={approval.id} className="min-w-0 rounded-xl border border-warning/35 bg-warning-bg/55 p-2">
       <div className="flex min-w-0 items-start gap-1.5">
         <ShieldCheck size={13} className="mt-0.5 shrink-0 text-warning" />
         <div className="min-w-0 flex-1">

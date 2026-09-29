@@ -62,6 +62,23 @@ export function useProjectProfileCollection<T extends ProjectProfile>({
     [isCurrentProject],
   );
 
+  const commitProfile = useCallback((saved: T) => {
+    if (!isCurrentProject(saved.project_id)) return;
+    const current = profilesRef.current;
+    const next = current.some((profile) => profile.id === saved.id)
+      ? current.map((profile) => profile.id === saved.id ? saved : profile)
+      : [saved, ...current];
+    profilesRef.current = next;
+    setProfiles(next);
+  }, [isCurrentProject]);
+
+  const removeProfile = useCallback((profileId: number) => {
+    const next = profilesRef.current.filter((profile) => profile.id !== profileId);
+    if (next.length === profilesRef.current.length) return;
+    profilesRef.current = next;
+    setProfiles(next);
+  }, []);
+
   const beginAction = useCallback(
     (requestProjectId: number): number | null => {
       if (!isCurrentProject(requestProjectId)) return null;
@@ -198,5 +215,7 @@ export function useProjectProfileCollection<T extends ProjectProfile>({
     isCurrentAction,
     beginAction,
     finishAction,
+    commitProfile,
+    removeProfile,
   };
 }

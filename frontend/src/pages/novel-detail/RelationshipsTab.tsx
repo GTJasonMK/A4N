@@ -164,7 +164,12 @@ export const RelationshipsTab: React.FC<{ projectId: number }> = ({
     editor.target !== editor.initialTarget ||
     editor.description !== editor.initialDescription
   );
-  useNovelDetailDirty(`relationships:${projectId}`, editorDirty, undefined, () => !mutationInFlightRef.current);
+  useNovelDetailDirty(
+    `relationships:${projectId}`,
+    editorDirty || saving,
+    undefined,
+    () => !mutationInFlightRef.current,
+  );
 
   useEffect(() => {
     setCurrentDetail((current) => {
@@ -337,6 +342,7 @@ export const RelationshipsTab: React.FC<{ projectId: number }> = ({
   };
 
   const deleteRelationship = async (relationship: CurrentRelationship) => {
+    const requestProjectId = projectId;
     if (!relationship.editable) {
       addToast(
         relationship.timeline_started
@@ -357,7 +363,7 @@ export const RelationshipsTab: React.FC<{ projectId: number }> = ({
       confirmText: t("common.delete"),
       dialogType: "danger",
     });
-    if (!confirmed) return;
+    if (!confirmed || activeProjectIdRef.current !== requestProjectId) return;
     const profile = displayProfiles.find(
       (item) => item.id === relationship.profile_id,
     );

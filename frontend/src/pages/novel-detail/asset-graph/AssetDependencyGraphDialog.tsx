@@ -82,6 +82,7 @@ export const AssetDependencyGraphDialog: React.FC<
     setLoading(true);
     setError(null);
     detailRequestSeqRef.current += 1;
+    setDetailLoading(false);
     try {
       const next = await getProjectAssetDependencyGraph(projectId);
       if (graphRequestSeqRef.current !== requestSeq) return;

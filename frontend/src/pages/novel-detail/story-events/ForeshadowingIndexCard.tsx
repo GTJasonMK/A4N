@@ -40,7 +40,9 @@ interface ForeshadowingIndexCardProps {
   records: Foreshadowing[];
   canEdit: boolean;
   loading: boolean;
+  loadError: string | null;
   onReload: () => Promise<boolean | void>;
+  onDeleted: (id: number) => void;
 }
 
 export const ForeshadowingIndexCard: React.FC<ForeshadowingIndexCardProps> = ({
@@ -48,7 +50,9 @@ export const ForeshadowingIndexCard: React.FC<ForeshadowingIndexCardProps> = ({
   records,
   canEdit,
   loading,
+  loadError,
   onReload,
+  onDeleted,
 }) => {
   const { addToast } = useToast();
   const { t } = useI18n();
@@ -56,21 +60,44 @@ export const ForeshadowingIndexCard: React.FC<ForeshadowingIndexCardProps> = ({
   const [draft, setDraft] = useState<Draft>(() => emptyDraft());
   const initialDraftRef = useRef<Draft>(emptyDraft());
   const [busyId, setBusyId] = useState<number | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+  const activeProjectIdRef = useRef(projectId);
+  const mountedRef = useRef(true);
+  const mutationSeqRef = useRef(0);
+  const refreshSeqRef = useRef(0);
+  const refreshInFlightRef = useRef(false);
+  activeProjectIdRef.current = projectId;
   const draftDirty = editing != null && JSON.stringify(draft) !== JSON.stringify(initialDraftRef.current);
 
   useNovelDetailDirty(
     `foreshadowing-editor:${projectId}`,
-    draftDirty,
+    draftDirty || busyId != null,
     () => {
+      if (busyId != null) return false;
       setEditing(null);
       setDraft(initialDraftRef.current);
+      return true;
     },
     () => busyId == null,
   );
 
   useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      mutationSeqRef.current += 1;
+      refreshSeqRef.current += 1;
+      refreshInFlightRef.current = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    mutationSeqRef.current += 1;
+    refreshSeqRef.current += 1;
+    refreshInFlightRef.current = false;
     setEditing(null);
     setBusyId(null);
+    setRefreshing(false);
   }, [projectId]);
 
   const openEditor = (record: "new" | Foreshadowing) => {
@@ -81,6 +108,7 @@ export const ForeshadowingIndexCard: React.FC<ForeshadowingIndexCardProps> = ({
   };
 
   const closeEditor = async () => {
+    const requestProjectId = projectId;
     if (busyId != null) return;
     if (draftDirty && !(await confirmDialog({
       title: t("common.unsavedChangesTitle"),
@@ -88,11 +116,37 @@ export const ForeshadowingIndexCard: React.FC<ForeshadowingIndexCardProps> = ({
       confirmText: t("common.discardDraft"),
       dialogType: "warning",
     }))) return;
-    setEditing(null);
+    if (mountedRef.current && activeProjectIdRef.current === requestProjectId) setEditing(null);
+  };
+
+  const refreshIndex = async () => {
+    if (loading || busyId != null || refreshInFlightRef.current) return;
+    const requestProjectId = projectId;
+    const requestSeq = refreshSeqRef.current + 1;
+    refreshSeqRef.current = requestSeq;
+    refreshInFlightRef.current = true;
+    setRefreshing(true);
+    try {
+      await onReload();
+    } catch (error) {
+      if (mountedRef.current && activeProjectIdRef.current === requestProjectId) {
+        addToast(extractErrorMessage(error, t("novel.storyEvents.foreshadowingLoadFailed")), "error");
+      }
+    } finally {
+      if (
+        mountedRef.current &&
+        activeProjectIdRef.current === requestProjectId &&
+        refreshSeqRef.current === requestSeq
+      ) {
+        refreshInFlightRef.current = false;
+        setRefreshing(false);
+      }
+    }
   };
 
   const handleSave = async () => {
-    if (!editing || !canEdit) return;
+    if (!editing || !canEdit || busyId != null || refreshInFlightRef.current) return;
+    const requestProjectId = projectId;
     const record = inputFromDraft(draft);
     if (!record.description) {
       addToast(t("novel.foreshadowing.descriptionRequired"), "error");
@@ -106,13 +160,17 @@ export const ForeshadowingIndexCard: React.FC<ForeshadowingIndexCardProps> = ({
       return;
     }
 
+    const requestSeq = mutationSeqRef.current + 1;
+    mutationSeqRef.current = requestSeq;
     setBusyId(editing === "new" ? -1 : editing.id);
     try {
       const result =
         editing === "new"
-          ? await createForeshadowing(projectId, record)
-          : await updateForeshadowing(projectId, editing, record);
+          ? await createForeshadowing(requestProjectId, record)
+          : await updateForeshadowing(requestProjectId, editing, record);
+      if (!mountedRef.current || activeProjectIdRef.current !== requestProjectId || mutationSeqRef.current !== requestSeq) return;
       await onReload();
+      if (!mountedRef.current || activeProjectIdRef.current !== requestProjectId || mutationSeqRef.current !== requestSeq) return;
       setEditing(null);
       addToast(
         result.warnings.length > 0
@@ -121,25 +179,35 @@ export const ForeshadowingIndexCard: React.FC<ForeshadowingIndexCardProps> = ({
         result.warnings.length > 0 ? "info" : "success",
       );
     } catch (error) {
-      addToast(extractErrorMessage(error, t("novel.foreshadowing.saveFailed")), "error");
+      if (mountedRef.current && activeProjectIdRef.current === requestProjectId && mutationSeqRef.current === requestSeq) {
+        addToast(extractErrorMessage(error, t("novel.foreshadowing.saveFailed")), "error");
+      }
     } finally {
-      setBusyId(null);
+      if (mountedRef.current && activeProjectIdRef.current === requestProjectId && mutationSeqRef.current === requestSeq) {
+        setBusyId(null);
+      }
     }
   };
 
   const handleDelete = async (record: Foreshadowing) => {
-    if (!canEdit) return;
+    if (!canEdit || busyId != null || refreshInFlightRef.current) return;
+    const requestProjectId = projectId;
     const confirmed = await confirmDialog({
       title: t("novel.foreshadowing.deleteTitle"),
       message: t("novel.foreshadowing.deleteMessage", { description: record.description }),
       confirmText: t("common.delete"),
       dialogType: "danger",
     });
-    if (!confirmed) return;
+    if (!confirmed || !mountedRef.current || activeProjectIdRef.current !== requestProjectId) return;
+    const requestSeq = mutationSeqRef.current + 1;
+    mutationSeqRef.current = requestSeq;
     setBusyId(record.id);
     try {
-      const result = await deleteForeshadowing(projectId, record);
+      const result = await deleteForeshadowing(requestProjectId, record);
+      if (!mountedRef.current || activeProjectIdRef.current !== requestProjectId || mutationSeqRef.current !== requestSeq) return;
+      onDeleted(record.id);
       await onReload();
+      if (!mountedRef.current || activeProjectIdRef.current !== requestProjectId || mutationSeqRef.current !== requestSeq) return;
       addToast(
         result.warnings.length > 0
           ? t("novel.foreshadowing.deletedWithWarnings", { warnings: result.warnings.join(t("common.listSeparator")) })
@@ -147,9 +215,13 @@ export const ForeshadowingIndexCard: React.FC<ForeshadowingIndexCardProps> = ({
         result.warnings.length > 0 ? "info" : "success",
       );
     } catch (error) {
-      addToast(extractErrorMessage(error, t("novel.foreshadowing.deleteFailed")), "error");
+      if (mountedRef.current && activeProjectIdRef.current === requestProjectId && mutationSeqRef.current === requestSeq) {
+        addToast(extractErrorMessage(error, t("novel.foreshadowing.deleteFailed")), "error");
+      }
     } finally {
-      setBusyId(null);
+      if (mountedRef.current && activeProjectIdRef.current === requestProjectId && mutationSeqRef.current === requestSeq) {
+        setBusyId(null);
+      }
     }
   };
 
@@ -164,19 +236,19 @@ export const ForeshadowingIndexCard: React.FC<ForeshadowingIndexCardProps> = ({
         </div>
         <button
           type="button"
-          onClick={() => void onReload()}
-          disabled={loading || busyId != null}
+          onClick={() => void refreshIndex()}
+          disabled={loading || refreshing || busyId != null}
           className="pyqt-btn-icon !h-8 !w-8"
           aria-label={t("novel.foreshadowing.refresh")}
           title={t("novel.foreshadowing.refresh")}
         >
-          <RefreshCw size={12} className={loading ? "animate-spin" : undefined} />
+          <RefreshCw size={12} className={loading || refreshing ? "animate-spin" : undefined} />
         </button>
         {canEdit ? (
           <BookButton
             size="sm"
             onClick={() => openEditor("new")}
-            disabled={busyId != null}
+            disabled={busyId != null || loading || loadError != null}
           >
             <Plus size={12} /> {t("novel.foreshadowing.add")}
           </BookButton>
@@ -184,13 +256,15 @@ export const ForeshadowingIndexCard: React.FC<ForeshadowingIndexCardProps> = ({
       </header>
 
       {records.length === 0 ? (
-        <div className="p-3">
-          <EmptyHint
-            text={t("novel.foreshadowing.empty")}
-            actionText={canEdit ? t("novel.foreshadowing.add") : undefined}
-            onAction={canEdit ? () => openEditor("new") : undefined}
-          />
-        </div>
+        loadError ? null : (
+          <div className="p-3">
+            <EmptyHint
+              text={t("novel.foreshadowing.empty")}
+              actionText={canEdit ? t("novel.foreshadowing.add") : undefined}
+              onAction={canEdit ? () => openEditor("new") : undefined}
+            />
+          </div>
+        )
       ) : (
         <div className="divide-y divide-book-border/35">
           {records.map((record) => (
