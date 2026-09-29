@@ -1,4 +1,5 @@
 mod responses;
+mod threads;
 
 use std::{net::SocketAddr, sync::Arc};
 
@@ -98,35 +99,35 @@ pub(crate) fn router(
         .route(CAPABILITIES_PATH, get(capabilities))
         .route(
             "/v1/commands/agent.thread.ensure_main",
-            axum::routing::post(ensure_main_thread),
+            axum::routing::post(threads::ensure_main_thread),
         )
         .route(
             "/v1/commands/agent.thread.create",
-            axum::routing::post(create_thread),
+            axum::routing::post(threads::create_thread),
         )
         .route(
             "/v1/commands/agent.thread.fork",
-            axum::routing::post(fork_thread),
+            axum::routing::post(threads::fork_thread),
         )
         .route(
             "/v1/commands/agent.thread.update",
-            axum::routing::post(update_thread),
+            axum::routing::post(threads::update_thread),
         )
         .route(
             "/v1/commands/agent.thread.archive",
-            axum::routing::post(archive_thread),
+            axum::routing::post(threads::archive_thread),
         )
         .route(
             "/v1/commands/agent.thread.list",
-            axum::routing::post(list_threads),
+            axum::routing::post(threads::list_threads),
         )
         .route(
             "/v1/commands/agent.thread.show",
-            axum::routing::post(show_thread),
+            axum::routing::post(threads::show_thread),
         )
         .route(
             "/v1/commands/agent.thread.messages",
-            axum::routing::post(list_messages),
+            axum::routing::post(threads::list_messages),
         )
         .route("/v1/commands/agent.run.show", axum::routing::post(show_run))
         .route(
@@ -216,132 +217,6 @@ pub(crate) async fn serve(
         })
         .await
         .map_err(anyhow::Error::from)
-}
-
-async fn ensure_main_thread(
-    State(state): State<HealthState>,
-    headers: HeaderMap,
-    Json(request): Json<WorkerEnvelope<Value>>,
-) -> Response {
-    user_command(
-        &state,
-        &headers,
-        request,
-        AGENT_THREAD_ENSURE_MAIN_OPERATION,
-        |app, user_id, payload| async move {
-            app.ensure_main_thread(user_id, decode_payload(payload)?)
-                .await
-        },
-    )
-    .await
-}
-
-async fn create_thread(
-    State(state): State<HealthState>,
-    headers: HeaderMap,
-    Json(request): Json<WorkerEnvelope<Value>>,
-) -> Response {
-    user_command(
-        &state,
-        &headers,
-        request,
-        AGENT_THREAD_CREATE_OPERATION,
-        |app, user_id, payload| async move {
-            app.create_thread(user_id, decode_payload(payload)?).await
-        },
-    )
-    .await
-}
-
-async fn fork_thread(
-    State(state): State<HealthState>,
-    headers: HeaderMap,
-    Json(request): Json<WorkerEnvelope<Value>>,
-) -> Response {
-    user_command(&state, &headers, request, AGENT_THREAD_FORK_OPERATION, |app, user_id, payload| async move {
-        app.fork_thread(user_id, decode_payload(payload)?).await
-    })
-    .await
-}
-
-async fn update_thread(
-    State(state): State<HealthState>,
-    headers: HeaderMap,
-    Json(request): Json<WorkerEnvelope<Value>>,
-) -> Response {
-    user_command(
-        &state,
-        &headers,
-        request,
-        AGENT_THREAD_UPDATE_OPERATION,
-        |app, user_id, payload| async move {
-            app.update_thread(user_id, decode_payload(payload)?).await
-        },
-    )
-    .await
-}
-
-async fn archive_thread(
-    State(state): State<HealthState>,
-    headers: HeaderMap,
-    Json(request): Json<WorkerEnvelope<Value>>,
-) -> Response {
-    user_command(
-        &state,
-        &headers,
-        request,
-        AGENT_THREAD_ARCHIVE_OPERATION,
-        |app, user_id, payload| async move {
-            app.archive_thread(user_id, decode_payload(payload)?).await
-        },
-    )
-    .await
-}
-
-async fn list_threads(
-    State(state): State<HealthState>,
-    headers: HeaderMap,
-    Json(request): Json<WorkerEnvelope<Value>>,
-) -> Response {
-    user_command(&state, &headers, request, AGENT_THREAD_LIST_OPERATION, |app, user_id, payload| async move {
-        app.list_threads(user_id, decode_payload(payload)?).await
-    })
-    .await
-}
-
-async fn show_thread(
-    State(state): State<HealthState>,
-    headers: HeaderMap,
-    Json(request): Json<WorkerEnvelope<Value>>,
-) -> Response {
-    user_command(
-        &state,
-        &headers,
-        request,
-        AGENT_THREAD_SHOW_OPERATION,
-        |app, user_id, payload| async move {
-            let thread_id: String = decode_payload(payload)?;
-            app.show_thread(user_id, &thread_id).await
-        },
-    )
-    .await
-}
-
-async fn list_messages(
-    State(state): State<HealthState>,
-    headers: HeaderMap,
-    Json(request): Json<WorkerEnvelope<Value>>,
-) -> Response {
-    user_command(
-        &state,
-        &headers,
-        request,
-        AGENT_THREAD_MESSAGES_OPERATION,
-        |app, user_id, payload| async move {
-            app.list_messages(user_id, decode_payload(payload)?).await
-        },
-    )
-    .await
 }
 
 async fn show_run(
