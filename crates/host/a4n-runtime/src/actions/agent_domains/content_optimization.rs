@@ -137,7 +137,8 @@ pub(crate) async fn generation_task_summary(
     })?;
     state
         .agent_resource_access_application()
-        .verify_chapters_in_project(user_id, project_id, &[chapter_id])
+        // This is the persisted task's source chapter, not a chapter mutation.
+        .verify_chapters_in_project(user_id, project_id, &[], &[chapter_id])
         .await?;
     super::super::agent_runtime::ensure_chapter_scope(scope, chapter_id)?;
     Ok(summary)

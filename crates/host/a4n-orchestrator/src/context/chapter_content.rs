@@ -1,7 +1,7 @@
 use super::OrchestratorContext;
 use crate::chapter_content_edit_error_to_app_error;
 use a4n_api_contract::{
-    chapter::{ChapterIndexEntry, ChapterMetadata, ChapterSummary},
+    chapter::{ChapterAnalysisEntry, ChapterIndexEntry, ChapterMetadata, ChapterSummary},
     collaboration::ProjectAccessRole,
 };
 use a4n_db::DbHandle;
@@ -230,6 +230,21 @@ impl OrchestratorContext {
 
 #[async_trait::async_trait]
 impl a4n_api_contract::chapter::ChapterContentReadApplicationPort for OrchestratorContext {
+    async fn analyses(
+        &self,
+        user_id: i64,
+        project_id: i64,
+    ) -> Result<Vec<ChapterAnalysisEntry>, AppError> {
+        self.verify_project_permission(project_id, user_id, ProjectAccessRole::Viewer)
+            .await?;
+        a4n_db::chapter_content::chapter_analyses_for_project(
+            self.chapter_content.database.connection(),
+            project_id,
+        )
+        .await
+        .map_err(AppError::Database)
+    }
+
     async fn index(
         &self,
         user_id: i64,

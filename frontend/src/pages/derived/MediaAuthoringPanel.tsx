@@ -96,6 +96,8 @@ export function MediaAuthoringPanel({ projectId, kind, workspace, loading, error
     setVersionId(null);
     setEditor(null);
     setActionError(null);
+    busyRef.current = false;
+    setBusy(false);
     setReferenceChoice("saved");
     setSubmittedOptions((current) => ({ ...current, referenceChoice: "saved" }));
   }, [scope]);
@@ -131,12 +133,24 @@ export function MediaAuthoringPanel({ projectId, kind, workspace, loading, error
   };
   const run = async (action: () => Promise<void>) => {
     if (busyRef.current || disabled) return;
+    const requestScope = scope;
     busyRef.current = true;
     setBusy(true);
     setActionError(null);
     try { await action(); }
-    catch (error) { const message = extractErrorMessage(error, t("common.mediaAuthoring.requestFailed")); setActionError(message); addToast(message, "error"); }
-    finally { busyRef.current = false; setBusy(false); }
+    catch (error) {
+      if (scopeRef.current === requestScope) {
+        const message = extractErrorMessage(error, t("common.mediaAuthoring.requestFailed"));
+        setActionError(message);
+        addToast(message, "error");
+      }
+    }
+    finally {
+      if (scopeRef.current === requestScope) {
+        busyRef.current = false;
+        setBusy(false);
+      }
+    }
   };
   const save = async () => {
     if (!editor) throw new Error(t("common.mediaAuthoring.noPlan"));
@@ -147,8 +161,11 @@ export function MediaAuthoringPanel({ projectId, kind, workspace, loading, error
     return saved;
   };
   const adopt = async () => {
+    const requestScope = scope;
     const saved = dirty || !editor?.record ? await save() : editor.record;
+    if (scopeRef.current !== requestScope) return;
     const adopted = await adoptMediaAuthoringDocument({ project_id: projectId, record_id: saved.id, expected_revision: saved.revision });
+    if (scopeRef.current !== requestScope) return;
     commitEditor(adopted);
     await onReload();
   };
@@ -168,6 +185,7 @@ export function MediaAuthoringPanel({ projectId, kind, workspace, loading, error
     if (kind !== "adaptation_plan") {
       setEditor(null); setVersionId(null); onDirtyChange(false);
       await onGenerateStage?.();
+      if (scopeRef.current !== requestScope) return;
       return;
     }
     const input = generationInput();

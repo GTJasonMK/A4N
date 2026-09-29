@@ -558,6 +558,7 @@ export const NovelDetail: React.FC = () => {
         refresh: () => refresh(requestProjectId),
         t,
       });
+      if (!isCurrentAction(requestProjectId, refineSeqRef, activeRequestSeq)) return;
       addToast(
         syncWarnings.length > 0
           ? t("novel.blueprintRefinedWithWarnings", { warnings: syncWarnings.join(t("common.summarySeparator")) })
@@ -622,6 +623,7 @@ export const NovelDetail: React.FC = () => {
           if (!isCurrentAction(requestProjectId, titleSeqRef, requestSeq)) return;
           setProject(updatedProject);
           await refresh(requestProjectId);
+          if (!isCurrentAction(requestProjectId, titleSeqRef, requestSeq)) return;
           addToast(t("novel.projectTitleUpdated"), "success");
         } catch (err) {
           if (isCurrentAction(requestProjectId, titleSeqRef, requestSeq)) {

@@ -19,7 +19,7 @@ pub(super) use chapter::{
     edit_chapter_shooting_script_progress, edit_chapter_visual_plan_draft,
     generate_chapter_analysis, generate_chapter_scene, get_chapter, get_chapter_shooting_script,
     get_chapter_shooting_script_unit_progress, get_chapter_visual_plan, import_chapter,
-    list_chapter_index, list_chapter_scenes, list_chapters,
+    list_chapter_analyses, list_chapter_index, list_chapter_scenes, list_chapters,
     prepare_chapter_generation_rag_embedding, preview_chapter_analysis_request,
     preview_chapter_prompt, preview_chapter_scene_request,
     preview_resume_chapter_analysis_sync_request, preview_visual_plan_point_generation,

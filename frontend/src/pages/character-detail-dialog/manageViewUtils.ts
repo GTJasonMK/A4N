@@ -1,5 +1,13 @@
 import type { MessageKey, MessageTranslator, Messages } from "../../i18n";
 
+export const CHARACTER_DETAIL_DRAFT_SECTIONS = ["event", "deletion", "implicit"] as const;
+export type CharacterDetailDraftSection = typeof CHARACTER_DETAIL_DRAFT_SECTIONS[number];
+
+export const characterDetailDraftKey = (
+  profileId: number,
+  section: CharacterDetailDraftSection,
+): string => `character-detail:${profileId}:${section}`;
+
 type CharacterLabelKey = keyof Messages["characterDetail"]["labels"];
 
 const label = (t: MessageTranslator, key: CharacterLabelKey): string =>

@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { extractErrorMessage } from "../../../api";
 import { useToast } from "../../../components/feedback/Toast";
+import { applyPlanChanges, describePlanConflicts, inverseChanges, planChanges, receiptChanges, type PlanChange } from "./changes";
+import { subscribeVisualPlanEdits, VisualPlanInvalidatedError } from "../../../api/visualPlanEdits";
 import {
   confirmChapterVisualPlan, editChapterVisualPlanDraft, getChapterVisualPlan,
   saveChapterVisualPlanDraft, validateChapterVisualPlan,
@@ -19,8 +21,14 @@ export function useDirectorPlan(projectId: number, chapterId: number | null, can
   const [error, setError] = useState<string | null>(null);
   const [recovery, setRecovery] = useState(false);
   const [issues, setIssues] = useState<VisualPlanDiagnostic[]>([]);
-  const [undoStack, setUndo] = useState<ChapterVisualPlanV3[]>([]);
-  const [redoStack, setRedo] = useState<ChapterVisualPlanV3[]>([]);
+  const [undoStack, setUndo] = useState<PlanChange[][]>([]);
+  const [redoStack, setRedo] = useState<PlanChange[][]>([]);
+  const [conflict, setConflict] = useState<string | null>(null);
+  const [syncError, setSyncError] = useState<string | null>(null);
+  const [invalidated, setInvalidated] = useState(false);
+  const sourceHash = useRef("");
+  const editCursor = useRef(0);
+  const observedOperations = useRef(new Set<string>());
   const planRef = useRef(plan);
   const recordRef = useRef(record);
   const baseline = useRef("");
@@ -29,11 +37,14 @@ export function useDirectorPlan(projectId: number, chapterId: number | null, can
   scopeKey.current = `${projectId}:${chapterId}`;
   const pending = useRef<Promise<ChapterVisualPlanView> | null>(null);
   const mutationLock = useRef(false);
+  const writeQueue = useRef<Promise<unknown>>(Promise.resolve());
+  const conflictRef = useRef<string | null>(null);
+  const conflictingChanges = useRef<PlanChange[]>([]);
   const editorRevision = useRef(crypto.randomUUID());
   const viewInstanceId = useRef(crypto.randomUUID());
   const storageKey = `a4n:director-draft:${location.origin}:${projectId}:${chapterId}`;
   const dirty = plan != null && JSON.stringify(plan) !== baseline.current;
-  const editable = canEdit && (record == null || record.record.status === "draft");
+  const editable = canEdit && !invalidated && (record == null || record.record.status === "draft");
 
   const replace = useCallback((next: ChapterVisualPlanV3) => {
     if (JSON.stringify(planRef.current) !== JSON.stringify(next)) editorRevision.current = crypto.randomUUID();
@@ -54,6 +65,65 @@ export function useDirectorPlan(projectId: number, chapterId: number | null, can
     addToast(message, "error");
   }, [addToast]);
 
+  const serializeWrite = useCallback(<T,>(work: () => Promise<T>): Promise<T> => {
+    const currentScope = scope.current;
+    const run = async () => {
+      if (currentScope !== scope.current) throw new Error("章节已切换，已取消旧视图写入");
+      if (conflictRef.current) throw new Error(conflictRef.current);
+      return work();
+    };
+    const request = writeQueue.current.then(run, run);
+    writeQueue.current = request;
+    return request;
+  }, []);
+
+  const rememberReceipt = useCallback((saved: ChapterVisualPlanView, remember: boolean) => {
+    const receipt = saved.edit_receipt;
+    if (!receipt || observedOperations.current.has(receipt.operation_id)) return;
+    observedOperations.current.add(receipt.operation_id);
+    if (!remember) return;
+    const batch = receiptChanges(saved);
+    if (batch.length > 0) {
+      setUndo((items) => [...items.slice(-39), batch]);
+      setRedo([]);
+    }
+  }, []);
+
+  const applySaved = useCallback((saved: ChapterVisualPlanView, base: ChapterVisualPlanV3, remember = false) => {
+    const changes = planChanges(base, saved.plan);
+    // The database commit is real even when newer local input conflicts with it.
+    acceptRecord(saved);
+    try {
+      const next = applyPlanChanges(planRef.current ?? base, changes);
+      replace(next);
+      rememberReceipt(saved, remember);
+    } catch (failure) {
+      rememberReceipt(saved, false);
+      const message = `${extractErrorMessage(failure, "并发修改冲突")}。远端已保存，本地输入已保留，自动保存已暂停。`;
+      conflictRef.current = message;
+      conflictingChanges.current = changes;
+      setConflict(message);
+      setError(message);
+    }
+  }, [acceptRecord, rememberReceipt, replace]);
+
+  const resolveConflict = useCallback((resolution: "local" | "remote") => {
+    if (!planRef.current || !conflictRef.current) return;
+    try {
+      const next = applyPlanChanges(planRef.current, conflictingChanges.current, resolution);
+      const changes = planChanges(planRef.current, next);
+      if (changes.length > 0) {
+        setUndo((items) => [...items.slice(-39), changes]);
+        setRedo([]);
+      }
+      replace(next);
+      conflictRef.current = null;
+      conflictingChanges.current = [];
+      setConflict(null);
+      setError(null);
+    } catch (failure) { report(failure); }
+  }, [replace, report]);
+
   const reload = useCallback(async (force = false) => {
     if (chapterId == null) { setLoading(false); return; }
     if (!force && (mutationLock.current || pending.current || (planRef.current && JSON.stringify(planRef.current) !== baseline.current))) {
@@ -61,12 +131,22 @@ export function useDirectorPlan(projectId: number, chapterId: number | null, can
       return;
     }
     const currentScope = ++scope.current;
+    viewInstanceId.current = crypto.randomUUID();
+    editorRevision.current = crypto.randomUUID();
     setLoading(true);
     setError(null);
     try {
       const result = await getChapterVisualPlan(projectId, chapterId);
       if (currentScope !== scope.current) return;
       const current = result.draft ?? result.confirmed;
+      conflictRef.current = null;
+      conflictingChanges.current = [];
+      setConflict(null);
+      setInvalidated(false);
+      setSyncError(null);
+      sourceHash.current = result.source.content_sha256;
+      editCursor.current = result.edit_cursor ?? 0;
+      observedOperations.current.clear();
       setSet(result);
       recordRef.current = current;
       setRecord(current);
@@ -83,6 +163,13 @@ export function useDirectorPlan(projectId: number, chapterId: number | null, can
     }
   }, [chapterId, projectId, replace, report, storageKey]);
 
+  const reloadWithBackup = useCallback(async () => {
+    try {
+      if (planRef.current) sessionStorage.setItem(storageKey, JSON.stringify(planRef.current));
+      await reload(true);
+    } catch (failure) { report(failure); }
+  }, [reload, report, storageKey]);
+
   useEffect(() => {
     planRef.current = null;
     recordRef.current = null;
@@ -93,6 +180,9 @@ export function useDirectorPlan(projectId: number, chapterId: number | null, can
     setRedo([]);
     setIssues([]);
     setRecovery(false);
+    setConflict(null);
+    conflictRef.current = null;
+    setInvalidated(false);
     pending.current = null;
     mutationLock.current = false;
     setBusy(false);
@@ -102,10 +192,9 @@ export function useDirectorPlan(projectId: number, chapterId: number | null, can
     return () => { scope.current += 1; };
   }, [reload]);
 
-  const save = useCallback(async (): Promise<ChapterVisualPlanView> => {
+  const save = useCallback((): Promise<ChapterVisualPlanView> => serializeWrite(async () => {
     const expectedScope = scope.current;
     if (scopeKey.current !== `${projectId}:${chapterId}`) throw new Error("章节已切换，未写入其他章节");
-    if (pending.current) await pending.current;
     if (scope.current !== expectedScope || scopeKey.current !== `${projectId}:${chapterId}`) throw new Error("章节已切换，请在原章节重新保存");
     const snapshot = planRef.current;
     const current = recordRef.current;
@@ -120,9 +209,8 @@ export function useDirectorPlan(projectId: number, chapterId: number | null, can
     try {
       const saved = await request;
       if (currentScope === scope.current) {
-        acceptRecord(saved);
-        if (planRef.current === snapshot) {
-          replace(saved.plan);
+        applySaved(saved, snapshot);
+        if (JSON.stringify(planRef.current) === baseline.current) {
           sessionStorage.removeItem(storageKey);
           setRecovery(false);
         }
@@ -133,15 +221,78 @@ export function useDirectorPlan(projectId: number, chapterId: number | null, can
       if (pending.current === request) pending.current = null;
       if (currentScope === scope.current) setSaving(false);
     }
-  }, [acceptRecord, canEdit, chapterId, projectId, replace, storageKey]);
+  }), [applySaved, canEdit, chapterId, projectId, serializeWrite, storageKey]);
+
+  const saveFromAgent = useCallback((persist: (plan: ChapterVisualPlanV3) => Promise<ChapterVisualPlanView>) => serializeWrite(async () => {
+    const snapshot = planRef.current;
+    if (!snapshot || !canEdit) throw new Error("当前没有可保存的草稿");
+    const currentScope = scope.current;
+    setSaving(true);
+    const request = persist(snapshot);
+    pending.current = request;
+    try {
+      const saved = await request;
+      if (currentScope === scope.current) applySaved(saved, snapshot);
+      return saved;
+    } finally {
+      if (pending.current === request) pending.current = null;
+      if (currentScope === scope.current) setSaving(false);
+    }
+  }), [applySaved, canEdit, serializeWrite]);
 
   useEffect(() => {
-    if (!dirty || !editable || !plan) return;
+    if (loading || chapterId == null || !planRef.current || conflict || invalidated) return;
+    const controller = new AbortController();
+    const currentScope = scope.current;
+    let cursor = editCursor.current;
+    let retry: ReturnType<typeof setTimeout> | undefined;
+    const connect = async () => {
+      try {
+        await subscribeVisualPlanEdits(projectId, chapterId, cursor, sourceHash.current, recordRef.current?.record.id ?? null, (saved) => {
+          if (controller.signal.aborted || currentScope !== scope.current) return;
+          setSyncError(null);
+          void serializeWrite(async () => {
+            const current = recordRef.current;
+            if (sourceHash.current !== saved.record.source_content_sha256
+              || (current && current.record.id !== saved.record.id && saved.edit_receipt?.before?.record_id !== current.record.id)) {
+              throw new VisualPlanInvalidatedError("编排来源或版本链已变化，已保留本地草稿");
+            }
+            if (!current || current.record.id !== saved.record.id || current.record.revision < saved.record.revision) {
+              applySaved(saved, current?.plan ?? JSON.parse(baseline.current), true);
+            } else rememberReceipt(saved, true);
+            cursor = saved.edit_receipt!.sequence;
+            editCursor.current = cursor;
+          }).catch((failure) => {
+            if (controller.signal.aborted) return;
+            if (failure instanceof VisualPlanInvalidatedError) {
+              conflictRef.current = failure.message;
+              setInvalidated(true);
+            }
+            setSyncError(extractErrorMessage(failure, "编辑同步失败"));
+          });
+        }, controller.signal);
+        if (!controller.signal.aborted) throw new Error("编辑同步连接已断开，正在重连");
+      } catch (failure) {
+        if (!controller.signal.aborted) {
+          setSyncError(extractErrorMessage(failure, "编辑同步失败"));
+          if (failure instanceof VisualPlanInvalidatedError) {
+            conflictRef.current = failure.message;
+            setInvalidated(true);
+          } else retry = setTimeout(() => void connect(), 1500);
+        }
+      }
+    };
+    void connect();
+    return () => { controller.abort(); clearTimeout(retry); };
+  }, [applySaved, chapterId, conflict, invalidated, loading, projectId, rememberReceipt, serializeWrite]);
+
+  useEffect(() => {
+    if (!dirty || !editable || !plan || conflict || invalidated) return;
     try { sessionStorage.setItem(storageKey, JSON.stringify(plan)); }
     catch (failure) { report(new Error(`本地草稿备份失败：${String(failure)}`)); }
     const timer = setTimeout(() => { if (!mutationLock.current) void save().catch(report); }, 800);
     return () => clearTimeout(timer);
-  }, [dirty, editable, plan, report, save, storageKey]);
+  }, [conflict, dirty, editable, invalidated, plan, report, save, storageKey]);
 
   useEffect(() => {
     const guard = (event: BeforeUnloadEvent) => {
@@ -155,9 +306,11 @@ export function useDirectorPlan(projectId: number, chapterId: number | null, can
   }, []);
 
   const updateFields = useCallback((next: ChapterVisualPlanV3) => {
-    if (!editable || mutationLock.current || scopeKey.current !== `${projectId}:${chapterId}`) return;
-    if (planRef.current && JSON.stringify(planRef.current) === baseline.current) {
-      setUndo((items) => [...items.slice(-39), planRef.current!]);
+    if (!editable || scopeKey.current !== `${projectId}:${chapterId}`) return;
+    if (planRef.current) {
+      const changes = planChanges(planRef.current, next);
+      if (!changes.length) return;
+      setUndo((items) => [...items.slice(-39), changes]);
       setRedo([]);
     }
     // Persist the edit buffer immediately; navigation never depends on an unmount request.
@@ -166,7 +319,7 @@ export function useDirectorPlan(projectId: number, chapterId: number | null, can
     replace(next);
   }, [editable, replace, report, storageKey, projectId, chapterId]);
 
-  const mutate = useCallback(async (operation: VisualPlanEditOperation): Promise<boolean> => {
+  const mutate = useCallback(async (operation: VisualPlanEditOperation, operationBase?: ChapterVisualPlanView): Promise<boolean> => {
     if (mutationLock.current || !editable || chapterId == null) {
       const failure = new Error("请等待当前操作完成，并在可编辑草稿中修改");
       report(failure);
@@ -177,14 +330,9 @@ export function useDirectorPlan(projectId: number, chapterId: number | null, can
     const currentScope = scope.current;
     try {
       const saved = await save();
-      const result = await editChapterVisualPlanDraft(projectId, chapterId, saved, operation);
+      const result = await serializeWrite(() => editChapterVisualPlanDraft(projectId, chapterId, operationBase ?? saved, operation));
       if (currentScope !== scope.current) return false;
-      if (result.changed) {
-        setUndo((items) => [...items.slice(-39), saved.plan]);
-        setRedo([]);
-      }
-      acceptRecord(result.visual_plan);
-      replace(result.visual_plan.plan);
+      applySaved(result.visual_plan, saved.plan, result.changed);
       setError(null);
       return true;
     } catch (failure) {
@@ -192,20 +340,23 @@ export function useDirectorPlan(projectId: number, chapterId: number | null, can
       return false;
     }
     finally { if (currentScope === scope.current) { mutationLock.current = false; setBusy(false); } }
-  }, [acceptRecord, chapterId, editable, projectId, replace, report, save]);
+  }, [applySaved, chapterId, editable, projectId, report, save, serializeWrite]);
 
   const startEditing = useCallback(async () => {
     if (!canEdit || !planRef.current || chapterId == null) return;
     setBusy(true);
     const currentScope = scope.current;
     try {
-      const saved = await saveChapterVisualPlanDraft(projectId, chapterId, null, planRef.current);
-      if (currentScope !== scope.current) return;
-      acceptRecord(saved);
-      replace(saved.plan);
+      await serializeWrite(async () => {
+        const snapshot = planRef.current;
+        if (!snapshot) throw new Error("编排已关闭");
+        const current = recordRef.current?.record.status === "draft" ? recordRef.current : null;
+        const saved = await saveChapterVisualPlanDraft(projectId, chapterId, current, snapshot);
+        if (currentScope === scope.current) applySaved(saved, snapshot);
+      });
     } catch (failure) { if (currentScope === scope.current) report(failure); }
     finally { if (currentScope === scope.current) setBusy(false); }
-  }, [acceptRecord, canEdit, chapterId, projectId, replace, report]);
+  }, [applySaved, canEdit, chapterId, projectId, report, serializeWrite]);
 
   const confirm = useCallback(async () => {
     if (chapterId == null || mutationLock.current) return;
@@ -218,16 +369,15 @@ export function useDirectorPlan(projectId: number, chapterId: number | null, can
       if (currentScope !== scope.current) return;
       setIssues(result.validation.diagnostics);
       if (!result.validation.valid) return;
-      const confirmed = await confirmChapterVisualPlan(projectId, chapterId, saved);
+      const confirmed = await serializeWrite(() => confirmChapterVisualPlan(projectId, chapterId, saved));
       if (currentScope !== scope.current) return;
-      acceptRecord(confirmed.visual_plan);
-      replace(confirmed.visual_plan.plan);
+      applySaved(confirmed.visual_plan, saved.plan);
       setSet((current) => current ? { ...current, draft: null, confirmed: confirmed.visual_plan } : current);
       setUndo([]);
       setRedo([]);
     } catch (failure) { if (currentScope === scope.current) report(failure); }
     finally { if (currentScope === scope.current) { mutationLock.current = false; setBusy(false); } }
-  }, [acceptRecord, chapterId, projectId, replace, report, save]);
+  }, [applySaved, chapterId, projectId, report, save, serializeWrite]);
 
   const restore = useCallback(async () => {
     if (!canEdit || chapterId == null) return;
@@ -238,34 +388,42 @@ export function useDirectorPlan(projectId: number, chapterId: number | null, can
     try {
       const recovered: ChapterVisualPlanV3 = JSON.parse(stored);
       const current = recordRef.current?.record.status === "draft" ? recordRef.current : null;
-      const saved = await saveChapterVisualPlanDraft(projectId, chapterId, current, recovered);
+      const snapshot = planRef.current;
+      const saved = await serializeWrite(() => saveChapterVisualPlanDraft(projectId, chapterId, current, recovered));
       if (currentScope !== scope.current) return;
-      acceptRecord(saved);
-      replace(saved.plan);
+      if (snapshot) applySaved(saved, snapshot);
+      else { acceptRecord(saved); replace(saved.plan); }
       sessionStorage.removeItem(storageKey);
       setRecovery(false);
       setError(null);
     } catch (failure) { if (currentScope === scope.current) report(failure); }
     finally { if (currentScope === scope.current) setBusy(false); }
-  }, [acceptRecord, canEdit, chapterId, projectId, replace, report, storageKey]);
+  }, [acceptRecord, applySaved, canEdit, chapterId, projectId, replace, report, serializeWrite, storageKey]);
 
   const undo = () => {
     const previous = undoStack.at(-1);
     if (!previous || !planRef.current || busy || !editable) return;
-    setRedo((items) => [...items, planRef.current!]);
-    setUndo((items) => items.slice(0, -1));
-    replace(previous);
+    try {
+      const next = applyPlanChanges(planRef.current, inverseChanges(previous));
+      setRedo((items) => [...items, previous]);
+      setUndo((items) => items.slice(0, -1));
+      replace(next);
+    } catch (failure) { report(failure); }
   };
   const redo = () => {
     const next = redoStack.at(-1);
     if (!next || !planRef.current || busy || !editable) return;
-    setUndo((items) => [...items, planRef.current!]);
-    setRedo((items) => items.slice(0, -1));
-    replace(next);
+    try {
+      const plan = applyPlanChanges(planRef.current, next);
+      setUndo((items) => [...items.slice(-39), next]);
+      setRedo((items) => items.slice(0, -1));
+      replace(plan);
+    } catch (failure) { report(failure); }
   };
 
-  return { plan, record, set, loading, saving, busy, error, dirty, recovery, editable, issues,
-    updateFields, mutate, save, confirm, startEditing, restore, reload, report, undo, redo,
+  return { plan, record, set, loading, saving, busy, error, dirty, recovery, editable, issues, conflict, syncError, invalidated,
+    conflictDetails: plan && conflict ? describePlanConflicts(plan, conflictingChanges.current) : [],
+    updateFields, mutate, save, saveFromAgent, resolveConflict, confirm, startEditing, restore, reload, reloadWithBackup, report, undo, redo,
     canUndo: editable && undoStack.length > 0, canRedo: editable && redoStack.length > 0,
     planRef, recordRef, editorRevision, viewInstanceId, acceptRecord, replace };
 }

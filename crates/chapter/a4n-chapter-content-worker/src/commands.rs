@@ -23,6 +23,14 @@ pub(super) async fn list(
     command_response(&state, &headers, request, |request| state.list(request)).await
 }
 
+pub(super) async fn analyses(
+    State(state): State<WorkerState>,
+    headers: HeaderMap,
+    Json(request): Json<WorkerEnvelope<ProjectInput>>,
+) -> Response {
+    command_response(&state, &headers, request, |request| state.analyses(request)).await
+}
+
 pub(super) async fn index(
     State(state): State<WorkerState>,
     headers: HeaderMap,

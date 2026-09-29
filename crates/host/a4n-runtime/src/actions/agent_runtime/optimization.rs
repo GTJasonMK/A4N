@@ -643,7 +643,10 @@ impl RuntimeAgentToolExecutor {
                         .await?,
                 )
             }
-            "inspect_editor_target" | "read_editor_draft" | "save_editor_draft" => {
+            "inspect_editor_target"
+            | "read_editor_draft"
+            | "save_editor_draft"
+            | "control_editor_view" => {
                 return Err(AppError::InvalidArgument(
                     "当前 Turn 没有绑定可用的原始编辑器；请提供明确资源 ID 使用已保存资源工具"
                         .into(),
@@ -696,8 +699,14 @@ async fn ensure_argument_resource_scope(
     // name or allowing a same-shaped id from another project.
     let mut chapter_ids = Vec::new();
     let mut project_ids = Vec::new();
-    collect_scope_ids(arguments, &mut project_ids, &mut chapter_ids);
-    if chapter_ids.is_empty() {
+    let mut source_chapter_ids = Vec::new();
+    a4n_agent_runtime::engine::collect_argument_chapter_targets(
+        arguments,
+        &mut chapter_ids,
+        &mut source_chapter_ids,
+    );
+    collect_scope_ids(arguments, &mut project_ids, &mut Vec::new());
+    if chapter_ids.is_empty() && source_chapter_ids.is_empty() {
         return Ok(());
     }
     for requested_project in project_ids {
@@ -705,7 +714,7 @@ async fn ensure_argument_resource_scope(
     }
     state
         .agent_resource_access_application()
-        .verify_chapters_in_project(user_id, project_id, &chapter_ids)
+        .verify_chapters_in_project(user_id, project_id, &chapter_ids, &source_chapter_ids)
         .await
 }
 

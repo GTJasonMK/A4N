@@ -36,6 +36,7 @@ def arguments():
     parser.add_argument("--concurrency", type=int, nargs="+", default=[1, 4, 8])
     parser.add_argument("--cli-checks", action="store_true", help="run existing CLI/Mock Provider suites after measurement; use a separate disposable database")
     parser.add_argument("--chapter-index-checks", action="store_true", help="verify narrow chapter reads against every full response and reject wrong scope")
+    parser.add_argument("--chapter-analysis-checks", action="store_true", help="seed analysis fixtures and compare five-column reads with the complete chapter API")
     return parser.parse_args()
 
 
@@ -260,6 +261,33 @@ WHERE NOT EXISTS (SELECT 1 FROM chapter WHERE project_id = :'project_id'::bigint
         report["project_id"] = project_id
         report["chapter_history"] = args.chapter_history
         report["chapter_count"] = args.chapter_count
+        if args.chapter_analysis_checks:
+            other_project = next(item["id"] for item in page["items"] if item["id"] != project_id)
+            analysis_sql = """
+UPDATE chapter SET analysis_data = jsonb_build_object(
+  'metadata', jsonb_build_object('characters', jsonb_build_array('林舟', '沈青'), 'locations', jsonb_build_array('河岸'),
+    'items', jsonb_build_array('账本'), 'tags', jsonb_build_array('调查'), 'tone', '紧张', 'timeline_marker', '第' || chapter_number || '天'),
+  'summaries', jsonb_build_object('compressed', '第' || chapter_number || '章调查账本的来历', 'one_line', '账本现身', 'keywords', jsonb_build_array('账本', '调查')),
+  'character_states', '{}'::jsonb,
+  'foreshadowing', jsonb_build_object('planted', '[]'::jsonb, 'resolved', '[]'::jsonb, 'tensions', '[]'::jsonb),
+  'key_events', (SELECT jsonb_agg(jsonb_build_object('description', '线索' || i || '：' || repeat('灯火照亮河岸，林舟追寻来客留下的足迹。', 5),
+    'type', 'discovery', 'importance', 'medium', 'involved_characters', jsonb_build_array('林舟')) ORDER BY i) FROM generate_series(1, 5) i))
+WHERE project_id = :'project_id'::bigint AND status <> 'deleted';
+UPDATE chapter SET analysis_data = NULL
+WHERE project_id = :'project_id'::bigint AND chapter_number % 10 = 0;
+INSERT INTO chapter (project_id, chapter_number, title, content, word_count, status, created_at, updated_at)
+SELECT :'project_id'::bigint, 1001, 'Deleted fixture', 'deleted', 7, 'deleted', now(), now()
+WHERE NOT EXISTS (SELECT 1 FROM chapter WHERE project_id = :'project_id'::bigint AND chapter_number = 1001);
+INSERT INTO chapter (project_id, chapter_number, title, content, word_count, status, created_at, updated_at)
+SELECT :'other_project'::bigint, 1, 'Other project fixture', 'other', 5, 'draft', now(), now()
+WHERE NOT EXISTS (SELECT 1 FROM chapter WHERE project_id = :'other_project'::bigint);
+"""
+            seeded = subprocess.run(["docker", "exec", "-i", args.postgres_container, "psql", "-U", database.username,
+                                     "-d", database.path[1:], "-v", "ON_ERROR_STOP=1", "-v", f"project_id={project_id}",
+                                     "-v", f"other_project={other_project}"], input=analysis_sql, text=True,
+                                    capture_output=True, timeout=60)
+            if seeded.returncode:
+                raise RuntimeError(seeded.stderr)
         if args.chapter_history:
             history_sql = """
 INSERT INTO workflow_run (business_key, workflow_kind, project_id, chapter_id,
@@ -315,6 +343,44 @@ SELECT json_build_object(
         assert encoded == plain, "Negotiated compression changed the real chapter response"
         report["compression_probe"] = {"identity_bytes": plain_bytes, "gzip_wire_bytes": encoded_bytes,
                                        "payloads_identical": True}
+        if args.chapter_analysis_checks:
+            analyses, analyses_ms, analyses_bytes = command(connection, "list_chapter_analyses", {"projectId": project_id}, token)
+            analysis_fields = {"id", "chapter_number", "title", "summary", "analysis_data"}
+            expected_analyses = [{key: value for key, value in chapter.items() if key in analysis_fields} for chapter in plain]
+            assert analyses == expected_analyses, "Narrow analysis read changed content, order, project scope or deletion filtering"
+            assert len(analyses) == args.chapter_count
+            assert all(chapter["analysis_data"] is None or len(chapter["analysis_data"]["key_events"]) == 5 for chapter in analyses)
+            assert sum(chapter["analysis_data"] is None for chapter in analyses) == args.chapter_count // 10
+            viewer_credentials = {"username": "perf-viewer-" + secrets.token_hex(6), "password": secrets.token_urlsafe(32)}
+            viewer, _, _ = command(connection, "create_user", {"input": {**viewer_credentials, "email": viewer_credentials["username"] + "@example.invalid", "role": "user"}}, token)
+            viewer_auth, _, _ = command(connection, "login_user", {"input": viewer_credentials})
+            viewer_token = viewer_auth["tokens"]["access_token"]
+            rejections = []
+            for payload, headers, expected in [
+                ({"projectId": project_id}, {}, 401),
+                ({"projectId": 0}, {"Authorization": f"Bearer {token}"}, 400),
+                ({"projectId": project_id}, {"Authorization": f"Bearer {viewer_token}"}, 403),
+            ]:
+                connection.request("POST", "/api/commands/list_chapter_analyses", json.dumps(payload), {"Content-Type": "application/json", **headers})
+                response = connection.getresponse()
+                error = json.loads(response.read())
+                assert response.status == expected, (response.status, error)
+                rejections.append(response.status)
+            membership_sql = """
+INSERT INTO project_member (project_id, user_id, role, invited_by_user_id, created_at, updated_at)
+VALUES (:'project_id'::bigint, :'viewer_id'::bigint, 'viewer', :'owner_id'::bigint, now(), now());
+"""
+            membership = subprocess.run(["docker", "exec", "-i", args.postgres_container, "psql", "-U", database.username,
+                                         "-d", database.path[1:], "-v", "ON_ERROR_STOP=1", "-v", f"project_id={project_id}",
+                                         "-v", f"viewer_id={viewer['id']}", "-v", f"owner_id={auth['user']['id']}"],
+                                        input=membership_sql, text=True, capture_output=True, timeout=60)
+            if membership.returncode:
+                raise RuntimeError(membership.stderr)
+            viewer_analyses, _, _ = command(connection, "list_chapter_analyses", {"projectId": project_id}, viewer_token)
+            assert viewer_analyses == expected_analyses, "A project viewer must receive the same analysis projection"
+            report["chapter_analyses"] = {"elapsed_ms": analyses_ms, "response_bytes": analyses_bytes,
+                                          "all_fields_equal": True, "viewer_fields_equal": True, "rejections": rejections}
+            (output / "chapter-fixture.json").write_text(json.dumps(plain, ensure_ascii=False))
         if args.chapter_index_checks:
             index, index_ms, index_bytes = command(connection, "list_chapter_index", {"projectId": project_id}, token)
             heavy_fields = {"content", "edit_revision", "style_tags", "analysis_data"}
@@ -356,6 +422,8 @@ SELECT json_build_object(
                 ("get_chapter", {"input": {"project_id": project_id, "chapter_id": plain[0]["id"]}},
                  lambda value: value == plain[0]),
             ])
+        if args.chapter_analysis_checks:
+            cases.append(("list_chapter_analyses", {"projectId": project_id}, lambda value: value == expected_analyses))
         for name, payload, check in cases:
             for concurrency in args.concurrency:
                 def series(_):

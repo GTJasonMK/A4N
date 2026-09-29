@@ -1,6 +1,17 @@
-use super::{ChapterIndexEntry, ChapterSummary};
+use super::{ChapterAnalysisEntry, ChapterIndexEntry, ChapterSummary};
 use crate::AppState;
 use a4n_error::AppError;
+
+pub async fn list_chapter_analyses(
+    state: &AppState,
+    user_id: i64,
+    project_id: i64,
+) -> Result<Vec<ChapterAnalysisEntry>, AppError> {
+    state
+        .chapter_content_read_application()
+        .analyses(user_id, project_id)
+        .await
+}
 
 pub async fn list_chapter_index(
     state: &AppState,

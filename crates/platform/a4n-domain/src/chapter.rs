@@ -4,6 +4,16 @@ use chrono::NaiveDateTime;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
+/// Analysis view for chapter-wide event browsing without loading source bodies.
+#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema, PartialEq)]
+pub struct ChapterAnalysisEntry {
+    pub id: i64,
+    pub chapter_number: i32,
+    pub title: Option<String>,
+    pub summary: Option<String>,
+    pub analysis_data: Option<Value>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct ResolvedChapterSource {

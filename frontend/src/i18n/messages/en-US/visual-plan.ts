@@ -111,6 +111,8 @@ export const visualPlan = {
   discardDraftButton: "Discard draft",
   draftDiscarded: "Visual plan draft discarded",
   discardDraftFailed: "Failed to discard draft",
+  candidateEditDiscardTitle: "Discard candidate prompt edits?",
+  candidateEditDiscardMessage: "You edited the generated candidate prompt. Regenerating will replace those edits with a new candidate.",
   addEntity: "Add {kind}",
   entityNamePlaceholder: "Name",
   eventChangePlaceholder: "Describe how {kind} changes in the frame",

@@ -400,6 +400,7 @@ export function MangaChapterDetailPanel({
       );
       if (!isCurrentAction(requestScope, actionSeq)) return;
       await onPagePromptsChanged();
+      if (!isCurrentAction(requestScope, actionSeq)) return;
       addToast(t("comic.image.generated", { page: pageNumber }), "success");
     } catch (err) {
       if (!isCurrentAction(requestScope, actionSeq)) return;
@@ -513,6 +514,7 @@ export function MangaChapterDetailPanel({
       });
       if (!isCurrentAction(requestScope, actionSeq)) return;
       await onPagePromptsChanged();
+      if (!isCurrentAction(requestScope, actionSeq)) return;
       addToast(t("comic.prompt.savedReference"), "success");
     } catch (err) {
       if (isCurrentAction(requestScope, actionSeq)) {
@@ -582,6 +584,7 @@ export function MangaChapterDetailPanel({
       if (!isCurrentAction(requestScope, actionSeq))
         throw new Error("任务已停止");
       await onPagePromptsChanged();
+      if (!isCurrentAction(requestScope, actionSeq)) throw new Error("任务已停止");
       addToast(t("comic.prompt.saved"), "success");
     } catch (err) {
       if (isCurrentAction(requestScope, actionSeq)) {
@@ -665,6 +668,7 @@ export function MangaChapterDetailPanel({
       });
       if (!isCurrentAction(requestScope, actionSeq)) return;
       await onPagePromptsChanged();
+      if (!isCurrentAction(requestScope, actionSeq)) return;
       addToast(t("comic.prompt.optimized"), "success");
     } catch (err) {
       if (isCurrentAction(requestScope, actionSeq)) {
@@ -731,6 +735,7 @@ export function MangaChapterDetailPanel({
       await deleteMangaPrompt(requestPrompt.id, downstreamStrategy);
       if (!isCurrentAction(requestScope, actionSeq)) return;
       await onPagePromptsChanged();
+      if (!isCurrentAction(requestScope, actionSeq)) return;
       addToast(t("comic.prompt.deleted"), "success");
     } catch (err) {
       if (isCurrentAction(requestScope, actionSeq)) {

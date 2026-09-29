@@ -697,13 +697,19 @@ def director_fixture(body, messages):
             raise ValueError("composed director timeline did not persist three segments")
         return {"content": "已从 starter 方案完成三段导演时间线，确认前等待用户审阅。"}
 
-    editor = mode in {"editor", "read_editor", "inspect_only"}
+    editor = mode in {"editor", "read_editor", "inspect_only", "view_controls"}
     state = None
     if editor:
         if "inspect" not in observations:
             return call("inspect", "inspect_editor_target", {})
         target = observations["inspect"]
         source, state = target["source"], target["state"]
+        if mode == "view_controls":
+            for index, action in enumerate(task["actions"]):
+                key = f"control_{index}"
+                if key not in observations:
+                    return call(key, "control_editor_view", {"action": action})
+            return {"content": "已按明确请求调整原时间线视图，未修改保存方案。"}
         if mode == "inspect_only":
             return {"content": "已取得原视图的定位与版本。"}
         if "read_editor" not in observations:
@@ -732,12 +738,15 @@ def director_fixture(body, messages):
         return first
     saved = observations["shot"]["resource"]
     if "edit" not in observations:
+        operation = {"kind": "update_segment", "segment": {**observations["shot"]["projection"]["segment"],
+                     "prompt": task.get("prompt", "门框形成前景遮挡，保留右侧视线空间。")}}
+        if "batch_operations" in task:
+            operation = {"kind": "batch", "operations": [operation, *task["batch_operations"]]}
         return host("edit", "edit_chapter_visual_plan_draft", {
             **resource, "record_id": int(saved["id"]), "expected_revision": int(saved["revision"]),
             "expected_source_hash": observations["shot"]["source_hash"],
             "editor_revision": state["editor_revision"] if state else None,
-            "operation": {"kind": "update_segment", "segment": {**observations["shot"]["projection"]["segment"],
-                          "prompt": task.get("prompt", "门框形成前景遮挡，保留右侧视线空间。")}},
+            "operation": operation,
         })
     edited = observations["edit"]
     if "validate" not in observations:

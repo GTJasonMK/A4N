@@ -201,6 +201,7 @@ export const WorldTab: React.FC<WorldTabProps> = ({
       if (!isCurrentProject(requestProjectId)) return;
       const notice = worldSettingSaveNotice(result.warnings, t);
       await load();
+      if (!isCurrentProject(requestProjectId)) return;
       addToast(notice.message, notice.type);
       setEditing(false);
     } catch (err) {
@@ -260,6 +261,7 @@ export const WorldTab: React.FC<WorldTabProps> = ({
         refresh: load,
         t,
       });
+      if (!isCurrentRefine(requestProjectId, requestSeq)) return;
       addToast(
         syncWarnings.length > 0
           ? t("novel.world.refinedWithWarnings", {

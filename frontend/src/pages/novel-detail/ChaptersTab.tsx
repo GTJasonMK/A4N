@@ -20,6 +20,7 @@ import { getOperationStatusLabel } from "../../utils/workflowPresentation";
 import { formatNumber, useI18n, type Locale } from "../../i18n";
 import { useNovelDetailDirty } from "./novelDetailDirty";
 import { useChapterDetail } from "../../hooks/useChapterDetail";
+import { confirmDialog } from "../../components/feedback/ConfirmDialog";
 
 const chapterWordCount = (chapter: ChapterMetadata): number => {
   return chapter.word_count == null ? 0 : chapter.word_count;
@@ -78,7 +79,17 @@ export const ChaptersTab: React.FC<ChaptersTabProps> = ({ projectId, canEditChap
     importForm.content.trim() ||
     importForm.chapter_number !== nextImportChapterNumber(chapters),
   );
-  useNovelDetailDirty(`chapters:${projectId}`, importDraftDirty);
+  const discardImportDraft = useCallback(() => {
+    if (importing) return false;
+    setImportOpen(false);
+    setImportForm({
+      chapter_number: nextImportChapterNumber(chapters),
+      title: "",
+      content: "",
+    });
+    return true;
+  }, [chapters, importing]);
+  useNovelDetailDirty(`chapters:${projectId}`, importDraftDirty, discardImportDraft, () => !importing);
 
   const loadChapters = useCallback(async (isCurrent: () => boolean) => {
     try {
@@ -143,6 +154,20 @@ export const ChaptersTab: React.FC<ChaptersTabProps> = ({ projectId, canEditChap
     setImportOpen(true);
   };
 
+  const closeImportDialog = async () => {
+    if (importing) return;
+    if (importDraftDirty && !(await confirmDialog({
+      title: t("common.unsavedChangesTitle"),
+      message: t("common.unsavedChangesMessage", {
+        name: t("novel.importChapter"),
+        action: t("common.close"),
+      }),
+      confirmText: t("common.discardDraft"),
+      dialogType: "warning",
+    }))) return;
+    discardImportDraft();
+  };
+
   const openWritingDesk = (chapterNumber?: number) => {
     if (!canEditChapters) {
       addToast(t("novel.writingDeskPermissionDenied"), "error");
@@ -189,6 +214,7 @@ export const ChaptersTab: React.FC<ChaptersTabProps> = ({ projectId, canEditChap
           ? t("novel.chapterImportedSyncRunning", { chapter: requestForm.chapter_number })
           : t("novel.chapterImported", { chapter: requestForm.chapter_number });
       await load({ force: true });
+      if (!isCurrentImport(requestProjectId, requestSeq)) return;
       addToast(message, chapterContentCommitToastType(imported.derived_sync_status));
       setImportOpen(false);
       setImportForm({ chapter_number: requestForm.chapter_number + 1, title: "", content: "" });
@@ -298,7 +324,7 @@ export const ChaptersTab: React.FC<ChaptersTabProps> = ({ projectId, canEditChap
       {importOpen && (
         <Modal
           isOpen
-          onClose={() => !importing && setImportOpen(false)}
+          onClose={() => void closeImportDialog()}
           title={t("novel.importChapter")}
           icon={<Upload size={15} />}
           subtitle={t("novel.importChapterSubtitle")}

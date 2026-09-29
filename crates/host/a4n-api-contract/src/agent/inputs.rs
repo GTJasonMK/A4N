@@ -114,6 +114,8 @@ impl Default for SendAgentMessageInput {
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 pub struct AgentEditorSource {
+    #[serde(default)]
+    pub protocol_version: u32,
     pub view_instance_id: String,
     pub project_id: i64,
     pub chapter_id: i64,
@@ -129,11 +131,49 @@ pub struct AgentEditorSource {
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 pub struct AgentEditorState {
+    #[serde(default)]
+    pub view: Option<AgentEditorViewState>,
     pub editor_revision: String,
     pub record_id: Option<i64>,
     pub record_revision: Option<i32>,
     pub dirty: bool,
     pub has_uncommitted_dialog: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+pub struct AgentEditorViewState {
+    pub editable: bool,
+    pub status: String,
+    pub selected_ids: Vec<String>,
+    pub playhead_ms: u64,
+    pub playing: bool,
+    pub visible_range_ms: [u64; 2],
+    pub available_actions: Vec<String>,
+    pub blockers: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+pub enum ControlEditorViewAction {
+    Select {
+        object_kind: String,
+        object_id: String,
+    },
+    Locate {
+        at_ms: u64,
+    },
+    Seek {
+        at_ms: u64,
+    },
+    Play,
+    Pause,
+    Fit,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct ControlEditorViewInput {
+    pub action: ControlEditorViewAction,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
@@ -152,6 +192,9 @@ pub struct SaveEditorDraftInput {
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum AgentEditorOperation {
+    Control {
+        input: ControlEditorViewInput,
+    },
     Inspect,
     Read {
         input: ReadEditorDraftInput,

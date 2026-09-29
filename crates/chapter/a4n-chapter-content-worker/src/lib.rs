@@ -61,6 +61,10 @@ impl ChapterContentWorker {
         Router::new()
             .route(WORKER_HEALTH_PATH, get(health::health))
             .route(WORKER_CAPABILITIES_PATH, get(health::capabilities))
+            .route(
+                "/v1/commands/chapter.content.analyses",
+                post(commands::analyses),
+            )
             .route("/v1/commands/chapter.content.list", post(commands::list))
             .route("/v1/commands/chapter.content.index", post(commands::index))
             .route(

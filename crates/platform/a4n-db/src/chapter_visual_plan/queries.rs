@@ -140,6 +140,34 @@ pub(super) fn validate_source(
     super::codec::validate_sha256(&source.content_sha256, "source_content_sha256")
 }
 
+/// Mutation callers hold the target project lock, so its snapshot binding
+/// cannot move between resolving this source and committing the plan.
+pub(super) async fn ensure_current_plan_source<C: ConnectionTrait>(
+    db: &C,
+    plan: &ParsedChapterVisualPlan,
+) -> Result<(), ChapterVisualPlanDbError> {
+    let source = crate::project::resolve_chapter_source(
+        db,
+        plan.record.project_id,
+        plan.record.source_chapter_id,
+    )
+    .await
+    .map_err(|error| match error {
+        crate::project::ResolveChapterSourceError::Database(error) => {
+            ChapterVisualPlanDbError::Database(error)
+        }
+        error => ChapterVisualPlanDbError::InvalidState(error.to_string()),
+    })?;
+    if source.source_revision_key != plan.record.source_revision_key
+        || source.content_sha256 != plan.record.source_content_sha256
+    {
+        return Err(ChapterVisualPlanDbError::InvalidState(
+            "编排来源已变化，请重新读取".into(),
+        ));
+    }
+    Ok(())
+}
+
 type SourceIdentity = (i64, i64, i64, Option<i64>, Option<i64>);
 
 fn source_identity(source: &ResolvedChapterSource) -> SourceIdentity {

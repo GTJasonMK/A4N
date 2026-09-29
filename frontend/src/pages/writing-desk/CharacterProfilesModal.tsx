@@ -260,6 +260,7 @@ export const CharacterProfilesModal: React.FC<CharacterProfilesModalProps> = ({
       });
       if (!isCurrentWorkspace(requestProjectId) || saveSeqRef.current !== requestSeq) return;
       await load(result.profile_id);
+      if (!isCurrentWorkspace(requestProjectId) || saveSeqRef.current !== requestSeq) return;
       addToast(
         result.warnings.length > 0
           ? t("characterDetail.profileCreatedWithWarnings", {
@@ -296,6 +297,7 @@ export const CharacterProfilesModal: React.FC<CharacterProfilesModalProps> = ({
       const result = await deleteProfile(profile.id);
       if (!isCurrentWorkspace(requestProjectId)) return;
       await load(selectedId === profile.id ? null : selectedId);
+      if (!isCurrentWorkspace(requestProjectId)) return;
       addToast(
         result.warnings.length > 0
           ? t("characterDetail.profileDeletedWithWarnings", {

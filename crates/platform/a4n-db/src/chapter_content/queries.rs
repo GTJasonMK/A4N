@@ -1,7 +1,46 @@
 use a4n_db_models::models::chapter::chapter;
-use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QueryOrder};
+use a4n_domain::chapter::ChapterAnalysisEntry;
+use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QueryOrder, QuerySelect};
 
 use super::ChapterContentEditError;
+
+pub async fn chapter_analyses_for_project<C: ConnectionTrait>(
+    db: &C,
+    project_id: i64,
+) -> Result<Vec<ChapterAnalysisEntry>, sea_orm::DbErr> {
+    let rows = chapter::Entity::find_current()
+        .select_only()
+        .columns([
+            chapter::Column::Id,
+            chapter::Column::ChapterNumber,
+            chapter::Column::Title,
+            chapter::Column::Summary,
+            chapter::Column::AnalysisData,
+        ])
+        .filter(chapter::Column::ProjectId.eq(project_id))
+        .order_by_asc(chapter::Column::ChapterNumber)
+        .into_tuple::<(
+            i64,
+            i32,
+            Option<String>,
+            Option<String>,
+            Option<serde_json::Value>,
+        )>()
+        .all(db)
+        .await?;
+    Ok(rows
+        .into_iter()
+        .map(
+            |(id, chapter_number, title, summary, analysis_data)| ChapterAnalysisEntry {
+                id,
+                chapter_number,
+                title,
+                summary,
+                analysis_data,
+            },
+        )
+        .collect())
+}
 
 pub async fn chapters_for_project<C>(
     db: &C,

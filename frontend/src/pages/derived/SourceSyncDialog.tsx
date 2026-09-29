@@ -338,6 +338,7 @@ export const SourceSyncDialog: React.FC<SourceSyncDialogProps> = ({
       if (!isCurrentMutation(targetProjectId, applySeqRef, requestSeq)) return;
       setPlan(updatedPlan);
       await onChanged();
+      if (!isCurrentMutation(targetProjectId, applySeqRef, requestSeq)) return;
       addToast(t("novel.sourceSyncDialog.keptLocal"), "success");
     } catch (err) {
       if (isCurrentMutation(targetProjectId, applySeqRef, requestSeq)) {
@@ -408,6 +409,7 @@ export const SourceSyncDialog: React.FC<SourceSyncDialogProps> = ({
       if (!isCurrentMutation(targetProjectId, applySeqRef, requestSeq)) return;
       setPlan(updatedPlan);
       await onChanged();
+      if (!isCurrentMutation(targetProjectId, applySeqRef, requestSeq)) return;
       addToast(t("novel.sourceSyncDialog.sceneRegenerated"), "success");
     } catch (err) {
       if (isCurrentMutation(targetProjectId, applySeqRef, requestSeq)) {
@@ -459,6 +461,7 @@ export const SourceSyncDialog: React.FC<SourceSyncDialogProps> = ({
       await detachDerivedProject(targetProjectId);
       if (!isCurrentMutation(targetProjectId, detachSeqRef, requestSeq)) return;
       await onChanged();
+      if (!isCurrentMutation(targetProjectId, detachSeqRef, requestSeq)) return;
       setPlan(null);
       addToast(t("novel.sourceSyncDialog.detached"), "success");
     } catch (err) {

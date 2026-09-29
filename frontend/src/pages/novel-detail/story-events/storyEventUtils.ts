@@ -1,12 +1,14 @@
-import type { ChapterSummary } from "../../../api/chapter";
+import type { ChapterAnalysisEntry } from "../../../api/chapter";
 import {
   analysisTextList,
   analysisTextValue,
   firstAnalysisText,
 } from "../../../utils/chapterAnalysisText";
 import {
+  chapterEventImportanceFilterKey,
+  chapterEventImportanceFilterRank,
   chapterEventImportanceLabel,
-  chapterEventImportanceRank,
+  chapterEventTypeFilterKey,
   chapterEventTypeLabel,
 } from "../../../utils/chapterAnalysisPresentation";
 import { asArray, asJsonRecord as asRecord, type JsonRecord } from "../../../utils/jsonRecord";
@@ -36,10 +38,10 @@ const eventDescription = (raw: unknown): string => {
   return firstAnalysisText(record, ["description", "summary", "event", "title"]);
 };
 
-const chapterTitle = (chapter: ChapterSummary, t: MessageTranslator): string =>
+const chapterTitle = (chapter: ChapterAnalysisEntry, t: MessageTranslator): string =>
   chapter.title?.trim() || t("writing.chapterLabel", { number: chapter.chapter_number });
 
-const analysisSummary = (analysis: JsonRecord | null, chapter: ChapterSummary): string => {
+const analysisSummary = (analysis: JsonRecord | null, chapter: ChapterAnalysisEntry): string => {
   const summaries = asRecord(analysis?.summaries);
   return (
     firstAnalysisText(summaries, ["compressed", "summary", "short"]) ||
@@ -71,7 +73,7 @@ const sectionSearchText = (section: ChapterStorySection): string =>
   ].join(" ");
 
 export const extractChapterStorySection = (
-  chapter: ChapterSummary,
+  chapter: ChapterAnalysisEntry,
   t: MessageTranslator,
 ): ChapterStorySection => {
   const analysis = asRecord(chapter.analysis_data);
@@ -84,20 +86,19 @@ export const extractChapterStorySection = (
       const description = eventDescription(raw);
       if (!description) return null;
       const record = asRecord(raw);
+      const rawType = firstAnalysisText(record, ["type"]);
+      const rawImportance = firstAnalysisText(record, ["importance", "priority"]);
       return {
         id: `${chapter.id}-${index}-${description}`,
         chapterId: chapter.id,
         chapterNumber: chapter.chapter_number,
         chapterTitle: title,
         description,
-        type:
-          chapterEventTypeLabel(firstAnalysisText(record, ["type"]), t) ??
-          t("novel.eventTypeOther"),
+        type: chapterEventTypeLabel(rawType, t) ?? t("novel.eventTypeOther"),
+        typeFilterValue: chapterEventTypeFilterKey(rawType),
         importance:
-          chapterEventImportanceLabel(
-            firstAnalysisText(record, ["importance", "priority"]),
-            t,
-          ) ?? t("novel.unlabeled"),
+          chapterEventImportanceLabel(rawImportance, t) ?? t("novel.unlabeled"),
+        importanceFilterValue: chapterEventImportanceFilterKey(rawImportance),
         involvedCharacters: textList(record?.involved_characters, 12),
       };
     })
@@ -120,28 +121,39 @@ export const extractChapterStorySection = (
   };
 };
 
-export const importanceRank = (importance: string): number => {
-  return chapterEventImportanceRank(importance);
+const uniqueOptions = (
+  events: StoryEvent[],
+  value: (event: StoryEvent) => string,
+  label: (event: StoryEvent) => string,
+): StoryEventFilterOptions["eventTypes"] => {
+  const options = new Map<string, string>();
+  for (const event of events) options.set(value(event), label(event));
+  return Array.from(options, ([optionValue, optionLabel]) => ({ value: optionValue, label: optionLabel }))
+    .sort((left, right) => left.value.localeCompare(right.value));
 };
 
-export const getStoryEventFilterOptions = (
-  sections: ChapterStorySection[],
-  events: StoryEvent[],
-): StoryEventFilterOptions => ({
-  characters: Array.from(
-    new Set(
-      sections.flatMap((section) => [
-        ...section.characters,
-        ...section.events.flatMap((event) => event.involvedCharacters),
-      ]),
-    ),
-  ).sort((a, b) => a.localeCompare(b, "zh-Hans-CN")),
-  eventTypes: Array.from(new Set(events.map((event) => event.type)))
-    .filter(Boolean)
+export const getStoryEventFilterOptions = (events: StoryEvent[]): StoryEventFilterOptions => ({
+  characters: Array.from(new Set(events.flatMap((event) => event.involvedCharacters)))
     .sort((a, b) => a.localeCompare(b, "zh-Hans-CN")),
-  importances: Array.from(new Set(events.map((event) => event.importance)))
-    .filter(Boolean)
-    .sort((a, b) => importanceRank(b) - importanceRank(a) || a.localeCompare(b, "zh-Hans-CN")),
+  eventTypes: uniqueOptions(events, (event) => event.typeFilterValue, (event) => event.type),
+  importances: Array.from(new Map(events.map((event) => [event.importanceFilterValue, event.importance])), ([value, label]) => ({ value, label }))
+    .sort((left, right) => chapterEventImportanceFilterRank(right.value as Parameters<typeof chapterEventImportanceFilterRank>[0]) - chapterEventImportanceFilterRank(left.value as Parameters<typeof chapterEventImportanceFilterRank>[0]) || left.value.localeCompare(right.value)),
+});
+
+export const reconcileStoryEventFilters = (
+  filters: StoryEventFilters,
+  options: StoryEventFilterOptions,
+): StoryEventFilters => ({
+  ...filters,
+  character: filters.character === ALL_STORY_EVENT_FILTER || options.characters.includes(filters.character)
+    ? filters.character
+    : ALL_STORY_EVENT_FILTER,
+  type: filters.type === ALL_STORY_EVENT_FILTER || options.eventTypes.some((option) => option.value === filters.type)
+    ? filters.type
+    : ALL_STORY_EVENT_FILTER,
+  importance: filters.importance === ALL_STORY_EVENT_FILTER || options.importances.some((option) => option.value === filters.importance)
+    ? filters.importance
+    : ALL_STORY_EVENT_FILTER,
 });
 
 export const filterStorySections = (
@@ -156,15 +168,14 @@ export const filterStorySections = (
     const events = section.events.filter((event) => {
       if (
         filters.character !== ALL_STORY_EVENT_FILTER &&
-        !event.involvedCharacters.includes(filters.character) &&
-        !section.characters.includes(filters.character)
+        !event.involvedCharacters.includes(filters.character)
       ) {
         return false;
       }
-      if (filters.type !== ALL_STORY_EVENT_FILTER && event.type !== filters.type) return false;
+      if (filters.type !== ALL_STORY_EVENT_FILTER && event.typeFilterValue !== filters.type) return false;
       if (
         filters.importance !== ALL_STORY_EVENT_FILTER &&
-        event.importance !== filters.importance
+        event.importanceFilterValue !== filters.importance
       ) {
         return false;
       }

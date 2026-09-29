@@ -10,7 +10,8 @@ pub(in crate::routes::commands) use analysis::{
     preview_resume_chapter_analysis_sync_request, resume_chapter_analysis_sync,
 };
 pub(in crate::routes::commands) use content::{
-    get_chapter, import_chapter, list_chapter_index, list_chapters, update_chapter_content,
+    get_chapter, import_chapter, list_chapter_analyses, list_chapter_index, list_chapters,
+    update_chapter_content,
 };
 pub(in crate::routes::commands) use generation::{
     prepare_chapter_generation_rag_embedding, preview_chapter_prompt,

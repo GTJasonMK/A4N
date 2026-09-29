@@ -153,6 +153,7 @@ pub(super) fn visual_plan_view(
     value: a4n_db::chapter_visual_plan::ParsedChapterVisualPlan,
 ) -> ChapterVisualPlanView {
     ChapterVisualPlanView {
+        edit_receipt: value.edit_receipt,
         record: ChapterVisualPlanRecordSummary {
             id: value.record.id,
             plan_version: value.record.plan_version,

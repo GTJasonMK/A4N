@@ -1,11 +1,15 @@
 import React, { useEffect, useState } from "react";
 import { type CharacterProfile } from "../../api/character";
+import { confirmDialog } from "../../components/feedback/ConfirmDialog";
+import { useDirtyRegistry, useDirtyRegistryVersion } from "../../components/navigation/dirtyRegistry";
+import { useToast } from "../../components/feedback/Toast";
 import { DeletionManager } from "./DeletionManager";
 import { BehaviorManager } from "./BehaviorManager";
 import { EventManager } from "./EventManager";
 import { ImplicitReviewManager } from "./ImplicitReviewManager";
 import { SnapshotManager } from "./SnapshotManager";
 import { useI18n, type MessageKey } from "../../i18n";
+import { characterDetailDraftKey } from "./manageViewUtils";
 
 type ManageSection = "behavior" | "implicit" | "event" | "snapshot" | "deletion";
 
@@ -28,12 +32,48 @@ export const ManageView: React.FC<{
   onChanged?: () => boolean | void | Promise<boolean | void>;
 }> = ({ character, initialSection, initialEventFilter, onChanged }) => {
   const { t } = useI18n();
+  const { addToast } = useToast();
+  const registry = useDirtyRegistry();
+  useDirtyRegistryVersion();
   const [sec, setSec] = useState<ManageSection>(initialSection ?? "behavior");
   const defaultChapter =
     character.last_synced_chapter > 0 ? character.last_synced_chapter : 1;
   useEffect(() => {
     if (initialSection) setSec(initialSection);
   }, [character.id, initialSection, initialEventFilter?.category, initialEventFilter?.key]);
+
+  const changeSection = async (next: ManageSection) => {
+    if (next === sec) return;
+    const draftSection = sec === "event" || sec === "deletion" || sec === "implicit" ? sec : null;
+    if (!draftSection) {
+      setSec(next);
+      return;
+    }
+    const draftKey = characterDetailDraftKey(character.id, draftSection);
+    if (!registry.hasDirty(draftKey)) {
+      setSec(next);
+      return;
+    }
+    if (!registry.canDiscardDirty(draftKey)) {
+      addToast(t("common.operationInProgress"), "info");
+      return;
+    }
+    const ok = await confirmDialog({
+      title: t("common.unsavedChangesTitle"),
+      message: t("common.unsavedChangesMessage", {
+        name: t(`characterDetail.sections.${sec}` as MessageKey),
+        action: t("common.switchTab"),
+      }),
+      confirmText: t("common.discardDraft"),
+      dialogType: "warning",
+    });
+    if (!ok) return;
+    if (!await registry.discardDirty(draftKey)) {
+      addToast(t("common.operationInProgress"), "info");
+      return;
+    }
+    setSec(next);
+  };
 
   return (
     <div className="flex flex-col gap-2">
@@ -46,7 +86,7 @@ export const ManageView: React.FC<{
           <button
             key={s.id}
             type="button"
-            onClick={() => setSec(s.id)}
+            onClick={() => void changeSection(s.id)}
             data-active={sec === s.id ? "1" : undefined}
             className="pyqt-tab shrink-0 !text-caption"
             title={label}

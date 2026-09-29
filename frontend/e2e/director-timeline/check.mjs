@@ -101,6 +101,75 @@ try {
   await assertWorkspaceFits("initial");
   await browser.$(".director-inspector").waitForDisplayed();
   await browser.saveScreenshot(path.join(artifacts, "initial.png"));
+  await browser.$('[aria-label^="图片点 2s"]').click();
+  await setInput('[aria-label="播放位置"]', "3000");
+  const description = await browser.$(".director-fields textarea");
+  const originalDescription = await description.getValue();
+  const originalLabel = await browser.$(".director-fields input").getValue();
+  const initialReads = await browser.execute(() => window.directorCommands.filter((item) => item.command === "get_chapter_visual_plan").length);
+  await browser.execute(() => {
+    window.nativeWorkspace = document.querySelector(".director-workspace");
+    window.nativeSelected = document.querySelector(".director-point.is-selected");
+    window.holdDirectorSave();
+  });
+  await description.setValue("第一版人工描述");
+  await browser.waitUntil(async () => browser.execute(() => window.directorSaveHeld === true));
+  await description.setValue("保存期间继续输入，必须保留");
+  await browser.execute(() => {
+    window.emitDirectorPointChange("p1", { label: "Agent 原生回执", at_ms: 2500 });
+    window.releaseDirectorSave();
+  });
+  await browser.waitUntil(async () => (await browser.$(".director-fields input").getValue()) === "Agent 原生回执");
+  assert.equal(await description.getValue(), "保存期间继续输入，必须保留");
+  assert.equal(await browser.$('[aria-label="播放位置"]').getValue(), "3000", "remote edits never seek the playhead");
+  assert.deepEqual(await browser.execute(() => ({
+    workspace: window.nativeWorkspace === document.querySelector(".director-workspace"),
+    selection: window.nativeSelected === document.querySelector(".director-point.is-selected"),
+    focus: document.activeElement === document.querySelector(".director-fields textarea"),
+  })), { workspace: true, selection: true, focus: true });
+  assert.equal(await browser.execute(() => window.directorCommands.filter((item) => item.command === "get_chapter_visual_plan").length), initialReads, "receipt application must not reload the editor");
+  await browser.saveScreenshot(path.join(artifacts, "native-receipt-preserves-editor.png"));
+  await browser.$('[aria-label="撤销"]').click();
+  assert.equal(await browser.$(".director-fields input").getValue(), originalLabel);
+  assert.equal(await description.getValue(), "保存期间继续输入，必须保留", "undo of a remote batch retains manual input");
+  await description.setValue(originalDescription);
+  await browser.waitUntil(async () => (await browser.$(".director-save-status").getText()) === "草稿已保存");
+  await description.setValue("本地冲突字段");
+  await browser.execute(() => window.emitDirectorPointChange("p1", { description: "远端冲突字段", label: "非冲突字段合并保留" }));
+  await browser.$("button=冲突字段保留我的编辑").waitForDisplayed();
+  assert.equal(await description.getValue(), "本地冲突字段");
+  await browser.saveScreenshot(path.join(artifacts, "native-conflict.png"));
+  await browser.$("button=冲突字段保留我的编辑").click();
+  assert.equal(await description.getValue(), "本地冲突字段");
+  assert.equal(await browser.$(".director-fields input").getValue(), "非冲突字段合并保留");
+  await description.setValue(originalDescription);
+  await browser.$(".director-fields input").setValue(originalLabel);
+  await browser.waitUntil(async () => (await browser.$(".director-save-status").getText()) === "草稿已保存");
+  for (const width of [1024, 390]) {
+    await setViewport(width, 844);
+    if (width === 390) await browser.$('[aria-label="属性"]').click();
+    const localDescription = await browser.$(".director-fields textarea");
+    await localDescription.setValue("窄屏本地冲突");
+    await browser.execute(() => window.emitDirectorPointChange("p1", { description: "窄屏远端版本" }));
+    const compare = await browser.$(".director-conflict-details");
+    await compare.waitForDisplayed();
+    assert.match(await compare.getText(), /窄屏本地冲突/);
+    assert.match(await compare.getText(), /窄屏远端版本/);
+    await browser.waitUntil(async () => browser.execute(() => window.directorCommands.some((item) => item.command === "control_agent_run" && item.input.action === "pause")));
+    await browser.saveScreenshot(path.join(artifacts, `native-conflict-${width}.png`));
+    await compare.click();
+    await browser.keys("Tab");
+    await browser.keys("Tab");
+    assert.match(await browser.execute(() => document.activeElement.textContent), /采用已保存版本/);
+    await browser.keys("Enter");
+    await compare.waitForExist({ reverse: true });
+    assert.equal(await localDescription.getValue(), "窄屏远端版本");
+    await localDescription.setValue(originalDescription);
+    if (width === 390) await browser.keys("Escape");
+    await browser.waitUntil(async () => (await browser.$(".director-save-status").getText()) === "草稿已保存");
+  }
+  await setViewport(1440, 900);
+  await browser.$('[aria-label^="固定端点 0s"]').click();
   await browser.$('[aria-label="导演 Agent"]').click();
   await browser.$(".director-agent-inspector").waitForDisplayed();
   await browser.$(".agent-message-collapsible").waitForDisplayed();
@@ -126,12 +195,12 @@ try {
   await browser.keys("Escape");
   await browser.$('[role="dialog"]').waitForDisplayed({ reverse: true });
   await browser.$(".director-inspector").waitForDisplayed();
-  const setInput = (selector, value) => browser.execute((selector, value) => {
+  function setInput(selector, value) { return browser.execute((selector, value) => {
     const input = document.querySelector(selector);
     Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value").set.call(input, value);
     input.dispatchEvent(new Event("input", { bubbles: true }));
     input.dispatchEvent(new Event("change", { bubbles: true }));
-  }, selector, value);
+  }, selector, value); }
   await setInput('[aria-label="播放位置"]', "3000");
   await browser.waitUntil(async () => (await browser.$(".director-frame-caption").getText()).includes("2s"));
   await setInput('[aria-label="播放位置"]', "5000");
@@ -285,6 +354,8 @@ try {
   await browser.$('[role="listbox"]').waitForExist({ reverse: true });
   assert.equal(await browser.$("h3=拆分镜头").isDisplayed(), true, "Escape must close the select before its dialog");
   await browser.keys("Escape");
+  await browser.$("h3=放弃拆分镜头编辑？").waitForDisplayed();
+  await browser.$("button=放弃编辑").click();
   await browser.$("h3=拆分镜头").waitForDisplayed({ reverse: true });
   await browser.keys("Escape");
   await browser.$('[role="dialog"]').waitForDisplayed({ reverse: true });
@@ -404,6 +475,7 @@ try {
   await browser.$("button=重新加载").waitForDisplayed();
   assert.equal(await browser.$(".director-viewer").isExisting(), false, "a failed chapter load must never display the previous chapter's plan");
   const report = { passed: true, cases: ["all four frame aspect ratios", "viewport fitting inside the real chapter workspace", "compact timeline reserves preview space", "shared track hit targets", "timing dialog and cancelled edits", "default desktop inspector", "container resize without viewport resize", "read-only controls", "points independent of segments", "play/pause", "prompt autosave payload", "proportional retime request", "responsive overflow", "mobile dialog and Escape", "mobile bottom actions reachable", "dialog keyboard isolation", "point and segment boundary pointer gestures", "chapter switch during pending mutation", "chapter load failure never displays the previous plan"], measurements };
+  report.nativeEditingChecks = ["late save preserves newer manual input", "SSE receipts apply without editor reload or remount", "selection, playhead and focus survive receipt application", "batch undo preserves intervening manual edits", "overlapping changes pause autosave and preserve both versions", "conflict resolution merges unaffected fields"];
   await writeFile(path.join(artifacts, "report.json"), JSON.stringify(report, null, 2));
   console.log(JSON.stringify(report));
 } catch (error) {

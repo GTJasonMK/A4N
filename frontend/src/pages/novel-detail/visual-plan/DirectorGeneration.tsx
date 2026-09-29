@@ -13,8 +13,10 @@ import { generationClient } from "../../../api/generationTasks";
 import type { GenerationTaskHandle } from "../../../api/generated/generationContracts";
 import { useGenerationTask } from "../../../hooks/useGenerationTask";
 import { BookButton } from "../../../components/ui/BookButton";
+import { confirmDialog } from "../../../components/feedback/ConfirmDialog";
 import { sha256Json } from "../../../utils/contentHash";
 import type { DirectorSelection } from "./timeline";
+import { useI18n } from "../../../i18n";
 
 interface Props {
   projectId: number;
@@ -27,13 +29,16 @@ interface Props {
   autoStart?: boolean;
   hasCandidates?: boolean;
   onImageGenerated?: (image: GeneratedImage) => void;
-  onAdoptPrompt: (candidate: VisualPlanPromptCandidate) => Promise<void>;
+  onAdoptPrompt: (candidate: VisualPlanPromptCandidate) => Promise<boolean>;
+  onCandidateDirty?: (dirty: boolean) => void;
 }
 
-export function DirectorGeneration({ projectId, chapterId, plan, target, save, selectedSize, availableSizes, autoStart = false, hasCandidates = false, onImageGenerated, onAdoptPrompt }: Props) {
+export function DirectorGeneration({ projectId, chapterId, plan, target, save, selectedSize, availableSizes, autoStart = false, hasCandidates = false, onImageGenerated, onAdoptPrompt, onCandidateDirty }: Props) {
+  const { t } = useI18n();
   const key = `a4n:director-task:${location.origin}:${projectId}:${chapterId}:${target.kind}:${target.id}`;
   const [handle, setHandle] = useState<GenerationTaskHandle | null>(null);
   const [candidate, setCandidate] = useState<VisualPlanPromptCandidate | null>(null);
+  const candidateBaseline = useRef<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [cancelling, setCancelling] = useState(false);
@@ -94,6 +99,8 @@ export function DirectorGeneration({ projectId, chapterId, plan, target, save, s
       sessionStorage.setItem(key, JSON.stringify(next));
       setHandle(next);
       setCandidate(null);
+      candidateBaseline.current = null;
+      onCandidateDirty?.(false);
       taskStarted = true;
       if (cancelRequested.current) {
         try {
@@ -115,7 +122,7 @@ export function DirectorGeneration({ projectId, chapterId, plan, target, save, s
         }
       }
     }
-  }, [availableSizes, chapterId, description, key, point, projectId, report, save, segment, selectedSize, target.id]);
+  }, [availableSizes, chapterId, description, key, onCandidateDirty, point, projectId, report, save, segment, selectedSize, target.id]);
 
   startRef.current = startGeneration;
 
@@ -135,6 +142,8 @@ export function DirectorGeneration({ projectId, chapterId, plan, target, save, s
     cancelRequested.current = false;
     setCancelling(false);
     setCandidate(null);
+    candidateBaseline.current = null;
+    onCandidateDirty?.(false);
     setError(null);
     let storedHandle: GenerationTaskHandle | null = null;
     try {
@@ -172,12 +181,16 @@ export function DirectorGeneration({ projectId, chapterId, plan, target, save, s
         if (result.kind !== "visual_plan_prompt_candidate") throw new Error("生成结果类型不正确");
         const value = await readVisualPlanPromptCandidate(projectId, Number(result.id));
         if (value.segment_id !== target.id || value.source_chapter_id !== chapterId || await sha256Json(value) !== result.revision) throw new Error("生成候选的目标或内容校验失败");
-        if (mounted) setCandidate(value);
+        if (mounted) {
+          candidateBaseline.current = value.prompt;
+          setCandidate(value);
+          onCandidateDirty?.(false);
+        }
       }
     };
     void recover().catch((failure) => { if (mounted) report(failure, "读取生成候选失败"); });
     return () => { mounted = false; };
-  }, [chapterId, handle, onImageGenerated, projectId, report, target.id, target.kind, task.resultRef, task.taskStatus]);
+  }, [chapterId, handle, onCandidateDirty, onImageGenerated, projectId, report, target.id, target.kind, task.resultRef, task.taskStatus]);
 
   const retryGeneration = () => {
     cancelRequested.current = false;
@@ -186,7 +199,23 @@ export function DirectorGeneration({ projectId, chapterId, plan, target, save, s
     started.current = null;
     setHandle(null);
     setCandidate(null);
+    candidateBaseline.current = null;
+    if (candidate != null) onCandidateDirty?.(false);
     void startRef.current();
+  };
+
+  const discardCandidateBeforeRegeneration = async () => {
+    if (candidate == null || candidate.prompt === candidateBaseline.current) {
+      retryGeneration();
+      return;
+    }
+    const discard = await confirmDialog({
+      title: t("visualPlan.candidateEditDiscardTitle"),
+      message: t("visualPlan.candidateEditDiscardMessage"),
+      confirmText: t("common.discardDraft"),
+      dialogType: "warning",
+    });
+    if (discard) retryGeneration();
   };
 
   const adopt = async () => {
@@ -194,11 +223,14 @@ export function DirectorGeneration({ projectId, chapterId, plan, target, save, s
     setError(null);
     try {
       if (!candidate) throw new Error("没有可采用的描述候选");
-      await onAdoptPrompt(candidate);
+      const accepted = await onAdoptPrompt(candidate);
+      if (accepted === false) return;
       sessionStorage.removeItem(key);
       started.current = null;
       setHandle(null);
       setCandidate(null);
+      candidateBaseline.current = null;
+      onCandidateDirty?.(false);
     } catch (failure) { report(failure, "采用候选失败"); }
     finally { setBusy(false); }
   };
@@ -219,7 +251,7 @@ export function DirectorGeneration({ projectId, chapterId, plan, target, save, s
   const preparing = busy && !handle;
   const stopping = preparing || active;
   const triggerGeneration = () => {
-    if (handle || candidate || error || task.error || hasCandidates) retryGeneration();
+    if (handle || candidate || error || task.error || hasCandidates) void discardCandidateBeforeRegeneration();
     else void startRef.current();
   };
   const action = <BookButton
@@ -245,7 +277,7 @@ export function DirectorGeneration({ projectId, chapterId, plan, target, save, s
     {active && <p role="status">{task.progress?.message || "正在生成候选…"}</p>}
     {handle && ["cancelled", "interrupted"].includes(task.taskStatus) && <p role="status">生成已停止。</p>}
     {handle && !active && task.recoveryState === "failed" && <BookButton variant="secondary" onClick={() => void task.recover().catch((failure) => report(failure, "恢复任务状态失败"))}>恢复任务状态</BookButton>}
-    {candidate && <div className="director-candidate"><label>候选描述<textarea rows={8} value={candidate.prompt} onChange={(event) => setCandidate({ ...candidate, prompt: event.target.value })} /></label><span>{candidate.model} · 生成依据为方案 revision {candidate.plan_revision}</span></div>}
+    {candidate && <div className="director-candidate"><label>候选描述<textarea rows={8} value={candidate.prompt} onChange={(event) => { const prompt = event.target.value; onCandidateDirty?.(prompt !== candidateBaseline.current); setCandidate({ ...candidate, prompt }); }} /></label><span>{candidate.model} · 生成依据为方案 revision {candidate.plan_revision}</span></div>}
     {candidate && <BookButton disabled={busy || active || !candidate.prompt.trim()} onClick={() => void adopt()}><Check size={15} />采用候选</BookButton>}
     {action}
   </div>;

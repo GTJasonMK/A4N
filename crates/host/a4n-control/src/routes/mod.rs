@@ -8,6 +8,7 @@ mod media;
 mod meta;
 pub(crate) mod page_sessions;
 mod temp_media;
+mod visual_plan_events;
 
 pub use commands::{
     dispatch_agent_host_command, dispatch_agent_host_command_value, dispatch_runtime_command_value,
@@ -34,6 +35,7 @@ fn validate_positive_id(value: Option<i64>, field: &str) -> Result<(), ApiError>
 pub fn api_router(state: ServerState) -> Router {
     Router::new()
         .route("/health", get(health))
+        .route("/visual-plan-edits", get(visual_plan_events::events))
         .route("/meta", get(meta::get))
         .route("/meta/commands", get(meta::commands))
         .route("/meta/commands/{command}", get(meta::command))

@@ -519,6 +519,10 @@ pub(crate) fn args_get_chapter() -> Value {
 pub(crate) fn result_chapter_index() -> Value {
     typed_schema::<Vec<crate::chapter::ChapterIndexEntry>>()
 }
+
+pub(crate) fn result_chapter_analyses() -> Value {
+    typed_schema::<Vec<crate::chapter::ChapterAnalysisEntry>>()
+}
 pub(crate) fn result_chapter_summaries() -> Value {
     typed_schema::<Vec<crate::chapter::ChapterSummary>>()
 }

@@ -16,6 +16,8 @@ const root = path.resolve(frontend, "..");
 const artifacts = path.resolve(process.env.A4N_PERF_ARTIFACTS ?? path.join(root, "data/performance-audit-20260927/b08/browser"));
 const port = Number(process.env.A4N_PERF_PORT ?? 49030);
 const baseline = process.env.A4N_PERF_BASELINE_REF;
+const view = process.env.A4N_PERF_VIEW ?? "desk";
+assert.ok(["desk", "story"].includes(view));
 const continueText = baseline ? "继续" : "放弃草稿";
 const stayText = baseline ? "留在当前" : "取消";
 const rounds = Number(process.env.A4N_PERF_ROUNDS ?? 3);
@@ -41,11 +43,15 @@ function chapter(number) {
   };
 }
 let chapters = Array.from({ length: 1000 }, (_, i) => chapter(i + 1));
+if (process.env.A4N_PERF_CHAPTER_FIXTURE) {
+  chapters = JSON.parse(await readFile(process.env.A4N_PERF_CHAPTER_FIXTURE, "utf8"));
+}
 let requests = [];
 const readDelays = new Map();
 const readFailures = new Set();
 let saveFailure = false;
 let saveDelay = 0;
+let listingFailure = false;
 const unexpected = [];
 const apiError = (message) => ({ code: "internal", message, retryable: false, trace_id: null, details: {} });
 const report = { success: false, baseline: baseline ?? null, samples: [], checks: [] };
@@ -62,7 +68,14 @@ const server = createServer(async (req, res) => {
     switch (command) {
       case "get_project": result = { id: 1, title: "性能基准", project_type: "novel_long", project_kind: "text",
         my_role: "owner", lifecycle_gate: "active", source_sync_status: "current", chapter_count: chapters.length }; break;
-      case "list_chapters": result = chapters; break;
+      case "list_chapters":
+        result = listingFailure ? apiError("fixture analysis read failed") : chapters;
+        if (listingFailure) status = 500;
+        break;
+      case "list_chapter_analyses":
+        result = listingFailure ? apiError("fixture analysis read failed") : chapters.map(({ id, chapter_number, title, summary, analysis_data }) => ({ id, chapter_number, title, summary, analysis_data }));
+        if (listingFailure) status = 500;
+        break;
       case "list_chapter_index": result = chapters.map((chapter) => ({
         ...Object.fromEntries(Object.entries(chapter).filter(([key]) => !heavyFields.includes(key))),
         body_character_count: Array.from(chapter.content).length,
@@ -83,7 +96,7 @@ const server = createServer(async (req, res) => {
         Object.assign(selected, { content: body.input.content, edit_revision: selected.edit_revision + "-saved" });
         result = selected; break;
       }
-      case "list_chapter_outlines": case "list_profiles": case "active": result = []; break;
+      case "list_chapter_outlines": case "list_profiles": case "list_foreshadowing": case "active": result = []; break;
       case "get_blueprint": result = null; break;
       default: unexpected.push(url.pathname); status = 500; result = { error: `Unexpected fixture request: ${url.pathname}` };
     }
@@ -123,7 +136,7 @@ async function clickChapter(number) {
 }
 try {
   await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
-  const sourceFiles = ["src/pages/WritingDesk.tsx", "src/pages/novel-detail/ChaptersTab.tsx", "src/pages/novel-detail/OptimizeTab.tsx",
+  const sourceFiles = ["src/pages/WritingDesk.tsx", "src/pages/novel-detail/ChaptersTab.tsx", "src/pages/novel-detail/StoryEventsTab.tsx", "src/pages/novel-detail/OptimizeTab.tsx",
     "src/pages/novel-detail/optimize/OptimizeHeader.tsx", ...execFileSync("rg", ["--files", "src/pages/writing-desk"], { cwd: frontend, encoding: "utf8" }).trim().split("\n")];
   const override = new Map(baseline ? sourceFiles.filter((file) => !file.endsWith("/chapterIndex.ts")).map((file) => [path.join(frontend, file),
     execFileSync("git", ["show", `${baseline}:frontend/${file}`], { cwd: root, encoding: "utf8" })]) : []);
@@ -153,6 +166,48 @@ try {
   });
   await cdp("Network.enable");
   await cdp("Network.emulateNetworkConditions", { offline: false, latency: 50, downloadThroughput: 500000, uploadThroughput: 500000 });
+  if (view === "story") {
+    const expectedEvents = chapters.reduce((sum, chapter) => sum + (chapter.analysis_data?.key_events?.length ?? 0), 0);
+    assert.ok(expectedEvents > 0, "Story page requires a persisted analysis fixture");
+    for (let round = 0; round < rounds; round++) {
+      requests = [];
+      const result = await browser.executeAsync((expectedEvents, done) => {
+        const started = performance.now(); window.chapterLoad.mount(1, "story");
+        const timer = setInterval(() => {
+          if (window.fixtureErrors.length) { clearInterval(timer); done({ error: window.fixtureErrors }); return; }
+          if (document.querySelectorAll("ol > li").length !== expectedEvents) return;
+          clearInterval(timer);
+          done({ elapsedMs: performance.now() - started, text: document.getElementById("root").textContent,
+            resources: performance.getEntriesByType("resource").filter((entry) => entry.startTime >= started && entry.name.includes("/api/"))
+              .map((entry) => ({ name: entry.name, encoded: entry.encodedBodySize, decoded: entry.decodedBodySize })) });
+        }, 10);
+      }, expectedEvents);
+      assert.equal(result.error, undefined, JSON.stringify(result.error));
+      assert.equal(requests.filter((req) => req.command === "list_chapters").length, baseline ? 1 : 0);
+      assert.equal(requests.filter((req) => req.command === "list_chapter_analyses").length, baseline ? 0 : 1);
+      for (const chapter of chapters) {
+        if (!chapter.analysis_data) continue;
+        for (const event of chapter.analysis_data.key_events) assert.ok(result.text.includes(event.description));
+      }
+      result.textSha256 = digest(result.text); delete result.text; report.samples.push(result);
+    }
+    listingFailure = true;
+    await browser.$("button[aria-label]").click();
+    await browser.waitUntil(() => browser.execute(() => document.body.textContent.includes("fixture analysis read failed")));
+    assert.equal((await browser.$$("ol > li")).length, expectedEvents);
+    listingFailure = false;
+    await browser.$("button[aria-label]").click();
+    await browser.waitUntil(() => browser.execute((count) => !document.body.textContent.includes("fixture analysis read failed")
+      && document.querySelectorAll("ol > li").length === count, expectedEvents));
+    assert.equal((await browser.$$("ol > li")).length, expectedEvents);
+    report.checks.push("read failure remains visible without discarding existing analysis; explicit refresh recovers");
+    for (const width of [1440, 390]) {
+      await browser.setWindowSize(width, 900);
+      assert.equal(await browser.execute(() => document.documentElement.scrollWidth - document.documentElement.clientWidth), 0);
+      await browser.saveScreenshot(path.join(artifacts, `story-page-${width}.png`));
+    }
+    report.checks.push("all persisted events rendered; old and new API request counts; 1440/390px overflow");
+  } else {
   for (let round = 0; round < rounds; round++) {
     requests = [];
     const result = await browser.executeAsync((done) => {
@@ -262,6 +317,7 @@ try {
   await browser.waitUntil(async () => !await browser.$("article").isExisting());
   if (!baseline) assert.deepEqual(requests.filter((req) => req.command === "get_chapter").map((req) => req.body.input.chapter_id), [2]);
   report.checks.push("read-only chapter preview fetches the selected body and closes with Escape");
+  }
   assert.deepEqual(unexpected, []);
   report.corpusSha256 = digest(corpus);
   report.success = true;

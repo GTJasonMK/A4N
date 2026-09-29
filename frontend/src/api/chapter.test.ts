@@ -15,6 +15,7 @@ import {
   deleteChapterScene,
   listChapterScenes,
   listChapterIndex,
+  listChapterAnalyses,
   getChapter,
   previewChapterAnalysisRequest,
   previewChapterSceneRequest,
@@ -64,9 +65,11 @@ describe("chapter generation target", () => {
 describe("chapter analysis host contract", () => {
   it("reads an index and scopes a single body to its project", async () => {
     await listChapterIndex(7);
+    await listChapterAnalyses(7);
     await getChapter(7, 9);
     expect(mocks.apiInvoke.mock.calls).toEqual([
       ["list_chapter_index", { projectId: 7 }],
+      ["list_chapter_analyses", { projectId: 7 }],
       ["get_chapter", { input: { project_id: 7, chapter_id: 9 } }],
     ]);
   });

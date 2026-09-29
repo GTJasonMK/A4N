@@ -75,6 +75,9 @@ pub(crate) fn run() {
             if let Some(server) = app_handle.try_state::<server_process::LocalServerProcess>() {
                 server.stop();
             }
+            if let Some(workers) = app_handle.try_state::<server_process::NativeWorkerProcesses>() {
+                workers.stop_agent();
+            }
             if let Some(state) = app_handle.try_state::<a4n_runtime::AppState>()
                 && let Err(error) =
                     tauri::async_runtime::block_on(state.shutdown_managed_sidecars())

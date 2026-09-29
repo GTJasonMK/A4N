@@ -199,6 +199,17 @@ impl NativeWorkerSettings {
 }
 
 impl NativeWorkerProcesses {
+    pub(crate) fn stop_agent(&self) {
+        let Ok(mut children) = self.children.lock() else {
+            tracing::error!("获取 Native worker 进程锁失败");
+            return;
+        };
+        if let Some(index) = children.iter().position(|(name, _)| name == "agent-worker") {
+            let (name, child) = children.remove(index);
+            stop_native_child(name, child);
+        }
+    }
+
     pub(crate) fn serve_agent_host(
         &mut self,
         listener: TcpListener,
@@ -235,16 +246,21 @@ impl NativeWorkerProcesses {
             tracing::error!("获取 Native worker 进程锁失败");
             return;
         };
-        for (name, mut child) in children.drain(..) {
-            if let Err(error) = terminate_child(&mut child)
-                && error.kind() != io::ErrorKind::InvalidInput
-            {
-                tracing::warn!(worker = %name, %error, "停止 Native worker 失败");
-            }
+        // Also preserve dependency order when unwinding a failed startup.
+        for (name, child) in children.drain(..).rev() {
+            stop_native_child(name, child);
         }
         if let Some(task) = &self.control_task {
             task.abort();
         }
+    }
+}
+
+fn stop_native_child(name: String, mut child: Child) {
+    if let Err(error) = terminate_child(&mut child)
+        && error.kind() != io::ErrorKind::InvalidInput
+    {
+        tracing::warn!(worker = %name, %error, "停止 Native worker 失败");
     }
 }
 
@@ -659,6 +675,43 @@ mod tests {
                 assert!(std::net::TcpListener::bind(worker.address).is_err());
             }
         }
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn native_shutdown_stops_consumers_before_their_workers() {
+        use std::io::{BufRead, BufReader};
+        let directory = tempfile::tempdir().unwrap();
+        let order = directory.path().join("stop-order");
+        let mut processes = super::NativeWorkerProcesses::default();
+        for name in ["record-worker", "agent-worker"] {
+            let mut child = std::process::Command::new("sh")
+                .args(["-c", "trap 'printf \"%s\\n\" \"$CHILD_LABEL\" >> \"$ORDER_LOG\"; exit 0' TERM; echo ready; while :; do sleep 0.05; done"])
+                .env("CHILD_LABEL", name)
+                .env("ORDER_LOG", &order)
+                .stdout(std::process::Stdio::piped())
+                .spawn().unwrap();
+            let mut ready = String::new();
+            BufReader::new(child.stdout.take().unwrap())
+                .read_line(&mut ready)
+                .unwrap();
+            assert_eq!(ready, "ready\n");
+            processes
+                .children
+                .get_mut()
+                .unwrap()
+                .push((name.into(), child));
+        }
+        processes.stop_agent();
+        assert_eq!(std::fs::read_to_string(&order).unwrap(), "agent-worker\n");
+        let children = processes.children.get_mut().unwrap();
+        assert_eq!(children.len(), 1);
+        assert!(children[0].1.try_wait().unwrap().is_none());
+        processes.stop();
+        assert_eq!(
+            std::fs::read_to_string(order).unwrap(),
+            "agent-worker\nrecord-worker\n"
+        );
     }
 
     #[test]

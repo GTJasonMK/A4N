@@ -26,11 +26,16 @@ import { isCancelledOperation } from "../utils/cancellation";
 import { CharacterDetailContent } from "./character-detail-dialog/CharacterDetailContent";
 import { CharacterDetailTabs } from "./character-detail-dialog/CharacterDetailTabs";
 import { CharacterSummaryCard } from "./character-detail-dialog/CharacterSummaryCard";
+import {
+  CHARACTER_DETAIL_DRAFT_SECTIONS,
+  characterDetailDraftKey,
+} from "./character-detail-dialog/manageViewUtils";
 import type {
   CharacterDetailInitialEventFilter,
   CharacterDetailTab,
 } from "./character-detail-dialog/characterDetailUtils";
 import { useI18n, type MessageTranslator } from "../i18n";
+import { useDirtyRegistry, useDirtyRegistryVersion } from "../components/navigation/dirtyRegistry";
 
 export type { CharacterDetailInitialEventFilter } from "./character-detail-dialog/characterDetailUtils";
 
@@ -184,6 +189,8 @@ export const CharacterDetailDialog: React.FC<CharacterDetailDialogProps> = ({
 }) => {
   const { t } = useI18n();
   const addToast = useToast((state) => state.addToast);
+  const registry = useDirtyRegistry();
+  useDirtyRegistryVersion();
   const [tab, setTab] = useState<CharacterDetailTab>("arc");
   const [arc, setArc] = useState<CharacterCacheValue<unknown> | null>(null);
   const [voice, setVoice] = useState<CharacterCacheValue<unknown> | null>(null);
@@ -234,6 +241,54 @@ export const CharacterDetailDialog: React.FC<CharacterDetailDialogProps> = ({
   const requestPreviewSeqRef = useRef(0);
   const refreshingRef = useRef(false);
   const syncingRef = useRef(false);
+
+  const refreshParentAfterMutation = useCallback(async (): Promise<string | null> => {
+    try {
+      return await onChanged?.() === false ? t("characterDetail.refreshFailed") : null;
+    } catch (error) {
+      return extractErrorMessage(error, t("characterDetail.refreshFailed"));
+    }
+  }, [onChanged, t]);
+
+  const dirtyManageKeys = useCallback(() => {
+    if (!character) return [];
+    return CHARACTER_DETAIL_DRAFT_SECTIONS
+      .map((section) => characterDetailDraftKey(character.id, section))
+      .filter((key) => registry.hasDirty(key));
+  }, [character, registry]);
+
+  const confirmManageDraftAction = useCallback(async (action: string): Promise<boolean> => {
+    const keys = dirtyManageKeys();
+    if (keys.length === 0) return true;
+    if (!keys.every((key) => registry.canDiscardDirty(key))) {
+      addToast(t("common.operationInProgress"), "info");
+      return false;
+    }
+    const ok = await confirmDialog({
+      title: t("common.unsavedChangesTitle"),
+      message: t("common.unsavedChangesMessage", {
+        name: t("characterDetail.manage"),
+        action,
+      }),
+      confirmText: t("common.discardDraft"),
+      dialogType: "warning",
+    });
+    if (!ok) return false;
+    for (const key of keys) {
+      if (!await registry.discardDirty(key)) return false;
+    }
+    return true;
+  }, [addToast, dirtyManageKeys, registry, t]);
+
+  const handleDialogClose = async () => {
+    if (await confirmManageDraftAction(t("common.close"))) onClose();
+  };
+
+  const handleTabChange = async (nextTab: CharacterDetailTab) => {
+    if (nextTab === tab) return;
+    if (!(await confirmManageDraftAction(t("common.switchTab")))) return;
+    setTab(nextTab);
+  };
 
   if (activeCharacterScope) {
     activeCharacterScopeRef.current = activeCharacterScope;
@@ -471,6 +526,7 @@ export const CharacterDetailDialog: React.FC<CharacterDetailDialogProps> = ({
   const handleSync = async () => {
     if (!name || !characterCacheKey) return;
     if (syncingRef.current) return;
+    if (tab === "manage" && !(await confirmManageDraftAction(t("characterDetail.syncFromCurrentChapter")))) return;
     syncingRef.current = true;
     const requestScope = characterCacheKey;
     const requestName = name;
@@ -532,7 +588,7 @@ export const CharacterDetailDialog: React.FC<CharacterDetailDialogProps> = ({
         },
       );
       if (!isCurrentCharacterScope(requestScope) || syncSeqRef.current !== requestSeq) return;
-      await onChanged?.();
+      const parentRefreshError = await refreshParentAfterMutation();
       if (result.status === "skipped") {
         addToast(t("characterDetail.noSyncNeeded"), "info");
       } else {
@@ -576,6 +632,7 @@ export const CharacterDetailDialog: React.FC<CharacterDetailDialogProps> = ({
           addToast(t("characterDetail.syncSuccess"), "success");
         }
       }
+      if (parentRefreshError) addToast(parentRefreshError, "error");
       if (tab !== "arc") {
         setArc(null);
         setArcLoadError(null);
@@ -622,7 +679,8 @@ export const CharacterDetailDialog: React.FC<CharacterDetailDialogProps> = ({
       if (!isCurrentCharacterScope(requestScope) || syncSeqRef.current !== requestSeq) return;
       const message = extractErrorMessage(err, t("characterDetail.syncFailed"));
       addToast(message, isCancelledOperation(message) ? "info" : "error");
-      await onChanged?.();
+      const parentRefreshError = await refreshParentAfterMutation();
+      if (parentRefreshError) addToast(parentRefreshError, "error");
     } finally {
       if (isCurrentCharacterScope(requestScope) && syncSeqRef.current === requestSeq) {
         setSyncing(false);
@@ -720,7 +778,11 @@ export const CharacterDetailDialog: React.FC<CharacterDetailDialogProps> = ({
   if (onEditInitial && character.initial_profile_editable) {
     tabActionItems.push({
       label: t("characterDetail.editInitialProfile"),
-      onClick: () => onEditInitial(character),
+      onClick: () => {
+        void (async () => {
+          if (await confirmManageDraftAction(t("common.close"))) onEditInitial(character);
+        })();
+      },
       icon: <Pencil size={12} />,
     });
   }
@@ -756,7 +818,7 @@ export const CharacterDetailDialog: React.FC<CharacterDetailDialogProps> = ({
     <>
       <Modal
         isOpen={open}
-        onClose={onClose}
+        onClose={() => void handleDialogClose()}
         title={character.name}
         maxWidthClassName="max-w-3xl"
         footer={activeChapterNumber != null && tab !== "manage" ? (
@@ -783,7 +845,7 @@ export const CharacterDetailDialog: React.FC<CharacterDetailDialogProps> = ({
             activeTab={tab}
             loadingTab={loadingTab}
             conflictCount={currentConflicts?.length ?? null}
-            onTabChange={setTab}
+            onTabChange={(nextTab) => void handleTabChange(nextTab)}
             onRefresh={handleRefresh}
             actions={
               tabActionItems.length > 0 ? (

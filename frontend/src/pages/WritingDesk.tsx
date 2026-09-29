@@ -37,7 +37,6 @@ import {
 import type { BottomTab } from "./writing-desk/ChapterWorkspace";
 import type { RightPanel } from "./writing-desk/WritingDeskHeader";
 import {
-  DEFAULT_GENERATION_WORD_COUNT_RANGE,
   defaultGenerationWordCountRange,
   parseGenerationWordCountRange,
 } from "./writing-desk/generationWordCount";
@@ -66,6 +65,7 @@ import { WritingDeskView } from "./writing-desk/WritingDeskView";
 import { useWritingDeskResetGeneratedData } from "./writing-desk/useWritingDeskResetGeneratedData";
 import { useWritingDeskSaveContent } from "./writing-desk/useWritingDeskSaveContent";
 import { UnsavedNavigationGuard } from "../components/navigation/UnsavedNavigationGuard";
+import { useDirty, useDirtyRegistry } from "../components/navigation/dirtyRegistry";
 import { formatNumber, useI18n } from "../i18n";
 import type { ContentDiffAction } from "../components/agent/ContentDiffPreview";
 import type { PendingContentDiff } from "../components/agent/contentOptimizationDiff";
@@ -89,6 +89,7 @@ export const WritingDesk: React.FC = () => {
   const projectId = Number(id);
   const navigate = useNavigate();
   const { addToast } = useToast();
+  const dirtyRegistry = useDirtyRegistry();
   const { locale, t } = useI18n();
   const agentRequested = searchParams.get("agent") === "1";
   const projectIdKey =
@@ -133,20 +134,19 @@ export const WritingDesk: React.FC = () => {
   const handleWritingNotesChange = useCallback(
     (value: string) => {
       if (writingNotesKey == null) return;
-      setWritingNotesByChapter((current) =>
-        current[writingNotesKey] === value
-          ? current
-          : { ...current, [writingNotesKey]: value },
-      );
+      setWritingNotesByChapter((current) => {
+        if (current[writingNotesKey] === value) return current;
+        const next = { ...current };
+        if (!value.trim()) delete next[writingNotesKey];
+        else next[writingNotesKey] = value;
+        return next;
+      });
     },
     [writingNotesKey],
   );
-  const [minWordCount, setMinWordCount] = useState(
-    String(DEFAULT_GENERATION_WORD_COUNT_RANGE.min),
-  );
-  const [maxWordCount, setMaxWordCount] = useState(
-    String(DEFAULT_GENERATION_WORD_COUNT_RANGE.max),
-  );
+  const [generationWordCountByChapter, setGenerationWordCountByChapter] = useState<
+    Record<string, { min: string; max: string }>
+  >({});
   const [savingContent, setSavingContent] = useState(false);
   const [pendingContentDiff, setPendingContentDiff] = useState<PendingContentDiff | null>(null);
   const [contentDiffAction, setContentDiffAction] = useState<ContentDiffAction | null>(null);
@@ -335,13 +335,60 @@ export const WritingDesk: React.FC = () => {
     activeChapterIndex >= 0 && activeChapterIndex < chapterNumbers.length - 1
       ? chapterNumbers[activeChapterIndex + 1]
       : null;
-  useEffect(() => {
-    const range = defaultGenerationWordCountRange(
+  const generationWordCountDefaults = useMemo(
+    () => defaultGenerationWordCountRange(
       isDerivedChapterOutline(activeOutline) ? undefined : activeOutline?.word_count_target,
-    );
-    setMinWordCount(String(range.min));
-    setMaxWordCount(String(range.max));
-  }, [activeNumber, activeOutline?.source_kind, activeOutline?.word_count_target]);
+    ),
+    [activeOutline?.source_kind, activeOutline?.word_count_target],
+  );
+  const generationWordCountDraft = writingNotesKey == null
+    ? null
+    : generationWordCountByChapter[writingNotesKey] ?? null;
+  const generationDraftDirty = writingNotes.trim().length > 0 || generationWordCountDraft != null;
+  const minWordCount = generationWordCountDraft?.min ?? String(generationWordCountDefaults.min);
+  const maxWordCount = generationWordCountDraft?.max ?? String(generationWordCountDefaults.max);
+  const handleMinWordCountChange = useCallback((value: string) => {
+    if (writingNotesKey == null) return;
+    setGenerationWordCountByChapter((current) => {
+      const previous = current[writingNotesKey] ?? {
+        min: String(generationWordCountDefaults.min),
+        max: String(generationWordCountDefaults.max),
+      };
+      const nextRange = { min: value, max: previous.max };
+      const defaults = {
+        min: String(generationWordCountDefaults.min),
+        max: String(generationWordCountDefaults.max),
+      };
+      if (nextRange.min === defaults.min && nextRange.max === defaults.max) {
+        if (!current[writingNotesKey]) return current;
+        const next = { ...current };
+        delete next[writingNotesKey];
+        return next;
+      }
+      return { ...current, [writingNotesKey]: nextRange };
+    });
+  }, [generationWordCountDefaults.max, generationWordCountDefaults.min, writingNotesKey]);
+  const handleMaxWordCountChange = useCallback((value: string) => {
+    if (writingNotesKey == null) return;
+    setGenerationWordCountByChapter((current) => {
+      const previous = current[writingNotesKey] ?? {
+        min: String(generationWordCountDefaults.min),
+        max: String(generationWordCountDefaults.max),
+      };
+      const nextRange = { min: previous.min, max: value };
+      const defaults = {
+        min: String(generationWordCountDefaults.min),
+        max: String(generationWordCountDefaults.max),
+      };
+      if (nextRange.min === defaults.min && nextRange.max === defaults.max) {
+        if (!current[writingNotesKey]) return current;
+        const next = { ...current };
+        delete next[writingNotesKey];
+        return next;
+      }
+      return { ...current, [writingNotesKey]: nextRange };
+    });
+  }, [generationWordCountDefaults.max, generationWordCountDefaults.min, writingNotesKey]);
   const parsedWordCountRange = useMemo(
     () => parseGenerationWordCountRange(minWordCount, maxWordCount, {
       min: t("writing.minWordCount"),
@@ -364,6 +411,7 @@ export const WritingDesk: React.FC = () => {
     getCurrentEditorContent,
     saveLocalDraftForCurrent,
     confirmCurrentEdit,
+    markCurrentEditClean,
     refreshDraftSet,
     removeDraftForChapter,
     clearProjectDrafts,
@@ -407,6 +455,7 @@ export const WritingDesk: React.FC = () => {
     resetGeneratedDataBusyRef.current = false;
     derivedSyncBusyRef.current = false;
     setWritingNotesByChapter({});
+    setGenerationWordCountByChapter({});
     setSavingContent(false);
     const isCurrentLoad = () => mountedRef.current && loadSeqRef.current === requestSeq;
 
@@ -485,79 +534,6 @@ export const WritingDesk: React.FC = () => {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectId]);
-
-  const safeSelectChapter = useCallback(
-    async (chapterNumber: number) => {
-      if (chapterNumber === activeNumberRef.current) return true;
-      const ok = await confirmCurrentEdit(t("writing.switchChapter"));
-      if (!ok) return false;
-      setActiveNumber(chapterNumber);
-      return true;
-    },
-    [confirmCurrentEdit, setActiveNumber, t],
-  );
-
-  const handleCreateChapter = useCallback(async () => {
-    if (chapterLoadError) {
-      addToast(chapterLoadError, "error");
-      return;
-    }
-    if (lifecycleBlockedReason) {
-      addToast(lifecycleBlockedReason, "info");
-      return;
-    }
-    const ok = await confirmCurrentEdit(t("writing.createChapter"));
-    if (!ok) return;
-
-    // chapterNumbers 还包含“当前正在编辑但尚未保存”的占位章节；默认值只看已持久化资料。
-    const defaultChapterNumber = Math.max(
-      chapters.at(-1)?.chapter_number ?? 0,
-      outlines.at(-1)?.chapter_number ?? 0,
-    ) + 1;
-    const input = await promptDialog({
-      title: t("writing.newChapter"),
-      message: t("writing.enterChapterNumber"),
-      defaultValue: String(defaultChapterNumber),
-      placeholder: t("writing.chapterNumberPlaceholder"),
-      required: true,
-      confirmText: t("writing.enterChapter"),
-    });
-    if (input == null) return;
-
-    const normalized = input.trim();
-    if (!/^[1-9]\d*$/.test(normalized)) {
-      addToast(t("writing.chapterNumberPositive"), "error");
-      return;
-    }
-    const chapterNumber = Number(normalized);
-    if (!Number.isSafeInteger(chapterNumber) || chapterNumber > 2_147_483_647) {
-      addToast(t("writing.chapterNumberRange"), "error");
-      return;
-    }
-    const chapterAlreadyExists =
-      chapters.some((chapter) => chapter.chapter_number === chapterNumber) ||
-      outlines.some((outline) => outline.chapter_number === chapterNumber);
-    if (chapterAlreadyExists) {
-      addToast(t("writing.chapterAlreadyExists", { number: formatNumber(chapterNumber, locale) }), "error");
-      return;
-    }
-
-    setChapterQuery("");
-    setActiveNumber(chapterNumber);
-  }, [addToast, chapters, confirmCurrentEdit, lifecycleBlockedReason, outlines, setActiveNumber, t]);
-
-  const safeNavigateTo = useCallback(
-    async (to: string) => {
-      const ok = await confirmCurrentEdit(t("writing.leaveWritingDesk"));
-      if (ok) navigate(to);
-    },
-    [confirmCurrentEdit, navigate, t],
-  );
-
-  const safeSmartBack = useCallback(async () => {
-    const ok = await confirmCurrentEdit(t("common.back"));
-    if (ok) smartBack();
-  }, [confirmCurrentEdit, smartBack, t]);
 
   const wordCount = useMemo(() => {
     // 与后端 chapter.word_count 的 content.chars().count() 保持一致。
@@ -754,6 +730,135 @@ export const WritingDesk: React.FC = () => {
     onDraftRemoved: refreshDraftSet,
     onShowContentTab: showContentTab,
   });
+
+  const discardGenerationDraft = useCallback(() => {
+    if (streamBusy || resetGeneratedDataBusy || derivedSyncBusyRef.current) return false;
+    setWritingNotesByChapter({});
+    setGenerationWordCountByChapter({});
+    dirtyRegistry.set(`writing-generation:${projectIdKey || "unknown"}`, false);
+    return true;
+  }, [dirtyRegistry, projectIdKey, resetGeneratedDataBusy, streamBusy]);
+
+  useDirty(
+    `writing-generation:${projectIdKey || "unknown"}`,
+    generationDraftDirty,
+    discardGenerationDraft,
+    () => !streamBusy && !resetGeneratedDataBusy && !derivedSyncBusyRef.current,
+  );
+
+  const confirmWritingDeskAction = useCallback(async (action: string) => {
+    const bodyAndGenerationDirty = dirty && generationDraftDirty;
+    if (bodyAndGenerationDirty) {
+      const draftOk = await saveLocalDraftForCurrent();
+      const ok = await confirmDialog({
+        title: t("writing.unsavedEditTitle"),
+        message: draftOk
+          ? t("writing.unsavedEditMessage", { action })
+          : t("writing.unsavedEditMessageNoDraft", { action }),
+        confirmText: t("writing.continueAction"),
+        cancelText: t("writing.stayCurrent"),
+        dialogType: "warning",
+      });
+      if (!ok) return false;
+    } else if (!await confirmCurrentEdit(action)) {
+      return false;
+    }
+    if (generationDraftDirty && !bodyAndGenerationDirty) {
+      const ok = await confirmDialog({
+        title: t("common.unsavedChangesTitle"),
+        message: t("common.unsavedChangesMessage", {
+          name: t("writing.chapterBriefLabel"),
+          action,
+        }),
+        confirmText: t("common.discardDraft"),
+        dialogType: "warning",
+      });
+      if (!ok) return false;
+    }
+    return true;
+  }, [confirmCurrentEdit, dirty, generationDraftDirty, saveLocalDraftForCurrent, t]);
+
+  const prepareWritingDeskNavigation = useCallback(() => {
+    if (generationDraftDirty && !discardGenerationDraft()) return false;
+    markCurrentEditClean();
+    return true;
+  }, [discardGenerationDraft, generationDraftDirty, markCurrentEditClean]);
+
+  const safeSelectChapter = useCallback(
+    async (chapterNumber: number) => {
+      if (chapterNumber === activeNumberRef.current) return true;
+      if (!await confirmWritingDeskAction(t("writing.switchChapter"))) return false;
+      if (!prepareWritingDeskNavigation()) return false;
+      setActiveNumber(chapterNumber);
+      return true;
+    },
+    [activeNumberRef, confirmWritingDeskAction, prepareWritingDeskNavigation, setActiveNumber, t],
+  );
+
+  const handleCreateChapter = useCallback(async () => {
+    if (chapterLoadError) {
+      addToast(chapterLoadError, "error");
+      return;
+    }
+    if (lifecycleBlockedReason) {
+      addToast(lifecycleBlockedReason, "info");
+      return;
+    }
+    if (!await confirmWritingDeskAction(t("writing.createChapter"))) return;
+
+    // chapterNumbers 还包含“当前正在编辑但尚未保存”的占位章节；默认值只看已持久化资料。
+    const defaultChapterNumber = Math.max(
+      chapters.at(-1)?.chapter_number ?? 0,
+      outlines.at(-1)?.chapter_number ?? 0,
+    ) + 1;
+    const input = await promptDialog({
+      title: t("writing.newChapter"),
+      message: t("writing.enterChapterNumber"),
+      defaultValue: String(defaultChapterNumber),
+      placeholder: t("writing.chapterNumberPlaceholder"),
+      required: true,
+      confirmText: t("writing.enterChapter"),
+    });
+    if (input == null) return;
+
+    const normalized = input.trim();
+    if (!/^[1-9]\d*$/.test(normalized)) {
+      addToast(t("writing.chapterNumberPositive"), "error");
+      return;
+    }
+    const chapterNumber = Number(normalized);
+    if (!Number.isSafeInteger(chapterNumber) || chapterNumber > 2_147_483_647) {
+      addToast(t("writing.chapterNumberRange"), "error");
+      return;
+    }
+    const chapterAlreadyExists =
+      chapters.some((chapter) => chapter.chapter_number === chapterNumber) ||
+      outlines.some((outline) => outline.chapter_number === chapterNumber);
+    if (chapterAlreadyExists) {
+      addToast(t("writing.chapterAlreadyExists", { number: formatNumber(chapterNumber, locale) }), "error");
+      return;
+    }
+
+    if (!prepareWritingDeskNavigation()) return;
+    setChapterQuery("");
+    setActiveNumber(chapterNumber);
+  }, [addToast, chapters, chapterLoadError, confirmWritingDeskAction, lifecycleBlockedReason, locale, outlines, prepareWritingDeskNavigation, setActiveNumber, t]);
+
+  const safeNavigateTo = useCallback(
+    async (to: string) => {
+      if (!await confirmWritingDeskAction(t("writing.leaveWritingDesk"))) return;
+      if (!prepareWritingDeskNavigation()) return;
+      navigate(to);
+    },
+    [confirmWritingDeskAction, navigate, prepareWritingDeskNavigation, t],
+  );
+
+  const safeSmartBack = useCallback(async () => {
+    if (!await confirmWritingDeskAction(t("common.back"))) return;
+    if (!prepareWritingDeskNavigation()) return;
+    smartBack();
+  }, [confirmWritingDeskAction, prepareWritingDeskNavigation, smartBack, t]);
+
   const currentChapterAiBlockedReason = lifecycleBlockedReason
     ? lifecycleBlockedReason
     : chapterReadBlockedReason
@@ -811,6 +916,7 @@ export const WritingDesk: React.FC = () => {
     setActiveNumber(null);
     setChapterQuery("");
     setWritingNotesByChapter({});
+    setGenerationWordCountByChapter({});
     setScenesOpen(false);
     setRightPanel("none");
     resetPromptPreview();
@@ -1090,8 +1196,8 @@ export const WritingDesk: React.FC = () => {
     chapters,
     outlines,
     onWritingNotesChange: handleWritingNotesChange,
-    onMinWordCountChange: setMinWordCount,
-    onMaxWordCountChange: setMaxWordCount,
+    onMinWordCountChange: handleMinWordCountChange,
+    onMaxWordCountChange: handleMaxWordCountChange,
     onStreamStart: handleStreamStart,
     onStreamCancel: handleStreamCancel,
     onResetGeneratedData: handleResetGeneratedData,

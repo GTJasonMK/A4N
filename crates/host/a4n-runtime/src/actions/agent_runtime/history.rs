@@ -223,6 +223,7 @@ pub async fn verify_agent_chapters_for_worker(
             request.user_id,
             request.project_id,
             &request.chapter_ids,
+            &request.source_chapter_ids,
         )
         .await
 }

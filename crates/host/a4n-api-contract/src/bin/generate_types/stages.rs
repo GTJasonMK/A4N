@@ -195,6 +195,15 @@ pub(super) fn run() {
         &typescript_interface::<AgentScope>("AgentScope"),
         &typescript_interface::<AgentEditorSource>("AgentEditorSource"),
         &typescript_interface::<AgentEditorState>("AgentEditorState"),
+        &typescript_interface::<a4n_api_contract::agent::AgentEditorViewState>(
+            "AgentEditorViewState",
+        ),
+        &typescript_type::<a4n_api_contract::agent::ControlEditorViewInput>(
+            "ControlEditorViewInput",
+        ),
+        &typescript_type::<a4n_api_contract::agent::ControlEditorViewAction>(
+            "ControlEditorViewAction",
+        ),
         &typescript_type::<AgentEditorOperation>("AgentEditorOperation"),
         &typescript_interface::<AgentEditorRequest>("AgentEditorRequest"),
         &typescript_type::<AgentEditorResponse>("AgentEditorResponse"),
@@ -308,6 +317,7 @@ pub(super) fn run() {
         &typescript_interface::<ChapterSummary>("ChapterSummary"),
         &typescript_interface::<ChapterMetadata>("ChapterMetadata"),
         &typescript_interface::<ChapterIndexEntry>("ChapterIndexEntry"),
+        &typescript_interface::<ChapterAnalysisEntry>("ChapterAnalysisEntry"),
         &typescript_interface::<GetChapterInput>("GetChapterInput"),
         &typescript_interface::<ChapterAnalysisMutationResult>("ChapterAnalysisMutationResult"),
         &typescript_interface::<ChapterSceneSummary>("ChapterSceneSummary"),
@@ -880,6 +890,15 @@ pub(super) fn run() {
         &typescript_interface::<ChapterVisualPlanRecordSummary>("ChapterVisualPlanRecordSummary"),
         &typescript_interface::<ChapterVisualPlanSourceView>("ChapterVisualPlanSourceView"),
         &typescript_interface::<ChapterVisualPlanView>("ChapterVisualPlanView"),
+        &typescript_interface::<a4n_api_contract::chapter_visual_plan::VisualPlanChange>(
+            "VisualPlanChange",
+        ),
+        &typescript_interface::<a4n_api_contract::chapter_visual_plan::VisualPlanEditVersion>(
+            "VisualPlanEditVersion",
+        ),
+        &typescript_interface::<a4n_api_contract::chapter_visual_plan::VisualPlanEditReceipt>(
+            "VisualPlanEditReceipt",
+        ),
         &typescript_interface::<ChapterVisualPlanSetView>("ChapterVisualPlanSetView"),
         &typescript_interface::<ChapterVisualPlanSceneChoice>("ChapterVisualPlanSceneChoice"),
         &typescript_interface::<ReadChapterVisualPlanInput>("ReadChapterVisualPlanInput"),

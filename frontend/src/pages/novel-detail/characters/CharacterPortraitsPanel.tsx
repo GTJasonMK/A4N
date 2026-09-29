@@ -294,8 +294,8 @@ export const CharacterPortraitsPanel: React.FC<{ projectId: number }> = ({
       );
       if (!isCurrentProject(requestProjectId)) return;
       await load();
-      addToast(t("characterDetail.portrait.redrawSuccess"), "success");
       if (!isCurrentProject(requestProjectId)) return;
+      addToast(t("characterDetail.portrait.redrawSuccess"), "success");
       setActionPortrait(null);
     } catch (err) {
       if (!isCurrentProject(requestProjectId)) return;
@@ -350,8 +350,8 @@ export const CharacterPortraitsPanel: React.FC<{ projectId: number }> = ({
       await setPrimaryPortrait(portrait.id);
       if (!isCurrentProject(requestProjectId)) return;
       await load();
-      addToast(t("characterDetail.portrait.primarySet"), "success");
       if (!isCurrentProject(requestProjectId)) return;
+      addToast(t("characterDetail.portrait.primarySet"), "success");
       setActionPortrait(null);
     } catch (err) {
       if (!isCurrentProject(requestProjectId)) return;
@@ -436,6 +436,7 @@ export const CharacterPortraitsPanel: React.FC<{ projectId: number }> = ({
           onCreated={async () => {
             if (!isCurrentProject(projectId)) return false;
             await load();
+            if (!isCurrentProject(projectId)) return false;
             setShowSingle(false);
             return true;
           }}
@@ -450,6 +451,7 @@ export const CharacterPortraitsPanel: React.FC<{ projectId: number }> = ({
           onUploaded={async () => {
             if (!isCurrentProject(projectId)) return false;
             await load();
+            if (!isCurrentProject(projectId)) return false;
             setShowUpload(false);
             return true;
           }}
@@ -464,6 +466,7 @@ export const CharacterPortraitsPanel: React.FC<{ projectId: number }> = ({
           onCreated={async () => {
             if (!isCurrentProject(projectId)) return false;
             await load();
+            if (!isCurrentProject(projectId)) return false;
             setShowAge(null);
             return true;
           }}

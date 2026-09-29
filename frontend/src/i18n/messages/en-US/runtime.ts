@@ -368,6 +368,7 @@ export const statusMachine = {
   },
   loading: "Loading project state machine…",
   loadFailed: "Failed to load the project state machine.",
+  refreshFailed: "The stage was updated, but the page could not refresh. Try again.",
   actionFailed: "Action failed",
   noForwardPermission: "The current account cannot advance the project status",
   forwardSuccess: "Advanced to “{status}”",

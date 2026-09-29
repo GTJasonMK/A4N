@@ -422,6 +422,7 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({
       });
       if (!isCurrentAction(requestProjectId, importSeqRef, requestSeq)) return;
       await load(requestProjectId);
+      if (!isCurrentAction(requestProjectId, importSeqRef, requestSeq)) return;
       addToast(t("novel.importReview.reviewsCreated", { count: reviews.length }), "success");
       setImportFileName("");
       setImportUploadFile(null);
@@ -590,6 +591,7 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({
         setProgressDialogFromProgress(progress);
       }
       await load(requestProjectId);
+      if (!isCurrentAction(requestProjectId, cancelAnalysisSeqRef, requestSeq)) return;
       addToast(t("novel.importReview.analysisCancelled"), "success");
     } catch (err) {
       if (isCurrentAction(requestProjectId, cancelAnalysisSeqRef, requestSeq)) {
@@ -630,6 +632,7 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({
         setActiveReviewState(updatedActiveReview);
       }
       await load(requestProjectId);
+      if (!isCurrentAction(requestProjectId, batchSeqRef, requestSeq)) return;
       addToast(t("novel.importReview.batchAccepted", { count: result.length }), "success");
       setSelected(new Set());
     } catch (err) {
@@ -772,6 +775,7 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({
         false,
       );
       await load(requestProjectId);
+      if (!isCurrentAction(requestProjectId, actSeqRef, requestSeq)) return;
       addToast(t("novel.importReview.modified"), "success");
     } catch (err) {
       if (isCurrentAction(requestProjectId, actSeqRef, requestSeq)) {
@@ -1050,6 +1054,7 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({
       if (!isCurrentAction(requestProjectId, reverseSeqRef, requestSeq)) return;
       setReverseResult(confirmed);
       await load(requestProjectId);
+      if (!isCurrentAction(requestProjectId, reverseSeqRef, requestSeq)) return;
       addToast(
         confirmed.warnings.length > 0
           ? t("novel.importReview.candidateConfirmedWithWarnings", {

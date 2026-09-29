@@ -242,8 +242,10 @@ async fn ensure_argument_resource_scope(
     // name or allowing a same-shaped id from another project.
     let mut chapter_ids = Vec::new();
     let mut project_ids = Vec::new();
-    collect_scope_ids(arguments, &mut project_ids, &mut chapter_ids);
-    if chapter_ids.is_empty() {
+    let mut source_chapter_ids = Vec::new();
+    collect_argument_chapter_targets(arguments, &mut chapter_ids, &mut source_chapter_ids);
+    collect_scope_ids(arguments, &mut project_ids, &mut Vec::new());
+    if chapter_ids.is_empty() && source_chapter_ids.is_empty() {
         return Ok(());
     }
     for requested_project in project_ids {
@@ -253,8 +255,43 @@ async fn ensure_argument_resource_scope(
         user_id,
         project_id,
         chapter_ids,
+        source_chapter_ids,
     })
     .await
+}
+
+pub fn collect_argument_chapter_targets(
+    value: &Value,
+    chapters: &mut Vec<i64>,
+    sources: &mut Vec<i64>,
+) {
+    match value {
+        Value::Object(object) => {
+            for (key, value) in object {
+                let key = key.to_ascii_lowercase();
+                if matches!(
+                    key.as_str(),
+                    "source_chapter_id"
+                        | "source_chapter_ids"
+                        | "sourcechapterid"
+                        | "sourcechapterids"
+                ) {
+                    collect_numeric_ids(value, sources);
+                } else {
+                    if is_chapter_scope_key(&key) {
+                        collect_numeric_ids(value, chapters);
+                    }
+                    collect_argument_chapter_targets(value, chapters, sources);
+                }
+            }
+        }
+        Value::Array(items) => {
+            for item in items {
+                collect_argument_chapter_targets(item, chapters, sources);
+            }
+        }
+        _ => {}
+    }
 }
 
 pub(crate) async fn ensure_agent_package_enabled(
@@ -389,6 +426,9 @@ pub fn editor_request_for_call(
         .clone()
         .ok_or_else(|| AppError::InvalidArgument("Turn 缺少编辑器来源".into()))?;
     let operation = match call.name.as_str() {
+        "control_editor_view" => a4n_api_contract::agent::AgentEditorOperation::Control {
+            input: parse_arguments(call.arguments.clone(), &call.name)?,
+        },
         "inspect_editor_target" => {
             if call.arguments != json!({}) {
                 return Err(AppError::InvalidArgument(

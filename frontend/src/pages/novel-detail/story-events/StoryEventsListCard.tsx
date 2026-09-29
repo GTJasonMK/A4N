@@ -60,7 +60,7 @@ export const StoryEventsListCard: React.FC<StoryEventsListCardProps> = ({
                 <FilterSelect
                   value={filters.character}
                   onChange={(character) => updateFilters({ character })}
-                  options={filterOptions.characters}
+                  options={filterOptions.characters.map((character) => ({ value: character, label: character }))}
                   allLabel={t("novel.storyEvents.allCharacters")}
                 />
               ) : null}
@@ -109,7 +109,7 @@ export const StoryEventsListCard: React.FC<StoryEventsListCardProps> = ({
 const FilterSelect: React.FC<{
   value: string;
   onChange: (value: string) => void;
-  options: string[];
+  options: Array<{ value: string; label: string }>;
   allLabel: string;
 }> = ({ value, onChange, options, allLabel }) => (
   <label className="inline-flex shrink-0 items-center text-book-text-muted">
@@ -121,8 +121,8 @@ const FilterSelect: React.FC<{
     >
       <option value={ALL_STORY_EVENT_FILTER}>{allLabel}</option>
       {options.map((option) => (
-        <option key={option} value={option}>
-          {option}
+        <option key={option.value} value={option.value}>
+          {option.label}
         </option>
       ))}
     </ThemedSelect>

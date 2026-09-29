@@ -197,7 +197,10 @@ async fn resolve_response(
     }
     match (&request.operation, response) {
         (_, AgentEditorResponse::Error { message }) => Err(AppError::InvalidArgument(message)),
-        (AgentEditorOperation::Inspect, AgentEditorResponse::State { state }) => {
+        (
+            AgentEditorOperation::Inspect | AgentEditorOperation::Control { .. },
+            AgentEditorResponse::State { state },
+        ) => {
             validate_state(&state)?;
             Ok((
                 serde_json::to_value(AgentEditorTarget {
@@ -253,6 +256,7 @@ async fn resolve_response(
                 .save_draft(
                     context.owner_user_id,
                     SaveChapterVisualPlanDraftInput {
+                        operation_id: Some(format!("agent-editor:{}", request.execution_id)),
                         project_id: request.source.project_id,
                         source_chapter_id: request.source.chapter_id,
                         authoring_mode: ChapterVisualPlanAuthoringMode::Collaborative,
@@ -302,8 +306,19 @@ async fn resolve_response(
                     "原编辑器已保存版本发生变化，请重新读取后提交".into(),
                 ));
             }
+            let mut arguments = call.arguments.clone();
+            let fields = arguments
+                .get_mut("input")
+                .and_then(Value::as_object_mut)
+                .ok_or_else(|| AppError::InvalidArgument("编辑请求缺少 input".into()))?;
+            if fields.get("operation_id").is_none_or(Value::is_null) {
+                fields.insert(
+                    "operation_id".into(),
+                    json!(format!("agent:{}", request.execution_id)),
+                );
+            }
             let value = RuntimeAgentToolExecutor::new(state.clone(), worker_request.clone())
-                .execute(context, &call.name, call.arguments.clone(), true, None)
+                .execute(context, &call.name, arguments, true, None)
                 .await?;
             Ok((value, None))
         }
@@ -346,6 +361,7 @@ mod tests {
         assert!(check_editor_revision("v1", "v1").is_ok());
         assert!(
             validate_state(&AgentEditorState {
+                view: None,
                 editor_revision: "v1".into(),
                 record_id: Some(1),
                 record_revision: None,

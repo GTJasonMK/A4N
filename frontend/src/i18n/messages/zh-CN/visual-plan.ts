@@ -111,6 +111,8 @@ export const visualPlan = {
   discardDraftButton: "丢弃草稿",
   draftDiscarded: "导演编排草稿已丢弃",
   discardDraftFailed: "丢弃草稿失败",
+  candidateEditDiscardTitle: "放弃候选描述修改？",
+  candidateEditDiscardMessage: "你修改了生成的候选描述。重新生成将用新候选替换这些修改。",
   addEntity: "添加{kind}",
   entityNamePlaceholder: "名称",
   eventChangePlaceholder: "描述{kind}在画面中的变化",

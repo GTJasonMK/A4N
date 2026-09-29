@@ -169,6 +169,7 @@ fn remote_new_run_requires_runtime_snapshot_but_local_run_does_not() {
 fn canonical_subagent_key_matches_runtime_domain_binding() {
     let chapter = canonical_subagent_binding_key(
         "content_optimization",
+        Some(7),
         &AgentResourceRef {
             kind: "chapter".into(),
             id: "11".into(),
@@ -178,10 +179,14 @@ fn canonical_subagent_key_matches_runtime_domain_binding() {
         },
     )
     .expect("chapter binding");
-    assert_eq!(chapter, "subagent:content_optimization:chapter:11");
+    assert_eq!(
+        chapter,
+        "subagent:v2:content_optimization:project:7:chapter:11"
+    );
 
     let project = canonical_subagent_binding_key(
         "canvas",
+        Some(7),
         &AgentResourceRef {
             kind: "project".into(),
             id: "7".into(),
@@ -192,6 +197,23 @@ fn canonical_subagent_key_matches_runtime_domain_binding() {
     )
     .expect("project binding");
     assert_eq!(project, "subagent:canvas:project:7");
+}
+
+#[test]
+fn redundant_resource_identity_is_completed_without_changing_permissions() {
+    let mut scope = AgentScope {
+        project_id: Some(7),
+        chapter_id: Some(11),
+        allowed_tools: vec!["read_chapter_visual_plan".into()],
+        ..Default::default()
+    };
+    complete_scope_resource(&mut scope, "chapter", "11").unwrap();
+    let completed = scope.clone();
+    complete_scope_resource(&mut scope, "chapter", "11").unwrap();
+    assert_eq!(scope, completed);
+    assert_eq!(scope.allowed_tools, vec!["read_chapter_visual_plan"]);
+    assert!(complete_scope_resource(&mut scope, "chapter", "12").is_err());
+    assert_eq!(scope, completed);
 }
 
 #[test]

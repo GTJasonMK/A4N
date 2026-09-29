@@ -1,4 +1,4 @@
-import type { ChapterSummary } from "../../../api/chapter";
+import type { ChapterAnalysisEntry } from "../../../api/chapter";
 
 export interface StoryEvent {
   id: string;
@@ -7,12 +7,14 @@ export interface StoryEvent {
   chapterTitle: string;
   description: string;
   type: string;
+  typeFilterValue: string;
   importance: string;
+  importanceFilterValue: string;
   involvedCharacters: string[];
 }
 
 export interface ChapterStorySection {
-  chapter: ChapterSummary;
+  chapter: ChapterAnalysisEntry;
   title: string;
   summary: string;
   timelineMarker: string;
@@ -36,6 +38,11 @@ export interface StoryEventFilters {
 
 export interface StoryEventFilterOptions {
   characters: string[];
-  eventTypes: string[];
-  importances: string[];
+  eventTypes: StoryEventFilterOption[];
+  importances: StoryEventFilterOption[];
+}
+
+export interface StoryEventFilterOption {
+  value: string;
+  label: string;
 }

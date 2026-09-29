@@ -64,6 +64,7 @@ pub(crate) fn canonical_subagent_binding(
                 Some(resource("chapter", chapter_id)),
                 a4n_api_contract::agent::canonical_subagent_binding_key(
                     capability,
+                    Some(project_id),
                     "chapter",
                     &chapter_id.to_string(),
                 ),
@@ -82,6 +83,7 @@ pub(crate) fn canonical_subagent_binding(
                 Some(resource("project", project_id)),
                 a4n_api_contract::agent::canonical_subagent_binding_key(
                     capability,
+                    Some(project_id),
                     "project",
                     &project_id.to_string(),
                 ),
@@ -96,6 +98,7 @@ pub(crate) fn canonical_subagent_binding(
                 Some(resource("chapter", chapter_id)),
                 a4n_api_contract::agent::canonical_subagent_binding_key(
                     capability,
+                    Some(project_id),
                     "chapter",
                     &chapter_id.to_string(),
                 ),
@@ -111,6 +114,7 @@ pub(crate) fn canonical_subagent_binding(
                     Some(resource("chapter", chapter_id)),
                     a4n_api_contract::agent::canonical_subagent_binding_key(
                         capability,
+                        Some(project_id),
                         "chapter",
                         &chapter_id.to_string(),
                     ),
@@ -124,6 +128,7 @@ pub(crate) fn canonical_subagent_binding(
                     Some(resource("project", project_id)),
                     a4n_api_contract::agent::canonical_subagent_binding_key(
                         capability,
+                        Some(project_id),
                         "project",
                         &project_id.to_string(),
                     ),

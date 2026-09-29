@@ -49,6 +49,9 @@ export const chapterEventTypeLabel = (
   return key ? t(key) : null;
 };
 
+export const chapterEventTypeFilterKey = (value: string | null | undefined): MessageKey =>
+  EVENT_TYPE_KEYS[normalizedKey(value)] ?? "novel.eventTypeOther";
+
 export const chapterEventImportanceLabel = (
   value: string | null | undefined,
   t: MessageTranslator,
@@ -60,3 +63,11 @@ export const chapterEventImportanceLabel = (
 export const chapterEventImportanceRank = (
   value: string | null | undefined,
 ): number => IMPORTANCE_PRESENTATION[normalizedKey(value)]?.rank ?? 0;
+
+export const chapterEventImportanceFilterKey = (value: string | null | undefined): MessageKey =>
+  IMPORTANCE_PRESENTATION[normalizedKey(value)]?.key ?? "novel.unlabeled";
+
+export const chapterEventImportanceFilterRank = (key: MessageKey): number =>
+  Math.max(0, ...Object.values(IMPORTANCE_PRESENTATION)
+    .filter((item) => item.key === key)
+    .map((item) => item.rank));

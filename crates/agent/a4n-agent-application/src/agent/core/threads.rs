@@ -56,12 +56,16 @@ impl AgentApplication {
         }
         validate_scope(&input.scope)?;
         let mut scope = input.scope;
+        if let Some(resource) = &bound_resource {
+            complete_scope_resource(&mut scope, &resource.kind, &resource.id)?;
+        }
         let (project_id, chapter_id, chapter_number) = self
             .verify_thread_scope(user_id, &scope, bound_resource.as_ref())
             .await?;
         scope.project_id = scope.project_id.or(project_id);
         scope.chapter_id = scope.chapter_id.or(chapter_id);
         scope.chapter_number = chapter_number;
+        verify_director_source(self.connection(), &capability, &scope).await?;
         if input.kind == AgentThreadKind::Subagent {
             validate_subagent_resource(&capability, &scope, bound_resource.as_ref())?;
             apply_subagent_capability_policy(&capability, &mut scope)?;
@@ -69,7 +73,7 @@ impl AgentApplication {
         }
         let canonical_binding_key = bound_resource
             .as_ref()
-            .map(|resource| canonical_subagent_binding_key(&capability, resource))
+            .map(|resource| canonical_subagent_binding_key(&capability, scope.project_id, resource))
             .transpose()?;
         let requested_scope = serde_json::to_value(&scope)?;
         if let Some(key) = canonical_binding_key.as_deref()

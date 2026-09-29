@@ -224,6 +224,7 @@ pub(crate) fn visual_plan_fixture(source: &ResolvedChapterSource) -> ParsedChapt
         a4n_db::generation::canonical_json_sha256(&plan).expect("visual plan fixture sha256");
     let now = chrono::Utc::now().naive_utc();
     ParsedChapterVisualPlan {
+        edit_receipt: None,
         record: a4n_db_models::models::chapter::chapter_visual_plan::Model {
             id: 1,
             project_id: source.requested_project_id,

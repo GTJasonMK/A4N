@@ -173,10 +173,10 @@ use self::import_project::{
     get_project_status_machine, get_storage_paths, import_chapter, import_project_bundle_upload,
     import_project_family_upload, import_project_text_upload, import_video_studio_project_upload,
     inspect_project_bundle_upload, invite_project_member, is_reverse_engineer_web_command,
-    leave_project, list_blueprint_versions, list_chapter_index, list_chapter_outlines,
-    list_chapter_scenes, list_chapters, list_import_queue, list_my_project_invites,
-    list_orphan_project_data_dirs, list_parts, list_portraits_by_project, list_project_invites,
-    list_project_members, list_projects, list_source_snapshot_chapters,
+    leave_project, list_blueprint_versions, list_chapter_analyses, list_chapter_index,
+    list_chapter_outlines, list_chapter_scenes, list_chapters, list_import_queue,
+    list_my_project_invites, list_orphan_project_data_dirs, list_parts, list_portraits_by_project,
+    list_project_invites, list_project_members, list_projects, list_source_snapshot_chapters,
     prepare_chapter_generation_rag_embedding, preview_apply_beat_mapping_request,
     preview_batch_generate_part_outlines_request, preview_chapter_analysis_request,
     preview_chapter_prompt, preview_chapter_scene_request, preview_continue_part_outlines_request,
@@ -368,10 +368,29 @@ async fn dispatch_agent_host_command_inner(
         .validate()
         .map_err(|error| ApiError::bad_request(error.to_string()))?;
     let command = request.payload.command.clone();
-    let arguments = request
+    let mut arguments = request
         .payload
         .arguments_with_runtime_snapshot()
         .map_err(|error| ApiError::bad_request(error.to_string()))?;
+    if matches!(
+        command.as_str(),
+        "save_chapter_visual_plan_draft" | "edit_chapter_visual_plan_draft"
+    ) {
+        let input = arguments
+            .get_mut("input")
+            .and_then(Value::as_object_mut)
+            .ok_or_else(|| ApiError::bad_request("导演编辑必须提供 input"))?;
+        if input.get("operation_id").is_none_or(Value::is_null) {
+            let execution_id = request
+                .payload
+                .execution_id
+                .ok_or_else(|| ApiError::bad_request("导演编辑缺少持久 execution_id"))?;
+            input.insert(
+                "operation_id".into(),
+                Value::String(format!("agent:{execution_id}")),
+            );
+        }
+    }
     // The manifest is the exposure gate for both kinds of Agent tools. Only
     // synthetic tools belong to the Agent-native dispatcher; ordinary
     // manifest tools must retain their existing command dispatch path.

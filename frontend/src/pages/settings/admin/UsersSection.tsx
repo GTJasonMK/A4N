@@ -247,6 +247,7 @@ export const UsersSection: React.FC<{ currentUserId: number }> = ({
       await createAdminUser(input);
       if (!isCurrentUser(requestCurrentUserId)) return;
       await reload();
+      if (!isCurrentUser(requestCurrentUserId)) return;
       if (createFormVersionRef.current === requestFormVersion && createOpen) {
         addToast(t("settingsAdmin.userCreated"), "success");
         resetCreate();
@@ -284,6 +285,7 @@ export const UsersSection: React.FC<{ currentUserId: number }> = ({
       await createInviteCode({ code: trimmedCode });
       if (!isCurrentUser(requestCurrentUserId)) return;
       await reload();
+      if (!isCurrentUser(requestCurrentUserId)) return;
       addToast(t("settingsAdmin.inviteCreated"), "success");
     } catch (err) {
       if (!isCurrentUser(requestCurrentUserId)) return;
@@ -328,6 +330,7 @@ export const UsersSection: React.FC<{ currentUserId: number }> = ({
         }
       }
       await reload();
+      if (!isCurrentUser(requestCurrentUserId)) return;
       addToast(t("settingsAdmin.roleUpdated"), "success");
     } catch (err) {
       if (!isCurrentUser(requestCurrentUserId)) return;
@@ -357,6 +360,7 @@ export const UsersSection: React.FC<{ currentUserId: number }> = ({
       await disableUser(u.id);
       if (!isCurrentUser(requestCurrentUserId)) return;
       await reload();
+      if (!isCurrentUser(requestCurrentUserId)) return;
       addToast(t("settingsAdmin.disabled"), "success");
     } catch (err) {
       if (!isCurrentUser(requestCurrentUserId)) return;

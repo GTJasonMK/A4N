@@ -22,9 +22,11 @@ import {
   ATTRIBUTE_CATEGORY_OPTIONS,
   attributeKeyLabel,
   categoryLabel,
+  characterDetailDraftKey,
   sourceKindLabel,
 } from "./manageViewUtils";
 import { formatDateTime, useI18n } from "../../i18n";
+import { useDirty } from "../../components/navigation/dirtyRegistry";
 
 type DeletionMarkStatusFilter = "all" | "pending" | "ready" | "executed";
 
@@ -86,6 +88,29 @@ export const DeletionManager: React.FC<{
   const currentLoadScopeKey = deletionMarkLoadKey(profileId, filterCategory, filterStatus);
   currentLoadScopeKeyRef.current = currentLoadScopeKey;
   const hasCurrentMarks = loadedScopeKey === currentLoadScopeKey;
+  const formDirty =
+    chapterNumber !== defaultChapter ||
+    category !== "explicit" ||
+    key.trim().length > 0 ||
+    reason.trim().length > 0 ||
+    evidence.trim().length > 0;
+
+  const discardFormDraft = useCallback(() => {
+    if (requesting) return false;
+    setChapterNumber(defaultChapter);
+    setCategory("explicit");
+    setKey("");
+    setReason("");
+    setEvidence("");
+    return true;
+  }, [defaultChapter, requesting]);
+
+  useDirty(
+    characterDetailDraftKey(profileId, "deletion"),
+    formDirty,
+    discardFormDraft,
+    () => !requesting,
+  );
 
   useEffect(() => {
     mountedRef.current = true;
@@ -330,7 +355,13 @@ export const DeletionManager: React.FC<{
       });
       if (!isCurrentProfile(requestProfileId) || executeSeqRef.current !== requestSeq) return;
       await load();
-      await onChanged?.();
+      try {
+        if (await onChanged?.() === false) {
+          addToast(t("characterDetail.refreshFailed"), "error");
+        }
+      } catch (refreshError) {
+        addToast(extractErrorMessage(refreshError, t("characterDetail.refreshFailed")), "error");
+      }
       addToast(
         t("characterDetail.deletion.executeSuccess", {
           attribute: attributeKeyLabel(mark.key, t),

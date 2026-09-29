@@ -368,6 +368,7 @@ export const statusMachine = {
   },
   loading: "正在加载项目状态机…",
   loadFailed: "项目状态机加载失败。",
+  refreshFailed: "阶段已更新，但页面刷新失败，请重试。",
   actionFailed: "操作失败",
   noForwardPermission: "当前账号没有推进项目状态的权限",
   forwardSuccess: "已推进至「{status}」",

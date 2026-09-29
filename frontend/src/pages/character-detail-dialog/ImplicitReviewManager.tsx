@@ -13,10 +13,12 @@ import {
 } from "../../api/character";
 import { CHARACTER_DELETION_THRESHOLD } from "../../api/generated/host";
 import type { ModelRequestPreview } from "../../api/requestPreview";
+import { confirmDialog } from "../../components/feedback/ConfirmDialog";
 import { RequestPreviewModal } from "../../components/feedback/RequestPreviewModal";
 import { useToast } from "../../components/feedback/Toast";
 import { BookButton, BookIconButton } from "../../components/ui/BookButton";
 import { Dropdown, type DropdownItem } from "../../components/ui/Dropdown";
+import { useDirty } from "../../components/navigation/dirtyRegistry";
 import { formatNumber, useI18n, type Locale, type MessageTranslator } from "../../i18n";
 import {
   attributeKeyLabel,
@@ -24,6 +26,7 @@ import {
   decisionLabel,
   jsonPreview,
   listPreview,
+  characterDetailDraftKey,
 } from "./manageViewUtils";
 
 const IMPLICIT_REVIEW_EVIDENCE_LIMIT = 12;
@@ -88,6 +91,23 @@ export const ImplicitReviewManager: React.FC<{
   thresholdRef.current = threshold;
   const currentScopeKey = implicitReviewScopeKey(profileId, windowChapters, threshold);
   const hasCurrentReview = loadedScopeKey === currentScopeKey;
+  const reviewDraftDirty = Object.keys(decisions).length > 0;
+  const discardReviewDraft = useCallback(() => {
+    if (loadingRef.current || checkingRef.current || applyingRef.current || previewingRef.current) {
+      return false;
+    }
+    setDecisions({});
+    setWindowChapters(IMPLICIT_REVIEW_DEFAULT_WINDOW_CHAPTERS);
+    setThreshold(IMPLICIT_REVIEW_DEFAULT_THRESHOLD);
+    return true;
+  }, []);
+
+  useDirty(
+    characterDetailDraftKey(profileId, "implicit"),
+    reviewDraftDirty,
+    discardReviewDraft,
+    () => !loadingRef.current && !checkingRef.current && !applyingRef.current && !previewingRef.current,
+  );
 
   useEffect(() => {
     mountedRef.current = true;
@@ -211,6 +231,26 @@ export const ImplicitReviewManager: React.FC<{
     setExpanded((current) => (current && visibleKeys.has(current) ? current : null));
   }, [attrs]);
 
+  const handleScopeChange = async (kind: "window" | "threshold", nextValue: number) => {
+    const currentValue = kind === "window" ? windowChapters : threshold;
+    if (nextValue === currentValue) return;
+    if (Object.keys(decisions).length > 0) {
+      const ok = await confirmDialog({
+        title: t("common.unsavedChangesTitle"),
+        message: t("common.unsavedChangesMessage", {
+          name: t("characterDetail.sections.implicit"),
+          action: t("common.switchTab"),
+        }),
+        confirmText: t("common.discardDraft"),
+        dialogType: "warning",
+      });
+      if (!ok) return;
+    }
+    invalidateReviewScope();
+    if (kind === "window") setWindowChapters(nextValue);
+    else setThreshold(nextValue);
+  };
+
   const handleCheck = async (attributeKey: string) => {
     if (decidingKey != null || applyingKey != null) return;
     if (checkingRef.current || applyingRef.current) return;
@@ -332,7 +372,13 @@ export const ImplicitReviewManager: React.FC<{
       if (!isCurrentProfile(requestProfileId) || applySeqRef.current !== requestSeq) return;
 
       await load();
-      await onChanged?.();
+      try {
+        if (await onChanged?.() === false) {
+          addToast(t("characterDetail.refreshFailed"), "error");
+        }
+      } catch (refreshError) {
+        addToast(extractErrorMessage(refreshError, t("characterDetail.refreshFailed")), "error");
+      }
       if (result.action === "modify") {
         addToast(t("characterDetail.implicit.applied"), "success");
       } else if (result.action === "mark_deletion" && result.deletion_mark) {
@@ -410,8 +456,7 @@ export const ImplicitReviewManager: React.FC<{
               onChange={(event) => {
                 const nextValue = parseReviewParameter(event.target.value);
                 if (nextValue == null) return;
-                if (windowChaptersRef.current !== nextValue) invalidateReviewScope();
-                setWindowChapters(nextValue);
+                void handleScopeChange("window", nextValue);
               }}
               className="pyqt-input h-8 w-24 !px-2 !py-1"
             />
@@ -427,8 +472,7 @@ export const ImplicitReviewManager: React.FC<{
               onChange={(event) => {
                 const nextValue = parseReviewParameter(event.target.value);
                 if (nextValue == null) return;
-                if (thresholdRef.current !== nextValue) invalidateReviewScope();
-                setThreshold(nextValue);
+                void handleScopeChange("threshold", nextValue);
               }}
               className="pyqt-input h-8 w-24 !px-2 !py-1"
             />
