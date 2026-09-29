@@ -289,6 +289,7 @@ export function useVideoRecordActions({
       if (!isCurrentActionScope(requestScope)) return;
       if (result) upsertVideo(result);
       await loadAll();
+      if (!isCurrentActionScope(requestScope)) return;
       addToast(ok, "success");
     } catch (err) {
       if (!isCurrentActionScope(requestScope)) return;
@@ -467,6 +468,7 @@ export function useVideoRecordActions({
         });
       }
       await loadAll();
+      if (!isCurrentActionScope(requestScope)) return null;
       addToast(t("video.actions.promptSaved"), "success");
       return updated;
     } catch (err) {
@@ -607,6 +609,7 @@ export function useVideoRecordActions({
       setPendingVideoId(null);
       upsertVideo(row);
       await loadAll();
+      if (!isCurrentActionScope(requestScope)) return;
       addToast(t("video.actions.videoImported"), "success");
     } catch (err) {
       if (!isCurrentActionScope(requestScope)) return;
@@ -748,6 +751,7 @@ export function useVideoRecordActions({
       setSelectedVideoId(row.id);
       upsertVideo(row);
       await loadAll();
+      if (!isCurrentActionScope(requestScope)) return;
       addToast(t("video.actions.videoRecordSaved"), "success");
     } catch (err) {
       if (!isCurrentActionScope(requestScope)) return;
