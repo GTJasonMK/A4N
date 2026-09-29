@@ -18,9 +18,8 @@ use crate::AppState;
 const CONTINUATION_RETRY_INTERVAL: Duration = Duration::from_secs(1);
 
 use drain::{
-    DESTRUCTIVE_DRAIN_TIMEOUT, DRAIN_POLL_INTERVAL, DrainError, drain_project, drain_user,
-    interrupt_startup_tasks, project_operation_pending, restore_project_if_safe,
-    user_disable_pending,
+    drain_project, drain_user, interrupt_startup_tasks, project_operation_pending,
+    restore_project_if_safe, user_disable_pending,
 };
 use forward::{DeleteProjectForwardError, delete_project_forward, reset_project_forward};
 
@@ -394,6 +393,7 @@ impl DestructiveLifecycleCoordinator {
 
 #[cfg(test)]
 mod tests {
+    use super::drain::{DESTRUCTIVE_DRAIN_TIMEOUT, DRAIN_POLL_INTERVAL, DrainError};
     use super::*;
 
     #[test]
