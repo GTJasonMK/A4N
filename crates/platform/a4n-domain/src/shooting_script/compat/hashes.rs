@@ -109,7 +109,7 @@ impl HashUpgrades {
             let mut legacy = value.clone();
             if let Some(scenes) = legacy.get_mut("scenes").and_then(Value::as_array_mut) {
                 for scene in scenes {
-                    super::remove_legacy_visual_constraint_events(scene);
+                    super::normalize_legacy_visual_constraint_points(scene);
                 }
             }
             let old: v1::ChapterShootingScriptV1 =

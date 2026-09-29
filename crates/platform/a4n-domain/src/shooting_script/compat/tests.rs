@@ -190,18 +190,38 @@ fn embedded_legacy_scripts_drop_removed_visual_constraint_events() {
     let mut value = fixture();
     let mut plan = ChapterVisualPlanV3::starter();
     plan.segments[0].prompt = "推进当前动作".into();
-    plan.segments[0].scene_binding = Some(SceneBindingV3::Scene { scene_profile_id: 1 });
+    plan.segments[0].scene_binding = Some(SceneBindingV3::Scene {
+        scene_profile_id: 1,
+    });
     let projection = plan.project().unwrap().remove(0);
     value["scenes"][0]["shots"][0]["visual_constraints"] =
         serde_json::to_value(projection).unwrap();
-    value["scenes"][0]["shots"][0]["visual_constraints"]["camera_events"] =
-        serde_json::json!([]);
+    let point = &mut value["scenes"][0]["shots"][0]["visual_constraints"]["keyframes"][0];
+    point["camera"] = json!({"framing_note": "旧相机构图"});
+    point["entity_states"] = json!([]);
+    point["relations"] = json!([]);
+    point["interpolation_to_next"] = json!("hold");
+    point.as_object_mut().unwrap().remove("description");
+    point.as_object_mut().unwrap().remove("image_id");
+    point.as_object_mut().unwrap().remove("reference_image_ids");
+    value["scenes"][0]["shots"][0]["visual_constraints"]["camera_events"] = serde_json::json!([]);
 
     let mut hashes = HashUpgrades::default();
     assert!(hashes.upgrade_embedded(&mut value).unwrap());
-    assert!(value["scenes"][0]["shots"][0]["visual_constraints"]
-        .get("camera_events")
-        .is_none());
+    assert!(
+        value["scenes"][0]["shots"][0]["visual_constraints"]
+            .get("camera_events")
+            .is_none()
+    );
+    assert_eq!(
+        value["scenes"][0]["shots"][0]["visual_constraints"]["keyframes"][0]["description"],
+        "旧相机构图"
+    );
+    assert!(
+        value["scenes"][0]["shots"][0]["visual_constraints"]["keyframes"][0]
+            .get("camera")
+            .is_none()
+    );
 }
 
 #[test]
@@ -212,10 +232,20 @@ fn completed_scene_checkpoint_drops_removed_visual_constraint_events() {
 
     let mut plan = ChapterVisualPlanV3::starter();
     plan.segments[0].prompt = "推进当前动作".into();
-    plan.segments[0].scene_binding = Some(SceneBindingV3::Scene { scene_profile_id: 1 });
+    plan.segments[0].scene_binding = Some(SceneBindingV3::Scene {
+        scene_profile_id: 1,
+    });
     let projection = plan.project().unwrap().remove(0);
     let mut scene = fixture()["scenes"][0].clone();
     scene["shots"][0]["visual_constraints"] = serde_json::to_value(projection).unwrap();
+    let point = &mut scene["shots"][0]["visual_constraints"]["keyframes"][0];
+    point["camera"] = json!({"framing_note": "旧相机构图"});
+    point["entity_states"] = json!([]);
+    point["relations"] = json!([]);
+    point["interpolation_to_next"] = json!("hold");
+    point.as_object_mut().unwrap().remove("description");
+    point.as_object_mut().unwrap().remove("image_id");
+    point.as_object_mut().unwrap().remove("reference_image_ids");
     scene["shots"][0]["visual_constraints"]["camera_events"] = json!([]);
 
     let step = "shooting_design_shot:1:shot-1";
@@ -231,17 +261,25 @@ fn completed_scene_checkpoint_drops_removed_visual_constraint_events() {
     let original_response = checkpoint["response_content"].clone();
     let mut artifacts = None;
 
-    assert!(upgrade_completed_checkpoint(
-        step,
-        Some(&input),
-        Some(&input_hash),
-        &mut checkpoint,
-        &mut artifacts,
-        &mut HashUpgrades::default(),
-    )
-    .unwrap());
+    assert!(
+        upgrade_completed_checkpoint(
+            step,
+            Some(&input),
+            Some(&input_hash),
+            &mut checkpoint,
+            &mut artifacts,
+            &mut HashUpgrades::default(),
+        )
+        .unwrap()
+    );
     assert_eq!(checkpoint["response_content"], original_response);
-    assert!(checkpoint["parsed_output"]["shots"][0]["visual_constraints"]
-        .get("camera_events")
-        .is_none());
+    assert!(
+        checkpoint["parsed_output"]["shots"][0]["visual_constraints"]
+            .get("camera_events")
+            .is_none()
+    );
+    assert_eq!(
+        checkpoint["parsed_output"]["shots"][0]["visual_constraints"]["keyframes"][0]["description"],
+        "旧相机构图"
+    );
 }
