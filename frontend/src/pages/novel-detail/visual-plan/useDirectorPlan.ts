@@ -27,6 +27,8 @@ export function useDirectorPlan(projectId: number, chapterId: number | null, can
   const [syncError, setSyncError] = useState<string | null>(null);
   const [invalidated, setInvalidated] = useState(false);
   const sourceHash = useRef("");
+  const editCursor = useRef(0);
+  const observedOperations = useRef(new Set<string>());
   const planRef = useRef(plan);
   const recordRef = useRef(record);
   const baseline = useRef("");
@@ -75,6 +77,18 @@ export function useDirectorPlan(projectId: number, chapterId: number | null, can
     return request;
   }, []);
 
+  const rememberReceipt = useCallback((saved: ChapterVisualPlanView, remember: boolean) => {
+    const receipt = saved.edit_receipt;
+    if (!receipt || observedOperations.current.has(receipt.operation_id)) return;
+    observedOperations.current.add(receipt.operation_id);
+    if (!remember) return;
+    const batch = receiptChanges(saved);
+    if (batch.length > 0) {
+      setUndo((items) => [...items.slice(-39), batch]);
+      setRedo([]);
+    }
+  }, []);
+
   const applySaved = useCallback((saved: ChapterVisualPlanView, base: ChapterVisualPlanV3, remember = false) => {
     const changes = planChanges(base, saved.plan);
     // The database commit is real even when newer local input conflicts with it.
@@ -82,19 +96,16 @@ export function useDirectorPlan(projectId: number, chapterId: number | null, can
     try {
       const next = applyPlanChanges(planRef.current ?? base, changes);
       replace(next);
-      if (remember && changes.length > 0) {
-        const batch = receiptChanges(saved);
-        if (batch.length > 0) setUndo((items) => [...items.slice(-39), batch]);
-        setRedo([]);
-      }
+      rememberReceipt(saved, remember);
     } catch (failure) {
+      rememberReceipt(saved, false);
       const message = `${extractErrorMessage(failure, "并发修改冲突")}。远端已保存，本地输入已保留，自动保存已暂停。`;
       conflictRef.current = message;
       conflictingChanges.current = changes;
       setConflict(message);
       setError(message);
     }
-  }, [acceptRecord, replace]);
+  }, [acceptRecord, rememberReceipt, replace]);
 
   const resolveConflict = useCallback((resolution: "local" | "remote") => {
     if (!planRef.current || !conflictRef.current) return;
@@ -120,6 +131,8 @@ export function useDirectorPlan(projectId: number, chapterId: number | null, can
       return;
     }
     const currentScope = ++scope.current;
+    viewInstanceId.current = crypto.randomUUID();
+    editorRevision.current = crypto.randomUUID();
     setLoading(true);
     setError(null);
     try {
@@ -132,6 +145,8 @@ export function useDirectorPlan(projectId: number, chapterId: number | null, can
       setInvalidated(false);
       setSyncError(null);
       sourceHash.current = result.source.content_sha256;
+      editCursor.current = result.edit_cursor ?? 0;
+      observedOperations.current.clear();
       setSet(result);
       recordRef.current = current;
       setRecord(current);
@@ -229,7 +244,7 @@ export function useDirectorPlan(projectId: number, chapterId: number | null, can
     if (loading || chapterId == null || !planRef.current || conflict || invalidated) return;
     const controller = new AbortController();
     const currentScope = scope.current;
-    let cursor = 0;
+    let cursor = editCursor.current;
     let retry: ReturnType<typeof setTimeout> | undefined;
     const connect = async () => {
       try {
@@ -244,8 +259,9 @@ export function useDirectorPlan(projectId: number, chapterId: number | null, can
             }
             if (!current || current.record.id !== saved.record.id || current.record.revision < saved.record.revision) {
               applySaved(saved, current?.plan ?? JSON.parse(baseline.current), true);
-            }
+            } else rememberReceipt(saved, true);
             cursor = saved.edit_receipt!.sequence;
+            editCursor.current = cursor;
           }).catch((failure) => {
             if (controller.signal.aborted) return;
             if (failure instanceof VisualPlanInvalidatedError) {
@@ -268,7 +284,7 @@ export function useDirectorPlan(projectId: number, chapterId: number | null, can
     };
     void connect();
     return () => { controller.abort(); clearTimeout(retry); };
-  }, [applySaved, chapterId, conflict, invalidated, loading, projectId, serializeWrite]);
+  }, [applySaved, chapterId, conflict, invalidated, loading, projectId, rememberReceipt, serializeWrite]);
 
   useEffect(() => {
     if (!dirty || !editable || !plan || conflict || invalidated) return;

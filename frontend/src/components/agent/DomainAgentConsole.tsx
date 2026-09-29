@@ -77,6 +77,7 @@ import {
 import {
   domainAgentBinding,
   domainAgentBindingKey,
+  matchesDomainAgentThread,
   matchesEditorSourceScope,
   positiveId,
   scopeForBinding,
@@ -101,6 +102,8 @@ export interface DomainAgentConsoleProps {
   fill?: boolean;
   className?: string;
   onClose?: () => void;
+  executionMode?: AgentExecutionMode;
+  onExecutionModeChange?: (mode: AgentExecutionMode) => void;
   onResourceChanged?: () => void | Promise<void>;
   onPendingContentDiffChange?: (diff: PendingContentDiff | null) => void;
   getEditorSource?: () => import("../../api/agent").AgentEditorSource | null;
@@ -124,6 +127,8 @@ export const DomainAgentConsole: React.FC<DomainAgentConsoleProps> = ({
   fill = false,
   className = "",
   onClose,
+  executionMode: controlledExecutionMode,
+  onExecutionModeChange,
   onResourceChanged,
   onPendingContentDiffChange,
   getEditorSource,
@@ -148,9 +153,11 @@ export const DomainAgentConsole: React.FC<DomainAgentConsoleProps> = ({
   const [draft, setDraft] = useState("");
   const [deliveryMode, setDeliveryMode] =
     useState<AgentDeliveryMode>("followup");
-  const [executionMode, setExecutionMode] = useState<AgentExecutionMode>(() =>
+  const [localExecutionMode, setLocalExecutionMode] = useState<AgentExecutionMode>(() =>
     capability === "content_optimization" ? "review_writes" : "autonomous",
   );
+  const executionMode = controlledExecutionMode ?? localExecutionMode;
+  const setExecutionMode = onExecutionModeChange ?? setLocalExecutionMode;
   const [controlBusy, setControlBusy] = useState<AgentControlAction | null>(
     null,
   );
@@ -194,6 +201,11 @@ export const DomainAgentConsole: React.FC<DomainAgentConsoleProps> = ({
   const bindingKey = binding
     ? domainAgentBindingKey(binding)
     : "invalid";
+  const bindingRef = useRef(binding);
+  const bindingActive = useRef(true);
+  const threadBindings = useRef(new Map<string, typeof binding>());
+  bindingRef.current = binding;
+  const isCurrentBinding = useCallback((expected: typeof binding) => expected != null && bindingActive.current && bindingRef.current === expected, []);
   const displayResourceLabel =
     resourceLabel?.trim() ||
     (binding
@@ -235,13 +247,15 @@ export const DomainAgentConsole: React.FC<DomainAgentConsoleProps> = ({
       threadId: string,
       quiet = false,
     ): Promise<AgentThreadSnapshot | null> => {
+      if (!bindingActive.current || threadBindings.current.get(threadId) !== bindingRef.current) return null;
       const requestId = snapshotRequestRef.current + 1;
       snapshotRequestRef.current = requestId;
       reloadInFlightRef.current = true;
       if (!quiet) setLoading(true);
       try {
         const next = await loadAgentSnapshotWithEvents(() => getAgentThread(threadId), pendingEventsRef.current, () => snapshotRequestRef.current === requestId);
-        if (snapshotRequestRef.current !== requestId) return null;
+        if (snapshotRequestRef.current !== requestId || !bindingActive.current
+          || !bindingRef.current || !matchesDomainAgentThread(next.thread, bindingRef.current)) return null;
         commitSnapshot(next);
         setError(null);
         return next;
@@ -288,9 +302,12 @@ export const DomainAgentConsole: React.FC<DomainAgentConsoleProps> = ({
             },
             scope: scopeForBinding(binding),
       });
+      if (!bindingActive.current || bindingRef.current !== binding) return null;
+      threadBindings.current.set(match.id, binding);
       const loaded = await loadSnapshot(match.id);
       return loaded ? loaded.thread : null;
     } catch (err) {
+      if (!bindingActive.current || bindingRef.current !== binding) return null;
       setError(extractErrorMessage(err, t("agent.domain.loadFailed")));
       setLoading(false);
       return null;
@@ -298,7 +315,11 @@ export const DomainAgentConsole: React.FC<DomainAgentConsoleProps> = ({
   }, [binding, displayResourceLabel, loadSnapshot, t, title]);
 
   useEffect(() => {
+    bindingActive.current = true;
+    snapshotRequestRef.current += 1;
     snapshotRef.current = null;
+    pendingEventsRef.current = [];
+    pendingEditorRequests.current.clear();
     eventCursorRef.current = 0;
     reloadInFlightRef.current = false;
     setThread(null);
@@ -308,7 +329,15 @@ export const DomainAgentConsole: React.FC<DomainAgentConsoleProps> = ({
     setDraft("");
     setConnectionError(null);
     setConnected(false);
+    sendingRef.current = false;
+    setSending(false);
+    clearingRef.current = false;
+    setClearing(false);
+    setRefreshing(false);
+    setControlBusy(null);
+    setApprovalBusy(null);
     void ensureThread();
+    return () => { bindingActive.current = false; snapshotRequestRef.current += 1; };
   }, [bindingKey, ensureThread]);
 
   const threadId = thread?.id;
@@ -357,7 +386,7 @@ export const DomainAgentConsole: React.FC<DomainAgentConsoleProps> = ({
               limit: 200,
             },
             (event) => {
-              if (event.thread_id !== threadId) return;
+              if (stopped || event.thread_id !== threadId || threadBindings.current.get(threadId) !== bindingRef.current) return;
               rememberStreamedMessages([event]);
               if (clearingRef.current) return;
               pendingEventsRef.current.push(event);
@@ -511,13 +540,14 @@ export const DomainAgentConsole: React.FC<DomainAgentConsoleProps> = ({
   );
   const canSend =
     Boolean(thread) &&
+    Boolean(binding && thread && matchesDomainAgentThread(thread, binding)) &&
     (thread ? isAgentThreadOperational(thread) : false) &&
     draft.trim().length > 0 &&
     !sending &&
     !clearing;
 
   useEffect(() => {
-    if (!snapshot) return;
+    if (!snapshot || !binding || !matchesDomainAgentThread(snapshot.thread, binding)) return;
     const baseline = mutationBaselineRef.current;
     if (!baseline || baseline.bindingKey !== bindingKey) {
       mutationBaselineRef.current = {
@@ -542,6 +572,7 @@ export const DomainAgentConsole: React.FC<DomainAgentConsoleProps> = ({
     });
   }, [
     addToast,
+    binding,
     bindingKey,
     latestMutationExecutionId,
     onResourceChanged,
@@ -555,7 +586,7 @@ export const DomainAgentConsole: React.FC<DomainAgentConsoleProps> = ({
     try {
       await ensureThread();
     } finally {
-      setRefreshing(false);
+      if (isCurrentBinding(binding)) setRefreshing(false);
     }
   };
 
@@ -574,7 +605,7 @@ export const DomainAgentConsole: React.FC<DomainAgentConsoleProps> = ({
       cancelText: t("common.cancel"),
       dialogType: "warning",
     });
-    if (!confirmed) return;
+    if (!confirmed || !isCurrentBinding(binding)) return;
     if (clearingRef.current) return;
 
     const threadId = thread.id;
@@ -583,24 +614,26 @@ export const DomainAgentConsole: React.FC<DomainAgentConsoleProps> = ({
     snapshotRequestRef.current += 1;
     try {
       await clearAgentThreadContext(threadId, t("agent.clearContextTimeout"));
+      if (!isCurrentBinding(binding)) return;
       setThread(null);
       setSnapshot(null);
       snapshotRef.current = null;
       eventCursorRef.current = 0;
       setStreamedMessageIds(new Set());
       setPendingSubmission(null);
-      if (!(await ensureThread())) {
+      const loaded = await ensureThread();
+      if (!isCurrentBinding(binding)) return;
+      if (!loaded) {
         throw new Error(t("agent.clearContextFailed"));
       }
       setDraft("");
       addToast(t("agent.clearContextSuccess"), "success");
     } catch (err) {
       const message = extractErrorMessage(err, t("agent.clearContextFailed"));
-      setError(message);
+      if (isCurrentBinding(binding)) setError(message);
       addToast(message, "error");
     } finally {
-      clearingRef.current = false;
-      setClearing(false);
+      if (isCurrentBinding(binding)) { clearingRef.current = false; setClearing(false); }
     }
   };
 
@@ -614,6 +647,9 @@ export const DomainAgentConsole: React.FC<DomainAgentConsoleProps> = ({
       clearingRef.current
     )
       return;
+    const currentBinding = bindingRef.current;
+    if (!currentBinding || !matchesDomainAgentThread(thread, currentBinding)) return;
+    const isCurrent = () => bindingActive.current && bindingRef.current === currentBinding;
     const clientMessageId = randomClientMessageId();
     const pendingMessage = createPendingAgentMessage(
       thread.id,
@@ -633,7 +669,7 @@ export const DomainAgentConsole: React.FC<DomainAgentConsoleProps> = ({
         execution_mode: executionMode,
         editor_source: getEditorSource?.() ?? undefined,
       });
-      if (clearingRef.current) return;
+      if (clearingRef.current || !isCurrent()) return;
       setPendingSubmission((current) =>
         current?.message.id === pendingMessage.id
           ? { ...current, acceptedMessageId: accepted.message_id }
@@ -650,21 +686,20 @@ export const DomainAgentConsole: React.FC<DomainAgentConsoleProps> = ({
       if (next && !clearingRef.current)
         rememberStreamedMessages(next.events, accepted.run_id);
     } catch (err) {
-      setPendingSubmission((current) =>
-        current?.message.id === pendingMessage.id ? null : current,
-      );
-      setDraft(content);
       const message = extractErrorMessage(err, t("agent.domain.sendFailed"));
-      setError(message);
+      if (isCurrent()) {
+        setPendingSubmission((current) => current?.message.id === pendingMessage.id ? null : current);
+        setDraft((current) => current || content);
+        setError(message);
+      }
       addToast(message, "error");
     } finally {
-      sendingRef.current = false;
-      setSending(false);
+      if (isCurrent()) { sendingRef.current = false; setSending(false); }
     }
   };
 
   const control = async (action: AgentControlAction) => {
-    if (!thread || !currentRun || controlBusy || clearing) return;
+    if (!thread || !currentRun || controlBusy || clearing || !isCurrentBinding(binding)) return;
     if (action === "resume" && (currentRun.waiting_reason === "budget" || currentRun.budget_limiting_run_id)) {
       setBudgetRun(currentRun);
       return;
@@ -679,10 +714,10 @@ export const DomainAgentConsole: React.FC<DomainAgentConsoleProps> = ({
       await loadSnapshot(thread.id, true);
     } catch (err) {
       const message = extractErrorMessage(err, t("agent.domain.controlFailed"));
-      setError(message);
+      if (isCurrentBinding(binding)) setError(message);
       addToast(message, "error");
     } finally {
-      setControlBusy(null);
+      if (isCurrentBinding(binding)) setControlBusy(null);
     }
   };
 
@@ -690,7 +725,7 @@ export const DomainAgentConsole: React.FC<DomainAgentConsoleProps> = ({
     approval: AgentApprovalView,
     decision: "approve" | "reject",
   ) => {
-    if (approvalBusy) return;
+    if (approvalBusy || !isCurrentBinding(binding)) return;
     setApprovalBusy(approval.id);
     try {
       await resolveAgentApproval({
@@ -707,10 +742,10 @@ export const DomainAgentConsole: React.FC<DomainAgentConsoleProps> = ({
         err,
         t("agent.domain.approvalFailed"),
       );
-      setError(message);
+      if (isCurrentBinding(binding)) setError(message);
       addToast(message, "error");
     } finally {
-      setApprovalBusy(null);
+      if (isCurrentBinding(binding)) setApprovalBusy(null);
     }
   };
 

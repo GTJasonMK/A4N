@@ -4,6 +4,9 @@ import { shouldUseHttpBackend } from "../utils/runtimeMode";
 import { readSseStream } from "../utils/sseParser";
 
 export class VisualPlanInvalidatedError extends Error {}
+// Editor receipts carry a document and inverse field values, unlike small
+// generation events. Keep a domain-specific bound without weakening other streams.
+const MAX_EDITOR_EVENT_BYTES = 128 * 1024 * 1024;
 
 export async function subscribeVisualPlanEdits(
   projectId: number, chapterId: number, afterSequence: number, sourceHash: string, recordId: number | null,
@@ -13,9 +16,10 @@ export async function subscribeVisualPlanEdits(
   const receive = (saved: ChapterVisualPlanView) => {
     const receipt = saved.edit_receipt;
     if (!receipt || receipt.project_id !== projectId || receipt.source_chapter_id !== chapterId
-      || !Number.isSafeInteger(receipt.sequence) || receipt.sequence <= cursor) {
+      || !Number.isSafeInteger(receipt.sequence) || receipt.sequence <= 0) {
       throw new Error("编辑回执身份或顺序无效");
     }
+    if (receipt.sequence <= cursor) return;
     cursor = receipt.sequence;
     recordId = receipt.after.record_id;
     onEdit(saved);
@@ -50,5 +54,5 @@ export async function subscribeVisualPlanEdits(
     const saved = JSON.parse(frame.data) as ChapterVisualPlanView;
     if (frame.id !== String(saved.edit_receipt?.sequence)) throw new Error("编辑回执游标不一致");
     receive(saved);
-  }, signal);
+  }, signal, MAX_EDITOR_EVENT_BYTES);
 }

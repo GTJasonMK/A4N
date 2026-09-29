@@ -79,11 +79,9 @@ impl AgentApplication {
         thread_id: i64,
         execution_id: i64,
     ) -> Result<Option<approval::Model>, AppError> {
-        Ok(agent::approvals_by_thread(self.connection(), thread_id)
+        agent::approved_execution(self.connection(), thread_id, execution_id)
             .await
-            .map_err(agent_db_error_to_app)?
-            .into_iter()
-            .find(|row| row.execution_id == execution_id && row.status == "approved"))
+            .map_err(agent_db_error_to_app)
     }
 
     pub(crate) async fn approved_execution_request(

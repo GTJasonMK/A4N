@@ -111,9 +111,11 @@ def main():
             report["checks"].append("canonical reuse preserves restrictions; catalog upgrade is explicit")
             checked(cli, ["agent", "memory", "create", "thread", thread_id, "fixture", "MEMORY_NOT_REQUESTED_不得自动注入"], "memory")
             task = {"mode": "edit", "project_id": project["id"], "chapter_id": chapter["id"], "shot_id": "shot-1", "prompt": "门框遮挡，保留右侧视线空间。"}
+            initial_task = MARKER + json.dumps(task, ensure_ascii=False)
 
-            def send(value, budget=None, source=None):
-                parts = ["agent", "chat", thread_id, MARKER + json.dumps(value, ensure_ascii=False)]
+            def send(value, budget=None, source=None, execution_mode=None):
+                execution_mode = execution_mode or ("review_writes" if value.get("mode") == "edit" else "autonomous")
+                parts = ["agent", "chat", thread_id, MARKER + json.dumps(value, ensure_ascii=False), "--execution-mode", execution_mode]
                 if budget: parts += ["--budget", json.dumps(budget)]
                 if source: parts += ["--editor-source", json.dumps(source)]
                 return data(checked(cli, parts, "agent chat")[0], "agent chat")["run_id"]
@@ -160,6 +162,34 @@ def main():
             finish(run_id)
             assert call("get_chapter_visual_plan", resource)["draft"]["record"]["revision"] == current["record"]["revision"]
             report["checks"].append("no-op edit preserves revision")
+            autonomous = send({**task, "shot_id": "shot-2", "prompt": "自主执行草稿修改"}, execution_mode="autonomous")
+            finish(autonomous)
+            current = call("get_chapter_visual_plan", resource)["draft"]
+            assert current["plan"]["segments"][1]["prompt"] == "自主执行草稿修改"
+            advice = send({**task, "prompt": "建议模式不能写入"}, execution_mode="advice_only")
+            advised = finish(advice)
+            assert any(row["run_id"] == advice and row["status"] == "failed" and "advice_only" in (row["error"] or "") for row in advised["executions"])
+            assert call("get_chapter_visual_plan", resource)["draft"] == current
+            report["checks"].append("autonomous commits valid drafts without approval; advice-only does not write")
+            batch_before = current
+            batch_run = send({**task, "prompt": "原子批次描述", "batch_operations": [{"kind": "set_frame", "frame": {"width": 1280, "height": 720}}]})
+            approve(wait_state(batch_run, "approval"))
+            batched = finish(batch_run)
+            current = call("get_chapter_visual_plan", resource)["draft"]
+            assert current["record"]["revision"] == batch_before["record"]["revision"] + 1
+            assert current["plan"]["frame"] == {"width": 1280, "height": 720}
+            assert current["plan"]["segments"][0]["prompt"] == "原子批次描述"
+            batch_executions = {row["id"] for row in batched["executions"] if row["run_id"] == batch_run}
+            assert len([row for row in batched["approvals"] if row["execution_id"] in batch_executions]) == 1
+            before_failed_batch = call("get_chapter_visual_plan", resource)
+            failed_batch = send({**task, "prompt": "失败批次不能留下此修改", "batch_operations": [{"kind": "move_point", "point_id": "missing-point", "at_ms": 1}]})
+            approve(wait_state(failed_batch, "approval"))
+            failed_batch_result = finish(failed_batch)
+            assert any(row["run_id"] == failed_batch and row["status"] == "failed" for row in failed_batch_result["executions"])
+            assert call("get_chapter_visual_plan", resource)["draft"] == current
+            failed_edits = call("read_chapter_visual_plan", {**resource, "view": {"kind": "edits", "after_sequence": before_failed_batch["edit_cursor"]}})
+            assert failed_edits["projection"]["items"] == []
+            report["checks"].append("one approval commits an atomic multi-operation batch; a failing operation leaves no partial plan or edit receipt")
 
             run_id = send({**task, "prompt": "应被拒绝"})
             approve(wait_state(run_id, "approval"), "reject")
@@ -350,6 +380,7 @@ def main():
                         "chat",
                         compose_thread["id"],
                         MARKER + json.dumps(compose_task, ensure_ascii=False),
+                        "--execution-mode", "review_writes",
                     ],
                     "compose Agent chat",
                 )[0],
@@ -577,21 +608,16 @@ def main():
                     COMMIT;
                 """, run_id=recovery_run, message_id=replayed_message["id"], id=execution["id"])
                 replay_faulted_run()
-                uncertain = wait_state(recovery_run, "reconcile")
-                assert next(row for row in uncertain["executions"] if row["id"] == execution["id"])["status"] == "outcome_unknown"
+                recovered = wait_state(recovery_run, "budget")
+                assert next(row for row in recovered["executions"] if row["id"] == execution["id"])["status"] == "succeeded"
                 assert call("get_chapter_visual_plan", resource)["draft"] == written
-                report["checks"].append("a committed write with a lost receipt enters reconcile and is never blindly replayed")
-                # Restore only the receipt deliberately removed above, then release this fixture Run.
-                control("pause")
-                sql("UPDATE agent_execution SET status = 'succeeded', result_json = :'result'::jsonb, result_refs_json = :'refs'::jsonb, error_message = NULL WHERE id = :'id'::bigint AND run_id = :'run_id'::bigint;",
-                    result=json.dumps(receipt["result"]), refs=json.dumps(receipt["refs"]), id=execution["id"], run_id=recovery_run)
-                replay_faulted_run()
-                wait_state(recovery_run, "budget")
+                restored = json.loads(sql("SELECT json_build_object('result', result_json, 'refs', result_refs_json) FROM agent_execution WHERE id = :'id'::bigint AND run_id = :'run_id'::bigint;", id=execution["id"], run_id=recovery_run))
+                assert restored == receipt
+                report["checks"].append("a lost Agent execution receipt is recovered from the durable edit receipt without a second mutation")
                 control("cancel")
 
             if log_path:
                 requests = [entry["body"] for entry in provider_log_entries(log_path) if entry["body"].get("messages")]
-                initial_task = MARKER + json.dumps(task, ensure_ascii=False)
                 first = next(body for body in requests if any(message.get("content") == initial_task for message in body["messages"]))
                 serialized = json.dumps(first, ensure_ascii=False)
                 assert "SOURCE_NOT_REQUESTED" not in serialized and "MEMORY_NOT_REQUESTED" not in serialized

@@ -29,7 +29,7 @@ impl OrchestratorContext {
                 "原文版本已变化，不能提交基于旧原文的修改".into(),
             ));
         }
-        if let Some((before, saved)) = a4n_db::chapter_visual_plan::replay_visual_plan_edit(
+        if let Some((_, saved)) = a4n_db::chapter_visual_plan::replay_visual_plan_edit(
             self.database.connection(),
             input.project_id,
             &operation_id,
@@ -39,10 +39,7 @@ impl OrchestratorContext {
         .map_err(visual_plan_db_error)?
         {
             ensure_plan_belongs_to_source(&saved, &source)?;
-            let changes = before
-                .map(|before| field_changes(&before.plan, &saved.plan))
-                .unwrap_or_default();
-            return Ok(edit_result(saved, changes));
+            return edit_result(saved);
         }
         let mut current = a4n_db::chapter_visual_plan::visual_plan_revision(
             self.database.connection(),
@@ -71,7 +68,7 @@ impl OrchestratorContext {
             )
             .await
             .map_err(visual_plan_db_error)?;
-            return Ok(edit_result(saved, changes));
+            return edit_result(saved);
         }
         let expected = if current.status == ChapterVisualPlanStatus::Confirmed {
             let plans = a4n_db::chapter_visual_plan::chapter_visual_plans_for_source(
@@ -121,29 +118,30 @@ impl OrchestratorContext {
         )
         .await
         .map_err(visual_plan_db_error)?;
-        Ok(edit_result(current, changes))
+        edit_result(current)
     }
 }
 
-fn edit_result(
-    current: ParsedChapterVisualPlan,
-    changes: Vec<VisualPlanFieldChange>,
-) -> ChapterVisualPlanEditResult {
-    ChapterVisualPlanEditResult {
+fn edit_result(current: ParsedChapterVisualPlan) -> Result<ChapterVisualPlanEditResult, AppError> {
+    let receipt = current
+        .edit_receipt
+        .as_ref()
+        .ok_or_else(|| AppError::InvalidState {
+            current: "保存结果缺少编辑回执".into(),
+            operation: "返回导演编辑结果".into(),
+        })?;
+    let changes = field_changes(receipt.changes.clone());
+    Ok(ChapterVisualPlanEditResult {
         resource: resource_ref(&current),
         changed: !changes.is_empty(),
         changes,
         validation: validate_plan(&current.plan, VisualPlanValidationMode::Draft),
         visual_plan: super::chapter_visual_plan_view(current),
-    }
+    })
 }
 
-fn field_changes(
-    before: &ChapterVisualPlanV3,
-    after: &ChapterVisualPlanV3,
-) -> Vec<VisualPlanFieldChange> {
-    before
-        .changes_to(after)
+fn field_changes(changes: Vec<VisualPlanChange>) -> Vec<VisualPlanFieldChange> {
+    changes
         .into_iter()
         .map(|change| VisualPlanFieldChange {
             object_id: change.object_id,
@@ -181,7 +179,7 @@ fn apply_operation(
     let next = plan
         .edited(operation)
         .map_err(|error| AppError::InvalidArgument(error.to_string()))?;
-    let changes = field_changes(plan, &next);
+    let changes = field_changes(plan.changes_to(&next));
     *plan = next;
     Ok(changes)
 }

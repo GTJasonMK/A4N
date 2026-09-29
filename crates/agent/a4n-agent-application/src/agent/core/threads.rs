@@ -56,6 +56,9 @@ impl AgentApplication {
         }
         validate_scope(&input.scope)?;
         let mut scope = input.scope;
+        if let Some(resource) = &bound_resource {
+            complete_scope_resource(&mut scope, &resource.kind, &resource.id)?;
+        }
         let (project_id, chapter_id, chapter_number) = self
             .verify_thread_scope(user_id, &scope, bound_resource.as_ref())
             .await?;

@@ -93,6 +93,19 @@ async fn edits_replay_merge_and_reject_overlapping_or_reused_operations() {
             .unwrap(),
         saved_agent
     );
+    let same_effect =
+        save_chapter_visual_plan_draft_with_operation(&db, agent.clone(), "same-effect")
+            .await
+            .unwrap();
+    assert_eq!(same_effect.record.revision, saved_agent.record.revision);
+    assert!(
+        same_effect
+            .edit_receipt
+            .as_ref()
+            .unwrap()
+            .changes
+            .is_empty()
+    );
     agent.plan.points[0].description = "Different payload".into();
     assert!(
         save_chapter_visual_plan_draft_with_operation(&db, agent.clone(), "agent")
@@ -109,5 +122,66 @@ async fn edits_replay_merge_and_reject_overlapping_or_reused_operations() {
         .unwrap();
     assert_eq!(latest.plan, saved_agent.plan);
     assert_eq!(latest.record.revision, saved_agent.record.revision);
+    assert_eq!(
+        a4n_db::chapter_visual_plan::visual_plan_edit_cursor(&db, Some(&first))
+            .await
+            .unwrap(),
+        first.edit_receipt.as_ref().unwrap().sequence
+    );
+    assert_eq!(
+        a4n_db::chapter_visual_plan::visual_plan_edit_cursor(&db, Some(&latest))
+            .await
+            .unwrap(),
+        same_effect.edit_receipt.as_ref().unwrap().sequence
+    );
+    let replacement = a4n_db::project::create_derived_project_record(
+        &db,
+        1,
+        a4n_db::project::CreateDerivedProjectParams {
+            root_project_id: root.id,
+            derived_kind: "video".into(),
+            title: "Replacement snapshot".into(),
+            description: String::new(),
+            chapter_scope: a4n_db::project::DerivedChapterScope {
+                start_chapter: 1,
+                end_chapter: 1,
+            },
+        },
+    )
+    .await
+    .unwrap();
+    use sea_orm::{ActiveModelTrait, Set};
+    let mut moved: a4n_db_models::models::project::novel_project::ActiveModel = video.into();
+    moved.source_snapshot_id = Set(replacement.source_snapshot_id);
+    moved.update(&db).await.unwrap();
+    let mut stale_source = initial;
+    stale_source.expected = Some(ExpectedVisualPlanDraft {
+        record_id: latest.record.id,
+        revision: latest.record.revision,
+    });
+    stale_source.plan = latest.plan.clone();
+    stale_source.plan.points[0].label = "Must not write retired source".into();
+    assert!(
+        save_chapter_visual_plan_draft_with_operation(&db, stale_source, "stale-source")
+            .await
+            .is_err()
+    );
+    assert!(
+        a4n_db::chapter_visual_plan::record_visual_plan_noop(
+            &db,
+            &latest,
+            "stale-noop",
+            "stale-noop"
+        )
+        .await
+        .is_err()
+    );
+    assert_eq!(
+        a4n_db::chapter_visual_plan::chapter_visual_plan_by_id(&db, latest.record.id)
+            .await
+            .unwrap()
+            .plan,
+        latest.plan
+    );
     db.close().await.unwrap();
 }

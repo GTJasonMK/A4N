@@ -92,16 +92,22 @@ async function openAgent() {
 }
 
 async function closeAgent() {
-  await browser.keys("Escape");
+  const panel = await $("section[aria-label='领域 Agent 控制台']");
+  if (await $(".director-agent-inspector").isDisplayed()) await panel.$('[aria-label="关闭"]').click();
+  else await browser.keys("Escape");
   await browser.waitUntil(async () => !(await $("section[aria-label='领域 Agent 控制台']").isDisplayed()), {
     timeout: 5_000, interval: 50, timeoutMsg: "Agent 弹窗未关闭",
   });
-  assert.equal(await $("section[aria-label='领域 Agent 控制台']").isExisting(), true, "后台连接被卸载");
+  assert.equal(await $(".director-workspace").isExisting(), true, "关闭面板不能关闭编辑器工作区");
 }
 
 async function send(task) {
   const previous = new Set((await snapshot()).runs.map((run) => run.id));
   const console = await openAgent();
+  await console.$('[aria-label="执行模式"]').click();
+  const reviewOption = await $('[role="option"][data-option-index="1"]');
+  assert.equal(await reviewOption.getText(), "写入前审阅");
+  await reviewOption.click();
   await (await console.$("textarea")).setValue(`A4N_SPECIALIZED ${JSON.stringify(task)}`);
   await click("发送给领域 Agent", console);
   let run;
@@ -189,8 +195,10 @@ describe("工具驱动导演 Agent 的真实编辑器联动", () => {
     await key.setValue("a4n-e2e-provider-key");
     await click(/创建|保存/);
     await click(llmConfigName);
-    await click("更多操作");
-    await click(/设为默认|Set default/);
+    const configured = (await nativeApi("/src/api/config/llm.ts", "listLlmConfig", [])).find((config) => config.name === llmConfigName);
+    assert.ok(configured, "刚保存的测试模型配置必须可读");
+    await nativeApi("/src/api/config/llm.ts", "setDefaultLlmConfig", [configured.id]);
+    assert.equal((await nativeApi("/src/api/config/llm.ts", "listLlmConfig", [])).find((config) => config.id === configured.id).is_default, true);
     await openDirector();
     const firstTab = await browser.getWindowHandle();
     const before = await savedPlan();
@@ -209,11 +217,23 @@ describe("工具驱动导演 Agent 的真实编辑器联动", () => {
     assert.ok(requests.length >= 5);
     assert.ok(requests.every((request) => request.source.shot_id === "shot-1"));
     assert.match(await $(".director-segment.is-selected").getAttribute("aria-label"), /用户并发改名/);
+    await (await $$("button.director-segment"))[0].click();
+    await browser.waitUntil(async () => (await (await field("变化描述", "textarea")).getValue()) === prompt, { timeout: 15_000, timeoutMsg: "Agent 修改没有自动应用到编辑器" });
+    await (await $$("button.director-segment"))[1].click();
     checks.push("关闭弹窗后完成 inspect/read/save/inspect/edit；发送后切选区仍只改原镜头，选区保持");
+    const controlsRun = await send({ mode: "view_controls", actions: [
+      { kind: "seek", at_ms: 500 }, { kind: "select", object_kind: "segment", object_id: "shot-2" }, { kind: "fit" },
+    ] });
+    const controlled = await waitRun(controlsRun, "completed");
+    assert.equal(controlled.executions.filter((execution) => execution.run_id === controlsRun && execution.tool_name === "control_editor_view" && execution.status === "succeeded").length, 3);
+    assert.equal(await $('[aria-label="播放位置"]').getValue(), "500");
+    assert.deepEqual(await savedPlan(), after);
+    checks.push("面板关闭时仍可按明确指令定位播放头、选择镜头和适配视图，不修改数据库方案");
     if (native) {
-      assert.equal(await nativeApi("/src/utils/runtimeMode.ts", "shouldUseHttpBackend", []), false);
+      assert.equal(await nativeApi("/src/utils/runtimeMode.ts", "isTauriRuntime", []), true);
+      assert.equal(await nativeApi("/src/utils/runtimeMode.ts", "shouldUseHttpBackend", []), true);
       await browser.saveScreenshot(`${artifacts}/director-native.png`);
-      checks.push("真实 Tauri 窗口通过原生 invoke、Agent 事件和共享 Host 完成读写");
+      checks.push("真实 Tauri 窗口通过已配置的 HTTP/SSE 和共享 Host 完成原生编辑器联动");
       writeFileSync(`${artifacts}/specialized-agent-native-report.json`, JSON.stringify({ success: true, checks, runId }, null, 2), { mode: 0o600 });
       return;
     }
@@ -244,17 +264,32 @@ describe("工具驱动导演 Agent 的真实编辑器联动", () => {
     await browser.switchToWindow(firstTab);
     assert.equal(await (await field("合并后的变化描述", "textarea")).getValue(), "仍在输入、尚未提交的描述");
     checks.push("另一标签页批准不会覆盖原视图的未提交弹窗；失败保持原文案和保存版本");
+    await browser.keys("Escape");
+    await click("放弃编辑");
+    await $("h3=合并镜头").waitForDisplayed({ reverse: true });
+    const backgroundPrompt = `原窗口关闭后继续 ${Date.now()}`;
+    const backgroundRun = await send({ mode: "edit", project_id: fixture.project_id, chapter_id: fixture.chapter_id, shot_id: "shot-1", prompt: backgroundPrompt });
+    await browser.closeWindow();
     await browser.switchToWindow(secondTab);
+    await approve(backgroundRun, "edit_chapter_visual_plan_draft");
+    const background = await waitRun(backgroundRun, "completed");
+    assert.equal(background.events.filter((event) => event.run_id === backgroundRun && event.editor_request).length, 0);
+    assert.equal((await savedPlan()).plan.segments[0].prompt, backgroundPrompt);
+    assert.match(await $(".director-segment.is-selected").getAttribute("aria-label"), /用户并发改名/);
+    await (await $$("button.director-segment"))[0].click();
+    await browser.waitUntil(async () => (await (await field("变化描述", "textarea")).getValue()) === backgroundPrompt);
+    checks.push("关闭原窗口后，显式已保存版本的编辑仍完成；另一窗口无需刷新即可收到结果");
 
     for (const width of [1440, 1024, 390]) {
       await capture(width, "page");
       await openAgent();
       await capture(width, "agent");
+      await $("section[aria-label='领域 Agent 控制台'] textarea").click();
       await browser.keys("Tab");
-      assert.equal(await browser.execute(() => Boolean(document.activeElement?.closest('[role="dialog"]'))), true);
+      if (width === 390) assert.equal(await browser.execute(() => Boolean(document.activeElement?.closest('[role="dialog"]'))), true);
       await closeAgent();
     }
-    checks.push("弹窗键盘焦点保持在对话框内，Escape 关闭后后台连接保留");
-    writeFileSync(`${artifacts}/specialized-agent-report.json`, JSON.stringify({ success: true, checks, runId, secondRun, blockedRun }, null, 2), { mode: 0o600 });
+    checks.push("移动端弹窗保持键盘焦点，桌面侧栏使用页面 Tab 顺序；关闭面板后工作区连接保留");
+    writeFileSync(`${artifacts}/specialized-agent-report.json`, JSON.stringify({ success: true, checks, runId, controlsRun, secondRun, blockedRun, backgroundRun }, null, 2), { mode: 0o600 });
   }).timeout(600_000);
 });

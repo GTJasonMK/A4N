@@ -376,6 +376,12 @@ impl WorkerState {
                 })
                 .collect();
         Ok(ChapterVisualPlanSetView {
+            edit_cursor: a4n_db::chapter_visual_plan::visual_plan_edit_cursor(
+                self.database.connection(),
+                plans.draft.as_ref().or(plans.confirmed.as_ref()),
+            )
+            .await
+            .map_err(visual_plan_error)?,
             scene_choices,
             source: a4n_api_contract::chapter_visual_plan::ChapterVisualPlanSourceView {
                 chapter_number: source.chapter_number,

@@ -428,16 +428,7 @@ impl AgentApplication {
         let mut bound_resource = input.bound_resource;
         if let Some(resource) = bound_resource.as_ref() {
             validate_resource_ref(resource)?;
-            if (scope.resource_kind.is_some() || scope.resource_id.is_some())
-                && (scope.resource_kind.as_deref() != Some(resource.kind.as_str())
-                    || scope.resource_id.as_deref() != Some(resource.id.as_str()))
-            {
-                return Err(AppError::InvalidArgument(
-                    "Agent scope 与 bound_resource 不一致".into(),
-                ));
-            }
-            scope.resource_kind = Some(resource.kind.clone());
-            scope.resource_id = Some(resource.id.clone());
+            complete_scope_resource(&mut scope, &resource.kind, &resource.id)?;
         }
         // Domain capabilities keep their stable resource semantics. Generic
         // profiles inherit a chapter/project fence when one is present and

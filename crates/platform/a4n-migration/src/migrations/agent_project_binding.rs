@@ -22,7 +22,8 @@ impl MigrationTrait for Migration {
                 created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
                 UNIQUE(project_id, operation_id)
             );
-            CREATE INDEX idx_visual_plan_edit_receipt_cursor ON visual_plan_edit_receipt(project_id, source_chapter_id, id)"
+            CREATE INDEX idx_visual_plan_edit_receipt_cursor ON visual_plan_edit_receipt(project_id, source_chapter_id, id);
+            CREATE INDEX idx_visual_plan_edit_receipt_version ON visual_plan_edit_receipt(record_id, ((after_record->'record'->>'revision')::integer), id)"
         ).await?;
         manager.get_connection().execute_unprepared(
             "UPDATE agent_execution e SET status = 'outcome_unknown', error_message = '编辑协议已升级；旧的进行中操作必须人工核对，禁止自动重放'

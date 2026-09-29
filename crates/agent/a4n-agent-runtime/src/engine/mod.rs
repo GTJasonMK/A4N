@@ -275,4 +275,31 @@ mod tests {
         let advice_only = approval_context("advice_only");
         assert!(should_request_approval(&advice_only, "edit_article", "write").is_err());
     }
+
+    #[test]
+    fn director_draft_writes_follow_the_selected_execution_mode() {
+        for name in [
+            "save_chapter_visual_plan_draft",
+            "edit_chapter_visual_plan_draft",
+            "save_editor_draft",
+        ] {
+            assert!(
+                !should_request_approval(&approval_context("autonomous"), name, "write").unwrap()
+            );
+            assert!(
+                should_request_approval(&approval_context("review_writes"), name, "write").unwrap()
+            );
+            assert!(
+                should_request_approval(&approval_context("advice_only"), name, "write").is_err()
+            );
+        }
+        assert!(
+            should_request_approval(
+                &approval_context("autonomous"),
+                "confirm_chapter_visual_plan",
+                "destructive"
+            )
+            .unwrap()
+        );
+    }
 }

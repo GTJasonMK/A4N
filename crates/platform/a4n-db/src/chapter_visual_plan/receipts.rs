@@ -159,6 +159,7 @@ pub async fn record_visual_plan_noop(
         return Ok(saved);
     }
     let current = super::chapter_visual_plan_by_id(&tx, base.record.id).await?;
+    super::queries::ensure_current_plan_source(&tx, &current).await?;
     if current.status != base.status
         || current.record.source_revision_key != base.record.source_revision_key
     {
@@ -290,4 +291,25 @@ pub async fn visual_plan_edits<C: ConnectionTrait>(
             Ok(after)
         })
         .collect()
+}
+
+/// Pin the replay cursor to the returned snapshot, never to a newer commit
+/// racing its read. This avoids replaying the project's entire editing history.
+pub async fn visual_plan_edit_cursor<C: ConnectionTrait>(
+    db: &C,
+    plan: Option<&ParsedChapterVisualPlan>,
+) -> Result<i64, ChapterVisualPlanDbError> {
+    let Some(plan) = plan else {
+        return Ok(0);
+    };
+    let row = db
+        .query_one(Statement::from_sql_and_values(
+            DbBackend::Postgres,
+            "SELECT COALESCE(MAX(id), 0) AS cursor FROM visual_plan_edit_receipt
+         WHERE record_id = $1 AND (after_record->'record'->>'revision')::integer <= $2",
+            [plan.record.id.into(), plan.record.revision.into()],
+        ))
+        .await?
+        .ok_or_else(|| ChapterVisualPlanDbError::InvalidState("无法读取编辑游标".into()))?;
+    Ok(row.try_get("", "cursor")?)
 }

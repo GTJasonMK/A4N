@@ -119,6 +119,24 @@ pub(super) fn agent_scopes_match_except_chapter_number(
     left == right
 }
 
+pub(super) fn complete_scope_resource(
+    scope: &mut AgentScope,
+    kind: &str,
+    id: &str,
+) -> Result<(), AppError> {
+    if (scope.resource_kind.is_some() || scope.resource_id.is_some())
+        && (scope.resource_kind.as_deref() != Some(kind)
+            || scope.resource_id.as_deref() != Some(id))
+    {
+        return Err(AppError::InvalidArgument(
+            "Agent scope 与 bound_resource 不一致".into(),
+        ));
+    }
+    scope.resource_kind = Some(kind.into());
+    scope.resource_id = Some(id.into());
+    Ok(())
+}
+
 pub(super) async fn canonicalize_editor_source(
     database: &sea_orm::DatabaseConnection,
     source: a4n_api_contract::agent::AgentEditorSource,

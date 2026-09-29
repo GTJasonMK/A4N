@@ -7,7 +7,7 @@ import type { ChapterVisualPlanV3, ChapterVisualPlanView, SceneBindingV3, Visual
 import { getChapterVisualPlan } from "../../api/chapterVisualPlan";
 import { IMAGE_TYPE_DIRECTOR_STORYBOARD_FRAME, listImagesByProjects, uploadImage, type GeneratedImage, type ImageSize } from "../../api/image";
 import { createSceneProfile, type SceneProfile } from "../../api/sceneProfiles";
-import { respondAgentEditor, type AgentEditorRequest, type AgentEditorResponse, type AgentEditorSource } from "../../api/agent";
+import { respondAgentEditor, type AgentEditorRequest, type AgentEditorResponse, type AgentEditorSource, type AgentExecutionMode } from "../../api/agent";
 import { DomainAgentConsole } from "../../components/agent/DomainAgentConsole";
 import { useDirectorAgentBridge } from "./visual-plan/useDirectorAgentBridge";
 import { confirmDialog } from "../../components/feedback/ConfirmDialog";
@@ -51,6 +51,7 @@ export function ChapterVisualPlanTab({ projectId, canEdit, chapter, onDirtyChang
   const [inspectorOpen, setInspectorOpen] = useState(false);
   const [modalPanel, setModalPanel] = useState<ModalPanel | null>(null);
   const [showConflictDialog, setShowConflictDialog] = useState(false);
+  const [agentExecutionMode, setAgentExecutionMode] = useState<AgentExecutionMode>("autonomous");
   useEffect(() => { if (model.conflict) setShowConflictDialog(true); }, [model.conflict]);
   const [narrow, setNarrow] = useState(true);
   const workspaceRef = useRef<HTMLElement>(null);
@@ -340,6 +341,8 @@ export function ChapterVisualPlanTab({ projectId, canEdit, chapter, onDirtyChang
           if (!timelineView.current) throw new Error("时间线视图尚未就绪");
           timelineView.current.fit();
         }
+        await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+        if (viewInstanceId !== model.viewInstanceId.current) throw new Error("原编辑器视图已关闭或重新载入，请重新定位");
         view.playhead_ms = Math.round(clock.getState().time);
         view.playing = clock.getState().playing;
         view.visible_range_ms = timelineView.current?.visibleRange() ?? view.visible_range_ms;
@@ -370,7 +373,7 @@ export function ChapterVisualPlanTab({ projectId, canEdit, chapter, onDirtyChang
 
   useEffect(() => {
     const keyboard = (event: KeyboardEvent) => {
-      if (hasModal || event.defaultPrevented || (event.target instanceof Element && event.target.closest('input,textarea,select,[contenteditable=true],[role="combobox"],[role="dialog"]'))) return;
+      if (hasModal || event.defaultPrevented || (event.target instanceof Element && event.target.closest('input,textarea,select,[contenteditable=true],[role="combobox"],[role="dialog"],.director-conflict-details'))) return;
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "z") { event.preventDefault(); event.shiftKey ? model.redo() : model.undo(); }
       if (event.key === " " && !(event.target instanceof HTMLButtonElement)) { event.preventDefault(); clock.getState().toggle(); }
       if (event.key === "Home") { event.preventDefault(); clock.getState().seek(0); }
@@ -397,7 +400,7 @@ export function ChapterVisualPlanTab({ projectId, canEdit, chapter, onDirtyChang
   const conflictContent = model.conflict && <div className="director-error" role="alert">
     <p>{model.conflict}</p>
     <p>只选择冲突字段的版本；其他字段的修改会合并保留。</p>
-    <div className="director-conflict-details" tabIndex={0} aria-label="冲突内容对比">
+    <div className="director-conflict-details" role="group" tabIndex={0} aria-label="冲突内容对比">
       {model.conflictDetails.map((detail, index) => <div key={`${detail.name}:${detail.field}:${index}`}>
         <strong>{detail.name} · {detail.field}</strong>
         <p>我的编辑：{detail.local}</p><p>已保存版本：{detail.remote}</p>
@@ -533,6 +536,7 @@ export function ChapterVisualPlanTab({ projectId, canEdit, chapter, onDirtyChang
       </div>
       {inspectorOpen && !narrow && <aside className={`director-inspector ${agentSidebarOpen ? "director-agent-inspector" : ""}`} aria-label={agentSidebarOpen ? "导演 Agent" : "所选对象属性"}>
         {agentSidebarOpen ? <DomainAgentConsole
+          executionMode={agentExecutionMode} onExecutionModeChange={setAgentExecutionMode}
           capability="director"
           projectId={projectId}
           chapterId={chapter.id}
@@ -549,7 +553,7 @@ export function ChapterVisualPlanTab({ projectId, canEdit, chapter, onDirtyChang
     <Modal isOpen={modalPanel === "source"} title="章节原文" onClose={closeModal} maxWidthClassName="max-w-3xl"><div className="director-source">{model.set?.source.content}</div></Modal>
     <Modal isOpen={modalPanel === "scenes"} title="本项目场景库" onClose={() => { closeModal(); void loadAssets(); }} maxWidthClassName="max-w-6xl"><Suspense fallback={<LoadingSpinner text="加载场景库…" />}><SceneLibrary projectId={projectId} canEditProfiles={canEdit} /></Suspense></Modal>
     <Modal isOpen={modalPanel === "agent" && narrow} title="导演 Agent" onClose={closeModal} maxWidthClassName="max-w-4xl">
-      <DomainAgentConsole capability="director" projectId={projectId} chapterId={chapter.id} resourceLabel={chapter.title} className="director-agent-console director-agent-modal-console" getEditorSource={getEditorSource} />
+      <DomainAgentConsole capability="director" projectId={projectId} chapterId={chapter.id} resourceLabel={chapter.title} className="director-agent-console director-agent-modal-console" getEditorSource={getEditorSource} executionMode={agentExecutionMode} onExecutionModeChange={setAgentExecutionMode} />
     </Modal>
     <Modal isOpen={modalPanel === "settings"} title="画幅" onClose={closeModal}>
       <div className="director-inline-actions">{[[1920, 1080, "16:9 横屏"], [1080, 1920, "9:16 竖屏"], [1080, 1080, "1:1 方形"], [1440, 1080, "4:3"]].map(([width, height, label]) => {

@@ -104,7 +104,7 @@ command_specs! {
     "edit_canvas_graph" => args_edit_canvas_graph, result_edit_canvas_graph, "canvas", context(NO_CONTEXT);
     "edit_chapter_shooting_script" => args_edit_chapter_shooting_script, result_edit_chapter_shooting_script, "chapter", references(REFERENCES_PROJECT_IDS);
     "edit_chapter_shooting_script_progress" => args_edit_chapter_shooting_script_progress, result_edit_chapter_shooting_script_progress, "chapter", references(REFERENCES_PROJECT_IDS);
-    "edit_chapter_visual_plan_draft" => args_edit_chapter_visual_plan_draft, result_edit_chapter_visual_plan_draft, "chapter";
+    "edit_chapter_visual_plan_draft" => args_edit_chapter_visual_plan_draft, result_edit_chapter_visual_plan_draft, "chapter", idempotency("operation_id");
     "execute_attribute_deletion" => args_execute_attribute_deletion, result_unit, "profile", effect(DESTRUCTIVE_EFFECT);
     "export_all_configs_json" => args_export_all_configs_json, result_string, "export", identity(ADMIN_IDENTITY), effect(READ_EFFECT), execution("download"), file_outputs(FILE_OUTPUTS_SAVE_BASE64_SAVE_TEXT), references(REFERENCES_ARTIFACTS);
     "export_batch_data" => args_export_batch_data, result_export_batch_data, "export", context(NO_CONTEXT), effect(READ_EFFECT), execution("download"), file_outputs(FILE_OUTPUTS_SAVE_BASE64_SAVE_TEXT);
@@ -366,7 +366,7 @@ command_specs! {
     "save_canvas_graph" => args_save_canvas_graph, result_save_canvas_graph, "canvas", context(NO_CONTEXT);
     "save_canvas_text_asset" => args_save_canvas_text_asset, result_save_canvas_text_asset, "canvas", context(NO_CONTEXT);
     "save_chapter_outline" => args_save_chapter_outline, result_save_chapter_outline, "outline", context(NO_CONTEXT), secrets(RUNTIME_SECRET_POINTERS), runtime(RuntimeConfigPolicy::Full);
-    "save_chapter_visual_plan_draft" => args_save_chapter_visual_plan_draft, result_chapter_visual_plan, "chapter", references(REFERENCES_PROJECT_IDS);
+    "save_chapter_visual_plan_draft" => args_save_chapter_visual_plan_draft, result_chapter_visual_plan, "chapter", references(REFERENCES_PROJECT_IDS), idempotency("operation_id");
     "save_media_authoring_document" => args_save_authoring_document, result_authoring_document, "media_authoring", context(NO_CONTEXT);
     "save_part_outline" => args_save_part_outline, result_save_part_outline, "outline", context(NO_CONTEXT), secrets(RUNTIME_SECRET_POINTERS), runtime(RuntimeConfigPolicy::Full);
     "select_segment_video" => args_select_segment_video, result_generated_video, "video", context(PROJECT_CHAPTER_CONTEXT), effect(DESTRUCTIVE_EFFECT);

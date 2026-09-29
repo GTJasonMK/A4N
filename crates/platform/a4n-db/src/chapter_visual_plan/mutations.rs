@@ -37,7 +37,11 @@ pub(super) async fn save_chapter_visual_plan_draft_in<
     let (plan_json, plan_sha256) = serialize_plan(&input.plan)?;
     let tx = db.begin().await?;
     super::resources::validate_resources(&tx, input.source.root_project_id, &input.plan).await?;
-    if let Some(expected_hash) = input.expected_source_hash.as_deref() {
+    {
+        let expected_hash = input
+            .expected_source_hash
+            .as_deref()
+            .unwrap_or(&input.source.content_sha256);
         super::codec::validate_sha256(expected_hash, "expected_source_hash")?;
         // Keep the source and its project binding stable through the plan CAS.
         // The initial source read in the application cannot close this race.
@@ -244,6 +248,7 @@ pub async fn confirm_chapter_visual_plan(
     let tx = db.begin().await?;
     super::receipts::lock_project(&tx, identity.record.project_id).await?;
     let current = chapter_visual_plan_by_id(&tx, input.record_id).await?;
+    super::queries::ensure_current_plan_source(&tx, &current).await?;
     if current.record.revision != input.expected_revision {
         return Err(ChapterVisualPlanDbError::RevisionConflict {
             record_id: input.record_id,

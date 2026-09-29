@@ -5305,6 +5305,7 @@ export interface VisualPlanEditReceipt {
 export interface ChapterVisualPlanSetView {
   confirmed: ChapterVisualPlanView | null;
   draft: ChapterVisualPlanView | null;
+  edit_cursor: number;
   scene_choices: ChapterVisualPlanSceneChoice[];
   source: ChapterVisualPlanSourceView;
   starter_plan: ChapterVisualPlanV3;

@@ -69,6 +69,8 @@ pub struct ChapterVisualPlanView {
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
 pub struct ChapterVisualPlanSetView {
+    #[serde(default)]
+    pub edit_cursor: i64,
     pub source: ChapterVisualPlanSourceView,
     pub scene_choices: Vec<ChapterVisualPlanSceneChoice>,
     pub starter_plan: ChapterVisualPlanV3,

@@ -186,9 +186,6 @@ pub fn agent_tool_requires_user_approval(name: &str, effect: &str) -> bool {
                 | "edit_canvas_graph"
                 | "run_canvas_graph"
                 | "run_canvas_node"
-                | "save_chapter_visual_plan_draft"
-                | "edit_chapter_visual_plan_draft"
-                | "save_editor_draft"
         )
 }
 

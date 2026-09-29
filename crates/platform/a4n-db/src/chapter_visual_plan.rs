@@ -17,7 +17,7 @@ pub use queries::{
 pub use receipts::{
     record_visual_plan_noop, replay_visual_plan_edit, save_chapter_visual_plan_draft,
     save_chapter_visual_plan_draft_with_operation, save_chapter_visual_plan_edit,
-    visual_plan_edits, visual_plan_revision,
+    visual_plan_edit_cursor, visual_plan_edits, visual_plan_revision,
 };
 pub use resources::{
     ensure_visual_plan_images_unreferenced, ensure_visual_plan_scenes_unreferenced,
