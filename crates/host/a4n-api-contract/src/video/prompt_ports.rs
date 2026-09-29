@@ -1,5 +1,16 @@
 use super::*;
 
+/// Host-provided cleanup for media that becomes unreachable after a prompt
+/// mutation. The video owner decides which IDs are safe to remove.
+#[async_trait::async_trait]
+pub trait VideoPromptDownstreamCleanupPort: Send + Sync {
+    async fn delete_downstream_media(
+        &self,
+        image_ids: &[i64],
+        video_ids: &[i64],
+    ) -> Result<(), a4n_error::AppError>;
+}
+
 /// Host-facing read boundary for persisted chapter video prompts.
 ///
 /// Chapter ownership, authorization and ORM projection stay in the video
