@@ -19,6 +19,9 @@ const DEFAULT_WORKER_URL: &str = "http://127.0.0.1:47661";
 const CONTROL_LEASE_FENCE: &str = "control-request";
 const CONTROL_LEASE_EXPIRY: &str = "9999-12-31T23:59:59Z";
 
+mod mutations;
+mod reads;
+
 #[derive(Clone)]
 pub struct ProfileMaterialWorkerClient {
     transport: HttpWorkerClient,
@@ -112,39 +115,6 @@ impl ProfileMaterialWorkerClient {
                 "profile material worker 返回未完成状态: operation={operation_id}, status={status:?}"
             ))),
         }
-    }
-}
-
-#[async_trait::async_trait]
-impl ProfileMaterialReadApplicationPort for ProfileMaterialWorkerClient {
-    async fn list(
-        &self,
-        user_id: i64,
-        input: ListProfileMaterialsInput,
-    ) -> Result<Vec<ProfileMaterialGroup>, AppError> {
-        let project_id = input.project_id;
-        self.command(user_id, project_id, PROFILE_MATERIAL_LIST_OPERATION, input)
-            .await
-    }
-}
-
-#[async_trait::async_trait]
-impl ProfileMaterialMutationApplicationPort for ProfileMaterialWorkerClient {
-    async fn set_primary(
-        &self,
-        user_id: i64,
-        input: SetProfilePrimaryMaterialInput,
-    ) -> Result<ProfileMaterialGroup, AppError> {
-        let project_id = input.project_id;
-        let response: ProfileMaterialSetPrimaryResponse = self
-            .command(
-                user_id,
-                project_id,
-                PROFILE_MATERIAL_SET_PRIMARY_OPERATION,
-                input,
-            )
-            .await?;
-        Ok(response.group)
     }
 }
 
