@@ -1,19 +1,14 @@
 //! Typed Host adapter for the Blueprint read worker.
 
-use a4n_api_contract::blueprint::{
-    BlueprintReadApplicationPort, BlueprintSummary, BlueprintVersionSummary,
-    DiffBlueprintVersionsInput, ListBlueprintVersionsInput,
-};
-use a4n_blueprint_worker_contract::{
-    BLUEPRINT_DIFF_OPERATION, BLUEPRINT_SUMMARY_OPERATION, BLUEPRINT_VERSIONS_OPERATION,
-    BLUEPRINT_WORKER_ID, BlueprintDiffSummary, BlueprintProjectInput,
-};
+use a4n_blueprint_worker_contract::BLUEPRINT_WORKER_ID;
 use a4n_error::AppError;
 use a4n_worker_client::{HttpWorkerClient, WorkerClientError};
 use a4n_worker_contract::{
     WORKER_SCHEMA_VERSION, WorkerEnvelope, WorkerError, WorkerErrorCode, WorkerLease,
     WorkerOperationStatus, WorkerPrincipal, WorkerPrincipalKind, WorkerResponse,
 };
+
+mod reads;
 
 const DEFAULT_WORKER_URL: &str = "http://127.0.0.1:47654";
 const CONTROL_LEASE_FENCE: &str = "control-request";
@@ -112,46 +107,6 @@ impl BlueprintWorkerClient {
                 "blueprint worker 返回未完成状态: operation={operation_id}, status={status:?}"
             ))),
         }
-    }
-}
-
-#[async_trait::async_trait]
-impl BlueprintReadApplicationPort for BlueprintWorkerClient {
-    async fn summary(
-        &self,
-        user_id: i64,
-        project_id: i64,
-    ) -> Result<Option<BlueprintSummary>, AppError> {
-        self.command(
-            user_id,
-            project_id,
-            BLUEPRINT_SUMMARY_OPERATION,
-            BlueprintProjectInput { project_id },
-        )
-        .await
-    }
-
-    async fn versions(
-        &self,
-        user_id: i64,
-        input: ListBlueprintVersionsInput,
-    ) -> Result<Vec<BlueprintVersionSummary>, AppError> {
-        self.command(
-            user_id,
-            input.project_id,
-            BLUEPRINT_VERSIONS_OPERATION,
-            input,
-        )
-        .await
-    }
-
-    async fn diff(
-        &self,
-        user_id: i64,
-        input: DiffBlueprintVersionsInput,
-    ) -> Result<BlueprintDiffSummary, AppError> {
-        self.command(user_id, input.project_id, BLUEPRINT_DIFF_OPERATION, input)
-            .await
     }
 }
 
