@@ -97,6 +97,33 @@ fn validates_completed_llm_call_checkpoint_contract() {
 }
 
 #[test]
+fn completed_llm_call_checkpoint_fields_keep_payload_and_missing_json_error() {
+    let checkpoint_json = serde_json::json!({
+        "parsed_output": {"value": 1},
+        "response_content": "{\"value\":1}",
+        "usage": null,
+        "finish_reason": "stop",
+    });
+    let artifacts_json = serde_json::json!({"receipt": 7});
+    let checkpoint = completed_llm_call_checkpoint_from_fields(
+        Some(&checkpoint_json),
+        Some(&artifacts_json),
+        "test.call",
+    )
+    .expect("completed checkpoint fields should parse");
+    assert_eq!(checkpoint.parsed_output, serde_json::json!({"value": 1}));
+    assert_eq!(checkpoint.artifacts_json, Some(artifacts_json));
+
+    let error = completed_llm_call_checkpoint_from_fields(None, None, "test.call")
+        .expect_err("missing checkpoint JSON must fail");
+    assert!(matches!(
+        error,
+        WorkflowCheckpointContractError::Invalid(message)
+            if message.contains("test.call") && message.contains("checkpoint_json")
+    ));
+}
+
+#[test]
 fn completed_call_checkpoint_rejects_unsuccessful_finish_reason() {
     for reason in [Some(""), Some("content_filter"), Some("unexpected")] {
         let checkpoint = serde_json::json!({

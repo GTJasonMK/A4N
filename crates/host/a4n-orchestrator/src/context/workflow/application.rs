@@ -38,8 +38,8 @@ impl WorkflowApplication {
         &self,
         project_id: i64,
         workflow_kind: &str,
-    ) -> Result<Vec<workflow_run::Model>, AppError> {
-        a4n_db::workflow::workflow_runs_by_project_kind(
+    ) -> Result<Vec<WorkflowRunResumeRecord>, AppError> {
+        a4n_db::workflow::workflow_run_resume_records_by_project_kind(
             self.database.connection(),
             project_id,
             workflow_kind,
@@ -135,6 +135,15 @@ impl WorkflowApplication {
         workflow_run_id: i64,
     ) -> Result<Vec<workflow_checkpoint::Model>, AppError> {
         a4n_db::workflow::workflow_checkpoint_models(self.database.connection(), workflow_run_id)
+            .await
+            .map_err(workflow_read_app_error)
+    }
+
+    pub(in crate::context) async fn workflow_checkpoint_summaries(
+        &self,
+        workflow_run_id: i64,
+    ) -> Result<Vec<WorkflowCheckpointSummary>, AppError> {
+        a4n_db::workflow::workflow_checkpoint_summaries(self.database.connection(), workflow_run_id)
             .await
             .map_err(workflow_read_app_error)
     }

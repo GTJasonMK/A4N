@@ -66,10 +66,11 @@ pub use runs::{
     upsert_workflow_run_in_transaction, workflow_checkpoint_model_by_step_in,
     workflow_checkpoint_models, workflow_checkpoint_models_for_runs,
     workflow_checkpoint_statuses_for_runs, workflow_checkpoint_step_statuses,
-    workflow_progress_events, workflow_run_access_record_by_active_task_id, workflow_run_detail,
-    workflow_run_model_by_id, workflow_run_models_by_ids, workflow_run_resume_record_by_id,
-    workflow_run_status_record_by_id, workflow_run_statuses_by_ids, workflow_run_summary_by_id,
-    workflow_runs_by_project_kind,
+    workflow_checkpoint_summaries, workflow_progress_events,
+    workflow_run_access_record_by_active_task_id, workflow_run_detail, workflow_run_model_by_id,
+    workflow_run_models_by_ids, workflow_run_resume_record_by_id,
+    workflow_run_resume_records_by_project_kind, workflow_run_status_record_by_id,
+    workflow_run_statuses_by_ids, workflow_run_summary_by_id, workflow_runs_by_project_kind,
 };
 #[cfg(test)]
 pub(in crate::workflow) use runs::{
@@ -96,9 +97,10 @@ mod llm_checkpoint;
 pub(in crate::workflow) use llm_checkpoint::validate_completed_llm_call_checkpoint_json;
 pub use llm_checkpoint::{
     CompletedLlmCallCheckpoint, CompletedLlmCallCheckpointInput,
-    completed_llm_call_checkpoint_from_model, llm_call_checkpoint_fingerprint_sha256,
-    load_completed_llm_call_checkpoint, reject_completed_llm_call_checkpoint,
-    required_llm_call_workflow_run_id, save_completed_llm_call_checkpoint,
+    completed_llm_call_checkpoint_from_fields, completed_llm_call_checkpoint_from_model,
+    llm_call_checkpoint_fingerprint_sha256, load_completed_llm_call_checkpoint,
+    reject_completed_llm_call_checkpoint, required_llm_call_workflow_run_id,
+    save_completed_llm_call_checkpoint,
 };
 
 // ── LLM call level checkpoint 合同（阶段 11 收口） ──────────────────────────

@@ -150,16 +150,24 @@ pub fn completed_llm_call_checkpoint_from_model(
     checkpoint: &workflow_checkpoint::Model,
     call_key: &str,
 ) -> Result<CompletedLlmCallCheckpoint, WorkflowCheckpointContractError> {
-    let checkpoint_json = checkpoint.checkpoint_json.clone().ok_or_else(|| {
+    completed_llm_call_checkpoint_from_fields(
+        checkpoint.checkpoint_json.as_ref(),
+        checkpoint.artifacts_json.as_ref(),
+        call_key,
+    )
+}
+
+pub fn completed_llm_call_checkpoint_from_fields(
+    checkpoint_json: Option<&Value>,
+    artifacts_json: Option<&Value>,
+    call_key: &str,
+) -> Result<CompletedLlmCallCheckpoint, WorkflowCheckpointContractError> {
+    let checkpoint_json = checkpoint_json.cloned().ok_or_else(|| {
         WorkflowCheckpointContractError::Invalid(format!(
             "{call_key} LLM 调用断点缺少 checkpoint_json"
         ))
     })?;
-    completed_llm_call_checkpoint_from_json(
-        checkpoint_json,
-        checkpoint.artifacts_json.clone(),
-        call_key,
-    )
+    completed_llm_call_checkpoint_from_json(checkpoint_json, artifacts_json.cloned(), call_key)
 }
 
 pub async fn load_completed_llm_call_checkpoint(

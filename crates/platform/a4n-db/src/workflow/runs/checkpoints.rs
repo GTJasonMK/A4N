@@ -1,5 +1,6 @@
 use super::*;
 
+use super::projections::workflow_checkpoint_summary;
 use super::queries::{locked_workflow_run_by_id, workflow_checkpoints};
 use super::validation::ensure_workflow_write_open;
 use sea_orm::{FromQueryResult, sea_query::extension::postgres::PgExpr};
@@ -174,6 +175,17 @@ pub async fn workflow_checkpoint_models(
     workflow_run_id: i64,
 ) -> Result<Vec<workflow_checkpoint::Model>, WorkflowReadError> {
     workflow_checkpoints(db, workflow_run_id).await
+}
+
+pub async fn workflow_checkpoint_summaries(
+    db: &DatabaseConnection,
+    workflow_run_id: i64,
+) -> Result<Vec<WorkflowCheckpointSummary>, WorkflowReadError> {
+    Ok(workflow_checkpoint_models(db, workflow_run_id)
+        .await?
+        .into_iter()
+        .map(workflow_checkpoint_summary)
+        .collect())
 }
 
 pub async fn workflow_checkpoint_models_for_runs(

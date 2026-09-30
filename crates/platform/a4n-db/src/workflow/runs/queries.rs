@@ -119,6 +119,18 @@ pub async fn workflow_runs_by_project_kind(
         .map_err(WorkflowReadError::Database)
 }
 
+pub async fn workflow_run_resume_records_by_project_kind(
+    db: &DatabaseConnection,
+    project_id: i64,
+    workflow_kind: &str,
+) -> Result<Vec<WorkflowRunResumeRecord>, WorkflowReadError> {
+    Ok(workflow_runs_by_project_kind(db, project_id, workflow_kind)
+        .await?
+        .into_iter()
+        .map(workflow_run_resume_record)
+        .collect())
+}
+
 fn workflow_runs_for_project(
     project_id: i64,
     workflow_kind: &str,
