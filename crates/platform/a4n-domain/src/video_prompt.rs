@@ -1,3 +1,4 @@
+use chrono::NaiveDateTime;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -62,6 +63,58 @@ pub struct ChapterVideoPromptSummary {
     pub metadata_json: Option<Value>,
     pub created_at: String,
     pub updated_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct ChapterVideoPromptRecord {
+    pub id: i64,
+    pub project_id: i64,
+    pub chapter_id: i64,
+    pub style: Option<String>,
+    pub prompt_type: String,
+    pub workflow_mode: String,
+    pub shot_number: i32,
+    pub title: Option<String>,
+    pub scene_summary: Option<String>,
+    pub visual_prompt: String,
+    pub motion_prompt: Option<String>,
+    pub negative_prompt: Option<String>,
+    pub duration_secs: i32,
+    pub aspect_ratio: Option<String>,
+    pub reference_image_ids_json: Option<Value>,
+    pub status: String,
+    pub generated_video_id: Option<i64>,
+    pub timeline_item_id: Option<i64>,
+    pub metadata_json: Option<Value>,
+    pub created_at: NaiveDateTime,
+    pub updated_at: NaiveDateTime,
+}
+
+impl From<&ChapterVideoPromptRecord> for ChapterVideoPromptSummary {
+    fn from(prompt: &ChapterVideoPromptRecord) -> Self {
+        Self {
+            id: prompt.id,
+            project_id: prompt.project_id,
+            chapter_id: prompt.chapter_id,
+            style: prompt.style.clone(),
+            prompt_type: prompt.prompt_type.clone(),
+            workflow_mode: prompt.workflow_mode.clone(),
+            shot_number: prompt.shot_number,
+            title: prompt.title.clone(),
+            scene_summary: prompt.scene_summary.clone(),
+            visual_prompt: prompt.visual_prompt.clone(),
+            motion_prompt: prompt.motion_prompt.clone(),
+            negative_prompt: prompt.negative_prompt.clone(),
+            duration_secs: prompt.duration_secs,
+            aspect_ratio: prompt.aspect_ratio.clone(),
+            reference_image_ids_json: prompt.reference_image_ids_json.clone(),
+            status: prompt.status.clone(),
+            generated_video_id: prompt.generated_video_id,
+            metadata_json: prompt.metadata_json.clone(),
+            created_at: prompt.created_at.to_string(),
+            updated_at: prompt.updated_at.to_string(),
+        }
+    }
 }
 
 #[derive(Debug, Clone)]

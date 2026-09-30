@@ -26,8 +26,11 @@ impl WorkerState {
         let source_content_sha256 = a4n_domain::source_text_hash(&source_content);
         let db = self.database.connection();
         let (plan_result, video_result) = tokio::join!(
-            a4n_db::video::chapter_video_prompt_by_id(db, input.input.segment_plan_prompt_id),
-            a4n_db::video::generated_video_by_id(db, video_id),
+            a4n_db::video::read_models::chapter_video_prompt_by_id(
+                db,
+                input.input.segment_plan_prompt_id
+            ),
+            a4n_db::video::read_models::generated_video_by_id(db, video_id),
         );
         let plan = plan_result
             .map_err(video_error)?
@@ -45,7 +48,7 @@ impl WorkerState {
                 "目标片段规划不是当前章节已完成的共享片段规划",
             ));
         }
-        let plan = a4n_db::video::with_video_plan_source_sync(db, plan)
+        let plan = a4n_db::video::read_models::with_video_plan_source_sync(db, plan)
             .await
             .map_err(video_error)?;
         let target = &input.input.target_segment;
@@ -118,10 +121,11 @@ impl WorkerState {
         if input.input.is_empty() {
             return Err(WorkerFailure::invalid_request("视频更新内容不能为空"));
         }
-        let video = a4n_db::video::generated_video_by_id(self.database.connection(), video_id)
-            .await
-            .map_err(database_error)?
-            .ok_or_else(|| WorkerFailure::not_found("视频不存在"))?;
+        let video =
+            a4n_db::video::read_models::generated_video_by_id(self.database.connection(), video_id)
+                .await
+                .map_err(database_error)?
+                .ok_or_else(|| WorkerFailure::not_found("视频不存在"))?;
         validate_optional_project_scope(request_project_id, video.project_id)?;
         verify_project_permission(
             &self.database,
@@ -142,7 +146,7 @@ impl WorkerState {
             Some(None) => (None, true),
             None => (None, false),
         };
-        let updated = a4n_db::video::update_generated_video_record(
+        let updated = a4n_db::video::read_models::update_generated_video_record(
             self.database.connection(),
             video_id,
             a4n_domain::media::UpdateGeneratedVideoRecordInput {
@@ -161,7 +165,7 @@ impl WorkerState {
 
     async fn video_record_is_pushed_source(
         &self,
-        video: &a4n_db_models::models::ai::generated_video::Model,
+        video: &a4n_domain::media::GeneratedVideoRecord,
     ) -> Result<bool, WorkerFailure> {
         if !matches!(
             video.video_type.as_str(),
@@ -177,7 +181,7 @@ impl WorkerState {
         ) else {
             return Ok(false);
         };
-        let rows = a4n_db::video::generated_videos_for_chapter(
+        let rows = a4n_db::video::read_models::generated_videos_for_chapter(
             self.database.connection(),
             video.project_id,
             chapter_id,

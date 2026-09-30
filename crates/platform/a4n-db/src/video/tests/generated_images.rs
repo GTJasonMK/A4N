@@ -17,7 +17,6 @@ use serde_json::json;
 use crate::video::{
     VideoDbError, create_generated_image_record, create_generated_video_record,
     delete_generated_image_record_with_cleanup, generated_image_ids_by_ids,
-    update_generated_image_record,
 };
 
 async fn setup_db() -> DatabaseConnection {
@@ -398,7 +397,7 @@ async fn update_rejects_non_finite_ai_score_without_update() {
         .await
         .unwrap();
 
-    let error = update_generated_image_record(
+    let error = crate::video::read_models::update_generated_image_record(
         &db,
         image.id,
         UpdateGeneratedImageRecordInput {
@@ -429,7 +428,7 @@ async fn update_persists_finite_ai_score() {
         .await
         .unwrap();
 
-    let updated = update_generated_image_record(
+    let updated = crate::video::read_models::update_generated_image_record(
         &db,
         image.id,
         UpdateGeneratedImageRecordInput {

@@ -171,10 +171,13 @@ impl WorkerState {
                             )
                             .await;
                     };
-                    a4n_db::video::generated_image_by_id(self.db.connection(), image_id)
-                        .await
-                        .map_err(|error| error.to_string())?
-                        .is_none()
+                    a4n_db::video::read_models::generated_image_by_id(
+                        self.db.connection(),
+                        image_id,
+                    )
+                    .await
+                    .map_err(|error| error.to_string())?
+                    .is_none()
                 } {
                     return self
                         .reclaim(
@@ -214,7 +217,7 @@ impl WorkerState {
         publication: &ImagePublicationRecoveryRecord,
         facts: &(PathBuf, i64, String),
     ) -> Result<(), String> {
-        a4n_db::video::publish_image_publication(
+        a4n_db::video::read_models::publish_image_publication(
             self.db.connection(),
             &publication.publication_id,
             ImagePublicationFileFacts {

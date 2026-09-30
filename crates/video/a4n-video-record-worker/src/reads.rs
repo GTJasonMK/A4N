@@ -10,10 +10,11 @@ impl WorkerState {
     ) -> Result<GeneratedVideoSummary, WorkerFailure> {
         validate_request(&request, VIDEO_RECORD_PLAYBACK_OPERATION)?;
         let video_id = positive(request.payload.video_id, "video_id")?;
-        let video = a4n_db::video::generated_video_by_id(self.database.connection(), video_id)
-            .await
-            .map_err(database_error)?
-            .ok_or_else(|| WorkerFailure::not_found("视频不存在"))?;
+        let video =
+            a4n_db::video::read_models::generated_video_by_id(self.database.connection(), video_id)
+                .await
+                .map_err(database_error)?
+                .ok_or_else(|| WorkerFailure::not_found("视频不存在"))?;
         validate_optional_project_scope(request.project_id, video.project_id)?;
         verify_project_permission(
             &self.database,
@@ -49,7 +50,7 @@ impl WorkerState {
         )
         .await
         .map_err(video_error)?;
-        a4n_db::video::generated_videos_for_chapter(
+        a4n_db::video::read_models::generated_videos_for_chapter(
             self.database.connection(),
             input.project_id,
             input.chapter_id,
@@ -76,7 +77,7 @@ impl WorkerState {
             ProjectAccessRole::Editor,
         )
         .await?;
-        let images = a4n_db::video::validated_video_reference_image_records(
+        let images = a4n_db::video::read_models::validated_video_reference_image_records(
             self.database.connection(),
             input.project_id,
             input.chapter_id,

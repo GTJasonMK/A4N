@@ -182,7 +182,7 @@ impl WorkerState {
             false,
         )
         .await?;
-        let prompts = a4n_db::video::chapter_video_prompts_for_chapter(
+        let prompts = a4n_db::video::read_models::chapter_video_prompts_for_chapter(
             self.database.connection(),
             input.project_id,
             input.chapter_id,
@@ -191,10 +191,12 @@ impl WorkerState {
         .map_err(database_error)?;
         let mut result = Vec::with_capacity(prompts.len());
         for prompt in prompts {
-            let prompt =
-                a4n_db::video::with_video_plan_source_sync(self.database.connection(), prompt)
-                    .await
-                    .map_err(video_error)?;
+            let prompt = a4n_db::video::read_models::with_video_plan_source_sync(
+                self.database.connection(),
+                prompt,
+            )
+            .await
+            .map_err(video_error)?;
             result.push(ChapterVideoPromptSummary::from(&prompt));
         }
         Ok(result)

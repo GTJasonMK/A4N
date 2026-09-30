@@ -15,10 +15,12 @@ impl WorkerState {
         if request.image_id <= 0 {
             return Err("image_id must be positive".to_string());
         }
-        let Some(image) =
-            a4n_db::video::generated_image_by_id(self.db.connection(), request.image_id)
-                .await
-                .map_err(|error| error.to_string())?
+        let Some(image) = a4n_db::video::read_models::generated_image_by_id(
+            self.db.connection(),
+            request.image_id,
+        )
+        .await
+        .map_err(|error| error.to_string())?
         else {
             return Ok(None);
         };
@@ -35,10 +37,13 @@ impl WorkerState {
             return Err("project_id must be positive".to_string());
         }
         verify_image_permission(&self.db, user_id, request.project_id, "viewer").await?;
-        a4n_db::video::generated_images_for_project(self.db.connection(), request.project_id)
-            .await
-            .map(|images| images.iter().map(generated_image_summary).collect())
-            .map_err(|error| error.to_string())
+        a4n_db::video::read_models::generated_images_for_project(
+            self.db.connection(),
+            request.project_id,
+        )
+        .await
+        .map(|images| images.iter().map(generated_image_summary).collect())
+        .map_err(|error| error.to_string())
     }
 
     pub(super) async fn image_list_by_projects(
@@ -50,10 +55,12 @@ impl WorkerState {
         for project_id in &project_ids {
             verify_image_permission(&self.db, user_id, *project_id, "viewer").await?;
         }
-        let mut images =
-            a4n_db::video::generated_images_for_projects(self.db.connection(), &project_ids)
-                .await
-                .map_err(|error| error.to_string())?;
+        let mut images = a4n_db::video::read_models::generated_images_for_projects(
+            self.db.connection(),
+            &project_ids,
+        )
+        .await
+        .map_err(|error| error.to_string())?;
         sort_images_by_project_order(&mut images, &project_ids);
         Ok(images.iter().map(generated_image_summary).collect())
     }
@@ -74,7 +81,7 @@ impl WorkerState {
         )
         .await
         .map_err(|error| error.to_string())?;
-        a4n_db::video::generated_images_for_chapter(
+        a4n_db::video::read_models::generated_images_for_chapter(
             self.db.connection(),
             request.project_id,
             request.chapter_id,
@@ -93,7 +100,7 @@ impl WorkerState {
             return Err("project_id 和 image_ids 必须为正整数".to_string());
         }
         verify_image_permission(&self.db, user_id, request.project_id, "viewer").await?;
-        a4n_db::character::portrait_reference_images_by_ids(
+        a4n_db::video::read_models::portrait_reference_images_by_ids(
             self.db.connection(),
             request.project_id,
             &request.image_ids,
@@ -111,12 +118,13 @@ impl WorkerState {
         if input.is_empty() {
             return Err("图片更新至少需要一个字段".to_string());
         }
-        let image = a4n_db::video::generated_image_by_id(self.db.connection(), input.image_id)
-            .await
-            .map_err(|error| error.to_string())?
-            .ok_or_else(|| "图片不存在".to_string())?;
+        let image =
+            a4n_db::video::read_models::generated_image_by_id(self.db.connection(), input.image_id)
+                .await
+                .map_err(|error| error.to_string())?
+                .ok_or_else(|| "图片不存在".to_string())?;
         verify_image_permission(&self.db, user_id, image.project_id, "editor").await?;
-        let updated = a4n_db::video::update_generated_image_record(
+        let updated = a4n_db::video::read_models::update_generated_image_record(
             self.db.connection(),
             input.image_id,
             a4n_domain::media::UpdateGeneratedImageRecordInput {
@@ -144,10 +152,11 @@ impl WorkerState {
         if input.image_id <= 0 {
             return Err("image_id must be positive".to_string());
         }
-        let image = a4n_db::video::generated_image_by_id(self.db.connection(), input.image_id)
-            .await
-            .map_err(|error| error.to_string())?
-            .ok_or_else(|| "图片不存在".to_string())?;
+        let image =
+            a4n_db::video::read_models::generated_image_by_id(self.db.connection(), input.image_id)
+                .await
+                .map_err(|error| error.to_string())?
+                .ok_or_else(|| "图片不存在".to_string())?;
         verify_image_permission(&self.db, user_id, image.project_id, "editor").await?;
         a4n_db::video::delete_generated_image_record_with_cleanup(
             self.db.connection(),

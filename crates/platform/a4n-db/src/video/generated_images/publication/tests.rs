@@ -93,7 +93,7 @@ async fn successful_publication_replay_repairs_missing_image_without_duplicate()
     )
     .await
     .expect("publication replay must rebuild a missing image");
-    let replayed = publish_image_publication(
+    let replayed = crate::video::read_models::publish_image_publication(
         &db,
         &publication_id,
         ImagePublicationFileFacts {

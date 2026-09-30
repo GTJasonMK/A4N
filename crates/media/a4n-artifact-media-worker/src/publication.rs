@@ -36,7 +36,7 @@ impl WorkerState {
         if facts.1 != request.file_size || facts.2 != request.sha256 {
             return Err("图片文件事实与发布请求不一致".to_string());
         }
-        let image = a4n_db::video::publish_image_publication(
+        let image = a4n_db::video::read_models::publish_image_publication(
             self.db.connection(),
             &request.publication_id,
             a4n_domain::media::ImagePublicationFileFacts {
