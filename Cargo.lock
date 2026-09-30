@@ -774,6 +774,7 @@ dependencies = [
  "a4n-cleanup-contract",
  "a4n-config",
  "a4n-db-models",
+ "a4n-db-session",
  "a4n-document-export-core",
  "a4n-domain",
  "a4n-error",
@@ -808,6 +809,16 @@ dependencies = [
  "sea-orm",
  "serde",
  "serde_json",
+]
+
+[[package]]
+name = "a4n-db-session"
+version = "0.1.0"
+dependencies = [
+ "a4n-db-models",
+ "a4n-error",
+ "a4n-migration",
+ "sea-orm",
 ]
 
 [[package]]
@@ -2536,6 +2547,7 @@ dependencies = [
  "a4n-config",
  "a4n-db",
  "a4n-db-models",
+ "a4n-db-session",
  "a4n-domain",
  "a4n-embedding-client",
  "a4n-embedding-contract",
