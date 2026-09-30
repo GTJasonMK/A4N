@@ -4,6 +4,7 @@ use std::{env, net::SocketAddr, sync::Arc};
 
 use a4n_api_contract::theme::{ThemePreferenceSummary, ThemeResourceRecord, ThemeSummary};
 use a4n_db::DbHandle;
+use a4n_domain::theme_edit::ThemeRecord;
 use a4n_error::AppError;
 use a4n_theme_core::{
     theme_preference_summary, theme_resource_record, theme_summary_with_resources,
@@ -343,10 +344,7 @@ where
 }
 
 impl WorkerState {
-    async fn summary(
-        &self,
-        theme: a4n_db_models::models::user::theme_config::Model,
-    ) -> Result<ThemeSummary, WorkerFailure> {
+    async fn summary(&self, theme: ThemeRecord) -> Result<ThemeSummary, WorkerFailure> {
         let resources = a4n_db::config::list_theme_resources(self.database.connection(), theme.id)
             .await
             .map_err(app_error)?;
@@ -364,7 +362,7 @@ impl WorkerState {
         &self,
         user_id: i64,
         theme_id: i64,
-    ) -> Result<a4n_db_models::models::user::theme_config::Model, WorkerFailure> {
+    ) -> Result<ThemeRecord, WorkerFailure> {
         let theme = a4n_db::config::theme_by_id(self.database.connection(), theme_id)
             .await
             .map_err(app_error)?
@@ -379,7 +377,7 @@ impl WorkerState {
         &self,
         user_id: i64,
         theme_id: i64,
-    ) -> Result<a4n_db_models::models::user::theme_config::Model, WorkerFailure> {
+    ) -> Result<ThemeRecord, WorkerFailure> {
         if theme_id <= 0 {
             return Err(WorkerFailure::invalid_request("theme_id 必须大于 0"));
         }
