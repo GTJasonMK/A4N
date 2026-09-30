@@ -19,6 +19,9 @@ const DEFAULT_WORKER_URL: &str = "http://127.0.0.1:47665";
 const CONTROL_LEASE_FENCE: &str = "control-request";
 const CONTROL_LEASE_EXPIRY: &str = "9999-12-31T23:59:59Z";
 
+mod mutations;
+mod reads;
+
 #[derive(Clone)]
 pub struct ImportReviewWorkerClient {
     transport: HttpWorkerClient,
@@ -113,54 +116,6 @@ impl ImportReviewWorkerClient {
                 "import review read worker 返回未完成状态: operation={operation_id}, status={status:?}"
             ))),
         }
-    }
-}
-
-#[async_trait::async_trait]
-impl ImportReviewReadApplicationPort for ImportReviewWorkerClient {
-    async fn list(
-        &self,
-        user_id: i64,
-        input: ImportProjectReviewsInput,
-    ) -> Result<Vec<ImportReviewSummary>, AppError> {
-        self.command(
-            user_id,
-            Some(input.project_id),
-            IMPORT_REVIEW_LIST_OPERATION,
-            input,
-        )
-        .await
-    }
-
-    async fn dedup(
-        &self,
-        user_id: i64,
-        input: CheckImportDedupInput,
-    ) -> Result<DedupResult, AppError> {
-        self.command(
-            user_id,
-            Some(input.project_id),
-            IMPORT_REVIEW_DEDUP_OPERATION,
-            input,
-        )
-        .await
-    }
-}
-
-#[async_trait::async_trait]
-impl ImportReviewMutationApplicationPort for ImportReviewWorkerClient {
-    async fn delete(&self, user_id: i64, input: ImportReviewIdInput) -> Result<(), AppError> {
-        self.command(user_id, None, IMPORT_REVIEW_DELETE_OPERATION, input)
-            .await
-    }
-
-    async fn reject(
-        &self,
-        user_id: i64,
-        input: ImportReviewIdInput,
-    ) -> Result<ImportReviewSummary, AppError> {
-        self.command(user_id, None, IMPORT_REVIEW_REJECT_OPERATION, input)
-            .await
     }
 }
 
