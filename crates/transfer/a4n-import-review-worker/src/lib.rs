@@ -4,7 +4,8 @@ use std::{env, net::SocketAddr, sync::Arc};
 
 use a4n_db::DbHandle;
 use a4n_domain::collaboration::ProjectAccessRole;
-use a4n_import_review_core::{calculate_dedup, summary_from_model};
+use a4n_domain::import_review::ImportReviewCreateInput;
+use a4n_import_review_core::{calculate_dedup, summary_from_parts};
 use a4n_import_review_worker_contract::{
     CheckImportDedupInput, IMPORT_REVIEW_DEDUP_OPERATION, IMPORT_REVIEW_DELETE_OPERATION,
     IMPORT_REVIEW_LIST_OPERATION, IMPORT_REVIEW_MUTATION_CAPABILITY, IMPORT_REVIEW_READ_CAPABILITY,
@@ -312,6 +313,46 @@ async fn review_for_editor(
         })?;
     verify_editor(database, review.project_id, user_id).await?;
     Ok(review)
+}
+
+fn summary_from_record(
+    review: a4n_db_models::models::project::import_review_queue::Model,
+) -> Result<ImportReviewSummary, a4n_error::AppError> {
+    summary_from_parts(
+        review.id,
+        ImportReviewCreateInput {
+            project_id: review.project_id,
+            filename: review.filename,
+            analysis_result: review.analysis_result,
+        },
+        &review.review_status,
+        review.created_at.to_string(),
+        review.updated_at.to_string(),
+    )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn review_summary_preserves_persisted_fields() {
+        let review = a4n_db_models::models::project::import_review_queue::Model {
+            id: 4,
+            project_id: 8,
+            filename: "chapters.md".into(),
+            analysis_result: Default::default(),
+            review_status: "pending".into(),
+            created_at: Default::default(),
+            updated_at: Default::default(),
+        };
+        let created_at = review.created_at.to_string();
+        let summary = summary_from_record(review).unwrap();
+        assert_eq!(summary.id, 4);
+        assert_eq!(summary.project_id, 8);
+        assert_eq!(summary.filename, "chapters.md");
+        assert_eq!(summary.created_at, created_at);
+    }
 }
 
 fn user_id<T>(request: &WorkerEnvelope<T>) -> Result<i64, WorkerFailure> {

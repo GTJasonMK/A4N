@@ -38,7 +38,7 @@ impl WorkerState {
         )
         .await
         .map_err(app_error)?;
-        llm_summary(&model).map_err(app_error)
+        llm_summary(&llm_config_read_record(&model)).map_err(app_error)
     }
 
     async fn update_llm(
@@ -66,7 +66,7 @@ impl WorkerState {
         )
         .await
         .map_err(app_error)?;
-        llm_summary(&model).map_err(app_error)
+        llm_summary(&llm_config_read_record(&model)).map_err(app_error)
     }
 
     async fn set_default_llm(

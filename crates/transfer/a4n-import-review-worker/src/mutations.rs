@@ -24,6 +24,6 @@ impl WorkerState {
             a4n_db::import_review::reject_import_review(self.database.connection(), review.id)
                 .await
                 .map_err(mutation_error)?;
-        a4n_import_review_core::summary_from_model(&review).map_err(app_error)
+        summary_from_record(review).map_err(app_error)
     }
 }

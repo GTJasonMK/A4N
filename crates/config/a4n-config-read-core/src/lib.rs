@@ -11,12 +11,79 @@ use a4n_api_contract::config::{
     EmbeddingConfigSummary, ImageConfigForConnectivityTest, ImageConfigSummary, LlmConfigSummary,
     VideoConfigSummary, VideoDurationMode,
 };
-use a4n_db_models::models::ai::{embedding_config, image_gen_config, llm_config, video_gen_config};
 use a4n_error::AppError;
 use a4n_provider_contract::{
     EmbeddingProviderConfig, ImageProviderConfig, LlmProviderConfig, VideoProviderConfig,
 };
 use serde_json::Value;
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct LlmConfigReadRecord {
+    pub id: i64,
+    pub name: String,
+    pub provider: String,
+    pub base_url: String,
+    pub api_key_encrypted: Option<String>,
+    pub model: String,
+    pub max_concurrent: i32,
+    pub timeout_secs: i32,
+    pub max_context_tokens: i32,
+    pub max_output_tokens: i32,
+    pub extra_body_json: Option<Value>,
+    pub agent_protocol: String,
+    pub pricing_json: Value,
+    pub is_default: bool,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct EmbeddingConfigReadRecord {
+    pub id: i64,
+    pub name: String,
+    pub backend: String,
+    pub base_url: Option<String>,
+    pub api_key_encrypted: Option<String>,
+    pub model: String,
+    pub dimension: i32,
+    pub batch_size: i32,
+    pub local_model_path: Option<String>,
+    pub pricing_json: Value,
+    pub is_default: bool,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct ImageConfigReadRecord {
+    pub id: i64,
+    pub name: String,
+    pub backend: String,
+    pub base_url: Option<String>,
+    pub api_key_encrypted: Option<String>,
+    pub model: String,
+    pub max_concurrent: i32,
+    pub supported_sizes_json: Value,
+    pub pricing_json: Value,
+    pub is_default: bool,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct VideoConfigReadRecord {
+    pub id: i64,
+    pub name: String,
+    pub backend: String,
+    pub base_url: Option<String>,
+    pub api_key_encrypted: Option<String>,
+    pub model: String,
+    pub max_concurrent: i32,
+    pub default_width: i32,
+    pub default_height: i32,
+    pub default_duration_secs: i32,
+    pub min_duration_secs: i32,
+    pub max_duration_secs: i32,
+    pub duration_mode: String,
+    pub supported_durations_json: Option<Value>,
+    pub default_fps: i32,
+    pub is_default: bool,
+    pub pricing_json: Value,
+}
 
 fn has_configured_api_key(value: Option<&str>) -> bool {
     value.is_some_and(|value| !value.trim().is_empty())
@@ -34,7 +101,7 @@ fn pricing_from_json(value: &Value) -> Result<a4n_domain::cost::PricingPlan, App
     })
 }
 
-pub fn llm_provider_config(model: llm_config::Model) -> Result<LlmProviderConfig, AppError> {
+pub fn llm_provider_config(model: LlmConfigReadRecord) -> Result<LlmProviderConfig, AppError> {
     Ok(LlmProviderConfig {
         id: model.id,
         name: model.name,
@@ -53,7 +120,7 @@ pub fn llm_provider_config(model: llm_config::Model) -> Result<LlmProviderConfig
 }
 
 pub fn embedding_provider_config(
-    model: embedding_config::Model,
+    model: EmbeddingConfigReadRecord,
 ) -> Result<EmbeddingProviderConfig, AppError> {
     Ok(EmbeddingProviderConfig {
         id: model.id,
@@ -70,7 +137,7 @@ pub fn embedding_provider_config(
 }
 
 pub fn image_provider_config(
-    model: image_gen_config::Model,
+    model: ImageConfigReadRecord,
 ) -> Result<ImageProviderConfig, AppError> {
     Ok(ImageProviderConfig {
         id: model.id,
@@ -86,7 +153,7 @@ pub fn image_provider_config(
 }
 
 pub fn image_connectivity_config(
-    model: image_gen_config::Model,
+    model: ImageConfigReadRecord,
 ) -> Result<ImageConfigForConnectivityTest, AppError> {
     Ok(ImageConfigForConnectivityTest {
         id: model.id,
@@ -102,7 +169,7 @@ pub fn image_connectivity_config(
 }
 
 pub fn video_provider_config(
-    model: video_gen_config::Model,
+    model: VideoConfigReadRecord,
 ) -> Result<VideoProviderConfig, AppError> {
     Ok(VideoProviderConfig {
         id: model.id,
@@ -125,7 +192,7 @@ pub fn video_provider_config(
     })
 }
 
-pub fn llm_summary(model: &llm_config::Model) -> Result<LlmConfigSummary, AppError> {
+pub fn llm_summary(model: &LlmConfigReadRecord) -> Result<LlmConfigSummary, AppError> {
     Ok(LlmConfigSummary {
         id: model.id,
         name: model.name.clone(),
@@ -144,7 +211,7 @@ pub fn llm_summary(model: &llm_config::Model) -> Result<LlmConfigSummary, AppErr
     })
 }
 
-pub fn image_summary(model: &image_gen_config::Model) -> Result<ImageConfigSummary, AppError> {
+pub fn image_summary(model: &ImageConfigReadRecord) -> Result<ImageConfigSummary, AppError> {
     Ok(ImageConfigSummary {
         id: model.id,
         name: model.name.clone(),
@@ -170,7 +237,7 @@ pub fn image_summary(model: &image_gen_config::Model) -> Result<ImageConfigSumma
     })
 }
 
-pub fn video_summary(model: &video_gen_config::Model) -> Result<VideoConfigSummary, AppError> {
+pub fn video_summary(model: &VideoConfigReadRecord) -> Result<VideoConfigSummary, AppError> {
     Ok(VideoConfigSummary {
         id: model.id,
         name: model.name.clone(),
@@ -204,7 +271,7 @@ pub fn video_summary(model: &video_gen_config::Model) -> Result<VideoConfigSumma
 }
 
 pub fn embedding_summary(
-    model: &embedding_config::Model,
+    model: &EmbeddingConfigReadRecord,
 ) -> Result<EmbeddingConfigSummary, AppError> {
     Ok(EmbeddingConfigSummary {
         id: model.id,

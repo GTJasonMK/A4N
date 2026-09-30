@@ -206,6 +206,7 @@ impl ConfigReadWorker {
 
 include!("worker/runtime.rs");
 include!("worker/routes.rs");
+include!("worker/records.rs");
 include!("worker/reads.rs");
 include!("worker/llm.rs");
 include!("worker/mutations.rs");

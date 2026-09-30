@@ -1,9 +1,7 @@
 use super::{
-    embedding_provider_config as embedding_provider_config_from_model,
-    image_connectivity_config as image_config_for_connectivity_test_from_model,
-    llm_provider_config as llm_provider_config_from_model, pricing_from_json,
+    EmbeddingConfigReadRecord, ImageConfigReadRecord, LlmConfigReadRecord,
+    embedding_provider_config, image_connectivity_config, llm_provider_config, pricing_from_json,
 };
-use a4n_db_models::models::ai::{embedding_config, image_gen_config, llm_config};
 use serde_json::json;
 
 #[test]
@@ -13,7 +11,7 @@ fn invalid_pricing_json_is_rejected_instead_of_defaulting() {
 
 #[test]
 fn connectivity_config_mapping_preserves_provider_fields() {
-    let llm = llm_provider_config_from_model(llm_config::Model {
+    let llm = llm_provider_config(LlmConfigReadRecord {
         id: 7,
         name: "llm".into(),
         provider: "openai".into(),
@@ -28,8 +26,6 @@ fn connectivity_config_mapping_preserves_provider_fields() {
         extra_body_json: Some(json!({"reasoning": {"effort": "low"}})),
         pricing_json: json!({}),
         is_default: true,
-        created_at: Default::default(),
-        updated_at: Default::default(),
     })
     .unwrap();
     assert_eq!(llm.id, 7);
@@ -39,7 +35,7 @@ fn connectivity_config_mapping_preserves_provider_fields() {
         Some(json!({"reasoning": {"effort": "low"}}))
     );
 
-    let embedding = embedding_provider_config_from_model(embedding_config::Model {
+    let embedding = embedding_provider_config(EmbeddingConfigReadRecord {
         id: 9,
         name: "embedding".into(),
         backend: "api".into(),
@@ -51,15 +47,13 @@ fn connectivity_config_mapping_preserves_provider_fields() {
         local_model_path: Some("/tmp/model".into()),
         pricing_json: json!({}),
         is_default: false,
-        created_at: Default::default(),
-        updated_at: Default::default(),
     })
     .unwrap();
     assert_eq!(embedding.id, 9);
     assert_eq!(embedding.api_key.as_deref(), Some("embedding-secret"));
     assert_eq!(embedding.local_model_path.as_deref(), Some("/tmp/model"));
 
-    let image = image_config_for_connectivity_test_from_model(image_gen_config::Model {
+    let image = image_connectivity_config(ImageConfigReadRecord {
         id: 11,
         name: "image".into(),
         backend: "openai-compatible-image".into(),
@@ -70,8 +64,6 @@ fn connectivity_config_mapping_preserves_provider_fields() {
         supported_sizes_json: json!([{"width": 1024, "height": 1024}]),
         pricing_json: json!({}),
         is_default: true,
-        created_at: Default::default(),
-        updated_at: Default::default(),
     })
     .unwrap();
     assert_eq!(image.id, 11);

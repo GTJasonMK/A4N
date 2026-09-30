@@ -12,8 +12,8 @@ impl WorkerState {
         a4n_db::import_review::import_reviews_by_project(self.database.connection(), project_id)
             .await
             .map_err(database_error)?
-            .iter()
-            .map(summary_from_model)
+            .into_iter()
+            .map(summary_from_record)
             .collect::<Result<Vec<_>, _>>()
             .map_err(app_error)
     }

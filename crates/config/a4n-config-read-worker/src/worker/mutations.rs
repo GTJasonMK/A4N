@@ -74,7 +74,7 @@ impl WorkerState {
         )
         .await
         .map_err(app_error)?;
-        image_summary(&model).map_err(app_error)
+        image_summary(&image_config_read_record(&model)).map_err(app_error)
     }
 
     async fn update_image(
@@ -114,7 +114,7 @@ impl WorkerState {
         )
         .await
         .map_err(app_error)?;
-        image_summary(&model).map_err(app_error)
+        image_summary(&image_config_read_record(&model)).map_err(app_error)
     }
 
     async fn set_default_image(
@@ -178,7 +178,7 @@ impl WorkerState {
         )
         .await
         .map_err(app_error)?;
-        video_summary(&model).map_err(app_error)
+        video_summary(&video_config_read_record(&model)).map_err(app_error)
     }
 
     async fn update_video(
@@ -225,7 +225,7 @@ impl WorkerState {
         )
         .await
         .map_err(app_error)?;
-        video_summary(&model).map_err(app_error)
+        video_summary(&video_config_read_record(&model)).map_err(app_error)
     }
 
     async fn set_default_video(
@@ -301,7 +301,7 @@ impl WorkerState {
         )
         .await
         .map_err(app_error)?;
-        embedding_summary(&model).map_err(app_error)
+        embedding_summary(&embedding_config_read_record(&model)).map_err(app_error)
     }
 
     async fn update_embedding(
@@ -342,7 +342,7 @@ impl WorkerState {
         )
         .await
         .map_err(app_error)?;
-        embedding_summary(&model).map_err(app_error)
+        embedding_summary(&embedding_config_read_record(&model)).map_err(app_error)
     }
 
     async fn set_default_embedding(
