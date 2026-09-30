@@ -2,6 +2,7 @@ use super::*;
 
 use super::rules::{normalize_invite_code, validate_positive_user_id};
 use super::users::create_user_on;
+use a4n_domain::auth::ROLE_USER;
 use sea_orm::QuerySelect;
 
 pub async fn register_user_with_invite(

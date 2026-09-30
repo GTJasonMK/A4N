@@ -6,6 +6,7 @@ use a4n_db_models::models::{
     project::{blueprint_character, blueprint_version, novel_blueprint, novel_project},
     scene::scene_profile,
 };
+use a4n_domain::auth::ROLE_USER;
 use chrono::Utc;
 use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, QueryOrder};
 use std::error::Error;
@@ -112,7 +113,7 @@ async fn project_family_import_activates_deserialized_project_lifecycle_gate() {
         "project_family_lifecycle_gate",
         "project-family-lifecycle-gate@example.invalid",
         "project-family-lifecycle-gate-password",
-        a4n_db_models::models::user::role::ROLE_USER,
+        ROLE_USER,
     )
     .await
     .unwrap();
@@ -165,7 +166,7 @@ async fn project_family_import_rebuilds_raw_blueprint_from_formal_rows() {
         "project_family_blueprint",
         "project-family-blueprint@example.invalid",
         "project-family-blueprint-password",
-        a4n_db_models::models::user::role::ROLE_USER,
+        ROLE_USER,
     )
     .await
     .unwrap();
@@ -330,7 +331,7 @@ async fn project_family_media_write_failure_rolls_back_database_rows() {
         "project_family_media_failure",
         "project-family-media-failure@example.invalid",
         "project-family-media-failure-password",
-        a4n_db_models::models::user::role::ROLE_USER,
+        ROLE_USER,
     )
     .await
     .unwrap();
@@ -426,7 +427,7 @@ async fn project_family_import_batches_video_reference_fixups() {
         "project_family_video_fixups",
         "project-family-video-fixups@example.invalid",
         "project-family-video-fixups-password",
-        a4n_db_models::models::user::role::ROLE_USER,
+        ROLE_USER,
     )
     .await
     .unwrap();

@@ -1,6 +1,6 @@
 use super::OrchestratorContext;
 use crate::admin::{AdminPermission, require_admin_role};
-use a4n_db_models::models::user::role::{UserRole, parse_user_role};
+use a4n_domain::auth::{UserRole, parse_user_role};
 use a4n_error::AppError;
 
 impl OrchestratorContext {

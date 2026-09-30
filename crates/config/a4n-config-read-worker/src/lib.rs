@@ -26,7 +26,7 @@ use a4n_config_read_worker_contract::{
 };
 use a4n_db::DbHandle;
 use a4n_db::config::ProviderConfigKind;
-use a4n_db_models::models::user::role::{UserRole, parse_user_role};
+use a4n_domain::auth::{UserRole, parse_user_role};
 use a4n_provider_contract::{EmbeddingProviderConfig, LlmProviderConfig};
 use a4n_worker_contract::WORKER_AUTH_HEADER;
 use a4n_worker_contract::{

@@ -4,6 +4,7 @@ use super::rules::{
     normalize_oauth_provider, normalize_oauth_subject, oauth_username_base, required_oauth_email,
 };
 use super::users::{find_by_email_on, find_by_username_on, user_by_id};
+use a4n_domain::auth::ROLE_USER;
 use sea_orm::QuerySelect;
 use std::collections::HashSet;
 

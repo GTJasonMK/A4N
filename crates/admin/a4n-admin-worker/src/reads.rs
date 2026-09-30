@@ -1,4 +1,5 @@
 use super::*;
+use a4n_domain::auth::{UserRole, parse_user_role};
 
 impl WorkerState {
     pub(super) async fn require_permission(
@@ -27,8 +28,8 @@ impl WorkerState {
             .await
             .map_err(app_error)?;
         Ok(user.is_active
-            && parse_user_role(&user.role).map_err(app_error)?
-                == a4n_db_models::models::user::role::UserRole::Admin)
+            && parse_user_role(&user.role).map_err(|error| app_error(error.into()))?
+                == UserRole::Admin)
     }
 
     pub(super) async fn user_usage(

@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
-use a4n_db_models::models::{project::project_member, user::role::ROLE_READ_ONLY};
+use a4n_db_models::models::project::project_member;
+use a4n_domain::auth::ROLE_READ_ONLY;
 use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QuerySelect};
 
 use super::super::{

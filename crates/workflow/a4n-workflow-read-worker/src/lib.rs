@@ -8,7 +8,7 @@ use a4n_api_contract::workflow::{
     WorkflowResumeRecord, WorkflowRunSummary, WorkflowTaskAccessRecord,
 };
 use a4n_db::DbHandle;
-use a4n_db_models::models::user::role::{UserRole, parse_user_role};
+use a4n_domain::auth::{UserRole, parse_user_role};
 use a4n_domain::collaboration::ProjectAccessRole;
 use a4n_worker_contract::WORKER_AUTH_HEADER;
 use a4n_worker_contract::{
@@ -375,7 +375,7 @@ async fn is_active_admin(database: &DbHandle, user_id: i64) -> Result<bool, Work
     }
     parse_user_role(&user.role)
         .map(|role| role == UserRole::Admin)
-        .map_err(app_error)
+        .map_err(|error| app_error(error.into()))
 }
 
 fn workflow_error(error: a4n_db::workflow::WorkflowReadError) -> WorkerFailure {
