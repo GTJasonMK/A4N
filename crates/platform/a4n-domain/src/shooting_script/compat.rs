@@ -62,6 +62,9 @@ fn normalize_legacy_visual_constraint_points(scene: &mut Value) {
         ] {
             fields.remove(field);
         }
+        fields
+            .entry("frame")
+            .or_insert_with(|| serde_json::json!({"width": 1920, "height": 1080}));
         for key in ["keyframes", "end_frame"] {
             if let Some(points) = fields.get_mut(key).and_then(Value::as_array_mut) {
                 for point in points {

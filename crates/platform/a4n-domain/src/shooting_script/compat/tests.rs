@@ -196,6 +196,10 @@ fn embedded_legacy_scripts_drop_removed_visual_constraint_events() {
     let projection = plan.project().unwrap().remove(0);
     value["scenes"][0]["shots"][0]["visual_constraints"] =
         serde_json::to_value(projection).unwrap();
+    value["scenes"][0]["shots"][0]["visual_constraints"]
+        .as_object_mut()
+        .unwrap()
+        .remove("frame");
     let point = &mut value["scenes"][0]["shots"][0]["visual_constraints"]["keyframes"][0];
     point["camera"] = json!({"framing_note": "旧相机构图"});
     point["entity_states"] = json!([]);
@@ -216,6 +220,10 @@ fn embedded_legacy_scripts_drop_removed_visual_constraint_events() {
     assert_eq!(
         value["scenes"][0]["shots"][0]["visual_constraints"]["keyframes"][0]["description"],
         "旧相机构图"
+    );
+    assert_eq!(
+        value["scenes"][0]["shots"][0]["visual_constraints"]["frame"]["width"],
+        1920
     );
     assert!(
         value["scenes"][0]["shots"][0]["visual_constraints"]["keyframes"][0]
@@ -238,6 +246,10 @@ fn completed_scene_checkpoint_drops_removed_visual_constraint_events() {
     let projection = plan.project().unwrap().remove(0);
     let mut scene = fixture()["scenes"][0].clone();
     scene["shots"][0]["visual_constraints"] = serde_json::to_value(projection).unwrap();
+    scene["shots"][0]["visual_constraints"]
+        .as_object_mut()
+        .unwrap()
+        .remove("frame");
     let point = &mut scene["shots"][0]["visual_constraints"]["keyframes"][0];
     point["camera"] = json!({"framing_note": "旧相机构图"});
     point["entity_states"] = json!([]);
@@ -281,5 +293,9 @@ fn completed_scene_checkpoint_drops_removed_visual_constraint_events() {
     assert_eq!(
         checkpoint["parsed_output"]["shots"][0]["visual_constraints"]["keyframes"][0]["description"],
         "旧相机构图"
+    );
+    assert_eq!(
+        checkpoint["parsed_output"]["shots"][0]["visual_constraints"]["frame"]["height"],
+        1080
     );
 }
