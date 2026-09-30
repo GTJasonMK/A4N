@@ -109,6 +109,33 @@ describe("generation consistency presentation", () => {
     expect(html).toContain('role="status"');
   });
 
+  it("renders each completed option before the inspiration reply finishes", () => {
+    const html = renderToStaticMarkup(
+      <I18nProvider initialLocale="zh-CN">
+        <ChatBubble
+          message={{
+            id: "message-streaming-options",
+            role: "assistant",
+            content: "请选择一个方向",
+            streaming: true,
+            streamingOptions: [{
+              label: "方向一",
+              description: "已生成的选项",
+              value: "选择：方向一\n已生成的选项",
+            }],
+            optionsPending: true,
+            createdAt: 1,
+          }}
+          canSelectOptions={false}
+          onSendOption={vi.fn()}
+        />
+      </I18nProvider>,
+    );
+
+    expect(html).toContain("方向一");
+    expect(html).toContain("inspiration-option-card-skeleton");
+  });
+
   it("renders completed assistant Markdown as formatted content", () => {
     const html = renderToStaticMarkup(
       <I18nProvider initialLocale="zh-CN">
