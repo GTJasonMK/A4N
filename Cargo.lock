@@ -670,7 +670,6 @@ dependencies = [
  "a4n-api-contract",
  "a4n-config",
  "a4n-db",
- "a4n-db-models",
  "a4n-domain",
  "a4n-error",
  "a4n-llm-config",

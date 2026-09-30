@@ -1,7 +1,7 @@
 use super::{
-    EmbeddingConfigReadRecord, ImageConfigReadRecord, LlmConfigReadRecord,
     embedding_provider_config, image_connectivity_config, llm_provider_config, pricing_from_json,
 };
+use a4n_domain::config::{EmbeddingConfigReadRecord, ImageConfigReadRecord, LlmConfigReadRecord};
 use serde_json::json;
 
 #[test]
