@@ -38,24 +38,3 @@ impl MangaPipelineReadApplicationPort for MangaRecordWorkerClient {
         .await
     }
 }
-
-#[async_trait::async_trait]
-impl MangaPipelineCancellationApplicationPort for MangaRecordWorkerClient {
-    async fn cancel(
-        &self,
-        user_id: i64,
-        project_id: i64,
-        chapter_id: i64,
-    ) -> Result<i64, AppError> {
-        self.command(
-            user_id,
-            project_id,
-            MANGA_PIPELINE_CANCEL_OPERATION,
-            MangaChapterInput {
-                project_id,
-                chapter_id,
-            },
-        )
-        .await
-    }
-}

@@ -1,14 +1,14 @@
 //! Typed Host adapter for the Manga record read worker.
 
 use a4n_api_contract::manga::{
-    MangaPagePromptSummary, MangaPipelineCancellationApplicationPort,
-    MangaPipelineReadApplicationPort, MangaPipelineStatusSummary, MangaRecordReadApplicationPort,
+    MangaPagePromptSummary, MangaPipelineReadApplicationPort, MangaPipelineStatusSummary,
+    MangaRecordReadApplicationPort,
 };
 use a4n_error::AppError;
 use a4n_manga_record_worker_contract::{
-    MANGA_PIPELINE_CANCEL_OPERATION, MANGA_PIPELINE_STATUS_OPERATION,
-    MANGA_PIPELINE_STATUSES_OPERATION, MANGA_RECORD_LIST_OPERATION, MANGA_RECORD_WORKER_ID,
-    MangaChapterInput, MangaPipelineStatusesInput,
+    MANGA_PIPELINE_STATUS_OPERATION, MANGA_PIPELINE_STATUSES_OPERATION,
+    MANGA_RECORD_LIST_OPERATION, MANGA_RECORD_WORKER_ID, MangaChapterInput,
+    MangaPipelineStatusesInput,
 };
 use a4n_worker_client::{HttpWorkerClient, WorkerClientError};
 use a4n_worker_contract::{
