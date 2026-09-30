@@ -1,8 +1,10 @@
+use super::mapping::manga_page_prompt_record_from_model;
 use crate::manga::{
     MangaPromptRecordError, manga_record_database, require_positive_manga_id,
     validate_manga_page_number,
 };
 use a4n_db_models::models::chapter::chapter_manga_prompt::{self, MANGA_PAGE_PROMPT_TYPE};
+use a4n_domain::manga::MangaPagePromptRecord;
 use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder, QuerySelect};
 
 pub async fn manga_page_prompts_by_chapter(
@@ -20,6 +22,18 @@ pub async fn manga_page_prompts_by_chapter(
         .all(db)
         .await
         .map_err(manga_record_database("读取章节漫画提示词失败"))
+}
+
+pub async fn manga_page_prompt_records_by_chapter(
+    db: &DatabaseConnection,
+    project_id: i64,
+    chapter_id: i64,
+) -> Result<Vec<MangaPagePromptRecord>, MangaPromptRecordError> {
+    Ok(manga_page_prompts_by_chapter(db, project_id, chapter_id)
+        .await?
+        .into_iter()
+        .map(manga_page_prompt_record_from_model)
+        .collect())
 }
 
 pub async fn manga_page_prompt_statuses_by_chapter(
