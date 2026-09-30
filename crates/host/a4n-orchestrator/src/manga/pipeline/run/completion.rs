@@ -1,9 +1,11 @@
 use std::collections::HashMap;
 
-use a4n_db_models::models::chapter::chapter_manga_prompt;
+use a4n_domain::manga::MangaPagePromptRecord;
 use a4n_error::AppError;
 use a4n_progress::ProgressPhaseKind;
 use futures::{StreamExt, stream};
+
+use crate::manga::layout_rules::manga_page_pipeline_layout;
 
 use super::super::persist::{MangaPipelinePersistInput, pipeline_page_draft};
 use super::contracts::{MangaExtractionRun, MangaRunContext};
@@ -17,7 +19,7 @@ pub(super) async fn complete_pipeline(
     context: &MangaRunContext<'_>,
     extraction: MangaExtractionRun,
     slots_run: MangaPageSlotsRun,
-) -> Result<Vec<chapter_manga_prompt::Model>, AppError> {
+) -> Result<Vec<MangaPagePromptRecord>, AppError> {
     let total_pages = slots_run.slots.pages.len();
     let extraction_summary = extraction.extraction_summary;
     let persist = MangaPipelinePersistInput {
@@ -48,7 +50,7 @@ pub(super) async fn complete_pipeline(
             .cloned();
         let existing_layout = existing
             .as_ref()
-            .and_then(|row| a4n_manga_core::manga_page_pipeline_layout(row).ok());
+            .and_then(|row| manga_page_pipeline_layout(row).ok());
         let work = prepare_manga_page_work(
             context,
             &slots_run.slots,
@@ -137,11 +139,11 @@ pub(super) async fn complete_pipeline(
 
 async fn complete_at_stage(
     context: &MangaRunContext<'_>,
-    rows: Vec<chapter_manga_prompt::Model>,
+    rows: Vec<MangaPagePromptRecord>,
     stage: &str,
     total_steps: i32,
     message: String,
-) -> Result<Vec<chapter_manga_prompt::Model>, AppError> {
+) -> Result<Vec<MangaPagePromptRecord>, AppError> {
     context
         .service
         .record_manga_pipeline_progress_with_total(

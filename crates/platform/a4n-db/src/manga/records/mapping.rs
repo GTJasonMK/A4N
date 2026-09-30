@@ -1,7 +1,7 @@
 use a4n_db_models::models::chapter::chapter_manga_prompt;
 use a4n_domain::manga::MangaPagePromptRecord;
 
-pub(super) fn manga_page_prompt_record_from_model(
+pub(in crate::manga) fn manga_page_prompt_record_from_model(
     prompt: chapter_manga_prompt::Model,
 ) -> MangaPagePromptRecord {
     MangaPagePromptRecord {

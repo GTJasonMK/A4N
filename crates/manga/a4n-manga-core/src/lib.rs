@@ -1,63 +1,12 @@
 //! Pure Manga page layout validation and API projection.
 
 use a4n_api_contract::manga::MangaPagePromptSummary;
-use a4n_db_models::models::chapter::chapter_manga_prompt;
 use a4n_domain::manga::{
     MangaPageGenerationLayoutV3, MangaPageGenerationLayoutV4, MangaPagePromptRecord,
     MangaPortraitReference,
 };
 use a4n_domain::source_spans::{ChapterSourceContext, source_metadata};
 use serde_json::{Value, json};
-
-struct MangaPagePromptView<'a> {
-    id: i64,
-    chapter_id: i64,
-    project_id: i64,
-    page_number: i32,
-    image_prompt: &'a str,
-    dialogue_text: &'a Option<String>,
-    layout: Option<&'a Value>,
-    generated_image_id: Option<i64>,
-    status: &'a str,
-    created_at: String,
-    updated_at: String,
-}
-
-impl<'a> From<&'a chapter_manga_prompt::Model> for MangaPagePromptView<'a> {
-    fn from(prompt: &'a chapter_manga_prompt::Model) -> Self {
-        Self {
-            id: prompt.id,
-            chapter_id: prompt.chapter_id,
-            project_id: prompt.project_id,
-            page_number: prompt.page_number,
-            image_prompt: &prompt.image_prompt,
-            dialogue_text: &prompt.dialogue_text,
-            layout: prompt.layout.as_ref(),
-            generated_image_id: prompt.generated_image_id,
-            status: &prompt.status,
-            created_at: prompt.created_at.to_string(),
-            updated_at: prompt.updated_at.to_string(),
-        }
-    }
-}
-
-impl<'a> From<&'a MangaPagePromptRecord> for MangaPagePromptView<'a> {
-    fn from(prompt: &'a MangaPagePromptRecord) -> Self {
-        Self {
-            id: prompt.id,
-            chapter_id: prompt.chapter_id,
-            project_id: prompt.project_id,
-            page_number: prompt.page_number,
-            image_prompt: &prompt.image_prompt,
-            dialogue_text: &prompt.dialogue_text,
-            layout: prompt.layout.as_ref(),
-            generated_image_id: prompt.generated_image_id,
-            status: &prompt.status,
-            created_at: prompt.created_at.to_string(),
-            updated_at: prompt.updated_at.to_string(),
-        }
-    }
-}
 
 pub fn manga_reference_assets_json<P: MangaPortraitReference>(refs: &[P]) -> Value {
     json!({
@@ -87,12 +36,6 @@ pub fn manga_pipeline_fingerprint<P: MangaPortraitReference>(
 }
 
 pub fn manga_page_generation_layout(
-    prompt: &chapter_manga_prompt::Model,
-) -> Result<MangaPageGenerationLayoutV3, String> {
-    manga_page_generation_layout_from_parts(prompt.id, prompt.page_number, prompt.layout.as_ref())
-}
-
-fn manga_page_generation_layout_from_parts(
     prompt_id: i64,
     page_number: i32,
     layout: Option<&Value>,
@@ -137,12 +80,6 @@ fn manga_page_generation_layout_from_parts(
 }
 
 pub fn manga_page_pipeline_layout(
-    prompt: &chapter_manga_prompt::Model,
-) -> Result<MangaPageGenerationLayoutV4, String> {
-    manga_page_pipeline_layout_from_parts(prompt.id, prompt.page_number, prompt.layout.as_ref())
-}
-
-fn manga_page_pipeline_layout_from_parts(
     prompt_id: i64,
     page_number: i32,
     layout: Option<&Value>,
@@ -164,22 +101,10 @@ fn manga_page_pipeline_layout_from_parts(
 }
 
 pub fn manga_page_prompt_summary(
-    prompt: &chapter_manga_prompt::Model,
-) -> Result<MangaPagePromptSummary, String> {
-    manga_page_prompt_summary_from_view(prompt.into())
-}
-
-pub fn manga_page_prompt_record_summary(
     prompt: &MangaPagePromptRecord,
 ) -> Result<MangaPagePromptSummary, String> {
-    manga_page_prompt_summary_from_view(prompt.into())
-}
-
-fn manga_page_prompt_summary_from_view(
-    prompt: MangaPagePromptView<'_>,
-) -> Result<MangaPagePromptSummary, String> {
     if let Ok(layout) =
-        manga_page_pipeline_layout_from_parts(prompt.id, prompt.page_number, prompt.layout)
+        manga_page_pipeline_layout(prompt.id, prompt.page_number, prompt.layout.as_ref())
     {
         return Ok(MangaPagePromptSummary {
             id: prompt.id,
@@ -187,8 +112,8 @@ fn manga_page_prompt_summary_from_view(
             project_id: prompt.project_id,
             page_number: prompt.page_number,
             page_id: Some(layout.page_id),
-            image_prompt: prompt.image_prompt.to_string(),
-            dialogue_text: (*prompt.dialogue_text).clone(),
+            image_prompt: prompt.image_prompt.clone(),
+            dialogue_text: prompt.dialogue_text.clone(),
             page_content: layout.pipeline.page_content,
             page_adaptation: layout.pipeline.page_adaptation,
             page_plan: layout.pipeline.storyboard,
@@ -196,24 +121,24 @@ fn manga_page_prompt_summary_from_view(
             reference_bindings: layout.reference_bindings,
             source: layout.source,
             generated_image_id: prompt.generated_image_id,
-            status: prompt.status.to_string(),
+            status: prompt.status.clone(),
             pipeline_stage: Some(layout.pipeline.stage),
             pipeline_status: Some(layout.pipeline.status),
             pipeline_error: layout.pipeline.error,
-            created_at: prompt.created_at,
-            updated_at: prompt.updated_at,
+            created_at: prompt.created_at.to_string(),
+            updated_at: prompt.updated_at.to_string(),
         });
     }
     let layout =
-        manga_page_generation_layout_from_parts(prompt.id, prompt.page_number, prompt.layout)?;
+        manga_page_generation_layout(prompt.id, prompt.page_number, prompt.layout.as_ref())?;
     Ok(MangaPagePromptSummary {
         id: prompt.id,
         chapter_id: prompt.chapter_id,
         project_id: prompt.project_id,
         page_number: prompt.page_number,
         page_id: None,
-        image_prompt: prompt.image_prompt.to_string(),
-        dialogue_text: (*prompt.dialogue_text).clone(),
+        image_prompt: prompt.image_prompt.clone(),
+        dialogue_text: prompt.dialogue_text.clone(),
         page_content: None,
         page_adaptation: None,
         page_plan: Some(layout.page_plan),
@@ -221,19 +146,18 @@ fn manga_page_prompt_summary_from_view(
         reference_bindings: layout.reference_bindings,
         source: layout.source,
         generated_image_id: prompt.generated_image_id,
-        status: prompt.status.to_string(),
+        status: prompt.status.clone(),
         pipeline_stage: None,
         pipeline_status: None,
         pipeline_error: None,
-        created_at: prompt.created_at,
-        updated_at: prompt.updated_at,
+        created_at: prompt.created_at.to_string(),
+        updated_at: prompt.updated_at.to_string(),
     })
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use a4n_db_models::models::chapter::chapter_manga_prompt::MANGA_PAGE_PROMPT_TYPE;
     use a4n_domain::manga::{MangaPagePipelineStage, MangaPagePipelineStatus};
     use chrono::NaiveDateTime;
     use serde_json::json;
@@ -242,12 +166,12 @@ mod tests {
     fn rejects_missing_layout() {
         let now =
             NaiveDateTime::parse_from_str("2026-01-01 00:00:00", "%Y-%m-%d %H:%M:%S").unwrap();
-        let prompt = chapter_manga_prompt::Model {
+        let prompt = MangaPagePromptRecord {
             id: 11,
             chapter_id: 22,
             project_id: 33,
             page_number: 1,
-            prompt_type: MANGA_PAGE_PROMPT_TYPE.to_string(),
+            prompt_type: "page_generation".to_string(),
             image_prompt: "整页提示词".to_string(),
             dialogue_text: None,
             characters_in_frame: None,
@@ -264,14 +188,14 @@ mod tests {
     }
 
     #[test]
-    fn record_summary_preserves_v4_cancelled_pipeline_and_source() {
+    fn summary_preserves_v4_cancelled_pipeline_and_source() {
         let now =
             NaiveDateTime::parse_from_str("2026-01-01 00:00:00", "%Y-%m-%d %H:%M:%S").unwrap();
         let prompt = MangaPagePromptRecord {
             id: 11,
             chapter_id: 22,
             project_id: 33,
-            prompt_type: MANGA_PAGE_PROMPT_TYPE.to_string(),
+            prompt_type: "page_generation".to_string(),
             page_number: 1,
             image_prompt: "整页提示词".to_string(),
             dialogue_text: Some("旁白".to_string()),
@@ -330,7 +254,7 @@ mod tests {
             updated_at: now,
         };
 
-        let summary = manga_page_prompt_record_summary(&prompt).unwrap();
+        let summary = manga_page_prompt_summary(&prompt).unwrap();
         assert_eq!(summary.page_id.as_deref(), Some("page-0001"));
         assert_eq!(
             summary.pipeline_stage,
@@ -350,22 +274,5 @@ mod tests {
         assert_eq!(summary.source.root_project_id, 33);
         assert_eq!(summary.source.source_chapter_id, 22);
         assert_eq!(summary.page_content.as_ref().unwrap().summary, "本页内容");
-
-        let model = chapter_manga_prompt::Model {
-            id: prompt.id,
-            chapter_id: prompt.chapter_id,
-            project_id: prompt.project_id,
-            page_number: prompt.page_number,
-            prompt_type: prompt.prompt_type.clone(),
-            image_prompt: prompt.image_prompt.clone(),
-            dialogue_text: prompt.dialogue_text.clone(),
-            characters_in_frame: prompt.characters_in_frame.clone(),
-            layout: prompt.layout.clone(),
-            generated_image_id: prompt.generated_image_id,
-            status: prompt.status.clone(),
-            created_at: prompt.created_at,
-            updated_at: prompt.updated_at,
-        };
-        assert_eq!(summary, manga_page_prompt_summary(&model).unwrap());
     }
 }

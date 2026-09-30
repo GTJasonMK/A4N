@@ -12,7 +12,6 @@ use axum::{
     http::{HeaderMap, StatusCode},
     response::{IntoResponse, Response},
 };
-use sea_orm::{ConnectionTrait, Statement};
 
 use super::{
     WorkerState,
@@ -23,15 +22,7 @@ pub(super) async fn health(State(state): State<WorkerState>, headers: HeaderMap)
     if !state.authorized(&headers) {
         return unauthorized();
     }
-    let status = match state
-        .database
-        .connection()
-        .execute(Statement::from_string(
-            sea_orm::DatabaseBackend::Postgres,
-            "SELECT 1",
-        ))
-        .await
-    {
+    let status = match a4n_db::admin::check_database_health(state.database.connection()).await {
         Ok(_) => WorkerHealthStatus::Healthy,
         Err(_) => WorkerHealthStatus::Degraded,
     };

@@ -2,8 +2,9 @@ use super::records::{manga_prompt_active_model, manga_prompt_updated_model};
 use super::validation::validate_manga_sync_drafts;
 use crate::generation::delete_generation_run_targets_for;
 use crate::manga::MangaPipelineDbError;
+use crate::manga::records::mapping::manga_page_prompt_record_from_model;
 use a4n_db_models::models::chapter::chapter_manga_prompt::{self, MANGA_PAGE_PROMPT_TYPE};
-use a4n_domain::manga::MangaPagePromptSyncDraft;
+use a4n_domain::manga::{MangaPagePromptRecord, MangaPagePromptSyncDraft};
 use sea_orm::sea_query::{CaseStatement, Expr};
 use sea_orm::{
     ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder, TransactionTrait,
@@ -16,8 +17,14 @@ pub async fn sync_manga_page_prompts_by_chapter(
     chapter_id: i64,
     drafts: Vec<MangaPagePromptSyncDraft>,
     now: chrono::NaiveDateTime,
-) -> Result<Vec<chapter_manga_prompt::Model>, MangaPipelineDbError> {
-    sync_manga_page_prompts_by_chapter_inner(db, project_id, chapter_id, drafts, now, true).await
+) -> Result<Vec<MangaPagePromptRecord>, MangaPipelineDbError> {
+    Ok(
+        sync_manga_page_prompts_by_chapter_inner(db, project_id, chapter_id, drafts, now, true)
+            .await?
+            .into_iter()
+            .map(manga_page_prompt_record_from_model)
+            .collect(),
+    )
 }
 
 /// Upserts one page without deleting pages that are still running.
@@ -27,7 +34,7 @@ pub async fn upsert_manga_page_prompt(
     chapter_id: i64,
     draft: MangaPagePromptSyncDraft,
     now: chrono::NaiveDateTime,
-) -> Result<chapter_manga_prompt::Model, MangaPipelineDbError> {
+) -> Result<MangaPagePromptRecord, MangaPipelineDbError> {
     let mut rows = sync_manga_page_prompts_by_chapter_inner(
         db,
         project_id,
@@ -37,9 +44,11 @@ pub async fn upsert_manga_page_prompt(
         false,
     )
     .await?;
-    rows.pop().ok_or_else(|| {
-        MangaPipelineDbError::InvalidArgument("漫画页面 upsert 未返回记录".to_string())
-    })
+    rows.pop()
+        .map(manga_page_prompt_record_from_model)
+        .ok_or_else(|| {
+            MangaPipelineDbError::InvalidArgument("漫画页面 upsert 未返回记录".to_string())
+        })
 }
 
 async fn sync_manga_page_prompts_by_chapter_inner(

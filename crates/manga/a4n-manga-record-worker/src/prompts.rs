@@ -19,7 +19,7 @@ impl WorkerState {
         positive(input.project_id, "project_id")?;
         positive(input.chapter_id, "chapter_id")?;
         verify_manga_viewer(&self.database, input.project_id, user_id).await?;
-        let prompts = a4n_db::manga::manga_page_prompt_records_by_chapter(
+        let prompts = a4n_db::manga::manga_page_prompts_by_chapter(
             self.database.connection(),
             input.project_id,
             input.chapter_id,
@@ -29,7 +29,7 @@ impl WorkerState {
         prompts
             .iter()
             .map(|prompt| {
-                a4n_manga_core::manga_page_prompt_record_summary(prompt)
+                a4n_manga_core::manga_page_prompt_summary(prompt)
                     .map_err(WorkerFailure::invalid_request)
             })
             .collect()

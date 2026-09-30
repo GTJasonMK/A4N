@@ -1,4 +1,4 @@
-mod mapping;
+pub(in crate::manga) mod mapping;
 mod mutations;
 mod queries;
 mod references;
@@ -10,7 +10,7 @@ pub use mutations::{
 };
 pub use queries::{
     manga_page_prompt_by_id, manga_page_prompt_for_image_generation,
-    manga_page_prompt_records_by_chapter, manga_page_prompt_statuses_by_chapter,
-    manga_page_prompt_statuses_by_chapters, manga_page_prompts_by_chapter,
+    manga_page_prompt_statuses_by_chapter, manga_page_prompt_statuses_by_chapters,
+    manga_page_prompts_by_chapter,
 };
 pub use references::manga_reference_bound_asset;

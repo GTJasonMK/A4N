@@ -1,6 +1,6 @@
 use a4n_api_contract::manga::MangaPromptDownstreamCleanupPort;
-use a4n_db_models::models::chapter::chapter_manga_prompt::{self, MANGA_PAGE_PROMPT_TYPE};
-use a4n_domain::project::required_text;
+use a4n_db::manga::MANGA_PAGE_PROMPT_TYPE;
+use a4n_domain::{manga::MangaPagePromptRecord, project::required_text};
 use a4n_error::AppError;
 use a4n_llm_provider_contract::provider::{ChatRequest, is_truncated_finish_reason};
 use a4n_prompt::rendering::PromptRenderer;
@@ -37,7 +37,7 @@ impl OrchestratorContext {
         input: MangaPromptOptimizationInput,
         prompt_renderer: &dyn PromptRenderer,
         cleanup_port: &dyn MangaPromptDownstreamCleanupPort,
-    ) -> Result<chapter_manga_prompt::Model, AppError> {
+    ) -> Result<MangaPagePromptRecord, AppError> {
         let prepared = self
             .prepare_manga_prompt_optimization(input, prompt_renderer)
             .await?;
@@ -103,7 +103,7 @@ impl OrchestratorContext {
         fingerprint: &Value,
         prepared: PreparedMangaPromptOptimization,
         cleanup_port: &dyn MangaPromptDownstreamCleanupPort,
-    ) -> Result<chapter_manga_prompt::Model, AppError> {
+    ) -> Result<MangaPagePromptRecord, AppError> {
         let image_prompt = self
             .run_manga_prompt_optimization_call(
                 workflow_run_id,

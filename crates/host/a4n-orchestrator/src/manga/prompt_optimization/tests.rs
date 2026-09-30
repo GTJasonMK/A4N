@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use a4n_db_models::models::chapter::chapter_manga_prompt;
+use a4n_domain::manga::MangaPagePromptRecord;
 use a4n_error::AppError;
 use a4n_llm_provider_contract::provider::ResponseFormat;
 use a4n_prompt::rendering::PromptRenderer;
@@ -16,7 +16,7 @@ use super::{
     },
     request::build_manga_prompt_optimization_request,
 };
-use a4n_db_models::models::chapter::chapter_manga_prompt::MANGA_PAGE_PROMPT_TYPE;
+use a4n_db::manga::MANGA_PAGE_PROMPT_TYPE;
 
 #[tokio::test]
 async fn prompt_call_validates_and_checkpoints_before_application_writes() {
@@ -93,10 +93,10 @@ impl PromptRenderer for TestPromptRenderer {
     }
 }
 
-fn page_prompt() -> chapter_manga_prompt::Model {
+fn page_prompt() -> MangaPagePromptRecord {
     let now = NaiveDateTime::parse_from_str("2026-01-01 00:00:00", "%Y-%m-%d %H:%M:%S")
         .expect("valid timestamp");
-    chapter_manga_prompt::Model {
+    MangaPagePromptRecord {
         id: 11,
         chapter_id: 22,
         project_id: 33,

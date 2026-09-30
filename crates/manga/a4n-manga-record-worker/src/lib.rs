@@ -5,7 +5,6 @@ use std::{env, net::SocketAddr, sync::Arc};
 use a4n_db::DbHandle;
 use a4n_manga_record_worker_contract::MANGA_RECORD_WORKER_ID;
 use axum::Router;
-use sea_orm::{ConnectOptions, Database, DatabaseConnection};
 
 const WORKER_ADDR_ENV: &str = "A4N_MANGA_RECORD_WORKER_ADDR";
 const DATABASE_URL_ENV: &str = "A4N_DATABASE_URL";
@@ -32,13 +31,13 @@ mod routes;
 
 impl MangaRecordWorker {
     pub fn new(
-        database: DatabaseConnection,
+        database: DbHandle,
         worker_id: impl Into<String>,
         auth_token: impl Into<String>,
     ) -> Self {
         Self {
             state: WorkerState {
-                database: DbHandle::new(Arc::new(database)),
+                database,
                 worker_id: Arc::<str>::from(worker_id.into()),
                 auth_token: Arc::<str>::from(auth_token.into()),
             },
@@ -71,12 +70,7 @@ async fn async_main() -> anyhow::Result<()> {
     a4n_config::validate_postgres_database_url(DATABASE_URL_ENV, &database_url)?;
     let auth_token = a4n_config::required_non_empty_env_string(WORKER_TOKEN_ENV)?;
     let address = worker_addr()?;
-    let mut options = ConnectOptions::new(database_url);
-    options
-        .max_connections(8)
-        .min_connections(1)
-        .connect_timeout(std::time::Duration::from_secs(5));
-    let database = Database::connect(options).await?;
+    let database = a4n_db::manga::connect_manga_record_worker_database(database_url).await?;
     MangaRecordWorker::new(database, MANGA_RECORD_WORKER_ID, auth_token)
         .serve(address)
         .await

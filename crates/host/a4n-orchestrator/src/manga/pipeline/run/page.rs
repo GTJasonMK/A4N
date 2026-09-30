@@ -4,12 +4,13 @@ use std::{
 };
 
 use a4n_api_contract::image_generation::GeneratePageImageInput;
-use a4n_db_models::models::chapter::chapter_manga_prompt;
+use a4n_db::manga::MANGA_PAGE_PROMPT_TYPE;
 use a4n_domain::{
     manga::{
         MANGA_PAGE_PIPELINE_STATE_V1, MangaPageAdaptationV1, MangaPageContentV1,
         MangaPageImageArtifactV1, MangaPagePipelineErrorV1, MangaPagePipelineStage,
-        MangaPagePipelineStateV1, MangaPagePipelineStatus, MangaPageSlotV1, MangaPageSlotsV1,
+        MangaPagePipelineStateV1, MangaPagePipelineStatus, MangaPagePromptRecord, MangaPageSlotV1,
+        MangaPageSlotsV1,
     },
     source_text_hash,
 };
@@ -17,6 +18,8 @@ use a4n_error::AppError;
 use a4n_progress::ProgressPhaseKind;
 use serde_json::{Value, json};
 use tokio::sync::Mutex;
+
+use crate::manga::layout_rules::manga_page_pipeline_layout;
 
 use super::super::super::adaptation_projection::manga_page_adaptation_source;
 use super::super::{
@@ -44,7 +47,7 @@ pub(super) struct MangaPageWork {
     pub(super) previous_content: Option<MangaPageContentV1>,
     pub(super) next_content: Option<MangaPageContentV1>,
     pub(super) pipeline: MangaPagePipelineStateV1,
-    pub(super) row: chapter_manga_prompt::Model,
+    pub(super) row: MangaPagePromptRecord,
 }
 
 pub(super) struct MangaPagePipelineProgress {
@@ -203,7 +206,7 @@ pub(super) fn prepare_manga_page_work(
     slots: &MangaPageSlotsV1,
     page_index: usize,
     extraction_summary: &Value,
-    existing_row: Option<chapter_manga_prompt::Model>,
+    existing_row: Option<MangaPagePromptRecord>,
 ) -> Result<MangaPageWork, AppError> {
     let slot = slots
         .pages
@@ -235,17 +238,14 @@ pub(super) fn prepare_manga_page_work(
     )?;
 
     let reusable_layout = existing_row.as_ref().and_then(|row| {
-        a4n_manga_core::manga_page_pipeline_layout(row)
-            .ok()
-            .filter(|layout| {
-                layout.page_number == slot.page_number
-                    && layout.source == context.source_metadata
-                    && layout.prompt_fingerprint == context.prompt_fingerprint
-                    && layout.pipeline.source_fingerprint == context.source_metadata.content_sha256
-                    && layout.pipeline.page_content.as_ref() == Some(&slot.content)
-                    && layout.pipeline.stage_fingerprints.get("content")
-                        == Some(&content_fingerprint)
-            })
+        manga_page_pipeline_layout(row).ok().filter(|layout| {
+            layout.page_number == slot.page_number
+                && layout.source == context.source_metadata
+                && layout.prompt_fingerprint == context.prompt_fingerprint
+                && layout.pipeline.source_fingerprint == context.source_metadata.content_sha256
+                && layout.pipeline.page_content.as_ref() == Some(&slot.content)
+                && layout.pipeline.stage_fingerprints.get("content") == Some(&content_fingerprint)
+        })
     });
     let mut pipeline = reusable_layout.map_or_else(
         || new_page_pipeline(context, slot, content_fingerprint.clone()),
@@ -378,7 +378,7 @@ pub(super) fn prepare_manga_page_work(
         MangaPagePipelineStage::Adaptation
     };
     let next_attempt = existing_row.as_ref().and_then(|row| {
-        a4n_manga_core::manga_page_pipeline_layout(row)
+        manga_page_pipeline_layout(row)
             .ok()
             .map(|layout| layout.pipeline.attempt)
     });
@@ -412,13 +412,12 @@ pub(super) fn prepare_manga_page_work(
     let page_number_db = i32::try_from(slot.page_number).map_err(|_| {
         AppError::InvalidArgument(format!("漫画页码超出 i32 范围：{}", slot.page_number))
     })?;
-    let row = existing_row.unwrap_or_else(|| chapter_manga_prompt::Model {
+    let row = existing_row.unwrap_or_else(|| MangaPagePromptRecord {
         id: 0,
         chapter_id: context.chapter_id,
         project_id: context.project_id,
         page_number: page_number_db,
-        prompt_type: a4n_db_models::models::chapter::chapter_manga_prompt::MANGA_PAGE_PROMPT_TYPE
-            .to_string(),
+        prompt_type: MANGA_PAGE_PROMPT_TYPE.to_string(),
         image_prompt: String::new(),
         dialogue_text: None,
         characters_in_frame: None,
@@ -501,7 +500,7 @@ pub(super) async fn process_manga_page(
     extraction_summary: &Value,
     progress: &MangaPagePipelineProgress,
     total_pages: usize,
-) -> Result<chapter_manga_prompt::Model, AppError> {
+) -> Result<MangaPagePromptRecord, AppError> {
     let result = process_manga_page_stages(
         context,
         persist,
@@ -910,7 +909,7 @@ async fn process_manga_page_stages(
             .insert("image".into(), image_fingerprint);
         work.pipeline.status = MangaPagePipelineStatus::Completed;
         work.pipeline.error = None;
-        let existing_layout = a4n_manga_core::manga_page_pipeline_layout(&work.row).ok();
+        let existing_layout = manga_page_pipeline_layout(&work.row).ok();
         let draft = pipeline_page_draft(
             persist,
             page_number,
@@ -951,7 +950,7 @@ async fn persist_page_state(
     work: &mut MangaPageWork,
     traces: Vec<MangaPromptGenerationTrace>,
 ) -> Result<(), AppError> {
-    let existing_layout = a4n_manga_core::manga_page_pipeline_layout(&work.row).ok();
+    let existing_layout = manga_page_pipeline_layout(&work.row).ok();
     let draft = pipeline_page_draft(
         persist,
         work.slot.page_number,

@@ -1,6 +1,5 @@
 use a4n_db::manga::{sync_manga_page_prompts_by_chapter, upsert_manga_page_prompt};
-use a4n_db_models::models::chapter::chapter_manga_prompt;
-use a4n_domain::manga::MangaPagePromptSyncDraft;
+use a4n_domain::manga::{MangaPagePromptRecord, MangaPagePromptSyncDraft};
 use a4n_error::AppError;
 use chrono::Utc;
 
@@ -14,7 +13,7 @@ impl OrchestratorContext {
         project_id: i64,
         chapter_id: i64,
         drafts: Vec<MangaPagePromptDraft>,
-    ) -> Result<Vec<chapter_manga_prompt::Model>, AppError> {
+    ) -> Result<Vec<MangaPagePromptRecord>, AppError> {
         let now = Utc::now().naive_utc();
         let traces = drafts
             .iter()
@@ -62,7 +61,7 @@ impl OrchestratorContext {
         project_id: i64,
         chapter_id: i64,
         draft: MangaPagePromptDraft,
-    ) -> Result<chapter_manga_prompt::Model, AppError> {
+    ) -> Result<MangaPagePromptRecord, AppError> {
         let now = Utc::now().naive_utc();
         let traces = draft.generation_traces.clone();
         let sync = MangaPagePromptSyncDraft {

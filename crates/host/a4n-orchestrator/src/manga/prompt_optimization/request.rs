@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 
-use a4n_db_models::models::chapter::chapter_manga_prompt;
-use a4n_domain::source_text_hash;
+use a4n_domain::{manga::MangaPagePromptRecord, source_text_hash};
 use a4n_error::AppError;
 use a4n_llm_provider_contract::provider::{ChatRequest, LlmTraceContext};
 use a4n_prompt::rendering::PromptRenderer;
@@ -17,7 +16,7 @@ pub(super) fn manga_prompt_optimization_call_key(prompt_id: i64) -> String {
 
 pub(super) async fn build_manga_prompt_optimization_request(
     prompt_renderer: &dyn PromptRenderer,
-    prompt: &chapter_manga_prompt::Model,
+    prompt: &MangaPagePromptRecord,
     instruction: &str,
 ) -> Result<ChatRequest, AppError> {
     let system_prompt = prompt_renderer

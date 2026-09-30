@@ -1568,7 +1568,6 @@ name = "a4n-manga-core"
 version = "0.1.0"
 dependencies = [
  "a4n-api-contract",
- "a4n-db-models",
  "a4n-domain",
  "chrono",
  "serde_json",
@@ -1587,7 +1586,6 @@ dependencies = [
  "a4n-worker-contract",
  "anyhow",
  "axum 0.8.9",
- "sea-orm",
  "serde",
  "subtle",
  "tokio",
