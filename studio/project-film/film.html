@@ -1,0 +1,504 @@
+<!doctype html>
+<html lang="zh-CN">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>A4N · 想象，有了作品的形状</title>
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; width: 100%; height: 100%; background: #080e15; overflow: hidden; }
+  canvas { display: block; width: 100%; height: 100%; object-fit: contain; }
+  #play { position: fixed; inset: 0; display: grid; place-items: center; background: #080e1555; }
+  button { color: #eee9de; border: 1px solid #ffa665; background: #101923; padding: 22px 38px; font: 22px 'Noto Sans CJK SC', sans-serif; cursor: pointer; border-radius: 3px; }
+  button:focus-visible { outline: 3px solid white; outline-offset: 5px; }
+</style>
+<canvas width="1920" height="1080" aria-label="A4N 原创介绍动画，含中文字幕"></canvas>
+<div id="play"><button type="button">播放动画 · 开启声音</button></div>
+<audio id="sound" preload="none"></audio>
+<script>
+"use strict";
+const canvas = document.querySelector("canvas"), c = canvas.getContext("2d", {alpha:false});
+const W = 1920, H = 1080, TAU = Math.PI * 2;
+const C = {bg:"#080e15", ink:"#13212b", cream:"#efeade", white:"#f3f0e9", muted:"#a2adb4", orange:"#ffa465", teal:"#7ed3cc", line:"#2d3b47"};
+const serif = '"Noto Serif CJK SC", serif', sans = '"Noto Sans CJK SC", sans-serif', mono = '"DejaVu Sans Mono", monospace';
+let script, subtitles, textures = {};
+const clamp = v => Math.max(0, Math.min(1,v));
+const mix = (a,b,v) => a+(b-a)*v;
+const ease = v => 1-Math.pow(1-clamp(v),3);
+const smooth = v => {v=clamp(v);return v*v*(3-2*v);};
+const arrive = (t,d=0,duration=.9) => ease((t-d)/duration);
+const hash = n => {let x=Math.sin(n*127.1+311.7)*43758.5453;return x-Math.floor(x);};
+function saved(fn){c.save();fn();c.restore();}
+function opacity(a,fn){if(a<=0)return;saved(()=>{c.globalAlpha*=clamp(a);fn();});}
+function rect(x,y,w,h,fill,r=0,stroke=null){
+  c.beginPath();c.roundRect(x,y,w,h,r);if(fill){c.fillStyle=fill;c.fill();}if(stroke){c.strokeStyle=stroke;c.lineWidth=1.2;c.stroke();}
+}
+function line(x1,y1,x2,y2,color=C.line,width=1){c.beginPath();c.moveTo(x1,y1);c.lineTo(x2,y2);c.strokeStyle=color;c.lineWidth=width;c.stroke();}
+function circle(x,y,r,fill,stroke=null,width=1){c.beginPath();c.arc(x,y,Math.max(.01,r),0,TAU);if(fill){c.fillStyle=fill;c.fill();}if(stroke){c.strokeStyle=stroke;c.lineWidth=width;c.stroke();}}
+function path(points,fill,stroke=null,width=1){c.beginPath();points.forEach((p,i)=>i?c.lineTo(...p):c.moveTo(...p));c.closePath();if(fill){c.fillStyle=fill;c.fill();}if(stroke){c.strokeStyle=stroke;c.lineWidth=width;c.stroke();}}
+function text(value,x,y,size=30,color=C.white,weight=400,font=sans,align="left",maxWidth=0){
+  c.font=`${weight} ${size}px ${font}`;
+  if(maxWidth && c.measureText(value).width>maxWidth){size*=maxWidth/c.measureText(value).width;c.font=`${weight} ${size}px ${font}`;}
+  c.fillStyle=color;c.textAlign=align;c.textBaseline="alphabetic";c.fillText(value,x,y);
+}
+function tag(value,x,y,color=C.orange){text(value,x,y,19,color,500,mono);}
+function glow(x,y,r,color=C.orange,a=.5){
+  opacity(a,()=>{const g=c.createRadialGradient(x,y,0,x,y,r);g.addColorStop(0,color);g.addColorStop(1,color+"00");circle(x,y,r,g);});
+}
+function reveal(t,delay,x,y,fn){let p=arrive(t,delay);opacity(p,()=>saved(()=>{c.translate(x,y+32*(1-p));fn();}));}
+function badge(value,x,y,light=false,active=false,width=null){
+  c.font=`500 22px ${sans}`;let w=width||c.measureText(value).width+36;
+  rect(x,y,w,43,active?C.orange:(light?"#e3dfd4":"#18252f"),5,active?null:(light?"#cec8ba":"#354552"));
+  text(value,x+w/2,y+29,22,active?C.ink:(light?C.ink:C.white),500,sans,"center");return w;
+}
+function check(x,y,color=C.teal){c.beginPath();c.moveTo(x-8,y);c.lineTo(x-2,y+6);c.lineTo(x+10,y-8);c.lineWidth=3;c.strokeStyle=color;c.stroke();}
+function paperLines(x,y,width,count,color="#b1b0a8",step=23){for(let i=0;i<count;i++)line(x,y+i*step,x+width*(.58+.42*hash(i+8)),y+i*step,color,2);}
+function background(light=false,t=0){
+  rect(0,0,W,H,light?C.cream:C.bg);
+  if(!light){glow(1500,180,850,"#284747",.19);glow(130,950,700,"#57412e",.12);}
+  opacity(light?.035:.07,()=>{for(let i=0;i<100;i++){const x=hash(i+1)*W,y=hash(i+180)*H;circle(x,y,.65,light?C.ink:C.white);}});
+  line(92,98,1828,98,light?"#d6d0c3":"#24323d");
+}
+function header(t,label,light=false){
+  const col=light?C.ink:C.white;
+  text("A4N",96,67,34,col,700,mono);line(187,41,187,71,light?"#b7b1a7":"#4a545a");
+  tag("IMAGINATION, MADE.",214,64,light?"#6c716f":C.muted);
+  text(label,1826,64,21,light?"#777b74":C.muted,400,sans,"right");
+}
+function heading(t,num,lines,description,light=false){
+  reveal(t,.1,110,190,()=>{tag(num,0,0,light?"#a75928":C.orange);});
+  lines.forEach((value,i)=>reveal(t,.2+i*.12,105,302+i*97,()=>text(value,0,0,76,light?C.ink:C.white,500,serif)));
+  if(description)reveal(t,.6,111,lines.length===1?368:464,()=>text(description,0,0,25,light?"#69736e":C.muted));
+}
+function cursor(x,y,time,clickAt){
+  saved(()=>{c.translate(x,y);path([[0,0],[0,29],[8,22],[15,37],[23,33],[16,19],[28,18]],C.white,C.ink,2);});
+  let p=(time-clickAt)/.6;if(p>0&&p<1)opacity(1-p,()=>circle(x,y,18+60*p,null,C.orange,3));
+}
+function wire(x1,y1,x2,y2,t,color=C.orange){
+  const bend=Math.abs(x2-x1)*.5;
+  c.beginPath();c.moveTo(x1,y1);c.bezierCurveTo(x1+bend,y1,x2-bend,y2,x2,y2);c.strokeStyle=color+"55";c.lineWidth=2;c.stroke();
+  const q=((t%2.2)+2.2)%2.2/2.2,u=1-q;
+  const x=u*u*u*x1+3*u*u*q*(x1+bend)+3*u*q*q*(x2-bend)+q*q*q*x2;
+  const y=u*u*u*y1+3*u*u*q*y1+3*u*q*q*y2+q*q*q*y2;
+  glow(x,y,15,color,.4);circle(x,y,3.5,color);
+}
+function star(x,y,r,color){line(x-r,y,x+r,y,color,1.3);line(x,y-r,x,y+r,color,1.3);circle(x,y,2,color);}
+function landscape(x,y,w,h,t,style="night"){
+  saved(()=>{
+    rect(x,y,w,h,null);c.clip();c.translate(x,y);c.scale(w/1000,h/600);
+    const light=style==="paper", g=c.createLinearGradient(0,0,0,600);
+    g.addColorStop(0,light?"#ddd3ba":"#112330");g.addColorStop(.7,light?"#f1e9d5":"#31565f");g.addColorStop(1,light?"#bcc6b9":"#101f2b");
+    rect(0,0,1000,600,g);
+    circle(245,140,64,light?"#b7784b":"#efce9b");glow(245,140,170,light?"#efbb79":"#deb880",.18);
+    for(let i=0;i<50;i++){let sx=hash(i+10)*1000,sy=hash(i+70)*310;opacity(.2+.4*hash(i),()=>circle(sx,sy,1.4,light?"#847f6f":"#dcdbc5"));}
+    path([[0,382],[115,314],[245,370],[369,297],[440,361],[588,343],[721,365],[843,288],[1000,358],[1000,600],[0,600]],light?"#acb8ac":"#254951");
+    path([[0,428],[109,365],[219,431],[345,397],[486,442],[580,415],[742,381],[924,424],[1000,400],[1000,600],[0,600]],light?"#789b96":"#163a43");
+    rect(0,454,1000,150,light?"#96ada1":"#102c36");
+    for(let j=0;j<29;j++){
+      c.beginPath();const yy=457+j*j*.20;
+      for(let i=0;i<=40;i++){let xx=i*25;let wy=yy+Math.sin(i*.31+t*.5+j*.53)*(1+j*.12);i?c.lineTo(xx,wy):c.moveTo(xx,wy);}
+      c.strokeStyle=light?`rgba(239,234,215,${.2+j*.005})`:`rgba(117,184,189,${.12+j*.004})`;c.lineWidth=.8;c.stroke();
+    }
+    // The recurring lighthouse is drawn from geometry, never a stock/generated still.
+    path([[535,500],[612,453],[655,393],[708,401],[749,461],[823,510]],light?"#385b5b":"#071a23");
+    path([[656,413],[666,235],[698,235],[714,416]],light?"#f0e5cc":"#deccb0");
+    path([[689,236],[698,235],[714,416],[696,416]],light?"#b39a77":"#a89376");
+    rect(659,224,47,14,light?"#39575a":"#152c33");rect(665,193,35,31,"#e6d199");
+    line(674,194,674,223,"#635e50",3);line(691,194,691,223,"#635e50",3);
+    path([[655,191],[683,168],[710,191]],light?"#39575a":"#102a31");
+    rect(676,338,12,25,"#203842",2);rect(675,393,18,27,"#142d35",4);
+    const reach=400+80*Math.sin(t*.45), beamY=185+80*Math.sin(t*.27);
+    const beam=c.createLinearGradient(683,205,683+reach,beamY);beam.addColorStop(0,"#ffe1a488");beam.addColorStop(1,"#ffe1a400");
+    path([[680,202],[1000,beamY-95],[1000,beamY+80]],beam);
+    glow(683,206,50,"#ffcf77",.55);circle(683,205,5,"#fff0c6");
+    // A tiny keeper makes the architectural scale legible.
+    circle(614,433,5,light?"#263f41":"#050f18");path([[610,438],[618,438],[622,461],[606,461]],light?"#263f41":"#050f18");
+    line(610,460,608,474,light?"#263f41":"#050f18",4);line(618,460,622,474,light?"#263f41":"#050f18",4);
+  });
+}
+function receiver(x,y,w,h,t){
+  saved(()=>{
+    rect(x,y,w,h,null);c.clip();c.translate(x,y);c.scale(w/1000,h/600);
+    const g=c.createLinearGradient(0,0,1000,600);g.addColorStop(0,"#526766");g.addColorStop(.45,"#203f49");g.addColorStop(1,"#0c1c2b");rect(0,0,1000,600,g);
+    for(let i=0;i<10;i++)line(0,70+i*67,1000,-70+i*67,"#88a7a714",2);
+    saved(()=>{
+      c.translate(505,342);c.rotate(-.06+Math.sin(t*.2)*.012);c.scale(1.05+smooth(t/5)*.08,1.05+smooth(t/5)*.08);
+      rect(-320,-203,647,354,"#081b24",19,"#8b9989");rect(-320,-203,637,341,"#24434a",19,"#647a75");
+      rect(-290,-176,355,285,"#132e38",7,"#577275");
+      for(let j=0;j<14;j++)for(let i=0;i<18;i++)circle(-270+i*18,-155+j*18,2.7,"#3d5960");
+      rect(88,-176,200,94,"#071a22",5,"#7d8876");
+      for(let i=0;i<19;i++)line(98+i*10,-157,98+i*10,-143+(i%5===0?17:9),"#bcc7ac",1);
+      const dial=170+Math.sin(t*.55)*39;line(dial,-167,dial,-92,C.orange,2);
+      text("SIGNAL / +1 DAY",100,-108,17,"#95bab1",500,mono);
+      circle(187,7,58,"#0b232b","#849087",4);circle(187,7,41,"#294550","#5b7476",1);
+      const angle=t*.16-1;line(187+Math.cos(angle)*28,7+Math.sin(angle)*28,187+Math.cos(angle)*46,7+Math.sin(angle)*46,"#efc895",3);
+      for(let i=0;i<4;i++)rect(101+i*49,93,37,19,"#091e27",3,"#567076");
+      glow(280,-193,28,C.orange,.5+.3*Math.sin(t*5));circle(280,-193,5,"#ffbd68");
+      line(-253,-203,-145,-348,"#80908a",6);line(-145,-348,-131,-367,"#c0c9b4",3);
+      text("A SIGNAL FROM TOMORROW",-286,136,15,"#849b99",500,mono);
+    });
+    const shade=c.createLinearGradient(0,0,0,600);shade.addColorStop(0,"#070f1933");shade.addColorStop(.7,"#070f1900");shade.addColorStop(1,"#070f1988");rect(0,0,1000,600,shade);
+  });
+}
+function keeper(x,y,w,h,t){
+  saved(()=>{
+    rect(x,y,w,h,null);c.clip();
+    landscape(x-w*.35,y-h*.2,w*1.5,h*1.4,t);
+    c.translate(x+w*.37,y+h*.71);let sway=Math.sin(t*.4)*2;
+    path([[-47,60],[-37,-61],[-15,-104],[27,-110],[55,-53],[73,62]],"#142d35");
+    path([[-39,56],[-34,-54],[-8,-87],[28,-84],[55,-48],[63,58]],"#c7a06a");
+    path([[10,-79],[28,-84],[55,-48],[63,58],[25,57]],"#997849");
+    circle(7+sway,-110,26,"#0c232e");path([[-16,-126],[3,-145],[27,-128],[35,-107],[-19,-104]],"#152d37");
+    line(-19,55,-22,121,"#0c222c",17);line(40,55,50,124,"#0c222c",17);
+    path([[-9,-72],[28,-69],[72+Math.sin(t*2)*12,-55],[31,-51]],"#c57547");
+  });
+}
+function makeTexture(kind){
+  const element=document.createElement("canvas");element.width=720;element.height=940;
+  const ctx=element.getContext("2d");
+  ctx.fillStyle=kind==="book"?"#142c35":"#eee8d8";ctx.fillRect(0,0,720,940);
+  ctx.strokeStyle="#b69665";ctx.lineWidth=2;ctx.strokeRect(30,30,660,880);
+  ctx.font=`500 46px ${serif}`;ctx.fillStyle=kind==="book"?"#eddbb8":"#19373a";ctx.textAlign="center";
+  ctx.fillText(kind==="book"?"最后一座灯塔":"远方的回声",360,145);
+  ctx.font=`20px ${mono}`;ctx.fillText(kind==="book"?"THE LAST LIGHT":"STORY / FRAME / CHOICE",360,193);
+  for(let i=0;i<20;i++){ctx.strokeStyle=kind==="book"?"#67858a":"#a6b4aa";ctx.beginPath();ctx.ellipse(360,630,120+i*15,50+i*6,-.32,0,TAU);ctx.stroke();}
+  ctx.fillStyle=kind==="book"?"#e8d5b1":"#426365";
+  ctx.beginPath();ctx.moveTo(337,682);ctx.lineTo(347,386);ctx.lineTo(378,386);ctx.lineTo(393,682);ctx.closePath();ctx.fill();
+  ctx.fillRect(335,360,57,27);ctx.beginPath();ctx.moveTo(328,360);ctx.lineTo(362,327);ctx.lineTo(400,360);ctx.closePath();ctx.fill();
+  ctx.fillStyle="#ffa465";ctx.fillRect(346,363,32,19);
+  ctx.font=`22px ${sans}`;ctx.fillStyle=kind==="book"?"#d2c7b0":"#466260";ctx.fillText("一封来自明天的求救",360,831);
+  return element;
+}
+function plane(texture,x,y,width,height,ry,rx=0,rz=0,alpha=1){
+  const nx=6,ny=6;
+  function p(u,v){
+    let xx=(u-.5)*width,yy=(v-.5)*height,zz=0;
+    let x1=xx*Math.cos(ry),z1=-xx*Math.sin(ry);
+    let y1=yy*Math.cos(rx)-z1*Math.sin(rx),z2=yy*Math.sin(rx)+z1*Math.cos(rx);
+    let x2=x1*Math.cos(rz)-y1*Math.sin(rz),y2=x1*Math.sin(rz)+y1*Math.cos(rz),scale=1400/(1400+z2);
+    return [x+x2*scale,y+y2*scale];
+  }
+  function triangle(uv){
+    const pts=uv.map(([u,v])=>p(u,v)),s=uv.map(([u,v])=>[u*texture.width,v*texture.height]);
+    const [a,b,d]=s,den=a[0]*(b[1]-d[1])+b[0]*(d[1]-a[1])+d[0]*(a[1]-b[1]);
+    const coeff=index=>[
+      (pts[0][index]*(b[1]-d[1])+pts[1][index]*(d[1]-a[1])+pts[2][index]*(a[1]-b[1]))/den,
+      (pts[0][index]*(d[0]-b[0])+pts[1][index]*(a[0]-d[0])+pts[2][index]*(b[0]-a[0]))/den,
+      (pts[0][index]*(b[0]*d[1]-d[0]*b[1])+pts[1][index]*(d[0]*a[1]-a[0]*d[1])+pts[2][index]*(a[0]*b[1]-b[0]*a[1]))/den
+    ];
+    const X=coeff(0),Y=coeff(1),cx=pts.reduce((s,p)=>s+p[0],0)/3,cy=pts.reduce((s,p)=>s+p[1],0)/3;
+    // Overlap triangle clips by one pixel to cover Canvas antialiasing seams.
+    const clip=pts.map(([x,y])=>{let scale=1+1/Math.hypot(x-cx,y-cy);return [cx+(x-cx)*scale,cy+(y-cy)*scale];});
+    saved(()=>{path(clip,null);c.clip();c.transform(X[0],Y[0],X[1],Y[1],X[2],Y[2]);c.drawImage(texture,0,0);});
+  }
+  opacity(alpha,()=>{
+    saved(()=>{c.shadowColor="#00000077";c.shadowBlur=50;c.shadowOffsetY=30;path([p(0,0),p(1,0),p(1,1),p(0,1)],"#17232c");});
+    for(let i=0;i<nx;i++)for(let j=0;j<ny;j++){
+      let a=[i/nx,j/ny],b=[(i+1)/nx,j/ny],d=[i/nx,(j+1)/ny],e=[(i+1)/nx,(j+1)/ny];triangle([a,b,d]);triangle([b,e,d]);
+    }
+    path([p(0,0),p(1,0),p(1,1),p(0,1)],null,"#ceb89488");
+  });
+}
+function spark(t){
+  background(false,t);
+  const grow=arrive(t,0,4),cx=1290,cy=520;
+  glow(cx,cy,550,"#bb764b",.14*grow);glow(cx,cy,300,"#68b5b3",.12);
+  for(let j=0;j<36;j++){
+    c.beginPath();const phase=t*.16+j*.077;
+    for(let i=0;i<=160;i++){
+      let theta=i/160*TAU;let r=300+38*Math.sin(theta*3+j*.12+t*.25);
+      let x=Math.cos(theta+phase)*r,y=Math.sin(theta+phase)*r*.38;
+      let angle=-.58+j*.018;let xx=cx+(x*Math.cos(angle)-y*Math.sin(angle))*grow,yy=cy+(x*Math.sin(angle)+y*Math.cos(angle))*grow;
+      i?c.lineTo(xx,yy):c.moveTo(xx,yy);
+    }
+    c.strokeStyle=j%4===0?"#ffa46585":"#7bbebc32";c.lineWidth=j%4===0?1.4:.85;c.stroke();
+  }
+  for(let i=0;i<110;i++){
+    const a=hash(i)*TAU+t*(.015+hash(i+30)*.03),r=100+hash(i+90)*570;
+    circle(cx+Math.cos(a)*r,cy+Math.sin(a)*r*.66,hash(i+60)*1.8,"#ecd2a577");
+  }
+  star(cx,cy,18,C.orange);glow(cx,cy,45,C.orange,.7);
+  reveal(t,.55,109,308,()=>tag("EVERY WORLD BEGINS WITH A SPARK",0,0));
+  reveal(t,1.0,103,435,()=>text("一个念头",0,0,100,C.white,500,serif));
+  reveal(t,2.15,103,565,()=>text("能走多远？",0,0,100,C.orange,500,serif));
+  reveal(t,3.5,112,651,()=>text("从一个故事，到一个创作宇宙。",0,0,28,C.muted));
+  opacity(arrive(t,4),()=>{line(112,735,526,735,C.line);tag("A4N  /  PRODUCT FILM",112,780,C.muted);});
+}
+function universe(t){
+  background(false,t);header(t,"故事 · 影像 · 互动");
+  reveal(t,.1,103,340,()=>text("A4N",0,0,186,C.white,700,mono));
+  reveal(t,.5,112,433,()=>text("让故事，长出一个世界。",0,0,40,C.orange,500,serif));
+  reveal(t,.8,113,500,()=>text("写作 / 设定 / 视觉编排 / 多模态创作",0,0,25,C.muted));
+  const p=arrive(t,.25,1.3),float=Math.sin(t*.75)*11;
+  plane(textures.page,1462+125*(1-p),488+float,366,511,.48+.1*Math.sin(t*.4),.08,.17,p);
+  plane(textures.page,1092-150*(1-p),510-float,354,481,-.52+.1*Math.sin(t*.45),.06,-.18,p);
+  for(let i=3;i>0;i--)plane(textures.page,1295-i*4,501+55*(1-p)+float+i*3,422,570,-.37+.19*Math.sin(t*.4),.05,-.025,p);
+  plane(textures.book,1295,495+55*(1-p)+float,424,573,-.37+.19*Math.sin(t*.4),.05,-.025,p);
+  const labels=["小说","漫画","视频","GALGame"];
+  labels.forEach((label,i)=>reveal(t,1.4+i*.18,930+i*209,845,()=>{
+    circle(0,-35,4,i===0?C.orange:C.teal);line(4,-35,178,-35,C.line);text(label,0,0,27,C.white,500);tag(`0${i+1}`,0,40,C.muted);
+  }));
+  opacity(arrive(t,2),()=>{line(113,662,528,662,C.line);text("从源文本延展，按作品形态继续制作",113,714,26,C.muted);});
+}
+function connect(t){
+  background(false,t);header(t,"QUICK START / 01");heading(t,"01 / CONNECT",["先接通","创作引擎"],"设置 → LLM 服务");
+  reveal(t,.7,112,590,()=>{
+    ["选择服务商与模型","填写服务地址与密钥","保存 → 测试 → 设为默认"].forEach((s,i)=>{
+      circle(7,i*69-9,4,C.orange);text(s,29,i*69,27,C.white);
+    });
+  });
+  const x=735,y=200,w=1075,h=650,p=arrive(t,.25);
+  saved(()=>{c.translate(0,30*(1-p));opacity(p,()=>{
+    rect(x,y,w,h,"#101c26",14,"#40505c");rect(x,y,218,h,"#0d1821",14);line(x+218,y,x+218,y+h,"#34434e");
+    text("设置",x+30,y+60,28,C.white,500);
+    ["LLM 服务","生图模型","视频生成","嵌入模型"].forEach((s,i)=>{
+      if(i===0)rect(x+16,y+100+i*64,184,49,"#2b383c",6);
+      text(s,x+33,y+134+i*64,22,i?C.muted:C.orange,500);
+    });
+    tag("MODEL CONNECTION",x+255,y+55,C.muted);
+    text("我的创作模型",x+255,y+106,34,C.white,500);
+    const rows=[["服务商","选择已支持的服务商"],["API 地址","填写服务商提供的地址"],["API 密钥","••••••••••••••••••••"],["模型","选择或填写模型名称"]];
+    rows.forEach(([label,value],i)=>{
+      text(label,x+255,y+162+i*82,20,C.muted);rect(x+391,y+132+i*82,625,57,"#0b141c",5,"#354450");
+      let visible=arrive(t,1.4+i*.6,.65);opacity(visible,()=>text(value,x+411,y+169+i*82,24,i===2?C.orange:C.white));
+    });
+    const active=t<5.8?0:t<8.5?1:2;
+    ["保存配置","测试连接","设为默认"].forEach((s,i)=>badge(t>10.1&&i===2?"当前默认":s,x+255+i*251,y+514,false,active===i,226));
+    if(t>8){check(x+270,y+603);text("连接测试通过",x+292,y+611,21,C.teal);}
+    if(t>3.4){let cp=arrive(t,3.4,1.1);let target=active;cursor(mix(x+1040,x+355+target*251,cp),mix(y+275,y+542,cp),t,[5.8,8,10.1][target]);}
+  });});
+  reveal(t,10.3,112,860,()=>text("制作图片和视频时，再配置对应模型。",0,0,24,C.teal));
+}
+function create(t){
+  background(true,t);header(t,"QUICK START / 02",true);heading(t,"02 / BEGIN",["给故事","一个起点"],"项目 → 新建项目",true);
+  reveal(t,.6,730,193,()=>{
+    text("选择创作模式",0,37,34,C.ink,500);
+    const opts=[["AI 辅助创作","从想法开始"],["自由创作","从空白或已有文本开始"],["视频画布项目","从节点开始"]];
+    opts.forEach(([s,sub],i)=>{
+      const yy=77+i*112;rect(0,yy,1030,94,i===0?"#172e36":"#e5e0d4",5,i?"#ccc6b8":null);
+      text(`0${i+1}`,24,yy+58,26,i===0?C.orange:"#81918a",500,mono);text(s,92,yy+43,27,i===0?C.white:C.ink,500);
+      text(sub,92,yy+73,20,i===0?"#9bb0b1":"#6f7e77");text("↗",978,yy+59,33,i===0?C.orange:"#849089");
+    });
+  });
+  const quote="最后一座灯塔，收到来自明天的求救。";
+  reveal(t,4.3,737,698,()=>{
+    tag("STORY SEED / 原创演示故事",0,0,"#a3592d");
+    const visible=Math.floor(clamp((t-4.8)/3.8)*quote.length);
+    text(quote.slice(0,Math.min(7,visible)),0,63,45,C.ink,500,serif);
+    if(visible>7)text(quote.slice(7,visible),0,127,45,C.ink,500,serif);
+    if(t<9)rect(visible>7?Math.min((visible-7)*45,670):Math.min(visible*45,670),visible>7?85:21,3,49,"#b56b39");
+  });
+  reveal(t,2,110,650,()=>{
+    circle(84,67,82,null,"#b9afa0");circle(84,67,60,null,"#d1c6b3");star(84,67,17,"#aa6338");
+    text("选择适合你的开始方式",0,200,25,"#64756f");
+  });
+}
+function blueprint(t){
+  background(false,t);header(t,"QUICK START / 03");
+  reveal(t,.15,109,197,()=>tag("03 / PLAN",0,0));
+  reveal(t,.3,105,304,()=>text("把灵感，铺成一张蓝图。",0,0,75,C.white,500,serif));
+  reveal(t,.6,112,366,()=>text("先确认故事的方向，再展开章节。",0,0,27,C.muted));
+  const labels=["灵感对话","正式蓝图","章节大纲","章节正文"];
+  const notes=[["最后一座灯塔","来自明天的信号"],["许澄 · 守塔人","逆潮海 · 时间悬念"],["01 / 求救","02 / 潮汐倒流"],["第一章","信号穿过了黑夜……"]];
+  for(let i=0;i<4;i++){
+    const x=113+i*438,p=arrive(t,.8+i*.5);if(i<3)opacity(p,()=>wire(x+348,572,x+425,572,t-i*.45));
+    reveal(t,.8+i*.5,x,430,()=>{
+      tag(`0${i+1}`,0,0,C.orange);rect(0,35,342,367,i===1?"#e5dfce":"#13232d",3,i===1?"#c4b794":"#364752");
+      text(labels[i],25,94,34,i===1?C.ink:C.white,500,serif);
+      line(25,120,317,120,i===1?"#b9b3a5":"#3c4c55");
+      notes[i].forEach((s,j)=>text(s,26,171+j*47,23,i===1?"#3a5454":C.muted));
+      paperLines(26,277,288,3,i===1?"#b4b5a5":"#3b505a",19);
+      if(i===1&&t>4.4){badge("确认蓝图",26,332,true,true,168);check(278,354,"#3e6965");}
+    });
+  }
+  reveal(t,5,112,902,()=>text("故事有了结构，创作就有了下一步。",0,0,29,C.orange,500,serif));
+}
+function write(t){
+  background(true,t);header(t,"QUICK START / 04",true);
+  reveal(t,.15,108,190,()=>tag("04 / WRITE",0,0,"#a25c33"));
+  reveal(t,.3,105,281,()=>text("世界越大，线索越要清楚。",0,0,66,C.ink,500,serif));
+  reveal(t,.6,112,338,()=>text("正文、角色、世界观、伏笔，在同一项目中推进。",0,0,27,"#68776f"));
+  const x=111,y=395;
+  reveal(t,.7,x,y,()=>{
+    rect(0,0,1090,515,"#faf7ef",6,"#c9c7b8");rect(0,0,204,515,"#dfded1",6);line(204,0,204,515,"#c6c8b9");
+    tag("CHAPTERS",22,45,"#63756e");
+    ["01  求救","02  逆潮","03  回声"].forEach((v,i)=>{if(i===0)rect(13,71+i*66,178,51,"#c7cdc0",4);text(v,25,105+i*66,24,"#304c49");});
+    text("第一章  /  求救",244,70,36,C.ink,500,serif);
+    tag("最后一座灯塔",245,111,"#9c744e");line(244,137,1046,137,"#d8d4c5");
+    const prose=["午夜，海面忽然安静下来。","许澄转动接收器，听见自己的名字。","那声音从一场尚未发生的风暴中传来。","他望向灯塔。光还亮着。","而信号的日期，写着明天。"];
+    const visible=clamp((t-1.6)/6.8);
+    prose.forEach((s,i)=>{
+      const chars=Math.floor(clamp(visible*6-i)*s.length);
+      if(i===2&&t>5)rect(242,270,Math.min(741,(t-5)*250),42,"#f7deb5",2);
+      text(s.slice(0,chars),247,194+i*53,29,"#354845",400,serif);
+    });
+    badge("编辑正文",243,446,true,false,169);badge("AI 辅助",436,446,true,true,164);
+    if(t>8.7){check(1009,467,"#4d8276");text("已保存",898,477,22,"#4d8276");}
+  });
+  const cards=[["CHARACTER","角色","许澄 / 守塔人","他从未离开过这座岛。"],["WORLD","世界观","逆潮海","潮汐每天倒流一次。"],["FORESHADOW","伏笔","提前一天的信号","谁在未来呼唤他的名字？"]];
+  cards.forEach(([en,title,name,sub],i)=>reveal(t,1.1+i*.5,1251,395+i*177,()=>{
+    rect(0,0,555,159,i===1?"#244249":"#e3dfd2",4);tag(en,24,33,i===1?"#a3c6c1":"#7b857b");
+    text(title,510,35,20,i===1?"#c2d8ce":"#6c8175",400,sans,"right");
+    text(name,24,85,30,i===1?C.white:C.ink,500,serif);text(sub,24,127,23,i===1?"#b5c9c3":"#687b71");
+  }));
+}
+function direct(t){
+  background(false,t);header(t,"QUICK START / 05");
+  reveal(t,.1,109,191,()=>tag("05 / DIRECT",0,0));
+  reveal(t,.3,104,279,()=>text("先看见，才拍得出来。",0,0,68,C.white,500,serif));
+  reveal(t,.5,112,341,()=>text("确认视觉编排 → 生成拍摄剧本",0,0,29,C.orange));
+  const shot=t<4.5?0:t<8.6?1:2;
+  const p=arrive(t,.6);opacity(p,()=>{
+    const xx=112,yy=403,ww=1127,hh=432;
+    saved(()=>{
+      rect(xx,yy,ww,hh,null);c.clip();let zoom=1+smooth((t-2)/11)*.12;c.translate(xx+ww*.5,yy+hh*.5);c.scale(zoom,zoom);
+      if(shot===0)landscape(-ww*.5,-hh*.5,ww,hh,t);
+      else if(shot===1)receiver(-ww*.5,-hh*.5,ww,hh,t-4.5);
+      else keeper(-ww*.5,-hh*.5,ww,hh,t-8.6);
+    });
+    rect(xx,yy,ww,hh,null,0,"#4e6a72");
+    opacity(.35,()=>{line(xx+ww/3,yy,xx+ww/3,yy+hh,"#e2d8b9");line(xx+ww*2/3,yy,xx+ww*2/3,yy+hh,"#e2d8b9");line(xx,yy+hh/3,xx+ww,yy+hh/3,"#e2d8b9");line(xx,yy+hh*2/3,xx+ww,yy+hh*2/3,"#e2d8b9");});
+    rect(xx+23,yy+21,305,38,"#07121ccd",3);tag(["CAM 01 / WIDE","CAM 02 / CLOSE UP","CAM 03 / MEDIUM"][shot],xx+38,yy+48,C.white);
+    const focusX=xx+ww*[.683,.69,.37][shot],focusY=yy+hh*[.35,.53,.43][shot];line(focusX-18,focusY,focusX+18,focusY,C.orange,2);line(focusX,focusY-18,focusX,focusY+18,C.orange,2);
+    text("示例画面 · 最后一座灯塔",xx+25,yy+hh-22,22,"#d8dcd5");
+  });
+  [ ["01","远景","孤岛 / 夜 / 缓慢推进"], ["02","特写","接收器 / 指示灯闪烁"], ["03","中景","许澄转身 / 望向塔顶"] ].forEach(([n,a,b],i)=>reveal(t,.9+i*.35,1290,405+i*143,()=>{
+    const selected=shot===i;
+    rect(0,0,516,119,selected?"#293b3d":"#121f2a",4,selected?"#bf9766":"#344651");tag(n,22,39,C.orange);
+    text(a,82,44,31,C.white,500,serif);text(b,23,91,23,C.muted);
+  }));
+  reveal(t,2,1290,866,()=>badge(t>5?"拍摄剧本已生成":"确认视觉编排",0,0,false,true,516));
+  opacity(p,()=>{
+    const yy=883;line(113,yy,1239,yy,C.line);
+    for(let i=0;i<3;i++)rect(113+i*378,yy+11,361,30,["#8e6b4e","#355d64","#477570"][i],2);
+    const px=113+1125*clamp((t-1)/12);line(px,yy-8,px,yy+47,C.orange,2);circle(px,yy-7,4,C.orange);
+  });
+}
+function adapt(t){
+  background(true,t);header(t,"QUICK START / 06",true);
+  reveal(t,.1,109,190,()=>tag("06 / ADAPT",0,0,"#a25c33"));
+  reveal(t,.3,104,280,()=>text("一个故事，不止一种表达。",0,0,69,C.ink,500,serif));
+  reveal(t,.6,111,344,()=>text("选择来源章节 → 创建派生项目 → 在对应工作区制作",0,0,28,"#637b74"));
+  const titles=["漫画","视频","GALGame"],subs=["分镜 / 页面 / 图像","片段 / 编排 / 成片","台词 / 选择支 / 互动"];
+  for(let i=0;i<3;i++)reveal(t,.8+i*.2,111+i*579,409,()=>{
+    const width=537,height=383;rect(0,0,width,height,"#fcf8ee",3,"#c5c1b4");
+    if(i===0){
+      landscape(13,13,511,192,t,"paper");landscape(13,218,245,151,t+2,"paper");
+      rect(269,218,255,151,"#244a50");
+      for(let j=0;j<18;j++)line(284+j*14,230,278+j*14,348,"#829f94",.9);
+      text("是明天。",395,306,35,"#eee7d3",600,serif,"center");
+      rect(321,49,159,50,"#f3eddd",18,"#527169");text("你听见了吗？",400,81,23,C.ink,400,sans,"center");
+    }else if(i===1){
+      rect(0,0,width,height,C.bg);landscape(0,45,width,292,t);
+      line(21,359,516,359,"#527277",2);line(21,359,21+495*clamp(t/12),359,C.orange,3);circle(21+495*clamp(t/12),359,5,C.orange);
+      tag("01 / LIGHTHOUSE",18,29,C.muted);
+    }else{
+      landscape(0,0,width,height,t+1);
+      rect(17,207,503,75,"#0b1f27e8",4,"#778d82");text("许澄",34,235,20,C.orange);text("如果未来正在求救……",34,266,25,C.white,400,serif);
+      ["点亮灯塔","回应信号"].forEach((s,j)=>{rect(17,295+j*37,503,31,j===(Math.floor(t/3)%2)?"#e3be8a":"#1b373fe6",2);text(s,269,318+j*37,21,j===(Math.floor(t/3)%2)?C.ink:C.white,400,sans,"center");});
+    }
+    text(titles[i],0,447,39,C.ink,500,serif);text(subs[i],0,494,23,"#657b71");
+    tag(`0${i+1}`,533,447,"#a06940");
+  });
+}
+function canvasScene(t){
+  background(false,t);header(t,"ANOTHER WAY / 自由创作");
+  reveal(t,.1,109,190,()=>tag("BUILD YOUR OWN FLOW",0,0));
+  reveal(t,.3,105,279,()=>text("你的流程，由你连起来。",0,0,71,C.white,500,serif));
+  reveal(t,.5,112,338,()=>text("新建项目 → 视频画布项目",0,0,28,C.muted));
+  opacity(arrive(t,.5),()=>{
+    for(let x=105;x<1820;x+=34)for(let y=410;y<918;y+=34)circle(x,y,.85,"#35505a");
+    wire(430,566,665,529,t);wire(974,529,1195,470,t-.8,C.teal);wire(974,529,1195,730,t-1.2,C.orange);wire(1485,730,1580,632,t-1.7);
+    line(1340,552,1340,648,"#7ed3cc66",2);circle(1340,552+96*((t%2)/2),4,C.teal);
+    text("首帧 / 参考图",1360,611,20,C.teal);
+  });
+  function node(x,y,w,h,num,title,sub,col,delay,draw){reveal(t,delay,x,y,()=>{
+    rect(0,0,w,h,"#12232e",8,"#49616a");rect(0,0,5,h,col,2);tag(num,23,33,col);text(title,22,76,29,C.white,500);text(sub,22,114,20,C.muted);
+    if(draw)draw();circle(0,h/2,5,"#12232e",col,2);circle(w,h/2,5,"#12232e",col,2);
+  });}
+  node(112,477,318,179,"01","文本","故事与创作指令",C.orange,.6,()=>{line(23,143,273,143,"#435d64");});
+  node(665,437,309,184,"02","模型调用","展开视觉描述",C.orange,.95,()=>{for(let i=0;i<24;i++){let hh=9+Math.abs(Math.sin(i*.54+t*2))*22;rect(24+i*10,151-hh/2,4,hh,"#ba9569",1);}});
+  node(1195,388,290,164,"03","生成图片","角色与场景参考",C.teal,1.3);
+  node(1195,648,290,164,"04","生成视频","镜头片段",C.orange,1.55);
+  opacity(arrive(t,1.5),()=>{circle(1340,552,5,"#12232e",C.teal,2);circle(1340,648,5,"#12232e",C.teal,2);});
+  node(1580,550,226,164,"05","成片轨道","连接与编排",C.teal,1.9);
+  reveal(t,4,112,899,()=>{badge("文本",0,0,false,false);badge("图片",117,0,false,false);badge("视频",234,0,false,false);text("把每一步，变成看得见的连接。",392,31,27,C.orange,500,serif);});
+}
+function deliver(t){
+  background(false,t);header(t,"REVIEW / EXPORT");heading(t,"FROM WORK TO WORKS",["每次变化，","都有去处。"],"来源同步 / 多格式导出");
+  reveal(t,.7,112,592,()=>{
+    ["源文本更新","检查更新与同步差异","处理差异后，应用安全更新"].forEach((s,i)=>{
+      circle(8,i*74-7,5,i<2?C.orange:C.teal);if(i<2)line(8,i*74+4,8,i*74+53,C.line);text(s,33,i*74,27,C.white);
+    });
+  });
+  reveal(t,.4,809,217,()=>{
+    tag("YOUR STORY. READY TO GO.",0,0,C.muted);
+    plane(textures.book,225,310,310,420,-.3,.02,-.02);
+    const formats=[["TXT","正文文本"],["Markdown","结构化文档"],["EPUB / PDF","阅读与分享"],["WebGAL","互动工程"]];
+    formats.forEach(([a,b],i)=>{
+      let xx=490,yy=57+i*123;opacity(arrive(t,1+i*.28),()=>{rect(xx,yy,466,100,"#142731",5,"#39545e");text(a,xx+23,yy+42,31,i===3?C.teal:C.orange,500,mono);text(b,xx+24,yy+78,21,C.muted);});
+    });
+    text("按作品类型，在对应工作区导出",0,625,28,C.white,400,serif);
+  });
+}
+function end(t){
+  background(false,t);
+  opacity(.6,()=>landscape(0,0,W,H,t+90));
+  const g=c.createLinearGradient(0,0,W,0);g.addColorStop(0,"#050d16f5");g.addColorStop(.6,"#07111cb8");g.addColorStop(1,"#07111c33");rect(0,0,W,H,g);
+  reveal(t,.04,110,231,()=>tag("IMAGINATION, MADE.",0,0,C.orange));
+  reveal(t,.12,94,466,()=>text("A4N",0,0,224,C.white,700,mono));
+  reveal(t,.35,107,596,()=>text("想象，有了作品的形状。",0,0,65,C.white,500,serif));
+  reveal(t,.75,112,701,()=>text("从新建项目开始，写下你的第一个念头。",0,0,29,"#b6c4c4"));
+  reveal(t,1.1,112,843,()=>{line(0,0,526,0,"#80918b");tag("WRITE  /  DIRECT  /  CREATE",0,47,C.orange);});
+}
+const scenes={spark,universe,connect,create,blueprint,write,direct,adapt,canvas:canvasScene,deliver,end};
+function footer(time,index){
+  const light=["create","write","adapt"].includes(script.scenes[index].id);
+  const scene=script.scenes[index];
+  if(index>1&&index<10)text("操作与作品画面为动画示意",1811,947,18,light?"#7b8177":"#8a9ba2",400,sans,"right");
+  let cue=subtitles.find(s=>time>=s.start&&time<s.end);
+  if(cue){
+    c.font=`400 31px ${sans}`;const w=c.measureText(cue.text).width+54;
+    rect((W-w)/2,965,w,62,"#060d15dd",5);text(cue.text,W/2,1006,31,"#f3f1e8",400,sans,"center");
+  }
+  script.scenes.forEach((s,i)=>{
+    const x=110+s.start/120*1700,w=(s.end-s.start)/120*1700-5;
+    rect(x,1051,w,2,light?"#c9c4b9":"#283b46");
+    if(time>s.start)rect(x,1051,w*clamp((time-s.start)/(s.end-s.start)),2,light?"#b36a38":C.orange);
+  });
+}
+window.drawFrame=function(time){
+  if(!Number.isFinite(time)||time<0||time>120)throw Error("Time must be in [0,120]");
+  c.setTransform(1,0,0,1,0,0);c.globalAlpha=1;c.lineWidth=1;
+  const index=script.scenes.findIndex(s=>time>=s.start&&time<s.end),idx=index<0?script.scenes.length-1:index;
+  const scene=script.scenes[idx],local=time-scene.start;
+  scenes[scene.id](local);footer(time,idx);
+  // A narrow travelling light joins cuts; the image itself never flashes white.
+  if(local<.55&&idx>0){let p=clamp(local/.55);opacity(Math.sin(p*Math.PI)*.2,()=>{let xx=mix(-200,2200,p);const g=c.createLinearGradient(xx-180,0,xx+180,0);g.addColorStop(0,"#ffc98a00");g.addColorStop(.5,"#ffc98a");g.addColorStop(1,"#ffc98a00");rect(xx-180,0,360,H,g);});}
+  if(time>119.5)rect(0,0,W,H,`rgba(5,11,17,${smooth((time-119.5)/.5)})`);
+};
+async function init(){
+  [script,subtitles]=await Promise.all([fetch("script.json").then(r=>{if(!r.ok)throw Error("Missing script");return r.json();}),fetch("out/subtitles.json").then(r=>{if(!r.ok)throw Error("Generate audio before previewing");return r.json();})]);
+  await document.fonts.load(`500 76px ${serif}`);await document.fonts.load(`400 31px ${sans}`);await document.fonts.ready;
+  textures.book=makeTexture("book");textures.page=makeTexture("page");
+  window.drawFrame(0);window.filmReady=true;
+  const overlay=document.querySelector("#play"),sound=document.querySelector("#sound");
+  if(new URLSearchParams(location.search).has("render")){overlay.style.display="none";return;}
+  overlay.querySelector("button").onclick=async()=>{
+    if(!sound.src){
+      // ponytail: this two-minute mix fits in memory; use HTTP ranges for long films.
+      const response=await fetch("out/master.wav");if(!response.ok)throw Error("Unable to load soundtrack");
+      sound.src=URL.createObjectURL(await response.blob());
+    }
+    await sound.play();overlay.style.display="none";
+  };
+  const tick=()=>{drawFrame(Math.min(120,sound.currentTime));requestAnimationFrame(tick);};tick();
+  document.addEventListener("keydown",event=>{
+    if(event.code==="Space"){event.preventDefault();if(sound.paused)overlay.querySelector("button").click();else sound.pause();}
+    if(event.code==="ArrowRight")sound.currentTime=Math.min(119.9,sound.currentTime+5);
+    if(event.code==="ArrowLeft")sound.currentTime=Math.max(0,sound.currentTime-5);
+  });
+  sound.onended=()=>{overlay.style.display="grid";overlay.querySelector("button").textContent="重新播放";sound.currentTime=0;};
+}
+init().catch(error=>{document.querySelector("#play button").textContent=error.message;throw error;});
+</script>
+</html>
