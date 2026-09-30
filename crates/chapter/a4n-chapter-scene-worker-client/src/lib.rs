@@ -20,6 +20,9 @@ const DEFAULT_WORKER_URL: &str = "http://127.0.0.1:47670";
 const CONTROL_LEASE_FENCE: &str = "control-request";
 const CONTROL_LEASE_EXPIRY: &str = "9999-12-31T23:59:59Z";
 
+mod mutations;
+mod reads;
+
 #[derive(Clone)]
 pub struct ChapterSceneWorkerClient {
     transport: HttpWorkerClient,
@@ -112,77 +115,6 @@ impl ChapterSceneWorkerClient {
             return Err(AppError::InvalidArgument(format!("{field} 必须大于 0")));
         }
         Ok(value)
-    }
-}
-
-#[async_trait::async_trait]
-impl ChapterSceneReadApplicationPort for ChapterSceneWorkerClient {
-    async fn list(
-        &self,
-        user_id: i64,
-        chapter_id: i64,
-    ) -> Result<Vec<ChapterSceneSummary>, AppError> {
-        self.command(
-            user_id,
-            CHAPTER_SCENE_LIST_OPERATION,
-            ChapterInput {
-                chapter_id: Self::positive("chapter_id", chapter_id)?,
-            },
-        )
-        .await
-    }
-}
-
-#[async_trait::async_trait]
-impl ChapterSceneMutationApplicationPort for ChapterSceneWorkerClient {
-    async fn update(
-        &self,
-        user_id: i64,
-        input: UpdateChapterSceneInput,
-    ) -> Result<ChapterSceneSummary, AppError> {
-        self.command(
-            user_id,
-            CHAPTER_SCENE_UPDATE_OPERATION,
-            UpdateSceneInput {
-                scene_id: Self::positive("scene_id", input.scene_id)?,
-                content: input.content,
-                title: input.title,
-                summary: input.summary,
-                scene_type: input.scene_type,
-                location: input.location,
-                timeline_position: input.timeline_position,
-            },
-        )
-        .await
-    }
-
-    async fn delete(&self, user_id: i64, scene_id: i64) -> Result<(), AppError> {
-        let _: serde_json::Value = self
-            .command(
-                user_id,
-                CHAPTER_SCENE_DELETE_OPERATION,
-                DeleteSceneInput {
-                    scene_id: Self::positive("scene_id", scene_id)?,
-                },
-            )
-            .await?;
-        Ok(())
-    }
-
-    async fn reorder(
-        &self,
-        user_id: i64,
-        input: ReorderChapterScenesInput,
-    ) -> Result<Vec<ChapterSceneSummary>, AppError> {
-        if input.order.is_empty() {
-            return Err(AppError::InvalidArgument("order 不能为空".into()));
-        }
-        self.command(
-            user_id,
-            CHAPTER_SCENE_REORDER_OPERATION,
-            ReorderScenesInput { order: input.order },
-        )
-        .await
     }
 }
 
