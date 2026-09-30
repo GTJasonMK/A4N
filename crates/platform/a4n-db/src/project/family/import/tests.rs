@@ -144,7 +144,7 @@ async fn project_family_import_activates_deserialized_project_lifecycle_gate() {
     };
     let package = ProjectFamilyImportPackage {
         root_project_id: project.id,
-        projects: vec![project],
+        projects: vec![crate::project::project_record_from_model(project.clone())],
         ..Default::default()
     };
 
@@ -239,7 +239,7 @@ async fn project_family_import_rebuilds_raw_blueprint_from_formal_rows() {
     );
     let package = ProjectFamilyImportPackage {
         root_project_id: project.id,
-        projects: vec![project],
+        projects: vec![crate::project::project_record_from_model(project.clone())],
         text_core: crate::project::ProjectFamilyTextCoreRows {
             fact_feedback: None,
             blueprint: Some(blueprint),
@@ -384,7 +384,7 @@ async fn project_family_media_write_failure_rolls_back_database_rows() {
     };
     let package = ProjectFamilyImportPackage {
         root_project_id: project.id,
-        projects: vec![project],
+        projects: vec![crate::project::project_record_from_model(project.clone())],
         media_assets: vec![asset],
         ..Default::default()
     };
@@ -551,7 +551,7 @@ async fn project_family_import_batches_video_reference_fixups() {
     };
     let package = ProjectFamilyImportPackage {
         root_project_id: project.id,
-        projects: vec![project],
+        projects: vec![crate::project::project_record_from_model(project.clone())],
         text_core: crate::project::ProjectFamilyTextCoreRows {
             fact_feedback: None,
             chapters: vec![chapter],

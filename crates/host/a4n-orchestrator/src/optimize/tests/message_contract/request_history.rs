@@ -107,7 +107,7 @@ fn optimization_chat_history_preserves_long_instructions_and_appends_without_rew
     let long_instruction = format!("首轮约束{}末尾约束", "甲".repeat(6500));
     let long_reply = format!("{}完整结论", "乙".repeat(6500));
     let turns = (1..=14)
-        .map(|id| optimization_turn::Model {
+        .map(|id| OptimizationTurnRecord {
             id,
             session_id: 7,
             agent_turn_id: None,

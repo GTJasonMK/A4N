@@ -1,4 +1,5 @@
 use a4n_db_models::models::project::novel_project;
+use a4n_domain::project::ProjectRecord;
 use sea_orm::{ActiveModelTrait, DatabaseTransaction, Set};
 
 use crate::project::family::import::{
@@ -71,13 +72,14 @@ pub(in crate::project::family::import::import_rows) async fn insert_derived_proj
 async fn insert_project_row(
     txn: &DatabaseTransaction,
     user_id: i64,
-    project: &novel_project::Model,
+    project: &ProjectRecord,
     root_project_id: Option<i64>,
     source_snapshot_id: Option<i64>,
 ) -> Result<novel_project::Model, ProjectFamilyImportError> {
+    let project = crate::project::project_record_into_model(project.clone());
     Ok(insert_import_row!(
         txn,
-        project,
+        &project,
         novel_project::ActiveModel,
         "导入项目失败",
         |active| {

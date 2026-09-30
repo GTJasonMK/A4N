@@ -59,10 +59,13 @@ async fn insert_chapter(db: &DatabaseConnection) -> chapter::Model {
 async fn analysis_write_does_not_change_source_updated_at() {
     let db = setup_db().await;
     let chapter = insert_chapter(&db).await;
+    let chapter_record = a4n_db::chapter_content::chapter_by_id_for_analysis(&db, chapter.id)
+        .await
+        .expect("chapter record must be readable");
 
     let updated = store_chapter_analysis_record(
         &db,
-        chapter.clone(),
+        chapter_record,
         StoreChapterAnalysisRecordInput {
             analysis_data: json!({"summaries": {"compressed": "摘要"}}),
             summary: Some("摘要".to_string()),
@@ -81,7 +84,14 @@ async fn analysis_write_does_not_change_source_updated_at() {
 async fn stale_source_snapshot_rejects_analysis_write() {
     let db = setup_db().await;
     let chapter = insert_chapter(&db).await;
-    let source = a4n_db::project::chapter_source_snapshot_from_model(&chapter);
+    let source = a4n_db::chapter_content::chapter_by_id_for_analysis(&db, chapter.id)
+        .await
+        .expect("chapter record must be readable")
+        .source_snapshot();
+    assert_eq!(
+        source,
+        a4n_db::project::chapter_source_snapshot_from_model(&chapter)
+    );
     let mut active: chapter::ActiveModel = chapter.into();
     active.content = Set("用户刚刚修改的正文".to_string());
     active.updated_at = Set(test_time() + Duration::seconds(1));

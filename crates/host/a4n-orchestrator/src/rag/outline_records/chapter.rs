@@ -1,5 +1,5 @@
 use a4n_db::rag::RagChapterOutlineRow;
-use a4n_db_models::models::chapter::chapter_outline;
+use a4n_domain::chapter::ChapterOutlineRecord;
 use a4n_domain::rag::RagDataType;
 use a4n_rag_core::RagRecord;
 use a4n_rag_core::record_text::{optional_json_text, required_rag_text};
@@ -47,7 +47,7 @@ fn outline_rag_record_fields(
 
 pub fn outline_rag_record(
     project_id: i64,
-    outline: &chapter_outline::Model,
+    outline: &ChapterOutlineRecord,
 ) -> Result<RagRecord, String> {
     outline_rag_record_fields(
         project_id,

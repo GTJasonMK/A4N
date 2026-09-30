@@ -11,22 +11,13 @@ use axum::{
     http::HeaderMap,
     response::{IntoResponse, Response},
 };
-use sea_orm::{ConnectionTrait, Statement};
 
 pub(super) async fn health(State(state): State<WorkerState>, headers: HeaderMap) -> Response {
     if !state.authorized(&headers) {
         return unauthorized();
     }
-    let status = match state
-        .database
-        .connection()
-        .execute(Statement::from_string(
-            sea_orm::DatabaseBackend::Postgres,
-            "SELECT 1",
-        ))
-        .await
-    {
-        Ok(_) => WorkerHealthStatus::Healthy,
+    let status = match state.database.ping().await {
+        Ok(()) => WorkerHealthStatus::Healthy,
         Err(_) => WorkerHealthStatus::Degraded,
     };
     Json(WorkerHealth {

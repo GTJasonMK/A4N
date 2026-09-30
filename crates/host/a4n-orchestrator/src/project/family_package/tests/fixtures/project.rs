@@ -1,7 +1,8 @@
 use super::super::*;
+use a4n_domain::project::ProjectRecord;
 
-pub(in crate::project::family_package::tests) fn root_project() -> novel_project::Model {
-    novel_project::Model {
+pub(in crate::project::family_package::tests) fn root_project() -> ProjectRecord {
+    ProjectRecord {
         id: 1,
         user_id: 7,
         title: "root".to_string(),
@@ -27,8 +28,8 @@ pub(in crate::project::family_package::tests) fn root_project() -> novel_project
     }
 }
 
-pub(in crate::project::family_package::tests) fn derived_video_project() -> novel_project::Model {
-    novel_project::Model {
+pub(in crate::project::family_package::tests) fn derived_video_project() -> ProjectRecord {
+    ProjectRecord {
         id: 2,
         user_id: 7,
         title: "derived".to_string(),

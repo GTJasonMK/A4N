@@ -31,7 +31,7 @@ pub(crate) use a4n_canvas_host_contract::{
     CanvasVideoGenerationHostPort, CanvasVideoNodeApplicationPort,
 };
 pub(crate) use a4n_db::canvas::{
-    CanvasGraphRecordDocument, CanvasImageMediaAssetEnsureInput, CanvasVideoMediaAssetEnsureInput,
+    CanvasImageMediaAssetEnsureInput, CanvasVideoMediaAssetEnsureInput,
     validate_canvas_record_document_edge_contract, validate_canvas_record_document_is_dag,
     validate_canvas_record_viewport_json,
 };

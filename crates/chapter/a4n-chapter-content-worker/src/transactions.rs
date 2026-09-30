@@ -1,8 +1,8 @@
 use super::errors::WorkerFailure;
-use sea_orm::DatabaseTransaction;
+use a4n_db::DbTransaction;
 
 pub(super) async fn finish_transaction<T>(
-    tx: DatabaseTransaction,
+    tx: DbTransaction,
     result: Result<T, WorkerFailure>,
     operation: &str,
 ) -> Result<T, WorkerFailure> {

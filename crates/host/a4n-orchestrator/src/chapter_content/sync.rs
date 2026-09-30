@@ -1,8 +1,7 @@
-use a4n_db::workflow::UpsertWorkflowCheckpointInput;
-use a4n_db_models::models::{
-    chapter::chapter,
-    generation::{workflow_checkpoint, workflow_run},
+use a4n_db::workflow::{
+    UpsertWorkflowCheckpointInput, WorkflowCheckpointSummary, WorkflowRunSummary,
 };
+use a4n_domain::chapter::ChapterRecord;
 use a4n_domain::workflow::{WORKFLOW_STATUS_COMPLETED, WORKFLOW_STATUS_RUNNING};
 use a4n_error::AppError;
 use serde_json::{Value, json};
@@ -20,7 +19,7 @@ use a4n_api_contract::chapter::ChapterDerivedCleanupHostPort;
 const CHAPTER_CONTENT_SYNC_POSTPROCESS_STEP: &str = "chapter_content_sync.postprocess";
 
 fn chapter_content_sync_completed_checkpoint_input(
-    run: &workflow_run::Model,
+    run: &WorkflowRunSummary,
     step_key: &str,
     step_order: i32,
 ) -> UpsertWorkflowCheckpointInput {
@@ -40,8 +39,8 @@ fn chapter_content_sync_completed_checkpoint_input(
 }
 
 fn chapter_content_sync_checkpoint_completed(
-    run: &workflow_run::Model,
-    checkpoint: Option<&workflow_checkpoint::Model>,
+    run: &WorkflowRunSummary,
+    checkpoint: Option<&WorkflowCheckpointSummary>,
     step_key: &str,
 ) -> Result<bool, String> {
     let Some(checkpoint) = checkpoint else {
@@ -68,11 +67,23 @@ fn chapter_content_sync_checkpoint_completed(
 }
 
 impl OrchestratorContext {
+    async fn chapter_content_sync_checkpoints(
+        &self,
+        workflow_run_id: i64,
+    ) -> Result<Vec<WorkflowCheckpointSummary>, AppError> {
+        a4n_db::workflow::workflow_checkpoint_summaries_for_runs(
+            self.database.connection(),
+            &[workflow_run_id],
+        )
+        .await
+        .map_err(crate::workflow::workflow_read_app_error)
+    }
+
     pub(crate) async fn settle_chapter_content_sync_run(
         &self,
         host_port: &dyn ChapterDerivedCleanupHostPort,
-        run: &workflow_run::Model,
-    ) -> Result<chapter::Model, AppError> {
+        run: &WorkflowRunSummary,
+    ) -> Result<ChapterRecord, AppError> {
         let result = self.execute_chapter_content_sync_run(host_port, run).await;
         self.finalize_workflow_result(run.id, result, "章节资料同步")
             .await
@@ -81,12 +92,12 @@ impl OrchestratorContext {
     pub async fn resume_chapter_content_sync_workflow_run_validated(
         &self,
         host_port: &dyn ChapterDerivedCleanupHostPort,
-        requested_run: &workflow_run::Model,
-    ) -> Result<chapter::Model, AppError> {
+        requested_run: &WorkflowRunSummary,
+    ) -> Result<ChapterRecord, AppError> {
         let (project_id, chapter_number) = chapter_content_sync_source_identity(requested_run)?;
         let lock = self.chapter_content_sync_lock(project_id, chapter_number);
         let _guard = lock.lock_owned().await;
-        let run = self.workflow_run_model_by_id(requested_run.id).await?;
+        let run = self.workflow_run_summary(requested_run.id).await?;
         self.require_current_chapter_content_sync_run(&run).await?;
         crate::workflow::require_workflow_can_resume(
             &run.status,
@@ -98,14 +109,15 @@ impl OrchestratorContext {
             operation,
         })?;
         let run = self.mark_workflow_running_validated(run.id).await?;
+        let run = self.workflow_run_summary(run.id).await?;
         self.settle_chapter_content_sync_run(host_port, &run).await
     }
 
     async fn execute_chapter_content_sync_run(
         &self,
         host_port: &dyn ChapterDerivedCleanupHostPort,
-        run: &workflow_run::Model,
-    ) -> Result<chapter::Model, AppError> {
+        run: &WorkflowRunSummary,
+    ) -> Result<ChapterRecord, AppError> {
         if run.status != WORKFLOW_STATUS_RUNNING {
             return Err(AppError::InvalidState {
                 current: run.status.clone(),
@@ -114,7 +126,7 @@ impl OrchestratorContext {
         }
         let (chapter_result, checkpoints_result) = futures::join!(
             self.require_current_chapter_content_sync_run(run),
-            self.workflow_checkpoint_models(run.id),
+            self.chapter_content_sync_checkpoints(run.id),
         );
         let chapter = chapter_result?;
         let checkpoints = checkpoints_result?;
@@ -153,7 +165,7 @@ impl OrchestratorContext {
 
         let (chapter_result, checkpoints_result) = futures::join!(
             self.require_current_chapter_content_sync_run(run),
-            self.workflow_checkpoint_models(run.id),
+            self.chapter_content_sync_checkpoints(run.id),
         );
         let chapter = chapter_result?;
         let checkpoints = checkpoints_result?;
@@ -174,7 +186,7 @@ impl OrchestratorContext {
 
         let (chapter_result, checkpoints_result) = futures::join!(
             self.require_current_chapter_content_sync_run(run),
-            self.workflow_checkpoint_models(run.id),
+            self.chapter_content_sync_checkpoints(run.id),
         );
         let chapter = chapter_result?;
         let checkpoints = checkpoints_result?;
@@ -201,7 +213,7 @@ impl OrchestratorContext {
         self.require_current_chapter_content_sync_run(run).await
     }
 
-    fn chapter_content_sync_chapter_id(&self, run: &workflow_run::Model) -> Result<i64, AppError> {
+    fn chapter_content_sync_chapter_id(&self, run: &WorkflowRunSummary) -> Result<i64, AppError> {
         if run.workflow_kind != CHAPTER_CONTENT_SYNC_WORKFLOW_KIND
             || run.scope_table.as_deref() != Some("chapter")
             || run.scope_id != run.chapter_id
@@ -219,8 +231,8 @@ impl OrchestratorContext {
 
     async fn require_current_chapter_content_sync_run(
         &self,
-        run: &workflow_run::Model,
-    ) -> Result<chapter::Model, AppError> {
+        run: &WorkflowRunSummary,
+    ) -> Result<ChapterRecord, AppError> {
         let chapter = self
             .chapter_by_id_for_analysis(self.chapter_content_sync_chapter_id(run)?)
             .await?;
@@ -247,7 +259,7 @@ impl OrchestratorContext {
     }
 }
 
-fn chapter_content_sync_source_identity(run: &workflow_run::Model) -> Result<(i64, i32), AppError> {
+fn chapter_content_sync_source_identity(run: &WorkflowRunSummary) -> Result<(i64, i32), AppError> {
     let source = run
         .input_fingerprint_json
         .as_ref()
@@ -268,8 +280,8 @@ fn chapter_content_sync_source_identity(run: &workflow_run::Model) -> Result<(i6
 }
 
 fn content_sync_phase_completed(
-    run: &workflow_run::Model,
-    checkpoints: &[workflow_checkpoint::Model],
+    run: &WorkflowRunSummary,
+    checkpoints: &[WorkflowCheckpointSummary],
     step_key: &str,
 ) -> Result<bool, AppError> {
     chapter_content_sync_checkpoint_completed(
@@ -295,9 +307,9 @@ mod tests {
     use a4n_domain::project::ChapterDerivedCleanupArtifacts;
     use chrono::Utc;
 
-    fn chapter() -> chapter::Model {
+    fn chapter() -> ChapterRecord {
         let now = Utc::now().naive_utc();
-        chapter::Model {
+        ChapterRecord {
             id: 7,
             project_id: 3,
             outline_id: None,
@@ -305,7 +317,7 @@ mod tests {
             title: Some("回声".to_string()),
             content: "正文".to_string(),
             word_count: 2,
-            status: chapter::STATUS_DRAFT.to_string(),
+            status: "draft".to_string(),
             summary: None,
             style_tags: None,
             analysis_data: None,
@@ -395,7 +407,8 @@ mod tests {
     #[test]
     fn source_identity_uses_the_current_workflow_contract() {
         let run_input = chapter_content_sync_workflow_run_input(&chapter());
-        let run = workflow_run::Model {
+        let now = Utc::now();
+        let run = WorkflowRunSummary {
             id: 9,
             business_key: run_input.business_key,
             workflow_kind: run_input.workflow_kind,
@@ -409,13 +422,13 @@ mod tests {
             input_fingerprint_json: run_input.input_fingerprint_json,
             status: run_input.status,
             current_step_key: run_input.current_step_key,
-            progress_json: None,
+            progress: None,
             active_task_id: run_input.active_task_id,
             can_resume: run_input.can_resume,
             resume_block_reason: run_input.resume_block_reason,
             error_message: run_input.error_message,
-            created_at: Utc::now().naive_utc(),
-            updated_at: Utc::now().naive_utc(),
+            created_at: now.to_rfc3339(),
+            updated_at: now.to_rfc3339(),
             completed_at: None,
         };
 

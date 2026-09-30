@@ -1,4 +1,4 @@
-use a4n_db_models::models::chapter::chapter_outline;
+use a4n_domain::chapter::ChapterOutlineRecord;
 use a4n_error::AppError;
 use chrono::Utc;
 
@@ -23,7 +23,7 @@ impl OrchestratorContext {
     pub(in crate::outline) async fn generate_chapter_outlines(
         &self,
         input: ChapterOutlineGenerationInput<'_, '_>,
-    ) -> Result<Vec<chapter_outline::Model>, AppError> {
+    ) -> Result<Vec<ChapterOutlineRecord>, AppError> {
         let ChapterOutlineGenerationInput {
             project_id,
             part_id,
@@ -58,7 +58,7 @@ impl OrchestratorContext {
     pub(in crate::outline) async fn generate_chapter_outlines_by_count(
         &self,
         input: ChapterOutlineCountGenerationInput<'_, '_>,
-    ) -> Result<Vec<chapter_outline::Model>, AppError> {
+    ) -> Result<Vec<ChapterOutlineRecord>, AppError> {
         let ChapterOutlineCountGenerationInput {
             project_id,
             start_chapter,
@@ -84,7 +84,7 @@ impl OrchestratorContext {
     async fn generate_chapter_outline_sequence(
         &self,
         input: ChapterOutlineSequenceInput<'_, '_>,
-    ) -> Result<Vec<chapter_outline::Model>, AppError> {
+    ) -> Result<Vec<ChapterOutlineRecord>, AppError> {
         let ChapterOutlineSequenceInput {
             project_id,
             start_chapter,

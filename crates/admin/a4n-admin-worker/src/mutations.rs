@@ -19,7 +19,7 @@ impl WorkerState {
         )
         .await
         .map_err(app_error)?;
-        a4n_db::auth::current_user_summary(self.database.connection(), user.id)
+        a4n_db::auth::user_summary_by_id(self.database.connection(), user.id)
             .await
             .map_err(app_error)
     }
@@ -32,14 +32,13 @@ impl WorkerState {
         let caller = self.caller(&request.principal, request.payload.caller_user_id)?;
         self.require_admin(caller, AdminPermission::ManageUsers)
             .await?;
-        let code = a4n_db::auth::create_invite_code(
+        a4n_db::auth::create_invite_code(
             self.database.connection(),
             &request.payload.input.code,
             Some(caller),
         )
         .await
-        .map_err(app_error)?;
-        Ok(invite_code_summary(&code))
+        .map_err(app_error)
     }
 
     pub(super) async fn update_role(
@@ -57,7 +56,7 @@ impl WorkerState {
         )
         .await
         .map_err(app_error)?;
-        a4n_db::auth::current_user_summary(self.database.connection(), user.id)
+        a4n_db::auth::user_summary_by_id(self.database.connection(), user.id)
             .await
             .map_err(app_error)
     }

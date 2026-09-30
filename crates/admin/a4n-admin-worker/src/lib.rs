@@ -14,8 +14,9 @@ use a4n_admin_worker_contract::{
     AdminUserUsageInput, OperationAck,
 };
 use a4n_api_contract::admin::AdminPermission;
+#[cfg(test)]
+use a4n_db::DatabaseConnection;
 use a4n_db::DbHandle;
-use a4n_db_models::models::user::invite_code;
 use a4n_error::AppError;
 use a4n_worker_contract::WORKER_AUTH_HEADER;
 use a4n_worker_contract::{
@@ -31,7 +32,6 @@ use axum::{
     response::{IntoResponse, Response},
     routing::{get, post},
 };
-use sea_orm::{ConnectOptions, ConnectionTrait, Database, DatabaseConnection, Statement};
 use subtle::ConstantTimeEq;
 
 const WORKER_ADDR_ENV: &str = "A4N_ADMIN_WORKER_ADDR";
@@ -66,13 +66,13 @@ struct WorkerFailure {
 
 impl AdminWorker {
     pub fn new(
-        database: DatabaseConnection,
+        database: DbHandle,
         worker_id: impl Into<String>,
         auth_token: impl Into<String>,
     ) -> Self {
         Self {
             state: WorkerState {
-                database: DbHandle::new(Arc::new(database)),
+                database,
                 worker_id: Arc::<str>::from(worker_id.into()),
                 auth_token: Arc::<str>::from(auth_token.into()),
             },
@@ -129,12 +129,7 @@ async fn async_main() -> anyhow::Result<()> {
     a4n_config::validate_postgres_database_url(DATABASE_URL_ENV, &database_url)?;
     let auth_token = a4n_config::required_non_empty_env_string(WORKER_TOKEN_ENV)?;
     let address = worker_addr()?;
-    let mut options = ConnectOptions::new(database_url);
-    options
-        .max_connections(8)
-        .min_connections(1)
-        .connect_timeout(std::time::Duration::from_secs(5));
-    let database = Database::connect(options).await?;
+    let database = DbHandle::connect(database_url).await?;
     AdminWorker::new(database, ADMIN_WORKER_ID, auth_token)
         .serve(address)
         .await
@@ -307,17 +302,6 @@ fn app_error(error: AppError) -> WorkerFailure {
         }
         AppError::NotFound(message) => WorkerFailure::not_found(message),
         other => WorkerFailure::unavailable(other.to_string()),
-    }
-}
-
-fn invite_code_summary(code: &invite_code::Model) -> a4n_admin_worker_contract::InviteCodeSummary {
-    a4n_admin_worker_contract::InviteCodeSummary {
-        id: code.id,
-        code: code.code.clone(),
-        created_by_user_id: code.created_by_user_id,
-        used_by_user_id: code.used_by_user_id,
-        created_at: Some(code.created_at.and_utc().to_rfc3339()),
-        used_at: code.used_at.map(|value| value.and_utc().to_rfc3339()),
     }
 }
 

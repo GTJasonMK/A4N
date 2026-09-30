@@ -1,7 +1,9 @@
 use super::super::{ProjectMutationError, required_text, validate_positive_i64};
+use super::record::blueprint_record;
 use a4n_db_models::models::project::{
     blueprint_character, blueprint_relationship, blueprint_version, novel_blueprint,
 };
+use a4n_domain::project::BlueprintRecord;
 use chrono::NaiveDateTime;
 use sea_orm::{
     ColumnTrait, ConnectionTrait, DatabaseConnection, DbBackend, DbErr, EntityTrait, QueryFilter,
@@ -75,7 +77,7 @@ where
 pub async fn novel_blueprint_for_project<C>(
     db: &C,
     project_id: i64,
-) -> Result<Option<novel_blueprint::Model>, DbErr>
+) -> Result<Option<BlueprintRecord>, DbErr>
 where
     C: ConnectionTrait,
 {
@@ -83,6 +85,7 @@ where
         .filter(novel_blueprint::Column::ProjectId.eq(project_id))
         .one(db)
         .await
+        .map(|blueprint| blueprint.map(blueprint_record))
 }
 
 pub async fn blueprint_sources_need_review<C>(

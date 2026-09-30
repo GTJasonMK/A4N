@@ -1,4 +1,5 @@
 mod persistence;
+pub(crate) mod records;
 mod references;
 mod types;
 mod validation;

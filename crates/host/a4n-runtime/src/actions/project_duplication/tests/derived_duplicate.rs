@@ -1,5 +1,5 @@
 #[tokio::test]
-async fn duplicate_derived_project_record_copies_snapshot_without_copying_root_chapters() {
+async fn duplicate_derived_project_record_reuses_snapshot_without_copying_root_chapters() {
     let db = setup_db().await;
     let root = insert_project(&db, ProjectStatus::Writing.as_str()).await;
     let root_chapter = chapter::ActiveModel {
@@ -75,6 +75,7 @@ async fn duplicate_derived_project_record_copies_snapshot_without_copying_root_c
     .insert(&db)
     .await
     .unwrap();
+    let derived_record = project_record(&db, derived.id).await;
     let anchor = text_anchor::ActiveModel {
         project_id: Set(root.id),
         source_chapter_id: Set(Some(root_chapter.id)),
@@ -295,7 +296,7 @@ async fn duplicate_derived_project_record_copies_snapshot_without_copying_root_c
         copied_media_files: &mut copied_media_files,
     };
     let duplicated =
-        duplicate_derived_project_record(&db, &derived, 1, "视频项目 副本", &mut media_file_copier)
+        duplicate_derived_project_record(&db, derived_record, 1, "视频项目 副本", &mut media_file_copier)
             .await
             .expect("derived project should duplicate snapshot");
 
@@ -315,7 +316,7 @@ async fn duplicate_derived_project_record_copies_snapshot_without_copying_root_c
 
     assert_eq!(duplicated.project_kind, "video");
     assert_eq!(duplicated.root_project_id, Some(root.id));
-    assert_ne!(duplicated_snapshot_id, snapshot.id);
+    assert_eq!(duplicated_snapshot_id, snapshot.id);
     assert!(duplicated_chapters.is_empty());
     assert_eq!(duplicated_snapshot_chapters.len(), 1);
     assert_eq!(

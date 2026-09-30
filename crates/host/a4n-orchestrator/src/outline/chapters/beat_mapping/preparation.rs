@@ -1,4 +1,4 @@
-use a4n_db_models::models::chapter::part_outline;
+use a4n_domain::chapter::PartOutlineRecord;
 use a4n_error::AppError;
 use serde_json::Value;
 
@@ -13,7 +13,7 @@ use super::super::super::context::{
 
 pub(super) struct PreparedBeatMapping {
     pub(super) beat_payload: Value,
-    pub(super) part: part_outline::Model,
+    pub(super) part: PartOutlineRecord,
     pub(super) count: i32,
     pub(super) context: ChapterOutlineGenerationContext,
 }

@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 
-use a4n_db_models::models::canvas::canvas_node;
 use a4n_domain::CanvasNodeRefKind;
+use a4n_domain::canvas::CanvasNodeRecord;
 
 pub(in crate::project::video_studio_package::validation) struct CanvasNodeRefIds<'a> {
     pub(in crate::project::video_studio_package::validation) text_asset_ids: &'a HashSet<i64>,
@@ -16,7 +16,7 @@ pub(in crate::project::video_studio_package::validation) struct CanvasNodeRefIds
 }
 
 pub(in crate::project::video_studio_package::validation) fn validate_canvas_node_ref(
-    node: &canvas_node::Model,
+    node: &CanvasNodeRecord,
     refs: &CanvasNodeRefIds<'_>,
 ) -> Result<(), String> {
     let Some(ref_type) = node.ref_type.as_deref() else {
@@ -80,7 +80,7 @@ pub(in crate::project::video_studio_package::validation) fn validate_canvas_node
 }
 
 fn require_canvas_node_ref_id(
-    node: &canvas_node::Model,
+    node: &CanvasNodeRecord,
     ref_type: &str,
     allowed_ids: &HashSet<i64>,
     label: &str,

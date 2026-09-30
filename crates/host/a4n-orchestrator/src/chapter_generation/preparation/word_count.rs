@@ -1,4 +1,4 @@
-use a4n_db_models::models::chapter::chapter_outline;
+use a4n_domain::chapter::ChapterOutlineRecord;
 use serde::Serialize;
 
 const DEFAULT_CHAPTER_WORD_COUNT_MIN: i32 = 4_500;
@@ -21,7 +21,7 @@ impl ChapterGenerationWordCountRange {
 }
 
 pub fn resolve_generation_word_count_range(
-    outline: Option<&chapter_outline::Model>,
+    outline: Option<&ChapterOutlineRecord>,
     min_word_count: Option<i32>,
     max_word_count: Option<i32>,
 ) -> Result<ChapterGenerationWordCountRange, String> {
@@ -35,7 +35,7 @@ pub fn resolve_generation_word_count_range(
 }
 
 fn default_generation_word_count_range(
-    outline: Option<&chapter_outline::Model>,
+    outline: Option<&ChapterOutlineRecord>,
 ) -> Result<ChapterGenerationWordCountRange, String> {
     let Some(target) = outline.and_then(|outline| outline.word_count_target) else {
         return Ok(ChapterGenerationWordCountRange {

@@ -19,9 +19,8 @@ use a4n_db::project::family::import::{
     ProjectFamilyMediaFileImporter, ProjectFamilyMediaImportError,
 };
 use a4n_db::{DbHandle, project::MangaCharacterPortraitRefSummary};
-use a4n_db_models::models::project::novel_project;
 use a4n_domain::collaboration::ProjectAccessRole;
-use a4n_domain::project::{ProjectSourceMode, ProjectStatus};
+use a4n_domain::project::{ProjectRecord, ProjectSourceMode, ProjectStatus};
 use a4n_error::AppError;
 use a4n_event::InternalEvent;
 use chrono::{Duration, Utc};
@@ -157,7 +156,7 @@ impl ProjectFamilyApplication {
         user_id: i64,
         package: &ProjectFamilyImportPackage,
         media_importer: &mut Importer,
-    ) -> Result<Vec<novel_project::Model>, AppError>
+    ) -> Result<Vec<ProjectRecord>, AppError>
     where
         Importer: ProjectFamilyMediaFileImporter,
     {
@@ -178,7 +177,7 @@ impl ProjectFamilyApplication {
         media_importer: &mut Importer,
     ) -> Result<
         (
-            Vec<novel_project::Model>,
+            Vec<ProjectRecord>,
             a4n_db::project::family::import::ProjectFamilyImportMappings,
         ),
         AppError,
@@ -795,7 +794,7 @@ impl OrchestratorContext {
         &self,
         input: ImportProjectPackageApplicationInput,
         host_port: &mut Host,
-    ) -> Result<Vec<novel_project::Model>, ProjectPackageTransferError>
+    ) -> Result<Vec<ProjectRecord>, ProjectPackageTransferError>
     where
         Host: ProjectPackageTransferHostPort + ?Sized,
     {

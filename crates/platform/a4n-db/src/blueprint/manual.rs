@@ -1,7 +1,5 @@
-use a4n_db_models::models::{
-    chapter::part_outline,
-    project::{blueprint_version, novel_blueprint},
-};
+use a4n_db_models::models::project::{blueprint_version, novel_blueprint};
+use a4n_domain::chapter::PartOutlineRecord;
 use a4n_domain::project::{
     BLUEPRINT_MAX_TOTAL_CHAPTERS, BLUEPRINT_MIN_TOTAL_CHAPTERS, CHAPTERS_PER_PART, ProjectStatus,
     ProjectStatusHistoryInput, increment_blueprint_version, is_valid_blueprint_total_chapters,
@@ -244,7 +242,7 @@ fn max_positive_chapter(
     Ok(maximum)
 }
 
-fn max_part_end_chapter(parts: &[part_outline::Model]) -> Result<i32, BlueprintDbError> {
+fn max_part_end_chapter(parts: &[PartOutlineRecord]) -> Result<i32, BlueprintDbError> {
     let mut seen_parts = HashSet::new();
     let mut ranges = Vec::with_capacity(parts.len());
     for part in parts {

@@ -1,4 +1,5 @@
-use a4n_db_models::models::{chapter::chapter, generation::workflow_run};
+use a4n_db::workflow::WorkflowRunSummary;
+use a4n_domain::chapter::ChapterRecord;
 use serde_json::Value;
 
 use super::chapter_analysis_run_input_matches;
@@ -60,8 +61,8 @@ pub fn require_completed_chapter_analysis_phase(
 }
 
 pub fn chapter_analysis_resume_block_reason(
-    run: &workflow_run::Model,
-    chapter: &chapter::Model,
+    run: &WorkflowRunSummary,
+    chapter: &ChapterRecord,
 ) -> Option<ChapterAnalysisResumeBlockReason> {
     if !chapter_analysis_run_input_matches(&run.input_fingerprint_json, chapter) {
         return None;

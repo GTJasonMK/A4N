@@ -1,4 +1,4 @@
-use a4n_db_models::models::chapter::chapter_outline;
+use a4n_domain::chapter::ChapterOutlineRecord;
 use a4n_embedding_provider_contract::EmbeddingModelIdentity;
 use a4n_rag_core::{
     search::identity_scoped_search_filter, sync::ensure_project_embedding_identity_matches,
@@ -17,7 +17,7 @@ impl OrchestratorContext {
         &self,
         project_id: i64,
         chapter_number: i32,
-        outline: Option<&chapter_outline::Model>,
+        outline: Option<&ChapterOutlineRecord>,
         outline_text: &str,
         writing_instruction: Option<&str>,
         embedding_identity: EmbeddingModelIdentity,

@@ -1,5 +1,5 @@
 use a4n_chapter_analysis::summary_text;
-use a4n_db_models::models::chapter::chapter;
+use a4n_domain::chapter::ChapterRecord;
 use serde_json::{Value, json};
 
 use super::{merge_tags, metadata_tags, should_replace_summary};
@@ -11,7 +11,7 @@ pub struct ChapterAnalysisStorageProjection {
 }
 
 pub fn chapter_analysis_storage_projection(
-    chapter: &chapter::Model,
+    chapter: &ChapterRecord,
     analysis: &Value,
 ) -> ChapterAnalysisStorageProjection {
     let summary = should_replace_summary(chapter.summary.as_deref(), chapter.chapter_number)

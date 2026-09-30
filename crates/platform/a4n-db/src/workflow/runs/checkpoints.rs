@@ -208,6 +208,17 @@ pub async fn workflow_checkpoint_models_for_runs(
         .map_err(WorkflowReadError::Database)
 }
 
+pub async fn workflow_checkpoint_summaries_for_runs(
+    db: &DatabaseConnection,
+    workflow_run_ids: &[i64],
+) -> Result<Vec<WorkflowCheckpointSummary>, WorkflowReadError> {
+    Ok(workflow_checkpoint_models_for_runs(db, workflow_run_ids)
+        .await?
+        .into_iter()
+        .map(workflow_checkpoint_summary)
+        .collect())
+}
+
 pub async fn workflow_checkpoint_step_statuses<C>(
     db: &C,
     workflow_run_id: i64,

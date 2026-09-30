@@ -120,7 +120,7 @@ impl WorkerState {
         )
         .await
         .map_err(status_write_error)?;
-        let summary = self.summary_for_user(user_id, &project).await?;
+        let summary = self.summary_for_user(user_id, project.id).await?;
         Ok(ProjectStatusMutationResult {
             project: summary,
             from,
@@ -163,7 +163,7 @@ impl WorkerState {
         )
         .await
         .map_err(project_reset_error)?;
-        let summary = self.summary_for_user(user_id, &outcome.project).await?;
+        let summary = self.summary_for_user(user_id, outcome.project.id).await?;
         Ok(ProjectStatusMutationResult {
             project: summary,
             from,
@@ -176,12 +176,17 @@ impl WorkerState {
     async fn summary_for_user(
         &self,
         user_id: i64,
-        project: &a4n_db_models::models::project::novel_project::Model,
+        project_id: i64,
     ) -> Result<a4n_api_contract::project::ProjectSummary, WorkerFailure> {
+        let project =
+            a4n_db::project::project_summary_by_id_record(self.database.connection(), project_id)
+                .await
+                .map_err(project_mutation_error)?
+                .ok_or_else(|| WorkerFailure::not_found(format!("项目不存在: {project_id}")))?;
         a4n_project_read_core::project_summary_for_user(
             self.database.connection(),
             user_id,
-            project,
+            &project,
         )
         .await
         .map_err(summary_error)
@@ -191,13 +196,7 @@ impl WorkerState {
         &self,
         project_id: i64,
         operation: &'static str,
-    ) -> Result<
-        (
-            a4n_db_models::models::project::novel_project::Model,
-            ProjectStatus,
-        ),
-        WorkerFailure,
-    > {
+    ) -> Result<(a4n_domain::project::ProjectRecord, ProjectStatus), WorkerFailure> {
         let project = a4n_db::project::project_by_id_record(self.database.connection(), project_id)
             .await
             .map_err(project_mutation_error)?

@@ -67,6 +67,13 @@ pub struct UserSummary {
     pub last_login_at: Option<String>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct UserAuthorizationRecord {
+    pub id: i64,
+    pub role: String,
+    pub is_active: bool,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

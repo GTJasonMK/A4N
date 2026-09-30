@@ -423,6 +423,39 @@ fn workflow_run_summary_keeps_input_fingerprint() {
 }
 
 #[test]
+fn workflow_checkpoint_summary_keeps_sync_inputs_and_artifacts() {
+    let now = test_timestamp();
+    let summary = workflow_checkpoint_summary_from_model(workflow_checkpoint::Model {
+        id: 11,
+        workflow_run_id: 12,
+        step_key: "chapter_content_sync.cleanup_plan".to_string(),
+        step_order: 10,
+        status: WORKFLOW_STATUS_COMPLETED.to_string(),
+        input_fingerprint_sha256: None,
+        input_fingerprint_json: Some(json!({"source_fingerprint": {"chapter_id": 13}})),
+        checkpoint_json: Some(json!({"schema_version": 1, "chapter_id": 13})),
+        artifacts_json: Some(json!({"stale_attribute_event_ids": [14]})),
+        generation_run_ids_json: None,
+        error_message: None,
+        created_at: now,
+        updated_at: now,
+        completed_at: Some(now),
+    });
+
+    assert_eq!(summary.workflow_run_id, 12);
+    assert_eq!(summary.status, WORKFLOW_STATUS_COMPLETED);
+    assert_eq!(
+        summary.input_fingerprint_json.unwrap()["source_fingerprint"]["chapter_id"],
+        13
+    );
+    assert_eq!(summary.checkpoint_json.unwrap()["chapter_id"], 13);
+    assert_eq!(
+        summary.artifacts_json.unwrap()["stale_attribute_event_ids"],
+        json!([14])
+    );
+}
+
+#[test]
 fn workflow_progress_write_range_rejects_zero_total_and_overrun() {
     assert!(validate_workflow_progress_range(0, 0).is_err());
     assert!(validate_workflow_progress_range(5, 4).is_err());

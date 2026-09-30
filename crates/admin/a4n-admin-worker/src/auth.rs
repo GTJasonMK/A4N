@@ -27,9 +27,10 @@ impl WorkerState {
         caller_user_id: i64,
         _permission: AdminPermission,
     ) -> Result<(), WorkerFailure> {
-        let user = a4n_db::auth::user_by_id(self.database.connection(), caller_user_id)
-            .await
-            .map_err(app_error)?;
+        let user =
+            a4n_db::auth::user_authorization_by_id(self.database.connection(), caller_user_id)
+                .await
+                .map_err(app_error)?;
         if !user.is_active {
             return Err(WorkerFailure::forbidden(format!(
                 "用户 {caller_user_id} 已停用"

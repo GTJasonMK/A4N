@@ -2,8 +2,9 @@ use std::collections::HashSet;
 
 use super::super::outline::push_optional_text;
 use super::json::{compact_json_text, is_meaningful_json_value, truncate_text_chars};
+use a4n_db::rag::RagForeshadowingRow;
 use a4n_db_models::models::{
-    character::{foreshadowing_index, protagonist_profile},
+    character::protagonist_profile,
     project::{blueprint_character, blueprint_relationship, novel_blueprint},
 };
 use serde_json::Value;
@@ -128,7 +129,7 @@ fn push_profile_json_kv(parts: &mut Vec<String>, key: &str, value: &Value, max_c
 }
 
 pub(in crate::chapter_generation::preparation) fn format_foreshadowing_reference_line(
-    item: &&foreshadowing_index::Model,
+    item: &&RagForeshadowingRow,
 ) -> String {
     match item.payoff_chapter {
         Some(chapter) => format!(

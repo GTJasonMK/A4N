@@ -1,6 +1,5 @@
 use a4n_api_contract::project::ProjectSummary;
 use a4n_db::canvas::{VideoStudioProjectImportMediaError, VideoStudioProjectImportMediaFileWriter};
-use a4n_db_models::models::project::novel_project;
 use a4n_error::AppError;
 use chrono::Utc;
 
@@ -60,7 +59,7 @@ impl OrchestratorContext {
         &self,
         input: ImportProjectPackageApplicationInput,
         host_port: &mut Host,
-    ) -> Result<novel_project::Model, ProjectPackageTransferError>
+    ) -> Result<i64, ProjectPackageTransferError>
     where
         Host: ProjectPackageTransferHostPort + ?Sized,
     {
@@ -123,15 +122,15 @@ impl VideoStudioProjectTransferApplicationPort for OrchestratorContext {
         host_port: &mut dyn ProjectPackageTransferHostPort,
     ) -> Result<ProjectSummary, ProjectPackageTransferError> {
         let user_id = input.user_id;
-        let project = self
+        let project_id = self
             .import_video_studio_project_validated(input, host_port)
             .await?;
-        self.project_summary_for_user(user_id, project.id)
+        self.project_summary_for_user(user_id, project_id)
             .await?
             .ok_or_else(|| {
                 ProjectPackageTransferError::Application(a4n_error::AppError::NotFound(format!(
                     "导入后的项目不存在: {}",
-                    project.id
+                    project_id
                 )))
             })
     }

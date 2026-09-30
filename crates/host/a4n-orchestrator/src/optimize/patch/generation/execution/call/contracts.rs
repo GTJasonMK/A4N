@@ -1,4 +1,5 @@
-use a4n_db_models::models::{ai::optimization_session, chapter::chapter};
+use a4n_db_models::models::ai::optimization_session;
+use a4n_domain::chapter::ChapterRecord;
 use a4n_llm_provider_contract::provider::{ChatRequest, ChatResponse};
 use serde_json::Value;
 
@@ -11,7 +12,7 @@ pub(in crate::optimize::patch::generation::execution) struct PatchGenerationCall
     'generation,
 > {
     pub(in crate::optimize::patch::generation::execution) session: &'a optimization_session::Model,
-    pub(in crate::optimize::patch::generation::execution) chapter: &'a chapter::Model,
+    pub(in crate::optimize::patch::generation::execution) chapter: &'a ChapterRecord,
     pub(in crate::optimize::patch::generation::execution) turn_id: i64,
     pub(in crate::optimize::patch::generation::execution) base_content_hash: &'a str,
     pub(in crate::optimize::patch::generation::execution) request: ChatRequest,

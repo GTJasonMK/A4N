@@ -1,4 +1,4 @@
-use a4n_db_models::models::project::novel_project;
+use a4n_domain::project::ProjectSummaryRecord;
 use sea_orm::{DbErr, FromQueryResult};
 
 #[derive(Debug, Clone, PartialEq)]
@@ -9,7 +9,7 @@ pub struct ProjectFamilyMetadataQuery {
 }
 
 impl ProjectFamilyMetadataQuery {
-    pub fn from_project(project: &novel_project::Model) -> Self {
+    pub fn from_project(project: &ProjectSummaryRecord) -> Self {
         Self {
             project_id: project.id,
             root_project_id: project.root_project_id,

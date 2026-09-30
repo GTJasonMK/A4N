@@ -639,7 +639,7 @@ impl OrchestratorContext {
     async fn resolve_image_chapter_binding_for_project(
         &self,
         project_id: i64,
-        project: &novel_project::Model,
+        project: &ProjectRecord,
         chapter_id: Option<i64>,
         source_snapshot_id: Option<i64>,
         access: ImageChapterBindingAccess,

@@ -2,6 +2,8 @@ use super::*;
 use sea_orm::FromQueryResult;
 
 use crate::rag::RagForeshadowingRow;
+use a4n_domain::chapter::{ChapterRecord, PartOutlineRecord};
+use a4n_domain::project::{OptimizationCharacterProfileRecord, ProjectOptimizationContextRecord};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct OptimizationSessionCreateInput {
@@ -115,12 +117,7 @@ pub struct OptimizationContextReadInput {
     pub read_foreshadowing: bool,
 }
 
-#[derive(Debug, Clone)]
-pub struct OptimizationBlueprintRows {
-    pub blueprint: novel_blueprint::Model,
-    pub characters: Vec<blueprint_character::Model>,
-    pub relationships: Vec<blueprint_relationship::Model>,
-}
+pub type OptimizationBlueprintRows = Value;
 
 #[derive(Debug, Clone, FromQueryResult)]
 pub struct OptimizationChapterSummaryRecord {
@@ -147,13 +144,13 @@ pub struct OptimizationChapterOutlineRecord {
 
 #[derive(Debug, Clone)]
 pub struct OptimizationContextRows {
-    pub current_chapter: chapter::Model,
+    pub current_chapter: ChapterRecord,
     pub current_chapter_outline: Option<OptimizationChapterOutlineRecord>,
-    pub project: Option<novel_project::Model>,
+    pub project: Option<ProjectOptimizationContextRecord>,
     pub blueprint: Option<OptimizationBlueprintRows>,
-    pub part_outlines: Vec<part_outline::Model>,
+    pub part_outlines: Vec<PartOutlineRecord>,
     pub chapter_outlines: Vec<OptimizationChapterOutlineRecord>,
-    pub character_profiles: Vec<protagonist_profile::Model>,
+    pub character_profiles: Vec<OptimizationCharacterProfileRecord>,
     pub foreshadowing_index: Vec<RagForeshadowingRow>,
     pub previous_chapters: Vec<OptimizationChapterSummaryRecord>,
     pub next_chapters: Vec<OptimizationChapterSummaryRecord>,
@@ -161,7 +158,7 @@ pub struct OptimizationContextRows {
 
 #[derive(Debug, Clone)]
 pub struct OptimizationChapterPatchWriteInput {
-    pub chapter: chapter::Model,
+    pub chapter: ChapterRecord,
     pub content: String,
     pub word_count: i32,
 }

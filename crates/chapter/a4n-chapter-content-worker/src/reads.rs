@@ -13,6 +13,7 @@ use a4n_chapter_content_worker_contract::{
     CHAPTER_CONTENT_LIST_OPERATION, CHAPTER_CONTENT_SUMMARY_OPERATION, ChapterAnalysisEntry,
     ChapterIndexEntry, ChapterInput, ChapterMetadata, ChapterSummary, ProjectInput,
 };
+use a4n_domain::chapter::ChapterRecord;
 use a4n_worker_contract::WorkerEnvelope;
 
 impl WorkerState {
@@ -64,7 +65,7 @@ impl WorkerState {
         &self,
         user_id: i64,
         project_id: i64,
-    ) -> Result<Vec<a4n_db_models::models::chapter::chapter::Model>, WorkerFailure> {
+    ) -> Result<Vec<ChapterRecord>, WorkerFailure> {
         verify_project_viewer(&self.database, project_id, user_id).await?;
         a4n_db::chapter_content::chapters_for_project(self.database.connection(), project_id)
             .await
@@ -103,7 +104,7 @@ impl WorkerState {
     async fn project_summaries(
         &self,
         project_id: i64,
-        chapters: Vec<a4n_db_models::models::chapter::chapter::Model>,
+        chapters: Vec<ChapterRecord>,
     ) -> Result<Vec<ChapterSummary>, WorkerFailure> {
         let metadata = self.project_metadata(project_id, &chapters).await?;
         Ok(chapters
@@ -116,20 +117,20 @@ impl WorkerState {
     async fn project_metadata(
         &self,
         project_id: i64,
-        chapters: &[a4n_db_models::models::chapter::chapter::Model],
+        chapters: &[ChapterRecord],
     ) -> Result<Vec<ChapterMetadata>, WorkerFailure> {
         let chapter_ids = chapters
             .iter()
             .map(|chapter| chapter.id)
             .collect::<Vec<_>>();
         let (analysis_runs, content_runs) = tokio::try_join!(
-            a4n_db::workflow::latest_workflow_runs_for_chapters(
+            a4n_db::workflow::latest_workflow_run_summaries_for_chapters(
                 self.database.connection(),
                 project_id,
                 "chapter_analysis",
                 &chapter_ids,
             ),
-            a4n_db::workflow::latest_workflow_runs_for_chapters(
+            a4n_db::workflow::latest_workflow_run_summaries_for_chapters(
                 self.database.connection(),
                 project_id,
                 CHAPTER_CONTENT_SYNC_WORKFLOW_KIND,
@@ -142,7 +143,7 @@ impl WorkerState {
             .chain(&content_runs)
             .map(|run| run.id)
             .collect::<Vec<_>>();
-        let checkpoints = a4n_db::workflow::workflow_checkpoint_models_for_runs(
+        let checkpoints = a4n_db::workflow::workflow_checkpoint_summaries_for_runs(
             self.database.connection(),
             &run_ids,
         )

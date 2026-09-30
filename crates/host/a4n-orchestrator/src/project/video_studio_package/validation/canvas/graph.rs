@@ -1,5 +1,6 @@
+use a4n_domain::canvas::CanvasGraphRecordDocument as CanvasGraphDocument;
+
 use crate::canvas::{
-    CanvasGraphRecordDocument as CanvasGraphDocument,
     validate_canvas_record_document_edge_contract as validate_canvas_document_edge_contract,
     validate_canvas_record_document_is_dag as validate_canvas_document_is_dag,
 };

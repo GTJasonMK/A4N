@@ -1,14 +1,14 @@
 //! 画布节点输入：边序、config 读取、节点种类纯规则（无 DB、无 Host）。
 
 use a4n_db::canvas::CanvasGraphRecordDocument;
-use a4n_db_models::models::canvas::{canvas_edge, canvas_node};
+use a4n_domain::canvas::{CanvasEdgeRecord, CanvasNodeRecord};
 use serde_json::Value;
 
 /// 指向 `node_id` 的入边。
 pub fn incoming_edges(
     document: &CanvasGraphRecordDocument,
     node_id: i64,
-) -> Vec<&canvas_edge::Model> {
+) -> Vec<&CanvasEdgeRecord> {
     document
         .edges
         .iter()
@@ -19,7 +19,7 @@ pub fn incoming_edges(
 pub(crate) fn source_node(
     document: &CanvasGraphRecordDocument,
     source_node_id: i64,
-) -> Result<&canvas_node::Model, String> {
+) -> Result<&CanvasNodeRecord, String> {
     document
         .nodes
         .iter()
@@ -28,7 +28,7 @@ pub(crate) fn source_node(
 }
 
 /// Assemble 片段连线 `config_json.order_index`（正整数）。
-pub fn canvas_edge_order_index(edge: &canvas_edge::Model) -> Result<i64, String> {
+pub fn canvas_edge_order_index(edge: &CanvasEdgeRecord) -> Result<i64, String> {
     let order_index = edge
         .config_json
         .get("order_index")
@@ -130,7 +130,7 @@ pub fn canvas_node_is_operation(kind: &str) -> bool {
 }
 
 /// 节点是否已经保存了可供后续画布运行复用的最近产物。
-pub fn canvas_node_has_persisted_runtime_result(node: &canvas_node::Model) -> bool {
+pub fn canvas_node_has_persisted_runtime_result(node: &CanvasNodeRecord) -> bool {
     node.config_json
         .get("canvas_runtime_result")
         .and_then(Value::as_bool)

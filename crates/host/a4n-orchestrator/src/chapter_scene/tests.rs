@@ -1,4 +1,5 @@
 use a4n_db_models::models::chapter::chapter;
+use a4n_domain::chapter::ChapterRecord;
 use serde_json::json;
 
 use super::{
@@ -11,9 +12,9 @@ use super::{
     },
 };
 
-fn chapter_for_scene_generation(title: Option<&str>, summary: Option<&str>) -> chapter::Model {
+fn chapter_for_scene_generation(title: Option<&str>, summary: Option<&str>) -> ChapterRecord {
     let now = chrono::Utc::now().naive_utc();
-    chapter::Model {
+    ChapterRecord {
         id: 1,
         project_id: 10,
         outline_id: None,

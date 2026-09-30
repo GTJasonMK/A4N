@@ -68,6 +68,9 @@ async fn feedback_archive_remaps_sources_events_and_snapshot_hashes() {
     let mut active: chapter::ActiveModel = chapter.clone().into();
     active.analysis_data = Set(chapter.analysis_data.clone());
     active.update(&db).await.unwrap();
+    let chapter_record = crate::chapter_content::chapter_by_id_for_analysis(&db, chapter.id)
+        .await
+        .unwrap();
     let profile = character::create_profile(
         &db,
         project.id,
@@ -137,11 +140,11 @@ async fn feedback_archive_remaps_sources_events_and_snapshot_hashes() {
     .unwrap();
     update_feedback_interval(&db, project.id, 7).await.unwrap();
     let tx = db.begin().await.unwrap();
-    record_feedback_completion(&tx, &chapter, run.id)
+    record_feedback_completion(&tx, &chapter_record, run.id)
         .await
         .unwrap();
     tx.commit().await.unwrap();
-    let revision = source_revision(&chapter).unwrap();
+    let revision = source_revision(&chapter_record).unwrap();
     project_fact_feedback::ActiveModel {
         project_id: Set(project.id),
         consolidated_sources_json: Set(json!([revision])),
@@ -156,7 +159,7 @@ async fn feedback_archive_remaps_sources_events_and_snapshot_hashes() {
         .unwrap();
     let mut package = ProjectFamilyImportPackage {
         root_project_id: project.id,
-        projects: vec![project],
+        projects: vec![crate::project::project_record_from_model(project.clone())],
         text_core: exported.text_core,
         ..Default::default()
     };

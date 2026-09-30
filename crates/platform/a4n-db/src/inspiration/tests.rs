@@ -1,6 +1,7 @@
 use super::*;
 use a4n_db_models::models::{
     chapter::chapter,
+    project::novel_project,
     user::{conversation, message},
 };
 use a4n_domain::inspiration::InspirationExchangeInsertInput;
@@ -182,6 +183,8 @@ async fn model_history_keeps_early_constraints_and_stable_message_order() {
     let all = inspiration_messages(&db, project.id, None).await.unwrap();
     assert_eq!(all.len(), 82);
     for (index, pair) in all.chunks_exact(2).enumerate() {
+        assert_eq!(pair[0].role, "user");
+        assert_eq!(pair[1].role, "assistant");
         assert_eq!(pair[0].content, format!("要求 {index}"));
         assert_eq!(pair[1].content, format!("回复 {index}"));
         assert!(pair[0].id < pair[1].id);

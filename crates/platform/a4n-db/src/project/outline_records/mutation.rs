@@ -1,4 +1,5 @@
 use a4n_db_models::models::chapter::{chapter, chapter_outline, part_outline};
+use a4n_domain::chapter::{ChapterOutlineRecord, PartOutlineRecord};
 use chrono::{NaiveDateTime, Utc};
 use sea_orm::sea_query::Expr;
 use sea_orm::{
@@ -10,11 +11,14 @@ use super::contracts::{
     ManualChapterOutlineSaveInput, ManualPartOutlineSaveInput, ProjectChapterOutlineUpdateError,
     ProjectChapterOutlineUpdateInput, ProjectOutlineRecordError,
 };
+use crate::outline::record_mapping::{
+    chapter_outline_record_from_model, part_outline_record_from_model,
+};
 
 pub async fn update_chapter_outline_record(
     db: &DatabaseConnection,
     input: ProjectChapterOutlineUpdateInput,
-) -> Result<chapter_outline::Model, ProjectChapterOutlineUpdateError> {
+) -> Result<ChapterOutlineRecord, ProjectChapterOutlineUpdateError> {
     if input.title.is_none()
         && input.summary.is_none()
         && input.beats.is_none()
@@ -79,13 +83,13 @@ pub async fn update_chapter_outline_record(
 
     let updated = active.update(&txn).await?;
     txn.commit().await?;
-    Ok(updated)
+    Ok(chapter_outline_record_from_model(updated))
 }
 
 pub async fn save_manual_chapter_outline(
     db: &DatabaseConnection,
     input: ManualChapterOutlineSaveInput,
-) -> Result<chapter_outline::Model, ProjectOutlineRecordError> {
+) -> Result<ChapterOutlineRecord, ProjectOutlineRecordError> {
     let input = normalize_manual_chapter_input(input)?;
     let txn = db.begin().await?;
     lock_project_for_write(&txn, input.project_id, "保存章节大纲").await?;
@@ -194,13 +198,13 @@ pub async fn save_manual_chapter_outline(
     )
     .await?;
     txn.commit().await?;
-    Ok(outline)
+    Ok(chapter_outline_record_from_model(outline))
 }
 
 pub async fn save_manual_part_outline(
     db: &DatabaseConnection,
     input: ManualPartOutlineSaveInput,
-) -> Result<part_outline::Model, ProjectOutlineRecordError> {
+) -> Result<PartOutlineRecord, ProjectOutlineRecordError> {
     let input = normalize_manual_part_input(input)?;
     let txn = db.begin().await?;
     lock_project_for_write(&txn, input.project_id, "保存分部大纲").await?;
@@ -326,7 +330,7 @@ pub async fn save_manual_part_outline(
     .await
     .map_err(map_outline_error)?;
     txn.commit().await?;
-    Ok(saved)
+    Ok(part_outline_record_from_model(saved))
 }
 
 pub(super) async fn lock_project_for_write<C>(

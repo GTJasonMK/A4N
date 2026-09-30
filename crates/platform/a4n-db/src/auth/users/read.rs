@@ -1,5 +1,5 @@
 use a4n_db_models::models::user::user;
-use a4n_domain::auth::UserSummary;
+use a4n_domain::auth::{UserAuthorizationRecord, UserSummary};
 use a4n_error::AppError;
 use chrono::NaiveDateTime;
 use sea_orm::{
@@ -21,6 +21,13 @@ struct CurrentUserSummaryRow {
     created_at: NaiveDateTime,
     updated_at: NaiveDateTime,
     last_login_at: Option<NaiveDateTime>,
+}
+
+#[derive(Debug, FromQueryResult)]
+struct UserAuthorizationRow {
+    id: i64,
+    role: String,
+    is_active: bool,
 }
 
 impl CurrentUserSummaryRow {
@@ -50,11 +57,43 @@ pub async fn user_by_id(db: &DatabaseConnection, user_id: i64) -> Result<user::M
         .ok_or_else(|| AppError::NotFound(format!("用户不存在: {user_id}")))
 }
 
+pub async fn user_authorization_by_id(
+    db: &DatabaseConnection,
+    user_id: i64,
+) -> Result<UserAuthorizationRecord, AppError> {
+    let user = user::Entity::find_by_id(user_id)
+        .select_only()
+        .column(user::Column::Id)
+        .column(user::Column::Role)
+        .column(user::Column::IsActive)
+        .into_model::<UserAuthorizationRow>()
+        .one(db)
+        .await
+        .map_err(AppError::Database)?
+        .ok_or_else(|| AppError::NotFound(format!("用户不存在: {user_id}")))?;
+    Ok(UserAuthorizationRecord {
+        id: user.id,
+        role: user.role,
+        is_active: user.is_active,
+    })
+}
+
 pub async fn current_user(db: &DatabaseConnection, user_id: i64) -> Result<user::Model, AppError> {
     active_user(db, user_id).await
 }
 
 pub async fn current_user_summary(
+    db: &DatabaseConnection,
+    user_id: i64,
+) -> Result<UserSummary, AppError> {
+    let summary = user_summary_by_id(db, user_id).await?;
+    if !summary.is_active {
+        return Err(AppError::Unauthorized("账户已被禁用".into()));
+    }
+    Ok(summary)
+}
+
+pub async fn user_summary_by_id(
     db: &DatabaseConnection,
     user_id: i64,
 ) -> Result<UserSummary, AppError> {
@@ -77,9 +116,6 @@ pub async fn current_user_summary(
         .await
         .map_err(AppError::Database)?
         .ok_or_else(|| AppError::NotFound(format!("用户不存在: {user_id}")))?;
-    if !user.is_active {
-        return Err(AppError::Unauthorized("账户已被禁用".into()));
-    }
     Ok(user.into_summary())
 }
 

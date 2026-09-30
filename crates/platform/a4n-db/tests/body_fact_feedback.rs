@@ -123,16 +123,19 @@ async fn partial_feedback_is_versioned_source_fenced_and_reversible() {
     let mut sources = Vec::new();
     for number in 1..=5 {
         let chapter = chapter(&db, id, number, "施法会损失一段记忆。").await;
-        let run = workflow(&db, id, &format!("chapter-{number}")).await;
-        let tx = db.begin().await.unwrap();
-        record_feedback_completion(&tx, &chapter, run)
+        let chapter_record = a4n_db::chapter_content::chapter_by_id_for_analysis(&db, chapter.id)
             .await
             .unwrap();
-        record_feedback_completion(&tx, &chapter, run)
+        let run = workflow(&db, id, &format!("chapter-{number}")).await;
+        let tx = db.begin().await.unwrap();
+        record_feedback_completion(&tx, &chapter_record, run)
+            .await
+            .unwrap();
+        record_feedback_completion(&tx, &chapter_record, run)
             .await
             .unwrap();
         tx.commit().await.unwrap();
-        sources.push(source_revision(&chapter).unwrap());
+        sources.push(source_revision(&chapter_record).unwrap());
     }
     assert_eq!(current_feedback_sources(&db, id).await.unwrap().len(), 5);
     assert_eq!(pending_fact_sources(&sources, &[]).len(), 5);
@@ -374,9 +377,14 @@ async fn consolidation_rejects_unproven_or_invalidated_sources_and_keeps_plans_a
     let mut active: chapter::ActiveModel = source.clone().into();
     active.analysis_data = Set(source.analysis_data.clone());
     active.update(&db).await.unwrap();
+    let source_record = a4n_db::chapter_content::chapter_by_id_for_analysis(&db, source.id)
+        .await
+        .unwrap();
     let run = workflow(&db, id, "reported").await;
     let tx = db.begin().await.unwrap();
-    record_feedback_completion(&tx, &source, run).await.unwrap();
+    record_feedback_completion(&tx, &source_record, run)
+        .await
+        .unwrap();
     tx.commit().await.unwrap();
     let original = blueprint(&db, id, json!({"core_rules":[]})).await;
     let mut change = FactMaterialChange {
@@ -395,7 +403,7 @@ async fn consolidation_rejects_unproven_or_invalidated_sources_and_keeps_plans_a
             project_id: id,
             workflow_run_id: run,
             expected_blueprint_version: Some(original.current_version.clone()),
-            sources: vec![source_revision(&source).unwrap()],
+            sources: vec![source_revision(&source_record).unwrap()],
             changes: vec![change.clone()],
         },
     )
@@ -415,7 +423,7 @@ async fn consolidation_rejects_unproven_or_invalidated_sources_and_keeps_plans_a
             project_id: id,
             workflow_run_id: run,
             expected_blueprint_version: Some(original.current_version.clone()),
-            sources: vec![source_revision(&source).unwrap()],
+            sources: vec![source_revision(&source_record).unwrap()],
             changes: vec![change],
         },
     )
@@ -442,7 +450,7 @@ async fn consolidation_rejects_unproven_or_invalidated_sources_and_keeps_plans_a
             project_id: id,
             workflow_run_id: workflow(&db, id, "invalidated").await,
             expected_blueprint_version: Some(original.current_version),
-            sources: vec![source_revision(&source).unwrap()],
+            sources: vec![source_revision(&source_record).unwrap()],
             changes: vec![],
         },
     )
@@ -467,9 +475,14 @@ async fn field_removals_and_character_enrichment_retract_without_overwriting_man
     let mut active: chapter::ActiveModel = source.clone().into();
     active.analysis_data = Set(source.analysis_data.clone());
     active.update(&db).await.unwrap();
+    let source_record = a4n_db::chapter_content::chapter_by_id_for_analysis(&db, source.id)
+        .await
+        .unwrap();
     let run = workflow(&db, id, "remove-and-enrich").await;
     let tx = db.begin().await.unwrap();
-    record_feedback_completion(&tx, &source, run).await.unwrap();
+    record_feedback_completion(&tx, &source_record, run)
+        .await
+        .unwrap();
     tx.commit().await.unwrap();
     let original_world = json!({"core_rules":["施法损失记忆","公民平等"], "culture_and_society":{"calendar":"旧历"}, "factions":["议会"]});
     let original = blueprint(&db, id, original_world.clone()).await;
@@ -512,7 +525,7 @@ async fn field_removals_and_character_enrichment_retract_without_overwriting_man
             project_id: id,
             workflow_run_id: run,
             expected_blueprint_version: Some(original.current_version.clone()),
-            sources: vec![source_revision(&source).unwrap()],
+            sources: vec![source_revision(&source_record).unwrap()],
             changes: vec![
                 change(
                     FactMaterialKind::WorldSetting,
@@ -644,6 +657,9 @@ async fn reapplying_withdrawn_facts_preserves_history_and_new_application_order(
     let db = a4n_migration::test_support::connect_test_database().await;
     let id = project(&db).await;
     let chapter = chapter(&db, id, 1, "施法会损失记忆。").await;
+    let chapter_record = a4n_db::chapter_content::chapter_by_id_for_analysis(&db, chapter.id)
+        .await
+        .unwrap();
     let input = |after: &str| FactChangeRecordInput {
         project_id: id,
         workflow_run_id: None,
@@ -653,8 +669,8 @@ async fn reapplying_withdrawn_facts_preserves_history_and_new_application_order(
         operation: "add".into(),
         before: Value::Null,
         after: json!(after),
-        sources: vec![source_revision(&chapter).unwrap()],
-        evidence: json!([{"chapter_number":1,"quote":chapter.content}]),
+        sources: vec![source_revision(&chapter_record).unwrap()],
+        evidence: json!([{"chapter_number":1,"quote":chapter_record.content}]),
         reason: "依据正文调整规划建议".into(),
         status: "proposal".into(),
     };

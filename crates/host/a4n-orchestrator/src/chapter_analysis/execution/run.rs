@@ -1,5 +1,5 @@
 use a4n_db::workflow;
-use a4n_db_models::models::chapter::chapter;
+use a4n_domain::chapter::ChapterRecord;
 use a4n_domain::source_spans::source_spans_for_chapters;
 use a4n_error::AppError;
 use a4n_prompt::rendering::PromptRenderer;
@@ -12,7 +12,7 @@ use crate::workflow::workflow_checkpoint_contract_app_error;
 impl OrchestratorContext {
     pub(super) async fn analyze_chapter(
         &self,
-        chapter: &chapter::Model,
+        chapter: &ChapterRecord,
         prompt_renderer: &dyn PromptRenderer,
         progress: &mut ChapterAnalysisProgress<'_>,
         workflow_run_id: Option<i64>,

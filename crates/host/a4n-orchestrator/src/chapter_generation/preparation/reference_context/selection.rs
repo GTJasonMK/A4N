@@ -1,11 +1,9 @@
 use std::collections::HashSet;
 
 use super::json::extract_character_names_from_value;
-use a4n_db_models::models::{
-    chapter::chapter_outline,
-    character::foreshadowing_index,
-    project::{blueprint_character, blueprint_relationship},
-};
+use a4n_db::rag::RagForeshadowingRow;
+use a4n_db_models::models::project::{blueprint_character, blueprint_relationship};
+use a4n_domain::chapter::ChapterOutlineRecord;
 
 pub(in crate::chapter_generation::preparation) fn select_generation_characters<'a>(
     characters: &'a [blueprint_character::Model],
@@ -60,10 +58,10 @@ pub(super) fn select_generation_relationships<'a>(
 }
 
 pub(in crate::chapter_generation::preparation) fn select_generation_foreshadowing<'a>(
-    foreshadowing: &'a [foreshadowing_index::Model],
+    foreshadowing: &'a [RagForeshadowingRow],
     chapter_number: i32,
     involved_names: &[String],
-) -> Vec<&'a foreshadowing_index::Model> {
+) -> Vec<&'a RagForeshadowingRow> {
     let involved_name_set = involved_names
         .iter()
         .map(String::as_str)
@@ -90,7 +88,7 @@ pub(in crate::chapter_generation::preparation) fn select_generation_foreshadowin
         .collect()
 }
 
-pub fn outline_character_names(outline: Option<&chapter_outline::Model>) -> Vec<String> {
+pub fn outline_character_names(outline: Option<&ChapterOutlineRecord>) -> Vec<String> {
     match outline.and_then(|outline| outline.characters_involved.as_ref()) {
         Some(value) => extract_character_names_from_value(value),
         None => Vec::new(),

@@ -1,5 +1,6 @@
-use super::ProjectChapterSceneWriteError;
+use super::{ProjectChapterSceneWriteError, record::chapter_scene_record};
 use a4n_db_models::models::chapter::{chapter, chapter_scene};
+use a4n_domain::chapter::ChapterSceneRecord;
 use chrono::Utc;
 use sea_orm::{
     ColumnTrait, ConnectionTrait, DatabaseConnection, EntityTrait, QueryFilter, QuerySelect,
@@ -26,7 +27,7 @@ pub async fn chapter_scene_reorder_project_id(
 pub async fn reorder_chapter_scene_records(
     db: &DatabaseConnection,
     order: &[(i64, i32)],
-) -> Result<Vec<chapter_scene::Model>, ProjectChapterSceneWriteError> {
+) -> Result<Vec<ChapterSceneRecord>, ProjectChapterSceneWriteError> {
     let txn = db.begin().await?;
     let loaded = load_chapter_scene_reorder(&txn, order).await?;
 
@@ -121,7 +122,10 @@ pub async fn reorder_chapter_scene_records(
 
     txn.commit().await?;
     updated_scenes.sort_by_key(|scene| scene.scene_number);
-    Ok(updated_scenes)
+    Ok(updated_scenes
+        .into_iter()
+        .map(chapter_scene_record)
+        .collect())
 }
 
 async fn load_chapter_scene_reorder<C>(

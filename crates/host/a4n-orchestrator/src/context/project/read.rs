@@ -1,6 +1,6 @@
 use a4n_api_contract::project::ProjectSummary;
 use a4n_db::DbHandle;
-use a4n_db_models::models::project::novel_project;
+use a4n_domain::project::{ProjectRecord, ProjectSummaryRecord};
 use a4n_error::AppError;
 use a4n_project_read_core::project_summary_from_parts;
 
@@ -49,7 +49,7 @@ impl ProjectReadApplication {
     pub(in crate::context) async fn by_id(
         &self,
         project_id: i64,
-    ) -> Result<Option<novel_project::Model>, AppError> {
+    ) -> Result<Option<ProjectRecord>, AppError> {
         a4n_db::project::project_by_id_record(self.database.connection(), project_id)
             .await
             .map_err(project_mutation_error_to_app_error)
@@ -58,7 +58,7 @@ impl ProjectReadApplication {
     pub(in crate::context) async fn summary_by_id(
         &self,
         project_id: i64,
-    ) -> Result<Option<novel_project::Model>, AppError> {
+    ) -> Result<Option<ProjectSummaryRecord>, AppError> {
         a4n_db::project::project_summary_by_id_record(self.database.connection(), project_id)
             .await
             .map_err(project_mutation_error_to_app_error)
@@ -125,7 +125,7 @@ impl OrchestratorContext {
     pub(crate) async fn project_by_id(
         &self,
         project_id: i64,
-    ) -> Result<Option<novel_project::Model>, AppError> {
+    ) -> Result<Option<ProjectRecord>, AppError> {
         self.project_read.by_id(project_id).await
     }
 }

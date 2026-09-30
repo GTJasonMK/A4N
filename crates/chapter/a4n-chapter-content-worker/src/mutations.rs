@@ -12,7 +12,6 @@ use a4n_chapter_content_worker_contract::{
 };
 use a4n_domain::chapter::{EditChapterContentInput, ImportChapterContentInput};
 use a4n_worker_contract::WorkerEnvelope;
-use sea_orm::TransactionTrait;
 
 impl WorkerState {
     pub(super) async fn update(
@@ -34,7 +33,6 @@ impl WorkerState {
         let input = request.payload;
         let tx = self
             .database
-            .connection()
             .begin()
             .await
             .map_err(|error| WorkerFailure::unavailable(error.to_string()))?;
@@ -50,7 +48,11 @@ impl WorkerState {
             )
             .await
             .map_err(chapter_error)?;
-            let run = begin_chapter_content_sync_in_transaction(&tx, &chapter)
+            let chapter_record =
+                a4n_db::chapter_content::chapter_by_id_for_analysis(&tx, chapter.id)
+                    .await
+                    .map_err(chapter_error)?;
+            let run = begin_chapter_content_sync_in_transaction(&tx, &chapter_record)
                 .await
                 .map_err(app_error)?;
             Ok(ChapterContentMutationResult {
@@ -78,7 +80,6 @@ impl WorkerState {
 
         let tx = self
             .database
-            .connection()
             .begin()
             .await
             .map_err(|error| WorkerFailure::unavailable(error.to_string()))?;
@@ -95,7 +96,11 @@ impl WorkerState {
             )
             .await
             .map_err(import_error)?;
-            let run = begin_chapter_content_sync_in_transaction(&tx, &chapter)
+            let chapter_record =
+                a4n_db::chapter_content::chapter_by_id_for_analysis(&tx, chapter.id)
+                    .await
+                    .map_err(chapter_error)?;
+            let run = begin_chapter_content_sync_in_transaction(&tx, &chapter_record)
                 .await
                 .map_err(app_error)?;
             Ok(ChapterContentMutationResult {

@@ -92,6 +92,21 @@ async fn latest_chapter_runs_match_existing_selection_and_keep_scope() {
         selected.iter().map(|run| run.id).collect::<Vec<_>>(),
         vec![ids[2], ids[3]]
     );
+    let summaries = latest_workflow_run_summaries_for_chapters(
+        &db,
+        projects[0],
+        "chapter_analysis",
+        &[chapters[0], chapters[1], chapters[3]],
+    )
+    .await
+    .unwrap();
+    for (summary, run) in summaries.iter().zip(&selected) {
+        assert_eq!(summary.id, run.id);
+        assert_eq!(summary.chapter_id, run.chapter_id);
+        assert_eq!(summary.status, run.status);
+        assert_eq!(summary.input_fingerprint_json, run.input_fingerprint_json);
+    }
+    assert_eq!(summaries.len(), selected.len());
     let history = workflow_runs_by_project_kind(&db, projects[0], "chapter_analysis")
         .await
         .unwrap();

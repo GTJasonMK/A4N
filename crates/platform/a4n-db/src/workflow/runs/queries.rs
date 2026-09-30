@@ -167,6 +167,19 @@ pub async fn latest_workflow_runs_for_chapters(
         .map_err(WorkflowReadError::Database)
 }
 
+pub async fn latest_workflow_run_summaries_for_chapters(
+    db: &DatabaseConnection,
+    project_id: i64,
+    workflow_kind: &str,
+    chapter_ids: &[i64],
+) -> Result<Vec<WorkflowRunSummary>, WorkflowReadError> {
+    latest_workflow_runs_for_chapters(db, project_id, workflow_kind, chapter_ids)
+        .await?
+        .into_iter()
+        .map(workflow_run_summary)
+        .collect()
+}
+
 pub async fn workflow_run_model_by_id(
     db: &DatabaseConnection,
     workflow_run_id: i64,

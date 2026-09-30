@@ -11,9 +11,9 @@ use a4n_db::{
 };
 use a4n_db_models::models::{
     ai::generated_video,
-    canvas::canvas_node,
     generation::{generation_spec, workflow_checkpoint},
 };
+use a4n_domain::canvas::CanvasNodeRecord;
 use a4n_domain::video_workflow::WORKFLOW_MODE_CANVAS_VIDEO;
 use a4n_domain::{CanvasNodeRefKind, canvas::FreeformCanvasGenerationSpecUpsertInput};
 use a4n_error::AppError;
@@ -60,7 +60,7 @@ pub struct CanvasVideoNodeExecutionInput<'a> {
     pub user_id: i64,
     pub project_id: i64,
     pub graph_id: i64,
-    pub node: &'a canvas_node::Model,
+    pub node: &'a CanvasNodeRecord,
     pub document: &'a CanvasGraphRecordDocument,
     pub shared_run: Option<CanvasNodeRunHandle>,
     pub mode: &'a str,
@@ -817,14 +817,14 @@ fn canvas_video_workflow_run_id(video: &generated_video::Model) -> Result<i64, A
 }
 
 pub fn build_canvas_video_node_input_for_preview(
-    node: &canvas_node::Model,
+    node: &CanvasNodeRecord,
     document: &CanvasGraphRecordDocument,
 ) -> Result<CanvasVideoNodeInput, String> {
     build_canvas_video_node_input(node, document, None)
 }
 
 fn build_canvas_video_node_input(
-    node: &canvas_node::Model,
+    node: &CanvasNodeRecord,
     document: &CanvasGraphRecordDocument,
     checkpoints: Option<&[workflow_checkpoint::Model]>,
 ) -> Result<CanvasVideoNodeInput, String> {

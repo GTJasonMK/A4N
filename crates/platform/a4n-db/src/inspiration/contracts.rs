@@ -1,6 +1,7 @@
 use a4n_db_models::models::project::{
-    blueprint_character, blueprint_relationship, novel_blueprint, novel_project,
+    blueprint_character, blueprint_relationship, novel_blueprint,
 };
+use a4n_domain::project::ProjectSummaryRecord;
 use sea_orm::DbErr;
 use serde_json::Value;
 
@@ -13,7 +14,7 @@ pub struct InspirationBlueprintRows {
 
 #[derive(Debug, Clone)]
 pub struct InspirationProjectContextRows {
-    pub project: novel_project::Model,
+    pub project: ProjectSummaryRecord,
     pub blueprint: Option<InspirationBlueprintRows>,
     pub recent_chapters: Vec<InspirationRecentChapterRow>,
 }

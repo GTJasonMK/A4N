@@ -2,13 +2,11 @@ use super::*;
 use a4n_api_contract::blueprint::{
     BlueprintDiffSummary, BlueprintSummary, BlueprintVersionSummary,
 };
-use a4n_db_models::models::project::{blueprint_version, novel_blueprint};
+use a4n_db_models::models::project::blueprint_version;
+use a4n_domain::project::BlueprintRecord;
 use serde_json::{Map, Value};
 
-fn blueprint_summary(
-    blueprint: novel_blueprint::Model,
-    sources_need_review: bool,
-) -> BlueprintSummary {
+fn blueprint_summary(blueprint: BlueprintRecord, sources_need_review: bool) -> BlueprintSummary {
     BlueprintSummary {
         id: blueprint.id,
         project_id: blueprint.project_id,

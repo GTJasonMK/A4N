@@ -11,7 +11,7 @@ struct PersistedWorkflowProgress {
     updated_at: Option<String>,
 }
 
-pub(in crate::workflow) fn workflow_run_summary(
+pub fn workflow_run_summary(
     run: workflow_run::Model,
 ) -> Result<WorkflowRunSummary, WorkflowReadError> {
     let progress = run
@@ -62,7 +62,7 @@ pub(super) fn workflow_run_resume_record(run: workflow_run::Model) -> WorkflowRu
     }
 }
 
-pub(super) fn workflow_checkpoint_summary(
+pub fn workflow_checkpoint_summary(
     checkpoint: workflow_checkpoint::Model,
 ) -> WorkflowCheckpointSummary {
     WorkflowCheckpointSummary {

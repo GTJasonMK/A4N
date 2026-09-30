@@ -1,12 +1,12 @@
-use a4n_db_models::models::chapter::{chapter_outline, part_outline};
+use a4n_domain::chapter::{ChapterOutlineRecord, PartOutlineRecord};
 use chrono::Utc;
 use sea_orm::DatabaseConnection;
 
 use super::*;
 
-fn part(id: i64, part_number: i32) -> part_outline::Model {
+fn part(id: i64, part_number: i32) -> PartOutlineRecord {
     let now = Utc::now().naive_utc();
-    part_outline::Model {
+    PartOutlineRecord {
         id,
         project_id: 7,
         part_number,
@@ -22,8 +22,8 @@ fn part(id: i64, part_number: i32) -> part_outline::Model {
     }
 }
 
-fn outline(chapter_number: i32, part_id: Option<i64>) -> chapter_outline::Model {
-    chapter_outline::Model {
+fn outline(chapter_number: i32, part_id: Option<i64>) -> ChapterOutlineRecord {
+    ChapterOutlineRecord {
         id: 100 + i64::from(chapter_number),
         project_id: 7,
         part_id,

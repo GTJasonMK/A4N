@@ -28,7 +28,7 @@ impl ChapterContentSyncApplicationPort for OrchestratorContext {
         host_port: &dyn ChapterDerivedCleanupHostPort,
         workflow_run_id: i64,
     ) -> Result<(), AppError> {
-        let run = self.workflow_run_model_by_id(workflow_run_id).await?;
+        let run = self.workflow_run_summary(workflow_run_id).await?;
         self.settle_chapter_content_sync_run(host_port, &run)
             .await
             .map(|_| ())
@@ -39,7 +39,7 @@ impl ChapterContentSyncApplicationPort for OrchestratorContext {
         host_port: &dyn ChapterDerivedCleanupHostPort,
         workflow_run_id: i64,
     ) -> Result<(), AppError> {
-        let run = self.workflow_run_model_by_id(workflow_run_id).await?;
+        let run = self.workflow_run_summary(workflow_run_id).await?;
         self.resume_chapter_content_sync_workflow_run_validated(host_port, &run)
             .await
             .map(|_| ())

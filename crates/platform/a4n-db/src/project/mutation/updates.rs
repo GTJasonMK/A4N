@@ -2,7 +2,9 @@ use super::contracts::{
     ProjectMutationError, SOURCE_SYNC_CURRENT, SOURCE_SYNC_ROOT_UPDATED, UpdateProjectRecordInput,
 };
 use super::rules::required_project_title;
+use crate::project::project_record_from_model;
 use a4n_db_models::models::project::{novel_project, source_snapshot_chapter};
+use a4n_domain::project::ProjectRecord;
 use chrono::{NaiveDateTime, Utc};
 use sea_orm::sea_query::Expr;
 use sea_orm::{
@@ -13,7 +15,7 @@ use sea_orm::{
 pub async fn update_project_record(
     db: &DatabaseConnection,
     input: UpdateProjectRecordInput,
-) -> Result<novel_project::Model, ProjectMutationError> {
+) -> Result<ProjectRecord, ProjectMutationError> {
     let tx = db.begin().await?;
     let project = novel_project::Entity::find_by_id(input.project_id)
         .lock_exclusive()
@@ -45,7 +47,7 @@ pub async fn update_project_record(
     active.updated_at = Set(Utc::now().naive_utc());
     let updated = active.update(&tx).await?;
     tx.commit().await?;
-    Ok(updated)
+    Ok(project_record_from_model(updated))
 }
 
 pub(crate) async fn mark_derived_projects_root_updated_in_record<C>(

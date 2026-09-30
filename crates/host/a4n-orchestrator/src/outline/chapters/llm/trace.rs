@@ -1,4 +1,4 @@
-use a4n_db_models::models::chapter::chapter_outline;
+use a4n_domain::chapter::ChapterOutlineRecord;
 use a4n_domain::generation::{GenerationRunTraceTarget, RecordCompletedGenerationRunInput};
 use a4n_error::AppError;
 use a4n_llm_provider_contract::provider::ChatRequest;
@@ -11,7 +11,7 @@ use a4n_llm_trace::context_aware_chat_request_trace_json;
 impl OrchestratorContext {
     pub(in crate::outline::chapters) async fn record_chapter_outline_generation_run(
         &self,
-        outline: &chapter_outline::Model,
+        outline: &ChapterOutlineRecord,
         request: &ChatRequest,
         response_content: &str,
         finish_reason: Option<&str>,

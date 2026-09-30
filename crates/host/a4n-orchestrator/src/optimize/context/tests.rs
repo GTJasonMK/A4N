@@ -1,9 +1,13 @@
 use a4n_db::optimize::OptimizationChapterSummaryRecord;
-use a4n_db_models::models::chapter::chapter;
+use a4n_domain::chapter::ChapterRecord;
+use a4n_domain::project::ProjectOptimizationContextRecord;
 use serde_json::json;
 
 use super::manifest::optimization_context_manifest;
-use super::projection::{optimization_chapter_context, optimization_chapter_summary_context};
+use super::projection::{
+    optimization_chapter_context, optimization_chapter_summary_context,
+    optimization_project_context,
+};
 
 #[test]
 fn context_manifest_keeps_sorted_sections_counts_and_known_descriptions() {
@@ -48,7 +52,7 @@ fn chapter_projection_trims_optional_text_and_exposes_source_spans_only_for_curr
         .unwrap()
         .and_hms_opt(12, 0, 0)
         .unwrap();
-    let chapter = chapter::Model {
+    let chapter = ChapterRecord {
         id: 7,
         project_id: 3,
         outline_id: None,
@@ -56,7 +60,7 @@ fn chapter_projection_trims_optional_text_and_exposes_source_spans_only_for_curr
         title: Some("  旧城回声  ".to_string()),
         content: "第一段正文。\n\n第二段正文。".to_string(),
         word_count: 12,
-        status: chapter::STATUS_COMPLETED.to_string(),
+        status: "completed".to_string(),
         summary: Some("  主角听见回声。  ".to_string()),
         style_tags: None,
         analysis_data: None,
@@ -68,7 +72,7 @@ fn chapter_projection_trims_optional_text_and_exposes_source_spans_only_for_curr
     assert_eq!(current["content"], chapter.content);
     assert_eq!(current["title"], json!("旧城回声"));
     assert_eq!(current["summary"], json!("主角听见回声。"));
-    assert_eq!(current["status"], json!(chapter::STATUS_COMPLETED));
+    assert_eq!(current["status"], json!("completed"));
     assert!(!current["source_spans"].as_array().unwrap().is_empty());
 
     let neighboring = optimization_chapter_summary_context(&OptimizationChapterSummaryRecord {
@@ -83,4 +87,28 @@ fn chapter_projection_trims_optional_text_and_exposes_source_spans_only_for_curr
     assert!(neighboring.get("source_spans").is_none());
     assert!(neighboring.get("content").is_none());
     assert!(neighboring.get("status").is_none());
+}
+
+#[test]
+fn project_projection_keeps_existing_fields_and_trims_optional_text() {
+    let project = ProjectOptimizationContextRecord {
+        id: 3,
+        title: "旧城".to_string(),
+        description: "悬疑故事".to_string(),
+        project_type: "novel_long".to_string(),
+        status: "draft".to_string(),
+        target_chapters: 20,
+        current_chapter: 4,
+        total_chapters: Some(20),
+        chapters_per_part: Some(5),
+        raw_blueprint: Some("  蓝图  ".to_string()),
+        export_config: Some("  ".to_string()),
+    };
+
+    let value = optimization_project_context(&project);
+
+    assert_eq!(value["id"], 3);
+    assert_eq!(value["raw_blueprint"], "蓝图");
+    assert!(value["export_config"].is_null());
+    assert_eq!(value.as_object().unwrap().len(), 11);
 }

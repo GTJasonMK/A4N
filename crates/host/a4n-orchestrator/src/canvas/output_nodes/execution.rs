@@ -1,6 +1,6 @@
 use a4n_db::canvas::CanvasNodeArtifactUpdateInput;
 use a4n_domain::CanvasNodeRefKind;
-use a4n_domain::canvas::CanvasTextAssetRecordInput;
+use a4n_domain::canvas::{CanvasNodeRecord, CanvasTextAssetRecordInput};
 use a4n_error::AppError;
 use serde_json::{Value, json};
 
@@ -18,7 +18,7 @@ impl OrchestratorContext {
     pub(crate) async fn resolve_canvas_output_value_validated(
         &self,
         workflow_run_id: Option<i64>,
-        node: &a4n_db_models::models::canvas::canvas_node::Model,
+        node: &CanvasNodeRecord,
         document: &a4n_db::canvas::CanvasGraphRecordDocument,
         data_type: CanvasOutputDataType,
         consumer_label: &str,
@@ -112,7 +112,7 @@ impl OrchestratorContext {
     async fn persist_canvas_output_artifact(
         &self,
         project_id: i64,
-        node: &a4n_db_models::models::canvas::canvas_node::Model,
+        node: &CanvasNodeRecord,
         data_type: CanvasOutputDataType,
         output: &CanvasOutputValue,
     ) -> Result<(String, i64, Value), AppError> {

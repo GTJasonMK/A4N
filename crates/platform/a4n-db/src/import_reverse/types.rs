@@ -1,10 +1,12 @@
 use a4n_db_models::models::{
     asset::object_profile,
-    chapter::{chapter, chapter_outline, part_outline},
+    chapter::chapter,
     character::{foreshadowing_index, protagonist_profile},
-    project::{blueprint_character, blueprint_relationship, novel_blueprint, novel_project},
+    project::{blueprint_character, blueprint_relationship, novel_blueprint},
     scene::scene_profile,
 };
+use a4n_domain::chapter::{ChapterOutlineRecord, PartOutlineRecord};
+use a4n_domain::project::ProjectRecord;
 use chrono::NaiveDateTime;
 use serde_json::Value;
 
@@ -45,10 +47,10 @@ impl From<crate::blueprint::BlueprintDbError> for ImportReverseDbError {
 
 #[derive(Debug, Clone)]
 pub struct ReverseContextRows {
-    pub project: novel_project::Model,
+    pub project: ProjectRecord,
     pub chapters: Vec<chapter::Model>,
-    pub chapter_outlines: Vec<chapter_outline::Model>,
-    pub part_outlines: Vec<part_outline::Model>,
+    pub chapter_outlines: Vec<ChapterOutlineRecord>,
+    pub part_outlines: Vec<PartOutlineRecord>,
     pub blueprint_context: Option<ReverseBlueprintContextRows>,
 }
 

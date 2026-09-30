@@ -7,13 +7,13 @@ use a4n_db_models::models::{
         chapter_visual_plan,
     },
     character::character_portrait,
-    project::{media_authoring_document, novel_project, source_snapshot_chapter},
+    project::{media_authoring_document, source_snapshot_chapter},
 };
 use a4n_domain::{
     canvas_transfer_runtime_identity_key,
     manga::{MangaPageGenerationLayoutV3, MangaReferenceAssetKind},
     media_authoring::{AdaptationPlanV1, AdaptationTarget, AuthoringDocumentInputs},
-    project::ProjectKind,
+    project::{ProjectKind, ProjectRecord},
     shooting_script::{CHAPTER_SHOOTING_SCRIPT_V2, ChapterShootingScriptV2},
 };
 
@@ -31,7 +31,7 @@ pub(super) fn validate_manga_manifest(package: &ProjectFamilyPackage) -> Result<
 }
 
 struct MangaManifestContext<'a> {
-    projects: HashMap<i64, &'a novel_project::Model>,
+    projects: HashMap<i64, &'a ProjectRecord>,
     chapters: HashMap<i64, &'a a4n_db_models::models::chapter::chapter::Model>,
     snapshot_chapters: HashMap<i64, &'a source_snapshot_chapter::Model>,
     documents: HashMap<i64, &'a media_authoring_document::Model>,
@@ -412,7 +412,7 @@ fn validate_manga_prompts(
 fn validate_manga_layout(
     package: &ProjectFamilyPackage,
     prompt: &chapter_manga_prompt::Model,
-    project: &novel_project::Model,
+    project: &ProjectRecord,
     layout: &MangaPageGenerationLayoutV3,
     context: &MangaManifestContext<'_>,
 ) -> Result<(), String> {
@@ -567,7 +567,7 @@ fn require_packaged_project<'a>(
     project_id: i64,
     label: &str,
     row_id: i64,
-) -> Result<&'a novel_project::Model, String> {
+) -> Result<&'a ProjectRecord, String> {
     context.projects.get(&project_id).copied().ok_or_else(|| {
         format!("项目族导入包{label}引用了不存在的项目: row_id={row_id}, project_id={project_id}")
     })

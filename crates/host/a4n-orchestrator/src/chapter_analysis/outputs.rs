@@ -4,7 +4,7 @@ use a4n_api_contract::character::CharacterProfileSyncFailure;
 use a4n_chapter_analysis::{
     foreshadowing_entries, priority_to_importance, summary_text, validate_saved_chapter_analysis,
 };
-use a4n_db_models::models::chapter::chapter;
+use a4n_domain::chapter::ChapterRecord;
 use a4n_error::AppError;
 use serde_json::{Value, json};
 
@@ -59,7 +59,7 @@ pub enum ChapterAnalysisOutputError {
 }
 
 pub fn retrospective_chapter_outline_input(
-    chapter: &chapter::Model,
+    chapter: &ChapterRecord,
     source_fingerprint_json: Value,
 ) -> Result<RetrospectiveChapterOutlineUpsertInput, ChapterAnalysisOutputError> {
     let analysis =
@@ -267,7 +267,7 @@ pub(super) fn ensure_chapter_analysis_character_sync_completed(
 impl OrchestratorContext {
     pub async fn sync_chapter_analysis_foreshadowing_outputs(
         &self,
-        chapter: &chapter::Model,
+        chapter: &ChapterRecord,
     ) -> Result<Value, ChapterAnalysisOutputError> {
         let analysis = chapter.analysis_data.as_ref().ok_or(
             ChapterAnalysisOutputError::MissingSavedAnalysis {
@@ -280,11 +280,7 @@ impl OrchestratorContext {
         let source_index = a4n_domain::source_spans::SourceSpanIndex::new(&source_spans);
         let updates = chapter_analysis_foreshadowing_updates(chapter.id, analysis, &source_index)?;
         let synced = self
-            .sync_chapter_analysis_foreshadowing(
-                a4n_db::project::chapter_source_snapshot_from_model(chapter),
-                drafts,
-                updates,
-            )
+            .sync_chapter_analysis_foreshadowing(chapter.source_snapshot(), drafts, updates)
             .await
             .map_err(ChapterAnalysisOutputError::Persistence)?;
         let current_ids = synced

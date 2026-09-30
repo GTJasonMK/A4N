@@ -1,5 +1,5 @@
 use a4n_db_models::models::project::{
-    novel_project, project_source_snapshot, source_snapshot_chapter, source_snapshot_outline,
+    project_source_snapshot, source_snapshot_chapter, source_snapshot_outline,
     source_snapshot_profile, text_anchor,
 };
 use serde_json::{Value, json};
@@ -240,7 +240,7 @@ pub(super) fn historical_project(
     }) {
         return Ok(receipt.project_id);
     }
-    let mut project: novel_project::Model = package
+    let mut project = package
         .projects
         .iter()
         .find(|row| row.id == package.root_project_id)

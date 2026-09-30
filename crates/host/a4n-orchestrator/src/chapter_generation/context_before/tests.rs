@@ -3,19 +3,17 @@ use super::{
     character_state::{character_profile_context_line, character_state_context_line},
     summaries::layered_chapter_summary_lines,
 };
-use a4n_db_models::models::{
-    chapter::chapter,
-    character::{character_state_index, protagonist_profile},
-};
+use a4n_db_models::models::character::{character_state_index, protagonist_profile};
+use a4n_domain::chapter::ChapterRecord;
 
 fn chapter_for_context(
     chapter_number: i32,
     title: Option<&str>,
     summary: Option<&str>,
     analysis_data: Option<serde_json::Value>,
-) -> chapter::Model {
+) -> ChapterRecord {
     let now = chrono::Utc::now().naive_utc();
-    chapter::Model {
+    ChapterRecord {
         id: i64::from(chapter_number),
         project_id: 1,
         outline_id: None,
@@ -23,7 +21,7 @@ fn chapter_for_context(
         title: title.map(str::to_string),
         content: "正文".to_string(),
         word_count: 2,
-        status: chapter::STATUS_DRAFT.to_string(),
+        status: "draft".to_string(),
         summary: summary.map(str::to_string),
         style_tags: None,
         analysis_data,

@@ -30,7 +30,8 @@ pub(crate) use users::lock_administrator_membership;
 pub use users::{bootstrap_first_admin, disable_user, register_user};
 pub use users::{
     change_password, create_user, current_user, current_user_summary, list_users, login_user,
-    require_existing_user_or_bootstrap_admin, update_profile, update_user_role, user_by_id,
+    require_existing_user_or_bootstrap_admin, update_profile, update_user_role,
+    user_authorization_by_id, user_by_id, user_summary_by_id,
 };
 
 #[cfg(test)]

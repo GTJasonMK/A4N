@@ -3,12 +3,13 @@ use super::super::types::{
     VideoStudioProjectImportError, VideoStudioProjectImportIdMaps, VideoStudioProjectImportRows,
 };
 use a4n_db_models::models::canvas::{canvas_edge, canvas_graph, canvas_node, canvas_text_asset};
+use a4n_domain::canvas::CanvasTextAssetRecord;
 use sea_orm::{ConnectionTrait, EntityTrait, Set};
 
 pub(crate) async fn import_video_studio_canvas_text_assets<C>(
     db: &C,
     project_id: i64,
-    assets: &[canvas_text_asset::Model],
+    assets: &[CanvasTextAssetRecord],
     maps: &mut VideoStudioProjectImportIdMaps,
     now: chrono::NaiveDateTime,
 ) -> Result<(), VideoStudioProjectImportError>

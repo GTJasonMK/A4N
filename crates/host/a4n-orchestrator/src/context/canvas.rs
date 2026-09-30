@@ -22,15 +22,10 @@ use a4n_db::canvas::{
     CanvasVideoMediaAssetEnsureInput, VideoStudioProjectExportRows,
     VideoStudioProjectImportMediaFileWriter, validate_canvas_record_document_edge_contract,
 };
-use a4n_db_models::models::{
-    canvas::canvas_text_asset,
-    generation::{generation_spec, prompt_artifact},
-    media::media_asset,
-    project::novel_project,
-};
+use a4n_db_models::models::{generation::generation_spec, media::media_asset};
 use a4n_domain::canvas::{
-    CanvasAssemblyContractSyncInput, CanvasPromptArtifactUpsertInput, CanvasTextAssetRecordInput,
-    FreeformCanvasGenerationSpecUpsertInput,
+    CanvasAssemblyContractSyncInput, CanvasPromptArtifactRecord, CanvasPromptArtifactUpsertInput,
+    CanvasTextAssetRecord, CanvasTextAssetRecordInput, FreeformCanvasGenerationSpecUpsertInput,
 };
 use a4n_error::AppError;
 use chrono::{NaiveDateTime, Utc};
@@ -96,7 +91,7 @@ impl CanvasApplication {
         project_id: i64,
         input: CanvasTextAssetRecordInput,
         now: NaiveDateTime,
-    ) -> Result<canvas_text_asset::Model, AppError> {
+    ) -> Result<CanvasTextAssetRecord, AppError> {
         a4n_db::canvas::upsert_canvas_text_asset_record(self.connection(), project_id, input, now)
             .await
             .map_err(canvas_db_error)
@@ -128,7 +123,7 @@ impl CanvasApplication {
     async fn upsert_canvas_prompt_artifact_record(
         &self,
         input: CanvasPromptArtifactUpsertInput,
-    ) -> Result<prompt_artifact::Model, AppError> {
+    ) -> Result<CanvasPromptArtifactRecord, AppError> {
         a4n_db::canvas::upsert_canvas_prompt_artifact_record(self.connection(), input)
             .await
             .map_err(canvas_db_error)
@@ -204,7 +199,7 @@ impl CanvasApplication {
         package: VideoStudioProjectPackage,
         now: NaiveDateTime,
         media_file_writer: &mut Writer,
-    ) -> Result<novel_project::Model, AppError>
+    ) -> Result<i64, AppError>
     where
         Writer: VideoStudioProjectImportMediaFileWriter,
     {
@@ -217,6 +212,7 @@ impl CanvasApplication {
             media_file_writer,
         )
         .await
+        .map(|project| project.id)
         .map_err(video_studio_project_import_error)
     }
 }
@@ -250,7 +246,7 @@ impl OrchestratorContext {
         project_id: i64,
         input: CanvasTextAssetRecordInput,
         now: NaiveDateTime,
-    ) -> Result<canvas_text_asset::Model, AppError> {
+    ) -> Result<CanvasTextAssetRecord, AppError> {
         self.canvas
             .upsert_canvas_text_asset_record(project_id, input, now)
             .await
@@ -278,7 +274,7 @@ impl OrchestratorContext {
     pub(crate) async fn upsert_canvas_prompt_artifact_record(
         &self,
         input: CanvasPromptArtifactUpsertInput,
-    ) -> Result<prompt_artifact::Model, AppError> {
+    ) -> Result<CanvasPromptArtifactRecord, AppError> {
         self.canvas
             .upsert_canvas_prompt_artifact_record(input)
             .await

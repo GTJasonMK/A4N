@@ -1,4 +1,4 @@
-use a4n_db_models::models::chapter::chapter_outline;
+use a4n_domain::chapter::ChapterOutlineRecord;
 use chrono::NaiveDateTime;
 
 use crate::generation::GenerationDbError;
@@ -16,7 +16,7 @@ pub struct GeneratedChapterContentRecordInput {
     pub project_id: i64,
     pub chapter_number: i32,
     pub existing_chapter_id: Option<i64>,
-    pub source_outline: Option<chapter_outline::Model>,
+    pub source_outline: Option<ChapterOutlineRecord>,
     pub title: String,
     pub summary: String,
     pub content: String,

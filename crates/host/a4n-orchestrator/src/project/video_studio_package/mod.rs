@@ -5,12 +5,14 @@
 use a4n_db::canvas::VideoStudioProjectImportRows;
 use a4n_db_models::models::{
     ai::{generated_image, generated_video},
-    canvas::{canvas_edge, canvas_graph, canvas_node, canvas_text_asset},
     generation::{generation_spec, prompt_artifact},
     media::{media_asset, media_binding, media_provenance},
-    project::novel_project,
     video_project::{assembly_clip, assembly_timeline, video_segment},
 };
+use a4n_domain::canvas::{
+    CanvasEdgeRecord, CanvasGraphRecord, CanvasNodeRecord, CanvasTextAssetRecord,
+};
+use a4n_domain::project::ProjectRecord;
 use serde::{Deserialize, Serialize};
 
 use crate::project::{ImportMediaPayload, MediaFileEntry};
@@ -37,11 +39,11 @@ pub struct VideoStudioProjectPackage {
     pub version: String,
     pub exported_at: String,
     pub mode: String,
-    pub project: novel_project::Model,
-    pub canvas_graphs: Vec<canvas_graph::Model>,
-    pub canvas_nodes: Vec<canvas_node::Model>,
-    pub canvas_edges: Vec<canvas_edge::Model>,
-    pub canvas_text_assets: Vec<canvas_text_asset::Model>,
+    pub project: ProjectRecord,
+    pub canvas_graphs: Vec<CanvasGraphRecord>,
+    pub canvas_nodes: Vec<CanvasNodeRecord>,
+    pub canvas_edges: Vec<CanvasEdgeRecord>,
+    pub canvas_text_assets: Vec<CanvasTextAssetRecord>,
     pub generation_specs: Vec<generation_spec::Model>,
     pub prompt_artifacts: Vec<prompt_artifact::Model>,
     pub generated_images: Vec<generated_image::Model>,

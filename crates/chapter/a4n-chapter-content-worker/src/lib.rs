@@ -9,7 +9,6 @@ use axum::{
     Router,
     routing::{get, post},
 };
-use sea_orm::DatabaseConnection;
 
 mod auth;
 mod commands;
@@ -44,13 +43,13 @@ struct WorkerState {
 
 impl ChapterContentWorker {
     pub fn new(
-        database: DatabaseConnection,
+        database: DbHandle,
         worker_id: impl Into<String>,
         auth_token: impl Into<String>,
     ) -> Self {
         Self {
             state: WorkerState {
-                database: DbHandle::new(Arc::new(database)),
+                database,
                 worker_id: Arc::<str>::from(worker_id.into()),
                 auth_token: Arc::<str>::from(auth_token.into()),
             },

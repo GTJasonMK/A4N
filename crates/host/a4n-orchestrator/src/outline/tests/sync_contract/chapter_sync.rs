@@ -1,4 +1,7 @@
 use super::*;
+use a4n_db_models::models::chapter::chapter_outline_provenance;
+use a4n_domain::chapter::chapter_outline_status;
+use sea_orm::TransactionTrait;
 
 #[tokio::test]
 async fn sync_chapter_outlines_by_number_preserves_existing_ids_and_inserts_missing() {
@@ -27,7 +30,7 @@ async fn sync_chapter_outlines_by_number_preserves_existing_ids_and_inserts_miss
         chapter_number: Set(2),
         title: Set(Some("旧第二章".to_string())),
         summary: Set(Some("旧摘要".to_string())),
-        status: Set("draft".to_string()),
+        status: Set(chapter_outline_status::STATUS_COMPLETED.to_string()),
         created_at: Set(old_time),
         updated_at: Set(old_time),
         ..Default::default()
@@ -35,8 +38,19 @@ async fn sync_chapter_outlines_by_number_preserves_existing_ids_and_inserts_miss
     .insert(&db)
     .await
     .unwrap();
+    chapter_outline_provenance::ActiveModel {
+        outline_id: Set(existing.id),
+        source_kind: Set(chapter_outline_provenance::SOURCE_KIND_IMPORT_ANALYSIS.to_string()),
+        source_fingerprint_json: Set(json!({"source": "old"})),
+        created_at: Set(old_time),
+        updated_at: Set(old_time),
+    }
+    .insert(&db)
+    .await
+    .unwrap();
+    let transaction = db.begin().await.unwrap();
     let rows = sync_chapter_outlines_by_number_in(
-        &db,
+        &transaction,
         project_id,
         Some(part.id),
         vec![
@@ -58,6 +72,7 @@ async fn sync_chapter_outlines_by_number_preserves_existing_ids_and_inserts_miss
     )
     .await
     .unwrap();
+    transaction.commit().await.unwrap();
     assert_eq!(rows.len(), 2);
     assert_eq!(rows[0].id, existing.id);
     assert_eq!(rows[0].created_at, old_time);
@@ -66,12 +81,21 @@ async fn sync_chapter_outlines_by_number_preserves_existing_ids_and_inserts_miss
     assert_eq!(rows[0].title.as_deref(), Some("新第二章"));
     assert_eq!(rows[0].beats, Some(json!(["承压"])));
     assert_eq!(rows[0].word_count_target, Some(3200));
+    assert_eq!(rows[0].status, chapter_outline_status::STATUS_DRAFT);
     assert_ne!(rows[1].id, existing.id);
     assert_eq!(rows[1].created_at, now);
     assert_eq!(rows[1].updated_at, now);
     assert_eq!(rows[1].part_id, Some(part.id));
     assert_eq!(rows[1].chapter_number, 3);
     assert_eq!(rows[1].pacing_score, Some(0.75));
+    assert_eq!(rows[1].status, chapter_outline_status::STATUS_DRAFT);
+    assert!(
+        chapter_outline_provenance::Entity::find_by_id(existing.id)
+            .one(&db)
+            .await
+            .unwrap()
+            .is_none()
+    );
     let all_rows = chapter_outline::Entity::find()
         .filter(chapter_outline::Column::ProjectId.eq(project_id))
         .order_by_asc(chapter_outline::Column::ChapterNumber)
@@ -80,5 +104,6 @@ async fn sync_chapter_outlines_by_number_preserves_existing_ids_and_inserts_miss
         .unwrap();
     assert_eq!(all_rows.len(), 2);
     assert_eq!(all_rows[0].id, existing.id);
+    assert_eq!(all_rows[0].status, chapter_outline_status::STATUS_DRAFT);
     assert_eq!(all_rows[1].chapter_number, 3);
 }

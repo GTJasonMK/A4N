@@ -1,5 +1,5 @@
 use a4n_chapter_analysis_host_contract::ChapterAnalysisRequestStep;
-use a4n_db_models::models::chapter::chapter;
+use a4n_domain::chapter::ChapterRecord;
 use a4n_error::AppError;
 use a4n_prompt::rendering::PromptRenderer;
 
@@ -90,7 +90,7 @@ impl OrchestratorContext {
         &self,
         user_id: i64,
         project_id: i64,
-        chapters: &[chapter::Model],
+        chapters: &[ChapterRecord],
         progress: &mut ProjectImportAnalysisProgress,
         prompt_renderer: &dyn PromptRenderer,
         chapter_analysis_host_port: &dyn ChapterAnalysisHostPort,
@@ -139,7 +139,7 @@ impl OrchestratorContext {
         &self,
         user_id: i64,
         project_id: i64,
-        chapters: &[chapter::Model],
+        chapters: &[ChapterRecord],
         mut analyzed: usize,
         progress: &mut ProjectImportAnalysisProgress,
         prompt_renderer: &dyn PromptRenderer,

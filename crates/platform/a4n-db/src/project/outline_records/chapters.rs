@@ -1,25 +1,28 @@
 use a4n_db_models::models::chapter::{chapter_outline, chapter_outline_provenance};
+use a4n_domain::chapter::ChapterOutlineRecord;
 use sea_orm::{
     ColumnTrait, ConnectionTrait, DbBackend, DbErr, EntityTrait, QueryFilter, QueryOrder,
     QuerySelect,
 };
 
 use super::contracts::ProjectOutlineRecordError;
+use crate::outline::record_mapping::chapter_outline_record_from_model;
 
 pub async fn chapter_outline_by_project_number<C>(
     db: &C,
     project_id: i64,
     chapter_number: i32,
-) -> Result<Option<chapter_outline::Model>, ProjectOutlineRecordError>
+) -> Result<Option<ChapterOutlineRecord>, ProjectOutlineRecordError>
 where
     C: ConnectionTrait,
 {
-    chapter_outline::Entity::find()
+    let model = chapter_outline::Entity::find()
         .filter(chapter_outline::Column::ProjectId.eq(project_id))
         .filter(chapter_outline::Column::ChapterNumber.eq(chapter_number))
         .one(db)
         .await
-        .map_err(ProjectOutlineRecordError::Database)
+        .map_err(ProjectOutlineRecordError::Database)?;
+    Ok(model.map(chapter_outline_record_from_model))
 }
 
 /// 正文生成只能把用户接管或正式规划流程拥有的章纲当作未来计划。
@@ -28,7 +31,7 @@ pub async fn formal_chapter_outline_by_project_number<C>(
     db: &C,
     project_id: i64,
     chapter_number: i32,
-) -> Result<Option<chapter_outline::Model>, DbErr>
+) -> Result<Option<ChapterOutlineRecord>, DbErr>
 where
     C: ConnectionTrait,
 {
@@ -47,7 +50,7 @@ where
         .one(db)
         .await?
         .is_some();
-    Ok((!is_derived).then_some(outline))
+    Ok((!is_derived).then(|| chapter_outline_record_from_model(outline)))
 }
 
 /// 只在正文生成实际读取的正式章纲至提交时仍完全一致时返回其 ID。
@@ -55,7 +58,7 @@ where
 /// 查询会锁定来源章纲，避免校验通过后、章节提交前又被并发修改。
 pub(crate) async fn formal_chapter_outline_id_if_unchanged<C>(
     db: &C,
-    source: &chapter_outline::Model,
+    source: &ChapterOutlineRecord,
 ) -> Result<Option<i64>, DbErr>
 where
     C: ConnectionTrait,
@@ -69,59 +72,69 @@ where
     let Some(current) = query.one(db).await? else {
         return Ok(None);
     };
-    if current != *source {
+    let current_id = current.id;
+    if chapter_outline_record_from_model(current) != *source {
         return Ok(None);
     }
-    let is_derived = chapter_outline_provenance::Entity::find_by_id(current.id)
+    let is_derived = chapter_outline_provenance::Entity::find_by_id(current_id)
         .select_only()
         .column(chapter_outline_provenance::Column::OutlineId)
         .into_tuple::<i64>()
         .one(db)
         .await?
         .is_some();
-    Ok((!is_derived).then_some(current.id))
+    Ok((!is_derived).then_some(current_id))
 }
 
 pub async fn chapter_outline_by_id<C>(
     db: &C,
     outline_id: i64,
-) -> Result<Option<chapter_outline::Model>, ProjectOutlineRecordError>
+) -> Result<Option<ChapterOutlineRecord>, ProjectOutlineRecordError>
 where
     C: ConnectionTrait,
 {
-    chapter_outline::Entity::find_by_id(outline_id)
+    let model = chapter_outline::Entity::find_by_id(outline_id)
         .one(db)
         .await
-        .map_err(ProjectOutlineRecordError::Database)
+        .map_err(ProjectOutlineRecordError::Database)?;
+    Ok(model.map(chapter_outline_record_from_model))
 }
 
 pub async fn chapter_outlines_for_project<C>(
     db: &C,
     project_id: i64,
-) -> Result<Vec<chapter_outline::Model>, ProjectOutlineRecordError>
+) -> Result<Vec<ChapterOutlineRecord>, ProjectOutlineRecordError>
 where
     C: ConnectionTrait,
 {
-    chapter_outline::Entity::find()
+    let models = chapter_outline::Entity::find()
         .filter(chapter_outline::Column::ProjectId.eq(project_id))
         .order_by_asc(chapter_outline::Column::ChapterNumber)
         .all(db)
         .await
-        .map_err(ProjectOutlineRecordError::Database)
+        .map_err(ProjectOutlineRecordError::Database)?;
+    Ok(models
+        .into_iter()
+        .map(chapter_outline_record_from_model)
+        .collect())
 }
 
 pub async fn chapter_outlines_for_project_chapter_number<C>(
     db: &C,
     project_id: i64,
     chapter_number: i32,
-) -> Result<Vec<chapter_outline::Model>, ProjectOutlineRecordError>
+) -> Result<Vec<ChapterOutlineRecord>, ProjectOutlineRecordError>
 where
     C: ConnectionTrait,
 {
-    chapter_outline::Entity::find()
+    let models = chapter_outline::Entity::find()
         .filter(chapter_outline::Column::ProjectId.eq(project_id))
         .filter(chapter_outline::Column::ChapterNumber.eq(chapter_number))
         .all(db)
         .await
-        .map_err(ProjectOutlineRecordError::Database)
+        .map_err(ProjectOutlineRecordError::Database)?;
+    Ok(models
+        .into_iter()
+        .map(chapter_outline_record_from_model)
+        .collect())
 }

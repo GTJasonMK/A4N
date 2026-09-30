@@ -56,9 +56,9 @@ pub use runs::{
     invalidate_chapter_analysis_after_source_change, latest_workflow_run_by_business_key,
     latest_workflow_run_by_business_key_for_update,
     latest_workflow_run_recovery_records_by_business_keys,
-    latest_workflow_run_status_record_by_business_key, latest_workflow_runs_by_business_keys,
-    latest_workflow_runs_for_chapters, list_workflow_run_models, list_workflow_runs,
-    mark_workflow_current_step, mark_workflow_status,
+    latest_workflow_run_status_record_by_business_key, latest_workflow_run_summaries_for_chapters,
+    latest_workflow_runs_by_business_keys, latest_workflow_runs_for_chapters,
+    list_workflow_run_models, list_workflow_runs, mark_workflow_current_step, mark_workflow_status,
     mutate_completed_workflow_checkpoint_artifacts_unless_step_exists,
     persist_workflow_progress_snapshot, record_workflow_progress_event,
     resume_or_upsert_workflow_run, resume_workflow_run, resume_workflow_run_with_active_task,
@@ -66,11 +66,13 @@ pub use runs::{
     upsert_workflow_run_in_transaction, workflow_checkpoint_model_by_step_in,
     workflow_checkpoint_models, workflow_checkpoint_models_for_runs,
     workflow_checkpoint_statuses_for_runs, workflow_checkpoint_step_statuses,
-    workflow_checkpoint_summaries, workflow_progress_events,
+    workflow_checkpoint_summaries, workflow_checkpoint_summaries_for_runs,
+    workflow_checkpoint_summary_from_model, workflow_progress_events,
     workflow_run_access_record_by_active_task_id, workflow_run_detail, workflow_run_model_by_id,
     workflow_run_models_by_ids, workflow_run_resume_record_by_id,
     workflow_run_resume_records_by_project_kind, workflow_run_status_record_by_id,
-    workflow_run_statuses_by_ids, workflow_run_summary_by_id, workflow_runs_by_project_kind,
+    workflow_run_statuses_by_ids, workflow_run_summary_by_id, workflow_run_summary_from_model,
+    workflow_runs_by_project_kind,
 };
 #[cfg(test)]
 pub(in crate::workflow) use runs::{

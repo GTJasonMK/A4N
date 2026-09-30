@@ -12,8 +12,9 @@ use a4n_api_contract::project_transfer::{
 };
 use a4n_db::project::{CreateFreeformVideoProjectParams, create_freeform_video_project_record};
 use a4n_db_models::models::media::media_asset::FILE_PATH_FIELD;
-use a4n_db_models::models::{media::media_asset, project::novel_project, user::user};
+use a4n_db_models::models::{media::media_asset, user::user};
 use a4n_domain::CanvasNodeRefKind;
+use a4n_domain::project::ProjectRecord;
 use async_trait::async_trait;
 use sea_orm::ActiveModelTrait;
 
@@ -179,7 +180,11 @@ async fn import_application_owns_archive_validation_database_import_and_user_pro
         .await
         .expect("视频画布导入 application 应成功");
 
-    assert_eq!(imported.user_id, 81);
+    let imported_project = a4n_db::project::project_by_id_record(database.as_ref(), imported)
+        .await
+        .expect("应查询导入项目")
+        .expect("导入项目应存在");
+    assert_eq!(imported_project.user_id, 81);
     assert_eq!(host.read_calls.load(Ordering::SeqCst), 1);
     assert_eq!(host.write_calls.load(Ordering::SeqCst), 0);
     assert_eq!(host.rollback_calls.load(Ordering::SeqCst), 0);
@@ -256,7 +261,7 @@ async fn import_application_builds_canonical_media_path_before_host_write() {
             .as_slice(),
         [format!(
             "projects/{}/media/video/imported_package_media_10_file_path.mp4",
-            imported.id
+            imported
         )]
     );
 }
@@ -307,7 +312,7 @@ fn media_package_path_rejects_missing_extension() {
     assert_eq!(error, "媒体文件缺少扩展名: projects/7/video");
 }
 
-fn empty_package(project: novel_project::Model) -> VideoStudioProjectPackage {
+fn empty_package(project: ProjectRecord) -> VideoStudioProjectPackage {
     VideoStudioProjectPackage {
         version: VIDEO_STUDIO_PACKAGE_VERSION.to_string(),
         exported_at: "2026-07-22 00:00:00".to_string(),
@@ -364,8 +369,8 @@ async fn insert_active_user(database: &a4n_db::DatabaseConnection, label: &str) 
 async fn insert_freeform_project(
     database: &a4n_db::DatabaseConnection,
     user_id: i64,
-) -> novel_project::Model {
-    create_freeform_video_project_record(
+) -> ProjectRecord {
+    let created = create_freeform_video_project_record(
         database,
         user_id,
         CreateFreeformVideoProjectParams {
@@ -374,5 +379,9 @@ async fn insert_freeform_project(
         },
     )
     .await
-    .expect("测试 freeform 视频项目应可写入")
+    .expect("测试 freeform 视频项目应可写入");
+    a4n_db::project::project_by_id_record(database, created.id)
+        .await
+        .expect("应查询测试项目")
+        .expect("测试项目应存在")
 }

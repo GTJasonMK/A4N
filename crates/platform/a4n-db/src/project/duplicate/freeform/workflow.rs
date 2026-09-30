@@ -1,5 +1,4 @@
-use a4n_db_models::models::project::novel_project;
-use a4n_domain::project::{ProjectMediaFileCopier, ProjectSourceMode};
+use a4n_domain::project::{ProjectMediaFileCopier, ProjectRecord, ProjectSourceMode};
 use chrono::Utc;
 use sea_orm::{DatabaseConnection, TransactionTrait};
 
@@ -25,14 +24,15 @@ use crate::project::duplicate::{
         copy_derived_prompt_artifacts,
     },
 };
+use crate::project::{project_record_from_model, project_record_into_model};
 
 pub async fn duplicate_freeform_project_record<Copier>(
     db: &DatabaseConnection,
-    original: &novel_project::Model,
+    original: ProjectRecord,
     user_id: i64,
     new_title: &str,
     media_file_copier: &mut Copier,
-) -> Result<novel_project::Model, ProjectDuplicateError>
+) -> Result<ProjectRecord, ProjectDuplicateError>
 where
     Copier: ProjectMediaFileCopier + ?Sized,
 {
@@ -44,6 +44,7 @@ where
             "复制自由视频项目只能接收 freeform 项目".to_string(),
         ));
     }
+    let original = project_record_into_model(original);
     let txn = db.begin().await?;
     let now = Utc::now().naive_utc();
 
@@ -53,7 +54,7 @@ where
         videos,
     } = duplicate_freeform_project_media_record(
         &txn,
-        original,
+        &original,
         user_id,
         new_title,
         now,
@@ -138,5 +139,5 @@ where
     .await?;
 
     txn.commit().await?;
-    Ok(new_project)
+    Ok(project_record_from_model(new_project))
 }

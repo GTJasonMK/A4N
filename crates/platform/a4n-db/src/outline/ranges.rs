@@ -1,6 +1,7 @@
 use std::collections::{BTreeSet, HashSet};
 
 use a4n_db_models::models::chapter::{chapter_outline, part_outline};
+use a4n_domain::chapter::{ChapterOutlineRecord, PartOutlineRecord};
 
 use super::OutlineDbError;
 
@@ -76,8 +77,8 @@ fn validate_part_outline_records_with_action(
 }
 
 pub fn chapter_outline_ids_in_part_range(
-    outlines: &[chapter_outline::Model],
-    part: &part_outline::Model,
+    outlines: &[ChapterOutlineRecord],
+    part: &PartOutlineRecord,
 ) -> Vec<i64> {
     outlines
         .iter()
@@ -90,8 +91,8 @@ pub fn chapter_outline_ids_in_part_range(
 }
 
 pub fn chapter_outline_ids_in_part_ranges(
-    outlines: &[chapter_outline::Model],
-    parts: &[part_outline::Model],
+    outlines: &[ChapterOutlineRecord],
+    parts: &[PartOutlineRecord],
 ) -> Vec<i64> {
     let mut ids = BTreeSet::new();
     for part in parts {

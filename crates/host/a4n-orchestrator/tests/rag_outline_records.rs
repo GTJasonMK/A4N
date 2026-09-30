@@ -1,4 +1,4 @@
-use a4n_db_models::models::chapter::{chapter_outline, part_outline};
+use a4n_domain::chapter::{ChapterOutlineRecord, PartOutlineRecord};
 use a4n_domain::rag::RagDataType;
 use a4n_orchestrator::rag::{outline_rag_record, part_outline_rag_record};
 use chrono::{NaiveDate, NaiveDateTime};
@@ -11,8 +11,8 @@ fn ts() -> NaiveDateTime {
         .expect("valid time")
 }
 
-fn sample_outline() -> chapter_outline::Model {
-    chapter_outline::Model {
+fn sample_outline() -> ChapterOutlineRecord {
+    ChapterOutlineRecord {
         id: 10,
         project_id: 1,
         part_id: Some(2),
@@ -32,8 +32,8 @@ fn sample_outline() -> chapter_outline::Model {
     }
 }
 
-fn sample_part() -> part_outline::Model {
-    part_outline::Model {
+fn sample_part() -> PartOutlineRecord {
+    PartOutlineRecord {
         id: 20,
         project_id: 1,
         part_number: 1,

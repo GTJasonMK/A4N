@@ -7,10 +7,7 @@ use a4n_chapter_analysis_host_contract::{
     ChapterAnalysisRequestPreview, ChapterAnalysisRequestStep,
     ChapterAnalysisResumeApplicationPort, ChapterAnalysisResumePreviewApplicationPort,
 };
-use a4n_db_models::models::{
-    chapter::chapter,
-    generation::{workflow_checkpoint, workflow_run},
-};
+use a4n_domain::chapter::ChapterRecord;
 use a4n_domain::project::ChapterDerivedCleanupArtifacts;
 use a4n_domain::workflow::WORKFLOW_MODE_DERIVED_REPLAY;
 use a4n_error::AppError;
@@ -31,8 +28,7 @@ use crate::{
     scene_profile::SceneProfileSyncProgress,
     workflow::{
         CompletedWorkflowCheckpointInput, UpsertWorkflowCheckpointInput, WORKFLOW_STATUS_COMPLETED,
-        required_checkpoint_field, required_checkpoint_json,
-        workflow_checkpoint_fingerprint_sha256,
+        required_checkpoint_field, workflow_checkpoint_fingerprint_sha256,
     },
 };
 

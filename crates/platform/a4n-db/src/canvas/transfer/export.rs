@@ -1,5 +1,8 @@
 use super::types::VideoStudioProjectExportRows;
 use crate::canvas::CanvasDbError;
+use crate::canvas::graph_record::records::{
+    canvas_edge_record, canvas_graph_record, canvas_node_record, canvas_text_asset_record,
+};
 use a4n_db_models::models::{
     ai::{generated_image, generated_video},
     canvas::{canvas_edge, canvas_graph, canvas_node, canvas_text_asset},
@@ -190,10 +193,13 @@ where
     let (assembly_timelines, assembly_clips) = assembly_and_clips?;
 
     Ok(VideoStudioProjectExportRows {
-        canvas_graphs,
-        canvas_nodes,
-        canvas_edges,
-        canvas_text_assets,
+        canvas_graphs: canvas_graphs.into_iter().map(canvas_graph_record).collect(),
+        canvas_nodes: canvas_nodes.into_iter().map(canvas_node_record).collect(),
+        canvas_edges: canvas_edges.into_iter().map(canvas_edge_record).collect(),
+        canvas_text_assets: canvas_text_assets
+            .into_iter()
+            .map(canvas_text_asset_record)
+            .collect(),
         generation_specs,
         prompt_artifacts,
         generated_images,

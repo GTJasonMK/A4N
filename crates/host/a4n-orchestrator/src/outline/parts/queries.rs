@@ -1,5 +1,5 @@
 use a4n_db::project as project_db;
-use a4n_db_models::models::chapter::part_outline;
+use a4n_domain::chapter::PartOutlineRecord;
 use a4n_error::AppError;
 
 use crate::outline::OrchestratorContext;
@@ -9,7 +9,7 @@ impl OrchestratorContext {
     pub(in crate::outline) async fn get_part(
         &self,
         part_id: i64,
-    ) -> Result<part_outline::Model, AppError> {
+    ) -> Result<PartOutlineRecord, AppError> {
         project_db::part_outline_by_id(self.database.connection(), part_id)
             .await
             .map_err(crate::project::project_outline_record_error_to_app_error)?
@@ -19,7 +19,7 @@ impl OrchestratorContext {
     pub(in crate::outline) async fn get_parts(
         &self,
         part_ids: &[i64],
-    ) -> Result<Vec<part_outline::Model>, AppError> {
+    ) -> Result<Vec<PartOutlineRecord>, AppError> {
         project_db::part_outlines_by_ids(self.database.connection(), part_ids)
             .await
             .map_err(crate::project::project_outline_record_error_to_app_error)

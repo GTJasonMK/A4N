@@ -1,5 +1,6 @@
 use a4n_db::canvas::CanvasGraphRecordDocument;
-use a4n_db_models::models::{canvas::canvas_node, generation::workflow_checkpoint};
+use a4n_db_models::models::generation::workflow_checkpoint;
+use a4n_domain::canvas::CanvasNodeRecord;
 use a4n_domain::{CanvasFrameKind, CanvasNodeRefKind};
 use serde_json::Value;
 
@@ -15,14 +16,14 @@ use super::contracts::{
 
 #[cfg(test)]
 pub(crate) fn build_canvas_editing_node_input_for_preview(
-    node: &canvas_node::Model,
+    node: &CanvasNodeRecord,
     document: &CanvasGraphRecordDocument,
 ) -> Result<CanvasEditingNodeInput, String> {
     build_canvas_editing_node_input(node, document, None)
 }
 
 pub(crate) fn build_canvas_editing_node_input(
-    node: &canvas_node::Model,
+    node: &CanvasNodeRecord,
     document: &CanvasGraphRecordDocument,
     checkpoints: Option<&[workflow_checkpoint::Model]>,
 ) -> Result<CanvasEditingNodeInput, String> {
@@ -38,7 +39,7 @@ pub(crate) fn build_canvas_editing_node_input(
 }
 
 fn build_extract_frame_input(
-    node: &canvas_node::Model,
+    node: &CanvasNodeRecord,
     document: &CanvasGraphRecordDocument,
     checkpoints: Option<&[workflow_checkpoint::Model]>,
 ) -> Result<CanvasExtractFrameNodeInput, String> {
@@ -62,7 +63,7 @@ fn build_extract_frame_input(
 }
 
 fn build_trim_video_input(
-    node: &canvas_node::Model,
+    node: &CanvasNodeRecord,
     document: &CanvasGraphRecordDocument,
     checkpoints: Option<&[workflow_checkpoint::Model]>,
 ) -> Result<CanvasTrimVideoNodeInput, String> {
@@ -97,7 +98,7 @@ fn strict_canvas_config_f32(config: &Value, key: &str) -> Result<Option<f32>, St
 }
 
 fn build_assemble_video_input(
-    node: &canvas_node::Model,
+    node: &CanvasNodeRecord,
     document: &CanvasGraphRecordDocument,
     checkpoints: Option<&[workflow_checkpoint::Model]>,
 ) -> Result<CanvasAssembleVideoNodeInput, String> {
@@ -137,7 +138,7 @@ fn build_assemble_video_input(
 }
 
 fn resolve_single_source_video(
-    node: &canvas_node::Model,
+    node: &CanvasNodeRecord,
     document: &CanvasGraphRecordDocument,
     checkpoints: Option<&[workflow_checkpoint::Model]>,
     consumer_label: &str,

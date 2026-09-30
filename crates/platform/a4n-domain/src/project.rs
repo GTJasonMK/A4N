@@ -1,17 +1,79 @@
 mod asset_graph;
 mod blueprint;
 mod cleanup;
+#[path = "optimization.rs"]
+mod optimization;
 mod status;
 
 pub use asset_graph::*;
 pub use blueprint::*;
 pub use cleanup::*;
+pub use optimization::*;
 pub use status::*;
 
+use chrono::NaiveDateTime;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::path::PathBuf;
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct ProjectSummaryRecord {
+    pub id: i64,
+    pub user_id: i64,
+    pub title: String,
+    pub description: String,
+    pub project_type: String,
+    pub project_kind: String,
+    pub root_project_id: Option<i64>,
+    pub source_snapshot_id: Option<i64>,
+    pub source_sync_status: String,
+    pub status: String,
+    pub lifecycle_gate: String,
+    pub target_chapters: i32,
+    pub current_chapter: i32,
+    pub total_chapters: Option<i32>,
+    pub chapters_per_part: Option<i32>,
+    pub created_at: NaiveDateTime,
+    pub updated_at: NaiveDateTime,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ProjectRecord {
+    pub id: i64,
+    pub user_id: i64,
+    pub title: String,
+    pub description: String,
+    pub project_type: String,
+    pub project_kind: String,
+    pub root_project_id: Option<i64>,
+    pub source_snapshot_id: Option<i64>,
+    pub source_sync_status: String,
+    pub status: String,
+    #[serde(skip)]
+    pub lifecycle_gate: String,
+    pub target_chapters: i32,
+    pub current_chapter: i32,
+    pub total_chapters: Option<i32>,
+    pub chapters_per_part: Option<i32>,
+    pub avatar_svg: Option<String>,
+    pub avatar_animal: Option<String>,
+    pub raw_blueprint: Option<String>,
+    pub import_analysis_progress: Option<String>,
+    pub export_config: Option<String>,
+    pub created_at: NaiveDateTime,
+    pub updated_at: NaiveDateTime,
+}
+
+impl ProjectRecord {
+    pub fn source_mode(&self) -> Result<ProjectSourceMode, ProjectSourceModeError> {
+        ProjectSourceMode::from_identity(
+            &self.project_kind,
+            self.root_project_id,
+            self.source_snapshot_id,
+        )
+    }
+}
 
 /// 一页制分页：page 从 1 起，计算 offset。
 pub fn project_list_offset(page: u64, limit: u64) -> Result<u64, String> {
@@ -33,6 +95,28 @@ pub fn required_text<'a>(value: &'a str, field: &str) -> Result<&'a str, String>
 /// 可选文本：None 或空白视为空串。
 pub fn optional_text(value: Option<&str>) -> String {
     value.map(str::trim).unwrap_or_default().to_string()
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct BlueprintRecord {
+    pub id: i64,
+    pub project_id: i64,
+    pub title: String,
+    pub genre: String,
+    pub style: Option<String>,
+    pub tone: Option<String>,
+    pub target_audience: Option<String>,
+    pub one_sentence_summary: Option<String>,
+    pub full_synopsis: Option<String>,
+    pub world_setting: Option<Value>,
+    pub current_version: String,
+    pub needs_part_outlines: bool,
+    pub total_chapters: Option<i32>,
+    pub chapters_per_part: Option<i32>,
+    pub avatar_svg: Option<String>,
+    pub avatar_animal: Option<String>,
+    pub created_at: NaiveDateTime,
+    pub updated_at: NaiveDateTime,
 }
 
 #[derive(Debug, thiserror::Error)]

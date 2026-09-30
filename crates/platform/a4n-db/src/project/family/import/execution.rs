@@ -1,5 +1,7 @@
-use a4n_db_models::models::project::novel_project;
+use a4n_domain::project::ProjectRecord;
 use sea_orm::{ConnectionTrait, DatabaseConnection, DbBackend, Statement, TransactionTrait};
+
+use crate::project::project_record_from_model;
 
 use super::{
     ProjectFamilyImportError, ProjectFamilyImportMappings, ProjectFamilyImportPackage,
@@ -11,7 +13,7 @@ pub async fn import_project_family_package_rows<Importer>(
     user_id: i64,
     package: &ProjectFamilyImportPackage,
     media_importer: &mut Importer,
-) -> Result<Vec<novel_project::Model>, ProjectFamilyImportError>
+) -> Result<Vec<ProjectRecord>, ProjectFamilyImportError>
 where
     Importer: ProjectFamilyMediaFileImporter,
 {
@@ -26,7 +28,7 @@ pub async fn import_project_family_package_rows_with_mappings<Importer>(
     user_id: i64,
     package: &ProjectFamilyImportPackage,
     media_importer: &mut Importer,
-) -> Result<(Vec<novel_project::Model>, ProjectFamilyImportMappings), ProjectFamilyImportError>
+) -> Result<(Vec<ProjectRecord>, ProjectFamilyImportMappings), ProjectFamilyImportError>
 where
     Importer: ProjectFamilyMediaFileImporter,
 {
@@ -69,7 +71,10 @@ where
         .await
         .map_err(ProjectFamilyImportError::Commit)?;
     Ok((
-        imported_projects,
+        imported_projects
+            .into_iter()
+            .map(project_record_from_model)
+            .collect(),
         ProjectFamilyImportMappings {
             entity_ids: [
                 ("chapter_visual_plan", maps.visual_plan_ids),

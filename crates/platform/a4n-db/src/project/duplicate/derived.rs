@@ -1,9 +1,9 @@
-use a4n_db_models::models::project::novel_project;
-use a4n_domain::project::ProjectMediaFileCopier;
+use a4n_domain::project::{ProjectMediaFileCopier, ProjectRecord};
 use chrono::Utc;
 use sea_orm::{DatabaseConnection, TransactionTrait};
 
 use super::ProjectDuplicateError;
+use crate::project::{project_record_from_model, project_record_into_model};
 
 mod assembly;
 mod generation;
@@ -15,11 +15,11 @@ pub(super) use generation::{
 
 pub async fn duplicate_derived_project_record<Copier>(
     db: &DatabaseConnection,
-    original: &novel_project::Model,
+    original: ProjectRecord,
     user_id: i64,
     new_title: &str,
     media_file_copier: &mut Copier,
-) -> Result<novel_project::Model, ProjectDuplicateError>
+) -> Result<ProjectRecord, ProjectDuplicateError>
 where
     Copier: ProjectMediaFileCopier + ?Sized,
 {
@@ -33,9 +33,10 @@ where
             "复制派生项目需要原作和冻结原文".into(),
         ));
     }
+    let original = project_record_into_model(original);
     let project = super::shared::insert_project_copy_record(
         &txn,
-        original,
+        &original,
         super::shared::ProjectCopyInsert {
             user_id,
             title: new_title.into(),
@@ -51,7 +52,7 @@ where
     .await?;
     crate::project::family::import::copy_derived_media_rows(
         &txn,
-        original,
+        &original,
         &project,
         media_file_copier,
     )
@@ -66,5 +67,5 @@ where
         },
     })?;
     txn.commit().await?;
-    Ok(project)
+    Ok(project_record_from_model(project))
 }

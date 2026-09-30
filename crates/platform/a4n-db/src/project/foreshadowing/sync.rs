@@ -296,7 +296,8 @@ async fn record_change(
     evidence: Vec<String>,
     reason: &str,
 ) -> Result<(), ForeshadowingDbError> {
-    let source = crate::fact_feedback::observation_source(chapter);
+    let source =
+        crate::fact_feedback::observation_source(&crate::project::chapter_record(chapter.clone()));
     crate::fact_feedback::record_fact_change(
         tx,
         crate::fact_feedback::FactChangeRecordInput {

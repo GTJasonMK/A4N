@@ -2,6 +2,7 @@ use super::{
     super::super::PROJECT_KIND_TEXT,
     types::{ProjectFamilyExportError, ProjectFamilyExportSelection},
 };
+use crate::project::project_record_from_model;
 use a4n_db_models::models::project::novel_project;
 use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QueryOrder};
 
@@ -36,8 +37,11 @@ where
         Vec::new()
     };
     Ok(ProjectFamilyExportSelection {
-        root,
-        derived_projects,
+        root: project_record_from_model(root),
+        derived_projects: derived_projects
+            .into_iter()
+            .map(project_record_from_model)
+            .collect(),
     })
 }
 
@@ -83,7 +87,7 @@ where
         });
     }
     Ok(ProjectFamilyExportSelection {
-        root,
-        derived_projects: vec![derived],
+        root: project_record_from_model(root),
+        derived_projects: vec![project_record_from_model(derived)],
     })
 }

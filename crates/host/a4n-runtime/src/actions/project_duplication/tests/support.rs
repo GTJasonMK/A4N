@@ -12,7 +12,7 @@ use a4n_db_models::models::{
 use a4n_db::project::{
     ProjectDuplicateError, duplicate_derived_project_record, duplicate_text_project_record,
 };
-use a4n_domain::project::ProjectStatus;
+use a4n_domain::project::{ProjectRecord, ProjectStatus};
 use chrono::NaiveDate;
 use sea_orm::{ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, Set};
 use serde_json::json;
@@ -53,6 +53,13 @@ async fn insert_project(db: &DatabaseConnection, status: &str) -> novel_project:
     .insert(db)
     .await
     .unwrap()
+}
+
+async fn project_record(db: &DatabaseConnection, project_id: i64) -> ProjectRecord {
+    a4n_db::project::project_by_id_record(db, project_id)
+        .await
+        .unwrap()
+        .expect("project record")
 }
 
 async fn insert_blueprint_graph(db: &DatabaseConnection, project_id: i64) {

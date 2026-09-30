@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use a4n_db_models::models::chapter::part_outline;
+use a4n_domain::chapter::PartOutlineRecord;
 use a4n_error::AppError;
 use a4n_llm_provider_contract::provider::ChatRequest;
 use chrono::Utc;
@@ -20,7 +20,7 @@ impl OrchestratorContext {
     pub(in crate::outline) async fn continue_part_outline(
         &self,
         input: PartOutlineContinuationInput<'_>,
-    ) -> Result<part_outline::Model, AppError> {
+    ) -> Result<PartOutlineRecord, AppError> {
         let PartOutlineContinuationInput {
             project_id,
             part_number,

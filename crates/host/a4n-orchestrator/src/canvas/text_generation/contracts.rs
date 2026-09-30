@@ -1,6 +1,6 @@
 use crate::canvas::CanvasNodeRunHandle;
 use a4n_db::canvas::CanvasGraphRecordDocument;
-use a4n_db_models::models::canvas::canvas_node;
+use a4n_domain::canvas::CanvasNodeRecord;
 
 #[derive(Debug, Clone)]
 pub(super) struct CanvasRenderedPrompt {
@@ -27,7 +27,7 @@ pub(super) struct CanvasLlmTextInput {
 pub struct CanvasTextNodeExecutionInput<'a> {
     pub project_id: i64,
     pub graph_id: i64,
-    pub node: &'a canvas_node::Model,
+    pub node: &'a CanvasNodeRecord,
     pub document: &'a CanvasGraphRecordDocument,
     pub shared_run: Option<CanvasNodeRunHandle>,
     pub mode: &'a str,

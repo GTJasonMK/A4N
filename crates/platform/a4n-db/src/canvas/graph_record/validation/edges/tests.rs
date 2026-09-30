@@ -1,4 +1,4 @@
-use a4n_db_models::models::canvas::{canvas_edge, canvas_graph, canvas_node};
+use a4n_domain::canvas::{CanvasEdgeRecord, CanvasGraphRecord, CanvasNodeRecord};
 use chrono::Utc;
 use serde_json::json;
 
@@ -6,12 +6,12 @@ use super::validate_canvas_record_document_edge_contract;
 use crate::canvas::graph_record::types::CanvasGraphRecordDocument;
 
 fn graph_document(
-    nodes: Vec<canvas_node::Model>,
-    edges: Vec<canvas_edge::Model>,
+    nodes: Vec<CanvasNodeRecord>,
+    edges: Vec<CanvasEdgeRecord>,
 ) -> CanvasGraphRecordDocument {
     let now = Utc::now().naive_utc();
     CanvasGraphRecordDocument {
-        graph: canvas_graph::Model {
+        graph: CanvasGraphRecord {
             id: 1,
             project_id: 1,
             name: "测试画布".to_string(),
@@ -27,9 +27,9 @@ fn graph_document(
     }
 }
 
-fn node(id: i64, node_kind: &str) -> canvas_node::Model {
+fn node(id: i64, node_kind: &str) -> CanvasNodeRecord {
     let now = Utc::now().naive_utc();
-    canvas_node::Model {
+    CanvasNodeRecord {
         id,
         graph_id: 1,
         node_kind: node_kind.to_string(),
@@ -43,8 +43,8 @@ fn node(id: i64, node_kind: &str) -> canvas_node::Model {
     }
 }
 
-fn assembly_edge(id: i64, source_node_id: i64, order_index: i64) -> canvas_edge::Model {
-    canvas_edge::Model {
+fn assembly_edge(id: i64, source_node_id: i64, order_index: i64) -> CanvasEdgeRecord {
+    CanvasEdgeRecord {
         id,
         graph_id: 1,
         source_node_id,
@@ -86,7 +86,7 @@ fn document_edge_contract_accepts_contiguous_assembly_clips() {
 
 #[test]
 fn document_edge_contract_accepts_image_output_as_downstream_image_source() {
-    let edge = canvas_edge::Model {
+    let edge = CanvasEdgeRecord {
         id: 1,
         graph_id: 1,
         source_node_id: 1,

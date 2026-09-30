@@ -408,7 +408,7 @@ struct CanvasSetup {
     context: OrchestratorContext,
     project_id: i64,
     document: CanvasGraphRecordDocument,
-    node: a4n_db_models::models::canvas::canvas_node::Model,
+    node: a4n_domain::canvas::CanvasNodeRecord,
 }
 
 async fn setup_canvas(node_kind: &str, config: Value, source_count: usize) -> CanvasSetup {
@@ -634,7 +634,7 @@ async fn insert_generated_video(
 
 fn test_document_for_input_rules() -> CanvasGraphRecordDocument {
     let now = chrono::Utc::now().naive_utc();
-    let graph = a4n_db_models::models::canvas::canvas_graph::Model {
+    let graph = a4n_domain::canvas::CanvasGraphRecord {
         id: 10,
         project_id: 20,
         name: "测试画布".to_string(),
@@ -645,7 +645,7 @@ fn test_document_for_input_rules() -> CanvasGraphRecordDocument {
         updated_at: now,
     };
     let graph_id = graph.id;
-    let source = |id, video_id| a4n_db_models::models::canvas::canvas_node::Model {
+    let source = |id, video_id| a4n_domain::canvas::CanvasNodeRecord {
         id,
         graph_id,
         node_kind: "VideoInputNode".to_string(),
@@ -657,7 +657,7 @@ fn test_document_for_input_rules() -> CanvasGraphRecordDocument {
         created_at: now,
         updated_at: now,
     };
-    let assemble = a4n_db_models::models::canvas::canvas_node::Model {
+    let assemble = a4n_domain::canvas::CanvasNodeRecord {
         id: 2,
         graph_id,
         node_kind: "AssembleVideoNode".to_string(),
@@ -670,17 +670,16 @@ fn test_document_for_input_rules() -> CanvasGraphRecordDocument {
         updated_at: now,
     };
     let assemble_id = assemble.id;
-    let edge =
-        |id, source_node_id, order_index| a4n_db_models::models::canvas::canvas_edge::Model {
-            id,
-            graph_id,
-            source_node_id,
-            target_node_id: assemble_id,
-            source_port: "video".to_string(),
-            target_port: "clip".to_string(),
-            role: "assembly_clip".to_string(),
-            config_json: json!({"order_index": order_index}),
-        };
+    let edge = |id, source_node_id, order_index| a4n_domain::canvas::CanvasEdgeRecord {
+        id,
+        graph_id,
+        source_node_id,
+        target_node_id: assemble_id,
+        source_port: "video".to_string(),
+        target_port: "clip".to_string(),
+        role: "assembly_clip".to_string(),
+        config_json: json!({"order_index": order_index}),
+    };
     CanvasGraphRecordDocument {
         graph,
         nodes: vec![source(1, 91), assemble, source(3, 92)],

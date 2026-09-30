@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 
 use a4n_db::blueprint::context::blueprint_llm_context;
-use a4n_db::inspiration::inspiration_messages_llm_context;
 use a4n_db::workflow::UpsertWorkflowRunInput;
 use a4n_domain::project::{
     BLUEPRINT_REFINEMENT_MODE, BLUEPRINT_REFINEMENT_WORKFLOW_KIND,
@@ -10,6 +9,7 @@ use a4n_domain::project::{
 };
 use a4n_domain::workflow::WORKFLOW_STATUS_RUNNING;
 use a4n_error::AppError;
+use a4n_inspiration_core::inspiration_messages_llm_context;
 use a4n_llm_trace::context_aware_chat_request_trace_json;
 use a4n_prompt::blueprint_generation::build_blueprint_refine_request;
 use a4n_prompt::rendering::PromptRenderer;

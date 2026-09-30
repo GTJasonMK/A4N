@@ -1,8 +1,11 @@
 use std::{sync::Arc, time::Duration};
 
-use sea_orm::{ConnectOptions, ConnectionTrait, Database, DatabaseBackend, Statement};
+use sea_orm::{
+    ConnectOptions, ConnectionTrait, Database, DatabaseBackend, Statement, TransactionTrait,
+};
 
 pub type DatabaseConnection = sea_orm::DatabaseConnection;
+pub type DbTransaction = sea_orm::DatabaseTransaction;
 pub type SharedDatabaseConnection = Arc<DatabaseConnection>;
 
 #[derive(Clone)]
@@ -13,6 +16,33 @@ pub struct DbHandle {
 impl DbHandle {
     pub fn new(connection: SharedDatabaseConnection) -> Self {
         Self { connection }
+    }
+
+    pub async fn connect(database_url: impl Into<String>) -> anyhow::Result<Self> {
+        let mut options = ConnectOptions::new(database_url.into());
+        options
+            .max_connections(8)
+            .min_connections(1)
+            .connect_timeout(Duration::from_secs(5));
+        let connection = Database::connect(options).await?;
+        Ok(Self::new(Arc::new(connection)))
+    }
+
+    pub async fn ping(&self) -> anyhow::Result<()> {
+        self.connection
+            .execute(Statement::from_string(
+                DatabaseBackend::Postgres,
+                "SELECT 1",
+            ))
+            .await?;
+        Ok(())
+    }
+
+    pub async fn begin(&self) -> Result<DbTransaction, a4n_error::AppError> {
+        self.connection
+            .begin()
+            .await
+            .map_err(a4n_error::AppError::Database)
     }
 
     pub fn connection(&self) -> &DatabaseConnection {
@@ -99,9 +129,20 @@ pub async fn run_migrations(database: &DatabaseConnection) -> Result<(), a4n_err
 
 #[cfg(test)]
 mod tests {
+    use std::sync::Arc;
+
+    use super::{DatabaseConnection, DbHandle};
+
     #[test]
     fn generation_owner_lock_key_is_fixed() {
         assert_eq!(super::GENERATION_OWNER_LOCK_NAMESPACE, 1_093_946_951);
         assert_eq!(super::GENERATION_OWNER_LOCK_KEY, 1);
+    }
+
+    #[tokio::test]
+    async fn ping_reports_disconnected_database() {
+        let database = DbHandle::new(Arc::new(DatabaseConnection::Disconnected));
+        assert!(database.ping().await.is_err());
+        assert!(database.begin().await.is_err());
     }
 }

@@ -1,4 +1,5 @@
 use a4n_db_models::models::project::novel_project;
+use a4n_domain::project::ProjectRecord;
 use chrono::{NaiveDateTime, Utc};
 use sea_orm::{ConnectionTrait, DatabaseConnection, TransactionTrait};
 
@@ -13,31 +14,33 @@ use crate::project::{
             outlines::{copy_project_chapter_outlines, copy_project_part_outlines},
         },
     },
+    project_record_from_model, project_record_into_model,
 };
 
 pub async fn duplicate_text_project_record(
     db: &DatabaseConnection,
-    original: &novel_project::Model,
+    original: ProjectRecord,
     user_id: i64,
     new_title: &str,
-) -> Result<novel_project::Model, ProjectDuplicateError> {
+) -> Result<ProjectRecord, ProjectDuplicateError> {
     if original.project_kind != PROJECT_KIND_TEXT {
         return Err(ProjectDuplicateError::InvalidArgument(
             "复制文本项目只能接收文本项目".to_string(),
         ));
     }
 
+    let original = project_record_into_model(original);
     let txn = db.begin().await?;
     let project = duplicate_text_project_data_record(
         &txn,
-        original,
+        &original,
         user_id,
         new_title,
         Utc::now().naive_utc(),
     )
     .await?;
     txn.commit().await?;
-    Ok(project)
+    Ok(project_record_from_model(project))
 }
 
 async fn duplicate_text_project_data_record<C>(

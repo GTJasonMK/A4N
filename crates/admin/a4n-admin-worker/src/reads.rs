@@ -24,7 +24,7 @@ impl WorkerState {
                 "查询管理员状态必须绑定目标用户主体",
             ));
         }
-        let user = a4n_db::auth::user_by_id(self.database.connection(), caller)
+        let user = a4n_db::auth::user_authorization_by_id(self.database.connection(), caller)
             .await
             .map_err(app_error)?;
         Ok(user.is_active
@@ -162,9 +162,8 @@ impl WorkerState {
         let caller = self.caller(&request.principal, request.payload.caller_user_id)?;
         self.require_admin(caller, AdminPermission::ManageUsers)
             .await?;
-        let codes = a4n_db::auth::list_invite_codes(self.database.connection())
+        a4n_db::auth::list_invite_codes(self.database.connection())
             .await
-            .map_err(app_error)?;
-        Ok(codes.iter().map(invite_code_summary).collect())
+            .map_err(app_error)
     }
 }

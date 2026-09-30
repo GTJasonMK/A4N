@@ -14,13 +14,14 @@ use a4n_db_models::models::{
     media::{media_asset, media_binding, media_provenance},
     project::{
         blueprint_character, blueprint_relationship, blueprint_version, novel_blueprint,
-        novel_project, profile_evidence, project_source_snapshot, source_snapshot_chapter,
+        profile_evidence, project_source_snapshot, source_snapshot_chapter,
         source_snapshot_outline, source_snapshot_profile, text_anchor,
     },
     scene::{scene_entity_state, scene_occurrence, scene_profile, scene_transition},
     source_sync::{source_sync_conflict, source_sync_decision, source_sync_run},
     video_project::{assembly_clip, assembly_timeline, video_segment},
 };
+use a4n_domain::project::ProjectRecord;
 use sea_orm::DbErr;
 use serde::{Deserialize, Serialize};
 
@@ -38,8 +39,8 @@ pub enum ProjectFamilyExportError {
 
 #[derive(Debug, Clone)]
 pub struct ProjectFamilyExportSelection {
-    pub root: novel_project::Model,
-    pub derived_projects: Vec<novel_project::Model>,
+    pub root: ProjectRecord,
+    pub derived_projects: Vec<ProjectRecord>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]

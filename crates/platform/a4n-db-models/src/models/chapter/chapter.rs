@@ -4,26 +4,10 @@ use sea_orm::entity::prelude::*;
 use sea_orm::{QueryFilter, Select};
 use serde::{Deserialize, Serialize};
 
-pub const STATUS_DRAFT: &str = "draft";
-pub const STATUS_GENERATING: &str = "generating";
-pub const STATUS_IMPORTED: &str = "imported";
-pub const STATUS_COMPLETED: &str = "completed";
-const STATUS_REVIEWED: &str = "reviewed";
-const STATUS_PUBLISHED: &str = "published";
-pub const STATUS_DELETED: &str = "deleted";
-
-pub fn is_valid_status(status: &str) -> bool {
-    matches!(
-        status,
-        STATUS_DRAFT
-            | STATUS_GENERATING
-            | STATUS_IMPORTED
-            | STATUS_COMPLETED
-            | STATUS_REVIEWED
-            | STATUS_PUBLISHED
-            | STATUS_DELETED
-    )
-}
+pub use a4n_domain::chapter::chapter_status::{
+    STATUS_COMPLETED, STATUS_DELETED, STATUS_DRAFT, STATUS_GENERATING, STATUS_IMPORTED,
+    is_valid_status,
+};
 
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Serialize, Deserialize)]
 #[sea_orm(table_name = "chapter")]

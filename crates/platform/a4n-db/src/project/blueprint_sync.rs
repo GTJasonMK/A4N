@@ -1,6 +1,7 @@
 mod characters;
 mod contracts;
 mod identity;
+mod record;
 mod records;
 mod relationships;
 

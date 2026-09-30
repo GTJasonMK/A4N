@@ -1,5 +1,5 @@
 use a4n_db::canvas::CanvasGraphRecordDocument;
-use a4n_db_models::models::canvas::canvas_node;
+use a4n_domain::canvas::CanvasNodeRecord;
 use a4n_domain::source_text_hash as source_content_sha256;
 use a4n_llm_context::{
     COMPRESSION_FULL_RAW, LlmContextLedger, LlmContextLedgerPackDraft,
@@ -16,7 +16,7 @@ use super::input::build_canvas_llm_text_input;
 pub fn build_canvas_llm_text_request_for_preview(
     project_id: i64,
     graph_id: i64,
-    node: &canvas_node::Model,
+    node: &CanvasNodeRecord,
     document: &CanvasGraphRecordDocument,
 ) -> Result<ChatRequest, String> {
     let llm_input = build_canvas_llm_text_input(node, document, None)?;

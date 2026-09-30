@@ -5,12 +5,12 @@ use a4n_api_contract::outline::{
     PartOutlineSummary, UpdateChapterOutlineInput,
 };
 use a4n_db::project::OutlineGenerationProgressRows;
-use a4n_db_models::models::chapter::{chapter_outline, part_outline};
+use a4n_domain::chapter::{ChapterOutlineRecord, PartOutlineRecord, chapter_outline_status};
 
 use super::WorkerFailure;
 
 pub(super) fn chapter_outline_summary(
-    outline: &chapter_outline::Model,
+    outline: &ChapterOutlineRecord,
     source_kind: Option<&String>,
 ) -> ChapterOutlineSummary {
     ChapterOutlineSummary {
@@ -34,7 +34,7 @@ pub(super) fn chapter_outline_summary(
     }
 }
 
-pub(super) fn part_outline_summary(part: &part_outline::Model) -> PartOutlineSummary {
+pub(super) fn part_outline_summary(part: &PartOutlineRecord) -> PartOutlineSummary {
     PartOutlineSummary {
         id: part.id,
         project_id: part.project_id,
@@ -56,7 +56,7 @@ pub(super) fn generation_progress_summary(
 ) -> Result<OutlineGenerationProgressSummary, WorkerFailure> {
     let mut outlines_by_chapter = HashMap::<i32, &str>::new();
     for outline in &rows.chapter_outlines {
-        if !chapter_outline::is_valid_status(&outline.status) {
+        if !chapter_outline_status::is_valid_status(&outline.status) {
             return Err(WorkerFailure::conflict(format!(
                 "章节大纲 {} 状态无效：{}",
                 outline.id, outline.status
@@ -93,7 +93,7 @@ pub(super) fn generation_progress_summary(
         if (part.start_chapter..=part.end_chapter).all(|chapter_number| {
             outlines_by_chapter
                 .get(&chapter_number)
-                .is_some_and(|status| *status == chapter_outline::STATUS_COMPLETED)
+                .is_some_and(|status| *status == chapter_outline_status::STATUS_COMPLETED)
         }) {
             completed_parts += 1;
         }
@@ -106,7 +106,7 @@ pub(super) fn generation_progress_summary(
         completed_chapter_outlines: rows
             .chapter_outlines
             .iter()
-            .filter(|outline| outline.status == chapter_outline::STATUS_COMPLETED)
+            .filter(|outline| outline.status == chapter_outline_status::STATUS_COMPLETED)
             .count() as u64,
     })
 }

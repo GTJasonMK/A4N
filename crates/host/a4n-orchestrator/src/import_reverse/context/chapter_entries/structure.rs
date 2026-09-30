@@ -1,4 +1,5 @@
-use a4n_db_models::models::chapter::{chapter, part_outline};
+use a4n_db_models::models::chapter::chapter;
+use a4n_domain::chapter::PartOutlineRecord;
 use serde_json::{Map, Value, json};
 
 use super::formatting::{add_optional_chapter_title, add_summary_or_preview};
@@ -11,7 +12,7 @@ pub(in crate::import_reverse::context) fn chapter_outline_entry(ch: &chapter::Mo
     Value::Object(entry)
 }
 
-pub(in crate::import_reverse::context) fn chapter_part_entry(part: &part_outline::Model) -> Value {
+pub(in crate::import_reverse::context) fn chapter_part_entry(part: &PartOutlineRecord) -> Value {
     json!({
         "part_number": part.part_number,
         "title": part.title,

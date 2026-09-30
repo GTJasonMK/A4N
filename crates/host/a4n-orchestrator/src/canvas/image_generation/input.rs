@@ -1,5 +1,6 @@
 use a4n_db::canvas::CanvasGraphRecordDocument;
-use a4n_db_models::models::{canvas::canvas_node, generation::workflow_checkpoint};
+use a4n_db_models::models::generation::workflow_checkpoint;
+use a4n_domain::canvas::CanvasNodeRecord;
 
 use crate::canvas::{
     canvas_config_i32, canvas_config_i64, ensure_canvas_provider_slot_ready,
@@ -9,14 +10,14 @@ use crate::canvas::{
 use super::contracts::CanvasImageNodeInput;
 
 pub fn build_canvas_image_node_input_for_preview(
-    node: &canvas_node::Model,
+    node: &CanvasNodeRecord,
     document: &CanvasGraphRecordDocument,
 ) -> Result<CanvasImageNodeInput, String> {
     build_canvas_image_node_input(node, document, None)
 }
 
 pub(super) fn build_canvas_image_node_input(
-    node: &canvas_node::Model,
+    node: &CanvasNodeRecord,
     document: &CanvasGraphRecordDocument,
     checkpoints: Option<&[workflow_checkpoint::Model]>,
 ) -> Result<CanvasImageNodeInput, String> {

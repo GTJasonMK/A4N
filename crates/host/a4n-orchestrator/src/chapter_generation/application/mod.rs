@@ -12,7 +12,7 @@ use a4n_api_contract::{
     generation_tasks::{GenerationTaskHandle, GenerationTaskStartError},
 };
 use a4n_db::workflow;
-use a4n_db_models::models::chapter::chapter_outline;
+use a4n_domain::chapter::ChapterOutlineRecord;
 use a4n_embedding_provider_contract::EmbeddingModelIdentity;
 use a4n_error::AppError;
 use a4n_progress::ProgressPhaseKind;
@@ -59,7 +59,7 @@ use a4n_rag_core::validation::validate_query_vectors;
 
 struct PreparedChapterGeneration {
     chapter_title: String,
-    source_outline: Option<chapter_outline::Model>,
+    source_outline: Option<ChapterOutlineRecord>,
     outline_text: String,
     context_before: Option<String>,
     word_count_range: ChapterGenerationWordCountRange,
@@ -71,7 +71,7 @@ struct PreparedChapterGeneration {
 
 struct PreparedChapterGenerationSources {
     chapter_title: String,
-    source_outline: Option<chapter_outline::Model>,
+    source_outline: Option<ChapterOutlineRecord>,
     writing_instruction: Option<String>,
     rag_query_outline_text: String,
     base_outline_text: String,

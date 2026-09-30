@@ -3,13 +3,12 @@
 //! ORM metadata stays inside the persistence adapter; callers receive only
 //! the deliberately public JSON projection.
 
-use a4n_db_models::models::project::{
-    blueprint_character, blueprint_relationship, novel_blueprint,
-};
+use a4n_db_models::models::project::{blueprint_character, blueprint_relationship};
+use serde::Serialize;
 use serde_json::{Value, json};
 
 pub fn blueprint_llm_context(
-    blueprint: &novel_blueprint::Model,
+    blueprint: &impl Serialize,
     characters: &[blueprint_character::Model],
     relationships: &[blueprint_relationship::Model],
 ) -> Value {
@@ -26,20 +25,35 @@ pub fn blueprint_llm_context(
     })
 }
 
-pub fn blueprint_model_llm_context(blueprint: &novel_blueprint::Model) -> Value {
-    json!({
-        "title": blueprint.title,
-        "genre": blueprint.genre,
-        "style": blueprint.style,
-        "tone": blueprint.tone,
-        "target_audience": blueprint.target_audience,
-        "one_sentence_summary": blueprint.one_sentence_summary,
-        "full_synopsis": blueprint.full_synopsis,
-        "world_setting": blueprint.world_setting,
-        "needs_part_outlines": blueprint.needs_part_outlines,
-        "total_chapters": blueprint.total_chapters,
-        "chapters_per_part": blueprint.chapters_per_part,
-    })
+pub fn blueprint_model_llm_context(blueprint: &impl Serialize) -> Value {
+    let source = serde_json::to_value(blueprint).expect("blueprint record must serialize");
+    let fields = [
+        "title",
+        "genre",
+        "style",
+        "tone",
+        "target_audience",
+        "one_sentence_summary",
+        "full_synopsis",
+        "world_setting",
+        "needs_part_outlines",
+        "total_chapters",
+        "chapters_per_part",
+    ];
+    Value::Object(
+        fields
+            .into_iter()
+            .map(|field| {
+                (
+                    field.to_string(),
+                    source
+                        .get(field)
+                        .cloned()
+                        .expect("blueprint context field must exist"),
+                )
+            })
+            .collect(),
+    )
 }
 
 pub fn blueprint_character_llm_context(character: &blueprint_character::Model) -> Value {
@@ -74,7 +88,7 @@ mod tests {
     use chrono::{NaiveDate, NaiveDateTime};
     use serde_json::json;
 
-    use super::blueprint_llm_context;
+    use super::{blueprint_llm_context, blueprint_model_llm_context};
     use a4n_db_models::models::project::{
         blueprint_character, blueprint_relationship, novel_blueprint,
     };
@@ -105,6 +119,12 @@ mod tests {
             created_at: now,
             updated_at: now,
         };
+        let record: a4n_domain::project::BlueprintRecord =
+            serde_json::from_value(serde_json::to_value(&blueprint).unwrap()).unwrap();
+        assert_eq!(
+            blueprint_model_llm_context(&blueprint),
+            blueprint_model_llm_context(&record)
+        );
         let character = blueprint_character::Model {
             id: 11,
             project_id: 20,

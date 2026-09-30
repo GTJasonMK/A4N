@@ -4,15 +4,16 @@ use a4n_db::blueprint::context::{
 };
 use a4n_db_models::models::{
     asset::object_profile,
-    chapter::{chapter_outline, part_outline},
     character::{foreshadowing_index, protagonist_profile},
-    project::{blueprint_character, blueprint_relationship, novel_blueprint, novel_project},
+    project::{blueprint_character, blueprint_relationship, novel_blueprint},
     scene::scene_profile,
 };
+use a4n_domain::chapter::{ChapterOutlineRecord, PartOutlineRecord};
+use a4n_domain::project::ProjectRecord;
 use serde_json::{Value, json};
 
 pub(in crate::outline) fn outline_blueprint_context_json(
-    project: &novel_project::Model,
+    project: &ProjectRecord,
     blueprint: Option<&novel_blueprint::Model>,
     characters: &[blueprint_character::Model],
     relationships: &[blueprint_relationship::Model],
@@ -132,7 +133,7 @@ pub(in crate::outline) fn has_outline_generation_source(
             })
 }
 
-pub(in crate::outline) fn part_context_json(part: &part_outline::Model) -> Value {
+pub(in crate::outline) fn part_context_json(part: &PartOutlineRecord) -> Value {
     json!({
         "part_number": part.part_number,
         "title": part.title.clone(),
@@ -291,7 +292,7 @@ fn is_meaningful_json(value: &Value) -> bool {
     }
 }
 
-pub(crate) fn chapter_outline_context_json(outline: &chapter_outline::Model) -> Value {
+pub(crate) fn chapter_outline_context_json(outline: &ChapterOutlineRecord) -> Value {
     json!({
         "chapter_number": outline.chapter_number,
         "title": outline.title.clone(),

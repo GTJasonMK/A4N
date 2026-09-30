@@ -16,6 +16,72 @@ pub struct CanvasTextAssetRecordInput {
     pub content: String,
 }
 
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct CanvasGraphRecord {
+    pub id: i64,
+    pub project_id: i64,
+    pub name: String,
+    pub graph_kind: String,
+    pub version: i32,
+    pub viewport_json: Option<Value>,
+    pub created_at: chrono::NaiveDateTime,
+    pub updated_at: chrono::NaiveDateTime,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct CanvasNodeRecord {
+    pub id: i64,
+    pub graph_id: i64,
+    pub node_kind: String,
+    pub ref_type: Option<String>,
+    pub ref_id: Option<i64>,
+    pub config_json: Value,
+    pub position_json: Value,
+    pub state: String,
+    pub created_at: chrono::NaiveDateTime,
+    pub updated_at: chrono::NaiveDateTime,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct CanvasEdgeRecord {
+    pub id: i64,
+    pub graph_id: i64,
+    pub source_node_id: i64,
+    pub source_port: String,
+    pub target_node_id: i64,
+    pub target_port: String,
+    pub role: String,
+    pub config_json: Value,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct CanvasTextAssetRecord {
+    pub id: i64,
+    pub project_id: i64,
+    pub title: String,
+    pub text_kind: String,
+    pub content: String,
+    pub content_hash: String,
+    pub created_at: chrono::NaiveDateTime,
+    pub updated_at: chrono::NaiveDateTime,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct CanvasPromptArtifactRecord {
+    pub id: i64,
+    pub generation_spec_id: i64,
+    pub prompt_kind: String,
+    pub prompt_text: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct CanvasGraphRecordDocument {
+    pub graph: CanvasGraphRecord,
+    pub nodes: Vec<CanvasNodeRecord>,
+    pub edges: Vec<CanvasEdgeRecord>,
+    pub text_assets: Vec<CanvasTextAssetRecord>,
+}
+
 #[derive(Debug, Clone)]
 pub struct CanvasPromptArtifactUpsertInput {
     pub generation_spec_id: i64,

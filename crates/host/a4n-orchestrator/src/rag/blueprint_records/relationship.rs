@@ -1,11 +1,11 @@
-use a4n_db_models::models::project::blueprint_relationship;
+use a4n_db::rag::RagBlueprintRelationshipRow;
 use a4n_domain::rag::RagDataType;
 use a4n_rag_core::RagRecord;
 use a4n_rag_core::record_text::{optional_json_text, required_rag_text};
 
 use super::super::rag_chunk_id;
 
-fn relationship_rag_text(relationship: &blueprint_relationship::Model) -> Result<String, String> {
+fn relationship_rag_text(relationship: &RagBlueprintRelationshipRow) -> Result<String, String> {
     let character_a = required_rag_text(
         Some(&relationship.character_a),
         format!("角色关系 {} 缺少角色 A，跳过 RAG 入库", relationship.id),
@@ -37,7 +37,7 @@ fn relationship_rag_text(relationship: &blueprint_relationship::Model) -> Result
 
 pub fn relationship_rag_record(
     project_id: i64,
-    relationship: &blueprint_relationship::Model,
+    relationship: &RagBlueprintRelationshipRow,
 ) -> Result<RagRecord, String> {
     Ok(RagRecord {
         chunk_id: rag_chunk_id(project_id, RagDataType::Relationship, relationship.id),

@@ -1,5 +1,5 @@
 use a4n_chapter_analysis::CHAPTER_ANALYSIS_STAGE_SUMMARY;
-use a4n_db_models::models::chapter::chapter;
+use a4n_domain::chapter::ChapterRecord;
 use a4n_error::AppError;
 use a4n_llm_provider_contract::provider::ChatRequest;
 use serde_json::{Value, json};
@@ -11,7 +11,7 @@ use crate::chapter_analysis::owner::{
 };
 
 pub async fn build_chapter_summary_synthesis_request(
-    ch: &chapter::Model,
+    ch: &ChapterRecord,
     prompt_renderer: &dyn PromptRenderer,
     facts: &Value,
 ) -> Result<ChatRequest, AppError> {

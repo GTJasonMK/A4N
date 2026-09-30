@@ -1,10 +1,12 @@
 use std::collections::{BTreeMap, HashSet};
 
 use a4n_db_models::models::chapter::part_outline;
+use a4n_domain::chapter::PartOutlineRecord;
 use chrono::NaiveDateTime;
 use sea_orm::sea_query::{CaseStatement, Expr};
 use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QueryOrder};
 
+use super::super::record_mapping::part_outline_record_from_model;
 use super::super::{OutlineDbError, PartOutlineSyncDraft};
 use super::records::{part_outline_active_model, part_outline_matches};
 
@@ -14,7 +16,7 @@ pub async fn sync_part_outline_records<C>(
     project_id: i64,
     drafts: Vec<PartOutlineSyncDraft>,
     now: NaiveDateTime,
-) -> Result<Vec<part_outline::Model>, OutlineDbError>
+) -> Result<Vec<PartOutlineRecord>, OutlineDbError>
 where
     C: ConnectionTrait,
 {
@@ -233,5 +235,6 @@ where
                 operation: "同步分部大纲".to_string(),
             })
         })
+        .map(|result| result.map(part_outline_record_from_model))
         .collect()
 }

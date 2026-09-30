@@ -209,12 +209,17 @@ async fn media_inputs_read_current_reference_metadata_without_persisting_copies(
     }
 
     // A legacy stored copy and a later resource update must not survive a fresh read.
-    let mut input: canvas_node::ActiveModel = document
+    let node_id = document
         .nodes
         .iter()
-        .find(|n| n.id == saved.node_ids["VideoInputNode"])
+        .find(|node| node.id == saved.node_ids["VideoInputNode"])
         .unwrap()
-        .clone()
+        .id;
+    let mut input: canvas_node::ActiveModel = canvas_node::Entity::find_by_id(node_id)
+        .one(&db)
+        .await
+        .unwrap()
+        .unwrap()
         .into();
     input.config_json =
         Set(json!({"title": "authored", "file_path": "legacy.mp4", "duration_secs": 99}));
