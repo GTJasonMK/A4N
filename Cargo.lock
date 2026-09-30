@@ -1309,7 +1309,6 @@ name = "a4n-import-review-core"
 version = "0.1.0"
 dependencies = [
  "a4n-api-contract",
- "a4n-db-models",
  "a4n-domain",
  "a4n-error",
 ]
@@ -2030,7 +2029,6 @@ name = "a4n-profile-material-core"
 version = "0.1.0"
 dependencies = [
  "a4n-api-contract",
- "a4n-db-models",
  "a4n-domain",
  "chrono",
  "serde_json",
@@ -2213,7 +2211,6 @@ version = "0.1.0"
 dependencies = [
  "a4n-api-contract",
  "a4n-db",
- "a4n-db-models",
  "a4n-domain",
  "sea-orm",
  "thiserror 2.0.18",
