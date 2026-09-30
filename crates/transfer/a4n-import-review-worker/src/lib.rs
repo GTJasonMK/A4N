@@ -53,6 +53,9 @@ struct WorkerFailure {
     retryable: bool,
 }
 
+mod mutations;
+mod reads;
+
 impl ImportReviewWorker {
     pub fn new(
         database: DatabaseConnection,
@@ -226,65 +229,6 @@ where
 }
 
 impl WorkerState {
-    async fn list(
-        &self,
-        request: WorkerEnvelope<ImportProjectReviewsInput>,
-    ) -> Result<Vec<ImportReviewSummary>, WorkerFailure> {
-        validate_request(&request, IMPORT_REVIEW_LIST_OPERATION)?;
-        let user_id = user_id(&request)?;
-        let project_id = scoped_project_id(&request, request.payload.project_id)?;
-        verify_editor(&self.database, project_id, user_id).await?;
-        a4n_db::import_review::import_reviews_by_project(self.database.connection(), project_id)
-            .await
-            .map_err(database_error)?
-            .iter()
-            .map(summary_from_model)
-            .collect::<Result<Vec<_>, _>>()
-            .map_err(app_error)
-    }
-
-    async fn dedup(
-        &self,
-        request: WorkerEnvelope<CheckImportDedupInput>,
-    ) -> Result<a4n_import_review_worker_contract::DedupResult, WorkerFailure> {
-        validate_request(&request, IMPORT_REVIEW_DEDUP_OPERATION)?;
-        let user_id = user_id(&request)?;
-        let project_id = scoped_project_id(&request, request.payload.project_id)?;
-        let input = request.payload;
-        verify_editor(&self.database, project_id, user_id).await?;
-        let chapters =
-            a4n_db::import_review::import_dedup_chapters(self.database.connection(), project_id)
-                .await
-                .map_err(database_error)?;
-        calculate_dedup(&input.content, &chapters).map_err(app_error)
-    }
-
-    async fn delete(
-        &self,
-        request: WorkerEnvelope<ImportReviewIdInput>,
-    ) -> Result<(), WorkerFailure> {
-        validate_mutation_request(&request, IMPORT_REVIEW_DELETE_OPERATION)?;
-        let user_id = user_id(&request)?;
-        let review = review_for_editor(&self.database, user_id, request.payload.review_id).await?;
-        a4n_db::import_review::delete_import_review(self.database.connection(), review.id)
-            .await
-            .map_err(mutation_error)
-    }
-
-    async fn reject(
-        &self,
-        request: WorkerEnvelope<ImportReviewIdInput>,
-    ) -> Result<ImportReviewSummary, WorkerFailure> {
-        validate_mutation_request(&request, IMPORT_REVIEW_REJECT_OPERATION)?;
-        let user_id = user_id(&request)?;
-        let review = review_for_editor(&self.database, user_id, request.payload.review_id).await?;
-        let review =
-            a4n_db::import_review::reject_import_review(self.database.connection(), review.id)
-                .await
-                .map_err(mutation_error)?;
-        a4n_import_review_core::summary_from_model(&review).map_err(app_error)
-    }
-
     fn authorized(&self, headers: &HeaderMap) -> bool {
         headers
             .get(WORKER_AUTH_HEADER)

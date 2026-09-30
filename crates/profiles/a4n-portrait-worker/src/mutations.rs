@@ -1,0 +1,33 @@
+use super::*;
+
+impl WorkerState {
+    pub(super) async fn set_primary(
+        &self,
+        request: WorkerEnvelope<PortraitRecordInput>,
+    ) -> Result<(), WorkerFailure> {
+        validate_request(&request, PORTRAIT_SET_PRIMARY_OPERATION)?;
+        let portrait_id = request.payload.portrait_id;
+        if portrait_id <= 0 {
+            return Err(WorkerFailure::invalid_request("portrait_id 必须大于 0"));
+        }
+        let portrait =
+            a4n_db::character::character_portrait_by_id(self.database.connection(), portrait_id)
+                .await
+                .map_err(database_error)?
+                .ok_or_else(|| WorkerFailure::not_found("立绘不存在"))?;
+        let user_id = user_id(&request)?;
+        verify_permission(
+            self,
+            portrait.project_id,
+            user_id,
+            a4n_domain::collaboration::ProjectAccessRole::Editor,
+        )
+        .await?;
+        a4n_db::character::set_primary_character_portrait_record(
+            self.database.connection(),
+            portrait_id,
+        )
+        .await
+        .map_err(portrait_record_error)
+    }
+}
