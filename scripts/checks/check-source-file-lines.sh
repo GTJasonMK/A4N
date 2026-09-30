@@ -11,6 +11,8 @@ while IFS= read -r -d '' path; do
             ;;
     esac
 
+    [[ -f "$path" ]] || continue
+
     lines="$(wc -l < "$path")"
     if (( lines > max_lines )); then
         printf 'source file exceeds %d lines: %d %s\n' "$max_lines" "$lines" "$path" >&2

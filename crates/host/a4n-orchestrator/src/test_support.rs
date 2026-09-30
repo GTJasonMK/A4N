@@ -25,7 +25,7 @@ pub(crate) async fn create_test_user(db: &DatabaseConnection) -> i64 {
         "orchestrator-test-user",
         "orchestrator-test-user@example.invalid",
         "test-password-123",
-        a4n_db_models::models::user::role::ROLE_USER,
+        a4n_domain::auth::ROLE_USER,
     )
     .await
     .expect("test user should be created")
