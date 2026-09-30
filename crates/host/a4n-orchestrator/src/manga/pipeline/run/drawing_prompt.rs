@@ -1,5 +1,4 @@
 mod contracts;
-mod orchestration;
 mod page;
 
-pub(super) use contracts::{DrawingPromptStepInput, DrawingPromptStepOutput};
+pub(in crate::manga::pipeline::run) use contracts::SinglePageDrawingPromptInput;

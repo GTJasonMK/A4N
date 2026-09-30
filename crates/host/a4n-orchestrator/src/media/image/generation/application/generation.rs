@@ -167,6 +167,47 @@ impl OrchestratorContext {
         input: GeneratePageImageInput,
         progress: &ImageGenerationProgress<'_>,
     ) -> Result<GeneratedImageSummary, AppError> {
+        self.generate_page_image_with_workflow_validated(
+            host,
+            user_id,
+            input,
+            ImageGenerationWorkflowBinding::Owned,
+            progress,
+        )
+        .await
+    }
+
+    pub(crate) async fn generate_page_image_attached_validated(
+        &self,
+        host: &dyn ImageGenerationHostPort,
+        user_id: i64,
+        input: GeneratePageImageInput,
+        workflow_run_id: i64,
+        progress: &ImageGenerationProgress<'_>,
+    ) -> Result<GeneratedImageSummary, AppError> {
+        if workflow_run_id <= 0 {
+            return Err(AppError::InvalidArgument(
+                "workflow_run_id 必须大于 0".to_string(),
+            ));
+        }
+        self.generate_page_image_with_workflow_validated(
+            host,
+            user_id,
+            input,
+            ImageGenerationWorkflowBinding::Attached { workflow_run_id },
+            progress,
+        )
+        .await
+    }
+
+    async fn generate_page_image_with_workflow_validated(
+        &self,
+        host: &dyn ImageGenerationHostPort,
+        user_id: i64,
+        input: GeneratePageImageInput,
+        workflow: ImageGenerationWorkflowBinding,
+        progress: &ImageGenerationProgress<'_>,
+    ) -> Result<GeneratedImageSummary, AppError> {
         progress.progress(0, 4, "正在读取整页漫画提示词");
         check_progress_cancelled(progress)?;
         let chapter_number = input.chapter_number;
@@ -192,7 +233,7 @@ impl OrchestratorContext {
                     panel_id: Some(prepared.panel_id),
                     metadata_json: Some(prepared.metadata_json),
                     runtime_config_snapshot: host.runtime_config_snapshot(),
-                    workflow: ImageGenerationWorkflowBinding::Owned,
+                    workflow,
                     post_commit: ImageGenerationPostCommitAction::MangaPage {
                         page_prompt_id: prepared.page_prompt.id,
                         page_number,

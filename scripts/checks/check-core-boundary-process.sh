@@ -72,8 +72,6 @@ if ! rg -n 'manga_pipeline_execution_application\(\)' \
    ! rg -n 'manga_pipeline_preview_application\(\)' \
     crates/host/a4n-runtime/src/actions/manga_pipeline/preview.rs || \
    ! rg -n 'manga_pipeline_read_application\(\)' \
-    crates/host/a4n-runtime/src/actions/manga_records/pipeline.rs || \
-   ! rg -n 'manga_pipeline_cancellation_application\(\)' \
     crates/host/a4n-runtime/src/actions/manga_records/pipeline.rs; then
     printf 'Runtime Manga pipeline actions must route through split application ports\n' >&2
     exit 1
@@ -90,8 +88,6 @@ if ! rg -n 'pub trait MangaPipelineExecutionApplicationPort' \
    ! rg -n 'pub trait MangaPipelinePreviewApplicationPort' \
     crates/host/a4n-api-contract/src/manga.rs || \
    ! rg -n 'pub trait MangaPipelineReadApplicationPort' \
-    crates/host/a4n-api-contract/src/manga.rs || \
-   ! rg -n 'pub trait MangaPipelineCancellationApplicationPort' \
     crates/host/a4n-api-contract/src/manga.rs; then
     printf 'Manga pipeline split contracts are missing from the API contract\n' >&2
     exit 1

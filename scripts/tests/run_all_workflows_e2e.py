@@ -915,6 +915,7 @@ def fixture_payload(
         input_value.update(
             project_id=state.get("project_id", input_value.get("project_id")),
             chapter_number=state.get("chapter_number", 1),
+            image_size=input_value.get("image_size") or {"width": 1024, "height": 1024},
         )
     elif command == "start_galgame_pipeline" and input_value is not None:
         input_value.update(

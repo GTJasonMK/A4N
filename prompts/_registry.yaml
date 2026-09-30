@@ -514,18 +514,42 @@ prompts:
       - "manga_item_extraction"
     description: "漫画流水线第 5 步：综合导演事件、对白、视觉锚点和物品，输出分页需要的摘要、情绪轨迹和页数建议"
 
-  manga_page_planning:
-    path: "novel/06_manga/manga_page_planning.md"
-    title: "漫画页面与画格计划 v2"
+  manga_page_slots:
+    path: "novel/06_manga/manga_page_slots.md"
+    title: "漫画页面内容拆分 v1"
     category: "manga"
-    tags: ["manga", "planning", "panel", "text-layer", "directing"]
-    version: "2.0"
+    tags: ["manga", "planning", "page-content"]
+    version: "1.0"
     used_by:
-      - "MangaService.generate_page_prompts"
-      - "MangaService.preview_generate_page_prompt_requests"
+      - "MangaPipeline.generate_page_prompts"
     dependencies:
       - "manga_chapter_comic_synthesis"
-    description: "漫画流水线第 6 步：从共享导演计划生成严格 PagePlan、PanelPlan、气泡与文字层合同"
+      - "chapter_media_adaptation_plan"
+    description: "先确定漫画页数，并为每页分配剧情内容和改编节拍"
+
+  manga_page_adaptation_plan:
+    path: "novel/06_manga/manga_page_adaptation_plan.md"
+    title: "单页漫画改编计划 v1"
+    category: "manga"
+    tags: ["manga", "adaptation", "page"]
+    version: "1.0"
+    used_by:
+      - "MangaPipeline.process_page"
+    dependencies:
+      - "manga_page_slots"
+    description: "逐页编写视觉意图、连续性要求和取舍细节"
+
+  manga_page_storyboard:
+    path: "novel/06_manga/manga_page_storyboard.md"
+    title: "单页漫画分镜 v1"
+    category: "manga"
+    tags: ["manga", "storyboard", "page"]
+    version: "1.0"
+    used_by:
+      - "MangaPipeline.process_page"
+    dependencies:
+      - "manga_page_adaptation_plan"
+    description: "逐页生成画格、阅读顺序和文字层"
 
   manga_page_drawing_prompt:
     path: "novel/06_manga/manga_page_drawing_prompt.md"
@@ -534,11 +558,10 @@ prompts:
     tags: ["manga", "drawing", "page", "prompt"]
     version: "2.0.0"
     used_by:
-      - "MangaService.generate_page_prompts"
-      - "MangaService.preview_generate_page_prompt_requests"
+      - "MangaPipeline.process_page"
     dependencies:
-      - "manga_page_planning"
-    description: "漫画流水线第 7 步：把已验证 PagePlan/PanelPlan 无损编排为完整漫画页最终 prompt"
+      - "manga_page_storyboard"
+    description: "漫画流水线第 9 步：为单页分镜生成整页绘图提示词"
 
   manga_prompt_optimization:
     path: "novel/06_manga/manga_prompt_optimization.md"

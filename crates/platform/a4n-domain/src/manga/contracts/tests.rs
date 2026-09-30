@@ -7,6 +7,7 @@ use super::{
     MangaPagePlanV4, MangaPageRoleV2, MangaPanelFunctionV2, MangaShotScaleV2, MangaTextLayerKindV2,
     MangaTextPlacementV2,
 };
+use crate::manga::MangaPageGenerationLayoutV4;
 use crate::media_authoring::AdaptationBeatRef;
 
 #[test]
@@ -26,6 +27,60 @@ fn manga_schema_versions_reject_retired_values() {
         ))
         .is_err()
     );
+}
+
+#[test]
+fn v4_pipeline_layout_rejects_mismatched_page_identity() {
+    let mut layout: MangaPageGenerationLayoutV4 = serde_json::from_value(json!({
+        "schema_version": "manga_page_generation_v4",
+        "page_id": "page-0001",
+        "page_number": 1,
+        "page_plan_ref": null,
+        "pipeline": {
+            "schema_version": "manga_page_pipeline_state_v1",
+            "page_id": "page-0001",
+            "status": "pending",
+            "stage": "adaptation",
+            "attempt": 1,
+            "source_fingerprint": "content-sha256",
+            "stage_fingerprints": {},
+            "page_content": {
+                "summary": "本页内容",
+                "source_span_ids": [],
+                "beat_refs": [{"unit_id": "unit-1", "beat_id": "beat-1"}],
+                "action": "角色抬头",
+                "reaction": null,
+                "dialogue_intent": null,
+                "entry_state": "平静",
+                "exit_state": "紧张"
+            },
+            "page_adaptation": null,
+            "storyboard": null,
+            "drawing_prompt": null,
+            "image": null,
+            "error": null
+        },
+        "reference_bindings": [],
+        "prompt_fingerprint": {},
+        "source": {
+            "root_project_id": 1,
+            "source_chapter_id": 2,
+            "source_snapshot_id": null,
+            "source_snapshot_chapter_id": null,
+            "source_revision_key": "live:2:content-sha256",
+            "content_sha256": "content-sha256",
+            "adaptation_plan_id": 3,
+            "adaptation_plan_revision": 1,
+            "adaptation_plan_sha256": "plan-sha256"
+        }
+    }))
+    .expect("valid v4 pipeline layout");
+
+    layout
+        .validate(1)
+        .expect("matching page identity should pass");
+    layout.pipeline.page_id = "page-0002".into();
+    assert!(layout.validate(1).is_err());
 }
 
 #[test]

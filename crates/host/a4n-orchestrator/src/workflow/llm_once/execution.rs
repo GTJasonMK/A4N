@@ -33,7 +33,7 @@ where
             context_pack_refs_json: None,
         });
     let response = service
-        .stream_complete_llm_with_sink(request, stream_reporter)
+        .stream_complete_llm_with_sink(request, stream_reporter, input.cancel_token)
         .await?;
     if service
         .workflow_run_status_record_by_id(input.workflow_run_id)

@@ -67,6 +67,8 @@ pub(super) async fn prepare_galgame_pipeline(
                 options.workflow_run_id,
                 "galgame_pipeline",
                 renderer,
+                None,
+                None,
             )
             .await?;
         context

@@ -8,10 +8,11 @@ pub(super) mod run {
     mod drawing_prompt;
     mod early_extraction;
     mod late_extraction;
+    mod page;
+    mod page_slots;
     mod pipeline {
         mod execution;
     }
-    mod planning;
     mod progress;
 }
 pub(super) mod state;

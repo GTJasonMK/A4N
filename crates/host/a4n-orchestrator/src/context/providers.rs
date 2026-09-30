@@ -16,18 +16,20 @@ impl OrchestratorContext {
         &self,
         request: ChatRequest,
     ) -> Result<ChatResponse, AppError> {
-        self.stream_complete_llm_with_sink(request, None).await
+        self.stream_complete_llm_with_sink(request, None, None)
+            .await
     }
 
     pub(crate) async fn stream_complete_llm_with_sink(
         &self,
         request: ChatRequest,
         stream_reporter: Option<&(dyn Fn(&str) + Send + Sync)>,
+        cancel_token: Option<&CancellationToken>,
     ) -> Result<ChatResponse, AppError> {
         crate::generation::stream::execute_llm_chat_response_with_sink(
             self.llm.as_ref(),
             request,
-            CancellationToken::new(),
+            cancel_token.cloned().unwrap_or_default(),
             stream_reporter,
         )
         .await

@@ -32,9 +32,23 @@ pub async fn cancel_manga_pipeline(
     user_id: i64,
     input: MangaChapterInput,
 ) -> Result<i64, String> {
-    state
-        .manga_pipeline_cancellation_application()
-        .cancel(user_id, input.project_id, input.chapter_id)
+    let status = state
+        .manga_pipeline_read_application()
+        .status(user_id, input.project_id, input.chapter_id)
         .await
-        .map_err(app_error_message)
+        .map_err(app_error_message)?;
+    let handle = status
+        .task_handle
+        .filter(|_| status.can_cancel)
+        .ok_or_else(|| "没有可取消的漫画流水线 Generation Task".to_string())?;
+    let cancellable_pages = status
+        .pending
+        .checked_add(status.generating)
+        .ok_or_else(|| "可取消的漫画页面数量溢出".to_string())?;
+    state
+        .generation_task_mutation_application()
+        .request_generation_cancel(user_id, &handle.task_id, handle.attempt)
+        .await
+        .map_err(|error| error.to_string())?;
+    Ok(cancellable_pages)
 }

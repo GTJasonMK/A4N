@@ -9,32 +9,77 @@ pub(super) async fn validate_adopted_manga_plan(
     drafts: &[MangaPagePromptSyncDraft],
 ) -> Result<(), MangaPipelineDbError> {
     use a4n_db_models::models::project::novel_project;
-    use a4n_domain::{
-        manga::{MangaPageGenerationLayoutV3, MangaPagePlanV4},
-        media_authoring::{AuthoringDocumentKind, AuthoringDocumentStatus},
-    };
+    use a4n_domain::manga::{MangaPageGenerationLayoutV3, MangaPageGenerationLayoutV4};
     use sea_orm::{EntityTrait, QuerySelect};
-    let invalid = |message: &str| MangaPipelineDbError::InvalidArgument(message.into());
     let project = novel_project::Entity::find_by_id(project_id)
         .lock_exclusive()
         .one(db)
         .await?
-        .ok_or_else(|| invalid("漫画项目不存在"))?;
+        .ok_or_else(|| MangaPipelineDbError::InvalidArgument("漫画项目不存在".into()))?;
     if project.project_kind != "comic" || project.lifecycle_gate != "active" {
-        return Err(invalid("漫画项目不可写"));
+        return Err(MangaPipelineDbError::InvalidArgument(
+            "漫画项目不可写".into(),
+        ));
     }
-    let layouts = drafts
+    let first_value = drafts
+        .first()
+        .and_then(|draft| draft.layout.as_ref())
+        .ok_or_else(|| MangaPipelineDbError::InvalidArgument("漫画页面缺少布局".into()))?;
+    if first_value
+        .get("schema_version")
+        .and_then(serde_json::Value::as_str)
+        == Some("manga_page_generation_v4")
+    {
+        let layouts = deserialize_layouts::<MangaPageGenerationLayoutV4>(drafts)?;
+        validate_v4_layouts(
+            db,
+            project_id,
+            chapter_id,
+            project.source_snapshot_id,
+            &layouts,
+        )
+        .await
+    } else {
+        let layouts = deserialize_layouts::<MangaPageGenerationLayoutV3>(drafts)?;
+        validate_v3_layouts(
+            db,
+            project_id,
+            chapter_id,
+            project.source_snapshot_id,
+            &layouts,
+        )
+        .await
+    }
+}
+
+fn deserialize_layouts<T: serde::de::DeserializeOwned>(
+    drafts: &[MangaPagePromptSyncDraft],
+) -> Result<Vec<T>, MangaPipelineDbError> {
+    drafts
         .iter()
         .map(|draft| {
-            serde_json::from_value::<MangaPageGenerationLayoutV3>(
-                draft
-                    .layout
-                    .clone()
-                    .ok_or_else(|| invalid("漫画页面缺少布局"))?,
+            serde_json::from_value(
+                draft.layout.clone().ok_or_else(|| {
+                    MangaPipelineDbError::InvalidArgument("漫画页面缺少布局".into())
+                })?,
             )
             .map_err(|error| MangaPipelineDbError::InvalidArgument(error.to_string()))
         })
-        .collect::<Result<Vec<_>, _>>()?;
+        .collect()
+}
+
+async fn validate_v3_layouts(
+    db: &sea_orm::DatabaseTransaction,
+    project_id: i64,
+    chapter_id: i64,
+    source_snapshot_id: Option<i64>,
+    layouts: &[a4n_domain::manga::MangaPageGenerationLayoutV3],
+) -> Result<(), MangaPipelineDbError> {
+    use a4n_domain::{
+        manga::MangaPagePlanV4,
+        media_authoring::{AuthoringDocumentKind, AuthoringDocumentStatus},
+    };
+    let invalid = |message: &str| MangaPipelineDbError::InvalidArgument(message.into());
     let first = layouts
         .first()
         .ok_or_else(|| invalid("生成漫画页面不能为空"))?;
@@ -49,7 +94,7 @@ pub(super) async fn validate_adopted_manga_plan(
         || plan.status != AuthoringDocumentStatus::Adopted
         || plan.reference() != *reference
         || plan.source_chapter_id != Some(chapter_id)
-        || Some(plan.source_snapshot_id) != project.source_snapshot_id
+        || Some(plan.source_snapshot_id) != source_snapshot_id
     {
         return Err(invalid("已采用分页计划或原文已变化，请重新准备页面"));
     }
@@ -73,11 +118,120 @@ pub(super) async fn validate_adopted_manga_plan(
         .map_err(|error| MangaPipelineDbError::InvalidArgument(error.to_string()))?;
     if document.adaptation_plan_id != dependency.id
         || document.adaptation_plan_revision != dependency.revision
-        || document.pages.len() != layouts.len()
+        || layouts.len() > document.pages.len()
         || layouts.iter().any(|layout| {
             layout.page_plan_ref != first.page_plan_ref
                 || layout.source != first.source
                 || !document.pages.contains(&layout.page_plan)
+        })
+    {
+        return Err(invalid("漫画页面与实际采用的分页计划不一致"));
+    }
+    Ok(())
+}
+
+async fn validate_v4_layouts(
+    db: &sea_orm::DatabaseTransaction,
+    project_id: i64,
+    chapter_id: i64,
+    source_snapshot_id: Option<i64>,
+    layouts: &[a4n_domain::manga::MangaPageGenerationLayoutV4],
+) -> Result<(), MangaPipelineDbError> {
+    use a4n_domain::{
+        manga::MangaPagePlanV4,
+        media_authoring::{
+            AdaptationPlanV1, AdaptationTarget, AuthoringDocumentKind, AuthoringDocumentStatus,
+        },
+    };
+    let invalid = |message: &str| MangaPipelineDbError::InvalidArgument(message.into());
+    let first = layouts
+        .first()
+        .ok_or_else(|| invalid("生成漫画页面不能为空"))?;
+    if layouts.iter().any(|layout| {
+        layout.source != first.source
+            || layout.page_plan_ref != first.page_plan_ref
+            || layout.prompt_fingerprint != first.prompt_fingerprint
+    }) {
+        return Err(invalid("漫画页面批次的来源、指纹与分页计划引用必须一致"));
+    }
+    let adaptation_ref = a4n_domain::media_authoring::AuthoringDocumentRef {
+        id: first.source.adaptation_plan_id,
+        revision: first.source.adaptation_plan_revision,
+        sha256: first.source.adaptation_plan_sha256.clone(),
+    };
+    let adaptation = crate::media_authoring::authoring_document(db, project_id, adaptation_ref.id)
+        .await
+        .map_err(authoring_error)?;
+    if adaptation.kind != AuthoringDocumentKind::AdaptationPlan
+        || adaptation.status != AuthoringDocumentStatus::Adopted
+        || adaptation.reference() != adaptation_ref
+        || adaptation.source_chapter_id != Some(chapter_id)
+        || Some(adaptation.source_snapshot_id) != source_snapshot_id
+    {
+        return Err(invalid("漫画页面依赖的改编计划未采用或原文已变化"));
+    }
+    let [source] = adaptation.inputs.sources.as_slice() else {
+        return Err(invalid("漫画改编计划必须对应一个原文章节"));
+    };
+    if !adaptation.inputs.dependencies.is_empty()
+        || !first.source.matches_authoring(source, &adaptation_ref)
+    {
+        return Err(invalid("漫画页面来源与采用的改编计划不一致"));
+    }
+    let adaptation_plan: AdaptationPlanV1 = serde_json::from_value(adaptation.document)
+        .map_err(|error| MangaPipelineDbError::InvalidArgument(error.to_string()))?;
+    if adaptation_plan.target != AdaptationTarget::Manga {
+        return Err(invalid("漫画页面依赖的改编计划目标必须是 manga"));
+    }
+    crate::media_authoring::validate_adopted_authoring_dependencies(
+        db,
+        project_id,
+        &adaptation.inputs.dependencies,
+    )
+    .await
+    .map_err(authoring_error)?;
+
+    let page_plan_ref = first.page_plan_ref.as_ref();
+    let Some(reference) = page_plan_ref else {
+        return Ok(());
+    };
+    let page_plan_record = crate::media_authoring::authoring_document(db, project_id, reference.id)
+        .await
+        .map_err(authoring_error)?;
+    if page_plan_record.kind != AuthoringDocumentKind::MangaPagePlan
+        || page_plan_record.status != AuthoringDocumentStatus::Adopted
+        || page_plan_record.reference() != *reference
+        || page_plan_record.source_chapter_id != Some(chapter_id)
+        || Some(page_plan_record.source_snapshot_id) != source_snapshot_id
+    {
+        return Err(invalid("已采用分页计划或原文已变化，请重新准备页面"));
+    }
+    let ([page_source], [dependency]) = (
+        page_plan_record.inputs.sources.as_slice(),
+        page_plan_record.inputs.dependencies.as_slice(),
+    ) else {
+        return Err(invalid("分页计划必须对应一个原文章节和改编版本"));
+    };
+    if dependency != &adaptation_ref || !first.source.matches_authoring(page_source, dependency) {
+        return Err(invalid("漫画页面来源与采用的分页计划不一致"));
+    }
+    crate::media_authoring::validate_adopted_authoring_dependencies(
+        db,
+        project_id,
+        &page_plan_record.inputs.dependencies,
+    )
+    .await
+    .map_err(authoring_error)?;
+    let document: MangaPagePlanV4 = serde_json::from_value(page_plan_record.document)
+        .map_err(|error| MangaPipelineDbError::InvalidArgument(error.to_string()))?;
+    if document.adaptation_plan_id != dependency.id
+        || document.adaptation_plan_revision != dependency.revision
+        || layouts.iter().any(|layout| {
+            layout
+                .pipeline
+                .storyboard
+                .as_ref()
+                .is_some_and(|storyboard| !document.pages.contains(storyboard))
         })
     {
         return Err(invalid("漫画页面与实际采用的分页计划不一致"));

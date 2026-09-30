@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use a4n_error::AppError;
 use a4n_llm_provider_contract::provider::is_truncated_finish_reason;
 use serde_json::Value;
+use tokio_util::sync::CancellationToken;
 
 use crate::{
     OrchestratorContext,
@@ -26,6 +27,9 @@ pub(in crate::manga) struct MangaRenderTraceInput<'a> {
     pub variables: &'a HashMap<String, Value>,
     pub user_content: a4n_llm_context::LlmContextManifest,
     pub temperature: f32,
+    pub cancel_token: Option<&'a CancellationToken>,
+    pub stream_id: String,
+    pub stream_reporter: Option<&'a (dyn Fn(&str, &str) + Send + Sync)>,
 }
 
 impl OrchestratorContext {
@@ -49,6 +53,9 @@ impl OrchestratorContext {
             variables,
             user_content,
             temperature,
+            cancel_token,
+            stream_id,
+            stream_reporter,
         } = input;
         let prepared = prepare_manga_llm_call(MangaLlmCallInput {
             prompt_renderer,
@@ -79,7 +86,16 @@ impl OrchestratorContext {
                     Some(restored.parsed_output),
                 )
             } else {
-                let response = self.stream_complete_llm(prepared.request).await?;
+                let scoped_reporter = |delta: &str| {
+                    if let Some(reporter) = stream_reporter {
+                        reporter(&stream_id, delta);
+                    }
+                };
+                let stream_sink =
+                    stream_reporter.map(|_| &scoped_reporter as &(dyn Fn(&str) + Send + Sync));
+                let response = self
+                    .stream_complete_llm_with_sink(prepared.request, stream_sink, cancel_token)
+                    .await?;
                 if is_truncated_finish_reason(response.finish_reason.as_deref()) {
                     return Err(AppError::InvalidArgument(format!(
                         "{prompt_name} 输出达到模型当前 max_tokens 上限，未形成完整 JSON；请减少本次输入规模或提高模型配置的最大输出后重试。"

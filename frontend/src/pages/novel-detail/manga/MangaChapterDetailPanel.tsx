@@ -54,7 +54,7 @@ import {
 import { useI18n } from "../../../i18n";
 
 interface MangaChapterDetailPanelProps {
-  stageMode?: "prompts" | "images";
+  stageMode?: "page_plan" | "prompts" | "images";
   onDirtyChange?: (dirty: boolean) => void;
   projectId: number;
   isSingleMode: boolean;
@@ -746,35 +746,44 @@ export function MangaChapterDetailPanel({
     }
   };
 
-  const pipelineRunning = selectedStatus?.can_cancel === true;
+  const pipelineRunning =
+    selectedStatus?.pipeline_status === "running" || selectedStatus?.can_cancel === true;
+  const pipelineCanCancel = selectedStatus?.can_cancel === true;
   const pipelineCanResume =
     selectedStatus?.can_resume === true && !pipelineRunning;
   const hasMangaResult = pagePrompts.length > 0;
+  const hasIncompletePages = pagePrompts.some(
+    (prompt) => prompt.pipeline_status != null && prompt.pipeline_status !== "completed",
+  );
   const mangaResultStale = stalePagePromptCount > 0;
   const pipelineFailed =
     pipelineStoppedWithError && !pipelineCanResume;
   const showPipelineDirectAction =
-    !hasMangaResult || pipelineCanResume || pipelineFailed || mangaResultStale;
+    !hasMangaResult || pipelineCanResume || pipelineFailed || mangaResultStale || hasIncompletePages;
   const pipelineDirectVariant =
     mangaResultStale && !pipelineCanResume && !pipelineFailed
       ? "secondary"
       : "primary";
   const pipelineDirectLabel = pipelineCanResume
     ? t("comic.continueChapter")
-    : pipelineFailed
-      ? t("comic.regenerateChapter")
-      : mangaResultStale
-        ? t("comic.updateChapter")
-        : t("comic.generateChapter");
+    : hasIncompletePages && !pipelineFailed
+      ? t("comic.continueChapter")
+      : pipelineFailed
+        ? t("comic.regenerateChapter")
+        : mangaResultStale
+          ? t("comic.updateChapter")
+          : t("comic.generateChapter");
   const pipelinePreviewLabel = pipelineCanResume
     ? t("comic.prompt.viewContinueRequest")
     : pipelineFailed
       ? t("comic.prompt.viewRegenerateRequest")
-      : mangaResultStale
-        ? t("comic.prompt.viewUpdateRequest")
-        : hasMangaResult
-          ? t("comic.prompt.viewRegenerateRequest")
-          : t("comic.prompt.viewGenerateRequest");
+      : hasIncompletePages
+        ? t("comic.prompt.viewContinueRequest")
+        : mangaResultStale
+          ? t("comic.prompt.viewUpdateRequest")
+          : hasMangaResult
+            ? t("comic.prompt.viewRegenerateRequest")
+            : t("comic.prompt.viewGenerateRequest");
   const pipelineStartBusy =
     selectedChapter != null &&
     acting === `start-${selectedChapter.chapter_number}`;
@@ -868,7 +877,7 @@ export function MangaChapterDetailPanel({
                     {[...chapterMeta, stageText].filter(Boolean).join(" · ")}
                   </p>
                 </div>
-                {stageMode !== "prompts" && <div className="w-44 max-w-full">
+                {stageMode !== "prompts" && stageMode !== "page_plan" && <div className="w-44 max-w-full">
                   <ImageSizeSelect
                     label={t("settingsForm.selectImageSize")}
                     value={imageSize}
@@ -884,7 +893,7 @@ export function MangaChapterDetailPanel({
                     {pipelineMenuItems.length > 0 ? (
                       <Dropdown items={pipelineMenuItems} />
                     ) : null}
-                    {pipelineRunning ? (
+                    {pipelineRunning && pipelineCanCancel ? (
                       <BookButton
                         size="sm"
                         variant="secondary"
@@ -901,6 +910,13 @@ export function MangaChapterDetailPanel({
                         )}
                         {t("comic.stopGeneration")}
                       </BookButton>
+                    ) : pipelineRunning ? (
+                      <span role="status" className="inline-flex min-h-8 items-center gap-1.5 px-1 text-small text-book-text-muted">
+                        <LoadingSpinner size="sm" />
+                        {selectedStatus?.task_handle?.status === "cancelling"
+                          ? t("comic.pipelineCancelRequested")
+                          : t("comic.pipelineRunningHint")}
+                      </span>
                     ) : showPipelineDirectAction ? (
                       <BookButton
                         size="sm"
@@ -961,9 +977,9 @@ export function MangaChapterDetailPanel({
                 optimizingPromptId={optimizingPromptId}
                 actionsDisabled={detailBusy}
                 canEditManga={canEditManga}
-                onPreviewPageImage={stageMode === "prompts" ? undefined : handlePreviewPageImage}
-                onGeneratePageImage={stageMode === "prompts" ? undefined : handleGeneratePageImage}
-                onBindReferenceImage={handleBindReferenceImage}
+                onPreviewPageImage={stageMode === "prompts" || stageMode === "page_plan" ? undefined : handlePreviewPageImage}
+                onGeneratePageImage={stageMode === "prompts" || stageMode === "page_plan" ? undefined : handleGeneratePageImage}
+                onBindReferenceImage={stageMode === "page_plan" ? undefined : handleBindReferenceImage}
                 onUpdatePrompt={handleUpdatePrompt}
                 onOptimizePrompt={handleOptimizePrompt}
                 onDeletePrompt={handleDeletePrompt}

@@ -39,11 +39,12 @@ import {
   type MangaPagePromptLabels,
   type MangaPagePrompt,
 } from "./mangaPagePromptModel";
+import { mangaPageStageLabel } from "./mangaTabUtils";
 import { useI18n } from "../../../i18n";
 import { useNovelDetailDirty } from "../novelDetailDirty";
 
 interface MangaPagePromptListProps {
-  stageMode?: "prompts" | "images";
+  stageMode?: "page_plan" | "prompts" | "images";
   onDirtyChange?: (dirty: boolean) => void;
   prompts: MangaPagePromptSummary[];
   promptsLoading: boolean;
@@ -67,6 +68,104 @@ interface MangaPagePromptListProps {
   onOptimizePrompt?: (prompt: MangaPagePromptSummary) => void | Promise<void>;
   onDeletePrompt?: (prompt: MangaPagePromptSummary) => void | Promise<void>;
 }
+
+const MangaPagePlanDetails: React.FC<{ page: MangaPagePrompt }> = ({ page }) => {
+  const { t } = useI18n();
+  const content = page.pageContent;
+  const adaptation = page.pageAdaptation;
+  const storyboard = page.prompt.page_plan;
+  const items = (rows: Array<[string, string, string | null | undefined]>) =>
+    rows
+      .filter(([, , value]) => value != null && value.trim() !== "")
+      .map(([key, label, value]) => ({ key, label, value: value ?? "" }));
+
+  return (
+    <div className="space-y-4">
+      <section className="space-y-2">
+        <h3 className="text-xs font-semibold text-book-text-main">
+          {t("comic.prompt.pageContent")}
+        </h3>
+        {content ? (
+          <LayoutSummaryGrid
+            items={items([
+              ["summary", t("comic.prompt.pageContent"), content.summary],
+              ["action", t("comic.prompt.pageAction"), content.action],
+              ["reaction", t("comic.prompt.pageReaction"), content.reaction],
+              ["dialogue", t("comic.prompt.dialogueIntent"), content.dialogue_intent],
+              ["entry", t("comic.prompt.entryState"), content.entry_state],
+              ["exit", t("comic.prompt.exitState"), content.exit_state],
+            ])}
+          />
+        ) : (
+          <p className="text-xs text-book-text-muted">
+            {t("comic.prompt.awaitingPageContent")}
+          </p>
+        )}
+      </section>
+
+      <section className="space-y-2">
+        <h3 className="text-xs font-semibold text-book-text-main">
+          {t("comic.prompt.pageAdaptation")}
+        </h3>
+        {adaptation ? (
+          <LayoutSummaryGrid
+            items={items([
+              ["intent", t("comic.prompt.visualIntent"), adaptation.visual_intent],
+              ["continuity", t("comic.prompt.continuityRequirements"), adaptation.continuity_requirements.join("\n")],
+              ["retained", t("comic.prompt.retainedDetails"), adaptation.retained_details.join("\n")],
+              ["omitted", t("comic.prompt.omittedDetails"), adaptation.omitted_details.join("\n")],
+            ])}
+          />
+        ) : (
+          <p className="text-xs text-book-text-muted">
+            {t("comic.prompt.awaitingPageAdaptation")}
+          </p>
+        )}
+      </section>
+
+      <section className="space-y-2">
+        <h3 className="text-xs font-semibold text-book-text-main">
+          {t("comic.pipelineStages.storyboard")}
+        </h3>
+        {storyboard ? (
+          <div className="space-y-3">
+            <LayoutSummaryGrid items={page.layoutItems} />
+            <ol className="space-y-2">
+              {storyboard.panels.map((panel) => (
+                <li
+                  key={panel.panel_number}
+                  className="rounded-lg border border-book-border/45 bg-book-bg-paper/35 px-3 py-2"
+                >
+                  <p className="text-caption font-semibold text-book-text-muted">
+                    {t("comic.prompt.panelHeading", { panel: panel.panel_number })}
+                    {panel.participants.length > 0
+                      ? ` · ${panel.participants.join(t("common.listSeparator"))}`
+                      : ""}
+                  </p>
+                  <p className="mt-1 text-xs leading-relaxed text-book-text-main">
+                    {panel.observable_action}
+                  </p>
+                  {panel.reaction && (
+                    <p className="mt-1 text-small text-book-text-sub">
+                      {t("comic.prompt.pageReaction")}: {panel.reaction}
+                    </p>
+                  )}
+                  <p className="mt-1 text-small text-book-text-muted">
+                    {panel.spatial_relationship}
+                  </p>
+                </li>
+              ))}
+            </ol>
+          </div>
+        ) : (
+          <p className="text-xs text-book-text-muted">
+            {t("comic.prompt.awaitingStoryboard")}
+          </p>
+        )}
+      </section>
+    </div>
+  );
+};
 
 export const MangaPagePromptList: React.FC<MangaPagePromptListProps> = ({
   stageMode,
@@ -166,7 +265,13 @@ export const MangaPagePromptList: React.FC<MangaPagePromptListProps> = ({
 
   const activePage =
     pagePrompts.find((page) => page.pageNumber === selectedPage) ?? pagePrompts[0] ?? null;
-  const activeDetailView = stageMode === "prompts" ? "prompt" : stageMode === "images" ? "image" : detailView ?? (activePage?.prompt.generated_image_id != null ? "image" : "prompt");
+  const activeDetailView = stageMode === "page_plan"
+    ? "page_plan"
+    : stageMode === "prompts"
+      ? "prompt"
+      : stageMode === "images"
+        ? "image"
+        : detailView ?? (activePage?.prompt.generated_image_id != null ? "image" : "prompt");
   const editingPromptId = activePage && promptDrafts[activePage.prompt.id] !== undefined ? activePage.prompt.id : null;
   const promptDraft = editingPromptId == null ? "" : promptDrafts[editingPromptId];
   const promptDraftDirty = Object.entries(promptDrafts).some(([id, value]) => {
@@ -243,7 +348,7 @@ export const MangaPagePromptList: React.FC<MangaPagePromptListProps> = ({
   }
 
   const renderGenerateButton = (page: MangaPagePrompt) => {
-    if (!canEditManga || !onGeneratePageImage) return null;
+    if (!canEditManga || !onGeneratePageImage || !page.prompt.drawing_prompt) return null;
     const generating = generatingPageNumber === page.pageNumber;
     const generated = page.prompt.generated_image_id != null;
     const missingBindings = missingReferenceBindingLabels(page);
@@ -336,7 +441,12 @@ export const MangaPagePromptList: React.FC<MangaPagePromptListProps> = ({
   ].filter(Boolean);
   const activePromptMenuItems: DropdownItem[] = [];
   const activePageMenuItems: DropdownItem[] = [];
-  if (activePage && canEditManga) {
+  if (
+    activePage &&
+    activePage.prompt.drawing_prompt &&
+    canEditManga &&
+    stageMode !== "page_plan"
+  ) {
     if (onPreviewPageImage) {
       activePageMenuItems.push({
         label: t("comic.prompt.viewRequest"),
@@ -377,7 +487,14 @@ export const MangaPagePromptList: React.FC<MangaPagePromptListProps> = ({
       });
     }
   }
-  if (activePage && canEditManga && stageMode !== "images" && editingPromptId !== activePage.prompt.id) {
+  if (
+    activePage &&
+    activePage.prompt.drawing_prompt &&
+    canEditManga &&
+    stageMode !== "images" &&
+    stageMode !== "page_plan" &&
+    editingPromptId !== activePage.prompt.id
+  ) {
     if (onOptimizePrompt) {
       activePromptMenuItems.push({
         label: t("comic.prompt.optimize"),
@@ -431,6 +548,8 @@ export const MangaPagePromptList: React.FC<MangaPagePromptListProps> = ({
                       : t("comic.prompt.pendingStatus");
                   const pageStatus = statusLabel(page.prompt.status, t);
                   const pageMeta = [
+                    page.pipelineStage ? mangaPageStageLabel(page.pipelineStage, t) : "",
+                    page.pipelineStatus ? statusLabel(page.pipelineStatus, t) : "",
                     imageLabel,
                     page.prompt.status !== "completed" && page.prompt.status !== "pending" ? pageStatus : "",
                     page.promptCount > 1 ? t("comic.prompt.recordCount", { count: page.promptCount }) : "",
@@ -476,7 +595,10 @@ export const MangaPagePromptList: React.FC<MangaPagePromptListProps> = ({
                       </h3>
                       <p className="mt-1 text-small text-book-text-muted">
                         {[
-                          statusLabel(activePage.prompt.status, t),
+                          activePage.pipelineStage
+                            ? mangaPageStageLabel(activePage.pipelineStage, t)
+                            : "",
+                          statusLabel(activePage.pipelineStatus ?? activePage.prompt.status, t),
                           activePage.prompt.generated_image_id != null ? t("comic.prompt.hasImage") : t("comic.prompt.noImage"),
                           activePage.sourceStale ? t("comic.prompt.sourceStale") : "",
                           activePage.promptCount > 1 ? t("comic.prompt.recordCount", { count: activePage.promptCount }) : "",
@@ -500,6 +622,20 @@ export const MangaPagePromptList: React.FC<MangaPagePromptListProps> = ({
                   </div>
                 </header>
 
+                {activePage.pipelineError && (
+                  <div
+                    role="alert"
+                    className="mx-3 mt-3 rounded-lg border border-error/35 bg-error/10 px-3 py-2 text-xs text-error"
+                  >
+                    <p className="font-semibold">
+                      {t("comic.prompt.pipelineError")} · {mangaPageStageLabel(activePage.pipelineError.stage, t)}
+                    </p>
+                    <p className="mt-1 whitespace-pre-wrap break-words">
+                      {activePage.pipelineError.message}
+                    </p>
+                  </div>
+                )}
+
                 {!stageMode && <div className="border-b border-book-border/40 px-3 py-2">
                   <SegmentedControl
                     ariaLabel={t("comic.prompt.pageTitle")}
@@ -519,6 +655,8 @@ export const MangaPagePromptList: React.FC<MangaPagePromptListProps> = ({
                       image={activePageImage}
                       loading={assetsLoading}
                     />
+                  ) : activeDetailView === "page_plan" ? (
+                    <MangaPagePlanDetails page={activePage} />
                   ) : (
                     <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1.08fr)_minmax(280px,0.92fr)]">
                     <section className="min-w-0">
@@ -562,7 +700,7 @@ export const MangaPagePromptList: React.FC<MangaPagePromptListProps> = ({
                           <Dropdown items={activePromptMenuItems} />
                         ) : null}
                       </div>
-                      {canEditManga && editingPromptId === activePage.prompt.id ? (
+                      {activePage.prompt.drawing_prompt && canEditManga && editingPromptId === activePage.prompt.id ? (
                         <textarea
                           aria-label={t("comic.prompt.pageLabel", { page: activePage.pageNumber })}
                           value={promptDraft}
@@ -570,10 +708,14 @@ export const MangaPagePromptList: React.FC<MangaPagePromptListProps> = ({
                           className="pyqt-input min-h-[260px] max-h-[52vh] w-full resize-y font-mono text-body-sm leading-relaxed"
                           disabled={actionsDisabled || promptSaving}
                         />
-                      ) : (
+                      ) : activePage.prompt.drawing_prompt ? (
                         <pre className="min-h-[220px] whitespace-pre-wrap break-words border-l-2 border-book-border/70 bg-book-bg-tertiary/25 py-2 pl-3 pr-2 text-body-sm leading-relaxed text-book-text-main">
                           {activePage.prompt.image_prompt}
                         </pre>
+                      ) : (
+                        <p className="min-h-[220px] border-l-2 border-book-border/70 bg-book-bg-tertiary/25 py-3 pl-3 pr-2 text-xs text-book-text-muted">
+                          {t("comic.prompt.awaitingDrawingPrompt")}
+                        </p>
                       )}
                     </section>
 

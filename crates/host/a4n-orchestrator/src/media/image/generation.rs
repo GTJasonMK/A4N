@@ -545,6 +545,24 @@ impl ImageGenerationTaskApplicationPort for OrchestratorContext {
         OrchestratorContext::run_image_generation_task(self, user_id, input, handle, host_port)
             .await
     }
+
+    async fn generate_attached_page_image(
+        &self,
+        user_id: i64,
+        input: GeneratePageImageInput,
+        workflow_run_id: i64,
+        host_port: &dyn ImageGenerationHostPort,
+        progress: &ImageGenerationProgress<'_>,
+    ) -> Result<GeneratedImageSummary, AppError> {
+        self.generate_page_image_attached_validated(
+            host_port,
+            user_id,
+            input,
+            workflow_run_id,
+            progress,
+        )
+        .await
+    }
 }
 
 #[async_trait::async_trait]

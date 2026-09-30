@@ -13,7 +13,9 @@ pub(in crate::manga) const MANGA_PIPELINE_PROMPT_NAMES: &[&str] = &[
     "manga_visual_anchor_extraction",
     "manga_item_extraction",
     "manga_chapter_comic_synthesis",
-    "manga_page_planning",
+    "manga_page_slots",
+    "manga_page_adaptation_plan",
+    "manga_page_storyboard",
     "manga_page_drawing_prompt",
 ];
 #[derive(Debug, Clone, Serialize)]

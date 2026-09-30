@@ -32,6 +32,9 @@ pub(super) async fn run_item_extraction_stage(
                 variables: &context.variables,
                 user_content: items_user,
                 temperature: 0.3,
+                cancel_token: context.cancel_token,
+                stream_id: "raw_json".to_string(),
+                stream_reporter: context.stream_reporter,
             },
             |value| {
                 validate_manga_item_extraction_source_span_ids(

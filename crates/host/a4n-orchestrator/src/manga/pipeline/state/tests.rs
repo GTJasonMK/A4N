@@ -1,7 +1,10 @@
-use super::manga_drawing_prompt_call_order;
+use super::manga_page_pipeline_call_order;
 
 #[test]
-fn drawing_prompt_call_order_is_shared_by_preview_and_execution() {
-    assert_eq!(manga_drawing_prompt_call_order(0).unwrap(), 800);
-    assert!(manga_drawing_prompt_call_order(i32::MAX as usize).is_err());
+fn each_page_stage_has_a_stable_unique_call_order() {
+    assert_eq!(manga_page_pipeline_call_order(0, 0).unwrap(), 800);
+    assert_eq!(manga_page_pipeline_call_order(0, 2).unwrap(), 802);
+    assert_eq!(manga_page_pipeline_call_order(1, 0).unwrap(), 803);
+    assert!(manga_page_pipeline_call_order(0, 3).is_err());
+    assert!(manga_page_pipeline_call_order(i32::MAX as usize, 0).is_err());
 }

@@ -44,6 +44,9 @@ pub(super) async fn run_speech_selection_stage(
                 variables: &context.variables,
                 user_content: speech_user,
                 temperature: 0.3,
+                cancel_token: context.cancel_token,
+                stream_id: "raw_json".to_string(),
+                stream_reporter: context.stream_reporter,
             },
             |value| {
                 validate_manga_speech_selection_source_span_ids(

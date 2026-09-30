@@ -93,38 +93,32 @@ def main():
             passed("漫画和 Galgame 在没有视频项目或拍摄剧本时独立生成并采用改编计划")
 
             def manga_run(stop_after):
-                query = {"project_id": comic, "chapter_id": chapter_id, "workflow_kind": "manga_pipeline", "resumable_only": False, "limit": 1}
-                previous = call("list_workflow_runs", query)
-                previous_id = previous[0]["id"] if previous else None
-                call("start_manga_pipeline", {"project_id": comic, "chapter_number": 1, "stop_after": stop_after})
+                handle = call("start_manga_pipeline", {"project_id": comic, "chapter_number": 1, "stop_after": stop_after})
                 deadline = time.monotonic() + 60
                 while time.monotonic() < deadline:
-                    runs = call("list_workflow_runs", query)
-                    if not runs or runs[0]["id"] == previous_id:
-                        time.sleep(.1)
-                        continue
                     status = call("get_manga_pipeline_status", {"project_id": comic, "chapter_id": chapter_id})
-                    if status["pipeline_status"] in {"completed", "failed", "cancelled"}:
+                    task = checked(cli, ["task", "get", handle["task_id"], "--attempt", str(handle["attempt"])], "manga task")[0]["data"]
+                    if status.get("task_handle"):
+                        assert status["task_handle"]["task_id"] == handle["task_id"], status
+                    if task["handle"]["status"] in {"completed", "failed", "cancelled", "interrupted"}:
+                        assert task["handle"]["status"] == "completed", task
                         assert status["pipeline_status"] == "completed", status
                         return
                     time.sleep(.1)
                 raise AssertionError("漫画阶段没有结束")
 
-            manga_run("page_planning")
-            assert call("list_manga_page_prompts", {"project_id": comic, "chapter_id": chapter_id}) == []
-            page_plan = latest(comic, "manga_page_plan", "draft")
-            edited = copy.deepcopy(page_plan["document"])
-            edited["pages"][0]["page_goal"] = "作者保留的分页目标：先看到怀表，再看到人物反应"
-            page_plan = adopt(save(page_plan, edited))
+            manga_run("page_slots")
+            pages = call("list_manga_page_prompts", {"project_id": comic, "chapter_id": chapter_id})
+            assert len(pages) == 2
+            assert all(page["page_content"] and page["page_plan"] is None and page["drawing_prompt"] is None for page in pages)
             before = len(llm_calls())
             manga_run("drawing_prompt")
             pages = call("list_manga_page_prompts", {"project_id": comic, "chapter_id": chapter_id})
-            assert len(pages) == len(edited["pages"])
-            assert len(llm_calls()) - before == len(pages), "继续阶段不能重复抽取或分页模型调用"
-            assert pages[0]["page_plan"]["page_goal"] == edited["pages"][0]["page_goal"]
-            assert pages[0]["source"]["adaptation_plan_id"] == page_plan["inputs"]["dependencies"][0]["id"]
+            assert len(llm_calls()) - before == len(pages) * 3, "续传不能重复抽取或页面拆分模型调用"
+            assert all(page["page_adaptation"] and page["page_plan"] and page["drawing_prompt"] for page in pages)
+            assert pages[0]["source"]["adaptation_plan_id"] == comic_adaptation["id"]
             assert all(page["generated_image_id"] is None for page in pages)
-            passed("漫画分页阶段单独停止；人工计划被采用；继续只执行页面提示词并记录真实计划版本")
+            passed("漫画先独立确定页面数量与内容；续传后每页依次完成改编、分镜和绘图提示词")
 
             game_input = {"project_id": game, "task_id": str(uuid.uuid4()), "resume_from_checkpoint": True, "start_from_stage": None, "stop_after": "branch_design"}
             assert call("start_galgame_pipeline", game_input) is None

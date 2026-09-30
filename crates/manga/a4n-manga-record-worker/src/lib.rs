@@ -7,14 +7,18 @@ use std::{
     sync::Arc,
 };
 
-use a4n_api_contract::manga::{MangaPagePromptSummary, MangaPipelineStatusSummary};
+use a4n_api_contract::{
+    generation_tasks::{
+        GENERATION_EVENT_SCHEMA_VERSION, GenerationTaskHandle, GenerationTaskStatus,
+    },
+    manga::{MangaPagePromptSummary, MangaPipelineStatusSummary},
+};
 use a4n_db::DbHandle;
-use a4n_domain::collaboration::ProjectAccessRole;
+use a4n_domain::{collaboration::ProjectAccessRole, generation::GenerationLifecycleTask};
 use a4n_manga_record_worker_contract::{
-    MANGA_PIPELINE_CANCEL_OPERATION, MANGA_PIPELINE_CAPABILITY, MANGA_PIPELINE_STATUS_OPERATION,
-    MANGA_PIPELINE_STATUSES_OPERATION, MANGA_RECORD_CAPABILITY, MANGA_RECORD_LIST_OPERATION,
-    MANGA_RECORD_WORKER_CONTRACT_VERSION, MANGA_RECORD_WORKER_ID, MangaChapterInput,
-    MangaPipelineStatusesInput,
+    MANGA_PIPELINE_CAPABILITY, MANGA_PIPELINE_STATUS_OPERATION, MANGA_PIPELINE_STATUSES_OPERATION,
+    MANGA_RECORD_CAPABILITY, MANGA_RECORD_LIST_OPERATION, MANGA_RECORD_WORKER_CONTRACT_VERSION,
+    MANGA_RECORD_WORKER_ID, MangaChapterInput, MangaPipelineStatusesInput,
 };
 use a4n_worker_contract::WORKER_AUTH_HEADER;
 use a4n_worker_contract::{
@@ -85,7 +89,6 @@ impl MangaRecordWorker {
                 "/v1/commands/manga.pipeline.statuses",
                 post(pipeline_statuses),
             )
-            .route("/v1/commands/manga.pipeline.cancel", post(pipeline_cancel))
             .with_state(self.state.clone())
     }
 
@@ -214,17 +217,6 @@ async fn pipeline_statuses(
     .await
 }
 
-async fn pipeline_cancel(
-    State(state): State<WorkerState>,
-    headers: HeaderMap,
-    Json(request): Json<WorkerEnvelope<MangaChapterInput>>,
-) -> Response {
-    command_response(&state, &headers, request, |request| {
-        state.pipeline_cancel(request)
-    })
-    .await
-}
-
 async fn command_response<T, O, F, Fut>(
     state: &WorkerState,
     headers: &HeaderMap,
@@ -300,77 +292,6 @@ impl WorkerState {
             .await
     }
 
-    async fn pipeline_cancel(
-        &self,
-        request: WorkerEnvelope<MangaChapterInput>,
-    ) -> Result<i64, WorkerFailure> {
-        validate_request(&request, MANGA_PIPELINE_CANCEL_OPERATION)?;
-        let user_id = user_id(&request)?;
-        let input = request.payload;
-        positive(input.project_id, "project_id")?;
-        positive(input.chapter_id, "chapter_id")?;
-        verify_project_permission(
-            &self.database,
-            input.project_id,
-            user_id,
-            ProjectAccessRole::Editor,
-        )
-        .await?;
-        let source = a4n_db::project::chapter_manga_source_by_id(
-            self.database.connection(),
-            input.chapter_id,
-            input.project_id,
-            false,
-        )
-        .await
-        .map_err(project_family_error)?;
-        if source.status == "deleted" {
-            return Err(WorkerFailure::invalid_request(format!(
-                "第 {} 章已删除，无法取消漫画流水线",
-                source.chapter_number
-            )));
-        }
-        if source.status == "generating" {
-            return Err(WorkerFailure::invalid_request(format!(
-                "第 {} 章正在生成中，请等待完成后再取消漫画流水线",
-                source.chapter_number
-            )));
-        }
-        let run = a4n_db::workflow::list_workflow_runs(
-            self.database.connection(),
-            a4n_db::workflow::ListWorkflowRunsInput {
-                project_id: Some(input.project_id),
-                chapter_id: Some(input.chapter_id),
-                chapter_ids: None,
-                workflow_kind: Some("manga_pipeline".to_string()),
-                status: Some("running".to_string()),
-                resumable_only: None,
-                limit: Some(1),
-            },
-        )
-        .await
-        .map_err(workflow_error)?
-        .into_iter()
-        .next()
-        .ok_or_else(|| WorkerFailure::conflict("no_running_manga_pipeline: 取消漫画流水线"))?;
-        a4n_db::workflow::mark_workflow_status(
-            self.database.connection(),
-            run.id,
-            "cancelled",
-            true,
-            Some("用户请求取消漫画流水线"),
-        )
-        .await
-        .map_err(workflow_write_error)?;
-        a4n_db::manga::cancel_manga_page_prompts(
-            self.database.connection(),
-            input.project_id,
-            input.chapter_id,
-        )
-        .await
-        .map_err(manga_pipeline_error)
-    }
-
     async fn pipeline_statuses_for(
         &self,
         user_id: i64,
@@ -402,7 +323,7 @@ impl WorkerState {
             .copied()
             .map(|chapter_id| (chapter_id, empty_pipeline_status(chapter_id)))
             .collect::<HashMap<_, _>>();
-        let (prompt_statuses, runs) = tokio::try_join!(
+        let (prompt_statuses, runs, active_tasks) = tokio::try_join!(
             async {
                 a4n_db::manga::manga_page_prompt_statuses_by_chapters(
                     self.database.connection(),
@@ -428,7 +349,19 @@ impl WorkerState {
                 .await
                 .map_err(workflow_error)
             },
+            async {
+                a4n_db::generation::active_generation_tasks_for_project(
+                    self.database.connection(),
+                    project_id,
+                )
+                .await
+                .map_err(|error| WorkerFailure::unavailable(error.to_string()))
+            },
         )?;
+        let mut active_handles = active_tasks
+            .into_iter()
+            .map(generation_task_handle)
+            .collect::<Result<HashMap<_, _>, _>>()?;
         for (chapter_id, prompt_id, status) in prompt_statuses {
             let summary = summaries.get_mut(&chapter_id).ok_or_else(|| {
                 WorkerFailure::invalid_request(format!("批量状态返回未知章节: {chapter_id}"))
@@ -454,6 +387,42 @@ impl WorkerState {
                 WorkerFailure::invalid_request("漫画流水线 workflow 缺少 chapter_id")
             })?;
             latest_runs.entry(chapter_id).or_insert(run);
+        }
+        for run in latest_runs.values().filter(|run| run.status == "running") {
+            let task_id = run.active_task_id.as_deref().ok_or_else(|| {
+                WorkerFailure::invalid_request(format!(
+                    "漫画 workflow {} 缺少活动 Generation Task",
+                    run.id
+                ))
+            })?;
+            if active_handles.contains_key(task_id) {
+                continue;
+            }
+            let checkpoint = a4n_db::generation::load_generation_task_checkpoint(
+                self.database.connection(),
+                task_id,
+            )
+            .await
+            .map_err(|error| WorkerFailure::unavailable(error.to_string()))?;
+            if (checkpoint.project_id != Some(project_id)
+                && checkpoint.root_project_id != Some(project_id))
+                || checkpoint.workflow_run_id != Some(run.id)
+            {
+                return Err(WorkerFailure::unavailable(format!(
+                    "漫画 workflow {} 与 Generation Task {task_id} 的归属不一致",
+                    run.id
+                )));
+            }
+            let attempt = u32::try_from(checkpoint.attempt).map_err(|_| {
+                WorkerFailure::invalid_request(format!(
+                    "Generation Task {task_id} 的 attempt 无效: {}",
+                    checkpoint.attempt
+                ))
+            })?;
+            active_handles.insert(
+                task_id.to_string(),
+                generation_task_handle_parts(task_id.to_string(), attempt, &checkpoint.status)?,
+            );
         }
         let run_ids = latest_runs.values().map(|run| run.id).collect::<Vec<_>>();
         let checkpoints = a4n_db::workflow::workflow_checkpoint_statuses_for_runs(
@@ -511,8 +480,25 @@ impl WorkerState {
             })?;
             summary.pipeline_status = Some(run.status.clone());
             summary.stage = run.current_step_key.clone();
-            summary.task_id = run.active_task_id.clone();
-            summary.can_cancel = run.status == "running";
+            if run.status == "running" {
+                let task_id = run.active_task_id.as_deref().ok_or_else(|| {
+                    WorkerFailure::invalid_request(format!(
+                        "漫画 workflow {} 缺少活动 Generation Task",
+                        run.id
+                    ))
+                })?;
+                let handle = active_handles.get(task_id).cloned().ok_or_else(|| {
+                    WorkerFailure::unavailable(format!(
+                        "漫画 workflow {} 的活动 Generation Task {task_id} 不存在",
+                        run.id
+                    ))
+                })?;
+                summary.can_cancel = matches!(
+                    handle.status,
+                    GenerationTaskStatus::Reserved | GenerationTaskStatus::Running
+                );
+                summary.task_handle = Some(handle);
+            }
             summary.message = run.error_message.clone();
             if let Some(progress) = run.progress.as_ref() {
                 summary.current = Some(i32::try_from(progress.current).map_err(|_| {
@@ -582,23 +568,6 @@ async fn verify_manga_viewer(
     .map_err(collaboration_error)
 }
 
-async fn verify_project_permission(
-    database: &DbHandle,
-    project_id: i64,
-    user_id: i64,
-    role: ProjectAccessRole,
-) -> Result<(), WorkerFailure> {
-    a4n_db::collaboration::verify_project_permission(
-        database.connection(),
-        project_id,
-        user_id,
-        role,
-    )
-    .await
-    .map(|_| ())
-    .map_err(collaboration_error)
-}
-
 fn validate_request<T: serde::Serialize>(
     request: &WorkerEnvelope<T>,
     operation: &str,
@@ -656,12 +625,48 @@ fn empty_pipeline_status(chapter_id: i64) -> MangaPipelineStatusSummary {
         current: None,
         total: None,
         message: None,
-        task_id: None,
+        task_handle: None,
         can_cancel: false,
         can_resume: false,
         has_checkpoint: false,
         checkpoint_valid: false,
     }
+}
+
+fn generation_task_handle(
+    task: GenerationLifecycleTask,
+) -> Result<(String, GenerationTaskHandle), WorkerFailure> {
+    let task_id = task.task_id;
+    let handle = generation_task_handle_parts(task_id.clone(), task.attempt, &task.status)?;
+    Ok((task_id, handle))
+}
+
+fn generation_task_handle_parts(
+    task_id: String,
+    attempt: u32,
+    status: &str,
+) -> Result<GenerationTaskHandle, WorkerFailure> {
+    let status = match status {
+        "reserved" => GenerationTaskStatus::Reserved,
+        "running" => GenerationTaskStatus::Running,
+        "finalizing" => GenerationTaskStatus::Finalizing,
+        "cancelling" => GenerationTaskStatus::Cancelling,
+        "completed" => GenerationTaskStatus::Completed,
+        "failed" => GenerationTaskStatus::Failed,
+        "cancelled" => GenerationTaskStatus::Cancelled,
+        "interrupted" => GenerationTaskStatus::Interrupted,
+        status => {
+            return Err(WorkerFailure::invalid_request(format!(
+                "Generation Task {task_id} 包含未知状态: {status}"
+            )));
+        }
+    };
+    Ok(GenerationTaskHandle {
+        event_schema_version: GENERATION_EVENT_SCHEMA_VERSION,
+        task_id,
+        attempt,
+        status,
+    })
 }
 
 fn manga_error(error: a4n_db::manga::MangaPromptRecordError) -> WorkerFailure {
@@ -692,40 +697,6 @@ fn workflow_error(error: a4n_db::workflow::WorkflowReadError) -> WorkerFailure {
         }
         a4n_db::workflow::WorkflowReadError::NotFound(message) => WorkerFailure::not_found(message),
         a4n_db::workflow::WorkflowReadError::Database(error) => {
-            WorkerFailure::unavailable(error.to_string())
-        }
-    }
-}
-
-fn workflow_write_error(error: a4n_db::workflow::WorkflowWriteError) -> WorkerFailure {
-    match error {
-        a4n_db::workflow::WorkflowWriteError::InvalidArgument(message) => {
-            WorkerFailure::invalid_request(message)
-        }
-        a4n_db::workflow::WorkflowWriteError::NotFound(message) => {
-            WorkerFailure::not_found(message)
-        }
-        a4n_db::workflow::WorkflowWriteError::InvalidData(message) => {
-            WorkerFailure::unavailable(message)
-        }
-        a4n_db::workflow::WorkflowWriteError::StatusConflict { current, operation } => {
-            WorkerFailure::conflict(format!("{current}: {operation}"))
-        }
-        a4n_db::workflow::WorkflowWriteError::Database(error) => {
-            WorkerFailure::unavailable(error.to_string())
-        }
-    }
-}
-
-fn manga_pipeline_error(error: a4n_db::manga::MangaPipelineDbError) -> WorkerFailure {
-    match error {
-        a4n_db::manga::MangaPipelineDbError::InvalidArgument(message) => {
-            WorkerFailure::invalid_request(message)
-        }
-        a4n_db::manga::MangaPipelineDbError::Database(error) => {
-            WorkerFailure::unavailable(error.to_string())
-        }
-        a4n_db::manga::MangaPipelineDbError::Generation(error) => {
             WorkerFailure::unavailable(error.to_string())
         }
     }
@@ -868,5 +839,37 @@ impl WorkerFailure {
             message: message.into(),
             retryable: true,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn generation_task_handle_keeps_attempt_and_active_status() {
+        let (task_id, handle) = generation_task_handle(GenerationLifecycleTask {
+            task_id: "f4b4b4ad-5437-4ce2-a7e5-c508df1a4bb0".into(),
+            attempt: 3,
+            status: "running".into(),
+        })
+        .unwrap();
+
+        assert_eq!(task_id, handle.task_id);
+        assert_eq!(handle.attempt, 3);
+        assert_eq!(handle.status, GenerationTaskStatus::Running);
+        assert_eq!(handle.event_schema_version, GENERATION_EVENT_SCHEMA_VERSION);
+    }
+
+    #[test]
+    fn generation_task_handle_rejects_unknown_persisted_status() {
+        let error = generation_task_handle(GenerationLifecycleTask {
+            task_id: "f4b4b4ad-5437-4ce2-a7e5-c508df1a4bb0".into(),
+            attempt: 1,
+            status: "working".into(),
+        })
+        .unwrap_err();
+
+        assert!(error.message.contains("未知状态"));
     }
 }

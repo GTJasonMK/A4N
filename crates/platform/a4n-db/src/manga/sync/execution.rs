@@ -17,6 +17,39 @@ pub async fn sync_manga_page_prompts_by_chapter(
     drafts: Vec<MangaPagePromptSyncDraft>,
     now: chrono::NaiveDateTime,
 ) -> Result<Vec<chapter_manga_prompt::Model>, MangaPipelineDbError> {
+    sync_manga_page_prompts_by_chapter_inner(db, project_id, chapter_id, drafts, now, true).await
+}
+
+/// Upserts one page without deleting pages that are still running.
+pub async fn upsert_manga_page_prompt(
+    db: &DatabaseConnection,
+    project_id: i64,
+    chapter_id: i64,
+    draft: MangaPagePromptSyncDraft,
+    now: chrono::NaiveDateTime,
+) -> Result<chapter_manga_prompt::Model, MangaPipelineDbError> {
+    let mut rows = sync_manga_page_prompts_by_chapter_inner(
+        db,
+        project_id,
+        chapter_id,
+        vec![draft],
+        now,
+        false,
+    )
+    .await?;
+    rows.pop().ok_or_else(|| {
+        MangaPipelineDbError::InvalidArgument("漫画页面 upsert 未返回记录".to_string())
+    })
+}
+
+async fn sync_manga_page_prompts_by_chapter_inner(
+    db: &DatabaseConnection,
+    project_id: i64,
+    chapter_id: i64,
+    drafts: Vec<MangaPagePromptSyncDraft>,
+    now: chrono::NaiveDateTime,
+    delete_stale: bool,
+) -> Result<Vec<chapter_manga_prompt::Model>, MangaPipelineDbError> {
     validate_manga_sync_drafts(&drafts, project_id, chapter_id)?;
 
     let txn = db.begin().await?;
@@ -202,8 +235,10 @@ pub async fn sync_manga_page_prompts_by_chapter(
         }
     }
 
-    let stale_ids = existing_by_page.into_values().map(|row| row.id).collect();
-    delete_manga_prompt_rows(&txn, stale_ids).await?;
+    if delete_stale {
+        let stale_ids = existing_by_page.into_values().map(|row| row.id).collect();
+        delete_manga_prompt_rows(&txn, stale_ids).await?;
+    }
     txn.commit().await?;
     rows.into_iter()
         .map(|row| {

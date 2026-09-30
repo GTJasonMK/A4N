@@ -35,6 +35,7 @@ pub(super) async fn run_visual_planning_stage(
                     &prepared.scenes_json,
                     &staging.0,
                 )?,
+                cancel_token: None,
             },
             |value| {
                 let parsed = visual_plan_from_value(value, "galgame_visual_planning")?;

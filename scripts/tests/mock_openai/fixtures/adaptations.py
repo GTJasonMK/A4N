@@ -495,92 +495,109 @@ def manga_synthesis_response() -> dict[str, Any]:
     }
 
 
-def manga_page_plan_response(combined: str) -> dict[str, Any]:
-    plan_ids = re.findall(r'"adaptation_plan_id"\s*:\s*(\d+)', combined)
-    plan_revisions = re.findall(r'"adaptation_plan_revision"\s*:\s*(\d+)', combined)
-    if not plan_ids or not plan_revisions:
-        raise ValueError("manga page planning prompt contains no adaptation plan identity")
-
+def manga_page_slots_response(combined: str) -> dict[str, Any]:
     beat_ref = manga_beat_ref(combined)
-    states = [
-        "林岚在封闭通道入口核对逆行怀表，仍与周衡保持距离。",
-        "林岚确认七分钟倒退并把怀表收回掌心。",
-        "周衡看见齿轮暗记后失去从容，双方互相试探。",
-        "林岚拒绝交出未来来信，决定只相信可验证的证据。",
-        "林岚在墙上留下齿轮暗记并转向地下机房。",
-        "林岚跨入地下机房，周衡仍停在通道后方。",
+    source_id = source_span_id(combined, "林岚")
+    content = [
+        {
+            "summary": "林岚在旧车站通道核对逆行怀表。",
+            "source_span_ids": [source_id],
+            "beat_refs": [beat_ref],
+            "action": "林岚对照怀表和未来来信确认时间异常。",
+            "reaction": "周衡避开她的视线。",
+            "dialogue_intent": "确认齿轮暗记与十年前事故的关系。",
+            "entry_state": "林岚停在通道入口。",
+            "exit_state": "林岚确认怀表发生逆行。",
+        },
+        {
+            "summary": "林岚拒绝交出信件，决定进入地下机房。",
+            "source_span_ids": [source_id],
+            "beat_refs": [beat_ref],
+            "action": "林岚收起信件并跨过机房门槛。",
+            "reaction": "周衡停在通道后方，没有跟上。",
+            "dialogue_intent": None,
+            "entry_state": "林岚确认怀表发生逆行。",
+            "exit_state": "林岚进入地下机房查证。",
+        },
     ]
-    page_specs = [
-        ("opening", "slow", "high", "establish", "wide", "eye_level"),
-        ("setup", "medium", "high", "dialogue", "medium", "over_shoulder"),
-        ("rising", "slow", "critical", "reaction", "close_up", "profile"),
-        ("climax", "fast", "critical", "revelation", "close_up", "low"),
-        ("resolution", "medium", "high", "action", "wide", "eye_level"),
-    ]
-    text_layers = [
-        [{"layer_index": 1, "kind": "narration", "speaker": None, "text": "距离午夜只剩十八分钟。", "placement": "top_left", "avoid_covering": ["怀表", "通道入口"]}],
-        [{"layer_index": 1, "kind": "dialogue", "speaker": "周衡", "text": "这个记号十年前就该被烧掉了。", "placement": "top_right", "avoid_covering": ["周衡的眼睛", "齿轮暗记"]}],
-        [{"layer_index": 1, "kind": "thought", "speaker": "林岚", "text": "第一个预告已经发生。", "placement": "upper_center", "avoid_covering": ["林岚的眼睛", "未来来信"]}],
-        [{"layer_index": 1, "kind": "sfx", "speaker": None, "text": "咚——", "placement": "center_right", "avoid_covering": ["机房入口", "林岚的手"]}],
-        [],
-    ]
-    actions = [
-        "林岚低头核对逆行的旧怀表，周衡停在通道后方。",
-        "周衡盯住信封角落的齿轮暗记，肩膀瞬间僵住。",
-        "林岚收拢未来来信，视线越过周衡看向地下机房。",
-        "第二声钟鸣压下环境声，林岚在墙面划出齿轮暗记。",
-        "林岚合上怀表并跨过机房门槛，周衡没有跟上。",
-    ]
-    reactions = [
-        "周衡避开林岚的视线。",
-        "林岚握紧信封，没有递出。",
-        "周衡的影子仍停在原位。",
-        "周衡在后景停顿，没有上前阻拦。",
-        "林岚回望一眼后收紧下颌。",
-    ]
-
-    pages = []
-    for index, spec in enumerate(page_specs):
-        role, pacing, importance, function, shot_scale, camera_angle = spec
-        page_number = index + 1
-        pages.append(
-            {
-                "page_number": page_number,
-                "beat_refs": [beat_ref],
-                "role": role,
-                "pacing": pacing,
-                "importance": importance,
-                "reading_flow": "z_path",
-                "page_goal": f"第{page_number}页推进林岚从确认异常到主动进入机房的决定。",
-                "visual_thesis": "用人物距离、怀表与机房入口的纵深关系表现信任断裂和行动压力。",
-                "entry_state": states[index],
-                "exit_state": states[index + 1],
-                "dominant_panel_number": 1,
-                "panels": [
-                    {
-                        "panel_number": 1,
-                        "beat_refs": [beat_ref],
-                        "function": function,
-                        "size": "dominant",
-                        "shot_scale": shot_scale,
-                        "camera_angle": camera_angle,
-                        "participants": ["林岚", "周衡"],
-                        "composition": "林岚位于前景左侧，怀表或信件形成视觉焦点；周衡处于中景，地下机房入口在右侧纵深，通道线条把视线导向出口。",
-                        "observable_action": actions[index],
-                        "reaction": reactions[index],
-                        "spatial_relationship": "林岚靠近左侧墙面，周衡始终落后半个通道，机房入口位于两人视线前方右侧。",
-                        "continuity_from_previous": None if index == 0 else f"承接上一页状态：{states[index]}",
-                        "text_layers": text_layers[index],
-                    }
-                ],
-            }
-        )
     return {
-        "schema_version": "manga_page_plan_v4",
-        "adaptation_plan_id": int(plan_ids[-1]),
-        "adaptation_plan_revision": int(plan_revisions[-1]),
-        "pages": pages,
+        "schema_version": "manga_page_slots_v1",
+        "pages": [
+            {"page_number": index + 1, "content": page}
+            for index, page in enumerate(content)
+        ],
     }
+
+
+def manga_page_content(combined: str) -> dict[str, Any]:
+    for value in reversed(embedded_json_objects(combined)):
+        content = value.get("page_content")
+        if isinstance(content, dict) and isinstance(content.get("summary"), str):
+            return content
+    raise UnhandledPromptError("manga page prompt contains no page_content")
+
+
+def manga_page_adaptation_response(combined: str) -> dict[str, Any]:
+    page_number = _manga_page_number(combined)
+    content = manga_page_content(combined)
+    return {
+        "visual_intent": f"第 {page_number} 页以怀表和人物距离强调本页剧情转折。",
+        "continuity_requirements": ["林岚的怀表和深色风衣保持一致。"],
+        "retained_details": [content["action"]],
+        "omitted_details": [],
+        "beat_refs": content["beat_refs"],
+    }
+
+
+def manga_page_storyboard_response(combined: str) -> dict[str, Any]:
+    page_number = _manga_page_number(combined)
+    content = manga_page_content(combined)
+    adaptation = next(
+        (
+            value["page_adaptation"]
+            for value in reversed(embedded_json_objects(combined))
+            if isinstance(value.get("page_adaptation"), dict)
+        ),
+        None,
+    )
+    if not isinstance(adaptation, dict):
+        raise UnhandledPromptError("manga storyboard prompt contains no page_adaptation")
+    beat_refs = adaptation["beat_refs"]
+    return {
+        "page_number": page_number,
+        "beat_refs": beat_refs,
+        "role": "setup" if page_number == 1 else "rising",
+        "pacing": "medium",
+        "importance": "high",
+        "reading_flow": "top_to_bottom_left_to_right",
+        "page_goal": content["summary"],
+        "visual_thesis": adaptation["visual_intent"],
+        "entry_state": content["entry_state"],
+        "exit_state": content["exit_state"],
+        "dominant_panel_number": 1,
+        "panels": [
+            {
+                "panel_number": 1,
+                "beat_refs": beat_refs,
+                "function": "action",
+                "size": "dominant",
+                "shot_scale": "medium",
+                "camera_angle": "eye_level",
+                "participants": ["林岚", "周衡"],
+                "composition": "林岚位于前景，周衡落后半步，地下机房入口位于右侧纵深。",
+                "observable_action": content["action"],
+                "reaction": content["reaction"],
+                "spatial_relationship": "林岚靠近墙面，周衡停在通道后方。",
+                "continuity_from_previous": None,
+                "text_layers": [],
+            }
+        ],
+    }
+
+
+def _manga_page_number(combined: str) -> int:
+    page_numbers = re.findall(r'"page_number"\s*:\s*(\d+)', combined)
+    return int(page_numbers[-1]) if page_numbers else 1
 
 
 def manga_drawing_prompt_response(combined: str) -> dict[str, Any]:

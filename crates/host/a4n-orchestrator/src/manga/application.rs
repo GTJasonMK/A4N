@@ -1,3 +1,5 @@
+use crate::generation::events::GenerationEventPublisher;
+use a4n_api_contract::generation_tasks::GenerationTaskHandle;
 use a4n_api_contract::manga::{
     BindMangaReferenceImageInput, DeleteMangaPromptInput, MangaPagePromptSummary,
     MangaPipelinePreviewStep, MangaPromptDownstreamCleanupPort, OptimizeMangaPromptInput,
@@ -7,9 +9,13 @@ use a4n_db_models::models::chapter::chapter_manga_prompt;
 use a4n_domain::{DownstreamConflictStrategy, project::required_text};
 use a4n_error::AppError;
 use a4n_prompt::rendering::PromptRenderer;
+use a4n_service_protocol::ProgressEvent;
+use tokio::sync::mpsc;
+use tokio_util::sync::CancellationToken;
 
 use super::layout_rules::{
-    bind_reference_asset_in_layout, manga_page_generation_layout,
+    bind_reference_asset_in_layout, bind_reference_asset_in_pipeline_layout,
+    manga_page_generation_layout, manga_page_pipeline_layout,
     resolve_manga_prompt_downstream_conflict,
 };
 use super::{
@@ -22,12 +28,18 @@ use a4n_domain::collaboration::ProjectAccessRole;
 use a4n_manga_core::manga_page_prompt_summary;
 
 pub struct MangaPipelineApplicationInput<'a> {
+    pub user_id: i64,
     pub project_id: i64,
     pub chapter_number: i32,
     pub task_id: &'a str,
     pub resume_from_checkpoint: bool,
     pub stop_after: Option<a4n_api_contract::manga::MangaPipelineStopAfter>,
+    pub image_size: Option<a4n_domain::ImageSize>,
+    pub image_generator: Option<&'a dyn a4n_api_contract::manga::MangaPipelinePageImageGenerator>,
+    pub cancel_token: Option<&'a CancellationToken>,
     pub prompt_renderer: &'a dyn PromptRenderer,
+    pub progress_reporter: Option<&'a (dyn Fn(ProgressEvent) + Send + Sync)>,
+    pub stream_reporter: Option<&'a (dyn Fn(&str, &str) + Send + Sync)>,
 }
 
 pub struct MangaPipelinePreviewApplicationInput<'a> {
@@ -36,6 +48,11 @@ pub struct MangaPipelinePreviewApplicationInput<'a> {
     pub resume_from_checkpoint: bool,
     pub stop_after: Option<a4n_api_contract::manga::MangaPipelineStopAfter>,
     pub prompt_renderer: &'a dyn PromptRenderer,
+}
+
+enum MangaTaskEvent {
+    Progress(ProgressEvent),
+    Text { stream_id: String, delta: String },
 }
 
 impl OrchestratorContext {
@@ -75,7 +92,9 @@ impl OrchestratorContext {
             .await?;
         let result = self
             .generate_page_prompts(MangaGeneratePagePromptsInput {
+                user_id: input.user_id,
                 chapter_id: source.chapter_id,
+                chapter_number: input.chapter_number,
                 project_id: input.project_id,
                 prompt_renderer: input.prompt_renderer,
                 character_portraits,
@@ -83,6 +102,11 @@ impl OrchestratorContext {
                 workflow_run_id: workflow.id,
                 resume_from_checkpoint: restore_from_checkpoint,
                 stop_after: input.stop_after,
+                image_size: input.image_size,
+                image_generator: input.image_generator,
+                cancel_token: input.cancel_token,
+                progress_reporter: input.progress_reporter,
+                stream_reporter: input.stream_reporter,
             })
             .await;
         self.finalize_workflow_result(workflow.id, result, "漫画流水线")
@@ -113,7 +137,7 @@ impl OrchestratorContext {
                 .id,
             )
         } else {
-            self.completed_manga_plan_workflow(
+            self.completed_manga_pipeline_stage_workflow(
                 input.project_id,
                 source.chapter_id,
                 &workflow_fingerprint,
@@ -158,12 +182,32 @@ impl OrchestratorContext {
         let bound_asset = self
             .manga_reference_bound_asset(page_prompt.project_id, input.asset_kind, input.asset_id)
             .await?;
-        let layout =
-            manga_page_generation_layout(&page_prompt).map_err(AppError::InvalidArgument)?;
-        let layout = bind_reference_asset_in_layout(layout, character_name, bound_asset)
-            .map_err(AppError::InvalidArgument)?;
+        let layout_value = page_prompt.layout.as_ref().ok_or_else(|| {
+            AppError::InvalidArgument(format!("漫画页面提示词 #{} 缺少 layout", page_prompt.id))
+        })?;
+        let layout = match layout_value
+            .get("schema_version")
+            .and_then(serde_json::Value::as_str)
+        {
+            Some("manga_page_generation_v4") => {
+                let layout =
+                    manga_page_pipeline_layout(&page_prompt).map_err(AppError::InvalidArgument)?;
+                serde_json::to_value(
+                    bind_reference_asset_in_pipeline_layout(layout, character_name, bound_asset)
+                        .map_err(AppError::InvalidArgument)?,
+                )?
+            }
+            _ => {
+                let layout = manga_page_generation_layout(&page_prompt)
+                    .map_err(AppError::InvalidArgument)?;
+                serde_json::to_value(
+                    bind_reference_asset_in_layout(layout, character_name, bound_asset)
+                        .map_err(AppError::InvalidArgument)?,
+                )?
+            }
+        };
         let updated = self
-            .update_manga_page_prompt_layout(page_prompt, serde_json::to_value(layout)?)
+            .update_manga_page_prompt_layout(page_prompt, layout)
             .await?;
         if let Some(image_id) = downstream_image_id {
             cleanup.delete_downstream_images(&[image_id]).await?;
@@ -318,6 +362,37 @@ impl OrchestratorContext {
 
 #[async_trait::async_trait]
 impl a4n_api_contract::manga::MangaPipelineExecutionApplicationPort for OrchestratorContext {
+    async fn start_task(
+        &self,
+        user_id: i64,
+        input: &a4n_api_contract::manga::MangaPipelineStartInput,
+    ) -> Result<
+        a4n_api_contract::generation_tasks::GenerationTaskStart,
+        a4n_api_contract::generation_tasks::GenerationTaskStartError,
+    > {
+        self.start_manga_pipeline_task(user_id, input)
+            .await
+            .map_err(crate::GenerationTaskAccessError::into_start_error)
+    }
+
+    async fn run_task(
+        &self,
+        user_id: i64,
+        input: a4n_api_contract::manga::MangaPipelineStartInput,
+        handle: a4n_api_contract::generation_tasks::GenerationTaskHandle,
+        prompt_renderer: &dyn a4n_api_contract::prompt::PromptRenderPort,
+        page_image_generator: &dyn a4n_api_contract::manga::MangaPipelinePageImageGenerator,
+    ) -> Result<(), String> {
+        self.run_manga_pipeline_generation_task(
+            user_id,
+            input,
+            handle,
+            prompt_renderer,
+            page_image_generator,
+        )
+        .await
+    }
+
     async fn preflight(
         &self,
         user_id: i64,
@@ -329,30 +404,130 @@ impl a4n_api_contract::manga::MangaPipelineExecutionApplicationPort for Orchestr
         self.preflight_manga_pipeline_validated(project_id, chapter_number)
             .await
     }
+}
 
-    async fn run(
+impl OrchestratorContext {
+    pub async fn run_manga_pipeline_generation_task(
         &self,
         user_id: i64,
-        project_id: i64,
-        chapter_number: i32,
-        task_id: String,
-        resume_from_checkpoint: bool,
-        stop_after: Option<a4n_api_contract::manga::MangaPipelineStopAfter>,
+        input: a4n_api_contract::manga::MangaPipelineStartInput,
+        handle: GenerationTaskHandle,
         prompt_renderer: &dyn a4n_api_contract::prompt::PromptRenderPort,
-    ) -> Result<(), AppError> {
+        page_image_generator: &dyn a4n_api_contract::manga::MangaPipelinePageImageGenerator,
+    ) -> Result<(), String> {
+        let Some(execution) = self
+            .acquire_generation_task_execution(&handle)
+            .await
+            .map_err(|error| error.to_string())?
+        else {
+            return Ok(());
+        };
+        let cancel_token = execution.permit.cancellation_token();
+        let publisher = execution.publisher.clone();
+        let (sender, mut receiver) = mpsc::unbounded_channel::<MangaTaskEvent>();
+        let event_worker = tokio::spawn(async move {
+            while let Some(event) = receiver.recv().await {
+                match event {
+                    MangaTaskEvent::Progress(event) => publisher
+                        .progress(event)
+                        .await
+                        .map_err(|error| error.to_string())?,
+                    MangaTaskEvent::Text { stream_id, delta } => publisher
+                        .text_delta(&stream_id, &delta)
+                        .await
+                        .map_err(|error| error.to_string())?,
+                }
+            }
+            Ok::<(), String>(())
+        });
+        let progress_sender = sender.clone();
+        let progress_reporter = move |event: ProgressEvent| {
+            let _ = progress_sender.send(MangaTaskEvent::Progress(event));
+        };
+        let stream_sender = sender.clone();
+        let stream_reporter = move |stream_id: &str, delta: &str| {
+            if !delta.is_empty() {
+                let _ = stream_sender.send(MangaTaskEvent::Text {
+                    stream_id: stream_id.to_string(),
+                    delta: delta.to_string(),
+                });
+            }
+        };
         let prompt_renderer = PromptRendererAdapter(prompt_renderer);
-        self.verify_project_or_derived_family_editor_validated(user_id, project_id)
-            .await?;
-        self.run_manga_pipeline_validated(MangaPipelineApplicationInput {
-            project_id,
-            chapter_number,
-            task_id: &task_id,
-            resume_from_checkpoint,
-            stop_after,
-            prompt_renderer: &prompt_renderer,
-        })
-        .await
-        .map(|_| ())
+        let result = self
+            .run_manga_pipeline_validated(MangaPipelineApplicationInput {
+                user_id,
+                project_id: input.project_id,
+                chapter_number: input.chapter_number,
+                task_id: &handle.task_id,
+                resume_from_checkpoint: input.resume_from_checkpoint,
+                stop_after: input.stop_after,
+                image_size: input.image_size,
+                image_generator: Some(page_image_generator),
+                cancel_token: Some(&cancel_token),
+                prompt_renderer: &prompt_renderer,
+                progress_reporter: Some(&progress_reporter),
+                stream_reporter: Some(&stream_reporter),
+            })
+            .await;
+        drop(progress_reporter);
+        drop(stream_reporter);
+        drop(sender);
+        let event_result = event_worker
+            .await
+            .map_err(|error| format!("漫画 generation event publisher 异常退出: {error}"))?;
+        if let Err(error) = event_result {
+            return Err(execution
+                .fail(crate::generation::generation_public_error(
+                    "generation_event_invalid",
+                    "manga_pipeline",
+                    error,
+                ))
+                .await);
+        }
+        match result {
+            Ok(rows) => {
+                let source = self
+                    .chapter_manga_source_by_number(input.project_id, input.chapter_number, false)
+                    .await
+                    .map_err(|error| error.to_string())?;
+                let workflow_run = self
+                    .latest_workflow_run_by_business_key(
+                        &crate::manga::manga_pipeline_business_key(
+                            input.project_id,
+                            source.chapter_id,
+                        ),
+                    )
+                    .await
+                    .map_err(|error| error.to_string())?
+                    .ok_or_else(|| "漫画 workflow run 在任务完成时不存在".to_string())?;
+                let result_ref = crate::generation::generation_result_ref(
+                    "manga_pages",
+                    workflow_run.id,
+                    &rows
+                        .iter()
+                        .map(|row| (row.id, row.page_number, row.generated_image_id))
+                        .collect::<Vec<_>>(),
+                )
+                .map_err(|error| error.to_string())?;
+                execution
+                    .complete_with_result(
+                        "manga_pipeline",
+                        result_ref,
+                        format!("漫画页面流水线完成，共 {} 页", rows.len()),
+                        Vec::new(),
+                        None,
+                    )
+                    .await
+            }
+            Err(error) => Err(execution
+                .fail(crate::generation::generation_public_error(
+                    "provider_job_failed",
+                    "manga_pipeline",
+                    error.to_string(),
+                ))
+                .await),
+        }
     }
 }
 

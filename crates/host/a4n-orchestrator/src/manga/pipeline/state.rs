@@ -3,7 +3,7 @@ mod tests;
 
 use a4n_error::AppError;
 
-const MANGA_DRAWING_PROMPT_CALL_ORDER_BASE: i32 = 800;
+const MANGA_PAGE_PIPELINE_CALL_ORDER_BASE: i32 = 800;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(in crate::manga) enum MangaPipelineStage {
@@ -12,8 +12,7 @@ pub(in crate::manga) enum MangaPipelineStage {
     VisualAnchorExtraction,
     ItemExtraction,
     ComicSynthesis,
-    PagePlanning,
-    DrawingPrompt,
+    PageSlots,
 }
 
 impl MangaPipelineStage {
@@ -24,8 +23,7 @@ impl MangaPipelineStage {
             Self::VisualAnchorExtraction => "visual_anchor_extraction",
             Self::ItemExtraction => "item_extraction",
             Self::ComicSynthesis => "comic_synthesis",
-            Self::PagePlanning => "page_planning",
-            Self::DrawingPrompt => "drawing_prompt",
+            Self::PageSlots => "page_content",
         }
     }
 
@@ -36,14 +34,15 @@ impl MangaPipelineStage {
             Self::VisualAnchorExtraction => 3,
             Self::ItemExtraction => 4,
             Self::ComicSynthesis => 5,
-            Self::PagePlanning => 6,
-            Self::DrawingPrompt => 7,
+            Self::PageSlots => 6,
         }
     }
 }
 
+// The shared setup includes one durable page-slot checkpoint after the five
+// chapter-wide analysis calls; page work is counted dynamically per page.
 pub(in crate::manga) const MANGA_PIPELINE_TOTAL_STEPS: i32 =
-    MangaPipelineStage::DrawingPrompt.order();
+    MangaPipelineStage::PageSlots.order() + 1;
 
 pub(in crate::manga) fn manga_pipeline_stage_status(
     stage: MangaPipelineStage,
@@ -54,19 +53,29 @@ pub(in crate::manga) fn manga_pipeline_stage_status(
         MangaPipelineStage::VisualAnchorExtraction => "正在提取场景和视觉锚点",
         MangaPipelineStage::ItemExtraction => "正在抽取漫画关键物品",
         MangaPipelineStage::ComicSynthesis => "正在综合漫画章节节奏",
-        MangaPipelineStage::PagePlanning => "正在生成漫画分页规划",
-        MangaPipelineStage::DrawingPrompt => "正在生成整页漫画提示词",
+        MangaPipelineStage::PageSlots => "正在确定漫画页数和每页内容",
     };
     (stage.key(), stage.order(), message)
 }
 
-pub(in crate::manga) fn manga_drawing_prompt_call_order(
+pub(in crate::manga) fn manga_page_pipeline_call_order(
     page_index: usize,
+    stage_offset: i32,
 ) -> Result<i32, AppError> {
+    if !(0..=2).contains(&stage_offset) {
+        return Err(AppError::InvalidArgument(format!(
+            "漫画页面阶段 call_order offset 无效：{stage_offset}"
+        )));
+    }
     let page_index = i32::try_from(page_index).map_err(|_| {
-        AppError::InvalidArgument(format!("漫画绘图提示词页索引超出 i32 范围：{page_index}"))
+        AppError::InvalidArgument(format!("漫画页面索引超出 i32 范围：{page_index}"))
     })?;
-    MANGA_DRAWING_PROMPT_CALL_ORDER_BASE
-        .checked_add(page_index)
-        .ok_or_else(|| AppError::InvalidArgument("漫画绘图提示词 call_order 超出 i32 范围".into()))
+    MANGA_PAGE_PIPELINE_CALL_ORDER_BASE
+        .checked_add(
+            page_index.checked_mul(3).ok_or_else(|| {
+                AppError::InvalidArgument("漫画页面 call_order 超出 i32 范围".into())
+            })?,
+        )
+        .and_then(|base| base.checked_add(stage_offset))
+        .ok_or_else(|| AppError::InvalidArgument("漫画页面 call_order 超出 i32 范围".into()))
 }

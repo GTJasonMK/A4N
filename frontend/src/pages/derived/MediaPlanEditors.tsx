@@ -1,5 +1,5 @@
 import type { GalgameBranchDesign, MediaAuthoringWorkspace, AdaptationPlanV1 } from "../../api/mediaAuthoring";
-import type { AdaptationUnitRef, GalgamePipelineBeatRefV4, MangaPagePlanV4, MangaPageV4 } from "../../api/generated/host";
+import type { AdaptationUnitRef, GalgamePipelineBeatRefV4 } from "../../api/generated/host";
 import { BookButton } from "../../components/ui/BookButton";
 import { ThemedSelect } from "../../components/ui/ThemedSelect";
 import { PlanTextField } from "./AdaptationPlanEditor";
@@ -62,31 +62,4 @@ export function GalgameBranchPlanEditor({ value, workspace, onChange }: {
       })),
     }] })}>{t("common.mediaAuthoring.addChoice")}</BookButton>
   </div>;
-}
-
-export function MangaPagePlanEditor({ value, onChange }: { value: MangaPagePlanV4; onChange: (value: MangaPagePlanV4) => void }) {
-  const { t } = useI18n();
-  const updatePage = (index: number, patch: Partial<MangaPageV4>) => onChange({ ...value, pages: value.pages.map((page, i) => i === index ? { ...page, ...patch } : page) });
-  return <div className="space-y-4">{value.pages.map((page, index) => <details key={page.page_number} open={index === 0} className="border-b border-book-border/60 pb-3">
-    <summary className="cursor-pointer py-2 text-sm font-semibold">{t("common.mediaAuthoring.page")} {page.page_number} · {page.page_goal}</summary>
-    <div className="mt-3 grid gap-3 sm:grid-cols-2">
-      <PlanTextField label={t("common.mediaAuthoring.pageGoal")} value={page.page_goal} onChange={(page_goal) => updatePage(index, { page_goal })} />
-      <PlanTextField label={t("common.mediaAuthoring.visualThesis")} value={page.visual_thesis} onChange={(visual_thesis) => updatePage(index, { visual_thesis })} />
-      <PlanTextField label={t("common.mediaAuthoring.entryState")} value={page.entry_state} onChange={(entry_state) => updatePage(index, { entry_state })} />
-      <PlanTextField label={t("common.mediaAuthoring.exitState")} value={page.exit_state} onChange={(exit_state) => updatePage(index, { exit_state })} />
-    </div>
-    <div className="mt-4 space-y-3">{page.panels.map((panel, panelIndex) => {
-      const update = (patch: Partial<typeof panel>) => updatePage(index, { panels: page.panels.map((item, i) => i === panelIndex ? { ...item, ...patch } : item) });
-      return <div key={panel.panel_number} className="space-y-2 border-l-2 border-book-border/60 pl-3">
-        <h4 className="text-xs font-medium">{t("common.mediaAuthoring.panel")} {panel.panel_number}</h4>
-        <div className="grid gap-3 sm:grid-cols-2">
-          <PlanTextField label={t("common.mediaAuthoring.composition")} value={panel.composition} onChange={(composition) => update({ composition })} />
-          <PlanTextField label={t("common.mediaAuthoring.action")} value={panel.observable_action} onChange={(observable_action) => update({ observable_action })} />
-          <PlanTextField label={t("common.mediaAuthoring.reaction")} value={panel.reaction ?? ""} onChange={(reaction) => update({ reaction: reaction || null })} />
-          <PlanTextField label={t("common.mediaAuthoring.spatialRelationship")} value={panel.spatial_relationship} onChange={(spatial_relationship) => update({ spatial_relationship })} />
-        </div>
-        {panel.text_layers.map((layer, layerIndex) => <PlanTextField key={layer.layer_index} label={`${t("common.mediaAuthoring.dialogue")} ${layerIndex + 1}${layer.speaker ? ` · ${layer.speaker}` : ""}`} value={layer.text} onChange={(text) => update({ text_layers: panel.text_layers.map((item, i) => i === layerIndex ? { ...item, text } : item) })} />)}
-      </div>;
-    })}</div>
-  </details>)}</div>;
 }

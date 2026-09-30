@@ -144,6 +144,11 @@ describe("runGenerationProgressTaskThen", () => {
       raw_json: { text: "{\"a\":1", nextOffset: 6, version: 1 },
     })).toBe("{\"a\":1");
 
+    expect(pickDisplayStreamText({
+      raw_json: { text: "页数", nextOffset: 6, version: 2, lastSequence: 3 },
+      page_001_storyboard: { text: "当前页分镜", nextOffset: 18, version: 2, lastSequence: 5 },
+    })).toBe("当前页分镜");
+
     // 新增 stream id 时不应静默失去活体信号。
     expect(pickDisplayStreamText({
       notes: { text: "备注", nextOffset: 6, version: 1 },

@@ -1,5 +1,6 @@
 use a4n_error::AppError;
 use serde_json::Value;
+use tokio_util::sync::CancellationToken;
 
 use crate::OrchestratorContext;
 use a4n_prompt::rendering::PromptRenderer;
@@ -38,6 +39,7 @@ pub(crate) struct WorkflowLlmOnceInput<'a> {
     pub call_order: i32,
     pub prompt_name: &'a str,
     pub user_prompt: String,
+    pub cancel_token: Option<&'a CancellationToken>,
 }
 
 struct PreparedWorkflowLlmOnce {
@@ -75,6 +77,12 @@ impl OrchestratorContext {
             .await?
             .status
             == super::WORKFLOW_STATUS_CANCELLED
+        {
+            return Err(AppError::Cancelled);
+        }
+        if input
+            .cancel_token
+            .is_some_and(CancellationToken::is_cancelled)
         {
             return Err(AppError::Cancelled);
         }

@@ -46,7 +46,7 @@ pub async fn generate_media_adaptation_plan(
     state: &AppState,
     user_id: i64,
     input: GenerateAdaptationPlanInput,
-    stream_reporter: Option<&MediaAuthoringStreamReporter>,
+    stream_reporter: Option<&MediaAuthoringStreamReporter<'_>>,
 ) -> Result<AuthoringDocumentRecord, AppError> {
     state
         .media_authoring_application()

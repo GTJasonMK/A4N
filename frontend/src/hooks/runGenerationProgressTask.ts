@@ -16,23 +16,30 @@ export type GenerationProgressUiOptions = Omit<
   "total" | "cancelTaskId" | "cancelTask" | "pollTaskProgress"
 >;
 
-/**
- * 文本流优先级：章节正文用 "main"，其余结构化生成用 "raw_json"。
- * 都不存在时取首个有内容的流，避免新增 stream id 后前端静默失去活体信号。
- */
+/** 章节正文固定显示 main；多路结构化生成显示最近更新的文本流。 */
 const STREAM_PRIORITY = ["main", "raw_json"];
 
 export function pickDisplayStreamText(
   streams: GenerationTaskViewState["streams"],
 ): string | null {
+  const main = streams.main?.text;
+  if (main) return main;
+  const latestStream = Object.values(streams)
+    .filter((stream) => stream?.text)
+    .reduce<GenerationTaskViewState["streams"][string] | null>(
+      (latest, stream) =>
+        latest == null || (stream.lastSequence ?? 0) > (latest.lastSequence ?? 0)
+          ? stream
+          : latest,
+      null,
+    );
   for (const id of STREAM_PRIORITY) {
     const text = streams[id]?.text;
-    if (text) return text;
+    if (text && (streams[id]?.lastSequence ?? 0) >= (latestStream?.lastSequence ?? 0)) {
+      return text;
+    }
   }
-  for (const stream of Object.values(streams)) {
-    if (stream?.text) return stream.text;
-  }
-  return null;
+  return latestStream?.text ?? null;
 }
 
 export async function runGenerationProgressTaskThen<T>(

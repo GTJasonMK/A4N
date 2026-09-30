@@ -45,7 +45,7 @@ fn manga_late_pipeline_inputs_do_not_repeat_chapter_content() {
         }),
     )
     .expect("valid item extraction input");
-    let page_planning = manga_page_planning_input(
+    let page_slots = manga_page_slots_input(
         json!({
             "characters": {"陈恪": {"role": "主角"}},
             "events": [{"index": 0, "description": "暗棋初动"}],
@@ -57,21 +57,21 @@ fn manga_late_pipeline_inputs_do_not_repeat_chapter_content() {
         }),
         json!({"shooting_script_id": 1, "shooting_script_revision": 1, "script": {}}),
     )
-    .expect("valid page planning input");
+    .expect("valid page slots input");
 
     assert!(items_input.get("chapter").is_none());
-    assert!(page_planning.get("chapter").is_none());
+    assert!(page_slots.get("chapter").is_none());
     assert!(
         serde_json::to_string(&items_input)
             .unwrap()
             .contains("原文对白")
     );
-    let page_planning_text = serde_json::to_string(&page_planning).unwrap();
-    assert!(!page_planning_text.contains("暗棋初动"));
-    assert!(!page_planning_text.contains("重复立绘"));
-    assert!(page_planning_text.contains("陈恪发现线索"));
-    assert!(page_planning_text.contains("雨夜长街"));
-    assert!(page_planning_text.contains("密信"));
+    let page_slots_text = serde_json::to_string(&page_slots).unwrap();
+    assert!(!page_slots_text.contains("暗棋初动"));
+    assert!(!page_slots_text.contains("重复立绘"));
+    assert!(page_slots_text.contains("陈恪发现线索"));
+    assert!(page_slots_text.contains("雨夜长街"));
+    assert!(page_slots_text.contains("密信"));
 }
 
 #[test]

@@ -1,4 +1,4 @@
-import type { MangaPagePromptSummary } from "../../../api/manga";
+import type { MangaPagePipelineStage, MangaPagePromptSummary } from "../../../api/manga";
 import type { ChapterRow } from "../shared";
 import { nonEmptyText } from "../../../utils/text";
 import type { MessageTranslator } from "../../../i18n";
@@ -7,8 +7,6 @@ export type MangaPagePromptSource = {
   content_sha256: string;
   source_revision_key: string;
 };
-
-export const MANGA_PIPELINE_TOTAL_STEPS = 7;
 
 export const chapterHeading = (
   chapter: ChapterRow,
@@ -62,8 +60,16 @@ export const mangaStageLabel = (
       return t("comic.pipelineStages.chapterSynthesis");
     case "page_planning":
       return t("comic.pipelineStages.pagination");
+    case "page_content":
+      return t("comic.pipelineStages.pageContent");
+    case "adaptation":
+      return t("comic.pipelineStages.pageAdaptation");
+    case "storyboard":
+      return t("comic.pipelineStages.storyboard");
     case "drawing_prompt":
       return t("comic.pipelineStages.pagePrompt");
+    case "image":
+      return t("comic.pipelineStages.pageImage");
     case "persisting":
       return t("comic.pipelineStages.resultWritten");
     case "completed":
@@ -76,5 +82,27 @@ export const mangaStageLabel = (
       return t("comic.pipelineStages.cancelled");
     default:
       return stage || t("comic.pipelineStages.notStarted");
+  }
+};
+
+export const mangaPageStageLabel = (
+  stage: MangaPagePipelineStage | null | undefined,
+  t: MessageTranslator,
+): string => {
+  switch (stage) {
+    case "slots":
+      return t("comic.pipelineStages.pagination");
+    case "content":
+      return t("comic.pipelineStages.pageContent");
+    case "adaptation":
+      return t("comic.pipelineStages.pageAdaptation");
+    case "storyboard":
+      return t("comic.pipelineStages.storyboard");
+    case "drawing_prompt":
+      return t("comic.pipelineStages.pagePrompt");
+    case "image":
+      return t("comic.pipelineStages.pageImage");
+    default:
+      return t("comic.pipelineStages.notStarted");
   }
 };

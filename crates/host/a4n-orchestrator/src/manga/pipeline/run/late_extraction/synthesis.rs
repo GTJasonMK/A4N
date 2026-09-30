@@ -1,7 +1,6 @@
 use a4n_error::AppError;
 use serde_json::Value;
 
-use super::super::super::super::MangaPipelineStage;
 use super::super::super::prompt::{
     MangaRenderTraceInput, manga_chapter_comic_synthesis_user_message,
     validate_manga_chapter_comic_synthesis,
@@ -48,6 +47,9 @@ pub(super) async fn run_comic_synthesis_stage(
                 variables: &context.variables,
                 user_content: synthesis_user,
                 temperature: 0.3,
+                cancel_token: context.cancel_token,
+                stream_id: "raw_json".to_string(),
+                stream_reporter: context.stream_reporter,
             },
             |value| {
                 validate_manga_chapter_comic_synthesis(value)?;
@@ -65,9 +67,5 @@ pub(super) async fn run_comic_synthesis_stage(
             &comic_synthesis_trace,
         )
         .await?;
-    context
-        .advance_stage(MangaPipelineStage::PagePlanning)
-        .await?;
-
     Ok(synthesis_json)
 }

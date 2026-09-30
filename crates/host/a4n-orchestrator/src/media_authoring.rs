@@ -13,6 +13,7 @@ use a4n_domain::{
 use a4n_error::AppError;
 use a4n_prompt::rendering::PromptRenderer;
 use serde_json::json;
+use tokio_util::sync::CancellationToken;
 
 use crate::{OrchestratorContext, workflow::WorkflowLlmOnceInput};
 
@@ -37,7 +38,8 @@ pub(crate) struct GenerateAdaptation<'a> {
     pub workflow_run_id: i64,
     pub workflow: &'a str,
     pub renderer: &'a dyn PromptRenderer,
-    pub stream_reporter: Option<&'a MediaAuthoringStreamReporter>,
+    pub stream_reporter: Option<&'a MediaAuthoringStreamReporter<'a>>,
+    pub cancel_token: Option<&'a CancellationToken>,
 }
 
 impl OrchestratorContext {
@@ -100,6 +102,8 @@ impl OrchestratorContext {
         workflow_run_id: i64,
         workflow: &str,
         renderer: &dyn PromptRenderer,
+        stream_reporter: Option<&MediaAuthoringStreamReporter<'_>>,
+        cancel_token: Option<&CancellationToken>,
     ) -> Result<PreparedAdaptation, AppError> {
         let db = self.database.connection();
         if let Some(prepared) = self.load_current_adaptation(source, target).await? {
@@ -135,7 +139,8 @@ impl OrchestratorContext {
                 workflow_run_id,
                 workflow,
                 renderer,
-                stream_reporter: None,
+                stream_reporter,
+                cancel_token,
             })
             .await?;
         let record = records::adopt_authoring_document(
@@ -193,6 +198,7 @@ impl OrchestratorContext {
                     call_order: 1,
                     prompt_name: "chapter_media_adaptation_plan",
                     user_prompt,
+                    cancel_token: input.cancel_token,
                 },
                 input.stream_reporter,
                 |value| {

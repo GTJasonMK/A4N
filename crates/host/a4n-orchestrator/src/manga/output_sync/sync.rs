@@ -1,4 +1,4 @@
-use a4n_db::manga::sync_manga_page_prompts_by_chapter;
+use a4n_db::manga::{sync_manga_page_prompts_by_chapter, upsert_manga_page_prompt};
 use a4n_db_models::models::chapter::chapter_manga_prompt;
 use a4n_domain::manga::MangaPagePromptSyncDraft;
 use a4n_error::AppError;
@@ -16,44 +16,78 @@ impl OrchestratorContext {
         drafts: Vec<MangaPagePromptDraft>,
     ) -> Result<Vec<chapter_manga_prompt::Model>, AppError> {
         let now = Utc::now().naive_utc();
-        let mut trace_bindings = Vec::new();
+        let traces = drafts
+            .iter()
+            .map(|draft| draft.generation_traces.clone())
+            .collect::<Vec<_>>();
         let sync_drafts = drafts
             .into_iter()
-            .map(|draft| {
-                let generation_traces = draft.generation_traces;
-                let sync = MangaPagePromptSyncDraft {
-                    chapter_id: draft.chapter_id,
-                    project_id: draft.project_id,
-                    page_number: draft.page_number,
-                    image_prompt: draft.image_prompt,
-                    dialogue_text: draft.dialogue_text,
-                    characters_in_frame: draft.characters_in_frame,
-                    layout: draft.layout,
-                    status: draft.status,
-                };
-                (sync, generation_traces)
+            .map(|draft| MangaPagePromptSyncDraft {
+                chapter_id: draft.chapter_id,
+                project_id: draft.project_id,
+                page_number: draft.page_number,
+                image_prompt: draft.image_prompt,
+                dialogue_text: draft.dialogue_text,
+                characters_in_frame: draft.characters_in_frame,
+                layout: draft.layout,
+                status: draft.status,
             })
-            .collect::<Vec<_>>();
-
+            .collect();
         let rows = sync_manga_page_prompts_by_chapter(
             self.database.connection(),
             project_id,
             chapter_id,
-            sync_drafts.iter().map(|(draft, _)| draft.clone()).collect(),
+            sync_drafts,
             now,
         )
         .await
         .map_err(manga_pipeline_db_error)?;
-
-        for (row, (_, traces)) in rows.iter().zip(sync_drafts) {
+        if rows.len() != traces.len() {
+            return Err(AppError::InvalidState {
+                current: format!("rows={}, traces={}", rows.len(), traces.len()),
+                operation: "同步漫画页面并关联生成记录".to_string(),
+            });
+        }
+        for (row, traces) in rows.iter().zip(traces) {
             for trace in traces {
-                trace_bindings.push((row.clone(), trace));
+                self.record_manga_page_prompt_generation_run(row, trace)
+                    .await?;
             }
         }
-        for (row, trace) in trace_bindings {
+        Ok(rows)
+    }
+
+    pub(in crate::manga) async fn upsert_generated_page_prompt(
+        &self,
+        project_id: i64,
+        chapter_id: i64,
+        draft: MangaPagePromptDraft,
+    ) -> Result<chapter_manga_prompt::Model, AppError> {
+        let now = Utc::now().naive_utc();
+        let traces = draft.generation_traces.clone();
+        let sync = MangaPagePromptSyncDraft {
+            chapter_id: draft.chapter_id,
+            project_id: draft.project_id,
+            page_number: draft.page_number,
+            image_prompt: draft.image_prompt,
+            dialogue_text: draft.dialogue_text,
+            characters_in_frame: draft.characters_in_frame,
+            layout: draft.layout,
+            status: draft.status,
+        };
+        let row = upsert_manga_page_prompt(
+            self.database.connection(),
+            project_id,
+            chapter_id,
+            sync,
+            now,
+        )
+        .await
+        .map_err(manga_pipeline_db_error)?;
+        for trace in traces {
             self.record_manga_page_prompt_generation_run(&row, trace)
                 .await?;
         }
-        Ok(rows)
+        Ok(row)
     }
 }

@@ -84,6 +84,20 @@ impl MangaApplication {
             .map_err(manga_prompt_record_error)
     }
 
+    async fn manga_page_prompts_by_chapter(
+        &self,
+        project_id: i64,
+        chapter_id: i64,
+    ) -> Result<Vec<chapter_manga_prompt::Model>, AppError> {
+        a4n_db::manga::manga_page_prompts_by_chapter(
+            self.database.connection(),
+            project_id,
+            chapter_id,
+        )
+        .await
+        .map_err(manga_prompt_record_error)
+    }
+
     async fn update_manga_page_prompt_layout(
         &self,
         page_prompt: chapter_manga_prompt::Model,
@@ -171,6 +185,16 @@ impl OrchestratorContext {
         prompt_id: i64,
     ) -> Result<Option<chapter_manga_prompt::Model>, AppError> {
         self.manga.manga_page_prompt_by_id(prompt_id).await
+    }
+
+    pub(crate) async fn manga_page_prompts_by_chapter(
+        &self,
+        project_id: i64,
+        chapter_id: i64,
+    ) -> Result<Vec<chapter_manga_prompt::Model>, AppError> {
+        self.manga
+            .manga_page_prompts_by_chapter(project_id, chapter_id)
+            .await
     }
 
     pub(crate) async fn update_manga_page_prompt_layout(

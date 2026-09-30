@@ -31,6 +31,9 @@ pub(super) async fn run_visual_anchor_stage(
                 variables: &context.variables,
                 user_content: visual_user,
                 temperature: 0.3,
+                cancel_token: context.cancel_token,
+                stream_id: "raw_json".to_string(),
+                stream_reporter: context.stream_reporter,
             },
             |value| {
                 validate_manga_visual_anchor_source_span_ids(

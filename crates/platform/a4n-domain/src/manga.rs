@@ -8,10 +8,13 @@ mod contracts;
 mod validation;
 
 pub use contracts::{
-    MANGA_PAGE_DRAWING_PROMPT_V2, MANGA_PAGE_PLAN_V4, MangaCameraAngleV2,
-    MangaPageDrawingPromptSchemaVersion, MangaPageDrawingPromptV2,
-    MangaPageGenerationSchemaVersion, MangaPageImportanceV2, MangaPagePacingV2,
-    MangaPagePlanSchemaVersion, MangaPagePlanV4, MangaPageRoleV2, MangaPageV4,
+    MANGA_PAGE_DRAWING_PROMPT_V2, MANGA_PAGE_GENERATION_V4, MANGA_PAGE_PIPELINE_STATE_V1,
+    MANGA_PAGE_PLAN_V4, MANGA_PAGE_SLOT_LIMIT, MANGA_PAGE_SLOTS_V1, MangaCameraAngleV2,
+    MangaPageAdaptationV1, MangaPageContentV1, MangaPageDrawingPromptSchemaVersion,
+    MangaPageDrawingPromptV2, MangaPageGenerationSchemaVersion, MangaPageImageArtifactV1,
+    MangaPageImportanceV2, MangaPagePacingV2, MangaPagePipelineErrorV1, MangaPagePipelineStage,
+    MangaPagePipelineStateV1, MangaPagePipelineStatus, MangaPagePlanSchemaVersion, MangaPagePlanV4,
+    MangaPageRoleV2, MangaPageSlotV1, MangaPageSlotsSchemaVersion, MangaPageSlotsV1, MangaPageV4,
     MangaPanelFunctionV2, MangaPanelSizeV2, MangaPanelV2, MangaReadingFlowV2, MangaShotScaleV2,
     MangaTextLayerKindV2, MangaTextLayerV2, MangaTextPlacementV2,
 };
@@ -111,6 +114,145 @@ pub struct MangaPageGenerationLayoutV3 {
     pub reference_bindings: Vec<MangaReferenceBindingSummary>,
     pub prompt_fingerprint: Value,
     pub source: MangaPagePromptSourceSummary,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct MangaPageGenerationLayoutV4 {
+    pub schema_version: MangaPageGenerationSchemaVersion,
+    pub page_id: String,
+    pub page_number: u32,
+    pub page_plan_ref: Option<crate::media_authoring::AuthoringDocumentRef>,
+    pub pipeline: MangaPagePipelineStateV1,
+    pub reference_bindings: Vec<MangaReferenceBindingSummary>,
+    pub prompt_fingerprint: Value,
+    pub source: MangaPagePromptSourceSummary,
+}
+
+impl MangaPageGenerationLayoutV4 {
+    pub fn validate(&self, expected_page_number: u32) -> Result<(), MangaPlanValidationError> {
+        if self.schema_version != MangaPageGenerationSchemaVersion::V4 {
+            return Err(MangaPlanValidationError {
+                path: "schema_version".into(),
+                message: "必须是 manga_page_generation_v4".into(),
+            });
+        }
+        if self.page_id.trim().is_empty() {
+            return Err(MangaPlanValidationError {
+                path: "page_id".into(),
+                message: "不能为空".into(),
+            });
+        }
+        if self.page_number != expected_page_number {
+            return Err(MangaPlanValidationError {
+                path: "page_number".into(),
+                message: format!("必须等于 {expected_page_number}"),
+            });
+        }
+        if self.page_id != self.pipeline.page_id {
+            return Err(MangaPlanValidationError {
+                path: "page_id".into(),
+                message: "必须与 pipeline.page_id 一致".into(),
+            });
+        }
+        if self.pipeline.source_fingerprint != self.source.content_sha256 {
+            return Err(MangaPlanValidationError {
+                path: "pipeline.source_fingerprint".into(),
+                message: "必须与 source.content_sha256 一致".into(),
+            });
+        }
+        self.pipeline
+            .validate(expected_page_number)
+            .map_err(|message| MangaPlanValidationError {
+                path: "pipeline".into(),
+                message,
+            })?;
+        if let Some(reference) = &self.page_plan_ref
+            && (reference.id <= 0
+                || reference.revision <= 0
+                || reference.sha256.len() != 64
+                || !reference
+                    .sha256
+                    .bytes()
+                    .all(|byte| byte.is_ascii_hexdigit()))
+        {
+            return Err(MangaPlanValidationError {
+                path: "page_plan_ref".into(),
+                message: "分页计划版本身份无效".into(),
+            });
+        }
+        validate_page_source_and_bindings(
+            &self.source,
+            &self.reference_bindings,
+            "source",
+            "reference_bindings",
+        )
+    }
+}
+
+fn validate_page_source_and_bindings(
+    source: &MangaPagePromptSourceSummary,
+    reference_bindings: &[MangaReferenceBindingSummary],
+    source_path: &str,
+    bindings_path: &str,
+) -> Result<(), MangaPlanValidationError> {
+    if source.adaptation_plan_id <= 0 || source.adaptation_plan_revision <= 0 {
+        return Err(MangaPlanValidationError {
+            path: source_path.into(),
+            message: "改编计划身份必须有效".into(),
+        });
+    }
+    if source.root_project_id <= 0 || source.source_chapter_id <= 0 {
+        return Err(MangaPlanValidationError {
+            path: source_path.into(),
+            message: "项目与章节 ID 必须大于 0".into(),
+        });
+    }
+    if source.source_snapshot_id.is_some() != source.source_snapshot_chapter_id.is_some() {
+        return Err(MangaPlanValidationError {
+            path: source_path.into(),
+            message: "source_snapshot_id 与 source_snapshot_chapter_id 必须同时存在或同时为空"
+                .into(),
+        });
+    }
+    for (path, value) in [
+        (
+            format!("{source_path}.source_revision_key"),
+            &source.source_revision_key,
+        ),
+        (
+            format!("{source_path}.content_sha256"),
+            &source.content_sha256,
+        ),
+        (
+            format!("{source_path}.adaptation_plan_sha256"),
+            &source.adaptation_plan_sha256,
+        ),
+    ] {
+        if value.trim().is_empty() {
+            return Err(MangaPlanValidationError {
+                path,
+                message: "不能为空".into(),
+            });
+        }
+    }
+    for (index, binding) in reference_bindings.iter().enumerate() {
+        if binding.character_name.trim().is_empty() {
+            return Err(MangaPlanValidationError {
+                path: format!("{bindings_path}[{index}].character_name"),
+                message: "不能为空".into(),
+            });
+        }
+        if let Some(asset) = &binding.bound_asset
+            && (asset.asset_id <= 0 || asset.image_path.trim().is_empty())
+        {
+            return Err(MangaPlanValidationError {
+                path: format!("{bindings_path}[{index}].bound_asset"),
+                message: "绑定素材身份无效".into(),
+            });
+        }
+    }
+    Ok(())
 }
 
 impl MangaPageGenerationLayoutV3 {

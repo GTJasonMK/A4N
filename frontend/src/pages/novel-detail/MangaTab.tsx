@@ -8,9 +8,6 @@ import React, {
 import { LoadingSpinner } from "../../components/ui/LoadingSpinner";
 import { useToast } from "../../components/feedback/Toast";
 import { confirmDialog } from "../../components/feedback/ConfirmDialog";
-import {
-  ProgressDialog,
-} from "../../components/feedback/ProgressDialog";
 import { RequestPreviewModal } from "../../components/feedback/RequestPreviewModal";
 import { extractErrorMessage } from "../../api";
 import { listChapters } from "../../api/chapter";
@@ -27,8 +24,9 @@ import {
   type Portrait,
 } from "../../api/portrait";
 import { runGenerationProgressTaskThen } from "../../hooks/runGenerationProgressTask";
+import { generationClient } from "../../api/generationTasks";
+import type { GenerationTaskHandle } from "../../api/generated/generationContracts";
 import {
-  cancelMangaPipeline,
   deleteMangaByChapter,
   getMangaPipelineStatus,
   listMangaPagePrompts,
@@ -50,7 +48,6 @@ import { sha256Hex } from "../../utils/contentHash";
 import { isCancelledOperation } from "../../utils/cancellation";
 import { MangaChapterDetailPanel } from "./manga/MangaChapterDetailPanel";
 import { MangaChapterList } from "./manga/MangaChapterList";
-import { MANGA_PIPELINE_TOTAL_STEPS } from "./manga/mangaTabUtils";
 import { useProgressTask } from "../../hooks/useProgressTask";
 import { usePersistedTab } from "../../hooks/usePersistedTab";
 import { useNovelDetailDirty } from "./novelDetailDirty";
@@ -65,15 +62,9 @@ import { useI18n } from "../../i18n";
 import { useImageGenerationSize } from "../../components/image/ImageSizeSelect";
 import { explainMangaPipelineAiConfigError } from "./manga/mangaPipelineErrors";
 import {
-  createMangaPipelineProgressState,
   mangaPipelineConfigBlockReason,
-  type MangaPipelineProgressState,
-  pipelineStatusIsTerminal,
-  progressStateFromPipelineStatus,
   type MangaTabProps,
 } from "./manga/mangaPipelineProgress";
-
-const MANGA_PIPELINE_POLL_MS = 1500;
 
 export const MangaTab: React.FC<MangaTabProps> = ({
   projectId,
@@ -96,14 +87,18 @@ export const MangaTab: React.FC<MangaTabProps> = ({
     setPromptDirty(false);
     setDiscardVersion((version) => version + 1);
   };
-  const isMutationBusy = () => actionBusyKeyRef.current != null || pipelineTaskId != null || authoringBusy;
+  const isMutationBusy = () =>
+    actionBusyKeyRef.current != null ||
+    pipelineChapterId != null ||
+    progressCancelBusyKeyRef.current != null ||
+    authoringBusy;
   useEffect(() => { onDirtyChange?.(authoringDirty || promptDirty); }, [authoringDirty, promptDirty, onDirtyChange]);
   useEffect(() => () => onDirtyChange?.(false), [onDirtyChange]);
   const discardMangaDrafts = () => {
-    if (isMutationBusy() || acting != null || pipelineCancelling) return false;
+    if (isMutationBusy() || acting != null) return false;
     discardStageDrafts();
   };
-  useNovelDetailDirty(`manga-editor:${projectId}`, authoringDirty || promptDirty, discardMangaDrafts, () => !isMutationBusy() && acting == null && !pipelineCancelling);
+  useNovelDetailDirty(`manga-editor:${projectId}`, authoringDirty || promptDirty, discardMangaDrafts, () => !isMutationBusy() && acting == null);
   const authoring = useMediaAuthoring(projectId, staged);
   const stageId = `comic-stages-${projectId}`;
   const confirmLeaveStage = async () => {
@@ -116,7 +111,10 @@ export const MangaTab: React.FC<MangaTabProps> = ({
     if (confirmed) { setAuthoringDirty(false); setPromptDirty(false); setDiscardVersion((version) => version + 1); }
     return confirmed;
   };
-  const { runProgressTask: runPortraitProgressTask } = useProgressTask();
+  const {
+    runProgressTask: runPortraitProgressTask,
+    runProgressTask: runMangaProgressTask,
+  } = useProgressTask();
   const {
     error: imageSizeError,
     loading: imageSizeLoading,
@@ -135,20 +133,20 @@ export const MangaTab: React.FC<MangaTabProps> = ({
     fixedChapter ?? null,
   );
   const outputState = authoring.workspace?.artifacts.find((artifact) => artifact.kind === "manga_pages" && artifact.source_chapter_id === selectedChapter?.id);
+  const [pagePrompts, setPagePrompts] = useState<MangaPagePromptSummary[]>([]);
+  const [pagePromptsLoading, setPagePromptsLoading] = useState(false);
   const stageTabs = useMemo(() => [
     { id: "materials" as const, label: t("common.mediaAuthoring.materials") },
     { id: "adaptation" as const, label: t("common.mediaAuthoring.adaptation"), status: authoringStageLabel(authoring.workspace, "adaptation_plan", selectedChapter?.id, t) },
-    { id: "page_plan" as const, label: t("common.mediaAuthoring.pagePlanning"), status: authoringStageLabel(authoring.workspace, "manga_page_plan", selectedChapter?.id, t) },
+    { id: "page_plan" as const, label: t("common.mediaAuthoring.pagePlanning"), status: pagePrompts.length ? t("comic.prompt.pageCount", { count: pagePrompts.length }) : undefined },
     { id: "prompts" as const, label: t("common.mediaAuthoring.pagePrompts"), status: outputState?.count ? t(outputState.stale ? "common.mediaAuthoring.needsUpdate" : "common.mediaAuthoring.ready") : undefined },
     { id: "images" as const, label: t("common.mediaAuthoring.images") },
-  ], [authoring.workspace, outputState, selectedChapter?.id, t]);
+  ], [authoring.workspace, outputState, pagePrompts.length, selectedChapter?.id, t]);
   const [workspaceStage, setWorkspaceStage] = usePersistedTab(
     staged ? `a4n:comic:${projectId}:stage` : null,
     staged ? "materials" : "prompts",
     stageTabs.map((tab) => tab.id),
   );
-  const [pagePrompts, setPagePrompts] = useState<MangaPagePromptSummary[]>([]);
-  const [pagePromptsLoading, setPagePromptsLoading] = useState(false);
   const [currentContentHash, setCurrentContentHash] = useState<string | null>(
     null,
   );
@@ -161,16 +159,9 @@ export const MangaTab: React.FC<MangaTabProps> = ({
   const [requestPreviewLoading, setRequestPreviewLoading] = useState(false);
   const [requestPreviewData, setRequestPreviewData] =
     useState<ModelRequestPreview | null>(null);
-  const [pipelineProgressOpen, setPipelineProgressOpen] = useState(false);
-  const [pipelineProgress, setPipelineProgress] =
-    useState<MangaPipelineProgressState>(() =>
-      createMangaPipelineProgressState(t),
-    );
-  const [pipelineTaskId, setPipelineTaskId] = useState<string | null>(null);
   const [pipelineChapterId, setPipelineChapterId] = useState<number | null>(
     null,
   );
-  const [pipelineCancelling, setPipelineCancelling] = useState(false);
   const selectedChapterIdRef = useRef<number | null>(fixedChapter?.id ?? null);
 
   const isSingleMode = hasFixedChapterContext;
@@ -195,7 +186,6 @@ export const MangaTab: React.FC<MangaTabProps> = ({
   const projectImagesLoadSeqRef = useRef(0);
   const actionSeqRef = useRef(0);
   const previewSeqRef = useRef(0);
-  const pipelineWatchSeqRef = useRef(0);
   const actionBusyKeyRef = useRef<string | null>(null);
   const previewBusyKeyRef = useRef<string | null>(null);
   const progressCancelBusyKeyRef = useRef<string | null>(null);
@@ -260,13 +250,6 @@ export const MangaTab: React.FC<MangaTabProps> = ({
     [isProjectCurrent],
   );
 
-  const isPipelineWatchCurrent = useCallback(
-    (requestProjectId: number, requestSeq: number) =>
-      isProjectCurrent(requestProjectId) &&
-      pipelineWatchSeqRef.current === requestSeq,
-    [isProjectCurrent],
-  );
-
   const beginAction = useCallback((key: string): boolean => {
     if (actionBusyKeyRef.current) return false;
     actionBusyKeyRef.current = key;
@@ -328,7 +311,6 @@ export const MangaTab: React.FC<MangaTabProps> = ({
       projectImagesLoadSeqRef.current += 1;
       actionSeqRef.current += 1;
       previewSeqRef.current += 1;
-      pipelineWatchSeqRef.current += 1;
       resetInteractionLocks();
     };
   }, [resetInteractionLocks]);
@@ -351,52 +333,6 @@ export const MangaTab: React.FC<MangaTabProps> = ({
         : Promise.resolve(false),
     ]);
     return statusOk && promptsOk;
-  };
-
-  /** 漫画统一 workflow 状态经 getMangaPipelineStatus 投影，禁止订阅旧 Host 进度通道。 */
-  const watchMangaPipelineStatus = async (
-    chapterId: number,
-    taskId: string,
-    requestProjectId: number,
-    requestWatchSeq: number,
-    title: string,
-  ) => {
-    while (isPipelineWatchCurrent(requestProjectId, requestWatchSeq)) {
-      try {
-        const status = await getMangaPipelineStatus(
-          requestProjectId,
-          chapterId,
-        );
-        if (!isPipelineWatchCurrent(requestProjectId, requestWatchSeq)) return;
-        if (status.task_id && status.task_id !== taskId) {
-          // 状态尚未切到本次任务，继续轮询。
-        } else {
-          setStatuses((current) => ({ ...current, [chapterId]: status }));
-          setPipelineProgress(progressStateFromPipelineStatus(status, title, t));
-          if (pipelineStatusIsTerminal(status.pipeline_status)) {
-            setPipelineTaskId(null);
-            setPipelineChapterId(null);
-            setPipelineCancelling(false);
-            const refreshed = await refreshPipelineTarget(chapterId, requestProjectId);
-            if (!refreshed && isPipelineWatchCurrent(requestProjectId, requestWatchSeq)) {
-              setPipelineProgress((prev) => ({
-                ...prev,
-                status: "error",
-                message: t("comic.pipelineFailed"),
-                error: t("comic.loadPagePromptsFailed"),
-              }));
-            }
-            return;
-          }
-        }
-      } catch (err) {
-        if (!isPipelineWatchCurrent(requestProjectId, requestWatchSeq)) return;
-        addToast(extractErrorMessage(err, t("comic.loadPipelineStatusFailed")), "error");
-      }
-      await new Promise<void>((resolve) => {
-        window.setTimeout(resolve, MANGA_PIPELINE_POLL_MS);
-      });
-    }
   };
 
   const loadCharacterAssets = async (
@@ -666,7 +602,6 @@ export const MangaTab: React.FC<MangaTabProps> = ({
     projectImagesLoadSeqRef.current += 1;
     actionSeqRef.current += 1;
     previewSeqRef.current += 1;
-    pipelineWatchSeqRef.current += 1;
     resetInteractionLocks();
     setChapters([]);
     setStatuses({});
@@ -680,11 +615,7 @@ export const MangaTab: React.FC<MangaTabProps> = ({
     setPagePromptsLoading(false);
     setActing(null);
     resetRequestPreview();
-    setPipelineProgressOpen(false);
-    setPipelineProgress(createMangaPipelineProgressState(t));
-    setPipelineTaskId(null);
     setPipelineChapterId(null);
-    setPipelineCancelling(false);
     if (!isSingleMode) {
       selectedChapterIdRef.current = null;
       setSelectedChapter(null);
@@ -849,6 +780,13 @@ export const MangaTab: React.FC<MangaTabProps> = ({
       );
       return;
     }
+    if (
+      !imageSize &&
+      (stopAfter == null || stopAfter === "image")
+    ) {
+      addToast(t("settingsForm.imageSizeUnavailable"), "error");
+      return;
+    }
     const isResume = mode === "resume";
     const actionKey = `${mode}-${chapter.chapter_number}`;
     const title = isResume
@@ -856,69 +794,66 @@ export const MangaTab: React.FC<MangaTabProps> = ({
       : t("comic.pipelineStartTitle");
     const configBlockReason = mangaPipelineConfigBlockReason(t);
     if (configBlockReason) {
-      setPipelineProgressOpen(true);
-      setPipelineProgress({
-        title,
-        status: "error",
-        current: 0,
-        total: MANGA_PIPELINE_TOTAL_STEPS,
-        message: isResume
-          ? t("comic.pipelineResumeFailed")
-          : t("comic.pipelineStartFailed"),
-        error: configBlockReason,
-      });
       addToast(configBlockReason, "error");
       return;
     }
     if (!beginAction(actionKey)) return;
     const actionSeq = actionSeqRef.current + 1;
     actionSeqRef.current = actionSeq;
-    const watchSeq = pipelineWatchSeqRef.current + 1;
-    pipelineWatchSeqRef.current = watchSeq;
-
     setActing(actionKey);
-    setPipelineProgressOpen(true);
-    setPipelineProgress({
-      title,
-      status: "running",
-      current: 0,
-      total: MANGA_PIPELINE_TOTAL_STEPS,
-      message: isResume
-        ? t("comic.pipelineResumeMessage", { steps: MANGA_PIPELINE_TOTAL_STEPS })
-        : t("comic.pipelineStartMessage", { steps: MANGA_PIPELINE_TOTAL_STEPS }),
-      error: null,
-    });
-    setPipelineTaskId(null);
     setPipelineChapterId(chapter.id);
-    setPipelineCancelling(false);
 
     try {
-      const taskId = isResume
-        ? await resumeMangaPipeline(requestProjectId, chapter.chapter_number, stopAfter)
-        : await startMangaPipeline(requestProjectId, chapter.chapter_number, stopAfter);
+      const handle = isResume
+        ? await resumeMangaPipeline(requestProjectId, chapter.chapter_number, stopAfter, imageSize)
+        : await startMangaPipeline(requestProjectId, chapter.chapter_number, stopAfter, imageSize);
       if (!isActionCurrent(requestProjectId, actionSeq)) return;
-      setPipelineTaskId(taskId);
-      setPipelineProgress((prev) => ({
-        ...prev,
-        status: "running",
-        message: t("comic.pipelineSubmitted"),
-      }));
-      // 启动请求返回后即可释放 acting；进度由状态轮询驱动。
+      void loadSingleStatus(chapter.id, requestProjectId).catch((error) =>
+        addToast(extractErrorMessage(error, t("comic.loadPipelineStatusFailed")), "error"),
+      );
+      void runGenerationProgressTaskThen(
+        runMangaProgressTask,
+        handle,
+        {
+          title,
+          startMessage: t("comic.pipelineSubmitted"),
+          successMessage: t("comic.pipelineCompleted"),
+          errorMessage: t("comic.pipelineFailed"),
+          cancelLabel: t("comic.cancelPipeline"),
+          runningHint: t("comic.pipelineRunningHint"),
+        },
+        async (task) => {
+          if (task.taskStatus === "cancelled") {
+            throw new Error("Generation task cancelled");
+          }
+          if (task.taskStatus !== "completed") {
+            throw new Error(task.error?.message ?? t("comic.pipelineFailed"));
+          }
+          if (!isActionCurrent(requestProjectId, actionSeq)) return;
+          await refreshPipelineTarget(chapter.id, requestProjectId);
+          if (isActionCurrent(requestProjectId, actionSeq)) {
+            setPipelineChapterId(null);
+          }
+        },
+      ).catch(async (error) => {
+        if (!isActionCurrent(requestProjectId, actionSeq)) return;
+        const message = extractErrorMessage(error, t("comic.pipelineFailed"));
+        const cancelled = isCancelledOperation(message);
+        await refreshPipelineTarget(chapter.id, requestProjectId);
+        if (!isActionCurrent(requestProjectId, actionSeq)) return;
+        if (!cancelled) {
+          addToast(
+            explainMangaPipelineAiConfigError(message, t),
+            "error",
+          );
+        }
+        setPipelineChapterId(null);
+      });
       setActing(null);
       endAction(actionKey);
-      void watchMangaPipelineStatus(
-        chapter.id,
-        taskId,
-        requestProjectId,
-        watchSeq,
-        title,
-      );
     } catch (err) {
       if (!isActionCurrent(requestProjectId, actionSeq)) return;
-      setPipelineTaskId(null);
       setPipelineChapterId(null);
-      setPipelineCancelling(false);
-      pipelineWatchSeqRef.current += 1;
       const message = explainMangaPipelineAiConfigError(
         extractErrorMessage(
           err,
@@ -928,14 +863,6 @@ export const MangaTab: React.FC<MangaTabProps> = ({
         ),
         t,
       );
-      setPipelineProgress((prev) => ({
-        ...prev,
-        status: "error",
-        message: isResume
-          ? t("comic.pipelineResumeFailed")
-          : t("comic.pipelineStartFailed"),
-        error: message,
-      }));
       addToast(message, "error");
       if (isActionCurrent(requestProjectId, actionSeq)) setActing(null);
       endAction(actionKey);
@@ -997,60 +924,22 @@ export const MangaTab: React.FC<MangaTabProps> = ({
 
   const closeRequestPreview = resetRequestPreview;
 
-  const handleCancelPipelineProgress = async () => {
-    if (!ensureCanEditManga()) return;
+  const requestPipelineCancellation = async (
+    chapterId: number,
+    handle: GenerationTaskHandle,
+  ) => {
     const requestProjectId = projectId;
-    const chapterId = pipelineChapterId ?? selectedChapter?.id;
-    if (!chapterId) return;
     const cancelKey = `${requestProjectId}:${chapterId}`;
     if (progressCancelBusyKeyRef.current) return;
     progressCancelBusyKeyRef.current = cancelKey;
-    const actionSeq = actionSeqRef.current + 1;
-    actionSeqRef.current = actionSeq;
-    setPipelineCancelling(true);
-    addToast(t("comic.pipelineCancelRequested"), "info");
     try {
-      await cancelMangaPipeline(requestProjectId, chapterId);
-      if (!isActionCurrent(requestProjectId, actionSeq)) return;
-      const [statusResult, promptsResult] = await Promise.allSettled([
-        loadSingleStatus(chapterId, requestProjectId),
-        isChapterCurrent(requestProjectId, chapterId)
-          ? loadPagePrompts(chapterId, requestProjectId, { showLoading: false })
-          : Promise.resolve(false),
-      ]);
-      if (!isActionCurrent(requestProjectId, actionSeq)) return;
-      if (statusResult.status === "rejected") {
-        addToast(extractErrorMessage(statusResult.reason, t("comic.loadPipelineStatusFailed")), "error");
-      }
-      if (promptsResult.status === "rejected") {
-        addToast(extractErrorMessage(promptsResult.reason, t("comic.loadPagePromptsFailed")), "error");
-      }
-      if (
-        statusResult.status === "rejected" ||
-        promptsResult.status === "rejected" ||
-        statusResult.value === false ||
-        promptsResult.value === false
-      ) {
-        setPipelineProgress((prev) => ({
-          ...prev,
-          status: "error",
-          message: t("comic.pipelineCancelFailed"),
-          error: t("comic.loadPagePromptsFailed"),
-        }));
-        setPipelineCancelling(false);
-        return;
-      }
-      setPipelineProgress((prev) => ({
-        ...prev,
-        status: "cancelled",
-        message: t("comic.pipelineCancelled"),
-        error: null,
-      }));
-      setPipelineCancelling(false);
-    } catch (err) {
-      if (isActionCurrent(requestProjectId, actionSeq)) {
-        addToast(extractErrorMessage(err, t("comic.pipelineCancelFailed")), "error");
-        setPipelineCancelling(false);
+      await generationClient.cancel(handle);
+      if (!isProjectCurrent(requestProjectId)) return;
+      await refreshPipelineTarget(chapterId, requestProjectId);
+      addToast(t("comic.pipelineCancelRequested"), "info");
+    } catch (error) {
+      if (isProjectCurrent(requestProjectId)) {
+        addToast(extractErrorMessage(error, t("comic.pipelineCancelFailed")), "error");
       }
     } finally {
       if (progressCancelBusyKeyRef.current === cancelKey) {
@@ -1141,20 +1030,13 @@ export const MangaTab: React.FC<MangaTabProps> = ({
     fixedChapter?.status,
   ]);
 
-  // 详情页状态条：选中章节在运行中时同步刷新列表状态与整页提示词。
-  // 进度对话框期间由 watchMangaPipelineStatus 独占轮询，避免双倍请求。
+  // 进度对话框订阅 Generation Task；其余运行状态由章节详情轮询。
   useEffect(() => {
     const chapterId = selectedChapter?.id;
     const shouldPoll =
       selectedStatus?.pipeline_status === "running" ||
       selectedStatus?.can_cancel === true;
     if (!chapterId || !shouldPoll) return;
-    if (
-      pipelineProgressOpen &&
-      pipelineChapterId === chapterId &&
-      pipelineTaskId
-    )
-      return;
     const timer = window.setInterval(() => {
       if (!isChapterCurrent(projectId, chapterId)) return;
       void loadSingleStatus(chapterId, projectId).catch((err) =>
@@ -1169,8 +1051,6 @@ export const MangaTab: React.FC<MangaTabProps> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     pipelineChapterId,
-    pipelineProgressOpen,
-    pipelineTaskId,
     selectedChapter?.id,
     selectedStatus?.pipeline_status,
     selectedStatus?.can_cancel,
@@ -1206,7 +1086,7 @@ export const MangaTab: React.FC<MangaTabProps> = ({
           if (workspaceStage === "materials") void loadCharacterAssets().catch((error) => addToast(extractErrorMessage(error, t("common.mediaAuthoring.requestFailed")), "error"));
           return true;
         }}>
-        {canEditManga && <BookButton size="sm" variant="secondary" disabled={!selectedChapter || selectedStatus?.can_cancel || acting != null} onClick={() => void handleRunPipeline("start", "drawing_prompt")}>{t("common.mediaAuthoring.oneClick")}</BookButton>}
+        {canEditManga && <BookButton size="sm" variant="secondary" disabled={!selectedChapter || selectedStatus?.pipeline_status === "running" || selectedStatus?.can_cancel || acting != null} onClick={() => void handleRunPipeline("start")}>{t("common.mediaAuthoring.oneClick")}</BookButton>}
       </MediaStageHeader>}
       {outputState?.stale && (workspaceStage === "prompts" || workspaceStage === "images") && <p role="status" className="text-xs text-warning">{t("common.mediaAuthoring.outputsStale")}</p>}
       {authoring.error && workspaceStage !== "adaptation" && workspaceStage !== "page_plan" && <p role="alert" className="text-xs text-error">{authoring.error}</p>}
@@ -1230,17 +1110,16 @@ export const MangaTab: React.FC<MangaTabProps> = ({
       )}
 
       <div id={staged ? `${stageId}-panel` : undefined} role={staged ? "tabpanel" : undefined} aria-labelledby={staged ? `${stageId}-tab-${workspaceStage}` : undefined} className="flex min-h-0 min-w-0 flex-col">
-      {workspaceStage === "adaptation" || workspaceStage === "page_plan" ? <MediaAuthoringPanel
-        key={`${projectId}:${selectedChapter?.id}:${workspaceStage}:${discardVersion}`} projectId={projectId} kind={workspaceStage === "adaptation" ? "adaptation_plan" : "manga_page_plan"}
+      {workspaceStage === "adaptation" ? <MediaAuthoringPanel
+        key={`${projectId}:${selectedChapter?.id}:${workspaceStage}:${discardVersion}`} projectId={projectId} kind="adaptation_plan"
         workspace={authoring.workspace} loading={authoring.loading} error={authoring.error} chapterId={selectedChapter?.id ?? null}
         canEdit={canEditManga} stageRunning={selectedStatus?.can_cancel === true} onReload={authoring.reload} onDirtyChange={setAuthoringDirty}
         onBusyChange={setAuthoringBusy}
-        onGenerateStage={() => handleRunPipeline("start", "page_planning", false)}
-        onNext={() => setWorkspaceStage(workspaceStage === "adaptation" ? "page_plan" : "prompts")}
+        onNext={() => setWorkspaceStage("page_plan")}
       /> : workspaceStage === "materials" ? <BaseMaterialsWorkspace projectId={characterAssetProjectId} canEdit={canEditManga}
         onChanged={loadCharacterAssets} onNext={() => { void loadCharacterAssets(); setWorkspaceStage("adaptation"); }} /> : <MangaChapterDetailPanel
         key={`${projectId}:${selectedChapter?.id}:${workspaceStage}:${discardVersion}`}
-        stageMode={staged ? workspaceStage === "images" ? "images" : "prompts" : undefined}
+        stageMode={staged ? workspaceStage === "images" ? "images" : workspaceStage === "page_plan" ? "page_plan" : "prompts" : undefined}
         onDirtyChange={setPromptDirty}
         projectId={projectId}
         isSingleMode={isSingleMode}
@@ -1266,18 +1145,20 @@ export const MangaTab: React.FC<MangaTabProps> = ({
         acting={acting}
         canEditManga={canEditManga}
         onPreviewPipeline={(mode) => void handlePreviewPipeline(mode)}
-        onRunPipeline={(mode) => void handleRunPipeline(mode)}
+        onRunPipeline={(mode) => void handleRunPipeline(
+          mode,
+          workspaceStage === "page_plan" && pagePrompts.length === 0 ? "page_slots" : null,
+        )}
         onGenerateMissingPortraits={() => void handleGenerateMissingPortraits()}
         onCancelPipeline={() => {
           if (!ensureCanEditManga()) return;
           const chapter = selectedChapter;
-          const requestProjectId = projectId;
-          if (!chapter) return;
-          void wrapAct(
-            `cancel-${chapter.id}`,
-            () => cancelMangaPipeline(requestProjectId, chapter.id),
-            t("comic.pipelineCancelRequested"),
-          );
+          const handle = selectedStatus?.task_handle;
+          if (!chapter || !handle) {
+            addToast(t("comic.pipelineCancelFailed"), "error");
+            return;
+          }
+          void requestPipelineCancellation(chapter.id, handle);
         }}
         onDeleteManga={() => {
           if (!ensureCanEditManga()) return;
@@ -1326,22 +1207,6 @@ export const MangaTab: React.FC<MangaTabProps> = ({
         }}
       />}
       </div>
-      <ProgressDialog
-        open={pipelineProgressOpen}
-        title={pipelineProgress.title}
-        status={pipelineProgress.status}
-        current={pipelineProgress.current}
-        total={pipelineProgress.total}
-        message={pipelineProgress.message}
-        error={pipelineProgress.error}
-        onClose={() => setPipelineProgressOpen(false)}
-        onCancel={
-          pipelineChapterId != null ? handleCancelPipelineProgress : undefined
-        }
-        cancelLabel={t("comic.cancelPipeline")}
-        cancelling={pipelineCancelling}
-        runningHint={t("comic.pipelineRunningHint")}
-      />
       <RequestPreviewModal
         open={requestPreviewOpen}
         loading={requestPreviewLoading}

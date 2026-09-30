@@ -49,15 +49,15 @@ pub(in crate::routes::commands) async fn start_manga_pipeline(
 ) -> Result<Value, ApiError> {
     let input: manga_pipeline_actions::MangaPipelineStartInput =
         command_input(args, "start_manga_pipeline")?;
-    start_or_resume_manga_pipeline(
-        state,
-        user_id,
-        input.project_id,
-        input.chapter_number,
-        false,
-        input.stop_after,
-    )
-    .await
+    let input = manga_pipeline_actions::MangaPipelineStartInput {
+        meta: input.meta,
+        project_id: input.project_id,
+        chapter_number: input.chapter_number,
+        stop_after: input.stop_after,
+        image_size: input.image_size,
+        resume_from_checkpoint: false,
+    };
+    start_or_resume_manga_pipeline(state, user_id, input).await
 }
 
 pub(in crate::routes::commands) async fn resume_manga_pipeline(
@@ -67,65 +67,32 @@ pub(in crate::routes::commands) async fn resume_manga_pipeline(
 ) -> Result<Value, ApiError> {
     let input: manga_pipeline_actions::MangaPipelineResumeInput =
         command_input(args, "resume_manga_pipeline")?;
-    start_or_resume_manga_pipeline(
-        state,
-        user_id,
-        input.project_id,
-        input.chapter_number,
-        true,
-        input.stop_after,
-    )
-    .await
+    let input = manga_pipeline_actions::MangaPipelineStartInput {
+        meta: input.meta,
+        project_id: input.project_id,
+        chapter_number: input.chapter_number,
+        stop_after: input.stop_after,
+        image_size: input.image_size,
+        resume_from_checkpoint: true,
+    };
+    start_or_resume_manga_pipeline(state, user_id, input).await
 }
 
 pub(in crate::routes::commands) async fn start_or_resume_manga_pipeline(
     state: &ServerState,
     user_id: i64,
-    project_id: i64,
-    chapter_number: i32,
-    resume_from_checkpoint: bool,
-    stop_after: Option<a4n_api_contract::manga::MangaPipelineStopAfter>,
+    input: manga_pipeline_actions::MangaPipelineStartInput,
 ) -> Result<Value, ApiError> {
     manga_pipeline_actions::preflight_manga_pipeline(
         state.runtime(),
         user_id,
-        project_id,
-        chapter_number,
+        input.project_id,
+        input.chapter_number,
     )
     .await?;
-
-    let task_id = manga_pipeline_actions::new_manga_pipeline_task_id(project_id, chapter_number)?;
-    let state_clone = state.clone();
-    let task_id_clone = task_id.clone();
-    let runtime_config_snapshot = a4n_runtime::host_api::runtime_config::current_snapshot();
-    tokio::spawn(async move {
-        a4n_runtime::host_api::runtime_config::request_scope(
-            user_id,
-            runtime_config_snapshot,
-            async move {
-                if let Err(error) = manga_pipeline_actions::run_manga_pipeline(
-                    state_clone.runtime(),
-                    user_id,
-                    project_id,
-                    chapter_number,
-                    &task_id_clone,
-                    resume_from_checkpoint,
-                    stop_after,
-                )
-                .await
-                {
-                    tracing::error!(
-                        task_id = task_id_clone,
-                        project_id,
-                        chapter_number,
-                        %error,
-                        "漫画流水线执行失败"
-                    );
-                }
-            },
-        )
-        .await;
-    });
-
-    Ok(json!(task_id))
+    let handle =
+        manga_pipeline_actions::start_manga_pipeline_typed(state.runtime(), user_id, input)
+            .await
+            .map_err(|error| ApiError::bad_request(error.to_string()))?;
+    to_value(handle)
 }

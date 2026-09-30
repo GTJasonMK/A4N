@@ -208,7 +208,7 @@ def main():
                 deadline = time.monotonic() + 60
                 while time.monotonic() < deadline:
                     result = call("get_manga_pipeline_status", {"project_id": project_id, "chapter_id": chapter_id})
-                    # Terminal summaries clear task_id. Wait for the resumed run to replace its old state.
+                    # Wait for the resumed task to publish a new terminal summary.
                     if result == previous:
                         time.sleep(0.1)
                         continue
@@ -221,29 +221,54 @@ def main():
                     time.sleep(0.1)
                 raise RunnerError("manga fixture did not terminate")
 
-            for fault, prefix, expected in [
+            early_faults = [
                 ("manga-speech", 1, "不存在的拍摄节拍"),
                 ("manga-visual", 2, "不存在的拍摄节拍"),
                 ("manga-items", 3, "不存在的拍摄节拍"),
-                ("manga-planning", 5, "不属于所在页"),
-                ("manga-drawing", 7, "image_prompt"),
-            ]:
+                ("manga-slots", 5, "不存在的改编节拍"),
+            ]
+            early_fault_names = {name for name, _, _ in early_faults}
+            page_faults = [
+                ("manga-page-adaptation", "页面内容节拍"),
+                ("manga-storyboard", "page_number 必须等于"),
+                ("manga-drawing", "image_prompt"),
+            ]
+            for fault, prefix, expected in [*early_faults, *((name, 6, message) for name, message in page_faults)]:
                 manga_source, chapter_id = shooting_source(fault, 1)
                 shooting(manga_source)
                 project_id = manga_source["project_id"]
-                value = {"project_id": project_id, "chapter_number": 1}
+                value = {
+                    "project_id": project_id,
+                    "chapter_number": 1,
+                    "image_size": {"width": 1024, "height": 1024},
+                }
                 model(fault)
                 before = len(calls())
                 call("start_manga_pipeline", value)
                 failed = manga_result(project_id, expected)
-                assert len(calls()) - before == prefix + 1, (fault, len(calls()) - before)
+                start_calls = len(calls()) - before
+                if fault in early_fault_names:
+                    assert start_calls == prefix + 1, (fault, start_calls)
+                else:
+                    assert start_calls > prefix, (fault, start_calls)
+                pages_before_resume = call("list_manga_page_prompts", {"project_id": project_id, "chapter_id": chapter_id})
+                if fault in early_fault_names:
+                    expected_retry_calls = 6 + 3 * 2 - prefix
+                else:
+                    expected_retry_calls = sum(
+                        page.get("page_adaptation") is None
+                        for page in pages_before_resume
+                    ) + sum(page.get("page_plan") is None for page in pages_before_resume) + sum(
+                        page.get("drawing_prompt") is None for page in pages_before_resume
+                    )
                 model()
                 before = len(calls())
                 call("resume_manga_pipeline", value)
                 manga_result(project_id, previous=failed)
                 pages = call("list_manga_page_prompts", {"project_id": project_id, "chapter_id": chapter_id})
-                assert pages and len(calls()) - before == 6 + len(pages) - prefix, (fault, len(calls()) - before, len(pages))
-                report["checks"].append({"fault": fault, "reused_calls": prefix, "retry_calls": len(calls()) - before})
+                assert pages and len(calls()) - before == expected_retry_calls, (fault, len(calls()) - before, expected_retry_calls, len(pages))
+                assert all(page["page_adaptation"] and page["page_plan"] and page["drawing_prompt"] for page in pages)
+                report["checks"].append({"fault": fault, "reused_calls": start_calls, "retry_calls": len(calls()) - before})
 
             value = {"prompt_id": pages[0]["id"], "instruction": "增强画面构图", "downstream_strategy": "reject"}
             model("manga-optimization")

@@ -26,7 +26,8 @@ use tokio_util::sync::CancellationToken;
 
 const IMAGE_CANCELLED_MESSAGE: &str = "图片生成已停止";
 
-pub type ImageGenerationProgressReporter<'a> = &'a (dyn Fn(u32, u32, &str) + Send + Sync + 'a);
+pub type ImageGenerationProgressReporter<'a> =
+    &'a (dyn for<'message> Fn(u32, u32, &'message str) + Send + Sync + 'a);
 pub type ImageGenerationCancelToken<'a> = &'a CancellationToken;
 
 #[derive(Debug, Clone)]
@@ -158,6 +159,15 @@ pub trait ImageGenerationTaskApplicationPort: Send + Sync {
         handle: GenerationTaskHandle,
         host_port: &dyn ImageGenerationHostPort,
     ) -> Result<(), String>;
+
+    async fn generate_attached_page_image(
+        &self,
+        user_id: i64,
+        input: GeneratePageImageInput,
+        workflow_run_id: i64,
+        host_port: &dyn ImageGenerationHostPort,
+        progress: &ImageGenerationProgress<'_>,
+    ) -> Result<GeneratedImageSummary, AppError>;
 }
 
 /// Host-facing boundary for Galgame image generation.

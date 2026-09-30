@@ -1,5 +1,5 @@
-mod drawing;
-mod page_plan;
+mod page_pipeline;
+mod page_slots;
 
 use a4n_error::AppError;
 use serde_json::json;
@@ -8,15 +8,14 @@ use super::super::json::required_array_field;
 use super::contracts::{
     MangaExtractionPreview, MangaPipelineRequestPreviewStep, MangaPreviewContext,
 };
-use drawing::preview_page_drawing_prompts;
-use page_plan::preview_page_plan;
+use page_pipeline::preview_page_pipeline;
+use page_slots::preview_page_slots;
 
 pub(super) async fn preview_planning(
     context: &MangaPreviewContext<'_>,
     steps: &mut Vec<MangaPipelineRequestPreviewStep>,
     extraction: MangaExtractionPreview,
 ) -> Result<(), AppError> {
-    let reference_assets = context.reference_assets.clone();
     let MangaExtractionPreview {
         characters_json,
         events_json,
@@ -34,18 +33,17 @@ pub(super) async fn preview_planning(
         "items": items,
         "comic_synthesis": comic_synthesis_json
     });
-    let Some(plan) = preview_page_plan(context, steps, &extraction_summary).await? else {
+    let Some(slots) = preview_page_slots(context, steps, &extraction_summary).await? else {
         return Ok(());
     };
-    if context.stop_after == Some(a4n_api_contract::manga::MangaPipelineStopAfter::PagePlanning) {
+    if matches!(
+        context.stop_after,
+        Some(
+            a4n_api_contract::manga::MangaPipelineStopAfter::PageSlots
+                | a4n_api_contract::manga::MangaPipelineStopAfter::PageContent
+        )
+    ) {
         return Ok(());
     }
-    preview_page_drawing_prompts(
-        context,
-        steps,
-        &plan,
-        &extraction_summary,
-        &reference_assets,
-    )
-    .await
+    preview_page_pipeline(context, steps, &slots, &extraction_summary).await
 }

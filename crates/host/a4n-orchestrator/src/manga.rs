@@ -4,6 +4,8 @@ mod pipeline;
 
 use a4n_db::project::MangaCharacterPortraitRefSummary;
 use a4n_prompt::rendering::PromptRenderer;
+use a4n_service_protocol::ProgressEvent;
+use tokio_util::sync::CancellationToken;
 
 use crate::OrchestratorContext;
 
@@ -24,10 +26,12 @@ pub(in crate::manga) use pipeline::state::{MANGA_PIPELINE_TOTAL_STEPS, MangaPipe
 pub(in crate::manga) use prompt_optimization::MangaPromptOptimizationInput;
 pub(crate) use record_errors::manga_prompt_record_error;
 pub use source::ensure_manga_source_can_write;
-pub(in crate::manga) use workflow::{manga_pipeline_business_key, manga_pipeline_fingerprint};
+pub(crate) use workflow::{manga_pipeline_business_key, manga_pipeline_fingerprint};
 
 pub struct MangaGeneratePagePromptsInput<'a> {
+    pub user_id: i64,
     pub chapter_id: i64,
+    pub chapter_number: i32,
     pub project_id: i64,
     pub prompt_renderer: &'a dyn PromptRenderer,
     pub character_portraits: Vec<MangaCharacterPortraitRefSummary>,
@@ -35,6 +39,11 @@ pub struct MangaGeneratePagePromptsInput<'a> {
     pub workflow_run_id: i64,
     pub resume_from_checkpoint: bool,
     pub stop_after: Option<a4n_api_contract::manga::MangaPipelineStopAfter>,
+    pub image_size: Option<a4n_domain::ImageSize>,
+    pub image_generator: Option<&'a dyn a4n_api_contract::manga::MangaPipelinePageImageGenerator>,
+    pub cancel_token: Option<&'a CancellationToken>,
+    pub progress_reporter: Option<&'a (dyn Fn(ProgressEvent) + Send + Sync)>,
+    pub stream_reporter: Option<&'a (dyn Fn(&str, &str) + Send + Sync)>,
 }
 
 pub struct MangaPipelineRequestPreviewInput<'a> {
@@ -59,16 +68,14 @@ use a4n_db_models::models::generation::workflow_run;
 use a4n_error::AppError;
 
 impl OrchestratorContext {
-    async fn completed_manga_plan_workflow(
+    async fn completed_manga_pipeline_stage_workflow(
         &self,
         project_id: i64,
         chapter_id: i64,
         fingerprint: &serde_json::Value,
         stop_after: Option<a4n_api_contract::manga::MangaPipelineStopAfter>,
     ) -> Result<Option<workflow_run::Model>, AppError> {
-        if stop_after == Some(a4n_api_contract::manga::MangaPipelineStopAfter::PagePlanning) {
-            return Ok(None);
-        }
+        let next_stage_order = manga_stop_after_order(stop_after);
         Ok(self
             .latest_workflow_run_by_business_key(&manga_pipeline_business_key(
                 project_id, chapter_id,
@@ -76,8 +83,12 @@ impl OrchestratorContext {
             .await?
             .filter(|run| {
                 run.status == WORKFLOW_STATUS_COMPLETED
-                    && run.current_step_key.as_deref() == Some("page_planning")
                     && run.input_fingerprint_json.as_ref() == Some(fingerprint)
+                    && run
+                        .current_step_key
+                        .as_deref()
+                        .and_then(manga_completed_stage_order)
+                        .is_some_and(|stage_order| stage_order < next_stage_order)
             }))
     }
     pub(crate) async fn resumable_manga_workflow_validated(
@@ -193,7 +204,12 @@ impl OrchestratorContext {
                 .map(|run| (run, true));
         }
         if let Some(previous) = self
-            .completed_manga_plan_workflow(project_id, chapter_id, &input_fingerprint, stop_after)
+            .completed_manga_pipeline_stage_workflow(
+                project_id,
+                chapter_id,
+                &input_fingerprint,
+                stop_after,
+            )
             .await?
         {
             return self
@@ -204,5 +220,28 @@ impl OrchestratorContext {
         self.begin_workflow_run_validated(input)
             .await
             .map(|run| (run, false))
+    }
+}
+
+fn manga_stop_after_order(
+    stop_after: Option<a4n_api_contract::manga::MangaPipelineStopAfter>,
+) -> u8 {
+    use a4n_api_contract::manga::MangaPipelineStopAfter as StopAfter;
+    match stop_after {
+        Some(StopAfter::PageSlots | StopAfter::PageContent) => 0,
+        Some(StopAfter::PageAdaptation) => 1,
+        Some(StopAfter::Storyboard | StopAfter::PagePlanning) => 2,
+        Some(StopAfter::DrawingPrompt) => 3,
+        Some(StopAfter::Image) | None => 4,
+    }
+}
+
+fn manga_completed_stage_order(stage: &str) -> Option<u8> {
+    match stage {
+        "page_content" => Some(0),
+        "adaptation" => Some(1),
+        "storyboard" | "page_planning" => Some(2),
+        "drawing_prompt" => Some(3),
+        _ => None,
     }
 }

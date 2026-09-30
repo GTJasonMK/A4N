@@ -1,5 +1,5 @@
 mod contracts;
 mod drafts;
-mod persistence;
 
-pub(in crate::manga) use contracts::{MangaPipelinePersistInput, PageMangaPromptGenerationTrace};
+pub(in crate::manga) use contracts::MangaPipelinePersistInput;
+pub(in crate::manga) use drafts::pipeline_page_draft;

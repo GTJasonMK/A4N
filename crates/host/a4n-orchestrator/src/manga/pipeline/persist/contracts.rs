@@ -1,9 +1,5 @@
 use a4n_api_contract::manga::MangaPagePromptSourceSummary;
-use a4n_domain::manga::{MangaPageDrawingPromptV2, MangaPagePlanV4};
-use serde::Serialize;
 use serde_json::Value;
-
-use super::super::prompt::MangaPromptGenerationTrace;
 
 pub(in crate::manga) struct MangaPipelinePersistInput<'a> {
     pub(in crate::manga) chapter_id: i64,
@@ -11,14 +7,6 @@ pub(in crate::manga) struct MangaPipelinePersistInput<'a> {
     pub(in crate::manga) source_metadata: &'a MangaPagePromptSourceSummary,
     pub(in crate::manga) reference_assets_metadata: &'a Value,
     pub(in crate::manga) prompt_fingerprint: &'a Value,
-    pub(in crate::manga) plan: &'a MangaPagePlanV4,
-    pub(in crate::manga) page_plan_ref: &'a a4n_domain::media_authoring::AuthoringDocumentRef,
-    pub(in crate::manga) page_traces: Vec<PageMangaPromptGenerationTrace>,
-    pub(in crate::manga) page_prompts: Vec<MangaPageDrawingPromptV2>,
-}
-
-#[derive(Debug, Clone, Serialize)]
-pub(in crate::manga) struct PageMangaPromptGenerationTrace {
-    pub(in crate::manga) page_number: u32,
-    pub(in crate::manga) trace: MangaPromptGenerationTrace,
+    pub(in crate::manga) page_plan_ref:
+        Option<&'a a4n_domain::media_authoring::AuthoringDocumentRef>,
 }

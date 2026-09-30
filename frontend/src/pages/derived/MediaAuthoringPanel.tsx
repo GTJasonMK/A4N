@@ -5,7 +5,7 @@ import {
   type AdaptationPlanV1, type AuthoringDocumentKind, type AuthoringDocumentRecord,
   type GalgameBranchDesign, type MediaAuthoringWorkspace, type VideoScriptReferenceCandidate,
 } from "../../api/mediaAuthoring";
-import type { GenerateAdaptationPlanInput, MangaPagePlanV4 } from "../../api/generated/host";
+import type { GenerateAdaptationPlanInput } from "../../api/generated/host";
 import { extractErrorMessage } from "../../api";
 import { cancelWorkflowTask } from "../../api/streaming";
 import type { ModelRequestPreview } from "../../api/requestPreview";
@@ -19,13 +19,13 @@ import { useProgressTask } from "../../hooks/useProgressTask";
 import { useI18n } from "../../i18n";
 import { useDirty } from "../../components/navigation/dirtyRegistry";
 import { AdaptationPlanEditor, newAdaptationUnit, PlanTextField } from "./AdaptationPlanEditor";
-import { GalgameBranchPlanEditor, MangaPagePlanEditor } from "./MediaPlanEditors";
+import { GalgameBranchPlanEditor } from "./MediaPlanEditors";
 
-type PlanDocument = AdaptationPlanV1 | GalgameBranchDesign | MangaPagePlanV4;
+type PlanDocument = AdaptationPlanV1 | GalgameBranchDesign;
 
 interface Props {
   projectId: number;
-  kind: AuthoringDocumentKind;
+  kind: Exclude<AuthoringDocumentKind, "manga_page_plan">;
   workspace: MediaAuthoringWorkspace | null;
   loading: boolean;
   error: string | null;
@@ -75,8 +75,9 @@ export function MediaAuthoringPanel({ projectId, kind, workspace, loading, error
   );
   const draftDirty = dirty || generationOptionsDirty;
   const disabled = !canEdit || busy || stageRunning;
-  const title = kind === "adaptation_plan" ? t("common.mediaAuthoring.adaptation")
-    : kind === "manga_page_plan" ? t("common.mediaAuthoring.pagePlanning") : t("common.mediaAuthoring.branches");
+  const title = kind === "adaptation_plan"
+    ? t("common.mediaAuthoring.adaptation")
+    : t("common.mediaAuthoring.branches");
 
   const discard = () => {
     if (busy) return false;
@@ -246,7 +247,7 @@ export function MediaAuthoringPanel({ projectId, kind, workspace, loading, error
       {canEdit && <>
         <BookButton size="sm" variant={editor ? "secondary" : "primary"} disabled={disabled || !workspace || (kind !== "galgame_branch_plan" && !chapter)} onClick={() => void run(generate)}>{busy || stageRunning ? <LoadingSpinner size="sm" /> : null}{editor ? t("common.mediaAuthoring.regeneratePlan") : t("common.mediaAuthoring.generatePlan")}</BookButton>
         {kind === "adaptation_plan" && <BookButton size="sm" variant="ghost" disabled={disabled || !chapter} onClick={() => void run(async () => { const value = await previewMediaAdaptationPlanRequest(generationInput()); setPreview(value); setPreviewOpen(true); })}>{t("common.mediaAuthoring.previewRequest")}</BookButton>}
-        {!editor && kind !== "manga_page_plan" && <BookButton size="sm" variant="secondary" disabled={disabled || !workspace} onClick={() => {
+        {!editor && <BookButton size="sm" variant="secondary" disabled={disabled || !workspace} onClick={() => {
           const document = kind === "galgame_branch_plan" ? { choices: [] } : { schema_version: "adaptation_plan_v1" as const, target: workspace!.target, intention: "", decisions: [], units: [newAdaptationUnit()] };
           setEditor({ record: null, document, baseline: "" });
         }}>{t("common.mediaAuthoring.manualPlan")}</BookButton>}
@@ -255,8 +256,7 @@ export function MediaAuthoringPanel({ projectId, kind, workspace, loading, error
     {loading && !workspace ? <LoadingSpinner size="sm" /> : editor && workspace ? <fieldset disabled={disabled || selected?.stale} className="min-w-0 space-y-3 disabled:opacity-70">
       <legend className="sr-only">{title}</legend>
       {kind === "adaptation_plan" && chapter ? <AdaptationPlanEditor value={editor.document as AdaptationPlanV1} chapter={chapter} onChange={(document) => setEditor({ ...editor, document })} />
-        : kind === "galgame_branch_plan" ? <GalgameBranchPlanEditor value={editor.document as GalgameBranchDesign} workspace={workspace} onChange={(document) => setEditor({ ...editor, document })} />
-          : kind === "manga_page_plan" ? <MangaPagePlanEditor value={editor.document as MangaPagePlanV4} onChange={(document) => setEditor({ ...editor, document })} /> : null}
+        : <GalgameBranchPlanEditor value={editor.document as GalgameBranchDesign} workspace={workspace} onChange={(document) => setEditor({ ...editor, document })} />}
     </fieldset> : <p className="py-6 text-sm text-book-text-muted">{t("common.mediaAuthoring.noPlan")}</p>}
     {editor && canEdit && <footer className="sticky bottom-0 z-10 flex flex-wrap items-center justify-end gap-2 border-t border-book-border/60 bg-[rgb(var(--color-bg-primary))] py-3">
       <span className="mr-auto text-xs text-book-text-muted" role="status">{dirty ? t("common.unsavedChangesTitle") : editor.record?.status === "adopted" ? t("common.mediaAuthoring.adopted") : editor.record ? t("common.mediaAuthoring.draftSaved") : ""}</span>

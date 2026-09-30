@@ -1,5 +1,6 @@
 use super::*;
 use crate::manga::pipeline::state::MangaPipelineStage;
+use crate::manga::{manga_completed_stage_order, manga_stop_after_order};
 use a4n_db::project::MangaCharacterPortraitRefSummary;
 
 #[test]
@@ -18,8 +19,27 @@ fn manga_pipeline_stage_keys_are_owned_by_stage_enum() {
     );
     assert_eq!(MangaPipelineStage::ItemExtraction.key(), "item_extraction");
     assert_eq!(MangaPipelineStage::ComicSynthesis.key(), "comic_synthesis");
-    assert_eq!(MangaPipelineStage::PagePlanning.key(), "page_planning");
-    assert_eq!(MangaPipelineStage::DrawingPrompt.key(), "drawing_prompt");
+    assert_eq!(MangaPipelineStage::PageSlots.key(), "page_content");
+}
+
+#[test]
+fn completed_manga_pipeline_stages_continue_only_forward() {
+    use a4n_api_contract::manga::MangaPipelineStopAfter as StopAfter;
+
+    assert_eq!(manga_completed_stage_order("page_content"), Some(0));
+    assert_eq!(manga_completed_stage_order("adaptation"), Some(1));
+    assert_eq!(manga_completed_stage_order("storyboard"), Some(2));
+    assert_eq!(manga_completed_stage_order("drawing_prompt"), Some(3));
+    assert_eq!(manga_completed_stage_order("completed"), None);
+    assert!(manga_completed_stage_order("page_content").unwrap() < manga_stop_after_order(None));
+    assert!(
+        manga_completed_stage_order("adaptation").unwrap()
+            < manga_stop_after_order(Some(StopAfter::Storyboard))
+    );
+    assert!(
+        manga_completed_stage_order("storyboard").unwrap()
+            >= manga_stop_after_order(Some(StopAfter::Storyboard))
+    );
 }
 
 #[test]

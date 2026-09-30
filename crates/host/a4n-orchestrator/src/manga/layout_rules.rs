@@ -3,18 +3,20 @@
 use a4n_db_models::models::chapter::chapter_manga_prompt;
 use a4n_domain::{
     DownstreamConflictStrategy,
-    manga::{MangaBoundReferenceAsset, MangaPageGenerationLayoutV3},
+    manga::{
+        MangaBoundReferenceAsset, MangaPageGenerationLayoutV3, MangaPageGenerationLayoutV4,
+        MangaReferenceBindingSummary,
+    },
 };
 
-pub(crate) use a4n_manga_core::manga_page_generation_layout;
+pub(crate) use a4n_manga_core::{manga_page_generation_layout, manga_page_pipeline_layout};
 
-/// 将参考素材绑定进整页漫画 layout 的指定角色。
-pub(crate) fn bind_reference_asset_in_layout(
-    mut layout: MangaPageGenerationLayoutV3,
+fn bind_reference_asset_in_bindings(
+    bindings: &mut [MangaReferenceBindingSummary],
     character_name: &str,
     bound_asset: MangaBoundReferenceAsset,
-) -> Result<MangaPageGenerationLayoutV3, String> {
-    for (index, binding) in layout.reference_bindings.iter_mut().enumerate() {
+) -> Result<(), String> {
+    for (index, binding) in bindings.iter_mut().enumerate() {
         let current_character_name = binding.character_name.trim();
         if current_character_name.is_empty() {
             return Err(format!(
@@ -25,10 +27,30 @@ pub(crate) fn bind_reference_asset_in_layout(
             continue;
         }
         binding.bound_asset = Some(bound_asset);
-        return Ok(layout);
+        return Ok(());
     }
 
     Err(format!("整页漫画提示词不存在角色参考图: {character_name}"))
+}
+
+/// 将参考素材绑定进整页漫画 layout 的指定角色。
+pub(crate) fn bind_reference_asset_in_layout(
+    mut layout: MangaPageGenerationLayoutV3,
+    character_name: &str,
+    bound_asset: MangaBoundReferenceAsset,
+) -> Result<MangaPageGenerationLayoutV3, String> {
+    bind_reference_asset_in_bindings(&mut layout.reference_bindings, character_name, bound_asset)?;
+    Ok(layout)
+}
+
+/// 将参考素材绑定进新流水线 layout，同时保留页面 checkpoint。
+pub(crate) fn bind_reference_asset_in_pipeline_layout(
+    mut layout: MangaPageGenerationLayoutV4,
+    character_name: &str,
+    bound_asset: MangaBoundReferenceAsset,
+) -> Result<MangaPageGenerationLayoutV4, String> {
+    bind_reference_asset_in_bindings(&mut layout.reference_bindings, character_name, bound_asset)?;
+    Ok(layout)
 }
 
 /// 确定整页漫画提示词变更前的下游图片处理。
@@ -53,7 +75,10 @@ pub(crate) fn resolve_manga_prompt_downstream_conflict(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use a4n_domain::manga::{MangaReferenceAssetKind, MangaReferenceBindingSummary};
+    use a4n_domain::manga::{
+        MangaPageGenerationLayoutV4, MangaPageGenerationSchemaVersion, MangaReferenceAssetKind,
+        MangaReferenceBindingSummary,
+    };
     use serde_json::json;
 
     #[test]
@@ -105,6 +130,63 @@ mod tests {
         )
         .unwrap_err();
         assert_eq!(err, "整页漫画提示词不存在角色参考图: hero");
+    }
+
+    #[test]
+    fn bind_updates_v4_without_downgrading_pipeline() {
+        let layout: MangaPageGenerationLayoutV4 = serde_json::from_value(json!({
+            "schema_version": "manga_page_generation_v4",
+            "page_id": "page-0001",
+            "page_number": 1,
+            "page_plan_ref": null,
+            "pipeline": {
+                "schema_version": "manga_page_pipeline_state_v1",
+                "page_id": "page-0001",
+                "status": "pending",
+                "stage": "adaptation",
+                "attempt": 1,
+                "source_fingerprint": "source",
+                "stage_fingerprints": {},
+                "page_content": null,
+                "page_adaptation": null,
+                "storyboard": null,
+                "drawing_prompt": null,
+                "image": null,
+                "error": null
+            },
+            "reference_bindings": [{"character_name": "hero", "bound_asset": null}],
+            "prompt_fingerprint": {},
+            "source": {
+                "root_project_id": 33,
+                "source_chapter_id": 22,
+                "source_snapshot_id": null,
+                "source_snapshot_chapter_id": null,
+                "source_revision_key": "content",
+                "content_sha256": "content-sha256",
+                "adaptation_plan_id": 71,
+                "adaptation_plan_revision": 2,
+                "adaptation_plan_sha256": "plan-sha256"
+            }
+        }))
+        .expect("valid v4 layout fixture");
+        let bound = MangaBoundReferenceAsset {
+            asset_kind: MangaReferenceAssetKind::GeneratedImage,
+            asset_id: 7,
+            image_path: "hero.png".to_string(),
+        };
+
+        let updated = bind_reference_asset_in_pipeline_layout(layout, "hero", bound).unwrap();
+
+        assert_eq!(updated.schema_version, MangaPageGenerationSchemaVersion::V4);
+        assert_eq!(updated.pipeline.page_id, "page-0001");
+        assert_eq!(
+            updated.reference_bindings[0]
+                .bound_asset
+                .as_ref()
+                .unwrap()
+                .asset_id,
+            7
+        );
     }
 
     fn layout_fixture(

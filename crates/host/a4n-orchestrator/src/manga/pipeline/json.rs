@@ -1,8 +1,12 @@
 mod fields;
+mod page_pipeline;
 mod page_plan;
 mod page_prompts;
 
 pub(crate) use fields::{required_array_field, required_object_field};
+pub(crate) use page_pipeline::{
+    parse_manga_page_adaptation, parse_manga_page_slots, parse_manga_page_storyboard,
+};
 pub(crate) use page_plan::parse_manga_page_plan;
 pub(crate) use page_prompts::page_drawing_prompt_from_response;
 

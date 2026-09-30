@@ -1,12 +1,14 @@
-use super::super::super::super::{MANGA_PIPELINE_TOTAL_STEPS, OrchestratorContext};
+use super::super::super::super::OrchestratorContext;
 use super::super::super::json::page_drawing_prompt_from_response;
-use super::super::super::prompt::{MangaRenderTraceInput, manga_page_drawing_prompt_user_message};
-use super::super::super::state::manga_drawing_prompt_call_order;
+use super::super::super::prompt::{
+    MangaRenderTraceInput, manga_page_drawing_prompt_pipeline_user_message,
+};
+use super::super::super::state::manga_page_pipeline_call_order;
 use super::contracts::{SinglePageDrawingPromptInput, SinglePageDrawingPromptOutput};
 use a4n_error::AppError;
 
 impl OrchestratorContext {
-    pub(super) async fn run_single_page_drawing_prompt(
+    pub(in crate::manga::pipeline::run) async fn run_single_page_drawing_prompt(
         &self,
         input: SinglePageDrawingPromptInput<'_>,
     ) -> Result<SinglePageDrawingPromptOutput, AppError> {
@@ -15,24 +17,28 @@ impl OrchestratorContext {
             project_id,
             prompt_renderer,
             vars,
-            task_id,
             workflow_run_id,
             reference_assets,
+            page_content,
+            page_adaptation,
             page_plan,
             page_index,
-            total_pages,
             extraction_summary,
             restore_from_checkpoint,
+            cancel_token,
+            stream_reporter,
         } = input;
         let page_number = page_plan.page_number;
         let page_context = format!("manga_page_drawing_prompt.page_{page_number}");
-        let dp_user = manga_page_drawing_prompt_user_message(
+        let dp_user = manga_page_drawing_prompt_pipeline_user_message(
             page_number,
             page_plan,
+            page_content,
+            page_adaptation,
             extraction_summary,
             reference_assets,
         )?;
-        let call_order = manga_drawing_prompt_call_order(page_index)?;
+        let call_order = manga_page_pipeline_call_order(page_index, 2)?;
         let (trace, page_prompt) = self
             .render_and_validate_manga_call(
                 MangaRenderTraceInput {
@@ -48,30 +54,13 @@ impl OrchestratorContext {
                     variables: vars,
                     user_content: dp_user,
                     temperature: 0.5,
+                    cancel_token,
+                    stream_id: format!("page_{page_number}_drawing_prompt"),
+                    stream_reporter,
                 },
                 |value| page_drawing_prompt_from_response(value, page_number, &page_context),
             )
             .await?;
-        self.report_pipeline_llm_usage(
-            workflow_run_id,
-            "drawing_prompt",
-            MANGA_PIPELINE_TOTAL_STEPS,
-            task_id,
-            &trace,
-        )
-        .await?;
-        let message = format!(
-            "已完成第 {page_number} 页整页提示词 ({}/{total_pages})",
-            page_index + 1
-        );
-        self.record_manga_pipeline_progress(
-            workflow_run_id,
-            task_id,
-            "drawing_prompt",
-            MANGA_PIPELINE_TOTAL_STEPS,
-            &message,
-        )
-        .await?;
 
         Ok(SinglePageDrawingPromptOutput {
             prompt: page_prompt,

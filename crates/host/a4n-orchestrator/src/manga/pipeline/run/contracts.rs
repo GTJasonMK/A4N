@@ -2,26 +2,36 @@ use std::collections::HashMap;
 
 use a4n_api_contract::manga::MangaPagePromptSourceSummary;
 use a4n_error::AppError;
+use a4n_progress::{ProgressPhaseKind, ProgressSeverity};
+use a4n_service_protocol::ProgressEvent;
 use serde_json::Value;
+use tokio_util::sync::CancellationToken;
 
 use crate::media_authoring::PreparedAdaptation;
-use a4n_domain::manga::MangaPagePlanV4;
 use a4n_domain::source_spans::SourceSpan;
 use a4n_prompt::rendering::PromptRenderer;
 
 use super::super::super::{MangaPipelineStage, OrchestratorContext};
-use super::super::state::manga_pipeline_stage_status;
+use super::super::state::{MANGA_PIPELINE_TOTAL_STEPS, manga_pipeline_stage_status};
 
 pub(super) struct MangaRunContext<'a> {
     pub(super) service: &'a OrchestratorContext,
     pub(super) chapter_id: i64,
+    pub(super) chapter_number: i32,
     pub(super) project_id: i64,
+    pub(super) user_id: i64,
     pub(super) adaptation: PreparedAdaptation,
     pub(super) prompt_renderer: &'a dyn PromptRenderer,
     pub(super) task_id: &'a str,
     pub(super) workflow_run_id: i64,
     pub(super) resume_from_checkpoint: bool,
     pub(super) stop_after: Option<a4n_api_contract::manga::MangaPipelineStopAfter>,
+    pub(super) image_size: Option<a4n_domain::ImageSize>,
+    pub(super) image_generator:
+        Option<&'a dyn a4n_api_contract::manga::MangaPipelinePageImageGenerator>,
+    pub(super) cancel_token: Option<&'a CancellationToken>,
+    pub(super) progress_reporter: Option<&'a (dyn Fn(ProgressEvent) + Send + Sync)>,
+    pub(super) stream_reporter: Option<&'a (dyn Fn(&str, &str) + Send + Sync)>,
     pub(super) chapter_content: String,
     pub(super) source_spans: Vec<SourceSpan>,
     pub(super) variables: HashMap<String, Value>,
@@ -45,7 +55,63 @@ impl MangaRunContext<'_> {
                 next_current,
                 next_message,
             )
-            .await
+            .await?;
+        self.publish_progress(
+            ProgressPhaseKind::StructuredOutput,
+            next_current,
+            MANGA_PIPELINE_TOTAL_STEPS,
+            next_message,
+            "阶段",
+            None,
+            None,
+            None,
+        );
+        Ok(())
+    }
+
+    pub(super) fn publish_progress(
+        &self,
+        phase_kind: ProgressPhaseKind,
+        current: i32,
+        total: i32,
+        message: &str,
+        unit_label: &str,
+        item_key: Option<String>,
+        item_index: Option<u64>,
+        item_total: Option<u64>,
+    ) {
+        let Some(reporter) = self.progress_reporter else {
+            return;
+        };
+        let Ok(current) = u64::try_from(current) else {
+            return;
+        };
+        let Ok(total) = u64::try_from(total) else {
+            return;
+        };
+        reporter(ProgressEvent {
+            stage_code: "manga_pipeline".into(),
+            phase_kind,
+            current: Some(current),
+            total: Some(total.max(1)),
+            message: message.to_string(),
+            unit_label: Some(unit_label.to_string()),
+            item_key,
+            item_index,
+            item_total,
+            severity: ProgressSeverity::Info,
+            estimated: false,
+        });
+    }
+
+    pub(super) fn check_cancelled(&self) -> Result<(), AppError> {
+        if self
+            .cancel_token
+            .is_some_and(CancellationToken::is_cancelled)
+        {
+            return Err(AppError::Cancelled);
+        }
+        Ok(())
     }
 }
 
@@ -57,10 +123,4 @@ pub(super) struct MangaEarlyRun {
 
 pub(super) struct MangaExtractionRun {
     pub(super) extraction_summary: Value,
-}
-
-pub(super) struct MangaPlanningRun {
-    pub(super) extraction: MangaExtractionRun,
-    pub(super) plan: MangaPagePlanV4,
-    pub(super) page_plan_ref: a4n_domain::media_authoring::AuthoringDocumentRef,
 }

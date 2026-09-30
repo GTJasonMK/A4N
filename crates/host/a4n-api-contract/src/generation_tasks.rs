@@ -1,6 +1,7 @@
+pub use a4n_service_protocol::{GENERATION_EVENT_SCHEMA_VERSION, GenerationTaskStatus};
 use a4n_service_protocol::{
-    GenerationErrorCode, GenerationResultRef, GenerationTaskEvent, GenerationTaskStatus,
-    JS_SAFE_INTEGER_I64, StartedEvent,
+    GenerationErrorCode, GenerationResultRef, GenerationTaskEvent, JS_SAFE_INTEGER_I64,
+    StartedEvent,
 };
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};

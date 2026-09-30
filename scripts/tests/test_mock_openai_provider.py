@@ -817,6 +817,49 @@ class MockOpenAIProviderTest(unittest.TestCase):
             {"unit_id": "station", "beat_id": "evidence"},
         )
 
+    def test_manga_page_pipeline_responses_follow_each_page_contract(self) -> None:
+        beat_ref = {"unit_id": "station", "beat_id": "evidence"}
+        slots_request = {
+            "messages": [{
+                "role": "user",
+                "content": json.dumps({
+                    "task": {"prompt_name": "manga_page_slots"},
+                    "input": {
+                        "source_spans": [{"id": "ch1:s1:f1", "text": "林岚在通道检查怀表。"}],
+                        "adaptation_plan": {"units": [{"beats": [beat_ref]}]},
+                    },
+                }, ensure_ascii=False),
+            }],
+        }
+        slots = json.loads(response_for(slots_request))
+        self.assertEqual(slots["schema_version"], "manga_page_slots_v1")
+        self.assertEqual(len(slots["pages"]), 2)
+        self.assertEqual(
+            slots["pages"][1]["content"]["entry_state"],
+            slots["pages"][0]["content"]["exit_state"],
+        )
+
+        content = slots["pages"][1]["content"]
+        adaptation = json.loads(response_for({"messages": [{
+            "role": "user",
+            "content": json.dumps({
+                "task": {"prompt_name": "manga_page_adaptation_plan"},
+                "input": {"page_number": 2, "page_content": content},
+            }, ensure_ascii=False),
+        }]}))
+        self.assertEqual(adaptation["beat_refs"], content["beat_refs"])
+
+        storyboard = json.loads(response_for({"messages": [{
+            "role": "user",
+            "content": json.dumps({
+                "task": {"prompt_name": "manga_page_storyboard"},
+                "input": {"page_number": 2, "page_content": content, "page_adaptation": adaptation},
+            }, ensure_ascii=False),
+        }]}))
+        self.assertEqual(storyboard["page_number"], 2)
+        self.assertEqual(storyboard["beat_refs"], adaptation["beat_refs"])
+        self.assertEqual(storyboard["entry_state"], content["entry_state"])
+
     def test_galgame_branch_resolves_shared_context_reference(self) -> None:
         projection = {
             "scenes": [

@@ -8,6 +8,45 @@ use super::fingerprints::{
 use super::*;
 
 impl OrchestratorContext {
+    pub(crate) async fn start_manga_pipeline_task(
+        &self,
+        user_id: i64,
+        input: &a4n_api_contract::manga::MangaPipelineStartInput,
+    ) -> Result<GenerationTaskStart, GenerationTaskAccessError> {
+        if input.image_size.is_none()
+            && matches!(
+                input.stop_after,
+                None | Some(a4n_api_contract::manga::MangaPipelineStopAfter::Image)
+            )
+        {
+            return Err(GenerationTaskAccessError::InvalidArgument(
+                "自动成图需要指定图片尺寸".into(),
+            ));
+        }
+        self.verify_project_or_derived_family_editor_validated(user_id, input.project_id)
+            .await
+            .map_err(GenerationTaskAccessError::Project)?;
+        let source = self
+            .chapter_manga_source_by_number(input.project_id, input.chapter_number, true)
+            .await
+            .map_err(GenerationTaskAccessError::Project)?;
+        let portraits = self
+            .manga_character_portrait_refs(input.project_id)
+            .await
+            .map_err(GenerationTaskAccessError::Project)?;
+        crate::manga::ensure_manga_source_can_write(&source, "启动漫画流水线")
+            .map_err(|error| GenerationTaskAccessError::InvalidArgument(error.to_string()))?;
+        let fingerprint = serde_json::json!({
+            "pipeline_contract": "manga_page_pipeline_v2",
+            "source": crate::manga::manga_pipeline_fingerprint(&source.content, &portraits),
+            "image_size": input.image_size,
+            "stop_after": input.stop_after,
+        });
+        self.generation
+            .start_manga_pipeline_task(user_id, input, source.chapter_id, fingerprint)
+            .await
+    }
+
     pub(crate) async fn start_shooting_script_generation_task(
         &self,
         user_id: i64,

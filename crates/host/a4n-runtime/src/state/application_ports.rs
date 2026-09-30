@@ -649,9 +649,6 @@ pub struct ApplicationPorts {
     /// Host-facing Manga pipeline status-read boundary.
     pub manga_pipeline_read_application:
         Arc<dyn a4n_api_contract::manga::MangaPipelineReadApplicationPort>,
-    /// Host-facing Manga pipeline cancellation boundary.
-    pub manga_pipeline_cancellation_application:
-        Arc<dyn a4n_api_contract::manga::MangaPipelineCancellationApplicationPort>,
     /// Host-facing Manga prompt read boundary. Prompt projection remains in
     /// the Manga owner.
     pub manga_record_read_application:

@@ -181,9 +181,10 @@ use a4n_api_contract::{
     logging::{LogReadResult, ReadLogsInput, SetLogLevelInput},
     manga::{
         AdaptationBeatRef, BindMangaReferenceImageInput, DeleteMangaPromptInput,
-        MangaBoundReferenceAsset, MangaCameraAngleV2, MangaChapterInput,
-        MangaPageDrawingPromptSchemaVersion, MangaPageDrawingPromptV2, MangaPageImportanceV2,
-        MangaPagePacingV2, MangaPagePlanSchemaVersion, MangaPagePromptSourceSummary,
+        MangaBoundReferenceAsset, MangaCameraAngleV2, MangaChapterInput, MangaPageAdaptationV1,
+        MangaPageContentV1, MangaPageDrawingPromptSchemaVersion, MangaPageDrawingPromptV2,
+        MangaPageImportanceV2, MangaPagePacingV2, MangaPagePipelineErrorV1, MangaPagePipelineStage,
+        MangaPagePipelineStatus, MangaPagePlanSchemaVersion, MangaPagePromptSourceSummary,
         MangaPagePromptSummary, MangaPageRoleV2, MangaPageV4, MangaPanelFunctionV2,
         MangaPanelSizeV2, MangaPanelV2, MangaPipelineResumeInput, MangaPipelineStartInput,
         MangaPipelineStatusSummary, MangaPipelineStatusesInput, MangaReadingFlowV2,

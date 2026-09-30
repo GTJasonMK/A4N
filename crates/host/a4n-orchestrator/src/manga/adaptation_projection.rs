@@ -1,7 +1,9 @@
-use a4n_domain::media_authoring::{
-    AdaptationBeat, AdaptationBeatRef, AdaptationImportance, AdaptationPlanV1,
+use a4n_domain::{
+    manga::MangaPageContentV1,
+    media_authoring::{AdaptationBeat, AdaptationBeatRef, AdaptationImportance, AdaptationPlanV1},
 };
 use serde_json::{Value, json};
+use std::collections::HashSet;
 
 use crate::media_authoring::PreparedAdaptation;
 
@@ -54,12 +56,54 @@ pub(super) fn manga_events_from_adaptation(plan: &AdaptationPlanV1) -> Value {
     )
 }
 
-pub(super) fn manga_page_planning_source(adaptation: &PreparedAdaptation) -> Value {
+pub(super) fn manga_page_slots_source(adaptation: &PreparedAdaptation) -> Value {
     json!({
         "adaptation_plan_id": adaptation.record.id,
         "adaptation_plan_revision": adaptation.record.revision,
         "intention": adaptation.plan.intention,
         "units": adaptation.plan.units,
         "events": manga_events_from_adaptation(&adaptation.plan),
+    })
+}
+
+pub(super) fn manga_page_adaptation_source(
+    adaptation: &PreparedAdaptation,
+    content: &MangaPageContentV1,
+) -> Value {
+    let beat_refs = content.beat_refs.iter().cloned().collect::<HashSet<_>>();
+    let units = adaptation
+        .plan
+        .units
+        .iter()
+        .filter_map(|unit| {
+            let beats = unit
+                .beats
+                .iter()
+                .filter(|beat| {
+                    beat_refs.contains(&AdaptationBeatRef {
+                        unit_id: unit.id.clone(),
+                        beat_id: beat.id.clone(),
+                    })
+                })
+                .collect::<Vec<_>>();
+            (!beats.is_empty()).then(|| {
+                json!({
+                    "id": unit.id,
+                    "title": unit.title,
+                    "location": unit.location,
+                    "participants": unit.participants,
+                    "dramatic_question": unit.dramatic_question,
+                    "objective": unit.objective,
+                    "obstacle": unit.obstacle,
+                    "beats": beats,
+                })
+            })
+        })
+        .collect::<Vec<_>>();
+    json!({
+        "adaptation_plan_id": adaptation.record.id,
+        "adaptation_plan_revision": adaptation.record.revision,
+        "intention": adaptation.plan.intention,
+        "units": units,
     })
 }

@@ -36,6 +36,9 @@ pub(super) async fn run_character_binding_stage(
                 variables: &context.variables,
                 user_content: characters_user,
                 temperature: 0.3,
+                cancel_token: context.cancel_token,
+                stream_id: "raw_json".to_string(),
+                stream_reporter: context.stream_reporter,
             },
             |value| {
                 validate_manga_character_binding_source_span_ids(value, &context.source_spans)?;

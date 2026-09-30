@@ -5,6 +5,7 @@ import type { ImageSize } from "./config";
 import type { ThemeMode } from "./theme";
 import type { GenerationStartRequestMeta } from "./generationContracts";
 
+import type { GenerationTaskHandle } from "./generationContracts";
 export const HOST_API_COMMANDS = [
   "accept_import_review",
   "accept_project_invite",
@@ -2319,11 +2320,14 @@ export interface ExportFileData {
 
 export interface MangaPipelineStartInput {
   chapter_number: number;
+  image_size?: ImageSize | null;
+  meta?: GenerationStartRequestMeta | null;
   project_id: number;
+  resume_from_checkpoint?: boolean;
   stop_after?: MangaPipelineStopAfter | null;
 }
 
-export type MangaPipelineStopAfter = "page_planning" | "drawing_prompt";
+export type MangaPipelineStopAfter = "page_slots" | "page_content" | "page_adaptation" | "storyboard" | "page_planning" | "drawing_prompt" | "image";
 
 export type AdaptationTarget = "manga" | "galgame";
 
@@ -2537,7 +2541,10 @@ export interface VideoScriptReferenceCandidate {
 
 export interface MangaPipelineResumeInput {
   chapter_number: number;
+  image_size?: ImageSize | null;
+  meta?: GenerationStartRequestMeta | null;
   project_id: number;
+  resume_from_checkpoint?: boolean;
   stop_after?: MangaPipelineStopAfter | null;
 }
 
@@ -2586,13 +2593,43 @@ export interface MangaPipelineStatusSummary {
   pending: number;
   pipeline_status: string | null;
   stage: string | null;
-  task_id: string | null;
+  task_handle: GenerationTaskHandle | null;
   total: number | null;
 }
 
 export interface MangaPipelineStatusesInput {
   chapter_ids: number[];
   project_id: number;
+}
+
+export interface MangaPageContentV1 {
+  action: string;
+  beat_refs: AdaptationBeatRef[];
+  dialogue_intent: string | null;
+  entry_state: string;
+  exit_state: string;
+  reaction: string | null;
+  source_span_ids: string[];
+  summary: string;
+}
+
+export interface MangaPageAdaptationV1 {
+  beat_refs: AdaptationBeatRef[];
+  continuity_requirements: string[];
+  omitted_details: string[];
+  retained_details: string[];
+  visual_intent: string;
+}
+
+export type MangaPagePipelineStage = "slots" | "content" | "adaptation" | "storyboard" | "drawing_prompt" | "image";
+
+export type MangaPagePipelineStatus = "pending" | "running" | "failed" | "cancelled" | "completed";
+
+export interface MangaPagePipelineErrorV1 {
+  code: string;
+  message: string;
+  retryable: boolean;
+  stage: MangaPagePipelineStage;
 }
 
 export type MangaPagePlanSchemaVersion = "manga_page_plan_v4";
@@ -2706,12 +2743,18 @@ export interface MangaPagePromptSummary {
   chapter_id: number;
   created_at: string;
   dialogue_text: string | null;
-  drawing_prompt: MangaPageDrawingPromptV2;
+  drawing_prompt: MangaPageDrawingPromptV2 | null;
   generated_image_id: number | null;
   id: number;
   image_prompt: string;
+  page_adaptation: MangaPageAdaptationV1 | null;
+  page_content: MangaPageContentV1 | null;
+  page_id: string | null;
   page_number: number;
-  page_plan: MangaPageV4;
+  page_plan: MangaPageV4 | null;
+  pipeline_error: MangaPagePipelineErrorV1 | null;
+  pipeline_stage: MangaPagePipelineStage | null;
+  pipeline_status: MangaPagePipelineStatus | null;
   project_id: number;
   reference_bindings: MangaReferenceBindingSummary[];
   source: MangaPagePromptSourceSummary;

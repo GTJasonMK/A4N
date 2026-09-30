@@ -42,6 +42,7 @@ interface GenerationTextStreamState {
   text: string;
   nextOffset: number;
   version: number;
+  lastSequence?: number;
 }
 
 export interface GenerationTaskViewState {
@@ -408,6 +409,7 @@ function applyTextDelta(
         text: stream.text + payload.delta,
         nextOffset: stream.nextOffset + utf8ByteLength(payload.delta),
         version: stream.version + 1,
+        lastSequence: event.sequence,
       },
     },
   };
@@ -470,6 +472,7 @@ function applySnapshot(
       text: stream.text,
       nextOffset: stream.next_offset,
       version: 0,
+      lastSequence: 0,
     }]),
   );
   const terminalReceived = Boolean(snapshot.terminal_event);

@@ -140,6 +140,7 @@ pub(super) fn run() {
         "import type { ImageSize } from \"./config\";\n\
          import type { ThemeMode } from \"./theme\";\n\
          import type { GenerationStartRequestMeta } from \"./generationContracts\";\n\n",
+        "import type { GenerationTaskHandle } from \"./generationContracts\";\n",
         &typescript_api_commands(),
         &typescript_project_package_suffixes(),
         &typescript_import_constants(),
@@ -469,6 +470,11 @@ pub(super) fn run() {
         &typescript_interface::<DeleteMangaPromptInput>("DeleteMangaPromptInput"),
         &typescript_interface::<MangaPipelineStatusSummary>("MangaPipelineStatusSummary"),
         &typescript_interface::<MangaPipelineStatusesInput>("MangaPipelineStatusesInput"),
+        &typescript_interface::<MangaPageContentV1>("MangaPageContentV1"),
+        &typescript_interface::<MangaPageAdaptationV1>("MangaPageAdaptationV1"),
+        &typescript_enum::<MangaPagePipelineStage>("MangaPagePipelineStage"),
+        &typescript_enum::<MangaPagePipelineStatus>("MangaPagePipelineStatus"),
+        &typescript_interface::<MangaPagePipelineErrorV1>("MangaPagePipelineErrorV1"),
         &typescript_enum::<MangaPagePlanSchemaVersion>("MangaPagePlanSchemaVersion"),
         &typescript_enum::<MangaPageDrawingPromptSchemaVersion>(
             "MangaPageDrawingPromptSchemaVersion",

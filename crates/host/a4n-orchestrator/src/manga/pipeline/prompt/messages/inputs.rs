@@ -76,7 +76,7 @@ pub(in crate::manga) fn manga_item_available_source_span_ids(
     Ok(ids)
 }
 
-pub(in crate::manga) fn manga_page_planning_input(
+pub(in crate::manga) fn manga_page_slots_input(
     extraction_summary: Value,
     adaptation_plan: Value,
 ) -> Result<Value, AppError> {

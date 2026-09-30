@@ -2,4 +2,4 @@ mod execution;
 mod records;
 mod validation;
 
-pub use execution::sync_manga_page_prompts_by_chapter;
+pub use execution::{sync_manga_page_prompts_by_chapter, upsert_manga_page_prompt};

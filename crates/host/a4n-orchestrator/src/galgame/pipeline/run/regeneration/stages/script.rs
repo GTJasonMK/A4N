@@ -35,6 +35,7 @@ pub(super) async fn run_script_adaptation_stage(
                     &prepared.scenes_json,
                     &branch.0,
                 )?,
+                cancel_token: None,
             },
             |value| {
                 let parsed = script_adaptation_from_value(value, "galgame_script_adaptation")?;

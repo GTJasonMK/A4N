@@ -708,7 +708,7 @@ mod tests {
             .expect("manga record worker entry");
         assert_eq!(manga_record.kind, ProcessKind::StatefulWorker);
         assert_eq!(manga_record.binary, "a4n-manga-record-worker");
-        assert_eq!(manga_record.contract_version, "manga-record-v2");
+        assert_eq!(manga_record.contract_version, "manga-record-v3");
         assert_eq!(manga_record.addr_env, "A4N_MANGA_RECORD_WORKER_ADDR");
         assert_eq!(manga_record.default_addr, "127.0.0.1:47676");
         assert_eq!(

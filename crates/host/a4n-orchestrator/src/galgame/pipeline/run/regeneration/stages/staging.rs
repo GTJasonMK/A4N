@@ -32,6 +32,7 @@ pub(super) async fn run_character_staging_stage(
                     &script.0,
                     &input.speaker_profiles,
                 )?,
+                cancel_token: None,
             },
             |value| {
                 let parsed = character_staging_from_value(value, "galgame_character_staging")?;

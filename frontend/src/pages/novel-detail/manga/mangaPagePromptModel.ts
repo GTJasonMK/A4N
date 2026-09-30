@@ -2,8 +2,13 @@ import type { CharacterProfile } from "../../../api/character";
 import type { GeneratedImage } from "../../../api/image";
 import type {
   MangaBoundReferenceAsset,
+  MangaPageAdaptationV1,
+  MangaPageContentV1,
   MangaPageImportanceV2,
   MangaPagePacingV2,
+  MangaPagePipelineErrorV1,
+  MangaPagePipelineStage,
+  MangaPagePipelineStatus,
   MangaPageRoleV2,
   MangaPipelineStatusSummary,
   MangaPagePromptSummary,
@@ -51,6 +56,11 @@ export type MangaPagePrompt = {
   pageNumber: number;
   prompt: MangaPagePromptSummary;
   promptCount: number;
+  pipelineStage: MangaPagePipelineStage | null;
+  pipelineStatus: MangaPagePipelineStatus | null;
+  pipelineError: MangaPagePipelineErrorV1 | null;
+  pageContent: MangaPageContentV1 | null;
+  pageAdaptation: MangaPageAdaptationV1 | null;
   source: MangaPagePromptSource;
   sourceStale: boolean;
   characterNames: string[];
@@ -93,9 +103,11 @@ export const sumPipelinePrompts = (
 };
 
 const pageCharacterNames = (prompt: MangaPagePromptSummary): string[] => {
-  return [
-    ...new Set(prompt.page_plan.panels.flatMap((item) => item.participants)),
-  ].sort((a, b) => a.localeCompare(b, "zh-Hans-CN"));
+  return prompt.page_plan
+    ? [...new Set(prompt.page_plan.panels.flatMap((item) => item.participants))].sort(
+        (a, b) => a.localeCompare(b, "zh-Hans-CN"),
+      )
+    : [];
 };
 
 const referenceBinding = (
@@ -115,46 +127,50 @@ export const missingReferenceBindingLabels = (
 const buildLayoutItems = (
   prompt: MangaPagePromptSummary,
   labels: MangaPagePromptLabels,
-): LayoutSummaryItem[] => [
-  {
-    key: "role",
-    label: labels.pageFunction,
-    value: labels.role[prompt.page_plan.role],
-  },
-  {
-    key: "pacing",
-    label: labels.pagePacing,
-    value: labels.pacing[prompt.page_plan.pacing],
-  },
-  {
-    key: "importance",
-    label: labels.importanceLabel,
-    value: labels.importance[prompt.page_plan.importance],
-  },
-  {
-    key: "reading_flow",
-    label: labels.readingFlowLabel,
-    value: labels.readingFlow[prompt.page_plan.reading_flow],
-  },
-  { key: "page_goal", label: labels.pageGoal, value: prompt.page_plan.page_goal },
-  {
-    key: "visual_thesis",
-    label: labels.visualThesis,
-    value: prompt.page_plan.visual_thesis,
-  },
-  { key: "entry_state", label: labels.entryState, value: prompt.page_plan.entry_state },
-  { key: "exit_state", label: labels.exitState, value: prompt.page_plan.exit_state },
-  {
-    key: "dominant_panel_number",
-    label: labels.dominantPanel,
-    value: String(prompt.page_plan.dominant_panel_number),
-  },
-  {
-    key: "panel_count",
-    label: labels.panelCount,
-    value: String(prompt.page_plan.panels.length),
-  },
-];
+): LayoutSummaryItem[] => {
+  const pagePlan = prompt.page_plan;
+  if (!pagePlan) return [];
+  return [
+    {
+      key: "role",
+      label: labels.pageFunction,
+      value: labels.role[pagePlan.role],
+    },
+    {
+      key: "pacing",
+      label: labels.pagePacing,
+      value: labels.pacing[pagePlan.pacing],
+    },
+    {
+      key: "importance",
+      label: labels.importanceLabel,
+      value: labels.importance[pagePlan.importance],
+    },
+    {
+      key: "reading_flow",
+      label: labels.readingFlowLabel,
+      value: labels.readingFlow[pagePlan.reading_flow],
+    },
+    { key: "page_goal", label: labels.pageGoal, value: pagePlan.page_goal },
+    {
+      key: "visual_thesis",
+      label: labels.visualThesis,
+      value: pagePlan.visual_thesis,
+    },
+    { key: "entry_state", label: labels.entryState, value: pagePlan.entry_state },
+    { key: "exit_state", label: labels.exitState, value: pagePlan.exit_state },
+    {
+      key: "dominant_panel_number",
+      label: labels.dominantPanel,
+      value: String(pagePlan.dominant_panel_number),
+    },
+    {
+      key: "panel_count",
+      label: labels.panelCount,
+      value: String(pagePlan.panels.length),
+    },
+  ];
+};
 
 export const buildPagePrompts = (
   prompts: MangaPagePromptSummary[],
@@ -168,7 +184,12 @@ export const buildPagePrompts = (
       return {
         pageNumber: prompt.page_number,
         prompt,
-        promptCount: 1 + prompt.page_plan.panels.length,
+        promptCount: prompt.page_plan ? 1 + prompt.page_plan.panels.length : 0,
+        pipelineStage: prompt.pipeline_stage,
+        pipelineStatus: prompt.pipeline_status,
+        pipelineError: prompt.pipeline_error,
+        pageContent: prompt.page_content,
+        pageAdaptation: prompt.page_adaptation,
         source,
         sourceStale: isMangaPagePromptSourceStale(source, currentContentHash),
         characterNames: pageCharacterNames(prompt),

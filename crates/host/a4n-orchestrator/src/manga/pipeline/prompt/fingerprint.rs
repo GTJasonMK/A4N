@@ -23,7 +23,7 @@ pub(in crate::manga) async fn manga_pipeline_prompt_fingerprint(
         }));
     }
     Ok(json!({
-        "schema_version": 2,
+        "schema_version": 3,
         "prompts": prompts,
     }))
 }

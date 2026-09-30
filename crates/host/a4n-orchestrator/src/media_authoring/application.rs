@@ -493,7 +493,7 @@ impl MediaAuthoringApplicationPort for OrchestratorContext {
         user_id: i64,
         input: GenerateAdaptationPlanInput,
         renderer: &dyn a4n_api_contract::prompt::PromptRenderPort,
-        stream_reporter: Option<&MediaAuthoringStreamReporter>,
+        stream_reporter: Option<&MediaAuthoringStreamReporter<'_>>,
     ) -> Result<AuthoringDocumentRecord, AppError> {
         let (target, source, inputs, existing) =
             self.prepare_adaptation_request(user_id, &input).await?;
@@ -543,6 +543,7 @@ impl MediaAuthoringApplicationPort for OrchestratorContext {
                 workflow: "media_adaptation_plan",
                 renderer: &PromptRendererAdapter(renderer),
                 stream_reporter,
+                cancel_token: None,
             })
             .await
             .map(|prepared| prepared.record);

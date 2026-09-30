@@ -454,12 +454,6 @@ impl AppState {
         self.manga_pipeline_read_application.as_ref()
     }
 
-    pub(crate) fn manga_pipeline_cancellation_application(
-        &self,
-    ) -> &dyn a4n_api_contract::manga::MangaPipelineCancellationApplicationPort {
-        self.manga_pipeline_cancellation_application.as_ref()
-    }
-
     pub(crate) fn manga_record_read_application(
         &self,
     ) -> &dyn a4n_api_contract::manga::MangaRecordReadApplicationPort {

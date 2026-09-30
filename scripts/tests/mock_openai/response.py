@@ -17,7 +17,9 @@ from mock_openai.fixtures.adaptations import (
     manga_character_binding_response,
     manga_drawing_prompt_response,
     manga_item_response,
-    manga_page_plan_response,
+    manga_page_adaptation_response,
+    manga_page_slots_response,
+    manga_page_storyboard_response,
     manga_prompt_optimization_response,
     manga_speech_selection_response,
     manga_synthesis_response,
@@ -117,8 +119,12 @@ def response_for(body: dict[str, Any]) -> str:
             value["scenes"][0]["beat_refs"][0]["beat_id"] = "missing-beat"
         elif fault == "manga-items" and "items" in value:
             value["items"][0]["first_appearance_beat_ref"]["beat_id"] = "missing-beat"
-        elif fault == "manga-planning" and value.get("schema_version") == "manga_page_plan_v4":
-            value["pages"][0]["beat_refs"][0]["beat_id"] = "missing-beat"
+        elif fault == "manga-slots" and value.get("schema_version") == "manga_page_slots_v1":
+            value["pages"][0]["content"]["beat_refs"][0]["beat_id"] = "missing-beat"
+        elif fault == "manga-page-adaptation" and "visual_intent" in value:
+            value["beat_refs"][0]["beat_id"] = "missing-beat"
+        elif fault == "manga-storyboard" and "dominant_panel_number" in value:
+            value["page_number"] += 100
         elif fault == "manga-drawing" and value.get("schema_version") == "manga_page_drawing_prompt_v2" and value["page_number"] == 2:
             value["image_prompt"] = " "
         elif fault == "manga-optimization" and "image_prompt" in value:
@@ -171,8 +177,12 @@ def response_for(body: dict[str, Any]) -> str:
         return json.dumps(manga_item_response(combined), ensure_ascii=False)
     if manga_prompt_name == "manga_chapter_comic_synthesis":
         return json.dumps(manga_synthesis_response(), ensure_ascii=False)
-    if manga_prompt_name == "manga_page_planning":
-        return json.dumps(manga_page_plan_response(combined), ensure_ascii=False)
+    if manga_prompt_name == "manga_page_slots":
+        return json.dumps(manga_page_slots_response(combined), ensure_ascii=False)
+    if manga_prompt_name == "manga_page_adaptation_plan":
+        return json.dumps(manga_page_adaptation_response(combined), ensure_ascii=False)
+    if manga_prompt_name == "manga_page_storyboard":
+        return json.dumps(manga_page_storyboard_response(combined), ensure_ascii=False)
     if manga_prompt_name == "manga_page_drawing_prompt":
         return json.dumps(manga_drawing_prompt_response(combined), ensure_ascii=False)
     if "漫画整页绘图提示词优化工程师" in combined:

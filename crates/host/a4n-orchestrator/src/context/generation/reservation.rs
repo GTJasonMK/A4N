@@ -694,6 +694,42 @@ impl GenerationApplication {
         })
         .await
     }
+
+    pub(crate) async fn start_manga_pipeline_task(
+        &self,
+        user_id: i64,
+        input: &a4n_api_contract::manga::MangaPipelineStartInput,
+        chapter_id: i64,
+        fingerprint: Value,
+    ) -> Result<GenerationTaskStart, GenerationTaskAccessError> {
+        self.reserve_root_generation_task(RootGenerationTaskReservationInput {
+            requested_by_user_id: user_id,
+            meta: input.meta.as_ref().ok_or_else(|| {
+                GenerationTaskAccessError::InvalidArgument(
+                    "漫画流水线缺少 generation start meta".to_string(),
+                )
+            })?,
+            business_key_json: serde_json::json!({
+                "version": 1,
+                "task_kind": "manga_pipeline",
+                "project_id": input.project_id,
+                "chapter_number": input.chapter_number,
+            }),
+            input_fingerprint_json: fingerprint,
+            task_kind: TaskKind::MangaGeneration,
+            priority: TaskPriority::High,
+            delivery_mode: GenerationDeliveryMode::Stream,
+            batch_policy: None,
+            project_id: input.project_id,
+            task_scope: "manga_pipeline",
+            target: GenerationTargetRef {
+                kind: "manga_pipeline".into(),
+                id: format!("chapter:{chapter_id}"),
+                revision: None,
+            },
+        })
+        .await
+    }
 }
 
 pub(super) fn required_public_snapshot(
