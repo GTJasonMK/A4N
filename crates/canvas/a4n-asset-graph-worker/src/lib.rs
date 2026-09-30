@@ -50,6 +50,8 @@ struct WorkerFailure {
     retryable: bool,
 }
 
+mod reads;
+
 impl AssetGraphWorker {
     pub fn new(
         database: DatabaseConnection,
@@ -204,44 +206,6 @@ where
 }
 
 impl WorkerState {
-    async fn graph(
-        &self,
-        request: WorkerEnvelope<ProjectAssetGraphInput>,
-    ) -> Result<a4n_asset_graph_worker_contract::AssetDependencyGraph, WorkerFailure> {
-        validate_request(&request, ASSET_GRAPH_OPERATION)?;
-        validate_project_scope(&request, request.payload.project_id)?;
-        let user_id = user_id(&request)?;
-        self.verify_permission(request.payload.project_id, user_id)
-            .await?;
-        a4n_db::project::dependency_graph::asset_dependency_graph(
-            self.database.connection(),
-            request.payload.project_id,
-        )
-        .await
-        .map_err(app_error)
-    }
-
-    async fn node_detail(
-        &self,
-        request: WorkerEnvelope<ProjectAssetGraphNodeDetailInput>,
-    ) -> Result<a4n_asset_graph_worker_contract::AssetGraphNodeDetail, WorkerFailure> {
-        validate_request(&request, ASSET_GRAPH_NODE_DETAIL_OPERATION)?;
-        validate_project_scope(&request, request.payload.project_id)?;
-        if request.payload.node_id.trim().is_empty() {
-            return Err(WorkerFailure::invalid_request("node_id 不能为空"));
-        }
-        let user_id = user_id(&request)?;
-        self.verify_permission(request.payload.project_id, user_id)
-            .await?;
-        a4n_db::project::dependency_graph::asset_dependency_graph_node_detail(
-            self.database.connection(),
-            request.payload.project_id,
-            request.payload.node_id.trim(),
-        )
-        .await
-        .map_err(app_error)
-    }
-
     async fn verify_permission(&self, project_id: i64, user_id: i64) -> Result<(), WorkerFailure> {
         a4n_db::collaboration::verify_project_permission(
             self.database.connection(),

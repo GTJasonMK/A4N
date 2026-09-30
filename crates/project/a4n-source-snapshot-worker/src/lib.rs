@@ -48,6 +48,8 @@ struct WorkerFailure {
     retryable: bool,
 }
 
+mod reads;
+
 impl SourceSnapshotWorker {
     pub fn new(
         database: DatabaseConnection,
@@ -175,31 +177,6 @@ async fn chapters(
 }
 
 impl WorkerState {
-    async fn chapters(
-        &self,
-        request: WorkerEnvelope<SourceSnapshotProjectInput>,
-    ) -> Result<Vec<SourceSnapshotChapterSummary>, WorkerFailure> {
-        validate_request(&request)?;
-        let project_id = request.payload.project_id;
-        if request.project_id != Some(project_id) || project_id <= 0 {
-            return Err(WorkerFailure::invalid_request(
-                "worker scope project_id 与 payload 不一致或无效",
-            ));
-        }
-        let user_id = user_id(&request)?;
-        a4n_db::collaboration::verify_project_permission(
-            self.database.connection(),
-            project_id,
-            user_id,
-            a4n_domain::collaboration::ProjectAccessRole::Viewer,
-        )
-        .await
-        .map_err(collaboration_error)?;
-        a4n_db::project::source_snapshot_chapters(self.database.connection(), project_id)
-            .await
-            .map_err(project_error)
-    }
-
     fn authorized(&self, headers: &HeaderMap) -> bool {
         headers
             .get(WORKER_AUTH_HEADER)
