@@ -19,17 +19,20 @@ impl WorkerState {
         self.ensure_profile(input.project_id, input.profile_kind, input.profile_id)
             .await?;
         if let Some(image_id) = input.image_id {
-            let image = a4n_db::video::generated_image_by_id(self.database.connection(), image_id)
-                .await
-                .map_err(|error| WorkerFailure::unavailable(error.to_string()))?
-                .ok_or_else(|| WorkerFailure::not_found("图片不存在"))?;
+            let image = a4n_db::video::read_models::generated_image_by_id(
+                self.database.connection(),
+                image_id,
+            )
+            .await
+            .map_err(|error| WorkerFailure::unavailable(error.to_string()))?
+            .ok_or_else(|| WorkerFailure::not_found("图片不存在"))?;
             if image.project_id != input.project_id {
                 return Err(WorkerFailure::invalid_request(format!(
                     "图片 #{image_id} 不属于项目 {}",
                     input.project_id
                 )));
             }
-            if a4n_db::profile_material::generated_image_profile_material_identity(&image)
+            if profile_material_identity(&image.image_type, image.metadata_json.as_ref())
                 != Some((input.profile_kind.as_str(), input.profile_id))
             {
                 return Err(WorkerFailure::invalid_request(format!(
@@ -109,12 +112,22 @@ impl WorkerState {
                         profile_id,
                     )
                     .await
-                    .map(scene_source_from_model)
+                    .map(|profile| {
+                        scene_source_from_record(
+                            a4n_db::profile_material::scene_profile_source_record(&profile),
+                        )
+                    })
                     .map_err(scene_profile_error),
                     ProfileMaterialKind::Object => {
                         a4n_db::asset::object_profile_by_id(self.database.connection(), profile_id)
                             .await
-                            .map(object_source_from_model)
+                            .map(|profile| {
+                                object_source_from_record(
+                                    a4n_db::profile_material::object_profile_source_record(
+                                        &profile,
+                                    ),
+                                )
+                            })
                             .map_err(asset_error)
                     }
                 }

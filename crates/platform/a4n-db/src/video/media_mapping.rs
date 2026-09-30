@@ -3,7 +3,7 @@ use a4n_domain::media::{
     GeneratedImageRecord, GeneratedImageReferenceRecord, GeneratedVideoRecord,
 };
 
-pub(super) fn generated_image_record_from_model(
+pub(crate) fn generated_image_record_from_model(
     model: generated_image::Model,
 ) -> GeneratedImageRecord {
     GeneratedImageRecord {

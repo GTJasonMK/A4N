@@ -65,9 +65,17 @@ impl WorkerState {
         );
         let mut sources = scene_profiles?
             .into_iter()
-            .map(scene_source_from_model)
+            .map(|profile| {
+                scene_source_from_record(a4n_db::profile_material::scene_profile_source_record(
+                    &profile,
+                ))
+            })
             .collect::<Vec<_>>();
-        sources.extend(object_profiles?.into_iter().map(object_source_from_model));
+        sources.extend(object_profiles?.into_iter().map(|profile| {
+            object_source_from_record(a4n_db::profile_material::object_profile_source_record(
+                &profile,
+            ))
+        }));
         let rows = rows?;
         let mut groups = profile_material_group_projections(
             sources,

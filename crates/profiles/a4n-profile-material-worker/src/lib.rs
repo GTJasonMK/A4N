@@ -6,10 +6,10 @@ use a4n_api_contract::profile::{
     ListProfileMaterialsInput, ProfileMaterialGroup, SetProfilePrimaryMaterialInput,
 };
 use a4n_db::DbHandle;
-use a4n_domain::profile_material::ProfileMaterialKind;
+use a4n_domain::profile_material::{ProfileMaterialKind, profile_material_identity};
 use a4n_profile_material_core::{
-    apply_profile_material_query, image_type_for_profile_material_kind, object_source_from_model,
-    profile_material_group_projections, requested_profile_material_kinds, scene_source_from_model,
+    apply_profile_material_query, image_type_for_profile_material_kind, object_source_from_record,
+    profile_material_group_projections, requested_profile_material_kinds, scene_source_from_record,
 };
 use a4n_profile_material_worker_contract::{
     PROFILE_MATERIAL_LIST_OPERATION, PROFILE_MATERIAL_MUTATION_CAPABILITY,
