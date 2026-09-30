@@ -1,100 +1,17 @@
-use serde_json::{Value, json};
-use std::collections::BTreeSet;
-use thiserror::Error;
+mod evidence;
+mod normalization;
+mod validation;
 
-#[derive(Debug, Clone, PartialEq, Eq, Error)]
-pub enum ProfileTextError {
-    #[error("{field}不能为空")]
-    Empty { field: String },
-    #[error("{field}无效: {value}；允许值：primary/secondary/minor")]
-    InvalidImportance { field: String, value: String },
-}
-
-pub fn required_text(value: &str, field_name: &str) -> Result<String, ProfileTextError> {
-    let value = value.trim();
-    if value.is_empty() {
-        return Err(ProfileTextError::Empty {
-            field: field_name.to_string(),
-        });
-    }
-    Ok(value.to_string())
-}
-
-pub fn validate_importance(value: &str, field_name: &str) -> Result<String, ProfileTextError> {
-    normalize_importance_value(value).map_err(|error| match error {
-        ProfileTextError::Empty { .. } => ProfileTextError::Empty {
-            field: field_name.to_string(),
-        },
-        ProfileTextError::InvalidImportance { value, .. } => ProfileTextError::InvalidImportance {
-            field: field_name.to_string(),
-            value,
-        },
-    })
-}
-
-pub fn normalize_importance_value(value: &str) -> Result<String, ProfileTextError> {
-    let value = required_text(value, "重要性")?;
-    if matches!(value.as_str(), "primary" | "secondary" | "minor") {
-        return Ok(value);
-    }
-    Err(ProfileTextError::InvalidImportance {
-        field: "重要性".to_string(),
-        value,
-    })
-}
-
-pub fn normalize_aliases(aliases: Vec<String>) -> Vec<String> {
-    aliases
-        .into_iter()
-        .map(|value| value.trim().to_string())
-        .filter(|value| !value.is_empty())
-        .collect::<BTreeSet<_>>()
-        .into_iter()
-        .collect()
-}
-
-pub fn merge_profile_evidence_json(existing: &Value, incoming: &Value) -> Value {
-    let values = existing
-        .as_array()
-        .into_iter()
-        .flatten()
-        .chain(incoming.as_array().into_iter().flatten())
-        .filter_map(Value::as_str)
-        .map(str::trim)
-        .filter(|value| !value.is_empty())
-        .map(ToOwned::to_owned)
-        .collect::<BTreeSet<_>>()
-        .into_iter()
-        .collect::<Vec<_>>();
-    json!(values)
-}
-
-pub fn normalize_required_text_set(
-    values: Vec<String>,
-    field_name: &str,
-) -> Result<Vec<String>, ProfileTextError> {
-    let values = normalize_text_set(values);
-    if values.is_empty() {
-        return Err(ProfileTextError::Empty {
-            field: field_name.to_string(),
-        });
-    }
-    Ok(values)
-}
-
-pub fn normalize_text_set(values: Vec<String>) -> Vec<String> {
-    values
-        .into_iter()
-        .map(|value| value.trim().to_string())
-        .filter(|value| !value.is_empty())
-        .collect::<BTreeSet<_>>()
-        .into_iter()
-        .collect()
-}
+pub use evidence::merge_profile_evidence_json;
+pub use normalization::{normalize_aliases, normalize_required_text_set, normalize_text_set};
+pub use validation::{
+    ProfileTextError, normalize_importance_value, required_text, validate_importance,
+};
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serde_json::json;
 
     #[test]
     fn normalize_importance_accepts_canonical_values_only() {

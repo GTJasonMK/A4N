@@ -1,3 +1,11 @@
+mod delegation;
+mod memory;
+mod responses;
+mod runs;
+mod skills;
+mod threads;
+mod tools;
+
 use std::{net::SocketAddr, sync::Arc};
 
 use a4n_agent_application::agent::AgentApplication;
@@ -12,8 +20,7 @@ use a4n_agent_runtime_contract::{
     AGENT_THREAD_ARCHIVE_OPERATION, AGENT_THREAD_CREATE_OPERATION,
     AGENT_THREAD_ENSURE_MAIN_OPERATION, AGENT_THREAD_FORK_OPERATION, AGENT_THREAD_LIST_OPERATION,
     AGENT_THREAD_MESSAGES_OPERATION, AGENT_THREAD_SHOW_OPERATION, AGENT_THREAD_UPDATE_OPERATION,
-    AGENT_TOOL_DESCRIBE_OPERATION, AGENT_TOOL_SEARCH_OPERATION, AgentDelegationReviewCommand,
-    AgentMemoryListInput, AgentRunRuntimeCommand, AgentSkillCapabilityCommand,
+    AGENT_TOOL_DESCRIBE_OPERATION, AGENT_TOOL_SEARCH_OPERATION,
 };
 use a4n_api_contract::agent::{
     AgentApprovalApplicationPort, AgentDelegationApplicationPort, AgentEventReadApplicationPort,
@@ -25,15 +32,13 @@ use a4n_error::AppError;
 use a4n_worker_contract::{
     AGENT_HOST_COMMAND_OPERATION, AGENT_RUN_OPERATION, AGENT_WORKER_AUTH_HEADER,
     WORKER_CAPABILITIES_PATH, WORKER_HEALTH_PATH, WORKER_SCHEMA_VERSION, WorkerCapabilities,
-    WorkerCapability, WorkerEnvelope, WorkerError, WorkerErrorCode, WorkerHealth,
-    WorkerHealthStatus, WorkerOperationRef, WorkerOperationStatus, WorkerPrincipalKind,
-    WorkerResponse,
+    WorkerCapability, WorkerEnvelope, WorkerHealth, WorkerHealthStatus, WorkerPrincipalKind,
 };
 use anyhow::anyhow;
 use axum::{
     Json, Router,
     extract::State,
-    http::{HeaderMap, StatusCode},
+    http::HeaderMap,
     response::{IntoResponse, Response},
     routing::get,
 };
@@ -41,6 +46,8 @@ use serde::{Serialize, de::DeserializeOwned};
 use serde_json::Value;
 use subtle::ConstantTimeEq;
 use tokio::{net::TcpListener, sync::oneshot};
+
+use self::responses::{WorkerFailure, app_error_failure, completed, failed, unauthorized};
 
 const WORKER_ADDR_ENV: &str = "A4N_AGENT_WORKER_ADDR";
 const HEALTH_PATH: &str = WORKER_HEALTH_PATH;
@@ -96,52 +103,55 @@ pub(crate) fn router(
         .route(CAPABILITIES_PATH, get(capabilities))
         .route(
             "/v1/commands/agent.thread.ensure_main",
-            axum::routing::post(ensure_main_thread),
+            axum::routing::post(threads::ensure_main_thread),
         )
         .route(
             "/v1/commands/agent.thread.create",
-            axum::routing::post(create_thread),
+            axum::routing::post(threads::create_thread),
         )
         .route(
             "/v1/commands/agent.thread.fork",
-            axum::routing::post(fork_thread),
+            axum::routing::post(threads::fork_thread),
         )
         .route(
             "/v1/commands/agent.thread.update",
-            axum::routing::post(update_thread),
+            axum::routing::post(threads::update_thread),
         )
         .route(
             "/v1/commands/agent.thread.archive",
-            axum::routing::post(archive_thread),
+            axum::routing::post(threads::archive_thread),
         )
         .route(
             "/v1/commands/agent.thread.list",
-            axum::routing::post(list_threads),
+            axum::routing::post(threads::list_threads),
         )
         .route(
             "/v1/commands/agent.thread.show",
-            axum::routing::post(show_thread),
+            axum::routing::post(threads::show_thread),
         )
         .route(
             "/v1/commands/agent.thread.messages",
-            axum::routing::post(list_messages),
+            axum::routing::post(threads::list_messages),
         )
-        .route("/v1/commands/agent.run.show", axum::routing::post(show_run))
+        .route(
+            "/v1/commands/agent.run.show",
+            axum::routing::post(runs::show_run),
+        )
         .route(
             "/v1/commands/agent.event.list",
-            axum::routing::post(list_events),
+            axum::routing::post(runs::list_events),
         )
         .route(
             "/v1/commands/agent.memory.list",
-            axum::routing::post(list_memories),
+            axum::routing::post(memory::list_memories),
         )
         .route(
             "/v1/commands/agent.memory.create",
-            axum::routing::post(create_memory),
+            axum::routing::post(memory::create_memory),
         )
         .route(
             "/v1/commands/agent.memory.retract",
-            axum::routing::post(retract_memory),
+            axum::routing::post(memory::retract_memory),
         )
         .route(
             "/v1/commands/agent.approval.resolve",
@@ -149,51 +159,51 @@ pub(crate) fn router(
         )
         .route(
             "/v1/commands/agent.delegation.spawn",
-            axum::routing::post(spawn_delegation),
+            axum::routing::post(delegation::spawn_delegation),
         )
         .route(
             "/v1/commands/agent.delegation.review",
-            axum::routing::post(review_delegation),
+            axum::routing::post(delegation::review_delegation),
         )
         .route(
             "/v1/commands/agent.skill.settings.list",
-            axum::routing::post(list_skill_settings),
+            axum::routing::post(skills::list_skill_settings),
         )
         .route(
             "/v1/commands/agent.skill.settings.update",
-            axum::routing::post(update_skill_configuration),
+            axum::routing::post(skills::update_skill_configuration),
         )
         .route(
             "/v1/commands/agent.skill.search",
-            axum::routing::post(search_skills),
+            axum::routing::post(skills::search_skills),
         )
         .route(
             "/v1/commands/agent.skill.load",
-            axum::routing::post(load_skill),
+            axum::routing::post(skills::load_skill),
         )
         .route(
             "/v1/commands/agent.tool.search",
-            axum::routing::post(search_tools),
+            axum::routing::post(tools::search_tools),
         )
         .route(
             "/v1/commands/agent.tool.describe",
-            axum::routing::post(describe_tool),
+            axum::routing::post(tools::describe_tool),
         )
         .route(
             "/v1/commands/agent.run.send",
-            axum::routing::post(send_message),
+            axum::routing::post(runs::send_message),
         )
         .route(
             "/v1/commands/agent.run.control",
-            axum::routing::post(control_run),
+            axum::routing::post(runs::control_run),
         )
         .route(
             "/v1/commands/agent.run.send_child",
-            axum::routing::post(send_message_to_child),
+            axum::routing::post(runs::send_message_to_child),
         )
         .route(
             "/v1/commands/agent.run.control_child",
-            axum::routing::post(control_child),
+            axum::routing::post(runs::control_child),
         )
         .with_state(HealthState {
             worker_id: Arc::<str>::from(worker_id),
@@ -216,218 +226,6 @@ pub(crate) async fn serve(
         .map_err(anyhow::Error::from)
 }
 
-async fn ensure_main_thread(
-    State(state): State<HealthState>,
-    headers: HeaderMap,
-    Json(request): Json<WorkerEnvelope<Value>>,
-) -> Response {
-    user_command(
-        &state,
-        &headers,
-        request,
-        AGENT_THREAD_ENSURE_MAIN_OPERATION,
-        |app, user_id, payload| async move {
-            app.ensure_main_thread(user_id, decode_payload(payload)?)
-                .await
-        },
-    )
-    .await
-}
-
-async fn create_thread(
-    State(state): State<HealthState>,
-    headers: HeaderMap,
-    Json(request): Json<WorkerEnvelope<Value>>,
-) -> Response {
-    user_command(
-        &state,
-        &headers,
-        request,
-        AGENT_THREAD_CREATE_OPERATION,
-        |app, user_id, payload| async move {
-            app.create_thread(user_id, decode_payload(payload)?).await
-        },
-    )
-    .await
-}
-
-async fn fork_thread(
-    State(state): State<HealthState>,
-    headers: HeaderMap,
-    Json(request): Json<WorkerEnvelope<Value>>,
-) -> Response {
-    user_command(&state, &headers, request, AGENT_THREAD_FORK_OPERATION, |app, user_id, payload| async move {
-        app.fork_thread(user_id, decode_payload(payload)?).await
-    })
-    .await
-}
-
-async fn update_thread(
-    State(state): State<HealthState>,
-    headers: HeaderMap,
-    Json(request): Json<WorkerEnvelope<Value>>,
-) -> Response {
-    user_command(
-        &state,
-        &headers,
-        request,
-        AGENT_THREAD_UPDATE_OPERATION,
-        |app, user_id, payload| async move {
-            app.update_thread(user_id, decode_payload(payload)?).await
-        },
-    )
-    .await
-}
-
-async fn archive_thread(
-    State(state): State<HealthState>,
-    headers: HeaderMap,
-    Json(request): Json<WorkerEnvelope<Value>>,
-) -> Response {
-    user_command(
-        &state,
-        &headers,
-        request,
-        AGENT_THREAD_ARCHIVE_OPERATION,
-        |app, user_id, payload| async move {
-            app.archive_thread(user_id, decode_payload(payload)?).await
-        },
-    )
-    .await
-}
-
-async fn list_threads(
-    State(state): State<HealthState>,
-    headers: HeaderMap,
-    Json(request): Json<WorkerEnvelope<Value>>,
-) -> Response {
-    user_command(&state, &headers, request, AGENT_THREAD_LIST_OPERATION, |app, user_id, payload| async move {
-        app.list_threads(user_id, decode_payload(payload)?).await
-    })
-    .await
-}
-
-async fn show_thread(
-    State(state): State<HealthState>,
-    headers: HeaderMap,
-    Json(request): Json<WorkerEnvelope<Value>>,
-) -> Response {
-    user_command(
-        &state,
-        &headers,
-        request,
-        AGENT_THREAD_SHOW_OPERATION,
-        |app, user_id, payload| async move {
-            let thread_id: String = decode_payload(payload)?;
-            app.show_thread(user_id, &thread_id).await
-        },
-    )
-    .await
-}
-
-async fn list_messages(
-    State(state): State<HealthState>,
-    headers: HeaderMap,
-    Json(request): Json<WorkerEnvelope<Value>>,
-) -> Response {
-    user_command(
-        &state,
-        &headers,
-        request,
-        AGENT_THREAD_MESSAGES_OPERATION,
-        |app, user_id, payload| async move {
-            app.list_messages(user_id, decode_payload(payload)?).await
-        },
-    )
-    .await
-}
-
-async fn show_run(
-    State(state): State<HealthState>,
-    headers: HeaderMap,
-    Json(request): Json<WorkerEnvelope<Value>>,
-) -> Response {
-    user_command(
-        &state,
-        &headers,
-        request,
-        AGENT_RUN_SHOW_OPERATION,
-        |app, user_id, payload| async move {
-            let run_id: String = decode_payload(payload)?;
-            app.show_run(user_id, &run_id).await
-        },
-    )
-    .await
-}
-
-async fn list_events(
-    State(state): State<HealthState>,
-    headers: HeaderMap,
-    Json(request): Json<WorkerEnvelope<Value>>,
-) -> Response {
-    user_command(
-        &state,
-        &headers,
-        request,
-        AGENT_EVENT_LIST_OPERATION,
-        |app, user_id, payload| async move { app.events(user_id, decode_payload(payload)?).await },
-    )
-    .await
-}
-
-async fn list_memories(
-    State(state): State<HealthState>,
-    headers: HeaderMap,
-    Json(request): Json<WorkerEnvelope<Value>>,
-) -> Response {
-    user_command(
-        &state,
-        &headers,
-        request,
-        AGENT_MEMORY_LIST_OPERATION,
-        |app, user_id, payload| async move {
-            let input: AgentMemoryListInput = decode_payload(payload)?;
-            app.list_memories(user_id, input.scope_kind, input.scope_id)
-                .await
-        },
-    )
-    .await
-}
-
-async fn create_memory(
-    State(state): State<HealthState>,
-    headers: HeaderMap,
-    Json(request): Json<WorkerEnvelope<Value>>,
-) -> Response {
-    user_command(
-        &state,
-        &headers,
-        request,
-        AGENT_MEMORY_CREATE_OPERATION,
-        |app, user_id, payload| async move {
-            app.create_memory(user_id, decode_payload(payload)?).await
-        },
-    )
-    .await
-}
-
-async fn retract_memory(
-    State(state): State<HealthState>,
-    headers: HeaderMap,
-    Json(request): Json<WorkerEnvelope<Value>>,
-) -> Response {
-    user_command(
-        &state,
-        &headers,
-        request,
-        AGENT_MEMORY_RETRACT_OPERATION,
-        |app, user_id, payload| async move {
-            app.retract_memory(user_id, decode_payload(payload)?).await
-        },
-    )
-    .await
-}
-
 async fn resolve_approval(
     State(state): State<HealthState>,
     headers: HeaderMap,
@@ -444,262 +242,6 @@ async fn resolve_approval(
         },
     )
     .await
-}
-
-async fn spawn_delegation(
-    State(state): State<HealthState>,
-    headers: HeaderMap,
-    Json(request): Json<WorkerEnvelope<Value>>,
-) -> Response {
-    user_command(
-        &state,
-        &headers,
-        request,
-        AGENT_DELEGATION_SPAWN_OPERATION,
-        |app, user_id, payload| async move {
-            app.spawn_agent(user_id, decode_payload(payload)?).await
-        },
-    )
-    .await
-}
-
-async fn review_delegation(
-    State(state): State<HealthState>,
-    headers: HeaderMap,
-    Json(request): Json<WorkerEnvelope<Value>>,
-) -> Response {
-    user_command(
-        &state,
-        &headers,
-        request,
-        AGENT_DELEGATION_REVIEW_OPERATION,
-        |app, user_id, payload| async move {
-            let command: AgentDelegationReviewCommand = decode_payload(payload)?;
-            app.review_delegation(user_id, command.input, command.parent_run_id)
-                .await
-        },
-    )
-    .await
-}
-
-async fn list_skill_settings(
-    State(state): State<HealthState>,
-    headers: HeaderMap,
-    Json(request): Json<WorkerEnvelope<Value>>,
-) -> Response {
-    user_command(
-        &state,
-        &headers,
-        request,
-        AGENT_SKILL_SETTINGS_LIST_OPERATION,
-        |app, user_id, _| async move { app.list_skill_settings(user_id).await },
-    )
-    .await
-}
-
-async fn update_skill_configuration(
-    State(state): State<HealthState>,
-    headers: HeaderMap,
-    Json(request): Json<WorkerEnvelope<Value>>,
-) -> Response {
-    user_command(
-        &state,
-        &headers,
-        request,
-        AGENT_SKILL_SETTINGS_UPDATE_OPERATION,
-        |app, user_id, payload| async move {
-            app.update_skill_configuration(user_id, decode_payload(payload)?)
-                .await
-        },
-    )
-    .await
-}
-
-async fn search_skills(
-    State(state): State<HealthState>,
-    headers: HeaderMap,
-    Json(request): Json<WorkerEnvelope<Value>>,
-) -> Response {
-    user_command(
-        &state,
-        &headers,
-        request,
-        AGENT_SKILL_SEARCH_OPERATION,
-        |app, user_id, payload| async move {
-            let command: AgentSkillCapabilityCommand<Value> = decode_payload(payload)?;
-            app.search_skills(user_id, &command.capability, decode_payload(command.input)?)
-                .await
-        },
-    )
-    .await
-}
-
-async fn load_skill(
-    State(state): State<HealthState>,
-    headers: HeaderMap,
-    Json(request): Json<WorkerEnvelope<Value>>,
-) -> Response {
-    user_command(
-        &state,
-        &headers,
-        request,
-        AGENT_SKILL_LOAD_OPERATION,
-        |app, user_id, payload| async move {
-            let command: AgentSkillCapabilityCommand<Value> = decode_payload(payload)?;
-            app.load_skill(user_id, &command.capability, decode_payload(command.input)?)
-                .await
-        },
-    )
-    .await
-}
-
-async fn search_tools(
-    State(state): State<HealthState>,
-    headers: HeaderMap,
-    Json(request): Json<WorkerEnvelope<Value>>,
-) -> Response {
-    user_command(
-        &state,
-        &headers,
-        request,
-        AGENT_TOOL_SEARCH_OPERATION,
-        |app, _user_id, payload| async move {
-            app.search_tools_for_worker(decode_payload(payload)?)
-        },
-    )
-    .await
-}
-
-async fn describe_tool(
-    State(state): State<HealthState>,
-    headers: HeaderMap,
-    Json(request): Json<WorkerEnvelope<Value>>,
-) -> Response {
-    user_command(
-        &state,
-        &headers,
-        request,
-        AGENT_TOOL_DESCRIBE_OPERATION,
-        |app, _user_id, payload| async move {
-            app.describe_tool_for_worker(decode_payload(payload)?)
-        },
-    )
-    .await
-}
-
-async fn send_message(
-    State(state): State<HealthState>,
-    headers: HeaderMap,
-    Json(request): Json<WorkerEnvelope<Value>>,
-) -> Response {
-    user_command(
-        &state,
-        &headers,
-        request,
-        AGENT_RUN_SEND_OPERATION,
-        |app, user_id, payload| async move {
-            let command: AgentRunRuntimeCommand<Value> = decode_payload(payload)?;
-            app.send_message(
-                user_id,
-                decode_payload(command.input)?,
-                command.runtime_snapshot_required,
-                command.require_runtime_snapshot_for_new_run,
-            )
-            .await
-        },
-    )
-    .await
-}
-
-async fn control_run(
-    State(state): State<HealthState>,
-    headers: HeaderMap,
-    Json(request): Json<WorkerEnvelope<Value>>,
-) -> Response {
-    let runtime = state.runtime.clone();
-    user_command(
-        &state,
-        &headers,
-        request,
-        AGENT_RUN_CONTROL_OPERATION,
-        |app, user_id, payload| async move {
-            let input: a4n_api_contract::agent::ControlAgentRunInput = decode_payload(payload)?;
-            let action = input.action;
-            let result = app.control_run(user_id, input).await?;
-            apply_runtime_control(runtime.as_ref(), &result, action).await?;
-            Ok(result)
-        },
-    )
-    .await
-}
-
-async fn send_message_to_child(
-    State(state): State<HealthState>,
-    headers: HeaderMap,
-    Json(request): Json<WorkerEnvelope<Value>>,
-) -> Response {
-    user_command(
-        &state,
-        &headers,
-        request,
-        AGENT_RUN_SEND_CHILD_OPERATION,
-        |app, user_id, payload| async move {
-            let command: AgentRunRuntimeCommand<Value> = decode_payload(payload)?;
-            app.send_message_to_child(
-                user_id,
-                decode_payload(command.input)?,
-                command.runtime_snapshot_required,
-                command.require_runtime_snapshot_for_new_run,
-            )
-            .await
-        },
-    )
-    .await
-}
-
-async fn control_child(
-    State(state): State<HealthState>,
-    headers: HeaderMap,
-    Json(request): Json<WorkerEnvelope<Value>>,
-) -> Response {
-    let runtime = state.runtime.clone();
-    user_command(
-        &state,
-        &headers,
-        request,
-        AGENT_RUN_CONTROL_CHILD_OPERATION,
-        |app, user_id, payload| async move {
-            let input: a4n_api_contract::agent::ControlChildAgentInput = decode_payload(payload)?;
-            let action = input.action;
-            let result = app.control_child_agent(user_id, input).await?;
-            apply_runtime_control(runtime.as_ref(), &result, action).await?;
-            Ok(result)
-        },
-    )
-    .await
-}
-
-async fn apply_runtime_control(
-    runtime: &a4n_agent_runtime::AgentRuntimeState,
-    result: &a4n_api_contract::agent::AgentRunView,
-    action: a4n_api_contract::agent::AgentControlAction,
-) -> Result<(), AppError> {
-    let run_id = result
-        .id
-        .parse::<i64>()
-        .map_err(|_| AppError::InvalidArgument("Agent Run ID 无效".into()))?;
-    if matches!(
-        action,
-        a4n_api_contract::agent::AgentControlAction::Pause
-            | a4n_api_contract::agent::AgentControlAction::Cancel
-    ) {
-        runtime.cancel_agent_run_tree(run_id).await;
-    }
-    if action == a4n_api_contract::agent::AgentControlAction::Cancel {
-        runtime.remove_agent_runtime_snapshot_tree(run_id).await;
-    }
-    runtime.trigger_agent_worker();
-    Ok(())
 }
 
 async fn user_command<O, F, Fut>(
@@ -761,109 +303,6 @@ fn validate_user_request(
 
 fn decode_payload<T: DeserializeOwned>(payload: Value) -> Result<T, AppError> {
     serde_json::from_value(payload).map_err(|error| AppError::InvalidArgument(error.to_string()))
-}
-
-fn app_error_failure(error: AppError) -> WorkerFailure {
-    match error {
-        AppError::InvalidArgument(message) => WorkerFailure::invalid_request(message),
-        AppError::NotFound(message) => WorkerFailure::not_found(message),
-        AppError::Forbidden(message) | AppError::Unauthorized(message) => {
-            WorkerFailure::unauthorized(message)
-        }
-        AppError::InvalidState { current, operation } => {
-            WorkerFailure::conflict(format!("{current}; operation={operation}"))
-        }
-        other => WorkerFailure::internal(other.to_string()),
-    }
-}
-
-#[derive(Debug)]
-struct WorkerFailure {
-    code: WorkerErrorCode,
-    message: String,
-    retryable: bool,
-}
-
-impl WorkerFailure {
-    fn invalid_request(message: impl Into<String>) -> Self {
-        Self {
-            code: WorkerErrorCode::InvalidRequest,
-            message: message.into(),
-            retryable: false,
-        }
-    }
-    fn unauthorized(message: impl Into<String>) -> Self {
-        Self {
-            code: WorkerErrorCode::Unauthorized,
-            message: message.into(),
-            retryable: false,
-        }
-    }
-    fn not_found(message: impl Into<String>) -> Self {
-        Self {
-            code: WorkerErrorCode::NotFound,
-            message: message.into(),
-            retryable: false,
-        }
-    }
-    fn conflict(message: impl Into<String>) -> Self {
-        Self {
-            code: WorkerErrorCode::Conflict,
-            message: message.into(),
-            retryable: false,
-        }
-    }
-    fn internal(message: impl Into<String>) -> Self {
-        Self {
-            code: WorkerErrorCode::Internal,
-            message: message.into(),
-            retryable: false,
-        }
-    }
-}
-
-fn completed<T: Serialize>(request: &WorkerEnvelope<Value>, payload: T) -> WorkerResponse<T> {
-    WorkerResponse {
-        schema_version: WORKER_SCHEMA_VERSION,
-        request_id: request.request_id.clone(),
-        trace_id: request.trace_id.clone(),
-        operation: WorkerOperationRef {
-            operation_id: request.operation_id.clone(),
-            task_id: None,
-        },
-        status: WorkerOperationStatus::Completed,
-        payload: Some(payload),
-        resource_refs: Vec::new(),
-        committed_revision: None,
-        provider_job_id: None,
-        result_summary: None,
-        pagination: None,
-        error: None,
-    }
-}
-
-fn failed<T>(request: &WorkerEnvelope<Value>, failure: WorkerFailure) -> WorkerResponse<T> {
-    WorkerResponse {
-        schema_version: WORKER_SCHEMA_VERSION,
-        request_id: request.request_id.clone(),
-        trace_id: request.trace_id.clone(),
-        operation: WorkerOperationRef {
-            operation_id: request.operation_id.clone(),
-            task_id: None,
-        },
-        status: WorkerOperationStatus::Failed,
-        payload: None,
-        resource_refs: Vec::new(),
-        committed_revision: None,
-        provider_job_id: None,
-        result_summary: None,
-        pagination: None,
-        error: Some(WorkerError {
-            code: failure.code,
-            message: failure.message,
-            retryable: failure.retryable,
-        }),
-    }
 }
 
 pub(crate) fn bind_addr(control_addr: SocketAddr) -> anyhow::Result<SocketAddr> {
@@ -937,18 +376,13 @@ impl HealthState {
     }
 }
 
-fn unauthorized() -> Response {
-    (
-        StatusCode::UNAUTHORIZED,
-        "Agent worker authentication required",
-    )
-        .into_response()
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use axum::{body::Body, http::Request};
+    use axum::{
+        body::Body,
+        http::{Request, StatusCode},
+    };
     use serde_json::Value;
     use std::time::Duration;
     use tokio::time::timeout;

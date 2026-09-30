@@ -10,6 +10,7 @@ use a4n_db::galgame::{
     GalgameScriptDetailScriptRecord,
 };
 use a4n_db_models::models::generation::workflow_checkpoint;
+use a4n_domain::galgame::GalgameLineRecord;
 use a4n_error::AppError;
 use a4n_test_support::workflow::WorkflowRunModelBuilder;
 use chrono::NaiveDate;
@@ -273,7 +274,19 @@ fn script_detail_read_model_groups_lines_choices_refs_and_media() {
             entry_kind: "main".to_string(),
             next_scene_id: None,
         }],
-        lines: vec![line],
+        lines: vec![GalgameLineRecord {
+            id: line.id,
+            scene_id: line.scene_id,
+            line_index: line.line_index,
+            line_type: line.line_type,
+            speaker_profile_id: line.speaker_profile_id,
+            text: line.text,
+            expression: line.expression,
+            pose: line.pose,
+            position: line.position,
+            presentation_json: line.presentation_json,
+            text_anchor_id: line.text_anchor_id,
+        }],
         choices: vec![GalgameScriptDetailChoiceRecord {
             id: 500,
             line_id: 10,

@@ -1,34 +1,10 @@
 //! Typed HTTP adapter for the novel-planning worker.
 
-use a4n_api_contract::chapter_visual_plan::{
-    ChapterVisualPlanReadResult, ChapterVisualPlanRecordInput,
-    ChapterVisualPlanRecordPersistenceApplicationPort, ChapterVisualPlanRecordReadApplicationPort,
-    ChapterVisualPlanSetView, ChapterVisualPlanSourceInput, ChapterVisualPlanValidationResult,
-    ChapterVisualPlanView, ConfirmedChapterVisualPlanView, ReadChapterVisualPlanInput,
-    SaveChapterVisualPlanDraftInput, ValidateChapterVisualPlanInput,
-};
-use a4n_api_contract::shooting_script::{
-    ChapterShootingScriptSourceInput, ChapterShootingScriptView, DeleteChapterShootingScriptInput,
-    EditChapterShootingScriptInput, EditChapterShootingScriptProgressInput,
-    EditedChapterShootingScriptProgressView, EditedChapterShootingScriptView,
-    PublishChapterShootingScriptInput, ShootingScriptCurrentReadApplicationPort,
-    ShootingScriptRecordMutationApplicationPort, ShootingScriptUnitProgressReadApplicationPort,
-};
+mod shooting_script;
+mod visual_plan;
+
 use a4n_error::AppError;
-use a4n_novel_planning_worker_contract::{
-    CONFIRM_VISUAL_PLAN_OPERATION, ConfirmVisualPlanPayload, CurrentShootingScriptPayload,
-    CurrentShootingScriptResultPayload, DELETE_SHOOTING_SCRIPT_OPERATION,
-    DISCARD_VISUAL_PLAN_OPERATION, DeleteShootingScriptPayload, DiscardVisualPlanPayload,
-    EDIT_SHOOTING_SCRIPT_OPERATION, EDIT_SHOOTING_SCRIPT_PROGRESS_OPERATION,
-    EditShootingScriptPayload, EditShootingScriptProgressPayload,
-    EditShootingScriptProgressResultPayload, GET_CURRENT_SHOOTING_SCRIPT_OPERATION,
-    GET_SHOOTING_SCRIPT_UNIT_PROGRESS_OPERATION, GET_VISUAL_PLAN_OPERATION, GetVisualPlanPayload,
-    NOVEL_PLANNING_WORKER_ID, PUBLISH_SHOOTING_SCRIPT_OPERATION, PublishShootingScriptPayload,
-    READ_VISUAL_PLAN_OPERATION, ReadVisualPlanPayload, SAVE_VISUAL_PLAN_DRAFT_OPERATION,
-    SaveVisualPlanDraftPayload, ShootingScriptUnitProgressPayload,
-    ShootingScriptUnitProgressResultPayload, VALIDATE_VISUAL_PLAN_OPERATION,
-    ValidateVisualPlanPayload,
-};
+use a4n_novel_planning_worker_contract::NOVEL_PLANNING_WORKER_ID;
 use a4n_worker_client::{HttpWorkerClient, WorkerClientError};
 use a4n_worker_contract::{
     WORKER_SCHEMA_VERSION, WorkerEnvelope, WorkerError, WorkerErrorCode, WorkerLease,
@@ -141,206 +117,6 @@ impl NovelPlanningWorkerClient {
     }
 }
 
-#[async_trait::async_trait]
-impl ShootingScriptCurrentReadApplicationPort for NovelPlanningWorkerClient {
-    async fn current(
-        &self,
-        user_id: i64,
-        input: ChapterShootingScriptSourceInput,
-    ) -> Result<Option<ChapterShootingScriptView>, AppError> {
-        self.command::<CurrentShootingScriptPayload, CurrentShootingScriptResultPayload>(
-            user_id,
-            input.project_id,
-            None,
-            GET_CURRENT_SHOOTING_SCRIPT_OPERATION,
-            input,
-        )
-        .await
-        .map(|payload| payload.value)
-    }
-}
-
-#[async_trait::async_trait]
-impl ShootingScriptUnitProgressReadApplicationPort for NovelPlanningWorkerClient {
-    async fn unit_progress(
-        &self,
-        user_id: i64,
-        input: ChapterShootingScriptSourceInput,
-    ) -> Result<
-        Option<a4n_api_contract::shooting_script::ChapterShootingScriptUnitProgressView>,
-        AppError,
-    > {
-        self.command::<ShootingScriptUnitProgressPayload, ShootingScriptUnitProgressResultPayload>(
-            user_id,
-            input.project_id,
-            None,
-            GET_SHOOTING_SCRIPT_UNIT_PROGRESS_OPERATION,
-            input,
-        )
-        .await
-        .map(|payload| payload.value)
-    }
-}
-
-#[async_trait::async_trait]
-impl ShootingScriptRecordMutationApplicationPort for NovelPlanningWorkerClient {
-    async fn edit_progress(
-        &self,
-        user_id: i64,
-        input: EditChapterShootingScriptProgressInput,
-    ) -> Result<EditedChapterShootingScriptProgressView, AppError> {
-        self.command::<EditShootingScriptProgressPayload, EditShootingScriptProgressResultPayload>(
-            user_id,
-            input.project_id,
-            None,
-            EDIT_SHOOTING_SCRIPT_PROGRESS_OPERATION,
-            input,
-        )
-        .await
-    }
-
-    async fn publish(
-        &self,
-        user_id: i64,
-        input: PublishChapterShootingScriptInput,
-    ) -> Result<ChapterShootingScriptView, AppError> {
-        self.command::<PublishShootingScriptPayload, ChapterShootingScriptView>(
-            user_id,
-            input.project_id,
-            input.expected_revision,
-            PUBLISH_SHOOTING_SCRIPT_OPERATION,
-            input,
-        )
-        .await
-    }
-
-    async fn edit(
-        &self,
-        user_id: i64,
-        input: EditChapterShootingScriptInput,
-    ) -> Result<EditedChapterShootingScriptView, AppError> {
-        self.command::<EditShootingScriptPayload, EditedChapterShootingScriptView>(
-            user_id,
-            input.project_id,
-            Some(input.expected_revision),
-            EDIT_SHOOTING_SCRIPT_OPERATION,
-            input,
-        )
-        .await
-    }
-
-    async fn delete(
-        &self,
-        user_id: i64,
-        input: DeleteChapterShootingScriptInput,
-    ) -> Result<(), AppError> {
-        self.command::<DeleteShootingScriptPayload, ()>(
-            user_id,
-            input.project_id,
-            Some(input.expected_revision),
-            DELETE_SHOOTING_SCRIPT_OPERATION,
-            input,
-        )
-        .await
-    }
-}
-
-#[async_trait::async_trait]
-impl ChapterVisualPlanRecordPersistenceApplicationPort for NovelPlanningWorkerClient {
-    async fn save_draft(
-        &self,
-        user_id: i64,
-        input: SaveChapterVisualPlanDraftInput,
-    ) -> Result<ChapterVisualPlanView, AppError> {
-        self.command::<SaveVisualPlanDraftPayload, ChapterVisualPlanView>(
-            user_id,
-            input.project_id,
-            input.expected_revision,
-            SAVE_VISUAL_PLAN_DRAFT_OPERATION,
-            input,
-        )
-        .await
-    }
-
-    async fn confirm(
-        &self,
-        user_id: i64,
-        input: ChapterVisualPlanRecordInput,
-    ) -> Result<ConfirmedChapterVisualPlanView, AppError> {
-        self.command::<ConfirmVisualPlanPayload, ConfirmedChapterVisualPlanView>(
-            user_id,
-            input.project_id,
-            Some(input.expected_revision),
-            CONFIRM_VISUAL_PLAN_OPERATION,
-            input,
-        )
-        .await
-    }
-
-    async fn discard(
-        &self,
-        user_id: i64,
-        input: ChapterVisualPlanRecordInput,
-    ) -> Result<(), AppError> {
-        self.command::<DiscardVisualPlanPayload, ()>(
-            user_id,
-            input.project_id,
-            Some(input.expected_revision),
-            DISCARD_VISUAL_PLAN_OPERATION,
-            input,
-        )
-        .await
-    }
-}
-
-#[async_trait::async_trait]
-impl ChapterVisualPlanRecordReadApplicationPort for NovelPlanningWorkerClient {
-    async fn get(
-        &self,
-        user_id: i64,
-        input: ChapterVisualPlanSourceInput,
-    ) -> Result<ChapterVisualPlanSetView, AppError> {
-        self.command::<GetVisualPlanPayload, ChapterVisualPlanSetView>(
-            user_id,
-            input.project_id,
-            None,
-            GET_VISUAL_PLAN_OPERATION,
-            input,
-        )
-        .await
-    }
-
-    async fn read(
-        &self,
-        user_id: i64,
-        input: ReadChapterVisualPlanInput,
-    ) -> Result<ChapterVisualPlanReadResult, AppError> {
-        self.command::<ReadVisualPlanPayload, ChapterVisualPlanReadResult>(
-            user_id,
-            input.project_id,
-            input.expected_revision,
-            READ_VISUAL_PLAN_OPERATION,
-            input,
-        )
-        .await
-    }
-
-    async fn validate(
-        &self,
-        user_id: i64,
-        input: ValidateChapterVisualPlanInput,
-    ) -> Result<ChapterVisualPlanValidationResult, AppError> {
-        self.command::<ValidateVisualPlanPayload, ChapterVisualPlanValidationResult>(
-            user_id,
-            input.project_id,
-            Some(input.expected_revision),
-            VALIDATE_VISUAL_PLAN_OPERATION,
-            input,
-        )
-        .await
-    }
-}
-
 fn worker_client_error(error: WorkerClientError) -> AppError {
     AppError::ConfigError(format!("novel-planning worker 请求失败: {error}"))
 }
@@ -369,6 +145,7 @@ fn worker_response_error(error: &WorkerError, operation: &str) -> AppError {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use a4n_novel_planning_worker_contract::EDIT_SHOOTING_SCRIPT_OPERATION;
 
     #[test]
     fn client_debug_does_not_expose_worker_url_or_token() {

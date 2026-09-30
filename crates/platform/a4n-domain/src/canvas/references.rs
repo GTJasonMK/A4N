@@ -1,0 +1,212 @@
+use std::{fmt, str::FromStr};
+
+use schemars::JsonSchema;
+use serde::{Deserialize, Serialize};
+
+use crate::DomainError;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum CanvasNodeRefKind {
+    Inline,
+    Config,
+    CanvasTextAsset,
+    PromptArtifact,
+    MediaAsset,
+    VideoSegment,
+    AssemblyTimeline,
+    GenerationSpec,
+    GeneratedImage,
+    GeneratedVideo,
+}
+
+impl CanvasNodeRefKind {
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Inline => "inline",
+            Self::Config => "config",
+            Self::CanvasTextAsset => "canvas_text_asset",
+            Self::PromptArtifact => "prompt_artifact",
+            Self::MediaAsset => "media_asset",
+            Self::VideoSegment => "video_segment",
+            Self::AssemblyTimeline => "assembly_timeline",
+            Self::GenerationSpec => "generation_spec",
+            Self::GeneratedImage => "generated_image",
+            Self::GeneratedVideo => "generated_video",
+        }
+    }
+}
+
+pub const CANVAS_MEDIA_INPUT_REF_TYPES: [(&str, CanvasNodeRefKind); 3] = [
+    ("ImageInputNode", CanvasNodeRefKind::GeneratedImage),
+    ("VideoInputNode", CanvasNodeRefKind::GeneratedVideo),
+    ("AudioInputNode", CanvasNodeRefKind::MediaAsset),
+];
+
+// These are projections of the referenced resource, never authored input parameters.
+pub const CANVAS_MEDIA_INPUT_METADATA_KEYS: [&str; 14] = [
+    "generated_image_id",
+    "generated_video_id",
+    "media_asset_id",
+    "file_path",
+    "thumbnail_path",
+    "width",
+    "height",
+    "duration_secs",
+    "fps",
+    "file_size",
+    "status",
+    "error_message",
+    "output",
+    "canvas_runtime_result",
+];
+
+pub fn canvas_media_input_ref_kind(node_kind: &str) -> Option<CanvasNodeRefKind> {
+    CANVAS_MEDIA_INPUT_REF_TYPES
+        .iter()
+        .find(|(kind, _)| *kind == node_kind)
+        .map(|(_, ref_kind)| *ref_kind)
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum CanvasFrameKind {
+    First,
+    Tail,
+    Time,
+}
+
+impl CanvasFrameKind {
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::First => "first",
+            Self::Tail => "tail",
+            Self::Time => "time",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum GeneratedMediaReference {
+    Video(i64),
+    Image(i64),
+}
+
+impl GeneratedMediaReference {
+    pub const fn id(self) -> i64 {
+        match self {
+            Self::Video(id) | Self::Image(id) => id,
+        }
+    }
+
+    pub const fn kind(self) -> &'static str {
+        match self {
+            Self::Video(_) => "generated_video",
+            Self::Image(_) => "generated_image",
+        }
+    }
+
+    pub const fn label(self) -> &'static str {
+        match self {
+            Self::Video(_) => "生成视频",
+            Self::Image(_) => "生成图片",
+        }
+    }
+
+    pub const fn with_id(self, id: i64) -> Self {
+        match self {
+            Self::Video(_) => Self::Video(id),
+            Self::Image(_) => Self::Image(id),
+        }
+    }
+}
+
+impl fmt::Display for GeneratedMediaReference {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(formatter, "{}:{}", self.kind(), self.id())
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum GeneratedMediaReferenceParseError {
+    InvalidVideoId,
+    InvalidImageId,
+}
+
+impl GeneratedMediaReferenceParseError {
+    pub const fn kind(self) -> &'static str {
+        match self {
+            Self::InvalidVideoId => "generated_video",
+            Self::InvalidImageId => "generated_image",
+        }
+    }
+}
+
+pub fn parse_generated_media_reference(
+    value: &str,
+) -> Result<Option<GeneratedMediaReference>, GeneratedMediaReferenceParseError> {
+    if let Some(suffix) = value.strip_prefix("generated_video:") {
+        return suffix
+            .parse()
+            .map(GeneratedMediaReference::Video)
+            .map(Some)
+            .map_err(|_| GeneratedMediaReferenceParseError::InvalidVideoId);
+    }
+    if let Some(suffix) = value.strip_prefix("generated_image:") {
+        return suffix
+            .parse()
+            .map(GeneratedMediaReference::Image)
+            .map(Some)
+            .map_err(|_| GeneratedMediaReferenceParseError::InvalidImageId);
+    }
+    Ok(None)
+}
+
+impl fmt::Display for CanvasNodeRefKind {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str(self.as_str())
+    }
+}
+
+impl fmt::Display for CanvasFrameKind {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str(self.as_str())
+    }
+}
+
+impl FromStr for CanvasNodeRefKind {
+    type Err = DomainError;
+
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
+        match value {
+            "inline" => Ok(Self::Inline),
+            "config" => Ok(Self::Config),
+            "canvas_text_asset" => Ok(Self::CanvasTextAsset),
+            "prompt_artifact" => Ok(Self::PromptArtifact),
+            "media_asset" => Ok(Self::MediaAsset),
+            "video_segment" => Ok(Self::VideoSegment),
+            "assembly_timeline" => Ok(Self::AssemblyTimeline),
+            "generation_spec" => Ok(Self::GenerationSpec),
+            "generated_image" => Ok(Self::GeneratedImage),
+            "generated_video" => Ok(Self::GeneratedVideo),
+            _ => Err(DomainError::InvalidCanvasNodeRefKind {
+                value: value.to_string(),
+            }),
+        }
+    }
+}
+
+impl FromStr for CanvasFrameKind {
+    type Err = DomainError;
+
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
+        match value {
+            "first" => Ok(Self::First),
+            "tail" => Ok(Self::Tail),
+            "time" => Ok(Self::Time),
+            _ => Err(DomainError::InvalidCanvasFrameKind {
+                value: value.to_string(),
+            }),
+        }
+    }
+}
