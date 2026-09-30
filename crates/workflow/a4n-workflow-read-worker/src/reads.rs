@@ -247,7 +247,7 @@ impl WorkerState {
     ) -> Result<WorkflowResumeRecord, WorkerFailure> {
         validate_request(&request, WORKFLOW_READ_RESUME_RECORD_OPERATION)?;
         require_service_principal(&request.principal)?;
-        let run = a4n_db::workflow::workflow_run_model_by_id(
+        let run = a4n_db::workflow::workflow_run_resume_record_by_id(
             self.database.connection(),
             request.payload.workflow_run_id,
         )

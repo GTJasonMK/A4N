@@ -5,7 +5,9 @@ use std::collections::HashSet;
 
 use super::super::summaries::GenerationRunSummaryRecord;
 
-use super::projections::{workflow_checkpoint_summary, workflow_run_summary};
+use super::projections::{
+    workflow_checkpoint_summary, workflow_run_resume_record, workflow_run_summary,
+};
 
 #[derive(Debug, FromQueryResult)]
 struct WorkflowRunRecoveryQueryRecord {
@@ -158,6 +160,15 @@ pub async fn workflow_run_model_by_id(
     workflow_run_id: i64,
 ) -> Result<workflow_run::Model, WorkflowReadError> {
     workflow_run_by_id(db, workflow_run_id).await
+}
+
+pub async fn workflow_run_resume_record_by_id(
+    db: &DatabaseConnection,
+    workflow_run_id: i64,
+) -> Result<WorkflowRunResumeRecord, WorkflowReadError> {
+    workflow_run_by_id(db, workflow_run_id)
+        .await
+        .map(workflow_run_resume_record)
 }
 
 pub async fn workflow_run_status_record_by_id(

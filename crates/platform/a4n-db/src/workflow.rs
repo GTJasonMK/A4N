@@ -38,7 +38,7 @@ pub use summaries::{
     CancelWorkflowRunPersistenceResult, GenerationRunSummary, PersistedTaskInfo,
     TaskProgressEventSummary, WorkflowCheckpointSummary, WorkflowRunAccessRecord,
     WorkflowRunDetailSummary, WorkflowRunProgressSummary, WorkflowRunRecoveryRecord,
-    WorkflowRunStatusRecord, WorkflowRunSummary,
+    WorkflowRunResumeRecord, WorkflowRunStatusRecord, WorkflowRunSummary,
 };
 
 mod validation;
@@ -67,8 +67,9 @@ pub use runs::{
     workflow_checkpoint_models, workflow_checkpoint_models_for_runs,
     workflow_checkpoint_statuses_for_runs, workflow_checkpoint_step_statuses,
     workflow_progress_events, workflow_run_access_record_by_active_task_id, workflow_run_detail,
-    workflow_run_model_by_id, workflow_run_models_by_ids, workflow_run_status_record_by_id,
-    workflow_run_statuses_by_ids, workflow_run_summary_by_id, workflow_runs_by_project_kind,
+    workflow_run_model_by_id, workflow_run_models_by_ids, workflow_run_resume_record_by_id,
+    workflow_run_status_record_by_id, workflow_run_statuses_by_ids, workflow_run_summary_by_id,
+    workflow_runs_by_project_kind,
 };
 #[cfg(test)]
 pub(in crate::workflow) use runs::{

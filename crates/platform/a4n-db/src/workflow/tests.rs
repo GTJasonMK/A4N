@@ -330,11 +330,18 @@ fn workflow_run_summary_accepts_snapshot_with_or_without_progress() {
             WORKFLOW_STATUS_INTERRUPTED,
             test_timestamp(),
         )
-        .with_progress(value)
+        .with_progress(value.clone())
         .build();
         let summary = workflow_run_summary(run).expect("durable snapshot must not block reads");
         assert_eq!(summary.id, 51);
         assert_eq!(summary.progress.is_some(), with_progress);
+        assert_eq!(summary.progress_json.as_ref(), Some(&value));
+        assert!(
+            serde_json::to_value(&summary)
+                .unwrap()
+                .get("progress_json")
+                .is_none()
+        );
         if let Some(progress) = summary.progress {
             assert_eq!(progress.current, 1);
             assert_eq!(progress.total, 4);
