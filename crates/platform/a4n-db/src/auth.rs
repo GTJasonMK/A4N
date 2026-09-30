@@ -1,5 +1,4 @@
-use a4n_db_models::models::user::{invite_code, user, user_session};
-use a4n_domain::auth::ROLE_USER;
+use a4n_db_models::models::user::{invite_code, role::ROLE_USER, user, user_session};
 use a4n_error::AppError;
 use argon2::password_hash::{SaltString, rand_core::OsRng};
 use argon2::{Argon2, PasswordHash, PasswordHasher, PasswordVerifier};

@@ -9,7 +9,7 @@ use a4n_api_contract::workflow::{
     WorkflowTaskAccessRecord,
 };
 use a4n_db::DbHandle;
-use a4n_domain::auth::{UserRole, parse_user_role};
+use a4n_db_models::models::user::role::{UserRole, parse_user_role};
 use a4n_domain::collaboration::ProjectAccessRole;
 use a4n_worker_contract::WORKER_AUTH_HEADER;
 use a4n_worker_contract::{
@@ -737,8 +737,8 @@ fn collaboration_error(error: a4n_db::collaboration::CollaborationDbError) -> Wo
     }
 }
 
-fn app_error(error: impl Into<a4n_error::AppError>) -> WorkerFailure {
-    match error.into() {
+fn app_error(error: a4n_error::AppError) -> WorkerFailure {
+    match error {
         a4n_error::AppError::InvalidArgument(message) => WorkerFailure::invalid_request(message),
         a4n_error::AppError::NotFound(message) => WorkerFailure::not_found(message),
         a4n_error::AppError::Forbidden(message) => WorkerFailure::unauthorized(message),

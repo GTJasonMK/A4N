@@ -90,8 +90,8 @@ async fn require_admin(database: &DbHandle, user_id: i64) -> Result<(), WorkerFa
     Ok(())
 }
 
-fn app_error(error: impl Into<a4n_error::AppError>) -> WorkerFailure {
-    match error.into() {
+fn app_error(error: a4n_error::AppError) -> WorkerFailure {
+    match error {
         a4n_error::AppError::InvalidArgument(message) => WorkerFailure::invalid_request(message),
         a4n_error::AppError::NotFound(message) => WorkerFailure::not_found(message),
         a4n_error::AppError::Forbidden(message) | a4n_error::AppError::Unauthorized(message) => {

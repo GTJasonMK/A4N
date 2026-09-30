@@ -1,7 +1,9 @@
-use a4n_db_models::models::user::user;
 #[cfg(test)]
-use a4n_domain::auth::ROLE_USER;
-use a4n_domain::auth::{ROLE_ADMIN, validate_user_role};
+use a4n_db_models::models::user::role::ROLE_USER;
+use a4n_db_models::models::user::{
+    role::{ROLE_ADMIN, validate_user_role},
+    user,
+};
 use a4n_error::AppError;
 use chrono::Utc;
 use sea_orm::{ActiveModelTrait, ConnectionTrait, DatabaseConnection, Set};

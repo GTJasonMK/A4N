@@ -96,12 +96,6 @@ impl From<a4n_domain::ProviderError> for AppError {
     }
 }
 
-impl From<a4n_domain::auth::UserRoleParseError> for AppError {
-    fn from(error: a4n_domain::auth::UserRoleParseError) -> Self {
-        Self::InvalidArgument(error.to_string())
-    }
-}
-
 impl From<a4n_domain::profile_text::ProfileTextError> for AppError {
     fn from(error: a4n_domain::profile_text::ProfileTextError) -> Self {
         Self::InvalidArgument(error.to_string())

@@ -1,4 +1,4 @@
-use a4n_domain::auth::{UserRole, parse_user_role};
+use a4n_db_models::models::user::role::{UserRole, parse_user_role};
 use a4n_error::AppError;
 
 pub(crate) use a4n_api_contract::admin::AdminPermission;

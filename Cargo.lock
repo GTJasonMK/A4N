@@ -2884,8 +2884,6 @@ dependencies = [
  "a4n-config",
  "a4n-control",
  "a4n-db",
- "a4n-db-models",
- "a4n-domain",
  "a4n-error",
  "a4n-host-assembly",
  "a4n-media",
