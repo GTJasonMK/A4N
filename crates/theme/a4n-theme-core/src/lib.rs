@@ -3,7 +3,9 @@
 use a4n_api_contract::theme::{
     ThemePreferenceSummary, ThemeResourceRecord, ThemeResourceSummary, ThemeSummary,
 };
-use a4n_db_models::models::user::{theme_config, theme_preference, theme_resource};
+use a4n_domain::theme_edit::{
+    ThemePreferenceRecord, ThemeRecord, ThemeResourceRecord as DomainThemeResourceRecord,
+};
 use a4n_domain::{ThemeAppearance, ThemeDocument, ThemeMode};
 use a4n_error::AppError;
 
@@ -43,8 +45,8 @@ pub fn theme_update_changes(
 }
 
 pub fn theme_summary_with_resources(
-    theme: theme_config::Model,
-    resources: Vec<theme_resource::Model>,
+    theme: ThemeRecord,
+    resources: Vec<DomainThemeResourceRecord>,
 ) -> Result<ThemeSummary, AppError> {
     let mode = theme.mode.parse::<ThemeMode>().map_err(|error| {
         AppError::ConfigError(format!("主题 {} 的持久化 mode 无效：{error}", theme.id))
@@ -68,7 +70,7 @@ pub fn theme_summary_with_resources(
     })
 }
 
-pub fn theme_resource_record(resource: theme_resource::Model) -> ThemeResourceRecord {
+pub fn theme_resource_record(resource: DomainThemeResourceRecord) -> ThemeResourceRecord {
     ThemeResourceRecord {
         id: resource.id,
         theme_id: resource.theme_id,
@@ -83,7 +85,7 @@ pub fn theme_resource_record(resource: theme_resource::Model) -> ThemeResourceRe
 
 pub fn theme_preference_summary(
     user_id: i64,
-    preference: Option<theme_preference::Model>,
+    preference: Option<ThemePreferenceRecord>,
 ) -> Result<ThemePreferenceSummary, AppError> {
     let appearance = preference
         .map(|preference| preference.appearance.parse::<ThemeAppearance>())
@@ -96,7 +98,7 @@ pub fn theme_preference_summary(
     })
 }
 
-fn theme_resource_summary(resource: theme_resource::Model) -> ThemeResourceSummary {
+fn theme_resource_summary(resource: DomainThemeResourceRecord) -> ThemeResourceSummary {
     ThemeResourceSummary {
         id: resource.id,
         theme_id: resource.theme_id,
@@ -112,8 +114,8 @@ fn theme_resource_summary(resource: theme_resource::Model) -> ThemeResourceSumma
 mod tests {
     use super::*;
 
-    fn theme(mode: &str, document: serde_json::Value) -> theme_config::Model {
-        theme_config::Model {
+    fn theme(mode: &str, document: serde_json::Value) -> ThemeRecord {
+        ThemeRecord {
             id: 7,
             user_id: Some(11),
             name: "测试主题".to_string(),
@@ -121,8 +123,6 @@ mod tests {
             theme_document: document,
             is_system_default: false,
             is_active: true,
-            created_at: Default::default(),
-            updated_at: Default::default(),
         }
     }
 
@@ -144,18 +144,16 @@ mod tests {
         let summary = theme_preference_summary(11, None).expect("missing preference defaults");
         assert_eq!(summary.appearance, ThemeAppearance::System);
 
-        let invalid = theme_preference::Model {
+        let invalid = ThemePreferenceRecord {
             user_id: 11,
             appearance: "sepia".to_string(),
-            created_at: Default::default(),
-            updated_at: Default::default(),
         };
         assert!(theme_preference_summary(11, Some(invalid)).is_err());
     }
 
     #[test]
     fn projection_preserves_resource_metadata_without_checksum() {
-        let resource = theme_resource::Model {
+        let resource = DomainThemeResourceRecord {
             id: 3,
             theme_id: 7,
             resource_key: "home".to_string(),
@@ -164,8 +162,6 @@ mod tests {
             file_path: "themes/7/home.png".to_string(),
             sha256: "digest".to_string(),
             byte_size: 42,
-            created_at: Default::default(),
-            updated_at: Default::default(),
         };
         let summary = theme_summary_with_resources(
             theme(
