@@ -46,6 +46,7 @@ fn normalize_legacy_visual_constraint_points(scene: &mut Value) {
         return;
     };
     for shot in shots {
+        let shot_fields = shot.as_object().cloned().unwrap_or_default();
         let Some(fields) = shot
             .get_mut("visual_constraints")
             .and_then(Value::as_object_mut)
@@ -62,9 +63,48 @@ fn normalize_legacy_visual_constraint_points(scene: &mut Value) {
         ] {
             fields.remove(field);
         }
+        let start_ms = shot_fields
+            .get("planned_start_ms")
+            .and_then(Value::as_u64)
+            .unwrap_or(0);
+        let end_ms = shot_fields
+            .get("planned_end_ms")
+            .and_then(Value::as_u64)
+            .filter(|end| *end > start_ms)
+            .unwrap_or(start_ms.saturating_add(1_000));
         fields
             .entry("frame")
             .or_insert_with(|| serde_json::json!({"width": 1920, "height": 1080}));
+        fields.entry("segment_id").or_insert_with(|| {
+            shot_fields
+                .get("visual_shot_id")
+                .and_then(Value::as_str)
+                .map(|value| Value::String(value.into()))
+                .or_else(|| shot_fields.get("shot_id").cloned())
+                .unwrap_or_else(|| Value::String("legacy-shot".into()))
+        });
+        fields.entry("title").or_insert_with(|| {
+            shot_fields
+                .get("title")
+                .cloned()
+                .unwrap_or_else(|| Value::String("历史镜头".into()))
+        });
+        fields
+            .entry("start_ms")
+            .or_insert_with(|| Value::from(start_ms));
+        fields
+            .entry("end_ms")
+            .or_insert_with(|| Value::from(end_ms));
+        fields.entry("prompt").or_insert_with(|| {
+            shot_fields
+                .get("narrative_purpose")
+                .cloned()
+                .unwrap_or_else(|| Value::String(String::new()))
+        });
+        fields
+            .entry("scene_binding")
+            .or_insert_with(|| serde_json::json!({"kind": "scene", "scene_profile_id": 1}));
+        fields.entry("end_frame").or_insert(Value::Null);
         for key in ["keyframes", "end_frame"] {
             if let Some(points) = fields.get_mut(key).and_then(Value::as_array_mut) {
                 for point in points {

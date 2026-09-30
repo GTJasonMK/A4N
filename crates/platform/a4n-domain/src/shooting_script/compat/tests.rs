@@ -200,6 +200,20 @@ fn embedded_legacy_scripts_drop_removed_visual_constraint_events() {
         .as_object_mut()
         .unwrap()
         .remove("frame");
+    for field in [
+        "segment_id",
+        "title",
+        "start_ms",
+        "end_ms",
+        "prompt",
+        "scene_binding",
+        "end_frame",
+    ] {
+        value["scenes"][0]["shots"][0]["visual_constraints"]
+            .as_object_mut()
+            .unwrap()
+            .remove(field);
+    }
     let point = &mut value["scenes"][0]["shots"][0]["visual_constraints"]["keyframes"][0];
     point["camera"] = json!({"framing_note": "旧相机构图"});
     point["entity_states"] = json!([]);
@@ -250,6 +264,20 @@ fn completed_scene_checkpoint_drops_removed_visual_constraint_events() {
         .as_object_mut()
         .unwrap()
         .remove("frame");
+    for field in [
+        "segment_id",
+        "title",
+        "start_ms",
+        "end_ms",
+        "prompt",
+        "scene_binding",
+        "end_frame",
+    ] {
+        scene["shots"][0]["visual_constraints"]
+            .as_object_mut()
+            .unwrap()
+            .remove(field);
+    }
     let point = &mut scene["shots"][0]["visual_constraints"]["keyframes"][0];
     point["camera"] = json!({"framing_note": "旧相机构图"});
     point["entity_states"] = json!([]);
