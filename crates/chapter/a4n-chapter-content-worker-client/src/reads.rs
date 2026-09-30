@@ -3,8 +3,7 @@ use a4n_api_contract::chapter::{
 };
 use a4n_chapter_content_worker_contract::{
     CHAPTER_CONTENT_ANALYSES_OPERATION, CHAPTER_CONTENT_INDEX_OPERATION,
-    CHAPTER_CONTENT_LIST_OPERATION,
-    CHAPTER_CONTENT_SUMMARY_OPERATION, ChapterInput, ProjectInput,
+    CHAPTER_CONTENT_LIST_OPERATION, CHAPTER_CONTENT_SUMMARY_OPERATION, ChapterInput, ProjectInput,
 };
 use a4n_error::AppError;
 
