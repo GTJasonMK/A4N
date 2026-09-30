@@ -109,4 +109,5 @@ fn complete_canonical_resource(
 
 mod access;
 mod interactions;
+mod lineage;
 mod threads;

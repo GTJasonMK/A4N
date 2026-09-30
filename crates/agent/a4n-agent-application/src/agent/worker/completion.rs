@@ -1,11 +1,9 @@
-//! worker run completion 与 failure。
+//! worker run completion and result references.
 
 use super::super::{AgentApplication, AgentWorkerRun};
 use super::*;
 use a4n_agent_runtime_contract::AgentWorkerCompletionApplicationPort;
-use a4n_agent_runtime_contract::AgentWorkerFailureApplicationPort;
 use a4n_error::AppError;
-use a4n_worker_contract::AgentWorkerFailureRequest;
 use a4n_worker_contract::{
     AgentWorkerCompletionRequest, AgentWorkerCompletionSnapshotWire, AgentWorkerResultRefsRequest,
     AgentWorkerResultRefsSnapshotWire, AgentWorkerRunLeaseRequest,
@@ -13,6 +11,54 @@ use a4n_worker_contract::{
 use serde_json::Value;
 
 impl AgentApplication {
+    pub(crate) async fn result_refs_for_run(
+        &self,
+        claimed: &AgentWorkerRun,
+    ) -> Result<Value, AppError> {
+        self.result_refs_for_run_id(claimed.run.id).await
+    }
+
+    pub(super) async fn result_refs_for_run_id(&self, run_id: i64) -> Result<Value, AppError> {
+        let executions = agent::executions_by_runs(self.connection(), vec![run_id])
+            .await
+            .map_err(agent_db_error_to_app)?;
+        let mut refs = Vec::<AgentResourceRef>::new();
+        for execution in executions
+            .into_iter()
+            .filter(|execution| execution.status == "succeeded")
+        {
+            if let Some(value) = execution.result_refs_json {
+                let items: Vec<AgentResourceRef> =
+                    from_json(value, "agent_execution.result_refs_json")?;
+                for item in items {
+                    if item.kind == "optimization_source" {
+                        continue;
+                    }
+                    refs.retain(|previous| previous.kind != item.kind || previous.id != item.id);
+                    refs.push(item);
+                }
+            }
+        }
+        serde_json::to_value(refs).map_err(AppError::from)
+    }
+
+    pub(crate) async fn result_refs_for_run_request(
+        &self,
+        request: &AgentWorkerResultRefsRequest,
+    ) -> Result<AgentWorkerResultRefsSnapshotWire, AppError> {
+        request
+            .validate()
+            .map_err(|error| AppError::InvalidArgument(error.to_string()))?;
+        self.validate_worker_lease_request(&AgentWorkerRunLeaseRequest {
+            run_id: request.run_id,
+            lease: request.lease.clone(),
+        })
+        .await?;
+        self.result_refs_for_run_id(request.run_id)
+            .await
+            .map(|result_refs_json| AgentWorkerResultRefsSnapshotWire { result_refs_json })
+    }
+
     pub(super) async fn complete_claimed_run_fields(
         &self,
         fields: RunLeaseFields<'_>,
@@ -42,6 +88,42 @@ impl AgentApplication {
         )
         .await;
         completion_receipt(completed)
+    }
+
+    pub(super) async fn complete_child_run_fields(
+        &self,
+        fields: RunLeaseFields<'_>,
+        source_execution_id: i64,
+        content: String,
+        result_summary: String,
+        result_refs_json: Option<Value>,
+        observed_input_message_id: i64,
+    ) -> Result<AgentWorkerCompletionSnapshotWire, AppError> {
+        completion_receipt(
+            agent::complete_child_delegation(
+                self.connection(),
+                a4n_db::agent::AgentChildCompletionInput {
+                    child_run_id: fields.run_id,
+                    child_lease_token: fields.lease_token.to_string(),
+                    final_message: AgentMessageInput {
+                        thread_id: fields.thread_id,
+                        turn_id: Some(fields.turn_id),
+                        run_id: Some(fields.run_id),
+                        role: "assistant".into(),
+                        sender_kind: "agent".into(),
+                        sender_thread_id: None,
+                        client_message_id: Some(format!("agent-final:{}", fields.run_id)),
+                        content,
+                        status: "complete".into(),
+                        payload_json: Some(json!({"completion_execution_id": source_execution_id})),
+                    },
+                    result_refs_json,
+                    result_summary,
+                    observed_input_message_id,
+                },
+            )
+            .await,
+        )
     }
 
     pub(crate) async fn complete_worker_run_request(
@@ -212,90 +294,6 @@ impl AgentApplication {
         }
         Ok(receipt)
     }
-
-    pub(super) async fn fail_claimed_run(
-        &self,
-        claimed: &AgentWorkerRun,
-        error_message: impl Into<String>,
-    ) -> Result<run::Model, AppError> {
-        let error_message = error_message.into();
-        agent::fail_run_for_lease(
-            self.connection(),
-            claimed.run.id,
-            &claimed.lease_token,
-            Some(error_message),
-        )
-        .await
-        .map_err(agent_db_error_to_app)
-    }
-
-    pub(crate) async fn fail_child_run(
-        &self,
-        claimed: &AgentWorkerRun,
-        error_message: impl Into<String>,
-    ) -> Result<(), AppError> {
-        if claimed.run.parent_run_id.is_none() {
-            self.fail_claimed_run(claimed, error_message).await?;
-            return Ok(());
-        }
-        agent::fail_child_delegation(
-            self.connection(),
-            a4n_db::agent::AgentChildFailureInput {
-                child_run_id: claimed.run.id,
-                child_lease_token: claimed.lease_token.clone(),
-                error_message: error_message.into(),
-            },
-        )
-        .await
-        .map(|_| ())
-        .map_err(agent_db_error_to_app)
-    }
-
-    pub(crate) async fn fail_worker_run(
-        &self,
-        request: &AgentWorkerFailureRequest,
-    ) -> Result<(), AppError> {
-        request
-            .validate()
-            .map_err(|error| AppError::InvalidArgument(error.to_string()))?;
-        self.validate_worker_lease_request(&AgentWorkerRunLeaseRequest {
-            run_id: request.run_id,
-            lease: request.lease.clone(),
-        })
-        .await?;
-        let run = agent::run_by_id(self.connection(), request.run_id)
-            .await
-            .map_err(agent_db_error_to_app)?
-            .ok_or_else(|| AppError::NotFound(format!("Agent run 不存在: {}", request.run_id)))?;
-        let result = if run.parent_run_id.is_none() {
-            agent::fail_run_for_lease(
-                self.connection(),
-                request.run_id,
-                &request.lease.fence_token,
-                Some(request.error_message.clone()),
-            )
-            .await
-            .map(|_| ())
-            .map_err(agent_db_error_to_app)
-        } else {
-            agent::fail_child_delegation(
-                self.connection(),
-                a4n_db::agent::AgentChildFailureInput {
-                    child_run_id: request.run_id,
-                    child_lease_token: request.lease.fence_token.clone(),
-                    error_message: request.error_message.clone(),
-                },
-            )
-            .await
-            .map(|_| ())
-            .map_err(agent_db_error_to_app)
-        };
-        result?;
-        agent::cancel_run_tree(self.connection(), run.id, Some(&request.error_message))
-            .await
-            .map_err(agent_db_error_to_app)?;
-        Ok(())
-    }
 }
 
 #[async_trait::async_trait]
@@ -332,20 +330,5 @@ pub(super) fn completion_receipt<T>(
             blockers,
         }),
         Err(error) => Err(agent_db_error_to_app(error)),
-    }
-}
-
-#[async_trait::async_trait]
-impl AgentWorkerFailureApplicationPort for AgentApplication {
-    async fn fail_child_run(
-        &self,
-        claimed: &AgentWorkerRun,
-        error_message: String,
-    ) -> Result<(), AppError> {
-        AgentApplication::fail_child_run(self, claimed, error_message).await
-    }
-
-    async fn fail_worker_run(&self, request: &AgentWorkerFailureRequest) -> Result<(), AppError> {
-        AgentApplication::fail_worker_run(self, request).await
     }
 }

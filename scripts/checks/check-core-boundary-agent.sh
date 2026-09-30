@@ -64,24 +64,30 @@ fi
 
 if rg -n 'state\.application\(\)\.(search_tools|describe_tool)' \
     crates/agent/a4n-agent-runtime/src/engine; then
-    printf 'Agent worker tool discovery must consume AgentWorkerReadApplicationPort\n' >&2
+    printf 'Agent worker tool discovery must consume AgentWorkerToolReadApplicationPort\n' >&2
     exit 1
 fi
 if ! rg -n 'search_tools_for_worker|describe_tool_for_worker' \
-    crates/agent/a4n-agent-application/src/agent/worker/ports.rs \
+    crates/agent/a4n-agent-application/src/agent/worker/tool_read.rs \
     crates/agent/a4n-agent-runtime/src/engine; then
     printf 'Agent worker tool discovery read port is missing\n' >&2
     exit 1
 fi
 if rg -U -n 'ensure_argument_resource_scope\(\s*self\.state\.application\(\)' \
     crates/agent/a4n-agent-runtime/src/engine; then
-    printf 'Agent worker resource scope checks must consume AgentWorkerReadApplicationPort\n' >&2
+    printf 'Agent worker resource scope checks must consume AgentResourceAccessApplicationPort\n' >&2
     exit 1
 fi
-if ! rg -n 'verify_chapters_in_project_for_worker' \
-    crates/agent/a4n-agent-application/src/agent/worker/ports.rs \
-    crates/agent/a4n-agent-runtime/src/engine; then
-    printf 'Agent worker resource scope read port is missing\n' >&2
+if ! rg -U -q 'agent_resource_access_application\(\)\s*\.verify_chapters_in_project\(\s*request\.user_id,\s*request\.project_id,\s*&request\.chapter_ids,\s*&request\.source_chapter_ids' \
+    crates/host/a4n-runtime/src/actions/agent_runtime/history.rs || \
+   ! rg -U -q 'self\.application\s*\.verify_chapters_in_project\(\s*request\.user_id,\s*request\.project_id,\s*&request\.chapter_ids,\s*&request\.source_chapter_ids' \
+    crates/agent/a4n-agent-worker/src/host.rs; then
+    printf 'Agent worker chapter scope must validate chapter and source identities\n' >&2
+    exit 1
+fi
+if rg -n 'AgentWorkerReadApplicationPort|verify_chapters_in_project_for_worker' \
+    crates/agent crates/host/a4n-runtime; then
+    printf 'The mixed Agent worker read port must remain removed\n' >&2
     exit 1
 fi
 if rg -U -n 'state\.application\(\)\s*\.\s*show_run' \
@@ -95,11 +101,21 @@ if rg -n 'state\.application\(\)\.review_delegation' \
     exit 1
 fi
 if ! rg -n 'review_delegation' \
-    crates/agent/a4n-agent-application/src/agent/worker/ports.rs \
+    crates/agent/a4n-agent-application/src/agent/worker/delegation_review.rs \
     crates/agent/a4n-agent-runtime/src/engine; then
     printf 'Agent worker delegation review port is missing\n' >&2
     exit 1
 fi
+
+for port in tool_read skill_read memory_read execution_result_read message_request delegation_review event_write subagent_thread; do
+    if ! rg -q "fn agent_worker_${port}_application\(" \
+        crates/host/a4n-runtime/src/state/app/agent.rs || \
+       ! rg -q "agent_worker_${port}_application\(\)" \
+        crates/host/a4n-runtime/src/actions/agent_runtime; then
+        printf 'Agent worker %s must use its dedicated application port\n' "$port" >&2
+        exit 1
+    fi
+done
 
 if ! rg -n 'pub trait AgentWorkerBudgetApplicationPort' \
     crates/agent/a4n-agent-runtime-contract/src/ports.rs; then

@@ -265,7 +265,7 @@ pub async fn search_agent_skills_for_worker(
         .validate()
         .map_err(|error| AppError::InvalidArgument(format!("Agent Skill search 无效: {error}")))?;
     state
-        .agent_worker_read_application()
+        .agent_worker_skill_read_application()
         .search_skills_for_worker(request)
         .await
 }
@@ -278,7 +278,7 @@ pub async fn load_agent_skill_for_worker(
         .validate()
         .map_err(|error| AppError::InvalidArgument(format!("Agent Skill load 无效: {error}")))?;
     state
-        .agent_worker_read_application()
+        .agent_worker_skill_read_application()
         .load_skill_for_worker(request)
         .await
 }
