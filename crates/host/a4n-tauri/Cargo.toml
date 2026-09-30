@@ -41,6 +41,7 @@ parking_lot = { workspace = true }
 a4n-api-contract = { workspace = true }
 a4n-control = { workspace = true }
 a4n-config = { workspace = true }
+a4n-domain = { workspace = true }
 a4n-error = { workspace = true, features = ["database"], default-features = true }
 a4n-host-assembly = { workspace = true }
 a4n-media = { workspace = true }

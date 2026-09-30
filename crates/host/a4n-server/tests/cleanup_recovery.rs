@@ -23,12 +23,8 @@ use a4n_db::generation::{
     reserve_generation_task,
 };
 use a4n_db_models::models::{
-    ai::generated_image,
-    asset::profile_primary_material,
-    chapter::chapter,
-    media::image_publication,
-    task::cleanup_outbox,
-    user::role::{ROLE_ADMIN, ROLE_USER},
+    ai::generated_image, asset::profile_primary_material, chapter::chapter,
+    media::image_publication, task::cleanup_outbox,
 };
 #[cfg(feature = "embedded-capabilities")]
 use a4n_db_models::models::{
@@ -36,6 +32,7 @@ use a4n_db_models::models::{
     generation::generation_task_checkpoint,
     project::novel_blueprint,
 };
+use a4n_domain::auth::{ROLE_ADMIN, ROLE_USER};
 use a4n_domain::media::{IMAGE_PUBLICATION_STATUS_PENDING, IMAGE_PUBLICATION_STATUS_PUBLISHED};
 use a4n_domain::scene_profile::SceneProfileRecordInput;
 use a4n_queue::priority::{TaskKind, TaskPriority};

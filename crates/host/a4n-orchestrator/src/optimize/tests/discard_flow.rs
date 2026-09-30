@@ -4,7 +4,8 @@ use a4n_db::optimize::{
     OptimizationPatchCreateInput, OptimizationPatchSetCreateInput, OptimizationSessionCreateInput,
     OptimizationTurnCreateInput,
 };
-use a4n_db_models::models::{chapter::chapter, user::role::ROLE_USER};
+use a4n_db_models::models::chapter::chapter;
+use a4n_domain::auth::ROLE_USER;
 use chrono::Utc;
 use sea_orm::{ActiveModelTrait, Set};
 

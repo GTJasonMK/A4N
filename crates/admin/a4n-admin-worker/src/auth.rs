@@ -1,4 +1,5 @@
 use super::*;
+use a4n_domain::auth::{UserRole, parse_user_role};
 
 impl WorkerState {
     pub(super) fn caller(
@@ -34,8 +35,7 @@ impl WorkerState {
                 "用户 {caller_user_id} 已停用"
             )));
         }
-        if parse_user_role(&user.role).map_err(app_error)?
-            != a4n_db_models::models::user::role::UserRole::Admin
+        if parse_user_role(&user.role).map_err(|error| app_error(error.into()))? != UserRole::Admin
         {
             return Err(WorkerFailure::forbidden("当前用户不是管理员"));
         }
