@@ -23,6 +23,10 @@ const DEFAULT_WORKER_URL: &str = "http://127.0.0.1:47658";
 const CONTROL_LEASE_FENCE: &str = "control-request";
 const CONTROL_LEASE_EXPIRY: &str = "9999-12-31T23:59:59Z";
 
+mod mutations;
+mod reads;
+mod sync;
+
 #[derive(Clone)]
 pub struct SceneProfileWorkerClient {
     transport: HttpWorkerClient,
@@ -56,20 +60,6 @@ impl SceneProfileWorkerClient {
             .ok()
             .filter(|value| !value.trim().is_empty());
         Self::new(url, token)
-    }
-
-    pub async fn replace_chapter_sync_records(
-        &self,
-        user_id: i64,
-        input: SceneProfileSyncRecordsInput,
-    ) -> Result<SceneSyncRecordResult, AppError> {
-        self.command(
-            user_id,
-            Some(input.project_id),
-            SCENE_PROFILE_SYNC_RECORDS_OPERATION,
-            input,
-        )
-        .await
     }
 
     async fn command<I, O>(
@@ -130,88 +120,6 @@ impl SceneProfileWorkerClient {
                 "scene profile worker 返回未完成状态: operation={operation_id}, status={status:?}"
             ))),
         }
-    }
-}
-
-#[async_trait::async_trait]
-impl SceneProfileReadApplicationPort for SceneProfileWorkerClient {
-    async fn list(
-        &self,
-        user_id: i64,
-        project_id: i64,
-    ) -> Result<Vec<SceneProfileSummary>, AppError> {
-        self.command(
-            user_id,
-            Some(project_id),
-            SCENE_PROFILE_LIST_OPERATION,
-            SceneProfileProjectInput { project_id },
-        )
-        .await
-    }
-}
-
-#[async_trait::async_trait]
-impl SceneProfileMutationApplicationPort for SceneProfileWorkerClient {
-    async fn create(
-        &self,
-        user_id: i64,
-        input: CreateSceneProfileInput,
-    ) -> Result<SceneProfileMutationOutcome, AppError> {
-        let project_id = input.project_id;
-        let response: SceneProfileMutationWorkerResult = self
-            .command(
-                user_id,
-                Some(project_id),
-                SCENE_PROFILE_CREATE_OPERATION,
-                input,
-            )
-            .await?;
-        Ok(SceneProfileMutationOutcome {
-            result: response.result,
-            downstream_image_ids: response.downstream_image_ids,
-        })
-    }
-
-    async fn update(
-        &self,
-        user_id: i64,
-        input: UpdateSceneProfileInput,
-    ) -> Result<SceneProfileMutationOutcome, AppError> {
-        let response: SceneProfileMutationWorkerResult = self
-            .command(user_id, None, SCENE_PROFILE_UPDATE_OPERATION, input)
-            .await?;
-        Ok(SceneProfileMutationOutcome {
-            result: response.result,
-            downstream_image_ids: response.downstream_image_ids,
-        })
-    }
-
-    async fn delete(
-        &self,
-        user_id: i64,
-        input: DeleteSceneProfileInput,
-    ) -> Result<SceneProfileDeleteOutcome, AppError> {
-        let response: SceneProfileDeleteWorkerResult = self
-            .command(user_id, None, SCENE_PROFILE_DELETE_OPERATION, input)
-            .await?;
-        Ok(SceneProfileDeleteOutcome {
-            result: response.result,
-            project_id: response.project_id,
-            downstream_image_ids: response.downstream_image_ids,
-        })
-    }
-}
-
-#[async_trait::async_trait]
-impl SceneProfileRecordSyncApplicationPort for SceneProfileWorkerClient {
-    async fn replace_chapter_scene_sync_records(
-        &self,
-        user_id: i64,
-        input: SceneProfileSyncRecordsInput,
-    ) -> Result<(), AppError> {
-        self.replace_chapter_sync_records(user_id, input)
-            .await
-            .map(|_| ())
     }
 }
 
