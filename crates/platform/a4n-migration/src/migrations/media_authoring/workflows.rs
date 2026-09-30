@@ -53,9 +53,11 @@ pub(super) async fn migrate<C: ConnectionTrait>(
         let Some(old_project_id) = run.project_id else {
             continue;
         };
-        let project = projects
-            .get(&old_project_id)
-            .ok_or_else(|| failure("历史创作工作流项目不存在"))?;
+        // Deleted projects leave historical workflow rows behind. They have no
+        // valid owner to migrate to, so preserve the audit row unchanged.
+        let Some(project) = projects.get(&old_project_id) else {
+            continue;
+        };
         let is_film = run.workflow_kind == "chapter_shooting_script";
         let legacy_pipeline = uses_legacy_media_pipeline(
             &run.workflow_kind,

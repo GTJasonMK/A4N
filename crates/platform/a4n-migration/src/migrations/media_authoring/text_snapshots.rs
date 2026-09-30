@@ -1,15 +1,24 @@
-use a4n_db_models::models::project::{project_source_snapshot, source_snapshot_chapter};
+use a4n_db_models::models::project::{
+    novel_project, project_source_snapshot, source_snapshot_chapter,
+};
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, ConnectionTrait, DbBackend, DbErr, EntityTrait, QueryFilter,
     QueryOrder, Set, Statement,
 };
 use serde_json::{Value, json};
+use std::collections::BTreeSet;
 
 use super::{hash_value, record_receipt};
 
 pub(super) async fn remove_film_sources<C: ConnectionTrait>(db: &C) -> Result<(), DbErr> {
+    let valid_roots = novel_project::Entity::find()
+        .all(db)
+        .await?
+        .into_iter()
+        .map(|project| project.id)
+        .collect::<BTreeSet<_>>();
     let old_chapters = db.query_all(Statement::from_string(DbBackend::Postgres,
-        "SELECT id, root_project_id, to_jsonb(c) AS payload FROM source_snapshot_chapter c WHERE to_jsonb(c)->>'visual_plan_id' IS NOT NULL".to_string())).await?;
+        "SELECT c.id, c.root_project_id, to_jsonb(c) AS payload FROM source_snapshot_chapter c JOIN novel_project root ON root.id = c.root_project_id WHERE to_jsonb(c)->>'visual_plan_id' IS NOT NULL".to_string())).await?;
     for row in old_chapters {
         let id = row.try_get("", "id")?;
         let project_id = row.try_get("", "root_project_id")?;
@@ -25,7 +34,11 @@ pub(super) async fn remove_film_sources<C: ConnectionTrait>(db: &C) -> Result<()
         )
         .await?;
     }
-    for snapshot in project_source_snapshot::Entity::find().all(db).await? {
+    for snapshot in project_source_snapshot::Entity::find()
+        .filter(project_source_snapshot::Column::RootProjectId.is_in(valid_roots))
+        .all(db)
+        .await?
+    {
         let chapters = source_snapshot_chapter::Entity::find()
             .filter(source_snapshot_chapter::Column::SnapshotId.eq(snapshot.id))
             .order_by_asc(source_snapshot_chapter::Column::ChapterNumber)
