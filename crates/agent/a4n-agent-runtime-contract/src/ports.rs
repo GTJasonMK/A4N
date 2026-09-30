@@ -167,28 +167,6 @@ pub trait AgentWorkerContextApplicationPort: Send + Sync {
 
 #[async_trait::async_trait]
 pub trait AgentWorkerDelegationApplicationPort: Send + Sync {
-    async fn review_delegation(
-        &self,
-        user_id: i64,
-        input: ReviewAgentDelegationInput,
-        parent_run_id: Option<i64>,
-    ) -> Result<AgentDelegationView, AppError>;
-
-    async fn review_delegation_request(
-        &self,
-        request: &AgentWorkerDelegationReviewRequest,
-    ) -> Result<AgentWorkerDelegationReviewSnapshotWire, AppError>;
-
-    async fn ensure_canonical_subagent_thread_request(
-        &self,
-        request: &AgentWorkerDelegationThreadRequest,
-    ) -> Result<AgentWorkerDelegationThreadSnapshotWire, AppError>;
-
-    async fn append_worker_update_request(
-        &self,
-        request: &AgentWorkerEventRequest,
-    ) -> Result<(), AppError>;
-
     async fn create_child_run_request(
         &self,
         request: &AgentWorkerDelegationStartRequest,
@@ -200,11 +178,41 @@ pub trait AgentWorkerDelegationApplicationPort: Send + Sync {
         child: &mut AgentScope,
     ) -> Result<(), AppError>;
 
+    async fn create_child_run(
+        &self,
+        claimed: &AgentWorkerRun,
+        input: WorkerDelegationInput,
+    ) -> Result<WorkerDelegationResult, AppError>;
+}
+
+#[async_trait::async_trait]
+pub trait AgentWorkerSubagentThreadApplicationPort: Send + Sync {
+    async fn ensure_canonical_subagent_thread_request(
+        &self,
+        request: &AgentWorkerDelegationThreadRequest,
+    ) -> Result<AgentWorkerDelegationThreadSnapshotWire, AppError>;
+
     async fn ensure_canonical_subagent_thread(
         &self,
         user_id: i64,
         input: EnsureCanonicalSubagentThreadInput,
     ) -> Result<AgentThreadSnapshot, AppError>;
+}
+
+#[async_trait::async_trait]
+pub trait AgentWorkerDelegationReviewApplicationPort: Send + Sync {
+    async fn review_delegation_request(
+        &self,
+        request: &AgentWorkerDelegationReviewRequest,
+    ) -> Result<AgentWorkerDelegationReviewSnapshotWire, AppError>;
+}
+
+#[async_trait::async_trait]
+pub trait AgentWorkerEventWriteApplicationPort: Send + Sync {
+    async fn append_worker_update_request(
+        &self,
+        request: &AgentWorkerEventRequest,
+    ) -> Result<(), AppError>;
 
     async fn append_worker_update(
         &self,
@@ -214,12 +222,6 @@ pub trait AgentWorkerDelegationApplicationPort: Send + Sync {
         public_text: String,
         payload_json: Option<Value>,
     ) -> Result<(), AppError>;
-
-    async fn create_child_run(
-        &self,
-        claimed: &AgentWorkerRun,
-        input: WorkerDelegationInput,
-    ) -> Result<WorkerDelegationResult, AppError>;
 }
 
 #[async_trait::async_trait]
@@ -378,7 +380,10 @@ pub trait AgentWorkerMessageApplicationPort: Send + Sync {
         content: String,
         tool_calls: Value,
     ) -> Result<Option<AgentMessageSnapshot>, AppError>;
+}
 
+#[async_trait::async_trait]
+pub trait AgentWorkerMessageRequestApplicationPort: Send + Sync {
     async fn apply_message_request(
         &self,
         request: &AgentWorkerMessageRequest,
@@ -386,7 +391,7 @@ pub trait AgentWorkerMessageApplicationPort: Send + Sync {
 }
 
 #[async_trait::async_trait]
-pub trait AgentWorkerReadApplicationPort: Send + Sync {
+pub trait AgentWorkerToolReadApplicationPort: Send + Sync {
     fn search_tools_for_worker(
         &self,
         input: SearchAgentToolsInput,
@@ -396,15 +401,10 @@ pub trait AgentWorkerReadApplicationPort: Send + Sync {
         &self,
         input: DescribeAgentToolInput,
     ) -> Result<AgentToolDescriptor, AppError>;
+}
 
-    async fn verify_chapters_in_project_for_worker(
-        &self,
-        user_id: i64,
-        project_id: i64,
-        chapter_ids: &[i64],
-        source_chapter_ids: &[i64],
-    ) -> Result<(), AppError>;
-
+#[async_trait::async_trait]
+pub trait AgentWorkerMemoryReadApplicationPort: Send + Sync {
     async fn read_memory_for_run(
         &self,
         context: &AgentRunContext,
@@ -415,7 +415,10 @@ pub trait AgentWorkerReadApplicationPort: Send + Sync {
         &self,
         request: &AgentWorkerMemoryRequest,
     ) -> Result<AgentMemorySearchResult, AppError>;
+}
 
+#[async_trait::async_trait]
+pub trait AgentWorkerExecutionResultReadApplicationPort: Send + Sync {
     async fn read_execution_result_for_run(
         &self,
         context: &AgentRunContext,
@@ -426,7 +429,10 @@ pub trait AgentWorkerReadApplicationPort: Send + Sync {
         &self,
         request: &AgentWorkerExecutionResultRequest,
     ) -> Result<AgentExecutionResultPage, AppError>;
+}
 
+#[async_trait::async_trait]
+pub trait AgentWorkerSkillReadApplicationPort: Send + Sync {
     async fn search_skills_for_worker(
         &self,
         request: &AgentWorkerSkillSearchRequest,
@@ -501,6 +507,9 @@ pub trait AgentWorkerApplicationPort:
     + AgentWorkerCompletionApplicationPort
     + AgentWorkerContextApplicationPort
     + AgentWorkerDelegationApplicationPort
+    + AgentWorkerDelegationReviewApplicationPort
+    + AgentWorkerEventWriteApplicationPort
+    + AgentWorkerSubagentThreadApplicationPort
     + AgentWorkerExecutionApplicationPort
     + AgentWorkerFailureApplicationPort
     + AgentWorkerHistoryApplicationPort
@@ -508,8 +517,13 @@ pub trait AgentWorkerApplicationPort:
     + AgentWorkerInboxApplicationPort
     + AgentWorkerLeaseApplicationPort
     + AgentWorkerMessageApplicationPort
-    + AgentWorkerReadApplicationPort
+    + AgentWorkerMessageRequestApplicationPort
+    + AgentWorkerExecutionResultReadApplicationPort
+    + AgentWorkerMemoryReadApplicationPort
+    + AgentWorkerSkillReadApplicationPort
+    + AgentWorkerToolReadApplicationPort
     + AgentWorkerRecoveryApplicationPort
+    + a4n_api_contract::agent::AgentResourceAccessApplicationPort
     + AgentWorkerUsageApplicationPort
     + AgentWorkerWaitApplicationPort
     + AgentWorkflowBindingApplicationPort
@@ -534,6 +548,9 @@ impl<T> AgentWorkerApplicationPort for T where
         + AgentWorkerCompletionApplicationPort
         + AgentWorkerContextApplicationPort
         + AgentWorkerDelegationApplicationPort
+        + AgentWorkerDelegationReviewApplicationPort
+        + AgentWorkerEventWriteApplicationPort
+        + AgentWorkerSubagentThreadApplicationPort
         + AgentWorkerExecutionApplicationPort
         + AgentWorkerFailureApplicationPort
         + AgentWorkerHistoryApplicationPort
@@ -541,8 +558,13 @@ impl<T> AgentWorkerApplicationPort for T where
         + AgentWorkerInboxApplicationPort
         + AgentWorkerLeaseApplicationPort
         + AgentWorkerMessageApplicationPort
-        + AgentWorkerReadApplicationPort
+        + AgentWorkerMessageRequestApplicationPort
+        + AgentWorkerExecutionResultReadApplicationPort
+        + AgentWorkerMemoryReadApplicationPort
+        + AgentWorkerSkillReadApplicationPort
+        + AgentWorkerToolReadApplicationPort
         + AgentWorkerRecoveryApplicationPort
+        + a4n_api_contract::agent::AgentResourceAccessApplicationPort
         + AgentWorkerUsageApplicationPort
         + AgentWorkerWaitApplicationPort
         + AgentWorkflowBindingApplicationPort

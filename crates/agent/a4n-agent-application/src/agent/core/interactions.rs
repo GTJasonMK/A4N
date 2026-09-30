@@ -940,26 +940,6 @@ impl AgentApplication {
         delegation_view(row)
     }
 
-    pub(crate) async fn review_delegation_request(
-        &self,
-        request: &AgentWorkerDelegationReviewRequest,
-    ) -> Result<AgentWorkerDelegationReviewSnapshotWire, AppError> {
-        request
-            .validate()
-            .map_err(|error| AppError::InvalidArgument(error.to_string()))?;
-        self.validate_worker_lease_request(&AgentWorkerRunLeaseRequest {
-            run_id: request.run_id,
-            lease: request.lease.clone(),
-        })
-        .await?;
-        self.review_delegation(
-            request.user_id,
-            request.input.clone(),
-            request.parent_run_id,
-        )
-        .await
-    }
-
     pub(crate) async fn resolve_approval(
         &self,
         user_id: i64,

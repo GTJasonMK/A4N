@@ -11,6 +11,48 @@ use a4n_worker_contract::{
 };
 
 impl AgentApplication {
+    /// Loads a message referenced by an inbox item for the durable worker.
+    /// The thread check keeps a malformed or cross-thread payload from being
+    /// injected into the model context.
+    pub(crate) async fn load_message_for_worker(
+        &self,
+        thread_id: i64,
+        message_id: i64,
+    ) -> Result<AgentMessageSnapshot, AppError> {
+        let row = agent::message_by_id(self.connection(), message_id)
+            .await
+            .map_err(agent_db_error_to_app)?
+            .ok_or_else(|| AppError::NotFound(format!("Agent message 不存在: {message_id}")))?;
+        if row.thread_id != thread_id {
+            return Err(AppError::InvalidState {
+                current: format!(
+                    "Agent inbox message {} 不属于 thread {}",
+                    message_id, thread_id
+                ),
+                operation: "加载 Agent inbox message".into(),
+            });
+        }
+        Ok(message_snapshot(row))
+    }
+
+    pub(crate) async fn load_message_request(
+        &self,
+        request: &AgentWorkerInboxMessageRequest,
+    ) -> Result<a4n_worker_contract::AgentWorkerMessageSnapshotWire, AppError> {
+        request
+            .validate()
+            .map_err(|error| AppError::InvalidArgument(error.to_string()))?;
+        let claimed = self
+            .worker_run_for_lease_request(&AgentWorkerRunLeaseRequest {
+                run_id: request.run_id,
+                lease: request.lease.clone(),
+            })
+            .await?;
+        self.load_message_for_worker(claimed.run.thread_id, request.message_id)
+            .await
+            .map(Into::into)
+    }
+
     pub(crate) async fn claim_inbox_for_thread(
         &self,
         thread_id: i64,

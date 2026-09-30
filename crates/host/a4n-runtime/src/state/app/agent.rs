@@ -356,9 +356,27 @@ impl AppState {
         self.agent_worker_application.as_ref()
     }
 
-    pub(crate) fn agent_worker_read_application(
+    pub(crate) fn agent_worker_tool_read_application(
         &self,
-    ) -> &dyn a4n_agent_runtime_contract::AgentWorkerReadApplicationPort {
+    ) -> &dyn a4n_agent_runtime_contract::AgentWorkerToolReadApplicationPort {
+        self.agent_worker_application.as_ref()
+    }
+
+    pub(crate) fn agent_worker_skill_read_application(
+        &self,
+    ) -> &dyn a4n_agent_runtime_contract::AgentWorkerSkillReadApplicationPort {
+        self.agent_worker_application.as_ref()
+    }
+
+    pub(crate) fn agent_worker_memory_read_application(
+        &self,
+    ) -> &dyn a4n_agent_runtime_contract::AgentWorkerMemoryReadApplicationPort {
+        self.agent_worker_application.as_ref()
+    }
+
+    pub(crate) fn agent_worker_execution_result_read_application(
+        &self,
+    ) -> &dyn a4n_agent_runtime_contract::AgentWorkerExecutionResultReadApplicationPort {
         self.agent_worker_application.as_ref()
     }
 
@@ -392,6 +410,24 @@ impl AppState {
         self.agent_worker_application.as_ref()
     }
 
+    pub(crate) fn agent_worker_subagent_thread_application(
+        &self,
+    ) -> &dyn a4n_agent_runtime_contract::AgentWorkerSubagentThreadApplicationPort {
+        self.agent_worker_application.as_ref()
+    }
+
+    pub(crate) fn agent_worker_delegation_review_application(
+        &self,
+    ) -> &dyn a4n_agent_runtime_contract::AgentWorkerDelegationReviewApplicationPort {
+        self.agent_worker_application.as_ref()
+    }
+
+    pub(crate) fn agent_worker_event_write_application(
+        &self,
+    ) -> &dyn a4n_agent_runtime_contract::AgentWorkerEventWriteApplicationPort {
+        self.agent_worker_application.as_ref()
+    }
+
     pub(crate) fn agent_worker_history_application(
         &self,
     ) -> &dyn a4n_agent_runtime_contract::AgentWorkerHistoryApplicationPort {
@@ -407,6 +443,12 @@ impl AppState {
     pub(crate) fn agent_worker_message_application(
         &self,
     ) -> &dyn a4n_agent_runtime_contract::AgentWorkerMessageApplicationPort {
+        self.agent_worker_application.as_ref()
+    }
+
+    pub(crate) fn agent_worker_message_request_application(
+        &self,
+    ) -> &dyn a4n_agent_runtime_contract::AgentWorkerMessageRequestApplicationPort {
         self.agent_worker_application.as_ref()
     }
 

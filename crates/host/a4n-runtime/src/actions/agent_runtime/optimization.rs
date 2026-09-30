@@ -612,7 +612,7 @@ impl RuntimeAgentToolExecutor {
                 )?;
                 serde_json::to_value(
                     self.state
-                        .agent_worker_read_application()
+                        .agent_worker_memory_read_application()
                         .read_memory_for_run(context, input)
                         .await?,
                 )
@@ -623,7 +623,7 @@ impl RuntimeAgentToolExecutor {
                 >(arguments, name)?;
                 serde_json::to_value(
                     self.state
-                        .agent_worker_read_application()
+                        .agent_worker_execution_result_read_application()
                         .read_execution_result_for_run(context, input)
                         .await?,
                 )

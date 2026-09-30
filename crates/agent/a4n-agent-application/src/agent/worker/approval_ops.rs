@@ -1,12 +1,10 @@
-//! worker message load、approval 与 recovery。
+//! Worker approval operations.
 
 use super::super::{AgentApplication, AgentWorkerRun};
 use super::*;
 use a4n_agent_runtime_contract::AgentApprovalExpiryApplicationPort;
 use a4n_agent_runtime_contract::AgentWorkerApprovalApplicationPort;
-use a4n_agent_runtime_contract::AgentWorkerRecoveryApplicationPort;
 use a4n_error::AppError;
-use a4n_worker_contract::AgentWorkerRecoveryRequest;
 use a4n_worker_contract::{
     AgentWorkerApprovalCheckRequest, AgentWorkerApprovalCheckSnapshotWire,
     AgentWorkerApprovalRequest,
@@ -15,60 +13,13 @@ use chrono::NaiveDateTime;
 use serde_json::Value;
 
 impl AgentApplication {
-    pub(crate) async fn load_message_request(
+    pub(crate) async fn expire_pending_approvals(
         &self,
-        request: &AgentWorkerInboxMessageRequest,
-    ) -> Result<AgentWorkerMessageSnapshotWire, AppError> {
-        request
-            .validate()
-            .map_err(|error| AppError::InvalidArgument(error.to_string()))?;
-        let claimed = self
-            .worker_run_for_lease_request(&AgentWorkerRunLeaseRequest {
-                run_id: request.run_id,
-                lease: request.lease.clone(),
-            })
-            .await?;
-        self.load_message_for_worker(claimed.run.thread_id, request.message_id)
+        limit: u64,
+    ) -> Result<Vec<approval::Model>, AppError> {
+        agent::expire_pending_approvals(self.connection(), limit)
             .await
-            .map(Into::into)
-    }
-
-    pub(crate) async fn worker_history_request(
-        &self,
-        request: &AgentWorkerHistoryRequest,
-    ) -> Result<AgentWorkerHistorySnapshotWire, AppError> {
-        request
-            .validate()
-            .map_err(|error| AppError::InvalidArgument(error.to_string()))?;
-        let claimed = self
-            .worker_run_for_lease_request(&AgentWorkerRunLeaseRequest {
-                run_id: request.run_id,
-                lease: request.lease.clone(),
-            })
-            .await?;
-        let page = if let Some(page) = &request.page {
-            Some(
-                self.list_messages(
-                    claimed.thread.owner_user_id,
-                    a4n_api_contract::agent::ListAgentMessagesInput {
-                        thread_id: claimed.run.thread_id.to_string(),
-                        before: page.before.clone(),
-                        limit: Some(page.limit.unwrap_or(20)),
-                    },
-                )
-                .await?,
-            )
-        } else {
-            None
-        };
-        let user_messages = self.user_messages_for_run(request.run_id).await?;
-        let latest_model_input_message_id =
-            self.latest_model_input_message_id(request.run_id).await?;
-        Ok(AgentWorkerHistorySnapshotWire {
-            user_messages: user_messages.into_iter().map(Into::into).collect(),
-            latest_model_input_message_id,
-            page,
-        })
+            .map_err(agent_db_error_to_app)
     }
 
     /// Returns an approved operation for the given execution.  Approval
@@ -191,44 +142,6 @@ impl AgentApplication {
         .await
         .map(|_| ())
     }
-
-    pub(crate) async fn mark_recovery_required(
-        &self,
-        claimed: &AgentWorkerRun,
-        reason: impl Into<String>,
-    ) -> Result<run::Model, AppError> {
-        agent::recovery_required_for_lease(
-            self.connection(),
-            claimed.run.id,
-            &claimed.lease_token,
-            Some(reason.into()),
-        )
-        .await
-        .map_err(agent_db_error_to_app)
-    }
-
-    pub(crate) async fn mark_recovery_required_request(
-        &self,
-        request: &AgentWorkerRecoveryRequest,
-    ) -> Result<(), AppError> {
-        request
-            .validate()
-            .map_err(|error| AppError::InvalidArgument(error.to_string()))?;
-        self.validate_worker_lease_request(&AgentWorkerRunLeaseRequest {
-            run_id: request.run_id,
-            lease: request.lease.clone(),
-        })
-        .await?;
-        agent::recovery_required_for_lease(
-            self.connection(),
-            request.run_id,
-            &request.lease.fence_token,
-            Some(request.reason.clone()),
-        )
-        .await
-        .map(|_| ())
-        .map_err(agent_db_error_to_app)
-    }
 }
 
 #[async_trait::async_trait]
@@ -275,26 +188,6 @@ impl AgentWorkerApprovalApplicationPort for AgentApplication {
         request: &AgentWorkerApprovalRequest,
     ) -> Result<(), AppError> {
         AgentApplication::request_worker_approval_request(self, request).await
-    }
-}
-
-#[async_trait::async_trait]
-impl AgentWorkerRecoveryApplicationPort for AgentApplication {
-    async fn mark_recovery_required(
-        &self,
-        claimed: &AgentWorkerRun,
-        reason: String,
-    ) -> Result<(), AppError> {
-        AgentApplication::mark_recovery_required(self, claimed, reason)
-            .await
-            .map(|_| ())
-    }
-
-    async fn mark_recovery_required_request(
-        &self,
-        request: &AgentWorkerRecoveryRequest,
-    ) -> Result<(), AppError> {
-        AgentApplication::mark_recovery_required_request(self, request).await
     }
 }
 

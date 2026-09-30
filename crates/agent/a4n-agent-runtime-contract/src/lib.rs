@@ -5,11 +5,10 @@
 //! boundary.
 
 use a4n_api_contract::agent::{
-    AgentBudget, AgentDelegationView, AgentEditorRequest, AgentExecutionResultPage,
-    AgentMemorySearchResult, AgentResourceRef, AgentScope, AgentSkillContent,
-    AgentSkillSearchResult, AgentToolDescriptor, AgentToolSearchResult, DescribeAgentToolInput,
-    ReadAgentExecutionResultInput, ReadAgentMemoryInput, RespondAgentEditorInput,
-    ReviewAgentDelegationInput, SearchAgentToolsInput,
+    AgentBudget, AgentEditorRequest, AgentExecutionResultPage, AgentMemorySearchResult,
+    AgentResourceRef, AgentScope, AgentSkillContent, AgentSkillSearchResult, AgentToolDescriptor,
+    AgentToolSearchResult, DescribeAgentToolInput, ReadAgentExecutionResultInput,
+    ReadAgentMemoryInput, RespondAgentEditorInput, SearchAgentToolsInput,
 };
 use a4n_api_contract::runtime_config::RuntimeConfigSnapshot;
 use a4n_domain::agent::AgentWorkflowOrigin;
