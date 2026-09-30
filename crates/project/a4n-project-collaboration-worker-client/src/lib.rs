@@ -24,6 +24,9 @@ const DEFAULT_WORKER_URL: &str = "http://127.0.0.1:47668";
 const CONTROL_LEASE_FENCE: &str = "control-request";
 const CONTROL_LEASE_EXPIRY: &str = "9999-12-31T23:59:59Z";
 
+mod mutations;
+mod reads;
+
 #[derive(Clone)]
 pub struct ProjectCollaborationWorkerClient {
     transport: HttpWorkerClient,
@@ -166,14 +169,7 @@ impl ProjectCollaborationApplicationPort for ProjectCollaborationWorkerClient {
         user_id: i64,
         project_id: i64,
     ) -> Result<Vec<ProjectMemberSummary>, AppError> {
-        let project_id = Self::project_id(project_id)?;
-        self.command(
-            user_id,
-            Some(project_id),
-            PROJECT_COLLABORATION_LIST_MEMBERS_OPERATION,
-            ProjectInput { project_id },
-        )
-        .await
+        reads::list_project_members(self, user_id, project_id).await
     }
 
     async fn invite_project_member(
@@ -182,23 +178,7 @@ impl ProjectCollaborationApplicationPort for ProjectCollaborationWorkerClient {
         project_id: i64,
         input: InviteProjectMemberInput,
     ) -> Result<(), AppError> {
-        let project_id = Self::project_id(project_id)?;
-        if input.username_or_email.trim().is_empty() {
-            return Err(AppError::InvalidArgument(
-                "username_or_email 不能为空".into(),
-            ));
-        }
-        self.unit(
-            user_id,
-            Some(project_id),
-            PROJECT_COLLABORATION_INVITE_MEMBER_OPERATION,
-            InviteMemberInput {
-                project_id,
-                username_or_email: input.username_or_email,
-                role: input.role,
-            },
-        )
-        .await
+        mutations::invite_project_member(self, user_id, project_id, input).await
     }
 
     async fn list_project_invites(
@@ -206,51 +186,22 @@ impl ProjectCollaborationApplicationPort for ProjectCollaborationWorkerClient {
         user_id: i64,
         project_id: i64,
     ) -> Result<Vec<ProjectInviteSummary>, AppError> {
-        let project_id = Self::project_id(project_id)?;
-        self.command(
-            user_id,
-            Some(project_id),
-            PROJECT_COLLABORATION_LIST_INVITES_OPERATION,
-            ProjectInput { project_id },
-        )
-        .await
+        reads::list_project_invites(self, user_id, project_id).await
     }
 
     async fn list_my_project_invites(
         &self,
         user_id: i64,
     ) -> Result<Vec<ProjectInviteSummary>, AppError> {
-        self.command(
-            user_id,
-            None,
-            PROJECT_COLLABORATION_LIST_MY_INVITES_OPERATION,
-            EmptyInput {},
-        )
-        .await
+        reads::list_my_project_invites(self, user_id).await
     }
 
     async fn accept_project_invite(&self, user_id: i64, invite_id: i64) -> Result<(), AppError> {
-        self.unit(
-            user_id,
-            None,
-            PROJECT_COLLABORATION_ACCEPT_INVITE_OPERATION,
-            InviteInput {
-                invite_id: Self::invite_id(invite_id)?,
-            },
-        )
-        .await
+        mutations::accept_project_invite(self, user_id, invite_id).await
     }
 
     async fn decline_project_invite(&self, user_id: i64, invite_id: i64) -> Result<(), AppError> {
-        self.unit(
-            user_id,
-            None,
-            PROJECT_COLLABORATION_DECLINE_INVITE_OPERATION,
-            InviteInput {
-                invite_id: Self::invite_id(invite_id)?,
-            },
-        )
-        .await
+        mutations::decline_project_invite(self, user_id, invite_id).await
     }
 
     async fn revoke_project_invite(
@@ -259,17 +210,7 @@ impl ProjectCollaborationApplicationPort for ProjectCollaborationWorkerClient {
         project_id: i64,
         invite_id: i64,
     ) -> Result<(), AppError> {
-        let project_id = Self::project_id(project_id)?;
-        self.unit(
-            user_id,
-            Some(project_id),
-            PROJECT_COLLABORATION_REVOKE_INVITE_OPERATION,
-            ProjectInviteInput {
-                project_id,
-                invite_id: Self::invite_id(invite_id)?,
-            },
-        )
-        .await
+        mutations::revoke_project_invite(self, user_id, project_id, invite_id).await
     }
 
     async fn update_project_member_role(
@@ -279,18 +220,8 @@ impl ProjectCollaborationApplicationPort for ProjectCollaborationWorkerClient {
         member_user_id: i64,
         input: UpdateProjectMemberRoleInput,
     ) -> Result<(), AppError> {
-        let project_id = Self::project_id(project_id)?;
-        self.unit(
-            user_id,
-            Some(project_id),
-            PROJECT_COLLABORATION_UPDATE_ROLE_OPERATION,
-            a4n_project_collaboration_worker_contract::UpdateMemberRoleInput {
-                project_id,
-                member_user_id: Self::member_id(member_user_id)?,
-                role: input.role,
-            },
-        )
-        .await
+        mutations::update_project_member_role(self, user_id, project_id, member_user_id, input)
+            .await
     }
 
     async fn remove_project_member(
@@ -299,28 +230,11 @@ impl ProjectCollaborationApplicationPort for ProjectCollaborationWorkerClient {
         project_id: i64,
         member_user_id: i64,
     ) -> Result<(), AppError> {
-        let project_id = Self::project_id(project_id)?;
-        self.unit(
-            user_id,
-            Some(project_id),
-            PROJECT_COLLABORATION_REMOVE_MEMBER_OPERATION,
-            MemberInput {
-                project_id,
-                member_user_id: Self::member_id(member_user_id)?,
-            },
-        )
-        .await
+        mutations::remove_project_member(self, user_id, project_id, member_user_id).await
     }
 
     async fn leave_project(&self, user_id: i64, project_id: i64) -> Result<(), AppError> {
-        let project_id = Self::project_id(project_id)?;
-        self.unit(
-            user_id,
-            Some(project_id),
-            PROJECT_COLLABORATION_LEAVE_OPERATION,
-            ProjectInput { project_id },
-        )
-        .await
+        mutations::leave_project(self, user_id, project_id).await
     }
 }
 
