@@ -1,14 +1,14 @@
 //! Typed Host adapter for the Manga record read worker.
 
 use a4n_api_contract::manga::{
-    MangaPagePromptSummary, MangaPipelineReadApplicationPort, MangaPipelineStatusSummary,
-    MangaRecordReadApplicationPort,
+    MangaPagePromptSummary, MangaPipelineCancellationApplicationPort,
+    MangaPipelineReadApplicationPort, MangaPipelineStatusSummary, MangaRecordReadApplicationPort,
 };
 use a4n_error::AppError;
 use a4n_manga_record_worker_contract::{
-    MANGA_PIPELINE_STATUS_OPERATION, MANGA_PIPELINE_STATUSES_OPERATION,
-    MANGA_RECORD_LIST_OPERATION, MANGA_RECORD_WORKER_ID, MangaChapterInput,
-    MangaPipelineStatusesInput,
+    MANGA_PIPELINE_CANCEL_OPERATION, MANGA_PIPELINE_STATUS_OPERATION,
+    MANGA_PIPELINE_STATUSES_OPERATION, MANGA_RECORD_LIST_OPERATION, MANGA_RECORD_WORKER_ID,
+    MangaChapterInput, MangaPipelineStatusesInput,
 };
 use a4n_worker_client::{HttpWorkerClient, WorkerClientError};
 use a4n_worker_contract::{
@@ -21,6 +21,9 @@ use serde::de::DeserializeOwned;
 const DEFAULT_WORKER_URL: &str = "http://127.0.0.1:47676";
 const CONTROL_LEASE_FENCE: &str = "control-request";
 const CONTROL_LEASE_EXPIRY: &str = "9999-12-31T23:59:59Z";
+
+mod pipeline;
+mod reads;
 
 #[derive(Clone)]
 pub struct MangaRecordWorkerClient {
@@ -116,66 +119,6 @@ impl MangaRecordWorkerClient {
                 "manga record worker 返回未完成状态: operation={operation}, status={status:?}"
             ))),
         }
-    }
-}
-
-#[async_trait::async_trait]
-impl MangaRecordReadApplicationPort for MangaRecordWorkerClient {
-    async fn list_page_prompts(
-        &self,
-        user_id: i64,
-        project_id: i64,
-        chapter_id: i64,
-    ) -> Result<Vec<MangaPagePromptSummary>, AppError> {
-        self.command(
-            user_id,
-            project_id,
-            MANGA_RECORD_LIST_OPERATION,
-            MangaChapterInput {
-                project_id,
-                chapter_id,
-            },
-        )
-        .await
-    }
-}
-
-#[async_trait::async_trait]
-impl MangaPipelineReadApplicationPort for MangaRecordWorkerClient {
-    async fn status(
-        &self,
-        user_id: i64,
-        project_id: i64,
-        chapter_id: i64,
-    ) -> Result<MangaPipelineStatusSummary, AppError> {
-        self.command(
-            user_id,
-            project_id,
-            MANGA_PIPELINE_STATUS_OPERATION,
-            MangaChapterInput {
-                project_id,
-                chapter_id,
-            },
-        )
-        .await
-    }
-
-    async fn statuses(
-        &self,
-        user_id: i64,
-        project_id: i64,
-        chapter_ids: Vec<i64>,
-    ) -> Result<Vec<MangaPipelineStatusSummary>, AppError> {
-        self.command(
-            user_id,
-            project_id,
-            MANGA_PIPELINE_STATUSES_OPERATION,
-            MangaPipelineStatusesInput {
-                project_id,
-                chapter_ids,
-            },
-        )
-        .await
     }
 }
 
