@@ -2964,6 +2964,7 @@ name = "a4n-theme-core"
 version = "0.1.0"
 dependencies = [
  "a4n-api-contract",
+ "a4n-db-models",
  "a4n-domain",
  "a4n-error",
  "serde_json",
@@ -2976,6 +2977,7 @@ dependencies = [
  "a4n-api-contract",
  "a4n-config",
  "a4n-db",
+ "a4n-db-models",
  "a4n-domain",
  "a4n-error",
  "a4n-theme-core",

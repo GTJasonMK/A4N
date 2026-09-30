@@ -6,6 +6,7 @@ license.workspace = true
 
 [dependencies]
 a4n-api-contract = { workspace = true }
+a4n-db-models = { workspace = true }
 a4n-domain = { workspace = true }
 a4n-error = { workspace = true, default-features = true }
 
