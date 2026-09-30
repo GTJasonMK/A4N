@@ -720,6 +720,7 @@ mod tests {
             status: WORKFLOW_STATUS_INTERRUPTED.into(),
             current_step_key: Some("chapter_analysis.derived_sync".into()),
             progress: None,
+            progress_json: None,
             active_task_id: None,
             can_resume: true,
             resume_block_reason: None,

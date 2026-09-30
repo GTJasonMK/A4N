@@ -423,6 +423,7 @@ mod tests {
             status: run_input.status,
             current_step_key: run_input.current_step_key,
             progress: None,
+            progress_json: None,
             active_task_id: run_input.active_task_id,
             can_resume: run_input.can_resume,
             resume_block_reason: run_input.resume_block_reason,
