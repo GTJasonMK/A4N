@@ -36,6 +36,7 @@ pub(in crate::video::prompts::generation::frame_prompts) async fn ensure_video_p
                 "当前章节已有{label}正在运行，不能重新生成视频提示词"
             )));
         }
+        let row = a4n_db::video::read_models::chapter_video_prompt_from_model(row);
         service
             .ensure_prompt_stage_mutable(&row, "重新生成")
             .await?;

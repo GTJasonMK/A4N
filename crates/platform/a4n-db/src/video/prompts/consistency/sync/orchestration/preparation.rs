@@ -20,6 +20,7 @@ use crate::video::prompts::consistency::{
     PromptIdentity, ensure_chapter_video_prompt_stages_mutable,
     ensure_chapter_video_prompt_stages_mutable_ignoring, lock_chapter_video_prompt_scope,
 };
+use crate::video::prompts::record_mapping::chapter_video_prompt_record_from_model;
 use crate::video::{self, VideoDbError};
 use a4n_domain::video_prompt::ChapterVideoPromptSyncDraft;
 
@@ -119,23 +120,31 @@ where
     for row in &duplicate_rows {
         video::ensure_chapter_video_prompt_not_running(row, "删除视频提示词")?;
     }
-    ensure_chapter_video_prompt_stages_mutable(db, &duplicate_rows, "删除").await?;
+    let duplicate_records = duplicate_rows
+        .iter()
+        .cloned()
+        .map(chapter_video_prompt_record_from_model)
+        .collect::<Vec<_>>();
+    ensure_chapter_video_prompt_stages_mutable(db, &duplicate_records, "删除").await?;
 
     let frame_prompts = if policy.preserve_frame_prompts_with_generated_images {
         existing_by_identity
             .values()
             .filter(|row| is_sync_frame_prompt_type(&row.prompt_type))
+            .cloned()
+            .map(chapter_video_prompt_record_from_model)
             .collect::<Vec<_>>()
     } else {
         Vec::new()
     };
     let generated_image_prompt_ids = if let Some(prompt) = frame_prompts.first() {
+        let frame_prompt_refs = frame_prompts.iter().collect::<Vec<_>>();
         generated_frame_image_prompt_ids(
             crate::video::prompts::consistency::generated_frame_images_for_prompts(
                 db,
                 prompt.project_id,
                 prompt.chapter_id,
-                &frame_prompts,
+                &frame_prompt_refs,
             )
             .await?,
         )
@@ -205,9 +214,14 @@ where
         .filter(|row| mutable_existing_prompt_ids.contains(&row.id))
         .cloned()
         .collect::<Vec<_>>();
+    let mutable_existing_records = mutable_existing_rows
+        .iter()
+        .cloned()
+        .map(chapter_video_prompt_record_from_model)
+        .collect::<Vec<_>>();
     ensure_chapter_video_prompt_stages_mutable_ignoring(
         db,
-        &mutable_existing_rows,
+        &mutable_existing_records,
         "重新生成",
         &ignored_prompt_ids,
     )
@@ -223,7 +237,12 @@ where
     for row in &stale_rows {
         video::ensure_chapter_video_prompt_not_running(row, "删除视频提示词")?;
     }
-    ensure_chapter_video_prompt_stages_mutable(db, &stale_rows, "删除").await?;
+    let stale_records = stale_rows
+        .iter()
+        .cloned()
+        .map(chapter_video_prompt_record_from_model)
+        .collect::<Vec<_>>();
+    ensure_chapter_video_prompt_stages_mutable(db, &stale_records, "删除").await?;
 
     Ok(PreparedPromptSync {
         draft_count,

@@ -1,6 +1,7 @@
 use super::identity::should_keep_unmatched_prompt;
 use super::*;
-use a4n_db_models::models::{ai::generated_image, chapter::chapter_video_prompt};
+use a4n_db_models::models::chapter::chapter_video_prompt;
+use a4n_domain::media::GeneratedImageReferenceRecord;
 #[cfg(test)]
 use a4n_domain::video_prompt::ChapterVideoPromptRecordFields;
 use a4n_domain::video_prompt::ChapterVideoPromptSyncDraft;
@@ -61,7 +62,7 @@ pub(super) fn frame_prompt_preservation_candidate(
 }
 
 pub(super) fn generated_frame_image_prompt_ids(
-    images: impl IntoIterator<Item = generated_image::Reference>,
+    images: impl IntoIterator<Item = GeneratedImageReferenceRecord>,
 ) -> BTreeSet<i64> {
     images
         .into_iter()
@@ -254,21 +255,21 @@ mod tests {
     #[test]
     fn generated_frame_image_prompt_ids_deduplicate_generation_context() {
         let images = vec![
-            generated_image::Reference {
+            GeneratedImageReferenceRecord {
                 id: 1,
                 image_type: "video_key_frame".to_string(),
                 metadata_json: Some(json!({
                     "generation_context": {"prompt_id": 9}
                 })),
             },
-            generated_image::Reference {
+            GeneratedImageReferenceRecord {
                 id: 2,
                 image_type: "video_key_frame".to_string(),
                 metadata_json: Some(json!({
                     "generation_context": {"prompt_id": 9}
                 })),
             },
-            generated_image::Reference {
+            GeneratedImageReferenceRecord {
                 id: 3,
                 image_type: "video_key_frame".to_string(),
                 metadata_json: Some(json!({

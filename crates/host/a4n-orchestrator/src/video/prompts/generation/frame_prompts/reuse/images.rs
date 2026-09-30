@@ -49,7 +49,7 @@ pub(in crate::video) async fn boundary_frame_image_ids_by_number(
     }
 
     let allowed_project_ids = service.video_asset_project_ids(project_id).await?;
-    let images = a4n_db::video::generated_images_for_projects_chapter_by_id_desc(
+    let images = a4n_db::video::read_models::generated_images_for_projects_chapter_by_id_desc(
         service.database.connection(),
         &allowed_project_ids,
         chapter_id,
@@ -114,7 +114,7 @@ pub(in crate::video::prompts::generation::frame_prompts) async fn ensure_no_orph
     .into_iter()
     .map(|row| row.id)
     .collect::<HashSet<_>>();
-    let images = a4n_db::video::generated_images_for_projects_chapter_by_id_desc(
+    let images = a4n_db::video::read_models::generated_images_for_projects_chapter_by_id_desc(
         service.database.connection(),
         &[project_id],
         chapter_id,
@@ -152,7 +152,7 @@ pub(in crate::video) async fn storyboard_frame_image_ids_by_number(
     }
 
     let allowed_project_ids = service.video_asset_project_ids(project_id).await?;
-    let images = a4n_db::video::generated_images_for_projects_chapter_by_id_desc(
+    let images = a4n_db::video::read_models::generated_images_for_projects_chapter_by_id_desc(
         service.database.connection(),
         &allowed_project_ids,
         chapter_id,

@@ -172,7 +172,9 @@ pub(super) async fn ensure_boundary_frame_checkpoint_can_sync(
             )));
         }
         if !kept_prompt_ids.contains(&row.id) {
-            prompts_to_validate.push(row);
+            prompts_to_validate.push(a4n_db::video::read_models::chapter_video_prompt_from_model(
+                row,
+            ));
         }
     }
     service

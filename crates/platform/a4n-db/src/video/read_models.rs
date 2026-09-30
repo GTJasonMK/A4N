@@ -1,14 +1,17 @@
 use a4n_db_models::models::ai::generated_image;
 use a4n_domain::media::{
-    GeneratedImageRecord, GeneratedVideoRecord, ImagePublicationFileFacts,
-    UpdateGeneratedImageRecordInput, UpdateGeneratedVideoRecordInput,
+    GeneratedImageRecord, GeneratedImageReferenceRecord, GeneratedVideoRecord,
+    ImagePublicationFileFacts, UpdateGeneratedImageRecordInput, UpdateGeneratedVideoRecordInput,
 };
 use a4n_domain::video_prompt::ChapterVideoPromptRecord;
 use sea_orm::{ConnectionTrait, DatabaseConnection, DbErr, TransactionTrait};
 use serde_json::Value;
 
 use super::VideoDbError;
-use super::media_mapping::{generated_image_record_from_model, generated_video_record_from_model};
+use super::media_mapping::{
+    generated_image_record_from_model, generated_image_reference_record_from_model,
+    generated_video_record_from_model,
+};
 use super::prompts::record_mapping::{
     chapter_video_prompt_model_from_record, chapter_video_prompt_record_from_model,
 };
@@ -18,6 +21,35 @@ fn image_records(images: Vec<generated_image::Model>) -> Vec<GeneratedImageRecor
         .into_iter()
         .map(generated_image_record_from_model)
         .collect()
+}
+
+fn image_reference_records(
+    images: Vec<generated_image::Reference>,
+) -> Vec<GeneratedImageReferenceRecord> {
+    images
+        .into_iter()
+        .map(generated_image_reference_record_from_model)
+        .collect()
+}
+
+pub(crate) async fn generated_images_for_chapter_by_id_desc<C: ConnectionTrait>(
+    db: &C,
+    project_id: i64,
+    chapter_id: i64,
+) -> Result<Vec<GeneratedImageReferenceRecord>, DbErr> {
+    super::generated_images_for_chapter_by_id_desc(db, project_id, chapter_id)
+        .await
+        .map(image_reference_records)
+}
+
+pub async fn generated_images_for_projects_chapter_by_id_desc<C: ConnectionTrait>(
+    db: &C,
+    project_ids: &[i64],
+    chapter_id: i64,
+) -> Result<Vec<GeneratedImageReferenceRecord>, DbErr> {
+    super::generated_images_for_projects_chapter_by_id_desc(db, project_ids, chapter_id)
+        .await
+        .map(image_reference_records)
 }
 
 pub async fn generated_image_by_id<C: ConnectionTrait>(
@@ -135,6 +167,12 @@ pub async fn update_generated_video_record<C: ConnectionTrait>(
     super::update_generated_video_record(db, video_id, input)
         .await
         .map(generated_video_record_from_model)
+}
+
+pub fn chapter_video_prompt_from_model(
+    model: a4n_db_models::models::chapter::chapter_video_prompt::Model,
+) -> ChapterVideoPromptRecord {
+    chapter_video_prompt_record_from_model(model)
 }
 
 pub async fn chapter_video_prompt_by_id(

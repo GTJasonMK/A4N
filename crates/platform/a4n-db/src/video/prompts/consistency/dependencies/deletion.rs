@@ -7,6 +7,7 @@ use crate::video::prompts::consistency::PromptStage;
 use crate::video::{self, VideoDbError};
 use a4n_db_models::models::chapter::chapter_video_prompt;
 use a4n_domain::image::image_generation_prompt_id;
+use a4n_domain::video_prompt::ChapterVideoPromptRecord;
 use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, TransactionTrait};
 use std::collections::{BTreeSet, HashMap};
 
@@ -35,13 +36,17 @@ where
             "部分视频提示词不存在，不能批量删除".to_string()
         }));
     }
+    let row_records = rows
+        .iter()
+        .cloned()
+        .map(crate::video::prompts::record_mapping::chapter_video_prompt_record_from_model)
+        .collect::<Vec<ChapterVideoPromptRecord>>();
     let mut sibling_rows_by_scope = HashMap::new();
     let mut dependency_indexes_by_scope = HashMap::new();
     let mut generated_images_by_scope = HashMap::<_, HashMap<_, _>>::new();
-    let mut frame_prompts_by_scope =
-        HashMap::<(i64, i64), Vec<&chapter_video_prompt::Model>>::new();
+    let mut frame_prompts_by_scope = HashMap::<(i64, i64), Vec<&ChapterVideoPromptRecord>>::new();
     if !allow_downstream {
-        for row in &rows {
+        for row in &row_records {
             if prompt_stage(row) == Some(PromptStage::FramePrompt) {
                 frame_prompts_by_scope
                     .entry((row.project_id, row.chapter_id))
@@ -50,8 +55,8 @@ where
             }
         }
     }
-    for row in &rows {
-        video::ensure_chapter_video_prompt_not_running(row, "删除视频提示词")?;
+    for (model, row) in rows.iter().zip(&row_records) {
+        video::ensure_chapter_video_prompt_not_running(model, "删除视频提示词")?;
         if !allow_downstream {
             let Some(stage) = ensure_prompt_stage_mutability_preconditions(row, "删除")? else {
                 continue;

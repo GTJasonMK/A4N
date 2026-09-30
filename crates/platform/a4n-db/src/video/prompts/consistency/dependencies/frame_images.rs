@@ -5,13 +5,15 @@ use super::rules::{
     prompt_stage_label,
 };
 use crate::video::{self, VideoDbError};
-use a4n_db_models::models::{ai::generated_image, chapter::chapter_video_prompt};
+use a4n_db_models::models::chapter::chapter_video_prompt;
 use a4n_domain::image::{
     IMAGE_GENERATION_SOURCE_VIDEO_BOUNDARY_FRAME_PROMPT,
     IMAGE_GENERATION_SOURCE_VIDEO_TAIL_FRAME_CAPTURE, image_generation_prompt_id,
     image_generation_shot_number, image_generation_source, image_generation_source_hash,
 };
+use a4n_domain::media::GeneratedImageReferenceRecord;
 use a4n_domain::source_spans::metadata_source_content_sha256;
+use a4n_domain::video_prompt::ChapterVideoPromptRecord;
 use sea_orm::ConnectionTrait;
 use std::collections::{HashMap, HashSet};
 
@@ -78,8 +80,8 @@ where
 
 pub(super) async fn generated_frame_images_for_prompt<C>(
     db: &C,
-    prompt: &chapter_video_prompt::Model,
-) -> Result<Vec<generated_image::Reference>, VideoDbError>
+    prompt: &ChapterVideoPromptRecord,
+) -> Result<Vec<GeneratedImageReferenceRecord>, VideoDbError>
 where
     C: ConnectionTrait,
 {
@@ -90,8 +92,8 @@ pub(crate) async fn generated_frame_images_for_prompts<C>(
     db: &C,
     project_id: i64,
     chapter_id: i64,
-    prompts: &[&chapter_video_prompt::Model],
-) -> Result<Vec<generated_image::Reference>, VideoDbError>
+    prompts: &[&ChapterVideoPromptRecord],
+) -> Result<Vec<GeneratedImageReferenceRecord>, VideoDbError>
 where
     C: ConnectionTrait,
 {
@@ -105,9 +107,10 @@ where
         return Ok(Vec::new());
     }
 
-    let images = video::generated_images_for_chapter_by_id_desc(db, project_id, chapter_id)
-        .await
-        .map_err(VideoDbError::Database)?;
+    let images =
+        video::read_models::generated_images_for_chapter_by_id_desc(db, project_id, chapter_id)
+            .await
+            .map_err(VideoDbError::Database)?;
     Ok(images
         .into_iter()
         .filter(|image| {
@@ -124,8 +127,8 @@ where
 
 async fn previous_boundary_frame_image_for_prompt<C>(
     db: &C,
-    prompt: &chapter_video_prompt::Model,
-) -> Result<Option<generated_image::Reference>, VideoDbError>
+    prompt: &ChapterVideoPromptRecord,
+) -> Result<Option<GeneratedImageReferenceRecord>, VideoDbError>
 where
     C: ConnectionTrait,
 {
@@ -151,7 +154,7 @@ where
     let previous_source_hash =
         metadata_source_content_sha256(previous_prompt.metadata_json.as_ref());
     let allowed_project_ids = video::video_asset_project_ids_record(db, prompt.project_id).await?;
-    let images = video::generated_images_for_projects_chapter_by_id_desc(
+    let images = video::read_models::generated_images_for_projects_chapter_by_id_desc(
         db,
         &allowed_project_ids,
         prompt.chapter_id,

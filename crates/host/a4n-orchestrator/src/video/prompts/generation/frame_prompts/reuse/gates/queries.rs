@@ -53,7 +53,10 @@ pub(in crate::video::prompts::generation::frame_prompts) async fn ignored_prompt
         prompt_types,
     )
     .await
-    .map_err(AppError::Database)?;
+    .map_err(AppError::Database)?
+    .into_iter()
+    .map(a4n_db::video::read_models::chapter_video_prompt_from_model)
+    .collect::<Vec<_>>();
     service.ensure_prompt_stages_mutable(&rows, "删除").await?;
     Ok(rows.into_iter().map(|row| row.id).collect())
 }

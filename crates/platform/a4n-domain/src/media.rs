@@ -65,6 +65,13 @@ pub struct GeneratedImageRecord {
 }
 
 #[derive(Debug, Clone, PartialEq)]
+pub struct GeneratedImageReferenceRecord {
+    pub id: i64,
+    pub image_type: String,
+    pub metadata_json: Option<Value>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
 pub struct GeneratedVideoRecord {
     pub id: i64,
     pub project_id: i64,
@@ -317,6 +324,30 @@ pub struct CreateMediaAssetRecordInput {
     pub status: String,
     pub error_message: Option<String>,
     pub provenance: MediaProvenanceRecordInput,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct MediaAssetRecord {
+    pub id: i64,
+    pub project_id: i64,
+    pub root_project_id: i64,
+    pub source_snapshot_id: Option<i64>,
+    pub source_chapter_id: Option<i64>,
+    pub source_snapshot_chapter_id: Option<i64>,
+    pub media_kind: String,
+    pub origin: String,
+    pub file_path: Option<String>,
+    pub thumbnail_path: Option<String>,
+    pub width: Option<i32>,
+    pub height: Option<i32>,
+    pub duration_secs: Option<f32>,
+    pub fps: Option<f32>,
+    pub file_size: Option<i64>,
+    pub checksum: Option<String>,
+    pub status: String,
+    pub error_message: Option<String>,
+    pub created_at: NaiveDateTime,
+    pub updated_at: NaiveDateTime,
 }
 
 #[cfg(test)]

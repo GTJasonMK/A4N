@@ -1,5 +1,7 @@
 use a4n_db_models::models::ai::{generated_image, generated_video};
-use a4n_domain::media::{GeneratedImageRecord, GeneratedVideoRecord};
+use a4n_domain::media::{
+    GeneratedImageRecord, GeneratedImageReferenceRecord, GeneratedVideoRecord,
+};
 
 pub(super) fn generated_image_record_from_model(
     model: generated_image::Model,
@@ -20,6 +22,16 @@ pub(super) fn generated_image_record_from_model(
         panel_id: model.panel_id,
         metadata_json: model.metadata_json,
         created_at: model.created_at,
+    }
+}
+
+pub(super) fn generated_image_reference_record_from_model(
+    model: generated_image::Reference,
+) -> GeneratedImageReferenceRecord {
+    GeneratedImageReferenceRecord {
+        id: model.id,
+        image_type: model.image_type,
+        metadata_json: model.metadata_json,
     }
 }
 
@@ -60,6 +72,22 @@ mod tests {
     use super::*;
     use chrono::NaiveDate;
     use serde_json::json;
+
+    #[test]
+    fn generated_image_reference_mapping_preserves_generation_context() {
+        let record = generated_image_reference_record_from_model(generated_image::Reference {
+            id: 17,
+            image_type: "video_key_frame".into(),
+            metadata_json: Some(json!({"generation_context": {"prompt_id": 9}})),
+        });
+
+        assert_eq!(record.id, 17);
+        assert_eq!(record.image_type, "video_key_frame");
+        assert_eq!(
+            record.metadata_json,
+            Some(json!({"generation_context": {"prompt_id": 9}}))
+        );
+    }
 
     #[test]
     fn generated_image_mapping_preserves_every_field() {
