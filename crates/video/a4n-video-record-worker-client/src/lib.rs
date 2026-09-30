@@ -28,6 +28,10 @@ const DEFAULT_WORKER_URL: &str = "http://127.0.0.1:47675";
 const CONTROL_LEASE_FENCE: &str = "control-request";
 const CONTROL_LEASE_EXPIRY: &str = "9999-12-31T23:59:59Z";
 
+mod mutations;
+mod prompts;
+mod reads;
+
 #[derive(Clone)]
 pub struct VideoRecordWorkerClient {
     transport: HttpWorkerClient,
@@ -146,168 +150,6 @@ impl VideoRecordWorkerClient {
             kind: WorkerPrincipalKind::Service,
             subject: "runtime".into(),
         }
-    }
-
-    pub async fn update_record(
-        &self,
-        user_id: i64,
-        video_id: i64,
-        input: UpdateGeneratedVideoInput,
-    ) -> Result<GeneratedVideoSummary, AppError> {
-        self.command(
-            user_id,
-            None,
-            VIDEO_RECORD_UPDATE_OPERATION,
-            VideoUpdateInput { video_id, input },
-        )
-        .await
-    }
-
-    pub async fn select_segment(
-        &self,
-        user_id: i64,
-        project_id: i64,
-        chapter_id: i64,
-        video_id: i64,
-        input: SelectSegmentVideoInput,
-    ) -> Result<GeneratedVideoSummary, AppError> {
-        self.command(
-            user_id,
-            Some(project_id),
-            VIDEO_RECORD_SELECT_SEGMENT_OPERATION,
-            VideoSegmentSelectionInput {
-                project_id,
-                chapter_id,
-                video_id,
-                input,
-            },
-        )
-        .await
-    }
-
-    pub async fn load_video_segment_plan_draft(
-        &self,
-        user_id: i64,
-        input: LoadVideoSegmentPlanDraftInput,
-    ) -> Result<a4n_api_contract::video::VideoSegmentPlanDraftSummary, AppError> {
-        self.command(
-            user_id,
-            Some(input.project_id),
-            VIDEO_PROMPT_DRAFT_LOAD_OPERATION,
-            input,
-        )
-        .await
-    }
-
-    pub async fn update_video_segment_plan_draft_recipe(
-        &self,
-        user_id: i64,
-        input: UpdateVideoSegmentPlanDraftRecipeInput,
-    ) -> Result<(), AppError> {
-        self.command(
-            user_id,
-            Some(input.project_id),
-            VIDEO_PROMPT_DRAFT_UPDATE_OPERATION,
-            input,
-        )
-        .await
-    }
-}
-
-#[async_trait::async_trait]
-impl VideoRecordReadApplicationPort for VideoRecordWorkerClient {
-    async fn playback_source(
-        &self,
-        user_id: i64,
-        video_id: i64,
-    ) -> Result<GeneratedVideoSummary, AppError> {
-        self.command(
-            user_id,
-            None,
-            VIDEO_RECORD_PLAYBACK_OPERATION,
-            VideoIdInput { video_id },
-        )
-        .await
-    }
-
-    async fn list_by_chapter(
-        &self,
-        user_id: i64,
-        project_id: i64,
-        chapter_id: i64,
-    ) -> Result<Vec<GeneratedVideoSummary>, AppError> {
-        self.command(
-            user_id,
-            Some(project_id),
-            VIDEO_RECORD_LIST_OPERATION,
-            ChapterVideosInput {
-                project_id,
-                chapter_id,
-            },
-        )
-        .await
-    }
-
-    async fn validated_reference_images(
-        &self,
-        user_id: i64,
-        project_id: i64,
-        chapter_id: i64,
-        reference_image_ids_json: Option<&Value>,
-    ) -> Result<Vec<GeneratedImageSummary>, AppError> {
-        self.command(
-            user_id,
-            Some(project_id),
-            VIDEO_RECORD_REFERENCE_IMAGES_OPERATION,
-            ReferenceImagesInput {
-                project_id,
-                chapter_id,
-                reference_image_ids_json: reference_image_ids_json.cloned(),
-            },
-        )
-        .await
-    }
-}
-
-#[async_trait::async_trait]
-impl VideoPromptReadApplicationPort for VideoRecordWorkerClient {
-    async fn list_chapter(
-        &self,
-        user_id: i64,
-        project_id: i64,
-        chapter_id: i64,
-    ) -> Result<Vec<ChapterVideoPromptSummary>, AppError> {
-        self.command(
-            user_id,
-            Some(project_id),
-            VIDEO_PROMPT_LIST_OPERATION,
-            ChapterVideosInput {
-                project_id,
-                chapter_id,
-            },
-        )
-        .await
-    }
-
-    async fn validate_project_chapter_source(
-        &self,
-        project_id: i64,
-        chapter_id: i64,
-        operation: &str,
-        writable: bool,
-    ) -> Result<(), AppError> {
-        self.command_with_principal(
-            Self::service_principal(),
-            Some(project_id),
-            VIDEO_PROMPT_VALIDATE_SOURCE_OPERATION,
-            VideoSourceInput {
-                project_id,
-                chapter_id,
-                operation: operation.to_string(),
-                writable,
-            },
-        )
-        .await
     }
 }
 
