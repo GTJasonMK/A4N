@@ -86,7 +86,7 @@ impl OrchestratorContext {
                         })
                         .await?;
                     let image = self
-                        .canvas_generated_image_record_by_id(output.generated_image_id)
+                        .generated_image_by_id(output.generated_image_id)
                         .await?
                         .ok_or_else(|| AppError::InvalidState {
                             current: "extract_frame_completed".to_string(),
@@ -121,7 +121,7 @@ impl OrchestratorContext {
                         })
                         .await?;
                     let video = self
-                        .canvas_generated_video_record_by_id(output.generated_video_id)
+                        .generated_video_by_id(output.generated_video_id)
                         .await?
                         .ok_or_else(|| AppError::InvalidState {
                             current: "trim_video_completed".to_string(),

@@ -228,7 +228,12 @@ async fn explicit_regeneration_rejects_a_prompt_with_generated_video() {
         .into_iter()
         .find(|row| row.prompt_type == "video_prompt")
         .unwrap();
-    let mut active: chapter_video_prompt::ActiveModel = prompt.into();
+    let model = chapter_video_prompt::Entity::find_by_id(prompt.id)
+        .one(db.as_ref())
+        .await
+        .unwrap()
+        .expect("generated prompt should still exist");
+    let mut active: chapter_video_prompt::ActiveModel = model.into();
     active.generated_video_id = Set(Some(9301));
     active.status = Set("completed".to_string());
     active.update(db.as_ref()).await.unwrap();

@@ -4,7 +4,6 @@ use std::sync::{
 };
 
 use super::image_operation_key;
-use a4n_api_contract::image::GeneratedImageSummary;
 use a4n_api_contract::image_generation::ImageGenerationOperation;
 use a4n_api_contract::manga::MangaReferenceBindingSummary;
 use a4n_db::{
@@ -21,7 +20,10 @@ use a4n_db_models::models::{
     media::image_publication,
     project::novel_project,
 };
-use a4n_domain::{media::GeneratedMediaArtifactFile, project::ProjectKind};
+use a4n_domain::{
+    media::{GeneratedImageRecord, GeneratedMediaArtifactFile},
+    project::ProjectKind,
+};
 use a4n_error::AppError;
 use a4n_image_contract::{ImageGenerationRequest, ImageReference};
 use a4n_image_host_contract::{
@@ -1524,7 +1526,7 @@ async fn manga_page_post_commit_binds_new_image_and_removes_old_image() {
 
 #[test]
 fn generated_image_summary_contract_remains_json_compatible() {
-    let summary = GeneratedImageSummary {
+    let image = GeneratedImageRecord {
         id: 1,
         project_id: 2,
         image_type: "scene".to_string(),
@@ -1536,12 +1538,15 @@ fn generated_image_summary_contract_remains_json_compatible() {
         file_size: Some(5),
         ai_score: None,
         is_favorite: false,
-        is_system_managed: true,
         chapter_id: None,
         panel_id: None,
         metadata_json: Some(Value::Object(Default::default())),
-        created_at: "2026-01-01 00:00:00".to_string(),
+        created_at: chrono::NaiveDate::from_ymd_opt(2026, 1, 1)
+            .expect("test date")
+            .and_hms_opt(0, 0, 0)
+            .expect("test time"),
     };
+    let summary = super::generated_image_record_summary(&image);
 
     let value = serde_json::to_value(summary).expect("summary 应可序列化");
     assert_eq!(value["image_type"], "scene");

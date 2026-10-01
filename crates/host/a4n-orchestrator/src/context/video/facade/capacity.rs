@@ -122,7 +122,7 @@ impl OrchestratorContext {
 
     async fn reconcile_interrupted_provider_video(
         &self,
-        video: &generated_video::Model,
+        video: &GeneratedVideoRecord,
         provider_workflow_run: Option<&WorkflowRunRecoveryRecord>,
         canvas_workflow_run: Option<&(i64, String)>,
     ) -> Result<bool, AppError> {
@@ -162,7 +162,7 @@ impl OrchestratorContext {
 
     async fn reconcile_terminal_canvas_workflow_video(
         &self,
-        video: &generated_video::Model,
+        video: &GeneratedVideoRecord,
         canvas_workflow_run: Option<&(i64, String)>,
     ) -> Result<bool, AppError> {
         let Some(_workflow_run_id) = video

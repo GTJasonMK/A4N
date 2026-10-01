@@ -1,8 +1,8 @@
+use a4n_domain::video_prompt::ChapterVideoPromptRecord;
 mod generation;
 
 use std::collections::{HashMap, HashSet};
 
-use a4n_db_models::models::chapter::chapter_video_prompt;
 use a4n_domain::prompt_language::PromptOutputLanguage;
 use a4n_domain::source_spans::SourceSpan;
 use a4n_error::AppError;
@@ -47,7 +47,7 @@ pub(super) struct StoryboardWorkflowInput<'a, 'source, 'progress, 'chunk> {
     pub target_shot_number: Option<i32>,
     pub prompt_batch_size: usize,
     pub regenerate_existing: bool,
-    pub reusable_rows: Vec<chapter_video_prompt::Model>,
+    pub reusable_rows: Vec<ChapterVideoPromptRecord>,
     pub frame_draft_common: VideoPromptDraftCommonInput<'a>,
     pub segment_draft: Option<&'a NewChapterVideoPrompt>,
     pub prompt_renderer: &'a dyn PromptRenderer,

@@ -8,10 +8,13 @@ impl VideoApplication {
     pub(in crate::context) async fn chapter_video_prompt_by_id(
         &self,
         prompt_id: i64,
-    ) -> Result<Option<chapter_video_prompt::Model>, AppError> {
-        a4n_db::video::chapter_video_prompt_by_id(self.connection(), prompt_id)
-            .await
-            .map_err(video_db_error)
+    ) -> Result<Option<ChapterVideoPromptRecord>, AppError> {
+        a4n_db::video::read_models::chapter_video_prompt_by_id(
+            self.database.connection(),
+            prompt_id,
+        )
+        .await
+        .map_err(video_db_error)
     }
 
     pub(in crate::context) async fn chapter_video_prompts_for_chapter(
@@ -59,10 +62,13 @@ impl VideoApplication {
     pub(in crate::context) async fn chapter_video_prompts_for_batch_generation(
         &self,
         prompt_ids: &[i64],
-    ) -> Result<Vec<chapter_video_prompt::Model>, AppError> {
-        a4n_db::video::chapter_video_prompts_for_batch_generation(self.connection(), prompt_ids)
-            .await
-            .map_err(video_db_error)
+    ) -> Result<Vec<ChapterVideoPromptRecord>, AppError> {
+        a4n_db::video::read_models::chapter_video_prompts_for_batch_generation(
+            self.database.connection(),
+            prompt_ids,
+        )
+        .await
+        .map_err(video_db_error)
     }
 
     pub(in crate::context) async fn update_chapter_video_prompt_with_policy(
@@ -70,8 +76,8 @@ impl VideoApplication {
         prompt_id: i64,
         input: ChapterVideoPromptPatch,
         allow_downstream: bool,
-    ) -> Result<chapter_video_prompt::Model, AppError> {
-        a4n_db::video::prompts::consistency::update_chapter_video_prompt_with_policy(
+    ) -> Result<ChapterVideoPromptRecord, AppError> {
+        a4n_db::video::read_models::update_chapter_video_prompt_with_policy(
             self.connection(),
             prompt_id,
             input,
@@ -86,18 +92,15 @@ impl VideoApplication {
         prompt_id: i64,
         expected_updated_at: chrono::NaiveDateTime,
         metadata_json: Value,
-    ) -> Result<chapter_video_prompt::Model, AppError> {
-        let row = a4n_db::video::prompts::consistency::update_chapter_video_segment_plan_metadata(
+    ) -> Result<ChapterVideoPromptRecord, AppError> {
+        a4n_db::video::read_models::update_chapter_video_segment_plan_metadata(
             self.connection(),
             prompt_id,
             expected_updated_at,
             metadata_json,
         )
         .await
-        .map_err(video_db_error)?;
-        a4n_db::video::with_video_plan_source_sync(self.connection(), row)
-            .await
-            .map_err(video_db_error)
+        .map_err(video_db_error)
     }
 
     pub(in crate::context) async fn update_chapter_video_segment_recipe(
@@ -121,8 +124,8 @@ impl VideoApplication {
         metadata_json: Option<Value>,
         allow_downstream: bool,
         generation_run: RecordCompletedGenerationRunWithCheckpointInput,
-    ) -> Result<chapter_video_prompt::Model, AppError> {
-        a4n_db::video::prompts::consistency::update_chapter_video_prompt_with_generation_run_checkpoint(
+    ) -> Result<ChapterVideoPromptRecord, AppError> {
+        a4n_db::video::read_models::update_chapter_video_prompt_with_generation_run_checkpoint(
             self.connection(),
             prompt_id,
             input,

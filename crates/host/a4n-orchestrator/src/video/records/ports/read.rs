@@ -62,7 +62,7 @@ impl VideoRecordReadApplicationPort for crate::OrchestratorContext {
         .await?;
         Ok(images
             .iter()
-            .map(crate::media::generated_image_summary)
+            .map(crate::media::generated_image_record_summary)
             .collect())
     }
 }

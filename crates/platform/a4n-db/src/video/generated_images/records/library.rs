@@ -3,6 +3,7 @@ use super::super::{
     VideoProjectContextReadModel, VideoPromptBlueprintCharacterRecord,
     VideoPromptProtagonistProfileRecord,
 };
+use crate::video::generated_image_record_from_model;
 use a4n_db_models::models::{
     ai::generated_image,
     asset::{object_profile, profile_primary_material},
@@ -146,7 +147,10 @@ where
             },
         )
         .collect();
-    let material_images = material_images_result?;
+    let material_images = material_images_result?
+        .into_iter()
+        .map(generated_image_record_from_model)
+        .collect();
 
     Ok(VideoProfileMaterialReadModel {
         scenes,

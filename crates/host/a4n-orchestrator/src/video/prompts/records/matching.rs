@@ -2,7 +2,6 @@ mod assets;
 mod context;
 
 #[cfg(test)]
-use a4n_db_models::models::chapter::chapter_video_prompt;
 #[cfg(test)]
 use serde_json::Value;
 

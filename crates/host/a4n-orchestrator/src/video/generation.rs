@@ -23,8 +23,8 @@ use a4n_api_contract::{
 };
 use a4n_canvas_contract::GenerateCanvasVideoInput;
 use a4n_db::generation::RecordStartedGenerationRunInput;
-use a4n_db_models::models::ai::generated_video;
 use a4n_domain::media::CreateGeneratedVideoRecordDraftInput;
+use a4n_domain::media::GeneratedVideoRecord;
 use a4n_error::AppError;
 use a4n_progress::ProgressPhaseKind;
 use a4n_service_protocol::{
@@ -462,7 +462,7 @@ impl BatchAccumulator {
 
 fn single_video_result(
     host_port: &dyn VideoProviderHostPort,
-    video: generated_video::Model,
+    video: GeneratedVideoRecord,
     summary: &str,
 ) -> Result<VideoTaskResult, AppError> {
     if video.status == a4n_domain::video_workflow::VIDEO_STATUS_COMPLETED {
@@ -506,7 +506,7 @@ fn single_video_result(
 
 fn video_artifact_event(
     host_port: &dyn VideoProviderHostPort,
-    video: &generated_video::Model,
+    video: &GeneratedVideoRecord,
     item_key: Option<String>,
     item_index: Option<u32>,
     item_total: Option<u32>,
@@ -651,7 +651,6 @@ impl a4n_api_contract::video::ReferenceMediaVideoRequestPreviewApplicationPort
 mod unit_tests {
     use super::*;
     use a4n_api_contract::video::VideoGenerationOperation;
-    use a4n_db_models::models::ai::generated_video;
     use a4n_domain::media::GeneratedMediaArtifactFile;
     use a4n_provider_contract::VideoProviderConfig;
     use a4n_video::VideoJobState;
@@ -709,9 +708,9 @@ mod unit_tests {
         }
     }
 
-    fn completed_video(id: i64, path: &str) -> generated_video::Model {
+    fn completed_video(id: i64, path: &str) -> GeneratedVideoRecord {
         let now = Utc::now().naive_utc();
-        generated_video::Model {
+        GeneratedVideoRecord {
             id,
             project_id: 1,
             chapter_id: Some(2),

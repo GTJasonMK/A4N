@@ -1,4 +1,5 @@
 use super::*;
+use a4n_domain::video_prompt::ChapterVideoPromptRecord;
 
 impl OrchestratorContext {
     pub(in crate::video) async fn generate_chapter_video_frame_prompts_validated(
@@ -285,7 +286,7 @@ impl OrchestratorContext {
         progress: &mut Option<VideoPromptProgress<'_>>,
         chunks: Option<VideoPromptChunk<'_>>,
         cancel_token: &CancellationToken,
-    ) -> Result<Vec<chapter_video_prompt::Model>, AppError> {
+    ) -> Result<Vec<ChapterVideoPromptRecord>, AppError> {
         report_progress(
             progress,
             10,
@@ -751,7 +752,7 @@ impl OrchestratorContext {
 
     fn validate_segment_plan_edit_timestamp(
         &self,
-        prompt: &chapter_video_prompt::Model,
+        prompt: &ChapterVideoPromptRecord,
         expected_updated_at: &str,
     ) -> Result<(), AppError> {
         if expected_updated_at.trim().is_empty()
@@ -772,7 +773,7 @@ impl OrchestratorContext {
         &self,
         project_id: i64,
         chapter_id: i64,
-    ) -> Result<chapter_video_prompt::Model, AppError> {
+    ) -> Result<ChapterVideoPromptRecord, AppError> {
         let current_source_hash = self
             .current_video_source_hash(project_id, chapter_id)
             .await?;
@@ -793,7 +794,7 @@ impl OrchestratorContext {
         &self,
         project_id: i64,
         chapter_id: i64,
-    ) -> Result<Option<chapter_video_prompt::Model>, AppError> {
+    ) -> Result<Option<ChapterVideoPromptRecord>, AppError> {
         let current_source_hash = self
             .current_video_source_hash(project_id, chapter_id)
             .await?;
@@ -819,7 +820,7 @@ impl OrchestratorContext {
         project_id: i64,
         chapter_id: i64,
         prompt_id: i64,
-    ) -> Result<chapter_video_prompt::Model, AppError> {
+    ) -> Result<ChapterVideoPromptRecord, AppError> {
         let (prompt_result, current_source_hash_result) = futures::join!(
             self.chapter_video_prompt(prompt_id),
             self.current_video_source_hash(project_id, chapter_id),
@@ -837,16 +838,16 @@ impl OrchestratorContext {
 
     async fn with_video_plan_source_sync(
         &self,
-        row: chapter_video_prompt::Model,
-    ) -> Result<chapter_video_prompt::Model, AppError> {
-        a4n_db::video::with_video_plan_source_sync(self.database.connection(), row)
+        row: ChapterVideoPromptRecord,
+    ) -> Result<ChapterVideoPromptRecord, AppError> {
+        a4n_db::video::read_models::with_video_plan_source_sync(self.database.connection(), row)
             .await
             .map_err(video_db_error)
     }
 
     async fn validate_loaded_current_shared_segment_plan(
         &self,
-        prompt: &chapter_video_prompt::Model,
+        prompt: &ChapterVideoPromptRecord,
         project_id: i64,
         chapter_id: i64,
         current_source_hash_result: Result<String, AppError>,

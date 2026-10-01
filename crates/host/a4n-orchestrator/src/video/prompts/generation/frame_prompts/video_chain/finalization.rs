@@ -1,3 +1,4 @@
+use a4n_domain::video_prompt::ChapterVideoPromptRecord;
 use std::collections::{HashMap, HashSet};
 
 use a4n_db_models::models::chapter::chapter_video_prompt;
@@ -45,7 +46,7 @@ pub(super) struct VideoPromptFinalizationInput<'a> {
 pub(super) async fn finalize_video_prompt_chain(
     input: VideoPromptFinalizationInput<'_>,
     progress: &mut Option<VideoPromptProgress<'_>>,
-) -> Result<Vec<chapter_video_prompt::Model>, AppError> {
+) -> Result<Vec<ChapterVideoPromptRecord>, AppError> {
     let VideoPromptFinalizationInput {
         service,
         spec,
@@ -250,7 +251,7 @@ async fn sync_video_prompt_drafts(
     chapter_id: i64,
     drafts: Vec<NewChapterVideoPrompt>,
     regenerate_existing: bool,
-) -> Result<Vec<chapter_video_prompt::Model>, AppError> {
+) -> Result<Vec<ChapterVideoPromptRecord>, AppError> {
     if regenerate_existing {
         service.sync_chapter_prompts(chapter_id, drafts).await
     } else {
@@ -268,7 +269,7 @@ async fn video_prompt_result_rows(
     segment_plan: &[VideoSegmentPlan],
     prompt_output_language: PromptOutputLanguage,
     execution_identity: &Value,
-) -> Result<Vec<chapter_video_prompt::Model>, AppError> {
+) -> Result<Vec<ChapterVideoPromptRecord>, AppError> {
     let segment_shots = segment_plan
         .iter()
         .map(|segment| segment.segment_number)

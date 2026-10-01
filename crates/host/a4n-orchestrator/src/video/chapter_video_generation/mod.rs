@@ -1,12 +1,11 @@
+use a4n_domain::media::GeneratedVideoRecord;
+use a4n_domain::video_prompt::ChapterVideoPromptRecord;
 use a4n_error::AppError;
 use std::collections::HashMap;
 
 use a4n_api_contract::video::{GenerateChapterVideoInput, PreviewChapterVideoPromptOverrideInput};
 use a4n_db::collaboration::ProjectAccessRole;
-use a4n_db_models::models::{
-    ai::generated_video,
-    chapter::{chapter_video_prompt, chapter_video_timeline_item},
-};
+use a4n_db_models::models::chapter::{chapter_video_prompt, chapter_video_timeline_item};
 use a4n_domain::image::{
     IMAGE_GENERATION_SOURCE_VIDEO_FIRST_FRAME_PROMPT, image_generation_prompt_id,
     image_generation_source, reference_image_ids,
@@ -63,7 +62,7 @@ pub struct GenerateChapterVideosBatchInput {
 
 #[derive(Default)]
 struct VideoPromptValidationCache {
-    shared_segment_plans: HashMap<i64, chapter_video_prompt::Model>,
+    shared_segment_plans: HashMap<i64, ChapterVideoPromptRecord>,
     shared_segment_indexes: HashMap<i64, SharedSegmentValidationIndex>,
     inserted_timeline_items: HashMap<(i64, i64), HashMap<i64, chapter_video_timeline_item::Model>>,
 }

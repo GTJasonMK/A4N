@@ -17,8 +17,8 @@ impl VideoApplication {
         project_id: i64,
         chapter_id: i64,
         reference_image_ids_json: Option<&Value>,
-    ) -> Result<Vec<generated_image::Model>, AppError> {
-        a4n_db::video::validated_video_reference_image_records(
+    ) -> Result<Vec<GeneratedImageRecord>, AppError> {
+        a4n_db::video::read_models::validated_video_reference_image_records(
             self.database.connection(),
             project_id,
             chapter_id,
@@ -48,9 +48,9 @@ impl VideoApplication {
         &self,
         project_id: i64,
         chapter_id: i64,
-    ) -> Result<Vec<generated_image::Reference>, AppError> {
+    ) -> Result<Vec<GeneratedImageReferenceRecord>, AppError> {
         let project_ids = self.video_asset_project_ids_record(project_id).await?;
-        a4n_db::video::generated_images_for_projects_chapter_by_id_desc(
+        a4n_db::video::read_models::generated_images_for_projects_chapter_by_id_desc(
             self.connection(),
             &project_ids,
             chapter_id,
@@ -62,8 +62,8 @@ impl VideoApplication {
     pub(in crate::context) async fn generated_images_by_ids(
         &self,
         image_ids: &[i64],
-    ) -> Result<Vec<generated_image::Model>, AppError> {
-        a4n_db::video::generated_images_by_ids(self.connection(), image_ids)
+    ) -> Result<Vec<GeneratedImageRecord>, AppError> {
+        a4n_db::video::read_models::generated_images_by_ids(self.database.connection(), image_ids)
             .await
             .map_err(video_db_error)
     }
@@ -80,8 +80,8 @@ impl VideoApplication {
     pub(in crate::context) async fn generated_images_for_project(
         &self,
         project_id: i64,
-    ) -> Result<Vec<generated_image::Model>, AppError> {
-        a4n_db::video::generated_images_for_project(self.connection(), project_id)
+    ) -> Result<Vec<GeneratedImageRecord>, AppError> {
+        a4n_db::video::read_models::generated_images_for_project(self.connection(), project_id)
             .await
             .map_err(AppError::Database)
     }
@@ -89,8 +89,8 @@ impl VideoApplication {
     pub(in crate::context) async fn generated_images_for_projects(
         &self,
         project_ids: &[i64],
-    ) -> Result<Vec<generated_image::Model>, AppError> {
-        a4n_db::video::generated_images_for_projects(self.connection(), project_ids)
+    ) -> Result<Vec<GeneratedImageRecord>, AppError> {
+        a4n_db::video::read_models::generated_images_for_projects(self.connection(), project_ids)
             .await
             .map_err(video_db_error)
     }
@@ -99,10 +99,14 @@ impl VideoApplication {
         &self,
         project_id: i64,
         chapter_id: i64,
-    ) -> Result<Vec<generated_image::Model>, AppError> {
-        a4n_db::video::generated_images_for_chapter(self.connection(), project_id, chapter_id)
-            .await
-            .map_err(AppError::Database)
+    ) -> Result<Vec<GeneratedImageRecord>, AppError> {
+        a4n_db::video::read_models::generated_images_for_chapter(
+            self.connection(),
+            project_id,
+            chapter_id,
+        )
+        .await
+        .map_err(AppError::Database)
     }
 
     pub(in crate::context) async fn ensure_image_chapter_belongs_to_project(
@@ -123,8 +127,8 @@ impl VideoApplication {
         &self,
         project_ids: &[i64],
         chapter_id: i64,
-    ) -> Result<Vec<generated_image::Model>, AppError> {
-        a4n_db::video::video_reference_candidate_image_records(
+    ) -> Result<Vec<GeneratedImageRecord>, AppError> {
+        a4n_db::video::read_models::video_reference_candidate_image_records(
             self.connection(),
             project_ids,
             chapter_id,
@@ -136,8 +140,8 @@ impl VideoApplication {
     pub(in crate::context) async fn generated_image_by_id(
         &self,
         image_id: i64,
-    ) -> Result<Option<generated_image::Model>, AppError> {
-        a4n_db::video::generated_image_by_id(self.connection(), image_id)
+    ) -> Result<Option<GeneratedImageRecord>, AppError> {
+        a4n_db::video::read_models::generated_image_by_id(self.connection(), image_id)
             .await
             .map_err(AppError::Database)
     }
@@ -146,10 +150,14 @@ impl VideoApplication {
         &self,
         image_id: i64,
         input: UpdateGeneratedImageRecordInput,
-    ) -> Result<generated_image::Model, AppError> {
-        a4n_db::video::update_generated_image_record(self.connection(), image_id, input)
-            .await
-            .map_err(video_db_error)
+    ) -> Result<GeneratedImageRecord, AppError> {
+        a4n_db::video::read_models::update_generated_image_record(
+            self.connection(),
+            image_id,
+            input,
+        )
+        .await
+        .map_err(video_db_error)
     }
 
     pub(in crate::context) async fn delete_generated_image_record_with_cleanup(
@@ -190,8 +198,8 @@ impl VideoApplication {
     pub(in crate::context) async fn create_generated_image_record(
         &self,
         input: CreateGeneratedImageRecordDraftInput,
-    ) -> Result<generated_image::Model, AppError> {
-        a4n_db::video::create_generated_image_record(self.connection(), input)
+    ) -> Result<GeneratedImageRecord, AppError> {
+        a4n_db::video::read_models::create_generated_image_record(self.connection(), input)
             .await
             .map_err(video_db_error)
     }
@@ -220,10 +228,14 @@ impl VideoApplication {
         &self,
         publication_id: &str,
         facts: ImagePublicationFileFacts,
-    ) -> Result<generated_image::Model, AppError> {
-        a4n_db::video::publish_image_publication(self.connection(), publication_id, facts)
-            .await
-            .map_err(video_db_error)
+    ) -> Result<GeneratedImageRecord, AppError> {
+        a4n_db::video::read_models::publish_image_publication(
+            self.connection(),
+            publication_id,
+            facts,
+        )
+        .await
+        .map_err(video_db_error)
     }
 
     pub(in crate::context) async fn publish_image_publication_with_generation_run_checkpoint(
@@ -231,8 +243,8 @@ impl VideoApplication {
         publication_id: &str,
         facts: ImagePublicationFileFacts,
         generation_run: RecordCompletedGenerationRunWithCheckpointInput,
-    ) -> Result<generated_image::Model, AppError> {
-        a4n_db::video::publish_image_publication_with_generation_run_checkpoint(
+    ) -> Result<GeneratedImageRecord, AppError> {
+        a4n_db::video::read_models::publish_image_publication_with_generation_run_checkpoint(
             self.connection(),
             publication_id,
             facts,

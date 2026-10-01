@@ -1,4 +1,4 @@
-use a4n_db_models::models::chapter::chapter_video_prompt;
+use a4n_domain::video_prompt::ChapterVideoPromptRecord;
 use a4n_domain::video_prompt::{
     ChapterVideoPromptRecordFields, ChapterVideoPromptSyncDraft, ChapterVideoPromptSyncPolicy,
 };
@@ -14,7 +14,7 @@ impl OrchestratorContext {
         &self,
         chapter_id: i64,
         drafts: Vec<NewChapterVideoPrompt>,
-    ) -> Result<Vec<chapter_video_prompt::Model>, AppError> {
+    ) -> Result<Vec<ChapterVideoPromptRecord>, AppError> {
         self.write_chapter_prompts(chapter_id, drafts, ChapterVideoPromptSyncPolicy::default())
             .await
     }
@@ -23,7 +23,7 @@ impl OrchestratorContext {
         &self,
         chapter_id: i64,
         drafts: Vec<NewChapterVideoPrompt>,
-    ) -> Result<Vec<chapter_video_prompt::Model>, AppError> {
+    ) -> Result<Vec<ChapterVideoPromptRecord>, AppError> {
         self.write_chapter_prompts(
             chapter_id,
             drafts,
@@ -39,7 +39,7 @@ impl OrchestratorContext {
         &self,
         chapter_id: i64,
         drafts: Vec<NewChapterVideoPrompt>,
-    ) -> Result<Vec<chapter_video_prompt::Model>, AppError> {
+    ) -> Result<Vec<ChapterVideoPromptRecord>, AppError> {
         self.write_chapter_prompts(
             chapter_id,
             drafts,
@@ -56,7 +56,7 @@ impl OrchestratorContext {
         chapter_id: i64,
         drafts: Vec<NewChapterVideoPrompt>,
         policy: ChapterVideoPromptSyncPolicy,
-    ) -> Result<Vec<chapter_video_prompt::Model>, AppError> {
+    ) -> Result<Vec<ChapterVideoPromptRecord>, AppError> {
         if drafts.is_empty() {
             return Ok(Vec::new());
         }
@@ -64,7 +64,7 @@ impl OrchestratorContext {
             .into_iter()
             .map(prepare_prompt_sync_draft)
             .collect::<Result<Vec<_>, _>>()?;
-        a4n_db::video::prompts::consistency::sync_chapter_video_prompts_with_generation_runs(
+        a4n_db::video::read_models::sync_chapter_video_prompts_with_generation_runs(
             self.database.connection(),
             chapter_id,
             drafts,

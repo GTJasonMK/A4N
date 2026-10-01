@@ -1,6 +1,6 @@
 //! 视频生成 job 状态推进纯规则（poll / 失败 / submit 落库门禁）。
 
-use a4n_db_models::models::ai::generated_video;
+use a4n_domain::media::GeneratedVideoRecord;
 use a4n_error::AppError;
 
 pub fn can_adopt_authoritative_video_completion(error: &AppError) -> bool {
@@ -57,7 +57,7 @@ pub fn has_active_provider_job(provider_job_id: Option<&str>, status: &str) -> b
 }
 
 /// 旧画布/章节 provider job 恢复轮询时使用的配置 ID。
-pub fn provider_poll_config_id(video: &generated_video::Model) -> Result<Option<i64>, String> {
+pub fn provider_poll_config_id(video: &GeneratedVideoRecord) -> Result<Option<i64>, String> {
     let raw_config_id = video
         .metadata_json
         .as_ref()
@@ -77,7 +77,7 @@ pub fn provider_poll_config_id(video: &generated_video::Model) -> Result<Option<
 }
 
 fn positive_provider_poll_config_id(
-    video: &generated_video::Model,
+    video: &GeneratedVideoRecord,
     value: &serde_json::Value,
 ) -> Result<i64, String> {
     let config_id = value.as_i64().filter(|id| *id > 0).ok_or_else(|| {
@@ -89,7 +89,7 @@ fn positive_provider_poll_config_id(
     Ok(config_id)
 }
 
-pub fn is_canvas_video_record(video: &generated_video::Model) -> bool {
+pub fn is_canvas_video_record(video: &GeneratedVideoRecord) -> bool {
     a4n_video::is_canvas_video_record_fields(video.chapter_id, video.workflow_mode.as_deref())
 }
 
@@ -101,7 +101,7 @@ pub struct CanvasVideoWorkflowContext {
 }
 
 pub fn canvas_video_workflow_context(
-    video: &generated_video::Model,
+    video: &GeneratedVideoRecord,
 ) -> Result<Option<CanvasVideoWorkflowContext>, String> {
     if !is_canvas_video_record(video) {
         return Ok(None);
@@ -176,9 +176,9 @@ mod tests {
     use chrono::Utc;
     use serde_json::json;
 
-    fn video(video_type: &str, workflow_mode: Option<&str>) -> generated_video::Model {
+    fn video(video_type: &str, workflow_mode: Option<&str>) -> GeneratedVideoRecord {
         let now = Utc::now().naive_utc();
-        generated_video::Model {
+        GeneratedVideoRecord {
             id: 42,
             project_id: 1,
             chapter_id: Some(1),
@@ -207,7 +207,7 @@ mod tests {
         }
     }
 
-    fn canvas_video(metadata_json: Option<serde_json::Value>) -> generated_video::Model {
+    fn canvas_video(metadata_json: Option<serde_json::Value>) -> GeneratedVideoRecord {
         let mut video = video(
             a4n_domain::video_workflow::VIDEO_TYPE_CANVAS,
             Some(a4n_domain::video_workflow::WORKFLOW_MODE_CANVAS_VIDEO),

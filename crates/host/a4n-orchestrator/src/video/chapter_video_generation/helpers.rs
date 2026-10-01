@@ -30,7 +30,7 @@ fn timeline_items_by_id(
 }
 
 fn inserted_video_execution_identity(
-    prompt: &chapter_video_prompt::Model,
+    prompt: &ChapterVideoPromptRecord,
     recipe: &VideoSegmentExecutionRecipeV1,
 ) -> Result<Value, AppError> {
     let metadata = prompt

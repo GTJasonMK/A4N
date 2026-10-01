@@ -202,13 +202,13 @@ impl OrchestratorContext {
         let Some(generation_spec_id) = generation_spec_id else {
             return Ok(None);
         };
-        let image = self
-            .canvas_generated_image_record_by_id(image_id)
-            .await?
-            .ok_or_else(|| AppError::InvalidState {
-                current: "image_generated".to_string(),
-                operation: format!("画布图片产物不存在: {image_id}"),
-            })?;
+        let image =
+            self.generated_image_by_id(image_id)
+                .await?
+                .ok_or_else(|| AppError::InvalidState {
+                    current: "image_generated".to_string(),
+                    operation: format!("画布图片产物不存在: {image_id}"),
+                })?;
         let asset = self
             .ensure_canvas_image_media_asset_record(CanvasImageMediaAssetEnsureInput {
                 project_id,
