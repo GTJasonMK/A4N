@@ -1,3 +1,4 @@
+use a4n_domain::media::GeneratedVideoRecord;
 use a4n_domain::video_workflow::WORKFLOW_MODE_MIXED;
 use sea_orm::ActiveModelTrait;
 use serde_json::json;
@@ -6,9 +7,9 @@ use std::collections::{HashMap, HashSet};
 use super::*;
 use crate::video::test_video_orchestrator;
 
-fn assembly_video(id: i64, shot_number: i32, file_path: Option<&str>) -> generated_video::Model {
+fn assembly_video(id: i64, shot_number: i32, file_path: Option<&str>) -> GeneratedVideoRecord {
     let now = chrono::Utc::now().naive_utc();
-    generated_video::Model {
+    GeneratedVideoRecord {
         id,
         project_id: 1,
         chapter_id: Some(2),

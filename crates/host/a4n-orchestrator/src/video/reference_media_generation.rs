@@ -1,6 +1,6 @@
 use a4n_api_contract::video::GenerateReferenceMediaVideoInput;
 use a4n_db::collaboration::ProjectAccessRole;
-use a4n_db_models::models::ai::generated_video;
+use a4n_domain::media::GeneratedVideoRecord;
 use a4n_error::AppError;
 use a4n_provider_contract::VideoProviderConfig;
 use a4n_service_protocol::GenerationArtifactRef;
@@ -85,7 +85,7 @@ impl OrchestratorContext {
         host_port: &dyn ReferenceMediaVideoGenerationHostPort,
         input: GenerateReferenceMediaVideoInput,
         progress: &mut VideoGenerationProgress<'_>,
-    ) -> Result<generated_video::Model, AppError> {
+    ) -> Result<GeneratedVideoRecord, AppError> {
         progress.progress(1, VIDEO_GENERATION_PROGRESS_TOTAL, "正在校验参考媒体请求")?;
         progress.check_cancelled("参考媒体视频生成已停止")?;
         let prepared = self

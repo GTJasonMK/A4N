@@ -103,6 +103,7 @@ async fn boundary_frame_image_lookup_accepts_root_project_images_for_video_proje
     .unwrap();
     let video_service = crate::video::test_video_orchestrator(db).await;
 
+    let prompt = a4n_db::video::read_models::chapter_video_prompt_from_model(prompt);
     let image_id_by_frame =
         boundary_frame_image_ids_by_number(&video_service, video_project.id, chapter.id, &[prompt])
             .await

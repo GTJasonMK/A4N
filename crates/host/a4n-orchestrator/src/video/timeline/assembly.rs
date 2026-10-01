@@ -527,7 +527,7 @@ pub(crate) struct VideoTimelineAssemblyOrder {
 }
 
 impl VideoTimelineAssemblyOrder {
-    pub(crate) fn display_index_for_video(&self, video: &generated_video::Model) -> Option<i32> {
+    pub(crate) fn display_index_for_video(&self, video: &GeneratedVideoRecord) -> Option<i32> {
         let item_id = match video.timeline_item_id {
             Some(item_id) => item_id,
             None => {
@@ -591,7 +591,7 @@ pub(crate) fn video_timeline_assembly_order_from_snapshot(
 }
 
 pub(crate) fn video_matches_timeline_item(
-    video: &a4n_db_models::models::ai::generated_video::Model,
+    video: &GeneratedVideoRecord,
     item: &a4n_db_models::models::chapter::chapter_video_timeline_item::Model,
 ) -> bool {
     let identity = video

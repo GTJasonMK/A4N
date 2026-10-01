@@ -9,6 +9,8 @@ use a4n_domain::image::{
     IMAGE_GENERATION_SOURCE_VIDEO_BOUNDARY_FRAME_PROMPT,
     IMAGE_GENERATION_SOURCE_VIDEO_FIRST_FRAME_PROMPT,
 };
+use a4n_domain::media::GeneratedImageRecord;
+use a4n_domain::video_prompt::ChapterVideoPromptRecord;
 use a4n_llm_provider_contract::provider::LlmProvider;
 use a4n_prompt::tera_engine::TeraPromptEngine;
 use sea_orm::{
@@ -375,7 +377,7 @@ async fn insert_video_prompt(
     project_id: i64,
     chapter_id: i64,
     generated_video_id: Option<i64>,
-) -> chapter_video_prompt::Model {
+) -> ChapterVideoPromptRecord {
     insert_video_prompt_with_metadata(db, project_id, chapter_id, generated_video_id, None).await
 }
 
@@ -385,7 +387,7 @@ async fn insert_video_prompt_with_metadata(
     chapter_id: i64,
     generated_video_id: Option<i64>,
     metadata_json: Option<Value>,
-) -> chapter_video_prompt::Model {
+) -> ChapterVideoPromptRecord {
     let now = fixed_time(3);
     let metadata_json = metadata_json.unwrap_or_else(|| json!({}));
     let metadata_json = Some(metadata_json).map(|mut metadata| {
@@ -434,7 +436,7 @@ async fn insert_video_prompt_with_metadata(
         }
         metadata
     });
-    chapter_video_prompt::ActiveModel {
+    let prompt = chapter_video_prompt::ActiveModel {
         project_id: Set(project_id),
         chapter_id: Set(chapter_id),
         style: Set(Some("电影感写实".to_string())),
@@ -458,13 +460,11 @@ async fn insert_video_prompt_with_metadata(
     }
     .insert(db)
     .await
-    .unwrap()
+    .unwrap();
+    a4n_db::video::read_models::chapter_video_prompt_from_model(prompt)
 }
 
-async fn insert_generated_image(
-    db: &DatabaseConnection,
-    project_id: i64,
-) -> generated_image::Model {
+async fn insert_generated_image(db: &DatabaseConnection, project_id: i64) -> GeneratedImageRecord {
     insert_generated_image_with_binding(db, project_id, None, None).await
 }
 
@@ -473,8 +473,8 @@ async fn insert_generated_image_with_binding(
     project_id: i64,
     chapter_id: Option<i64>,
     metadata_json: Option<Value>,
-) -> generated_image::Model {
-    generated_image::ActiveModel {
+) -> GeneratedImageRecord {
+    let image = generated_image::ActiveModel {
         project_id: Set(project_id),
         image_type: Set("scene".to_string()),
         file_path: Set("images/source.png".to_string()),
@@ -493,7 +493,11 @@ async fn insert_generated_image_with_binding(
     }
     .insert(db)
     .await
-    .unwrap()
+    .unwrap();
+    a4n_db::video::read_models::generated_image_by_id(db, image.id)
+        .await
+        .unwrap()
+        .expect("test image should exist")
 }
 
 fn video_record_input(project_id: i64) -> a4n_domain::media::CreateGeneratedVideoRecordDraftInput {

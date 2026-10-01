@@ -1,3 +1,4 @@
+use a4n_domain::video_prompt::ChapterVideoPromptRecord;
 use std::collections::HashMap;
 
 use a4n_api_contract::video::PreviewChapterVideoPromptOverrideInput;
@@ -36,7 +37,7 @@ pub struct ProviderPromptImageBinding {
 
 #[derive(Clone)]
 pub struct ChapterVideoProviderRequestContext {
-    pub prompt: chapter_video_prompt::Model,
+    pub prompt: ChapterVideoPromptRecord,
     pub config: VideoProviderConfig,
     pub request: VideoGenerationRequest,
     pub prompt_reference_image_ids: Option<Value>,
@@ -105,7 +106,7 @@ pub fn provider_specific_negative_prompt(specific: Option<&str>) -> Option<Strin
 
 pub async fn build_video_generation_provider_prompt_with_renderer(
     prompt_renderer: &dyn PromptRenderer,
-    prompt: &chapter_video_prompt::Model,
+    prompt: &ChapterVideoPromptRecord,
     provider_workflow: ProviderGenerationWorkflow,
     image_binding: ProviderPromptImageBinding,
 ) -> Result<String, String> {
@@ -119,7 +120,7 @@ pub async fn build_video_generation_provider_prompt_with_renderer(
 }
 
 fn build_provider_prompt_plan(
-    prompt: &chapter_video_prompt::Model,
+    prompt: &ChapterVideoPromptRecord,
     provider_workflow: ProviderGenerationWorkflow,
     image_binding: ProviderPromptImageBinding,
 ) -> Result<(&'static str, HashMap<String, Value>), String> {
@@ -138,7 +139,7 @@ fn build_provider_prompt_plan(
     Ok((prompt_name, variables))
 }
 
-fn validate_standard_metadata(prompt: &chapter_video_prompt::Model) -> Result<(), String> {
+fn validate_standard_metadata(prompt: &ChapterVideoPromptRecord) -> Result<(), String> {
     if prompt.metadata_json.is_none() {
         return Err(format!(
             "视频提示词 #{} 缺少结构化元数据，请重新生成视频提示词后再生成视频",
@@ -148,7 +149,7 @@ fn validate_standard_metadata(prompt: &chapter_video_prompt::Model) -> Result<()
     Ok(())
 }
 
-fn validate_first_frame_chain_metadata(prompt: &chapter_video_prompt::Model) -> Result<(), String> {
+fn validate_first_frame_chain_metadata(prompt: &ChapterVideoPromptRecord) -> Result<(), String> {
     let metadata = prompt.metadata_json.as_ref().ok_or_else(|| {
         format!(
             "视频提示词 #{} 缺少结构化元数据，请重新生成首帧串联视频提示词后再生成视频",
@@ -162,7 +163,7 @@ fn validate_first_frame_chain_metadata(prompt: &chapter_video_prompt::Model) -> 
 }
 
 fn build_common_provider_prompt_variables(
-    prompt: &chapter_video_prompt::Model,
+    prompt: &ChapterVideoPromptRecord,
     image_binding: ProviderPromptImageBinding,
 ) -> Result<HashMap<String, Value>, String> {
     let prompt_output_language = PromptOutputLanguage::from_metadata(prompt.metadata_json.as_ref())
@@ -230,7 +231,7 @@ fn provider_subject_asset_bindings(image_binding: ProviderPromptImageBinding) ->
     (!lines.is_empty()).then(|| lines.join("\n"))
 }
 
-fn required_prompt_aspect_ratio(prompt: &chapter_video_prompt::Model) -> Result<&str, String> {
+fn required_prompt_aspect_ratio(prompt: &ChapterVideoPromptRecord) -> Result<&str, String> {
     prompt
         .aspect_ratio
         .as_deref()
@@ -257,7 +258,7 @@ fn required_object<'a>(
 }
 
 pub fn apply_chapter_video_prompt_preview_override(
-    prompt: &mut chapter_video_prompt::Model,
+    prompt: &mut ChapterVideoPromptRecord,
     input: Option<PreviewChapterVideoPromptOverrideInput>,
     note: &mut Option<String>,
 ) -> Result<(), String> {

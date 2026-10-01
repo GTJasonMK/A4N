@@ -10,8 +10,8 @@ use a4n_db::{
     },
     workflow::WorkflowCheckpointSummary,
 };
-use a4n_db_models::models::ai::generated_video;
 use a4n_domain::canvas::CanvasNodeRecord;
+use a4n_domain::media::GeneratedVideoRecord;
 use a4n_domain::video_workflow::WORKFLOW_MODE_CANVAS_VIDEO;
 use a4n_domain::{CanvasNodeRefKind, canvas::FreeformCanvasGenerationSpecUpsertInput};
 use a4n_error::AppError;
@@ -278,9 +278,9 @@ impl OrchestratorContext {
         &self,
         host_port: &dyn CanvasVideoGenerationHostPort,
         config: &VideoProviderConfig,
-        video: generated_video::Model,
+        video: GeneratedVideoRecord,
         result: Result<VideoGenerationResult, AppError>,
-    ) -> Result<generated_video::Model, AppError> {
+    ) -> Result<GeneratedVideoRecord, AppError> {
         match result {
             Ok(result) if !result.bytes.is_empty() => {
                 self.complete_canvas_video_result(host_port, video, result)
@@ -334,9 +334,9 @@ impl OrchestratorContext {
     async fn complete_canvas_video_result(
         &self,
         host_port: &dyn CanvasVideoGenerationHostPort,
-        video: generated_video::Model,
+        video: GeneratedVideoRecord,
         result: VideoGenerationResult,
-    ) -> Result<generated_video::Model, AppError> {
+    ) -> Result<GeneratedVideoRecord, AppError> {
         let workflow_run_id = canvas_video_workflow_run_id(&video)?;
         if self
             .canvas_workflow_cancellation_reason(workflow_run_id)
@@ -443,9 +443,9 @@ impl OrchestratorContext {
         &self,
         host_port: &dyn CanvasVideoGenerationHostPort,
         config: &VideoProviderConfig,
-        mut video: generated_video::Model,
+        mut video: GeneratedVideoRecord,
         job_id: &str,
-    ) -> Result<generated_video::Model, AppError> {
+    ) -> Result<GeneratedVideoRecord, AppError> {
         let workflow_run_id = canvas_video_workflow_run_id(&video)?;
         let started = Instant::now();
         let timeout = Duration::from_secs(CANVAS_VIDEO_JOB_MAX_WAIT_SECS);
@@ -594,7 +594,7 @@ impl OrchestratorContext {
 
     async fn interrupt_canvas_video_polling(
         &self,
-        video: &generated_video::Model,
+        video: &GeneratedVideoRecord,
         message: &str,
     ) -> Result<(), AppError> {
         let updated = self
@@ -611,7 +611,7 @@ impl OrchestratorContext {
 
     async fn cancel_canvas_video_record(
         &self,
-        video: &generated_video::Model,
+        video: &GeneratedVideoRecord,
         message: &str,
     ) -> Result<(), AppError> {
         if crate::video::normalized_provider_job_id(video.provider_job_id.as_deref()).is_some() {
@@ -627,7 +627,7 @@ impl OrchestratorContext {
         &self,
         lifecycle: &crate::canvas::CanvasNodeLifecycle,
         generation_spec_id: i64,
-        video: generated_video::Model,
+        video: GeneratedVideoRecord,
     ) -> Result<CanvasRunSummary, AppError> {
         match video.status.as_str() {
             WORKFLOW_STATUS_FAILED => {
@@ -706,12 +706,7 @@ impl OrchestratorContext {
                     .ensure_canvas_video_media_asset_record(
                         crate::canvas::CanvasVideoMediaAssetEnsureInput {
                             project_id: lifecycle.project_id,
-                            video: self
-                                .canvas_generated_video_record_by_id(video.id)
-                                .await?
-                                .ok_or_else(|| {
-                                    AppError::NotFound(format!("视频记录不存在: {}", video.id))
-                                })?,
+                            video: video.clone(),
                             generation_spec_id: Some(generation_spec_id),
                             origin: "generated_canvas_video".to_string(),
                         },
@@ -809,7 +804,7 @@ impl OrchestratorContext {
     }
 }
 
-fn canvas_video_workflow_run_id(video: &generated_video::Model) -> Result<i64, AppError> {
+fn canvas_video_workflow_run_id(video: &GeneratedVideoRecord) -> Result<i64, AppError> {
     video
         .metadata_json
         .as_ref()

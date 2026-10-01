@@ -7,7 +7,7 @@ impl OrchestratorContext {
         &self,
         project_id: i64,
         chapter_id: i64,
-    ) -> Result<Vec<generated_image::Reference>, AppError> {
+    ) -> Result<Vec<GeneratedImageReferenceRecord>, AppError> {
         self.video
             .generated_images_for_video_prompt_references(project_id, chapter_id)
             .await
@@ -16,7 +16,7 @@ impl OrchestratorContext {
     pub(crate) async fn generated_images_by_ids(
         &self,
         image_ids: &[i64],
-    ) -> Result<Vec<generated_image::Model>, AppError> {
+    ) -> Result<Vec<GeneratedImageRecord>, AppError> {
         self.video.generated_images_by_ids(image_ids).await
     }
 
@@ -30,14 +30,14 @@ impl OrchestratorContext {
     pub(crate) async fn generated_images_for_project(
         &self,
         project_id: i64,
-    ) -> Result<Vec<generated_image::Model>, AppError> {
+    ) -> Result<Vec<GeneratedImageRecord>, AppError> {
         self.video.generated_images_for_project(project_id).await
     }
 
     pub(crate) async fn generated_images_for_projects(
         &self,
         project_ids: &[i64],
-    ) -> Result<Vec<generated_image::Model>, AppError> {
+    ) -> Result<Vec<GeneratedImageRecord>, AppError> {
         self.video.generated_images_for_projects(project_ids).await
     }
 
@@ -45,7 +45,7 @@ impl OrchestratorContext {
         &self,
         project_id: i64,
         chapter_id: i64,
-    ) -> Result<Vec<generated_image::Model>, AppError> {
+    ) -> Result<Vec<GeneratedImageRecord>, AppError> {
         self.video
             .ensure_image_chapter_belongs_to_project(project_id, chapter_id)
             .await?;
@@ -65,7 +65,7 @@ impl OrchestratorContext {
         &self,
         project_ids: &[i64],
         chapter_id: i64,
-    ) -> Result<Vec<generated_image::Model>, AppError> {
+    ) -> Result<Vec<GeneratedImageRecord>, AppError> {
         self.video
             .video_reference_candidate_image_records(project_ids, chapter_id)
             .await
@@ -91,7 +91,7 @@ impl OrchestratorContext {
         project_id: i64,
         chapter_id: i64,
         reference_image_ids_json: Option<&Value>,
-    ) -> Result<Vec<generated_image::Model>, AppError> {
+    ) -> Result<Vec<GeneratedImageRecord>, AppError> {
         self.video
             .validated_video_reference_image_records(
                 project_id,
@@ -104,7 +104,7 @@ impl OrchestratorContext {
     pub(crate) async fn generated_image_by_id(
         &self,
         image_id: i64,
-    ) -> Result<Option<generated_image::Model>, AppError> {
+    ) -> Result<Option<GeneratedImageRecord>, AppError> {
         self.video.generated_image_by_id(image_id).await
     }
 
@@ -112,7 +112,7 @@ impl OrchestratorContext {
         &self,
         image_id: i64,
         input: UpdateGeneratedImageRecordInput,
-    ) -> Result<generated_image::Model, AppError> {
+    ) -> Result<GeneratedImageRecord, AppError> {
         self.video
             .update_generated_image_record(image_id, input)
             .await
@@ -139,7 +139,7 @@ impl OrchestratorContext {
     pub(crate) async fn create_generated_image_record(
         &self,
         input: CreateGeneratedImageRecordDraftInput,
-    ) -> Result<generated_image::Model, AppError> {
+    ) -> Result<GeneratedImageRecord, AppError> {
         self.video.create_generated_image_record(input).await
     }
 
@@ -167,7 +167,7 @@ impl OrchestratorContext {
         &self,
         publication_id: &str,
         facts: ImagePublicationFileFacts,
-    ) -> Result<generated_image::Model, AppError> {
+    ) -> Result<GeneratedImageRecord, AppError> {
         self.video
             .publish_image_publication(publication_id, facts)
             .await
@@ -178,7 +178,7 @@ impl OrchestratorContext {
         publication_id: &str,
         facts: ImagePublicationFileFacts,
         generation_run: RecordCompletedGenerationRunWithCheckpointInput,
-    ) -> Result<generated_image::Model, AppError> {
+    ) -> Result<GeneratedImageRecord, AppError> {
         self.video
             .publish_image_publication_with_generation_run_checkpoint(
                 publication_id,

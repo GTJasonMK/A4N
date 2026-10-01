@@ -1,16 +1,17 @@
 //! 边界帧编号、提示词链和生成图片匹配规则（无 DB、无 Host）。
 
-use a4n_db_models::models::ai::generated_image;
 use a4n_db_models::models::chapter::chapter_video_prompt;
 use a4n_domain::image::{
     IMAGE_GENERATION_SOURCE_VIDEO_BOUNDARY_FRAME_PROMPT, image_generation_prompt_id,
     image_generation_source,
 };
+use a4n_domain::media::GeneratedImageReferenceRecord;
+use a4n_domain::video_prompt::ChapterVideoPromptRecord;
 
 use super::{PromptChainFields, prompt_chain_matches, prompt_source_type_matches};
 
 pub fn boundary_frame_numbers_for_prompt(
-    prompt: &chapter_video_prompt::Model,
+    prompt: &ChapterVideoPromptRecord,
 ) -> Result<(i32, i32), String> {
     let metadata = prompt.metadata_json.as_ref().ok_or_else(|| {
         format!(
@@ -39,7 +40,7 @@ pub fn boundary_frame_numbers_for_prompt(
 }
 
 pub fn frame_prompt_matches_video_prompt<P: PromptChainFields>(
-    video_prompt: &chapter_video_prompt::Model,
+    video_prompt: &ChapterVideoPromptRecord,
     frame_prompt: &P,
 ) -> bool {
     prompt_chain_matches(
@@ -57,7 +58,7 @@ pub fn frame_prompt_matches_video_prompt<P: PromptChainFields>(
 
 /// Resolves both boundary images in one pass over the id-descending image list.
 pub(in crate::video) fn latest_boundary_frame_image_ids(
-    images: &[generated_image::Reference],
+    images: &[GeneratedImageReferenceRecord],
     frame_prompt_ids: (Option<i64>, Option<i64>),
 ) -> (Option<i64>, Option<i64>) {
     let (first_prompt_id, last_prompt_id) = frame_prompt_ids;
@@ -91,7 +92,7 @@ pub(in crate::video) fn latest_boundary_frame_image_ids(
 }
 
 fn required_video_unit_frame_number(
-    prompt: &chapter_video_prompt::Model,
+    prompt: &ChapterVideoPromptRecord,
     video_unit: &serde_json::Map<String, serde_json::Value>,
     key: &str,
     label: &str,
@@ -122,8 +123,8 @@ mod tests {
 
     use super::*;
 
-    fn image(id: i64, prompt_id: i64, source: &str) -> generated_image::Reference {
-        generated_image::Reference {
+    fn image(id: i64, prompt_id: i64, source: &str) -> GeneratedImageReferenceRecord {
+        GeneratedImageReferenceRecord {
             id,
             image_type: "video_boundary_frame".to_string(),
             metadata_json: Some(json!({

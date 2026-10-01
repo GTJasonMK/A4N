@@ -1,6 +1,6 @@
+use a4n_domain::video_prompt::ChapterVideoPromptRecord;
 use std::collections::{BTreeMap, HashMap, HashSet};
 
-use a4n_db_models::models::chapter::chapter_video_prompt;
 use a4n_domain::prompt_language::PromptOutputLanguage;
 use a4n_domain::prompt_language::metadata_matches_prompt_output_language;
 use a4n_error::AppError;
@@ -19,8 +19,8 @@ pub(in crate::video::prompts::generation::frame_prompts) async fn reusable_frame
     source_prompt_type: &str,
     video_execution_identity: &Value,
     prompt_output_language: PromptOutputLanguage,
-) -> Result<Vec<chapter_video_prompt::Model>, AppError> {
-    let rows = a4n_db::video::chapter_video_prompt_workflow_records(
+) -> Result<Vec<ChapterVideoPromptRecord>, AppError> {
+    let rows = a4n_db::video::read_models::chapter_video_prompt_workflow_records(
         service.database.connection(),
         project_id,
         chapter_id,
@@ -31,7 +31,7 @@ pub(in crate::video::prompts::generation::frame_prompts) async fn reusable_frame
     .await
     .map_err(AppError::Database)?;
 
-    let mut by_frame = BTreeMap::<i32, chapter_video_prompt::Model>::new();
+    let mut by_frame = BTreeMap::<i32, ChapterVideoPromptRecord>::new();
     for row in rows {
         if !frame_prompt_row_matches_video_input_contract(
             &row,
@@ -66,7 +66,7 @@ pub(in crate::video::prompts::generation::frame_prompts) async fn reusable_frame
 }
 
 pub(super) fn frame_prompt_row_matches_video_input_contract(
-    row: &chapter_video_prompt::Model,
+    row: &ChapterVideoPromptRecord,
     workflow_mode: PromptWorkflowMode,
     prompt_type: &str,
     source_prompt_type: &str,

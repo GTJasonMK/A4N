@@ -6,7 +6,7 @@ impl OrchestratorContext {
     pub(crate) async fn create_video_record(
         &self,
         input: CreateGeneratedVideoRecordDraftInput,
-    ) -> Result<generated_video::Model, AppError> {
+    ) -> Result<GeneratedVideoRecord, AppError> {
         self.video.create_generated_video_record(input).await
     }
 
@@ -15,7 +15,7 @@ impl OrchestratorContext {
         &self,
         input: CreateGeneratedVideoRecordDraftInput,
         generation_run: RecordStartedGenerationRunInput,
-    ) -> Result<generated_video::Model, AppError> {
+    ) -> Result<GeneratedVideoRecord, AppError> {
         self.video
             .create_generated_video_record_with_generation_run(input, generation_run)
             .await
@@ -26,7 +26,7 @@ impl OrchestratorContext {
         &self,
         input: CreateGeneratedVideoRecordDraftInput,
         generation_run: RecordStartedGenerationRunInput,
-    ) -> Result<generated_video::Model, AppError> {
+    ) -> Result<GeneratedVideoRecord, AppError> {
         crate::video::ensure_positive_project_id_for_video(input.project_id)
             .map_err(AppError::InvalidArgument)?;
         self.create_video_record_with_generation_run(input, generation_run)
@@ -39,7 +39,7 @@ impl OrchestratorContext {
         input: CreateGeneratedVideoRecordDraftInput,
         generation_run: RecordStartedGenerationRunInput,
         prompt_id: i64,
-    ) -> Result<generated_video::Model, AppError> {
+    ) -> Result<GeneratedVideoRecord, AppError> {
         self.video
             .create_prompt_generated_video_record_with_generation_run(
                 input,
@@ -55,7 +55,7 @@ impl OrchestratorContext {
         input: CreateGeneratedVideoRecordDraftInput,
         generation_run: RecordStartedGenerationRunInput,
         prompt_id: i64,
-    ) -> Result<generated_video::Model, AppError> {
+    ) -> Result<GeneratedVideoRecord, AppError> {
         crate::video::ensure_positive_project_id_for_video(input.project_id)
             .map_err(AppError::InvalidArgument)?;
         crate::video::ensure_positive_video_prompt_id(prompt_id)
@@ -68,7 +68,7 @@ impl OrchestratorContext {
         &self,
         project_id: i64,
         chapter_id: i64,
-    ) -> Result<Vec<generated_video::Model>, AppError> {
+    ) -> Result<Vec<GeneratedVideoRecord>, AppError> {
         self.video
             .generated_videos_for_chapter(project_id, chapter_id)
             .await
@@ -77,14 +77,14 @@ impl OrchestratorContext {
     pub(crate) async fn generated_video_by_id(
         &self,
         video_id: i64,
-    ) -> Result<Option<generated_video::Model>, AppError> {
+    ) -> Result<Option<GeneratedVideoRecord>, AppError> {
         self.video.generated_video_by_id(video_id).await
     }
 
     pub(crate) async fn generated_videos_by_ids(
         &self,
         video_ids: &[i64],
-    ) -> Result<Vec<generated_video::Model>, AppError> {
+    ) -> Result<Vec<GeneratedVideoRecord>, AppError> {
         self.video.generated_videos_by_ids(video_ids).await
     }
 
@@ -163,7 +163,7 @@ impl OrchestratorContext {
         &self,
         video_id: i64,
         input: UpdateGeneratedVideoRecordInput,
-    ) -> Result<generated_video::Model, AppError> {
+    ) -> Result<GeneratedVideoRecord, AppError> {
         self.video
             .update_generated_video_record(video_id, input)
             .await
@@ -214,7 +214,7 @@ impl OrchestratorContext {
         video_id: i64,
         prompt_id: Option<i64>,
         status: &str,
-    ) -> Result<generated_video::Model, AppError> {
+    ) -> Result<GeneratedVideoRecord, AppError> {
         self.video
             .update_generated_video_waiting_status_and_prompt_record(video_id, prompt_id, status)
             .await
@@ -228,7 +228,7 @@ impl OrchestratorContext {
         prompt_id: Option<i64>,
         status: &str,
         message: &str,
-    ) -> Result<generated_video::Model, AppError> {
+    ) -> Result<GeneratedVideoRecord, AppError> {
         self.video
             .mark_generated_video_error_status_and_prompt_record(
                 video_id, prompt_id, status, message,
@@ -243,7 +243,7 @@ impl OrchestratorContext {
         provider_job_id: &str,
         metadata_json: Option<Value>,
         prompt_id: Option<i64>,
-    ) -> Result<generated_video::Model, AppError> {
+    ) -> Result<GeneratedVideoRecord, AppError> {
         self.video
             .mark_generated_video_job_and_prompt_record(
                 video_id,
@@ -262,7 +262,7 @@ impl OrchestratorContext {
         provider_job_id: &str,
         metadata_json: Option<Value>,
         prompt_id: Option<i64>,
-    ) -> Result<generated_video::Model, AppError> {
+    ) -> Result<GeneratedVideoRecord, AppError> {
         crate::video::ensure_positive_generated_video_id(video_id)
             .map_err(AppError::InvalidArgument)?;
         let provider_job_id = crate::video::required_provider_job_id(provider_job_id)
@@ -284,7 +284,7 @@ impl OrchestratorContext {
         properties: &a4n_domain::media::VideoFileProperties,
         metadata_json: Option<Value>,
         prompt_id: Option<i64>,
-    ) -> Result<generated_video::Model, AppError> {
+    ) -> Result<GeneratedVideoRecord, AppError> {
         self.video
             .mark_generated_video_completed_and_link_prompt_record(
                 video_id,
@@ -304,7 +304,7 @@ impl OrchestratorContext {
         video_id: i64,
         prompt_id: Option<i64>,
         message: &str,
-    ) -> Result<generated_video::Model, AppError> {
+    ) -> Result<GeneratedVideoRecord, AppError> {
         crate::video::ensure_positive_generated_video_id(video_id)
             .map_err(AppError::InvalidArgument)?;
         let message = crate::video::required_generated_video_failure_message(message)
@@ -336,7 +336,7 @@ impl OrchestratorContext {
         video_id: i64,
         prompt_id: Option<i64>,
         message: &str,
-    ) -> Result<generated_video::Model, AppError> {
+    ) -> Result<GeneratedVideoRecord, AppError> {
         crate::video::ensure_positive_generated_video_id(video_id)
             .map_err(AppError::InvalidArgument)?;
         let message = crate::video::required_generated_video_failure_message(message)
@@ -369,7 +369,7 @@ impl OrchestratorContext {
         video_id: i64,
         prompt_id: Option<i64>,
         status: &str,
-    ) -> Result<generated_video::Model, AppError> {
+    ) -> Result<GeneratedVideoRecord, AppError> {
         crate::video::ensure_positive_generated_video_id(video_id)
             .map_err(AppError::InvalidArgument)?;
         crate::video::validate_generated_video_waiting_status(status)
@@ -385,7 +385,7 @@ impl OrchestratorContext {
         video_id: i64,
         prompt_id: Option<i64>,
         message: &str,
-    ) -> Result<generated_video::Model, AppError> {
+    ) -> Result<GeneratedVideoRecord, AppError> {
         crate::video::ensure_positive_generated_video_id(video_id)
             .map_err(AppError::InvalidArgument)?;
         let message = crate::video::required_generated_video_failure_message(message)
@@ -402,7 +402,7 @@ impl OrchestratorContext {
     /// 完成 provider 视频后：complete 关联 generation_run，并要求至少一条。
     pub(crate) async fn complete_generated_video_provider_runs_validated(
         &self,
-        video: &generated_video::Model,
+        video: &GeneratedVideoRecord,
     ) -> Result<(), AppError> {
         crate::video::ensure_positive_generated_video_id(video.id)
             .map_err(AppError::InvalidArgument)?;

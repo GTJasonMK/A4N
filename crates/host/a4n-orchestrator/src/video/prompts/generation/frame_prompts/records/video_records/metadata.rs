@@ -1,4 +1,4 @@
-use a4n_db_models::models::chapter::chapter_video_prompt;
+use a4n_domain::video_prompt::ChapterVideoPromptRecord;
 use a4n_error::AppError;
 use serde::Deserialize;
 use serde::de::DeserializeOwned;
@@ -30,7 +30,7 @@ pub(super) struct SavedChatVideoPromptMetadata {
 }
 
 pub(super) fn required_row_aspect_ratio(
-    row: &chapter_video_prompt::Model,
+    row: &ChapterVideoPromptRecord,
     label: &str,
 ) -> Result<String, AppError> {
     row.aspect_ratio.clone().ok_or_else(|| {
@@ -42,7 +42,7 @@ pub(super) fn required_row_aspect_ratio(
 }
 
 pub(super) fn row_reference_image_ids(
-    row: &chapter_video_prompt::Model,
+    row: &ChapterVideoPromptRecord,
     label: &str,
 ) -> Result<Vec<i64>, AppError> {
     match row.reference_image_ids_json.as_ref() {
@@ -58,7 +58,7 @@ pub(super) fn row_reference_image_ids(
 
 pub(super) fn required_row_text(
     value: &Option<String>,
-    row: &chapter_video_prompt::Model,
+    row: &ChapterVideoPromptRecord,
     label: &str,
     field: &str,
 ) -> Result<String, AppError> {
@@ -72,7 +72,7 @@ pub(super) fn required_row_text(
         })
 }
 
-pub(super) fn row_metadata<T>(row: &chapter_video_prompt::Model, label: &str) -> Result<T, AppError>
+pub(super) fn row_metadata<T>(row: &ChapterVideoPromptRecord, label: &str) -> Result<T, AppError>
 where
     T: DeserializeOwned,
 {

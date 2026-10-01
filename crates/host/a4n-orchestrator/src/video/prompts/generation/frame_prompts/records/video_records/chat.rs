@@ -1,6 +1,6 @@
+use a4n_domain::video_prompt::ChapterVideoPromptRecord;
 use std::collections::BTreeMap;
 
-use a4n_db_models::models::chapter::chapter_video_prompt;
 use a4n_error::AppError;
 
 use super::super::super::super::super::json::ChatVideoPromptShot;
@@ -10,7 +10,7 @@ use super::metadata::{
 };
 
 pub(in crate::video) fn reusable_chat_video_prompts_from_rows(
-    rows: &[chapter_video_prompt::Model],
+    rows: &[ChapterVideoPromptRecord],
 ) -> Result<BTreeMap<i32, ChatVideoPromptShot>, AppError> {
     let mut by_shot = BTreeMap::<i32, ChatVideoPromptShot>::new();
     for row in rows {
@@ -21,7 +21,7 @@ pub(in crate::video) fn reusable_chat_video_prompts_from_rows(
 }
 
 fn reusable_chat_video_prompt_from_row(
-    row: &chapter_video_prompt::Model,
+    row: &ChapterVideoPromptRecord,
 ) -> Result<ChatVideoPromptShot, AppError> {
     let metadata = row_metadata::<SavedChatVideoPromptMetadata>(row, "Chat 视频提示词")?;
     let aspect_ratio = required_row_aspect_ratio(row, "Chat 视频提示词")?;

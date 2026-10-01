@@ -14,7 +14,7 @@ pub(in crate::video::prompts::generation::frame_prompts) async fn ensure_existin
     prompt_type: &str,
     prompt_output_language: PromptOutputLanguage,
 ) -> Result<(), AppError> {
-    let rows = a4n_db::video::chapter_video_prompt_workflow_records(
+    let rows = a4n_db::video::read_models::chapter_video_prompt_workflow_records(
         service.database.connection(),
         project_id,
         chapter_id,
@@ -32,7 +32,6 @@ pub(in crate::video::prompts::generation::frame_prompts) async fn ensure_existin
                 prompt_output_language,
             )
         })
-        .map(a4n_db::video::read_models::chapter_video_prompt_from_model)
         .collect::<Vec<_>>();
     service
         .ensure_prompt_stages_mutable(&rows, "重新生成")
@@ -68,7 +67,6 @@ pub(in crate::video::prompts::generation::frame_prompts) async fn ensure_segment
     .into_iter()
     .next();
     if let Some(row) = existing {
-        let row = a4n_db::video::read_models::chapter_video_prompt_from_model(row);
         service
             .ensure_prompt_stage_mutable_ignoring(&row, "重新生成", &ignored_prompt_ids)
             .await?;

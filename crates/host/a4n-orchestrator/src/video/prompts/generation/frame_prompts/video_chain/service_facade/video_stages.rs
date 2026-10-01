@@ -1,4 +1,4 @@
-use a4n_db_models::models::chapter::chapter_video_prompt;
+use a4n_domain::video_prompt::ChapterVideoPromptRecord;
 
 use super::super::super::{
     AppError, BOUNDARY_FRAME_PROMPT_GENERATION, CHAT_VIDEO_PROMPT_GENERATION,
@@ -13,7 +13,7 @@ impl OrchestratorContext {
         input: ChapterVideoPromptStageInput<'_, '_>,
         chunks: Option<VideoPromptChunk<'_>>,
         progress: Option<VideoPromptProgress<'_>>,
-    ) -> Result<Vec<chapter_video_prompt::Model>, AppError> {
+    ) -> Result<Vec<ChapterVideoPromptRecord>, AppError> {
         generate_chapter_video_prompt_chain(
             video_prompt_chain_input(self, &CHAT_VIDEO_PROMPT_GENERATION, input),
             chunks,
@@ -27,7 +27,7 @@ impl OrchestratorContext {
         input: ChapterVideoPromptStageInput<'_, '_>,
         chunks: Option<VideoPromptChunk<'_>>,
         progress: Option<VideoPromptProgress<'_>>,
-    ) -> Result<Vec<chapter_video_prompt::Model>, AppError> {
+    ) -> Result<Vec<ChapterVideoPromptRecord>, AppError> {
         generate_chapter_video_prompt_chain(
             video_prompt_chain_input(self, &BOUNDARY_FRAME_PROMPT_GENERATION, input),
             chunks,
@@ -41,7 +41,7 @@ impl OrchestratorContext {
         input: ChapterVideoPromptStageInput<'_, '_>,
         chunks: Option<VideoPromptChunk<'_>>,
         progress: Option<VideoPromptProgress<'_>>,
-    ) -> Result<Vec<chapter_video_prompt::Model>, AppError> {
+    ) -> Result<Vec<ChapterVideoPromptRecord>, AppError> {
         generate_chapter_video_prompt_chain(
             video_prompt_chain_input(self, &FIRST_FRAME_PROMPT_GENERATION, input),
             chunks,
@@ -55,7 +55,7 @@ impl OrchestratorContext {
         input: ChapterVideoPromptStageInput<'_, '_>,
         chunks: Option<VideoPromptChunk<'_>>,
         progress: Option<VideoPromptProgress<'_>>,
-    ) -> Result<Vec<chapter_video_prompt::Model>, AppError> {
+    ) -> Result<Vec<ChapterVideoPromptRecord>, AppError> {
         generate_chapter_video_prompt_chain(
             video_prompt_chain_input(self, &STORYBOARD_PROMPT_GENERATION, input),
             chunks,

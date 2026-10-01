@@ -1,6 +1,6 @@
+use a4n_domain::video_prompt::ChapterVideoPromptRecord;
 use std::collections::{HashMap, HashSet};
 
-use a4n_db_models::models::chapter::chapter_video_prompt;
 use a4n_domain::image::{
     IMAGE_GENERATION_SOURCE_VIDEO_BOUNDARY_FRAME_PROMPT,
     IMAGE_GENERATION_SOURCE_VIDEO_STORYBOARD_PROMPT,
@@ -31,7 +31,7 @@ pub(in crate::video) async fn boundary_frame_image_ids_by_number(
     service: &OrchestratorContext,
     project_id: i64,
     chapter_id: i64,
-    frame_rows: &[chapter_video_prompt::Model],
+    frame_rows: &[ChapterVideoPromptRecord],
 ) -> Result<HashMap<i32, i64>, AppError> {
     let prompt_id_by_frame_number = frame_rows
         .iter()
@@ -141,7 +141,7 @@ pub(in crate::video) async fn storyboard_frame_image_ids_by_number(
     service: &OrchestratorContext,
     project_id: i64,
     chapter_id: i64,
-    frame_rows: &[chapter_video_prompt::Model],
+    frame_rows: &[ChapterVideoPromptRecord],
 ) -> Result<HashMap<i32, i64>, AppError> {
     let prompt_id_by_frame_number = frame_rows
         .iter()

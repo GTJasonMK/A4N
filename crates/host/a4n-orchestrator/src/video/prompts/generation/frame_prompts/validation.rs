@@ -1,6 +1,6 @@
+use a4n_domain::video_prompt::ChapterVideoPromptRecord;
 use std::collections::{HashMap, HashSet};
 
-use a4n_db_models::models::chapter::chapter_video_prompt;
 use a4n_error::AppError;
 
 use super::{
@@ -145,11 +145,11 @@ pub(super) fn validate_partial_boundary_frame_prompts(
 }
 
 pub(in crate::video) fn boundary_frame_prompt_rows_prefix(
-    rows: Vec<chapter_video_prompt::Model>,
+    rows: Vec<ChapterVideoPromptRecord>,
     segment_plan: &[VideoSegmentPlan],
     allowed_reference_ids: &HashSet<i64>,
     image_id_by_frame_number: &HashMap<i32, i64>,
-) -> Result<Vec<chapter_video_prompt::Model>, AppError> {
+) -> Result<Vec<ChapterVideoPromptRecord>, AppError> {
     let mut prefix = Vec::new();
     let mut units = None;
     let mut segment_by_number = None;

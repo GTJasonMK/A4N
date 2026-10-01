@@ -4,7 +4,8 @@ use a4n_db_models::models::{
     project::novel_project,
 };
 use a4n_domain::image::{
-    IMAGE_GENERATION_SOURCE_VIDEO_BOUNDARY_FRAME_PROMPT, IMAGE_TYPE_VIDEO_KEY_FRAME,
+    IMAGE_GENERATION_SOURCE_VIDEO_BOUNDARY_FRAME_PROMPT, IMAGE_TYPE_SCENE_MATERIAL,
+    IMAGE_TYPE_VIDEO_KEY_FRAME,
 };
 use a4n_domain::media::{
     CreateGeneratedImageRecordDraftInput, CreateGeneratedVideoRecordDraftInput,
@@ -99,6 +100,23 @@ async fn generated_image_ids_by_ids_returns_existing_only() {
             .unwrap()
             .is_empty()
     );
+}
+
+#[tokio::test]
+async fn video_profile_material_read_model_returns_domain_image_records() {
+    let db = setup_db().await;
+    let project = text_project(&db, "视频素材记录投影").await;
+    let mut input = image_input(project.id);
+    input.image_type = IMAGE_TYPE_SCENE_MATERIAL.to_string();
+    let image = crate::video::read_models::create_generated_image_record(&db, input)
+        .await
+        .unwrap();
+
+    let read_model = crate::video::video_profile_material_read_model(&db, &[project.id])
+        .await
+        .unwrap();
+
+    assert_eq!(read_model.material_images, vec![image]);
 }
 
 async fn manga_prompt(

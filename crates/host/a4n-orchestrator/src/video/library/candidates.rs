@@ -1,7 +1,7 @@
+use a4n_domain::media::GeneratedImageRecord;
 use std::collections::HashMap;
 
-use a4n_db::profile_material::generated_image_profile_material_identity;
-use a4n_db_models::models::ai::generated_image;
+use a4n_db::profile_material::profile_material_identity;
 
 use super::{
     MAX_AVAILABLE_VIDEO_ASSETS, SELECTION_REASON_PROFILE_FAVORITE, SELECTION_REASON_PROFILE_LATEST,
@@ -10,7 +10,7 @@ use super::{
 
 #[derive(Clone)]
 pub(super) struct VideoAssetCandidate {
-    pub(super) image: generated_image::Model,
+    pub(super) image: GeneratedImageRecord,
     pub(super) selection_reason: &'static str,
     priority: usize,
     sort_order: usize,
@@ -22,13 +22,13 @@ pub(super) struct VideoAssetCandidate {
 
 impl VideoAssetCandidate {
     pub(super) fn new(
-        image: generated_image::Model,
+        image: GeneratedImageRecord,
         selection_reason: &'static str,
         priority: usize,
         sort_order: usize,
         relevance_rank: usize,
     ) -> Self {
-        let identity = generated_image_profile_material_identity(&image);
+        let identity = profile_material_identity(&image.image_type, image.metadata_json.as_ref());
         Self {
             image,
             selection_reason,
@@ -92,9 +92,9 @@ pub(super) struct RelevantProfile {
 }
 
 pub(super) fn best_profile_material_image(
-    images: &[generated_image::Model],
+    images: &[GeneratedImageRecord],
     primary_id: Option<i64>,
-) -> Option<(&generated_image::Model, &'static str, usize, bool)> {
+) -> Option<(&GeneratedImageRecord, &'static str, usize, bool)> {
     if let Some(primary_id) = primary_id
         && let Some(image) = images.iter().find(|image| image.id == primary_id)
     {

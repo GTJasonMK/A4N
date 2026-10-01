@@ -1,7 +1,7 @@
+use a4n_domain::video_prompt::ChapterVideoPromptRecord;
 use std::collections::BTreeMap;
 
 use crate::video::OrchestratorContext;
-use a4n_db_models::models::chapter::chapter_video_prompt;
 use a4n_domain::prompt_language::PromptOutputLanguage;
 use a4n_error::AppError;
 
@@ -15,7 +15,7 @@ impl OrchestratorContext {
         &self,
         context: PromptWorkflowRowsContext<'_>,
         prompt_output_language: PromptOutputLanguage,
-    ) -> Result<Vec<chapter_video_prompt::Model>, AppError> {
+    ) -> Result<Vec<ChapterVideoPromptRecord>, AppError> {
         let rows = self
             .prompt_rows_matching_workflow(PromptWorkflowRowsQuery {
                 context,
@@ -24,7 +24,7 @@ impl OrchestratorContext {
             })
             .await?;
 
-        let mut by_shot = BTreeMap::<i32, chapter_video_prompt::Model>::new();
+        let mut by_shot = BTreeMap::<i32, ChapterVideoPromptRecord>::new();
         for row in rows {
             by_shot.entry(row.shot_number).or_insert(row);
         }
@@ -35,7 +35,7 @@ impl OrchestratorContext {
         &self,
         context: PromptWorkflowRowsContext<'_>,
         prompt_output_language: PromptOutputLanguage,
-    ) -> Result<Vec<chapter_video_prompt::Model>, AppError> {
+    ) -> Result<Vec<ChapterVideoPromptRecord>, AppError> {
         self.prompt_rows_matching_workflow(PromptWorkflowRowsQuery {
             context,
             prompt_output_language,
@@ -47,13 +47,13 @@ impl OrchestratorContext {
     async fn prompt_rows_matching_workflow(
         &self,
         query: PromptWorkflowRowsQuery<'_>,
-    ) -> Result<Vec<chapter_video_prompt::Model>, AppError> {
+    ) -> Result<Vec<ChapterVideoPromptRecord>, AppError> {
         let PromptWorkflowRowsQuery {
             context,
             prompt_output_language,
             exclude_running,
         } = query;
-        let rows = a4n_db::video::chapter_video_prompt_workflow_records(
+        let rows = a4n_db::video::read_models::chapter_video_prompt_workflow_records(
             self.database.connection(),
             context.project_id,
             context.chapter_id,
