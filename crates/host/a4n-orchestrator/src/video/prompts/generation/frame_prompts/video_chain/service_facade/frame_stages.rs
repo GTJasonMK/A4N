@@ -1,4 +1,4 @@
-use a4n_db_models::models::chapter::chapter_video_prompt;
+use a4n_domain::video_prompt::ChapterVideoPromptRecord;
 
 use super::super::super::*;
 use super::super::inputs::frame_prompt_chain_input;
@@ -9,7 +9,7 @@ impl OrchestratorContext {
         input: ChapterVideoPromptStageInput<'_, '_>,
         chunks: Option<VideoPromptChunk<'_>>,
         progress: Option<VideoPromptProgress<'_>>,
-    ) -> Result<Vec<chapter_video_prompt::Model>, AppError> {
+    ) -> Result<Vec<ChapterVideoPromptRecord>, AppError> {
         generate_chapter_frame_prompt_chain(
             frame_prompt_chain_input(self, &BOUNDARY_FRAME_PROMPT_GENERATION, input),
             chunks,
@@ -23,7 +23,7 @@ impl OrchestratorContext {
         input: ChapterVideoPromptStageInput<'_, '_>,
         chunks: Option<VideoPromptChunk<'_>>,
         progress: Option<VideoPromptProgress<'_>>,
-    ) -> Result<Vec<chapter_video_prompt::Model>, AppError> {
+    ) -> Result<Vec<ChapterVideoPromptRecord>, AppError> {
         generate_shared_segment_plan(
             SharedSegmentPlanInput {
                 service: self,
@@ -40,7 +40,7 @@ impl OrchestratorContext {
         input: ChapterVideoPromptStageInput<'_, '_>,
         chunks: Option<VideoPromptChunk<'_>>,
         progress: Option<VideoPromptProgress<'_>>,
-    ) -> Result<Vec<chapter_video_prompt::Model>, AppError> {
+    ) -> Result<Vec<ChapterVideoPromptRecord>, AppError> {
         generate_chapter_frame_prompt_chain(
             frame_prompt_chain_input(self, &FIRST_FRAME_PROMPT_GENERATION, input),
             chunks,
@@ -54,7 +54,7 @@ impl OrchestratorContext {
         input: ChapterVideoPromptStageInput<'_, '_>,
         chunks: Option<VideoPromptChunk<'_>>,
         progress: Option<VideoPromptProgress<'_>>,
-    ) -> Result<Vec<chapter_video_prompt::Model>, AppError> {
+    ) -> Result<Vec<ChapterVideoPromptRecord>, AppError> {
         generate_chapter_frame_prompt_chain(
             frame_prompt_chain_input(self, &STORYBOARD_PROMPT_GENERATION, input),
             chunks,

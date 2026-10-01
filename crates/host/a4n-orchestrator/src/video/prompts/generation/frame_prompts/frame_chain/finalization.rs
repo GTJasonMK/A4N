@@ -1,4 +1,4 @@
-use a4n_db_models::models::chapter::chapter_video_prompt;
+use a4n_domain::video_prompt::ChapterVideoPromptRecord;
 use a4n_error::AppError;
 
 use crate::video::prompts::generation::frame_prompts::{
@@ -20,7 +20,7 @@ pub(super) struct FrameChainFinalizationInput<'a, 'progress> {
 
 pub(super) async fn finalize_frame_chain(
     input: FrameChainFinalizationInput<'_, '_>,
-) -> Result<Vec<chapter_video_prompt::Model>, AppError> {
+) -> Result<Vec<ChapterVideoPromptRecord>, AppError> {
     if input.frame_drafts.is_empty() {
         return Err(AppError::InvalidArgument(format!(
             "本次{}工作流未产生任何目标记录；请检查本次生成数量、片段规划和已有提示词状态",

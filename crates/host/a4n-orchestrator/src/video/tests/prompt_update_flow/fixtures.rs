@@ -1,3 +1,4 @@
+use a4n_domain::video_prompt::ChapterVideoPromptRecord;
 async fn insert_stage_prompt(
     db: &DatabaseConnection,
     project_id: i64,
@@ -6,7 +7,7 @@ async fn insert_stage_prompt(
     workflow_mode: &str,
     shot_number: i32,
     metadata_json: Value,
-) -> chapter_video_prompt::Model {
+) -> ChapterVideoPromptRecord {
     let now = fixed_time(4);
     let mut metadata_json = metadata_json;
     if let Some(metadata) = metadata_json.as_object_mut() {
@@ -30,7 +31,7 @@ async fn insert_stage_prompt(
                 })
             });
     }
-    chapter_video_prompt::ActiveModel {
+    let prompt = chapter_video_prompt::ActiveModel {
         project_id: Set(project_id),
         chapter_id: Set(chapter_id),
         style: Set(Some("电影感写实".to_string())),
@@ -54,5 +55,6 @@ async fn insert_stage_prompt(
     }
     .insert(db)
     .await
-    .unwrap()
+    .unwrap();
+    a4n_db::video::read_models::chapter_video_prompt_from_model(prompt)
 }

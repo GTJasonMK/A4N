@@ -1,6 +1,6 @@
 //! 视频 provider 轮询工作流指纹与 business key 纯规则（无 DB）。
 
-use a4n_db_models::models::ai::generated_video;
+use a4n_domain::media::GeneratedVideoRecord;
 use a4n_domain::video::generated_video_prompt_id;
 use serde_json::{Value, json};
 
@@ -16,7 +16,7 @@ pub fn video_provider_workflow_business_key(video_id: i64) -> Result<String, Str
 }
 
 /// 视频 provider 工作流输入指纹。
-pub fn video_provider_workflow_fingerprint(video: &generated_video::Model, job_id: &str) -> Value {
+pub fn video_provider_workflow_fingerprint(video: &GeneratedVideoRecord, job_id: &str) -> Value {
     json!({
         "generated_video_id": video.id,
         "provider_job_id": job_id,
@@ -40,7 +40,7 @@ pub fn video_provider_workflow_fingerprint(video: &generated_video::Model, job_i
 
 /// 构造 RUNNING 态 provider 进度 begin 输入。
 pub fn video_provider_progress_workflow_run_input(
-    video: &generated_video::Model,
+    video: &GeneratedVideoRecord,
     job_id: &str,
 ) -> Result<UpsertWorkflowRunInput, String> {
     if video.project_id <= 0 {

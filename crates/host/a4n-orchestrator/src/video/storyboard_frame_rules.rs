@@ -1,16 +1,17 @@
 //! Storyboard 提示词链与生成图片匹配规则（无 DB、无 Host）。
 
-use a4n_db_models::models::ai::generated_image;
 use a4n_db_models::models::chapter::chapter_video_prompt;
 use a4n_domain::image::{
     IMAGE_GENERATION_SOURCE_VIDEO_STORYBOARD_PROMPT, image_generation_prompt_id,
     image_generation_source,
 };
+use a4n_domain::media::GeneratedImageReferenceRecord;
+use a4n_domain::video_prompt::ChapterVideoPromptRecord;
 
 use super::{PromptChainFields, prompt_chain_matches, prompt_source_type_matches};
 
 pub fn storyboard_prompt_matches_video_prompt<P: PromptChainFields>(
-    video_prompt: &chapter_video_prompt::Model,
+    video_prompt: &ChapterVideoPromptRecord,
     storyboard_prompt: &P,
 ) -> bool {
     prompt_chain_matches(
@@ -27,7 +28,7 @@ pub fn storyboard_prompt_matches_video_prompt<P: PromptChainFields>(
 }
 
 pub fn latest_storyboard_image_id<P: PromptChainFields>(
-    images: &[generated_image::Reference],
+    images: &[GeneratedImageReferenceRecord],
     storyboard_prompt: &P,
 ) -> Option<i64> {
     images
@@ -52,14 +53,14 @@ mod tests {
         STORYBOARD_PROMPT_CONTRACT_VERSION, STORYBOARD_VIDEO_PROMPT_CONTRACT_VERSION,
     };
 
-    fn prompt(id: i64, prompt_type: &str, contract_version: &str) -> chapter_video_prompt::Model {
+    fn prompt(id: i64, prompt_type: &str, contract_version: &str) -> ChapterVideoPromptRecord {
         let now = Utc::now().naive_utc();
         let recipe_fingerprint = if prompt_type == "video_prompt" {
             "video-recipe"
         } else {
             "frame-recipe"
         };
-        chapter_video_prompt::Model {
+        ChapterVideoPromptRecord {
             id,
             project_id: 1,
             chapter_id: 2,
@@ -105,8 +106,8 @@ mod tests {
         id: i64,
         source_prompt_id: i64,
         generation_source: &str,
-    ) -> generated_image::Reference {
-        generated_image::Reference {
+    ) -> GeneratedImageReferenceRecord {
+        GeneratedImageReferenceRecord {
             id,
             image_type: "storyboard".to_string(),
             metadata_json: Some(json!({

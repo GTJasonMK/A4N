@@ -1,4 +1,4 @@
-use a4n_db_models::models::chapter::chapter_video_prompt;
+use a4n_domain::video_prompt::ChapterVideoPromptRecord;
 use a4n_error::AppError;
 
 use super::super::contracts::ReusableFrameRowsQuery;
@@ -6,7 +6,7 @@ use crate::video::prompts::records::PromptWorkflowRowsContext;
 
 pub(in crate::video::prompts::generation::frame_prompts) async fn reusable_frame_rows_for_resume(
     query: ReusableFrameRowsQuery<'_>,
-) -> Result<Vec<chapter_video_prompt::Model>, AppError> {
+) -> Result<Vec<ChapterVideoPromptRecord>, AppError> {
     let ReusableFrameRowsQuery {
         service,
         project_id,

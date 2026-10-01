@@ -1,6 +1,7 @@
 //! 按 workflow_mode 分发 video application 的 generate/preview 入口。
 
 use a4n_db_models::models::chapter::chapter_video_prompt;
+use a4n_domain::video_prompt::ChapterVideoPromptRecord;
 
 use super::super::super::{
     AppError, ChapterVideoPromptStageInput, OrchestratorContext, VideoPromptChunk,
@@ -18,7 +19,7 @@ impl OrchestratorContext {
         input: ChapterVideoPromptStageInput<'_, '_>,
         chunks: Option<VideoPromptChunk<'_>>,
         progress: Option<VideoPromptProgress<'_>>,
-    ) -> Result<Vec<chapter_video_prompt::Model>, AppError> {
+    ) -> Result<Vec<ChapterVideoPromptRecord>, AppError> {
         match input.workflow_mode {
             chapter_video_prompt::WORKFLOW_MODE_BOUNDARY_FRAMES => {
                 self.generate_chapter_video_prompts(input, chunks, progress)
@@ -46,7 +47,7 @@ impl OrchestratorContext {
         input: ChapterVideoPromptStageInput<'_, '_>,
         chunks: Option<VideoPromptChunk<'_>>,
         progress: Option<VideoPromptProgress<'_>>,
-    ) -> Result<Vec<chapter_video_prompt::Model>, AppError> {
+    ) -> Result<Vec<ChapterVideoPromptRecord>, AppError> {
         match input.workflow_mode {
             chapter_video_prompt::WORKFLOW_MODE_BOUNDARY_FRAMES => {
                 self.generate_chapter_boundary_frame_prompts(input, chunks, progress)

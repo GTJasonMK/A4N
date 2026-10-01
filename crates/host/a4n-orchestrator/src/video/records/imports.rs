@@ -1,6 +1,7 @@
 //! 导入、画布与 trim 记录。
 
 use super::*;
+use a4n_domain::media::{GeneratedImageRecord, GeneratedVideoRecord};
 
 impl crate::OrchestratorContext {
     pub(crate) async fn create_imported_chapter_video_record_validated(
@@ -66,7 +67,7 @@ impl crate::OrchestratorContext {
         imported_at: &str,
         segment_plan_prompt_id: i64,
         target: (&str, i32),
-    ) -> Result<generated_video::Model, AppError> {
+    ) -> Result<GeneratedVideoRecord, AppError> {
         self.project_chapter_video_source(project_id, chapter_id, "导入参考媒体视频", true)
             .await?;
         let plan = self
@@ -163,7 +164,7 @@ impl crate::OrchestratorContext {
         source_file_name: &str,
         source_extension: &str,
         imported_at: &str,
-    ) -> Result<generated_video::Model, AppError> {
+    ) -> Result<GeneratedVideoRecord, AppError> {
         self.create_video_record(a4n_domain::media::CreateGeneratedVideoRecordDraftInput {
             project_id,
             chapter_id: None,
@@ -350,18 +351,18 @@ impl crate::OrchestratorContext {
                 },
             )
             .await?;
-        Ok(crate::media::generated_image_summary(&image))
+        Ok(crate::media::generated_image_record_summary(&image))
     }
 
     /// 将 Runtime 已提取的真实尾帧登记为视频素材。
     /// 文件提取仍属于 Host；记录字段和归属元数据只在 Video application 生成。
     pub async fn create_video_tail_frame_record_validated(
         &self,
-        video: &generated_video::Model,
+        video: &GeneratedVideoRecord,
         chapter_id: i64,
         file_path: String,
         file_size: i64,
-    ) -> Result<generated_image::Model, AppError> {
+    ) -> Result<GeneratedImageRecord, AppError> {
         if video.chapter_id != Some(chapter_id) {
             return Err(AppError::InvalidArgument(format!(
                 "视频 #{} 不属于章节 {}，无法登记真实尾帧",
@@ -454,7 +455,7 @@ impl crate::OrchestratorContext {
 
     pub fn prepare_video_trim_validated(
         &self,
-        source: generated_video::Model,
+        source: GeneratedVideoRecord,
         start_secs: f32,
         end_secs: f32,
     ) -> Result<VideoTrimPlan, AppError> {
@@ -549,7 +550,7 @@ impl crate::OrchestratorContext {
     pub async fn required_video_record(
         &self,
         video_id: i64,
-    ) -> Result<generated_video::Model, AppError> {
+    ) -> Result<a4n_domain::media::GeneratedVideoRecord, AppError> {
         self.generated_video_by_id(video_id)
             .await?
             .ok_or_else(|| AppError::NotFound("视频不存在".to_string()))
@@ -557,7 +558,7 @@ impl crate::OrchestratorContext {
 
     pub(in crate::video) async fn video_record_is_pushed_source(
         &self,
-        video: &generated_video::Model,
+        video: &GeneratedVideoRecord,
     ) -> Result<bool, AppError> {
         if !is_assembly_clip_video_type(&video.video_type) {
             return Ok(false);

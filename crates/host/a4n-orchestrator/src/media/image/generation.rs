@@ -10,7 +10,7 @@ pub use contracts::{
     ImageGenerationExecutionInput, ImageGenerationExecutionOutcome,
     ImageGenerationPostCommitAction, ImageGenerationWorkflowBinding,
 };
-pub use execution::generated_image_summary;
+pub use execution::generated_image_record_summary;
 pub use trace::image_generation_request_trace_json;
 
 #[cfg(test)]

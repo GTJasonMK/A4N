@@ -4,10 +4,9 @@ use a4n_db::generation::{
     GenerationRunCheckpointContext, RecordCompletedGenerationRunWithCheckpointInput,
     generation_checkpoint_fingerprint_sha256,
 };
-use a4n_db_models::models::ai::generated_image;
 use a4n_domain::generation::RecordCompletedGenerationRunInput;
 use a4n_domain::media::{
-    CreateGeneratedImageRecordDraftInput, CreateImagePublicationIntentInput,
+    CreateGeneratedImageRecordDraftInput, CreateImagePublicationIntentInput, GeneratedImageRecord,
     IMAGE_PUBLICATION_STATUS_PENDING, IMAGE_PUBLICATION_STATUS_PUBLISHED,
     ImagePublicationFileFacts,
 };
@@ -197,7 +196,7 @@ impl OrchestratorContext {
         }
         if let Some(image) = image {
             let outcome = ImageGenerationExecutionOutcome {
-                summary: generated_image_summary(&image),
+                summary: generated_image_record_summary(&image),
                 restored: true,
                 created_at: image.created_at,
             };
@@ -365,7 +364,7 @@ impl OrchestratorContext {
                 operation: "发布图片".to_string(),
             });
         };
-        let summary = generated_image_summary(&image);
+        let summary = generated_image_record_summary(&image);
         self.persist_image_generation_checkpoint(workflow, &image)
             .await?;
         let outcome = ImageGenerationExecutionOutcome {
@@ -387,7 +386,7 @@ impl OrchestratorContext {
         host_port: &dyn ImageGenerationHostPort,
         input: &ImageGenerationExecutionInput,
         publication_id: &str,
-    ) -> Result<Option<generated_image::Model>, AppError> {
+    ) -> Result<Option<GeneratedImageRecord>, AppError> {
         // 读取与恢复使用既有发布锁；Provider 请求期间不占用全局发布锁。
         let _guard = self.lock_image_publications().await;
         let Some(publication) = self.image_publication_by_id(publication_id).await? else {
@@ -423,7 +422,7 @@ impl OrchestratorContext {
         host_port: &dyn ImageGenerationHostPort,
         input: &ImageGenerationExecutionInput,
         publication: &a4n_db_models::models::media::image_publication::Model,
-    ) -> Result<generated_image::Model, AppError> {
+    ) -> Result<GeneratedImageRecord, AppError> {
         host_port.validate_generated_image_file(&publication.final_path, "已发布图片文件")?;
         let file =
             host_port.inspect_generated_image_file(&publication.final_path, "已发布图片文件")?;
@@ -445,7 +444,7 @@ impl OrchestratorContext {
     async fn persist_image_generation_checkpoint(
         &self,
         workflow: &ImageGenerationWorkflowScope,
-        image: &generated_image::Model,
+        image: &GeneratedImageRecord,
     ) -> Result<(), AppError> {
         self.save_completed_workflow_checkpoint(CompletedWorkflowCheckpointInput {
             workflow_run_id: Some(workflow.workflow_run_id),
@@ -455,7 +454,7 @@ impl OrchestratorContext {
             checkpoint_json: Some(json!({
                 "generated_image_id": image.id,
                 "file_path": image.file_path,
-                "summary": generated_image_summary(image),
+                "summary": generated_image_record_summary(image),
             })),
         })
         .await
@@ -466,7 +465,7 @@ impl OrchestratorContext {
         host_port: &dyn ImageGenerationHostPort,
         workflow: &ImageGenerationWorkflowScope,
         input: &ImageGenerationExecutionInput,
-    ) -> Result<Option<generated_image::Model>, AppError> {
+    ) -> Result<Option<GeneratedImageRecord>, AppError> {
         let Some(checkpoint) = self
             .load_completed_workflow_checkpoint(
                 Some(workflow.workflow_run_id),
@@ -501,12 +500,16 @@ impl OrchestratorContext {
                     ))
                 })?;
         let _publication_guard = self.lock_image_publications().await;
-        let image = self.generated_image_by_id(image_id).await?.ok_or_else(|| {
-            AppError::NotFound(format!(
-                "{} checkpoint 指向的图片记录不存在: {image_id}",
-                workflow.step_key
-            ))
-        })?;
+        let image =
+            a4n_db::video::read_models::generated_image_by_id(self.database.connection(), image_id)
+                .await
+                .map_err(AppError::Database)?
+                .ok_or_else(|| {
+                    AppError::NotFound(format!(
+                        "{} checkpoint 指向的图片记录不存在: {image_id}",
+                        workflow.step_key
+                    ))
+                })?;
         if image.project_id != input.project_id {
             return Err(AppError::InvalidArgument(format!(
                 "{} checkpoint 指向其他项目图片: image_project_id={}",
@@ -749,7 +752,7 @@ fn generation_trace_input(
     })
 }
 
-pub fn generated_image_summary(image: &generated_image::Model) -> GeneratedImageSummary {
+pub fn generated_image_record_summary(image: &GeneratedImageRecord) -> GeneratedImageSummary {
     GeneratedImageSummary {
         id: image.id,
         project_id: image.project_id,

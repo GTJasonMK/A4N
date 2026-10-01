@@ -1,11 +1,11 @@
 use a4n_db::profile_material::{
-    generated_image_profile_material_identity, is_project_reusable_video_material_image,
+    is_project_reusable_video_material_image, profile_material_identity,
 };
-use a4n_db_models::models::ai::generated_image;
 use a4n_domain::image::{
     IMAGE_TYPE_OBJECT_MATERIAL, IMAGE_TYPE_SCENE_MATERIAL, IMAGE_TYPE_VIDEO_START_FRAME,
     IMAGE_TYPE_VIDEO_TAIL_FRAME,
 };
+use a4n_domain::media::GeneratedImageRecord;
 use std::collections::HashSet;
 
 mod candidates;
@@ -52,17 +52,19 @@ pub fn resolve_video_reference_image_project_ids(
     Ok(project_ids)
 }
 
-pub fn video_reference_scope_rank(image: &generated_image::Model, chapter_id: i64) -> i32 {
+pub fn video_reference_scope_rank(image: &GeneratedImageRecord, chapter_id: i64) -> i32 {
     if image.chapter_id == Some(chapter_id) {
         return 0;
     }
-    if generated_image_profile_material_identity(image).is_some() || image.chapter_id.is_none() {
+    if profile_material_identity(&image.image_type, image.metadata_json.as_ref()).is_some()
+        || image.chapter_id.is_none()
+    {
         return 1;
     }
     2
 }
 
-pub fn is_video_reference_image_candidate(image: &generated_image::Model, chapter_id: i64) -> bool {
+pub fn is_video_reference_image_candidate(image: &GeneratedImageRecord, chapter_id: i64) -> bool {
     image.chapter_id == Some(chapter_id)
         || image.chapter_id.is_none()
         || is_project_reusable_video_material_image(&image.image_type, image.metadata_json.as_ref())

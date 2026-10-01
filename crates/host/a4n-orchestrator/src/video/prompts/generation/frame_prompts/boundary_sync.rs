@@ -1,3 +1,4 @@
+use a4n_domain::video_prompt::ChapterVideoPromptRecord;
 use std::collections::{BTreeSet, HashMap, HashSet};
 
 use a4n_db_models::models::chapter::chapter_video_prompt;
@@ -9,9 +10,9 @@ use super::{OrchestratorContext, PromptWorkflowMode, VideoFramePrompt};
 
 pub(super) async fn sync_reusable_boundary_frame_previous_image_refs(
     service: &OrchestratorContext,
-    rows: Vec<chapter_video_prompt::Model>,
+    rows: Vec<ChapterVideoPromptRecord>,
     image_id_by_frame_number: &HashMap<i32, i64>,
-) -> Result<Vec<chapter_video_prompt::Model>, AppError> {
+) -> Result<Vec<ChapterVideoPromptRecord>, AppError> {
     let image_ids = rows
         .iter()
         .filter_map(|row| row.reference_image_ids_json.as_ref())
@@ -40,10 +41,10 @@ pub(super) async fn sync_reusable_boundary_frame_previous_image_refs(
 
 pub(super) async fn sync_boundary_frame_previous_image_ref(
     service: &OrchestratorContext,
-    row: chapter_video_prompt::Model,
+    row: ChapterVideoPromptRecord,
     image_id_by_frame_number: &HashMap<i32, i64>,
     existing_image_ids: &BTreeSet<i64>,
-) -> Result<chapter_video_prompt::Model, AppError> {
+) -> Result<ChapterVideoPromptRecord, AppError> {
     if row.shot_number <= 1 {
         return Ok(row);
     }
@@ -85,7 +86,7 @@ pub(super) async fn sync_boundary_frame_previous_image_ref(
             json!(updated_refs.clone()),
         );
     }
-    a4n_db::video::update_chapter_video_prompt_record(
+    a4n_db::video::read_models::update_chapter_video_prompt_record(
         service.database.connection(),
         row,
         UpdateChapterVideoPromptRecordInput {
@@ -147,7 +148,7 @@ pub(super) async fn ensure_boundary_frame_checkpoint_can_sync(
     prompt_type: &str,
     kept_prompt_ids: &BTreeSet<i64>,
 ) -> Result<(), AppError> {
-    let rows = a4n_db::video::chapter_video_prompt_workflow_records(
+    let rows = a4n_db::video::read_models::chapter_video_prompt_workflow_records(
         service.database.connection(),
         project_id,
         chapter_id,
@@ -172,9 +173,7 @@ pub(super) async fn ensure_boundary_frame_checkpoint_can_sync(
             )));
         }
         if !kept_prompt_ids.contains(&row.id) {
-            prompts_to_validate.push(a4n_db::video::read_models::chapter_video_prompt_from_model(
-                row,
-            ));
+            prompts_to_validate.push(row);
         }
     }
     service

@@ -1,13 +1,13 @@
+use a4n_domain::media::GeneratedImageRecord;
 use std::collections::{HashMap, HashSet};
 
-use a4n_db_models::models::ai::generated_image;
 use a4n_error::AppError;
 use serde_json::Value;
 
 use crate::video::{ChapterVideoSourceContext, OrchestratorContext};
 use a4n_db::profile_material::{PROFILE_KIND_OBJECT, PROFILE_KIND_SCENE};
 use a4n_db::profile_material::{
-    generated_image_profile_material_identity, is_project_reusable_video_material_image,
+    is_project_reusable_video_material_image, profile_material_identity,
 };
 
 use super::candidates::{
@@ -59,9 +59,9 @@ impl OrchestratorContext {
         let (explicit_rows, chapter_images, profile_candidates) = futures::join!(
             async {
                 if explicit_reference_ids.is_empty() {
-                    return Ok::<Vec<generated_image::Model>, AppError>(Vec::new());
+                    return Ok::<Vec<GeneratedImageRecord>, AppError>(Vec::new());
                 }
-                a4n_db::video::video_library_explicit_image_records(
+                a4n_db::video::read_models::video_library_explicit_image_records(
                     self.database.connection(),
                     &allowed_project_ids,
                     &explicit_reference_ids,
@@ -70,7 +70,7 @@ impl OrchestratorContext {
                 .map_err(AppError::Database)
             },
             async {
-                a4n_db::video::video_library_chapter_image_records(
+                a4n_db::video::read_models::video_library_chapter_image_records(
                     self.database.connection(),
                     &allowed_project_ids,
                     chapter_id,
@@ -214,7 +214,7 @@ impl OrchestratorContext {
             .map(|row| ((row.profile_kind, row.profile_id), row.primary_image_id))
             .collect::<HashMap<_, _>>();
 
-        let mut images_by_profile: HashMap<(&'static str, i64), Vec<generated_image::Model>> =
+        let mut images_by_profile: HashMap<(&'static str, i64), Vec<GeneratedImageRecord>> =
             HashMap::new();
         for image in read_model.material_images {
             if !is_project_reusable_video_material_image(
@@ -223,7 +223,9 @@ impl OrchestratorContext {
             ) {
                 continue;
             }
-            if let Some((kind, profile_id)) = generated_image_profile_material_identity(&image) {
+            if let Some((kind, profile_id)) =
+                profile_material_identity(&image.image_type, image.metadata_json.as_ref())
+            {
                 images_by_profile
                     .entry((kind, profile_id))
                     .or_default()

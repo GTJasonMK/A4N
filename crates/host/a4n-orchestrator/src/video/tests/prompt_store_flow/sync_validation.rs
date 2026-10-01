@@ -74,9 +74,12 @@ async fn sync_chapter_prompts_keeps_generated_video_prompt_when_language_changes
         )
         .await
         .expect("zh prompt should be inserted");
-    let mut active: chapter_video_prompt::ActiveModel = zh_rows[0].clone().into();
-    active.generated_video_id = Set(Some(9301));
-    active.status = Set("completed".to_string());
+    let active = chapter_video_prompt::ActiveModel {
+        id: Set(zh_rows[0].id),
+        generated_video_id: Set(Some(9301)),
+        status: Set("completed".to_string()),
+        ..Default::default()
+    };
     active.update(db.as_ref()).await.unwrap();
 
     let en_rows = service

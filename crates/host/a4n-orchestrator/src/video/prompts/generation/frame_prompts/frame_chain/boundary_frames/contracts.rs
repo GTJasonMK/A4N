@@ -1,6 +1,6 @@
+use a4n_domain::video_prompt::ChapterVideoPromptRecord;
 use std::collections::{HashMap, HashSet};
 
-use a4n_db_models::models::chapter::chapter_video_prompt;
 use a4n_domain::prompt_language::PromptOutputLanguage;
 use a4n_domain::source_spans::SourceSpan;
 use a4n_llm_context::LlmContextManifest;
@@ -34,7 +34,7 @@ pub(in crate::video::prompts::generation::frame_prompts::frame_chain) struct Bou
     pub prompt_output_language: PromptOutputLanguage,
     pub segment_plan: &'a [VideoSegmentPlan],
     pub allowed_reference_ids: &'a HashSet<i64>,
-    pub reusable_rows: Vec<chapter_video_prompt::Model>,
+    pub reusable_rows: Vec<ChapterVideoPromptRecord>,
     pub regenerate_existing: bool,
 }
 
@@ -42,7 +42,7 @@ pub(in crate::video::prompts::generation::frame_prompts::frame_chain) struct Pre
 {
     pub boundary_frame_image_id_by_number: HashMap<i32, i64>,
     pub allowed_reference_ids: HashSet<i64>,
-    pub prefix_rows: Vec<chapter_video_prompt::Model>,
+    pub prefix_rows: Vec<ChapterVideoPromptRecord>,
     pub frame_prompts: Vec<VideoFramePrompt>,
 }
 

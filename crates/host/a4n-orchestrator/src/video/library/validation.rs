@@ -1,7 +1,7 @@
+use a4n_domain::media::GeneratedImageRecord;
 use std::collections::HashSet;
 
 use a4n_db::profile_material::is_project_reusable_video_material_image;
-use a4n_db_models::models::ai::generated_image;
 use a4n_error::AppError;
 use serde_json::Value;
 
@@ -70,7 +70,7 @@ pub(super) fn ensure_video_asset_image_usable(
     project_id: i64,
     chapter_id: i64,
     allowed_project_ids: &[i64],
-    image: &generated_image::Model,
+    image: &GeneratedImageRecord,
 ) -> Result<(), AppError> {
     if !allowed_project_ids.contains(&image.project_id) {
         return Err(AppError::InvalidArgument(format!(

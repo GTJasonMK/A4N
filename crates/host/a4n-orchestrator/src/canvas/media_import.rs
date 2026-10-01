@@ -16,24 +16,6 @@ use crate::{
 };
 
 impl OrchestratorContext {
-    pub(crate) async fn canvas_generated_image_record_by_id(
-        &self,
-        image_id: i64,
-    ) -> Result<Option<a4n_domain::media::GeneratedImageRecord>, AppError> {
-        a4n_db::video::read_models::generated_image_by_id(self.database.connection(), image_id)
-            .await
-            .map_err(AppError::Database)
-    }
-
-    pub(crate) async fn canvas_generated_video_record_by_id(
-        &self,
-        video_id: i64,
-    ) -> Result<Option<a4n_domain::media::GeneratedVideoRecord>, AppError> {
-        a4n_db::video::read_models::generated_video_by_id(self.database.connection(), video_id)
-            .await
-            .map_err(AppError::Database)
-    }
-
     pub async fn import_canvas_image_validated(
         &self,
         host_port: &dyn CanvasImageImportHostPort,
@@ -45,7 +27,7 @@ impl OrchestratorContext {
         let project_id = input.project_id;
         let image = host_port.import_canvas_image(input).await?;
         let image_record = self
-            .canvas_generated_image_record_by_id(image.id)
+            .generated_image_by_id(image.id)
             .await?
             .ok_or_else(|| AppError::NotFound(format!("图片记录不存在: {}", image.id)))?;
         if image_record.project_id != project_id {
@@ -103,10 +85,7 @@ impl OrchestratorContext {
         let asset = match self
             .ensure_canvas_video_media_asset_record(CanvasVideoMediaAssetEnsureInput {
                 project_id,
-                video: self
-                    .canvas_generated_video_record_by_id(video.id)
-                    .await?
-                    .ok_or_else(|| AppError::NotFound(format!("视频记录不存在: {}", video.id)))?,
+                video: video.clone(),
                 generation_spec_id: None,
                 origin: MEDIA_ORIGIN_IMPORTED.to_string(),
             })

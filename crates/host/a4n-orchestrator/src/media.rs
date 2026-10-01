@@ -17,7 +17,7 @@ pub(crate) use contracts::{CreateMediaAssetInput, CreateMediaProvenanceInput};
 pub(crate) use image::batch::application::{
     BatchImageExecutionItem, BatchImageGenerationApplicationInput, BatchImageGenerationOutcome,
 };
-pub(crate) use image::generation::generated_image_summary;
+pub(crate) use image::generation::generated_image_record_summary;
 pub(crate) use image::generation::{
     ImageGenerationExecutionInput, ImageGenerationPostCommitAction, ImageGenerationWorkflowBinding,
     image_generation_request_trace_json,

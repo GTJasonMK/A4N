@@ -1,5 +1,5 @@
-use a4n_db_models::models::chapter::chapter_video_prompt;
 use a4n_domain::prompt_language::PromptOutputLanguage;
+use a4n_domain::video_prompt::ChapterVideoPromptRecord;
 use serde_json::Value;
 
 use crate::video::OrchestratorContext;
@@ -37,7 +37,7 @@ pub(in crate::video::prompts::generation::frame_prompts) struct ReusableSharedSe
 
 pub(in crate::video::prompts::generation::frame_prompts) struct ReusableSegmentPlanFromRowInput<'a>
 {
-    pub row: chapter_video_prompt::Model,
+    pub row: ChapterVideoPromptRecord,
     pub source_metadata: &'a Value,
     pub source_spans: &'a [SourceSpan],
     pub style: &'a str,

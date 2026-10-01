@@ -1,12 +1,12 @@
+use a4n_domain::video_prompt::ChapterVideoPromptRecord;
 use std::collections::{BTreeMap, HashSet};
 
-use a4n_db_models::models::chapter::chapter_video_prompt;
 use a4n_error::AppError;
 
 use crate::video::prompts::json::{ChatVideoPromptShot, VideoSegmentPlan};
 
 pub(in crate::video::prompts::generation::frame_prompts) fn ensure_video_prompts_can_regenerate(
-    rows: &[chapter_video_prompt::Model],
+    rows: &[ChapterVideoPromptRecord],
     label: &str,
 ) -> Result<(), AppError> {
     if let Some(row) = rows.iter().find(|row| row.generated_video_id.is_some()) {
@@ -19,8 +19,8 @@ pub(in crate::video::prompts::generation::frame_prompts) fn ensure_video_prompts
 }
 
 pub(in crate::video::prompts::generation::frame_prompts) fn ensure_chat_video_prompts_can_generate_without_overwriting(
-    all_existing_rows: &[chapter_video_prompt::Model],
-    matching_rows: &[chapter_video_prompt::Model],
+    all_existing_rows: &[ChapterVideoPromptRecord],
+    matching_rows: &[ChapterVideoPromptRecord],
     reusable_prompts: &BTreeMap<i32, ChatVideoPromptShot>,
     segment_plan: &[VideoSegmentPlan],
     regenerate_existing: bool,
@@ -89,13 +89,12 @@ pub(in crate::video::prompts::generation::frame_prompts) fn ensure_chat_video_pr
 mod tests {
     use super::*;
     use crate::video::prompts::json::ChatVideoPromptShot;
-    use a4n_db_models::models::chapter::chapter_video_prompt;
     use chrono::Utc;
     use serde_json::json;
 
-    fn row(id: i64, shot_number: i32, generated: bool) -> chapter_video_prompt::Model {
+    fn row(id: i64, shot_number: i32, generated: bool) -> ChapterVideoPromptRecord {
         let now = Utc::now().naive_utc();
-        chapter_video_prompt::Model {
+        ChapterVideoPromptRecord {
             id,
             project_id: 1,
             chapter_id: 1,

@@ -7,6 +7,7 @@ use super::{
     is_video_reference_image_candidate, resolve_video_reference_image_project_ids,
 };
 use a4n_domain::image::{IMAGE_TYPE_OBJECT_MATERIAL, IMAGE_TYPE_SCENE_MATERIAL};
+use a4n_domain::media::GeneratedImageRecord;
 use serde_json::json;
 
 #[test]
@@ -135,11 +136,8 @@ fn video_reference_project_scope_is_validated_and_deduplicated() {
     );
 }
 
-fn fixed_test_image(
-    id: i64,
-    is_favorite: bool,
-) -> a4n_db_models::models::ai::generated_image::Model {
-    a4n_db_models::models::ai::generated_image::Model {
+fn fixed_test_image(id: i64, is_favorite: bool) -> GeneratedImageRecord {
+    GeneratedImageRecord {
         id,
         project_id: 1,
         image_type: IMAGE_TYPE_OBJECT_MATERIAL.to_string(),
@@ -161,10 +159,7 @@ fn fixed_test_image(
     }
 }
 
-fn reference_test_image(
-    chapter_id: Option<i64>,
-    image_type: &str,
-) -> a4n_db_models::models::ai::generated_image::Model {
+fn reference_test_image(chapter_id: Option<i64>, image_type: &str) -> GeneratedImageRecord {
     let mut image = fixed_test_image(1, false);
     image.chapter_id = chapter_id;
     image.image_type = image_type.to_string();

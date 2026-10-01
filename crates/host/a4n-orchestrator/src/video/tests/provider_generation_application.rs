@@ -2,6 +2,7 @@
 //!
 //! 不经过 Server/Tauri process；使用本地 HostPort 假实现与 PostgreSQL 测试库。
 
+use a4n_domain::video_prompt::ChapterVideoPromptRecord;
 use a4n_error::AppError;
 
 use std::sync::{
@@ -423,7 +424,7 @@ async fn insert_reference_media_segment_plan(
     db: &a4n_db::DatabaseConnection,
     project_id: i64,
     chapter_id: i64,
-) -> chapter_video_prompt::Model {
+) -> ChapterVideoPromptRecord {
     let now = fixed_time(3);
     let shooting_identity = current_shooting_identity(db, project_id, chapter_id).await;
     let source_content_sha256 = shooting_identity.source_content_sha256.clone();
@@ -458,7 +459,7 @@ async fn insert_reference_media_segment_plan(
         }),
         adopted_video_id: None,
     };
-    chapter_video_prompt::ActiveModel {
+    let prompt = chapter_video_prompt::ActiveModel {
         project_id: Set(project_id),
         chapter_id: Set(chapter_id),
         style: Set(Some("电影感写实".to_string())),
@@ -498,7 +499,8 @@ async fn insert_reference_media_segment_plan(
     }
     .insert(db)
     .await
-    .expect("测试共享片段规划应创建成功")
+    .expect("测试共享片段规划应创建成功");
+    a4n_db::video::read_models::chapter_video_prompt_from_model(prompt)
 }
 
 fn reference_media_input(segment_plan_prompt_id: i64) -> ReferenceMediaVideoInput {
@@ -567,7 +569,7 @@ async fn insert_ready_segment_plan(
     db: &a4n_db::DatabaseConnection,
     project_id: i64,
     chapter_id: i64,
-) -> chapter_video_prompt::Model {
+) -> ChapterVideoPromptRecord {
     let now = fixed_time(3);
     let shooting_identity = current_shooting_identity(db, project_id, chapter_id).await;
     let source_content_sha256 = shooting_identity.source_content_sha256.clone();
@@ -576,7 +578,7 @@ async fn insert_ready_segment_plan(
     segment.duration_secs = 6;
     let segment_sha256 = a4n_video_contract::video_segment_content_fingerprint(&segment).unwrap();
     let recipe = ready_segment_recipe();
-    chapter_video_prompt::ActiveModel {
+    let prompt = chapter_video_prompt::ActiveModel {
         project_id: Set(project_id),
         chapter_id: Set(chapter_id),
         style: Set(Some(recipe.style.clone())),
@@ -619,7 +621,8 @@ async fn insert_ready_segment_plan(
     }
     .insert(db)
     .await
-    .expect("可用视频测试片段规划应创建成功")
+    .expect("可用视频测试片段规划应创建成功");
+    a4n_db::video::read_models::chapter_video_prompt_from_model(prompt)
 }
 
 async fn insert_ready_video_prompt(
@@ -629,7 +632,7 @@ async fn insert_ready_video_prompt(
     segment_plan_prompt_id: i64,
     shot_number: i32,
     generated_video_id: Option<i64>,
-) -> chapter_video_prompt::Model {
+) -> ChapterVideoPromptRecord {
     let now = fixed_time(3);
     let recipe = ready_segment_recipe();
     let plan_identity = chapter_video_prompt::Entity::find_by_id(segment_plan_prompt_id)
@@ -647,7 +650,7 @@ async fn insert_ready_video_prompt(
         ("shot-1", 1),
     )
     .expect("可用视频提示词执行身份应可构造");
-    chapter_video_prompt::ActiveModel {
+    let prompt = chapter_video_prompt::ActiveModel {
         project_id: Set(project_id),
         chapter_id: Set(chapter_id),
         style: Set(Some("电影感写实".to_string())),
@@ -675,7 +678,8 @@ async fn insert_ready_video_prompt(
     }
     .insert(db)
     .await
-    .expect("测试视频提示词应创建成功")
+    .expect("测试视频提示词应创建成功");
+    a4n_db::video::read_models::chapter_video_prompt_from_model(prompt)
 }
 
 async fn setup_project_chapter() -> (
@@ -1230,11 +1234,12 @@ async fn chapter_batch_validation_rejects_invalid_inputs_and_accepts_existing_ca
         .expect_err("重复 id 应失败");
     assert!(duplicate.to_string().contains("不能重复"));
 
-    let mut running =
+    let running_prompt_id =
         insert_ready_video_prompt(database.as_ref(), project_id, chapter_id, plan.id, 2, None)
-            .await;
-    running = chapter_video_prompt::ActiveModel {
-        id: Set(running.id),
+            .await
+            .id;
+    let running = chapter_video_prompt::ActiveModel {
+        id: Set(running_prompt_id),
         status: Set("running".to_string()),
         ..Default::default()
     }

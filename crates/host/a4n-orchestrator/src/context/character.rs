@@ -3,7 +3,6 @@ use a4n_api_contract::character::{
     ImplicitUpdateDecisionSummary,
 };
 use a4n_db::DbHandle;
-use a4n_db_models::models::ai::generated_image;
 use a4n_db_models::models::character::{
     attribute_event, character_portrait, protagonist_behavior_record, protagonist_deletion_mark,
     protagonist_profile,
@@ -12,6 +11,7 @@ use a4n_domain::character::{
     CharacterAttributeCategory, CharacterImplicitReviewDecisionRecordInput,
     CharacterPortraitCreateInput, CharacterTimelineSourceKind,
 };
+use a4n_domain::media::GeneratedImageRecord;
 use a4n_error::AppError;
 use a4n_prompt::rendering::PromptRenderer;
 use serde_json::Value;
@@ -141,8 +141,8 @@ impl CharacterApplication {
         &self,
         project_id: i64,
         image_ids: &[i64],
-    ) -> Result<Vec<generated_image::Model>, AppError> {
-        a4n_db::character::portrait_reference_images_by_ids(
+    ) -> Result<Vec<GeneratedImageRecord>, AppError> {
+        a4n_db::video::read_models::portrait_reference_images_by_ids(
             self.database.connection(),
             project_id,
             image_ids,
@@ -430,7 +430,7 @@ impl OrchestratorContext {
         &self,
         project_id: i64,
         image_ids: &[i64],
-    ) -> Result<Vec<generated_image::Model>, AppError> {
+    ) -> Result<Vec<GeneratedImageRecord>, AppError> {
         self.character
             .portrait_reference_images_by_ids(project_id, image_ids)
             .await

@@ -1,6 +1,6 @@
+use a4n_domain::video_prompt::ChapterVideoPromptRecord;
 use std::collections::HashMap;
 
-use a4n_db_models::models::chapter::chapter_video_prompt;
 use a4n_error::AppError;
 
 use crate::video::{VideoPromptChunk, VideoPromptProgress};
@@ -35,7 +35,7 @@ async fn generate_chapter_video_prompt_chain(
     input: ChapterVideoPromptChainInput<'_, '_>,
     mut chunks: Option<VideoPromptChunk<'_>>,
     mut progress: Option<VideoPromptProgress<'_>>,
-) -> Result<Vec<chapter_video_prompt::Model>, AppError> {
+) -> Result<Vec<ChapterVideoPromptRecord>, AppError> {
     let ChapterVideoPromptChainInput {
         service,
         spec,
