@@ -1,13 +1,13 @@
 //! 首帧链提示词与尾帧图片匹配规则（无 DB、无 Host）。
 
-use a4n_db_models::models::chapter::chapter_video_prompt;
+use a4n_domain::video_prompt::{ChapterVideoPromptRecord, chapter_video_prompt};
 
 use super::{
     PromptChainFields, prompt_chain_matches_for_initial_frame_image, prompt_source_type_matches,
 };
 
 pub fn first_frame_prompt_matches_video_prompt<P: PromptChainFields>(
-    video_prompt: &chapter_video_prompt::Model,
+    video_prompt: &ChapterVideoPromptRecord,
     first_frame_prompt: &P,
 ) -> bool {
     prompt_chain_matches_for_initial_frame_image(
@@ -31,9 +31,9 @@ mod tests {
     use super::*;
     use crate::video::FIRST_FRAME_CHAIN_CONTRACT_VERSION;
 
-    fn prompt(id: i64, prompt_type: &str, duration_secs: i32) -> chapter_video_prompt::Model {
+    fn prompt(id: i64, prompt_type: &str, duration_secs: i32) -> ChapterVideoPromptRecord {
         let now = Utc::now().naive_utc();
-        chapter_video_prompt::Model {
+        ChapterVideoPromptRecord {
             id,
             project_id: 1,
             chapter_id: 2,

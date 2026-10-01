@@ -2,6 +2,8 @@ use super::contracts::{
     ChapterObjectProfileContext, ChapterProfileEvidence, ChapterSceneProfileContext,
     ProjectChapterContextError,
 };
+use crate::asset::object_profile_record;
+use crate::scene_profile::scene_profile_record;
 use a4n_db_models::models::{
     asset::object_profile,
     chapter::chapter,
@@ -52,7 +54,9 @@ pub async fn object_profiles_before_chapter(
                 fact_state,
             });
         } else if profile.ownership_kind == PROFILE_OWNERSHIP_USER {
-            result.push(ChapterObjectProfileContext::Authored(profile));
+            result.push(ChapterObjectProfileContext::Authored(
+                object_profile_record(profile),
+            ));
         }
     }
     Ok(result)
@@ -101,7 +105,9 @@ pub async fn scene_profiles_before_chapter(
                 fact_state,
             });
         } else if profile.ownership_kind == PROFILE_OWNERSHIP_USER {
-            result.push(ChapterSceneProfileContext::Authored(profile));
+            result.push(ChapterSceneProfileContext::Authored(scene_profile_record(
+                profile,
+            )));
         }
     }
     Ok(result)

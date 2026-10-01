@@ -4,7 +4,6 @@ mod projection;
 #[cfg(test)]
 mod tests;
 
-use a4n_db::blueprint::context::blueprint_llm_context;
 use a4n_db::optimize::OptimizationContextReadInput;
 use a4n_error::AppError;
 use serde_json::Value;
@@ -61,14 +60,7 @@ pub(super) async fn build_content_optimization_context(
     }
 
     if let Some(blueprint) = rows.blueprint.as_ref() {
-        context.insert(
-            "blueprint".to_string(),
-            blueprint_llm_context(
-                &blueprint.blueprint,
-                &blueprint.characters,
-                &blueprint.relationships,
-            ),
-        );
+        context.insert("blueprint".to_string(), blueprint.clone());
     }
 
     if !rows.part_outlines.is_empty() {

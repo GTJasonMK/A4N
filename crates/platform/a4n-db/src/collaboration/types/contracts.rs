@@ -1,6 +1,6 @@
 use super::{ProjectAccessRole, ProjectAccessScope};
-use a4n_db_models::models::project::novel_project;
 use a4n_domain::project::ProjectKind;
+use a4n_domain::project::ProjectSummaryRecord;
 use chrono::NaiveDateTime;
 use sea_orm::FromQueryResult;
 
@@ -64,8 +64,8 @@ pub(in crate::collaboration) struct UserAccessRow {
 }
 
 impl AccessibleProjectRecord {
-    pub fn into_model(self) -> novel_project::Model {
-        novel_project::Model {
+    pub fn into_summary_record(self) -> ProjectSummaryRecord {
+        ProjectSummaryRecord {
             id: self.id,
             user_id: self.user_id,
             title: self.title,
@@ -81,11 +81,6 @@ impl AccessibleProjectRecord {
             current_chapter: self.current_chapter,
             total_chapters: self.total_chapters,
             chapters_per_part: self.chapters_per_part,
-            avatar_svg: None,
-            avatar_animal: None,
-            raw_blueprint: None,
-            import_analysis_progress: None,
-            export_config: None,
             created_at: self.created_at,
             updated_at: self.updated_at,
         }
@@ -105,7 +100,7 @@ pub struct ProjectAccessInfoQuery {
 }
 
 impl ProjectAccessInfoQuery {
-    pub fn from_project(project: &novel_project::Model) -> Self {
+    pub fn from_project(project: &ProjectSummaryRecord) -> Self {
         Self {
             project_id: project.id,
             root_project_id: project.root_project_id,

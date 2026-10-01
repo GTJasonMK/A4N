@@ -3,7 +3,7 @@ use a4n_api_contract::manga::{
     MangaPipelinePreviewStep, MangaPromptDownstreamCleanupPort, OptimizeMangaPromptInput,
     UpdateMangaPromptInput,
 };
-use a4n_db_models::models::chapter::chapter_manga_prompt;
+use a4n_domain::manga::MangaPagePromptRecord;
 use a4n_domain::{DownstreamConflictStrategy, project::required_text};
 use a4n_error::AppError;
 use a4n_prompt::rendering::PromptRenderer;
@@ -61,7 +61,7 @@ impl OrchestratorContext {
     pub async fn run_manga_pipeline_validated(
         &self,
         input: MangaPipelineApplicationInput<'_>,
-    ) -> Result<Vec<chapter_manga_prompt::Model>, AppError> {
+    ) -> Result<Vec<MangaPagePromptRecord>, AppError> {
         let (source_result, character_portraits_result) = futures::join!(
             self.chapter_manga_source_by_number(input.project_id, input.chapter_number, true),
             self.manga_character_portrait_refs(input.project_id),
@@ -136,7 +136,7 @@ impl OrchestratorContext {
         user_id: i64,
         input: BindMangaReferenceImageInput,
         cleanup: &dyn MangaPromptDownstreamCleanupPort,
-    ) -> Result<chapter_manga_prompt::Model, AppError> {
+    ) -> Result<MangaPagePromptRecord, AppError> {
         let character_name =
             required_text(&input.character_name, "角色名称").map_err(AppError::InvalidArgument)?;
         let page_prompt = self.required_manga_page_prompt(input.prompt_id).await?;
@@ -155,8 +155,12 @@ impl OrchestratorContext {
         let bound_asset = self
             .manga_reference_bound_asset(page_prompt.project_id, input.asset_kind, input.asset_id)
             .await?;
-        let layout =
-            manga_page_generation_layout(&page_prompt).map_err(AppError::InvalidArgument)?;
+        let layout = manga_page_generation_layout(
+            page_prompt.id,
+            page_prompt.page_number,
+            page_prompt.layout.as_ref(),
+        )
+        .map_err(AppError::InvalidArgument)?;
         let layout = bind_reference_asset_in_layout(layout, character_name, bound_asset)
             .map_err(AppError::InvalidArgument)?;
         let updated = self
@@ -173,7 +177,7 @@ impl OrchestratorContext {
         user_id: i64,
         input: UpdateMangaPromptInput,
         cleanup: &dyn MangaPromptDownstreamCleanupPort,
-    ) -> Result<chapter_manga_prompt::Model, AppError> {
+    ) -> Result<MangaPagePromptRecord, AppError> {
         let image_prompt = required_text(&input.image_prompt, "整页漫画提示词")
             .map_err(AppError::InvalidArgument)?;
         let page_prompt = self.required_manga_page_prompt(input.prompt_id).await?;
@@ -250,7 +254,7 @@ impl OrchestratorContext {
         input: OptimizeMangaPromptInput,
         prompt_renderer: &dyn PromptRenderer,
         cleanup: &dyn MangaPromptDownstreamCleanupPort,
-    ) -> Result<chapter_manga_prompt::Model, AppError> {
+    ) -> Result<MangaPagePromptRecord, AppError> {
         let page_prompt = self.required_manga_page_prompt(input.prompt_id).await?;
         self.verify_manga_permission(user_id, page_prompt.project_id, ProjectAccessRole::Editor)
             .await?;
@@ -275,7 +279,7 @@ impl OrchestratorContext {
     async fn required_manga_page_prompt(
         &self,
         prompt_id: i64,
-    ) -> Result<chapter_manga_prompt::Model, AppError> {
+    ) -> Result<MangaPagePromptRecord, AppError> {
         if prompt_id <= 0 {
             return Err(AppError::InvalidArgument(
                 "漫画提示词 ID 必须大于 0".to_string(),

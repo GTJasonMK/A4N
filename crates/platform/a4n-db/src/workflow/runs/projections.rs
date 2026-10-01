@@ -35,6 +35,7 @@ pub(in crate::workflow) fn workflow_run_summary(
         status: run.status,
         current_step_key: run.current_step_key,
         progress,
+        progress_json: run.progress_json,
         active_task_id: run.active_task_id,
         can_resume: run.can_resume,
         resume_block_reason: run.resume_block_reason,
@@ -43,6 +44,12 @@ pub(in crate::workflow) fn workflow_run_summary(
         updated_at: run.updated_at.and_utc().to_rfc3339(),
         completed_at: run.completed_at.map(|value| value.and_utc().to_rfc3339()),
     })
+}
+
+pub(in crate::workflow) fn workflow_run_summary_for_write(
+    run: workflow_run::Model,
+) -> Result<WorkflowRunSummary, WorkflowWriteError> {
+    workflow_run_summary(run).map_err(WorkflowWriteError::from)
 }
 
 pub(super) fn workflow_checkpoint_summary(

@@ -6,7 +6,6 @@ use a4n_chapter_analysis_host_contract::{
     ChapterAnalysisRequestStep, ProjectFactFeedbackApplicationPort,
 };
 use a4n_character_host_contract::CharacterProfileSyncStageTracePort;
-use a4n_db_models::models::generation::workflow_run;
 use a4n_domain::{
     collaboration::ProjectAccessRole, fact_feedback::FactConsolidationOutput,
     workflow::WORKFLOW_STATUS_RUNNING,
@@ -62,7 +61,7 @@ impl OrchestratorContext {
                 .feedback_resume_run(project_id, id, FACT_CONSOLIDATION_KIND)
                 .await?;
             let applied = self
-                .workflow_checkpoint_models(run.id)
+                .workflow_checkpoint_summaries(run.id)
                 .await?
                 .iter()
                 .any(|checkpoint| {
@@ -112,7 +111,7 @@ impl OrchestratorContext {
                 } else if run.status == "failed"
                     && run.can_resume
                     && self
-                        .workflow_checkpoint_models(run.id)
+                        .workflow_checkpoint_summaries(run.id)
                         .await?
                         .iter()
                         .any(|checkpoint| {
@@ -206,7 +205,7 @@ impl OrchestratorContext {
             {
                 return Err(AppError::Cancelled);
             }
-            let run = self.workflow_run_model_by_id(run_id).await?;
+            let run = self.workflow_run_summary(run_id).await?;
             match run.status.as_str() {
                 "running" => tokio::time::sleep(std::time::Duration::from_millis(250)).await,
                 "completed" => return Ok(()),
@@ -225,7 +224,7 @@ impl OrchestratorContext {
     async fn execute_consolidation(
         &self,
         project_id: i64,
-        run: &workflow_run::Model,
+        run: &a4n_db::workflow::WorkflowRunSummary,
         mut prepared: PreparedConsolidation,
         host_port: &dyn ChapterAnalysisHostPort,
         progress: ChapterAnalysisApplicationProgress<'_>,
@@ -294,7 +293,7 @@ impl OrchestratorContext {
             output
         };
         progress.report(70, "正在校验来源并写入资料变更")?;
-        if self.workflow_run_model_by_id(run.id).await?.status != WORKFLOW_STATUS_RUNNING {
+        if self.workflow_run_summary(run.id).await?.status != WORKFLOW_STATUS_RUNNING {
             return Err(AppError::Cancelled);
         }
         let applied = a4n_db::fact_feedback::apply_consolidation(
@@ -341,7 +340,7 @@ impl OrchestratorContext {
         host_port: &dyn ChapterAnalysisHostPort,
     ) -> Result<(), AppError> {
         let checkpoint = self
-            .workflow_checkpoint_models(run_id)
+            .workflow_checkpoint_summaries(run_id)
             .await?
             .into_iter()
             .find(|checkpoint| {
@@ -369,8 +368,8 @@ impl OrchestratorContext {
         project_id: i64,
         id: i64,
         kind: &str,
-    ) -> Result<workflow_run::Model, AppError> {
-        let run = self.workflow_run_model_by_id(id).await?;
+    ) -> Result<a4n_db::workflow::WorkflowRunSummary, AppError> {
+        let run = self.workflow_run_summary(id).await?;
         if run.project_id != Some(project_id) || run.workflow_kind != kind {
             return Err(AppError::InvalidArgument(
                 "事实反馈工作流不属于当前项目或操作".into(),
@@ -432,7 +431,7 @@ impl OrchestratorContext {
             .await?
         };
         let result = async {
-            let completed = self.workflow_checkpoint_models(run.id).await?;
+            let completed = self.workflow_checkpoint_summaries(run.id).await?;
             for (index, chapter) in chapters.iter().enumerate() {
                 let key = format!("fact_rebuild.chapter.{}", chapter.id);
                 if completed.iter().any(|checkpoint| {
@@ -444,7 +443,7 @@ impl OrchestratorContext {
                     (index * 90 / chapters.len()) as u32,
                     &format!("正在重建第 {} 章正文事实", chapter.chapter_number),
                 )?;
-                if self.workflow_run_model_by_id(run.id).await?.status != WORKFLOW_STATUS_RUNNING {
+                if self.workflow_run_summary(run.id).await?.status != WORKFLOW_STATUS_RUNNING {
                     return Err(AppError::Cancelled);
                 }
                 self.run_chapter_analysis_validated(

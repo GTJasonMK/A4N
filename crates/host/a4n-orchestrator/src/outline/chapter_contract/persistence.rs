@@ -1,7 +1,7 @@
 use super::fields::{optional_f32, optional_non_null, optional_positive_i32, required_string};
 use a4n_db::DbTransaction;
 use a4n_db::outline::{self as outline_db, OutlineDbError};
-use a4n_db_models::models::chapter::chapter_outline;
+use a4n_domain::chapter::ChapterOutlineRecord;
 use a4n_domain::chapter::ChapterOutlineSyncDraft;
 use a4n_error::AppError;
 use serde_json::Value;
@@ -40,7 +40,7 @@ pub(in crate::outline) async fn sync_chapter_outlines_by_number_in(
     part_id: Option<i64>,
     chapters: Vec<Value>,
     now: chrono::NaiveDateTime,
-) -> Result<Vec<chapter_outline::Model>, AppError> {
+) -> Result<Vec<ChapterOutlineRecord>, AppError> {
     let mut drafts = Vec::with_capacity(chapters.len());
     for chapter_json in &chapters {
         drafts.push(chapter_outline_sync_draft_from_json(chapter_json)?);
@@ -56,7 +56,7 @@ pub(in crate::outline) async fn insert_chapter_outline_from_json(
     part_id: Option<i64>,
     chapter_json: &Value,
     now: chrono::NaiveDateTime,
-) -> Result<chapter_outline::Model, AppError> {
+) -> Result<ChapterOutlineRecord, AppError> {
     let draft = chapter_outline_sync_draft_from_json(chapter_json)?;
     outline_db::insert_chapter_outline_record(db, project_id, part_id, &draft, now)
         .await
@@ -65,11 +65,11 @@ pub(in crate::outline) async fn insert_chapter_outline_from_json(
 
 pub(in crate::outline) async fn update_chapter_outline_from_json_in(
     db: &DbTransaction,
-    existing: chapter_outline::Model,
+    existing: ChapterOutlineRecord,
     part_id: Option<i64>,
     chapter_json: &Value,
     now: chrono::NaiveDateTime,
-) -> Result<chapter_outline::Model, AppError> {
+) -> Result<ChapterOutlineRecord, AppError> {
     let draft = chapter_outline_sync_draft_from_json(chapter_json)?;
     outline_db::update_chapter_outline_record(db, existing, part_id, &draft, now)
         .await

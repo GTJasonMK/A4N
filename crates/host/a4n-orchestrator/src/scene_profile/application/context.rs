@@ -2,11 +2,10 @@ use super::types::{
     ChapterAnchorMode, SceneProfileSyncRequestContext, SceneProfileSyncStableContext,
 };
 use crate::OrchestratorContext;
-use a4n_db_models::models::asset::object_profile;
 use a4n_db_models::models::chapter::chapter;
 use a4n_db_models::models::character::protagonist_profile;
 use a4n_db_models::models::project::text_anchor;
-use a4n_db_models::models::scene::scene_profile;
+use a4n_domain::{object_profile::ObjectProfileRecord, scene_profile::SceneProfileRecord};
 use a4n_error::AppError;
 use serde_json::{Value, json};
 use std::collections::{BTreeMap, BTreeSet};
@@ -72,7 +71,7 @@ pub(super) fn build_scene_profile_sync_request_with_profiles(
     chapter: chapter::Model,
     text_anchors: Vec<text_anchor::Model>,
     stable: &SceneProfileSyncStableContext,
-    existing_scene_profiles: Arc<Vec<scene_profile::Model>>,
+    existing_scene_profiles: Arc<Vec<SceneProfileRecord>>,
 ) -> SceneProfileSyncRequestContext {
     let existing_scene_ids = existing_scene_profiles
         .iter()
@@ -150,7 +149,7 @@ pub(super) async fn select_scene_profile_sync_chapters(
     Ok(chapters)
 }
 
-pub(super) fn existing_scene_profile_for_prompt(profile: &scene_profile::Model) -> Value {
+pub(super) fn existing_scene_profile_for_prompt(profile: &SceneProfileRecord) -> Value {
     json!({"id": profile.id, "name": profile.name, "aliases": profile.aliases_json, "scene_type": profile.scene_type, "importance": profile.importance, "base_description": profile.base_description, "visual_description": profile.visual_description, "spatial_layout": profile.spatial_layout, "atmosphere": profile.atmosphere, "current_state": profile.current_state_json, "first_seen_chapter": profile.first_seen_chapter, "last_seen_chapter": profile.last_seen_chapter})
 }
 
@@ -158,7 +157,7 @@ pub(super) fn character_profile_for_prompt(profile: &protagonist_profile::Model)
     json!({"profile_id": profile.id, "name": profile.name, "appearance": profile.appearance})
 }
 
-pub(super) fn object_profile_for_prompt(profile: &object_profile::Model) -> Value {
+pub(super) fn object_profile_for_prompt(profile: &ObjectProfileRecord) -> Value {
     json!({"object_profile_id": profile.id, "name": profile.name, "object_type": profile.object_type, "visual_description": profile.visual_description, "material_and_state": profile.material_and_state, "location_context": profile.location_context, "last_seen_chapter": profile.last_seen_chapter})
 }
 

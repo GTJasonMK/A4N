@@ -7,7 +7,7 @@ use super::super::ranges::expected_part_id_for_existing_outline;
 use super::super::types::OutlineDbError;
 
 /// 按当前分部范围重绑章节大纲的 part_id。
-pub async fn sync_chapter_outline_part_assignments<C>(
+pub(crate) async fn sync_chapter_outline_part_assignments<C>(
     db: &C,
     project_id: i64,
     parts: &[part_outline::Model],

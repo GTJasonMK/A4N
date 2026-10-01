@@ -1,20 +1,25 @@
 use super::rules::validate_chapter_video_prompt_duration;
 use crate::video::VideoDbError;
 use a4n_db_models::models::chapter::chapter_video_prompt;
-use a4n_domain::video_prompt::UpdateChapterVideoPromptRecordInput;
+use a4n_domain::video_prompt::{ChapterVideoPromptRecord, UpdateChapterVideoPromptRecordInput};
 use chrono::Utc;
 use sea_orm::{ActiveModelTrait, ConnectionTrait, Set};
 use serde_json::Value;
 
+use crate::video::prompts::record_mapping::{
+    chapter_video_prompt_model_from_record, chapter_video_prompt_record_from_model,
+};
+
 pub async fn update_chapter_video_prompt_record<C>(
     db: &C,
-    prompt: chapter_video_prompt::Model,
+    prompt: ChapterVideoPromptRecord,
     input: UpdateChapterVideoPromptRecordInput,
-) -> Result<chapter_video_prompt::Model, VideoDbError>
+) -> Result<ChapterVideoPromptRecord, VideoDbError>
 where
     C: ConnectionTrait,
 {
-    let mut active: chapter_video_prompt::ActiveModel = prompt.into();
+    let mut active: chapter_video_prompt::ActiveModel =
+        chapter_video_prompt_model_from_record(prompt).into();
     if let Some(value) = input.visual_prompt {
         active.visual_prompt = Set(value);
     }
@@ -39,7 +44,11 @@ where
         active.status = Set(chapter_video_prompt::STATUS_PENDING.to_string());
     }
     active.updated_at = Set(Utc::now().naive_utc());
-    active.update(db).await.map_err(VideoDbError::Database)
+    active
+        .update(db)
+        .await
+        .map(chapter_video_prompt_record_from_model)
+        .map_err(VideoDbError::Database)
 }
 
 pub(crate) async fn update_chapter_video_prompt_metadata_record<C>(

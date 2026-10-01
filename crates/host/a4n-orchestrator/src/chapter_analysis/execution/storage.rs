@@ -1,7 +1,7 @@
 use a4n_chapter_analysis::ensure_chapter_has_analysis_content;
 use a4n_db::chapter_content::{lock_chapter_analysis_source, store_chapter_analysis_record};
 use a4n_db::workflow::UpsertWorkflowCheckpointInput;
-use a4n_db_models::models::{chapter::chapter, generation::workflow_run};
+use a4n_domain::chapter::ChapterRecord;
 use a4n_domain::{
     chapter::StoreChapterAnalysisRecordInput,
     workflow::{WORKFLOW_STATUS_COMPLETED, WORKFLOW_STATUS_RUNNING},
@@ -23,11 +23,11 @@ use a4n_chapter_content_core::cleanup_chapter_derived_data_in;
 impl OrchestratorContext {
     pub(crate) async fn begin_chapter_analysis_workflow_run(
         &self,
-        chapter: &chapter::Model,
+        chapter: &ChapterRecord,
         current_step_key: &str,
         active_task_id: Option<&str>,
-    ) -> Result<workflow_run::Model, AppError> {
-        let source = a4n_db::project::chapter_source_snapshot_from_model(chapter);
+    ) -> Result<a4n_db::workflow::WorkflowRunSummary, AppError> {
+        let source = chapter.source_snapshot();
         let input = chapter_analysis_workflow_run_input(chapter, current_step_key, active_task_id);
         crate::workflow::validate_begin_workflow_run_input(&input)
             .map_err(AppError::InvalidArgument)?;
@@ -36,7 +36,7 @@ impl OrchestratorContext {
             lock_chapter_analysis_source(&tx, &source)
                 .await
                 .map_err(chapter_content_edit_error_to_app_error)?;
-            a4n_db::workflow::upsert_workflow_run_in_transaction(&tx, input)
+            a4n_db::workflow::upsert_workflow_run_summary_in_transaction(&tx, input)
                 .await
                 .map_err(workflow_write_app_error)
         }
@@ -62,7 +62,7 @@ impl OrchestratorContext {
     pub(crate) async fn analyze_and_store_chapter(
         &self,
         input: ChapterAnalysisInput<'_>,
-    ) -> Result<chapter::Model, AppError> {
+    ) -> Result<ChapterRecord, AppError> {
         let ChapterAnalysisInput {
             chapter,
             prompt_renderer,
@@ -75,7 +75,7 @@ impl OrchestratorContext {
 
         let workflow_run_id = workflow_run_id
             .ok_or_else(|| AppError::InvalidArgument("章节分析缺少 workflow_run_id".to_string()))?;
-        let source = a4n_db::project::chapter_source_snapshot_from_model(&chapter);
+        let source = chapter.source_snapshot();
         let mut progress = ChapterAnalysisProgress::new(progress, cancel_token)
             .with_stream_reporter(stream_reporter);
         let run = self

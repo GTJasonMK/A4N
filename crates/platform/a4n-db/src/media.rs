@@ -10,6 +10,7 @@ mod bindings;
 mod creation;
 mod paths;
 mod provenance;
+mod records;
 mod types;
 
 pub(crate) use bindings::{
@@ -22,6 +23,7 @@ pub use paths::{
     filter_unreferenced_media_paths, media_path_prefix_has_persisted_reference,
     project_has_active_image_publication, protected_image_publication_cleanup_paths,
 };
+pub(crate) use records::media_asset_record_from_model;
 pub use types::MediaDbError;
 
 pub(crate) async fn schedule_unreferenced_media_cleanup<C>(

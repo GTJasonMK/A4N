@@ -1,4 +1,5 @@
 use super::*;
+use a4n_domain::project::ProjectRecord;
 
 #[test]
 fn outline_blueprint_context_is_compact_and_keeps_story_fields() {
@@ -52,7 +53,7 @@ fn outline_blueprint_context_is_compact_and_keeps_story_fields() {
         created_at: now,
     };
 
-    let project = novel_project::Model {
+    let project = ProjectRecord {
         id: 9,
         user_id: 1,
         title: "星潮项目".to_string(),
@@ -115,7 +116,7 @@ fn outline_blueprint_context_is_compact_and_keeps_story_fields() {
 #[test]
 fn outline_context_without_blueprint_uses_sparse_formal_materials_without_fake_chapter_facts() {
     let now = fixed_time(1);
-    let project = novel_project::Model {
+    let project = ProjectRecord {
         id: 9,
         user_id: 1,
         title: "钟楼旧稿".to_string(),
@@ -156,7 +157,7 @@ fn outline_context_without_blueprint_uses_sparse_formal_materials_without_fake_c
         created_at: now,
         updated_at: now,
     };
-    let object = object_profile::Model {
+    let object = a4n_domain::object_profile::ObjectProfileRecord {
         id: 2,
         project_id: 9,
         ownership_kind: "user".to_string(),
@@ -178,7 +179,7 @@ fn outline_context_without_blueprint_uses_sparse_formal_materials_without_fake_c
         created_at: now,
         updated_at: now,
     };
-    let scene = scene_profile::Model {
+    let scene = a4n_domain::scene_profile::SceneProfileRecord {
         id: 3,
         project_id: 9,
         ownership_kind: "user".to_string(),
@@ -270,7 +271,7 @@ fn outline_context_without_blueprint_uses_sparse_formal_materials_without_fake_c
 #[test]
 fn chapter_outline_context_includes_foreshadowing_fields() {
     let now = fixed_time(1);
-    let outline = chapter_outline::Model {
+    let outline = ChapterOutlineRecord {
         id: 1,
         project_id: 9,
         part_id: Some(2),

@@ -126,7 +126,7 @@ fn profile_image_plan(
 }
 
 fn object_profile_material(
-    profile: object_profile::Model,
+    profile: ObjectProfileRecord,
     input: &ObjectProfileImageInput,
 ) -> ProfileImageMaterial {
     let prompt = object_profile_image_prompt(&profile, input.style.as_deref());
@@ -158,7 +158,7 @@ fn object_profile_material(
 }
 
 fn scene_profile_material(
-    profile: scene_profile::Model,
+    profile: SceneProfileRecord,
     input: &SceneProfileImageInput,
 ) -> ProfileImageMaterial {
     let prompt = scene_profile_image_prompt(&profile, input.style.as_deref());

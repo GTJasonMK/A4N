@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use a4n_db_models::models::chapter::part_outline;
+use a4n_domain::chapter::PartOutlineRecord;
 use a4n_error::AppError;
 use a4n_llm_provider_contract::provider::ChatRequest;
 use serde_json::Value;
@@ -103,7 +103,7 @@ impl OrchestratorContext {
         project_id: i64,
         start_chapter: i32,
         count: i32,
-        focus_part: Option<&part_outline::Model>,
+        focus_part: Option<&PartOutlineRecord>,
         prompt_renderer: &dyn PromptRenderer,
         variables: &HashMap<String, Value>,
     ) -> Result<Vec<OutlineRequestPreviewStep>, AppError> {
@@ -125,7 +125,7 @@ impl OrchestratorContext {
         project_id: i64,
         start_chapter: i32,
         count: i32,
-        focus_part: Option<&part_outline::Model>,
+        focus_part: Option<&PartOutlineRecord>,
         prompt_renderer: &dyn PromptRenderer,
         variables: &HashMap<String, Value>,
         context: &crate::outline::context::ChapterOutlineGenerationContext,

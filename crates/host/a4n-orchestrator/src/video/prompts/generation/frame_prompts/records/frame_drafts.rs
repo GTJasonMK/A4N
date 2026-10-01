@@ -1,5 +1,5 @@
-use a4n_db_models::models::chapter::chapter_video_prompt;
 use a4n_domain::prompt_language::PromptOutputLanguage;
+use a4n_domain::video_prompt::{ChapterVideoPromptRecord, chapter_video_prompt};
 use a4n_error::AppError;
 use serde_json::{Value, json};
 
@@ -16,7 +16,7 @@ use super::rules::optional_prompt_text;
 use a4n_domain::prompt_language::with_prompt_output_language_metadata;
 
 pub(in crate::video) fn prompt_row_draft(
-    row: &chapter_video_prompt::Model,
+    row: &ChapterVideoPromptRecord,
 ) -> Result<NewChapterVideoPrompt, AppError> {
     Ok(new_prompt_draft(NewChapterVideoPromptInput {
         project_id: row.project_id,

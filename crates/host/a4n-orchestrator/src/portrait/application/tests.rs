@@ -168,7 +168,7 @@ fn prompts_dir() -> PathBuf {
 async fn insert_project_and_profile(
     database: &DatabaseConnection,
 ) -> (
-    a4n_db_models::models::project::novel_project::Model,
+    a4n_domain::project::ProjectRecord,
     a4n_db_models::models::character::protagonist_profile::Model,
 ) {
     let project = create_freeform_video_project_record(

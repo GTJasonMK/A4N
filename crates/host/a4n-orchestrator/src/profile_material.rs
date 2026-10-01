@@ -1,10 +1,7 @@
 use a4n_api_contract::profile::{ProfileMaterialGroup, UploadProfileMaterialImageInput};
-use a4n_db::profile_material::{
-    generated_image_profile_material_identity, profile_material_identity_from_fields,
-};
-use a4n_db_models::models::{
-    asset::object_profile, media::image_publication, scene::scene_profile,
-};
+use a4n_db::profile_material::profile_material_identity_from_fields;
+use a4n_db_models::models::media::image_publication;
+use a4n_domain::profile_material::profile_material_identity;
 use a4n_domain::{
     image::{IMAGE_TYPE_OBJECT_MATERIAL, IMAGE_TYPE_SCENE_MATERIAL},
     media::{
@@ -12,7 +9,9 @@ use a4n_domain::{
         IMAGE_PUBLICATION_STATUS_PENDING, IMAGE_PUBLICATION_STATUS_PUBLISHED,
         ImagePublicationFileFacts,
     },
+    object_profile::ObjectProfileRecord,
     profile_material::ProfileMaterialKind,
+    scene_profile::SceneProfileRecord,
 };
 use a4n_error::AppError;
 use a4n_image_host_contract::{
@@ -29,8 +28,8 @@ use uuid::Uuid;
 use crate::{OrchestratorContext, asset::asset_error, scene_profile::scene_profile_db_error};
 use a4n_domain::collaboration::ProjectAccessRole;
 use a4n_profile_material_core::{
-    ProfileMaterialSource, image_type_for_profile_material_kind, object_source_from_model,
-    profile_material_group_projections, scene_source_from_model,
+    ProfileMaterialSource, image_type_for_profile_material_kind, object_source_from_record,
+    profile_material_group_projections, scene_source_from_record,
 };
 const MANUAL_UPLOAD_MODEL: &str = "manual_upload";
 const MAX_UPLOAD_IMAGE_BYTES: usize = 20 * 1024 * 1024;
@@ -76,7 +75,7 @@ pub(crate) fn profile_material_metadata(
 }
 
 pub(crate) fn scene_profile_image_prompt(
-    profile: &scene_profile::Model,
+    profile: &SceneProfileRecord,
     style: Option<&str>,
 ) -> String {
     let style = style
@@ -112,7 +111,7 @@ fn scene_visual_state_hint(state: &Value) -> String {
 }
 
 pub(crate) fn object_profile_image_prompt(
-    profile: &object_profile::Model,
+    profile: &ObjectProfileRecord,
     style: Option<&str>,
 ) -> String {
     let style = style
@@ -384,7 +383,7 @@ impl OrchestratorContext {
             .ok_or_else(|| AppError::NotFound(format!("已发布档案素材图不存在: {image_id}")))?;
         if image.project_id != publication.project_id
             || image.file_path != publication.final_path
-            || generated_image_profile_material_identity(&image)
+            || profile_material_identity(&image.image_type, image.metadata_json.as_ref())
                 != Some((kind.as_str(), profile_id))
         {
             return Err(AppError::InvalidState {
@@ -463,7 +462,7 @@ impl OrchestratorContext {
                         "场景档案 #{profile_id} 不属于项目 {project_id}"
                     )));
                 }
-                Ok(scene_source_from_model(profile))
+                Ok(scene_source_from_record(profile))
             }
             ProfileMaterialKind::Object => {
                 let profile = self.object_profile_by_id(profile_id).await?;
@@ -472,7 +471,7 @@ impl OrchestratorContext {
                         "物体档案 #{profile_id} 不属于项目 {project_id}"
                     )));
                 }
-                Ok(object_source_from_model(profile))
+                Ok(object_source_from_record(profile))
             }
         }
     }

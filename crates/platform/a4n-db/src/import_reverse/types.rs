@@ -1,9 +1,13 @@
 use a4n_db_models::models::{
-    asset::object_profile,
-    chapter::{chapter, chapter_outline, part_outline},
+    chapter::chapter,
     character::{foreshadowing_index, protagonist_profile},
-    project::{blueprint_character, blueprint_relationship, novel_blueprint, novel_project},
-    scene::scene_profile,
+    project::{blueprint_character, blueprint_relationship, novel_blueprint},
+};
+use a4n_domain::{
+    chapter::{ChapterOutlineRecord, PartOutlineRecord},
+    object_profile::ObjectProfileRecord,
+    project::ProjectRecord,
+    scene_profile::SceneProfileRecord,
 };
 use chrono::NaiveDateTime;
 use serde_json::Value;
@@ -45,10 +49,10 @@ impl From<crate::blueprint::BlueprintDbError> for ImportReverseDbError {
 
 #[derive(Debug, Clone)]
 pub struct ReverseContextRows {
-    pub project: novel_project::Model,
+    pub project: ProjectRecord,
     pub chapters: Vec<chapter::Model>,
-    pub chapter_outlines: Vec<chapter_outline::Model>,
-    pub part_outlines: Vec<part_outline::Model>,
+    pub chapter_outlines: Vec<ChapterOutlineRecord>,
+    pub part_outlines: Vec<PartOutlineRecord>,
     pub blueprint_context: Option<ReverseBlueprintContextRows>,
 }
 
@@ -59,8 +63,8 @@ pub struct ReverseBlueprintContextRows {
     pub blueprint_characters: Vec<blueprint_character::Model>,
     pub blueprint_relationships: Vec<blueprint_relationship::Model>,
     pub protagonist_profiles: Vec<protagonist_profile::Model>,
-    pub objects: Vec<object_profile::Model>,
-    pub scenes: Vec<scene_profile::Model>,
+    pub objects: Vec<ObjectProfileRecord>,
+    pub scenes: Vec<SceneProfileRecord>,
 }
 
 #[derive(Debug, Clone)]

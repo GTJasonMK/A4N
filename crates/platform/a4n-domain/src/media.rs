@@ -93,6 +93,61 @@ pub struct CreateGeneratedVideoRecordDraftInput {
     pub metadata_json: Option<Value>,
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub struct GeneratedImageRecord {
+    pub id: i64,
+    pub project_id: i64,
+    pub image_type: String,
+    pub file_path: String,
+    pub prompt: String,
+    pub model: String,
+    pub width: i32,
+    pub height: i32,
+    pub file_size: Option<i64>,
+    pub ai_score: Option<f32>,
+    pub is_favorite: bool,
+    pub chapter_id: Option<i64>,
+    pub panel_id: Option<String>,
+    pub metadata_json: Option<Value>,
+    pub created_at: NaiveDateTime,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct GeneratedImageReferenceRecord {
+    pub id: i64,
+    pub image_type: String,
+    pub metadata_json: Option<Value>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct GeneratedVideoRecord {
+    pub id: i64,
+    pub project_id: i64,
+    pub chapter_id: Option<i64>,
+    pub video_type: String,
+    pub workflow_mode: Option<String>,
+    pub file_path: Option<String>,
+    pub thumbnail_path: Option<String>,
+    pub prompt: String,
+    pub negative_prompt: Option<String>,
+    pub model: String,
+    pub width: i32,
+    pub height: i32,
+    pub duration_secs: f32,
+    pub fps: i32,
+    pub file_size: Option<i64>,
+    pub source_video_id: Option<i64>,
+    pub source_image_id: Option<i64>,
+    pub status: String,
+    pub provider_job_id: Option<String>,
+    pub error_message: Option<String>,
+    pub timeline_item_id: Option<i64>,
+    pub metadata_json: Option<Value>,
+    pub is_favorite: bool,
+    pub created_at: NaiveDateTime,
+    pub updated_at: NaiveDateTime,
+}
+
 /// Pure patch input for a generated-image record. Database ownership checks,
 /// normalization and persistence stay in `a4n-db`.
 #[derive(Debug, Clone, Default)]
@@ -317,6 +372,30 @@ pub struct CreateMediaAssetRecordInput {
     pub status: String,
     pub error_message: Option<String>,
     pub provenance: MediaProvenanceRecordInput,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct MediaAssetRecord {
+    pub id: i64,
+    pub project_id: i64,
+    pub root_project_id: i64,
+    pub source_snapshot_id: Option<i64>,
+    pub source_chapter_id: Option<i64>,
+    pub source_snapshot_chapter_id: Option<i64>,
+    pub media_kind: String,
+    pub origin: String,
+    pub file_path: Option<String>,
+    pub thumbnail_path: Option<String>,
+    pub width: Option<i32>,
+    pub height: Option<i32>,
+    pub duration_secs: Option<f32>,
+    pub fps: Option<f32>,
+    pub file_size: Option<i64>,
+    pub checksum: Option<String>,
+    pub status: String,
+    pub error_message: Option<String>,
+    pub created_at: NaiveDateTime,
+    pub updated_at: NaiveDateTime,
 }
 
 pub fn media_mime_from_path(path: &Path) -> Result<&'static str, String> {

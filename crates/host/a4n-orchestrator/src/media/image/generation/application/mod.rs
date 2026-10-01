@@ -4,12 +4,8 @@ use a4n_api_contract::image::GeneratedImageSummary;
 use a4n_api_contract::manga::MangaReferenceBindingSummary;
 use a4n_canvas_contract::GenerateCanvasImageInput;
 use a4n_config::{ensure_image_size_supported, image_sizes_from_json};
-use a4n_db_models::models::{
-    asset::object_profile,
-    chapter::chapter_manga_prompt::{self, MANGA_PAGE_PROMPT_TYPE, Model as MangaPagePrompt},
-    project::novel_project,
-    scene::scene_profile,
-};
+use a4n_domain::manga::{MANGA_PAGE_PROMPT_TYPE, MangaPagePromptRecord as MangaPagePrompt};
+use a4n_domain::project::ProjectRecord;
 use a4n_domain::source_text_hash as source_content_sha256;
 use a4n_domain::{
     image::{
@@ -19,6 +15,7 @@ use a4n_domain::{
     profile_material::ProfileMaterialKind,
     source_spans::{ChapterSourceContext, source_metadata},
 };
+use a4n_domain::{object_profile::ObjectProfileRecord, scene_profile::SceneProfileRecord};
 use a4n_error::AppError;
 use a4n_image_contract::{ImageGenerationRequest, ImageReference};
 use serde_json::{Value, json};

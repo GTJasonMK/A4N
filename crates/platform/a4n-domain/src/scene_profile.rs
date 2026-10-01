@@ -1,5 +1,6 @@
 //! Pure scene-profile values and normalization shared by scene owners.
 
+use chrono::NaiveDateTime;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
@@ -164,6 +165,32 @@ pub struct SceneProfileRecordInput {
     pub last_seen_chapter: i32,
     pub evidence_json: Value,
     pub image_prompt_seed: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct SceneProfileRecord {
+    pub id: i64,
+    pub project_id: i64,
+    pub ownership_kind: String,
+    pub name: String,
+    pub normalized_name: String,
+    pub aliases_json: Value,
+    pub scene_type: String,
+    pub importance: String,
+    pub parent_scene_id: Option<i64>,
+    pub base_description: String,
+    pub visual_description: String,
+    pub spatial_layout: String,
+    pub atmosphere: String,
+    pub entry_points_json: Value,
+    pub rules_json: Value,
+    pub current_state_json: Value,
+    pub first_seen_chapter: i32,
+    pub last_seen_chapter: i32,
+    pub evidence_json: Value,
+    pub image_prompt_seed: String,
+    pub created_at: NaiveDateTime,
+    pub updated_at: NaiveDateTime,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

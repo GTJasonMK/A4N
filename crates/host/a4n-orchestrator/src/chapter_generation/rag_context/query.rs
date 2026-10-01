@@ -1,7 +1,8 @@
 use super::super::{
     compact_json_text, is_meaningful_json_value, outline_character_names, truncate_text_chars,
 };
-use a4n_db_models::models::{chapter::chapter_outline, character::foreshadowing_index};
+use a4n_db::rag::RagForeshadowingRow;
+use a4n_domain::chapter::ChapterOutlineRecord;
 use a4n_domain::text_location::extract_scene_location;
 
 const GENERATION_RAG_MAX_QUERIES: usize = 7;
@@ -24,10 +25,10 @@ fn push_generation_rag_query(queries: &mut Vec<GenerationRagQuery>, text: String
 }
 
 pub(super) fn build_generation_rag_queries(
-    outline: Option<&chapter_outline::Model>,
+    outline: Option<&ChapterOutlineRecord>,
     outline_text: &str,
     writing_instruction: Option<&str>,
-    pending_foreshadowing: &[foreshadowing_index::Model],
+    pending_foreshadowing: &[RagForeshadowingRow],
 ) -> Vec<GenerationRagQuery> {
     let mut parts = Vec::new();
 

@@ -80,7 +80,8 @@ pub(super) fn has_blueprint_source(rows: &ReverseContextRows) -> bool {
 #[cfg(test)]
 mod tests {
     use a4n_db::import_reverse::{ReverseBlueprintContextRows, ReverseContextRows};
-    use a4n_db_models::models::project::{blueprint_relationship, novel_project};
+    use a4n_db_models::models::project::blueprint_relationship;
+    use a4n_domain::project::ProjectRecord;
     use chrono::NaiveDate;
     use serde_json::json;
 
@@ -92,7 +93,7 @@ mod tests {
             .and_hms_opt(10, 0, 0)
             .unwrap();
         ReverseContextRows {
-            project: novel_project::Model {
+            project: ProjectRecord {
                 id: 9,
                 user_id: 1,
                 title: "钟楼旧稿".to_string(),

@@ -244,7 +244,7 @@ impl WorkerState {
         let projects = page
             .items
             .into_iter()
-            .map(|project| project.into_model())
+            .map(|project| project.into_summary_record())
             .collect::<Vec<_>>();
         let items = self.summary_for_projects(user_id, &projects).await?;
         Ok(PaginatedProjects {
@@ -279,7 +279,7 @@ impl WorkerState {
     async fn summary_for_project(
         &self,
         user_id: i64,
-        project: a4n_db_models::models::project::novel_project::Model,
+        project: a4n_domain::project::ProjectSummaryRecord,
     ) -> Result<ProjectSummary, WorkerFailure> {
         a4n_project_read_core::project_summary_for_user(&self.database, user_id, &project)
             .await
@@ -289,7 +289,7 @@ impl WorkerState {
     async fn summary_for_projects(
         &self,
         user_id: i64,
-        projects: &[a4n_db_models::models::project::novel_project::Model],
+        projects: &[a4n_domain::project::ProjectSummaryRecord],
     ) -> Result<Vec<ProjectSummary>, WorkerFailure> {
         let family_queries = projects
             .iter()

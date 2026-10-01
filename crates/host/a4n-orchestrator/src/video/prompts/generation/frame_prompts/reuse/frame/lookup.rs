@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 
-use a4n_db_models::models::chapter::chapter_video_prompt;
 use a4n_domain::prompt_language::metadata_matches_prompt_output_language;
+use a4n_domain::video_prompt::ChapterVideoPromptRecord;
 use a4n_error::AppError;
 
 use super::super::super::prompt_resume_context_matches;
@@ -9,7 +9,7 @@ use super::super::contracts::{FrameImageLookupContext, FrameImageLookupRowsQuery
 
 pub(in crate::video) async fn boundary_frame_rows_for_image_lookup(
     query: FrameImageLookupRowsQuery<'_>,
-) -> Result<Vec<chapter_video_prompt::Model>, AppError> {
+) -> Result<Vec<ChapterVideoPromptRecord>, AppError> {
     let FrameImageLookupRowsQuery {
         service,
         project_id,
@@ -27,7 +27,7 @@ pub(in crate::video) async fn boundary_frame_rows_for_image_lookup(
     .await
     .map_err(AppError::database)?;
 
-    let mut by_frame = BTreeMap::<i32, chapter_video_prompt::Model>::new();
+    let mut by_frame = BTreeMap::<i32, ChapterVideoPromptRecord>::new();
     for row in rows {
         if !frame_row_matches_image_lookup_context(&row, &context) {
             continue;
@@ -38,7 +38,7 @@ pub(in crate::video) async fn boundary_frame_rows_for_image_lookup(
 }
 
 pub(in crate::video::prompts::generation::frame_prompts) fn frame_row_matches_image_lookup_context(
-    row: &chapter_video_prompt::Model,
+    row: &ChapterVideoPromptRecord,
     context: &FrameImageLookupContext<'_>,
 ) -> bool {
     prompt_resume_context_matches(

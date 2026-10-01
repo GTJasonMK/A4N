@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use a4n_db_models::models::chapter::part_outline;
+use a4n_domain::chapter::PartOutlineRecord;
 use a4n_error::AppError;
 use chrono::Utc;
 use serde_json::Value;
@@ -24,7 +24,7 @@ impl OrchestratorContext {
         prompt_renderer: &dyn PromptRenderer,
         variables: &HashMap<String, Value>,
         workflow_run_id: Option<i64>,
-    ) -> Result<part_outline::Model, AppError> {
+    ) -> Result<PartOutlineRecord, AppError> {
         let prepared = prepare_last_part_regeneration(self, project_id).await?;
         self.execute_part_regeneration(prepared, prompt_renderer, variables, workflow_run_id)
             .await
@@ -38,7 +38,7 @@ impl OrchestratorContext {
         prompt_renderer: &dyn PromptRenderer,
         variables: &HashMap<String, Value>,
         workflow_run_id: Option<i64>,
-    ) -> Result<part_outline::Model, AppError> {
+    ) -> Result<PartOutlineRecord, AppError> {
         let prepared = prepare_part_regeneration_by_id(self, project_id, part_id).await?;
         self.execute_part_regeneration(prepared, prompt_renderer, variables, workflow_run_id)
             .await
@@ -50,7 +50,7 @@ impl OrchestratorContext {
         prompt_renderer: &dyn PromptRenderer,
         variables: &HashMap<String, Value>,
         workflow_run_id: Option<i64>,
-    ) -> Result<part_outline::Model, AppError> {
+    ) -> Result<PartOutlineRecord, AppError> {
         let generated = self
             .generate_part_outline_json(PartOutlineJsonInput {
                 project_id: prepared.project_id,

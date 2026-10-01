@@ -1,5 +1,5 @@
 use a4n_chapter_analysis::{CHAPTER_ANALYSIS_SERVICE_PROGRESS_TOTAL, CHAPTER_ANALYSIS_STEP_FINAL};
-use a4n_db_models::models::chapter::chapter;
+use a4n_domain::chapter::ChapterRecord;
 use a4n_domain::source_spans::SourceSpan;
 use a4n_error::AppError;
 use serde_json::{Value, json};
@@ -10,7 +10,7 @@ use super::super::owner::{
 use super::super::{ChapterAnalysisProgress, OrchestratorContext};
 
 pub(super) struct FinalizeChapterAnalysisInput<'a> {
-    pub(super) chapter: &'a chapter::Model,
+    pub(super) chapter: &'a ChapterRecord,
     pub(super) facts: Value,
     pub(super) summary: Value,
     pub(super) character_states: Value,

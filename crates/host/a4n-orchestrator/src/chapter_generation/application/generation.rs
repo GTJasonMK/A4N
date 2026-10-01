@@ -430,7 +430,11 @@ impl OrchestratorContext {
                             tx,
                         )
                         .await?;
-                    let content_sync_run = a4n_chapter_content_core::begin_chapter_content_sync_in_transaction(tx, &chapter).await?;
+                    let content_sync_run =
+                        a4n_chapter_content_core::begin_chapter_content_sync_in_transaction(
+                            tx, &chapter,
+                        )
+                        .await?;
                     chapter_id_slot.store(chapter.id, Ordering::Release);
                     content_sync_run_id_slot.store(content_sync_run.id, Ordering::Release);
                     let sha256 = format!("{:x}", Sha256::digest(chapter.content.as_bytes()));
@@ -475,7 +479,7 @@ impl OrchestratorContext {
             return Err("generation completed 但缺少章节资料同步 run id".to_string());
         }
         let content_sync_run = self
-            .workflow_run_model_by_id(content_sync_run_id)
+            .workflow_run_summary(content_sync_run_id)
             .await
             .map_err(|error| error.to_string())?;
         if let Err(error) = self
@@ -851,7 +855,7 @@ impl OrchestratorContext {
         &self,
         project_id: i64,
         chapter_number: i32,
-        outline: Option<&chapter_outline::Model>,
+        outline: Option<&ChapterOutlineRecord>,
         rag_query_outline_text: &str,
         writing_instruction: Option<&str>,
         client_rag: Option<ClientGenerationRagInput>,
@@ -1049,7 +1053,7 @@ impl OrchestratorContext {
         project_id: i64,
         chapter_number: i32,
         writing_notes: Option<&str>,
-    ) -> Result<(Option<chapter_outline::Model>, Option<String>, String), String> {
+    ) -> Result<(Option<ChapterOutlineRecord>, Option<String>, String), String> {
         let outline = self
             .formal_chapter_outline_by_project_number(project_id, chapter_number)
             .await

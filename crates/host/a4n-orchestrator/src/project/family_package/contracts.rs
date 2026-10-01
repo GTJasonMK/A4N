@@ -12,12 +12,13 @@ use a4n_db_models::models::{
     },
     media::{media_asset, media_binding, media_provenance},
     project::{
-        novel_project, profile_evidence, project_source_snapshot, source_snapshot_chapter,
+        profile_evidence, project_source_snapshot, source_snapshot_chapter,
         source_snapshot_outline, source_snapshot_profile, text_anchor,
     },
     source_sync::{source_sync_conflict, source_sync_decision, source_sync_run},
     video_project::{assembly_clip, assembly_timeline, video_segment},
 };
+use a4n_domain::project::ProjectRecord;
 use serde::{Deserialize, Serialize};
 
 pub const PROJECT_FAMILY_PACKAGE_VERSION: &str = "project_family_v6";
@@ -29,7 +30,7 @@ pub struct ProjectFamilyPackage {
     pub exported_at: String,
     pub mode: String,
     pub root_project_id: i64,
-    pub projects: Vec<novel_project::Model>,
+    pub projects: Vec<ProjectRecord>,
     pub text_core: TextCorePackage,
     pub source_snapshots: Vec<project_source_snapshot::Model>,
     pub source_snapshot_chapters: Vec<source_snapshot_chapter::Model>,

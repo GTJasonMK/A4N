@@ -18,7 +18,7 @@ mod regeneration;
 mod requests;
 
 use a4n_db::project as project_db;
-use a4n_db_models::models::chapter::{chapter_outline, part_outline};
+use a4n_domain::chapter::{ChapterOutlineRecord, PartOutlineRecord};
 use a4n_error::AppError;
 
 use crate::outline::{
@@ -28,9 +28,9 @@ use crate::outline::{
 };
 
 pub(super) struct PreparedChapterOutlineRegeneration {
-    pub(super) old: chapter_outline::Model,
+    pub(super) old: ChapterOutlineRecord,
     pub(super) context: ChapterOutlineGenerationContext,
-    pub(super) focus_part: Option<part_outline::Model>,
+    pub(super) focus_part: Option<PartOutlineRecord>,
 }
 
 impl OrchestratorContext {

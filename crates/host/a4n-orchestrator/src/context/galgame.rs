@@ -9,7 +9,6 @@ use a4n_db::galgame::{
     GalgamePortraitSpecTargetInput, GalgameTargetContext,
 };
 use a4n_db_models::models::{
-    ai::generated_image,
     character::character_portrait,
     generation::{generation_spec, prompt_artifact},
 };
@@ -152,7 +151,7 @@ impl GalgameApplication {
         &self,
         image_id: i64,
         project_id: i64,
-    ) -> Result<generated_image::Model, AppError> {
+    ) -> Result<a4n_domain::media::GeneratedImageRecord, AppError> {
         a4n_db::galgame::galgame_generated_image_by_id(&self.database, image_id, project_id)
             .await
             .map_err(galgame_generation_record_error)
@@ -329,7 +328,7 @@ impl OrchestratorContext {
         &self,
         image_id: i64,
         project_id: i64,
-    ) -> Result<a4n_db_models::models::ai::generated_image::Model, a4n_error::AppError> {
+    ) -> Result<a4n_domain::media::GeneratedImageRecord, a4n_error::AppError> {
         self.galgame
             .galgame_generated_image_by_id(image_id, project_id)
             .await

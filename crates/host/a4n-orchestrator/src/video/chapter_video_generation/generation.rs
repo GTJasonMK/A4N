@@ -37,7 +37,7 @@ impl OrchestratorContext {
         host_port: &dyn ChapterVideoGenerationHostPort,
         input: GenerateChapterVideoInput,
         progress: &mut VideoGenerationProgress<'_>,
-    ) -> Result<generated_video::Model, AppError> {
+    ) -> Result<GeneratedVideoRecord, AppError> {
         progress.progress(
             0,
             VIDEO_GENERATION_PROGRESS_TOTAL,
@@ -376,7 +376,7 @@ impl OrchestratorContext {
         &self,
         host_port: &dyn ChapterVideoGenerationHostPort,
         prepared: &PreparedChapterVideoGeneration,
-    ) -> Result<generated_video::Model, AppError> {
+    ) -> Result<GeneratedVideoRecord, AppError> {
         let context = &prepared.context;
         let snapshot_request = sanitized_chapter_video_request_for_snapshot(context)
             .map_err(AppError::InvalidArgument)?;
@@ -464,7 +464,7 @@ impl OrchestratorContext {
 
     async fn chapter_video_preview_config_id(
         &self,
-        prompt: &chapter_video_prompt::Model,
+        prompt: &ChapterVideoPromptRecord,
         requested_config_id: Option<i64>,
     ) -> Result<Option<i64>, AppError> {
         if requested_config_id.is_some() {
@@ -553,7 +553,7 @@ impl OrchestratorContext {
 
     async fn require_current_segment_recipe_for_video_prompt(
         &self,
-        prompt: &chapter_video_prompt::Model,
+        prompt: &ChapterVideoPromptRecord,
     ) -> Result<VideoPromptExecutionContract, AppError> {
         self.require_current_segment_recipe_for_video_prompt_cached(
             prompt,
@@ -564,7 +564,7 @@ impl OrchestratorContext {
 
     async fn require_current_segment_recipe_for_video_prompt_cached(
         &self,
-        prompt: &chapter_video_prompt::Model,
+        prompt: &ChapterVideoPromptRecord,
         cache: &mut VideoPromptValidationCache,
     ) -> Result<VideoPromptExecutionContract, AppError> {
         let metadata = prompt
@@ -824,7 +824,7 @@ impl OrchestratorContext {
         &self,
         project_id: i64,
         chapter_id: i64,
-        prompt: &chapter_video_prompt::Model,
+        prompt: &ChapterVideoPromptRecord,
         prompt_reference_image_ids: &[i64],
         prompt_reference_image_ids_json: Option<&Value>,
         provider_workflow: ProviderGenerationWorkflow,
@@ -914,7 +914,7 @@ impl OrchestratorContext {
         &self,
         project_id: i64,
         chapter_id: i64,
-        prompt: &chapter_video_prompt::Model,
+        prompt: &ChapterVideoPromptRecord,
     ) -> Result<BoundaryFrameImageIds, AppError> {
         let (first_frame_number, last_frame_number) =
             boundary_frame_numbers_for_prompt(prompt).map_err(AppError::InvalidArgument)?;
@@ -961,7 +961,7 @@ impl OrchestratorContext {
         project_id: i64,
         chapter_id: i64,
         source_video_id: i64,
-    ) -> Result<generated_video::Model, AppError> {
+    ) -> Result<GeneratedVideoRecord, AppError> {
         let source_video = self
             .generated_video_by_id(source_video_id)
             .await?
@@ -985,7 +985,7 @@ impl OrchestratorContext {
         &self,
         project_id: i64,
         chapter_id: i64,
-        prompt: &chapter_video_prompt::Model,
+        prompt: &ChapterVideoPromptRecord,
         recipe: &VideoSegmentExecutionRecipeV1,
     ) -> Result<Option<i64>, AppError> {
         if prompt.timeline_item_id.is_none() && prompt.shot_number <= 1 {
@@ -1034,7 +1034,7 @@ impl OrchestratorContext {
         &self,
         project_id: i64,
         chapter_id: i64,
-        prompt: &chapter_video_prompt::Model,
+        prompt: &ChapterVideoPromptRecord,
     ) -> Result<Option<i64>, AppError> {
         let prompts = self
             .chapter_video_storyboard_prompt_candidates(project_id, chapter_id, prompt.shot_number)

@@ -3,8 +3,11 @@ use a4n_db_models::models::{
     ai::generated_image,
     character::{character_portrait, protagonist_profile},
 };
+use a4n_domain::media::GeneratedImageRecord;
 use sea_orm::{ColumnTrait, ConnectionTrait, DbErr, EntityTrait, QueryFilter, sea_query::Query};
 use std::collections::HashMap;
+
+use crate::video::media_mapping::generated_image_record_from_model;
 
 pub async fn missing_portrait_profiles<C>(
     db: &C,
@@ -30,7 +33,7 @@ pub async fn portrait_reference_images_by_ids<C>(
     db: &C,
     project_id: i64,
     image_ids: &[i64],
-) -> Result<Vec<generated_image::Model>, CharacterPortraitRecordError>
+) -> Result<Vec<GeneratedImageRecord>, CharacterPortraitRecordError>
 where
     C: ConnectionTrait,
 {
@@ -56,7 +59,7 @@ where
                 image_id
             )));
         }
-        ordered.push(image);
+        ordered.push(generated_image_record_from_model(image));
     }
 
     Ok(ordered)

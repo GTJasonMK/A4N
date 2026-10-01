@@ -1,12 +1,14 @@
 use a4n_db_models::models::{asset::object_profile, project::novel_project};
 use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QueryOrder, QuerySelect};
 
+use super::record::object_profile_record;
 use crate::asset::AssetDbError;
+use a4n_domain::object_profile::ObjectProfileRecord;
 
 pub async fn object_profiles_by_project<C>(
     db: &C,
     project_id: i64,
-) -> Result<Vec<object_profile::Model>, AssetDbError>
+) -> Result<Vec<ObjectProfileRecord>, AssetDbError>
 where
     C: ConnectionTrait,
 {
@@ -19,10 +21,26 @@ where
             .all(db),
     );
     project_result?;
-    profiles_result.map_err(AssetDbError::Database)
+    profiles_result
+        .map(|profiles| profiles.into_iter().map(object_profile_record).collect())
+        .map_err(AssetDbError::Database)
 }
 
 pub async fn object_profile_by_id<C>(
+    db: &C,
+    object_profile_id: i64,
+) -> Result<ObjectProfileRecord, AssetDbError>
+where
+    C: ConnectionTrait,
+{
+    object_profile::Entity::find_by_id(object_profile_id)
+        .one(db)
+        .await?
+        .ok_or_else(|| AssetDbError::NotFound("物体档案不存在".to_string()))
+        .map(object_profile_record)
+}
+
+pub(super) async fn object_profile_model_by_id<C>(
     db: &C,
     object_profile_id: i64,
 ) -> Result<object_profile::Model, AssetDbError>

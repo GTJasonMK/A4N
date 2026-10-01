@@ -105,7 +105,7 @@ impl OrchestratorContext {
             ..Default::default()
         };
         let Some(run) = self
-            .workflow_run_models(ListWorkflowRunsInput {
+            .workflow_runs(ListWorkflowRunsInput {
                 project_id: Some(project_id),
                 chapter_id: None,
                 chapter_ids: None,
@@ -120,7 +120,7 @@ impl OrchestratorContext {
         else {
             return Ok(inputs);
         };
-        for checkpoint in self.workflow_checkpoint_models(run.id).await? {
+        for checkpoint in self.workflow_checkpoint_summaries(run.id).await? {
             if checkpoint.status != WORKFLOW_STATUS_COMPLETED {
                 continue;
             }

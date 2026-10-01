@@ -2,6 +2,7 @@ use a4n_db::optimize::{
     OptimizationTurnCreateInput, OptimizationTurnEventAppendInput, OptimizationTurnUpdateInput,
 };
 use a4n_db_models::models::ai::{optimization_turn, optimization_turn_event};
+use a4n_domain::optimization::OptimizationTurnRecord;
 use a4n_error::AppError;
 use serde_json::Value;
 
@@ -51,7 +52,7 @@ impl OrchestratorContext {
     pub(super) async fn list_turns(
         &self,
         session_id: i64,
-    ) -> Result<Vec<optimization_turn::Model>, AppError> {
+    ) -> Result<Vec<OptimizationTurnRecord>, AppError> {
         self.optimization_turns(session_id).await
     }
 

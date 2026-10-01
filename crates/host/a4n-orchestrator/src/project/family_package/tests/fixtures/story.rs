@@ -174,8 +174,8 @@ pub(in crate::project::family_package::tests) fn package_with_part_outlines(
 
 pub(in crate::project::family_package::tests) fn object_profile_record(
     id: i64,
-) -> object_profile::Model {
-    object_profile::Model {
+) -> a4n_domain::object_profile::ObjectProfileRecord {
+    a4n_domain::object_profile::ObjectProfileRecord {
         id,
         project_id: 1,
         ownership_kind: "legacy_unknown".to_string(),
@@ -201,8 +201,8 @@ pub(in crate::project::family_package::tests) fn object_profile_record(
 
 pub(in crate::project::family_package::tests) fn scene_profile_record(
     id: i64,
-) -> scene_profile::Model {
-    scene_profile::Model {
+) -> a4n_domain::scene_profile::SceneProfileRecord {
+    a4n_domain::scene_profile::SceneProfileRecord {
         id,
         project_id: 1,
         ownership_kind: "legacy_unknown".to_string(),

@@ -2,7 +2,6 @@ use a4n_api_contract::galgame::{
     GalgamePipelineStatusSummary, GalgameWorkflowCheckpointSummary, GalgameWorkflowRunSummary,
 };
 use a4n_db::galgame::GalgamePipelinePromptContextRecord;
-use a4n_db_models::models::generation::{workflow_checkpoint, workflow_run};
 use a4n_error::AppError;
 
 use crate::galgame::{
@@ -13,8 +12,8 @@ use crate::galgame::{
 use crate::shooting_script::errors::resolve_source_error;
 
 pub(in crate::galgame) fn galgame_pipeline_status_summary(
-    run: Option<workflow_run::Model>,
-    checkpoints: Vec<workflow_checkpoint::Model>,
+    run: Option<a4n_db::workflow::WorkflowRunSummary>,
+    checkpoints: Vec<a4n_db::workflow::WorkflowCheckpointSummary>,
 ) -> GalgamePipelineStatusSummary {
     GalgamePipelineStatusSummary {
         run: run.map(|run| GalgameWorkflowRunSummary {
@@ -27,9 +26,9 @@ pub(in crate::galgame) fn galgame_pipeline_status_summary(
             can_resume: run.can_resume,
             resume_block_reason: run.resume_block_reason,
             error_message: run.error_message,
-            created_at: run.created_at.and_utc().to_rfc3339(),
-            updated_at: run.updated_at.and_utc().to_rfc3339(),
-            completed_at: run.completed_at.map(|value| value.and_utc().to_rfc3339()),
+            created_at: run.created_at,
+            updated_at: run.updated_at,
+            completed_at: run.completed_at,
         }),
         checkpoints: checkpoints
             .into_iter()
@@ -41,11 +40,9 @@ pub(in crate::galgame) fn galgame_pipeline_status_summary(
                 checkpoint_json: checkpoint.checkpoint_json,
                 artifacts_json: checkpoint.artifacts_json,
                 error_message: checkpoint.error_message,
-                created_at: checkpoint.created_at.and_utc().to_rfc3339(),
-                updated_at: checkpoint.updated_at.and_utc().to_rfc3339(),
-                completed_at: checkpoint
-                    .completed_at
-                    .map(|value| value.and_utc().to_rfc3339()),
+                created_at: checkpoint.created_at,
+                updated_at: checkpoint.updated_at,
+                completed_at: checkpoint.completed_at,
             })
             .collect(),
     }

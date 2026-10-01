@@ -1,4 +1,5 @@
 use a4n_db_models::models::{project::novel_project, scene::scene_profile};
+use a4n_domain::scene_profile::SceneProfileRecord;
 use sea_orm::{
     ColumnTrait, ConnectionTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder,
     QuerySelect,
@@ -6,10 +7,12 @@ use sea_orm::{
 
 use crate::scene_profile::{SceneProfileDbError, SceneProfileDbResult};
 
+use super::record::scene_profile_record;
+
 pub async fn scene_profiles_by_project(
     db: &DatabaseConnection,
     project_id: i64,
-) -> SceneProfileDbResult<Vec<scene_profile::Model>> {
+) -> SceneProfileDbResult<Vec<SceneProfileRecord>> {
     let (project_result, profiles_result) = futures::join!(
         ensure_project_exists(db, project_id),
         scene_profile::Entity::find()
@@ -19,10 +22,21 @@ pub async fn scene_profiles_by_project(
             .all(db),
     );
     project_result?;
-    profiles_result.map_err(SceneProfileDbError::Database)
+    profiles_result
+        .map(|profiles| profiles.into_iter().map(scene_profile_record).collect())
+        .map_err(SceneProfileDbError::Database)
 }
 
 pub async fn scene_profile_by_id(
+    db: &DatabaseConnection,
+    scene_profile_id: i64,
+) -> SceneProfileDbResult<SceneProfileRecord> {
+    scene_profile_model_by_id(db, scene_profile_id)
+        .await
+        .map(scene_profile_record)
+}
+
+pub(crate) async fn scene_profile_model_by_id(
     db: &DatabaseConnection,
     scene_profile_id: i64,
 ) -> SceneProfileDbResult<scene_profile::Model> {
@@ -46,6 +60,19 @@ pub async fn scene_profile_project_id(
 }
 
 pub async fn maybe_scene_profile_by_normalized_name<C>(
+    db: &C,
+    project_id: i64,
+    normalized_name: &str,
+) -> SceneProfileDbResult<Option<SceneProfileRecord>>
+where
+    C: ConnectionTrait,
+{
+    maybe_scene_profile_model_by_normalized_name(db, project_id, normalized_name)
+        .await
+        .map(|model| model.map(scene_profile_record))
+}
+
+pub(crate) async fn maybe_scene_profile_model_by_normalized_name<C>(
     db: &C,
     project_id: i64,
     normalized_name: &str,

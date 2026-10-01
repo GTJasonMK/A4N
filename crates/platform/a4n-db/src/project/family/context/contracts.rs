@@ -1,4 +1,5 @@
-use a4n_db_models::models::project::{novel_project, project_source_snapshot};
+use a4n_db_models::models::project::project_source_snapshot;
+use a4n_domain::project::ProjectRecord;
 use sea_orm::{DbErr, FromQueryResult};
 
 #[derive(Debug, Clone, FromQueryResult)]
@@ -17,8 +18,8 @@ pub(crate) struct ProjectFamilySnapshotAccessRow {
 
 #[derive(Debug, Clone)]
 pub struct ProjectFamilyContext {
-    pub project: novel_project::Model,
-    pub root_project: novel_project::Model,
+    pub project: ProjectRecord,
+    pub root_project: ProjectRecord,
     pub source_snapshot: project_source_snapshot::Model,
 }
 

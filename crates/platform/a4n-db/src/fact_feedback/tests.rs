@@ -21,9 +21,12 @@ fn legacy_analysis_is_not_reported_as_new_fact_feedback() {
         created_at: now,
         updated_at: now,
     };
-    assert!(source_revision(&chapter).is_none());
+    assert!(source_revision(&crate::project::chapter_record(chapter.clone())).is_none());
     chapter.analysis_data = Some(json!({"world_facts": []}));
-    let first = source_revision(&chapter).unwrap();
+    let first = source_revision(&crate::project::chapter_record(chapter.clone())).unwrap();
     chapter.analysis_data.as_mut().unwrap()["_meta"] = json!({"attempt": 2});
-    assert_eq!(source_revision(&chapter), Some(first));
+    assert_eq!(
+        source_revision(&crate::project::chapter_record(chapter)),
+        Some(first)
+    );
 }

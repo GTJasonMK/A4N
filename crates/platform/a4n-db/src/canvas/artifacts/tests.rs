@@ -120,8 +120,13 @@ async fn canvas_generation_spec_upsert_derives_source_version_hash() {
     .await
     .unwrap();
 
+    let stored_spec = generation_spec::Entity::find_by_id(spec)
+        .one(&db)
+        .await
+        .unwrap()
+        .unwrap();
     assert_eq!(
-        Some(spec.source_version_hash),
+        Some(stored_spec.source_version_hash),
         generation_spec::freeform_source_version_hash(&params_json)
     );
 }

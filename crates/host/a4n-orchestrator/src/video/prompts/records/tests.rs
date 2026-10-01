@@ -2,11 +2,12 @@
 mod tests {
     use super::*;
     use crate::video::tests::video_execution_identity_fixture;
+    use a4n_domain::video_prompt::ChapterVideoPromptRecord;
     use serde_json::json;
 
-    fn prompt_row(id: i64, workflow_mode: &str, prompt_type: &str) -> chapter_video_prompt::Model {
+    fn prompt_row(id: i64, workflow_mode: &str, prompt_type: &str) -> ChapterVideoPromptRecord {
         let now = chrono::Utc::now().naive_utc();
-        chapter_video_prompt::Model {
+        ChapterVideoPromptRecord {
             id,
             project_id: 1,
             chapter_id: 2,

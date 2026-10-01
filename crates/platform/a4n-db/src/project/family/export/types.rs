@@ -1,6 +1,5 @@
 use a4n_db_models::models::{
     ai::{generated_image, generated_video},
-    asset::object_profile,
     chapter::{
         chapter, chapter_manga_prompt, chapter_outline, chapter_shooting_script,
         chapter_video_prompt, chapter_visual_plan, part_outline,
@@ -14,12 +13,15 @@ use a4n_db_models::models::{
     media::{media_asset, media_binding, media_provenance},
     project::{
         blueprint_character, blueprint_relationship, blueprint_version, novel_blueprint,
-        novel_project, profile_evidence, project_source_snapshot, source_snapshot_chapter,
+        profile_evidence, project_source_snapshot, source_snapshot_chapter,
         source_snapshot_outline, source_snapshot_profile, text_anchor,
     },
-    scene::{scene_entity_state, scene_occurrence, scene_profile, scene_transition},
+    scene::{scene_entity_state, scene_occurrence, scene_transition},
     source_sync::{source_sync_conflict, source_sync_decision, source_sync_run},
     video_project::{assembly_clip, assembly_timeline, video_segment},
+};
+use a4n_domain::{
+    object_profile::ObjectProfileRecord, project::ProjectRecord, scene_profile::SceneProfileRecord,
 };
 use sea_orm::DbErr;
 use serde::{Deserialize, Serialize};
@@ -38,8 +40,8 @@ pub enum ProjectFamilyExportError {
 
 #[derive(Debug, Clone)]
 pub struct ProjectFamilyExportSelection {
-    pub root: novel_project::Model,
-    pub derived_projects: Vec<novel_project::Model>,
+    pub root: ProjectRecord,
+    pub derived_projects: Vec<ProjectRecord>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -54,8 +56,8 @@ pub struct ProjectFamilyTextCoreRows {
     pub chapter_outlines: Vec<chapter_outline::Model>,
     pub chapters: Vec<chapter::Model>,
     pub character_profiles: Vec<protagonist_profile::Model>,
-    pub object_profiles: Vec<object_profile::Model>,
-    pub scene_profiles: Vec<scene_profile::Model>,
+    pub object_profiles: Vec<ObjectProfileRecord>,
+    pub scene_profiles: Vec<SceneProfileRecord>,
     pub scene_occurrences: Vec<scene_occurrence::Model>,
     pub scene_transitions: Vec<scene_transition::Model>,
     pub scene_entity_states: Vec<scene_entity_state::Model>,

@@ -3,18 +3,18 @@
 use super::*;
 
 impl OrchestratorContext {
+    pub(crate) async fn workflow_runs(
+        &self,
+        input: ListWorkflowRunsInput,
+    ) -> Result<Vec<WorkflowRunSummary>, AppError> {
+        self.workflow.workflow_runs(input).await
+    }
+
     pub(crate) async fn workflow_run_summary(
         &self,
         workflow_run_id: i64,
     ) -> Result<WorkflowRunSummary, AppError> {
         self.workflow.workflow_run_summary(workflow_run_id).await
-    }
-
-    pub(crate) async fn workflow_run_models(
-        &self,
-        input: ListWorkflowRunsInput,
-    ) -> Result<Vec<workflow_run::Model>, AppError> {
-        self.workflow.workflow_run_models(input).await
     }
 
     pub(crate) async fn workflow_checkpoint_statuses_for_runs(
@@ -39,18 +39,9 @@ impl OrchestratorContext {
         &self,
         project_id: i64,
         workflow_kind: &str,
-    ) -> Result<Vec<workflow_run::Model>, AppError> {
+    ) -> Result<Vec<WorkflowRunSummary>, AppError> {
         self.workflow
             .workflow_runs_by_project_kind(project_id, workflow_kind)
-            .await
-    }
-
-    pub(crate) async fn workflow_run_model_by_id(
-        &self,
-        workflow_run_id: i64,
-    ) -> Result<workflow_run::Model, AppError> {
-        self.workflow
-            .workflow_run_model_by_id(workflow_run_id)
             .await
     }
 
@@ -75,7 +66,7 @@ impl OrchestratorContext {
     pub(crate) async fn latest_workflow_run_by_business_key(
         &self,
         business_key: &str,
-    ) -> Result<Option<workflow_run::Model>, AppError> {
+    ) -> Result<Option<WorkflowRunSummary>, AppError> {
         self.workflow
             .latest_workflow_run_by_business_key(business_key)
             .await
@@ -99,21 +90,21 @@ impl OrchestratorContext {
             .await
     }
 
-    pub(crate) async fn workflow_checkpoint_models(
+    pub(crate) async fn workflow_checkpoint_summaries(
         &self,
         workflow_run_id: i64,
-    ) -> Result<Vec<workflow_checkpoint::Model>, AppError> {
+    ) -> Result<Vec<a4n_db::workflow::WorkflowCheckpointSummary>, AppError> {
         self.workflow
-            .workflow_checkpoint_models(workflow_run_id)
+            .workflow_checkpoint_summaries(workflow_run_id)
             .await
     }
 
-    pub(crate) async fn workflow_checkpoint_models_for_runs(
+    pub(crate) async fn workflow_checkpoint_summaries_for_runs(
         &self,
         workflow_run_ids: &[i64],
-    ) -> Result<Vec<workflow_checkpoint::Model>, AppError> {
+    ) -> Result<Vec<a4n_db::workflow::WorkflowCheckpointSummary>, AppError> {
         self.workflow
-            .workflow_checkpoint_models_for_runs(workflow_run_ids)
+            .workflow_checkpoint_summaries_for_runs(workflow_run_ids)
             .await
     }
 
@@ -122,7 +113,7 @@ impl OrchestratorContext {
         workflow_run_id: i64,
         step_key: &str,
         input_fingerprint_sha256: &str,
-    ) -> Result<Option<workflow_checkpoint::Model>, AppError> {
+    ) -> Result<Option<a4n_db::workflow::WorkflowCheckpointSummary>, AppError> {
         self.workflow
             .completed_workflow_checkpoint_by_fingerprint(
                 workflow_run_id,
@@ -297,14 +288,14 @@ impl OrchestratorContext {
     pub(crate) async fn upsert_workflow_run(
         &self,
         input: UpsertWorkflowRunInput,
-    ) -> Result<workflow_run::Model, AppError> {
+    ) -> Result<WorkflowRunSummary, AppError> {
         self.workflow.upsert_workflow_run(input).await
     }
 
     pub(crate) async fn claim_exclusive_workflow_run(
         &self,
         input: ClaimExclusiveWorkflowRunInput,
-    ) -> Result<workflow_run::Model, AppError> {
+    ) -> Result<WorkflowRunSummary, AppError> {
         let run = self.workflow.claim_exclusive_workflow_run(input).await?;
         self.generation
             .refresh_session_after_workflow_binding(run.active_task_id.as_deref())
@@ -322,7 +313,7 @@ impl OrchestratorContext {
         status: &str,
         can_resume: bool,
         error_message: Option<&str>,
-    ) -> Result<workflow_run::Model, AppError> {
+    ) -> Result<WorkflowRunSummary, AppError> {
         let run = self
             .workflow
             .mark_workflow_status(workflow_run_id, status, can_resume, error_message)
@@ -340,7 +331,7 @@ impl OrchestratorContext {
     pub(crate) async fn begin_workflow_run_validated(
         &self,
         input: UpsertWorkflowRunInput,
-    ) -> Result<workflow_run::Model, AppError> {
+    ) -> Result<WorkflowRunSummary, AppError> {
         crate::workflow::validate_begin_workflow_run_input(&input)
             .map_err(AppError::InvalidArgument)?;
         self.upsert_workflow_run(input).await
@@ -349,7 +340,7 @@ impl OrchestratorContext {
     pub(crate) async fn begin_or_resume_workflow_run_validated(
         &self,
         input: UpsertWorkflowRunInput,
-    ) -> Result<workflow_run::Model, AppError> {
+    ) -> Result<WorkflowRunSummary, AppError> {
         crate::workflow::validate_begin_workflow_run_input(&input)
             .map_err(AppError::InvalidArgument)?;
         self.workflow.resume_or_upsert_workflow_run(input).await
@@ -395,7 +386,7 @@ impl OrchestratorContext {
         workflow_run_id: i64,
         outcome: crate::workflow::WorkflowRunFinalizeOutcome,
         error_message: Option<&str>,
-    ) -> Result<workflow_run::Model, AppError> {
+    ) -> Result<WorkflowRunSummary, AppError> {
         crate::workflow::require_positive_workflow_run_id(workflow_run_id)
             .map_err(AppError::InvalidArgument)?;
         let (status, can_resume) = crate::workflow::workflow_run_finalize_status(outcome);
@@ -421,7 +412,7 @@ impl OrchestratorContext {
     pub(crate) async fn complete_workflow_run_validated(
         &self,
         workflow_run_id: i64,
-    ) -> Result<workflow_run::Model, AppError> {
+    ) -> Result<WorkflowRunSummary, AppError> {
         self.finalize_workflow_run_outcome_validated(
             workflow_run_id,
             crate::workflow::WorkflowRunFinalizeOutcome::Completed,
@@ -435,7 +426,7 @@ impl OrchestratorContext {
         &self,
         workflow_run_id: i64,
         error_message: &str,
-    ) -> Result<workflow_run::Model, AppError> {
+    ) -> Result<WorkflowRunSummary, AppError> {
         self.finalize_workflow_run_outcome_validated(
             workflow_run_id,
             crate::workflow::WorkflowRunFinalizeOutcome::Failed,
@@ -449,7 +440,7 @@ impl OrchestratorContext {
         &self,
         workflow_run_id: i64,
         error_message: &str,
-    ) -> Result<workflow_run::Model, AppError> {
+    ) -> Result<WorkflowRunSummary, AppError> {
         self.finalize_workflow_run_outcome_validated(
             workflow_run_id,
             crate::workflow::WorkflowRunFinalizeOutcome::Cancelled,
@@ -462,7 +453,7 @@ impl OrchestratorContext {
     pub(crate) async fn mark_workflow_running_validated(
         &self,
         workflow_run_id: i64,
-    ) -> Result<workflow_run::Model, AppError> {
+    ) -> Result<WorkflowRunSummary, AppError> {
         crate::workflow::require_positive_workflow_run_id(workflow_run_id)
             .map_err(AppError::InvalidArgument)?;
         self.workflow.resume_workflow_run(workflow_run_id).await
@@ -473,7 +464,7 @@ impl OrchestratorContext {
         &self,
         workflow_run_id: i64,
         active_task_id: &str,
-    ) -> Result<workflow_run::Model, AppError> {
+    ) -> Result<WorkflowRunSummary, AppError> {
         crate::workflow::require_positive_workflow_run_id(workflow_run_id)
             .map_err(AppError::InvalidArgument)?;
         self.workflow
@@ -485,7 +476,7 @@ impl OrchestratorContext {
         &self,
         workflow_run_id: i64,
         current_step_key: &str,
-    ) -> Result<workflow_run::Model, AppError> {
+    ) -> Result<WorkflowRunSummary, AppError> {
         self.workflow
             .mark_workflow_current_step(workflow_run_id, current_step_key)
             .await
@@ -509,7 +500,7 @@ impl OrchestratorContext {
         &self,
         workflow_run_id: i64,
         snapshot: serde_json::Value,
-    ) -> Result<workflow_run::Model, AppError> {
+    ) -> Result<WorkflowRunSummary, AppError> {
         self.workflow
             .persist_workflow_progress_snapshot(workflow_run_id, snapshot)
             .await

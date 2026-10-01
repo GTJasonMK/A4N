@@ -1,4 +1,4 @@
-use a4n_db_models::models::chapter::chapter_video_prompt;
+use a4n_domain::video_prompt::chapter_video_prompt;
 
 use super::PromptWorkflowMode;
 

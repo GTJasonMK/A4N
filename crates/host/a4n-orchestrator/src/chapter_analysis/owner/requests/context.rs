@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use a4n_db_models::models::chapter::chapter;
+use a4n_domain::chapter::ChapterRecord;
 use a4n_domain::source_spans::source_spans_for_chapters;
 use a4n_error::AppError;
 use a4n_llm_context::{LlmContextLedger, context_aware_system_user_request};
@@ -19,7 +19,7 @@ use trace::chapter_analysis_trace_context;
 const CHAPTER_ANALYSIS_SESSION_PROMPT: &str = "chapter_analysis_session";
 
 pub(super) async fn build_chapter_analysis_stage_request(
-    ch: &chapter::Model,
+    ch: &ChapterRecord,
     prompt_renderer: &dyn PromptRenderer,
     prompt_name: &str,
     instruction: &str,

@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::path::Path;
 
-use a4n_db_models::models::chapter::part_outline;
+use a4n_domain::chapter::PartOutlineRecord;
 use a4n_llm_provider_contract::provider::MessageRole;
 use a4n_prompt::tera_engine::TeraPromptEngine;
 use chrono::Utc;
@@ -20,9 +20,9 @@ fn prompt_renderer() -> TeraPromptEngine {
     TeraPromptEngine::from_directory(&prompts_dir()).expect("prompts should load")
 }
 
-fn sample_part() -> part_outline::Model {
+fn sample_part() -> PartOutlineRecord {
     let now = Utc::now().naive_utc();
-    part_outline::Model {
+    PartOutlineRecord {
         id: 8,
         project_id: 42,
         part_number: 1,

@@ -4,8 +4,8 @@ fn timeline_item_context(
     prompts: &[ChapterVideoPromptTimelineRecord],
     segments: &[VideoSegmentPlanV2],
     recipes: &[VideoSegmentExecutionRecipeV1],
-    videos: &[generated_video::Model],
-    images: &[generated_image::Reference],
+    videos: &[a4n_domain::media::GeneratedVideoRecord],
+    images: &[GeneratedImageReferenceRecord],
 ) -> Result<Value, AppError> {
     let Some(item_id) = item_id else {
         return Ok(Value::Null);
@@ -95,7 +95,7 @@ fn timeline_item_context(
 pub(crate) fn current_timeline_item_video_id(
     item: &chapter_video_timeline_item::Model,
     current_video_id: Option<i64>,
-    videos: &[generated_video::Model],
+    videos: &[a4n_domain::media::GeneratedVideoRecord],
 ) -> Result<Option<i64>, AppError> {
     let Some(video_id) = current_video_id else {
         return Ok(None);
@@ -119,7 +119,7 @@ pub(crate) fn current_timeline_item_video_id(
 }
 
 pub(crate) fn shared_plan_segments(
-    plan: &a4n_db_models::models::chapter::chapter_video_prompt::Model,
+    plan: &ChapterVideoPromptRecord,
 ) -> Result<Vec<VideoSegmentPlanV2>, AppError> {
     let segments = serde_json::from_value::<Vec<VideoSegmentPlanV2>>(
         plan.metadata_json
@@ -175,7 +175,7 @@ struct InsertedSegmentConstraints {
 }
 
 fn validate_inserted_workflow_scope(
-    run: &a4n_db_models::models::generation::workflow_run::Model,
+    run: &a4n_api_contract::workflow::WorkflowRunSummary,
     input: &CommitInsertedSegmentDraftInput,
 ) -> Result<(), AppError> {
     if run.workflow_kind != INSERTED_SEGMENT_WORKFLOW_KIND {
@@ -201,7 +201,7 @@ fn validate_inserted_workflow_scope(
 }
 
 fn inserted_workflow_fingerprint(
-    run: &a4n_db_models::models::generation::workflow_run::Model,
+    run: &a4n_api_contract::workflow::WorkflowRunSummary,
     value: &Value,
 ) -> Result<InsertedSegmentWorkflowFingerprint, AppError> {
     let fingerprint: InsertedSegmentWorkflowFingerprint = serde_json::from_value(value.clone())

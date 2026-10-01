@@ -5,14 +5,14 @@ pub struct RuntimeBootstrap {
     config: AppConfig,
     runtime_profile: RuntimeProfile,
     runtime_role: RuntimeRole,
-    db: a4n_db::DbHandle,
+    db: a4n_db_session::DbHandle,
     capabilities: RuntimeCapabilities,
     service_manager: Arc<a4n_service_manager::ServiceManager>,
     event_bus: Arc<BroadcastEventBus>,
     task_manager: Arc<a4n_task_runtime::channel::TaskManager>,
     prompt_engine: Arc<a4n_prompt::tera_engine::TeraPromptEngine>,
     rag_store: Arc<dyn a4n_rag_core::vector_store::VectorStore>,
-    generation_owner_lock: Option<a4n_db::DbHandle>,
+    generation_owner_lock: Option<a4n_db_session::DbHandle>,
     data_dir_lock: Option<Arc<File>>,
 }
 
@@ -31,10 +31,11 @@ impl RuntimeBootstrap {
             RuntimeRole::AgentWorker => None,
         };
 
-        let db = a4n_db::DbHandle::connect_with_default_options(&config.database_url).await?;
+        let db =
+            a4n_db_session::DbHandle::connect_with_default_options(&config.database_url).await?;
         let generation_owner_lock = match runtime_role {
             RuntimeRole::Host | RuntimeRole::DesktopHost => {
-                Some(a4n_db::acquire_generation_owner_lock(&config.database_url).await?)
+                Some(a4n_db_session::acquire_generation_owner_lock(&config.database_url).await?)
             }
             RuntimeRole::AgentWorker => None,
         };
@@ -73,7 +74,7 @@ impl RuntimeBootstrap {
         })
     }
 
-    pub fn database(&self) -> a4n_db::DbHandle {
+    pub fn database(&self) -> a4n_db_session::DbHandle {
         self.db.clone()
     }
 

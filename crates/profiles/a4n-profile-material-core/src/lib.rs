@@ -6,13 +6,11 @@ use a4n_api_contract::profile::{
     ListProfileMaterialsInput, ProfileMaterialGroup, ProfileMaterialImageSummary,
     ProfileMaterialProfileSummary,
 };
-use a4n_db_models::models::{
-    ai::generated_image,
-    asset::{object_profile, profile_primary_material},
-    scene::scene_profile,
-};
+use a4n_db_models::models::{ai::generated_image, asset::profile_primary_material};
+use a4n_domain::scene_profile::SceneProfileRecord;
 use a4n_domain::{
     image::{IMAGE_TYPE_OBJECT_MATERIAL, IMAGE_TYPE_SCENE_MATERIAL},
+    object_profile::ObjectProfileRecord,
     profile_material::{
         ProfileMaterialFilter, ProfileMaterialImageStaleness, ProfileMaterialKind,
         ProfileMaterialKindFilter, ProfileMaterialSort, ProfileMaterialState,
@@ -55,7 +53,7 @@ pub const fn image_type_for_profile_material_kind(kind: ProfileMaterialKind) -> 
     }
 }
 
-pub fn scene_profile_content(profile: &scene_profile::Model) -> String {
+pub fn scene_profile_content(profile: &SceneProfileRecord) -> String {
     format!(
         "{}\n{}\n{}\n{}\n{}\n{}\n{}\n{}",
         profile.name,
@@ -69,7 +67,7 @@ pub fn scene_profile_content(profile: &scene_profile::Model) -> String {
     )
 }
 
-pub fn object_profile_content(profile: &object_profile::Model) -> String {
+pub fn object_profile_content(profile: &ObjectProfileRecord) -> String {
     format!(
         "{}\n{}\n{}\n{}\n{}\n{}\n{}\n{}",
         profile.name,
@@ -83,7 +81,7 @@ pub fn object_profile_content(profile: &object_profile::Model) -> String {
     )
 }
 
-pub fn scene_source_from_model(profile: scene_profile::Model) -> ProfileMaterialSource {
+pub fn scene_source_from_record(profile: SceneProfileRecord) -> ProfileMaterialSource {
     let content_hash = source_content_sha256(&scene_profile_content(&profile));
     ProfileMaterialSource {
         kind: ProfileMaterialKind::Scene,
@@ -107,7 +105,7 @@ pub fn scene_source_from_model(profile: scene_profile::Model) -> ProfileMaterial
     }
 }
 
-pub fn object_source_from_model(profile: object_profile::Model) -> ProfileMaterialSource {
+pub fn object_source_from_record(profile: ObjectProfileRecord) -> ProfileMaterialSource {
     let content_hash = source_content_sha256(&object_profile_content(&profile));
     ProfileMaterialSource {
         kind: ProfileMaterialKind::Object,

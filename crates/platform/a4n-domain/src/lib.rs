@@ -26,6 +26,7 @@ pub mod llm;
 pub mod manga;
 pub mod media;
 pub mod object_profile;
+pub mod optimization;
 pub mod profile_material;
 pub mod profile_ownership;
 pub mod profile_text;

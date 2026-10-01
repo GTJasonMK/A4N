@@ -3,32 +3,7 @@
 use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
 
-pub const PROMPT_TYPE_FRAME_SEGMENT_PLAN: &str = "frame_segment_plan";
-pub const PROMPT_TYPE_FRAME: &str = "frame_prompt";
-pub const PROMPT_TYPE_FIRST_FRAME: &str = "first_frame_prompt";
-pub const PROMPT_TYPE_CHAT_VIDEO_FRAME: &str = "chat_video_frame_prompt";
-pub const PROMPT_TYPE_STORYBOARD: &str = "storyboard_prompt";
-pub const PROMPT_TYPE_VIDEO: &str = "video_prompt";
-
-pub const WORKFLOW_MODE_SHARED_SEGMENT_PLAN: &str = "shared_segment_plan";
-pub const WORKFLOW_MODE_BOUNDARY_FRAMES: &str = "boundary_frames";
-pub const WORKFLOW_MODE_FIRST_FRAME_CHAIN: &str = "first_frame_chain";
-pub const WORKFLOW_MODE_CHAT_VIDEO: &str = "chat_video";
-pub const WORKFLOW_MODE_STORYBOARD: &str = "storyboard";
-pub const WORKFLOW_MODES: [&str; 5] = [
-    WORKFLOW_MODE_SHARED_SEGMENT_PLAN,
-    WORKFLOW_MODE_BOUNDARY_FRAMES,
-    WORKFLOW_MODE_FIRST_FRAME_CHAIN,
-    WORKFLOW_MODE_CHAT_VIDEO,
-    WORKFLOW_MODE_STORYBOARD,
-];
-
-pub const STATUS_PENDING: &str = "pending";
-pub const STATUS_RUNNING: &str = "running";
-pub const STATUS_FAILED: &str = "failed";
-pub const STATUS_INTERRUPTED: &str = "interrupted";
-pub const STATUS_COMPLETED: &str = "completed";
-pub const STATUS_CANCELLED: &str = "cancelled";
+pub use a4n_domain::video_prompt::chapter_video_prompt::*;
 
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Serialize, Deserialize)]
 #[sea_orm(table_name = "chapter_video_prompt")]

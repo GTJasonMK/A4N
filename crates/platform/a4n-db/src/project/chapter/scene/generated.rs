@@ -1,4 +1,4 @@
-use super::ProjectChapterSceneWriteError;
+use super::{ProjectChapterSceneWriteError, record::chapter_scene_record};
 use a4n_db_models::models::chapter::{chapter, chapter_scene};
 use a4n_domain::chapter::ProjectGeneratedChapterSceneSaveInput;
 use chrono::Utc;
@@ -9,7 +9,7 @@ use sea_orm::{
 pub async fn save_generated_chapter_scene_record(
     db: &DatabaseConnection,
     input: ProjectGeneratedChapterSceneSaveInput,
-) -> Result<chapter_scene::Model, ProjectChapterSceneWriteError> {
+) -> Result<a4n_domain::chapter::ChapterSceneRecord, ProjectChapterSceneWriteError> {
     let word_count = i32::try_from(input.content.chars().count()).map_err(|_| {
         ProjectChapterSceneWriteError::InvalidArgument(
             "章节场景正文字符数超出 i32 范围".to_string(),
@@ -40,10 +40,10 @@ pub async fn save_generated_chapter_scene_record(
         active.content = Set(input.content);
         active.word_count = Set(word_count);
         active.updated_at = Set(now);
-        return Ok(active.update(db).await?);
+        return Ok(chapter_scene_record(active.update(db).await?));
     }
 
-    Ok(chapter_scene::ActiveModel {
+    let model = chapter_scene::ActiveModel {
         chapter_id: Set(input.chapter_id),
         scene_number: Set(input.scene_number),
         title: Set(Some(format!(
@@ -63,5 +63,6 @@ pub async fn save_generated_chapter_scene_record(
         ..Default::default()
     }
     .insert(db)
-    .await?)
+    .await?;
+    Ok(chapter_scene_record(model))
 }

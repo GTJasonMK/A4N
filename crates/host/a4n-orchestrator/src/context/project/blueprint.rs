@@ -2,9 +2,8 @@ use a4n_api_contract::blueprint::{
     RestoreBlueprintVersionInput, SaveBlueprintInput, UpdateWorldSettingInput,
 };
 use a4n_db::DbHandle;
-use a4n_db_models::models::project::{
-    blueprint_character, blueprint_relationship, novel_blueprint,
-};
+use a4n_db_models::models::project::{blueprint_character, blueprint_relationship};
+use a4n_domain::project::BlueprintRecord;
 use a4n_error::AppError;
 use a4n_event::InternalEvent;
 use serde_json::Value;
@@ -29,7 +28,7 @@ impl ProjectBlueprintApplication {
         &self.database
     }
 
-    async fn current(&self, project_id: i64) -> Result<Option<novel_blueprint::Model>, AppError> {
+    async fn current(&self, project_id: i64) -> Result<Option<BlueprintRecord>, AppError> {
         a4n_db::project::novel_blueprint_for_project(self.connection(), project_id)
             .await
             .map_err(AppError::database)
@@ -68,7 +67,7 @@ impl OrchestratorContext {
     pub(crate) async fn novel_blueprint_for_project(
         &self,
         project_id: i64,
-    ) -> Result<Option<novel_blueprint::Model>, AppError> {
+    ) -> Result<Option<BlueprintRecord>, AppError> {
         self.project_blueprint.current(project_id).await
     }
 
@@ -157,7 +156,7 @@ impl OrchestratorContext {
     pub(crate) async fn load_blueprint(
         &self,
         project_id: i64,
-    ) -> Result<Option<novel_blueprint::Model>, AppError> {
+    ) -> Result<Option<BlueprintRecord>, AppError> {
         self.project_blueprint.current(project_id).await
     }
 

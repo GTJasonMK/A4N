@@ -4,6 +4,7 @@ use sea_orm::{
     QueryOrder, QuerySelect, Set,
 };
 
+use a4n_domain::chapter::ChapterRecord;
 use a4n_domain::chapter::{ChapterSourceSnapshot, StoreChapterAnalysisRecordInput};
 
 use super::ChapterContentEditError;
@@ -65,7 +66,7 @@ where
 pub async fn lock_chapter_analysis_source<C>(
     db: &C,
     source: &ChapterSourceSnapshot,
-) -> Result<chapter::Model, ChapterContentEditError>
+) -> Result<ChapterRecord, ChapterContentEditError>
 where
     C: ConnectionTrait,
 {
@@ -88,41 +89,48 @@ where
             operation: "保存章节结构化分析".to_string(),
         });
     }
-    Ok(chapter)
+    Ok(crate::project::chapter_record(chapter))
 }
 
 pub async fn store_chapter_analysis_record<C>(
     db: &C,
-    chapter: chapter::Model,
+    chapter: ChapterRecord,
     input: StoreChapterAnalysisRecordInput,
-) -> Result<chapter::Model, ChapterContentEditError>
+) -> Result<ChapterRecord, ChapterContentEditError>
 where
     C: ConnectionTrait,
 {
-    let mut active: chapter::ActiveModel = chapter.into();
-    active.analysis_data = Set(Some(input.analysis_data));
+    let mut active = chapter::ActiveModel {
+        id: Set(chapter.id),
+        analysis_data: Set(Some(input.analysis_data)),
+        ..Default::default()
+    };
     if let Some(summary) = input.summary {
         active.summary = Set(Some(summary));
     }
     if let Some(style_tags) = input.style_tags {
         active.style_tags = Set(Some(style_tags));
     }
-    active
+    let updated = active
         .update(db)
         .await
-        .map_err(ChapterContentEditError::database)
+        .map_err(ChapterContentEditError::database)?;
+    Ok(crate::project::chapter_record(updated))
 }
 
 pub async fn update_chapter_style_tags_record<C>(
     db: &C,
-    chapter: chapter::Model,
+    chapter_id: i64,
     tags: &[String],
 ) -> Result<(), ChapterContentEditError>
 where
     C: ConnectionTrait,
 {
-    let mut active: chapter::ActiveModel = chapter.into();
-    active.style_tags = Set(Some(serde_json::json!(tags)));
+    let active = chapter::ActiveModel {
+        id: Set(chapter_id),
+        style_tags: Set(Some(serde_json::json!(tags))),
+        ..Default::default()
+    };
     active
         .update(db)
         .await

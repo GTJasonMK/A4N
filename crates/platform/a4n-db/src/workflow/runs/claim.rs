@@ -6,6 +6,7 @@ use sea_orm::{ActiveModelTrait, DbBackend, Statement, TransactionTrait};
 use super::mutations::{
     resume_workflow_run_model_in_transaction, upsert_workflow_run_in_transaction,
 };
+use super::projections::workflow_run_summary_for_write;
 use super::queries::locked_workflow_run_by_id;
 use super::validation::{
     should_resume_existing_run, validate_workflow_run_input, workflow_fingerprint_matches,
@@ -14,7 +15,7 @@ use super::validation::{
 pub async fn claim_exclusive_workflow_run(
     db: &DatabaseConnection,
     input: ClaimExclusiveWorkflowRunInput,
-) -> Result<workflow_run::Model, WorkflowWriteError> {
+) -> Result<WorkflowRunSummary, WorkflowWriteError> {
     let (project_id, chapter_id) = validate_claim_input(&input)?;
     let tx = db.begin().await.map_err(WorkflowWriteError::Database)?;
     lock_video_generation_scope(db, &tx, project_id, chapter_id).await?;
@@ -63,7 +64,7 @@ pub async fn claim_exclusive_workflow_run(
             })?;
     }
     tx.commit().await.map_err(WorkflowWriteError::Database)?;
-    Ok(run)
+    workflow_run_summary_for_write(run)
 }
 
 async fn running_workflow_has_live_task(

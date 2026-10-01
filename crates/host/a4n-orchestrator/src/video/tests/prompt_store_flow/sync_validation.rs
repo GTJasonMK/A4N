@@ -22,10 +22,13 @@ async fn sync_chapter_prompts_rejects_missing_chapter_without_insert() {
                 duration_secs: 6,
                 aspect_ratio: Some("16:9"),
                 reference_image_ids_json: None,
-                metadata_json: Some(stable_prompt_metadata(json!({
-                    "source_prompt_type": "frame_segment_plan",
-                    "source": {"content_sha256": "same"}
-                }), 1)),
+                metadata_json: Some(stable_prompt_metadata(
+                    json!({
+                        "source_prompt_type": "frame_segment_plan",
+                        "source": {"content_sha256": "same"}
+                    }),
+                    1,
+                )),
             })],
         )
         .await
@@ -74,7 +77,12 @@ async fn sync_chapter_prompts_keeps_generated_video_prompt_when_language_changes
         )
         .await
         .expect("zh prompt should be inserted");
-    let mut active: chapter_video_prompt::ActiveModel = zh_rows[0].clone().into();
+    let zh_prompt_model = chapter_video_prompt::Entity::find_by_id(zh_rows[0].id)
+        .one(db.as_ref())
+        .await
+        .unwrap()
+        .unwrap();
+    let mut active: chapter_video_prompt::ActiveModel = zh_prompt_model.into();
     active.generated_video_id = Set(Some(9301));
     active.status = Set("completed".to_string());
     active.update(db.as_ref()).await.unwrap();
@@ -375,10 +383,13 @@ async fn sync_chapter_prompts_rejects_unknown_reference_image_without_insert() {
                 duration_secs: 6,
                 aspect_ratio: Some("16:9"),
                 reference_image_ids_json: Some(json!([404])),
-                metadata_json: Some(stable_prompt_metadata(json!({
-                    "source_prompt_type": "frame_segment_plan",
-                    "source": {"content_sha256": "same"}
-                }), 1)),
+                metadata_json: Some(stable_prompt_metadata(
+                    json!({
+                        "source_prompt_type": "frame_segment_plan",
+                        "source": {"content_sha256": "same"}
+                    }),
+                    1,
+                )),
             })],
         )
         .await

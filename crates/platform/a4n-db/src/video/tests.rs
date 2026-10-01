@@ -4,7 +4,6 @@ use a4n_db_models::models::task::cleanup_outbox;
 use a4n_db_models::models::{
     ai::{generated_image, generated_video},
     chapter::{chapter, chapter_video_prompt},
-    project::novel_project,
 };
 use a4n_domain::image::IMAGE_TYPE_CANVAS;
 use a4n_domain::media::{
@@ -41,7 +40,10 @@ fn checkpoint_artifacts_with_flag(
     Ok(Value::Object(artifacts))
 }
 
-async fn freeform_video_project(db: &DatabaseConnection, title: &str) -> novel_project::Model {
+async fn freeform_video_project(
+    db: &DatabaseConnection,
+    title: &str,
+) -> a4n_domain::project::ProjectRecord {
     crate::project::create_freeform_video_project_record(
         db,
         1,

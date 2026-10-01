@@ -4,8 +4,12 @@ use a4n_db_models::models::{
 use sea_orm::sea_query::{CaseStatement, Expr};
 use sea_orm::{ActiveModelTrait, ColumnTrait, DatabaseTransaction, EntityTrait, QueryFilter, Set};
 
-use crate::project::family::import::{
-    ImportIdMaps, ProjectFamilyImportError, ProjectFamilyImportPackage, map_required,
+use crate::scene_profile::scene_profile_model_from_record;
+use crate::{
+    asset::object_profile_model_from_record,
+    project::family::import::{
+        ImportIdMaps, ProjectFamilyImportError, ProjectFamilyImportPackage, map_required,
+    },
 };
 
 pub(super) async fn insert_profile_rows(
@@ -23,9 +27,15 @@ pub(super) async fn insert_profile_rows(
         "导入人物档案失败",
         root_project_id
     );
+    let object_profiles = package
+        .text_core
+        .object_profiles
+        .iter()
+        .map(object_profile_model_from_record)
+        .collect::<Vec<_>>();
     insert_project_scoped_mapped_import_rows!(
         txn,
-        &package.text_core.object_profiles,
+        &object_profiles,
         profile,
         object_profile::ActiveModel,
         maps.object_profile_ids,
@@ -47,7 +57,8 @@ async fn insert_scene_profiles(
             .scene_profiles
             .iter()
             .map(|profile| {
-                let mut active: scene_profile::ActiveModel = profile.clone().into();
+                let model = scene_profile_model_from_record(profile);
+                let mut active: scene_profile::ActiveModel = model.into();
                 active.id = sea_orm::NotSet;
                 active.project_id = Set(root_project_id);
                 active.parent_scene_id = Set(None);

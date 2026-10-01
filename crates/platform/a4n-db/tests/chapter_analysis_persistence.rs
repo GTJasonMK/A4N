@@ -59,10 +59,13 @@ async fn insert_chapter(db: &DatabaseConnection) -> chapter::Model {
 async fn analysis_write_does_not_change_source_updated_at() {
     let db = setup_db().await;
     let chapter = insert_chapter(&db).await;
+    let chapter_record = a4n_db::chapter_content::chapter_by_id_for_analysis(&db, chapter.id)
+        .await
+        .expect("chapter record must be readable");
 
     let updated = store_chapter_analysis_record(
         &db,
-        chapter.clone(),
+        chapter_record,
         StoreChapterAnalysisRecordInput {
             analysis_data: json!({"summaries": {"compressed": "摘要"}}),
             summary: Some("摘要".to_string()),

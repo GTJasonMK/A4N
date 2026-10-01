@@ -1,5 +1,5 @@
 use a4n_db::canvas::CanvasGraphRecordDocument;
-use a4n_db_models::models::{canvas::canvas_node, generation::workflow_checkpoint};
+use a4n_domain::canvas::CanvasNodeRecord;
 use a4n_domain::{CanvasFrameKind, CanvasNodeRefKind};
 use serde_json::Value;
 
@@ -15,16 +15,16 @@ use super::contracts::{
 
 #[cfg(test)]
 pub(crate) fn build_canvas_editing_node_input_for_preview(
-    node: &canvas_node::Model,
+    node: &CanvasNodeRecord,
     document: &CanvasGraphRecordDocument,
 ) -> Result<CanvasEditingNodeInput, String> {
     build_canvas_editing_node_input(node, document, None)
 }
 
 pub(crate) fn build_canvas_editing_node_input(
-    node: &canvas_node::Model,
+    node: &CanvasNodeRecord,
     document: &CanvasGraphRecordDocument,
-    checkpoints: Option<&[workflow_checkpoint::Model]>,
+    checkpoints: Option<&[a4n_db::workflow::WorkflowCheckpointSummary]>,
 ) -> Result<CanvasEditingNodeInput, String> {
     match node.node_kind.as_str() {
         "ExtractFrameNode" => build_extract_frame_input(node, document, checkpoints)
@@ -38,9 +38,9 @@ pub(crate) fn build_canvas_editing_node_input(
 }
 
 fn build_extract_frame_input(
-    node: &canvas_node::Model,
+    node: &CanvasNodeRecord,
     document: &CanvasGraphRecordDocument,
-    checkpoints: Option<&[workflow_checkpoint::Model]>,
+    checkpoints: Option<&[a4n_db::workflow::WorkflowCheckpointSummary]>,
 ) -> Result<CanvasExtractFrameNodeInput, String> {
     let (video_id, source_node_ids) =
         resolve_single_source_video(node, document, checkpoints, "ExtractFrameNode")?;
@@ -62,9 +62,9 @@ fn build_extract_frame_input(
 }
 
 fn build_trim_video_input(
-    node: &canvas_node::Model,
+    node: &CanvasNodeRecord,
     document: &CanvasGraphRecordDocument,
-    checkpoints: Option<&[workflow_checkpoint::Model]>,
+    checkpoints: Option<&[a4n_db::workflow::WorkflowCheckpointSummary]>,
 ) -> Result<CanvasTrimVideoNodeInput, String> {
     let (video_id, source_node_ids) =
         resolve_single_source_video(node, document, checkpoints, "TrimVideoNode")?;
@@ -97,9 +97,9 @@ fn strict_canvas_config_f32(config: &Value, key: &str) -> Result<Option<f32>, St
 }
 
 fn build_assemble_video_input(
-    node: &canvas_node::Model,
+    node: &CanvasNodeRecord,
     document: &CanvasGraphRecordDocument,
-    checkpoints: Option<&[workflow_checkpoint::Model]>,
+    checkpoints: Option<&[a4n_db::workflow::WorkflowCheckpointSummary]>,
 ) -> Result<CanvasAssembleVideoNodeInput, String> {
     if node.config_json.get("video_ids").is_some() {
         return Err(
@@ -137,9 +137,9 @@ fn build_assemble_video_input(
 }
 
 fn resolve_single_source_video(
-    node: &canvas_node::Model,
+    node: &CanvasNodeRecord,
     document: &CanvasGraphRecordDocument,
-    checkpoints: Option<&[workflow_checkpoint::Model]>,
+    checkpoints: Option<&[a4n_db::workflow::WorkflowCheckpointSummary]>,
     consumer_label: &str,
 ) -> Result<(i64, Vec<i64>), String> {
     let mut video_id = None;

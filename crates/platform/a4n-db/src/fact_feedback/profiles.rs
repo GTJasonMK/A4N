@@ -100,7 +100,10 @@ pub(crate) async fn record_profile_fact_observation<C: ConnectionTrait>(
             ));
         }
         for chapter in matches {
-            sources.insert(chapter.id, super::observation_source(chapter));
+            sources.insert(
+                chapter.id,
+                super::observation_source(&crate::project::chapter_record(chapter.clone())),
+            );
             resolved.push(json!({"chapter_number":chapter.chapter_number,"quote":quote}));
         }
     }

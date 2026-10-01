@@ -1,5 +1,5 @@
-use a4n_db_models::models::{canvas::canvas_node, generation::workflow_checkpoint};
 use a4n_domain::CanvasNodeRefKind;
+use a4n_domain::canvas::CanvasNodeRecord;
 use serde_json::Value;
 
 use crate::{
@@ -8,8 +8,8 @@ use crate::{
 };
 
 pub(crate) fn source_operation_checkpoint_output<'a>(
-    checkpoints: Option<&'a [workflow_checkpoint::Model]>,
-    node: &canvas_node::Model,
+    checkpoints: Option<&'a [a4n_db::workflow::WorkflowCheckpointSummary]>,
+    node: &CanvasNodeRecord,
     consumer_label: &str,
 ) -> Result<Option<&'a Value>, String> {
     if !canvas_node_is_operation(&node.node_kind) {
@@ -33,8 +33,8 @@ pub(crate) fn source_operation_checkpoint_output<'a>(
 }
 
 pub(crate) fn source_node_output_id(
-    checkpoints: Option<&[workflow_checkpoint::Model]>,
-    node: &canvas_node::Model,
+    checkpoints: Option<&[a4n_db::workflow::WorkflowCheckpointSummary]>,
+    node: &CanvasNodeRecord,
     consumer_label: &str,
     output_key: &str,
     ref_kind: CanvasNodeRefKind,
@@ -68,9 +68,9 @@ mod tests {
     use chrono::Utc;
     use serde_json::json;
 
-    fn node(config_json: Value) -> canvas_node::Model {
+    fn node(config_json: Value) -> CanvasNodeRecord {
         let now = Utc::now().naive_utc();
-        canvas_node::Model {
+        CanvasNodeRecord {
             id: 7,
             graph_id: 3,
             node_kind: "GenerateVideoNode".to_string(),

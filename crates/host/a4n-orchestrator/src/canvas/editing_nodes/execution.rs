@@ -44,7 +44,10 @@ impl OrchestratorContext {
         host_port: &dyn CanvasEditingNodeHostPort,
     ) -> Result<a4n_api_contract::canvas::CanvasRunSummary, AppError> {
         let checkpoints = match input.shared_run {
-            Some(run) => Some(self.workflow_checkpoint_models(run.workflow_run_id).await?),
+            Some(run) => Some(
+                self.workflow_checkpoint_summaries(run.workflow_run_id)
+                    .await?,
+            ),
             None => None,
         };
         let node_input =
@@ -68,7 +71,7 @@ impl OrchestratorContext {
             let spec = self
                 .upsert_canvas_editing_generation_spec(&input, &node_input)
                 .await?;
-            lifecycle.generation_spec_id = spec.as_ref().map(|row| row.id);
+            lifecycle.generation_spec_id = spec;
             let artifact_json = match &node_input {
                 CanvasEditingNodeInput::ExtractFrame(node_input) => {
                     let output = host_port
@@ -92,7 +95,7 @@ impl OrchestratorContext {
                         .ensure_canvas_image_media_asset_record(CanvasImageMediaAssetEnsureInput {
                             project_id: input.project_id,
                             image: image.clone(),
-                            generation_spec_id: spec.as_ref().map(|row| row.id),
+                            generation_spec_id: spec,
                             origin: "canvas_extracted_frame".to_string(),
                         })
                         .await?;
@@ -101,7 +104,7 @@ impl OrchestratorContext {
                         "data_type": "image",
                         "generated_image_id": image.id,
                         "file_path": image.file_path,
-                        "generation_spec_id": spec.as_ref().map(|row| row.id),
+                        "generation_spec_id": spec,
                         "media_asset_id": media_asset.id,
                     })
                 }
@@ -127,7 +130,7 @@ impl OrchestratorContext {
                         .ensure_canvas_video_media_asset_record(CanvasVideoMediaAssetEnsureInput {
                             project_id: input.project_id,
                             video: video.clone(),
-                            generation_spec_id: spec.as_ref().map(|row| row.id),
+                            generation_spec_id: spec,
                             origin: "canvas_trim".to_string(),
                         })
                         .await?;
@@ -137,7 +140,7 @@ impl OrchestratorContext {
                         "generated_video_id": video.id,
                         "file_path": video.file_path,
                         "thumbnail_path": video.thumbnail_path,
-                        "generation_spec_id": spec.as_ref().map(|row| row.id),
+                        "generation_spec_id": spec,
                         "media_asset_id": media_asset.id,
                     })
                 }
@@ -170,7 +173,7 @@ impl OrchestratorContext {
                                 .copied()
                                 .map(|video_id| CanvasAssemblySourceVideoInput { video_id })
                                 .collect(),
-                            generation_spec_id: spec.as_ref().map(|row| row.id),
+                            generation_spec_id: spec,
                         })
                         .await?;
                     json!({
@@ -179,13 +182,13 @@ impl OrchestratorContext {
                         "generated_video_id": video.id,
                         "file_path": video.file_path,
                         "thumbnail_path": video.thumbnail_path,
-                        "generation_spec_id": spec.as_ref().map(|row| row.id),
+                        "generation_spec_id": spec,
                         "media_asset_id": contract.preview_media_asset_id,
                     })
                 }
             };
             if let Some(spec) = &spec {
-                self.mark_canvas_generation_spec_status_record(spec.id, WORKFLOW_STATUS_COMPLETED)
+                self.mark_canvas_generation_spec_status_record(*spec, WORKFLOW_STATUS_COMPLETED)
                     .await?;
             }
             let (ref_type, ref_id) = match artifact_json.get("data_type").and_then(Value::as_str) {
@@ -238,7 +241,7 @@ impl OrchestratorContext {
         &self,
         input: &CanvasEditingNodeExecutionInput<'_>,
         node_input: &CanvasEditingNodeInput,
-    ) -> Result<Option<a4n_db_models::models::generation::generation_spec::Model>, AppError> {
+    ) -> Result<Option<i64>, AppError> {
         let project = self.project_by_id(input.project_id).await?.ok_or_else(|| {
             AppError::InvalidArgument(format!("项目不存在: {}", input.project_id))
         })?;

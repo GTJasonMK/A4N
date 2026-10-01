@@ -8,7 +8,6 @@ license.workspace = true
 a4n-config = { workspace = true }
 a4n-api-contract = { workspace = true }
 a4n-db = { workspace = true }
-a4n-db-models = { workspace = true }
 a4n-domain = { workspace = true }
 a4n-chapter-scene-worker-contract = { workspace = true }
 a4n-worker-client = { workspace = true }

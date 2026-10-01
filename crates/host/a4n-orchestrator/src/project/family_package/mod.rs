@@ -8,9 +8,16 @@ use crate::media::{
     MEDIA_STATUS_COMPLETED, galgame_media_binding_required_media_kind,
     is_valid_galgame_media_binding_pair,
 };
+use a4n_db_models::models::{
+    chapter::chapter_outline,
+    galgame::{galgame_choice, galgame_line, galgame_scene, galgame_script},
+    generation::{generation_spec, prompt_artifact},
+    media::{media_asset, media_binding},
+    project::{project_source_snapshot, source_snapshot_chapter, text_anchor},
+    source_sync::{source_sync_conflict, source_sync_decision, source_sync_run},
+};
 #[cfg(test)]
 use a4n_db_models::models::{
-    asset::object_profile,
     chapter::{chapter, part_outline},
     character::protagonist_profile,
     generation::{
@@ -18,16 +25,7 @@ use a4n_db_models::models::{
     },
     media::media_provenance,
     project::{profile_evidence, source_snapshot_outline, source_snapshot_profile},
-    scene::scene_profile,
     video_project::{assembly_timeline, video_segment},
-};
-use a4n_db_models::models::{
-    chapter::chapter_outline,
-    galgame::{galgame_choice, galgame_line, galgame_scene, galgame_script},
-    generation::{generation_spec, prompt_artifact},
-    media::{media_asset, media_binding},
-    project::{novel_project, project_source_snapshot, source_snapshot_chapter, text_anchor},
-    source_sync::{source_sync_conflict, source_sync_decision, source_sync_run},
 };
 #[cfg(test)]
 use serde_json::{Value, json};

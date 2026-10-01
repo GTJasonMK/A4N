@@ -3,13 +3,12 @@
 //! ORM metadata stays inside the persistence adapter; callers receive only
 //! the deliberately public JSON projection.
 
-use a4n_db_models::models::project::{
-    blueprint_character, blueprint_relationship, novel_blueprint,
-};
+use a4n_db_models::models::project::{blueprint_character, blueprint_relationship};
+use serde::Serialize;
 use serde_json::{Value, json};
 
-pub fn blueprint_llm_context(
-    blueprint: &novel_blueprint::Model,
+pub fn blueprint_llm_context<T: Serialize>(
+    blueprint: &T,
     characters: &[blueprint_character::Model],
     relationships: &[blueprint_relationship::Model],
 ) -> Value {
@@ -26,19 +25,20 @@ pub fn blueprint_llm_context(
     })
 }
 
-pub fn blueprint_model_llm_context(blueprint: &novel_blueprint::Model) -> Value {
+pub fn blueprint_model_llm_context<T: Serialize>(blueprint: &T) -> Value {
+    let blueprint = serde_json::to_value(blueprint).expect("blueprint record must serialize");
     json!({
-        "title": blueprint.title,
-        "genre": blueprint.genre,
-        "style": blueprint.style,
-        "tone": blueprint.tone,
-        "target_audience": blueprint.target_audience,
-        "one_sentence_summary": blueprint.one_sentence_summary,
-        "full_synopsis": blueprint.full_synopsis,
-        "world_setting": blueprint.world_setting,
-        "needs_part_outlines": blueprint.needs_part_outlines,
-        "total_chapters": blueprint.total_chapters,
-        "chapters_per_part": blueprint.chapters_per_part,
+        "title": blueprint["title"].clone(),
+        "genre": blueprint["genre"].clone(),
+        "style": blueprint["style"].clone(),
+        "tone": blueprint["tone"].clone(),
+        "target_audience": blueprint["target_audience"].clone(),
+        "one_sentence_summary": blueprint["one_sentence_summary"].clone(),
+        "full_synopsis": blueprint["full_synopsis"].clone(),
+        "world_setting": blueprint["world_setting"].clone(),
+        "needs_part_outlines": blueprint["needs_part_outlines"].clone(),
+        "total_chapters": blueprint["total_chapters"].clone(),
+        "chapters_per_part": blueprint["chapters_per_part"].clone(),
     })
 }
 

@@ -280,7 +280,12 @@ async fn insert_completed_video(
     )
     .await
     .unwrap();
-    let mut active: generated_video::ActiveModel = video.into();
+    let model = generated_video::Entity::find_by_id(video.id)
+        .one(db)
+        .await
+        .unwrap()
+        .expect("created video row should exist");
+    let mut active: generated_video::ActiveModel = model.into();
     active.status = Set(a4n_domain::video_workflow::VIDEO_STATUS_COMPLETED.to_string());
     active.file_path = Set(Some(format!("projects/{project_id}/videos/{label}.mp4")));
     active.update(db).await.unwrap()

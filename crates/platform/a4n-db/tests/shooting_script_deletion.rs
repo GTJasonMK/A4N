@@ -153,13 +153,13 @@ async fn deleting_script_is_revision_fenced_and_preserves_downstream_state() {
     downstream_after.source_sync_status = downstream_before.source_sync_status.clone();
     downstream_after.updated_at = downstream_before.updated_at;
     assert_eq!(downstream_after, downstream_before);
-    assert_eq!(
-        generated_image::Entity::find_by_id(image.id)
-            .one(&db)
-            .await
-            .unwrap(),
-        Some(image)
-    );
+    let image_after = generated_image::Entity::find_by_id(image.id)
+        .one(&db)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(image_after.id, image.id);
+    assert_eq!(image_after.file_path, image.file_path);
     let cleanup_after = cleanup_outbox::Entity::find()
         .filter(cleanup_outbox::Column::ProjectId.eq(downstream.id))
         .order_by_asc(cleanup_outbox::Column::Id)

@@ -17,6 +17,7 @@ mod material_refs;
 mod mutation;
 mod outline_records;
 mod progress;
+mod records;
 mod rollback_impact;
 mod shared;
 mod source_snapshot;
@@ -29,6 +30,7 @@ pub use basic_record::{
 };
 pub(crate) use blueprint_restore::validate_blueprint_version_snapshot;
 pub use blueprint_restore::{BlueprintRestoreError, restore_blueprint_version_record};
+pub(crate) use blueprint_sync::blueprint_record;
 pub(crate) use blueprint_sync::normalized_blueprint_identity;
 pub use blueprint_sync::{
     BlueprintCharacterDraft, BlueprintRelationshipDraft, BlueprintSyncError,
@@ -37,10 +39,11 @@ pub use blueprint_sync::{
     blueprint_versions_by_project, edit_blueprint_characters, edit_blueprint_relationships,
     merge_blueprint_characters, merge_blueprint_relationships, novel_blueprint_for_project,
 };
+pub(crate) use chapter::chapter_record;
 pub use chapter::context::{
     ChapterGenerationReferenceContextRows, ChapterObjectProfileContext, ChapterProfileEvidence,
     ChapterSceneProfileContext, ProjectChapterContextError, chapter_by_id,
-    chapter_generation_reference_context_rows, chapters_before_number,
+    chapter_generation_reference_context_rows, chapter_project_id, chapters_before_number,
     character_states_for_profiles_before_chapter, character_sync_chapters,
     import_analysis_chapter_candidates, object_profiles_before_chapter,
     protagonist_profiles_for_project, protagonist_profiles_for_project_in,
@@ -139,6 +142,7 @@ pub use progress::{
     ProjectProgressQuery, ProjectProgressReadError, project_progress_summaries,
     project_progress_summary,
 };
+pub(crate) use records::{project_record_from_model, project_record_into_model};
 pub use rollback_impact::{ProjectRollbackImpactReadError, project_rollback_impacts};
 pub(crate) use source_snapshot::projects_using_source_snapshot;
 pub use source_snapshot::scene_profiles_for_source;

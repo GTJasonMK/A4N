@@ -103,7 +103,7 @@ where
 pub async fn finish_generated_chapter_content_record_in_transaction<C>(
     db: &C,
     input: GeneratedChapterContentRecordInput,
-) -> Result<chapter::Model, ChapterGenerationLifecycleError>
+) -> Result<a4n_domain::chapter::ChapterRecord, ChapterGenerationLifecycleError>
 where
     C: ConnectionTrait,
 {
@@ -186,5 +186,5 @@ where
 
     delete_generation_run_targets_for(db, "chapter_content", &[updated_chapter.id]).await?;
     delete_generation_run_targets_for(db, "chapter_analysis", &[updated_chapter.id]).await?;
-    Ok(updated_chapter)
+    Ok(crate::project::chapter_record(updated_chapter))
 }

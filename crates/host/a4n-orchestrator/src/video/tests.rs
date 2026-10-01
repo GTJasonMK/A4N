@@ -112,7 +112,7 @@ pub(in crate::video) async fn insert_derived_video_project(
     db: Arc<DatabaseConnection>,
     root_project_id: i64,
     title: &str,
-) -> novel_project::Model {
+) -> a4n_domain::project::ProjectRecord {
     create_derived_project_record(
         db.as_ref(),
         1,
@@ -159,7 +159,10 @@ pub(super) async fn insert_confirmed_visual_plan_and_shooting_script(
         &chapter.content,
     );
     let mut plan = crate::shooting_script::visual_plan_fixture(&source).plan;
-    let scene_id = crate::shooting_script::seed_visual_plan_scene(db, source.root_project_id).await;
+    let database_handle = a4n_db::DbHandle::new(std::sync::Arc::new(db.clone()));
+    let scene_id =
+        crate::shooting_script::seed_visual_plan_scene(&database_handle, source.root_project_id)
+            .await;
     for segment in &mut plan.segments {
         segment.scene_binding = Some(a4n_domain::chapter_visual_plan::SceneBindingV3::Scene {
             scene_profile_id: scene_id,

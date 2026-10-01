@@ -1,8 +1,9 @@
 //! Pure Manga page layout validation and API projection.
 
 use a4n_api_contract::manga::MangaPagePromptSummary;
-use a4n_db_models::models::chapter::chapter_manga_prompt;
-use a4n_domain::manga::{MangaPageGenerationLayoutV2, MangaPortraitReference};
+use a4n_domain::manga::{
+    MangaPageGenerationLayoutV2, MangaPagePromptRecord, MangaPortraitReference,
+};
 use a4n_domain::source_spans::{ChapterSourceContext, source_metadata};
 use serde_json::{Value, json};
 
@@ -33,29 +34,31 @@ pub fn manga_pipeline_fingerprint<P: MangaPortraitReference>(
 }
 
 pub fn manga_page_generation_layout(
-    prompt: &chapter_manga_prompt::Model,
+    prompt_id: i64,
+    page_number: i32,
+    layout_json: Option<&Value>,
 ) -> Result<MangaPageGenerationLayoutV2, String> {
     let layout: MangaPageGenerationLayoutV2 = serde_json::from_value(
-        prompt
-            .layout
-            .clone()
-            .ok_or_else(|| format!("漫画页面提示词 #{} 缺少 v2 layout", prompt.id))?,
+        layout_json
+            .cloned()
+            .ok_or_else(|| format!("漫画页面提示词 #{prompt_id} 缺少 v2 layout"))?,
     )
-    .map_err(|error| format!("漫画页面提示词 #{} 的 v2 layout 无效: {error}", prompt.id))?;
-    let page_number = u32::try_from(prompt.page_number)
+    .map_err(|error| format!("漫画页面提示词 #{prompt_id} 的 v2 layout 无效: {error}"))?;
+    let page_number = u32::try_from(page_number)
         .ok()
         .filter(|page_number| *page_number > 0)
-        .ok_or_else(|| format!("漫画页面提示词 #{} 的 page_number 必须大于 0", prompt.id))?;
+        .ok_or_else(|| format!("漫画页面提示词 #{prompt_id} 的 page_number 必须大于 0"))?;
     layout
         .validate(page_number)
-        .map_err(|error| format!("漫画页面提示词 #{} 的 v2 layout 无效: {error}", prompt.id))?;
+        .map_err(|error| format!("漫画页面提示词 #{prompt_id} 的 v2 layout 无效: {error}"))?;
     Ok(layout)
 }
 
 pub fn manga_page_prompt_summary(
-    prompt: &chapter_manga_prompt::Model,
+    prompt: &MangaPagePromptRecord,
 ) -> Result<MangaPagePromptSummary, String> {
-    let layout = manga_page_generation_layout(prompt)?;
+    let layout =
+        manga_page_generation_layout(prompt.id, prompt.page_number, prompt.layout.as_ref())?;
     Ok(MangaPagePromptSummary {
         id: prompt.id,
         chapter_id: prompt.chapter_id,
@@ -77,19 +80,19 @@ pub fn manga_page_prompt_summary(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use a4n_db_models::models::chapter::chapter_manga_prompt::MANGA_PAGE_PROMPT_TYPE;
+    use a4n_domain::manga::MangaPagePromptRecord;
     use chrono::NaiveDateTime;
 
     #[test]
     fn rejects_missing_layout() {
         let now =
             NaiveDateTime::parse_from_str("2026-01-01 00:00:00", "%Y-%m-%d %H:%M:%S").unwrap();
-        let prompt = chapter_manga_prompt::Model {
+        let prompt = MangaPagePromptRecord {
             id: 11,
             chapter_id: 22,
             project_id: 33,
+            prompt_type: a4n_domain::manga::MANGA_PAGE_PROMPT_TYPE.to_string(),
             page_number: 1,
-            prompt_type: MANGA_PAGE_PROMPT_TYPE.to_string(),
             image_prompt: "整页提示词".to_string(),
             dialogue_text: None,
             characters_in_frame: None,

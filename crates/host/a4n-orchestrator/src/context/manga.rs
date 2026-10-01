@@ -4,8 +4,7 @@
 //! 生成编排（LLM/preview/pipeline）仍在 `manga/` 模块，但 DB 只经本 owner。
 
 use a4n_db::{DbHandle, manga::MangaPromptUpdatedAt};
-use a4n_db_models::models::chapter::chapter_manga_prompt;
-use a4n_domain::manga::{MangaBoundReferenceAsset, MangaReferenceAssetKind};
+use a4n_domain::manga::{MangaBoundReferenceAsset, MangaPagePromptRecord, MangaReferenceAssetKind};
 use a4n_error::AppError;
 use serde_json::Value;
 
@@ -44,7 +43,7 @@ impl MangaApplication {
         project_id: i64,
         chapter_id: i64,
         page_number: i32,
-    ) -> Result<Option<chapter_manga_prompt::Model>, AppError> {
+    ) -> Result<Option<MangaPagePromptRecord>, AppError> {
         a4n_db::manga::manga_page_prompt_for_image_generation(
             &self.database,
             project_id,
@@ -74,7 +73,7 @@ impl MangaApplication {
     async fn manga_page_prompt_by_id(
         &self,
         prompt_id: i64,
-    ) -> Result<Option<chapter_manga_prompt::Model>, AppError> {
+    ) -> Result<Option<MangaPagePromptRecord>, AppError> {
         a4n_db::manga::manga_page_prompt_by_id(&self.database, prompt_id)
             .await
             .map_err(manga_prompt_record_error)
@@ -82,9 +81,9 @@ impl MangaApplication {
 
     async fn update_manga_page_prompt_layout(
         &self,
-        page_prompt: chapter_manga_prompt::Model,
+        page_prompt: MangaPagePromptRecord,
         layout: Value,
-    ) -> Result<chapter_manga_prompt::Model, AppError> {
+    ) -> Result<MangaPagePromptRecord, AppError> {
         a4n_db::manga::update_manga_page_prompt_layout(&self.database, page_prompt, layout)
             .await
             .map_err(manga_prompt_record_error)
@@ -92,9 +91,9 @@ impl MangaApplication {
 
     async fn update_manga_page_prompt_image_prompt(
         &self,
-        page_prompt: chapter_manga_prompt::Model,
+        page_prompt: MangaPagePromptRecord,
         image_prompt: String,
-    ) -> Result<chapter_manga_prompt::Model, AppError> {
+    ) -> Result<MangaPagePromptRecord, AppError> {
         a4n_db::manga::update_manga_page_prompt_image_prompt(
             &self.database,
             page_prompt,
@@ -136,7 +135,7 @@ impl OrchestratorContext {
         project_id: i64,
         chapter_id: i64,
         page_number: i32,
-    ) -> Result<Option<chapter_manga_prompt::Model>, AppError> {
+    ) -> Result<Option<MangaPagePromptRecord>, AppError> {
         self.manga
             .manga_page_prompt_for_image_generation(project_id, chapter_id, page_number)
             .await
@@ -156,15 +155,15 @@ impl OrchestratorContext {
     pub(crate) async fn manga_page_prompt_by_id(
         &self,
         prompt_id: i64,
-    ) -> Result<Option<chapter_manga_prompt::Model>, AppError> {
+    ) -> Result<Option<MangaPagePromptRecord>, AppError> {
         self.manga.manga_page_prompt_by_id(prompt_id).await
     }
 
     pub(crate) async fn update_manga_page_prompt_layout(
         &self,
-        page_prompt: chapter_manga_prompt::Model,
+        page_prompt: MangaPagePromptRecord,
         layout: Value,
-    ) -> Result<chapter_manga_prompt::Model, AppError> {
+    ) -> Result<MangaPagePromptRecord, AppError> {
         self.manga
             .update_manga_page_prompt_layout(page_prompt, layout)
             .await
@@ -172,9 +171,9 @@ impl OrchestratorContext {
 
     pub(crate) async fn update_manga_page_prompt_image_prompt(
         &self,
-        page_prompt: chapter_manga_prompt::Model,
+        page_prompt: MangaPagePromptRecord,
         image_prompt: String,
-    ) -> Result<chapter_manga_prompt::Model, AppError> {
+    ) -> Result<MangaPagePromptRecord, AppError> {
         self.manga
             .update_manga_page_prompt_image_prompt(page_prompt, image_prompt)
             .await

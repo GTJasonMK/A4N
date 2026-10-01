@@ -1,8 +1,7 @@
 use a4n_api_contract::project::DuplicateProjectInput;
 use a4n_db::DbHandle;
-use a4n_db_models::models::project::novel_project;
 use a4n_domain::project::{
-    ProjectMediaCopyError, ProjectMediaFileCopier, ProjectSourceMode, required_text,
+    ProjectMediaCopyError, ProjectMediaFileCopier, ProjectRecord, ProjectSourceMode, required_text,
 };
 use a4n_error::AppError;
 
@@ -50,10 +49,10 @@ impl ProjectDuplicationApplication {
 
     async fn duplicate_text(
         &self,
-        original: &novel_project::Model,
+        original: ProjectRecord,
         user_id: i64,
         new_title: &str,
-    ) -> Result<novel_project::Model, AppError> {
+    ) -> Result<ProjectRecord, AppError> {
         a4n_db::project::duplicate_text_project_record(&self.database, original, user_id, new_title)
             .await
             .map_err(project_duplicate_error_to_app_error)
@@ -61,11 +60,11 @@ impl ProjectDuplicationApplication {
 
     async fn duplicate_derived<Copier>(
         &self,
-        original: &novel_project::Model,
+        original: ProjectRecord,
         user_id: i64,
         new_title: &str,
         media_file_copier: &mut Copier,
-    ) -> Result<novel_project::Model, AppError>
+    ) -> Result<ProjectRecord, AppError>
     where
         Copier: ProjectMediaFileCopier,
     {
@@ -82,11 +81,11 @@ impl ProjectDuplicationApplication {
 
     async fn duplicate_freeform<Copier>(
         &self,
-        original: &novel_project::Model,
+        original: ProjectRecord,
         user_id: i64,
         new_title: &str,
         media_file_copier: &mut Copier,
-    ) -> Result<novel_project::Model, AppError>
+    ) -> Result<ProjectRecord, AppError>
     where
         Copier: ProjectMediaFileCopier,
     {
@@ -108,7 +107,7 @@ impl OrchestratorContext {
         user_id: i64,
         input: DuplicateProjectInput,
         host_port: &mut Host,
-    ) -> Result<novel_project::Model, AppError>
+    ) -> Result<ProjectRecord, AppError>
     where
         Host: ProjectDuplicationHostPort,
     {
@@ -125,30 +124,27 @@ impl OrchestratorContext {
         {
             ProjectSourceMode::Self_ => {
                 self.project_duplication
-                    .duplicate_text(&original, user_id, new_title)
+                    .duplicate_text(original, user_id, new_title)
                     .await
             }
             ProjectSourceMode::Derived => {
                 let result = self
                     .project_duplication
-                    .duplicate_derived(&original, user_id, new_title, host_port)
+                    .duplicate_derived(original, user_id, new_title, host_port)
                     .await;
                 duplication_result_with_file_rollback(result, host_port).await
             }
             ProjectSourceMode::Freeform => {
                 let result = self
                     .project_duplication
-                    .duplicate_freeform(&original, user_id, new_title, host_port)
+                    .duplicate_freeform(original, user_id, new_title, host_port)
                     .await;
                 duplication_result_with_file_rollback(result, host_port).await
             }
         }
     }
 
-    async fn project_for_duplication(
-        &self,
-        project_id: i64,
-    ) -> Result<novel_project::Model, AppError> {
+    async fn project_for_duplication(&self, project_id: i64) -> Result<ProjectRecord, AppError> {
         self.project_by_id(project_id)
             .await?
             .ok_or_else(|| AppError::NotFound(format!("项目不存在: {project_id}")))

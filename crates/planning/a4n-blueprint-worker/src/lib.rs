@@ -12,8 +12,9 @@ use a4n_blueprint_worker_contract::{
     BlueprintProjectInput,
 };
 use a4n_db::DbHandle;
-use a4n_db_models::models::project::{blueprint_version, novel_blueprint};
+use a4n_db_models::models::project::blueprint_version;
 use a4n_domain::collaboration::ProjectAccessRole;
+use a4n_domain::project::BlueprintRecord;
 use a4n_worker_client::WORKER_AUTH_HEADER;
 use a4n_worker_contract::{
     WORKER_CAPABILITIES_PATH, WORKER_HEALTH_PATH, WORKER_SCHEMA_VERSION, WorkerCapabilities,
@@ -359,10 +360,7 @@ fn user_id<T>(request: &WorkerEnvelope<T>) -> Result<i64, WorkerFailure> {
         .ok_or_else(|| WorkerFailure::unauthorized("用户 principal subject 无效"))
 }
 
-fn blueprint_summary(
-    blueprint: novel_blueprint::Model,
-    sources_need_review: bool,
-) -> BlueprintSummary {
+fn blueprint_summary(blueprint: BlueprintRecord, sources_need_review: bool) -> BlueprintSummary {
     BlueprintSummary {
         id: blueprint.id,
         project_id: blueprint.project_id,

@@ -1,6 +1,9 @@
+mod mapping;
 mod mutations;
 mod queries;
 mod references;
+
+pub(crate) use mapping::manga_page_prompt_record_from_model;
 
 pub use mutations::{
     delete_manga_prompt_record, delete_manga_prompts_by_chapter,

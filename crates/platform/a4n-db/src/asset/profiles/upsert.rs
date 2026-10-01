@@ -7,7 +7,8 @@ use chrono::Utc;
 use sea_orm::sea_query::{CaseStatement, Expr};
 use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter};
 
-use crate::asset::{AssetDbError, ObjectProfileUpsertRecordResult};
+use crate::asset::AssetDbError;
+use crate::asset::contracts::ObjectProfileUpsertModels;
 use a4n_domain::object_profile::ObjectProfileRecordInput;
 
 use super::record::object_profile_active_model;
@@ -16,11 +17,11 @@ pub(in crate::asset) async fn upsert_object_profiles_in<C>(
     db: &C,
     project_id: i64,
     inputs: Vec<ObjectProfileRecordInput>,
-) -> Result<ObjectProfileUpsertRecordResult, AssetDbError>
+) -> Result<ObjectProfileUpsertModels, AssetDbError>
 where
     C: ConnectionTrait,
 {
-    let mut result = ObjectProfileUpsertRecordResult::default();
+    let mut result = ObjectProfileUpsertModels::default();
     let mut seen = HashSet::new();
     let normalized_names = inputs
         .iter()

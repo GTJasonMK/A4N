@@ -1,9 +1,25 @@
 //! Pure inspiration-history projections.
 
 use a4n_api_contract::inspiration::InspirationMessageSummary;
-use a4n_db_models::models::user::message;
+use a4n_domain::inspiration::InspirationMessageRecord;
+use serde_json::{Value, json};
 
-pub fn message_summary(message: message::Model) -> Result<InspirationMessageSummary, String> {
+pub fn inspiration_messages_llm_context(messages: &[InspirationMessageRecord]) -> Vec<Value> {
+    messages
+        .iter()
+        .filter_map(|item| match item.role.as_str() {
+            "user" | "assistant" => Some(json!({
+                "role": item.role,
+                "content": item.content,
+            })),
+            _ => None,
+        })
+        .collect()
+}
+
+pub fn message_summary(
+    message: InspirationMessageRecord,
+) -> Result<InspirationMessageSummary, String> {
     if message.role == "assistant" {
         a4n_domain::inspiration::parse_inspiration_response(&message.content)
             .map_err(|error| format!("灵感历史消息 {} 无效: {error}", message.id))?;
@@ -19,19 +35,32 @@ pub fn message_summary(message: message::Model) -> Result<InspirationMessageSumm
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn llm_context_keeps_only_supported_roles_in_order() {
+        let messages = ["system", "user", "assistant"].map(|role| InspirationMessageRecord {
+            id: 1,
+            role: role.into(),
+            content: format!("{role} content"),
+            created_at: Default::default(),
+        });
+
+        assert_eq!(
+            inspiration_messages_llm_context(&messages),
+            vec![
+                json!({"role": "user", "content": "user content"}),
+                json!({"role": "assistant", "content": "assistant content"}),
+            ]
+        );
+    }
 
     #[test]
     fn message_projection_keeps_user_fields_and_rejects_invalid_assistant_history() {
-        let message = message::Model {
+        let message = InspirationMessageRecord {
             id: 7,
-            conversation_id: 3,
             role: "user".into(),
             content: "内容".into(),
-            tool_calls: None,
-            prompt_tokens: None,
-            completion_tokens: None,
-            chapter_number: None,
-            is_important: false,
             created_at: Default::default(),
         };
         let mut invalid = message.clone();

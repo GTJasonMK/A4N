@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 
 use a4n_db::blueprint::context::blueprint_llm_context;
-use a4n_db::inspiration::inspiration_messages_llm_context;
 use a4n_db::workflow::UpsertWorkflowRunInput;
 use a4n_domain::project::{
     BLUEPRINT_REFINEMENT_MODE, BLUEPRINT_REFINEMENT_WORKFLOW_KIND,
@@ -10,6 +9,7 @@ use a4n_domain::project::{
 };
 use a4n_domain::workflow::WORKFLOW_STATUS_RUNNING;
 use a4n_error::AppError;
+use a4n_inspiration_core::inspiration_messages_llm_context;
 use a4n_llm_trace::context_aware_chat_request_trace_json;
 use a4n_prompt::blueprint_generation::build_blueprint_refine_request;
 use a4n_prompt::rendering::PromptRenderer;
@@ -78,7 +78,7 @@ pub(super) async fn prepare_blueprint_refine(
         "source_snapshot": &expected_source_snapshot,
     });
     let business_key = blueprint_refinement_business_key(project_id);
-    let workflow_run = if let Some(existing) = context
+    let workflow_run_id = if let Some(existing) = context
         .latest_workflow_run_by_business_key(&business_key)
         .await?
         && existing.status == WORKFLOW_STATUS_RUNNING
@@ -93,7 +93,7 @@ pub(super) async fn prepare_blueprint_refine(
                 operation: "启动已绑定的蓝图优化任务".to_string(),
             });
         }
-        existing
+        existing.id
     } else {
         context
             .begin_or_resume_workflow_run_validated(UpsertWorkflowRunInput {
@@ -115,8 +115,8 @@ pub(super) async fn prepare_blueprint_refine(
                 error_message: None,
             })
             .await?
+            .id
     };
-    let workflow_run_id = workflow_run.id;
     crate::workflow::attach_llm_call_checkpoint_trace(
         &mut request,
         workflow_run_id,

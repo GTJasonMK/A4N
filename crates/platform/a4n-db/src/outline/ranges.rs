@@ -1,6 +1,7 @@
 use std::collections::{BTreeSet, HashSet};
 
 use a4n_db_models::models::chapter::{chapter_outline, part_outline};
+use a4n_domain::chapter::{ChapterOutlineRecord, PartOutlineRecord};
 
 use super::OutlineDbError;
 
@@ -12,7 +13,7 @@ pub(super) fn expected_part_id_for_existing_outline(
 }
 
 /// 章节可以先于分部存在；没有覆盖该章节的分部时保持未归属。
-pub fn part_id_for_chapter_number(
+pub(crate) fn part_id_for_chapter_number(
     parts: &[part_outline::Model],
     chapter_number: i32,
 ) -> Result<Option<i64>, OutlineDbError> {
@@ -29,7 +30,9 @@ pub fn part_id_for_chapter_number(
     Ok(first.map(|part| part.id))
 }
 
-pub fn validate_part_outline_records(parts: &[part_outline::Model]) -> Result<(), OutlineDbError> {
+pub(crate) fn validate_part_outline_records(
+    parts: &[part_outline::Model],
+) -> Result<(), OutlineDbError> {
     validate_part_outline_records_with_action(parts, "请先清理分部状态后重试")
 }
 
@@ -76,8 +79,8 @@ fn validate_part_outline_records_with_action(
 }
 
 pub fn chapter_outline_ids_in_part_range(
-    outlines: &[chapter_outline::Model],
-    part: &part_outline::Model,
+    outlines: &[ChapterOutlineRecord],
+    part: &PartOutlineRecord,
 ) -> Vec<i64> {
     outlines
         .iter()
@@ -90,8 +93,8 @@ pub fn chapter_outline_ids_in_part_range(
 }
 
 pub fn chapter_outline_ids_in_part_ranges(
-    outlines: &[chapter_outline::Model],
-    parts: &[part_outline::Model],
+    outlines: &[ChapterOutlineRecord],
+    parts: &[PartOutlineRecord],
 ) -> Vec<i64> {
     let mut ids = BTreeSet::new();
     for part in parts {

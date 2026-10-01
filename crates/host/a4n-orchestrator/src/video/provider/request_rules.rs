@@ -1,6 +1,6 @@
 //! 视频 provider 请求：参考图 ID、provider 媒体合同、提示词元数据纯规则（无 DB、无 Host）。
 
-use a4n_db_models::models::chapter::chapter_video_prompt;
+use a4n_domain::video_prompt::{ChapterVideoPromptRecord, chapter_video_prompt};
 use serde_json::Value;
 use std::collections::HashSet;
 
@@ -51,7 +51,7 @@ pub fn required_prompt_source_prompt_type(
 }
 
 pub fn ensure_provider_generation_workflow(
-    prompt: &chapter_video_prompt::Model,
+    prompt: &ChapterVideoPromptRecord,
 ) -> Result<(), String> {
     match prompt.workflow_mode.as_str() {
         chapter_video_prompt::WORKFLOW_MODE_BOUNDARY_FRAMES
@@ -69,7 +69,7 @@ pub fn ensure_provider_generation_workflow(
 }
 
 pub(crate) fn prompt_provider_workflow_for_recipe(
-    prompt: &chapter_video_prompt::Model,
+    prompt: &ChapterVideoPromptRecord,
     recipe: &a4n_video_contract::VideoSegmentExecutionRecipeV1,
 ) -> Result<ProviderGenerationWorkflow, String> {
     ensure_provider_generation_workflow(prompt)?;
@@ -115,9 +115,7 @@ fn provider_generation_workflow_for_guidance(
     }
 }
 
-pub fn first_frame_chain_missing_start_image_message(
-    prompt: &a4n_db_models::models::chapter::chapter_video_prompt::Model,
-) -> String {
+pub fn first_frame_chain_missing_start_image_message(prompt: &ChapterVideoPromptRecord) -> String {
     if prompt.shot_number <= 1 {
         "首帧串联第 1 个视频单元缺少首帧图片，请先生成首帧提示词对应的首帧图片".to_string()
     } else {
@@ -130,7 +128,7 @@ pub fn first_frame_chain_missing_start_image_message(
 }
 
 pub fn boundary_frame_missing_image_message(
-    prompt: &a4n_db_models::models::chapter::chapter_video_prompt::Model,
+    prompt: &ChapterVideoPromptRecord,
     has_first_frame: bool,
     has_last_frame: bool,
 ) -> Option<String> {
@@ -155,9 +153,7 @@ pub fn boundary_frame_missing_image_message(
     ))
 }
 
-pub fn storyboard_missing_image_message(
-    prompt: &a4n_db_models::models::chapter::chapter_video_prompt::Model,
-) -> String {
+pub fn storyboard_missing_image_message(prompt: &ChapterVideoPromptRecord) -> String {
     format!(
         "分镜模式第 {} 个视频单元缺少分镜图，请先生成分镜提示词对应的分镜图片",
         prompt.shot_number
@@ -515,7 +511,6 @@ mod tests {
 
     #[test]
     fn provider_workflow_uses_recipe_instead_of_legacy_metadata() {
-        use a4n_db_models::models::chapter::chapter_video_prompt;
         use a4n_video_contract::{
             VIDEO_SEGMENT_EXECUTION_RECIPE_V1, VideoSegmentExecutionRecipeV1,
             VideoSegmentGuidanceModeV1, VideoSegmentWorkflowModeV1,
@@ -523,7 +518,7 @@ mod tests {
         use chrono::Utc;
 
         let now = Utc::now().naive_utc();
-        let prompt = chapter_video_prompt::Model {
+        let prompt = ChapterVideoPromptRecord {
             id: 1,
             project_id: 1,
             chapter_id: 1,

@@ -1,9 +1,9 @@
-pub fn sample_chapter() -> chapter::Model {
+pub fn sample_chapter() -> ChapterRecord {
     let now = NaiveDate::from_ymd_opt(2026, 5, 26)
         .unwrap()
         .and_hms_opt(10, 0, 0)
         .unwrap();
-    chapter::Model {
+    ChapterRecord {
         id: 11,
         project_id: 22,
         outline_id: None,

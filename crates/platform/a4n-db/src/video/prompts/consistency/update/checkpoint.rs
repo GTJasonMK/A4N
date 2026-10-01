@@ -1,9 +1,11 @@
 use a4n_db_models::models::chapter::chapter_video_prompt;
 use a4n_domain::generation::GenerationRunTraceTarget;
 use a4n_domain::video_prompt::ChapterVideoPromptPatch;
+use a4n_domain::video_prompt::ChapterVideoPromptRecord;
 use sea_orm::{ConnectionTrait, TransactionTrait};
 use serde_json::{Value, json};
 
+use crate::video::prompts::record_mapping::chapter_video_prompt_record_from_model;
 use crate::video::{self, VideoDbError};
 
 use super::{
@@ -18,7 +20,7 @@ pub async fn update_chapter_video_prompt_with_generation_run_checkpoint<C>(
     metadata_json: Option<Value>,
     allow_downstream: bool,
     mut generation_run: crate::generation::RecordCompletedGenerationRunWithCheckpointInput,
-) -> Result<chapter_video_prompt::Model, VideoDbError>
+) -> Result<ChapterVideoPromptRecord, VideoDbError>
 where
     C: ConnectionTrait + TransactionTrait,
 {
@@ -78,7 +80,7 @@ where
     .await
     .map_err(VideoDbError::from)?;
     txn.commit().await.map_err(VideoDbError::Database)?;
-    Ok(row)
+    Ok(chapter_video_prompt_record_from_model(row))
 }
 
 fn chapter_video_prompt_parsed_output(

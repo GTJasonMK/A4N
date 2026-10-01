@@ -1,4 +1,5 @@
-use a4n_db_models::models::chapter::{chapter, chapter_video_prompt};
+use a4n_db_models::models::chapter::chapter;
+use a4n_domain::video_prompt::{ChapterVideoPromptRecord, chapter_video_prompt};
 use a4n_error::AppError;
 
 use crate::OrchestratorContext;
@@ -105,7 +106,7 @@ fn resolve_chapter_video_source(chapter: &chapter::Model) -> Result<ChapterVideo
 }
 
 pub(super) fn validate_import_chapter_video_prompt(
-    prompt: &chapter_video_prompt::Model,
+    prompt: &ChapterVideoPromptRecord,
     project_id: i64,
     chapter_id: i64,
 ) -> Result<(), String> {

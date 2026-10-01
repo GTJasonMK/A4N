@@ -76,7 +76,7 @@ impl OrchestratorContext {
                 .await;
             }
         };
-        let workflow = match self
+        let workflow_run_id = match self
             .begin_blueprint_generation_workflow_validated(
                 project_id,
                 &title,
@@ -102,7 +102,6 @@ impl OrchestratorContext {
                 .await;
             }
         };
-        let workflow_run_id = workflow.id;
         let expected_source_snapshot =
             match blueprint_generation_source_snapshot(self, project_id).await {
                 Ok(snapshot) => snapshot,

@@ -1,5 +1,5 @@
 use a4n_chapter_analysis::analysis_rag_items;
-use a4n_db_models::models::chapter::chapter;
+use a4n_domain::chapter::ChapterRecord;
 use a4n_domain::rag::RagDataType;
 use a4n_embedding_provider_contract::EmbeddingProvider;
 use a4n_rag_core::RagRecord;
@@ -9,7 +9,7 @@ use crate::rag::chapter_rag_chunk_prefix;
 use a4n_rag_core::ChapterRagChunkingMode;
 
 pub(crate) async fn chapter_rag_records_with_provider(
-    chapter: &chapter::Model,
+    chapter: &ChapterRecord,
     provider: &dyn EmbeddingProvider,
     mode: ChapterRagChunkingMode,
 ) -> Result<Vec<RagRecord>, String> {

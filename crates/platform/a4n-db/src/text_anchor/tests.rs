@@ -2,7 +2,7 @@ use super::*;
 use a4n_db_models::models::{
     asset::object_profile,
     chapter::chapter,
-    project::{novel_project, profile_evidence, source_snapshot_chapter, text_anchor},
+    project::{profile_evidence, source_snapshot_chapter, text_anchor},
 };
 use a4n_domain::text_anchor::{TextAnchorEvidenceInput, TextAnchorProfileKind};
 use a4n_domain::{profile_ownership::PROFILE_OWNERSHIP_USER, source_text_hash};
@@ -17,7 +17,7 @@ async fn setup_db() -> DatabaseConnection {
     a4n_migration::test_support::connect_test_database().await
 }
 
-async fn text_project(db: &DatabaseConnection, title: &str) -> novel_project::Model {
+async fn text_project(db: &DatabaseConnection, title: &str) -> a4n_domain::project::ProjectRecord {
     crate::project::create_project_record(
         db,
         crate::project::CreateProjectRecordInput {
@@ -62,7 +62,7 @@ async fn video_project(
     db: &DatabaseConnection,
     root_project_id: i64,
     title: &str,
-) -> novel_project::Model {
+) -> a4n_domain::project::ProjectRecord {
     crate::project::create_derived_project_record(
         db,
         1,

@@ -1,4 +1,6 @@
 use super::*;
+use a4n_db_models::models::chapter::{chapter_outline, part_outline};
+use sea_orm::TransactionTrait;
 
 #[tokio::test]
 async fn sync_chapter_outlines_by_number_preserves_existing_ids_and_inserts_missing() {
@@ -35,8 +37,9 @@ async fn sync_chapter_outlines_by_number_preserves_existing_ids_and_inserts_miss
     .insert(&db)
     .await
     .unwrap();
+    let transaction = db.begin().await.unwrap();
     let rows = sync_chapter_outlines_by_number_in(
-        &db,
+        &transaction,
         project_id,
         Some(part.id),
         vec![
@@ -58,6 +61,7 @@ async fn sync_chapter_outlines_by_number_preserves_existing_ids_and_inserts_miss
     )
     .await
     .unwrap();
+    transaction.commit().await.unwrap();
     assert_eq!(rows.len(), 2);
     assert_eq!(rows[0].id, existing.id);
     assert_eq!(rows[0].created_at, old_time);

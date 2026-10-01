@@ -1,4 +1,4 @@
-use a4n_db_models::models::chapter::part_outline;
+use a4n_domain::chapter::PartOutlineRecord;
 use a4n_error::AppError;
 use a4n_prompt::request::build_json_task_user_message;
 use serde_json::{Value, json};
@@ -13,7 +13,7 @@ pub fn part_generation_manifest_user_message(
     part_number: i32,
     start_chapter: i32,
     end_chapter: i32,
-    previous_parts: &[part_outline::Model],
+    previous_parts: &[PartOutlineRecord],
 ) -> Result<String, AppError> {
     let payload = json!({
         "context_refs": {

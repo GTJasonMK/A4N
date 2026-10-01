@@ -1,4 +1,4 @@
-use a4n_db_models::models::chapter::chapter_video_prompt;
+use a4n_domain::video_prompt::{ChapterVideoPromptRecord, chapter_video_prompt};
 use a4n_error::AppError;
 use a4n_video_contract::{
     VideoShootingScriptIdentityV1, validate_video_segment_plan_identity,
@@ -417,7 +417,7 @@ async fn current_video_shooting_script_projection(
 }
 
 pub(in crate::video::prompts::generation::frame_prompts) fn prompt_resume_context_matches(
-    row: &chapter_video_prompt::Model,
+    row: &ChapterVideoPromptRecord,
     source_metadata: &Value,
     style: &str,
     aspect_ratio: &str,
@@ -430,7 +430,7 @@ pub(in crate::video::prompts::generation::frame_prompts) fn prompt_resume_contex
         .is_some_and(|(saved, current)| saved == current)
 }
 
-fn prompt_row_source_hash(row: &chapter_video_prompt::Model) -> Option<&str> {
+fn prompt_row_source_hash(row: &ChapterVideoPromptRecord) -> Option<&str> {
     row.metadata_json
         .as_ref()
         .and_then(|metadata| metadata.get("source"))

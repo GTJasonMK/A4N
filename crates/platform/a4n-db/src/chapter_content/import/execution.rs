@@ -1,8 +1,7 @@
 use super::super::ChapterContentImportError;
 use super::persistence::upsert_import_chapter_content;
 use super::preparation::prepare_import_chapter_content;
-use a4n_db_models::models::chapter::chapter;
-use a4n_domain::chapter::ImportChapterContentInput;
+use a4n_domain::chapter::{ChapterRecord, ImportChapterContentInput};
 use chrono::Utc;
 use sea_orm::ConnectionTrait;
 
@@ -10,7 +9,7 @@ pub async fn import_chapter_content_record<C>(
     db: &C,
     input: ImportChapterContentInput,
     target_generating_operation: &str,
-) -> Result<chapter::Model, ChapterContentImportError>
+) -> Result<ChapterRecord, ChapterContentImportError>
 where
     C: ConnectionTrait,
 {
@@ -34,5 +33,8 @@ where
         target_generating_operation,
     )
     .await?;
-    upsert_import_chapter_content(db, target, input, word_count, Utc::now().naive_utc()).await
+    let imported =
+        upsert_import_chapter_content(db, target, input, word_count, Utc::now().naive_utc())
+            .await?;
+    Ok(crate::project::chapter_record(imported))
 }

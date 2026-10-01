@@ -5,7 +5,7 @@ use a4n_db_models::models::{
     ai::{generated_image, generated_video},
     chapter::chapter,
     project::novel_project,
-    scene::scene_occurrence,
+    scene::{scene_occurrence, scene_profile},
     task::cleanup_outbox,
 };
 use a4n_domain::profile_ownership::PROFILE_OWNERSHIP_AI_SYNC;
@@ -22,7 +22,7 @@ async fn setup_db() -> DatabaseConnection {
     a4n_migration::test_support::connect_test_database().await
 }
 
-async fn text_project(db: &DatabaseConnection, title: &str) -> novel_project::Model {
+async fn text_project(db: &DatabaseConnection, title: &str) -> a4n_domain::project::ProjectRecord {
     crate::project::create_project_record(
         db,
         crate::project::CreateProjectRecordInput {
@@ -64,7 +64,7 @@ async fn generated_image_record(
     chapter_id: Option<i64>,
     file_path: &str,
 ) -> generated_image::Model {
-    crate::video::create_generated_image_record(
+    let image = crate::video::create_generated_image_record(
         db,
         a4n_domain::media::CreateGeneratedImageRecordDraftInput {
             project_id,
@@ -82,7 +82,12 @@ async fn generated_image_record(
         },
     )
     .await
-    .unwrap()
+    .unwrap();
+    generated_image::Entity::find_by_id(image.id)
+        .one(db)
+        .await
+        .unwrap()
+        .unwrap()
 }
 
 async fn completed_generated_video_record(
@@ -91,7 +96,7 @@ async fn completed_generated_video_record(
     chapter_id: i64,
     file_path: &str,
     thumbnail_path: &str,
-) -> generated_video::Model {
+) -> a4n_domain::media::GeneratedVideoRecord {
     let video = crate::video::create_generated_video_record(
         db,
         a4n_domain::media::CreateGeneratedVideoRecordDraftInput {
@@ -172,7 +177,8 @@ async fn reset_returns_only_paths_unreferenced_after_transaction_cleanup() {
     generated_image_record(&db, project.id, None, &unique_path).await;
     let other_image = generated_image_record(&db, other_project.id, None, shared_path).await;
 
-    let mut gated_project: novel_project::ActiveModel = project.clone().into();
+    let mut gated_project: novel_project::ActiveModel =
+        crate::project::project_record_into_model(project.clone()).into();
     gated_project.lifecycle_gate = Set(crate::generation::PROJECT_GATE_RESETTING.to_string());
     gated_project.update(&db).await.unwrap();
     let outcome = reset_project_generated_data_record(&db, project.id)
@@ -203,7 +209,7 @@ async fn reset_deletes_scene_occurrences_before_chapters() {
     for preserve_source in [false, true] {
         let project = text_project(&db, "场景出场重置顺序测试").await;
         let chapter = chapter_record(&db, project.id).await;
-        let scene_profile = crate::scene_profile::create_scene_profile_record(
+        let scene_profile_record = crate::scene_profile::create_scene_profile_record(
             &db,
             project.id,
             SceneProfileRecordInput {
@@ -228,6 +234,11 @@ async fn reset_deletes_scene_occurrences_before_chapters() {
         )
         .await
         .unwrap();
+        let scene_profile = scene_profile::Entity::find_by_id(scene_profile_record.id)
+            .one(&db)
+            .await
+            .unwrap()
+            .unwrap();
         let now = Utc::now().naive_utc();
         scene_occurrence::ActiveModel {
             project_id: Set(project.id),
@@ -315,7 +326,8 @@ async fn reset_deletes_scene_occurrences_before_chapters() {
             .unwrap();
         }
         let project_id = project.id;
-        let mut gated_project: novel_project::ActiveModel = project.into();
+        let mut gated_project: novel_project::ActiveModel =
+            crate::project::project_record_into_model(project).into();
         gated_project.lifecycle_gate = Set(crate::generation::PROJECT_GATE_RESETTING.to_string());
         gated_project.update(&db).await.unwrap();
 
@@ -385,7 +397,7 @@ async fn reset_deletes_scene_occurrences_before_chapters() {
                 crate::chapter_content::chapters_for_project(&db, project_id)
                     .await
                     .unwrap(),
-                vec![replacement]
+                vec![crate::project::chapter_record(replacement)]
             );
         }
     }
@@ -396,7 +408,8 @@ async fn rollback_schedules_only_paths_unreferenced_after_chapter_cleanup() {
     let db = setup_db().await;
     let project = text_project(&db, "状态回退路径测试").await;
     let other_project = text_project(&db, "状态回退共享路径项目").await;
-    let mut active: novel_project::ActiveModel = project.into();
+    let mut active: novel_project::ActiveModel =
+        crate::project::project_record_into_model(project).into();
     active.status = Set(ProjectStatus::Writing.as_str().to_string());
     let project = active.update(&db).await.unwrap();
     let chapter = chapter_record(&db, project.id).await;
@@ -484,7 +497,8 @@ async fn rollback_status_history_failure_rolls_back_cleanup_and_status() {
     )
     .await
     .unwrap();
-    let mut active: novel_project::ActiveModel = project.clone().into();
+    let mut active: novel_project::ActiveModel =
+        crate::project::project_record_into_model(project.clone()).into();
     active.status = Set("writing".to_string());
     let project = active.update(&db).await.unwrap();
     let now = Utc::now().naive_utc();

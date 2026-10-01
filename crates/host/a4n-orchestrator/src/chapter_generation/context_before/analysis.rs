@@ -1,8 +1,8 @@
 use super::shared::chapter_context_label;
 use a4n_chapter_analysis::{character_state_snapshots, foreshadowing_entries};
-use a4n_db_models::models::chapter::chapter;
+use a4n_domain::chapter::ChapterRecord;
 
-pub(super) fn chapter_analysis_context_line(chapter: &chapter::Model) -> Option<String> {
+pub(super) fn chapter_analysis_context_line(chapter: &ChapterRecord) -> Option<String> {
     let analysis = chapter.analysis_data.as_ref()?;
     let mut parts = Vec::new();
 

@@ -378,8 +378,11 @@ async fn outline_generation_does_not_write_while_project_is_resetting() {
         .expect("outline generation sources must load")
         .expect("project must exist");
     let snapshot = outline_generation_source_snapshot(&rows);
-    let mut project: novel_project::ActiveModel = rows.project.into();
-    project.lifecycle_gate = Set(resetting_gate.to_string());
+    let project = novel_project::ActiveModel {
+        id: Set(rows.project.id),
+        lifecycle_gate: Set(resetting_gate.to_string()),
+        ..Default::default()
+    };
     project
         .update(&db)
         .await
@@ -444,7 +447,11 @@ async fn generated_chapter_links_only_to_the_unchanged_outline_it_used() {
     let now = Utc::now().naive_utc();
 
     let unchanged_project = create_project(&db, "关联实际使用章纲").await;
-    let unchanged_outline = insert_user_outline(&db, unchanged_project).await;
+    let unchanged_outline_model = insert_user_outline(&db, unchanged_project).await;
+    let unchanged_outline = a4n_db::project::chapter_outline_by_id(&db, unchanged_outline_model.id)
+        .await
+        .expect("outline lookup must succeed")
+        .expect("inserted outline must exist");
     let unchanged_chapter = finish_generated_chapter_content_record_in_transaction(
         &db,
         GeneratedChapterContentRecordInput {
@@ -464,8 +471,12 @@ async fn generated_chapter_links_only_to_the_unchanged_outline_it_used() {
     assert_eq!(unchanged_chapter.outline_id, Some(unchanged_outline.id));
 
     let changed_project = create_project(&db, "不冒认已修改章纲").await;
-    let source_outline = insert_user_outline(&db, changed_project).await;
-    let mut changed: chapter_outline::ActiveModel = source_outline.clone().into();
+    let source_outline_model = insert_user_outline(&db, changed_project).await;
+    let source_outline = a4n_db::project::chapter_outline_by_id(&db, source_outline_model.id)
+        .await
+        .expect("outline lookup must succeed")
+        .expect("inserted outline must exist");
+    let mut changed: chapter_outline::ActiveModel = source_outline_model.into();
     changed.title = Set(Some("生成期间修改后的章纲".to_string()));
     changed.updated_at = Set(source_outline.updated_at + Duration::seconds(1));
     changed
@@ -523,7 +534,11 @@ async fn generated_chapter_rejects_an_outline_from_another_target() {
     let db = a4n_migration::test_support::connect_test_database().await;
     let source_project = create_project(&db, "章纲来源项目").await;
     let target_project = create_project(&db, "正文目标项目").await;
-    let source_outline = insert_user_outline(&db, source_project).await;
+    let source_outline_model = insert_user_outline(&db, source_project).await;
+    let source_outline = a4n_db::project::chapter_outline_by_id(&db, source_outline_model.id)
+        .await
+        .expect("outline lookup must succeed")
+        .expect("inserted outline must exist");
 
     let error = finish_generated_chapter_content_record_in_transaction(
         &db,

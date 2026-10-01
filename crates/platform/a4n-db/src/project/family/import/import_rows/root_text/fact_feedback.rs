@@ -213,7 +213,9 @@ pub(super) async fn insert_feedback_rows(
         let mut active: chapter::ActiveModel = current.into();
         active.analysis_data = Set(analysis);
         let current = active.update(tx).await.map_err(db_error)?;
-        if let Some(revision) = crate::fact_feedback::source_revision(&current) {
+        if let Some(revision) =
+            crate::fact_feedback::source_revision(&crate::project::chapter_record(current))
+        {
             current_sources.insert(original.id, revision);
         }
     }
@@ -281,7 +283,11 @@ pub(super) async fn insert_feedback_rows(
                     .chapters
                     .iter()
                     .find(|chapter| chapter.id == old_id)
-                    .and_then(crate::fact_feedback::source_revision);
+                    .and_then(|chapter| {
+                        crate::fact_feedback::source_revision(&crate::project::chapter_record(
+                            chapter.clone(),
+                        ))
+                    });
                 let was_current = original.as_ref().is_some_and(|source| {
                     serde_json::to_value(source).ok().as_ref() == Some(&row.after_json)
                 });
@@ -353,7 +359,10 @@ fn remap_source(
         .iter()
         .find(|chapter| chapter.id == old_id)
     {
-        if &crate::fact_feedback::observation_source(original) == source {
+        if &crate::fact_feedback::observation_source(&crate::project::chapter_record(
+            original.clone(),
+        )) == source
+        {
             if let Some(revision) = current.get(&old_id) {
                 *source = revision.clone();
                 return Ok(());

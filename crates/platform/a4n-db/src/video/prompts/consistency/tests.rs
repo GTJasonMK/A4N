@@ -7,8 +7,8 @@ use a4n_db_models::models::{
 };
 use a4n_domain::generation::RecordCompletedGenerationRunInput;
 use a4n_domain::video_prompt::{
-    ChapterVideoPromptPatch, ChapterVideoPromptRecordFields, ChapterVideoPromptSyncDraft,
-    ChapterVideoPromptSyncPolicy, PreparedVideoPromptGenerationTrace,
+    ChapterVideoPromptPatch, ChapterVideoPromptRecord, ChapterVideoPromptRecordFields,
+    ChapterVideoPromptSyncDraft, ChapterVideoPromptSyncPolicy, PreparedVideoPromptGenerationTrace,
 };
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter,
@@ -16,8 +16,14 @@ use sea_orm::{
 };
 use serde_json::json;
 
+use crate::video::prompts::record_mapping::chapter_video_prompt_record_from_model;
+
 async fn setup_db() -> DatabaseConnection {
     a4n_migration::test_support::connect_test_database().await
+}
+
+fn prompt_record(prompt: &chapter_video_prompt::Model) -> ChapterVideoPromptRecord {
+    chapter_video_prompt_record_from_model(prompt.clone())
 }
 
 async fn insert_project(db: &DatabaseConnection) -> i64 {
@@ -258,7 +264,8 @@ async fn prompt_mutability_batch_preserves_later_stage_guard() {
     )
     .await;
 
-    let error = ensure_chapter_video_prompt_stages_mutable(&db, &[frame], "编辑")
+    let frame_record = prompt_record(&frame);
+    let error = ensure_chapter_video_prompt_stages_mutable(&db, &[frame_record], "编辑")
         .await
         .expect_err("a later video prompt must keep the frame prompt immutable");
     assert!(matches!(
@@ -315,7 +322,8 @@ async fn prompt_mutability_batch_preserves_segment_plan_guard() {
     )
     .await;
 
-    let error = ensure_chapter_video_prompt_stages_mutable(&db, &[plan], "编辑")
+    let plan_record = prompt_record(&plan);
+    let error = ensure_chapter_video_prompt_stages_mutable(&db, &[plan_record], "编辑")
         .await
         .expect_err("a later video must keep the segment plan immutable");
     assert!(matches!(
@@ -356,9 +364,10 @@ async fn prompt_mutability_batch_keeps_non_ignored_later_video_guard() {
     )
     .await;
 
+    let frame_record = prompt_record(&frame);
     let error = ensure_chapter_video_prompt_stages_mutable_ignoring(
         &db,
-        &[frame],
+        &[frame_record],
         "编辑",
         &std::collections::BTreeSet::from([ignored_video.id]),
     )
@@ -417,7 +426,8 @@ async fn prompt_mutability_batch_preserves_generated_frame_guard() {
     .await
     .unwrap();
 
-    let error = ensure_chapter_video_prompt_stages_mutable(&db, &[frame], "删除")
+    let frame_record = prompt_record(&frame);
+    let error = ensure_chapter_video_prompt_stages_mutable(&db, &[frame_record], "删除")
         .await
         .expect_err("a generated frame image must keep its prompt immutable");
     assert!(matches!(
@@ -467,9 +477,14 @@ async fn prompt_mutability_batch_can_skip_generated_frame_guard() {
     .await
     .unwrap();
 
-    ensure_chapter_video_prompt_stages_mutable_skipping_generated_images(&db, &[frame], "删除")
-        .await
-        .expect("boundary synchronization intentionally skips prompts with generated images");
+    let frame_record = prompt_record(&frame);
+    ensure_chapter_video_prompt_stages_mutable_skipping_generated_images(
+        &db,
+        &[frame_record],
+        "删除",
+    )
+    .await
+    .expect("boundary synchronization intentionally skips prompts with generated images");
 }
 
 #[tokio::test]
@@ -584,7 +599,8 @@ async fn prompt_mutability_batch_rejects_mixed_chapters() {
     let first = insert_prompt(&db, first_project_id, first_chapter.id).await;
     let second = insert_prompt(&db, second_project_id, second_chapter.id).await;
 
-    let error = ensure_chapter_video_prompt_stages_mutable(&db, &[first, second], "编辑")
+    let prompt_records = [prompt_record(&first), prompt_record(&second)];
+    let error = ensure_chapter_video_prompt_stages_mutable(&db, &prompt_records, "编辑")
         .await
         .expect_err("batch mutability must have one project/chapter scope");
     assert!(matches!(

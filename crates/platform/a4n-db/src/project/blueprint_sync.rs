@@ -1,8 +1,11 @@
 mod characters;
 mod contracts;
 mod identity;
+mod record;
 mod records;
 mod relationships;
+
+pub(crate) use record::blueprint_record;
 
 pub(super) use characters::sync_blueprint_characters;
 pub use characters::{edit_blueprint_characters, merge_blueprint_characters};

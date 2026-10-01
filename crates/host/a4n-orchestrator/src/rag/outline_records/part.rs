@@ -1,11 +1,11 @@
-use a4n_db_models::models::chapter::part_outline;
+use a4n_domain::chapter::PartOutlineRecord;
 use a4n_domain::rag::RagDataType;
 use a4n_rag_core::RagRecord;
 use a4n_rag_core::record_text::{optional_json_text, optional_rag_text, required_rag_text};
 
 use super::super::rag_chunk_id;
 
-fn part_outline_rag_text(part: &part_outline::Model) -> Result<String, String> {
+fn part_outline_rag_text(part: &PartOutlineRecord) -> Result<String, String> {
     let title = required_rag_text(
         Some(&part.title),
         format!("分部大纲 {} 缺少标题，跳过 RAG 入库", part.id),
@@ -36,7 +36,7 @@ fn part_outline_rag_text(part: &part_outline::Model) -> Result<String, String> {
 
 pub fn part_outline_rag_record(
     project_id: i64,
-    part: &part_outline::Model,
+    part: &PartOutlineRecord,
 ) -> Result<RagRecord, String> {
     Ok(RagRecord {
         chunk_id: rag_chunk_id(project_id, RagDataType::PartOutline, part.id),

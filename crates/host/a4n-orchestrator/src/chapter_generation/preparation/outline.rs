@@ -1,4 +1,4 @@
-use a4n_db_models::models::chapter::chapter_outline;
+use a4n_domain::chapter::ChapterOutlineRecord;
 use serde_json::Value;
 
 use super::{
@@ -8,7 +8,7 @@ use super::{
 };
 
 fn format_chapter_outline_for_generation(
-    outline: &chapter_outline::Model,
+    outline: &ChapterOutlineRecord,
     chapter_title: &str,
     word_count_range: Option<ChapterGenerationWordCountRange>,
 ) -> Result<String, String> {
@@ -42,7 +42,7 @@ fn format_chapter_outline_for_generation(
 
 pub fn merge_generation_outline_text(
     chapter_number: i32,
-    db_outline: Option<&chapter_outline::Model>,
+    db_outline: Option<&ChapterOutlineRecord>,
     provided_outline: Option<&str>,
     writing_instruction: Option<&str>,
     chapter_title: Option<&str>,
@@ -99,7 +99,7 @@ pub fn merge_generation_outline_text(
 
 pub fn generation_chapter_title(
     chapter_number: i32,
-    outline: Option<&chapter_outline::Model>,
+    outline: Option<&ChapterOutlineRecord>,
     title_hint: Option<&str>,
 ) -> String {
     title_hint

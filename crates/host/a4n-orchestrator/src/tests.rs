@@ -16,11 +16,8 @@ fn project_delete_error_keeps_typed_app_error_mapping() {
             source: sea_orm::DbErr::Custom("delete failed".to_string()),
         },
     );
-    assert!(matches!(
-        database,
-        a4n_error::AppError::database(sea_orm::DbErr::Custom(message))
-            if message == "delete failed"
-    ));
+    assert!(matches!(&database, a4n_error::AppError::Database(_)));
+    assert!(database.to_string().contains("delete failed"));
 
     let cleanup_database = project_delete_error_to_app_error(
         a4n_db::project::delete::ProjectDeleteDbError::ProjectCleanup {
@@ -30,10 +27,10 @@ fn project_delete_error_keeps_typed_app_error_mapping() {
         },
     );
     assert!(matches!(
-        cleanup_database,
-        a4n_error::AppError::database(sea_orm::DbErr::Custom(message))
-            if message == "cleanup failed"
+        &cleanup_database,
+        a4n_error::AppError::Database(_)
     ));
+    assert!(cleanup_database.to_string().contains("cleanup failed"));
 }
 
 #[test]
@@ -60,9 +57,6 @@ fn freeform_generated_reset_error_keeps_typed_app_error_mapping() {
             source: sea_orm::DbErr::Custom("reset failed".to_string()),
         },
     );
-    assert!(matches!(
-        database,
-        a4n_error::AppError::database(sea_orm::DbErr::Custom(message))
-            if message == "reset failed"
-    ));
+    assert!(matches!(&database, a4n_error::AppError::Database(_)));
+    assert!(database.to_string().contains("reset failed"));
 }

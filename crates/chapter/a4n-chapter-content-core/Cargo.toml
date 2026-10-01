@@ -8,7 +8,6 @@ license.workspace = true
 a4n-api-contract = { workspace = true }
 a4n-chapter-analysis = { workspace = true }
 a4n-db = { workspace = true }
-a4n-db-models = { workspace = true }
 a4n-domain = { workspace = true }
 a4n-error = { workspace = true, default-features = true }
 
@@ -16,4 +15,5 @@ serde_json = { workspace = true }
 uuid = { workspace = true }
 
 [dev-dependencies]
+a4n-db-models = { workspace = true }
 chrono = { workspace = true }

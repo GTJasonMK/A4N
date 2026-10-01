@@ -75,7 +75,12 @@ async fn generate_shared_segment_plan_stage_with_explicit_end_frame(
     let segments = a4n_video_contract::video_segment_plan_from_metadata(&metadata).unwrap();
     metadata["video_execution_identity"]["segment_identities"] =
         a4n_video_contract::video_segment_identities(&segments).unwrap();
-    let mut active: chapter_video_prompt::ActiveModel = plan.into();
+    let plan_model = chapter_video_prompt::Entity::find_by_id(plan.id)
+        .one(db)
+        .await
+        .expect("test segment plan query should succeed")
+        .expect("test segment plan should still exist");
+    let mut active: chapter_video_prompt::ActiveModel = plan_model.into();
     active.metadata_json = Set(Some(metadata));
     active.update(db).await.unwrap();
 }

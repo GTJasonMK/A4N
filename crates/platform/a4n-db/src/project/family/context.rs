@@ -16,6 +16,7 @@ mod tests;
 
 use self::contracts::{ProjectFamilyAccessRow, ProjectFamilySnapshotAccessRow};
 use super::super::PROJECT_KIND_TEXT;
+use crate::project::project_record_from_model;
 use a4n_db_models::models::project::{
     novel_project, project_source_snapshot, source_snapshot_chapter,
 };
@@ -329,8 +330,8 @@ where
     }
 
     Ok(ProjectFamilyContext {
-        project,
-        root_project,
+        project: project_record_from_model(project),
+        root_project: project_record_from_model(root_project),
         source_snapshot,
     })
 }

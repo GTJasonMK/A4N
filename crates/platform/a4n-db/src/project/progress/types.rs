@@ -1,6 +1,7 @@
-use a4n_db_models::models::project::novel_project;
 pub(crate) use a4n_domain::project::ProjectProgressSummary;
-use a4n_domain::project::{ProjectKind, ProjectSourceMode, ProjectSourceModeError, ProjectStatus};
+use a4n_domain::project::{
+    ProjectKind, ProjectSourceMode, ProjectSourceModeError, ProjectStatus, ProjectSummaryRecord,
+};
 use sea_orm::DbErr;
 
 #[derive(Debug, PartialEq, Eq)]
@@ -14,7 +15,7 @@ pub struct ProjectProgressQuery {
 }
 
 impl ProjectProgressQuery {
-    pub fn from_project(project: &novel_project::Model) -> Result<Self, ProjectProgressReadError> {
+    pub fn from_project(project: &ProjectSummaryRecord) -> Result<Self, ProjectProgressReadError> {
         let project_kind = ProjectKind::parse(&project.project_kind).ok_or_else(|| {
             ProjectProgressReadError::InvalidProjectKind {
                 project_id: project.id,
@@ -27,11 +28,14 @@ impl ProjectProgressQuery {
                 value: project.status.clone(),
             }
         })?;
-        let source_mode = project.source_mode().map_err(|source| {
-            ProjectProgressReadError::InvalidProjectSource {
-                project_id: project.id,
-                source,
-            }
+        let source_mode = ProjectSourceMode::from_identity(
+            &project.project_kind,
+            project.root_project_id,
+            project.source_snapshot_id,
+        )
+        .map_err(|source| ProjectProgressReadError::InvalidProjectSource {
+            project_id: project.id,
+            source,
         })?;
         if project.current_chapter < 0 || project.target_chapters < 0 {
             return Err(ProjectProgressReadError::InvalidChapterProgress {
@@ -117,9 +121,9 @@ mod tests {
     use chrono::Utc;
     use std::error::Error;
 
-    fn project() -> novel_project::Model {
+    fn project() -> ProjectSummaryRecord {
         let now = Utc::now().naive_utc();
-        novel_project::Model {
+        ProjectSummaryRecord {
             id: 17,
             user_id: 1,
             title: "测试项目".to_string(),
@@ -135,11 +139,6 @@ mod tests {
             current_chapter: 3,
             total_chapters: Some(10),
             chapters_per_part: None,
-            avatar_svg: None,
-            avatar_animal: None,
-            raw_blueprint: None,
-            import_analysis_progress: None,
-            export_config: None,
             created_at: now,
             updated_at: now,
         }

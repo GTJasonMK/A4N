@@ -1,5 +1,5 @@
 use a4n_db::DbTransaction;
-use a4n_db_models::models::chapter::part_outline;
+use a4n_domain::chapter::PartOutlineRecord;
 use a4n_domain::generation::{GenerationRunTraceTarget, RecordCompletedGenerationRunInput};
 use a4n_error::AppError;
 use a4n_llm_trace::{chat_request_messages_json, text_response_summary_json};
@@ -14,7 +14,7 @@ impl OrchestratorContext {
     pub(in crate::outline::parts) async fn record_part_outline_generation_run(
         &self,
         db: &DbTransaction,
-        part: &part_outline::Model,
+        part: &PartOutlineRecord,
         generated: &GeneratedPartOutline,
         title: &str,
     ) -> Result<(), AppError> {

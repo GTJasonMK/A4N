@@ -62,6 +62,7 @@ a4n-media = { workspace = true }
 a4n-manga-core = { workspace = true }
 a4n-image-contract = { workspace = true }
 a4n-image-host-contract = { workspace = true }
+a4n-inspiration-core = { workspace = true }
 a4n-inspiration-host-contract = { workspace = true }
 a4n-import-analysis-host-contract = { workspace = true }
 a4n-video = { workspace = true }

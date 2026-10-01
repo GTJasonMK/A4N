@@ -179,6 +179,9 @@ async fn source_snapshot_freezes_completed_scenes_without_following_live_progres
         );
     }
 
+    let run = a4n_db::workflow::workflow_run_model_by_id(db.as_ref(), run.id)
+        .await
+        .unwrap();
     let mut finished: a4n_db_models::models::generation::workflow_run::ActiveModel = run.into();
     finished.status = Set("completed".into());
     finished.can_resume = Set(false);

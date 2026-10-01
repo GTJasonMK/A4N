@@ -1,7 +1,6 @@
 use a4n_db_models::models::{
     ai::{generated_image, generated_video},
     chapter::{chapter, chapter_manga_prompt, chapter_video_prompt},
-    project::novel_project,
 };
 use a4n_domain::image::{
     IMAGE_GENERATION_SOURCE_VIDEO_BOUNDARY_FRAME_PROMPT, IMAGE_TYPE_VIDEO_KEY_FRAME,
@@ -24,7 +23,7 @@ async fn setup_db() -> DatabaseConnection {
     a4n_migration::test_support::connect_test_database().await
 }
 
-async fn text_project(db: &DatabaseConnection, title: &str) -> novel_project::Model {
+async fn text_project(db: &DatabaseConnection, title: &str) -> a4n_domain::project::ProjectRecord {
     crate::project::create_project_record(
         db,
         crate::project::CreateProjectRecordInput {

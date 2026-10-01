@@ -21,6 +21,8 @@ use super::context::{
 };
 use crate::video::VideoDbError;
 use crate::video::VideoProjectIdentity;
+use crate::video::media_mapping::generated_video_record_from_model;
+use a4n_domain::media::GeneratedVideoRecord;
 
 #[derive(Debug, FromQueryResult)]
 struct StaleGeneratedVideoRow {
@@ -331,7 +333,7 @@ pub async fn mark_generated_video_error_status_and_prompt_record<C>(
     prompt_id: Option<i64>,
     status: &str,
     message: &str,
-) -> Result<generated_video::Model, VideoDbError>
+) -> Result<GeneratedVideoRecord, VideoDbError>
 where
     C: ConnectionTrait + TransactionTrait,
 {
@@ -361,7 +363,7 @@ where
     )
     .await?;
     txn.commit().await.map_err(VideoDbError::Database)?;
-    Ok(updated)
+    Ok(generated_video_record_from_model(updated))
 }
 
 pub async fn recover_stale_generated_videos_without_provider_job(

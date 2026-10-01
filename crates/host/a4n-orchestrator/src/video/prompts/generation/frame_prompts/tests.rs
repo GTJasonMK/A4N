@@ -12,6 +12,7 @@ use a4n_db::project::{
 use a4n_db_models::models::ai::generated_image;
 use a4n_db_models::models::chapter::{chapter, chapter_video_prompt};
 use a4n_domain::image::IMAGE_GENERATION_SOURCE_VIDEO_BOUNDARY_FRAME_PROMPT;
+use a4n_domain::video_prompt::ChapterVideoPromptRecord;
 use sea_orm::{ActiveModelTrait, Set};
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
@@ -158,7 +159,7 @@ pub(super) fn shooting_script_projection() -> VideoShootingScriptProjection {
     .expect("test shooting script projection should deserialize")
 }
 
-fn segment_plan_row(id: i64, source_hash: Option<&str>) -> chapter_video_prompt::Model {
+fn segment_plan_row(id: i64, source_hash: Option<&str>) -> ChapterVideoPromptRecord {
     let now = chrono::Utc::now().naive_utc();
     let mut segment = segment(1);
     segment.reference_image_ids.clear();
@@ -197,7 +198,7 @@ fn segment_plan_row(id: i64, source_hash: Option<&str>) -> chapter_video_prompt:
         }),
     });
 
-    chapter_video_prompt::Model {
+    ChapterVideoPromptRecord {
         id,
         project_id: 2,
         chapter_id: 1,
@@ -232,12 +233,9 @@ pub(super) fn boundary_frame(
     frame
 }
 
-pub(super) fn row_for_boundary_frame(
-    id: i64,
-    frame: VideoFramePrompt,
-) -> chapter_video_prompt::Model {
+pub(super) fn row_for_boundary_frame(id: i64, frame: VideoFramePrompt) -> ChapterVideoPromptRecord {
     let now = chrono::Utc::now().naive_utc();
-    chapter_video_prompt::Model {
+    ChapterVideoPromptRecord {
         id,
         project_id: 2,
         chapter_id: 1,

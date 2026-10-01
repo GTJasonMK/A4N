@@ -4,7 +4,7 @@ use super::{
     scene_profile::recent_scene_profile_context_lines, summaries::layered_chapter_summary_lines,
 };
 use crate::OrchestratorContext;
-use a4n_db_models::models::chapter::chapter;
+use a4n_domain::chapter::ChapterRecord;
 
 const RECENT_ANALYSIS_CHAPTERS: usize = 12;
 const PREVIOUS_CHAPTER_TAIL_CHAR_LIMIT: usize = 600;
@@ -35,7 +35,7 @@ impl OrchestratorContext {
         let previous_chapters = previous_result
             .map_err(|err| format!("构建章节前情上下文失败: {err}"))?
             .into_iter()
-            .filter(chapter::Model::has_available_content)
+            .filter(ChapterRecord::has_available_content)
             .collect::<Vec<_>>();
 
         let mut lines = Vec::new();
@@ -121,7 +121,7 @@ fn append_section(lines: &mut Vec<String>, title: &str, section_lines: Vec<Strin
     lines.extend(section_lines);
 }
 
-fn previous_chapter_tail(previous_chapters: &[chapter::Model]) -> Option<String> {
+fn previous_chapter_tail(previous_chapters: &[ChapterRecord]) -> Option<String> {
     previous_chapters.iter().rev().find_map(|chapter| {
         let mut tail_chars: Vec<char> = chapter
             .content

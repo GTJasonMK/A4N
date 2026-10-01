@@ -14,7 +14,7 @@ use a4n_api_contract::outline::{
     UpdateChapterOutlineResult,
 };
 use a4n_db::{DbHandle, project::OutlineGenerationProgressRows};
-use a4n_db_models::models::chapter::{chapter_outline, part_outline};
+use a4n_domain::chapter::{ChapterOutlineRecord, PartOutlineRecord, chapter_outline_status};
 use a4n_domain::collaboration::ProjectAccessRole;
 use a4n_outline_worker_contract::{
     ChapterOutlineAccessInput, DELETE_CHAPTERS_OPERATION, DELETE_PARTS_OPERATION,
@@ -707,7 +707,7 @@ fn ensure_project_ownership(
 }
 
 fn chapter_outline_summary(
-    outline: &chapter_outline::Model,
+    outline: &ChapterOutlineRecord,
     source_kind: Option<&String>,
 ) -> ChapterOutlineSummary {
     ChapterOutlineSummary {
@@ -731,7 +731,7 @@ fn chapter_outline_summary(
     }
 }
 
-fn part_outline_summary(part: &part_outline::Model) -> PartOutlineSummary {
+fn part_outline_summary(part: &PartOutlineRecord) -> PartOutlineSummary {
     PartOutlineSummary {
         id: part.id,
         project_id: part.project_id,
@@ -753,7 +753,7 @@ fn generation_progress_summary(
 ) -> Result<OutlineGenerationProgressSummary, WorkerFailure> {
     let mut outlines_by_chapter = HashMap::<i32, &str>::new();
     for outline in &rows.chapter_outlines {
-        if !chapter_outline::is_valid_status(&outline.status) {
+        if !chapter_outline_status::is_valid_status(&outline.status) {
             return Err(WorkerFailure::conflict(format!(
                 "章节大纲 {} 状态无效：{}",
                 outline.id, outline.status
@@ -790,7 +790,7 @@ fn generation_progress_summary(
         if (part.start_chapter..=part.end_chapter).all(|chapter_number| {
             outlines_by_chapter
                 .get(&chapter_number)
-                .is_some_and(|status| *status == chapter_outline::STATUS_COMPLETED)
+                .is_some_and(|status| *status == chapter_outline_status::STATUS_COMPLETED)
         }) {
             completed_parts += 1;
         }
@@ -803,7 +803,7 @@ fn generation_progress_summary(
         completed_chapter_outlines: rows
             .chapter_outlines
             .iter()
-            .filter(|outline| outline.status == chapter_outline::STATUS_COMPLETED)
+            .filter(|outline| outline.status == chapter_outline_status::STATUS_COMPLETED)
             .count() as u64,
     })
 }
@@ -1083,17 +1083,17 @@ mod tests {
                 a4n_db::project::OutlineGenerationProgressChapter {
                     id: 11,
                     chapter_number: 1,
-                    status: chapter_outline::STATUS_COMPLETED.into(),
+                    status: chapter_outline_status::STATUS_COMPLETED.into(),
                 },
                 a4n_db::project::OutlineGenerationProgressChapter {
                     id: 12,
                     chapter_number: 2,
-                    status: chapter_outline::STATUS_COMPLETED.into(),
+                    status: chapter_outline_status::STATUS_COMPLETED.into(),
                 },
                 a4n_db::project::OutlineGenerationProgressChapter {
                     id: 13,
                     chapter_number: 3,
-                    status: chapter_outline::STATUS_DRAFT.into(),
+                    status: chapter_outline_status::STATUS_DRAFT.into(),
                 },
             ],
         };

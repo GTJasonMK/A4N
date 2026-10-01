@@ -8,7 +8,8 @@ async fn frame_card_generation_cancels_without_writing_partial_prompts() {
     let engine = TeraPromptEngine::from_directory(&prompts_dir()).unwrap();
     let project = insert_video_project(db.as_ref(), "视频项目").await;
     let chapter = insert_video_chapter(db.as_ref(), project.id, 1).await;
-    generate_shared_segment_plan_stage(&service, &llm_switch, project.id, chapter.id, &engine).await;
+    generate_shared_segment_plan_stage(&service, &llm_switch, project.id, chapter.id, &engine)
+        .await;
     set_segment_recipe_mode(
         &service,
         project.id,
@@ -153,7 +154,8 @@ async fn chat_video_card_generates_without_a_frame_stage() {
     let engine = TeraPromptEngine::from_directory(&prompts_dir()).unwrap();
     let project = insert_video_project(db.as_ref(), "视频项目").await;
     let chapter = insert_video_chapter(db.as_ref(), project.id, 1).await;
-    generate_shared_segment_plan_stage(&service, &llm_switch, project.id, chapter.id, &engine).await;
+    generate_shared_segment_plan_stage(&service, &llm_switch, project.id, chapter.id, &engine)
+        .await;
     let options = target_generation_options(&service, project.id, chapter.id, 1).await;
 
     let rows = service
@@ -205,7 +207,8 @@ async fn explicit_regeneration_rejects_a_prompt_with_generated_video() {
     let engine = TeraPromptEngine::from_directory(&prompts_dir()).unwrap();
     let project = insert_video_project(db.as_ref(), "视频项目").await;
     let chapter = insert_video_chapter(db.as_ref(), project.id, 1).await;
-    generate_shared_segment_plan_stage(&service, &llm_switch, project.id, chapter.id, &engine).await;
+    generate_shared_segment_plan_stage(&service, &llm_switch, project.id, chapter.id, &engine)
+        .await;
     let options = target_generation_options(&service, project.id, chapter.id, 1).await;
     let rows = service
         .generate_chapter_chat_video_prompts(
@@ -228,7 +231,12 @@ async fn explicit_regeneration_rejects_a_prompt_with_generated_video() {
         .into_iter()
         .find(|row| row.prompt_type == "video_prompt")
         .unwrap();
-    let mut active: chapter_video_prompt::ActiveModel = prompt.into();
+    let prompt_model = chapter_video_prompt::Entity::find_by_id(prompt.id)
+        .one(db.as_ref())
+        .await
+        .unwrap()
+        .unwrap();
+    let mut active: chapter_video_prompt::ActiveModel = prompt_model.into();
     active.generated_video_id = Set(Some(9301));
     active.status = Set("completed".to_string());
     active.update(db.as_ref()).await.unwrap();

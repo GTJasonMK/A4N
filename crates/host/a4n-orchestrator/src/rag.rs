@@ -22,7 +22,8 @@ pub(crate) use continuity_records::{
     CharacterSyncRagInput, CharacterSyncRagSummary, foreshadowing_rag_record_from_row,
 };
 pub use continuity_records::{
-    character_attribute_event_rag_record, character_state_rag_record, foreshadowing_rag_record,
+    character_attribute_event_rag_record, character_attribute_event_rag_record_from_row,
+    character_state_rag_record, character_state_rag_record_from_row, foreshadowing_rag_record,
 };
 pub(crate) use keys::{
     chapter_rag_chunk_prefix, character_attribute_event_rag_chunk_id, character_state_rag_chunk_id,

@@ -5,7 +5,7 @@ failed=0
 
 is_exempt_source() {
     case "$1" in
-        crates/platform/a4n-db/*|crates/platform/a4n-db-models/*|crates/platform/a4n-migration/*)
+        crates/platform/a4n-db/*|crates/platform/a4n-db-models/*|crates/platform/a4n-db-session/*|crates/platform/a4n-migration/*)
             return 0
             ;;
         */tests/*|*/test/*|*/tests.rs|*/test.rs|*/test_support.rs|*_tests.rs)
@@ -17,7 +17,7 @@ is_exempt_source() {
 
 while IFS= read -r manifest; do
     case "$manifest" in
-        crates/platform/a4n-db/Cargo.toml|crates/platform/a4n-db-models/Cargo.toml|crates/platform/a4n-migration/Cargo.toml)
+        crates/platform/a4n-db/Cargo.toml|crates/platform/a4n-db-models/Cargo.toml|crates/platform/a4n-db-session/Cargo.toml|crates/platform/a4n-migration/Cargo.toml)
             continue
             ;;
     esac

@@ -10,8 +10,12 @@ async fn duplicate_text_project_record_preserves_status_outlines_chapters_and_li
     active.current_chapter = Set(1);
     active.import_analysis_progress = Set(Some("{\"phase\":\"completed\"}".to_string()));
     source = active.update(&db).await.unwrap();
+    let source_record = a4n_db::project::project_by_id_record(&db, source.id)
+        .await
+        .unwrap()
+        .unwrap();
 
-    let duplicated = duplicate_text_project_record(&db, &source, 1, "源项目 副本")
+    let duplicated = duplicate_text_project_record(&db, source_record, 1, "源项目 副本")
         .await
         .expect("writing project should duplicate all core creative data");
 
@@ -76,8 +80,12 @@ async fn duplicate_text_project_rejects_blueprint_graph_without_raw_blueprint() 
     active.raw_blueprint = Set(None);
     let source = active.update(&db).await.unwrap();
     let before = novel_project::Entity::find().all(&db).await.unwrap().len();
+    let source_record = a4n_db::project::project_by_id_record(&db, source.id)
+        .await
+        .unwrap()
+        .unwrap();
 
-    let error = duplicate_text_project_record(&db, &source, 1, "不一致副本")
+    let error = duplicate_text_project_record(&db, source_record, 1, "不一致副本")
         .await
         .expect_err("蓝图双事实源不一致时不得临时重建 raw_blueprint");
     let after = novel_project::Entity::find().all(&db).await.unwrap().len();
@@ -114,8 +122,12 @@ async fn duplicate_text_project_record_rolls_back_when_chapter_outline_link_is_i
     .await
     .unwrap();
     let before = novel_project::Entity::find().all(&db).await.unwrap().len();
+    let source_record = a4n_db::project::project_by_id_record(&db, source.id)
+        .await
+        .unwrap()
+        .unwrap();
 
-    let err = duplicate_text_project_record(&db, &source, 1, "坏副本")
+    let err = duplicate_text_project_record(&db, source_record, 1, "坏副本")
         .await
         .expect_err("invalid chapter outline reference must reject duplicate");
     let after = novel_project::Entity::find().all(&db).await.unwrap().len();

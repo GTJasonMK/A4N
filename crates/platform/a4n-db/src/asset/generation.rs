@@ -1,6 +1,7 @@
 use std::collections::{BTreeSet, HashMap, HashSet};
 
-use super::contracts::{AssetDbError, ObjectProfileUpsertRecordResult};
+use super::contracts::{AssetDbError, ObjectProfileUpsertModels, ObjectProfileUpsertRecordResult};
+use super::profiles::object_profile_record;
 use super::profiles::{ensure_object_profile_project_exists, upsert_object_profiles_in};
 use crate::text_anchor::EVIDENCE_ROLE_FIRST_SEEN;
 use a4n_db_models::models::asset::object_profile;
@@ -98,7 +99,8 @@ where
         .iter()
         .map(|input| (input.normalized_name.clone(), input.evidence_json.clone()))
         .collect::<std::collections::HashMap<_, _>>();
-    let mut result = upsert_object_profiles_in(&txn, project_id, inputs).await?;
+    let mut result: ObjectProfileUpsertModels =
+        upsert_object_profiles_in(&txn, project_id, inputs).await?;
     for profile in result.created.iter().chain(&result.updated) {
         let previous = before
             .iter()
@@ -155,13 +157,24 @@ where
         .await?;
     }
     txn.commit().await?;
-    Ok(result)
+    Ok(ObjectProfileUpsertRecordResult {
+        created: result
+            .created
+            .into_iter()
+            .map(object_profile_record)
+            .collect(),
+        updated: result
+            .updated
+            .into_iter()
+            .map(object_profile_record)
+            .collect(),
+    })
 }
 
 async fn merge_object_profile_evidence_records<C>(
     db: &C,
     project_id: i64,
-    result: &ObjectProfileUpsertRecordResult,
+    result: &ObjectProfileUpsertModels,
     inputs: Vec<ObjectProfileEvidenceRecordInput>,
 ) -> Result<(), AssetDbError>
 where
@@ -224,7 +237,7 @@ where
 
 fn object_profile_generation_response_summary(
     summary: Option<Value>,
-    result: &ObjectProfileUpsertRecordResult,
+    result: &ObjectProfileUpsertModels,
 ) -> Option<Value> {
     let generated = json!({
         "created_count": result.created.len(),

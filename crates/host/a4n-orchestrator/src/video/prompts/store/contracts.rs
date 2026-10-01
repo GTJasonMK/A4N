@@ -1,4 +1,4 @@
-use a4n_db_models::models::chapter::chapter_video_prompt;
+use a4n_domain::video_prompt::{ChapterVideoPromptRecord, chapter_video_prompt};
 use a4n_error::AppError;
 use a4n_llm_provider_contract::provider::{ChatRequest, UsageInfo};
 use a4n_video_contract::VideoSegmentExecutionRecipeV1;
@@ -24,7 +24,7 @@ impl PromptWorkflowMode {
         }
     }
 
-    pub(in crate::video) fn from_row(row: &chapter_video_prompt::Model) -> Result<Self, AppError> {
+    pub(in crate::video) fn from_row(row: &ChapterVideoPromptRecord) -> Result<Self, AppError> {
         match row.workflow_mode.as_str() {
             chapter_video_prompt::WORKFLOW_MODE_SHARED_SEGMENT_PLAN => Ok(Self::SharedSegmentPlan),
             chapter_video_prompt::WORKFLOW_MODE_BOUNDARY_FRAMES => Ok(Self::BoundaryFrames),

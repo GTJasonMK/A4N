@@ -1,5 +1,5 @@
 use super::model::PartGenerationPlan;
-use a4n_db_models::models::chapter::part_outline;
+use a4n_domain::chapter::PartOutlineRecord;
 use a4n_error::AppError;
 use std::collections::HashSet;
 
@@ -42,7 +42,7 @@ pub fn resolve_part_generation_plan(
 }
 
 pub fn infer_chapters_per_part_from_existing(
-    parts: &[part_outline::Model],
+    parts: &[PartOutlineRecord],
 ) -> Result<Option<i32>, AppError> {
     validate_existing_parts_for_plan(parts)?;
     Ok(parts
@@ -51,11 +51,11 @@ pub fn infer_chapters_per_part_from_existing(
         .max())
 }
 
-pub fn validate_existing_parts_for_plan(parts: &[part_outline::Model]) -> Result<(), AppError> {
+pub fn validate_existing_parts_for_plan(parts: &[PartOutlineRecord]) -> Result<(), AppError> {
     validate_existing_parts(parts, "请先清理后再生成")
 }
 
-fn validate_existing_parts(parts: &[part_outline::Model], action: &str) -> Result<(), AppError> {
+fn validate_existing_parts(parts: &[PartOutlineRecord], action: &str) -> Result<(), AppError> {
     let mut seen = HashSet::new();
     let mut ranges = Vec::with_capacity(parts.len());
     for part in parts {

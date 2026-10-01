@@ -3,6 +3,15 @@
 use super::*;
 
 impl WorkflowApplication {
+    pub(in crate::context) async fn workflow_runs(
+        &self,
+        input: ListWorkflowRunsInput,
+    ) -> Result<Vec<WorkflowRunSummary>, AppError> {
+        a4n_db::workflow::list_workflow_runs(&self.database, input)
+            .await
+            .map_err(workflow_read_app_error)
+    }
+
     pub(in crate::context) async fn workflow_run_summary(
         &self,
         workflow_run_id: i64,
@@ -12,30 +21,12 @@ impl WorkflowApplication {
             .map_err(workflow_read_app_error)
     }
 
-    pub(in crate::context) async fn workflow_run_models(
-        &self,
-        input: ListWorkflowRunsInput,
-    ) -> Result<Vec<workflow_run::Model>, AppError> {
-        a4n_db::workflow::list_workflow_run_models(&self.database, input)
-            .await
-            .map_err(workflow_read_app_error)
-    }
-
     pub(in crate::context) async fn workflow_runs_by_project_kind(
         &self,
         project_id: i64,
         workflow_kind: &str,
-    ) -> Result<Vec<workflow_run::Model>, AppError> {
+    ) -> Result<Vec<WorkflowRunSummary>, AppError> {
         a4n_db::workflow::workflow_runs_by_project_kind(&self.database, project_id, workflow_kind)
-            .await
-            .map_err(workflow_read_app_error)
-    }
-
-    pub(in crate::context) async fn workflow_run_model_by_id(
-        &self,
-        workflow_run_id: i64,
-    ) -> Result<workflow_run::Model, AppError> {
-        a4n_db::workflow::workflow_run_model_by_id(&self.database, workflow_run_id)
             .await
             .map_err(workflow_read_app_error)
     }
@@ -61,7 +52,7 @@ impl WorkflowApplication {
     pub(in crate::context) async fn latest_workflow_run_by_business_key(
         &self,
         business_key: &str,
-    ) -> Result<Option<workflow_run::Model>, AppError> {
+    ) -> Result<Option<WorkflowRunSummary>, AppError> {
         a4n_db::workflow::latest_workflow_run_by_business_key(&self.database, business_key)
             .await
             .map_err(workflow_read_app_error)
@@ -91,20 +82,20 @@ impl WorkflowApplication {
         .map_err(workflow_read_app_error)
     }
 
-    pub(in crate::context) async fn workflow_checkpoint_models(
+    pub(in crate::context) async fn workflow_checkpoint_summaries(
         &self,
         workflow_run_id: i64,
-    ) -> Result<Vec<workflow_checkpoint::Model>, AppError> {
-        a4n_db::workflow::workflow_checkpoint_models(&self.database, workflow_run_id)
+    ) -> Result<Vec<a4n_db::workflow::WorkflowCheckpointSummary>, AppError> {
+        a4n_db::workflow::workflow_checkpoint_summaries(&self.database, workflow_run_id)
             .await
             .map_err(workflow_read_app_error)
     }
 
-    pub(in crate::context) async fn workflow_checkpoint_models_for_runs(
+    pub(in crate::context) async fn workflow_checkpoint_summaries_for_runs(
         &self,
         workflow_run_ids: &[i64],
-    ) -> Result<Vec<workflow_checkpoint::Model>, AppError> {
-        a4n_db::workflow::workflow_checkpoint_models_for_runs(&self.database, workflow_run_ids)
+    ) -> Result<Vec<a4n_db::workflow::WorkflowCheckpointSummary>, AppError> {
+        a4n_db::workflow::workflow_checkpoint_summaries_for_runs(&self.database, workflow_run_ids)
             .await
             .map_err(workflow_read_app_error)
     }
@@ -132,7 +123,7 @@ impl WorkflowApplication {
         workflow_run_id: i64,
         step_key: &str,
         input_fingerprint_sha256: &str,
-    ) -> Result<Option<workflow_checkpoint::Model>, AppError> {
+    ) -> Result<Option<a4n_db::workflow::WorkflowCheckpointSummary>, AppError> {
         a4n_db::workflow::completed_workflow_checkpoint_by_fingerprint(
             &self.database,
             workflow_run_id,
@@ -141,6 +132,7 @@ impl WorkflowApplication {
         )
         .await
         .map_err(workflow_read_app_error)
+        .map(|checkpoint| checkpoint.map(a4n_db::workflow::workflow_checkpoint_summary_from_model))
     }
 
     /// 加载已完成的 LLM call checkpoint（含 fingerprint 计算与合同校验入口）。
@@ -201,7 +193,7 @@ impl WorkflowApplication {
     pub(in crate::context) async fn upsert_workflow_run(
         &self,
         input: UpsertWorkflowRunInput,
-    ) -> Result<workflow_run::Model, AppError> {
+    ) -> Result<WorkflowRunSummary, AppError> {
         a4n_db::workflow::upsert_workflow_run(&self.database, input)
             .await
             .map_err(workflow_write_app_error)
@@ -210,7 +202,7 @@ impl WorkflowApplication {
     pub(in crate::context) async fn resume_or_upsert_workflow_run(
         &self,
         input: UpsertWorkflowRunInput,
-    ) -> Result<workflow_run::Model, AppError> {
+    ) -> Result<WorkflowRunSummary, AppError> {
         a4n_db::workflow::resume_or_upsert_workflow_run(&self.database, input)
             .await
             .map_err(workflow_write_app_error)
@@ -219,7 +211,7 @@ impl WorkflowApplication {
     pub(in crate::context) async fn claim_exclusive_workflow_run(
         &self,
         input: ClaimExclusiveWorkflowRunInput,
-    ) -> Result<workflow_run::Model, AppError> {
+    ) -> Result<WorkflowRunSummary, AppError> {
         a4n_db::workflow::claim_exclusive_workflow_run(&self.database, input)
             .await
             .map_err(workflow_write_app_error)
@@ -231,7 +223,7 @@ impl WorkflowApplication {
         status: &str,
         can_resume: bool,
         error_message: Option<&str>,
-    ) -> Result<workflow_run::Model, AppError> {
+    ) -> Result<WorkflowRunSummary, AppError> {
         a4n_db::workflow::mark_workflow_status(
             &self.database,
             workflow_run_id,
@@ -246,7 +238,7 @@ impl WorkflowApplication {
     pub(in crate::context) async fn resume_workflow_run(
         &self,
         workflow_run_id: i64,
-    ) -> Result<workflow_run::Model, AppError> {
+    ) -> Result<WorkflowRunSummary, AppError> {
         a4n_db::workflow::resume_workflow_run(&self.database, workflow_run_id)
             .await
             .map_err(workflow_write_app_error)
@@ -256,7 +248,7 @@ impl WorkflowApplication {
         &self,
         workflow_run_id: i64,
         active_task_id: &str,
-    ) -> Result<workflow_run::Model, AppError> {
+    ) -> Result<WorkflowRunSummary, AppError> {
         a4n_db::workflow::resume_workflow_run_with_active_task(
             &self.database,
             workflow_run_id,
@@ -270,7 +262,7 @@ impl WorkflowApplication {
         &self,
         workflow_run_id: i64,
         current_step_key: &str,
-    ) -> Result<workflow_run::Model, AppError> {
+    ) -> Result<WorkflowRunSummary, AppError> {
         a4n_db::workflow::mark_workflow_current_step(
             &self.database,
             workflow_run_id,
@@ -302,7 +294,7 @@ impl WorkflowApplication {
         &self,
         workflow_run_id: i64,
         snapshot: serde_json::Value,
-    ) -> Result<workflow_run::Model, AppError> {
+    ) -> Result<WorkflowRunSummary, AppError> {
         a4n_db::workflow::persist_workflow_progress_snapshot(
             &self.database,
             workflow_run_id,

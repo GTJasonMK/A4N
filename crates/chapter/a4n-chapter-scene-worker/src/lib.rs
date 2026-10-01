@@ -10,6 +10,7 @@ use a4n_chapter_scene_worker_contract::{
     ReorderScenesInput, UpdateSceneInput,
 };
 use a4n_db::DbHandle;
+use a4n_domain::chapter::ChapterSceneRecord;
 use a4n_worker_client::WORKER_AUTH_HEADER;
 use a4n_worker_contract::{
     WORKER_CAPABILITIES_PATH, WORKER_HEALTH_PATH, WORKER_SCHEMA_VERSION, WorkerCapabilities,
@@ -209,12 +210,12 @@ impl WorkerState {
         request: WorkerEnvelope<ChapterInput>,
     ) -> Result<Vec<ChapterSceneSummary>, WorkerFailure> {
         validate_request(&request, CHAPTER_SCENE_LIST_OPERATION)?;
-        let chapter = self
-            .authorized_chapter(request.payload.chapter_id, user_id(&request)?)
+        self.authorized_chapter(request.payload.chapter_id, user_id(&request)?)
             .await?;
-        let scenes = a4n_db::project::chapter_scenes_by_chapter(&self.database, chapter.id)
-            .await
-            .map_err(record_error)?;
+        let scenes =
+            a4n_db::project::chapter_scenes_by_chapter(&self.database, request.payload.chapter_id)
+                .await
+                .map_err(record_error)?;
         Ok(scenes.into_iter().map(scene_summary).collect())
     }
 
@@ -317,19 +318,14 @@ impl WorkerState {
         Ok(scenes.into_iter().map(scene_summary).collect())
     }
 
-    async fn authorized_chapter(
-        &self,
-        chapter_id: i64,
-        user_id: i64,
-    ) -> Result<a4n_db_models::models::chapter::chapter::Model, WorkerFailure> {
-        let chapter = a4n_db::project::chapter_by_id(&self.database, chapter_id)
+    async fn authorized_chapter(&self, chapter_id: i64, user_id: i64) -> Result<(), WorkerFailure> {
+        let project_id = a4n_db::project::chapter_project_id(&self.database, chapter_id)
             .await
             .map_err(|error| WorkerFailure::unavailable(error.to_string()))?
             .ok_or_else(|| {
                 WorkerFailure::not_found(format!("章节不存在: chapter_id={chapter_id}"))
             })?;
-        verify_project_editor(&self.database, chapter.project_id, user_id).await?;
-        Ok(chapter)
+        verify_project_editor(&self.database, project_id, user_id).await
     }
 
     fn authorized(&self, headers: &HeaderMap) -> bool {
@@ -389,9 +385,7 @@ async fn verify_project_editor(
     .map_err(collaboration_error)
 }
 
-fn scene_summary(
-    scene: a4n_db_models::models::chapter::chapter_scene::Model,
-) -> ChapterSceneSummary {
+fn scene_summary(scene: ChapterSceneRecord) -> ChapterSceneSummary {
     ChapterSceneSummary {
         id: scene.id,
         chapter_id: scene.chapter_id,

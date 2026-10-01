@@ -9,14 +9,14 @@ use super::selection::{
     select_generation_relationships,
 };
 use crate::OrchestratorContext;
-use a4n_db_models::models::chapter::chapter_outline;
+use a4n_domain::chapter::ChapterOutlineRecord;
 
 impl OrchestratorContext {
     pub async fn resolve_generation_reference_context(
         &self,
         project_id: i64,
         chapter_number: i32,
-        outline: Option<&chapter_outline::Model>,
+        outline: Option<&ChapterOutlineRecord>,
     ) -> Result<Option<String>, String> {
         self.build_generation_reference_context(project_id, chapter_number, outline)
             .await
@@ -27,7 +27,7 @@ impl OrchestratorContext {
         &self,
         project_id: i64,
         chapter_number: i32,
-        outline: Option<&chapter_outline::Model>,
+        outline: Option<&ChapterOutlineRecord>,
     ) -> Result<Option<String>, String> {
         let (rows_result, foreshadowing_result) = futures::join!(
             self.chapter_generation_reference_context_rows(project_id, chapter_number),

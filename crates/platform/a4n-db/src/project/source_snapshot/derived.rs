@@ -7,8 +7,9 @@ use super::{
     creation::{create_source_snapshot_in_record, normalize_chapter_scope},
     types::CreateDerivedProjectParams,
 };
+use crate::project::project_record_from_model;
 use a4n_db_models::models::project::novel_project;
-use a4n_domain::project::ProjectStatus;
+use a4n_domain::project::{ProjectRecord, ProjectStatus};
 use chrono::Utc;
 use sea_orm::{
     ActiveModelTrait, ConnectionTrait, DatabaseConnection, DbBackend, EntityTrait, QuerySelect,
@@ -19,7 +20,7 @@ pub async fn create_derived_project_record(
     db: &DatabaseConnection,
     user_id: i64,
     params: CreateDerivedProjectParams,
-) -> Result<novel_project::Model, ProjectMutationError> {
+) -> Result<ProjectRecord, ProjectMutationError> {
     let derived_kind = normalize_derived_project_kind(&params.derived_kind)?.to_string();
     let title = required_project_title(&params.title)?.to_string();
     let description = params.description.trim().to_string();
@@ -93,5 +94,5 @@ pub async fn create_derived_project_record(
     .map_err(ProjectMutationError::Database)?;
 
     tx.commit().await.map_err(ProjectMutationError::Database)?;
-    Ok(derived)
+    Ok(project_record_from_model(derived))
 }

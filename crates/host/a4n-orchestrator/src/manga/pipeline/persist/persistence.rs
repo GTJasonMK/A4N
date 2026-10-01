@@ -1,4 +1,4 @@
-use a4n_db_models::models::chapter::chapter_manga_prompt;
+use a4n_domain::manga::MangaPagePromptRecord;
 use a4n_error::AppError;
 
 use super::super::super::OrchestratorContext;
@@ -9,7 +9,7 @@ impl OrchestratorContext {
     pub(in crate::manga) async fn persist_pipeline_outputs(
         &self,
         input: MangaPipelinePersistInput<'_>,
-    ) -> Result<Vec<chapter_manga_prompt::Model>, AppError> {
+    ) -> Result<Vec<MangaPagePromptRecord>, AppError> {
         let drafts = pipeline_drafts(&input)?;
         self.sync_generated_page_prompts(input.project_id, input.chapter_id, drafts)
             .await

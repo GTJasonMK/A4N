@@ -1,4 +1,4 @@
-use a4n_db_models::models::asset::object_profile;
+use a4n_domain::object_profile::ObjectProfileRecord;
 use sea_orm::DbErr;
 
 #[derive(Debug, thiserror::Error)]
@@ -39,6 +39,12 @@ impl From<crate::text_anchor::TextAnchorDbError> for AssetDbError {
 
 #[derive(Debug, Clone, Default)]
 pub struct ObjectProfileUpsertRecordResult {
-    pub created: Vec<object_profile::Model>,
-    pub updated: Vec<object_profile::Model>,
+    pub created: Vec<ObjectProfileRecord>,
+    pub updated: Vec<ObjectProfileRecord>,
+}
+
+#[derive(Debug, Clone, Default)]
+pub(super) struct ObjectProfileUpsertModels {
+    pub created: Vec<a4n_db_models::models::asset::object_profile::Model>,
+    pub updated: Vec<a4n_db_models::models::asset::object_profile::Model>,
 }

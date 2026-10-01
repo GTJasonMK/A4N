@@ -79,7 +79,7 @@ impl SceneProfileSyncApplicationPort for OrchestratorContext {
         prompt_renderer: &dyn PromptRenderer,
         host_port: &dyn SceneProfileSyncHostPort,
     ) -> Result<(), AppError> {
-        let run = self.workflow_run_model_by_id(workflow_run_id).await?;
+        let run = self.workflow_run_summary(workflow_run_id).await?;
         self.verify_project_permission(
             run.project_id.ok_or_else(|| {
                 AppError::InvalidArgument("场景档案同步工作流缺少 project_id".to_string())
@@ -100,7 +100,6 @@ impl SceneProfileSyncApplicationPort for OrchestratorContext {
 
 use crate::workflow::{UpsertWorkflowRunInput, WORKFLOW_STATUS_RUNNING};
 use a4n_db_models::models::chapter::chapter;
-use a4n_db_models::models::generation::workflow_run;
 
 impl OrchestratorContext {
     /// 场景档案同步：校验后创建或恢复 workflow_run（RUNNING）。
@@ -110,7 +109,7 @@ impl OrchestratorContext {
         chapter_number: Option<i32>,
         chapters: &[chapter::Model],
         active_task_id: Option<&str>,
-    ) -> Result<workflow_run::Model, AppError> {
+    ) -> Result<a4n_db::workflow::WorkflowRunSummary, AppError> {
         if project_id <= 0 {
             return Err(AppError::InvalidArgument("项目 ID 必须大于 0".to_string()));
         }

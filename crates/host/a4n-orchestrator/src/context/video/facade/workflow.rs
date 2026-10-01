@@ -17,7 +17,7 @@ impl OrchestratorContext {
         active_task_id: &str,
         root_project_id: i64,
         retry_of_task_id: Option<&str>,
-    ) -> Result<a4n_db_models::models::generation::workflow_run::Model, AppError> {
+    ) -> Result<i64, AppError> {
         let (input, _fingerprint) = crate::video::video_prompt_workflow_run_input(
             workflow_kind,
             project_id,
@@ -30,11 +30,13 @@ impl OrchestratorContext {
             root_project_id,
         )
         .map_err(AppError::InvalidArgument)?;
-        self.claim_exclusive_workflow_run(crate::workflow::ClaimExclusiveWorkflowRunInput {
-            run: input,
-            resume_from_task_id: retry_of_task_id.map(str::to_owned),
-        })
-        .await
+        let run = self
+            .claim_exclusive_workflow_run(crate::workflow::ClaimExclusiveWorkflowRunInput {
+                run: input,
+                resume_from_task_id: retry_of_task_id.map(str::to_owned),
+            })
+            .await?;
+        Ok(run.id)
     }
 
     /// 视频提示词优化：校验后创建 workflow_run。
@@ -46,7 +48,7 @@ impl OrchestratorContext {
         workflow_mode: &str,
         current_step_key: &str,
         input_fingerprint_json: serde_json::Value,
-    ) -> Result<a4n_db_models::models::generation::workflow_run::Model, AppError> {
+    ) -> Result<i64, AppError> {
         let input = crate::video::video_prompt_optimization_workflow_run_input(
             project_id,
             prompt_id,
@@ -56,34 +58,37 @@ impl OrchestratorContext {
             input_fingerprint_json,
         )
         .map_err(AppError::InvalidArgument)?;
-        self.begin_workflow_run_validated(input).await
+        let run = self.begin_workflow_run_validated(input).await?;
+        Ok(run.id)
     }
 
     /// 视频 provider 进度：校验后创建/恢复 RUNNING workflow_run。
     pub(crate) async fn begin_video_provider_progress_workflow_validated(
         &self,
-        video: &a4n_db_models::models::ai::generated_video::Model,
+        video: &GeneratedVideoRecord,
         job_id: &str,
-    ) -> Result<a4n_db_models::models::generation::workflow_run::Model, AppError> {
+    ) -> Result<i64, AppError> {
         let business_key = crate::video::video_provider_workflow_business_key(video.id)
             .map_err(AppError::InvalidArgument)?;
         if let Some(run) = self
             .latest_workflow_run_status_record_by_business_key(&business_key)
             .await?
         {
-            return self
+            let run = self
                 .mark_workflow_status(run.id, crate::workflow::WORKFLOW_STATUS_RUNNING, true, None)
-                .await;
+                .await?;
+            return Ok(run.id);
         }
         let input = crate::video::video_provider_progress_workflow_run_input(video, job_id)
             .map_err(AppError::InvalidArgument)?;
-        self.begin_workflow_run_validated(input).await
+        let run = self.begin_workflow_run_validated(input).await?;
+        Ok(run.id)
     }
 
     /// provider 轮询进度及 Canvas 节点投影的唯一写入入口。
     pub(crate) async fn record_video_provider_progress_validated(
         &self,
-        video: &generated_video::Model,
+        video: &GeneratedVideoRecord,
         current: u32,
         total: u32,
         message: &str,
@@ -96,11 +101,11 @@ impl OrchestratorContext {
         }
         let job_id = crate::video::normalized_provider_job_id(video.provider_job_id.as_deref())
             .ok_or_else(|| AppError::InvalidArgument("视频缺少 provider_job_id".to_string()))?;
-        let run = self
+        let run_id = self
             .begin_video_provider_progress_workflow_validated(video, job_id)
             .await?;
         self.record_workflow_progress_event(WorkflowProgressEventInput {
-            workflow_run_id: run.id,
+            workflow_run_id: run_id,
             task_id: None,
             current,
             total,
@@ -114,7 +119,7 @@ impl OrchestratorContext {
             .as_ref()
             .and_then(|metadata| metadata.get("canvas"))
         else {
-            return Ok(run.id);
+            return Ok(run_id);
         };
         let workflow_run_id = canvas
             .get("workflow_run_id")
@@ -170,13 +175,13 @@ impl OrchestratorContext {
             meta: None,
         })
         .await?;
-        Ok(run.id)
+        Ok(run_id)
     }
 
     /// 视频 provider workflow：统一写入 run、checkpoint 与 generation_run 关联。
     pub(crate) async fn mark_video_provider_workflow_validated(
         &self,
-        video: &generated_video::Model,
+        video: &a4n_domain::media::GeneratedVideoRecord,
         status: &str,
         can_resume: bool,
         error_message: Option<&str>,

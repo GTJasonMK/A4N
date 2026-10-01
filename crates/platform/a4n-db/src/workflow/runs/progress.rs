@@ -1,3 +1,4 @@
+use super::projections::workflow_run_summary_for_write;
 use super::*;
 
 use super::projections::workflow_progress_event_summary;
@@ -103,7 +104,7 @@ pub async fn persist_workflow_progress_snapshot(
     db: &DatabaseConnection,
     workflow_run_id: i64,
     snapshot: Value,
-) -> Result<workflow_run::Model, WorkflowWriteError> {
+) -> Result<WorkflowRunSummary, WorkflowWriteError> {
     validate_positive_i64(workflow_run_id, "workflow_run_id")?;
     if !snapshot.is_object() {
         return Err(WorkflowWriteError::InvalidData(
@@ -136,7 +137,7 @@ pub async fn persist_workflow_progress_snapshot(
         .await
         .map_err(WorkflowWriteError::Database)?;
     tx.commit().await.map_err(WorkflowWriteError::Database)?;
-    Ok(updated)
+    workflow_run_summary_for_write(updated)
 }
 
 pub(in crate::workflow) fn validate_workflow_progress_range(

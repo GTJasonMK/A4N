@@ -3,15 +3,16 @@ use super::contracts::{
     PROJECT_KIND_VIDEO, PROJECT_TYPE_SCRIPT, ProjectMutationError, SOURCE_SYNC_CURRENT,
 };
 use super::rules::{normalize_project_type, required_project_title};
+use crate::project::project_record_from_model;
 use a4n_db_models::models::project::novel_project;
-use a4n_domain::project::ProjectStatus;
+use a4n_domain::project::{ProjectRecord, ProjectStatus};
 use chrono::Utc;
 use sea_orm::{ActiveModelTrait, DatabaseConnection, Set};
 
 pub async fn create_project_record(
     db: &DatabaseConnection,
     input: CreateProjectRecordInput,
-) -> Result<novel_project::Model, ProjectMutationError> {
+) -> Result<ProjectRecord, ProjectMutationError> {
     let title = required_project_title(&input.title)?.to_string();
     let description = input.description.trim().to_string();
     let project_type = normalize_project_type(&input.project_type)?.to_string();
@@ -41,6 +42,7 @@ pub async fn create_project_record(
     }
     .insert(db)
     .await
+    .map(project_record_from_model)
     .map_err(ProjectMutationError::Database)
 }
 
@@ -48,7 +50,7 @@ pub async fn create_freeform_video_project_record(
     db: &DatabaseConnection,
     user_id: i64,
     params: CreateFreeformVideoProjectParams,
-) -> Result<novel_project::Model, ProjectMutationError> {
+) -> Result<ProjectRecord, ProjectMutationError> {
     let title = required_project_title(&params.title)?.to_string();
     let description = params.description.trim().to_string();
     let now = Utc::now().naive_utc();
@@ -77,5 +79,6 @@ pub async fn create_freeform_video_project_record(
     }
     .insert(db)
     .await
+    .map(project_record_from_model)
     .map_err(ProjectMutationError::Database)
 }

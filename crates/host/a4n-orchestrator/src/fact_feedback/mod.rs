@@ -89,7 +89,7 @@ impl OrchestratorContext {
         ]
         .into_iter()
         .flatten()
-        .max_by_key(|run| (run.status == "running", run.updated_at, run.id));
+        .max_by_key(|run| (run.status == "running", run.updated_at.clone(), run.id));
         Ok(ProjectFactFeedbackSummary {
             project_id,
             interval_chapters: config.interval_chapters,

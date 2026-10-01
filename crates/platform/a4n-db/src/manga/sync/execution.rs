@@ -2,8 +2,9 @@ use super::records::{manga_prompt_active_model, manga_prompt_updated_model};
 use super::validation::validate_manga_sync_drafts;
 use crate::generation::delete_generation_run_targets_for;
 use crate::manga::MangaPipelineDbError;
+use crate::manga::manga_page_prompt_record_from_model;
 use a4n_db_models::models::chapter::chapter_manga_prompt::{self, MANGA_PAGE_PROMPT_TYPE};
-use a4n_domain::manga::MangaPagePromptSyncDraft;
+use a4n_domain::manga::{MangaPagePromptRecord, MangaPagePromptSyncDraft};
 use sea_orm::sea_query::{CaseStatement, Expr};
 use sea_orm::{
     ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder, TransactionTrait,
@@ -16,7 +17,7 @@ pub async fn sync_manga_page_prompts_by_chapter(
     chapter_id: i64,
     drafts: Vec<MangaPagePromptSyncDraft>,
     now: chrono::NaiveDateTime,
-) -> Result<Vec<chapter_manga_prompt::Model>, MangaPipelineDbError> {
+) -> Result<Vec<MangaPagePromptRecord>, MangaPipelineDbError> {
     validate_manga_sync_drafts(&drafts, project_id, chapter_id)?;
 
     let txn = db.begin().await?;
@@ -204,7 +205,8 @@ pub async fn sync_manga_page_prompts_by_chapter(
     let stale_ids = existing_by_page.into_values().map(|row| row.id).collect();
     delete_manga_prompt_rows(&txn, stale_ids).await?;
     txn.commit().await?;
-    rows.into_iter()
+    let rows = rows
+        .into_iter()
         .map(|row| {
             row.ok_or_else(|| {
                 MangaPipelineDbError::InvalidArgument(
@@ -212,7 +214,11 @@ pub async fn sync_manga_page_prompts_by_chapter(
                 )
             })
         })
-        .collect()
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(rows
+        .into_iter()
+        .map(manga_page_prompt_record_from_model)
+        .collect())
 }
 
 async fn delete_manga_prompt_rows<C>(

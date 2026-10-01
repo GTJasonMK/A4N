@@ -1,4 +1,4 @@
-use a4n_db_models::models::{chapter::chapter, generation::workflow_run};
+use a4n_domain::chapter::ChapterRecord;
 use a4n_domain::source_text_hash as source_content_sha256;
 use a4n_domain::workflow::{
     WORKFLOW_STATUS_COMPLETED, WORKFLOW_STATUS_FAILED, WORKFLOW_STATUS_RUNNING,
@@ -14,9 +14,9 @@ use a4n_orchestrator::chapter_analysis::{
 use a4n_test_support::workflow::WorkflowRunModelBuilder;
 use serde_json::{Value, json};
 
-fn chapter_row(chapter_number: i32, content: &str, status: &str, analyzed: bool) -> chapter::Model {
+fn chapter_row(chapter_number: i32, content: &str, status: &str, analyzed: bool) -> ChapterRecord {
     let now = chrono::Utc::now().naive_utc();
-    chapter::Model {
+    ChapterRecord {
         id: i64::from(chapter_number),
         project_id: 1,
         outline_id: None,
@@ -60,7 +60,7 @@ fn valid_analysis_data() -> Value {
 
 #[test]
 fn workflow_input_uses_stable_business_key_and_content_fingerprint() {
-    let chapter = chapter_row(3, "正文", chapter::STATUS_DRAFT, true);
+    let chapter = chapter_row(3, "正文", "draft", true);
     let input = chapter_analysis_workflow_run_input(
         &chapter,
         "chapter_analysis.derived_sync",
@@ -100,12 +100,12 @@ fn workflow_input_uses_stable_business_key_and_content_fingerprint() {
 
 #[test]
 fn resume_input_matches_only_same_chapter_identity() {
-    let chapter = chapter_row(3, "正文", chapter::STATUS_DRAFT, false);
+    let chapter = chapter_row(3, "正文", "draft", false);
     let fingerprint = Some(chapter_analysis_workflow_fingerprint(&chapter));
 
     assert!(chapter_analysis_run_input_matches(&fingerprint, &chapter));
 
-    let changed_content = chapter_row(3, "正文已修改", chapter::STATUS_DRAFT, false);
+    let changed_content = chapter_row(3, "正文已修改", "draft", false);
     assert!(!chapter_analysis_run_input_matches(
         &fingerprint,
         &changed_content
@@ -136,7 +136,7 @@ fn resume_input_matches_only_same_chapter_identity() {
 
 #[test]
 fn repeated_analysis_uses_distinct_revisions_for_the_same_source() {
-    let chapter = chapter_row(3, "正文", chapter::STATUS_DRAFT, true);
+    let chapter = chapter_row(3, "正文", "draft", true);
     let first = chapter_analysis_workflow_run_input(&chapter, "chapter_analysis.facts", None)
         .input_fingerprint_json
         .expect("first analysis fingerprint should exist");
@@ -157,7 +157,7 @@ fn repeated_analysis_uses_distinct_revisions_for_the_same_source() {
 
 #[test]
 fn completed_workflow_blocks_manual_resume_sync() {
-    let chapter = chapter_row(3, "正文", chapter::STATUS_DRAFT, true);
+    let chapter = chapter_row(3, "正文", "draft", true);
     let run = workflow_run_row(&chapter, WORKFLOW_STATUS_COMPLETED, false, None);
 
     let reason = chapter_analysis_resume_block_reason(&run, &chapter)
@@ -169,7 +169,7 @@ fn completed_workflow_blocks_manual_resume_sync() {
 
 #[test]
 fn running_workflow_blocks_manual_resume_sync() {
-    let chapter = chapter_row(3, "正文", chapter::STATUS_DRAFT, true);
+    let chapter = chapter_row(3, "正文", "draft", true);
     let run = workflow_run_row(&chapter, WORKFLOW_STATUS_RUNNING, true, None);
 
     let reason = chapter_analysis_resume_block_reason(&run, &chapter)
@@ -181,7 +181,7 @@ fn running_workflow_blocks_manual_resume_sync() {
 
 #[test]
 fn resumable_failed_workflow_allows_manual_resume_sync() {
-    let chapter = chapter_row(3, "正文", chapter::STATUS_DRAFT, true);
+    let chapter = chapter_row(3, "正文", "draft", true);
     let run = workflow_run_row(&chapter, WORKFLOW_STATUS_FAILED, true, None);
 
     assert!(chapter_analysis_resume_block_reason(&run, &chapter).is_none());
@@ -189,12 +189,12 @@ fn resumable_failed_workflow_allows_manual_resume_sync() {
 
 #[test]
 fn stale_workflow_does_not_block_manual_resume_sync() {
-    let chapter = chapter_row(3, "正文", chapter::STATUS_DRAFT, true);
+    let chapter = chapter_row(3, "正文", "draft", true);
     let mut run = workflow_run_row(&chapter, WORKFLOW_STATUS_COMPLETED, false, None);
     run.input_fingerprint_json = Some(chapter_analysis_workflow_fingerprint(&chapter_row(
         3,
         "旧正文",
-        chapter::STATUS_DRAFT,
+        "draft",
         true,
     )));
 
@@ -203,7 +203,7 @@ fn stale_workflow_does_not_block_manual_resume_sync() {
 
 #[test]
 fn non_resumable_workflow_preserves_persisted_reason() {
-    let chapter = chapter_row(3, "正文", chapter::STATUS_DRAFT, true);
+    let chapter = chapter_row(3, "正文", "draft", true);
     let run = workflow_run_row(
         &chapter,
         WORKFLOW_STATUS_FAILED,
@@ -223,7 +223,7 @@ fn non_resumable_workflow_preserves_persisted_reason() {
 
 #[test]
 fn phase_fingerprint_tracks_saved_analysis_data() {
-    let chapter = chapter_row(3, "正文", chapter::STATUS_DRAFT, true);
+    let chapter = chapter_row(3, "正文", "draft", true);
     let mut edited = chapter.clone();
     edited.analysis_data = Some(json!({
         "metadata": {
@@ -346,13 +346,13 @@ fn foreshadowing_drafts_keep_invalid_priority_structured() {
 }
 
 fn workflow_run_row(
-    chapter: &chapter::Model,
+    chapter: &ChapterRecord,
     status: &str,
     can_resume: bool,
     resume_block_reason: Option<&str>,
-) -> workflow_run::Model {
+) -> a4n_db::workflow::WorkflowRunSummary {
     let now = chrono::Utc::now().naive_utc();
-    WorkflowRunModelBuilder::new(
+    let run = WorkflowRunModelBuilder::new(
         1,
         chapter_analysis_workflow_business_key(chapter.project_id, chapter.id),
         "chapter_analysis",
@@ -366,5 +366,6 @@ fn workflow_run_row(
     .with_current_step("chapter_analysis.derived_sync")
     .with_resumability(can_resume, resume_block_reason.map(str::to_string))
     .with_completed_at((status == WORKFLOW_STATUS_COMPLETED).then_some(now))
-    .build()
+    .build();
+    a4n_db::workflow::workflow_run_summary_from_model(run).expect("workflow run should project")
 }

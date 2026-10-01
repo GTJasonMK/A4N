@@ -1,8 +1,8 @@
 use std::collections::{BTreeSet, HashMap, HashSet};
 
-use a4n_db_models::models::chapter::chapter_video_prompt;
 use a4n_domain::prompt_language::PromptOutputLanguage;
 use a4n_domain::source_spans::SourceSpan;
+use a4n_domain::video_prompt::ChapterVideoPromptRecord;
 use a4n_prompt::rendering::PromptRenderer;
 use serde_json::Value;
 use tokio_util::sync::CancellationToken;
@@ -58,7 +58,7 @@ pub(in crate::video::prompts::generation::frame_prompts::frame_chain) struct Bou
     pub(in crate::video::prompts::generation::frame_prompts::frame_chain) prompt_batch_size: usize,
     pub(in crate::video::prompts::generation::frame_prompts::frame_chain) regenerate_existing: bool,
     pub(in crate::video::prompts::generation::frame_prompts::frame_chain) reusable_rows:
-        Vec<chapter_video_prompt::Model>,
+        Vec<ChapterVideoPromptRecord>,
     pub(in crate::video::prompts::generation::frame_prompts::frame_chain) allowed_reference_ids:
         &'a HashSet<i64>,
     pub(in crate::video::prompts::generation::frame_prompts::frame_chain) frame_draft_common:

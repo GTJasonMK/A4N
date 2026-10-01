@@ -9,7 +9,6 @@ use a4n_api_contract::{
         GenerationStartRequestMeta, GenerationTaskHandle, GenerationTaskStartError,
     },
 };
-use a4n_db_models::models::generation::workflow_run;
 use a4n_domain::project::{
     BLUEPRINT_GENERATION_KIND, BLUEPRINT_REFINEMENT_WORKFLOW_KIND,
     blueprint_generation_input_fingerprint, blueprint_refinement_input_fingerprint,
@@ -320,7 +319,7 @@ impl OrchestratorContext {
         target_length: i32,
         variables: &serde_json::Value,
         task_id: Option<String>,
-    ) -> Result<workflow_run::Model, AppError> {
+    ) -> Result<i64, AppError> {
         if project_id <= 0 {
             return Err(AppError::InvalidArgument("项目 ID 必须大于 0".to_string()));
         }
@@ -348,7 +347,7 @@ impl OrchestratorContext {
                     operation: "启动已绑定的蓝图生成任务".to_string(),
                 });
             }
-            return Ok(existing);
+            return Ok(existing.id);
         }
         self.begin_or_resume_workflow_run_validated(UpsertWorkflowRunInput {
             business_key,
@@ -369,6 +368,7 @@ impl OrchestratorContext {
             error_message: None,
         })
         .await
+        .map(|run| run.id)
     }
 }
 

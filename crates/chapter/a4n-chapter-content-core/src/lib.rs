@@ -10,10 +10,8 @@ use a4n_api_contract::chapter::{
     ChapterMaterialSyncState, ChapterMaterialSyncStatus, ChapterMaterialUpdate,
     ChapterMaterialUpdateAction, ChapterMaterialUpdateKind, ChapterSummary,
 };
-use a4n_db_models::models::{
-    chapter::chapter,
-    generation::{workflow_checkpoint, workflow_run},
-};
+use a4n_db::workflow::{WorkflowCheckpointSummary, WorkflowRunSummary};
+use a4n_domain::chapter::ChapterRecord;
 use a4n_domain::source_text_hash;
 use a4n_domain::workflow::WORKFLOW_MODE_DERIVED_REPLAY;
 use a4n_error::AppError;
@@ -47,7 +45,7 @@ pub const WORKFLOW_STATUS_FAILED: &str = "failed";
 pub const WORKFLOW_STATUS_INTERRUPTED: &str = "interrupted";
 pub const WORKFLOW_STATUS_RUNNING: &str = "running";
 
-pub fn chapter_summary(chapter: &chapter::Model) -> ChapterSummary {
+pub fn chapter_summary(chapter: &ChapterRecord) -> ChapterSummary {
     let initial_material_status = if chapter.analysis_data.is_some() {
         ChapterMaterialSyncStatus::Unknown
     } else {
@@ -85,7 +83,7 @@ pub fn chapter_summary(chapter: &chapter::Model) -> ChapterSummary {
     }
 }
 
-pub fn chapter_analysis_workflow_fingerprint(chapter: &chapter::Model) -> Value {
+pub fn chapter_analysis_workflow_fingerprint(chapter: &ChapterRecord) -> Value {
     json!({
         "schema_version": 1,
         "workflow_kind": "chapter_analysis",
@@ -100,7 +98,7 @@ pub fn chapter_analysis_workflow_fingerprint(chapter: &chapter::Model) -> Value 
 
 pub fn chapter_analysis_run_input_matches(
     run_fingerprint_json: &Option<Value>,
-    chapter: &chapter::Model,
+    chapter: &ChapterRecord,
 ) -> bool {
     let Some(fingerprint) = run_fingerprint_json.as_ref() else {
         return false;
@@ -131,7 +129,7 @@ pub fn chapter_analysis_run_uses_replacement_commit(run_fingerprint_json: &Optio
     })
 }
 
-pub fn chapter_analysis_phase_fingerprint(chapter: &chapter::Model, step_key: &str) -> Value {
+pub fn chapter_analysis_phase_fingerprint(chapter: &ChapterRecord, step_key: &str) -> Value {
     json!({
         "schema_version": 1,
         "workflow": "chapter_analysis.derived_sync",
@@ -141,7 +139,7 @@ pub fn chapter_analysis_phase_fingerprint(chapter: &chapter::Model, step_key: &s
     })
 }
 
-pub fn chapter_content_sync_workflow_fingerprint(chapter: &chapter::Model) -> Value {
+pub fn chapter_content_sync_workflow_fingerprint(chapter: &ChapterRecord) -> Value {
     json!({
         "schema_version": 1,
         "workflow_kind": CHAPTER_CONTENT_SYNC_WORKFLOW_KIND,
@@ -155,7 +153,7 @@ pub fn chapter_content_sync_workflow_fingerprint(chapter: &chapter::Model) -> Va
 
 pub fn chapter_content_sync_run_input_matches(
     run_fingerprint_json: &Option<Value>,
-    chapter: &chapter::Model,
+    chapter: &ChapterRecord,
 ) -> bool {
     run_fingerprint_json.as_ref().is_some_and(|fingerprint| {
         fingerprint.get("schema_version").and_then(Value::as_i64) == Some(3)
@@ -171,9 +169,9 @@ pub fn chapter_content_sync_run_input_matches(
 }
 
 pub fn chapter_analysis_run_has_saved_analysis_from_checkpoints(
-    run: &workflow_run::Model,
-    chapter: &chapter::Model,
-    checkpoints: &[workflow_checkpoint::Model],
+    run: &WorkflowRunSummary,
+    chapter: &ChapterRecord,
+    checkpoints: &[WorkflowCheckpointSummary],
 ) -> Result<bool, AppError> {
     if run.workflow_kind != "chapter_analysis"
         || run.project_id != Some(chapter.project_id)
@@ -220,13 +218,13 @@ pub fn chapter_analysis_run_has_saved_analysis_from_checkpoints(
 }
 
 pub fn attach_chapter_sync_state(
-    chapters: &[chapter::Model],
+    chapters: &[ChapterRecord],
     summaries: &mut [ChapterSummary],
-    analysis_runs: &[workflow_run::Model],
-    content_runs: &[workflow_run::Model],
-    checkpoints: &[workflow_checkpoint::Model],
+    analysis_runs: &[WorkflowRunSummary],
+    content_runs: &[WorkflowRunSummary],
+    checkpoints: &[WorkflowCheckpointSummary],
 ) -> Result<(), AppError> {
-    let mut checkpoints_by_run = HashMap::<i64, Vec<workflow_checkpoint::Model>>::new();
+    let mut checkpoints_by_run = HashMap::<i64, Vec<WorkflowCheckpointSummary>>::new();
     for checkpoint in checkpoints {
         checkpoints_by_run
             .entry(checkpoint.workflow_run_id)
@@ -287,10 +285,10 @@ fn material_sync_state(status: ChapterMaterialSyncStatus) -> ChapterMaterialSync
 }
 
 fn attach_chapter_content_sync_state(
-    chapters: &[chapter::Model],
+    chapters: &[ChapterRecord],
     summaries: &mut [ChapterSummary],
-    runs: &[workflow_run::Model],
-    checkpoints_by_run: &HashMap<i64, Vec<workflow_checkpoint::Model>>,
+    runs: &[WorkflowRunSummary],
+    checkpoints_by_run: &HashMap<i64, Vec<WorkflowCheckpointSummary>>,
 ) -> Result<(), AppError> {
     let mut latest_by_chapter = HashMap::new();
     for run in runs {
@@ -325,8 +323,8 @@ fn attach_chapter_content_sync_state(
 }
 
 fn chapter_material_projection(
-    run: &workflow_run::Model,
-    checkpoints: &[workflow_checkpoint::Model],
+    run: &WorkflowRunSummary,
+    checkpoints: &[WorkflowCheckpointSummary],
     has_saved_analysis: bool,
 ) -> Result<(ChapterMaterialSyncState, Vec<ChapterMaterialUpdate>), AppError> {
     if !has_saved_analysis {
@@ -390,8 +388,8 @@ fn chapter_material_projection(
 }
 
 fn phase_status(
-    run: &workflow_run::Model,
-    checkpoints: &HashMap<&str, &workflow_checkpoint::Model>,
+    run: &WorkflowRunSummary,
+    checkpoints: &HashMap<&str, &WorkflowCheckpointSummary>,
     step_keys: &[&str],
 ) -> ChapterMaterialSyncStatus {
     if step_keys
@@ -423,7 +421,7 @@ fn phase_status(
     }
 }
 
-fn completed_checkpoint(checkpoint: Option<&workflow_checkpoint::Model>) -> bool {
+fn completed_checkpoint(checkpoint: Option<&WorkflowCheckpointSummary>) -> bool {
     checkpoint.is_some_and(|checkpoint| {
         checkpoint.status == WORKFLOW_STATUS_COMPLETED
             && checkpoint
@@ -443,7 +441,7 @@ fn workflow_failed(status: &str) -> bool {
 }
 
 fn material_updates(
-    checkpoints: &HashMap<&str, &workflow_checkpoint::Model>,
+    checkpoints: &HashMap<&str, &WorkflowCheckpointSummary>,
 ) -> Result<Vec<ChapterMaterialUpdate>, AppError> {
     let mut updates = Vec::new();
     let mut seen = HashSet::new();
@@ -535,7 +533,7 @@ fn material_updates(
 }
 
 fn checkpoint_result<'a>(
-    checkpoints: &'a HashMap<&str, &workflow_checkpoint::Model>,
+    checkpoints: &'a HashMap<&str, &WorkflowCheckpointSummary>,
     step_key: &str,
 ) -> Option<&'a Value> {
     checkpoints
@@ -595,7 +593,7 @@ mod tests {
     #[test]
     fn chapter_projection_defaults_to_not_analyzed() {
         let now = Utc::now().naive_utc();
-        let chapter = chapter::Model {
+        let chapter = ChapterRecord {
             id: 1,
             project_id: 2,
             outline_id: None,
@@ -619,7 +617,7 @@ mod tests {
     #[test]
     fn derived_replay_is_visible_as_resumable_pending_material() {
         let now = Utc::now().naive_utc();
-        let chapter = chapter::Model {
+        let chapter = ChapterRecord {
             id: 11,
             project_id: 2,
             outline_id: None,
@@ -641,7 +639,7 @@ mod tests {
             updated_at: now,
         };
         let source_fingerprint = chapter_analysis_workflow_fingerprint(&chapter);
-        let run = workflow_run::Model {
+        let run = a4n_db_models::models::generation::workflow_run::Model {
             id: 7,
             business_key: "chapter_analysis:2:11".into(),
             workflow_kind: "chapter_analysis".into(),
@@ -669,6 +667,8 @@ mod tests {
             updated_at: now,
             completed_at: Some(now),
         };
+        let run = a4n_db::workflow::workflow_run_summary_from_model(run)
+            .expect("workflow run should project");
         let mut summary = chapter_summary(&chapter);
         attach_chapter_sync_state(
             std::slice::from_ref(&chapter),

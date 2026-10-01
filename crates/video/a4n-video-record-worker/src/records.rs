@@ -1,7 +1,7 @@
 use super::*;
 
 pub(super) fn video_summary(
-    video: &a4n_db_models::models::ai::generated_video::Model,
+    video: &a4n_domain::media::GeneratedVideoRecord,
 ) -> GeneratedVideoSummary {
     GeneratedVideoSummary {
         id: video.id,
@@ -33,7 +33,7 @@ pub(super) fn video_summary(
 }
 
 pub(super) fn image_summary(
-    image: &a4n_db_models::models::ai::generated_image::Model,
+    image: &a4n_domain::media::GeneratedImageRecord,
 ) -> GeneratedImageSummary {
     GeneratedImageSummary {
         id: image.id,

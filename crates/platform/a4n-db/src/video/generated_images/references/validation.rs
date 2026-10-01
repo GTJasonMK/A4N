@@ -1,11 +1,13 @@
 use super::context::video_asset_project_ids_record;
 use crate::profile_material::is_project_reusable_video_material_image;
 use crate::video::VideoDbError;
-use a4n_db_models::models::ai::generated_image;
 use a4n_domain::image::reference_image_ids;
+use a4n_domain::media::GeneratedImageRecord;
 use sea_orm::ConnectionTrait;
 use serde_json::Value;
 use std::collections::{HashMap, HashSet};
+
+use crate::video::media_mapping::generated_image_record_from_model;
 
 pub async fn ensure_video_reference_images_available_record<C>(
     db: &C,
@@ -26,7 +28,7 @@ pub async fn validated_video_reference_image_records<C>(
     project_id: i64,
     chapter_id: i64,
     reference_image_ids_json: Option<&Value>,
-) -> Result<Vec<generated_image::Model>, VideoDbError>
+) -> Result<Vec<GeneratedImageRecord>, VideoDbError>
 where
     C: ConnectionTrait,
 {
@@ -64,7 +66,7 @@ async fn validated_video_reference_image_records_for_ids<C>(
     project_id: i64,
     chapter_id: i64,
     ids_by_prompt: Vec<Vec<i64>>,
-) -> Result<Vec<Vec<generated_image::Model>>, VideoDbError>
+) -> Result<Vec<Vec<GeneratedImageRecord>>, VideoDbError>
 where
     C: ConnectionTrait,
 {
@@ -87,6 +89,7 @@ where
     .await?;
     let images_by_id = rows
         .into_iter()
+        .map(generated_image_record_from_model)
         .map(|image| (image.id, image))
         .collect::<HashMap<_, _>>();
 

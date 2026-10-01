@@ -1,5 +1,6 @@
 use a4n_db_models::models::{ai::generated_video, chapter::chapter_video_prompt};
 use a4n_domain::source_text_hash;
+use a4n_domain::video_prompt::ChapterVideoPromptRecord;
 use a4n_domain::video_prompt::{ChapterVideoPromptPatch, UpdateChapterVideoPromptRecordInput};
 use a4n_video_contract::{
     VIDEO_EXECUTION_CONTRACT_EPOCH, VideoSegmentExecutionRecipeV1, VideoSegmentPlanV2,
@@ -12,6 +13,9 @@ use sea_orm::{
 };
 use serde_json::Value;
 
+use crate::video::prompts::record_mapping::{
+    chapter_video_prompt_model_from_record, chapter_video_prompt_record_from_model,
+};
 use crate::video::{self, VideoDbError};
 
 use super::{
@@ -24,7 +28,7 @@ pub async fn update_chapter_video_prompt_with_policy<C>(
     prompt_id: i64,
     input: ChapterVideoPromptPatch,
     allow_downstream: bool,
-) -> Result<chapter_video_prompt::Model, VideoDbError>
+) -> Result<ChapterVideoPromptRecord, VideoDbError>
 where
     C: ConnectionTrait + TransactionTrait,
 {
@@ -32,7 +36,7 @@ where
     let row = update_chapter_video_prompt_with_policy_in(&txn, prompt_id, input, allow_downstream)
         .await?;
     txn.commit().await.map_err(VideoDbError::Database)?;
-    Ok(row)
+    Ok(chapter_video_prompt_record_from_model(row))
 }
 
 pub async fn update_chapter_video_segment_plan_metadata<C>(
@@ -40,7 +44,7 @@ pub async fn update_chapter_video_segment_plan_metadata<C>(
     prompt_id: i64,
     expected_updated_at: chrono::NaiveDateTime,
     metadata_json: Value,
-) -> Result<chapter_video_prompt::Model, VideoDbError>
+) -> Result<ChapterVideoPromptRecord, VideoDbError>
 where
     C: ConnectionTrait,
 {
@@ -62,10 +66,11 @@ where
             "片段规划已被其他操作修改，请刷新后重试".to_string(),
         ));
     }
-    chapter_video_prompt::Entity::find_by_id(prompt_id)
+    let model = chapter_video_prompt::Entity::find_by_id(prompt_id)
         .one(db)
         .await?
-        .ok_or_else(|| VideoDbError::NotFound("视频提示词不存在".to_string()))
+        .ok_or_else(|| VideoDbError::NotFound("视频提示词不存在".to_string()))?;
+    Ok(chapter_video_prompt_record_from_model(model))
 }
 
 pub(super) async fn update_chapter_video_prompt_with_policy_in<C>(
@@ -146,7 +151,7 @@ where
         final_duration_secs,
         final_reference_image_ids_json.as_ref(),
     )?;
-    video::update_chapter_video_prompt_record(
+    let updated = video::update_chapter_video_prompt_record(
         db,
         prompt,
         UpdateChapterVideoPromptRecordInput {
@@ -161,7 +166,8 @@ where
                 && !allow_downstream,
         },
     )
-    .await
+    .await?;
+    Ok(chapter_video_prompt_model_from_record(updated))
 }
 
 #[derive(Debug, FromQueryResult)]

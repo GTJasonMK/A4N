@@ -1,10 +1,12 @@
 use a4n_db_models::models::canvas::canvas_text_asset;
+use a4n_domain::canvas::CanvasTextAssetRecord;
 use sea_orm::{ActiveModelTrait, ConnectionTrait, EntityTrait, Set};
 use sha2::{Digest, Sha256};
 
 use super::super::validation::required_canvas_record_text;
 use super::context::require_canvas_project_record;
 use crate::canvas::CanvasDbError;
+use crate::canvas::records::canvas_text_asset_record;
 use a4n_domain::canvas::CanvasTextAssetRecordInput;
 
 pub async fn upsert_canvas_text_asset_record<C>(
@@ -12,7 +14,7 @@ pub async fn upsert_canvas_text_asset_record<C>(
     project_id: i64,
     input: CanvasTextAssetRecordInput,
     now: chrono::NaiveDateTime,
-) -> Result<canvas_text_asset::Model, CanvasDbError>
+) -> Result<CanvasTextAssetRecord, CanvasDbError>
 where
     C: ConnectionTrait,
 {
@@ -43,7 +45,11 @@ where
             active.content = Set(content);
             active.content_hash = Set(content_hash);
             active.updated_at = Set(now);
-            active.update(db).await.map_err(CanvasDbError::Database)
+            active
+                .update(db)
+                .await
+                .map(canvas_text_asset_record)
+                .map_err(CanvasDbError::Database)
         }
         None => canvas_text_asset::ActiveModel {
             project_id: Set(project_id),
@@ -57,6 +63,7 @@ where
         }
         .insert(db)
         .await
+        .map(canvas_text_asset_record)
         .map_err(CanvasDbError::Database),
     }
 }

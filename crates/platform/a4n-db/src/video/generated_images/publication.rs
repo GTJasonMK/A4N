@@ -11,7 +11,7 @@ use super::create::{
 use a4n_db_models::models::{ai::generated_image, media::image_publication};
 use a4n_domain::generation::GenerationRunTraceTarget;
 use a4n_domain::media::{
-    CreateGeneratedImageRecordDraftInput, CreateImagePublicationIntentInput,
+    CreateGeneratedImageRecordDraftInput, CreateImagePublicationIntentInput, GeneratedImageRecord,
     IMAGE_PUBLICATION_STATUS_PENDING, IMAGE_PUBLICATION_STATUS_PUBLISHED,
     IMAGE_PUBLICATION_STATUS_RECLAIMED, IMAGE_PUBLICATION_STATUS_RECLAIMING,
     ImagePublicationFileFacts,
@@ -23,6 +23,8 @@ use sea_orm::{
     QueryOrder, QuerySelect, Set, TransactionTrait,
 };
 use serde_json::Value;
+
+use crate::video::media_mapping::generated_image_record_from_model;
 
 pub struct ImagePublicationRequest<'a> {
     pub project_id: i64,
@@ -335,11 +337,13 @@ pub async fn publish_image_publication<C>(
     db: &C,
     publication_id: &str,
     facts: ImagePublicationFileFacts,
-) -> Result<generated_image::Model, VideoDbError>
+) -> Result<GeneratedImageRecord, VideoDbError>
 where
     C: ConnectionTrait + TransactionTrait,
 {
-    publish_image_publication_inner(db, publication_id, facts, None).await
+    publish_image_publication_inner(db, publication_id, facts, None)
+        .await
+        .map(generated_image_record_from_model)
 }
 
 pub async fn publish_image_publication_with_generation_run_checkpoint<C>(
@@ -347,11 +351,13 @@ pub async fn publish_image_publication_with_generation_run_checkpoint<C>(
     publication_id: &str,
     facts: ImagePublicationFileFacts,
     generation_run: crate::generation::RecordCompletedGenerationRunWithCheckpointInput,
-) -> Result<generated_image::Model, VideoDbError>
+) -> Result<GeneratedImageRecord, VideoDbError>
 where
     C: ConnectionTrait + TransactionTrait,
 {
-    publish_image_publication_inner(db, publication_id, facts, Some(generation_run)).await
+    publish_image_publication_inner(db, publication_id, facts, Some(generation_run))
+        .await
+        .map(generated_image_record_from_model)
 }
 
 async fn publish_image_publication_inner<C>(

@@ -1,5 +1,5 @@
 use a4n_db::{DbHandle, generation::canonical_json_sha256};
-use a4n_db_models::models::ai::generated_video;
+use a4n_domain::media::GeneratedVideoRecord;
 use a4n_error::AppError;
 use a4n_provider_contract::VideoProviderConfig;
 use a4n_service_protocol::GenerationArtifactRef;
@@ -269,7 +269,7 @@ fn checkpoint_error(message: String) -> AppError {
     }
 }
 
-fn video_provider_result_target(video: &generated_video::Model) -> VideoProviderResultTarget {
+fn video_provider_result_target(video: &GeneratedVideoRecord) -> VideoProviderResultTarget {
     VideoProviderResultTarget {
         video_id: video.id,
         project_id: video.project_id,
@@ -280,7 +280,7 @@ fn video_provider_result_target(video: &generated_video::Model) -> VideoProvider
 }
 
 pub struct VideoProviderExecutionInput {
-    pub video: generated_video::Model,
+    pub video: GeneratedVideoRecord,
     pub config: VideoProviderConfig,
     pub prompt_id: Option<i64>,
     pub missing_result_message: String,
@@ -293,7 +293,7 @@ impl crate::OrchestratorContext {
         input: VideoProviderExecutionInput,
         result: Result<VideoGenerationResult, String>,
         host_port: &dyn VideoProviderHostPort,
-    ) -> Result<generated_video::Model, AppError> {
+    ) -> Result<GeneratedVideoRecord, AppError> {
         let VideoProviderExecutionInput {
             video,
             config,
@@ -369,12 +369,12 @@ impl crate::OrchestratorContext {
     /// 显式恢复一次 provider job 轮询；状态推进与 Canvas 父 workflow 同步都归这里。
     pub async fn poll_video_provider_once_validated(
         &self,
-        video: generated_video::Model,
+        video: GeneratedVideoRecord,
         config: &VideoProviderConfig,
         prompt_id: Option<i64>,
         cancel_token: CancellationToken,
         host_port: &dyn VideoProviderHostPort,
-    ) -> Result<generated_video::Model, AppError> {
+    ) -> Result<GeneratedVideoRecord, AppError> {
         let Some(job_id) =
             crate::video::active_provider_job_id(video.provider_job_id.as_deref(), &video.status)
                 .map(str::to_string)
@@ -495,13 +495,13 @@ impl crate::OrchestratorContext {
     async fn wait_for_video_provider_job(
         &self,
         host_port: &dyn VideoProviderHostPort,
-        mut video: generated_video::Model,
+        mut video: GeneratedVideoRecord,
         config: &VideoProviderConfig,
         prompt_id: Option<i64>,
         job_id: &str,
         cancel_token: CancellationToken,
-    ) -> Result<generated_video::Model, AppError> {
-        let workflow = self
+    ) -> Result<GeneratedVideoRecord, AppError> {
+        let workflow_run_id = self
             .begin_video_provider_progress_workflow_validated(&video, job_id)
             .await?;
         let started = Instant::now();
@@ -533,7 +533,13 @@ impl crate::OrchestratorContext {
             }
 
             match host_port
-                .poll_video_job(video.project_id, workflow.id, config, job_id, &cancellation)
+                .poll_video_job(
+                    video.project_id,
+                    workflow_run_id,
+                    config,
+                    job_id,
+                    &cancellation,
+                )
                 .await
             {
                 Ok(VideoJobState::Completed(result)) => {
@@ -649,11 +655,11 @@ impl crate::OrchestratorContext {
     async fn complete_video_provider_result(
         &self,
         host_port: &dyn VideoProviderHostPort,
-        video: generated_video::Model,
+        video: GeneratedVideoRecord,
         prompt_id: Option<i64>,
         result: VideoGenerationResult,
         cancel_token: &CancellationToken,
-    ) -> Result<generated_video::Model, AppError> {
+    ) -> Result<GeneratedVideoRecord, AppError> {
         let persisted = match host_port
             .persist_video_result(&video_provider_result_target(&video), prompt_id, result)
             .await
@@ -811,10 +817,10 @@ impl crate::OrchestratorContext {
 
     async fn mark_video_provider_failed(
         &self,
-        video: generated_video::Model,
+        video: GeneratedVideoRecord,
         prompt_id: Option<i64>,
         message: &str,
-    ) -> Result<generated_video::Model, AppError> {
+    ) -> Result<GeneratedVideoRecord, AppError> {
         let updated = self
             .mark_generated_video_failed_validated(video.id, prompt_id, message)
             .await?;
@@ -830,10 +836,10 @@ impl crate::OrchestratorContext {
 
     async fn interrupt_video_provider_job(
         &self,
-        video: &generated_video::Model,
+        video: &GeneratedVideoRecord,
         prompt_id: Option<i64>,
         message: &str,
-    ) -> Result<generated_video::Model, AppError> {
+    ) -> Result<GeneratedVideoRecord, AppError> {
         let updated = self
             .mark_generated_video_interrupted_validated(video.id, prompt_id, message)
             .await?;
@@ -849,7 +855,7 @@ impl crate::OrchestratorContext {
 
     async fn sync_canvas_video_workflow(
         &self,
-        video: &generated_video::Model,
+        video: &GeneratedVideoRecord,
         error_message: Option<&str>,
     ) -> Result<(), AppError> {
         let Some(canvas) = crate::video::canvas_video_workflow_context(video)
@@ -927,7 +933,7 @@ mod tests {
     use std::sync::Arc;
 
     use a4n_db::workflow::UpsertWorkflowRunInput;
-    use a4n_db_models::models::ai::generated_video;
+    use a4n_domain::media::GeneratedVideoRecord;
     use a4n_domain::workflow::{
         WORKFLOW_STATUS_COMPLETED, WORKFLOW_STATUS_FAILED, WORKFLOW_STATUS_INTERRUPTED,
         WORKFLOW_STATUS_RUNNING,
@@ -965,7 +971,7 @@ mod tests {
                 .await
                 .expect("生产路径状态应可同步");
             let stored = context
-                .workflow_run_model_by_id(run.id)
+                .workflow_run_summary(run.id)
                 .await
                 .expect("应可读取同步后的 workflow");
             assert_eq!(stored.status, status);
@@ -983,7 +989,7 @@ mod tests {
         assert!(matches!(error, AppError::InvalidState { .. }));
         assert!(
             context
-                .workflow_checkpoint_models(run.id)
+                .workflow_checkpoint_summaries(run.id)
                 .await
                 .expect("应可读取 workflow checkpoints")
                 .is_empty()
@@ -1015,9 +1021,9 @@ mod tests {
         workflow_run_id: i64,
         status: &str,
         error_message: Option<&str>,
-    ) -> generated_video::Model {
+    ) -> GeneratedVideoRecord {
         let now = chrono::Utc::now().naive_utc();
-        generated_video::Model {
+        GeneratedVideoRecord {
             id: workflow_run_id,
             project_id: 1,
             chapter_id: None,

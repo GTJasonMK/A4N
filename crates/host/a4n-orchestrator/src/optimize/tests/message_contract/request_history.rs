@@ -98,7 +98,7 @@ fn content_optimization_patch_request_moves_content_and_context_into_manifest() 
 #[test]
 fn optimization_chat_history_uses_turns_and_truncates_final_reply() {
     let now = Utc::now().naive_utc();
-    let turns = vec![optimization_turn::Model {
+    let turns = vec![OptimizationTurnRecord {
         id: 3,
         session_id: 7,
         agent_turn_id: None,

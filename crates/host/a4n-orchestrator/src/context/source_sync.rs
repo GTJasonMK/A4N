@@ -128,7 +128,7 @@ impl OrchestratorContext {
         from_snapshot_id: i64,
         to_snapshot_id: i64,
         decisions: &serde_json::Value,
-    ) -> Result<a4n_db_models::models::generation::workflow_run::Model, AppError> {
+    ) -> Result<a4n_db::workflow::WorkflowRunSummary, AppError> {
         let input = crate::source_sync::source_sync_apply_workflow_run_input(
             sync_run_id,
             derived_project_id,

@@ -1,7 +1,8 @@
 use crate::video::PromptDependencyRecord;
 use crate::video::prompts::consistency::PromptStage;
-use a4n_db_models::models::chapter::chapter_video_prompt;
+use a4n_db_models::models::chapter::chapter_video_prompt as orm_chapter_video_prompt;
 use a4n_domain::source_spans::metadata_source_content_sha256;
+use a4n_domain::video_prompt::{ChapterVideoPromptRecord, chapter_video_prompt};
 use serde_json::Value;
 
 pub(in crate::video::prompts::consistency::dependencies) trait PromptDependencyFields {
@@ -15,7 +16,41 @@ pub(in crate::video::prompts::consistency::dependencies) trait PromptDependencyF
     fn metadata_json(&self) -> Option<&Value>;
 }
 
-impl PromptDependencyFields for chapter_video_prompt::Model {
+impl PromptDependencyFields for orm_chapter_video_prompt::Model {
+    fn id(&self) -> i64 {
+        self.id
+    }
+
+    fn project_id(&self) -> i64 {
+        self.project_id
+    }
+
+    fn chapter_id(&self) -> i64 {
+        self.chapter_id
+    }
+
+    fn style(&self) -> Option<&str> {
+        self.style.as_deref()
+    }
+
+    fn prompt_type(&self) -> &str {
+        &self.prompt_type
+    }
+
+    fn workflow_mode(&self) -> &str {
+        &self.workflow_mode
+    }
+
+    fn aspect_ratio(&self) -> Option<&str> {
+        self.aspect_ratio.as_deref()
+    }
+
+    fn metadata_json(&self) -> Option<&Value> {
+        self.metadata_json.as_ref()
+    }
+}
+
+impl PromptDependencyFields for ChapterVideoPromptRecord {
     fn id(&self) -> i64 {
         self.id
     }

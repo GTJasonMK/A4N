@@ -1,12 +1,14 @@
 //! 视频提示词 facade。
 
+use a4n_domain::video_prompt::ChapterVideoPromptRecord;
+
 use super::*;
 
 impl OrchestratorContext {
     pub(crate) async fn chapter_video_prompt(
         &self,
         prompt_id: i64,
-    ) -> Result<chapter_video_prompt::Model, AppError> {
+    ) -> Result<ChapterVideoPromptRecord, AppError> {
         self.video
             .chapter_video_prompt_by_id(prompt_id)
             .await?
@@ -17,7 +19,7 @@ impl OrchestratorContext {
         &self,
         project_id: i64,
         chapter_id: i64,
-    ) -> Result<Vec<chapter_video_prompt::Model>, AppError> {
+    ) -> Result<Vec<ChapterVideoPromptRecord>, AppError> {
         self.video
             .chapter_video_prompts_for_chapter(project_id, chapter_id)
             .await
@@ -46,7 +48,7 @@ impl OrchestratorContext {
     pub(crate) async fn chapter_video_prompts_for_batch_generation(
         &self,
         prompt_ids: &[i64],
-    ) -> Result<Vec<chapter_video_prompt::Model>, AppError> {
+    ) -> Result<Vec<ChapterVideoPromptRecord>, AppError> {
         self.video
             .chapter_video_prompts_for_batch_generation(prompt_ids)
             .await
@@ -57,7 +59,7 @@ impl OrchestratorContext {
         prompt_id: i64,
         input: ChapterVideoPromptPatch,
         allow_downstream: bool,
-    ) -> Result<chapter_video_prompt::Model, AppError> {
+    ) -> Result<ChapterVideoPromptRecord, AppError> {
         self.video
             .update_chapter_video_prompt_with_policy(prompt_id, input, allow_downstream)
             .await
@@ -68,7 +70,7 @@ impl OrchestratorContext {
         prompt_id: i64,
         expected_updated_at: chrono::NaiveDateTime,
         metadata_json: Value,
-    ) -> Result<chapter_video_prompt::Model, AppError> {
+    ) -> Result<ChapterVideoPromptRecord, AppError> {
         self.video
             .update_chapter_video_segment_plan_metadata(
                 prompt_id,
@@ -95,7 +97,7 @@ impl OrchestratorContext {
         metadata_json: Option<Value>,
         allow_downstream: bool,
         generation_run: RecordCompletedGenerationRunWithCheckpointInput,
-    ) -> Result<chapter_video_prompt::Model, AppError> {
+    ) -> Result<ChapterVideoPromptRecord, AppError> {
         self.video
             .update_chapter_video_prompt_with_generation_run_checkpoint(
                 prompt_id,
@@ -151,7 +153,7 @@ impl OrchestratorContext {
 
     pub(crate) async fn ensure_prompt_stage_mutable(
         &self,
-        prompt: &chapter_video_prompt::Model,
+        prompt: &ChapterVideoPromptRecord,
         operation: &str,
     ) -> Result<(), AppError> {
         self.video
@@ -161,7 +163,7 @@ impl OrchestratorContext {
 
     pub(crate) async fn ensure_prompt_stage_mutable_ignoring(
         &self,
-        prompt: &chapter_video_prompt::Model,
+        prompt: &ChapterVideoPromptRecord,
         operation: &str,
         ignored_prompt_ids: &BTreeSet<i64>,
     ) -> Result<(), AppError> {
@@ -176,7 +178,7 @@ impl OrchestratorContext {
 
     pub(crate) async fn ensure_prompt_stages_mutable(
         &self,
-        prompts: &[chapter_video_prompt::Model],
+        prompts: &[ChapterVideoPromptRecord],
         operation: &str,
     ) -> Result<(), AppError> {
         self.video
@@ -186,7 +188,7 @@ impl OrchestratorContext {
 
     pub(crate) async fn ensure_prompt_stages_mutable_skipping_generated_images(
         &self,
-        prompts: &[chapter_video_prompt::Model],
+        prompts: &[ChapterVideoPromptRecord],
         operation: &str,
     ) -> Result<(), AppError> {
         self.video

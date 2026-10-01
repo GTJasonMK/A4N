@@ -1,5 +1,5 @@
+use a4n_db::optimize::OptimizationChapterContextRecord;
 use a4n_db::optimize::OptimizationChapterSummaryRecord;
-use a4n_db_models::models::chapter::chapter;
 use serde_json::json;
 
 use super::manifest::optimization_context_manifest;
@@ -44,30 +44,22 @@ fn context_manifest_returns_empty_contract_for_non_object_input() {
 
 #[test]
 fn chapter_projection_trims_optional_text_and_exposes_source_spans_only_for_current_chapter() {
-    let timestamp = chrono::NaiveDate::from_ymd_opt(2026, 7, 13)
-        .unwrap()
-        .and_hms_opt(12, 0, 0)
-        .unwrap();
-    let chapter = chapter::Model {
+    let chapter = OptimizationChapterContextRecord {
         id: 7,
-        project_id: 3,
         outline_id: None,
         chapter_number: 4,
         title: Some("  旧城回声  ".to_string()),
         content: "第一段正文。\n\n第二段正文。".to_string(),
         word_count: 12,
-        status: chapter::STATUS_COMPLETED.to_string(),
+        status: "completed".to_string(),
         summary: Some("  主角听见回声。  ".to_string()),
-        style_tags: None,
         analysis_data: None,
-        created_at: timestamp,
-        updated_at: timestamp,
     };
 
     let current = optimization_chapter_context(&chapter);
     assert_eq!(current["title"], json!("旧城回声"));
     assert_eq!(current["summary"], json!("主角听见回声。"));
-    assert_eq!(current["status"], json!(chapter::STATUS_COMPLETED));
+    assert_eq!(current["status"], json!("completed"));
     assert!(!current["source_spans"].as_array().unwrap().is_empty());
 
     let neighboring = optimization_chapter_summary_context(&OptimizationChapterSummaryRecord {

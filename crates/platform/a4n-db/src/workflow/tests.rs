@@ -212,6 +212,55 @@ fn rejects_completed_llm_call_checkpoint_with_unknown_field() {
     ));
 }
 use a4n_test_support::workflow::WorkflowRunModelBuilder;
+
+#[test]
+fn workflow_checkpoint_summary_preserves_persisted_fields() {
+    let created_at = test_timestamp();
+    let updated_at = created_at + chrono::Duration::minutes(1);
+    let completed_at = updated_at + chrono::Duration::minutes(1);
+    let summary = workflow_checkpoint_summary_from_model(
+        a4n_db_models::models::generation::workflow_checkpoint::Model {
+            id: 11,
+            workflow_run_id: 12,
+            step_key: "chapter.analysis".to_string(),
+            step_order: 4,
+            status: WORKFLOW_STATUS_COMPLETED.to_string(),
+            input_fingerprint_sha256: Some("fingerprint".to_string()),
+            input_fingerprint_json: Some(json!({"chapter_id": 13})),
+            checkpoint_json: Some(json!({"result": "saved"})),
+            artifacts_json: Some(json!({"profile_ids": [14]})),
+            generation_run_ids_json: Some(json!([15])),
+            error_message: None,
+            created_at,
+            updated_at,
+            completed_at: Some(completed_at),
+        },
+    );
+
+    assert_eq!(summary.id, 11);
+    assert_eq!(summary.workflow_run_id, 12);
+    assert_eq!(summary.step_key, "chapter.analysis");
+    assert_eq!(summary.step_order, 4);
+    assert_eq!(summary.status, WORKFLOW_STATUS_COMPLETED);
+    assert_eq!(
+        summary.input_fingerprint_sha256.as_deref(),
+        Some("fingerprint")
+    );
+    assert_eq!(
+        summary.input_fingerprint_json,
+        Some(json!({"chapter_id": 13}))
+    );
+    assert_eq!(summary.checkpoint_json, Some(json!({"result": "saved"})));
+    assert_eq!(summary.artifacts_json, Some(json!({"profile_ids": [14]})));
+    assert_eq!(summary.generation_run_ids_json, Some(json!([15])));
+    assert_eq!(summary.error_message, None);
+    assert_eq!(summary.created_at, created_at.and_utc().to_rfc3339());
+    assert_eq!(summary.updated_at, updated_at.and_utc().to_rfc3339());
+    assert_eq!(
+        summary.completed_at,
+        Some(completed_at.and_utc().to_rfc3339())
+    );
+}
 use chrono::NaiveDate;
 use serde_json::json;
 
@@ -292,9 +341,23 @@ fn workflow_run_summary_accepts_snapshot_with_or_without_progress() {
         )
         .with_progress(value)
         .build();
-        let summary = workflow_run_summary(run).expect("durable snapshot must not block reads");
+        let summary =
+            workflow_run_summary_from_model(run).expect("durable snapshot must not block reads");
         assert_eq!(summary.id, 51);
         assert_eq!(summary.progress.is_some(), with_progress);
+        assert_eq!(
+            summary.progress_json,
+            Some(if with_progress {
+                json!({
+                    "snapshot": { "version": 1, "completed_units": [7] },
+                    "current": 1,
+                    "total": 4,
+                    "message": "处理中",
+                })
+            } else {
+                json!({ "snapshot": { "version": 1, "completed_units": [7] } })
+            })
+        );
         if let Some(progress) = summary.progress {
             assert_eq!(progress.current, 1);
             assert_eq!(progress.total, 4);

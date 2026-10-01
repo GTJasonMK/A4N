@@ -1,11 +1,14 @@
 //! 漫画导演执行计划领域合同。
 
+use chrono::NaiveDateTime;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 mod contracts;
 mod validation;
+
+pub const MANGA_PAGE_PROMPT_TYPE: &str = "page_generation";
 
 pub use contracts::{
     MANGA_PAGE_DRAWING_PROMPT_V2, MANGA_PAGE_PLAN_V3, MangaCameraAngleV2,
@@ -29,6 +32,23 @@ pub struct MangaPagePromptSyncDraft {
     pub characters_in_frame: Option<Value>,
     pub layout: Option<Value>,
     pub status: String,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct MangaPagePromptRecord {
+    pub id: i64,
+    pub chapter_id: i64,
+    pub project_id: i64,
+    pub prompt_type: String,
+    pub page_number: i32,
+    pub image_prompt: String,
+    pub dialogue_text: Option<String>,
+    pub characters_in_frame: Option<Value>,
+    pub layout: Option<Value>,
+    pub generated_image_id: Option<i64>,
+    pub status: String,
+    pub created_at: NaiveDateTime,
+    pub updated_at: NaiveDateTime,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]

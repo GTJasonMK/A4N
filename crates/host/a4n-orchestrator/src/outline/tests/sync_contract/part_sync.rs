@@ -1,4 +1,6 @@
 use super::*;
+use a4n_db_models::models::chapter::{chapter_outline, part_outline};
+use sea_orm::TransactionTrait;
 
 #[tokio::test]
 async fn sync_part_outlines_preserves_ids_and_rebinds_chapter_outlines() {
@@ -66,8 +68,9 @@ async fn sync_part_outlines_preserves_ids_and_rebinds_chapter_outlines() {
         .await
         .unwrap();
     }
+    let transaction = db.begin().await.unwrap();
     sync_part_outlines_and_assign_chapters_in(
-        &db,
+        &transaction,
         project_id,
         vec![
             PartOutlineDraft {
@@ -87,6 +90,7 @@ async fn sync_part_outlines_preserves_ids_and_rebinds_chapter_outlines() {
     )
     .await
     .unwrap();
+    transaction.commit().await.unwrap();
     let rows = part_outline::Entity::find()
         .filter(part_outline::Column::ProjectId.eq(project_id))
         .order_by_asc(part_outline::Column::PartNumber)
@@ -146,8 +150,9 @@ async fn sync_part_outlines_keep_out_of_range_existing_chapter_outline_unbound()
     .insert(&db)
     .await
     .unwrap();
+    let transaction = db.begin().await.unwrap();
     sync_part_outlines_and_assign_chapters_in(
-        &db,
+        &transaction,
         project_id,
         vec![PartOutlineDraft {
             part_number: 1,
@@ -159,6 +164,7 @@ async fn sync_part_outlines_keep_out_of_range_existing_chapter_outline_unbound()
     )
     .await
     .unwrap();
+    transaction.commit().await.unwrap();
     let outline = chapter_outline::Entity::find()
         .filter(chapter_outline::Column::ProjectId.eq(project_id))
         .one(&db)

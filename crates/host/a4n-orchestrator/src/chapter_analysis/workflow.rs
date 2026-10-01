@@ -1,4 +1,4 @@
-use a4n_db_models::models::chapter::chapter;
+use a4n_domain::chapter::ChapterRecord;
 use serde_json::json;
 use uuid::Uuid;
 
@@ -20,7 +20,7 @@ pub use checkpoint::{
 };
 
 pub fn chapter_analysis_workflow_run_input(
-    chapter: &chapter::Model,
+    chapter: &ChapterRecord,
     current_step_key: &str,
     active_task_id: Option<&str>,
 ) -> UpsertWorkflowRunInput {

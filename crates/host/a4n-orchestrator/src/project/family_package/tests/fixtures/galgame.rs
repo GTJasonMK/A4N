@@ -1,6 +1,7 @@
 use super::super::*;
+use a4n_domain::project::ProjectRecord;
 
-pub(in crate::project::family_package::tests) fn derived_galgame_project() -> novel_project::Model {
+pub(in crate::project::family_package::tests) fn derived_galgame_project() -> ProjectRecord {
     let mut project = derived_video_project();
     project.title = "galgame".to_string();
     project.project_kind = PROJECT_KIND_GALGAME_TEST.to_string();

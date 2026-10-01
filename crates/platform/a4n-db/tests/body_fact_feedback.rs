@@ -82,6 +82,24 @@ async fn chapter(
     }.insert(db).await.unwrap()
 }
 
+fn domain_chapter(model: &chapter::Model) -> a4n_domain::chapter::ChapterRecord {
+    a4n_domain::chapter::ChapterRecord {
+        id: model.id,
+        project_id: model.project_id,
+        outline_id: model.outline_id,
+        chapter_number: model.chapter_number,
+        title: model.title.clone(),
+        content: model.content.clone(),
+        word_count: model.word_count,
+        status: model.status.clone(),
+        summary: model.summary.clone(),
+        style_tags: model.style_tags.clone(),
+        analysis_data: model.analysis_data.clone(),
+        created_at: model.created_at,
+        updated_at: model.updated_at,
+    }
+}
+
 async fn blueprint(
     db: &DatabaseConnection,
     project_id: i64,
@@ -123,6 +141,7 @@ async fn partial_feedback_is_versioned_source_fenced_and_reversible() {
     let mut sources = Vec::new();
     for number in 1..=5 {
         let chapter = chapter(&db, id, number, "施法会损失一段记忆。").await;
+        let chapter = domain_chapter(&chapter);
         let run = workflow(&db, id, &format!("chapter-{number}")).await;
         let tx = db.begin().await.unwrap();
         record_feedback_completion(&tx, &chapter, run)
@@ -374,6 +393,7 @@ async fn consolidation_rejects_unproven_or_invalidated_sources_and_keeps_plans_a
     let mut active: chapter::ActiveModel = source.clone().into();
     active.analysis_data = Set(source.analysis_data.clone());
     active.update(&db).await.unwrap();
+    let source = domain_chapter(&source);
     let run = workflow(&db, id, "reported").await;
     let tx = db.begin().await.unwrap();
     record_feedback_completion(&tx, &source, run).await.unwrap();
@@ -467,6 +487,7 @@ async fn field_removals_and_character_enrichment_retract_without_overwriting_man
     let mut active: chapter::ActiveModel = source.clone().into();
     active.analysis_data = Set(source.analysis_data.clone());
     active.update(&db).await.unwrap();
+    let source = domain_chapter(&source);
     let run = workflow(&db, id, "remove-and-enrich").await;
     let tx = db.begin().await.unwrap();
     record_feedback_completion(&tx, &source, run).await.unwrap();
@@ -653,7 +674,7 @@ async fn reapplying_withdrawn_facts_preserves_history_and_new_application_order(
         operation: "add".into(),
         before: Value::Null,
         after: json!(after),
-        sources: vec![source_revision(&chapter).unwrap()],
+        sources: vec![source_revision(&domain_chapter(&chapter)).unwrap()],
         evidence: json!([{"chapter_number":1,"quote":chapter.content}]),
         reason: "依据正文调整规划建议".into(),
         status: "proposal".into(),

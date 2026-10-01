@@ -299,7 +299,9 @@ fn validate_sources(
                 .find(|chapter| {
                     chapter.id == source.chapter_id
                         && chapter.project_id == project_id
-                        && source_revision(chapter).as_ref() == Some(source)
+                        && source_revision(&crate::project::chapter_record((**chapter).clone()))
+                            .as_ref()
+                            == Some(source)
                 })
                 .cloned()
                 .ok_or_else(|| {
@@ -414,7 +416,7 @@ pub(super) async fn persist_character_enrichment(
 pub(super) async fn persist_blueprint<C: ConnectionTrait>(
     tx: &C,
     mut blueprint: novel_blueprint::Model,
-    project: &a4n_db_models::models::project::novel_project::Model,
+    project: &a4n_domain::project::ProjectRecord,
 ) -> Result<novel_blueprint::Model, FactFeedbackDbError> {
     let now = Utc::now().naive_utc();
     blueprint.current_version = crate::blueprint::next_blueprint_version_record(

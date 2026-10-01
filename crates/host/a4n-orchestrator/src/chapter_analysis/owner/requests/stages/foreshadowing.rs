@@ -1,6 +1,6 @@
 use a4n_chapter_analysis::CHAPTER_ANALYSIS_STAGE_FORESHADOWING_EVENTS;
 use a4n_db::rag::RagForeshadowingRow;
-use a4n_db_models::models::chapter::chapter;
+use a4n_domain::chapter::ChapterRecord;
 use a4n_domain::character::ForeshadowingStatus;
 use a4n_error::AppError;
 use a4n_llm_provider_contract::provider::ChatRequest;
@@ -14,7 +14,7 @@ use crate::chapter_analysis::owner::{
 };
 
 pub async fn build_chapter_foreshadowing_events_request(
-    ch: &chapter::Model,
+    ch: &ChapterRecord,
     prompt_renderer: &dyn PromptRenderer,
     facts: &Value,
     pending_foreshadowing: &Value,

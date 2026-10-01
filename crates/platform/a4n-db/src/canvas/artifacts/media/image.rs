@@ -6,20 +6,21 @@ use super::{
     provenance::upsert_canvas_image_media_provenance, upsert_canvas_media_asset_record,
 };
 use crate::canvas::CanvasDbError;
+use crate::media::media_asset_record_from_model;
 use a4n_db_models::models::media::media_asset;
 use sea_orm::{ConnectionTrait, TransactionTrait};
 
 pub async fn ensure_canvas_image_media_asset_record<C>(
     db: &C,
     input: CanvasImageMediaAssetEnsureInput,
-) -> Result<media_asset::Model, CanvasDbError>
+) -> Result<a4n_domain::media::MediaAssetRecord, CanvasDbError>
 where
     C: ConnectionTrait + TransactionTrait,
 {
     let tx = db.begin().await?;
     let asset = ensure_canvas_image_media_asset_record_in(&tx, input).await?;
     tx.commit().await?;
-    Ok(asset)
+    Ok(media_asset_record_from_model(asset))
 }
 
 async fn ensure_canvas_image_media_asset_record_in<C>(

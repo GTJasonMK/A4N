@@ -1,5 +1,4 @@
-use a4n_db_models::models::chapter::chapter;
-use a4n_domain::ProviderError;
+use a4n_domain::{ProviderError, chapter::ChapterRecord};
 use a4n_embedding_provider_contract::{EmbeddingBackend, EmbeddingProvider};
 use a4n_rag_core::ChapterRagChunkingMode;
 use a4n_test_support::embedding::UnavailableEmbeddingProvider;
@@ -37,9 +36,9 @@ impl EmbeddingProvider for TopicEmbeddingProvider {
     }
 }
 
-fn chapter_for_sync(status: &str, content: &str) -> chapter::Model {
+fn chapter_for_sync(status: &str, content: &str) -> ChapterRecord {
     let now = chrono::Utc::now().naive_utc();
-    chapter::Model {
+    ChapterRecord {
         id: 1,
         project_id: 1,
         outline_id: None,

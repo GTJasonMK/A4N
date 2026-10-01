@@ -11,7 +11,7 @@ use a4n_db::{
 };
 use a4n_db_models::models::{
     ai::{generated_image, generated_video},
-    canvas::{canvas_edge, canvas_graph, canvas_node, canvas_text_asset},
+    canvas::{canvas_node, canvas_text_asset},
     generation::{workflow_checkpoint, workflow_run},
     media::media_asset,
 };
@@ -563,12 +563,12 @@ fn record_edge_with_role(
 }
 
 fn test_document(
-    nodes: Vec<canvas_node::Model>,
-    edges: Vec<canvas_edge::Model>,
+    nodes: Vec<a4n_domain::canvas::CanvasNodeRecord>,
+    edges: Vec<a4n_domain::canvas::CanvasEdgeRecord>,
 ) -> CanvasGraphRecordDocument {
     let now = chrono::Utc::now().naive_utc();
     CanvasGraphRecordDocument {
-        graph: canvas_graph::Model {
+        graph: a4n_domain::canvas::CanvasGraphRecord {
             id: 10,
             project_id: 20,
             name: "测试画布".to_string(),
@@ -584,9 +584,13 @@ fn test_document(
     }
 }
 
-fn test_node(id: i64, kind: &str, config_json: serde_json::Value) -> canvas_node::Model {
+fn test_node(
+    id: i64,
+    kind: &str,
+    config_json: serde_json::Value,
+) -> a4n_domain::canvas::CanvasNodeRecord {
     let now = chrono::Utc::now().naive_utc();
-    canvas_node::Model {
+    a4n_domain::canvas::CanvasNodeRecord {
         id,
         graph_id: 10,
         node_kind: kind.to_string(),
@@ -605,8 +609,8 @@ fn test_edge(
     target_node_id: i64,
     source_port: &str,
     target_port: &str,
-) -> canvas_edge::Model {
-    canvas_edge::Model {
+) -> a4n_domain::canvas::CanvasEdgeRecord {
+    a4n_domain::canvas::CanvasEdgeRecord {
         id: source_node_id * 100 + target_node_id,
         graph_id: 10,
         source_node_id,
@@ -622,9 +626,9 @@ fn test_checkpoint(
     workflow_run_id: i64,
     node_id: i64,
     artifacts_json: serde_json::Value,
-) -> workflow_checkpoint::Model {
-    let now = chrono::Utc::now().naive_utc();
-    workflow_checkpoint::Model {
+) -> a4n_db::workflow::WorkflowCheckpointSummary {
+    let now = chrono::Utc::now().to_rfc3339();
+    a4n_db::workflow::WorkflowCheckpointSummary {
         id: node_id,
         workflow_run_id,
         step_key: format!("canvas_node:{node_id}"),
@@ -636,8 +640,8 @@ fn test_checkpoint(
         artifacts_json: Some(artifacts_json),
         generation_run_ids_json: None,
         error_message: None,
-        completed_at: Some(now),
         created_at: now,
-        updated_at: now,
+        updated_at: chrono::Utc::now().to_rfc3339(),
+        completed_at: Some(chrono::Utc::now().to_rfc3339()),
     }
 }

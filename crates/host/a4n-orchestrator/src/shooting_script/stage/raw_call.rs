@@ -104,7 +104,7 @@ impl OrchestratorContext {
         &self,
         workflow_run_id: i64,
     ) -> Result<(), AppError> {
-        let run = self.workflow_run_model_by_id(workflow_run_id).await?;
+        let run = self.workflow_run_summary(workflow_run_id).await?;
         if run.status == WORKFLOW_STATUS_CANCELLED {
             return Err(AppError::Cancelled);
         }

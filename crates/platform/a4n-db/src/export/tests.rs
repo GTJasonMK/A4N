@@ -1,12 +1,11 @@
 use super::*;
-use a4n_db_models::models::project::novel_project;
 use a4n_document_export_core::{chapter_heading, render_markdown_document, render_txt_document};
 
 async fn setup_db() -> DatabaseConnection {
     a4n_migration::test_support::connect_test_database().await
 }
 
-async fn insert_project(db: &DatabaseConnection) -> novel_project::Model {
+async fn insert_project(db: &DatabaseConnection) -> a4n_domain::project::ProjectRecord {
     crate::project::create_project_record(
         db,
         crate::project::CreateProjectRecordInput {

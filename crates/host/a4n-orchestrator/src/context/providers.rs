@@ -1,4 +1,4 @@
-use a4n_db_models::models::chapter::chapter;
+use a4n_domain::chapter::ChapterRecord;
 use a4n_error::AppError;
 use a4n_llm_provider_contract::provider::{ChatRequest, ChatResponse};
 use a4n_rag_core::{ChapterRagChunkingMode, RagRecord};
@@ -67,7 +67,7 @@ impl OrchestratorContext {
 
     pub(crate) async fn chapter_rag_records(
         &self,
-        chapter: &chapter::Model,
+        chapter: &ChapterRecord,
         mode: ChapterRagChunkingMode,
     ) -> Result<Vec<RagRecord>, String> {
         chapter_rag_records_with_provider(chapter, self.embedding.as_ref(), mode).await

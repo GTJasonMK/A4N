@@ -15,7 +15,7 @@ use a4n_chapter_content_worker_contract::{
 };
 use a4n_db::DbHandle;
 use a4n_db::DbTransaction;
-use a4n_domain::chapter::{EditChapterContentInput, ImportChapterContentInput};
+use a4n_domain::chapter::{ChapterRecord, EditChapterContentInput, ImportChapterContentInput};
 use a4n_worker_client::WORKER_AUTH_HEADER;
 use a4n_worker_contract::{
     WORKER_CAPABILITIES_PATH, WORKER_HEALTH_PATH, WORKER_SCHEMA_VERSION, WorkerCapabilities,
@@ -354,7 +354,7 @@ impl WorkerState {
     async fn project_summaries(
         &self,
         project_id: i64,
-        chapters: Vec<a4n_db_models::models::chapter::chapter::Model>,
+        chapters: Vec<ChapterRecord>,
     ) -> Result<Vec<ChapterSummary>, WorkerFailure> {
         let (analysis_runs, content_runs) = tokio::try_join!(
             a4n_db::workflow::workflow_runs_by_project_kind(
@@ -375,7 +375,7 @@ impl WorkerState {
             .map(|run| run.id)
             .collect::<Vec<_>>();
         let checkpoints =
-            a4n_db::workflow::workflow_checkpoint_models_for_runs(&self.database, &run_ids)
+            a4n_db::workflow::workflow_checkpoint_summaries_for_runs(&self.database, &run_ids)
                 .await
                 .map_err(workflow_error)?;
         let mut summaries = chapters.iter().map(chapter_summary).collect::<Vec<_>>();

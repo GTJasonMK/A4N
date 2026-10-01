@@ -1,5 +1,8 @@
 use a4n_db_models::models::chapter::chapter_video_prompt;
+use a4n_domain::video_prompt::ChapterVideoPromptRecord;
 use sea_orm::{ColumnTrait, ConnectionTrait, DbErr, EntityTrait, QueryFilter, QueryOrder};
+
+use crate::video::prompts::record_mapping::chapter_video_prompt_record_from_model;
 
 pub async fn chapter_video_prompt_workflow_records<C>(
     db: &C,
@@ -8,7 +11,7 @@ pub async fn chapter_video_prompt_workflow_records<C>(
     prompt_type: &str,
     workflow_mode: &str,
     exclude_running: bool,
-) -> Result<Vec<chapter_video_prompt::Model>, DbErr>
+) -> Result<Vec<ChapterVideoPromptRecord>, DbErr>
 where
     C: ConnectionTrait,
 {
@@ -21,12 +24,16 @@ where
         query = query
             .filter(chapter_video_prompt::Column::Status.ne(chapter_video_prompt::STATUS_RUNNING));
     }
-    query
+    let models = query
         .order_by_asc(chapter_video_prompt::Column::ShotNumber)
         .order_by_desc(chapter_video_prompt::Column::UpdatedAt)
         .order_by_desc(chapter_video_prompt::Column::Id)
         .all(db)
-        .await
+        .await?;
+    Ok(models
+        .into_iter()
+        .map(chapter_video_prompt_record_from_model)
+        .collect())
 }
 
 pub async fn chapter_video_prompt_segment_plan_records<C>(
@@ -36,7 +43,7 @@ pub async fn chapter_video_prompt_segment_plan_records<C>(
     workflow_mode: &str,
     prompt_type: &str,
     only_plan_row: bool,
-) -> Result<Vec<chapter_video_prompt::Model>, DbErr>
+) -> Result<Vec<ChapterVideoPromptRecord>, DbErr>
 where
     C: ConnectionTrait,
 {
@@ -48,11 +55,15 @@ where
     if only_plan_row {
         query = query.filter(chapter_video_prompt::Column::ShotNumber.eq(0));
     }
-    query
+    let models = query
         .order_by_desc(chapter_video_prompt::Column::UpdatedAt)
         .order_by_asc(chapter_video_prompt::Column::Id)
         .all(db)
-        .await
+        .await?;
+    Ok(models
+        .into_iter()
+        .map(chapter_video_prompt_record_from_model)
+        .collect())
 }
 
 pub async fn chapter_video_prompt_workflow_shot_records<C>(
@@ -62,11 +73,11 @@ pub async fn chapter_video_prompt_workflow_shot_records<C>(
     workflow_mode: &str,
     prompt_type: &str,
     shot_number: i32,
-) -> Result<Vec<chapter_video_prompt::Model>, DbErr>
+) -> Result<Vec<ChapterVideoPromptRecord>, DbErr>
 where
     C: ConnectionTrait,
 {
-    chapter_video_prompt::Entity::find()
+    let models = chapter_video_prompt::Entity::find()
         .filter(chapter_video_prompt::Column::ProjectId.eq(project_id))
         .filter(chapter_video_prompt::Column::ChapterId.eq(chapter_id))
         .filter(chapter_video_prompt::Column::WorkflowMode.eq(workflow_mode))
@@ -75,5 +86,9 @@ where
         .order_by_desc(chapter_video_prompt::Column::UpdatedAt)
         .order_by_asc(chapter_video_prompt::Column::Id)
         .all(db)
-        .await
+        .await?;
+    Ok(models
+        .into_iter()
+        .map(chapter_video_prompt_record_from_model)
+        .collect())
 }

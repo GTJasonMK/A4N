@@ -8,10 +8,13 @@ pub(super) mod search;
 pub(super) mod store;
 
 use a4n_db::DbHandle;
-use a4n_db_models::models::{
-    chapter::{chapter, part_outline},
-    character::{attribute_event, character_state_index, foreshadowing_index, protagonist_profile},
-    project::{blueprint_character, blueprint_relationship, novel_blueprint},
+use a4n_db::rag::{
+    RagAttributeEventRow, RagBlueprintCharacterRow, RagBlueprintRelationshipRow,
+    RagCharacterStateRow, RagProtagonistProfileRow,
+};
+use a4n_domain::{
+    chapter::{ChapterRecord, PartOutlineRecord},
+    project::BlueprintRecord,
 };
 use a4n_error::AppError;
 
@@ -31,8 +34,18 @@ impl RagApplication {
     async fn chapters_for_rag_ingest(
         &self,
         project_id: i64,
-    ) -> Result<Vec<chapter::Model>, AppError> {
+    ) -> Result<Vec<ChapterRecord>, AppError> {
         a4n_db::rag::chapters_for_rag_ingest(&self.database, project_id)
+            .await
+            .map_err(AppError::database)
+    }
+
+    async fn chapter_for_rag_ingest(
+        &self,
+        project_id: i64,
+        chapter_id: i64,
+    ) -> Result<Option<ChapterRecord>, AppError> {
+        a4n_db::rag::chapter_for_rag_ingest(&self.database, project_id, chapter_id)
             .await
             .map_err(AppError::database)
     }
@@ -49,7 +62,7 @@ impl RagApplication {
     async fn part_outlines_for_rag_ingest(
         &self,
         project_id: i64,
-    ) -> Result<Vec<part_outline::Model>, AppError> {
+    ) -> Result<Vec<PartOutlineRecord>, AppError> {
         a4n_db::rag::part_outlines_for_rag_ingest(&self.database, project_id)
             .await
             .map_err(AppError::database)
@@ -58,7 +71,7 @@ impl RagApplication {
     async fn novel_blueprints_for_rag_ingest(
         &self,
         project_id: i64,
-    ) -> Result<Vec<novel_blueprint::Model>, AppError> {
+    ) -> Result<Vec<BlueprintRecord>, AppError> {
         a4n_db::rag::novel_blueprints_for_rag_ingest(&self.database, project_id)
             .await
             .map_err(AppError::database)
@@ -76,7 +89,7 @@ impl RagApplication {
     async fn blueprint_characters_for_rag_ingest(
         &self,
         project_id: i64,
-    ) -> Result<Vec<blueprint_character::Model>, AppError> {
+    ) -> Result<Vec<RagBlueprintCharacterRow>, AppError> {
         a4n_db::rag::blueprint_characters_for_rag_ingest(&self.database, project_id)
             .await
             .map_err(AppError::database)
@@ -85,7 +98,7 @@ impl RagApplication {
     async fn blueprint_relationships_for_rag_ingest(
         &self,
         project_id: i64,
-    ) -> Result<Vec<blueprint_relationship::Model>, AppError> {
+    ) -> Result<Vec<RagBlueprintRelationshipRow>, AppError> {
         a4n_db::rag::blueprint_relationships_for_rag_ingest(&self.database, project_id)
             .await
             .map_err(AppError::database)
@@ -94,7 +107,7 @@ impl RagApplication {
     async fn protagonist_profiles_for_rag_ingest(
         &self,
         project_id: i64,
-    ) -> Result<Vec<protagonist_profile::Model>, AppError> {
+    ) -> Result<Vec<RagProtagonistProfileRow>, AppError> {
         a4n_db::rag::protagonist_profiles_for_rag_ingest(&self.database, project_id)
             .await
             .map_err(AppError::database)
@@ -103,7 +116,7 @@ impl RagApplication {
     async fn character_states_for_rag_ingest(
         &self,
         profile_ids: &[i64],
-    ) -> Result<Vec<character_state_index::Model>, AppError> {
+    ) -> Result<Vec<RagCharacterStateRow>, AppError> {
         a4n_db::rag::character_states_for_rag_ingest(&self.database, profile_ids)
             .await
             .map_err(AppError::database)
@@ -113,7 +126,7 @@ impl RagApplication {
         &self,
         profile_ids: &[i64],
         chapter_number: i32,
-    ) -> Result<Vec<character_state_index::Model>, AppError> {
+    ) -> Result<Vec<RagCharacterStateRow>, AppError> {
         a4n_db::rag::character_states_for_rag_ingest_before_chapter(
             &self.database,
             profile_ids,
@@ -126,7 +139,7 @@ impl RagApplication {
     async fn attribute_events_for_rag_ingest(
         &self,
         profile_ids: &[i64],
-    ) -> Result<Vec<attribute_event::Model>, AppError> {
+    ) -> Result<Vec<RagAttributeEventRow>, AppError> {
         a4n_db::rag::attribute_events_for_rag_ingest(&self.database, profile_ids)
             .await
             .map_err(AppError::database)
@@ -136,7 +149,7 @@ impl RagApplication {
         &self,
         profile_ids: &[i64],
         chapter_number: i32,
-    ) -> Result<Vec<attribute_event::Model>, AppError> {
+    ) -> Result<Vec<RagAttributeEventRow>, AppError> {
         a4n_db::rag::attribute_events_for_rag_ingest_before_chapter(
             &self.database,
             profile_ids,
@@ -177,7 +190,7 @@ impl RagApplication {
         &self,
         project_id: i64,
         foreshadowing_ids: &[i64],
-    ) -> Result<Vec<foreshadowing_index::Model>, AppError> {
+    ) -> Result<Vec<a4n_db::rag::RagForeshadowingRow>, AppError> {
         a4n_db::rag::foreshadowing_items_by_ids(&self.database, project_id, foreshadowing_ids)
             .await
             .map_err(AppError::database)
@@ -197,7 +210,7 @@ impl RagApplication {
         project_id: i64,
         chapter_number: i32,
         limit: u64,
-    ) -> Result<Vec<foreshadowing_index::Model>, AppError> {
+    ) -> Result<Vec<a4n_db::rag::RagForeshadowingRow>, AppError> {
         a4n_db::rag::pending_foreshadowing_before_chapter(
             &self.database,
             project_id,
@@ -212,7 +225,7 @@ impl RagApplication {
         &self,
         project_id: i64,
         limit: u64,
-    ) -> Result<Vec<foreshadowing_index::Model>, AppError> {
+    ) -> Result<Vec<a4n_db::rag::RagForeshadowingRow>, AppError> {
         a4n_db::rag::pending_foreshadowing_for_project(&self.database, project_id, limit)
             .await
             .map_err(AppError::database)
@@ -239,8 +252,18 @@ impl OrchestratorContext {
     pub(crate) async fn chapters_for_rag_ingest(
         &self,
         project_id: i64,
-    ) -> Result<Vec<chapter::Model>, AppError> {
+    ) -> Result<Vec<ChapterRecord>, AppError> {
         self.rag.chapters_for_rag_ingest(project_id).await
+    }
+
+    pub(crate) async fn chapter_for_rag_ingest(
+        &self,
+        project_id: i64,
+        chapter_id: i64,
+    ) -> Result<Option<ChapterRecord>, AppError> {
+        self.rag
+            .chapter_for_rag_ingest(project_id, chapter_id)
+            .await
     }
 
     pub(crate) async fn chapter_outlines_for_rag_ingest(
@@ -253,14 +276,14 @@ impl OrchestratorContext {
     pub(crate) async fn part_outlines_for_rag_ingest(
         &self,
         project_id: i64,
-    ) -> Result<Vec<part_outline::Model>, AppError> {
+    ) -> Result<Vec<PartOutlineRecord>, AppError> {
         self.rag.part_outlines_for_rag_ingest(project_id).await
     }
 
     pub(crate) async fn novel_blueprints_for_rag_ingest(
         &self,
         project_id: i64,
-    ) -> Result<Vec<novel_blueprint::Model>, AppError> {
+    ) -> Result<Vec<BlueprintRecord>, AppError> {
         self.rag.novel_blueprints_for_rag_ingest(project_id).await
     }
 
@@ -276,7 +299,7 @@ impl OrchestratorContext {
     pub(crate) async fn blueprint_characters_for_rag_ingest(
         &self,
         project_id: i64,
-    ) -> Result<Vec<blueprint_character::Model>, AppError> {
+    ) -> Result<Vec<RagBlueprintCharacterRow>, AppError> {
         self.rag
             .blueprint_characters_for_rag_ingest(project_id)
             .await
@@ -285,7 +308,7 @@ impl OrchestratorContext {
     pub(crate) async fn blueprint_relationships_for_rag_ingest(
         &self,
         project_id: i64,
-    ) -> Result<Vec<blueprint_relationship::Model>, AppError> {
+    ) -> Result<Vec<RagBlueprintRelationshipRow>, AppError> {
         self.rag
             .blueprint_relationships_for_rag_ingest(project_id)
             .await
@@ -294,7 +317,7 @@ impl OrchestratorContext {
     pub(crate) async fn protagonist_profiles_for_rag_ingest(
         &self,
         project_id: i64,
-    ) -> Result<Vec<protagonist_profile::Model>, AppError> {
+    ) -> Result<Vec<RagProtagonistProfileRow>, AppError> {
         self.rag
             .protagonist_profiles_for_rag_ingest(project_id)
             .await
@@ -303,7 +326,7 @@ impl OrchestratorContext {
     pub(crate) async fn character_states_for_rag_ingest(
         &self,
         profile_ids: &[i64],
-    ) -> Result<Vec<character_state_index::Model>, AppError> {
+    ) -> Result<Vec<RagCharacterStateRow>, AppError> {
         self.rag.character_states_for_rag_ingest(profile_ids).await
     }
 
@@ -311,7 +334,7 @@ impl OrchestratorContext {
         &self,
         profile_ids: &[i64],
         chapter_number: i32,
-    ) -> Result<Vec<character_state_index::Model>, AppError> {
+    ) -> Result<Vec<RagCharacterStateRow>, AppError> {
         self.rag
             .character_states_for_rag_ingest_before_chapter(profile_ids, chapter_number)
             .await
@@ -320,7 +343,7 @@ impl OrchestratorContext {
     pub(crate) async fn attribute_events_for_rag_ingest(
         &self,
         profile_ids: &[i64],
-    ) -> Result<Vec<attribute_event::Model>, AppError> {
+    ) -> Result<Vec<RagAttributeEventRow>, AppError> {
         self.rag.attribute_events_for_rag_ingest(profile_ids).await
     }
 
@@ -328,7 +351,7 @@ impl OrchestratorContext {
         &self,
         profile_ids: &[i64],
         chapter_number: i32,
-    ) -> Result<Vec<attribute_event::Model>, AppError> {
+    ) -> Result<Vec<RagAttributeEventRow>, AppError> {
         self.rag
             .attribute_events_for_rag_ingest_before_chapter(profile_ids, chapter_number)
             .await
@@ -359,7 +382,7 @@ impl OrchestratorContext {
         &self,
         project_id: i64,
         foreshadowing_ids: &[i64],
-    ) -> Result<Vec<foreshadowing_index::Model>, AppError> {
+    ) -> Result<Vec<a4n_db::rag::RagForeshadowingRow>, AppError> {
         self.rag
             .foreshadowing_items_by_ids(project_id, foreshadowing_ids)
             .await
@@ -379,7 +402,7 @@ impl OrchestratorContext {
         project_id: i64,
         chapter_number: i32,
         limit: u64,
-    ) -> Result<Vec<foreshadowing_index::Model>, AppError> {
+    ) -> Result<Vec<a4n_db::rag::RagForeshadowingRow>, AppError> {
         self.rag
             .pending_foreshadowing_before_chapter(project_id, chapter_number, limit)
             .await
@@ -389,7 +412,7 @@ impl OrchestratorContext {
         &self,
         project_id: i64,
         limit: u64,
-    ) -> Result<Vec<foreshadowing_index::Model>, AppError> {
+    ) -> Result<Vec<a4n_db::rag::RagForeshadowingRow>, AppError> {
         self.rag
             .pending_foreshadowing_for_project(project_id, limit)
             .await

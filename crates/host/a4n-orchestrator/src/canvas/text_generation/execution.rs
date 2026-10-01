@@ -96,10 +96,10 @@ impl OrchestratorContext {
                         "RenderTextNode 当前只支持 freeform 视频项目".to_string(),
                     )
                 })?;
-            lifecycle.generation_spec_id = Some(spec.id);
+            lifecycle.generation_spec_id = Some(spec);
             let artifact = self
                 .upsert_canvas_prompt_artifact_record(CanvasPromptArtifactUpsertInput {
-                    generation_spec_id: spec.id,
+                    generation_spec_id: spec,
                     prompt_kind: rendered.prompt_kind,
                     prompt_text: rendered.prompt_text,
                 })
@@ -108,7 +108,7 @@ impl OrchestratorContext {
                 "canvas_runtime_result": true,
                 "data_type": "text",
                 "text": artifact.prompt_text,
-                "generation_spec_id": spec.id,
+                "generation_spec_id": spec,
                 "prompt_artifact_id": artifact.id,
                 "prompt_kind": artifact.prompt_kind,
             });
@@ -193,7 +193,7 @@ impl OrchestratorContext {
                         "LlmTextNode 当前只支持 freeform 视频项目".to_string(),
                     )
                 })?;
-            lifecycle.generation_spec_id = Some(spec.id);
+            lifecycle.generation_spec_id = Some(spec);
             let validated = self
                 .execute_canvas_llm_text_call(
                     &input,
@@ -203,11 +203,11 @@ impl OrchestratorContext {
                     llm_port,
                 )
                 .await?;
-            self.mark_canvas_generation_spec_status_record(spec.id, WORKFLOW_STATUS_COMPLETED)
+            self.mark_canvas_generation_spec_status_record(spec, WORKFLOW_STATUS_COMPLETED)
                 .await?;
             let artifact = self
                 .upsert_canvas_prompt_artifact_record(CanvasPromptArtifactUpsertInput {
-                    generation_spec_id: spec.id,
+                    generation_spec_id: spec,
                     prompt_kind: llm_input.output_kind,
                     prompt_text: validated.transformed_text,
                 })
@@ -216,7 +216,7 @@ impl OrchestratorContext {
                 "canvas_runtime_result": true,
                 "data_type": "text",
                 "text": artifact.prompt_text,
-                "generation_spec_id": spec.id,
+                "generation_spec_id": spec,
                 "prompt_artifact_id": artifact.id,
                 "prompt_kind": artifact.prompt_kind,
                 "llm_finish_reason": validated.finish_reason,
@@ -243,11 +243,10 @@ impl OrchestratorContext {
     async fn canvas_text_source_checkpoints(
         &self,
         workflow_run_id: Option<i64>,
-    ) -> Result<Option<Vec<a4n_db_models::models::generation::workflow_checkpoint::Model>>, AppError>
-    {
+    ) -> Result<Option<Vec<a4n_db::workflow::WorkflowCheckpointSummary>>, AppError> {
         match workflow_run_id {
             Some(workflow_run_id) => self
-                .workflow_checkpoint_models(workflow_run_id)
+                .workflow_checkpoint_summaries(workflow_run_id)
                 .await
                 .map(Some),
             None => Ok(None),
@@ -261,7 +260,7 @@ impl OrchestratorContext {
         status: &str,
         source_material_json: Value,
         params_json: Value,
-    ) -> Result<Option<a4n_db_models::models::generation::generation_spec::Model>, AppError> {
+    ) -> Result<Option<i64>, AppError> {
         let project = self.project_by_id(input.project_id).await?.ok_or_else(|| {
             AppError::InvalidArgument(format!("项目不存在: {}", input.project_id))
         })?;

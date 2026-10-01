@@ -143,7 +143,7 @@ async fn project_family_import_activates_deserialized_project_lifecycle_gate() {
     };
     let package = ProjectFamilyImportPackage {
         root_project_id: project.id,
-        projects: vec![project],
+        projects: vec![crate::project::project_record_from_model(project.clone())],
         ..Default::default()
     };
 
@@ -238,7 +238,7 @@ async fn project_family_import_rebuilds_raw_blueprint_from_formal_rows() {
     );
     let package = ProjectFamilyImportPackage {
         root_project_id: project.id,
-        projects: vec![project],
+        projects: vec![crate::project::project_record_from_model(project.clone())],
         text_core: crate::project::ProjectFamilyTextCoreRows {
             fact_feedback: None,
             blueprint: Some(blueprint),
@@ -334,7 +334,7 @@ async fn project_family_media_write_failure_rolls_back_database_rows() {
     };
     let package = ProjectFamilyImportPackage {
         root_project_id: project.id,
-        projects: vec![project],
+        projects: vec![crate::project::project_record_from_model(project.clone())],
         media_assets: vec![asset],
         ..Default::default()
     };
@@ -423,30 +423,31 @@ async fn project_family_import_batches_video_reference_fixups() {
     };
     let project_id = project.id;
     let chapter_id = chapter.id;
-    let scene = |id: i64, name: &str, parent_scene_id| scene_profile::Model {
-        id,
-        project_id,
-        ownership_kind: a4n_domain::profile_ownership::PROFILE_OWNERSHIP_AI_SYNC.to_string(),
-        name: name.to_string(),
-        normalized_name: name.to_string(),
-        aliases_json: serde_json::json!([]),
-        scene_type: "interior".to_string(),
-        importance: "primary".to_string(),
-        parent_scene_id,
-        base_description: name.to_string(),
-        visual_description: "布景".to_string(),
-        spatial_layout: "方形".to_string(),
-        atmosphere: "安静".to_string(),
-        entry_points_json: serde_json::json!([]),
-        rules_json: serde_json::json!([]),
-        current_state_json: serde_json::json!({}),
-        first_seen_chapter: 1,
-        last_seen_chapter: 1,
-        evidence_json: serde_json::json!([]),
-        image_prompt_seed: name.to_string(),
-        created_at: now,
-        updated_at: now,
-    };
+    let scene =
+        |id: i64, name: &str, parent_scene_id| a4n_domain::scene_profile::SceneProfileRecord {
+            id,
+            project_id,
+            ownership_kind: a4n_domain::profile_ownership::PROFILE_OWNERSHIP_AI_SYNC.to_string(),
+            name: name.to_string(),
+            normalized_name: name.to_string(),
+            aliases_json: serde_json::json!([]),
+            scene_type: "interior".to_string(),
+            importance: "primary".to_string(),
+            parent_scene_id,
+            base_description: name.to_string(),
+            visual_description: "布景".to_string(),
+            spatial_layout: "方形".to_string(),
+            atmosphere: "安静".to_string(),
+            entry_points_json: serde_json::json!([]),
+            rules_json: serde_json::json!([]),
+            current_state_json: serde_json::json!({}),
+            first_seen_chapter: 1,
+            last_seen_chapter: 1,
+            evidence_json: serde_json::json!([]),
+            image_prompt_seed: name.to_string(),
+            created_at: now,
+            updated_at: now,
+        };
     let prompt = |id: i64, shot_number: i32, generated_video_id: i64, metadata_json| {
         chapter_video_prompt::Model {
             id,
@@ -501,7 +502,7 @@ async fn project_family_import_batches_video_reference_fixups() {
     };
     let package = ProjectFamilyImportPackage {
         root_project_id: project.id,
-        projects: vec![project],
+        projects: vec![crate::project::project_record_from_model(project.clone())],
         text_core: crate::project::ProjectFamilyTextCoreRows {
             fact_feedback: None,
             chapters: vec![chapter],

@@ -48,7 +48,6 @@ use std::path::{Path, PathBuf};
 
 use a4n_api_contract::media::MediaAudioProbeHostPort;
 use a4n_db::media::MediaDbError;
-use a4n_db_models::models::media::media_asset;
 use a4n_domain::media::{CreateMediaAssetRecordInput, MediaProvenanceRecordInput};
 use a4n_error::AppError;
 use a4n_storage::{
@@ -106,7 +105,7 @@ impl OrchestratorContext {
     pub(crate) async fn create_media_asset(
         &self,
         input: CreateMediaAssetInput,
-    ) -> Result<media_asset::Model, AppError> {
+    ) -> Result<a4n_domain::media::MediaAssetRecord, AppError> {
         let media_kind =
             normalize_media_value(&input.media_kind, "media_kind", is_valid_media_kind)?;
         let origin = normalize_media_value(&input.origin, "origin", is_valid_media_origin)?;
@@ -192,7 +191,7 @@ impl OrchestratorContext {
 /// 单张图片生成 begin 的返回值（workflow + Host 后续 checkpoint 所需字段）。
 #[derive(Debug, Clone)]
 pub struct ImageGenerationWorkflowStart {
-    pub workflow_run: a4n_db_models::models::generation::workflow_run::Model,
+    pub workflow_run: a4n_db::workflow::WorkflowRunSummary,
     pub step_key: String,
     pub fingerprint_json: serde_json::Value,
 }

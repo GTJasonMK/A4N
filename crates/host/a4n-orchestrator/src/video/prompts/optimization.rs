@@ -19,10 +19,11 @@ use a4n_db::generation::{
     GenerationRunCheckpointContext, RecordCompletedGenerationRunWithCheckpointInput,
     generation_checkpoint_fingerprint_sha256,
 };
-use a4n_db_models::models::chapter::chapter_video_prompt;
 use a4n_domain::generation::RecordCompletedGenerationRunInput;
 use a4n_domain::prompt_language::prompt_type_uses_prompt_output_language;
-use a4n_domain::video_prompt::ChapterVideoPromptPatch;
+use a4n_domain::video_prompt::{
+    ChapterVideoPromptPatch, ChapterVideoPromptRecord, chapter_video_prompt,
+};
 use a4n_domain::{
     prompt_language::{
         PromptOutputLanguage, prompt_output_language_from_instruction,
@@ -48,14 +49,14 @@ const OPTIMIZATION_PROMPT_NAME: &str = "chapter_video_prompt_optimization";
 const OPTIMIZATION_USER_PROMPT_NAME: &str = "chapter_video_prompt_optimization_user";
 
 pub(in crate::video) struct VideoPromptOptimizationInput {
-    pub(in crate::video) prompt: chapter_video_prompt::Model,
+    pub(in crate::video) prompt: ChapterVideoPromptRecord,
     pub(in crate::video) instruction: String,
     pub(in crate::video) allow_downstream: bool,
     pub(in crate::video) delete_dependencies: Option<VideoPromptDownstreamDependencies>,
 }
 
 struct PreparedVideoPromptOptimization {
-    prompt: chapter_video_prompt::Model,
+    prompt: ChapterVideoPromptRecord,
     prompt_kind: VideoPromptOptimizationKind,
     allow_downstream: bool,
     delete_dependencies: Option<VideoPromptDownstreamDependencies>,
@@ -92,11 +93,11 @@ impl OrchestratorContext {
         input: VideoPromptOptimizationInput,
         prompt_renderer: &dyn PromptRenderer,
         cleanup_port: &dyn VideoPromptDownstreamCleanupPort,
-    ) -> Result<chapter_video_prompt::Model, AppError> {
+    ) -> Result<ChapterVideoPromptRecord, AppError> {
         let prepared = self
             .prepare_video_prompt_optimization(input, prompt_renderer)
             .await?;
-        let workflow_run = self
+        let workflow_run_id = self
             .begin_video_prompt_optimization_workflow_validated(
                 prepared.prompt.project_id,
                 prepared.prompt.id,
@@ -107,9 +108,9 @@ impl OrchestratorContext {
             )
             .await?;
         let result = self
-            .execute_video_prompt_optimization(workflow_run.id, prepared, cleanup_port)
+            .execute_video_prompt_optimization(workflow_run_id, prepared, cleanup_port)
             .await;
-        self.finalize_workflow_result(workflow_run.id, result, "视频提示词优化")
+        self.finalize_workflow_result(workflow_run_id, result, "视频提示词优化")
             .await
     }
 
@@ -224,7 +225,7 @@ impl OrchestratorContext {
         workflow_run_id: i64,
         mut prepared: PreparedVideoPromptOptimization,
         cleanup_port: &dyn VideoPromptDownstreamCleanupPort,
-    ) -> Result<chapter_video_prompt::Model, AppError> {
+    ) -> Result<ChapterVideoPromptRecord, AppError> {
         let generation_input_fingerprint_sha256 =
             generation_checkpoint_fingerprint_sha256(&prepared.input_fingerprint_json)?;
         workflow::attach_llm_call_checkpoint_trace(
@@ -337,7 +338,7 @@ impl OrchestratorContext {
 
     async fn run_video_prompt_optimization_call(
         &self,
-        prompt: &chapter_video_prompt::Model,
+        prompt: &ChapterVideoPromptRecord,
         prompt_kind: VideoPromptOptimizationKind,
         prompt_output_language: PromptOutputLanguage,
         request: ChatRequest,
@@ -450,7 +451,7 @@ impl OrchestratorContext {
 
 async fn build_video_prompt_optimization_request(
     prompt_renderer: &dyn PromptRenderer,
-    prompt: &chapter_video_prompt::Model,
+    prompt: &ChapterVideoPromptRecord,
     instruction: &str,
     prompt_output_language: PromptOutputLanguage,
     prompt_kind: VideoPromptOptimizationKind,
@@ -482,7 +483,7 @@ async fn build_video_prompt_optimization_request(
 
 fn build_video_prompt_optimization_request_with_prompts(
     system_prompt: String,
-    prompt: &chapter_video_prompt::Model,
+    prompt: &ChapterVideoPromptRecord,
     instruction: &str,
     prompt_output_language: PromptOutputLanguage,
 ) -> Result<ChatRequest, AppError> {
@@ -541,7 +542,7 @@ fn video_prompt_optimization_call_key(prompt_id: i64) -> String {
     format!("optimize_chapter_video_prompt:prompt:{prompt_id}")
 }
 
-fn video_prompt_optimization_source_artifact(prompt: &chapter_video_prompt::Model) -> Value {
+fn video_prompt_optimization_source_artifact(prompt: &ChapterVideoPromptRecord) -> Value {
     json!({
         "artifact_kind": "chapter_video_prompt",
         "current_prompt": {
@@ -649,7 +650,7 @@ fn required_optimized_text(value: &str, field: &str) -> Result<String, AppError>
 }
 
 fn validate_video_prompt_optimization(
-    prompt: &chapter_video_prompt::Model,
+    prompt: &ChapterVideoPromptRecord,
     prompt_kind: VideoPromptOptimizationKind,
     parsed: OptimizedVideoPromptFields,
     prompt_output_language: PromptOutputLanguage,
@@ -737,9 +738,9 @@ mod tests {
 
     use super::*;
 
-    fn test_prompt(prompt_type: &str, workflow_mode: &str) -> chapter_video_prompt::Model {
+    fn test_prompt(prompt_type: &str, workflow_mode: &str) -> ChapterVideoPromptRecord {
         let now = Utc::now().naive_utc();
-        chapter_video_prompt::Model {
+        ChapterVideoPromptRecord {
             id: 9,
             project_id: 1,
             chapter_id: 2,
@@ -1044,7 +1045,7 @@ pub(in crate::video) enum VideoPromptOptimizationKind {
 }
 
 pub(in crate::video) fn video_prompt_optimization_kind(
-    prompt: &chapter_video_prompt::Model,
+    prompt: &ChapterVideoPromptRecord,
 ) -> Result<VideoPromptOptimizationKind, AppError> {
     let workflow_mode = PromptWorkflowMode::from_row(prompt)?;
     let prompt_type = prompt.prompt_type.as_str();

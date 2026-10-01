@@ -1,4 +1,4 @@
-use a4n_db_models::models::chapter::part_outline;
+use a4n_domain::chapter::PartOutlineRecord;
 use a4n_error::AppError;
 use a4n_prompt::request::build_json_task_user_message;
 use serde_json::{Value, json};
@@ -23,7 +23,7 @@ pub(in crate::outline) fn validate_chapter_outline_generation_request(
 }
 
 pub(in crate::outline) fn chapter_outline_generation_manifest_user_message(
-    focus_part: Option<&part_outline::Model>,
+    focus_part: Option<&PartOutlineRecord>,
     start_chapter: i32,
     count: i32,
     end_chapter: i32,
@@ -77,7 +77,7 @@ pub(in crate::outline) fn parse_beat_sheet_json(beat_sheet: &str) -> Result<Valu
 }
 
 pub(in crate::outline) fn beat_mapping_manifest_user_message(
-    part: &part_outline::Model,
+    part: &PartOutlineRecord,
     beat_sheet: &Value,
     count: i32,
 ) -> Result<String, AppError> {

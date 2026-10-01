@@ -265,9 +265,7 @@ fn node_input(client_id: &str, node_kind: &str, config_json: Value) -> CanvasNod
     }
 }
 
-fn target_node(
-    document: &CanvasGraphRecordDocument,
-) -> &a4n_db_models::models::canvas::canvas_node::Model {
+fn target_node(document: &CanvasGraphRecordDocument) -> &a4n_domain::canvas::CanvasNodeRecord {
     document
         .nodes
         .iter()
@@ -278,7 +276,7 @@ fn target_node(
 #[test]
 fn canvas_image_input_rules_are_owned_by_orchestrator() {
     let now = chrono::Utc::now().naive_utc();
-    let graph = a4n_db_models::models::canvas::canvas_graph::Model {
+    let graph = a4n_domain::canvas::CanvasGraphRecord {
         id: 1,
         project_id: 2,
         name: "测试".to_string(),
@@ -288,7 +286,7 @@ fn canvas_image_input_rules_are_owned_by_orchestrator() {
         created_at: now,
         updated_at: now,
     };
-    let source = a4n_db_models::models::canvas::canvas_node::Model {
+    let source = a4n_domain::canvas::CanvasNodeRecord {
         id: 10,
         graph_id: 1,
         node_kind: "TextInputNode".to_string(),
@@ -300,7 +298,7 @@ fn canvas_image_input_rules_are_owned_by_orchestrator() {
         created_at: now,
         updated_at: now,
     };
-    let image = a4n_db_models::models::canvas::canvas_node::Model {
+    let image = a4n_domain::canvas::CanvasNodeRecord {
         id: 11,
         graph_id: 1,
         node_kind: "GenerateImageNode".to_string(),
@@ -315,7 +313,7 @@ fn canvas_image_input_rules_are_owned_by_orchestrator() {
     let document = CanvasGraphRecordDocument {
         graph,
         nodes: vec![source, image.clone()],
-        edges: vec![a4n_db_models::models::canvas::canvas_edge::Model {
+        edges: vec![a4n_domain::canvas::CanvasEdgeRecord {
             id: 1,
             graph_id: 1,
             source_node_id: 10,
@@ -350,7 +348,7 @@ fn canvas_image_input_rules_are_owned_by_orchestrator() {
 #[test]
 fn canvas_image_input_rejects_inline_prompt_and_unresolved_operation_source() {
     let now = chrono::Utc::now().naive_utc();
-    let graph = a4n_db_models::models::canvas::canvas_graph::Model {
+    let graph = a4n_domain::canvas::CanvasGraphRecord {
         id: 1,
         project_id: 2,
         name: "测试".to_string(),
@@ -360,7 +358,7 @@ fn canvas_image_input_rejects_inline_prompt_and_unresolved_operation_source() {
         created_at: now,
         updated_at: now,
     };
-    let image = a4n_db_models::models::canvas::canvas_node::Model {
+    let image = a4n_domain::canvas::CanvasNodeRecord {
         id: 11,
         graph_id: 1,
         node_kind: "GenerateImageNode".to_string(),
@@ -382,7 +380,7 @@ fn canvas_image_input_rejects_inline_prompt_and_unresolved_operation_source() {
         .expect_err("内联 prompt 不能作为操作输入");
     assert!(inline_error.contains("缺少 prompt 输入"));
 
-    let source = a4n_db_models::models::canvas::canvas_node::Model {
+    let source = a4n_domain::canvas::CanvasNodeRecord {
         id: 10,
         node_kind: "RenderTextNode".to_string(),
         config_json: json!({"content": "旧结果"}),
@@ -391,7 +389,7 @@ fn canvas_image_input_rejects_inline_prompt_and_unresolved_operation_source() {
     let unresolved = CanvasGraphRecordDocument {
         graph,
         nodes: vec![source, image.clone()],
-        edges: vec![a4n_db_models::models::canvas::canvas_edge::Model {
+        edges: vec![a4n_domain::canvas::CanvasEdgeRecord {
             id: 1,
             graph_id: 1,
             source_node_id: 10,

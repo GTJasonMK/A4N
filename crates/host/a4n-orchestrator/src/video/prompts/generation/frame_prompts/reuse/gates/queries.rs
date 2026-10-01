@@ -1,6 +1,6 @@
 use std::collections::BTreeSet;
 
-use a4n_db_models::models::chapter::chapter_video_prompt;
+use a4n_domain::video_prompt::{ChapterVideoPromptRecord, chapter_video_prompt};
 use a4n_error::AppError;
 
 use crate::video::OrchestratorContext;
@@ -11,7 +11,7 @@ pub(in crate::video::prompts::generation::frame_prompts) async fn video_prompt_r
     project_id: i64,
     chapter_id: i64,
     workflow_mode: PromptWorkflowMode,
-) -> Result<Vec<chapter_video_prompt::Model>, AppError> {
+) -> Result<Vec<ChapterVideoPromptRecord>, AppError> {
     a4n_db::video::chapter_video_prompt_workflow_records(
         &service.database,
         project_id,
@@ -65,7 +65,7 @@ pub(in crate::video::prompts::generation::frame_prompts) async fn segment_plan_r
     workflow_mode: PromptWorkflowMode,
     prompt_type: &str,
     only_plan_row: bool,
-) -> Result<Vec<chapter_video_prompt::Model>, AppError> {
+) -> Result<Vec<ChapterVideoPromptRecord>, AppError> {
     a4n_db::video::chapter_video_prompt_segment_plan_records(
         &service.database,
         project_id,

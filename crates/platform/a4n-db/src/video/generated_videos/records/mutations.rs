@@ -6,13 +6,16 @@ use super::metadata::validate_video_metadata_update_preserves_system_fields;
 use crate::video::{
     VideoDbError, normalize_optional_video_record_text, required_video_record_text,
 };
+use a4n_domain::media::GeneratedVideoRecord;
 use a4n_domain::media::UpdateGeneratedVideoRecordInput;
+
+use crate::video::media_mapping::generated_video_record_from_model;
 
 pub async fn update_generated_video_record<C>(
     db: &C,
     video_id: i64,
     input: UpdateGeneratedVideoRecordInput,
-) -> Result<generated_video::Model, VideoDbError>
+) -> Result<GeneratedVideoRecord, VideoDbError>
 where
     C: ConnectionTrait,
 {
@@ -50,5 +53,9 @@ where
         active.metadata_json = Set(input.metadata_json);
     }
     active.updated_at = Set(Utc::now().naive_utc());
-    active.update(db).await.map_err(VideoDbError::Database)
+    active
+        .update(db)
+        .await
+        .map(generated_video_record_from_model)
+        .map_err(VideoDbError::Database)
 }

@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use a4n_db_models::models::chapter::part_outline;
+use a4n_domain::chapter::PartOutlineRecord;
 use a4n_llm_provider_contract::provider::ChatRequest;
 use serde_json::Value;
 
@@ -21,7 +21,7 @@ pub(super) struct PartOutlineJsonInput<'a> {
     pub(super) chapters_per_part: i32,
     pub(super) requested_part_count: i32,
     pub(super) blueprint_context: &'a Value,
-    pub(super) previous_parts: &'a [part_outline::Model],
+    pub(super) previous_parts: &'a [PartOutlineRecord],
     pub(super) source_snapshot: &'a Value,
     pub(super) prompt_renderer: &'a dyn PromptRenderer,
     pub(super) variables: &'a HashMap<String, Value>,
@@ -36,7 +36,7 @@ pub(super) struct PartOutlineRequestInput<'a> {
     pub(super) chapters_per_part: i32,
     pub(super) requested_part_count: i32,
     pub(super) blueprint_context: &'a Value,
-    pub(super) previous_parts: &'a [part_outline::Model],
+    pub(super) previous_parts: &'a [PartOutlineRecord],
     pub(super) source_snapshot: &'a Value,
     pub(super) prompt_renderer: &'a dyn PromptRenderer,
     pub(super) variables: &'a HashMap<String, Value>,

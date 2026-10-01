@@ -3,10 +3,13 @@ use super::rules::validate_positive_image_i64;
 use crate::video::VideoDbError;
 use a4n_db_models::models::{ai::generated_image, project::novel_project};
 use a4n_domain::image::{IMAGE_TYPE_OBJECT_MATERIAL, IMAGE_TYPE_SCENE_MATERIAL};
+use a4n_domain::media::GeneratedImageRecord;
 use sea_orm::{
     ColumnTrait, Condition, ConnectionTrait, EntityTrait, QueryFilter, QueryOrder, QuerySelect,
 };
 use std::collections::HashMap;
+
+use crate::video::media_mapping::generated_image_record_from_model;
 
 pub async fn ensure_image_chapter_belongs_to_project_record<C>(
     db: &C,
@@ -77,7 +80,7 @@ pub async fn video_reference_candidate_image_records<C>(
     db: &C,
     project_ids: &[i64],
     chapter_id: i64,
-) -> Result<Vec<generated_image::Model>, VideoDbError>
+) -> Result<Vec<GeneratedImageRecord>, VideoDbError>
 where
     C: ConnectionTrait,
 {
@@ -85,7 +88,7 @@ where
         return Ok(Vec::new());
     }
     ensure_image_chapter_belongs_to_projects_record(db, project_ids, chapter_id).await?;
-    generated_image::Entity::find()
+    let models = generated_image::Entity::find()
         .filter(generated_image::Column::ProjectId.is_in(project_ids.iter().copied()))
         .filter(
             Condition::any()
@@ -99,7 +102,11 @@ where
         .order_by_desc(generated_image::Column::CreatedAt)
         .all(db)
         .await
-        .map_err(VideoDbError::Database)
+        .map_err(VideoDbError::Database)?;
+    Ok(models
+        .into_iter()
+        .map(generated_image_record_from_model)
+        .collect())
 }
 
 fn ensure_image_chapter_project_match(

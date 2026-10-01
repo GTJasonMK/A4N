@@ -1,0 +1,17 @@
+[package]
+name = "a4n-db-session"
+version = "0.1.0"
+edition = "2024"
+license.workspace = true
+
+[features]
+default = []
+migration = ["dep:a4n-migration"]
+
+[dependencies]
+a4n-db-models = { workspace = true }
+a4n-error = { workspace = true, default-features = true }
+a4n-migration = { workspace = true, optional = true }
+anyhow = { workspace = true }
+async-trait = { workspace = true }
+sea-orm = { workspace = true }

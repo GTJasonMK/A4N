@@ -85,7 +85,7 @@ impl OrchestratorContext {
         operation: &str,
     ) -> Result<T, AppError> {
         if matches!(&result, Err(AppError::Cancelled)) {
-            let run = self.workflow_run_model_by_id(workflow_run_id).await?;
+            let run = self.workflow_run_summary(workflow_run_id).await?;
             if run.status == a4n_domain::workflow::WORKFLOW_STATUS_RUNNING {
                 self.mark_workflow_status(
                     workflow_run_id,
@@ -374,7 +374,7 @@ impl OrchestratorContext {
         workflow_run_id: i64,
         prepared: &PreparedChapterShootingScriptRequest,
     ) -> Result<Option<ChapterShootingScriptUnitProgressView>, AppError> {
-        let run = self.workflow_run_model_by_id(workflow_run_id).await?;
+        let run = self.workflow_run_summary(workflow_run_id).await?;
         let Some(snapshot) = run
             .progress_json
             .and_then(|progress| progress.get("snapshot").cloned())

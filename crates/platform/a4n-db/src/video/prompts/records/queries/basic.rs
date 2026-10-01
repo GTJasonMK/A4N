@@ -1,4 +1,5 @@
 use a4n_db_models::models::chapter::chapter_video_prompt;
+use a4n_domain::video_prompt::ChapterVideoPromptRecord;
 use sea_orm::{
     ColumnTrait, ConnectionTrait, DatabaseConnection, DbErr, EntityTrait, QueryFilter, QueryOrder,
     QuerySelect,
@@ -6,17 +7,19 @@ use sea_orm::{
 };
 
 use super::super::types::ChapterVideoPromptTimelineRecord;
+use crate::video::prompts::record_mapping::chapter_video_prompt_record_from_model;
 use crate::video::{VideoDbError, required_video_record_text, validate_positive_video_i64};
 
 pub async fn chapter_video_prompt_by_id(
     db: &DatabaseConnection,
     prompt_id: i64,
-) -> Result<Option<chapter_video_prompt::Model>, VideoDbError> {
+) -> Result<Option<ChapterVideoPromptRecord>, VideoDbError> {
     validate_positive_video_i64(prompt_id, "prompt_id")?;
-    chapter_video_prompt::Entity::find_by_id(prompt_id)
+    let model = chapter_video_prompt::Entity::find_by_id(prompt_id)
         .one(db)
         .await
-        .map_err(VideoDbError::Database)
+        .map_err(VideoDbError::Database)?;
+    Ok(model.map(chapter_video_prompt_record_from_model))
 }
 
 pub async fn chapter_video_prompt_scope_by_id<C>(
@@ -41,18 +44,22 @@ pub async fn chapter_video_prompts_for_chapter<C>(
     db: &C,
     project_id: i64,
     chapter_id: i64,
-) -> Result<Vec<chapter_video_prompt::Model>, DbErr>
+) -> Result<Vec<ChapterVideoPromptRecord>, DbErr>
 where
     C: ConnectionTrait,
 {
-    chapter_video_prompt::Entity::find()
+    let models = chapter_video_prompt::Entity::find()
         .filter(chapter_video_prompt::Column::ProjectId.eq(project_id))
         .filter(chapter_video_prompt::Column::ChapterId.eq(chapter_id))
         .order_by_asc(chapter_video_prompt::Column::WorkflowMode)
         .order_by_asc(chapter_video_prompt::Column::ShotNumber)
         .order_by_asc(chapter_video_prompt::Column::Id)
         .all(db)
-        .await
+        .await?;
+    Ok(models
+        .into_iter()
+        .map(chapter_video_prompt_record_from_model)
+        .collect())
 }
 
 pub async fn chapter_video_prompt_timeline_records_for_chapter<C>(
@@ -142,7 +149,7 @@ where
 pub(crate) async fn chapter_video_prompt_record<C>(
     db: &C,
     prompt_id: i64,
-) -> Result<chapter_video_prompt::Model, VideoDbError>
+) -> Result<ChapterVideoPromptRecord, VideoDbError>
 where
     C: ConnectionTrait,
 {
@@ -152,7 +159,7 @@ where
 pub(crate) async fn frame_chapter_video_prompt_record<C>(
     db: &C,
     prompt_id: i64,
-) -> Result<chapter_video_prompt::Model, VideoDbError>
+) -> Result<ChapterVideoPromptRecord, VideoDbError>
 where
     C: ConnectionTrait,
 {
@@ -163,7 +170,7 @@ async fn chapter_video_prompt_record_with_message<C>(
     db: &C,
     prompt_id: i64,
     not_found_message: &str,
-) -> Result<chapter_video_prompt::Model, VideoDbError>
+) -> Result<ChapterVideoPromptRecord, VideoDbError>
 where
     C: ConnectionTrait,
 {
@@ -171,4 +178,5 @@ where
         .one(db)
         .await?
         .ok_or_else(|| VideoDbError::NotFound(not_found_message.to_string()))
+        .map(chapter_video_prompt_record_from_model)
 }

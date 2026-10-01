@@ -6,7 +6,7 @@ impl crate::OrchestratorContext {
     pub(crate) async fn create_video_generation_record_validated(
         &self,
         input: VideoGenerationRecordInput,
-    ) -> Result<generated_video::Model, a4n_error::AppError> {
+    ) -> Result<GeneratedVideoRecord, a4n_error::AppError> {
         let video_record = a4n_domain::media::CreateGeneratedVideoRecordDraftInput {
             project_id: input.project_id,
             chapter_id: input.chapter_id,
@@ -52,7 +52,7 @@ impl crate::OrchestratorContext {
         &self,
         project_id: i64,
         chapter_id: i64,
-    ) -> Result<Vec<generated_video::Model>, AppError> {
+    ) -> Result<Vec<GeneratedVideoRecord>, AppError> {
         self.project_chapter_video_source(project_id, chapter_id, "查看章节视频", false)
             .await?;
         self.generated_videos_for_chapter(project_id, chapter_id)
@@ -66,7 +66,7 @@ impl crate::OrchestratorContext {
         segment_plan_prompt_id: i64,
         target: (&str, i32),
         video_id: i64,
-    ) -> Result<generated_video::Model, AppError> {
+    ) -> Result<GeneratedVideoRecord, AppError> {
         self.project_chapter_video_source(project_id, chapter_id, "采用片段视频", true)
             .await?;
         let (plan_result, selected_result) = futures::join!(
@@ -133,7 +133,7 @@ impl crate::OrchestratorContext {
         &self,
         video_id: i64,
         input: UpdateGeneratedVideoInput,
-    ) -> Result<generated_video::Model, AppError> {
+    ) -> Result<GeneratedVideoRecord, AppError> {
         if input.is_empty() {
             return Err(AppError::InvalidArgument(
                 "视频更新内容不能为空".to_string(),
@@ -194,7 +194,7 @@ impl crate::OrchestratorContext {
         &self,
         video_id: i64,
         input: UpdateAssemblyPushStatusInput,
-    ) -> Result<generated_video::Model, AppError> {
+    ) -> Result<GeneratedVideoRecord, AppError> {
         let existing = self.required_video_record(video_id).await?;
         if existing.video_type != a4n_domain::video_workflow::VIDEO_TYPE_ASSEMBLY_PUSH {
             return Err(AppError::InvalidArgument(format!(

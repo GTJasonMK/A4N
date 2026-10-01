@@ -465,7 +465,6 @@ dependencies = [
  "a4n-chapter-content-worker-contract",
  "a4n-config",
  "a4n-db",
- "a4n-db-models",
  "a4n-domain",
  "a4n-error",
  "a4n-worker-client",
@@ -520,7 +519,6 @@ dependencies = [
  "a4n-chapter-scene-worker-contract",
  "a4n-config",
  "a4n-db",
- "a4n-db-models",
  "a4n-domain",
  "a4n-worker-client",
  "a4n-worker-contract",
@@ -771,6 +769,7 @@ dependencies = [
  "a4n-cleanup-contract",
  "a4n-config",
  "a4n-db-models",
+ "a4n-db-session",
  "a4n-document-export-core",
  "a4n-domain",
  "a4n-error",
@@ -806,6 +805,18 @@ dependencies = [
  "sea-orm",
  "serde",
  "serde_json",
+]
+
+[[package]]
+name = "a4n-db-session"
+version = "0.1.0"
+dependencies = [
+ "a4n-db-models",
+ "a4n-error",
+ "a4n-migration",
+ "anyhow",
+ "async-trait",
+ "sea-orm",
 ]
 
 [[package]]
@@ -1371,8 +1382,8 @@ name = "a4n-inspiration-core"
 version = "0.1.0"
 dependencies = [
  "a4n-api-contract",
- "a4n-db-models",
  "a4n-domain",
+ "serde_json",
 ]
 
 [[package]]
@@ -1555,7 +1566,6 @@ name = "a4n-manga-core"
 version = "0.1.0"
 dependencies = [
  "a4n-api-contract",
- "a4n-db-models",
  "a4n-domain",
  "chrono",
  "serde_json",
@@ -1769,7 +1779,6 @@ dependencies = [
  "a4n-api-contract",
  "a4n-config",
  "a4n-db",
- "a4n-db-models",
  "a4n-domain",
  "a4n-object-profile-worker-contract",
  "a4n-worker-client",
@@ -1850,6 +1859,7 @@ dependencies = [
  "a4n-image-host-contract",
  "a4n-import-analysis-host-contract",
  "a4n-import-core",
+ "a4n-inspiration-core",
  "a4n-inspiration-host-contract",
  "a4n-llm-config",
  "a4n-llm-context",
@@ -1921,7 +1931,6 @@ dependencies = [
  "a4n-api-contract",
  "a4n-config",
  "a4n-db",
- "a4n-db-models",
  "a4n-domain",
  "a4n-outline-worker-contract",
  "a4n-worker-client",
@@ -2175,7 +2184,6 @@ version = "0.1.0"
 dependencies = [
  "a4n-config",
  "a4n-db",
- "a4n-db-models",
  "a4n-domain",
  "a4n-project-mutation-worker-contract",
  "a4n-project-read-core",
@@ -2274,7 +2282,6 @@ dependencies = [
  "a4n-api-contract",
  "a4n-config",
  "a4n-db",
- "a4n-db-models",
  "a4n-domain",
  "a4n-project-read-core",
  "a4n-project-status-worker-contract",
@@ -2533,6 +2540,7 @@ dependencies = [
  "a4n-config",
  "a4n-db",
  "a4n-db-models",
+ "a4n-db-session",
  "a4n-domain",
  "a4n-embedding-client",
  "a4n-embedding-contract",
@@ -2641,7 +2649,6 @@ dependencies = [
  "a4n-api-contract",
  "a4n-config",
  "a4n-db",
- "a4n-db-models",
  "a4n-domain",
  "a4n-scene-profile-worker-contract",
  "a4n-worker-client",

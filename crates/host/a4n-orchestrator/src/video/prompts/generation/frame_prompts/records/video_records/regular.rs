@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use a4n_db_models::models::chapter::chapter_video_prompt;
+use a4n_domain::video_prompt::ChapterVideoPromptRecord;
 use a4n_error::AppError;
 
 use super::super::super::super::super::json::VideoPromptShot;
@@ -10,19 +10,19 @@ use super::metadata::{
 };
 
 pub(in crate::video) fn reusable_boundary_video_prompts_from_rows(
-    rows: &[chapter_video_prompt::Model],
+    rows: &[ChapterVideoPromptRecord],
 ) -> Result<BTreeMap<i32, VideoPromptShot>, AppError> {
     reusable_video_prompts_from_rows(rows, "边界帧视频提示词")
 }
 
 pub(in crate::video) fn reusable_first_frame_video_prompts_from_rows(
-    rows: &[chapter_video_prompt::Model],
+    rows: &[ChapterVideoPromptRecord],
 ) -> Result<BTreeMap<i32, VideoPromptShot>, AppError> {
     reusable_video_prompts_from_rows(rows, "首帧串联视频提示词")
 }
 
 fn reusable_video_prompts_from_rows(
-    rows: &[chapter_video_prompt::Model],
+    rows: &[ChapterVideoPromptRecord],
     label: &str,
 ) -> Result<BTreeMap<i32, VideoPromptShot>, AppError> {
     let mut by_shot = BTreeMap::<i32, VideoPromptShot>::new();
@@ -34,7 +34,7 @@ fn reusable_video_prompts_from_rows(
 }
 
 fn reusable_video_prompt_from_row(
-    row: &chapter_video_prompt::Model,
+    row: &ChapterVideoPromptRecord,
     label: &str,
 ) -> Result<VideoPromptShot, AppError> {
     let metadata = row_metadata::<SavedVideoPromptMetadata>(row, label)?;

@@ -3,7 +3,7 @@
 use super::*;
 
 pub(in crate::video) fn assembly_insert_position_metadata_from_rows(
-    rows: &[generated_video::Model],
+    rows: &[GeneratedVideoRecord],
     project_id: i64,
     chapter_id: i64,
     workflow_mode: &str,
@@ -55,7 +55,7 @@ pub(in crate::video) fn assembly_insert_position_metadata_from_rows(
 }
 
 pub(in crate::video) fn required_workflow_mode<'a>(
-    video: &'a generated_video::Model,
+    video: &'a GeneratedVideoRecord,
     label: &str,
 ) -> Result<&'a str, AppError> {
     video
@@ -69,7 +69,7 @@ pub(in crate::video) fn required_workflow_mode<'a>(
 }
 
 pub(in crate::video) fn assembly_clip_records_from_rows(
-    rows: &[generated_video::Model],
+    rows: &[GeneratedVideoRecord],
     project_id: i64,
     chapter_id: i64,
     workflow_mode: &str,
@@ -183,7 +183,7 @@ pub(in crate::video) fn next_assembly_push_status(
     }
 }
 
-pub(in crate::video) fn imported_video_prompt_text(prompt: &chapter_video_prompt::Model) -> String {
+pub(in crate::video) fn imported_video_prompt_text(prompt: &ChapterVideoPromptRecord) -> String {
     let mut sections = vec![prompt.visual_prompt.trim().to_string()];
     if let Some(motion) = prompt
         .motion_prompt

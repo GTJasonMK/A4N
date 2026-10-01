@@ -456,7 +456,12 @@ async fn published_replay_rejects_drifted_image_identity_instead_of_acknowledgin
             .await
             .expect("首次发布必须成功");
 
-    let mut corrupted: generated_image::ActiveModel = image.clone().into();
+    let image_model = generated_image::Entity::find_by_id(image.id)
+        .one(&fixture.db)
+        .await
+        .expect("发布图片 ORM 行查询必须成功")
+        .expect("发布图片 ORM 行必须存在");
+    let mut corrupted: generated_image::ActiveModel = image_model.into();
     corrupted.file_size = Set(Some(3));
     corrupted
         .update(&fixture.db)

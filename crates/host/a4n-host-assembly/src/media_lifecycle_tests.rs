@@ -4,6 +4,7 @@ use a4n_config::app_config::{AppConfig, SecurityConfig};
 use a4n_config_read_worker::ConfigReadWorker;
 use a4n_config_read_worker_client::ConfigReadWorkerClient;
 use a4n_config_read_worker_contract::CONFIG_READ_WORKER_ID;
+use a4n_db::DbHandle;
 use a4n_db_models::models::{
     ai::generated_image, media::image_publication, project::project_member,
 };
@@ -39,15 +40,30 @@ async fn state() -> (
     let router = axum::Router::new()
         .nest(
             "/config",
-            ConfigReadWorker::new(db.clone(), CONFIG_READ_WORKER_ID, &token).router(),
+            ConfigReadWorker::new(
+                DbHandle::new(Arc::new(db.clone())),
+                CONFIG_READ_WORKER_ID,
+                &token,
+            )
+            .router(),
         )
         .nest(
             "/project-access",
-            ProjectAccessWorker::new(db.clone(), PROJECT_ACCESS_WORKER_ID, &token).router(),
+            ProjectAccessWorker::new(
+                DbHandle::new(Arc::new(db.clone())),
+                PROJECT_ACCESS_WORKER_ID,
+                &token,
+            )
+            .router(),
         )
         .nest(
             "/theme",
-            ThemeReadWorker::new(db.clone(), THEME_READ_WORKER_ID, &token).router(),
+            ThemeReadWorker::new(
+                DbHandle::new(Arc::new(db.clone())),
+                THEME_READ_WORKER_ID,
+                &token,
+            )
+            .router(),
         );
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let url = format!("http://{}", listener.local_addr().unwrap());

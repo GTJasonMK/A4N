@@ -1,8 +1,8 @@
 use a4n_db::generation::{
     GenerationRunCheckpointContext, generation_checkpoint_fingerprint_sha256,
 };
-use a4n_db_models::models::chapter::chapter_manga_prompt::{self, MANGA_PAGE_PROMPT_TYPE};
 use a4n_domain::generation::{GenerationRunTraceTarget, RecordCompletedGenerationRunInput};
+use a4n_domain::manga::{MANGA_PAGE_PROMPT_TYPE, MangaPagePromptRecord};
 use a4n_error::AppError;
 use serde_json::json;
 
@@ -11,10 +11,11 @@ use super::super::super::pipeline::prompt::MangaPromptGenerationTrace;
 use super::contracts::MangaPageGenerationTraceRecord;
 
 pub(super) fn build_manga_page_generation_trace_record(
-    row: &chapter_manga_prompt::Model,
+    row: &MangaPagePromptRecord,
     trace: MangaPromptGenerationTrace,
 ) -> Result<MangaPageGenerationTraceRecord, AppError> {
-    let layout = manga_page_generation_layout(row).map_err(AppError::InvalidArgument)?;
+    let layout = manga_page_generation_layout(row.id, row.page_number, row.layout.as_ref())
+        .map_err(AppError::InvalidArgument)?;
     let source_refs_json = Some(json!({ "source": layout.source }));
     let media_refs_json = Some(json!({
         "reference_bindings": layout.reference_bindings,

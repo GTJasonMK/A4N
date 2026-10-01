@@ -9,11 +9,8 @@ use a4n_db::{
         GENERATION_SPEC_TARGET_ENTITY_KIND_CANVAS_NODE, GENERATION_SPEC_TARGET_KIND_CANVAS_VIDEO,
     },
 };
-use a4n_db_models::models::{
-    ai::generated_video,
-    canvas::canvas_node,
-    generation::{generation_spec, workflow_checkpoint},
-};
+use a4n_domain::canvas::CanvasNodeRecord;
+use a4n_domain::media::GeneratedVideoRecord;
 use a4n_domain::video_workflow::WORKFLOW_MODE_CANVAS_VIDEO;
 use a4n_domain::{CanvasNodeRefKind, canvas::FreeformCanvasGenerationSpecUpsertInput};
 use a4n_error::AppError;
@@ -60,7 +57,7 @@ pub struct CanvasVideoNodeExecutionInput<'a> {
     pub user_id: i64,
     pub project_id: i64,
     pub graph_id: i64,
-    pub node: &'a canvas_node::Model,
+    pub node: &'a CanvasNodeRecord,
     pub document: &'a CanvasGraphRecordDocument,
     pub shared_run: Option<CanvasNodeRunHandle>,
     pub mode: &'a str,
@@ -126,7 +123,10 @@ impl OrchestratorContext {
         self.require_freeform_video_project(input.project_id)
             .await?;
         let checkpoints = match input.shared_run {
-            Some(run) => Some(self.workflow_checkpoint_models(run.workflow_run_id).await?),
+            Some(run) => Some(
+                self.workflow_checkpoint_summaries(run.workflow_run_id)
+                    .await?,
+            ),
             None => None,
         };
         let video_input =
@@ -181,7 +181,7 @@ impl OrchestratorContext {
             let spec = self
                 .upsert_canvas_video_generation_spec(&input, &video_input)
                 .await?;
-            lifecycle.generation_spec_id = Some(spec.id);
+            lifecycle.generation_spec_id = Some(spec);
             self.ensure_video_capacity(config.id, config.max_concurrent)
                 .await?;
             let provider_request_snapshot = json!({
@@ -237,7 +237,7 @@ impl OrchestratorContext {
                     .mark_generated_video_failed_validated(video.id, None, &error.to_string())
                     .await?;
                 return self
-                    .finish_canvas_video_generation(&lifecycle, spec.id, failed)
+                    .finish_canvas_video_generation(&lifecycle, spec, failed)
                     .await;
             }
             if self
@@ -261,7 +261,7 @@ impl OrchestratorContext {
             video = self
                 .apply_canvas_video_provider_result(host_port, &config, video, result)
                 .await?;
-            self.finish_canvas_video_generation(&lifecycle, spec.id, video)
+            self.finish_canvas_video_generation(&lifecycle, spec, video)
                 .await
         }
         .await;
@@ -276,9 +276,9 @@ impl OrchestratorContext {
         &self,
         host_port: &dyn CanvasVideoGenerationHostPort,
         config: &VideoProviderConfig,
-        video: generated_video::Model,
+        video: GeneratedVideoRecord,
         result: Result<VideoGenerationResult, AppError>,
-    ) -> Result<generated_video::Model, AppError> {
+    ) -> Result<GeneratedVideoRecord, AppError> {
         match result {
             Ok(result) if !result.bytes.is_empty() => {
                 self.complete_canvas_video_result(host_port, video, result)
@@ -332,9 +332,9 @@ impl OrchestratorContext {
     async fn complete_canvas_video_result(
         &self,
         host_port: &dyn CanvasVideoGenerationHostPort,
-        video: generated_video::Model,
+        video: GeneratedVideoRecord,
         result: VideoGenerationResult,
-    ) -> Result<generated_video::Model, AppError> {
+    ) -> Result<GeneratedVideoRecord, AppError> {
         let workflow_run_id = canvas_video_workflow_run_id(&video)?;
         if self
             .canvas_workflow_cancellation_reason(workflow_run_id)
@@ -441,9 +441,9 @@ impl OrchestratorContext {
         &self,
         host_port: &dyn CanvasVideoGenerationHostPort,
         config: &VideoProviderConfig,
-        mut video: generated_video::Model,
+        mut video: GeneratedVideoRecord,
         job_id: &str,
-    ) -> Result<generated_video::Model, AppError> {
+    ) -> Result<GeneratedVideoRecord, AppError> {
         let workflow_run_id = canvas_video_workflow_run_id(&video)?;
         let started = Instant::now();
         let timeout = Duration::from_secs(CANVAS_VIDEO_JOB_MAX_WAIT_SECS);
@@ -592,7 +592,7 @@ impl OrchestratorContext {
 
     async fn interrupt_canvas_video_polling(
         &self,
-        video: &generated_video::Model,
+        video: &GeneratedVideoRecord,
         message: &str,
     ) -> Result<(), AppError> {
         let updated = self
@@ -609,7 +609,7 @@ impl OrchestratorContext {
 
     async fn cancel_canvas_video_record(
         &self,
-        video: &generated_video::Model,
+        video: &GeneratedVideoRecord,
         message: &str,
     ) -> Result<(), AppError> {
         if crate::video::normalized_provider_job_id(video.provider_job_id.as_deref()).is_some() {
@@ -625,7 +625,7 @@ impl OrchestratorContext {
         &self,
         lifecycle: &crate::canvas::CanvasNodeLifecycle,
         generation_spec_id: i64,
-        video: generated_video::Model,
+        video: GeneratedVideoRecord,
     ) -> Result<CanvasRunSummary, AppError> {
         match video.status.as_str() {
             WORKFLOW_STATUS_FAILED => {
@@ -748,7 +748,7 @@ impl OrchestratorContext {
         &self,
         input: &CanvasVideoNodeExecutionInput<'_>,
         video_input: &CanvasVideoNodeInput,
-    ) -> Result<generation_spec::Model, AppError> {
+    ) -> Result<i64, AppError> {
         let source_material_json = json!({
             "prompt": video_input.prompt,
             "first_frame_image_id": video_input.first_frame_image_id,
@@ -801,7 +801,7 @@ impl OrchestratorContext {
     }
 }
 
-fn canvas_video_workflow_run_id(video: &generated_video::Model) -> Result<i64, AppError> {
+fn canvas_video_workflow_run_id(video: &GeneratedVideoRecord) -> Result<i64, AppError> {
     video
         .metadata_json
         .as_ref()
@@ -815,16 +815,16 @@ fn canvas_video_workflow_run_id(video: &generated_video::Model) -> Result<i64, A
 }
 
 pub fn build_canvas_video_node_input_for_preview(
-    node: &canvas_node::Model,
+    node: &CanvasNodeRecord,
     document: &CanvasGraphRecordDocument,
 ) -> Result<CanvasVideoNodeInput, String> {
     build_canvas_video_node_input(node, document, None)
 }
 
 fn build_canvas_video_node_input(
-    node: &canvas_node::Model,
+    node: &CanvasNodeRecord,
     document: &CanvasGraphRecordDocument,
-    checkpoints: Option<&[workflow_checkpoint::Model]>,
+    checkpoints: Option<&[a4n_db::workflow::WorkflowCheckpointSummary]>,
 ) -> Result<CanvasVideoNodeInput, String> {
     let mut prompt_parts = Vec::new();
     let mut first_frame_image_id = None;

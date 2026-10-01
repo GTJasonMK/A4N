@@ -1,24 +1,31 @@
 use a4n_db_models::models::chapter::chapter_video_prompt;
+use a4n_domain::video_prompt::ChapterVideoPromptRecord;
 use sea_orm::{ColumnTrait, ConnectionTrait, DbErr, EntityTrait, QueryFilter, QuerySelect};
+
+use crate::video::prompts::record_mapping::chapter_video_prompt_record_from_model;
 
 pub async fn chapter_video_prompt_records_for_types<C>(
     db: &C,
     project_id: i64,
     chapter_id: i64,
     prompt_types: &[&str],
-) -> Result<Vec<chapter_video_prompt::Model>, DbErr>
+) -> Result<Vec<ChapterVideoPromptRecord>, DbErr>
 where
     C: ConnectionTrait,
 {
     if prompt_types.is_empty() {
         return Ok(Vec::new());
     }
-    chapter_video_prompt::Entity::find()
+    let models = chapter_video_prompt::Entity::find()
         .filter(chapter_video_prompt::Column::ProjectId.eq(project_id))
         .filter(chapter_video_prompt::Column::ChapterId.eq(chapter_id))
         .filter(chapter_video_prompt::Column::PromptType.is_in(prompt_types.iter().copied()))
         .all(db)
-        .await
+        .await?;
+    Ok(models
+        .into_iter()
+        .map(chapter_video_prompt_record_from_model)
+        .collect())
 }
 
 pub async fn chapter_video_prompt_ids_for_types<C>(

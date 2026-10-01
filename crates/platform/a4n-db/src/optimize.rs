@@ -7,6 +7,7 @@ use a4n_db_models::models::character::{foreshadowing_index, protagonist_profile}
 use a4n_db_models::models::project::{
     blueprint_character, blueprint_relationship, novel_blueprint, novel_project,
 };
+use a4n_domain::optimization::{OptimizationTurnEventRecord, OptimizationTurnRecord};
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, ConnectionTrait, DbErr, EntityTrait, QueryFilter, QueryOrder,
     QuerySelect, Set,
@@ -43,13 +44,13 @@ pub use turns::{
 };
 pub use types::{
     CompleteOptimizationPatchTurnInput, CompleteOptimizationPatchTurnResult,
-    OptimizationBlueprintRows, OptimizationChapterOutlineRecord,
+    OptimizationChapterContextRecord, OptimizationChapterOutlineRecord,
     OptimizationChapterPatchWriteInput, OptimizationChapterSummaryRecord,
-    OptimizationContextReadInput, OptimizationContextRows, OptimizationPatchCreateInput,
-    OptimizationPatchSetCreateInput, OptimizationSessionCreateInput,
-    OptimizationSessionMessageInsertInput, OptimizationSessionUpdateInput,
-    OptimizationTurnCreateInput, OptimizationTurnEventAppendInput, OptimizationTurnUpdateInput,
-    OptimizeDbError,
+    OptimizationCharacterProfileRecord, OptimizationContextReadInput, OptimizationContextRows,
+    OptimizationPatchCreateInput, OptimizationPatchSetCreateInput, OptimizationProjectDetailRecord,
+    OptimizationSessionCreateInput, OptimizationSessionMessageInsertInput,
+    OptimizationSessionUpdateInput, OptimizationTurnCreateInput, OptimizationTurnEventAppendInput,
+    OptimizationTurnUpdateInput, OptimizeDbError,
 };
 
 #[cfg(test)]

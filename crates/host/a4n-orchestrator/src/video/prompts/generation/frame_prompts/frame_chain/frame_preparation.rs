@@ -1,5 +1,6 @@
 use std::collections::HashSet;
 
+use a4n_domain::video_prompt::ChapterVideoPromptRecord;
 use a4n_error::AppError;
 use serde_json::Value;
 
@@ -44,7 +45,7 @@ pub(super) struct PreparedFrameWorkflow<'a> {
     pub expected_frame_count: usize,
     pub video_units: Vec<VideoUnitPlan>,
     pub frame_draft_common: VideoPromptDraftCommonInput<'a>,
-    pub reusable_frame_rows: Vec<a4n_db_models::models::chapter::chapter_video_prompt::Model>,
+    pub reusable_frame_rows: Vec<ChapterVideoPromptRecord>,
 }
 
 pub(super) async fn prepare_frame_workflow<'a, 'progress>(

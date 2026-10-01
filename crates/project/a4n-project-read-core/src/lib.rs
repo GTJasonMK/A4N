@@ -4,8 +4,9 @@ use a4n_api_contract::project::ProjectSummary;
 use a4n_db::DbHandle;
 use a4n_db::collaboration::ProjectAccessInfo;
 use a4n_db::project::ProjectFamilyMetadata;
-use a4n_db_models::models::project::novel_project;
-use a4n_domain::project::{ProjectKind, ProjectProgressSummary, ProjectSourceMode, ProjectStatus};
+use a4n_domain::project::{
+    ProjectKind, ProjectProgressSummary, ProjectSourceMode, ProjectStatus, ProjectSummaryRecord,
+};
 
 #[derive(Debug, thiserror::Error)]
 pub enum ProjectSummaryError {
@@ -22,7 +23,7 @@ pub enum ProjectSummaryError {
 pub async fn project_summary_for_user(
     database: &DbHandle,
     user_id: i64,
-    project: &novel_project::Model,
+    project: &ProjectSummaryRecord,
 ) -> Result<ProjectSummary, ProjectSummaryError> {
     let progress_query = a4n_db::project::ProjectProgressQuery::from_project(project)?;
     let project_kind = progress_query.project_kind;
@@ -69,7 +70,7 @@ fn database_error(error: impl std::error::Error + Send + Sync + 'static) -> Proj
 }
 
 pub fn project_summary_from_parts(
-    project: &novel_project::Model,
+    project: &ProjectSummaryRecord,
     metadata: &ProjectFamilyMetadata,
     info: &ProjectAccessInfo,
     project_kind: ProjectKind,
@@ -113,7 +114,7 @@ mod tests {
 
     #[test]
     fn summary_projection_keeps_access_family_and_progress_fields() {
-        let project = novel_project::Model {
+        let project = ProjectSummaryRecord {
             id: 9,
             user_id: 3,
             title: "项目".into(),
@@ -129,11 +130,6 @@ mod tests {
             current_chapter: 4,
             total_chapters: Some(20),
             chapters_per_part: Some(5),
-            avatar_svg: None,
-            avatar_animal: None,
-            raw_blueprint: None,
-            import_analysis_progress: None,
-            export_config: None,
             created_at: Default::default(),
             updated_at: Default::default(),
         };

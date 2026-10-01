@@ -1,4 +1,4 @@
-use a4n_db_models::models::chapter::chapter_outline;
+use a4n_domain::chapter::ChapterOutlineRecord;
 use a4n_error::AppError;
 use chrono::Utc;
 
@@ -14,7 +14,7 @@ impl OrchestratorContext {
     pub(in crate::outline) async fn regenerate_chapter_outline(
         &self,
         input: ChapterOutlineRegenerationInput<'_, '_>,
-    ) -> Result<chapter_outline::Model, AppError> {
+    ) -> Result<ChapterOutlineRecord, AppError> {
         let ChapterOutlineRegenerationInput {
             project_id,
             outline_id,

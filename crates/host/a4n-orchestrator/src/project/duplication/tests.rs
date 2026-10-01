@@ -347,7 +347,7 @@ async fn duplicate_freeform_application_remaps_source_material_and_clears_runtim
 async fn insert_freeform_project(
     database: &a4n_db::DatabaseConnection,
     user_id: i64,
-) -> novel_project::Model {
+) -> a4n_domain::project::ProjectRecord {
     create_freeform_video_project_record(
         database,
         user_id,

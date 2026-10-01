@@ -6,15 +6,19 @@ use crate::asset::AssetDbError;
 use a4n_domain::object_profile::ObjectProfileRecordInput;
 
 use super::read::{
-    ensure_object_profile_project_exists, object_profile_by_id, object_profile_by_normalized_name,
+    ensure_object_profile_project_exists, object_profile_by_normalized_name,
+    object_profile_model_by_id,
 };
-use super::record::{insert_object_profile_record, replace_object_profile_record};
+use super::record::{
+    insert_object_profile_record, object_profile_record, replace_object_profile_record,
+};
+use a4n_domain::object_profile::ObjectProfileRecord;
 
 pub async fn create_object_profile_record<C>(
     db: &C,
     project_id: i64,
     input: ObjectProfileRecordInput,
-) -> Result<object_profile::Model, AssetDbError>
+) -> Result<ObjectProfileRecord, AssetDbError>
 where
     C: ConnectionTrait,
 {
@@ -28,18 +32,20 @@ where
             input.name
         )));
     }
-    insert_object_profile_record(db, project_id, input, PROFILE_OWNERSHIP_USER).await
+    insert_object_profile_record(db, project_id, input, PROFILE_OWNERSHIP_USER)
+        .await
+        .map(object_profile_record)
 }
 
 pub async fn update_object_profile_record<C>(
     db: &C,
     object_profile_id: i64,
     input: ObjectProfileRecordInput,
-) -> Result<object_profile::Model, AssetDbError>
+) -> Result<ObjectProfileRecord, AssetDbError>
 where
     C: ConnectionTrait,
 {
-    let existing = object_profile_by_id(db, object_profile_id).await?;
+    let existing = object_profile_model_by_id(db, object_profile_id).await?;
     if object_profile_by_normalized_name(db, existing.project_id, &input.normalized_name)
         .await?
         .as_ref()
@@ -50,7 +56,9 @@ where
             input.name
         )));
     }
-    replace_object_profile_record(db, existing, input).await
+    replace_object_profile_record(db, existing, input)
+        .await
+        .map(object_profile_record)
 }
 
 pub async fn delete_object_profile_record<C>(

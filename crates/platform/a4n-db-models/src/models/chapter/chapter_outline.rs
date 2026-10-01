@@ -3,12 +3,9 @@
 use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
 
-pub const STATUS_DRAFT: &str = "draft";
-pub const STATUS_COMPLETED: &str = "completed";
-
-pub fn is_valid_status(status: &str) -> bool {
-    matches!(status, STATUS_DRAFT | STATUS_COMPLETED)
-}
+pub use a4n_domain::chapter::chapter_outline_status::{
+    STATUS_COMPLETED, STATUS_DRAFT, is_valid_status,
+};
 
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Serialize, Deserialize)]
 #[sea_orm(table_name = "chapter_outline")]

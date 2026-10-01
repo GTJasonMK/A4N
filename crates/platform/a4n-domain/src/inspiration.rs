@@ -1,5 +1,6 @@
 //! Pure inputs for inspiration-domain records.
 
+use chrono::NaiveDateTime;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
@@ -106,6 +107,14 @@ pub struct InspirationExchangeInsertInput {
     pub project_id: i64,
     pub user_input: String,
     pub assistant_output: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct InspirationMessageRecord {
+    pub id: i64,
+    pub role: String,
+    pub content: String,
+    pub created_at: NaiveDateTime,
 }
 
 #[cfg(test)]

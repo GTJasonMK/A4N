@@ -2,6 +2,7 @@ use a4n_db_models::models::{
     character::protagonist_profile,
     project::{blueprint_character, blueprint_relationship, novel_blueprint},
 };
+use a4n_domain::{object_profile::ObjectProfileRecord, scene_profile::SceneProfileRecord};
 use sea_orm::DbErr;
 use serde_json::Value;
 
@@ -24,7 +25,7 @@ pub struct ChapterProfileEvidence {
 
 #[derive(Debug, Clone)]
 pub enum ChapterObjectProfileContext {
-    Authored(a4n_db_models::models::asset::object_profile::Model),
+    Authored(ObjectProfileRecord),
     Observed {
         profile_id: i64,
         name: String,
@@ -35,7 +36,7 @@ pub enum ChapterObjectProfileContext {
 
 #[derive(Debug, Clone)]
 pub enum ChapterSceneProfileContext {
-    Authored(a4n_db_models::models::scene::scene_profile::Model),
+    Authored(SceneProfileRecord),
     Observed {
         profile_id: i64,
         name: String,

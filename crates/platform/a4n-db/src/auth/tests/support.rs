@@ -1,8 +1,12 @@
 use std::sync::Arc;
 
-use crate::SharedDatabaseConnection;
 use a4n_db_models::models::user::{invite_code, user, user_session};
-use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, Set};
+use sea_orm::{
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter,
+    Set,
+};
+
+type SharedDatabaseConnection = Arc<DatabaseConnection>;
 
 pub(super) async fn setup() -> SharedDatabaseConnection {
     let db = a4n_migration::test_support::connect_test_database().await;

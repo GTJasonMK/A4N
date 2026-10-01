@@ -633,7 +633,7 @@ impl WorkerState {
 
     async fn video_record_is_pushed_source(
         &self,
-        video: &a4n_db_models::models::ai::generated_video::Model,
+        video: &a4n_domain::media::GeneratedVideoRecord,
     ) -> Result<bool, WorkerFailure> {
         if !matches!(
             video.video_type.as_str(),

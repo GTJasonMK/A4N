@@ -134,7 +134,7 @@ impl OrchestratorContext {
         host_port: &dyn CanvasGraphPreparationHostPort,
     ) -> Result<PreparedCanvasGraphRun, String> {
         let run = self
-            .workflow_run_model_by_id(input.workflow_run_id)
+            .workflow_run_summary(input.workflow_run_id)
             .await
             .map_err(|error| error.to_string())?;
         if run.workflow_kind != WORKFLOW_KIND_VIDEO_CANVAS_GRAPH {

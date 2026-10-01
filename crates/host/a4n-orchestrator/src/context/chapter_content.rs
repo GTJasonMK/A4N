@@ -3,7 +3,7 @@ use crate::chapter_content_edit_error_to_app_error;
 use a4n_api_contract::{chapter::ChapterSummary, collaboration::ProjectAccessRole};
 use a4n_db::DbHandle;
 use a4n_db::DbTransaction;
-use a4n_db_models::models::{chapter::chapter, generation::workflow_run};
+use a4n_domain::chapter::ChapterRecord;
 use a4n_error::AppError;
 use dashmap::DashMap;
 use regex::Regex;
@@ -32,11 +32,11 @@ impl ChapterContentApplication {
             .clone()
     }
 
-    async fn process_chapter(&self, chapter: chapter::Model) -> Result<(), AppError> {
+    async fn process_chapter(&self, chapter: ChapterRecord) -> Result<(), AppError> {
         let style_tags = analyze_style_tags(&chapter.content);
         a4n_db::chapter_content::update_chapter_style_tags_record(
             &self.database,
-            chapter,
+            chapter.id,
             &style_tags,
         )
         .await
@@ -44,10 +44,7 @@ impl ChapterContentApplication {
         Ok(())
     }
 
-    async fn chapters_for_project(
-        &self,
-        project_id: i64,
-    ) -> Result<Vec<a4n_db_models::models::chapter::chapter::Model>, AppError> {
+    async fn chapters_for_project(&self, project_id: i64) -> Result<Vec<ChapterRecord>, AppError> {
         a4n_db::chapter_content::chapters_for_project(&self.database, project_id)
             .await
             .map_err(AppError::database)
@@ -56,7 +53,7 @@ impl ChapterContentApplication {
     async fn begin_existing_chapter_content_sync(
         &self,
         chapter_id: i64,
-    ) -> Result<workflow_run::Model, AppError> {
+    ) -> Result<a4n_db::workflow::WorkflowRunSummary, AppError> {
         let tx = self.database.begin().await?;
         let committed = async {
             let chapter = a4n_db::chapter_content::chapter_by_id_for_analysis(&tx, chapter_id)
@@ -68,10 +65,7 @@ impl ChapterContentApplication {
         finish_chapter_content_transaction(tx, committed, "登记章节资料同步").await
     }
 
-    async fn chapter_by_id_for_analysis(
-        &self,
-        chapter_id: i64,
-    ) -> Result<chapter::Model, AppError> {
+    async fn chapter_by_id_for_analysis(&self, chapter_id: i64) -> Result<ChapterRecord, AppError> {
         a4n_db::chapter_content::chapter_by_id_for_analysis(&self.database, chapter_id)
             .await
             .map_err(chapter_content_edit_error_to_app_error)
@@ -157,23 +151,20 @@ impl OrchestratorContext {
         user_id: i64,
         chapter_id: i64,
     ) -> Result<ChapterSummary, AppError> {
-        let chapter = self
-            .chapter_by_id(chapter_id)
-            .await?
-            .ok_or_else(|| AppError::NotFound(format!("章节不存在: chapter_id={chapter_id}")))?;
+        let chapter = self.chapter_by_id_for_analysis(chapter_id).await?;
         self.verify_project_permission(chapter.project_id, user_id, ProjectAccessRole::Viewer)
             .await?;
         self::chapter_summary_with_sync_state(self, &chapter).await
     }
 
-    pub(crate) async fn process_chapter(&self, chapter: chapter::Model) -> Result<(), AppError> {
+    pub(crate) async fn process_chapter(&self, chapter: ChapterRecord) -> Result<(), AppError> {
         self.chapter_content.process_chapter(chapter).await
     }
 
     pub(crate) async fn chapters_for_project(
         &self,
         project_id: i64,
-    ) -> Result<Vec<a4n_db_models::models::chapter::chapter::Model>, AppError> {
+    ) -> Result<Vec<ChapterRecord>, AppError> {
         self.chapter_content.chapters_for_project(project_id).await
     }
 
@@ -188,7 +179,7 @@ impl OrchestratorContext {
     pub(crate) async fn begin_existing_chapter_content_sync(
         &self,
         chapter_id: i64,
-    ) -> Result<workflow_run::Model, AppError> {
+    ) -> Result<a4n_db::workflow::WorkflowRunSummary, AppError> {
         self.chapter_content
             .begin_existing_chapter_content_sync(chapter_id)
             .await
@@ -197,7 +188,7 @@ impl OrchestratorContext {
     pub(crate) async fn chapter_by_id_for_analysis(
         &self,
         chapter_id: i64,
-    ) -> Result<chapter::Model, AppError> {
+    ) -> Result<ChapterRecord, AppError> {
         self.chapter_content
             .chapter_by_id_for_analysis(chapter_id)
             .await
@@ -226,13 +217,13 @@ mod post_process_tests {
     }
 }
 
-pub(crate) fn chapter_summary(chapter: &chapter::Model) -> ChapterSummary {
+pub(crate) fn chapter_summary(chapter: &ChapterRecord) -> ChapterSummary {
     a4n_chapter_content_core::chapter_summary(chapter)
 }
 
 pub(crate) async fn chapter_summaries_with_sync_state(
     state: &OrchestratorContext,
-    chapters: &[chapter::Model],
+    chapters: &[ChapterRecord],
 ) -> Result<Vec<ChapterSummary>, AppError> {
     let Some(project_id) = chapters.first().map(|chapter| chapter.project_id) else {
         return Ok(Vec::new());
@@ -251,7 +242,9 @@ pub(crate) async fn chapter_summaries_with_sync_state(
         .chain(&content_runs)
         .map(|run| run.id)
         .collect::<Vec<_>>();
-    let checkpoints = state.workflow_checkpoint_models_for_runs(&run_ids).await?;
+    let checkpoints = state
+        .workflow_checkpoint_summaries_for_runs(&run_ids)
+        .await?;
     let mut summaries = chapters.iter().map(chapter_summary).collect::<Vec<_>>();
     a4n_chapter_content_core::attach_chapter_sync_state(
         chapters,
@@ -265,7 +258,7 @@ pub(crate) async fn chapter_summaries_with_sync_state(
 
 pub(crate) async fn chapter_summary_with_sync_state(
     state: &OrchestratorContext,
-    chapter: &chapter::Model,
+    chapter: &ChapterRecord,
 ) -> Result<ChapterSummary, AppError> {
     let mut summaries =
         chapter_summaries_with_sync_state(state, std::slice::from_ref(chapter)).await?;

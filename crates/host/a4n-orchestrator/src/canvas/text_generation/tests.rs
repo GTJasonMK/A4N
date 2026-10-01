@@ -152,9 +152,7 @@ fn node_input(client_id: &str, node_kind: &str, config_json: Value) -> CanvasNod
     }
 }
 
-fn target_node(
-    document: &CanvasGraphRecordDocument,
-) -> &a4n_db_models::models::canvas::canvas_node::Model {
+fn target_node(document: &CanvasGraphRecordDocument) -> &a4n_domain::canvas::CanvasNodeRecord {
     document
         .nodes
         .iter()
@@ -165,7 +163,7 @@ fn target_node(
 #[test]
 fn canvas_text_input_and_render_rules_are_owned_by_orchestrator() {
     let now = chrono::Utc::now().naive_utc();
-    let graph = a4n_db_models::models::canvas::canvas_graph::Model {
+    let graph = a4n_domain::canvas::CanvasGraphRecord {
         id: 1,
         project_id: 2,
         name: "测试".to_string(),
@@ -175,7 +173,7 @@ fn canvas_text_input_and_render_rules_are_owned_by_orchestrator() {
         created_at: now,
         updated_at: now,
     };
-    let source = a4n_db_models::models::canvas::canvas_node::Model {
+    let source = a4n_domain::canvas::CanvasNodeRecord {
         id: 10,
         graph_id: 1,
         node_kind: "TextInputNode".to_string(),
@@ -187,7 +185,7 @@ fn canvas_text_input_and_render_rules_are_owned_by_orchestrator() {
         created_at: now,
         updated_at: now,
     };
-    let llm = a4n_db_models::models::canvas::canvas_node::Model {
+    let llm = a4n_domain::canvas::CanvasNodeRecord {
         id: 11,
         graph_id: 1,
         node_kind: "LlmTextNode".to_string(),
@@ -205,7 +203,7 @@ fn canvas_text_input_and_render_rules_are_owned_by_orchestrator() {
         created_at: now,
         updated_at: now,
     };
-    let render = a4n_db_models::models::canvas::canvas_node::Model {
+    let render = a4n_domain::canvas::CanvasNodeRecord {
         id: 12,
         node_kind: "RenderTextNode".to_string(),
         config_json: json!({
@@ -215,7 +213,7 @@ fn canvas_text_input_and_render_rules_are_owned_by_orchestrator() {
         ..llm.clone()
     };
     let source_id = source.id;
-    let edge = |target_node_id| a4n_db_models::models::canvas::canvas_edge::Model {
+    let edge = |target_node_id| a4n_domain::canvas::CanvasEdgeRecord {
         id: target_node_id,
         graph_id: 1,
         source_node_id: source_id,

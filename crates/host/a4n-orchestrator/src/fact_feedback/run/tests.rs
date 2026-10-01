@@ -100,6 +100,9 @@ async fn preparation_failure_remains_visible_and_resumes_after_repair() {
     .insert(db.as_ref())
     .await
     .unwrap();
+    let chapter = a4n_db::chapter_content::chapter_by_id_for_analysis(db.as_ref(), chapter.id)
+        .await
+        .unwrap();
     let source_run = context
         .begin_or_resume_workflow_run_validated(workflow_input(
             project.id,
@@ -147,7 +150,7 @@ async fn preparation_failure_remains_visible_and_resumes_after_repair() {
         .unwrap();
     assert_eq!(
         context
-            .workflow_run_model_by_id(failed.id)
+            .workflow_run_summary(failed.id)
             .await
             .unwrap()
             .status,

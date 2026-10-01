@@ -3,13 +3,15 @@ use super::super::{
 };
 use super::record::insert_generated_image_record;
 use super::validation::validate_create_generated_image_record_input;
-use a4n_db_models::models::ai::generated_image;
+use a4n_domain::media::GeneratedImageRecord;
 use sea_orm::{ConnectionTrait, TransactionTrait};
+
+use crate::video::media_mapping::generated_image_record_from_model;
 
 pub async fn create_generated_image_record<C>(
     db: &C,
     input: CreateGeneratedImageRecordDraftInput,
-) -> Result<generated_image::Model, VideoDbError>
+) -> Result<GeneratedImageRecord, VideoDbError>
 where
     C: ConnectionTrait + TransactionTrait,
 {
@@ -20,5 +22,5 @@ where
         .await
         .map_err(VideoDbError::Database)?;
     txn.commit().await.map_err(VideoDbError::Database)?;
-    Ok(image)
+    Ok(generated_image_record_from_model(image))
 }

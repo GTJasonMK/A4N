@@ -7,6 +7,8 @@ use super::context::{
     update_prompt_status_record,
 };
 use crate::video::VideoDbError;
+use crate::video::media_mapping::generated_video_record_from_model;
+use a4n_domain::media::GeneratedVideoRecord;
 
 async fn update_generated_video_waiting_status_and_prompt_record_in<C>(
     db: &C,
@@ -48,7 +50,7 @@ pub async fn update_generated_video_waiting_status_and_prompt_record<C>(
     video_id: i64,
     prompt_id: Option<i64>,
     status: &str,
-) -> Result<generated_video::Model, VideoDbError>
+) -> Result<GeneratedVideoRecord, VideoDbError>
 where
     C: ConnectionTrait + TransactionTrait,
 {
@@ -59,5 +61,5 @@ where
     )
     .await?;
     txn.commit().await.map_err(VideoDbError::Database)?;
-    Ok(updated)
+    Ok(generated_video_record_from_model(updated))
 }

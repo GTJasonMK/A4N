@@ -1,4 +1,5 @@
 use a4n_db_models::models::chapter::chapter_video_prompt;
+use a4n_domain::video_prompt::ChapterVideoPromptRecord;
 use a4n_video_contract::VideoShootingScriptIdentityV1;
 use sea_orm::ConnectionTrait;
 use serde_json::{Value, json};
@@ -8,8 +9,8 @@ use crate::shooting_script::ShootingScriptDbError;
 /// 状态只在读取时计算；历史规划和生成文件保留各自的真实来源。
 pub async fn with_video_plan_source_sync<C: ConnectionTrait>(
     db: &C,
-    mut row: chapter_video_prompt::Model,
-) -> Result<chapter_video_prompt::Model, crate::video::VideoDbError> {
+    mut row: ChapterVideoPromptRecord,
+) -> Result<ChapterVideoPromptRecord, crate::video::VideoDbError> {
     if row.workflow_mode == chapter_video_prompt::WORKFLOW_MODE_SHARED_SEGMENT_PLAN
         && row.prompt_type == chapter_video_prompt::PROMPT_TYPE_FRAME_SEGMENT_PLAN
         && row.status == chapter_video_prompt::STATUS_COMPLETED
@@ -39,7 +40,7 @@ pub async fn with_video_plan_source_sync<C: ConnectionTrait>(
 
 async fn video_plan_stale_shot_ids<C: ConnectionTrait>(
     db: &C,
-    row: &chapter_video_prompt::Model,
+    row: &ChapterVideoPromptRecord,
 ) -> Result<Vec<String>, ShootingScriptDbError> {
     let metadata = row
         .metadata_json

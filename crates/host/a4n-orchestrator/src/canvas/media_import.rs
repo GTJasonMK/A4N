@@ -5,7 +5,6 @@ use a4n_canvas_contract::{
     CanvasVideoImportApplicationPort, CanvasVideoImportApplicationResult,
     CanvasVideoImportHostInput, CanvasVideoImportHostPort,
 };
-use a4n_db_models::models::media::media_asset;
 use a4n_error::AppError;
 use async_trait::async_trait;
 
@@ -23,7 +22,7 @@ impl OrchestratorContext {
         user_id: i64,
         input: CanvasImageImportHostInput,
     ) -> Result<CanvasImageImportApplicationResult, AppError> {
-        self.authorized_canvas_video_project(input.project_id, user_id)
+        self.authorized_canvas_video_project(input.project_id, user_id, false)
             .await?;
         let project_id = input.project_id;
         let image = host_port.import_canvas_image(input).await?;
@@ -72,7 +71,7 @@ impl OrchestratorContext {
         user_id: i64,
         input: CanvasVideoImportHostInput,
     ) -> Result<CanvasVideoImportApplicationResult, AppError> {
-        self.authorized_canvas_video_project(input.project_id, user_id)
+        self.authorized_canvas_video_project(input.project_id, user_id, false)
             .await?;
         let project_id = input.project_id;
         let video_id = host_port.import_canvas_video(input).await?;
@@ -113,7 +112,8 @@ impl OrchestratorContext {
         &self,
         project_id: i64,
         user_id: i64,
-    ) -> Result<a4n_db_models::models::project::novel_project::Model, AppError> {
+        require_freeform: bool,
+    ) -> Result<(), AppError> {
         if project_id <= 0 {
             return Err(AppError::InvalidArgument(
                 "项目 ID 必须是正整数".to_string(),
@@ -134,7 +134,16 @@ impl OrchestratorContext {
                 "画布媒体导入只支持视频项目".to_string(),
             ));
         }
-        Ok(project)
+        if require_freeform
+            && project.source_mode().map_err(|error| {
+                AppError::InvalidArgument(format!("项目 {}: {error}", project.id))
+            })? != a4n_domain::project::ProjectSourceMode::Freeform
+        {
+            return Err(AppError::InvalidArgument(
+                "画布音频导入只支持自由视频项目".to_string(),
+            ));
+        }
+        Ok(())
     }
 }
 
@@ -178,7 +187,9 @@ impl CanvasAudioImportApplicationPort for OrchestratorContext {
     }
 }
 
-fn canvas_media_asset_summary(asset: media_asset::Model) -> CanvasMediaAssetSummary {
+fn canvas_media_asset_summary(
+    asset: a4n_domain::media::MediaAssetRecord,
+) -> CanvasMediaAssetSummary {
     CanvasMediaAssetSummary {
         id: asset.id,
         project_id: asset.project_id,

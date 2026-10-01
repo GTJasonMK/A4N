@@ -1,5 +1,6 @@
 use super::*;
 
+use super::projections::workflow_checkpoint_summary;
 use super::queries::{locked_workflow_run_by_id, workflow_checkpoints};
 use super::validation::ensure_workflow_write_open;
 use sea_orm::{FromQueryResult, sea_query::extension::postgres::PgExpr};
@@ -169,17 +170,21 @@ where
     Ok(())
 }
 
-pub async fn workflow_checkpoint_models(
+pub async fn workflow_checkpoint_summaries(
     db: &DatabaseConnection,
     workflow_run_id: i64,
-) -> Result<Vec<workflow_checkpoint::Model>, WorkflowReadError> {
-    workflow_checkpoints(db, workflow_run_id).await
+) -> Result<Vec<WorkflowCheckpointSummary>, WorkflowReadError> {
+    Ok(workflow_checkpoints(db, workflow_run_id)
+        .await?
+        .into_iter()
+        .map(workflow_checkpoint_summary)
+        .collect())
 }
 
-pub async fn workflow_checkpoint_models_for_runs(
+pub async fn workflow_checkpoint_summaries_for_runs(
     db: &DatabaseConnection,
     workflow_run_ids: &[i64],
-) -> Result<Vec<workflow_checkpoint::Model>, WorkflowReadError> {
+) -> Result<Vec<WorkflowCheckpointSummary>, WorkflowReadError> {
     for workflow_run_id in workflow_run_ids {
         validate_positive_i64(*workflow_run_id, "workflow_run_id")?;
     }
@@ -193,6 +198,7 @@ pub async fn workflow_checkpoint_models_for_runs(
         .order_by_asc(workflow_checkpoint::Column::Id)
         .all(db)
         .await
+        .map(|rows| rows.into_iter().map(workflow_checkpoint_summary).collect())
         .map_err(WorkflowReadError::Database)
 }
 

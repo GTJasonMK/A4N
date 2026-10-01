@@ -1,4 +1,4 @@
-use a4n_db_models::models::chapter::chapter_video_prompt;
+use a4n_domain::video_prompt::{ChapterVideoPromptRecord, chapter_video_prompt};
 use a4n_error::AppError;
 use std::collections::{HashMap, HashSet};
 
@@ -81,7 +81,7 @@ pub(in crate::video::prompts::generation::frame_prompts) async fn generate_share
     input: SharedSegmentPlanInput<'_, '_>,
     mut chunks: Option<VideoPromptChunk<'_>>,
     mut progress: Option<VideoPromptProgress<'_>>,
-) -> Result<Vec<chapter_video_prompt::Model>, AppError> {
+) -> Result<Vec<ChapterVideoPromptRecord>, AppError> {
     let SharedSegmentPlanInput { service, stage } = input;
     let ChapterVideoPromptStageInput {
         project_id,

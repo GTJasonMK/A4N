@@ -1,9 +1,9 @@
-use a4n_db_models::models::character::{
-    attribute_event, character_state_index, foreshadowing_index,
-};
+use a4n_db::rag::{RagAttributeEventRow, RagCharacterStateRow, RagForeshadowingRow};
+use a4n_db_models::models::character::{attribute_event, character_state_index};
 use a4n_domain::rag::RagDataType;
 use a4n_orchestrator::rag::{
-    character_attribute_event_rag_record, character_state_rag_record, foreshadowing_rag_record,
+    character_attribute_event_rag_record, character_attribute_event_rag_record_from_row,
+    character_state_rag_record, character_state_rag_record_from_row, foreshadowing_rag_record,
 };
 use chrono::{NaiveDate, NaiveDateTime};
 use serde_json::json;
@@ -47,18 +47,15 @@ fn attribute_event() -> attribute_event::Model {
     }
 }
 
-fn foreshadowing() -> foreshadowing_index::Model {
-    foreshadowing_index::Model {
+fn foreshadowing() -> RagForeshadowingRow {
+    RagForeshadowingRow {
         id: 80,
-        project_id: 1,
         description: "旧导航图上的缺口指向被删除的星门坐标。".to_string(),
         setup_chapter: 3,
         payoff_chapter: Some(12),
         status: "pending".to_string(),
         related_characters: Some(json!(["林舟", "沈砚"])),
         importance: 5,
-        created_at: ts(),
-        updated_at: ts(),
     }
 }
 
@@ -77,6 +74,22 @@ fn character_state_contract_preserves_required_text_and_metadata() {
         RagDataType::CharacterState.as_str()
     );
     assert!(record.text.contains("位置: 边境城"));
+
+    let row = RagCharacterStateRow {
+        id: 50,
+        profile_id: 40,
+        chapter_number: 3,
+        state_summary: "确认星门坐标可能仍有效。".to_string(),
+        key_attributes: json!({"trust": "低"}),
+        emotional_state: Some("警惕".to_string()),
+        current_location: Some("边境城".to_string()),
+        current_goal: Some("找到旧导航图".to_string()),
+        created_at: ts(),
+    };
+    let row_record =
+        character_state_rag_record_from_row(9, &row, "林舟").expect("state row record");
+    assert_eq!(row_record.chunk_id, record.chunk_id);
+    assert_eq!(row_record.text, record.text);
 }
 
 #[test]
@@ -94,6 +107,26 @@ fn attribute_event_contract_preserves_labels_values_and_metadata() {
     assert!(record.text.contains("操作: 修改"));
     assert!(record.text.contains("原值: 低"));
     assert!(record.text.contains("新值: 中"));
+
+    let row = RagAttributeEventRow {
+        id: 70,
+        profile_id: 40,
+        chapter_number: 3,
+        source_kind: "ai_sync".to_string(),
+        timestamp: ts(),
+        category: "implicit".to_string(),
+        key: "trust".to_string(),
+        operation: "modify".to_string(),
+        change_description: "对沈砚的信任提高。".to_string(),
+        old_value: json!("低"),
+        new_value: json!("中"),
+        cause: "共同脱险".to_string(),
+        evidence: "林舟主动交出导航图。".to_string(),
+    };
+    let row_record = character_attribute_event_rag_record_from_row(9, &row, "林舟")
+        .expect("attribute event row record");
+    assert_eq!(row_record.chunk_id, record.chunk_id);
+    assert_eq!(row_record.text, record.text);
 }
 
 #[test]

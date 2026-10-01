@@ -1,9 +1,8 @@
 //! 漫画页面 layout JSON 纯字段规则。
 
-use a4n_db_models::models::chapter::chapter_manga_prompt;
 use a4n_domain::{
     DownstreamConflictStrategy,
-    manga::{MangaBoundReferenceAsset, MangaPageGenerationLayoutV2},
+    manga::{MangaBoundReferenceAsset, MangaPageGenerationLayoutV2, MangaPagePromptRecord},
 };
 
 pub(crate) use a4n_manga_core::manga_page_generation_layout;
@@ -33,7 +32,7 @@ pub(crate) fn bind_reference_asset_in_layout(
 
 /// 确定整页漫画提示词变更前的下游图片处理。
 pub(crate) fn resolve_manga_prompt_downstream_conflict(
-    page_prompt: &chapter_manga_prompt::Model,
+    page_prompt: &MangaPagePromptRecord,
     strategy: DownstreamConflictStrategy,
     operation: &str,
 ) -> Result<Option<i64>, String> {

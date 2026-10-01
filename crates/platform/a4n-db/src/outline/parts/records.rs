@@ -1,7 +1,11 @@
 use a4n_db_models::models::chapter::part_outline;
+use a4n_domain::chapter::PartOutlineRecord;
 use chrono::NaiveDateTime;
 use sea_orm::{ActiveModelTrait, ConnectionTrait, Set};
 
+use super::super::record_mapping::{
+    part_outline_model_from_record, part_outline_record_from_model,
+};
 use super::super::{OutlineDbError, PartOutlineSyncDraft};
 
 pub(super) fn part_outline_active_model(
@@ -31,25 +35,28 @@ pub async fn insert_part_outline_record<C>(
     project_id: i64,
     draft: &PartOutlineSyncDraft,
     now: NaiveDateTime,
-) -> Result<part_outline::Model, OutlineDbError>
+) -> Result<PartOutlineRecord, OutlineDbError>
 where
     C: ConnectionTrait,
 {
-    Ok(part_outline_active_model(project_id, draft, now)
-        .insert(db)
-        .await?)
+    Ok(part_outline_record_from_model(
+        part_outline_active_model(project_id, draft, now)
+            .insert(db)
+            .await?,
+    ))
 }
 
 /// 更新既有分部大纲记录。
 pub async fn update_part_outline_record<C>(
     db: &C,
-    existing: part_outline::Model,
+    existing: PartOutlineRecord,
     draft: &PartOutlineSyncDraft,
     now: NaiveDateTime,
-) -> Result<part_outline::Model, OutlineDbError>
+) -> Result<PartOutlineRecord, OutlineDbError>
 where
     C: ConnectionTrait,
 {
+    let existing = part_outline_model_from_record(existing);
     let updated_at = std::cmp::max(now, existing.updated_at + chrono::Duration::microseconds(1));
     let mut active: part_outline::ActiveModel = existing.into();
     active.part_number = Set(draft.part_number);
@@ -61,7 +68,7 @@ where
     active.key_events = Set(Some(draft.key_events.clone()));
     active.character_focus = Set(Some(draft.character_focus.clone()));
     active.updated_at = Set(updated_at);
-    Ok(active.update(db).await?)
+    Ok(part_outline_record_from_model(active.update(db).await?))
 }
 
 pub(super) fn part_outline_matches(

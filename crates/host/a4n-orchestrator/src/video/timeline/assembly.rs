@@ -52,7 +52,9 @@ impl OrchestratorContext {
         user_id: i64,
         input: CommitInsertedSegmentDraftInput,
     ) -> Result<VideoTimelineSummary, AppError> {
-        let run = self.workflow_run_model_by_id(input.workflow_run_id).await?;
+        let run = crate::workflow::workflow_run_summary_to_api(
+            self.workflow_run_summary(input.workflow_run_id).await?,
+        );
         validate_inserted_workflow_scope(&run, &input)?;
         let project_id = run.project_id.ok_or_else(|| AppError::InvalidState {
             current: "inserted_segment_workflow_missing_project".to_string(),
@@ -527,7 +529,10 @@ pub(crate) struct VideoTimelineAssemblyOrder {
 }
 
 impl VideoTimelineAssemblyOrder {
-    pub(crate) fn display_index_for_video(&self, video: &generated_video::Model) -> Option<i32> {
+    pub(crate) fn display_index_for_video(
+        &self,
+        video: &a4n_domain::media::GeneratedVideoRecord,
+    ) -> Option<i32> {
         let item_id = match video.timeline_item_id {
             Some(item_id) => item_id,
             None => {
@@ -591,7 +596,7 @@ pub(crate) fn video_timeline_assembly_order_from_snapshot(
 }
 
 pub(crate) fn video_matches_timeline_item(
-    video: &a4n_db_models::models::ai::generated_video::Model,
+    video: &a4n_domain::media::GeneratedVideoRecord,
     item: &a4n_db_models::models::chapter::chapter_video_timeline_item::Model,
 ) -> bool {
     let identity = video

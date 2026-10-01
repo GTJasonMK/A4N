@@ -6,7 +6,6 @@ use a4n_api_contract::galgame::{
     UnbindGalgameMediaInput, UpdateGalgameChoicesInput, UpdateGalgameLineInput,
     UpdateGalgameSceneInput,
 };
-use a4n_db_models::models::generation::workflow_run;
 use a4n_domain::project::ProjectKind;
 use a4n_error::AppError;
 use a4n_prompt::rendering::PromptRenderer;
@@ -110,7 +109,7 @@ impl OrchestratorContext {
         &self,
         user_id: i64,
         project_id: i64,
-    ) -> Result<workflow_run::Model, AppError> {
+    ) -> Result<(), AppError> {
         self.verify_galgame_project_access(user_id, project_id, ProjectAccessRole::Editor)
             .await?;
         self.cancel_galgame_pipeline_validated(project_id).await
@@ -247,7 +246,7 @@ impl OrchestratorContext {
             .await?;
         let (project_result, runs_result) = futures::join!(
             self.project_by_id(project_id),
-            self.workflow_run_models(ListWorkflowRunsInput {
+            self.workflow_runs(ListWorkflowRunsInput {
                 project_id: Some(project_id),
                 chapter_id: None,
                 chapter_ids: None,
@@ -267,7 +266,7 @@ impl OrchestratorContext {
         }
         let run = runs_result?.into_iter().next();
         let checkpoints = match &run {
-            Some(run) => self.workflow_checkpoint_models(run.id).await?,
+            Some(run) => self.workflow_checkpoint_summaries(run.id).await?,
             None => Vec::new(),
         };
         Ok(super::read_models::galgame_pipeline_status_summary(
@@ -338,13 +337,10 @@ impl OrchestratorContext {
             .await
     }
 
-    pub async fn cancel_galgame_pipeline_validated(
-        &self,
-        project_id: i64,
-    ) -> Result<workflow_run::Model, AppError> {
+    pub async fn cancel_galgame_pipeline_validated(&self, project_id: i64) -> Result<(), AppError> {
         let (project_result, runs_result) = futures::join!(
             self.project_by_id(project_id),
-            self.workflow_run_models(ListWorkflowRunsInput {
+            self.workflow_runs(ListWorkflowRunsInput {
                 project_id: Some(project_id),
                 chapter_id: None,
                 chapter_ids: None,
@@ -370,7 +366,8 @@ impl OrchestratorContext {
                 operation: "取消 Galgame 管线".to_string(),
             })?;
         self.cancel_workflow_run_status_validated(run.id, "用户请求取消 Galgame 管线")
-            .await
+            .await?;
+        Ok(())
     }
 }
 

@@ -146,11 +146,21 @@ async fn director_resources_are_family_scoped_and_survive_supersession() {
     )
     .await
     .unwrap();
-    let mut image_row: generated_image::ActiveModel = image.clone().into();
+    let image_model = generated_image::Entity::find_by_id(image.id)
+        .one(&db)
+        .await
+        .unwrap()
+        .unwrap();
+    let mut image_row: generated_image::ActiveModel = image_model.into();
     image_row.project_id = Set(media_project.id);
     image_row.file_path = Set(format!("projects/{}/images/director.png", media_project.id));
     image_row.update(&db).await.unwrap();
-    let mut scene_row: scene_profile::ActiveModel = scene.clone().into();
+    let scene_model = scene_profile::Entity::find_by_id(scene.id)
+        .one(&db)
+        .await
+        .unwrap()
+        .unwrap();
+    let mut scene_row: scene_profile::ActiveModel = scene_model.into();
     scene_row.project_id = Set(media_project.id);
     scene_row.update(&db).await.unwrap();
     input.plan.points[0].image_id = Some(image.id);
@@ -165,11 +175,13 @@ async fn director_resources_are_family_scoped_and_survive_supersession() {
             .to_string()
             .contains("导演编排引用")
     );
-    let mut deleting: a4n_db_models::models::project::novel_project::ActiveModel =
-        media_project.clone().into();
-    deleting.lifecycle_gate = Set(a4n_domain::generation::ProjectLifecycleOperation::Delete
-        .gate()
-        .to_string());
+    let deleting = a4n_db_models::models::project::novel_project::ActiveModel {
+        id: Set(media_project.id),
+        lifecycle_gate: Set(a4n_domain::generation::ProjectLifecycleOperation::Delete
+            .gate()
+            .to_string()),
+        ..Default::default()
+    };
     deleting.update(&db).await.unwrap();
     assert!(
         a4n_db::project::delete::delete_project_cascade_record(&db, media_project.id)
@@ -178,9 +190,11 @@ async fn director_resources_are_family_scoped_and_survive_supersession() {
             .to_string()
             .contains("导演编排引用")
     );
-    let mut restored: a4n_db_models::models::project::novel_project::ActiveModel =
-        media_project.clone().into();
-    restored.lifecycle_gate = Set(media_project.lifecycle_gate.clone());
+    let restored = a4n_db_models::models::project::novel_project::ActiveModel {
+        id: Set(media_project.id),
+        lifecycle_gate: Set(media_project.lifecycle_gate.clone()),
+        ..Default::default()
+    };
     restored.update(&db).await.unwrap();
     assert!(
         a4n_db::scene_profile::delete_scene_profile_records(&db, scene.id)
@@ -295,8 +309,11 @@ async fn source_precondition_is_checked_inside_the_save_transaction() {
     // Hold a real concurrent source update open. The plan save must wait for
     // it, then reject the old hash rather than publish the stale rewrite.
     let tx = db.begin().await.unwrap();
-    let mut changed: chapter::ActiveModel = chapter.into();
-    changed.content = Set("原文版本二".into());
+    let changed = chapter::ActiveModel {
+        id: Set(chapter.id),
+        content: Set("原文版本二".into()),
+        ..Default::default()
+    };
     changed.update(&tx).await.unwrap();
     let save_db = db.clone();
     let mut pending =

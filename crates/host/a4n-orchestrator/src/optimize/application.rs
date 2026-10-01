@@ -10,10 +10,8 @@ use a4n_api_contract::{
     },
 };
 use a4n_db::optimize::OptimizationChapterPatchWriteInput;
-use a4n_db_models::models::ai::{
-    optimization_patch, optimization_patch_set, optimization_session, optimization_turn,
-    optimization_turn_event,
-};
+use a4n_db_models::models::ai::{optimization_patch, optimization_patch_set, optimization_session};
+use a4n_domain::optimization::{OptimizationTurnEventRecord, OptimizationTurnRecord};
 use a4n_error::AppError;
 use a4n_llm_provider_contract::provider::ChatRequest;
 use a4n_optimize_host_contract::{
@@ -69,7 +67,7 @@ impl OrchestratorContext {
         user_id: i64,
         project_id: i64,
         chapter_number: i32,
-    ) -> Result<a4n_db_models::models::chapter::chapter::Model, AppError> {
+    ) -> Result<a4n_domain::chapter::ChapterRecord, AppError> {
         self.verify_project_permission(project_id, user_id, ProjectAccessRole::Editor)
             .await?;
         self.chapter_by_project_number(project_id, chapter_number)
@@ -1023,8 +1021,8 @@ fn optimization_session_summary(
 }
 
 fn optimization_turn_summary(
-    turn: &optimization_turn::Model,
-    events: Vec<optimization_turn_event::Model>,
+    turn: &OptimizationTurnRecord,
+    events: Vec<OptimizationTurnEventRecord>,
 ) -> Result<OptimizationTurnSummary, AppError> {
     Ok(OptimizationTurnSummary {
         id: turn.id,

@@ -3,16 +3,19 @@ use a4n_db::blueprint::context::{
     blueprint_relationship_llm_context,
 };
 use a4n_db_models::models::{
-    asset::object_profile,
-    chapter::{chapter_outline, part_outline},
     character::{foreshadowing_index, protagonist_profile},
-    project::{blueprint_character, blueprint_relationship, novel_blueprint, novel_project},
-    scene::scene_profile,
+    project::{blueprint_character, blueprint_relationship, novel_blueprint},
+};
+use a4n_domain::{
+    chapter::{ChapterOutlineRecord, PartOutlineRecord},
+    object_profile::ObjectProfileRecord,
+    project::ProjectRecord,
+    scene_profile::SceneProfileRecord,
 };
 use serde_json::{Value, json};
 
 pub(in crate::outline) fn outline_blueprint_context_json(
-    project: &novel_project::Model,
+    project: &ProjectRecord,
     blueprint: Option<&novel_blueprint::Model>,
     characters: &[blueprint_character::Model],
     relationships: &[blueprint_relationship::Model],
@@ -88,8 +91,8 @@ pub(in crate::outline) fn outline_blueprint_context_json(
 
 pub(crate) fn outline_formal_materials_context_json(
     profiles: &[protagonist_profile::Model],
-    objects: &[object_profile::Model],
-    scenes: &[scene_profile::Model],
+    objects: &[ObjectProfileRecord],
+    scenes: &[SceneProfileRecord],
     foreshadowing: &[foreshadowing_index::Model],
 ) -> Value {
     json!({
@@ -132,7 +135,7 @@ pub(in crate::outline) fn has_outline_generation_source(
             })
 }
 
-pub(in crate::outline) fn part_context_json(part: &part_outline::Model) -> Value {
+pub(in crate::outline) fn part_context_json(part: &PartOutlineRecord) -> Value {
     json!({
         "part_number": part.part_number,
         "title": part.title.clone(),
@@ -172,7 +175,7 @@ fn character_profile_context_json(profile: &protagonist_profile::Model) -> Value
     Value::Object(value)
 }
 
-fn object_profile_context_json(profile: &object_profile::Model) -> Value {
+fn object_profile_context_json(profile: &ObjectProfileRecord) -> Value {
     let mut value = serde_json::Map::new();
     insert_text(&mut value, "name", &profile.name);
     insert_json(&mut value, "aliases", &profile.aliases_json);
@@ -203,7 +206,7 @@ fn object_profile_context_json(profile: &object_profile::Model) -> Value {
     Value::Object(value)
 }
 
-fn scene_profile_context_json(profile: &scene_profile::Model) -> Value {
+fn scene_profile_context_json(profile: &SceneProfileRecord) -> Value {
     let mut value = serde_json::Map::new();
     insert_text(&mut value, "name", &profile.name);
     insert_json(&mut value, "aliases", &profile.aliases_json);
@@ -291,7 +294,7 @@ fn is_meaningful_json(value: &Value) -> bool {
     }
 }
 
-pub(crate) fn chapter_outline_context_json(outline: &chapter_outline::Model) -> Value {
+pub(crate) fn chapter_outline_context_json(outline: &ChapterOutlineRecord) -> Value {
     json!({
         "chapter_number": outline.chapter_number,
         "title": outline.title.clone(),

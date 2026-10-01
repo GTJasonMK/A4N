@@ -1,4 +1,4 @@
-use a4n_db_models::models::chapter::{chapter_outline, part_outline};
+use a4n_domain::chapter::{ChapterOutlineRecord, PartOutlineRecord};
 use a4n_error::AppError;
 use a4n_llm_provider_contract::provider::is_truncated_finish_reason;
 
@@ -29,7 +29,7 @@ pub fn progress_total(chapter_count: i32) -> Result<u32, AppError> {
     })
 }
 
-pub fn batch_parts_progress_total(parts: &[part_outline::Model]) -> Result<u32, AppError> {
+pub fn batch_parts_progress_total(parts: &[PartOutlineRecord]) -> Result<u32, AppError> {
     if parts.is_empty() {
         return Err(AppError::InvalidArgument(
             "批量章节大纲生成至少需要一个分部".to_string(),
@@ -43,7 +43,7 @@ pub fn batch_parts_progress_total(parts: &[part_outline::Model]) -> Result<u32, 
     })
 }
 
-pub fn order_parts_for_batch_generation(parts: &mut [part_outline::Model]) {
+pub fn order_parts_for_batch_generation(parts: &mut [PartOutlineRecord]) {
     parts.sort_by_key(|part| (part.part_number, part.id));
 }
 
@@ -86,7 +86,7 @@ pub fn ensure_response_not_truncated(
 }
 
 pub fn validate_existing_chapter_outline_for_request(
-    outline: &chapter_outline::Model,
+    outline: &ChapterOutlineRecord,
     chapter_number: i32,
     expected_part_id: Option<i64>,
 ) -> Result<(), AppError> {

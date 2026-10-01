@@ -57,6 +57,7 @@ pub struct WorkflowRunSummary {
     pub status: String,
     pub current_step_key: Option<String>,
     pub progress: Option<WorkflowRunProgressSummary>,
+    pub progress_json: Option<Value>,
     pub active_task_id: Option<String>,
     pub can_resume: bool,
     pub resume_block_reason: Option<String>,

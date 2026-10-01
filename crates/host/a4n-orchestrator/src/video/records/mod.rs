@@ -1,17 +1,15 @@
 use a4n_error::AppError;
 use std::collections::{HashMap, HashSet};
 
-use a4n_db_models::models::{
-    ai::{generated_image, generated_video},
-    chapter::chapter_video_prompt,
-};
 use a4n_domain::source_spans::metadata_source_content_sha256;
+use a4n_domain::video_prompt::ChapterVideoPromptRecord;
 use a4n_domain::{
     AssemblyPostprocessOperation, CanvasFrameKind, EXTERNAL_IMPORT_MODEL,
     image::{
         IMAGE_GENERATION_SOURCE_VIDEO_TAIL_FRAME_CAPTURE, IMAGE_TYPE_CANVAS_FRAME,
         IMAGE_TYPE_VIDEO_TAIL_FRAME,
     },
+    media::GeneratedVideoRecord,
     source_text_hash,
     video_workflow::{
         WORKFLOW_MODE_CANVAS_ASSEMBLY, WORKFLOW_MODE_CANVAS_TRIM, WORKFLOW_MODE_CANVAS_VIDEO,
@@ -69,8 +67,8 @@ use super::{
 
 #[derive(Debug, Clone)]
 pub(crate) struct PreparedImportedChapterVideoRecord {
-    pub video: generated_video::Model,
-    pub prompt: chapter_video_prompt::Model,
+    pub video: GeneratedVideoRecord,
+    pub prompt: ChapterVideoPromptRecord,
 }
 
 #[derive(Debug, Clone)]
@@ -97,7 +95,7 @@ pub struct VideoGenerationRecordInput {
     pub prompt_id: Option<i64>,
 }
 
-pub(crate) fn generated_video_summary(video: &generated_video::Model) -> GeneratedVideoSummary {
+pub(crate) fn generated_video_summary(video: &GeneratedVideoRecord) -> GeneratedVideoSummary {
     GeneratedVideoSummary {
         id: video.id,
         project_id: video.project_id,
@@ -128,7 +126,7 @@ pub(crate) fn generated_video_summary(video: &generated_video::Model) -> Generat
 }
 
 fn video_import_record_summary(
-    video: &generated_video::Model,
+    video: &GeneratedVideoRecord,
     prompt_id: Option<i64>,
 ) -> VideoImportRecordSummary {
     VideoImportRecordSummary {

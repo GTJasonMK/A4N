@@ -1,5 +1,5 @@
 use a4n_db::workflow::{self, CompletedLlmCallCheckpoint, CompletedLlmCallCheckpointInput};
-use a4n_db_models::models::chapter::chapter_outline;
+use a4n_domain::chapter::ChapterOutlineRecord;
 use a4n_error::AppError;
 use chrono::Utc;
 use serde_json::Value;
@@ -22,7 +22,7 @@ impl OrchestratorContext {
     pub(in crate::outline) async fn apply_beat_mapping(
         &self,
         input: BeatMappingApplyInput<'_, '_>,
-    ) -> Result<Vec<chapter_outline::Model>, AppError> {
+    ) -> Result<Vec<ChapterOutlineRecord>, AppError> {
         let BeatMappingApplyInput {
             project_id,
             part_id,

@@ -1,9 +1,14 @@
 fn ensure_manga_page_panels_match_current_source(
-    page_prompt: &chapter_manga_prompt::Model,
+    page_prompt: &MangaPagePrompt,
     current_content: &str,
 ) -> Result<(), AppError> {
     let current_hash = source_content_sha256(current_content);
-    let layout = manga_page_generation_layout(page_prompt).map_err(AppError::InvalidArgument)?;
+    let layout = manga_page_generation_layout(
+        page_prompt.id,
+        page_prompt.page_number,
+        page_prompt.layout.as_ref(),
+    )
+    .map_err(AppError::InvalidArgument)?;
     if layout.source.content_sha256.trim().is_empty() {
         return Err(AppError::InvalidArgument(format!(
             "漫画提示词 #{} 缺少章节正文指纹，请重新生成漫画提示词",

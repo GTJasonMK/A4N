@@ -9,13 +9,13 @@ pub use world::blueprint_world_setting_rag_records;
 #[cfg(test)]
 mod tests {
     use super::*;
-    use a4n_db_models::models::project::novel_blueprint;
+    use a4n_domain::project::BlueprintRecord;
     use chrono::Utc;
 
     #[test]
     fn manual_blueprint_indexes_only_present_optional_fields() {
         let now = Utc::now().naive_utc();
-        let mut blueprint = novel_blueprint::Model {
+        let mut blueprint = BlueprintRecord {
             id: 1,
             project_id: 2,
             title: "雨夜来信".into(),

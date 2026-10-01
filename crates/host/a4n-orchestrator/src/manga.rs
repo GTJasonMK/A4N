@@ -52,7 +52,6 @@ use crate::workflow::{
     WORKFLOW_STATUS_COMPLETED, WORKFLOW_STATUS_FAILED, WORKFLOW_STATUS_INTERRUPTED,
     WORKFLOW_STATUS_RUNNING,
 };
-use a4n_db_models::models::generation::workflow_run;
 use a4n_error::AppError;
 
 impl OrchestratorContext {
@@ -61,10 +60,10 @@ impl OrchestratorContext {
         project_id: i64,
         chapter_id: i64,
         input_fingerprint: &serde_json::Value,
-    ) -> Result<workflow_run::Model, AppError> {
+    ) -> Result<a4n_db::workflow::WorkflowRunSummary, AppError> {
         let business_key = manga_pipeline_business_key(project_id, chapter_id);
         let runs = self
-            .workflow_run_models(ListWorkflowRunsInput {
+            .workflow_runs(ListWorkflowRunsInput {
                 project_id: Some(project_id),
                 chapter_id: Some(chapter_id),
                 chapter_ids: None,
@@ -132,7 +131,7 @@ impl OrchestratorContext {
         character_portraits: &[MangaCharacterPortraitRefSummary],
         task_id: String,
         resume_from_checkpoint: bool,
-    ) -> Result<workflow_run::Model, AppError> {
+    ) -> Result<a4n_db::workflow::WorkflowRunSummary, AppError> {
         if project_id <= 0 {
             return Err(AppError::InvalidArgument("项目 ID 必须大于 0".to_string()));
         }

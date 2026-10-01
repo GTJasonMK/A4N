@@ -3,7 +3,6 @@ use a4n_api_contract::character::{
     ImplicitUpdateDecisionSummary,
 };
 use a4n_db::DbHandle;
-use a4n_db_models::models::ai::generated_image;
 use a4n_db_models::models::character::{
     attribute_event, character_portrait, protagonist_behavior_record, protagonist_deletion_mark,
     protagonist_profile,
@@ -131,7 +130,7 @@ impl CharacterApplication {
         &self,
         project_id: i64,
         image_ids: &[i64],
-    ) -> Result<Vec<generated_image::Model>, AppError> {
+    ) -> Result<Vec<a4n_domain::media::GeneratedImageRecord>, AppError> {
         a4n_db::character::portrait_reference_images_by_ids(&self.database, project_id, image_ids)
             .await
             .map_err(character_portrait_record_error)
@@ -413,7 +412,7 @@ impl OrchestratorContext {
         &self,
         project_id: i64,
         image_ids: &[i64],
-    ) -> Result<Vec<generated_image::Model>, AppError> {
+    ) -> Result<Vec<a4n_domain::media::GeneratedImageRecord>, AppError> {
         self.character
             .portrait_reference_images_by_ids(project_id, image_ids)
             .await
@@ -544,7 +543,7 @@ impl OrchestratorContext {
         base_attributes: &Value,
         chapter_data: &Value,
         active_task_id: Option<&str>,
-    ) -> Result<a4n_db_models::models::generation::workflow_run::Model, AppError> {
+    ) -> Result<a4n_db::workflow::WorkflowRunSummary, AppError> {
         if project_id <= 0 {
             return Err(AppError::InvalidArgument("项目 ID 必须大于 0".to_string()));
         }

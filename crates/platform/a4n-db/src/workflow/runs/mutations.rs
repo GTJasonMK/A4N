@@ -1,6 +1,7 @@
 use super::*;
 
 use super::super::llm_checkpoint::inherit_completed_llm_call_checkpoints;
+use super::projections::workflow_run_summary_for_write;
 use super::queries::{locked_latest_workflow_run_by_business_key_model, locked_workflow_run_by_id};
 use super::validation::{
     completed_at_for_status_value, ensure_workflow_status_transition, ensure_workflow_write_open,
@@ -108,17 +109,17 @@ where
 pub async fn upsert_workflow_run(
     db: &DatabaseConnection,
     input: UpsertWorkflowRunInput,
-) -> Result<workflow_run::Model, WorkflowWriteError> {
+) -> Result<WorkflowRunSummary, WorkflowWriteError> {
     let tx = db.begin().await.map_err(WorkflowWriteError::Database)?;
     let run = upsert_workflow_run_in_transaction(&tx, input).await?;
     tx.commit().await.map_err(WorkflowWriteError::Database)?;
-    Ok(run)
+    workflow_run_summary_for_write(run)
 }
 
 pub async fn resume_or_upsert_workflow_run(
     db: &DatabaseConnection,
     input: UpsertWorkflowRunInput,
-) -> Result<workflow_run::Model, WorkflowWriteError> {
+) -> Result<WorkflowRunSummary, WorkflowWriteError> {
     validate_workflow_run_input(&input)?;
     let tx = db.begin().await.map_err(WorkflowWriteError::Database)?;
     // A missing workflow row cannot be locked. Serialize project starts before checking the business key.
@@ -148,11 +149,11 @@ pub async fn resume_or_upsert_workflow_run(
     }) {
         let run = resume_workflow_run_model_in_transaction(&tx, existing, input).await?;
         tx.commit().await.map_err(WorkflowWriteError::Database)?;
-        return Ok(run);
+        return workflow_run_summary_for_write(run);
     }
     let run = upsert_workflow_run_in_transaction(&tx, input).await?;
     tx.commit().await.map_err(WorkflowWriteError::Database)?;
-    Ok(run)
+    workflow_run_summary_for_write(run)
 }
 
 pub(super) async fn resume_workflow_run_model_in_transaction(
@@ -306,13 +307,20 @@ pub async fn upsert_workflow_run_in_transaction(
     Ok(run)
 }
 
+pub async fn upsert_workflow_run_summary_in_transaction(
+    tx: &sea_orm::DatabaseTransaction,
+    input: UpsertWorkflowRunInput,
+) -> Result<WorkflowRunSummary, WorkflowWriteError> {
+    workflow_run_summary_for_write(upsert_workflow_run_in_transaction(tx, input).await?)
+}
+
 pub async fn mark_workflow_status(
     db: &DatabaseConnection,
     workflow_run_id: i64,
     status: &str,
     can_resume: bool,
     error_message: Option<&str>,
-) -> Result<workflow_run::Model, WorkflowWriteError> {
+) -> Result<WorkflowRunSummary, WorkflowWriteError> {
     validate_positive_i64(workflow_run_id, "workflow_run_id")?;
     validate_workflow_status(status)?;
     validate_workflow_status_fields(status, can_resume, error_message, error_message)?;
@@ -322,7 +330,7 @@ pub async fn mark_workflow_status(
     ensure_workflow_status_transition(&run.status, status, false)?;
     if is_terminal_workflow_status(&run.status) && run.status == status {
         tx.commit().await.map_err(WorkflowWriteError::Database)?;
-        return Ok(run);
+        return workflow_run_summary_for_write(run);
     }
     let now = Utc::now().naive_utc();
     let mut progress_json = run.progress_json.clone();
@@ -357,14 +365,14 @@ pub async fn mark_workflow_status(
         .await
         .map_err(WorkflowWriteError::Database)?;
     tx.commit().await.map_err(WorkflowWriteError::Database)?;
-    Ok(updated)
+    workflow_run_summary_for_write(updated)
 }
 
 pub async fn resume_workflow_run(
     db: &DatabaseConnection,
     workflow_run_id: i64,
-) -> Result<workflow_run::Model, WorkflowWriteError> {
-    resume_workflow_run_inner(db, workflow_run_id, None).await
+) -> Result<WorkflowRunSummary, WorkflowWriteError> {
+    workflow_run_summary_for_write(resume_workflow_run_inner(db, workflow_run_id, None).await?)
 }
 
 /// 将可恢复 workflow 绑定到已经预留的新执行任务。
@@ -376,9 +384,11 @@ pub async fn resume_workflow_run_with_active_task(
     db: &DatabaseConnection,
     workflow_run_id: i64,
     active_task_id: &str,
-) -> Result<workflow_run::Model, WorkflowWriteError> {
+) -> Result<WorkflowRunSummary, WorkflowWriteError> {
     let active_task_id = required_text(active_task_id.to_string(), "active_task_id")?;
-    resume_workflow_run_inner(db, workflow_run_id, Some(&active_task_id)).await
+    workflow_run_summary_for_write(
+        resume_workflow_run_inner(db, workflow_run_id, Some(&active_task_id)).await?,
+    )
 }
 
 async fn resume_workflow_run_inner(
@@ -524,7 +534,7 @@ pub async fn mark_workflow_current_step(
     db: &DatabaseConnection,
     workflow_run_id: i64,
     current_step_key: &str,
-) -> Result<workflow_run::Model, WorkflowWriteError> {
+) -> Result<WorkflowRunSummary, WorkflowWriteError> {
     validate_positive_i64(workflow_run_id, "workflow_run_id")?;
     let current_step_key = required_text(current_step_key.to_string(), "current_step_key")?;
     let tx = db.begin().await.map_err(WorkflowWriteError::Database)?;
@@ -539,5 +549,5 @@ pub async fn mark_workflow_current_step(
         .await
         .map_err(WorkflowWriteError::Database)?;
     tx.commit().await.map_err(WorkflowWriteError::Database)?;
-    Ok(updated)
+    workflow_run_summary_for_write(updated)
 }

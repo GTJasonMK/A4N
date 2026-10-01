@@ -5,10 +5,9 @@ use a4n_api_contract::video::{
     MoveInsertedSegmentInput, VideoTimelineItemKind as ApiItemKind,
     VideoTimelineItemStatus as ApiItemStatus, VideoTimelineItemSummary, VideoTimelineSummary,
 };
-use a4n_db_models::models::{
-    ai::{generated_image, generated_video},
-    chapter::{chapter_video_prompt, chapter_video_timeline_item},
-};
+use a4n_db_models::models::chapter::chapter_video_timeline_item;
+use a4n_domain::media::GeneratedImageReferenceRecord;
+use a4n_domain::video_prompt::{ChapterVideoPromptRecord, chapter_video_prompt};
 use a4n_domain::video_timeline::{NativeVideoTimelineKey, VideoTimelineGap, timeline_gap_index};
 use a4n_domain::{prompt_language::PromptOutputLanguage, source_text_hash};
 use a4n_error::AppError;
@@ -45,10 +44,8 @@ include!("inserted.rs");
 #[cfg(test)]
 mod tests {
     use super::*;
-    use a4n_db_models::models::{
-        ai::generated_video,
-        chapter::{chapter_video_timeline, chapter_video_timeline_item},
-    };
+    use a4n_db_models::models::chapter::{chapter_video_timeline, chapter_video_timeline_item};
+    use a4n_domain::media::GeneratedVideoRecord;
     use chrono::Utc;
 
     fn native_item(
@@ -89,9 +86,9 @@ mod tests {
         }
     }
 
-    fn completed_inserted_video(id: i64, timeline_item_id: i64) -> generated_video::Model {
+    fn completed_inserted_video(id: i64, timeline_item_id: i64) -> GeneratedVideoRecord {
         let now = Utc::now().naive_utc();
-        generated_video::Model {
+        GeneratedVideoRecord {
             id,
             project_id: 1,
             chapter_id: Some(1),

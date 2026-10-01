@@ -18,7 +18,7 @@ use a4n_db::{
     outline::load_outline_generation_source_rows_for_update,
     workflow::completed_llm_call_checkpoint_from_model,
 };
-use a4n_db_models::models::generation::{workflow_checkpoint, workflow_run};
+use a4n_db_models::models::generation::workflow_checkpoint;
 use a4n_domain::project::ProjectStatus;
 use a4n_domain::workflow::{WORKFLOW_STATUS_COMPLETED, WORKFLOW_STATUS_RUNNING};
 use a4n_error::AppError;
@@ -446,7 +446,7 @@ fn publish_reverse_blueprint_updated(
 }
 
 fn validate_reverse_candidate_run(
-    run: &workflow_run::Model,
+    run: &a4n_db::workflow::WorkflowRunSummary,
     project_id: i64,
     target: ReverseEngineeringTarget,
     expected_status: &str,
@@ -749,10 +749,10 @@ mod tests {
             .unwrap()
     }
 
-    fn completed_run() -> workflow_run::Model {
+    fn completed_run() -> a4n_db::workflow::WorkflowRunSummary {
         let target = ReverseEngineeringTarget::Outline;
         let prompt_name = target.prompt_name();
-        workflow_run::Model {
+        let run = a4n_db_models::models::generation::workflow_run::Model {
             id: 42,
             business_key: import_reverse_business_key(7, target).unwrap(),
             workflow_kind: IMPORT_REVERSE_WORKFLOW_KIND.to_string(),
@@ -785,7 +785,8 @@ mod tests {
             created_at: timestamp(),
             updated_at: timestamp(),
             completed_at: Some(timestamp()),
-        }
+        };
+        a4n_db::workflow::workflow_run_summary_from_model(run).expect("workflow row should project")
     }
 
     fn completed_checkpoint() -> workflow_checkpoint::Model {

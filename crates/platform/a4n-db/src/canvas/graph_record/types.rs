@@ -1,15 +1,7 @@
-use a4n_db_models::models::canvas::{canvas_edge, canvas_graph, canvas_node, canvas_text_asset};
+pub use a4n_domain::canvas::CanvasGraphRecordDocument;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::BTreeMap;
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct CanvasGraphRecordDocument {
-    pub graph: canvas_graph::Model,
-    pub nodes: Vec<canvas_node::Model>,
-    pub edges: Vec<canvas_edge::Model>,
-    pub text_assets: Vec<canvas_text_asset::Model>,
-}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CanvasGraphRecordSaveResult {

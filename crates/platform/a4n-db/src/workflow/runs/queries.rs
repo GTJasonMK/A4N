@@ -32,6 +32,18 @@ pub async fn workflow_run_summary_by_id(
     workflow_run_summary(run)
 }
 
+pub fn workflow_run_summary_from_model(
+    run: workflow_run::Model,
+) -> Result<WorkflowRunSummary, WorkflowReadError> {
+    workflow_run_summary(run)
+}
+
+pub fn workflow_checkpoint_summary_from_model(
+    checkpoint: workflow_checkpoint::Model,
+) -> WorkflowCheckpointSummary {
+    workflow_checkpoint_summary(checkpoint)
+}
+
 pub async fn workflow_run_detail(
     db: &DatabaseConnection,
     input: GetWorkflowRunInput,
@@ -61,7 +73,7 @@ pub async fn workflow_run_detail(
     })
 }
 
-pub async fn list_workflow_run_models(
+async fn list_workflow_run_models(
     db: &DatabaseConnection,
     input: ListWorkflowRunsInput,
 ) -> Result<Vec<workflow_run::Model>, WorkflowReadError> {
@@ -108,17 +120,18 @@ pub async fn workflow_runs_by_project_kind(
     db: &DatabaseConnection,
     project_id: i64,
     workflow_kind: &str,
-) -> Result<Vec<workflow_run::Model>, WorkflowReadError> {
+) -> Result<Vec<WorkflowRunSummary>, WorkflowReadError> {
     validate_positive_i64(project_id, "project_id")?;
     let workflow_kind = required_text(workflow_kind.to_string(), "workflow_kind")?;
-    workflow_run::Entity::find()
+    let runs = workflow_run::Entity::find()
         .filter(workflow_run::Column::ProjectId.eq(project_id))
         .filter(workflow_run::Column::WorkflowKind.eq(workflow_kind))
         .order_by_desc(workflow_run::Column::UpdatedAt)
         .order_by_desc(workflow_run::Column::Id)
         .all(db)
         .await
-        .map_err(WorkflowReadError::Database)
+        .map_err(WorkflowReadError::Database)?;
+    runs.into_iter().map(workflow_run_summary).collect()
 }
 
 pub async fn workflow_run_model_by_id(
@@ -214,9 +227,12 @@ pub async fn workflow_run_access_record_by_active_task_id(
 pub async fn latest_workflow_run_by_business_key(
     db: &DatabaseConnection,
     business_key: &str,
-) -> Result<Option<workflow_run::Model>, WorkflowReadError> {
+) -> Result<Option<WorkflowRunSummary>, WorkflowReadError> {
     let business_key = required_text(business_key.to_string(), "business_key")?;
-    latest_workflow_run_by_business_key_model(db, &business_key).await
+    latest_workflow_run_by_business_key_model(db, &business_key)
+        .await?
+        .map(workflow_run_summary)
+        .transpose()
 }
 
 pub async fn latest_workflow_run_status_record_by_business_key(

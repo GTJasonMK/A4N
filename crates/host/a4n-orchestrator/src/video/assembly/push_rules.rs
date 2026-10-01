@@ -1,6 +1,6 @@
 //! 成片推送（assembly_push）metadata 纯规则。
 
-use a4n_db_models::models::ai::generated_video;
+use a4n_domain::media::GeneratedVideoRecord;
 use a4n_domain::video_workflow::is_assembly_video_workflow_mode;
 use chrono::Utc;
 use serde_json::{Map, Value, json};
@@ -20,7 +20,7 @@ pub struct AssemblyPushMetadata {
 
 #[derive(Debug, Clone)]
 pub struct AssemblyPushRecord {
-    pub video: generated_video::Model,
+    pub video: GeneratedVideoRecord,
     pub status: String,
     pub push_index: i32,
     pub source_video_ids: Vec<i64>,
@@ -106,7 +106,7 @@ pub fn parse_assembly_push_metadata(
 }
 
 pub fn assembly_push_records(
-    rows: &[generated_video::Model],
+    rows: &[GeneratedVideoRecord],
     workflow_mode: &str,
 ) -> Result<Vec<AssemblyPushRecord>, String> {
     let mut pushes = rows

@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
-use a4n_db_models::models::{asset::object_profile, chapter::chapter, project::text_anchor};
+use a4n_db_models::models::{chapter::chapter, project::text_anchor};
+use a4n_domain::object_profile::ObjectProfileRecord;
 use a4n_error::AppError;
 use a4n_llm_context::{
     ContextAwareJsonLlmRequestInput, PACK_KIND_PROFILE_SYNC_SOURCE_CONTEXT,
@@ -21,7 +22,7 @@ pub(super) async fn build_object_discovery_request(
     chapter_number: Option<i32>,
     chapters: &[chapter::Model],
     text_anchors: &[text_anchor::Model],
-    existing_profiles: &[object_profile::Model],
+    existing_profiles: &[ObjectProfileRecord],
 ) -> Result<ChatRequest, AppError> {
     let existing_prompt_profiles = existing_profiles
         .iter()

@@ -1,6 +1,6 @@
 use std::collections::{BTreeSet, HashMap, HashSet};
 
-use a4n_db_models::models::chapter::chapter_video_prompt;
+use a4n_domain::video_prompt::ChapterVideoPromptRecord;
 use a4n_error::AppError;
 use serde_json::Value;
 use tokio_util::sync::CancellationToken;
@@ -15,7 +15,7 @@ use super::super::{
 };
 
 pub(super) fn select_boundary_video_prompt_inputs(
-    frame_rows: Vec<chapter_video_prompt::Model>,
+    frame_rows: Vec<ChapterVideoPromptRecord>,
     segment_plan: &[VideoSegmentPlan],
     duration_secs: i32,
     allowed_reference_ids: &HashSet<i64>,

@@ -1,5 +1,5 @@
-use a4n_db_models::models::project::{blueprint_relationship, novel_blueprint};
-use a4n_domain::rag::RagDataType;
+use a4n_db::rag::RagBlueprintRelationshipRow;
+use a4n_domain::{project::BlueprintRecord, rag::RagDataType};
 use a4n_orchestrator::rag::{
     blueprint_metadata_rag_record, blueprint_rag_record, blueprint_world_setting_rag_records,
     relationship_rag_record,
@@ -14,8 +14,8 @@ fn ts() -> NaiveDateTime {
         .expect("valid time")
 }
 
-fn sample_blueprint() -> novel_blueprint::Model {
-    novel_blueprint::Model {
+fn sample_blueprint() -> BlueprintRecord {
+    BlueprintRecord {
         id: 30,
         project_id: 1,
         title: "星门余烬".to_string(),
@@ -37,17 +37,15 @@ fn sample_blueprint() -> novel_blueprint::Model {
     }
 }
 
-fn sample_relationship() -> blueprint_relationship::Model {
-    blueprint_relationship::Model {
+fn sample_relationship() -> RagBlueprintRelationshipRow {
+    RagBlueprintRelationshipRow {
         id: 60,
-        project_id: 1,
         relationship_type: "ally".to_string(),
         character_a: "林舟".to_string(),
         character_b: "沈砚".to_string(),
         description: Some("互相利用，逐步建立信任。".to_string()),
         strength: Some(6),
         evolution: Some(json!([{"event": "共同脱险", "impact": "信任上升"}])),
-        created_at: ts(),
     }
 }
 

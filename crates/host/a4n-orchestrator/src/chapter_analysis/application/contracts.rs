@@ -125,7 +125,7 @@ impl ChapterAnalysisResumeApplicationPort for OrchestratorContext {
         host_port: &dyn ChapterAnalysisHostPort,
         character_trace_port: Option<&dyn CharacterProfileSyncStageTracePort>,
     ) -> Result<(), AppError> {
-        let run = self.workflow_run_model_by_id(workflow_run_id).await?;
+        let run = self.workflow_run_summary(workflow_run_id).await?;
         let chapter_id = run.chapter_id.ok_or_else(|| {
             AppError::InvalidArgument("章节结构化分析工作流缺少 chapter_id".to_string())
         })?;
@@ -201,7 +201,7 @@ impl ChapterAnalysisResumePreviewApplicationPort for OrchestratorContext {
     }
 }
 
-fn ensure_chapter_not_generating(chapter: &chapter::Model) -> Result<(), AppError> {
+fn ensure_chapter_not_generating(chapter: &ChapterRecord) -> Result<(), AppError> {
     if chapter.is_generating() {
         Err(AppError::InvalidState {
             current: "chapter_generating".to_string(),

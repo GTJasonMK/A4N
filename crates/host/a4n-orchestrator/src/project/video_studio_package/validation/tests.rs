@@ -8,14 +8,12 @@ use std::collections::HashMap;
 use a4n_db_models::models::media::media_asset::{FILE_PATH_FIELD, THUMBNAIL_PATH_FIELD};
 use a4n_db_models::models::{
     ai::generated_video,
-    canvas::{canvas_edge, canvas_graph, canvas_node},
     generation::generation_spec,
     media::{media_asset, media_provenance},
-    project::novel_project,
     video_project::assembly_timeline,
 };
-use a4n_domain::CanvasNodeRefKind;
 use a4n_domain::video_workflow::WORKFLOW_MODE_CANVAS_VIDEO;
+use a4n_domain::{CanvasNodeRefKind, project::ProjectRecord};
 
 use crate::media::MEDIA_STATUS_COMPLETED;
 use crate::project::video_studio_package::{PACKAGE_MODE, VIDEO_STUDIO_PACKAGE_VERSION};
@@ -30,8 +28,8 @@ fn now() -> chrono::NaiveDateTime {
     chrono::Utc::now().naive_utc()
 }
 
-fn freeform_project() -> novel_project::Model {
-    novel_project::Model {
+fn freeform_project() -> ProjectRecord {
+    ProjectRecord {
         id: 1,
         user_id: 1,
         title: "自由视频".to_string(),
@@ -128,8 +126,8 @@ fn validate_video_studio_manifest_rejects_blank_project_title() {
     assert!(error.contains("项目标题"));
 }
 
-fn graph() -> canvas_graph::Model {
-    canvas_graph::Model {
+fn graph() -> a4n_domain::canvas::CanvasGraphRecord {
+    a4n_domain::canvas::CanvasGraphRecord {
         id: 20,
         project_id: 1,
         name: "默认画布".to_string(),
@@ -141,8 +139,8 @@ fn graph() -> canvas_graph::Model {
     }
 }
 
-fn node_with_ref(ref_type: &str, ref_id: i64) -> canvas_node::Model {
-    canvas_node::Model {
+fn node_with_ref(ref_type: &str, ref_id: i64) -> a4n_domain::canvas::CanvasNodeRecord {
+    a4n_domain::canvas::CanvasNodeRecord {
         id: 30,
         graph_id: 20,
         node_kind: "VideoNode".to_string(),
@@ -156,8 +154,8 @@ fn node_with_ref(ref_type: &str, ref_id: i64) -> canvas_node::Model {
     }
 }
 
-fn canvas_node(id: i64, node_kind: &str) -> canvas_node::Model {
-    canvas_node::Model {
+fn canvas_node(id: i64, node_kind: &str) -> a4n_domain::canvas::CanvasNodeRecord {
+    a4n_domain::canvas::CanvasNodeRecord {
         id,
         graph_id: 20,
         node_kind: node_kind.to_string(),
@@ -179,8 +177,8 @@ fn canvas_edge(
     target_port: &str,
     role: &str,
     config_json: serde_json::Value,
-) -> canvas_edge::Model {
-    canvas_edge::Model {
+) -> a4n_domain::canvas::CanvasEdgeRecord {
+    a4n_domain::canvas::CanvasEdgeRecord {
         id,
         graph_id: 20,
         source_node_id,

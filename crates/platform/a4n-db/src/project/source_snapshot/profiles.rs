@@ -7,14 +7,14 @@ use a4n_db_models::models::{
     asset::object_profile, character::protagonist_profile, project::source_snapshot_profile,
     scene::scene_profile,
 };
-use a4n_domain::chapter::ResolvedChapterSource;
+use a4n_domain::{chapter::ResolvedChapterSource, scene_profile::SceneProfileRecord};
 use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QueryOrder, Set};
 
 pub async fn scene_profiles_for_source<C: ConnectionTrait>(
     db: &C,
     source: &ResolvedChapterSource,
     profile_ids: &[i64],
-) -> Result<Vec<scene_profile::Model>, crate::project::ResolveChapterSourceError> {
+) -> Result<Vec<SceneProfileRecord>, crate::project::ResolveChapterSourceError> {
     use crate::project::ResolveChapterSourceError;
     let ids = profile_ids
         .iter()
@@ -45,7 +45,7 @@ pub async fn scene_profiles_for_source<C: ConnectionTrait>(
                         row.id
                     )));
                 }
-                let profile: scene_profile::Model = serde_json::from_value(row.payload_json)
+                let profile: SceneProfileRecord = serde_json::from_value(row.payload_json)
                     .map_err(|error| {
                         ResolveChapterSourceError::InvalidState(format!(
                             "场景快照 {} 无效：{error}",
@@ -70,6 +70,9 @@ pub async fn scene_profiles_for_source<C: ConnectionTrait>(
             .order_by_asc(scene_profile::Column::Id)
             .all(db)
             .await?
+            .into_iter()
+            .map(crate::scene_profile::scene_profile_record)
+            .collect()
     };
     if profiles.len() != ids.len() {
         return Err(ResolveChapterSourceError::NotFound(format!(
@@ -211,7 +214,12 @@ mod tests {
         .insert(&db)
         .await
         .unwrap();
-        let mut changed: scene_profile::ActiveModel = profile.into();
+        let profile_model = scene_profile::Entity::find_by_id(profile.id)
+            .one(&db)
+            .await
+            .unwrap()
+            .unwrap();
+        let mut changed: scene_profile::ActiveModel = profile_model.into();
         changed.name = Set("已经变化的车站".into());
         changed.update(&db).await.unwrap();
 

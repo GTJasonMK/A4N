@@ -1,7 +1,7 @@
 use a4n_db_models::models::{
     chapter::chapter,
     generation::{generation_spec, prompt_artifact},
-    project::{novel_project, project_source_snapshot},
+    project::project_source_snapshot,
 };
 use a4n_domain::media::{CreateMediaAssetRecordInput, MediaProvenanceRecordInput};
 use chrono::Utc;
@@ -14,7 +14,10 @@ async fn setup_db() -> DatabaseConnection {
     a4n_migration::test_support::connect_test_database().await
 }
 
-async fn text_project_with_chapter(db: &DatabaseConnection, title: &str) -> novel_project::Model {
+async fn text_project_with_chapter(
+    db: &DatabaseConnection,
+    title: &str,
+) -> a4n_domain::project::ProjectRecord {
     let project = crate::project::create_project_record(
         db,
         crate::project::CreateProjectRecordInput {
@@ -48,7 +51,11 @@ async fn text_project_with_chapter(db: &DatabaseConnection, title: &str) -> nove
     project
 }
 
-async fn video_project(db: &DatabaseConnection, user_id: i64, title: &str) -> novel_project::Model {
+async fn video_project(
+    db: &DatabaseConnection,
+    user_id: i64,
+    title: &str,
+) -> a4n_domain::project::ProjectRecord {
     let root = text_project_with_chapter(db, title).await;
     crate::project::create_derived_project_record(
         db,
@@ -70,7 +77,7 @@ async fn video_project(db: &DatabaseConnection, user_id: i64, title: &str) -> no
 
 async fn generation_spec_for_snapshot(
     db: &DatabaseConnection,
-    project: &novel_project::Model,
+    project: &a4n_domain::project::ProjectRecord,
     snapshot_id: i64,
 ) -> generation_spec::Model {
     let snapshot = project_source_snapshot::Entity::find_by_id(snapshot_id)
@@ -103,7 +110,7 @@ async fn generation_spec_for_snapshot(
 
 async fn generation_spec(
     db: &DatabaseConnection,
-    project: &novel_project::Model,
+    project: &a4n_domain::project::ProjectRecord,
 ) -> generation_spec::Model {
     generation_spec_for_snapshot(db, project, project.source_snapshot_id.unwrap()).await
 }
@@ -142,7 +149,7 @@ async fn prompt_artifact_for_spec(db: &DatabaseConnection, spec_id: i64) -> prom
     .unwrap()
 }
 
-fn media_input(project: &novel_project::Model) -> CreateMediaAssetRecordInput {
+fn media_input(project: &a4n_domain::project::ProjectRecord) -> CreateMediaAssetRecordInput {
     CreateMediaAssetRecordInput {
         project_id: project.id,
         root_project_id: project.root_project_id.unwrap(),

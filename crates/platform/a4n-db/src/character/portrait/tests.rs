@@ -1,7 +1,5 @@
 use super::*;
-use a4n_db_models::models::{
-    character::protagonist_profile, media::media_binding, project::novel_project,
-};
+use a4n_db_models::models::{character::protagonist_profile, media::media_binding};
 use a4n_domain::character::CharacterPortraitCreateInput;
 use chrono::Utc;
 use sea_orm::{
@@ -24,7 +22,10 @@ fn empty_profile_attributes() -> Value {
 async fn project_and_profile(
     db: &DatabaseConnection,
     title: &str,
-) -> (novel_project::Model, protagonist_profile::Model) {
+) -> (
+    a4n_domain::project::ProjectRecord,
+    protagonist_profile::Model,
+) {
     let project = crate::project::create_freeform_video_project_record(
         db,
         1,

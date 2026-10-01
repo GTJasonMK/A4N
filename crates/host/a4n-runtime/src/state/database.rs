@@ -2,14 +2,14 @@ use a4n_config::app_config::AppConfig;
 
 #[cfg(feature = "migration")]
 pub(super) async fn run_startup_migrations(
-    db: &a4n_db::DbHandle,
+    db: &a4n_db_session::DbHandle,
 ) -> Result<(), a4n_error::AppError> {
     db.run_migrations().await
 }
 
 #[cfg(not(feature = "migration"))]
 pub(super) async fn run_startup_migrations(
-    db: &a4n_db::DbHandle,
+    db: &a4n_db_session::DbHandle,
 ) -> Result<(), a4n_error::AppError> {
     db.verify_required_schema().await
 }

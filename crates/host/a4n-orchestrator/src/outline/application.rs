@@ -6,7 +6,7 @@ use a4n_api_contract::outline::{
     RegenerateChapterOutlineInput, RegenerateLastPartInput, RegeneratePartOutlineInput,
     RegeneratePartsInput,
 };
-use a4n_db_models::models::chapter::{chapter_outline, part_outline};
+use a4n_domain::chapter::{ChapterOutlineRecord, PartOutlineRecord};
 use a4n_domain::project::ProjectStatus;
 use a4n_error::AppError;
 use a4n_llm_provider_contract::provider::ChatRequest;
@@ -28,7 +28,7 @@ impl OrchestratorContext {
         &self,
         input: GeneratePartsInput,
         progress: ProgressReporter<'_>,
-    ) -> Result<Vec<part_outline::Model>, AppError> {
+    ) -> Result<Vec<PartOutlineRecord>, AppError> {
         report_application_progress(progress, 0, 3, "启动分部大纲生成")?;
         let variables = parse_template_variables_app_error(&input.variables)?;
         let workflow_run_id = self
@@ -79,7 +79,7 @@ impl OrchestratorContext {
         &self,
         input: RegeneratePartsInput,
         progress: ProgressReporter<'_>,
-    ) -> Result<Vec<part_outline::Model>, AppError> {
+    ) -> Result<Vec<PartOutlineRecord>, AppError> {
         report_application_progress(progress, 0, 3, "启动分部大纲重生成")?;
         let variables = parse_template_variables_app_error(&input.variables)?;
         let workflow_run_id = self
@@ -130,7 +130,7 @@ impl OrchestratorContext {
         &self,
         input: RegenerateLastPartInput,
         progress: ProgressReporter<'_>,
-    ) -> Result<part_outline::Model, AppError> {
+    ) -> Result<PartOutlineRecord, AppError> {
         report_application_progress(progress, 0, 3, "正在重新生成最后一部")?;
         let variables = parse_template_variables_app_error(&input.variables)?;
         let workflow_run_id = self
@@ -172,7 +172,7 @@ impl OrchestratorContext {
         &self,
         input: ContinuePartOutlinesInput,
         progress: ProgressReporter<'_>,
-    ) -> Result<part_outline::Model, AppError> {
+    ) -> Result<PartOutlineRecord, AppError> {
         report_application_progress(
             progress,
             0,
@@ -230,7 +230,7 @@ impl OrchestratorContext {
         &self,
         input: RegeneratePartOutlineInput,
         progress: ProgressReporter<'_>,
-    ) -> Result<part_outline::Model, AppError> {
+    ) -> Result<PartOutlineRecord, AppError> {
         report_application_progress(progress, 0, 3, "正在重新生成指定分部")?;
         let variables = parse_template_variables_app_error(&input.variables)?;
         let workflow_run_id = self
@@ -279,7 +279,7 @@ impl OrchestratorContext {
         &self,
         input: GeneratePartChapterOutlinesInput,
         progress: ProgressReporter<'_>,
-    ) -> Result<Vec<chapter_outline::Model>, AppError> {
+    ) -> Result<Vec<ChapterOutlineRecord>, AppError> {
         let part = self.get_part(input.part_id).await?;
         ensure_part_project(&part, input.project_id)?;
         let count = part_chapter_count(part.start_chapter, part.end_chapter)?;
@@ -338,7 +338,7 @@ impl OrchestratorContext {
         &self,
         input: BatchGeneratePartOutlinesInput,
         progress: ProgressReporter<'_>,
-    ) -> Result<Vec<chapter_outline::Model>, AppError> {
+    ) -> Result<Vec<ChapterOutlineRecord>, AppError> {
         let parts = self
             .load_unique_outline_parts(input.project_id, &input.part_ids)
             .await?;
@@ -428,7 +428,7 @@ impl OrchestratorContext {
         &self,
         input: GenerateChapterOutlinesByCountInput,
         progress: ProgressReporter<'_>,
-    ) -> Result<Vec<chapter_outline::Model>, AppError> {
+    ) -> Result<Vec<ChapterOutlineRecord>, AppError> {
         report_application_progress(
             progress,
             0,
@@ -482,7 +482,7 @@ impl OrchestratorContext {
         &self,
         input: RegenerateChapterOutlineInput,
         progress: ProgressReporter<'_>,
-    ) -> Result<chapter_outline::Model, AppError> {
+    ) -> Result<ChapterOutlineRecord, AppError> {
         report_application_progress(progress, 0, 3, "启动章节大纲重生成")?;
         let variables = parse_template_variables_app_error(&input.variables)?;
         let workflow_run_id = self
@@ -531,7 +531,7 @@ impl OrchestratorContext {
         &self,
         input: ApplyBeatMappingInput,
         progress: ProgressReporter<'_>,
-    ) -> Result<Vec<chapter_outline::Model>, AppError> {
+    ) -> Result<Vec<ChapterOutlineRecord>, AppError> {
         let part = self.get_part(input.part_id).await?;
         ensure_part_project(&part, input.project_id)?;
         report_application_progress(progress, 0, 3, "启动节拍映射")?;
@@ -752,7 +752,7 @@ impl OrchestratorContext {
         &self,
         project_id: i64,
         part_ids: &[i64],
-    ) -> Result<Vec<part_outline::Model>, AppError> {
+    ) -> Result<Vec<PartOutlineRecord>, AppError> {
         if part_ids.is_empty() {
             return Err(AppError::InvalidArgument("part_ids 不能为空".to_string()));
         }
@@ -790,7 +790,7 @@ impl OrchestratorContext {
     }
 }
 
-fn ensure_part_project(part: &part_outline::Model, project_id: i64) -> Result<(), AppError> {
+fn ensure_part_project(part: &PartOutlineRecord, project_id: i64) -> Result<(), AppError> {
     if part.project_id == project_id {
         Ok(())
     } else {

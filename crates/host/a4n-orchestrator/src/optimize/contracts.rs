@@ -1,4 +1,5 @@
-use a4n_db_models::models::{ai::optimization_session, chapter::chapter};
+use a4n_db_models::models::ai::optimization_session;
+use a4n_domain::chapter::ChapterRecord;
 use a4n_llm_provider_contract::provider::ChatRequest;
 
 use super::OptimizationAgentPermissions;
@@ -32,7 +33,7 @@ pub(in crate::optimize) struct OptimizeProposePatchesInput<'a, 'generation> {
 
 pub(in crate::optimize) struct PatchRequestBase {
     pub(in crate::optimize) session: optimization_session::Model,
-    pub(in crate::optimize) chapter: chapter::Model,
+    pub(in crate::optimize) chapter: ChapterRecord,
     pub(in crate::optimize) override_instruction: Option<String>,
 }
 

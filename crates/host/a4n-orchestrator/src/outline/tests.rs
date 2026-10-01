@@ -26,12 +26,10 @@ use super::{
 };
 
 use a4n_db_models::models::{
-    asset::object_profile,
-    chapter::{chapter_outline, part_outline},
     character::{foreshadowing_index, protagonist_profile},
     project::{blueprint_character, blueprint_relationship, novel_blueprint, novel_project},
-    scene::scene_profile,
 };
+use a4n_domain::chapter::{ChapterOutlineRecord, PartOutlineRecord};
 use a4n_error::AppError;
 use chrono::Utc;
 use sea_orm::{
@@ -94,7 +92,7 @@ fn part_json(part_number: i32, title: &str) -> Value {
     })
 }
 
-fn sample_part(summary: Option<&str>) -> part_outline::Model {
+fn sample_part(summary: Option<&str>) -> PartOutlineRecord {
     let mut part = sample_part_for_plan(2, 11, 20);
     part.summary = summary.map(ToString::to_string);
     part
@@ -104,9 +102,9 @@ fn sample_part_for_plan(
     part_number: i32,
     start_chapter: i32,
     end_chapter: i32,
-) -> part_outline::Model {
+) -> PartOutlineRecord {
     let now = Utc::now().naive_utc();
-    part_outline::Model {
+    PartOutlineRecord {
         id: 1,
         project_id: 10,
         part_number,
@@ -135,9 +133,9 @@ fn batch_parts_use_canonical_part_order() {
     assert_eq!(parts.map(|part| part.id), [10, 19, 20, 30]);
 }
 
-fn sample_chapter_outline(chapter_number: i32, part_id: Option<i64>) -> chapter_outline::Model {
+fn sample_chapter_outline(chapter_number: i32, part_id: Option<i64>) -> ChapterOutlineRecord {
     let now = Utc::now().naive_utc();
-    chapter_outline::Model {
+    ChapterOutlineRecord {
         id: 100 + i64::from(chapter_number),
         project_id: 10,
         part_id,

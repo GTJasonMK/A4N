@@ -9,7 +9,7 @@ pub(super) mod ports;
 pub(super) mod records;
 pub(super) mod store;
 pub(super) mod workflow;
-use a4n_db_models::models::chapter::chapter_video_prompt;
+use a4n_domain::video_prompt::ChapterVideoPromptRecord;
 use a4n_error::AppError;
 
 use super::source::validate_import_chapter_video_prompt;
@@ -21,7 +21,7 @@ impl OrchestratorContext {
         project_id: i64,
         chapter_id: i64,
         prompt_id: i64,
-    ) -> Result<chapter_video_prompt::Model, AppError> {
+    ) -> Result<ChapterVideoPromptRecord, AppError> {
         let prompt = a4n_db::video::chapter_video_prompt_by_id(&self.database, prompt_id)
             .await
             .map_err(video_db_error)?

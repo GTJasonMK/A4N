@@ -38,7 +38,7 @@ impl crate::OrchestratorContext {
         &self,
         project_id: i64,
         chapter_id: i64,
-        videos: &[generated_video::Model],
+        videos: &[GeneratedVideoRecord],
         snapshot: &a4n_db::video::VideoTimelineSnapshot,
     ) -> Result<HashSet<i64>, AppError> {
         let (plan_result, prompts_result) = futures::join!(
@@ -171,7 +171,7 @@ impl crate::OrchestratorContext {
         project_id: i64,
         chapter_id: i64,
         workflow_mode: &str,
-        videos: &[generated_video::Model],
+        videos: &[GeneratedVideoRecord],
     ) -> Result<
         (
             Option<HashSet<i64>>,
@@ -233,7 +233,7 @@ impl crate::OrchestratorContext {
         source_file_name: &str,
         source_extension: &str,
         imported_at: &str,
-    ) -> Result<generated_video::Model, AppError> {
+    ) -> Result<GeneratedVideoRecord, AppError> {
         let workflow_mode =
             validate_assembly_workflow_mode(workflow_mode).map_err(AppError::InvalidArgument)?;
         let metadata = self
@@ -452,8 +452,8 @@ impl crate::OrchestratorContext {
 
     pub(in crate::video) async fn latest_assembly_postprocess_version_for_push(
         &self,
-        push: &generated_video::Model,
-    ) -> Result<generated_video::Model, AppError> {
+        push: &GeneratedVideoRecord,
+    ) -> Result<GeneratedVideoRecord, AppError> {
         let chapter_id = push.chapter_id.ok_or_else(|| {
             AppError::InvalidArgument(format!("推送批次 #{} 缺少章节绑定", push.id))
         })?;

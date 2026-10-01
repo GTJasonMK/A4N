@@ -2,6 +2,7 @@ use super::*;
 use sea_orm::FromQueryResult;
 
 use crate::rag::RagForeshadowingRow;
+use a4n_domain::chapter::PartOutlineRecord;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct OptimizationSessionCreateInput {
@@ -115,13 +116,6 @@ pub struct OptimizationContextReadInput {
     pub read_foreshadowing: bool,
 }
 
-#[derive(Debug, Clone)]
-pub struct OptimizationBlueprintRows {
-    pub blueprint: novel_blueprint::Model,
-    pub characters: Vec<blueprint_character::Model>,
-    pub relationships: Vec<blueprint_relationship::Model>,
-}
-
 #[derive(Debug, Clone, FromQueryResult)]
 pub struct OptimizationChapterSummaryRecord {
     pub chapter_number: i32,
@@ -129,6 +123,49 @@ pub struct OptimizationChapterSummaryRecord {
     pub summary: Option<String>,
     pub word_count: i32,
     pub analysis_data: Option<Value>,
+}
+
+#[derive(Debug, Clone, FromQueryResult)]
+pub struct OptimizationChapterContextRecord {
+    pub id: i64,
+    pub outline_id: Option<i64>,
+    pub chapter_number: i32,
+    pub title: Option<String>,
+    pub content: String,
+    pub summary: Option<String>,
+    pub word_count: i32,
+    pub status: String,
+    pub analysis_data: Option<Value>,
+}
+
+#[derive(Debug, Clone, FromQueryResult)]
+pub struct OptimizationProjectDetailRecord {
+    pub id: i64,
+    pub title: String,
+    pub description: String,
+    pub project_type: String,
+    pub status: String,
+    pub target_chapters: i32,
+    pub current_chapter: i32,
+    pub total_chapters: Option<i32>,
+    pub chapters_per_part: Option<i32>,
+    pub raw_blueprint: Option<String>,
+    pub export_config: Option<String>,
+}
+
+#[derive(Debug, Clone, FromQueryResult)]
+pub struct OptimizationCharacterProfileRecord {
+    pub name: String,
+    pub gender: Option<String>,
+    pub age: Option<String>,
+    pub base_attributes: Value,
+    pub current_state: Value,
+    pub character_arc: Option<Value>,
+    pub voice_fingerprint: Option<Value>,
+    pub appearance: Option<String>,
+    pub background: Option<String>,
+    pub personality: Option<String>,
+    pub last_synced_chapter: i32,
 }
 
 #[derive(Debug, Clone, FromQueryResult)]
@@ -147,13 +184,13 @@ pub struct OptimizationChapterOutlineRecord {
 
 #[derive(Debug, Clone)]
 pub struct OptimizationContextRows {
-    pub current_chapter: chapter::Model,
+    pub current_chapter: OptimizationChapterContextRecord,
     pub current_chapter_outline: Option<OptimizationChapterOutlineRecord>,
-    pub project: Option<novel_project::Model>,
-    pub blueprint: Option<OptimizationBlueprintRows>,
-    pub part_outlines: Vec<part_outline::Model>,
+    pub project: Option<OptimizationProjectDetailRecord>,
+    pub blueprint: Option<Value>,
+    pub part_outlines: Vec<PartOutlineRecord>,
     pub chapter_outlines: Vec<OptimizationChapterOutlineRecord>,
-    pub character_profiles: Vec<protagonist_profile::Model>,
+    pub character_profiles: Vec<OptimizationCharacterProfileRecord>,
     pub foreshadowing_index: Vec<RagForeshadowingRow>,
     pub previous_chapters: Vec<OptimizationChapterSummaryRecord>,
     pub next_chapters: Vec<OptimizationChapterSummaryRecord>,
@@ -161,7 +198,7 @@ pub struct OptimizationContextRows {
 
 #[derive(Debug, Clone)]
 pub struct OptimizationChapterPatchWriteInput {
-    pub chapter: chapter::Model,
+    pub chapter: a4n_domain::chapter::ChapterRecord,
     pub content: String,
     pub word_count: i32,
 }

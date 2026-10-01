@@ -1,4 +1,4 @@
-use a4n_db_models::models::chapter::part_outline;
+use a4n_domain::chapter::PartOutlineRecord;
 use a4n_error::AppError;
 
 pub fn validate_part_outline_request(
@@ -25,7 +25,7 @@ pub fn validate_part_outline_request(
 }
 
 pub fn ensure_continue_part_request(
-    existing_parts: &[part_outline::Model],
+    existing_parts: &[PartOutlineRecord],
     part_number: i32,
     start_chapter: i32,
 ) -> Result<(), AppError> {
@@ -58,7 +58,7 @@ pub fn ensure_continue_part_request(
 }
 
 pub fn ensure_no_part_outline_conflict(
-    existing_parts: &[part_outline::Model],
+    existing_parts: &[PartOutlineRecord],
     part_number: i32,
     start_chapter: i32,
     end_chapter: i32,

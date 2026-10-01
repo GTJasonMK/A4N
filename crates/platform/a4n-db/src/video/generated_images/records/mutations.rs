@@ -7,8 +7,10 @@ use super::{
     },
 };
 use a4n_db_models::models::ai::generated_image;
-use a4n_domain::media::UpdateGeneratedImageRecordInput;
+use a4n_domain::media::{GeneratedImageRecord, UpdateGeneratedImageRecordInput};
 use sea_orm::{ActiveModelTrait, ConnectionTrait, EntityTrait, FromQueryResult, QuerySelect, Set};
+
+use crate::video::media_mapping::generated_image_record_from_model;
 
 #[derive(Debug, FromQueryResult)]
 struct GeneratedImageUpdateContext {
@@ -23,7 +25,7 @@ pub async fn update_generated_image_record<C>(
     db: &C,
     image_id: i64,
     input: UpdateGeneratedImageRecordInput,
-) -> Result<generated_image::Model, VideoDbError>
+) -> Result<GeneratedImageRecord, VideoDbError>
 where
     C: ConnectionTrait,
 {
@@ -104,5 +106,9 @@ where
     if let Some(is_favorite) = input.is_favorite {
         active.is_favorite = Set(is_favorite);
     }
-    active.update(db).await.map_err(VideoDbError::Database)
+    active
+        .update(db)
+        .await
+        .map(generated_image_record_from_model)
+        .map_err(VideoDbError::Database)
 }

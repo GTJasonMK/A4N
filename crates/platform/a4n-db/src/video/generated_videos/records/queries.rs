@@ -1,52 +1,66 @@
 use a4n_db_models::models::ai::generated_video;
+use a4n_domain::media::GeneratedVideoRecord;
 use sea_orm::{
     ColumnTrait, ConnectionTrait, DbErr, EntityTrait, QueryFilter, QueryOrder, QuerySelect,
 };
 
+use crate::video::media_mapping::generated_video_record_from_model;
+
 pub async fn generated_video_by_id<C>(
     db: &C,
     video_id: i64,
-) -> Result<Option<generated_video::Model>, DbErr>
+) -> Result<Option<GeneratedVideoRecord>, DbErr>
 where
     C: ConnectionTrait,
 {
-    generated_video::Entity::find_by_id(video_id).one(db).await
+    generated_video::Entity::find_by_id(video_id)
+        .one(db)
+        .await
+        .map(|model| model.map(generated_video_record_from_model))
 }
 
 pub async fn generated_videos_by_ids<C: ConnectionTrait>(
     db: &C,
     video_ids: &[i64],
-) -> Result<Vec<generated_video::Model>, DbErr> {
+) -> Result<Vec<GeneratedVideoRecord>, DbErr> {
     if video_ids.is_empty() {
         return Ok(Vec::new());
     }
-    generated_video::Entity::find()
+    let models = generated_video::Entity::find()
         .filter(generated_video::Column::Id.is_in(video_ids.iter().copied()))
         .all(db)
-        .await
+        .await?;
+    Ok(models
+        .into_iter()
+        .map(generated_video_record_from_model)
+        .collect())
 }
 
 pub async fn generated_videos_for_chapter<C>(
     db: &C,
     project_id: i64,
     chapter_id: i64,
-) -> Result<Vec<generated_video::Model>, DbErr>
+) -> Result<Vec<GeneratedVideoRecord>, DbErr>
 where
     C: ConnectionTrait,
 {
-    generated_video::Entity::find()
+    let models = generated_video::Entity::find()
         .filter(generated_video::Column::ProjectId.eq(project_id))
         .filter(generated_video::Column::ChapterId.eq(chapter_id))
         .order_by_desc(generated_video::Column::CreatedAt)
         .all(db)
-        .await
+        .await?;
+    Ok(models
+        .into_iter()
+        .map(generated_video_record_from_model)
+        .collect())
 }
 
 pub async fn generated_videos_by_provider_job_id<C>(
     db: &C,
     project_id: Option<i64>,
     provider_job_id: &str,
-) -> Result<Vec<generated_video::Model>, DbErr>
+) -> Result<Vec<GeneratedVideoRecord>, DbErr>
 where
     C: ConnectionTrait,
 {
@@ -66,5 +80,10 @@ where
     if let Some(project_id) = project_id {
         query = query.filter(generated_video::Column::ProjectId.eq(project_id));
     }
-    query.all(db).await
+    Ok(query
+        .all(db)
+        .await?
+        .into_iter()
+        .map(generated_video_record_from_model)
+        .collect())
 }

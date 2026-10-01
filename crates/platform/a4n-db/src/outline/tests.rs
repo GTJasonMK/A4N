@@ -1,12 +1,12 @@
-use a4n_db_models::models::chapter::{chapter_outline, part_outline};
+use a4n_domain::chapter::{ChapterOutlineRecord, PartOutlineRecord};
 use chrono::Utc;
 use sea_orm::DatabaseConnection;
 
 use super::*;
 
-fn part(id: i64, part_number: i32) -> part_outline::Model {
+fn part(id: i64, part_number: i32) -> PartOutlineRecord {
     let now = Utc::now().naive_utc();
-    part_outline::Model {
+    PartOutlineRecord {
         id,
         project_id: 7,
         part_number,
@@ -22,8 +22,8 @@ fn part(id: i64, part_number: i32) -> part_outline::Model {
     }
 }
 
-fn outline(chapter_number: i32, part_id: Option<i64>) -> chapter_outline::Model {
-    chapter_outline::Model {
+fn outline(chapter_number: i32, part_id: Option<i64>) -> ChapterOutlineRecord {
+    ChapterOutlineRecord {
         id: 100 + i64::from(chapter_number),
         project_id: 7,
         part_id,
@@ -50,7 +50,7 @@ fn chapter_outline_ids_in_part_range_selects_only_target_range() {
         .into_iter()
         .map(|chapter_number| outline(chapter_number, Some(part.id)))
         .collect::<Vec<_>>();
-    let deleted_ids = chapter_outline_ids_in_part_range(&outlines, &part);
+    let deleted_ids = super::ranges::chapter_outline_ids_in_part_range(&outlines, &part);
     assert_eq!(deleted_ids, vec![112, 120]);
 }
 
@@ -65,7 +65,7 @@ fn chapter_outline_ids_in_part_ranges_selects_by_chapter_range_not_part_id() {
         outline(31, Some(second_part.id)),
     ];
     assert_eq!(
-        chapter_outline_ids_in_part_ranges(&outlines, &[first_part, second_part]),
+        super::ranges::chapter_outline_ids_in_part_ranges(&outlines, &[first_part, second_part]),
         vec![112, 118, 125]
     );
 }

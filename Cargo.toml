@@ -19,6 +19,7 @@ a4n-auth-application = { path = "crates/auth/a4n-auth-application" }
 a4n-cleanup-contract = { path = "crates/platform/a4n-cleanup-contract" }
 a4n-db = { path = "crates/platform/a4n-db" }
 a4n-db-models = { path = "crates/platform/a4n-db-models" }
+a4n-db-session = { path = "crates/platform/a4n-db-session" }
 a4n-domain = { path = "crates/platform/a4n-domain" }
 a4n-error = { path = "crates/platform/a4n-error", default-features = false }
 a4n-event = { path = "crates/platform/a4n-event" }

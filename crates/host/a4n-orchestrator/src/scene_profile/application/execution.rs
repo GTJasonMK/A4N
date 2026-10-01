@@ -1,7 +1,6 @@
 mod chapters;
 mod persistence;
 
-use a4n_db_models::models::generation::workflow_run;
 use a4n_error::AppError;
 use a4n_prompt::rendering::PromptRenderer;
 use serde_json::Value;
@@ -32,7 +31,7 @@ impl OrchestratorContext {
         let chapters = select_scene_profile_sync_chapters(self, project_id, chapter_number).await?;
         let (workflow_run_id, owns_workflow_run) = match workflow_run_id {
             Some(workflow_run_id) => {
-                self.workflow_run_model_by_id(workflow_run_id).await?;
+                self.workflow_run_summary(workflow_run_id).await?;
                 (workflow_run_id, false)
             }
             None => (
@@ -61,7 +60,7 @@ impl OrchestratorContext {
         let result = match result {
             Ok(())
                 if self
-                    .workflow_run_model_by_id(workflow_run_id)
+                    .workflow_run_summary(workflow_run_id)
                     .await?
                     .workflow_kind
                     != "chapter_analysis" =>
@@ -83,7 +82,7 @@ impl OrchestratorContext {
     pub(crate) async fn resume_scene_profile_sync_workflow_run_validated(
         &self,
         user_id: i64,
-        requested_run: &workflow_run::Model,
+        requested_run: &a4n_db::workflow::WorkflowRunSummary,
         prompt_renderer: &dyn PromptRenderer,
         host_port: &dyn SceneProfileSyncHostPort,
     ) -> Result<(), AppError> {
@@ -155,7 +154,9 @@ impl OrchestratorContext {
     }
 }
 
-fn scene_profile_sync_chapter_number(run: &workflow_run::Model) -> Result<Option<i32>, AppError> {
+fn scene_profile_sync_chapter_number(
+    run: &a4n_db::workflow::WorkflowRunSummary,
+) -> Result<Option<i32>, AppError> {
     let fingerprint =
         run.input_fingerprint_json
             .as_ref()

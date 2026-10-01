@@ -7,7 +7,7 @@ use a4n_api_contract::image::{
     ListImagesByProjectInput, ListImagesByProjectsInput, ListVideoReferenceImagesInput,
     UpdateGeneratedImageInput, UploadImageInput,
 };
-use a4n_db_models::models::{ai::generated_image, media::image_publication};
+use a4n_db_models::models::media::image_publication;
 use a4n_domain::media::IMAGE_PUBLICATION_STATUS_PENDING;
 use a4n_domain::media::{
     CreateGeneratedImageRecordDraftInput, CreateImagePublicationIntentInput,
@@ -125,7 +125,7 @@ impl OrchestratorContext {
         publication_id: &str,
         facts: ImagePublicationFileFacts,
         generation_run: Option<a4n_db::generation::RecordCompletedGenerationRunWithCheckpointInput>,
-    ) -> Result<generated_image::Model, AppError> {
+    ) -> Result<a4n_domain::media::GeneratedImageRecord, AppError> {
         self.verify_project_permission(project_id, user_id, ProjectAccessRole::Editor)
             .await?;
         match generation_run {
@@ -145,7 +145,7 @@ impl OrchestratorContext {
         &self,
         user_id: i64,
         project_id: i64,
-    ) -> Result<Vec<generated_image::Model>, AppError> {
+    ) -> Result<Vec<a4n_domain::media::GeneratedImageRecord>, AppError> {
         self.verify_project_permission(project_id, user_id, ProjectAccessRole::Viewer)
             .await?;
         self.generated_images_for_project(project_id).await
@@ -155,7 +155,7 @@ impl OrchestratorContext {
         &self,
         user_id: i64,
         project_ids: Vec<i64>,
-    ) -> Result<Vec<generated_image::Model>, AppError> {
+    ) -> Result<Vec<a4n_domain::media::GeneratedImageRecord>, AppError> {
         let mut normalized_project_ids = Vec::with_capacity(project_ids.len());
         let mut seen = HashSet::with_capacity(project_ids.len());
         for project_id in project_ids {
@@ -186,7 +186,7 @@ impl OrchestratorContext {
         user_id: i64,
         project_id: i64,
         chapter_id: i64,
-    ) -> Result<Vec<generated_image::Model>, AppError> {
+    ) -> Result<Vec<a4n_domain::media::GeneratedImageRecord>, AppError> {
         self.verify_project_permission(project_id, user_id, ProjectAccessRole::Viewer)
             .await?;
         self.generated_images_for_valid_chapter(project_id, chapter_id)
@@ -199,7 +199,7 @@ impl OrchestratorContext {
         project_id: i64,
         chapter_id: i64,
         requested_project_ids: Vec<i64>,
-    ) -> Result<Vec<generated_image::Model>, AppError> {
+    ) -> Result<Vec<a4n_domain::media::GeneratedImageRecord>, AppError> {
         self.verify_project_permission(project_id, user_id, ProjectAccessRole::Editor)
             .await?;
         let allowed_project_ids = self.video_asset_project_ids(project_id).await?;
@@ -314,7 +314,7 @@ impl OrchestratorContext {
         project_id: i64,
         publication_id: &str,
         facts: ImagePublicationFileFacts,
-    ) -> Result<generated_image::Model, AppError> {
+    ) -> Result<a4n_domain::media::GeneratedImageRecord, AppError> {
         self.publish_image_publication_for_user_validated(
             user_id,
             project_id,
@@ -330,7 +330,7 @@ impl OrchestratorContext {
         user_id: i64,
         image_id: i64,
         input: UpdateGeneratedImageRecordInput,
-    ) -> Result<generated_image::Model, AppError> {
+    ) -> Result<a4n_domain::media::GeneratedImageRecord, AppError> {
         self.generated_image_for_user_validated(user_id, image_id)
             .await?;
         self.update_generated_image_record(image_id, input).await
@@ -349,7 +349,7 @@ impl OrchestratorContext {
 
     pub async fn delete_generated_image_validated(
         &self,
-        image: generated_image::Model,
+        image: a4n_domain::media::GeneratedImageRecord,
     ) -> Result<(), AppError> {
         if image.id <= 0 {
             return Err(AppError::InvalidArgument(
@@ -364,7 +364,7 @@ impl OrchestratorContext {
         &self,
         user_id: i64,
         image_id: i64,
-    ) -> Result<generated_image::Model, AppError> {
+    ) -> Result<a4n_domain::media::GeneratedImageRecord, AppError> {
         let image = self
             .generated_image_by_id(image_id)
             .await?
@@ -759,7 +759,7 @@ impl ImageMediaReferencePort for OrchestratorContext {
 }
 
 fn sort_generated_images_by_project_order(
-    rows: &mut [generated_image::Model],
+    rows: &mut [a4n_domain::media::GeneratedImageRecord],
     project_ids: &[i64],
 ) {
     let project_order = project_ids
@@ -779,14 +779,10 @@ mod project_image_sort_tests {
     use chrono::{Duration, Utc};
 
     use super::sort_generated_images_by_project_order;
-    use a4n_db_models::models::ai::generated_image;
+    use a4n_domain::media::GeneratedImageRecord;
 
-    fn image(
-        id: i64,
-        project_id: i64,
-        created_at: chrono::NaiveDateTime,
-    ) -> generated_image::Model {
-        generated_image::Model {
+    fn image(id: i64, project_id: i64, created_at: chrono::NaiveDateTime) -> GeneratedImageRecord {
+        GeneratedImageRecord {
             id,
             project_id,
             image_type: String::new(),
@@ -824,7 +820,7 @@ mod project_image_sort_tests {
 }
 
 fn sort_video_reference_images(
-    images: &mut [generated_image::Model],
+    images: &mut [a4n_domain::media::GeneratedImageRecord],
     chapter_id: i64,
     primary_image_ids: &HashSet<i64>,
 ) {
@@ -874,7 +870,7 @@ mod tests {
             .unwrap()
             .and_hms_opt(12, 0, 0)
             .unwrap();
-        let image = |id, favorite| generated_image::Model {
+        let image = |id, favorite| a4n_domain::media::GeneratedImageRecord {
             id,
             project_id: 1,
             image_type: IMAGE_TYPE_SCENE_MATERIAL.to_string(),

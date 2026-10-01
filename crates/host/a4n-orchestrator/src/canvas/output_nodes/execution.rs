@@ -18,13 +18,13 @@ impl OrchestratorContext {
     pub(crate) async fn resolve_canvas_output_value_validated(
         &self,
         workflow_run_id: Option<i64>,
-        node: &a4n_db_models::models::canvas::canvas_node::Model,
+        node: &a4n_domain::canvas::CanvasNodeRecord,
         document: &a4n_db::canvas::CanvasGraphRecordDocument,
         data_type: CanvasOutputDataType,
         consumer_label: &str,
     ) -> Result<CanvasOutputValue, AppError> {
         let checkpoints = match workflow_run_id {
-            Some(run_id) => Some(self.workflow_checkpoint_models(run_id).await?),
+            Some(run_id) => Some(self.workflow_checkpoint_summaries(run_id).await?),
             None => None,
         };
         let output = collect_canvas_output_value(
@@ -48,7 +48,10 @@ impl OrchestratorContext {
         let data_type = CanvasOutputDataType::from_output_node_kind(&input.node.node_kind)
             .map_err(AppError::InvalidArgument)?;
         let checkpoints = match input.shared_run {
-            Some(run) => Some(self.workflow_checkpoint_models(run.workflow_run_id).await?),
+            Some(run) => Some(
+                self.workflow_checkpoint_summaries(run.workflow_run_id)
+                    .await?,
+            ),
             None => None,
         };
         let output = collect_canvas_output_value(
@@ -110,7 +113,7 @@ impl OrchestratorContext {
     async fn persist_canvas_output_artifact(
         &self,
         project_id: i64,
-        node: &a4n_db_models::models::canvas::canvas_node::Model,
+        node: &a4n_domain::canvas::CanvasNodeRecord,
         data_type: CanvasOutputDataType,
         output: &CanvasOutputValue,
     ) -> Result<(String, i64, Value), AppError> {

@@ -11,43 +11,51 @@ use a4n_db_models::models::{
     scene::scene_profile,
 };
 use a4n_domain::image::{IMAGE_TYPE_OBJECT_MATERIAL, IMAGE_TYPE_SCENE_MATERIAL};
+use a4n_domain::media::GeneratedImageRecord;
 use sea_orm::{
     ColumnTrait, ConnectionTrait, DbErr, EntityTrait, QueryFilter, QueryOrder, QuerySelect,
     sea_query::Expr,
 };
 
+use crate::project::blueprint_record;
+use crate::video::media_mapping::generated_image_record_from_model;
+
 pub async fn video_library_explicit_image_records<C>(
     db: &C,
     project_ids: &[i64],
     image_ids: &[i64],
-) -> Result<Vec<generated_image::Model>, DbErr>
+) -> Result<Vec<GeneratedImageRecord>, DbErr>
 where
     C: ConnectionTrait,
 {
     if project_ids.is_empty() || image_ids.is_empty() {
         return Ok(Vec::new());
     }
-    generated_image::Entity::find()
+    let models = generated_image::Entity::find()
         .filter(generated_image::Column::ProjectId.is_in(project_ids.iter().copied()))
         .filter(generated_image::Column::Id.is_in(image_ids.iter().copied()))
         .order_by_asc(generated_image::Column::CreatedAt)
         .order_by_asc(generated_image::Column::Id)
         .all(db)
-        .await
+        .await?;
+    Ok(models
+        .into_iter()
+        .map(generated_image_record_from_model)
+        .collect())
 }
 
 pub async fn video_library_chapter_image_records<C>(
     db: &C,
     project_ids: &[i64],
     chapter_id: i64,
-) -> Result<Vec<generated_image::Model>, DbErr>
+) -> Result<Vec<GeneratedImageRecord>, DbErr>
 where
     C: ConnectionTrait,
 {
     if project_ids.is_empty() {
         return Ok(Vec::new());
     }
-    generated_image::Entity::find()
+    let models = generated_image::Entity::find()
         .filter(generated_image::Column::ProjectId.is_in(project_ids.iter().copied()))
         .filter(generated_image::Column::ChapterId.eq(chapter_id))
         .filter(Expr::cust(
@@ -56,7 +64,11 @@ where
         .order_by_asc(generated_image::Column::CreatedAt)
         .order_by_asc(generated_image::Column::Id)
         .all(db)
-        .await
+        .await?;
+    Ok(models
+        .into_iter()
+        .map(generated_image_record_from_model)
+        .collect())
 }
 
 pub async fn video_profile_material_read_model<C>(
@@ -146,7 +158,10 @@ where
             },
         )
         .collect();
-    let material_images = material_images_result?;
+    let material_images = material_images_result?
+        .into_iter()
+        .map(generated_image_record_from_model)
+        .collect();
 
     Ok(VideoProfileMaterialReadModel {
         scenes,
@@ -197,7 +212,7 @@ where
             .into_model::<VideoPromptProtagonistProfileRecord>()
             .all(db),
     );
-    let blueprint = blueprint_result?;
+    let blueprint = blueprint_result?.map(blueprint_record);
     let blueprint_characters = blueprint_characters_result?;
     let protagonist_profiles = protagonist_profiles_result?;
 

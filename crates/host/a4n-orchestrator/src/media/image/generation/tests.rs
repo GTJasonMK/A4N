@@ -190,7 +190,8 @@ impl ImageGenerationHostPort for TestImageGenerationHost {
         if let Some(database) = &self.delete_workflow_on_generate {
             workflow_run::Entity::delete_by_id(input.workflow_run_id)
                 .exec(database.as_ref())
-                .await?;
+                .await
+                .map_err(AppError::database)?;
         }
         if self.fail_generate || self.fail_generate_call == Some(call) {
             return Err(AppError::InvalidState {

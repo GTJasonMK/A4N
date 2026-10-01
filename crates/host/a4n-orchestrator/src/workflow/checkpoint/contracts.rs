@@ -1,4 +1,3 @@
-use a4n_db_models::models::generation::workflow_checkpoint;
 use serde_json::Value;
 
 #[derive(Debug, thiserror::Error)]
@@ -28,7 +27,7 @@ pub fn workflow_checkpoint_fingerprint_sha256(
 }
 
 pub fn required_checkpoint_json(
-    checkpoint: &workflow_checkpoint::Model,
+    checkpoint: &a4n_db::workflow::WorkflowCheckpointSummary,
     step_key: &str,
 ) -> Result<Value, CompletedWorkflowCheckpointContractError> {
     checkpoint.checkpoint_json.clone().ok_or_else(|| {

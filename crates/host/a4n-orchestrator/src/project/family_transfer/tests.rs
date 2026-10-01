@@ -20,6 +20,7 @@ use a4n_db_models::models::{
     project::{novel_project, project_source_snapshot, source_snapshot_chapter},
     user::user,
 };
+use a4n_domain::project::ProjectRecord;
 use a4n_domain::shooting_script::{ChapterShootingScriptV1, ShootingVisualPlanSourceV1};
 use async_trait::async_trait;
 use chrono::Utc;
@@ -985,8 +986,10 @@ async fn seed_manga_family_round_trip(
         &chapter.content,
     );
     let mut plan = crate::shooting_script::visual_plan_fixture(&source).plan;
+    let database_handle = a4n_db::DbHandle::new(std::sync::Arc::new(database.clone()));
     let scene_id =
-        crate::shooting_script::seed_visual_plan_scene(database, source.root_project_id).await;
+        crate::shooting_script::seed_visual_plan_scene(&database_handle, source.root_project_id)
+            .await;
     plan.points.remove(1);
     plan.points[1].at_ms = 2000;
     plan.segments.truncate(1);
@@ -1475,9 +1478,9 @@ fn project_model(
     user_id: i64,
     project_kind: &str,
     root_project_id: Option<i64>,
-) -> novel_project::Model {
+) -> ProjectRecord {
     let now = Utc::now().naive_utc();
-    novel_project::Model {
+    ProjectRecord {
         id,
         user_id,
         title: format!("import-{id}"),
@@ -1503,7 +1506,7 @@ fn project_model(
     }
 }
 
-fn empty_package(root: novel_project::Model) -> ProjectFamilyPackage {
+fn empty_package(root: ProjectRecord) -> ProjectFamilyPackage {
     ProjectFamilyPackage {
         version: PROJECT_FAMILY_PACKAGE_VERSION.to_string(),
         exported_at: Utc::now().naive_utc().to_string(),

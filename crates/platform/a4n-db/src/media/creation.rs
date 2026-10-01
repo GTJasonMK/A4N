@@ -1,8 +1,7 @@
-use a4n_db_models::models::{
-    media::media_asset,
-    project::{novel_project, project_source_snapshot, source_snapshot_chapter},
+use a4n_db_models::models::project::{
+    novel_project, project_source_snapshot, source_snapshot_chapter,
 };
-use a4n_domain::media::CreateMediaAssetRecordInput;
+use a4n_domain::media::{CreateMediaAssetRecordInput, MediaAssetRecord};
 use a4n_domain::project::ProjectSourceMode;
 use sea_orm::{
     ColumnTrait, ConnectionTrait, DbBackend, EntityTrait, FromQueryResult, QueryFilter, QueryOrder,
@@ -23,7 +22,7 @@ struct MediaProjectIdentity {
 pub async fn create_media_asset_with_provenance_record<C>(
     db: &C,
     input: CreateMediaAssetRecordInput,
-) -> Result<media_asset::Model, MediaDbError>
+) -> Result<MediaAssetRecord, MediaDbError>
 where
     C: ConnectionTrait + TransactionTrait,
 {
@@ -32,7 +31,7 @@ where
     validate_media_asset_project_context(&tx, &input).await?;
     let asset = insert_media_asset_with_provenance_record(&tx, input).await?;
     tx.commit().await.map_err(MediaDbError::Database)?;
-    Ok(asset)
+    Ok(super::media_asset_record_from_model(asset))
 }
 
 pub(super) fn validate_media_asset_source_context_shape(

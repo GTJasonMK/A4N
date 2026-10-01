@@ -294,10 +294,19 @@ async fn duplicate_derived_project_record_copies_snapshot_without_copying_root_c
         data_dir: data_dir.path(),
         copied_media_files: &mut copied_media_files,
     };
-    let duplicated =
-        duplicate_derived_project_record(&db, &derived, 1, "视频项目 副本", &mut media_file_copier)
-            .await
-            .expect("derived project should duplicate snapshot");
+    let derived_record = a4n_db::project::project_by_id_record(&db, derived.id)
+        .await
+        .unwrap()
+        .unwrap();
+    let duplicated = duplicate_derived_project_record(
+        &db,
+        derived_record,
+        1,
+        "视频项目 副本",
+        &mut media_file_copier,
+    )
+    .await
+    .expect("derived project should duplicate snapshot");
 
     let duplicated_chapters = chapter::Entity::find()
         .filter(chapter::Column::ProjectId.eq(duplicated.id))

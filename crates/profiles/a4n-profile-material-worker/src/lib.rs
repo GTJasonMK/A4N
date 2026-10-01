@@ -6,10 +6,10 @@ use a4n_api_contract::profile::{
     ListProfileMaterialsInput, ProfileMaterialGroup, SetProfilePrimaryMaterialInput,
 };
 use a4n_db::DbHandle;
-use a4n_domain::profile_material::ProfileMaterialKind;
+use a4n_domain::profile_material::{ProfileMaterialKind, profile_material_identity};
 use a4n_profile_material_core::{
-    apply_profile_material_query, image_type_for_profile_material_kind, object_source_from_model,
-    profile_material_group_projections, requested_profile_material_kinds, scene_source_from_model,
+    apply_profile_material_query, image_type_for_profile_material_kind, object_source_from_record,
+    profile_material_group_projections, requested_profile_material_kinds, scene_source_from_record,
 };
 use a4n_profile_material_worker_contract::{
     PROFILE_MATERIAL_LIST_OPERATION, PROFILE_MATERIAL_MUTATION_CAPABILITY,
@@ -266,9 +266,9 @@ impl WorkerState {
         );
         let mut sources = scene_profiles?
             .into_iter()
-            .map(scene_source_from_model)
+            .map(scene_source_from_record)
             .collect::<Vec<_>>();
-        sources.extend(object_profiles?.into_iter().map(object_source_from_model));
+        sources.extend(object_profiles?.into_iter().map(object_source_from_record));
         let rows = rows?;
         let mut groups = profile_material_group_projections(
             sources,
@@ -311,7 +311,7 @@ impl WorkerState {
                     input.project_id
                 )));
             }
-            if a4n_db::profile_material::generated_image_profile_material_identity(&image)
+            if profile_material_identity(&image.image_type, image.metadata_json.as_ref())
                 != Some((input.profile_kind.as_str(), input.profile_id))
             {
                 return Err(WorkerFailure::invalid_request(format!(
@@ -388,13 +388,13 @@ impl WorkerState {
                     ProfileMaterialKind::Scene => {
                         a4n_db::scene_profile::scene_profile_by_id(&self.database, profile_id)
                             .await
-                            .map(scene_source_from_model)
+                            .map(scene_source_from_record)
                             .map_err(scene_profile_error)
                     }
                     ProfileMaterialKind::Object => {
                         a4n_db::asset::object_profile_by_id(&self.database, profile_id)
                             .await
-                            .map(object_source_from_model)
+                            .map(object_source_from_record)
                             .map_err(asset_error)
                     }
                 }

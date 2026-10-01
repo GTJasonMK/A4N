@@ -28,17 +28,31 @@ where
 pub async fn optimization_turns<C>(
     db: &C,
     session_id: i64,
-) -> Result<Vec<optimization_turn::Model>, OptimizeDbError>
+) -> Result<Vec<OptimizationTurnRecord>, OptimizeDbError>
 where
     C: ConnectionTrait,
 {
-    optimization_turn::Entity::find()
+    Ok(optimization_turn::Entity::find()
         .filter(optimization_turn::Column::SessionId.eq(session_id))
         .order_by_asc(optimization_turn::Column::CreatedAt)
         .order_by_asc(optimization_turn::Column::Id)
         .all(db)
         .await
-        .map_err(OptimizeDbError::Database)
+        .map_err(OptimizeDbError::Database)?
+        .into_iter()
+        .map(|turn| OptimizationTurnRecord {
+            id: turn.id,
+            session_id: turn.session_id,
+            agent_turn_id: turn.agent_turn_id,
+            user_text: turn.user_text,
+            status: turn.status,
+            permissions_snapshot: turn.permissions_snapshot,
+            final_reply: turn.final_reply,
+            error: turn.error,
+            created_at: turn.created_at,
+            updated_at: turn.updated_at,
+        })
+        .collect())
 }
 
 pub async fn optimization_turn_by_agent_turn_id<C>(
@@ -363,21 +377,33 @@ fn required_completion_text(value: &str, label: &str) -> Result<String, Optimize
 pub async fn optimization_turn_events_for_turns<C>(
     db: &C,
     turn_ids: &[i64],
-) -> Result<Vec<optimization_turn_event::Model>, OptimizeDbError>
+) -> Result<Vec<OptimizationTurnEventRecord>, OptimizeDbError>
 where
     C: ConnectionTrait,
 {
     if turn_ids.is_empty() {
         return Ok(Vec::new());
     }
-    optimization_turn_event::Entity::find()
+    Ok(optimization_turn_event::Entity::find()
         .filter(optimization_turn_event::Column::TurnId.is_in(turn_ids.to_vec()))
         .order_by_asc(optimization_turn_event::Column::TurnId)
         .order_by_asc(optimization_turn_event::Column::Seq)
         .order_by_asc(optimization_turn_event::Column::Id)
         .all(db)
         .await
-        .map_err(OptimizeDbError::Database)
+        .map_err(OptimizeDbError::Database)?
+        .into_iter()
+        .map(|event| OptimizationTurnEventRecord {
+            id: event.id,
+            turn_id: event.turn_id,
+            seq: event.seq,
+            kind: event.kind,
+            status: event.status,
+            public_text: event.public_text,
+            payload: event.payload,
+            created_at: event.created_at,
+        })
+        .collect())
 }
 
 pub async fn append_optimization_turn_event<C>(

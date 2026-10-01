@@ -8,7 +8,6 @@ license.workspace = true
 a4n-api-contract = { workspace = true }
 a4n-admin-worker-client = { workspace = true }
 a4n-config = { workspace = true }
-a4n-db = { workspace = true }
 a4n-error = { workspace = true, default-features = true }
 a4n-artifact-media-client = { workspace = true }
 a4n-artifact-media-contract = { workspace = true }
@@ -49,6 +48,7 @@ async-trait = { workspace = true }
 tracing = { workspace = true }
 
 [dev-dependencies]
+a4n-db = { workspace = true }
 a4n-config-read-worker = { workspace = true }
 a4n-config-read-worker-contract = { workspace = true }
 a4n-db-models = { workspace = true }

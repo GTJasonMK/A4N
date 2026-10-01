@@ -1,26 +1,32 @@
 use a4n_db_models::models::chapter::chapter_video_prompt;
+use a4n_domain::video_prompt::ChapterVideoPromptRecord;
 use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder, QuerySelect};
 
 use super::super::super::{
     ChapterVideoPromptCandidateRecord, VideoDbError, validate_positive_video_i32,
     validate_positive_video_i64, validate_positive_video_ids,
 };
+use crate::video::prompts::record_mapping::chapter_video_prompt_record_from_model;
 
 pub async fn chapter_video_prompts_for_batch_generation(
     db: &DatabaseConnection,
     prompt_ids: &[i64],
-) -> Result<Vec<chapter_video_prompt::Model>, VideoDbError> {
+) -> Result<Vec<ChapterVideoPromptRecord>, VideoDbError> {
     validate_positive_video_ids(prompt_ids, "prompt_ids")?;
     if prompt_ids.is_empty() {
         return Ok(Vec::new());
     }
-    chapter_video_prompt::Entity::find()
+    let models = chapter_video_prompt::Entity::find()
         .filter(chapter_video_prompt::Column::Id.is_in(prompt_ids.iter().copied()))
         .order_by_asc(chapter_video_prompt::Column::ShotNumber)
         .order_by_asc(chapter_video_prompt::Column::Id)
         .all(db)
         .await
-        .map_err(VideoDbError::Database)
+        .map_err(VideoDbError::Database)?;
+    Ok(models
+        .into_iter()
+        .map(chapter_video_prompt_record_from_model)
+        .collect())
 }
 
 pub async fn chapter_video_boundary_frame_prompt_candidates(

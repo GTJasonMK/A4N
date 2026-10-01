@@ -1,7 +1,11 @@
 use a4n_db_models::models::chapter::chapter_outline;
+use a4n_domain::chapter::ChapterOutlineRecord;
 use chrono::NaiveDateTime;
 use sea_orm::{ActiveModelTrait, ConnectionTrait, Set};
 
+use super::super::record_mapping::{
+    chapter_outline_model_from_record, chapter_outline_record_from_model,
+};
 use super::super::types::OutlineDbError;
 use a4n_domain::chapter::ChapterOutlineSyncDraft;
 
@@ -38,28 +42,29 @@ pub async fn insert_chapter_outline_record<C>(
     part_id: Option<i64>,
     draft: &ChapterOutlineSyncDraft,
     now: NaiveDateTime,
-) -> Result<chapter_outline::Model, OutlineDbError>
+) -> Result<ChapterOutlineRecord, OutlineDbError>
 where
     C: ConnectionTrait,
 {
-    Ok(
+    Ok(chapter_outline_record_from_model(
         chapter_outline_active_model(project_id, part_id, draft, now)
             .insert(db)
             .await?,
-    )
+    ))
 }
 
 /// 更新既有章节大纲记录。
 pub async fn update_chapter_outline_record<C>(
     db: &C,
-    existing: chapter_outline::Model,
+    existing: ChapterOutlineRecord,
     part_id: Option<i64>,
     draft: &ChapterOutlineSyncDraft,
     now: NaiveDateTime,
-) -> Result<chapter_outline::Model, OutlineDbError>
+) -> Result<ChapterOutlineRecord, OutlineDbError>
 where
     C: ConnectionTrait,
 {
+    let existing = chapter_outline_model_from_record(existing);
     crate::project::clear_chapter_outline_provenance(db, existing.id).await?;
     let updated_at = std::cmp::max(now, existing.updated_at + chrono::Duration::microseconds(1));
     let mut active: chapter_outline::ActiveModel = existing.into();
@@ -75,5 +80,5 @@ where
     active.word_count_target = Set(draft.word_count_target);
     active.status = Set("draft".to_string());
     active.updated_at = Set(updated_at);
-    Ok(active.update(db).await?)
+    Ok(chapter_outline_record_from_model(active.update(db).await?))
 }

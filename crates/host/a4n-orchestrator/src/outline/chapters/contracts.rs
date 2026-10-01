@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use a4n_db_models::models::chapter::part_outline;
+use a4n_domain::chapter::PartOutlineRecord;
 use a4n_llm_provider_contract::provider::ChatRequest;
 use serde_json::Value;
 
@@ -20,7 +20,7 @@ pub(super) struct ChapterOutlineSequenceInput<'a, 'progress> {
     pub project_id: i64,
     pub start_chapter: i32,
     pub count: i32,
-    pub focus_part: Option<&'a part_outline::Model>,
+    pub focus_part: Option<&'a PartOutlineRecord>,
     pub prompt_renderer: &'a dyn PromptRenderer,
     pub variables: &'a HashMap<String, Value>,
     pub progress: ProgressReporter<'progress>,
@@ -30,7 +30,7 @@ pub(super) struct ChapterOutlineSequenceInput<'a, 'progress> {
 pub(super) struct SingleChapterOutlineJsonInput<'a> {
     pub project_id: i64,
     pub context: &'a ChapterOutlineGenerationContext,
-    pub focus_part: Option<&'a part_outline::Model>,
+    pub focus_part: Option<&'a PartOutlineRecord>,
     pub chapter_number: i32,
     pub prompt_renderer: &'a dyn PromptRenderer,
     pub variables: &'a HashMap<String, Value>,
@@ -40,7 +40,7 @@ pub(super) struct SingleChapterOutlineJsonInput<'a> {
 pub(super) struct ChapterOutlineRequestInput<'a> {
     pub project_id: i64,
     pub context: &'a ChapterOutlineGenerationContext,
-    pub focus_part: Option<&'a part_outline::Model>,
+    pub focus_part: Option<&'a PartOutlineRecord>,
     pub start_chapter: i32,
     pub count: i32,
     pub end_chapter: i32,

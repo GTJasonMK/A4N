@@ -1,5 +1,5 @@
-use a4n_db_models::models::{ai::generated_image, project::novel_blueprint};
-use a4n_domain::media::CreateGeneratedImageRecordDraftInput;
+use a4n_domain::media::{CreateGeneratedImageRecordDraftInput, GeneratedImageRecord};
+use a4n_domain::project::BlueprintRecord;
 use chrono::NaiveDateTime;
 use sea_orm::FromQueryResult;
 use serde_json::Value;
@@ -83,12 +83,12 @@ pub struct VideoProfileMaterialReadModel {
     pub scenes: Vec<VideoProfileRelevanceRow>,
     pub objects: Vec<VideoProfileRelevanceRow>,
     pub primary_materials: Vec<VideoProfilePrimaryMaterialRow>,
-    pub material_images: Vec<generated_image::Model>,
+    pub material_images: Vec<GeneratedImageRecord>,
 }
 
 #[derive(Debug, Clone, Default)]
 pub struct VideoProjectContextReadModel {
-    pub blueprint: Option<novel_blueprint::Model>,
+    pub blueprint: Option<BlueprintRecord>,
     pub blueprint_characters: Vec<VideoPromptBlueprintCharacterRecord>,
     pub protagonist_profiles: Vec<VideoPromptProtagonistProfileRecord>,
 }

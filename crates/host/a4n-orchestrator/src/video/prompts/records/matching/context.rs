@@ -1,4 +1,4 @@
-use a4n_db_models::models::chapter::chapter_video_prompt;
+use a4n_domain::video_prompt::{ChapterVideoPromptRecord, chapter_video_prompt};
 use serde_json::Value;
 
 use crate::video::{
@@ -25,7 +25,7 @@ pub(in crate::video) fn video_execution_segment_lineage_matches(
 }
 
 pub(in crate::video) fn reusable_rows_are_complete(
-    rows: &[chapter_video_prompt::Model],
+    rows: &[ChapterVideoPromptRecord],
     expected_count: usize,
 ) -> bool {
     rows.len() == expected_count
@@ -39,7 +39,7 @@ pub(in crate::video) fn reusable_rows_are_complete(
 }
 
 pub(in crate::video::prompts::records) fn prompt_matches_generation_context_for_workflow(
-    row: &chapter_video_prompt::Model,
+    row: &ChapterVideoPromptRecord,
     context: PromptGenerationContextForWorkflow<'_>,
 ) -> bool {
     let expected_storage_workflow_mode =

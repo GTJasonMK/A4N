@@ -102,11 +102,20 @@ async fn boundary_frame_image_lookup_accepts_root_project_images_for_video_proje
     .await
     .unwrap();
     let video_service = crate::video::test_video_orchestrator(db).await;
-
-    let image_id_by_frame =
-        boundary_frame_image_ids_by_number(&video_service, video_project.id, chapter.id, &[prompt])
+    let prompt_record =
+        a4n_db::video::chapter_video_prompt_by_id(&video_service.database, prompt.id)
             .await
+            .unwrap()
             .unwrap();
+
+    let image_id_by_frame = boundary_frame_image_ids_by_number(
+        &video_service,
+        video_project.id,
+        chapter.id,
+        &[prompt_record],
+    )
+    .await
+    .unwrap();
 
     assert_eq!(image_id_by_frame.get(&1), Some(&image.id));
 }

@@ -1,4 +1,5 @@
 use super::OutlineDbError;
+use crate::scene_profile::scene_profile_record;
 use a4n_db_models::models::{
     asset::object_profile,
     chapter::{chapter, chapter_outline, chapter_outline_provenance, part_outline},
@@ -6,27 +7,32 @@ use a4n_db_models::models::{
     project::{blueprint_character, blueprint_relationship, novel_blueprint, novel_project},
     scene::scene_profile,
 };
+use a4n_domain::chapter::{ChapterOutlineRecord, PartOutlineRecord};
+use a4n_domain::project::ProjectRecord;
 use a4n_domain::source_text_hash;
+use a4n_domain::{object_profile::ObjectProfileRecord, scene_profile::SceneProfileRecord};
 use sea_orm::{
     ColumnTrait, ConnectionTrait, DatabaseConnection, DatabaseTransaction, DbBackend, DbErr,
     EntityTrait, QueryFilter, QueryOrder, QuerySelect, Select, Statement, TransactionTrait,
 };
 use serde_json::{Value, json};
 
+use super::record_mapping::{chapter_outline_record_from_model, part_outline_record_from_model};
+
 pub const OUTLINE_GENERATION_SOURCE_CHANGED: &str = "outline_generation_source_changed";
 
 pub struct OutlineGenerationSourceRows {
-    pub project: novel_project::Model,
+    pub project: ProjectRecord,
     pub chapters: Vec<chapter::Model>,
     pub blueprint: Option<novel_blueprint::Model>,
     pub blueprint_characters: Vec<blueprint_character::Model>,
     pub blueprint_relationships: Vec<blueprint_relationship::Model>,
     pub character_profiles: Vec<protagonist_profile::Model>,
-    pub objects: Vec<object_profile::Model>,
-    pub scenes: Vec<scene_profile::Model>,
+    pub objects: Vec<ObjectProfileRecord>,
+    pub scenes: Vec<SceneProfileRecord>,
     pub foreshadowing: Vec<foreshadowing_index::Model>,
-    pub parts: Vec<part_outline::Model>,
-    pub chapter_outlines: Vec<chapter_outline::Model>,
+    pub parts: Vec<PartOutlineRecord>,
+    pub chapter_outlines: Vec<ChapterOutlineRecord>,
     pub chapter_outline_provenance: Vec<chapter_outline_provenance::Model>,
 }
 
@@ -117,6 +123,7 @@ where
     let Some(project) = project else {
         return Ok(None);
     };
+    let project = crate::project::project_record_from_model(project);
     if lock {
         lock_outline_source_insert_tables(db, backend).await?;
     }
@@ -182,8 +189,14 @@ where
         let blueprint_characters = blueprint_characters_result?;
         let blueprint_relationships = blueprint_relationships_result?;
         let character_profiles = character_profiles_result?;
-        let objects = objects_result?;
-        let scenes = scenes_result?;
+        let objects = objects_result?
+            .into_iter()
+            .map(crate::asset::object_profile_record)
+            .collect();
+        let scenes = scenes_result?
+            .into_iter()
+            .map(scene_profile_record)
+            .collect();
         let foreshadowing = foreshadowing_result?;
         let parts = parts_result?;
         let chapter_outlines = chapter_outlines_result?;
@@ -210,8 +223,14 @@ where
             objects,
             scenes,
             foreshadowing,
-            parts,
-            chapter_outlines,
+            parts: parts
+                .into_iter()
+                .map(part_outline_record_from_model)
+                .collect(),
+            chapter_outlines: chapter_outlines
+                .into_iter()
+                .map(chapter_outline_record_from_model)
+                .collect(),
             chapter_outline_provenance,
         }));
     }
@@ -269,7 +288,10 @@ where
         lock,
     )
     .all(db)
-    .await?;
+    .await?
+    .into_iter()
+    .map(crate::asset::object_profile_record)
+    .collect();
     let scenes = maybe_lock(
         scene_profile::Entity::find()
             .filter(scene_profile::Column::ProjectId.eq(project_id))
@@ -278,7 +300,10 @@ where
         lock,
     )
     .all(db)
-    .await?;
+    .await?
+    .into_iter()
+    .map(scene_profile_record)
+    .collect();
     let foreshadowing = maybe_lock(
         foreshadowing_index::Entity::find()
             .filter(foreshadowing_index::Column::ProjectId.eq(project_id))
@@ -336,8 +361,14 @@ where
         objects,
         scenes,
         foreshadowing,
-        parts,
-        chapter_outlines,
+        parts: parts
+            .into_iter()
+            .map(part_outline_record_from_model)
+            .collect(),
+        chapter_outlines: chapter_outlines
+            .into_iter()
+            .map(chapter_outline_record_from_model)
+            .collect(),
         chapter_outline_provenance,
     }))
 }

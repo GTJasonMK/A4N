@@ -1,7 +1,7 @@
 use std::collections::{BTreeMap, HashMap, HashSet};
 
-use a4n_db_models::models::chapter::chapter_video_prompt;
 use a4n_domain::prompt_language::PromptOutputLanguage;
+use a4n_domain::video_prompt::ChapterVideoPromptRecord;
 use a4n_error::AppError;
 use serde_json::Value;
 
@@ -43,7 +43,7 @@ impl GeneratedVideoPromptShot {
 
 pub(in crate::video::prompts::generation::frame_prompts) fn reusable_generated_video_prompts_from_rows(
     spec: &FramePromptGenerationSpec,
-    rows: &[chapter_video_prompt::Model],
+    rows: &[ChapterVideoPromptRecord],
 ) -> Result<BTreeMap<i32, GeneratedVideoPromptShot>, AppError> {
     match spec.workflow_mode {
         PromptWorkflowMode::SharedSegmentPlan => Err(AppError::InvalidArgument(

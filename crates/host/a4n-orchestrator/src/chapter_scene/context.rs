@@ -1,7 +1,7 @@
-use a4n_db_models::models::chapter::{chapter, chapter_outline, chapter_scene};
+use a4n_domain::chapter::{ChapterOutlineRecord, ChapterRecord, ChapterSceneRecord};
 use serde_json::{Value, json};
 
-fn scene_context_value(scene: &chapter_scene::Model) -> Value {
+fn scene_context_value(scene: &ChapterSceneRecord) -> Value {
     json!({
         "scene_number": scene.scene_number,
         "title": scene.title.as_deref().map(str::trim).filter(|title| !title.is_empty()),
@@ -14,7 +14,7 @@ fn scene_context_value(scene: &chapter_scene::Model) -> Value {
     })
 }
 
-fn outline_context_value(outline: &chapter_outline::Model) -> Value {
+fn outline_context_value(outline: &ChapterOutlineRecord) -> Value {
     json!({
         "chapter_number": outline.chapter_number,
         "title": outline.title.as_deref().map(str::trim).filter(|title| !title.is_empty()),
@@ -46,9 +46,9 @@ pub(super) fn scene_generation_stable_context(
 }
 
 pub(super) fn build_scene_generation_context(
-    chapter: &chapter::Model,
-    outline: Option<&chapter_outline::Model>,
-    scenes: &[chapter_scene::Model],
+    chapter: &ChapterRecord,
+    outline: Option<&ChapterOutlineRecord>,
+    scenes: &[ChapterSceneRecord],
     target_scene_number: i32,
 ) -> Value {
     let mut object = serde_json::Map::new();

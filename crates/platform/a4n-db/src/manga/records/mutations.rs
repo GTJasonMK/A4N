@@ -4,12 +4,15 @@ use crate::manga::{
     require_manga_text, require_positive_manga_id, validate_manga_page_prompt_layout,
 };
 use a4n_db_models::models::chapter::chapter_manga_prompt::{self, MANGA_PAGE_PROMPT_TYPE};
+use a4n_domain::manga::MangaPagePromptRecord;
 use chrono::Utc;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QuerySelect, Set,
     TransactionTrait,
 };
 use serde_json::Value;
+
+use super::mapping::manga_page_prompt_record_from_model;
 
 pub async fn delete_manga_prompts_by_chapter(
     db: &DatabaseConnection,
@@ -71,9 +74,9 @@ pub async fn delete_manga_prompt_record(
 
 pub async fn update_manga_page_prompt_layout(
     db: &DatabaseConnection,
-    page_prompt: chapter_manga_prompt::Model,
+    page_prompt: MangaPagePromptRecord,
     layout: Value,
-) -> Result<chapter_manga_prompt::Model, MangaPromptRecordError> {
+) -> Result<MangaPagePromptRecord, MangaPromptRecordError> {
     require_positive_manga_id(page_prompt.id, "prompt_id")?;
     if page_prompt.prompt_type != MANGA_PAGE_PROMPT_TYPE {
         return Err(MangaPromptRecordError::InvalidArgument(
@@ -82,13 +85,16 @@ pub async fn update_manga_page_prompt_layout(
     }
     validate_manga_page_prompt_layout(page_prompt.page_number, Some(&layout))
         .map_err(manga_pipeline_record_error)?;
-    let mut active: chapter_manga_prompt::ActiveModel = page_prompt.into();
-    active.layout = Set(Some(layout));
-    active.updated_at = Set(Utc::now().naive_utc());
-    active
-        .update(db)
-        .await
-        .map_err(manga_record_database("更新漫画提示词布局失败"))
+    let updated = chapter_manga_prompt::ActiveModel {
+        id: Set(page_prompt.id),
+        layout: Set(Some(layout)),
+        updated_at: Set(Utc::now().naive_utc()),
+        ..Default::default()
+    }
+    .update(db)
+    .await
+    .map_err(manga_record_database("更新漫画提示词布局失败"))?;
+    Ok(manga_page_prompt_record_from_model(updated))
 }
 
 fn manga_pipeline_record_error(error: MangaPipelineDbError) -> MangaPromptRecordError {
@@ -97,9 +103,9 @@ fn manga_pipeline_record_error(error: MangaPipelineDbError) -> MangaPromptRecord
 
 pub async fn update_manga_page_prompt_image_prompt(
     db: &DatabaseConnection,
-    page_prompt: chapter_manga_prompt::Model,
+    page_prompt: MangaPagePromptRecord,
     image_prompt: String,
-) -> Result<chapter_manga_prompt::Model, MangaPromptRecordError> {
+) -> Result<MangaPagePromptRecord, MangaPromptRecordError> {
     require_positive_manga_id(page_prompt.id, "prompt_id")?;
     if page_prompt.prompt_type != MANGA_PAGE_PROMPT_TYPE {
         return Err(MangaPromptRecordError::InvalidArgument(
@@ -107,14 +113,17 @@ pub async fn update_manga_page_prompt_image_prompt(
         ));
     }
     require_manga_text(&image_prompt, "image_prompt")?;
-    let mut active: chapter_manga_prompt::ActiveModel = page_prompt.into();
-    active.image_prompt = Set(image_prompt);
-    active.status = Set("pending".to_string());
-    active.updated_at = Set(Utc::now().naive_utc());
-    active
-        .update(db)
-        .await
-        .map_err(manga_record_database("更新漫画图片提示词失败"))
+    let updated = chapter_manga_prompt::ActiveModel {
+        id: Set(page_prompt.id),
+        image_prompt: Set(image_prompt),
+        status: Set("pending".to_string()),
+        updated_at: Set(Utc::now().naive_utc()),
+        ..Default::default()
+    }
+    .update(db)
+    .await
+    .map_err(manga_record_database("更新漫画图片提示词失败"))?;
+    Ok(manga_page_prompt_record_from_model(updated))
 }
 
 pub async fn mark_manga_page_prompt_image_completed_with_image(

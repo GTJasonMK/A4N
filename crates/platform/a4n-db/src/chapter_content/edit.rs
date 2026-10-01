@@ -5,12 +5,12 @@ use sea_orm::{
 };
 
 use super::{ChapterContentEditError, assign_chapter_content};
-use a4n_domain::chapter::{EditChapterContentInput, chapter_edit_revision};
+use a4n_domain::chapter::{ChapterRecord, EditChapterContentInput, chapter_edit_revision};
 
 pub async fn save_chapter_content_edit_record(
     db: &DatabaseTransaction,
     input: EditChapterContentInput,
-) -> Result<chapter::Model, ChapterContentEditError> {
+) -> Result<ChapterRecord, ChapterContentEditError> {
     if input.content.trim().is_empty() {
         return Err(ChapterContentEditError::InvalidArgument(
             "章节正文不能为空".to_string(),
@@ -65,8 +65,9 @@ pub async fn save_chapter_content_edit_record(
     {
         active.title = Set(Some(title.to_string()));
     }
-    active
+    let updated = active
         .update(db)
         .await
-        .map_err(ChapterContentEditError::database)
+        .map_err(ChapterContentEditError::database)?;
+    Ok(crate::project::chapter_record(updated))
 }

@@ -1,5 +1,5 @@
-use a4n_db_models::models::chapter::chapter_video_prompt;
 use a4n_domain::prompt_language::{PromptOutputLanguage, metadata_matches_prompt_output_language};
+use a4n_domain::video_prompt::chapter_video_prompt;
 use a4n_error::AppError;
 
 use crate::video::OrchestratorContext;

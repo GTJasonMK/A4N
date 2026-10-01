@@ -1,6 +1,6 @@
-use a4n_db_models::models::chapter::chapter;
+use a4n_domain::chapter::ChapterRecord;
 
-pub fn chapter_display_title(ch: &chapter::Model) -> String {
+pub fn chapter_display_title(ch: &ChapterRecord) -> String {
     ch.title
         .as_deref()
         .map(str::trim)

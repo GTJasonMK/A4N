@@ -1,4 +1,4 @@
-use a4n_db_models::models::chapter::chapter_manga_prompt;
+use a4n_domain::manga::MangaPagePromptRecord;
 use a4n_error::AppError;
 
 use super::super::super::persist::MangaPipelinePersistInput;
@@ -8,7 +8,7 @@ use super::contracts::MangaCompletionArtifacts;
 pub(super) async fn persist_completion_outputs(
     context: &MangaRunContext<'_>,
     artifacts: MangaCompletionArtifacts,
-) -> Result<Vec<chapter_manga_prompt::Model>, AppError> {
+) -> Result<Vec<MangaPagePromptRecord>, AppError> {
     let MangaCompletionArtifacts {
         plan,
         page_prompts,

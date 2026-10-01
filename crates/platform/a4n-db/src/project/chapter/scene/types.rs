@@ -1,10 +1,10 @@
-use a4n_db_models::models::chapter::chapter_scene;
+use a4n_domain::chapter::ChapterSceneRecord;
 use chrono::NaiveDateTime;
 use sea_orm::DbErr;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct ProjectChapterSceneUpdateInput {
-    pub scene: chapter_scene::Model,
+    pub scene: ChapterSceneRecord,
     pub content: Option<String>,
     pub title: Option<Option<String>>,
     pub summary: Option<Option<String>>,

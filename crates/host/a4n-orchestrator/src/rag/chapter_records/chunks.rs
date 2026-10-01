@@ -1,4 +1,4 @@
-use a4n_db_models::models::chapter::chapter;
+use a4n_domain::chapter::ChapterRecord;
 use a4n_embedding_provider_contract::EmbeddingProvider;
 use a4n_rag_core::{
     chunk_strategy::{CHAPTER_RAG_MAX_CHUNK_CHARS, CHAPTER_RAG_MIN_CHUNK_CHARS},
@@ -8,7 +8,7 @@ use a4n_rag_core::{
 use a4n_rag_core::ChapterRagChunkingMode;
 
 pub(super) async fn chapter_rag_chunks_with_provider(
-    chapter: &chapter::Model,
+    chapter: &ChapterRecord,
     provider: &dyn EmbeddingProvider,
     mode: ChapterRagChunkingMode,
 ) -> Result<Vec<String>, String> {

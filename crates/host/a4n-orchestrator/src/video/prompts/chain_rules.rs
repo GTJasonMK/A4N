@@ -1,6 +1,6 @@
 //! 视频提示词链身份与合同匹配规则（无 DB、无 Host）。
 
-use a4n_db_models::models::chapter::chapter_video_prompt;
+use a4n_domain::video_prompt::{ChapterVideoPromptRecord, chapter_video_prompt};
 use serde_json::Value;
 
 use super::records::expected_contract_version;
@@ -13,7 +13,7 @@ pub trait PromptChainFields {
     fn metadata_json(&self) -> Option<&Value>;
 }
 
-impl PromptChainFields for chapter_video_prompt::Model {
+impl PromptChainFields for ChapterVideoPromptRecord {
     fn id(&self) -> i64 {
         self.id
     }

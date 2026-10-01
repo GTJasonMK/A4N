@@ -13,7 +13,7 @@ use a4n_domain::object_profile::ObjectProfileRecordInput;
 use a4n_domain::scene_profile::SceneProfileRecordInput;
 use a4n_domain::text_anchor::{TextAnchorEvidenceInput, TextAnchorProfileKind};
 use chrono::Utc;
-use sea_orm::{ActiveModelTrait, Set};
+use sea_orm::{ActiveModelTrait, EntityTrait, Set};
 use serde_json::json;
 
 async fn chapter(
@@ -169,7 +169,12 @@ async fn chapter_context_uses_only_historical_evidence_and_occurrences() {
     let authored_object = create_object_profile_record(&db, project.id, object_input("作者道具"))
         .await
         .expect("authored object must be created");
-    let mut ai_only: object_profile::ActiveModel = authored_object.clone().into();
+    let authored_model = object_profile::Entity::find_by_id(authored_object.id)
+        .one(&db)
+        .await
+        .expect("authored object row should load")
+        .expect("authored object row should exist");
+    let mut ai_only: object_profile::ActiveModel = authored_model.into();
     ai_only.id = sea_orm::NotSet;
     ai_only.name = Set("无历史物体".to_string());
     ai_only.normalized_name = Set("无历史物体".to_string());
@@ -189,8 +194,14 @@ async fn chapter_context_uses_only_historical_evidence_and_occurrences() {
         create_scene_profile_record(&db, project.id, scene_input("作者场景"), "user")
             .await
             .expect("authored scene must be created");
+    let authored_scene_model =
+        a4n_db_models::models::scene::scene_profile::Entity::find_by_id(authored_scene.id)
+            .one(&db)
+            .await
+            .expect("authored scene row should load")
+            .expect("authored scene row should exist");
     let mut ai_scene: a4n_db_models::models::scene::scene_profile::ActiveModel =
-        authored_scene.clone().into();
+        authored_scene_model.into();
     ai_scene.id = sea_orm::NotSet;
     ai_scene.name = Set("无历史场景".to_string());
     ai_scene.normalized_name = Set("无历史场景".to_string());

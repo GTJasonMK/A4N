@@ -2,7 +2,7 @@ use serde_json::{Map, Value, json};
 use std::collections::{BTreeMap, BTreeSet};
 
 use a4n_db::video::{VideoPromptBlueprintCharacterRecord, VideoPromptProtagonistProfileRecord};
-use a4n_db_models::models::project::novel_blueprint;
+use a4n_domain::project::BlueprintRecord;
 use a4n_error::AppError;
 
 use super::super::super::OrchestratorContext;
@@ -183,7 +183,7 @@ fn video_aliases_match(value: &Value, names: &BTreeSet<String>) -> bool {
     }
 }
 
-fn video_blueprint_context(blueprint: &novel_blueprint::Model) -> Value {
+fn video_blueprint_context(blueprint: &BlueprintRecord) -> Value {
     let mut object = Map::new();
     insert_text_value(&mut object, "title", Some(blueprint.title.as_str()));
     insert_text_value(&mut object, "genre", Some(blueprint.genre.as_str()));

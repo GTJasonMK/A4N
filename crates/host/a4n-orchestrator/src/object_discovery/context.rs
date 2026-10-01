@@ -1,4 +1,5 @@
-use a4n_db_models::models::{asset::object_profile, chapter::chapter, project::text_anchor};
+use a4n_db_models::models::{chapter::chapter, project::text_anchor};
+use a4n_domain::object_profile::ObjectProfileRecord;
 use a4n_domain::source_spans::text_anchor_prompt_text;
 use a4n_error::AppError;
 use serde_json::{Value, json};
@@ -20,7 +21,7 @@ pub(super) fn object_discovery_stable_context(
     }))
 }
 
-pub(super) fn existing_object_profile_for_prompt(profile: &object_profile::Model) -> Value {
+pub(super) fn existing_object_profile_for_prompt(profile: &ObjectProfileRecord) -> Value {
     json!({
         "name": profile.name,
         "aliases": profile.aliases_json,

@@ -1,4 +1,4 @@
-use a4n_db_models::models::character::protagonist_profile;
+use a4n_db::rag::RagProtagonistProfileRow;
 use a4n_domain::rag::RagDataType;
 use a4n_rag_core::RagRecord;
 use a4n_rag_core::record_text::{
@@ -9,7 +9,7 @@ use a4n_rag_core::record_text::{
 use super::super::protagonist_rag_chunk_id;
 
 fn protagonist_rag_sections(
-    profile: &protagonist_profile::Model,
+    profile: &RagProtagonistProfileRow,
 ) -> Result<Vec<DimensionRagSection>, String> {
     let name = required_rag_text(
         Some(&profile.name),
@@ -93,7 +93,7 @@ fn protagonist_rag_sections(
 
 pub fn protagonist_rag_records(
     project_id: i64,
-    profile: &protagonist_profile::Model,
+    profile: &RagProtagonistProfileRow,
 ) -> Result<Vec<RagRecord>, String> {
     let name = required_rag_text(
         Some(&profile.name),

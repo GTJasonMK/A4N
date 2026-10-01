@@ -7,9 +7,10 @@ use a4n_api_contract::video::{
     UpdateVideoSegmentPlanDraftRecipeInput, VideoSegmentPlanDraftSummary,
 };
 use a4n_api_contract::video::{VideoPromptDownstreamCleanupPort, VideoPromptGenerationOptions};
-use a4n_db_models::models::chapter::{chapter, chapter_video_prompt};
+use a4n_db_models::models::chapter::chapter;
 use a4n_domain::prompt_language::PromptOutputLanguage;
 use a4n_domain::video_prompt::ChapterVideoPromptPatch;
+use a4n_domain::video_prompt::{ChapterVideoPromptRecord, chapter_video_prompt};
 use a4n_domain::{DownstreamConflictStrategy, source_text_hash as source_content_sha256};
 use a4n_prompt::rendering::PromptRenderer;
 use a4n_provider_contract::VideoProviderConfig;

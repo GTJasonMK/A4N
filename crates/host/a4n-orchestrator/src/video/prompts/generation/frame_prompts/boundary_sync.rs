@@ -1,7 +1,7 @@
 use std::collections::{BTreeSet, HashMap, HashSet};
 
-use a4n_db_models::models::chapter::chapter_video_prompt;
 use a4n_domain::video_prompt::UpdateChapterVideoPromptRecordInput;
+use a4n_domain::video_prompt::{ChapterVideoPromptRecord, chapter_video_prompt};
 use a4n_error::AppError;
 use serde_json::{Value, json};
 
@@ -9,9 +9,9 @@ use super::{OrchestratorContext, PromptWorkflowMode, VideoFramePrompt};
 
 pub(super) async fn sync_reusable_boundary_frame_previous_image_refs(
     service: &OrchestratorContext,
-    rows: Vec<chapter_video_prompt::Model>,
+    rows: Vec<ChapterVideoPromptRecord>,
     image_id_by_frame_number: &HashMap<i32, i64>,
-) -> Result<Vec<chapter_video_prompt::Model>, AppError> {
+) -> Result<Vec<ChapterVideoPromptRecord>, AppError> {
     let image_ids = rows
         .iter()
         .filter_map(|row| row.reference_image_ids_json.as_ref())
@@ -40,10 +40,10 @@ pub(super) async fn sync_reusable_boundary_frame_previous_image_refs(
 
 pub(super) async fn sync_boundary_frame_previous_image_ref(
     service: &OrchestratorContext,
-    row: chapter_video_prompt::Model,
+    row: ChapterVideoPromptRecord,
     image_id_by_frame_number: &HashMap<i32, i64>,
     existing_image_ids: &BTreeSet<i64>,
-) -> Result<chapter_video_prompt::Model, AppError> {
+) -> Result<ChapterVideoPromptRecord, AppError> {
     if row.shot_number <= 1 {
         return Ok(row);
     }

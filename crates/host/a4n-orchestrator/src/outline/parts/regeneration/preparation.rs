@@ -1,4 +1,4 @@
-use a4n_db_models::models::chapter::part_outline;
+use a4n_domain::chapter::PartOutlineRecord;
 use a4n_error::AppError;
 
 use super::super::super::OrchestratorContext;
@@ -9,9 +9,9 @@ use super::super::super::part_contract::{
 
 pub(super) struct PreparedPartRegeneration {
     pub(super) project_id: i64,
-    pub(super) target: part_outline::Model,
+    pub(super) target: PartOutlineRecord,
     pub(super) context: PartOutlineGenerationContext,
-    pub(super) previous_parts: Vec<part_outline::Model>,
+    pub(super) previous_parts: Vec<PartOutlineRecord>,
     pub(super) rebind_chapter_outlines: bool,
 }
 
@@ -49,7 +49,7 @@ pub(super) async fn prepare_part_regeneration_by_id(
 
 fn prepare_part_regeneration(
     project_id: i64,
-    target: part_outline::Model,
+    target: PartOutlineRecord,
     context: PartOutlineGenerationContext,
     rebind_chapter_outlines: bool,
 ) -> Result<PreparedPartRegeneration, AppError> {

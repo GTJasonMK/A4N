@@ -1,13 +1,8 @@
-use a4n_db_models::models::{
-    ai::{generated_image, generated_video},
-    chapter::chapter,
-    media::media_asset,
-    project::novel_project,
-};
+use a4n_db_models::models::{ai::generated_image, chapter::chapter, project::novel_project};
 use a4n_domain::image::IMAGE_TYPE_CANVAS;
 use a4n_domain::video_workflow::WORKFLOW_MODE_CANVAS_VIDEO;
 use chrono::Utc;
-use sea_orm::{ActiveModelTrait, DatabaseConnection, Set};
+use sea_orm::{ActiveModelTrait, DatabaseConnection, EntityTrait, Set};
 
 pub(super) async fn setup_db() -> DatabaseConnection {
     a4n_migration::test_support::connect_test_database().await
@@ -15,18 +10,21 @@ pub(super) async fn setup_db() -> DatabaseConnection {
 
 pub(super) async fn set_project_gate(
     db: &DatabaseConnection,
-    project: &novel_project::Model,
+    project: &a4n_domain::project::ProjectRecord,
     operation: a4n_domain::generation::ProjectLifecycleOperation,
 ) {
-    let mut active: novel_project::ActiveModel = project.clone().into();
-    active.lifecycle_gate = Set(operation.gate().to_string());
+    let active = novel_project::ActiveModel {
+        id: Set(project.id),
+        lifecycle_gate: Set(operation.gate().to_string()),
+        ..Default::default()
+    };
     active.update(db).await.unwrap();
 }
 
 pub(super) async fn freeform_video_project(
     db: &DatabaseConnection,
     title: &str,
-) -> novel_project::Model {
+) -> a4n_domain::project::ProjectRecord {
     crate::project::create_freeform_video_project_record(
         db,
         1,
@@ -39,7 +37,10 @@ pub(super) async fn freeform_video_project(
     .unwrap()
 }
 
-pub(super) async fn text_project(db: &DatabaseConnection, title: &str) -> novel_project::Model {
+pub(super) async fn text_project(
+    db: &DatabaseConnection,
+    title: &str,
+) -> a4n_domain::project::ProjectRecord {
     crate::project::create_project_record(
         db,
         crate::project::CreateProjectRecordInput {
@@ -55,7 +56,10 @@ pub(super) async fn text_project(db: &DatabaseConnection, title: &str) -> novel_
 
 pub(super) async fn root_with_video_derivative(
     db: &DatabaseConnection,
-) -> (novel_project::Model, novel_project::Model) {
+) -> (
+    a4n_domain::project::ProjectRecord,
+    a4n_domain::project::ProjectRecord,
+) {
     let root = text_project(db, "根文本").await;
     let now = Utc::now().naive_utc();
     chapter::ActiveModel {
@@ -99,8 +103,8 @@ pub(super) async fn generated_image_with_asset(
     db: &DatabaseConnection,
     project_id: i64,
     file_name: &str,
-) -> (generated_image::Model, media_asset::Model) {
-    let image = crate::video::create_generated_image_record(
+) -> (generated_image::Model, a4n_domain::media::MediaAssetRecord) {
+    let image_record = crate::video::create_generated_image_record(
         db,
         a4n_domain::media::CreateGeneratedImageRecordDraftInput {
             project_id,
@@ -123,13 +127,18 @@ pub(super) async fn generated_image_with_asset(
         db,
         crate::canvas::CanvasImageMediaAssetEnsureInput {
             project_id,
-            image: image.clone(),
+            image: image_record.clone(),
             generation_spec_id: None,
             origin: "generated".to_string(),
         },
     )
     .await
     .unwrap();
+    let image = generated_image::Entity::find_by_id(image_record.id)
+        .one(db)
+        .await
+        .unwrap()
+        .unwrap();
     (image, asset)
 }
 
@@ -137,7 +146,10 @@ pub(super) async fn generated_video_with_asset(
     db: &DatabaseConnection,
     project_id: i64,
     file_name: &str,
-) -> (generated_video::Model, media_asset::Model) {
+) -> (
+    a4n_domain::media::GeneratedVideoRecord,
+    a4n_domain::media::MediaAssetRecord,
+) {
     let video = crate::video::create_generated_video_record(
         db,
         a4n_domain::media::CreateGeneratedVideoRecordDraftInput {

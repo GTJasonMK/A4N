@@ -181,7 +181,7 @@ async fn append_character_records(
             add_record(
                 records,
                 ids,
-                crate::rag::character_state_rag_record(project_id, &state, name)
+                crate::rag::character_state_rag_record_from_row(project_id, &state, name)
                     .map_err(AppError::InvalidArgument)?,
             )?;
         }
@@ -202,7 +202,7 @@ async fn append_character_records(
             add_record(
                 records,
                 ids,
-                crate::rag::character_attribute_event_rag_record(project_id, &event, name)
+                crate::rag::character_attribute_event_rag_record_from_row(project_id, &event, name)
                     .map_err(AppError::InvalidArgument)?,
             )?;
         }
@@ -401,7 +401,7 @@ impl RagIngestPort for OrchestratorContext {
         chapter_mode: ChapterRagChunkingMode,
     ) -> Result<u32, AppError> {
         let chapter = self
-            .chapter_by_id(chapter_id)
+            .chapter_for_rag_ingest(project_id, chapter_id)
             .await?
             .ok_or_else(|| AppError::NotFound(format!("章节不存在: chapter_id={chapter_id}")))?;
         if chapter.project_id != project_id {

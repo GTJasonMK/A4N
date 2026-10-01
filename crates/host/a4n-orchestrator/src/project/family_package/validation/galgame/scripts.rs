@@ -1,8 +1,9 @@
 use super::super::*;
+use a4n_domain::project::ProjectRecord;
 
 pub(super) fn validate_galgame_scripts(
     package: &ProjectFamilyPackage,
-    projects: &HashMap<i64, &novel_project::Model>,
+    projects: &HashMap<i64, &ProjectRecord>,
     snapshots: &HashMap<i64, &project_source_snapshot::Model>,
 ) -> Result<(), String> {
     for script in &package.galgame_scripts {

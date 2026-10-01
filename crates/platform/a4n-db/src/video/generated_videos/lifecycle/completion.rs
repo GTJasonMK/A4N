@@ -6,7 +6,9 @@ use serde_json::Value;
 use super::context::{
     ensure_generated_video_status_allows_completion, generated_video_with_prompt_record,
 };
+use crate::video::media_mapping::generated_video_record_from_model;
 use crate::video::{VideoDbError, merge_video_provider_response_metadata};
+use a4n_domain::media::GeneratedVideoRecord;
 
 pub(super) fn completed_video_write_is_idempotent(
     status: &str,
@@ -96,7 +98,7 @@ pub async fn mark_generated_video_completed_and_link_prompt_record<C>(
     properties: &a4n_domain::media::VideoFileProperties,
     metadata_json: Option<Value>,
     prompt_id: Option<i64>,
-) -> Result<generated_video::Model, VideoDbError>
+) -> Result<GeneratedVideoRecord, VideoDbError>
 where
     C: ConnectionTrait + TransactionTrait,
 {
@@ -112,5 +114,5 @@ where
     )
     .await?;
     txn.commit().await.map_err(VideoDbError::Database)?;
-    Ok(updated)
+    Ok(generated_video_record_from_model(updated))
 }

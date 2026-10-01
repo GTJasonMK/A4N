@@ -14,7 +14,8 @@ use super::rules::{
     generation_rag_query_fingerprint, generation_rag_search_data_types, previous_chapter_range,
     validate_generation_rag_query_fingerprint,
 };
-use a4n_db_models::models::{chapter::chapter_outline, character::foreshadowing_index};
+use a4n_db::rag::RagForeshadowingRow;
+use a4n_domain::chapter::ChapterOutlineRecord;
 use a4n_domain::rag::RagDataType;
 use a4n_domain::text_location::extract_scene_location;
 use a4n_rag_core::{
@@ -89,9 +90,9 @@ async fn store_generation_search_record(store: &MemoryVectorStore) {
         .expect("generation search record should store");
 }
 
-fn outline_with_characters() -> chapter_outline::Model {
+fn outline_with_characters() -> ChapterOutlineRecord {
     let now = chrono::Utc::now().naive_utc();
-    chapter_outline::Model {
+    ChapterOutlineRecord {
         id: 1,
         project_id: 1,
         part_id: None,
@@ -111,19 +112,15 @@ fn outline_with_characters() -> chapter_outline::Model {
     }
 }
 
-fn foreshadowing(description: &str) -> foreshadowing_index::Model {
-    let now = chrono::Utc::now().naive_utc();
-    foreshadowing_index::Model {
+fn foreshadowing(description: &str) -> RagForeshadowingRow {
+    RagForeshadowingRow {
         id: 1,
-        project_id: 1,
         description: description.to_string(),
         setup_chapter: 2,
         payoff_chapter: None,
         status: "pending".to_string(),
         related_characters: None,
         importance: 4,
-        created_at: now,
-        updated_at: now,
     }
 }
 

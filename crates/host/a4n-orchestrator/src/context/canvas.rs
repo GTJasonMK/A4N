@@ -22,12 +22,6 @@ use a4n_db::canvas::{
     CanvasVideoMediaAssetEnsureInput, VideoStudioProjectExportRows,
     VideoStudioProjectImportMediaFileWriter, validate_canvas_record_document_edge_contract,
 };
-use a4n_db_models::models::{
-    canvas::canvas_text_asset,
-    generation::{generation_spec, prompt_artifact},
-    media::media_asset,
-    project::novel_project,
-};
 use a4n_domain::canvas::{
     CanvasAssemblyContractSyncInput, CanvasPromptArtifactUpsertInput, CanvasTextAssetRecordInput,
     FreeformCanvasGenerationSpecUpsertInput,
@@ -96,7 +90,7 @@ impl CanvasApplication {
         project_id: i64,
         input: CanvasTextAssetRecordInput,
         now: NaiveDateTime,
-    ) -> Result<canvas_text_asset::Model, AppError> {
+    ) -> Result<a4n_domain::canvas::CanvasTextAssetRecord, AppError> {
         a4n_db::canvas::upsert_canvas_text_asset_record(self.connection(), project_id, input, now)
             .await
             .map_err(canvas_db_error)
@@ -105,7 +99,7 @@ impl CanvasApplication {
     async fn upsert_freeform_canvas_generation_spec_record(
         &self,
         input: FreeformCanvasGenerationSpecUpsertInput,
-    ) -> Result<generation_spec::Model, AppError> {
+    ) -> Result<i64, AppError> {
         a4n_db::canvas::upsert_freeform_canvas_generation_spec_record(self.connection(), input)
             .await
             .map_err(canvas_db_error)
@@ -128,7 +122,7 @@ impl CanvasApplication {
     async fn upsert_canvas_prompt_artifact_record(
         &self,
         input: CanvasPromptArtifactUpsertInput,
-    ) -> Result<prompt_artifact::Model, AppError> {
+    ) -> Result<a4n_domain::canvas::CanvasPromptArtifactRecord, AppError> {
         a4n_db::canvas::upsert_canvas_prompt_artifact_record(self.connection(), input)
             .await
             .map_err(canvas_db_error)
@@ -155,7 +149,7 @@ impl CanvasApplication {
     async fn ensure_canvas_image_media_asset_record(
         &self,
         input: CanvasImageMediaAssetEnsureInput,
-    ) -> Result<media_asset::Model, AppError> {
+    ) -> Result<a4n_domain::media::MediaAssetRecord, AppError> {
         a4n_db::canvas::ensure_canvas_image_media_asset_record(self.connection(), input)
             .await
             .map_err(canvas_db_error)
@@ -164,7 +158,7 @@ impl CanvasApplication {
     async fn ensure_canvas_video_media_asset_record(
         &self,
         input: CanvasVideoMediaAssetEnsureInput,
-    ) -> Result<media_asset::Model, AppError> {
+    ) -> Result<a4n_domain::media::MediaAssetRecord, AppError> {
         a4n_db::canvas::ensure_canvas_video_media_asset_record(self.connection(), input)
             .await
             .map_err(canvas_db_error)
@@ -204,7 +198,7 @@ impl CanvasApplication {
         package: VideoStudioProjectPackage,
         now: NaiveDateTime,
         media_file_writer: &mut Writer,
-    ) -> Result<novel_project::Model, AppError>
+    ) -> Result<i64, AppError>
     where
         Writer: VideoStudioProjectImportMediaFileWriter,
     {
@@ -250,7 +244,7 @@ impl OrchestratorContext {
         project_id: i64,
         input: CanvasTextAssetRecordInput,
         now: NaiveDateTime,
-    ) -> Result<canvas_text_asset::Model, AppError> {
+    ) -> Result<a4n_domain::canvas::CanvasTextAssetRecord, AppError> {
         self.canvas
             .upsert_canvas_text_asset_record(project_id, input, now)
             .await
@@ -259,7 +253,7 @@ impl OrchestratorContext {
     pub(crate) async fn upsert_freeform_canvas_generation_spec_record(
         &self,
         input: FreeformCanvasGenerationSpecUpsertInput,
-    ) -> Result<generation_spec::Model, AppError> {
+    ) -> Result<i64, AppError> {
         self.canvas
             .upsert_freeform_canvas_generation_spec_record(input)
             .await
@@ -278,7 +272,7 @@ impl OrchestratorContext {
     pub(crate) async fn upsert_canvas_prompt_artifact_record(
         &self,
         input: CanvasPromptArtifactUpsertInput,
-    ) -> Result<prompt_artifact::Model, AppError> {
+    ) -> Result<a4n_domain::canvas::CanvasPromptArtifactRecord, AppError> {
         self.canvas
             .upsert_canvas_prompt_artifact_record(input)
             .await
@@ -303,7 +297,7 @@ impl OrchestratorContext {
     pub(crate) async fn ensure_canvas_image_media_asset_record(
         &self,
         input: CanvasImageMediaAssetEnsureInput,
-    ) -> Result<media_asset::Model, AppError> {
+    ) -> Result<a4n_domain::media::MediaAssetRecord, AppError> {
         self.canvas
             .ensure_canvas_image_media_asset_record(input)
             .await
@@ -312,7 +306,7 @@ impl OrchestratorContext {
     pub(crate) async fn ensure_canvas_video_media_asset_record(
         &self,
         input: CanvasVideoMediaAssetEnsureInput,
-    ) -> Result<media_asset::Model, AppError> {
+    ) -> Result<a4n_domain::media::MediaAssetRecord, AppError> {
         self.canvas
             .ensure_canvas_video_media_asset_record(input)
             .await
@@ -338,7 +332,7 @@ impl OrchestratorContext {
     pub(crate) async fn complete_canvas_graph_workflow_validated(
         &self,
         workflow_run_id: i64,
-    ) -> Result<a4n_db_models::models::generation::workflow_run::Model, AppError> {
+    ) -> Result<a4n_db::workflow::WorkflowRunSummary, AppError> {
         self.complete_workflow_run_validated(workflow_run_id).await
     }
 
@@ -351,7 +345,7 @@ impl OrchestratorContext {
         unique_suffix: i64,
         input_fingerprint_json: serde_json::Value,
         first_step_key: Option<String>,
-    ) -> Result<a4n_db_models::models::generation::workflow_run::Model, AppError> {
+    ) -> Result<a4n_db::workflow::WorkflowRunSummary, AppError> {
         let input = crate::canvas::canvas_graph_workflow_run_input(
             project_id,
             graph_id,
@@ -373,7 +367,7 @@ impl OrchestratorContext {
         unique_suffix: i64,
         input_fingerprint_json: serde_json::Value,
         step_key: String,
-    ) -> Result<a4n_db_models::models::generation::workflow_run::Model, AppError> {
+    ) -> Result<a4n_db::workflow::WorkflowRunSummary, AppError> {
         let input = crate::canvas::canvas_single_node_workflow_run_input(
             project_id,
             graph_id,
@@ -394,7 +388,7 @@ impl OrchestratorContext {
         mode: &str,
         step_key: &str,
         input_fingerprint_json: serde_json::Value,
-    ) -> Result<a4n_db_models::models::generation::workflow_run::Model, AppError> {
+    ) -> Result<a4n_db::workflow::WorkflowRunSummary, AppError> {
         let input = crate::canvas::canvas_node_step_workflow_run_input(
             project_id,
             graph_id,

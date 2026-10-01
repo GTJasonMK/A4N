@@ -432,8 +432,8 @@ impl OrchestratorContext {
                         )
                         .await?
                 };
-                imported_project_ids.insert(old_project_id, imported.id);
-                root_project_ids.insert(old_project_id, imported.id);
+                imported_project_ids.insert(old_project_id, imported);
+                root_project_ids.insert(old_project_id, imported);
             }
 
             history_maps.project_ids = imported_project_ids.clone();

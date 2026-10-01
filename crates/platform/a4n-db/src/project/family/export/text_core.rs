@@ -1,4 +1,5 @@
 use super::types::{ProjectFamilyExportError, ProjectFamilyTextCoreRows};
+use crate::{asset::object_profile_record, scene_profile::scene_profile_record};
 use a4n_db_models::models::{
     asset::object_profile,
     chapter::{chapter, chapter_outline, part_outline},
@@ -147,8 +148,14 @@ where
         chapter_outlines: chapter_outlines?,
         chapters: chapters?,
         character_profiles: character_profiles?,
-        object_profiles: object_profiles?,
-        scene_profiles: scene_profiles?,
+        object_profiles: object_profiles?
+            .into_iter()
+            .map(object_profile_record)
+            .collect(),
+        scene_profiles: scene_profiles?
+            .into_iter()
+            .map(scene_profile_record)
+            .collect(),
         scene_occurrences: scene_occurrences?,
         scene_transitions: scene_transitions?,
         scene_entity_states: scene_entity_states?,

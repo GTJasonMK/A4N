@@ -55,13 +55,22 @@ pub async fn foreshadowing_items_by_ids(
     db: &impl ConnectionTrait,
     project_id: i64,
     foreshadowing_ids: &[i64],
-) -> Result<Vec<foreshadowing_index::Model>, DbErr> {
+) -> Result<Vec<RagForeshadowingRow>, DbErr> {
     if foreshadowing_ids.is_empty() {
         return Ok(Vec::new());
     }
     foreshadowing_index::Entity::find()
+        .select_only()
+        .column(foreshadowing_index::Column::Id)
+        .column(foreshadowing_index::Column::Description)
+        .column(foreshadowing_index::Column::SetupChapter)
+        .column(foreshadowing_index::Column::PayoffChapter)
+        .column(foreshadowing_index::Column::Status)
+        .column(foreshadowing_index::Column::RelatedCharacters)
+        .column(foreshadowing_index::Column::Importance)
         .filter(foreshadowing_index::Column::ProjectId.eq(project_id))
         .filter(foreshadowing_index::Column::Id.is_in(foreshadowing_ids.to_vec()))
+        .into_model::<RagForeshadowingRow>()
         .all(db)
         .await
 }
@@ -92,8 +101,16 @@ pub async fn pending_foreshadowing_before_chapter(
     project_id: i64,
     chapter_number: i32,
     limit: u64,
-) -> Result<Vec<foreshadowing_index::Model>, DbErr> {
+) -> Result<Vec<RagForeshadowingRow>, DbErr> {
     foreshadowing_index::Entity::find()
+        .select_only()
+        .column(foreshadowing_index::Column::Id)
+        .column(foreshadowing_index::Column::Description)
+        .column(foreshadowing_index::Column::SetupChapter)
+        .column(foreshadowing_index::Column::PayoffChapter)
+        .column(foreshadowing_index::Column::Status)
+        .column(foreshadowing_index::Column::RelatedCharacters)
+        .column(foreshadowing_index::Column::Importance)
         .filter(foreshadowing_index::Column::ProjectId.eq(project_id))
         .filter(foreshadowing_index::Column::SetupChapter.lt(chapter_number))
         .filter(foreshadowing_index::Column::Status.ne("resolved"))
@@ -102,6 +119,7 @@ pub async fn pending_foreshadowing_before_chapter(
         .order_by_desc(foreshadowing_index::Column::SetupChapter)
         .order_by_asc(foreshadowing_index::Column::Id)
         .limit(limit)
+        .into_model::<RagForeshadowingRow>()
         .all(db)
         .await
 }
@@ -110,8 +128,16 @@ pub async fn pending_foreshadowing_for_project(
     db: &impl ConnectionTrait,
     project_id: i64,
     limit: u64,
-) -> Result<Vec<foreshadowing_index::Model>, DbErr> {
+) -> Result<Vec<RagForeshadowingRow>, DbErr> {
     foreshadowing_index::Entity::find()
+        .select_only()
+        .column(foreshadowing_index::Column::Id)
+        .column(foreshadowing_index::Column::Description)
+        .column(foreshadowing_index::Column::SetupChapter)
+        .column(foreshadowing_index::Column::PayoffChapter)
+        .column(foreshadowing_index::Column::Status)
+        .column(foreshadowing_index::Column::RelatedCharacters)
+        .column(foreshadowing_index::Column::Importance)
         .filter(foreshadowing_index::Column::ProjectId.eq(project_id))
         .filter(foreshadowing_index::Column::Status.ne("resolved"))
         .filter(foreshadowing_index::Column::Status.ne("abandoned"))
@@ -119,6 +145,7 @@ pub async fn pending_foreshadowing_for_project(
         .order_by_desc(foreshadowing_index::Column::SetupChapter)
         .order_by_asc(foreshadowing_index::Column::Id)
         .limit(limit)
+        .into_model::<RagForeshadowingRow>()
         .all(db)
         .await
 }

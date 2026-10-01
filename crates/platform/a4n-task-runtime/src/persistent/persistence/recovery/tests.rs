@@ -205,7 +205,7 @@ async fn insert_video_with_run(
     db: &sea_orm::DatabaseConnection,
     project_id: i64,
     provider_job_id: Option<&str>,
-) -> generated_video::Model {
+) -> a4n_domain::media::GeneratedVideoRecord {
     create_generated_video_record_with_generation_run(
         db,
         CreateGeneratedVideoRecordDraftInput {

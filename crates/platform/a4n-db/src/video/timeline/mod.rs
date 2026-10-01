@@ -254,7 +254,8 @@ mod tests {
                 .await
                 .unwrap();
 
-        let mut active: a4n_db_models::models::project::novel_project::ActiveModel = project.into();
+        let mut active: a4n_db_models::models::project::novel_project::ActiveModel =
+            crate::project::project_record_into_model(project.clone()).into();
         active.lifecycle_gate = Set(crate::generation::PROJECT_GATE_RESETTING.to_string());
         active.update(&db).await.unwrap();
 

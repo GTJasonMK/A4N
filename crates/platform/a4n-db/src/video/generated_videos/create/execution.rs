@@ -4,15 +4,16 @@ use super::record::insert_generated_video_record;
 use super::validation::validate_create_generated_video_record_input;
 use crate::generation::RecordStartedGenerationRunInput;
 use crate::video::{VideoDbError, lock_generated_media_project};
-use a4n_db_models::models::ai::generated_video;
-use a4n_domain::media::CreateGeneratedVideoRecordDraftInput;
+use a4n_domain::media::{CreateGeneratedVideoRecordDraftInput, GeneratedVideoRecord};
 use sea_orm::{ConnectionTrait, TransactionTrait};
+
+use crate::video::media_mapping::generated_video_record_from_model;
 
 /// 校验项目、章节和源媒体归属后写入 generated_video。
 pub async fn create_generated_video_record<C>(
     db: &C,
     input: CreateGeneratedVideoRecordDraftInput,
-) -> Result<generated_video::Model, VideoDbError>
+) -> Result<GeneratedVideoRecord, VideoDbError>
 where
     C: ConnectionTrait + TransactionTrait,
 {
@@ -23,7 +24,7 @@ where
         .await
         .map_err(VideoDbError::Database)?;
     txn.commit().await.map_err(VideoDbError::Database)?;
-    Ok(video)
+    Ok(generated_video_record_from_model(video))
 }
 
 /// 创建视频并绑定 generation run（同一事务）。
@@ -31,7 +32,7 @@ pub async fn create_generated_video_record_with_generation_run<C>(
     db: &C,
     input: CreateGeneratedVideoRecordDraftInput,
     generation_run: RecordStartedGenerationRunInput,
-) -> Result<generated_video::Model, VideoDbError>
+) -> Result<GeneratedVideoRecord, VideoDbError>
 where
     C: ConnectionTrait + TransactionTrait,
 {
@@ -44,7 +45,7 @@ where
         .map_err(VideoDbError::Database)?;
     record_video_generation_run(&txn, &video, generation_run).await?;
     txn.commit().await.map_err(VideoDbError::Database)?;
-    Ok(video)
+    Ok(generated_video_record_from_model(video))
 }
 
 /// 创建提示词联动视频并绑定 generation run（同一事务）。
@@ -53,7 +54,7 @@ pub async fn create_prompt_generated_video_record_with_generation_run<C>(
     input: CreateGeneratedVideoRecordDraftInput,
     generation_run: RecordStartedGenerationRunInput,
     prompt_id: i64,
-) -> Result<generated_video::Model, VideoDbError>
+) -> Result<GeneratedVideoRecord, VideoDbError>
 where
     C: ConnectionTrait + TransactionTrait,
 {
@@ -67,5 +68,5 @@ where
     mark_prompt_video_generation_running_for_video_record(&txn, prompt_id, &video).await?;
     record_video_generation_run(&txn, &video, generation_run).await?;
     txn.commit().await.map_err(VideoDbError::Database)?;
-    Ok(video)
+    Ok(generated_video_record_from_model(video))
 }
