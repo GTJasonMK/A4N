@@ -8,12 +8,16 @@ use a4n_db::text_anchor::{
     EVIDENCE_ROLE_FIRST_SEEN, merge_profile_evidence_records_batch,
     rebuild_chapter_content_anchor_records,
 };
-use a4n_db_models::models::{asset::object_profile, chapter::chapter, scene::scene_occurrence};
+use a4n_db_models::models::{
+    asset::object_profile,
+    chapter::chapter,
+    scene::{scene_occurrence, scene_profile},
+};
 use a4n_domain::object_profile::ObjectProfileRecordInput;
 use a4n_domain::scene_profile::SceneProfileRecordInput;
 use a4n_domain::text_anchor::{TextAnchorEvidenceInput, TextAnchorProfileKind};
 use chrono::Utc;
-use sea_orm::{ActiveModelTrait, Set};
+use sea_orm::{ActiveModelTrait, EntityTrait, Set};
 use serde_json::json;
 
 async fn chapter(
@@ -189,8 +193,13 @@ async fn chapter_context_uses_only_historical_evidence_and_occurrences() {
         create_scene_profile_record(&db, project.id, scene_input("作者场景"), "user")
             .await
             .expect("authored scene must be created");
-    let mut ai_scene: a4n_db_models::models::scene::scene_profile::ActiveModel =
-        authored_scene.clone().into();
+    let mut ai_scene: scene_profile::ActiveModel =
+        scene_profile::Entity::find_by_id(authored_scene.id)
+            .one(&db)
+            .await
+            .unwrap()
+            .unwrap()
+            .into();
     ai_scene.id = sea_orm::NotSet;
     ai_scene.name = Set("无历史场景".to_string());
     ai_scene.normalized_name = Set("无历史场景".to_string());

@@ -158,7 +158,7 @@ fn object_profile_material(
 }
 
 fn scene_profile_material(
-    profile: scene_profile::Model,
+    profile: a4n_domain::scene_profile::SceneProfileRecord,
     input: &SceneProfileImageInput,
 ) -> ProfileImageMaterial {
     let prompt = scene_profile_image_prompt(&profile, input.style.as_deref());

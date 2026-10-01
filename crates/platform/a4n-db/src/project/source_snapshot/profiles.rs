@@ -230,10 +230,9 @@ mod tests {
             .unwrap(),
         )
         .unwrap();
-        let profile =
-            crate::scene_profile::create_scene_profile_record(&db, root.id, input, "user")
-                .await
-                .unwrap();
+        let profile = crate::scene_profile::create_scene_profile_model(&db, root.id, input, "user")
+            .await
+            .unwrap();
         let captured = load_snapshot_profiles(&db, root.id).await.unwrap();
         let expected_hash = hash_json(&captured[0].payload);
         let snapshot = project_source_snapshot::ActiveModel {

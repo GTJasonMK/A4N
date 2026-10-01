@@ -74,7 +74,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::insert_scene_occurrence_records;
-    use crate::scene_profile::create_scene_profile_record;
+    use crate::scene_profile::create_scene_profile_model;
     use a4n_db_models::models::{
         chapter::chapter,
         scene::{scene_entity_state, scene_occurrence, scene_profile, scene_transition},
@@ -139,7 +139,7 @@ mod tests {
             evidence_json: json!([]),
             image_prompt_seed: String::new(),
         };
-        let first_profile = create_scene_profile_record(
+        let first_profile = create_scene_profile_model(
             &db,
             project.id,
             profile_input("大厅"),
@@ -147,7 +147,7 @@ mod tests {
         )
         .await
         .unwrap();
-        let second_profile = create_scene_profile_record(
+        let second_profile = create_scene_profile_model(
             &db,
             project.id,
             profile_input("走廊"),

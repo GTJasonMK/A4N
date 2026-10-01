@@ -3,7 +3,7 @@ use a4n_db_models::models::asset::object_profile;
 use a4n_db_models::models::chapter::chapter;
 use a4n_db_models::models::character::protagonist_profile;
 use a4n_db_models::models::project::text_anchor;
-use a4n_db_models::models::scene::scene_profile;
+use a4n_domain::scene_profile::SceneProfileRecord;
 use a4n_llm_provider_contract::provider::ChatRequest;
 use serde_json::Value;
 use std::collections::{BTreeMap, BTreeSet};
@@ -25,7 +25,7 @@ pub(super) const SCENE_ENTITY_STATE_KEY_RULE: &str = "state_key 只能是 positi
 pub(super) struct SceneProfileSyncRequestContext {
     pub(super) chapter: chapter::Model,
     pub(super) text_anchors: Vec<text_anchor::Model>,
-    pub(super) existing_scene_profiles: Arc<Vec<scene_profile::Model>>,
+    pub(super) existing_scene_profiles: Arc<Vec<SceneProfileRecord>>,
     pub(super) character_profiles: Arc<Vec<protagonist_profile::Model>>,
     pub(super) object_profiles: Arc<Vec<object_profile::Model>>,
     pub(super) existing_scene_ids: BTreeSet<i64>,
