@@ -1,8 +1,6 @@
 use a4n_api_contract::profile::{ProfileMaterialGroup, UploadProfileMaterialImageInput};
 use a4n_db::profile_material::profile_material_identity_from_fields;
-use a4n_db_models::models::{
-    asset::object_profile, media::image_publication, scene::scene_profile,
-};
+use a4n_db_models::models::{asset::object_profile, media::image_publication};
 use a4n_domain::{
     image::{IMAGE_TYPE_OBJECT_MATERIAL, IMAGE_TYPE_SCENE_MATERIAL},
     media::{
@@ -11,6 +9,7 @@ use a4n_domain::{
         ImagePublicationFileFacts,
     },
     profile_material::{ProfileMaterialKind, profile_material_identity},
+    scene_profile::SceneProfileRecord,
 };
 use a4n_error::AppError;
 use a4n_image_host_contract::{
@@ -74,7 +73,7 @@ pub(crate) fn profile_material_metadata(
 }
 
 pub(crate) fn scene_profile_image_prompt(
-    profile: &scene_profile::Model,
+    profile: &SceneProfileRecord,
     style: Option<&str>,
 ) -> String {
     let style = style
@@ -136,7 +135,7 @@ pub(crate) fn object_profile_image_prompt(
     )
 }
 
-pub(crate) fn scene_profile_content(profile: &scene_profile::Model) -> String {
+pub(crate) fn scene_profile_content(profile: &SceneProfileRecord) -> String {
     a4n_profile_material_core::scene_profile_content(
         &a4n_db::profile_material::scene_profile_source_record(profile),
     )

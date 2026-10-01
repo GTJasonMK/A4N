@@ -5,7 +5,7 @@ use a4n_api_contract::manga::MangaReferenceBindingSummary;
 use a4n_canvas_contract::GenerateCanvasImageInput;
 use a4n_config::{ensure_image_size_supported, image_sizes_from_json};
 use a4n_db::manga::MANGA_PAGE_PROMPT_TYPE;
-use a4n_db_models::models::{asset::object_profile, scene::scene_profile};
+use a4n_db_models::models::asset::object_profile;
 use a4n_domain::manga::MangaPagePromptRecord as MangaPagePrompt;
 use a4n_domain::source_text_hash as source_content_sha256;
 use a4n_domain::{

@@ -313,7 +313,7 @@ fn user_id<T>(request: &WorkerEnvelope<T>) -> Result<i64, WorkerFailure> {
 }
 
 fn scene_profile_summary(
-    profile: &a4n_db_models::models::scene::scene_profile::Model,
+    profile: &a4n_domain::scene_profile::SceneProfileRecord,
     occurrence_count: u64,
     generated_image_count: i64,
 ) -> SceneProfileSummary {

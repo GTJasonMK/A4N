@@ -8,6 +8,7 @@ use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
 
 use super::rules::{SceneProfileDraftTracker, merge_scene_profile_record_input};
 use crate::scene_profile::SceneProfileDbError;
+use crate::scene_profile::create_scene_profile_model;
 
 fn input(name: &str, normalized_name: &str) -> SceneProfileRecordInput {
     SceneProfileRecordInput {
@@ -182,7 +183,7 @@ async fn profile_orchestration_preloads_existing_profiles_without_changing_mappi
     )
     .await
     .unwrap();
-    let existing = crate::scene_profile::create_scene_profile_record(
+    let existing = create_scene_profile_model(
         &db,
         project.id,
         input("大厅", "大厅"),

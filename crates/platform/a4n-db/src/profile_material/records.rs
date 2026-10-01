@@ -1,12 +1,12 @@
-use a4n_db_models::models::{
-    asset::{object_profile, profile_primary_material},
-    scene::scene_profile,
-};
-use a4n_domain::profile_material::{
-    ProfileMaterialObjectRecord, ProfileMaterialSceneRecord, ProfilePrimaryMaterialRecord,
+use a4n_db_models::models::asset::{object_profile, profile_primary_material};
+use a4n_domain::{
+    profile_material::{
+        ProfileMaterialObjectRecord, ProfileMaterialSceneRecord, ProfilePrimaryMaterialRecord,
+    },
+    scene_profile::SceneProfileRecord,
 };
 
-pub fn scene_profile_source_record(profile: &scene_profile::Model) -> ProfileMaterialSceneRecord {
+pub fn scene_profile_source_record(profile: &SceneProfileRecord) -> ProfileMaterialSceneRecord {
     ProfileMaterialSceneRecord {
         id: profile.id,
         project_id: profile.project_id,
@@ -70,7 +70,7 @@ mod tests {
             .unwrap()
             .and_hms_opt(8, 30, 0)
             .unwrap();
-        let scene = scene_profile::Model {
+        let scene = SceneProfileRecord {
             id: 11,
             project_id: 12,
             ownership_kind: "user".into(),

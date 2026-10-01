@@ -1,4 +1,5 @@
 use a4n_db::DbHandle;
+use a4n_domain::scene_profile::SceneProfileRecord;
 use a4n_error::AppError;
 
 use super::OrchestratorContext;
@@ -17,7 +18,7 @@ impl SceneProfileApplication {
     async fn scene_profiles_by_project(
         &self,
         project_id: i64,
-    ) -> Result<Vec<a4n_db_models::models::scene::scene_profile::Model>, AppError> {
+    ) -> Result<Vec<SceneProfileRecord>, AppError> {
         a4n_db::scene_profile::scene_profiles_by_project(self.database.connection(), project_id)
             .await
             .map_err(scene_profile_db_error)
@@ -26,7 +27,7 @@ impl SceneProfileApplication {
     async fn scene_profile_by_id(
         &self,
         scene_profile_id: i64,
-    ) -> Result<a4n_db_models::models::scene::scene_profile::Model, AppError> {
+    ) -> Result<SceneProfileRecord, AppError> {
         a4n_db::scene_profile::scene_profile_by_id(self.database.connection(), scene_profile_id)
             .await
             .map_err(scene_profile_db_error)
@@ -37,7 +38,7 @@ impl OrchestratorContext {
     pub(crate) async fn scene_profiles_by_project(
         &self,
         project_id: i64,
-    ) -> Result<Vec<a4n_db_models::models::scene::scene_profile::Model>, AppError> {
+    ) -> Result<Vec<SceneProfileRecord>, AppError> {
         self.scene_profile
             .scene_profiles_by_project(project_id)
             .await
@@ -46,7 +47,7 @@ impl OrchestratorContext {
     pub(crate) async fn scene_profile_by_id(
         &self,
         scene_profile_id: i64,
-    ) -> Result<a4n_db_models::models::scene::scene_profile::Model, AppError> {
+    ) -> Result<SceneProfileRecord, AppError> {
         self.scene_profile
             .scene_profile_by_id(scene_profile_id)
             .await
