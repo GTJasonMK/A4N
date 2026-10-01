@@ -429,6 +429,7 @@ export const videoChapter = {
     filePickerFailed: "打开文件选择器失败",
     uploadFailed: "导入视频失败",
     loadFailed: "加载视频数据失败",
+    refreshVideoDataFailed: "操作已完成，但视频数据刷新失败",
     refreshTimelineFailed: "刷新视频时间线失败",
     taskStopped: "任务已停止",
     invalidPersistedState: "视频工作区本地存储损坏：{raw}",

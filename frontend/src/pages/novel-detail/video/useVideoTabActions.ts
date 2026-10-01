@@ -168,6 +168,17 @@ export function useVideoTabActions(context: VideoTabActionInput) {
   const videoActionScopeKey = context.videoActionScopeKey;
   const workflowMode = context.workflowMode;
 
+  const refreshVideoData = async (requestScope: string | null): Promise<boolean> => {
+    if (!isCurrentVideoActionScope(requestScope)) return true;
+    let refreshed = false;
+    try {
+      refreshed = await loadAll();
+    } catch {
+      refreshed = false;
+    }
+    return isCurrentVideoActionScope(requestScope) ? refreshed : true;
+  };
+
   const handleSaveSegmentPlan = useCallback(
     async (segments: VideoSegmentPlanV2[]): Promise<boolean> => {
       const prompt = frameSegmentPlanPromptForCards;
@@ -186,8 +197,9 @@ export function useVideoTabActions(context: VideoTabActionInput) {
         setPrompts((previous) =>
           previous.map((item) => (item.id === updated.id ? updated : item)),
         );
-        await loadAll();
+        const refreshed = await refreshVideoData(requestScope);
         if (!isCurrentVideoActionScope(requestScope)) return false;
+        if (!refreshed) addToast(t("video.chapter.refreshVideoDataFailed"), "error");
         addToast(t("video.chapter.planSaved"), "success");
         return true;
       } catch (error) {
@@ -340,8 +352,9 @@ export function useVideoTabActions(context: VideoTabActionInput) {
         targetSegment,
       );
       if (!isCurrentVideoActionScope(requestScope)) return;
-      await loadAll();
+      const refreshed = await refreshVideoData(requestScope);
       if (!isCurrentVideoActionScope(requestScope)) return;
+      if (!refreshed) addToast(t("video.chapter.refreshVideoDataFailed"), "error");
       addToast(t("video.chapter.adoptedSegment", { number: shotNumber }), "success");
     } catch (err) {
       if (!isCurrentVideoActionScope(requestScope)) return;
@@ -567,8 +580,9 @@ export function useVideoTabActions(context: VideoTabActionInput) {
       });
       if (!isCurrentVideoActionScope(requestScope)) return false;
       setTimeline(nextTimeline);
-      await loadAll();
+      const refreshed = await refreshVideoData(requestScope);
       if (!isCurrentVideoActionScope(requestScope)) return false;
+      if (!refreshed) addToast(t("video.chapter.refreshVideoDataFailed"), "error");
       addToast(t("video.chapter.insertedSubmitted"), "success");
       return true;
     } catch (error) {
@@ -581,7 +595,8 @@ export function useVideoTabActions(context: VideoTabActionInput) {
         "error",
       );
       try {
-        await loadAll();
+        const refreshed = await refreshVideoData(requestScope);
+        if (!refreshed) addToast(t("video.chapter.refreshTimelineFailed"), "error");
       } catch (refreshError) {
         addToast(
           extractErrorMessage(refreshError, t("video.chapter.refreshTimelineFailed")),
@@ -608,14 +623,16 @@ export function useVideoTabActions(context: VideoTabActionInput) {
       const nextTimeline = await moveInsertedSegment(input);
       if (!isCurrentVideoActionScope(requestScope)) return;
       setTimeline(nextTimeline);
-      await loadAll();
+      const refreshed = await refreshVideoData(requestScope);
       if (!isCurrentVideoActionScope(requestScope)) return;
+      if (!refreshed) addToast(t("video.chapter.refreshVideoDataFailed"), "error");
       addToast(t("video.chapter.insertedPositionUpdated"), "success");
     } catch (error) {
       if (!isCurrentVideoActionScope(requestScope)) return;
       addToast(extractErrorMessage(error, t("video.chapter.operationFailed")), "error");
       try {
-        await loadAll();
+        const refreshed = await refreshVideoData(requestScope);
+        if (!refreshed) addToast(t("video.chapter.refreshTimelineFailed"), "error");
       } catch (refreshError) {
         addToast(
           extractErrorMessage(refreshError, t("video.chapter.refreshTimelineFailed")),
@@ -639,14 +656,16 @@ export function useVideoTabActions(context: VideoTabActionInput) {
       const nextTimeline = await deleteInsertedSegment(input);
       if (!isCurrentVideoActionScope(requestScope)) return;
       setTimeline(nextTimeline);
-      await loadAll();
+      const refreshed = await refreshVideoData(requestScope);
       if (!isCurrentVideoActionScope(requestScope)) return;
+      if (!refreshed) addToast(t("video.chapter.refreshVideoDataFailed"), "error");
       addToast(t("video.chapter.insertedRemoved"), "success");
     } catch (error) {
       if (!isCurrentVideoActionScope(requestScope)) return;
       addToast(extractErrorMessage(error, t("video.chapter.operationFailed")), "error");
       try {
-        await loadAll();
+        const refreshed = await refreshVideoData(requestScope);
+        if (!refreshed) addToast(t("video.chapter.refreshTimelineFailed"), "error");
       } catch (refreshError) {
         addToast(
           extractErrorMessage(refreshError, t("video.chapter.refreshTimelineFailed")),
@@ -689,8 +708,9 @@ export function useVideoTabActions(context: VideoTabActionInput) {
         },
       );
       if (!isCurrentVideoActionScope(requestScope)) return;
-      await loadAll();
+      const refreshed = await refreshVideoData(requestScope);
       if (!isCurrentVideoActionScope(requestScope)) return;
+      if (!refreshed) addToast(t("video.chapter.refreshVideoDataFailed"), "error");
       addToast(t("video.chapter.insertedVideoGenerated"), "success");
     } catch (error) {
       if (isCurrentVideoActionScope(requestScope)) {
@@ -1118,8 +1138,9 @@ export function useVideoTabActions(context: VideoTabActionInput) {
       if (!isCurrentVideoActionScope(requestScope)) return;
       setSelectedVideoId(row.id);
       setPendingVideoId(null);
-      await loadAll();
+      const refreshed = await refreshVideoData(requestScope);
       if (!isCurrentVideoActionScope(requestScope)) return;
+      if (!refreshed) addToast(t("video.chapter.refreshVideoDataFailed"), "error");
       addToast(t("video.chapter.importedReferenceMediaVideo"), "success");
     } catch (err) {
       if (isCurrentVideoActionScope(requestScope)) {

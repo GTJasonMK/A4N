@@ -429,6 +429,7 @@ export const videoChapter = {
     filePickerFailed: "Failed to open the file picker",
     uploadFailed: "Failed to import video",
     loadFailed: "Failed to load video data",
+    refreshVideoDataFailed: "The operation completed, but video data could not refresh",
     refreshTimelineFailed: "Failed to refresh the video timeline",
     taskStopped: "Task stopped",
     invalidPersistedState: "Video workspace local storage is invalid: {raw}",
