@@ -80,6 +80,8 @@ export const VideoPostProcessWorkspace: React.FC<
   VideoPostProcessWorkspaceProps
 > = ({ projectId, chapter, videos, onToast, onRefresh, onVideoRecordUpdated }) => {
   const { locale, t } = useI18n();
+  const tRef = useRef(t);
+  tRef.current = t;
   const pushes = useMemo(
     () =>
       videos
@@ -328,6 +330,17 @@ export const VideoPostProcessWorkspace: React.FC<
     if (isCurrentScope(requestScope)) actionBusyRef.current = false;
   };
 
+  const refreshAfterMutation = async (requestScope: string): Promise<boolean> => {
+    if (!isCurrentScope(requestScope)) return true;
+    let refreshed = true;
+    try {
+      refreshed = (await onRefresh()) !== false;
+    } catch {
+      refreshed = false;
+    }
+    return isCurrentScope(requestScope) ? refreshed : true;
+  };
+
   useEffect(() => {
     setSelectedPushId((current) => {
       if (current != null && pushById.has(current))
@@ -551,19 +564,20 @@ export const VideoPostProcessWorkspace: React.FC<
       const updated = await updateAssemblyPushStatus(selectedPush.id, action);
       if (!isCurrentScope(requestScope)) return;
       onVideoRecordUpdated(updated);
-      await onRefresh();
+      const refreshed = await refreshAfterMutation(requestScope);
       if (!isCurrentScope(requestScope)) return;
       onToast(
         action === "accept"
-          ? t("video.postprocess.acceptedLatest")
+          ? tRef.current("video.postprocess.acceptedLatest")
           : action === "reject"
-            ? t("video.postprocess.rejectedLatest")
-            : t("video.postprocess.undoAcceptedLatest"),
+            ? tRef.current("video.postprocess.rejectedLatest")
+            : tRef.current("video.postprocess.undoAcceptedLatest"),
         "success",
       );
+      if (!refreshed) onToast(tRef.current("video.chapter.postprocessRefreshFailed"), "error");
     } catch (err) {
       if (!isCurrentScope(requestScope)) return;
-      onToast(extractErrorMessage(err, t("video.postprocess.updateStatusFailed")), "error");
+      onToast(extractErrorMessage(err, tRef.current("video.postprocess.updateStatusFailed")), "error");
     } finally {
       finishAction(requestScope);
       if (isCurrentScope(requestScope)) setActing(null);
@@ -585,10 +599,10 @@ export const VideoPostProcessWorkspace: React.FC<
     setActing(`edit-${operation}`);
     let upload: VideoUploadFile | null = null;
     try {
-      upload = await pickVideoUploadFile(t);
+      upload = await pickVideoUploadFile(tRef.current);
     } catch (err) {
       if (!isCurrentScope(requestScope)) return;
-      onToast(extractErrorMessage(err, t("video.postprocess.filePickerFailed")), "error");
+      onToast(extractErrorMessage(err, tRef.current("video.postprocess.filePickerFailed")), "error");
       return;
     } finally {
       if (!upload) {
@@ -617,12 +631,13 @@ export const VideoPostProcessWorkspace: React.FC<
       if (!isCurrentScope(requestScope)) return;
       onVideoRecordUpdated(updated);
       clearMarkers();
-      await onRefresh();
+      const refreshed = await refreshAfterMutation(requestScope);
       if (!isCurrentScope(requestScope)) return;
-      onToast(t("video.postprocess.editUploaded", { operation: t(editOperationLabel[operation]) }), "success");
+      onToast(tRef.current("video.postprocess.editUploaded", { operation: tRef.current(editOperationLabel[operation]) }), "success");
+      if (!refreshed) onToast(tRef.current("video.chapter.postprocessRefreshFailed"), "error");
     } catch (err) {
       if (!isCurrentScope(requestScope)) return;
-      onToast(extractErrorMessage(err, t("video.postprocess.applyEditFailed")), "error");
+      onToast(extractErrorMessage(err, tRef.current("video.postprocess.applyEditFailed")), "error");
     } finally {
       finishAction(requestScope);
       if (isCurrentScope(requestScope)) setActing(null);
@@ -646,12 +661,13 @@ export const VideoPostProcessWorkspace: React.FC<
       if (!isCurrentScope(requestScope)) return;
       onVideoRecordUpdated(updated);
       clearMarkers();
-      await onRefresh();
+      const refreshed = await refreshAfterMutation(requestScope);
       if (!isCurrentScope(requestScope)) return;
-      onToast(t("video.postprocess.deletedSelection"), "success");
+      onToast(tRef.current("video.postprocess.deletedSelection"), "success");
+      if (!refreshed) onToast(tRef.current("video.chapter.postprocessRefreshFailed"), "error");
     } catch (err) {
       if (!isCurrentScope(requestScope)) return;
-      onToast(extractErrorMessage(err, t("video.postprocess.deleteFailed")), "error");
+      onToast(extractErrorMessage(err, tRef.current("video.postprocess.deleteFailed")), "error");
     } finally {
       finishAction(requestScope);
       if (isCurrentScope(requestScope)) setActing(null);

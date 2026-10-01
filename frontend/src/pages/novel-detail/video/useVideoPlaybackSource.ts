@@ -101,6 +101,8 @@ export const useVideoPlaybackSource = ({
   mediaKind,
 }: UseVideoPlaybackSourceParams) => {
   const { t } = useI18n();
+  const tRef = useRef(t);
+  tRef.current = t;
   const selectedVideoId = selectedVideo?.id;
   const selectedVideoPath = selectedVideo?.file_path?.trim();
   const [playbackSource, setPlaybackSource] = useState<{
@@ -182,7 +184,7 @@ export const useVideoPlaybackSource = ({
         if (cancelled || generation !== playbackGenerationRef.current) return;
         const scrubFrames =
           mediaKind === "scrub" && !useSourceFallback
-            ? decodeScrubFrames(data.scrub_frames, t)
+            ? decodeScrubFrames(data.scrub_frames, tRef.current)
             : null;
         const url = videoPlaybackDataToDataUrl(data);
         playbackUrlRef.current = url;
@@ -210,8 +212,8 @@ export const useVideoPlaybackSource = ({
           err instanceof ScrubFrameDecodeError
             ? err.message
             : err instanceof PlaybackLoadTimeoutError
-            ? t("video.chapter.playbackLoadTimeout")
-            : t("video.chapter.playbackLoadFailed"),
+            ? tRef.current("video.chapter.playbackLoadTimeout")
+            : tRef.current("video.chapter.playbackLoadFailed"),
         );
       });
 
@@ -228,7 +230,6 @@ export const useVideoPlaybackSource = ({
     selectedVideo?.file_path,
     selectedVideo?.id,
     sourceFallbackKey,
-    t,
   ]);
 
   const retryVideoLoad = useCallback(() => {
@@ -244,9 +245,9 @@ export const useVideoPlaybackSource = ({
     videoLoadTimeoutRef.current = setTimeout(() => {
       videoLoadTimeoutRef.current = null;
       setVideoLoading(false);
-      setVideoLoadError(t("video.chapter.playbackPlayerTimeout"));
+      setVideoLoadError(tRef.current("video.chapter.playbackPlayerTimeout"));
     }, VIDEO_ELEMENT_LOAD_TIMEOUT_MS);
-  }, [clearVideoLoadTimeout, t]);
+  }, [clearVideoLoadTimeout]);
 
   const handleVideoLoaded = useCallback(() => {
     clearVideoLoadTimeout();
@@ -274,12 +275,12 @@ export const useVideoPlaybackSource = ({
       const detail = event.currentTarget.error?.message?.trim();
       setVideoLoadError(
         detail
-          ? t("video.chapter.playbackCannotPlay", { detail })
-          : t("video.chapter.playbackCannotDecode"),
+          ? tRef.current("video.chapter.playbackCannotPlay", { detail })
+          : tRef.current("video.chapter.playbackCannotDecode"),
       );
       return true;
     },
-    [clearVideoLoadTimeout, mediaKind, playbackKey, sourceFallbackActive, t],
+    [clearVideoLoadTimeout, mediaKind, playbackKey, sourceFallbackActive],
   );
 
   return {
