@@ -24,6 +24,8 @@ export const LogsTab: React.FC = () => {
   const [logDir, setLogDir] = useState<string>("");
   const [loadError, setLoadError] = useState<{ reason: unknown } | null>(null);
   const [loadErrorKey, setLoadErrorKey] = useState<string | null>(null);
+  const [logDirError, setLogDirError] = useState<{ reason: unknown } | null>(null);
+  const [logDirErrorKey, setLogDirErrorKey] = useState<string | null>(null);
   const [lines, setLines] = useState(500);
   const [daysAgo, setDaysAgo] = useState(0);
   const [filterInput, setFilterInput] = useState("info,a4n=debug");
@@ -75,6 +77,8 @@ export const LogsTab: React.FC = () => {
       setLogDir("");
       setLoadError(null);
       setLoadErrorKey(null);
+      setLogDirError(null);
+      setLogDirErrorKey(null);
       setLoading(false);
       return;
     }
@@ -88,6 +92,9 @@ export const LogsTab: React.FC = () => {
     setLoading(true);
     setLoadError(null);
     setLoadErrorKey(null);
+    setLogDir("");
+    setLogDirError(null);
+    setLogDirErrorKey(null);
     try {
       const res = await readRecentLogs({
         lines: requestLines,
@@ -97,9 +104,15 @@ export const LogsTab: React.FC = () => {
       setResult(res);
       setResultKey(key);
       setLoadError(null);
-      const dir = await getLogDir();
-      if (!isCurrentRefresh(key, requestSeq)) return;
-      setLogDir(dir);
+      try {
+        const dir = await getLogDir();
+        if (!isCurrentRefresh(key, requestSeq)) return;
+        setLogDir(dir);
+      } catch (err) {
+        if (!isCurrentRefresh(key, requestSeq)) return;
+        setLogDirError({ reason: err });
+        setLogDirErrorKey(key);
+      }
     } catch (err) {
       if (!isCurrentRefresh(key, requestSeq)) return;
       const message = extractErrorMessage(err, translateMessage(getActiveLocale(), "settingsLogs.readFailed"));
@@ -130,12 +143,17 @@ export const LogsTab: React.FC = () => {
   const currentLoadError = loadErrorKey === requestKey && loadError
     ? extractErrorMessage(loadError.reason, t("settingsLogs.readFailed"))
     : null;
+  const currentLogDirError = logDirErrorKey === requestKey && logDirError
+    ? extractErrorMessage(logDirError.reason, t("settingsLogs.pathUnavailable"))
+    : null;
   const displayLoading = loading || (resultKey !== requestKey && currentLoadError == null);
 
   useEffect(() => {
     setResult(null);
     setLoadError(null);
     setLoadErrorKey(null);
+    setLogDirError(null);
+    setLogDirErrorKey(null);
     void refresh();
   }, [refresh]);
 
@@ -309,6 +327,11 @@ export const LogsTab: React.FC = () => {
             <summary className="w-fit cursor-pointer transition-colors hover:text-book-text-main">
               {t("settingsLogs.location")}
             </summary>
+            {currentLogDirError ? (
+              <p role="alert" className="mt-2 text-error">
+                {currentLogDirError}
+              </p>
+            ) : null}
             <div className="mt-2 flex flex-wrap items-center gap-2 break-all border-l border-book-border/40 pl-2.5">
               <span className="font-mono">
                 {logPathText(visibleResult?.file_path, logDir, t("settingsLogs.pathUnavailable"))}
