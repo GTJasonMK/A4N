@@ -160,6 +160,8 @@ export const novelOverview = {
   importChapterFailed: "导入失败",
   projectIdInvalid: "无效的项目 ID",
   loadProject: "加载项目失败",
+  refreshFailed: "操作已完成，但项目详情刷新失败，请重试。",
+  retryProjectLoad: "重新加载项目",
   resetFinishingComplete: "项目重置收尾完成，可以继续创作",
   resetProgressFailed: "查询项目重置进度失败",
   statusHistoryOwnerDescription: "查看状态历史，推进或回滚项目阶段。",

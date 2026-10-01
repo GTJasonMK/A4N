@@ -160,6 +160,8 @@ export const novelOverview = {
   importChapterFailed: "Import failed",
   projectIdInvalid: "Invalid project ID",
   loadProject: "Failed to load project",
+  refreshFailed: "The operation completed, but the project details could not refresh. Try again.",
+  retryProjectLoad: "Reload project",
   resetFinishingComplete: "Project reset cleanup completed. You can continue creating.",
   resetProgressFailed: "Failed to check project reset progress",
   statusHistoryOwnerDescription: "View status history and advance or roll back the project stage.",

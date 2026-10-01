@@ -2,12 +2,14 @@ import React, { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { useBeforeUnload, useBlocker, useNavigate, useParams } from "react-router-dom";
 import {
   ArrowLeft,
+  AlertCircle,
   Database,
   Edit2,
   FileText,
   GitBranch,
   MoreHorizontal,
   Network,
+  RefreshCw,
   Sparkles,
   Users,
   Wand2,
@@ -174,6 +176,10 @@ export const NovelDetail: React.FC = () => {
   const { addToast } = useToast();
   const { runProgressTask } = useProgressTask();
   const { locale, t } = useI18n();
+  const tRef = useRef(t);
+  tRef.current = t;
+  const localeRef = useRef(locale);
+  localeRef.current = locale;
   const dirtyRegistry = useNovelDetailDirtyRegistry();
   const dirtyRegistryVersion = useNovelDetailDirtyVersion();
   const canDiscardDirty = dirtyRegistry.canDiscardDirty();
@@ -186,6 +192,7 @@ export const NovelDetail: React.FC = () => {
   }));
 
   const [project, setProject] = useState<NovelProject | null>(null);
+  const [projectLoadError, setProjectLoadError] = useState<unknown | null>(null);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = usePersistedTab<Tab>(
     Number.isFinite(projectId) && projectId > 0 ? `a4n:novel-detail:${projectId}:tab` : null,
@@ -259,10 +266,11 @@ export const NovelDetail: React.FC = () => {
     const requestSeq = refreshSeqRef.current + 1;
     refreshSeqRef.current = requestSeq;
     if (!Number.isFinite(requestProjectId) || requestProjectId <= 0) {
-      addToast(t("novel.projectIdInvalid"), "error");
+      addToast(tRef.current("novel.projectIdInvalid"), "error");
       navigate("/");
       return false;
     }
+    setProjectLoadError(null);
     setLoading(true);
     try {
       const p = await getProject(String(requestProjectId));
@@ -272,11 +280,11 @@ export const NovelDetail: React.FC = () => {
         return false;
       }
       setProject(p);
+      setProjectLoadError(null);
       return true;
     } catch (err) {
       if (isCurrentAction(requestProjectId, refreshSeqRef, requestSeq)) {
-        addToast(extractErrorMessage(err, t("novel.loadProject")), "error");
-        if (project?.id !== requestProjectId) navigate("/");
+        setProjectLoadError(err);
       }
       return false;
     } finally {
@@ -299,6 +307,7 @@ export const NovelDetail: React.FC = () => {
     activeProjectIdRef.current = projectId;
     invalidateProjectScopedRequests();
     setProject(null);
+    setProjectLoadError(null);
     setLoading(true);
     setSaving(false);
     setRagSyncing(false);
@@ -325,12 +334,12 @@ export const NovelDetail: React.FC = () => {
           if (!isCurrentProject(projectId) || nextProject.lifecycle_gate !== "active") return;
           window.clearInterval(timer);
           setProject(nextProject);
-          addToast(t("novel.resetFinishingComplete"), "success");
+          addToast(tRef.current("novel.resetFinishingComplete"), "success");
         })
         .catch((error) => {
           if (errorReported || !isCurrentProject(projectId)) return;
           errorReported = true;
-          addToast(extractErrorMessage(error, t("novel.resetProgressFailed")), "error");
+          addToast(extractErrorMessage(error, tRef.current("novel.resetProgressFailed")), "error");
         })
         .finally(() => {
           checking = false;
@@ -346,6 +355,14 @@ export const NovelDetail: React.FC = () => {
     if (tab !== "characters" && tab !== "relationships" && tab !== "imports") return;
     setTab("overview");
   }, [canEditCurrentProject, project, setTab, tab]);
+
+  useEffect(() => {
+    const restrictedTab = tab === "characters" || tab === "relationships" || tab === "imports";
+    const visible = (!restrictedTab || canEditCurrentProject)
+      && (tab !== "imports" || isPackageVisible("external-import"));
+    if (visible) return;
+    setTab("overview");
+  }, [canEditCurrentProject, isPackageVisible, setTab, tab]);
 
   useEffect(() => {
     const frame = window.requestAnimationFrame(() => {
@@ -384,6 +401,23 @@ export const NovelDetail: React.FC = () => {
     `${project?.title || t("novel.projects")} · ${tabs.find((item) => item.id === tab)?.label || tab}`,
   );
 
+  if (projectLoadError && project?.id !== projectId) {
+    return (
+      <div className="flex h-full items-center justify-center px-6">
+        <div role="alert" className="a4n-flat-surface flex max-w-lg flex-col items-center gap-3 px-6 py-10 text-center">
+          <AlertCircle size={24} className="text-error" aria-hidden="true" />
+          <h1 className="text-base font-semibold text-book-text-main">{t("novel.loadProject")}</h1>
+          <p className="max-w-lg text-sm text-book-text-sub">
+            {extractErrorMessage(projectLoadError, t("novel.loadProject"))}
+          </p>
+          <BookButton variant="secondary" onClick={() => void refresh(projectId)} disabled={loading}>
+            <RefreshCw size={15} aria-hidden="true" />
+            {t("novel.retryProjectLoad")}
+          </BookButton>
+        </div>
+      </div>
+    );
+  }
   if (loading && project?.id !== projectId) {
     return (
       <div className="h-full flex items-center justify-center text-book-text-muted">
@@ -464,42 +498,42 @@ export const NovelDetail: React.FC = () => {
           cancelTaskId: taskId,
           cancelTask: cancelWorkflowTask,
           pollTaskProgress: true,
-          title: t("novel.syncMaterials"),
-          startMessage: t("novel.countingSync"),
-          successMessage: t("novel.syncCompleted"),
-          errorMessage: t("novel.syncFailed"),
+          title: tRef.current("novel.syncMaterials"),
+          startMessage: tRef.current("novel.countingSync"),
+          successMessage: tRef.current("novel.syncCompleted"),
+          errorMessage: tRef.current("novel.syncFailed"),
           total: 1,
-          cancelLabel: t("novel.stopSync"),
-          runningHint: t("novel.keepWindowOpenSync"),
+          cancelLabel: tRef.current("novel.stopSync"),
+          runningHint: tRef.current("novel.keepWindowOpenSync"),
           formatProgress: (current, total, percent) =>
-            formatRagProgress(current, total, percent, locale, t),
+            formatRagProgress(current, total, percent, localeRef.current, tRef.current),
         },
         async ({ setProgress }) => {
           if (!isCurrentAction(requestProjectId, ragSeqRef, activeRequestSeq)) {
-            throw new Error(t("workflow.cancelled"));
+            throw new Error(tRef.current("workflow.cancelled"));
           }
-          setProgress(t("novel.countingSync"), 0, 1);
+          setProgress(tRef.current("novel.countingSync"), 0, 1);
           const res = await ragIngestAll(requestProjectId, taskId);
-          setProgress(t("novel.syncResult", { summary: formatRagIngestResultSummary(res, locale, t) }), 1, 1);
+          setProgress(tRef.current("novel.syncResult", { summary: formatRagIngestResultSummary(res, localeRef.current, tRef.current) }), 1, 1);
           return res;
         },
       );
       if (!isCurrentAction(requestProjectId, ragSeqRef, activeRequestSeq)) return;
       addToast(
-        t("novel.syncResult", { summary: formatRagIngestResultSummary(result, locale, t) }),
+        tRef.current("novel.syncResult", { summary: formatRagIngestResultSummary(result, localeRef.current, tRef.current) }),
         "success",
       );
     } catch (err) {
       if (requestSeq == null) {
         if (isCurrentProject(requestProjectId)) {
-          addToast(extractErrorMessage(err, t("novel.syncFailed")), "error");
+          addToast(extractErrorMessage(err, tRef.current("novel.syncFailed")), "error");
         }
         return;
       }
       if (!isCurrentAction(requestProjectId, ragSeqRef, requestSeq)) return;
-      const message = extractErrorMessage(err, t("novel.syncFailed"));
+      const message = extractErrorMessage(err, tRef.current("novel.syncFailed"));
       if (isCancelledOperation(message)) {
-        addToast(t("novel.syncStopped"), "info");
+        addToast(tRef.current("novel.syncStopped"), "info");
       } else {
         addToast(message, "error");
       }
@@ -550,34 +584,34 @@ export const NovelDetail: React.FC = () => {
         runProgressTask,
         handle,
         projectId: requestProjectId,
-        title: t("novel.refineBlueprint"),
-        startMessage: t("novel.refiningBlueprint"),
-        successMessage: t("novel.blueprintRefined"),
-        errorMessage: t("novel.refineBlueprintFailed"),
+        title: tRef.current("novel.refineBlueprint"),
+        startMessage: tRef.current("novel.refiningBlueprint"),
+        successMessage: tRef.current("novel.blueprintRefined"),
+        errorMessage: tRef.current("novel.refineBlueprintFailed"),
         isCurrent: () => isCurrentAction(requestProjectId, refineSeqRef, activeRequestSeq),
         refresh: () => refresh(requestProjectId),
-        t,
+        t: (key, params) => tRef.current(key, params),
       });
       if (!isCurrentAction(requestProjectId, refineSeqRef, activeRequestSeq)) return;
       addToast(
         syncWarnings.length > 0
-          ? t("novel.blueprintRefinedWithWarnings", { warnings: syncWarnings.join(t("common.summarySeparator")) })
-          : t("novel.blueprintRefined"),
+          ? tRef.current("novel.blueprintRefinedWithWarnings", { warnings: syncWarnings.join(tRef.current("common.summarySeparator")) })
+          : tRef.current("novel.blueprintRefined"),
         syncWarnings.length > 0 ? "info" : "success",
       );
     } catch (err) {
-      const message = extractErrorMessage(err, t("novel.refineBlueprintFailed"));
+      const message = extractErrorMessage(err, tRef.current("novel.refineBlueprintFailed"));
       const cancelled = isCancelledOperation(message);
       if (requestSeq == null) {
         if (isCurrentProject(requestProjectId)) {
           addToast(
-            cancelled ? t("feedback.progressCancelled") : message,
+            cancelled ? tRef.current("feedback.progressCancelled") : message,
             cancelled ? "info" : "error",
           );
         }
       } else if (isCurrentAction(requestProjectId, refineSeqRef, requestSeq)) {
         addToast(
-          cancelled ? t("feedback.progressCancelled") : message,
+          cancelled ? tRef.current("feedback.progressCancelled") : message,
           cancelled ? "info" : "error",
         );
       }
@@ -622,12 +656,13 @@ export const NovelDetail: React.FC = () => {
           const updatedProject = await updateProject(requestProjectId, { title: next.trim() });
           if (!isCurrentAction(requestProjectId, titleSeqRef, requestSeq)) return;
           setProject(updatedProject);
-          await refresh(requestProjectId);
+          const refreshed = await refresh(requestProjectId);
           if (!isCurrentAction(requestProjectId, titleSeqRef, requestSeq)) return;
-          addToast(t("novel.projectTitleUpdated"), "success");
+          addToast(tRef.current("novel.projectTitleUpdated"), "success");
+          if (!refreshed) addToast(tRef.current("novel.refreshFailed"), "error");
         } catch (err) {
           if (isCurrentAction(requestProjectId, titleSeqRef, requestSeq)) {
-            addToast(extractErrorMessage(err, t("novel.updateTitleFailed")), "error");
+            addToast(extractErrorMessage(err, tRef.current("novel.updateTitleFailed")), "error");
           }
         } finally {
           if (isCurrentAction(requestProjectId, titleSeqRef, requestSeq)) {
@@ -636,7 +671,7 @@ export const NovelDetail: React.FC = () => {
         }
       }
     } catch (err) {
-      addToast(extractErrorMessage(err, t("novel.updateTitleFailed")), "error");
+      addToast(extractErrorMessage(err, tRef.current("novel.updateTitleFailed")), "error");
     } finally {
       titleActionBusyRef.current = false;
     }

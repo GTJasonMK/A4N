@@ -70,10 +70,13 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
 }) => {
   const { addToast } = useToast();
   const { t } = useI18n();
+  const tRef = useRef(t);
+  tRef.current = t;
   const dirtyRegistry = useNovelDetailDirtyRegistry();
   const { runProgressTask } = useProgressTask();
   const navigate = useNavigate();
   const [blueprint, setBlueprint] = useState<Blueprint | null>(null);
+  const [loadError, setLoadError] = useState<unknown | null>(null);
   const [loading, setLoading] = useState(true);
   const [refining, setRefining] = useState(false);
   const [synopsisOpen, setSynopsisOpen] = useState(false);
@@ -127,15 +130,17 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
     const requestProjectId = project.id;
     const requestSeq = loadSeqRef.current + 1;
     loadSeqRef.current = requestSeq;
+    setLoadError(null);
     setLoading(true);
     try {
       const bp = await getBlueprint(requestProjectId);
       if (!isCurrentLoad(requestProjectId, requestSeq)) return false;
       setBlueprint(bp);
+      setLoadError(null);
       return true;
     } catch (err) {
       if (!isCurrentLoad(requestProjectId, requestSeq)) return false;
-      addToast(extractErrorMessage(err, t("writing.blueprintLoadFailed")), "error");
+      setLoadError(err);
       return false;
     } finally {
       if (isCurrentLoad(requestProjectId, requestSeq)) {
@@ -143,7 +148,7 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
         setLoading(false);
       }
     }
-  }, [addToast, isCurrentLoad, project.id]);
+  }, [isCurrentLoad, project.id]);
 
   useEffect(() => {
     void load();
@@ -159,6 +164,9 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
     setBlueprintSaving(false);
     blueprintSaveBusyRef.current = false;
     setRefining(false);
+    setBlueprint(null);
+    setLoadError(null);
+    setLoadedProjectId(null);
   }, [project.id]);
 
   const handleRefine = async () => {
@@ -191,29 +199,29 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
         runProgressTask,
         handle,
         projectId: requestProjectId,
-        title: t("novel.refineBlueprint"),
-        startMessage: t("novel.refiningBlueprint"),
-        successMessage: t("novel.blueprintRefined"),
-        errorMessage: t("novel.refineBlueprintFailed"),
+        title: tRef.current("novel.refineBlueprint"),
+        startMessage: tRef.current("novel.refiningBlueprint"),
+        successMessage: tRef.current("novel.blueprintRefined"),
+        errorMessage: tRef.current("novel.refineBlueprintFailed"),
         isCurrent: () => isCurrentRefine(requestProjectId, requestSeq),
         refresh: async () => {
           if (!await load()) return false;
           return onRefresh();
         },
-        t,
+        t: (key, params) => tRef.current(key, params),
       });
       addToast(
         syncWarnings.length > 0
-          ? t("novel.blueprintRefinedWithWarnings", { warnings: syncWarnings.join(t("common.summarySeparator")) })
-          : t("novel.blueprintRefined"),
+          ? tRef.current("novel.blueprintRefinedWithWarnings", { warnings: syncWarnings.join(tRef.current("common.summarySeparator")) })
+          : tRef.current("novel.blueprintRefined"),
         syncWarnings.length > 0 ? "info" : "success",
       );
     } catch (err) {
       if (!isCurrentRefine(requestProjectId, requestSeq)) return;
-      const message = extractErrorMessage(err, t("novel.refineBlueprintFailed"));
+      const message = extractErrorMessage(err, tRef.current("novel.refineBlueprintFailed"));
       const cancelled = isCancelledOperation(message);
       addToast(
-        cancelled ? t("feedback.progressCancelled") : message,
+        cancelled ? tRef.current("feedback.progressCancelled") : message,
         cancelled ? "info" : "error",
       );
     } finally {
@@ -315,7 +323,7 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
       addToast(t("novel.blueprintGenreRequired"), "error");
       return;
     }
-    if (!Number.isInteger(totalChapters) || totalChapters < 1 || totalChapters > 10_000) {
+    if (!Number.isSafeInteger(totalChapters) || totalChapters < 1 || totalChapters > 10_000) {
       addToast(t("novel.totalChaptersRange"), "error");
       return;
     }
@@ -336,20 +344,21 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
         total_chapters: totalChapters,
       });
       if (!isCurrentProject(requestProjectId)) return;
-      await load();
+      const loaded = await load();
       if (!isCurrentProject(requestProjectId)) return;
-      await onRefresh();
+      const refreshed = await onRefresh();
       if (!isCurrentProject(requestProjectId)) return;
       setBlueprintEditorOpen(false);
       addToast(
         result.warnings.length > 0
-          ? t("novel.blueprintSavedWithWarnings", { warnings: result.warnings.join(t("common.summarySeparator")) })
-          : t("novel.blueprintSaved"),
+          ? tRef.current("novel.blueprintSavedWithWarnings", { warnings: result.warnings.join(tRef.current("common.summarySeparator")) })
+          : tRef.current("novel.blueprintSaved"),
         result.warnings.length > 0 ? "info" : "success",
       );
+      if (!loaded || !refreshed) addToast(tRef.current("novel.refreshFailed"), "error");
     } catch (err) {
       if (isCurrentProject(requestProjectId)) {
-        addToast(extractErrorMessage(err, t("novel.blueprintSaveFailed")), "error");
+        addToast(extractErrorMessage(err, tRef.current("novel.blueprintSaveFailed")), "error");
       }
     } finally {
       if (isCurrentProject(requestProjectId)) {
@@ -381,8 +390,10 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
         <SynopsisCard
           blueprint={displayBlueprint}
           loading={displayLoading}
+          loadError={loadError == null ? null : extractErrorMessage(loadError, tRef.current("writing.blueprintLoadFailed"))}
           refining={refining}
           canEditBlueprint={canEditProject}
+          onRetry={() => void load()}
           onOpenSynopsis={() => setSynopsisOpen(true)}
           onRefine={() => void handleRefine()}
           onEditBlueprint={handleOpenBlueprintEditor}

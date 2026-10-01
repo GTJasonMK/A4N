@@ -1,7 +1,7 @@
 import { ThemedSelect } from "../../../components/ui/ThemedSelect";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { UserPlus } from "lucide-react";
+import { RefreshCw, UserPlus } from "lucide-react";
 import { extractErrorMessage } from "../../../api";
 import {
   inviteProjectMember,
@@ -35,6 +35,8 @@ export const ProjectCollaborationPanel: React.FC<ProjectCollaborationPanelProps>
 }) => {
   const { addToast } = useToast();
   const { t } = useI18n();
+  const tRef = useRef(t);
+  tRef.current = t;
   const navigate = useNavigate();
   const dirtyRegistry = useNovelDetailDirtyRegistry();
   const memberRoleOptions: Array<{ value: ProjectMemberRole; label: string }> = [
@@ -44,8 +46,8 @@ export const ProjectCollaborationPanel: React.FC<ProjectCollaborationPanelProps>
   ];
   const [members, setMembers] = useState<ProjectMember[]>([]);
   const [invites, setInvites] = useState<ProjectInvite[]>([]);
-  const [membersLoadError, setMembersLoadError] = useState<string | null>(null);
-  const [invitesLoadError, setInvitesLoadError] = useState<string | null>(null);
+  const [membersLoadError, setMembersLoadError] = useState<unknown | null>(null);
+  const [invitesLoadError, setInvitesLoadError] = useState<unknown | null>(null);
   const [identity, setIdentity] = useState("");
   const [role, setRole] = useState<ProjectMemberRole>("editor");
   const [loading, setLoading] = useState(true);
@@ -84,17 +86,15 @@ export const ProjectCollaborationPanel: React.FC<ProjectCollaborationPanelProps>
         setMembers(membersResult.value);
         setMembersLoadError(null);
       } else {
-        const message = extractErrorMessage(membersResult.reason, t("novel.collaborationActions.membersLoadFailed"));
-        setMembersLoadError(message);
-        errors.push(message);
+        setMembersLoadError(membersResult.reason);
+        errors.push("members");
       }
       if (invitesResult.status === "fulfilled") {
         setInvites(invitesResult.value);
         setInvitesLoadError(null);
       } else {
-        const message = extractErrorMessage(invitesResult.reason, t("novel.collaborationActions.invitesLoadFailed"));
-        setInvitesLoadError(message);
-        errors.push(message);
+        setInvitesLoadError(invitesResult.reason);
+        errors.push("invites");
       }
       return errors.length === 0;
     } finally {
@@ -102,7 +102,20 @@ export const ProjectCollaborationPanel: React.FC<ProjectCollaborationPanelProps>
         setLoading(false);
       }
     }
-  }, [addToast, canManage, rootProjectId, t]);
+  }, [canManage, rootProjectId]);
+
+  const refreshAfterMutation = async (requestScope: string): Promise<boolean> => {
+    const loaded = await load();
+    if (!isCurrentScope(requestScope)) return true;
+    let refreshed = true;
+    try {
+      refreshed = await onRefresh();
+    } catch {
+      refreshed = false;
+    }
+    if (!isCurrentScope(requestScope)) return true;
+    return loaded && refreshed;
+  };
 
   useEffect(() => {
     mountedRef.current = true;
@@ -145,14 +158,13 @@ export const ProjectCollaborationPanel: React.FC<ProjectCollaborationPanelProps>
       });
       if (!isCurrentScope(requestScope)) return;
       setIdentity("");
-      await load();
+      const refreshed = await refreshAfterMutation(requestScope);
       if (!isCurrentScope(requestScope)) return;
-      await onRefresh();
-      if (!isCurrentScope(requestScope)) return;
-      addToast(t("novel.collaborationActions.inviteSent"), "success");
+      addToast(tRef.current("novel.collaborationActions.inviteSent"), "success");
+      if (!refreshed) addToast(tRef.current("novel.refreshFailed"), "error");
     } catch (err) {
       if (isCurrentScope(requestScope)) {
-        addToast(extractErrorMessage(err, t("novel.collaborationActions.inviteFailed")), "error");
+        addToast(extractErrorMessage(err, tRef.current("novel.collaborationActions.inviteFailed")), "error");
       }
     } finally {
       if (isCurrentScope(requestScope)) {
@@ -169,14 +181,13 @@ export const ProjectCollaborationPanel: React.FC<ProjectCollaborationPanelProps>
     try {
       await updateProjectMemberRole(rootProjectId, member.user_id, nextRole);
       if (!isCurrentScope(requestScope)) return;
-      await load();
+      const refreshed = await refreshAfterMutation(requestScope);
       if (!isCurrentScope(requestScope)) return;
-      await onRefresh();
-      if (!isCurrentScope(requestScope)) return;
-      addToast(t("novel.collaborationActions.roleUpdated"), "success");
+      addToast(tRef.current("novel.collaborationActions.roleUpdated"), "success");
+      if (!refreshed) addToast(tRef.current("novel.refreshFailed"), "error");
     } catch (err) {
       if (isCurrentScope(requestScope)) {
-        addToast(extractErrorMessage(err, t("novel.collaborationActions.roleUpdateFailed")), "error");
+        addToast(extractErrorMessage(err, tRef.current("novel.collaborationActions.roleUpdateFailed")), "error");
       }
     } finally {
       if (isCurrentScope(requestScope)) finishAction(actionKey);
@@ -200,14 +211,13 @@ export const ProjectCollaborationPanel: React.FC<ProjectCollaborationPanelProps>
     try {
       await removeProjectMember(rootProjectId, member.user_id);
       if (!isCurrentScope(requestScope)) return;
-      await load();
+      const refreshed = await refreshAfterMutation(requestScope);
       if (!isCurrentScope(requestScope)) return;
-      await onRefresh();
-      if (!isCurrentScope(requestScope)) return;
-      addToast(t("novel.collaborationActions.removed"), "success");
+      addToast(tRef.current("novel.collaborationActions.removed"), "success");
+      if (!refreshed) addToast(tRef.current("novel.refreshFailed"), "error");
     } catch (err) {
       if (isCurrentScope(requestScope)) {
-        addToast(extractErrorMessage(err, t("novel.collaborationActions.removeFailed")), "error");
+        addToast(extractErrorMessage(err, tRef.current("novel.collaborationActions.removeFailed")), "error");
       }
     } finally {
       if (isCurrentScope(requestScope)) finishAction(actionKey);
@@ -221,14 +231,13 @@ export const ProjectCollaborationPanel: React.FC<ProjectCollaborationPanelProps>
     try {
       await revokeProjectInvite(rootProjectId, invite.id);
       if (!isCurrentScope(requestScope)) return;
-      await load();
+      const refreshed = await refreshAfterMutation(requestScope);
       if (!isCurrentScope(requestScope)) return;
-      await onRefresh();
-      if (!isCurrentScope(requestScope)) return;
-      addToast(t("novel.collaborationActions.inviteRevoked"), "success");
+      addToast(tRef.current("novel.collaborationActions.inviteRevoked"), "success");
+      if (!refreshed) addToast(tRef.current("novel.refreshFailed"), "error");
     } catch (err) {
       if (isCurrentScope(requestScope)) {
-        addToast(extractErrorMessage(err, t("novel.collaborationActions.revokeFailed")), "error");
+        addToast(extractErrorMessage(err, tRef.current("novel.collaborationActions.revokeFailed")), "error");
       }
     } finally {
       if (isCurrentScope(requestScope)) finishAction(actionKey);
@@ -254,11 +263,11 @@ export const ProjectCollaborationPanel: React.FC<ProjectCollaborationPanelProps>
       if (!isCurrentScope(requestScope)) return;
       dirtyRegistry.set(dirtyKey, false);
       setIdentity("");
-      addToast(t("novel.collaborationActions.left"), "success");
+      addToast(tRef.current("novel.collaborationActions.left"), "success");
       navigate("/", { replace: true });
     } catch (err) {
       if (isCurrentScope(requestScope)) {
-        addToast(extractErrorMessage(err, t("novel.collaborationActions.leaveFailed")), "error");
+        addToast(extractErrorMessage(err, tRef.current("novel.collaborationActions.leaveFailed")), "error");
       }
     } finally {
       if (isCurrentScope(requestScope)) finishAction(actionKey);
@@ -286,8 +295,22 @@ export const ProjectCollaborationPanel: React.FC<ProjectCollaborationPanelProps>
           />
         ) : null}
       </div>
-      {membersLoadError ? <p role="alert" className="text-small text-error">{membersLoadError}</p> : null}
-      {canManage && invitesLoadError ? <p role="alert" className="text-small text-error">{invitesLoadError}</p> : null}
+      {membersLoadError ? (
+        <p role="alert" className="text-small text-error">
+          {extractErrorMessage(membersLoadError, t("novel.collaborationActions.membersLoadFailed"))}
+        </p>
+      ) : null}
+      {canManage && invitesLoadError ? (
+        <p role="alert" className="text-small text-error">
+          {extractErrorMessage(invitesLoadError, t("novel.collaborationActions.invitesLoadFailed"))}
+        </p>
+      ) : null}
+      {(membersLoadError || (canManage && invitesLoadError)) ? (
+        <BookButton variant="secondary" size="sm" onClick={() => void load()} disabled={loading}>
+          <RefreshCw size={14} aria-hidden="true" />
+          {t("common.retry")}
+        </BookButton>
+      ) : null}
 
       {canManage && (
         <div className="mb-3 grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 sm:grid-cols-[minmax(220px,1fr)_7rem_auto]">

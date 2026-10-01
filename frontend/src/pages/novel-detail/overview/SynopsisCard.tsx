@@ -1,5 +1,5 @@
 import React from "react";
-import { Sparkles } from "lucide-react";
+import { AlertCircle, RefreshCw, Sparkles } from "lucide-react";
 import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
 import { BookButton } from "../../../components/ui/BookButton";
 import { BookCard } from "../../../components/ui/BookCard";
@@ -11,6 +11,7 @@ import { useI18n } from "../../../i18n";
 interface SynopsisCardProps {
   blueprint: Blueprint | null;
   loading: boolean;
+  loadError?: string | null;
   refining: boolean;
   canEditBlueprint: boolean;
   onOpenSynopsis: () => void;
@@ -18,11 +19,13 @@ interface SynopsisCardProps {
   onEditBlueprint: () => void;
   onOpenImports: () => void;
   onCreateBlueprint: () => void;
+  onRetry?: () => void;
 }
 
 export const SynopsisCard: React.FC<SynopsisCardProps> = ({
   blueprint,
   loading,
+  loadError = null,
   refining,
   canEditBlueprint,
   onOpenSynopsis,
@@ -30,10 +33,12 @@ export const SynopsisCard: React.FC<SynopsisCardProps> = ({
   onEditBlueprint,
   onOpenImports,
   onCreateBlueprint,
+  onRetry = () => undefined,
 }) => (
   <SynopsisCardContent
     blueprint={blueprint}
     loading={loading}
+    loadError={loadError}
     refining={refining}
     canEditBlueprint={canEditBlueprint}
     onOpenSynopsis={onOpenSynopsis}
@@ -41,12 +46,14 @@ export const SynopsisCard: React.FC<SynopsisCardProps> = ({
     onEditBlueprint={onEditBlueprint}
     onOpenImports={onOpenImports}
     onCreateBlueprint={onCreateBlueprint}
+    onRetry={onRetry}
   />
 );
 
 const SynopsisCardContent: React.FC<SynopsisCardProps> = ({
   blueprint,
   loading,
+  loadError = null,
   refining,
   canEditBlueprint,
   onOpenSynopsis,
@@ -54,6 +61,7 @@ const SynopsisCardContent: React.FC<SynopsisCardProps> = ({
   onEditBlueprint,
   onOpenImports,
   onCreateBlueprint,
+  onRetry = () => undefined,
 }) => {
   const { t } = useI18n();
   return <BookCard className="flex min-h-0 flex-col overflow-hidden">
@@ -110,11 +118,21 @@ const SynopsisCardContent: React.FC<SynopsisCardProps> = ({
     </header>
 
     <div className="min-h-0 flex-1 border-t border-book-border/40 px-4 py-3">
+      {loadError ? (
+        <div role="alert" className="flex min-h-28 flex-col items-center justify-center gap-3 text-center">
+          <AlertCircle size={20} className="text-error" aria-hidden="true" />
+          <p className="max-w-md text-xs leading-relaxed text-error">{loadError}</p>
+          <BookButton variant="secondary" size="sm" onClick={onRetry} disabled={loading}>
+            <RefreshCw size={14} aria-hidden="true" />
+            {t("common.retry")}
+          </BookButton>
+        </div>
+      ) : null}
       {loading ? (
         <div className="flex items-center gap-2 text-xs text-book-text-muted">
           <LoadingSpinner size="sm" /> {t("writing.loadingDesk")}
         </div>
-      ) : !blueprint ? (
+      ) : !blueprint && !loadError ? (
         canEditBlueprint ? (
           <div className="flex h-full min-h-28 flex-col items-center justify-center gap-3 text-center">
             <p className="max-w-md text-xs leading-relaxed text-book-text-muted">
@@ -146,7 +164,7 @@ const SynopsisCardContent: React.FC<SynopsisCardProps> = ({
         ) : (
           <EmptyHint text={t("novel.noStoryBlueprint")} />
         )
-      ) : (
+      ) : !blueprint ? null : (
         <div className="space-y-2">
           {blueprint.one_sentence_summary ? (
             <p className="text-xs font-medium leading-relaxed text-book-text-main">

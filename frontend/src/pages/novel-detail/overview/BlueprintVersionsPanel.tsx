@@ -28,9 +28,11 @@ export const BlueprintVersionsPanel: React.FC<BlueprintVersionsPanelProps> = ({
 }) => {
   const { addToast } = useToast();
   const { locale, t } = useI18n();
+  const tRef = useRef(t);
+  tRef.current = t;
   const [versions, setVersions] = useState<BlueprintVersion[]>([]);
   const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<unknown | null>(null);
   const [picked, setPicked] = useState<string[]>([]);
   const [diff, setDiff] = useState<unknown>(null);
   const [diffing, setDiffing] = useState(false);
@@ -55,8 +57,8 @@ export const BlueprintVersionsPanel: React.FC<BlueprintVersionsPanelProps> = ({
     };
   }, []);
 
-  const load = useCallback(async (): Promise<boolean> => {
-    if (loadingRef.current || restoringRef.current != null) return false;
+  const load = useCallback(async (options: { allowWhileRestoring?: boolean } = {}): Promise<boolean> => {
+    if (loadingRef.current || (restoringRef.current != null && !options.allowWhileRestoring)) return false;
     const requestProjectId = projectId;
     const requestSeq = loadSeqRef.current + 1;
     loadSeqRef.current = requestSeq;
@@ -82,11 +84,7 @@ export const BlueprintVersionsPanel: React.FC<BlueprintVersionsPanelProps> = ({
       ) {
         return false;
       }
-      const message = extractErrorMessage(err, t("novel.blueprintVersions.loadFailed"));
-      setVersions([]);
-      setPicked([]);
-      setDiff(null);
-      setLoadError(message);
+      setLoadError(err);
       return false;
     } finally {
       if (loadSeqRef.current === requestSeq) loadingRef.current = false;
@@ -98,7 +96,7 @@ export const BlueprintVersionsPanel: React.FC<BlueprintVersionsPanelProps> = ({
         setLoading(false);
       }
     }
-  }, [addToast, projectId, t]);
+  }, [projectId]);
 
   useLayoutEffect(() => {
     activeProjectRef.current = projectId;
@@ -145,7 +143,7 @@ export const BlueprintVersionsPanel: React.FC<BlueprintVersionsPanelProps> = ({
   const handleDiff = async () => {
     if (diffingRef.current || restoringRef.current != null) return;
     if (picked.length !== 2) {
-      addToast(t("novel.blueprintVersions.selectTwo"), "error");
+      addToast(tRef.current("novel.blueprintVersions.selectTwo"), "error");
       return;
     }
     const requestProjectId = projectId;
@@ -176,7 +174,7 @@ export const BlueprintVersionsPanel: React.FC<BlueprintVersionsPanelProps> = ({
       ) {
         return;
       }
-      addToast(extractErrorMessage(err, t("novel.blueprintVersions.diffFailed")), "error");
+      addToast(extractErrorMessage(err, tRef.current("novel.blueprintVersions.diffFailed")), "error");
     } finally {
       if (diffSeqRef.current === requestSeq) diffingRef.current = false;
       if (
@@ -192,7 +190,7 @@ export const BlueprintVersionsPanel: React.FC<BlueprintVersionsPanelProps> = ({
   const handleRestore = async (version: BlueprintVersion) => {
     if (restoringRef.current != null) return;
     const requestProjectId = projectId;
-    const versionLabel = blueprintVersionLabel(version.version, t);
+    const versionLabel = blueprintVersionLabel(version.version, tRef.current);
     restoringRef.current = version.version;
     const ok = await confirmDialog({
       title: t("novel.blueprintVersions.restoreTitle"),
@@ -222,22 +220,24 @@ export const BlueprintVersionsPanel: React.FC<BlueprintVersionsPanelProps> = ({
         version: version.version,
       });
       if (!mountedRef.current || activeProjectRef.current !== requestProjectId) return;
-      await onMutated();
+      const parentRefreshed = await onMutated();
       if (!mountedRef.current || activeProjectRef.current !== requestProjectId) return;
-      await load();
+      const versionsRefreshed = await load({ allowWhileRestoring: true });
       if (!mountedRef.current || activeProjectRef.current !== requestProjectId) return;
+      const currentVersionLabel = blueprintVersionLabel(version.version, tRef.current);
       addToast(
         result.warnings.length > 0
-          ? t("novel.blueprintVersions.restoredWithWarnings", {
-              version: versionLabel,
-              warnings: result.warnings.join(t("common.summarySeparator")),
+          ? tRef.current("novel.blueprintVersions.restoredWithWarnings", {
+              version: currentVersionLabel,
+              warnings: result.warnings.join(tRef.current("common.summarySeparator")),
             })
-          : t("novel.blueprintVersions.restored", { version: versionLabel }),
+          : tRef.current("novel.blueprintVersions.restored", { version: currentVersionLabel }),
         result.warnings.length > 0 ? "info" : "success",
       );
+      if (!parentRefreshed || !versionsRefreshed) addToast(tRef.current("novel.refreshFailed"), "error");
     } catch (err) {
       if (!mountedRef.current || activeProjectRef.current !== requestProjectId) return;
-      addToast(extractErrorMessage(err, t("novel.blueprintVersions.restoreFailed")), "error");
+      addToast(extractErrorMessage(err, tRef.current("novel.blueprintVersions.restoreFailed")), "error");
     } finally {
       if (restoringRef.current === version.version) restoringRef.current = null;
       if (mountedRef.current && activeProjectRef.current === requestProjectId) setRestoring(null);
@@ -283,7 +283,11 @@ export const BlueprintVersionsPanel: React.FC<BlueprintVersionsPanelProps> = ({
         </div>
       </div>
 
-      {loadError ? <p role="alert" className="text-small text-error">{loadError}</p> : null}
+      {loadError ? (
+        <p role="alert" className="text-small text-error">
+          {extractErrorMessage(loadError, t("novel.blueprintVersions.loadFailed"))}
+        </p>
+      ) : null}
       {loading && versions.length === 0 ? (
         <div className="text-xs text-book-text-muted inline-flex items-center gap-2">
           <LoadingSpinner size="sm" /> {t("novel.blueprintVersions.loading")}
