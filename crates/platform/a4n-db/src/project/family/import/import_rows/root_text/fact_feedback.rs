@@ -276,29 +276,29 @@ pub(super) async fn insert_feedback_rows(
         }
         active.source_refs_json = Set(serde_json::to_value(&sources)
             .map_err(|error| ProjectFamilyImportError::invalid_package(error.to_string()))?);
-        if row.material_kind == "chapter_feedback" {
-            if let Some(old_id) = row.chapter_id {
-                let original = package
-                    .text_core
-                    .chapters
-                    .iter()
-                    .find(|chapter| chapter.id == old_id)
-                    .and_then(|chapter| {
-                        crate::fact_feedback::source_revision(&crate::project::chapter_record(
-                            chapter.clone(),
-                        ))
-                    });
-                let was_current = original.as_ref().is_some_and(|source| {
-                    serde_json::to_value(source).ok().as_ref() == Some(&row.after_json)
+        if row.material_kind == "chapter_feedback"
+            && let Some(old_id) = row.chapter_id
+        {
+            let original = package
+                .text_core
+                .chapters
+                .iter()
+                .find(|chapter| chapter.id == old_id)
+                .and_then(|chapter| {
+                    crate::fact_feedback::source_revision(&crate::project::chapter_record(
+                        chapter.clone(),
+                    ))
                 });
-                if let Some(source) = current_sources.get(&old_id).filter(|_| was_current) {
-                    active.after_json = Set(serde_json::to_value(source).map_err(|error| {
-                        ProjectFamilyImportError::invalid_package(error.to_string())
-                    })?);
-                } else {
-                    active.status = Set("retracted".into());
-                    active.invalidated_at = Set(Some(chrono::Utc::now().naive_utc()));
-                }
+            let was_current = original.as_ref().is_some_and(|source| {
+                serde_json::to_value(source).ok().as_ref() == Some(&row.after_json)
+            });
+            if let Some(source) = current_sources.get(&old_id).filter(|_| was_current) {
+                active.after_json = Set(serde_json::to_value(source).map_err(|error| {
+                    ProjectFamilyImportError::invalid_package(error.to_string())
+                })?);
+            } else {
+                active.status = Set("retracted".into());
+                active.invalidated_at = Set(Some(chrono::Utc::now().naive_utc()));
             }
         }
         let mut evidence = row.evidence_json.clone();
@@ -358,16 +358,13 @@ fn remap_source(
         .chapters
         .iter()
         .find(|chapter| chapter.id == old_id)
-    {
-        if &crate::fact_feedback::observation_source(&crate::project::chapter_record(
+        && &crate::fact_feedback::observation_source(&crate::project::chapter_record(
             original.clone(),
         )) == source
-        {
-            if let Some(revision) = current.get(&old_id) {
-                *source = revision.clone();
-                return Ok(());
-            }
-        }
+        && let Some(revision) = current.get(&old_id)
+    {
+        *source = revision.clone();
+        return Ok(());
     }
     if let Some(id) = maps.chapter_ids.get(&old_id) {
         source.chapter_id = *id;

@@ -293,11 +293,11 @@ impl OrchestratorContext {
             progress.check_cancelled()?;
             progress.progress(1, 1, "导出文件渲染完成");
         }
-        return Ok(ExportFileData {
+        Ok(ExportFileData {
             file_name: export_file_name(project_id, &output.extension),
             mime_type: output.content_type,
             data_base64: base64::engine::general_purpose::STANDARD.encode(data),
-        });
+        })
     }
 }
 

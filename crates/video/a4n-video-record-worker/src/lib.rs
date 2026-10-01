@@ -484,11 +484,9 @@ async fn validate_video_source(
             })?;
             Ok(snapshot_chapter.content)
         }
-        other => {
-            return Err(WorkerFailure::invalid_request(format!(
-                "{operation}失败：视频链路不支持项目类型 {other}: project_id={project_id}"
-            )));
-        }
+        other => Err(WorkerFailure::invalid_request(format!(
+            "{operation}失败：视频链路不支持项目类型 {other}: project_id={project_id}"
+        ))),
     }
 }
 

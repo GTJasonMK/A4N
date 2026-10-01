@@ -366,9 +366,7 @@ pub(super) fn prepare_manga_page_work(
     }
 
     let image_completed = pipeline.image.is_some();
-    let next_stage = if image_completed {
-        MangaPagePipelineStage::Image
-    } else if pipeline.drawing_prompt.is_some() {
+    let next_stage = if image_completed || pipeline.drawing_prompt.is_some() {
         MangaPagePipelineStage::Image
     } else if pipeline.storyboard.is_some() {
         MangaPagePipelineStage::DrawingPrompt
@@ -969,24 +967,22 @@ fn stop_after_page_stage(
     stop_after: Option<a4n_api_contract::manga::MangaPipelineStopAfter>,
     stage: MangaPagePipelineStage,
 ) -> bool {
-    match (stop_after, stage) {
+    matches!(
+        (stop_after, stage),
         (
             Some(a4n_api_contract::manga::MangaPipelineStopAfter::PageAdaptation),
             MangaPagePipelineStage::Adaptation,
-        )
-        | (
+        ) | (
             Some(
                 a4n_api_contract::manga::MangaPipelineStopAfter::Storyboard
-                | a4n_api_contract::manga::MangaPipelineStopAfter::PagePlanning,
+                    | a4n_api_contract::manga::MangaPipelineStopAfter::PagePlanning,
             ),
             MangaPagePipelineStage::Storyboard,
-        )
-        | (
+        ) | (
             Some(a4n_api_contract::manga::MangaPipelineStopAfter::DrawingPrompt),
             MangaPagePipelineStage::DrawingPrompt,
-        ) => true,
-        _ => false,
-    }
+        )
+    )
 }
 
 fn page_pipeline_error(

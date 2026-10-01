@@ -280,12 +280,12 @@ fn scene_stage_parsing_enforces_field_types_before_accepting_output() {
             _ => unreachable!("fixture stage"),
         };
         let (output, ()) =
-            parse_scene_stage_response(&stage.to_string(), root_field, root_field, &parse)
+            parse_scene_stage_response(&stage.to_string(), root_field, root_field, parse)
                 .expect("valid stage should return validated drafts");
         assert_eq!(json!(output), content[root_field]);
 
         stage[root_field][0][field] = bad_value;
-        let error = parse_scene_stage_response(&stage.to_string(), root_field, root_field, &parse)
+        let error = parse_scene_stage_response(&stage.to_string(), root_field, root_field, parse)
             .expect_err("invalid stage fields must fail before checkpointing");
         assert!(
             error.contains(&format!("{root_field}[0].{field}")),

@@ -45,9 +45,9 @@ pub(super) fn validate_galgame_scripts(
                 script.id
             ));
         }
-        if !snapshots
+        if snapshots
             .get(&script.source_snapshot_id)
-            .is_some_and(|snapshot| snapshot.root_project_id == script.root_project_id)
+            .is_none_or(|snapshot| snapshot.root_project_id != script.root_project_id)
         {
             return Err(format!(
                 "项目族导入包 Galgame 剧本初始源快照不存在或不属于根项目: script_id={}, source_snapshot_id={}",

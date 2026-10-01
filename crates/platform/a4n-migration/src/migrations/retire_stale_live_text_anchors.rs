@@ -19,9 +19,9 @@ impl MigrationTrait for Migration {
         for row in rows {
             let content = row.try_get::<Option<String>>("", "content")?;
             let version = row.try_get::<String>("", "source_version_hash")?;
-            if !content
+            if content
                 .as_deref()
-                .is_some_and(|content| a4n_domain::source_text_hash(content) == version)
+                .is_none_or(|content| a4n_domain::source_text_hash(content) != version)
             {
                 stale_ids.push(row.try_get::<i64>("", "id")?);
             }

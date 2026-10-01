@@ -194,11 +194,10 @@ fn normalize_fields(value: &mut Value) -> Result<(), AppError> {
                     }
                 } else if key == "task" && item.as_str() == Some(OLD_TASK) {
                     *item = Value::String(NEW_TASK.into());
-                } else if key == "shooting_script_projection_rule" {
-                    if let Some(text) = item.as_str().filter(|text| text.ends_with(OLD_SPLIT_RULE))
-                    {
-                        *item = Value::String(text.replace(OLD_SPLIT_RULE, NEW_SPLIT_RULE));
-                    }
+                } else if key == "shooting_script_projection_rule"
+                    && let Some(text) = item.as_str().filter(|text| text.ends_with(OLD_SPLIT_RULE))
+                {
+                    *item = Value::String(text.replace(OLD_SPLIT_RULE, NEW_SPLIT_RULE));
                 }
                 normalize_fields(item)?;
             }

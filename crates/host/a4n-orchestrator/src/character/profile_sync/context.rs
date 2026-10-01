@@ -199,7 +199,7 @@ impl OrchestratorContext {
         .map_err(AppError::InvalidArgument)?;
         let source_chapters = selected_chapters
             .iter()
-            .map(|chapter| a4n_db::project::chapter_source_snapshot_from_model(*chapter))
+            .map(|chapter| a4n_db::project::chapter_source_snapshot_from_model(chapter))
             .collect::<Vec<_>>();
 
         let first_seen = effective_first_seen.unwrap_or(1);

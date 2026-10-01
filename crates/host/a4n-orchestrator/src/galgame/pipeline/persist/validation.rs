@@ -89,10 +89,9 @@ pub(in crate::galgame) fn validate_galgame_script_adaptation(
                 )));
             }
             let beat = &scene.beats[position];
-            if (beat.origin == a4n_domain::media_authoring::AdaptationOrigin::Added
-                && line.origin != beat.origin)
-                || (line.origin == a4n_domain::media_authoring::AdaptationOrigin::Historical
-                    && line.origin != beat.origin)
+            if line.origin != beat.origin
+                && (beat.origin == a4n_domain::media_authoring::AdaptationOrigin::Added
+                    || line.origin == a4n_domain::media_authoring::AdaptationOrigin::Historical)
             {
                 return Err(invalid("剧本行的内容来源与改编节拍不一致"));
             }

@@ -106,13 +106,12 @@ pub fn validate_chapter_foreshadowing_events(
         .filter_map(|item| item.get("id").and_then(Value::as_str))
         .collect::<HashSet<_>>();
     for item in planted {
-        if let Some(id) = item.get("id").filter(|id| !id.is_null()) {
-            if !id
+        if let Some(id) = item.get("id").filter(|id| !id.is_null())
+            && !id
                 .as_str()
                 .is_some_and(|id| allowed_resolution_ids.contains(id))
-            {
-                return Err(analysis_materialize_error("planted.id 必须引用已有伏笔"));
-            }
+        {
+            return Err(analysis_materialize_error("planted.id 必须引用已有伏笔"));
         }
     }
     let resolved = foreshadowing

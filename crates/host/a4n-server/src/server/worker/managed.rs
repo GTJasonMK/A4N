@@ -84,12 +84,10 @@ pub(crate) fn restart_managed_worker(
 ) -> anyhow::Result<()> {
     let next_rollback_binary = backup_binary(&worker.config.binary)?;
     let rollback_binary = worker.rollback_binary.take();
-    if stop_first {
-        if let Err(error) = stop_child(&mut worker.child) {
-            worker.rollback_binary = rollback_binary;
-            remove_backup(next_rollback_binary);
-            return Err(error);
-        }
+    if stop_first && let Err(error) = stop_child(&mut worker.child) {
+        worker.rollback_binary = rollback_binary;
+        remove_backup(next_rollback_binary);
+        return Err(error);
     }
     std::thread::sleep(WORKER_RESTART_DELAY);
     match launch(&worker.config) {

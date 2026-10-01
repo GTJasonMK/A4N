@@ -50,12 +50,12 @@ pub(super) async fn restore_snapshot_referenced_profiles<C: ConnectionTrait>(
         profile.current_state = fields.current_state;
         profile.last_synced_chapter = 0;
         profile.updated_at = now;
-        if let Some(previous) = restored.insert(source_profile_id, profile.clone()) {
-            if previous != profile {
-                return Err(DbErr::Custom(format!(
-                    "角色 {source_profile_id} 的冻结初始档案不一致，不能自动恢复"
-                )));
-            }
+        if let Some(previous) = restored.insert(source_profile_id, profile.clone())
+            && previous != profile
+        {
+            return Err(DbErr::Custom(format!(
+                "角色 {source_profile_id} 的冻结初始档案不一致，不能自动恢复"
+            )));
         }
     }
     for profile in restored.into_values() {

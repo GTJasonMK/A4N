@@ -103,39 +103,36 @@ pub(super) fn upgrade(
                     }
                 }
             }
-        } else if run.workflow_kind == "manga_pipeline" && old_project == package.root_project_id {
-            if let Some(chapter_id) = run.chapter_id {
-                let hash = run
-                    .input_fingerprint_json
-                    .as_ref()
-                    .and_then(|value| value.pointer("/source/content_sha256"))
-                    .and_then(Value::as_str);
-                if let Some(page) = package.chapter_manga_prompts.iter().find(|page| {
-                    page.chapter_id == chapter_id
-                        && page
-                            .layout
-                            .as_ref()
-                            .and_then(|value| value.pointer("/source/content_sha256"))
-                            .and_then(Value::as_str)
-                            == hash
-                }) {
-                    owner = page.project_id;
-                    run.source_snapshot_id = page
+        } else if run.workflow_kind == "manga_pipeline"
+            && old_project == package.root_project_id
+            && let Some(chapter_id) = run.chapter_id
+        {
+            let hash = run
+                .input_fingerprint_json
+                .as_ref()
+                .and_then(|value| value.pointer("/source/content_sha256"))
+                .and_then(Value::as_str);
+            if let Some(page) = package.chapter_manga_prompts.iter().find(|page| {
+                page.chapter_id == chapter_id
+                    && page
                         .layout
                         .as_ref()
-                        .and_then(|value| value.pointer("/source/source_snapshot_id"))
-                        .and_then(Value::as_i64);
-                } else if let Some(hash) = hash {
-                    let source =
-                        super::source::source_for(package, chapter_id, None, None, hash, next)?;
-                    owner = super::source::historical_project(
-                        package,
-                        source.snapshot_id,
-                        "comic",
-                        next,
-                    )?;
-                    run.source_snapshot_id = Some(source.snapshot_id);
-                }
+                        .and_then(|value| value.pointer("/source/content_sha256"))
+                        .and_then(Value::as_str)
+                        == hash
+            }) {
+                owner = page.project_id;
+                run.source_snapshot_id = page
+                    .layout
+                    .as_ref()
+                    .and_then(|value| value.pointer("/source/source_snapshot_id"))
+                    .and_then(Value::as_i64);
+            } else if let Some(hash) = hash {
+                let source =
+                    super::source::source_for(package, chapter_id, None, None, hash, next)?;
+                owner =
+                    super::source::historical_project(package, source.snapshot_id, "comic", next)?;
+                run.source_snapshot_id = Some(source.snapshot_id);
             }
         }
         run.project_id = Some(owner);

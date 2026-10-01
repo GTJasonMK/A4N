@@ -51,10 +51,10 @@ impl ProjectFamilyPackage {
             .map(|run| run.id)
             .collect::<std::collections::HashSet<_>>();
         for run in &mut history.workflow_runs {
-            if readable_runs.contains(&run.id) {
-                if let Some(progress) = run.progress_json.as_mut() {
-                    hashes.upgrade_embedded(progress)?;
-                }
+            if readable_runs.contains(&run.id)
+                && let Some(progress) = run.progress_json.as_mut()
+            {
+                hashes.upgrade_embedded(progress)?;
             }
         }
         for snapshot in &mut family.source_snapshots {

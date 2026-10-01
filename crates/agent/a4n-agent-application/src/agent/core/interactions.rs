@@ -712,13 +712,12 @@ impl AgentApplication {
                 )
                 .await
                 .map_err(agent_db_error_to_app)?;
-                let updated = cancelled
+                cancelled
                     .into_iter()
                     .find(|row| row.id == current.id)
                     .ok_or_else(|| {
                         AppError::NotFound(format!("Agent run 不存在: {}", current.id))
-                    })?;
-                updated
+                    })?
             }
             AgentControlAction::Pause => {
                 let paused = agent::pause_run_tree(self.connection(), current.id)

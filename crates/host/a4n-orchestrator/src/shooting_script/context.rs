@@ -231,7 +231,7 @@ mod tests {
         let id = prepared.source_spans[0].id.clone();
         let manifest = shooting_context_manifest::<serde_json::Value>(
             &prepared,
-            (&[id.clone()], binding),
+            (std::slice::from_ref(&id), binding),
             None,
             "当前单元".into(),
         )
