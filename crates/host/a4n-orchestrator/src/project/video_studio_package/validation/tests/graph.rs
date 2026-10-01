@@ -4,6 +4,50 @@ use super::{
 };
 
 #[test]
+fn canvas_records_survive_manifest_round_trip_and_import_boundary() {
+    let mut package = package();
+    package.canvas_graphs.push(graph());
+    let mut node = canvas_node(31, "TextInputNode");
+    node.ref_type = Some("canvas_text_asset".to_string());
+    node.ref_id = Some(41);
+    package.canvas_nodes.push(node);
+    package.canvas_nodes.push(canvas_node(32, "LlmTextNode"));
+    package.canvas_edges.push(canvas_edge(
+        60,
+        31,
+        32,
+        "text",
+        "input",
+        "context",
+        serde_json::json!({}),
+    ));
+    package
+        .canvas_text_assets
+        .push(a4n_domain::canvas::CanvasTextAssetRecord {
+            id: 41,
+            project_id: package.project.id,
+            title: "第一幕".to_string(),
+            text_kind: "script".to_string(),
+            content: "开场".to_string(),
+            content_hash: "source-hash".to_string(),
+            created_at: super::now(),
+            updated_at: super::now(),
+        });
+
+    let manifest = serde_json::to_value(&package).unwrap();
+    let restored: crate::project::VideoStudioProjectPackage =
+        serde_json::from_value(manifest.clone()).unwrap();
+    validate_package_manifest(&restored, &empty_payload()).unwrap();
+    assert_eq!(serde_json::to_value(&restored).unwrap(), manifest);
+
+    let imported = restored.into_import_rows();
+    assert_eq!(imported.canvas_graphs[0].id, 20);
+    assert_eq!(imported.canvas_nodes[0].ref_id, Some(41));
+    assert_eq!(imported.canvas_edges[0].role, "context");
+    assert_eq!(imported.canvas_text_assets[0].content_hash, "source-hash");
+}
+
+#[test]
 fn validate_video_studio_manifest_rejects_missing_canvas_node_media_ref() {
     let mut package = package();
     package.canvas_graphs.push(graph());

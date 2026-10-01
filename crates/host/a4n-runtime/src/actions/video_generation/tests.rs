@@ -45,7 +45,7 @@ fn completed_video_metadata_discards_provider_media_payload() {
         }),
     };
 
-    let metadata = super::provider_host::completed_video_artifact_metadata(&result);
+    let metadata = super::preview::completed_video_artifact_metadata(&result);
 
     assert_eq!(metadata["provider_job_id"], json!("provider-job"));
     assert_eq!(metadata["artifact"]["format"], json!("mp4"));

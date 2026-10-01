@@ -1,8 +1,8 @@
-use a4n_db_models::models::chapter::part_outline;
+use a4n_domain::chapter::PartOutlineRecord;
 use a4n_error::AppError;
 
 pub(in crate::outline) fn validate_requested_part_context(
-    parts: &[part_outline::Model],
+    parts: &[PartOutlineRecord],
     start_chapter: i32,
     end_chapter: i32,
 ) -> Result<(), AppError> {
@@ -23,9 +23,9 @@ pub(in crate::outline) fn validate_requested_part_context(
 }
 
 pub(in crate::outline) fn requested_part_for_chapter(
-    parts: &[part_outline::Model],
+    parts: &[PartOutlineRecord],
     chapter_number: i32,
-) -> Result<Option<&part_outline::Model>, AppError> {
+) -> Result<Option<&PartOutlineRecord>, AppError> {
     let mut matched = parts
         .iter()
         .filter(|part| chapter_number >= part.start_chapter && chapter_number <= part.end_chapter);
@@ -39,8 +39,8 @@ pub(in crate::outline) fn requested_part_for_chapter(
 }
 
 pub(in crate::outline) fn ensure_focus_part_in_context(
-    focus_part: Option<&part_outline::Model>,
-    parts: &[part_outline::Model],
+    focus_part: Option<&PartOutlineRecord>,
+    parts: &[PartOutlineRecord],
 ) -> Result<(), AppError> {
     let Some(focus_part) = focus_part else {
         return Ok(());
@@ -56,7 +56,7 @@ pub(in crate::outline) fn ensure_focus_part_in_context(
 }
 
 pub(in crate::outline) fn required_part_summary(
-    part: &part_outline::Model,
+    part: &PartOutlineRecord,
 ) -> Result<&str, AppError> {
     part.summary
         .as_deref()
@@ -71,7 +71,7 @@ pub(in crate::outline) fn required_part_summary(
 }
 
 pub(in crate::outline) fn validate_chapter_generation_range(
-    part: &part_outline::Model,
+    part: &PartOutlineRecord,
     start_chapter: i32,
     count: i32,
 ) -> Result<(i32, i32), AppError> {

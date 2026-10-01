@@ -3,8 +3,7 @@ use std::collections::HashMap;
 use a4n_api_contract::chapter::{
     CHAPTER_SCENE_PROGRESS_TOTAL, ChapterSceneProgressReporter, GenerateChapterSceneInput,
 };
-use a4n_db_models::models::chapter::chapter_scene;
-use a4n_domain::chapter::ProjectGeneratedChapterSceneSaveInput;
+use a4n_domain::chapter::{ChapterSceneRecord, ProjectGeneratedChapterSceneSaveInput};
 use a4n_error::AppError;
 use a4n_llm_provider_contract::provider::is_truncated_finish_reason;
 use a4n_prompt::rendering::PromptRenderer;
@@ -76,7 +75,7 @@ impl OrchestratorContext {
         prompt_renderer: &dyn PromptRenderer,
         progress: ChapterSceneProgressReporter<'_>,
         active_task_id: Option<&str>,
-    ) -> Result<chapter_scene::Model, AppError> {
+    ) -> Result<ChapterSceneRecord, AppError> {
         let input = self
             .chapter_scene_generation_input_for_user(user_id, input)
             .await?;
@@ -104,7 +103,7 @@ impl OrchestratorContext {
         prompt_renderer: &dyn PromptRenderer,
         progress: ChapterSceneProgressReporter<'_>,
         active_task_id: Option<&str>,
-    ) -> Result<chapter_scene::Model, AppError> {
+    ) -> Result<ChapterSceneRecord, AppError> {
         progress(0, CHAPTER_SCENE_PROGRESS_TOTAL, "正在读取章节和场景参数")?;
         let prepared = self
             .prepare_chapter_scene_generation(input, prompt_renderer)

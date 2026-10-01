@@ -1,17 +1,16 @@
 use a4n_chapter_analysis::summary_text;
-use a4n_db_models::models::chapter::{chapter, part_outline};
-use a4n_db_models::models::character::protagonist_profile;
-use a4n_db_models::models::project::novel_project;
 use serde_json::{Value, json};
 
 use a4n_db::{
     optimize::{OptimizationChapterOutlineRecord, OptimizationChapterSummaryRecord},
     rag::RagForeshadowingRow,
 };
+use a4n_domain::chapter::{ChapterRecord, PartOutlineRecord};
+use a4n_domain::project::{OptimizationCharacterProfileRecord, ProjectOptimizationContextRecord};
 use a4n_domain::source_spans::source_span_prompt_values;
 use a4n_domain::source_spans::source_spans_for_chapters;
 
-pub(super) fn optimization_project_context(project: &novel_project::Model) -> Value {
+pub(super) fn optimization_project_context(project: &ProjectOptimizationContextRecord) -> Value {
     json!({
         "id": project.id,
         "title": project.title,
@@ -27,7 +26,7 @@ pub(super) fn optimization_project_context(project: &novel_project::Model) -> Va
     })
 }
 
-pub(super) fn optimization_chapter_context(ch: &chapter::Model) -> Value {
+pub(super) fn optimization_chapter_context(ch: &ChapterRecord) -> Value {
     let source_spans = source_spans_for_chapters(std::slice::from_ref(ch));
     json!({
         "chapter_number": ch.chapter_number,
@@ -79,7 +78,7 @@ pub(super) fn optimization_outline_context(outline: &OptimizationChapterOutlineR
     })
 }
 
-pub(super) fn optimization_part_outline_context(part: &part_outline::Model) -> Value {
+pub(super) fn optimization_part_outline_context(part: &PartOutlineRecord) -> Value {
     json!({
         "part_number": part.part_number,
         "title": part.title,
@@ -93,7 +92,7 @@ pub(super) fn optimization_part_outline_context(part: &part_outline::Model) -> V
 }
 
 pub(super) fn optimization_character_profile_context(
-    profile: &protagonist_profile::Model,
+    profile: &OptimizationCharacterProfileRecord,
 ) -> Value {
     json!({
         "name": profile.name,

@@ -1,6 +1,6 @@
 use super::*;
-use a4n_db_models::models::chapter::{chapter, chapter_scene};
-use a4n_domain::chapter::ProjectGeneratedChapterSceneSaveInput;
+use a4n_db_models::models::chapter::chapter;
+use a4n_domain::chapter::{ChapterSceneRecord, ProjectGeneratedChapterSceneSaveInput};
 use chrono::{NaiveDate, NaiveDateTime};
 use sea_orm::{ActiveModelTrait, DatabaseConnection, DbErr, Set};
 use std::error::Error;
@@ -161,8 +161,8 @@ fn assert_invalid_argument(error: ProjectChapterSceneRecordError, expected: &str
     ));
 }
 
-fn chapter_scene_record(id: i64, chapter_id: i64, scene_number: i32) -> chapter_scene::Model {
-    chapter_scene::Model {
+fn chapter_scene_record(id: i64, chapter_id: i64, scene_number: i32) -> ChapterSceneRecord {
+    ChapterSceneRecord {
         id,
         chapter_id,
         scene_number,

@@ -4,10 +4,8 @@ use std::{env, net::SocketAddr, sync::Arc};
 
 use a4n_api_contract::chapter::ChapterSceneSummary;
 use a4n_chapter_scene_worker_contract::{
-    CHAPTER_SCENE_CAPABILITY, CHAPTER_SCENE_DELETE_OPERATION, CHAPTER_SCENE_LIST_OPERATION,
-    CHAPTER_SCENE_REORDER_OPERATION, CHAPTER_SCENE_UPDATE_OPERATION,
-    CHAPTER_SCENE_WORKER_CONTRACT_VERSION, CHAPTER_SCENE_WORKER_ID, ChapterInput, DeleteSceneInput,
-    ReorderScenesInput, UpdateSceneInput,
+    CHAPTER_SCENE_CAPABILITY, CHAPTER_SCENE_WORKER_CONTRACT_VERSION, CHAPTER_SCENE_WORKER_ID,
+    ChapterInput, DeleteSceneInput, ReorderScenesInput, UpdateSceneInput,
 };
 use a4n_db::DbHandle;
 use a4n_worker_contract::WORKER_AUTH_HEADER;
@@ -25,8 +23,10 @@ use axum::{
     routing::{get, post},
 };
 use chrono::Utc;
-use sea_orm::{ConnectOptions, ConnectionTrait, Database, DatabaseConnection, Statement};
 use subtle::ConstantTimeEq;
+
+mod mutations;
+mod reads;
 
 const WORKER_ADDR_ENV: &str = "A4N_CHAPTER_SCENE_WORKER_ADDR";
 const DATABASE_URL_ENV: &str = "A4N_DATABASE_URL";
@@ -54,13 +54,13 @@ struct WorkerFailure {
 
 impl ChapterSceneWorker {
     pub fn new(
-        database: DatabaseConnection,
+        database: DbHandle,
         worker_id: impl Into<String>,
         auth_token: impl Into<String>,
     ) -> Self {
         Self {
             state: WorkerState {
-                database: DbHandle::new(Arc::new(database)),
+                database,
                 worker_id: Arc::<str>::from(worker_id.into()),
                 auth_token: Arc::<str>::from(auth_token.into()),
             },
@@ -100,12 +100,7 @@ async fn async_main() -> anyhow::Result<()> {
     a4n_config::validate_postgres_database_url(DATABASE_URL_ENV, &database_url)?;
     let auth_token = a4n_config::required_non_empty_env_string(WORKER_TOKEN_ENV)?;
     let address = worker_addr()?;
-    let mut options = ConnectOptions::new(database_url);
-    options
-        .max_connections(8)
-        .min_connections(1)
-        .connect_timeout(std::time::Duration::from_secs(5));
-    let database = Database::connect(options).await?;
+    let database = DbHandle::connect(database_url).await?;
     ChapterSceneWorker::new(database, CHAPTER_SCENE_WORKER_ID, auth_token)
         .serve(address)
         .await
@@ -126,16 +121,8 @@ async fn health(State(state): State<WorkerState>, headers: HeaderMap) -> Respons
     if !state.authorized(&headers) {
         return unauthorized();
     }
-    let status = match state
-        .database
-        .connection()
-        .execute(Statement::from_string(
-            sea_orm::DatabaseBackend::Postgres,
-            "SELECT 1",
-        ))
-        .await
-    {
-        Ok(_) => WorkerHealthStatus::Healthy,
+    let status = match state.database.ping().await {
+        Ok(()) => WorkerHealthStatus::Healthy,
         Err(_) => WorkerHealthStatus::Degraded,
     };
     Json(WorkerHealth {
@@ -218,129 +205,11 @@ where
 }
 
 impl WorkerState {
-    async fn list(
-        &self,
-        request: WorkerEnvelope<ChapterInput>,
-    ) -> Result<Vec<ChapterSceneSummary>, WorkerFailure> {
-        validate_request(&request, CHAPTER_SCENE_LIST_OPERATION)?;
-        let chapter = self
-            .authorized_chapter(request.payload.chapter_id, user_id(&request)?)
-            .await?;
-        let scenes =
-            a4n_db::project::chapter_scenes_by_chapter(self.database.connection(), chapter.id)
-                .await
-                .map_err(record_error)?;
-        Ok(scenes.into_iter().map(scene_summary).collect())
-    }
-
-    async fn update(
-        &self,
-        request: WorkerEnvelope<UpdateSceneInput>,
-    ) -> Result<ChapterSceneSummary, WorkerFailure> {
-        validate_request(&request, CHAPTER_SCENE_UPDATE_OPERATION)?;
-        let actor_user_id = user_id(&request)?;
-        let input = request.payload;
-        let scene =
-            a4n_db::project::chapter_scene_by_id(self.database.connection(), input.scene_id)
-                .await
-                .map_err(record_error)?
-                .ok_or_else(|| {
-                    WorkerFailure::not_found(format!("场景不存在: scene_id={}", input.scene_id))
-                })?;
-        self.authorized_chapter(scene.chapter_id, actor_user_id)
-            .await?;
-        let content = input
-            .content
-            .map(|value| {
-                let value = value.trim().to_string();
-                if value.is_empty() {
-                    Err(WorkerFailure::invalid_request("场景正文不能为空"))
-                } else {
-                    Ok(value)
-                }
-            })
-            .transpose()?;
-        let scene = a4n_db::project::update_chapter_scene_record(
-            self.database.connection(),
-            a4n_db::project::ProjectChapterSceneUpdateInput {
-                scene,
-                content,
-                title: input.title.map(|value| Some(trim_optional(value))),
-                summary: input.summary.map(|value| Some(trim_optional(value))),
-                scene_type: input
-                    .scene_type
-                    .map(|value| required_text(value, "场景类型"))
-                    .transpose()?,
-                location: input.location.map(|value| Some(trim_optional(value))),
-                timeline_position: input
-                    .timeline_position
-                    .map(|value| Some(trim_optional(value))),
-                updated_at: Utc::now().naive_utc(),
-            },
-        )
-        .await
-        .map_err(record_error)?;
-        Ok(scene_summary(scene))
-    }
-
-    async fn delete(
-        &self,
-        request: WorkerEnvelope<DeleteSceneInput>,
-    ) -> Result<bool, WorkerFailure> {
-        validate_request(&request, CHAPTER_SCENE_DELETE_OPERATION)?;
-        let scene = a4n_db::project::chapter_scene_by_id(
-            self.database.connection(),
-            request.payload.scene_id,
-        )
-        .await
-        .map_err(record_error)?
-        .ok_or_else(|| {
-            WorkerFailure::not_found(format!("场景不存在: scene_id={}", request.payload.scene_id))
-        })?;
-        self.authorized_chapter(scene.chapter_id, user_id(&request)?)
-            .await?;
-        let rows =
-            a4n_db::project::delete_chapter_scene_record(self.database.connection(), scene.id)
-                .await
-                .map_err(record_error)?;
-        if rows == 0 {
-            return Err(WorkerFailure::not_found(format!(
-                "场景不存在: scene_id={}",
-                scene.id
-            )));
-        }
-        Ok(true)
-    }
-
-    async fn reorder(
-        &self,
-        request: WorkerEnvelope<ReorderScenesInput>,
-    ) -> Result<Vec<ChapterSceneSummary>, WorkerFailure> {
-        validate_request(&request, CHAPTER_SCENE_REORDER_OPERATION)?;
-        if request.payload.order.is_empty() {
-            return Err(WorkerFailure::invalid_request("order 不能为空"));
-        }
-        let project_id = a4n_db::project::chapter_scene_reorder_project_id(
-            self.database.connection(),
-            &request.payload.order,
-        )
-        .await
-        .map_err(write_error)?;
-        verify_project_editor(&self.database, project_id, user_id(&request)?).await?;
-        let scenes = a4n_db::project::reorder_chapter_scene_records(
-            self.database.connection(),
-            &request.payload.order,
-        )
-        .await
-        .map_err(write_error)?;
-        Ok(scenes.into_iter().map(scene_summary).collect())
-    }
-
     async fn authorized_chapter(
         &self,
         chapter_id: i64,
         user_id: i64,
-    ) -> Result<a4n_db_models::models::chapter::chapter::Model, WorkerFailure> {
+    ) -> Result<a4n_domain::chapter::ChapterRecord, WorkerFailure> {
         let chapter = a4n_db::project::chapter_by_id(self.database.connection(), chapter_id)
             .await
             .map_err(|error| WorkerFailure::unavailable(error.to_string()))?
@@ -408,9 +277,7 @@ async fn verify_project_editor(
     .map_err(collaboration_error)
 }
 
-fn scene_summary(
-    scene: a4n_db_models::models::chapter::chapter_scene::Model,
-) -> ChapterSceneSummary {
+fn scene_summary(scene: a4n_domain::chapter::ChapterSceneRecord) -> ChapterSceneSummary {
     ChapterSceneSummary {
         id: scene.id,
         chapter_id: scene.chapter_id,

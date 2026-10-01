@@ -168,7 +168,7 @@ pub async fn read_execution_result(
         AppError::InvalidArgument(format!("Agent execution result 无效: {error}"))
     })?;
     state
-        .agent_worker_read_application()
+        .agent_worker_execution_result_read_application()
         .read_execution_result_request(request)
         .await
 }
@@ -181,7 +181,7 @@ pub async fn read_memory(
         .validate()
         .map_err(|error| AppError::InvalidArgument(format!("Agent memory 无效: {error}")))?;
     state
-        .agent_worker_read_application()
+        .agent_worker_memory_read_application()
         .read_memory_request(request)
         .await
 }
@@ -194,7 +194,7 @@ pub fn search_agent_tools_for_worker(
         .validate()
         .map_err(|error| AppError::InvalidArgument(format!("Agent tool search 无效: {error}")))?;
     state
-        .agent_worker_read_application()
+        .agent_worker_tool_read_application()
         .search_tools_for_worker(request.input.clone())
 }
 
@@ -206,7 +206,7 @@ pub fn describe_agent_tool_for_worker(
         .validate()
         .map_err(|error| AppError::InvalidArgument(format!("Agent tool describe 无效: {error}")))?;
     state
-        .agent_worker_read_application()
+        .agent_worker_tool_read_application()
         .describe_tool_for_worker(request.input.clone())
 }
 
@@ -218,8 +218,8 @@ pub async fn verify_agent_chapters_for_worker(
         .validate()
         .map_err(|error| AppError::InvalidArgument(format!("Agent chapter scope 无效: {error}")))?;
     state
-        .agent_worker_read_application()
-        .verify_chapters_in_project_for_worker(
+        .agent_resource_access_application()
+        .verify_chapters_in_project(
             request.user_id,
             request.project_id,
             &request.chapter_ids,
@@ -371,7 +371,7 @@ pub async fn apply_message_request(
         .validate()
         .map_err(|error| AppError::InvalidArgument(format!("Agent message 无效: {error}")))?;
     state
-        .agent_worker_message_application()
+        .agent_worker_message_request_application()
         .apply_message_request(request)
         .await
         .map(|snapshot| snapshot.map(Into::into))
@@ -475,7 +475,7 @@ pub async fn review_agent_delegation(
         AppError::InvalidArgument(format!("Agent delegation review 无效: {error}"))
     })?;
     state
-        .agent_worker_delegation_application()
+        .agent_worker_delegation_review_application()
         .review_delegation_request(request)
         .await
 }
@@ -499,7 +499,7 @@ pub async fn ensure_agent_canonical_subagent_thread(
         AppError::InvalidArgument(format!("Agent delegation thread 无效: {error}"))
     })?;
     state
-        .agent_worker_delegation_application()
+        .agent_worker_subagent_thread_application()
         .ensure_canonical_subagent_thread_request(request)
         .await
 }
@@ -512,7 +512,7 @@ pub async fn append_agent_worker_update(
         .validate()
         .map_err(|error| AppError::InvalidArgument(format!("Agent worker event 无效: {error}")))?;
     state
-        .agent_worker_delegation_application()
+        .agent_worker_event_write_application()
         .append_worker_update_request(request)
         .await
 }

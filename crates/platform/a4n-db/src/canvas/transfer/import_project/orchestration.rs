@@ -28,7 +28,7 @@ pub async fn import_video_studio_project_record<Writer>(
     rows: VideoStudioProjectImportRows,
     now: chrono::NaiveDateTime,
     media_file_writer: &mut Writer,
-) -> Result<novel_project::Model, VideoStudioProjectImportError>
+) -> Result<i64, VideoStudioProjectImportError>
 where
     Writer: VideoStudioProjectImportMediaFileWriter,
 {
@@ -39,7 +39,7 @@ where
     txn.commit()
         .await
         .map_err(VideoStudioProjectImportError::TransactionCommit)?;
-    Ok(project)
+    Ok(project.id)
 }
 
 async fn import_video_studio_project_record_rows<C, Writer>(

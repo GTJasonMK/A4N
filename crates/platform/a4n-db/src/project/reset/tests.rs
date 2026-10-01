@@ -385,7 +385,7 @@ async fn reset_deletes_scene_occurrences_before_chapters() {
                 crate::chapter_content::chapters_for_project(&db, project_id)
                     .await
                     .unwrap(),
-                vec![replacement]
+                vec![crate::project::chapter_record(replacement)]
             );
         }
     }

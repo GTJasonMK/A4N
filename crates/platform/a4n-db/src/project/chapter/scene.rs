@@ -1,4 +1,5 @@
 mod generated;
+mod record;
 mod records;
 mod reorder;
 mod types;

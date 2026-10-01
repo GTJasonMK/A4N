@@ -1,18 +1,14 @@
 //! Typed Host adapter for the project asset graph worker.
 
-use a4n_api_contract::project::{
-    AssetDependencyGraph, AssetGraphNodeDetail, ProjectAssetGraphApplicationPort,
-};
-use a4n_asset_graph_worker_contract::{
-    ASSET_GRAPH_NODE_DETAIL_OPERATION, ASSET_GRAPH_OPERATION, ASSET_GRAPH_WORKER_ID,
-    ProjectAssetGraphInput, ProjectAssetGraphNodeDetailInput,
-};
+use a4n_asset_graph_worker_contract::ASSET_GRAPH_WORKER_ID;
 use a4n_error::AppError;
 use a4n_worker_client::{HttpWorkerClient, WorkerClientError};
 use a4n_worker_contract::{
     WORKER_SCHEMA_VERSION, WorkerEnvelope, WorkerError, WorkerErrorCode, WorkerLease,
     WorkerOperationStatus, WorkerPrincipal, WorkerPrincipalKind, WorkerResponse,
 };
+
+mod reads;
 
 const DEFAULT_WORKER_URL: &str = "http://127.0.0.1:47655";
 const CONTROL_LEASE_FENCE: &str = "control-request";
@@ -111,37 +107,6 @@ impl AssetGraphWorkerClient {
                 "asset graph worker 返回未完成状态: operation={operation_id}, status={status:?}"
             ))),
         }
-    }
-}
-
-#[async_trait::async_trait]
-impl ProjectAssetGraphApplicationPort for AssetGraphWorkerClient {
-    async fn graph(&self, user_id: i64, project_id: i64) -> Result<AssetDependencyGraph, AppError> {
-        self.command(
-            user_id,
-            project_id,
-            ASSET_GRAPH_OPERATION,
-            ProjectAssetGraphInput { project_id },
-        )
-        .await
-    }
-
-    async fn node_detail(
-        &self,
-        user_id: i64,
-        project_id: i64,
-        node_id: String,
-    ) -> Result<AssetGraphNodeDetail, AppError> {
-        self.command(
-            user_id,
-            project_id,
-            ASSET_GRAPH_NODE_DETAIL_OPERATION,
-            ProjectAssetGraphNodeDetailInput {
-                project_id,
-                node_id,
-            },
-        )
-        .await
     }
 }
 

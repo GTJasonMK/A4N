@@ -4,7 +4,7 @@ use a4n_api_contract::auth::{
     required_session_user_id,
 };
 use a4n_db::{DbHandle, auth::BootstrapAdminInput};
-use a4n_db_models::models::user::{invite_code, user, user_session};
+use a4n_db_models::models::user::{user, user_session};
 use a4n_domain::admin::InviteCodeSummary;
 use a4n_error::AppError;
 
@@ -19,8 +19,14 @@ impl AuthApplication {
     }
 
     pub async fn auth_user_by_id(&self, user_id: i64) -> Result<UserSummary, AppError> {
-        let user = a4n_db::auth::user_by_id(self.database.connection(), user_id).await?;
-        Ok(user_summary(&user))
+        a4n_db::auth::user_summary_by_id(self.database.connection(), user_id).await
+    }
+
+    pub async fn auth_user_authorization_by_id(
+        &self,
+        user_id: i64,
+    ) -> Result<a4n_domain::auth::UserAuthorizationRecord, AppError> {
+        a4n_db::auth::user_authorization_by_id(self.database.connection(), user_id).await
     }
 
     pub async fn create_auth_user(
@@ -41,10 +47,7 @@ impl AuthApplication {
         code: &str,
         created_by_user_id: Option<i64>,
     ) -> Result<InviteCodeSummary, AppError> {
-        let code =
-            a4n_db::auth::create_invite_code(self.database.connection(), code, created_by_user_id)
-                .await?;
-        Ok(invite_code_summary(&code))
+        a4n_db::auth::create_invite_code(self.database.connection(), code, created_by_user_id).await
     }
 
     pub async fn list_auth_users(&self) -> Result<Vec<UserSummary>, AppError> {
@@ -52,8 +55,7 @@ impl AuthApplication {
     }
 
     pub async fn list_invite_code_records(&self) -> Result<Vec<InviteCodeSummary>, AppError> {
-        let codes = a4n_db::auth::list_invite_codes(self.database.connection()).await?;
-        Ok(codes.iter().map(invite_code_summary).collect())
+        a4n_db::auth::list_invite_codes(self.database.connection()).await
     }
 
     pub async fn update_auth_user_role(
@@ -268,21 +270,10 @@ fn session_summary(session: &user_session::Model) -> SessionSummary {
     }
 }
 
-fn invite_code_summary(code: &invite_code::Model) -> InviteCodeSummary {
-    InviteCodeSummary {
-        id: code.id,
-        code: code.code.clone(),
-        created_by_user_id: code.created_by_user_id,
-        used_by_user_id: code.used_by_user_id,
-        created_at: Some(code.created_at.and_utc().to_rfc3339()),
-        used_at: code.used_at.map(|value| value.and_utc().to_rfc3339()),
-    }
-}
-
 #[cfg(test)]
 mod tests {
-    use super::{invite_code_summary, session_summary, user_summary};
-    use a4n_db_models::models::user::{invite_code, user, user_session};
+    use super::{session_summary, user_summary};
+    use a4n_db_models::models::user::{user, user_session};
 
     #[test]
     fn user_summary_never_serializes_database_secrets() {
@@ -321,7 +312,7 @@ mod tests {
     }
 
     #[test]
-    fn session_and_invite_timestamps_are_utc_instants() {
+    fn session_timestamps_are_utc_instants() {
         let now = Default::default();
         let session = user_session::Model {
             id: "session".into(),
@@ -334,20 +325,9 @@ mod tests {
             revoked_at: None,
             last_used_at: Some(now),
         };
-        let invite = invite_code::Model {
-            id: 3,
-            code: "invite".into(),
-            created_by_user_id: Some(7),
-            used_by_user_id: None,
-            created_at: now,
-            used_at: None,
-        };
-
         let session = session_summary(&session);
-        let invite = invite_code_summary(&invite);
         assert!(session.created_at.ends_with("+00:00"));
         assert!(session.expires_at.ends_with("+00:00"));
         assert!(session.last_used_at.unwrap().ends_with("+00:00"));
-        assert!(invite.created_at.unwrap().ends_with("+00:00"));
     }
 }

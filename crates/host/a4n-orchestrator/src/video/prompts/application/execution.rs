@@ -339,7 +339,12 @@ impl OrchestratorContext {
             .chapter_video_prompts_for_chapter(project_id, chapter_id)
             .await?
         {
-            let row = self.with_video_plan_source_sync(row).await?;
+            let row = a4n_db::video::read_models::with_video_plan_source_sync(
+                self.database.connection(),
+                row,
+            )
+            .await
+            .map_err(video_db_error)?;
             result.push(ChapterVideoPromptSummary::from(&row));
         }
         Ok(result)

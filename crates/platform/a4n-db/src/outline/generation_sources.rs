@@ -6,6 +6,8 @@ use a4n_db_models::models::{
     project::{blueprint_character, blueprint_relationship, novel_blueprint, novel_project},
     scene::scene_profile,
 };
+use a4n_domain::chapter::{ChapterOutlineRecord, PartOutlineRecord};
+use a4n_domain::project::ProjectRecord;
 use a4n_domain::source_text_hash;
 use sea_orm::{
     ColumnTrait, ConnectionTrait, DatabaseConnection, DatabaseTransaction, DbBackend, DbErr,
@@ -13,10 +15,12 @@ use sea_orm::{
 };
 use serde_json::{Value, json};
 
+use super::record_mapping::{chapter_outline_record_from_model, part_outline_record_from_model};
+
 pub const OUTLINE_GENERATION_SOURCE_CHANGED: &str = "outline_generation_source_changed";
 
 pub struct OutlineGenerationSourceRows {
-    pub project: novel_project::Model,
+    pub project: ProjectRecord,
     pub chapters: Vec<chapter::Model>,
     pub blueprint: Option<novel_blueprint::Model>,
     pub blueprint_characters: Vec<blueprint_character::Model>,
@@ -25,8 +29,8 @@ pub struct OutlineGenerationSourceRows {
     pub objects: Vec<object_profile::Model>,
     pub scenes: Vec<scene_profile::Model>,
     pub foreshadowing: Vec<foreshadowing_index::Model>,
-    pub parts: Vec<part_outline::Model>,
-    pub chapter_outlines: Vec<chapter_outline::Model>,
+    pub parts: Vec<PartOutlineRecord>,
+    pub chapter_outlines: Vec<ChapterOutlineRecord>,
     pub chapter_outline_provenance: Vec<chapter_outline_provenance::Model>,
 }
 
@@ -117,6 +121,7 @@ where
     let Some(project) = project else {
         return Ok(None);
     };
+    let project = crate::project::project_record_from_model(project);
     if lock {
         lock_outline_source_insert_tables(db, backend).await?;
     }
@@ -210,8 +215,14 @@ where
             objects,
             scenes,
             foreshadowing,
-            parts,
-            chapter_outlines,
+            parts: parts
+                .into_iter()
+                .map(part_outline_record_from_model)
+                .collect(),
+            chapter_outlines: chapter_outlines
+                .into_iter()
+                .map(chapter_outline_record_from_model)
+                .collect(),
             chapter_outline_provenance,
         }));
     }
@@ -336,8 +347,14 @@ where
         objects,
         scenes,
         foreshadowing,
-        parts,
-        chapter_outlines,
+        parts: parts
+            .into_iter()
+            .map(part_outline_record_from_model)
+            .collect(),
+        chapter_outlines: chapter_outlines
+            .into_iter()
+            .map(chapter_outline_record_from_model)
+            .collect(),
         chapter_outline_provenance,
     }))
 }

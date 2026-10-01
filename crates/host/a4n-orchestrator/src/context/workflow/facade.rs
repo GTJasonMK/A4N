@@ -39,7 +39,7 @@ impl OrchestratorContext {
         &self,
         project_id: i64,
         workflow_kind: &str,
-    ) -> Result<Vec<workflow_run::Model>, AppError> {
+    ) -> Result<Vec<WorkflowRunResumeRecord>, AppError> {
         self.workflow
             .workflow_runs_by_project_kind(project_id, workflow_kind)
             .await
@@ -116,6 +116,15 @@ impl OrchestratorContext {
     ) -> Result<Vec<workflow_checkpoint::Model>, AppError> {
         self.workflow
             .workflow_checkpoint_models(workflow_run_id)
+            .await
+    }
+
+    pub(crate) async fn workflow_checkpoint_summaries(
+        &self,
+        workflow_run_id: i64,
+    ) -> Result<Vec<WorkflowCheckpointSummary>, AppError> {
+        self.workflow
+            .workflow_checkpoint_summaries(workflow_run_id)
             .await
     }
 

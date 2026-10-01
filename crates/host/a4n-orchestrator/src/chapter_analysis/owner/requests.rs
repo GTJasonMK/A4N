@@ -1,6 +1,6 @@
 use a4n_chapter_analysis::CHAPTER_ANALYSIS_STAGE_FACTS;
 use a4n_chapter_analysis_host_contract::ChapterAnalysisRequestStep;
-use a4n_db_models::models::chapter::chapter;
+use a4n_domain::chapter::ChapterRecord;
 use a4n_domain::source_spans::source_spans_for_chapters;
 use a4n_error::AppError;
 use a4n_prompt::rendering::PromptRenderer;
@@ -17,7 +17,7 @@ pub use stages::{
 pub use support::{chapter_analysis_root_field_progress, json_value_shape_summary};
 
 pub async fn build_chapter_analysis_initial_request(
-    chapter: &chapter::Model,
+    chapter: &ChapterRecord,
     prompt_renderer: &dyn PromptRenderer,
 ) -> Result<ChapterAnalysisRequestStep, AppError> {
     let source_spans = source_spans_for_chapters(std::slice::from_ref(chapter));

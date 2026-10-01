@@ -6,9 +6,10 @@ use a4n_domain::image::{
     IMAGE_GENERATION_SOURCE_VIDEO_FIRST_FRAME_PROMPT,
     IMAGE_GENERATION_SOURCE_VIDEO_STORYBOARD_PROMPT,
 };
+use a4n_domain::video_prompt::ChapterVideoPromptRecord;
 
 pub(in crate::video::prompts::consistency::dependencies) fn frame_image_generation_source_for_prompt(
-    row: &chapter_video_prompt::Model,
+    row: &ChapterVideoPromptRecord,
 ) -> Option<&'static str> {
     match row.prompt_type.as_str() {
         chapter_video_prompt::PROMPT_TYPE_FRAME
@@ -26,7 +27,7 @@ pub(in crate::video::prompts::consistency::dependencies) fn frame_image_generati
 }
 
 pub(in crate::video::prompts::consistency::dependencies) fn ensure_frame_prompt_generation_source_matches(
-    prompt: &chapter_video_prompt::Model,
+    prompt: &ChapterVideoPromptRecord,
     generation_source: &str,
 ) -> Result<&'static str, VideoDbError> {
     let expected_source = frame_image_generation_source_for_prompt(prompt).ok_or_else(|| {
@@ -45,7 +46,7 @@ pub(in crate::video::prompts::consistency::dependencies) fn ensure_frame_prompt_
 }
 
 pub(in crate::video::prompts::consistency::dependencies) fn ensure_frame_prompt_workflow_matches_type(
-    row: &chapter_video_prompt::Model,
+    row: &ChapterVideoPromptRecord,
 ) -> Result<(), VideoDbError> {
     let Some(expected_workflow_mode) = expected_prompt_workflow_mode(&row.prompt_type) else {
         return Err(VideoDbError::InvalidArgument(format!(

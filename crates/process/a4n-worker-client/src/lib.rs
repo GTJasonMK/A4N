@@ -18,6 +18,11 @@ pub use a4n_worker_contract::{
 };
 
 pub use a4n_worker_contract::WORKER_AUTH_HEADER;
+mod paths;
+use paths::{command_path, operation_path};
+mod responses;
+use responses::{validate_command_response, validate_operation_response};
+
 pub const WORKER_COMMANDS_PATH: &str = "/v1/commands";
 pub const WORKER_OPERATIONS_PATH: &str = "/v1/operations";
 
@@ -261,66 +266,6 @@ impl HttpWorkerClient {
         }
         Ok(())
     }
-}
-
-fn validate_response<T>(response: &WorkerResponse<T>) -> Result<(), WorkerClientError> {
-    response
-        .validate()
-        .map_err(WorkerClientError::InvalidResponse)
-}
-
-fn validate_command_response<I, O>(
-    request: &WorkerEnvelope<I>,
-    response: &WorkerResponse<O>,
-) -> Result<(), WorkerClientError> {
-    validate_response(response)?;
-    if response.request_id != request.request_id {
-        return Err(WorkerClientError::ResponseIdentityMismatch {
-            field: "request_id",
-        });
-    }
-    if response.trace_id != request.trace_id {
-        return Err(WorkerClientError::ResponseIdentityMismatch { field: "trace_id" });
-    }
-    Ok(())
-}
-
-fn validate_operation_response<T>(
-    response: &WorkerResponse<T>,
-    operation_id: &str,
-) -> Result<(), WorkerClientError> {
-    validate_response(response)?;
-    if response.operation.operation_id != operation_id {
-        return Err(WorkerClientError::ResponseIdentityMismatch {
-            field: "operation.operation_id",
-        });
-    }
-    Ok(())
-}
-
-fn command_path(command: &str) -> Result<String, WorkerClientError> {
-    validate_path_segment("command", command)?;
-    Ok(format!("{WORKER_COMMANDS_PATH}/{command}"))
-}
-
-fn operation_path(operation_id: &str, action: &str) -> Result<String, WorkerClientError> {
-    validate_path_segment("operation_id", operation_id)?;
-    Ok(format!("{WORKER_OPERATIONS_PATH}/{operation_id}/{action}"))
-}
-
-fn validate_path_segment(field: &'static str, value: &str) -> Result<(), WorkerClientError> {
-    if value.is_empty()
-        || matches!(value, "." | "..")
-        || value.chars().any(|character| {
-            !character.is_ascii()
-                || character.is_ascii_control()
-                || character.is_whitespace()
-                || matches!(character, '/' | '\\' | '?' | '#' | '%')
-        })
-    {
-        return Err(WorkerClientError::InvalidPathSegment { field });
-    }
-    Ok(())
 }
 
 fn map_transport_error(error: reqwest::Error) -> WorkerClientError {

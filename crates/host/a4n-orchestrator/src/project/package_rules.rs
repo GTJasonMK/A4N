@@ -6,8 +6,7 @@ use std::path::Path;
 
 use a4n_api_contract::project_transfer::MediaFileEntry;
 use a4n_db_models::models::media::media_asset::{self, FILE_PATH_FIELD, THUMBNAIL_PATH_FIELD};
-use a4n_db_models::models::project::novel_project;
-use a4n_domain::project::ProjectSourceMode;
+use a4n_domain::project::{ProjectRecord, ProjectSourceMode};
 use serde_json::Value;
 use sha2::{Digest, Sha256};
 
@@ -114,10 +113,7 @@ pub fn validate_snapshot_payload_identity(
 }
 
 /// freeform 视频项目结构约束。
-pub fn validate_freeform_video_project(
-    project: &novel_project::Model,
-    label: &str,
-) -> Result<(), String> {
+pub fn validate_freeform_video_project(project: &ProjectRecord, label: &str) -> Result<(), String> {
     if project
         .source_mode()
         .map_err(|error| format!("{label}{error}"))?

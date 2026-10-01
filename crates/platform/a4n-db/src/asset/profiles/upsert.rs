@@ -1,6 +1,8 @@
 use std::collections::{HashMap, HashSet};
 
 use a4n_db_models::models::asset::object_profile;
+#[cfg(test)]
+use a4n_domain::auth::ROLE_USER;
 use a4n_domain::profile_ownership::{PROFILE_OWNERSHIP_AI_SYNC, PROFILE_OWNERSHIP_USER};
 use a4n_domain::profile_text::merge_profile_evidence_json;
 use chrono::Utc;
@@ -500,7 +502,7 @@ mod tests {
             "object_profile_batch_insert",
             "object-profile-batch-insert@example.invalid",
             "object-profile-batch-insert-password",
-            a4n_db_models::models::user::role::ROLE_USER,
+            ROLE_USER,
         )
         .await
         .unwrap();
@@ -549,7 +551,7 @@ mod tests {
             "object_profile_batch_update",
             "object-profile-batch-update@example.invalid",
             "object-profile-batch-update-password",
-            a4n_db_models::models::user::role::ROLE_USER,
+            ROLE_USER,
         )
         .await
         .unwrap();

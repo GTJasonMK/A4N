@@ -12,6 +12,7 @@ use sea_orm::{
 };
 use serde_json::Value;
 
+use crate::video::prompts::record_mapping::chapter_video_prompt_model_from_record;
 use crate::video::{self, VideoDbError};
 
 use super::{
@@ -148,7 +149,7 @@ where
     )?;
     video::update_chapter_video_prompt_record(
         db,
-        prompt,
+        chapter_video_prompt_model_from_record(prompt),
         UpdateChapterVideoPromptRecordInput {
             visual_prompt,
             motion_prompt,

@@ -661,15 +661,17 @@ impl ImagePublicationRecoveryReadPort for OrchestratorContext {
         &self,
         image_id: i64,
     ) -> Result<Option<GeneratedImageIdentity>, AppError> {
-        Ok(self
-            .generated_image_by_id(image_id)
-            .await?
-            .map(|image| GeneratedImageIdentity {
-                project_id: image.project_id,
-                file_path: image.file_path,
-                image_type: image.image_type,
-                file_size: image.file_size,
-            }))
+        Ok(
+            a4n_db::video::read_models::generated_image_by_id(self.database.connection(), image_id)
+                .await
+                .map_err(AppError::Database)?
+                .map(|image| GeneratedImageIdentity {
+                    project_id: image.project_id,
+                    file_path: image.file_path,
+                    image_type: image.image_type,
+                    file_size: image.file_size,
+                }),
+        )
     }
 }
 

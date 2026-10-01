@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use a4n_db_models::models::chapter::part_outline;
+use a4n_domain::chapter::PartOutlineRecord;
 use a4n_error::AppError;
 use chrono::Utc;
 
@@ -18,7 +18,7 @@ impl OrchestratorContext {
     pub(in crate::outline) async fn regenerate_parts(
         &self,
         input: PartOutlineRegenerationInput<'_, '_>,
-    ) -> Result<Vec<part_outline::Model>, AppError> {
+    ) -> Result<Vec<PartOutlineRecord>, AppError> {
         let PartOutlineRegenerationInput {
             project_id,
             expected_parts,

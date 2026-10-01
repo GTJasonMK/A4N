@@ -43,11 +43,21 @@ async fn state() -> (
         )
         .nest(
             "/project-access",
-            ProjectAccessWorker::new(db.clone(), PROJECT_ACCESS_WORKER_ID, &token).router(),
+            ProjectAccessWorker::new(
+                a4n_db::DbHandle::new(Arc::new(db.clone())),
+                PROJECT_ACCESS_WORKER_ID,
+                &token,
+            )
+            .router(),
         )
         .nest(
             "/theme",
-            ThemeReadWorker::new(db.clone(), THEME_READ_WORKER_ID, &token).router(),
+            ThemeReadWorker::new(
+                a4n_db::DbHandle::new(Arc::new(db.clone())),
+                THEME_READ_WORKER_ID,
+                &token,
+            )
+            .router(),
         );
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let url = format!("http://{}", listener.local_addr().unwrap());

@@ -94,10 +94,8 @@ fn part_outline_source_end(rows: &ReverseContextRows) -> i32 {
 #[cfg(test)]
 mod tests {
     use a4n_db::import_reverse::ReverseContextRows;
-    use a4n_db_models::models::{
-        chapter::{chapter_outline, part_outline},
-        project::novel_project,
-    };
+    use a4n_domain::chapter::{ChapterOutlineRecord, PartOutlineRecord};
+    use a4n_domain::project::ProjectRecord;
     use chrono::NaiveDateTime;
 
     use super::super::ReverseContextKind;
@@ -105,7 +103,7 @@ mod tests {
 
     fn rows() -> ReverseContextRows {
         ReverseContextRows {
-            project: novel_project::Model {
+            project: ProjectRecord {
                 id: 3,
                 user_id: 1,
                 title: "跳写项目".to_string(),
@@ -130,7 +128,7 @@ mod tests {
                 updated_at: NaiveDateTime::MIN,
             },
             chapters: Vec::new(),
-            chapter_outlines: vec![chapter_outline::Model {
+            chapter_outlines: vec![ChapterOutlineRecord {
                 id: 12,
                 project_id: 3,
                 part_id: Some(21),
@@ -148,7 +146,7 @@ mod tests {
                 created_at: NaiveDateTime::MIN,
                 updated_at: NaiveDateTime::MIN,
             }],
-            part_outlines: vec![part_outline::Model {
+            part_outlines: vec![PartOutlineRecord {
                 id: 21,
                 project_id: 3,
                 part_number: 1,

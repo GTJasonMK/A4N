@@ -1,9 +1,49 @@
 use super::*;
 
+use a4n_domain::project::{OptimizationCharacterProfileRecord, ProjectOptimizationContextRecord};
+
+use crate::outline::record_mapping::part_outline_record_from_model;
+
+fn project_optimization_context_record(
+    project: novel_project::Model,
+) -> ProjectOptimizationContextRecord {
+    ProjectOptimizationContextRecord {
+        id: project.id,
+        title: project.title,
+        description: project.description,
+        project_type: project.project_type,
+        status: project.status,
+        target_chapters: project.target_chapters,
+        current_chapter: project.current_chapter,
+        total_chapters: project.total_chapters,
+        chapters_per_part: project.chapters_per_part,
+        raw_blueprint: project.raw_blueprint,
+        export_config: project.export_config,
+    }
+}
+
+fn optimization_character_profile_record(
+    profile: protagonist_profile::Model,
+) -> OptimizationCharacterProfileRecord {
+    OptimizationCharacterProfileRecord {
+        name: profile.name,
+        gender: profile.gender,
+        age: profile.age,
+        base_attributes: profile.base_attributes,
+        current_state: profile.current_state,
+        character_arc: profile.character_arc,
+        voice_fingerprint: profile.voice_fingerprint,
+        appearance: profile.appearance,
+        background: profile.background,
+        personality: profile.personality,
+        last_synced_chapter: profile.last_synced_chapter,
+    }
+}
+
 pub async fn optimization_chapter_by_id<C>(
     db: &C,
     chapter_id: i64,
-) -> Result<Option<chapter::Model>, OptimizeDbError>
+) -> Result<Option<a4n_domain::chapter::ChapterRecord>, OptimizeDbError>
 where
     C: ConnectionTrait,
 {
@@ -11,6 +51,7 @@ where
         .filter(chapter::Column::Status.ne(chapter::STATUS_DELETED))
         .one(db)
         .await
+        .map(|chapter| chapter.map(crate::project::chapter_record))
         .map_err(OptimizeDbError::Database)
 }
 
@@ -96,9 +137,10 @@ where
                 novel_project::Entity::find_by_id(project_id)
                     .one(db)
                     .await
+                    .map(|project| project.map(project_optimization_context_record))
                     .map_err(OptimizeDbError::Database)
             } else {
-                Ok::<Option<novel_project::Model>, OptimizeDbError>(None)
+                Ok::<Option<ProjectOptimizationContextRecord>, OptimizeDbError>(None)
             }
         },
         async {
@@ -121,11 +163,13 @@ where
                     .filter(blueprint_relationship::Column::ProjectId.eq(project_id))
                     .all(db),
             );
-            Ok(Some(OptimizationBlueprintRows {
-                blueprint,
-                characters: characters_result.map_err(OptimizeDbError::Database)?,
-                relationships: relationships_result.map_err(OptimizeDbError::Database)?,
-            }))
+            let characters = characters_result.map_err(OptimizeDbError::Database)?;
+            let relationships = relationships_result.map_err(OptimizeDbError::Database)?;
+            Ok(Some(crate::blueprint::context::blueprint_llm_context(
+                &blueprint,
+                &characters,
+                &relationships,
+            )))
         },
         async {
             if read_outlines {
@@ -170,9 +214,15 @@ where
                     .order_by_asc(protagonist_profile::Column::Id)
                     .all(db)
                     .await
+                    .map(|profiles| {
+                        profiles
+                            .into_iter()
+                            .map(optimization_character_profile_record)
+                            .collect()
+                    })
                     .map_err(OptimizeDbError::Database)
             } else {
-                Ok::<Vec<protagonist_profile::Model>, OptimizeDbError>(Vec::new())
+                Ok::<Vec<OptimizationCharacterProfileRecord>, OptimizeDbError>(Vec::new())
             }
         },
         async {
@@ -237,7 +287,10 @@ where
     );
     let project = project_result?;
     let blueprint = blueprint_result?;
-    let part_outlines = part_outlines_result?;
+    let part_outlines = part_outlines_result?
+        .into_iter()
+        .map(part_outline_record_from_model)
+        .collect();
     let chapter_outlines = chapter_outlines_result?;
     let character_profiles = character_profiles_result?;
     let foreshadowing_index = foreshadowing_result?;
@@ -261,12 +314,10 @@ where
 pub async fn write_optimization_chapter_patch_content(
     db: &sea_orm::DatabaseTransaction,
     input: OptimizationChapterPatchWriteInput,
-) -> Result<chapter::Model, OptimizeDbError> {
+) -> Result<a4n_domain::chapter::ChapterRecord, OptimizeDbError> {
     if !crate::chapter_content::chapter_source_snapshots_match_for_update(
         db,
-        &[crate::project::chapter_source_snapshot_from_model(
-            &input.chapter,
-        )],
+        &[input.chapter.source_snapshot()],
     )
     .await?
     {
@@ -274,7 +325,10 @@ pub async fn write_optimization_chapter_patch_content(
             "应用补丁前章节正文已变化，请刷新后重新生成补丁".into(),
         ));
     }
-    let mut active: chapter::ActiveModel = input.chapter.into();
+    let mut active = chapter::ActiveModel {
+        id: Set(input.chapter.id),
+        ..Default::default()
+    };
     crate::chapter_content::assign_chapter_content(
         &mut active,
         input.content,
@@ -283,5 +337,9 @@ pub async fn write_optimization_chapter_patch_content(
         None,
         chrono::Utc::now().naive_utc(),
     );
-    active.update(db).await.map_err(OptimizeDbError::Database)
+    active
+        .update(db)
+        .await
+        .map(crate::project::chapter_record)
+        .map_err(OptimizeDbError::Database)
 }

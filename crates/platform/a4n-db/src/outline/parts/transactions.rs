@@ -1,4 +1,5 @@
 use a4n_db_models::models::chapter::part_outline;
+use a4n_domain::chapter::PartOutlineRecord;
 use chrono::NaiveDateTime;
 use sea_orm::{
     ColumnTrait, ConnectionTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder,
@@ -6,6 +7,7 @@ use sea_orm::{
 };
 
 use super::super::chapters::sync_chapter_outline_part_assignments;
+use super::super::record_mapping::part_outline_model_from_record;
 use super::super::{OutlineDbError, PartOutlineSyncDraft};
 use super::records::update_part_outline_record;
 use super::sync::sync_part_outline_records;
@@ -15,12 +17,17 @@ pub async fn sync_part_outline_records_and_assign_chapters_in<C>(
     project_id: i64,
     drafts: Vec<PartOutlineSyncDraft>,
     now: NaiveDateTime,
-) -> Result<Vec<part_outline::Model>, OutlineDbError>
+) -> Result<Vec<PartOutlineRecord>, OutlineDbError>
 where
     C: ConnectionTrait,
 {
     let parts = sync_part_outline_records(db, project_id, drafts, now).await?;
-    sync_chapter_outline_part_assignments(db, project_id, &parts, now).await?;
+    let part_models = parts
+        .iter()
+        .cloned()
+        .map(part_outline_model_from_record)
+        .collect::<Vec<_>>();
+    sync_chapter_outline_part_assignments(db, project_id, &part_models, now).await?;
     Ok(parts)
 }
 
@@ -28,10 +35,10 @@ where
 pub async fn update_part_outline_and_rebind_chapters_transaction(
     db: &DatabaseConnection,
     project_id: i64,
-    existing: part_outline::Model,
+    existing: PartOutlineRecord,
     draft: PartOutlineSyncDraft,
     now: NaiveDateTime,
-) -> Result<part_outline::Model, OutlineDbError> {
+) -> Result<PartOutlineRecord, OutlineDbError> {
     validate_part_outline_project(&existing, project_id)?;
     let txn = db.begin().await?;
     super::super::lock_outline_project_for_write(&txn, project_id, "更新分部大纲").await?;
@@ -44,10 +51,10 @@ pub async fn update_part_outline_and_rebind_chapters_transaction(
 pub async fn update_part_outline_and_rebind_chapters_in<C>(
     db: &C,
     project_id: i64,
-    existing: part_outline::Model,
+    existing: PartOutlineRecord,
     draft: PartOutlineSyncDraft,
     now: NaiveDateTime,
-) -> Result<part_outline::Model, OutlineDbError>
+) -> Result<PartOutlineRecord, OutlineDbError>
 where
     C: ConnectionTrait,
 {
@@ -65,7 +72,7 @@ where
 }
 
 fn validate_part_outline_project(
-    existing: &part_outline::Model,
+    existing: &PartOutlineRecord,
     project_id: i64,
 ) -> Result<(), OutlineDbError> {
     if existing.project_id == project_id {

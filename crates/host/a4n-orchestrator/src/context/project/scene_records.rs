@@ -1,6 +1,5 @@
 use a4n_db::DbHandle;
-use a4n_db_models::models::chapter::chapter_scene;
-use a4n_domain::chapter::ProjectGeneratedChapterSceneSaveInput;
+use a4n_domain::chapter::{ChapterSceneRecord, ProjectGeneratedChapterSceneSaveInput};
 use a4n_error::AppError;
 
 use super::super::OrchestratorContext;
@@ -21,7 +20,7 @@ impl ProjectSceneRecordsApplication {
     async fn scenes_by_chapter(
         &self,
         chapter_id: i64,
-    ) -> Result<Vec<chapter_scene::Model>, AppError> {
+    ) -> Result<Vec<ChapterSceneRecord>, AppError> {
         a4n_db::project::chapter_scenes_by_chapter(self.database.connection(), chapter_id)
             .await
             .map_err(project_chapter_scene_record_error_to_app_error)
@@ -30,7 +29,7 @@ impl ProjectSceneRecordsApplication {
     async fn save_generated_scene(
         &self,
         input: ProjectGeneratedChapterSceneSaveInput,
-    ) -> Result<chapter_scene::Model, AppError> {
+    ) -> Result<ChapterSceneRecord, AppError> {
         a4n_db::project::save_generated_chapter_scene_record(self.database.connection(), input)
             .await
             .map_err(project_chapter_scene_write_error_to_app_error)
@@ -41,7 +40,7 @@ impl OrchestratorContext {
     pub(crate) async fn chapter_scenes_by_chapter(
         &self,
         chapter_id: i64,
-    ) -> Result<Vec<chapter_scene::Model>, AppError> {
+    ) -> Result<Vec<ChapterSceneRecord>, AppError> {
         self.project_scene_records
             .scenes_by_chapter(chapter_id)
             .await
@@ -50,13 +49,13 @@ impl OrchestratorContext {
     pub(crate) async fn save_generated_chapter_scene_record(
         &self,
         input: ProjectGeneratedChapterSceneSaveInput,
-    ) -> Result<chapter_scene::Model, AppError> {
+    ) -> Result<ChapterSceneRecord, AppError> {
         self.project_scene_records.save_generated_scene(input).await
     }
 }
 
 fn chapter_scene_summary(
-    scene: chapter_scene::Model,
+    scene: ChapterSceneRecord,
 ) -> a4n_api_contract::chapter::ChapterSceneSummary {
     a4n_api_contract::chapter::ChapterSceneSummary {
         id: scene.id,

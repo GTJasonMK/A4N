@@ -16,7 +16,7 @@ use a4n_db::{
     project::{
         CreateProjectRecordInput, ProjectChapterOutlineUpdateInput,
         RetrospectiveChapterOutlineAction, RetrospectiveChapterOutlineUpsertInput,
-        character_sync_chapters, create_project_record,
+        chapter_outline_by_id, character_sync_chapters, create_project_record,
         delete_automatic_chapter_outlines_for_source_change,
         formal_chapter_outline_by_project_number, update_chapter_outline_record,
         upsert_retrospective_chapter_outline_checked,
@@ -187,9 +187,9 @@ fn discovered_scene() -> SceneSyncRecordInput {
 async fn insert_user_outline(
     db: &sea_orm::DatabaseConnection,
     project_id: i64,
-) -> chapter_outline::Model {
+) -> a4n_domain::chapter::ChapterOutlineRecord {
     let now = Utc::now().naive_utc();
-    chapter_outline::ActiveModel {
+    let outline = chapter_outline::ActiveModel {
         project_id: Set(project_id),
         chapter_number: Set(1),
         title: Set(Some("用户章纲".to_string())),
@@ -201,7 +201,11 @@ async fn insert_user_outline(
     }
     .insert(db)
     .await
-    .expect("user outline must be inserted")
+    .expect("user outline must be inserted");
+    chapter_outline_by_id(db, outline.id)
+        .await
+        .expect("user outline lookup must succeed")
+        .expect("user outline must exist")
 }
 
 fn generated_outline_draft(title: &str) -> ChapterOutlineSyncDraft {
@@ -378,7 +382,13 @@ async fn outline_generation_does_not_write_while_project_is_resetting() {
         .expect("outline generation sources must load")
         .expect("project must exist");
     let snapshot = outline_generation_source_snapshot(&rows);
-    let mut project: novel_project::ActiveModel = rows.project.into();
+    let mut project: novel_project::ActiveModel =
+        novel_project::Entity::find_by_id(rows.project.id)
+            .one(&db)
+            .await
+            .expect("project lookup must succeed")
+            .expect("project must exist")
+            .into();
     project.lifecycle_gate = Set(resetting_gate.to_string());
     project
         .update(&db)
@@ -465,7 +475,13 @@ async fn generated_chapter_links_only_to_the_unchanged_outline_it_used() {
 
     let changed_project = create_project(&db, "不冒认已修改章纲").await;
     let source_outline = insert_user_outline(&db, changed_project).await;
-    let mut changed: chapter_outline::ActiveModel = source_outline.clone().into();
+    let mut changed: chapter_outline::ActiveModel =
+        chapter_outline::Entity::find_by_id(source_outline.id)
+            .one(&db)
+            .await
+            .expect("outline lookup must succeed")
+            .expect("source outline must exist")
+            .into();
     changed.title = Set(Some("生成期间修改后的章纲".to_string()));
     changed.updated_at = Set(source_outline.updated_at + Duration::seconds(1));
     changed
@@ -572,8 +588,7 @@ async fn importing_content_preserves_existing_outline_and_does_not_create_placeh
     .expect("content import must succeed");
     assert_eq!(imported.outline_id, Some(outline.id));
     assert_eq!(
-        chapter_outline::Entity::find_by_id(outline.id)
-            .one(&db)
+        chapter_outline_by_id(&db, outline.id)
             .await
             .expect("outline lookup must succeed")
             .expect("outline must remain"),

@@ -6,14 +6,14 @@ use super::{
     },
     resolve_generation_word_count_range,
 };
-use a4n_db_models::models::{
-    chapter::chapter_outline, character::foreshadowing_index, project::blueprint_character,
-};
+use a4n_db::rag::RagForeshadowingRow;
+use a4n_db_models::models::project::blueprint_character;
+use a4n_domain::chapter::ChapterOutlineRecord;
 use serde_json::json;
 
-fn generation_outline(title: Option<&str>, summary: Option<&str>) -> chapter_outline::Model {
+fn generation_outline(title: Option<&str>, summary: Option<&str>) -> ChapterOutlineRecord {
     let now = chrono::Utc::now().naive_utc();
-    chapter_outline::Model {
+    ChapterOutlineRecord {
         id: 1,
         project_id: 1,
         part_id: None,
@@ -33,26 +33,22 @@ fn generation_outline(title: Option<&str>, summary: Option<&str>) -> chapter_out
     }
 }
 
-fn outline_with_characters() -> chapter_outline::Model {
+fn outline_with_characters() -> ChapterOutlineRecord {
     let mut outline = generation_outline(Some("玄武暗线"), Some("林岚与陈恪前往玄武门调查旧案。"));
     outline.chapter_number = 6;
     outline.characters_involved = Some(json!(["林岚", "陈恪"]));
     outline
 }
 
-fn foreshadowing_item(payoff_chapter: Option<i32>) -> foreshadowing_index::Model {
-    let now = chrono::Utc::now().naive_utc();
-    foreshadowing_index::Model {
+fn foreshadowing_item(payoff_chapter: Option<i32>) -> RagForeshadowingRow {
+    RagForeshadowingRow {
         id: 1,
-        project_id: 1,
         description: "旧钟在午夜倒走".to_string(),
         setup_chapter: 2,
         payoff_chapter,
         status: "pending".to_string(),
         related_characters: None,
         importance: 4,
-        created_at: now,
-        updated_at: now,
     }
 }
 

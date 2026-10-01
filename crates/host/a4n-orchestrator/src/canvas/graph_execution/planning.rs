@@ -2,7 +2,7 @@ use std::collections::{BTreeMap, BTreeSet, HashSet, VecDeque};
 
 use a4n_canvas_contract::CanvasGraphNodeExecutionKind;
 use a4n_db::canvas::CanvasGraphRecordDocument;
-use a4n_db_models::models::canvas::canvas_node;
+use a4n_domain::canvas::CanvasNodeRecord;
 
 pub(super) fn canvas_node_kind_is_executable(node_kind: &str) -> bool {
     CanvasGraphNodeExecutionKind::from_node_kind(node_kind).is_ok()
@@ -41,7 +41,7 @@ pub(super) fn runnable_canvas_node_ids(
         .collect())
 }
 
-pub(super) fn is_runnable_canvas_node(node: &canvas_node::Model) -> bool {
+pub(super) fn is_runnable_canvas_node(node: &CanvasNodeRecord) -> bool {
     canvas_node_kind_is_executable(&node.node_kind)
 }
 

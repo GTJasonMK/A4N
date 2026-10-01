@@ -1,4 +1,4 @@
-use a4n_db_models::models::project::novel_blueprint;
+use a4n_domain::project::BlueprintRecord;
 use a4n_domain::rag::RagDataType;
 use a4n_rag_core::RagRecord;
 use a4n_rag_core::record_text::format_json_for_rag;
@@ -7,7 +7,7 @@ use serde_json::Value;
 use super::super::rag_chunk_id;
 
 fn blueprint_world_setting_sections(
-    blueprint: &novel_blueprint::Model,
+    blueprint: &BlueprintRecord,
 ) -> Result<Vec<(String, String)>, String> {
     let Some(world_setting) = blueprint.world_setting.as_ref() else {
         return Ok(Vec::new());
@@ -27,7 +27,7 @@ fn blueprint_world_setting_sections(
 
 pub fn blueprint_world_setting_rag_records(
     project_id: i64,
-    blueprint: &novel_blueprint::Model,
+    blueprint: &BlueprintRecord,
 ) -> Result<Vec<RagRecord>, String> {
     let sections = blueprint_world_setting_sections(blueprint)?;
     Ok(sections

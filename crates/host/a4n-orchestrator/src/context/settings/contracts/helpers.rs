@@ -1,7 +1,8 @@
 //! Provider ports still required by generation workflows.
 
 use super::*;
-use a4n_config_read_core::image_provider_config as image_provider_config_from_model;
+use a4n_config_read_core::image_provider_config as image_provider_config_from_record;
+use a4n_db::config::read_records::image_config_read_record;
 
 #[async_trait::async_trait]
 impl VideoProviderConfigPort for OrchestratorContext {
@@ -42,12 +43,18 @@ impl a4n_api_contract::image::ImageProviderConfigPort for OrchestratorContext {
     async fn by_id(&self, config_id: i64) -> Result<ImageProviderConfig, AppError> {
         self.image_config_by_id(config_id)
             .await
-            .and_then(image_provider_config_from_model)
+            .and_then(image_provider_config_checked)
     }
 
     async fn default(&self) -> Result<ImageProviderConfig, AppError> {
         self.resolve_image_config(None)
             .await
-            .and_then(image_provider_config_from_model)
+            .and_then(image_provider_config_checked)
     }
+}
+
+fn image_provider_config_checked(
+    model: image_gen_config::Model,
+) -> Result<ImageProviderConfig, AppError> {
+    image_provider_config_from_record(image_config_read_record(&model))
 }

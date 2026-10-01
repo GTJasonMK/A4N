@@ -1,4 +1,5 @@
 use a4n_db_models::models::chapter::chapter_video_prompt;
+use a4n_domain::video_prompt::ChapterVideoPromptRecord;
 use sea_orm::{
     ColumnTrait, ConnectionTrait, DatabaseConnection, DbErr, EntityTrait, QueryFilter, QueryOrder,
     QuerySelect,
@@ -6,6 +7,7 @@ use sea_orm::{
 };
 
 use super::super::types::ChapterVideoPromptTimelineRecord;
+use crate::video::prompts::record_mapping::chapter_video_prompt_record_from_model;
 use crate::video::{VideoDbError, required_video_record_text, validate_positive_video_i64};
 
 pub async fn chapter_video_prompt_by_id(
@@ -142,7 +144,7 @@ where
 pub(crate) async fn chapter_video_prompt_record<C>(
     db: &C,
     prompt_id: i64,
-) -> Result<chapter_video_prompt::Model, VideoDbError>
+) -> Result<ChapterVideoPromptRecord, VideoDbError>
 where
     C: ConnectionTrait,
 {
@@ -152,7 +154,7 @@ where
 pub(crate) async fn frame_chapter_video_prompt_record<C>(
     db: &C,
     prompt_id: i64,
-) -> Result<chapter_video_prompt::Model, VideoDbError>
+) -> Result<ChapterVideoPromptRecord, VideoDbError>
 where
     C: ConnectionTrait,
 {
@@ -163,7 +165,7 @@ async fn chapter_video_prompt_record_with_message<C>(
     db: &C,
     prompt_id: i64,
     not_found_message: &str,
-) -> Result<chapter_video_prompt::Model, VideoDbError>
+) -> Result<ChapterVideoPromptRecord, VideoDbError>
 where
     C: ConnectionTrait,
 {
@@ -171,4 +173,5 @@ where
         .one(db)
         .await?
         .ok_or_else(|| VideoDbError::NotFound(not_found_message.to_string()))
+        .map(chapter_video_prompt_record_from_model)
 }

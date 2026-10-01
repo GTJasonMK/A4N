@@ -1,5 +1,7 @@
 //! 视频提示词 facade。
 
+use a4n_domain::video_prompt::ChapterVideoPromptRecord;
+
 use super::*;
 
 impl OrchestratorContext {
@@ -17,7 +19,7 @@ impl OrchestratorContext {
         &self,
         project_id: i64,
         chapter_id: i64,
-    ) -> Result<Vec<chapter_video_prompt::Model>, AppError> {
+    ) -> Result<Vec<ChapterVideoPromptRecord>, AppError> {
         self.video
             .chapter_video_prompts_for_chapter(project_id, chapter_id)
             .await
@@ -151,7 +153,7 @@ impl OrchestratorContext {
 
     pub(crate) async fn ensure_prompt_stage_mutable(
         &self,
-        prompt: &chapter_video_prompt::Model,
+        prompt: &ChapterVideoPromptRecord,
         operation: &str,
     ) -> Result<(), AppError> {
         self.video
@@ -161,7 +163,7 @@ impl OrchestratorContext {
 
     pub(crate) async fn ensure_prompt_stage_mutable_ignoring(
         &self,
-        prompt: &chapter_video_prompt::Model,
+        prompt: &ChapterVideoPromptRecord,
         operation: &str,
         ignored_prompt_ids: &BTreeSet<i64>,
     ) -> Result<(), AppError> {
@@ -176,7 +178,7 @@ impl OrchestratorContext {
 
     pub(crate) async fn ensure_prompt_stages_mutable(
         &self,
-        prompts: &[chapter_video_prompt::Model],
+        prompts: &[ChapterVideoPromptRecord],
         operation: &str,
     ) -> Result<(), AppError> {
         self.video
@@ -186,7 +188,7 @@ impl OrchestratorContext {
 
     pub(crate) async fn ensure_prompt_stages_mutable_skipping_generated_images(
         &self,
-        prompts: &[chapter_video_prompt::Model],
+        prompts: &[ChapterVideoPromptRecord],
         operation: &str,
     ) -> Result<(), AppError> {
         self.video

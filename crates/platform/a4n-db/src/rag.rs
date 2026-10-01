@@ -4,10 +4,12 @@ mod scenes;
 mod story;
 
 pub use characters::{
-    attribute_events_for_rag_ingest, attribute_events_for_rag_ingest_before_chapter,
-    blueprint_characters_for_rag_ingest, blueprint_characters_for_rag_search,
-    blueprint_relationships_for_rag_ingest, character_states_for_rag_ingest,
-    character_states_for_rag_ingest_before_chapter, protagonist_profiles_for_rag_ingest,
+    RagAttributeEventRow, RagBlueprintCharacterRow, RagBlueprintRelationshipRow,
+    RagCharacterStateRow, RagProtagonistProfileRow, attribute_events_for_rag_ingest,
+    attribute_events_for_rag_ingest_before_chapter, blueprint_characters_for_rag_ingest,
+    blueprint_characters_for_rag_search, blueprint_relationships_for_rag_ingest,
+    character_states_for_rag_ingest, character_states_for_rag_ingest_before_chapter,
+    protagonist_profiles_for_rag_ingest,
 };
 pub use foreshadowing::{
     PendingForeshadowingSearchRow, RagForeshadowingRow, foreshadowing_items_by_ids,
@@ -20,6 +22,6 @@ pub use scenes::{
     scene_transitions_for_rag_ingest,
 };
 pub use story::{
-    RagChapterOutlineRow, chapter_outlines_for_rag_ingest, chapters_for_rag_ingest,
-    novel_blueprints_for_rag_ingest, part_outlines_for_rag_ingest,
+    RagChapterOutlineRow, chapter_for_rag_ingest, chapter_outlines_for_rag_ingest,
+    chapters_for_rag_ingest, novel_blueprints_for_rag_ingest, part_outlines_for_rag_ingest,
 };

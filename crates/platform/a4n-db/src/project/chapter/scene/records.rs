@@ -1,6 +1,10 @@
-use super::{ProjectChapterSceneRecordError, ProjectChapterSceneUpdateInput};
+use super::{
+    ProjectChapterSceneRecordError, ProjectChapterSceneUpdateInput,
+    record::{chapter_scene_model_from_record, chapter_scene_record},
+};
 use crate::project::validate_positive_i64;
 use a4n_db_models::models::chapter::{chapter, chapter_scene};
+use a4n_domain::chapter::{ChapterRecord, ChapterSceneRecord};
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder, Set,
 };
@@ -9,7 +13,7 @@ pub async fn chapter_by_project_number(
     db: &DatabaseConnection,
     project_id: i64,
     chapter_number: i32,
-) -> Result<Option<chapter::Model>, ProjectChapterSceneRecordError> {
+) -> Result<Option<ChapterRecord>, ProjectChapterSceneRecordError> {
     validate_positive_i64(project_id, "project_id")
         .map_err(ProjectChapterSceneRecordError::InvalidArgument)?;
     if chapter_number <= 0 {
@@ -22,13 +26,14 @@ pub async fn chapter_by_project_number(
         .filter(chapter::Column::ChapterNumber.eq(chapter_number))
         .one(db)
         .await
+        .map(|chapter| chapter.map(crate::project::chapter_record))
         .map_err(|error| ProjectChapterSceneRecordError::database("按项目和章节号读取章节", error))
 }
 
 pub async fn chapter_scenes_by_chapter(
     db: &DatabaseConnection,
     chapter_id: i64,
-) -> Result<Vec<chapter_scene::Model>, ProjectChapterSceneRecordError> {
+) -> Result<Vec<ChapterSceneRecord>, ProjectChapterSceneRecordError> {
     validate_positive_i64(chapter_id, "chapter_id")
         .map_err(ProjectChapterSceneRecordError::InvalidArgument)?;
     chapter_scene::Entity::find()
@@ -36,25 +41,27 @@ pub async fn chapter_scenes_by_chapter(
         .order_by_asc(chapter_scene::Column::SceneNumber)
         .all(db)
         .await
+        .map(|scenes| scenes.into_iter().map(chapter_scene_record).collect())
         .map_err(|error| ProjectChapterSceneRecordError::database("读取章节场景列表", error))
 }
 
 pub async fn chapter_scene_by_id(
     db: &DatabaseConnection,
     scene_id: i64,
-) -> Result<Option<chapter_scene::Model>, ProjectChapterSceneRecordError> {
+) -> Result<Option<ChapterSceneRecord>, ProjectChapterSceneRecordError> {
     validate_positive_i64(scene_id, "scene_id")
         .map_err(ProjectChapterSceneRecordError::InvalidArgument)?;
     chapter_scene::Entity::find_by_id(scene_id)
         .one(db)
         .await
+        .map(|scene| scene.map(chapter_scene_record))
         .map_err(|error| ProjectChapterSceneRecordError::database("读取章节场景", error))
 }
 
 pub async fn update_chapter_scene_record(
     db: &DatabaseConnection,
     input: ProjectChapterSceneUpdateInput,
-) -> Result<chapter_scene::Model, ProjectChapterSceneRecordError> {
+) -> Result<ChapterSceneRecord, ProjectChapterSceneRecordError> {
     validate_positive_i64(input.scene.id, "scene_id")
         .map_err(ProjectChapterSceneRecordError::InvalidArgument)?;
     validate_positive_i64(input.scene.chapter_id, "chapter_id")
@@ -64,7 +71,8 @@ pub async fn update_chapter_scene_record(
             "scene_number 必须大于 0".to_string(),
         ));
     }
-    let mut active: chapter_scene::ActiveModel = input.scene.into();
+    let mut active: chapter_scene::ActiveModel =
+        chapter_scene_model_from_record(&input.scene).into();
 
     if let Some(content) = input.content {
         let word_count = i32::try_from(content.chars().count()).map_err(|_| {
@@ -95,6 +103,7 @@ pub async fn update_chapter_scene_record(
     active
         .update(db)
         .await
+        .map(chapter_scene_record)
         .map_err(|error| ProjectChapterSceneRecordError::database("更新章节场景", error))
 }
 

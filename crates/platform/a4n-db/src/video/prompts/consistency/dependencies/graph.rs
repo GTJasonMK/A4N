@@ -3,10 +3,11 @@ use super::{
     rules::{prompt_same_generation_chain, prompt_stage},
 };
 use crate::video::{self, VideoDbError, prompts::consistency::PromptStage};
-use a4n_db_models::models::chapter::chapter_video_prompt;
-use a4n_domain::video_prompt::VideoPromptDownstreamDependencies;
+use a4n_domain::video_prompt::{ChapterVideoPromptRecord, VideoPromptDownstreamDependencies};
 use sea_orm::ConnectionTrait;
 use std::collections::BTreeSet;
+
+use crate::video::prompts::record_mapping::chapter_video_prompt_record_from_model;
 
 pub async fn prompt_downstream_dependencies<C>(
     db: &C,
@@ -21,7 +22,7 @@ where
 
 async fn prompt_downstream_dependencies_for_prompt<C>(
     db: &C,
-    prompt: &chapter_video_prompt::Model,
+    prompt: &ChapterVideoPromptRecord,
 ) -> Result<VideoPromptDownstreamDependencies, VideoDbError>
 where
     C: ConnectionTrait,
@@ -46,7 +47,10 @@ where
         prompt.id,
     )
     .await
-    .map_err(VideoDbError::Database)?;
+    .map_err(VideoDbError::Database)?
+    .into_iter()
+    .map(chapter_video_prompt_record_from_model)
+    .collect::<Vec<_>>();
     for row in &rows {
         let Some(later_stage) = prompt_stage(row) else {
             continue;
@@ -75,7 +79,7 @@ where
 }
 
 fn collect_prompt_asset_dependencies(
-    prompt: &chapter_video_prompt::Model,
+    prompt: &ChapterVideoPromptRecord,
     video_ids: &mut BTreeSet<i64>,
 ) {
     if prompt_stage(prompt) == Some(PromptStage::Video)

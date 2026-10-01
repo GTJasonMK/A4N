@@ -1,5 +1,5 @@
 use a4n_api_contract::import::ImportAnalysisStatus;
-use a4n_db_models::models::chapter::chapter;
+use a4n_domain::chapter::ChapterRecord;
 use a4n_error::AppError;
 
 use super::{
@@ -19,7 +19,7 @@ pub(super) enum ImportAnalysisStageResult {
 }
 
 pub(super) struct ImportAnalysisRunPreparation {
-    pub(super) chapters: Vec<chapter::Model>,
+    pub(super) chapters: Vec<ChapterRecord>,
     pub(super) progress: ProjectImportAnalysisProgress,
 }
 

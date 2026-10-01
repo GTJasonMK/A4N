@@ -1,9 +1,9 @@
-use a4n_db_models::models::chapter::chapter;
+use a4n_domain::chapter::ChapterRecord;
 use a4n_domain::source_text_hash;
 use chrono::Utc;
 use serde_json::{Value, json};
 
-pub fn analysis_meta(ch: &chapter::Model) -> Value {
+pub fn analysis_meta(ch: &ChapterRecord) -> Value {
     json!({
         "project_id": ch.project_id,
         "chapter_id": ch.id,

@@ -1,4 +1,5 @@
-use a4n_db_models::models::{chapter::chapter, generation::workflow_run};
+use a4n_db_models::models::chapter::chapter;
+use a4n_domain::chapter::ChapterRecord;
 use a4n_domain::source_text_hash as source_content_sha256;
 use a4n_domain::workflow::{
     WORKFLOW_STATUS_COMPLETED, WORKFLOW_STATUS_FAILED, WORKFLOW_STATUS_RUNNING,
@@ -14,9 +15,9 @@ use a4n_orchestrator::chapter_analysis::{
 use a4n_test_support::workflow::WorkflowRunModelBuilder;
 use serde_json::{Value, json};
 
-fn chapter_row(chapter_number: i32, content: &str, status: &str, analyzed: bool) -> chapter::Model {
+fn chapter_row(chapter_number: i32, content: &str, status: &str, analyzed: bool) -> ChapterRecord {
     let now = chrono::Utc::now().naive_utc();
-    chapter::Model {
+    ChapterRecord {
         id: i64::from(chapter_number),
         project_id: 1,
         outline_id: None,
@@ -346,13 +347,13 @@ fn foreshadowing_drafts_keep_invalid_priority_structured() {
 }
 
 fn workflow_run_row(
-    chapter: &chapter::Model,
+    chapter: &ChapterRecord,
     status: &str,
     can_resume: bool,
     resume_block_reason: Option<&str>,
-) -> workflow_run::Model {
+) -> a4n_db::workflow::WorkflowRunSummary {
     let now = chrono::Utc::now().naive_utc();
-    WorkflowRunModelBuilder::new(
+    let model = WorkflowRunModelBuilder::new(
         1,
         chapter_analysis_workflow_business_key(chapter.project_id, chapter.id),
         "chapter_analysis",
@@ -366,5 +367,6 @@ fn workflow_run_row(
     .with_current_step("chapter_analysis.derived_sync")
     .with_resumability(can_resume, resume_block_reason.map(str::to_string))
     .with_completed_at((status == WORKFLOW_STATUS_COMPLETED).then_some(now))
-    .build()
+    .build();
+    a4n_db::workflow::workflow_run_summary_from_model(model).expect("workflow run summary")
 }

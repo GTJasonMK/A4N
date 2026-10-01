@@ -4,11 +4,14 @@ use crate::actions::request_preview::{model_request_preview, provider_request_st
 mod canvas;
 mod chapter;
 mod common;
+mod config;
 mod config_state;
 mod generation_task;
+mod image_inputs;
 mod job_lifecycle;
 pub(crate) mod media;
 mod poll;
+mod preview;
 mod provider_host;
 mod provider_request;
 mod reference_media;

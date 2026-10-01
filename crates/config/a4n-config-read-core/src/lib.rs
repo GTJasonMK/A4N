@@ -11,7 +11,9 @@ use a4n_api_contract::config::{
     EmbeddingConfigSummary, ImageConfigForConnectivityTest, ImageConfigSummary, LlmConfigSummary,
     VideoConfigSummary, VideoDurationMode,
 };
-use a4n_db_models::models::ai::{embedding_config, image_gen_config, llm_config, video_gen_config};
+use a4n_domain::config::{
+    EmbeddingConfigReadRecord, ImageConfigReadRecord, LlmConfigReadRecord, VideoConfigReadRecord,
+};
 use a4n_error::AppError;
 use a4n_provider_contract::{
     EmbeddingProviderConfig, ImageProviderConfig, LlmProviderConfig, VideoProviderConfig,
@@ -34,7 +36,7 @@ fn pricing_from_json(value: &Value) -> Result<a4n_domain::cost::PricingPlan, App
     })
 }
 
-pub fn llm_provider_config(model: llm_config::Model) -> Result<LlmProviderConfig, AppError> {
+pub fn llm_provider_config(model: LlmConfigReadRecord) -> Result<LlmProviderConfig, AppError> {
     Ok(LlmProviderConfig {
         id: model.id,
         name: model.name,
@@ -53,7 +55,7 @@ pub fn llm_provider_config(model: llm_config::Model) -> Result<LlmProviderConfig
 }
 
 pub fn embedding_provider_config(
-    model: embedding_config::Model,
+    model: EmbeddingConfigReadRecord,
 ) -> Result<EmbeddingProviderConfig, AppError> {
     Ok(EmbeddingProviderConfig {
         id: model.id,
@@ -70,7 +72,7 @@ pub fn embedding_provider_config(
 }
 
 pub fn image_provider_config(
-    model: image_gen_config::Model,
+    model: ImageConfigReadRecord,
 ) -> Result<ImageProviderConfig, AppError> {
     Ok(ImageProviderConfig {
         id: model.id,
@@ -86,7 +88,7 @@ pub fn image_provider_config(
 }
 
 pub fn image_connectivity_config(
-    model: image_gen_config::Model,
+    model: ImageConfigReadRecord,
 ) -> Result<ImageConfigForConnectivityTest, AppError> {
     Ok(ImageConfigForConnectivityTest {
         id: model.id,
@@ -102,7 +104,7 @@ pub fn image_connectivity_config(
 }
 
 pub fn video_provider_config(
-    model: video_gen_config::Model,
+    model: VideoConfigReadRecord,
 ) -> Result<VideoProviderConfig, AppError> {
     Ok(VideoProviderConfig {
         id: model.id,
@@ -125,7 +127,7 @@ pub fn video_provider_config(
     })
 }
 
-pub fn llm_summary(model: &llm_config::Model) -> Result<LlmConfigSummary, AppError> {
+pub fn llm_summary(model: &LlmConfigReadRecord) -> Result<LlmConfigSummary, AppError> {
     Ok(LlmConfigSummary {
         id: model.id,
         name: model.name.clone(),
@@ -144,7 +146,7 @@ pub fn llm_summary(model: &llm_config::Model) -> Result<LlmConfigSummary, AppErr
     })
 }
 
-pub fn image_summary(model: &image_gen_config::Model) -> Result<ImageConfigSummary, AppError> {
+pub fn image_summary(model: &ImageConfigReadRecord) -> Result<ImageConfigSummary, AppError> {
     Ok(ImageConfigSummary {
         id: model.id,
         name: model.name.clone(),
@@ -170,7 +172,7 @@ pub fn image_summary(model: &image_gen_config::Model) -> Result<ImageConfigSumma
     })
 }
 
-pub fn video_summary(model: &video_gen_config::Model) -> Result<VideoConfigSummary, AppError> {
+pub fn video_summary(model: &VideoConfigReadRecord) -> Result<VideoConfigSummary, AppError> {
     Ok(VideoConfigSummary {
         id: model.id,
         name: model.name.clone(),
@@ -204,7 +206,7 @@ pub fn video_summary(model: &video_gen_config::Model) -> Result<VideoConfigSumma
 }
 
 pub fn embedding_summary(
-    model: &embedding_config::Model,
+    model: &EmbeddingConfigReadRecord,
 ) -> Result<EmbeddingConfigSummary, AppError> {
     Ok(EmbeddingConfigSummary {
         id: model.id,

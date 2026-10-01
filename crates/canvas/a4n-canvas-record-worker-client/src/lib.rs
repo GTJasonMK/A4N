@@ -21,6 +21,9 @@ const DEFAULT_WORKER_URL: &str = "http://127.0.0.1:47677";
 const CONTROL_LEASE_FENCE: &str = "control-request";
 const CONTROL_LEASE_EXPIRY: &str = "9999-12-31T23:59:59Z";
 
+mod mutations;
+mod reads;
+
 #[derive(Clone)]
 pub struct CanvasRecordWorkerClient {
     transport: HttpWorkerClient,
@@ -114,77 +117,6 @@ impl CanvasRecordWorkerClient {
                 "Canvas record worker 返回未完成状态: operation={operation_id}, status={status:?}"
             ))),
         }
-    }
-}
-
-#[async_trait::async_trait]
-impl CanvasReadApplicationPort for CanvasRecordWorkerClient {
-    async fn get_graph(
-        &self,
-        user_id: i64,
-        input: GetCanvasGraphInput,
-    ) -> Result<CanvasGraphDocument, AppError> {
-        self.command(user_id, input.project_id, CANVAS_GRAPH_GET_OPERATION, input)
-            .await
-    }
-
-    async fn read_graph(
-        &self,
-        user_id: i64,
-        input: ReadCanvasGraphInput,
-    ) -> Result<CanvasGraphReadResult, AppError> {
-        self.command(
-            user_id,
-            input.project_id,
-            CANVAS_GRAPH_READ_OPERATION,
-            input,
-        )
-        .await
-    }
-}
-
-#[async_trait::async_trait]
-impl CanvasMutationApplicationPort for CanvasRecordWorkerClient {
-    async fn save_graph(
-        &self,
-        user_id: i64,
-        input: SaveCanvasGraphInput,
-    ) -> Result<CanvasGraphSaveResult, AppError> {
-        self.command(
-            user_id,
-            input.project_id,
-            CANVAS_GRAPH_SAVE_OPERATION,
-            input,
-        )
-        .await
-    }
-
-    async fn edit_graph(
-        &self,
-        user_id: i64,
-        input: EditCanvasGraphInput,
-    ) -> Result<CanvasGraphEditResult, AppError> {
-        self.command(
-            user_id,
-            input.project_id,
-            CANVAS_GRAPH_EDIT_OPERATION,
-            input,
-        )
-        .await
-    }
-
-    async fn save_text_asset(
-        &self,
-        user_id: i64,
-        input: SaveCanvasTextAssetInput,
-    ) -> Result<CanvasTextAssetSummary, AppError> {
-        self.command(
-            user_id,
-            input.project_id,
-            CANVAS_TEXT_ASSET_SAVE_OPERATION,
-            input,
-        )
-        .await
     }
 }
 

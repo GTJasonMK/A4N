@@ -3,6 +3,9 @@ use sea_orm::{
     ActiveModelTrait, ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QueryOrder, Set,
 };
 
+use super::super::records::{
+    canvas_edge_record, canvas_graph_record, canvas_node_record, canvas_text_asset_record,
+};
 use super::context::{
     CanvasProjectIdentity, default_canvas_record_graph_kind, require_canvas_project_record,
 };
@@ -105,9 +108,12 @@ where
     let text_assets = text_assets_result?;
     populate_media_input_metadata(db, graph.project_id, &mut nodes).await?;
     Ok(CanvasGraphRecordDocument {
-        graph,
-        nodes,
-        edges,
-        text_assets,
+        graph: canvas_graph_record(graph),
+        nodes: nodes.into_iter().map(canvas_node_record).collect(),
+        edges: edges.into_iter().map(canvas_edge_record).collect(),
+        text_assets: text_assets
+            .into_iter()
+            .map(canvas_text_asset_record)
+            .collect(),
     })
 }

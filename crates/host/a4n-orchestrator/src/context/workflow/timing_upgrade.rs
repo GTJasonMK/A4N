@@ -44,7 +44,7 @@ impl OrchestratorContext {
             return Ok(None);
         }
         let candidate = self
-            .workflow_checkpoint_models(workflow_run_id)
+            .workflow_checkpoint_summaries(workflow_run_id)
             .await?
             .into_iter()
             .find(|row| {
@@ -63,8 +63,12 @@ impl OrchestratorContext {
             .artifacts_json
             .as_ref()
             .expect("selected upgrade receipt");
-        let checkpoint = a4n_db::workflow::completed_llm_call_checkpoint_from_model(&row, call_key)
-            .map_err(|error| AppError::InvalidArgument(error.to_string()))?;
+        let checkpoint = a4n_db::workflow::completed_llm_call_checkpoint_from_fields(
+            row.checkpoint_json.as_ref(),
+            row.artifacts_json.as_ref(),
+            call_key,
+        )
+        .map_err(|error| AppError::InvalidArgument(error.to_string()))?;
         let receipt = &artifacts[TIMING_UPGRADE_KEY];
         if request_material(&receipt["upgraded_input_fingerprint_json"])?
             != request_material(input)?

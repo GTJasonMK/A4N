@@ -8,6 +8,7 @@ use crate::project::{
     project_chapter_scene_record_error_to_app_error, project_mutation_error_to_app_error,
     validate_chapter_generation_number,
 };
+use a4n_domain::chapter::ChapterRecord;
 use a4n_domain::collaboration::ProjectAccessRole;
 
 #[derive(Clone)]
@@ -20,7 +21,7 @@ impl ProjectChapterRecordsApplication {
         Self { database }
     }
 
-    async fn chapter_by_id(&self, chapter_id: i64) -> Result<Option<chapter::Model>, AppError> {
+    async fn chapter_by_id(&self, chapter_id: i64) -> Result<Option<ChapterRecord>, AppError> {
         a4n_db::project::chapter_by_id(self.database.connection(), chapter_id)
             .await
             .map_err(AppError::Database)
@@ -30,7 +31,7 @@ impl ProjectChapterRecordsApplication {
         &self,
         project_id: i64,
         chapter_number: i32,
-    ) -> Result<Option<chapter::Model>, AppError> {
+    ) -> Result<Option<ChapterRecord>, AppError> {
         a4n_db::project::chapter_by_project_number(
             self.database.connection(),
             project_id,
@@ -43,7 +44,7 @@ impl ProjectChapterRecordsApplication {
     async fn import_analysis_chapter_candidates(
         &self,
         project_id: i64,
-    ) -> Result<Vec<chapter::Model>, AppError> {
+    ) -> Result<Vec<ChapterRecord>, AppError> {
         a4n_db::project::import_analysis_chapter_candidates(self.database.connection(), project_id)
             .await
             .map_err(project_chapter_context_error_to_app_error)
@@ -73,7 +74,7 @@ impl ProjectChapterRecordsApplication {
         &self,
         project_id: i64,
         chapter_number: i32,
-    ) -> Result<Vec<chapter::Model>, AppError> {
+    ) -> Result<Vec<ChapterRecord>, AppError> {
         a4n_db::project::chapters_before_number(
             self.database.connection(),
             project_id,
@@ -104,7 +105,7 @@ impl OrchestratorContext {
     pub(crate) async fn chapter_by_id(
         &self,
         chapter_id: i64,
-    ) -> Result<Option<chapter::Model>, AppError> {
+    ) -> Result<Option<ChapterRecord>, AppError> {
         self.project_chapter_records.chapter_by_id(chapter_id).await
     }
 
@@ -112,7 +113,7 @@ impl OrchestratorContext {
         &self,
         user_id: i64,
         chapter_id: i64,
-    ) -> Result<chapter::Model, AppError> {
+    ) -> Result<ChapterRecord, AppError> {
         let chapter = self
             .chapter_by_id(chapter_id)
             .await?
@@ -126,7 +127,7 @@ impl OrchestratorContext {
         &self,
         project_id: i64,
         chapter_number: i32,
-    ) -> Result<Option<chapter::Model>, AppError> {
+    ) -> Result<Option<ChapterRecord>, AppError> {
         self.project_chapter_records
             .chapter_by_project_number(project_id, chapter_number)
             .await
@@ -135,7 +136,7 @@ impl OrchestratorContext {
     pub(crate) async fn import_analysis_chapter_candidates(
         &self,
         project_id: i64,
-    ) -> Result<Vec<chapter::Model>, AppError> {
+    ) -> Result<Vec<ChapterRecord>, AppError> {
         self.project_chapter_records
             .import_analysis_chapter_candidates(project_id)
             .await
@@ -163,7 +164,7 @@ impl OrchestratorContext {
         &self,
         project_id: i64,
         chapter_number: i32,
-    ) -> Result<Vec<chapter::Model>, AppError> {
+    ) -> Result<Vec<ChapterRecord>, AppError> {
         self.project_chapter_records
             .chapters_before_number(project_id, chapter_number)
             .await

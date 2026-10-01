@@ -14,6 +14,7 @@ use a4n_test_support::embedding::UnavailableEmbeddingProvider;
 use a4n_test_support::llm::UnavailableLlmProvider;
 
 use crate::OrchestratorContext;
+use a4n_domain::auth::ROLE_USER;
 use a4n_task_runtime::persistent::PersistentTaskQueue;
 
 const DEFAULT_LLM_STREAM_ERROR: &str = "测试 OrchestratorContext 未配置 LLM 流响应";
@@ -25,7 +26,7 @@ pub(crate) async fn create_test_user(db: &DatabaseConnection) -> i64 {
         "orchestrator-test-user",
         "orchestrator-test-user@example.invalid",
         "test-password-123",
-        a4n_db_models::models::user::role::ROLE_USER,
+        ROLE_USER,
     )
     .await
     .expect("test user should be created")

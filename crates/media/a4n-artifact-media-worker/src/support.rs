@@ -1,4 +1,9 @@
 use super::*;
+use std::collections::{HashMap, HashSet};
+
+use a4n_api_contract::image::GeneratedImageSummary;
+use a4n_domain::media::ImagePublicationRecoveryRecord;
+use a4n_worker_contract::{WorkerError, WorkerOperationStatus};
 
 pub(super) fn parse_payload<T: serde::de::DeserializeOwned>(payload: Value) -> Result<T, String> {
     serde_json::from_value(payload).map_err(|error| format!("请求 payload 无效: {error}"))
@@ -84,7 +89,7 @@ pub(super) fn authorized(state: &WorkerState, headers: &HeaderMap) -> bool {
 }
 
 pub(super) fn generated_image_summary(
-    image: &a4n_db_models::models::ai::generated_image::Model,
+    image: &a4n_domain::media::GeneratedImageRecord,
 ) -> GeneratedImageSummary {
     GeneratedImageSummary {
         id: image.id,
@@ -124,7 +129,7 @@ pub(super) fn normalized_project_ids(project_ids: Vec<i64>) -> Result<Vec<i64>, 
 }
 
 pub(super) fn sort_images_by_project_order(
-    images: &mut [a4n_db_models::models::ai::generated_image::Model],
+    images: &mut [a4n_domain::media::GeneratedImageRecord],
     project_ids: &[i64],
 ) {
     let project_order = project_ids

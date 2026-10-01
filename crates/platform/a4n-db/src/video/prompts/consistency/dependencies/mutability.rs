@@ -7,7 +7,9 @@ use super::{
 use crate::video::{self, VideoDbError, prompts::consistency::PromptStage};
 use a4n_db_models::models::chapter::chapter_video_prompt;
 use a4n_domain::image::image_generation_prompt_id;
+use a4n_domain::media::GeneratedImageReferenceRecord;
 use a4n_domain::source_spans::metadata_source_content_sha256;
+use a4n_domain::video_prompt::ChapterVideoPromptRecord;
 use sea_orm::ConnectionTrait;
 use serde_json::Value;
 use std::collections::{BTreeSet, HashMap};
@@ -116,7 +118,7 @@ fn frame_video_chain_key(row: &impl PromptDependencyFields) -> Option<FrameVideo
 
 pub async fn ensure_chapter_video_prompt_stage_mutable<C>(
     db: &C,
-    prompt: &chapter_video_prompt::Model,
+    prompt: &ChapterVideoPromptRecord,
     operation: &str,
 ) -> Result<(), VideoDbError>
 where
@@ -128,7 +130,7 @@ where
 
 pub async fn ensure_chapter_video_prompt_stage_mutable_ignoring<C>(
     db: &C,
-    prompt: &chapter_video_prompt::Model,
+    prompt: &ChapterVideoPromptRecord,
     operation: &str,
     ignored_prompt_ids: &BTreeSet<i64>,
 ) -> Result<(), VideoDbError>
@@ -153,7 +155,7 @@ where
 
 pub async fn ensure_chapter_video_prompt_stages_mutable_ignoring<C>(
     db: &C,
-    prompts: &[chapter_video_prompt::Model],
+    prompts: &[ChapterVideoPromptRecord],
     operation: &str,
     ignored_prompt_ids: &BTreeSet<i64>,
 ) -> Result<(), VideoDbError>
@@ -172,7 +174,7 @@ where
 
 pub async fn ensure_chapter_video_prompt_stages_mutable_skipping_generated_images<C>(
     db: &C,
-    prompts: &[chapter_video_prompt::Model],
+    prompts: &[ChapterVideoPromptRecord],
     operation: &str,
 ) -> Result<(), VideoDbError>
 where
@@ -190,7 +192,7 @@ where
 
 async fn ensure_chapter_video_prompt_stages_mutable_with_options<C>(
     db: &C,
-    prompts: &[chapter_video_prompt::Model],
+    prompts: &[ChapterVideoPromptRecord],
     operation: &str,
     ignored_prompt_ids: &BTreeSet<i64>,
     skip_generated_images: bool,
@@ -265,7 +267,7 @@ where
 
 pub async fn ensure_chapter_video_prompt_stages_mutable<C>(
     db: &C,
-    prompts: &[chapter_video_prompt::Model],
+    prompts: &[ChapterVideoPromptRecord],
     operation: &str,
 ) -> Result<(), VideoDbError>
 where
@@ -277,7 +279,7 @@ where
 
 pub(super) async fn validate_chapter_video_prompt_stage_mutability<C>(
     db: &C,
-    prompt: &chapter_video_prompt::Model,
+    prompt: &ChapterVideoPromptRecord,
     operation: &str,
 ) -> Result<Option<PromptStage>, VideoDbError>
 where
@@ -293,7 +295,7 @@ where
 }
 
 pub(super) fn ensure_prompt_dependencies_mutable_with_index(
-    prompt: &chapter_video_prompt::Model,
+    prompt: &ChapterVideoPromptRecord,
     operation: &str,
     ignored_prompt_ids: &BTreeSet<i64>,
     stage: PromptStage,
@@ -311,7 +313,7 @@ pub(super) fn ensure_prompt_dependencies_mutable_with_index(
 }
 
 pub(super) fn ensure_prompt_stage_mutability_preconditions(
-    prompt: &chapter_video_prompt::Model,
+    prompt: &ChapterVideoPromptRecord,
     operation: &str,
 ) -> Result<Option<PromptStage>, VideoDbError> {
     let Some(stage) = prompt_stage(prompt) else {
@@ -326,7 +328,7 @@ pub(super) fn ensure_prompt_stage_mutability_preconditions(
 }
 
 fn ensure_no_later_prompt_dependency<'a>(
-    prompt: &chapter_video_prompt::Model,
+    prompt: &ChapterVideoPromptRecord,
     operation: &str,
     ignored_prompt_ids: &BTreeSet<i64>,
     stage: PromptStage,
@@ -358,7 +360,7 @@ fn ensure_no_later_prompt_dependency<'a>(
 }
 
 fn ensure_no_later_prompt_dependency_indexed(
-    prompt: &chapter_video_prompt::Model,
+    prompt: &ChapterVideoPromptRecord,
     operation: &str,
     ignored_prompt_ids: &BTreeSet<i64>,
     stage: PromptStage,
@@ -405,7 +407,7 @@ fn ensure_no_later_prompt_dependency_indexed(
 
 pub(super) async fn ensure_frame_prompt_has_no_generated_image<C>(
     db: &C,
-    prompt: &chapter_video_prompt::Model,
+    prompt: &ChapterVideoPromptRecord,
     operation: &str,
 ) -> Result<(), VideoDbError>
 where
@@ -423,9 +425,9 @@ where
 }
 
 pub(super) fn ensure_no_generated_frame_image(
-    prompt: &chapter_video_prompt::Model,
+    prompt: &ChapterVideoPromptRecord,
     operation: &str,
-    image: Option<&a4n_db_models::models::ai::generated_image::Reference>,
+    image: Option<&GeneratedImageReferenceRecord>,
 ) -> Result<(), VideoDbError> {
     let Some(image) = image else {
         return Ok(());

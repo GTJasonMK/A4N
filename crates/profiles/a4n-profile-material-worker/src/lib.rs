@@ -6,10 +6,10 @@ use a4n_api_contract::profile::{
     ListProfileMaterialsInput, ProfileMaterialGroup, SetProfilePrimaryMaterialInput,
 };
 use a4n_db::DbHandle;
-use a4n_domain::profile_material::ProfileMaterialKind;
+use a4n_domain::profile_material::{ProfileMaterialKind, profile_material_identity};
 use a4n_profile_material_core::{
-    apply_profile_material_query, image_type_for_profile_material_kind, object_source_from_model,
-    profile_material_group_projections, requested_profile_material_kinds, scene_source_from_model,
+    apply_profile_material_query, image_type_for_profile_material_kind, object_source_from_record,
+    profile_material_group_projections, requested_profile_material_kinds, scene_source_from_record,
 };
 use a4n_profile_material_worker_contract::{
     PROFILE_MATERIAL_LIST_OPERATION, PROFILE_MATERIAL_MUTATION_CAPABILITY,
@@ -30,7 +30,6 @@ use axum::{
     response::{IntoResponse, Response},
     routing::{get, post},
 };
-use sea_orm::{ConnectOptions, ConnectionTrait, Database, DatabaseConnection, Statement};
 use subtle::ConstantTimeEq;
 
 const WORKER_ADDR_ENV: &str = "A4N_PROFILE_MATERIAL_WORKER_ADDR";
@@ -58,15 +57,18 @@ struct WorkerFailure {
     retryable: bool,
 }
 
+mod mutations;
+mod reads;
+
 impl ProfileMaterialWorker {
     pub fn new(
-        database: DatabaseConnection,
+        database: DbHandle,
         worker_id: impl Into<String>,
         auth_token: impl Into<String>,
     ) -> Self {
         Self {
             state: WorkerState {
-                database: DbHandle::new(Arc::new(database)),
+                database,
                 worker_id: Arc::<str>::from(worker_id.into()),
                 auth_token: Arc::<str>::from(auth_token.into()),
             },
@@ -107,12 +109,7 @@ async fn async_main() -> anyhow::Result<()> {
     a4n_config::validate_postgres_database_url(DATABASE_URL_ENV, &database_url)?;
     let auth_token = a4n_config::required_non_empty_env_string(WORKER_TOKEN_ENV)?;
     let address = worker_addr()?;
-    let mut options = ConnectOptions::new(database_url);
-    options
-        .max_connections(8)
-        .min_connections(1)
-        .connect_timeout(std::time::Duration::from_secs(5));
-    let database = Database::connect(options).await?;
+    let database = DbHandle::connect(database_url).await?;
     ProfileMaterialWorker::new(database, PROFILE_MATERIAL_WORKER_ID, auth_token)
         .serve(address)
         .await
@@ -133,16 +130,8 @@ async fn health(State(state): State<WorkerState>, headers: HeaderMap) -> Respons
     if !state.authorized(&headers) {
         return unauthorized();
     }
-    let status = match state
-        .database
-        .connection()
-        .execute(Statement::from_string(
-            sea_orm::DatabaseBackend::Postgres,
-            "SELECT 1",
-        ))
-        .await
-    {
-        Ok(_) => WorkerHealthStatus::Healthy,
+    let status = match state.database.ping().await {
+        Ok(()) => WorkerHealthStatus::Healthy,
         Err(_) => WorkerHealthStatus::Degraded,
     };
     Json(WorkerHealth {
@@ -219,230 +208,6 @@ where
 }
 
 impl WorkerState {
-    async fn list(
-        &self,
-        request: WorkerEnvelope<ListProfileMaterialsInput>,
-    ) -> Result<Vec<ProfileMaterialGroup>, WorkerFailure> {
-        validate_request(&request, PROFILE_MATERIAL_LIST_OPERATION)?;
-        validate_input_scope(&request, request.payload.project_id)?;
-        let user_id = user_id(&request)?;
-        let input = request.payload;
-        if input.image_limit_per_profile == 0 || input.image_limit_per_profile > MAX_IMAGE_LIMIT {
-            return Err(WorkerFailure::invalid_request(
-                "image_limit_per_profile 必须在 1 到 32 之间",
-            ));
-        }
-        verify_permission(
-            &self.database,
-            input.project_id,
-            user_id,
-            a4n_domain::collaboration::ProjectAccessRole::Editor,
-        )
-        .await?;
-        let kinds = requested_profile_material_kinds(input.kind);
-        let image_types = kinds
-            .iter()
-            .map(|kind| image_type_for_profile_material_kind(*kind))
-            .collect::<Vec<_>>();
-        let include_scene = kinds.contains(&ProfileMaterialKind::Scene);
-        let include_object = kinds.contains(&ProfileMaterialKind::Object);
-        let (scene_profiles, object_profiles, rows) = tokio::join!(
-            async {
-                if include_scene {
-                    a4n_db::scene_profile::scene_profiles_by_project(
-                        self.database.connection(),
-                        input.project_id,
-                    )
-                    .await
-                    .map_err(scene_profile_error)
-                } else {
-                    Ok(Vec::new())
-                }
-            },
-            async {
-                if include_object {
-                    a4n_db::asset::object_profiles_by_project(
-                        self.database.connection(),
-                        input.project_id,
-                    )
-                    .await
-                    .map_err(asset_error)
-                } else {
-                    Ok(Vec::new())
-                }
-            },
-            async {
-                a4n_db::profile_material::profile_material_list_rows(
-                    self.database.connection(),
-                    input.project_id,
-                    &image_types,
-                )
-                .await
-                .map_err(profile_material_error)
-            },
-        );
-        let mut sources = scene_profiles?
-            .into_iter()
-            .map(scene_source_from_model)
-            .collect::<Vec<_>>();
-        sources.extend(object_profiles?.into_iter().map(object_source_from_model));
-        let rows = rows?;
-        let mut groups = profile_material_group_projections(
-            sources,
-            rows.images,
-            rows.primary_rows,
-            input.image_limit_per_profile,
-        );
-        apply_profile_material_query(&mut groups, &input);
-        Ok(groups
-            .into_iter()
-            .map(|projection| projection.group)
-            .collect())
-    }
-
-    async fn set_primary(
-        &self,
-        request: WorkerEnvelope<SetProfilePrimaryMaterialInput>,
-    ) -> Result<ProfileMaterialSetPrimaryResponse, WorkerFailure> {
-        validate_request(&request, PROFILE_MATERIAL_SET_PRIMARY_OPERATION)?;
-        validate_input_scope(&request, request.payload.project_id)?;
-        let user_id = user_id(&request)?;
-        let input = request.payload;
-        verify_permission(
-            &self.database,
-            input.project_id,
-            user_id,
-            a4n_domain::collaboration::ProjectAccessRole::Editor,
-        )
-        .await?;
-        self.ensure_profile(input.project_id, input.profile_kind, input.profile_id)
-            .await?;
-        if let Some(image_id) = input.image_id {
-            let image = a4n_db::video::generated_image_by_id(self.database.connection(), image_id)
-                .await
-                .map_err(|error| WorkerFailure::unavailable(error.to_string()))?
-                .ok_or_else(|| WorkerFailure::not_found("图片不存在"))?;
-            if image.project_id != input.project_id {
-                return Err(WorkerFailure::invalid_request(format!(
-                    "图片 #{image_id} 不属于项目 {}",
-                    input.project_id
-                )));
-            }
-            if a4n_db::profile_material::generated_image_profile_material_identity(&image)
-                != Some((input.profile_kind.as_str(), input.profile_id))
-            {
-                return Err(WorkerFailure::invalid_request(format!(
-                    "图片 #{image_id} 不是 {} 档案 #{} 的素材图",
-                    input.profile_kind.as_str(),
-                    input.profile_id
-                )));
-            }
-            a4n_db::profile_material::upsert_profile_primary_material(
-                self.database.connection(),
-                input.project_id,
-                input.profile_kind.as_str(),
-                input.profile_id,
-                image_id,
-            )
-            .await
-            .map_err(profile_material_error)?;
-        } else {
-            a4n_db::profile_material::delete_profile_primary_material(
-                self.database.connection(),
-                input.project_id,
-                input.profile_kind.as_str(),
-                input.profile_id,
-            )
-            .await
-            .map_err(profile_material_error)?;
-        }
-        let group = self
-            .profile_material_group(input.project_id, input.profile_kind, input.profile_id)
-            .await?;
-        Ok(ProfileMaterialSetPrimaryResponse { group })
-    }
-
-    async fn ensure_profile(
-        &self,
-        project_id: i64,
-        kind: ProfileMaterialKind,
-        profile_id: i64,
-    ) -> Result<(), WorkerFailure> {
-        let profile_project_id = match kind {
-            ProfileMaterialKind::Scene => a4n_db::scene_profile::scene_profile_project_id(
-                self.database.connection(),
-                profile_id,
-            )
-            .await
-            .map_err(scene_profile_error)?,
-            ProfileMaterialKind::Object => {
-                a4n_db::asset::object_profile_project_id(self.database.connection(), profile_id)
-                    .await
-                    .map_err(asset_error)?
-            }
-        };
-        if profile_project_id != project_id {
-            let label = match kind {
-                ProfileMaterialKind::Scene => "场景档案",
-                ProfileMaterialKind::Object => "物体档案",
-            };
-            return Err(WorkerFailure::invalid_request(format!(
-                "{label} #{profile_id} 不属于项目 {project_id}"
-            )));
-        }
-        Ok(())
-    }
-
-    async fn profile_material_group(
-        &self,
-        project_id: i64,
-        kind: ProfileMaterialKind,
-        profile_id: i64,
-    ) -> Result<ProfileMaterialGroup, WorkerFailure> {
-        let image_types = [image_type_for_profile_material_kind(kind)];
-        let (source, rows) = tokio::join!(
-            async {
-                match kind {
-                    ProfileMaterialKind::Scene => a4n_db::scene_profile::scene_profile_by_id(
-                        self.database.connection(),
-                        profile_id,
-                    )
-                    .await
-                    .map(scene_source_from_model)
-                    .map_err(scene_profile_error),
-                    ProfileMaterialKind::Object => {
-                        a4n_db::asset::object_profile_by_id(self.database.connection(), profile_id)
-                            .await
-                            .map(object_source_from_model)
-                            .map_err(asset_error)
-                    }
-                }
-            },
-            async {
-                a4n_db::profile_material::profile_material_list_rows(
-                    self.database.connection(),
-                    project_id,
-                    &image_types,
-                )
-                .await
-                .map_err(profile_material_error)
-            },
-        );
-        let source = source?;
-        if source.profile.project_id != project_id {
-            return Err(WorkerFailure::invalid_request(format!(
-                "档案 #{} 不属于项目 {project_id}",
-                profile_id
-            )));
-        }
-        let rows = rows?;
-        profile_material_group_projections(vec![source], rows.images, rows.primary_rows, 32)
-            .into_iter()
-            .next()
-            .map(|projection| projection.group)
-            .ok_or_else(|| WorkerFailure::conflict("主素材已更新，但无法重新读取档案素材"))
-    }
-
     fn authorized(&self, headers: &HeaderMap) -> bool {
         headers
             .get(WORKER_AUTH_HEADER)

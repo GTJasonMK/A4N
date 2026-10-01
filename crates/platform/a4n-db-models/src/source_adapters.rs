@@ -45,7 +45,7 @@ impl SourceTextAnchor for text_anchor::Model {
 
 impl ChapterAnalysisSource for chapter::Model {
     fn has_available_analysis_content(&self) -> bool {
-        self.status != chapter::STATUS_DELETED && !self.content.trim().is_empty()
+        self.has_available_content()
     }
 }
 

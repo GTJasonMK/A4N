@@ -1,13 +1,13 @@
 use super::shared::{chapter_context_label, truncate_chars};
 use crate::chapter_generation::non_empty_trimmed;
-use a4n_db_models::models::chapter::chapter;
+use a4n_domain::chapter::ChapterRecord;
 
 const RECENT_SUMMARY_CHAPTERS: i32 = 10;
 const MAX_OLD_SUMMARY_LINES: usize = 80;
 const OLD_SUMMARY_HEAD_LINES: usize = 20;
 
 pub(super) fn layered_chapter_summary_lines(
-    chapters: &[chapter::Model],
+    chapters: &[ChapterRecord],
     current_chapter_number: i32,
 ) -> Vec<String> {
     if chapters.is_empty() {
@@ -72,7 +72,7 @@ fn compact_old_summary_lines(old_summaries: Vec<String>) -> Vec<String> {
     lines
 }
 
-fn chapter_summary_text(chapter: &chapter::Model) -> Option<&str> {
+fn chapter_summary_text(chapter: &ChapterRecord) -> Option<&str> {
     chapter.summary.as_deref().and_then(non_empty_trimmed)
 }
 

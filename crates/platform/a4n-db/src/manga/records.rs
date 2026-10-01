@@ -1,3 +1,4 @@
+pub(in crate::manga) mod mapping;
 mod mutations;
 mod queries;
 mod references;

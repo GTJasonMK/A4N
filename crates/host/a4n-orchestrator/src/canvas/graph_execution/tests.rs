@@ -11,10 +11,7 @@ use a4n_db::{
     canvas::{CanvasGraphRecordDocument, CanvasGraphRecordInput, CanvasNodeRecordInput},
     project::{CreateFreeformVideoProjectParams, create_freeform_video_project_record},
 };
-use a4n_db_models::models::{
-    canvas::{canvas_edge, canvas_graph, canvas_node},
-    generation::workflow_run,
-};
+use a4n_db_models::models::{canvas::canvas_graph, generation::workflow_run};
 use async_trait::async_trait;
 use sea_orm::{ActiveModelTrait, EntityTrait, Set};
 use serde_json::json;
@@ -510,12 +507,12 @@ fn record_node(client_id: &str, node_kind: &str) -> CanvasNodeRecordInput {
 }
 
 fn test_graph_document(
-    nodes: Vec<canvas_node::Model>,
-    edges: Vec<canvas_edge::Model>,
+    nodes: Vec<a4n_domain::canvas::CanvasNodeRecord>,
+    edges: Vec<a4n_domain::canvas::CanvasEdgeRecord>,
 ) -> CanvasGraphRecordDocument {
     let now = chrono::Utc::now().naive_utc();
     CanvasGraphRecordDocument {
-        graph: canvas_graph::Model {
+        graph: a4n_domain::canvas::CanvasGraphRecord {
             id: 10,
             project_id: 20,
             name: "测试画布".to_string(),
@@ -531,9 +528,9 @@ fn test_graph_document(
     }
 }
 
-fn test_node(id: i64, node_kind: &str) -> canvas_node::Model {
+fn test_node(id: i64, node_kind: &str) -> a4n_domain::canvas::CanvasNodeRecord {
     let now = chrono::Utc::now().naive_utc();
-    canvas_node::Model {
+    a4n_domain::canvas::CanvasNodeRecord {
         id,
         graph_id: 10,
         node_kind: node_kind.to_string(),
@@ -547,8 +544,8 @@ fn test_node(id: i64, node_kind: &str) -> canvas_node::Model {
     }
 }
 
-fn test_edge(source_node_id: i64, target_node_id: i64) -> canvas_edge::Model {
-    canvas_edge::Model {
+fn test_edge(source_node_id: i64, target_node_id: i64) -> a4n_domain::canvas::CanvasEdgeRecord {
+    a4n_domain::canvas::CanvasEdgeRecord {
         id: source_node_id * 100 + target_node_id,
         graph_id: 10,
         source_node_id,

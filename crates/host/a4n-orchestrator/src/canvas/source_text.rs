@@ -3,8 +3,8 @@ use crate::canvas::{
     source_checkpoint::source_operation_checkpoint_output, source_node,
 };
 use a4n_db::canvas::CanvasGraphRecordDocument;
-use a4n_db_models::models::{canvas::canvas_node, generation::workflow_checkpoint};
 use a4n_domain::CanvasNodeRefKind;
+use a4n_domain::canvas::CanvasNodeRecord;
 use serde_json::Value;
 
 pub(crate) struct CanvasTextSourceContext {
@@ -14,9 +14,9 @@ pub(crate) struct CanvasTextSourceContext {
 }
 
 pub(crate) fn collect_canvas_text_source_context(
-    node: &canvas_node::Model,
+    node: &CanvasNodeRecord,
     document: &CanvasGraphRecordDocument,
-    checkpoints: Option<&[workflow_checkpoint::Model]>,
+    checkpoints: Option<&[a4n_db::workflow::WorkflowCheckpointSummary]>,
     consumer_label: &str,
 ) -> Result<CanvasTextSourceContext, String> {
     let mut source_parts = Vec::new();
@@ -50,9 +50,9 @@ pub(crate) fn collect_canvas_text_source_context(
 }
 
 pub(crate) fn source_text_value(
-    node: &canvas_node::Model,
+    node: &CanvasNodeRecord,
     document: &CanvasGraphRecordDocument,
-    checkpoints: Option<&[workflow_checkpoint::Model]>,
+    checkpoints: Option<&[a4n_db::workflow::WorkflowCheckpointSummary]>,
     consumer_label: &str,
 ) -> Result<Option<String>, String> {
     if let Some(value) = source_operation_checkpoint_output(checkpoints, node, consumer_label)? {
@@ -77,7 +77,7 @@ pub(crate) fn source_text_value(
 }
 
 pub(crate) fn first_canvas_text_asset_id(
-    node: &canvas_node::Model,
+    node: &CanvasNodeRecord,
     document: &CanvasGraphRecordDocument,
 ) -> Result<Option<i64>, String> {
     if let Some(id) = source_canvas_text_asset_id(node)? {
@@ -92,9 +92,7 @@ pub(crate) fn first_canvas_text_asset_id(
     Ok(None)
 }
 
-pub(crate) fn source_canvas_text_asset_id(
-    node: &canvas_node::Model,
-) -> Result<Option<i64>, String> {
+pub(crate) fn source_canvas_text_asset_id(node: &CanvasNodeRecord) -> Result<Option<i64>, String> {
     if let Some(id) = node
         .ref_type
         .as_deref()

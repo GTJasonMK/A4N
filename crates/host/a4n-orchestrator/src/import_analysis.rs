@@ -2,6 +2,7 @@ mod application;
 mod chapter_outline;
 mod ingest;
 mod lifecycle;
+mod ports;
 mod progress;
 mod workflow;
 

@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use a4n_api_contract::manga::MangaPagePromptSourceSummary;
-use a4n_db_models::models::chapter::chapter_manga_prompt;
+use a4n_domain::manga::MangaPagePromptRecord;
 use a4n_domain::source_spans::source_spans_for_content;
 use a4n_error::AppError;
 
@@ -22,7 +22,7 @@ impl OrchestratorContext {
     pub(crate) async fn generate_page_prompts(
         &self,
         input: MangaGeneratePagePromptsInput<'_>,
-    ) -> Result<Vec<chapter_manga_prompt::Model>, AppError> {
+    ) -> Result<Vec<MangaPagePromptRecord>, AppError> {
         let MangaGeneratePagePromptsInput {
             user_id,
             chapter_id,

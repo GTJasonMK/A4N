@@ -100,6 +100,10 @@ async fn preparation_failure_remains_visible_and_resumes_after_repair() {
     .insert(db.as_ref())
     .await
     .unwrap();
+    let chapter_record =
+        a4n_db::chapter_content::chapter_by_id_for_analysis(db.as_ref(), chapter.id)
+            .await
+            .unwrap();
     let source_run = context
         .begin_or_resume_workflow_run_validated(workflow_input(
             project.id,
@@ -110,7 +114,7 @@ async fn preparation_failure_remains_visible_and_resumes_after_repair() {
         .await
         .unwrap();
     let tx = db.begin().await.unwrap();
-    a4n_db::fact_feedback::record_feedback_completion(&tx, &chapter, source_run.id)
+    a4n_db::fact_feedback::record_feedback_completion(&tx, &chapter_record, source_run.id)
         .await
         .unwrap();
     tx.commit().await.unwrap();

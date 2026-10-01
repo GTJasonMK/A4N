@@ -2,6 +2,7 @@ use a4n_db_models::models::{
     chapter::chapter,
     project::{material_fact_change, project_fact_feedback},
 };
+use a4n_domain::chapter::ChapterRecord;
 use a4n_domain::{
     fact_feedback::{DEFAULT_FEEDBACK_INTERVAL_CHAPTERS, FactSourceRevision, WorldFact},
     source_text_hash,
@@ -74,7 +75,7 @@ pub async fn update_feedback_interval<C: ConnectionTrait>(
     Ok(())
 }
 
-pub fn source_revision(chapter: &chapter::Model) -> Option<FactSourceRevision> {
+pub fn source_revision(chapter: &ChapterRecord) -> Option<FactSourceRevision> {
     let analysis = chapter.analysis_data.as_ref()?;
     if analysis
         .get("_meta")
@@ -93,7 +94,7 @@ pub fn source_revision(chapter: &chapter::Model) -> Option<FactSourceRevision> {
     Some(observation_source(chapter))
 }
 
-pub(crate) fn observation_source(chapter: &chapter::Model) -> FactSourceRevision {
+pub(crate) fn observation_source(chapter: &ChapterRecord) -> FactSourceRevision {
     let mut analysis = chapter.analysis_data.clone().unwrap_or(Value::Null);
     if let Some(analysis) = analysis.as_object_mut() {
         analysis.remove("_meta");
@@ -111,7 +112,7 @@ pub(crate) fn observation_source(chapter: &chapter::Model) -> FactSourceRevision
 
 #[derive(Debug, Clone)]
 pub struct FeedbackSource {
-    pub chapter: chapter::Model,
+    pub chapter: ChapterRecord,
     pub revision: FactSourceRevision,
     pub world_facts: Vec<WorldFact>,
 }
@@ -141,6 +142,7 @@ pub async fn current_feedback_sources<C: ConnectionTrait>(
         .collect();
     let mut result = Vec::new();
     for chapter in chapters {
+        let chapter = crate::project::chapter_record(chapter);
         let Some(revision) = source_revision(&chapter) else {
             continue;
         };
@@ -257,7 +259,7 @@ pub async fn record_fact_change<C: ConnectionTrait>(
 
 pub async fn record_feedback_completion(
     db: &DatabaseTransaction,
-    chapter: &chapter::Model,
+    chapter: &ChapterRecord,
     workflow_run_id: i64,
 ) -> Result<(), FactFeedbackDbError> {
     let source = source_revision(chapter).ok_or_else(|| {

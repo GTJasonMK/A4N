@@ -1,5 +1,7 @@
 //! 视频提示词与阶段门禁 owner。
 
+use a4n_domain::video_prompt::ChapterVideoPromptRecord;
+
 use super::*;
 
 impl VideoApplication {
@@ -16,10 +18,14 @@ impl VideoApplication {
         &self,
         project_id: i64,
         chapter_id: i64,
-    ) -> Result<Vec<chapter_video_prompt::Model>, AppError> {
-        a4n_db::video::chapter_video_prompts_for_chapter(self.connection(), project_id, chapter_id)
-            .await
-            .map_err(AppError::Database)
+    ) -> Result<Vec<ChapterVideoPromptRecord>, AppError> {
+        a4n_db::video::read_models::chapter_video_prompts_for_chapter(
+            self.connection(),
+            project_id,
+            chapter_id,
+        )
+        .await
+        .map_err(AppError::Database)
     }
 
     pub(in crate::context) async fn chapter_video_prompt_timeline_records_for_chapter(
@@ -186,7 +192,7 @@ impl VideoApplication {
 
     pub(in crate::context) async fn ensure_chapter_video_prompt_stage_mutable(
         &self,
-        prompt: &chapter_video_prompt::Model,
+        prompt: &ChapterVideoPromptRecord,
         operation: &str,
     ) -> Result<(), AppError> {
         a4n_db::video::prompts::consistency::ensure_chapter_video_prompt_stage_mutable(
@@ -200,7 +206,7 @@ impl VideoApplication {
 
     pub(in crate::context) async fn ensure_chapter_video_prompt_stage_mutable_ignoring(
         &self,
-        prompt: &chapter_video_prompt::Model,
+        prompt: &ChapterVideoPromptRecord,
         operation: &str,
         ignored_prompt_ids: &BTreeSet<i64>,
     ) -> Result<(), AppError> {
@@ -216,7 +222,7 @@ impl VideoApplication {
 
     pub(in crate::context) async fn ensure_chapter_video_prompt_stages_mutable(
         &self,
-        prompts: &[chapter_video_prompt::Model],
+        prompts: &[ChapterVideoPromptRecord],
         operation: &str,
     ) -> Result<(), AppError> {
         a4n_db::video::prompts::consistency::ensure_chapter_video_prompt_stages_mutable(
@@ -230,7 +236,7 @@ impl VideoApplication {
 
     pub(in crate::context) async fn ensure_chapter_video_prompt_stages_mutable_skipping_generated_images(
         &self,
-        prompts: &[chapter_video_prompt::Model],
+        prompts: &[ChapterVideoPromptRecord],
         operation: &str,
     ) -> Result<(), AppError> {
         a4n_db::video::prompts::consistency::ensure_chapter_video_prompt_stages_mutable_skipping_generated_images(

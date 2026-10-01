@@ -1,4 +1,4 @@
-use a4n_db_models::models::chapter::chapter;
+use a4n_domain::chapter::ChapterRecord;
 use a4n_domain::source_spans::SourceSpan;
 use a4n_error::AppError;
 use a4n_prompt::rendering::PromptRenderer;
@@ -20,7 +20,7 @@ use super::contracts::{
 impl OrchestratorContext {
     pub(in crate::chapter_analysis) async fn execute_chapter_analysis_facts_stage(
         &self,
-        chapter: &chapter::Model,
+        chapter: &ChapterRecord,
         prompt_renderer: &dyn PromptRenderer,
         source_spans: &[SourceSpan],
         progress: &mut ChapterAnalysisProgress<'_>,
@@ -40,7 +40,7 @@ impl OrchestratorContext {
 
     pub(in crate::chapter_analysis) async fn execute_chapter_analysis_summary_stage(
         &self,
-        chapter: &chapter::Model,
+        chapter: &ChapterRecord,
         prompt_renderer: &dyn PromptRenderer,
         facts: &Value,
         progress: &mut ChapterAnalysisProgress<'_>,
@@ -60,7 +60,7 @@ impl OrchestratorContext {
 
     pub(in crate::chapter_analysis) async fn execute_chapter_analysis_character_state_stage(
         &self,
-        chapter: &chapter::Model,
+        chapter: &ChapterRecord,
         prompt_renderer: &dyn PromptRenderer,
         facts: &Value,
         progress: &mut ChapterAnalysisProgress<'_>,
@@ -80,7 +80,7 @@ impl OrchestratorContext {
 
     pub(in crate::chapter_analysis) async fn execute_chapter_analysis_foreshadowing_stage(
         &self,
-        chapter: &chapter::Model,
+        chapter: &ChapterRecord,
         prompt_renderer: &dyn PromptRenderer,
         facts: &Value,
         progress: &mut ChapterAnalysisProgress<'_>,

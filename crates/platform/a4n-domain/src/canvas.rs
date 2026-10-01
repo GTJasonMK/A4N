@@ -1,10 +1,12 @@
-use std::{fmt, str::FromStr};
+mod references;
+mod transfer;
 
-use schemars::JsonSchema;
-use serde::{Deserialize, Serialize};
+pub use references::*;
+pub use transfer::*;
+
+use serde::Deserialize;
+use serde::Serialize;
 use serde_json::Value;
-
-use crate::DomainError;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CanvasTextAssetRecordInput {
@@ -12,6 +14,72 @@ pub struct CanvasTextAssetRecordInput {
     pub title: String,
     pub text_kind: String,
     pub content: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct CanvasGraphRecord {
+    pub id: i64,
+    pub project_id: i64,
+    pub name: String,
+    pub graph_kind: String,
+    pub version: i32,
+    pub viewport_json: Option<Value>,
+    pub created_at: chrono::NaiveDateTime,
+    pub updated_at: chrono::NaiveDateTime,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct CanvasNodeRecord {
+    pub id: i64,
+    pub graph_id: i64,
+    pub node_kind: String,
+    pub ref_type: Option<String>,
+    pub ref_id: Option<i64>,
+    pub config_json: Value,
+    pub position_json: Value,
+    pub state: String,
+    pub created_at: chrono::NaiveDateTime,
+    pub updated_at: chrono::NaiveDateTime,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct CanvasEdgeRecord {
+    pub id: i64,
+    pub graph_id: i64,
+    pub source_node_id: i64,
+    pub source_port: String,
+    pub target_node_id: i64,
+    pub target_port: String,
+    pub role: String,
+    pub config_json: Value,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct CanvasTextAssetRecord {
+    pub id: i64,
+    pub project_id: i64,
+    pub title: String,
+    pub text_kind: String,
+    pub content: String,
+    pub content_hash: String,
+    pub created_at: chrono::NaiveDateTime,
+    pub updated_at: chrono::NaiveDateTime,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct CanvasPromptArtifactRecord {
+    pub id: i64,
+    pub generation_spec_id: i64,
+    pub prompt_kind: String,
+    pub prompt_text: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct CanvasGraphRecordDocument {
+    pub graph: CanvasGraphRecord,
+    pub nodes: Vec<CanvasNodeRecord>,
+    pub edges: Vec<CanvasEdgeRecord>,
+    pub text_assets: Vec<CanvasTextAssetRecord>,
 }
 
 #[derive(Debug, Clone)]
@@ -47,163 +115,6 @@ pub struct CanvasAssemblyContractSyncInput {
     pub generation_spec_id: Option<i64>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "snake_case")]
-pub enum CanvasNodeRefKind {
-    Inline,
-    Config,
-    CanvasTextAsset,
-    PromptArtifact,
-    MediaAsset,
-    VideoSegment,
-    AssemblyTimeline,
-    GenerationSpec,
-    GeneratedImage,
-    GeneratedVideo,
-}
-
-impl CanvasNodeRefKind {
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::Inline => "inline",
-            Self::Config => "config",
-            Self::CanvasTextAsset => "canvas_text_asset",
-            Self::PromptArtifact => "prompt_artifact",
-            Self::MediaAsset => "media_asset",
-            Self::VideoSegment => "video_segment",
-            Self::AssemblyTimeline => "assembly_timeline",
-            Self::GenerationSpec => "generation_spec",
-            Self::GeneratedImage => "generated_image",
-            Self::GeneratedVideo => "generated_video",
-        }
-    }
-}
-
-pub const CANVAS_MEDIA_INPUT_REF_TYPES: [(&str, CanvasNodeRefKind); 3] = [
-    ("ImageInputNode", CanvasNodeRefKind::GeneratedImage),
-    ("VideoInputNode", CanvasNodeRefKind::GeneratedVideo),
-    ("AudioInputNode", CanvasNodeRefKind::MediaAsset),
-];
-
-// These are projections of the referenced resource, never authored input parameters.
-pub const CANVAS_MEDIA_INPUT_METADATA_KEYS: [&str; 14] = [
-    "generated_image_id",
-    "generated_video_id",
-    "media_asset_id",
-    "file_path",
-    "thumbnail_path",
-    "width",
-    "height",
-    "duration_secs",
-    "fps",
-    "file_size",
-    "status",
-    "error_message",
-    "output",
-    "canvas_runtime_result",
-];
-
-pub fn canvas_media_input_ref_kind(node_kind: &str) -> Option<CanvasNodeRefKind> {
-    CANVAS_MEDIA_INPUT_REF_TYPES
-        .iter()
-        .find(|(kind, _)| *kind == node_kind)
-        .map(|(_, ref_kind)| *ref_kind)
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "snake_case")]
-pub enum CanvasFrameKind {
-    First,
-    Tail,
-    Time,
-}
-
-impl CanvasFrameKind {
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::First => "first",
-            Self::Tail => "tail",
-            Self::Time => "time",
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum GeneratedMediaReference {
-    Video(i64),
-    Image(i64),
-}
-
-impl GeneratedMediaReference {
-    pub const fn id(self) -> i64 {
-        match self {
-            Self::Video(id) | Self::Image(id) => id,
-        }
-    }
-
-    pub const fn kind(self) -> &'static str {
-        match self {
-            Self::Video(_) => "generated_video",
-            Self::Image(_) => "generated_image",
-        }
-    }
-
-    pub const fn label(self) -> &'static str {
-        match self {
-            Self::Video(_) => "生成视频",
-            Self::Image(_) => "生成图片",
-        }
-    }
-
-    pub const fn with_id(self, id: i64) -> Self {
-        match self {
-            Self::Video(_) => Self::Video(id),
-            Self::Image(_) => Self::Image(id),
-        }
-    }
-}
-
-impl fmt::Display for GeneratedMediaReference {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(formatter, "{}:{}", self.kind(), self.id())
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum GeneratedMediaReferenceParseError {
-    InvalidVideoId,
-    InvalidImageId,
-}
-
-impl GeneratedMediaReferenceParseError {
-    pub const fn kind(self) -> &'static str {
-        match self {
-            Self::InvalidVideoId => "generated_video",
-            Self::InvalidImageId => "generated_image",
-        }
-    }
-}
-
-pub fn parse_generated_media_reference(
-    value: &str,
-) -> Result<Option<GeneratedMediaReference>, GeneratedMediaReferenceParseError> {
-    if let Some(suffix) = value.strip_prefix("generated_video:") {
-        return suffix
-            .parse()
-            .map(GeneratedMediaReference::Video)
-            .map(Some)
-            .map_err(|_| GeneratedMediaReferenceParseError::InvalidVideoId);
-    }
-    if let Some(suffix) = value.strip_prefix("generated_image:") {
-        return suffix
-            .parse()
-            .map(GeneratedMediaReference::Image)
-            .map(Some)
-            .map_err(|_| GeneratedMediaReferenceParseError::InvalidImageId);
-    }
-    Ok(None)
-}
-
 /// 画布成片预览缓存键的唯一格式。
 pub fn canvas_cache_key(graph_id: i64, node_id: i64) -> String {
     format!("canvas_graph:{graph_id}:node:{node_id}")
@@ -221,94 +132,6 @@ pub fn parse_canvas_cache_key(value: &str) -> Option<(i64, i64)> {
     ) {
         (Some("canvas_graph"), Some(graph_id), Some("node"), Some(node_id), None) => {
             Some((graph_id.parse().ok()?, node_id.parse().ok()?))
-        }
-        _ => None,
-    }
-}
-
-impl fmt::Display for CanvasNodeRefKind {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        formatter.write_str(self.as_str())
-    }
-}
-
-impl fmt::Display for CanvasFrameKind {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        formatter.write_str(self.as_str())
-    }
-}
-
-impl FromStr for CanvasNodeRefKind {
-    type Err = DomainError;
-
-    fn from_str(value: &str) -> Result<Self, Self::Err> {
-        match value {
-            "inline" => Ok(Self::Inline),
-            "config" => Ok(Self::Config),
-            "canvas_text_asset" => Ok(Self::CanvasTextAsset),
-            "prompt_artifact" => Ok(Self::PromptArtifact),
-            "media_asset" => Ok(Self::MediaAsset),
-            "video_segment" => Ok(Self::VideoSegment),
-            "assembly_timeline" => Ok(Self::AssemblyTimeline),
-            "generation_spec" => Ok(Self::GenerationSpec),
-            "generated_image" => Ok(Self::GeneratedImage),
-            "generated_video" => Ok(Self::GeneratedVideo),
-            _ => Err(DomainError::InvalidCanvasNodeRefKind {
-                value: value.to_string(),
-            }),
-        }
-    }
-}
-
-impl FromStr for CanvasFrameKind {
-    type Err = DomainError;
-
-    fn from_str(value: &str) -> Result<Self, Self::Err> {
-        match value {
-            "first" => Ok(Self::First),
-            "tail" => Ok(Self::Tail),
-            "time" => Ok(Self::Time),
-            _ => Err(DomainError::InvalidCanvasFrameKind {
-                value: value.to_string(),
-            }),
-        }
-    }
-}
-
-const CANVAS_TRANSFER_RUNTIME_IDENTITY_KEYS: [&str; 3] =
-    ["workflow_run_id", "provider_job_id", "config_id"];
-
-pub fn clear_canvas_transfer_runtime_identity(value: &mut serde_json::Value) {
-    match value {
-        serde_json::Value::Object(object) => {
-            for key in CANVAS_TRANSFER_RUNTIME_IDENTITY_KEYS {
-                object.remove(key);
-            }
-            for value in object.values_mut() {
-                clear_canvas_transfer_runtime_identity(value);
-            }
-        }
-        serde_json::Value::Array(values) => {
-            for value in values {
-                clear_canvas_transfer_runtime_identity(value);
-            }
-        }
-        _ => {}
-    }
-}
-
-pub fn canvas_transfer_runtime_identity_key(value: &serde_json::Value) -> Option<&'static str> {
-    match value {
-        serde_json::Value::Object(object) => CANVAS_TRANSFER_RUNTIME_IDENTITY_KEYS
-            .into_iter()
-            .find(|key| object.contains_key(*key))
-            .or_else(|| {
-                object
-                    .values()
-                    .find_map(canvas_transfer_runtime_identity_key)
-            }),
-        serde_json::Value::Array(values) => {
-            values.iter().find_map(canvas_transfer_runtime_identity_key)
         }
         _ => None,
     }

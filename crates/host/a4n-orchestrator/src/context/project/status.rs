@@ -1,6 +1,5 @@
 use a4n_db::DbHandle;
-use a4n_db_models::models::project::novel_project;
-use a4n_domain::project::{ProjectStatus, ProjectStatusArtifacts};
+use a4n_domain::project::{ProjectRecord, ProjectStatus, ProjectStatusArtifacts};
 use a4n_error::AppError;
 use a4n_event::InternalEvent;
 use chrono::{NaiveDateTime, Utc};
@@ -31,7 +30,7 @@ impl ProjectStatusApplication {
         &self,
         project_id: i64,
         operation: &'static str,
-    ) -> Result<(novel_project::Model, ProjectStatus), AppError> {
+    ) -> Result<(ProjectRecord, ProjectStatus), AppError> {
         let project = a4n_db::project::project_by_id_record(self.database.connection(), project_id)
             .await
             .map_err(project_mutation_error_to_app_error)?
@@ -57,7 +56,7 @@ impl ProjectStatusApplication {
 
     async fn forward_loaded(
         &self,
-        project: novel_project::Model,
+        project: ProjectRecord,
         from: ProjectStatus,
         target: ProjectStatus,
         artifacts: ProjectStatusArtifacts,

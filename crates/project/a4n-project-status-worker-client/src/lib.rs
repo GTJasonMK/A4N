@@ -21,6 +21,9 @@ const DEFAULT_WORKER_URL: &str = "http://127.0.0.1:47662";
 const CONTROL_LEASE_FENCE: &str = "control-request";
 const CONTROL_LEASE_EXPIRY: &str = "9999-12-31T23:59:59Z";
 
+mod mutations;
+mod reads;
+
 #[derive(Clone)]
 pub struct ProjectStatusWorkerClient {
     transport: HttpWorkerClient,
@@ -114,71 +117,6 @@ impl ProjectStatusWorkerClient {
                 "project status worker 返回未完成状态: operation={operation_id}, status={status:?}"
             ))),
         }
-    }
-}
-
-#[async_trait::async_trait]
-impl ProjectStatusReadApplicationPort for ProjectStatusWorkerClient {
-    async fn status_machine(
-        &self,
-        user_id: i64,
-        project_id: i64,
-    ) -> Result<ProjectStatusMachineSummary, AppError> {
-        self.command(
-            user_id,
-            project_id,
-            PROJECT_STATUS_MACHINE_OPERATION,
-            ProjectStatusProjectInput { project_id },
-        )
-        .await
-    }
-
-    async fn preview_rollback(
-        &self,
-        user_id: i64,
-        project_id: i64,
-        target: ProjectStatus,
-    ) -> Result<ProjectRollbackPreview, AppError> {
-        self.command(
-            user_id,
-            project_id,
-            PROJECT_STATUS_PREVIEW_ROLLBACK_OPERATION,
-            ProjectStatusRollbackInput { project_id, target },
-        )
-        .await
-    }
-}
-
-#[async_trait::async_trait]
-impl ProjectStatusMutationApplicationPort for ProjectStatusWorkerClient {
-    async fn forward_status(
-        &self,
-        user_id: i64,
-        project_id: i64,
-        target: ProjectStatus,
-    ) -> Result<ProjectStatusMutationResult, AppError> {
-        self.command(
-            user_id,
-            project_id,
-            PROJECT_STATUS_FORWARD_OPERATION,
-            ProjectStatusRollbackInput { project_id, target },
-        )
-        .await
-    }
-
-    async fn rollback_status(
-        &self,
-        user_id: i64,
-        project_id: i64,
-        target: ProjectStatus,
-    ) -> Result<ProjectStatusMutationResult, AppError> {
-        self.command(
-            user_id,
-            project_id,
-            PROJECT_STATUS_ROLLBACK_OPERATION,
-            ProjectStatusRollbackInput { project_id, target },
-        )
-        .await
     }
 }
 

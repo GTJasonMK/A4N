@@ -20,6 +20,7 @@ use a4n_db_models::models::{
     project::{novel_project, project_source_snapshot, source_snapshot_chapter},
     user::user,
 };
+use a4n_domain::project::ProjectRecord;
 use a4n_domain::shooting_script::{ChapterShootingScriptV2, ShootingVisualPlanSourceV1};
 use async_trait::async_trait;
 use chrono::Utc;
@@ -1493,9 +1494,9 @@ fn project_model(
     user_id: i64,
     project_kind: &str,
     root_project_id: Option<i64>,
-) -> novel_project::Model {
+) -> ProjectRecord {
     let now = Utc::now().naive_utc();
-    novel_project::Model {
+    ProjectRecord {
         id,
         user_id,
         title: format!("import-{id}"),
@@ -1521,7 +1522,7 @@ fn project_model(
     }
 }
 
-fn empty_package(root: novel_project::Model) -> ProjectFamilyPackage {
+fn empty_package(root: ProjectRecord) -> ProjectFamilyPackage {
     ProjectFamilyPackage {
         version: PROJECT_FAMILY_PACKAGE_VERSION.to_string(),
         exported_at: Utc::now().naive_utc().to_string(),

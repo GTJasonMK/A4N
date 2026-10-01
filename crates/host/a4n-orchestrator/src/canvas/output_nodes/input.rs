@@ -1,6 +1,6 @@
 use a4n_db::canvas::CanvasGraphRecordDocument;
-use a4n_db_models::models::{canvas::canvas_node, generation::workflow_checkpoint};
 use a4n_domain::CanvasNodeRefKind;
+use a4n_domain::canvas::CanvasNodeRecord;
 
 use crate::canvas::{
     incoming_edges, source_node, source_node_output_id, source_text::source_text_value,
@@ -9,9 +9,9 @@ use crate::canvas::{
 use super::contracts::{CanvasOutputDataType, CanvasOutputValue};
 
 pub(crate) fn collect_canvas_output_value(
-    node: &canvas_node::Model,
+    node: &CanvasNodeRecord,
     document: &CanvasGraphRecordDocument,
-    checkpoints: Option<&[workflow_checkpoint::Model]>,
+    checkpoints: Option<&[a4n_db::workflow::WorkflowCheckpointSummary]>,
     data_type: CanvasOutputDataType,
     consumer_label: &str,
     require_video_target_port: bool,

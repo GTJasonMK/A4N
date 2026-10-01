@@ -1,4 +1,4 @@
-use a4n_db_models::models::chapter::part_outline;
+use a4n_domain::chapter::PartOutlineRecord;
 use a4n_domain::source_text_hash as source_content_sha256;
 use a4n_error::AppError;
 use a4n_llm_context::{
@@ -12,7 +12,7 @@ use super::super::super::part_contract::PART_GENERATION_OUTPUT_CONTRACT;
 
 pub(super) fn build_part_outline_context_manifest(
     blueprint_context: &Value,
-    previous_parts: &[part_outline::Model],
+    previous_parts: &[PartOutlineRecord],
     dynamic_user_content: String,
     part_num: i32,
     start_ch: i32,

@@ -8,7 +8,7 @@ use a4n_db::galgame::GalgameAssetPlanningReadModel;
 use a4n_error::AppError;
 use serde_json::Value;
 
-use crate::galgame::{GalgameLine, galgame_line_from_model};
+use crate::galgame::{GalgameLine, galgame_line_from_record};
 use a4n_db::project::ProjectFamilyContext;
 
 use super::contracts::GalgameAssetPlanItemDraft;
@@ -25,7 +25,7 @@ pub(super) fn collect_galgame_asset_plan_drafts(
         .collect::<BTreeMap<_, _>>();
     let mut lines_by_scene = BTreeMap::<i64, Vec<GalgameLine>>::new();
     for line in read_model.lines {
-        let line = galgame_line_from_model(line)?;
+        let line = galgame_line_from_record(line)?;
         lines_by_scene.entry(line.scene_id).or_default().push(line);
     }
 

@@ -1,4 +1,4 @@
-use a4n_db_models::models::chapter::chapter;
+use a4n_domain::chapter::ChapterRecord;
 use a4n_domain::{
     source_spans::{SourceSpan, source_span_prompt_text},
     source_text_hash,
@@ -11,7 +11,7 @@ use crate::chapter_analysis::owner::prompt::chapter_display_title;
 
 pub fn add_chapter_analysis_source_pack(
     ledger: &mut LlmContextLedger,
-    ch: &chapter::Model,
+    ch: &ChapterRecord,
     source_spans: &[SourceSpan],
 ) -> Result<(), AppError> {
     let content_sha256 = source_text_hash(&ch.content);

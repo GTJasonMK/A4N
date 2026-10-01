@@ -260,7 +260,7 @@ async fn update_project_status_record_updates_project_and_history() {
     active.status = Set(ProjectStatus::Writing.as_str().to_string());
     active.raw_blueprint = Set(Some("{\"title\":\"状态项目\"}".to_string()));
     active.total_chapters = Set(Some(12));
-    let project = active.update(&db).await.unwrap();
+    let project = crate::project::project_record_from_model(active.update(&db).await.unwrap());
     let changed_at = test_time(30);
 
     let updated = update_project_status_record(&db, project, ProjectStatus::Draft, changed_at)

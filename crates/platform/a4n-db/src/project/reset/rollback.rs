@@ -83,7 +83,13 @@ pub async fn rollback_project_status_record(
             }
         }
     }
-    let updated = project_db::update_project_status_record_in(&tx, project, to, changed_at).await?;
+    let updated = project_db::update_project_status_record_in(
+        &tx,
+        project_db::project_record_from_model(project),
+        to,
+        changed_at,
+    )
+    .await?;
     project_db::mark_derived_projects_root_updated_in_record(&tx, project_id, None, changed_at)
         .await?;
     crate::media::schedule_unreferenced_media_cleanup(

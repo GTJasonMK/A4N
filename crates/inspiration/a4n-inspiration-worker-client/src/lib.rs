@@ -1,8 +1,6 @@
 //! Typed Host adapter for the inspiration history worker.
 
-use a4n_api_contract::inspiration::{
-    InspirationHistoryInput, InspirationHistoryReadApplicationPort, InspirationMessageSummary,
-};
+use a4n_api_contract::inspiration::InspirationHistoryInput;
 use a4n_error::AppError;
 use a4n_inspiration_worker_contract::{
     INSPIRATION_HISTORY_OPERATION, INSPIRATION_HISTORY_WORKER_ID,
@@ -16,6 +14,8 @@ use a4n_worker_contract::{
 const DEFAULT_WORKER_URL: &str = "http://127.0.0.1:47666";
 const CONTROL_LEASE_FENCE: &str = "control-request";
 const CONTROL_LEASE_EXPIRY: &str = "9999-12-31T23:59:59Z";
+
+mod reads;
 
 #[derive(Clone)]
 pub struct InspirationWorkerClient {
@@ -101,17 +101,6 @@ impl InspirationWorkerClient {
                 "inspiration history worker 返回未完成状态: {status:?}"
             ))),
         }
-    }
-}
-
-#[async_trait::async_trait]
-impl InspirationHistoryReadApplicationPort for InspirationWorkerClient {
-    async fn history(
-        &self,
-        user_id: i64,
-        input: InspirationHistoryInput,
-    ) -> Result<Vec<InspirationMessageSummary>, AppError> {
-        self.command(user_id, input).await
     }
 }
 

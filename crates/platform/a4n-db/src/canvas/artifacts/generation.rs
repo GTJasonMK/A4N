@@ -1,7 +1,8 @@
 use crate::canvas::CanvasDbError;
 use a4n_db_models::models::generation::{generation_spec, prompt_artifact};
 use a4n_domain::canvas::{
-    CanvasPromptArtifactUpsertInput, FreeformCanvasGenerationSpecUpsertInput,
+    CanvasPromptArtifactRecord, CanvasPromptArtifactUpsertInput,
+    FreeformCanvasGenerationSpecUpsertInput,
 };
 use chrono::Utc;
 use sea_orm::{
@@ -13,7 +14,7 @@ const CANVAS_RENDERER_VERSION: &str = "canvas_workflow_v1";
 pub async fn upsert_freeform_canvas_generation_spec_record<C>(
     db: &C,
     input: FreeformCanvasGenerationSpecUpsertInput,
-) -> Result<generation_spec::Model, CanvasDbError>
+) -> Result<i64, CanvasDbError>
 where
     C: ConnectionTrait,
 {
@@ -51,7 +52,7 @@ where
         active.source_version_hash = Set(source_version_hash);
         active.params_json = Set(input.params_json);
         active.updated_at = Set(now);
-        return Ok(active.update(db).await?);
+        return Ok(active.update(db).await?.id);
     }
 
     Ok(generation_spec::ActiveModel {
@@ -73,7 +74,8 @@ where
         ..Default::default()
     }
     .insert(db)
-    .await?)
+    .await?
+    .id)
 }
 
 pub async fn mark_canvas_generation_spec_status_record<C>(
@@ -98,7 +100,7 @@ where
 pub async fn upsert_canvas_prompt_artifact_record<C>(
     db: &C,
     input: CanvasPromptArtifactUpsertInput,
-) -> Result<prompt_artifact::Model, CanvasDbError>
+) -> Result<CanvasPromptArtifactRecord, CanvasDbError>
 where
     C: ConnectionTrait,
 {
@@ -110,7 +112,7 @@ where
         .await?;
     if let Some(existing) = existing {
         if existing.edited_by_user {
-            return Ok(existing);
+            return Ok(canvas_prompt_artifact_record(existing));
         }
         let mut active: prompt_artifact::ActiveModel = existing.into();
         active.prompt_kind = Set(input.prompt_kind);
@@ -118,19 +120,30 @@ where
         active.renderer_version = Set(CANVAS_RENDERER_VERSION.to_string());
         active.edited_by_user = Set(false);
         active.updated_at = Set(now);
-        return Ok(active.update(db).await?);
+        return Ok(canvas_prompt_artifact_record(active.update(db).await?));
     }
 
-    Ok(prompt_artifact::ActiveModel {
-        generation_spec_id: Set(input.generation_spec_id),
-        prompt_kind: Set(input.prompt_kind),
-        prompt_text: Set(input.prompt_text),
-        renderer_version: Set(CANVAS_RENDERER_VERSION.to_string()),
-        edited_by_user: Set(false),
-        created_at: Set(now),
-        updated_at: Set(now),
-        ..Default::default()
+    Ok(canvas_prompt_artifact_record(
+        prompt_artifact::ActiveModel {
+            generation_spec_id: Set(input.generation_spec_id),
+            prompt_kind: Set(input.prompt_kind),
+            prompt_text: Set(input.prompt_text),
+            renderer_version: Set(CANVAS_RENDERER_VERSION.to_string()),
+            edited_by_user: Set(false),
+            created_at: Set(now),
+            updated_at: Set(now),
+            ..Default::default()
+        }
+        .insert(db)
+        .await?,
+    ))
+}
+
+fn canvas_prompt_artifact_record(row: prompt_artifact::Model) -> CanvasPromptArtifactRecord {
+    CanvasPromptArtifactRecord {
+        id: row.id,
+        generation_spec_id: row.generation_spec_id,
+        prompt_kind: row.prompt_kind,
+        prompt_text: row.prompt_text,
     }
-    .insert(db)
-    .await?)
 }

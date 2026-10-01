@@ -1,11 +1,11 @@
-use a4n_db_models::models::project::novel_blueprint;
+use a4n_domain::project::BlueprintRecord;
 use a4n_domain::rag::RagDataType;
 use a4n_rag_core::RagRecord;
 use a4n_rag_core::record_text::{optional_json_text, optional_rag_text, required_rag_text};
 
 use super::super::rag_chunk_id;
 
-fn blueprint_rag_text(blueprint: &novel_blueprint::Model) -> Result<String, String> {
+fn blueprint_rag_text(blueprint: &BlueprintRecord) -> Result<String, String> {
     let title = required_rag_text(
         Some(&blueprint.title),
         format!("蓝图 {} 缺少标题，跳过 RAG 入库", blueprint.id),
@@ -29,7 +29,7 @@ fn blueprint_rag_text(blueprint: &novel_blueprint::Model) -> Result<String, Stri
 
 pub fn blueprint_rag_record(
     project_id: i64,
-    blueprint: &novel_blueprint::Model,
+    blueprint: &BlueprintRecord,
 ) -> Result<RagRecord, String> {
     Ok(RagRecord {
         chunk_id: rag_chunk_id(project_id, RagDataType::Blueprint, blueprint.id),
@@ -40,7 +40,7 @@ pub fn blueprint_rag_record(
     })
 }
 
-fn blueprint_metadata_rag_text(blueprint: &novel_blueprint::Model) -> Result<String, String> {
+fn blueprint_metadata_rag_text(blueprint: &BlueprintRecord) -> Result<String, String> {
     let title = required_rag_text(
         Some(&blueprint.title),
         format!("蓝图元数据 {} 缺少标题，跳过 RAG 入库", blueprint.id),
@@ -67,7 +67,7 @@ fn blueprint_metadata_rag_text(blueprint: &novel_blueprint::Model) -> Result<Str
 
 pub fn blueprint_metadata_rag_record(
     project_id: i64,
-    blueprint: &novel_blueprint::Model,
+    blueprint: &BlueprintRecord,
 ) -> Result<RagRecord, String> {
     Ok(RagRecord {
         chunk_id: rag_chunk_id(project_id, RagDataType::BlueprintMetadata, blueprint.id),

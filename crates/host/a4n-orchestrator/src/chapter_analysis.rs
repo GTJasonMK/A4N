@@ -1,4 +1,4 @@
-use a4n_db_models::models::chapter::chapter;
+use a4n_domain::chapter::ChapterRecord;
 use a4n_error::AppError;
 use a4n_prompt::rendering::PromptRenderer;
 use tokio_util::sync::CancellationToken;
@@ -38,7 +38,7 @@ pub(crate) type ChapterAnalysisProgressReporter<'a> =
     &'a mut (dyn FnMut(u32, u32, &str) -> Result<(), AppError> + Send);
 
 pub(crate) struct ChapterAnalysisInput<'a> {
-    pub chapter: chapter::Model,
+    pub chapter: ChapterRecord,
     pub prompt_renderer: &'a dyn PromptRenderer,
     pub progress: Option<ChapterAnalysisProgressReporter<'a>>,
     /// 活体信号出口：与字段级里程碑取自同一个 token 流。

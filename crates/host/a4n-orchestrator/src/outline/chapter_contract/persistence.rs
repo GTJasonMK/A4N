@@ -1,7 +1,6 @@
 use super::fields::{optional_f32, optional_non_null, optional_positive_i32, required_string};
 use a4n_db::outline::{self as outline_db, OutlineDbError};
-use a4n_db_models::models::chapter::chapter_outline;
-use a4n_domain::chapter::ChapterOutlineSyncDraft;
+use a4n_domain::chapter::{ChapterOutlineRecord, ChapterOutlineSyncDraft};
 use a4n_error::AppError;
 use sea_orm::ConnectionTrait;
 use serde_json::Value;
@@ -40,7 +39,7 @@ pub(in crate::outline) async fn sync_chapter_outlines_by_number_in<C>(
     part_id: Option<i64>,
     chapters: Vec<Value>,
     now: chrono::NaiveDateTime,
-) -> Result<Vec<chapter_outline::Model>, AppError>
+) -> Result<Vec<ChapterOutlineRecord>, AppError>
 where
     C: ConnectionTrait,
 {
@@ -59,7 +58,7 @@ pub(in crate::outline) async fn insert_chapter_outline_from_json<C>(
     part_id: Option<i64>,
     chapter_json: &Value,
     now: chrono::NaiveDateTime,
-) -> Result<chapter_outline::Model, AppError>
+) -> Result<ChapterOutlineRecord, AppError>
 where
     C: ConnectionTrait,
 {
@@ -71,11 +70,11 @@ where
 
 pub(in crate::outline) async fn update_chapter_outline_from_json_in<C>(
     db: &C,
-    existing: chapter_outline::Model,
+    existing: ChapterOutlineRecord,
     part_id: Option<i64>,
     chapter_json: &Value,
     now: chrono::NaiveDateTime,
-) -> Result<chapter_outline::Model, AppError>
+) -> Result<ChapterOutlineRecord, AppError>
 where
     C: ConnectionTrait,
 {

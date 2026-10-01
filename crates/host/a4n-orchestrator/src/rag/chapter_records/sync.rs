@@ -1,4 +1,4 @@
-use a4n_db_models::models::chapter::chapter;
+use a4n_domain::chapter::ChapterRecord;
 
 use crate::{
     OrchestratorContext,
@@ -9,7 +9,7 @@ use a4n_rag_core::ChapterRagChunkingMode;
 impl OrchestratorContext {
     pub async fn sync_chapter_rag_records(
         &self,
-        chapter: &chapter::Model,
+        chapter: &ChapterRecord,
         mode: ChapterRagChunkingMode,
     ) -> Result<usize, String> {
         let records = self.chapter_rag_records(chapter, mode).await?;

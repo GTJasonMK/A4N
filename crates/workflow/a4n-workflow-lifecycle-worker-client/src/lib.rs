@@ -1,17 +1,14 @@
 //! Typed Host adapter for the workflow lifecycle worker.
 
-use a4n_api_contract::workflow::{WorkflowCancellationResult, WorkflowLifecycleApplicationPort};
 use a4n_error::AppError;
 use a4n_worker_client::{HttpWorkerClient, WorkerClientError};
 use a4n_worker_contract::{
     WORKER_SCHEMA_VERSION, WorkerEnvelope, WorkerError, WorkerErrorCode, WorkerLease,
     WorkerOperationStatus, WorkerPrincipal, WorkerPrincipalKind, WorkerResponse,
 };
-use a4n_workflow_lifecycle_worker_contract::{
-    OperationAck, ResumeWorkflowInput, WORKFLOW_LIFECYCLE_CANCEL_OPERATION,
-    WORKFLOW_LIFECYCLE_MARK_RUNNING_OPERATION, WORKFLOW_LIFECYCLE_RESUME_OPERATION,
-    WORKFLOW_LIFECYCLE_WORKER_ID, WorkflowCancellationInput, WorkflowRunIdInput,
-};
+use a4n_workflow_lifecycle_worker_contract::WORKFLOW_LIFECYCLE_WORKER_ID;
+
+mod mutations;
 
 const DEFAULT_WORKER_URL: &str = "http://127.0.0.1:47678";
 const CONTROL_LEASE_FENCE: &str = "control-request";
@@ -102,49 +99,6 @@ impl WorkflowLifecycleWorkerClient {
     }
 }
 
-#[async_trait::async_trait]
-impl WorkflowLifecycleApplicationPort for WorkflowLifecycleWorkerClient {
-    async fn mark_running(&self, workflow_run_id: i64) -> Result<(), AppError> {
-        self.command::<_, OperationAck>(
-            WORKFLOW_LIFECYCLE_MARK_RUNNING_OPERATION,
-            WorkflowRunIdInput { workflow_run_id },
-        )
-        .await
-        .map(|_| ())
-    }
-
-    async fn cancel(
-        &self,
-        workflow_run_id: i64,
-        reason: &str,
-    ) -> Result<WorkflowCancellationResult, AppError> {
-        self.command(
-            WORKFLOW_LIFECYCLE_CANCEL_OPERATION,
-            WorkflowCancellationInput {
-                workflow_run_id,
-                reason: reason.to_string(),
-            },
-        )
-        .await
-    }
-
-    async fn resume_with_active_task(
-        &self,
-        workflow_run_id: i64,
-        active_task_id: &str,
-    ) -> Result<(), AppError> {
-        self.command::<_, OperationAck>(
-            WORKFLOW_LIFECYCLE_RESUME_OPERATION,
-            ResumeWorkflowInput {
-                workflow_run_id,
-                active_task_id: active_task_id.to_string(),
-            },
-        )
-        .await
-        .map(|_| ())
-    }
-}
-
 fn worker_client_error(error: WorkerClientError) -> AppError {
     match error {
         WorkerClientError::Timeout => {
@@ -186,6 +140,7 @@ fn worker_response_error(error: &WorkerError, operation: &str) -> AppError {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use a4n_workflow_lifecycle_worker_contract::WORKFLOW_LIFECYCLE_CANCEL_OPERATION;
 
     #[test]
     fn client_debug_redacts_worker_address_and_token() {

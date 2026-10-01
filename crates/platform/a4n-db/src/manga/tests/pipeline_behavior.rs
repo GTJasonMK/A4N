@@ -11,6 +11,7 @@ use serde_json::json;
 use crate::manga::{
     MangaPipelineDbError, manga_page_prompt_statuses_by_chapter,
     manga_page_prompt_statuses_by_chapters, sync_manga_page_prompts_by_chapter,
+    update_manga_page_prompt_layout,
 };
 
 async fn setup_db() -> DatabaseConnection {
@@ -358,6 +359,35 @@ async fn sync_page_prompts_preserves_rendered_image_when_prompt_unchanged() {
             .to_string()
             .contains("对应版本的改编计划")
     );
+}
+
+#[tokio::test]
+async fn layout_update_preserves_concurrent_image_status() {
+    let db = setup_db().await;
+    let (project_id, chapter_id) = project_and_chapter(&db, "漫画布局更新").await;
+    let (drafts, _) = planned_drafts(&db, project_id, chapter_id).await;
+    let mut rows =
+        sync_manga_page_prompts_by_chapter(&db, project_id, chapter_id, drafts, fixed_time(1))
+            .await
+            .unwrap();
+    let stale = rows.remove(0);
+    let layout = stale.layout.clone().unwrap();
+
+    chapter_manga_prompt::ActiveModel {
+        id: Set(stale.id),
+        generated_image_id: Set(Some(9901)),
+        status: Set("completed".to_string()),
+        ..Default::default()
+    }
+    .update(&db)
+    .await
+    .unwrap();
+
+    let updated = update_manga_page_prompt_layout(&db, stale, layout)
+        .await
+        .unwrap();
+    assert_eq!(updated.generated_image_id, Some(9901));
+    assert_eq!(updated.status, "completed");
 }
 
 #[tokio::test]

@@ -1,4 +1,4 @@
-use a4n_db_models::models::project::blueprint_character;
+use a4n_db::rag::RagBlueprintCharacterRow;
 use a4n_domain::rag::RagDataType;
 use a4n_rag_core::RagRecord;
 use a4n_rag_core::record_text::{
@@ -8,7 +8,7 @@ use a4n_rag_core::record_text::{
 use super::super::rag_chunk_id;
 
 fn blueprint_character_rag_sections(
-    character: &blueprint_character::Model,
+    character: &RagBlueprintCharacterRow,
 ) -> Result<Vec<DimensionRagSection>, String> {
     let name = required_rag_text(
         Some(&character.name),
@@ -108,7 +108,7 @@ fn blueprint_character_rag_sections(
 
 pub fn blueprint_character_rag_records(
     project_id: i64,
-    character: &blueprint_character::Model,
+    character: &RagBlueprintCharacterRow,
 ) -> Result<Vec<RagRecord>, String> {
     let name = required_rag_text(
         Some(&character.name),

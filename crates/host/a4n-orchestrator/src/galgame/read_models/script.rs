@@ -8,6 +8,7 @@ use a4n_db_models::models::{
     galgame::{galgame_choice, galgame_line, galgame_scene},
     media::{media_asset, media_binding},
 };
+use a4n_domain::galgame::GalgameLineRecord;
 use a4n_error::AppError;
 
 use crate::galgame::{
@@ -60,7 +61,7 @@ pub(crate) fn galgame_script_detail_from_read_model(
     } = read_model;
     let scene_ids = scenes.iter().map(|scene| scene.id).collect::<HashSet<_>>();
     let mut line_scene = HashMap::new();
-    let mut lines_by_scene = HashMap::<i64, Vec<galgame_line::Model>>::new();
+    let mut lines_by_scene = HashMap::<i64, Vec<GalgameLineRecord>>::new();
     for line in lines {
         if !scene_ids.contains(&line.scene_id) {
             return Err(invalid_read_model(format!(
@@ -108,7 +109,7 @@ pub(crate) fn galgame_script_detail_from_read_model(
                     .remove(&scene_id)
                     .unwrap_or_default()
                     .into_iter()
-                    .map(galgame_line_from_model)
+                    .map(galgame_line_from_record)
                     .collect::<Result<_, _>>()?,
                 choices: choices_by_scene
                     .remove(&scene_id)
@@ -173,6 +174,22 @@ fn galgame_scene_from_detail_record(
 }
 
 pub(crate) fn galgame_line_from_model(line: galgame_line::Model) -> Result<GalgameLine, AppError> {
+    galgame_line_from_record(GalgameLineRecord {
+        id: line.id,
+        scene_id: line.scene_id,
+        line_index: line.line_index,
+        line_type: line.line_type,
+        speaker_profile_id: line.speaker_profile_id,
+        text: line.text,
+        expression: line.expression,
+        pose: line.pose,
+        position: line.position,
+        presentation_json: line.presentation_json,
+        text_anchor_id: line.text_anchor_id,
+    })
+}
+
+pub(crate) fn galgame_line_from_record(line: GalgameLineRecord) -> Result<GalgameLine, AppError> {
     let line_type = GalgameLineType::parse(&line.line_type).ok_or_else(|| {
         invalid_read_model(format!(
             "Galgame 行 {} line_type 无效: {}",

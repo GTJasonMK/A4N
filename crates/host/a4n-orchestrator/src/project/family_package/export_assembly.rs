@@ -3,8 +3,9 @@
 use std::collections::HashSet;
 
 use a4n_db::project::ProjectFamilyExportRows;
-use a4n_db_models::models::project::{novel_project, project_source_snapshot};
+use a4n_db_models::models::project::project_source_snapshot;
 use a4n_domain::clear_canvas_transfer_runtime_identity;
+use a4n_domain::project::ProjectRecord;
 use chrono::Utc;
 
 use super::{PROJECT_FAMILY_PACKAGE_VERSION, ProjectFamilyPackage};
@@ -12,8 +13,8 @@ use crate::project::{MediaFileEntry, required_path_extension};
 
 /// 校验根项目与派生项目归属同一用户且挂在正确 root 下。
 fn validate_export_same_user(
-    root: &novel_project::Model,
-    derived_projects: &[novel_project::Model],
+    root: &ProjectRecord,
+    derived_projects: &[ProjectRecord],
 ) -> Result<(), String> {
     for project in derived_projects {
         if project.user_id != root.user_id {
@@ -48,8 +49,8 @@ fn validate_export_snapshot_coverage(
 
 /// 组装导出 manifest（`media_files` 由 Host 根据磁盘填充）。
 pub(crate) fn assemble_project_family_export_package(
-    root: novel_project::Model,
-    derived_projects: Vec<novel_project::Model>,
+    root: ProjectRecord,
+    derived_projects: Vec<ProjectRecord>,
     mode: &str,
     mut export_rows: ProjectFamilyExportRows,
     media_files: Vec<MediaFileEntry>,
@@ -185,7 +186,6 @@ pub(crate) fn family_media_package_path(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use a4n_db_models::models::project::novel_project;
     use chrono::NaiveDate;
 
     fn dt() -> chrono::NaiveDateTime {
@@ -195,8 +195,8 @@ mod tests {
             .unwrap()
     }
 
-    fn project(id: i64, user_id: i64, root: Option<i64>) -> novel_project::Model {
-        novel_project::Model {
+    fn project(id: i64, user_id: i64, root: Option<i64>) -> ProjectRecord {
+        ProjectRecord {
             id,
             user_id,
             title: format!("p{id}"),
@@ -224,6 +224,23 @@ mod tests {
             created_at: dt(),
             updated_at: dt(),
         }
+    }
+
+    #[test]
+    fn package_project_keeps_internal_lifecycle_gate_out_of_manifest() {
+        let package = assemble_project_family_export_package(
+            project(1, 7, None),
+            Vec::new(),
+            "project_family",
+            ProjectFamilyExportRows::default(),
+            Vec::new(),
+        )
+        .expect("项目族导出应成功");
+        let manifest = serde_json::to_value(package).expect("项目族包应可序列化");
+
+        assert!(manifest["projects"][0].get("lifecycle_gate").is_none());
+        serde_json::from_value::<ProjectFamilyPackage>(manifest)
+            .expect("不含内部状态的项目族包应可导入");
     }
 
     #[test]

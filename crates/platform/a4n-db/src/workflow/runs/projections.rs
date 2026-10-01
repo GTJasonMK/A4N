@@ -11,7 +11,7 @@ struct PersistedWorkflowProgress {
     updated_at: Option<String>,
 }
 
-pub(in crate::workflow) fn workflow_run_summary(
+pub fn workflow_run_summary(
     run: workflow_run::Model,
 ) -> Result<WorkflowRunSummary, WorkflowReadError> {
     let progress = run
@@ -35,6 +35,7 @@ pub(in crate::workflow) fn workflow_run_summary(
         status: run.status,
         current_step_key: run.current_step_key,
         progress,
+        progress_json: run.progress_json,
         active_task_id: run.active_task_id,
         can_resume: run.can_resume,
         resume_block_reason: run.resume_block_reason,
@@ -45,7 +46,23 @@ pub(in crate::workflow) fn workflow_run_summary(
     })
 }
 
-pub(super) fn workflow_checkpoint_summary(
+pub(super) fn workflow_run_resume_record(run: workflow_run::Model) -> WorkflowRunResumeRecord {
+    WorkflowRunResumeRecord {
+        id: run.id,
+        workflow_kind: run.workflow_kind,
+        project_id: run.project_id,
+        root_project_id: run.root_project_id,
+        chapter_id: run.chapter_id,
+        scope_table: run.scope_table,
+        scope_id: run.scope_id,
+        input_fingerprint_json: run.input_fingerprint_json,
+        status: run.status,
+        can_resume: run.can_resume,
+        resume_block_reason: run.resume_block_reason,
+    }
+}
+
+pub fn workflow_checkpoint_summary(
     checkpoint: workflow_checkpoint::Model,
 ) -> WorkflowCheckpointSummary {
     WorkflowCheckpointSummary {
@@ -170,4 +187,100 @@ pub(super) fn workflow_progress_event_summary(
         meta,
         timestamp: event.created_at.and_utc().to_rfc3339(),
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use a4n_test_support::workflow::WorkflowRunModelBuilder;
+    use chrono::NaiveDate;
+
+    #[test]
+    fn workflow_checkpoint_summary_preserves_persisted_fields() {
+        let created_at = NaiveDate::from_ymd_opt(2026, 1, 1)
+            .unwrap()
+            .and_hms_opt(0, 0, 0)
+            .unwrap();
+        let updated_at = created_at + chrono::Duration::minutes(1);
+        let completed_at = updated_at + chrono::Duration::minutes(1);
+        let checkpoint = workflow_checkpoint::Model {
+            id: 11,
+            workflow_run_id: 12,
+            step_key: "chapter.analysis".to_string(),
+            step_order: 4,
+            status: WORKFLOW_STATUS_COMPLETED.to_string(),
+            input_fingerprint_sha256: Some("fingerprint".to_string()),
+            input_fingerprint_json: Some(json!({"chapter_id": 13})),
+            checkpoint_json: Some(json!({"result": "saved"})),
+            artifacts_json: Some(json!({"profile_ids": [14]})),
+            generation_run_ids_json: Some(json!([15])),
+            error_message: None,
+            created_at,
+            updated_at,
+            completed_at: Some(completed_at),
+        };
+        let summary = workflow_checkpoint_summary(checkpoint.clone());
+
+        assert_eq!(summary.id, checkpoint.id);
+        assert_eq!(summary.workflow_run_id, checkpoint.workflow_run_id);
+        assert_eq!(summary.step_key, checkpoint.step_key);
+        assert_eq!(summary.step_order, checkpoint.step_order);
+        assert_eq!(summary.status, checkpoint.status);
+        assert_eq!(
+            summary.input_fingerprint_sha256,
+            checkpoint.input_fingerprint_sha256
+        );
+        assert_eq!(
+            summary.input_fingerprint_json,
+            checkpoint.input_fingerprint_json
+        );
+        assert_eq!(summary.checkpoint_json, checkpoint.checkpoint_json);
+        assert_eq!(summary.artifacts_json, checkpoint.artifacts_json);
+        assert_eq!(
+            summary.generation_run_ids_json,
+            checkpoint.generation_run_ids_json
+        );
+        assert_eq!(summary.error_message, checkpoint.error_message);
+        assert_eq!(summary.created_at, created_at.and_utc().to_rfc3339());
+        assert_eq!(summary.updated_at, updated_at.and_utc().to_rfc3339());
+        assert_eq!(
+            summary.completed_at,
+            Some(completed_at.and_utc().to_rfc3339())
+        );
+    }
+
+    #[test]
+    fn workflow_resume_record_does_not_parse_recovery_snapshot() {
+        let created_at = NaiveDate::from_ymd_opt(2026, 1, 1)
+            .unwrap()
+            .and_hms_opt(0, 0, 0)
+            .unwrap();
+        let run = WorkflowRunModelBuilder::new(
+            17,
+            "chapter:12",
+            "chapter_analysis",
+            WORKFLOW_STATUS_INTERRUPTED,
+            created_at,
+        )
+        .with_project_scope(Some(10), Some(9))
+        .with_scope("chapter", 12)
+        .with_chapter_id(12)
+        .with_input_fingerprint(json!({"source": 1}))
+        .with_progress(json!({"snapshot": null}))
+        .with_resumability(true, None)
+        .build();
+        let resume = workflow_run_resume_record(run);
+
+        assert_eq!(resume.id, 17);
+        assert_eq!(resume.workflow_kind, "chapter_analysis");
+        assert_eq!(resume.project_id, Some(10));
+        assert_eq!(resume.root_project_id, Some(9));
+        assert_eq!(resume.chapter_id, Some(12));
+        assert_eq!(resume.scope_table.as_deref(), Some("chapter"));
+        assert_eq!(resume.scope_id, Some(12));
+        assert_eq!(resume.input_fingerprint_json, Some(json!({"source": 1})));
+        assert_eq!(resume.status, WORKFLOW_STATUS_INTERRUPTED);
+        assert!(resume.can_resume);
+        assert_eq!(resume.resume_block_reason, None);
+    }
 }

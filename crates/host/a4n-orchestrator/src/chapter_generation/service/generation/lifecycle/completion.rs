@@ -1,7 +1,7 @@
 mod trace;
 
 use a4n_db::chapter_content::GeneratedChapterContentRecordInput;
-use a4n_db_models::models::chapter::{chapter, chapter_outline};
+use a4n_domain::chapter::{ChapterOutlineRecord, ChapterRecord};
 use a4n_error::AppError;
 use a4n_llm_provider_contract::provider::ChatRequest;
 use chrono::Utc;
@@ -23,11 +23,11 @@ impl ChapterGenerationService {
         &self,
         session: &ChapterGenerationSession,
         content: &str,
-        source_outline: Option<chapter_outline::Model>,
+        source_outline: Option<ChapterOutlineRecord>,
         chapter_outline: &str,
         generation_trace: Option<ChapterGenerationTrace>,
         db: &DatabaseTransaction,
-    ) -> Result<chapter::Model, AppError> {
+    ) -> Result<ChapterRecord, AppError> {
         let validated =
             self.validate_generated_chapter_for_checkpoint(session, content, chapter_outline)?;
         let word_count =

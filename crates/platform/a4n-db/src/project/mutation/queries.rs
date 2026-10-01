@@ -1,5 +1,7 @@
 use super::contracts::ProjectMutationError;
+use crate::project::project_record_from_model;
 use a4n_db_models::models::project::novel_project;
+use a4n_domain::project::{ProjectRecord, ProjectSummaryRecord};
 use sea_orm::{
     ConnectionTrait, DatabaseConnection, DbBackend, DbErr, EntityTrait, FromQueryResult,
     QuerySelect,
@@ -27,8 +29,8 @@ struct ProjectSummaryRow {
 }
 
 impl ProjectSummaryRow {
-    fn into_model(self) -> novel_project::Model {
-        novel_project::Model {
+    fn into_record(self) -> ProjectSummaryRecord {
+        ProjectSummaryRecord {
             id: self.id,
             user_id: self.user_id,
             title: self.title,
@@ -44,11 +46,6 @@ impl ProjectSummaryRow {
             current_chapter: self.current_chapter,
             total_chapters: self.total_chapters,
             chapters_per_part: self.chapters_per_part,
-            avatar_svg: None,
-            avatar_animal: None,
-            raw_blueprint: None,
-            import_analysis_progress: None,
-            export_config: None,
             created_at: self.created_at,
             updated_at: self.updated_at,
         }
@@ -63,20 +60,21 @@ pub(crate) struct ProjectWriteIdentity {
 pub async fn project_by_id_record<C>(
     db: &C,
     project_id: i64,
-) -> Result<Option<novel_project::Model>, ProjectMutationError>
+) -> Result<Option<ProjectRecord>, ProjectMutationError>
 where
     C: ConnectionTrait,
 {
     novel_project::Entity::find_by_id(project_id)
         .one(db)
         .await
+        .map(|row| row.map(project_record_from_model))
         .map_err(ProjectMutationError::Database)
 }
 
 pub async fn project_summary_by_id_record<C>(
     db: &C,
     project_id: i64,
-) -> Result<Option<novel_project::Model>, ProjectMutationError>
+) -> Result<Option<ProjectSummaryRecord>, ProjectMutationError>
 where
     C: ConnectionTrait,
 {
@@ -102,7 +100,7 @@ where
         .into_model::<ProjectSummaryRow>()
         .one(db)
         .await
-        .map(|row| row.map(ProjectSummaryRow::into_model))
+        .map(|row| row.map(ProjectSummaryRow::into_record))
         .map_err(ProjectMutationError::Database)
 }
 
@@ -154,7 +152,7 @@ mod tests {
     #[test]
     fn summary_row_preserves_contract_fields_without_large_payloads() {
         let now = Utc::now().naive_utc();
-        let model = ProjectSummaryRow {
+        let record = ProjectSummaryRow {
             id: 7,
             user_id: 3,
             title: "项目".to_string(),
@@ -173,14 +171,10 @@ mod tests {
             created_at: now,
             updated_at: now,
         }
-        .into_model();
+        .into_record();
 
-        assert_eq!(model.id, 7);
-        assert_eq!(model.title, "项目");
-        assert_eq!(model.current_chapter, 2);
-        assert!(model.avatar_svg.is_none());
-        assert!(model.raw_blueprint.is_none());
-        assert!(model.import_analysis_progress.is_none());
-        assert!(model.export_config.is_none());
+        assert_eq!(record.id, 7);
+        assert_eq!(record.title, "项目");
+        assert_eq!(record.current_chapter, 2);
     }
 }

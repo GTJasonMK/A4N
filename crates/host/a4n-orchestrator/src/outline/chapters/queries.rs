@@ -1,13 +1,13 @@
 use a4n_db::project as project_db;
-use a4n_db_models::models::chapter::chapter_outline;
+use a4n_domain::chapter::ChapterOutlineRecord;
 use a4n_error::AppError;
 
 use crate::outline::OrchestratorContext;
 
 pub(super) fn existing_chapter_outline_for_number(
-    outlines: &[chapter_outline::Model],
+    outlines: &[ChapterOutlineRecord],
     chapter_number: i32,
-) -> Result<Option<chapter_outline::Model>, AppError> {
+) -> Result<Option<ChapterOutlineRecord>, AppError> {
     let mut matches = outlines
         .iter()
         .filter(|outline| outline.chapter_number == chapter_number);
@@ -66,9 +66,9 @@ mod tests {
     use super::*;
     use chrono::Utc;
 
-    fn outline(id: i64, chapter_number: i32) -> chapter_outline::Model {
+    fn outline(id: i64, chapter_number: i32) -> ChapterOutlineRecord {
         let now = Utc::now().naive_utc();
-        chapter_outline::Model {
+        ChapterOutlineRecord {
             id,
             project_id: 1,
             part_id: None,
@@ -82,7 +82,7 @@ mod tests {
             foreshadowing_payoff: None,
             characters_involved: None,
             word_count_target: None,
-            status: chapter_outline::STATUS_DRAFT.to_string(),
+            status: a4n_domain::chapter::chapter_outline_status::STATUS_DRAFT.to_string(),
             created_at: now,
             updated_at: now,
         }

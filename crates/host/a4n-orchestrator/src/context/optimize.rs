@@ -7,9 +7,9 @@ use a4n_db::DbHandle;
 use a4n_db::optimize::OptimizationSessionMessageInsertInput;
 use a4n_db_models::models::ai::{
     optimization_patch, optimization_patch_set, optimization_session, optimization_session_message,
-    optimization_turn, optimization_turn_event,
 };
-use a4n_db_models::models::chapter::chapter;
+use a4n_domain::chapter::ChapterRecord;
+use a4n_domain::project::{OptimizationTurnEventRecord, OptimizationTurnRecord};
 use a4n_error::AppError;
 use sea_orm::TransactionTrait;
 use std::collections::HashMap;
@@ -87,7 +87,7 @@ impl OptimizeApplication {
     async fn optimization_chapter_by_id(
         &self,
         chapter_id: i64,
-    ) -> Result<Option<chapter::Model>, AppError> {
+    ) -> Result<Option<ChapterRecord>, AppError> {
         a4n_db::optimize::optimization_chapter_by_id(self.database.connection(), chapter_id)
             .await
             .map_err(optimize_db_error)
@@ -117,7 +117,7 @@ impl OptimizeApplication {
     async fn optimization_turns(
         &self,
         session_id: i64,
-    ) -> Result<Vec<optimization_turn::Model>, AppError> {
+    ) -> Result<Vec<OptimizationTurnRecord>, AppError> {
         a4n_db::optimize::optimization_turns(self.database.connection(), session_id)
             .await
             .map_err(optimize_db_error)
@@ -126,7 +126,7 @@ impl OptimizeApplication {
     async fn optimization_turn_events_for_turns(
         &self,
         turn_ids: &[i64],
-    ) -> Result<Vec<optimization_turn_event::Model>, AppError> {
+    ) -> Result<Vec<OptimizationTurnEventRecord>, AppError> {
         a4n_db::optimize::optimization_turn_events_for_turns(self.database.connection(), turn_ids)
             .await
             .map_err(optimize_db_error)
@@ -162,14 +162,14 @@ impl OrchestratorContext {
     pub(crate) async fn optimization_chapter_by_id(
         &self,
         chapter_id: i64,
-    ) -> Result<Option<chapter::Model>, AppError> {
+    ) -> Result<Option<ChapterRecord>, AppError> {
         self.optimize.optimization_chapter_by_id(chapter_id).await
     }
 
     pub(crate) async fn optimization_turns(
         &self,
         session_id: i64,
-    ) -> Result<Vec<optimization_turn::Model>, AppError> {
+    ) -> Result<Vec<OptimizationTurnRecord>, AppError> {
         self.optimize.optimization_turns(session_id).await
     }
 
@@ -299,13 +299,7 @@ impl OrchestratorContext {
         &self,
         user_id: i64,
         session_id: i64,
-    ) -> Result<
-        Vec<(
-            optimization_turn::Model,
-            Vec<optimization_turn_event::Model>,
-        )>,
-        AppError,
-    > {
+    ) -> Result<Vec<(OptimizationTurnRecord, Vec<OptimizationTurnEventRecord>)>, AppError> {
         self.optimize_session_for_user(user_id, session_id).await?;
         let turns = self.optimize.optimization_turns(session_id).await?;
         let turn_ids = turns.iter().map(|turn| turn.id).collect::<Vec<_>>();
@@ -313,7 +307,7 @@ impl OrchestratorContext {
             .optimize
             .optimization_turn_events_for_turns(&turn_ids)
             .await?;
-        let mut events_by_turn = HashMap::<i64, Vec<optimization_turn_event::Model>>::new();
+        let mut events_by_turn = HashMap::<i64, Vec<OptimizationTurnEventRecord>>::new();
         for event in events {
             events_by_turn.entry(event.turn_id).or_default().push(event);
         }
@@ -434,7 +428,7 @@ impl OrchestratorContext {
         operation: &str,
         deleted_message: &str,
         empty_content_message: Option<&str>,
-    ) -> Result<chapter::Model, AppError> {
+    ) -> Result<ChapterRecord, AppError> {
         let chapter = self
             .optimization_chapter_by_id(session.chapter_id)
             .await?

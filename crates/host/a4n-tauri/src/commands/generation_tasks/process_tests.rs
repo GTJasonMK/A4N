@@ -7,7 +7,8 @@ use a4n_api_contract::{
     image_generation::{ImageGenerationOperation, StartImageGenerationInput},
 };
 use a4n_config::app_config::AppConfig;
-use a4n_db_models::models::{ai::generated_image, user::role::ROLE_USER};
+use a4n_db_models::models::ai::generated_image;
+use a4n_domain::auth::ROLE_USER;
 use a4n_runtime::{RuntimeProfile, RuntimeRole};
 use a4n_service_protocol::{GenerationEvent, GenerationTaskStatus};
 use a4n_storage::paths::AppPaths;

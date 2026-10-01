@@ -43,26 +43,5 @@ pub mod text_anchor;
 pub mod video;
 pub mod workflow;
 
-use std::sync::Arc;
-
 pub type DatabaseConnection = sea_orm::DatabaseConnection;
-pub type SharedDatabaseConnection = Arc<DatabaseConnection>;
-
-#[derive(Clone)]
-pub struct DbHandle {
-    connection: SharedDatabaseConnection,
-}
-
-impl DbHandle {
-    pub fn new(connection: SharedDatabaseConnection) -> Self {
-        Self { connection }
-    }
-
-    pub fn connection(&self) -> &DatabaseConnection {
-        self.connection.as_ref()
-    }
-
-    pub fn shared_connection(&self) -> SharedDatabaseConnection {
-        Arc::clone(&self.connection)
-    }
-}
+pub use a4n_db_session::{DbHandle, DbTransaction, SharedDatabaseConnection};

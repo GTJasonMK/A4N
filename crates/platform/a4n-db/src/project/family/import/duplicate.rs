@@ -47,7 +47,7 @@ pub(crate) async fn copy_derived_media_rows<Copier: ProjectMediaFileCopier + ?Si
     let mut package = ProjectFamilyImportPackage {
         canvas_projects: Vec::new(),
         root_project_id: root_id,
-        projects: vec![original.clone()],
+        projects: vec![crate::project::project_record_from_model(original.clone())],
         text_core: rows.text_core,
         source_snapshots: rows.source_snapshots,
         source_snapshot_chapters: rows.source_snapshot_chapters,

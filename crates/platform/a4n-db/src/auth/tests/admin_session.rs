@@ -1,8 +1,8 @@
 use crate::auth::{
     bootstrap_first_admin, change_password, create_session, create_user, current_user,
     current_user_summary, disable_user, list_sessions, list_users, login_user, login_with_oauth2,
-    register_user, rotate_session_refresh_token, update_profile, update_user_role, user_by_id,
-    verify_session_refresh_token,
+    register_user, rotate_session_refresh_token, update_profile, update_user_role,
+    user_authorization_by_id, user_by_id, user_summary_by_id, verify_session_refresh_token,
 };
 use a4n_error::AppError;
 
@@ -74,6 +74,46 @@ async fn list_users_returns_ordered_summaries() {
         chrono::DateTime::parse_from_rfc3339(users[0].created_at.as_deref().expect("created_at"))
             .expect("public timestamps must identify their timezone");
     assert_eq!(created_at.naive_utc(), first.created_at);
+}
+
+#[tokio::test]
+async fn disabled_user_has_admin_summary_but_no_active_session_summary() {
+    let db = setup().await;
+    let user = create_user(
+        db.as_ref(),
+        "disabled",
+        "disabled@example.com",
+        "pw",
+        "user",
+    )
+    .await
+    .unwrap();
+    deactivate_user(&db, user.id).await;
+
+    let authorization = user_authorization_by_id(db.as_ref(), user.id)
+        .await
+        .unwrap();
+    assert_eq!(authorization.id, user.id);
+    assert_eq!(authorization.role, "user");
+    assert!(!authorization.is_active);
+    assert!(
+        !user_summary_by_id(db.as_ref(), user.id)
+            .await
+            .unwrap()
+            .is_active
+    );
+    assert!(matches!(
+        current_user_summary(db.as_ref(), user.id).await,
+        Err(AppError::Unauthorized(_))
+    ));
+
+    update_user_role(db.as_ref(), user.id, "read_only")
+        .await
+        .unwrap();
+    assert_eq!(
+        user_summary_by_id(db.as_ref(), user.id).await.unwrap().role,
+        "read_only"
+    );
 }
 
 #[tokio::test]

@@ -146,7 +146,7 @@ async fn video_studio_import_batches_canvas_reference_fixups() {
         maps.node_ids.insert(old_node_id, target_nodes[index].id);
         maps.image_ids.insert(old_image_id, target_images[index].id);
         maps.video_ids.insert(old_video_id, target_videos[index].id);
-        canvas_nodes.push(canvas_node::Model {
+        canvas_nodes.push(a4n_domain::canvas::CanvasNodeRecord {
             id: old_node_id,
             graph_id: 40_000,
             node_kind: "LlmTextNode".to_string(),
@@ -191,7 +191,7 @@ async fn video_studio_import_batches_canvas_reference_fixups() {
         generated_videos.push(video);
     }
     let rows = VideoStudioProjectImportRows {
-        project: project.clone(),
+        project: crate::project::project_record_from_model(project.clone()),
         canvas_graphs: Vec::new(),
         canvas_nodes,
         canvas_edges: Vec::new(),
@@ -598,7 +598,7 @@ async fn video_studio_import_batches_canvas_text_assets_and_preserves_mapping_or
     .unwrap();
     let now = Utc::now().naive_utc();
     let assets = (0..20)
-        .map(|index| canvas_text_asset::Model {
+        .map(|index| a4n_domain::canvas::CanvasTextAssetRecord {
             id: 10_000 + index,
             project_id: 99,
             title: format!("文本 {index}"),
@@ -644,7 +644,7 @@ async fn video_studio_import_batches_canvas_topology_and_builds_id_maps() {
     .unwrap();
     let now = Utc::now().naive_utc();
     let canvas_graphs = (0..20)
-        .map(|index| canvas_graph::Model {
+        .map(|index| a4n_domain::canvas::CanvasGraphRecord {
             id: 20_000 + index,
             project_id: 99,
             name: format!("图 {index}"),
@@ -656,7 +656,7 @@ async fn video_studio_import_batches_canvas_topology_and_builds_id_maps() {
         })
         .collect::<Vec<_>>();
     let canvas_nodes = (0..20)
-        .map(|index| canvas_node::Model {
+        .map(|index| a4n_domain::canvas::CanvasNodeRecord {
             id: 30_000 + index,
             graph_id: 20_000 + index,
             node_kind: "text_input".to_string(),
@@ -670,7 +670,7 @@ async fn video_studio_import_batches_canvas_topology_and_builds_id_maps() {
         })
         .collect::<Vec<_>>();
     let canvas_edges = (1..20)
-        .map(|index| canvas_edge::Model {
+        .map(|index| a4n_domain::canvas::CanvasEdgeRecord {
             id: 40_000 + index,
             graph_id: 20_000 + index - 1,
             source_node_id: 30_000 + index - 1,
@@ -682,7 +682,7 @@ async fn video_studio_import_batches_canvas_topology_and_builds_id_maps() {
         })
         .collect::<Vec<_>>();
     let rows = VideoStudioProjectImportRows {
-        project: project.clone(),
+        project: crate::project::project_record_from_model(project.clone()),
         canvas_graphs,
         canvas_nodes,
         canvas_edges,
@@ -981,7 +981,7 @@ async fn video_studio_import_batches_assembly_timelines_and_clips() {
         source_segment_id: None,
     };
     let rows = VideoStudioProjectImportRows {
-        project: project.clone(),
+        project: crate::project::project_record_from_model(project.clone()),
         canvas_graphs: Vec::new(),
         canvas_nodes: Vec::new(),
         canvas_edges: Vec::new(),

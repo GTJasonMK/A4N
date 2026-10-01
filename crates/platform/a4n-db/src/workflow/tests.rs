@@ -97,6 +97,33 @@ fn validates_completed_llm_call_checkpoint_contract() {
 }
 
 #[test]
+fn completed_llm_call_checkpoint_fields_keep_payload_and_missing_json_error() {
+    let checkpoint_json = serde_json::json!({
+        "parsed_output": {"value": 1},
+        "response_content": "{\"value\":1}",
+        "usage": null,
+        "finish_reason": "stop",
+    });
+    let artifacts_json = serde_json::json!({"receipt": 7});
+    let checkpoint = completed_llm_call_checkpoint_from_fields(
+        Some(&checkpoint_json),
+        Some(&artifacts_json),
+        "test.call",
+    )
+    .expect("completed checkpoint fields should parse");
+    assert_eq!(checkpoint.parsed_output, serde_json::json!({"value": 1}));
+    assert_eq!(checkpoint.artifacts_json, Some(artifacts_json));
+
+    let error = completed_llm_call_checkpoint_from_fields(None, None, "test.call")
+        .expect_err("missing checkpoint JSON must fail");
+    assert!(matches!(
+        error,
+        WorkflowCheckpointContractError::Invalid(message)
+            if message.contains("test.call") && message.contains("checkpoint_json")
+    ));
+}
+
+#[test]
 fn completed_call_checkpoint_rejects_unsuccessful_finish_reason() {
     for reason in [Some(""), Some("content_filter"), Some("unexpected")] {
         let checkpoint = serde_json::json!({
@@ -330,11 +357,18 @@ fn workflow_run_summary_accepts_snapshot_with_or_without_progress() {
             WORKFLOW_STATUS_INTERRUPTED,
             test_timestamp(),
         )
-        .with_progress(value)
+        .with_progress(value.clone())
         .build();
         let summary = workflow_run_summary(run).expect("durable snapshot must not block reads");
         assert_eq!(summary.id, 51);
         assert_eq!(summary.progress.is_some(), with_progress);
+        assert_eq!(summary.progress_json.as_ref(), Some(&value));
+        assert!(
+            serde_json::to_value(&summary)
+                .unwrap()
+                .get("progress_json")
+                .is_none()
+        );
         if let Some(progress) = summary.progress {
             assert_eq!(progress.current, 1);
             assert_eq!(progress.total, 4);
@@ -386,6 +420,39 @@ fn workflow_run_summary_keeps_input_fingerprint() {
     let summary = workflow_run_summary(run).expect("workflow run should project");
 
     assert_eq!(summary.input_fingerprint_json, Some(fingerprint));
+}
+
+#[test]
+fn workflow_checkpoint_summary_keeps_sync_inputs_and_artifacts() {
+    let now = test_timestamp();
+    let summary = workflow_checkpoint_summary_from_model(workflow_checkpoint::Model {
+        id: 11,
+        workflow_run_id: 12,
+        step_key: "chapter_content_sync.cleanup_plan".to_string(),
+        step_order: 10,
+        status: WORKFLOW_STATUS_COMPLETED.to_string(),
+        input_fingerprint_sha256: None,
+        input_fingerprint_json: Some(json!({"source_fingerprint": {"chapter_id": 13}})),
+        checkpoint_json: Some(json!({"schema_version": 1, "chapter_id": 13})),
+        artifacts_json: Some(json!({"stale_attribute_event_ids": [14]})),
+        generation_run_ids_json: None,
+        error_message: None,
+        created_at: now,
+        updated_at: now,
+        completed_at: Some(now),
+    });
+
+    assert_eq!(summary.workflow_run_id, 12);
+    assert_eq!(summary.status, WORKFLOW_STATUS_COMPLETED);
+    assert_eq!(
+        summary.input_fingerprint_json.unwrap()["source_fingerprint"]["chapter_id"],
+        13
+    );
+    assert_eq!(summary.checkpoint_json.unwrap()["chapter_id"], 13);
+    assert_eq!(
+        summary.artifacts_json.unwrap()["stale_attribute_event_ids"],
+        json!([14])
+    );
 }
 
 #[test]

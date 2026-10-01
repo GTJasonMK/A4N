@@ -1,10 +1,12 @@
 use a4n_db_models::models::chapter::chapter_outline;
+use a4n_domain::chapter::ChapterOutlineRecord;
 use chrono::NaiveDateTime;
 use sea_orm::sea_query::{CaseStatement, Expr};
 use sea_orm::{
     ColumnTrait, ConnectionTrait, DatabaseConnection, EntityTrait, QueryFilter, TransactionTrait,
 };
 
+use super::super::record_mapping::chapter_outline_record_from_model;
 use super::super::types::OutlineDbError;
 use super::records::chapter_outline_active_model;
 use super::rules::index_chapter_outlines_by_number;
@@ -17,7 +19,7 @@ pub async fn sync_chapter_outline_records_by_number_transaction(
     part_id: Option<i64>,
     drafts: Vec<ChapterOutlineSyncDraft>,
     now: NaiveDateTime,
-) -> Result<Vec<chapter_outline::Model>, OutlineDbError> {
+) -> Result<Vec<ChapterOutlineRecord>, OutlineDbError> {
     let txn = db.begin().await?;
     super::super::lock_outline_project_for_write(&txn, project_id, "同步章节大纲").await?;
     let outlines =
@@ -36,7 +38,7 @@ pub async fn sync_chapter_outline_records_by_number<C>(
     part_id: Option<i64>,
     drafts: Vec<ChapterOutlineSyncDraft>,
     now: NaiveDateTime,
-) -> Result<Vec<chapter_outline::Model>, OutlineDbError>
+) -> Result<Vec<ChapterOutlineRecord>, OutlineDbError>
 where
     C: ConnectionTrait,
 {
@@ -276,5 +278,6 @@ where
                 operation: "同步章节大纲".to_string(),
             })
         })
+        .map(|result| result.map(chapter_outline_record_from_model))
         .collect()
 }

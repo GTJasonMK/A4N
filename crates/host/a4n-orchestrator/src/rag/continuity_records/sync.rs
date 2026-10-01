@@ -1,8 +1,10 @@
-use a4n_db_models::models::character::{attribute_event, foreshadowing_index};
+use a4n_db::rag::RagForeshadowingRow;
+use a4n_db_models::models::character::attribute_event;
 use a4n_rag_core::RagRecord;
 
 use super::{
-    attributes::character_attribute_event_rag_record, foreshadowing::foreshadowing_rag_record,
+    attributes::character_attribute_event_rag_record,
+    foreshadowing::foreshadowing_rag_record_from_row,
 };
 use crate::{OrchestratorContext, rag::RagSyncContext};
 
@@ -20,9 +22,9 @@ impl OrchestratorContext {
     pub async fn sync_foreshadowing_rag(
         &self,
         project_id: i64,
-        item: &foreshadowing_index::Model,
+        item: &RagForeshadowingRow,
     ) -> Result<(), String> {
-        let record = foreshadowing_rag_record(project_id, item)?;
+        let record = foreshadowing_rag_record_from_row(project_id, item)?;
         self.sync_single_rag_record(project_id, record).await
     }
 
@@ -51,7 +53,7 @@ impl OrchestratorContext {
         }
         let records = items
             .iter()
-            .map(|item| foreshadowing_rag_record(project_id, item))
+            .map(|item| foreshadowing_rag_record_from_row(project_id, item))
             .collect::<Result<Vec<_>, _>>()?;
         let ids = records
             .iter()

@@ -1,3 +1,4 @@
+use a4n_db::rag::RagAttributeEventRow;
 use a4n_db_models::models::character::attribute_event;
 use a4n_domain::rag::RagDataType;
 use a4n_rag_core::RagRecord;
@@ -6,7 +7,7 @@ use a4n_rag_core::record_text::{optional_json_text, optional_rag_text, required_
 use crate::rag::character_attribute_event_rag_chunk_id;
 
 pub(super) fn character_attribute_event_rag_text(
-    event: &attribute_event::Model,
+    event: &RagAttributeEventRow,
     name: &str,
 ) -> Result<String, String> {
     let name = required_rag_text(
@@ -54,6 +55,18 @@ pub(super) fn character_attribute_event_rag_text(
 pub fn character_attribute_event_rag_record(
     project_id: i64,
     event: &attribute_event::Model,
+    name: &str,
+) -> Result<RagRecord, String> {
+    character_attribute_event_rag_record_from_row(
+        project_id,
+        &RagAttributeEventRow::from(event),
+        name,
+    )
+}
+
+pub fn character_attribute_event_rag_record_from_row(
+    project_id: i64,
+    event: &RagAttributeEventRow,
     name: &str,
 ) -> Result<RagRecord, String> {
     let name = required_rag_text(

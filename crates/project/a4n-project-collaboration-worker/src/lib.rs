@@ -28,7 +28,6 @@ use axum::{
     response::{IntoResponse, Response},
     routing::{get, post},
 };
-use sea_orm::{ConnectOptions, ConnectionTrait, Database, DatabaseConnection, Statement};
 use subtle::ConstantTimeEq;
 
 const WORKER_ADDR_ENV: &str = "A4N_PROJECT_COLLABORATION_WORKER_ADDR";
@@ -55,15 +54,18 @@ struct WorkerFailure {
     retryable: bool,
 }
 
+mod mutations;
+mod reads;
+
 impl ProjectCollaborationWorker {
     pub fn new(
-        database: DatabaseConnection,
+        database: DbHandle,
         worker_id: impl Into<String>,
         auth_token: impl Into<String>,
     ) -> Self {
         Self {
             state: WorkerState {
-                database: DbHandle::new(Arc::new(database)),
+                database,
                 worker_id: Arc::<str>::from(worker_id.into()),
                 auth_token: Arc::<str>::from(auth_token.into()),
             },
@@ -139,12 +141,7 @@ async fn async_main() -> anyhow::Result<()> {
     a4n_config::validate_postgres_database_url(DATABASE_URL_ENV, &database_url)?;
     let auth_token = a4n_config::required_non_empty_env_string(WORKER_TOKEN_ENV)?;
     let address = worker_addr()?;
-    let mut options = ConnectOptions::new(database_url);
-    options
-        .max_connections(8)
-        .min_connections(1)
-        .connect_timeout(std::time::Duration::from_secs(5));
-    let database = Database::connect(options).await?;
+    let database = DbHandle::connect(database_url).await?;
     ProjectCollaborationWorker::new(database, PROJECT_COLLABORATION_WORKER_ID, auth_token)
         .serve(address)
         .await
@@ -165,16 +162,8 @@ async fn health(State(state): State<WorkerState>, headers: HeaderMap) -> Respons
     if !state.authorized(&headers) {
         return unauthorized();
     }
-    let status = match state
-        .database
-        .connection()
-        .execute(Statement::from_string(
-            sea_orm::DatabaseBackend::Postgres,
-            "SELECT 1",
-        ))
-        .await
-    {
-        Ok(_) => WorkerHealthStatus::Healthy,
+    let status = match state.database.ping().await {
+        Ok(()) => WorkerHealthStatus::Healthy,
         Err(_) => WorkerHealthStatus::Degraded,
     };
     Json(WorkerHealth {
@@ -335,189 +324,6 @@ where
 }
 
 impl WorkerState {
-    async fn list_members(
-        &self,
-        request: WorkerEnvelope<ProjectInput>,
-    ) -> Result<Vec<ProjectMemberSummary>, WorkerFailure> {
-        let project_id = project_request(
-            &request,
-            PROJECT_COLLABORATION_LIST_MEMBERS_OPERATION,
-            request.payload.project_id,
-        )?;
-        let user_id = user_id(&request)?;
-        a4n_db::collaboration::list_project_members(self.database.connection(), user_id, project_id)
-            .await
-            .map_err(collaboration_error)
-    }
-
-    async fn invite_member(
-        &self,
-        request: WorkerEnvelope<InviteMemberInput>,
-    ) -> Result<ProjectCollaborationAck, WorkerFailure> {
-        let project_id = project_request(
-            &request,
-            PROJECT_COLLABORATION_INVITE_MEMBER_OPERATION,
-            request.payload.project_id,
-        )?;
-        if request.payload.username_or_email.trim().is_empty() {
-            return Err(WorkerFailure::invalid_request("username_or_email 不能为空"));
-        }
-        let user_id = user_id(&request)?;
-        a4n_db::collaboration::invite_project_member(
-            self.database.connection(),
-            user_id,
-            project_id,
-            &request.payload.username_or_email,
-            request.payload.role,
-        )
-        .await
-        .map_err(collaboration_error)?;
-        Ok(ProjectCollaborationAck {})
-    }
-
-    async fn list_invites(
-        &self,
-        request: WorkerEnvelope<ProjectInput>,
-    ) -> Result<Vec<ProjectInviteSummary>, WorkerFailure> {
-        let project_id = project_request(
-            &request,
-            PROJECT_COLLABORATION_LIST_INVITES_OPERATION,
-            request.payload.project_id,
-        )?;
-        let user_id = user_id(&request)?;
-        a4n_db::collaboration::list_project_invites(self.database.connection(), user_id, project_id)
-            .await
-            .map_err(collaboration_error)
-    }
-
-    async fn list_my_invites(
-        &self,
-        request: WorkerEnvelope<EmptyInput>,
-    ) -> Result<Vec<ProjectInviteSummary>, WorkerFailure> {
-        unscoped_request(&request, PROJECT_COLLABORATION_LIST_MY_INVITES_OPERATION)?;
-        a4n_db::collaboration::list_my_project_invites(
-            self.database.connection(),
-            user_id(&request)?,
-        )
-        .await
-        .map_err(collaboration_error)
-    }
-
-    async fn accept_invite(
-        &self,
-        request: WorkerEnvelope<InviteInput>,
-    ) -> Result<ProjectCollaborationAck, WorkerFailure> {
-        unscoped_request(&request, PROJECT_COLLABORATION_ACCEPT_INVITE_OPERATION)?;
-        positive_id("invite_id", request.payload.invite_id)?;
-        a4n_db::collaboration::accept_project_invite(
-            self.database.connection(),
-            user_id(&request)?,
-            request.payload.invite_id,
-        )
-        .await
-        .map_err(collaboration_error)?;
-        Ok(ProjectCollaborationAck {})
-    }
-
-    async fn decline_invite(
-        &self,
-        request: WorkerEnvelope<InviteInput>,
-    ) -> Result<ProjectCollaborationAck, WorkerFailure> {
-        unscoped_request(&request, PROJECT_COLLABORATION_DECLINE_INVITE_OPERATION)?;
-        positive_id("invite_id", request.payload.invite_id)?;
-        a4n_db::collaboration::decline_project_invite(
-            self.database.connection(),
-            user_id(&request)?,
-            request.payload.invite_id,
-        )
-        .await
-        .map_err(collaboration_error)?;
-        Ok(ProjectCollaborationAck {})
-    }
-
-    async fn revoke_invite(
-        &self,
-        request: WorkerEnvelope<ProjectInviteInput>,
-    ) -> Result<ProjectCollaborationAck, WorkerFailure> {
-        let project_id = project_request(
-            &request,
-            PROJECT_COLLABORATION_REVOKE_INVITE_OPERATION,
-            request.payload.project_id,
-        )?;
-        positive_id("invite_id", request.payload.invite_id)?;
-        a4n_db::collaboration::revoke_project_invite(
-            self.database.connection(),
-            user_id(&request)?,
-            project_id,
-            request.payload.invite_id,
-        )
-        .await
-        .map_err(collaboration_error)?;
-        Ok(ProjectCollaborationAck {})
-    }
-
-    async fn update_member_role(
-        &self,
-        request: WorkerEnvelope<UpdateMemberRoleInput>,
-    ) -> Result<ProjectCollaborationAck, WorkerFailure> {
-        let project_id = project_request(
-            &request,
-            PROJECT_COLLABORATION_UPDATE_ROLE_OPERATION,
-            request.payload.project_id,
-        )?;
-        positive_id("member_user_id", request.payload.member_user_id)?;
-        a4n_db::collaboration::update_project_member_role(
-            self.database.connection(),
-            user_id(&request)?,
-            project_id,
-            request.payload.member_user_id,
-            request.payload.role,
-        )
-        .await
-        .map_err(collaboration_error)?;
-        Ok(ProjectCollaborationAck {})
-    }
-
-    async fn remove_member(
-        &self,
-        request: WorkerEnvelope<MemberInput>,
-    ) -> Result<ProjectCollaborationAck, WorkerFailure> {
-        let project_id = project_request(
-            &request,
-            PROJECT_COLLABORATION_REMOVE_MEMBER_OPERATION,
-            request.payload.project_id,
-        )?;
-        positive_id("member_user_id", request.payload.member_user_id)?;
-        a4n_db::collaboration::remove_project_member(
-            self.database.connection(),
-            user_id(&request)?,
-            project_id,
-            request.payload.member_user_id,
-        )
-        .await
-        .map_err(collaboration_error)?;
-        Ok(ProjectCollaborationAck {})
-    }
-
-    async fn leave_project(
-        &self,
-        request: WorkerEnvelope<ProjectInput>,
-    ) -> Result<ProjectCollaborationAck, WorkerFailure> {
-        let project_id = project_request(
-            &request,
-            PROJECT_COLLABORATION_LEAVE_OPERATION,
-            request.payload.project_id,
-        )?;
-        a4n_db::collaboration::leave_project(
-            self.database.connection(),
-            user_id(&request)?,
-            project_id,
-        )
-        .await
-        .map_err(collaboration_error)?;
-        Ok(ProjectCollaborationAck {})
-    }
-
     fn authorized(&self, headers: &HeaderMap) -> bool {
         headers
             .get(WORKER_AUTH_HEADER)

@@ -95,6 +95,6 @@ impl From<project_db::ProjectMutationError> for ProjectResetDbError {
 
 #[derive(Debug, Clone)]
 pub struct ProjectStatusRollbackOutcome {
-    pub project: novel_project::Model,
+    pub project: a4n_domain::project::ProjectRecord,
     pub needs_rag_clear: bool,
 }

@@ -4,12 +4,12 @@ use super::frame_generation::{
     frame_image_generation_source_for_prompt,
 };
 use crate::video::prompts::consistency::PromptStage;
-use a4n_db_models::models::chapter::chapter_video_prompt;
 use a4n_domain::image::{
     IMAGE_GENERATION_SOURCE_VIDEO_BOUNDARY_FRAME_PROMPT,
     IMAGE_GENERATION_SOURCE_VIDEO_FIRST_FRAME_PROMPT, image_generation_prompt_id,
     image_generation_shot_number, image_generation_source, image_generation_source_hash,
 };
+use a4n_domain::video_prompt::ChapterVideoPromptRecord;
 use serde_json::{Value, json};
 
 fn prompt(
@@ -17,9 +17,9 @@ fn prompt(
     prompt_type: &str,
     workflow_mode: &str,
     metadata_json: Option<Value>,
-) -> chapter_video_prompt::Model {
+) -> ChapterVideoPromptRecord {
     let now = chrono::Utc::now().naive_utc();
-    chapter_video_prompt::Model {
+    ChapterVideoPromptRecord {
         id,
         project_id: 3,
         chapter_id: 7,

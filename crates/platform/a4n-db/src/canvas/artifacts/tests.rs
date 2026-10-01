@@ -2,22 +2,24 @@ use super::*;
 use crate::canvas::CanvasDbError;
 use crate::canvas::{CanvasGraphRecordInput, CanvasNodeRecordInput, save_canvas_graph_record};
 use crate::generation::{
+    GENERATION_PROMPT_KIND_CANVAS_PROMPT, GENERATION_PROMPT_KIND_CANVAS_SHOT_SCRIPT,
     GENERATION_SPEC_TARGET_ENTITY_KIND_CANVAS_NODE, GENERATION_SPEC_TARGET_KIND_CANVAS_VIDEO,
 };
 use a4n_db_models::models::{
     canvas::canvas_node,
-    generation::generation_spec,
+    generation::{generation_spec, prompt_artifact},
     media::{media_asset, media_binding, media_provenance},
     video_project::{assembly_clip, assembly_timeline, video_segment},
 };
 use a4n_domain::canvas::{
     CanvasAssemblyContractSyncInput, CanvasAssemblySourceVideoInput,
-    FreeformCanvasGenerationSpecUpsertInput,
+    CanvasPromptArtifactUpsertInput, FreeformCanvasGenerationSpecUpsertInput,
 };
 use a4n_domain::image::IMAGE_TYPE_CANVAS;
 use a4n_domain::video_workflow::{WORKFLOW_MODE_CANVAS_ASSEMBLY, WORKFLOW_MODE_CANVAS_VIDEO};
 use sea_orm::{
-    ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder,
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter,
+    QueryOrder, Set,
 };
 use serde_json::json;
 
@@ -57,6 +59,10 @@ async fn canvas_image_provenance_failure_rolls_back_asset_and_binding() {
     )
     .await
     .unwrap();
+    let image = crate::video::read_models::generated_image_by_id(&db, image.id)
+        .await
+        .unwrap()
+        .unwrap();
 
     let err = ensure_canvas_image_media_asset_record(
         &db,
@@ -122,10 +128,80 @@ async fn canvas_generation_spec_upsert_derives_source_version_hash() {
     .await
     .unwrap();
 
+    let stored_spec = generation_spec::Entity::find_by_id(spec)
+        .one(&db)
+        .await
+        .unwrap()
+        .unwrap();
     assert_eq!(
-        Some(spec.source_version_hash),
+        Some(stored_spec.source_version_hash),
         generation_spec::freeform_source_version_hash(&params_json)
     );
+}
+
+#[tokio::test]
+async fn canvas_prompt_artifact_keeps_user_edits() {
+    let db = setup_db().await;
+    let project = crate::project::create_freeform_video_project_record(
+        &db,
+        1,
+        crate::project::CreateFreeformVideoProjectParams {
+            title: "提示词人工编辑保留".to_string(),
+            description: String::new(),
+        },
+    )
+    .await
+    .unwrap();
+    let spec = upsert_freeform_canvas_generation_spec_record(
+        &db,
+        FreeformCanvasGenerationSpecUpsertInput {
+            project_id: project.id,
+            target_entity_id: 2,
+            canvas_text_asset_id: None,
+            target_kind: GENERATION_SPEC_TARGET_KIND_CANVAS_VIDEO.to_string(),
+            target_entity_kind: GENERATION_SPEC_TARGET_ENTITY_KIND_CANVAS_NODE.to_string(),
+            status: "running".to_string(),
+            params_json: json!({"source_material": {"prompt": "初稿", "source_node_ids": []}}),
+        },
+    )
+    .await
+    .unwrap();
+    let now = chrono::Utc::now().naive_utc();
+    let existing = prompt_artifact::ActiveModel {
+        generation_spec_id: Set(spec),
+        prompt_kind: Set(GENERATION_PROMPT_KIND_CANVAS_PROMPT.to_string()),
+        prompt_text: Set("人工改写".to_string()),
+        renderer_version: Set("manual".to_string()),
+        edited_by_user: Set(true),
+        created_at: Set(now),
+        updated_at: Set(now),
+        ..Default::default()
+    }
+    .insert(&db)
+    .await
+    .unwrap();
+
+    let record = upsert_canvas_prompt_artifact_record(
+        &db,
+        CanvasPromptArtifactUpsertInput {
+            generation_spec_id: spec,
+            prompt_kind: GENERATION_PROMPT_KIND_CANVAS_SHOT_SCRIPT.to_string(),
+            prompt_text: "模型文本".to_string(),
+        },
+    )
+    .await
+    .unwrap();
+    let stored = prompt_artifact::Entity::find_by_id(record.id)
+        .one(&db)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(record.id, existing.id);
+    assert_eq!(record.prompt_kind, GENERATION_PROMPT_KIND_CANVAS_PROMPT);
+    assert_eq!(record.prompt_text, "人工改写");
+    assert_eq!(stored.prompt_text, "人工改写");
+    assert!(stored.edited_by_user);
+    assert_eq!(stored.renderer_version, "manual");
 }
 
 #[tokio::test]

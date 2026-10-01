@@ -1,20 +1,11 @@
-use a4n_db_models::models::{character::protagonist_profile, project::blueprint_character};
+use a4n_db::rag::{RagBlueprintCharacterRow, RagProtagonistProfileRow};
 use a4n_domain::rag::RagDataType;
 use a4n_orchestrator::rag::{blueprint_character_rag_records, protagonist_rag_records};
-use chrono::{NaiveDate, NaiveDateTime};
 use serde_json::json;
 
-fn ts() -> NaiveDateTime {
-    NaiveDate::from_ymd_opt(2026, 1, 1)
-        .expect("valid date")
-        .and_hms_opt(0, 0, 0)
-        .expect("valid time")
-}
-
-fn sample_profile() -> protagonist_profile::Model {
-    protagonist_profile::Model {
+fn sample_profile() -> RagProtagonistProfileRow {
+    RagProtagonistProfileRow {
         id: 40,
-        project_id: 1,
         name: "林舟".to_string(),
         gender: Some("女".to_string()),
         age: Some("29".to_string()),
@@ -25,16 +16,12 @@ fn sample_profile() -> protagonist_profile::Model {
         appearance: Some("短发，旧外套".to_string()),
         background: Some("前领航员".to_string()),
         personality: Some("谨慎".to_string()),
-        last_synced_chapter: 0,
-        created_at: ts(),
-        updated_at: ts(),
     }
 }
 
-fn sample_blueprint_character() -> blueprint_character::Model {
-    blueprint_character::Model {
+fn sample_blueprint_character() -> RagBlueprintCharacterRow {
+    RagBlueprintCharacterRow {
         id: 70,
-        project_id: 1,
         name: "沈砚".to_string(),
         character_type: "supporting".to_string(),
         gender: Some("男".to_string()),
@@ -46,8 +33,6 @@ fn sample_blueprint_character() -> blueprint_character::Model {
         arc_summary: Some("从旁观到介入".to_string()),
         relationship_to_protagonist: Some("临时盟友".to_string()),
         arc_stages: Some(json!([{"turning_point": "共同脱险"}])),
-        created_at: ts(),
-        updated_at: ts(),
     }
 }
 

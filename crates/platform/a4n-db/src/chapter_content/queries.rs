@@ -1,5 +1,5 @@
 use a4n_db_models::models::chapter::chapter;
-use a4n_domain::chapter::ChapterAnalysisEntry;
+use a4n_domain::chapter::{ChapterAnalysisEntry, ChapterRecord};
 use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QueryOrder, QuerySelect};
 
 use super::ChapterContentEditError;
@@ -45,7 +45,7 @@ pub async fn chapter_analyses_for_project<C: ConnectionTrait>(
 pub async fn chapters_for_project<C>(
     db: &C,
     project_id: i64,
-) -> Result<Vec<chapter::Model>, sea_orm::DbErr>
+) -> Result<Vec<ChapterRecord>, sea_orm::DbErr>
 where
     C: ConnectionTrait,
 {
@@ -54,20 +54,27 @@ where
         .order_by_asc(chapter::Column::ChapterNumber)
         .all(db)
         .await
+        .map(|chapters| {
+            chapters
+                .into_iter()
+                .map(crate::project::chapter_record)
+                .collect()
+        })
 }
 
 /// 按 id 读取章节；不存在时返回 NotFound（带章节 id）。
 pub async fn chapter_by_id_for_analysis<C>(
     db: &C,
     chapter_id: i64,
-) -> Result<chapter::Model, ChapterContentEditError>
+) -> Result<ChapterRecord, ChapterContentEditError>
 where
     C: ConnectionTrait,
 {
-    chapter::Entity::find_by_id(chapter_id)
+    let chapter = chapter::Entity::find_by_id(chapter_id)
         .filter(chapter::Column::Status.ne(chapter::STATUS_DELETED))
         .one(db)
         .await
         .map_err(ChapterContentEditError::database)?
-        .ok_or_else(|| ChapterContentEditError::NotFound(format!("章节不存在: {chapter_id}")))
+        .ok_or_else(|| ChapterContentEditError::NotFound(format!("章节不存在: {chapter_id}")))?;
+    Ok(crate::project::chapter_record(chapter))
 }

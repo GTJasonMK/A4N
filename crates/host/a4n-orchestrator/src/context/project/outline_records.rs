@@ -1,5 +1,5 @@
 use a4n_db::DbHandle;
-use a4n_db_models::models::chapter::chapter_outline;
+use a4n_domain::chapter::ChapterOutlineRecord;
 use a4n_error::AppError;
 
 use super::super::OrchestratorContext;
@@ -19,7 +19,7 @@ impl ProjectOutlineRecordsApplication {
         &self,
         project_id: i64,
         chapter_number: i32,
-    ) -> Result<Option<chapter_outline::Model>, AppError> {
+    ) -> Result<Option<ChapterOutlineRecord>, AppError> {
         a4n_db::project::chapter_outline_by_project_number(
             self.database.connection(),
             project_id,
@@ -33,7 +33,7 @@ impl ProjectOutlineRecordsApplication {
         &self,
         project_id: i64,
         chapter_number: i32,
-    ) -> Result<Option<chapter_outline::Model>, AppError> {
+    ) -> Result<Option<ChapterOutlineRecord>, AppError> {
         a4n_db::project::formal_chapter_outline_by_project_number(
             self.database.connection(),
             project_id,
@@ -46,7 +46,7 @@ impl ProjectOutlineRecordsApplication {
     async fn chapter_outline_by_id(
         &self,
         outline_id: i64,
-    ) -> Result<Option<chapter_outline::Model>, AppError> {
+    ) -> Result<Option<ChapterOutlineRecord>, AppError> {
         a4n_db::project::chapter_outline_by_id(self.database.connection(), outline_id)
             .await
             .map_err(project_outline_record_error_to_app_error)
@@ -55,7 +55,7 @@ impl ProjectOutlineRecordsApplication {
     async fn chapter_outlines_for_project(
         &self,
         project_id: i64,
-    ) -> Result<Vec<chapter_outline::Model>, AppError> {
+    ) -> Result<Vec<ChapterOutlineRecord>, AppError> {
         a4n_db::project::chapter_outlines_for_project(self.database.connection(), project_id)
             .await
             .map_err(project_outline_record_error_to_app_error)
@@ -67,7 +67,7 @@ impl OrchestratorContext {
         &self,
         project_id: i64,
         chapter_number: i32,
-    ) -> Result<Option<chapter_outline::Model>, AppError> {
+    ) -> Result<Option<ChapterOutlineRecord>, AppError> {
         self.project_outline_records
             .chapter_outline_by_project_number(project_id, chapter_number)
             .await
@@ -77,7 +77,7 @@ impl OrchestratorContext {
         &self,
         project_id: i64,
         chapter_number: i32,
-    ) -> Result<Option<chapter_outline::Model>, AppError> {
+    ) -> Result<Option<ChapterOutlineRecord>, AppError> {
         self.project_outline_records
             .formal_chapter_outline_by_project_number(project_id, chapter_number)
             .await
@@ -86,7 +86,7 @@ impl OrchestratorContext {
     pub(crate) async fn chapter_outline_by_id(
         &self,
         outline_id: i64,
-    ) -> Result<Option<chapter_outline::Model>, AppError> {
+    ) -> Result<Option<ChapterOutlineRecord>, AppError> {
         self.project_outline_records
             .chapter_outline_by_id(outline_id)
             .await
@@ -95,7 +95,7 @@ impl OrchestratorContext {
     pub(crate) async fn chapter_outlines_for_project(
         &self,
         project_id: i64,
-    ) -> Result<Vec<chapter_outline::Model>, AppError> {
+    ) -> Result<Vec<ChapterOutlineRecord>, AppError> {
         self.project_outline_records
             .chapter_outlines_for_project(project_id)
             .await

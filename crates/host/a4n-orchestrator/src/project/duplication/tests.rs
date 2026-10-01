@@ -347,8 +347,8 @@ async fn duplicate_freeform_application_remaps_source_material_and_clears_runtim
 async fn insert_freeform_project(
     database: &a4n_db::DatabaseConnection,
     user_id: i64,
-) -> novel_project::Model {
-    create_freeform_video_project_record(
+) -> a4n_domain::project::ProjectRecord {
+    let created = create_freeform_video_project_record(
         database,
         user_id,
         CreateFreeformVideoProjectParams {
@@ -357,7 +357,11 @@ async fn insert_freeform_project(
         },
     )
     .await
-    .expect("测试 freeform 视频项目应可写入")
+    .expect("测试 freeform 视频项目应可写入");
+    a4n_db::project::project_by_id_record(database, created.id)
+        .await
+        .expect("应查询测试项目")
+        .expect("测试项目应存在")
 }
 
 async fn insert_media_asset(database: &a4n_db::DatabaseConnection, project_id: i64) {

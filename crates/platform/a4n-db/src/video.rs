@@ -24,6 +24,9 @@ pub(crate) use prompts::records::{
 };
 
 mod generated_images;
+mod media_mapping;
+pub(crate) use media_mapping::generated_image_record_from_model;
+pub mod read_models;
 pub(crate) use generated_images::validated_video_reference_image_records_batch;
 pub(crate) use generated_images::video_project_record;
 pub use generated_images::{

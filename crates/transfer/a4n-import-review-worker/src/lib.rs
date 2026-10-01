@@ -4,7 +4,8 @@ use std::{env, net::SocketAddr, sync::Arc};
 
 use a4n_db::DbHandle;
 use a4n_domain::collaboration::ProjectAccessRole;
-use a4n_import_review_core::{calculate_dedup, summary_from_model};
+use a4n_domain::import_review::ImportReviewCreateInput;
+use a4n_import_review_core::{calculate_dedup, summary_from_parts};
 use a4n_import_review_worker_contract::{
     CheckImportDedupInput, IMPORT_REVIEW_DEDUP_OPERATION, IMPORT_REVIEW_DELETE_OPERATION,
     IMPORT_REVIEW_LIST_OPERATION, IMPORT_REVIEW_MUTATION_CAPABILITY, IMPORT_REVIEW_READ_CAPABILITY,
@@ -26,7 +27,6 @@ use axum::{
     response::{IntoResponse, Response},
     routing::{get, post},
 };
-use sea_orm::{ConnectOptions, ConnectionTrait, Database, DatabaseConnection, Statement};
 use subtle::ConstantTimeEq;
 
 const WORKER_ADDR_ENV: &str = "A4N_IMPORT_REVIEW_READ_WORKER_ADDR";
@@ -53,15 +53,18 @@ struct WorkerFailure {
     retryable: bool,
 }
 
+mod mutations;
+mod reads;
+
 impl ImportReviewWorker {
     pub fn new(
-        database: DatabaseConnection,
+        database: DbHandle,
         worker_id: impl Into<String>,
         auth_token: impl Into<String>,
     ) -> Self {
         Self {
             state: WorkerState {
-                database: DbHandle::new(Arc::new(database)),
+                database,
                 worker_id: Arc::<str>::from(worker_id.into()),
                 auth_token: Arc::<str>::from(auth_token.into()),
             },
@@ -101,12 +104,7 @@ async fn async_main() -> anyhow::Result<()> {
     a4n_config::validate_postgres_database_url(DATABASE_URL_ENV, &database_url)?;
     let auth_token = a4n_config::required_non_empty_env_string(WORKER_TOKEN_ENV)?;
     let address = worker_addr()?;
-    let mut options = ConnectOptions::new(database_url);
-    options
-        .max_connections(8)
-        .min_connections(1)
-        .connect_timeout(std::time::Duration::from_secs(5));
-    let database = Database::connect(options).await?;
+    let database = DbHandle::connect(database_url).await?;
     ImportReviewWorker::new(database, IMPORT_REVIEW_READ_WORKER_ID, auth_token)
         .serve(address)
         .await
@@ -127,16 +125,8 @@ async fn health(State(state): State<WorkerState>, headers: HeaderMap) -> Respons
     if !state.authorized(&headers) {
         return unauthorized();
     }
-    let status = match state
-        .database
-        .connection()
-        .execute(Statement::from_string(
-            sea_orm::DatabaseBackend::Postgres,
-            "SELECT 1",
-        ))
-        .await
-    {
-        Ok(_) => WorkerHealthStatus::Healthy,
+    let status = match state.database.ping().await {
+        Ok(()) => WorkerHealthStatus::Healthy,
         Err(_) => WorkerHealthStatus::Degraded,
     };
     Json(WorkerHealth {
@@ -226,65 +216,6 @@ where
 }
 
 impl WorkerState {
-    async fn list(
-        &self,
-        request: WorkerEnvelope<ImportProjectReviewsInput>,
-    ) -> Result<Vec<ImportReviewSummary>, WorkerFailure> {
-        validate_request(&request, IMPORT_REVIEW_LIST_OPERATION)?;
-        let user_id = user_id(&request)?;
-        let project_id = scoped_project_id(&request, request.payload.project_id)?;
-        verify_editor(&self.database, project_id, user_id).await?;
-        a4n_db::import_review::import_reviews_by_project(self.database.connection(), project_id)
-            .await
-            .map_err(database_error)?
-            .iter()
-            .map(summary_from_model)
-            .collect::<Result<Vec<_>, _>>()
-            .map_err(app_error)
-    }
-
-    async fn dedup(
-        &self,
-        request: WorkerEnvelope<CheckImportDedupInput>,
-    ) -> Result<a4n_import_review_worker_contract::DedupResult, WorkerFailure> {
-        validate_request(&request, IMPORT_REVIEW_DEDUP_OPERATION)?;
-        let user_id = user_id(&request)?;
-        let project_id = scoped_project_id(&request, request.payload.project_id)?;
-        let input = request.payload;
-        verify_editor(&self.database, project_id, user_id).await?;
-        let chapters =
-            a4n_db::import_review::import_dedup_chapters(self.database.connection(), project_id)
-                .await
-                .map_err(database_error)?;
-        calculate_dedup(&input.content, &chapters).map_err(app_error)
-    }
-
-    async fn delete(
-        &self,
-        request: WorkerEnvelope<ImportReviewIdInput>,
-    ) -> Result<(), WorkerFailure> {
-        validate_mutation_request(&request, IMPORT_REVIEW_DELETE_OPERATION)?;
-        let user_id = user_id(&request)?;
-        let review = review_for_editor(&self.database, user_id, request.payload.review_id).await?;
-        a4n_db::import_review::delete_import_review(self.database.connection(), review.id)
-            .await
-            .map_err(mutation_error)
-    }
-
-    async fn reject(
-        &self,
-        request: WorkerEnvelope<ImportReviewIdInput>,
-    ) -> Result<ImportReviewSummary, WorkerFailure> {
-        validate_mutation_request(&request, IMPORT_REVIEW_REJECT_OPERATION)?;
-        let user_id = user_id(&request)?;
-        let review = review_for_editor(&self.database, user_id, request.payload.review_id).await?;
-        let review =
-            a4n_db::import_review::reject_import_review(self.database.connection(), review.id)
-                .await
-                .map_err(mutation_error)?;
-        a4n_import_review_core::summary_from_model(&review).map_err(app_error)
-    }
-
     fn authorized(&self, headers: &HeaderMap) -> bool {
         headers
             .get(WORKER_AUTH_HEADER)
@@ -370,6 +301,46 @@ async fn review_for_editor(
     Ok(review)
 }
 
+fn summary_from_record(
+    review: a4n_db_models::models::project::import_review_queue::Model,
+) -> Result<ImportReviewSummary, a4n_error::AppError> {
+    summary_from_parts(
+        review.id,
+        ImportReviewCreateInput {
+            project_id: review.project_id,
+            filename: review.filename,
+            analysis_result: review.analysis_result,
+        },
+        &review.review_status,
+        review.created_at.to_string(),
+        review.updated_at.to_string(),
+    )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn review_summary_preserves_persisted_fields() {
+        let review = a4n_db_models::models::project::import_review_queue::Model {
+            id: 4,
+            project_id: 8,
+            filename: "chapters.md".into(),
+            analysis_result: Default::default(),
+            review_status: "pending".into(),
+            created_at: Default::default(),
+            updated_at: Default::default(),
+        };
+        let created_at = review.created_at.to_string();
+        let summary = summary_from_record(review).unwrap();
+        assert_eq!(summary.id, 4);
+        assert_eq!(summary.project_id, 8);
+        assert_eq!(summary.filename, "chapters.md");
+        assert_eq!(summary.created_at, created_at);
+    }
+}
+
 fn user_id<T>(request: &WorkerEnvelope<T>) -> Result<i64, WorkerFailure> {
     request
         .principal
@@ -401,7 +372,7 @@ fn collaboration_error(error: a4n_db::collaboration::CollaborationDbError) -> Wo
     }
 }
 
-fn database_error(error: sea_orm::DbErr) -> WorkerFailure {
+fn database_error(error: impl std::fmt::Display) -> WorkerFailure {
     WorkerFailure::unavailable(error.to_string())
 }
 

@@ -1,4 +1,75 @@
 use super::*;
+use a4n_domain::project::{OptimizationTurnEventRecord, OptimizationTurnRecord};
+
+fn optimization_turn_record(turn: optimization_turn::Model) -> OptimizationTurnRecord {
+    OptimizationTurnRecord {
+        id: turn.id,
+        session_id: turn.session_id,
+        agent_turn_id: turn.agent_turn_id,
+        user_text: turn.user_text,
+        status: turn.status,
+        permissions_snapshot: turn.permissions_snapshot,
+        final_reply: turn.final_reply,
+        error: turn.error,
+        created_at: turn.created_at,
+        updated_at: turn.updated_at,
+    }
+}
+
+fn optimization_turn_event_record(
+    event: optimization_turn_event::Model,
+) -> OptimizationTurnEventRecord {
+    OptimizationTurnEventRecord {
+        id: event.id,
+        turn_id: event.turn_id,
+        seq: event.seq,
+        kind: event.kind,
+        status: event.status,
+        public_text: event.public_text,
+        payload: event.payload,
+        created_at: event.created_at,
+    }
+}
+
+#[cfg(test)]
+mod record_mapping_tests {
+    use super::*;
+
+    #[test]
+    fn read_records_preserve_permissions_and_event_payload() {
+        let now = chrono::Utc::now().naive_utc();
+        let permissions = serde_json::json!({"read_project_detail": true});
+        let turn = optimization_turn_record(optimization_turn::Model {
+            id: 3,
+            session_id: 7,
+            agent_turn_id: Some(11),
+            user_text: "继续优化".to_string(),
+            status: "completed".to_string(),
+            permissions_snapshot: Some(permissions.clone()),
+            final_reply: Some("已完成".to_string()),
+            error: None,
+            created_at: now,
+            updated_at: now,
+        });
+        let payload = serde_json::json!({"source": "chapter"});
+        let event = optimization_turn_event_record(optimization_turn_event::Model {
+            id: 9,
+            turn_id: turn.id,
+            seq: 2,
+            kind: "assistant_update".to_string(),
+            status: "completed".to_string(),
+            public_text: "已检查".to_string(),
+            payload: Some(payload.clone()),
+            created_at: now,
+        });
+
+        assert_eq!(turn.permissions_snapshot, Some(permissions));
+        assert_eq!(turn.agent_turn_id, Some(11));
+        assert_eq!(event.turn_id, turn.id);
+        assert_eq!(event.seq, 2);
+        assert_eq!(event.payload, Some(payload));
+    }
+}
 
 pub async fn create_optimization_turn<C>(
     db: &C,
@@ -28,17 +99,20 @@ where
 pub async fn optimization_turns<C>(
     db: &C,
     session_id: i64,
-) -> Result<Vec<optimization_turn::Model>, OptimizeDbError>
+) -> Result<Vec<OptimizationTurnRecord>, OptimizeDbError>
 where
     C: ConnectionTrait,
 {
-    optimization_turn::Entity::find()
+    Ok(optimization_turn::Entity::find()
         .filter(optimization_turn::Column::SessionId.eq(session_id))
         .order_by_asc(optimization_turn::Column::CreatedAt)
         .order_by_asc(optimization_turn::Column::Id)
         .all(db)
         .await
-        .map_err(OptimizeDbError::Database)
+        .map_err(OptimizeDbError::Database)?
+        .into_iter()
+        .map(optimization_turn_record)
+        .collect())
 }
 
 pub async fn optimization_turn_by_agent_turn_id<C>(
@@ -363,21 +437,24 @@ fn required_completion_text(value: &str, label: &str) -> Result<String, Optimize
 pub async fn optimization_turn_events_for_turns<C>(
     db: &C,
     turn_ids: &[i64],
-) -> Result<Vec<optimization_turn_event::Model>, OptimizeDbError>
+) -> Result<Vec<OptimizationTurnEventRecord>, OptimizeDbError>
 where
     C: ConnectionTrait,
 {
     if turn_ids.is_empty() {
         return Ok(Vec::new());
     }
-    optimization_turn_event::Entity::find()
+    Ok(optimization_turn_event::Entity::find()
         .filter(optimization_turn_event::Column::TurnId.is_in(turn_ids.to_vec()))
         .order_by_asc(optimization_turn_event::Column::TurnId)
         .order_by_asc(optimization_turn_event::Column::Seq)
         .order_by_asc(optimization_turn_event::Column::Id)
         .all(db)
         .await
-        .map_err(OptimizeDbError::Database)
+        .map_err(OptimizeDbError::Database)?
+        .into_iter()
+        .map(optimization_turn_event_record)
+        .collect())
 }
 
 pub async fn append_optimization_turn_event<C>(

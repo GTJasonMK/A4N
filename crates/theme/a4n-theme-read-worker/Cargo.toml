@@ -8,7 +8,6 @@ license.workspace = true
 a4n-api-contract = { workspace = true }
 a4n-config = { workspace = true }
 a4n-db = { workspace = true }
-a4n-db-models = { workspace = true }
 a4n-domain = { workspace = true }
 a4n-error = { workspace = true, features = ["database"], default-features = true }
 a4n-theme-core = { workspace = true }
@@ -17,7 +16,6 @@ a4n-worker-contract = { workspace = true }
 
 anyhow = { workspace = true }
 axum = { workspace = true }
-sea-orm = { workspace = true }
 serde = { workspace = true }
 subtle = { workspace = true }
 tokio = { workspace = true }

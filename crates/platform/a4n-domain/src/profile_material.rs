@@ -1,3 +1,4 @@
+use chrono::NaiveDateTime;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -104,6 +105,51 @@ pub enum ProfileMaterialSort {
     StaleFirst,
     Newest,
     Importance,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct ProfileMaterialSceneRecord {
+    pub id: i64,
+    pub project_id: i64,
+    pub name: String,
+    pub scene_type: String,
+    pub importance: String,
+    pub base_description: String,
+    pub visual_description: String,
+    pub spatial_layout: String,
+    pub atmosphere: String,
+    pub entry_points_json: Value,
+    pub rules_json: Value,
+    pub first_seen_chapter: i32,
+    pub last_seen_chapter: i32,
+    pub image_prompt_seed: String,
+    pub updated_at: NaiveDateTime,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct ProfileMaterialObjectRecord {
+    pub id: i64,
+    pub project_id: i64,
+    pub name: String,
+    pub object_type: String,
+    pub importance: String,
+    pub visual_description: String,
+    pub material_and_state: String,
+    pub story_usage: String,
+    pub visual_usage: String,
+    pub generation_usage: String,
+    pub location_context: Option<String>,
+    pub first_seen_chapter: i32,
+    pub last_seen_chapter: i32,
+    pub image_prompt_seed: String,
+    pub updated_at: NaiveDateTime,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ProfilePrimaryMaterialRecord {
+    pub profile_kind: String,
+    pub profile_id: i64,
+    pub primary_image_id: i64,
 }
 
 #[cfg(test)]

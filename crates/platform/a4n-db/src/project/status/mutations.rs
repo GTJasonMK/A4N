@@ -1,7 +1,7 @@
 use super::{ProjectStatusWriteError, insert_project_status_history};
-use crate::project::validate_positive_i64;
+use crate::project::{project_record_from_model, validate_positive_i64};
 use a4n_db_models::models::project::novel_project;
-use a4n_domain::project::{ProjectStatus, ProjectStatusHistoryInput};
+use a4n_domain::project::{ProjectRecord, ProjectStatus, ProjectStatusHistoryInput};
 use chrono::NaiveDateTime;
 use sea_orm::{
     ColumnTrait, ConnectionTrait, DbBackend, EntityTrait, QueryFilter, QuerySelect,
@@ -10,10 +10,10 @@ use sea_orm::{
 
 pub async fn update_project_status_record<C>(
     db: &C,
-    project: novel_project::Model,
+    project: ProjectRecord,
     to_status: ProjectStatus,
     changed_at: NaiveDateTime,
-) -> Result<novel_project::Model, ProjectStatusWriteError>
+) -> Result<ProjectRecord, ProjectStatusWriteError>
 where
     C: ConnectionTrait + TransactionTrait,
 {
@@ -47,10 +47,10 @@ where
 
 pub async fn update_project_status_record_in<C>(
     db: &C,
-    project: novel_project::Model,
+    project: ProjectRecord,
     to_status: ProjectStatus,
     changed_at: NaiveDateTime,
-) -> Result<novel_project::Model, ProjectStatusWriteError>
+) -> Result<ProjectRecord, ProjectStatusWriteError>
 where
     C: ConnectionTrait,
 {
@@ -112,5 +112,5 @@ where
     )
     .await?;
 
-    Ok(updated)
+    Ok(project_record_from_model(updated))
 }

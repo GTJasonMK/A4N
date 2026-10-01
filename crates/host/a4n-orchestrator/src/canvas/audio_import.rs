@@ -1,6 +1,5 @@
 use a4n_api_contract::media::MediaAudioProbeHostPort;
 use a4n_canvas_contract::CanvasAudioImportHostInput;
-use a4n_db_models::models::media::media_asset;
 use a4n_error::AppError;
 use a4n_media::{MAX_IMPORT_AUDIO_BYTES, decode_uploaded_audio_data};
 use a4n_storage::remove_existing_data_file;
@@ -18,7 +17,6 @@ use crate::{
         CreateMediaAssetInput, CreateMediaProvenanceInput, MEDIA_KIND_AUDIO, MEDIA_ORIGIN_IMPORTED,
         MEDIA_STATUS_COMPLETED, PersistedAudioFile, persist_audio_file,
     },
-    project::ProjectSourceMode,
 };
 
 use super::audio_rules::canvas_audio_format;
@@ -148,19 +146,9 @@ impl OrchestratorContext {
         host_port: &dyn MediaAudioProbeHostPort,
         user_id: i64,
         input: CanvasAudioImportHostInput,
-    ) -> Result<media_asset::Model, AppError> {
-        let project = self
-            .authorized_canvas_video_project(input.project_id, user_id)
+    ) -> Result<a4n_domain::media::MediaAssetRecord, AppError> {
+        self.authorized_canvas_video_project(input.project_id, user_id, true)
             .await?;
-        if project
-            .source_mode()
-            .map_err(|error| AppError::InvalidArgument(format!("项目 {}: {error}", project.id)))?
-            != ProjectSourceMode::Freeform
-        {
-            return Err(AppError::InvalidArgument(
-                "画布音频导入只支持自由视频项目".to_string(),
-            ));
-        }
 
         let project_id = input.project_id;
         let persisted = persist_canvas_audio(self.data_dir(), host_port, input).await?;

@@ -1,13 +1,30 @@
 use super::contracts::ProjectChapterContextError;
 use a4n_db_models::models::chapter::chapter;
-use sea_orm::{ColumnTrait, DatabaseConnection, DbErr, EntityTrait, QueryFilter, QueryOrder};
+use a4n_domain::chapter::ChapterRecord;
+use sea_orm::{
+    ColumnTrait, DatabaseConnection, DbErr, EntityTrait, QueryFilter, QueryOrder, QuerySelect,
+};
 
 pub async fn chapter_by_id(
     db: &DatabaseConnection,
     chapter_id: i64,
-) -> Result<Option<chapter::Model>, DbErr> {
+) -> Result<Option<ChapterRecord>, DbErr> {
     chapter::Entity::find_current()
         .filter(chapter::Column::Id.eq(chapter_id))
+        .one(db)
+        .await
+        .map(|chapter| chapter.map(crate::project::chapter_record))
+}
+
+pub async fn chapter_project_id(
+    db: &DatabaseConnection,
+    chapter_id: i64,
+) -> Result<Option<i64>, DbErr> {
+    chapter::Entity::find_current()
+        .filter(chapter::Column::Id.eq(chapter_id))
+        .select_only()
+        .column(chapter::Column::ProjectId)
+        .into_tuple::<i64>()
         .one(db)
         .await
 }
@@ -15,13 +32,19 @@ pub async fn chapter_by_id(
 pub async fn import_analysis_chapter_candidates(
     db: &DatabaseConnection,
     project_id: i64,
-) -> Result<Vec<chapter::Model>, ProjectChapterContextError> {
+) -> Result<Vec<ChapterRecord>, ProjectChapterContextError> {
     chapter::Entity::find()
         .filter(chapter::Column::ProjectId.eq(project_id))
         .filter(chapter::Column::Status.ne("deleted"))
         .order_by_asc(chapter::Column::ChapterNumber)
         .all(db)
         .await
+        .map(|chapters| {
+            chapters
+                .into_iter()
+                .map(crate::project::chapter_record)
+                .collect()
+        })
         .map_err(ProjectChapterContextError::Database)
 }
 
@@ -44,12 +67,18 @@ pub async fn chapters_before_number(
     db: &DatabaseConnection,
     project_id: i64,
     chapter_number: i32,
-) -> Result<Vec<chapter::Model>, ProjectChapterContextError> {
+) -> Result<Vec<ChapterRecord>, ProjectChapterContextError> {
     chapter::Entity::find_current()
         .filter(chapter::Column::ProjectId.eq(project_id))
         .filter(chapter::Column::ChapterNumber.lt(chapter_number))
         .order_by_asc(chapter::Column::ChapterNumber)
         .all(db)
         .await
+        .map(|chapters| {
+            chapters
+                .into_iter()
+                .map(crate::project::chapter_record)
+                .collect()
+        })
         .map_err(ProjectChapterContextError::Database)
 }

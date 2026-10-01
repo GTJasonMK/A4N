@@ -1,5 +1,5 @@
 use a4n_chapter_analysis::CHAPTER_ANALYSIS_STAGE_FACTS;
-use a4n_db_models::models::chapter::chapter;
+use a4n_domain::chapter::ChapterRecord;
 use a4n_domain::source_spans::SourceSpan;
 use a4n_error::AppError;
 use a4n_llm_provider_contract::provider::ChatRequest;
@@ -12,7 +12,7 @@ use crate::chapter_analysis::owner::{
 };
 
 pub async fn build_chapter_fact_extraction_request(
-    ch: &chapter::Model,
+    ch: &ChapterRecord,
     prompt_renderer: &dyn PromptRenderer,
     source_spans: &[SourceSpan],
 ) -> Result<ChatRequest, AppError> {

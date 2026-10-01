@@ -10,6 +10,7 @@ use a4n_db_models::models::{
     galgame::{galgame_choice, galgame_line, galgame_scene, galgame_script},
     project::{source_snapshot_chapter, text_anchor},
 };
+use a4n_domain::galgame::GalgameLineRecord;
 use sea_orm::{
     ColumnTrait, DatabaseConnection, DbErr, EntityTrait, QueryFilter, QueryOrder, QuerySelect,
 };
@@ -19,9 +20,10 @@ pub async fn galgame_asset_planning_read_model(
     db: &DatabaseConnection,
     project_id: i64,
 ) -> Result<Option<GalgameAssetPlanningReadModel>, DbErr> {
-    let Some((scenes, lines)) = galgame_script_scene_lines(db, project_id).await? else {
+    let Some((scenes, line_models)) = galgame_script_scene_lines(db, project_id).await? else {
         return Ok(None);
     };
+    let lines = line_models.into_iter().map(galgame_line_record).collect();
     let source_snapshot_chapter_ids = scenes
         .iter()
         .map(|scene| scene.source_snapshot_chapter_id)
@@ -125,6 +127,7 @@ pub async fn galgame_script_detail_read_model(
     let text_anchors = text_anchors_result?;
     let speaker_profiles = speaker_profiles_result?;
     let media_bindings = media_bindings_result?;
+    let lines = lines.into_iter().map(galgame_line_record).collect();
     Ok(Some(GalgameScriptDetailReadModel {
         script,
         speaker_profiles,
@@ -239,4 +242,20 @@ async fn galgame_script_scene_lines(
             .await?
     };
     Ok(Some((scenes, lines)))
+}
+
+fn galgame_line_record(line: galgame_line::Model) -> GalgameLineRecord {
+    GalgameLineRecord {
+        id: line.id,
+        scene_id: line.scene_id,
+        line_index: line.line_index,
+        line_type: line.line_type,
+        speaker_profile_id: line.speaker_profile_id,
+        text: line.text,
+        expression: line.expression,
+        pose: line.pose,
+        position: line.position,
+        presentation_json: line.presentation_json,
+        text_anchor_id: line.text_anchor_id,
+    }
 }

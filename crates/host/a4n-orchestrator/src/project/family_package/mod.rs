@@ -26,7 +26,7 @@ use a4n_db_models::models::{
     galgame::{galgame_choice, galgame_line, galgame_scene, galgame_script},
     generation::{generation_spec, prompt_artifact},
     media::{media_asset, media_binding},
-    project::{novel_project, project_source_snapshot, source_snapshot_chapter, text_anchor},
+    project::{project_source_snapshot, source_snapshot_chapter, text_anchor},
     source_sync::{source_sync_conflict, source_sync_decision, source_sync_run},
 };
 #[cfg(test)]

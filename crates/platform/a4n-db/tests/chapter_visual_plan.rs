@@ -150,7 +150,12 @@ async fn director_resources_are_family_scoped_and_survive_supersession() {
     image_row.project_id = Set(media_project.id);
     image_row.file_path = Set(format!("projects/{}/images/director.png", media_project.id));
     image_row.update(&db).await.unwrap();
-    let mut scene_row: scene_profile::ActiveModel = scene.clone().into();
+    let mut scene_row: scene_profile::ActiveModel = scene_profile::Entity::find_by_id(scene.id)
+        .one(&db)
+        .await
+        .unwrap()
+        .unwrap()
+        .into();
     scene_row.project_id = Set(media_project.id);
     scene_row.update(&db).await.unwrap();
     input.plan.points[0].image_id = Some(image.id);

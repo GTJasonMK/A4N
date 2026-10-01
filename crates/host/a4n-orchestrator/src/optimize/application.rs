@@ -10,10 +10,8 @@ use a4n_api_contract::{
     },
 };
 use a4n_db::optimize::OptimizationChapterPatchWriteInput;
-use a4n_db_models::models::ai::{
-    optimization_patch, optimization_patch_set, optimization_session, optimization_turn,
-    optimization_turn_event,
-};
+use a4n_db_models::models::ai::{optimization_patch, optimization_patch_set, optimization_session};
+use a4n_domain::project::{OptimizationTurnEventRecord, OptimizationTurnRecord};
 use a4n_error::AppError;
 use a4n_llm_provider_contract::provider::ChatRequest;
 use a4n_optimize_host_contract::{
@@ -70,7 +68,7 @@ impl OrchestratorContext {
         user_id: i64,
         project_id: i64,
         chapter_number: i32,
-    ) -> Result<a4n_db_models::models::chapter::chapter::Model, AppError> {
+    ) -> Result<a4n_domain::chapter::ChapterRecord, AppError> {
         self.verify_project_permission(project_id, user_id, ProjectAccessRole::Editor)
             .await?;
         self.chapter_by_project_number(project_id, chapter_number)
@@ -1020,8 +1018,8 @@ fn optimization_session_summary(
 }
 
 fn optimization_turn_summary(
-    turn: &optimization_turn::Model,
-    events: Vec<optimization_turn_event::Model>,
+    turn: &OptimizationTurnRecord,
+    events: Vec<OptimizationTurnEventRecord>,
 ) -> Result<OptimizationTurnSummary, AppError> {
     Ok(OptimizationTurnSummary {
         id: turn.id,
@@ -1116,5 +1114,65 @@ fn parse_patch_operation(
             current: value.to_string(),
             operation: "读取 optimization_patch.operation".to_string(),
         }),
+    }
+}
+
+#[cfg(test)]
+mod record_boundary_tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn turn_summary_rejects_invalid_permissions_and_preserves_event_payload() {
+        let now = chrono::Utc::now().naive_utc();
+        let mut turn = OptimizationTurnRecord {
+            id: 3,
+            session_id: 7,
+            agent_turn_id: None,
+            user_text: "继续优化".to_string(),
+            status: "completed".to_string(),
+            permissions_snapshot: None,
+            final_reply: Some("已完成".to_string()),
+            error: None,
+            created_at: now,
+            updated_at: now,
+        };
+        let missing = optimization_turn_summary(&turn, Vec::new()).unwrap_err();
+        assert!(
+            matches!(missing, AppError::InvalidState { current, .. } if current == "optimization_turn.permissions_snapshot_missing")
+        );
+
+        turn.permissions_snapshot = Some(json!({"read_project_detail": true}));
+        assert!(matches!(
+            optimization_turn_summary(&turn, Vec::new()),
+            Err(AppError::InvalidState { .. })
+        ));
+
+        turn.permissions_snapshot = Some(
+            OptimizationAgentPermissions {
+                read_project_detail: true,
+                read_blueprint: false,
+                read_outlines: false,
+                read_character_profiles: false,
+                read_foreshadowing: false,
+                automatic_writeback: false,
+            }
+            .as_value(),
+        );
+        let event = OptimizationTurnEventRecord {
+            id: 9,
+            turn_id: 3,
+            seq: 1,
+            kind: "assistant_update".to_string(),
+            status: "completed".to_string(),
+            public_text: "已检查".to_string(),
+            payload: Some(json!({"source": "chapter"})),
+            created_at: now,
+        };
+        let summary = optimization_turn_summary(&turn, vec![event]).unwrap();
+        let value = serde_json::to_value(summary).unwrap();
+        assert_eq!(value["permissions_snapshot"]["read_project_detail"], true);
+        assert_eq!(value["events"][0]["payload"]["source"], "chapter");
+        assert_eq!(value["events"][0]["created_at"], format_utc_timestamp(now));
     }
 }

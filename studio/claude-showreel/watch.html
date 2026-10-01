@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="zh-CN">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>A4N · 从一行字，到一整个世界</title>
+<link rel="icon" href="assets/logo.svg" type="image/svg+xml">
+<style>
+  *{box-sizing:border-box} body{margin:0;background:#100e0b;color:#eee6d9;font:16px/1.7 "Noto Sans CJK SC",sans-serif}
+  main{max-width:1320px;margin:0 auto;padding:32px 24px 48px} h1{font:500 clamp(24px,3.2vw,37px)/1.4 "Noto Serif CJK SC",serif;margin:0 0 12px}
+  p{color:#b6a994;margin:0 0 24px} video{display:block;width:100%;aspect-ratio:16/9;background:#000;border:1px solid #685136;border-radius:8px}
+  nav{display:flex;gap:8px;flex-wrap:wrap;margin-top:20px} button,a{font:inherit;border-radius:6px} button{background:#211b14;color:#d2c2a7;border:1px solid #534432;padding:7px 12px;cursor:pointer}
+  button[aria-current=true]{border-color:#d5ab65;color:#ffe2a7} :focus-visible{outline:2px solid #ffcd80;outline-offset:4px}
+  .downloads{display:flex;gap:22px;flex-wrap:wrap;margin-top:25px} a{color:#e7be80;text-underline-offset:5px} #error{color:#ffb19b;margin-top:18px}
+  @media(max-width:600px){main{padding:24px 14px}nav{gap:7px}button{font-size:14px;padding:8px 10px}}
+</style>
+<main>
+  <h1>A4N · 从一行字，到一整个世界</h1>
+  <p>2 分 03 秒 · 1080p / 60 fps · 原创配乐与音效</p>
+  <video id="film" controls playsinline preload="metadata" poster="out/poster.jpg" aria-label="A4N 项目特点与使用方法介绍动画">
+    <source src="out/A4N_从一行字到一整个世界_1080p60.mp4" type="video/mp4">
+  </video>
+  <nav id="chapters" aria-label="跳转到影片章节"></nav>
+  <div class="downloads"><a href="out/A4N_从一行字到一整个世界_1080p60.mp4" download>下载 MP4</a><a href="out/A4N_动画工程与分轨.zip" download>下载工程与音轨</a></div>
+  <p id="error" role="alert" hidden></p>
+</main>
+<script type="module">
+  import {CHAPTERS} from './src/timeline.js';
+  const film=document.getElementById('film'),nav=document.getElementById('chapters');
+  const buttons=CHAPTERS.map(c=>{
+    const b=document.createElement('button');b.textContent=c.title;b.type='button';
+    b.addEventListener('click',()=>{film.currentTime=c.start+.08;});nav.append(b);return b;
+  });
+  film.addEventListener('timeupdate',()=>CHAPTERS.forEach((c,i)=>buttons[i].setAttribute('aria-current',String(film.currentTime>=c.start&&film.currentTime<c.end))));
+  film.addEventListener('error',()=>{const e=document.getElementById('error');e.hidden=false;e.textContent='视频未能加载，请检查成片文件是否已导出。';});
+</script>
+</html>

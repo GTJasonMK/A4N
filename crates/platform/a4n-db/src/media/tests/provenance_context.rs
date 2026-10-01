@@ -221,11 +221,13 @@ async fn create_accepts_prompt_artifact_without_repeated_generation_spec_id() {
     let mut input = media_input(&project);
     input.provenance.prompt_artifact_id = Some(artifact.id);
 
-    let asset = create_media_asset_with_provenance_record(&db, input)
+    let asset = crate::media::create_media_asset_with_provenance_read_model(&db, input)
         .await
         .unwrap();
 
+    assert!(asset.id > 0);
     assert_eq!(asset.project_id, project.id);
+    assert_eq!(asset.root_project_id, project.root_project_id.unwrap());
     assert_eq!(asset.source_snapshot_id, project.source_snapshot_id);
 }
 

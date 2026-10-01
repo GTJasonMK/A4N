@@ -1,11 +1,11 @@
 use std::collections::BTreeMap;
 
 use a4n_api_contract::outline::OutlineDeleteTarget;
-use a4n_db_models::models::chapter::part_outline;
+use a4n_domain::chapter::PartOutlineRecord;
 use a4n_error::AppError;
 
 pub(super) fn plan_next_parts(
-    existing_parts: &[part_outline::Model],
+    existing_parts: &[PartOutlineRecord],
     part_count: i32,
     chapters_per_part: i32,
 ) -> Result<Vec<(i32, i32, i32)>, AppError> {
@@ -43,7 +43,7 @@ pub(super) fn plan_replacement_parts(
 }
 
 pub(super) fn validate_replacement_part_sources(
-    existing_parts: &[part_outline::Model],
+    existing_parts: &[PartOutlineRecord],
     expected_parts: &[OutlineDeleteTarget],
 ) -> Result<i32, AppError> {
     if expected_parts.is_empty() || expected_parts.len() > 1024 {
@@ -91,16 +91,16 @@ pub(super) fn validate_replacement_part_sources(
 #[cfg(test)]
 mod tests {
     use a4n_api_contract::outline::OutlineDeleteTarget;
-    use a4n_db_models::models::chapter::part_outline;
+    use a4n_domain::chapter::PartOutlineRecord;
     use chrono::DateTime;
 
     use super::validate_replacement_part_sources;
 
-    fn part(id: i64, updated_at_seconds: i64) -> part_outline::Model {
+    fn part(id: i64, updated_at_seconds: i64) -> PartOutlineRecord {
         let updated_at = DateTime::from_timestamp(updated_at_seconds, 0)
             .unwrap()
             .naive_utc();
-        part_outline::Model {
+        PartOutlineRecord {
             id,
             project_id: 1,
             part_number: id as i32,
@@ -116,7 +116,7 @@ mod tests {
         }
     }
 
-    fn target(part: &part_outline::Model) -> OutlineDeleteTarget {
+    fn target(part: &PartOutlineRecord) -> OutlineDeleteTarget {
         OutlineDeleteTarget {
             id: part.id,
             expected_updated_at: part.updated_at.to_string(),
