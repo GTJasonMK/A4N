@@ -1162,7 +1162,7 @@ export const MangaTab: React.FC<MangaTabProps> = ({
         onBusyChange={setAuthoringBusy}
         onNext={() => setWorkspaceStage("page_plan")}
       /> : workspaceStage === "materials" ? <BaseMaterialsWorkspace projectId={characterAssetProjectId} canEdit={canEditManga}
-        onChanged={loadCharacterAssets} onNext={() => { void loadCharacterAssets(); setWorkspaceStage("adaptation"); }} /> : <MangaChapterDetailPanel
+        onChanged={loadCharacterAssets} onNext={async () => { if (await loadCharacterAssets()) setWorkspaceStage("adaptation"); }} /> : <MangaChapterDetailPanel
         key={`${projectId}:${selectedChapter?.id}:${workspaceStage}:${discardVersion}`}
         stageMode={activePageStage}
         onDirtyChange={setPromptDirty}

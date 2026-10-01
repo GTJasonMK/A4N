@@ -153,12 +153,21 @@ export function MediaAuthoringPanel({ projectId, kind, workspace, loading, error
       }
     }
   };
+  const reloadAfterWrite = async () => {
+    try {
+      await onReload();
+    } catch (error) {
+      const message = extractErrorMessage(error, t("common.mediaAuthoring.readbackFailed"));
+      setActionError(message);
+      addToast(message, "error");
+    }
+  };
   const save = async () => {
     if (!editor) throw new Error(t("common.mediaAuthoring.noPlan"));
     const saved = await saveMediaAuthoringDocument({ project_id: projectId, chapter_id: chapterId, kind,
       record_id: editor.record?.id ?? null, expected_revision: editor.record?.revision ?? null, document: editor.document });
     commitEditor(saved);
-    await onReload();
+    await reloadAfterWrite();
     return saved;
   };
   const adopt = async () => {
@@ -168,7 +177,7 @@ export function MediaAuthoringPanel({ projectId, kind, workspace, loading, error
     const adopted = await adoptMediaAuthoringDocument({ project_id: projectId, record_id: saved.id, expected_revision: saved.revision });
     if (scopeRef.current !== requestScope) return;
     commitEditor(adopted);
-    await onReload();
+    await reloadAfterWrite();
   };
   const generationInput = (): GenerateAdaptationPlanInput => {
     if (!sourceChapterId) throw new Error(t("common.mediaAuthoring.chooseChapter"));
@@ -197,7 +206,7 @@ export function MediaAuthoringPanel({ projectId, kind, workspace, loading, error
       setSubmittedOptions({ instruction, referenceChoice });
       commitEditor(result);
     }
-    await onReload();
+    await reloadAfterWrite();
   };
 
   return <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-1 custom-scrollbar">

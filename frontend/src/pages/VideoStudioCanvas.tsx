@@ -808,7 +808,12 @@ export const VideoStudioCanvas: React.FC = () => {
                   : project?.source_mode === "freeform"
                     ? t("video.freeCanvas")
                     : t("video.derivedCanvas")}
-              {!canvasWriteBusy && dirty ? t("video.canvasDirty") : ""}
+              <span
+                aria-hidden={canvasWriteBusy || !dirty}
+                className={canvasWriteBusy || !dirty ? "invisible" : undefined}
+              >
+                {t("video.canvasDirty")}
+              </span>
             </span>
           }
           actions={

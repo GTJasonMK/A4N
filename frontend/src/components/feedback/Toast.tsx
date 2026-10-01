@@ -44,22 +44,31 @@ export function ToastContainer() {
     };
 
     updatePosition();
-    window.addEventListener("resize", updatePosition);
-    const headerObserver = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(updatePosition);
+    let frame: number | null = null;
+    const scheduleUpdate = () => {
+      if (frame != null) return;
+      frame = window.requestAnimationFrame(() => {
+        frame = null;
+        updatePosition();
+      });
+    };
+    window.addEventListener("resize", scheduleUpdate);
     const observeHeaders = () => {
-      headerObserver?.disconnect();
-      document.querySelectorAll<HTMLElement>(
-        ".a4n-page-header, .a4n-settings-layout > div:first-child",
-      ).forEach((element) => headerObserver?.observe(element));
-      updatePosition();
+      scheduleUpdate();
     };
     const observer = new MutationObserver(observeHeaders);
-    observer.observe(document.body, { childList: true, subtree: true });
+    observer.observe(document.body, {
+      attributes: true,
+      attributeFilter: ["class", "style"],
+      characterData: true,
+      childList: true,
+      subtree: true,
+    });
     observeHeaders();
     return () => {
-      window.removeEventListener("resize", updatePosition);
+      window.removeEventListener("resize", scheduleUpdate);
+      if (frame != null) window.cancelAnimationFrame(frame);
       observer.disconnect();
-      headerObserver?.disconnect();
     };
   }, [toasts.length]);
 

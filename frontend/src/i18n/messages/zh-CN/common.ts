@@ -55,7 +55,7 @@ export const common = {
   mediaAuthoring: {
     needsUpdate: "需更新", ready: "已生成",
     outputsStale: "这些产物使用了旧计划。内容和素材仍保留，可检查后按需重新生成。",
-    requestFailed: "读取或保存改编内容失败",
+    requestFailed: "读取或保存改编内容失败", readbackFailed: "内容已写入，但刷新正式内容失败，请点击刷新确认当前版本。",
     adaptation: "改编计划", materials: "基础素材", characterMaterials: "人物", sceneObjectMaterials: "场景与道具", pagePlanning: "分页分镜", pagePrompts: "页面提示词", images: "成图",
     branches: "分支", script: "剧本演出", assetPlan: "资产规划", assetGeneration: "素材生成", export: "检查导出",
     oneClick: "一键生成", nextStage: "下一阶段", previousStage: "上一阶段", stages: "创作阶段",

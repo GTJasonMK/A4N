@@ -55,7 +55,7 @@ export const common = {
   mediaAuthoring: {
     needsUpdate: "Outdated", ready: "Generated",
     outputsStale: "These outputs use an earlier plan. Content and media are preserved; review them before regenerating.",
-    requestFailed: "Unable to read or save adaptation content",
+    requestFailed: "Unable to read or save adaptation content", readbackFailed: "The content was saved, but refreshing the saved content failed. Refresh to confirm the current version.",
     adaptation: "Adaptation plan", materials: "Base materials", characterMaterials: "Characters", sceneObjectMaterials: "Scenes and objects", pagePlanning: "Page layouts", pagePrompts: "Page prompts", images: "Images",
     branches: "Branches", script: "Script and staging", assetPlan: "Asset plan", assetGeneration: "Generate assets", export: "Review and export",
     oneClick: "Generate all", nextStage: "Next stage", previousStage: "Previous stage", stages: "Production stages",

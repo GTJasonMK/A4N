@@ -641,7 +641,7 @@ export const VideoTab: React.FC<VideoTabProps> = ({
           </div>
         ) : workspaceTab === "materials" ? (
           <BaseMaterialsWorkspace projectId={profileMaterialProjectId} canEdit={canEdit}
-            onChanged={loadAll} onNext={() => { void handleWorkspaceTabChange("director"); }} />
+            onChanged={loadAll} onNext={async () => { if (await loadAll()) await handleWorkspaceTabChange("director"); }} />
         ) : workspaceTab === "frames" ? (
           planningOptionsState.options ? (
             <Suspense fallback={<VideoWorkspaceFallback text={t("video.chapter.loadingPlanningWorkspace")} />}>

@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { Gamepad2, GitCompare, Trash2 } from "lucide-react";
+import { Gamepad2, GitCompare, RefreshCw, Trash2 } from "lucide-react";
 import { LoadingSpinner } from "../components/ui/LoadingSpinner";
 import {
   canEditProjectMaterials,
@@ -24,12 +24,14 @@ import { getProjectLifecycleBlockedReason } from "../utils/projectStatus";
 import { useI18n } from "../i18n";
 import { confirmDiscardMediaChanges } from "../components/feedback/UnsavedChangesGuard";
 import { UnsavedNavigationGuard } from "../components/navigation/UnsavedNavigationGuard";
+import { useNovelDetailDirtyRegistry } from "./novel-detail/novelDetailDirty";
 
 export const GalgameProjectWorkspace: React.FC = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const { addToast } = useToast();
   const { t } = useI18n();
+  const dirtyRegistry = useNovelDetailDirtyRegistry();
   const translatorRef = useRef(t);
   translatorRef.current = t;
   const projectId = Number(id);
@@ -182,6 +184,10 @@ export const GalgameProjectWorkspace: React.FC = () => {
     }
     resetBusyRef.current = true;
     const requestProjectId = project.id;
+    if (!await confirmDiscardMediaChanges(workspaceDirty || dirtyRegistry.hasDirty(), t)) {
+      resetBusyRef.current = false;
+      return;
+    }
     const ok = await confirmDialog({
       title: t("galgame.resetTitle"),
       message: t("galgame.resetMessage"),
@@ -193,6 +199,7 @@ export const GalgameProjectWorkspace: React.FC = () => {
       resetBusyRef.current = false;
       return;
     }
+    setWorkspaceDirty(false);
 
     setResetting(true);
     setSourceSyncOpen(false);
@@ -266,7 +273,7 @@ export const GalgameProjectWorkspace: React.FC = () => {
         setResetting(false);
       }
     }
-  }, [addToast, project, t]);
+  }, [addToast, dirtyRegistry, project, t, workspaceDirty]);
 
   return (
     <div className="h-full min-h-0 flex flex-col bg-book-bg">
@@ -285,7 +292,7 @@ export const GalgameProjectWorkspace: React.FC = () => {
             {canEditProject ? (
               <BookIconButton
                 label={t("galgame.syncSource")}
-                  onClick={() => { void (async () => { if (await confirmDiscardMediaChanges(workspaceDirty, t)) setSourceSyncOpen(true); })(); }}
+                  onClick={() => { void (async () => { if (await confirmDiscardMediaChanges(workspaceDirty || dirtyRegistry.hasDirty(), t)) setSourceSyncOpen(true); })(); }}
                 disabled={!project || resetInProgress}
                 variant="secondary"
                 size="sm"
@@ -346,13 +353,20 @@ export const GalgameProjectWorkspace: React.FC = () => {
       ) : null}
 
       <section aria-label={t("galgame.workspace")} className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden a4n-page-container lg:overflow-hidden custom-scrollbar">
-        {loadError ? <p role="alert" className="mb-3 text-sm text-error">{loadError}</p> : null}
+        {loadError ? (
+          <div role="alert" className="mb-3 flex flex-wrap items-center gap-3 text-sm text-error">
+            <p className="min-w-0 flex-1">{loadError}</p>
+            <BookButton variant="secondary" size="sm" onClick={() => void refresh()} disabled={loading}>
+              <RefreshCw size={13} /> {t("common.retry")}
+            </BookButton>
+          </div>
+        ) : null}
         {loading && !project ? (
           <div className="inline-flex items-center gap-2 text-xs text-book-text-muted">
             <LoadingSpinner size="sm" />
             {t("galgame.loadingProject")}
           </div>
-        ) : project ? (
+        ) : loadError ? null : project ? (
           <GalgameTab
             key={workspaceVersion}
             projectId={project.id}

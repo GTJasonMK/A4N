@@ -35,7 +35,10 @@ export function useMediaAuthoring(projectId: number, enabled = true) {
       const value = await getMediaAuthoringWorkspace({ project_id: projectId, chapter_id: null });
       if (id === request.current) setWorkspace(value);
     } catch (error) {
-      if (id === request.current) setError(extractErrorMessage(error, t("common.mediaAuthoring.requestFailed")));
+      if (id === request.current) {
+        setWorkspace(null);
+        setError(extractErrorMessage(error, t("common.mediaAuthoring.requestFailed")));
+      }
       throw error;
     } finally {
       if (id === request.current) setLoading(false);

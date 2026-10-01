@@ -9,7 +9,7 @@ import React, {
   useState,
 } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { Film, GitCompare, Layers3 } from "lucide-react";
+import { Film, GitCompare, Layers3, RefreshCw } from "lucide-react";
 import { LoadingSpinner } from "../components/ui/LoadingSpinner";
 import {
   getProject,
@@ -253,13 +253,20 @@ export const VideoProjectWorkspace: React.FC = () => {
       ) : null}
 
       <section aria-label={t("video.projectWorkspace")} className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden a4n-page-container md:overflow-hidden">
-        {loadError ? <p role="alert" className="mb-3 text-sm text-error">{loadError}</p> : null}
+        {loadError ? (
+          <div role="alert" className="mb-3 flex flex-wrap items-center gap-3 text-sm text-error">
+            <p className="min-w-0 flex-1">{loadError}</p>
+            <BookButton variant="secondary" size="sm" onClick={() => void refresh()} disabled={loading}>
+              <RefreshCw size={13} /> {t("common.retry")}
+            </BookButton>
+          </div>
+        ) : null}
         {loading ? (
           <div className="inline-flex items-center gap-2 text-xs text-book-text-muted">
             <LoadingSpinner size="sm" />
             {t("video.loadingProject")}
           </div>
-        ) : project && !canEditProject ? (
+        ) : loadError ? null : project && !canEditProject ? (
           <EmptyHint text={t("video.noEditPermission")} />
         ) : project && chapters.length > 0 ? (
           <div

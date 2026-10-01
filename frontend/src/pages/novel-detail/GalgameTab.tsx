@@ -929,7 +929,7 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
       {authoring.error && workspaceStage !== "adaptation" && workspaceStage !== "branches" && <p role="alert" className="text-xs text-error">{authoring.error}</p>}
       <div id={`${stageId}-panel`} role="tabpanel" aria-labelledby={`${stageId}-tab-${workspaceStage}`} className="flex min-h-0 flex-1 flex-col gap-3">
       {workspaceStage === "materials" ? <BaseMaterialsWorkspace projectId={materialProjectId} canEdit={canEditGalgame}
-        onChanged={load} onNext={() => { void load(); setWorkspaceStage("adaptation"); }} />
+        onChanged={load} onNext={async () => { if (await load()) setWorkspaceStage("adaptation"); }} />
       : workspaceStage === "adaptation" || workspaceStage === "branches" ? <MediaAuthoringPanel key={`${projectId}:${workspaceStage}:${discardVersion}`} projectId={projectId}
         kind={workspaceStage === "adaptation" ? "adaptation_plan" : "galgame_branch_plan"}
         workspace={authoring.workspace} loading={authoring.loading} error={authoring.error} canEdit={canEditGalgame} stageRunning={pipelineRunning}

@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { GitCompare, PanelsTopLeft } from "lucide-react";
+import { GitCompare, PanelsTopLeft, RefreshCw } from "lucide-react";
 import { LoadingSpinner } from "../components/ui/LoadingSpinner";
 import {
   getProject,
@@ -10,7 +10,7 @@ import {
 } from "../api/project";
 import { extractErrorMessage } from "../api";
 import { useToast } from "../components/feedback/Toast";
-import { BookIconButton } from "../components/ui/BookButton";
+import { BookButton, BookIconButton } from "../components/ui/BookButton";
 import { BackButton } from "../components/ui/BackButton";
 import { DerivedProjectHeader } from "../components/shell/DerivedProjectHeader";
 import { MangaTab } from "./novel-detail/MangaTab";
@@ -174,13 +174,20 @@ export const ComicProjectWorkspace: React.FC = () => {
       ) : null}
 
       <section aria-label={t("comic.workspace")} className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden a4n-page-container lg:overflow-hidden custom-scrollbar">
-        {loadError ? <p role="alert" className="mb-3 text-sm text-error">{loadError}</p> : null}
+        {loadError ? (
+          <div role="alert" className="mb-3 flex flex-wrap items-center gap-3 text-sm text-error">
+            <p className="min-w-0 flex-1">{loadError}</p>
+            <BookButton variant="secondary" size="sm" onClick={() => void refresh()} disabled={loading}>
+              <RefreshCw size={13} /> {t("common.retry")}
+            </BookButton>
+          </div>
+        ) : null}
         {loading ? (
           <div className="inline-flex items-center gap-2 text-xs text-book-text-muted">
             <LoadingSpinner size="sm" />
             {t("comic.loadingProject")}
           </div>
-        ) : project ? (
+        ) : loadError ? null : project ? (
           <MangaTab
             projectId={project.id}
             canEditManga={canEditProject}

@@ -81,9 +81,16 @@ const StudioCanvasNode: React.FC<NodeProps<StudioNode>> = ({ id, data, selected,
     ? studioNodeOutputPortsForData(data, contract).map((port) => ({ id: port.id, label: studioPortLabel(data.nodeKind, port, t) }))
     : [];
   const handleSignature = `${inputPorts.map((port) => port.id).join(",")}|${outputPorts.map((port) => port.id).join(",")}`;
+  const initialHandleSignatureRef = React.useRef<string | null>(null);
 
   React.useEffect(() => {
     // React Flow caches handle bounds; refresh them when input_mode changes the handle set.
+    if (initialHandleSignatureRef.current === null) {
+      initialHandleSignatureRef.current = handleSignature;
+      return;
+    }
+    if (initialHandleSignatureRef.current === handleSignature) return;
+    initialHandleSignatureRef.current = handleSignature;
     updateNodeInternals(id);
   }, [handleSignature, id, updateNodeInternals]);
 
