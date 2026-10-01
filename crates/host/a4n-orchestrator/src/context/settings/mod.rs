@@ -19,14 +19,13 @@ use a4n_db::{
         validate_image_config_model,
     },
 };
-use a4n_db_models::models::{
-    ai::{embedding_config, image_gen_config, llm_config, video_gen_config},
-    user::theme_config,
-};
+use a4n_db_models::models::ai::{embedding_config, image_gen_config, llm_config, video_gen_config};
 use a4n_domain::cost::{ModelUsageRecordCompletion, ModelUsageRecordStart};
 use a4n_domain::{
-    ThemeDocument, ThemeMode, embedding::CreateEmbeddingConfigParams,
+    ThemeDocument, ThemeMode,
+    embedding::CreateEmbeddingConfigParams,
     image::CreateImageConfigParams,
+    theme_records::{ThemePreferenceRecord, ThemeRecord, ThemeResourceRecord},
 };
 use a4n_error::AppError;
 use a4n_llm_config::{

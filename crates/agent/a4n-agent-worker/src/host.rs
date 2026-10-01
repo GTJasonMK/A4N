@@ -353,11 +353,7 @@ impl AgentRuntimeHost for HttpAgentRuntimeHost {
         request: &AgentWorkerChapterScopeRequest,
     ) -> Result<(), AppError> {
         self.application
-            .verify_chapters_in_project_for_worker(
-                request.user_id,
-                request.project_id,
-                &request.chapter_ids,
-            )
+            .verify_chapters_in_project(request.user_id, request.project_id, &request.chapter_ids)
             .await
     }
 

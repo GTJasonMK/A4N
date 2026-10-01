@@ -58,6 +58,7 @@ a4n-embedding-provider-contract = { workspace = true }
 a4n-rag-core = { workspace = true }
 a4n-rag-contract = { workspace = true }
 a4n-import-core = { workspace = true }
+a4n-import-review-core = { workspace = true }
 a4n-media = { workspace = true }
 a4n-manga-core = { workspace = true }
 a4n-image-contract = { workspace = true }

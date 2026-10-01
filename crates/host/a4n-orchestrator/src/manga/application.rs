@@ -155,8 +155,9 @@ impl OrchestratorContext {
         let bound_asset = self
             .manga_reference_bound_asset(page_prompt.project_id, input.asset_kind, input.asset_id)
             .await?;
+        let prompt_record = a4n_db::manga::manga_page_prompt_record(&page_prompt);
         let layout =
-            manga_page_generation_layout(&page_prompt).map_err(AppError::InvalidArgument)?;
+            manga_page_generation_layout(&prompt_record).map_err(AppError::InvalidArgument)?;
         let layout = bind_reference_asset_in_layout(layout, character_name, bound_asset)
             .map_err(AppError::InvalidArgument)?;
         let updated = self
@@ -388,7 +389,8 @@ impl a4n_api_contract::manga::MangaRecordMutationApplicationPort for Orchestrato
         let prompt = self
             .bind_manga_reference_image_validated(user_id, input, cleanup)
             .await?;
-        manga_page_prompt_summary(&prompt).map_err(AppError::InvalidArgument)
+        let prompt_record = a4n_db::manga::manga_page_prompt_record(&prompt);
+        manga_page_prompt_summary(&prompt_record).map_err(AppError::InvalidArgument)
     }
 
     async fn update_prompt(
@@ -400,7 +402,8 @@ impl a4n_api_contract::manga::MangaRecordMutationApplicationPort for Orchestrato
         let prompt = self
             .update_manga_prompt_validated(user_id, input, cleanup)
             .await?;
-        manga_page_prompt_summary(&prompt).map_err(AppError::InvalidArgument)
+        let prompt_record = a4n_db::manga::manga_page_prompt_record(&prompt);
+        manga_page_prompt_summary(&prompt_record).map_err(AppError::InvalidArgument)
     }
 
     async fn delete_by_chapter(
@@ -439,7 +442,8 @@ impl a4n_api_contract::manga::MangaRecordMutationApplicationPort for Orchestrato
         let prompt = self
             .optimize_manga_prompt_record_validated(user_id, input, &prompt_renderer, cleanup)
             .await?;
-        manga_page_prompt_summary(&prompt).map_err(AppError::InvalidArgument)
+        let prompt_record = a4n_db::manga::manga_page_prompt_record(&prompt);
+        manga_page_prompt_summary(&prompt_record).map_err(AppError::InvalidArgument)
     }
 }
 

@@ -1,31 +1,17 @@
 use super::contracts::InspirationDbError;
 use super::project::ensure_inspiration_project_exists;
 use a4n_db_models::models::user::{conversation, message};
-use a4n_domain::inspiration::InspirationExchangeInsertInput;
+use a4n_domain::inspiration::{InspirationExchangeInsertInput, InspirationMessageRecord};
 use chrono::Utc;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, DatabaseTransaction, EntityTrait,
     QueryFilter, QueryOrder, QuerySelect, Set,
 };
-use serde_json::{Value, json};
 
 const INSPIRATION_CONVERSATION_TYPE: &str = "inspiration";
 const INSPIRATION_CONVERSATION_TITLE: &str = "灵感对话";
 /// 界面历史列表上限；模型调用传 None，保留此前仍有效的用户约束。
 pub const INSPIRATION_HISTORY_LIMIT: u64 = 80;
-
-pub fn inspiration_messages_llm_context(messages: &[message::Model]) -> Vec<Value> {
-    messages
-        .iter()
-        .filter_map(|item| match item.role.as_str() {
-            "user" | "assistant" => Some(json!({
-                "role": item.role,
-                "content": item.content,
-            })),
-            _ => None,
-        })
-        .collect()
-}
 
 async fn active_inspiration_conversation<C>(
     db: &C,
@@ -83,7 +69,7 @@ pub async fn inspiration_messages(
     db: &DatabaseConnection,
     project_id: i64,
     limit: Option<u64>,
-) -> Result<Vec<message::Model>, InspirationDbError> {
+) -> Result<Vec<InspirationMessageRecord>, InspirationDbError> {
     ensure_inspiration_project_exists(db, project_id).await?;
     inspiration_messages_for_connection(db, project_id, limit).await
 }
@@ -92,7 +78,7 @@ pub async fn inspiration_messages_for_connection<C>(
     db: &C,
     project_id: i64,
     limit: Option<u64>,
-) -> Result<Vec<message::Model>, InspirationDbError>
+) -> Result<Vec<InspirationMessageRecord>, InspirationDbError>
 where
     C: sea_orm::ConnectionTrait,
 {
@@ -107,7 +93,16 @@ where
         .await
         .map_err(InspirationDbError::Database)?;
     rows.reverse();
-    Ok(rows)
+    Ok(rows.into_iter().map(inspiration_message_record).collect())
+}
+
+fn inspiration_message_record(row: message::Model) -> InspirationMessageRecord {
+    InspirationMessageRecord {
+        id: row.id,
+        role: row.role,
+        content: row.content,
+        created_at: row.created_at,
+    }
 }
 
 pub async fn insert_inspiration_exchange_in_transaction(

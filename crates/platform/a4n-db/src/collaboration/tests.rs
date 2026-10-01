@@ -39,6 +39,24 @@ async fn collaboration_flow_keeps_reads_pure_and_mutations_explicit() {
     .await
     .expect("测试项目应可创建");
 
+    let owned_page = list_accessible_projects(
+        &db,
+        AccessibleProjectListInput {
+            user_id: owner.id,
+            offset: 0,
+            limit: 20,
+            project_kind: None,
+            root_project_id: None,
+            access_scope: ProjectAccessScope::Owned,
+        },
+    )
+    .await
+    .expect("所有者项目列表应可读取");
+    assert_eq!(owned_page.total, 1);
+    assert_eq!(owned_page.items[0].id, project.id);
+    assert_eq!(owned_page.items[0].user_id, owner.id);
+    assert_eq!(owned_page.items[0].title, "协作合同测试");
+
     let collaborating_page = list_accessible_projects(
         &db,
         AccessibleProjectListInput {

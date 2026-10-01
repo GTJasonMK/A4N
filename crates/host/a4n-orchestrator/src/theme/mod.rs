@@ -8,10 +8,9 @@ use a4n_api_contract::theme::{
     CreateThemeInput, PersistThemeResourceInput, ThemeResourceRecord, ThemeSummary,
     UpdateThemeInput,
 };
-use a4n_db_models::models::user::{theme_config, theme_preference, theme_resource};
 use a4n_domain::ThemeAppearance;
+use a4n_domain::theme_records::ThemeRecord;
 use a4n_error::AppError;
-use a4n_theme_core::theme_resource_record;
 
 use crate::{OrchestratorContext, auth::ensure_same_user};
 use rules::{ensure_theme_can_be_deleted, normalize_theme_name};
@@ -21,7 +20,7 @@ impl OrchestratorContext {
         &self,
         user_id: i64,
         input: CreateThemeInput,
-    ) -> Result<theme_config::Model, AppError> {
+    ) -> Result<ThemeRecord, AppError> {
         let name = normalize_theme_name(input.name).map_err(AppError::InvalidArgument)?;
         a4n_domain::validate_theme_document(&input.document).map_err(AppError::InvalidArgument)?;
         self.create_user_theme_record(user_id, name, input.mode, input.document)
@@ -60,7 +59,7 @@ impl OrchestratorContext {
         &self,
         user_id: i64,
         theme_id: i64,
-    ) -> Result<theme_config::Model, AppError> {
+    ) -> Result<ThemeRecord, AppError> {
         self.require_theme_owner(user_id, theme_id, "只能激活当前登录用户主题")
             .await?;
         self.activate_theme(theme_id).await
@@ -70,7 +69,7 @@ impl OrchestratorContext {
         &self,
         user_id: i64,
         mut input: CreateThemeInput,
-    ) -> Result<theme_config::Model, AppError> {
+    ) -> Result<ThemeRecord, AppError> {
         let name = normalize_theme_name(input.name).map_err(AppError::InvalidArgument)?;
         let existing_names = self
             .list_themes_visible_to_user(user_id)
@@ -103,7 +102,7 @@ impl OrchestratorContext {
         file_path: &str,
         sha256: &str,
         byte_size: i64,
-    ) -> Result<theme_resource::Model, AppError> {
+    ) -> Result<ThemeResourceRecord, AppError> {
         self.require_theme_owner(user_id, theme_id, "只能修改当前登录用户主题")
             .await?;
         self.upsert_theme_resource(
@@ -122,7 +121,7 @@ impl OrchestratorContext {
         &self,
         user_id: i64,
         resource_id: i64,
-    ) -> Result<theme_resource::Model, AppError> {
+    ) -> Result<ThemeResourceRecord, AppError> {
         let resource = self
             .theme_resource_by_id(resource_id)
             .await?
@@ -136,7 +135,7 @@ impl OrchestratorContext {
         &self,
         user_id: i64,
         appearance: ThemeAppearance,
-    ) -> Result<theme_preference::Model, AppError> {
+    ) -> Result<a4n_domain::theme_records::ThemePreferenceRecord, AppError> {
         self.upsert_theme_preference(user_id, appearance).await
     }
 
@@ -144,7 +143,7 @@ impl OrchestratorContext {
         &self,
         user_id: i64,
         theme_id: i64,
-    ) -> Result<theme_config::Model, AppError> {
+    ) -> Result<ThemeRecord, AppError> {
         let theme = self
             .theme_by_id(theme_id)
             .await?
@@ -160,7 +159,7 @@ impl OrchestratorContext {
         user_id: i64,
         theme_id: i64,
         message: &str,
-    ) -> Result<theme_config::Model, AppError> {
+    ) -> Result<ThemeRecord, AppError> {
         let theme = self.require_theme_access(user_id, theme_id).await?;
         if theme.user_id.is_none() {
             return Err(AppError::Forbidden(message.to_string()));
@@ -229,7 +228,7 @@ impl a4n_api_contract::theme::ThemeMutationApplicationPort for OrchestratorConte
                 input.byte_size,
             )
             .await?;
-        Ok(theme_resource_record(resource))
+        Ok(resource)
     }
 
     async fn delete_resource(
@@ -240,7 +239,7 @@ impl a4n_api_contract::theme::ThemeMutationApplicationPort for OrchestratorConte
         let resource = self
             .delete_theme_resource_for_user_validated(user_id, resource_id)
             .await?;
-        Ok(theme_resource_record(resource))
+        Ok(resource)
     }
 
     async fn update_preference(
@@ -251,19 +250,12 @@ impl a4n_api_contract::theme::ThemeMutationApplicationPort for OrchestratorConte
         let preference = self
             .update_theme_preference_for_user_validated(user_id, input.appearance)
             .await?;
-        let appearance = preference
-            .appearance
-            .parse::<ThemeAppearance>()
-            .map_err(|error| AppError::ConfigError(format!("主题外观偏好无效：{error}")))?;
-        Ok(a4n_api_contract::theme::ThemePreferenceSummary {
-            user_id,
-            appearance,
-        })
+        a4n_theme_core::theme_preference_summary(user_id, Some(preference))
     }
 }
 
 impl OrchestratorContext {
-    async fn theme_summary(&self, theme: theme_config::Model) -> Result<ThemeSummary, AppError> {
+    async fn theme_summary(&self, theme: ThemeRecord) -> Result<ThemeSummary, AppError> {
         let resources = self.list_theme_resources(theme.id).await?;
         a4n_theme_core::theme_summary_with_resources(theme, resources)
     }

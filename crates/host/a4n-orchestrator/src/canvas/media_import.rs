@@ -113,7 +113,7 @@ impl OrchestratorContext {
         &self,
         project_id: i64,
         user_id: i64,
-    ) -> Result<a4n_db_models::models::project::novel_project::Model, AppError> {
+    ) -> Result<a4n_domain::project::ProjectSummaryRecord, AppError> {
         if project_id <= 0 {
             return Err(AppError::InvalidArgument(
                 "项目 ID 必须是正整数".to_string(),

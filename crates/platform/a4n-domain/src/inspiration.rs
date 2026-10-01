@@ -6,6 +6,27 @@ use serde_json::{Map, Value};
 
 use crate::project::{required_text, validate_blueprint_chapter_count};
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct InspirationMessageRecord {
+    pub id: i64,
+    pub role: String,
+    pub content: String,
+    pub created_at: chrono::NaiveDateTime,
+}
+
+pub fn inspiration_messages_llm_context(messages: &[InspirationMessageRecord]) -> Vec<Value> {
+    messages
+        .iter()
+        .filter(|message| matches!(message.role.as_str(), "user" | "assistant"))
+        .map(|message| {
+            serde_json::json!({
+                "role": message.role,
+                "content": message.content,
+            })
+        })
+        .collect()
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct InspirationResponse {

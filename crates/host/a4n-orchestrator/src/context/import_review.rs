@@ -9,9 +9,7 @@ use a4n_db::{
     DbHandle,
     import_review::{AcceptedImportReview, ImportReviewMutationError},
 };
-use a4n_db_models::models::project::import_review_queue;
-use a4n_domain::import_review::ImportChapterDraft;
-use a4n_domain::import_review::ImportReviewCreateInput;
+use a4n_domain::import_review::{ImportChapterDraft, ImportReviewCreateInput, ImportReviewRecord};
 use a4n_error::AppError;
 use async_trait::async_trait;
 use serde_json::Value;
@@ -32,7 +30,7 @@ impl ImportReviewApplication {
     async fn import_review_by_id(
         &self,
         review_id: i64,
-    ) -> Result<Option<import_review_queue::Model>, AppError> {
+    ) -> Result<Option<ImportReviewRecord>, AppError> {
         a4n_db::import_review::import_review_by_id(self.database.connection(), review_id)
             .await
             .map_err(AppError::Database)
@@ -53,7 +51,7 @@ impl ImportReviewApplication {
     async fn create_import_reviews(
         &self,
         inputs: Vec<ImportReviewCreateInput>,
-    ) -> Result<Vec<import_review_queue::Model>, AppError> {
+    ) -> Result<Vec<ImportReviewRecord>, AppError> {
         a4n_db::import_review::create_import_reviews(self.database.connection(), inputs)
             .await
             .map_err(AppError::Database)
@@ -80,11 +78,8 @@ impl ImportReviewApplication {
         .map_err(import_review_mutation_error)
     }
 
-    async fn reject_import_review(
-        &self,
-        review: import_review_queue::Model,
-    ) -> Result<import_review_queue::Model, AppError> {
-        a4n_db::import_review::reject_import_review(self.database.connection(), review.id)
+    async fn reject_import_review(&self, review_id: i64) -> Result<ImportReviewRecord, AppError> {
+        a4n_db::import_review::reject_import_review(self.database.connection(), review_id)
             .await
             .map_err(import_review_mutation_error)
     }
@@ -105,7 +100,7 @@ impl OrchestratorContext {
     pub(crate) async fn create_import_reviews(
         &self,
         inputs: Vec<ImportReviewCreateInput>,
-    ) -> Result<Vec<import_review_queue::Model>, AppError> {
+    ) -> Result<Vec<ImportReviewRecord>, AppError> {
         self.import_review.create_import_reviews(inputs).await
     }
 
@@ -113,9 +108,9 @@ impl OrchestratorContext {
         &self,
         user_id: i64,
         review_id: i64,
-    ) -> Result<import_review_queue::Model, AppError> {
+    ) -> Result<ImportReviewRecord, AppError> {
         let review = self.import_review_for_editor(user_id, review_id).await?;
-        self.import_review.reject_import_review(review).await
+        self.import_review.reject_import_review(review.id).await
     }
 
     pub(crate) async fn delete_import_review_for_user_validated(
@@ -223,7 +218,7 @@ impl OrchestratorContext {
         &self,
         user_id: i64,
         review_id: i64,
-    ) -> Result<import_review_queue::Model, AppError> {
+    ) -> Result<ImportReviewRecord, AppError> {
         let review = self
             .import_review
             .import_review_by_id(review_id)
@@ -233,28 +228,6 @@ impl OrchestratorContext {
             .await?;
         Ok(review)
     }
-}
-
-fn import_review_summary(
-    review: &import_review_queue::Model,
-) -> Result<ImportReviewSummary, AppError> {
-    let review_status = a4n_domain::import_review::ImportReviewStatus::parse(&review.review_status)
-        .ok_or_else(|| AppError::InvalidState {
-            current: format!(
-                "导入审核 #{} review_status={:?}",
-                review.id, review.review_status
-            ),
-            operation: "读取导入审核状态".to_string(),
-        })?;
-    Ok(ImportReviewSummary {
-        id: review.id,
-        project_id: review.project_id,
-        filename: review.filename.clone(),
-        analysis_result: review.analysis_result.clone(),
-        review_status,
-        created_at: review.created_at.to_string(),
-        updated_at: review.updated_at.to_string(),
-    })
 }
 
 #[async_trait]
@@ -270,7 +243,10 @@ impl a4n_novel_host_contract::ImportReviewIngestionApplicationPort for Orchestra
             self, user_id, project_id, filename, chapters,
         )
         .await?;
-        reviews.iter().map(import_review_summary).collect()
+        reviews
+            .iter()
+            .map(a4n_import_review_core::summary_from_record)
+            .collect()
     }
 }
 
@@ -292,7 +268,7 @@ impl a4n_api_contract::import_review::ImportReviewAcceptanceApplicationPort
                 host_port,
             )
             .await?;
-        import_review_summary(&accepted.review)
+        a4n_import_review_core::summary_from_record(&accepted.review)
     }
 
     async fn batch_accept(
@@ -306,7 +282,7 @@ impl a4n_api_contract::import_review::ImportReviewAcceptanceApplicationPort
             .await?;
         accepted
             .iter()
-            .map(|accepted| import_review_summary(&accepted.review))
+            .map(|accepted| a4n_import_review_core::summary_from_record(&accepted.review))
             .collect()
     }
 }
@@ -326,6 +302,6 @@ impl a4n_api_contract::import_review::ImportReviewMutationApplicationPort for Or
         let updated = self
             .reject_import_review_for_user_validated(user_id, input.review_id)
             .await?;
-        import_review_summary(&updated)
+        a4n_import_review_core::summary_from_record(&updated)
     }
 }

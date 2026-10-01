@@ -14,7 +14,8 @@ pub(super) fn build_manga_page_generation_trace_record(
     row: &chapter_manga_prompt::Model,
     trace: MangaPromptGenerationTrace,
 ) -> Result<MangaPageGenerationTraceRecord, AppError> {
-    let layout = manga_page_generation_layout(row).map_err(AppError::InvalidArgument)?;
+    let prompt_record = a4n_db::manga::manga_page_prompt_record(row);
+    let layout = manga_page_generation_layout(&prompt_record).map_err(AppError::InvalidArgument)?;
     let source_refs_json = Some(json!({ "source": layout.source }));
     let media_refs_json = Some(json!({
         "reference_bindings": layout.reference_bindings,

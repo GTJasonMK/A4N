@@ -1,9 +1,7 @@
+use a4n_db_models::models::user::user;
+use a4n_domain::auth::ROLE_ADMIN;
 #[cfg(test)]
-use a4n_db_models::models::user::role::ROLE_USER;
-use a4n_db_models::models::user::{
-    role::{ROLE_ADMIN, validate_user_role},
-    user,
-};
+use a4n_domain::auth::ROLE_USER;
 use a4n_error::AppError;
 use chrono::Utc;
 use sea_orm::{ActiveModelTrait, ConnectionTrait, DatabaseConnection, Set};
@@ -13,6 +11,7 @@ use crate::auth::BootstrapAdminInput;
 use super::read::{count_users, find_by_email_on, find_by_username_on};
 use crate::auth::rules::{
     hash_password, normalize_email, normalize_username, validate_password_for_storage,
+    validate_user_role,
 };
 
 #[cfg(test)]

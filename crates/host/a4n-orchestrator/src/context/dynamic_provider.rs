@@ -81,9 +81,9 @@ impl ProviderRuntimePort for ProviderRuntimeAdapter {
 
     async fn project_root_id(&self, project_id: i64) -> Result<Option<i64>, AppError> {
         self.project_read
-            .by_id(project_id)
+            .summary_by_id(project_id)
             .await
-            .map(|model| model.map(|model| model.root_project_id.unwrap_or(project_id)))
+            .map(|project| project.map(|project| project.root_project_id.unwrap_or(project_id)))
     }
 
     async fn record_llm_call_trace(

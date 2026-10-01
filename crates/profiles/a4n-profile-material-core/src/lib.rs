@@ -6,17 +6,13 @@ use a4n_api_contract::profile::{
     ListProfileMaterialsInput, ProfileMaterialGroup, ProfileMaterialImageSummary,
     ProfileMaterialProfileSummary,
 };
-use a4n_db_models::models::{
-    ai::generated_image,
-    asset::{object_profile, profile_primary_material},
-    scene::scene_profile,
-};
 use a4n_domain::{
     image::{IMAGE_TYPE_OBJECT_MATERIAL, IMAGE_TYPE_SCENE_MATERIAL},
     profile_material::{
-        ProfileMaterialFilter, ProfileMaterialImageStaleness, ProfileMaterialKind,
-        ProfileMaterialKindFilter, ProfileMaterialSort, ProfileMaterialState,
-        profile_material_identity,
+        ProfileMaterialFilter, ProfileMaterialImageRecord, ProfileMaterialImageStaleness,
+        ProfileMaterialKind, ProfileMaterialKindFilter, ProfileMaterialObjectRecord,
+        ProfileMaterialSceneRecord, ProfileMaterialSort, ProfileMaterialState,
+        ProfilePrimaryMaterialRecord, profile_material_identity,
     },
     source_text_hash as source_content_sha256,
 };
@@ -55,7 +51,7 @@ pub const fn image_type_for_profile_material_kind(kind: ProfileMaterialKind) -> 
     }
 }
 
-pub fn scene_profile_content(profile: &scene_profile::Model) -> String {
+pub fn scene_profile_content(profile: &ProfileMaterialSceneRecord) -> String {
     format!(
         "{}\n{}\n{}\n{}\n{}\n{}\n{}\n{}",
         profile.name,
@@ -69,7 +65,7 @@ pub fn scene_profile_content(profile: &scene_profile::Model) -> String {
     )
 }
 
-pub fn object_profile_content(profile: &object_profile::Model) -> String {
+pub fn object_profile_content(profile: &ProfileMaterialObjectRecord) -> String {
     format!(
         "{}\n{}\n{}\n{}\n{}\n{}\n{}\n{}",
         profile.name,
@@ -83,7 +79,7 @@ pub fn object_profile_content(profile: &object_profile::Model) -> String {
     )
 }
 
-pub fn scene_source_from_model(profile: scene_profile::Model) -> ProfileMaterialSource {
+pub fn scene_source_from_record(profile: ProfileMaterialSceneRecord) -> ProfileMaterialSource {
     let content_hash = source_content_sha256(&scene_profile_content(&profile));
     ProfileMaterialSource {
         kind: ProfileMaterialKind::Scene,
@@ -107,7 +103,7 @@ pub fn scene_source_from_model(profile: scene_profile::Model) -> ProfileMaterial
     }
 }
 
-pub fn object_source_from_model(profile: object_profile::Model) -> ProfileMaterialSource {
+pub fn object_source_from_record(profile: ProfileMaterialObjectRecord) -> ProfileMaterialSource {
     let content_hash = source_content_sha256(&object_profile_content(&profile));
     ProfileMaterialSource {
         kind: ProfileMaterialKind::Object,
@@ -139,11 +135,12 @@ pub fn object_source_from_model(profile: object_profile::Model) -> ProfileMateri
 
 pub fn profile_material_group_projections(
     sources: Vec<ProfileMaterialSource>,
-    images: Vec<generated_image::Model>,
-    primary_rows: Vec<profile_primary_material::Model>,
+    images: Vec<ProfileMaterialImageRecord>,
+    primary_rows: Vec<ProfilePrimaryMaterialRecord>,
     image_limit: usize,
 ) -> Vec<ProfileMaterialGroupProjection> {
-    let mut images_by_profile: HashMap<(String, i64), Vec<generated_image::Model>> = HashMap::new();
+    let mut images_by_profile: HashMap<(String, i64), Vec<ProfileMaterialImageRecord>> =
+        HashMap::new();
     for image in images {
         if let Some((kind, profile_id)) =
             profile_material_identity(&image.image_type, image.metadata_json.as_ref())
@@ -181,7 +178,7 @@ pub fn apply_profile_material_query(
 
 fn material_group(
     source: ProfileMaterialSource,
-    images_by_profile: &mut HashMap<(String, i64), Vec<generated_image::Model>>,
+    images_by_profile: &mut HashMap<(String, i64), Vec<ProfileMaterialImageRecord>>,
     primary_by_profile: &HashMap<(String, i64), i64>,
     image_limit: usize,
 ) -> ProfileMaterialGroupProjection {
@@ -233,7 +230,7 @@ fn material_group(
 }
 
 fn material_image_summary(
-    image: &generated_image::Model,
+    image: &ProfileMaterialImageRecord,
     is_primary: bool,
     current_profile_hash: &str,
 ) -> ProfileMaterialImageSummary {
@@ -255,7 +252,7 @@ fn material_image_summary(
 }
 
 fn generated_image_summary(
-    image: &generated_image::Model,
+    image: &ProfileMaterialImageRecord,
 ) -> a4n_api_contract::image::GeneratedImageSummary {
     a4n_api_contract::image::GeneratedImageSummary {
         id: image.id,
@@ -459,8 +456,8 @@ mod tests {
         profile_id: i64,
         hash: Option<&str>,
         favorite: bool,
-    ) -> generated_image::Model {
-        generated_image::Model {
+    ) -> ProfileMaterialImageRecord {
+        ProfileMaterialImageRecord {
             id,
             project_id: 1,
             image_type: IMAGE_TYPE_SCENE_MATERIAL.into(),

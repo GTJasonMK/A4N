@@ -154,7 +154,7 @@ impl OrchestratorContext {
         &self,
         project_id: i64,
     ) -> Result<novel_project::Model, AppError> {
-        self.project_by_id(project_id)
+        self.project_model_by_id(project_id)
             .await?
             .ok_or_else(|| AppError::NotFound(format!("项目不存在: {project_id}")))
     }

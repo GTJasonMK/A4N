@@ -1,28 +1,14 @@
 //! PostgreSQL-backed persisted outline records worker.
 
-use std::{
-    collections::{HashMap, HashSet},
-    env,
-    net::SocketAddr,
-    sync::Arc,
-};
+use std::{env, net::SocketAddr, sync::Arc};
 
-use a4n_api_contract::outline::{
-    ChapterOutlineSummary, DeleteLatestOutlineRecordsInput, OutlineGenerationProgressSummary,
-    OutlineMutationResult, PartOutlineSummary, SaveChapterOutlineInput, SaveChapterOutlineResult,
-    SavePartOutlineInput, SavePartOutlineResult, UpdateChapterOutlineInput,
-    UpdateChapterOutlineResult,
-};
-use a4n_db::{DbHandle, project::OutlineGenerationProgressRows};
-use a4n_db_models::models::chapter::{chapter_outline, part_outline};
+use a4n_db::DbHandle;
 use a4n_domain::collaboration::ProjectAccessRole;
 use a4n_outline_worker_contract::{
-    ChapterOutlineAccessInput, DELETE_CHAPTERS_OPERATION, DELETE_PARTS_OPERATION,
-    ENSURE_CHAPTER_ACCESS_OPERATION, ENSURE_PART_ACCESS_OPERATION, GENERATION_PROGRESS_OPERATION,
-    LIST_CHAPTERS_OPERATION, LIST_PARTS_OPERATION, OUTLINE_MUTATION_CAPABILITY,
+    ChapterOutlineAccessInput, DeleteLatestOutlineRecordsInput, OUTLINE_MUTATION_CAPABILITY,
     OUTLINE_READ_CAPABILITY, OUTLINE_WORKER_CONTRACT_VERSION, OUTLINE_WORKER_ID,
-    PartOutlineAccessInput, ProjectOutlineInput, SAVE_CHAPTER_OPERATION, SAVE_PART_OPERATION,
-    UPDATE_CHAPTER_OPERATION,
+    PartOutlineAccessInput, ProjectOutlineInput, SaveChapterOutlineInput, SavePartOutlineInput,
+    UpdateChapterOutlineInput,
 };
 use a4n_worker_contract::{
     WORKER_CAPABILITIES_PATH, WORKER_HEALTH_PATH, WORKER_SCHEMA_VERSION, WorkerCapabilities,
@@ -38,6 +24,15 @@ use axum::{
 };
 use sea_orm::{ConnectOptions, ConnectionTrait, Database, DatabaseConnection, Statement};
 use subtle::ConstantTimeEq;
+
+mod mutations;
+mod projection;
+mod reads;
+
+use projection::{
+    chapter_outline_summary, delete_input, generation_progress_summary, normalize_update_input,
+    part_outline_summary,
+};
 
 const WORKER_ADDR_ENV: &str = "A4N_OUTLINE_WORKER_ADDR";
 const DATABASE_URL_ENV: &str = "A4N_DATABASE_URL";
@@ -340,286 +335,6 @@ where
 }
 
 impl WorkerState {
-    async fn list_chapters(
-        &self,
-        request: WorkerEnvelope<ProjectOutlineInput>,
-    ) -> Result<Vec<ChapterOutlineSummary>, WorkerFailure> {
-        validate_request(&request, LIST_CHAPTERS_OPERATION)?;
-        validate_project_scope(&request, request.payload.project_id)?;
-        let user_id = user_id(&request)?;
-        verify_project_permission(
-            self,
-            request.payload.project_id,
-            user_id,
-            ProjectAccessRole::Viewer,
-        )
-        .await?;
-        let outlines = a4n_db::project::chapter_outlines_for_project(
-            self.database.connection(),
-            request.payload.project_id,
-        )
-        .await
-        .map_err(outline_record_error)?;
-        let ids = outlines
-            .iter()
-            .map(|outline| outline.id)
-            .collect::<Vec<_>>();
-        let source_kinds =
-            a4n_db::project::chapter_outline_source_kinds_for_ids(self.database.connection(), &ids)
-                .await
-                .map_err(outline_record_error)?;
-        Ok(outlines
-            .iter()
-            .map(|outline| chapter_outline_summary(outline, source_kinds.get(&outline.id)))
-            .collect())
-    }
-
-    async fn list_parts(
-        &self,
-        request: WorkerEnvelope<ProjectOutlineInput>,
-    ) -> Result<Vec<PartOutlineSummary>, WorkerFailure> {
-        validate_request(&request, LIST_PARTS_OPERATION)?;
-        validate_project_scope(&request, request.payload.project_id)?;
-        let user_id = user_id(&request)?;
-        verify_project_permission(
-            self,
-            request.payload.project_id,
-            user_id,
-            ProjectAccessRole::Viewer,
-        )
-        .await?;
-        Ok(a4n_db::project::part_outlines_for_project(
-            self.database.connection(),
-            request.payload.project_id,
-        )
-        .await
-        .map_err(outline_record_error)?
-        .iter()
-        .map(part_outline_summary)
-        .collect())
-    }
-
-    async fn generation_progress(
-        &self,
-        request: WorkerEnvelope<ProjectOutlineInput>,
-    ) -> Result<OutlineGenerationProgressSummary, WorkerFailure> {
-        validate_request(&request, GENERATION_PROGRESS_OPERATION)?;
-        validate_project_scope(&request, request.payload.project_id)?;
-        let user_id = user_id(&request)?;
-        verify_project_permission(
-            self,
-            request.payload.project_id,
-            user_id,
-            ProjectAccessRole::Viewer,
-        )
-        .await?;
-        let rows = a4n_db::project::outline_generation_progress_rows(
-            self.database.connection(),
-            request.payload.project_id,
-        )
-        .await
-        .map_err(outline_record_error)?;
-        generation_progress_summary(&rows)
-    }
-
-    async fn ensure_chapter_access(
-        &self,
-        request: WorkerEnvelope<ChapterOutlineAccessInput>,
-    ) -> Result<(), WorkerFailure> {
-        validate_request(&request, ENSURE_CHAPTER_ACCESS_OPERATION)?;
-        validate_project_scope(&request, request.payload.project_id)?;
-        positive(request.payload.outline_id, "outline_id")?;
-        let user_id = user_id(&request)?;
-        verify_project_permission(
-            self,
-            request.payload.project_id,
-            user_id,
-            ProjectAccessRole::Editor,
-        )
-        .await?;
-        let outline = a4n_db::project::chapter_outline_by_id(
-            self.database.connection(),
-            request.payload.outline_id,
-        )
-        .await
-        .map_err(outline_record_error)?
-        .ok_or_else(|| {
-            WorkerFailure::not_found(format!("章节大纲不存在: {}", request.payload.outline_id))
-        })?;
-        ensure_project_ownership(outline.project_id, request.payload.project_id, "章节大纲")
-    }
-
-    async fn ensure_part_access(
-        &self,
-        request: WorkerEnvelope<PartOutlineAccessInput>,
-    ) -> Result<(), WorkerFailure> {
-        validate_request(&request, ENSURE_PART_ACCESS_OPERATION)?;
-        validate_project_scope(&request, request.payload.project_id)?;
-        positive(request.payload.part_id, "part_id")?;
-        let user_id = user_id(&request)?;
-        verify_project_permission(
-            self,
-            request.payload.project_id,
-            user_id,
-            ProjectAccessRole::Editor,
-        )
-        .await?;
-        let part = a4n_db::project::part_outline_by_id(
-            self.database.connection(),
-            request.payload.part_id,
-        )
-        .await
-        .map_err(outline_record_error)?
-        .ok_or_else(|| {
-            WorkerFailure::not_found(format!("分部大纲不存在: {}", request.payload.part_id))
-        })?;
-        ensure_project_ownership(part.project_id, request.payload.project_id, "分部大纲")
-    }
-
-    async fn delete_chapters(
-        &self,
-        request: WorkerEnvelope<DeleteLatestOutlineRecordsInput>,
-    ) -> Result<OutlineMutationResult, WorkerFailure> {
-        validate_request(&request, DELETE_CHAPTERS_OPERATION)?;
-        validate_project_scope(&request, request.payload.project_id)?;
-        let user_id = user_id(&request)?;
-        verify_project_permission(
-            self,
-            request.payload.project_id,
-            user_id,
-            ProjectAccessRole::Editor,
-        )
-        .await?;
-        a4n_db::project::delete_latest_chapter_outline_records(
-            self.database.connection(),
-            delete_input(request.payload),
-        )
-        .await
-        .map_err(outline_record_error)?;
-        Ok(OutlineMutationResult {
-            warnings: Vec::new(),
-        })
-    }
-
-    async fn delete_parts(
-        &self,
-        request: WorkerEnvelope<DeleteLatestOutlineRecordsInput>,
-    ) -> Result<OutlineMutationResult, WorkerFailure> {
-        validate_request(&request, DELETE_PARTS_OPERATION)?;
-        validate_project_scope(&request, request.payload.project_id)?;
-        let user_id = user_id(&request)?;
-        verify_project_permission(
-            self,
-            request.payload.project_id,
-            user_id,
-            ProjectAccessRole::Editor,
-        )
-        .await?;
-        a4n_db::project::delete_latest_part_outline_records(
-            self.database.connection(),
-            delete_input(request.payload),
-        )
-        .await
-        .map_err(outline_record_error)?;
-        Ok(OutlineMutationResult {
-            warnings: Vec::new(),
-        })
-    }
-
-    async fn save_chapter(
-        &self,
-        request: WorkerEnvelope<SaveChapterOutlineInput>,
-    ) -> Result<SaveChapterOutlineResult, WorkerFailure> {
-        validate_request(&request, SAVE_CHAPTER_OPERATION)?;
-        validate_project_scope(&request, request.payload.project_id)?;
-        let user_id = user_id(&request)?;
-        verify_project_permission(
-            self,
-            request.payload.project_id,
-            user_id,
-            ProjectAccessRole::Editor,
-        )
-        .await?;
-        let outline = a4n_db::project::save_manual_chapter_outline(
-            self.database.connection(),
-            a4n_db::project::ManualChapterOutlineSaveInput {
-                project_id: request.payload.project_id,
-                outline_id: request.payload.outline_id,
-                expected_updated_at: request.payload.expected_updated_at,
-                chapter_number: request.payload.chapter_number,
-                title: request.payload.title,
-                summary: request.payload.summary,
-            },
-        )
-        .await
-        .map_err(outline_record_error)?;
-        Ok(SaveChapterOutlineResult {
-            outline: chapter_outline_summary(&outline, None),
-            warnings: Vec::new(),
-        })
-    }
-
-    async fn update_chapter(
-        &self,
-        request: WorkerEnvelope<UpdateChapterOutlineInput>,
-    ) -> Result<UpdateChapterOutlineResult, WorkerFailure> {
-        validate_request(&request, UPDATE_CHAPTER_OPERATION)?;
-        validate_project_scope(&request, request.payload.project_id)?;
-        let user_id = user_id(&request)?;
-        verify_project_permission(
-            self,
-            request.payload.project_id,
-            user_id,
-            ProjectAccessRole::Editor,
-        )
-        .await?;
-        let input = normalize_update_input(request.payload)?;
-        let outline =
-            a4n_db::project::update_chapter_outline_record(self.database.connection(), input)
-                .await
-                .map_err(update_error)?;
-        Ok(UpdateChapterOutlineResult {
-            outline: chapter_outline_summary(&outline, None),
-            warnings: Vec::new(),
-        })
-    }
-
-    async fn save_part(
-        &self,
-        request: WorkerEnvelope<SavePartOutlineInput>,
-    ) -> Result<SavePartOutlineResult, WorkerFailure> {
-        validate_request(&request, SAVE_PART_OPERATION)?;
-        validate_project_scope(&request, request.payload.project_id)?;
-        let user_id = user_id(&request)?;
-        verify_project_permission(
-            self,
-            request.payload.project_id,
-            user_id,
-            ProjectAccessRole::Editor,
-        )
-        .await?;
-        let part = a4n_db::project::save_manual_part_outline(
-            self.database.connection(),
-            a4n_db::project::ManualPartOutlineSaveInput {
-                project_id: request.payload.project_id,
-                part_id: request.payload.part_id,
-                expected_updated_at: request.payload.expected_updated_at,
-                part_number: request.payload.part_number,
-                start_chapter: request.payload.start_chapter,
-                end_chapter: request.payload.end_chapter,
-                title: request.payload.title,
-                summary: request.payload.summary,
-                theme: request.payload.theme,
-            },
-        )
-        .await
-        .map_err(outline_record_error)?;
-        Ok(SavePartOutlineResult {
-            part: part_outline_summary(&part),
-            warnings: Vec::new(),
-        })
-    }
-
     async fn verify_permission(
         &self,
         project_id: i64,
@@ -722,178 +437,6 @@ fn ensure_project_ownership(
             "{kind} 不属于项目 {expected_project_id}"
         )))
     }
-}
-
-fn chapter_outline_summary(
-    outline: &chapter_outline::Model,
-    source_kind: Option<&String>,
-) -> ChapterOutlineSummary {
-    ChapterOutlineSummary {
-        id: outline.id,
-        project_id: outline.project_id,
-        part_id: outline.part_id,
-        chapter_number: outline.chapter_number,
-        title: outline.title.clone(),
-        summary: outline.summary.clone(),
-        beats: outline.beats.clone(),
-        key_scenes: outline.key_scenes.clone(),
-        pacing_score: outline.pacing_score,
-        foreshadowing_setup: outline.foreshadowing_setup.clone(),
-        foreshadowing_payoff: outline.foreshadowing_payoff.clone(),
-        characters_involved: outline.characters_involved.clone(),
-        word_count_target: outline.word_count_target,
-        source_kind: source_kind.cloned(),
-        status: outline.status.clone(),
-        created_at: Some(outline.created_at.to_string()),
-        updated_at: Some(outline.updated_at.to_string()),
-    }
-}
-
-fn part_outline_summary(part: &part_outline::Model) -> PartOutlineSummary {
-    PartOutlineSummary {
-        id: part.id,
-        project_id: part.project_id,
-        part_number: part.part_number,
-        title: part.title.clone(),
-        start_chapter: part.start_chapter,
-        end_chapter: part.end_chapter,
-        summary: part.summary.clone(),
-        theme: part.theme.clone(),
-        key_events: part.key_events.clone(),
-        character_focus: part.character_focus.clone(),
-        created_at: Some(part.created_at.to_string()),
-        updated_at: Some(part.updated_at.to_string()),
-    }
-}
-
-fn generation_progress_summary(
-    rows: &OutlineGenerationProgressRows,
-) -> Result<OutlineGenerationProgressSummary, WorkerFailure> {
-    let mut outlines_by_chapter = HashMap::<i32, &str>::new();
-    for outline in &rows.chapter_outlines {
-        if !chapter_outline::is_valid_status(&outline.status) {
-            return Err(WorkerFailure::conflict(format!(
-                "章节大纲 {} 状态无效：{}",
-                outline.id, outline.status
-            )));
-        }
-        if outlines_by_chapter
-            .insert(outline.chapter_number, outline.status.as_str())
-            .is_some()
-        {
-            return Err(WorkerFailure::conflict(format!(
-                "章节号 {} 存在重复章节大纲",
-                outline.chapter_number
-            )));
-        }
-    }
-
-    let mut claimed_chapters = HashSet::new();
-    let mut completed_parts = 0_u64;
-    for part in &rows.parts {
-        if part.start_chapter <= 0 || part.end_chapter < part.start_chapter {
-            return Err(WorkerFailure::conflict(format!(
-                "分部 {} 章节范围无效：{}..={}",
-                part.id, part.start_chapter, part.end_chapter
-            )));
-        }
-        for chapter_number in part.start_chapter..=part.end_chapter {
-            if !claimed_chapters.insert(chapter_number) {
-                return Err(WorkerFailure::conflict(format!(
-                    "章节号 {} 被多个分部范围覆盖",
-                    chapter_number
-                )));
-            }
-        }
-        if (part.start_chapter..=part.end_chapter).all(|chapter_number| {
-            outlines_by_chapter
-                .get(&chapter_number)
-                .is_some_and(|status| *status == chapter_outline::STATUS_COMPLETED)
-        }) {
-            completed_parts += 1;
-        }
-    }
-
-    Ok(OutlineGenerationProgressSummary {
-        total_parts: rows.parts.len() as u64,
-        completed_parts,
-        total_chapter_outlines: rows.chapter_outlines.len() as u64,
-        completed_chapter_outlines: rows
-            .chapter_outlines
-            .iter()
-            .filter(|outline| outline.status == chapter_outline::STATUS_COMPLETED)
-            .count() as u64,
-    })
-}
-
-fn delete_input(
-    input: DeleteLatestOutlineRecordsInput,
-) -> a4n_db::project::DeleteLatestOutlineRecordsInput {
-    a4n_db::project::DeleteLatestOutlineRecordsInput {
-        project_id: input.project_id,
-        targets: input
-            .targets
-            .into_iter()
-            .map(|target| a4n_db::project::OutlineDeleteTarget {
-                id: target.id,
-                expected_updated_at: target.expected_updated_at,
-            })
-            .collect(),
-    }
-}
-
-fn normalize_update_input(
-    input: UpdateChapterOutlineInput,
-) -> Result<a4n_db::project::ProjectChapterOutlineUpdateInput, WorkerFailure> {
-    positive(input.project_id, "project_id")?;
-    positive(input.outline_id, "outline_id")?;
-    let expected_updated_at = input.expected_updated_at.trim().to_string();
-    if expected_updated_at.is_empty() {
-        return Err(WorkerFailure::invalid_request(
-            "缺少章节大纲资料版本，请刷新后重试",
-        ));
-    }
-    Ok(a4n_db::project::ProjectChapterOutlineUpdateInput {
-        project_id: input.project_id,
-        outline_id: input.outline_id,
-        expected_updated_at,
-        title: optional_text(input.title, "title")?,
-        summary: optional_text(input.summary, "summary")?,
-        beats: optional_array(input.beats, "beats")?,
-        key_scenes: optional_array(input.key_scenes, "key_scenes")?,
-    })
-}
-
-fn optional_text(value: Option<String>, field: &str) -> Result<Option<String>, WorkerFailure> {
-    value
-        .map(|value| {
-            let value = value.trim().to_string();
-            if value.is_empty() {
-                Err(WorkerFailure::invalid_request(format!(
-                    "章节大纲字段 {field} 不能为空"
-                )))
-            } else {
-                Ok(value)
-            }
-        })
-        .transpose()
-}
-
-fn optional_array(
-    value: Option<serde_json::Value>,
-    field: &str,
-) -> Result<Option<serde_json::Value>, WorkerFailure> {
-    value
-        .map(|value| {
-            if value.is_array() {
-                Ok(value)
-            } else {
-                Err(WorkerFailure::invalid_request(format!(
-                    "章节大纲字段 {field} 必须是数组"
-                )))
-            }
-        })
-        .transpose()
 }
 
 fn outline_record_error(error: a4n_db::project::ProjectOutlineRecordError) -> WorkerFailure {
@@ -1080,6 +623,10 @@ fn init_tracing() {
 
 #[cfg(test)]
 mod tests {
+    use a4n_db::project::OutlineGenerationProgressRows;
+    use a4n_db_models::models::chapter::chapter_outline;
+    use a4n_outline_worker_contract::LIST_CHAPTERS_OPERATION;
+
     use super::*;
 
     #[test]

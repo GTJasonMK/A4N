@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use a4n_db::blueprint::context::blueprint_llm_context;
-use a4n_db::inspiration::inspiration_messages_llm_context;
+use a4n_domain::inspiration::inspiration_messages_llm_context;
 use a4n_error::AppError;
 use a4n_llm_provider_contract::provider::ChatRequest;
 use a4n_prompt::blueprint_generation::build_blueprint_refine_request;

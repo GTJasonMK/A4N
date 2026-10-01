@@ -1,7 +1,7 @@
 use std::{net::SocketAddr, sync::Arc};
 
 use a4n_agent_application::agent::AgentApplication;
-use a4n_agent_runtime_contract::AgentWorkerReadApplicationPort;
+use a4n_agent_runtime_contract::AgentWorkerToolReadApplicationPort;
 use a4n_agent_runtime_contract::{
     AGENT_APPROVAL_RESOLVE_OPERATION, AGENT_DELEGATION_REVIEW_OPERATION,
     AGENT_DELEGATION_SPAWN_OPERATION, AGENT_EVENT_LIST_OPERATION, AGENT_MEMORY_CREATE_OPERATION,

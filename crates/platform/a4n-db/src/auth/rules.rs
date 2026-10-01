@@ -86,6 +86,12 @@ pub(super) fn validate_positive_user_id(user_id: i64) -> Result<(), AppError> {
     }
 }
 
+pub(super) fn validate_user_role(value: &str) -> Result<(), AppError> {
+    a4n_domain::auth::parse_user_role(value)
+        .map(|_| ())
+        .map_err(AppError::InvalidArgument)
+}
+
 pub(super) fn normalize_oauth_provider(provider: &str) -> Result<String, AppError> {
     let provider = provider.trim();
     match provider {

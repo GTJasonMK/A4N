@@ -1,6 +1,5 @@
 use super::contracts::{
-    InspirationBlueprintRows, InspirationDbError, InspirationProjectContextRows,
-    InspirationRecentChapterRow,
+    InspirationDbError, InspirationProjectContextRows, InspirationRecentChapterRow,
 };
 use super::project::ensure_inspiration_project_exists;
 use a4n_db_models::models::{
@@ -64,11 +63,11 @@ pub async fn inspiration_project_context_rows(
                 futures::join!(characters_query, relationships_query);
             let characters = characters_result.map_err(InspirationDbError::Database)?;
             let relationships = relationships_result.map_err(InspirationDbError::Database)?;
-            Some(InspirationBlueprintRows {
-                blueprint,
-                characters,
-                relationships,
-            })
+            Some(crate::blueprint::context::blueprint_llm_context(
+                &blueprint,
+                &characters,
+                &relationships,
+            ))
         }
         None => None,
     };

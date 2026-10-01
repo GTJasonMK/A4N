@@ -194,9 +194,8 @@ impl OrchestratorContext {
             .await;
         }
 
-        let completion_slot: Arc<
-            Mutex<Option<a4n_db_models::models::project::novel_blueprint::Model>>,
-        > = Arc::new(Mutex::new(None));
+        let completion_slot: Arc<Mutex<Option<a4n_domain::project::BlueprintRecord>>> =
+            Arc::new(Mutex::new(None));
         let completion_slot_for_tx = Arc::clone(&completion_slot);
         let expected_source_snapshot = prepared.expected_source_snapshot.clone();
         let parsed = output.parsed;

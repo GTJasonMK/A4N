@@ -185,6 +185,63 @@ impl ChapterDerivedCleanupArtifacts {
 pub const BLUEPRINT_RELATIONSHIP_TYPES: &[&str] = &[
     "family", "friend", "enemy", "lover", "rival", "mentor", "other",
 ];
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BlueprintRecord {
+    pub id: i64,
+    pub project_id: i64,
+    pub title: String,
+    pub current_version: String,
+    pub total_chapters: Option<i32>,
+    pub chapters_per_part: Option<i32>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ProjectSummaryRecord {
+    pub id: i64,
+    pub user_id: i64,
+    pub title: String,
+    pub description: String,
+    pub project_type: String,
+    pub project_kind: String,
+    pub root_project_id: Option<i64>,
+    pub source_snapshot_id: Option<i64>,
+    pub source_sync_status: String,
+    pub status: String,
+    pub lifecycle_gate: String,
+    pub target_chapters: i32,
+    pub current_chapter: i32,
+    pub total_chapters: Option<i32>,
+    pub chapters_per_part: Option<i32>,
+    pub created_at: NaiveDateTime,
+    pub updated_at: NaiveDateTime,
+}
+
+impl ProjectSummaryRecord {
+    pub fn source_mode(&self) -> Result<ProjectSourceMode, ProjectSourceModeError> {
+        ProjectSourceMode::from_identity(
+            &self.project_kind,
+            self.root_project_id,
+            self.source_snapshot_id,
+        )
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ProjectOptimizationContextRecord {
+    pub id: i64,
+    pub title: String,
+    pub description: String,
+    pub project_type: String,
+    pub status: String,
+    pub target_chapters: i32,
+    pub current_chapter: i32,
+    pub total_chapters: Option<i32>,
+    pub chapters_per_part: Option<i32>,
+    pub raw_blueprint: Option<String>,
+    pub export_config: Option<String>,
+}
+
 pub const BLUEPRINT_RAW_JSON_STREAM_ID: &str = "raw_json";
 pub const BLUEPRINT_GENERATE_PROGRESS_TOTAL: u32 = 12;
 

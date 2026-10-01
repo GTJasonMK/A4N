@@ -1,4 +1,5 @@
 mod providers;
+mod read_records;
 mod settings_all;
 mod theme;
 
@@ -18,6 +19,10 @@ pub use providers::{
     update_image_config_record, update_llm_config_record, update_video_config_record,
     validate_embedding_config_model, validate_image_config_model, video_config_by_id,
     video_configs_exist,
+};
+pub use read_records::{
+    embedding_config_read_record, image_config_read_record, llm_config_read_record,
+    video_config_read_record,
 };
 pub use settings_all::{
     SettingsAllConfigImportCounts, SettingsAllConfigImportError, SettingsAllConfigImportInput,

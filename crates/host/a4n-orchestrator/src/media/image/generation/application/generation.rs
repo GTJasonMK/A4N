@@ -469,8 +469,8 @@ impl OrchestratorContext {
             })?;
         ensure_manga_page_panels_match_current_source(&page_prompt, &chapter.content)?;
         let panel_id = format!("page{}", input.page_number);
-        let layout =
-            manga_page_generation_layout(&page_prompt).map_err(AppError::InvalidArgument)?;
+        let prompt_record = a4n_db::manga::manga_page_prompt_record(&page_prompt);
+        let layout = manga_page_generation_layout(&prompt_record).map_err(AppError::InvalidArgument)?;
         let reference_bindings = layout.reference_bindings;
         let reference_images = collect_bound_reference_images(host, &reference_bindings)?;
         let reference_image_count = reference_images.len();
@@ -594,7 +594,7 @@ impl OrchestratorContext {
     async fn resolve_image_chapter_binding_for_project(
         &self,
         project_id: i64,
-        project: &novel_project::Model,
+        project: &a4n_domain::project::ProjectSummaryRecord,
         chapter_id: Option<i64>,
         source_snapshot_id: Option<i64>,
         access: ImageChapterBindingAccess,

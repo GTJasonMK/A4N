@@ -80,6 +80,7 @@ pub enum ThemeMode {
 }
 
 pub mod theme_edit;
+pub mod theme_records;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "lowercase")]

@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::serde_update::deserialize_non_null_update_field;
 pub use a4n_domain::theme_edit::PersistThemeResourceInput;
+pub use a4n_domain::theme_records::ThemeResourceRecord;
 
 pub use a4n_domain::{
     THEME_DOCUMENT_VERSION, THEME_GLOBAL_ROUTE_FAMILY, THEME_ROUTE_FAMILIES, THEME_TOKEN_NAMES,
@@ -73,20 +74,6 @@ pub struct ThemeResourceSummary {
     pub mime_type: String,
     /// Relative path inside the protected application data directory.
     pub file_path: String,
-    pub byte_size: i64,
-}
-
-/// Internal application projection used by resource persistence and package
-/// assembly. It deliberately keeps the checksum while avoiding ORM models.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub struct ThemeResourceRecord {
-    pub id: i64,
-    pub theme_id: i64,
-    pub resource_key: String,
-    pub file_name: String,
-    pub mime_type: String,
-    pub file_path: String,
-    pub sha256: String,
     pub byte_size: i64,
 }
 

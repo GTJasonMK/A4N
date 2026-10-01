@@ -107,7 +107,8 @@ pub use mutation::{
     PROJECT_KIND_VIDEO, ProjectMutationError, SOURCE_SYNC_CURRENT, UpdateProjectRecordInput,
     create_freeform_video_project_record, create_project_record, is_valid_source_sync_status,
     normalize_derived_project_kind, normalize_project_kind, normalize_project_type,
-    project_by_id_record, project_ids, project_summary_by_id_record, update_project_record,
+    project_by_id_record, project_exists_record, project_ids, project_summary_by_id_record,
+    update_project_record,
 };
 pub(crate) use mutation::{
     SOURCE_SYNC_CONFLICT, SOURCE_SYNC_DETACHED, SOURCE_SYNC_ROOT_UPDATED,

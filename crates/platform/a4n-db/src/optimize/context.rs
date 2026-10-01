@@ -1,4 +1,40 @@
 use super::*;
+use a4n_db_models::models::project::novel_project;
+use a4n_domain::project::ProjectOptimizationContextRecord;
+use sea_orm::FromQueryResult;
+
+#[derive(Debug, FromQueryResult)]
+struct OptimizationProjectContextRow {
+    id: i64,
+    title: String,
+    description: String,
+    project_type: String,
+    status: String,
+    target_chapters: i32,
+    current_chapter: i32,
+    total_chapters: Option<i32>,
+    chapters_per_part: Option<i32>,
+    raw_blueprint: Option<String>,
+    export_config: Option<String>,
+}
+
+impl OptimizationProjectContextRow {
+    fn into_record(self) -> ProjectOptimizationContextRecord {
+        ProjectOptimizationContextRecord {
+            id: self.id,
+            title: self.title,
+            description: self.description,
+            project_type: self.project_type,
+            status: self.status,
+            target_chapters: self.target_chapters,
+            current_chapter: self.current_chapter,
+            total_chapters: self.total_chapters,
+            chapters_per_part: self.chapters_per_part,
+            raw_blueprint: self.raw_blueprint,
+            export_config: self.export_config,
+        }
+    }
+}
 
 pub async fn optimization_chapter_by_id<C>(
     db: &C,
@@ -94,11 +130,25 @@ where
         async {
             if read_project_detail {
                 novel_project::Entity::find_by_id(project_id)
+                    .select_only()
+                    .column(novel_project::Column::Id)
+                    .column(novel_project::Column::Title)
+                    .column(novel_project::Column::Description)
+                    .column(novel_project::Column::ProjectType)
+                    .column(novel_project::Column::Status)
+                    .column(novel_project::Column::TargetChapters)
+                    .column(novel_project::Column::CurrentChapter)
+                    .column(novel_project::Column::TotalChapters)
+                    .column(novel_project::Column::ChaptersPerPart)
+                    .column(novel_project::Column::RawBlueprint)
+                    .column(novel_project::Column::ExportConfig)
+                    .into_model::<OptimizationProjectContextRow>()
                     .one(db)
                     .await
+                    .map(|project| project.map(OptimizationProjectContextRow::into_record))
                     .map_err(OptimizeDbError::Database)
             } else {
-                Ok::<Option<novel_project::Model>, OptimizeDbError>(None)
+                Ok::<Option<ProjectOptimizationContextRecord>, OptimizeDbError>(None)
             }
         },
         async {

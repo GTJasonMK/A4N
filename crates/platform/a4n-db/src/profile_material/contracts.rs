@@ -1,4 +1,4 @@
-use a4n_db_models::models::{ai::generated_image, asset::profile_primary_material};
+use a4n_domain::profile_material::{ProfileMaterialImageRecord, ProfilePrimaryMaterialRecord};
 use sea_orm::{DbErr, FromQueryResult};
 
 #[derive(Debug, thiserror::Error)]
@@ -15,8 +15,8 @@ pub enum ProfileMaterialDbError {
 
 #[derive(Debug, Clone)]
 pub struct ProfileMaterialListRows {
-    pub images: Vec<generated_image::Model>,
-    pub primary_rows: Vec<profile_primary_material::Model>,
+    pub images: Vec<ProfileMaterialImageRecord>,
+    pub primary_rows: Vec<ProfilePrimaryMaterialRecord>,
 }
 
 #[derive(Debug, Clone, FromQueryResult)]

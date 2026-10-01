@@ -14,7 +14,6 @@ pub mod user {
     pub mod invite_code;
     pub mod llm_usage_log;
     pub mod message;
-    pub mod role;
     pub mod theme_config;
     pub mod theme_preference;
     pub mod theme_resource;

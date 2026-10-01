@@ -1,6 +1,7 @@
-use a4n_db_models::models::project::novel_project;
 pub(crate) use a4n_domain::project::ProjectProgressSummary;
-use a4n_domain::project::{ProjectKind, ProjectSourceMode, ProjectSourceModeError, ProjectStatus};
+use a4n_domain::project::{
+    ProjectKind, ProjectSourceMode, ProjectSourceModeError, ProjectStatus, ProjectSummaryRecord,
+};
 use sea_orm::DbErr;
 
 #[derive(Debug, PartialEq, Eq)]
@@ -14,7 +15,7 @@ pub struct ProjectProgressQuery {
 }
 
 impl ProjectProgressQuery {
-    pub fn from_project(project: &novel_project::Model) -> Result<Self, ProjectProgressReadError> {
+    pub fn from_project(project: &ProjectSummaryRecord) -> Result<Self, ProjectProgressReadError> {
         let project_kind = ProjectKind::parse(&project.project_kind).ok_or_else(|| {
             ProjectProgressReadError::InvalidProjectKind {
                 project_id: project.id,
@@ -114,6 +115,7 @@ impl ProjectProgressReadError {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use a4n_db_models::models::project::novel_project;
     use chrono::Utc;
     use std::error::Error;
 
@@ -145,16 +147,38 @@ mod tests {
         }
     }
 
+    fn summary_record(project: novel_project::Model) -> ProjectSummaryRecord {
+        ProjectSummaryRecord {
+            id: project.id,
+            user_id: project.user_id,
+            title: project.title,
+            description: project.description,
+            project_type: project.project_type,
+            project_kind: project.project_kind,
+            root_project_id: project.root_project_id,
+            source_snapshot_id: project.source_snapshot_id,
+            source_sync_status: project.source_sync_status,
+            status: project.status,
+            lifecycle_gate: project.lifecycle_gate,
+            target_chapters: project.target_chapters,
+            current_chapter: project.current_chapter,
+            total_chapters: project.total_chapters,
+            chapters_per_part: project.chapters_per_part,
+            created_at: project.created_at,
+            updated_at: project.updated_at,
+        }
+    }
+
     #[test]
     fn project_progress_query_parses_project_contract_once() {
-        let query = ProjectProgressQuery::from_project(&project()).unwrap();
+        let query = ProjectProgressQuery::from_project(&summary_record(project())).unwrap();
         assert_eq!(query.project_kind, ProjectKind::Text);
         assert_eq!(query.status, ProjectStatus::Writing);
 
         let mut invalid = project();
         invalid.project_kind = "legacy".to_string();
         assert!(matches!(
-            ProjectProgressQuery::from_project(&invalid),
+            ProjectProgressQuery::from_project(&summary_record(invalid)),
             Err(ProjectProgressReadError::InvalidProjectKind { project_id: 17, value })
                 if value == "legacy"
         ));
@@ -162,7 +186,7 @@ mod tests {
         let mut invalid = project();
         invalid.project_kind = "comic".to_string();
         assert!(matches!(
-            ProjectProgressQuery::from_project(&invalid),
+            ProjectProgressQuery::from_project(&summary_record(invalid)),
             Err(ProjectProgressReadError::InvalidProjectSource {
                 project_id: 17,
                 source: ProjectSourceModeError::InvalidIdentity {
@@ -176,7 +200,7 @@ mod tests {
         let mut invalid = project();
         invalid.current_chapter = -1;
         assert!(matches!(
-            ProjectProgressQuery::from_project(&invalid),
+            ProjectProgressQuery::from_project(&summary_record(invalid)),
             Err(ProjectProgressReadError::InvalidChapterProgress {
                 project_id: 17,
                 current: -1,

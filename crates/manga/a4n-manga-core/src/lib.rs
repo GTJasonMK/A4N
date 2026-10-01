@@ -1,8 +1,9 @@
 //! Pure Manga page layout validation and API projection.
 
 use a4n_api_contract::manga::MangaPagePromptSummary;
-use a4n_db_models::models::chapter::chapter_manga_prompt;
-use a4n_domain::manga::{MangaPageGenerationLayoutV2, MangaPortraitReference};
+use a4n_domain::manga::{
+    MangaPageGenerationLayoutV2, MangaPagePromptRecord, MangaPortraitReference,
+};
 use a4n_domain::source_spans::{ChapterSourceContext, source_metadata};
 use serde_json::{Value, json};
 
@@ -33,7 +34,7 @@ pub fn manga_pipeline_fingerprint<P: MangaPortraitReference>(
 }
 
 pub fn manga_page_generation_layout(
-    prompt: &chapter_manga_prompt::Model,
+    prompt: &MangaPagePromptRecord,
 ) -> Result<MangaPageGenerationLayoutV2, String> {
     let layout: MangaPageGenerationLayoutV2 = serde_json::from_value(
         prompt
@@ -53,7 +54,7 @@ pub fn manga_page_generation_layout(
 }
 
 pub fn manga_page_prompt_summary(
-    prompt: &chapter_manga_prompt::Model,
+    prompt: &MangaPagePromptRecord,
 ) -> Result<MangaPagePromptSummary, String> {
     let layout = manga_page_generation_layout(prompt)?;
     Ok(MangaPagePromptSummary {
@@ -77,22 +78,19 @@ pub fn manga_page_prompt_summary(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use a4n_db_models::models::chapter::chapter_manga_prompt::MANGA_PAGE_PROMPT_TYPE;
     use chrono::NaiveDateTime;
 
     #[test]
     fn rejects_missing_layout() {
         let now =
             NaiveDateTime::parse_from_str("2026-01-01 00:00:00", "%Y-%m-%d %H:%M:%S").unwrap();
-        let prompt = chapter_manga_prompt::Model {
+        let prompt = MangaPagePromptRecord {
             id: 11,
             chapter_id: 22,
             project_id: 33,
             page_number: 1,
-            prompt_type: MANGA_PAGE_PROMPT_TYPE.to_string(),
             image_prompt: "整页提示词".to_string(),
             dialogue_text: None,
-            characters_in_frame: None,
             layout: None,
             generated_image_id: None,
             status: "pending".to_string(),

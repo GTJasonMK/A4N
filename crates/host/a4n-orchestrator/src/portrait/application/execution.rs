@@ -98,7 +98,7 @@ impl OrchestratorContext {
             &prepared.request,
         )
         .map_err(AppError::InvalidArgument)?;
-        let workflow_run = self
+        let workflow_run_id = self
             .begin_portrait_prompt_workflow_validated(
                 input.project_id,
                 input.profile_id,
@@ -126,10 +126,10 @@ impl OrchestratorContext {
                 },
                 prompt_renderer,
                 variables,
-                workflow_run_id: Some(workflow_run.id),
+                workflow_run_id: Some(workflow_run_id),
             })
             .await;
-        self.finalize_workflow_result(workflow_run.id, result, "人物三视图提示词生成")
+        self.finalize_workflow_result(workflow_run_id, result, "人物三视图提示词生成")
             .await
             .map(|prompt| prompt.trim().to_string())
     }
@@ -158,14 +158,13 @@ impl OrchestratorContext {
             &prepared.request,
         )
         .map_err(AppError::InvalidArgument)?;
-        let workflow_run = self
+        let workflow_run_id = self
             .begin_portrait_generation_workflow_validated(
                 input.project_id,
                 prepared.profile.id,
                 &workflow_fingerprint,
             )
             .await?;
-        let workflow_run_id = workflow_run.id;
         let result = async {
             let prompt = resolve_initial_portrait_prompt(
                 self,
@@ -274,10 +273,9 @@ impl OrchestratorContext {
             "width": input.width,
             "height": input.height,
         });
-        let workflow_run = self
+        let workflow_run_id = self
             .begin_missing_portrait_workflow_validated(input.project_id, &workflow_fingerprint)
             .await?;
-        let workflow_run_id = workflow_run.id;
         let result = async {
             let total = portrait_count;
             let mut outcome = PortraitBatchOutcome {
@@ -615,7 +613,7 @@ impl OrchestratorContext {
             fingerprint,
         } = run;
         let portrait_type = portrait_type_from_record(existing)?;
-        let workflow_run = self
+        let workflow_run_id = self
             .begin_portrait_image_workflow_validated(
                 workflow_kind,
                 existing.project_id,
@@ -630,7 +628,7 @@ impl OrchestratorContext {
             if let Some(summary) = load_completed_portrait_checkpoint(
                 self,
                 host_port,
-                workflow_run.id,
+                workflow_run_id,
                 step_key,
                 &fingerprint,
                 existing.project_id,
@@ -648,7 +646,7 @@ impl OrchestratorContext {
                 width,
                 height,
                 reference_image_ids,
-                Some(workflow_run.id),
+                Some(workflow_run_id),
                 cancel_token.clone(),
             )
             .await?;
@@ -660,7 +658,7 @@ impl OrchestratorContext {
                 host_port,
                 &generated,
                 PersistGeneratedPortraitInput {
-                    workflow_run_id: Some(workflow_run.id),
+                    workflow_run_id: Some(workflow_run_id),
                     requested_by_user_id,
                     profile_id: existing.profile_id,
                     project_id: existing.project_id,
@@ -679,7 +677,7 @@ impl OrchestratorContext {
             let summary = portrait_summary(&portrait)?;
             save_completed_portrait_checkpoint(
                 self,
-                workflow_run.id,
+                workflow_run_id,
                 step_key.to_string(),
                 1,
                 fingerprint.clone(),
@@ -690,7 +688,7 @@ impl OrchestratorContext {
             Ok(summary)
         }
         .await;
-        self.finalize_workflow_result(workflow_run.id, result, path_context)
+        self.finalize_workflow_result(workflow_run_id, result, path_context)
             .await
     }
 }

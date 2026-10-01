@@ -31,14 +31,14 @@ impl ConfigApplication {
     pub(in crate::context) async fn list_themes_visible_to_user(
         &self,
         user_id: i64,
-    ) -> Result<Vec<theme_config::Model>, AppError> {
+    ) -> Result<Vec<ThemeRecord>, AppError> {
         a4n_db::config::list_themes_visible_to_user(self.database.connection(), user_id).await
     }
 
     pub(in crate::context) async fn theme_by_id(
         &self,
         theme_id: i64,
-    ) -> Result<Option<theme_config::Model>, AppError> {
+    ) -> Result<Option<ThemeRecord>, AppError> {
         a4n_db::config::theme_by_id(self.database.connection(), theme_id).await
     }
 
@@ -48,22 +48,16 @@ impl ConfigApplication {
         name: &str,
         mode: ThemeMode,
         document: ThemeDocument,
-    ) -> Result<theme_config::Model, AppError> {
+    ) -> Result<ThemeRecord, AppError> {
         a4n_db::config::create_theme(self.database.connection(), user_id, name, mode, document)
             .await
     }
 
     pub(in crate::context) async fn update_theme_record(
         &self,
-        theme: theme_config::Model,
+        theme: ThemeRecord,
         changes: a4n_domain::theme_edit::ThemeUpdateChanges,
-    ) -> Result<
-        (
-            theme_config::Model,
-            Vec<a4n_db_models::models::user::theme_resource::Model>,
-        ),
-        AppError,
-    > {
+    ) -> Result<(ThemeRecord, Vec<ThemeResourceRecord>), AppError> {
         a4n_db::config::update_theme(self.database.connection(), theme, changes).await
     }
 
@@ -77,21 +71,21 @@ impl ConfigApplication {
     pub(in crate::context) async fn activate_theme(
         &self,
         theme_id: i64,
-    ) -> Result<theme_config::Model, AppError> {
+    ) -> Result<ThemeRecord, AppError> {
         a4n_db::config::activate_theme(self.database.connection(), theme_id).await
     }
 
     pub(in crate::context) async fn list_theme_resources(
         &self,
         theme_id: i64,
-    ) -> Result<Vec<a4n_db_models::models::user::theme_resource::Model>, AppError> {
+    ) -> Result<Vec<ThemeResourceRecord>, AppError> {
         a4n_db::config::list_theme_resources(self.database.connection(), theme_id).await
     }
 
     pub(in crate::context) async fn theme_resource_by_id(
         &self,
         resource_id: i64,
-    ) -> Result<Option<a4n_db_models::models::user::theme_resource::Model>, AppError> {
+    ) -> Result<Option<ThemeResourceRecord>, AppError> {
         a4n_db::config::theme_resource_by_id(self.database.connection(), resource_id).await
     }
 
@@ -104,7 +98,7 @@ impl ConfigApplication {
         file_path: &str,
         sha256: &str,
         byte_size: i64,
-    ) -> Result<a4n_db_models::models::user::theme_resource::Model, AppError> {
+    ) -> Result<ThemeResourceRecord, AppError> {
         a4n_db::config::upsert_theme_resource(
             self.database.connection(),
             theme_id,
@@ -121,7 +115,7 @@ impl ConfigApplication {
     pub(in crate::context) async fn delete_theme_resource(
         &self,
         resource_id: i64,
-    ) -> Result<a4n_db_models::models::user::theme_resource::Model, AppError> {
+    ) -> Result<ThemeResourceRecord, AppError> {
         a4n_db::config::delete_theme_resource(self.database.connection(), resource_id).await
     }
 
@@ -129,7 +123,7 @@ impl ConfigApplication {
         &self,
         user_id: i64,
         appearance: a4n_domain::ThemeAppearance,
-    ) -> Result<a4n_db_models::models::user::theme_preference::Model, AppError> {
+    ) -> Result<ThemePreferenceRecord, AppError> {
         a4n_db::config::upsert_theme_preference(self.database.connection(), user_id, appearance)
             .await
     }

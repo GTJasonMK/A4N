@@ -60,15 +60,13 @@ impl WorkerState {
     ) -> Result<LlmProviderConfig, WorkerFailure> {
         validate_user_request(&request, CONFIG_READ_LLM_CONNECTIVITY_OPERATION)?;
         require_admin(&self.database, user_id(&request)?).await?;
-        llm_provider_config(
-            a4n_db::config::llm_config_by_id(
-                self.database.connection(),
-                positive_id(request.payload.config_id)?,
-            )
-            .await
-            .map_err(app_error)?,
+        let model = a4n_db::config::llm_config_by_id(
+            self.database.connection(),
+            positive_id(request.payload.config_id)?,
         )
-        .map_err(app_error)
+        .await
+        .map_err(app_error)?;
+        llm_provider_config(a4n_db::config::llm_config_read_record(&model)).map_err(app_error)
     }
     async fn embedding_connectivity(
         &self,
@@ -76,15 +74,14 @@ impl WorkerState {
     ) -> Result<EmbeddingProviderConfig, WorkerFailure> {
         validate_user_request(&request, CONFIG_READ_EMBEDDING_CONNECTIVITY_OPERATION)?;
         require_admin(&self.database, user_id(&request)?).await?;
-        embedding_provider_config(
-            a4n_db::config::embedding_config_by_id(
-                self.database.connection(),
-                positive_id(request.payload.config_id)?,
-            )
-            .await
-            .map_err(app_error)?,
+        let model = a4n_db::config::embedding_config_by_id(
+            self.database.connection(),
+            positive_id(request.payload.config_id)?,
         )
-        .map_err(app_error)
+        .await
+        .map_err(app_error)?;
+        embedding_provider_config(a4n_db::config::embedding_config_read_record(&model))
+            .map_err(app_error)
     }
     async fn image_connectivity(
         &self,
@@ -92,15 +89,14 @@ impl WorkerState {
     ) -> Result<ImageConfigForConnectivityTest, WorkerFailure> {
         validate_user_request(&request, CONFIG_READ_IMAGE_CONNECTIVITY_OPERATION)?;
         require_admin(&self.database, user_id(&request)?).await?;
-        image_connectivity_config(
-            a4n_db::config::image_config_by_id(
-                self.database.connection(),
-                positive_id(request.payload.config_id)?,
-            )
-            .await
-            .map_err(app_error)?,
+        let model = a4n_db::config::image_config_by_id(
+            self.database.connection(),
+            positive_id(request.payload.config_id)?,
         )
-        .map_err(app_error)
+        .await
+        .map_err(app_error)?;
+        image_connectivity_config(a4n_db::config::image_config_read_record(&model))
+            .map_err(app_error)
     }
     async fn llm_list(
         &self,
@@ -111,7 +107,9 @@ impl WorkerState {
             .await
             .map_err(app_error)?
             .iter()
-            .map(|model| llm_summary(model).map_err(app_error))
+            .map(|model| {
+                llm_summary(&a4n_db::config::llm_config_read_record(model)).map_err(app_error)
+            })
             .collect()
     }
     async fn image_list(
@@ -123,7 +121,9 @@ impl WorkerState {
             .await
             .map_err(app_error)?
             .iter()
-            .map(|model| image_summary(model).map_err(app_error))
+            .map(|model| {
+                image_summary(&a4n_db::config::image_config_read_record(model)).map_err(app_error)
+            })
             .collect()
     }
     async fn video_list(
@@ -135,7 +135,9 @@ impl WorkerState {
             .await
             .map_err(app_error)?
             .iter()
-            .map(|model| video_summary(model).map_err(app_error))
+            .map(|model| {
+                video_summary(&a4n_db::config::video_config_read_record(model)).map_err(app_error)
+            })
             .collect()
     }
     async fn embedding_list(
@@ -147,7 +149,10 @@ impl WorkerState {
             .await
             .map_err(app_error)?
             .iter()
-            .map(|model| embedding_summary(model).map_err(app_error))
+            .map(|model| {
+                embedding_summary(&a4n_db::config::embedding_config_read_record(model))
+                    .map_err(app_error)
+            })
             .collect()
     }
 
@@ -296,7 +301,7 @@ impl WorkerState {
         )
         .await
         .map_err(app_error)?;
-        llm_summary(&model).map_err(app_error)
+        llm_summary(&a4n_db::config::llm_config_read_record(&model)).map_err(app_error)
     }
 
     async fn update_llm(
@@ -324,7 +329,7 @@ impl WorkerState {
         )
         .await
         .map_err(app_error)?;
-        llm_summary(&model).map_err(app_error)
+        llm_summary(&a4n_db::config::llm_config_read_record(&model)).map_err(app_error)
     }
 
     async fn set_default_llm(
@@ -388,7 +393,7 @@ impl WorkerState {
         )
         .await
         .map_err(app_error)?;
-        image_summary(&model).map_err(app_error)
+        image_summary(&a4n_db::config::image_config_read_record(&model)).map_err(app_error)
     }
 
     async fn update_image(
@@ -428,7 +433,7 @@ impl WorkerState {
         )
         .await
         .map_err(app_error)?;
-        image_summary(&model).map_err(app_error)
+        image_summary(&a4n_db::config::image_config_read_record(&model)).map_err(app_error)
     }
 
     async fn set_default_image(
@@ -492,7 +497,7 @@ impl WorkerState {
         )
         .await
         .map_err(app_error)?;
-        video_summary(&model).map_err(app_error)
+        video_summary(&a4n_db::config::video_config_read_record(&model)).map_err(app_error)
     }
 
     async fn update_video(
@@ -539,7 +544,7 @@ impl WorkerState {
         )
         .await
         .map_err(app_error)?;
-        video_summary(&model).map_err(app_error)
+        video_summary(&a4n_db::config::video_config_read_record(&model)).map_err(app_error)
     }
 
     async fn set_default_video(
@@ -615,7 +620,7 @@ impl WorkerState {
         )
         .await
         .map_err(app_error)?;
-        embedding_summary(&model).map_err(app_error)
+        embedding_summary(&a4n_db::config::embedding_config_read_record(&model)).map_err(app_error)
     }
 
     async fn update_embedding(
@@ -656,7 +661,7 @@ impl WorkerState {
         )
         .await
         .map_err(app_error)?;
-        embedding_summary(&model).map_err(app_error)
+        embedding_summary(&a4n_db::config::embedding_config_read_record(&model)).map_err(app_error)
     }
 
     async fn set_default_embedding(

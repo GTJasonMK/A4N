@@ -1,4 +1,4 @@
-use a4n_db_models::models::user::message;
+use a4n_domain::inspiration::InspirationMessageRecord;
 use a4n_error::AppError;
 use chrono::NaiveDate;
 
@@ -6,17 +6,11 @@ use super::context::optional_trimmed_string;
 use super::request::build_inspiration_conversation_messages;
 use super::validation::{required_message_content, validate_inspiration_response_json};
 
-fn sample_message(id: i64) -> message::Model {
-    message::Model {
+fn sample_message(id: i64) -> InspirationMessageRecord {
+    InspirationMessageRecord {
         id,
-        conversation_id: 1,
         role: "user".to_string(),
         content: format!("消息 {id}"),
-        tool_calls: None,
-        prompt_tokens: None,
-        completion_tokens: None,
-        chapter_number: None,
-        is_important: false,
         created_at: NaiveDate::from_ymd_opt(2026, 5, 31)
             .unwrap()
             .and_hms_opt(0, 0, id as u32)

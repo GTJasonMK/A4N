@@ -1,10 +1,10 @@
-use a4n_db_models::models::user::role::{UserRole, parse_user_role};
+use a4n_domain::auth::{UserRole, parse_user_role};
 use a4n_error::AppError;
 
 pub(crate) use a4n_api_contract::admin::AdminPermission;
 
 pub(crate) fn require_admin_role(role: &str, permission: AdminPermission) -> Result<(), AppError> {
-    let role = parse_user_role(role)?;
+    let role = parse_user_role(role).map_err(AppError::InvalidArgument)?;
     if role == UserRole::Admin {
         Ok(())
     } else {

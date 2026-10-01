@@ -7,7 +7,6 @@ use a4n_config::{ensure_image_size_supported, image_sizes_from_json};
 use a4n_db_models::models::{
     asset::object_profile,
     chapter::chapter_manga_prompt::{self, MANGA_PAGE_PROMPT_TYPE, Model as MangaPagePrompt},
-    project::novel_project,
     scene::scene_profile,
 };
 use a4n_domain::source_text_hash as source_content_sha256;

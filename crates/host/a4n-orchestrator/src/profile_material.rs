@@ -29,8 +29,8 @@ use uuid::Uuid;
 use crate::{OrchestratorContext, asset::asset_error, scene_profile::scene_profile_db_error};
 use a4n_domain::collaboration::ProjectAccessRole;
 use a4n_profile_material_core::{
-    ProfileMaterialSource, image_type_for_profile_material_kind, object_source_from_model,
-    profile_material_group_projections, scene_source_from_model,
+    ProfileMaterialSource, image_type_for_profile_material_kind, object_source_from_record,
+    profile_material_group_projections, scene_source_from_record,
 };
 const MANUAL_UPLOAD_MODEL: &str = "manual_upload";
 const MAX_UPLOAD_IMAGE_BYTES: usize = 20 * 1024 * 1024;
@@ -464,7 +464,9 @@ impl OrchestratorContext {
                         "场景档案 #{profile_id} 不属于项目 {project_id}"
                     )));
                 }
-                Ok(scene_source_from_model(profile))
+                Ok(scene_source_from_record(
+                    a4n_db::profile_material::scene_profile_source_record(&profile),
+                ))
             }
             ProfileMaterialKind::Object => {
                 let profile = self.object_profile_by_id(profile_id).await?;
@@ -473,7 +475,9 @@ impl OrchestratorContext {
                         "物体档案 #{profile_id} 不属于项目 {project_id}"
                     )));
                 }
-                Ok(object_source_from_model(profile))
+                Ok(object_source_from_record(
+                    a4n_db::profile_material::object_profile_source_record(&profile),
+                ))
             }
         }
     }

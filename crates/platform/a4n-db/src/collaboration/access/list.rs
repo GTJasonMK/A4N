@@ -52,7 +52,13 @@ pub async fn list_accessible_projects(
     );
     let total = total.map_err(CollaborationDbError::Database)?;
     let items = items.map_err(CollaborationDbError::Database)?;
-    Ok(AccessibleProjectsPage { items, total })
+    Ok(AccessibleProjectsPage {
+        items: items
+            .into_iter()
+            .map(AccessibleProjectRecord::into_summary_record)
+            .collect(),
+        total,
+    })
 }
 
 async fn accessible_project_condition(

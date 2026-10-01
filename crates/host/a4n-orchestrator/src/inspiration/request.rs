@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
-use a4n_db::inspiration::{InspirationProjectContextRows, inspiration_messages_llm_context};
-use a4n_db_models::models::user::message;
+use a4n_db::inspiration::InspirationProjectContextRows;
+use a4n_domain::inspiration::{InspirationMessageRecord, inspiration_messages_llm_context};
 use a4n_domain::source_text_hash as source_content_sha256;
 use a4n_error::AppError;
 use a4n_llm_context::{
@@ -19,7 +19,7 @@ pub(super) async fn build_inspiration_request_from_context(
     project_id: i64,
     user_input: &str,
     prompt_renderer: &dyn PromptRenderer,
-    history: &[message::Model],
+    history: &[InspirationMessageRecord],
     project_context_rows: InspirationProjectContextRows,
 ) -> Result<ChatRequest, AppError> {
     let user_input = required_message_content(user_input)?;
@@ -103,7 +103,7 @@ pub(super) async fn build_inspiration_request_from_context(
 }
 
 pub(super) fn build_inspiration_conversation_messages(
-    history: &[message::Model],
+    history: &[InspirationMessageRecord],
     user_input: &str,
 ) -> Result<Vec<ChatMessage>, AppError> {
     let user_input = required_message_content(user_input)?;

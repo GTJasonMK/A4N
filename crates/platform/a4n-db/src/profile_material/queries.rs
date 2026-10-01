@@ -6,6 +6,7 @@ use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOr
 use super::{
     contracts::{ProfileMaterialDbError, ProfileMaterialImageIdentityRow, ProfileMaterialListRows},
     identity::{PROFILE_KIND_OBJECT, PROFILE_KIND_SCENE, profile_material_identity},
+    records::{image_record, primary_material_record},
     validation::{database, require_positive, require_text},
 };
 
@@ -42,8 +43,11 @@ pub async fn profile_material_list_rows(
                 .map_err(|source| database("读取档案 primary material 失败", source))
         },
     );
-    let images = images?;
-    let primary_rows = primary_rows?;
+    let images = images?.into_iter().map(image_record).collect();
+    let primary_rows = primary_rows?
+        .into_iter()
+        .map(primary_material_record)
+        .collect();
 
     Ok(ProfileMaterialListRows {
         images,

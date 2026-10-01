@@ -139,7 +139,9 @@ fn object_profile_material(
         ],
         &prompt,
     );
-    let profile_content = object_profile_content(&profile);
+    let profile_content = object_profile_content(
+        &a4n_db::profile_material::object_profile_source_record(&profile),
+    );
     ProfileImageMaterial {
         spec: OBJECT_PROFILE_IMAGE_SPEC,
         profile_id: profile.id,
@@ -173,7 +175,9 @@ fn scene_profile_material(
         ],
         &prompt,
     );
-    let profile_content = scene_profile_content(&profile);
+    let profile_content = scene_profile_content(
+        &a4n_db::profile_material::scene_profile_source_record(&profile),
+    );
     ProfileImageMaterial {
         spec: SCENE_PROFILE_IMAGE_SPEC,
         profile_id: profile.id,

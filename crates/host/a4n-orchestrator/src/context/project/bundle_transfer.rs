@@ -46,7 +46,7 @@ impl OrchestratorContext {
             .await?;
         let project = self
             .project_read
-            .by_id(input.project_id)
+            .model_by_id(input.project_id)
             .await?
             .ok_or_else(|| {
                 InternalTransferError::Message(format!("项目不存在: {}", input.project_id))

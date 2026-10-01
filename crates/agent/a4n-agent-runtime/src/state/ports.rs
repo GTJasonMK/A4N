@@ -369,15 +369,4 @@ impl AgentWorkerMessageApplicationPort for AgentWorkerMessageHostPort<'_> {
         })
         .await
     }
-
-    async fn apply_message_request(
-        &self,
-        request: &AgentWorkerMessageRequest,
-    ) -> Result<Option<AgentMessageSnapshot>, AppError> {
-        self.state
-            .host
-            .apply_message_request(request)
-            .await
-            .map(|snapshot| snapshot.map(Into::into))
-    }
 }

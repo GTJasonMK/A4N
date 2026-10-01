@@ -8,8 +8,7 @@ use a4n_db::inspiration::{
     InspirationDbError, InspirationProjectContextRows, ensure_inspiration_conversation,
     insert_inspiration_exchange_in_transaction,
 };
-use a4n_db_models::models::user::message;
-use a4n_domain::inspiration::InspirationExchangeInsertInput;
+use a4n_domain::inspiration::{InspirationExchangeInsertInput, InspirationMessageRecord};
 use a4n_error::AppError;
 use sea_orm::DatabaseTransaction;
 
@@ -29,7 +28,10 @@ impl InspirationApplication {
         self.database.connection()
     }
 
-    async fn inspiration_messages(&self, project_id: i64) -> Result<Vec<message::Model>, AppError> {
+    async fn inspiration_messages(
+        &self,
+        project_id: i64,
+    ) -> Result<Vec<InspirationMessageRecord>, AppError> {
         a4n_db::inspiration::inspiration_messages(self.connection(), project_id, None)
             .await
             .map_err(inspiration_db_error_to_app)
@@ -91,7 +93,7 @@ impl OrchestratorContext {
     pub(crate) async fn inspiration_messages(
         &self,
         project_id: i64,
-    ) -> Result<Vec<message::Model>, AppError> {
+    ) -> Result<Vec<InspirationMessageRecord>, AppError> {
         self.inspiration.inspiration_messages(project_id).await
     }
 

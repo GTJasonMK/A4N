@@ -4,8 +4,8 @@ use a4n_db::admin::{
     GenerationCallAnalytics, GenerationCallAnalyticsInput, TaskQueueSummary, UsageLogSummary,
     UsageTrendsInput,
 };
-use a4n_db_models::models::user::role::{UserRole, parse_user_role};
 use a4n_domain::admin::InviteCodeSummary;
+use a4n_domain::auth::{UserRole, parse_user_role};
 use a4n_error::AppError;
 
 use super::OrchestratorContext;
@@ -82,7 +82,7 @@ impl OrchestratorContext {
         caller_user_id: i64,
         permission: AdminPermission,
     ) -> Result<(), AppError> {
-        let user = self.auth_user_by_id(caller_user_id).await?;
+        let user = self.auth_user_authorization_by_id(caller_user_id).await?;
         if !user.is_active {
             return Err(AppError::Forbidden(format!("用户 {caller_user_id} 已停用")));
         }
@@ -90,11 +90,11 @@ impl OrchestratorContext {
     }
 
     pub(crate) async fn is_active_admin_user(&self, user_id: i64) -> Result<bool, AppError> {
-        let user = self.auth_user_by_id(user_id).await?;
+        let user = self.auth_user_authorization_by_id(user_id).await?;
         if !user.is_active {
             return Ok(false);
         }
-        Ok(parse_user_role(&user.role)? == UserRole::Admin)
+        Ok(parse_user_role(&user.role).map_err(AppError::InvalidArgument)? == UserRole::Admin)
     }
 
     pub(crate) async fn admin_usage_trends(

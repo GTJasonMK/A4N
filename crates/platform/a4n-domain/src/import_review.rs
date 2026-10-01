@@ -1,3 +1,4 @@
+use chrono::NaiveDateTime;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -16,6 +17,17 @@ pub struct ImportReviewCreateInput {
     pub project_id: i64,
     pub filename: String,
     pub analysis_result: Value,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct ImportReviewRecord {
+    pub id: i64,
+    pub project_id: i64,
+    pub filename: String,
+    pub analysis_result: Value,
+    pub review_status: String,
+    pub created_at: NaiveDateTime,
+    pub updated_at: NaiveDateTime,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]

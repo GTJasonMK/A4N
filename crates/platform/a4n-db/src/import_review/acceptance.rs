@@ -1,6 +1,7 @@
 use super::chapter::upsert_imported_chapter_from_review;
 use super::contracts::{
     AcceptedImportReview, ImportReviewMutationError, ensure_pending_import_review,
+    import_review_record,
 };
 use a4n_db_models::models::project::import_review_queue;
 use a4n_domain::import_review::ImportReviewStatus;
@@ -38,7 +39,7 @@ where
     let updated = active.update(&tx).await?;
     tx.commit().await?;
     Ok(AcceptedImportReview {
-        review: updated,
+        review: import_review_record(updated),
         chapter_id: chapter.id,
     })
 }

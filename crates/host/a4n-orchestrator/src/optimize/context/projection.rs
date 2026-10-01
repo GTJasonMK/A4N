@@ -1,7 +1,7 @@
 use a4n_chapter_analysis::summary_text;
 use a4n_db_models::models::chapter::{chapter, part_outline};
 use a4n_db_models::models::character::protagonist_profile;
-use a4n_db_models::models::project::novel_project;
+use a4n_domain::project::ProjectOptimizationContextRecord;
 use serde_json::{Value, json};
 
 use a4n_db::{
@@ -11,7 +11,7 @@ use a4n_db::{
 use a4n_domain::source_spans::source_span_prompt_values;
 use a4n_domain::source_spans::source_spans_for_chapters;
 
-pub(super) fn optimization_project_context(project: &novel_project::Model) -> Value {
+pub(super) fn optimization_project_context(project: &ProjectOptimizationContextRecord) -> Value {
     json!({
         "id": project.id,
         "title": project.title,

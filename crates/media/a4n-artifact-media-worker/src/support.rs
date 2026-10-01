@@ -1,4 +1,9 @@
 use super::*;
+use std::collections::{HashMap, HashSet};
+
+use a4n_api_contract::image::GeneratedImageSummary;
+use a4n_domain::media::ImagePublicationRecoveryRecord;
+use a4n_worker_contract::{WorkerError, WorkerOperationStatus};
 
 pub(super) fn parse_payload<T: serde::de::DeserializeOwned>(payload: Value) -> Result<T, String> {
     serde_json::from_value(payload).map_err(|error| format!("请求 payload 无效: {error}"))

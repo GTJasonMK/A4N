@@ -15,7 +15,7 @@ use a4n_admin_worker_contract::{
 };
 use a4n_api_contract::admin::AdminPermission;
 use a4n_db::DbHandle;
-use a4n_db_models::models::user::{invite_code, role::parse_user_role};
+use a4n_domain::auth::{UserRole, parse_user_role};
 use a4n_error::AppError;
 use a4n_worker_client::WORKER_AUTH_HEADER;
 use a4n_worker_contract::{
@@ -38,6 +38,12 @@ const WORKER_ADDR_ENV: &str = "A4N_ADMIN_WORKER_ADDR";
 const DATABASE_URL_ENV: &str = "A4N_DATABASE_URL";
 const WORKER_TOKEN_ENV: &str = "A4N_ADMIN_WORKER_TOKEN";
 const DEFAULT_ADDR: &str = "127.0.0.1:47679";
+
+mod auth;
+mod health;
+mod mutations;
+mod reads;
+use health::{capabilities, health};
 
 #[derive(Clone)]
 pub struct AdminWorker {
@@ -143,54 +149,6 @@ fn worker_addr() -> anyhow::Result<SocketAddr> {
         anyhow::bail!("{WORKER_ADDR_ENV} 必须是 loopback 且端口大于 0")
     }
     Ok(address)
-}
-
-async fn health(State(state): State<WorkerState>, headers: HeaderMap) -> Response {
-    if !state.authorized(&headers) {
-        return unauthorized();
-    }
-    let status = match state
-        .database
-        .connection()
-        .execute(Statement::from_string(
-            sea_orm::DatabaseBackend::Postgres,
-            "SELECT 1",
-        ))
-        .await
-    {
-        Ok(_) => WorkerHealthStatus::Healthy,
-        Err(_) => WorkerHealthStatus::Degraded,
-    };
-    Json(WorkerHealth {
-        schema_version: WORKER_SCHEMA_VERSION,
-        worker_id: state.worker_id.to_string(),
-        status,
-        version: env!("CARGO_PKG_VERSION").into(),
-    })
-    .into_response()
-}
-
-async fn capabilities(State(state): State<WorkerState>, headers: HeaderMap) -> Response {
-    if !state.authorized(&headers) {
-        return unauthorized();
-    }
-    Json(WorkerCapabilities {
-        schema_version: WORKER_SCHEMA_VERSION,
-        worker_id: state.worker_id.to_string(),
-        capabilities: vec![
-            WorkerCapability {
-                name: ADMIN_READ_CAPABILITY.into(),
-                version: ADMIN_WORKER_CONTRACT_VERSION.into(),
-                enabled: true,
-            },
-            WorkerCapability {
-                name: ADMIN_WRITE_CAPABILITY.into(),
-                version: ADMIN_WORKER_CONTRACT_VERSION.into(),
-                enabled: true,
-            },
-        ],
-    })
-    .into_response()
 }
 
 macro_rules! handler {
@@ -308,283 +266,6 @@ where
     Json(response).into_response()
 }
 
-impl WorkerState {
-    async fn require_permission(
-        &self,
-        request: WorkerEnvelope<AdminPermissionInput>,
-    ) -> Result<OperationAck, WorkerFailure> {
-        validate_request(&request, ADMIN_PERMISSION_OPERATION)?;
-        let caller = self.caller(&request.principal, request.payload.caller_user_id)?;
-        self.require_admin(caller, request.payload.permission)
-            .await?;
-        Ok(OperationAck { accepted: true })
-    }
-
-    async fn is_active_admin_user(
-        &self,
-        request: WorkerEnvelope<AdminUserInput>,
-    ) -> Result<bool, WorkerFailure> {
-        validate_request(&request, ADMIN_ACTIVE_OPERATION)?;
-        let caller = self.caller(&request.principal, request.payload.caller_user_id)?;
-        if caller != request.payload.user_id {
-            return Err(WorkerFailure::invalid_request(
-                "查询管理员状态必须绑定目标用户主体",
-            ));
-        }
-        let user = a4n_db::auth::user_by_id(self.database.connection(), caller)
-            .await
-            .map_err(app_error)?;
-        Ok(user.is_active
-            && parse_user_role(&user.role).map_err(app_error)?
-                == a4n_db_models::models::user::role::UserRole::Admin)
-    }
-
-    async fn user_usage(
-        &self,
-        request: WorkerEnvelope<AdminUserUsageInput>,
-    ) -> Result<Vec<a4n_admin_worker_contract::UsageLogSummary>, WorkerFailure> {
-        validate_request(&request, ADMIN_USER_USAGE_OPERATION)?;
-        let caller = self.caller(&request.principal, request.payload.caller_user_id)?;
-        self.require_admin(caller, AdminPermission::ManageUsers)
-            .await?;
-        a4n_db::admin::usage_by_user(
-            self.database.connection(),
-            request.payload.user_id,
-            request.payload.limit,
-        )
-        .await
-        .map_err(admin_error)
-    }
-
-    async fn token_summary(
-        &self,
-        request: WorkerEnvelope<AdminUserInput>,
-    ) -> Result<serde_json::Value, WorkerFailure> {
-        validate_request(&request, ADMIN_TOKEN_SUMMARY_OPERATION)?;
-        let caller = self.caller(&request.principal, request.payload.caller_user_id)?;
-        self.require_admin(caller, AdminPermission::ManageUsers)
-            .await?;
-        a4n_db::admin::token_summary(self.database.connection(), request.payload.user_id)
-            .await
-            .map_err(admin_error)
-    }
-
-    async fn usage_trends(
-        &self,
-        request: WorkerEnvelope<AdminUsageTrendsInput>,
-    ) -> Result<Vec<a4n_admin_worker_contract::DailyUsagePoint>, WorkerFailure> {
-        validate_request(&request, ADMIN_USAGE_TRENDS_OPERATION)?;
-        let caller = self.caller(&request.principal, request.payload.caller_user_id)?;
-        self.require_admin(caller, AdminPermission::ManageUsers)
-            .await?;
-        a4n_db::admin::usage_trends(self.database.connection(), request.payload.input)
-            .await
-            .map_err(admin_error)
-    }
-
-    async fn overview(
-        &self,
-        request: WorkerEnvelope<AdminCallerInput>,
-    ) -> Result<a4n_admin_worker_contract::AdminOverviewSummary, WorkerFailure> {
-        validate_request(&request, ADMIN_OVERVIEW_OPERATION)?;
-        let caller = self.caller(&request.principal, request.payload.caller_user_id)?;
-        self.require_admin(caller, AdminPermission::ManageSettings)
-            .await?;
-        a4n_db::admin::admin_overview_summary(self.database.connection())
-            .await
-            .map_err(admin_error)
-    }
-
-    async fn projects(
-        &self,
-        request: WorkerEnvelope<AdminCallerInput>,
-    ) -> Result<Vec<a4n_admin_worker_contract::AdminProjectSummary>, WorkerFailure> {
-        validate_request(&request, ADMIN_PROJECTS_OPERATION)?;
-        let caller = self.caller(&request.principal, request.payload.caller_user_id)?;
-        self.require_admin(caller, AdminPermission::ManageUsers)
-            .await?;
-        a4n_db::admin::all_project_summaries(self.database.connection())
-            .await
-            .map_err(admin_error)
-    }
-
-    async fn pending_tasks(
-        &self,
-        request: WorkerEnvelope<AdminCallerInput>,
-    ) -> Result<Vec<a4n_admin_worker_contract::TaskQueueSummary>, WorkerFailure> {
-        validate_request(&request, ADMIN_PENDING_TASKS_OPERATION)?;
-        let caller = self.caller(&request.principal, request.payload.caller_user_id)?;
-        self.require_admin(caller, AdminPermission::ManageSettings)
-            .await?;
-        a4n_db::admin::pending_tasks(self.database.connection())
-            .await
-            .map_err(admin_error)
-    }
-
-    async fn generation_analytics(
-        &self,
-        request: WorkerEnvelope<AdminGenerationAnalyticsInput>,
-    ) -> Result<a4n_admin_worker_contract::GenerationCallAnalytics, WorkerFailure> {
-        validate_request(&request, ADMIN_GENERATION_ANALYTICS_OPERATION)?;
-        let caller = self.caller(&request.principal, request.payload.caller_user_id)?;
-        self.require_admin(caller, AdminPermission::ManageSettings)
-            .await?;
-        a4n_db::admin::generation_call_analytics(self.database.connection(), request.payload.input)
-            .await
-            .map_err(admin_error)
-    }
-
-    async fn database_health(
-        &self,
-        request: WorkerEnvelope<AdminCallerInput>,
-    ) -> Result<OperationAck, WorkerFailure> {
-        validate_request(&request, ADMIN_DATABASE_HEALTH_OPERATION)?;
-        let caller = self.caller(&request.principal, request.payload.caller_user_id)?;
-        self.require_admin(caller, AdminPermission::ManageSettings)
-            .await?;
-        a4n_db::admin::check_database_health(self.database.connection())
-            .await
-            .map_err(admin_error)?;
-        Ok(OperationAck { accepted: true })
-    }
-
-    async fn users(
-        &self,
-        request: WorkerEnvelope<AdminCallerInput>,
-    ) -> Result<Vec<a4n_admin_worker_contract::UserSummary>, WorkerFailure> {
-        validate_request(&request, ADMIN_USERS_OPERATION)?;
-        let caller = self.caller(&request.principal, request.payload.caller_user_id)?;
-        self.require_admin(caller, AdminPermission::ManageUsers)
-            .await?;
-        a4n_db::auth::list_users(self.database.connection())
-            .await
-            .map_err(app_error)
-    }
-
-    async fn invites(
-        &self,
-        request: WorkerEnvelope<AdminCallerInput>,
-    ) -> Result<Vec<a4n_admin_worker_contract::InviteCodeSummary>, WorkerFailure> {
-        validate_request(&request, ADMIN_INVITES_OPERATION)?;
-        let caller = self.caller(&request.principal, request.payload.caller_user_id)?;
-        self.require_admin(caller, AdminPermission::ManageUsers)
-            .await?;
-        let codes = a4n_db::auth::list_invite_codes(self.database.connection())
-            .await
-            .map_err(app_error)?;
-        Ok(codes.iter().map(invite_code_summary).collect())
-    }
-
-    async fn create_user(
-        &self,
-        request: WorkerEnvelope<AdminCreateUserInput>,
-    ) -> Result<a4n_admin_worker_contract::UserSummary, WorkerFailure> {
-        validate_request(&request, ADMIN_CREATE_USER_OPERATION)?;
-        let caller = self.caller(&request.principal, request.payload.caller_user_id)?;
-        self.require_admin(caller, AdminPermission::ManageUsers)
-            .await?;
-        let input = request.payload.input;
-        let user = a4n_db::auth::create_user(
-            self.database.connection(),
-            &input.username,
-            &input.email,
-            &input.password,
-            &input.role,
-        )
-        .await
-        .map_err(app_error)?;
-        a4n_db::auth::current_user_summary(self.database.connection(), user.id)
-            .await
-            .map_err(app_error)
-    }
-
-    async fn create_invite(
-        &self,
-        request: WorkerEnvelope<AdminCreateInviteInput>,
-    ) -> Result<a4n_admin_worker_contract::InviteCodeSummary, WorkerFailure> {
-        validate_request(&request, ADMIN_CREATE_INVITE_OPERATION)?;
-        let caller = self.caller(&request.principal, request.payload.caller_user_id)?;
-        self.require_admin(caller, AdminPermission::ManageUsers)
-            .await?;
-        let code = a4n_db::auth::create_invite_code(
-            self.database.connection(),
-            &request.payload.input.code,
-            Some(caller),
-        )
-        .await
-        .map_err(app_error)?;
-        Ok(invite_code_summary(&code))
-    }
-
-    async fn update_role(
-        &self,
-        request: WorkerEnvelope<AdminUpdateRoleInput>,
-    ) -> Result<a4n_admin_worker_contract::UserSummary, WorkerFailure> {
-        validate_request(&request, ADMIN_UPDATE_ROLE_OPERATION)?;
-        let caller = self.caller(&request.principal, request.payload.caller_user_id)?;
-        self.require_admin(caller, AdminPermission::ManageUsers)
-            .await?;
-        let user = a4n_db::auth::update_user_role(
-            self.database.connection(),
-            request.payload.user_id,
-            &request.payload.input.role,
-        )
-        .await
-        .map_err(app_error)?;
-        a4n_db::auth::current_user_summary(self.database.connection(), user.id)
-            .await
-            .map_err(app_error)
-    }
-
-    fn caller(
-        &self,
-        principal: &WorkerPrincipal,
-        payload_user_id: i64,
-    ) -> Result<i64, WorkerFailure> {
-        if principal.kind != WorkerPrincipalKind::User {
-            return Err(WorkerFailure::unauthorized(
-                "admin worker 仅允许 user principal",
-            ));
-        }
-        let caller = principal
-            .subject
-            .parse::<i64>()
-            .map_err(|_| WorkerFailure::unauthorized("用户主体不是有效用户 ID"))?;
-        if caller <= 0 || caller != payload_user_id {
-            return Err(WorkerFailure::unauthorized("用户主体与请求调用者不匹配"));
-        }
-        Ok(caller)
-    }
-
-    async fn require_admin(
-        &self,
-        caller_user_id: i64,
-        _permission: AdminPermission,
-    ) -> Result<(), WorkerFailure> {
-        let user = a4n_db::auth::user_by_id(self.database.connection(), caller_user_id)
-            .await
-            .map_err(app_error)?;
-        if !user.is_active {
-            return Err(WorkerFailure::forbidden(format!(
-                "用户 {caller_user_id} 已停用"
-            )));
-        }
-        if parse_user_role(&user.role).map_err(app_error)?
-            != a4n_db_models::models::user::role::UserRole::Admin
-        {
-            return Err(WorkerFailure::forbidden("当前用户不是管理员"));
-        }
-        Ok(())
-    }
-
-    fn authorized(&self, headers: &HeaderMap) -> bool {
-        headers
-            .get(WORKER_AUTH_HEADER)
-            .and_then(|value| value.to_str().ok())
-            .is_some_and(|value| value.as_bytes().ct_eq(self.auth_token.as_bytes()).into())
-    }
-}
-
 fn validate_request<T: serde::Serialize>(
     request: &WorkerEnvelope<T>,
     operation: &str,
@@ -626,17 +307,6 @@ fn app_error(error: AppError) -> WorkerFailure {
         }
         AppError::NotFound(message) => WorkerFailure::not_found(message),
         other => WorkerFailure::unavailable(other.to_string()),
-    }
-}
-
-fn invite_code_summary(code: &invite_code::Model) -> a4n_admin_worker_contract::InviteCodeSummary {
-    a4n_admin_worker_contract::InviteCodeSummary {
-        id: code.id,
-        code: code.code.clone(),
-        created_by_user_id: code.created_by_user_id,
-        used_by_user_id: code.used_by_user_id,
-        created_at: Some(code.created_at.and_utc().to_rfc3339()),
-        used_at: code.used_at.map(|value| value.and_utc().to_rfc3339()),
     }
 }
 

@@ -1,18 +1,16 @@
 //! Pure import-review projections and duplicate detection.
 
 use a4n_api_contract::import_review::{DedupResult, ImportReviewSummary};
-use a4n_db_models::models::project::import_review_queue;
+use a4n_domain::import_review::{ImportReviewRecord, ImportReviewStatus};
 use a4n_error::AppError;
 use a4n_import_core::dedup;
 
 const SIMHASH_NGRAM: usize = 3;
 const DUPLICATE_HAMMING_THRESHOLD: u32 = 3;
 
-pub fn summary_from_model(
-    review: &import_review_queue::Model,
-) -> Result<ImportReviewSummary, AppError> {
-    let review_status = a4n_domain::import_review::ImportReviewStatus::parse(&review.review_status)
-        .ok_or_else(|| AppError::InvalidState {
+pub fn summary_from_record(review: &ImportReviewRecord) -> Result<ImportReviewSummary, AppError> {
+    let review_status =
+        ImportReviewStatus::parse(&review.review_status).ok_or_else(|| AppError::InvalidState {
             current: format!(
                 "导入审核 #{} review_status={:?}",
                 review.id, review.review_status
@@ -62,6 +60,30 @@ pub fn calculate_dedup(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn summary_projection_preserves_record_fields_and_rejects_unknown_status() {
+        let mut review = ImportReviewRecord {
+            id: 4,
+            project_id: 8,
+            filename: "chapters.md".to_string(),
+            analysis_result: Default::default(),
+            review_status: ImportReviewStatus::Pending.as_str().to_string(),
+            created_at: Default::default(),
+            updated_at: Default::default(),
+        };
+        let summary = summary_from_record(&review).unwrap();
+        assert_eq!(summary.id, review.id);
+        assert_eq!(summary.project_id, review.project_id);
+        assert_eq!(summary.filename, review.filename);
+        assert_eq!(summary.review_status, ImportReviewStatus::Pending);
+
+        review.review_status = "unknown".to_string();
+        assert!(matches!(
+            summary_from_record(&review),
+            Err(AppError::InvalidState { .. })
+        ));
+    }
 
     #[test]
     fn duplicate_content_returns_match_and_distance() {

@@ -21,6 +21,6 @@ pub use manual::{
     update_blueprint_world_setting_records_transaction, validate_blueprint_chapter_plan,
 };
 pub use project::sync_project_after_blueprint_record;
-pub use record::{upsert_manual_blueprint_record, upsert_novel_blueprint_record};
+pub use record::{blueprint_record, upsert_manual_blueprint_record, upsert_novel_blueprint_record};
 pub use refine::apply_blueprint_refine_patch_record;
 pub use version::{blueprint_version_snapshot, insert_blueprint_version_record};

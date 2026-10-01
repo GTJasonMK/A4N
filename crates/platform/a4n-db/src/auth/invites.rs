@@ -2,6 +2,7 @@ use super::*;
 
 use super::rules::{normalize_invite_code, validate_positive_user_id};
 use super::users::create_user_on;
+use a4n_domain::admin::InviteCodeSummary;
 use sea_orm::QuerySelect;
 
 pub async fn register_user_with_invite(
@@ -62,7 +63,7 @@ pub async fn create_invite_code(
     db: &DatabaseConnection,
     code: &str,
     created_by_user_id: Option<i64>,
-) -> Result<invite_code::Model, AppError> {
+) -> Result<InviteCodeSummary, AppError> {
     let code = normalize_invite_code(code)?;
     if let Some(user_id) = created_by_user_id {
         validate_positive_user_id(user_id)?;
@@ -91,15 +92,54 @@ pub async fn create_invite_code(
     .insert(db)
     .await
     .map_err(AppError::Database)
+    .map(invite_code_summary)
 }
 
 pub async fn list_invite_codes(
     db: &DatabaseConnection,
-) -> Result<Vec<invite_code::Model>, AppError> {
+) -> Result<Vec<InviteCodeSummary>, AppError> {
     invite_code::Entity::find()
         .order_by_desc(invite_code::Column::CreatedAt)
         .order_by_desc(invite_code::Column::Id)
         .all(db)
         .await
         .map_err(AppError::Database)
+        .map(|codes| codes.into_iter().map(invite_code_summary).collect())
+}
+
+fn invite_code_summary(code: invite_code::Model) -> InviteCodeSummary {
+    InviteCodeSummary {
+        id: code.id,
+        code: code.code,
+        created_by_user_id: code.created_by_user_id,
+        used_by_user_id: code.used_by_user_id,
+        created_at: Some(code.created_at.and_utc().to_rfc3339()),
+        used_at: code.used_at.map(|value| value.and_utc().to_rfc3339()),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::invite_code_summary;
+    use a4n_db_models::models::user::invite_code;
+    use chrono::NaiveDate;
+
+    #[test]
+    fn invite_code_summary_formats_timestamps_as_utc_instants() {
+        let timestamp = NaiveDate::from_ymd_opt(2026, 1, 1)
+            .unwrap()
+            .and_hms_opt(0, 0, 0)
+            .unwrap();
+        let summary = invite_code_summary(invite_code::Model {
+            id: 3,
+            code: "invite".into(),
+            created_by_user_id: Some(7),
+            used_by_user_id: None,
+            created_at: timestamp,
+            used_at: Some(timestamp),
+        });
+
+        assert!(summary.created_at.unwrap().ends_with("+00:00"));
+        assert!(summary.used_at.unwrap().ends_with("+00:00"));
+    }
 }

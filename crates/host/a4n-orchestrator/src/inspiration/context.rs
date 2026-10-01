@@ -1,5 +1,4 @@
 use a4n_chapter_analysis::summary_text;
-use a4n_db::blueprint::context::blueprint_llm_context;
 use a4n_db::inspiration::{InspirationProjectContextRows, InspirationRecentChapterRow};
 use serde_json::{Value, json};
 
@@ -20,15 +19,8 @@ pub(super) fn inspiration_project_context(rows: InspirationProjectContextRows) -
         }),
     );
 
-    if let Some(blueprint) = rows.blueprint.as_ref() {
-        context.insert(
-            "blueprint".to_string(),
-            blueprint_llm_context(
-                &blueprint.blueprint,
-                &blueprint.characters,
-                &blueprint.relationships,
-            ),
-        );
+    if let Some(blueprint) = rows.blueprint {
+        context.insert("blueprint".to_string(), blueprint);
     }
 
     let recent_chapters = rows

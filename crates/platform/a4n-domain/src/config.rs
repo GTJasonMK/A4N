@@ -1,5 +1,75 @@
 //! Pure configuration value normalization shared by adapters.
 
+use serde_json::Value;
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct LlmConfigReadRecord {
+    pub id: i64,
+    pub name: String,
+    pub provider: String,
+    pub base_url: String,
+    pub api_key_encrypted: Option<String>,
+    pub model: String,
+    pub max_concurrent: i32,
+    pub timeout_secs: i32,
+    pub max_context_tokens: i32,
+    pub max_output_tokens: i32,
+    pub extra_body_json: Option<Value>,
+    pub agent_protocol: String,
+    pub pricing_json: Value,
+    pub is_default: bool,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct EmbeddingConfigReadRecord {
+    pub id: i64,
+    pub name: String,
+    pub backend: String,
+    pub base_url: Option<String>,
+    pub api_key_encrypted: Option<String>,
+    pub model: String,
+    pub dimension: i32,
+    pub batch_size: i32,
+    pub local_model_path: Option<String>,
+    pub pricing_json: Value,
+    pub is_default: bool,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct ImageConfigReadRecord {
+    pub id: i64,
+    pub name: String,
+    pub backend: String,
+    pub base_url: Option<String>,
+    pub api_key_encrypted: Option<String>,
+    pub model: String,
+    pub max_concurrent: i32,
+    pub supported_sizes_json: Value,
+    pub pricing_json: Value,
+    pub is_default: bool,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct VideoConfigReadRecord {
+    pub id: i64,
+    pub name: String,
+    pub backend: String,
+    pub base_url: Option<String>,
+    pub api_key_encrypted: Option<String>,
+    pub model: String,
+    pub max_concurrent: i32,
+    pub default_width: i32,
+    pub default_height: i32,
+    pub default_duration_secs: i32,
+    pub min_duration_secs: i32,
+    pub max_duration_secs: i32,
+    pub duration_mode: String,
+    pub supported_durations_json: Option<Value>,
+    pub default_fps: i32,
+    pub is_default: bool,
+    pub pricing_json: Value,
+}
+
 pub fn required_config_value(value: &str, kind: &str, field: &str) -> Result<String, String> {
     let value = value.trim().to_string();
     if value.is_empty() {

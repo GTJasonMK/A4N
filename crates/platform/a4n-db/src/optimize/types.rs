@@ -149,7 +149,7 @@ pub struct OptimizationChapterOutlineRecord {
 pub struct OptimizationContextRows {
     pub current_chapter: chapter::Model,
     pub current_chapter_outline: Option<OptimizationChapterOutlineRecord>,
-    pub project: Option<novel_project::Model>,
+    pub project: Option<a4n_domain::project::ProjectOptimizationContextRecord>,
     pub blueprint: Option<OptimizationBlueprintRows>,
     pub part_outlines: Vec<part_outline::Model>,
     pub chapter_outlines: Vec<OptimizationChapterOutlineRecord>,

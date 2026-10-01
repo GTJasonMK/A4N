@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 
 use a4n_db::blueprint::context::blueprint_llm_context;
-use a4n_db::inspiration::inspiration_messages_llm_context;
 use a4n_db::workflow::UpsertWorkflowRunInput;
+use a4n_domain::inspiration::inspiration_messages_llm_context;
 use a4n_domain::project::{
     BLUEPRINT_REFINEMENT_MODE, BLUEPRINT_REFINEMENT_WORKFLOW_KIND,
     blueprint_refinement_business_key, blueprint_refinement_call_key,

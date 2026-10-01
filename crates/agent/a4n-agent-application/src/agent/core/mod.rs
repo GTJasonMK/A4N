@@ -89,4 +89,5 @@ impl AgentApplication {
 
 mod access;
 mod interactions;
+mod lineage;
 mod threads;

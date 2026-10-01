@@ -1,9 +1,11 @@
 //! Pure inspiration-history projections.
 
 use a4n_api_contract::inspiration::InspirationMessageSummary;
-use a4n_db_models::models::user::message;
+use a4n_domain::inspiration::InspirationMessageRecord;
 
-pub fn message_summary(message: message::Model) -> Result<InspirationMessageSummary, String> {
+pub fn message_summary(
+    message: InspirationMessageRecord,
+) -> Result<InspirationMessageSummary, String> {
     if message.role == "assistant" {
         a4n_domain::inspiration::parse_inspiration_response(&message.content)
             .map_err(|error| format!("灵感历史消息 {} 无效: {error}", message.id))?;
@@ -22,16 +24,10 @@ mod tests {
 
     #[test]
     fn message_projection_keeps_user_fields_and_rejects_invalid_assistant_history() {
-        let message = message::Model {
+        let message = InspirationMessageRecord {
             id: 7,
-            conversation_id: 3,
             role: "user".into(),
             content: "内容".into(),
-            tool_calls: None,
-            prompt_tokens: None,
-            completion_tokens: None,
-            chapter_number: None,
-            is_important: false,
             created_at: Default::default(),
         };
         let mut invalid = message.clone();

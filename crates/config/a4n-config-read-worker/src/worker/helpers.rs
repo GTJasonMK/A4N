@@ -349,7 +349,10 @@ async fn require_admin(database: &DbHandle, user_id: i64) -> Result<(), WorkerFa
     if !user.is_active {
         return Err(WorkerFailure::unauthorized("用户已停用"));
     }
-    if parse_user_role(&user.role).map_err(app_error)? != UserRole::Admin {
+    if parse_user_role(&user.role)
+        .map_err(|error| app_error(a4n_error::AppError::InvalidArgument(error)))?
+        != UserRole::Admin
+    {
         return Err(WorkerFailure::unauthorized("需要管理员配置权限"));
     }
     Ok(())

@@ -3,7 +3,8 @@ fn ensure_manga_page_panels_match_current_source(
     current_content: &str,
 ) -> Result<(), AppError> {
     let current_hash = source_content_sha256(current_content);
-    let layout = manga_page_generation_layout(page_prompt).map_err(AppError::InvalidArgument)?;
+    let prompt_record = a4n_db::manga::manga_page_prompt_record(page_prompt);
+    let layout = manga_page_generation_layout(&prompt_record).map_err(AppError::InvalidArgument)?;
     if layout.source.content_sha256.trim().is_empty() {
         return Err(AppError::InvalidArgument(format!(
             "漫画提示词 #{} 缺少章节正文指纹，请重新生成漫画提示词",

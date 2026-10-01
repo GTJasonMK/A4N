@@ -127,38 +127,6 @@ impl AgentApplication {
         Ok(())
     }
 
-    pub async fn user_messages_for_run(
-        &self,
-        run_id: i64,
-    ) -> Result<Vec<super::AgentMessageSnapshot>, AppError> {
-        Ok(agent::messages_by_run(self.connection(), run_id)
-            .await
-            .map_err(agent_db_error_to_app)?
-            .into_iter()
-            .filter(|m| m.role == "user")
-            .map(super::message_snapshot)
-            .collect())
-    }
-
-    pub async fn latest_model_input_message_id(
-        &self,
-        run_id: i64,
-    ) -> Result<Option<i64>, AppError> {
-        let executions = agent::executions_by_runs(self.connection(), vec![run_id])
-            .await
-            .map_err(agent_db_error_to_app)?;
-        Ok(executions
-            .iter()
-            .filter(|e| e.execution_kind == "model_call" && e.status == "succeeded")
-            .filter_map(|e| {
-                e.resource_preconditions_json
-                    .as_ref()?
-                    .get("input_message_id")?
-                    .as_i64()
-            })
-            .max())
-    }
-
     pub async fn execution_by_key(
         &self,
         run_id: i64,
@@ -172,15 +140,6 @@ impl AgentApplication {
             .map_err(AppError::from)
     }
 
-    pub async fn worker_execution_by_key(
-        &self,
-        run_id: i64,
-        key: &str,
-    ) -> Result<Option<super::AgentExecutionSnapshot>, AppError> {
-        self.execution_by_key(run_id, key)
-            .await
-            .map(|row| row.map(super::execution_snapshot))
-    }
     pub async fn generation_owner(
         &self,
         task_id: &str,

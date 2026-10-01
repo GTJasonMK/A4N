@@ -48,7 +48,7 @@ use a4n_db::config::{
     EmbeddingConfigRecordInput, ImageConfigRecordInput, LlmConfigRecordInput, ProviderConfigKind,
     SettingsAllConfigImportInput, SettingsAllConfigRows, VideoConfigRecordInput,
 };
-use a4n_db_models::models::user::role::{UserRole, parse_user_role};
+use a4n_domain::auth::{UserRole, parse_user_role};
 use a4n_domain::embedding::CreateEmbeddingConfigParams;
 use a4n_llm_config::{
     CreateLlmConfigInput, LlmConfigSnapshot, NormalizedLlmConfig, UpdateLlmConfigInput,

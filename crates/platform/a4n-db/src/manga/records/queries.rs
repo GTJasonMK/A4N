@@ -3,13 +3,14 @@ use crate::manga::{
     validate_manga_page_number,
 };
 use a4n_db_models::models::chapter::chapter_manga_prompt::{self, MANGA_PAGE_PROMPT_TYPE};
+use a4n_domain::manga::MangaPagePromptRecord;
 use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder, QuerySelect};
 
 pub async fn manga_page_prompts_by_chapter(
     db: &DatabaseConnection,
     project_id: i64,
     chapter_id: i64,
-) -> Result<Vec<chapter_manga_prompt::Model>, MangaPromptRecordError> {
+) -> Result<Vec<MangaPagePromptRecord>, MangaPromptRecordError> {
     require_positive_manga_id(project_id, "project_id")?;
     require_positive_manga_id(chapter_id, "chapter_id")?;
     chapter_manga_prompt::Entity::find()
@@ -20,6 +21,12 @@ pub async fn manga_page_prompts_by_chapter(
         .all(db)
         .await
         .map_err(manga_record_database("读取章节漫画提示词失败"))
+        .map(|prompts| {
+            prompts
+                .iter()
+                .map(super::manga_page_prompt_record)
+                .collect()
+        })
 }
 
 pub async fn manga_page_prompt_statuses_by_chapter(

@@ -1,7 +1,5 @@
-use a4n_db_models::models::user::{
-    role::{ROLE_ADMIN, validate_user_role},
-    user,
-};
+use a4n_db_models::models::user::user;
+use a4n_domain::auth::ROLE_ADMIN;
 use a4n_error::AppError;
 use chrono::Utc;
 use sea_orm::{
@@ -10,7 +8,7 @@ use sea_orm::{
     TransactionTrait,
 };
 
-use crate::auth::rules::validate_positive_user_id;
+use crate::auth::rules::{validate_positive_user_id, validate_user_role};
 
 pub async fn update_user_role(
     db: &DatabaseConnection,

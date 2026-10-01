@@ -3,6 +3,19 @@ use sea_orm::{ActiveModelTrait, ConnectionTrait, Set};
 
 use super::{BlueprintDbError, ManualBlueprintUpsertInput, NovelBlueprintUpsertInput};
 
+pub fn blueprint_record(
+    blueprint: &novel_blueprint::Model,
+) -> a4n_domain::project::BlueprintRecord {
+    a4n_domain::project::BlueprintRecord {
+        id: blueprint.id,
+        project_id: blueprint.project_id,
+        title: blueprint.title.clone(),
+        current_version: blueprint.current_version.clone(),
+        total_chapters: blueprint.total_chapters,
+        chapters_per_part: blueprint.chapters_per_part,
+    }
+}
+
 /// 插入或更新项目蓝图主体。
 pub async fn upsert_novel_blueprint_record<C>(
     db: &C,

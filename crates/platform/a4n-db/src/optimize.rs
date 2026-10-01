@@ -5,7 +5,7 @@ use a4n_db_models::models::ai::{
 use a4n_db_models::models::chapter::{chapter, chapter_outline, part_outline};
 use a4n_db_models::models::character::{foreshadowing_index, protagonist_profile};
 use a4n_db_models::models::project::{
-    blueprint_character, blueprint_relationship, novel_blueprint, novel_project,
+    blueprint_character, blueprint_relationship, novel_blueprint,
 };
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, ConnectionTrait, DbErr, EntityTrait, QueryFilter, QueryOrder,

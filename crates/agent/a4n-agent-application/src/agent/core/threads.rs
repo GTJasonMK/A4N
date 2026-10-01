@@ -366,35 +366,6 @@ impl AgentApplication {
         }
     }
 
-    pub(crate) async fn ensure_canonical_subagent_thread_request(
-        &self,
-        request: &AgentWorkerDelegationThreadRequest,
-    ) -> Result<AgentWorkerDelegationThreadSnapshotWire, AppError> {
-        request
-            .validate()
-            .map_err(|error| AppError::InvalidArgument(error.to_string()))?;
-        self.validate_worker_lease_request(&AgentWorkerRunLeaseRequest {
-            run_id: request.run_id,
-            lease: request.lease.clone(),
-        })
-        .await?;
-        let row = self
-            .ensure_canonical_subagent_thread(
-                request.user_id,
-                EnsureCanonicalSubagentThreadInput {
-                    canonical_binding_key: request.canonical_binding_key.clone(),
-                    capability: request.capability.clone(),
-                    title: request.title.clone(),
-                    scope: request.scope.clone(),
-                    bound_resource: request.bound_resource.clone(),
-                    default_model_config_id: request.default_model_config_id,
-                },
-            )
-            .await?;
-        let snapshot = thread_snapshot(row)?;
-        Ok(snapshot.into())
-    }
-
     pub(crate) async fn list_threads(
         &self,
         user_id: i64,
@@ -539,30 +510,6 @@ impl AgentApplication {
             .take(limit)
             .map(message_view)
             .collect()
-    }
-
-    /// Loads a message referenced by an inbox item for the durable worker.
-    /// The thread check keeps a malformed or cross-thread payload from being
-    /// injected into the model context.
-    pub(crate) async fn load_message_for_worker(
-        &self,
-        thread_id: i64,
-        message_id: i64,
-    ) -> Result<AgentMessageSnapshot, AppError> {
-        let row = agent::message_by_id(self.connection(), message_id)
-            .await
-            .map_err(agent_db_error_to_app)?
-            .ok_or_else(|| AppError::NotFound(format!("Agent message 不存在: {message_id}")))?;
-        if row.thread_id != thread_id {
-            return Err(AppError::InvalidState {
-                current: format!(
-                    "Agent inbox message {} 不属于 thread {}",
-                    message_id, thread_id
-                ),
-                operation: "加载 Agent inbox message".into(),
-            });
-        }
-        Ok(message_snapshot(row))
     }
 
     pub(crate) async fn show_run(

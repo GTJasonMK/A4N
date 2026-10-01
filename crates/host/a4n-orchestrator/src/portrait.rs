@@ -34,7 +34,6 @@ pub(crate) use workflow_rules::{
 };
 
 use crate::workflow::{UpsertWorkflowRunInput, WORKFLOW_STATUS_RUNNING};
-use a4n_db_models::models::generation::workflow_run;
 
 #[cfg(test)]
 mod tests;
@@ -46,7 +45,7 @@ impl OrchestratorContext {
         project_id: i64,
         profile_id: i64,
         fingerprint: &Value,
-    ) -> Result<workflow_run::Model, AppError> {
+    ) -> Result<i64, AppError> {
         if project_id <= 0 {
             return Err(AppError::InvalidArgument("项目 ID 必须大于 0".to_string()));
         }
@@ -76,6 +75,7 @@ impl OrchestratorContext {
             error_message: None,
         })
         .await
+        .map(|run| run.id)
     }
 
     /// 人物三视图提示词生成：校验后创建 workflow_run。
@@ -85,7 +85,7 @@ impl OrchestratorContext {
         profile_id: i64,
         portrait_type: PortraitType,
         fingerprint: &Value,
-    ) -> Result<workflow_run::Model, AppError> {
+    ) -> Result<i64, AppError> {
         if project_id <= 0 {
             return Err(AppError::InvalidArgument("项目 ID 必须大于 0".to_string()));
         }
@@ -115,6 +115,7 @@ impl OrchestratorContext {
             error_message: None,
         })
         .await
+        .map(|run| run.id)
     }
 
     /// 缺失立绘批量生成：校验后创建 workflow_run。
@@ -122,7 +123,7 @@ impl OrchestratorContext {
         &self,
         project_id: i64,
         fingerprint: &Value,
-    ) -> Result<workflow_run::Model, AppError> {
+    ) -> Result<i64, AppError> {
         if project_id <= 0 {
             return Err(AppError::InvalidArgument("项目 ID 必须大于 0".to_string()));
         }
@@ -145,6 +146,7 @@ impl OrchestratorContext {
             error_message: None,
         })
         .await
+        .map(|run| run.id)
     }
 
     /// 立绘图片类工作流（再生成 / 年龄变体）：校验后创建 workflow_run。
@@ -156,7 +158,7 @@ impl OrchestratorContext {
         mode: &str,
         current_step_key: &str,
         fingerprint: &Value,
-    ) -> Result<workflow_run::Model, AppError> {
+    ) -> Result<i64, AppError> {
         if project_id <= 0 {
             return Err(AppError::InvalidArgument("项目 ID 必须大于 0".to_string()));
         }
@@ -189,6 +191,7 @@ impl OrchestratorContext {
             error_message: None,
         })
         .await
+        .map(|run| run.id)
     }
 
     pub(crate) async fn build_generate_prompt_request(

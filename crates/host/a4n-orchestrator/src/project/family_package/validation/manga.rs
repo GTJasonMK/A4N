@@ -377,7 +377,8 @@ fn validate_manga_prompts(
                 prompt.project_id, prompt.chapter_id, prompt.page_number
             ));
         }
-        let layout = manga_page_generation_layout(prompt)?;
+        let prompt_record = a4n_db::manga::manga_page_prompt_record(prompt);
+        let layout = manga_page_generation_layout(&prompt_record)?;
         validate_manga_layout(package, prompt, project, &layout, context)?;
         if let Some(image_id) = prompt.generated_image_id {
             let image = context.images.get(&image_id).copied().ok_or_else(|| {
