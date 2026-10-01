@@ -1,5 +1,4 @@
 use a4n_db::canvas::CanvasGraphRecordDocument;
-use a4n_db_models::models::generation::workflow_checkpoint;
 use a4n_domain::canvas::CanvasNodeRecord;
 
 use crate::canvas::{
@@ -19,7 +18,7 @@ pub fn build_canvas_image_node_input_for_preview(
 pub(super) fn build_canvas_image_node_input(
     node: &CanvasNodeRecord,
     document: &CanvasGraphRecordDocument,
-    checkpoints: Option<&[workflow_checkpoint::Model]>,
+    checkpoints: Option<&[a4n_db::workflow::WorkflowCheckpointSummary]>,
 ) -> Result<CanvasImageNodeInput, String> {
     ensure_canvas_provider_slot_ready(&node.config_json, "图片")?;
     let sources =

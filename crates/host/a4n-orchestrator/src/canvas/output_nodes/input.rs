@@ -1,5 +1,4 @@
 use a4n_db::canvas::CanvasGraphRecordDocument;
-use a4n_db_models::models::generation::workflow_checkpoint;
 use a4n_domain::CanvasNodeRefKind;
 use a4n_domain::canvas::CanvasNodeRecord;
 
@@ -12,7 +11,7 @@ use super::contracts::{CanvasOutputDataType, CanvasOutputValue};
 pub(crate) fn collect_canvas_output_value(
     node: &CanvasNodeRecord,
     document: &CanvasGraphRecordDocument,
-    checkpoints: Option<&[workflow_checkpoint::Model]>,
+    checkpoints: Option<&[a4n_db::workflow::WorkflowCheckpointSummary]>,
     data_type: CanvasOutputDataType,
     consumer_label: &str,
     require_video_target_port: bool,

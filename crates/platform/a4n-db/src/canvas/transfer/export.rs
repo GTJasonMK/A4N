@@ -1,6 +1,6 @@
 use super::types::VideoStudioProjectExportRows;
 use crate::canvas::CanvasDbError;
-use crate::canvas::graph_record::records::{
+use crate::canvas::{
     canvas_edge_record, canvas_graph_record, canvas_node_record, canvas_text_asset_record,
 };
 use a4n_db_models::models::{

@@ -210,7 +210,10 @@ async fn profile_cascade_preserves_other_portrait_with_shared_path() {
         &db,
         crate::canvas::CanvasImageMediaAssetEnsureInput {
             project_id: project.id,
-            image: image_a.clone(),
+            image: crate::video::read_models::generated_image_by_id(&db, image_a.id)
+                .await
+                .unwrap()
+                .unwrap(),
             generation_spec_id: None,
             origin: "generated".to_string(),
         },
@@ -221,7 +224,10 @@ async fn profile_cascade_preserves_other_portrait_with_shared_path() {
         &db,
         crate::canvas::CanvasImageMediaAssetEnsureInput {
             project_id: project.id,
-            image: image_b.clone(),
+            image: crate::video::read_models::generated_image_by_id(&db, image_b.id)
+                .await
+                .unwrap()
+                .unwrap(),
             generation_spec_id: None,
             origin: "generated".to_string(),
         },

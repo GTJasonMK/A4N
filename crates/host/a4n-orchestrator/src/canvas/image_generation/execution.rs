@@ -30,7 +30,10 @@ impl OrchestratorContext {
         progress: &ImageGenerationProgress<'_>,
     ) -> Result<a4n_api_contract::canvas::CanvasRunSummary, AppError> {
         let checkpoints = match input.shared_run {
-            Some(run) => Some(self.workflow_checkpoint_models(run.workflow_run_id).await?),
+            Some(run) => Some(
+                self.workflow_checkpoint_summaries(run.workflow_run_id)
+                    .await?,
+            ),
             None => None,
         };
         let image_input =
@@ -65,7 +68,7 @@ impl OrchestratorContext {
             let spec = self
                 .upsert_canvas_image_generation_spec(&input, &image_input)
                 .await?;
-            lifecycle.generation_spec_id = spec.as_ref().map(|spec| spec.id);
+            lifecycle.generation_spec_id = spec;
             let config = host_port
                 .resolve_image_config(image_input.config_id)
                 .await?;
@@ -114,22 +117,18 @@ impl OrchestratorContext {
                 )
                 .await?;
             if let Some(spec) = &spec {
-                self.mark_canvas_generation_spec_status_record(spec.id, WORKFLOW_STATUS_COMPLETED)
+                self.mark_canvas_generation_spec_status_record(*spec, WORKFLOW_STATUS_COMPLETED)
                     .await?;
             }
             let media_asset_id = self
-                .sync_canvas_image_generation_asset(
-                    input.project_id,
-                    outcome.summary.id,
-                    spec.as_ref().map(|spec| spec.id),
-                )
+                .sync_canvas_image_generation_asset(input.project_id, outcome.summary.id, spec)
                 .await?;
             let artifact_json = json!({
                 "canvas_runtime_result": true,
                 "data_type": "image",
                 "generated_image_id": outcome.summary.id,
                 "file_path": outcome.summary.file_path,
-                "generation_spec_id": spec.as_ref().map(|spec| spec.id),
+                "generation_spec_id": spec,
                 "media_asset_id": media_asset_id,
             });
             self.update_canvas_node_artifact_record(CanvasNodeArtifactUpdateInput {
@@ -155,7 +154,7 @@ impl OrchestratorContext {
         &self,
         input: &CanvasImageNodeExecutionInput<'_>,
         image_input: &super::contracts::CanvasImageNodeInput,
-    ) -> Result<Option<a4n_db_models::models::generation::generation_spec::Model>, AppError> {
+    ) -> Result<Option<i64>, AppError> {
         let project = self.project_by_id(input.project_id).await?.ok_or_else(|| {
             AppError::InvalidArgument(format!("项目不存在: {}", input.project_id))
         })?;
@@ -203,13 +202,13 @@ impl OrchestratorContext {
         let Some(generation_spec_id) = generation_spec_id else {
             return Ok(None);
         };
-        let image =
-            self.generated_image_by_id(image_id)
-                .await?
-                .ok_or_else(|| AppError::InvalidState {
-                    current: "image_generated".to_string(),
-                    operation: format!("画布图片产物不存在: {image_id}"),
-                })?;
+        let image = self
+            .canvas_generated_image_record_by_id(image_id)
+            .await?
+            .ok_or_else(|| AppError::InvalidState {
+                current: "image_generated".to_string(),
+                operation: format!("画布图片产物不存在: {image_id}"),
+            })?;
         let asset = self
             .ensure_canvas_image_media_asset_record(CanvasImageMediaAssetEnsureInput {
                 project_id,

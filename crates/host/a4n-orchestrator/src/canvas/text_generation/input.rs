@@ -2,7 +2,6 @@ use a4n_db::canvas::CanvasGraphRecordDocument;
 use a4n_db::generation::{
     GENERATION_PROMPT_KIND_CANVAS_PROMPT, GENERATION_PROMPT_KIND_CANVAS_SHOT_SCRIPT,
 };
-use a4n_db_models::models::generation::workflow_checkpoint;
 use a4n_domain::canvas::CanvasNodeRecord;
 
 use crate::canvas::{
@@ -15,7 +14,7 @@ use super::contracts::{CanvasLlmTextInput, CanvasRenderedPrompt};
 pub(super) fn build_canvas_llm_text_input(
     node: &CanvasNodeRecord,
     document: &CanvasGraphRecordDocument,
-    checkpoints: Option<&[workflow_checkpoint::Model]>,
+    checkpoints: Option<&[a4n_db::workflow::WorkflowCheckpointSummary]>,
 ) -> Result<CanvasLlmTextInput, String> {
     ensure_canvas_provider_slot_ready(&node.config_json, "LLM")?;
     let sources = collect_canvas_text_source_context(node, document, checkpoints, "LlmTextNode")?;
@@ -55,7 +54,7 @@ pub(super) fn build_canvas_llm_text_input(
 pub(super) fn build_canvas_rendered_prompt(
     node: &CanvasNodeRecord,
     document: &CanvasGraphRecordDocument,
-    checkpoints: Option<&[workflow_checkpoint::Model]>,
+    checkpoints: Option<&[a4n_db::workflow::WorkflowCheckpointSummary]>,
 ) -> Result<CanvasRenderedPrompt, String> {
     let sources =
         collect_canvas_text_source_context(node, document, checkpoints, "RenderTextNode")?;

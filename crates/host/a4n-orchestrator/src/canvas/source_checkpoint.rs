@@ -1,4 +1,3 @@
-use a4n_db_models::models::generation::workflow_checkpoint;
 use a4n_domain::CanvasNodeRefKind;
 use a4n_domain::canvas::CanvasNodeRecord;
 use serde_json::Value;
@@ -9,7 +8,7 @@ use crate::{
 };
 
 pub(crate) fn source_operation_checkpoint_output<'a>(
-    checkpoints: Option<&'a [workflow_checkpoint::Model]>,
+    checkpoints: Option<&'a [a4n_db::workflow::WorkflowCheckpointSummary]>,
     node: &CanvasNodeRecord,
     consumer_label: &str,
 ) -> Result<Option<&'a Value>, String> {
@@ -34,7 +33,7 @@ pub(crate) fn source_operation_checkpoint_output<'a>(
 }
 
 pub(crate) fn source_node_output_id(
-    checkpoints: Option<&[workflow_checkpoint::Model]>,
+    checkpoints: Option<&[a4n_db::workflow::WorkflowCheckpointSummary]>,
     node: &CanvasNodeRecord,
     consumer_label: &str,
     output_key: &str,

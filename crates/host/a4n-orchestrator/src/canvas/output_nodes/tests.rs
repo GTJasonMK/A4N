@@ -626,9 +626,9 @@ fn test_checkpoint(
     workflow_run_id: i64,
     node_id: i64,
     artifacts_json: serde_json::Value,
-) -> workflow_checkpoint::Model {
-    let now = chrono::Utc::now().naive_utc();
-    workflow_checkpoint::Model {
+) -> a4n_db::workflow::WorkflowCheckpointSummary {
+    let now = chrono::Utc::now().to_rfc3339();
+    a4n_db::workflow::WorkflowCheckpointSummary {
         id: node_id,
         workflow_run_id,
         step_key: format!("canvas_node:{node_id}"),
@@ -640,8 +640,8 @@ fn test_checkpoint(
         artifacts_json: Some(artifacts_json),
         generation_run_ids_json: None,
         error_message: None,
-        completed_at: Some(now),
         created_at: now,
-        updated_at: now,
+        updated_at: chrono::Utc::now().to_rfc3339(),
+        completed_at: Some(chrono::Utc::now().to_rfc3339()),
     }
 }

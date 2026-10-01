@@ -14,7 +14,7 @@ const CANVAS_RENDERER_VERSION: &str = "canvas_workflow_v1";
 pub async fn upsert_freeform_canvas_generation_spec_record<C>(
     db: &C,
     input: FreeformCanvasGenerationSpecUpsertInput,
-) -> Result<generation_spec::Model, CanvasDbError>
+) -> Result<i64, CanvasDbError>
 where
     C: ConnectionTrait,
 {
@@ -52,7 +52,7 @@ where
         active.source_version_hash = Set(source_version_hash);
         active.params_json = Set(input.params_json);
         active.updated_at = Set(now);
-        return Ok(active.update(db).await?);
+        return Ok(active.update(db).await?.id);
     }
 
     Ok(generation_spec::ActiveModel {
@@ -74,7 +74,8 @@ where
         ..Default::default()
     }
     .insert(db)
-    .await?)
+    .await?
+    .id)
 }
 
 pub async fn mark_canvas_generation_spec_status_record<C>(

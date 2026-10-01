@@ -1,9 +1,4 @@
-use a4n_db_models::models::{
-    ai::{generated_image, generated_video},
-    chapter::chapter,
-    media::media_asset,
-    project::novel_project,
-};
+use a4n_db_models::models::{chapter::chapter, project::novel_project};
 use a4n_domain::image::IMAGE_TYPE_CANVAS;
 use a4n_domain::video_workflow::WORKFLOW_MODE_CANVAS_VIDEO;
 use chrono::Utc;
@@ -99,7 +94,10 @@ pub(super) async fn generated_image_with_asset(
     db: &DatabaseConnection,
     project_id: i64,
     file_name: &str,
-) -> (generated_image::Model, media_asset::Model) {
+) -> (
+    a4n_domain::media::GeneratedImageRecord,
+    a4n_domain::media::MediaAssetRecord,
+) {
     let image = crate::video::create_generated_image_record(
         db,
         a4n_domain::media::CreateGeneratedImageRecordDraftInput {
@@ -119,6 +117,10 @@ pub(super) async fn generated_image_with_asset(
     )
     .await
     .unwrap();
+    let image = crate::video::read_models::generated_image_by_id(db, image.id)
+        .await
+        .unwrap()
+        .unwrap();
     let asset = crate::canvas::ensure_canvas_image_media_asset_record(
         db,
         crate::canvas::CanvasImageMediaAssetEnsureInput {
@@ -137,7 +139,10 @@ pub(super) async fn generated_video_with_asset(
     db: &DatabaseConnection,
     project_id: i64,
     file_name: &str,
-) -> (generated_video::Model, media_asset::Model) {
+) -> (
+    a4n_domain::media::GeneratedVideoRecord,
+    a4n_domain::media::MediaAssetRecord,
+) {
     let video = crate::video::create_generated_video_record(
         db,
         a4n_domain::media::CreateGeneratedVideoRecordDraftInput {
@@ -160,6 +165,10 @@ pub(super) async fn generated_video_with_asset(
     )
     .await
     .unwrap();
+    let video = crate::video::read_models::generated_video_by_id(db, video.id)
+        .await
+        .unwrap()
+        .unwrap();
     let video = crate::video::mark_generated_video_completed_and_link_prompt_record(
         db,
         video.id,
@@ -177,6 +186,10 @@ pub(super) async fn generated_video_with_asset(
     )
     .await
     .unwrap();
+    let video = crate::video::read_models::generated_video_by_id(db, video.id)
+        .await
+        .unwrap()
+        .unwrap();
     let asset = crate::canvas::ensure_canvas_video_media_asset_record(
         db,
         crate::canvas::CanvasVideoMediaAssetEnsureInput {
