@@ -10,7 +10,7 @@ assert.ok(report.success && ids, "Run the CLI acceptance before checking its imp
 describe("Media authoring against the real Host", () => {
   before(login);
 
-  for (const [kind, count] of [["comic", 5], ["galgame", 7], ["video", 7]]) {
+  for (const [kind, count] of [["comic", 7], ["galgame", 7], ["video", 7]]) {
     it(`opens every ${kind} stage with saved artifacts on desktop and narrow screens`, async () => {
       console.info(`Opening ${kind} workspace`);
       await browser.setWindowSize(1440, 1000);

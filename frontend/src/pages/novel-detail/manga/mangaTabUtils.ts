@@ -1,7 +1,35 @@
-import type { MangaPagePipelineStage, MangaPagePromptSummary } from "../../../api/manga";
+import type {
+  MangaPagePipelineStage,
+  MangaPagePromptSummary,
+} from "../../../api/manga";
+import type { MangaPipelineStopAfter } from "../../../api/generated/host";
 import type { ChapterRow } from "../shared";
 import { nonEmptyText } from "../../../utils/text";
 import type { MessageTranslator } from "../../../i18n";
+
+export type MangaPageWorkspaceStage =
+  | "page_plan"
+  | "page_adaptation"
+  | "storyboard"
+  | "prompts"
+  | "images";
+
+export const mangaStopAfterForStage = (
+  stage: MangaPageWorkspaceStage,
+): MangaPipelineStopAfter => {
+  switch (stage) {
+    case "page_plan":
+      return "page_slots";
+    case "page_adaptation":
+      return "page_adaptation";
+    case "storyboard":
+      return "storyboard";
+    case "prompts":
+      return "drawing_prompt";
+    case "images":
+      return "image";
+  }
+};
 
 export type MangaPagePromptSource = {
   content_sha256: string;

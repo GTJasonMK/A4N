@@ -96,7 +96,7 @@ describe("Derived media authoring stages", () => {
     await browser.url("/comic-project/2");
     await chooseStage("改编计划");
     await intention().waitForDisplayed();
-    assert.equal(await $('[role="tablist"]').$$('[role="tab"]').length, 5);
+    assert.equal(await $('[role="tablist"]').$$('[role="tab"]').length, 7);
     assert.match(await $('nav[aria-label="漫画章节"] button[aria-current="true"]').getText(), /旧书店/);
     await intention().setValue("保留我刚补写的犹豫和反应");
     await stage("改编计划").execute((element) => element.focus());

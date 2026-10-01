@@ -15,7 +15,10 @@ import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
 import { ImageSizeSelect } from "../../../components/image/ImageSizeSelect";
 import { extractErrorMessage } from "../../../api";
 import type { CharacterProfile } from "../../../api/character";
-import type { DownstreamConflictStrategy } from "../../../api/generated/host";
+import type {
+  DownstreamConflictStrategy,
+  MangaPipelineStopAfter,
+} from "../../../api/generated/host";
 import {
   previewPageImageRequest,
   startImageGeneration,
@@ -50,11 +53,14 @@ import {
   chapterHeading,
   countStaleMangaPagePrompts,
   mangaStageLabel,
+  mangaPageStageLabel,
+  mangaStopAfterForStage,
+  type MangaPageWorkspaceStage,
 } from "./mangaTabUtils";
 import { useI18n } from "../../../i18n";
 
 interface MangaChapterDetailPanelProps {
-  stageMode?: "page_plan" | "prompts" | "images";
+  stageMode?: MangaPageWorkspaceStage;
   onDirtyChange?: (dirty: boolean) => void;
   projectId: number;
   isSingleMode: boolean;
@@ -79,8 +85,14 @@ interface MangaChapterDetailPanelProps {
   missingPortraitCount: number;
   acting: string | null;
   canEditManga: boolean;
-  onPreviewPipeline: (mode: "start" | "resume") => void;
-  onRunPipeline: (mode: "start" | "resume") => void;
+  onPreviewPipeline: (
+    mode: "start" | "resume",
+    stopAfter: MangaPipelineStopAfter | null,
+  ) => void;
+  onRunPipeline: (
+    mode: "start" | "resume",
+    stopAfter: MangaPipelineStopAfter | null,
+  ) => void;
   onGenerateMissingPortraits: () => void;
   onCancelPipeline: () => void;
   onDeleteManga: () => void;
@@ -265,6 +277,21 @@ export function MangaChapterDetailPanel({
     : selectedStatus?.pipeline_status
       ? mangaStageLabel(selectedStatus.pipeline_status, t)
       : t("comic.pipelineStages.notStarted");
+  const pipelineStopAfter = stageMode ? mangaStopAfterForStage(stageMode) : null;
+  const pipelineTargetLabel = stageMode
+    ? mangaPageStageLabel(
+        stageMode === "page_plan"
+          ? "slots"
+          : stageMode === "page_adaptation"
+            ? "adaptation"
+            : stageMode === "storyboard"
+              ? "storyboard"
+              : stageMode === "prompts"
+                ? "drawing_prompt"
+                : "image",
+        t,
+      )
+    : null;
   const statusTone: NoticeTone =
     pipelineStoppedWithError
       ? "danger"
@@ -764,26 +791,36 @@ export function MangaChapterDetailPanel({
     mangaResultStale && !pipelineCanResume && !pipelineFailed
       ? "secondary"
       : "primary";
-  const pipelineDirectLabel = pipelineCanResume
-    ? t("comic.continueChapter")
-    : hasIncompletePages && !pipelineFailed
-      ? t("comic.continueChapter")
+  const pipelineDirectLabel = pipelineTargetLabel
+    ? pipelineCanResume || (hasIncompletePages && !pipelineFailed)
+      ? t("comic.continueToStage", { stage: pipelineTargetLabel })
       : pipelineFailed
-        ? t("comic.regenerateChapter")
+        ? t("comic.regenerateToStage", { stage: pipelineTargetLabel })
         : mangaResultStale
-          ? t("comic.updateChapter")
-          : t("comic.generateChapter");
-  const pipelinePreviewLabel = pipelineCanResume
-    ? t("comic.prompt.viewContinueRequest")
-    : pipelineFailed
-      ? t("comic.prompt.viewRegenerateRequest")
-      : hasIncompletePages
-        ? t("comic.prompt.viewContinueRequest")
-        : mangaResultStale
-          ? t("comic.prompt.viewUpdateRequest")
-          : hasMangaResult
-            ? t("comic.prompt.viewRegenerateRequest")
-            : t("comic.prompt.viewGenerateRequest");
+          ? t("comic.updateToStage", { stage: pipelineTargetLabel })
+          : t("comic.generateToStage", { stage: pipelineTargetLabel })
+    : pipelineCanResume
+      ? t("comic.continueChapter")
+      : hasIncompletePages && !pipelineFailed
+        ? t("comic.continueChapter")
+        : pipelineFailed
+          ? t("comic.regenerateChapter")
+          : mangaResultStale
+            ? t("comic.updateChapter")
+            : t("comic.generateChapter");
+  const pipelinePreviewLabel = pipelineTargetLabel
+    ? t("comic.prompt.viewStageRequest", { stage: pipelineTargetLabel })
+    : pipelineCanResume
+      ? t("comic.prompt.viewContinueRequest")
+      : pipelineFailed
+        ? t("comic.prompt.viewRegenerateRequest")
+        : hasIncompletePages
+          ? t("comic.prompt.viewContinueRequest")
+          : mangaResultStale
+            ? t("comic.prompt.viewUpdateRequest")
+            : hasMangaResult
+              ? t("comic.prompt.viewRegenerateRequest")
+              : t("comic.prompt.viewGenerateRequest");
   const pipelineStartBusy =
     selectedChapter != null &&
     acting === `start-${selectedChapter.chapter_number}`;
@@ -804,7 +841,10 @@ export function MangaChapterDetailPanel({
         disabled:
           pipelineMainDisabled || pipelineResumeBusy || pipelineStartBusy,
         onClick: () =>
-          onPreviewPipeline(pipelineCanResume ? "resume" : "start"),
+          onPreviewPipeline(
+            pipelineCanResume ? "resume" : "start",
+            pipelineStopAfter,
+          ),
       });
     }
     if (
@@ -815,13 +855,13 @@ export function MangaChapterDetailPanel({
         label: t("comic.prompt.fromStart"),
         icon: <Play size={12} />,
         disabled: pipelineMainDisabled || pipelineStartBusy,
-        onClick: () => onRunPipeline("start"),
+        onClick: () => onRunPipeline("start", pipelineStopAfter),
       });
       pipelineMenuItems.push({
         label: t("comic.prompt.fromStartRequest"),
         icon: <Eye size={12} />,
         disabled: pipelineMainDisabled || pipelineStartBusy,
-        onClick: () => onPreviewPipeline("start"),
+        onClick: () => onPreviewPipeline("start", pipelineStopAfter),
       });
     }
     if (missingPortraitCount > 0) {
@@ -877,7 +917,7 @@ export function MangaChapterDetailPanel({
                     {[...chapterMeta, stageText].filter(Boolean).join(" · ")}
                   </p>
                 </div>
-                {stageMode !== "prompts" && stageMode !== "page_plan" && <div className="w-44 max-w-full">
+                {(stageMode == null || stageMode === "prompts" || stageMode === "images") && <div className="w-44 max-w-full">
                   <ImageSizeSelect
                     label={t("settingsForm.selectImageSize")}
                     value={imageSize}
@@ -888,7 +928,7 @@ export function MangaChapterDetailPanel({
                     onChange={onImageSizeChange}
                   />
                 </div>}
-                {canEditManga && stageMode !== "images" ? (
+                {canEditManga ? (
                   <div className="flex items-center justify-end gap-2">
                     {pipelineMenuItems.length > 0 ? (
                       <Dropdown items={pipelineMenuItems} />
@@ -922,7 +962,10 @@ export function MangaChapterDetailPanel({
                         size="sm"
                         variant={pipelineDirectVariant}
                         onClick={() =>
-                          onRunPipeline(pipelineCanResume ? "resume" : "start")
+                          onRunPipeline(
+                            pipelineCanResume ? "resume" : "start",
+                            pipelineStopAfter,
+                          )
                         }
                         disabled={
                           pipelineMainDisabled ||
@@ -977,9 +1020,9 @@ export function MangaChapterDetailPanel({
                 optimizingPromptId={optimizingPromptId}
                 actionsDisabled={detailBusy}
                 canEditManga={canEditManga}
-                onPreviewPageImage={stageMode === "prompts" || stageMode === "page_plan" ? undefined : handlePreviewPageImage}
-                onGeneratePageImage={stageMode === "prompts" || stageMode === "page_plan" ? undefined : handleGeneratePageImage}
-                onBindReferenceImage={stageMode === "page_plan" ? undefined : handleBindReferenceImage}
+                onPreviewPageImage={stageMode == null || stageMode === "images" ? handlePreviewPageImage : undefined}
+                onGeneratePageImage={stageMode == null || stageMode === "images" ? handleGeneratePageImage : undefined}
+                onBindReferenceImage={stageMode == null || stageMode === "images" ? handleBindReferenceImage : undefined}
                 onUpdatePrompt={handleUpdatePrompt}
                 onOptimizePrompt={handleOptimizePrompt}
                 onDeletePrompt={handleDeletePrompt}

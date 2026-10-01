@@ -2,7 +2,12 @@ import React from "react";
 import type { LayoutSummaryItem } from "./mangaPagePromptModel";
 import { useI18n, type MessageTranslator } from "../../../i18n";
 
-export type MangaPageDetailView = "page_plan" | "prompt" | "image";
+export type MangaPageDetailView =
+  | "page_content"
+  | "page_adaptation"
+  | "storyboard"
+  | "prompt"
+  | "image";
 
 export const statusLabel = (status: string, t: MessageTranslator): string => {
   switch (status) {
