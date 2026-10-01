@@ -248,7 +248,10 @@ async fn delete_generated_image_removes_only_generated_target_binding() {
         &db,
         crate::canvas::CanvasImageMediaAssetEnsureInput {
             project_id: project.id,
-            image: image.clone(),
+            image: crate::video::read_models::generated_image_by_id(&db, image.id)
+                .await
+                .unwrap()
+                .unwrap(),
             generation_spec_id: None,
             origin: "generated".to_string(),
         },
@@ -717,7 +720,10 @@ async fn missing_video_repair_uses_binding_project_and_removes_dangling_binding(
         &db,
         crate::canvas::CanvasVideoMediaAssetEnsureInput {
             project_id: project.id,
-            video: video.clone(),
+            video: crate::video::read_models::generated_video_by_id(&db, video.id)
+                .await
+                .unwrap()
+                .unwrap(),
             generation_spec_id: None,
             origin: "generated".to_string(),
         },

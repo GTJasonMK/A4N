@@ -24,7 +24,7 @@ impl OrchestratorContext {
         consumer_label: &str,
     ) -> Result<CanvasOutputValue, AppError> {
         let checkpoints = match workflow_run_id {
-            Some(run_id) => Some(self.workflow_checkpoint_models(run_id).await?),
+            Some(run_id) => Some(self.workflow_checkpoint_summaries(run_id).await?),
             None => None,
         };
         let output = collect_canvas_output_value(
@@ -48,7 +48,10 @@ impl OrchestratorContext {
         let data_type = CanvasOutputDataType::from_output_node_kind(&input.node.node_kind)
             .map_err(AppError::InvalidArgument)?;
         let checkpoints = match input.shared_run {
-            Some(run) => Some(self.workflow_checkpoint_models(run.workflow_run_id).await?),
+            Some(run) => Some(
+                self.workflow_checkpoint_summaries(run.workflow_run_id)
+                    .await?,
+            ),
             None => None,
         };
         let output = collect_canvas_output_value(

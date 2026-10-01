@@ -5,7 +5,6 @@ use a4n_canvas_contract::{
     CanvasVideoImportApplicationPort, CanvasVideoImportApplicationResult,
     CanvasVideoImportHostInput, CanvasVideoImportHostPort,
 };
-use a4n_db_models::models::media::media_asset;
 use a4n_error::AppError;
 use async_trait::async_trait;
 
@@ -17,21 +16,39 @@ use crate::{
 };
 
 impl OrchestratorContext {
+    pub(crate) async fn canvas_generated_image_record_by_id(
+        &self,
+        image_id: i64,
+    ) -> Result<Option<a4n_domain::media::GeneratedImageRecord>, AppError> {
+        a4n_db::video::read_models::generated_image_by_id(self.database.connection(), image_id)
+            .await
+            .map_err(AppError::Database)
+    }
+
+    pub(crate) async fn canvas_generated_video_record_by_id(
+        &self,
+        video_id: i64,
+    ) -> Result<Option<a4n_domain::media::GeneratedVideoRecord>, AppError> {
+        a4n_db::video::read_models::generated_video_by_id(self.database.connection(), video_id)
+            .await
+            .map_err(AppError::Database)
+    }
+
     pub async fn import_canvas_image_validated(
         &self,
         host_port: &dyn CanvasImageImportHostPort,
         user_id: i64,
         input: CanvasImageImportHostInput,
     ) -> Result<CanvasImageImportApplicationResult, AppError> {
-        self.authorized_canvas_video_project(input.project_id, user_id)
+        self.authorized_canvas_video_project(input.project_id, user_id, false)
             .await?;
         let project_id = input.project_id;
         let image = host_port.import_canvas_image(input).await?;
-        let image_model = self
-            .generated_image_by_id(image.id)
+        let image_record = self
+            .canvas_generated_image_record_by_id(image.id)
             .await?
             .ok_or_else(|| AppError::NotFound(format!("图片记录不存在: {}", image.id)))?;
-        if image_model.project_id != project_id {
+        if image_record.project_id != project_id {
             return Err(AppError::InvalidArgument(format!(
                 "图片 #{} 不属于项目 {}",
                 image.id, project_id
@@ -40,7 +57,7 @@ impl OrchestratorContext {
         let asset = match self
             .ensure_canvas_image_media_asset_record(CanvasImageMediaAssetEnsureInput {
                 project_id,
-                image: image_model,
+                image: image_record,
                 generation_spec_id: None,
                 origin: MEDIA_ORIGIN_IMPORTED.to_string(),
             })
@@ -72,7 +89,7 @@ impl OrchestratorContext {
         user_id: i64,
         input: CanvasVideoImportHostInput,
     ) -> Result<CanvasVideoImportApplicationResult, AppError> {
-        self.authorized_canvas_video_project(input.project_id, user_id)
+        self.authorized_canvas_video_project(input.project_id, user_id, false)
             .await?;
         let project_id = input.project_id;
         let video_id = host_port.import_canvas_video(input).await?;
@@ -86,7 +103,10 @@ impl OrchestratorContext {
         let asset = match self
             .ensure_canvas_video_media_asset_record(CanvasVideoMediaAssetEnsureInput {
                 project_id,
-                video: video.clone(),
+                video: self
+                    .canvas_generated_video_record_by_id(video.id)
+                    .await?
+                    .ok_or_else(|| AppError::NotFound(format!("视频记录不存在: {}", video.id)))?,
                 generation_spec_id: None,
                 origin: MEDIA_ORIGIN_IMPORTED.to_string(),
             })
@@ -113,6 +133,7 @@ impl OrchestratorContext {
         &self,
         project_id: i64,
         user_id: i64,
+        require_freeform: bool,
     ) -> Result<a4n_domain::project::ProjectRecord, AppError> {
         if project_id <= 0 {
             return Err(AppError::InvalidArgument(
@@ -132,6 +153,15 @@ impl OrchestratorContext {
         if project.project_kind != PROJECT_KIND_VIDEO {
             return Err(AppError::InvalidArgument(
                 "画布媒体导入只支持视频项目".to_string(),
+            ));
+        }
+        if require_freeform
+            && project.source_mode().map_err(|error| {
+                AppError::InvalidArgument(format!("项目 {}: {error}", project.id))
+            })? != a4n_domain::project::ProjectSourceMode::Freeform
+        {
+            return Err(AppError::InvalidArgument(
+                "画布音频导入只支持自由视频项目".to_string(),
             ));
         }
         Ok(project)
@@ -178,7 +208,9 @@ impl CanvasAudioImportApplicationPort for OrchestratorContext {
     }
 }
 
-fn canvas_media_asset_summary(asset: media_asset::Model) -> CanvasMediaAssetSummary {
+fn canvas_media_asset_summary(
+    asset: a4n_domain::media::MediaAssetRecord,
+) -> CanvasMediaAssetSummary {
     CanvasMediaAssetSummary {
         id: asset.id,
         project_id: asset.project_id,

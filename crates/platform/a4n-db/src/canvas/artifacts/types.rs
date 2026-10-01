@@ -1,4 +1,5 @@
-use a4n_db_models::models::ai::{generated_image, generated_video};
+use a4n_db_models::models::ai::generated_video;
+use a4n_domain::media::{GeneratedImageRecord, GeneratedVideoRecord};
 use sea_orm::FromQueryResult;
 use serde_json::Value;
 
@@ -63,7 +64,7 @@ impl From<generated_video::Model> for CanvasVideoMediaSource {
 #[derive(Debug, Clone)]
 pub struct CanvasImageMediaAssetEnsureInput {
     pub project_id: i64,
-    pub image: generated_image::Model,
+    pub image: GeneratedImageRecord,
     pub generation_spec_id: Option<i64>,
     pub origin: String,
 }
@@ -71,7 +72,7 @@ pub struct CanvasImageMediaAssetEnsureInput {
 #[derive(Debug, Clone)]
 pub struct CanvasVideoMediaAssetEnsureInput {
     pub project_id: i64,
-    pub video: generated_video::Model,
+    pub video: GeneratedVideoRecord,
     pub generation_spec_id: Option<i64>,
     pub origin: String,
 }

@@ -20,6 +20,9 @@ pub use artifacts::{
     update_canvas_node_artifact_record, update_canvas_node_observation_record,
     upsert_canvas_prompt_artifact_record, upsert_freeform_canvas_generation_spec_record,
 };
+pub(crate) use graph_record::records::{
+    canvas_edge_record, canvas_graph_record, canvas_node_record, canvas_text_asset_record,
+};
 pub use graph_record::{
     CanvasEdgeRecordInput, CanvasGraphRecordDocument, CanvasGraphRecordInput,
     CanvasGraphRecordSaveResult, CanvasNodeRecordInput, get_or_create_canvas_graph_record,

@@ -16,7 +16,7 @@ where
         .map(media_asset_record_from_model)
 }
 
-fn media_asset_record_from_model(row: media_asset::Model) -> MediaAssetRecord {
+pub(crate) fn media_asset_record_from_model(row: media_asset::Model) -> MediaAssetRecord {
     MediaAssetRecord {
         id: row.id,
         project_id: row.project_id,

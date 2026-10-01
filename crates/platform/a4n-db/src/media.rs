@@ -24,6 +24,7 @@ pub use paths::{
     project_has_active_image_publication, protected_image_publication_cleanup_paths,
 };
 pub use records::create_media_asset_with_provenance_read_model;
+pub(crate) use records::media_asset_record_from_model;
 pub use types::MediaDbError;
 
 pub(crate) async fn schedule_unreferenced_media_cleanup<C>(

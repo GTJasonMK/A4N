@@ -355,7 +355,10 @@ async fn portrait_rollback_is_transactional_and_project_scoped() {
         &db,
         crate::canvas::CanvasImageMediaAssetEnsureInput {
             project_id: project.id,
-            image: target_image.clone(),
+            image: crate::video::read_models::generated_image_by_id(&db, target_image.id)
+                .await
+                .unwrap()
+                .unwrap(),
             generation_spec_id: None,
             origin: "generated".to_string(),
         },

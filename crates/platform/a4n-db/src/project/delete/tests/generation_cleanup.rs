@@ -131,7 +131,10 @@ async fn freeform_reset_rediscovers_targets_and_preserves_imported_media() {
         &db,
         crate::canvas::CanvasImageMediaAssetEnsureInput {
             project_id: project.id,
-            image: imported.clone(),
+            image: crate::video::read_models::generated_image_by_id(&db, imported.id)
+                .await
+                .unwrap()
+                .unwrap(),
             generation_spec_id: None,
             origin: "imported".to_string(),
         },

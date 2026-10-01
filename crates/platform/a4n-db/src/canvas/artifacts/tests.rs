@@ -59,6 +59,10 @@ async fn canvas_image_provenance_failure_rolls_back_asset_and_binding() {
     )
     .await
     .unwrap();
+    let image = crate::video::read_models::generated_image_by_id(&db, image.id)
+        .await
+        .unwrap()
+        .unwrap();
 
     let err = ensure_canvas_image_media_asset_record(
         &db,
@@ -124,8 +128,13 @@ async fn canvas_generation_spec_upsert_derives_source_version_hash() {
     .await
     .unwrap();
 
+    let stored_spec = generation_spec::Entity::find_by_id(spec)
+        .one(&db)
+        .await
+        .unwrap()
+        .unwrap();
     assert_eq!(
-        Some(spec.source_version_hash),
+        Some(stored_spec.source_version_hash),
         generation_spec::freeform_source_version_hash(&params_json)
     );
 }
@@ -159,7 +168,7 @@ async fn canvas_prompt_artifact_keeps_user_edits() {
     .unwrap();
     let now = chrono::Utc::now().naive_utc();
     let existing = prompt_artifact::ActiveModel {
-        generation_spec_id: Set(spec.id),
+        generation_spec_id: Set(spec),
         prompt_kind: Set(GENERATION_PROMPT_KIND_CANVAS_PROMPT.to_string()),
         prompt_text: Set("人工改写".to_string()),
         renderer_version: Set("manual".to_string()),
@@ -175,7 +184,7 @@ async fn canvas_prompt_artifact_keeps_user_edits() {
     let record = upsert_canvas_prompt_artifact_record(
         &db,
         CanvasPromptArtifactUpsertInput {
-            generation_spec_id: spec.id,
+            generation_spec_id: spec,
             prompt_kind: GENERATION_PROMPT_KIND_CANVAS_SHOT_SCRIPT.to_string(),
             prompt_text: "模型文本".to_string(),
         },
