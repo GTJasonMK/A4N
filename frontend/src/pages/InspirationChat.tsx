@@ -1,6 +1,7 @@
 import React, { useState } from "react";
-import { ListChecks } from "lucide-react";
+import { ListChecks, RefreshCw } from "lucide-react";
 import { LoadingSpinner } from "../components/ui/LoadingSpinner";
+import { BookButton } from "../components/ui/BookButton";
 import { ProgressDialog } from "../components/feedback/ProgressDialog";
 import { RequestPreviewModal } from "../components/feedback/RequestPreviewModal";
 import { Modal } from "../components/ui/Modal";
@@ -28,6 +29,17 @@ export const InspirationChat: React.FC = () => {
   const [progressOpen, setProgressOpen] = useState(false);
 
   if (!chat.project) {
+    if (chat.initializationError) {
+      return (
+        <div role="alert" className="h-full flex flex-col items-center justify-center gap-3 px-4 text-sm text-error">
+          <p>{chat.initializationError}</p>
+          <BookButton variant="secondary" size="sm" onClick={chat.retryInitialization}>
+            <RefreshCw size={13} />
+            {t("common.retry")}
+          </BookButton>
+        </div>
+      );
+    }
     return (
       <div className="h-full flex items-center justify-center text-book-text-muted">
         <LoadingSpinner size="lg" className="mr-2" /> {t("inspiration.loadingProject")}

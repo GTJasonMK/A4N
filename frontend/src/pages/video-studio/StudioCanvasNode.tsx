@@ -193,11 +193,13 @@ const StudioNodeVideoPreview: React.FC<{ preview: StudioNodeVideoPreviewValue }>
   const [src, setSrc] = React.useState("");
   const [loading, setLoading] = React.useState(false);
   const [failed, setFailed] = React.useState(false);
+  const [errorMessage, setErrorMessage] = React.useState<string | null>(null);
 
   React.useEffect(() => {
     let cancelled = false;
     setFailed(false);
     setSrc("");
+    setErrorMessage(null);
 
     if (!preview.filePath) {
       setLoading(false);
@@ -220,12 +222,13 @@ const StudioNodeVideoPreview: React.FC<{ preview: StudioNodeVideoPreviewValue }>
         if (cancelled) return;
         setFailed(true);
         setLoading(false);
+        setErrorMessage(t("video.canvas.preview.readVideoFailed"));
       });
 
     return () => {
       cancelled = true;
     };
-  }, [preview.filePath, preview.generatedVideoId]);
+  }, [preview.filePath, preview.generatedVideoId, t]);
 
   return (
     <div className="relative h-[76px] overflow-hidden bg-black">
@@ -241,6 +244,7 @@ const StudioNodeVideoPreview: React.FC<{ preview: StudioNodeVideoPreviewValue }>
           onError={() => {
             setFailed(true);
             setLoading(false);
+            setErrorMessage(t("video.canvas.preview.decodeFailed"));
           }}
           className="pointer-events-none h-full w-full object-cover"
           title={preview.title}
@@ -253,7 +257,7 @@ const StudioNodeVideoPreview: React.FC<{ preview: StudioNodeVideoPreviewValue }>
       ) : null}
       {failed || (!src && !loading) ? (
         <div className="flex h-full flex-col justify-center gap-1 px-2 text-caption text-book-text-muted">
-          <span className="truncate">{t("video.canvas.preview.videoGenerated")}</span>
+          <span className="truncate">{errorMessage ?? t("video.canvas.preview.videoGenerated")}</span>
           <span className="truncate font-mono" title={preview.filePath}>
             {preview.filePath.split("/").pop() || preview.filePath}
           </span>

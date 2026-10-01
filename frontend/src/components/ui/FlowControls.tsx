@@ -1,7 +1,19 @@
 import { ControlButton, Controls, useReactFlow, useStore, useStoreApi } from "@xyflow/react";
-import { LockKeyhole, LockKeyholeOpen, Minus, Plus, Scan } from "lucide-react";
+import { LockKeyhole, LockKeyholeOpen, Map as MapIcon, Minus, Plus, Scan } from "lucide-react";
 
-export function FlowControls({ showInteractive = true }: { showInteractive?: boolean }) {
+export function FlowControls({
+  showInteractive = true,
+  onViewportChange,
+  miniMapVisible,
+  miniMapLabel,
+  onToggleMiniMap,
+}: {
+  showInteractive?: boolean;
+  onViewportChange?: () => void;
+  miniMapVisible?: boolean;
+  miniMapLabel?: string;
+  onToggleMiniMap?: () => void;
+}) {
   const { zoomIn, zoomOut, fitView } = useReactFlow();
   const store = useStoreApi();
   const interactive = useStore((state) => state.nodesDraggable || state.nodesConnectable || state.elementsSelectable);
@@ -17,17 +29,28 @@ export function FlowControls({ showInteractive = true }: { showInteractive?: boo
   return (
     <Controls className="a4n-flow-controls" showZoom={false} showFitView={false} showInteractive={false}>
       <ControlButton className="react-flow__controls-zoomin" disabled={maxZoomReached}
-        title={labels["controls.zoomIn.ariaLabel"]} aria-label={labels["controls.zoomIn.ariaLabel"]} onClick={() => void zoomIn()}>
+        title={labels["controls.zoomIn.ariaLabel"]} aria-label={labels["controls.zoomIn.ariaLabel"]} onClick={() => { void zoomIn().then(onViewportChange); }}>
         <Plus size={16} aria-hidden="true" />
       </ControlButton>
       <ControlButton className="react-flow__controls-zoomout" disabled={minZoomReached}
-        title={labels["controls.zoomOut.ariaLabel"]} aria-label={labels["controls.zoomOut.ariaLabel"]} onClick={() => void zoomOut()}>
+        title={labels["controls.zoomOut.ariaLabel"]} aria-label={labels["controls.zoomOut.ariaLabel"]} onClick={() => { void zoomOut().then(onViewportChange); }}>
         <Minus size={16} aria-hidden="true" />
       </ControlButton>
       <ControlButton className="react-flow__controls-fitview"
-        title={labels["controls.fitView.ariaLabel"]} aria-label={labels["controls.fitView.ariaLabel"]} onClick={() => void fitView()}>
+        title={labels["controls.fitView.ariaLabel"]} aria-label={labels["controls.fitView.ariaLabel"]} onClick={() => { void fitView().then(onViewportChange); }}>
         <Scan size={16} aria-hidden="true" />
       </ControlButton>
+      {onToggleMiniMap ? (
+        <ControlButton
+          className="react-flow__controls-minimap"
+          aria-pressed={miniMapVisible}
+          title={miniMapLabel}
+          aria-label={miniMapLabel}
+          onClick={onToggleMiniMap}
+        >
+          <MapIcon size={16} aria-hidden="true" />
+        </ControlButton>
+      ) : null}
       {showInteractive && (
         <ControlButton className="react-flow__controls-interactive" aria-pressed={!interactive}
           title={labels["controls.interactive.ariaLabel"]} aria-label={labels["controls.interactive.ariaLabel"]} onClick={toggleInteraction}>

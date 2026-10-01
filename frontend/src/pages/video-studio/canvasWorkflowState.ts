@@ -264,8 +264,8 @@ function canvasWorkflowNodeRunStatusPriority(status: CanvasWorkflowNodeRunStatus
   }
 }
 
-function canvasNodeIdFromStepKey(stepKey: string | null | undefined): string | null {
-  const match = /^canvas_node:(\d+)$/.exec(stepKey ?? "");
+export function canvasNodeIdFromStepKey(stepKey: string | null | undefined): string | null {
+  const match = /^(?:canvas_node|node):(\d+)$/.exec(stepKey ?? "");
   return match?.[1] ?? null;
 }
 

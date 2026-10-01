@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  canvasNodeIdFromStepKey,
   computeRunToNodeScope,
   computeWorkflowActiveScope,
   findSubmittedCanvasWorkflowRun,
@@ -86,5 +87,14 @@ describe("canvas workflow discovery", () => {
     expect(
       findSubmittedCanvasWorkflowRun([newRun], 11, 4, submittedAt),
     ).toBeNull();
+  });
+});
+
+describe("canvas workflow checkpoint projection", () => {
+  it("keeps only canvas node step keys addressable", () => {
+    expect(canvasNodeIdFromStepKey("canvas_node:42")).toBe("42");
+    expect(canvasNodeIdFromStepKey("node:42")).toBe("42");
+    expect(canvasNodeIdFromStepKey("video_provider")).toBeNull();
+    expect(canvasNodeIdFromStepKey(null)).toBeNull();
   });
 });

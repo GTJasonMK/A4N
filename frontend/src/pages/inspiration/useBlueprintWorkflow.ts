@@ -199,6 +199,7 @@ export const useBlueprintWorkflow = ({
 
   // Reattach a still-active task after a page remount; the persisted target is the owner.
   useEffect(() => {
+    if (!project || project.id !== projectId || !Number.isFinite(projectId) || projectId <= 0) return;
     let active = true;
     void generationClient.listActive(projectId).then((items) => {
       if (!active || generationHandleRef.current) return;
@@ -229,7 +230,7 @@ export const useBlueprintWorkflow = ({
     return () => {
       active = false;
     };
-  }, [addToast, projectId, t]);
+  }, [addToast, project, projectId, t]);
 
   useEffect(() => {
     if (!generationHandle || !generationTask.progress) return;
@@ -259,12 +260,21 @@ export const useBlueprintWorkflow = ({
     handledTerminalRef.current = taskKey;
     const requestProjectId = projectId;
     const currentOperation = operation;
+    let formalResultReadFailed = false;
     const finish = async () => {
       if (generationTask.taskStatus === "completed" || recoveryIssue) {
         const resultRef = generationTask.resultRef;
         const canResolveResult = resultRef?.kind === "novel_blueprint"
           && Number.isSafeInteger(Number(resultRef.id));
-        const persisted = canResolveResult ? await getBlueprint(requestProjectId) : null;
+        let persisted: Blueprint | null = null;
+        if (canResolveResult) {
+          try {
+            persisted = await getBlueprint(requestProjectId);
+          } catch (error) {
+            formalResultReadFailed = true;
+            throw error;
+          }
+        }
         const consistent = matchesBlueprintTaskResult(persisted, requestProjectId, resultRef);
         const recovery = resolveFormalResultRecovery({
           t,
@@ -326,6 +336,31 @@ export const useBlueprintWorkflow = ({
     };
     void finish().catch((error) => {
       if (!isCurrentProject(requestProjectId)) return;
+      if (formalResultReadFailed) {
+        const recovery = resolveFormalResultRecovery({
+          t,
+          recoveryIssue,
+          consistent: false,
+          hasPersisted: false,
+          hasResultRef: Boolean(generationTask.resultRef),
+          domain: "blueprint",
+        });
+        if (recovery.shouldMarkConsistencyError) {
+          useGenerationTasksStore.getState().dispatch(taskKey, {
+            type: "client_state",
+            state: "consistency_error",
+          });
+        }
+        logger.scoped("InspirationChat").error("formal blueprint readback failed", { error });
+        setBlueprintProgress((previous) => ({
+          ...previous,
+          status: "error",
+          message: recovery.message,
+          error: recovery.message,
+        }));
+        addToast(recovery.message, "error");
+        return;
+      }
       const message = extractErrorMessage(error, t("inspiration.blueprintFailed"));
       logger.scoped("InspirationChat").error("blueprint generation failed", { error });
       setBlueprintProgress((previous) => ({

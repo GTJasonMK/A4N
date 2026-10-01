@@ -1,5 +1,5 @@
 import React, { useCallback } from "react";
-import { addEdge, type Connection, type EdgeChange, type IsValidConnection, type NodeChange, type ReactFlowInstance } from "@xyflow/react";
+import { addEdge, type Connection, type EdgeChange, type IsValidConnection, type NodeChange, type ReactFlowInstance, type Viewport } from "@xyflow/react";
 import { extractErrorMessage } from "../../api";
 import type { ToastType } from "../../components/feedback/Toast";
 import {
@@ -62,7 +62,6 @@ export interface CanvasGraphActionsOptions {
   selectedNode: StudioNode | null;
   nodeContractsByKind: StudioNodeContractMap;
   configOptions: StudioConfigOptionsByKind;
-  canEdit: boolean;
   canvasWriteBusy: boolean;
   canvasMutationDisabled: boolean;
   flowInstance: ReactFlowInstance<StudioNode, StudioEdge> | null;
@@ -80,6 +79,12 @@ export interface CanvasGraphActionsOptions {
   setMobileNodeLibraryOpen: React.Dispatch<React.SetStateAction<boolean>>;
 }
 
+function viewportChanged(before: Viewport | undefined, after: Viewport | undefined): boolean {
+  return Boolean(before && after && (
+    before.x !== after.x || before.y !== after.y || before.zoom !== after.zoom
+  ));
+}
+
 export function useCanvasGraphActions({
   projectId,
   project,
@@ -89,7 +94,6 @@ export function useCanvasGraphActions({
   selectedNode,
   nodeContractsByKind,
   configOptions,
-  canEdit,
   canvasWriteBusy,
   canvasMutationDisabled,
   flowInstance,
@@ -106,6 +110,9 @@ export function useCanvasGraphActions({
   setImporting,
   setMobileNodeLibraryOpen,
 }: CanvasGraphActionsOptions) {
+  const translatorRef = React.useRef(t);
+  translatorRef.current = t;
+  const currentT = () => translatorRef.current;
   const onNodesChange = useCallback(
     (changes: NodeChange<StudioNode>[]) => {
       const allowedChanges = canvasWriteBusy
@@ -453,7 +460,7 @@ export function useCanvasGraphActions({
   };
 
   const persist = async () => {
-    if (!document || canvasWriteBusy || !canEdit) return;
+    if (!document || canvasMutationDisabled) return;
     const validationError = canvasGraphSaveValidationError(
       nodes,
       edges,
@@ -465,33 +472,40 @@ export function useCanvasGraphActions({
       return;
     }
     setSaving(true);
+    const viewportAtSave = flowInstance?.getViewport();
     try {
       const saved = await saveCanvasGraph(
         projectId,
         toCanvasGraphInput(
-          document,
+          viewportAtSave
+            ? { ...document, graph: { ...document.graph, viewport_json: viewportAtSave } }
+            : document,
           nodes,
           edges,
         ),
         document.graph.version,
       );
+      const currentViewport = flowInstance?.getViewport();
+      const viewportChangedDuringSave = viewportChanged(viewportAtSave, currentViewport);
       const savedEdges = saved.edges.map(toFlowEdge);
-      setDocument(saved);
+      setDocument(viewportChangedDuringSave && currentViewport
+        ? { ...saved, graph: { ...saved.graph, viewport_json: currentViewport } }
+        : saved);
       setNodes((current) =>
         preserveSelectedItems(saved.nodes.map(toFlowNode), current, saved.node_ids),
       );
       setEdges((current) => preserveSelectedItems(savedEdges, current));
-      setDirty(false);
-      addToast(t("video.canvasSaved"), "success");
+      setDirty(viewportChangedDuringSave);
+      addToast(currentT()("video.canvasSaved"), "success");
     } catch (err) {
-      addToast(extractErrorMessage(err, t("video.canvasSaveFailed")), "error");
+      addToast(extractErrorMessage(err, currentT()("video.canvasSaveFailed")), "error");
     } finally {
       setSaving(false);
     }
   };
 
   const importMedia = async (mediaKind: "image" | "video" | "audio") => {
-    if (!document || canvasWriteBusy || !canEdit) return;
+    if (!document || canvasMutationDisabled) return;
     if (mediaKind === "audio" && project?.source_mode !== "freeform") {
       addToast(t("video.freeProjectAudioOnly"), "error");
       return;
@@ -524,57 +538,68 @@ export function useCanvasGraphActions({
         data_base64: await readFileAsBase64(file),
       });
       let importedNode: StudioNode;
-      let successMessage: string;
+      let successMessageKey: Parameters<MessageTranslator>[0];
       switch (imported.media_kind) {
         case "image":
           importedNode = importedImageInputNode(
             imported.image,
             imported.asset,
             nodes.length,
-            t,
+            currentT(),
           );
-          successMessage = t("video.importedImage");
+          successMessageKey = "video.importedImage";
           break;
         case "video":
           importedNode = importedVideoInputNode(
             imported.video,
             imported.asset,
             nodes.length,
-            t,
+            currentT(),
           );
-          successMessage = t("video.importedVideo");
+          successMessageKey = "video.importedVideo";
           break;
         case "audio":
-          importedNode = importedAudioInputNode(imported.asset, nodes.length, t);
-          successMessage = t("video.importedAudio");
+          importedNode = importedAudioInputNode(imported.asset, nodes.length, currentT());
+          successMessageKey = "video.importedAudio";
           break;
         default:
-          throw new Error(t("video.unsupportedImportedMedia"));
+          throw new Error(currentT()("video.unsupportedImportedMedia"));
       }
       const nextNodes = [
         ...nodes.map((node) => ({ ...node, selected: false })),
         importedNode,
       ];
+      const viewportAtSave = flowInstance?.getViewport();
       const saved = await saveCanvasGraph(
         projectId,
-        toCanvasGraphInput(document, nextNodes, edges),
+        toCanvasGraphInput(
+          viewportAtSave
+            ? { ...document, graph: { ...document.graph, viewport_json: viewportAtSave } }
+            : document,
+          nextNodes,
+          edges,
+        ),
         document.graph.version,
       );
+      const currentViewport = flowInstance?.getViewport();
+      const viewportChangedDuringSave = viewportChanged(viewportAtSave, currentViewport);
       const savedEdges = saved.edges.map(toFlowEdge);
-      setDocument(saved);
+      setDocument(viewportChangedDuringSave && currentViewport
+        ? { ...saved, graph: { ...saved.graph, viewport_json: currentViewport } }
+        : saved);
       setNodes(preserveSelectedItems(saved.nodes.map(toFlowNode), nextNodes, saved.node_ids));
       setEdges((current) => preserveSelectedItems(savedEdges, current));
-      setDirty(false);
-      addToast(successMessage, "success");
+      setDirty(viewportChangedDuringSave);
+      addToast(currentT()(successMessageKey), "success");
     } catch (err) {
       addToast(
         extractErrorMessage(
           err,
           mediaKind === "image"
-            ? t("video.importImageFailed")
+            ? currentT()("video.importImageFailed")
             : mediaKind === "video"
-              ? t("video.importVideoFailed")
-              : t("video.importAudioFailed"),
+              ? currentT()("video.importVideoFailed")
+              : currentT()("video.importAudioFailed"),
         ),
         "error",
       );

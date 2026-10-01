@@ -116,6 +116,11 @@ const projectRoute = (
 export const getProjectPrimaryRoute = (project: RoutedProject): string =>
   projectRoute(project, "novel");
 
+export const getProjectStudioBackRoute = (project: RoutedProject): string =>
+  project.project_kind === "video" && project.source_mode === "freeform"
+    ? "/"
+    : getProjectPrimaryRoute(project);
+
 export const getProjectPrimaryLabel = (
   project: RoutedProject,
   t: MessageTranslator,

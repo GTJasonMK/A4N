@@ -755,7 +755,7 @@ const cases = [
     ["MX04", 6003, "图片生成节点", "图片配置"], ["MX05", 6005, "视频生成节点", "输入模式"],
     ["MX06", 6017, "缺失首尾帧节点", "首尾帧"], ["MX07", 6008, "组装顺序", "成片轨道"],
   ].map(([id, node, title, text]) => ({ id, title, task: `选择${title}并修改前核对属性`, open: () => openCanvas(node), widths: canvasWidths, expected: [text], note: "1024px属性必须有入口；参数、输入与输出分组和字号待复核。" })),
-  { id: "MX08", title: "画布工作流", task: "读取已完成节点、失败原因及恢复入口", open: () => openCanvas(6008), widths: canvasWidths, expected: ["结尾镜头缺少首帧与尾帧", "运行状态"], note: "运行状态位于属性尾部，长参数下的可见性需检查。" },
+  { id: "MX08", title: "画布工作流", task: "读取已完成节点、失败原因及恢复入口", open: () => openCanvas(6008), widths: canvasWidths, expected: ["结尾镜头缺少首帧与尾帧", "运行状态", "失败节点", "定位节点"], note: "运行状态位于属性尾部，长参数下的可见性需检查。" },
   ...[
     ["MX09", 6014, "文本核验", "text"], ["MX10", 6016, "尾帧核验", "image"],
     ["MX11", 6009, "成片输出", "video"], ["MX12", 6011, "雨声监听", "audio"],
@@ -794,15 +794,15 @@ const cases = [
   }, note: "19种节点完整存在；真实滚到末项音频输出，不以DOM文字包含代替末项可达。" },
   { id: "MX15", title: "画布请求预览", task: "从所选视频节点查看模型请求", open: async () => { await openCanvas(6005); if ((await browser.execute(() => innerWidth)) <= 1100) await browser.keys("Escape"); await openMenu(".a4n-page-header", "查看模型请求"); await $(dialog).waitForDisplayed(); }, widths: canvasWidths, scope: dialog, expected: ["请求"], note: "预览与运行分开，已保存图才允许请求检查。" },
   { id: "MX16", title: "画布裁剪属性", task: "核对裁剪起止时间并修改本地结束时间", open: () => openCanvas(6007), widths: canvasWidths, expected: ["开始秒", "结束秒"], after: async () => {
-    const fields = await $(await canvasInspector()).$$('input[type="number"]');
+    const fields = await $(await canvasInspector()).$$('input[inputmode="decimal"]');
     assert.equal(fields.length, 2);
     assert.equal(Number(await fields[0].getValue()), 0);
     assert.equal(Number(await fields[1].getValue()), 6);
     assert.equal((await reachByWheel(fields[1])).reached, true);
-    await fields[1].setValue("5");
-    assert.equal(Number(await fields[1].getValue()), 5);
+    await fields[1].setValue("5.25");
+    assert.equal(await fields[1].getValue(), "5.25");
     assert.equal(await browser.execute(() => window.__uiAudit.commands.includes("save_canvas_graph")), false);
-    return { nodeId: 6007, trimStart: 0, originalEnd: 6, draftEnd: 5, saved: false };
+    return { nodeId: 6007, trimStart: 0, originalEnd: 6, draftEnd: 5.25, saved: false };
   }, note: "裁剪属性独立验收，末项可达且真实接受本地输入；不执行裁剪或保存。" },
   { id: "MX17", title: "画布指定时间抽帧", task: "从尾帧切换为指定时间并输入时间点", open: async () => {
     await openCanvas(6015);
@@ -810,17 +810,17 @@ const cases = [
     const kind = await $(scope).$('button[role="combobox"]');
     assert.equal(await kind.getText(), "尾帧");
     await selectOption(kind, "指定时间");
-    const seconds = await $(scope).$('input[type="number"]');
+    const seconds = await $(scope).$('input[inputmode="decimal"]');
     assert.equal((await reachByWheel(seconds)).reached, true);
-    await seconds.setValue("2");
+    await seconds.setValue("2.5");
   }, widths: canvasWidths, expected: ["指定时间", "时间秒"], after: async () => {
-    assert.equal(Number(await $(await canvasInspector()).$('input[type="number"]').getValue()), 2);
+    assert.equal(await $(await canvasInspector()).$('input[inputmode="decimal"]').getValue(), "2.5");
     assert.equal(await browser.execute(() => window.__uiAudit.commands.some(command => ["save_canvas_graph", "run_canvas_node"].includes(command))), false);
-    return { nodeId: 6015, specifiedFrameSeconds: 2, saved: false };
+    return { nodeId: 6015, specifiedFrameSeconds: 2.5, saved: false };
   }, note: "验证尾帧到指定时间的实际切换，字段可达；不运行抽帧或保存。" },
   { id: "MX18", title: "画布已有视频引用", task: "展开当前视频输入并核对资源和缩略图", open: async () => { await openCanvas(6006); await openDetails(`${await canvasInspector()} details`); }, widths: canvasWidths, expected: ["视频资源编号"], after: async () => {
     const scope = await canvasInspector();
-    const field = await $(scope).$('input[type="number"]');
+    const field = await $(scope).$('input[inputmode="numeric"]');
     const source = fixtures.byProject[6].get_canvas_graph.nodes.find(node => node.id === 6006);
     assert.equal(Number(await field.getValue()), source.ref_id);
     assert.equal((await reachByWheel(field)).reached, true);
@@ -951,7 +951,7 @@ const cases = [
   { id: "MX26", title: "画布音频输入属性", task: "核对6010的63001音频引用并播放真实3秒样本", open: async () => { await openCanvas(6010); await openDetails(`${await canvasInspector()} details`); }, widths: canvasWidths, expected: ["雨声环境", "音频资源编号"], after: async (record, width) => {
     const scope = await canvasInspector();
     const source = fixtures.byProject[6].get_canvas_graph.nodes.find(node => node.id === 6010);
-    const reference = await $(scope).$('input[type="number"]');
+    const reference = await $(scope).$('input[inputmode="numeric"]');
     assert.equal(Number(await reference.getValue()), source.ref_id);
     assert.equal((await reachByWheel(reference)).reached, true);
     await $(scope).$('.//button[normalize-space()="查看内容"]').click();
@@ -977,7 +977,7 @@ const cases = [
   }, note: "此输出本来没有可编辑参数；保留输入连接与已保存结果，不为审查添加假参数或时长字段。" },
   { id: "MX28", title: "画布图片输入草稿", task: "从节点库新建image_input并核对空资源引用", frequency: "中", open: async () => { await openCanvasDraft("图片输入"); await openDetails(`${await canvasInspector()} details`); }, widths: canvasWidths, expected: ["图片输入", "图片资源编号"], after: async () => {
     const scope = await canvasInspector();
-    const field = await $(scope).$('input[type="number"]');
+    const field = await $(scope).$('input[inputmode="numeric"]');
     assert.equal(await field.getValue(), "");
     assert.equal((await reachByWheel(field)).reached, true);
     await field.click();
@@ -998,6 +998,38 @@ const cases = [
     return inspectCanvasDraft("VideoProbeNode");
   }, note: "真实修改探针草稿，保留尚未运行的说明，不注入视频、缩略图或观察数据。" },
   { id: "MX30", title: "画布文本输出草稿", task: "从节点库新建text_output并核对终点输入与未运行结果", frequency: "中", open: () => openCanvasDraft("文本输出"), widths: canvasWidths, expected: ["文本输出", "输入", "输出", "运行后在这里显示最终交付结果"], after: () => inspectCanvasDraft("TextOutputNode"), note: "实际输出节点没有额外参数；检查其真实属性与未运行提示，不复用已有文本探针充当输出。" },
+  { id: "MX31", title: "来源视频画布返回", task: "从来源视频工作区进入画布并用页头返回", open: async () => {
+    await openRoute("/video-project/3");
+    await buttonText("画布模式").click();
+    await browser.waitUntil(async () => new URL(await browser.getUrl()).pathname === "/video-project/3/studio");
+    await $(".a4n-app-page-header h1").waitForDisplayed();
+  }, widths: [1440, 390], expected: ["山海之间"], after: async () => {
+    await $(".a4n-app-page-header button").click();
+    await browser.waitUntil(async () => new URL(await browser.getUrl()).pathname === "/video-project/3");
+    return { returnedToSourceWorkspace: true };
+  }, note: "从用户实际入口检验画布左上返回保留当前派生视频项目。" },
+  { id: "MX32", title: "画布视口保存", task: "用画布缩放控件调整视口并保存当前图", open: () => openCanvas(), widths: [1440, 390], expected: ["影像画布"], after: async (_record, width) => {
+    if (width >= 640) {
+      assert.equal(await $(".a4n-studio-minimap").isDisplayed(), false, "The minimap starts collapsed so it cannot cover nodes");
+      await $(".react-flow__controls-minimap").click();
+      await $(".a4n-studio-minimap").waitForDisplayed();
+      await $(".react-flow__controls-minimap").click();
+      await browser.waitUntil(async () => !(await $(".a4n-studio-minimap").isDisplayed()));
+    }
+    const before = await browser.execute(() => {
+      const matrix = new DOMMatrixReadOnly(getComputedStyle(document.querySelector(".react-flow__viewport")).transform);
+      return { x: matrix.e, y: matrix.f, zoom: matrix.a };
+    });
+    await $(".react-flow__controls-zoomin").click();
+    await buttonText("保存画布").waitForDisplayed();
+    await browser.saveScreenshot(`${output}/${phase}-B84-video-canvas-zoom-${width}.png`);
+    await buttonText("保存画布").click();
+    await browser.waitUntil(async () => browser.execute(() => window.__uiAudit.requests.some(item => item.command === "save_canvas_graph")));
+    const saved = await browser.execute(() => window.__uiAudit.requests.findLast(item => item.command === "save_canvas_graph").body.input.graph.viewport_json);
+    assert.equal(Number.isFinite(saved.x) && Number.isFinite(saved.y) && Number.isFinite(saved.zoom), true);
+    assert.notEqual(saved.zoom, before.zoom, "The write must carry the user's changed viewport");
+    return { before, savedViewport: saved };
+  }, note: "检查用户视口进入真实画布写请求；不只检查保存 Toast。" },
   ...[["MS01", 2, "漫画"], ["MS02", 3, "视频"], ["MS03", 5, "Galgame"]].map(([id, project, label]) => ({ id, title: `${label}来源同步冲突`, task: "比较三条来源变化与当前改编，关闭前不应用决定", frequency: "低", open: () => openSourceSync(project), scope: dialog, count: [`${dialog} article`, 3], expected: ["冲突清单", "源文本变化", "当前项目", "未寄出的信"], after: inspectSourceSyncEnd, note: "typed dry_run预览；真实滚到末条冲突并补充conflicts-end截图，不为应用/解绑提供假成功mutation。" })),
 ];
 
@@ -1005,6 +1037,19 @@ describe("Populated media pages and task dialogs", () => {
   before(async () => {
     await mkdir(output, { recursive: true });
     fixtures = await buildPageFixtures(browser.options.baseUrl);
+    const canvas = fixtures.byProject[6].get_canvas_graph;
+    fixtures.byProject[3].get_canvas_graph = {
+      ...canvas,
+      graph: { ...canvas.graph, id: 3, graph_kind: "video_studio", name: "来源视频画布" },
+      nodes: [],
+      edges: [],
+    };
+    fixtures.save_canvas_graph = {
+      graph: { ...canvas.graph, version: canvas.graph.version + 1 },
+      nodes: canvas.nodes,
+      edges: canvas.edges,
+      node_ids: Object.fromEntries(canvas.nodes.map((node) => [String(node.id), node.id])),
+    };
     await installUiFixtures(browser, fixtures);
     await browser.url("/");
     await browser.switchToWindow(await browser.getWindowHandle());
@@ -1051,7 +1096,6 @@ describe("Populated media pages and task dialogs", () => {
         assert.equal(record.width, width);
         assert.equal(record.overflow, 0, `${entry.id}: document horizontal overflow`);
         assert.deepEqual(record.unexpected, [], "Missing fixtures are failures, not empty states");
-        assert.deepEqual(record.errors, [], "Browser errors must remain visible");
         const readableContent = [record.text, ...record.controls.map(control => control.value ?? "")].join("\n");
         for (const expected of entry.expected ?? []) assert(readableContent.includes(expected), `${entry.id}: missing populated content ${expected}`);
         if (entry.count) assert.equal((await $$(entry.count[0])).length, entry.count[1], `${entry.id}: populated record count`);
@@ -1061,8 +1105,9 @@ describe("Populated media pages and task dialogs", () => {
           record.interaction = await entry.after(record, width);
           record.afterInteraction = await capture({ id: entry.id }, width, "-interaction");
           assert.deepEqual(record.afterInteraction.unexpected, []);
-          assert.deepEqual(record.afterInteraction.errors, []);
         }
+        assert.deepEqual(record.errors, [], "Browser errors must remain visible");
+        if (record.afterInteraction) assert.deepEqual(record.afterInteraction.errors, [], "Browser errors must remain visible after the interaction");
       } catch (error) {
         record.failure = error instanceof Error ? error.message : String(error);
         throw error;

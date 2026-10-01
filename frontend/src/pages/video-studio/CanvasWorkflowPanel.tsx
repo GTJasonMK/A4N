@@ -1,12 +1,16 @@
 import React from "react";
-import { Play, RefreshCw, Square } from "lucide-react";
+import { Crosshair, Play, RefreshCw, Square } from "lucide-react";
 import { LoadingSpinner } from "../../components/ui/LoadingSpinner";
+import { BookButton } from "../../components/ui/BookButton";
 import type { ProgressEventRecord, ProgressStatus } from "../../api/progress";
 import type { WorkflowRunDetailSummary } from "../../api/streaming";
 import { Dropdown, type DropdownItem } from "../../components/ui/Dropdown";
 import { progressDisplayModel } from "../../utils/progressPresentation";
 import { getOperationStatusLabel } from "../../utils/workflowPresentation";
 import { formatNumber, useI18n, type MessageTranslator } from "../../i18n";
+import { canvasNodeIdFromStepKey } from "./canvasWorkflowState";
+import { nodeDisplayTitle } from "./StudioCanvasNode";
+import type { StudioNode } from "./types";
 
 interface CanvasWorkflowPanelProps {
   latestWorkflowRunId: number | null;
@@ -16,9 +20,12 @@ interface CanvasWorkflowPanelProps {
   eventsError: string | null;
   loading: boolean;
   submittingLabel: string | null;
+  nodes: StudioNode[];
+  draftChanged: boolean;
   cancelling: boolean;
   resuming: boolean;
   onRefresh: () => void;
+  onLocateNode: (nodeId: string) => void;
   onCancel: () => void;
   onResume: () => void;
 }
@@ -31,9 +38,12 @@ export const CanvasWorkflowPanel: React.FC<CanvasWorkflowPanelProps> = ({
   eventsError,
   loading,
   submittingLabel,
+  nodes,
+  draftChanged,
   cancelling,
   resuming,
   onRefresh,
+  onLocateNode,
   onCancel,
   onResume,
 }) => {
@@ -43,6 +53,10 @@ export const CanvasWorkflowPanel: React.FC<CanvasWorkflowPanelProps> = ({
   const activeCheckpoint = latestCheckpointWithStatus(detail?.checkpoints ?? [], "running");
   const failedCheckpoint = latestCheckpointWithStatus(detail?.checkpoints ?? [], "failed");
   const currentStepKey = activeCheckpoint?.step_key ?? failedCheckpoint?.step_key ?? run?.current_step_key ?? null;
+  const checkpointNodeId = canvasNodeIdFromStepKey(activeCheckpoint?.step_key ?? failedCheckpoint?.step_key);
+  const checkpointNode = checkpointNodeId ? nodes.find((node) => node.id === checkpointNodeId) ?? null : null;
+  const checkpointNodeLabel = checkpointNode ? nodeDisplayTitle(checkpointNode.data, t) : "";
+  const failureMessage = run?.error_message ?? failedCheckpoint?.error_message ?? null;
   const completedCheckpointCount = detail?.checkpoints.filter((checkpoint) => checkpoint.status === "completed").length ?? 0;
   const waitingProvider = activeCheckpoint ? canvasVideoProviderWait(activeCheckpoint) : null;
   const staleRunning = run ? runningWorkflowLooksStale(run.updated_at) : false;
@@ -93,7 +107,9 @@ export const CanvasWorkflowPanel: React.FC<CanvasWorkflowPanelProps> = ({
           <h3 className="text-xs font-semibold text-book-text-main">{t("video.canvas.workflow.status")}</h3>
           <p className="mt-0.5 truncate text-small text-book-text-muted" title={canResume ? resumeTitle : undefined}>
             {run
-              ? canvasWorkflowStepLabel(currentStepKey, t)
+              ? checkpointNodeLabel
+                ? `${canvasWorkflowStepLabel(currentStepKey, t)} · ${checkpointNodeLabel}`
+                : canvasWorkflowStepLabel(currentStepKey, t)
               : statusError
                 ? t("video.canvas.workflow.unavailable")
               : latestWorkflowRunId
@@ -143,9 +159,23 @@ export const CanvasWorkflowPanel: React.FC<CanvasWorkflowPanelProps> = ({
               />
             </div>
           ) : null}
-          {run.error_message ? (
+          {draftChanged ? (
+            <div role="status" className="rounded-xl border border-warning/50 bg-warning-bg px-2.5 py-2 text-small leading-4 text-warning">
+              {t("video.canvas.workflow.draftChanged")}
+            </div>
+          ) : null}
+          {failureMessage ? (
             <div role="alert" className="rounded-xl border border-error/50 bg-error-bg px-2.5 py-2 text-small text-error">
-              {run.error_message}
+              {failureMessage}
+            </div>
+          ) : null}
+          {checkpointNode ? (
+            <div className={`flex flex-wrap items-center justify-between gap-2 rounded-xl border px-2.5 py-2 text-small ${activeCheckpoint ? "border-book-primary/35 bg-book-primary/5 text-book-primary" : "border-error/35 bg-error-bg/60 text-error"}`}>
+              <span>{t(activeCheckpoint ? "video.canvas.workflow.activeNode" : "video.canvas.workflow.failedNode", { name: checkpointNodeLabel })}</span>
+              <BookButton variant="secondary" size="sm" onClick={() => onLocateNode(checkpointNode.id)}>
+                <Crosshair size={13} />
+                {t("video.canvas.workflow.locateNode")}
+              </BookButton>
             </div>
           ) : null}
           {waitingProvider ? (
@@ -202,12 +232,12 @@ export const CanvasWorkflowPanel: React.FC<CanvasWorkflowPanelProps> = ({
       ) : (
         <div className="text-small text-book-text-muted">{t("video.canvas.workflow.unavailable")}</div>
       )}
-      {latestWorkflowRunId && !submittingLabel ? (
+      {latestWorkflowRunId && !submittingLabel && detail ? (
         eventsError ? (
           <div role="alert" className="mt-2 border-y border-error/35 px-2.5 py-2 text-small text-error">{eventsError}</div>
         ) : events.length > 0 ? (
           <div className="mt-2 divide-y divide-book-border/45 border-y border-book-border/45">
-            {events.slice(0, 5).map((event) => {
+            {events.slice(-5).map((event) => {
               const display = progressDisplayModel({
                 ...event,
                 locale,
@@ -251,7 +281,7 @@ function canvasProgressStatus(status: string): ProgressStatus {
 
 function canvasWorkflowStepLabel(stepKey: string | null, t: MessageTranslator): string {
   if (!stepKey) return t("video.canvas.workflow.waitingStart");
-  if (/^canvas_node:\d+$/.test(stepKey)) return t("video.canvas.workflow.processingNode");
+  if (canvasNodeIdFromStepKey(stepKey)) return t("video.canvas.workflow.processingNode");
   switch (stepKey) {
     case "prepare": return t("video.canvas.workflow.prepare");
     case "validate": return t("video.canvas.workflow.validate");

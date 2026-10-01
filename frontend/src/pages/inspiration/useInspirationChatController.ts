@@ -64,6 +64,8 @@ export const useInspirationChatController = () => {
   const { t } = useI18n();
 
   const [project, setProject] = useState<NovelProject | null>(null);
+  const [initializationError, setInitializationError] = useState<string | null>(null);
+  const [initializationAttempt, setInitializationAttempt] = useState(0);
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   useNovelDetailDirty(`inspiration-input:${projectId}`, input.trim().length > 0);
@@ -179,6 +181,7 @@ export const useInspirationChatController = () => {
     }
 
     setProject(null);
+    setInitializationError(null);
     setInput("");
     setSending(false);
     sendingRef.current = false;
@@ -208,10 +211,6 @@ export const useInspirationChatController = () => {
           navigate(getProjectPrimaryRoute(p), { replace: true });
           return;
         }
-        // Keep the page in its loading state until both the project and its
-        // conversation are ready; otherwise the blueprint action can race the
-        // history request and omit persisted context.
-        setProject(p);
         try {
           const history = await getInspirationHistory(projectId);
           if (cancelled) return;
@@ -219,9 +218,12 @@ export const useInspirationChatController = () => {
           setMessages(restored.length > 0 ? restored : [welcomeMessage(p.title, t)]);
         } catch (historyError) {
           if (cancelled) return;
-          setMessages([welcomeMessage(p.title, t)]);
-          addToast(extractErrorMessage(historyError, t("errors.loadProject")), "error");
+          const message = extractErrorMessage(historyError, t("errors.loadProject"));
+          setInitializationError(message);
+          addToast(message, "error");
+          return;
         }
+        setProject(p);
       } catch (err) {
         if (cancelled) return;
         addToast(extractErrorMessage(err, t("errors.loadProject")), "error");
@@ -232,7 +234,7 @@ export const useInspirationChatController = () => {
     return () => {
       cancelled = true;
     };
-  }, [projectId, addToast, navigate, t]);
+  }, [projectId, initializationAttempt, addToast, navigate, t]);
 
   useEffect(() => {
     if (!project || project.id !== projectId || generationHandleRef.current) return;
@@ -395,6 +397,27 @@ export const useInspirationChatController = () => {
       const latest = generationHandleRef.current;
       if (!latest || generationTaskKey(latest.task_id, latest.attempt) !== key) return;
       logger.scoped("InspirationChat").error("generation finalization failed", { error });
+      if (generationTask.taskStatus === "completed" || recoveryIssue) {
+        const recovery = resolveFormalResultRecovery({
+          t,
+          recoveryIssue,
+          consistent: false,
+          hasPersisted: false,
+          hasResultRef: Boolean(generationTask.resultRef),
+          domain: "inspiration_message",
+        });
+        if (recovery.shouldMarkConsistencyError) {
+          useGenerationTasksStore.getState().dispatch(key, {
+            type: "client_state",
+            state: "consistency_error",
+          });
+        }
+        setMessages((prev) => prev.map((item) => item.id === assistantId
+          ? { ...item, streaming: false, consistencyWarning: recovery.message }
+          : item));
+        addToast(recovery.message, "error");
+        return;
+      }
       const message = extractErrorMessage(error, t("inspiration.conversationValidationFailed"));
       setMessages((prev) => prev.map((item) => item.id === assistantId
         ? generationFailureMessage(assistantId, message)
@@ -470,9 +493,8 @@ export const useInspirationChatController = () => {
       logger.scoped("InspirationChat").error("converse failed", { err });
       const message = extractErrorMessage(err, t("inspiration.conversationError"));
       addToast(message, "error");
-      setMessages((prev) => prev.map((m) =>
-        m.id === assistantId ? generationFailureMessage(assistantId, message) : m,
-      ));
+      setMessages((prev) => prev.filter((item) => item.id !== userMessage.id && item.id !== assistantId));
+      setInput(value);
       generationAssistantIdRef.current = null;
       sendingRef.current = false;
       setSending(false);
@@ -549,6 +571,8 @@ export const useInspirationChatController = () => {
 
   return {
     project,
+    initializationError,
+    retryInitialization: () => setInitializationAttempt((attempt) => attempt + 1),
     stage,
     messages,
     input,

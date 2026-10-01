@@ -4,6 +4,7 @@ import {
   getProjectHomeEntryLabel,
   getProjectPrimaryLabel,
   getProjectPrimaryRoute,
+  getProjectStudioBackRoute,
   getProjectTypeLabel,
   getProjectWorkspaceRoute,
 } from "./projectRouting";
@@ -27,6 +28,23 @@ describe("project type labels", () => {
     )
       .toEqual(["未知类型", "未知类型", "未知类型", "未知类型", "未知类型", "未知类型"]);
     expect(getProjectTypeLabel("", t)).toBe("未知类型");
+  });
+});
+
+describe("video studio back route", () => {
+  it("returns derived video projects to their workspace and freeform projects to the list", () => {
+    expect(getProjectStudioBackRoute({
+      id: 12,
+      status: "writing",
+      project_kind: "video",
+      source_mode: "derived",
+    })).toBe("/video-project/12");
+    expect(getProjectStudioBackRoute({
+      id: 13,
+      status: "writing",
+      project_kind: "video",
+      source_mode: "freeform",
+    })).toBe("/");
   });
 });
 

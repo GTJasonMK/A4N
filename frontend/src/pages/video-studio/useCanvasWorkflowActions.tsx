@@ -43,6 +43,11 @@ import type { StudioEdge, StudioNode } from "./types";
 
 export const CANVAS_WORKFLOW_KIND = "video_canvas_graph";
 
+export interface CanvasWorkflowSubmissionLabel {
+  key: Parameters<MessageTranslator>[0];
+  params?: Parameters<MessageTranslator>[1];
+}
+
 export interface CanvasWorkflowActionsOptions {
   projectId: number;
   project: { source_mode?: string } | null;
@@ -51,8 +56,6 @@ export interface CanvasWorkflowActionsOptions {
   edges: StudioEdge[];
   nodeContractsByKind: StudioNodeContractMap;
   canResumeCurrentCanvasRun: boolean;
-  canEdit: boolean;
-  canvasWriteBusy: boolean;
   canvasMutationDisabled: boolean;
   dirty: boolean;
   workflowSubmitting: boolean;
@@ -72,7 +75,7 @@ export interface CanvasWorkflowActionsOptions {
   setWorkflowStatusError: React.Dispatch<React.SetStateAction<string | null>>;
   setWorkflowEventsError: React.Dispatch<React.SetStateAction<string | null>>;
   setWorkflowLoading: React.Dispatch<React.SetStateAction<boolean>>;
-  setWorkflowSubmissionLabel: React.Dispatch<React.SetStateAction<string | null>>;
+  setWorkflowSubmissionLabel: React.Dispatch<React.SetStateAction<CanvasWorkflowSubmissionLabel | null>>;
   setCancellingWorkflow: React.Dispatch<React.SetStateAction<boolean>>;
   setResumingWorkflow: React.Dispatch<React.SetStateAction<boolean>>;
   setPreviewDialogOpen: React.Dispatch<React.SetStateAction<boolean>>;
@@ -95,8 +98,6 @@ export function useCanvasWorkflowActions({
   edges,
   nodeContractsByKind,
   canResumeCurrentCanvasRun,
-  canEdit,
-  canvasWriteBusy,
   canvasMutationDisabled,
   dirty,
   workflowSubmitting,
@@ -130,13 +131,18 @@ export function useCanvasWorkflowActions({
   deleteCanvasEdge,
   importMedia,
 }: CanvasWorkflowActionsOptions) {
+  const translatorRef = React.useRef(t);
+  translatorRef.current = t;
+  const currentT = useCallback(() => translatorRef.current, []);
   const workflowStatusRequestRef = React.useRef(0);
+  const workflowStatusInFlightRef = React.useRef(false);
   const latestWorkflowRunIdRef = React.useRef(latestWorkflowRunId);
   latestWorkflowRunIdRef.current = latestWorkflowRunId;
 
   const loadWorkflowStatus = useCallback(
     async (workflowRunId: number, options: { silent?: boolean; expectedRunId?: number } = {}): Promise<boolean> => {
       if (options.expectedRunId != null && latestWorkflowRunIdRef.current !== options.expectedRunId) return false;
+      workflowStatusInFlightRef.current = true;
       const requestId = workflowStatusRequestRef.current + 1;
       workflowStatusRequestRef.current = requestId;
       latestWorkflowRunIdRef.current = workflowRunId;
@@ -155,14 +161,14 @@ export function useCanvasWorkflowActions({
           setWorkflowStatusError(null);
         } else {
           setWorkflowDetail(null);
-          setWorkflowStatusError(extractErrorMessage(detailResult.reason, t("video.loadCanvasRunsFailed")));
+          setWorkflowStatusError(extractErrorMessage(detailResult.reason, currentT()("video.loadCanvasRunsFailed")));
         }
         if (eventsResult.status === "fulfilled") {
           setWorkflowEvents(eventsResult.value);
           setWorkflowEventsError(null);
         } else {
           setWorkflowEvents([]);
-          setWorkflowEventsError(extractErrorMessage(eventsResult.reason, t("video.loadCanvasEventsFailed")));
+          setWorkflowEventsError(extractErrorMessage(eventsResult.reason, currentT()("video.loadCanvasEventsFailed")));
         }
         if (!detail) return false;
         const refreshSignature = canvasWorkflowRuntimeRefreshSignature(detail);
@@ -181,17 +187,19 @@ export function useCanvasWorkflowActions({
             workflowRuntimeRefreshSignatureRef.current = refreshSignature;
           } catch (err) {
             refreshOk = false;
-            if (!options.silent && workflowStatusRequestRef.current === requestId) {
-              addToast(
-                extractErrorMessage(err, t("video.syncCanvasRuntimeFailed")),
-                "error",
-              );
+            if (workflowStatusRequestRef.current === requestId) {
+              const message = extractErrorMessage(err, currentT()("video.syncCanvasRuntimeFailed"));
+              setWorkflowStatusError(message);
+              if (!options.silent) addToast(message, "error");
             }
           }
         }
         return refreshOk;
       } finally {
-        if (workflowStatusRequestRef.current === requestId) setWorkflowLoading(false);
+        if (workflowStatusRequestRef.current === requestId) {
+          workflowStatusInFlightRef.current = false;
+          setWorkflowLoading(false);
+        }
       }
     },
     [
@@ -203,12 +211,13 @@ export function useCanvasWorkflowActions({
       setWorkflowStatusError,
       setWorkflowEventsError,
       setWorkflowLoading,
-      t,
+      currentT,
     ],
   );
 
   const clearWorkflowStatus = useCallback(() => {
     workflowStatusRequestRef.current += 1;
+    workflowStatusInFlightRef.current = false;
     latestWorkflowRunIdRef.current = null;
     setLatestWorkflowRunId(null);
     setWorkflowDetail(null);
@@ -262,8 +271,8 @@ export function useCanvasWorkflowActions({
           if (!run) return;
           await loadWorkflowStatus(run.id, { silent: true });
           stopWorkflowDiscovery();
-        } catch (_err) {
-          // Discovery is best-effort while the run submission request is still in flight.
+        } catch (err) {
+          setWorkflowStatusError(extractErrorMessage(err, currentT()("video.loadCanvasRunsFailed")));
         } finally {
           workflowDiscoveryInFlightRef.current = false;
         }
@@ -273,7 +282,7 @@ export function useCanvasWorkflowActions({
       }, 700);
       void tick();
     },
-    [findSubmittedCanvasWorkflowRunForGraph, loadWorkflowStatus, stopWorkflowDiscovery],
+    [findSubmittedCanvasWorkflowRunForGraph, loadWorkflowStatus, setWorkflowStatusError, stopWorkflowDiscovery, currentT],
   );
 
   useEffect(() => stopWorkflowDiscovery, [stopWorkflowDiscovery]);
@@ -283,6 +292,7 @@ export function useCanvasWorkflowActions({
     const status = workflowDetail?.run.status;
     if (status !== "running" && status !== "pending") return;
     const timer = window.setInterval(() => {
+      if (workflowStatusInFlightRef.current) return;
       void loadWorkflowStatus(latestWorkflowRunId, { silent: true, expectedRunId: latestWorkflowRunId });
     }, 1000);
     return () => window.clearInterval(timer);
@@ -316,7 +326,7 @@ export function useCanvasWorkflowActions({
       } catch (err) {
         if (cancelled) return;
         clearWorkflowStatus();
-        setWorkflowStatusError(extractErrorMessage(err, t("video.loadCanvasRunsFailed")));
+        setWorkflowStatusError(extractErrorMessage(err, currentT()("video.loadCanvasRunsFailed")));
       }
     };
     void restoreLatestRun();
@@ -330,7 +340,7 @@ export function useCanvasWorkflowActions({
     loadWorkflowStatus,
     projectId,
     setWorkflowStatusError,
-    t,
+    currentT,
   ]);
 
   const previewNode = async (node: StudioNode) => {
@@ -360,14 +370,14 @@ export function useCanvasWorkflowActions({
       setPreviewData(preview);
     } catch (err) {
       setPreviewDialogOpen(false);
-      addToast(extractErrorMessage(err, t("video.previewRequestFailed")), "error");
+      addToast(extractErrorMessage(err, currentT()("video.previewRequestFailed")), "error");
     } finally {
       setPreviewLoading(false);
     }
   };
 
   const runNode = async (node: StudioNode) => {
-    if (!document || canvasWriteBusy || !canEdit || workflowSubmitting) return;
+    if (!document || canvasMutationDisabled || workflowSubmitting) return;
     if (dirty) {
       addToast(t("video.saveBeforeRun"), "info");
       return;
@@ -402,7 +412,10 @@ export function useCanvasWorkflowActions({
     if (!confirmed) {
       return;
     }
-    setWorkflowSubmissionLabel(t("video.runNodeSubmitting", { name: nodeDisplayTitle(node.data, t) }));
+    setWorkflowSubmissionLabel({
+      key: "video.runNodeSubmitting",
+      params: { name: nodeDisplayTitle(node.data, currentT()) },
+    });
     clearWorkflowStatus();
     const graphId = document.graph.id;
     startWorkflowDiscovery(graphId, document.graph.version, Date.now());
@@ -410,11 +423,11 @@ export function useCanvasWorkflowActions({
       const result = await runCanvasNode(projectId, graphId, nodeId);
       await loadWorkflowStatus(result.workflow_run_id);
       addToast(
-        result.error_message ?? t("video.runOnlyNodeSubmitted"),
+        result.error_message ?? currentT()("video.runOnlyNodeSubmitted"),
         result.status === "failed" ? "info" : "success",
       );
     } catch (err) {
-      addToast(extractErrorMessage(err, t("video.runOnlyNodeError")), "error");
+      addToast(extractErrorMessage(err, currentT()("video.runOnlyNodeError")), "error");
     } finally {
       setWorkflowSubmissionLabel(null);
       stopWorkflowDiscovery();
@@ -422,7 +435,7 @@ export function useCanvasWorkflowActions({
   };
 
   const runToNode = async (node: StudioNode) => {
-    if (!document || canvasWriteBusy || !canEdit || workflowSubmitting) return;
+    if (!document || canvasMutationDisabled || workflowSubmitting) return;
     if (dirty) {
       addToast(t("video.saveBeforeRun"), "info");
       return;
@@ -459,7 +472,10 @@ export function useCanvasWorkflowActions({
     if (!confirmed) {
       return;
     }
-    setWorkflowSubmissionLabel(t("video.runToNodeSubmitting", { name: nodeDisplayTitle(node.data, t) }));
+    setWorkflowSubmissionLabel({
+      key: "video.runToNodeSubmitting",
+      params: { name: nodeDisplayTitle(node.data, currentT()) },
+    });
     clearWorkflowStatus();
     const graphId = document.graph.id;
     startWorkflowDiscovery(graphId, document.graph.version, Date.now());
@@ -467,11 +483,11 @@ export function useCanvasWorkflowActions({
       const result = await runCanvasGraphToNode(projectId, graphId, nodeId);
       await loadWorkflowStatus(result.workflow_run_id);
       addToast(
-        result.error_message ?? t("video.runToNodeSubmitted"),
+        result.error_message ?? currentT()("video.runToNodeSubmitted"),
         result.status === "failed" ? "info" : "success",
       );
     } catch (err) {
-      addToast(extractErrorMessage(err, t("video.runToNodeError")), "error");
+      addToast(extractErrorMessage(err, currentT()("video.runToNodeError")), "error");
     } finally {
       setWorkflowSubmissionLabel(null);
       stopWorkflowDiscovery();
@@ -481,8 +497,7 @@ export function useCanvasWorkflowActions({
   const runGraph = async () => {
     if (
       !document ||
-      canvasWriteBusy ||
-      !canEdit ||
+      canvasMutationDisabled ||
       workflowSubmitting ||
       resumingWorkflow
     )
@@ -495,7 +510,7 @@ export function useCanvasWorkflowActions({
       await resumeActiveWorkflow();
       return;
     }
-    setWorkflowSubmissionLabel(t("video.runCanvasSubmitting"));
+    setWorkflowSubmissionLabel({ key: "video.runCanvasSubmitting" });
     clearWorkflowStatus();
     const graphId = document.graph.id;
     startWorkflowDiscovery(graphId, document.graph.version, Date.now());
@@ -503,11 +518,11 @@ export function useCanvasWorkflowActions({
       const result = await runCanvasGraph(projectId, graphId);
       await loadWorkflowStatus(result.workflow_run_id);
       addToast(
-        result.error_message ?? t("video.submittedRunCanvas"),
+        result.error_message ?? currentT()("video.submittedRunCanvas"),
         result.status === "failed" ? "info" : "success",
       );
     } catch (err) {
-      addToast(extractErrorMessage(err, t("video.runCanvasError")), "error");
+      addToast(extractErrorMessage(err, currentT()("video.runCanvasError")), "error");
     } finally {
       setWorkflowSubmissionLabel(null);
       stopWorkflowDiscovery();
@@ -593,31 +608,26 @@ export function useCanvasWorkflowActions({
       {
         label: t("video.importImage"),
         icon: <Upload size={13} />,
-        disabled: !document || canvasWriteBusy || !canEdit,
+        disabled: !document || canvasMutationDisabled,
         onClick: () => void importMedia("image"),
       },
       {
         label: t("video.importVideo"),
         icon: <Upload size={13} />,
-        disabled: !document || canvasWriteBusy || !canEdit,
+        disabled: !document || canvasMutationDisabled,
         onClick: () => void importMedia("video"),
       },
       {
         label: t("video.importAudio"),
         icon: <Upload size={13} />,
-        disabled:
-          !document ||
-          canvasWriteBusy ||
-          !canEdit ||
-          project?.source_mode !== "freeform",
+        disabled: !document || canvasMutationDisabled || project?.source_mode !== "freeform",
         onClick: () => void importMedia("audio"),
       },
     ],
     [
-      canEdit,
+      canvasMutationDisabled,
       document,
       importMedia,
-      canvasWriteBusy,
       project?.source_mode,
       t,
     ],
@@ -628,16 +638,14 @@ export function useCanvasWorkflowActions({
       {
         label: t("video.runCanvasTitle"),
         icon: <Play size={13} />,
-        disabled:
-          !document || canvasWriteBusy || !canEdit || workflowSubmitting,
+        disabled: !document || canvasMutationDisabled || workflowSubmitting,
         onClick: () => void runGraph(),
       },
       { divider: true },
       ...mediaImportMenuItems(),
     ],
     [
-      canEdit,
-      canvasWriteBusy,
+      canvasMutationDisabled,
       document,
       mediaImportMenuItems,
       runGraph,
@@ -696,9 +704,9 @@ export function useCanvasWorkflowActions({
       if (workflowRunId) {
         await loadWorkflowStatus(workflowRunId);
       }
-      addToast(t("video.cancelRunRequested"), "info");
+      addToast(currentT()("video.cancelRunRequested"), "info");
     } catch (err) {
-      addToast(extractErrorMessage(err, t("video.cancelRunFailed")), "error");
+      addToast(extractErrorMessage(err, currentT()("video.cancelRunFailed")), "error");
     } finally {
       setCancellingWorkflow(false);
     }
@@ -712,9 +720,9 @@ export function useCanvasWorkflowActions({
       const run = await resumeWorkflowRun(workflowRunId);
       workflowRuntimeRefreshSignatureRef.current = null;
       await loadWorkflowStatus(run.id);
-      addToast(t("video.resumeRunSuccess"), "success");
+      addToast(currentT()("video.resumeRunSuccess"), "success");
     } catch (err) {
-      addToast(extractErrorMessage(err, t("video.resumeRunFailed")), "error");
+      addToast(extractErrorMessage(err, currentT()("video.resumeRunFailed")), "error");
     } finally {
       setResumingWorkflow(false);
     }

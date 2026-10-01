@@ -608,8 +608,8 @@ const NodeConfigEditor: React.FC<NodeConfigEditorProps> = ({
   if (node.data.nodeKind === "TrimVideoNode") {
     return (
       <div className="grid grid-cols-2 gap-2">
-        <NumberField label={t("video.canvas.inspector.startSeconds")} value={configNumber(config, "start_secs")} disabled={disabled} min={0} onChange={(value) => onChange({ start_secs: value })} />
-        <NumberField label={t("video.canvas.inspector.endSeconds")} value={configNumber(config, "end_secs")} disabled={disabled} min={0} onChange={(value) => onChange({ end_secs: value })} />
+        <NumberField label={t("video.canvas.inspector.startSeconds")} value={configNumber(config, "start_secs")} disabled={disabled} min={0} step="any" onChange={(value) => onChange({ start_secs: value })} />
+        <NumberField label={t("video.canvas.inspector.endSeconds")} value={configNumber(config, "end_secs")} disabled={disabled} min={0} step="any" onChange={(value) => onChange({ end_secs: value })} />
       </div>
     );
   }
@@ -631,7 +631,7 @@ const NodeConfigEditor: React.FC<NodeConfigEditorProps> = ({
           </ThemedSelect>
         </label>
         {frameKind === "time" ? (
-          <NumberField label={t("video.canvas.inspector.timeSeconds")} value={configNumber(config, "at_secs")} disabled={disabled} min={0} onChange={(value) => onChange({ at_secs: value })} />
+          <NumberField label={t("video.canvas.inspector.timeSeconds")} value={configNumber(config, "at_secs")} disabled={disabled} min={0} step="any" onChange={(value) => onChange({ at_secs: value })} />
         ) : null}
       </div>
     );
@@ -823,22 +823,48 @@ interface NumberFieldProps {
   value: number | "";
   disabled: boolean;
   min?: number;
+  step?: number | "any";
   onChange: (value: number | null) => void;
 }
 
-const NumberField: React.FC<NumberFieldProps> = ({ label, value, disabled, min = 1, onChange }) => (
-  <label className="block text-caption text-book-text-muted">
-    {label}
-    <input
-      type="number"
-      min={min}
-      value={value}
-      disabled={disabled}
-      onChange={(event) => onChange(numberOrNull(event.target.value, min))}
-      className={INSPECTOR_CONTROL_CLASS}
-    />
-  </label>
-);
+const NumberField: React.FC<NumberFieldProps> = ({ label, value, disabled, min = 1, step = 1, onChange }) => {
+  const valueText = value === "" ? "" : String(value);
+  const [draft, setDraft] = React.useState(valueText);
+  const valueTextRef = React.useRef(valueText);
+  const validValue = (candidate: string) => {
+    const parsed = numberOrNull(candidate, min);
+    return parsed !== null && (step === "any" || Number.isInteger(parsed)) ? parsed : null;
+  };
+  const invalidDraft = draft !== "" && validValue(draft) === null;
+
+  React.useEffect(() => {
+    if (valueTextRef.current === valueText) return;
+    valueTextRef.current = valueText;
+    setDraft(valueText);
+  }, [valueText]);
+
+  return (
+    <label className="block text-caption text-book-text-muted">
+      {label}
+      <input
+        type="text"
+        inputMode={step === "any" ? "decimal" : "numeric"}
+        value={draft}
+        disabled={disabled}
+        aria-invalid={invalidDraft || undefined}
+        onChange={(event) => {
+          const nextDraft = event.target.value;
+          const parsed = validValue(nextDraft);
+          setDraft(nextDraft);
+          valueTextRef.current = parsed === null ? "" : String(parsed);
+          onChange(parsed);
+        }}
+        onBlur={() => setDraft(valueText)}
+        className={INSPECTOR_CONTROL_CLASS}
+      />
+    </label>
+  );
+};
 
 interface ConfigSelectProps {
   label: string;

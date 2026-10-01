@@ -145,6 +145,8 @@ export const videoCore = {
   selectCanvasItem: "Select a canvas node or edge to edit its properties",
   openNodeLibrary: "Open node library",
   openProperties: "Open properties panel",
+  showCanvasMiniMap: "Show canvas minimap",
+  hideCanvasMiniMap: "Hide canvas minimap",
   saveCanvas: "Save canvas",
   runFullCanvas: "Run complete canvas workflow",
   runCanvas: "Run canvas",

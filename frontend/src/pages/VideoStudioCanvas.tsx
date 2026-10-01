@@ -15,6 +15,7 @@ import {
   useEdgesState,
   useNodesState,
   type ReactFlowInstance,
+  type Viewport,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import {
@@ -100,8 +101,10 @@ import {
 } from "./video-studio/nodeContracts";
 import type { StudioEdge, StudioNode } from "./video-studio/types";
 import { formatNumber, useI18n } from "../i18n";
+import { getProjectStudioBackRoute } from "../utils/projectRouting";
 import {
   CANVAS_WORKFLOW_KIND,
+  type CanvasWorkflowSubmissionLabel,
   useCanvasWorkflowActions,
 } from "./video-studio/useCanvasWorkflowActions";
 import { useCanvasGraphActions } from "./video-studio/useCanvasGraphActions";
@@ -159,7 +162,7 @@ export const VideoStudioCanvas: React.FC = () => {
   const [workflowEventsError, setWorkflowEventsError] = useState<string | null>(null);
   const [workflowLoading, setWorkflowLoading] = useState(false);
   const [workflowSubmissionLabel, setWorkflowSubmissionLabel] = useState<
-    string | null
+    CanvasWorkflowSubmissionLabel | null
   >(null);
   const [workflowNowMs, setWorkflowNowMs] = useState(() => Date.now());
   const [cancellingWorkflow, setCancellingWorkflow] = useState(false);
@@ -181,6 +184,7 @@ export const VideoStudioCanvas: React.FC = () => {
   const [mobileNodeLibraryOpen, setMobileNodeLibraryOpen] = useState(false);
   const [mobileInspectorOpen, setMobileInspectorOpen] = useState(false);
   const [agentConsoleOpen, setAgentConsoleOpen] = useState(false);
+  const [miniMapVisible, setMiniMapVisible] = useState(false);
   const requestRef = useRef(0);
   const canvasSectionRef = useRef<HTMLElement | null>(null);
   const workflowDiscoveryTimerRef = useRef<number | null>(null);
@@ -273,6 +277,9 @@ export const VideoStudioCanvas: React.FC = () => {
     [edges, selectedRunScope, workflowActiveScope, t],
   );
   const workflowSubmitting = workflowSubmissionLabel !== null;
+  const workflowSubmissionText = workflowSubmissionLabel
+    ? t(workflowSubmissionLabel.key, workflowSubmissionLabel.params)
+    : null;
   const canResumeCurrentCanvasRun = Boolean(
     document &&
       workflowDetail?.run.can_resume &&
@@ -287,15 +294,30 @@ export const VideoStudioCanvas: React.FC = () => {
   const workflowLive =
     workflowSubmitting ||
     workflowDetail?.run.status === "running" ||
-    workflowDetail?.run.status === "pending";
+    workflowDetail?.run.status === "pending" ||
+    (latestWorkflowRunId !== null && workflowStatusError !== null && workflowDetail === null);
   const canEdit =
     project?.my_role === "owner" ||
     project?.my_role === "manager" ||
     project?.my_role === "editor";
   const canvasWriteBusy = saving || importing;
   const canvasReady = !loading && loadError == null && document != null && nodeContracts.length > 0;
-  const canvasMutationDisabled = !canEdit || canvasWriteBusy || !canvasReady;
+  const canvasMutationDisabled = !canEdit || canvasWriteBusy || !canvasReady || workflowLive;
   useNovelDetailDirty(`video-canvas:${projectId}`, dirty);
+
+  const recordCanvasViewport = useCallback((viewport: Viewport) => {
+    const previousViewport = canvasGraphViewport(document?.graph.viewport_json);
+    if (
+      previousViewport &&
+      previousViewport.x === viewport.x &&
+      previousViewport.y === viewport.y &&
+      previousViewport.zoom === viewport.zoom
+    ) return;
+    setDocument((current) => current
+      ? { ...current, graph: { ...current.graph, viewport_json: viewport } }
+      : current);
+    setDirty(true);
+  }, [document?.graph.viewport_json, setDirty, setDocument]);
 
   useEffect(() => {
     if (leftSidebarVisible) setMobileNodeLibraryOpen(false);
@@ -476,7 +498,6 @@ export const VideoStudioCanvas: React.FC = () => {
     selectedNode,
     nodeContractsByKind,
     configOptions,
-    canEdit,
     canvasWriteBusy,
     canvasMutationDisabled,
     flowInstance,
@@ -502,8 +523,6 @@ export const VideoStudioCanvas: React.FC = () => {
     edges,
     nodeContractsByKind,
     canResumeCurrentCanvasRun,
-    canEdit,
-    canvasWriteBusy,
     canvasMutationDisabled,
     dirty,
     workflowSubmitting,
@@ -551,6 +570,7 @@ export const VideoStudioCanvas: React.FC = () => {
     moveAssembleClip,
     persist,
     importMedia,
+    selectCanvasNode,
   } = graphActions;
   const {
     loadWorkflowStatus,
@@ -564,6 +584,15 @@ export const VideoStudioCanvas: React.FC = () => {
     cancelActiveWorkflow,
     resumeActiveWorkflow,
   } = workflowActions;
+
+  const locateWorkflowNode = useCallback((nodeId: string) => {
+    selectCanvasNode(nodeId);
+    void flowInstance?.fitView({
+      nodes: [{ id: nodeId }],
+      padding: 0.35,
+      duration: 300,
+    });
+  }, [flowInstance, selectCanvasNode]);
 
   const headerActionItems = useMemo<DropdownItem[]>(() => {
     const importDisabled = !canvasReady || canvasWriteBusy || !canEdit;
@@ -738,12 +767,15 @@ export const VideoStudioCanvas: React.FC = () => {
           statusError={workflowStatusError}
           eventsError={workflowEventsError}
           loading={workflowLoading}
-          submittingLabel={workflowSubmissionLabel}
+          submittingLabel={workflowSubmissionText}
+          nodes={nodes}
+          draftChanged={dirty}
           cancelling={cancellingWorkflow}
           resuming={resumingWorkflow}
           onRefresh={() =>
             latestWorkflowRunId && void loadWorkflowStatus(latestWorkflowRunId)
           }
+          onLocateNode={locateWorkflowNode}
           onCancel={() => void cancelActiveWorkflow()}
           onResume={() => void resumeActiveWorkflow()}
         />
@@ -757,7 +789,7 @@ export const VideoStudioCanvas: React.FC = () => {
         <UnsavedNavigationGuard dirty={dirty} name={t("video.canvasProject")} action={t("common.leavePage")} />
         <PageHeader
           className="shrink-0"
-          leading={<BackButton iconOnly title={t("a11y.back")} onClick={() => navigate("/")} />}
+          leading={<BackButton iconOnly title={t("a11y.back")} onClick={() => navigate(project ? getProjectStudioBackRoute(project) : "/")} />}
           icon={<Film size={15} />}
           title={project?.title || t("video.canvasProject")}
           subtitle={
@@ -785,7 +817,7 @@ export const VideoStudioCanvas: React.FC = () => {
                 variant="secondary"
                 size="sm"
                 onClick={() => setAgentConsoleOpen(true)}
-                disabled={!project}
+                disabled={!project || workflowLive}
                 title={t("agent.domain.openCanvas")}
               >
                 <Bot size={14} />
@@ -818,7 +850,7 @@ export const VideoStudioCanvas: React.FC = () => {
                   variant="primary"
                   size="sm"
                   onClick={persist}
-                  disabled={canvasWriteBusy || !canEdit || !canvasReady}
+                  disabled={canvasMutationDisabled}
                 >
                   {saving ? (
                     <LoadingSpinner size="sm" />
@@ -848,7 +880,7 @@ export const VideoStudioCanvas: React.FC = () => {
                     <Play size={14} />
                   )}
                   {workflowSubmitting
-                    ? workflowSubmissionLabel ?? t("video.running")
+                    ? workflowSubmissionText ?? t("video.running")
                     : canResumeCurrentCanvasRun
                       ? t("video.canvas.workflow.resume")
                       : t("video.runCanvas")}
@@ -899,6 +931,10 @@ export const VideoStudioCanvas: React.FC = () => {
                   onNodesChange={onNodesChange}
                   onEdgesChange={onEdgesChange}
                   onConnect={onConnect}
+                  onMoveEnd={(event, viewport) => {
+                    if (!event) return;
+                    recordCanvasViewport(viewport);
+                  }}
                   isValidConnection={isValidCanvasConnection}
                   nodesDraggable={!canvasMutationDisabled}
                   nodesConnectable={!canvasMutationDisabled}
@@ -918,7 +954,7 @@ export const VideoStudioCanvas: React.FC = () => {
                   }
                   className="a4n-studio-flow"
                 >
-                  {!isMobileLayout ? (
+                  {!isMobileLayout && miniMapVisible ? (
                     <MiniMap
                       pannable
                       zoomable
@@ -930,7 +966,15 @@ export const VideoStudioCanvas: React.FC = () => {
                       }}
                     />
                   ) : null}
-                  <FlowControls />
+                  <FlowControls
+                    miniMapVisible={miniMapVisible}
+                    miniMapLabel={!isMobileLayout ? t(miniMapVisible ? "video.hideCanvasMiniMap" : "video.showCanvasMiniMap") : undefined}
+                    onToggleMiniMap={!isMobileLayout ? () => setMiniMapVisible((visible) => !visible) : undefined}
+                    onViewportChange={() => {
+                      const viewport = flowInstance?.getViewport();
+                      if (viewport) recordCanvasViewport(viewport);
+                    }}
+                  />
                   <Background
                     color="rgb(var(--color-text-tertiary) / 0.24)"
                     gap={32}
@@ -939,7 +983,7 @@ export const VideoStudioCanvas: React.FC = () => {
                 </ReactFlow>
                 {nodes.length === 0 ? (
                   <CanvasEmptyState
-                    disabled={!canEdit}
+                    disabled={canvasMutationDisabled}
                     mobile={isMobileLayout}
                     onOpenNodeLibrary={() => setMobileNodeLibraryOpen(true)}
                   />

@@ -145,6 +145,8 @@ export const videoCore = {
   selectCanvasItem: "选择画布节点或连线后编辑属性",
   openNodeLibrary: "打开节点库",
   openProperties: "打开属性面板",
+  showCanvasMiniMap: "显示画布小地图",
+  hideCanvasMiniMap: "隐藏画布小地图",
   saveCanvas: "保存画布",
   runFullCanvas: "运行完整画布工作流",
   runCanvas: "运行画布",
