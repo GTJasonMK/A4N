@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef } from "react";
 import { extractErrorMessage } from "../../../api";
 import { generationClient } from "../../../api/generationTasks";
 import {
@@ -55,6 +55,8 @@ export function useVideoTabLoading({
   selectedVideo,
   ...state
 }: VideoTabLoadingOptions) {
+  const tRef = useRef(t);
+  tRef.current = t;
   const {
     segmentPlanDraftLoadSeqRef,
     activeVideoDataKeyRef,
@@ -107,7 +109,7 @@ export function useVideoTabLoading({
     setSegmentPlanDraftLoading(true);
     setSegmentPlanDraftError(null);
     try {
-      const nextDraft = await loadVideoSegmentPlanDraft(projectId, chapterId, t);
+      const nextDraft = await loadVideoSegmentPlanDraft(projectId, chapterId, tRef.current);
       if (
         segmentPlanDraftLoadSeqRef.current !== requestSeq ||
         activeVideoDataKeyRef.current !== requestDataKey
@@ -118,7 +120,7 @@ export function useVideoTabLoading({
       setSegmentPlanPreview(nextDraft?.segments ?? []);
       if (nextDraft?.resumeTaskError !== undefined) {
         setSegmentPlanDraftError(
-          extractErrorMessage(nextDraft.resumeTaskError, t("video.chapter.loadSavedPlanFailed")),
+          extractErrorMessage(nextDraft.resumeTaskError, tRef.current("video.chapter.loadSavedPlanFailed")),
         );
       }
       return nextDraft;
@@ -128,7 +130,7 @@ export function useVideoTabLoading({
         activeVideoDataKeyRef.current === requestDataKey
       ) {
         setSegmentPlanDraftError(
-          extractErrorMessage(err, t("video.chapter.loadSavedPlanFailed")),
+          extractErrorMessage(err, tRef.current("video.chapter.loadSavedPlanFailed")),
         );
       }
       throw err;
@@ -140,7 +142,7 @@ export function useVideoTabLoading({
         setSegmentPlanDraftLoading(false);
       }
     }
-  }, [chapterId, projectId, t, videoDataKey]);
+  }, [chapterId, projectId, videoDataKey]);
 
   async function loadAll(): Promise<boolean> {
     if (!chapter || !videoDataKey) return false;
@@ -174,14 +176,9 @@ export function useVideoTabLoading({
         setImages(data.images ?? []);
         setActiveVideoConfig(data.activeVideoConfig ?? null);
         setTimeline(data.timeline ?? null);
-        data.errors.forEach(({ reason }) => failures.push(extractErrorMessage(reason, t("video.chapter.loadFailed"))));
+        data.errors.forEach(({ reason }) => failures.push(extractErrorMessage(reason, tRef.current("video.chapter.loadFailed"))));
       } else {
-        setPrompts([]);
-        setVideos([]);
-        setImages([]);
-        setActiveVideoConfig(null);
-        setTimeline(null);
-        failures.push(extractErrorMessage(videoDataResult.reason, t("video.chapter.loadFailed")));
+        failures.push(extractErrorMessage(videoDataResult.reason, tRef.current("video.chapter.loadFailed")));
       }
       if (shootingScriptResult.status === "fulfilled") {
         setShootingScenes(
@@ -198,8 +195,7 @@ export function useVideoTabLoading({
           );
         }
       } else {
-        setShootingScenes([]);
-        failures.push(extractErrorMessage(shootingScriptResult.reason, t("video.chapter.loadFailed")));
+          failures.push(extractErrorMessage(shootingScriptResult.reason, tRef.current("video.chapter.loadFailed")));
       }
       setLoadedDataKey(requestDataKey);
       const message = failures.length > 0 ? failures.join("；") : null;
@@ -298,13 +294,13 @@ export function useVideoTabLoading({
             runProgressTask,
             active.handle,
             {
-              title: t("video.actions.segmentPlanResumeTitle"),
-              startMessage: t("video.actions.segmentPlanResumeStart"),
-              successMessage: t("video.actions.segmentPlanCompleted"),
-              errorMessage: t("video.actions.segmentPlanFailed"),
+              title: tRef.current("video.actions.segmentPlanResumeTitle"),
+              startMessage: tRef.current("video.actions.segmentPlanResumeStart"),
+              successMessage: tRef.current("video.actions.segmentPlanCompleted"),
+              errorMessage: tRef.current("video.actions.segmentPlanFailed"),
             },
             refreshPrompts,
-            t,
+            tRef.current,
             (streamText, checkpointKey) => {
               if (
                 disposed ||
@@ -325,9 +321,9 @@ export function useVideoTabLoading({
           if (
             !disposed &&
             activeVideoDataKeyRef.current === requestDataKey &&
-            !isCancelledOperation(extractErrorMessage(error, t("video.actions.segmentPlanFailed")))
+            !isCancelledOperation(extractErrorMessage(error, tRef.current("video.actions.segmentPlanFailed")))
           ) {
-            addToast(extractErrorMessage(error, t("video.actions.segmentPlanFailed")), "error");
+            addToast(extractErrorMessage(error, tRef.current("video.actions.segmentPlanFailed")), "error");
           }
         } finally {
           if (attachedSegmentPlanTaskRef.current === taskKey) {
@@ -342,7 +338,7 @@ export function useVideoTabLoading({
       .catch((error) => {
         if (!disposed && activeVideoDataKeyRef.current === requestDataKey) {
           setSegmentPlanDraftError(
-            extractErrorMessage(error, t("video.chapter.resumePlanFailed")),
+            extractErrorMessage(error, tRef.current("video.chapter.resumePlanFailed")),
           );
         }
       });
@@ -359,7 +355,6 @@ export function useVideoTabLoading({
     refreshSegmentPlanDraft,
     refreshPrompts,
     runProgressTask,
-    t,
     videoDataKey,
   ]);
 
