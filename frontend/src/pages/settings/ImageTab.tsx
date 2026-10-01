@@ -1,5 +1,4 @@
 import React, { useCallback } from "react";
-import { extractErrorMessage } from "../../api";
 import {
   addImageConfig,
   addServerImageConfig,
@@ -34,7 +33,7 @@ import {
 } from "../../api/providerCatalog";
 import type { ModelProviderCatalog } from "../../api/generated/config";
 import type { ModelConfigScope } from "../../api/modelDiscovery";
-import { useI18n } from "../../i18n";
+import { getActiveLocale, translateMessage, useI18n } from "../../i18n";
 
 /**
  * 图片生成配置 Tab
@@ -54,7 +53,7 @@ export const ImageTab: React.FC<ImageTabProps> = ({ scope = "local" }) => {
   const loadItems = useCallback(async (): Promise<{
     items: ConfigItem<ImageForm>[];
     catalog: ModelProviderCatalog | null;
-    warning?: string | null;
+    warning?: unknown[] | null;
   }> => {
     const [listResult, catalogResult] = await Promise.allSettled([
       serverScope
@@ -67,27 +66,26 @@ export const ImageTab: React.FC<ImageTabProps> = ({ scope = "local" }) => {
     const providerCatalog = catalogResult.status === "fulfilled" ? catalogResult.value : null;
     const warnings = listResult.value.warning === undefined
       ? []
-      : [extractErrorMessage(listResult.value.warning, t("settings.loadConfigFailed", { name: t("settings.image") }))];
+      : [listResult.value.warning];
     const items = list.map((config) => {
       if (providerCatalog) assertCatalogProvider("image", config.backend, providerCatalog);
       return {
         ...toImageItem(config),
         deleteDisabled: !serverScope && config.id === SYSTEM_IMAGE_CONFIG_ID,
-        deleteDisabledReason:
-          t("settings.systemTemplateCannotDelete", { name: t("settings.imageConfig") }),
+        deleteDisabledReason: translateMessage(getActiveLocale(), "settings.systemTemplateCannotDelete", { name: translateMessage(getActiveLocale(), "settings.imageConfig") }),
       };
     });
     return {
       items,
       catalog: providerCatalog,
       warning: catalogResult.status === "rejected"
-        ? [...warnings, extractErrorMessage(catalogResult.reason, t("settings.loadConfigFailed", { name: t("settings.image") }))].join("; ")
-        : warnings.join("; ") || null,
+        ? [...warnings, catalogResult.reason]
+        : warnings.length ? warnings : null,
     };
-  }, [serverScope, t]);
+  }, [serverScope]);
   const { items, setItems, catalog, loading, error, refresh } = useConfigItems(
     loadItems,
-    t("settings.loadConfigFailed", { name: t("settings.imageConfig") }),
+    () => t("settings.loadConfigFailed", { name: t("settings.imageConfig") }),
   );
 
   return (

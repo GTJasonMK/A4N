@@ -1,25 +1,25 @@
 import { useCallback, useEffect, useRef, useState, type SetStateAction } from "react";
 import { extractErrorMessage } from "../../../api";
-import { useToast } from "../../../components/feedback/Toast";
 import type { ModelProviderCatalog } from "../../../api/generated/config";
 import type { ConfigItem } from "./types";
 
 interface LoadedConfigItems<C> {
   items: ConfigItem<C>[];
   catalog: ModelProviderCatalog | null;
-  warning?: string | null;
+  warning?: unknown[] | null;
 }
 
 export function useConfigItems<C>(
   loadItems: () => Promise<LoadedConfigItems<C>>,
-  loadErrorMessage: string,
+  loadErrorMessage: () => string,
 ) {
-  const addToast = useToast((state) => state.addToast);
   const [items, setLoadedItems] = useState<ConfigItem<C>[]>([]);
   const [catalog, setCatalog] = useState<ModelProviderCatalog | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [warning, setWarning] = useState<string | null>(null);
+  const [error, setError] = useState<{ reason: unknown } | null>(null);
+  const [warning, setWarning] = useState<{ reasons: unknown[] } | null>(null);
+  const loadErrorMessageRef = useRef(loadErrorMessage);
+  loadErrorMessageRef.current = loadErrorMessage;
   const mountedRef = useRef(true);
   const refreshSeqRef = useRef(0);
   const hasLoadedRef = useRef(false);
@@ -51,22 +51,27 @@ export function useConfigItems<C>(
       hasLoadedRef.current = true;
       setLoadedItems(loaded.items);
       setCatalog(loaded.catalog);
-      setWarning(loaded.warning ?? null);
+      setWarning(loaded.warning?.length ? { reasons: loaded.warning } : null);
     } catch (error) {
       if (!mountedRef.current || refreshSeqRef.current !== requestSeq) return;
-      const message = extractErrorMessage(error, loadErrorMessage);
-      setError(message);
-      addToast(message, "error");
+      setError({ reason: error });
     } finally {
       if (mountedRef.current && refreshSeqRef.current === requestSeq) {
         setLoading(false);
       }
     }
-  }, [addToast, loadErrorMessage, loadItems]);
+  }, [loadItems]);
 
   useEffect(() => {
     void refresh();
   }, [refresh]);
 
-  return { items, setItems, catalog, loading, error: error ?? warning, refresh };
+  const loadError = error
+    ? extractErrorMessage(error.reason, loadErrorMessageRef.current())
+    : warning
+      ? warning.reasons
+        .map((reason) => extractErrorMessage(reason, loadErrorMessageRef.current()))
+        .join("; ")
+      : null;
+  return { items, setItems, catalog, loading, error: loadError, refresh };
 }

@@ -1,5 +1,4 @@
 import React, { useCallback } from "react";
-import { extractErrorMessage } from "../../api";
 import {
   addVideoConfig,
   addServerVideoConfig,
@@ -32,7 +31,7 @@ import {
 } from "../../api/providerCatalog";
 import type { ModelProviderCatalog } from "../../api/generated/config";
 import type { ModelConfigScope } from "../../api/modelDiscovery";
-import { useI18n } from "../../i18n";
+import { getActiveLocale, translateMessage, useI18n } from "../../i18n";
 
 interface VideoTabProps {
   scope?: ModelConfigScope;
@@ -44,7 +43,7 @@ export const VideoTab: React.FC<VideoTabProps> = ({ scope = "local" }) => {
   const loadItems = useCallback(async (): Promise<{
     items: ConfigItem<VideoForm>[];
     catalog: ModelProviderCatalog | null;
-    warning?: string | null;
+    warning?: unknown[] | null;
   }> => {
     const [listResult, catalogResult] = await Promise.allSettled([
       serverScope
@@ -57,27 +56,26 @@ export const VideoTab: React.FC<VideoTabProps> = ({ scope = "local" }) => {
     const providerCatalog = catalogResult.status === "fulfilled" ? catalogResult.value : null;
     const warnings = listResult.value.warning === undefined
       ? []
-      : [extractErrorMessage(listResult.value.warning, t("settings.loadConfigFailed", { name: t("settings.video") }))];
+      : [listResult.value.warning];
     const items = list.map((config) => {
       if (providerCatalog) assertCatalogProvider("video", config.backend, providerCatalog);
       return {
         ...toVideoItem(config),
         deleteDisabled: !serverScope && config.id === SYSTEM_VIDEO_CONFIG_ID,
-        deleteDisabledReason:
-          t("settings.systemTemplateCannotDelete", { name: t("settings.videoConfig") }),
+        deleteDisabledReason: translateMessage(getActiveLocale(), "settings.systemTemplateCannotDelete", { name: translateMessage(getActiveLocale(), "settings.videoConfig") }),
       };
     });
     return {
       items,
       catalog: providerCatalog,
       warning: catalogResult.status === "rejected"
-        ? [...warnings, extractErrorMessage(catalogResult.reason, t("settings.loadConfigFailed", { name: t("settings.video") }))].join("; ")
-        : warnings.join("; ") || null,
+        ? [...warnings, catalogResult.reason]
+        : warnings.length ? warnings : null,
     };
-  }, [serverScope, t]);
+  }, [serverScope]);
   const { items, setItems, catalog, loading, error, refresh } = useConfigItems(
     loadItems,
-    t("settings.loadConfigFailed", { name: t("settings.videoConfig") }),
+    () => t("settings.loadConfigFailed", { name: t("settings.videoConfig") }),
   );
 
   return (

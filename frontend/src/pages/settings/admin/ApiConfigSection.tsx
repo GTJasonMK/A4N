@@ -35,7 +35,7 @@ interface ApiConfigSnapshot {
   video: VideoGenConfig[] | null;
   embedding: EmbeddingConfig[] | null;
   providers: ModelProviderCatalog | null;
-  errors: string[];
+  errors: unknown[];
 }
 
 const PANEL_DEFS: Array<{
@@ -130,11 +130,11 @@ const ApiConfigOverview: React.FC = () => {
       providers: providers.status === "fulfilled" ? providers.value : null,
       errors: [llm, image, video, embedding, providers].flatMap((result) =>
         result.status === "rejected"
-          ? [extractErrorMessage(result.reason, t("settingsAdmin.loadApiConfigFailed"))]
+          ? [result.reason]
           : [],
       ),
     };
-  }, [t]);
+  }, []);
   const applySnapshot = useCallback((loaded: ApiConfigSnapshot) => {
     setSnapshot((current) => ({
       llm: loaded.llm ?? current?.llm ?? [],
@@ -179,7 +179,11 @@ const ApiConfigOverview: React.FC = () => {
       {error ? <p role="alert" className="text-xs text-error">{error}</p> : null}
       {snapshot?.errors.length ? (
         <div role="alert" className="space-y-1 text-xs text-error">
-          {snapshot.errors.map((message) => <p key={message}>{message}</p>)}
+          {snapshot.errors.map((reason, index) => (
+            <p key={index}>
+              {extractErrorMessage(reason, t("settingsAdmin.loadApiConfigFailed"))}
+            </p>
+          ))}
         </div>
       ) : null}
       {loading && snapshot == null ? (

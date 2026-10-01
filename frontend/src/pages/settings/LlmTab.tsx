@@ -1,5 +1,4 @@
 import React, { useCallback, useMemo } from "react";
-import { extractErrorMessage } from "../../api";
 import {
   createLlmConfig,
   createServerLlmConfig,
@@ -34,7 +33,7 @@ import {
 } from "../../api/providerCatalog";
 import type { ModelProviderCatalog } from "../../api/generated/config";
 import type { ModelConfigScope } from "../../api/modelDiscovery";
-import { useI18n } from "../../i18n";
+import { getActiveLocale, translateMessage, useI18n } from "../../i18n";
 
 interface LlmTabProps {
   scope?: ModelConfigScope;
@@ -46,7 +45,7 @@ export const LlmTab: React.FC<LlmTabProps> = ({ scope = "local" }) => {
   const loadItems = useCallback(async (): Promise<{
     items: ConfigItem<LlmForm>[];
     catalog: ModelProviderCatalog | null;
-    warning?: string | null;
+    warning?: unknown[] | null;
   }> => {
     const [listResult, catalogResult] = await Promise.allSettled([
       serverScope
@@ -59,26 +58,26 @@ export const LlmTab: React.FC<LlmTabProps> = ({ scope = "local" }) => {
     const providerCatalog = catalogResult.status === "fulfilled" ? catalogResult.value : null;
     const warnings = listResult.value.warning === undefined
       ? []
-      : [extractErrorMessage(listResult.value.warning, t("settings.loadConfigFailed", { name: t("settings.llm") }))];
+      : [listResult.value.warning];
     const items = list.map((config) => {
       if (providerCatalog) assertCatalogProvider("llm", config.provider, providerCatalog);
       return {
         ...toLlmItem(config),
         deleteDisabled: !serverScope && config.id === SYSTEM_LLM_CONFIG_ID,
-        deleteDisabledReason: t("settings.systemTemplateCannotDelete", { name: "LLM" }),
+        deleteDisabledReason: translateMessage(getActiveLocale(), "settings.systemTemplateCannotDelete", { name: "LLM" }),
       };
     });
     return {
       items,
       catalog: providerCatalog,
       warning: catalogResult.status === "rejected"
-        ? [...warnings, extractErrorMessage(catalogResult.reason, t("settings.loadConfigFailed", { name: t("settings.llm") }))].join("; ")
-        : warnings.join("; ") || null,
+        ? [...warnings, catalogResult.reason]
+        : warnings.length ? warnings : null,
     };
-  }, [serverScope, t]);
+  }, [serverScope]);
   const { items, setItems, catalog, loading, error, refresh } = useConfigItems(
     loadItems,
-    t("settings.loadConfigFailed", { name: t("settings.llmConfig") }),
+    () => t("settings.loadConfigFailed", { name: t("settings.llmConfig") }),
   );
 
   const defaultForm = useMemo(() => ({

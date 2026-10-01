@@ -86,7 +86,7 @@ const WorkflowRunRow: React.FC<{
   const [expanded, setExpanded] = useState(false);
   const [detail, setDetail] = useState<WorkflowRunDetailSummary>();
   const [detailLoading, setDetailLoading] = useState(false);
-  const [detailError, setDetailError] = useState<string | null>(null);
+  const [detailError, setDetailError] = useState<{ reason: unknown } | null>(null);
 
   useEffect(() => {
     if (!expanded) return;
@@ -97,12 +97,12 @@ const WorkflowRunRow: React.FC<{
     void getWorkflowRunDetail(run.id, true).then((next) => {
       if (current) setDetail(next);
     }).catch((error: unknown) => {
-      if (current) setDetailError(extractErrorMessage(error, t("settingsQueue.loadWorkflowFailed")));
+      if (current) setDetailError({ reason: error });
     }).finally(() => {
       if (current) setDetailLoading(false);
     });
     return () => { current = false; };
-  }, [expanded, run.id, run.current_step_key, run.status, t]);
+  }, [expanded, run.id, run.current_step_key, run.status]);
   const display = run.progress
       ? progressDisplayModel({
         ...run.progress,
@@ -200,7 +200,9 @@ const WorkflowRunRow: React.FC<{
         )}
       </div>
       {expanded && (detailError
-        ? <p role="alert" className="mt-3 text-error">{detailError}</p>
+        ? <p role="alert" className="mt-3 text-error">
+            {extractErrorMessage(detailError.reason, t("settingsQueue.loadWorkflowFailed"))}
+          </p>
         : <WorkflowRunDetailBlock detail={detail} loading={detailLoading} />)}
     </li>
   );

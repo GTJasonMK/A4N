@@ -43,7 +43,7 @@ const USER_ROLE_LABEL_KEYS: Record<(typeof USER_ROLES)[number], MessageKey> = {
 
 type UserRole = (typeof USER_ROLES)[number];
 
-type UserLoadError = { scope: "users" | "invites"; message: string };
+type UserLoadError = { scope: "users" | "invites"; reason: unknown };
 
 const isUserRole = (value: string): value is UserRole =>
   USER_ROLES.includes(value as UserRole);
@@ -80,11 +80,11 @@ export const UsersSection: React.FC<{ currentUserId: number }> = ({
     useState<CreateUserInput>(emptyCreateUserForm);
   const [tokenFor, setTokenFor] = useState<number | null>(null);
   const [tokenInfo, setTokenInfo] = useState<unknown>(null);
-  const [tokenError, setTokenError] = useState<string | null>(null);
+  const [tokenError, setTokenError] = useState<{ reason: unknown } | null>(null);
   const [tokenLoadingFor, setTokenLoadingFor] = useState<number | null>(null);
   const [usageFor, setUsageFor] = useState<number | null>(null);
   const [usageInfo, setUsageInfo] = useState<UsageLogSummary[] | null>(null);
-  const [usageError, setUsageError] = useState<string | null>(null);
+  const [usageError, setUsageError] = useState<{ reason: unknown } | null>(null);
   const [usageLoadingFor, setUsageLoadingFor] = useState<number | null>(null);
   const actingKeysRef = useRef<Set<string>>(new Set());
   const tokenSeqRef = useRef(0);
@@ -125,14 +125,14 @@ export const UsersSection: React.FC<{ currentUserId: number }> = ({
       inviteCodes: invitesResult.status === "fulfilled" ? invitesResult.value : null,
       errors: [
         ...(usersResult.status === "rejected"
-          ? [{ scope: "users" as const, message: extractErrorMessage(usersResult.reason, t("settingsAdmin.loadUsersFailed")) }]
+          ? [{ scope: "users" as const, reason: usersResult.reason }]
           : []),
         ...(invitesResult.status === "rejected"
-          ? [{ scope: "invites" as const, message: extractErrorMessage(invitesResult.reason, t("settingsAdmin.loadUsersFailed")) }]
+          ? [{ scope: "invites" as const, reason: invitesResult.reason }]
           : []),
       ],
     };
-  }, [t]);
+  }, []);
   const applyUsers = useCallback(
     (loaded: {
       users: UserSummary[] | null;
@@ -394,9 +394,7 @@ export const UsersSection: React.FC<{ currentUserId: number }> = ({
         tokenSeqRef.current !== requestSeq
       )
         return;
-      const message = extractErrorMessage(err, t("settingsAdmin.loadTokenFailed"));
-      setTokenError(message);
-      addToast(message, "error");
+      setTokenError({ reason: err });
     } finally {
       if (
         isCurrentUser(requestCurrentUserId) &&
@@ -432,9 +430,7 @@ export const UsersSection: React.FC<{ currentUserId: number }> = ({
         usageSeqRef.current !== requestSeq
       )
         return;
-      const message = extractErrorMessage(err, t("settingsAdmin.loadUsageFailed"));
-      setUsageError(message);
-      addToast(message, "error");
+      setUsageError({ reason: err });
     } finally {
       if (
         isCurrentUser(requestCurrentUserId) &&
@@ -536,7 +532,11 @@ export const UsersSection: React.FC<{ currentUserId: number }> = ({
       {error ? <p role="alert" className="text-xs text-error">{error}</p> : null}
       {loadErrors.length > 0 ? (
         <div role="alert" className="space-y-1 text-xs text-error">
-          {loadErrors.map(({ scope, message }) => <p key={`${scope}:${message}`}>{message}</p>)}
+          {loadErrors.map(({ scope, reason }) => (
+            <p key={scope}>
+              {extractErrorMessage(reason, t("settingsAdmin.loadUsersFailed"))}
+            </p>
+          ))}
         </div>
       ) : null}
       <ul className="space-y-2.5">
@@ -698,7 +698,7 @@ export const UsersSection: React.FC<{ currentUserId: number }> = ({
 const TokenSummaryPanel: React.FC<{
   data: unknown;
   loading: boolean;
-  error: string | null;
+  error: { reason: unknown } | null;
 }> = ({ data, loading, error }) => {
   const { t, locale } = useI18n();
   const record = data && typeof data === "object" && !Array.isArray(data)
@@ -720,7 +720,9 @@ const TokenSummaryPanel: React.FC<{
   return (
     <div className="overflow-hidden">
       {error ? (
-        <p role="alert" className="px-3 py-3 text-small text-error">{error}</p>
+        <p role="alert" className="px-3 py-3 text-small text-error">
+          {extractErrorMessage(error.reason, t("settingsAdmin.loadTokenFailed"))}
+        </p>
       ) : loading && !record ? (
         <div className="inline-flex items-center gap-1.5 px-3 py-3 text-small text-book-text-muted">
           <LoadingSpinner size="sm" /> {t("settingsAdmin.loadingData")}
@@ -754,13 +756,15 @@ const TokenSummaryPanel: React.FC<{
 const UsageRecordsPanel: React.FC<{
   data: UsageLogSummary[] | null;
   loading: boolean;
-  error: string | null;
+  error: { reason: unknown } | null;
 }> = ({ data, loading, error }) => {
   const { t, locale } = useI18n();
   return (
   <div className="overflow-hidden">
     {error ? (
-      <p role="alert" className="px-3 py-3 text-small text-error">{error}</p>
+      <p role="alert" className="px-3 py-3 text-small text-error">
+        {extractErrorMessage(error.reason, t("settingsAdmin.loadUsageFailed"))}
+      </p>
     ) : loading && data == null ? (
       <div className="inline-flex items-center gap-1.5 px-3 py-3 text-small text-book-text-muted">
         <LoadingSpinner size="sm" /> {t("settingsAdmin.loadingData")}

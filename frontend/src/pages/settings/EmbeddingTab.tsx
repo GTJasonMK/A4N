@@ -77,7 +77,7 @@ export const EmbeddingTab: React.FC<EmbeddingTabProps> = ({
   const { runProgressTask } = useProgressTask();
   const [localModels, setLocalModels] = useState<LocalEmbeddingModel[]>([]);
   const [modelsLoading, setModelsLoading] = useState(true);
-  const [modelLoadError, setModelLoadError] = useState<string | null>(null);
+  const [modelLoadError, setModelLoadError] = useState<{ reason: unknown } | null>(null);
   const [busyModel, setBusyModel] = useState<string | null>(null);
   const [downloadInfoByModel, setDownloadInfoByModel] = useState<
     Record<string, EmbeddingModelDownloadInfo>
@@ -122,14 +122,12 @@ export const EmbeddingTab: React.FC<EmbeddingTabProps> = ({
     return {
       items: list.map(toItem),
       catalog,
-      warning: catalogResult.status === "rejected"
-        ? extractErrorMessage(catalogResult.reason, t("settings.loadConfigFailed", { name: t("settings.embedding") }))
-        : null,
+      warning: catalogResult.status === "rejected" ? [catalogResult.reason] : null,
     };
-  }, [scope, t]);
+  }, [scope]);
   const { items, setItems, catalog, loading, error: loadError, refresh: refreshConfigs } = useConfigItems(
     loadConfigs,
-    t("settingsEmbedding.configLoadFailed", { host: modelHostLabel }),
+    () => t("settingsEmbedding.configLoadFailed", { host: modelHostLabel }),
   );
 
   const refreshModels = useCallback(async (): Promise<boolean> => {
@@ -144,14 +142,12 @@ export const EmbeddingTab: React.FC<EmbeddingTabProps> = ({
       return true;
     } catch (error) {
       if (!isCurrentRefresh(requestSeq)) return false;
-      setModelLoadError(
-        extractErrorMessage(error, t("settingsEmbedding.directoryReadFailed", { host: modelHostLabel })),
-      );
+      setModelLoadError({ reason: error });
       return false;
     } finally {
       if (isCurrentRefresh(requestSeq)) setModelsLoading(false);
     }
-  }, [isCurrentRefresh, modelHostLabel, scope, t]);
+  }, [isCurrentRefresh, scope]);
 
   useEffect(() => {
     void refreshModels();
@@ -341,7 +337,10 @@ export const EmbeddingTab: React.FC<EmbeddingTabProps> = ({
           className="flex flex-wrap items-center gap-2 rounded-xl border border-error/30 bg-error-bg px-3 py-2.5"
         >
           <p className="min-w-0 flex-1 text-small leading-relaxed text-book-text-main">
-            {modelLoadError}
+            {extractErrorMessage(
+              modelLoadError.reason,
+              t("settingsEmbedding.directoryReadFailed", { host: modelHostLabel }),
+            )}
           </p>
           <BookButton
             variant="secondary"

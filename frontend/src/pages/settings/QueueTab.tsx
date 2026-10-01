@@ -24,7 +24,9 @@ import { QueueInfoCard } from "./queue/QueueInfoCard";
 import { QueueStatsGrid } from "./queue/QueueStatsGrid";
 import { TaskHistoryPanel } from "./queue/TaskHistoryPanel";
 import { WorkflowRunsPanel } from "./queue/WorkflowRunsPanel";
-import { useI18n } from "../../i18n";
+import { useI18n, type MessageKey } from "../../i18n";
+
+type QueueLoadError = { label: MessageKey; reason: unknown };
 
 /**
  * 任务队列 Tab
@@ -44,7 +46,7 @@ export const QueueTab: React.FC = () => {
   const [cancellingTaskIds, setCancellingTaskIds] = useState<Set<string>>(() => new Set());
   const [workflows, setWorkflows] = useState<WorkflowStateSummary[]>([]);
   const [workflowRuns, setWorkflowRuns] = useState<WorkflowRunSummary[]>([]);
-  const [loadErrors, setLoadErrors] = useState<string[]>([]);
+  const [loadErrors, setLoadErrors] = useState<QueueLoadError[]>([]);
   const [resumingWorkflowRunIds, setResumingWorkflowRunIds] = useState<Set<number>>(() => new Set());
   const [cancellingWorkflowIds, setCancellingWorkflowIds] = useState<Set<string>>(() => new Set());
   const mountedRef = useRef(true);
@@ -101,22 +103,22 @@ export const QueueTab: React.FC = () => {
         listWorkflowRuns({ resumable_only: false, limit: 40 }),
       ]);
       if (!isCurrentRefresh(requestSeq)) return false;
-      const errors: string[] = [];
+      const errors: QueueLoadError[] = [];
       if (statsResult.status === "fulfilled") setStats(statsResult.value);
       else {
-        errors.push(`${t("settingsQueue.queueLoad")}: ${extractErrorMessage(statsResult.reason, t("settingsQueue.loadQueueFailed"))}`);
+        errors.push({ label: "settingsQueue.queueLoad", reason: statsResult.reason });
       }
       if (tasksResult.status === "fulfilled") setTasks(tasksResult.value);
       else {
-        errors.push(`${t("settingsQueue.recentTasks")}: ${extractErrorMessage(tasksResult.reason, t("settingsQueue.loadQueueFailed"))}`);
+        errors.push({ label: "settingsQueue.recentTasks", reason: tasksResult.reason });
       }
       if (workflowsResult.status === "fulfilled") setWorkflows(workflowsResult.value);
       else {
-        errors.push(`${t("settingsQueue.activeWorkflows")}: ${extractErrorMessage(workflowsResult.reason, t("settingsQueue.loadQueueFailed"))}`);
+        errors.push({ label: "settingsQueue.activeWorkflows", reason: workflowsResult.reason });
       }
       if (runsResult.status === "fulfilled") setWorkflowRuns(runsResult.value);
       else {
-        errors.push(`${t("settingsQueue.workflowRuns")}: ${extractErrorMessage(runsResult.reason, t("settingsQueue.loadQueueFailed"))}`);
+        errors.push({ label: "settingsQueue.workflowRuns", reason: runsResult.reason });
       }
       setLoadErrors(errors);
       return errors.length === 0;
@@ -129,7 +131,7 @@ export const QueueTab: React.FC = () => {
         setTasksLoading(false);
       }
     }
-  }, [canReadQueueDiagnostics, isCurrentRefresh, t]);
+  }, [canReadQueueDiagnostics, isCurrentRefresh]);
 
   const markTaskCancelling = (taskId: string) => {
     const next = new Set(cancellingTaskIdsRef.current);
@@ -269,7 +271,11 @@ export const QueueTab: React.FC = () => {
 
       {loadErrors.length > 0 ? (
         <div role="alert" className="space-y-1 border-l-2 border-error px-3 py-2 text-xs text-error">
-          {loadErrors.map((error, index) => <p key={`${index}:${error}`}>{error}</p>)}
+          {loadErrors.map(({ label, reason }) => (
+            <p key={label}>
+              {t(label)}: {extractErrorMessage(reason, t("settingsQueue.loadQueueFailed"))}
+            </p>
+          ))}
         </div>
       ) : null}
 
