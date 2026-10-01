@@ -36,6 +36,7 @@ interface ProjectListPanelProps {
   onImportProject: () => void;
   onOpenSettings: () => void;
   onRetry: () => void;
+  onRetryInvites: () => void;
   onAccessScopeChange: (scope: ProjectAccessScope) => void;
   onProjectKindFilterChange: (kind: ProjectKindFilter) => void;
   onAcceptInvite: (invite: ProjectInvite) => void;
@@ -63,6 +64,7 @@ export const ProjectListPanel: React.FC<ProjectListPanelProps> = ({
   onImportProject,
   onOpenSettings,
   onRetry,
+  onRetryInvites,
   onAccessScopeChange,
   onProjectKindFilterChange,
   onAcceptInvite,
@@ -185,6 +187,10 @@ export const ProjectListPanel: React.FC<ProjectListPanelProps> = ({
         <div role="alert" className="a4n-flat-surface mb-3 flex items-start gap-3 px-4 py-3 text-small text-error">
           <AlertCircle size={16} aria-hidden="true" />
           <span className="min-w-0 flex-1">{pendingInvitesError}</span>
+          <BookButton variant="secondary" size="sm" onClick={onRetryInvites} disabled={pendingInvitesLoading}>
+            <RefreshCw size={14} aria-hidden="true" />
+            {t("common.retry")}
+          </BookButton>
         </div>
       ) : pendingInvitesLoading && pendingInvites.length === 0 ? (
         <div role="status" className="mb-3 inline-flex items-center gap-2 text-small text-book-text-muted">

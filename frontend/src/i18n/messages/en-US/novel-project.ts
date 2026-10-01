@@ -95,6 +95,7 @@ export const novelProject = {
     unnamedVideoProject: "Untitled video project",
     created: "Created: {title}",
     createFailed: "Failed to create project",
+    refreshFailed: "The operation completed, but the project list could not refresh. Try again.",
     duplicateTitle: "Duplicate project",
     duplicateMessage: "Duplicate “{title}” as a new project. Enter the new title.",
     duplicateDefault: "{title} copy",

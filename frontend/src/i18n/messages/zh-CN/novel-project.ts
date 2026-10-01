@@ -95,6 +95,7 @@ export const novelProject = {
     unnamedVideoProject: "未命名视频项目",
     created: "已创建：{title}",
     createFailed: "创建项目失败",
+    refreshFailed: "操作已完成，但项目列表刷新失败，请重试。",
     duplicateTitle: "复制项目",
     duplicateMessage: "复制项目「{title}」为新项目，请输入新标题。",
     duplicateDefault: "{title} 副本",
