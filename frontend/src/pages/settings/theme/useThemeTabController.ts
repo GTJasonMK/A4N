@@ -61,6 +61,8 @@ export const useThemeTabController = () => {
   const { addToast } = useToast();
   const { user } = useAuthStore();
   const { t } = useI18n();
+  const tRef = useRef(t);
+  tRef.current = t;
   const [themes, setThemes] = useState<Theme[]>([]);
   const [scope, setScope] = useState<ThemeScope>("all");
   const [loading, setLoading] = useState(true);
@@ -242,10 +244,10 @@ export const useThemeTabController = () => {
       commitTheme(activated);
       applyActiveTheme(activated);
       notifyThemeChanged();
-      addToast(t("settingsTheme.activated"), "success");
+      addToast(tRef.current("settingsTheme.activated"), "success");
     } catch (err) {
       if (isCurrentUser(requestUserKey)) {
-        addToast(extractErrorMessage(err, t("settingsTheme.activateFailed")), "error");
+        addToast(extractErrorMessage(err, tRef.current("settingsTheme.activateFailed")), "error");
       }
     } finally {
       if (finishMutation(requestUserKey)) setActivating(null);
@@ -270,14 +272,14 @@ export const useThemeTabController = () => {
       await deleteTheme(id);
       if (!isCurrentUser(requestUserKey)) return;
       commitThemes((current) => current.filter((theme) => theme.id !== id));
-      addToast(t("settingsTheme.deleted"), "success");
+      addToast(tRef.current("settingsTheme.deleted"), "success");
       if (editingId === id) {
         setEditingId(null);
         restoreActiveTheme();
       }
     } catch (err) {
       if (isCurrentUser(requestUserKey)) {
-        addToast(extractErrorMessage(err, t("settingsTheme.deleteFailed")), "error");
+        addToast(extractErrorMessage(err, tRef.current("settingsTheme.deleteFailed")), "error");
       }
     } finally {
       if (finishMutation(requestUserKey)) setDeleting(null);
@@ -315,14 +317,14 @@ export const useThemeTabController = () => {
       if (!isCurrentUser(requestUserKey)) return;
       if (failedCount > 0) {
         addToast(
-          t("settingsTheme.deleteSelectedPartial", {
+          tRef.current("settingsTheme.deleteSelectedPartial", {
             deleted: deletedIds.size,
             failed: failedCount,
           }),
           "error",
         );
       } else {
-        addToast(t("settingsTheme.deletedSelected", { count: deletedIds.size }), "success");
+        addToast(tRef.current("settingsTheme.deletedSelected", { count: deletedIds.size }), "success");
       }
       if (editingId != null && deletedIds.has(editingId)) {
         setEditingId(null);
@@ -357,12 +359,12 @@ export const useThemeTabController = () => {
       });
       if (!isCurrentUser(requestUserKey)) return;
       commitTheme(created);
-      addToast(t("settingsTheme.createdNamed", { name }), "success");
+      addToast(tRef.current("settingsTheme.createdNamed", { name }), "success");
       setNewName("");
       setNewMode("light");
     } catch (err) {
       if (isCurrentUser(requestUserKey)) {
-        addToast(extractErrorMessage(err, t("settingsTheme.createFailed")), "error");
+        addToast(extractErrorMessage(err, tRef.current("settingsTheme.createFailed")), "error");
       }
     } finally {
       if (finishMutation(requestUserKey)) setCreating(false);
@@ -392,13 +394,13 @@ export const useThemeTabController = () => {
       const saved = await updateTheme(themeId, { name });
       if (!isCurrentUser(requestUserKey)) return;
       commitTheme(saved);
-      addToast(t("settingsTheme.renameSuccess"), "success");
+      addToast(tRef.current("settingsTheme.renameSuccess"), "success");
       notifyThemeChanged();
       setRenamingId(null);
       setRenameValue("");
     } catch (err) {
       if (isCurrentUser(requestUserKey)) {
-        addToast(extractErrorMessage(err, t("settingsTheme.renameFailed")), "error");
+        addToast(extractErrorMessage(err, tRef.current("settingsTheme.renameFailed")), "error");
       }
     } finally {
       if (finishMutation(requestUserKey)) setRenameSaving(false);
@@ -415,14 +417,14 @@ export const useThemeTabController = () => {
       if (!isCurrentUser(requestUserKey)) return;
       const copied = await copyToClipboard(
         json,
-        t("settingsTheme.copyJsonFailed"),
+        tRef.current("settingsTheme.copyJsonFailed"),
       );
       if (copied && isCurrentUser(requestUserKey)) {
-        addToast(t("settingsTheme.copyJsonSuccess"), "success");
+        addToast(tRef.current("settingsTheme.copyJsonSuccess"), "success");
       }
     } catch (err) {
       if (isCurrentUser(requestUserKey)) {
-        addToast(extractErrorMessage(err, t("settingsTheme.exportFailed")), "error");
+        addToast(extractErrorMessage(err, tRef.current("settingsTheme.exportFailed")), "error");
       }
     } finally {
       if (isCurrentUser(requestUserKey)) {
@@ -445,12 +447,12 @@ export const useThemeTabController = () => {
       const imported = await importTheme(themeJson);
       if (!isCurrentUser(requestUserKey)) return;
       commitTheme(imported);
-      addToast(t("settingsTheme.importSuccess"), "success");
+      addToast(tRef.current("settingsTheme.importSuccess"), "success");
       notifyThemeChanged();
       setImportText("");
     } catch (err) {
       if (isCurrentUser(requestUserKey)) {
-        addToast(extractErrorMessage(err, t("settingsTheme.importFailed")), "error");
+        addToast(extractErrorMessage(err, tRef.current("settingsTheme.importFailed")), "error");
       }
     } finally {
       if (finishMutation(requestUserKey)) setImporting(false);
@@ -467,10 +469,10 @@ export const useThemeTabController = () => {
         () => isCurrentUser(requestUserKey),
       );
       if (!isCurrentUser(requestUserKey)) return;
-      addToast(t("settingsTheme.preferenceSaved"), "success");
+      addToast(tRef.current("settingsTheme.preferenceSaved"), "success");
     } catch (err) {
       if (isCurrentUser(requestUserKey)) {
-        addToast(extractErrorMessage(err, t("settingsTheme.preferenceSaveFailed")), "error");
+        addToast(extractErrorMessage(err, tRef.current("settingsTheme.preferenceSaveFailed")), "error");
       }
     } finally {
       if (finishMutation(requestUserKey)) setAppearanceSaving(false);
@@ -511,11 +513,11 @@ export const useThemeTabController = () => {
       if (saved.is_active) applyActiveTheme(saved);
       else applyThemePreview(saved);
       notifyThemeChanged();
-      addToast(t("settingsTheme.editorSaved"), "success");
+      addToast(tRef.current("settingsTheme.editorSaved"), "success");
       return saved;
     } catch (err) {
       if (isCurrentUser(requestUserKey)) {
-        addToast(extractErrorMessage(err, t("settingsTheme.editorSaveFailed")), "error");
+        addToast(extractErrorMessage(err, tRef.current("settingsTheme.editorSaveFailed")), "error");
       }
       return null;
     } finally {
@@ -531,10 +533,10 @@ export const useThemeTabController = () => {
       const file = await exportThemePackage(themeId);
       if (!isCurrentUser(requestUserKey)) return;
       downloadBase64ExportFile(file);
-      addToast(t("settingsTheme.packageExported"), "success");
+      addToast(tRef.current("settingsTheme.packageExported"), "success");
     } catch (err) {
       if (isCurrentUser(requestUserKey)) {
-        addToast(extractErrorMessage(err, t("settingsTheme.packageExportFailed")), "error");
+        addToast(extractErrorMessage(err, tRef.current("settingsTheme.packageExportFailed")), "error");
       }
     } finally {
       if (isCurrentUser(requestUserKey)) setPackageExportingId(null);
@@ -552,11 +554,11 @@ export const useThemeTabController = () => {
       });
       if (!isCurrentUser(requestUserKey)) return;
       commitTheme(theme);
-      addToast(t("settingsTheme.packageImported", { name: theme.name }), "success");
+      addToast(tRef.current("settingsTheme.packageImported", { name: theme.name }), "success");
       notifyThemeChanged();
     } catch (err) {
       if (isCurrentUser(requestUserKey)) {
-        addToast(extractErrorMessage(err, t("settingsTheme.packageImportFailed")), "error");
+        addToast(extractErrorMessage(err, tRef.current("settingsTheme.packageImportFailed")), "error");
       }
     } finally {
       if (finishMutation(requestUserKey)) setPackageImporting(false);

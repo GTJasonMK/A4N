@@ -153,9 +153,9 @@ export const AgentTab: React.FC = () => {
           updated.skills.filter((skill) => skill.enabled).map((skill) => skill.id),
         ),
       }));
-      addToast(t("settingsAgent.saved"), "success");
+      addToast(tRef.current("settingsAgent.saved"), "success");
     } catch (error) {
-      addToast(extractErrorMessage(error, t("settingsAgent.saveFailed")), "error");
+      addToast(extractErrorMessage(error, tRef.current("settingsAgent.saveFailed")), "error");
     } finally {
       savingRef.current = false;
       setSaving(false);

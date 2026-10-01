@@ -68,6 +68,8 @@ export const EmbeddingTab: React.FC<EmbeddingTabProps> = ({
 }) => {
   const { addToast } = useToast();
   const { locale, t } = useI18n();
+  const tRef = useRef(t);
+  tRef.current = t;
   const usesRemoteBackend = scope === "server" || shouldUseHttpBackend();
   const usesLocalDesktopEmbedding =
     scope === "local" && canUseLocalDesktopEmbedding();
@@ -221,7 +223,7 @@ export const EmbeddingTab: React.FC<EmbeddingTabProps> = ({
   const handleDownloadModel = async (modelName: string) => {
     const model = modelName.trim();
     if (!model) {
-      addToast(t("settingsEmbedding.chooseFastembed"), "error");
+      addToast(tRef.current("settingsEmbedding.chooseFastembed"), "error");
       return;
     }
 
@@ -234,15 +236,15 @@ export const EmbeddingTab: React.FC<EmbeddingTabProps> = ({
       await runProgressTask(
         {
           cancelTaskId: taskId,
-          title: t("settingsEmbedding.downloadTitle", { host: modelHostLabel }),
+          title: tRef.current("settingsEmbedding.downloadTitle", { host: modelHostLabel }),
           startMessage: cachedInfo
             ? formatDownloadStartMessage(cachedInfo, locale, t)
-            : t("settingsEmbedding.readingModelSize"),
-          successMessage: t("settingsEmbedding.downloadSuccess"),
-          errorMessage: t("settingsEmbedding.downloadFailed"),
+            : tRef.current("settingsEmbedding.readingModelSize"),
+          successMessage: tRef.current("settingsEmbedding.downloadSuccess"),
+          errorMessage: tRef.current("settingsEmbedding.downloadFailed"),
           total: cachedInfo ? cachedInfo.total_size_bytes : 1,
-          cancelLabel: t("settingsEmbedding.stopDownload"),
-          runningHint: t("settingsEmbedding.keepWindowOpen"),
+          cancelLabel: tRef.current("settingsEmbedding.stopDownload"),
+          runningHint: tRef.current("settingsEmbedding.keepWindowOpen"),
           formatProgress: (current, total, percent) =>
             formatBytesProgress(current, total, percent, locale, t),
           cancelTask: (taskId) => cancelEmbeddingModelDownload(taskId, scope),
@@ -262,7 +264,7 @@ export const EmbeddingTab: React.FC<EmbeddingTabProps> = ({
               if (!mountedRef.current || modelActionRef.current !== actionKey) return;
               rememberDownloadInfo(info);
               control.setProgress(
-                t("settingsEmbedding.downloading", { host: modelHostLabel }),
+                tRef.current("settingsEmbedding.downloading", { host: modelHostLabel }),
                 info.downloaded_size_bytes,
                 info.total_size_bytes,
               );
@@ -271,11 +273,11 @@ export const EmbeddingTab: React.FC<EmbeddingTabProps> = ({
         },
       );
       await refreshModels();
-      addToast(t("settingsEmbedding.downloadedTo", { host: modelHostLabel }), "success");
+      addToast(tRef.current("settingsEmbedding.downloadedTo", { host: modelHostLabel }), "success");
     } catch (err) {
-      const message = extractErrorMessage(err, t("settingsEmbedding.downloadFailed"));
+      const message = extractErrorMessage(err, tRef.current("settingsEmbedding.downloadFailed"));
       if (isCancelledOperation(message)) {
-        addToast(t("settingsEmbedding.downloadStopped"), "info");
+        addToast(tRef.current("settingsEmbedding.downloadStopped"), "info");
       } else {
         addToast(message, "error");
       }
@@ -297,8 +299,8 @@ export const EmbeddingTab: React.FC<EmbeddingTabProps> = ({
 
     try {
       const ok = await confirmDialog({
-        title: t("settingsEmbedding.deleteTitle", { host: modelHostLabel }),
-        message: t("settingsEmbedding.deleteMessage", {
+        title: tRef.current("settingsEmbedding.deleteTitle", { host: modelHostLabel }),
+        message: tRef.current("settingsEmbedding.deleteMessage", {
           model,
           host: modelHostLabel,
         }),
@@ -311,9 +313,9 @@ export const EmbeddingTab: React.FC<EmbeddingTabProps> = ({
       await deleteLocalEmbeddingModel(model, scope);
       setDownloadInfoByModel({});
       await refreshModels();
-      addToast(t("settingsEmbedding.cacheDeleted", { host: modelHostLabel }), "success");
+      addToast(tRef.current("settingsEmbedding.cacheDeleted", { host: modelHostLabel }), "success");
     } catch (err) {
-      addToast(extractErrorMessage(err, t("settingsEmbedding.deleteFailed")), "error");
+      addToast(extractErrorMessage(err, tRef.current("settingsEmbedding.deleteFailed")), "error");
     } finally {
       if (modelActionRef.current === actionKey && mountedRef.current) {
         setBusyModel(null);
@@ -460,7 +462,7 @@ export const EmbeddingTab: React.FC<EmbeddingTabProps> = ({
             try {
               await testEmbeddingConfig(id, scope);
             } catch (err) {
-              const message = extractErrorMessage(err, t("settings.connectionTestFailed"));
+              const message = extractErrorMessage(err, tRef.current("settings.connectionTestFailed"));
               if (
                 usesRemoteBackend &&
                 message.includes("本地嵌入模型") &&
@@ -468,8 +470,8 @@ export const EmbeddingTab: React.FC<EmbeddingTabProps> = ({
               ) {
                 throw new Error(
                   usesLocalDesktopEmbedding
-                    ? t("settingsEmbedding.remoteDownloadHintLocal", { message })
-                    : t("settingsEmbedding.remoteDownloadHintServer", { message }),
+                    ? tRef.current("settingsEmbedding.remoteDownloadHintLocal", { message })
+                    : tRef.current("settingsEmbedding.remoteDownloadHintServer", { message }),
                 );
               }
               throw err;
