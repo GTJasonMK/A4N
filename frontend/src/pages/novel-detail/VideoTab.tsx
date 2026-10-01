@@ -3,6 +3,7 @@ import React, {
   Suspense,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 import {
@@ -100,6 +101,10 @@ export const VideoTab: React.FC<VideoTabProps> = ({
 }) => {
   const { addToast } = useToast();
   const { locale, t } = useI18n();
+  const translatorRef = useRef(t);
+  translatorRef.current = t;
+  const localeRef = useRef(locale);
+  localeRef.current = locale;
   const dirtyRegistry = useNovelDetailDirtyRegistry();
   useDirtyRegistryVersion();
   const [authoringDirty, setAuthoringDirty] = useState(false);
@@ -451,6 +456,8 @@ export const VideoTab: React.FC<VideoTabProps> = ({
     actionScopeKey: videoActionScopeKey,
     locale,
     t,
+    getTranslator: () => translatorRef.current,
+    getLocale: () => localeRef.current,
     addToast,
     runProgressTask,
     loadAll,

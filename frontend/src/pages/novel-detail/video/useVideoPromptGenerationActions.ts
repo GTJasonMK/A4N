@@ -183,6 +183,8 @@ interface UseVideoPromptGenerationActionsParams {
   actionScopeKey: string | null;
   locale: Locale;
   t: MessageTranslator;
+  getTranslator?: () => MessageTranslator;
+  getLocale?: () => Locale;
   addToast: AddToast;
   runProgressTask: RunProgressTask;
   loadAll: () => Promise<boolean>;
@@ -213,6 +215,8 @@ export function useVideoPromptGenerationActions({
   actionScopeKey,
   locale,
   t,
+  getTranslator,
+  getLocale,
   addToast,
   runProgressTask,
   loadAll,
@@ -223,6 +227,19 @@ export function useVideoPromptGenerationActions({
   isCurrentActionScope,
   finishAction,
 }: UseVideoPromptGenerationActionsParams) {
+  const currentT = () => getTranslator?.() ?? t;
+  const currentLocale = () => getLocale?.() ?? locale;
+  const refreshVideoData = async (requestScope: string | null): Promise<boolean> => {
+    if (!isCurrentActionScope(requestScope)) return true;
+    let refreshed = false;
+    try {
+      refreshed = await loadAll();
+    } catch {
+      refreshed = false;
+    }
+    return isCurrentActionScope(requestScope) ? refreshed : true;
+  };
+
   type ValidatedPromptOptions = VideoGenOptions & {
     workflowMode:
       | VideoSegmentWorkflowMode
@@ -315,21 +332,24 @@ export function useVideoPromptGenerationActions({
         {
           title,
           startMessage: t("video.actions.preparing", { operation: title }),
-          successMessage: t("video.actions.completed", { operation: title }),
+          successMessage: currentT()("video.actions.completed", { operation: title }),
           errorMessage: t("video.actions.failed", { operation: title }),
           cancelLabel: t("workflow.stop"),
         },
         async (task) => {
           const rows = await verifyImageGenerationResult(task, projectId);
           if (isCurrentActionScope(requestScope)) {
-            refreshSucceeded = await loadAll();
+            refreshSucceeded = await refreshVideoData(requestScope);
           }
           return rows.map((row) => row.id);
         },
       );
       if (!isCurrentActionScope(requestScope)) return;
-      if (!refreshSucceeded) return;
-      addToast(t("video.actions.generatedFramesReused", { count: formatNumber(generatedIds.length, locale), label: resultImageLabel }), "success");
+      if (!refreshSucceeded) {
+        addToast(currentT()("video.chapter.refreshVideoDataFailed"), "error");
+        return;
+      }
+      addToast(currentT()("video.actions.generatedFramesReused", { count: formatNumber(generatedIds.length, currentLocale()), label: resultImageLabel }), "success");
     } catch (err) {
       if (!isCurrentActionScope(requestScope)) return;
       const message = extractErrorMessage(err, t("video.actions.failed", { operation: title }));
@@ -408,9 +428,13 @@ export function useVideoPromptGenerationActions({
         metadata_json: buildVideoFrameImageTraceMetadata(prompt, source, t),
       });
       if (!isCurrentActionScope(requestScope)) return;
-      await loadAll();
+      const refreshed = await refreshVideoData(requestScope);
       if (!isCurrentActionScope(requestScope)) return;
-      addToast(t("video.actions.frameImageImported", { label: frameLabel }), "success");
+      if (!refreshed) {
+        addToast(currentT()("video.chapter.refreshVideoDataFailed"), "error");
+        return;
+      }
+      addToast(currentT()("video.actions.frameImageImported", { label: frameLabel }), "success");
     } catch (err) {
       if (!isCurrentActionScope(requestScope)) return;
       addToast(extractErrorMessage(err, t("video.actions.frameImageImportFailed", { label: frameLabel })), "error");
@@ -669,15 +693,15 @@ export function useVideoPromptGenerationActions({
         {
           title: operationLabel,
           startMessage: t("video.actions.preparing", { operation: operationLabel }),
-          successMessage: t("video.actions.completed", { operation: operationLabel }),
+          successMessage: currentT()("video.actions.completed", { operation: operationLabel }),
           errorMessage: t("video.actions.failed", { operation: operationLabel }),
         },
         refreshPrompts,
-        t,
+        currentT(),
         undefined,
       );
       if (!isCurrentActionScope(requestScope)) return;
-      addToast(t("video.actions.completed", { operation: operationLabel }), "success");
+      addToast(currentT()("video.actions.completed", { operation: operationLabel }), "success");
     } catch (err) {
       if (!isCurrentActionScope(requestScope)) return;
       const message = extractErrorMessage(err, t("video.actions.failed", { operation: operationLabel }));
@@ -761,11 +785,11 @@ export function useVideoPromptGenerationActions({
         {
           title: effectiveRegenerateExisting ? t("video.actions.regenerateTitle", { label }) : t("video.actions.generateTitle", { label }),
           startMessage: resumeStartMessage,
-          successMessage: t("video.actions.completed", { operation: effectiveRegenerateExisting ? t("video.actions.regenerateTitle", { label }) : t("video.actions.generateTitle", { label }) }),
+          successMessage: currentT()("video.actions.completed", { operation: effectiveRegenerateExisting ? currentT()("video.actions.regenerateTitle", { label }) : currentT()("video.actions.generateTitle", { label }) }),
           errorMessage: t("video.actions.failed", { operation: effectiveRegenerateExisting ? t("video.actions.regenerateTitle", { label }) : t("video.actions.generateTitle", { label }) }),
         },
         refreshPrompts,
-        t,
+        currentT(),
         (streamText, checkpointKey) => {
           if (!isCurrentActionScope(requestScope)) return;
           if (!isSegmentPlanDraftCheckpointKey(checkpointKey)) return;
@@ -785,9 +809,12 @@ export function useVideoPromptGenerationActions({
       if (!isCancelledOperation(message)) addToast(message, "error");
     } finally {
       if (isCurrentActionScope(requestScope)) {
-        const refreshed = await loadAll();
+        const refreshed = await refreshVideoData(requestScope);
+        if (generated && !refreshed && isCurrentActionScope(requestScope)) {
+          addToast(currentT()("video.chapter.refreshVideoDataFailed"), "error");
+        }
         if (generated && refreshed !== false && isCurrentActionScope(requestScope)) {
-          addToast(t("video.actions.completed", { operation: effectiveRegenerateExisting ? t("video.actions.regenerateTitle", { label }) : t("video.actions.generateTitle", { label }) }), "success");
+          addToast(currentT()("video.actions.completed", { operation: effectiveRegenerateExisting ? currentT()("video.actions.regenerateTitle", { label }) : currentT()("video.actions.generateTitle", { label }) }), "success");
         }
       }
       finishAction(actionKey);
@@ -906,15 +933,15 @@ export function useVideoPromptGenerationActions({
         {
           title: regenerateExisting ? t("video.actions.regenerateTitle", { label: promptLabel }) : t("video.actions.generateTitle", { label: promptLabel }),
           startMessage: t("video.actions.preparing", { operation: regenerateExisting ? t("video.actions.regenerateTitle", { label: promptLabel }) : t("video.actions.generateTitle", { label: promptLabel }) }),
-          successMessage: t("video.actions.completed", { operation: regenerateExisting ? t("video.actions.regenerateTitle", { label: promptLabel }) : t("video.actions.generateTitle", { label: promptLabel }) }),
+          successMessage: currentT()("video.actions.completed", { operation: regenerateExisting ? currentT()("video.actions.regenerateTitle", { label: promptLabel }) : currentT()("video.actions.generateTitle", { label: promptLabel }) }),
           errorMessage: t("video.actions.failed", { operation: regenerateExisting ? t("video.actions.regenerateTitle", { label: promptLabel }) : t("video.actions.generateTitle", { label: promptLabel }) }),
         },
         refreshPrompts,
-        t,
+        currentT(),
         undefined,
       );
       if (!isCurrentActionScope(requestScope)) return;
-      addToast(t("video.actions.completed", { operation: regenerateExisting ? t("video.actions.regenerateTitle", { label: promptLabel }) : t("video.actions.generateTitle", { label: promptLabel }) }), "success");
+      addToast(currentT()("video.actions.completed", { operation: regenerateExisting ? currentT()("video.actions.regenerateTitle", { label: promptLabel }) : currentT()("video.actions.generateTitle", { label: promptLabel }) }), "success");
     } catch (err) {
       if (!isCurrentActionScope(requestScope)) return;
       const message = extractErrorMessage(err, t("video.actions.failed", { operation: regenerateExisting ? t("video.actions.regenerateTitle", { label: promptLabel }) : t("video.actions.generateTitle", { label: promptLabel }) }));
@@ -1023,7 +1050,7 @@ export function useVideoPromptGenerationActions({
       return;
     }
     const ok = await confirmDialog({
-      title: t("video.actions.sequentialTitle", { number: formatNumber(targetPrompt.shot_number, locale), label: frameLabel }),
+      title: currentT()("video.actions.sequentialTitle", { number: formatNumber(targetPrompt.shot_number, currentLocale()), label: frameLabel }),
       message: t("video.actions.sequentialMessage", { number: formatNumber(targetPrompt.shot_number, locale), label: frameLabel, missing: formatNumber(missingPrompts.length, locale) }),
       confirmText: t("video.actions.sequentialConfirm"),
     });
@@ -1054,10 +1081,10 @@ export function useVideoPromptGenerationActions({
       activeHandle = firstHandle;
       await runProgressTask(
         {
-          title: t("video.actions.sequentialTitle", { number: formatNumber(targetPrompt.shot_number, locale), label: frameLabel }),
-          startMessage: t("video.actions.preparing", { operation: t("video.actions.sequentialTitle", { number: formatNumber(targetPrompt.shot_number, locale), label: frameLabel }) }),
-          successMessage: t("video.actions.completed", { operation: t("video.actions.sequentialTitle", { number: formatNumber(targetPrompt.shot_number, locale), label: frameLabel }) }),
-          errorMessage: t("video.actions.failed", { operation: t("video.actions.sequentialTitle", { number: formatNumber(targetPrompt.shot_number, locale), label: frameLabel }) }),
+          title: currentT()("video.actions.sequentialTitle", { number: formatNumber(targetPrompt.shot_number, currentLocale()), label: frameLabel }),
+          startMessage: currentT()("video.actions.preparing", { operation: currentT()("video.actions.sequentialTitle", { number: formatNumber(targetPrompt.shot_number, currentLocale()), label: frameLabel }) }),
+          successMessage: currentT()("video.actions.completed", { operation: currentT()("video.actions.sequentialTitle", { number: formatNumber(targetPrompt.shot_number, currentLocale()), label: frameLabel }) }),
+          errorMessage: currentT()("video.actions.failed", { operation: currentT()("video.actions.sequentialTitle", { number: formatNumber(targetPrompt.shot_number, currentLocale()), label: frameLabel }) }),
           total: missingPrompts.length,
           cancelTaskId: firstHandle.task_id,
           cancelTask: async () => {
@@ -1090,24 +1117,27 @@ export function useVideoPromptGenerationActions({
             generatedIds.push(image.id);
             chainImages.push(image);
             setProgress(
-              t("video.actions.generatedFrameProgress", { number: formatNumber(item.shot_number, locale), label: frameLabel }),
+              currentT()("video.actions.generatedFrameProgress", { number: formatNumber(item.shot_number, currentLocale()), label: frameLabel }),
               index + 1,
               missingPrompts.length,
             );
           }
           if (!isCurrentActionScope(requestScope)) return;
-          refreshSucceeded = await loadAll();
+          refreshSucceeded = await refreshVideoData(requestScope);
         },
       );
       if (!isCurrentActionScope(requestScope)) return;
-      if (!refreshSucceeded) return;
+      if (!refreshSucceeded) {
+        addToast(currentT()("video.chapter.refreshVideoDataFailed"), "error");
+        return;
+      }
       addToast(
-        t("video.actions.generatedFramesReused", { count: formatNumber(generatedIds.length, locale), label: frameLabel }),
+        currentT()("video.actions.generatedFramesReused", { count: formatNumber(generatedIds.length, currentLocale()), label: frameLabel }),
         "success",
       );
     } catch (err) {
       if (!isCurrentActionScope(requestScope)) return;
-      const message = extractErrorMessage(err, t("video.actions.failed", { operation: t("video.actions.sequentialTitle", { number: formatNumber(targetPrompt.shot_number, locale), label: frameLabel }) }));
+      const message = extractErrorMessage(err, currentT()("video.actions.failed", { operation: currentT()("video.actions.sequentialTitle", { number: formatNumber(targetPrompt.shot_number, currentLocale()), label: frameLabel }) }));
       if (!isCancelledOperation(message)) addToast(message, "error");
     } finally {
       finishAction(actionKey);
