@@ -202,7 +202,7 @@ const StudioNodeVideoPreview: React.FC<{ preview: StudioNodeVideoPreviewValue }>
   const [failed, setFailed] = React.useState(false);
   const [errorMessage, setErrorMessage] = React.useState<string | null>(null);
 
-  React.useEffect(() => {
+  React.useLayoutEffect(() => {
     let cancelled = false;
     setFailed(false);
     setSrc("");

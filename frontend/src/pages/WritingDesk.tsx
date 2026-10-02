@@ -1,6 +1,7 @@
 import React, {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -296,7 +297,7 @@ export const WritingDesk: React.FC = () => {
     [],
   );
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const diff = pendingContentDiff;
     if (
       !diff ||

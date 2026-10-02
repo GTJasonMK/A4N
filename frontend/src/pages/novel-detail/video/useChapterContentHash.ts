@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useLayoutEffect, useState } from "react";
 import { sha256Hex } from "../../../utils/contentHash";
 import type { ChapterRow } from "../shared";
 import { useI18n } from "../../../i18n";
@@ -9,7 +9,7 @@ export const useChapterContentHash = (chapter: ChapterRow | null) => {
   const [chapterContentReady, setChapterContentReady] = useState(false);
   const [chapterContentHashError, setChapterContentHashError] = useState<string | null>(null);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     let cancelled = false;
     const content = chapter?.content ?? "";
     if (!chapter?.id || !content.trim()) {

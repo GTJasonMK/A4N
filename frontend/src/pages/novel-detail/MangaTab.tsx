@@ -1,6 +1,7 @@
 import React, {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -718,7 +719,7 @@ export const MangaTab: React.FC<MangaTabProps> = ({
     }
   };
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     let cancelled = false;
     const chapterId = selectedChapter?.id;
     const content = selectedChapter?.content ?? "";

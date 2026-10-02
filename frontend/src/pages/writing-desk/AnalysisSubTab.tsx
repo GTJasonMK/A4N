@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useLayoutEffect, useMemo, useState } from "react";
 import { Eye, RefreshCw, Sparkles } from "lucide-react";
 import type {
   ChapterMaterialUpdate,
@@ -259,7 +259,7 @@ export const AnalysisSubTab: React.FC<AnalysisSubTabProps> = ({
     Boolean(analysis),
   );
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     let cancelled = false;
     if (objectProfilesProjectId !== projectId) {
       setObjectProfiles([]);

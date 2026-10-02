@@ -290,7 +290,7 @@ export const VideoAssemblyWorkspace: React.FC<VideoAssemblyWorkspaceProps> = ({
     if (isCurrentScope(requestScope)) actionBusyRef.current = false;
   };
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     let cancelled = false;
     clearPreview();
     setError(null);
