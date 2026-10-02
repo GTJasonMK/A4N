@@ -1,6 +1,7 @@
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -96,7 +97,7 @@ export const useInspirationChatController = () => {
 
   activeProjectIdRef.current = projectId;
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     mountedRef.current = true;
     return () => {
       mountedRef.current = false;
@@ -173,7 +174,7 @@ export const useInspirationChatController = () => {
     );
   }, []);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!Number.isFinite(projectId) || projectId <= 0) {
       addToast(t("errors.invalidProjectId"), "error");
       navigate("/");
@@ -236,7 +237,7 @@ export const useInspirationChatController = () => {
     };
   }, [projectId, initializationAttempt, addToast, navigate, t]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!project || project.id !== projectId || generationHandleRef.current) return;
     let cancelled = false;
     void generationClient.listActive(projectId).then((summaries) => {
@@ -279,6 +280,13 @@ export const useInspirationChatController = () => {
   useEffect(() => {
     const assistantId = generationAssistantIdRef.current;
     if (!generationHandle || !assistantId || !streamedText) return;
+    const current = generationHandleRef.current;
+    if (
+      !current
+      || generationTaskKey(current.task_id, current.attempt)
+        !== generationTaskKey(generationHandle.task_id, generationHandle.attempt)
+      || !isCurrentProject(projectId)
+    ) return;
     const preview = getStreamingResponsePreview(streamedText);
     setMessages((prev) => {
       const current = prev.find((message) => message.id === assistantId);
@@ -296,7 +304,7 @@ export const useInspirationChatController = () => {
         ? prev.map((message) => message.id === assistantId ? next : message)
         : [...prev, next];
     });
-  }, [generationHandle, streamedText]);
+  }, [generationHandle, isCurrentProject, projectId, streamedText]);
 
   useEffect(() => {
     const recoveryIssue = generationTaskRecoveryIssue(generationTask);
@@ -312,8 +320,10 @@ export const useInspirationChatController = () => {
     handledTerminalRef.current = key;
     const assistantId = generationAssistantIdRef.current ?? `generation-${generationHandle.task_id}`;
     const requestProjectId = projectId;
+    if (!isCurrentProject(requestProjectId)) return;
 
     const finish = async () => {
+      if (!isCurrentProject(requestProjectId)) return;
       if (generationTask.taskStatus === "completed" || recoveryIssue) {
         const resultRef = generationTask.resultRef;
         const resultId = resultRef ? Number(resultRef.id) : NaN;
@@ -395,7 +405,11 @@ export const useInspirationChatController = () => {
 
     void finish().catch((error) => {
       const latest = generationHandleRef.current;
-      if (!latest || generationTaskKey(latest.task_id, latest.attempt) !== key) return;
+      if (
+        !latest
+        || generationTaskKey(latest.task_id, latest.attempt) !== key
+        || !isCurrentProject(requestProjectId)
+      ) return;
       logger.scoped("InspirationChat").error("generation finalization failed", { error });
       if (generationTask.taskStatus === "completed" || recoveryIssue) {
         const recovery = resolveFormalResultRecovery({
@@ -425,7 +439,11 @@ export const useInspirationChatController = () => {
       addToast(message, "error");
     }).finally(() => {
       const latest = generationHandleRef.current;
-      if (!latest || generationTaskKey(latest.task_id, latest.attempt) !== key) return;
+      if (
+        !latest
+        || generationTaskKey(latest.task_id, latest.attempt) !== key
+        || !isCurrentProject(requestProjectId)
+      ) return;
       generationHandleRef.current = null;
       generationAssistantIdRef.current = null;
       setGenerationHandle(null);

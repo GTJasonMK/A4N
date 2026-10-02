@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { extractErrorMessage } from "../../api";
 import {
@@ -166,7 +166,7 @@ export const useBlueprintWorkflow = ({
     return mountedRef.current && activeProjectIdRef.current === requestProjectId;
   }, []);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     mountedRef.current = true;
     return () => {
       mountedRef.current = false;
@@ -176,7 +176,7 @@ export const useBlueprintWorkflow = ({
     };
   }, []);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     setStage("conversation");
     setBlueprint(null);
     setBlueprintConsistencyWarning(null);
@@ -199,11 +199,11 @@ export const useBlueprintWorkflow = ({
   }, [projectId, t]);
 
   // Reattach a still-active task after a page remount; the persisted target is the owner.
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!project || project.id !== projectId || !Number.isFinite(projectId) || projectId <= 0) return;
     let active = true;
     void generationClient.listActive(projectId).then((items) => {
-      if (!active || generationHandleRef.current) return;
+      if (!active || !isCurrentProject(projectId) || generationHandleRef.current) return;
       const item = items.find((candidate) =>
         candidate.started.project_id === projectId
         && (candidate.started.target?.kind === "blueprint_generation"
@@ -226,7 +226,9 @@ export const useBlueprintWorkflow = ({
       });
       setBlueprintProgressOpen(true);
     }).catch((error) => {
-      if (active) addToast(extractErrorMessage(error, t("inspiration.restoreBlueprintFailed")), "error");
+      if (active && isCurrentProject(projectId)) {
+        addToast(extractErrorMessage(error, t("inspiration.restoreBlueprintFailed")), "error");
+      }
     });
     return () => {
       active = false;
@@ -234,7 +236,14 @@ export const useBlueprintWorkflow = ({
   }, [addToast, project, projectId, t]);
 
   useEffect(() => {
-    if (!generationHandle || !generationTask.progress) return;
+    const current = generationHandleRef.current;
+    if (
+      !generationHandle
+      || !generationTask.progress
+      || !current
+      || generationTaskKey(current.task_id, current.attempt) !== taskKey
+      || !isCurrentProject(projectId)
+    ) return;
     const progress = generationTask.progress;
     const incomingCurrent = Number(progress.current ?? 0);
     const incomingTotal = Number(progress.total ?? 0);
@@ -246,7 +255,7 @@ export const useBlueprintWorkflow = ({
       message: progress.message,
       error: null,
     }));
-  }, [generationHandle, generationTask.progress, generationTask.terminalReceived]);
+  }, [generationHandle, generationTask.progress, generationTask.terminalReceived, isCurrentProject, projectId, taskKey]);
 
   useEffect(() => {
     const recoveryIssue = generationTaskRecoveryIssue(generationTask);
@@ -257,7 +266,7 @@ export const useBlueprintWorkflow = ({
       || (!generationTask.terminalReceived
         && !recoveryIssue)
     ) return;
-    if (handledTerminalRef.current === taskKey) return;
+    if (!isCurrentProject(projectId) || handledTerminalRef.current === taskKey) return;
     handledTerminalRef.current = taskKey;
     const requestProjectId = projectId;
     const currentOperation = operation;
@@ -277,6 +286,7 @@ export const useBlueprintWorkflow = ({
           }
         }
         const consistent = matchesBlueprintTaskResult(persisted, requestProjectId, resultRef);
+        if (!isCurrentProject(requestProjectId)) return;
         const recovery = resolveFormalResultRecovery({
           t,
           recoveryIssue,
@@ -301,7 +311,7 @@ export const useBlueprintWorkflow = ({
           }
           throw new Error(recovery.message);
         }
-        if (!isCurrentProject(requestProjectId) || !persisted) return;
+        if (!persisted) return;
         const syncWarnings = await syncBlueprintMaterials(requestProjectId);
         if (!isCurrentProject(requestProjectId)) return;
         setBlueprintConsistencyWarning(null);
@@ -447,6 +457,7 @@ export const useBlueprintWorkflow = ({
       handledTerminalRef.current = null;
       setGenerationHandle(handle);
     } catch (error) {
+      if (!isCurrentProject(requestProjectId)) return;
       generatingRef.current = false;
       setGenerating(false);
       const message = extractErrorMessage(error, t("inspiration.startBlueprintFailed"));
@@ -494,16 +505,20 @@ export const useBlueprintWorkflow = ({
       || (operation !== "generation" && operation !== "refinement")
       || blueprintCancelling
     ) return;
+    const requestProjectId = projectId;
     setBlueprintCancelling(true);
     setBlueprintProgress((previous) => ({ ...previous, message: t("inspiration.stopBlueprintRequest") }));
     try {
       await generationClient.cancel(generationHandle);
-      addToast(t("inspiration.stopBlueprintRequested"), "info");
+      if (isCurrentProject(requestProjectId)) {
+        addToast(t("inspiration.stopBlueprintRequested"), "info");
+      }
     } catch (error) {
+      if (!isCurrentProject(requestProjectId)) return;
       setBlueprintCancelling(false);
       addToast(extractErrorMessage(error, t("inspiration.stopBlueprintFailed")), "error");
     }
-  }, [addToast, blueprintCancelling, generationHandle, operation, t]);
+  }, [addToast, blueprintCancelling, generationHandle, isCurrentProject, operation, projectId, t]);
 
   const handleRefineBlueprint = useCallback(async (focus: string) => {
     if (!project || refining) return;
@@ -512,6 +527,7 @@ export const useBlueprintWorkflow = ({
       addToast(t("inspiration.missingRefineFocus"), "error");
       return;
     }
+    const requestProjectId = projectId;
     const requestSeq = ++refineSeqRef.current;
     setRefining(true);
     setBlueprintConsistencyWarning(null);
@@ -525,11 +541,12 @@ export const useBlueprintWorkflow = ({
     });
     setBlueprintProgressOpen(true);
     try {
-      const handle = await refineBlueprint({ project_id: projectId, focus: requestFocus, variables: null });
-      if (refineSeqRef.current !== requestSeq || !isCurrentProject(projectId)) return;
+      const handle = await refineBlueprint({ project_id: requestProjectId, focus: requestFocus, variables: null });
+      if (refineSeqRef.current !== requestSeq || !isCurrentProject(requestProjectId)) return;
       handledTerminalRef.current = null;
       setGenerationHandle(handle);
     } catch (error) {
+      if (refineSeqRef.current !== requestSeq || !isCurrentProject(requestProjectId)) return;
       setRefining(false);
       const message = extractErrorMessage(error, t("inspiration.startRefineFailed"));
       setBlueprintProgress((previous) => ({
