@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useLayoutEffect, useMemo, useRef, useState } from "react";
 import { AlertTriangle, CheckCircle2, GitCompare, RefreshCw, Unplug } from "lucide-react";
 import { LoadingSpinner } from "../../components/ui/LoadingSpinner";
 import { applySourceSyncDecisions, detachDerivedProject, previewSourceSync, type SourceSyncConflictSummary, type SourceSyncPlanSummary } from "../../api/sourceSync";
@@ -133,6 +133,7 @@ export const SourceSyncDialog: React.FC<SourceSyncDialogProps> = ({
   };
   const scopeRef = useRef({ open, projectId, token: 0 });
   const activeProjectIdRef = useRef(projectId);
+  activeProjectIdRef.current = projectId;
   const previewSeqRef = useRef(0);
   const applySeqRef = useRef(0);
   const detachSeqRef = useRef(0);
@@ -145,7 +146,7 @@ export const SourceSyncDialog: React.FC<SourceSyncDialogProps> = ({
     previewBusyRef.current = false;
   };
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const token = scopeRef.current.token + 1;
     scopeRef.current = { open, projectId, token };
     invalidatePreview();
@@ -153,8 +154,7 @@ export const SourceSyncDialog: React.FC<SourceSyncDialogProps> = ({
     setLoading(false);
   }, [open, projectId]);
 
-  useEffect(() => {
-    activeProjectIdRef.current = projectId;
+  useLayoutEffect(() => {
     applySeqRef.current += 1;
     detachSeqRef.current += 1;
     applyBusyRef.current = false;
@@ -165,7 +165,7 @@ export const SourceSyncDialog: React.FC<SourceSyncDialogProps> = ({
     setDetaching(false);
   }, [projectId]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     mountedRef.current = true;
     return () => {
       mountedRef.current = false;

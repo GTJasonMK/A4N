@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useLayoutEffect, useRef, useState } from "react";
 import { CheckCircle2, Network as NetworkIcon, Play } from "lucide-react";
 import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
 import { BookButton } from "../../../components/ui/BookButton";
@@ -48,7 +48,7 @@ export const PromptAdvancedPanels: React.FC<{
   const [renderBusy, setRenderBusy] = useState(false);
   const [renderResult, setRenderResult] = useState<string | null>(null);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     mountedRef.current = true;
     return () => {
       mountedRef.current = false;
@@ -61,7 +61,7 @@ export const PromptAdvancedPanels: React.FC<{
     };
   }, []);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const token = scopeRef.current.token + 1;
     scopeRef.current = { name: prompt.name, token };
     validateSeqRef.current += 1;

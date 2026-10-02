@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useLayoutEffect, useRef, useState } from "react";
 import { Check, History, RefreshCw } from "lucide-react";
 import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
 import { BookButton } from "../../../components/ui/BookButton";
@@ -39,7 +39,7 @@ export const PromptHistoryPanel: React.FC<PromptHistoryPanelProps> = ({ prompt }
     scopeRef.current.name === target.name &&
     scopeRef.current.token === target.token;
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     mountedRef.current = true;
     return () => {
       mountedRef.current = false;
@@ -76,7 +76,7 @@ export const PromptHistoryPanel: React.FC<PromptHistoryPanelProps> = ({ prompt }
     }
   };
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const token = scopeRef.current.token + 1;
     scopeRef.current = { name: prompt.name, token };
     diffSeqRef.current += 1;
