@@ -211,8 +211,9 @@ export const CharacterPortraitsPanel: React.FC<{ projectId: number }> = ({
         async (task) => {
           const generated = await verifyPortraitGenerationResult(task, requestProjectId);
           if (!isCurrentProject(requestProjectId)) throw new Error(t("characterDetail.taskStopped"));
-          await load();
+          const refreshed = await load();
           if (!isCurrentProject(requestProjectId)) throw new Error(t("characterDetail.taskStopped"));
+          if (!refreshed) return generated.length;
           return generated.length;
         },
       );

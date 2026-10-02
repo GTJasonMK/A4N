@@ -426,7 +426,7 @@ export function MangaChapterDetailPanel({
         },
       );
       if (!isCurrentAction(requestScope, actionSeq)) return;
-      await onPagePromptsChanged();
+      if (!await onPagePromptsChanged()) return;
       if (!isCurrentAction(requestScope, actionSeq)) return;
       addToast(t("comic.image.generated", { page: pageNumber }), "success");
     } catch (err) {
@@ -540,7 +540,7 @@ export function MangaChapterDetailPanel({
         downstream_strategy: downstreamStrategy,
       });
       if (!isCurrentAction(requestScope, actionSeq)) return;
-      await onPagePromptsChanged();
+      if (!await onPagePromptsChanged()) return;
       if (!isCurrentAction(requestScope, actionSeq)) return;
       addToast(t("comic.prompt.savedReference"), "success");
     } catch (err) {

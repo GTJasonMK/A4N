@@ -1,5 +1,7 @@
 import React, { lazy, Suspense } from "react";
+import { RefreshCw } from "lucide-react";
 import { LoadingSpinner } from "../../components/ui/LoadingSpinner";
+import { BookButton } from "../../components/ui/BookButton";
 import { Modal } from "../../components/ui/Modal";
 import type { ChapterMetadata } from "../../api/chapter";
 import type { ChapterOutline } from "../../api/outline";
@@ -41,6 +43,7 @@ export interface WritingDeskViewProps {
   outlines: ChapterOutline[];
   lifecycleBlockedReason: string | null;
   chapterReadBlockedReason: string | null;
+  chapterReadRetryable: boolean;
   isMobileLayout: boolean;
   leftSidebarVisible: boolean;
   rightPanel: RightPanel;
@@ -88,6 +91,7 @@ export const WritingDeskView: React.FC<WritingDeskViewProps> = ({
   analysisRequestPreviewData,
   onCloseRightPanel,
   onCloseAnalysisRequestPreview,
+  chapterReadRetryable,
 }) => {
   const { t } = useI18n();
   const hasDialogs = scenesOpen || previewOpen || profilesOpen;
@@ -115,7 +119,14 @@ export const WritingDeskView: React.FC<WritingDeskViewProps> = ({
       >
         {!isMobileLayout && leftSidebarVisible && <ChapterSidebar {...sidebarProps} />}
         {chapterReadBlockedReason ? (
-          <div role="status" className="flex min-w-0 items-center justify-center p-4 text-book-text-muted">{chapterReadBlockedReason}</div>
+          <div role="status" className="flex min-w-0 flex-col items-center justify-center gap-3 p-4 text-book-text-muted">
+            <p className="text-center">{chapterReadBlockedReason}</p>
+            {chapterReadRetryable ? (
+              <BookButton variant="secondary" size="sm" onClick={() => void sidebarProps.onRefreshChapters()}>
+                <RefreshCw size={13} /> {t("common.retry")}
+              </BookButton>
+            ) : null}
+          </div>
         ) : <ChapterWorkspace {...workspaceProps} />}
 
         {!isMobileLayout && resizeProps && (

@@ -402,7 +402,17 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
         />
 
         <div className="min-w-0 lg:col-span-2">
-          <FactFeedbackPanel key={project.id} projectId={project.id} canEdit={canEditProject} refreshKey={project.updated_at} onChanged={async () => { await load(); await onRefresh(); }} />
+          <FactFeedbackPanel
+            key={project.id}
+            projectId={project.id}
+            canEdit={canEditProject}
+            refreshKey={project.updated_at}
+            onChanged={async () => {
+              const loaded = await load();
+              const refreshed = await onRefresh();
+              return loaded && refreshed;
+            }}
+          />
         </div>
 
         <nav

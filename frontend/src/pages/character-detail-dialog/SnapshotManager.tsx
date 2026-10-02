@@ -462,7 +462,8 @@ export const SnapshotManager: React.FC<{
       );
       if (!isCurrentRequest(requestProfileId, rollbackSeqRef, requestSeq))
         return;
-      await load();
+      const loaded = await load();
+      if (!loaded) addToast(t("characterDetail.refreshFailed"), "error");
       try {
         if (await onChanged?.() === false) {
           addToast(t("characterDetail.refreshFailed"), "error");

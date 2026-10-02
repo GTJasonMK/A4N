@@ -442,7 +442,8 @@ export const SessionManager: React.FC = () => {
       await refreshToken();
       if (!mountedRef.current) return;
       addToast(t("settingsAbout.credentialUpdated"), "success");
-      await load();
+      const loaded = await load();
+      if (!loaded) addToast(t("settingsAbout.refreshFailed"), "error");
     } catch (err) {
       if (!mountedRef.current) return;
       addToast(extractErrorMessage(err, t("settingsAbout.refreshFailed")), "error");

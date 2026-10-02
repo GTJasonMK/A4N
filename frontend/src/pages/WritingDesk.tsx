@@ -1225,6 +1225,7 @@ export const WritingDesk: React.FC = () => {
       outlines={outlines}
       lifecycleBlockedReason={lifecycleBlockedReason}
       chapterReadBlockedReason={chapterReadBlockedReason}
+      chapterReadRetryable={chapterLoadError != null || chapterReadError != null}
       isMobileLayout={isMobileLayout}
       leftSidebarVisible={leftSidebarVisible}
       rightPanel={rightPanel}

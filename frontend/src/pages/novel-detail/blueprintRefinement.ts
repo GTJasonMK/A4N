@@ -53,7 +53,8 @@ export async function runBlueprintRefinementWithProgress({
       if (!isCurrent()) throw new Error(t("workflow.cancelled"));
       const warnings = await syncBlueprintMaterials(projectId);
       if (!isCurrent()) throw new Error(t("workflow.cancelled"));
-      await refresh();
+      const refreshed = await refresh();
+      if (refreshed === false) warnings.push(t("novel.refreshFailed"));
       if (!isCurrent()) throw new Error(t("workflow.cancelled"));
       return warnings;
     },
