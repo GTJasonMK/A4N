@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState, type ChangeEvent } from "react";
+import React, { useEffect, useLayoutEffect, useRef, useState, type ChangeEvent } from "react";
 import { useToast } from "../../components/feedback/Toast";
 import { ProgressDialog } from "../../components/feedback/ProgressDialog";
 import { RequestPreviewModal } from "../../components/feedback/RequestPreviewModal";
@@ -340,7 +340,7 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({
     }
   };
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     mountedRef.current = true;
     return () => {
       mountedRef.current = false;
@@ -349,9 +349,9 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  useEffect(() => {
-    activeProjectIdRef.current = projectId;
+  useLayoutEffect(() => {
     invalidateProjectScopedRequests();
+    activeProjectIdRef.current = projectId;
     reviewsRef.current = [];
     setReviews([]);
     setProjectProgress(null);

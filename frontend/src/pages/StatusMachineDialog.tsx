@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useLayoutEffect, useRef, useState } from "react";
 import { RefreshCw } from "lucide-react";
 import { extractErrorMessage } from "../api";
 import {
@@ -58,8 +58,6 @@ export const StatusMachineDialog: React.FC<StatusMachineDialogProps> = ({
   const scopeKey = open ? String(project.id) : "closed";
   const actionBusy = acting !== null;
 
-  activeProjectIdRef.current = project.id;
-
   const isCurrentScope = useCallback(
     (requestScope: string) => mountedRef.current && scopeRef.current === requestScope,
     [],
@@ -103,7 +101,7 @@ export const StatusMachineDialog: React.FC<StatusMachineDialogProps> = ({
     }
   }, [addToast, isCurrentRequest, project.id, scopeKey, t]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     mountedRef.current = true;
     return () => {
       mountedRef.current = false;
@@ -115,7 +113,8 @@ export const StatusMachineDialog: React.FC<StatusMachineDialogProps> = ({
     };
   }, []);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
+    activeProjectIdRef.current = project.id;
     scopeRef.current = scopeKey;
     machineSeqRef.current += 1;
     rollbackPreviewSeqRef.current += 1;

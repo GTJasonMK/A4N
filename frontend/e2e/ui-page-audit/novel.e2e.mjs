@@ -1603,14 +1603,14 @@ describe("Novel page audit - ordinary populated pages", function () {
       await press(await containing("诊断信息", scope, "summary"));
       assert.deepEqual(JSON.parse(await scope.$("pre").getText()), { content_hash: "0000000000000000", is_duplicate: true, matched_chapter_id: 1, closest_distance: 0 });
       const opener = await textButton("查看匹配章节", scope);
-      await browser.execute(() => { window.__uiAudit.deferred.push("list_chapters"); });
+      await browser.execute(() => { window.__uiAudit.deferred.push("get_chapter"); });
       await press(opener);
-      await browser.waitUntil(() => browser.execute(() => window.__uiAudit.pending.some((item) => item.command === "list_chapters")));
+      await browser.waitUntil(() => browser.execute(() => window.__uiAudit.pending.some((item) => item.command === "get_chapter")));
       assert.equal(await opener.getAttribute("aria-busy"), "true");
       await browser.execute(() => {
-        const pending = window.__uiAudit.pending.findLast((item) => item.command === "list_chapters");
-        window.__uiAudit.deferred = window.__uiAudit.deferred.filter((item) => item !== "list_chapters");
-        pending.resolve(Response.json(window.__uiAudit.fixtures.list_chapters));
+        const pending = window.__uiAudit.pending.findLast((item) => item.command === "get_chapter");
+        window.__uiAudit.deferred = window.__uiAudit.deferred.filter((item) => item !== "get_chapter");
+        pending.resolve(Response.json(window.__uiAudit.fixtures.byChapter[1].get_chapter));
       });
       const matched = await dialog();
       const body = await matched.$("article");

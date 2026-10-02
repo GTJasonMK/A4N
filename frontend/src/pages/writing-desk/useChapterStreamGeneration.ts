@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { confirmDialog } from "../../components/feedback/ConfirmDialog";
 import type { ToastType } from "../../components/feedback/Toast";
 import { extractErrorMessage } from "../../api";
@@ -101,11 +101,15 @@ export const useChapterStreamGeneration = ({
   });
 
   useEffect(() => {
-    activeNumberRef.current = activeNumber;
     setConsistencyReadOnlyChapterNumber(null);
   }, [activeNumber]);
 
-  useEffect(() => () => {
+  useLayoutEffect(() => {
+    projectIdRef.current = projectId;
+    activeNumberRef.current = activeNumber;
+  }, [activeNumber, projectId]);
+
+  useLayoutEffect(() => () => {
     projectIdRef.current = null;
     generationHandleRef.current = null;
     generationChapterRef.current = null;
@@ -124,8 +128,7 @@ export const useChapterStreamGeneration = ({
     setStreamMessage(nextMessage);
   }, []);
 
-  useEffect(() => {
-    projectIdRef.current = projectId;
+  useLayoutEffect(() => {
     setConsistencyReadOnlyChapterNumber(null);
     clearStreamState(null);
   }, [clearStreamState, projectId]);
@@ -237,7 +240,7 @@ export const useChapterStreamGeneration = ({
   const progressMessage = generationTask.progress?.message?.trim() ?? "";
 
   useEffect(() => {
-    if (!generationHandle) return;
+    if (!generationHandle || projectIdRef.current !== projectId) return;
     if (progressMessage) setStreamMessage(progressMessage);
     if (
       pacedStream.displayedText
@@ -248,6 +251,7 @@ export const useChapterStreamGeneration = ({
   }, [
     activeNumber,
     generationHandle,
+    projectId,
     progressMessage,
     setEditorState,
     pacedStream.displayedText,
@@ -278,7 +282,8 @@ export const useChapterStreamGeneration = ({
     const errorMessage = generationTask.error?.message?.trim();
     const isCurrentTask = () => {
       const current = generationHandleRef.current;
-      return current != null
+      return projectIdRef.current === projectId
+        && current != null
         && generationTaskKey(current.task_id, current.attempt) === key;
     };
 
