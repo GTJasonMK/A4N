@@ -24,6 +24,7 @@ import {
   Film,
   ListPlus,
   Play,
+  RefreshCw,
   Save,
   SlidersHorizontal,
   Upload,
@@ -46,6 +47,7 @@ import type {
 import { listVideoConfigs } from "../api/video";
 import type { ProgressEventRecord } from "../api/progress";
 import { useToast } from "../components/feedback/Toast";
+import { confirmDialog } from "../components/feedback/ConfirmDialog";
 import { UnsavedNavigationGuard } from "../components/navigation/UnsavedNavigationGuard";
 import { BookButton, BookIconButton } from "../components/ui/BookButton";
 import { FlowControls } from "../components/ui/FlowControls";
@@ -462,6 +464,17 @@ export const VideoStudioCanvas: React.FC = () => {
     setEdges,
     setNodes,
   ]);
+
+  const handleRetry = async () => {
+    if (loading || saving || importing) return;
+    if (dirty && !(await confirmDialog({
+      title: t("common.unsavedChangesTitle"),
+      message: t("common.unsavedChangesMessage", { name: t("video.canvasProject"), action: t("common.retry") }),
+      confirmText: t("common.discardDraft"),
+      dialogType: "warning",
+    }))) return;
+    await load();
+  };
 
   useEffect(() => {
     const refreshWhenVisible = () => {
@@ -894,7 +907,15 @@ export const VideoStudioCanvas: React.FC = () => {
             </>
           }
         />
-        {loadError && document ? <p role="alert" className="px-4 py-2 text-sm text-error">{loadError}</p> : null}
+        {loadError && document ? (
+          <div role="alert" className="flex flex-wrap items-center gap-3 px-4 py-2 text-sm text-error">
+            <p className="min-w-0 flex-1">{loadError}</p>
+            <BookButton variant="secondary" size="sm" onClick={() => void handleRetry()} disabled={loading || saving || importing}>
+              <RefreshCw size={12} className={loading ? "animate-spin" : undefined} />
+              {t("common.retry")}
+            </BookButton>
+          </div>
+        ) : null}
         <section
           aria-label={t("video.canvasEditor")}
           aria-busy={canvasWriteBusy}
@@ -926,7 +947,13 @@ export const VideoStudioCanvas: React.FC = () => {
                 {t("video.canvasLoading")}
               </div>
             ) : loadError && !document ? (
-              <div role="alert" className="p-6 text-sm text-error">{loadError}</div>
+              <div role="alert" className="flex flex-wrap items-center gap-3 p-6 text-sm text-error">
+                <p className="min-w-0 flex-1">{loadError}</p>
+                <BookButton variant="secondary" size="sm" onClick={() => void handleRetry()} disabled={loading || saving || importing}>
+                  <RefreshCw size={12} className={loading ? "animate-spin" : undefined} />
+                  {t("common.retry")}
+                </BookButton>
+              </div>
             ) : (
               <>
                 <ReactFlow

@@ -10,6 +10,7 @@ import {
   Network,
   Pencil,
   Plus,
+  RefreshCw,
   Trash2,
 } from "lucide-react";
 import { extractErrorMessage } from "../../api";
@@ -400,7 +401,15 @@ export const RelationshipsTab: React.FC<{ projectId: number }> = ({
 
   return (
     <div className="content-wide flex min-h-0 flex-col gap-3 lg:h-full">
-      {loadError ? <p role="alert" className="text-small text-error">{loadError}</p> : null}
+      {loadError ? (
+        <div role="alert" className="flex flex-wrap items-center gap-3 text-small text-error">
+          <p className="min-w-0 flex-1">{loadError}</p>
+          <BookButton variant="secondary" size="sm" onClick={() => void load({ force: true })} disabled={displayLoading}>
+            <RefreshCw size={12} className={displayLoading ? "animate-spin" : undefined} />
+            {t("common.retry")}
+          </BookButton>
+        </div>
+      ) : null}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="text-small leading-relaxed text-book-text-muted">
           {t("novel.relationships.beforeTimelineHint")}

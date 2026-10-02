@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { UserPlus } from "lucide-react";
+import { RefreshCw, UserPlus } from "lucide-react";
 import { LoadingSpinner } from "../../components/ui/LoadingSpinner";
 import { extractErrorMessage } from "../../api";
 import {
@@ -60,7 +60,7 @@ export const CharactersTab: React.FC<{ projectId: number }> = ({ projectId }) =>
     },
     [projectId],
   );
-  const { load, loadError } = useChapterAnalysisLoader(
+  const { load, loading, loadError } = useChapterAnalysisLoader(
     projectId,
     loadProfiles,
     t("characterDetail.loadFailed"),
@@ -171,7 +171,7 @@ export const CharactersTab: React.FC<{ projectId: number }> = ({ projectId }) =>
   };
 
   const displayProfiles = loadedProjectId === projectId ? profiles : [];
-  const displayLoading = loadedProjectId !== projectId;
+  const displayLoading = loading || loadedProjectId !== projectId;
 
   if (displayLoading) {
     return (
@@ -184,7 +184,13 @@ export const CharactersTab: React.FC<{ projectId: number }> = ({ projectId }) =>
   return (
     <div className="content-main flex min-h-0 flex-col gap-3">
       {loadError ? (
-        <p role="alert" className="text-small text-error">{loadError}</p>
+        <div role="alert" className="flex flex-wrap items-center gap-3 text-small text-error">
+          <p className="min-w-0 flex-1">{loadError}</p>
+          <BookButton variant="secondary" size="sm" onClick={() => void load({ force: true })} disabled={loading}>
+            <RefreshCw size={12} className={loading ? "animate-spin" : undefined} />
+            {t("common.retry")}
+          </BookButton>
+        </div>
       ) : null}
       <div className="flex items-center justify-between gap-2">
         <SegmentedControl

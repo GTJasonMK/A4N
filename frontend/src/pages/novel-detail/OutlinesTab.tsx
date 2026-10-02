@@ -1,6 +1,8 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
+import { RefreshCw } from "lucide-react";
 import { useToast } from "../../components/feedback/Toast";
 import { confirmDialog } from "../../components/feedback/ConfirmDialog";
+import { BookButton } from "../../components/ui/BookButton";
 import { extractErrorMessage } from "../../api";
 import {
   deleteLatestChapterOutlines,
@@ -556,6 +558,21 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
   const cancelEdit = () => {
     setEditingId(null);
     setEditForm({ title: "", summary: "" });
+  };
+
+  const handleRetry = async () => {
+    if (interactionBusy) return;
+    const draftDirty = editingOutline != null && (
+      editForm.title !== editingOutline.title || editForm.summary !== editingOutline.summary
+    );
+    if (draftDirty && !(await confirmDialog({
+      title: t("common.unsavedChangesTitle"),
+      message: t("common.unsavedChangesMessage", { name: t("outline.chapterSection.title"), action: t("common.retry") }),
+      confirmText: t("common.discardDraft"),
+      dialogType: "warning",
+    }))) return;
+    if (editingId != null) cancelEdit();
+    await load();
   };
 
   const handleSaveOutline = async (o: ChapterOutline) => {
@@ -1136,8 +1153,12 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
   return (
     <>
       {currentLoadError ? (
-        <div role="alert" className="mb-3 rounded-xl border border-error/40 bg-error-bg px-3 py-2 text-small text-error">
-          {currentLoadError}
+        <div role="alert" className="mb-3 flex flex-wrap items-center gap-3 rounded-xl border border-error/40 bg-error-bg px-3 py-2 text-small text-error">
+          <p className="min-w-0 flex-1">{currentLoadError}</p>
+          <BookButton variant="secondary" size="sm" onClick={() => void handleRetry()} disabled={interactionBusy}>
+            <RefreshCw size={12} className={loading ? "animate-spin" : undefined} />
+            {t("common.retry")}
+          </BookButton>
         </div>
       ) : null}
       <OutlinesTabView

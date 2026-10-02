@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ChevronRight, Upload } from "lucide-react";
+import { ChevronRight, RefreshCw, Upload } from "lucide-react";
 import { LoadingSpinner } from "../../components/ui/LoadingSpinner";
 import { BookButton } from "../../components/ui/BookButton";
 import { Modal } from "../../components/ui/Modal";
@@ -252,7 +252,13 @@ export const ChaptersTab: React.FC<ChaptersTabProps> = ({ projectId, canEditChap
   return (
     <div className="content-main flex flex-col gap-3">
       {loadError ? (
-        <p role="alert" className="text-small text-error">{loadError}</p>
+        <div role="alert" className="flex flex-wrap items-center gap-3 text-small text-error">
+          <p className="min-w-0 flex-1">{loadError}</p>
+          <BookButton variant="secondary" size="sm" onClick={() => void load({ force: true })} disabled={displayLoading}>
+            <RefreshCw size={12} className={displayLoading ? "animate-spin" : undefined} />
+            {t("common.retry")}
+          </BookButton>
+        </div>
       ) : null}
       <div className="flex min-h-8 items-center gap-3">
         {displayChapters.length > 0 ? (

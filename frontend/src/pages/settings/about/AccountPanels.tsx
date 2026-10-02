@@ -113,7 +113,7 @@ export const ProfileEditor: React.FC<{ userId: number; embedded?: boolean }> = (
     setAvatar(value);
   };
 
-  useEffect(() => {
+  const loadProfile = useCallback(async () => {
     const requestUserId = userId;
     const requestSeq = loadSeqRef.current + 1;
     loadSeqRef.current = requestSeq;
@@ -121,25 +121,27 @@ export const ProfileEditor: React.FC<{ userId: number; embedded?: boolean }> = (
     setLoadError(null);
     busyRef.current = false;
     setBusy(false);
-    void (async () => {
-      try {
-        const user = await getCurrentUser();
-        if (!isCurrentUser(requestUserId) || loadSeqRef.current !== requestSeq) return;
-        savedProfileRef.current = {
-          email: textInputValue(user.email),
-          avatar: textInputValue(user.avatar_url),
-        };
-        editVersionRef.current += 1;
-        setEmail(savedProfileRef.current.email);
-        setAvatar(savedProfileRef.current.avatar);
-      } catch (err) {
-        if (!isCurrentUser(requestUserId) || loadSeqRef.current !== requestSeq) return;
-        setLoadError({ reason: err });
-      } finally {
-        if (isCurrentUser(requestUserId) && loadSeqRef.current === requestSeq) setLoading(false);
-      }
-    })();
+    try {
+      const user = await getCurrentUser();
+      if (!isCurrentUser(requestUserId) || loadSeqRef.current !== requestSeq) return;
+      savedProfileRef.current = {
+        email: textInputValue(user.email),
+        avatar: textInputValue(user.avatar_url),
+      };
+      editVersionRef.current += 1;
+      setEmail(savedProfileRef.current.email);
+      setAvatar(savedProfileRef.current.avatar);
+    } catch (err) {
+      if (!isCurrentUser(requestUserId) || loadSeqRef.current !== requestSeq) return;
+      setLoadError({ reason: err });
+    } finally {
+      if (isCurrentUser(requestUserId) && loadSeqRef.current === requestSeq) setLoading(false);
+    }
   }, [isCurrentUser, userId]);
+
+  useEffect(() => {
+    void loadProfile();
+  }, [loadProfile]);
 
   const handleSave = async () => {
     if (busyRef.current || !profileDirty) return;
@@ -208,8 +210,14 @@ export const ProfileEditor: React.FC<{ userId: number; embedded?: boolean }> = (
             <LoadingSpinner size="sm" /> {t("settingsAbout.loading")}
           </div>
         ) : loadError ? (
-          <div role="alert" className="text-error">
-            {extractErrorMessage(loadError.reason, t("settingsAbout.loadProfileFailed"))}
+          <div role="alert" className="flex flex-wrap items-center gap-2 text-error">
+            <span className="min-w-0 flex-1">
+              {extractErrorMessage(loadError.reason, t("settingsAbout.loadProfileFailed"))}
+            </span>
+            <BookButton variant="secondary" size="sm" onClick={() => void loadProfile()} disabled={loading || busy}>
+              <RefreshCw size={12} className={loading ? "animate-spin" : undefined} />
+              {t("common.retry")}
+            </BookButton>
           </div>
         ) : (
           <>

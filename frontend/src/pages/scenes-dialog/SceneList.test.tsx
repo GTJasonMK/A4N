@@ -42,6 +42,7 @@ function renderSceneList(scenes: ChapterSceneSummary[]) {
         onSave={() => undefined}
         onMove={() => undefined}
         onDelete={() => undefined}
+        onRetry={() => undefined}
       />
     </I18nProvider>,
   );

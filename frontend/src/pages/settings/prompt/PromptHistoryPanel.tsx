@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { Check, History } from "lucide-react";
+import { Check, History, RefreshCw } from "lucide-react";
 import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
 import { BookButton } from "../../../components/ui/BookButton";
 import { useToast } from "../../../components/feedback/Toast";
@@ -156,7 +156,13 @@ export const PromptHistoryPanel: React.FC<PromptHistoryPanelProps> = ({ prompt }
             <LoadingSpinner size="sm" /> {t("settingsPrompt.loadingHistory")}
           </div>
         ) : loadErrorMessage ? (
-          <p role="alert" className="text-small text-error">{loadErrorMessage}</p>
+          <div role="alert" className="flex flex-wrap items-center gap-2 text-small text-error">
+            <p className="min-w-0 flex-1">{loadErrorMessage}</p>
+            <BookButton variant="secondary" size="sm" onClick={() => void loadHistory()} disabled={loading}>
+              <RefreshCw size={12} className={loading ? "animate-spin" : undefined} />
+              {t("common.retry")}
+            </BookButton>
+          </div>
         ) : history.length === 0 ? (
           <div className="text-small text-book-text-muted italic">
             {t("settingsPrompt.noHistory")}

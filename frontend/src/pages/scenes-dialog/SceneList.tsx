@@ -4,10 +4,12 @@ import { ChevronDown,
   ChevronsDown,
   ChevronsUp,
   Pencil,
+  RefreshCw,
   Trash2, } from "lucide-react";
 import { LoadingSpinner } from "../../components/ui/LoadingSpinner";
 import type { ChapterSceneSummary } from "../../api/chapter";
 import { Dropdown, type DropdownItem } from "../../components/ui/Dropdown";
+import { BookButton } from "../../components/ui/BookButton";
 import { nonEmptyText } from "../../utils/text";
 import { SceneEditForm } from "./SceneEditForm";
 import { sceneEditFormChanged, type SceneEditForm as SceneEditFormState } from "./scenesDialogUtils";
@@ -31,6 +33,7 @@ interface SceneListProps {
   onSave: () => void;
   onMove: (scene: ChapterSceneSummary, direction: -1 | 1) => void;
   onDelete: (scene: ChapterSceneSummary) => void;
+  onRetry: () => void;
 }
 
 export const SceneList: React.FC<SceneListProps> = ({
@@ -51,6 +54,7 @@ export const SceneList: React.FC<SceneListProps> = ({
   onSave,
   onMove,
   onDelete,
+  onRetry,
 }) => {
   const { t } = useI18n();
   if (loading && scenes.length === 0) {
@@ -63,8 +67,12 @@ export const SceneList: React.FC<SceneListProps> = ({
 
   if (loadError && scenes.length === 0) {
     return (
-      <div role="alert" className="border-l-2 border-error/55 py-2 pl-3 text-xs leading-relaxed text-error">
+      <div role="alert" className="flex flex-wrap items-center gap-3 border-l-2 border-error/55 py-2 pl-3 text-xs leading-relaxed text-error">
         {loadError}
+        <BookButton variant="secondary" size="sm" onClick={onRetry}>
+          <RefreshCw size={12} />
+          {t("common.retry")}
+        </BookButton>
       </div>
     );
   }
@@ -80,8 +88,12 @@ export const SceneList: React.FC<SceneListProps> = ({
   return (
     <>
       {loadError ? (
-        <div role="alert" className="mb-2 border-l-2 border-error/55 py-2 pl-3 text-xs leading-relaxed text-error">
+        <div role="alert" className="mb-2 flex flex-wrap items-center gap-3 border-l-2 border-error/55 py-2 pl-3 text-xs leading-relaxed text-error">
           {loadError}
+          <BookButton variant="secondary" size="sm" onClick={onRetry}>
+            <RefreshCw size={12} />
+            {t("common.retry")}
+          </BookButton>
         </div>
       ) : null}
       <ul className="a4n-flat-surface divide-y divide-book-border/35">

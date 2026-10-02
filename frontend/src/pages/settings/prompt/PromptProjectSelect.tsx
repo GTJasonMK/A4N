@@ -1,7 +1,9 @@
 import { ThemedSelect } from "../../../components/ui/ThemedSelect";
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
+import { RefreshCw } from "lucide-react";
 import { extractErrorMessage } from "../../../api";
 import { listAllProjects, type NovelProject } from "../../../api/project";
+import { BookButton } from "../../../components/ui/BookButton";
 import { useI18n } from "../../../i18n";
 
 interface PromptProjectSelectProps {
@@ -23,25 +25,30 @@ export const PromptProjectSelect: React.FC<PromptProjectSelectProps> = ({
   const [projects, setProjects] = useState<NovelProject[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<{ reason: unknown } | null>(null);
+  const requestSeqRef = useRef(0);
 
-  useEffect(() => {
-    let active = true;
+  const loadProjects = useCallback(async () => {
+    const requestSeq = requestSeqRef.current + 1;
+    requestSeqRef.current = requestSeq;
     setLoading(true);
     setLoadError(null);
-    void listAllProjects({ access_scope: "all" })
-      .then((items) => {
-        if (active) setProjects(items);
-      })
-      .catch((error) => {
-        if (active) setLoadError({ reason: error });
-      })
-      .finally(() => {
-        if (active) setLoading(false);
-      });
-    return () => {
-      active = false;
-    };
+    try {
+      const items = await listAllProjects({ access_scope: "all" });
+      if (requestSeqRef.current !== requestSeq) return;
+      setProjects(items);
+    } catch (error) {
+      if (requestSeqRef.current === requestSeq) setLoadError({ reason: error });
+    } finally {
+      if (requestSeqRef.current === requestSeq) setLoading(false);
+    }
   }, []);
+
+  useEffect(() => {
+    void loadProjects();
+    return () => {
+      requestSeqRef.current += 1;
+    };
+  }, [loadProjects]);
 
   return (
     <>
@@ -65,9 +72,15 @@ export const PromptProjectSelect: React.FC<PromptProjectSelectProps> = ({
       ))}
     </ThemedSelect>
     {loadError ? (
-      <span role="alert" className="block text-small text-error">
-        {extractErrorMessage(loadError.reason, t("settingsPrompt.loadProjectsFailed"))}
-      </span>
+      <div role="alert" className="flex flex-wrap items-center gap-2 text-small text-error">
+        <span className="min-w-0 flex-1">
+          {extractErrorMessage(loadError.reason, t("settingsPrompt.loadProjectsFailed"))}
+        </span>
+        <BookButton variant="secondary" size="sm" onClick={() => void loadProjects()} disabled={loading}>
+          <RefreshCw size={12} className={loading ? "animate-spin" : undefined} />
+          {t("common.retry")}
+        </BookButton>
+      </div>
     ) : null}
     </>
   );

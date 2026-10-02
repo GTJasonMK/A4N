@@ -1,5 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { RefreshCw } from "lucide-react";
 import { LoadingSpinner } from "../../components/ui/LoadingSpinner";
+import { BookButton } from "../../components/ui/BookButton";
 import { confirmDialog } from "../../components/feedback/ConfirmDialog";
 import { useToast } from "../../components/feedback/Toast";
 import { promptDialog } from "../../components/feedback/PromptDialog";
@@ -98,6 +100,7 @@ export const WorldTab: React.FC<WorldTabProps> = ({
     const requestProjectId = projectId;
     const requestSeq = loadSeqRef.current + 1;
     loadSeqRef.current = requestSeq;
+    setLoadError(null);
     setLoading(true);
     try {
       const bp = await getBlueprint(requestProjectId);
@@ -164,6 +167,17 @@ export const WorldTab: React.FC<WorldTabProps> = ({
       dialogType: "warning",
     }))) return;
     setEditing(false);
+  };
+
+  const handleRetry = async () => {
+    if (loading || saving || refining) return;
+    if (editDirty && !(await confirmDialog({
+      title: t("common.unsavedChangesTitle"),
+      message: t("common.unsavedChangesMessage", { name: t("novel.world.title"), action: t("common.retry") }),
+      confirmText: t("common.discardDraft"),
+      dialogType: "warning",
+    }))) return;
+    await load();
   };
 
   const handleSave = async () => {
@@ -304,7 +318,13 @@ export const WorldTab: React.FC<WorldTabProps> = ({
   if (loadedProjectId !== projectId) {
     return (
       <div className="content-main">
-        <p role="alert" className="text-small text-error">{displayLoadError}</p>
+        <div role="alert" className="flex flex-wrap items-center gap-3 text-small text-error">
+          <p className="min-w-0 flex-1">{displayLoadError}</p>
+          <BookButton variant="secondary" size="sm" onClick={() => void handleRetry()} disabled={loading}>
+            <RefreshCw size={12} className={loading ? "animate-spin" : undefined} />
+            {t("common.retry")}
+          </BookButton>
+        </div>
       </div>
     );
   }
@@ -312,7 +332,13 @@ export const WorldTab: React.FC<WorldTabProps> = ({
   return (
     <div className="content-main space-y-3">
       {displayLoadError ? (
-        <p role="alert" className="text-small text-error">{displayLoadError}</p>
+        <div role="alert" className="flex flex-wrap items-center gap-3 text-small text-error">
+          <p className="min-w-0 flex-1">{displayLoadError}</p>
+          <BookButton variant="secondary" size="sm" onClick={() => void handleRetry()} disabled={loading || saving || refining}>
+            <RefreshCw size={12} className={loading ? "animate-spin" : undefined} />
+            {t("common.retry")}
+          </BookButton>
+        </div>
       ) : null}
       {editing ? (
         <section className="a4n-flat-surface p-4 sm:p-5">

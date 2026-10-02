@@ -496,6 +496,21 @@ export const ScenesDialog: React.FC<ScenesDialogProps> = ({
     onClose();
   };
 
+  const handleRetry = async () => {
+    if (isMutationBusy()) return;
+    if ((editDirty || genPrompt !== DEFAULT_SCENE_GENERATION_PROMPT) && !(await confirmDialog({
+      title: t("common.unsavedChangesTitle"),
+      message: t("common.unsavedChangesMessage", {
+        name: editDirty ? t("scenes.chapterScenes") : t("scenes.generateNext"),
+        action: t("common.retry"),
+      }),
+      confirmText: t("common.discardDraft"),
+      dialogType: "warning",
+    }))) return;
+    if (!await discardNavigationDraft()) return;
+    await load({ force: true });
+  };
+
   const sortedScenes = useMemo(() => sortScenes(scenes), [scenes]);
   const operationBusy = saving || generating || actingKeys.size > 0 || requestPreviewLoading || loading;
   const nextSceneNumber = canUseSceneList() ? getNextSceneNumber(scenes) : null;
@@ -547,6 +562,7 @@ export const ScenesDialog: React.FC<ScenesDialogProps> = ({
             onSave={() => void handleSave()}
             onMove={(scene, direction) => void handleMove(scene, direction)}
             onDelete={(scene) => void handleDelete(scene)}
+            onRetry={() => void handleRetry()}
           />
         </div>
       </Modal>

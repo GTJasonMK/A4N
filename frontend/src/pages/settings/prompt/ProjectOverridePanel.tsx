@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { GitBranch, Trash2 } from "lucide-react";
+import { GitBranch, RefreshCw, Trash2 } from "lucide-react";
 import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
 import { extractErrorMessage } from "../../../api";
 import {
@@ -171,7 +171,13 @@ export const ProjectOverridePanel: React.FC<ProjectOverridePanelProps> = ({ prom
             <LoadingSpinner size="sm" /> {t("settingsPrompt.loadingProjectOverride")}
           </div>
         ) : loadErrorMessage ? (
-          <p role="alert" className="border-l border-error/40 pl-2.5 text-small text-error">{loadErrorMessage}</p>
+          <div role="alert" className="flex flex-wrap items-center gap-2 border-l border-error/40 pl-2.5 text-small text-error">
+            <p className="min-w-0 flex-1">{loadErrorMessage}</p>
+            <BookButton variant="secondary" size="sm" onClick={() => void loadOverridesForProject(projectId)} disabled={loading}>
+              <RefreshCw size={12} className={loading ? "animate-spin" : undefined} />
+              {t("common.retry")}
+            </BookButton>
+          </div>
         ) : dirty ? (
           <div className="border-l border-warning/45 pl-2.5 text-small text-warning">
             {t("settingsPrompt.saveBeforeOverride")}
