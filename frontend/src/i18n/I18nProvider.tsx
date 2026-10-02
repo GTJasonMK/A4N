@@ -4,6 +4,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -39,6 +40,8 @@ export const I18nProvider = ({
   const [locale, setLocaleState] = useState<Locale>(
     () => initialLocale ?? resolveInitialLocale(),
   );
+  const localeRef = useRef(locale);
+  localeRef.current = locale;
 
   const setLocale = useCallback(async (nextLocale: Locale) => {
     try {
@@ -53,6 +56,12 @@ export const I18nProvider = ({
     }
   }, []);
 
+  const t = useCallback(
+    (key: MessageKey, params?: MessageParams) =>
+      translateMessage(localeRef.current, key, params),
+    [],
+  );
+
   useEffect(() => {
     setActiveLocale(locale);
     document.documentElement.lang = locale;
@@ -62,9 +71,9 @@ export const I18nProvider = ({
     () => ({
       locale,
       setLocale,
-      t: (key, params) => translateMessage(locale, key, params),
+      t,
     }),
-    [locale, setLocale],
+    [locale, setLocale, t],
   );
 
   return <I18nContext.Provider value={value}>{children}</I18nContext.Provider>;
