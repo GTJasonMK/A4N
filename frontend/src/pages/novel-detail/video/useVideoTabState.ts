@@ -407,7 +407,7 @@ export function useVideoTabState({
     setRecipeFingerprintErrorsBySegment,
   ] = useState<Map<number, string>>(new Map());
   const recipeFingerprintInputBySegmentRef = useRef(new Map<number, string>());
-  useEffect(() => {
+  useLayoutEffect(() => {
     let cancelled = false;
     const fingerprintInputs = new Map(
       [...effectiveRecipeBySegment.entries()].map(([segmentNumber, recipe]) => [

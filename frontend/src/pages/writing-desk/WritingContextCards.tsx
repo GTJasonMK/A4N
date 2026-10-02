@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useLayoutEffect, useRef, useState } from "react";
 import { ChevronRight, RefreshCw, Sparkles, User, Users } from "lucide-react";
 import { extractErrorMessage } from "../../api";
 import { getBlueprint, type Blueprint } from "../../api/blueprint";
@@ -57,8 +57,14 @@ export const WritingContextCards: React.FC<WritingContextCardsProps> = ({
     ? characterAttributeText(primaryProfile, "implicit", "personality")
     : null;
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     let cancelled = false;
+    if (
+      blueprintProjectIdRef.current !== projectId ||
+      profileProjectIdRef.current !== projectId
+    ) {
+      setBlueprintDetailOpen(false);
+    }
     if (blueprintProjectIdRef.current !== projectId) {
       setBlueprint(null);
       setBlueprintError(null);

@@ -1,6 +1,6 @@
 import {
   useCallback,
-  useEffect,
+  useLayoutEffect,
   useRef,
   useState,
   type SyntheticEvent,
@@ -147,7 +147,7 @@ export const useVideoPlaybackSource = ({
     }
   }, []);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     let cancelled = false;
     const generation = ++playbackGenerationRef.current;
     const useSourceFallback =
