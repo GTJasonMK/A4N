@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useLayoutEffect, useRef, useState } from "react";
 import { extractErrorMessage } from "../../api";
 import { getMediaAuthoringWorkspace, type MediaAuthoringWorkspace } from "../../api/mediaAuthoring";
 import { useI18n } from "../../i18n";
@@ -27,7 +27,13 @@ export function useMediaAuthoring(projectId: number, enabled = true) {
   const [error, setError] = useState<string | null>(null);
   const request = useRef(0);
   const reload = useCallback(async () => {
-    if (!enabled) return;
+    if (!enabled) {
+      request.current += 1;
+      setWorkspace(null);
+      setError(null);
+      setLoading(false);
+      return;
+    }
     const id = ++request.current;
     setLoading(true);
     setError(null);
@@ -44,7 +50,7 @@ export function useMediaAuthoring(projectId: number, enabled = true) {
       if (id === request.current) setLoading(false);
     }
   }, [enabled, projectId, t]);
-  useEffect(() => {
+  useLayoutEffect(() => {
     setWorkspace(null);
     void reload().catch(() => { /* The request error remains visible in the stage. */ });
     return () => { request.current += 1; };

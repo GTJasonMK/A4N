@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Pencil, RefreshCw, Save, Trash2, Wand2, X } from "lucide-react";
 import { LoadingSpinner } from "../../components/ui/LoadingSpinner";
 
@@ -160,7 +160,7 @@ export const ShootingScriptTab: React.FC<ShootingScriptTabProps> = ({
   const followGenerationRef = useRef(followGeneration);
   followGenerationRef.current = followGeneration;
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     sourceRef.current += 1;
     followingTask.current = null;
     const initialVersion = ++dataVersion.current;

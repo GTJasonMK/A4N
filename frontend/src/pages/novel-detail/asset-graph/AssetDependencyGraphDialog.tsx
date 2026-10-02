@@ -154,7 +154,7 @@ export const AssetDependencyGraphDialog: React.FC<
     }
   }, [layout.nodes, nodeById, open, selectedId]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!open || !selectedNode) {
       detailRequestSeqRef.current += 1;
       setNodeDetail(null);

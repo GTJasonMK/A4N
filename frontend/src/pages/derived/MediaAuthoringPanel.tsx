@@ -1,5 +1,5 @@
 import { RefreshCw } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
   adoptMediaAuthoringDocument, generateMediaAdaptationPlan, listVideoAdaptationReferences,
   previewMediaAdaptationPlanRequest, saveMediaAuthoringDocument,
@@ -116,7 +116,7 @@ export function MediaAuthoringPanel({ projectId, kind, workspace, loading, error
     // A background refresh must never overwrite an unsaved editor.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scope, selected?.record.id, selected?.record.revision, selected?.record.status]);
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (kind !== "adaptation_plan" || !sourceChapterId) return;
     let active = true;
     setReferenceError(null);

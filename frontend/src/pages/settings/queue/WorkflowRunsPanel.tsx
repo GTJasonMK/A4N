@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useLayoutEffect, useState } from "react";
 import { ChevronDown,
   ChevronRight,
   RefreshCw, } from "lucide-react";
@@ -88,7 +88,7 @@ const WorkflowRunRow: React.FC<{
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailError, setDetailError] = useState<{ reason: unknown } | null>(null);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!expanded) return;
     let current = true;
     setDetail(undefined);
