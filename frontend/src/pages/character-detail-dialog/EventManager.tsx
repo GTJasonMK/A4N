@@ -1,5 +1,5 @@
 import { ThemedSelect } from "../../components/ui/ThemedSelect";
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { LoadingSpinner } from "../../components/ui/LoadingSpinner";
 import { BookButton } from "../../components/ui/BookButton";
 import { useToast } from "../../components/feedback/Toast";
@@ -61,8 +61,16 @@ export const EventManager: React.FC<{
   defaultChapter: number;
   initialCategory?: string;
   initialKey?: string;
+  refreshRevision?: number;
   onChanged?: () => boolean | void | Promise<boolean | void>;
-}> = ({ profileId, defaultChapter, initialCategory = "", initialKey = "", onChanged }) => {
+}> = ({
+  profileId,
+  defaultChapter,
+  initialCategory = "",
+  initialKey = "",
+  refreshRevision = 0,
+  onChanged,
+}) => {
   const { addToast } = useToast();
   const { locale, t } = useI18n();
   const [events, setEvents] = useState<AttributeEvent[]>([]);
@@ -95,6 +103,7 @@ export const EventManager: React.FC<{
   const loadInFlightKeyRef = useRef<string | null>(null);
   const currentFilterScopeKeyRef = useRef("");
   const saveInFlightRef = useRef(false);
+  const refreshContextRef = useRef({ profileId, refreshRevision });
 
   activeProfileIdRef.current = profileId;
   filterChapterFromRef.current = filterChapterFrom;
@@ -227,7 +236,7 @@ export const EventManager: React.FC<{
         addToast(extractErrorMessage(err, t("characterDetail.event.loadFailed")), "error");
         return false;
       } finally {
-        if (loadInFlightKeyRef.current === requestKey) {
+        if (loadInFlightKeyRef.current === requestKey && loadSeqRef.current === requestSeq) {
           loadInFlightKeyRef.current = null;
         }
         if (isCurrentLoad(requestProfileId, requestKey, requestSeq)) setLoading(false);
@@ -236,7 +245,12 @@ export const EventManager: React.FC<{
     [addToast, isCurrentLoad, profileId, t],
   );
 
-  useEffect(() => {
+  const reload = useCallback(() => {
+    loadInFlightKeyRef.current = null;
+    return load();
+  }, [load]);
+
+  useLayoutEffect(() => {
     const normalizedCategory = initialCategory?.trim();
     const normalizedKey = initialKey?.trim();
     const nextCategory = normalizedCategory ? normalizedCategory : "";
@@ -259,7 +273,7 @@ export const EventManager: React.FC<{
     );
   }, [initialCategory, initialKey, invalidateLoadedEvents, load, profileId]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     saveSeqRef.current += 1;
     saveInFlightRef.current = false;
     setSaving(false);
@@ -274,6 +288,13 @@ export const EventManager: React.FC<{
     setCause("");
     setEvidence("");
   }, [defaultChapter, initialCategory, initialKey, profileId]);
+
+  useLayoutEffect(() => {
+    const previous = refreshContextRef.current;
+    refreshContextRef.current = { profileId, refreshRevision };
+    if (previous.profileId !== profileId || previous.refreshRevision === refreshRevision) return;
+    void reload();
+  }, [profileId, refreshRevision, reload]);
 
   const resetFilters = async () => {
     const nextScopeKey = eventLoadKey(profileId, "", "", "", "", "");
@@ -345,7 +366,7 @@ export const EventManager: React.FC<{
       const successMessage = requestMode === "add"
         ? t("characterDetail.event.added")
         : t("characterDetail.event.modified");
-      const refreshed = await load();
+      const refreshed = await reload();
       if (!refreshed) addToast(t("characterDetail.refreshFailed"), "error");
       try {
         if (await onChanged?.() === false) {

@@ -24,6 +24,7 @@ interface CharacterDetailContentProps {
   character: CharacterProfile;
   initialManageSection?: "event";
   initialEventFilter?: CharacterDetailInitialEventFilter | null;
+  manageRefreshRevision: number;
   onChanged?: () => boolean | void | Promise<boolean | void>;
   onRefresh: () => void | Promise<void>;
 }
@@ -41,6 +42,7 @@ export const CharacterDetailContent: React.FC<CharacterDetailContentProps> = ({
   character,
   initialManageSection,
   initialEventFilter,
+  manageRefreshRevision,
   onChanged,
   onRefresh,
 }) => {
@@ -87,6 +89,7 @@ export const CharacterDetailContent: React.FC<CharacterDetailContentProps> = ({
       character={character}
       initialSection={initialManageSection}
       initialEventFilter={initialEventFilter}
+      refreshRevision={manageRefreshRevision}
       onChanged={onChanged}
     />
   );

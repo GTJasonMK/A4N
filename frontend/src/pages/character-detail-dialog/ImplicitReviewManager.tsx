@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Eye, RefreshCw } from "lucide-react";
 import { LoadingSpinner } from "../../components/ui/LoadingSpinner";
 import { extractErrorMessage } from "../../api";
@@ -56,8 +56,9 @@ const implicitReviewScopeKey = (
 export const ImplicitReviewManager: React.FC<{
   profileId: number;
   defaultChapter: number;
+  refreshRevision?: number;
   onChanged?: () => boolean | void | Promise<boolean | void>;
-}> = ({ profileId, defaultChapter, onChanged }) => {
+}> = ({ profileId, defaultChapter, refreshRevision = 0, onChanged }) => {
   const { addToast } = useToast();
   const { locale, t } = useI18n();
   const [review, setReview] = useState<ImplicitReview | null>(null);
@@ -212,12 +213,13 @@ export const ImplicitReviewManager: React.FC<{
     }
   }, [addToast, isCurrentParams, profileId, t]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     invalidateReviewScope();
     void load();
-  }, [invalidateReviewScope, load]);
+  }, [invalidateReviewScope, load, refreshRevision]);
 
-  const attrs = review ? review.attributes : [];
+  const currentReview = hasCurrentReview ? review : null;
+  const attrs = currentReview?.attributes ?? [];
   const needsReviewCount = attrs.filter((attr) => attr.threshold_reached).length;
 
   useEffect(() => {
@@ -425,7 +427,7 @@ export const ImplicitReviewManager: React.FC<{
     <div className="flex flex-col gap-2">
       <div className="flex items-center gap-2 text-small text-book-text-muted">
         <span className="min-w-0 flex-1">
-          {review
+          {currentReview
             ? needsReviewCount > 0
               ? t("characterDetail.implicit.needsReview", { count: needsReviewCount })
               : t("characterDetail.implicit.noNeedsReview")

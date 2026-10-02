@@ -22,8 +22,9 @@ it("keeps custom attribute identities distinct in records and deletion confirmat
   expect(attributeKeyLabel("", t)).toBe("characterDetail.labels.unnamedAttribute");
 });
 
-it("keeps character detail draft keys scoped to one profile and section", () => {
-  expect(CHARACTER_DETAIL_DRAFT_SECTIONS).toEqual(["event", "deletion", "implicit"]);
+it("keeps character detail operation keys scoped to one profile and section", () => {
+  expect(CHARACTER_DETAIL_DRAFT_SECTIONS).toEqual(["event", "deletion", "implicit", "snapshot"]);
   expect(characterDetailDraftKey(7, "event")).toBe("character-detail:7:event");
   expect(characterDetailDraftKey(8, "event")).not.toBe(characterDetailDraftKey(7, "event"));
+  expect(characterDetailDraftKey(7, "snapshot")).toBe("character-detail:7:snapshot");
 });

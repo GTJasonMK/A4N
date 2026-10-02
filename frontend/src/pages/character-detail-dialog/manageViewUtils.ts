@@ -1,6 +1,6 @@
 import type { MessageKey, MessageTranslator, Messages } from "../../i18n";
 
-export const CHARACTER_DETAIL_DRAFT_SECTIONS = ["event", "deletion", "implicit"] as const;
+export const CHARACTER_DETAIL_DRAFT_SECTIONS = ["event", "deletion", "implicit", "snapshot"] as const;
 export type CharacterDetailDraftSection = typeof CHARACTER_DETAIL_DRAFT_SECTIONS[number];
 
 export const characterDetailDraftKey = (

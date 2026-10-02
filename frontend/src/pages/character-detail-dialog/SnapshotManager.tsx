@@ -18,6 +18,7 @@ import {
 } from "../../api/character";
 import { confirmDialog } from "../../components/feedback/ConfirmDialog";
 import { useToast } from "../../components/feedback/Toast";
+import { useDirty } from "../../components/navigation/dirtyRegistry";
 import { BookButton } from "../../components/ui/BookButton";
 import {
   ProfileChapterStateDetail,
@@ -25,7 +26,7 @@ import {
   SnapshotDetail,
 } from "./SnapshotViews";
 import { useI18n, type MessageTranslator } from "../../i18n";
-import { parsePositiveChapterNumber } from "./manageViewUtils";
+import { characterDetailDraftKey, parsePositiveChapterNumber } from "./manageViewUtils";
 
 const snapshotReferenceCountText = (
   snapshot: SnapshotReference,
@@ -69,8 +70,9 @@ const snapshotLoadKey = (
 
 export const SnapshotManager: React.FC<{
   profileId: number;
+  refreshRevision?: number;
   onChanged?: () => boolean | void | Promise<boolean | void>;
-}> = ({ profileId, onChanged }) => {
+}> = ({ profileId, refreshRevision = 0, onChanged }) => {
   const { addToast } = useToast();
   const { t } = useI18n();
   const [snapshots, setSnapshots] = useState<SnapshotReference[]>([]);
@@ -122,6 +124,13 @@ export const SnapshotManager: React.FC<{
     snapshotEndChapter,
   );
   const hasCurrentSnapshots = loadedScopeKey === currentSnapshotScopeKey;
+
+  useDirty(
+    characterDetailDraftKey(profileId, "snapshot"),
+    rollingBack,
+    undefined,
+    () => !rollingBackRef.current,
+  );
 
   useEffect(() => {
     mountedRef.current = true;
@@ -321,7 +330,7 @@ export const SnapshotManager: React.FC<{
     void load();
   };
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     loadSeqRef.current += 1;
     snapshotViewSeqRef.current += 1;
     chapterStateSeqRef.current += 1;
@@ -333,6 +342,8 @@ export const SnapshotManager: React.FC<{
     setSnapshotData(null);
     setChapterState(null);
     setDelta(null);
+    setResultError(null);
+    setLoadError(null);
     setLoadedScopeKey(null);
     setLoading(false);
     setDiffing(false);
@@ -342,7 +353,7 @@ export const SnapshotManager: React.FC<{
     rollingBackRef.current = false;
     void load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [profileId]);
+  }, [profileId, refreshRevision]);
 
   const handleView = async (hash: string) => {
     const requestProfileId = profileId;
@@ -392,7 +403,7 @@ export const SnapshotManager: React.FC<{
   };
 
   const handleChapterDiff = async () => {
-    if (diffToChapter == null) return;
+    if (!hasCurrentSnapshots || diffToChapter == null) return;
     if (diffingRef.current) return;
     diffingRef.current = true;
     const requestProfileId = profileId;
@@ -429,7 +440,7 @@ export const SnapshotManager: React.FC<{
   };
 
   const handleRollback = async () => {
-    if (rollbackChapter == null) return;
+    if (!hasCurrentSnapshots || rollbackChapter == null) return;
     if (rollingBackRef.current) return;
     rollingBackRef.current = true;
     const requestProfileId = profileId;
@@ -500,12 +511,16 @@ export const SnapshotManager: React.FC<{
     }
   };
 
-  const rollbackChapters = rollbackChapterOptions(conflict, snapshots, conflictLoaded);
+  const rollbackChapters = hasCurrentSnapshots
+    ? rollbackChapterOptions(conflict, snapshots, conflictLoaded)
+    : [];
   const canRollback =
-    rollbackChapter != null && rollbackChapters.includes(rollbackChapter);
-  const snapshotChapters = snapshots.map((snapshot) => snapshot.chapter_number);
+    hasCurrentSnapshots && rollbackChapter != null && rollbackChapters.includes(rollbackChapter);
+  const snapshotChapters = hasCurrentSnapshots
+    ? snapshots.map((snapshot) => snapshot.chapter_number)
+    : [];
   const canDiffChapters =
-    diffToChapter != null && diffFromChapter <= diffToChapter;
+    hasCurrentSnapshots && diffToChapter != null && diffFromChapter <= diffToChapter;
   const diffToChapterValue = diffToChapter === null ? "" : diffToChapter;
   const rollbackChapterValue = rollbackChapter === null ? "" : rollbackChapter;
 

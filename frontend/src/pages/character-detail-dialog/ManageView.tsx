@@ -29,8 +29,9 @@ export const ManageView: React.FC<{
   character: CharacterProfile;
   initialSection?: ManageSection;
   initialEventFilter?: { category?: string | null; key?: string | null } | null;
+  refreshRevision?: number;
   onChanged?: () => boolean | void | Promise<boolean | void>;
-}> = ({ character, initialSection, initialEventFilter, onChanged }) => {
+}> = ({ character, initialSection, initialEventFilter, refreshRevision = 0, onChanged }) => {
   const { t } = useI18n();
   const { addToast } = useToast();
   const registry = useDirtyRegistry();
@@ -44,7 +45,10 @@ export const ManageView: React.FC<{
 
   const changeSection = async (next: ManageSection) => {
     if (next === sec) return;
-    const draftSection = sec === "event" || sec === "deletion" || sec === "implicit" ? sec : null;
+    const draftSection =
+      sec === "event" || sec === "deletion" || sec === "implicit" || sec === "snapshot"
+        ? sec
+        : null;
     if (!draftSection) {
       setSec(next);
       return;
@@ -99,11 +103,14 @@ export const ManageView: React.FC<{
         ))}
       </div>
       <div>
-        {sec === "behavior" && <BehaviorManager profileId={character.id} />}
+        {sec === "behavior" && (
+          <BehaviorManager profileId={character.id} refreshRevision={refreshRevision} />
+        )}
         {sec === "implicit" && (
           <ImplicitReviewManager
             profileId={character.id}
             defaultChapter={defaultChapter}
+            refreshRevision={refreshRevision}
             onChanged={onChanged}
           />
         )}
@@ -111,18 +118,24 @@ export const ManageView: React.FC<{
           <EventManager
             profileId={character.id}
             defaultChapter={defaultChapter}
+            refreshRevision={refreshRevision}
             initialCategory={initialEventFilter?.category ?? undefined}
             initialKey={initialEventFilter?.key ?? undefined}
             onChanged={onChanged}
           />
         )}
         {sec === "snapshot" && (
-          <SnapshotManager profileId={character.id} onChanged={onChanged} />
+          <SnapshotManager
+            profileId={character.id}
+            refreshRevision={refreshRevision}
+            onChanged={onChanged}
+          />
         )}
         {sec === "deletion" && (
           <DeletionManager
             profileId={character.id}
             defaultChapter={defaultChapter}
+            refreshRevision={refreshRevision}
             onChanged={onChanged}
           />
         )}

@@ -1,5 +1,5 @@
 import { ThemedSelect } from "../../components/ui/ThemedSelect";
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { RefreshCw, RotateCcw, Trash2 } from "lucide-react";
 import { LoadingSpinner } from "../../components/ui/LoadingSpinner";
 import { extractErrorMessage } from "../../api";
@@ -39,8 +39,9 @@ const deletionMarkLoadKey = (
 export const DeletionManager: React.FC<{
   profileId: number;
   defaultChapter: number;
+  refreshRevision?: number;
   onChanged?: () => boolean | void | Promise<boolean | void>;
-}> = ({ profileId, defaultChapter, onChanged }) => {
+}> = ({ profileId, defaultChapter, refreshRevision = 0, onChanged }) => {
   const { addToast } = useToast();
   const { locale, t } = useI18n();
   const deletionStatusOptions: Array<{
@@ -88,6 +89,7 @@ export const DeletionManager: React.FC<{
   const currentLoadScopeKey = deletionMarkLoadKey(profileId, filterCategory, filterStatus);
   currentLoadScopeKeyRef.current = currentLoadScopeKey;
   const hasCurrentMarks = loadedScopeKey === currentLoadScopeKey;
+  const deletionOperationBusy = requesting || executingId != null || resettingKey != null;
   const formDirty =
     chapterNumber !== String(defaultChapter) ||
     category !== "explicit" ||
@@ -96,7 +98,7 @@ export const DeletionManager: React.FC<{
     evidence.trim().length > 0;
 
   const discardFormDraft = useCallback(() => {
-    if (requesting) return false;
+    if (requesting || executingRef.current || resettingRef.current != null) return false;
     setChapterNumber(String(defaultChapter));
     setCategory("explicit");
     setKey("");
@@ -107,9 +109,9 @@ export const DeletionManager: React.FC<{
 
   useDirty(
     characterDetailDraftKey(profileId, "deletion"),
-    formDirty,
+    formDirty || deletionOperationBusy,
     discardFormDraft,
-    () => !requesting,
+    () => !requesting && !executingRef.current && resettingRef.current == null,
   );
 
   useEffect(() => {
@@ -177,7 +179,7 @@ export const DeletionManager: React.FC<{
         setLoadError(extractErrorMessage(err, t("characterDetail.deletion.loadFailed")));
         return false;
       } finally {
-        if (loadInFlightKeyRef.current === requestKey) {
+        if (loadInFlightKeyRef.current === requestKey && loadSeqRef.current === requestSeq) {
           loadInFlightKeyRef.current = null;
         }
         if (isCurrentLoad(requestProfileId, requestKey, requestSeq)) setLoading(false);
@@ -185,15 +187,19 @@ export const DeletionManager: React.FC<{
     },
     [addToast, isCurrentLoad, profileId, t],
   );
+  const reload = useCallback(() => {
+    loadInFlightKeyRef.current = null;
+    return load();
+  }, [load]);
   const reportRefreshFailure = (refreshed: boolean) => {
     if (!refreshed) addToast(t("characterDetail.refreshFailed"), "error");
   };
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     invalidateLoadedMarks();
     void load();
-  }, [invalidateLoadedMarks, load]);
-  useEffect(() => {
+  }, [invalidateLoadedMarks, load, refreshRevision]);
+  useLayoutEffect(() => {
     requestSeqRef.current += 1;
     executeSeqRef.current += 1;
     resetSeqRef.current += 1;
@@ -239,7 +245,7 @@ export const DeletionManager: React.FC<{
     try {
       const deletedMarks = await resetDeletionMarks(requestProfileId, category, key);
       if (!isCurrentProfile(requestProfileId) || resetSeqRef.current !== requestSeq) return;
-      const refreshed = await load();
+      const refreshed = await reload();
       reportRefreshFailure(refreshed);
       addToast(
         t("characterDetail.deletion.resetSuccess", {
@@ -291,7 +297,7 @@ export const DeletionManager: React.FC<{
         evidence: requestPayload.evidence,
       });
       if (!isCurrentProfile(requestProfileId) || requestSeqRef.current !== requestSeq) return;
-      const refreshed = await load();
+      const refreshed = await reload();
       reportRefreshFailure(refreshed);
       addToast(
         mark.consecutive_count >= CHARACTER_DELETION_THRESHOLD
@@ -324,6 +330,7 @@ export const DeletionManager: React.FC<{
   const handleExecute = async (mark: DeletionMark) => {
     if (executingRef.current) return;
     executingRef.current = true;
+    setExecutingId(mark.id);
     const ok = await confirmDialog({
       title: t("characterDetail.deletion.executeTitle"),
       message: t("characterDetail.deletion.executeMessage", {
@@ -335,6 +342,7 @@ export const DeletionManager: React.FC<{
     });
     if (!ok) {
       executingRef.current = false;
+      setExecutingId(null);
       return;
     }
     const requestProfileId = profileId;
@@ -345,9 +353,9 @@ export const DeletionManager: React.FC<{
       !marksRef.current.some((item) => item.id === mark.id)
     ) {
       executingRef.current = false;
+      setExecutingId(null);
       return;
     }
-    setExecutingId(mark.id);
     try {
       await executeAttributeDeletion({
         profile_id: requestProfileId,
@@ -360,7 +368,7 @@ export const DeletionManager: React.FC<{
         evidence: mark.evidence,
       });
       if (!isCurrentProfile(requestProfileId) || executeSeqRef.current !== requestSeq) return;
-      const refreshed = await load();
+      const refreshed = await reload();
       reportRefreshFailure(refreshed);
       try {
         if (await onChanged?.() === false) {

@@ -1,5 +1,5 @@
 import { ThemedSelect } from "../../components/ui/ThemedSelect";
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { LoadingSpinner } from "../../components/ui/LoadingSpinner";
 import { BookButton } from "../../components/ui/BookButton";
 import { useToast } from "../../components/feedback/Toast";
@@ -20,7 +20,10 @@ const behaviorLoadKey = (
   limit: number,
 ): string => `${profileId}:${chapterFilter === "" ? "all" : chapterFilter}:${limit}`;
 
-export const BehaviorManager: React.FC<{ profileId: number }> = ({ profileId }) => {
+export const BehaviorManager: React.FC<{
+  profileId: number;
+  refreshRevision?: number;
+}> = ({ profileId, refreshRevision = 0 }) => {
   const { addToast } = useToast();
   const { t } = useI18n();
   const [items, setItems] = useState<BehaviorRecord[]>([]);
@@ -109,7 +112,7 @@ export const BehaviorManager: React.FC<{ profileId: number }> = ({ profileId }) 
       if (!isCurrentLoad(requestProfileId, requestChapterFilter, requestLimit, requestSeq)) return;
       addToast(extractErrorMessage(err, t("characterDetail.behavior.loadFailed")), "error");
     } finally {
-      if (loadInFlightKeyRef.current === requestKey) {
+      if (loadInFlightKeyRef.current === requestKey && loadSeqRef.current === requestSeq) {
         loadInFlightKeyRef.current = null;
       }
       if (isCurrentLoad(requestProfileId, requestChapterFilter, requestLimit, requestSeq)) {
@@ -118,14 +121,11 @@ export const BehaviorManager: React.FC<{ profileId: number }> = ({ profileId }) 
     }
   }, [addToast, isCurrentLoad, profileId, t]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     setChapterFilterError(null);
     invalidateLoadedResults();
-  }, [invalidateLoadedResults, profileId]);
-
-  useEffect(() => {
     void load();
-  }, [load]);
+  }, [invalidateLoadedResults, load, refreshRevision]);
 
   return (
     <div className="flex flex-col gap-2">

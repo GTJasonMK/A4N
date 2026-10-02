@@ -203,6 +203,7 @@ export const CharacterDetailDialog: React.FC<CharacterDetailDialogProps> = ({
   );
   const [loadingTab, setLoadingTab] = useState<CharacterDetailTab | null>(null);
   const [syncing, setSyncing] = useState(false);
+  const [manageRefreshRevision, setManageRefreshRevision] = useState(0);
   const [requestPreviewOpen, setRequestPreviewOpen] = useState(false);
   const [requestPreviewLoading, setRequestPreviewLoading] = useState(false);
   const [requestPreviewData, setRequestPreviewData] =
@@ -588,6 +589,9 @@ export const CharacterDetailDialog: React.FC<CharacterDetailDialogProps> = ({
         },
       );
       if (!isCurrentCharacterScope(requestScope) || syncSeqRef.current !== requestSeq) return;
+      if (result.status !== "skipped") {
+        setManageRefreshRevision((revision) => revision + 1);
+      }
       const parentRefreshError = await refreshParentAfterMutation();
       if (result.status === "skipped") {
         addToast(t("characterDetail.noSyncNeeded"), "info");
@@ -888,6 +892,7 @@ export const CharacterDetailDialog: React.FC<CharacterDetailDialogProps> = ({
               character={character}
               initialManageSection={initialTab === "manage" ? "event" : undefined}
               initialEventFilter={initialEventFilter}
+              manageRefreshRevision={manageRefreshRevision}
               onChanged={onChanged}
               onRefresh={handleRefresh}
             />
