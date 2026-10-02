@@ -27,6 +27,8 @@ import { useI18n } from "../../i18n";
 export const CharactersTab: React.FC<{ projectId: number }> = ({ projectId }) => {
   const { addToast } = useToast();
   const { t } = useI18n();
+  const tRef = useRef(t);
+  tRef.current = t;
   const [profiles, setProfiles] = useState<CharacterProfile[]>([]);
   const [subTab, setSubTab] = useState<CharactersSubTab>("profile");
   const [loadedProjectId, setLoadedProjectId] = useState<number | null>(null);
@@ -131,18 +133,18 @@ export const CharactersTab: React.FC<{ projectId: number }> = ({ projectId }) =>
       setEditingProfile(null);
       addToast(
         result.warnings.length > 0
-          ? t(
+          ? tRef.current(
               editingProfile
                 ? "characterDetail.profileUpdatedWithWarnings"
                 : "characterDetail.profileCreatedWithWarnings",
               {
                 ...(editingProfile ? {} : { name }),
-                warnings: result.warnings.join(t("common.summarySeparator")),
+                warnings: result.warnings.join(tRef.current("common.summarySeparator")),
               },
             )
           : editingProfile
-            ? t("characterDetail.profileUpdated")
-            : t("characterDetail.profileCreated", { name }),
+            ? tRef.current("characterDetail.profileUpdated")
+            : tRef.current("characterDetail.profileCreated", { name }),
         result.warnings.length > 0 ? "info" : "success",
       );
     } catch (err) {
@@ -154,8 +156,8 @@ export const CharactersTab: React.FC<{ projectId: number }> = ({ projectId }) =>
           extractErrorMessage(
             err,
             editingProfile
-              ? t("characterDetail.profileSaveFailed")
-              : t("characterDetail.profileCreateFailed"),
+              ? tRef.current("characterDetail.profileSaveFailed")
+              : tRef.current("characterDetail.profileCreateFailed"),
           ),
           "error",
         );

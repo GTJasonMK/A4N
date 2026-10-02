@@ -89,6 +89,8 @@ export const ExportPanel: React.FC<{
 }> = ({ project, onBusyChange }) => {
   const { addToast } = useToast();
   const { t } = useI18n();
+  const tRef = useRef(t);
+  tRef.current = t;
   const { runProgressTask } = useProgressTask();
   const [acting, setActing] = useState<string | null>(null);
   const mountedRef = useRef(false);
@@ -135,6 +137,8 @@ export const ExportPanel: React.FC<{
     onBusyChange?.(exportBusy);
   }, [exportBusy, onBusyChange]);
 
+  useEffect(() => () => onBusyChange?.(false), [onBusyChange]);
+
   useEffect(() => {
     activeProjectIdRef.current = project.id;
     exportSeqRef.current += 1;
@@ -155,7 +159,7 @@ export const ExportPanel: React.FC<{
 
   const wrap = async (
     key: string,
-    label: string,
+    labelKey: MessageKey,
     fn: (taskId: string) => Promise<ExportFileData | ExportFileData[]>,
   ) => {
     if (exportBusyRef.current) return;
@@ -164,6 +168,7 @@ export const ExportPanel: React.FC<{
     exportSeqRef.current = requestSeq;
     exportBusyRef.current = true;
     const taskId = createWorkflowTaskId(`export-${key}`, requestProjectId);
+    const label = tRef.current(labelKey);
     setActing(key);
     setLastResult(null);
     try {
@@ -172,21 +177,21 @@ export const ExportPanel: React.FC<{
           cancelTaskId: taskId,
           cancelTask: cancelWorkflowTask,
           pollTaskProgress: true,
-          title: t("novel.exportPanel.taskTitle", { format: label }),
-          startMessage: t("novel.exportPanel.taskPreparing", { format: label }),
-          successMessage: t("novel.exportPanel.taskCompleted", { format: label }),
-          errorMessage: t("novel.exportPanel.failed"),
+          title: tRef.current("novel.exportPanel.taskTitle", { format: label }),
+          startMessage: tRef.current("novel.exportPanel.taskPreparing", { format: label }),
+          successMessage: tRef.current("novel.exportPanel.taskCompleted", { format: label }),
+          errorMessage: tRef.current("novel.exportPanel.failed"),
           total: 4,
-          cancelLabel: t("novel.exportPanel.stop"),
-          runningHint: t("novel.exportPanel.runningHint"),
+          cancelLabel: tRef.current("novel.exportPanel.stop"),
+          runningHint: tRef.current("novel.exportPanel.runningHint"),
         },
         async () => {
           if (!isCurrentExport(requestProjectId, requestSeq)) {
-            throw new Error(t("workflow.cancelled"));
+            throw new Error(tRef.current("workflow.cancelled"));
           }
           const exported = await fn(taskId);
           if (!isCurrentExport(requestProjectId, requestSeq)) {
-            throw new Error(t("workflow.cancelled"));
+            throw new Error(tRef.current("workflow.cancelled"));
           }
           const files = Array.isArray(exported) ? exported : [exported];
           return { fileNames: downloadExportFiles(files), fileCount: files.length };
@@ -196,13 +201,13 @@ export const ExportPanel: React.FC<{
       setLastResult(result.fileNames);
       addToast(
         result.fileCount > 1
-          ? t("novel.exportPanel.downloadedFiles", { count: result.fileCount })
-          : t("novel.exportPanel.downloadComplete"),
+          ? tRef.current("novel.exportPanel.downloadedFiles", { count: result.fileCount })
+          : tRef.current("novel.exportPanel.downloadComplete"),
         "success",
       );
     } catch (err) {
       if (!isCurrentExport(requestProjectId, requestSeq)) return;
-      const message = extractErrorMessage(err, t("novel.exportPanel.failed"));
+      const message = extractErrorMessage(err, tRef.current("novel.exportPanel.failed"));
       addToast(message, isCancelledOperation(message) ? "info" : "error");
     } finally {
       if (exportSeqRef.current === requestSeq) {
@@ -218,12 +223,12 @@ export const ExportPanel: React.FC<{
     if (!selectedExportReady) return;
     switch (selectedFormat) {
       case "txt":
-        void wrap("txt", selectedFormatLabel, (taskId) => exportTxtData(projectInput, taskId));
+        void wrap("txt", "novel.exportPanel.formats.txt", (taskId) => exportTxtData(projectInput, taskId));
         return;
       case "markdown": {
         const metadata = selectedMetadata;
         if (!metadata) return;
-        void wrap("markdown", selectedFormatLabel, (taskId) =>
+        void wrap("markdown", "novel.exportPanel.formats.markdown", (taskId) =>
           exportMarkdownData(
             {
               project_id: project.id,
@@ -237,7 +242,7 @@ export const ExportPanel: React.FC<{
       case "epub": {
         const metadata = selectedMetadata;
         if (!metadata) return;
-        void wrap("epub", selectedFormatLabel, (taskId) =>
+        void wrap("epub", "novel.exportPanel.formats.epub", (taskId) =>
           exportEpubData(
             {
               project_id: project.id,
@@ -249,12 +254,12 @@ export const ExportPanel: React.FC<{
         return;
       }
       case "pdf":
-        void wrap("pdf", selectedFormatLabel, (taskId) => exportPdfData(projectInput, taskId));
+        void wrap("pdf", "novel.exportPanel.formats.pdf", (taskId) => exportPdfData(projectInput, taskId));
         return;
       case "batch": {
         const metadata = selectedMetadata;
         if (!metadata) return;
-        void wrap("batch", selectedFormatLabel, (taskId) =>
+        void wrap("batch", "novel.exportPanel.formats.batch", (taskId) =>
           exportBatchData(
             {
               project_id: project.id,
@@ -380,7 +385,7 @@ export const ExportPanel: React.FC<{
             size="sm"
             className="!justify-start !text-xs"
             onClick={() =>
-              void wrap("outline", t("novel.exportPanel.outlineJson"), (taskId) =>
+              void wrap("outline", "novel.exportPanel.outlineJson", (taskId) =>
                 exportOutlineJsonData(projectInput, taskId),
               )
             }
@@ -393,7 +398,7 @@ export const ExportPanel: React.FC<{
             size="sm"
             className="!justify-start !text-xs"
             onClick={() =>
-              void wrap("characters", t("novel.exportPanel.charactersJson"), (taskId) =>
+              void wrap("characters", "novel.exportPanel.charactersJson", (taskId) =>
                 exportCharactersJsonData(projectInput, taskId),
               )
             }

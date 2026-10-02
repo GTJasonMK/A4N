@@ -57,6 +57,8 @@ interface ChaptersTabProps {
 export const ChaptersTab: React.FC<ChaptersTabProps> = ({ projectId, canEditChapters }) => {
   const { addToast } = useToast();
   const { locale, t } = useI18n();
+  const tRef = useRef(t);
+  tRef.current = t;
   const navigate = useNavigate();
   const [chapters, setChapters] = useState<ChapterIndexEntry[]>([]);
   const [previewChapterId, setPreviewChapterId] = useState<number | null>(null);
@@ -209,10 +211,10 @@ export const ChaptersTab: React.FC<ChaptersTabProps> = ({ projectId, canEditChap
       });
       if (!isCurrentImport(requestProjectId, requestSeq)) return;
       const message = imported.derived_sync_status === "failed"
-        ? t("novel.chapterImportedSyncFailed", { chapter: requestForm.chapter_number })
+        ? tRef.current("novel.chapterImportedSyncFailed", { chapter: requestForm.chapter_number })
         : imported.derived_sync_status === "running"
-          ? t("novel.chapterImportedSyncRunning", { chapter: requestForm.chapter_number })
-          : t("novel.chapterImported", { chapter: requestForm.chapter_number });
+          ? tRef.current("novel.chapterImportedSyncRunning", { chapter: requestForm.chapter_number })
+          : tRef.current("novel.chapterImported", { chapter: requestForm.chapter_number });
       const loaded = await load({ force: true });
       if (!isCurrentImport(requestProjectId, requestSeq)) return;
       if (!loaded) return;
@@ -221,7 +223,7 @@ export const ChaptersTab: React.FC<ChaptersTabProps> = ({ projectId, canEditChap
       setImportForm({ chapter_number: String(requestForm.chapter_number + 1), title: "", content: "" });
     } catch (err) {
       if (isCurrentImport(requestProjectId, requestSeq)) {
-        addToast(extractErrorMessage(err, t("novel.importChapterFailed")), "error");
+        addToast(extractErrorMessage(err, tRef.current("novel.importChapterFailed")), "error");
       }
     } finally {
       if (isCurrentImport(requestProjectId, requestSeq)) {

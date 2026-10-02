@@ -18,6 +18,8 @@ interface RagQuickPanelProps {
 export const RagQuickPanel: React.FC<RagQuickPanelProps> = ({ projectId, chapterNumber }) => {
   const { addToast } = useToast();
   const { locale, t } = useI18n();
+  const tRef = useRef(t);
+  tRef.current = t;
   const [query, setQuery] = useState("");
   const [searchResult, setSearchResult] = useState<RagEnhancedSearchOutput | null>(null);
   const [busy, setBusy] = useState(false);
@@ -73,7 +75,7 @@ export const RagQuickPanel: React.FC<RagQuickPanelProps> = ({ projectId, chapter
       setSearchResult(data);
     } catch (err) {
       if (isCurrentSearch(requestSeq)) {
-        addToast(extractErrorMessage(err, t("writing.searchFailed")), "error");
+        addToast(extractErrorMessage(err, tRef.current("writing.searchFailed")), "error");
       }
     } finally {
       if (isCurrentSearch(requestSeq)) {

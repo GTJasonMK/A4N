@@ -66,6 +66,8 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({
 }) => {
   const { addToast } = useToast();
   const { locale, t } = useI18n();
+  const tRef = useRef(t);
+  tRef.current = t;
   const { runProgressTask: runReverseProgressTask } = useProgressTask();
   const [reviews, setReviews] = useState<ImportReviewSummary[]>([]);
   const [loading, setLoading] = useState(false);
@@ -424,12 +426,12 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({
       const loaded = await load(requestProjectId);
       if (!isCurrentAction(requestProjectId, importSeqRef, requestSeq)) return;
       if (!loaded) return;
-      addToast(t("novel.importReview.reviewsCreated", { count: reviews.length }), "success");
+      addToast(tRef.current("novel.importReview.reviewsCreated", { count: reviews.length }), "success");
       setImportFileName("");
       setImportUploadFile(null);
     } catch (err) {
       if (isCurrentAction(requestProjectId, importSeqRef, requestSeq)) {
-        addToast(extractErrorMessage(err, t("novel.importReview.importFailed")), "error");
+        addToast(extractErrorMessage(err, tRef.current("novel.importReview.importFailed")), "error");
       }
     } finally {
       if (isCurrentAction(requestProjectId, importSeqRef, requestSeq)) {
@@ -505,24 +507,24 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({
       if (!isCurrentAction(requestProjectId, analysisSeqRef, requestSeq)) return;
       if (!loaded) return;
       if (result.progress.status === "cancelled") {
-        addToast(t("novel.importReview.analysisStopped"), "success");
+        addToast(tRef.current("novel.importReview.analysisStopped"), "success");
       } else {
         addToast(
-          t("novel.importReview.analysisCompleted", { count: result.analyzed_chapters }),
+          tRef.current("novel.importReview.analysisCompleted", { count: result.analyzed_chapters }),
           "success",
         );
       }
     } catch (err) {
       if (!isCurrentAction(requestProjectId, analysisSeqRef, requestSeq))
         return;
-      const message = extractErrorMessage(err, t("novel.importReview.startFailed"));
+      const message = extractErrorMessage(err, tRef.current("novel.importReview.startFailed"));
       setImportAnalysisDialog((prev) =>
         prev
           ? {
               ...prev,
               open: !importAnalysisDialogDismissedRef.current,
               status: "error",
-              message: t("novel.importReview.analysisFailed"),
+              message: tRef.current("novel.importReview.analysisFailed"),
               error: message,
             }
           : null,
@@ -596,10 +598,10 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({
       const loaded = await load(requestProjectId);
       if (!loaded) return;
       if (!isCurrentAction(requestProjectId, cancelAnalysisSeqRef, requestSeq)) return;
-      addToast(t("novel.importReview.analysisCancelled"), "success");
+      addToast(tRef.current("novel.importReview.analysisCancelled"), "success");
     } catch (err) {
       if (isCurrentAction(requestProjectId, cancelAnalysisSeqRef, requestSeq)) {
-        addToast(extractErrorMessage(err, t("novel.importReview.cancelFailed")), "error");
+        addToast(extractErrorMessage(err, tRef.current("novel.importReview.cancelFailed")), "error");
       }
     } finally {
       if (isCurrentAction(requestProjectId, cancelAnalysisSeqRef, requestSeq)) {
@@ -638,11 +640,11 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({
       const loaded = await load(requestProjectId);
       if (!isCurrentAction(requestProjectId, batchSeqRef, requestSeq)) return;
       if (!loaded) return;
-      addToast(t("novel.importReview.batchAccepted", { count: result.length }), "success");
+      addToast(tRef.current("novel.importReview.batchAccepted", { count: result.length }), "success");
       setSelected(new Set());
     } catch (err) {
       if (isCurrentAction(requestProjectId, batchSeqRef, requestSeq)) {
-        addToast(extractErrorMessage(err, t("novel.importReview.operationFailed")), "error");
+        addToast(extractErrorMessage(err, tRef.current("novel.importReview.operationFailed")), "error");
       }
     } finally {
       if (isCurrentAction(requestProjectId, batchSeqRef, requestSeq)) {
@@ -685,10 +687,10 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({
       if (!isCurrentAction(requestProjectId, actSeqRef, requestSeq)) return;
       addToast(
         action === "accept"
-          ? t("novel.importReview.accepted")
+          ? tRef.current("novel.importReview.accepted")
           : action === "reject"
-            ? t("novel.importReview.rejected")
-            : t("novel.importReview.deleted"),
+            ? tRef.current("novel.importReview.rejected")
+            : tRef.current("novel.importReview.deleted"),
         "success",
       );
       setSelected((prev) => {
@@ -704,7 +706,7 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({
       }
     } catch (err) {
       if (isCurrentAction(requestProjectId, actSeqRef, requestSeq)) {
-        addToast(extractErrorMessage(err, t("novel.importReview.operationFailed")), "error");
+        addToast(extractErrorMessage(err, tRef.current("novel.importReview.operationFailed")), "error");
       }
     } finally {
       if (isCurrentAction(requestProjectId, actSeqRef, requestSeq)) {
@@ -784,10 +786,10 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({
       const loaded = await load(requestProjectId);
       if (!isCurrentAction(requestProjectId, actSeqRef, requestSeq)) return;
       if (!loaded) return;
-      addToast(t("novel.importReview.modified"), "success");
+      addToast(tRef.current("novel.importReview.modified"), "success");
     } catch (err) {
       if (isCurrentAction(requestProjectId, actSeqRef, requestSeq)) {
-        addToast(extractErrorMessage(err, t("novel.importReview.saveAndAcceptFailed")), "error");
+        addToast(extractErrorMessage(err, tRef.current("novel.importReview.saveAndAcceptFailed")), "error");
       }
     } finally {
       if (isCurrentAction(requestProjectId, actSeqRef, requestSeq)) {
@@ -1066,10 +1068,10 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({
       if (!loaded) return;
       addToast(
         confirmed.warnings.length > 0
-          ? t("novel.importReview.candidateConfirmedWithWarnings", {
-              warnings: confirmed.warnings.join(t("common.summarySeparator")),
+          ? tRef.current("novel.importReview.candidateConfirmedWithWarnings", {
+              warnings: confirmed.warnings.join(tRef.current("common.summarySeparator")),
             })
-          : t("novel.importReview.candidateConfirmed"),
+          : tRef.current("novel.importReview.candidateConfirmed"),
         confirmed.warnings.length > 0 ? "info" : "success",
       );
     } catch (err) {
@@ -1077,7 +1079,7 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({
         requestSeq !== null &&
         isCurrentAction(requestProjectId, reverseSeqRef, requestSeq)
       ) {
-        addToast(extractErrorMessage(err, t("novel.importReview.confirmFailed")), "error");
+        addToast(extractErrorMessage(err, tRef.current("novel.importReview.confirmFailed")), "error");
       }
     } finally {
       if (
