@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { CheckCircle2, Clipboard, RotateCcw, XCircle } from "lucide-react";
 import { LoadingSpinner } from "../ui/LoadingSpinner";
 import type {
@@ -377,7 +377,7 @@ export const RequestPreviewModal: React.FC<RequestPreviewModalProps> = ({
   const { addToast } = useToast();
   const { locale, t } = useI18n();
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     copySequenceRef.current += 1;
     setCopied(false);
     if (copiedTimerRef.current != null) {
