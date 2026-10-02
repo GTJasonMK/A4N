@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { GitCompare, PanelsTopLeft, RefreshCw } from "lucide-react";
 import { LoadingSpinner } from "../components/ui/LoadingSpinner";
@@ -114,7 +114,7 @@ export const ComicProjectWorkspace: React.FC = () => {
     }
   }, [addToast, navigate, projectId]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     refreshRequestRef.current += 1;
     setProject(null);
     setChapters([]);

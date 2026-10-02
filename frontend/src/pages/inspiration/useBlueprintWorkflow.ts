@@ -469,6 +469,7 @@ export const useBlueprintWorkflow = ({
 
   const handlePreviewGenerateBlueprint = useCallback(async () => {
     if (!project || !canGenerate) return;
+    const requestProjectId = projectId;
     const requestSeq = ++requestPreviewSeqRef.current;
     setRequestPreviewOpen(true);
     setRequestPreviewLoading(true);
@@ -476,16 +477,16 @@ export const useBlueprintWorkflow = ({
     try {
       const input = buildCurrentBlueprintGenerationInput(project);
       const preview = await previewGenerateBlueprintRequest(input);
-      if (requestPreviewSeqRef.current === requestSeq) setRequestPreviewData(preview);
+      if (isCurrentProject(requestProjectId) && requestPreviewSeqRef.current === requestSeq) setRequestPreviewData(preview);
     } catch (error) {
-      if (requestPreviewSeqRef.current === requestSeq) {
+      if (isCurrentProject(requestProjectId) && requestPreviewSeqRef.current === requestSeq) {
         addToast(extractErrorMessage(error, t("inspiration.previewBlueprintFailed")), "error");
         setRequestPreviewOpen(false);
       }
     } finally {
-      if (requestPreviewSeqRef.current === requestSeq) setRequestPreviewLoading(false);
+      if (isCurrentProject(requestProjectId) && requestPreviewSeqRef.current === requestSeq) setRequestPreviewLoading(false);
     }
-  }, [addToast, buildCurrentBlueprintGenerationInput, canGenerate, project, t]);
+  }, [addToast, buildCurrentBlueprintGenerationInput, canGenerate, isCurrentProject, project, projectId, t]);
 
   const handleCancelBlueprint = useCallback(async () => {
     if (
@@ -543,6 +544,7 @@ export const useBlueprintWorkflow = ({
 
   const handlePreviewRefineBlueprint = useCallback(async (focus: string) => {
     if (!project) return;
+    const requestProjectId = projectId;
     const requestFocus = focus.trim();
     if (!requestFocus) {
       addToast(t("inspiration.missingRefineFocus"), "error");
@@ -554,16 +556,16 @@ export const useBlueprintWorkflow = ({
     setRequestPreviewData(null);
     try {
       const preview = await previewRefineBlueprintRequest({ project_id: projectId, focus: requestFocus, variables: null });
-      if (requestPreviewSeqRef.current === requestSeq) setRequestPreviewData(preview);
+      if (isCurrentProject(requestProjectId) && requestPreviewSeqRef.current === requestSeq) setRequestPreviewData(preview);
     } catch (error) {
-      if (requestPreviewSeqRef.current === requestSeq) {
+      if (isCurrentProject(requestProjectId) && requestPreviewSeqRef.current === requestSeq) {
         addToast(extractErrorMessage(error, t("inspiration.previewRefineFailed")), "error");
         setRequestPreviewOpen(false);
       }
     } finally {
-      if (requestPreviewSeqRef.current === requestSeq) setRequestPreviewLoading(false);
+      if (isCurrentProject(requestProjectId) && requestPreviewSeqRef.current === requestSeq) setRequestPreviewLoading(false);
     }
-  }, [addToast, project, projectId, t]);
+  }, [addToast, isCurrentProject, project, projectId, t]);
 
   const handleConfirmBlueprint = useCallback(() => {
     if (!project) return;

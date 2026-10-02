@@ -1,5 +1,5 @@
 import {
-  useEffect,
+  useLayoutEffect,
   useRef,
   useState,
   type Dispatch,
@@ -269,7 +269,7 @@ export function useVideoRecordActions({
     return strategy;
   };
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     requestPreviewScopeRef.current += 1;
     requestPreviewBusyScopeRef.current = null;
     setRequestPreviewOpen(false);

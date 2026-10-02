@@ -1,4 +1,4 @@
-import React, { lazy, Suspense, useEffect, useRef, useState } from "react";
+import React, { lazy, Suspense, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useBeforeUnload, useBlocker, useNavigate, useParams } from "react-router-dom";
 import {
   ArrowLeft,
@@ -225,6 +225,7 @@ export const NovelDetail: React.FC = () => {
   }, [dirtyNavigationBlocker.proceed, dirtyNavigationBlocker.state, dirtyRegistry, dirtyRegistryVersion, exportBusy]);
   const mountedRef = useRef(false);
   const activeProjectIdRef = useRef(projectId);
+  activeProjectIdRef.current = projectId;
   const refreshSeqRef = useRef(0);
   const ragSeqRef = useRef(0);
   const refineSeqRef = useRef(0);
@@ -303,8 +304,7 @@ export const NovelDetail: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  useEffect(() => {
-    activeProjectIdRef.current = projectId;
+  useLayoutEffect(() => {
     invalidateProjectScopedRequests();
     setProject(null);
     setProjectLoadError(null);

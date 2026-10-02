@@ -75,6 +75,8 @@ export function useChapterAnalysisActions({
   const mountedRef = useRef(false);
   const projectIdRef = useRef(projectId);
   const activeChapterIdRef = useRef(activeChapter?.id ?? null);
+  projectIdRef.current = projectId;
+  activeChapterIdRef.current = activeChapter?.id ?? null;
   const analysisActionRef = useRef<"generate" | "resume" | null>(null);
   const requestPreviewBusyRef = useRef(false);
   const requestPreviewSeqRef = useRef(0);
@@ -90,8 +92,6 @@ export function useChapterAnalysisActions({
   }, []);
 
   useEffect(() => {
-    projectIdRef.current = projectId;
-    activeChapterIdRef.current = activeChapter?.id ?? null;
     requestPreviewBusyRef.current = false;
     requestPreviewSeqRef.current += 1;
     setRequestPreviewOpen(false);

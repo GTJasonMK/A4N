@@ -3,7 +3,7 @@ import React, {
   lazy,
   Suspense,
   useCallback,
-  useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -158,7 +158,7 @@ export const VideoProjectWorkspace: React.FC = () => {
     }
   }, [addToast, navigate, projectId]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     refreshRequestRef.current += 1;
     setProject(null);
     setChapters([]);

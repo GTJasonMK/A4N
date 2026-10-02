@@ -35,6 +35,8 @@ export function useChapterPromptPreview({
   const mountedRef = useRef(false);
   const projectIdRef = useRef(projectId);
   const activeNumberRef = useRef(activeNumber);
+  projectIdRef.current = projectId;
+  activeNumberRef.current = activeNumber;
   const previewBusyRef = useRef(false);
   const previewSeqRef = useRef(0);
 
@@ -48,8 +50,6 @@ export function useChapterPromptPreview({
   }, []);
 
   useEffect(() => {
-    projectIdRef.current = projectId;
-    activeNumberRef.current = activeNumber;
     previewBusyRef.current = false;
     previewSeqRef.current += 1;
     setPreviewOpen(false);

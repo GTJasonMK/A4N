@@ -12,7 +12,7 @@ const hash = createHash("sha256").update(text).digest("hex");
 const projects = visualFixtures.projectRecords.map((project) => ({ ...project, source_snapshot_id: project.root_project_id ? project.id + 10 : null }));
 const fixture = {
   ...visualFixtures,
-  projectRecords: projects,
+  projectRecords: [...projects, { ...projects.find((project) => project.id === 3), id: 7, title: "第二先导短片" }],
   list_source_snapshot_chapters: authoringChapters(3),
   list_video_adaptation_references: [],
   list_manga_page_prompts: [],
@@ -31,6 +31,7 @@ const fixture = {
   byProject: {
     2: { list_source_snapshot_chapters: authoringChapters(2), get_media_authoring_workspace: authoringWorkspace(2, "manga") },
     5: { list_source_snapshot_chapters: authoringChapters(5), get_media_authoring_workspace: authoringWorkspace(5, "galgame") },
+    7: { list_source_snapshot_chapters: authoringChapters(7) },
   },
 };
 
@@ -144,6 +145,27 @@ describe("Derived media authoring stages", () => {
     await $("[role=dialog]").waitForDisplayed();
     await browser.keys("Escape");
     await browser.waitUntil(async () => await browser.execute(() => document.querySelector("[role=dialog]") == null));
+  });
+
+  it("clears the previous video's content while the next route project is loading", async () => {
+    await browser.setWindowSize(1440, 1000);
+    await browser.url("/video-project/3");
+    await browser.waitUntil(async () => (await $("body").getText()).includes("先导短片"));
+    await browser.execute(() => {
+      window.__uiAudit.deferred.push("get_project");
+      window.history.pushState({}, "", "/video-project/7");
+      window.dispatchEvent(new PopStateEvent("popstate", { state: window.history.state }));
+    });
+    await browser.waitUntil(async () => await browser.execute(() => window.__uiAudit.pending.some((item) => item.command === "get_project" && String(item.body.projectId) === "7")));
+    assert.ok(!(await $("body").getText()).includes("先导短片"));
+    await browser.execute(() => {
+      const project = window.__uiAudit.fixtures.projectRecords.find((item) => item.id === 7);
+      window.__uiAudit.deferred = window.__uiAudit.deferred.filter((command) => command !== "get_project");
+      for (const pending of window.__uiAudit.pending.filter((item) => item.command === "get_project" && String(item.body.projectId) === "7")) {
+        pending.resolve(Response.json(project));
+      }
+    });
+    await browser.waitUntil(async () => (await $("body").getText()).includes("第二先导短片"));
   });
 
   it("presents seven game stages and keeps image configuration out of asset planning", async () => {

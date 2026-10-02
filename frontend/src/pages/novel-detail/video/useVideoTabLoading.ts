@@ -228,6 +228,14 @@ export function useVideoTabLoading({
 
   useLayoutEffect(() => {
     activeVideoDataKeyRef.current = videoDataKey;
+    promptRequestPreviewScopeRef.current += 1;
+    imageRequestPreviewScopeRef.current += 1;
+    setPromptRequestPreviewOpen(false);
+    setPromptRequestPreviewLoading(false);
+    setPromptRequestPreviewData(null);
+    setImageRequestPreviewOpen(false);
+    setImageRequestPreviewLoading(false);
+    setImageRequestPreviewData(null);
     loadAllSeqRef.current += 1;
     promptLoadSeqRef.current += 1;
     segmentPlanDraftLoadSeqRef.current += 1;
@@ -431,7 +439,7 @@ export function useVideoTabLoading({
     workflowVideos,
   ]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     promptRequestPreviewScopeRef.current += 1;
     imageRequestPreviewScopeRef.current += 1;
     setPromptRequestPreviewOpen(false);

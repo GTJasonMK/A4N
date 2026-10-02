@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { Gamepad2, GitCompare, RefreshCw, Trash2 } from "lucide-react";
 import { LoadingSpinner } from "../components/ui/LoadingSpinner";
@@ -133,7 +133,7 @@ export const GalgameProjectWorkspace: React.FC = () => {
     }
   }, [addToast, navigate, projectId]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     refreshRequestRef.current += 1;
     resetBusyRef.current = false;
     setProject(null);
