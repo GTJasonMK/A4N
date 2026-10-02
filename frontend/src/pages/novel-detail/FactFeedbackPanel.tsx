@@ -149,8 +149,9 @@ export const FactFeedbackPanel = ({ projectId, canEdit, refreshKey, onChanged }:
       await updateProject(requestProject, { title: null, description: null, fact_feedback_interval_chapters: value });
       if (!mounted.current || currentProject.current !== requestProject) return;
       intervalDirty.current = false;
-      await load();
+      const loaded = await load();
       if (!mounted.current || currentProject.current !== requestProject) return;
+      if (!loaded) addToast(t("novel.refreshFailed"), "error");
       let refreshFailed = false;
       try {
         refreshFailed = (await onChanged?.()) === false;

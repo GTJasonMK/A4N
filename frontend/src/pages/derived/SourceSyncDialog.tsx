@@ -118,6 +118,17 @@ export const SourceSyncDialog: React.FC<SourceSyncDialogProps> = ({
   const [detachConfirming, setDetachConfirming] = useState(false);
   const [detaching, setDetaching] = useState(false);
   const mountedRef = useRef(false);
+
+  const refreshParent = async (): Promise<boolean> => {
+    try {
+      const refreshed = await onChanged();
+      if (refreshed === false) addToast(t("novel.refreshFailed"), "error");
+      return refreshed !== false;
+    } catch (error) {
+      addToast(extractErrorMessage(error, t("novel.refreshFailed")), "error");
+      return false;
+    }
+  };
   const scopeRef = useRef({ open, projectId, token: 0 });
   const activeProjectIdRef = useRef(projectId);
   const previewSeqRef = useRef(0);
@@ -276,7 +287,7 @@ export const SourceSyncDialog: React.FC<SourceSyncDialogProps> = ({
       });
       if (!isCurrentMutation(targetProjectId, applySeqRef, requestSeq)) return;
       setPlan(updatedPlan);
-      await onChanged();
+      await refreshParent();
       if (!isCurrentMutation(targetProjectId, applySeqRef, requestSeq)) return;
       addToast(t("novel.sourceSyncDialog.unconflictedApplied"), "success");
     } catch (err) {
@@ -337,7 +348,7 @@ export const SourceSyncDialog: React.FC<SourceSyncDialogProps> = ({
       });
       if (!isCurrentMutation(targetProjectId, applySeqRef, requestSeq)) return;
       setPlan(updatedPlan);
-      await onChanged();
+      await refreshParent();
       if (!isCurrentMutation(targetProjectId, applySeqRef, requestSeq)) return;
       addToast(t("novel.sourceSyncDialog.keptLocal"), "success");
     } catch (err) {
@@ -408,7 +419,7 @@ export const SourceSyncDialog: React.FC<SourceSyncDialogProps> = ({
       });
       if (!isCurrentMutation(targetProjectId, applySeqRef, requestSeq)) return;
       setPlan(updatedPlan);
-      await onChanged();
+      await refreshParent();
       if (!isCurrentMutation(targetProjectId, applySeqRef, requestSeq)) return;
       addToast(t("novel.sourceSyncDialog.sceneRegenerated"), "success");
     } catch (err) {
@@ -460,7 +471,7 @@ export const SourceSyncDialog: React.FC<SourceSyncDialogProps> = ({
     try {
       await detachDerivedProject(targetProjectId);
       if (!isCurrentMutation(targetProjectId, detachSeqRef, requestSeq)) return;
-      await onChanged();
+      await refreshParent();
       if (!isCurrentMutation(targetProjectId, detachSeqRef, requestSeq)) return;
       setPlan(null);
       addToast(t("novel.sourceSyncDialog.detached"), "success");

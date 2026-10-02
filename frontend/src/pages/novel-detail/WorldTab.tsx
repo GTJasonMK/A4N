@@ -214,9 +214,13 @@ export const WorldTab: React.FC<WorldTabProps> = ({
       });
       if (!isCurrentProject(requestProjectId)) return;
       const notice = worldSettingSaveNotice(result.warnings, t);
-      await load();
+      const loaded = await load();
       if (!isCurrentProject(requestProjectId)) return;
       addToast(notice.message, notice.type);
+      if (!loaded) {
+        addToast(t("novel.refreshFailed"), "error");
+        return;
+      }
       setEditing(false);
     } catch (err) {
       if (!isCurrentProject(requestProjectId)) return;

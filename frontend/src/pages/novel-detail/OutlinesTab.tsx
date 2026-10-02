@@ -63,6 +63,9 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
       warnings.length > 0 ? "info" : "success",
     );
   };
+  const reportRefreshFailure = (refreshed: boolean) => {
+    if (!refreshed) addToast(t("novel.refreshFailed"), "error");
+  };
   const { run: runOutlineGeneration } = useOutlineGeneration();
   const [parts, setParts] = useState<PartOutline[]>([]);
   const [outlines, setOutlines] = useState<ChapterOutline[]>([]);
@@ -607,7 +610,8 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
         summary: formSnapshot.summary,
       });
       if (!isActionCurrent(requestProjectId, actionSeq)) return;
-      await load();
+      const refreshed = await load();
+      reportRefreshFailure(refreshed);
       addOutlineMutationToast(t("outline.chapterSaved", { chapter: o.chapter_number }), result.warnings);
       cancelEdit();
     } catch (err) {
@@ -652,7 +656,8 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
         summary: form.summary,
       });
       if (!isActionCurrent(requestProjectId, actionSeq)) return;
-      await load({ showLoading: false });
+      const refreshed = await load({ showLoading: false });
+      reportRefreshFailure(refreshed);
       addOutlineMutationToast(t("outline.chapterCreated", { chapter: form.chapterNumber }), result.warnings);
       setManualChapterInitial(null);
     } catch (err) {
@@ -738,7 +743,8 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
         theme: form.theme,
       });
       if (!isActionCurrent(requestProjectId, actionSeq)) return;
-      await load({ showLoading: false });
+      const refreshed = await load({ showLoading: false });
+      reportRefreshFailure(refreshed);
       addOutlineMutationToast(t("outline.partSaved", { part: form.partNumber }), result.warnings);
       setManualPartEditor(null);
     } catch (err) {
@@ -952,7 +958,8 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
     try {
       const result = await deleteLatestChapterOutlines(requestProjectId, targets);
       if (!isActionCurrent(requestProjectId, actionSeq)) return;
-      await load();
+      const refreshed = await load();
+      reportRefreshFailure(refreshed);
       addOutlineMutationToast(t("outline.deletedChapters", { count }), result.warnings);
     } catch (err) {
       if (isActionCurrent(requestProjectId, actionSeq)) {
@@ -1004,7 +1011,8 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
     try {
       const result = await deleteLatestParts(requestProjectId, targets);
       if (!isActionCurrent(requestProjectId, actionSeq)) return;
-      await load();
+      const refreshed = await load();
+      reportRefreshFailure(refreshed);
       addOutlineMutationToast(t("outline.deletedParts", { count: requestPartCount }), result.warnings);
     } catch (err) {
       if (isActionCurrent(requestProjectId, actionSeq)) {
@@ -1056,7 +1064,8 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
     try {
       const result = await deleteLatestChapterOutlines(requestProjectId, targets);
       if (!isActionCurrent(requestProjectId, actionSeq)) return;
-      await load();
+      const refreshed = await load();
+      reportRefreshFailure(refreshed);
       addOutlineMutationToast(
         t("outline.deletedOutlines", { count: requestChapterCount }),
         result.warnings,

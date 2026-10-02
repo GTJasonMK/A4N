@@ -293,8 +293,9 @@ export const CharacterPortraitsPanel: React.FC<{ projectId: number }> = ({
         },
       );
       if (!isCurrentProject(requestProjectId)) return;
-      await load();
+      const refreshed = await load();
       if (!isCurrentProject(requestProjectId)) return;
+      if (!refreshed) return;
       addToast(t("characterDetail.portrait.redrawSuccess"), "success");
       setActionPortrait(null);
     } catch (err) {
@@ -349,8 +350,9 @@ export const CharacterPortraitsPanel: React.FC<{ projectId: number }> = ({
     try {
       await setPrimaryPortrait(portrait.id);
       if (!isCurrentProject(requestProjectId)) return;
-      await load();
+      const refreshed = await load();
       if (!isCurrentProject(requestProjectId)) return;
+      if (!refreshed) return;
       addToast(t("characterDetail.portrait.primarySet"), "success");
       setActionPortrait(null);
     } catch (err) {
@@ -435,10 +437,10 @@ export const CharacterPortraitsPanel: React.FC<{ projectId: number }> = ({
           onClose={() => setShowSingle(false)}
           onCreated={async () => {
             if (!isCurrentProject(projectId)) return false;
-            await load();
+            const refreshed = await load();
             if (!isCurrentProject(projectId)) return false;
             setShowSingle(false);
-            return true;
+            return refreshed;
           }}
         />
       ) : null}
@@ -450,10 +452,10 @@ export const CharacterPortraitsPanel: React.FC<{ projectId: number }> = ({
           onClose={() => setShowUpload(false)}
           onUploaded={async () => {
             if (!isCurrentProject(projectId)) return false;
-            await load();
+            const refreshed = await load();
             if (!isCurrentProject(projectId)) return false;
             setShowUpload(false);
-            return true;
+            return refreshed;
           }}
         />
       ) : null}
@@ -465,10 +467,10 @@ export const CharacterPortraitsPanel: React.FC<{ projectId: number }> = ({
           onClose={() => setShowAge(null)}
           onCreated={async () => {
             if (!isCurrentProject(projectId)) return false;
-            await load();
+            const refreshed = await load();
             if (!isCurrentProject(projectId)) return false;
             setShowAge(null);
-            return true;
+            return refreshed;
           }}
         />
       ) : null}
