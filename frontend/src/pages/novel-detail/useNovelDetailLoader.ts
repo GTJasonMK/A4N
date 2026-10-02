@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { extractErrorMessage } from "../../api";
 import {
   canListenAppEvents,
@@ -66,7 +66,7 @@ export function useNovelDetailLoader(
     return promise;
   }, [errorMessage, loadData]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     mountedRef.current = true;
     return () => {
       mountedRef.current = false;
@@ -75,7 +75,7 @@ export function useNovelDetailLoader(
     };
   }, []);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     requestSeqRef.current += 1;
     loadInFlightRef.current = null;
     void load();

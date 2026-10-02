@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { ChevronRight, RefreshCw, Upload } from "lucide-react";
 import { LoadingSpinner } from "../../components/ui/LoadingSpinner";
@@ -111,7 +111,7 @@ export const ChaptersTab: React.FC<ChaptersTabProps> = ({ projectId, canEditChap
   }, [projectId]);
   const { load, loadError } = useNovelDetailLoader(loadChapters, t("novel.loadChaptersFailed"));
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     mountedRef.current = true;
     return () => {
       mountedRef.current = false;
@@ -120,7 +120,7 @@ export const ChaptersTab: React.FC<ChaptersTabProps> = ({ projectId, canEditChap
     };
   }, []);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     activeProjectIdRef.current = projectId;
     importSeqRef.current += 1;
     importingRef.current = false;
@@ -129,7 +129,7 @@ export const ChaptersTab: React.FC<ChaptersTabProps> = ({ projectId, canEditChap
     setPreviewChapterId(null);
   }, [projectId]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!canEditChapters) {
       importSeqRef.current += 1;
       importingRef.current = false;

@@ -100,8 +100,11 @@ export const useChapterStreamGeneration = ({
     autoSubscribe: generationHandle != null,
   });
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     setConsistencyReadOnlyChapterNumber(null);
+    streamStartBusyRef.current = false;
+    streamCancelBusyRef.current = false;
+    setStreamBusy(false);
   }, [activeNumber]);
 
   useLayoutEffect(() => {
@@ -130,6 +133,8 @@ export const useChapterStreamGeneration = ({
 
   useLayoutEffect(() => {
     setConsistencyReadOnlyChapterNumber(null);
+    streamStartBusyRef.current = false;
+    streamCancelBusyRef.current = false;
     clearStreamState(null);
   }, [clearStreamState, projectId]);
 
@@ -349,6 +354,7 @@ export const useChapterStreamGeneration = ({
           }
           if (projectIdKey && chapterNumber != null) {
             await removeWritingDraft(getWritingDraftKey(projectIdKey, chapterNumber));
+            if (!isCurrentTask()) return;
             onDraftRemoved();
           }
           const completionSummary =
@@ -421,14 +427,20 @@ export const useChapterStreamGeneration = ({
       addToast(generationBlockReason ?? t("writing.generationBlocked"), "error");
       return;
     }
+    const requestProjectId = projectId;
+    const requestChapterNumber = activeNumber;
     streamStartBusyRef.current = true;
+    const isCurrentRequest = () =>
+      projectIdRef.current === requestProjectId
+      && requestChapterNumber != null
+      && activeNumberRef.current === requestChapterNumber;
 
     try {
       if (generationBlockReason) {
         addToast(generationBlockReason, "error");
         return;
       }
-      if (activeNumber == null) {
+      if (requestChapterNumber == null) {
         addToast(t("writing.selectChapterFirst"), "error");
         return;
       }
@@ -437,7 +449,7 @@ export const useChapterStreamGeneration = ({
         return;
       }
 
-      const chapterNumber = activeNumber;
+      const chapterNumber = requestChapterNumber;
       const ok = await confirmDialog({
         title: activeChapter?.content?.trim()
           ? t("writing.regenerateChapterTitle")
@@ -457,7 +469,7 @@ export const useChapterStreamGeneration = ({
         cancelText: t("common.cancel"),
         dialogType: activeChapter?.content?.trim() ? "warning" : "normal",
       });
-      if (!ok || projectIdRef.current !== projectId) return;
+      if (!ok || !isCurrentRequest()) return;
 
       clearStreamState(null);
       const snapshot: EditorSnapshot = {
@@ -473,7 +485,7 @@ export const useChapterStreamGeneration = ({
       onShowContentTab();
 
       const input = {
-        project_id: projectId,
+        project_id: requestProjectId,
         chapter_number: chapterNumber,
         writing_notes: nonEmptyText(writingNotes),
         min_word_count: wordCountRange.min,
@@ -485,19 +497,21 @@ export const useChapterStreamGeneration = ({
       const handle = await generationClient.start((meta) =>
         startChapterGeneration({ ...input, meta }),
       );
-      if (projectIdRef.current !== projectId) return;
+      if (!isCurrentRequest()) return;
       generationHandleRef.current = handle;
       setGenerationHandle(handle);
       setStreamMessage(t("writing.generationStarted"));
       addToast(t("writing.generationStarted"), "success");
     } catch (error) {
-      if (projectIdRef.current === projectId) {
+      if (isCurrentRequest()) {
         clearStreamState(null);
         addToast(extractErrorMessage(error, t("writing.startGenerationFailed")), "error");
       }
     } finally {
-      streamStartBusyRef.current = false;
-      setStreamBusy(false);
+      if (isCurrentRequest()) {
+        streamStartBusyRef.current = false;
+        setStreamBusy(false);
+      }
     }
   }, [
     activeChapter?.content,
@@ -523,19 +537,32 @@ export const useChapterStreamGeneration = ({
     }
     const handle = generationHandleRef.current ?? generationHandle;
     if (!handle) return;
+    const requestProjectId = projectId;
+    const requestChapterNumber = generationChapterRef.current;
+    const requestKey = generationTaskKey(handle.task_id, handle.attempt);
+    const isCurrentRequest = () => {
+      const current = generationHandleRef.current;
+      return projectIdRef.current === requestProjectId
+        && activeNumberRef.current === requestChapterNumber
+        && current != null
+        && generationTaskKey(current.task_id, current.attempt) === requestKey;
+    };
     streamCancelBusyRef.current = true;
     setStreamBusy(true);
     setStreamMessage(t("writing.cancellingGeneration"));
     try {
       await generationClient.cancel(handle);
-      setStreamMessage(t("writing.cancelRequested"));
-      addToast(t("writing.cancelSent"), "success");
+      if (isCurrentRequest()) {
+        setStreamMessage(t("writing.cancelRequested"));
+        addToast(t("writing.cancelSent"), "success");
+      }
     } catch (error) {
+      if (!isCurrentRequest()) return;
       streamCancelBusyRef.current = false;
       setStreamBusy(false);
       addToast(extractErrorMessage(error, t("writing.cancelFailed")), "error");
     }
-  }, [addToast, generationHandle]);
+  }, [addToast, generationHandle, projectId, t]);
 
   return {
     streamTaskId,

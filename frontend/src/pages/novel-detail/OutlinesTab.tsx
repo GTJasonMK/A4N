@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useLayoutEffect, useRef, useState } from "react";
 import { RefreshCw } from "lucide-react";
 import { useToast } from "../../components/feedback/Toast";
 import { confirmDialog } from "../../components/feedback/ConfirmDialog";
@@ -239,7 +239,7 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
     }
   }, [addToast, isLoadCurrent, projectId]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     mountedRef.current = true;
     return () => {
       mountedRef.current = false;
@@ -252,7 +252,7 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
     };
   }, []);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     activeProjectIdRef.current = projectId;
     loadSeqRef.current += 1;
     actionSeqRef.current += 1;
@@ -292,12 +292,12 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
     void load();
   }, [load, projectId]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     setPartCount(defaultPartCount);
     setChaptersPerPart(defaultChaptersPerPart);
   }, [defaultChaptersPerPart, defaultPartCount, projectId]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (canEditOutlines) return;
     setEditingId(null);
     setEditForm({ title: "", summary: "" });
@@ -307,7 +307,7 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
     setAdvancedOpen(false);
   }, [canEditOutlines]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     setPartDetail((current) => {
       if (!current) return null;
       return parts.find((part) => part.id === current.id) ?? null;
@@ -315,7 +315,7 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
     partsRef.current = parts;
   }, [parts]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     outlinesRef.current = outlines;
     setOutlineDetail((current) => {
       if (!current) return null;
