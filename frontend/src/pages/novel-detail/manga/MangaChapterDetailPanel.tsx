@@ -610,7 +610,9 @@ export function MangaChapterDetailPanel({
       });
       if (!isCurrentAction(requestScope, actionSeq))
         throw new Error("任务已停止");
-      if (!await onPagePromptsChanged()) return;
+      if (!await onPagePromptsChanged()) {
+        throw new Error(t("comic.loadPagePromptsFailed"));
+      }
       if (!isCurrentAction(requestScope, actionSeq)) throw new Error("任务已停止");
       addToast(t("comic.prompt.saved"), "success");
     } catch (err) {
@@ -619,7 +621,8 @@ export function MangaChapterDetailPanel({
         if (
           !isCancelledOperation(message) &&
           !message.includes("任务已停止") &&
-          !message.includes(t("comic.prompt.notFound"))
+          !message.includes(t("comic.prompt.notFound")) &&
+          !message.includes(t("comic.loadPagePromptsFailed"))
         ) {
           addToast(message, "error");
         }
