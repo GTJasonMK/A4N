@@ -33,7 +33,6 @@ import { runGenerationProgressTaskThen } from "../../hooks/runGenerationProgress
 import { useProgressTask } from "../../hooks/useProgressTask";
 import { isCancelledOperation } from "../../utils/cancellation";
 import { copyTextToClipboard } from "../../utils/clipboard";
-import { sha256Hex } from "../../utils/contentHash";
 import { readFileAsBase64 } from "../../utils/fileUpload";
 import {
   isSupportedImageMime,
@@ -47,6 +46,7 @@ import { useImageGenerationSize } from "../../components/image/ImageSizeSelect";
 import { type ImageScope } from "./images/imageTabUtils";
 import { DEFAULT_IMAGE_STYLE } from "./styleTemplates";
 import { formatNumber, useI18n } from "../../i18n";
+import { useChapterContentHash } from "./video/useChapterContentHash";
 
 interface ImagesTabProps {
   projectId: number;
@@ -86,13 +86,14 @@ export const ImagesTab: React.FC<ImagesTabProps> = ({
   const [genPrompt, setGenPrompt] = useState("");
   const [genBusy, setGenBusy] = useState(false);
   const [objectProfiles, setObjectProfiles] = useState<ObjectProfile[]>([]);
+  const [objectProfilesError, setObjectProfilesError] = useState<string | null>(null);
   const [selectedObjectProfileId, setSelectedObjectProfileId] = useState<number | null>(null);
   const [objectImageStyle, setObjectImageStyle] = useState(DEFAULT_IMAGE_STYLE);
   const [objectImageBusy, setObjectImageBusy] = useState(false);
   const [objectPromptCopying, setObjectPromptCopying] = useState(false);
   const [scoringId, setScoringId] = useState<number | null>(null);
   const [scoreInput, setScoreInput] = useState("0.8");
-  const [currentContentHash, setCurrentContentHash] = useState<string | null>(null);
+  const { currentContentHash, chapterContentHashError } = useChapterContentHash(chapter);
   const [toolsOpen, setToolsOpen] = useState(false);
   const [actionImage, setActionImage] = useState<GeneratedImage | null>(null);
   const [requestPreviewOpen, setRequestPreviewOpen] = useState(false);
@@ -269,6 +270,7 @@ export const ImagesTab: React.FC<ImagesTabProps> = ({
     setImportBusy(false);
     setGenBusy(false);
     setObjectProfiles([]);
+    setObjectProfilesError(null);
     setSelectedObjectProfileId(null);
     setObjectImageBusy(false);
     setObjectPromptCopying(false);
@@ -301,24 +303,6 @@ export const ImagesTab: React.FC<ImagesTabProps> = ({
   useEffect(() => {
     if (hasChapterContext) setScopeMode("chapter");
   }, [hasChapterContext, chapter?.id]);
-
-  useEffect(() => {
-    let cancelled = false;
-    if (!chapter?.content?.trim()) {
-      setCurrentContentHash(null);
-      return;
-    }
-    void sha256Hex(chapter.content)
-      .then((hash) => {
-        if (!cancelled) setCurrentContentHash(hash);
-      })
-      .catch(() => {
-        if (!cancelled) setCurrentContentHash(null);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [chapter?.content]);
 
   const load = useCallback(async (options: { force?: boolean } = {}) => {
     const requestScope = scopeKey;
@@ -397,6 +381,7 @@ export const ImagesTab: React.FC<ImagesTabProps> = ({
     if (!canEditImages) {
       objectProfilesRef.current = [];
       setObjectProfiles([]);
+      setObjectProfilesError(null);
       setSelectedObjectProfileId(null);
       return true;
     }
@@ -404,11 +389,13 @@ export const ImagesTab: React.FC<ImagesTabProps> = ({
     const requestProjectId = projectId;
     const requestSeq = objectProfilesLoadSeqRef.current + 1;
     objectProfilesLoadSeqRef.current = requestSeq;
+    setObjectProfilesError(null);
     try {
       const rows = await listObjectProfiles(requestProjectId);
       if (!isCurrentObjectProfilesLoad(requestScope, requestSeq)) return false;
       objectProfilesRef.current = rows;
       setObjectProfiles(rows);
+      setObjectProfilesError(null);
       setSelectedObjectProfileId((current) =>
         current != null && rows.some((profile) => profile.id === current)
           ? current
@@ -417,8 +404,10 @@ export const ImagesTab: React.FC<ImagesTabProps> = ({
       return true;
     } catch (err) {
       if (isCurrentObjectProfilesLoad(requestScope, requestSeq)) {
+        const message = extractErrorMessage(err, t("novel.imageLibrary.loadProfilesFailed"));
+        setObjectProfilesError(message);
         if (notify) {
-          addToast(extractErrorMessage(err, t("novel.imageLibrary.loadProfilesFailed")), "error");
+          addToast(message, "error");
         }
       }
       return false;
@@ -923,6 +912,7 @@ export const ImagesTab: React.FC<ImagesTabProps> = ({
         onImportImage={handlePickImportImage}
         onToggleFavorite={(image) => void handleToggleFavorite(image)}
         onOpenActions={handleOpenImageActions}
+        contentHashError={chapterContentHashError}
       />
       <input
         ref={importFileInputRef}
@@ -938,6 +928,7 @@ export const ImagesTab: React.FC<ImagesTabProps> = ({
         genPrompt={genPrompt}
         genBusy={genBusy}
         objectProfiles={objectProfiles}
+        objectProfilesError={objectProfilesError}
         selectedObjectProfileId={selectedObjectProfileId}
         objectImageStyle={objectImageStyle}
         objectImageBusy={objectImageBusy}
@@ -957,6 +948,7 @@ export const ImagesTab: React.FC<ImagesTabProps> = ({
         onGenerate={() => void handleGenerate()}
         onPreviewObjectImage={() => void handlePreviewObjectImage()}
         onGenerateObjectImage={() => void handleGenerateObjectImage()}
+        onRetryObjectProfiles={() => void loadObjectProfiles()}
       />
 
       <ImageActionDialog

@@ -4,7 +4,8 @@ import { Boxes,
   Camera,
   ChevronRight,
   Clipboard,
-  Eye } from "lucide-react";
+  Eye,
+  RefreshCw } from "lucide-react";
 import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
 import { ImageSizeSelect } from "../../../components/image/ImageSizeSelect";
 import type { ImageSize } from "../../../api/image";
@@ -25,6 +26,7 @@ interface ImageGenerationDialogProps {
   genPrompt: string;
   genBusy: boolean;
   objectProfiles: ObjectProfile[];
+  objectProfilesError: string | null;
   selectedObjectProfileId: number | null;
   objectImageStyle: string;
   objectImageBusy: boolean;
@@ -44,6 +46,7 @@ interface ImageGenerationDialogProps {
   onGenerate: () => void;
   onPreviewObjectImage: () => void;
   onGenerateObjectImage: () => void;
+  onRetryObjectProfiles: () => void;
 }
 
 /** 图像生成对话框。 */
@@ -53,6 +56,7 @@ export function ImageGenerationDialog({
   genPrompt,
   genBusy,
   objectProfiles,
+  objectProfilesError,
   selectedObjectProfileId,
   objectImageStyle,
   objectImageBusy,
@@ -72,6 +76,7 @@ export function ImageGenerationDialog({
   onGenerate,
   onPreviewObjectImage,
   onGenerateObjectImage,
+  onRetryObjectProfiles,
 }: ImageGenerationDialogProps) {
   const { locale, t } = useI18n();
   const [objectToolsOpen, setObjectToolsOpen] = useState(false);
@@ -220,6 +225,14 @@ export function ImageGenerationDialog({
                   {t("novel.imageLibrary.availableProfiles", { count: formatNumber(objectProfiles.length, locale) })}
                 </span>
               </div>
+              {objectProfilesError ? (
+                <div role="alert" className="flex flex-wrap items-center gap-2 text-error">
+                  <span className="min-w-0 flex-1">{objectProfilesError}</span>
+                  <BookButton variant="secondary" size="sm" onClick={onRetryObjectProfiles}>
+                    <RefreshCw size={12} /> {t("common.retry")}
+                  </BookButton>
+                </div>
+              ) : null}
               <div className="grid grid-cols-1 gap-2">
                 <ThemedSelect
                   id="object-image-profile"
@@ -231,7 +244,7 @@ export function ImageGenerationDialog({
                     );
                   }}
                   className="pyqt-input"
-                  disabled={busy}
+                  disabled={busy || objectProfilesError != null}
                 >
                   <option value="">{t("novel.imageLibrary.selectObject")}</option>
                   {objectProfiles.map((profile) => (
@@ -254,7 +267,7 @@ export function ImageGenerationDialog({
                   <span className="inline-flex items-center gap-1.5 text-small text-book-text-muted">
                     <LoadingSpinner size="sm" /> {t("novel.imageLibrary.copyingPrompt")}
                   </span>
-                ) : !busy && selectedObjectProfileId != null ? (
+                ) : !busy && objectProfilesError == null && selectedObjectProfileId != null ? (
                   <Dropdown
                     items={[
                       {
@@ -274,7 +287,7 @@ export function ImageGenerationDialog({
                   variant="primary"
                   size="sm"
                   onClick={onGenerateObjectImage}
-                  disabled={busy || selectedObjectProfileId == null || imageSize == null}
+                  disabled={busy || objectProfilesError != null || selectedObjectProfileId == null || imageSize == null}
                   className="min-w-0 flex-1 !text-xs sm:flex-none"
                 >
                   {objectImageBusy ? (

@@ -35,6 +35,7 @@ interface ImageGalleryPanelProps {
   loadError: string | null;
   importBusy: boolean;
   currentContentHash: string | null;
+  contentHashError: string | null;
   busyId: number | null;
   scoringId: number | null;
   canEditImages: boolean;
@@ -58,6 +59,7 @@ export function ImageGalleryPanel({
   loadError,
   importBusy,
   currentContentHash,
+  contentHashError,
   busyId,
   scoringId,
   canEditImages,
@@ -190,6 +192,9 @@ export function ImageGalleryPanel({
   return (
     <section>
       <div className="mb-3 space-y-2.5">
+        {contentHashError ? (
+          <p role="alert" className="text-small text-error">{contentHashError}</p>
+        ) : null}
         {hasChapterContext || stats.total > 0 ? (
           <div className="flex min-w-0 items-center gap-2 overflow-x-auto no-scrollbar">
             {hasChapterContext ? (
