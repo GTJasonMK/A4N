@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useLayoutEffect, useRef, useState } from "react";
 import { extractErrorMessage } from "../../api";
 import type { ToastType } from "../../components/feedback/Toast";
 import type { MessageTranslator } from "../../i18n";
@@ -155,7 +155,7 @@ export function useProjectProfileCollection<T extends ProjectProfile>({
     [addToast, entityLabel, isCurrentProject, listProfiles, projectId, t],
   );
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     mountedRef.current = true;
     return () => {
       mountedRef.current = false;
@@ -166,7 +166,7 @@ export function useProjectProfileCollection<T extends ProjectProfile>({
     };
   }, []);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     activeProjectIdRef.current = projectId;
     loadSeqRef.current += 1;
     loadInFlightRef.current = null;
@@ -183,7 +183,7 @@ export function useProjectProfileCollection<T extends ProjectProfile>({
     void load({ projectId, force: true });
   }, [load, projectId]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     profilesRef.current = profiles;
     setDetailFor((current) => {
       if (!current) return null;
@@ -195,7 +195,7 @@ export function useProjectProfileCollection<T extends ProjectProfile>({
     });
   }, [profiles]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (canEditProfiles) return;
     setEditingProfile(null);
   }, [canEditProfiles]);
