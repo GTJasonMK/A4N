@@ -340,7 +340,7 @@ export function useVideoTabLoading({
           if (!disposed && activeVideoDataKeyRef.current === requestDataKey) {
             await refreshSegmentPlanDraft().catch(() => undefined);
           }
-          finishVideoAction(actionKey);
+          finishVideoAction(actionKey, requestDataKey);
         }
       })
       .catch((error) => {

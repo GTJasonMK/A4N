@@ -221,12 +221,17 @@ export function useVideoTabState({
   const [acting, setActing] = useState<string | null>(null);
   const actionScopeRef = useRef(videoActionScopeKey);
   const actionBusyRef = useRef<string | null>(null);
+  const actionBusyScopeRef = useRef<string | null>(videoActionScopeKey);
   useLayoutEffect(() => {
     actionScopeRef.current = videoActionScopeKey;
+    actionBusyRef.current = null;
+    actionBusyScopeRef.current = null;
+    setActing(null);
   }, [videoActionScopeKey]);
   const beginVideoAction = useCallback((key: string): boolean => {
     if (actionBusyRef.current) return false;
     actionBusyRef.current = key;
+    actionBusyScopeRef.current = actionScopeRef.current;
     setActing(key);
     return true;
   }, []);
@@ -234,9 +239,13 @@ export function useVideoTabState({
     (scope: string | null): boolean => actionScopeRef.current === scope,
     [],
   );
-  const finishVideoAction = useCallback((key: string): void => {
-    if (actionBusyRef.current !== key) return;
+  const finishVideoAction = useCallback((key: string, requestScope: string | null): void => {
+    if (
+      actionBusyRef.current !== key ||
+      actionBusyScopeRef.current !== requestScope
+    ) return;
     actionBusyRef.current = null;
+    actionBusyScopeRef.current = null;
     setActing((current) => (current === key ? null : current));
   }, []);
   const workspaceTabIds = workspaceTabs.map((tab) => tab.id);

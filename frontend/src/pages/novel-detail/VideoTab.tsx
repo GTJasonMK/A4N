@@ -426,7 +426,7 @@ export const VideoTab: React.FC<VideoTabProps> = ({
     setPendingVideoId,
     beginAction: beginVideoAction,
     isCurrentActionScope: isCurrentVideoActionScope,
-    finishAction: finishVideoAction,
+    finishAction: (key) => finishVideoAction(key, videoActionScopeKey),
   });
 
   const {
@@ -464,7 +464,7 @@ export const VideoTab: React.FC<VideoTabProps> = ({
     setSegmentPlanPreview,
     beginAction: beginVideoAction,
     isCurrentActionScope: isCurrentVideoActionScope,
-    finishAction: finishVideoAction,
+    finishAction: (key) => finishVideoAction(key, videoActionScopeKey),
   });
 
   const {

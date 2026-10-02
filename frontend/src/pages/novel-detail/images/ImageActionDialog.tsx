@@ -275,7 +275,7 @@ export function ImageActionDialog({
               type="button"
               role="switch"
               aria-checked={image.is_favorite}
-              disabled={busyId === image.id}
+              disabled={busy}
               onClick={() => onToggleFavorite(image)}
               className="a4n-flat-surface flex w-full items-center justify-between gap-3 overflow-hidden px-3 py-3 text-left transition-colors hover:bg-book-bg-tertiary/35 focus-visible:outline-2 focus-visible:outline-book-primary/35 disabled:cursor-not-allowed disabled:opacity-55"
             >
@@ -422,7 +422,7 @@ export function ImageActionDialog({
               <BookButton
                 variant="danger"
                 size="sm"
-                disabled={busyId === image.id}
+                disabled={busy}
                 onClick={() => onDelete(image)}
                 className="w-full shrink-0 !text-xs sm:w-auto"
               >

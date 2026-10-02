@@ -102,6 +102,7 @@ export function useVideoTabViewState({
     pendingVideoState,
     segmentRecipeState,
     recipeSaveErrors,
+    acting,
     referenceMediaDraftScopeRef,
     setSegmentConfigOpen,
     setDraft,
@@ -729,6 +730,10 @@ export function useVideoTabViewState({
 
   const handleSelectSegment = useCallback(
     async (segmentNumber: number) => {
+      if (acting != null) {
+        addToast(t("common.operationInProgress"), "info");
+        return false;
+      }
       if (segmentNumber === selectedSegmentNumber) return true;
       if (selectedPromptDirty) {
         const discard = await confirmDialog({
@@ -762,6 +767,7 @@ export function useVideoTabViewState({
     },
     [
       addToast,
+      acting,
       referenceMediaDraftDirty,
       saveReferenceMediaDraft,
       selectedPromptDirty,
@@ -772,6 +778,10 @@ export function useVideoTabViewState({
   );
   const handleSelectPrompt = useCallback(
     async (promptId: number): Promise<void> => {
+      if (acting != null) {
+        addToast(t("common.operationInProgress"), "info");
+        return;
+      }
       if (promptId === selectedPromptId) return;
       if (selectedPromptDirty) {
         const discard = await confirmDialog({
@@ -786,7 +796,7 @@ export function useVideoTabViewState({
       }
       setSelectedPromptId(promptId);
     },
-    [selectedPromptDirty, selectedPromptId, setSelectedPromptId, t],
+    [acting, addToast, selectedPromptDirty, selectedPromptId, setSelectedPromptId, t],
   );
   const handleActivateSegment = useCallback(
     async (segmentNumber: number) => {

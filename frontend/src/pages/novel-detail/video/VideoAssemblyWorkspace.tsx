@@ -570,7 +570,7 @@ export const VideoAssemblyWorkspace: React.FC<VideoAssemblyWorkspaceProps> = ({
             variant="secondary"
             size="sm"
             onClick={() => void handleImportInsert(null)}
-            disabled={acting != null}
+            disabled={assemblyBusy}
             className="!min-h-8 !px-3"
           >
             {acting === "insert-start" ? (
@@ -617,9 +617,7 @@ export const VideoAssemblyWorkspace: React.FC<VideoAssemblyWorkspaceProps> = ({
             >
               <LoadingSpinner size="sm" />
             </span>
-          ) : !loading &&
-            !cacheLoading &&
-            !pushing &&
+          ) : !assemblyBusy &&
             assemblyMenuItems.length > 0 ? (
             <Dropdown items={assemblyMenuItems} />
           ) : null}
@@ -627,7 +625,7 @@ export const VideoAssemblyWorkspace: React.FC<VideoAssemblyWorkspaceProps> = ({
             variant={preview ? "secondary" : "primary"}
             size="sm"
             onClick={() => void handleAssemble()}
-            disabled={loading || cacheLoading || pushing}
+            disabled={assemblyBusy}
             className="!min-h-8 !px-3"
           >
             <span className="inline-flex items-center gap-1">
@@ -696,6 +694,7 @@ export const VideoAssemblyWorkspace: React.FC<VideoAssemblyWorkspaceProps> = ({
                 exporting ||
                 loading ||
                 cacheLoading ||
+                acting != null ||
                 !selectedPushEndVideo ||
                 hasPendingPush
               }

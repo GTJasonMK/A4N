@@ -122,6 +122,8 @@ export const VideoMaterialWorkspace: React.FC<VideoMaterialWorkspaceProps> = ({
     setLoadError(null);
     setImageDetails(null);
     setUploadTarget(null);
+    setSelectedStyleTemplateId(DEFAULT_STYLE_TEMPLATE_ID);
+    setCustomStyle("");
     setBusyKey(null);
     setBatchBusy(false);
     setLoading(true);
@@ -135,6 +137,8 @@ export const VideoMaterialWorkspace: React.FC<VideoMaterialWorkspaceProps> = ({
     loadInFlightRef.current = null;
     setGroups([]);
     setLoadError(null);
+    setImageDetails(null);
+    setUploadTarget(null);
     setLoading(true);
   }, [loadRequestKey]);
 
@@ -267,7 +271,11 @@ export const VideoMaterialWorkspace: React.FC<VideoMaterialWorkspaceProps> = ({
         loadMaterials({ force: true }),
         Promise.resolve(onRefreshVideoData()),
       ]);
-      return materials && parent !== false;
+      const refreshed = materials && parent !== false;
+      if (!refreshed && isCurrentProject(projectId)) {
+        onToast(t("video.material.loadFailed"), "error");
+      }
+      return refreshed;
     } catch (error) {
       if (isCurrentProject(projectId)) {
         onToast(extractErrorMessage(error, t("video.material.loadFailed")), "error");
@@ -544,7 +552,7 @@ export const VideoMaterialWorkspace: React.FC<VideoMaterialWorkspaceProps> = ({
       const updated = await updateImage(image.id, input);
       if (!isCurrentProject(requestProjectId)) return;
       setImageDetails((current) => (current?.id === updated.id ? updated : current));
-      if (!await loadMaterials({ force: true })) throw new Error(t("video.material.loadFailed"));
+      if (!await loadMaterials({ force: true })) return;
       if (!isCurrentProject(requestProjectId)) return;
       onToast(t("video.material.imageUpdated"), "success");
     } catch (err) {
@@ -760,8 +768,8 @@ export const VideoMaterialWorkspace: React.FC<VideoMaterialWorkspaceProps> = ({
 
       <ImageActionDialog
         image={imageDetails}
-        busyId={imageBusyId}
-        scoringId={imageScoringId}
+        busyId={busyKey != null || batchBusy ? imageDetails?.id ?? -1 : imageBusyId}
+        scoringId={busyKey != null || batchBusy ? imageDetails?.id ?? -1 : imageScoringId}
         scoreInput={imageScoreInput}
         onClose={closeImageDetails}
         onToggleFavorite={(image) => void toggleFavorite(image)}

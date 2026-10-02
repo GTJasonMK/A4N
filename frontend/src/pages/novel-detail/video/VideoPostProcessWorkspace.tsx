@@ -511,7 +511,7 @@ export const VideoPostProcessWorkspace: React.FC<
       event.target !== event.currentTarget ||
       !currentVideo ||
       editDisabledReason ||
-      acting?.startsWith("edit-") ||
+      acting != null ||
       markers.length >= 2 ||
       draggingMarkerIndex != null
     ) {
@@ -1016,7 +1016,15 @@ export const VideoPostProcessWorkspace: React.FC<
             ) : null}
           </div>
 
-          {editActing ? (
+          {acting != null ? (
+            <div
+              role="status"
+              className="flex min-h-24 items-center justify-center gap-2 text-xs text-book-text-muted"
+            >
+              <LoadingSpinner size="sm" />
+              {t("common.operationInProgress")}
+            </div>
+          ) : editActing ? (
             <div
               role="status"
               className="flex min-h-24 items-center justify-center gap-2 text-xs text-book-text-muted"

@@ -118,6 +118,7 @@ export const VideoPromptSetupPanel: React.FC<VideoPromptSetupPanelProps> = ({
         <button
           type="button"
           onClick={() => void onSelectPrompt(prompt.id)}
+          disabled={loading || acting != null || savingRecipeSegments.size > 0}
           className="min-w-0 flex-1 px-3 py-2.5 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-book-primary"
         >
           <div className="truncate text-xs font-medium text-book-text-main">
@@ -139,6 +140,7 @@ export const VideoPromptSetupPanel: React.FC<VideoPromptSetupPanelProps> = ({
                   label: t("video.chapter.deletePrompt"),
                   danger: true,
                   icon: <Trash2 size={12} />,
+                  disabled: loading || acting != null || savingRecipeSegments.size > 0,
                   onClick: () => void onDeletePrompt(prompt),
                 },
               ]}
@@ -153,7 +155,7 @@ export const VideoPromptSetupPanel: React.FC<VideoPromptSetupPanelProps> = ({
     <button
       type="button"
       onClick={() => void onLoad()}
-      disabled={loading}
+      disabled={loading || acting != null || savingRecipeSegments.size > 0}
       className="pyqt-btn-icon !h-9 !w-9 shrink-0 sm:!h-7 sm:!w-7"
       title={t("video.chapter.refresh")}
       aria-label={t("video.chapter.refresh")}
@@ -358,6 +360,7 @@ export const VideoPromptSetupPanel: React.FC<VideoPromptSetupPanelProps> = ({
         <button
           type="button"
           onClick={() => void onSelectSegment(shotNumber)}
+          disabled={loading || acting != null || savingRecipeSegments.has(shotNumber)}
           aria-current={selectedCard ? "true" : undefined}
           data-video-segment={shotNumber}
           title={selectedCard ? t("video.chapter.reopenConfig") : t("video.chapter.chooseSegmentAction")}
@@ -422,7 +425,7 @@ export const VideoPromptSetupPanel: React.FC<VideoPromptSetupPanelProps> = ({
         <button
           type="button"
           onClick={() => onOpenInsertedSegment(item.id)}
-          disabled={promptMissing}
+          disabled={promptMissing || loading || acting != null || savingRecipeSegments.size > 0}
           className="block w-full min-w-0 p-3 text-left hover:bg-book-primary/10 disabled:cursor-not-allowed disabled:opacity-60"
         >
           <div className="flex min-w-0 items-start gap-2">

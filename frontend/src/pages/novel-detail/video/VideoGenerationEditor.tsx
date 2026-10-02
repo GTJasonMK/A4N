@@ -554,7 +554,7 @@ export const VideoGenerationEditor: React.FC<VideoGenerationEditorProps> = ({
               variant="primary"
               size="sm"
               onClick={() => void onSavePrompt()}
-              disabled={savingPrompt || selectedPromptRunning}
+              disabled={acting != null || savingPrompt || selectedPromptRunning}
               title={saveBlockedReason}
               className="!min-h-9 !px-3 sm:!min-h-7"
             >
@@ -571,7 +571,7 @@ export const VideoGenerationEditor: React.FC<VideoGenerationEditorProps> = ({
               variant="primary"
               size="sm"
               onClick={() => void onCopyPrompt(selectedPrompt)}
-              disabled={selectedPrompt.prompt_type !== VIDEO_FINAL_PROMPT_TYPE}
+              disabled={acting != null || selectedPrompt.prompt_type !== VIDEO_FINAL_PROMPT_TYPE}
               className="!min-h-9 !px-3 sm:!min-h-7"
             >
               <span className="inline-flex items-center gap-1">
@@ -585,7 +585,11 @@ export const VideoGenerationEditor: React.FC<VideoGenerationEditorProps> = ({
               variant="primary"
               size="sm"
               onClick={() => void onGenerateVideo()}
-              disabled={videoGenerationInFlight || selectedGenerateBlockedReason != null}
+              disabled={
+                acting != null ||
+                videoGenerationInFlight ||
+                selectedGenerateBlockedReason != null
+              }
               title={selectedGenerateBlockedReason}
               className="!min-h-9 !px-3 sm:!min-h-7"
             >
@@ -615,6 +619,7 @@ export const VideoGenerationEditor: React.FC<VideoGenerationEditorProps> = ({
                     <Wand2 size={13} />
                   ),
                 disabled:
+                  acting != null ||
                   acting === `optimize-prompt-${selectedPrompt.id}` ||
                   optimizeBlockedReason != null,
                 onClick: () => void onOptimizePrompt(selectedPrompt),
@@ -642,6 +647,7 @@ export const VideoGenerationEditor: React.FC<VideoGenerationEditorProps> = ({
                           <Upload size={13} />
                         ),
                       disabled:
+                        acting != null ||
                         acting === `import-video-${selectedPrompt.id}` ||
                         selectedImportBlockedReason != null,
                       onClick: () => void onImportVideo(),
@@ -656,6 +662,7 @@ export const VideoGenerationEditor: React.FC<VideoGenerationEditorProps> = ({
                       icon: <Trash2 size={13} />,
                       danger: true,
                       disabled:
+                        acting != null ||
                         acting === `delete-prompt-${selectedPrompt.id}`,
                       onClick: () => void onDeletePrompt(selectedPrompt),
                     },
@@ -700,7 +707,7 @@ export const VideoGenerationEditor: React.FC<VideoGenerationEditorProps> = ({
         </div>
       ) : null}
       <fieldset
-        disabled={selectedPromptRunning}
+        disabled={selectedPromptRunning || acting != null}
         className="m-0 grid min-w-0 gap-4 border-0 p-0 md:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)]"
       >
         <div className="min-w-0">

@@ -213,7 +213,7 @@ export function useVideoTabActions(context: VideoTabActionInput) {
         );
         return false;
       } finally {
-        finishVideoAction(actionKey);
+        finishVideoAction(actionKey, requestScope);
       }
     },
     [
@@ -363,7 +363,7 @@ export function useVideoTabActions(context: VideoTabActionInput) {
       if (!isCurrentVideoActionScope(requestScope)) return;
       addToast(extractErrorMessage(err, currentT()("video.chapter.adoptVideoFailed")), "error");
     } finally {
-      finishVideoAction(actionKey);
+      finishVideoAction(actionKey, requestScope);
     }
   };
 
@@ -563,7 +563,7 @@ export function useVideoTabActions(context: VideoTabActionInput) {
       }
       return null;
     } finally {
-      finishVideoAction(actionKey);
+      finishVideoAction(actionKey, requestScope);
     }
   };
 
@@ -608,7 +608,7 @@ export function useVideoTabActions(context: VideoTabActionInput) {
       }
       return false;
     } finally {
-      finishVideoAction(actionKey);
+      finishVideoAction(actionKey, requestScope);
     }
   };
 
@@ -643,7 +643,7 @@ export function useVideoTabActions(context: VideoTabActionInput) {
         );
       }
     } finally {
-      finishVideoAction(actionKey);
+      finishVideoAction(actionKey, requestScope);
     }
   };
 
@@ -676,7 +676,7 @@ export function useVideoTabActions(context: VideoTabActionInput) {
         );
       }
     } finally {
-      finishVideoAction(actionKey);
+      finishVideoAction(actionKey, requestScope);
     }
   };
 
@@ -724,7 +724,7 @@ export function useVideoTabActions(context: VideoTabActionInput) {
         if (!isCancelledOperation(message)) addToast(message, "error");
       }
     } finally {
-      finishVideoAction(actionKey);
+      finishVideoAction(actionKey, requestScope);
     }
   };
 
@@ -1102,7 +1102,7 @@ export function useVideoTabActions(context: VideoTabActionInput) {
           addToast(currentT()("video.chapter.referenceMediaVideoGenerated"), "success");
         }
       }
-      finishVideoAction(actionKey);
+      finishVideoAction(actionKey, requestScope);
     }
   };
 
@@ -1133,11 +1133,11 @@ export function useVideoTabActions(context: VideoTabActionInput) {
           "error",
         );
       }
-      finishVideoAction(actionKey);
+      finishVideoAction(actionKey, requestScope);
       return;
     }
     if (!upload) {
-      finishVideoAction(actionKey);
+      finishVideoAction(actionKey, requestScope);
       return;
     }
     const { file, mimeType } = upload;
@@ -1167,7 +1167,7 @@ export function useVideoTabActions(context: VideoTabActionInput) {
         );
       }
     } finally {
-      finishVideoAction(actionKey);
+      finishVideoAction(actionKey, requestScope);
     }
   };
 

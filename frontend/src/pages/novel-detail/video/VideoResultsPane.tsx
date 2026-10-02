@@ -230,6 +230,7 @@ export const VideoResultsPane: React.FC<VideoResultsPaneProps> = ({
       {
         label: t("video.chapter.copyPrompt"),
         icon: <Copy size={12} />,
+        disabled: acting != null,
         onClick: () => void copyText(t("video.chapter.promptLabel"), selectedVideoRecord.prompt),
       },
       ...(!previewBlockedReason
@@ -237,6 +238,7 @@ export const VideoResultsPane: React.FC<VideoResultsPaneProps> = ({
             {
               label: t("video.chapter.viewModelRequest"),
               icon: <Eye size={12} />,
+              disabled: acting != null,
               onClick: () => void onPreviewVideoRequest(selectedVideoRecord),
             },
           ]
@@ -246,6 +248,7 @@ export const VideoResultsPane: React.FC<VideoResultsPaneProps> = ({
             {
               label: t("video.chapter.refreshStatus"),
               icon: <RefreshCw size={12} />,
+              disabled: acting != null,
               onClick: () => void onPollVideo(selectedVideoRecord),
             },
           ]
@@ -253,6 +256,7 @@ export const VideoResultsPane: React.FC<VideoResultsPaneProps> = ({
       {
         label: selectedVideoRecord.is_favorite ? t("video.chapter.unfavoriteVideo") : t("video.chapter.favoriteVideo"),
         icon: <Star size={12} fill={selectedVideoRecord.is_favorite ? "currentColor" : "none"} />,
+        disabled: acting != null,
         onClick: () => void onToggleVideoFavorite(selectedVideoRecord),
       },
       { type: "divider" },
@@ -260,6 +264,7 @@ export const VideoResultsPane: React.FC<VideoResultsPaneProps> = ({
         label: t("video.chapter.deleteVideo"),
         icon: <Trash2 size={12} />,
         danger: true,
+        disabled: acting != null,
         onClick: () => void onDeleteVideo(selectedVideoRecord),
       },
     ];
@@ -294,7 +299,7 @@ export const VideoResultsPane: React.FC<VideoResultsPaneProps> = ({
               variant={selectedVideoAdopted ? "secondary" : "primary"}
               size="sm"
               onClick={() => void onAdoptVideo(selectedVideoRecord)}
-              disabled={selectedVideoAdopted || acting === `adopt-video-${selectedVideoRecord.id}`}
+              disabled={selectedVideoAdopted || acting != null}
               className="!min-h-9 !px-2.5 sm:!min-h-7"
               title={selectedVideoAdopted ? t("video.chapter.adopted") : t("video.chapter.adoptCurrent")}
             >
@@ -427,7 +432,7 @@ export const VideoResultsPane: React.FC<VideoResultsPaneProps> = ({
                 <button
                   type="button"
                   onClick={() => void onTrim()}
-                  disabled={acting === `trim-${selectedVideoRecord.id}`}
+                  disabled={acting != null}
                   className="pyqt-btn-secondary inline-flex !min-h-9 items-center justify-center gap-1 !px-2 text-xs sm:self-end sm:!min-h-[28px]"
                   title={t("video.chapter.trimSelected")}
                 >
