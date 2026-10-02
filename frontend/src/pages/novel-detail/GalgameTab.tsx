@@ -208,6 +208,14 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
     }
   }, [addToast, projectId]);
 
+  const reloadAfterMutation = async (requestProjectId: number): Promise<boolean> => {
+    const refreshed = await load();
+    if (!refreshed && isCurrentProject(requestProjectId)) {
+      addToast(t("galgame.loadFailed"), "error");
+    }
+    return refreshed;
+  };
+
   useEffect(() => {
     setDetail(null);
     setLoadError(null);
@@ -561,7 +569,7 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
         height: requestSize.height,
       });
       if (!isCurrentProject(requestProjectId)) return;
-      await load();
+      await reloadAfterMutation(requestProjectId);
       if (!isCurrentProject(requestProjectId)) return;
       addToast(
         t("galgame.assetGenerationSummary", {
@@ -602,7 +610,7 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
         height: requestSize.height,
       });
       if (!isCurrentProject(requestProjectId)) return;
-      await load();
+      await reloadAfterMutation(requestProjectId);
       if (!isCurrentProject(requestProjectId)) return;
       addToast(
         result.generated_count > 0
@@ -652,7 +660,7 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
       }));
       if ("text" in patch || "pose" in patch) clearFieldDraft(`line:${line.id}`);
       if (patch.line_type != null && patch.line_type !== "choice") clearChoiceDraft(line.id);
-      await load();
+      await reloadAfterMutation(requestProjectId);
       if (!isCurrentProject(requestProjectId)) return;
       addToast(t("galgame.lineSaved"), "success");
       return true;
@@ -687,7 +695,7 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
         scenes: current.scenes.map((item) => item.scene.id === saved.id ? { ...item, scene: saved } : item),
       }));
       clearFieldDraft(`scene:${scene.id}`);
-      await load();
+      await reloadAfterMutation(requestProjectId);
       if (!isCurrentProject(requestProjectId)) return;
       addToast(t("galgame.sceneSaved"), "success");
     } catch (err) {
@@ -726,7 +734,7 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
         text_anchor_id: null,
       });
       if (!isCurrentProject(requestProjectId)) return;
-      await load();
+      await reloadAfterMutation(requestProjectId);
       if (!isCurrentProject(requestProjectId)) return;
       addToast(t("galgame.lineInserted"), "success");
     } catch (err) {
@@ -749,7 +757,7 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
       setAssetBindingDrafts((current) => Object.fromEntries(
         Object.entries(current).filter(([key]) => !key.startsWith(`line:${line.id}:`)),
       ));
-      await load();
+      await reloadAfterMutation(requestProjectId);
       if (!isCurrentProject(requestProjectId)) return;
       addToast(t("galgame.lineDeleted"), "success");
     } catch (err) {
@@ -778,7 +786,7 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
         line_ids: lineIds,
       });
       if (!isCurrentProject(requestProjectId)) return;
-      await load();
+      await reloadAfterMutation(requestProjectId);
       if (!isCurrentProject(requestProjectId)) return;
       addToast(t("galgame.lineReordered"), "success");
     } catch (err) {
@@ -802,7 +810,7 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
         choices,
       });
       if (!isCurrentProject(requestProjectId)) return;
-      await load();
+      await reloadAfterMutation(requestProjectId);
       if (!isCurrentProject(requestProjectId)) return;
       acceptChoiceDraft(line.id, submittedDraft);
       addToast(t("galgame.choicesSaved"), "success");

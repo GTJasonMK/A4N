@@ -371,7 +371,8 @@ export const ImplicitReviewManager: React.FC<{
       });
       if (!isCurrentProfile(requestProfileId) || applySeqRef.current !== requestSeq) return;
 
-      await load();
+      const refreshed = await load();
+      if (!refreshed) addToast(t("characterDetail.refreshFailed"), "error");
       try {
         if (await onChanged?.() === false) {
           addToast(t("characterDetail.refreshFailed"), "error");

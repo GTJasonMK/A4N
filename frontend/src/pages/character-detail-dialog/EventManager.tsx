@@ -345,7 +345,8 @@ export const EventManager: React.FC<{
       const successMessage = requestMode === "add"
         ? t("characterDetail.event.added")
         : t("characterDetail.event.modified");
-      await load();
+      const refreshed = await load();
+      if (!refreshed) addToast(t("characterDetail.refreshFailed"), "error");
       try {
         if (await onChanged?.() === false) {
           addToast(t("characterDetail.refreshFailed"), "error");

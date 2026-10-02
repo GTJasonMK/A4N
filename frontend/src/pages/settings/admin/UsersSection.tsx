@@ -152,6 +152,9 @@ export const UsersSection: React.FC<{ currentUserId: number }> = ({
       applyUsers,
       "settingsAdmin.loadUsersFailed",
     );
+  const reportReloadFailure = (refreshed: boolean) => {
+    if (!refreshed) addToast(t("settingsAdmin.loadFailed"), "error");
+  };
 
   useEffect(() => {
     actingKeysRef.current = new Set();
@@ -246,8 +249,9 @@ export const UsersSection: React.FC<{ currentUserId: number }> = ({
     try {
       await createAdminUser(input);
       if (!isCurrentUser(requestCurrentUserId)) return;
-      await reload();
+      const refreshed = await reload();
       if (!isCurrentUser(requestCurrentUserId)) return;
+      reportReloadFailure(refreshed);
       if (createFormVersionRef.current === requestFormVersion && createOpen) {
         addToast(t("settingsAdmin.userCreated"), "success");
         resetCreate();
@@ -284,8 +288,9 @@ export const UsersSection: React.FC<{ currentUserId: number }> = ({
       if (!isCurrentUser(requestCurrentUserId)) return;
       await createInviteCode({ code: trimmedCode });
       if (!isCurrentUser(requestCurrentUserId)) return;
-      await reload();
+      const refreshed = await reload();
       if (!isCurrentUser(requestCurrentUserId)) return;
+      reportReloadFailure(refreshed);
       addToast(t("settingsAdmin.inviteCreated"), "success");
     } catch (err) {
       if (!isCurrentUser(requestCurrentUserId)) return;
@@ -329,8 +334,9 @@ export const UsersSection: React.FC<{ currentUserId: number }> = ({
           return;
         }
       }
-      await reload();
+      const refreshed = await reload();
       if (!isCurrentUser(requestCurrentUserId)) return;
+      reportReloadFailure(refreshed);
       addToast(t("settingsAdmin.roleUpdated"), "success");
     } catch (err) {
       if (!isCurrentUser(requestCurrentUserId)) return;
@@ -359,8 +365,9 @@ export const UsersSection: React.FC<{ currentUserId: number }> = ({
       if (!isCurrentUser(requestCurrentUserId)) return;
       await disableUser(u.id);
       if (!isCurrentUser(requestCurrentUserId)) return;
-      await reload();
+      const refreshed = await reload();
       if (!isCurrentUser(requestCurrentUserId)) return;
+      reportReloadFailure(refreshed);
       addToast(t("settingsAdmin.disabled"), "success");
     } catch (err) {
       if (!isCurrentUser(requestCurrentUserId)) return;
