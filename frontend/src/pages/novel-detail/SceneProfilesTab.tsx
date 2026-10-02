@@ -197,7 +197,8 @@ export const SceneProfilesTab: React.FC<{
           if (!isCurrentAction(requestProjectId, requestSeq)) {
             throw new Error("任务已停止");
           }
-          await load({ silent: true, force: true, projectId: requestProjectId });
+          const refreshed = await load({ silent: true, force: true, projectId: requestProjectId, notify: false });
+          if (!refreshed) throw new Error(t("characterDetail.refreshFailed"));
         },
       );
       if (!isCurrentAction(requestProjectId, requestSeq)) return;
@@ -258,7 +259,8 @@ export const SceneProfilesTab: React.FC<{
             throw new Error("任务已停止");
           }
           await verifyImageGenerationResult(task, requestProjectId);
-          await load({ silent: true, force: true, projectId: requestProjectId });
+          const refreshed = await load({ silent: true, force: true, projectId: requestProjectId, notify: false });
+          if (!refreshed) throw new Error(t("characterDetail.refreshFailed"));
         },
       );
       if (!isCurrentAction(requestProjectId, requestSeq)) return;
@@ -324,7 +326,8 @@ export const SceneProfilesTab: React.FC<{
       const result = await deleteSceneProfile(requestProfile.id, downstreamStrategy);
       if (!isCurrentAction(requestProjectId, requestSeq)) return;
       removeProfile(requestProfile.id);
-      await load({ silent: true, force: true, projectId: requestProjectId });
+      const refreshed = await load({ silent: true, force: true, projectId: requestProjectId, notify: false });
+      if (!refreshed) throw new Error(t("characterDetail.refreshFailed"));
       if (!isCurrentAction(requestProjectId, requestSeq)) return;
       setDetailFor((current) => (current?.id === requestProfile.id ? null : current));
       addToast(
@@ -401,7 +404,8 @@ export const SceneProfilesTab: React.FC<{
         throw new Error("保存场景档案返回了其他项目的数据");
       }
       commitProfile(saved);
-      await load({ silent: true, force: true, projectId: requestProjectId });
+      const refreshed = await load({ silent: true, force: true, projectId: requestProjectId, notify: false });
+      if (!refreshed) throw new Error(t("characterDetail.refreshFailed"));
       if (!isCurrentAction(requestProjectId, requestSeq)) return;
       setDetailFor(saved);
       setEditingProfile(null);

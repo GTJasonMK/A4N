@@ -383,6 +383,7 @@ export const MangaTab: React.FC<MangaTabProps> = ({
   const loadCharacterAssets = async (
     requestProjectId = projectId,
     requestAssetProjectId = characterAssetProjectId,
+    notify = true,
   ): Promise<boolean> => {
     const requestSeq = characterAssetsLoadSeqRef.current + 1;
     characterAssetsLoadSeqRef.current = requestSeq;
@@ -411,18 +412,22 @@ export const MangaTab: React.FC<MangaTabProps> = ({
       if (profilesResult.status === "fulfilled") {
         setProfiles(profilesResult.value);
       } else {
-        addToast(
-          extractErrorMessage(profilesResult.reason, t("comic.loadCharacterAssetsFailed")),
-          "error",
-        );
+        if (notify) {
+          addToast(
+            extractErrorMessage(profilesResult.reason, t("comic.loadCharacterAssetsFailed")),
+            "error",
+          );
+        }
       }
       if (portraitsResult.status === "fulfilled") {
         setPortraits(portraitsResult.value);
       } else {
-        addToast(
-          extractErrorMessage(portraitsResult.reason, t("comic.loadCharacterAssetsFailed")),
-          "error",
-        );
+        if (notify) {
+          addToast(
+            extractErrorMessage(portraitsResult.reason, t("comic.loadCharacterAssetsFailed")),
+            "error",
+          );
+        }
       }
       return profilesResult.status === "fulfilled" && portraitsResult.status === "fulfilled";
     } finally {
@@ -853,15 +858,18 @@ export const MangaTab: React.FC<MangaTabProps> = ({
     setActing(actionKey);
     setPipelineChapterId(chapter.id);
 
+    let taskStarted = false;
+    let terminalTaskCompleted = false;
     try {
       const handle = isResume
         ? await resumeMangaPipeline(requestProjectId, chapter.chapter_number, stopAfter, imageSize)
         : await startMangaPipeline(requestProjectId, chapter.chapter_number, stopAfter, imageSize);
       if (!isActionCurrent(requestProjectId, actionSeq)) return;
+      taskStarted = true;
       void loadSingleStatus(chapter.id, requestProjectId).catch((error) =>
         addToast(extractErrorMessage(error, t("comic.loadPipelineStatusFailed")), "error"),
       );
-      void runGenerationProgressTaskThen(
+      await runGenerationProgressTaskThen(
         runMangaProgressTask,
         handle,
         {
@@ -880,16 +888,24 @@ export const MangaTab: React.FC<MangaTabProps> = ({
             throw new Error(task.error?.message ?? t("comic.pipelineFailed"));
           }
           if (!isActionCurrent(requestProjectId, actionSeq)) return;
-          await refreshPipelineTarget(chapter.id, requestProjectId);
+          terminalTaskCompleted = true;
+          const refreshed = await refreshPipelineTarget(chapter.id, requestProjectId);
+          if (!refreshed) throw new Error(t("comic.loadPagePromptsFailed"));
           if (isActionCurrent(requestProjectId, actionSeq)) {
             setPipelineChapterId(null);
           }
         },
-      ).catch(async (error) => {
+      );
+    } catch (error) {
         if (!isActionCurrent(requestProjectId, actionSeq)) return;
-        const message = extractErrorMessage(error, t("comic.pipelineFailed"));
+        const message = extractErrorMessage(
+          error,
+          isResume ? t("comic.pipelineResumeFailed") : t("comic.pipelineStartFailed"),
+        );
         const cancelled = isCancelledOperation(message);
-        await refreshPipelineTarget(chapter.id, requestProjectId);
+        if (taskStarted && !terminalTaskCompleted) {
+          await refreshPipelineTarget(chapter.id, requestProjectId);
+        }
         if (!isActionCurrent(requestProjectId, actionSeq)) return;
         if (!cancelled) {
           addToast(
@@ -898,22 +914,7 @@ export const MangaTab: React.FC<MangaTabProps> = ({
           );
         }
         setPipelineChapterId(null);
-      });
-      setActing(null);
-      endAction(actionKey);
-    } catch (err) {
-      if (!isActionCurrent(requestProjectId, actionSeq)) return;
-      setPipelineChapterId(null);
-      const message = explainMangaPipelineAiConfigError(
-        extractErrorMessage(
-          err,
-          isResume
-            ? t("comic.pipelineResumeFailed")
-            : t("comic.pipelineStartFailed"),
-        ),
-        t,
-      );
-      addToast(message, "error");
+    } finally {
       if (isActionCurrent(requestProjectId, actionSeq)) setActing(null);
       endAction(actionKey);
     }
@@ -990,7 +991,8 @@ export const MangaTab: React.FC<MangaTabProps> = ({
     try {
       await generationClient.cancel(handle);
       if (!isProjectCurrent(requestProjectId)) return;
-      await refreshPipelineTarget(chapterId, requestProjectId);
+      const refreshed = await refreshPipelineTarget(chapterId, requestProjectId);
+      if (!refreshed) return;
       addToast(t("comic.pipelineCancelRequested"), "info");
     } catch (error) {
       if (isProjectCurrent(requestProjectId)) {
@@ -1040,9 +1042,10 @@ export const MangaTab: React.FC<MangaTabProps> = ({
           const generated = await verifyPortraitGenerationResult(task, requestAssetProjectId);
           if (!isActionCurrent(requestProjectId, actionSeq))
             throw new Error("任务已停止");
-          await loadCharacterAssets(requestProjectId, requestAssetProjectId);
+          const refreshed = await loadCharacterAssets(requestProjectId, requestAssetProjectId, false);
           if (!isActionCurrent(requestProjectId, actionSeq))
             throw new Error("任务已停止");
+          if (!refreshed) throw new Error(t("comic.loadCharacterAssetsFailed"));
           return generated.length;
         },
       );

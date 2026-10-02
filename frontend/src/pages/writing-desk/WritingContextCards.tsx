@@ -73,7 +73,19 @@ export const WritingContextCards: React.FC<WritingContextCardsProps> = ({
         const profiles = await listProfiles(projectId);
         if (cancelled) return null;
         const main = profiles[0] ?? null;
-        const portrait = main ? await getPrimaryPortrait(main.id) : null;
+        let portrait: Portrait | null = null;
+        if (main) {
+          try {
+            portrait = await getPrimaryPortrait(main.id);
+          } catch (error) {
+            if (!cancelled) {
+              addToast(
+                extractErrorMessage(error, t("writing.profileLoadFailedContext")),
+                "error",
+              );
+            }
+          }
+        }
         return { profiles, portrait };
       })();
       const [blueprintResult, profilesResult] = await Promise.allSettled([

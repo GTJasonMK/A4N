@@ -12,6 +12,7 @@ interface ProfileLoadOptions {
   silent?: boolean;
   force?: boolean;
   projectId?: number;
+  notify?: boolean;
 }
 
 export function useProjectProfileCollection<T extends ProjectProfile>({
@@ -104,6 +105,7 @@ export function useProjectProfileCollection<T extends ProjectProfile>({
     async (options: ProfileLoadOptions = {}): Promise<boolean> => {
       const requestProjectId = options.projectId ?? projectId;
       const silent = options.silent ?? false;
+      const notify = options.notify ?? true;
       if (!options.force && loadInFlightRef.current?.projectId === requestProjectId) {
         return loadInFlightRef.current.promise;
       }
@@ -128,7 +130,7 @@ export function useProjectProfileCollection<T extends ProjectProfile>({
             const message = extractErrorMessage(err, t("novel.profile.loadFailed", { name: entityLabel }));
             setLoadedProjectId(requestProjectId);
             setLoadError({ projectId: requestProjectId, message });
-            addToast(message, "error");
+            if (notify) addToast(message, "error");
           }
           return false;
         } finally {
