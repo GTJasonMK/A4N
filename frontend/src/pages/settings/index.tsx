@@ -7,6 +7,7 @@ import { Dropdown } from "../../components/ui/Dropdown";
 import { LoadingSpinner } from "../../components/ui/LoadingSpinner";
 import { StatusBarToggle } from "../../components/ui/StatusBar";
 import { useAuthStore } from "../../store/auth";
+import { extractErrorMessage } from "../../api";
 import { usePackagePreferences } from "../../store/packagePreferences";
 import { usePersistedTab } from "../../hooks/usePersistedTab";
 import { LlmTab } from "./LlmTab";
@@ -113,7 +114,11 @@ export const SettingsPage: React.FC = () => {
         return;
       }
     }
-    await logout();
+    try {
+      await logout();
+    } catch (error) {
+      addToast(extractErrorMessage(error, t("auth.logoutFailed")), "error");
+    }
   };
 
   useEffect(() => {

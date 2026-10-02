@@ -54,6 +54,7 @@ export const auth = {
   loginFailed: "Sign-in failed",
   registerFailed: "Registration failed",
   oauthLoginFailed: "Third-party sign-in failed",
+  logoutFailed: "Sign-out failed",
   welcomeUser: "Welcome back, {name}",
   accountCreated: "Account created: {name}",
   oauthLoginSuccess: "Third-party sign-in succeeded: {name}",

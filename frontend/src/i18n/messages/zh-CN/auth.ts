@@ -54,6 +54,7 @@ export const auth = {
   loginFailed: "登录失败",
   registerFailed: "注册失败",
   oauthLoginFailed: "第三方登录失败",
+  logoutFailed: "退出登录失败",
   welcomeUser: "欢迎回来，{name}",
   accountCreated: "账户已创建：{name}",
   oauthLoginSuccess: "第三方登录成功：{name}",

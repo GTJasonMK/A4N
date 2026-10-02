@@ -43,6 +43,7 @@ export const AuthPage: React.FC = () => {
   const submitBusyRef = useRef(false);
   const oauthBusyRef = useRef(false);
   const oauthProviderRef = useRef<OAuthProvider | "">("");
+  const oauthProviderLoadSeqRef = useRef(0);
   const oauthSeqRef = useRef(0);
   const mountedRef = useRef(false);
   const submitReady =
@@ -58,6 +59,7 @@ export const AuthPage: React.FC = () => {
       submitBusyRef.current = false;
       oauthBusyRef.current = false;
       oauthSeqRef.current += 1;
+      oauthProviderLoadSeqRef.current += 1;
       void cancelOAuthLogin().catch((error: unknown) => {
         logger.scoped("OAuth").error("Failed to cancel browser authorization", { error });
       });
@@ -65,20 +67,22 @@ export const AuthPage: React.FC = () => {
   }, []);
 
   const loadOauthProviders = useCallback(async () => {
+    const requestSeq = oauthProviderLoadSeqRef.current + 1;
+    oauthProviderLoadSeqRef.current = requestSeq;
     setOauthProviderLoadFailed(false);
     try {
       const providers = await getOAuth2AvailableProviders();
       if (providers.some((provider) => !isOAuthProvider(provider))) {
         throw new Error("OAuth provider availability response is invalid");
       }
-      if (!mountedRef.current) return;
+      if (!mountedRef.current || oauthProviderLoadSeqRef.current !== requestSeq) return;
       const available = providers as OAuthProvider[];
       const initialProvider = available[0] ?? "";
       setOauthProviders(available);
       oauthProviderRef.current = initialProvider;
       setOauthProvider(initialProvider);
     } catch (error) {
-      if (!mountedRef.current) return;
+      if (!mountedRef.current || oauthProviderLoadSeqRef.current !== requestSeq) return;
       logger.scoped("OAuth").error("Failed to load available OAuth providers", { error });
       setOauthProviderLoadFailed(true);
       setOauthProviders([]);
@@ -172,6 +176,13 @@ export const AuthPage: React.FC = () => {
       }
       if (callbackUrl) {
         const { user } = await oauthLogin(callbackUrl);
+        if (
+          !mountedRef.current ||
+          oauthSeqRef.current !== requestSeq ||
+          oauthProviderRef.current.trim() !== requestProvider
+        ) {
+          return;
+        }
         addToast(t("auth.oauthLoginSuccess", { name: user.username }), "success");
       }
     } catch (err) {
@@ -199,6 +210,8 @@ export const AuthPage: React.FC = () => {
       handleOauthProviderChange(oauthProvider);
     } catch (err) {
       if (!mountedRef.current) return;
+      oauthBusyRef.current = false;
+      setOauthBusy(false);
       addToast(extractErrorMessage(err, t("auth.oauthLoginFailed")), "error");
     }
   };
@@ -350,7 +363,7 @@ export const AuthPage: React.FC = () => {
                     type="button"
                     onClick={() => setShowOauth(true)}
                     disabled={submitting}
-                    aria-expanded={false}
+                    aria-expanded={showOauth}
                     aria-controls="oauth-login-panel"
                     className="a4n-auth-oauth-button"
                   >
