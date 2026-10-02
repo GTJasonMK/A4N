@@ -1,4 +1,4 @@
-import { useCallback } from "react";
+import { useCallback, useRef } from "react";
 import { previewBatchImagesRequest } from "../../../api/image";
 import { extractErrorMessage } from "../../../api";
 import {
@@ -165,6 +165,9 @@ export function useVideoTabActions(context: VideoTabActionInput) {
     videoFrameImages,
     currentLanguageFramePrompts,
   } = context;
+  const tRef = useRef(t);
+  tRef.current = t;
+  const currentT = () => tRef.current;
   const videoActionScopeKey = context.videoActionScopeKey;
   const workflowMode = context.workflowMode;
 
@@ -199,13 +202,13 @@ export function useVideoTabActions(context: VideoTabActionInput) {
         );
         const refreshed = await refreshVideoData(requestScope);
         if (!isCurrentVideoActionScope(requestScope)) return false;
-        if (!refreshed) addToast(t("video.chapter.refreshVideoDataFailed"), "error");
-        addToast(t("video.chapter.planSaved"), "success");
+        if (!refreshed) addToast(currentT()("video.chapter.refreshVideoDataFailed"), "error");
+        addToast(currentT()("video.chapter.planSaved"), "success");
         return true;
       } catch (error) {
         if (!isCurrentVideoActionScope(requestScope)) return false;
         addToast(
-          extractErrorMessage(error, t("video.chapter.planSaveFailed")),
+          extractErrorMessage(error, currentT()("video.chapter.planSaveFailed")),
           "error",
         );
         return false;
@@ -233,7 +236,7 @@ export function useVideoTabActions(context: VideoTabActionInput) {
       effectiveRecipeBySegmentRef.current.get(segmentNumber) ?? null;
     if (!recipe) {
       addToast(
-        t("video.chapter.segmentRecipeMissingForAction", {
+        currentT()("video.chapter.segmentRecipeMissingForAction", {
           number: segmentNumber,
         }),
         "error",
@@ -256,7 +259,7 @@ export function useVideoTabActions(context: VideoTabActionInput) {
       segmentIndexInShot <= 0
     ) {
       addToast(
-        t("video.chapter.segmentIdentityMissing", { number: segmentNumber }),
+        currentT()("video.chapter.segmentIdentityMissing", { number: segmentNumber }),
         "error",
       );
       return null;
@@ -291,7 +294,7 @@ export function useVideoTabActions(context: VideoTabActionInput) {
     const targetSegment = targetForSegmentAction(segmentNumber);
     if (!recipe || !targetSegment) return;
     if (recipe.workflow_mode === VIDEO_WORKFLOW_MODE_REFERENCE_MEDIA) {
-      addToast(t("video.chapter.referenceMediaSelectionRequired"), "error");
+      addToast(currentT()("video.chapter.referenceMediaSelectionRequired"), "error");
       return;
     }
     const blockedReason = finalPromptBlockedReasons.get(segmentNumber) ?? null;
@@ -312,14 +315,14 @@ export function useVideoTabActions(context: VideoTabActionInput) {
       frameSegmentIdentityIndex,
     );
     if (!chapter || !frameSegmentPlanPromptForCards || shotNumber == null) {
-      addToast(t("video.chapter.selectedVideoMissingRecipe"), "error");
+      addToast(currentT()("video.chapter.selectedVideoMissingRecipe"), "error");
       return;
     }
     const targetSegment = targetForSegmentAction(shotNumber);
     if (!targetSegment) return;
     if (selectedSegmentNumber !== shotNumber) {
       addToast(
-        t("video.chapter.videoBelongsToOtherSegment", {
+        currentT()("video.chapter.videoBelongsToOtherSegment", {
           id: video.id,
           number: shotNumber,
         }),
@@ -337,7 +340,7 @@ export function useVideoTabActions(context: VideoTabActionInput) {
         frameSegmentIdentityIndex,
       )
     ) {
-      addToast(t("video.chapter.videoNotLatestRecipe"), "error");
+      addToast(currentT()("video.chapter.videoNotLatestRecipe"), "error");
       return;
     }
     const actionKey = `adopt-video-${video.id}`;
@@ -354,11 +357,11 @@ export function useVideoTabActions(context: VideoTabActionInput) {
       if (!isCurrentVideoActionScope(requestScope)) return;
       const refreshed = await refreshVideoData(requestScope);
       if (!isCurrentVideoActionScope(requestScope)) return;
-      if (!refreshed) addToast(t("video.chapter.refreshVideoDataFailed"), "error");
-      addToast(t("video.chapter.adoptedSegment", { number: shotNumber }), "success");
+      if (!refreshed) addToast(currentT()("video.chapter.refreshVideoDataFailed"), "error");
+      addToast(currentT()("video.chapter.adoptedSegment", { number: shotNumber }), "success");
     } catch (err) {
       if (!isCurrentVideoActionScope(requestScope)) return;
-      addToast(extractErrorMessage(err, t("video.chapter.adoptVideoFailed")), "error");
+      addToast(extractErrorMessage(err, currentT()("video.chapter.adoptVideoFailed")), "error");
     } finally {
       finishVideoAction(actionKey);
     }
@@ -372,7 +375,7 @@ export function useVideoTabActions(context: VideoTabActionInput) {
       effectiveRecipeBySegmentRef.current.get(segmentNumber);
     if (!currentRecipe) {
       addToast(
-        t("video.chapter.segmentRecipeMissingForAction", {
+        currentT()("video.chapter.segmentRecipeMissingForAction", {
           number: segmentNumber,
         }),
         "error",
@@ -401,7 +404,7 @@ export function useVideoTabActions(context: VideoTabActionInput) {
     if (
       !(await confirmSegmentRecipeChange(
         segmentNumber,
-        t("video.chapter.workflowMode"),
+        currentT()("video.chapter.workflowMode"),
       ))
     ) {
       return;
@@ -434,7 +437,7 @@ export function useVideoTabActions(context: VideoTabActionInput) {
       effectiveRecipeBySegmentRef.current.get(segmentNumber);
     if (!currentRecipe) {
       addToast(
-        t("video.chapter.segmentRecipeMissingForAction", {
+        currentT()("video.chapter.segmentRecipeMissingForAction", {
           number: segmentNumber,
         }),
         "error",
@@ -445,14 +448,14 @@ export function useVideoTabActions(context: VideoTabActionInput) {
       currentRecipe.workflow_mode !== VIDEO_WORKFLOW_MODE_FIRST_FRAME_CHAIN ||
       segmentNumber <= 1
     ) {
-      addToast(t("video.chapter.firstFrameChainFollowupInputRequired"), "error");
+      addToast(currentT()("video.chapter.firstFrameChainFollowupInputRequired"), "error");
       return;
     }
     if (currentRecipe.guidance_mode === guidanceMode) return;
     if (
       !(await confirmSegmentRecipeChange(
         segmentNumber,
-        t("video.chapter.startFrameSource"),
+        currentT()("video.chapter.startFrameSource"),
       ))
     ) {
       return;
@@ -477,7 +480,7 @@ export function useVideoTabActions(context: VideoTabActionInput) {
       effectiveRecipeBySegmentRef.current.get(segmentNumber);
     if (!currentRecipe) {
       addToast(
-        t("video.chapter.segmentRecipeMissingForAction", {
+        currentT()("video.chapter.segmentRecipeMissingForAction", {
           number: segmentNumber,
         }),
         "error",
@@ -492,7 +495,7 @@ export function useVideoTabActions(context: VideoTabActionInput) {
     if (
       !(await confirmSegmentRecipeChange(
         segmentNumber,
-        t("video.chapter.sourceVideo"),
+        currentT()("video.chapter.sourceVideo"),
       ))
     ) {
       return;
@@ -515,7 +518,7 @@ export function useVideoTabActions(context: VideoTabActionInput) {
     const actionKey = "generate-inserted-segment";
     const requestScope = videoActionScopeKey;
     if (!chapter) {
-      addToast(t("video.chapter.noChapter"), "error");
+      addToast(currentT()("video.chapter.noChapter"), "error");
       return null;
     }
     if (!beginVideoAction(actionKey)) return null;
@@ -529,32 +532,32 @@ export function useVideoTabActions(context: VideoTabActionInput) {
         runProgressTask,
         handle,
         {
-          title: t("video.chapter.insertedDescription"),
-          startMessage: t("video.chapter.insertedDescriptionPreparing"),
-          successMessage: t("video.chapter.insertedDescriptionGenerated"),
-          errorMessage: t("video.chapter.insertedDescriptionFailed"),
-          cancelLabel: t("video.chapter.stopGeneration"),
+          title: currentT()("video.chapter.insertedDescription"),
+          startMessage: currentT()("video.chapter.insertedDescriptionPreparing"),
+          successMessage: currentT()("video.chapter.insertedDescriptionGenerated"),
+          errorMessage: currentT()("video.chapter.insertedDescriptionFailed"),
+          cancelLabel: currentT()("video.chapter.stopGeneration"),
         },
         async (task) => {
           const result = task.resultRef;
           if (result?.kind !== "inserted_segment_draft") {
-            throw new Error(t("video.chapter.insertedDraftMissing"));
+            throw new Error(currentT()("video.chapter.insertedDraftMissing"));
           }
           const parsed = Number(result.id);
           if (!Number.isSafeInteger(parsed) || parsed <= 0) {
-            throw new Error(t("video.chapter.invalidInsertedWorkflowId"));
+            throw new Error(currentT()("video.chapter.invalidInsertedWorkflowId"));
           }
           return parsed;
         },
       );
       if (!isCurrentVideoActionScope(requestScope)) return null;
-      addToast(t("video.chapter.insertedDescriptionConfirm"), "success");
+      addToast(currentT()("video.chapter.insertedDescriptionConfirm"), "success");
       return workflowRunId;
     } catch (error) {
       if (isCurrentVideoActionScope(requestScope)) {
         const message = extractErrorMessage(
           error,
-          t("video.chapter.insertedDescriptionFailed"),
+          currentT()("video.chapter.insertedDescriptionFailed"),
         );
         if (!isCancelledOperation(message)) addToast(message, "error");
       }
@@ -582,24 +585,24 @@ export function useVideoTabActions(context: VideoTabActionInput) {
       setTimeline(nextTimeline);
       const refreshed = await refreshVideoData(requestScope);
       if (!isCurrentVideoActionScope(requestScope)) return false;
-      if (!refreshed) addToast(t("video.chapter.refreshVideoDataFailed"), "error");
-      addToast(t("video.chapter.insertedSubmitted"), "success");
+      if (!refreshed) addToast(currentT()("video.chapter.refreshVideoDataFailed"), "error");
+      addToast(currentT()("video.chapter.insertedSubmitted"), "success");
       return true;
     } catch (error) {
       if (!isCurrentVideoActionScope(requestScope)) return false;
-      const message = extractErrorMessage(error, t("video.chapter.operationFailed"));
+      const message = extractErrorMessage(error, currentT()("video.chapter.operationFailed"));
       addToast(
         message.includes("timeline_revision_conflict")
-          ? t("video.chapter.timelineRevisionConflict", { error: message })
+          ? currentT()("video.chapter.timelineRevisionConflict", { error: message })
           : message,
         "error",
       );
       try {
         const refreshed = await refreshVideoData(requestScope);
-        if (!refreshed) addToast(t("video.chapter.refreshTimelineFailed"), "error");
+        if (!refreshed) addToast(currentT()("video.chapter.refreshTimelineFailed"), "error");
       } catch (refreshError) {
         addToast(
-          extractErrorMessage(refreshError, t("video.chapter.refreshTimelineFailed")),
+          extractErrorMessage(refreshError, currentT()("video.chapter.refreshTimelineFailed")),
           "error",
         );
       }
@@ -625,17 +628,17 @@ export function useVideoTabActions(context: VideoTabActionInput) {
       setTimeline(nextTimeline);
       const refreshed = await refreshVideoData(requestScope);
       if (!isCurrentVideoActionScope(requestScope)) return;
-      if (!refreshed) addToast(t("video.chapter.refreshVideoDataFailed"), "error");
-      addToast(t("video.chapter.insertedPositionUpdated"), "success");
+      if (!refreshed) addToast(currentT()("video.chapter.refreshVideoDataFailed"), "error");
+      addToast(currentT()("video.chapter.insertedPositionUpdated"), "success");
     } catch (error) {
       if (!isCurrentVideoActionScope(requestScope)) return;
-      addToast(extractErrorMessage(error, t("video.chapter.operationFailed")), "error");
+      addToast(extractErrorMessage(error, currentT()("video.chapter.operationFailed")), "error");
       try {
         const refreshed = await refreshVideoData(requestScope);
-        if (!refreshed) addToast(t("video.chapter.refreshTimelineFailed"), "error");
+        if (!refreshed) addToast(currentT()("video.chapter.refreshTimelineFailed"), "error");
       } catch (refreshError) {
         addToast(
-          extractErrorMessage(refreshError, t("video.chapter.refreshTimelineFailed")),
+          extractErrorMessage(refreshError, currentT()("video.chapter.refreshTimelineFailed")),
           "error",
         );
       }
@@ -658,17 +661,17 @@ export function useVideoTabActions(context: VideoTabActionInput) {
       setTimeline(nextTimeline);
       const refreshed = await refreshVideoData(requestScope);
       if (!isCurrentVideoActionScope(requestScope)) return;
-      if (!refreshed) addToast(t("video.chapter.refreshVideoDataFailed"), "error");
-      addToast(t("video.chapter.insertedRemoved"), "success");
+      if (!refreshed) addToast(currentT()("video.chapter.refreshVideoDataFailed"), "error");
+      addToast(currentT()("video.chapter.insertedRemoved"), "success");
     } catch (error) {
       if (!isCurrentVideoActionScope(requestScope)) return;
-      addToast(extractErrorMessage(error, t("video.chapter.operationFailed")), "error");
+      addToast(extractErrorMessage(error, currentT()("video.chapter.operationFailed")), "error");
       try {
         const refreshed = await refreshVideoData(requestScope);
-        if (!refreshed) addToast(t("video.chapter.refreshTimelineFailed"), "error");
+        if (!refreshed) addToast(currentT()("video.chapter.refreshTimelineFailed"), "error");
       } catch (refreshError) {
         addToast(
-          extractErrorMessage(refreshError, t("video.chapter.refreshTimelineFailed")),
+          extractErrorMessage(refreshError, currentT()("video.chapter.refreshTimelineFailed")),
           "error",
         );
       }
@@ -697,11 +700,11 @@ export function useVideoTabActions(context: VideoTabActionInput) {
         runProgressTask,
         handle,
         {
-          title: t("video.chapter.insertedVideoPreparing"),
-          startMessage: t("video.chapter.insertedVideoPreparing"),
-          successMessage: t("video.chapter.insertedVideoGenerated"),
-          errorMessage: t("video.chapter.insertedVideoFailed"),
-          cancelLabel: t("video.chapter.stopGeneration"),
+          title: currentT()("video.chapter.insertedVideoPreparing"),
+          startMessage: currentT()("video.chapter.insertedVideoPreparing"),
+          successMessage: currentT()("video.chapter.insertedVideoGenerated"),
+          errorMessage: currentT()("video.chapter.insertedVideoFailed"),
+          cancelLabel: currentT()("video.chapter.stopGeneration"),
         },
         async (task) => {
           await verifyVideoGenerationResult(task, projectId, chapter.id);
@@ -710,13 +713,13 @@ export function useVideoTabActions(context: VideoTabActionInput) {
       if (!isCurrentVideoActionScope(requestScope)) return;
       const refreshed = await refreshVideoData(requestScope);
       if (!isCurrentVideoActionScope(requestScope)) return;
-      if (!refreshed) addToast(t("video.chapter.refreshVideoDataFailed"), "error");
-      addToast(t("video.chapter.insertedVideoGenerated"), "success");
+      if (!refreshed) addToast(currentT()("video.chapter.refreshVideoDataFailed"), "error");
+      addToast(currentT()("video.chapter.insertedVideoGenerated"), "success");
     } catch (error) {
       if (isCurrentVideoActionScope(requestScope)) {
         const message = extractErrorMessage(
           error,
-          t("video.chapter.insertedVideoFailed"),
+          currentT()("video.chapter.insertedVideoFailed"),
         );
         if (!isCancelledOperation(message)) addToast(message, "error");
       }
@@ -742,15 +745,15 @@ export function useVideoTabActions(context: VideoTabActionInput) {
   const handleCopyChatVideoPrompt = async (prompt: ChapterVideoPrompt) => {
     const text = prompt.visual_prompt.trim();
     if (!text) {
-      addToast(t("video.chapter.chatPromptEmpty"), "error");
+      addToast(currentT()("video.chapter.chatPromptEmpty"), "error");
       return;
     }
     try {
       await copyTextToClipboard(text);
-      addToast(t("video.chapter.copiedChatPrompt"), "success");
+      addToast(currentT()("video.chapter.copiedChatPrompt"), "success");
     } catch (err) {
       addToast(
-        extractErrorMessage(err, t("video.chapter.copyChatPromptFailed")),
+        extractErrorMessage(err, currentT()("video.chapter.copyChatPromptFailed")),
         "error",
       );
     }
@@ -761,14 +764,14 @@ export function useVideoTabActions(context: VideoTabActionInput) {
   ): Record<string, unknown> => {
     const frameContract = videoFrameImageContractForPromptType(
       prompt.prompt_type,
-      t,
+      currentT(),
     );
     const trimmedPrompt = prompt.visual_prompt.trim();
     const previewValidationError = promptLengthError(
       frameContract.promptLabel,
       trimmedPrompt,
       VIDEO_FRAME_IMAGE_PROMPT_MIN_CHARS,
-      t,
+      currentT(),
     );
     if (previewValidationError) {
       throw new Error(previewValidationError);
@@ -777,7 +780,7 @@ export function useVideoTabActions(context: VideoTabActionInput) {
       prompt,
       videoFrameImages,
       currentLanguageFramePrompts,
-      t,
+      currentT(),
     );
     if (references.error) {
       throw new Error(references.error);
@@ -789,7 +792,7 @@ export function useVideoTabActions(context: VideoTabActionInput) {
     const referenceOrderError = referenceLabelOrderError(
       effectiveVisualPrompt,
       references.ids.length,
-      t,
+      currentT(),
     );
     if (referenceOrderError) {
       throw new Error(referenceOrderError);
@@ -799,10 +802,10 @@ export function useVideoTabActions(context: VideoTabActionInput) {
       effectiveVisualPrompt,
       prompt.chapter_id || chapter?.id || 0,
       prompt.aspect_ratio,
-      buildVideoFrameImageTraceMetadata(prompt, frameContract.source, t),
+      buildVideoFrameImageTraceMetadata(prompt, frameContract.source, currentT()),
       references.ids,
       references.note,
-      t,
+      currentT(),
     );
   };
 
@@ -821,15 +824,15 @@ export function useVideoTabActions(context: VideoTabActionInput) {
     const chain = boundaryFramePromptChainTo(
       prompt,
       currentLanguageFramePrompts,
-      t("video.chapter.requestPreviewOperation"),
-      t,
+      currentT()("video.chapter.requestPreviewOperation"),
+      currentT(),
     );
     const missingPrompts = chain.filter(
-      (item) => !latestVideoFrameImageForPrompt(item, videoFrameImages, t),
+      (item) => !latestVideoFrameImageForPrompt(item, videoFrameImages, currentT()),
     );
     if (missingPrompts.length === 0) {
       addToast(
-        t("video.chapter.boundaryImagesAlreadyExist", {
+        currentT()("video.chapter.boundaryImagesAlreadyExist", {
           number: prompt.shot_number,
         }),
         "info",
@@ -841,7 +844,7 @@ export function useVideoTabActions(context: VideoTabActionInput) {
     const dynamicTailCount = missingPrompts.length - 1;
     const extraPreviewNote =
       dynamicTailCount > 0
-        ? t("video.chapter.boundaryPreviewNotice", {
+        ? currentT()("video.chapter.boundaryPreviewNotice", {
             first: firstMissing.shot_number,
             count: dynamicTailCount,
           })
@@ -858,7 +861,7 @@ export function useVideoTabActions(context: VideoTabActionInput) {
   ) => {
     if (!chapter) return;
     if (requests.length === 0) {
-      addToast(t("video.chapter.previewImageRequestsEmpty"), "error");
+      addToast(currentT()("video.chapter.previewImageRequestsEmpty"), "error");
       return;
     }
     const previewScope = imageRequestPreviewScopeRef.current;
@@ -888,7 +891,7 @@ export function useVideoTabActions(context: VideoTabActionInput) {
       );
     } catch (err) {
       if (imageRequestPreviewScopeRef.current !== previewScope) return;
-      addToast(extractErrorMessage(err, t("video.chapter.viewImageRequestFailed")), "error");
+      addToast(extractErrorMessage(err, currentT()("video.chapter.viewImageRequestFailed")), "error");
       setImageRequestPreviewOpen(false);
     } finally {
       if (imageRequestPreviewScopeRef.current === previewScope) {
@@ -902,7 +905,7 @@ export function useVideoTabActions(context: VideoTabActionInput) {
     try {
       previewInput = buildFrameImagePreviewInputs(prompt);
     } catch (err) {
-      addToast(extractErrorMessage(err, t("video.chapter.previewImageRequestFailed")), "error");
+      addToast(extractErrorMessage(err, currentT()("video.chapter.previewImageRequestFailed")), "error");
       return;
     }
     if (!previewInput) return;
@@ -941,7 +944,7 @@ export function useVideoTabActions(context: VideoTabActionInput) {
       selectedSegmentNumber == null ||
       workflowMode !== VIDEO_WORKFLOW_MODE_REFERENCE_MEDIA
     ) {
-      addToast(t("video.chapter.referencePreviewOnly"), "error");
+      addToast(currentT()("video.chapter.referencePreviewOnly"), "error");
       return null;
     }
     if (videoOptionsStateError) {
@@ -961,7 +964,7 @@ export function useVideoTabActions(context: VideoTabActionInput) {
       return null;
     }
     if (!isDurationAllowed(options.durationSecs, effectiveDurationLimits)) {
-      addToast(t("video.reference.durationUnsupported"), "error");
+      addToast(currentT()("video.reference.durationUnsupported"), "error");
       return null;
     }
     return segment;
@@ -974,7 +977,7 @@ export function useVideoTabActions(context: VideoTabActionInput) {
     const inputError = referenceMediaDraftError(
       draft.prompt,
       referenceMediaRowsByKindFromDraft(draft),
-      t,
+      currentT(),
     );
     if (inputError) {
       addToast(inputError, "error");
@@ -1007,7 +1010,7 @@ export function useVideoTabActions(context: VideoTabActionInput) {
     } catch (err) {
       if (promptRequestPreviewScopeRef.current !== previewScope) return;
       addToast(
-        extractErrorMessage(err, t("video.chapter.previewReferenceMediaFailed")),
+        extractErrorMessage(err, currentT()("video.chapter.previewReferenceMediaFailed")),
         "error",
       );
       setPromptRequestPreviewOpen(false);
@@ -1020,12 +1023,12 @@ export function useVideoTabActions(context: VideoTabActionInput) {
 
   const handleSaveReferenceMediaDraft = async () => {
     if (selectedSegmentNumber == null) {
-      addToast(t("video.chapter.selectReferenceMediaSegment"), "error");
+      addToast(currentT()("video.chapter.selectReferenceMediaSegment"), "error");
       return;
     }
     try {
       if (!(await saveReferenceMediaDraft(selectedSegmentNumber))) return;
-      addToast(t("video.chapter.referenceMediaDraftSaved"), "success");
+      addToast(currentT()("video.chapter.referenceMediaDraftSaved"), "success");
     } catch {
       // persistSegmentRecipe 已显示错误。
     }
@@ -1052,11 +1055,11 @@ export function useVideoTabActions(context: VideoTabActionInput) {
         runProgressTask,
         handle,
         {
-          title: t("video.chapter.referenceMediaVideoTitle"),
-          startMessage: t("video.chapter.referenceMediaVideoPreparing"),
-          successMessage: t("video.chapter.referenceMediaVideoGenerated"),
-          errorMessage: t("video.chapter.referenceMediaVideoFailed"),
-          cancelLabel: t("video.chapter.stopGeneration"),
+          title: currentT()("video.chapter.referenceMediaVideoTitle"),
+          startMessage: currentT()("video.chapter.referenceMediaVideoPreparing"),
+          successMessage: currentT()("video.chapter.referenceMediaVideoGenerated"),
+          errorMessage: currentT()("video.chapter.referenceMediaVideoFailed"),
+          cancelLabel: currentT()("video.chapter.stopGeneration"),
         },
         async (task) => {
           const [row] = await verifyVideoGenerationResult(
@@ -1075,14 +1078,14 @@ export function useVideoTabActions(context: VideoTabActionInput) {
       if (!isCurrentVideoActionScope(requestScope)) return;
       const message = extractErrorMessage(
         err,
-        t("video.chapter.referenceMediaVideoFailed"),
+        currentT()("video.chapter.referenceMediaVideoFailed"),
       );
       if (!isCancelledOperation(message)) addToast(message, "error");
     } finally {
       if (isCurrentVideoActionScope(requestScope)) {
         const refreshed = await loadAll();
         if (generated && refreshed !== false && isCurrentVideoActionScope(requestScope)) {
-          addToast(t("video.chapter.referenceMediaVideoGenerated"), "success");
+          addToast(currentT()("video.chapter.referenceMediaVideoGenerated"), "success");
         }
       }
       finishVideoAction(actionKey);
@@ -1094,7 +1097,7 @@ export function useVideoTabActions(context: VideoTabActionInput) {
     const segment = referenceMediaSegmentFor(false);
     if (!segment) return;
     if (!referenceMediaDraft.prompt.trim()) {
-      addToast(t("video.chapter.mediaPromptEmpty"), "error");
+      addToast(currentT()("video.chapter.mediaPromptEmpty"), "error");
       return;
     }
     try {
@@ -1108,11 +1111,11 @@ export function useVideoTabActions(context: VideoTabActionInput) {
     if (!beginVideoAction(actionKey)) return;
     let upload: VideoUploadFile | null = null;
     try {
-      upload = await pickVideoUploadFile(t, t("video.reference.video"));
+      upload = await pickVideoUploadFile(t, currentT()("video.reference.video"));
     } catch (err) {
       if (isCurrentVideoActionScope(requestScope)) {
         addToast(
-          extractErrorMessage(err, t("video.chapter.filePickerFailed")),
+          extractErrorMessage(err, currentT()("video.chapter.filePickerFailed")),
           "error",
         );
       }
@@ -1140,12 +1143,12 @@ export function useVideoTabActions(context: VideoTabActionInput) {
       setPendingVideoId(null);
       const refreshed = await refreshVideoData(requestScope);
       if (!isCurrentVideoActionScope(requestScope)) return;
-      if (!refreshed) addToast(t("video.chapter.refreshVideoDataFailed"), "error");
-      addToast(t("video.chapter.importedReferenceMediaVideo"), "success");
+      if (!refreshed) addToast(currentT()("video.chapter.refreshVideoDataFailed"), "error");
+      addToast(currentT()("video.chapter.importedReferenceMediaVideo"), "success");
     } catch (err) {
       if (isCurrentVideoActionScope(requestScope)) {
         addToast(
-          extractErrorMessage(err, t("video.chapter.importReferenceMediaVideoFailed")),
+          extractErrorMessage(err, currentT()("video.chapter.importReferenceMediaVideoFailed")),
           "error",
         );
       }

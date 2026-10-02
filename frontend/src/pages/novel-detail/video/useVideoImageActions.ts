@@ -20,6 +20,9 @@ export const useVideoImageActions = ({
   actionScopeKey,
   loadAll,
 }: UseVideoImageActionsParams) => {
+  const tRef = useRef(t);
+  tRef.current = t;
+  const currentT = () => tRef.current;
   const [imageBusyId, setImageBusyId] = useState<number | null>(null);
   const actionScopeRef = useRef(actionScopeKey);
 
@@ -37,9 +40,9 @@ export const useVideoImageActions = ({
     async (image: GeneratedImage) => {
       const requestScope = actionScopeKey;
       const ok = await confirmDialog({
-        title: t("video.material.deleteTitle"),
-        message: t("video.material.deleteMessage"),
-        confirmText: t("common.delete"),
+        title: currentT()("video.material.deleteTitle"),
+        message: currentT()("video.material.deleteMessage"),
+        confirmText: currentT()("common.delete"),
         dialogType: "danger",
       });
       if (!ok) return;
@@ -48,12 +51,13 @@ export const useVideoImageActions = ({
       try {
         await deleteImage(image.id);
         if (!isCurrentActionScope(requestScope)) return;
-        await loadAll();
+        const refreshed = await loadAll();
         if (!isCurrentActionScope(requestScope)) return;
-        addToast(t("video.material.deleted"), "success");
+        if (!refreshed) addToast(currentT()("video.chapter.refreshVideoDataFailed"), "error");
+        addToast(currentT()("video.material.deleted"), "success");
       } catch (err) {
         if (!isCurrentActionScope(requestScope)) return;
-        addToast(extractErrorMessage(err, t("video.material.deleteFailed")), "error");
+        addToast(extractErrorMessage(err, currentT()("video.material.deleteFailed")), "error");
       } finally {
         if (isCurrentActionScope(requestScope)) setImageBusyId(null);
       }

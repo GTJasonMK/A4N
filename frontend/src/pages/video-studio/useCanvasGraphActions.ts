@@ -113,6 +113,11 @@ export function useCanvasGraphActions({
   const translatorRef = React.useRef(t);
   translatorRef.current = t;
   const currentT = () => translatorRef.current;
+  const actionScopeRef = React.useRef("");
+  actionScopeRef.current = `${projectId}:${document?.graph.id ?? ""}:${document?.graph.version ?? ""}`;
+  React.useEffect(() => () => {
+    actionScopeRef.current = "";
+  }, []);
   const onNodesChange = useCallback(
     (changes: NodeChange<StudioNode>[]) => {
       const allowedChanges = canvasWriteBusy
@@ -461,6 +466,7 @@ export function useCanvasGraphActions({
 
   const persist = async () => {
     if (!document || canvasMutationDisabled) return;
+    const requestScope = actionScopeRef.current;
     const validationError = canvasGraphSaveValidationError(
       nodes,
       edges,
@@ -485,6 +491,7 @@ export function useCanvasGraphActions({
         ),
         document.graph.version,
       );
+      if (actionScopeRef.current !== requestScope) return;
       const currentViewport = flowInstance?.getViewport();
       const viewportChangedDuringSave = viewportChanged(viewportAtSave, currentViewport);
       const savedEdges = saved.edges.map(toFlowEdge);
@@ -498,14 +505,16 @@ export function useCanvasGraphActions({
       setDirty(viewportChangedDuringSave);
       addToast(currentT()("video.canvasSaved"), "success");
     } catch (err) {
+      if (actionScopeRef.current !== requestScope) return;
       addToast(extractErrorMessage(err, currentT()("video.canvasSaveFailed")), "error");
     } finally {
-      setSaving(false);
+      if (actionScopeRef.current === requestScope) setSaving(false);
     }
   };
 
   const importMedia = async (mediaKind: "image" | "video" | "audio") => {
     if (!document || canvasMutationDisabled) return;
+    const requestScope = actionScopeRef.current;
     if (mediaKind === "audio" && project?.source_mode !== "freeform") {
       addToast(t("video.freeProjectAudioOnly"), "error");
       return;
@@ -528,6 +537,7 @@ export function useCanvasGraphActions({
           : "audio/*";
     const file = await pickLocalFile(accept);
     if (!file) return;
+    if (actionScopeRef.current !== requestScope) return;
     setImporting(true);
     try {
       const imported = await importCanvasMedia({
@@ -581,6 +591,7 @@ export function useCanvasGraphActions({
         ),
         document.graph.version,
       );
+      if (actionScopeRef.current !== requestScope) return;
       const currentViewport = flowInstance?.getViewport();
       const viewportChangedDuringSave = viewportChanged(viewportAtSave, currentViewport);
       const savedEdges = saved.edges.map(toFlowEdge);
@@ -592,6 +603,7 @@ export function useCanvasGraphActions({
       setDirty(viewportChangedDuringSave);
       addToast(currentT()(successMessageKey), "success");
     } catch (err) {
+      if (actionScopeRef.current !== requestScope) return;
       addToast(
         extractErrorMessage(
           err,
@@ -604,13 +616,15 @@ export function useCanvasGraphActions({
         "error",
       );
     } finally {
-      setImporting(false);
+      if (actionScopeRef.current === requestScope) setImporting(false);
     }
     };
 
   const refreshCanvasRuntimeResults = useCallback(
     async (graphId: number) => {
+      const requestScope = actionScopeRef.current;
       const freshDocument = await getCanvasGraph(projectId, graphId);
+      if (actionScopeRef.current !== requestScope) return;
       setDocument((current) =>
         current && current.graph.id === freshDocument.graph.id
           ? mergeCanvasDocumentRuntimeResults(current, freshDocument)

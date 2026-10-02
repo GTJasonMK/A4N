@@ -193,6 +193,9 @@ export function useVideoRecordActions({
   isCurrentActionScope,
   finishAction,
 }: UseVideoRecordActionsParams) {
+  const tRef = useRef(t);
+  tRef.current = t;
+  const currentT = () => tRef.current;
   const [requestPreviewOpen, setRequestPreviewOpen] = useState(false);
   const [requestPreviewLoading, setRequestPreviewLoading] = useState(false);
   const [requestPreviewData, setRequestPreviewData] =
@@ -216,37 +219,37 @@ export function useVideoRecordActions({
     prompt: ChapterVideoPrompt,
   ): string | null => {
     if (prompt.prompt_type !== VIDEO_FINAL_PROMPT_TYPE)
-      return t("video.actions.promptTypeRequired");
+      return currentT()("video.actions.promptTypeRequired");
     if (!videoPromptSupportsProviderGeneration(prompt)) {
-      return t("video.actions.externalChatGeneration");
+      return currentT()("video.actions.externalChatGeneration");
     }
-    if (prompt.status === "running") return t("video.actions.promptRunning", { id: prompt.id });
+    if (prompt.status === "running") return currentT()("video.actions.promptRunning", { id: prompt.id });
     const promptSourceHash = extractSourceContentHash(prompt.metadata_json);
     if (
       promptSourceHash &&
       currentContentHash &&
       promptSourceHash !== currentContentHash
     ) {
-      return staleVideoPromptMessage(frameStageLabel, t);
+      return staleVideoPromptMessage(frameStageLabel, currentT());
     }
     const referenceState = readSavedReferenceImageIds(
       prompt.reference_image_ids_json,
-      t,
+      currentT(),
     );
     if (referenceState.error) {
-      return t("video.actions.savedReferenceInvalid", { id: prompt.id, error: referenceState.error });
+      return currentT()("video.actions.savedReferenceInvalid", { id: prompt.id, error: referenceState.error });
     }
     const staleReferenceIds = referenceState.ids.filter(
       (id) => !validPromptReferenceIds.has(id),
     );
     if (staleReferenceIds.length > 0) {
-      return t("video.actions.staleReferences", { id: prompt.id, ids: staleReferenceIds.join(", ") });
+      return currentT()("video.actions.staleReferences", { id: prompt.id, ids: staleReferenceIds.join(", ") });
     }
     if (selectedPromptDirty && prompt.id === selectedPrompt?.id) {
-      return t("video.actions.unsavedBefore", { operation: t("video.chapter.generateVideo") });
+      return currentT()("video.actions.unsavedBefore", { operation: currentT()("video.chapter.generateVideo") });
     }
     if (!isDurationAllowed(prompt.duration_secs, durationLimits)) {
-      return t("video.actions.durationUnsupported", { id: prompt.id });
+      return currentT()("video.actions.durationUnsupported", { id: prompt.id });
     }
     return null;
   };
@@ -256,12 +259,12 @@ export function useVideoRecordActions({
     downstreamCount = videoPromptDownstreamCount(prompt, prompts, frameImages),
   ): Promise<DownstreamConflictStrategy | null> => {
     const strategy = await chooseDownstreamConflictStrategy({
-      title: t("video.actions.downstreamTitle"),
-      assetLabel: `${promptTitle(prompt, t)} #${prompt.id}`,
-      downstreamLabel: t("video.actions.downstreamLabel"),
+      title: currentT()("video.actions.downstreamTitle"),
+      assetLabel: `${promptTitle(prompt, currentT())} #${prompt.id}`,
+      downstreamLabel: currentT()("video.actions.downstreamLabel"),
       downstreamCount,
       operation,
-      t,
+      t: currentT(),
     });
     return strategy;
   };
@@ -279,7 +282,7 @@ export function useVideoRecordActions({
   const wrapAct = async (
     key: string,
     fn: (isCurrent: () => boolean) => Promise<GeneratedVideo | void>,
-    ok: string,
+    ok: string | (() => string),
     alreadyStarted = false,
   ) => {
     const requestScope = actionScopeKey;
@@ -288,12 +291,13 @@ export function useVideoRecordActions({
       const result = await fn(() => isCurrentActionScope(requestScope));
       if (!isCurrentActionScope(requestScope)) return;
       if (result) upsertVideo(result);
-      await loadAll();
+      const refreshed = await loadAll();
       if (!isCurrentActionScope(requestScope)) return;
-      addToast(ok, "success");
+      if (!refreshed) addToast(currentT()("video.chapter.refreshVideoDataFailed"), "error");
+      addToast(typeof ok === "function" ? ok() : ok, "success");
     } catch (err) {
       if (!isCurrentActionScope(requestScope)) return;
-      addToast(extractErrorMessage(err, t("video.actions.operationFailed")), "error");
+      addToast(extractErrorMessage(err, currentT()("video.actions.operationFailed")), "error");
     } finally {
       finishAction(key);
     }
@@ -301,7 +305,7 @@ export function useVideoRecordActions({
 
   const handleOptimizePromptRow = async (prompt: ChapterVideoPrompt) => {
     if (prompt.status === "running") {
-      addToast(t("video.actions.promptRunningCannot", { id: prompt.id, operation: t("video.chapter.optimizePrompt") }), "error");
+      addToast(currentT()("video.actions.promptRunningCannot", { id: prompt.id, operation: currentT()("video.chapter.optimizePrompt") }), "error");
       return null;
     }
     const requestScope = actionScopeKey;
@@ -309,18 +313,18 @@ export function useVideoRecordActions({
     if (!beginAction(actionKey)) return null;
     try {
       const instruction = await promptDialog({
-        title: t("video.actions.optimizeTitle"),
-        message: t("video.actions.optimizeMessage"),
-        placeholder: t("video.actions.optimizePlaceholder"),
+        title: currentT()("video.actions.optimizeTitle"),
+        message: currentT()("video.actions.optimizeMessage"),
+        placeholder: currentT()("video.actions.optimizePlaceholder"),
         multiline: true,
         required: true,
-        confirmText: t("video.actions.startOptimize"),
+        confirmText: currentT()("video.actions.startOptimize"),
       });
       const trimmed = instruction?.trim();
       if (!trimmed) return null;
       const downstreamStrategy = await choosePromptMutationStrategy(
         prompt,
-        t("common.update"),
+        currentT()("common.update"),
       );
       if (downstreamStrategy == null || !isCurrentActionScope(requestScope)) {
         return null;
@@ -328,21 +332,21 @@ export function useVideoRecordActions({
       let refreshSucceeded = true;
       const updated = await runProgressTask(
         {
-          title: t("video.chapter.optimizePrompt"),
-          startMessage: t("video.actions.preparing", { operation: t("video.chapter.optimizePrompt") }),
-          successMessage: t("video.actions.optimizeSuccess"),
-          errorMessage: t("video.actions.optimizeFailed"),
+          title: currentT()("video.chapter.optimizePrompt"),
+          startMessage: currentT()("video.actions.preparing", { operation: currentT()("video.chapter.optimizePrompt") }),
+          successMessage: currentT()("video.actions.optimizeSuccess"),
+          errorMessage: currentT()("video.actions.optimizeFailed"),
           total: 3,
-          runningHint: t("video.actions.optimizeRunningHint"),
+          runningHint: currentT()("video.actions.optimizeRunningHint"),
         },
         async ({ setProgress }) => {
-          setProgress(t("video.actions.optimizeProgressStart"), 1, 3);
+          setProgress(currentT()("video.actions.optimizeProgressStart"), 1, 3);
           const result = await optimizeChapterVideoPrompt(prompt.id, {
             instruction: trimmed,
             downstream_strategy: downstreamStrategy,
           });
           if (!isCurrentActionScope(requestScope)) return result;
-          setProgress(t("video.actions.optimizeProgressRefresh"), 2, 3);
+          setProgress(currentT()("video.actions.optimizeProgressRefresh"), 2, 3);
           setPrompts((prev) =>
             prev.map((item) => (item.id === result.id ? result : item)),
           );
@@ -355,17 +359,17 @@ export function useVideoRecordActions({
             });
           }
           refreshSucceeded = await loadAll();
-          if (!refreshSucceeded) throw new Error(t("video.actions.optimizeFailed"));
+          if (!refreshSucceeded) throw new Error(currentT()("video.actions.optimizeFailed"));
           return result;
         },
       );
       if (!isCurrentActionScope(requestScope)) return null;
       if (!refreshSucceeded) return updated;
-      addToast(t("video.actions.optimizeSuccess"), "success");
+      addToast(currentT()("video.actions.optimizeSuccess"), "success");
       return updated;
     } catch (err) {
       if (!isCurrentActionScope(requestScope)) return null;
-      addToast(extractErrorMessage(err, t("video.actions.optimizeFailed")), "error");
+      addToast(extractErrorMessage(err, currentT()("video.actions.optimizeFailed")), "error");
       return null;
     } finally {
       finishAction(actionKey);
@@ -374,7 +378,7 @@ export function useVideoRecordActions({
 
   const handleDeletePromptRow = async (prompt: ChapterVideoPrompt) => {
     if (prompt.status === "running") {
-      addToast(t("video.actions.promptRunningCannot", { id: prompt.id, operation: t("common.delete") }), "error");
+      addToast(currentT()("video.actions.promptRunningCannot", { id: prompt.id, operation: currentT()("common.delete") }), "error");
       return;
     }
     const actionKey = `delete-prompt-${prompt.id}`;
@@ -388,7 +392,7 @@ export function useVideoRecordActions({
     if (downstreamCount > 0) {
       const strategy = await choosePromptMutationStrategy(
         prompt,
-        t("common.delete"),
+        currentT()("common.delete"),
         downstreamCount,
       );
       if (strategy == null) {
@@ -398,9 +402,9 @@ export function useVideoRecordActions({
       downstreamStrategy = strategy;
     } else {
       const ok = await confirmDialog({
-        title: t("video.chapter.deletePrompt"),
-        message: t("common.deleteConfirm", { name: `${t("video.chapter.promptLabel")} #${prompt.id}` }),
-        confirmText: t("common.delete"),
+        title: currentT()("video.chapter.deletePrompt"),
+        message: currentT()("common.deleteConfirm", { name: `${currentT()("video.chapter.promptLabel")} #${prompt.id}` }),
+        confirmText: currentT()("common.delete"),
         dialogType: "danger",
       });
       if (!ok) {
@@ -415,7 +419,7 @@ export function useVideoRecordActions({
         if (!isCurrent()) return;
         if (selectedPromptId === prompt.id) setSelectedPromptId(null);
       },
-      t("video.actions.promptDeleted"),
+      () => currentT()("video.actions.promptDeleted"),
       true,
     );
   };
@@ -425,16 +429,16 @@ export function useVideoRecordActions({
     promptDraft: PromptDraft,
   ) => {
     if (prompt.status === "running") {
-      addToast(t("video.actions.promptRunningCannot", { id: prompt.id, operation: t("common.save") }), "error");
+      addToast(currentT()("video.actions.promptRunningCannot", { id: prompt.id, operation: currentT()("common.save") }), "error");
       return null;
     }
     const visualPrompt = promptDraft.visual_prompt.trim();
     if (!visualPrompt) {
-      addToast(t("video.actions.visualPromptEmpty"), "error");
+      addToast(currentT()("video.actions.visualPromptEmpty"), "error");
       return null;
     }
     if (!isDurationAllowed(promptDraft.duration_secs, durationLimits)) {
-      addToast(t("video.chapter.invalidDuration"), "error");
+      addToast(currentT()("video.chapter.invalidDuration"), "error");
       return null;
     }
     const requestScope = actionScopeKey;
@@ -443,7 +447,7 @@ export function useVideoRecordActions({
     try {
       const downstreamStrategy = await choosePromptMutationStrategy(
         prompt,
-        t("common.save"),
+        currentT()("common.save"),
       );
       if (downstreamStrategy == null || !isCurrentActionScope(requestScope)) {
         return null;
@@ -467,13 +471,16 @@ export function useVideoRecordActions({
           duration_secs: updated.duration_secs,
         });
       }
-      await loadAll();
+      const refreshed = await loadAll();
       if (!isCurrentActionScope(requestScope)) return null;
-      addToast(t("video.actions.promptSaved"), "success");
+      if (!refreshed) {
+        addToast(currentT()("video.chapter.refreshVideoDataFailed"), "error");
+      }
+      addToast(currentT()("video.actions.promptSaved"), "success");
       return updated;
     } catch (err) {
       if (!isCurrentActionScope(requestScope)) return null;
-      addToast(extractErrorMessage(err, t("errors.saveFailed")), "error");
+      addToast(extractErrorMessage(err, currentT()("errors.saveFailed")), "error");
       return null;
     } finally {
       finishAction(actionKey);
@@ -514,11 +521,11 @@ export function useVideoRecordActions({
         runProgressTask,
         handle,
         {
-          title: t("video.chapter.generateVideo"),
-          startMessage: t("video.actions.preparing", { operation: t("video.chapter.generateVideo") }),
-          successMessage: t("video.actions.videoGenerated"),
-          errorMessage: t("video.actions.failed", { operation: t("video.chapter.generateVideo") }),
-          cancelLabel: t("workflow.stop"),
+          title: currentT()("video.chapter.generateVideo"),
+          startMessage: currentT()("video.actions.preparing", { operation: currentT()("video.chapter.generateVideo") }),
+          successMessage: currentT()("video.actions.videoGenerated"),
+          errorMessage: currentT()("video.actions.failed", { operation: currentT()("video.chapter.generateVideo") }),
+          cancelLabel: currentT()("workflow.stop"),
         },
         async (task) => {
           const [row] = await verifyVideoGenerationResult(
@@ -536,13 +543,13 @@ export function useVideoRecordActions({
       generated = true;
     } catch (err) {
       if (!isCurrentActionScope(requestScope)) return;
-      const message = extractErrorMessage(err, t("video.actions.failed", { operation: t("video.chapter.generateVideo") }));
+      const message = extractErrorMessage(err, currentT()("video.actions.failed", { operation: currentT()("video.chapter.generateVideo") }));
       if (!isCancelledOperation(message)) addToast(message, "error");
     } finally {
       try {
         const refreshed = await loadAll();
         if (generated && refreshed !== false && isCurrentActionScope(requestScope)) {
-          addToast(t("video.actions.videoGenerated"), "success");
+          addToast(currentT()("video.actions.videoGenerated"), "success");
         }
       } finally {
         finishAction(actionKey);
@@ -553,25 +560,25 @@ export function useVideoRecordActions({
   const handleImportVideo = async (): Promise<void> => {
     if (!chapter || !selectedPrompt) return;
     if (selectedPrompt.prompt_type !== VIDEO_FINAL_PROMPT_TYPE) {
-      addToast(t("video.actions.promptTypeRequiredImport"), "error");
+      addToast(currentT()("video.actions.promptTypeRequiredImport"), "error");
       return;
     }
     if (selectedPrompt.status === "running") {
       addToast(
-        t("video.actions.promptRunningCannot", {
+        currentT()("video.actions.promptRunningCannot", {
           id: selectedPrompt.id,
-          operation: t("video.chapter.importVideo"),
+          operation: currentT()("video.chapter.importVideo"),
         }),
         "error",
       );
       return;
     }
     if (selectedPromptStale) {
-      addToast(staleVideoPromptMessage(frameStageLabel, t), "error");
+      addToast(staleVideoPromptMessage(frameStageLabel, currentT()), "error");
       return;
     }
     if (selectedPromptDirty) {
-      addToast(t("video.actions.unsavedBefore", { operation: t("video.chapter.importVideo") }), "error");
+      addToast(currentT()("video.actions.unsavedBefore", { operation: currentT()("video.chapter.importVideo") }), "error");
       return;
     }
 
@@ -580,10 +587,10 @@ export function useVideoRecordActions({
     if (!beginAction(actionKey)) return;
     let upload: VideoUploadFile | null = null;
     try {
-      upload = await pickVideoUploadFile(t);
+      upload = await pickVideoUploadFile(currentT());
     } catch (err) {
       if (!isCurrentActionScope(requestScope)) return;
-      addToast(extractErrorMessage(err, t("video.chapter.filePickerFailed")), "error");
+      addToast(extractErrorMessage(err, currentT()("video.chapter.filePickerFailed")), "error");
       return;
     } finally {
       if (!upload) finishAction(actionKey);
@@ -608,12 +615,13 @@ export function useVideoRecordActions({
       setSelectedVideoId(row.id);
       setPendingVideoId(null);
       upsertVideo(row);
-      await loadAll();
+      const refreshed = await loadAll();
       if (!isCurrentActionScope(requestScope)) return;
-      addToast(t("video.actions.videoImported"), "success");
+      if (!refreshed) addToast(currentT()("video.chapter.refreshVideoDataFailed"), "error");
+      addToast(currentT()("video.actions.videoImported"), "success");
     } catch (err) {
       if (!isCurrentActionScope(requestScope)) return;
-      addToast(extractErrorMessage(err, t("video.actions.videoImportFailed")), "error");
+      addToast(extractErrorMessage(err, currentT()("video.actions.videoImportFailed")), "error");
     } finally {
       finishAction(actionKey);
     }
@@ -661,22 +669,22 @@ export function useVideoRecordActions({
           null,
           promptOverride,
         ),
-      t("video.actions.previewRequestFailed"),
+      currentT()("video.actions.previewRequestFailed"),
     );
   };
 
   const handlePreviewGenerateVideoRequest = async () => {
     if (!selectedPrompt) return;
     if (selectedPrompt.prompt_type !== VIDEO_FINAL_PROMPT_TYPE) {
-      addToast(t("video.actions.promptTypeRequired"), "error");
+      addToast(currentT()("video.actions.promptTypeRequired"), "error");
       return;
     }
     const referenceState = readSavedReferenceImageIds(
       selectedPrompt.reference_image_ids_json,
-      t,
+      currentT(),
     );
     if (referenceState.error) {
-      addToast(t("video.actions.savedReferenceInvalid", {
+      addToast(currentT()("video.actions.savedReferenceInvalid", {
         id: selectedPrompt.id,
         error: referenceState.error,
       }), "error");
@@ -687,7 +695,7 @@ export function useVideoRecordActions({
     );
     if (staleReferenceIds.length > 0) {
       addToast(
-        t("video.actions.finalReferencesInvalid", { ids: staleReferenceIds.join(", ") }),
+        currentT()("video.actions.finalReferencesInvalid", { ids: staleReferenceIds.join(", ") }),
         "error",
       );
       return;
@@ -699,7 +707,7 @@ export function useVideoRecordActions({
   };
 
   const handlePreviewVideoRequestForVideo = async (video: GeneratedVideo) => {
-    const blockedReason = videoProviderRequestPreviewBlockedReason(video, t);
+    const blockedReason = videoProviderRequestPreviewBlockedReason(video, currentT());
     if (blockedReason) {
       addToast(blockedReason, "error");
       return;
@@ -708,7 +716,7 @@ export function useVideoRecordActions({
     await openVideoRequestPreviewData(
       () =>
         previewVideoProviderRequestByVideoId(projectId, chapter.id, video.id),
-      t("video.actions.previewHistoryFailed"),
+      currentT()("video.actions.previewHistoryFailed"),
     );
   };
 
@@ -722,7 +730,7 @@ export function useVideoRecordActions({
         setPendingVideoId(hasPendingProviderJob(row) ? row.id : null);
         return row;
       },
-      t("video.actions.videoStatusRefreshed"),
+      () => currentT()("video.actions.videoStatusRefreshed"),
     );
   };
 
@@ -730,7 +738,9 @@ export function useVideoRecordActions({
     await wrapAct(
       `favorite-${video.id}`,
       () => updateVideo(video.id, { is_favorite: !video.is_favorite }),
-      video.is_favorite ? t("video.actions.videoFavoriteRemoved") : t("video.actions.videoFavoriteAdded"),
+      () => video.is_favorite
+        ? currentT()("video.actions.videoFavoriteRemoved")
+        : currentT()("video.actions.videoFavoriteAdded"),
     );
   };
 
@@ -739,23 +749,24 @@ export function useVideoRecordActions({
     input: UpdateVideoInput,
   ) => {
     if (input.prompt != null && !input.prompt.trim()) {
-      addToast(t("video.actions.videoPromptEmpty"), "error");
-      throw new Error(t("video.actions.videoPromptEmpty"));
+      addToast(currentT()("video.actions.videoPromptEmpty"), "error");
+      throw new Error(currentT()("video.actions.videoPromptEmpty"));
     }
     const requestScope = actionScopeKey;
     const actionKey = `update-video-${video.id}`;
-    if (!beginAction(actionKey)) throw new Error(t("video.actions.videoActionBusy"));
+    if (!beginAction(actionKey)) throw new Error(currentT()("video.actions.videoActionBusy"));
     try {
       const row = await updateVideo(video.id, input);
       if (!isCurrentActionScope(requestScope)) return;
       setSelectedVideoId(row.id);
       upsertVideo(row);
-      await loadAll();
+      const refreshed = await loadAll();
       if (!isCurrentActionScope(requestScope)) return;
-      addToast(t("video.actions.videoRecordSaved"), "success");
+      if (!refreshed) addToast(currentT()("video.chapter.refreshVideoDataFailed"), "error");
+      addToast(currentT()("video.actions.videoRecordSaved"), "success");
     } catch (err) {
       if (!isCurrentActionScope(requestScope)) return;
-      addToast(extractErrorMessage(err, t("video.actions.videoRecordSaveFailed")), "error");
+      addToast(extractErrorMessage(err, currentT()("video.actions.videoRecordSaveFailed")), "error");
       throw err;
     } finally {
       finishAction(actionKey);
@@ -766,9 +777,9 @@ export function useVideoRecordActions({
     const actionKey = `delete-video-${video.id}`;
     if (!beginAction(actionKey)) return;
     const ok = await confirmDialog({
-      title: t("video.actions.deleteVideoTitle"),
-      message: t("video.actions.deleteVideoMessage", { id: video.id }),
-      confirmText: t("common.delete"),
+      title: currentT()("video.actions.deleteVideoTitle"),
+      message: currentT()("video.actions.deleteVideoMessage", { id: video.id }),
+      confirmText: currentT()("common.delete"),
       dialogType: "danger",
     });
     if (!ok) {
@@ -782,7 +793,7 @@ export function useVideoRecordActions({
         if (!isCurrent()) return;
         if (pendingVideoId === video.id) setPendingVideoId(null);
       },
-      t("video.actions.videoDeleted"),
+      () => currentT()("video.actions.videoDeleted"),
       true,
     );
   };
@@ -792,7 +803,7 @@ export function useVideoRecordActions({
     const start = Number(trimStart);
     const end = Number(trimEnd);
     if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) {
-      addToast(t("video.actions.trimInvalid"), "error");
+      addToast(currentT()("video.actions.trimInvalid"), "error");
       return;
     }
     await wrapAct(
@@ -803,7 +814,7 @@ export function useVideoRecordActions({
         setSelectedVideoId(row.id);
         return row;
       },
-      t("video.actions.trimmedVideoCreated"),
+      () => currentT()("video.actions.trimmedVideoCreated"),
     );
   };
 

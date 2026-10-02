@@ -190,7 +190,7 @@ export function useVideoTabLoading({
           failures.push(
             extractErrorMessage(
               shootingScriptResult.value.scriptError,
-              t("video.chapter.loadFailed"),
+              tRef.current("video.chapter.loadFailed"),
             ),
           );
         }
