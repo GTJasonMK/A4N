@@ -259,7 +259,7 @@ export const CharacterProfilesModal: React.FC<CharacterProfilesModalProps> = ({
         base_attributes: profileFormBaseAttributes(form),
       });
       if (!isCurrentWorkspace(requestProjectId) || saveSeqRef.current !== requestSeq) return;
-      await load(result.profile_id);
+      if (!await load(result.profile_id)) return;
       if (!isCurrentWorkspace(requestProjectId) || saveSeqRef.current !== requestSeq) return;
       addToast(
         result.warnings.length > 0
@@ -296,7 +296,7 @@ export const CharacterProfilesModal: React.FC<CharacterProfilesModalProps> = ({
       if (!ok || !isCurrentWorkspace(requestProjectId)) return;
       const result = await deleteProfile(profile.id);
       if (!isCurrentWorkspace(requestProjectId)) return;
-      await load(selectedId === profile.id ? null : selectedId);
+      if (!await load(selectedId === profile.id ? null : selectedId)) return;
       if (!isCurrentWorkspace(requestProjectId)) return;
       addToast(
         result.warnings.length > 0
@@ -324,6 +324,7 @@ export const CharacterProfilesModal: React.FC<CharacterProfilesModalProps> = ({
     discoverSeqRef.current = requestSeq;
     const taskId = createWorkflowTaskId("character-discover", requestProjectId);
     let profileRefreshAttempted = false;
+    let profileRefreshSucceeded = true;
     setDiscovering(true);
     try {
       const result = await runProgressTask(
@@ -342,11 +343,12 @@ export const CharacterProfilesModal: React.FC<CharacterProfilesModalProps> = ({
         async () => {
           const next = await discoverCharacterProfiles(requestProjectId, activeChapterNumber, taskId);
           profileRefreshAttempted = true;
-          await load(next.created[0]?.id ?? selectedId);
+          profileRefreshSucceeded = await load(next.created[0]?.id ?? selectedId);
           return next;
         },
       );
       if (!isCurrentWorkspace(requestProjectId) || discoverSeqRef.current !== requestSeq) return;
+      if (!profileRefreshSucceeded) return;
       const createdCount = result.created.length;
       const existingCount = result.existing.length;
       const discoveredCount = result.discovered_count;
@@ -435,7 +437,9 @@ export const CharacterProfilesModal: React.FC<CharacterProfilesModalProps> = ({
     const requestProjectId = projectId;
     let requestSeq: number | null = null;
     let profileRefreshAttempted = false;
+    let profileRefreshSucceeded = true;
     let materialSyncAttempted = false;
+    let materialSyncSucceeded = true;
     try {
       const ok = await confirmDialog({
         title: t("characterDetail.syncAllTitle"),
@@ -466,13 +470,15 @@ export const CharacterProfilesModal: React.FC<CharacterProfilesModalProps> = ({
         async () => {
           const next = await syncAllCharacterProfiles(requestProjectId, activeChapterNumber, taskId);
           profileRefreshAttempted = true;
-          await load(selectedId);
+          profileRefreshSucceeded = await load(selectedId);
           materialSyncAttempted = true;
-          await onMaterialSync(requestProjectId);
+          materialSyncSucceeded = (await onMaterialSync(requestProjectId)) !== false;
           return next;
         },
       );
       if (!isCurrentWorkspace(requestProjectId) || syncSeqRef.current !== requestSeq) return;
+      if (!profileRefreshSucceeded) return;
+      if (!materialSyncSucceeded) addToast(t("characterDetail.refreshFailed"), "error");
       const syncedItems = result.synced;
       const skippedItems = result.skipped;
       const failedItems = result.failed;
@@ -553,7 +559,13 @@ export const CharacterProfilesModal: React.FC<CharacterProfilesModalProps> = ({
       }
       finishAction(actionKey);
       if (requestSeq != null && !materialSyncAttempted) {
-        await onMaterialSync(requestProjectId);
+        try {
+          if (await onMaterialSync(requestProjectId) === false) {
+            addToast(t("characterDetail.refreshFailed"), "error");
+          }
+        } catch (error) {
+          addToast(extractErrorMessage(error, t("characterDetail.refreshFailed")), "error");
+        }
       }
     }
   };
