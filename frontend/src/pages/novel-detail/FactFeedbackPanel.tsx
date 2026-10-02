@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useId, useRef, useState } from "react";
+import React, { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { getProjectFactFeedback, previewProjectFactFeedback, runProjectFactFeedback, type ProjectFactFeedbackSummary, type RunProjectFactFeedbackInput } from "../../api/factFeedback";
 import { updateProject } from "../../api/project";
 import { cancelWorkflowTask } from "../../api/streaming";
@@ -54,7 +54,7 @@ export const FactFeedbackPanel = ({ projectId, canEdit, refreshKey, onChanged }:
   const previewSequence = useRef(0);
   currentProject.current = projectId;
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     mounted.current = true;
     return () => {
       mounted.current = false;
@@ -82,11 +82,16 @@ export const FactFeedbackPanel = ({ projectId, canEdit, refreshKey, onChanged }:
     }
   }, [projectId, t]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
+    loadSequence.current += 1;
     previewSequence.current += 1;
+    operationBusy.current = false;
     setData(null);
     setLoading(true);
     intervalDirty.current = false;
+    setIntervalDraft("");
+    setError(null);
+    setBusy(false);
     setPreviewOpen(false);
     setPreviewLoading(false);
     setPreview(null);
@@ -144,7 +149,9 @@ export const FactFeedbackPanel = ({ projectId, canEdit, refreshKey, onChanged }:
       }
     } finally {
       operationBusy.current = false;
-      if (mounted.current && currentProject.current === requestProject) setBusy(false);
+      if (mounted.current && currentProject.current === requestProject) {
+        setBusy(false);
+      }
     }
   };
 
@@ -171,6 +178,7 @@ export const FactFeedbackPanel = ({ projectId, canEdit, refreshKey, onChanged }:
       } catch {
         refreshFailed = true;
       }
+      if (!mounted.current || currentProject.current !== requestProject) return;
       if (refreshFailed && mounted.current && currentProject.current === requestProject) {
         setError(tRef.current("novel.factFeedback.loadFailed"));
       }
@@ -198,7 +206,7 @@ export const FactFeedbackPanel = ({ projectId, canEdit, refreshKey, onChanged }:
     setPreview(null);
     const requestProject = projectId;
     try {
-      const result = await previewProjectFactFeedback({ project_id: projectId, mode: "consolidate", workflow_run_id: null });
+      const result = await previewProjectFactFeedback({ project_id: requestProject, mode: "consolidate", workflow_run_id: null });
       if (mounted.current && currentProject.current === requestProject && previewSequence.current === previewRequest) setPreview(result);
     } catch (cause) {
       if (mounted.current && currentProject.current === requestProject && previewSequence.current === previewRequest) {
