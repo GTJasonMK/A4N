@@ -37,6 +37,8 @@ export const CharacterPortraitsPanel: React.FC<{ projectId: number }> = ({
 }) => {
   const addToast = useToast((state) => state.addToast);
   const { t } = useI18n();
+  const tRef = useRef(t);
+  tRef.current = t;
   const { runProgressTask } = useProgressTask();
   const {
     error: imageSizeError,
@@ -202,26 +204,26 @@ export const CharacterPortraitsPanel: React.FC<{ projectId: number }> = ({
         runProgressTask,
         handle,
         {
-          title: t("characterDetail.portrait.batchMissing"),
-          startMessage: t("characterDetail.portrait.missingStart"),
-          successMessage: t("characterDetail.portrait.missingSuccess"),
-          errorMessage: t("characterDetail.portrait.missingFailed"),
-          cancelLabel: t("characterDetail.portrait.stopGeneration"),
+          title: tRef.current("characterDetail.portrait.batchMissing"),
+          startMessage: tRef.current("characterDetail.portrait.missingStart"),
+          successMessage: tRef.current("characterDetail.portrait.missingSuccess"),
+          errorMessage: tRef.current("characterDetail.portrait.missingFailed"),
+          cancelLabel: tRef.current("characterDetail.portrait.stopGeneration"),
         },
         async (task) => {
           const generated = await verifyPortraitGenerationResult(task, requestProjectId);
-          if (!isCurrentProject(requestProjectId)) throw new Error(t("characterDetail.taskStopped"));
+          if (!isCurrentProject(requestProjectId)) throw new Error(tRef.current("characterDetail.taskStopped"));
           const refreshed = await load({ notify: false });
-          if (!isCurrentProject(requestProjectId)) throw new Error(t("characterDetail.taskStopped"));
-          if (!refreshed) throw new Error(t("characterDetail.refreshFailed"));
+          if (!isCurrentProject(requestProjectId)) throw new Error(tRef.current("characterDetail.taskStopped"));
+          if (!refreshed) throw new Error(tRef.current("characterDetail.refreshFailed"));
           return generated.length;
         },
       );
       if (!isCurrentProject(requestProjectId)) return;
-      addToast(t("characterDetail.portrait.batchGenerated", { count: createdCount }), "success");
+      addToast(tRef.current("characterDetail.portrait.batchGenerated", { count: createdCount }), "success");
     } catch (err) {
       if (!isCurrentProject(requestProjectId)) return;
-      const message = extractErrorMessage(err, t("characterDetail.portrait.missingFailed"));
+      const message = extractErrorMessage(err, tRef.current("characterDetail.portrait.missingFailed"));
       addToast(message, isCancelledOperation(message) ? "info" : "error");
     } finally {
       if (isCurrentProject(requestProjectId)) {
@@ -254,7 +256,7 @@ export const CharacterPortraitsPanel: React.FC<{ projectId: number }> = ({
       if (!isCurrentProject(requestProjectId) || requestPreviewSeqRef.current !== requestSeq) {
         return;
       }
-      addToast(extractErrorMessage(err, t("characterDetail.portrait.missingPreviewFailed")), "error");
+      addToast(extractErrorMessage(err, tRef.current("characterDetail.portrait.missingPreviewFailed")), "error");
       setRequestPreviewOpen(false);
     } finally {
       if (isCurrentProject(requestProjectId) && requestPreviewSeqRef.current === requestSeq) {
@@ -283,11 +285,11 @@ export const CharacterPortraitsPanel: React.FC<{ projectId: number }> = ({
         runProgressTask,
         handle,
         {
-          title: t("characterDetail.portrait.redrawTitle"),
-          startMessage: t("characterDetail.portrait.redrawStart"),
-          successMessage: t("characterDetail.portrait.redrawSuccess"),
-          errorMessage: t("characterDetail.portrait.redrawFailed"),
-          cancelLabel: t("characterDetail.portrait.stopGeneration"),
+          title: tRef.current("characterDetail.portrait.redrawTitle"),
+          startMessage: tRef.current("characterDetail.portrait.redrawStart"),
+          successMessage: tRef.current("characterDetail.portrait.redrawSuccess"),
+          errorMessage: tRef.current("characterDetail.portrait.redrawFailed"),
+          cancelLabel: tRef.current("characterDetail.portrait.stopGeneration"),
         },
         async (task) => {
           await verifyPortraitGenerationResult(task, requestProjectId);
@@ -297,11 +299,11 @@ export const CharacterPortraitsPanel: React.FC<{ projectId: number }> = ({
       const refreshed = await load();
       if (!isCurrentProject(requestProjectId)) return;
       if (!refreshed) return;
-      addToast(t("characterDetail.portrait.redrawSuccess"), "success");
+      addToast(tRef.current("characterDetail.portrait.redrawSuccess"), "success");
       setActionPortrait(null);
     } catch (err) {
       if (!isCurrentProject(requestProjectId)) return;
-      const message = extractErrorMessage(err, t("characterDetail.portrait.redrawFailed"));
+      const message = extractErrorMessage(err, tRef.current("characterDetail.portrait.redrawFailed"));
       addToast(message, isCancelledOperation(message) ? "info" : "error");
     } finally {
       if (isCurrentProject(requestProjectId)) finishPortraitAction(portrait.id);
@@ -333,7 +335,7 @@ export const CharacterPortraitsPanel: React.FC<{ projectId: number }> = ({
       if (!isCurrentProject(requestProjectId) || requestPreviewSeqRef.current !== requestSeq) {
         return;
       }
-      addToast(extractErrorMessage(err, t("characterDetail.portrait.redrawPreviewFailed")), "error");
+      addToast(extractErrorMessage(err, tRef.current("characterDetail.portrait.redrawPreviewFailed")), "error");
       setRequestPreviewOpen(false);
     } finally {
       if (isCurrentProject(requestProjectId) && requestPreviewSeqRef.current === requestSeq) {
@@ -354,11 +356,11 @@ export const CharacterPortraitsPanel: React.FC<{ projectId: number }> = ({
       const refreshed = await load();
       if (!isCurrentProject(requestProjectId)) return;
       if (!refreshed) return;
-      addToast(t("characterDetail.portrait.primarySet"), "success");
+      addToast(tRef.current("characterDetail.portrait.primarySet"), "success");
       setActionPortrait(null);
     } catch (err) {
       if (!isCurrentProject(requestProjectId)) return;
-      addToast(extractErrorMessage(err, t("characterDetail.portrait.primarySetFailed")), "error");
+      addToast(extractErrorMessage(err, tRef.current("characterDetail.portrait.primarySetFailed")), "error");
     } finally {
       if (isCurrentProject(requestProjectId)) finishPortraitAction(portrait.id);
     }

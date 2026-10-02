@@ -110,6 +110,8 @@ export const SourceSyncDialog: React.FC<SourceSyncDialogProps> = ({
 }) => {
   const { addToast } = useToast();
   const { t } = useI18n();
+  const tRef = useRef(t);
+  tRef.current = t;
   const sourceSyncAvailable = sourceSyncStatus !== "detached";
   const [plan, setPlan] = useState<SourceSyncPlanSummary | null>(null);
   const [loading, setLoading] = useState(false);
@@ -122,10 +124,10 @@ export const SourceSyncDialog: React.FC<SourceSyncDialogProps> = ({
   const refreshParent = async (): Promise<boolean> => {
     try {
       const refreshed = await onChanged();
-      if (refreshed === false) addToast(t("novel.refreshFailed"), "error");
+      if (refreshed === false) addToast(tRef.current("novel.refreshFailed"), "error");
       return refreshed !== false;
     } catch (error) {
-      addToast(extractErrorMessage(error, t("novel.refreshFailed")), "error");
+      addToast(extractErrorMessage(error, tRef.current("novel.refreshFailed")), "error");
       return false;
     }
   };
@@ -237,10 +239,10 @@ export const SourceSyncDialog: React.FC<SourceSyncDialogProps> = ({
       const data = await previewSourceSync(targetProjectId);
       if (!isCurrentAction(targetScope, previewSeqRef, requestSeq)) return;
       setPlan(data);
-      addToast(t("novel.sourceSyncDialog.planGenerated"), "success");
+      addToast(tRef.current("novel.sourceSyncDialog.planGenerated"), "success");
     } catch (err) {
       if (isCurrentAction(targetScope, previewSeqRef, requestSeq)) {
-        addToast(extractErrorMessage(err, t("novel.sourceSyncDialog.previewFailed")), "error");
+        addToast(extractErrorMessage(err, tRef.current("novel.sourceSyncDialog.previewFailed")), "error");
       }
     } finally {
       if (isCurrentAction(targetScope, previewSeqRef, requestSeq)) {
@@ -289,10 +291,10 @@ export const SourceSyncDialog: React.FC<SourceSyncDialogProps> = ({
       setPlan(updatedPlan);
       await refreshParent();
       if (!isCurrentMutation(targetProjectId, applySeqRef, requestSeq)) return;
-      addToast(t("novel.sourceSyncDialog.unconflictedApplied"), "success");
+      addToast(tRef.current("novel.sourceSyncDialog.unconflictedApplied"), "success");
     } catch (err) {
       if (isCurrentMutation(targetProjectId, applySeqRef, requestSeq)) {
-        addToast(extractErrorMessage(err, t("novel.sourceSyncDialog.applyUnconflictedFailed")), "error");
+        addToast(extractErrorMessage(err, tRef.current("novel.sourceSyncDialog.applyUnconflictedFailed")), "error");
       }
     } finally {
       if (isCurrentMutation(targetProjectId, applySeqRef, requestSeq)) {
@@ -350,10 +352,10 @@ export const SourceSyncDialog: React.FC<SourceSyncDialogProps> = ({
       setPlan(updatedPlan);
       await refreshParent();
       if (!isCurrentMutation(targetProjectId, applySeqRef, requestSeq)) return;
-      addToast(t("novel.sourceSyncDialog.keptLocal"), "success");
+      addToast(tRef.current("novel.sourceSyncDialog.keptLocal"), "success");
     } catch (err) {
       if (isCurrentMutation(targetProjectId, applySeqRef, requestSeq)) {
-        addToast(extractErrorMessage(err, t("novel.sourceSyncDialog.applyDecisionFailed")), "error");
+        addToast(extractErrorMessage(err, tRef.current("novel.sourceSyncDialog.applyDecisionFailed")), "error");
       }
     } finally {
       if (isCurrentMutation(targetProjectId, applySeqRef, requestSeq)) {
@@ -421,10 +423,10 @@ export const SourceSyncDialog: React.FC<SourceSyncDialogProps> = ({
       setPlan(updatedPlan);
       await refreshParent();
       if (!isCurrentMutation(targetProjectId, applySeqRef, requestSeq)) return;
-      addToast(t("novel.sourceSyncDialog.sceneRegenerated"), "success");
+      addToast(tRef.current("novel.sourceSyncDialog.sceneRegenerated"), "success");
     } catch (err) {
       if (isCurrentMutation(targetProjectId, applySeqRef, requestSeq)) {
-        addToast(extractErrorMessage(err, t("novel.sourceSyncDialog.regenerateFailed")), "error");
+        addToast(extractErrorMessage(err, tRef.current("novel.sourceSyncDialog.regenerateFailed")), "error");
       }
     } finally {
       if (isCurrentMutation(targetProjectId, applySeqRef, requestSeq)) {
@@ -474,10 +476,10 @@ export const SourceSyncDialog: React.FC<SourceSyncDialogProps> = ({
       await refreshParent();
       if (!isCurrentMutation(targetProjectId, detachSeqRef, requestSeq)) return;
       setPlan(null);
-      addToast(t("novel.sourceSyncDialog.detached"), "success");
+      addToast(tRef.current("novel.sourceSyncDialog.detached"), "success");
     } catch (err) {
       if (isCurrentMutation(targetProjectId, detachSeqRef, requestSeq)) {
-        addToast(extractErrorMessage(err, t("novel.sourceSyncDialog.detachFailed")), "error");
+        addToast(extractErrorMessage(err, tRef.current("novel.sourceSyncDialog.detachFailed")), "error");
       }
     } finally {
       if (isCurrentMutation(targetProjectId, detachSeqRef, requestSeq)) {
