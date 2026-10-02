@@ -595,6 +595,7 @@ export const VideoStudioCanvas: React.FC = () => {
   const {
     loadWorkflowStatus,
     previewNode,
+    closePreview,
     runNode,
     runToNode,
     runGraph,
@@ -1085,7 +1086,7 @@ export const VideoStudioCanvas: React.FC = () => {
               open
               loading={previewLoading}
               data={previewData}
-              onClose={() => setPreviewDialogOpen(false)}
+              onClose={closePreview}
             />
           </Suspense>
         ) : null}

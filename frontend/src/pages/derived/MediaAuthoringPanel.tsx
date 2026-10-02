@@ -23,6 +23,7 @@ import { AdaptationPlanEditor, newAdaptationUnit, PlanTextField } from "./Adapta
 import { GalgameBranchPlanEditor } from "./MediaPlanEditors";
 
 type PlanDocument = AdaptationPlanV1 | GalgameBranchDesign;
+type BusyAction = "generate" | "preview" | "save" | "adopt";
 
 interface Props {
   projectId: number;
@@ -48,6 +49,7 @@ export function MediaAuthoringPanel({ projectId, kind, workspace, loading, error
   const [versionId, setVersionId] = useState<number | null>(null);
   const [editor, setEditor] = useState<{ record: AuthoringDocumentRecord | null; document: PlanDocument; baseline: string } | null>(null);
   const [busy, setBusy] = useState(false);
+  const [busyAction, setBusyAction] = useState<BusyAction | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [instruction, setInstruction] = useState("");
   const [references, setReferences] = useState<VideoScriptReferenceCandidate[]>([]);
@@ -103,6 +105,7 @@ export function MediaAuthoringPanel({ projectId, kind, workspace, loading, error
     setActionError(null);
     busyRef.current = false;
     setBusy(false);
+    setBusyAction(null);
     setReferenceChoice("saved");
     setSubmittedOptions((current) => ({ ...current, referenceChoice: "saved" }));
   }, [scope]);
@@ -136,10 +139,11 @@ export function MediaAuthoringPanel({ projectId, kind, workspace, loading, error
     setEditor({ record, document: record.document as PlanDocument, baseline: JSON.stringify(record.document) });
     onDirtyChange(false);
   };
-  const run = async (action: () => Promise<void>) => {
+  const run = async (actionKind: BusyAction, action: () => Promise<void>) => {
     if (busyRef.current || disabled) return;
     const requestScope = scope;
     busyRef.current = true;
+    setBusyAction(actionKind);
     setBusy(true);
     setActionError(null);
     try { await action(); }
@@ -153,6 +157,7 @@ export function MediaAuthoringPanel({ projectId, kind, workspace, loading, error
     finally {
       if (scopeRef.current === requestScope) {
         busyRef.current = false;
+        setBusyAction(null);
         setBusy(false);
       }
     }
@@ -269,8 +274,8 @@ export function MediaAuthoringPanel({ projectId, kind, workspace, loading, error
     </p>}
     <div className="flex flex-wrap items-center gap-2">
       {canEdit && <>
-        <BookButton size="sm" variant={editor ? "secondary" : "primary"} disabled={disabled || !workspace || (kind !== "galgame_branch_plan" && !chapter)} onClick={() => void run(generate)}>{busy || stageRunning ? <LoadingSpinner size="sm" /> : null}{editor ? t("common.mediaAuthoring.regeneratePlan") : t("common.mediaAuthoring.generatePlan")}</BookButton>
-        {kind === "adaptation_plan" && <BookButton size="sm" variant="ghost" disabled={disabled || !chapter} onClick={() => void run(async () => { const value = await previewMediaAdaptationPlanRequest(generationInput()); setPreview(value); setPreviewOpen(true); })}>{t("common.mediaAuthoring.previewRequest")}</BookButton>}
+        <BookButton size="sm" variant={editor ? "secondary" : "primary"} disabled={disabled || !workspace || (kind !== "galgame_branch_plan" && !chapter)} onClick={() => void run("generate", generate)}>{busyAction === "generate" || stageRunning ? <LoadingSpinner size="sm" /> : null}{editor ? t("common.mediaAuthoring.regeneratePlan") : t("common.mediaAuthoring.generatePlan")}</BookButton>
+        {kind === "adaptation_plan" && <BookButton size="sm" variant="ghost" disabled={disabled || !chapter} onClick={() => void run("preview", async () => { const value = await previewMediaAdaptationPlanRequest(generationInput()); setPreview(value); setPreviewOpen(true); })}>{busyAction === "preview" ? <LoadingSpinner size="sm" /> : null}{t("common.mediaAuthoring.previewRequest")}</BookButton>}
         {!editor && <BookButton size="sm" variant="secondary" disabled={disabled || !workspace} onClick={() => {
           const document = kind === "galgame_branch_plan" ? { choices: [] } : { schema_version: "adaptation_plan_v1" as const, target: workspace!.target, intention: "", decisions: [], units: [newAdaptationUnit()] };
           setEditor({ record: null, document, baseline: "" });
@@ -284,8 +289,8 @@ export function MediaAuthoringPanel({ projectId, kind, workspace, loading, error
     </fieldset> : <p className="py-6 text-sm text-book-text-muted">{t("common.mediaAuthoring.noPlan")}</p>}
     {editor && canEdit && <footer className="sticky bottom-0 z-10 flex flex-wrap items-center justify-end gap-2 border-t border-book-border/60 bg-[rgb(var(--color-bg-primary))] py-3">
       <span className="mr-auto text-xs text-book-text-muted" role="status">{dirty ? t("common.unsavedChangesTitle") : editor.record?.status === "adopted" ? t("common.mediaAuthoring.adopted") : editor.record ? t("common.mediaAuthoring.draftSaved") : ""}</span>
-      <BookButton size="sm" variant="secondary" disabled={disabled || !dirty || selected?.stale} onClick={() => void run(async () => { await save(); })}>{t("common.mediaAuthoring.saveDraft")}</BookButton>
-      <BookButton size="sm" disabled={disabled || selected?.stale || (!dirty && editor.record?.status === "adopted")} onClick={() => void run(adopt)}>{t("common.mediaAuthoring.adopt")}</BookButton>
+      <BookButton size="sm" variant="secondary" disabled={disabled || !dirty || selected?.stale} onClick={() => void run("save", async () => { await save(); })}>{busyAction === "save" ? <LoadingSpinner size="sm" /> : null}{t("common.mediaAuthoring.saveDraft")}</BookButton>
+      <BookButton size="sm" disabled={disabled || selected?.stale || (!dirty && editor.record?.status === "adopted")} onClick={() => void run("adopt", adopt)}>{busyAction === "adopt" ? <LoadingSpinner size="sm" /> : null}{t("common.mediaAuthoring.adopt")}</BookButton>
       {onNext && <BookButton size="sm" variant="secondary" disabled={disabled || dirty || editor.record?.status !== "adopted" || selected?.stale} onClick={() => { void (async () => { if (await confirmDiscardDrafts()) { onDirtyChange(false); onNext(); } })(); }}>{t("common.mediaAuthoring.nextStage")}</BookButton>}
     </footer>}
     <RequestPreviewModal open={previewOpen} loading={false} data={preview} fallbackTitle={t("common.mediaAuthoring.previewRequest")} onClose={() => setPreviewOpen(false)} />

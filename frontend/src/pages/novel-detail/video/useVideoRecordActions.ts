@@ -277,6 +277,10 @@ export function useVideoRecordActions({
     setRequestPreviewData(null);
     setTrimStart("0");
     setTrimEnd("");
+    return () => {
+      requestPreviewScopeRef.current += 1;
+      requestPreviewBusyScopeRef.current = null;
+    };
   }, [previewScopeKey]);
 
   const wrapAct = async (
@@ -632,7 +636,7 @@ export function useVideoRecordActions({
     fallbackMessage: string,
   ) => {
     if (requestPreviewBusyScopeRef.current != null) return;
-    const previewScope = requestPreviewScopeRef.current;
+    const previewScope = ++requestPreviewScopeRef.current;
     requestPreviewBusyScopeRef.current = previewScope;
     setRequestPreviewOpen(true);
     setRequestPreviewLoading(true);
@@ -653,6 +657,14 @@ export function useVideoRecordActions({
         requestPreviewBusyScopeRef.current = null;
       }
     }
+  };
+
+  const closeRequestPreview = () => {
+    requestPreviewScopeRef.current += 1;
+    requestPreviewBusyScopeRef.current = null;
+    setRequestPreviewOpen(false);
+    setRequestPreviewLoading(false);
+    setRequestPreviewData(null);
   };
 
   const openVideoRequestPreview = async (
@@ -840,6 +852,6 @@ export function useVideoRecordActions({
     requestPreviewOpen,
     requestPreviewLoading,
     requestPreviewData,
-    setRequestPreviewOpen,
+    closeRequestPreview,
   };
 }

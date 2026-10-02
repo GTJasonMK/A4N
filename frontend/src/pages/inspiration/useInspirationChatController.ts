@@ -502,6 +502,13 @@ export const useInspirationChatController = () => {
     }
   };
 
+  const closeRequestPreview = useCallback(() => {
+    requestPreviewSeqRef.current += 1;
+    setRequestPreviewOpen(false);
+    setRequestPreviewLoading(false);
+    setRequestPreviewData(null);
+  }, []);
+
   const handlePreviewInspirationRequest = useCallback(async () => {
     const value = input.trim();
     if (!value || sending) return;
@@ -592,7 +599,7 @@ export const useInspirationChatController = () => {
     blueprintRequestPreviewOpen: blueprintWorkflow.requestPreviewOpen,
     blueprintRequestPreviewLoading: blueprintWorkflow.requestPreviewLoading,
     blueprintRequestPreviewData: blueprintWorkflow.requestPreviewData,
-    setBlueprintRequestPreviewOpen: blueprintWorkflow.setRequestPreviewOpen,
+    closeBlueprintRequestPreview: blueprintWorkflow.closeRequestPreview,
     messagesViewportRef,
     isFollowingLatest,
     hasNewContent,
@@ -602,7 +609,7 @@ export const useInspirationChatController = () => {
     requestPreviewOpen,
     requestPreviewLoading,
     requestPreviewData,
-    setRequestPreviewOpen,
+    closeRequestPreview,
     progressSummaryLines,
     nextQuestion,
     conversationChecklistComplete,

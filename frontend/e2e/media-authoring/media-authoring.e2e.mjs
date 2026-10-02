@@ -18,6 +18,7 @@ const fixture = {
   list_manga_page_prompts: [],
   list_manga_pipeline_statuses: [1, 2].map((chapter_id) => ({ chapter_id, pending: 0, generating: 0, completed: 0, failed: 0, cancelled: 0, pipeline_status: null, stage: null, current: null, total: null, message: null, task_id: null, can_cancel: false, can_resume: false, has_checkpoint: false, checkpoint_valid: false })),
   get_galgame_asset_plan: null,
+  preview_media_adaptation_plan_request: { title: "改编请求", workflow: "media_adaptation_plan", steps: [], notes: [], ready_step_count: 0, execution_location: "server" },
   list_chapter_video_prompts: [], list_videos_by_chapter: [], list_video_reference_images: [], list_video_segment_execution_recipes: [],
   get_chapter_video_timeline: { id: 1, revision: 1, items: [] },
   get_chapter_shooting_script: null, get_chapter_shooting_script_unit_progress: null,
@@ -93,12 +94,24 @@ describe("Derived media authoring stages", () => {
       record.document.intention = "保留我刚补写的犹豫和反应";
       record.revision = 2;
       fixture.save_media_authoring_document = structuredClone(record);
+      window.__uiAudit.deferred.push("save_media_authoring_document");
     });
     await clickText("保存草稿");
     await browser.waitUntil(async () => (await browser.execute(() => window.__uiAudit.requests)).some((request) => request.command === "save_media_authoring_document"));
     const request = await browser.execute(() => window.__uiAudit.requests.find((request) => request.command === "save_media_authoring_document").body.input);
     assert.equal(request.record_id, 2000);
     assert.equal(request.expected_revision, 1);
+    const saveButton = await $('//button[normalize-space()="保存草稿"]');
+    const generateButton = await $('//button[normalize-space()="生成计划草稿" or contains(normalize-space(), "重新生成草稿")]');
+    await browser.waitUntil(async () => await saveButton.$(".animate-spin").isExisting());
+    assert.equal(await generateButton.$(".animate-spin").isExisting(), false);
+    await browser.execute(() => {
+      const pending = window.__uiAudit.pending.find((item) => item.command === "save_media_authoring_document");
+      const workspace = window.__uiAudit.fixtures.byProject[2].get_media_authoring_workspace;
+      const saved = { ...workspace.documents[0].record, document: pending.body.input.document, revision: 2 };
+      pending.resolve(new Response(JSON.stringify(saved), { headers: { "Content-Type": "application/json" } }));
+    });
+    await browser.waitUntil(async () => (await $("body").getText()).includes("计划草稿已保存"));
     await checkLayout("comic-plan", 1440);
     await checkLayout("comic-plan", 1024);
     await checkLayout("comic-plan", 390);
@@ -108,6 +121,29 @@ describe("Derived media authoring stages", () => {
     await browser.saveScreenshot(`${artifactDir}/comic-plan-footer-390.png`);
     await chooseStage("页面提示词");
     assert.equal(await stage("页面提示词").getAttribute("aria-selected"), "true");
+  });
+
+  it("shows preview loading on the preview action and opens the returned request", async () => {
+    await browser.setWindowSize(390, 1000);
+    await browser.url("/comic-project/2");
+    const adaptationTab = await stage("改编计划");
+    if (await adaptationTab.getAttribute("aria-selected") !== "true") await chooseStage("改编计划");
+    await intention().waitForDisplayed();
+    await browser.execute(() => { window.__uiAudit.deferred.push("preview_media_adaptation_plan_request"); });
+    const previewButton = await $('//button[normalize-space()="查看生成请求"]');
+    const generateButton = await $('//button[normalize-space()="生成计划草稿" or contains(normalize-space(), "重新生成草稿")]');
+    await previewButton.click();
+    await browser.waitUntil(async () => await browser.execute(() => window.__uiAudit.pending.some((item) => item.command === "preview_media_adaptation_plan_request")));
+    await browser.waitUntil(async () => await previewButton.$(".animate-spin").isExisting());
+    assert.equal(await generateButton.$(".animate-spin").isExisting(), false);
+    assert.equal(await browser.execute(() => document.documentElement.scrollWidth - document.documentElement.clientWidth), 0);
+    await browser.execute(() => {
+      const pending = window.__uiAudit.pending.find((item) => item.command === "preview_media_adaptation_plan_request");
+      pending.resolve(Response.json(window.__uiAudit.fixtures.preview_media_adaptation_plan_request));
+    });
+    await $("[role=dialog]").waitForDisplayed();
+    await browser.keys("Escape");
+    await browser.waitUntil(async () => await browser.execute(() => document.querySelector("[role=dialog]") == null));
   });
 
   it("presents seven game stages and keeps image configuration out of asset planning", async () => {

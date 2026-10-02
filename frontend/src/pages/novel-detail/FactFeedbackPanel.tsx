@@ -51,11 +51,16 @@ export const FactFeedbackPanel = ({ projectId, canEdit, refreshKey, onChanged }:
   const operationBusy = useRef(false);
   const intervalDirty = useRef(false);
   const loadSequence = useRef(0);
+  const previewSequence = useRef(0);
   currentProject.current = projectId;
 
   useEffect(() => {
     mounted.current = true;
-    return () => { mounted.current = false; loadSequence.current += 1; };
+    return () => {
+      mounted.current = false;
+      loadSequence.current += 1;
+      previewSequence.current += 1;
+    };
   }, []);
 
   const load = useCallback(async (): Promise<boolean> => {
@@ -78,6 +83,7 @@ export const FactFeedbackPanel = ({ projectId, canEdit, refreshKey, onChanged }:
   }, [projectId, t]);
 
   useEffect(() => {
+    previewSequence.current += 1;
     setData(null);
     setLoading(true);
     intervalDirty.current = false;
@@ -177,22 +183,30 @@ export const FactFeedbackPanel = ({ projectId, canEdit, refreshKey, onChanged }:
     }
   };
 
+  const closePreview = () => {
+    previewSequence.current += 1;
+    setPreviewOpen(false);
+    setPreviewLoading(false);
+    setPreview(null);
+  };
+
   const showPreview = async () => {
     if (operationBusy.current || !requireSavedInterval()) return;
+    const previewRequest = ++previewSequence.current;
     setPreviewOpen(true);
     setPreviewLoading(true);
     setPreview(null);
     const requestProject = projectId;
     try {
       const result = await previewProjectFactFeedback({ project_id: projectId, mode: "consolidate", workflow_run_id: null });
-      if (mounted.current && currentProject.current === requestProject) setPreview(result);
+      if (mounted.current && currentProject.current === requestProject && previewSequence.current === previewRequest) setPreview(result);
     } catch (cause) {
-      if (mounted.current && currentProject.current === requestProject) {
+      if (mounted.current && currentProject.current === requestProject && previewSequence.current === previewRequest) {
         setPreviewOpen(false);
         addToast(extractErrorMessage(cause, tRef.current("novel.factFeedback.previewFailed")), "error");
       }
     } finally {
-      if (mounted.current && currentProject.current === requestProject) setPreviewLoading(false);
+      if (mounted.current && currentProject.current === requestProject && previewSequence.current === previewRequest) setPreviewLoading(false);
     }
   };
 
@@ -250,7 +264,7 @@ export const FactFeedbackPanel = ({ projectId, canEdit, refreshKey, onChanged }:
           </ol>
         </details> : <p className="mt-3 text-caption text-book-text-muted">{t("novel.factFeedback.empty")}</p>}
       </> : null}
-      <RequestPreviewModal open={previewOpen} loading={previewLoading} data={preview} onClose={() => setPreviewOpen(false)} />
+      <RequestPreviewModal open={previewOpen} loading={previewLoading} data={preview} onClose={closePreview} />
     </section>
   );
 };

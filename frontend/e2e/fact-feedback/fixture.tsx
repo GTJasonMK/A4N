@@ -18,6 +18,12 @@ const summary: ProjectFactFeedbackSummary = {
   ],
 };
 const calls: Array<{ command: string; args: any }> = [];
+const factFeedbackFixture = {
+  calls,
+  summary,
+  deferPreview: false,
+  pendingPreviewResponses: [] as Array<(response: Response) => void>,
+};
 const nativeFetch = window.fetch.bind(window);
 window.fetch = async (url, options) => {
   const path = String(url);
@@ -25,6 +31,9 @@ window.fetch = async (url, options) => {
   const command = path.split("/").pop()!;
   const args = JSON.parse(String(options?.body ?? "{}"));
   calls.push({ command, args });
+  if (command === "preview_project_fact_feedback_request" && factFeedbackFixture.deferPreview) {
+    return await new Promise<Response>((resolve) => factFeedbackFixture.pendingPreviewResponses.push(resolve));
+  }
   let result: unknown;
   if (command === "get_project_fact_feedback") result = { ...summary, project_id: args.projectId };
   else if (command === "update_project") {
@@ -40,7 +49,7 @@ window.fetch = async (url, options) => {
   else throw new Error(`Unexpected fixture command: ${command}`);
   return new Response(JSON.stringify(result), { status: 200, headers: { "Content-Type": "application/json" } });
 };
-Object.assign(window, { factFeedbackFixture: { calls, summary } });
+Object.assign(window, { factFeedbackFixture });
 localStorage.setItem("a4n:current_user_id", "1");
 localStorage.setItem("a4n:current_access_token", "fixture-only-token");
 localStorage.setItem("a4n:current_session_id", "fixture-session");

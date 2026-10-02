@@ -36,4 +36,25 @@ describe("正文事实反馈界面", () => {
     assert.equal(runs.length, 1);
     assert.equal(runs[0].args.input.mode, "consolidate");
   });
+
+  it("关闭等待中的预览后丢弃其失败结果", async () => {
+    await browser.url("/e2e/fact-feedback/");
+    await $("button=预览归纳请求").waitForDisplayed();
+    await browser.execute(() => { window.factFeedbackFixture.deferPreview = true; });
+    await $("button=预览归纳请求").click();
+    await $("[role=dialog]").waitForDisplayed();
+    await browser.keys("Escape");
+    await browser.waitUntil(async () => await browser.execute(() => document.querySelector("[role=dialog]") == null));
+    await browser.execute(() => {
+      window.factFeedbackFixture.pendingPreviewResponses[0](new Response(
+        JSON.stringify({ message: "fixture preview failure" }),
+        { status: 503, headers: { "Content-Type": "application/json" } },
+      ));
+    });
+    await browser.pause(100);
+    const pageText = await $("body").getText();
+    assert.ok(!pageText.includes("fixture preview failure"), pageText);
+    assert.ok(!pageText.includes("预览归纳请求失败"), pageText);
+    assert.equal(await $("[role=dialog]").isExisting(), false);
+  });
 });

@@ -209,11 +209,9 @@ export const VideoTab: React.FC<VideoTabProps> = ({
     segmentPlanDraftLoading,
     segmentPlanDraftError,
     promptRequestPreviewOpen,
-    setPromptRequestPreviewOpen,
     promptRequestPreviewLoading,
     promptRequestPreviewData,
     imageRequestPreviewOpen,
-    setImageRequestPreviewOpen,
     imageRequestPreviewLoading,
     imageRequestPreviewData,
   } = videoTabState;
@@ -394,7 +392,7 @@ export const VideoTab: React.FC<VideoTabProps> = ({
     requestPreviewOpen: videoRequestPreviewOpen,
     requestPreviewLoading: videoRequestPreviewLoading,
     requestPreviewData: videoRequestPreviewData,
-    setRequestPreviewOpen: setVideoRequestPreviewOpen,
+    closeRequestPreview: closeVideoRequestPreview,
   } = useVideoRecordActions({
     projectId,
     chapter,
@@ -486,6 +484,8 @@ export const VideoTab: React.FC<VideoTabProps> = ({
     handleCopyChatVideoPrompt,
     handlePreviewFrameImageRequest,
     handlePreviewReferenceMediaVideoRequest,
+    closePromptRequestPreview,
+    closeImageRequestPreview,
     handleSaveReferenceMediaDraft,
     handleGenerateReferenceMediaVideo,
     handleImportReferenceMediaVideo,
@@ -849,7 +849,7 @@ export const VideoTab: React.FC<VideoTabProps> = ({
             loading={promptRequestPreviewLoading}
             data={promptRequestPreviewData}
             fallbackTitle={t("video.chapter.modelRequestPreview")}
-            onClose={() => setPromptRequestPreviewOpen(false)}
+            onClose={closePromptRequestPreview}
           />
         </Suspense>
       ) : null}
@@ -860,7 +860,7 @@ export const VideoTab: React.FC<VideoTabProps> = ({
             loading={imageRequestPreviewLoading}
             data={imageRequestPreviewData}
             fallbackTitle={t("video.chapter.imageRequestPreview")}
-            onClose={() => setImageRequestPreviewOpen(false)}
+            onClose={closeImageRequestPreview}
           />
         </Suspense>
       ) : null}
@@ -871,7 +871,7 @@ export const VideoTab: React.FC<VideoTabProps> = ({
             loading={videoRequestPreviewLoading}
             data={videoRequestPreviewData}
             fallbackTitle={t("video.chapter.videoRequestPreview")}
-            onClose={() => setVideoRequestPreviewOpen(false)}
+            onClose={closeVideoRequestPreview}
           />
         </Suspense>
       ) : null}

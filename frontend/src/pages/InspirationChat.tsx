@@ -167,14 +167,14 @@ export const InspirationChat: React.FC = () => {
         loading={chat.requestPreviewLoading}
         data={chat.requestPreviewData}
         fallbackTitle={t("inspiration.chatRequestPreview")}
-        onClose={() => chat.setRequestPreviewOpen(false)}
+        onClose={chat.closeRequestPreview}
       />
       <RequestPreviewModal
         open={chat.blueprintRequestPreviewOpen}
         loading={chat.blueprintRequestPreviewLoading}
         data={chat.blueprintRequestPreviewData}
         fallbackTitle={t("inspiration.blueprintRequestPreview")}
-        onClose={() => chat.setBlueprintRequestPreviewOpen(false)}
+        onClose={chat.closeBlueprintRequestPreview}
       />
     </div>
   );

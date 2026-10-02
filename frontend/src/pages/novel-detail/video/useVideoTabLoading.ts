@@ -440,6 +440,10 @@ export function useVideoTabLoading({
     setImageRequestPreviewOpen(false);
     setImageRequestPreviewLoading(false);
     setImageRequestPreviewData(null);
+    return () => {
+      promptRequestPreviewScopeRef.current += 1;
+      imageRequestPreviewScopeRef.current += 1;
+    };
   }, [selectedSegmentNumber, workflowMode]);
 
   useEffect(() => {

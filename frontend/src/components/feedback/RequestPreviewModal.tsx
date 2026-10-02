@@ -373,10 +373,12 @@ export const RequestPreviewModal: React.FC<RequestPreviewModalProps> = ({
 }) => {
   const [copied, setCopied] = useState(false);
   const copiedTimerRef = useRef<number | null>(null);
+  const copySequenceRef = useRef(0);
   const { addToast } = useToast();
   const { locale, t } = useI18n();
 
   useEffect(() => {
+    copySequenceRef.current += 1;
     setCopied(false);
     if (copiedTimerRef.current != null) {
       window.clearTimeout(copiedTimerRef.current);
@@ -386,6 +388,7 @@ export const RequestPreviewModal: React.FC<RequestPreviewModalProps> = ({
 
   useEffect(
     () => () => {
+      copySequenceRef.current += 1;
       if (copiedTimerRef.current != null) {
         window.clearTimeout(copiedTimerRef.current);
       }
@@ -394,8 +397,10 @@ export const RequestPreviewModal: React.FC<RequestPreviewModalProps> = ({
   );
 
   const copyText = async (text: string) => {
+    const copyRequest = ++copySequenceRef.current;
     try {
       await copyTextToClipboard(text);
+      if (copySequenceRef.current !== copyRequest) return;
       setCopied(true);
       if (copiedTimerRef.current != null) {
         window.clearTimeout(copiedTimerRef.current);
@@ -405,6 +410,7 @@ export const RequestPreviewModal: React.FC<RequestPreviewModalProps> = ({
         setCopied(false);
       }, 1200);
     } catch (err) {
+      if (copySequenceRef.current !== copyRequest) return;
       if (copiedTimerRef.current != null) {
         window.clearTimeout(copiedTimerRef.current);
         copiedTimerRef.current = null;

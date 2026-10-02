@@ -855,6 +855,20 @@ export function useVideoTabActions(context: VideoTabActionInput) {
     };
   };
 
+  const closePromptRequestPreview = () => {
+    promptRequestPreviewScopeRef.current += 1;
+    setPromptRequestPreviewOpen(false);
+    setPromptRequestPreviewLoading(false);
+    setPromptRequestPreviewData(null);
+  };
+
+  const closeImageRequestPreview = () => {
+    imageRequestPreviewScopeRef.current += 1;
+    setImageRequestPreviewOpen(false);
+    setImageRequestPreviewLoading(false);
+    setImageRequestPreviewData(null);
+  };
+
   const previewImageRequests = async (
     requests: Array<Record<string, unknown>>,
     note: string | null = null,
@@ -864,7 +878,7 @@ export function useVideoTabActions(context: VideoTabActionInput) {
       addToast(currentT()("video.chapter.previewImageRequestsEmpty"), "error");
       return;
     }
-    const previewScope = imageRequestPreviewScopeRef.current;
+    const previewScope = ++imageRequestPreviewScopeRef.current;
     setImageRequestPreviewOpen(true);
     setImageRequestPreviewLoading(true);
     setImageRequestPreviewData(null);
@@ -993,9 +1007,9 @@ export function useVideoTabActions(context: VideoTabActionInput) {
 
   const handlePreviewReferenceMediaVideoRequest = async () => {
     if (!chapter) return;
+    const previewScope = ++promptRequestPreviewScopeRef.current;
     const input = await prepareReferenceMediaVideoInput();
-    if (!input) return;
-    const previewScope = promptRequestPreviewScopeRef.current;
+    if (!input || promptRequestPreviewScopeRef.current !== previewScope) return;
     setPromptRequestPreviewOpen(true);
     setPromptRequestPreviewLoading(true);
     setPromptRequestPreviewData(null);
@@ -1176,6 +1190,8 @@ export function useVideoTabActions(context: VideoTabActionInput) {
     handleCopyChatVideoPrompt,
     handlePreviewFrameImageRequest,
     handlePreviewReferenceMediaVideoRequest,
+    closePromptRequestPreview,
+    closeImageRequestPreview,
     handleSaveReferenceMediaDraft,
     handleGenerateReferenceMediaVideo,
     handleImportReferenceMediaVideo,

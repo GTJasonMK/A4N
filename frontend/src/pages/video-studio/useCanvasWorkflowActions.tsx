@@ -398,6 +398,13 @@ export function useCanvasWorkflowActions({
     }
   };
 
+  const closePreview = () => {
+    previewRequestRef.current += 1;
+    setPreviewDialogOpen(false);
+    setPreviewLoading(false);
+    setPreviewData(null);
+  };
+
   const runNode = async (node: StudioNode) => {
     if (!document || canvasMutationDisabled || workflowSubmitting) return;
     if (dirty) {
@@ -759,6 +766,7 @@ export function useCanvasWorkflowActions({
   return {
     loadWorkflowStatus,
     previewNode,
+    closePreview,
     runNode,
     runToNode,
     runGraph,

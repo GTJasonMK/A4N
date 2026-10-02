@@ -171,6 +171,7 @@ export const useBlueprintWorkflow = ({
     return () => {
       mountedRef.current = false;
       generatingRef.current = false;
+      requestPreviewSeqRef.current += 1;
       if (confirmTimeoutRef.current != null) window.clearTimeout(confirmTimeoutRef.current);
     };
   }, []);
@@ -459,6 +460,13 @@ export const useBlueprintWorkflow = ({
     }
   }, [addToast, buildCurrentBlueprintGenerationInput, canGenerate, isCurrentProject, project, projectId, t]);
 
+  const closeRequestPreview = useCallback(() => {
+    requestPreviewSeqRef.current += 1;
+    setRequestPreviewOpen(false);
+    setRequestPreviewLoading(false);
+    setRequestPreviewData(null);
+  }, []);
+
   const handlePreviewGenerateBlueprint = useCallback(async () => {
     if (!project || !canGenerate) return;
     const requestSeq = ++requestPreviewSeqRef.current;
@@ -589,7 +597,7 @@ export const useBlueprintWorkflow = ({
     requestPreviewOpen,
     requestPreviewLoading,
     requestPreviewData,
-    setRequestPreviewOpen,
+    closeRequestPreview,
     canGenerate,
     canCancelBlueprintOperation,
     handleBackToConversation,
