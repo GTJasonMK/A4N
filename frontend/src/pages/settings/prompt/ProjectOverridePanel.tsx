@@ -25,6 +25,8 @@ interface ProjectOverridePanelProps {
 export const ProjectOverridePanel: React.FC<ProjectOverridePanelProps> = ({ prompt, content, dirty }) => {
   const addToast = useToast((state) => state.addToast);
   const { t, locale } = useI18n();
+  const tRef = useRef(t);
+  tRef.current = t;
   const [projectId, setProjectId] = useState<number | null>(null);
   const [overrides, setOverrides] = useState<ProjectPromptOverrideSummary[]>([]);
   const [loading, setLoading] = useState(false);
@@ -32,10 +34,13 @@ export const ProjectOverridePanel: React.FC<ProjectOverridePanelProps> = ({ prom
   const [setting, setSetting] = useState(false);
   const [removing, setRemoving] = useState(false);
   const mountedRef = useRef(true);
+  const promptNameRef = useRef(prompt.name);
   const projectIdRef = useRef<number | null>(null);
   const listSeqRef = useRef(0);
   const mutationSeqRef = useRef(0);
   const mutationBusyRef = useRef(false);
+
+  promptNameRef.current = prompt.name;
 
   useEffect(() => {
     mountedRef.current = true;
@@ -73,8 +78,26 @@ export const ProjectOverridePanel: React.FC<ProjectOverridePanelProps> = ({ prom
     }
   };
 
+  useEffect(() => {
+    listSeqRef.current += 1;
+    mutationSeqRef.current += 1;
+    mutationBusyRef.current = false;
+    setSetting(false);
+    setRemoving(false);
+    setOverrides([]);
+    setLoadError(null);
+    const targetProjectId = projectIdRef.current;
+    if (targetProjectId != null) void loadOverridesForProject(targetProjectId);
+    // The selected project is shared across prompts, but its override rows are not.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [prompt.name]);
+
   const handleProjectChange = (nextProjectId: number | null) => {
     projectIdRef.current = nextProjectId;
+    mutationSeqRef.current += 1;
+    mutationBusyRef.current = false;
+    setSetting(false);
+    setRemoving(false);
     setProjectId(nextProjectId);
     listSeqRef.current += 1;
     setOverrides([]);
@@ -90,6 +113,7 @@ export const ProjectOverridePanel: React.FC<ProjectOverridePanelProps> = ({ prom
 
   const handleSetOverride = async () => {
     const targetProjectId = projectIdRef.current;
+    const targetPromptName = prompt.name;
     if (targetProjectId == null || mutationBusyRef.current) return;
     const ok = await confirmDialog({
       title: currentOverride ? t("settingsPrompt.updateOverride") : t("settingsPrompt.setOverride"),
@@ -97,7 +121,7 @@ export const ProjectOverridePanel: React.FC<ProjectOverridePanelProps> = ({ prom
       confirmText: currentOverride ? t("common.update") : t("common.set"),
       dialogType: "warning",
     });
-    if (!ok || !mountedRef.current || projectIdRef.current !== targetProjectId) return;
+    if (!ok || !mountedRef.current || projectIdRef.current !== targetProjectId || promptNameRef.current !== targetPromptName) return;
 
     const requestSeq = mutationSeqRef.current + 1;
     mutationSeqRef.current = requestSeq;
@@ -109,12 +133,13 @@ export const ProjectOverridePanel: React.FC<ProjectOverridePanelProps> = ({ prom
         name: prompt.name,
         content,
       });
-      if (!mountedRef.current || mutationSeqRef.current !== requestSeq) return;
+      if (!mountedRef.current || mutationSeqRef.current !== requestSeq || promptNameRef.current !== targetPromptName) return;
       if (projectIdRef.current === targetProjectId && !await loadOverridesForProject(targetProjectId)) return;
-      addToast(currentOverride ? t("settingsPrompt.overrideUpdated") : t("settingsPrompt.overrideSet"), "success");
+      if (promptNameRef.current !== targetPromptName || projectIdRef.current !== targetProjectId) return;
+      addToast(currentOverride ? tRef.current("settingsPrompt.overrideUpdated") : tRef.current("settingsPrompt.overrideSet"), "success");
     } catch (error) {
-      if (mountedRef.current && mutationSeqRef.current === requestSeq) {
-        addToast(extractErrorMessage(error, t("settingsPrompt.setOverrideFailed")), "error");
+      if (mountedRef.current && mutationSeqRef.current === requestSeq && promptNameRef.current === targetPromptName) {
+        addToast(extractErrorMessage(error, tRef.current("settingsPrompt.setOverrideFailed")), "error");
       }
     } finally {
       if (mutationSeqRef.current === requestSeq) mutationBusyRef.current = false;
@@ -124,6 +149,7 @@ export const ProjectOverridePanel: React.FC<ProjectOverridePanelProps> = ({ prom
 
   const handleRemoveOverride = async () => {
     const targetProjectId = projectIdRef.current;
+    const targetPromptName = prompt.name;
     if (targetProjectId == null || !currentOverride || mutationBusyRef.current) return;
     const ok = await confirmDialog({
       title: t("settingsPrompt.removeOverride"),
@@ -131,7 +157,7 @@ export const ProjectOverridePanel: React.FC<ProjectOverridePanelProps> = ({ prom
       confirmText: t("common.remove"),
       dialogType: "warning",
     });
-    if (!ok || !mountedRef.current || projectIdRef.current !== targetProjectId) return;
+    if (!ok || !mountedRef.current || projectIdRef.current !== targetProjectId || promptNameRef.current !== targetPromptName) return;
 
     const requestSeq = mutationSeqRef.current + 1;
     mutationSeqRef.current = requestSeq;
@@ -139,12 +165,13 @@ export const ProjectOverridePanel: React.FC<ProjectOverridePanelProps> = ({ prom
     setRemoving(true);
     try {
       await promptRemoveProjectOverride({ project_id: targetProjectId, name: prompt.name });
-      if (!mountedRef.current || mutationSeqRef.current !== requestSeq) return;
+      if (!mountedRef.current || mutationSeqRef.current !== requestSeq || promptNameRef.current !== targetPromptName) return;
       if (projectIdRef.current === targetProjectId && !await loadOverridesForProject(targetProjectId)) return;
-      addToast(t("settingsPrompt.overrideRemoved"), "success");
+      if (promptNameRef.current !== targetPromptName || projectIdRef.current !== targetProjectId) return;
+      addToast(tRef.current("settingsPrompt.overrideRemoved"), "success");
     } catch (error) {
-      if (mountedRef.current && mutationSeqRef.current === requestSeq) {
-        addToast(extractErrorMessage(error, t("settingsPrompt.removeOverrideFailed")), "error");
+      if (mountedRef.current && mutationSeqRef.current === requestSeq && promptNameRef.current === targetPromptName) {
+        addToast(extractErrorMessage(error, tRef.current("settingsPrompt.removeOverrideFailed")), "error");
       }
     } finally {
       if (mutationSeqRef.current === requestSeq) mutationBusyRef.current = false;

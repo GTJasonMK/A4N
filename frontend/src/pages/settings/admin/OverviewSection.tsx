@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useRef, useState } from "react";
 import { AlertTriangle, CheckCircle2, CirclePause, RefreshCw } from "lucide-react";
 import type { MessageKey } from "../../../i18n";
 import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
@@ -20,6 +20,8 @@ export const OverviewSection: React.FC = () => {
   const [health, setHealth] = useState<AdminHealthCheck | null>(null);
   const [healthLoading, setHealthLoading] = useState(true);
   const [healthError, setHealthError] = useState<{ reason: unknown } | null>(null);
+  const mountedRef = useRef(false);
+  const healthSeqRef = useRef(0);
   const loadOverview = useCallback(() => getAdminOverview(), []);
   const applyOverview = useCallback((nextOverview: AdminOverviewSummary) => {
     setOverview(nextOverview);
@@ -30,15 +32,29 @@ export const OverviewSection: React.FC = () => {
     applyOverview,
     "settingsAdmin.loadFailed",
   );
+  React.useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      healthSeqRef.current += 1;
+    };
+  }, []);
   const refreshHealth = useCallback(async () => {
+    const requestSeq = healthSeqRef.current + 1;
+    healthSeqRef.current = requestSeq;
     setHealthLoading(true);
     setHealthError(null);
     try {
-      setHealth(await healthCheck());
+      const nextHealth = await healthCheck();
+      if (!mountedRef.current || healthSeqRef.current !== requestSeq) return;
+      setHealth(nextHealth);
     } catch (error) {
+      if (!mountedRef.current || healthSeqRef.current !== requestSeq) return;
       setHealthError({ reason: error });
     } finally {
-      setHealthLoading(false);
+      if (mountedRef.current && healthSeqRef.current === requestSeq) {
+        setHealthLoading(false);
+      }
     }
   }, []);
   const refresh = useCallback(async () => {

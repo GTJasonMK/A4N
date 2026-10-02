@@ -20,6 +20,8 @@ export const PromptAdvancedPanels: React.FC<{
 }> = ({ prompt, reverseDependencies }) => {
   const { addToast } = useToast();
   const { t } = useI18n();
+  const tRef = useRef(t);
+  tRef.current = t;
   const mountedRef = useRef(true);
   const scopeRef = useRef({ name: prompt.name, token: 0 });
   const validateSeqRef = useRef(0);
@@ -140,9 +142,9 @@ export const PromptAdvancedPanels: React.FC<{
       }
       setMissingVars(miss);
       if (miss.length === 0) {
-        addToast(t("settingsPrompt.validationPassed"), "success");
+        addToast(tRef.current("settingsPrompt.validationPassed"), "success");
       } else {
-        addToast(t("settingsPrompt.missingVariables", { count: miss.length }), "error");
+        addToast(tRef.current("settingsPrompt.missingVariables", { count: miss.length }), "error");
       }
     } catch (err) {
       if (
@@ -150,7 +152,7 @@ export const PromptAdvancedPanels: React.FC<{
         validateSeqRef.current === requestSeq &&
         validateInputVersionRef.current === requestInputVersion
       ) {
-        addToast(extractErrorMessage(err, t("settingsPrompt.validationFailed")), "error");
+        addToast(extractErrorMessage(err, tRef.current("settingsPrompt.validationFailed")), "error");
       }
     } finally {
       if (validateSeqRef.current === requestSeq) {
@@ -212,7 +214,7 @@ export const PromptAdvancedPanels: React.FC<{
         directRenderSeqRef.current === requestSeq &&
         renderInputVersionRef.current === requestInputVersion
       ) {
-        addToast(extractErrorMessage(err, t("settingsPrompt.renderFailed")), "error");
+        addToast(extractErrorMessage(err, tRef.current("settingsPrompt.renderFailed")), "error");
       }
     } finally {
       if (directRenderSeqRef.current === requestSeq) {
@@ -259,7 +261,7 @@ export const PromptAdvancedPanels: React.FC<{
         abRenderSeqRef.current === requestSeq &&
         renderInputVersionRef.current === requestInputVersion
       ) {
-        addToast(extractErrorMessage(err, t("settingsPrompt.compareRenderFailed")), "error");
+        addToast(extractErrorMessage(err, tRef.current("settingsPrompt.compareRenderFailed")), "error");
       }
     } finally {
       if (abRenderSeqRef.current === requestSeq) {

@@ -56,6 +56,7 @@ export const AgentTab: React.FC = () => {
   const mountedRef = useRef(true);
   const refreshInFlightRef = useRef(false);
   const savingRef = useRef(false);
+  const saveSeqRef = useRef(0);
   dirtyRef.current = dirty;
   tRef.current = t;
   useDirty("settings-agent-skills", dirty, undefined, () => !saving);
@@ -64,6 +65,8 @@ export const AgentTab: React.FC = () => {
     mountedRef.current = true;
     return () => {
       mountedRef.current = false;
+      saveSeqRef.current += 1;
+      savingRef.current = false;
     };
   }, []);
 
@@ -130,6 +133,8 @@ export const AgentTab: React.FC = () => {
     const profile = settings.profiles.find((item) => item.capability === activeCapability);
     if (!profile) return;
     const submitted = activeEnabled;
+    const requestSeq = saveSeqRef.current + 1;
+    saveSeqRef.current = requestSeq;
     savingRef.current = true;
     setSaving(true);
     try {
@@ -137,6 +142,7 @@ export const AgentTab: React.FC = () => {
         capability: activeCapability,
         enabled_skill_ids: [...submitted],
       });
+      if (!mountedRef.current || saveSeqRef.current !== requestSeq) return;
       setSettings((current) =>
         current
           ? {
@@ -155,10 +161,11 @@ export const AgentTab: React.FC = () => {
       }));
       addToast(tRef.current("settingsAgent.saved"), "success");
     } catch (error) {
+      if (!mountedRef.current || saveSeqRef.current !== requestSeq) return;
       addToast(extractErrorMessage(error, tRef.current("settingsAgent.saveFailed")), "error");
     } finally {
-      savingRef.current = false;
-      setSaving(false);
+      if (saveSeqRef.current === requestSeq) savingRef.current = false;
+      if (mountedRef.current && saveSeqRef.current === requestSeq) setSaving(false);
     }
   };
 

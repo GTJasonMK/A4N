@@ -62,11 +62,12 @@ export const WorldTab: React.FC<WorldTabProps> = ({
   const refineBusyRef = useRef(false);
   const saveBusyRef = useRef(false);
   const editBaselineRef = useRef({ mode: "structured" as WorldEditMode, json: "{}", text: "" });
+  const mountedRef = useRef(false);
 
   activeProjectIdRef.current = projectId;
 
   const isCurrentProject = useCallback((requestProjectId: number) => {
-    return activeProjectIdRef.current === requestProjectId;
+    return mountedRef.current && activeProjectIdRef.current === requestProjectId;
   }, []);
 
   const isCurrentLoad = useCallback((requestProjectId: number, seq: number) => {
@@ -95,6 +96,17 @@ export const WorldTab: React.FC<WorldTabProps> = ({
     textDraft !== editBaselineRef.current.text
   );
   useNovelDetailDirty(`world:${projectId}`, editDirty, undefined, () => !saveBusyRef.current && !refineBusyRef.current);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      loadSeqRef.current += 1;
+      refineSeqRef.current += 1;
+      refineBusyRef.current = false;
+      saveBusyRef.current = false;
+    };
+  }, []);
 
   const load = useCallback(async (): Promise<boolean> => {
     const requestProjectId = projectId;

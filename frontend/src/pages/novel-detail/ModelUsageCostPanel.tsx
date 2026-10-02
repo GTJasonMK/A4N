@@ -18,6 +18,8 @@ const CAPABILITY_LABELS: Record<string, MessageKey> = {
 
 export const ModelUsageCostPanel: React.FC<{ projectId: number | null }> = ({ projectId }) => {
   const { t, locale } = useI18n();
+  const tRef = useRef(t);
+  tRef.current = t;
   const [result, setResult] = useState<{ projectId: number | null; report: ModelUsageReport } | null>(null);
   const report = result?.projectId === projectId ? result.report : null;
   const [loading, setLoading] = useState(true);
@@ -33,7 +35,7 @@ export const ModelUsageCostPanel: React.FC<{ projectId: number | null }> = ({ pr
       if (request === requestRef.current) setResult({ projectId, report });
     } catch (error) {
       if (request !== requestRef.current) return;
-      const message = extractErrorMessage(error, t("novel.costLoadFailed"));
+      const message = extractErrorMessage(error, tRef.current("novel.costLoadFailed"));
       setLoadError(message);
     } finally {
       if (request === requestRef.current) setLoading(false);

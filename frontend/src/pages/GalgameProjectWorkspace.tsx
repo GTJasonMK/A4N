@@ -68,8 +68,18 @@ export const GalgameProjectWorkspace: React.FC = () => {
   const [workspaceVersion, setWorkspaceVersion] = useState(0);
   const refreshRequestRef = useRef(0);
   const resetBusyRef = useRef(false);
+  const mountedRef = useRef(false);
   const activeProjectIdRef = useRef(projectId);
   activeProjectIdRef.current = projectId;
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      refreshRequestRef.current += 1;
+      resetBusyRef.current = false;
+    };
+  }, []);
 
   const refresh = useCallback(async (): Promise<boolean> => {
     const requestId = refreshRequestRef.current + 1;
@@ -154,12 +164,12 @@ export const GalgameProjectWorkspace: React.FC = () => {
       checking = true;
       void getProject(projectId)
         .then(async (nextProject) => {
-          if (activeProjectIdRef.current !== projectId) return;
+          if (!mountedRef.current || activeProjectIdRef.current !== projectId) return;
           if (nextProject.lifecycle_gate !== "active") return;
           window.clearInterval(timer);
           setResetPollError(null);
           const refreshed = await refresh();
-          if (activeProjectIdRef.current !== projectId) return;
+          if (!mountedRef.current || activeProjectIdRef.current !== projectId) return;
           if (!refreshed) {
             setResetPollError(t("galgame.refreshStatusFailed"));
             return;
@@ -168,7 +178,7 @@ export const GalgameProjectWorkspace: React.FC = () => {
           addToast(t("galgame.resetCompleted"), "success");
         })
         .catch((error) => {
-          if (errorReported || activeProjectIdRef.current !== projectId) return;
+          if (errorReported || !mountedRef.current || activeProjectIdRef.current !== projectId) return;
           errorReported = true;
           setResetPollError(extractErrorMessage(error, t("galgame.resetQueryFailed")));
         })
@@ -192,6 +202,10 @@ export const GalgameProjectWorkspace: React.FC = () => {
       resetBusyRef.current = false;
       return;
     }
+    if (!mountedRef.current || activeProjectIdRef.current !== requestProjectId) {
+      resetBusyRef.current = false;
+      return;
+    }
     const ok = await confirmDialog({
       title: t("galgame.resetTitle"),
       message: t("galgame.resetMessage"),
@@ -203,20 +217,24 @@ export const GalgameProjectWorkspace: React.FC = () => {
       resetBusyRef.current = false;
       return;
     }
+    if (!mountedRef.current || activeProjectIdRef.current !== requestProjectId) {
+      resetBusyRef.current = false;
+      return;
+    }
     setWorkspaceDirty(false);
 
     setResetting(true);
     setSourceSyncOpen(false);
     try {
       const response = await resetProjectGeneratedData(project.id);
-      if (activeProjectIdRef.current !== requestProjectId) return;
+      if (!mountedRef.current || activeProjectIdRef.current !== requestProjectId) return;
       const warnings = [...response.warnings];
       const formalResetCommitted = response.database_committed;
       let nextProject = response.result?.project ?? null;
       if (!nextProject) {
         try {
           nextProject = await getProject(project.id);
-          if (activeProjectIdRef.current !== requestProjectId) return;
+          if (!mountedRef.current || activeProjectIdRef.current !== requestProjectId) return;
         } catch (error) {
           warnings.push(extractErrorMessage(error, t("galgame.refreshStatusFailed")));
         }
@@ -231,7 +249,7 @@ export const GalgameProjectWorkspace: React.FC = () => {
       if (formalResetCommitted) {
         try {
           setChapters(await listSourceSnapshotChapters(project.id));
-          if (activeProjectIdRef.current !== requestProjectId) return;
+          if (!mountedRef.current || activeProjectIdRef.current !== requestProjectId) return;
         } catch (error) {
           warnings.push(extractErrorMessage(error, t("galgame.refreshSourceChaptersFailed")));
         }
@@ -241,7 +259,7 @@ export const GalgameProjectWorkspace: React.FC = () => {
       const warningText = warnings.length > 0
         ? `${t("common.summarySeparator")}${warnings.join(t("common.summarySeparator"))}`
         : "";
-      if (activeProjectIdRef.current !== requestProjectId) return;
+      if (!mountedRef.current || activeProjectIdRef.current !== requestProjectId) return;
       if (response.status === "pending") {
         addToast(
           formalResetCommitted
@@ -268,11 +286,11 @@ export const GalgameProjectWorkspace: React.FC = () => {
         );
       }
     } catch (err) {
-      if (activeProjectIdRef.current === requestProjectId) {
+      if (mountedRef.current && activeProjectIdRef.current === requestProjectId) {
         addToast(extractErrorMessage(err, t("errors.resetGenerationFailed")), "error");
       }
     } finally {
-      if (activeProjectIdRef.current === requestProjectId) {
+      if (mountedRef.current && activeProjectIdRef.current === requestProjectId) {
         resetBusyRef.current = false;
         setResetting(false);
       }

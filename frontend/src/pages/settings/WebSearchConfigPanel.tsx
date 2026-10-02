@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Globe2, KeyRound, RefreshCw, Save } from "lucide-react";
 import { extractErrorMessage } from "../../api";
 import {
@@ -68,21 +68,39 @@ export const WebSearchConfigPanel: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [loadError, setLoadError] = useState<{ reason: unknown } | null>(null);
+  const mountedRef = useRef(false);
+  const loadSeqRef = useRef(0);
+  const saveSeqRef = useRef(0);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      loadSeqRef.current += 1;
+      saveSeqRef.current += 1;
+    };
+  }, []);
 
   const load = useCallback(async () => {
+    if (!mountedRef.current) return;
+    const requestSeq = loadSeqRef.current + 1;
+    loadSeqRef.current = requestSeq;
     setLoading(true);
     setLoadError(null);
     try {
       const nextConfig = getLocalWebSearchConfigSummary();
+      if (!mountedRef.current || loadSeqRef.current !== requestSeq) return;
       setConfig(nextConfig);
       setForm(formFromConfig(nextConfig));
       const nextFetch = formFromFetchConfig(getLocalWebFetchConfig());
+      if (!mountedRef.current || loadSeqRef.current !== requestSeq) return;
       setFetchForm(nextFetch);
       setSavedFetch(nextFetch);
     } catch (error) {
+      if (!mountedRef.current || loadSeqRef.current !== requestSeq) return;
       setLoadError({ reason: error });
     } finally {
-      setLoading(false);
+      if (mountedRef.current && loadSeqRef.current === requestSeq) setLoading(false);
     }
   }, []);
 
@@ -119,6 +137,8 @@ export const WebSearchConfigPanel: React.FC = () => {
 
   const save = async () => {
     if (!form || !fetchForm || saving) return;
+    const requestSeq = saveSeqRef.current + 1;
+    saveSeqRef.current = requestSeq;
     setSaving(true);
     try {
       const integer = (value: string, label: string): number => {
@@ -149,6 +169,7 @@ export const WebSearchConfigPanel: React.FC = () => {
         max_body_chars: integer(fetchForm.max_body_chars, t("settings.webFetchMaxBodyChars")),
         max_output_chars: integer(fetchForm.max_output_chars, t("settings.webFetchMaxOutputChars")),
       });
+      if (!mountedRef.current || saveSeqRef.current !== requestSeq) return;
       setLoadError(null);
       setConfig(saved.search);
       setForm(formFromConfig(saved.search));
@@ -156,9 +177,10 @@ export const WebSearchConfigPanel: React.FC = () => {
       setSavedFetch(formFromFetchConfig(saved.fetch));
       addToast(t("settings.webSearchSaved"), "success");
     } catch (error) {
+      if (!mountedRef.current || saveSeqRef.current !== requestSeq) return;
       addToast(extractErrorMessage(error, t("settings.webSearchSaveFailed")), "error");
     } finally {
-      setSaving(false);
+      if (mountedRef.current && saveSeqRef.current === requestSeq) setSaving(false);
     }
   };
 
