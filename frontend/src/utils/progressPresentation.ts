@@ -42,6 +42,18 @@ const MODEL_PHASES = new Set<ProgressDisplayPhase>([
 ]);
 
 const STAGE_LABEL_KEYS: Record<string, MessageKey> = {
+  manga_character_binding: "comic.pipelineStages.characterBinding",
+  manga_speech_selection: "comic.pipelineStages.dialogueNarration",
+  manga_visual_anchor_extraction: "comic.pipelineStages.visualAnchor",
+  manga_item_extraction: "comic.pipelineStages.keyObjects",
+  manga_comic_synthesis: "comic.pipelineStages.chapterSynthesis",
+  manga_page_content: "comic.pipelineStages.pagination",
+  manga_adaptation: "comic.pipelineStages.pageAdaptation",
+  manga_storyboard: "comic.pipelineStages.storyboard",
+  manga_drawing_prompt: "comic.pipelineStages.pagePrompt",
+  manga_image: "comic.pipelineStages.pageImage",
+  manga_image_progress: "comic.pipelineStages.pageImage",
+  manga_completed: "comic.pipelineStages.completed",
   provider_connect: "feedback.progressStage.modelConnect",
   provider_wait: "feedback.progressStage.modelWait",
   provider_stream: "feedback.progressStage.modelStream",
@@ -150,7 +162,7 @@ export function progressDisplayModel({
     t,
   );
   const etaMode =
-    status !== "running"
+    status !== "running" || normalizedMeta?.taskKind === "manga_pipeline"
       ? "hidden"
       : phaseKind && LINEAR_PHASES.has(phaseKind)
         ? "linear"
@@ -206,6 +218,12 @@ function progressCountLabel(
   t: MessageTranslator,
 ): string | null {
   if (meta?.itemIndex != null && meta.itemTotal != null) {
+    if (meta.taskKind === "manga_pipeline") {
+      return t("comic.prompt.pageProgress", {
+        current: formatNumber(meta.itemIndex + 1, locale),
+        total: formatNumber(meta.itemTotal, locale),
+      });
+    }
     return t("feedback.progressCount", {
       current: formatNumber(meta.itemIndex + 1, locale),
       total: formatNumber(meta.itemTotal, locale),

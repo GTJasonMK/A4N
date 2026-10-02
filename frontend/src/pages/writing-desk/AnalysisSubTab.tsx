@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Eye, Sparkles } from "lucide-react";
+import { Eye, RefreshCw, Sparkles } from "lucide-react";
 import type {
   ChapterMaterialUpdate,
   ChapterMaterialSyncState,
@@ -254,6 +254,7 @@ export const AnalysisSubTab: React.FC<AnalysisSubTabProps> = ({
   const [objectProfilesError, setObjectProfilesError] = useState<string | null>(
     null,
   );
+  const [objectProfilesRefreshKey, setObjectProfilesRefreshKey] = useState(0);
   const [objectProfilesLoading, setObjectProfilesLoading] = useState(
     Boolean(analysis),
   );
@@ -292,7 +293,7 @@ export const AnalysisSubTab: React.FC<AnalysisSubTabProps> = ({
     return () => {
       cancelled = true;
     };
-  }, [analysis, objectProfilesProjectId, projectId]);
+  }, [analysis, objectProfilesRefreshKey, projectId]);
 
   const chapterObjects = useMemo(
     () => objectProfilesProjectId === projectId
@@ -668,7 +669,16 @@ export const AnalysisSubTab: React.FC<AnalysisSubTabProps> = ({
             </div>
           ) : objectProfilesError ? (
             <div>
-              <p className="text-small text-error">{t("writing.analysisDetails.objectProfilesLoadFailed")}</p>
+              <div className="flex flex-wrap items-center gap-2 text-small text-error">
+                <p className="min-w-0 flex-1">{t("writing.analysisDetails.objectProfilesLoadFailed")}</p>
+                <BookButton
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => setObjectProfilesRefreshKey((value) => value + 1)}
+                >
+                  <RefreshCw size={12} /> {t("common.retry")}
+                </BookButton>
+              </div>
               <details className="mt-2 text-caption text-book-text-muted">
                 <summary className="w-fit cursor-pointer hover:text-book-text-main">
                   {t("writing.diagnostics")}

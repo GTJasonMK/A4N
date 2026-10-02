@@ -44,6 +44,8 @@ export interface WritingDeskViewProps {
   lifecycleBlockedReason: string | null;
   chapterReadBlockedReason: string | null;
   chapterReadRetryable: boolean;
+  outlineLoadError: string | null;
+  onRefreshOutlines: () => Promise<boolean>;
   isMobileLayout: boolean;
   leftSidebarVisible: boolean;
   rightPanel: RightPanel;
@@ -92,6 +94,8 @@ export const WritingDeskView: React.FC<WritingDeskViewProps> = ({
   onCloseRightPanel,
   onCloseAnalysisRequestPreview,
   chapterReadRetryable,
+  outlineLoadError,
+  onRefreshOutlines,
 }) => {
   const { t } = useI18n();
   const hasDialogs = scenesOpen || previewOpen || profilesOpen;
@@ -107,7 +111,16 @@ export const WritingDeskView: React.FC<WritingDeskViewProps> = ({
         </div>
       ) : null}
 
-      {!lifecycleBlockedReason && !chapterReadBlockedReason && outlines.length === 0 && chapters.length === 0 && (
+      {outlineLoadError ? (
+        <div role="alert" className="flex shrink-0 flex-wrap items-center gap-3 border-b border-error/30 bg-error-bg px-4 py-2 text-small text-error">
+          <p className="min-w-0 flex-1">{outlineLoadError}</p>
+          <BookButton variant="secondary" size="sm" onClick={() => void onRefreshOutlines()}>
+            <RefreshCw size={13} /> {t("common.retry")}
+          </BookButton>
+        </div>
+      ) : null}
+
+      {!lifecycleBlockedReason && !chapterReadBlockedReason && !outlineLoadError && outlines.length === 0 && chapters.length === 0 && (
         <MissingOutlineBanner onOpenProjectDetail={headerProps.onOpenProjectDetail} />
       )}
 

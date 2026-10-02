@@ -99,6 +99,7 @@ impl MangaPagePipelineProgress {
             .await?;
         self.completed.store(completed, Ordering::Release);
         context.publish_progress(
+            stage.key(),
             if stage == MangaPagePipelineStage::Image {
                 ProgressPhaseKind::AssetGeneration
             } else {
@@ -109,7 +110,7 @@ impl MangaPagePipelineProgress {
             &label,
             "页",
             Some(format!("page-{page_number:04}")),
-            Some(u64::from(page_number)),
+            Some(u64::from(page_number.saturating_sub(1))),
             u64::try_from(total_pages).ok(),
         );
         Ok(())
@@ -160,13 +161,14 @@ impl MangaPagePipelineProgress {
         let current = MANGA_PIPELINE_TOTAL_STEPS + completed;
         let label = format!("第 {page_number}/{total_pages} 页：{message}");
         context.publish_progress(
+            "image_progress",
             ProgressPhaseKind::AssetGeneration,
             current,
             self.total,
             &label,
             "页",
             Some(format!("page-{page_number:04}")),
-            Some(u64::from(page_number)),
+            Some(u64::from(page_number.saturating_sub(1))),
             u64::try_from(total_pages).ok(),
         );
     }

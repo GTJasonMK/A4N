@@ -46,17 +46,18 @@ impl MangaRunContext<'_> {
         &self,
         next_stage: MangaPipelineStage,
     ) -> Result<(), AppError> {
-        let (next_stage, next_current, next_message) = manga_pipeline_stage_status(next_stage);
+        let (stage_code, next_current, next_message) = manga_pipeline_stage_status(next_stage);
         self.service
             .record_manga_pipeline_progress(
                 self.workflow_run_id,
                 self.task_id,
-                next_stage,
+                stage_code,
                 next_current,
                 next_message,
             )
             .await?;
         self.publish_progress(
+            stage_code,
             ProgressPhaseKind::StructuredOutput,
             next_current,
             MANGA_PIPELINE_TOTAL_STEPS,
@@ -71,6 +72,7 @@ impl MangaRunContext<'_> {
 
     pub(super) fn publish_progress(
         &self,
+        stage_code: &str,
         phase_kind: ProgressPhaseKind,
         current: i32,
         total: i32,
@@ -90,7 +92,7 @@ impl MangaRunContext<'_> {
             return;
         };
         reporter(ProgressEvent {
-            stage_code: "manga_pipeline".into(),
+            stage_code: format!("manga_{stage_code}"),
             phase_kind,
             current: Some(current),
             total: Some(total.max(1)),

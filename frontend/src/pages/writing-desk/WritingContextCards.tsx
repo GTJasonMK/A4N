@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { ChevronRight, Sparkles, User, Users } from "lucide-react";
+import { ChevronRight, RefreshCw, Sparkles, User, Users } from "lucide-react";
 import { extractErrorMessage } from "../../api";
 import { getBlueprint, type Blueprint } from "../../api/blueprint";
 import { listProfiles, type CharacterProfile } from "../../api/character";
@@ -50,6 +50,7 @@ export const WritingContextCards: React.FC<WritingContextCardsProps> = ({
   const [portrait, setPortrait] = useState<Portrait | null>(null);
   const profileProjectIdRef = useRef<number | null>(null);
   const [profileError, setProfileError] = useState<string | null>(null);
+  const [retryKey, setRetryKey] = useState(0);
   const [blueprintDetailOpen, setBlueprintDetailOpen] = useState(false);
   const primaryPortraitSrc = toMediaSrc(portrait?.image_path);
   const primaryPersonality = primaryProfile
@@ -126,7 +127,7 @@ export const WritingContextCards: React.FC<WritingContextCardsProps> = ({
     return () => {
       cancelled = true;
     };
-  }, [projectId, refreshKey, addToast, t]);
+  }, [projectId, refreshKey, retryKey, addToast, t]);
 
   const progress =
     totalChapters > 0 ? Math.round((chapterCount / totalChapters) * 100) : null;
@@ -136,10 +137,16 @@ export const WritingContextCards: React.FC<WritingContextCardsProps> = ({
       <div className="min-w-0 space-y-2">
         <button
           type="button"
-          onClick={() => setBlueprintDetailOpen(true)}
+          onClick={() => {
+            if (blueprintError) {
+              setRetryKey((value) => value + 1);
+              return;
+            }
+            setBlueprintDetailOpen(true);
+          }}
           className="a4n-flat-surface block w-full px-3 py-2.5 text-left text-small transition-colors hover:border-book-primary/35 hover:bg-book-bg-tertiary/45 focus-visible:outline-2 focus-visible:outline-book-primary/35 disabled:cursor-default disabled:hover:border-book-border disabled:hover:bg-transparent"
-          disabled={!blueprint || !!blueprintError}
-          title={t("writing.viewBlueprint")}
+          disabled={!blueprint && !blueprintError}
+          title={blueprintError ? t("common.retry") : t("writing.viewBlueprint")}
         >
           <div className="flex items-center gap-2">
             <Sparkles size={12} className="shrink-0 text-book-primary" />
@@ -152,7 +159,12 @@ export const WritingContextCards: React.FC<WritingContextCardsProps> = ({
             <ChevronRight size={13} className="shrink-0 text-book-text-muted" />
           </div>
           {blueprintError ? (
-            <p className="mt-1 text-error">{t("writing.blueprintLoadUnavailable")}</p>
+            <p className="mt-1 inline-flex items-center gap-1.5 text-error">
+              {t("writing.blueprintLoadUnavailable")}
+              <span className="inline-flex items-center gap-1 font-medium">
+                <RefreshCw size={11} aria-hidden="true" /> {t("common.retry")}
+              </span>
+            </p>
           ) : blueprint ? (
             <div className="mt-1 min-w-0 leading-relaxed text-book-text-sub">
               {nonEmptyText(blueprint.style) ? (
@@ -180,10 +192,16 @@ export const WritingContextCards: React.FC<WritingContextCardsProps> = ({
         <div className="relative">
         <button
           type="button"
-          onClick={onOpenProfiles}
+          onClick={() => {
+            if (profileError) {
+              setRetryKey((value) => value + 1);
+              return;
+            }
+            onOpenProfiles?.();
+          }}
           className="a4n-flat-surface flex w-full items-center gap-2.5 px-3 py-2.5 pr-12 text-left text-small text-book-text-sub transition-colors hover:border-book-primary/35 hover:bg-book-bg-tertiary/45 focus-visible:outline-2 focus-visible:outline-book-primary/35 disabled:cursor-default disabled:hover:border-book-border disabled:hover:bg-transparent"
-          disabled={!onOpenProfiles}
-          title={t("writing.openProfilesWorkspace")}
+          disabled={!onOpenProfiles && !profileError}
+          title={profileError ? t("common.retry") : t("writing.openProfilesWorkspace")}
         >
           <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-book-bg-tertiary">
             {primaryPortraitSrc && primaryProfile?.name.trim() ? (
@@ -209,7 +227,12 @@ export const WritingContextCards: React.FC<WritingContextCardsProps> = ({
               </span>
             </div>
             {profileError ? (
-              <p className="mt-1 text-error">{t("writing.profileLoadUnavailable")}</p>
+              <p className="mt-1 inline-flex items-center gap-1.5 text-error">
+                {t("writing.profileLoadUnavailable")}
+                <span className="inline-flex items-center gap-1 font-medium">
+                  <RefreshCw size={11} aria-hidden="true" /> {t("common.retry")}
+                </span>
+              </p>
             ) : primaryProfile ? (
               <p className="mt-1 truncate text-book-text-muted">
                 {primaryProfile.name}

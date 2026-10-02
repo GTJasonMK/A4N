@@ -156,6 +156,7 @@ async fn complete_at_stage(
         )
         .await?;
     context.publish_progress(
+        stage,
         ProgressPhaseKind::Complete,
         total_steps,
         total_steps,

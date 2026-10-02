@@ -22,6 +22,22 @@
   }
 }
 
+@keyframes a4n-progress-indeterminate {
+  from { transform: translateX(-110%); }
+  to { transform: translateX(310%); }
+}
+
+.a4n-progress-indeterminate {
+  animation: a4n-progress-indeterminate 1.35s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .a4n-progress-indeterminate {
+    animation: none;
+    transform: none;
+  }
+}
+
 @keyframes toastEnter {
   from {
     opacity: 0;

@@ -106,6 +106,7 @@ export const WritingDesk: React.FC = () => {
   const [outlines, setOutlines] = useState<ChapterOutline[]>([]);
   const [loading, setLoading] = useState(true);
   const [chapterLoadError, setChapterLoadError] = useState<string | null>(null);
+  const [outlineLoadError, setOutlineLoadError] = useState<string | null>(null);
   const searchParamsRef = useRef(searchParams);
   searchParamsRef.current = searchParams;
   const requestedChapterNumber = () => {
@@ -471,6 +472,7 @@ export const WritingDesk: React.FC = () => {
     }
     (async () => {
       setLoading(true);
+      setOutlineLoadError(null);
       try {
         const p = await getProject(String(projectId));
         if (!isCurrentLoad()) return;
@@ -497,7 +499,11 @@ export const WritingDesk: React.FC = () => {
           setChapterLoadError(null);
         }
         if (outlinesResult.status === "rejected") {
-          addToast(extractErrorMessage(outlinesResult.reason, t("outline.loadFailed")), "error");
+          const message = extractErrorMessage(outlinesResult.reason, t("outline.loadFailed"));
+          setOutlineLoadError(message);
+          addToast(message, "error");
+        } else {
+          setOutlineLoadError(null);
         }
         const ch = chaptersResult.status === "fulfilled" ? chaptersResult.value : [];
         const ol = outlinesResult.status === "fulfilled" ? outlinesResult.value : [];
@@ -639,10 +645,13 @@ export const WritingDesk: React.FC = () => {
       const next = await listChapterOutlines(requestProjectId);
       if (!mountedRef.current || projectIdRef.current !== requestProjectId) return false;
       setOutlines(next);
+      setOutlineLoadError(null);
       return true;
     } catch (err) {
       if (mountedRef.current && projectIdRef.current === requestProjectId) {
-        addToast(extractErrorMessage(err, t("writing.refreshOutlinesFailed")), "error");
+        const message = extractErrorMessage(err, t("writing.refreshOutlinesFailed"));
+        setOutlineLoadError(message);
+        addToast(message, "error");
       }
       return false;
     }
@@ -1226,6 +1235,8 @@ export const WritingDesk: React.FC = () => {
       lifecycleBlockedReason={lifecycleBlockedReason}
       chapterReadBlockedReason={chapterReadBlockedReason}
       chapterReadRetryable={chapterLoadError != null || chapterReadError != null}
+      outlineLoadError={outlineLoadError}
+      onRefreshOutlines={reloadOutlines}
       isMobileLayout={isMobileLayout}
       leftSidebarVisible={leftSidebarVisible}
       rightPanel={rightPanel}

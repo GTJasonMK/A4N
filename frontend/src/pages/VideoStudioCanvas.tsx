@@ -173,6 +173,7 @@ export const VideoStudioCanvas: React.FC = () => {
     useState<StudioConfigOptionsByKind>(EMPTY_CONFIG_OPTIONS);
   const [configOptionsStatus, setConfigOptionsStatus] =
     useState<StudioConfigLoadStatusByKind>({ llm: "loading", image: "loading", video: "loading" });
+  const [configLoadError, setConfigLoadError] = useState<string | null>(null);
   const [flowInstance, setFlowInstance] = useState<ReactFlowInstance<
     StudioNode,
     StudioEdge
@@ -336,6 +337,7 @@ export const VideoStudioCanvas: React.FC = () => {
   const refreshStudioConfigOptions = useCallback(async () => {
     const requestId = configRefreshRef.current + 1;
     configRefreshRef.current = requestId;
+    setConfigLoadError(null);
     setConfigOptionsStatus((current) => ({
       llm: current.llm === "ready" ? "ready" : "loading",
       image: current.image === "ready" ? "ready" : "loading",
@@ -371,11 +373,16 @@ export const VideoStudioCanvas: React.FC = () => {
         ),
       ]);
       if (configRefreshRef.current === requestId && failures.length > 0) {
+        setConfigLoadError(failures.join("; "));
         addToast(failures.join("; "), "error");
+      } else if (configRefreshRef.current === requestId) {
+        setConfigLoadError(null);
       }
     } catch (err) {
       if (configRefreshRef.current === requestId) {
-        addToast(extractErrorMessage(err, translatorRef.current("video.refreshCanvasConfigFailed")), "error");
+        const message = extractErrorMessage(err, translatorRef.current("video.refreshCanvasConfigFailed"));
+        setConfigLoadError(message);
+        addToast(message, "error");
       }
     }
   }, [addToast]);
@@ -913,6 +920,14 @@ export const VideoStudioCanvas: React.FC = () => {
             <BookButton variant="secondary" size="sm" onClick={() => void handleRetry()} disabled={loading || saving || importing}>
               <RefreshCw size={12} className={loading ? "animate-spin" : undefined} />
               {t("common.retry")}
+            </BookButton>
+          </div>
+        ) : null}
+        {configLoadError ? (
+          <div role="alert" className="flex flex-wrap items-center gap-3 px-4 py-2 text-sm text-error">
+            <p className="min-w-0 flex-1">{configLoadError}</p>
+            <BookButton variant="secondary" size="sm" onClick={() => void refreshStudioConfigOptions()}>
+              <RefreshCw size={12} /> {t("common.retry")}
             </BookButton>
           </div>
         ) : null}

@@ -519,7 +519,8 @@ export const AgentMonitor: React.FC = () => {
       const created = await createAgentThread({ kind: "subagent", capability, title: createTitle.trim() || null });
       if (!mountedRef.current) return;
       setCreateOpen(false); setCreateTitle(""); setCreateCapability("general");
-      await refreshThreads();
+      const refreshed = await refreshThreads();
+      if (!refreshed) return;
       if (!mountedRef.current || (requestSelection !== null && selectedThreadIdRef.current !== requestSelection)) return;
       setSelectedThreadId(created.id);
     } catch (err) {
@@ -567,7 +568,8 @@ export const AgentMonitor: React.FC = () => {
       setSnapshot(null);
       setStreamedMessageIds(new Set());
       setPendingSubmission(null);
-      await refreshThreads(true);
+      const refreshed = await refreshThreads(true);
+      if (!refreshed) return;
       if (selectedThreadIdRef.current !== threadId) return;
       addToast(t("agent.clearContextSuccess"), "success");
     } catch (err) {

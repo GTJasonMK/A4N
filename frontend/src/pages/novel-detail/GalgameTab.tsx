@@ -202,7 +202,7 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
       } else {
         setAssetPlanError(extractErrorMessage(assetPlanResult.reason, t("galgame.planLoadFailed")));
       }
-      return [statusResult, scriptResult, assetPlanResult].every((result) => result.status === "fulfilled");
+      return scriptResult.status === "fulfilled";
     } finally {
       if (requestSeqRef.current === seq) setLoading(false);
     }
@@ -442,19 +442,45 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
             stop_after: stopAfter,
           });
           setProgress(t("galgame.refreshingPipeline"), 7, 7);
-          const status = await getGalgamePipelineStatus(requestProjectId);
-          await authoring.reload();
-          return { detail: result, status };
+          let status: GalgamePipelineStatusSummary | null = null;
+          let pipelineStatusReadbackError: unknown = null;
+          try {
+            status = await getGalgamePipelineStatus(requestProjectId);
+          } catch (error) {
+            pipelineStatusReadbackError = error;
+          }
+          let authoringReadbackError: unknown = null;
+          try {
+            await authoring.reload();
+          } catch (error) {
+            authoringReadbackError = error;
+          }
+          return { detail: result, status, pipelineStatusReadbackError, authoringReadbackError };
         },
       );
       if (!isCurrentProject(requestProjectId)) return;
       const next = completed.detail;
-      setPipelineStatus(completed.status);
+      if (completed.status) setPipelineStatus(completed.status);
       if (next) {
         setDetail(next);
         setSelectedSceneId(next.scenes[0]?.scene.id ?? null);
       }
       addToast(t("galgame.pipelineCompleted"), "success");
+      if (completed.authoringReadbackError) {
+        addToast(
+          extractErrorMessage(completed.authoringReadbackError, t("galgame.loadFailed")),
+          "error",
+        );
+      }
+      if (completed.pipelineStatusReadbackError) {
+        addToast(
+          extractErrorMessage(
+            completed.pipelineStatusReadbackError,
+            t("galgame.pipelineStatusLoadFailed"),
+          ),
+          "error",
+        );
+      }
     } catch (err) {
       if (!isCurrentProject(requestProjectId)) return;
       const message = extractErrorMessage(err, t("galgame.pipelineFailed"));

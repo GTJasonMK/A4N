@@ -83,6 +83,51 @@ describe("progress presentation", () => {
     expect(display.detail).not.toContain("正在");
   });
 
+  it("labels Manga pipeline stages and page progress precisely", () => {
+    const mangaMeta: ProgressMeta = {
+      ...meta,
+      taskKind: "manga_pipeline",
+      stageCode: "manga_storyboard",
+      phaseKind: "structured_output",
+      detail: null,
+      unitLabel: "页",
+      itemIndex: 0,
+      itemTotal: 5,
+    };
+    const display = progressDisplayModel({
+      current: 12,
+      total: 32,
+      message: "第 1/5 页：页面分镜已保存",
+      meta: mangaMeta,
+      locale: "zh-CN",
+      t: translator("zh-CN"),
+    });
+
+    expect(display).toMatchObject({
+      stage: "单页分镜",
+      countLabel: "第 1/5 页",
+    });
+
+    const english = progressDisplayModel({
+      current: 12,
+      total: 32,
+      message: "Page 1/5: storyboard saved",
+      meta: {
+        ...mangaMeta,
+        stageCode: "manga_image_progress",
+        phaseKind: "asset_generation",
+        unitLabel: "page",
+      },
+      locale: "en-US",
+      t: translator("en-US"),
+    });
+    expect(english).toMatchObject({
+      stage: "Full-page image",
+      countLabel: "Page 1/5",
+      etaMode: "hidden",
+    });
+  });
+
   it("keeps distinct backend stages while compacting duplicate snapshots", () => {
     const event = (id: string, detail: string): ProgressTimelineItem => ({
       id,

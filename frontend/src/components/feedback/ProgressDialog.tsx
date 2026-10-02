@@ -131,11 +131,22 @@ export const ProgressDialog: React.FC<ProgressDialogProps> = ({
     t,
   );
   const barDetail = display.detail ?? statusDetailLabel(displayStatus, t);
+  const barCountLabel =
+    display.countLabel && !barDetail.includes(display.countLabel) ? display.countLabel : null;
+  const isMangaPipeline =
+    meta?.taskKind === "manga_pipeline" ||
+    events.some((event) => event.meta?.taskKind === "manga_pipeline");
+  const mangaImageRunning =
+    displayStatus === "running" &&
+    isMangaPipeline &&
+    meta?.stageCode === "manga_image_progress" &&
+    percent < 100;
   const displayedStreamText = streamLineFromBuffer(pacedStream.displayedText);
   const hasStreamText = displayedStreamText.length > 0;
   const showStreamPreview = hasStreamText
     || (pacedStream.isStreamDisplayEnabled && streaming && pacedStream.isThinking);
-  const timeline = compactProgressEvents(events, 12);
+  const timeline = compactProgressEvents(events, isMangaPipeline ? events.length : 12);
+  if (isMangaPipeline) timeline.reverse();
 
   useEffect(() => {
     if (!open) {
@@ -232,14 +243,23 @@ export const ProgressDialog: React.FC<ProgressDialogProps> = ({
               }`}
               style={{ width: `${percent}%` }}
             />
+            {mangaImageRunning && (
+              <div
+                aria-hidden="true"
+                className="absolute inset-y-0 overflow-hidden"
+                style={{ left: `${percent}%`, width: `${100 - percent}%` }}
+              >
+                <div className="a4n-progress-indeterminate h-full w-1/3 bg-book-primary/65" />
+              </div>
+            )}
           </div>
           <div className="mt-2.5 flex min-w-0 items-start justify-between gap-4 text-xs">
             <div className="min-w-0 flex-1 leading-relaxed text-book-text-sub">
               <div className="flex min-w-0 items-baseline gap-2">
                 <span className="min-w-0 truncate" title={barDetail}>{barDetail}</span>
-                {display.countLabel ? (
+                {barCountLabel ? (
                   <span className="shrink-0 font-mono text-small text-book-text-muted">
-                    {display.countLabel}
+                    {barCountLabel}
                   </span>
                 ) : null}
               </div>
@@ -270,12 +290,17 @@ export const ProgressDialog: React.FC<ProgressDialogProps> = ({
           </div>
         ) : null}
 
-        {timeline.length > 1 ? (
-          <details className="border-t border-book-border/55 pt-3 text-xs text-book-text-muted">
-            <summary className="cursor-pointer select-none font-medium transition-colors hover:text-book-text-main">
-              {t("feedback.recentProgress", { count: formatNumber(timeline.length, locale) })}
+        {timeline.length > (isMangaPipeline ? 0 : 1) ? (
+          <details
+            open={isMangaPipeline}
+            className="border-t border-book-border/55 pt-3 text-xs text-book-text-muted"
+          >
+            <summary className="cursor-pointer select-none font-medium transition-colors hover:text-book-text-main focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-book-primary">
+              {isMangaPipeline
+                ? t("comic.pipelineProgressHistory", { count: formatNumber(timeline.length, locale) })
+                : t("feedback.recentProgress", { count: formatNumber(timeline.length, locale) })}
             </summary>
-            <ol className="mt-2 divide-y divide-book-border/45">
+            <ol className="mt-2 max-h-64 divide-y divide-book-border/45 overflow-y-auto pr-1">
               {timeline.map((item) => (
                 <ProgressTimelineRow key={item.id} item={item} locale={locale} t={t} />
               ))}
@@ -316,13 +341,26 @@ const ProgressTimelineRow: React.FC<{
         : display.tone === "warning"
           ? "bg-warning"
           : "bg-book-primary";
+  const pageLabel =
+    item.meta?.taskKind === "manga_pipeline" &&
+    display.countLabel &&
+    !display.detail?.startsWith(display.countLabel)
+      ? display.countLabel
+      : null;
 
   return (
     <li className="grid grid-cols-[auto_1fr_auto] gap-2 py-2 text-small">
       <span className={`mt-1 h-1.5 w-1.5 rounded-full ${dotClass}`} />
       <span className="min-w-0">
-        <span className="block truncate font-semibold text-book-text-main" title={display.stage}>
-          {display.stage}
+        <span className="flex min-w-0 items-baseline gap-2">
+          <span className="min-w-0 truncate font-semibold text-book-text-main" title={display.stage}>
+            {display.stage}
+          </span>
+          {pageLabel ? (
+            <span className="shrink-0 font-mono tabular-nums text-book-text-muted">
+              {pageLabel}
+            </span>
+          ) : null}
         </span>
         {display.detail ? (
           <span className="block truncate text-book-text-muted" title={display.detail}>

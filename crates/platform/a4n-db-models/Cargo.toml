@@ -6,7 +6,6 @@ license.workspace = true
 
 [dependencies]
 a4n-domain = { workspace = true }
-a4n-error = { workspace = true, default-features = true }
 chrono = { workspace = true }
 sea-orm = { workspace = true }
 serde = { workspace = true }

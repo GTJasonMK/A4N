@@ -1,3 +1,4 @@
+import { RefreshCw } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import {
   adoptMediaAuthoringDocument, generateMediaAdaptationPlan, listVideoAdaptationReferences,
@@ -51,6 +52,7 @@ export function MediaAuthoringPanel({ projectId, kind, workspace, loading, error
   const [instruction, setInstruction] = useState("");
   const [references, setReferences] = useState<VideoScriptReferenceCandidate[]>([]);
   const [referenceError, setReferenceError] = useState<string | null>(null);
+  const [referenceRefreshKey, setReferenceRefreshKey] = useState(0);
   const [referenceChoice, setReferenceChoice] = useState("saved");
   const [submittedOptions, setSubmittedOptions] = useState({ instruction: "", referenceChoice: "saved" });
   const [preview, setPreview] = useState<ModelRequestPreview | null>(null);
@@ -120,7 +122,7 @@ export function MediaAuthoringPanel({ projectId, kind, workspace, loading, error
       .then((items) => { if (active) setReferences(items); })
       .catch((error) => { if (active) setReferenceError(extractErrorMessage(error, t("common.mediaAuthoring.requestFailed"))); });
     return () => { active = false; };
-  }, [kind, projectId, sourceChapterId, t]);
+  }, [kind, projectId, sourceChapterId, referenceRefreshKey, t]);
 
   const confirmDiscardDrafts = async () => {
     if (!await confirmDiscardMediaChanges(draftDirty, t)) return false;
@@ -246,7 +248,14 @@ export function MediaAuthoringPanel({ projectId, kind, workspace, loading, error
             </ThemedSelect>
           </label>
           <p className="text-xs leading-relaxed text-book-text-muted">{t("common.mediaAuthoring.frozenReferenceHint")}</p>
-          {referenceError && <p role="alert" className="text-xs text-error">{referenceError}</p>}
+          {referenceError ? (
+            <div role="alert" className="flex flex-wrap items-center gap-2 text-xs text-error">
+              <p className="min-w-0 flex-1">{referenceError}</p>
+              <BookButton variant="ghost" size="sm" onClick={() => setReferenceRefreshKey((value) => value + 1)}>
+                <RefreshCw size={12} /> {t("common.retry")}
+              </BookButton>
+            </div>
+          ) : null}
         </div>
       </div>
     </details>}
