@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useLayoutEffect, useRef, useState } from "react";
 import { extractErrorMessage } from "../../api";
 import { previewChapterPrompt } from "../../api/chapter";
 import type { ModelRequestPreview } from "../../api/requestPreview";
@@ -40,7 +40,7 @@ export function useChapterPromptPreview({
   const previewBusyRef = useRef(false);
   const previewSeqRef = useRef(0);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     mountedRef.current = true;
     return () => {
       mountedRef.current = false;
@@ -49,7 +49,7 @@ export function useChapterPromptPreview({
     };
   }, []);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     previewBusyRef.current = false;
     previewSeqRef.current += 1;
     setPreviewOpen(false);

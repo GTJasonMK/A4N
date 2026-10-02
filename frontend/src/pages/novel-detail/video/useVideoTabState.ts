@@ -1,6 +1,5 @@
 import React, {
   useCallback,
-  useEffect,
   useLayoutEffect,
   useMemo,
   useRef,
@@ -222,7 +221,7 @@ export function useVideoTabState({
   const [acting, setActing] = useState<string | null>(null);
   const actionScopeRef = useRef(videoActionScopeKey);
   const actionBusyRef = useRef<string | null>(null);
-  useEffect(() => {
+  useLayoutEffect(() => {
     actionScopeRef.current = videoActionScopeKey;
   }, [videoActionScopeKey]);
   const beginVideoAction = useCallback((key: string): boolean => {
@@ -843,7 +842,7 @@ export function useVideoTabState({
   const [referenceMediaDraftDirty, setReferenceMediaDraftDirty] =
     useState(false);
   const referenceMediaDraftScopeRef = useRef<string | null>(null);
-  useEffect(() => {
+  useLayoutEffect(() => {
     const sameScope =
       referenceMediaDraftScopeRef.current === selectedReferenceMediaDraftScope;
     if (sameScope) {
@@ -883,7 +882,7 @@ export function useVideoTabState({
   const [loadedDataKey, setLoadedDataKey] = useState<string | null>(null);
   const [activeVideoConfig, setActiveVideoConfig] =
     useState<VideoGenConfig | null>(null);
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (loadedDataKey !== videoDataKey) return;
     const selectedExists = segmentCardState.cards.some(
       (card) => card.segmentNumber === selectedSegmentNumber,
