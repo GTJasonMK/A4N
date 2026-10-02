@@ -1020,7 +1020,7 @@ export function MangaChapterDetailPanel({
                 optimizingPromptId={optimizingPromptId}
                 actionsDisabled={detailBusy}
                 canEditManga={canEditManga}
-                onPreviewPageImage={stageMode == null || stageMode === "images" ? handlePreviewPageImage : undefined}
+                onPreviewPageImage={stageMode == null || stageMode === "images" || stageMode === "prompts" ? handlePreviewPageImage : undefined}
                 onGeneratePageImage={stageMode == null || stageMode === "images" ? handleGeneratePageImage : undefined}
                 onBindReferenceImage={stageMode == null || stageMode === "images" ? handleBindReferenceImage : undefined}
                 onUpdatePrompt={handleUpdatePrompt}

@@ -473,7 +473,7 @@ export const MangaPagePromptList: React.FC<MangaPagePromptListProps> = ({
     activePage &&
     activePage.prompt.drawing_prompt &&
     canEditManga &&
-    (stageMode == null || stageMode === "images")
+    (stageMode == null || stageMode === "images" || stageMode === "prompts")
   ) {
     if (onPreviewPageImage) {
       activePageMenuItems.push({

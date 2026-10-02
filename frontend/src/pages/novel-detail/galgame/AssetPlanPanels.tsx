@@ -127,7 +127,7 @@ export const AssetPlanPanel: React.FC<{
       <AssetPlanList title="CG" items={plan.event_cgs} />
     </div>}
   </div>;
-  if (inline) return <section className="space-y-4 overflow-y-auto custom-scrollbar">
+  if (inline) return <section aria-label={t("galgame.assetPlan")} className="space-y-4 overflow-y-auto custom-scrollbar">
     <header className="flex flex-wrap items-center gap-3 border-b border-book-border/50 pb-3">
       <h2 className="min-w-0 flex-1 text-base font-semibold">{mode === "planning" ? t("common.mediaAuthoring.assetPlan") : t("common.mediaAuthoring.assetGeneration")}</h2>
       <div>{controls}</div>

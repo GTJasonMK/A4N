@@ -214,6 +214,14 @@ export async function installUiFixtures(browser, overrides = {}) {
           return Response.json(tasks.filter((task) => ["reserved", "running", "finalizing", "cancelling"].includes(task.handle.status)
             && (projectId == null || task.started.project_id === Number(projectId))));
         }
+        if (command === "visual-plan-edits") {
+          return new Response(new ReadableStream({
+            start(controller) {
+              if (options?.signal?.aborted) controller.close();
+              else options?.signal?.addEventListener("abort", () => controller.close(), { once: true });
+            },
+          }), { headers: { "Content-Type": "text/event-stream" } });
+        }
         const generationPath = url.pathname.match(/^\/api\/generation-tasks\/([0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12})(?:\/(snapshot|events))?$/i);
         if (generationPath && fixtures.generationTasks) {
           const task = fixtures.generationTasks[generationPath[1]];

@@ -3,6 +3,7 @@ import { readFile } from "node:fs/promises";
 import { visualFixtures } from "../ui-presentation/visual-fixtures.mjs";
 import { uiFixtures } from "../ui-presentation/fixtures.mjs";
 import { directorSnapshot } from "./home-agent-fixtures.mjs";
+import { authoringWorkspace } from "../media-authoring/fixtures.mjs";
 
 const [novel, media, settings] = await Promise.all(["novel", "media", "settings"].map(async (name) =>
   JSON.parse(await readFile(new URL(`./${name}-fixtures.json`, import.meta.url), "utf8")),
@@ -60,6 +61,18 @@ export async function buildPageFixtures(baseUrl) {
   data.list_images_by_project = images;
   data.list_images_by_chapter = images;
   for (const [id, values] of Object.entries(data.byProject)) {
+    if (id === "2" || id === "5") {
+      values.get_media_authoring_workspace = authoringWorkspace(Number(id), id === "2" ? "manga" : "galgame", values.list_source_snapshot_chapters);
+    }
+    if (id === "5" && values.plan_galgame_assets) {
+      const plan = values.plan_galgame_assets;
+      values.get_galgame_asset_plan = {
+        ...plan,
+        backgrounds: plan.backgrounds.map((item) => ({ ...item, source_label: item.label, source_snapshot_id: 50 })),
+        portrait_expressions: plan.portrait_expressions.map((item) => ({ ...item, source_label: item.label, source_snapshot_id: 50 })),
+        event_cgs: plan.event_cgs.map((item) => ({ ...item, source_label: item.label, source_snapshot_id: 50 })),
+      };
+    }
     values.list_images_by_project = images.filter((image) => image.project_id === Number(id));
     if (Number(id) === 1) {
       values.list_profiles = novel.commands.list_profiles;

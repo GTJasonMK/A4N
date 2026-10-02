@@ -71,12 +71,25 @@ async function selectOption(trigger, label) {
 
 async function openComic(page = 1, view = "prompt", chapter = 1) {
   await openRoute("/comic-project/2");
+  const stageLabel = view === "image" ? "成图" : "页面提示词";
+  if (await browser.execute(() => innerWidth) < 640) {
+    const select = await $('[role="combobox"][id="comic-stages-2-select"]');
+    await select.click();
+    const option = await $(`//*[@role="option" and contains(normalize-space(.), ${JSON.stringify(stageLabel)})]`);
+    await option.waitForClickable();
+    await option.click();
+    await ready();
+  } else {
+    const stage = await $(`button[id="comic-stages-2-tab-${view === "image" ? "images" : "prompts"}"]`);
+    if (await stage.getAttribute("aria-selected") !== "true") await stage.click();
+  }
   const chapterButtons = await $('nav[aria-label="漫画章节"]').$$("button");
   assert.equal(chapterButtons.length, 3, "The comic audit needs all three source chapters");
   await chapterButtons[chapter - 1].click();
   await $('nav[aria-label="漫画页列表"]').waitForDisplayed();
   await selectComicPage(page);
-  await buttonText(view === "image" ? "成图" : "提示词与参考图").click();
+  const detailView = await buttonText(view === "image" ? "成图" : "提示词与参考图");
+  if (await detailView.isExisting()) await detailView.click();
   await ready();
 }
 
@@ -174,6 +187,17 @@ async function openMaterialDetails(tab = "概览") {
 
 async function openGalgame(view = "editor") {
   await openRoute("/galgame-project/5");
+  if (await browser.execute(() => innerWidth) < 640) {
+    const select = await $('[role="combobox"][id="galgame-stages-5-select"]');
+    await select.click();
+    const option = await $('//*[@role="option" and contains(normalize-space(.), "剧本")]');
+    await option.waitForClickable();
+    await option.click();
+    await ready();
+  } else {
+    const script = await $('button[id="galgame-stages-5-tab-script"]');
+    if (await script.getAttribute("aria-selected") !== "true") await script.click();
+  }
   await browser.waitUntil(async () => (await $$(galgameLines)).length === 8, {
     timeoutMsg: "The first Galgame scene must contain eight real line editors",
   });
@@ -185,17 +209,24 @@ async function openGalgame(view = "editor") {
 
 async function openGalgameAssets() {
   await openGalgame("scenes");
-  const entry = await $('section[aria-label="资产规划"] > button');
+  if (await browser.execute(() => innerWidth) < 640) {
+    const select = await $('[role="combobox"][id="galgame-stages-5-select"]');
+    await select.click();
+    const option = await $('//*[@role="option" and contains(normalize-space(.), "资产规划")]');
+    await option.waitForClickable();
+    await option.click();
+    await ready();
+  } else {
+    const stage = await $('button[id="galgame-stages-5-tab-asset_plan"]');
+    if (await stage.getAttribute("aria-selected") !== "true") await stage.click();
+  }
+  const entry = await buttonText("规划视觉资产");
   await entry.waitForClickable();
   await entry.click();
-  await $(dialog).waitForDisplayed();
-  const plan = await $(dialog).$('.//button[normalize-space()="规划视觉资产"]');
-  await plan.waitForClickable();
-  await plan.click();
   await browser.waitUntil(async () => browser.execute(() => window.__uiAudit.commands.includes("plan_galgame_assets")), {
     timeout: 2500, timeoutMsg: "The asset planning click did not issue its real fixture request",
   });
-  await browser.waitUntil(async () => (await $$(`${dialog} tbody td`)).length === 12, {
+  await browser.waitUntil(async () => (await $$('section[aria-label="资产规划"] tbody td')).length === 12, {
     timeout: 2500, timeoutMsg: "The asset planning dialog must render all twelve portrait cells",
   });
   await ready();
@@ -210,7 +241,7 @@ async function openSourceSync(projectId) {
   const route = projectId === 2 ? "/comic-project/2" : projectId === 3 ? "/video-project/3" : "/galgame-project/5";
   await openRoute(route);
   const syncSelector = projectId === 3
-    ? 'button[aria-label="同步源文本"]'
+    ? 'button[aria-label="同步来源"]'
     : '.a4n-page-header button[aria-label="同步来源"]';
   assert.equal((await $$(syncSelector)).length, 1, "The current project must expose one exact source synchronization entry");
   await $(syncSelector).click();
@@ -736,8 +767,8 @@ const cases = [
     assert.equal((await reachByWheel(audio)).reached, true, "The native BGM player must be visibly reachable before playback");
     return provePlayback(audio);
   }, note: "先真实滚到BGM控制区再验证播放时间推进，保留可见音频控件的interaction截图。" },
-  { id: "MG09", title: "Galgame视觉资产计划", task: "查看6背景、12立绘单元和2CG", open: openGalgameAssets, scope: dialog, expected: ["角色差分", "CG", "站台·镜中出口"], count: [`${dialog} tbody td`, 12], note: "资产已集中到独立弹窗；检查全部背景、矩阵和固定底栏，而不是旧侧栏布局。" },
-  { id: "MG10", title: "Galgame矩阵末项", task: "找到矩阵最右列并读取生成状态", open: async () => { await openGalgameAssets(); await reachByWheel(`${dialog} tbody tr:last-child td:last-child button`, "y"); }, scope: dialog, tail: `${dialog} tbody tr:last-child td:last-child button`, axis: "x", expected: ["视觉资产", "生成素材"], note: "单格动作准确标为生成素材；窄屏保留真实横向滚动与大图预览。" },
+  { id: "MG09", title: "Galgame视觉资产计划", task: "查看6背景、12立绘单元和2CG", open: openGalgameAssets, scope: 'section[aria-label="资产规划"]', expected: ["角色差分", "CG", "站台·镜中出口"], count: ['section[aria-label="资产规划"] tbody td', 12], note: "资产计划在独立阶段内展示完整背景、矩阵和操作入口。" },
+  { id: "MG10", title: "Galgame矩阵末项", task: "找到矩阵最右列并读取生成状态", open: async () => { await openGalgameAssets(); await reachByWheel('section[aria-label="资产规划"] tbody tr:last-child td:last-child button', "y"); }, scope: 'section[aria-label="资产规划"]', tail: 'section[aria-label="资产规划"] tbody tr:last-child td:last-child button', axis: "x", expected: ["视觉资产", "生成素材"], note: "单格动作准确标为生成素材；窄屏保留真实横向滚动与大图预览。" },
   { id: "MG11", title: "Galgame生成选项", task: "区分断点续跑与指定阶段重新生成", open: async () => { await openGalgame("scenes"); await openDetails('details[aria-label="剧本生成"]'); await openDetails('details[aria-label="剧本生成"] details'); }, expected: ["继续生成", "自动选择起点"], after: async () => {
     const options = await $('details[aria-label="剧本生成"]');
     await options.$('button[role="combobox"]').click();
@@ -879,8 +910,9 @@ const cases = [
   }, note: "独立记录灯箱图；Escape 后精确核对原预览按钮获得焦点，不仅检查弹窗消失。" },
   { id: "MX23", title: "画布缩放与交互锁", task: "放大、缩小、适配画布并锁定后恢复编辑", open: () => openCanvas(), widths: canvasWidths, expected: ["影像画布"], after: async (record, width) => {
     const controls = '.a4n-flow-controls';
-    assert.equal((await $$(`${controls} button`)).length, 4);
-    assert.equal((await $$(`${controls} button > svg.lucide`)).length, 4, "All canvas controls must use Lucide icons");
+    const expectedControls = width < 640 ? 4 : 5;
+    assert.equal((await $$(`${controls} button`)).length, expectedControls);
+    assert.equal((await $$(`${controls} button > svg.lucide`)).length, expectedControls, "All canvas controls must use Lucide icons");
     const viewport = () => browser.execute(() => {
       const canvas = document.querySelector('.react-flow').getBoundingClientRect();
       const matrix = new DOMMatrixReadOnly(getComputedStyle(document.querySelector('.react-flow__viewport')).transform);
@@ -1030,7 +1062,7 @@ const cases = [
     assert.notEqual(saved.zoom, before.zoom, "The write must carry the user's changed viewport");
     return { before, savedViewport: saved };
   }, note: "检查用户视口进入真实画布写请求；不只检查保存 Toast。" },
-  ...[["MS01", 2, "漫画"], ["MS02", 3, "视频"], ["MS03", 5, "Galgame"]].map(([id, project, label]) => ({ id, title: `${label}来源同步冲突`, task: "比较三条来源变化与当前改编，关闭前不应用决定", frequency: "低", open: () => openSourceSync(project), scope: dialog, count: [`${dialog} article`, 3], expected: ["冲突清单", "源文本变化", "当前项目", "未寄出的信"], after: inspectSourceSyncEnd, note: "typed dry_run预览；真实滚到末条冲突并补充conflicts-end截图，不为应用/解绑提供假成功mutation。" })),
+  ...[["MS01", 2, "漫画"], ["MS02", 3, "视频"], ["MS03", 5, "Galgame"]].map(([id, project, label]) => ({ id, title: `${label}来源同步冲突`, task: "比较三条来源变化与当前改编，关闭前不应用决定", frequency: "低", open: () => openSourceSync(project), scope: dialog, count: [`${dialog} article`, 3], expected: ["冲突清单", "来源变化", "当前项目", "未寄出的信"], after: inspectSourceSyncEnd, note: "typed dry_run预览；真实滚到末条冲突并补充conflicts-end截图，不为应用/解绑提供假成功mutation。" })),
 ];
 
 describe("Populated media pages and task dialogs", () => {
@@ -1166,6 +1198,7 @@ describe("Populated media pages and task dialogs", () => {
     await $(dialog).waitForDisplayed();
     await $(dialog).$('.//button[normalize-space()="放弃草稿"]').click();
     await browser.waitUntil(async () => (await adaptationStage.getAttribute("aria-selected")) === "true");
+    await $('//summary[contains(normalize-space(.), "改编要求与参考")]').click();
     const instruction = await $('//label[.//span[normalize-space()="本次改编要求"]]/textarea');
     await instruction.waitForDisplayed();
     const instructionDraft = `${await instruction.getValue()}\n只用于这次改编的要求。`;

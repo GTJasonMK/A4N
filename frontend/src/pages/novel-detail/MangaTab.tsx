@@ -65,7 +65,7 @@ import {
   mangaPipelineConfigBlockReason,
   type MangaTabProps,
 } from "./manga/mangaPipelineProgress";
-import type { MangaPageWorkspaceStage } from "./manga/mangaTabUtils";
+import { countStaleMangaPagePrompts, type MangaPageWorkspaceStage } from "./manga/mangaTabUtils";
 
 export const MangaTab: React.FC<MangaTabProps> = ({
   projectId,
@@ -136,6 +136,9 @@ export const MangaTab: React.FC<MangaTabProps> = ({
   const outputState = authoring.workspace?.artifacts.find((artifact) => artifact.kind === "manga_pages" && artifact.source_chapter_id === selectedChapter?.id);
   const [pagePrompts, setPagePrompts] = useState<MangaPagePromptSummary[]>([]);
   const [pagePromptsLoading, setPagePromptsLoading] = useState(false);
+  const [currentContentHash, setCurrentContentHash] = useState<string | null>(
+    null,
+  );
   const stageTabs = useMemo(() => {
     const stageProgress = (ready: number) =>
       pagePrompts.length > 0
@@ -144,6 +147,7 @@ export const MangaTab: React.FC<MangaTabProps> = ({
             total: pagePrompts.length,
           })
         : undefined;
+    const pagePromptsStale = countStaleMangaPagePrompts(pagePrompts, currentContentHash) > 0;
     return [
       { id: "materials" as const, label: t("common.mediaAuthoring.materials") },
       {
@@ -169,15 +173,19 @@ export const MangaTab: React.FC<MangaTabProps> = ({
       {
         id: "prompts" as const,
         label: t("common.mediaAuthoring.pagePrompts"),
-        status: stageProgress(pagePrompts.filter((page) => page.drawing_prompt != null).length),
+        status: outputState?.stale || pagePromptsStale
+          ? t("common.mediaAuthoring.needsUpdate")
+          : stageProgress(pagePrompts.filter((page) => page.drawing_prompt != null).length),
       },
       {
         id: "images" as const,
         label: t("common.mediaAuthoring.images"),
-        status: stageProgress(pagePrompts.filter((page) => page.generated_image_id != null).length),
+        status: outputState?.stale || pagePromptsStale
+          ? t("common.mediaAuthoring.needsUpdate")
+          : stageProgress(pagePrompts.filter((page) => page.generated_image_id != null).length),
       },
     ];
-  }, [authoring.workspace, pagePrompts, selectedChapter?.id, t]);
+  }, [authoring.workspace, currentContentHash, pagePrompts, selectedChapter?.id, t]);
   const [workspaceStage, setWorkspaceStage] = usePersistedTab(
     staged ? `a4n:comic:${projectId}:stage` : null,
     staged ? "materials" : "prompts",
@@ -187,9 +195,6 @@ export const MangaTab: React.FC<MangaTabProps> = ({
     staged && workspaceStage !== "materials" && workspaceStage !== "adaptation"
       ? workspaceStage
       : undefined;
-  const [currentContentHash, setCurrentContentHash] = useState<string | null>(
-    null,
-  );
   const [profiles, setProfiles] = useState<CharacterProfile[]>([]);
   const [portraits, setPortraits] = useState<Portrait[]>([]);
   const [projectImages, setProjectImages] = useState<GeneratedImage[]>([]);
@@ -505,7 +510,7 @@ export const MangaTab: React.FC<MangaTabProps> = ({
     resetRequestPreview();
     setSelectedChapter(row);
     setPagePrompts([]);
-    setCurrentContentHash(null);
+    setCurrentContentHash(row.content_hash ?? null);
     void loadPagePrompts(row.id, projectId).catch((err) =>
       addToast(extractErrorMessage(err, t("comic.loadPagePromptsFailed")), "error"),
     );
@@ -555,6 +560,7 @@ export const MangaTab: React.FC<MangaTabProps> = ({
             chapter_number: chapter.chapter_number,
             title: chapter.title,
             content: chapter.content,
+            content_hash: chapter.content_hash,
             summary: chapter.summary,
             status: "completed",
             analysis_data: chapter.analysis_data_json,
@@ -584,7 +590,7 @@ export const MangaTab: React.FC<MangaTabProps> = ({
       if (nextSelectedChapter && nextSelectedChapter.id !== previousChapterId) {
         resetRequestPreview();
         setPagePrompts([]);
-        setCurrentContentHash(null);
+        setCurrentContentHash(nextSelectedChapter.content_hash ?? null);
         void loadPagePrompts(nextSelectedChapter.id, requestProjectId).catch((err) =>
           addToast(extractErrorMessage(err, t("comic.loadPagePromptsFailed")), "error"),
         );
@@ -711,6 +717,10 @@ export const MangaTab: React.FC<MangaTabProps> = ({
     let cancelled = false;
     const chapterId = selectedChapter?.id;
     const content = selectedChapter?.content ?? "";
+    if (selectedChapter?.content_hash) {
+      setCurrentContentHash(selectedChapter.content_hash);
+      return;
+    }
     if (!chapterId || !content.trim()) {
       setCurrentContentHash(null);
       return;
@@ -1064,7 +1074,7 @@ export const MangaTab: React.FC<MangaTabProps> = ({
     if (fixedChapter) {
       if (!isProjectCurrent(projectId)) return;
       openChapterDetail(fixedChapter);
-    } else {
+    } else if (isSingleMode) {
       resetChapterDetail();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1073,6 +1083,7 @@ export const MangaTab: React.FC<MangaTabProps> = ({
     fixedChapter?.chapter_number,
     fixedChapter?.id,
     fixedChapter?.status,
+    isSingleMode,
   ]);
 
   // 进度对话框订阅 Generation Task；其余运行状态由章节详情轮询。

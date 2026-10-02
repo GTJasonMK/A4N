@@ -18,6 +18,7 @@ export interface ChapterRow {
   status?: string | null;
   summary?: string | null;
   analysis_data?: unknown | null;
+  content_hash?: string | null;
 }
 
 export function isChapterGenerating(chapter: Pick<ChapterRow, "status"> | null | undefined): boolean {

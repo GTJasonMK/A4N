@@ -56,7 +56,9 @@ export function MediaAuthoringPanel({ projectId, kind, workspace, loading, error
   const [preview, setPreview] = useState<ModelRequestPreview | null>(null);
   const [previewOpen, setPreviewOpen] = useState(false);
   const busyRef = useRef(false);
-  const sourceChapterId = fixedChapterId ?? selectedChapterId ?? workspace?.chapters[0]?.source.source_chapter_id ?? null;
+  const sourceChapterId = fixedChapterId !== undefined
+    ? fixedChapterId
+    : selectedChapterId ?? workspace?.chapters[0]?.source.source_chapter_id ?? null;
   const scope = `${projectId}:${kind}:${sourceChapterId}`;
   const dirtyKey = `media-authoring:${scope}`;
   const scopeRef = useRef(scope);

@@ -4,38 +4,16 @@ import { fileURLToPath } from "node:url";
 import { createHash } from "node:crypto";
 import { installUiFixtures, uiFixtures } from "../ui-presentation/fixtures.mjs";
 import { visualFixtures } from "../ui-presentation/visual-fixtures.mjs";
+import { authoringChapters, authoringWorkspace } from "./fixtures.mjs";
 
 const artifactDir = fileURLToPath(new URL("../../../.dev-runtime/media-authoring/browser/", import.meta.url));
 const text = "雨从旧书店的屋檐落下。她推开门。";
 const hash = createHash("sha256").update(text).digest("hex");
 const projects = visualFixtures.projectRecords.map((project) => ({ ...project, source_snapshot_id: project.root_project_id ? project.id + 10 : null }));
-const chapters = (projectId) => [1, 2].map((number) => ({
-  id: projectId * 100 + number, snapshot_id: projectId + 10, root_project_id: 1, source_chapter_id: number,
-  chapter_number: number, title: number === 1 ? "旧书店" : "未寄出的信", content: text, summary: null, analysis_data_json: null,
-  content_hash: hash, analysis_hash: null,
-}));
-const workspace = (projectId, target) => {
-  const sources = chapters(projectId).map((chapter) => ({
-    source: { root_project_id: 1, source_chapter_id: chapter.source_chapter_id, source_snapshot_id: chapter.snapshot_id, source_snapshot_chapter_id: chapter.id, content_sha256: hash },
-    chapter_number: chapter.chapter_number, title: chapter.title,
-    source_spans: [{ id: `ch${chapter.chapter_number}:s1:f1`, text: "雨从旧书店的屋檐落下。" }, { id: `ch${chapter.chapter_number}:s2:f1`, text: "她推开门。" }],
-  }));
-  return { target, source_snapshot_id: projectId + 10, chapters: sources, artifacts: [], documents: sources.map((chapter, index) => ({
-    stale: false, video_reference_status: null,
-    record: { id: projectId * 1000 + index, project_id: projectId, source_snapshot_id: projectId + 10, source_chapter_id: index + 1,
-      kind: "adaptation_plan", version: 1, revision: 1, status: "draft", sha256: "a".repeat(64),
-      inputs: { sources: [chapter.source], dependencies: [], video_reference: null },
-      document: { schema_version: "adaptation_plan_v1", target, intention: "保留推门前的犹豫", decisions: [], units: [{
-        id: "door", origin: "source", title: "走进旧书店", location: "旧书店门口", participants: [], dramatic_question: "门后是否有人", objective: "进入书店", obstacle: "门关着", entry_state: "门关闭", exit_state: "门打开", source_span_ids: [`ch${index + 1}:s2:f1`],
-        beats: [{ id: "open", kind: "action", is_climax: false, origin: "source", importance: "required", action: "推开门", reaction: "停顿片刻", dialogue_intent: null, entry_state: "门关闭", exit_state: "门打开", source_span_ids: [`ch${index + 1}:s2:f1`] }],
-      }] },
-    },
-  })) };
-};
 const fixture = {
   ...visualFixtures,
   projectRecords: projects,
-  list_source_snapshot_chapters: chapters(3),
+  list_source_snapshot_chapters: authoringChapters(3),
   list_video_adaptation_references: [],
   list_manga_page_prompts: [],
   list_manga_pipeline_statuses: [1, 2].map((chapter_id) => ({ chapter_id, pending: 0, generating: 0, completed: 0, failed: 0, cancelled: 0, pipeline_status: null, stage: null, current: null, total: null, message: null, task_id: null, can_cancel: false, can_resume: false, has_checkpoint: false, checkpoint_valid: false })),
@@ -50,8 +28,8 @@ const fixture = {
     segments: [{ id: "shot-1", title: "镜头 1", start_point_id: "start", end_point_id: "end", prompt: "", scene_binding: null, use_end_point_image: false }],
   } },
   byProject: {
-    2: { list_source_snapshot_chapters: chapters(2), get_media_authoring_workspace: workspace(2, "manga") },
-    5: { list_source_snapshot_chapters: chapters(5), get_media_authoring_workspace: workspace(5, "galgame") },
+    2: { list_source_snapshot_chapters: authoringChapters(2), get_media_authoring_workspace: authoringWorkspace(2, "manga") },
+    5: { list_source_snapshot_chapters: authoringChapters(5), get_media_authoring_workspace: authoringWorkspace(5, "galgame") },
   },
 };
 
