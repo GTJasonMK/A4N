@@ -421,8 +421,9 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({
         data_base64: dataBase64,
       });
       if (!isCurrentAction(requestProjectId, importSeqRef, requestSeq)) return;
-      await load(requestProjectId);
+      const loaded = await load(requestProjectId);
       if (!isCurrentAction(requestProjectId, importSeqRef, requestSeq)) return;
+      if (!loaded) return;
       addToast(t("novel.importReview.reviewsCreated", { count: reviews.length }), "success");
       setImportFileName("");
       setImportUploadFile(null);
@@ -500,7 +501,9 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({
         return;
       setProjectProgress(result.progress);
       setProgressDialogFromProgress(result.progress);
-      await load(requestProjectId);
+      const loaded = await load(requestProjectId);
+      if (!isCurrentAction(requestProjectId, analysisSeqRef, requestSeq)) return;
+      if (!loaded) return;
       if (result.progress.status === "cancelled") {
         addToast(t("novel.importReview.analysisStopped"), "success");
       } else {
@@ -590,7 +593,8 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({
         setProjectProgress(progress);
         setProgressDialogFromProgress(progress);
       }
-      await load(requestProjectId);
+      const loaded = await load(requestProjectId);
+      if (!loaded) return;
       if (!isCurrentAction(requestProjectId, cancelAnalysisSeqRef, requestSeq)) return;
       addToast(t("novel.importReview.analysisCancelled"), "success");
     } catch (err) {
@@ -631,8 +635,9 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({
       if (updatedActiveReview) {
         setActiveReviewState(updatedActiveReview);
       }
-      await load(requestProjectId);
+      const loaded = await load(requestProjectId);
       if (!isCurrentAction(requestProjectId, batchSeqRef, requestSeq)) return;
+      if (!loaded) return;
       addToast(t("novel.importReview.batchAccepted", { count: result.length }), "success");
       setSelected(new Set());
     } catch (err) {
@@ -675,6 +680,9 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({
       else if (action === "reject") await rejectImportReview(id);
       else await deleteImportReview(id);
       if (!isCurrentAction(requestProjectId, actSeqRef, requestSeq)) return;
+      const loaded = await load(requestProjectId);
+      if (!loaded) return;
+      if (!isCurrentAction(requestProjectId, actSeqRef, requestSeq)) return;
       addToast(
         action === "accept"
           ? t("novel.importReview.accepted")
@@ -694,7 +702,6 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({
         setActiveReviewJsonState("", false);
         setActiveReviewJsonError(null);
       }
-      await load(requestProjectId);
     } catch (err) {
       if (isCurrentAction(requestProjectId, actSeqRef, requestSeq)) {
         addToast(extractErrorMessage(err, t("novel.importReview.operationFailed")), "error");
@@ -774,8 +781,9 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({
         JSON.stringify(updated.analysis_result, null, 2),
         false,
       );
-      await load(requestProjectId);
+      const loaded = await load(requestProjectId);
       if (!isCurrentAction(requestProjectId, actSeqRef, requestSeq)) return;
+      if (!loaded) return;
       addToast(t("novel.importReview.modified"), "success");
     } catch (err) {
       if (isCurrentAction(requestProjectId, actSeqRef, requestSeq)) {
@@ -1053,8 +1061,9 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({
       });
       if (!isCurrentAction(requestProjectId, reverseSeqRef, requestSeq)) return;
       setReverseResult(confirmed);
-      await load(requestProjectId);
+      const loaded = await load(requestProjectId);
       if (!isCurrentAction(requestProjectId, reverseSeqRef, requestSeq)) return;
+      if (!loaded) return;
       addToast(
         confirmed.warnings.length > 0
           ? t("novel.importReview.candidateConfirmedWithWarnings", {

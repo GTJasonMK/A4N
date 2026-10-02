@@ -402,12 +402,13 @@ export const VideoAssemblyWorkspace: React.FC<VideoAssemblyWorkspaceProps> = ({
       if (!isCurrentScope(requestScope)) return;
       onVideoRecordUpdated(result.video);
       clearPreview();
-      await onRefresh();
+      const refreshed = await onRefresh();
       if (!isCurrentScope(requestScope)) return;
       onToast(
         t("video.chapter.pushSuccess", { count: result.source_video_ids.length }),
         "success",
       );
+      if (refreshed === false) onToast(t("video.chapter.postprocessRefreshFailed"), "error");
     } catch (err) {
       if (!isCurrentScope(requestScope)) return;
       const message = extractErrorMessage(err, t("video.chapter.pushFailed"));
@@ -465,9 +466,10 @@ export const VideoAssemblyWorkspace: React.FC<VideoAssemblyWorkspaceProps> = ({
       if (!isCurrentScope(requestScope)) return;
       onVideoRecordUpdated(inserted);
       clearPreview();
-      await onRefresh();
+      const refreshed = await onRefresh();
       if (!isCurrentScope(requestScope)) return;
       onToast(t("video.chapter.insertSuccess"), "success");
+      if (refreshed === false) onToast(t("video.chapter.postprocessRefreshFailed"), "error");
     } catch (err) {
       if (!isCurrentScope(requestScope)) return;
       const message = extractErrorMessage(err, t("video.chapter.insertFailed"));
@@ -503,9 +505,10 @@ export const VideoAssemblyWorkspace: React.FC<VideoAssemblyWorkspaceProps> = ({
       await deleteVideo(video.id);
       if (!isCurrentScope(requestScope)) return;
       clearPreview();
-      await onRefresh();
+      const refreshed = await onRefresh();
       if (!isCurrentScope(requestScope)) return;
       onToast(t("video.chapter.deleteSuccess"), "success");
+      if (refreshed === false) onToast(t("video.chapter.postprocessRefreshFailed"), "error");
     } catch (err) {
       if (!isCurrentScope(requestScope)) return;
       const message = extractErrorMessage(err, t("video.chapter.deleteFailed"));
