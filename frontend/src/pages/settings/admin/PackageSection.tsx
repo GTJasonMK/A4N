@@ -135,6 +135,7 @@ export const PackageSection: React.FC<{ canManageLifecycle?: boolean }> = ({
 
   const pollOperation = useCallback(async (initial: PackageLifecycleSummary, packageId: PackageId) => {
     let operation = initial;
+    let pollingFailed = false;
     try {
       for (let attempt = 0; attempt < MAX_OPERATION_POLLS; attempt += 1) {
         if (!mountedRef.current || isTerminalLifecycleState(operation.state)) break;
@@ -145,6 +146,7 @@ export const PackageSection: React.FC<{ canManageLifecycle?: boolean }> = ({
           setError((current) => current?.source === "poll" && current.operationId === operation.operation_id ? null : current);
           await load(false, false);
         } catch (nextError) {
+          pollingFailed = true;
           if (mountedRef.current) {
             setSnapshotStale(true);
             setError({
@@ -153,6 +155,7 @@ export const PackageSection: React.FC<{ canManageLifecycle?: boolean }> = ({
               message: formatPackageError(nextError, t("settingsAdmin.packageActionFailed"), t),
             });
           }
+          break;
         }
       }
       if (!mountedRef.current) return;
@@ -165,7 +168,7 @@ export const PackageSection: React.FC<{ canManageLifecycle?: boolean }> = ({
               : t("settingsAdmin.packageActionFailed"),
           },
         );
-      } else if (!isTerminalLifecycleState(operation.state)) {
+      } else if (!isTerminalLifecycleState(operation.state) && !pollingFailed) {
         setError({ source: "operation", message: t("settingsAdmin.packageOperationStillRunning") });
       }
     } finally {
@@ -352,6 +355,7 @@ export const PackageCard: React.FC<{
           : null,
       ].filter(Boolean).join(" · ")
     : null;
+  const lifecycleActive = item.lifecycle != null && isActiveLifecycleState(item.lifecycle.state);
 
   return (
     <li
@@ -389,11 +393,11 @@ export const PackageCard: React.FC<{
             onClick={onToggle}
             aria-label={`${item.required ? t("settingsAdmin.requiredPackage") : enabled ? t("settingsAdmin.disablePackage") : t("settingsAdmin.enablePackage")} ${item.package_id}`}
             data-package-lifecycle
-            disabled={snapshotStale || item.required || transitional || busy}
+            disabled={snapshotStale || item.required || transitional || lifecycleActive || busy}
           >
             {snapshotStale
               ? t("common.unknown")
-              : busy || transitional
+              : busy || transitional || lifecycleActive
               ? t("settingsAdmin.packageWorking")
               : item.required
                 ? t("settingsAdmin.requiredPackage")

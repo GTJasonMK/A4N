@@ -1,5 +1,5 @@
 import { ThemedSelect } from "../../../components/ui/ThemedSelect";
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { RefreshCw, UserPlus } from "lucide-react";
 import { extractErrorMessage } from "../../../api";
@@ -65,7 +65,15 @@ export const ProjectCollaborationPanel: React.FC<ProjectCollaborationPanelProps>
   const scopeKey = `${project.id}:${rootProjectId}`;
   scopeRef.current = scopeKey;
   const dirtyKey = `collaboration:${project.id}`;
-  useNovelDetailDirty(dirtyKey, Boolean(identity.trim()), () => setIdentity(""), () => !submittingRef.current);
+  useNovelDetailDirty(
+    dirtyKey,
+    Boolean(identity.trim()) || role !== "editor",
+    () => {
+      setIdentity("");
+      setRole("editor");
+    },
+    () => !submittingRef.current,
+  );
 
   const isCurrentScope = (requestScope: string): boolean =>
     mountedRef.current && scopeRef.current === requestScope;
@@ -128,8 +136,22 @@ export const ProjectCollaborationPanel: React.FC<ProjectCollaborationPanelProps>
     };
   }, [load]);
 
+  useLayoutEffect(() => {
+    setIdentity("");
+    setRole("editor");
+    submittingRef.current = false;
+    setSubmitting(false);
+    busyActionKeysRef.current.clear();
+    setBusyActionKeys(new Set());
+  }, [scopeKey]);
+
   const beginAction = (key: string): boolean => {
-    if (!mountedRef.current || busyActionKeysRef.current.has(key)) return false;
+    if (
+      !mountedRef.current ||
+      busyActionKeysRef.current.has(key) ||
+      busyActionKeysRef.current.has("leave") ||
+      (key === "leave" && (submittingRef.current || busyActionKeysRef.current.size > 0))
+    ) return false;
     const next = new Set(busyActionKeysRef.current);
     next.add(key);
     busyActionKeysRef.current = next;
@@ -145,9 +167,14 @@ export const ProjectCollaborationPanel: React.FC<ProjectCollaborationPanelProps>
     if (mountedRef.current) setBusyActionKeys(next);
   };
 
+  const memberActionBusy = (userId: number): boolean =>
+    busyActionKeysRef.current.has("leave") ||
+    busyActionKeysRef.current.has(`role:${userId}`) ||
+    busyActionKeysRef.current.has(`remove:${userId}`);
+
   const handleInvite = async () => {
     const value = identity.trim();
-    if (!value || submittingRef.current) return;
+    if (!value || submittingRef.current || busyActionKeysRef.current.has("leave")) return;
     const requestScope = scopeRef.current;
     submittingRef.current = true;
     setSubmitting(true);
@@ -176,6 +203,7 @@ export const ProjectCollaborationPanel: React.FC<ProjectCollaborationPanelProps>
 
   const handleRoleChange = async (member: ProjectMember, nextRole: ProjectMemberRole) => {
     const actionKey = `role:${member.user_id}`;
+    if (memberActionBusy(member.user_id)) return;
     if (!beginAction(actionKey)) return;
     const requestScope = scopeRef.current;
     try {
@@ -196,6 +224,7 @@ export const ProjectCollaborationPanel: React.FC<ProjectCollaborationPanelProps>
 
   const handleRemove = async (member: ProjectMember) => {
     const actionKey = `remove:${member.user_id}`;
+    if (memberActionBusy(member.user_id)) return;
     if (!beginAction(actionKey)) return;
     const requestScope = scopeRef.current;
     const ok = await confirmDialog({
@@ -248,9 +277,20 @@ export const ProjectCollaborationPanel: React.FC<ProjectCollaborationPanelProps>
     const actionKey = "leave";
     if (!beginAction(actionKey)) return;
     const requestScope = scopeRef.current;
+    const hasInviteDraft = dirtyRegistry.hasDirty(dirtyKey);
+    if (hasInviteDraft && !dirtyRegistry.canDiscardDirty(dirtyKey)) {
+      addToast(t("common.operationInProgress"), "info");
+      finishAction(actionKey);
+      return;
+    }
     const ok = await confirmDialog({
-      title: t("novel.collaborationActions.leaveTitle"),
-      message: t("novel.collaborationActions.leaveMessage"),
+      title: t(hasInviteDraft ? "common.unsavedChangesTitle" : "novel.collaborationActions.leaveTitle"),
+      message: hasInviteDraft
+        ? t("common.unsavedChangesMessage", {
+            name: t("novel.collaborationActions.invite"),
+            action: t("novel.collaborationActions.leave"),
+          })
+        : t("novel.collaborationActions.leaveMessage"),
       confirmText: t("novel.collaborationActions.leave"),
       dialogType: "danger",
     });
@@ -263,6 +303,7 @@ export const ProjectCollaborationPanel: React.FC<ProjectCollaborationPanelProps>
       if (!isCurrentScope(requestScope)) return;
       dirtyRegistry.set(dirtyKey, false);
       setIdentity("");
+      setRole("editor");
       addToast(tRef.current("novel.collaborationActions.left"), "success");
       navigate("/", { replace: true });
     } catch (err) {
@@ -288,7 +329,7 @@ export const ProjectCollaborationPanel: React.FC<ProjectCollaborationPanelProps>
               {
                 label: t("novel.collaborationActions.leave"),
                 onClick: () => void handleLeave(),
-                disabled: busyActionKeys.has("leave"),
+                disabled: submitting || busyActionKeys.size > 0,
                 danger: true,
               },
             ]}
@@ -317,15 +358,17 @@ export const ProjectCollaborationPanel: React.FC<ProjectCollaborationPanelProps>
           <input
             value={identity}
             onChange={(event) => setIdentity(event.target.value)}
+            disabled={submitting || busyActionKeys.has("leave")}
             placeholder={t("novel.collaborationActions.identityPlaceholder")}
             className="pyqt-input col-span-2 h-9 min-w-0 sm:col-span-1"
           />
           <ThemedSelect
             value={role}
             onChange={(selectedValue) => setRole(selectedValue as ProjectMemberRole)}
+            disabled={submitting || busyActionKeys.has("leave")}
             className="pyqt-input h-9 w-full"
           >
-                {memberRoleOptions.map((item) => (
+            {memberRoleOptions.map((item) => (
               <option key={item.value} value={item.value}>
                 {item.label}
               </option>
@@ -334,7 +377,7 @@ export const ProjectCollaborationPanel: React.FC<ProjectCollaborationPanelProps>
           <BookButton
             variant="primary"
             size="sm"
-            disabled={submitting || !identity.trim()}
+            disabled={submitting || busyActionKeys.has("leave") || !identity.trim()}
             onClick={() => void handleInvite()}
           >
             <span className="inline-flex items-center gap-1.5">
@@ -361,7 +404,7 @@ export const ProjectCollaborationPanel: React.FC<ProjectCollaborationPanelProps>
                 <ThemedSelect
                   value={member.role}
                   aria-label={t("novel.collaborationActions.adjustRole", { username: member.username })}
-                  disabled={busyActionKeys.has(`role:${member.user_id}`)}
+                  disabled={memberActionBusy(member.user_id)}
                   onChange={(selectedValue) =>
                     void handleRoleChange(member, selectedValue as ProjectMemberRole)
                   }
@@ -384,7 +427,7 @@ export const ProjectCollaborationPanel: React.FC<ProjectCollaborationPanelProps>
                     {
                       label: t("novel.collaborationActions.removeMember"),
                       onClick: () => void handleRemove(member),
-                      disabled: busyActionKeys.has(`remove:${member.user_id}`),
+                      disabled: memberActionBusy(member.user_id),
                       danger: true,
                     },
                   ]}
@@ -417,7 +460,7 @@ export const ProjectCollaborationPanel: React.FC<ProjectCollaborationPanelProps>
                     {
                       label: t("novel.collaborationActions.revokeInvite"),
                       onClick: () => void handleRevoke(invite),
-                      disabled: busyActionKeys.has(`revoke:${invite.id}`),
+                      disabled: busyActionKeys.has("leave") || busyActionKeys.has(`revoke:${invite.id}`),
                       danger: true,
                     },
                   ]}

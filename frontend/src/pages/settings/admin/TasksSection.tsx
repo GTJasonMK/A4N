@@ -30,7 +30,7 @@ export const TasksSection: React.FC = () => {
   cancellingIdsRef.current = cancellingIds;
 
   const loadTasks = useCallback(() => listPendingTasks(), []);
-  const { loading, error, load, reload } =
+  const { loading, error, load, reload, isCurrentScope } =
     useAdminSectionLoader("admin-tasks", loadTasks, setTasks, "settingsAdmin.loadFailed", {
       intervalMs: 5000,
     });
@@ -52,16 +52,19 @@ export const TasksSection: React.FC = () => {
     setTaskCancelling(id, true);
     try {
       await cancelAdminTask(id);
+      if (!isCurrentScope("admin-tasks")) return;
       const refreshed = await reload();
+      if (!isCurrentScope("admin-tasks")) return;
       if (!refreshed) {
         addToast(t("settingsAdmin.loadFailed"), "error");
         return;
       }
       addToast(t("settingsAdmin.taskCancelled"), "success");
     } catch (err) {
+      if (!isCurrentScope("admin-tasks")) return;
       addToast(extractErrorMessage(err, t("settingsAdmin.cancelFailed")), "error");
     } finally {
-      setTaskCancelling(id, false);
+      if (isCurrentScope("admin-tasks")) setTaskCancelling(id, false);
     }
   };
 

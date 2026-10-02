@@ -18,6 +18,7 @@ import { listModelProviderCatalog } from "../../../api/providerCatalog";
 import type { ModelProviderCatalog } from "../../../api/generated/config";
 import type { LlmConfigSummary } from "../../../api/generated/config";
 import { confirmDialog } from "../../../components/feedback/ConfirmDialog";
+import { useToast } from "../../../components/feedback/Toast";
 import { BookIconButton } from "../../../components/ui/BookButton";
 import { EmbeddingTab } from "../EmbeddingTab";
 import { ImageTab } from "../ImageTab";
@@ -54,12 +55,17 @@ export const ApiConfigSection: React.FC = () => {
   const { t } = useI18n();
   const dirtyRegistry = useDirtyRegistry();
   useDirtyRegistryVersion();
+  const canDiscardDirty = dirtyRegistry.canDiscardDirty();
   const [panel, setPanel] = useState<ApiConfigPanel>("overview");
   const navigationGuardRef = useRef(false);
 
   const selectPanel = async (nextPanel: ApiConfigPanel) => {
     if (nextPanel === panel) return;
     if (dirtyRegistry.hasDirty()) {
+      if (!canDiscardDirty) {
+        useToast.getState().addToast(t("common.operationInProgress"), "info");
+        return;
+      }
       if (navigationGuardRef.current) return;
       navigationGuardRef.current = true;
       try {
@@ -73,6 +79,10 @@ export const ApiConfigSection: React.FC = () => {
           dialogType: "warning",
         });
         if (!ok) return;
+        if (!await dirtyRegistry.discardDirty()) {
+          useToast.getState().addToast(t("common.operationInProgress"), "info");
+          return;
+        }
       } finally {
         navigationGuardRef.current = false;
       }

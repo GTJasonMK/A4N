@@ -68,6 +68,25 @@ describe("PackageSection", () => {
     expect(html).toContain("错误：状态版本已变化");
   });
 
+  it("keeps lifecycle controls disabled while the operation is still active", () => {
+    const html = renderCard({
+      item: packageOverview({
+        lifecycle: {
+          operation_id: "operation-waiting-external",
+          action: "disable",
+          state: "waiting_external",
+          requested_version: null,
+          status_version: 5,
+          reason_code: null,
+          error: null,
+        },
+      }),
+    });
+
+    expect(html).toContain('data-operation-id="operation-waiting-external"');
+    expect(html).toContain('disabled=""');
+  });
+
   it("marks a failed overview refresh as unknown and disables lifecycle writes", () => {
     const html = renderCard({ snapshotStale: true, preferencesUnavailable: false });
 

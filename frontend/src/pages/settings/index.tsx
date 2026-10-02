@@ -11,7 +11,7 @@ import { extractErrorMessage } from "../../api";
 import { usePackagePreferences } from "../../store/packagePreferences";
 import { usePersistedTab } from "../../hooks/usePersistedTab";
 import { LlmTab } from "./LlmTab";
-import { TABS, TAB_IDS, type TabId } from "./settingsTabs";
+import { resolveVisibleSettingsTab, TABS, TAB_IDS, type TabId } from "./settingsTabs";
 import { useI18n } from "../../i18n";
 import { confirmDialog } from "../../components/feedback/ConfirmDialog";
 import { useToast } from "../../components/feedback/Toast";
@@ -64,11 +64,12 @@ const LogsTab = lazy(() =>
 export const SettingsPage: React.FC = () => {
   const { isVisible } = usePackagePreferences();
   const visibleTabs = TABS.filter(item => item.id !== "agent" || isVisible("agent"));
+  const visibleTabIds = visibleTabs.map((item) => item.id);
   const [lastTab, setLastTab] = usePersistedTab<TabId>("a4n:settings:tab", "llm", TAB_IDS);
   const location = useLocation();
   const navigate = useNavigate();
-  const requestedTab = TAB_IDS.find((id) => id === location.hash.slice(1));
-  const tab = requestedTab ?? lastTab;
+  const requestedTab = visibleTabIds.find((id) => id === location.hash.slice(1));
+  const tab = resolveVisibleSettingsTab(location.hash.slice(1), lastTab, visibleTabIds);
   const { user, logout } = useAuthStore();
   const { t } = useI18n();
   const addToast = useToast((state) => state.addToast);
@@ -125,9 +126,10 @@ export const SettingsPage: React.FC = () => {
     if (requestedTab) {
       if (requestedTab !== lastTab) setLastTab(requestedTab);
     } else {
-      navigate({ pathname: location.pathname, search: location.search, hash: `#${lastTab}` }, { replace: true });
+      if (lastTab !== tab) setLastTab(tab);
+      navigate({ pathname: location.pathname, search: location.search, hash: `#${tab}` }, { replace: true });
     }
-  }, [lastTab, location.pathname, location.search, navigate, requestedTab, setLastTab]);
+  }, [lastTab, location.pathname, location.search, navigate, requestedTab, setLastTab, tab]);
 
   return (
     <div className="h-full w-full flex flex-col bg-book-bg">

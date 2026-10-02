@@ -55,3 +55,19 @@ export const TABS: TabDef[] = [
 ];
 
 export const TAB_IDS = TABS.map((tab) => tab.id) as readonly TabId[];
+
+export const resolveVisibleSettingsTab = (
+  requestedTab: string,
+  lastTab: TabId,
+  visibleTabIds: readonly TabId[],
+): TabId => {
+  const requested = visibleTabIds.find((id) => id === requestedTab);
+  if (requested) return requested;
+
+  const previous = visibleTabIds.find((id) => id === lastTab);
+  if (previous) return previous;
+
+  const firstVisible = visibleTabIds[0];
+  if (!firstVisible) throw new Error("Settings must expose at least one tab");
+  return firstVisible;
+};
