@@ -365,7 +365,7 @@ export default function App() {
   return (
     <ImageLightboxProvider>
       <StatusBarProvider>
-        <ProgressTaskProvider>
+        <ProgressTaskProvider scopeKey={`${location.pathname}${location.search}`}>
           <Layout>
             <ErrorBoundary>
               {location.pathname === "/auth/callback" ? <OAuthCallbackPage /> : (

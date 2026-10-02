@@ -2,6 +2,7 @@ import React, {
   createContext,
   useCallback,
   useContext,
+  useLayoutEffect,
   useRef,
   useState,
 } from "react";
@@ -387,8 +388,15 @@ function useProgressTaskController(): ProgressTaskController {
   };
 }
 
-export const ProgressTaskProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+export const ProgressTaskProvider: React.FC<{
+  children: React.ReactNode;
+  scopeKey?: string;
+}> = ({ children, scopeKey }) => {
   const controller = useProgressTaskController();
+
+  useLayoutEffect(() => {
+    if (scopeKey != null) controller.closeProgressTask();
+  }, [controller.closeProgressTask, scopeKey]);
 
   return (
     <ProgressTaskContext.Provider value={{ runProgressTask: controller.runProgressTask }}>
