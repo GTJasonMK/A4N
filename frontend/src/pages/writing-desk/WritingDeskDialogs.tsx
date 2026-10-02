@@ -20,7 +20,7 @@ interface WritingDeskDialogsProps {
   onScenesClose: () => void;
   onPreviewClose: () => void;
   onProfilesClose: () => void;
-  onCharacterMaterialSync: (projectId: number) => void | Promise<void>;
+  onCharacterMaterialSync: (projectId: number) => boolean | void | Promise<boolean | void>;
 }
 
 export const WritingDeskDialogs: React.FC<WritingDeskDialogsProps> = ({

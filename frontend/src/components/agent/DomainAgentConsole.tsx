@@ -122,7 +122,7 @@ export interface DomainAgentConsoleProps {
   executionMode?: AgentExecutionMode;
   onExecutionModeChange?: (mode: AgentExecutionMode) => void;
   onClose?: () => void;
-  onResourceChanged?: () => void | Promise<void>;
+  onResourceChanged?: () => boolean | void | Promise<boolean | void>;
   onPendingContentDiffChange?: (diff: PendingContentDiff | null) => void;
   getEditorSource?: () => import("../../api/agent").AgentEditorSource | null;
   onEditorRequest?: (
@@ -723,13 +723,18 @@ export const DomainAgentConsole: React.FC<DomainAgentConsoleProps> = ({
     }
     baseline.executionId = latestMutationExecutionId;
     if (!onResourceChanged) return;
-    void Promise.resolve(onResourceChanged()).catch((err) => {
-      if (!isCurrentBinding(requestBindingKey)) return;
-      addToast(
-        extractErrorMessage(err, t("agent.domain.resourceRefreshFailed")),
-        "error",
-      );
-    });
+    void Promise.resolve(onResourceChanged())
+      .then((refreshed) => {
+        if (!isCurrentBinding(requestBindingKey) || refreshed !== false) return;
+        addToast(t("agent.domain.resourceRefreshFailed"), "error");
+      })
+      .catch((err) => {
+        if (!isCurrentBinding(requestBindingKey)) return;
+        addToast(
+          extractErrorMessage(err, t("agent.domain.resourceRefreshFailed")),
+          "error",
+        );
+      });
   }, [
     addToast,
     binding,

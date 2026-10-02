@@ -660,7 +660,7 @@ export const WritingDesk: React.FC = () => {
   const handleCharacterMaterialSync = useCallback(
     async (requestProjectId: number) => {
       if (projectIdRef.current !== requestProjectId) return;
-      await reloadChapters({ force: true });
+      return Boolean(await reloadChapters({ force: true }));
     },
     [reloadChapters],
   );
@@ -1000,9 +1000,10 @@ export const WritingDesk: React.FC = () => {
   });
 
   const handleOptimizedChapterContentChanged = useCallback(
-    async (chapterId: number) => {
+    async (chapterId: number): Promise<boolean | void> => {
       const next = await reloadChapters({ force: true, chapterId });
       const updated = next?.chapter?.id === chapterId ? next.chapter : null;
+      if (!next) return false;
       if (!updated || activeChapter?.id !== chapterId) return;
 
       if (dirtyRef.current) {
@@ -1015,6 +1016,7 @@ export const WritingDesk: React.FC = () => {
       }
 
       setEditorState(updated.content, false);
+      return true;
     },
     [
       activeChapter?.id,

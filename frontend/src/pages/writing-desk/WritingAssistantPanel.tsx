@@ -41,7 +41,7 @@ interface WritingAssistantPanelProps {
   onResetGeneratedData: () => void | Promise<void>;
   onPreviewPrompt: () => void | Promise<void>;
   onOpenScenes: () => void | Promise<void>;
-  onChapterContentChanged: (chapterId: number) => void | Promise<void>;
+  onChapterContentChanged: (chapterId: number) => boolean | void | Promise<boolean | void>;
   onPendingContentDiffChange: (diff: PendingContentDiff | null) => void;
 }
 

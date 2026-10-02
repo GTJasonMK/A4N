@@ -9,7 +9,7 @@ interface OptimizeTabProps {
   chapters: ChapterMetadata[];
   fixedChapterId?: number | null;
   embedded?: boolean;
-  onChapterContentChanged?: (chapterId: number) => void | Promise<void>;
+  onChapterContentChanged?: (chapterId: number) => boolean | void | Promise<boolean | void>;
   onPendingContentDiffChange?: (diff: PendingContentDiff | null) => void;
 }
 
