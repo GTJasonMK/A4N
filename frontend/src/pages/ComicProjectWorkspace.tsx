@@ -175,7 +175,7 @@ export const ComicProjectWorkspace: React.FC = () => {
         /> : null
       ) : null}
 
-      <section aria-label={t("comic.workspace")} className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden a4n-page-container lg:overflow-hidden custom-scrollbar">
+      <section aria-label={t("comic.workspace")} className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden a4n-page-container md:overflow-hidden custom-scrollbar">
         {loadError ? (
           <div role="alert" className="mb-3 flex flex-wrap items-center gap-3 text-sm text-error">
             <p className="min-w-0 flex-1">{loadError}</p>

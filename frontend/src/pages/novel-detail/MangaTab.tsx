@@ -1252,7 +1252,7 @@ export const MangaTab: React.FC<MangaTabProps> = ({
   }
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-3 lg:h-full">
+    <div className="flex min-h-0 flex-1 flex-col gap-3 md:h-full">
       {staged && <MediaStageHeader id={stageId} label={t("common.mediaAuthoring.stages")} tabs={stageTabs} activeTab={workspaceStage}
         onTabChange={async (stage) => {
           if (!await confirmLeaveStage()) return false;
@@ -1269,8 +1269,8 @@ export const MangaTab: React.FC<MangaTabProps> = ({
         isSingleMode
           ? "flex min-h-0 flex-1 flex-col"
           : showChapterNavigation
-            ? "content-wide grid min-h-0 flex-1 grid-cols-1 gap-3 lg:h-full lg:grid-cols-[220px_minmax(0,1fr)] lg:gap-4"
-            : "content-wide flex min-h-0 flex-1 flex-col lg:h-full"
+            ? "content-wide grid min-h-0 flex-1 grid-cols-1 gap-3 md:h-full md:grid-cols-[220px_minmax(0,1fr)] md:gap-4"
+            : "content-wide flex min-h-0 flex-1 flex-col md:h-full"
       }
     >
       {/* 章节列表（仅完整模式） */}

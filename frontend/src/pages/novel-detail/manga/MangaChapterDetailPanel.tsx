@@ -899,7 +899,7 @@ export function MangaChapterDetailPanel({
         className={
           isSingleMode
             ? "flex h-full min-h-0 min-w-0 flex-col"
-            : "flex min-h-[60vh] min-w-0 flex-col lg:h-full lg:min-h-0 lg:overflow-y-auto lg:overscroll-contain"
+            : "flex min-h-[60vh] min-w-0 flex-col md:h-full md:min-h-0 md:overflow-y-auto md:overscroll-contain"
         }
       >
         {!selectedChapter ? (

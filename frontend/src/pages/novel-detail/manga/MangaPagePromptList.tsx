@@ -566,7 +566,7 @@ export const MangaPagePromptList: React.FC<MangaPagePromptListProps> = ({
               aria-label={t("comic.prompt.listLabel")}
               className="min-w-0 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden xl:min-h-0 xl:overflow-x-hidden xl:overflow-y-auto xl:border-r xl:border-book-border/50 xl:pb-0 xl:pr-2"
             >
-              <div className="flex min-w-max gap-1.5 xl:min-w-0 xl:flex-col xl:gap-0 xl:overflow-hidden xl:rounded-xl xl:border xl:border-book-border/50 xl:bg-book-bg-paper/30">
+              <div className="flex min-w-max gap-1.5 xl:min-w-0 xl:flex-col xl:gap-1 xl:overflow-hidden xl:rounded-[var(--pyqt-radius-md)] xl:border xl:border-book-border/50 xl:bg-book-bg-paper/30 xl:p-1">
                 {pagePrompts.map((page) => {
                   const selected = page.pageNumber === activePage?.pageNumber;
                   const imageLabel =
@@ -590,11 +590,8 @@ export const MangaPagePromptList: React.FC<MangaPagePromptListProps> = ({
                       type="button"
                       onClick={() => setSelectedPage(page.pageNumber)}
                       aria-current={selected ? "true" : undefined}
-                      className={`min-w-[8.75rem] rounded-xl border px-3 py-2 text-left text-xs transition-colors xl:w-full xl:min-w-0 xl:rounded-none xl:border-0 ${
-                        selected
-                          ? "border-book-primary/55 bg-book-primary/10 text-book-primary xl:shadow-[inset_2px_0_0_rgb(var(--color-primary))]"
-                          : "border-book-border/50 bg-book-bg-paper/45 text-book-text-sub hover:border-book-primary/35 hover:bg-book-bg-tertiary/55 hover:text-book-text-main xl:border-transparent xl:bg-transparent"
-                      }`}
+                      data-active={selected ? "1" : undefined}
+                      className="a4n-sidebar-item min-w-[8.75rem] text-xs xl:min-w-0"
                     >
                       <span className="block text-xs font-semibold">{t("comic.prompt.pageHeading", { page: page.pageNumber })}</span>
                       <div

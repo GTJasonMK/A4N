@@ -6,6 +6,7 @@ import { nonEmptyText } from "../../../utils/text";
 import { EmptyHint, type ChapterRow } from "../shared";
 import { mangaStageLabel } from "./mangaTabUtils";
 import { useI18n } from "../../../i18n";
+import { ThemedSelect } from "../../../components/ui/ThemedSelect";
 
 interface MangaChapterListProps {
   chapters: ChapterRow[];
@@ -52,12 +53,31 @@ export const MangaChapterList: React.FC<MangaChapterListProps> = ({
   }
 
   return (
-    <nav aria-label={t("comic.chapterListLabel")} className="flex min-h-0 flex-col">
-      <div className="mb-2 flex shrink-0 items-baseline gap-2 px-1">
+    <nav aria-label={t("comic.chapterListLabel")} className="flex min-h-0 min-w-0 flex-col">
+      <label className="mb-3 flex min-w-0 items-center gap-2 border-b border-book-border/45 pb-3 text-xs md:hidden">
+        <span className="shrink-0 font-medium text-book-text-muted">{t("novel.chapters")}</span>
+        <ThemedSelect
+          aria-label={t("comic.chapterListLabel")}
+          value={selectedChapter?.id ?? ""}
+          onChange={(value) => {
+            const chapter = chapters.find((item) => String(item.id) === value);
+            if (chapter) onSelect(chapter);
+          }}
+          className="pyqt-input h-9 min-w-0 flex-1 !px-2 !py-1.5 text-xs"
+        >
+          {chapters.map((chapter) => (
+            <option key={chapter.id} value={chapter.id}>
+              {t("comic.chapterNumber", { number: chapter.chapter_number })}
+              {nonEmptyText(chapter.title) ? ` · ${nonEmptyText(chapter.title)}` : ""}
+            </option>
+          ))}
+        </ThemedSelect>
+      </label>
+      <div className="mb-2 hidden shrink-0 items-baseline gap-2 px-2 md:flex">
         <h2 className="text-xs font-semibold text-book-text-main">{t("novel.chapters")}</h2>
         <span className="text-small text-book-text-muted">{t("comic.chapterCount", { count: chapters.length })}</span>
       </div>
-      <ul className="flex w-full min-w-0 gap-1.5 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden lg:flex-1 lg:flex-col lg:gap-0 lg:overflow-x-hidden lg:overflow-y-auto lg:rounded-xl lg:border lg:border-book-border/50 lg:bg-book-bg-paper/30">
+      <ul className="a4n-flat-surface flex w-full min-w-0 gap-1.5 overflow-x-auto p-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden md:flex-1 md:flex-col md:gap-1 md:overflow-x-hidden md:overflow-y-auto md:custom-scrollbar">
         {chapters.map((chapter) => {
           const status = statuses[chapter.id];
           const total =
@@ -74,13 +94,10 @@ export const MangaChapterList: React.FC<MangaChapterListProps> = ({
                 type="button"
                 onClick={() => onSelect(chapter)}
                 aria-current={isSelected ? "true" : undefined}
-                className={`min-w-[12rem] rounded-xl border px-3 py-2.5 text-left text-xs transition-colors lg:w-full lg:min-w-0 lg:rounded-none lg:border-0 ${
-                  isSelected
-                    ? "border-book-primary/55 bg-book-primary/10 text-book-primary lg:shadow-[inset_2px_0_0_rgb(var(--color-primary))]"
-                    : "border-book-border/50 bg-book-bg-paper/45 text-book-text-sub hover:border-book-primary/35 hover:bg-book-bg-tertiary hover:text-book-text-main lg:border-transparent lg:bg-transparent"
-                }`}
+                data-active={isSelected ? "1" : undefined}
+                className="a4n-sidebar-item min-w-[12rem] text-xs md:min-w-0"
               >
-                <div className="mb-1 truncate font-medium text-book-text-main">
+                <div className="mb-1 truncate font-medium">
                   {t("comic.chapterNumber", { number: chapter.chapter_number })}
                   {nonEmptyText(chapter.title) ? ` · ${nonEmptyText(chapter.title)}` : ""}
                 </div>
