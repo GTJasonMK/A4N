@@ -167,6 +167,7 @@ export const MangaTab: React.FC<MangaTabProps> = ({
   const [statuses, setStatuses] = useState<
     Record<number, MangaPipelineStatusSummary | null>
   >({});
+  const [pipelineStatusError, setPipelineStatusError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [chapterLoadError, setChapterLoadError] = useState<string | null>(null);
   const [acting, setActing] = useState<string | null>(null);
@@ -693,6 +694,7 @@ export const MangaTab: React.FC<MangaTabProps> = ({
     ) {
       setLoading(true);
       setChapterLoadError(null);
+      setPipelineStatusError(null);
     }
     try {
       const rows: ChapterRow[] = snapshotChapters
@@ -754,12 +756,15 @@ export const MangaTab: React.FC<MangaTabProps> = ({
         const statusMap: Record<number, MangaPipelineStatusSummary | null> = {};
         for (const status of statuses) statusMap[status.chapter_id] = status;
         setStatuses(statusMap);
+        setPipelineStatusError(null);
       } catch (err) {
         if (
           isProjectCurrent(requestProjectId) &&
           chapterLoadSeqRef.current === requestSeq
         ) {
-          addToast(extractErrorMessage(err, t("comic.loadPipelineStatusFailed")), "error");
+          const message = extractErrorMessage(err, t("comic.loadPipelineStatusFailed"));
+          setPipelineStatusError(message);
+          addToast(message, "error");
         }
       }
     } catch (err) {
@@ -795,6 +800,7 @@ export const MangaTab: React.FC<MangaTabProps> = ({
     resetInteractionLocks();
     setChapters([]);
     setStatuses({});
+    setPipelineStatusError(null);
     setPagePrompts([]);
     setPagePromptsError(null);
     setCurrentContentHash(null);
@@ -1317,6 +1323,14 @@ export const MangaTab: React.FC<MangaTabProps> = ({
         <div role="alert" className="flex shrink-0 flex-wrap items-center gap-3 rounded-xl border border-error/40 bg-error-bg px-3 py-2 text-small text-error">
           <span className="min-w-0 flex-1">{chapterLoadError}</span>
           <BookButton variant="secondary" size="sm" onClick={() => void loadChapters(projectId)} disabled={loading || standaloneSourceLoading}>
+            <RefreshCw size={12} /> {t("common.retry")}
+          </BookButton>
+        </div>
+      ) : null}
+      {pipelineStatusError ? (
+        <div role="alert" className="flex shrink-0 flex-wrap items-center gap-3 rounded-xl border border-error/40 bg-error-bg px-3 py-2 text-small text-error">
+          <span className="min-w-0 flex-1">{pipelineStatusError}</span>
+          <BookButton variant="secondary" size="sm" onClick={() => void loadChapters(projectId)} disabled={loading}>
             <RefreshCw size={12} /> {t("common.retry")}
           </BookButton>
         </div>
