@@ -44,7 +44,7 @@ impl VideoRecordReadApplicationPort for crate::OrchestratorContext {
         &self,
         user_id: i64,
         project_id: i64,
-        chapter_id: i64,
+        chapter_id: Option<i64>,
         reference_image_ids_json: Option<&Value>,
     ) -> Result<Vec<GeneratedImageSummary>, AppError> {
         let images = self

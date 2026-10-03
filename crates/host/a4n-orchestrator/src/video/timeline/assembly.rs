@@ -187,7 +187,7 @@ impl OrchestratorContext {
         if !provider_reference_ids.is_empty() {
             self.validated_video_reference_images(
                 project_id,
-                chapter_id,
+                Some(chapter_id),
                 Some(&json!(provider_reference_ids)),
             )
             .await?;

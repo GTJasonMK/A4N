@@ -66,7 +66,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--manifest", type=Path, help="已导出的 manifest；省略时通过 CLI 动态导出")
     parser.add_argument("--fixture-map", type=Path, help="命令名到参数对象的 JSON 映射")
     parser.add_argument("--report", type=Path, required=True)
-    parser.add_argument("--timeout", type=float, default=30)
+    parser.add_argument("--timeout", type=float, default=120)
+    parser.add_argument("--embedding-dimension", type=int, default=384)
     parser.add_argument("--provider-url", help="已有 mock provider 的 /v1 URL")
     parser.add_argument(
         "--provider-script",
@@ -658,6 +659,10 @@ def _replace_fixture_ids(value: Any, key: str, state: dict[str, Any], command: s
             state_key = "canvas_project_id"
         elif "galgame" in command:
             state_key = "galgame_project_id"
+        elif "manga" in command:
+            state_key = "manga_project_id"
+        elif any(token in command for token in ("video", "shooting", "visual_plan")):
+            state_key = "video_project_id"
     if state_key == "prompt_id":
         state_key = "manga_prompt_id" if "manga" in command else "video_prompt_id"
     candidate = state.get(state_key) if state_key else None
@@ -899,21 +904,22 @@ def fixture_payload(
         )
     elif command == "confirm_chapter_visual_plan" and input_value is not None:
         input_value.update(
-            project_id=state.get("project_id", input_value.get("project_id")),
+            project_id=state.get("video_project_id", input_value.get("project_id")),
             source_chapter_id=state.get("chapter_id", input_value.get("source_chapter_id")),
             record_id=state.get("visual_plan_id", input_value.get("record_id")),
             expected_revision=state.get("visual_plan_revision", input_value.get("expected_revision")),
         )
     elif command == "start_chapter_shooting_script_generation" and input_value is not None:
         input_value.update(
-            project_id=state.get("project_id", input_value.get("project_id")),
+            project_id=state.get("video_project_id", input_value.get("project_id")),
             source_chapter_id=state.get("chapter_id", input_value.get("source_chapter_id")),
             visual_plan_id=state.get("visual_plan_id", input_value.get("visual_plan_id")),
             mode="full",
         )
     elif command == "start_manga_pipeline" and input_value is not None:
         input_value.update(
-            project_id=state.get("project_id", input_value.get("project_id")),
+            meta={"start_request_id": f"manifest-manga-{run_id}"},
+            project_id=state.get("manga_project_id", input_value.get("project_id")),
             chapter_number=state.get("chapter_number", 1),
             image_size=input_value.get("image_size") or {"width": 1024, "height": 1024},
         )
@@ -937,7 +943,7 @@ def fixture_payload(
         input_value["project_id"] = state.get("galgame_project_id", input_value.get("project_id"))
     elif command in {"get_manga_pipeline_status", "list_manga_page_prompts"} and input_value is not None:
         input_value.update(
-            project_id=state.get("project_id", input_value.get("project_id")),
+            project_id=state.get("manga_project_id", input_value.get("project_id")),
             chapter_id=state.get("chapter_id", input_value.get("chapter_id")),
         )
     elif command == "start_video_generation" and input_value is not None:
@@ -995,7 +1001,7 @@ def fixture_payload(
             }
         input_value.update(
             meta={"start_request_id": f"manifest-video-{run_id}"},
-            project_id=state.get("project_id", input_value.get("project_id")),
+            project_id=state.get("video_project_id", input_value.get("project_id")),
             operation=operation,
         )
     elif command == "list_import_queue" and input_value is not None:
@@ -1460,8 +1466,12 @@ def missing_fixture_provider_paths(path: Path | None, fixture_start: int) -> lis
     return sorted(REQUIRED_FIXTURE_PROVIDER_PATHS - observed)
 
 
-def runtime_snapshot_for_fixture(base_url: str, state: dict[str, Any]) -> dict[str, Any]:
-    snapshot = runtime_snapshot(base_url)
+def runtime_snapshot_for_fixture(
+    base_url: str,
+    state: dict[str, Any],
+    embedding_dimension: int,
+) -> dict[str, Any]:
+    snapshot = runtime_snapshot(base_url, embedding_dimension=embedding_dimension)
     for section, state_key in (
         ("llm", "llm_config_id"),
         ("image", "image_config_id"),
@@ -1512,8 +1522,14 @@ def output_parts(
     return [option, f"/data={path}"], path
 
 
-def _watch_seed_task(cli: Cli, task_id: str, records: list[dict[str, Any]], label: str) -> None:
-    raw = cli.run(["task", "watch", task_id, "--attempt", "1"])
+def _watch_seed_task(
+    cli: Cli,
+    task_id: str,
+    records: list[dict[str, Any]],
+    label: str,
+    attempt: int = 1,
+) -> None:
+    raw = cli.run(["task", "watch", task_id, "--attempt", str(attempt)])
     documents = raw["stdout_documents"]
     passed = (
         raw["exit_code"] == 0
@@ -1529,6 +1545,7 @@ def _watch_seed_task(cli: Cli, task_id: str, records: list[dict[str, Any]], labe
             "exit_code": raw["exit_code"],
             "duration_ms": raw["duration_ms"],
             "events": len(documents),
+            "attempt": attempt,
         }
     )
     if not passed:
@@ -1602,10 +1619,27 @@ def seed_fixtures(
         return result
 
     def wait_for_manga() -> None:
+        manga_project_id = state.get("manga_project_id", project_id)
+        task_id = state.get("manga_task_id")
+        attempt = state.get("manga_task_attempt", 1)
+        if not isinstance(task_id, str) or not task_id:
+            raise RunnerError("fixture start_manga_pipeline 未返回有效 task_id")
         for _ in range(60):
+            task_result = checked(
+                cli,
+                ["task", "get", task_id, "--attempt", str(attempt)],
+                "manga task status",
+            )[0]["data"]
+            handle = task_result.get("handle")
+            task_status = handle.get("status") if isinstance(handle, dict) else None
+            if task_status in {"completed", "failed", "cancelled", "interrupted", "superseded"}:
+                if task_status != "completed":
+                    raise RunnerError(f"fixture manga task 未成功完成: {task_result}")
+                _watch_seed_task(cli, task_id, records, "start_manga_pipeline", attempt)
+                return
             status = call(
                 "get_manga_pipeline_status",
-                {"input": {"project_id": project_id, "chapter_id": chapter_id}},
+                {"input": {"project_id": manga_project_id, "chapter_id": chapter_id}},
             )
             value = status.get("data")
             if isinstance(value, dict):
@@ -1874,6 +1908,23 @@ def seed_fixtures(
     director_scene_id = _first_value(director_scene.get("data"), ("scene_profile_id", "id"))
     if not isinstance(director_scene_id, int) or director_scene_id <= 0:
         raise RunnerError("director fixture requires a real scene profile")
+    video_project = call(
+        "create_derived_project",
+        {
+            "input": {
+                "root_project_id": project_id,
+                "derived_kind": "video",
+                "title": f"Fixture Video {run_id}",
+                "description": "Disposable derived video project for generation coverage.",
+                "start_chapter": 1,
+                "end_chapter": 1,
+            }
+        },
+    )
+    video_project_id = _first_value(video_project.get("data"), ("id",))
+    if not isinstance(video_project_id, int) or video_project_id <= 0:
+        raise RunnerError("fixture create_derived_project 未返回有效 video project id")
+    state["video_project_id"] = video_project_id
     visual_plan = chapter_visual_plan_fixture(director_scene_id)
     # This path adapts novel evidence into Galgame lines. Quote actual source
     # text so the shooting script retains real source anchors.
@@ -1884,7 +1935,7 @@ def seed_fixtures(
         "save_chapter_visual_plan_draft",
         {
             "input": {
-                "project_id": project_id,
+                "project_id": video_project_id,
                 "source_chapter_id": chapter_id,
                 "authoring_mode": "manual",
                 "record_id": None,
@@ -1911,7 +1962,7 @@ def seed_fixtures(
         "confirm_chapter_visual_plan",
         {
             "input": {
-                "project_id": project_id,
+                "project_id": video_project_id,
                 "source_chapter_id": chapter_id,
                 "record_id": visual_plan_id,
                 "expected_revision": state["visual_plan_revision"],
@@ -1928,13 +1979,13 @@ def seed_fixtures(
         raise RunnerError("fixture confirm_chapter_visual_plan 未返回有效 visual_plan")
     call(
         "get_chapter_visual_plan",
-        {"input": {"project_id": project_id, "source_chapter_id": chapter_id}},
+        {"input": {"project_id": video_project_id, "source_chapter_id": chapter_id}},
     )
     task(
         "start_chapter_shooting_script_generation",
         {
             "input": {
-                "project_id": project_id,
+                "project_id": video_project_id,
                 "source_chapter_id": chapter_id,
                 "visual_plan_id": visual_plan_id,
                 "mode": "full",
@@ -1944,7 +1995,7 @@ def seed_fixtures(
     )
     shooting_script = call(
         "get_chapter_shooting_script",
-        {"input": {"project_id": project_id, "source_chapter_id": chapter_id, "visual_plan_id": visual_plan_id}},
+        {"input": {"project_id": video_project_id, "source_chapter_id": chapter_id, "visual_plan_id": visual_plan_id}},
     )
     shooting_data = shooting_script.get("data")
     if not isinstance(shooting_data, dict) or not isinstance(shooting_data.get("script"), dict):
@@ -2277,15 +2328,87 @@ def seed_fixtures(
         },
     )
 
+    profiles = call("list_profiles", {"input": {"project_id": project_id}}).get("data")
+    if not isinstance(profiles, list):
+        raise RunnerError("fixture manga portraits require a profile list")
+    for character_name in ("林岚", "周衡"):
+        profile = next(
+            (
+                row
+                for row in profiles
+                if isinstance(row, dict)
+                and str(row.get("name", "")).strip() == character_name
+            ),
+            None,
+        )
+        if profile is None:
+            profile = call(
+                "create_profile",
+                {
+                    "input": {
+                        "project_id": project_id,
+                        "name": character_name,
+                        "base_attributes": {
+                            "explicit_attributes": {},
+                            "implicit_attributes": {},
+                            "social_attributes": {},
+                        },
+                    }
+                },
+            ).get("data")
+        profile_id = _first_value(profile, ("profile_id", "id"))
+        if not isinstance(profile_id, int) or profile_id <= 0:
+            raise RunnerError(f"fixture manga profile `{character_name}` 未返回有效 profile id")
+        call(
+            "upload_portrait",
+            {
+                "input": {
+                    "project_id": project_id,
+                    "profile_id": profile_id,
+                    "file_name": f"fixture-manga-{profile_id}.png",
+                    "mime_type": "image/png",
+                    "data_base64": PNG_1X1_BASE64,
+                    "portrait_type": "face",
+                    "prompt": f"{character_name} 的漫画参考立绘",
+                    "set_primary": True,
+                }
+            },
+        )
+
+    manga_task = call(
+        "create_derived_project",
+        {
+            "input": {
+                "root_project_id": project_id,
+                "derived_kind": "comic",
+                "title": f"Fixture Manga {run_id}",
+                "description": "Disposable derived manga project for generation coverage.",
+                "start_chapter": 1,
+                "end_chapter": 1,
+            }
+        },
+    )
+    manga_project_id = _first_value(manga_task.get("data"), ("id",))
+    if not isinstance(manga_project_id, int) or manga_project_id <= 0:
+        raise RunnerError("fixture create_derived_project 未返回有效 manga project id")
+    state["manga_project_id"] = manga_project_id
+
     manga_task = call(
         "start_manga_pipeline",
-        {"input": {"project_id": project_id, "chapter_number": 1}},
+        {"input": {
+            "meta": {"start_request_id": str(uuid.uuid4())},
+            "project_id": manga_project_id,
+            "chapter_number": 1,
+            "image_size": {"width": 1024, "height": 1024},
+        }},
     )
-    state["manga_task_id"] = manga_task.get("data")
+    state["manga_task_id"] = _first_value(manga_task.get("data"), ("task_id",))
+    manga_attempt = _first_value(manga_task.get("data"), ("attempt",))
+    state["manga_task_attempt"] = manga_attempt if isinstance(manga_attempt, int) and manga_attempt > 0 else 1
     wait_for_manga()
     manga_prompts = call(
         "list_manga_page_prompts",
-        {"input": {"project_id": project_id, "chapter_id": chapter_id}},
+        {"input": {"project_id": manga_project_id, "chapter_id": chapter_id}},
     )
     manga_prompt_id = _first_value(manga_prompts.get("data"), ("id",))
     if isinstance(manga_prompt_id, int) and manga_prompt_id > 0:
@@ -2308,7 +2431,7 @@ def seed_fixtures(
         {
             "input": {
                 "meta": {"start_request_id": str(uuid.uuid4())},
-                "project_id": project_id,
+                "project_id": video_project_id,
                 "operation": {
                     "kind": "prompt_segment_plan",
                     "chapter_id": chapter_id,
@@ -2317,7 +2440,7 @@ def seed_fixtures(
             }
         },
     )
-    prompts = call("list_chapter_video_prompts", {"projectId": project_id, "chapterId": chapter_id})
+    prompts = call("list_chapter_video_prompts", {"projectId": video_project_id, "chapterId": chapter_id})
     prompt_rows = prompts.get("data")
     shared_prompt = next(
         (
@@ -2359,7 +2482,7 @@ def seed_fixtures(
         {
             "input": {
                 "meta": {"start_request_id": str(uuid.uuid4())},
-                "project_id": project_id,
+                "project_id": video_project_id,
                 "operation": {
                     "kind": "prompt_videos",
                     "chapter_id": chapter_id,
@@ -2368,7 +2491,7 @@ def seed_fixtures(
             }
         },
     )
-    prompts = call("list_chapter_video_prompts", {"projectId": project_id, "chapterId": chapter_id})
+    prompts = call("list_chapter_video_prompts", {"projectId": video_project_id, "chapterId": chapter_id})
     prompt_rows = prompts.get("data")
     video_prompt = next(
         (
@@ -2389,7 +2512,7 @@ def seed_fixtures(
         {
             "input": {
                 "meta": {"start_request_id": str(uuid.uuid4())},
-                "project_id": project_id,
+                "project_id": video_project_id,
                 "operation": {
                     "kind": "chapter",
                     "chapter_id": chapter_id,
@@ -2399,7 +2522,7 @@ def seed_fixtures(
             }
         },
     )
-    videos = call("list_videos_by_chapter", {"projectId": project_id, "chapterId": chapter_id})
+    videos = call("list_videos_by_chapter", {"projectId": video_project_id, "chapterId": chapter_id})
     video_id = _first_value(videos.get("data"), ("id",))
     if not isinstance(video_id, int) or video_id <= 0:
         raise RunnerError("fixture list_videos_by_chapter 未返回有效 video id")
@@ -2438,6 +2561,29 @@ def seed_fixtures(
         ),
         None,
     ) if isinstance(user_rows, list) else None
+    if collaborator is None and not collaborator_username:
+        fixture_identity = f"e2e-{run_id.rsplit('-', 1)[-1]}"
+        call(
+            "create_user",
+            {
+                "input": {
+                    "username": fixture_identity,
+                    "email": f"{fixture_identity}@example.invalid",
+                    "password": uuid.uuid4().hex,
+                    "role": "user",
+                }
+            },
+        )
+        user_rows = call("list_all_users", {}).get("data")
+        collaborator = next(
+            (
+                item
+                for item in user_rows
+                if isinstance(item, dict)
+                and fixture_identity in {item.get("username"), item.get("email")}
+            ),
+            None,
+        ) if isinstance(user_rows, list) else None
     collaborator_identity = (collaborator or {}).get("username") or (collaborator or {}).get("email")
     if not isinstance(collaborator_identity, str) or not collaborator_identity:
         raise RunnerError("fixture list_all_users 未找到不同于管理员的真实账号")
@@ -2539,11 +2685,20 @@ def main() -> int:
                 provider_script=args.provider_script,
                 provider_start_timeout=args.provider_start_timeout,
                 command_timeout=args.timeout,
+                embedding_dimension=args.embedding_dimension,
             )
             provider, provider_log = start_provider(provider_args, report_path.parent, run_id)
-            provider_contract = check_provider_contract(provider.base_url, args.timeout)
+            provider_contract = check_provider_contract(
+                provider.base_url, args.timeout, args.embedding_dimension
+            )
             runtime_path = work_dir / "runtime-config.json"
-            secure_json(runtime_path, runtime_snapshot(provider.base_url))
+            secure_json(
+                runtime_path,
+                runtime_snapshot(
+                    provider.base_url,
+                    embedding_dimension=args.embedding_dimension,
+                ),
+            )
             checked(cli, ["config", "runtime", "set", "--input", f"@{runtime_path}"], "config runtime set")
             provider_preflight_boundary = len(_provider_entries(provider_log))
 
@@ -2562,7 +2717,12 @@ def main() -> int:
                     collaborator_username=args.collaborator_username,
                     collaborator_password=collaborator_password,
                     refresh_runtime=lambda state: (
-                        secure_json(runtime_path, runtime_snapshot_for_fixture(provider.base_url, state)),
+                        secure_json(
+                            runtime_path,
+                            runtime_snapshot_for_fixture(
+                                provider.base_url, state, args.embedding_dimension
+                            ),
+                        ),
                         checked(
                             cli,
                             ["config", "runtime", "set", "--input", f"@{runtime_path}"],

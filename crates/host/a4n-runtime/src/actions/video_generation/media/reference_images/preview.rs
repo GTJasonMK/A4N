@@ -10,7 +10,7 @@ pub(crate) async fn reference_image_request_preview_urls_by_ids(
     video: &dyn VideoRecordReadApplicationPort,
     user_id: i64,
     project_id: i64,
-    chapter_id: i64,
+    chapter_id: Option<i64>,
     ids: Vec<i64>,
 ) -> Result<Vec<VideoMediaSource>, String> {
     validate_reference_image_id_list(&ids)?;
@@ -24,7 +24,7 @@ pub(crate) async fn reference_image_request_preview_url_by_id(
     video: &dyn VideoRecordReadApplicationPort,
     user_id: i64,
     project_id: i64,
-    chapter_id: i64,
+    chapter_id: Option<i64>,
     id: Option<i64>,
 ) -> Result<Option<VideoMediaSource>, String> {
     let Some(id) = id else {
@@ -45,7 +45,7 @@ async fn reference_image_request_preview_urls_for_ids(
     video: &dyn VideoRecordReadApplicationPort,
     user_id: i64,
     project_id: i64,
-    chapter_id: i64,
+    chapter_id: Option<i64>,
     ids: Vec<i64>,
 ) -> Result<Vec<VideoMediaSource>, String> {
     let images =

@@ -89,7 +89,7 @@ impl OrchestratorContext {
     pub(crate) async fn validated_video_reference_images(
         &self,
         project_id: i64,
-        chapter_id: i64,
+        chapter_id: Option<i64>,
         reference_image_ids_json: Option<&Value>,
     ) -> Result<Vec<GeneratedImageRecord>, AppError> {
         self.video

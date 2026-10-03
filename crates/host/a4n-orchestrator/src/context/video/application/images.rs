@@ -15,7 +15,7 @@ impl VideoApplication {
     pub(in crate::context) async fn validated_video_reference_image_records(
         &self,
         project_id: i64,
-        chapter_id: i64,
+        chapter_id: Option<i64>,
         reference_image_ids_json: Option<&Value>,
     ) -> Result<Vec<GeneratedImageRecord>, AppError> {
         a4n_db::video::read_models::validated_video_reference_image_records(

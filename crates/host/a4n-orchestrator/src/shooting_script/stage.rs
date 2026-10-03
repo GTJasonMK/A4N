@@ -83,12 +83,9 @@ impl OrchestratorContext {
             }
             Ok(output)
         });
-        let output = if restored {
-            self.validate_llm_call_output(workflow_run_id, step_key, &fingerprint_json, output)
-                .await?
-        } else {
-            output?
-        };
+        let output = self
+            .validate_llm_call_output(workflow_run_id, step_key, &fingerprint_json, output)
+            .await?;
         if !restored || response_only_checkpoint {
             self.persist_parsed_shooting_call(
                 workflow_run_id,

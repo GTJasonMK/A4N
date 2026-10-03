@@ -16,15 +16,20 @@ pub async fn ensure_video_reference_images_available_record<C>(
 where
     C: ConnectionTrait,
 {
-    validated_video_reference_image_records(db, project_id, chapter_id, reference_image_ids_json)
-        .await
-        .map(|_| ())
+    validated_video_reference_image_records(
+        db,
+        project_id,
+        Some(chapter_id),
+        reference_image_ids_json,
+    )
+    .await
+    .map(|_| ())
 }
 
 pub async fn validated_video_reference_image_records<C>(
     db: &C,
     project_id: i64,
-    chapter_id: i64,
+    chapter_id: Option<i64>,
     reference_image_ids_json: Option<&Value>,
 ) -> Result<Vec<generated_image::Model>, VideoDbError>
 where
@@ -54,7 +59,7 @@ where
         .iter()
         .map(|value| reference_image_ids(*value).map_err(VideoDbError::InvalidArgument))
         .collect::<Result<Vec<_>, _>>()?;
-    validated_video_reference_image_records_for_ids(db, project_id, chapter_id, ids_by_prompt)
+    validated_video_reference_image_records_for_ids(db, project_id, Some(chapter_id), ids_by_prompt)
         .await
         .map(|_| ())
 }
@@ -62,7 +67,7 @@ where
 async fn validated_video_reference_image_records_for_ids<C>(
     db: &C,
     project_id: i64,
-    chapter_id: i64,
+    chapter_id: Option<i64>,
     ids_by_prompt: Vec<Vec<i64>>,
 ) -> Result<Vec<Vec<generated_image::Model>>, VideoDbError>
 where
@@ -109,9 +114,16 @@ where
                     ) {
                         return Ok(image.clone());
                     }
-                    if image.chapter_id.is_some() && image.chapter_id != Some(chapter_id) {
+                    if image
+                        .chapter_id
+                        .is_some_and(|image_chapter_id| Some(image_chapter_id) != chapter_id)
+                    {
+                        let scope = chapter_id.map_or_else(
+                            || "项目级视频素材".to_string(),
+                            |chapter_id| format!("提示词章节 {chapter_id}"),
+                        );
                         return Err(VideoDbError::InvalidArgument(format!(
-                            "参考图片 #{id} 不属于提示词章节 {chapter_id}"
+                            "参考图片 #{id} 不属于{scope}"
                         )));
                     }
                     Ok(image.clone())

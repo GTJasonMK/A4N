@@ -312,14 +312,22 @@ impl OrchestratorContext {
         input: ClaimExclusiveWorkflowRunInput,
     ) -> Result<workflow_run::Model, AppError> {
         let run = self.workflow.claim_exclusive_workflow_run(input).await?;
+        self.refresh_generation_session_after_workflow_binding(&run)
+            .await?;
+        Ok(run)
+    }
+
+    async fn refresh_generation_session_after_workflow_binding(
+        &self,
+        run: &workflow_run::Model,
+    ) -> Result<(), AppError> {
         self.generation
             .refresh_session_after_workflow_binding(run.active_task_id.as_deref())
             .await
             .map_err(|error| AppError::InvalidState {
                 current: "generation_session_workflow_binding".to_string(),
                 operation: error.to_string(),
-            })?;
-        Ok(run)
+            })
     }
 
     pub(crate) async fn mark_workflow_status(
@@ -494,9 +502,13 @@ impl OrchestratorContext {
     ) -> Result<workflow_run::Model, AppError> {
         crate::workflow::require_positive_workflow_run_id(workflow_run_id)
             .map_err(AppError::InvalidArgument)?;
-        self.workflow
+        let run = self
+            .workflow
             .resume_workflow_run_with_active_task(workflow_run_id, active_task_id)
-            .await
+            .await?;
+        self.refresh_generation_session_after_workflow_binding(&run)
+            .await?;
+        Ok(run)
     }
 
     pub(crate) async fn mark_workflow_current_step(

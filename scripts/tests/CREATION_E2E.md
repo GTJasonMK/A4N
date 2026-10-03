@@ -8,6 +8,8 @@ python3 scripts/tests/run_creation_e2e.py --stage inspiration
 python3 scripts/tests/run_creation_e2e.py --list
 ```
 
+`python3 scripts/tests/run_creation_e2e.py --stage all` 是全量生成链路 Mock 验收入口。除下列阶段测试和真实浏览器流程外，还运行媒体改编、角色/场景同步、Agent 委派与领域 Agent、LLM 生命周期/缓存、图片生成与恢复，以及 `run_all_workflows_e2e.py` 的全业务 fixture。任一子套件缺失、无断言、超时或失败，均使整轮失败；报告中的 `generation_matrix` 汇总全量套件状态。
+
 需要已有 Rust、Node/npm 依赖、Docker、FFmpeg、Chromium/ChromeDriver、项目固定版本的 ONNX Runtime 和 `tools/qdrant/bin/qdrant`。PostgreSQL 默认使用 `postgres:16`，私有镜像地址可通过 `--postgres-image` 或 `A4N_E2E_POSTGRES_IMAGE` 指定。
 
 入口把启动时工作区保存为完整源码快照，持共享构建锁编译，并保存可校验的独立二进制；随后创建自己的 PostgreSQL 容器、Qdrant、Mock Provider、Server/Worker 和浏览器。不会连接已有开发库，也不会改用真实付费模型。`--binaries-dir` 只能复用本工具构建、文件哈希和当前输入快照均匹配的二进制。`--application-source <旧报告/source>` 用于复现保存的应用版本，测试脚本仍取当前工作区；报告分别记录被测后端、前端哈希及是否与当前工作区一致。
@@ -39,6 +41,9 @@ python3 scripts/tests/run_creation_e2e.py --list
 - `run_fact_feedback_cli_e2e.py`：正文事实撤回、周期反馈、来源覆盖及项目族往返。
 - `run_director_timeline_cli_e2e.py`：导演、镜头、片段、图片/视频、局部失效与媒体导出。
 - `run_shooting_async_cli_e2e.py`：后台任务、观察者断线、取消、部分结果、恢复与来源同步。
+- 全量生成矩阵额外运行 `run_media_authoring_cli_e2e.py`、`run_character_sync_resume_cli_e2e.py`、`run_scene_sync_cli_e2e.py`、`run_agent_cli_e2e.py`、`run_agent_domains_cli_e2e.py`、`run_specialized_agent_cli_e2e.py`、`run_llm_lifecycle_cli_e2e.py`、`run_llm_cache_cli_e2e.py`、`run_image_publication_cli_e2e.py` 和 `run_image_checkpoint_recovery_cli_e2e.py`。
+- `run_llm_lifecycle_cli_e2e.py` 还验证 Canvas LLM 输出驱动图片生成、图片作为视频首帧、Provider 请求与三类节点产物/checkpoint 读回。
+- `run_all_workflows_e2e.py` 以隔离 Mock Provider 执行 novel、分析/剧本、资料同步、Galgame、Manga、video 等 fixture；每个 `FIXTURE_PATHS` 业务路径和 chat/image/video Provider 路由都必须通过。
 - `generation-stages.e2e.mjs`：由真实页面操作完成生成、编辑、刷新及下游使用。
 
 选择某阶段会运行相关测试组；复合组可能额外覆盖其他阶段。CLI 与浏览器都必须有该阶段的实际检查结果。仅启动服务、空报告、未执行、依赖失败、超时均不能计作通过。测试组进程非零退出时，整轮失败，即使已经保存了某些阶段的通过记录。损坏或缺失的测试组报告明确记为失败，继续检查其他独立组；同一串行创作链的上游失败时，下游标为未验证，不伪造结果继续。

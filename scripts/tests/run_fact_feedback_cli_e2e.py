@@ -166,7 +166,7 @@ def main():
             exported = typed("export_project_family_data", {"root_project_id": project_id, "include_derived_projects": False})
             with zipfile.ZipFile(io.BytesIO(base64.b64decode(exported["data_base64"]))) as archive:
                 manifest = json.loads(archive.read("a4n-project-family.json"))
-            assert manifest["version"] == "project_family_v7", manifest["version"]
+            assert manifest["version"] == "project_family_v8", manifest["version"]
             assert manifest["text_core"]["fact_feedback"]["changes"]
             calls_before = len(consolidation_calls())
             imported = typed("import_project_family_upload", exported)[0]

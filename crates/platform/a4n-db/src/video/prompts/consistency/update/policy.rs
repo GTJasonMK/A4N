@@ -102,7 +102,7 @@ where
         video::validated_video_reference_image_records(
             db,
             prompt.project_id,
-            prompt.chapter_id,
+            Some(prompt.chapter_id),
             value.as_ref(),
         )
         .await?;

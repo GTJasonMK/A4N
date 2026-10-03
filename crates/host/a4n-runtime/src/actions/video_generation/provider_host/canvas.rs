@@ -44,7 +44,7 @@ impl CanvasVideoPreviewHostPort for RuntimeVideoProviderHostPort<'_> {
             .resolve_video_image_inputs(ChapterVideoImageInput {
                 user_id: input.user_id,
                 project_id: input.project_id,
-                chapter_id: 0,
+                chapter_id: None,
                 mode: input.mode,
                 transport,
                 reference_image_ids: input.reference_image_ids,

@@ -5,8 +5,11 @@ use a4n_db_models::models::project::{
     media_authoring_document as document, novel_project, project_source_snapshot,
     source_snapshot_chapter,
 };
+use a4n_domain::manga::{
+    MangaPageGenerationLayoutV3, MangaPageGenerationLayoutV4, MangaPagePromptSourceSummary,
+};
 use a4n_domain::media_authoring::{
-    AuthoringDocumentInputs, AuthoringDocumentKind, AuthoringDocumentRecord,
+    AuthoringDocumentInputs, AuthoringDocumentKind, AuthoringDocumentRecord, AuthoringDocumentRef,
     AuthoringDocumentStatus,
 };
 use chrono::Utc;
@@ -44,7 +47,8 @@ pub struct SaveAuthoringDocument {
 pub enum AuthoringArtifactSource {
     MangaPage {
         chapter_id: i64,
-        layout: a4n_domain::manga::MangaPageGenerationLayoutV3,
+        source: MangaPagePromptSourceSummary,
+        page_plan_ref: Option<AuthoringDocumentRef>,
     },
     GalgameScript {
         source_snapshot_id: i64,
@@ -73,18 +77,61 @@ pub async fn authoring_artifact_sources<C: ConnectionTrait>(
                     let layout = row.layout.ok_or_else(|| {
                         AuthoringDocumentError::InvalidState(format!("漫画页 {} 缺少布局", row.id))
                     })?;
-                    let layout: a4n_domain::manga::MangaPageGenerationLayoutV3 =
-                        serde_json::from_value(layout).map_err(|error| {
-                            AuthoringDocumentError::InvalidState(error.to_string())
+                    let page_number = u32::try_from(row.page_number)
+                        .ok()
+                        .filter(|number| *number > 0)
+                        .ok_or_else(|| {
+                            AuthoringDocumentError::InvalidState(format!(
+                                "漫画页 {} 的 page_number 无效",
+                                row.id
+                            ))
                         })?;
-                    layout
-                        .validate(u32::try_from(row.page_number).map_err(|error| {
-                            AuthoringDocumentError::InvalidState(error.to_string())
-                        })?)
-                        .map_err(|error| AuthoringDocumentError::InvalidState(error.to_string()))?;
+                    let (source, page_plan_ref) =
+                        match layout.get("schema_version").and_then(Value::as_str) {
+                            Some("manga_page_generation_v4") => {
+                                let layout: MangaPageGenerationLayoutV4 =
+                                    serde_json::from_value(layout).map_err(|error| {
+                                        AuthoringDocumentError::InvalidState(format!(
+                                            "漫画页 {} 的 v4 layout 无效: {error}",
+                                            row.id
+                                        ))
+                                    })?;
+                                layout.validate(page_number).map_err(|error| {
+                                    AuthoringDocumentError::InvalidState(format!(
+                                        "漫画页 {} 的 v4 layout 无效: {error}",
+                                        row.id
+                                    ))
+                                })?;
+                                (layout.source, layout.page_plan_ref)
+                            }
+                            Some("manga_page_generation_v3") => {
+                                let layout: MangaPageGenerationLayoutV3 =
+                                    serde_json::from_value(layout).map_err(|error| {
+                                        AuthoringDocumentError::InvalidState(format!(
+                                            "漫画页 {} 的 v3 layout 无效: {error}",
+                                            row.id
+                                        ))
+                                    })?;
+                                layout.validate(page_number).map_err(|error| {
+                                    AuthoringDocumentError::InvalidState(format!(
+                                        "漫画页 {} 的 v3 layout 无效: {error}",
+                                        row.id
+                                    ))
+                                })?;
+                                (layout.source, layout.page_plan_ref)
+                            }
+                            schema => {
+                                return Err(AuthoringDocumentError::InvalidState(format!(
+                                    "漫画页 {} 的 layout schema_version 不支持: {}",
+                                    row.id,
+                                    schema.unwrap_or("<missing>")
+                                )));
+                            }
+                        };
                     Ok(AuthoringArtifactSource::MangaPage {
                         chapter_id: row.chapter_id,
-                        layout,
+                        source,
+                        page_plan_ref,
                     })
                 })
                 .collect()

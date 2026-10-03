@@ -2,7 +2,8 @@ use a4n_db_models::models::generation::llm_context_pack;
 use a4n_domain::llm::{ContextPackReference, RecordOrReuseContextPackInput};
 use chrono::Utc;
 use sea_orm::{
-    ColumnTrait, Condition, ConnectionTrait, DbErr, EntityTrait, QueryFilter, QuerySelect, Set,
+    ColumnTrait, Condition, ConnectionTrait, DbErr, EntityTrait, QueryFilter, Set,
+    sea_query::OnConflict,
 };
 use std::collections::{HashMap, HashSet};
 
@@ -37,10 +38,14 @@ where
     let existing_keys = models.keys().cloned().collect::<HashSet<_>>();
     let pending_inputs = pending_context_pack_inputs(&existing_keys, &inputs);
     if !pending_inputs.is_empty() {
-        let inserted = insert_context_packs(db, pending_inputs).await?;
-        for model in inserted {
-            models.insert(identity_key_model(&model), model);
-        }
+        insert_context_packs(db, pending_inputs).await?;
+        models = llm_context_pack::Entity::find()
+            .filter(context_pack_lookup_condition(&inputs))
+            .all(db)
+            .await?
+            .into_iter()
+            .map(|model| (identity_key_model(&model), model))
+            .collect();
     }
 
     inputs_for_models(&models, &inputs)
@@ -69,71 +74,11 @@ pub async fn record_or_reuse_context_pack_references<C>(
 where
     C: ConnectionTrait,
 {
-    if inputs.is_empty() {
-        return Ok(Vec::new());
-    }
-
-    let lookup = context_pack_lookup_condition(&inputs);
-    let mut references = llm_context_pack::Entity::find()
-        .select_only()
-        .column(llm_context_pack::Column::Id)
-        .column(llm_context_pack::Column::ProjectId)
-        .column(llm_context_pack::Column::Workflow)
-        .column(llm_context_pack::Column::PackKind)
-        .column(llm_context_pack::Column::CompressionLevel)
-        .column(llm_context_pack::Column::ContentSha256)
-        .column(llm_context_pack::Column::ConfigHash)
-        .column(llm_context_pack::Column::TokenEstimate)
-        .filter(lookup)
-        .into_tuple::<(i64, i64, String, String, String, String, String, i32)>()
-        .all(db)
-        .await?
-        .into_iter()
-        .map(
-            |(
-                id,
-                project_id,
-                workflow,
-                pack_kind,
-                compression_level,
-                content_sha256,
-                config_hash,
-                token_estimate,
-            )| {
-                (
-                    (
-                        project_id,
-                        workflow,
-                        pack_kind.clone(),
-                        compression_level.clone(),
-                        content_sha256.clone(),
-                        config_hash,
-                    ),
-                    ContextPackReference {
-                        id,
-                        pack_kind,
-                        content_sha256,
-                        compression_level,
-                        token_estimate,
-                    },
-                )
-            },
-        )
-        .collect::<HashMap<_, _>>();
-
-    let existing_keys = references.keys().cloned().collect::<HashSet<_>>();
-    let pending_inputs = pending_context_pack_inputs(&existing_keys, &inputs);
-    if !pending_inputs.is_empty() {
-        let inserted = insert_context_packs(db, pending_inputs).await?;
-        for model in inserted {
-            references.insert(
-                identity_key_model(&model),
-                context_pack_reference_from_model(&model),
-            );
-        }
-    }
-
-    inputs_for_references(&references, &inputs)
+    let models = record_or_reuse_context_packs(db, inputs).await?;
+    Ok(models
+        .iter()
+        .map(context_pack_reference_from_model)
+        .collect())
 }
 
 fn inputs_for_models(
@@ -202,27 +147,31 @@ fn pending_context_pack_inputs(
 async fn insert_context_packs<C>(
     db: &C,
     pending_inputs: Vec<RecordOrReuseContextPackInput>,
-) -> Result<Vec<llm_context_pack::Model>, LlmContextPackDbError>
+) -> Result<(), LlmContextPackDbError>
 where
     C: ConnectionTrait,
 {
-    let expected = pending_inputs.len();
-    let inserted = llm_context_pack::Entity::insert_many(
+    llm_context_pack::Entity::insert_many(
         pending_inputs
             .into_iter()
             .map(context_pack_active_model)
             .collect::<Result<Vec<_>, _>>()?,
     )
-    .exec_with_returning_many(db)
+    .on_conflict(
+        OnConflict::columns([
+            llm_context_pack::Column::ProjectId,
+            llm_context_pack::Column::Workflow,
+            llm_context_pack::Column::PackKind,
+            llm_context_pack::Column::CompressionLevel,
+            llm_context_pack::Column::ContentSha256,
+            llm_context_pack::Column::ConfigHash,
+        ])
+        .do_nothing()
+        .to_owned(),
+    )
+    .exec_without_returning(db)
     .await?;
-    if inserted.len() != expected {
-        return Err(LlmContextPackDbError::InvalidArgument(format!(
-            "LLM 上下文包批量插入返回行数不一致: inserted={}, expected={}",
-            inserted.len(),
-            expected
-        )));
-    }
-    Ok(inserted)
+    Ok(())
 }
 
 fn identity_key_model(model: &llm_context_pack::Model) -> ContextPackIdentity {
@@ -244,25 +193,6 @@ fn context_pack_reference_from_model(model: &llm_context_pack::Model) -> Context
         compression_level: model.compression_level.clone(),
         token_estimate: model.token_estimate,
     }
-}
-
-fn inputs_for_references(
-    references: &HashMap<ContextPackIdentity, ContextPackReference>,
-    inputs: &[RecordOrReuseContextPackInput],
-) -> Result<Vec<ContextPackReference>, LlmContextPackDbError> {
-    inputs
-        .iter()
-        .map(|input| {
-            references
-                .get(&identity_key_input(input))
-                .cloned()
-                .ok_or_else(|| {
-                    LlmContextPackDbError::InvalidArgument(
-                        "LLM 上下文包批量读取缺少对应记录".to_string(),
-                    )
-                })
-        })
-        .collect()
 }
 
 fn context_pack_active_model(

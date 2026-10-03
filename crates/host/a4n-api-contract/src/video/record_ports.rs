@@ -20,7 +20,7 @@ pub trait VideoRecordReadApplicationPort: Send + Sync {
         &self,
         user_id: i64,
         project_id: i64,
-        chapter_id: i64,
+        chapter_id: Option<i64>,
         reference_image_ids_json: Option<&Value>,
     ) -> Result<Vec<crate::image::GeneratedImageSummary>, a4n_error::AppError>;
 }

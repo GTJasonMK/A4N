@@ -548,7 +548,11 @@ def wait_for_provider(base_url: str, timeout: float, process: subprocess.Popen[b
     raise RunnerError(f"mock provider 未在 {timeout:g}s 内就绪: {last_error}")
 
 
-def check_provider_contract(base_url: str, timeout: float) -> dict[str, Any]:
+def check_provider_contract(
+    base_url: str,
+    timeout: float,
+    embedding_dimension: int = 8,
+) -> dict[str, Any]:
     def request(path: str, body: dict[str, Any] | None = None) -> Any:
         url = f"{base_url}{path}"
         headers = {"Authorization": "Bearer a4n-e2e-provider-key"}
@@ -634,13 +638,15 @@ def check_provider_contract(base_url: str, timeout: float) -> dict[str, Any]:
         or len(vectors) != 1
         or not isinstance(vectors[0], dict)
         or not isinstance(vectors[0].get("embedding"), list)
-        or len(vectors[0]["embedding"]) != 8
+        or len(vectors[0]["embedding"]) != embedding_dimension
         or not all(
             isinstance(value, (int, float)) and not isinstance(value, bool)
             for value in vectors[0]["embedding"]
         )
     ):
-        raise RunnerError("mock provider embedding 合同不是单个 8 维向量")
+        raise RunnerError(
+            f"mock provider embedding 合同不是单个 {embedding_dimension} 维向量"
+        )
     if (
         not isinstance(image_data, list)
         or not image_data
@@ -662,7 +668,7 @@ def check_provider_contract(base_url: str, timeout: float) -> dict[str, Any]:
     return {
         "models": len(model_ids),
         "text": "chat-completions",
-        "embedding_dimension": 8,
+        "embedding_dimension": embedding_dimension,
         "image": "png",
         "video": "mp4",
     }

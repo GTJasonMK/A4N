@@ -8,6 +8,19 @@
     }
 
     #[test]
+    fn manga_pipeline_start_commands_return_task_handles() {
+        for command in ["start_manga_pipeline", "resume_manga_pipeline"] {
+            let descriptor = command_descriptor(command).unwrap();
+            assert_eq!(descriptor.result_schema["type"], "object", "{command}");
+            assert_eq!(
+                descriptor.result_schema["properties"]["task_id"]["type"],
+                "string",
+                "{command}"
+            );
+        }
+    }
+
+    #[test]
     fn chapter_video_preview_uses_the_shared_override_contract() {
         let descriptor = command_descriptor("preview_chapter_video_request").unwrap();
         assert_eq!(

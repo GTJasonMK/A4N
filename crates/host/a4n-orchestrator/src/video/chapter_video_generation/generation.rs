@@ -292,7 +292,7 @@ impl OrchestratorContext {
             .resolve_chapter_video_image_inputs_for_preview(ChapterVideoImageInput {
                 user_id,
                 project_id,
-                chapter_id,
+                chapter_id: Some(chapter_id),
                 mode,
                 transport,
                 reference_image_ids: selected_reference_image_ids,

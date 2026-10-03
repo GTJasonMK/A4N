@@ -6,8 +6,10 @@ from pathlib import Path
 from unittest.mock import Mock, patch
 
 from run_creation_e2e import (
-    ROOT, RunnerError, STAGES, acceptance_passed, acceptance_result,
-    files_fingerprint, frontend_fingerprint, read_suite_report, selected_suites, source_fingerprint, stop_postgres,
+    FULL_GENERATION_SUITES, ROOT, RunnerError, STAGES, acceptance_passed,
+    acceptance_result, files_fingerprint, frontend_fingerprint,
+    full_generation_matrix_report, read_all_workflows_report, read_suite_report,
+    selected_suites, source_fingerprint, stop_postgres,
 )
 from run_browser_full_project_e2e import secure_mkdir, stop_process, tail
 
@@ -50,6 +52,46 @@ class CreationAcceptanceTest(unittest.TestCase):
         browser = {"inspiration": {"status": "passed"}}
         self.assertEqual(acceptance_result({"inspiration"}, suites, browser)["inspiration"]["status"], "passed")
         self.assertNotIn("director", selected_suites({"inspiration"}))
+
+    def test_full_run_selects_every_generation_suite_and_single_stage_does_not(self):
+        selected = selected_suites(set(STAGES))
+        self.assertTrue(set(FULL_GENERATION_SUITES).issubset(selected))
+        self.assertFalse(set(FULL_GENERATION_SUITES) & set(selected_suites({"inspiration"})))
+        for script in FULL_GENERATION_SUITES.values():
+            self.assertTrue((ROOT / "scripts/tests" / script).is_file(), script)
+
+    def test_full_generation_matrix_fails_if_any_suite_is_missing_or_failed(self):
+        passed = {name: {"success": True} for name in FULL_GENERATION_SUITES}
+        self.assertEqual(full_generation_matrix_report(passed)["status"], "passed")
+        del passed["all_workflows"]
+        self.assertIn("all_workflows", full_generation_matrix_report(passed)["failed_suites"])
+        passed["all_workflows"] = {"success": False}
+        self.assertIn("all_workflows", full_generation_matrix_report(passed)["failed_suites"])
+
+    def test_all_workflows_report_requires_every_declared_fixture_path(self):
+        from run_all_workflows_e2e import FIXTURE_PATHS
+
+        path = self.scratch() / "all-workflows.json"
+        report = {
+            "success": True,
+            "fixtures": {
+                "enabled": True,
+                "only": True,
+                "paths": {
+                    "complete": True,
+                    "paths": {name: {"status": "passed"} for name in FIXTURE_PATHS},
+                },
+            },
+        }
+        path.write_text(json.dumps(report))
+        self.assertTrue(read_all_workflows_report(path, 0)["success"])
+        report["fixtures"]["paths"]["paths"].pop("manga")
+        path.write_text(json.dumps(report))
+        self.assertFalse(read_all_workflows_report(path, 0)["success"])
+        report["fixtures"]["paths"]["paths"] = {name: {"status": "passed"} for name in FIXTURE_PATHS}
+        report["fixtures"]["paths"]["paths"]["manga"]["status"] = "failed"
+        path.write_text(json.dumps(report))
+        self.assertFalse(read_all_workflows_report(path, 0)["success"])
 
     def test_suite_exit_failure_cannot_be_hidden_by_completed_stage_rows(self):
         report = {"browser": {"exit_code": 0}, "stages": {"inspiration": {"status": "passed"}}, "suites": {"authoring": {"success": False}}}

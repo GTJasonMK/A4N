@@ -1072,7 +1072,7 @@ impl OrchestratorContext {
         reference_image_ids: Option<&Value>,
     ) -> Result<(), AppError> {
         let project_ids = self
-            .validated_video_reference_images(project_id, chapter_id, reference_image_ids)
+            .validated_video_reference_images(project_id, Some(chapter_id), reference_image_ids)
             .await?
             .into_iter()
             .map(|image| image.project_id)

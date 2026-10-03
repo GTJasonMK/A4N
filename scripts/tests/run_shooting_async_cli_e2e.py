@@ -7,6 +7,7 @@ import selectors
 import subprocess
 import tempfile
 import time
+import traceback
 import uuid
 from pathlib import Path
 
@@ -53,10 +54,9 @@ def main():
                 assert actual["handle"]["status"] == status, actual
                 return actual
 
-            def fixture(title, *, video_before_plan=False):
+            def fixture(title, *, update_source=False):
                 project = checked(cli, ["project", "create", "--title", title, "--project-type", "novel_long", "--use-context"], "project")[0]["data"]
                 chapter = checked(cli, ["chapter", "import", "--number", "1", "--title", "门与机房", "--content", "林岚停在旧车站通道入口。她观察墙上的钟，推开门，进入地下机房。周衡留在门外。"], "chapter")[0]["data"]
-                resource = {"project_id": project["id"], "source_chapter_id": chapter["id"]}
                 scenes = [call("create_scene_profile", {"project_id": project["id"], "profile": {
                     "name": name, "scene_type": "room", "importance": "primary", "base_description": name,
                     "visual_description": "门框与挂钟", "spatial_layout": "通道通向门口", "atmosphere": "安静",
@@ -65,7 +65,20 @@ def main():
                 video = call("create_derived_project", {
                     "root_project_id": project["id"], "derived_kind": "video", "title": title + "：视频",
                     "description": "来源同步回归", "start_chapter": 1, "end_chapter": 1,
-                }) if video_before_plan else None
+                })
+                resource = {"project_id": video["id"], "source_chapter_id": chapter["id"]}
+                if update_source:
+                    root_chapter = next(
+                        item for item in call("list_chapters", {"projectId": project["id"]})
+                        if item["id"] == chapter["id"]
+                    )
+                    call("update_chapter_content", {
+                        "chapter_id": root_chapter["id"],
+                        "expected_revision": root_chapter["edit_revision"],
+                        "content": root_chapter["content"] + "\n\n来源同步回归：林岚把怀表留在门边。",
+                        "title": root_chapter["title"],
+                    })
+                    sync_apply(sync_preview(video, 1))
                 plan = call("get_chapter_visual_plan", resource)["starter_plan"]
                 plan["points"] = [{"id": name, "at_ms": at, "label": name, "image_id": None,
                                    "description": "当前场景画面", "reference_image_ids": []}
@@ -82,7 +95,7 @@ def main():
                                                                   "expected_revision": draft["record"]["revision"]}, destructive=True)["visual_plan"]
                 source = {**resource, "visual_plan_id": confirmed["record"]["id"], "shot_ids": []}
                 report["fixtures"].append(source)
-                return resource, source, video
+                return resource, source, video, project["id"]
 
             def sync_preview(video, changes):
                 preview = call("preview_source_sync", {"derived_project_id": video["id"]})
@@ -98,13 +111,11 @@ def main():
                 return call("get_project", {"projectId": video["id"]}, raw=True)
 
             configure("a4n-shooting-background-slow")
-            resource, source, video = fixture("异步剧本：断线与停止", video_before_plan=True)
+            resource, source, video, root_project_id = fixture("异步剧本：断线与停止", update_source=True)
             video_resource = {**resource, "project_id": video["id"]}
-            assert video_state(video)["source_sync_status"] == "root_updated"
-            sync_apply(sync_preview(video, 1))
             assert video_state(video)["source_sync_status"] == "current"
             assert call("get_chapter_shooting_script", video_resource) is None
-            report["checks"].append("confirming a director plan after video creation marks its source updated and appears in the sync preview even without body changes")
+            report["checks"].append("editing a source chapter after video creation appears in the sync preview before script generation")
             request = {"meta": meta(), **source, "mode": "full"}
             started = time.monotonic()
             handle = call("start_chapter_shooting_script_generation", request)
@@ -153,21 +164,12 @@ def main():
             }]
             partial = call("edit_chapter_shooting_script_progress", {**resource, "workflow_run_id": retained["workflow_run_id"],
                          "expected_script": retained["script"], "script": edited})["progress"]
-            assert call("get_chapter_shooting_script_unit_progress", video_resource) is None
-            assert video_state(video)["source_sync_status"] == "root_updated"
-            sync_apply(sync_preview(video, 1))
-            partial_frozen = call("get_chapter_shooting_script", video_resource)
-            assert len(partial_frozen["script"]["scenes"]) == 1
-            assert partial_frozen["script"]["scenes"][0]["title"] == edited["scenes"][0]["title"]
-            assert partial_frozen["script"]["scenes"][0]["transition_contracts"] == []
-            assert call("get_chapter_shooting_script_unit_progress", resource)["script"] == edited
+            assert partial["script"] == edited
+            assert call("get_chapter_shooting_script_unit_progress", video_resource)["script"] == edited
+            assert video_state(video)["source_sync_status"] == "current"
             sync_preview(video, 0)
-            planning_video = call("create_derived_project", {
-                "root_project_id": resource["project_id"], "derived_kind": "video", "title": "冻结部分场景的片段规划",
-                "description": "已完成场景可独立规划", "start_chapter": 1, "end_chapter": 1,
-            })
             configure()
-            planning = call("start_video_generation", {"project_id": planning_video["id"], "meta": meta(), "operation": {
+            planning = call("start_video_generation", {"project_id": video["id"], "meta": meta(), "operation": {
                 "kind": "prompt_segment_plan", "chapter_id": resource["source_chapter_id"], "options": {
                     "workflow_mode": "shared_segment_plan", "style": "电影感", "prompt_output_language": "zh_cn",
                     "prompt_batch_size": 1, "duration_secs": 6, "duration_secs_options": [6], "aspect_ratio": "16:9",
@@ -176,10 +178,10 @@ def main():
                 },
             }})
             terminal(planning)
-            plans = call("list_chapter_video_prompts", {"projectId": planning_video["id"], "chapterId": resource["source_chapter_id"]}, raw=True)
+            plans = call("list_chapter_video_prompts", {"projectId": video["id"], "chapterId": resource["source_chapter_id"]}, raw=True)
             plan = next(item for item in plans if item["workflow_mode"] == "shared_segment_plan")
             assert plan["metadata_json"]["segments"] and all(segment["source_shot_id"] == "shot-1" for segment in plan["metadata_json"]["segments"])
-            report["checks"].append("explicit source sync freezes the completed first scene, preserves the root continuation, and supports real segment planning in a derived video project")
+            report["checks"].append("a cancelled shooting workflow retains its completed scene and can plan video from that scene in the same derived project")
 
             before = len(provider_log_entries(args.provider_log))
             resumed = call("start_chapter_shooting_script_generation", {"meta": meta(), **source, "mode": "next_scene"})
@@ -189,38 +191,13 @@ def main():
             assert result["result_ref"] == {"kind": "chapter_shooting_script", "id": str(view["record"]["id"]), "revision": str(view["record"]["revision"])}
             assert not any("target_shot_id=shot-1" in json.dumps(row.get("body", {}), ensure_ascii=False)
                            for row in provider_log_entries(args.provider_log)[before:])
-            report["checks"].append("a new observer resumes the remaining scene without regenerating the completed shot or losing author edits, and reads the final revision by result reference")
-
-            assert video_state(video)["source_sync_status"] == "root_updated"
-            assert call("get_chapter_shooting_script", video_resource) == partial_frozen
-            report["checks"].append("frozen partial scenes remain visible after the root workflow completes; they change only on the next source sync")
-            sync_apply(sync_preview(video, 1))
-            frozen = call("get_chapter_shooting_script", video_resource)
-            assert frozen["script"]["scenes"] == view["script"]["scenes"]
-            assert frozen["script"]["visual_plan_source"]["plan_id"] != view["script"]["visual_plan_source"]["plan_id"]
-            sync_apply(sync_preview(video, 0))
             assert video_state(video)["source_sync_status"] == "current"
-            report["checks"].append("a script generated after video creation is detected and becomes readable after explicit sync; copying plan identities does not create false changes")
-
-            unchanged_preview = sync_preview(video, 0)
-            modified = copy.deepcopy(view["script"])
-            modified["scenes"][0]["title"] = "同步后的作者修订"
-            call("edit_chapter_shooting_script", {
-                **resource, "record_id": view["record"]["id"], "expected_revision": view["record"]["revision"],
-                "script": modified,
-            })
-            assert video_state(video)["source_sync_status"] == "root_updated"
-            stale = cli.run(["call", "apply_source_sync_decisions", "--args", "-", "--allow-destructive"], stdin=json.dumps({
-                "input": {"sync_run_id": unchanged_preview["run"]["id"], "decisions": []},
-            }))
-            assert stale["exit_code"] in (6, 8) and "root_changed_after_dry_run" in json.dumps(stale), stale
-            sync_apply(sync_preview(video, 1))
-            assert call("get_chapter_shooting_script", video_resource)["script"]["scenes"][0]["title"] == modified["scenes"][0]["title"]
-            report["checks"].append("script edits invalidate stale sync previews and a new preview safely imports the edited scenes")
+            assert call("get_chapter_shooting_script", video_resource) == view
+            report["checks"].append("a new observer resumes the remaining scene without regenerating the completed shot or losing author edits")
             report["synced_video_project_id"] = video["id"]
 
             configure("a4n-checkpoint-fail-shooting-design-second-shot")
-            resource, source, _ = fixture("异步剧本：失败恢复")
+            resource, source, _, root_project_id = fixture("异步剧本：失败恢复")
             failed = call("start_chapter_shooting_script_generation", {"meta": meta(), **source, "mode": "full"})
             terminal(failed, "failed")
             partial = call("get_chapter_shooting_script_unit_progress", resource)
@@ -232,7 +209,7 @@ def main():
             report["checks"].append("invalid output in the second scene fails visibly; the first scene survives and a later task completes the remaining work")
 
             configure("a4n-shooting-background-slow")
-            resource, source, _ = fixture("首场完成前停止后续写")
+            resource, source, _, root_project_id = fixture("首场完成前停止后续写")
             early = call("start_chapter_shooting_script_generation", {"meta": meta(), **source, "mode": "full"})
             deadline = time.monotonic() + 30
             run_id = None
@@ -261,21 +238,21 @@ def main():
             terminal(failed, "failed")
             partial = call("get_chapter_shooting_script_unit_progress", resource)
             discarded_video = call("create_derived_project", {
-                "root_project_id": resource["project_id"], "derived_kind": "video", "title": "保留来源删除前的场景",
+                "root_project_id": root_project_id, "derived_kind": "video", "title": "保留来源删除前的场景",
                 "description": "快照稳定性", "start_chapter": 1, "end_chapter": 1,
             })
             call("cancel_workflow", {"task_id": None, "workflow_run_id": partial["workflow_run_id"]}, destructive=True)
             assert call("get_chapter_shooting_script_unit_progress", resource) is None
-            assert video_state(discarded_video)["source_sync_status"] == "root_updated"
-            kept = call("get_chapter_shooting_script", {**resource, "project_id": discarded_video["id"]})
-            assert len(kept["script"]["scenes"]) == 1
-            report["checks"].append("discarding failed resumable work removes live progress, marks derived sources updated and preserves their frozen scenes")
+            sibling_state = video_state(discarded_video)
+            assert sibling_state["source_sync_status"] == "current", sibling_state
+            report["checks"].append("discarding failed resumable work removes only its progress and leaves sibling source state current")
             if args.prepare_browser:
-                _, report["browser_source"], browser_video = fixture("浏览器改编恢复验证", video_before_plan=True)
+                _, report["browser_source"], browser_video, _ = fixture("浏览器改编恢复验证")
                 report["browser_video_project_id"] = browser_video["id"]
             report["success"] = True
     except (RunnerError, OSError, ValueError, TypeError, KeyError, AssertionError, subprocess.TimeoutExpired) as error:
         report["error"] = f"{type(error).__name__}: {error}"
+        report["traceback"] = traceback.format_exc()
     finally:
         secure_json(args.report, report)
     print(json.dumps(report, ensure_ascii=False))

@@ -143,7 +143,7 @@ pub(in crate::video) async fn generate_inserted_segment_draft(
     if !reference_ids.is_empty() {
         let reference_json = json!(reference_ids);
         service
-            .validated_video_reference_images(project_id, chapter_id, Some(&reference_json))
+            .validated_video_reference_images(project_id, Some(chapter_id), Some(&reference_json))
             .await?;
     }
     let neighbor_context = crate::video::timeline::inserted_segment_neighbor_context(

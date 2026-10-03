@@ -53,6 +53,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--password-env", default="A4N_PASSWORD")
     parser.add_argument("--report", type=Path)
     parser.add_argument("--provider-url")
+    parser.add_argument("--provider-log", type=Path)
+    parser.add_argument("--embedding-dimension", type=int, default=384)
     parser.add_argument(
         "--provider-script",
         type=Path,
@@ -205,13 +207,21 @@ def main() -> int:
             checked(cli, ["health"], "health")
             checked(cli, ["capabilities", "check"], "capabilities check")
 
-            provider, provider_log = start_provider(args, report_path.parent, run_id)
+            provider, provider_log = start_provider(
+                args, report_path.parent, run_id, request_log_path=args.provider_log
+            )
             report["provider_url"] = provider.base_url
             report["provider_contract"] = check_provider_contract(
-                provider.base_url, args.command_timeout
+                provider.base_url, args.command_timeout, args.embedding_dimension
             )
             runtime_path = work / "runtime-config.json"
-            secure_json(runtime_path, runtime_snapshot(provider.base_url))
+            secure_json(
+                runtime_path,
+                runtime_snapshot(
+                    provider.base_url,
+                    embedding_dimension=args.embedding_dimension,
+                ),
+            )
             checked(
                 cli,
                 ["config", "runtime", "set", "--input", f"@{runtime_path}"],

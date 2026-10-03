@@ -12,7 +12,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 pub const VIDEO_RECORD_WORKER_ID: &str = "video-record-worker";
-pub const VIDEO_RECORD_WORKER_CONTRACT_VERSION: &str = "video-record-v4";
+pub const VIDEO_RECORD_WORKER_CONTRACT_VERSION: &str = "video-record-v5";
 pub const VIDEO_RECORD_CAPABILITY: &str = "video.record.read";
 pub const VIDEO_RECORD_MUTATION_CAPABILITY: &str = "video.record.mutation";
 pub const VIDEO_PROMPT_CAPABILITY: &str = "video.prompt.read";
@@ -60,7 +60,7 @@ pub struct ChapterVideosInput {
 #[serde(deny_unknown_fields)]
 pub struct ReferenceImagesInput {
     pub project_id: i64,
-    pub chapter_id: i64,
+    pub chapter_id: Option<i64>,
     pub reference_image_ids_json: Option<Value>,
 }
 
@@ -108,5 +108,24 @@ mod tests {
             },
         };
         request.validate().expect("video record request validates");
+    }
+
+    #[test]
+    fn reference_image_scope_supports_project_and_chapter_contexts() {
+        let project_scope: ReferenceImagesInput = serde_json::from_value(serde_json::json!({
+            "project_id": 9,
+            "chapter_id": null,
+            "reference_image_ids_json": [12]
+        }))
+        .expect("project-scoped reference input deserializes");
+        assert_eq!(project_scope.chapter_id, None);
+
+        let chapter_scope: ReferenceImagesInput = serde_json::from_value(serde_json::json!({
+            "project_id": 9,
+            "chapter_id": 10,
+            "reference_image_ids_json": [12]
+        }))
+        .expect("chapter-scoped reference input deserializes");
+        assert_eq!(chapter_scope.chapter_id, Some(10));
     }
 }
