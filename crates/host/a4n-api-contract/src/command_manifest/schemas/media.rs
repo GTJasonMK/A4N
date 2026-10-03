@@ -338,6 +338,9 @@ pub(crate) fn args_preview_resume_manga_pipeline_request() -> Value {
 pub(crate) fn args_preview_start_manga_pipeline_request() -> Value {
     strict_typed_input_schema::<crate::manga::MangaPipelineStartInput>()
 }
+pub(crate) fn args_prepare_standalone_comic_source() -> Value {
+    strict_typed_input_schema::<crate::manga::PrepareStandaloneComicSourceInput>()
+}
 pub(crate) fn args_preview_test_image_config_request() -> Value {
     json!({
         "type": "object",
@@ -396,6 +399,15 @@ pub(crate) fn result_edit_canvas_graph() -> Value {
 }
 pub(crate) fn args_save_canvas_text_asset() -> Value {
     strict_typed_input_schema::<crate::canvas::SaveCanvasTextAssetInput>()
+}
+pub(crate) fn args_list_canvas_text_assets() -> Value {
+    strict_typed_input_schema::<crate::canvas::ListCanvasTextAssetsInput>()
+}
+pub(crate) fn args_list_canvas_text_asset_versions() -> Value {
+    strict_typed_input_schema::<crate::canvas::ListCanvasTextAssetVersionsInput>()
+}
+pub(crate) fn args_canvas_text_asset_draft() -> Value {
+    strict_typed_input_schema::<crate::canvas::CanvasTextAssetDraftInput>()
 }
 pub(crate) fn args_select_segment_video() -> Value {
     json!({
@@ -641,6 +653,9 @@ pub(crate) fn result_get_manga_pipeline_status() -> Value {
 pub(crate) fn result_list_manga_pipeline_statuses() -> Value {
     typed_schema::<Vec<crate::manga::MangaPipelineStatusSummary>>()
 }
+pub(crate) fn result_prepare_standalone_comic_source() -> Value {
+    typed_schema::<crate::manga::MangaStandaloneSourceSummary>()
+}
 pub(crate) fn result_get_primary_portrait() -> Value {
     typed_schema::<Option<crate::portrait::PortraitSummary>>()
 }
@@ -703,6 +718,15 @@ pub(crate) fn result_run_galgame_asset_generation() -> Value {
 }
 pub(crate) fn result_save_canvas_text_asset() -> Value {
     typed_schema::<crate::canvas::CanvasTextAssetSummary>()
+}
+pub(crate) fn result_canvas_text_assets() -> Value {
+    typed_schema::<Vec<crate::canvas::CanvasTextAssetSummary>>()
+}
+pub(crate) fn result_canvas_text_asset_versions() -> Value {
+    typed_schema::<Vec<crate::canvas::CanvasTextAssetVersionSummary>>()
+}
+pub(crate) fn result_canvas_text_asset_draft() -> Value {
+    typed_schema::<crate::canvas::CanvasTextAssetDraftSummary>()
 }
 pub(crate) fn result_generated_video() -> Value {
     typed_schema::<crate::video::GeneratedVideoSummary>()

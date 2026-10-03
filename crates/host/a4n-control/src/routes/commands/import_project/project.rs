@@ -12,8 +12,8 @@ pub(in crate::routes::commands) use collaboration::{
 };
 pub(in crate::routes::commands) use duplication::duplicate_project;
 pub(in crate::routes::commands) use records::{
-    create_derived_project, create_freeform_video_project, create_project, delete_project,
-    get_project, get_project_asset_dependency_graph,
+    create_derived_project, create_freeform_video_project, create_project,
+    create_standalone_comic_project, delete_project, get_project, get_project_asset_dependency_graph,
     get_project_asset_dependency_graph_node_detail, list_projects, list_source_snapshot_chapters,
     reset_project_generated_data, update_project,
 };

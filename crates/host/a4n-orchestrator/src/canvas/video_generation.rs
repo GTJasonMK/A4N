@@ -123,6 +123,13 @@ impl OrchestratorContext {
         .await?;
         self.require_freeform_video_project(input.project_id)
             .await?;
+        let document = self
+            .canvas_document_with_workflow_text_asset_snapshot(
+                input.document,
+                input.shared_run.map(|run| run.workflow_run_id),
+                input.node.id,
+            )
+            .await?;
         let checkpoints = match input.shared_run {
             Some(run) => Some(
                 self.workflow_checkpoint_summaries(run.workflow_run_id)
@@ -131,7 +138,7 @@ impl OrchestratorContext {
             None => None,
         };
         let video_input =
-            build_canvas_video_node_input(input.node, input.document, checkpoints.as_deref())
+            build_canvas_video_node_input(input.node, &document, checkpoints.as_deref())
                 .map_err(AppError::InvalidArgument)?;
         let PreparedCanvasVideoRequest {
             config,

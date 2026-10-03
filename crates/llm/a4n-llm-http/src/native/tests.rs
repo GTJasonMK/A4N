@@ -43,7 +43,7 @@ fn responses_preserves_text_usage_and_reasoning_for_tool_replay() {
         json!({"type": "response.output_text.delta", "delta": "查询上海"}),
         json!({"type": "response.reasoning_summary_text.delta", "delta": "先查天气"}),
         json!({"type": "response.completed", "response": {
-            "status": "completed", "output": [reasoning.clone(), {
+            "status": "completed", "output": [reasoning, {
                 "type": "function_call", "call_id": "call_1", "name": "weather", "arguments": "{\"city\":\"上海\"}"
             }], "usage": {"input_tokens": 5, "output_tokens": 3, "total_tokens": 8, "input_tokens_details": {"cached_tokens": 2}}
         }}),

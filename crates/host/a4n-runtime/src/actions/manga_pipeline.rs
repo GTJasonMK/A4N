@@ -31,9 +31,23 @@ impl MangaPipelinePageImageGenerator for RuntimeMangaPipelinePageImageGenerator<
     }
 }
 
-pub use a4n_api_contract::manga::{MangaPipelineResumeInput, MangaPipelineStartInput};
+pub use a4n_api_contract::manga::{
+    MangaPipelineResumeInput, MangaPipelineStartInput, PrepareStandaloneComicSourceInput,
+};
 pub use execution::preflight_manga_pipeline;
 pub use preview::preview_manga_pipeline_requests;
+
+pub async fn prepare_standalone_comic_source(
+    state: &AppState,
+    user_id: i64,
+    input: PrepareStandaloneComicSourceInput,
+) -> Result<a4n_api_contract::manga::MangaStandaloneSourceSummary, String> {
+    state
+        .manga_pipeline_execution_application()
+        .prepare_standalone_source(user_id, input)
+        .await
+        .map_err(crate::actions::app_error_message)
+}
 
 pub async fn start_manga_pipeline_typed(
     state: &AppState,

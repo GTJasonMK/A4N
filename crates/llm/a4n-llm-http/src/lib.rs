@@ -18,7 +18,7 @@ use provider::HttpLlmProvider;
 
 use a4n_error::AppError;
 use a4n_llm_provider_contract::{
-    LlmProtocolKind, LlmProvider, ModelCapabilities, validate_prompt_cache_options,
+    ChatRequest, LlmProtocolKind, LlmProvider, ModelCapabilities, validate_prompt_cache_options,
 };
 use serde_json::Value;
 
@@ -59,6 +59,49 @@ pub fn pick_llm_provider(
         )?)),
         None => Err(AppError::ConfigError(format!(
             "不支持的 LLM provider: {provider}"
+        ))),
+    }
+}
+
+pub fn request_body_preview(
+    provider_kind: &str,
+    model: &str,
+    extra_body_json: Option<Value>,
+    capabilities: ModelCapabilities,
+    request: &ChatRequest,
+) -> Result<Value, AppError> {
+    validate_prompt_cache_options(provider_kind, extra_body_json.as_ref())?;
+    match LlmProtocolKind::for_provider(provider_kind) {
+        Some(
+            protocol @ (LlmProtocolKind::OpenAiChatCompletions
+            | LlmProtocolKind::OpenAiResponses
+            | LlmProtocolKind::GeminiGenerateContent),
+        ) => {
+            if protocol == LlmProtocolKind::OpenAiChatCompletions {
+                HttpLlmProvider::request_body_preview(
+                    model,
+                    extra_body_json,
+                    capabilities,
+                    provider_kind == "deepseek",
+                    request,
+                )
+            } else {
+                HttpLlmProvider::native_request_body_preview(
+                    protocol,
+                    model,
+                    extra_body_json,
+                    request,
+                )
+            }
+        }
+        Some(LlmProtocolKind::AnthropicMessages) => AnthropicLlmProvider::request_body_preview(
+            model,
+            extra_body_json,
+            capabilities,
+            request,
+        ),
+        None => Err(AppError::ConfigError(format!(
+            "不支持的 LLM provider: {provider_kind}"
         ))),
     }
 }

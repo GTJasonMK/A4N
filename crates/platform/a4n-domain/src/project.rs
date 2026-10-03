@@ -187,6 +187,7 @@ pub enum ProjectSourceMode {
     Self_,
     Derived,
     Freeform,
+    Standalone,
 }
 
 impl ProjectSourceMode {
@@ -207,6 +208,7 @@ impl ProjectSourceMode {
         ) {
             (ProjectKind::Text, false, false) => Ok(Self::Self_),
             (ProjectKind::Video, false, false) => Ok(Self::Freeform),
+            (ProjectKind::Comic, false, false) => Ok(Self::Standalone),
             (ProjectKind::Comic | ProjectKind::Video | ProjectKind::Galgame, true, true) => {
                 Ok(Self::Derived)
             }
@@ -272,10 +274,13 @@ mod tests {
             Ok(ProjectSourceMode::Freeform)
         );
         assert_eq!(
+            ProjectSourceMode::from_identity("comic", None, None),
+            Ok(ProjectSourceMode::Standalone)
+        );
+        assert_eq!(
             ProjectSourceMode::from_identity("video", Some(1), Some(2)),
             Ok(ProjectSourceMode::Derived)
         );
-        assert!(ProjectSourceMode::from_identity("comic", None, None).is_err());
         assert!(ProjectSourceMode::from_identity("text", Some(1), Some(2)).is_err());
     }
 

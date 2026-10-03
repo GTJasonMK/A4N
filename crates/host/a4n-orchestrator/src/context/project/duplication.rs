@@ -104,6 +104,22 @@ impl ProjectDuplicationApplication {
         .await
         .map_err(project_duplicate_error_to_app_error)
     }
+
+    async fn duplicate_standalone_comic(
+        &self,
+        original: ProjectRecord,
+        user_id: i64,
+        new_title: &str,
+    ) -> Result<ProjectRecord, AppError> {
+        a4n_db::project::duplicate_standalone_comic_project_record(
+            self.database.connection(),
+            original,
+            user_id,
+            new_title,
+        )
+        .await
+        .map_err(project_duplicate_error_to_app_error)
+    }
 }
 
 impl OrchestratorContext {
@@ -145,6 +161,11 @@ impl OrchestratorContext {
                     .duplicate_freeform(original, user_id, new_title, host_port)
                     .await;
                 duplication_result_with_file_rollback(result, host_port).await
+            }
+            ProjectSourceMode::Standalone => {
+                self.project_duplication
+                    .duplicate_standalone_comic(original, user_id, new_title)
+                    .await
             }
         }
     }

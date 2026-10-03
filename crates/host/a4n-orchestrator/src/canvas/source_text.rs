@@ -63,12 +63,17 @@ pub(crate) fn source_text_value(
             .filter(|value| !value.is_empty())
             .map(str::to_string));
     }
-    if let Some(asset_id) = source_canvas_text_asset_id(node)?
-        && let Some(asset) = document
+    if let Some(asset_id) = source_canvas_text_asset_id(node)? {
+        let asset = document
             .text_assets
             .iter()
             .find(|candidate| candidate.id == asset_id)
-    {
+            .ok_or_else(|| {
+                format!(
+                    "画布节点 {} 引用的文本素材 {} 不在当前运行快照中",
+                    node.id, asset_id
+                )
+            })?;
         return Ok(Some(asset.content.clone()));
     }
     Ok(canvas_config_string(&node.config_json, "content")

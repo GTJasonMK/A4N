@@ -71,3 +71,21 @@ export async function previewResumeMangaPipelineRequest(
     } satisfies Host.MangaPipelineResumeInput,
   });
 }
+
+export async function prepareStandaloneComicSource(
+  projectId: Id,
+  assetId: number,
+  version: number,
+  startSection: number,
+  endSection: number,
+): Promise<Host.MangaStandaloneSourceSummary> {
+  return apiInvoke<Host.MangaStandaloneSourceSummary>("prepare_standalone_comic_source", {
+    input: {
+      project_id: idNum(projectId),
+      asset_id: assetId,
+      version,
+      start_section: startSection,
+      end_section: endSection,
+    } satisfies Host.PrepareStandaloneComicSourceInput,
+  });
+}

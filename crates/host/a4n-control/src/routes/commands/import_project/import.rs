@@ -18,6 +18,20 @@ pub(in crate::routes::commands) async fn import_project_text_upload(
     )
 }
 
+pub(in crate::routes::commands) async fn import_project_text_asset_upload(
+    state: &ServerState,
+    user_id: i64,
+    args: &Value,
+) -> Result<Value, ApiError> {
+    let input: ImportProjectTextUploadInput =
+        strict_command_input(args, "import_project_text_asset_upload")?;
+    to_value(
+        import_file_actions::import_project_text_asset_upload(state.runtime(), user_id, input)
+            .await
+            .map_err(|error| ApiError::bad_request(error.to_string()))?,
+    )
+}
+
 macro_rules! import_web_project_command {
     ($name:ident, $action:path $(, $extra_arg:literal)* $(,)?) => {
         pub(in crate::routes::commands) async fn $name(

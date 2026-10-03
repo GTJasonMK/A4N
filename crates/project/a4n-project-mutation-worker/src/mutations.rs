@@ -98,6 +98,27 @@ impl WorkerState {
         self.summary_for_user(user_id, project.id).await
     }
 
+    pub(super) async fn create_standalone_comic(
+        &self,
+        request: WorkerEnvelope<CreateStandaloneComicProjectInput>,
+    ) -> Result<ProjectSummary, WorkerFailure> {
+        unscoped_request(&request, PROJECT_MUTATION_CREATE_STANDALONE_COMIC_OPERATION)?;
+        let user_id = user_id(&request)?;
+        let input = request.payload;
+        let title = required_text(&input.title, "项目标题")
+            .map_err(WorkerFailure::invalid_request)?
+            .to_string();
+        let description = optional_text(input.description.as_deref());
+        let project = a4n_db::project::create_standalone_comic_project_record(
+            self.database.connection(),
+            user_id,
+            a4n_db::project::CreateStandaloneComicProjectParams { title, description },
+        )
+        .await
+        .map_err(project_mutation_error)?;
+        self.summary_for_user(user_id, project.id).await
+    }
+
     pub(super) async fn update(
         &self,
         request: WorkerEnvelope<UpdateProjectInput>,

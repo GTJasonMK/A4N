@@ -21,6 +21,7 @@ mod records;
 mod rollback_impact;
 mod shared;
 mod source_snapshot;
+mod standalone_comic_source;
 mod status;
 
 pub(crate) use basic_record::derived_project_count;
@@ -72,7 +73,7 @@ pub(crate) use cleanup::{
 };
 pub use duplicate::{
     ProjectDuplicateError, duplicate_derived_project_record, duplicate_freeform_project_record,
-    duplicate_text_project_record,
+    duplicate_standalone_comic_project_record, duplicate_text_project_record,
 };
 pub use family::context::{
     ChapterMangaSourceSummary, MangaCharacterPortraitRefSummary, ProjectFamilyContext,
@@ -106,9 +107,11 @@ pub use freeform_reset::{
 };
 pub use material_refs::{primary_material_image_ids_for_projects, protagonist_profile_project_id};
 pub use mutation::{
-    CreateFreeformVideoProjectParams, CreateProjectRecordInput, PROJECT_KIND_TEXT,
+    CreateFreeformVideoProjectParams, CreateProjectRecordInput,
+    CreateStandaloneComicProjectParams, PROJECT_KIND_COMIC, PROJECT_KIND_TEXT,
     PROJECT_KIND_VIDEO, ProjectMutationError, SOURCE_SYNC_CURRENT, UpdateProjectRecordInput,
-    create_freeform_video_project_record, create_project_record, is_valid_source_sync_status,
+    create_freeform_video_project_record, create_project_record,
+    create_standalone_comic_project_record, is_valid_source_sync_status,
     normalize_derived_project_kind, normalize_project_kind, normalize_project_type,
     project_by_id_record, project_ids, project_summary_by_id_record, update_project_record,
 };
@@ -150,6 +153,10 @@ pub use source_snapshot::{
 };
 pub use source_snapshot::{authoring_scene_profiles, scene_profiles_for_source};
 pub(crate) use source_snapshot::{create_source_snapshot_in_record, source_snapshot_version_hash};
+pub use standalone_comic_source::{
+    PrepareStandaloneComicSourceDbInput, StandaloneComicSourceDbError,
+    prepare_standalone_comic_source_chapter,
+};
 pub(crate) use status::delete_project_status_history;
 pub use status::{
     ProjectStatusReadError, ProjectStatusWriteError, insert_project_status_history,

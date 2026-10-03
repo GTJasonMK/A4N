@@ -9,6 +9,8 @@ export const comic = {
   noEditPermission: "当前账号没有编辑此漫画项目的权限。",
   loadingChapters: "加载章节…",
   loadChaptersFailed: "加载章节失败",
+  prepareSourceFailed: "准备漫画文本来源失败",
+  sourceSelectionSaveFailed: "保存文本来源选择失败",
   loadPipelineStatusFailed: "加载漫画流水线状态失败",
   loadPagePromptsFailed: "加载整页提示词失败",
   loadCharacterAssetsFailed: "加载角色立绘状态失败",

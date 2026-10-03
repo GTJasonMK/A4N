@@ -2,9 +2,11 @@ use super::super::remap::remap_video_studio_required_id;
 use super::super::types::{
     VideoStudioProjectImportError, VideoStudioProjectImportIdMaps, VideoStudioProjectImportRows,
 };
-use a4n_db_models::models::canvas::{canvas_edge, canvas_graph, canvas_node, canvas_text_asset};
-use a4n_domain::canvas::CanvasTextAssetRecord;
-use sea_orm::{ConnectionTrait, EntityTrait, Set};
+use a4n_db_models::models::canvas::{
+    canvas_edge, canvas_graph, canvas_node, canvas_text_asset, canvas_text_asset_version,
+};
+use a4n_domain::canvas::{CanvasTextAssetRecord, CanvasTextAssetVersionRecord};
+use sea_orm::{ActiveModelTrait, ConnectionTrait, EntityTrait, Set};
 
 pub(crate) async fn import_video_studio_canvas_text_assets<C>(
     db: &C,
@@ -19,6 +21,22 @@ where
     if assets.is_empty() {
         return Ok(());
     }
+    for asset in assets {
+        let current = asset
+            .versions
+            .iter()
+            .find(|version| version.version == asset.current_version);
+        if !asset.versions.is_empty()
+            && !current.is_some_and(|version| {
+                version.content == asset.content && version.content_hash == asset.content_hash
+            })
+        {
+            return Err(VideoStudioProjectImportError::InvalidPackage(format!(
+                "文本素材当前版本内容不一致: canvas_text_asset_id={}",
+                asset.id
+            )));
+        }
+    }
     let rows = assets
         .iter()
         .map(|asset| canvas_text_asset::ActiveModel {
@@ -27,6 +45,7 @@ where
             text_kind: Set(asset.text_kind.clone()),
             content: Set(asset.content.clone()),
             content_hash: Set(asset.content_hash.clone()),
+            current_version: Set(asset.current_version),
             created_at: Set(now),
             updated_at: Set(now),
             ..Default::default()
@@ -43,6 +62,30 @@ where
     }
     for (asset, row) in assets.iter().zip(inserted) {
         maps.text_asset_ids.insert(asset.id, row.id);
+        let versions = if asset.versions.is_empty() {
+            vec![CanvasTextAssetVersionRecord {
+                canvas_text_asset_id: asset.id,
+                version: asset.current_version,
+                content: asset.content.clone(),
+                content_hash: asset.content_hash.clone(),
+                created_at: asset.created_at,
+            }]
+        } else {
+            asset.versions.clone()
+        };
+        for version in versions {
+            canvas_text_asset_version::ActiveModel {
+                canvas_text_asset_id: Set(row.id),
+                version: Set(version.version),
+                content: Set(version.content),
+                content_hash: Set(version.content_hash),
+                created_at: Set(version.created_at),
+                ..Default::default()
+            }
+            .insert(db)
+            .await
+            .map_err(VideoStudioProjectImportError::Database)?;
+        }
     }
     Ok(())
 }

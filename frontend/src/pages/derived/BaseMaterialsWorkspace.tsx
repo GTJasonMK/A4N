@@ -5,20 +5,26 @@ import { SegmentedControl } from "../../components/ui/SegmentedControl";
 import { useToast } from "../../components/feedback/Toast";
 import { useProgressTask } from "../../hooks/useProgressTask";
 import { useI18n } from "../../i18n";
+import { ProjectTextMaterialsPanel, type ProjectTextSourceSelection } from "./ProjectTextMaterialsPanel";
 
 const CharacterPortraitsPanel = lazy(() => import("../novel-detail/characters/CharacterPortraitsPanel").then((module) => ({ default: module.CharacterPortraitsPanel })));
 const VideoMaterialWorkspace = lazy(() => import("../novel-detail/video/VideoMaterialWorkspace").then((module) => ({ default: module.VideoMaterialWorkspace })));
 
-export function BaseMaterialsWorkspace({ projectId, canEdit, onChanged, onNext }: {
+export function BaseMaterialsWorkspace({ projectId, textProjectId, canEdit, onChanged, onNext, showNext = true, onTextDirtyChange, onSelectTextSource, selectedTextSource }: {
   projectId: number;
+  textProjectId?: number;
   canEdit: boolean;
   onChanged: () => Promise<boolean | void> | boolean | void;
   onNext: () => void;
+  showNext?: boolean;
+  onTextDirtyChange?: (dirty: boolean) => void;
+  onSelectTextSource?: (selection: ProjectTextSourceSelection) => void;
+  selectedTextSource?: ProjectTextSourceSelection | null;
 }) {
   const { t } = useI18n();
   const addToast = useToast((state) => state.addToast);
   const { runProgressTask } = useProgressTask();
-  const [kind, setKind] = useState<"characters" | "scenes_objects">("characters");
+  const [kind, setKind] = useState<"characters" | "scenes_objects" | "text">("characters");
   const [nexting, setNexting] = useState(false);
   const handleNext = async () => {
     if (nexting) return;
@@ -35,20 +41,29 @@ export function BaseMaterialsWorkspace({ projectId, canEdit, onChanged, onNext }
         <h2 className="text-base font-semibold">{t("common.mediaAuthoring.materials")}</h2>
         <p className="mt-1 text-xs text-book-text-muted">{t("common.mediaAuthoring.materialsHint")}</p>
       </div>
-      <BookButton size="sm" variant="secondary" onClick={() => void handleNext()} disabled={nexting}>
+      {showNext ? <BookButton size="sm" variant="secondary" onClick={() => void handleNext()} disabled={nexting}>
         {nexting ? <LoadingSpinner size="sm" /> : null}
         {t("common.mediaAuthoring.nextStage")}
-      </BookButton>
+      </BookButton> : null}
     </header>
     <SegmentedControl ariaLabel={t("common.mediaAuthoring.materials")} value={kind} onChange={setKind} options={[
       { id: "characters", label: t("common.mediaAuthoring.characterMaterials") },
       { id: "scenes_objects", label: t("common.mediaAuthoring.sceneObjectMaterials") },
+      { id: "text", label: t("novel.textMaterialsTitle") },
     ]} />
     <fieldset disabled={!canEdit} className="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto custom-scrollbar">
       <legend className="sr-only">{t("common.mediaAuthoring.materials")}</legend>
       <Suspense fallback={<LoadingSpinner size="sm" />}>
         {kind === "characters" ? <CharacterPortraitsPanel projectId={projectId} />
-          : <VideoMaterialWorkspace projectId={projectId} onToast={addToast} runProgressTask={runProgressTask} onRefreshVideoData={onChanged} />}
+          : kind === "scenes_objects"
+            ? <VideoMaterialWorkspace projectId={projectId} onToast={addToast} runProgressTask={runProgressTask} onRefreshVideoData={onChanged} />
+            : <ProjectTextMaterialsPanel
+                projectId={textProjectId ?? projectId}
+                canEdit={canEdit}
+                onDirtyChange={onTextDirtyChange}
+                onSelectSource={onSelectTextSource}
+                selectedSource={selectedTextSource}
+              />}
       </Suspense>
     </fieldset>
   </div>;

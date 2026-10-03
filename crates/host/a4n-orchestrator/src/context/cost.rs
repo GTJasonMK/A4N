@@ -1,8 +1,8 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use a4n_api_contract::cost::{
     ModelUsageCapabilityTotal, ModelUsageCurrencyTotal, ModelUsageEntry, ModelUsageReport,
-    ModelUsageReportInput,
+    ModelUsageReportInput, ModelUsageRequest, ModelUsageRequestInput,
 };
 use a4n_error::AppError;
 use chrono::{Duration, Utc};
@@ -47,7 +47,7 @@ impl OrchestratorContext {
             since,
         )
         .await?;
-        let records = a4n_db::model_usage::list_model_usage_records(
+        let records = a4n_db::model_usage::list_model_usage_summaries(
             self.database.connection(),
             input.project_id,
             since,
@@ -90,8 +90,11 @@ impl OrchestratorContext {
                 id: record.id,
                 request_id: record.request_id,
                 capability: record.capability,
+                workflow: record.workflow,
+                step_key: record.step_key,
                 provider: record.provider,
                 model: record.model,
+                request_available: record.request_available,
                 currency: record.currency,
                 amount_micros: record.amount_micros.map(|value| value.to_string()),
                 confidence: record.confidence,
@@ -157,5 +160,70 @@ impl a4n_api_contract::cost::ModelUsageReadApplicationPort for OrchestratorConte
     ) -> Result<ModelUsageReport, AppError> {
         self.model_usage_report_validated(caller_user_id, input)
             .await
+    }
+
+    async fn model_usage_request(
+        &self,
+        caller_user_id: i64,
+        input: ModelUsageRequestInput,
+    ) -> Result<ModelUsageRequest, AppError> {
+        let record =
+            a4n_db::model_usage::model_usage_record_by_id(self.database.connection(), input.id)
+                .await?
+                .ok_or_else(|| AppError::NotFound(format!("模型成本记录不存在: {}", input.id)))?;
+        let project_ids = [record.project_id, record.root_project_id]
+            .into_iter()
+            .flatten()
+            .collect::<BTreeSet<_>>();
+        let has_project_scope = !project_ids.is_empty();
+        let mut access_error = None;
+        for project_id in project_ids {
+            match self
+                .verify_project_permission(
+                    project_id,
+                    caller_user_id,
+                    a4n_domain::collaboration::ProjectAccessRole::Viewer,
+                )
+                .await
+            {
+                Ok(_) => {
+                    access_error = None;
+                    break;
+                }
+                Err(error @ (AppError::Forbidden(_) | AppError::NotFound(_))) => {
+                    access_error = Some(error);
+                }
+                Err(error) => return Err(error),
+            }
+        }
+        if let Some(project_error) = access_error {
+            match self
+                .require_admin_permission(caller_user_id, AdminPermission::ManageSettings)
+                .await
+            {
+                Ok(()) => {}
+                Err(AppError::Forbidden(_)) => return Err(project_error),
+                Err(error) => return Err(error),
+            }
+        }
+        if !has_project_scope {
+            self.require_admin_permission(caller_user_id, AdminPermission::ManageSettings)
+                .await?;
+        }
+        let request_json = record
+            .request_json
+            .ok_or_else(|| AppError::NotFound("该模型调用未保存请求快照".to_string()))?;
+        Ok(ModelUsageRequest {
+            id: record.id,
+            request_id: record.request_id,
+            capability: record.capability,
+            workflow: record.workflow,
+            step_key: record.step_key,
+            provider: record.provider,
+            model: record.model,
+            status: record.status,
+            started_at: record.started_at.and_utc().to_rfc3339(),
+            request_json,
+        })
     }
 }

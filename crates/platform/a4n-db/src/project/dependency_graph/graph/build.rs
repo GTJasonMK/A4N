@@ -17,10 +17,11 @@ pub(super) fn build_asset_dependency_graph(
     records: &AssetGraphRecords,
 ) -> Result<AssetDependencyGraph, AppError> {
     let root_project_id = scope.root_project.id;
+    let standalone_comic = scope.root_project.project_kind == "comic";
     let mut graph = GraphBuilder::default();
     graph.add_node(node(
         "project",
-        "text",
+        if standalone_comic { "comic" } else { "text" },
         "project",
         &scope.root_project.title,
         1,
@@ -30,9 +31,12 @@ pub(super) fn build_asset_dependency_graph(
             editable: false,
             needs_visualization: true,
             visualized: true,
-            summary: Some(
-                "项目根节点，承载从灵感到正文、图像、漫画和视频的完整派生链路。".to_string(),
-            ),
+            summary: Some(if standalone_comic {
+                "独立漫画项目根节点，来源由项目文本素材和标题范围固定。".to_string()
+            } else {
+                "项目根节点，承载从灵感到正文、图像、漫画和视频的完整派生链路。"
+                    .to_string()
+            }),
             details: json!({
                 "project_kind": scope.root_project.project_kind,
                 "project_type": scope.root_project.project_type,
@@ -65,6 +69,7 @@ pub(super) fn build_asset_dependency_graph(
         &mut graph,
         &records.chapters,
         &records.manga_prompts,
+        &records.comic_text_sources,
         &records.generated_images,
     );
     add_video_nodes(

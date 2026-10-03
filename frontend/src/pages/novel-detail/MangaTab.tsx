@@ -34,6 +34,7 @@ import {
   listMangaPipelineStatuses,
   previewResumeMangaPipelineRequest,
   previewStartMangaPipelineRequest,
+  prepareStandaloneComicSource,
   resumeMangaPipeline,
   startMangaPipeline,
   type MangaPipelineStatusSummary,
@@ -68,24 +69,50 @@ import {
 } from "./manga/mangaPipelineProgress";
 import { countStaleMangaPagePrompts, type MangaPageWorkspaceStage } from "./manga/mangaTabUtils";
 
+type MangaTextSourceSelection = import("../derived/ProjectTextMaterialsPanel").ProjectTextSourceSelection;
+
+function readMangaTextSource(projectId: number): MangaTextSourceSelection | null {
+  try {
+    const value: unknown = JSON.parse(localStorage.getItem(`a4n:comic:${projectId}:source`) ?? "null");
+    if (!value || typeof value !== "object") return null;
+    const source = value as Partial<MangaTextSourceSelection>;
+    if (
+      !Number.isInteger(source.assetId) || source.assetId! <= 0 ||
+      !Number.isInteger(source.version) || source.version! <= 0 ||
+      !Number.isInteger(source.startSection) || source.startSection! < 0 ||
+      !Number.isInteger(source.endSection) || source.endSection! < source.startSection!
+    ) return null;
+    return source as MangaTextSourceSelection;
+  } catch {
+    return null;
+  }
+}
+
 export const MangaTab: React.FC<MangaTabProps> = ({
   projectId,
   canEditManga = true,
   snapshotChapters,
   assetProjectId,
   imageProjectIds,
+  standalone = false,
   fixedChapter,
   onDirtyChange,
 }) => {
   const addToast = useToast((state) => state.addToast);
   const { t } = useI18n();
-  const staged = snapshotChapters !== undefined;
+  const staged = snapshotChapters !== undefined || standalone;
   const [authoringDirty, setAuthoringDirty] = useState(false);
+  const [textMaterialsDirty, setTextMaterialsDirty] = useState(false);
+  const [selectedTextSource, setSelectedTextSource] = useState<MangaTextSourceSelection | null>(
+    () => standalone ? readMangaTextSource(projectId) : null,
+  );
   const [authoringBusy, setAuthoringBusy] = useState(false);
+  const [standaloneSourceLoading, setStandaloneSourceLoading] = useState(false);
   const [promptDirty, setPromptDirty] = useState(false);
   const [discardVersion, setDiscardVersion] = useState(0);
   const discardStageDrafts = () => {
     setAuthoringDirty(false);
+    setTextMaterialsDirty(false);
     setPromptDirty(false);
     setDiscardVersion((version) => version + 1);
   };
@@ -93,24 +120,34 @@ export const MangaTab: React.FC<MangaTabProps> = ({
     actionBusyKeyRef.current != null ||
     pipelineChapterId != null ||
     progressCancelBusyKeyRef.current != null ||
-    authoringBusy;
-  useEffect(() => { onDirtyChange?.(authoringDirty || promptDirty); }, [authoringDirty, promptDirty, onDirtyChange]);
+    authoringBusy ||
+    standaloneSourceLoading;
+  useEffect(() => { onDirtyChange?.(authoringDirty || promptDirty || textMaterialsDirty); }, [authoringDirty, promptDirty, textMaterialsDirty, onDirtyChange]);
+  useEffect(() => {
+    if (!standalone) return;
+    try {
+      const key = `a4n:comic:${projectId}:source`;
+      if (selectedTextSource) localStorage.setItem(key, JSON.stringify(selectedTextSource));
+      else localStorage.removeItem(key);
+    } catch {
+      addToast(t("comic.sourceSelectionSaveFailed"), "error");
+    }
+  }, [addToast, projectId, selectedTextSource, standalone, t]);
   useEffect(() => () => onDirtyChange?.(false), [onDirtyChange]);
   const discardMangaDrafts = () => {
     if (isMutationBusy() || acting != null) return false;
     discardStageDrafts();
   };
-  useNovelDetailDirty(`manga-editor:${projectId}`, authoringDirty || promptDirty, discardMangaDrafts, () => !isMutationBusy() && acting == null);
-  const authoring = useMediaAuthoring(projectId, staged);
+  useNovelDetailDirty(`manga-editor:${projectId}`, authoringDirty || promptDirty || textMaterialsDirty, discardMangaDrafts, () => !isMutationBusy() && acting == null);
   const stageId = `comic-stages-${projectId}`;
   const confirmLeaveStage = async () => {
     if (isMutationBusy()) {
       addToast(t("common.operationInProgress"), "info");
       return false;
     }
-    if (!authoringDirty && !promptDirty) return true;
+    if (!authoringDirty && !promptDirty && !textMaterialsDirty) return true;
     const confirmed = await confirmDiscardMediaChanges(true, t);
-    if (confirmed) { setAuthoringDirty(false); setPromptDirty(false); setDiscardVersion((version) => version + 1); }
+    if (confirmed) { setAuthoringDirty(false); setTextMaterialsDirty(false); setPromptDirty(false); setDiscardVersion((version) => version + 1); }
     return confirmed;
   };
   const {
@@ -133,6 +170,11 @@ export const MangaTab: React.FC<MangaTabProps> = ({
   const [acting, setActing] = useState<string | null>(null);
   const [selectedChapter, setSelectedChapter] = useState<ChapterRow | null>(
     fixedChapter ?? null,
+  );
+  const authoring = useMediaAuthoring(
+    projectId,
+    staged && (!standalone || selectedChapter != null),
+    selectedChapter?.id ?? null,
   );
   const outputState = authoring.workspace?.artifacts.find((artifact) => artifact.kind === "manga_pages" && artifact.source_chapter_id === selectedChapter?.id);
   const [pagePrompts, setPagePrompts] = useState<MangaPagePromptSummary[]>([]);
@@ -186,7 +228,7 @@ export const MangaTab: React.FC<MangaTabProps> = ({
           : stageProgress(pagePrompts.filter((page) => page.generated_image_id != null).length),
       },
     ];
-  }, [authoring.workspace, currentContentHash, pagePrompts, selectedChapter?.id, t]);
+  }, [authoring.workspace, currentContentHash, pagePrompts, selectedChapter?.id, standalone, t]);
   const [workspaceStage, setWorkspaceStage] = usePersistedTab(
     staged ? `a4n:comic:${projectId}:stage` : null,
     staged ? "materials" : "prompts",
@@ -225,6 +267,7 @@ export const MangaTab: React.FC<MangaTabProps> = ({
   const activeProjectIdRef = useRef(projectId);
   const activeCharacterAssetProjectIdRef = useRef(characterAssetProjectId);
   const activeImageSourceKeyRef = useRef(imageSourceKey);
+  const standaloneSourceLoadSeqRef = useRef(0);
   const chapterLoadSeqRef = useRef(0);
   const statusLoadSeqRef = useRef(0);
   const pagePromptsLoadSeqRef = useRef(0);
@@ -525,6 +568,65 @@ export const MangaTab: React.FC<MangaTabProps> = ({
     );
   };
 
+  const prepareStandaloneSource = async (
+    selection: MangaTextSourceSelection,
+    requestProjectId = projectId,
+    showLoading = false,
+  ): Promise<boolean> => {
+    const requestSeq = standaloneSourceLoadSeqRef.current + 1;
+    standaloneSourceLoadSeqRef.current = requestSeq;
+    setStandaloneSourceLoading(true);
+    if (showLoading) setLoading(true);
+    resetChapterDetail();
+    setChapters([]);
+    setStatuses({});
+    try {
+      const source = await prepareStandaloneComicSource(
+        requestProjectId,
+        selection.assetId,
+        selection.version,
+        selection.startSection,
+        selection.endSection,
+      );
+      if (!isProjectCurrent(requestProjectId) || standaloneSourceLoadSeqRef.current !== requestSeq) {
+        return false;
+      }
+      const row: ChapterRow = {
+        id: source.chapter_id,
+        chapter_number: source.chapter_number,
+        title: source.title,
+        content: source.content,
+        content_hash: source.content_sha256,
+        summary: null,
+        status: "completed",
+        analysis_data: null,
+      };
+      setChapters([row]);
+      openChapterDetail(row);
+      return true;
+    } catch (error) {
+      if (isProjectCurrent(requestProjectId) && standaloneSourceLoadSeqRef.current === requestSeq) {
+        addToast(extractErrorMessage(error, t("comic.prepareSourceFailed")), "error");
+      }
+      return false;
+    } finally {
+      if (standaloneSourceLoadSeqRef.current === requestSeq) {
+        setStandaloneSourceLoading(false);
+        if (showLoading) setLoading(false);
+      }
+    }
+  };
+
+  const selectMangaTextSource = (selection: MangaTextSourceSelection) => {
+    if (!ensureCanEditManga()) return;
+    if (isMutationBusy()) {
+      addToast(t("common.operationInProgress"), "info");
+      return;
+    }
+    setSelectedTextSource(selection);
+    if (standalone) void prepareStandaloneSource(selection);
+  };
+
   const loadSingleStatus = async (
     chapterId: number,
     requestProjectId = projectId,
@@ -541,7 +643,10 @@ export const MangaTab: React.FC<MangaTabProps> = ({
     return true;
   };
 
-  const loadChapters = async (requestProjectId = projectId) => {
+  const loadChapters = async (
+    requestProjectId = projectId,
+    textSource = selectedTextSource,
+  ) => {
     const requestSeq = chapterLoadSeqRef.current + 1;
     chapterLoadSeqRef.current = requestSeq;
     if (isSingleMode) {
@@ -551,6 +656,15 @@ export const MangaTab: React.FC<MangaTabProps> = ({
       ) {
         setLoading(false);
       }
+      return;
+    }
+    if (standalone) {
+      setChapters([]);
+      setStatuses({});
+      setSelectedChapter(null);
+      selectedChapterIdRef.current = null;
+      if (textSource) await prepareStandaloneSource(textSource, requestProjectId, true);
+      else if (isProjectCurrent(requestProjectId) && chapterLoadSeqRef.current === requestSeq) setLoading(false);
       return;
     }
     if (
@@ -1124,7 +1238,7 @@ export const MangaTab: React.FC<MangaTabProps> = ({
     );
   }
 
-  if (!isSingleMode && chapters.length === 0) {
+  if (!standalone && !isSingleMode && chapters.length === 0) {
     return (
       <div className="content-main">
         <MangaChapterList
@@ -1146,7 +1260,7 @@ export const MangaTab: React.FC<MangaTabProps> = ({
           if (stage === "materials") void loadCharacterAssets().catch((error) => addToast(extractErrorMessage(error, t("common.mediaAuthoring.requestFailed")), "error"));
           return true;
         }}>
-        {canEditManga && <BookButton size="sm" variant="secondary" disabled={!selectedChapter || selectedStatus?.pipeline_status === "running" || selectedStatus?.can_cancel || acting != null} onClick={() => void handleRunPipeline("start")}>{t("common.mediaAuthoring.oneClick")}</BookButton>}
+        {canEditManga && <BookButton size="sm" variant="secondary" disabled={!selectedChapter || standaloneSourceLoading || selectedStatus?.pipeline_status === "running" || selectedStatus?.can_cancel || acting != null} onClick={() => void handleRunPipeline("start")}>{t("common.mediaAuthoring.oneClick")}</BookButton>}
       </MediaStageHeader>}
       {outputState?.stale && (workspaceStage === "prompts" || workspaceStage === "images") && <p role="status" className="text-xs text-warning">{t("common.mediaAuthoring.outputsStale")}</p>}
       {authoring.error && workspaceStage !== "adaptation" && <p role="alert" className="text-xs text-error">{authoring.error}</p>}
@@ -1176,8 +1290,8 @@ export const MangaTab: React.FC<MangaTabProps> = ({
         canEdit={canEditManga} stageRunning={selectedStatus?.can_cancel === true} onReload={authoring.reload} onDirtyChange={setAuthoringDirty}
         onBusyChange={setAuthoringBusy}
         onNext={() => setWorkspaceStage("page_plan")}
-      /> : workspaceStage === "materials" ? <BaseMaterialsWorkspace projectId={characterAssetProjectId} canEdit={canEditManga}
-        onChanged={loadCharacterAssets} onNext={async () => { if (await loadCharacterAssets()) setWorkspaceStage("adaptation"); }} /> : <MangaChapterDetailPanel
+      /> : workspaceStage === "materials" ? <BaseMaterialsWorkspace projectId={characterAssetProjectId} textProjectId={projectId} canEdit={canEditManga} showNext={!standalone}
+        onChanged={loadCharacterAssets} onTextDirtyChange={setTextMaterialsDirty} selectedTextSource={standalone ? selectedTextSource : null} onSelectTextSource={standalone ? (selection) => void selectMangaTextSource(selection) : undefined} onNext={async () => { if (await loadCharacterAssets()) setWorkspaceStage("adaptation"); }} /> : <MangaChapterDetailPanel
         key={`${projectId}:${selectedChapter?.id}:${workspaceStage}:${discardVersion}`}
         stageMode={activePageStage}
         onDirtyChange={setPromptDirty}

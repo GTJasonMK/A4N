@@ -2,8 +2,8 @@ mod mutations;
 mod queries;
 
 pub use mutations::{
-    create_derived_project, create_freeform_video_project, create_project, delete_project,
-    reset_project_generated_data, update_project,
+    create_derived_project, create_freeform_video_project, create_project,
+    create_standalone_comic_project, delete_project, reset_project_generated_data, update_project,
 };
 pub use queries::{
     get_project_asset_dependency_graph, get_project_asset_dependency_graph_node_detail,

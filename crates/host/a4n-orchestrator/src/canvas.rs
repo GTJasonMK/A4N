@@ -7,6 +7,8 @@ mod graph_execution {
     mod planning;
     mod preparation;
 
+    pub(crate) use planning::upstream_canvas_node_ids;
+
     #[cfg(test)]
     mod tests;
 }
@@ -21,6 +23,7 @@ mod source_text;
 mod text_generation;
 mod video_generation;
 mod workflow_rules;
+mod workflow_source_snapshot;
 
 pub(crate) use a4n_canvas_host_contract::CanvasImageNodeApplicationPort;
 pub(crate) use a4n_canvas_host_contract::{
@@ -37,6 +40,7 @@ pub(crate) use a4n_db::canvas::{
 };
 pub(crate) use editing_nodes::CanvasEditingNodeExecutionInput;
 pub(crate) use errors::{canvas_db_error, video_studio_project_import_error};
+pub(crate) use graph_execution::upstream_canvas_node_ids;
 pub(crate) use image_generation::{
     CanvasImageNodeExecutionInput, build_canvas_image_node_input_for_preview,
 };
@@ -65,4 +69,8 @@ pub(crate) use video_generation::{
 pub(crate) use workflow_rules::{
     WORKFLOW_KIND_VIDEO_CANVAS_GRAPH, canvas_graph_workflow_run_input, canvas_node_step_key,
     canvas_node_step_workflow_run_input, canvas_single_node_workflow_run_input,
+};
+pub(crate) use workflow_source_snapshot::{
+    CANVAS_TEXT_ASSET_SNAPSHOT_KEY, canvas_source_snapshot_node_ids,
+    capture_canvas_text_asset_snapshot, validate_canvas_text_asset_snapshot,
 };

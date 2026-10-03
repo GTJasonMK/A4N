@@ -66,6 +66,10 @@ pub async fn test_embedding_config(
             provider: Some(config.backend.clone()),
             model: Some(config.model.clone()),
             pricing: config.pricing.clone(),
+            request_json: Some(serde_json::json!({
+                "model": config.model,
+                "input": [EMBEDDING_CONNECTIVITY_TEST_TEXT],
+            })),
         })
         .await
         .map_err(|error| error.to_string())?;

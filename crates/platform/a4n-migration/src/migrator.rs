@@ -122,6 +122,7 @@ impl MigratorTrait for Migrator {
             Box::new(crate::migrations::chapter_visual_plan_v2_retirement::Migration),
             Box::new(crate::migrations::model_cost_pricing::Migration),
             Box::new(crate::migrations::model_usage_ledger::Migration),
+            Box::new(crate::migrations::model_usage_request_snapshot::Migration),
             Box::new(crate::migrations::generation_task_workflow_binding_repair::Migration),
             Box::new(crate::migrations::optimization_session_agent_unification::Migration),
             Box::new(crate::migrations::media_workflow_reset_retirement::Migration),
@@ -139,6 +140,9 @@ impl MigratorTrait for Migrator {
             Box::new(crate::migrations::workflow_chapter_identity::Migration),
             Box::new(crate::migrations::media_authoring::Migration),
             Box::new(crate::migrations::agent_project_binding::Migration),
+            Box::new(crate::migrations::standalone_comic_project::Migration),
+            Box::new(crate::migrations::canvas_text_asset_versions::Migration),
+            Box::new(crate::migrations::standalone_comic_text_sources::Migration),
         ]
     }
 }

@@ -39,7 +39,7 @@ pub(super) async fn prepared_image_generation_preview_step(
     .await
 }
 
-pub(super) async fn image_generation_preview_step(
+pub(crate) async fn image_generation_preview_step(
     runtime_profile: RuntimeProfile,
     client: Option<Arc<dyn ImageClient>>,
     collaboration: &dyn a4n_api_contract::collaboration::ProjectAccessApplicationPort,

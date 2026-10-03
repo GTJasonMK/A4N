@@ -19,6 +19,7 @@ import {
   acceptProjectInvite,
   createDerivedProject,
   createFreeformVideoProject,
+  createStandaloneComicProject,
   createProject,
   declineProjectInvite,
   deleteProject,
@@ -55,6 +56,7 @@ import {
   type Quote,
 } from "./novel-list/novelListUtils";
 import { pickLocalFile, readFileAsBase64 } from "../utils/fileUpload";
+import { initializeVideoStarterGraph } from "./video-studio/canvasStarterTemplate";
 import { base64DataToBlob, downloadBlob } from "../utils/downloadFile";
 import { useI18n } from "../i18n";
 import { UnsavedNavigationGuard } from "../components/navigation/UnsavedNavigationGuard";
@@ -356,11 +358,29 @@ export const NovelList: React.FC<NovelListProps> = () => {
               title: t("novel.projectListActions.unnamedVideoProject"),
               description: "",
             })
+          : requestMode === "comic_workspace"
+            ? await createStandaloneComicProject({
+                title: t("novel.comicProject"),
+                description: "",
+              })
           : await createProject({
               title: t("novel.unnamedProject"),
               description: "",
               project_type: "novel_long",
             });
+      if (requestMode === "video_canvas") {
+        try {
+          await initializeVideoStarterGraph(
+            project.id,
+            tRef.current("video.canvas.defaultRewriteInstruction"),
+          );
+        } catch (error) {
+          addToast(
+            extractErrorMessage(error, tRef.current("video.canvasTemplateInitFailed")),
+            "error",
+          );
+        }
+      }
       if (!mountedRef.current || createSeqRef.current !== requestSeq) return;
       const refreshed = await refreshAfterMutation();
       if (!mountedRef.current || createSeqRef.current !== requestSeq) return;
@@ -371,7 +391,7 @@ export const NovelList: React.FC<NovelListProps> = () => {
         navigate(`/inspiration/${project.id}`);
       } else if (requestMode === "free") {
         navigate(getProjectPrimaryRoute(project));
-      } else if (requestMode === "video_canvas") {
+      } else if (requestMode === "video_canvas" || requestMode === "comic_workspace") {
         navigate(getProjectPrimaryRoute(project));
       }
     } catch (err) {

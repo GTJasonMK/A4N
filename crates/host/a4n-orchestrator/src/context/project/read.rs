@@ -7,8 +7,8 @@ use a4n_project_read_core::project_summary_from_parts;
 use super::super::OrchestratorContext;
 use crate::project::{
     ProjectFamilyMetadata, ProjectFamilyMetadataQuery, ProjectProgressQuery,
-    ProjectProgressSummary, project_basic_record_error_to_app_error,
-    project_family_metadata_read_error_to_app_error, project_mutation_error_to_app_error,
+    ProjectProgressSummary, project_family_metadata_read_error_to_app_error,
+    project_mutation_error_to_app_error,
     project_progress_read_error_to_app_error,
 };
 
@@ -38,12 +38,6 @@ impl ProjectReadApplication {
         a4n_db::project::project_progress_summary(self.database.connection(), query)
             .await
             .map_err(project_progress_read_error_to_app_error)
-    }
-
-    async fn kind(&self, project_id: i64) -> Result<String, AppError> {
-        a4n_db::project::project_kind(self.database.connection(), project_id)
-            .await
-            .map_err(project_basic_record_error_to_app_error)
     }
 
     pub(in crate::context) async fn by_id(
@@ -116,10 +110,6 @@ impl OrchestratorContext {
         query: ProjectProgressQuery,
     ) -> Result<ProjectProgressSummary, AppError> {
         self.project_read.progress_summary(query).await
-    }
-
-    pub(crate) async fn project_kind(&self, project_id: i64) -> Result<String, AppError> {
-        self.project_read.kind(project_id).await
     }
 
     pub(crate) async fn project_by_id(

@@ -50,7 +50,13 @@ impl OrchestratorContext {
                 InternalTransferError::Message(format!("项目不存在: {}", input.project_id))
             })?;
 
-        let (family, family_project_ids, mut canvas_projects, mut media_files) =
+        let (
+            family,
+            family_project_ids,
+            mut canvas_projects,
+            standalone_comics,
+            mut media_files,
+        ) =
             if project.project_kind == crate::project::PROJECT_KIND_TEXT {
                 let selection = self
                     .project_family
@@ -79,7 +85,15 @@ impl OrchestratorContext {
                     media.clone(),
                 )?;
                 let project_ids = package_project_ids(&package);
-                (Some(package), project_ids, Vec::new(), media)
+                (Some(package), project_ids, Vec::new(), Vec::new(), media)
+            } else if project.project_kind == "comic" && project.root_project_id.is_none() {
+                let comic = a4n_db::project::bundle::export_standalone_comic_project_bundle(
+                    self.database.connection(),
+                    project.id,
+                )
+                .await
+                .map_err(|error| InternalTransferError::Message(error.to_string()))?;
+                (None, Vec::new(), Vec::new(), vec![comic], Vec::new())
             } else if project.root_project_id.is_some() {
                 let selection = self
                     .project_family
@@ -108,9 +122,9 @@ impl OrchestratorContext {
                     media.clone(),
                 )?;
                 let project_ids = package_project_ids(&package);
-                (Some(package), project_ids, Vec::new(), media)
+                (Some(package), project_ids, Vec::new(), Vec::new(), media)
             } else {
-                (None, Vec::new(), Vec::new(), Vec::new())
+                (None, Vec::new(), Vec::new(), Vec::new(), Vec::new())
             };
 
         let canvas_owner_projects = if let Some(family) = &family {
@@ -120,8 +134,10 @@ impl OrchestratorContext {
                 .filter(|project| project.project_kind == "video")
                 .cloned()
                 .collect()
-        } else {
+        } else if project.project_kind == "video" {
             vec![project.clone()]
+        } else {
+            Vec::new()
         };
         for canvas_project in canvas_owner_projects {
             let mut rows = self
@@ -155,6 +171,7 @@ impl OrchestratorContext {
         let project_ids = family_project_ids
             .into_iter()
             .chain(canvas_projects.iter().map(|package| package.project.id))
+            .chain(standalone_comics.iter().map(|comic| comic.project.id))
             .collect::<HashSet<_>>()
             .into_iter()
             .collect::<Vec<_>>();
@@ -171,6 +188,7 @@ impl OrchestratorContext {
             "project_bundle",
             family,
             canvas_projects,
+            standalone_comics,
             history,
             media_files,
         )?;
@@ -405,6 +423,30 @@ impl OrchestratorContext {
                 history_maps.source_snapshot_ids = mappings.source_snapshot_ids;
                 history_maps.source_snapshot_chapter_ids = mappings.source_snapshot_chapter_ids;
                 history_maps.entity_ids = mappings.entity_ids;
+            }
+
+            for comic in &package.standalone_comics {
+                let imported = a4n_db::project::bundle::import_standalone_comic_project_bundle(
+                    self.database.connection(),
+                    comic,
+                    user_id,
+                )
+                .await
+                .map_err(|error| InternalTransferError::Message(error.to_string()))?;
+                imported_project_ids.insert(comic.project.id, imported.project_id);
+                root_project_ids.insert(comic.project.id, imported.project_id);
+                history_maps
+                    .chapter_ids
+                    .extend(imported.entity_ids.chapter_ids);
+                history_maps
+                    .source_snapshot_ids
+                    .extend(imported.entity_ids.source_snapshot_ids);
+                history_maps
+                    .source_snapshot_chapter_ids
+                    .extend(imported.entity_ids.source_snapshot_chapter_ids);
+                for (table, ids) in imported.entity_ids.entity_ids {
+                    history_maps.entity_ids.entry(table).or_default().extend(ids);
+                }
             }
 
             for mut canvas in package.canvas_projects.clone() {

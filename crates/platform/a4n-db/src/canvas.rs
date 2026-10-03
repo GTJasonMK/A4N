@@ -25,7 +25,8 @@ pub(crate) use graph_record::records::{
 };
 pub use graph_record::{
     CanvasEdgeRecordInput, CanvasGraphRecordDocument, CanvasGraphRecordInput,
-    CanvasGraphRecordSaveResult, CanvasNodeRecordInput, get_or_create_canvas_graph_record,
+    CanvasGraphRecordSaveResult, CanvasNodeRecordInput, canvas_text_asset_versions_record,
+    canvas_text_assets_by_project_record, get_or_create_canvas_graph_record,
     save_canvas_graph_record, upsert_canvas_text_asset_record,
     validate_canvas_record_document_edge_contract, validate_canvas_record_document_is_dag,
     validate_canvas_record_viewport_json,
@@ -47,6 +48,7 @@ pub(crate) use references::{
 use sea_orm::DbErr;
 
 const PROJECT_KIND_VIDEO: &str = "video";
+const PROJECT_KIND_COMIC: &str = "comic";
 
 #[derive(Debug, thiserror::Error)]
 pub enum CanvasDbError {
@@ -61,6 +63,14 @@ pub enum CanvasDbError {
     )]
     VersionConflict {
         graph_id: i64,
+        expected_version: i32,
+        current_version: i32,
+    },
+    #[error(
+        "文本素材 version 冲突: canvas_text_asset_id={canvas_text_asset_id}, expected_version={expected_version}, current_version={current_version}"
+    )]
+    TextAssetVersionConflict {
+        canvas_text_asset_id: i64,
         expected_version: i32,
         current_version: i32,
     },

@@ -30,6 +30,8 @@ fn canvas_records_survive_manifest_round_trip_and_import_boundary() {
             text_kind: "script".to_string(),
             content: "开场".to_string(),
             content_hash: "source-hash".to_string(),
+            current_version: 1,
+            versions: Vec::new(),
             created_at: super::now(),
             updated_at: super::now(),
         });

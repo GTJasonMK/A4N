@@ -28,6 +28,25 @@ pub(crate) use contracts::{positive_usize, required_text};
 use factory::make_provider_from_default_model;
 pub(crate) use factory::make_provider_from_model;
 
+pub(crate) fn embedding_request_snapshot(
+    model: &str,
+    texts: &[String],
+    batch_size: usize,
+) -> Option<serde_json::Value> {
+    if texts.is_empty() || batch_size == 0 {
+        return None;
+    }
+    let requests = texts
+        .chunks(batch_size)
+        .map(|input| serde_json::json!({ "model": model, "input": input }))
+        .collect::<Vec<_>>();
+    if requests.len() == 1 {
+        requests.into_iter().next()
+    } else {
+        Some(serde_json::json!({ "requests": requests }))
+    }
+}
+
 pub(crate) struct DynamicEmbeddingProvider {
     facade: DynamicProviderFacade,
     metadata_dimension: usize,
@@ -135,6 +154,11 @@ impl EmbeddingProvider for DynamicEmbeddingProvider {
                 provider: Some(config.backend.clone()),
                 model: Some(config.model.clone()),
                 pricing: config.pricing.clone(),
+                request_json: crate::dynamic_embedding::embedding_request_snapshot(
+                    &config.model,
+                    &texts,
+                    provider.batch_size(),
+                ),
             })
             .await
             .map_err(from_app_error)?;

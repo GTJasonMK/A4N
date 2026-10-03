@@ -408,28 +408,32 @@ impl OrchestratorContext {
         user_id: i64,
         project_id: i64,
     ) -> Result<(), AppError> {
-        let (project_id, root_project_id) = self
-            .project_family
-            .project_or_derived_access_ids(project_id)
-            .await?;
-        if let Some(root_project_id) = root_project_id {
-            return self
-                .verify_project_permissions(
-                    &[project_id, root_project_id],
-                    user_id,
-                    ProjectAccessRole::Viewer,
-                )
-                .await;
-        }
-        self.verify_project_permission(project_id, user_id, ProjectAccessRole::Viewer)
-            .await
-            .map(|_| ())
+        self.verify_project_or_derived_family_access_for_role_validated(
+            user_id,
+            project_id,
+            ProjectAccessRole::Viewer,
+        )
+        .await
     }
 
     pub(crate) async fn verify_project_or_derived_family_editor_validated(
         &self,
         user_id: i64,
         project_id: i64,
+    ) -> Result<(), AppError> {
+        self.verify_project_or_derived_family_access_for_role_validated(
+            user_id,
+            project_id,
+            ProjectAccessRole::Editor,
+        )
+        .await
+    }
+
+    pub(crate) async fn verify_project_or_derived_family_access_for_role_validated(
+        &self,
+        user_id: i64,
+        project_id: i64,
+        required: ProjectAccessRole,
     ) -> Result<(), AppError> {
         let (project_id, root_project_id) = self
             .project_family
@@ -440,11 +444,11 @@ impl OrchestratorContext {
                 .verify_project_permissions(
                     &[project_id, root_project_id],
                     user_id,
-                    ProjectAccessRole::Editor,
+                    required,
                 )
                 .await;
         }
-        self.verify_project_permission(project_id, user_id, ProjectAccessRole::Editor)
+        self.verify_project_permission(project_id, user_id, required)
             .await
             .map(|_| ())
     }

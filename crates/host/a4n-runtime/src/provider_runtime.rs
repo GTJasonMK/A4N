@@ -69,8 +69,11 @@ impl DynamicProviderFacade {
 
     pub(crate) async fn start_model_usage(
         &self,
-        input: ModelUsageRecordStart,
+        mut input: ModelUsageRecordStart,
     ) -> Result<ModelUsageRecordHandle, AppError> {
+        input.request_json = input
+            .request_json
+            .map(crate::actions::sanitize_preview_value);
         self.port.start_model_usage(input).await
     }
 

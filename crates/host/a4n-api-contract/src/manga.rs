@@ -148,6 +148,34 @@ pub struct MangaPipelineStatusesInput {
     pub chapter_ids: Vec<i64>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct PrepareStandaloneComicSourceInput {
+    #[schemars(range(min = 1))]
+    pub project_id: i64,
+    #[schemars(range(min = 1))]
+    pub asset_id: i64,
+    #[schemars(range(min = 1))]
+    pub version: i32,
+    #[schemars(range(min = 0))]
+    pub start_section: i32,
+    #[schemars(range(min = 0))]
+    pub end_section: i32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+pub struct MangaStandaloneSourceSummary {
+    pub chapter_id: i64,
+    pub chapter_number: i32,
+    pub title: Option<String>,
+    pub content: String,
+    pub content_sha256: String,
+    pub asset_id: i64,
+    pub version: i32,
+    pub start_section: i32,
+    pub end_section: i32,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
 pub struct MangaPipelinePreviewStep {
     pub key: String,
@@ -164,6 +192,12 @@ pub struct MangaPipelinePreviewStep {
 /// supplies rendering and routes the typed results.
 #[async_trait::async_trait]
 pub trait MangaPipelineExecutionApplicationPort: Send + Sync {
+    async fn prepare_standalone_source(
+        &self,
+        user_id: i64,
+        input: PrepareStandaloneComicSourceInput,
+    ) -> Result<MangaStandaloneSourceSummary, a4n_error::AppError>;
+
     async fn start_task(
         &self,
         user_id: i64,

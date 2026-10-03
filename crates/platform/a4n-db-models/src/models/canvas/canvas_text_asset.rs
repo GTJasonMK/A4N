@@ -14,6 +14,8 @@ pub struct Model {
     #[sea_orm(column_type = "Text")]
     pub content: String,
     pub content_hash: String,
+    #[sea_orm(default_value = 1)]
+    pub current_version: i32,
     pub created_at: chrono::NaiveDateTime,
     pub updated_at: chrono::NaiveDateTime,
 }
@@ -26,6 +28,14 @@ pub enum Relation {
         to = "super::super::project::novel_project::Column::Id"
     )]
     NovelProject,
+    #[sea_orm(has_many = "super::canvas_text_asset_version::Entity")]
+    Version,
+}
+
+impl Related<super::canvas_text_asset_version::Entity> for Entity {
+    fn to() -> RelationDef {
+        Relation::Version.def()
+    }
 }
 
 impl ActiveModelBehavior for ActiveModel {}
