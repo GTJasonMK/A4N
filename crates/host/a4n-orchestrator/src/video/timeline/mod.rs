@@ -5,9 +5,11 @@ use a4n_api_contract::video::{
     MoveInsertedSegmentInput, VideoTimelineItemKind as ApiItemKind,
     VideoTimelineItemStatus as ApiItemStatus, VideoTimelineItemSummary, VideoTimelineSummary,
 };
-use a4n_db_models::models::chapter::{chapter_video_prompt, chapter_video_timeline_item};
 use a4n_domain::media::GeneratedVideoRecord;
-use a4n_domain::video_timeline::{NativeVideoTimelineKey, VideoTimelineGap, timeline_gap_index};
+use a4n_domain::video_prompt as chapter_video_prompt;
+use a4n_domain::video_timeline::{
+    NativeVideoTimelineKey, VideoTimelineGap, VideoTimelineItemRecord, timeline_gap_index,
+};
 use a4n_domain::{prompt_language::PromptOutputLanguage, source_text_hash};
 use a4n_error::AppError;
 use a4n_video_contract::{
@@ -43,16 +45,12 @@ include!("inserted.rs");
 #[cfg(test)]
 mod tests {
     use super::*;
-    use a4n_db_models::models::chapter::{chapter_video_timeline, chapter_video_timeline_item};
+    use a4n_domain::video_timeline::VideoTimelineRecord;
     use chrono::Utc;
 
-    fn native_item(
-        id: i64,
-        source_shot_id: &str,
-        position: i32,
-    ) -> chapter_video_timeline_item::Model {
+    fn native_item(id: i64, source_shot_id: &str, position: i32) -> VideoTimelineItemRecord {
         let now = Utc::now().naive_utc();
-        chapter_video_timeline_item::Model {
+        VideoTimelineItemRecord {
             id,
             timeline_id: 1,
             position: Some(position),
@@ -67,9 +65,9 @@ mod tests {
         }
     }
 
-    fn inserted_item(id: i64) -> chapter_video_timeline_item::Model {
+    fn inserted_item(id: i64) -> VideoTimelineItemRecord {
         let now = Utc::now().naive_utc();
-        chapter_video_timeline_item::Model {
+        VideoTimelineItemRecord {
             id,
             timeline_id: 1,
             position: Some(1),
@@ -118,7 +116,7 @@ mod tests {
     fn snapshot() -> a4n_db::video::VideoTimelineSnapshot {
         let now = Utc::now().naive_utc();
         a4n_db::video::VideoTimelineSnapshot {
-            timeline: chapter_video_timeline::Model {
+            timeline: VideoTimelineRecord {
                 id: 1,
                 project_id: 1,
                 chapter_id: 1,
@@ -215,7 +213,7 @@ mod tests {
         let mut snapshot = snapshot();
         snapshot.items[1].position = Some(3);
         let now = Utc::now().naive_utc();
-        snapshot.items.push(chapter_video_timeline_item::Model {
+        snapshot.items.push(VideoTimelineItemRecord {
             id: 9,
             timeline_id: 1,
             position: Some(2),

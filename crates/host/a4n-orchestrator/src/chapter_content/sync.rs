@@ -71,12 +71,9 @@ impl OrchestratorContext {
         &self,
         workflow_run_id: i64,
     ) -> Result<Vec<WorkflowCheckpointSummary>, AppError> {
-        a4n_db::workflow::workflow_checkpoint_summaries_for_runs(
-            self.database.connection(),
-            &[workflow_run_id],
-        )
-        .await
-        .map_err(crate::workflow::workflow_read_app_error)
+        a4n_db::workflow::workflow_checkpoint_summaries_for_runs(&self.database, &[workflow_run_id])
+            .await
+            .map_err(crate::workflow::workflow_read_app_error)
     }
 
     pub(crate) async fn settle_chapter_content_sync_run(

@@ -1,5 +1,5 @@
-use a4n_db_models::models::source_sync::source_sync_run;
 use a4n_domain::source_sync::SourceSyncResolutionStrategy;
+use a4n_domain::source_sync::SourceSyncRunRecord;
 use a4n_error::AppError;
 
 use super::context::PreparedSourceSyncDecisionContext;
@@ -13,7 +13,7 @@ use crate::source_sync::source_sync_db_error;
 
 pub(in crate::source_sync) async fn prepare_decision_execution_context(
     service: &OrchestratorContext,
-    run: &source_sync_run::Model,
+    run: &SourceSyncRunRecord,
     decisions: &[SourceSyncDecisionInput],
     execution_context: SourceSyncExecutionContext<'_>,
 ) -> Result<PreparedSourceSyncDecisionContext, AppError> {
@@ -31,7 +31,7 @@ pub(in crate::source_sync) async fn prepare_decision_execution_context(
         .filter(|decision| decision.strategy == SourceSyncResolutionStrategy::RegenerateScene)
         .map(|decision| decision.conflict_id)
         .collect::<Vec<_>>();
-    let conflicts = a4n_db::source_sync::source_sync_conflicts_for_decisions(
+    let conflicts = a4n_db::source_sync::source_sync_conflict_records_for_decisions(
         service.database.connection(),
         run.id,
         &regenerate_conflict_ids,

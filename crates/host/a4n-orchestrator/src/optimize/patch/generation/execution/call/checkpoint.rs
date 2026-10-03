@@ -1,5 +1,5 @@
-use a4n_db_models::models::ai::optimization_session;
 use a4n_domain::chapter::ChapterRecord;
+use a4n_domain::project::OptimizationSessionRecord;
 use a4n_error::AppError;
 use a4n_llm_provider_contract::provider::{ChatMessage, ChatResponse};
 use serde_json::Value;
@@ -15,7 +15,7 @@ use super::contracts::RestoredPatchGenerationCall;
 
 pub(super) async fn restore_patch_generation_checkpoint(
     service: &OrchestratorContext,
-    session: &optimization_session::Model,
+    session: &OptimizationSessionRecord,
     chapter: &ChapterRecord,
     turn_id: i64,
     base_content_hash: &str,

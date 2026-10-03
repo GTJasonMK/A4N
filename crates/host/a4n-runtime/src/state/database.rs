@@ -2,25 +2,20 @@ use a4n_config::app_config::AppConfig;
 
 pub(super) async fn acquire_generation_owner_lock(
     database_url: &str,
-) -> Result<a4n_db_session::DatabaseConnection, a4n_error::AppError> {
+) -> Result<a4n_db_session::DbHandle, a4n_error::AppError> {
     a4n_db_session::acquire_generation_owner_lock(database_url).await
 }
 
 #[cfg(feature = "migration")]
 pub(super) async fn run_startup_migrations(
-    db: &a4n_db_session::DatabaseConnection,
+    db: &a4n_db_session::DbHandle,
 ) -> Result<(), a4n_error::AppError> {
-    a4n_migration::migrator::run_migrations(db)
-        .await
-        .map_err(a4n_error::AppError::Database)?;
-    a4n_migration::migrations::canvas_project_split::ensure_complete(db)
-        .await
-        .map_err(a4n_error::AppError::Database)
+    a4n_db_session::run_migrations(db).await
 }
 
 #[cfg(not(feature = "migration"))]
 pub(super) async fn run_startup_migrations(
-    db: &a4n_db_session::DatabaseConnection,
+    db: &a4n_db_session::DbHandle,
 ) -> Result<(), a4n_error::AppError> {
     a4n_db_session::verify_required_schema(db).await?;
     a4n_db_session::verify_canvas_project_split(db).await

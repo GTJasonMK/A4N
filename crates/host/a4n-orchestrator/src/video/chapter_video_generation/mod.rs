@@ -5,13 +5,14 @@ use std::collections::HashMap;
 
 use a4n_api_contract::video::{GenerateChapterVideoInput, PreviewChapterVideoPromptOverrideInput};
 use a4n_db::collaboration::ProjectAccessRole;
-use a4n_db_models::models::chapter::{chapter_video_prompt, chapter_video_timeline_item};
 use a4n_domain::image::{
     IMAGE_GENERATION_SOURCE_VIDEO_FIRST_FRAME_PROMPT, image_generation_prompt_id,
     image_generation_source, reference_image_ids,
 };
 use a4n_domain::source_spans::metadata_source_content_sha256;
 use a4n_domain::source_text_hash;
+use a4n_domain::video_prompt as chapter_video_prompt;
+use a4n_domain::video_timeline::VideoTimelineItemRecord;
 use a4n_service_protocol::GenerationArtifactRef;
 use a4n_video::{
     ProviderImageInputTransport, VideoGenerationRequest,
@@ -64,7 +65,7 @@ pub struct GenerateChapterVideosBatchInput {
 struct VideoPromptValidationCache {
     shared_segment_plans: HashMap<i64, ChapterVideoPromptRecord>,
     shared_segment_indexes: HashMap<i64, SharedSegmentValidationIndex>,
-    inserted_timeline_items: HashMap<(i64, i64), HashMap<i64, chapter_video_timeline_item::Model>>,
+    inserted_timeline_items: HashMap<(i64, i64), HashMap<i64, VideoTimelineItemRecord>>,
 }
 
 #[derive(Default)]
@@ -130,7 +131,7 @@ mod tests {
 
     #[test]
     fn cached_timeline_item_lookup_keeps_first_duplicate() {
-        let first = chapter_video_timeline_item::Model {
+        let first = VideoTimelineItemRecord {
             id: 7,
             timeline_id: 1,
             position: Some(1),
@@ -143,7 +144,7 @@ mod tests {
             created_at: chrono::Utc::now().naive_utc(),
             updated_at: chrono::Utc::now().naive_utc(),
         };
-        let second = chapter_video_timeline_item::Model {
+        let second = VideoTimelineItemRecord {
             insert_plan_prompt_id: Some(11),
             ..first.clone()
         };

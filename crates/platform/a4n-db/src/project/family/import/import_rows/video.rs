@@ -47,15 +47,21 @@ async fn insert_video_prompts(
     package: &ProjectFamilyImportPackage,
     maps: &mut ImportIdMaps,
 ) -> Result<(), ProjectFamilyImportError> {
+    let prompts = package
+        .chapter_video_prompts
+        .iter()
+        .cloned()
+        .map(crate::video::chapter_video_prompt_model_from_record)
+        .collect::<Vec<_>>();
     insert_mapped_import_rows!(
         txn,
-        &package.chapter_video_prompts,
+        &prompts,
         prompt,
         chapter_video_prompt::ActiveModel,
         maps.chapter_video_prompt_ids,
         "导入章节视频提示词失败",
         |active| {
-            if prompt.status == chapter_video_prompt::STATUS_RUNNING {
+            if prompt.status == a4n_domain::video_prompt::STATUS_RUNNING {
                 return Err(ProjectFamilyImportError::invalid_package(format!(
                     "不能导入运行中的章节视频提示词: {}",
                     prompt.id

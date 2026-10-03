@@ -10,7 +10,10 @@ mod contracts;
 pub use algorithm::{
     move_inserted_timeline_item, remove_inserted_timeline_item, timeline_gap_index,
 };
-pub use contracts::{NativeVideoTimelineKey, TimelineError, VideoTimelineGap};
+pub use contracts::{
+    NativeVideoTimelineKey, TimelineError, VideoTimelineGap, VideoTimelineItemRecord,
+    VideoTimelineRecord, VideoTimelineSnapshotRecord,
+};
 
 #[cfg(test)]
 mod tests {

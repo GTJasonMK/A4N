@@ -17,7 +17,7 @@ impl OrchestratorContext {
         active_task_id: &str,
         root_project_id: i64,
         retry_of_task_id: Option<&str>,
-    ) -> Result<a4n_db_models::models::generation::workflow_run::Model, AppError> {
+    ) -> Result<a4n_domain::workflow::WorkflowRunSummary, AppError> {
         let (input, _fingerprint) = crate::video::video_prompt_workflow_run_input(
             workflow_kind,
             project_id,
@@ -46,7 +46,7 @@ impl OrchestratorContext {
         workflow_mode: &str,
         current_step_key: &str,
         input_fingerprint_json: serde_json::Value,
-    ) -> Result<a4n_db_models::models::generation::workflow_run::Model, AppError> {
+    ) -> Result<a4n_domain::workflow::WorkflowRunSummary, AppError> {
         let input = crate::video::video_prompt_optimization_workflow_run_input(
             project_id,
             prompt_id,

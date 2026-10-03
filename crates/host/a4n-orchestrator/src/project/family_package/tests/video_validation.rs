@@ -1,8 +1,9 @@
 use super::*;
 use crate::project::{ImportMediaPayload, MediaFileEntry, media_file_key};
-use a4n_db_models::models::{
-    ai::{generated_image, generated_video},
-    chapter::chapter_video_prompt,
+use a4n_db_models::models::ai::{generated_image, generated_video};
+use a4n_domain::video_prompt::{
+    ChapterVideoPromptRecord, PROMPT_TYPE_VIDEO, STATUS_COMPLETED, STATUS_RUNNING,
+    WORKFLOW_MODE_BOUNDARY_FRAMES,
 };
 use std::collections::HashMap;
 
@@ -16,7 +17,7 @@ fn validate_video_manifest_accepts_terminal_linked_rows() {
 #[test]
 fn validate_video_manifest_rejects_running_prompt() {
     let mut package = package_with_video_rows();
-    package.chapter_video_prompts[0].status = chapter_video_prompt::STATUS_RUNNING.to_string();
+    package.chapter_video_prompts[0].status = STATUS_RUNNING.to_string();
 
     let error = validate_package_manifest(&package).expect_err("running prompt must fail");
 
@@ -143,13 +144,13 @@ pub(in crate::project::family_package::tests) fn package_with_video_rows() -> Pr
         metadata_json: None,
         created_at: dt(),
     }];
-    package.chapter_video_prompts = vec![chapter_video_prompt::Model {
+    package.chapter_video_prompts = vec![ChapterVideoPromptRecord {
         id: 41,
         project_id: 2,
         chapter_id: 11,
         style: Some("cinematic".to_string()),
-        prompt_type: chapter_video_prompt::PROMPT_TYPE_VIDEO.to_string(),
-        workflow_mode: chapter_video_prompt::WORKFLOW_MODE_BOUNDARY_FRAMES.to_string(),
+        prompt_type: PROMPT_TYPE_VIDEO.to_string(),
+        workflow_mode: WORKFLOW_MODE_BOUNDARY_FRAMES.to_string(),
         shot_number: 1,
         title: Some("shot".to_string()),
         scene_summary: Some("scene".to_string()),
@@ -159,7 +160,7 @@ pub(in crate::project::family_package::tests) fn package_with_video_rows() -> Pr
         duration_secs: 6,
         aspect_ratio: Some("16:9".to_string()),
         reference_image_ids_json: Some(json!([31])),
-        status: chapter_video_prompt::STATUS_COMPLETED.to_string(),
+        status: STATUS_COMPLETED.to_string(),
         generated_video_id: Some(51),
         timeline_item_id: None,
         metadata_json: None,
@@ -171,7 +172,7 @@ pub(in crate::project::family_package::tests) fn package_with_video_rows() -> Pr
         project_id: 2,
         chapter_id: Some(11),
         video_type: a4n_domain::video_workflow::VIDEO_TYPE_CHAPTER.to_string(),
-        workflow_mode: Some(chapter_video_prompt::WORKFLOW_MODE_BOUNDARY_FRAMES.to_string()),
+        workflow_mode: Some(WORKFLOW_MODE_BOUNDARY_FRAMES.to_string()),
         file_path: Some("videos/51.mp4".to_string()),
         thumbnail_path: None,
         prompt: "prompt".to_string(),

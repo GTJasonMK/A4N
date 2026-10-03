@@ -6,7 +6,7 @@ use a4n_db::source_sync::{
     PreparedSourceSyncDecisionRecordInput, SourceSyncGalgameSceneLineWriteRecordInput,
     SourceSyncGalgameSceneWriteRecordInput,
     apply_prepared_source_sync_decisions_records_transaction, create_source_sync_preview_records,
-    galgame_scene_regeneration_source_record,
+    galgame_scene_regeneration_source_record_from_records,
 };
 use a4n_db_models::models::{
     chapter::chapter,
@@ -234,10 +234,14 @@ async fn partial_sync_survives_recheck_and_kept_scenes_participate_in_later_upda
         .into_iter()
         .find(|conflict| conflict.target_id == scene_ids[0])
         .unwrap();
-    let regeneration =
-        galgame_scene_regeneration_source_record(&db, &next.run, main_conflict, scene_ids[0])
-            .await
-            .unwrap();
+    let regeneration = galgame_scene_regeneration_source_record_from_records(
+        &db,
+        &next.run,
+        main_conflict,
+        scene_ids[0],
+    )
+    .await
+    .unwrap();
     assert_eq!(regeneration.old_snapshot_chapter.id, source.id);
     assert_eq!(
         regeneration.new_snapshot_chapter.snapshot_id,

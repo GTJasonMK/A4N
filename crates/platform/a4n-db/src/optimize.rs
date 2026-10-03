@@ -30,10 +30,12 @@ pub use patches::{
     update_optimization_patch_sets_status,
 };
 pub use sessions::{
-    create_optimization_session, delete_optimization_session_with_messages,
-    insert_optimization_session_message, optimization_session_by_id, optimization_session_messages,
-    optimization_session_name_exists, optimization_sessions, resume_optimization_analysis_session,
-    update_optimization_session,
+    create_optimization_session, create_optimization_session_record,
+    delete_optimization_session_with_messages, insert_optimization_session_message,
+    optimization_session_by_id, optimization_session_messages, optimization_session_name_exists,
+    optimization_session_record_by_id, optimization_session_records, optimization_sessions,
+    resume_optimization_analysis_session, resume_optimization_analysis_session_record,
+    update_optimization_session, update_optimization_session_record,
 };
 pub use turns::{
     append_optimization_turn_event, complete_optimization_analysis_turn,
@@ -47,9 +49,9 @@ pub use types::{
     OptimizationChapterPatchWriteInput, OptimizationChapterSummaryRecord,
     OptimizationContextReadInput, OptimizationContextRows, OptimizationPatchCreateInput,
     OptimizationPatchSetCreateInput, OptimizationSessionCreateInput,
-    OptimizationSessionMessageInsertInput, OptimizationSessionUpdateInput,
-    OptimizationTurnCreateInput, OptimizationTurnEventAppendInput, OptimizationTurnUpdateInput,
-    OptimizeDbError,
+    OptimizationSessionMessageInsertInput, OptimizationSessionRecordUpdateInput,
+    OptimizationSessionUpdateInput, OptimizationTurnCreateInput, OptimizationTurnEventAppendInput,
+    OptimizationTurnUpdateInput, OptimizeDbError,
 };
 
 #[cfg(test)]

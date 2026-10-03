@@ -1,17 +1,16 @@
+use crate::DbHandle;
 use crate::workflow::{WORKFLOW_STATUS_INTERRUPTED, WORKFLOW_STATUS_RUNNING, WorkflowWriteError};
 use a4n_db_models::models::{generation::generation_run, generation::workflow_run};
 use chrono::{NaiveDateTime, Utc};
 use sea_orm::sea_query::Expr;
 use sea_orm::{
-    ColumnTrait, DatabaseConnection, DatabaseTransaction, EntityTrait, QueryFilter, QuerySelect,
-    TransactionTrait,
+    ColumnTrait, DatabaseTransaction, EntityTrait, QueryFilter, QuerySelect, TransactionTrait,
 };
 
 const DURABLE_RUNNING_WORKFLOW_KIND: &str = "video_provider_job";
 
-pub async fn recover_stale_in_process_workflows(
-    db: &DatabaseConnection,
-) -> Result<u64, WorkflowWriteError> {
+pub async fn recover_stale_in_process_workflows(db: &DbHandle) -> Result<u64, WorkflowWriteError> {
+    let db = db.connection();
     let candidate_ids = workflow_run::Entity::find()
         .select_only()
         .column(workflow_run::Column::Id)

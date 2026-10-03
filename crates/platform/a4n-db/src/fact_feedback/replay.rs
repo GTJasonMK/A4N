@@ -8,8 +8,8 @@ use a4n_domain::fact_feedback::{
 };
 use chrono::Utc;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, ConnectionTrait, DatabaseTransaction, EntityTrait, QueryFilter,
-    QueryOrder, QuerySelect, Select, Set,
+    ActiveModelTrait, ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QueryOrder,
+    QuerySelect, Select, Set,
 };
 use serde_json::Value;
 
@@ -48,8 +48,8 @@ pub struct FeedbackInvalidation {
     pub foreshadowing_ids: Vec<i64>,
 }
 
-pub async fn invalidate_feedback_sources(
-    db: &DatabaseTransaction,
+pub async fn invalidate_feedback_sources<C: ConnectionTrait>(
+    db: &C,
     project_id: i64,
     from_chapter: i32,
 ) -> Result<FeedbackInvalidation, FactFeedbackDbError> {
@@ -221,8 +221,8 @@ fn undo_value(
     .map_err(FactFeedbackDbError::Invalid)
 }
 
-async fn undo_character(
-    db: &DatabaseTransaction,
+async fn undo_character<C: ConnectionTrait>(
+    db: &C,
     project_id: i64,
     change: &material_fact_change::Model,
 ) -> Result<bool, FactFeedbackDbError> {

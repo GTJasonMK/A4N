@@ -2,6 +2,23 @@ use chrono::NaiveDateTime;
 use serde_json::Value;
 
 #[derive(Debug, Clone, PartialEq)]
+pub struct OptimizationSessionRecord {
+    pub id: i64,
+    pub project_id: i64,
+    pub chapter_id: i64,
+    pub name: Option<String>,
+    pub status: String,
+    pub issues: Option<Value>,
+    pub agent_permissions: Option<Value>,
+    pub agent_instruction: Option<String>,
+    pub fixes_applied: i32,
+    pub summary: Option<String>,
+    pub archived_at: Option<NaiveDateTime>,
+    pub created_at: NaiveDateTime,
+    pub updated_at: NaiveDateTime,
+}
+
+#[derive(Debug, Clone, PartialEq)]
 pub struct OptimizationTurnRecord {
     pub id: i64,
     pub session_id: i64,

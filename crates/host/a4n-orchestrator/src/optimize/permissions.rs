@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use a4n_db_models::models::ai::optimization_session;
+use a4n_domain::project::OptimizationSessionRecord;
 use a4n_error::AppError;
 use serde_json::{Value, json};
 
@@ -34,7 +34,7 @@ pub(super) fn optimization_permissions_from_variables(
 }
 
 pub(super) fn optimization_permissions_from_session(
-    session: &optimization_session::Model,
+    session: &OptimizationSessionRecord,
 ) -> Result<OptimizationAgentPermissions, AppError> {
     let value = session
         .agent_permissions

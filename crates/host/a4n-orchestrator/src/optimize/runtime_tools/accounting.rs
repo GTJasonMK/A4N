@@ -1,5 +1,6 @@
 use a4n_db::agent::{AgentOwnedTask, AgentTaskExecutionInput};
-use a4n_db_models::models::{agent::execution, ai::optimization_session};
+use a4n_db_models::models::agent::execution;
+use a4n_domain::project::OptimizationSessionRecord;
 use a4n_error::AppError;
 use a4n_llm_context::{LlmContextManifest, replace_request_user_content_from_manifest};
 use a4n_llm_provider_contract::provider::{ChatRequest, MessageRole};
@@ -169,7 +170,7 @@ impl OrchestratorContext {
     pub(in crate::optimize) async fn execute_accounted_optimization_tool(
         &self,
         generation: &AgentLoopGenerationContext<'_>,
-        session: &optimization_session::Model,
+        session: &OptimizationSessionRecord,
         turn_id: i64,
         step: usize,
         tool: &str,

@@ -6,25 +6,25 @@ impl OrchestratorContext {
     pub(crate) async fn image_config_by_id(
         &self,
         config_id: i64,
-    ) -> Result<image_gen_config::Model, AppError> {
+    ) -> Result<ImageConfigReadRecord, AppError> {
         self.settings.image_config_by_id(config_id).await
     }
 
     pub(crate) async fn resolve_image_config(
         &self,
         config_id: Option<i64>,
-    ) -> Result<image_gen_config::Model, AppError> {
+    ) -> Result<ImageConfigReadRecord, AppError> {
         self.settings.resolve_image_config(config_id).await
     }
 
     pub(crate) async fn video_config_by_id(
         &self,
         config_id: i64,
-    ) -> Result<video_gen_config::Model, AppError> {
+    ) -> Result<VideoConfigReadRecord, AppError> {
         self.settings.video_config_by_id(config_id).await
     }
 
-    pub(crate) async fn default_video_config(&self) -> Result<video_gen_config::Model, AppError> {
+    pub(crate) async fn default_video_config(&self) -> Result<VideoConfigReadRecord, AppError> {
         self.settings.default_video_config().await
     }
 

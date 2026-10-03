@@ -111,18 +111,9 @@ where
         },
     )
     .await?;
-    let regeneration_targets = crate::source_sync::galgame::galgame_scene_regeneration_targets(
-        &tx,
-        run.derived_project_id,
-        &conflicts,
-    )
-    .await?;
+    let plan = source_sync_plan_record(&tx, run).await?;
     tx.commit().await?;
-    Ok(SourceSyncPlanRecord {
-        run,
-        conflicts,
-        regeneration_targets,
-    })
+    Ok(plan)
 }
 
 fn source_sync_project_family_error(error: ProjectFamilyDbError) -> SourceSyncDbError {

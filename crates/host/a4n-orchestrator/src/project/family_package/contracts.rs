@@ -1,9 +1,7 @@
 use crate::project::{MediaFileEntry, ProjectFamilyTextCoreRows};
 use a4n_db_models::models::{
     ai::{generated_image, generated_video},
-    chapter::{
-        chapter_manga_prompt, chapter_shooting_script, chapter_video_prompt, chapter_visual_plan,
-    },
+    chapter::{chapter_manga_prompt, chapter_shooting_script, chapter_visual_plan},
     character::character_portrait,
     galgame::{galgame_choice, galgame_line, galgame_scene, galgame_script},
     generation::{
@@ -19,6 +17,7 @@ use a4n_db_models::models::{
     video_project::{assembly_clip, assembly_timeline, video_segment},
 };
 use a4n_domain::project::ProjectRecord;
+use a4n_domain::video_prompt::ChapterVideoPromptRecord;
 use serde::{Deserialize, Serialize};
 
 pub const PROJECT_FAMILY_PACKAGE_VERSION: &str = "project_family_v8";
@@ -46,7 +45,7 @@ pub struct ProjectFamilyPackage {
     pub character_portraits: Vec<character_portrait::Model>,
     pub generated_images: Vec<generated_image::Model>,
     pub chapter_manga_prompts: Vec<chapter_manga_prompt::Model>,
-    pub chapter_video_prompts: Vec<chapter_video_prompt::Model>,
+    pub chapter_video_prompts: Vec<ChapterVideoPromptRecord>,
     pub generated_videos: Vec<generated_video::Model>,
     pub generation_specs: Vec<generation_spec::Model>,
     pub generation_spec_text_anchors: Vec<generation_spec_text_anchor::Model>,

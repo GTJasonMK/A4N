@@ -136,6 +136,19 @@ pub async fn persist_workflow_progress_snapshot(
     Ok(updated)
 }
 
+pub async fn persist_workflow_progress_snapshot_summary(
+    db: &DatabaseConnection,
+    workflow_run_id: i64,
+    snapshot: Value,
+) -> Result<WorkflowRunSummary, WorkflowWriteError> {
+    persist_workflow_progress_snapshot(db, workflow_run_id, snapshot)
+        .await
+        .map_err(WorkflowWriteError::from)
+        .and_then(|run| {
+            super::projections::workflow_run_summary(run).map_err(WorkflowWriteError::from)
+        })
+}
+
 pub(in crate::workflow) fn validate_workflow_progress_range(
     current: u32,
     total: u32,

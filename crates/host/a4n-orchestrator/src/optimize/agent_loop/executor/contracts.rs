@@ -3,6 +3,7 @@ use crate::generation::{
     checkpoint::GenerationCheckpointWriter,
     events::{GenerationEventPublisher, GenerationTaskSession},
 };
+use a4n_domain::project::OptimizationSessionRecord;
 use a4n_service_protocol::GenerationError;
 use std::sync::Arc;
 use tokio_util::sync::CancellationToken;
@@ -97,7 +98,7 @@ pub(in crate::optimize) struct FailedAgentLoopToolInput<'a> {
 
 pub(in crate::optimize) struct ExplicitAnalysisAgentLoopInput<'a> {
     pub(in crate::optimize) turn_id: i64,
-    pub(in crate::optimize) session: optimization_session::Model,
+    pub(in crate::optimize) session: OptimizationSessionRecord,
     pub(in crate::optimize) analysis_prompt: String,
     pub(in crate::optimize) base_user_message: String,
     pub(in crate::optimize) analysis_context: Value,

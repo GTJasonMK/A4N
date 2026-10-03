@@ -3,7 +3,9 @@ use sea_orm::FromQueryResult;
 
 use crate::rag::RagForeshadowingRow;
 use a4n_domain::chapter::{ChapterRecord, PartOutlineRecord};
-use a4n_domain::project::{OptimizationCharacterProfileRecord, ProjectOptimizationContextRecord};
+use a4n_domain::project::{
+    OptimizationCharacterProfileRecord, OptimizationSessionRecord, ProjectOptimizationContextRecord,
+};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct OptimizationSessionCreateInput {
@@ -21,6 +23,17 @@ pub struct OptimizationSessionCreateInput {
 #[derive(Debug, Clone, PartialEq)]
 pub struct OptimizationSessionUpdateInput {
     pub session: optimization_session::Model,
+    pub status: Option<String>,
+    pub issues: Option<Option<Value>>,
+    pub agent_permissions: Option<Option<Value>>,
+    pub agent_instruction: Option<Option<String>>,
+    pub fixes_applied: Option<i32>,
+    pub summary: Option<Option<String>>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct OptimizationSessionRecordUpdateInput {
+    pub session: OptimizationSessionRecord,
     pub status: Option<String>,
     pub issues: Option<Option<Value>>,
     pub agent_permissions: Option<Option<Value>>,

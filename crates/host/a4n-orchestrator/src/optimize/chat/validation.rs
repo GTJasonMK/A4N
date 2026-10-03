@@ -1,4 +1,4 @@
-use a4n_db_models::models::ai::optimization_session;
+use a4n_domain::project::OptimizationSessionRecord;
 use a4n_error::AppError;
 
 pub(in crate::optimize) fn required_chat_user_text(message: &str) -> Result<&str, AppError> {
@@ -10,7 +10,7 @@ pub(in crate::optimize) fn required_chat_user_text(message: &str) -> Result<&str
 }
 
 pub(in crate::optimize) fn ensure_chat_session_accepts_message(
-    session: &optimization_session::Model,
+    session: &OptimizationSessionRecord,
     operation: &str,
 ) -> Result<(), AppError> {
     if matches!(

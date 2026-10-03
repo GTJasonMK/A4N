@@ -50,7 +50,7 @@ async fn prompt_call_validates_and_checkpoints_before_application_writes() {
     );
     assert!(
         a4n_db::workflow::load_completed_llm_call_checkpoint(
-            database.as_ref(),
+            &a4n_db::DbHandle::new(database.clone()),
             workflow.id,
             "optimize",
             &fingerprint

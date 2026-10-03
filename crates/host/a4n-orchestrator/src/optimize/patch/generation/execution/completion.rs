@@ -1,4 +1,4 @@
-use a4n_db_models::models::ai::optimization_session;
+use a4n_domain::project::OptimizationSessionRecord;
 use a4n_error::AppError;
 use serde_json::{Value, json};
 
@@ -10,7 +10,7 @@ use super::PatchGenerationCallResult;
 
 pub(super) struct PatchGenerationCompletionInput {
     pub(super) requested_session_id: i64,
-    pub(super) session: optimization_session::Model,
+    pub(super) session: OptimizationSessionRecord,
     pub(super) chapter_id: i64,
     pub(super) turn_id: i64,
     pub(super) base_content_hash: String,

@@ -1039,7 +1039,7 @@ impl OrchestratorContext {
             Some(config) => Ok(config.clone()),
             None => {
                 let config = self.default_video_config().await?;
-                super::super::super::video_provider_config_from_model(&config).map_err(|error| {
+                super::super::super::video_provider_config_from_record(&config).map_err(|error| {
                     AppError::InvalidState {
                         current: error,
                         operation: "读取视频 Provider 价格配置".to_string(),

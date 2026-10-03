@@ -1,4 +1,5 @@
 use super::QueueDbError;
+use crate::DbHandle;
 use a4n_db_models::models::{
     generation::{generation_task_checkpoint, workflow_run},
     task::task_queue,
@@ -6,8 +7,8 @@ use a4n_db_models::models::{
 use a4n_domain::task_queue::PersistTaskQueueRecordInput;
 use chrono::Utc;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, ConnectionTrait, DatabaseConnection, DbBackend, DbErr,
-    EntityTrait, QueryFilter, QuerySelect, QueryTrait, Set, TransactionTrait,
+    ActiveModelTrait, ColumnTrait, ConnectionTrait, DbBackend, DbErr, EntityTrait, QueryFilter,
+    QuerySelect, QueryTrait, Set, TransactionTrait,
 };
 
 #[derive(Debug, thiserror::Error)]
@@ -34,9 +35,8 @@ pub(crate) async fn bind_locked_task_queue_row_to_workflow<C: ConnectionTrait>(
     }
 }
 
-pub async fn recoverable_active_task_ids(
-    db: &DatabaseConnection,
-) -> Result<Vec<String>, QueueDbError> {
+pub async fn recoverable_active_task_ids(db: &DbHandle) -> Result<Vec<String>, QueueDbError> {
+    let db = db.connection();
     let generation_task_ids = generation_task_checkpoint::Entity::find()
         .select_only()
         .column(generation_task_checkpoint::Column::TaskId)
@@ -53,9 +53,10 @@ pub async fn recoverable_active_task_ids(
 }
 
 pub async fn insert_task_queue_record(
-    db: &DatabaseConnection,
+    db: &DbHandle,
     input: PersistTaskQueueRecordInput,
 ) -> Result<(), QueueDbError> {
+    let db = db.connection();
     let now = Utc::now().naive_utc();
     let tx = db.begin().await?;
     if input.task_type == "llm_call"
@@ -122,9 +123,10 @@ pub async fn insert_task_queue_record(
 }
 
 pub async fn active_workflow_llm_task_ids(
-    db: &DatabaseConnection,
+    db: &DbHandle,
     workflow_run_id: i64,
 ) -> Result<Vec<String>, QueueDbError> {
+    let db = db.connection();
     task_queue::Entity::find()
         .select_only()
         .column(task_queue::Column::Id)

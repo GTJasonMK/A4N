@@ -3,22 +3,24 @@ use super::*;
 use super::projections::workflow_checkpoint_summary;
 use super::queries::{locked_workflow_run_by_id, workflow_checkpoints};
 use super::validation::ensure_workflow_write_open;
+use crate::DbHandle;
 use sea_orm::{FromQueryResult, sea_query::extension::postgres::PgExpr};
 
 pub async fn upsert_workflow_checkpoint(
-    db: &DatabaseConnection,
+    db: &DbHandle,
     input: UpsertWorkflowCheckpointInput,
-) -> Result<workflow_checkpoint::Model, WorkflowWriteError> {
+) -> Result<WorkflowCheckpointSummary, WorkflowWriteError> {
+    let db = db.connection();
     let tx = db.begin().await.map_err(WorkflowWriteError::Database)?;
     let checkpoint = upsert_workflow_checkpoint_in_transaction(&tx, input).await?;
     tx.commit().await.map_err(WorkflowWriteError::Database)?;
     Ok(checkpoint)
 }
 
-pub async fn upsert_workflow_checkpoint_in_transaction(
-    tx: &sea_orm::DatabaseTransaction,
+pub async fn upsert_workflow_checkpoint_in_transaction<C: ConnectionTrait>(
+    tx: &C,
     input: UpsertWorkflowCheckpointInput,
-) -> Result<workflow_checkpoint::Model, WorkflowWriteError> {
+) -> Result<WorkflowCheckpointSummary, WorkflowWriteError> {
     validate_positive_i64(input.workflow_run_id, "workflow_run_id")?;
     let step_key = required_text(input.step_key, "step_key")?;
     let status = required_text(input.status, "status")?;
@@ -49,7 +51,7 @@ pub async fn upsert_workflow_checkpoint_in_transaction(
             .update(tx)
             .await
             .map_err(WorkflowWriteError::Database)?;
-        return Ok(updated);
+        return Ok(workflow_checkpoint_summary(updated));
     }
 
     let inserted = workflow_checkpoint::ActiveModel {
@@ -71,7 +73,7 @@ pub async fn upsert_workflow_checkpoint_in_transaction(
     .insert(tx)
     .await
     .map_err(WorkflowWriteError::Database)?;
-    Ok(inserted)
+    Ok(workflow_checkpoint_summary(inserted))
 }
 
 #[derive(Debug, FromQueryResult)]
@@ -170,7 +172,7 @@ where
     Ok(())
 }
 
-pub async fn workflow_checkpoint_models(
+async fn workflow_checkpoint_models(
     db: &DatabaseConnection,
     workflow_run_id: i64,
 ) -> Result<Vec<workflow_checkpoint::Model>, WorkflowReadError> {
@@ -178,17 +180,17 @@ pub async fn workflow_checkpoint_models(
 }
 
 pub async fn workflow_checkpoint_summaries(
-    db: &DatabaseConnection,
+    db: &DbHandle,
     workflow_run_id: i64,
 ) -> Result<Vec<WorkflowCheckpointSummary>, WorkflowReadError> {
-    Ok(workflow_checkpoint_models(db, workflow_run_id)
+    Ok(workflow_checkpoint_models(db.connection(), workflow_run_id)
         .await?
         .into_iter()
         .map(workflow_checkpoint_summary)
         .collect())
 }
 
-pub async fn workflow_checkpoint_models_for_runs(
+async fn workflow_checkpoint_models_for_runs(
     db: &DatabaseConnection,
     workflow_run_ids: &[i64],
 ) -> Result<Vec<workflow_checkpoint::Model>, WorkflowReadError> {
@@ -209,14 +211,16 @@ pub async fn workflow_checkpoint_models_for_runs(
 }
 
 pub async fn workflow_checkpoint_summaries_for_runs(
-    db: &DatabaseConnection,
+    db: &DbHandle,
     workflow_run_ids: &[i64],
 ) -> Result<Vec<WorkflowCheckpointSummary>, WorkflowReadError> {
-    Ok(workflow_checkpoint_models_for_runs(db, workflow_run_ids)
-        .await?
-        .into_iter()
-        .map(workflow_checkpoint_summary)
-        .collect())
+    Ok(
+        workflow_checkpoint_models_for_runs(db.connection(), workflow_run_ids)
+            .await?
+            .into_iter()
+            .map(workflow_checkpoint_summary)
+            .collect(),
+    )
 }
 
 pub async fn workflow_checkpoint_step_statuses<C>(
@@ -292,32 +296,34 @@ pub async fn delete_workflow_checkpoints_by_keys(
 }
 
 pub async fn completed_workflow_checkpoint_by_fingerprint(
-    db: &DatabaseConnection,
+    db: &DbHandle,
     workflow_run_id: i64,
     step_key: &str,
     input_fingerprint_sha256: &str,
-) -> Result<Option<workflow_checkpoint::Model>, WorkflowReadError> {
+) -> Result<Option<WorkflowCheckpointSummary>, WorkflowReadError> {
+    let db = db.connection();
     validate_positive_i64(workflow_run_id, "workflow_run_id")?;
     let step_key = required_text(step_key.to_string(), "step_key")?;
     let input_fingerprint_sha256 = required_text(
         input_fingerprint_sha256.to_string(),
         "input_fingerprint_sha256",
     )?;
-    workflow_checkpoint::Entity::find()
+    let checkpoint = workflow_checkpoint::Entity::find()
         .filter(workflow_checkpoint::Column::WorkflowRunId.eq(workflow_run_id))
         .filter(workflow_checkpoint::Column::StepKey.eq(step_key))
         .filter(workflow_checkpoint::Column::InputFingerprintSha256.eq(input_fingerprint_sha256))
         .filter(workflow_checkpoint::Column::Status.eq(WORKFLOW_STATUS_COMPLETED))
         .one(db)
         .await
-        .map_err(WorkflowReadError::Database)
+        .map_err(WorkflowReadError::Database)?;
+    Ok(checkpoint.map(workflow_checkpoint_summary))
 }
 
-pub async fn workflow_checkpoint_model_by_step_in<C>(
+pub async fn workflow_checkpoint_summary_by_step_in<C>(
     db: &C,
     workflow_run_id: i64,
     step_key: &str,
-) -> Result<Option<workflow_checkpoint::Model>, WorkflowReadError>
+) -> Result<Option<WorkflowCheckpointSummary>, WorkflowReadError>
 where
     C: ConnectionTrait,
 {
@@ -329,4 +335,5 @@ where
         .one(db)
         .await
         .map_err(WorkflowReadError::Database)
+        .map(|checkpoint| checkpoint.map(workflow_checkpoint_summary))
 }

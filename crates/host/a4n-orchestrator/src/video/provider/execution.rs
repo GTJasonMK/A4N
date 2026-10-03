@@ -992,7 +992,7 @@ mod tests {
         assert!(matches!(error, AppError::InvalidState { .. }));
         assert!(
             context
-                .workflow_checkpoint_models(run.id)
+                .workflow_checkpoint_summaries(run.id)
                 .await
                 .expect("应可读取 workflow checkpoints")
                 .is_empty()

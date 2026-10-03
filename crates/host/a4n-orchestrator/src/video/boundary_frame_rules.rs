@@ -1,11 +1,11 @@
 //! 边界帧编号、提示词链和生成图片匹配规则（无 DB、无 Host）。
 
-use a4n_db_models::models::chapter::chapter_video_prompt;
 use a4n_domain::image::{
     IMAGE_GENERATION_SOURCE_VIDEO_BOUNDARY_FRAME_PROMPT, image_generation_prompt_id,
     image_generation_source,
 };
 use a4n_domain::media::GeneratedImageReferenceRecord;
+use a4n_domain::video_prompt as chapter_video_prompt;
 use a4n_domain::video_prompt::ChapterVideoPromptRecord;
 
 use super::{PromptChainFields, prompt_chain_matches, prompt_source_type_matches};

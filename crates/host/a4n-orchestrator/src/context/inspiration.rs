@@ -134,7 +134,7 @@ impl OrchestratorContext {
         mode: &str,
         request: &a4n_llm_provider_contract::provider::ChatRequest,
         active_task_id: Option<String>,
-    ) -> Result<a4n_db_models::models::generation::workflow_run::Model, AppError> {
+    ) -> Result<a4n_domain::workflow::WorkflowRunSummary, AppError> {
         let input = crate::inspiration::inspiration_workflow_run_input(
             project_id,
             mode,

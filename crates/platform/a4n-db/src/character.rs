@@ -34,8 +34,8 @@ pub use profile::{
     CharacterProfileCreateError, CharacterProfileCurrentStateFields, CharacterProfileDeleteError,
     CharacterProfileDeletionSummary, create_profile, create_profile_with_generation_run,
     create_profile_with_generation_run_in, delete_profile_cascade_transaction, profile_by_id,
-    profile_by_project_name, profile_current_state_fields, profiles_by_project,
-    profiles_with_timeline_state, update_initial_profile,
+    profile_by_project_name, profile_current_state_fields, profile_records_by_project,
+    profiles_by_project, profiles_with_timeline_state, update_initial_profile,
 };
 pub use snapshot::store::Sha256SnapshotStore;
 pub use snapshot::{

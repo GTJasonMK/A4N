@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use a4n_db::SharedDatabaseConnection;
+use a4n_db::DbHandle;
 use a4n_queue::memory_queue::MemoryTaskQueue;
 
 mod cleanup;
@@ -12,16 +12,12 @@ pub(in crate::persistent) use cleanup::persist_dropped_status;
 
 pub struct SubmittedTaskGuard {
     inner: Arc<MemoryTaskQueue>,
-    db: SharedDatabaseConnection,
+    db: DbHandle,
     task_id: Option<String>,
 }
 
 impl SubmittedTaskGuard {
-    pub(super) fn new(
-        inner: Arc<MemoryTaskQueue>,
-        db: SharedDatabaseConnection,
-        task_id: String,
-    ) -> Self {
+    pub(super) fn new(inner: Arc<MemoryTaskQueue>, db: DbHandle, task_id: String) -> Self {
         Self {
             inner,
             db,

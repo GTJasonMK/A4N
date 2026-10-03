@@ -8,7 +8,7 @@ impl OrchestratorContext {
         project_id: i64,
         chapter_id: i64,
         workflow_mode: &str,
-    ) -> Result<Option<chapter_video_timeline::Model>, AppError> {
+    ) -> Result<Option<VideoTimelineRecord>, AppError> {
         self.video
             .chapter_video_timeline_by_scope(project_id, chapter_id, workflow_mode)
             .await
@@ -28,7 +28,7 @@ impl OrchestratorContext {
         project_id: i64,
         chapter_id: i64,
         workflow_mode: &str,
-    ) -> Result<chapter_video_timeline::Model, AppError> {
+    ) -> Result<VideoTimelineRecord, AppError> {
         self.video
             .ensure_chapter_video_timeline(project_id, chapter_id, workflow_mode)
             .await

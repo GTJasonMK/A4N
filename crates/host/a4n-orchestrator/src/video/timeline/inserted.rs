@@ -2,7 +2,7 @@ use a4n_domain::media::GeneratedImageReferenceRecord;
 use a4n_domain::video_prompt::ChapterVideoPromptRecord;
 fn timeline_item_context(
     item_id: Option<i64>,
-    items: &[chapter_video_timeline_item::Model],
+    items: &[VideoTimelineItemRecord],
     prompts: &[ChapterVideoPromptTimelineRecord],
     segments: &[VideoSegmentPlanV2],
     recipes: &[VideoSegmentExecutionRecipeV1],
@@ -95,7 +95,7 @@ fn timeline_item_context(
 }
 
 pub(crate) fn current_timeline_item_video_id(
-    item: &chapter_video_timeline_item::Model,
+    item: &VideoTimelineItemRecord,
     current_video_id: Option<i64>,
     videos: &[GeneratedVideoRecord],
 ) -> Result<Option<i64>, AppError> {
@@ -177,7 +177,7 @@ struct InsertedSegmentConstraints {
 }
 
 fn validate_inserted_workflow_scope(
-    run: &a4n_db_models::models::generation::workflow_run::Model,
+    run: &a4n_domain::workflow::WorkflowRunSummary,
     input: &CommitInsertedSegmentDraftInput,
 ) -> Result<(), AppError> {
     if run.workflow_kind != INSERTED_SEGMENT_WORKFLOW_KIND {
@@ -203,7 +203,7 @@ fn validate_inserted_workflow_scope(
 }
 
 fn inserted_workflow_fingerprint(
-    run: &a4n_db_models::models::generation::workflow_run::Model,
+    run: &a4n_domain::workflow::WorkflowRunSummary,
     value: &Value,
 ) -> Result<InsertedSegmentWorkflowFingerprint, AppError> {
     let fingerprint: InsertedSegmentWorkflowFingerprint = serde_json::from_value(value.clone())

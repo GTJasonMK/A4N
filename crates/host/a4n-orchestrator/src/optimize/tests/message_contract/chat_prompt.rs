@@ -2,7 +2,7 @@
 fn content_optimization_chat_user_message_uses_session_context() {
     let now = Utc::now().naive_utc();
     let permissions = optimize_test_permissions();
-    let session = optimization_session::Model {
+    let session = OptimizationSessionRecord {
         id: 7,
         project_id: 3,
         chapter_id: 11,

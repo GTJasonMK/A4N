@@ -6,14 +6,11 @@ use a4n_db::generation::{
     GenerationRunCheckpointContext, RecordCompletedGenerationRunWithCheckpointInput,
     generation_checkpoint_fingerprint_sha256,
 };
-use a4n_db_models::models::{
-    character::{character_portrait, protagonist_profile},
-    media::image_publication,
-};
+use a4n_db_models::models::character::{character_portrait, protagonist_profile};
 use a4n_domain::media::{
     CreateGeneratedImageRecordDraftInput, CreateImagePublicationIntentInput,
     IMAGE_PUBLICATION_STATUS_PENDING, IMAGE_PUBLICATION_STATUS_PUBLISHED,
-    ImagePublicationFileFacts,
+    ImagePublicationFileFacts, ImagePublicationRecord,
 };
 use a4n_domain::{
     character::CharacterPortraitCreateInput,
@@ -365,7 +362,7 @@ impl OrchestratorContext {
     pub async fn ensure_portrait_publication_identity_for_user_validated(
         &self,
         user_id: i64,
-        publication: &image_publication::Model,
+        publication: &ImagePublicationRecord,
     ) -> Result<character_portrait::Model, AppError> {
         self.verify_project_permission(publication.project_id, user_id, ProjectAccessRole::Editor)
             .await?;

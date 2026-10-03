@@ -19,6 +19,7 @@ use super::context::{
     ensure_generated_video_status_mutable, generated_video_with_prompt_record,
     update_prompt_status_record,
 };
+use crate::DbHandle;
 use crate::video::VideoDbError;
 use crate::video::VideoProjectIdentity;
 
@@ -365,8 +366,9 @@ where
 }
 
 pub async fn recover_stale_generated_videos_without_provider_job(
-    db: &DatabaseConnection,
+    db: &DbHandle,
 ) -> Result<u64, VideoDbError> {
+    let db = db.connection();
     let stale = generated_video::Entity::find()
         .select_only()
         .column(generated_video::Column::Id)

@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use a4n_db_models::models::ai::optimization_session;
+use a4n_domain::project::OptimizationSessionRecord;
 use a4n_error::AppError;
 use serde_json::Value;
 
@@ -22,7 +22,7 @@ pub(super) struct ChatAgentContext {
 impl OrchestratorContext {
     pub(super) async fn build_chat_agent_context(
         &self,
-        session: &optimization_session::Model,
+        session: &OptimizationSessionRecord,
         permissions: &OptimizationAgentPermissions,
     ) -> Result<ChatAgentContext, AppError> {
         let (previous_turns_result, analysis_context_result) = futures::join!(
@@ -48,7 +48,7 @@ impl OrchestratorContext {
 
     pub(super) async fn build_chat_agent_prompt_bundle(
         &self,
-        session: &optimization_session::Model,
+        session: &OptimizationSessionRecord,
         user_text: &str,
         chat_context: &ChatAgentContext,
         prompt_renderer: &dyn PromptRenderer,

@@ -91,6 +91,15 @@ impl ProjectChapterContextApplication {
             .map_err(project_chapter_context_error_to_app_error)
     }
 
+    async fn protagonist_profile_records_for_project(
+        &self,
+        project_id: i64,
+    ) -> Result<Vec<a4n_domain::character::CharacterProfileRecord>, AppError> {
+        a4n_db::character::profile_records_by_project(self.database.connection(), project_id)
+            .await
+            .map_err(AppError::Database)
+    }
+
     async fn character_states_before_chapter(
         &self,
         profile_ids: &[i64],
@@ -156,6 +165,15 @@ impl OrchestratorContext {
     ) -> Result<Vec<protagonist_profile::Model>, AppError> {
         self.project_chapter_context
             .protagonist_profiles_for_project(project_id)
+            .await
+    }
+
+    pub(crate) async fn protagonist_profile_records_for_project(
+        &self,
+        project_id: i64,
+    ) -> Result<Vec<a4n_domain::character::CharacterProfileRecord>, AppError> {
+        self.project_chapter_context
+            .protagonist_profile_records_for_project(project_id)
             .await
     }
 

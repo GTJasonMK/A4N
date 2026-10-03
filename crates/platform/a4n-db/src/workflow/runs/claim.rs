@@ -66,6 +66,18 @@ pub async fn claim_exclusive_workflow_run(
     Ok(run)
 }
 
+pub async fn claim_exclusive_workflow_run_summary(
+    db: &DatabaseConnection,
+    input: ClaimExclusiveWorkflowRunInput,
+) -> Result<WorkflowRunSummary, WorkflowWriteError> {
+    claim_exclusive_workflow_run(db, input)
+        .await
+        .map_err(WorkflowWriteError::from)
+        .and_then(|run| {
+            super::projections::workflow_run_summary(run).map_err(WorkflowWriteError::from)
+        })
+}
+
 async fn running_workflow_has_live_task(
     tx: &sea_orm::DatabaseTransaction,
     run: &workflow_run::Model,

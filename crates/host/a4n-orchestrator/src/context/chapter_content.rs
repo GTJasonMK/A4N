@@ -308,7 +308,7 @@ async fn chapter_metadata_with_sync_state(
         .iter()
         .map(|chapter| chapter.id)
         .collect::<Vec<_>>();
-    let db = state.chapter_content.database.connection();
+    let db = &state.chapter_content.database;
     let (analysis_runs_result, content_runs_result) = futures::join!(
         a4n_db::workflow::latest_workflow_run_summaries_for_chapters(
             db,

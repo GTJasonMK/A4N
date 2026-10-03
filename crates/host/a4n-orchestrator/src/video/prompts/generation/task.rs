@@ -8,8 +8,8 @@ use a4n_api_contract::{
         VideoInsertedSegmentGenerationOptions, VideoPromptGenerationOptions,
     },
 };
-use a4n_db_models::models::chapter::chapter_video_prompt;
 use a4n_domain::prompt_language::{PromptOutputLanguage, metadata_matches_prompt_output_language};
+use a4n_domain::video_prompt as chapter_video_prompt;
 use a4n_progress::ProgressPhaseKind;
 use a4n_service_protocol::{
     BatchCommitPolicy, BatchSummary, GenerationError, GenerationFinishReason, GenerationResultRef,

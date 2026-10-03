@@ -99,8 +99,7 @@ impl SceneProfileSyncApplicationPort for OrchestratorContext {
 }
 
 use crate::workflow::{UpsertWorkflowRunInput, WORKFLOW_STATUS_RUNNING};
-use a4n_db_models::models::chapter::chapter;
-use a4n_db_models::models::generation::workflow_run;
+use a4n_domain::chapter::ChapterRecord;
 
 impl OrchestratorContext {
     /// 场景档案同步：校验后创建或恢复 workflow_run（RUNNING）。
@@ -108,9 +107,9 @@ impl OrchestratorContext {
         &self,
         project_id: i64,
         chapter_number: Option<i32>,
-        chapters: &[chapter::Model],
+        chapters: &[ChapterRecord],
         active_task_id: Option<&str>,
-    ) -> Result<workflow_run::Model, AppError> {
+    ) -> Result<a4n_domain::workflow::WorkflowRunSummary, AppError> {
         if project_id <= 0 {
             return Err(AppError::InvalidArgument("项目 ID 必须大于 0".to_string()));
         }

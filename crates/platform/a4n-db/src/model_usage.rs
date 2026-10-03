@@ -157,6 +157,20 @@ where
         .map_err(AppError::Database)
 }
 
+/// Persist a usage record and return only the stable identifier needed by the
+/// provider runtime. The ORM row remains private to this adapter.
+pub async fn start_model_usage_record_id<C>(
+    db: &C,
+    input: ModelUsageRecordStart,
+) -> Result<i64, AppError>
+where
+    C: ConnectionTrait,
+{
+    start_model_usage_record(db, input)
+        .await
+        .map(|record| record.id)
+}
+
 #[derive(Debug, FromQueryResult)]
 pub struct ModelUsageSummaryRecord {
     pub id: i64,

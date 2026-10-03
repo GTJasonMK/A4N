@@ -1,5 +1,4 @@
 use a4n_api_contract::galgame::{GalgamePipelineStatusSummary, GalgameProgressReporter};
-use a4n_db_models::models::generation::workflow_run;
 use a4n_domain::project::ProjectKind;
 use a4n_error::AppError;
 use a4n_prompt::rendering::PromptRenderer;
@@ -103,7 +102,7 @@ impl OrchestratorContext {
         &self,
         user_id: i64,
         project_id: i64,
-    ) -> Result<workflow_run::Model, AppError> {
+    ) -> Result<a4n_domain::workflow::WorkflowRunSummary, AppError> {
         self.verify_galgame_project_access(user_id, project_id, ProjectAccessRole::Editor)
             .await?;
         self.cancel_galgame_pipeline_validated(project_id).await
@@ -260,7 +259,7 @@ impl OrchestratorContext {
         }
         let run = runs_result?.into_iter().next();
         let checkpoints = match &run {
-            Some(run) => self.workflow_checkpoint_models(run.id).await?,
+            Some(run) => self.workflow_checkpoint_summaries(run.id).await?,
             None => Vec::new(),
         };
         Ok(super::read_models::galgame_pipeline_status_summary(
@@ -343,7 +342,7 @@ impl OrchestratorContext {
     pub async fn cancel_galgame_pipeline_validated(
         &self,
         project_id: i64,
-    ) -> Result<workflow_run::Model, AppError> {
+    ) -> Result<a4n_domain::workflow::WorkflowRunSummary, AppError> {
         let (project_result, runs_result) = futures::join!(
             self.project_by_id(project_id),
             self.workflow_run_models(ListWorkflowRunsInput {

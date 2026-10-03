@@ -11,7 +11,9 @@ use super::super::super::test_support::setup_db;
 #[tokio::test]
 async fn family_context_persists_project_family_fields() {
     let db = setup_db().await;
-    let queue = PersistentTaskQueue::new(db.clone()).await.unwrap();
+    let queue = PersistentTaskQueue::new(a4n_db::DbHandle::new(db.clone()))
+        .await
+        .unwrap();
     let context = TaskFamilyContext::new(21, 7, Some(3), "video_prompt").unwrap();
 
     let task_id = queue
@@ -39,7 +41,9 @@ async fn family_context_persists_project_family_fields() {
 #[tokio::test]
 async fn workflow_context_persists_workflow_run_id() {
     let db = setup_db().await;
-    let queue = PersistentTaskQueue::new(db.clone()).await.unwrap();
+    let queue = PersistentTaskQueue::new(a4n_db::DbHandle::new(db.clone()))
+        .await
+        .unwrap();
     let task_id = queue
         .submit_internal(
             TaskKind::VideoPoll,
@@ -63,7 +67,9 @@ async fn workflow_context_persists_workflow_run_id() {
 #[tokio::test]
 async fn project_family_supports_source_sync_and_assembly_tasks() {
     let db = setup_db().await;
-    let queue = PersistentTaskQueue::new(db.clone()).await.unwrap();
+    let queue = PersistentTaskQueue::new(a4n_db::DbHandle::new(db.clone()))
+        .await
+        .unwrap();
     let source_sync_id = queue
         .submit_internal(
             TaskKind::SourceSync,
@@ -111,7 +117,9 @@ async fn project_family_supports_source_sync_and_assembly_tasks() {
 #[tokio::test]
 async fn persisted_row_returns_project_family_fields() {
     let db = setup_db().await;
-    let queue = PersistentTaskQueue::new(db.clone()).await.unwrap();
+    let queue = PersistentTaskQueue::new(a4n_db::DbHandle::new(db.clone()))
+        .await
+        .unwrap();
     let context = TaskFamilyContext::new(31, 7, Some(5), "media_generation").unwrap();
     let task_id = queue
         .submit_internal(

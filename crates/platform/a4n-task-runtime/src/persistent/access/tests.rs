@@ -9,7 +9,9 @@ use super::super::test_support::setup_db;
 #[tokio::test]
 async fn completed_task_preserves_memory_and_database_terminal_status() {
     let db = setup_db().await;
-    let queue = PersistentTaskQueue::new(db.clone()).await.unwrap();
+    let queue = PersistentTaskQueue::new(a4n_db::DbHandle::new(db.clone()))
+        .await
+        .unwrap();
     let task_id = queue
         .submit_internal(TaskKind::LlmCall, TaskPriority::High, Some(9), None, None)
         .await
@@ -28,7 +30,9 @@ async fn completed_task_preserves_memory_and_database_terminal_status() {
     assert!(!queue.cancel(&task_id).await.unwrap());
 
     drop(queue);
-    let queue = PersistentTaskQueue::new(db.clone()).await.unwrap();
+    let queue = PersistentTaskQueue::new(a4n_db::DbHandle::new(db.clone()))
+        .await
+        .unwrap();
     assert!(
         !queue
             .cancel(&task_id)
@@ -48,7 +52,9 @@ async fn completed_task_preserves_memory_and_database_terminal_status() {
 #[tokio::test]
 async fn mark_done_after_running_cancel_preserves_cancelled_status() {
     let db = setup_db().await;
-    let queue = PersistentTaskQueue::new(db.clone()).await.unwrap();
+    let queue = PersistentTaskQueue::new(a4n_db::DbHandle::new(db.clone()))
+        .await
+        .unwrap();
     let task_id = queue
         .submit_internal(TaskKind::LlmCall, TaskPriority::High, Some(10), None, None)
         .await

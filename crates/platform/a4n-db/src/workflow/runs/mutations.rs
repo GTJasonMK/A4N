@@ -1,6 +1,7 @@
 use super::*;
 
 use super::super::llm_checkpoint::inherit_completed_llm_call_checkpoints;
+use super::projections::workflow_run_summary;
 use super::queries::{locked_latest_workflow_run_by_business_key_model, locked_workflow_run_by_id};
 use super::validation::{
     completed_at_for_status_value, ensure_workflow_status_transition, ensure_workflow_write_open,
@@ -115,6 +116,16 @@ pub async fn upsert_workflow_run(
     Ok(run)
 }
 
+pub async fn upsert_workflow_run_summary(
+    db: &DatabaseConnection,
+    input: UpsertWorkflowRunInput,
+) -> Result<WorkflowRunSummary, WorkflowWriteError> {
+    upsert_workflow_run(db, input)
+        .await
+        .map_err(WorkflowWriteError::from)
+        .and_then(|run| workflow_run_summary(run).map_err(WorkflowWriteError::from))
+}
+
 pub async fn resume_or_upsert_workflow_run(
     db: &DatabaseConnection,
     input: UpsertWorkflowRunInput,
@@ -155,6 +166,16 @@ pub async fn resume_or_upsert_workflow_run(
     Ok(run)
 }
 
+pub async fn resume_or_upsert_workflow_run_summary(
+    db: &DatabaseConnection,
+    input: UpsertWorkflowRunInput,
+) -> Result<WorkflowRunSummary, WorkflowWriteError> {
+    resume_or_upsert_workflow_run(db, input)
+        .await
+        .map_err(WorkflowWriteError::from)
+        .and_then(|run| workflow_run_summary(run).map_err(WorkflowWriteError::from))
+}
+
 pub async fn continue_completed_workflow_run(
     db: &DatabaseConnection,
     source_run_id: i64,
@@ -192,8 +213,19 @@ pub async fn continue_completed_workflow_run(
     Ok(run)
 }
 
-pub(super) async fn resume_workflow_run_model_in_transaction(
-    tx: &sea_orm::DatabaseTransaction,
+pub async fn continue_completed_workflow_run_summary(
+    db: &DatabaseConnection,
+    source_run_id: i64,
+    input: UpsertWorkflowRunInput,
+) -> Result<WorkflowRunSummary, WorkflowWriteError> {
+    continue_completed_workflow_run(db, source_run_id, input)
+        .await
+        .map_err(WorkflowWriteError::from)
+        .and_then(|run| workflow_run_summary(run).map_err(WorkflowWriteError::from))
+}
+
+pub(super) async fn resume_workflow_run_model_in_transaction<C: ConnectionTrait>(
+    tx: &C,
     existing: workflow_run::Model,
     input: UpsertWorkflowRunInput,
 ) -> Result<workflow_run::Model, WorkflowWriteError> {
@@ -214,8 +246,8 @@ pub(super) async fn resume_workflow_run_model_in_transaction(
         .map_err(WorkflowWriteError::Database)
 }
 
-pub async fn upsert_workflow_run_in_transaction(
-    tx: &sea_orm::DatabaseTransaction,
+pub async fn upsert_workflow_run_in_transaction<C: ConnectionTrait>(
+    tx: &C,
     input: UpsertWorkflowRunInput,
 ) -> Result<workflow_run::Model, WorkflowWriteError> {
     validate_workflow_run_input(&input)?;
@@ -343,6 +375,14 @@ pub async fn upsert_workflow_run_in_transaction(
     Ok(run)
 }
 
+pub async fn upsert_workflow_run_summary_in_transaction<C: ConnectionTrait>(
+    tx: &C,
+    input: UpsertWorkflowRunInput,
+) -> Result<WorkflowRunSummary, WorkflowWriteError> {
+    let run = upsert_workflow_run_in_transaction(tx, input).await?;
+    workflow_run_summary(run).map_err(WorkflowWriteError::from)
+}
+
 pub async fn mark_workflow_status(
     db: &DatabaseConnection,
     workflow_run_id: i64,
@@ -397,11 +437,34 @@ pub async fn mark_workflow_status(
     Ok(updated)
 }
 
+pub async fn mark_workflow_status_summary(
+    db: &DatabaseConnection,
+    workflow_run_id: i64,
+    status: &str,
+    can_resume: bool,
+    error_message: Option<&str>,
+) -> Result<WorkflowRunSummary, WorkflowWriteError> {
+    mark_workflow_status(db, workflow_run_id, status, can_resume, error_message)
+        .await
+        .map_err(WorkflowWriteError::from)
+        .and_then(|run| workflow_run_summary(run).map_err(WorkflowWriteError::from))
+}
+
 pub async fn resume_workflow_run(
     db: &DatabaseConnection,
     workflow_run_id: i64,
 ) -> Result<workflow_run::Model, WorkflowWriteError> {
     resume_workflow_run_inner(db, workflow_run_id, None).await
+}
+
+pub async fn resume_workflow_run_summary(
+    db: &DatabaseConnection,
+    workflow_run_id: i64,
+) -> Result<WorkflowRunSummary, WorkflowWriteError> {
+    resume_workflow_run(db, workflow_run_id)
+        .await
+        .map_err(WorkflowWriteError::from)
+        .and_then(|run| workflow_run_summary(run).map_err(WorkflowWriteError::from))
 }
 
 /// 将可恢复 workflow 绑定到已经预留的新执行任务。
@@ -416,6 +479,17 @@ pub async fn resume_workflow_run_with_active_task(
 ) -> Result<workflow_run::Model, WorkflowWriteError> {
     let active_task_id = required_text(active_task_id.to_string(), "active_task_id")?;
     resume_workflow_run_inner(db, workflow_run_id, Some(&active_task_id)).await
+}
+
+pub async fn resume_workflow_run_with_active_task_summary(
+    db: &DatabaseConnection,
+    workflow_run_id: i64,
+    active_task_id: &str,
+) -> Result<WorkflowRunSummary, WorkflowWriteError> {
+    resume_workflow_run_with_active_task(db, workflow_run_id, active_task_id)
+        .await
+        .map_err(WorkflowWriteError::from)
+        .and_then(|run| workflow_run_summary(run).map_err(WorkflowWriteError::from))
 }
 
 async fn resume_workflow_run_inner(
@@ -577,4 +651,15 @@ pub async fn mark_workflow_current_step(
         .map_err(WorkflowWriteError::Database)?;
     tx.commit().await.map_err(WorkflowWriteError::Database)?;
     Ok(updated)
+}
+
+pub async fn mark_workflow_current_step_summary(
+    db: &DatabaseConnection,
+    workflow_run_id: i64,
+    current_step_key: &str,
+) -> Result<WorkflowRunSummary, WorkflowWriteError> {
+    mark_workflow_current_step(db, workflow_run_id, current_step_key)
+        .await
+        .map_err(WorkflowWriteError::from)
+        .and_then(|run| workflow_run_summary(run).map_err(WorkflowWriteError::from))
 }

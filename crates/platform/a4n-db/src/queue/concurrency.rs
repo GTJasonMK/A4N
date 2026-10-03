@@ -1,10 +1,12 @@
 use super::{DefaultProviderConcurrencyLimits, QueueDbError};
+use crate::DbHandle;
 use a4n_db_models::models::ai::{image_gen_config, llm_config, video_gen_config};
 use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QuerySelect};
 
 pub async fn load_default_provider_concurrency_limits(
-    db: &DatabaseConnection,
+    db: &DbHandle,
 ) -> Result<DefaultProviderConcurrencyLimits, QueueDbError> {
+    let db = db.connection();
     let (llm, image, video) = futures::join!(
         load_default_llm_concurrency(db),
         load_default_image_concurrency(db),

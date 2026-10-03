@@ -8,7 +8,7 @@ use a4n_domain::generation::RecordCompletedGenerationRunInput;
 use a4n_domain::media::{
     CreateGeneratedImageRecordDraftInput, CreateImagePublicationIntentInput, GeneratedImageRecord,
     IMAGE_PUBLICATION_STATUS_PENDING, IMAGE_PUBLICATION_STATUS_PUBLISHED,
-    ImagePublicationFileFacts,
+    ImagePublicationFileFacts, ImagePublicationRecord,
 };
 use a4n_error::AppError;
 use a4n_provider_contract::ImageProviderConfig;
@@ -392,7 +392,7 @@ impl OrchestratorContext {
         let Some(publication) = self.image_publication_by_id(publication_id).await? else {
             return Ok(None);
         };
-        a4n_db::video::validate_image_publication_request(
+        a4n_db::video::validate_image_publication_record_request(
             &publication,
             a4n_db::video::ImagePublicationRequest {
                 project_id: input.project_id,
@@ -421,7 +421,7 @@ impl OrchestratorContext {
         &self,
         host_port: &dyn ImageGenerationHostPort,
         input: &ImageGenerationExecutionInput,
-        publication: &a4n_db_models::models::media::image_publication::Model,
+        publication: &ImagePublicationRecord,
     ) -> Result<GeneratedImageRecord, AppError> {
         host_port.validate_generated_image_file(&publication.final_path, "已发布图片文件")?;
         let file =
@@ -522,16 +522,18 @@ impl OrchestratorContext {
                 workflow.step_key, checkpoint_file_path, image.file_path
             )));
         }
-        let publication =
-            a4n_db::video::image_publication_by_image_id(self.database.connection(), image_id)
-                .await
-                .map_err(crate::video::video_db_error)?
-                .ok_or_else(|| {
-                    AppError::NotFound(format!(
-                        "{} checkpoint 图片缺少发布记录: {image_id}",
-                        workflow.step_key
-                    ))
-                })?;
+        let publication = a4n_db::video::image_publication_record_by_image_id(
+            self.database.connection(),
+            image_id,
+        )
+        .await
+        .map_err(crate::video::video_db_error)?
+        .ok_or_else(|| {
+            AppError::NotFound(format!(
+                "{} checkpoint 图片缺少发布记录: {image_id}",
+                workflow.step_key
+            ))
+        })?;
         if publication.status != IMAGE_PUBLICATION_STATUS_PUBLISHED {
             return Err(AppError::InvalidState {
                 current: publication.status,

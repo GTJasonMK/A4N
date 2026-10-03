@@ -8,7 +8,7 @@ impl VideoApplication {
         project_id: i64,
         chapter_id: i64,
         workflow_mode: &str,
-    ) -> Result<Option<chapter_video_timeline::Model>, AppError> {
+    ) -> Result<Option<VideoTimelineRecord>, AppError> {
         a4n_db::video::chapter_video_timeline_by_scope(
             self.connection(),
             project_id,
@@ -33,7 +33,7 @@ impl VideoApplication {
         project_id: i64,
         chapter_id: i64,
         workflow_mode: &str,
-    ) -> Result<chapter_video_timeline::Model, AppError> {
+    ) -> Result<VideoTimelineRecord, AppError> {
         a4n_db::video::ensure_chapter_video_timeline(
             self.connection(),
             project_id,

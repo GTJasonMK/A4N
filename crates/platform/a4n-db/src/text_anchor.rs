@@ -6,7 +6,10 @@ mod validation;
 
 pub use current::{
     delete_chapter_content_anchor_records, ensure_chapter_content_anchor_records_batch,
-    read_current_chapter_content_anchor_records_batch, rebuild_chapter_content_anchor_records,
+    ensure_chapter_content_anchor_records_batch_records,
+    read_current_chapter_content_anchor_records_batch,
+    read_current_chapter_content_anchor_records_batch_records,
+    rebuild_chapter_content_anchor_records,
 };
 pub(crate) use evidence::delete_chapter_content_profile_evidence_records_batch;
 pub use evidence::{
@@ -17,7 +20,10 @@ pub(crate) use insertion::insert_content_anchor_records;
 pub(crate) use insertion::insert_content_anchor_records_batch;
 pub(crate) use types::TextAnchorContentInsertInput;
 use types::TextAnchorDbResult;
-pub use types::{CurrentChapterContentAnchorRows, CurrentChapterContentSource, TextAnchorDbError};
+pub use types::{
+    CurrentChapterContentAnchorRecordRows, CurrentChapterContentAnchorRows,
+    CurrentChapterContentSource, TextAnchorDbError,
+};
 pub use validation::validate_anchor_ref_records;
 
 pub const SOURCE_KIND_CHAPTER_CONTENT: &str = "chapter_content";

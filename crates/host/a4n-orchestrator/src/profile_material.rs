@@ -1,6 +1,6 @@
 use a4n_api_contract::profile::{ProfileMaterialGroup, UploadProfileMaterialImageInput};
 use a4n_db::profile_material::profile_material_identity_from_fields;
-use a4n_db_models::models::{asset::object_profile, media::image_publication};
+use a4n_db_models::models::asset::object_profile;
 use a4n_domain::{
     image::{IMAGE_TYPE_OBJECT_MATERIAL, IMAGE_TYPE_SCENE_MATERIAL},
     media::{
@@ -344,7 +344,7 @@ impl OrchestratorContext {
     pub(crate) async fn ensure_profile_material_publication_identity_for_user_validated(
         &self,
         user_id: i64,
-        publication: &image_publication::Model,
+        publication: &a4n_domain::media::ImagePublicationRecord,
     ) -> Result<(), AppError> {
         self.verify_project_permission(publication.project_id, user_id, ProjectAccessRole::Editor)
             .await?;

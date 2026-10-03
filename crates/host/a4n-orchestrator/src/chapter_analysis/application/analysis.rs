@@ -1200,14 +1200,14 @@ impl OrchestratorContext {
         let fingerprint_sha256 = workflow_checkpoint_fingerprint_sha256(input_fingerprint_json)
             .map_err(|error| AppError::InvalidArgument(error.to_string()))?;
         let checkpoint = a4n_db::workflow::completed_workflow_checkpoint_by_fingerprint(
-            self.database.connection(),
+            &self.database,
             workflow_run_id,
             step_key,
             &fingerprint_sha256,
         )
         .await
         .map_err(crate::workflow::workflow_read_app_error)?;
-        Ok(checkpoint.map(a4n_db::workflow::workflow_checkpoint_summary_from_model))
+        Ok(checkpoint)
     }
 }
 

@@ -800,7 +800,7 @@ async fn segment_plan_draft_query_projects_only_restoration_fields() {
     .unwrap();
     let large_context = "x".repeat(10_000);
     crate::workflow::upsert_workflow_checkpoint(
-        &db,
+        &crate::DbHandle::new(std::sync::Arc::new(db.clone())),
         crate::workflow::UpsertWorkflowCheckpointInput {
             workflow_run_id: run.id,
             step_key: "video_segment_plan.shot.unit_1_shot_1".to_string(),
@@ -827,7 +827,7 @@ async fn segment_plan_draft_query_projects_only_restoration_fields() {
     .await
     .unwrap();
     crate::workflow::upsert_workflow_checkpoint(
-        &db,
+        &crate::DbHandle::new(std::sync::Arc::new(db.clone())),
         crate::workflow::UpsertWorkflowCheckpointInput {
             workflow_run_id: run.id,
             step_key: "videoXsegmentYplan.shot.not_a_video_checkpoint".to_string(),
@@ -967,7 +967,7 @@ async fn segment_plan_draft_query_projects_only_restoration_fields() {
     ));
 
     crate::workflow::upsert_workflow_checkpoint(
-        &db,
+        &crate::DbHandle::new(std::sync::Arc::new(db.clone())),
         crate::workflow::UpsertWorkflowCheckpointInput {
             workflow_run_id: run.id,
             step_key: "video_segment_plan.final".to_string(),

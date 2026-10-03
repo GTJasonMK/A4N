@@ -1,11 +1,11 @@
-use a4n_db_models::models::ai::optimization_session;
+use a4n_domain::project::OptimizationSessionRecord;
 use a4n_error::AppError;
 
 use super::super::OptimizeIssue;
 use super::parsing::parse_optimization_issues;
 
 pub(in crate::optimize) fn select_optimization_issues(
-    session: &optimization_session::Model,
+    session: &OptimizationSessionRecord,
     issue_ids: Option<Vec<String>>,
 ) -> Result<Vec<OptimizeIssue>, AppError> {
     let issues_value = session

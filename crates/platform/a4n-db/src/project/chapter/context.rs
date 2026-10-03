@@ -5,8 +5,8 @@ mod mutations;
 mod profiles;
 
 pub use chapters::{
-    chapter_by_id, chapter_project_id, chapters_before_number, character_sync_chapters,
-    import_analysis_chapter_candidates,
+    chapter_by_id, chapter_project_id, chapters_before_number, character_sync_chapter_records,
+    character_sync_chapters, import_analysis_chapter_candidates,
 };
 pub use contracts::{
     ChapterGenerationReferenceContextRows, ChapterObjectProfileContext, ChapterProfileEvidence,

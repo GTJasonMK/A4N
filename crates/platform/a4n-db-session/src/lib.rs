@@ -28,6 +28,15 @@ impl DbHandle {
         Ok(Self::new(Arc::new(connection)))
     }
 
+    pub async fn connect_default(
+        database_url: impl Into<String>,
+    ) -> Result<Self, a4n_error::AppError> {
+        let connection = Database::connect(database_url.into())
+            .await
+            .map_err(a4n_error::AppError::Database)?;
+        Ok(Self::new(Arc::new(connection)))
+    }
+
     pub async fn ping(&self) -> anyhow::Result<()> {
         self.connection
             .execute(Statement::from_string(
@@ -59,7 +68,7 @@ const GENERATION_OWNER_LOCK_KEY: i32 = 1;
 
 pub async fn acquire_generation_owner_lock(
     database_url: &str,
-) -> Result<DatabaseConnection, a4n_error::AppError> {
+) -> Result<DbHandle, a4n_error::AppError> {
     let mut options = ConnectOptions::new(database_url.to_string());
     options
         .max_connections(1)
@@ -93,12 +102,11 @@ pub async fn acquire_generation_owner_lock(
             "同一 PostgreSQL 数据库已有 generation Host owner".to_string(),
         ));
     }
-    Ok(database)
+    Ok(DbHandle::new(Arc::new(database)))
 }
 
-pub async fn verify_required_schema(
-    database: &DatabaseConnection,
-) -> Result<(), a4n_error::AppError> {
+pub async fn verify_required_schema(database: &DbHandle) -> Result<(), a4n_error::AppError> {
+    let database = database.connection();
     let required = a4n_db_models::REQUIRED_SCHEMA_MIGRATION;
     let applied = database
         .query_one(Statement::from_sql_and_values(
@@ -120,9 +128,8 @@ pub async fn verify_required_schema(
     Ok(())
 }
 
-pub async fn verify_canvas_project_split(
-    database: &DatabaseConnection,
-) -> Result<(), a4n_error::AppError> {
+pub async fn verify_canvas_project_split(database: &DbHandle) -> Result<(), a4n_error::AppError> {
+    let database = database.connection();
     let row = database
         .query_one(Statement::from_string(
             DatabaseBackend::Postgres,
@@ -155,6 +162,17 @@ SELECT
         )));
     }
     Ok(())
+}
+
+#[cfg(feature = "migration")]
+pub async fn run_migrations(database: &DbHandle) -> Result<(), a4n_error::AppError> {
+    let connection = database.connection();
+    a4n_migration::migrator::run_migrations(connection)
+        .await
+        .map_err(a4n_error::AppError::Database)?;
+    a4n_migration::migrations::canvas_project_split::ensure_complete(connection)
+        .await
+        .map_err(a4n_error::AppError::Database)
 }
 
 #[cfg(test)]

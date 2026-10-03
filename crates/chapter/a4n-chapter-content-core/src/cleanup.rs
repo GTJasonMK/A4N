@@ -2,10 +2,10 @@ use std::fmt::Display;
 
 use a4n_domain::project::ChapterDerivedCleanupArtifacts;
 use a4n_error::AppError;
-use sea_orm::DatabaseTransaction;
+use sea_orm::ConnectionTrait;
 
-pub async fn cleanup_chapter_derived_data_in(
-    db: &DatabaseTransaction,
+pub async fn cleanup_chapter_derived_data_in<C: ConnectionTrait>(
+    db: &C,
     project_id: i64,
     chapter_id: i64,
     chapter_number: i32,

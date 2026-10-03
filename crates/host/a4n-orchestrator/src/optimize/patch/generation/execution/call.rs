@@ -3,8 +3,8 @@ mod contracts;
 mod preparation;
 mod transport;
 
-use a4n_db_models::models::ai::optimization_session;
 use a4n_domain::chapter::ChapterRecord;
+use a4n_domain::project::OptimizationSessionRecord;
 use a4n_error::AppError;
 
 use crate::generation::generation_public_error;
@@ -115,7 +115,7 @@ pub(super) async fn execute_patch_generation_call(
 
 async fn parse_patch_generation_response(
     service: &OrchestratorContext,
-    session: &optimization_session::Model,
+    session: &OptimizationSessionRecord,
     chapter: &ChapterRecord,
     turn_id: i64,
     base_content_hash: &str,

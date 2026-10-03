@@ -561,7 +561,7 @@ impl OrchestratorContext {
         base_attributes: &Value,
         chapter_data: &Value,
         active_task_id: Option<&str>,
-    ) -> Result<a4n_db_models::models::generation::workflow_run::Model, AppError> {
+    ) -> Result<a4n_domain::workflow::WorkflowRunSummary, AppError> {
         if project_id <= 0 {
             return Err(AppError::InvalidArgument("项目 ID 必须大于 0".to_string()));
         }

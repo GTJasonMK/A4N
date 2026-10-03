@@ -10,6 +10,7 @@ use crate::source_sync::snapshots::{
 use crate::source_sync::{
     SOURCE_SYNC_DETACHED, SYNC_RUN_STATUS_APPLYING, SYNC_RUN_STATUS_PLANNED, SourceSyncDbError,
 };
+use a4n_domain::source_sync::SourceSyncRunRecord;
 
 pub async fn load_source_sync_apply_run_record<C>(
     db: &C,
@@ -67,6 +68,29 @@ where
         });
     }
     Ok(run)
+}
+
+pub async fn load_source_sync_apply_run_domain_record<C>(
+    db: &C,
+    sync_run_id: i64,
+) -> Result<SourceSyncRunRecord, SourceSyncDbError>
+where
+    C: ConnectionTrait,
+{
+    let run = load_source_sync_apply_run_record(db, sync_run_id).await?;
+    Ok(SourceSyncRunRecord {
+        id: run.id,
+        derived_project_id: run.derived_project_id,
+        root_project_id: run.root_project_id,
+        from_snapshot_id: run.from_snapshot_id,
+        to_snapshot_id: run.to_snapshot_id,
+        mode: run.mode,
+        status: run.status,
+        summary_json: run.summary_json,
+        error_message: run.error_message,
+        created_at: run.created_at,
+        updated_at: run.updated_at,
+    })
 }
 
 pub(super) async fn target_snapshot_matches_current_root<C: ConnectionTrait>(

@@ -6,10 +6,12 @@
 use a4n_db::DbHandle;
 use a4n_db::optimize::OptimizationSessionMessageInsertInput;
 use a4n_db_models::models::ai::{
-    optimization_patch, optimization_patch_set, optimization_session, optimization_session_message,
+    optimization_patch, optimization_patch_set, optimization_session_message,
 };
 use a4n_domain::chapter::ChapterRecord;
-use a4n_domain::project::{OptimizationTurnEventRecord, OptimizationTurnRecord};
+use a4n_domain::project::{
+    OptimizationSessionRecord, OptimizationTurnEventRecord, OptimizationTurnRecord,
+};
 use a4n_error::AppError;
 use sea_orm::TransactionTrait;
 use std::collections::HashMap;
@@ -39,17 +41,21 @@ impl OptimizeApplication {
         &self,
         project_id: i64,
         chapter_id: Option<i64>,
-    ) -> Result<Vec<optimization_session::Model>, AppError> {
-        a4n_db::optimize::optimization_sessions(self.database.connection(), project_id, chapter_id)
-            .await
-            .map_err(optimize_db_error)
+    ) -> Result<Vec<OptimizationSessionRecord>, AppError> {
+        a4n_db::optimize::optimization_session_records(
+            self.database.connection(),
+            project_id,
+            chapter_id,
+        )
+        .await
+        .map_err(optimize_db_error)
     }
 
     async fn optimization_session_by_id(
         &self,
         session_id: i64,
-    ) -> Result<Option<optimization_session::Model>, AppError> {
-        a4n_db::optimize::optimization_session_by_id(self.database.connection(), session_id)
+    ) -> Result<Option<OptimizationSessionRecord>, AppError> {
+        a4n_db::optimize::optimization_session_record_by_id(self.database.connection(), session_id)
             .await
             .map_err(optimize_db_error)
     }
@@ -137,7 +143,7 @@ impl OrchestratorContext {
     pub(crate) async fn optimization_session_by_id(
         &self,
         session_id: i64,
-    ) -> Result<Option<optimization_session::Model>, AppError> {
+    ) -> Result<Option<OptimizationSessionRecord>, AppError> {
         self.optimize.optimization_session_by_id(session_id).await
     }
 
@@ -263,7 +269,7 @@ impl OrchestratorContext {
         user_id: i64,
         project_id: i64,
         chapter_id: Option<i64>,
-    ) -> Result<Vec<optimization_session::Model>, AppError> {
+    ) -> Result<Vec<OptimizationSessionRecord>, AppError> {
         self.verify_project_permission(project_id, user_id, ProjectAccessRole::Editor)
             .await?;
         self.optimize
@@ -276,7 +282,7 @@ impl OrchestratorContext {
         user_id: i64,
         project_id: i64,
         chapter_id: i64,
-    ) -> Result<Option<optimization_session::Model>, AppError> {
+    ) -> Result<Option<OptimizationSessionRecord>, AppError> {
         Ok(self
             .optimize_sessions_for_user(user_id, project_id, Some(chapter_id))
             .await?
@@ -288,7 +294,7 @@ impl OrchestratorContext {
         &self,
         user_id: i64,
         session_id: i64,
-    ) -> Result<optimization_session::Model, AppError> {
+    ) -> Result<OptimizationSessionRecord, AppError> {
         let session = self.get_session(session_id).await?;
         self.verify_project_permission(session.project_id, user_id, ProjectAccessRole::Editor)
             .await?;
@@ -408,7 +414,7 @@ impl OrchestratorContext {
     pub(crate) async fn get_session(
         &self,
         session_id: i64,
-    ) -> Result<optimization_session::Model, AppError> {
+    ) -> Result<OptimizationSessionRecord, AppError> {
         self.optimization_session_by_id(session_id)
             .await?
             .ok_or_else(|| AppError::NotFound("优化会话不存在".into()))
@@ -424,7 +430,7 @@ impl OrchestratorContext {
 
     pub(crate) async fn load_optimize_chapter_for_operation(
         &self,
-        session: &optimization_session::Model,
+        session: &OptimizationSessionRecord,
         operation: &str,
         deleted_message: &str,
         empty_content_message: Option<&str>,
@@ -459,7 +465,7 @@ impl OrchestratorContext {
         project_id: i64,
         chapter_id: i64,
         active_task_id: Option<String>,
-    ) -> Result<a4n_db_models::models::generation::workflow_run::Model, AppError> {
+    ) -> Result<a4n_domain::workflow::WorkflowRunSummary, AppError> {
         let mut input = crate::optimize::optimize_session_workflow_run_input(
             session_id,
             workflow_kind,

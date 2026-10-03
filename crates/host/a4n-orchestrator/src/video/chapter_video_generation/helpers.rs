@@ -18,8 +18,8 @@ fn resolve_cached_segment_number(
 }
 
 fn timeline_items_by_id(
-    items: Vec<chapter_video_timeline_item::Model>,
-) -> HashMap<i64, chapter_video_timeline_item::Model> {
+    items: Vec<VideoTimelineItemRecord>,
+) -> HashMap<i64, VideoTimelineItemRecord> {
     let item_count = items.len();
     items
         .into_iter()

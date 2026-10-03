@@ -76,7 +76,7 @@ pub(super) async fn persist_scene_profile_sync_chapter(
                 project_id,
                 chapter_id: context.chapter.id,
                 chapter_number: context.chapter.chapter_number,
-                source: a4n_db::project::chapter_source_snapshot_from_model(&context.chapter),
+                source: context.chapter.source_snapshot(),
                 records,
                 profile_evidence,
                 generation_run: RecordCompletedGenerationRunInput {

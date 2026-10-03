@@ -8,6 +8,7 @@ use super::super::summaries::GenerationRunSummaryRecord;
 use super::projections::{
     workflow_checkpoint_summary, workflow_run_resume_record, workflow_run_summary,
 };
+use crate::DbHandle;
 
 #[derive(Debug, FromQueryResult)]
 struct WorkflowRunRecoveryQueryRecord {
@@ -168,12 +169,12 @@ pub async fn latest_workflow_runs_for_chapters(
 }
 
 pub async fn latest_workflow_run_summaries_for_chapters(
-    db: &DatabaseConnection,
+    db: &DbHandle,
     project_id: i64,
     workflow_kind: &str,
     chapter_ids: &[i64],
 ) -> Result<Vec<WorkflowRunSummary>, WorkflowReadError> {
-    latest_workflow_runs_for_chapters(db, project_id, workflow_kind, chapter_ids)
+    latest_workflow_runs_for_chapters(db.connection(), project_id, workflow_kind, chapter_ids)
         .await?
         .into_iter()
         .map(workflow_run_summary)
@@ -185,6 +186,13 @@ pub async fn workflow_run_model_by_id(
     workflow_run_id: i64,
 ) -> Result<workflow_run::Model, WorkflowReadError> {
     workflow_run_by_id(db, workflow_run_id).await
+}
+
+pub async fn workflow_run_summary_by_id_record(
+    db: &DatabaseConnection,
+    workflow_run_id: i64,
+) -> Result<WorkflowRunSummary, WorkflowReadError> {
+    workflow_run_summary_by_id(db, workflow_run_id).await
 }
 
 pub async fn workflow_run_resume_record_by_id(
@@ -285,6 +293,16 @@ pub async fn latest_workflow_run_by_business_key(
 ) -> Result<Option<workflow_run::Model>, WorkflowReadError> {
     let business_key = required_text(business_key.to_string(), "business_key")?;
     latest_workflow_run_by_business_key_model(db, &business_key).await
+}
+
+pub async fn latest_workflow_run_summary_by_business_key(
+    db: &DatabaseConnection,
+    business_key: &str,
+) -> Result<Option<WorkflowRunSummary>, WorkflowReadError> {
+    latest_workflow_run_by_business_key(db, business_key)
+        .await?
+        .map(workflow_run_summary)
+        .transpose()
 }
 
 pub async fn latest_workflow_run_status_record_by_business_key(
@@ -401,8 +419,8 @@ pub(in crate::workflow) async fn workflow_run_by_id(
         .ok_or_else(|| WorkflowReadError::NotFound(format!("工作流不存在: {workflow_run_id}")))
 }
 
-pub(crate) async fn locked_workflow_run_by_id(
-    db: &sea_orm::DatabaseTransaction,
+pub(crate) async fn locked_workflow_run_by_id<C: ConnectionTrait>(
+    db: &C,
     workflow_run_id: i64,
 ) -> Result<workflow_run::Model, WorkflowReadError> {
     validate_positive_i64(workflow_run_id, "workflow_run_id")?;
@@ -486,8 +504,8 @@ where
         .map_err(WorkflowReadError::Database)
 }
 
-pub(super) async fn locked_latest_workflow_run_by_business_key_model(
-    tx: &sea_orm::DatabaseTransaction,
+pub(super) async fn locked_latest_workflow_run_by_business_key_model<C: ConnectionTrait>(
+    tx: &C,
     business_key: &str,
 ) -> Result<Option<workflow_run::Model>, WorkflowReadError> {
     workflow_run::Entity::find()
@@ -500,10 +518,20 @@ pub(super) async fn locked_latest_workflow_run_by_business_key_model(
         .map_err(WorkflowReadError::Database)
 }
 
-pub async fn latest_workflow_run_by_business_key_for_update(
-    tx: &sea_orm::DatabaseTransaction,
+pub async fn latest_workflow_run_by_business_key_for_update<C: ConnectionTrait>(
+    tx: &C,
     business_key: &str,
 ) -> Result<Option<workflow_run::Model>, WorkflowReadError> {
     let business_key = required_text(business_key.to_string(), "business_key")?;
     locked_latest_workflow_run_by_business_key_model(tx, &business_key).await
+}
+
+pub async fn latest_workflow_run_summary_by_business_key_for_update<C: ConnectionTrait>(
+    tx: &C,
+    business_key: &str,
+) -> Result<Option<WorkflowRunSummary>, WorkflowReadError> {
+    latest_workflow_run_by_business_key_for_update(tx, business_key)
+        .await?
+        .map(workflow_run_summary)
+        .transpose()
 }

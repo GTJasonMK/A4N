@@ -9,8 +9,8 @@ use a4n_db_models::models::{
     project::blueprint_character,
 };
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, ConnectionTrait, DatabaseTransaction, EntityTrait, QueryFilter,
-    QueryOrder, QuerySelect, Set,
+    ActiveModelTrait, ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QueryOrder,
+    QuerySelect, Set,
 };
 use serde_json::Value;
 
@@ -109,8 +109,8 @@ async fn profile_timeline_records<C: ConnectionTrait>(
 }
 
 /// Retract observations while retaining the identity, manual history and assets.
-pub async fn retract_profile_chapter_facts(
-    db: &DatabaseTransaction,
+pub async fn retract_profile_chapter_facts<C: ConnectionTrait>(
+    db: &C,
     project_id: i64,
     profile_id: i64,
     from_chapter: i32,

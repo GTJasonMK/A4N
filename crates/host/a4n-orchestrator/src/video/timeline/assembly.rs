@@ -592,7 +592,7 @@ pub(crate) fn video_timeline_assembly_order_from_snapshot(
 
 pub(crate) fn video_matches_timeline_item(
     video: &GeneratedVideoRecord,
-    item: &a4n_db_models::models::chapter::chapter_video_timeline_item::Model,
+    item: &VideoTimelineItemRecord,
 ) -> bool {
     let identity = video
         .metadata_json

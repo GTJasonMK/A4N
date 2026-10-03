@@ -63,6 +63,20 @@ pub async fn character_sync_chapters(
         .collect())
 }
 
+pub async fn character_sync_chapter_records(
+    db: &DatabaseConnection,
+    project_id: i64,
+) -> Result<Vec<a4n_domain::chapter::ChapterRecord>, ProjectChapterContextError> {
+    character_sync_chapters(db, project_id)
+        .await
+        .map(|chapters| {
+            chapters
+                .into_iter()
+                .map(crate::project::chapter_record)
+                .collect()
+        })
+}
+
 pub async fn chapters_before_number(
     db: &DatabaseConnection,
     project_id: i64,

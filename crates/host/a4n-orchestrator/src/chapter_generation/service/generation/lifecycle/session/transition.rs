@@ -13,7 +13,7 @@ impl ChapterGenerationService {
     ) -> Result<ChapterGenerationSession, AppError> {
         let guard = self.try_generation_guard(project_id, chapter_number)?;
         let existing_chapter = a4n_db::chapter_content::begin_chapter_generation_record(
-            self.db.as_ref(),
+            &self.db,
             project_id,
             chapter_number,
             Utc::now().naive_utc(),
@@ -38,7 +38,7 @@ impl ChapterGenerationService {
         };
 
         if let Err(err) = a4n_db::chapter_content::restore_chapter_generation_status_record(
-            self.db.as_ref(),
+            &self.db,
             existing_chapter.id,
             existing_chapter.previous_status.clone(),
             Utc::now().naive_utc(),

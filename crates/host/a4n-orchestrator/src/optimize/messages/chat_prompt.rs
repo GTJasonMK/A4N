@@ -1,5 +1,4 @@
-use a4n_db_models::models::ai::optimization_session;
-use a4n_domain::project::OptimizationTurnRecord;
+use a4n_domain::project::{OptimizationSessionRecord, OptimizationTurnRecord};
 use a4n_error::AppError;
 use a4n_prompt::request::build_json_task_user_message;
 use serde_json::{Value, json};
@@ -8,7 +7,7 @@ use crate::optimize::OptimizationAgentPermissions;
 
 pub(in crate::optimize) fn build_content_optimization_chat_user_message(
     user_message: &str,
-    session: &optimization_session::Model,
+    session: &OptimizationSessionRecord,
     permissions: &OptimizationAgentPermissions,
     conversation_history: &Value,
     context_manifest: &Value,

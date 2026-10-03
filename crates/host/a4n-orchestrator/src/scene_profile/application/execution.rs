@@ -1,7 +1,7 @@
 mod chapters;
 mod persistence;
 
-use a4n_db_models::models::generation::workflow_run;
+use a4n_domain::workflow::WorkflowRunSummary;
 use a4n_error::AppError;
 use a4n_prompt::rendering::PromptRenderer;
 use serde_json::Value;
@@ -83,7 +83,7 @@ impl OrchestratorContext {
     pub(crate) async fn resume_scene_profile_sync_workflow_run_validated(
         &self,
         user_id: i64,
-        requested_run: &workflow_run::Model,
+        requested_run: &WorkflowRunSummary,
         prompt_renderer: &dyn PromptRenderer,
         host_port: &dyn SceneProfileSyncHostPort,
     ) -> Result<(), AppError> {
@@ -155,7 +155,7 @@ impl OrchestratorContext {
     }
 }
 
-fn scene_profile_sync_chapter_number(run: &workflow_run::Model) -> Result<Option<i32>, AppError> {
+fn scene_profile_sync_chapter_number(run: &WorkflowRunSummary) -> Result<Option<i32>, AppError> {
     let fingerprint =
         run.input_fingerprint_json
             .as_ref()

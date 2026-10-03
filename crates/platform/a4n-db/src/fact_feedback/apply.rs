@@ -394,8 +394,8 @@ pub(super) fn set_character_enrichment(
     Ok(())
 }
 
-pub(super) async fn persist_character_enrichment(
-    tx: &DatabaseTransaction,
+pub(super) async fn persist_character_enrichment<C: ConnectionTrait>(
+    tx: &C,
     mut profile: protagonist_profile::Model,
     kind: &str,
     value: Value,

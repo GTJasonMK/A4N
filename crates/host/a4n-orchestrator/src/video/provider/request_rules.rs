@@ -373,7 +373,7 @@ pub fn provider_image_binding_violation_messages(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use a4n_db_models::models::chapter::chapter_video_prompt;
+    use a4n_domain::video_prompt as chapter_video_prompt;
     use a4n_video::{MAX_CLIPROXY_VIDEO_PROMPT_BYTES, video_provider_prompt};
     use serde_json::json;
 

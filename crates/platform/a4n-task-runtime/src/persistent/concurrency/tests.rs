@@ -30,7 +30,7 @@ async fn queue_init_rejects_invalid_default_llm_concurrency() {
     .await
     .unwrap();
 
-    let err = match PersistentTaskQueue::new(db).await {
+    let err = match PersistentTaskQueue::new(a4n_db::DbHandle::new(db.clone())).await {
         Ok(_) => panic!("invalid default LLM concurrency should fail visibly"),
         Err(err) => err,
     };
@@ -59,7 +59,7 @@ async fn queue_init_rejects_invalid_default_image_concurrency() {
     .await
     .unwrap();
 
-    let err = match PersistentTaskQueue::new(db).await {
+    let err = match PersistentTaskQueue::new(a4n_db::DbHandle::new(db.clone())).await {
         Ok(_) => panic!("invalid default image concurrency should fail visibly"),
         Err(err) => err,
     };
@@ -95,7 +95,7 @@ async fn queue_init_rejects_invalid_default_video_concurrency() {
     .await
     .unwrap();
 
-    let err = match PersistentTaskQueue::new(db).await {
+    let err = match PersistentTaskQueue::new(a4n_db::DbHandle::new(db.clone())).await {
         Ok(_) => panic!("invalid default video concurrency should fail visibly"),
         Err(err) => err,
     };

@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use a4n_db::optimize::OptimizationSessionCreateInput;
-use a4n_db_models::models::ai::optimization_session;
+use a4n_domain::project::OptimizationSessionRecord;
 use a4n_error::AppError;
 use serde_json::Value;
 
@@ -17,7 +17,7 @@ impl OrchestratorContext {
         chapter_id: i64,
         name: &str,
         variables: &HashMap<String, Value>,
-    ) -> Result<optimization_session::Model, AppError> {
+    ) -> Result<OptimizationSessionRecord, AppError> {
         let name = required_available_session_name(
             self.database.connection(),
             project_id,
@@ -35,7 +35,7 @@ impl OrchestratorContext {
         .await?;
         let context_manifest =
             serde_json::to_string_pretty(&optimization_context_manifest(&analysis_context))?;
-        let session = a4n_db::optimize::create_optimization_session(
+        let session = a4n_db::optimize::create_optimization_session_record(
             self.database.connection(),
             OptimizationSessionCreateInput {
                 project_id,

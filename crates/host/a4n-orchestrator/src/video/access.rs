@@ -1,4 +1,4 @@
-use a4n_db_models::models::chapter::chapter;
+use a4n_domain::chapter::ChapterRecord;
 use a4n_error::AppError;
 
 use crate::OrchestratorContext;
@@ -6,8 +6,8 @@ use crate::OrchestratorContext;
 use super::{ChapterVideoPromptOptions, errors::video_db_error};
 
 impl OrchestratorContext {
-    pub(crate) async fn get_chapter(&self, chapter_id: i64) -> Result<chapter::Model, AppError> {
-        a4n_db::video::video_chapter_record(self.database.connection(), chapter_id)
+    pub(crate) async fn get_chapter(&self, chapter_id: i64) -> Result<ChapterRecord, AppError> {
+        a4n_db::video::video_chapter_domain_record(self.database.connection(), chapter_id)
             .await
             .map_err(video_db_error)
     }

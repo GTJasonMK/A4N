@@ -1,4 +1,6 @@
-use a4n_db::optimize::{OptimizationSessionMessageInsertInput, OptimizationSessionUpdateInput};
+use a4n_db::optimize::{
+    OptimizationSessionMessageInsertInput, OptimizationSessionRecordUpdateInput,
+};
 use a4n_error::AppError;
 use serde_json::json;
 
@@ -15,7 +17,7 @@ impl OrchestratorContext {
         content_hash: &str,
         patches: &[OptimizationPatch],
     ) -> Result<(), AppError> {
-        let session = a4n_db::optimize::optimization_session_by_id(tx, session_id)
+        let session = a4n_db::optimize::optimization_session_record_by_id(tx, session_id)
             .await
             .map_err(optimize_db_error)?
             .ok_or_else(|| AppError::NotFound(format!("优化会话不存在：{session_id}")))?;
@@ -63,9 +65,9 @@ impl OrchestratorContext {
         )
         .await
         .map_err(optimize_db_error)?;
-        a4n_db::optimize::update_optimization_session(
+        a4n_db::optimize::update_optimization_session_record(
             tx,
-            OptimizationSessionUpdateInput {
+            OptimizationSessionRecordUpdateInput {
                 session,
                 status: Some("waiting_user".to_string()),
                 issues: None,

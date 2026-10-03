@@ -7,9 +7,7 @@ use a4n_api_contract::workflow::{
     WorkflowCancellationPort, WorkflowCancellationResult, WorkflowCancellationSideEffectsPort,
 };
 use a4n_db::DbHandle;
-use a4n_db_models::models::generation::{
-    workflow_checkpoint, workflow_progress_event, workflow_run,
-};
+use a4n_db_models::models::generation::workflow_progress_event;
 use a4n_domain::media::GeneratedVideoErrorStatusBatchInput;
 use a4n_domain::workflow::{
     WorkflowCheckpointSummary, WorkflowRunResumeRecord, WorkflowRunSummary,

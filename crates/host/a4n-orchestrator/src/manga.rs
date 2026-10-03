@@ -73,7 +73,7 @@ use crate::workflow::{
     WORKFLOW_STATUS_COMPLETED, WORKFLOW_STATUS_FAILED, WORKFLOW_STATUS_INTERRUPTED,
     WORKFLOW_STATUS_RUNNING,
 };
-use a4n_db_models::models::generation::workflow_run;
+use a4n_domain::workflow::WorkflowRunSummary;
 use a4n_error::AppError;
 
 impl OrchestratorContext {
@@ -83,7 +83,7 @@ impl OrchestratorContext {
         chapter_id: i64,
         fingerprint: &serde_json::Value,
         stop_after: Option<a4n_api_contract::manga::MangaPipelineStopAfter>,
-    ) -> Result<Option<workflow_run::Model>, AppError> {
+    ) -> Result<Option<WorkflowRunSummary>, AppError> {
         let next_stage_order = manga_stop_after_order(stop_after);
         Ok(self
             .latest_workflow_run_by_business_key(&manga_pipeline_business_key(
@@ -105,7 +105,7 @@ impl OrchestratorContext {
         project_id: i64,
         chapter_id: i64,
         input_fingerprint: &serde_json::Value,
-    ) -> Result<workflow_run::Model, AppError> {
+    ) -> Result<WorkflowRunSummary, AppError> {
         let business_key = manga_pipeline_business_key(project_id, chapter_id);
         let runs = self
             .workflow_run_models(ListWorkflowRunsInput {
@@ -177,7 +177,7 @@ impl OrchestratorContext {
         task_id: String,
         resume_from_checkpoint: bool,
         stop_after: Option<a4n_api_contract::manga::MangaPipelineStopAfter>,
-    ) -> Result<(workflow_run::Model, bool), AppError> {
+    ) -> Result<(WorkflowRunSummary, bool), AppError> {
         if project_id <= 0 {
             return Err(AppError::InvalidArgument("项目 ID 必须大于 0".to_string()));
         }

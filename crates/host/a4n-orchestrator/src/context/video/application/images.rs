@@ -207,19 +207,20 @@ impl VideoApplication {
     pub(in crate::context) async fn create_image_publication_intent(
         &self,
         input: CreateImagePublicationIntentInput,
-    ) -> Result<(image_publication::Model, OwnedMutexGuard<()>), AppError> {
+    ) -> Result<(ImagePublicationRecord, OwnedMutexGuard<()>), AppError> {
         let guard = self.image_publication_gate.clone().lock_owned().await;
-        let publication = a4n_db::video::create_image_publication_intent(self.connection(), input)
-            .await
-            .map_err(video_db_error)?;
+        let publication =
+            a4n_db::video::create_image_publication_intent_record(self.connection(), input)
+                .await
+                .map_err(video_db_error)?;
         Ok((publication, guard))
     }
 
     pub(in crate::context) async fn image_publication_by_id(
         &self,
         publication_id: &str,
-    ) -> Result<Option<image_publication::Model>, AppError> {
-        a4n_db::video::image_publication_by_id(self.connection(), publication_id)
+    ) -> Result<Option<ImagePublicationRecord>, AppError> {
+        a4n_db::video::image_publication_record_by_id(self.connection(), publication_id)
             .await
             .map_err(video_db_error)
     }
@@ -259,8 +260,8 @@ impl VideoApplication {
         publication_id: &str,
         expected_version: i64,
         metadata_json: Value,
-    ) -> Result<image_publication::Model, AppError> {
-        a4n_db::video::update_image_publication_metadata(
+    ) -> Result<ImagePublicationRecord, AppError> {
+        a4n_db::video::update_image_publication_metadata_record(
             self.connection(),
             publication_id,
             expected_version,
@@ -274,8 +275,8 @@ impl VideoApplication {
         &self,
         limit: usize,
         published_after: Option<&str>,
-    ) -> Result<Vec<image_publication::Model>, AppError> {
-        a4n_db::video::image_publications_for_recovery(self.connection(), limit, published_after)
+    ) -> Result<Vec<ImagePublicationRecord>, AppError> {
+        a4n_db::video::image_publication_recovery_records(self.connection(), limit, published_after)
             .await
             .map_err(video_db_error)
     }
@@ -285,8 +286,8 @@ impl VideoApplication {
         publication_id: &str,
         version: i64,
         reason: String,
-    ) -> Result<image_publication::Model, AppError> {
-        a4n_db::video::mark_image_publication_reclaiming(
+    ) -> Result<ImagePublicationRecord, AppError> {
+        a4n_db::video::mark_image_publication_reclaiming_record(
             self.connection(),
             publication_id,
             version,
@@ -301,8 +302,8 @@ impl VideoApplication {
         publication_id: &str,
         version: i64,
         reason: Option<String>,
-    ) -> Result<image_publication::Model, AppError> {
-        a4n_db::video::mark_image_publication_reclaimed(
+    ) -> Result<ImagePublicationRecord, AppError> {
+        a4n_db::video::mark_image_publication_reclaimed_record(
             self.connection(),
             publication_id,
             version,

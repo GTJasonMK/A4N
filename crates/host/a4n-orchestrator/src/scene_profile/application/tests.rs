@@ -9,9 +9,9 @@ use super::types::{
     SceneProfileSyncRequestContext,
 };
 use crate::scene_profile::SceneSyncInput;
-use a4n_db_models::models::chapter::chapter;
-use a4n_db_models::models::project::text_anchor;
+use a4n_domain::chapter::ChapterRecord;
 use a4n_domain::source_spans::source_spans_for_chapters;
+use a4n_domain::text_anchor::TextAnchorRecord;
 use a4n_error::AppError;
 use a4n_prompt::rendering::PromptRenderer;
 use async_trait::async_trait;
@@ -33,9 +33,9 @@ impl PromptRenderer for SceneSessionPromptRenderer {
     }
 }
 
-fn chapter_for_test() -> chapter::Model {
+fn chapter_for_test() -> ChapterRecord {
     let now = chrono::Utc::now().naive_utc();
-    chapter::Model {
+    ChapterRecord {
         id: 1,
         project_id: 1,
         outline_id: None,
@@ -44,7 +44,7 @@ fn chapter_for_test() -> chapter::Model {
         content: "他推门走进旧书房，木书桌靠着窗。青铜钥匙放在抽屉里。随后他离开旧书房。"
             .to_string(),
         word_count: 42,
-        status: chapter::STATUS_DRAFT.to_string(),
+        status: "draft".to_string(),
         summary: None,
         style_tags: None,
         analysis_data: Some(json!({"metadata": {}})),
@@ -70,12 +70,12 @@ fn context_for_test() -> SceneProfileSyncRequestContext {
     }
 }
 
-fn anchors_for_test(chapters: &[chapter::Model]) -> Vec<text_anchor::Model> {
+fn anchors_for_test(chapters: &[ChapterRecord]) -> Vec<TextAnchorRecord> {
     let now = chrono::Utc::now().naive_utc();
     source_spans_for_chapters(chapters)
         .iter()
         .enumerate()
-        .map(|(index, span)| text_anchor::Model {
+        .map(|(index, span)| TextAnchorRecord {
             id: i64::try_from(index + 1).unwrap(),
             project_id: 1,
             source_chapter_id: Some(span.chapter_id),
@@ -94,7 +94,7 @@ fn anchors_for_test(chapters: &[chapter::Model]) -> Vec<text_anchor::Model> {
         .collect()
 }
 
-fn anchor_id_containing(anchors: &[text_anchor::Model], text: &str) -> i64 {
+fn anchor_id_containing(anchors: &[TextAnchorRecord], text: &str) -> i64 {
     anchors
         .iter()
         .find(|anchor| anchor.quote.contains(text))

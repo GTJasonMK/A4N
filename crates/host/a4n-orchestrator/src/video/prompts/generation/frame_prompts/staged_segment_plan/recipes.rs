@@ -1,7 +1,7 @@
 use std::collections::{HashMap, HashSet};
 
 use a4n_db::video::VideoSegmentPlanDraftCheckpoint;
-use a4n_db_models::models::chapter::chapter_video_prompt;
+use a4n_domain::video_prompt as chapter_video_prompt;
 use a4n_video_contract::{
     VIDEO_SEGMENT_RECIPES_METADATA_KEY, VideoSegmentExecutionRecipeV1, VideoSegmentPlanV2,
     carry_forward_video_segment_recipes, default_video_segment_recipes,

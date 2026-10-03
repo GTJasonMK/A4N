@@ -9,8 +9,8 @@ use a4n_db_models::models::chapter::{
 };
 use a4n_domain::video_prompt::ChapterVideoPromptRecordFields;
 use a4n_domain::video_timeline::{
-    NativeVideoTimelineKey, VideoTimelineGap, move_inserted_timeline_item,
-    remove_inserted_timeline_item, timeline_gap_index,
+    NativeVideoTimelineKey, VideoTimelineGap, VideoTimelineItemRecord, VideoTimelineRecord,
+    move_inserted_timeline_item, remove_inserted_timeline_item, timeline_gap_index,
 };
 use chrono::Utc;
 use sea_orm::{
@@ -31,8 +31,8 @@ pub const TIMELINE_NEEDS_REANCHOR_STATUS: &str = "needs_reanchor";
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct VideoTimelineSnapshot {
-    pub timeline: chapter_video_timeline::Model,
-    pub items: Vec<chapter_video_timeline_item::Model>,
+    pub timeline: VideoTimelineRecord,
+    pub items: Vec<VideoTimelineItemRecord>,
 }
 
 #[derive(Debug, Clone)]
@@ -42,6 +42,60 @@ pub struct CommitInsertedTimelineItemInput {
     pub gap: VideoTimelineGap,
     pub prompt: ChapterVideoPromptRecordFields,
     pub workflow_run_id: i64,
+}
+
+fn timeline_record(model: chapter_video_timeline::Model) -> VideoTimelineRecord {
+    VideoTimelineRecord {
+        id: model.id,
+        project_id: model.project_id,
+        chapter_id: model.chapter_id,
+        workflow_mode: model.workflow_mode,
+        revision: model.revision,
+        created_at: model.created_at,
+        updated_at: model.updated_at,
+    }
+}
+
+fn timeline_item_record(model: chapter_video_timeline_item::Model) -> VideoTimelineItemRecord {
+    VideoTimelineItemRecord {
+        id: model.id,
+        timeline_id: model.timeline_id,
+        position: model.position,
+        item_kind: model.item_kind,
+        status: model.status,
+        native_source_shot_id: model.native_source_shot_id,
+        native_segment_index_in_shot: model.native_segment_index_in_shot,
+        insert_plan_prompt_id: model.insert_plan_prompt_id,
+        workflow_run_id: model.workflow_run_id,
+        created_at: model.created_at,
+        updated_at: model.updated_at,
+    }
+}
+
+fn timeline_item_model(record: &VideoTimelineItemRecord) -> chapter_video_timeline_item::Model {
+    chapter_video_timeline_item::Model {
+        id: record.id,
+        timeline_id: record.timeline_id,
+        position: record.position,
+        item_kind: record.item_kind.clone(),
+        status: record.status.clone(),
+        native_source_shot_id: record.native_source_shot_id.clone(),
+        native_segment_index_in_shot: record.native_segment_index_in_shot,
+        insert_plan_prompt_id: record.insert_plan_prompt_id,
+        workflow_run_id: record.workflow_run_id,
+        created_at: record.created_at,
+        updated_at: record.updated_at,
+    }
+}
+
+fn snapshot_record(
+    timeline: chapter_video_timeline::Model,
+    items: Vec<chapter_video_timeline_item::Model>,
+) -> VideoTimelineSnapshot {
+    VideoTimelineSnapshot {
+        timeline: timeline_record(timeline),
+        items: items.into_iter().map(timeline_item_record).collect(),
+    }
 }
 
 include!("operations.rs");
@@ -186,10 +240,10 @@ mod tests {
         item.workflow_run_id = Some(42);
 
         assert_eq!(
-            inserted_timeline_item_by_workflow_run(&[item], 42).map(|item| item.id),
+            inserted_timeline_item_model_by_workflow_run(&[item], 42).map(|item| item.id),
             Some(8)
         );
-        assert!(inserted_timeline_item_by_workflow_run(&[], 0).is_none());
+        assert!(inserted_timeline_item_model_by_workflow_run(&[], 0).is_none());
     }
 
     #[test]

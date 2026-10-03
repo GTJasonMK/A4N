@@ -1,4 +1,4 @@
-use a4n_db_models::models::chapter::chapter_video_prompt;
+use a4n_domain::video_prompt as chapter_video_prompt;
 use a4n_domain::video_prompt::ChapterVideoPromptRecord;
 use a4n_error::AppError;
 use a4n_llm_provider_contract::provider::{ChatRequest, UsageInfo};

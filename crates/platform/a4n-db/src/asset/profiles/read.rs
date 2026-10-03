@@ -1,7 +1,57 @@
 use a4n_db_models::models::{asset::object_profile, project::novel_project};
+use a4n_domain::object_profile::ObjectProfileRecord;
 use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QueryOrder, QuerySelect};
 
 use crate::asset::AssetDbError;
+
+fn object_profile_record(model: object_profile::Model) -> ObjectProfileRecord {
+    ObjectProfileRecord {
+        id: model.id,
+        project_id: model.project_id,
+        ownership_kind: model.ownership_kind,
+        name: model.name,
+        normalized_name: model.normalized_name,
+        aliases_json: model.aliases_json,
+        object_type: model.object_type,
+        importance: model.importance,
+        visual_description: model.visual_description,
+        material_and_state: model.material_and_state,
+        story_usage: model.story_usage,
+        visual_usage: model.visual_usage,
+        generation_usage: model.generation_usage,
+        location_context: model.location_context,
+        first_seen_chapter: model.first_seen_chapter,
+        last_seen_chapter: model.last_seen_chapter,
+        evidence_json: model.evidence_json,
+        image_prompt_seed: model.image_prompt_seed,
+        created_at: model.created_at,
+        updated_at: model.updated_at,
+    }
+}
+
+pub async fn object_profile_records_by_project<C>(
+    db: &C,
+    project_id: i64,
+) -> Result<Vec<ObjectProfileRecord>, AssetDbError>
+where
+    C: ConnectionTrait,
+{
+    object_profiles_by_project(db, project_id)
+        .await
+        .map(|profiles| profiles.into_iter().map(object_profile_record).collect())
+}
+
+pub async fn object_profile_record_by_id<C>(
+    db: &C,
+    object_profile_id: i64,
+) -> Result<ObjectProfileRecord, AssetDbError>
+where
+    C: ConnectionTrait,
+{
+    object_profile_by_id(db, object_profile_id)
+        .await
+        .map(object_profile_record)
+}
 
 pub async fn object_profiles_by_project<C>(
     db: &C,

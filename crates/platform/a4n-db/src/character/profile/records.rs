@@ -1,4 +1,5 @@
 use a4n_db_models::models::character::protagonist_profile;
+use a4n_domain::character::CharacterProfileRecord;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, ConnectionTrait, DbBackend, DbErr, EntityTrait, QueryFilter,
     QueryOrder, QuerySelect, Set,
@@ -7,6 +8,40 @@ use sea_orm::{
 use crate::character::CharacterDbError;
 
 use super::types::CharacterProfileCurrentStateUpdate;
+
+pub(crate) fn character_profile_record(
+    model: protagonist_profile::Model,
+) -> CharacterProfileRecord {
+    CharacterProfileRecord {
+        id: model.id,
+        project_id: model.project_id,
+        name: model.name,
+        gender: model.gender,
+        age: model.age,
+        base_attributes: model.base_attributes,
+        current_state: model.current_state,
+        character_arc: model.character_arc,
+        voice_fingerprint: model.voice_fingerprint,
+        appearance: model.appearance,
+        background: model.background,
+        personality: model.personality,
+        last_synced_chapter: model.last_synced_chapter,
+        created_at: model.created_at,
+        updated_at: model.updated_at,
+    }
+}
+
+pub async fn profile_records_by_project<C>(
+    db: &C,
+    project_id: i64,
+) -> Result<Vec<CharacterProfileRecord>, sea_orm::DbErr>
+where
+    C: ConnectionTrait,
+{
+    profiles_by_project(db, project_id)
+        .await
+        .map(|profiles| profiles.into_iter().map(character_profile_record).collect())
+}
 
 pub(crate) async fn referenced_profile_ids<C: ConnectionTrait>(
     db: &C,

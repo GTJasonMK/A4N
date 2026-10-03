@@ -3,9 +3,7 @@ use std::collections::HashMap;
 use crate::project::ProjectFamilyTextCoreRows;
 use a4n_db_models::models::{
     ai::{generated_image, generated_video},
-    chapter::{
-        chapter_manga_prompt, chapter_shooting_script, chapter_video_prompt, chapter_visual_plan,
-    },
+    chapter::{chapter_manga_prompt, chapter_shooting_script, chapter_visual_plan},
     character::character_portrait,
     galgame::{galgame_choice, galgame_line, galgame_scene, galgame_script},
     generation::{
@@ -20,7 +18,7 @@ use a4n_db_models::models::{
     source_sync::{source_sync_conflict, source_sync_decision, source_sync_run},
     video_project::{assembly_clip, assembly_timeline, video_segment},
 };
-use a4n_domain::project::ProjectRecord;
+use a4n_domain::{project::ProjectRecord, video_prompt::ChapterVideoPromptRecord};
 
 pub const PROJECT_FAMILY_MEDIA_OWNER_CHARACTER_PORTRAIT: &str = "character_portrait";
 pub const PROJECT_FAMILY_CHARACTER_PORTRAIT_IMAGE_PATH_FIELD: &str = "image_path";
@@ -44,7 +42,7 @@ pub struct ProjectFamilyImportPackage {
     pub character_portraits: Vec<character_portrait::Model>,
     pub generated_images: Vec<generated_image::Model>,
     pub chapter_manga_prompts: Vec<chapter_manga_prompt::Model>,
-    pub chapter_video_prompts: Vec<chapter_video_prompt::Model>,
+    pub chapter_video_prompts: Vec<ChapterVideoPromptRecord>,
     pub generated_videos: Vec<generated_video::Model>,
     pub generation_specs: Vec<generation_spec::Model>,
     pub generation_spec_text_anchors: Vec<generation_spec_text_anchor::Model>,

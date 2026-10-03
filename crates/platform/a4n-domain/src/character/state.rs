@@ -1,4 +1,36 @@
+use chrono::NaiveDateTime;
 use serde_json::{Value, json};
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct CharacterProfileRecord {
+    pub id: i64,
+    pub project_id: i64,
+    pub name: String,
+    pub gender: Option<String>,
+    pub age: Option<String>,
+    pub base_attributes: Value,
+    pub current_state: Value,
+    pub character_arc: Option<Value>,
+    pub voice_fingerprint: Option<Value>,
+    pub appearance: Option<String>,
+    pub background: Option<String>,
+    pub personality: Option<String>,
+    pub last_synced_chapter: i32,
+    pub created_at: NaiveDateTime,
+    pub updated_at: NaiveDateTime,
+}
+
+impl CharacterProfileRecord {
+    pub fn first_seen_chapter(&self) -> Option<i32> {
+        self.base_attributes
+            .get("explicit_attributes")
+            .and_then(Value::as_object)
+            .and_then(|attributes| attributes.get("first_seen_chapter"))
+            .and_then(Value::as_i64)
+            .and_then(|chapter| i32::try_from(chapter).ok())
+            .filter(|chapter| *chapter > 0)
+    }
+}
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct CharacterProfileCurrentStateFields {

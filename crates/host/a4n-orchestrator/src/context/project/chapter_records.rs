@@ -64,6 +64,15 @@ impl ProjectChapterRecordsApplication {
             .collect())
     }
 
+    async fn character_sync_chapter_records(
+        &self,
+        project_id: i64,
+    ) -> Result<Vec<ChapterRecord>, AppError> {
+        a4n_db::project::character_sync_chapter_records(self.database.connection(), project_id)
+            .await
+            .map_err(project_chapter_context_error_to_app_error)
+    }
+
     async fn refresh_project_current_chapter(&self, project_id: i64) -> Result<(), AppError> {
         a4n_db::project::refresh_project_current_chapter(self.database.connection(), project_id)
             .await
@@ -148,6 +157,15 @@ impl OrchestratorContext {
     ) -> Result<Vec<chapter::Model>, AppError> {
         self.project_chapter_records
             .character_sync_chapters(project_id)
+            .await
+    }
+
+    pub(crate) async fn character_sync_chapter_records(
+        &self,
+        project_id: i64,
+    ) -> Result<Vec<ChapterRecord>, AppError> {
+        self.project_chapter_records
+            .character_sync_chapter_records(project_id)
             .await
     }
 

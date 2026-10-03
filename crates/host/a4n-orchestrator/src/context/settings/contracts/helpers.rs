@@ -2,7 +2,6 @@
 
 use super::*;
 use a4n_config_read_core::image_provider_config as image_provider_config_from_record;
-use a4n_db::config::read_records::image_config_read_record;
 
 #[async_trait::async_trait]
 impl VideoProviderConfigPort for OrchestratorContext {
@@ -30,9 +29,9 @@ impl VideoProviderConfigPort for OrchestratorContext {
 }
 
 pub(in crate::context) fn video_provider_config_checked(
-    config: video_gen_config::Model,
+    config: VideoConfigReadRecord,
 ) -> Result<VideoProviderConfig, AppError> {
-    video_provider_config_from_model(&config).map_err(|error| AppError::InvalidState {
+    video_provider_config_from_record(&config).map_err(|error| AppError::InvalidState {
         current: error,
         operation: "读取视频 Provider 价格配置".to_string(),
     })
@@ -54,7 +53,7 @@ impl a4n_api_contract::image::ImageProviderConfigPort for OrchestratorContext {
 }
 
 fn image_provider_config_checked(
-    model: image_gen_config::Model,
+    model: ImageConfigReadRecord,
 ) -> Result<ImageProviderConfig, AppError> {
-    image_provider_config_from_record(image_config_read_record(&model))
+    image_provider_config_from_record(model)
 }

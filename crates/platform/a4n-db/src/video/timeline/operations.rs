@@ -14,7 +14,7 @@ pub async fn commit_inserted_timeline_item(
             "workflow_run_id 必须大于 0".to_string(),
         ));
     }
-    if let Some(item) = inserted_timeline_item_by_workflow_run(&existing, input.workflow_run_id) {
+    if let Some(item) = inserted_timeline_item_model_by_workflow_run(&existing, input.workflow_run_id) {
         if item.status == TIMELINE_DELETED_STATUS {
             return Err(VideoDbError::InvalidState {
                 current: "inserted_segment_already_deleted".to_string(),
@@ -123,7 +123,7 @@ pub async fn ensure_chapter_video_timeline(
     project_id: i64,
     chapter_id: i64,
     workflow_mode: &str,
-) -> Result<chapter_video_timeline::Model, VideoDbError> {
+) -> Result<VideoTimelineRecord, VideoDbError> {
     validate_scope(project_id, chapter_id, workflow_mode)?;
     let txn = db.begin().await.map_err(VideoDbError::Database)?;
     lock_generated_media_project(&txn, project_id).await?;
@@ -167,7 +167,7 @@ pub async fn chapter_video_timeline_by_scope<C>(
     project_id: i64,
     chapter_id: i64,
     workflow_mode: &str,
-) -> Result<Option<chapter_video_timeline::Model>, VideoDbError>
+) -> Result<Option<VideoTimelineRecord>, VideoDbError>
 where
     C: ConnectionTrait,
 {
@@ -178,6 +178,7 @@ where
         .filter(chapter_video_timeline::Column::WorkflowMode.eq(workflow_mode))
         .one(db)
         .await
+        .map(|model| model.map(timeline_record))
         .map_err(VideoDbError::Database)
 }
 
@@ -203,14 +204,29 @@ pub async fn chapter_video_timeline_snapshot(
         .ok_or_else(|| VideoDbError::NotFound(format!("时间线不存在: {timeline_id}")))?;
     let items = items_result.map_err(VideoDbError::Database)?;
     let _ = positioned_order(&items)?;
-    Ok(VideoTimelineSnapshot { timeline, items })
+    Ok(snapshot_record(timeline, items))
 }
 
 pub fn active_timeline_order(snapshot: &VideoTimelineSnapshot) -> Result<Vec<i64>, VideoDbError> {
-    positioned_order(&snapshot.items)
+    positioned_order_records(&snapshot.items)
+}
+
+fn positioned_order_records(items: &[VideoTimelineItemRecord]) -> Result<Vec<i64>, VideoDbError> {
+    let models = items.iter().map(timeline_item_model).collect::<Vec<_>>();
+    positioned_order(&models)
 }
 
 pub fn inserted_timeline_item_by_workflow_run(
+    items: &[VideoTimelineItemRecord],
+    workflow_run_id: i64,
+) -> Option<&VideoTimelineItemRecord> {
+    (workflow_run_id > 0).then_some(())?;
+    items.iter().find(|item| {
+        item.item_kind == TIMELINE_INSERTED_KIND && item.workflow_run_id == Some(workflow_run_id)
+    })
+}
+
+fn inserted_timeline_item_model_by_workflow_run(
     items: &[chapter_video_timeline_item::Model],
     workflow_run_id: i64,
 ) -> Option<&chapter_video_timeline_item::Model> {
@@ -529,7 +545,7 @@ pub async fn reconcile_native_timeline(
         .await
         .map_err(VideoDbError::Database)?;
     txn.commit().await.map_err(VideoDbError::Database)?;
-    Ok(VideoTimelineSnapshot { timeline, items })
+    Ok(snapshot_record(timeline, items))
 }
 
 pub async fn move_inserted_timeline_item_persisted(

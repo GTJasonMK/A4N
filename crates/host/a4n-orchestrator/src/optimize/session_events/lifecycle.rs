@@ -1,4 +1,5 @@
-use a4n_db::optimize::OptimizationSessionUpdateInput;
+use a4n_db::optimize::OptimizationSessionRecordUpdateInput;
+use a4n_domain::project::OptimizationSessionRecord;
 use a4n_error::AppError;
 
 use super::super::{OrchestratorContext, optimize_db_error};
@@ -31,9 +32,9 @@ impl OrchestratorContext {
             return Ok(());
         }
 
-        a4n_db::optimize::update_optimization_session(
+        a4n_db::optimize::update_optimization_session_record(
             self.database.connection(),
-            OptimizationSessionUpdateInput {
+            OptimizationSessionRecordUpdateInput {
                 session,
                 status: Some("waiting_user".to_string()),
                 issues: None,
@@ -71,11 +72,11 @@ impl OrchestratorContext {
 
     async fn update_cancelled_session(
         &self,
-        session: a4n_db_models::models::ai::optimization_session::Model,
+        session: OptimizationSessionRecord,
     ) -> Result<(), AppError> {
-        a4n_db::optimize::update_optimization_session(
+        a4n_db::optimize::update_optimization_session_record(
             self.database.connection(),
-            OptimizationSessionUpdateInput {
+            OptimizationSessionRecordUpdateInput {
                 session,
                 status: Some("cancelled".to_string()),
                 issues: None,

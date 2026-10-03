@@ -191,7 +191,7 @@ impl OrchestratorContext {
 /// 单张图片生成 begin 的返回值（workflow + Host 后续 checkpoint 所需字段）。
 #[derive(Debug, Clone)]
 pub struct ImageGenerationWorkflowStart {
-    pub workflow_run: a4n_db_models::models::generation::workflow_run::Model,
+    pub workflow_run: a4n_domain::workflow::WorkflowRunSummary,
     pub step_key: String,
     pub fingerprint_json: serde_json::Value,
 }

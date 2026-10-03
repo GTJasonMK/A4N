@@ -7,6 +7,7 @@ use a4n_db_models::models::{
     scene::scene_profile,
 };
 use a4n_domain::auth::ROLE_USER;
+use a4n_domain::video_prompt::ChapterVideoPromptRecord;
 use chrono::Utc;
 use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, QueryOrder};
 use std::error::Error;
@@ -498,7 +499,7 @@ async fn project_family_import_batches_video_reference_fixups() {
         updated_at: now,
     };
     let prompt = |id: i64, shot_number: i32, generated_video_id: i64, metadata_json| {
-        chapter_video_prompt::Model {
+        ChapterVideoPromptRecord {
             id,
             project_id,
             chapter_id,

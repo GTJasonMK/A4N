@@ -25,7 +25,7 @@ impl OrchestratorContext {
                 }
                 .into());
             }
-            session = a4n_db::optimize::resume_optimization_analysis_session(
+            session = a4n_db::optimize::resume_optimization_analysis_session_record(
                 self.database.connection(),
                 session_id,
             )

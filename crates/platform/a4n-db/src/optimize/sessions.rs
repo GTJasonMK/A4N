@@ -1,5 +1,75 @@
 use super::*;
 
+fn optimization_session_record(
+    session: optimization_session::Model,
+) -> a4n_domain::project::OptimizationSessionRecord {
+    a4n_domain::project::OptimizationSessionRecord {
+        id: session.id,
+        project_id: session.project_id,
+        chapter_id: session.chapter_id,
+        name: session.name,
+        status: session.status,
+        issues: session.issues,
+        agent_permissions: session.agent_permissions,
+        agent_instruction: session.agent_instruction,
+        fixes_applied: session.fixes_applied,
+        summary: session.summary,
+        archived_at: session.archived_at,
+        created_at: session.created_at,
+        updated_at: session.updated_at,
+    }
+}
+
+fn optimization_session_model(
+    session: a4n_domain::project::OptimizationSessionRecord,
+) -> optimization_session::Model {
+    optimization_session::Model {
+        id: session.id,
+        project_id: session.project_id,
+        chapter_id: session.chapter_id,
+        name: session.name,
+        status: session.status,
+        issues: session.issues,
+        agent_permissions: session.agent_permissions,
+        agent_instruction: session.agent_instruction,
+        fixes_applied: session.fixes_applied,
+        summary: session.summary,
+        archived_at: session.archived_at,
+        created_at: session.created_at,
+        updated_at: session.updated_at,
+    }
+}
+
+pub async fn optimization_session_records<C>(
+    db: &C,
+    project_id: i64,
+    chapter_id: Option<i64>,
+) -> Result<Vec<a4n_domain::project::OptimizationSessionRecord>, OptimizeDbError>
+where
+    C: ConnectionTrait,
+{
+    optimization_sessions(db, project_id, chapter_id)
+        .await
+        .map(|sessions| {
+            sessions
+                .into_iter()
+                .map(optimization_session_record)
+                .collect()
+        })
+}
+
+pub async fn optimization_session_record_by_id<C>(
+    db: &C,
+    session_id: i64,
+) -> Result<Option<a4n_domain::project::OptimizationSessionRecord>, OptimizeDbError>
+where
+    C: ConnectionTrait,
+{
+    optimization_session_by_id(db, session_id)
+        .await
+        .map(|session| session.map(optimization_session_record))
+}
+
 pub async fn optimization_sessions<C>(
     db: &C,
     project_id: i64,
@@ -62,6 +132,15 @@ pub async fn resume_optimization_analysis_session(
         })
 }
 
+pub async fn resume_optimization_analysis_session_record(
+    db: &sea_orm::DatabaseConnection,
+    session_id: i64,
+) -> Result<a4n_domain::project::OptimizationSessionRecord, OptimizeDbError> {
+    resume_optimization_analysis_session(db, session_id)
+        .await
+        .map(optimization_session_record)
+}
+
 pub async fn optimization_session_name_exists<C>(
     db: &C,
     project_id: i64,
@@ -113,6 +192,18 @@ where
     .map_err(OptimizeDbError::Database)
 }
 
+pub async fn create_optimization_session_record<C>(
+    db: &C,
+    input: OptimizationSessionCreateInput,
+) -> Result<a4n_domain::project::OptimizationSessionRecord, OptimizeDbError>
+where
+    C: ConnectionTrait,
+{
+    create_optimization_session(db, input)
+        .await
+        .map(optimization_session_record)
+}
+
 pub async fn update_optimization_session<C>(
     db: &C,
     input: OptimizationSessionUpdateInput,
@@ -141,6 +232,29 @@ where
     }
     active.updated_at = Set(chrono::Utc::now().naive_utc());
     active.update(db).await.map_err(OptimizeDbError::Database)
+}
+
+pub async fn update_optimization_session_record<C>(
+    db: &C,
+    input: OptimizationSessionRecordUpdateInput,
+) -> Result<a4n_domain::project::OptimizationSessionRecord, OptimizeDbError>
+where
+    C: ConnectionTrait,
+{
+    update_optimization_session(
+        db,
+        OptimizationSessionUpdateInput {
+            session: optimization_session_model(input.session),
+            status: input.status,
+            issues: input.issues,
+            agent_permissions: input.agent_permissions,
+            agent_instruction: input.agent_instruction,
+            fixes_applied: input.fixes_applied,
+            summary: input.summary,
+        },
+    )
+    .await
+    .map(optimization_session_record)
 }
 
 pub async fn optimization_session_messages<C>(

@@ -30,6 +30,15 @@ impl AssetApplication {
             .map_err(asset_error)
     }
 
+    async fn object_profile_records_by_project(
+        &self,
+        project_id: i64,
+    ) -> Result<Vec<a4n_domain::object_profile::ObjectProfileRecord>, AppError> {
+        a4n_db::asset::object_profile_records_by_project(self.database.connection(), project_id)
+            .await
+            .map_err(asset_error)
+    }
+
     async fn object_profile_by_id(
         &self,
         object_profile_id: i64,
@@ -68,6 +77,15 @@ impl OrchestratorContext {
         project_id: i64,
     ) -> Result<Vec<object_profile::Model>, AppError> {
         self.asset.object_profiles_by_project(project_id).await
+    }
+
+    pub(crate) async fn object_profile_records_by_project(
+        &self,
+        project_id: i64,
+    ) -> Result<Vec<a4n_domain::object_profile::ObjectProfileRecord>, AppError> {
+        self.asset
+            .object_profile_records_by_project(project_id)
+            .await
     }
 
     pub(crate) async fn object_profile_by_id(

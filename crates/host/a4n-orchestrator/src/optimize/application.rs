@@ -10,8 +10,10 @@ use a4n_api_contract::{
     },
 };
 use a4n_db::optimize::OptimizationChapterPatchWriteInput;
-use a4n_db_models::models::ai::{optimization_patch, optimization_patch_set, optimization_session};
-use a4n_domain::project::{OptimizationTurnEventRecord, OptimizationTurnRecord};
+use a4n_db_models::models::ai::{optimization_patch, optimization_patch_set};
+use a4n_domain::project::{
+    OptimizationSessionRecord, OptimizationTurnEventRecord, OptimizationTurnRecord,
+};
 use a4n_error::AppError;
 use a4n_llm_provider_contract::provider::ChatRequest;
 use a4n_optimize_host_contract::{
@@ -88,7 +90,7 @@ impl OrchestratorContext {
         name: &str,
         prompt_renderer: &dyn PromptRenderer,
         variables: &HashMap<String, serde_json::Value>,
-    ) -> Result<optimization_session::Model, AppError> {
+    ) -> Result<OptimizationSessionRecord, AppError> {
         let chapter = self
             .optimize_chapter_for_user(user_id, project_id, chapter_number)
             .await?;
@@ -110,7 +112,7 @@ impl OrchestratorContext {
         chapter_number: i32,
         name: &str,
         variables: &HashMap<String, serde_json::Value>,
-    ) -> Result<optimization_session::Model, AppError> {
+    ) -> Result<OptimizationSessionRecord, AppError> {
         let chapter = self
             .optimize_chapter_for_user(user_id, project_id, chapter_number)
             .await?;
@@ -123,7 +125,7 @@ impl OrchestratorContext {
         user_id: i64,
         session_id: i64,
         message: &str,
-    ) -> Result<optimization_session::Model, AppError> {
+    ) -> Result<OptimizationSessionRecord, AppError> {
         crate::optimize::chat::validation::required_chat_user_text(message)?;
         let session = self.optimize_session_for_user(user_id, session_id).await?;
         crate::optimize::chat::validation::ensure_chat_session_accepts_message(
@@ -222,7 +224,7 @@ impl OrchestratorContext {
     pub async fn prepare_optimize_analysis_session_validated(
         &self,
         input: PrepareOptimizeAnalysisApplicationInput<'_>,
-    ) -> Result<optimization_session::Model, AppError> {
+    ) -> Result<OptimizationSessionRecord, AppError> {
         let session = self
             .optimize_session_for_user(input.user_id, input.session_id)
             .await?;
@@ -996,7 +998,7 @@ impl OptimizePatchGenerationApplicationPort for OrchestratorContext {
 }
 
 fn optimization_session_summary(
-    model: &optimization_session::Model,
+    model: &OptimizationSessionRecord,
 ) -> Result<OptimizationSessionSummary, AppError> {
     Ok(OptimizationSessionSummary {
         id: model.id,

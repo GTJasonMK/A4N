@@ -9,8 +9,8 @@ use a4n_db::galgame::{
     GalgameScriptDetailChoiceRecord, GalgameScriptDetailReadModel, GalgameScriptDetailSceneRecord,
     GalgameScriptDetailScriptRecord,
 };
-use a4n_db_models::models::generation::workflow_checkpoint;
 use a4n_domain::galgame::GalgameLineRecord;
+use a4n_domain::workflow::WorkflowCheckpointSummary;
 use a4n_error::AppError;
 use a4n_test_support::workflow::WorkflowRunModelBuilder;
 use chrono::NaiveDate;
@@ -140,7 +140,8 @@ fn pipeline_status_projects_only_the_canonical_wire_contract() {
     .with_updated_at(updated_at)
     .with_completed_at(Some(completed_at))
     .build();
-    let checkpoint = workflow_checkpoint::Model {
+    let run = a4n_db::workflow::workflow_run_summary_from_model(run).expect("run summary");
+    let checkpoint = WorkflowCheckpointSummary {
         id: 9,
         workflow_run_id: 7,
         step_key: "visual_plan".to_string(),
@@ -152,9 +153,9 @@ fn pipeline_status_projects_only_the_canonical_wire_contract() {
         artifacts_json: Some(json!({ "prompt_id": 12 })),
         generation_run_ids_json: Some(json!([99])),
         error_message: Some("provider failed".to_string()),
-        created_at,
-        updated_at,
-        completed_at: Some(completed_at),
+        created_at: created_at.and_utc().to_rfc3339(),
+        updated_at: updated_at.and_utc().to_rfc3339(),
+        completed_at: Some(completed_at.and_utc().to_rfc3339()),
     };
 
     let summary = galgame_pipeline_status_summary(Some(run), vec![checkpoint]);

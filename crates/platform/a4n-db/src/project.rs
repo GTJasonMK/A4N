@@ -44,8 +44,8 @@ pub use chapter::context::{
     ChapterGenerationReferenceContextRows, ChapterObjectProfileContext, ChapterProfileEvidence,
     ChapterSceneProfileContext, ProjectChapterContextError, chapter_by_id,
     chapter_generation_reference_context_rows, chapter_project_id, chapters_before_number,
-    character_states_for_profiles_before_chapter, character_sync_chapters,
-    import_analysis_chapter_candidates, object_profiles_before_chapter,
+    character_states_for_profiles_before_chapter, character_sync_chapter_records,
+    character_sync_chapters, import_analysis_chapter_candidates, object_profiles_before_chapter,
     protagonist_profiles_for_project, protagonist_profiles_for_project_in,
     refresh_project_current_chapter, scene_profiles_before_chapter,
 };

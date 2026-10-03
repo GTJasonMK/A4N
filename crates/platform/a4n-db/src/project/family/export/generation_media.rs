@@ -56,13 +56,29 @@ project_family_export_load_by_ids!(
 );
 
 project_family_export_load_by_ids!(
-    project_family_export_chapter_video_prompts,
+    project_family_export_chapter_video_prompt_models,
     chapter_video_prompt::Entity,
     chapter_video_prompt::Column::ProjectId,
     chapter_video_prompt::Column::ChapterId,
     chapter_video_prompt::Column::ShotNumber,
     chapter_video_prompt::Column::Id,
 );
+
+pub(super) async fn project_family_export_chapter_video_prompts<C>(
+    db: &C,
+    ids: &[i64],
+) -> Result<Vec<a4n_domain::video_prompt::ChapterVideoPromptRecord>, ProjectFamilyExportError>
+where
+    C: ConnectionTrait,
+{
+    project_family_export_chapter_video_prompt_models(db, ids)
+        .await
+        .map(|rows| {
+            rows.into_iter()
+                .map(crate::video::read_models::chapter_video_prompt_from_model)
+                .collect()
+        })
+}
 
 project_family_export_load_by_ids!(
     project_family_export_generated_videos,
