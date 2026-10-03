@@ -2,7 +2,8 @@ use crate::galgame::{
     GalgameCompletedVisualAssetRecord, GalgameMediaRecordError, GalgameTargetContext,
     MEDIA_KIND_IMAGE, MEDIA_STATUS_COMPLETED,
 };
-use a4n_db_models::models::{generation::generation_spec, media::media_asset};
+use a4n_db_models::models::media::media_asset;
+use a4n_domain::generation::GenerationSpecRecord;
 use sea_orm::{ConnectionTrait, DbBackend, EntityTrait, QuerySelect};
 
 pub(in crate::galgame) fn validate_galgame_media_asset_source_context(
@@ -99,11 +100,12 @@ where
 
 #[cfg(test)]
 pub(in crate::galgame) fn validate_completed_visual_asset(
-    spec: &generation_spec::Model,
+    spec: &a4n_db_models::models::generation::generation_spec::Model,
     asset: &media_asset::Model,
 ) -> Result<(), GalgameMediaRecordError> {
+    let spec_record = crate::generation::generation_spec_record_from_model(spec.clone());
     validate_completed_visual_asset_fields(
-        spec,
+        &spec_record,
         asset.id,
         asset.project_id,
         asset.root_project_id,
@@ -113,7 +115,7 @@ pub(in crate::galgame) fn validate_completed_visual_asset(
 }
 
 pub(in crate::galgame) fn validate_completed_visual_asset_record(
-    spec: &generation_spec::Model,
+    spec: &GenerationSpecRecord,
     asset: &GalgameCompletedVisualAssetRecord,
 ) -> Result<(), GalgameMediaRecordError> {
     validate_completed_visual_asset_fields(
@@ -127,7 +129,7 @@ pub(in crate::galgame) fn validate_completed_visual_asset_record(
 }
 
 fn validate_completed_visual_asset_fields(
-    spec: &generation_spec::Model,
+    spec: &GenerationSpecRecord,
     asset_id: i64,
     project_id: i64,
     root_project_id: i64,

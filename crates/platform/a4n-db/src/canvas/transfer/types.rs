@@ -1,13 +1,13 @@
-use a4n_db_models::models::{
-    ai::{generated_image, generated_video},
-    generation::{generation_spec, prompt_artifact},
-    media::{media_asset, media_binding, media_provenance},
-    video_project::{assembly_clip, assembly_timeline, video_segment},
-};
 use a4n_domain::canvas::{
     CanvasEdgeRecord, CanvasGraphRecord, CanvasNodeRecord, CanvasTextAssetRecord,
 };
+use a4n_domain::generation::{GenerationSpecRecord, PromptArtifactRecord};
+use a4n_domain::media::{
+    GeneratedImageRecord, GeneratedVideoRecord, MediaAssetRecord, MediaBindingRecord,
+    MediaProvenanceRecord,
+};
 use a4n_domain::project::ProjectRecord;
+use a4n_domain::video_transfer::{AssemblyClipRecord, AssemblyTimelineRecord, VideoSegmentRecord};
 use sea_orm::DbErr;
 use std::collections::HashMap;
 
@@ -37,16 +37,16 @@ pub struct VideoStudioProjectExportRows {
     pub canvas_nodes: Vec<CanvasNodeRecord>,
     pub canvas_edges: Vec<CanvasEdgeRecord>,
     pub canvas_text_assets: Vec<CanvasTextAssetRecord>,
-    pub generation_specs: Vec<generation_spec::Model>,
-    pub prompt_artifacts: Vec<prompt_artifact::Model>,
-    pub generated_images: Vec<generated_image::Model>,
-    pub generated_videos: Vec<generated_video::Model>,
-    pub media_assets: Vec<media_asset::Model>,
-    pub media_provenance: Vec<media_provenance::Model>,
-    pub media_bindings: Vec<media_binding::Model>,
-    pub video_segments: Vec<video_segment::Model>,
-    pub assembly_timelines: Vec<assembly_timeline::Model>,
-    pub assembly_clips: Vec<assembly_clip::Model>,
+    pub generation_specs: Vec<GenerationSpecRecord>,
+    pub prompt_artifacts: Vec<PromptArtifactRecord>,
+    pub generated_images: Vec<GeneratedImageRecord>,
+    pub generated_videos: Vec<GeneratedVideoRecord>,
+    pub media_assets: Vec<MediaAssetRecord>,
+    pub media_provenance: Vec<MediaProvenanceRecord>,
+    pub media_bindings: Vec<MediaBindingRecord>,
+    pub video_segments: Vec<VideoSegmentRecord>,
+    pub assembly_timelines: Vec<AssemblyTimelineRecord>,
+    pub assembly_clips: Vec<AssemblyClipRecord>,
 }
 
 #[derive(Debug, Clone)]
@@ -56,16 +56,16 @@ pub struct VideoStudioProjectImportRows {
     pub canvas_nodes: Vec<CanvasNodeRecord>,
     pub canvas_edges: Vec<CanvasEdgeRecord>,
     pub canvas_text_assets: Vec<CanvasTextAssetRecord>,
-    pub generation_specs: Vec<generation_spec::Model>,
-    pub prompt_artifacts: Vec<prompt_artifact::Model>,
-    pub generated_images: Vec<generated_image::Model>,
-    pub generated_videos: Vec<generated_video::Model>,
-    pub media_assets: Vec<media_asset::Model>,
-    pub media_provenance: Vec<media_provenance::Model>,
-    pub media_bindings: Vec<media_binding::Model>,
-    pub video_segments: Vec<video_segment::Model>,
-    pub assembly_timelines: Vec<assembly_timeline::Model>,
-    pub assembly_clips: Vec<assembly_clip::Model>,
+    pub generation_specs: Vec<GenerationSpecRecord>,
+    pub prompt_artifacts: Vec<PromptArtifactRecord>,
+    pub generated_images: Vec<GeneratedImageRecord>,
+    pub generated_videos: Vec<GeneratedVideoRecord>,
+    pub media_assets: Vec<MediaAssetRecord>,
+    pub media_provenance: Vec<MediaProvenanceRecord>,
+    pub media_bindings: Vec<MediaBindingRecord>,
+    pub video_segments: Vec<VideoSegmentRecord>,
+    pub assembly_timelines: Vec<AssemblyTimelineRecord>,
+    pub assembly_clips: Vec<AssemblyClipRecord>,
 }
 
 pub trait VideoStudioProjectImportMediaFileWriter {

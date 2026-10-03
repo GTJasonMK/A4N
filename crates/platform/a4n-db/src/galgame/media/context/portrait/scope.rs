@@ -1,9 +1,9 @@
-use a4n_db_models::models::generation::generation_spec;
+use a4n_domain::generation::GenerationSpecRecord;
 
 use crate::galgame::GalgameGenerationRecordError;
 
 pub(in crate::galgame) fn validate_galgame_portrait_spec_family_context(
-    spec: &generation_spec::Model,
+    spec: &GenerationSpecRecord,
     root_project_id: i64,
 ) -> Result<i64, GalgameGenerationRecordError> {
     if spec.root_project_id != root_project_id {
@@ -21,7 +21,7 @@ pub(in crate::galgame) fn validate_galgame_portrait_spec_family_context(
 }
 
 pub(in crate::galgame) fn validate_galgame_portrait_spec_source_chapter(
-    spec: &generation_spec::Model,
+    spec: &GenerationSpecRecord,
 ) -> Result<(), GalgameGenerationRecordError> {
     match (spec.source_chapter_id, spec.source_snapshot_chapter_id) {
         (None, None) => Ok(()),

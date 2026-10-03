@@ -3,13 +3,14 @@ use super::super::types::{
     VideoStudioProjectImportError, VideoStudioProjectImportIdMaps, VideoStudioProjectImportRows,
 };
 use a4n_db_models::models::video_project::{assembly_clip, assembly_timeline, video_segment};
+use a4n_domain::video_transfer::VideoSegmentRecord;
 use sea_orm::sea_query::{CaseStatement, Expr};
 use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, Set};
 
 pub(in crate::canvas::transfer) async fn import_video_studio_video_segments<C>(
     db: &C,
     project_id: i64,
-    segments: &[video_segment::Model],
+    segments: &[VideoSegmentRecord],
     maps: &mut VideoStudioProjectImportIdMaps,
     now: chrono::NaiveDateTime,
 ) -> Result<(), VideoStudioProjectImportError>

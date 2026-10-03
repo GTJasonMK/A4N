@@ -19,10 +19,13 @@ pub use attributes::{
 };
 pub use behavior::{behavior_records_by_profile, implicit_review_behavior_records};
 pub use blueprint_seed::{CharacterProfileSeedError, sync_character_profiles_from_blueprint};
+pub(crate) use portrait::character_portrait_record_from_model;
 pub use portrait::{
     CharacterPortraitRecordError, CharacterPortraitRollbackError, CharacterPortraitRollbackResult,
     PortraitNamedPromptProfileRows, PortraitPromptProfileRows, character_portrait_by_id,
-    character_portrait_records_by_project, create_character_portrait_for_profile,
+    character_portrait_record_by_id, character_portrait_records_by_project,
+    character_portrait_records_by_project_records, create_character_portrait_for_profile,
+    create_character_portrait_record_for_profile, missing_portrait_profile_records,
     missing_portrait_profiles, portrait_named_prompt_profile_rows, portrait_prompt_profile_rows,
     portrait_reference_images_by_ids, primary_character_portrait_record,
     rollback_failed_portrait_creation_records, set_primary_character_portrait_record,
@@ -34,8 +37,9 @@ pub use profile::{
     CharacterProfileCreateError, CharacterProfileCurrentStateFields, CharacterProfileDeleteError,
     CharacterProfileDeletionSummary, create_profile, create_profile_with_generation_run,
     create_profile_with_generation_run_in, delete_profile_cascade_transaction, profile_by_id,
-    profile_by_project_name, profile_current_state_fields, profile_records_by_project,
-    profiles_by_project, profiles_with_timeline_state, update_initial_profile,
+    profile_by_project_name, profile_current_state_fields, profile_record_by_id,
+    profile_records_by_project, profiles_by_project, profiles_with_timeline_state,
+    update_initial_profile,
 };
 pub use snapshot::store::Sha256SnapshotStore;
 pub use snapshot::{

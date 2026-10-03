@@ -46,6 +46,7 @@ pub mod text_location;
 pub mod video;
 pub mod video_prompt;
 pub mod video_timeline;
+pub mod video_transfer;
 pub mod video_workflow;
 pub mod workflow;
 

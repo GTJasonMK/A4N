@@ -73,12 +73,14 @@ pub(crate) use refs::{
 pub(in crate::generation) use refs::{normalize_entity_kind, normalize_media_ref_role};
 
 mod prompts;
+mod record_mapping;
 #[cfg(test)]
 pub(in crate::generation) use prompts::validate_prompt_artifact_text;
 pub(crate) use prompts::{
     insert_prompt_artifact, normalize_video_prompt_kind, prompt_artifact_by_id,
 };
 pub use prompts::{is_valid_generation_prompt_kind, render_prompt_text};
+pub use record_mapping::{generation_spec_record_from_model, prompt_artifact_record_from_model};
 
 mod tasks;
 pub use tasks::{

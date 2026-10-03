@@ -1,5 +1,6 @@
 use crate::galgame::{GalgameLineRecordError, InsertGalgameLineRecordInput};
 use a4n_db_models::models::galgame::galgame_line;
+use a4n_domain::galgame::GalgameLineRecord;
 use chrono::Utc;
 use sea_orm::sea_query::Expr;
 use sea_orm::{
@@ -10,11 +11,11 @@ use sea_orm::{
 pub async fn insert_galgame_line_record_transaction(
     db: &DatabaseConnection,
     input: InsertGalgameLineRecordInput,
-) -> Result<galgame_line::Model, GalgameLineRecordError> {
+) -> Result<GalgameLineRecord, GalgameLineRecordError> {
     let tx = db.begin().await?;
     let record = insert_galgame_line_record(&tx, input).await?;
     tx.commit().await?;
-    Ok(record)
+    Ok(super::super::mapping::line_record(record))
 }
 
 async fn insert_galgame_line_record<C>(

@@ -12,6 +12,8 @@ use a4n_db_models::models::{
     media::{media_asset, media_binding, media_provenance},
     video_project::{assembly_clip, assembly_timeline, video_segment},
 };
+use a4n_domain::media::{MediaBindingRecord, MediaProvenanceRecord};
+use a4n_domain::video_transfer::{AssemblyClipRecord, AssemblyTimelineRecord, VideoSegmentRecord};
 use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QueryOrder};
 
 pub async fn video_studio_project_export_rows<C>(
@@ -234,15 +236,119 @@ where
         canvas_nodes: canvas_nodes.into_iter().map(canvas_node_record).collect(),
         canvas_edges: canvas_edges.into_iter().map(canvas_edge_record).collect(),
         canvas_text_assets,
-        generation_specs,
-        prompt_artifacts,
-        generated_images,
-        generated_videos,
-        media_assets,
-        media_provenance,
-        media_bindings,
-        video_segments,
-        assembly_timelines,
-        assembly_clips,
+        generation_specs: generation_specs
+            .into_iter()
+            .map(crate::generation::generation_spec_record_from_model)
+            .collect(),
+        prompt_artifacts: prompt_artifacts
+            .into_iter()
+            .map(crate::generation::prompt_artifact_record_from_model)
+            .collect(),
+        generated_images: generated_images
+            .into_iter()
+            .map(crate::video::generated_image_record_from_model)
+            .collect(),
+        generated_videos: generated_videos
+            .into_iter()
+            .map(crate::video::generated_video_record_from_model)
+            .collect(),
+        media_assets: media_assets
+            .into_iter()
+            .map(crate::media::media_asset_record_from_model)
+            .collect(),
+        media_provenance: media_provenance
+            .into_iter()
+            .map(media_provenance_record_from_model)
+            .collect(),
+        media_bindings: media_bindings
+            .into_iter()
+            .map(media_binding_record_from_model)
+            .collect(),
+        video_segments: video_segments
+            .into_iter()
+            .map(video_segment_record_from_model)
+            .collect(),
+        assembly_timelines: assembly_timelines
+            .into_iter()
+            .map(assembly_timeline_record_from_model)
+            .collect(),
+        assembly_clips: assembly_clips
+            .into_iter()
+            .map(assembly_clip_record_from_model)
+            .collect(),
     })
+}
+
+fn media_provenance_record_from_model(row: media_provenance::Model) -> MediaProvenanceRecord {
+    MediaProvenanceRecord {
+        media_asset_id: row.media_asset_id,
+        generation_spec_id: row.generation_spec_id,
+        prompt_artifact_id: row.prompt_artifact_id,
+        provider_job_id: row.provider_job_id,
+        source_media_asset_id: row.source_media_asset_id,
+        source_external_path: row.source_external_path,
+        imported_from_user: row.imported_from_user,
+        request_snapshot_json: row.request_snapshot_json,
+        created_at: row.created_at,
+    }
+}
+
+fn media_binding_record_from_model(row: media_binding::Model) -> MediaBindingRecord {
+    MediaBindingRecord {
+        id: row.id,
+        media_asset_id: row.media_asset_id,
+        target_kind: row.target_kind,
+        target_id: row.target_id,
+        role: row.role,
+        created_at: row.created_at,
+    }
+}
+
+fn video_segment_record_from_model(row: video_segment::Model) -> VideoSegmentRecord {
+    VideoSegmentRecord {
+        id: row.id,
+        project_id: row.project_id,
+        root_project_id: row.root_project_id,
+        source_chapter_id: row.source_chapter_id,
+        source_snapshot_chapter_id: row.source_snapshot_chapter_id,
+        segment_type: row.segment_type,
+        order_index: row.order_index,
+        title: row.title,
+        duration_secs: row.duration_secs,
+        source_generation_spec_id: row.source_generation_spec_id,
+        result_media_asset_id: row.result_media_asset_id,
+        previous_segment_id: row.previous_segment_id,
+        next_segment_id: row.next_segment_id,
+        created_at: row.created_at,
+        updated_at: row.updated_at,
+    }
+}
+
+fn assembly_timeline_record_from_model(row: assembly_timeline::Model) -> AssemblyTimelineRecord {
+    AssemblyTimelineRecord {
+        id: row.id,
+        project_id: row.project_id,
+        source_chapter_id: row.source_chapter_id,
+        source_snapshot_chapter_id: row.source_snapshot_chapter_id,
+        version: row.version,
+        status: row.status,
+        preview_media_asset_id: row.preview_media_asset_id,
+        preview_cache_key: row.preview_cache_key,
+        created_at: row.created_at,
+        updated_at: row.updated_at,
+    }
+}
+
+fn assembly_clip_record_from_model(row: assembly_clip::Model) -> AssemblyClipRecord {
+    AssemblyClipRecord {
+        id: row.id,
+        timeline_id: row.timeline_id,
+        media_asset_id: row.media_asset_id,
+        order_index: row.order_index,
+        trim_start_secs: row.trim_start_secs,
+        trim_end_secs: row.trim_end_secs,
+        volume: row.volume,
+        transition_kind: row.transition_kind,
+        source_segment_id: row.source_segment_id,
+    }
 }

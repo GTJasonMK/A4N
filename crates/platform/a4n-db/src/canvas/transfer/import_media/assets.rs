@@ -10,11 +10,12 @@ use super::super::types::{
 use a4n_db_models::models::media::media_asset::{FILE_PATH_FIELD, THUMBNAIL_PATH_FIELD};
 use a4n_db_models::models::media::{media_asset, media_provenance};
 use a4n_domain::CanvasNodeRefKind;
+use a4n_domain::media::{MediaAssetRecord, MediaProvenanceRecord};
 use sea_orm::{ConnectionTrait, EntityTrait, Set};
 
 pub(in crate::canvas::transfer) async fn import_video_studio_media_assets<C, Writer>(
     context: &mut VideoStudioProjectImportMediaRowsContext<'_, C, Writer>,
-    assets: &[media_asset::Model],
+    assets: &[MediaAssetRecord],
 ) -> Result<(), VideoStudioProjectImportError>
 where
     C: ConnectionTrait,
@@ -99,7 +100,7 @@ where
 
 pub(in crate::canvas::transfer) async fn import_video_studio_media_provenance<C>(
     db: &C,
-    records: &[media_provenance::Model],
+    records: &[MediaProvenanceRecord],
     maps: &VideoStudioProjectImportIdMaps,
     now: chrono::NaiveDateTime,
 ) -> Result<(), VideoStudioProjectImportError>

@@ -5,6 +5,7 @@ use a4n_api_contract::portrait::{
     GeneratePortraitPromptInput, PortraitSummary, PortraitType, RegeneratePortraitInput,
     UploadPortraitInput,
 };
+use a4n_domain::character::CharacterPortraitRecord;
 use a4n_error::AppError;
 use a4n_llm_provider_contract::provider::ChatRequest;
 use a4n_prompt::rendering::PromptRenderer;
@@ -47,7 +48,7 @@ struct PortraitVariantRun<'a> {
     record_progress_message: &'a str,
     completed_message: &'a str,
     requested_by_user_id: i64,
-    existing: &'a a4n_db_models::models::character::character_portrait::Model,
+    existing: &'a CharacterPortraitRecord,
     character_name: &'a str,
     prompt: &'a str,
     width: i32,

@@ -4,7 +4,9 @@ use super::super::types::{
 };
 use super::ids::remap_video_studio_required_id;
 use crate::generation::GENERATION_SPEC_TARGET_ENTITY_KIND_CANVAS_NODE;
+#[cfg(test)]
 use a4n_db_models::models::generation::generation_spec;
+use a4n_domain::generation::GenerationSpecRecord;
 
 #[cfg(test)]
 pub(in crate::canvas::transfer) fn remap_video_studio_generation_spec_target_entity_id(
@@ -24,7 +26,7 @@ pub(in crate::canvas::transfer) fn remap_video_studio_generation_spec_target_ent
 }
 
 pub(in crate::canvas::transfer) fn initial_video_studio_generation_spec_target_entity_id(
-    spec: &generation_spec::Model,
+    spec: &GenerationSpecRecord,
     maps: &VideoStudioProjectImportIdMaps,
 ) -> Result<InitialVideoStudioGenerationSpecTarget, VideoStudioProjectImportError> {
     let Some(old_id) = spec.target_entity_id else {

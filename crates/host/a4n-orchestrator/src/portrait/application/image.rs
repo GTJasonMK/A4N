@@ -6,14 +6,13 @@ use a4n_db::generation::{
     GenerationRunCheckpointContext, RecordCompletedGenerationRunWithCheckpointInput,
     generation_checkpoint_fingerprint_sha256,
 };
-use a4n_db_models::models::character::{character_portrait, protagonist_profile};
 use a4n_domain::media::{
     CreateGeneratedImageRecordDraftInput, CreateImagePublicationIntentInput,
     IMAGE_PUBLICATION_STATUS_PENDING, IMAGE_PUBLICATION_STATUS_PUBLISHED,
     ImagePublicationFileFacts, ImagePublicationRecord,
 };
 use a4n_domain::{
-    character::CharacterPortraitCreateInput,
+    character::{CharacterPortraitCreateInput, CharacterPortraitRecord, CharacterProfileRecord},
     generation::{GenerationRunTraceTarget, RecordCompletedGenerationRunInput},
     image::validate_reference_image_ids,
 };
@@ -121,7 +120,7 @@ pub(super) async fn persist_generated_portrait(
     host_port: &dyn PortraitGenerationHostPort,
     generated: &GeneratedPortraitImage,
     input: PersistGeneratedPortraitInput<'_>,
-) -> Result<character_portrait::Model, AppError> {
+) -> Result<CharacterPortraitRecord, AppError> {
     publish_portrait_image(
         context,
         host_port,
@@ -212,7 +211,7 @@ async fn publish_portrait_image(
     host_port: &dyn PortraitGenerationHostPort,
     input: PortraitPublicationInput<'_>,
     file_context: &str,
-) -> Result<character_portrait::Model, AppError> {
+) -> Result<CharacterPortraitRecord, AppError> {
     let file_size = i64::try_from(input.bytes.len())
         .map_err(|_| AppError::InvalidArgument("立绘图片过大，无法记录文件大小".to_string()))?;
     let expected_sha256 = format!("{:x}", Sha256::digest(input.bytes));
@@ -363,7 +362,7 @@ impl OrchestratorContext {
         &self,
         user_id: i64,
         publication: &ImagePublicationRecord,
-    ) -> Result<character_portrait::Model, AppError> {
+    ) -> Result<CharacterPortraitRecord, AppError> {
         self.verify_project_permission(publication.project_id, user_id, ProjectAccessRole::Editor)
             .await?;
         if publication.image_type != "portrait" {
@@ -462,9 +461,9 @@ impl OrchestratorContext {
 
 pub(super) async fn record_initial_prompt_generation(
     context: &OrchestratorContext,
-    portrait: &character_portrait::Model,
+    portrait: &CharacterPortraitRecord,
     input: &GeneratePortraitInput,
-    profile: &protagonist_profile::Model,
+    profile: &CharacterProfileRecord,
     expression: &str,
     workflow_run_id: i64,
     workflow_fingerprint: Value,
@@ -575,7 +574,7 @@ pub(super) async fn record_initial_prompt_generation(
 pub(super) async fn required_portrait(
     context: &OrchestratorContext,
     portrait_id: i64,
-) -> Result<character_portrait::Model, AppError> {
+) -> Result<CharacterPortraitRecord, AppError> {
     context
         .character_portrait_by_id(portrait_id)
         .await?
@@ -586,13 +585,16 @@ pub(super) async fn required_portrait_profile(
     context: &OrchestratorContext,
     profile_id: i64,
     portrait_id: i64,
-) -> Result<protagonist_profile::Model, AppError> {
-    context.profile_by_id(profile_id).await?.ok_or_else(|| {
-        AppError::NotFound(format!("立绘 #{portrait_id} 缺少角色档案 #{profile_id}"))
-    })
+) -> Result<CharacterProfileRecord, AppError> {
+    context
+        .profile_record_by_id(profile_id)
+        .await?
+        .ok_or_else(|| {
+            AppError::NotFound(format!("立绘 #{portrait_id} 缺少角色档案 #{profile_id}"))
+        })
 }
 
-pub fn portrait_summary(portrait: &character_portrait::Model) -> Result<PortraitSummary, AppError> {
+pub fn portrait_summary(portrait: &CharacterPortraitRecord) -> Result<PortraitSummary, AppError> {
     Ok(PortraitSummary {
         id: portrait.id,
         profile_id: portrait.profile_id,
@@ -608,7 +610,7 @@ pub fn portrait_summary(portrait: &character_portrait::Model) -> Result<Portrait
 }
 
 pub(super) fn portrait_type_from_record(
-    portrait: &character_portrait::Model,
+    portrait: &CharacterPortraitRecord,
 ) -> Result<PortraitType, AppError> {
     PortraitType::try_from(portrait.portrait_type.as_str()).map_err(|error| {
         AppError::InvalidState {
@@ -658,7 +660,7 @@ fn portrait_publication_metadata(input: &PortraitPublicationInput<'_>) -> Value 
 
 fn portrait_generation_run(
     input: &PortraitPublicationInput<'_>,
-    portrait: &character_portrait::Model,
+    portrait: &CharacterPortraitRecord,
     image_path: &str,
     file_size: i64,
 ) -> Result<Option<RecordCompletedGenerationRunWithCheckpointInput>, AppError> {

@@ -52,10 +52,15 @@ pub(super) fn validate_media_assets(
                     asset.id
                 ));
             }
-            crate::project::video_studio_package::validate_canvas_media_asset_owner(
-                asset,
-                asset.project_id,
-            )?;
+            if asset.source_snapshot_id.is_some()
+                || asset.source_chapter_id.is_some()
+                || asset.source_snapshot_chapter_id.is_some()
+            {
+                return Err(format!(
+                    "freeform 媒体资产不能绑定文本快照或章节: media_asset_id={}",
+                    asset.id
+                ));
+            }
         } else {
             if asset.root_project_id != package.root_project_id {
                 return Err(format!(

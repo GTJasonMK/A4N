@@ -5,7 +5,7 @@ impl OrchestratorContext {
         &self,
         project_id: i64,
         input: UpdateGalgameSceneInput,
-    ) -> Result<galgame_scene::Model, AppError> {
+    ) -> Result<GalgameSceneRecord, AppError> {
         validate_positive_id(project_id, "project_id")?;
         validate_positive_id(input.scene_id, "scene_id")?;
         let context = self.load_galgame_context(project_id).await?;

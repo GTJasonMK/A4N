@@ -1,7 +1,6 @@
 //! 视频画布导出：freeform 校验后组装 manifest（不含磁盘媒体读取）。
 
 use a4n_db::canvas::VideoStudioProjectExportRows;
-use a4n_db_models::models::generation::generation_spec;
 use a4n_domain::clear_canvas_transfer_runtime_identity;
 use a4n_domain::project::ProjectRecord;
 use chrono::Utc;
@@ -51,13 +50,15 @@ pub(crate) fn assemble_video_studio_project_canvas_package(
     }
     for spec in &mut rows.generation_specs {
         clear_canvas_transfer_runtime_identity(&mut spec.params_json);
-        spec.source_version_hash = generation_spec::freeform_source_version_hash(&spec.params_json)
-            .ok_or_else(|| {
-                format!(
-                    "生成意图 params_json.source_material 必须是 JSON 对象: generation_spec_id={}",
-                    spec.id
-                )
-            })?;
+        spec.source_version_hash = a4n_domain::generation::freeform_source_version_hash(
+            &spec.params_json,
+        )
+        .ok_or_else(|| {
+            format!(
+                "生成意图 params_json.source_material 必须是 JSON 对象: generation_spec_id={}",
+                spec.id
+            )
+        })?;
     }
     for provenance in &mut rows.media_provenance {
         provenance.provider_job_id = None;
@@ -99,7 +100,7 @@ mod tests {
             GENERATION_SPEC_TARGET_KIND_CANVAS_VIDEO,
         },
     };
-    use a4n_db_models::models::generation::generation_spec;
+    use a4n_domain::generation::GenerationSpecRecord;
     use serde_json::json;
 
     fn now() -> chrono::NaiveDateTime {
@@ -133,7 +134,7 @@ mod tests {
         }
     }
 
-    fn rows(spec: generation_spec::Model) -> VideoStudioProjectExportRows {
+    fn rows(spec: GenerationSpecRecord) -> VideoStudioProjectExportRows {
         VideoStudioProjectExportRows {
             canvas_graphs: Vec::new(),
             canvas_nodes: Vec::new(),
@@ -154,11 +155,11 @@ mod tests {
 
     #[test]
     fn export_clears_runtime_identity_and_rehashes_source_material() {
-        let spec = generation_spec::Model {
+        let spec = GenerationSpecRecord {
             id: 10,
             project_id: 1,
             root_project_id: 1,
-            source_context_kind: Some(generation_spec::SOURCE_CONTEXT_FREEFORM.to_string()),
+            source_context_kind: Some(a4n_domain::generation::SOURCE_CONTEXT_FREEFORM.to_string()),
             source_snapshot_id: None,
             source_chapter_id: None,
             source_snapshot_chapter_id: None,
@@ -185,7 +186,7 @@ mod tests {
         assert!(exported.params_json.get("workflow_run_id").is_none());
         assert_eq!(
             Some(exported.source_version_hash.clone()),
-            generation_spec::freeform_source_version_hash(&exported.params_json)
+            a4n_domain::generation::freeform_source_version_hash(&exported.params_json)
         );
     }
 }

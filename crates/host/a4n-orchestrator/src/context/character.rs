@@ -4,12 +4,12 @@ use a4n_api_contract::character::{
 };
 use a4n_db::DbHandle;
 use a4n_db_models::models::character::{
-    attribute_event, character_portrait, protagonist_behavior_record, protagonist_deletion_mark,
-    protagonist_profile,
+    attribute_event, protagonist_behavior_record, protagonist_deletion_mark, protagonist_profile,
 };
 use a4n_domain::character::{
     CharacterAttributeCategory, CharacterImplicitReviewDecisionRecordInput,
-    CharacterPortraitCreateInput, CharacterTimelineSourceKind,
+    CharacterPortraitCreateInput, CharacterPortraitRecord, CharacterProfileRecord,
+    CharacterTimelineSourceKind,
 };
 use a4n_domain::media::GeneratedImageRecord;
 use a4n_error::AppError;
@@ -56,11 +56,20 @@ impl CharacterApplication {
             .map_err(AppError::Database)
     }
 
+    async fn profile_record_by_id(
+        &self,
+        profile_id: i64,
+    ) -> Result<Option<CharacterProfileRecord>, AppError> {
+        a4n_db::character::profile_record_by_id(self.database.connection(), profile_id)
+            .await
+            .map_err(AppError::Database)
+    }
+
     async fn missing_portrait_profiles(
         &self,
         project_id: i64,
-    ) -> Result<Vec<protagonist_profile::Model>, AppError> {
-        a4n_db::character::missing_portrait_profiles(self.database.connection(), project_id)
+    ) -> Result<Vec<CharacterProfileRecord>, AppError> {
+        a4n_db::character::missing_portrait_profile_records(self.database.connection(), project_id)
             .await
             .map_err(AppError::Database)
     }
@@ -70,8 +79,8 @@ impl CharacterApplication {
     async fn character_portrait_by_id(
         &self,
         portrait_id: i64,
-    ) -> Result<Option<character_portrait::Model>, AppError> {
-        a4n_db::character::character_portrait_by_id(self.database.connection(), portrait_id)
+    ) -> Result<Option<CharacterPortraitRecord>, AppError> {
+        a4n_db::character::character_portrait_record_by_id(self.database.connection(), portrait_id)
             .await
             .map_err(AppError::Database)
     }
@@ -79,8 +88,8 @@ impl CharacterApplication {
     async fn character_portrait_records_by_project(
         &self,
         project_id: i64,
-    ) -> Result<Vec<character_portrait::Model>, AppError> {
-        a4n_db::character::character_portrait_records_by_project(
+    ) -> Result<Vec<CharacterPortraitRecord>, AppError> {
+        a4n_db::character::character_portrait_records_by_project_records(
             self.database.connection(),
             project_id,
         )
@@ -91,10 +100,13 @@ impl CharacterApplication {
     async fn create_character_portrait_for_profile(
         &self,
         input: CharacterPortraitCreateInput,
-    ) -> Result<character_portrait::Model, AppError> {
-        a4n_db::character::create_character_portrait_for_profile(self.database.connection(), input)
-            .await
-            .map_err(character_portrait_record_error)
+    ) -> Result<CharacterPortraitRecord, AppError> {
+        a4n_db::character::create_character_portrait_record_for_profile(
+            self.database.connection(),
+            input,
+        )
+        .await
+        .map_err(character_portrait_record_error)
     }
 
     async fn set_primary_character_portrait_record(
@@ -363,10 +375,17 @@ impl OrchestratorContext {
             .await
     }
 
+    pub(crate) async fn profile_record_by_id(
+        &self,
+        profile_id: i64,
+    ) -> Result<Option<CharacterProfileRecord>, AppError> {
+        self.character.profile_record_by_id(profile_id).await
+    }
+
     pub(crate) async fn missing_portrait_profiles(
         &self,
         project_id: i64,
-    ) -> Result<Vec<protagonist_profile::Model>, AppError> {
+    ) -> Result<Vec<CharacterProfileRecord>, AppError> {
         self.character.missing_portrait_profiles(project_id).await
     }
 
@@ -375,14 +394,14 @@ impl OrchestratorContext {
     pub(crate) async fn character_portrait_by_id(
         &self,
         portrait_id: i64,
-    ) -> Result<Option<character_portrait::Model>, AppError> {
+    ) -> Result<Option<CharacterPortraitRecord>, AppError> {
         self.character.character_portrait_by_id(portrait_id).await
     }
 
     pub(crate) async fn character_portrait_records_by_project(
         &self,
         project_id: i64,
-    ) -> Result<Vec<character_portrait::Model>, AppError> {
+    ) -> Result<Vec<CharacterPortraitRecord>, AppError> {
         self.character
             .character_portrait_records_by_project(project_id)
             .await
@@ -391,7 +410,7 @@ impl OrchestratorContext {
     pub(crate) async fn create_character_portrait_for_profile(
         &self,
         input: CharacterPortraitCreateInput,
-    ) -> Result<character_portrait::Model, AppError> {
+    ) -> Result<CharacterPortraitRecord, AppError> {
         self.character
             .create_character_portrait_for_profile(input)
             .await

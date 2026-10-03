@@ -1,10 +1,10 @@
 //! Database-to-domain adapter for portrait prompt rules.
 
-use a4n_db_models::models::character::protagonist_profile;
+use a4n_domain::character::CharacterProfileRecord;
 use serde_json::Value;
 
 fn portrait_profile(
-    profile: &protagonist_profile::Model,
+    profile: &CharacterProfileRecord,
 ) -> a4n_domain::character::CharacterPortraitProfile {
     a4n_domain::character::CharacterPortraitProfile {
         name: profile.name.clone(),
@@ -20,13 +20,11 @@ fn portrait_profile(
     }
 }
 
-pub fn profile_portrait_seed_prompt(
-    profile: &protagonist_profile::Model,
-) -> Result<String, String> {
+pub fn profile_portrait_seed_prompt(profile: &CharacterProfileRecord) -> Result<String, String> {
     a4n_domain::character::profile_portrait_seed_prompt(&portrait_profile(profile))
 }
 
-pub fn portrait_profile_context(profile: &protagonist_profile::Model) -> Value {
+pub fn portrait_profile_context(profile: &CharacterProfileRecord) -> Value {
     a4n_domain::character::portrait_profile_context(&portrait_profile(profile))
 }
 
@@ -43,12 +41,12 @@ mod tests {
     use super::*;
     use serde_json::json;
 
-    fn profile_with(name: &str) -> protagonist_profile::Model {
+    fn profile_with(name: &str) -> CharacterProfileRecord {
         let ts = chrono::NaiveDate::from_ymd_opt(2026, 1, 1)
             .unwrap()
             .and_hms_opt(0, 0, 0)
             .unwrap();
-        protagonist_profile::Model {
+        CharacterProfileRecord {
             id: 1,
             project_id: 1,
             name: name.into(),

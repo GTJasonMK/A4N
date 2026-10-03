@@ -1,5 +1,5 @@
 use a4n_db::galgame::InsertGalgameLineRecordInput;
-use a4n_db_models::models::galgame::galgame_line;
+use a4n_domain::galgame::GalgameLineRecord;
 use a4n_error::AppError;
 
 use crate::galgame::{
@@ -13,7 +13,7 @@ impl OrchestratorContext {
         &self,
         project_id: i64,
         input: InsertGalgameLineInput,
-    ) -> Result<galgame_line::Model, AppError> {
+    ) -> Result<GalgameLineRecord, AppError> {
         validate_positive_id(project_id, "project_id")?;
         validate_positive_id(input.scene_id, "scene_id")?;
         if let Some(after_line_id) = input.after_line_id {

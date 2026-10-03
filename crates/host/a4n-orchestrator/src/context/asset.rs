@@ -39,11 +39,11 @@ impl AssetApplication {
             .map_err(asset_error)
     }
 
-    async fn object_profile_by_id(
+    async fn object_profile_record_by_id(
         &self,
         object_profile_id: i64,
-    ) -> Result<object_profile::Model, AppError> {
-        a4n_db::asset::object_profile_by_id(self.database.connection(), object_profile_id)
+    ) -> Result<a4n_domain::object_profile::ObjectProfileRecord, AppError> {
+        a4n_db::asset::object_profile_record_by_id(self.database.connection(), object_profile_id)
             .await
             .map_err(asset_error)
     }
@@ -88,11 +88,13 @@ impl OrchestratorContext {
             .await
     }
 
-    pub(crate) async fn object_profile_by_id(
+    pub(crate) async fn object_profile_record_by_id(
         &self,
         object_profile_id: i64,
-    ) -> Result<object_profile::Model, AppError> {
-        self.asset.object_profile_by_id(object_profile_id).await
+    ) -> Result<a4n_domain::object_profile::ObjectProfileRecord, AppError> {
+        self.asset
+            .object_profile_record_by_id(object_profile_id)
+            .await
     }
 
     /// 发现路径：批量规范化草稿后与 generation_run 一并 upsert。

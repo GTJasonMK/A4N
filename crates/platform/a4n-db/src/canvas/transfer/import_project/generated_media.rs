@@ -6,13 +6,14 @@ use super::VideoStudioProjectImportMediaRowsContext;
 use a4n_db_models::models::ai::{generated_image, generated_video};
 use a4n_db_models::models::media::media_asset::{FILE_PATH_FIELD, THUMBNAIL_PATH_FIELD};
 use a4n_domain::CanvasNodeRefKind;
+use a4n_domain::media::{GeneratedImageRecord, GeneratedVideoRecord};
 use sea_orm::sea_query::{CaseStatement, Expr};
 use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, Set};
 use std::collections::HashMap;
 
 pub(in crate::canvas::transfer) async fn import_video_studio_generated_images<C, Writer>(
     context: &mut VideoStudioProjectImportMediaRowsContext<'_, C, Writer>,
-    images: &[generated_image::Model],
+    images: &[GeneratedImageRecord],
 ) -> Result<(), VideoStudioProjectImportError>
 where
     C: ConnectionTrait,
@@ -80,8 +81,8 @@ where
 
 pub(in crate::canvas::transfer) async fn import_video_studio_generated_videos<C, Writer>(
     context: &mut VideoStudioProjectImportMediaRowsContext<'_, C, Writer>,
-    videos: &[generated_video::Model],
-) -> Result<HashMap<i64, generated_video::Model>, VideoStudioProjectImportError>
+    videos: &[GeneratedVideoRecord],
+) -> Result<HashMap<i64, GeneratedVideoRecord>, VideoStudioProjectImportError>
 where
     C: ConnectionTrait,
     Writer: VideoStudioProjectImportMediaFileWriter,
@@ -174,15 +175,18 @@ where
             .maps
             .video_thumbnail_paths
             .insert(video.id, thumbnail_path);
-        imported.insert(video.id, row);
+        imported.insert(
+            video.id,
+            crate::video::generated_video_record_from_model(row),
+        );
     }
     Ok(imported)
 }
 
 pub(in crate::canvas::transfer) async fn update_imported_video_source_refs<C>(
     db: &C,
-    source_videos: &[generated_video::Model],
-    imported_videos: &HashMap<i64, generated_video::Model>,
+    source_videos: &[GeneratedVideoRecord],
+    imported_videos: &HashMap<i64, GeneratedVideoRecord>,
     maps: &super::super::types::VideoStudioProjectImportIdMaps,
     now: chrono::NaiveDateTime,
 ) -> Result<(), VideoStudioProjectImportError>

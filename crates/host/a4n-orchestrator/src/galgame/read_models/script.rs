@@ -5,7 +5,7 @@ use a4n_db::galgame::{
     GalgameScriptDetailReadModel, GalgameScriptDetailSceneRecord,
 };
 use a4n_db_models::models::{
-    galgame::{galgame_choice, galgame_line, galgame_scene},
+    galgame::galgame_line,
     media::{media_asset, media_binding},
 };
 use a4n_domain::galgame::GalgameLineRecord;
@@ -131,8 +131,8 @@ pub(crate) fn galgame_script_detail_from_read_model(
     })
 }
 
-pub(crate) fn galgame_scene_from_model(
-    scene: galgame_scene::Model,
+pub(crate) fn galgame_scene_from_record(
+    scene: a4n_domain::galgame::GalgameSceneRecord,
 ) -> Result<GalgameScene, AppError> {
     galgame_scene_from_detail_record(GalgameScriptDetailSceneRecord {
         id: scene.id,
@@ -241,7 +241,9 @@ pub(crate) fn galgame_line_from_record(line: GalgameLineRecord) -> Result<Galgam
     })
 }
 
-pub(crate) fn galgame_choice_from_model(choice: galgame_choice::Model) -> GalgameChoice {
+pub(crate) fn galgame_choice_from_record(
+    choice: a4n_domain::galgame::GalgameChoiceRecord,
+) -> GalgameChoice {
     galgame_choice_from_parts(
         choice.id,
         choice.line_id,

@@ -7,8 +7,8 @@
 use std::collections::{BTreeMap, HashSet};
 
 use a4n_db::project::bundle::ProjectBundleHistoryRows;
-use a4n_db_models::models::generation::generation_spec;
 use a4n_domain::clear_canvas_transfer_runtime_identity;
+use a4n_domain::generation::GenerationSpecRecord;
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
@@ -341,7 +341,8 @@ fn collect_provider_slots(
     }
     if let Some(family) = family {
         for spec in &family.generation_specs {
-            insert_spec_provider_slot(&mut slots, spec)?;
+            let spec = a4n_db::generation::generation_spec_record_from_model(spec.clone());
+            insert_spec_provider_slot(&mut slots, &spec)?;
         }
         for image in &family.generated_images {
             insert_provider_slot(
@@ -369,7 +370,7 @@ fn collect_provider_slots(
 
 fn insert_spec_provider_slot(
     slots: &mut BTreeMap<String, ProjectBundleProviderSlot>,
-    spec: &generation_spec::Model,
+    spec: &GenerationSpecRecord,
 ) -> Result<(), String> {
     let mut material = spec.params_json.clone();
     clear_canvas_transfer_runtime_identity(&mut material);

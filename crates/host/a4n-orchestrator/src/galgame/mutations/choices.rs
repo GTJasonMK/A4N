@@ -5,7 +5,7 @@ impl OrchestratorContext {
         &self,
         project_id: i64,
         input: UpdateGalgameChoicesInput,
-    ) -> Result<Vec<galgame_choice::Model>, AppError> {
+    ) -> Result<Vec<GalgameChoiceRecord>, AppError> {
         validate_positive_id(project_id, "project_id")?;
         validate_positive_id(input.line_id, "line_id")?;
         if !(2..=3).contains(&input.choices.len()) {

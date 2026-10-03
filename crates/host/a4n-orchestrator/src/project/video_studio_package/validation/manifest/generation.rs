@@ -1,7 +1,7 @@
 use super::contracts::ManifestIds;
 use a4n_domain::canvas_transfer_runtime_identity_key;
 
-use a4n_db_models::models::generation::generation_spec;
+use a4n_domain::generation::{SOURCE_CONTEXT_FREEFORM, freeform_source_version_hash};
 
 use crate::project::video_studio_package::VideoStudioProjectPackage;
 
@@ -18,7 +18,7 @@ pub(super) fn validate_generation_records(
                 spec.id
             ));
         }
-        if spec.source_context_kind.as_deref() != Some(generation_spec::SOURCE_CONTEXT_FREEFORM)
+        if spec.source_context_kind.as_deref() != Some(SOURCE_CONTEXT_FREEFORM)
             || spec.source_snapshot_id.is_some()
             || spec.source_chapter_id.is_some()
             || spec.source_snapshot_chapter_id.is_some()
@@ -36,8 +36,8 @@ pub(super) fn validate_generation_records(
                 spec.id
             ));
         }
-        let expected_source_version_hash =
-            generation_spec::freeform_source_version_hash(&spec.params_json).ok_or_else(|| {
+        let expected_source_version_hash = freeform_source_version_hash(&spec.params_json)
+            .ok_or_else(|| {
                 format!(
                     "生成意图 params_json.source_material 必须是 JSON 对象: generation_spec_id={}",
                     spec.id

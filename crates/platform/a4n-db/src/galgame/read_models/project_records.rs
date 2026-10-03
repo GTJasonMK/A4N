@@ -1,12 +1,13 @@
 use crate::galgame::GalgameProjectRecordError;
 use a4n_db_models::models::galgame::{galgame_line, galgame_scene, galgame_script};
+use a4n_domain::galgame::{GalgameLineRecord, GalgameSceneRecord};
 use sea_orm::{ConnectionTrait, EntityTrait};
 
 pub async fn galgame_scene_in_project_record<C>(
     db: &C,
     project_id: i64,
     scene_id: i64,
-) -> Result<galgame_scene::Model, GalgameProjectRecordError>
+) -> Result<GalgameSceneRecord, GalgameProjectRecordError>
 where
     C: ConnectionTrait,
 {
@@ -25,14 +26,14 @@ where
             "Galgame 场不属于目标项目".to_string(),
         ));
     }
-    Ok(scene)
+    Ok(crate::galgame::scene_record(scene))
 }
 
 pub async fn galgame_line_in_project_record<C>(
     db: &C,
     project_id: i64,
     line_id: i64,
-) -> Result<galgame_line::Model, GalgameProjectRecordError>
+) -> Result<GalgameLineRecord, GalgameProjectRecordError>
 where
     C: ConnectionTrait,
 {
@@ -43,5 +44,5 @@ where
             GalgameProjectRecordError::NotFound(format!("Galgame 行不存在: {line_id}"))
         })?;
     galgame_scene_in_project_record(db, project_id, line.scene_id).await?;
-    Ok(line)
+    Ok(crate::galgame::line_record(line))
 }

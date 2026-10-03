@@ -11,7 +11,7 @@ impl OrchestratorContext {
     pub(in crate::galgame) async fn validate_line_adaptation_source(
         &self,
         project_id: i64,
-        scene: &a4n_db_models::models::galgame::galgame_scene::Model,
+        scene: &a4n_domain::galgame::GalgameSceneRecord,
         presentation: &crate::galgame::GalgameLinePresentationDocumentV3,
         text_anchor_id: Option<i64>,
     ) -> Result<(), AppError> {

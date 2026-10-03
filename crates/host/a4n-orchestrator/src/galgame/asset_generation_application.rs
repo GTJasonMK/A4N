@@ -2,7 +2,7 @@ use a4n_api_contract::{
     galgame::GalgameAssetPlanApplicationPort, image::GeneratedImageSummary,
     image_generation::GenerateGalgameImageInput, portrait::GeneratePortraitInput,
 };
-use a4n_db_models::models::generation::{generation_spec, prompt_artifact};
+use a4n_domain::generation::{GenerationSpecRecord, PromptArtifactRecord};
 use a4n_error::AppError;
 use a4n_galgame_host_contract::{
     GalgameAssetGenerationApplicationPort, GalgameAssetGenerationHostPort,
@@ -110,7 +110,7 @@ struct GalgameVisualSpecPlan {
 }
 
 impl GalgameVisualSpecPlan {
-    fn from_spec(spec: &generation_spec::Model) -> Result<Self, AppError> {
+    fn from_spec(spec: &GenerationSpecRecord) -> Result<Self, AppError> {
         let target_entity_id = spec.target_entity_id.ok_or_else(|| {
             AppError::InvalidArgument(format!(
                 "Galgame 视觉生成意图缺少 target_entity_id: {}",
@@ -162,7 +162,7 @@ async fn run_visual_spec(
     host: &dyn GalgameAssetGenerationHostPort,
     user_id: i64,
     input: &RunGalgameAssetGenerationInput,
-    spec: &generation_spec::Model,
+    spec: &GenerationSpecRecord,
 ) -> Result<(GalgameAssetGenerationItem, bool), AppError> {
     let plan = GalgameVisualSpecPlan::from_spec(spec)?;
     let target_context = context
@@ -243,7 +243,7 @@ async fn run_portrait_spec(
     host: &dyn GalgameAssetGenerationHostPort,
     user_id: i64,
     input: &RunGalgameAssetGenerationInput,
-    spec: &generation_spec::Model,
+    spec: &GenerationSpecRecord,
 ) -> Result<(GalgameAssetGenerationItem, bool), AppError> {
     let plan = GalgamePortraitSpecPlan::from_spec(spec)?;
     let profile = context
@@ -309,9 +309,9 @@ async fn run_portrait_spec(
 async fn upsert_prompt(
     context: &OrchestratorContext,
     host: &dyn GalgameAssetGenerationHostPort,
-    spec: &generation_spec::Model,
+    spec: &GenerationSpecRecord,
     plan: &GalgameVisualSpecPlan,
-) -> Result<prompt_artifact::Model, AppError> {
+) -> Result<PromptArtifactRecord, AppError> {
     if let Some(existing) = context
         .galgame_prompt_artifact_by_generation_spec(spec.id)
         .await?
@@ -342,7 +342,7 @@ async fn upsert_prompt(
 }
 
 fn visual_prompt_variables(
-    spec: &generation_spec::Model,
+    spec: &GenerationSpecRecord,
     plan: &GalgameVisualSpecPlan,
 ) -> Result<HashMap<String, Value>, AppError> {
     let scene = required_object(&spec.params_json, "scene", spec.id)?;
@@ -382,7 +382,7 @@ fn visual_prompt_variables(
 async fn completed_visual(
     context: &OrchestratorContext,
     host: &dyn GalgameAssetGenerationHostPort,
-    spec: &generation_spec::Model,
+    spec: &GenerationSpecRecord,
     plan: &GalgameVisualSpecPlan,
 ) -> Result<Option<GalgameAssetGenerationItem>, AppError> {
     if spec.status != WORKFLOW_STATUS_COMPLETED {
@@ -428,7 +428,7 @@ async fn completed_visual(
 async fn completed_portrait(
     context: &OrchestratorContext,
     host: &dyn GalgameAssetGenerationHostPort,
-    spec: &generation_spec::Model,
+    spec: &GenerationSpecRecord,
     plan: &GalgamePortraitSpecPlan,
 ) -> Result<Option<GalgameAssetGenerationItem>, AppError> {
     if spec.status != WORKFLOW_STATUS_COMPLETED {
@@ -442,7 +442,7 @@ async fn completed_portrait(
 }
 
 fn portrait_item(
-    spec: &generation_spec::Model,
+    spec: &GenerationSpecRecord,
     plan: &GalgamePortraitSpecPlan,
     portrait_id: i64,
 ) -> GalgameAssetGenerationItem {
@@ -462,9 +462,9 @@ fn portrait_item(
 
 async fn persist_visual_asset(
     context: &OrchestratorContext,
-    spec: &generation_spec::Model,
+    spec: &GenerationSpecRecord,
     plan: &GalgameVisualSpecPlan,
-    prompt: &prompt_artifact::Model,
+    prompt: &PromptArtifactRecord,
     image: &GeneratedImageSummary,
 ) -> Result<GalgameMediaBindingSummary, AppError> {
     let generated = context
@@ -517,7 +517,7 @@ struct GalgamePortraitSpecPlan {
     source_line_ids: Vec<i64>,
 }
 impl GalgamePortraitSpecPlan {
-    fn from_spec(spec: &generation_spec::Model) -> Result<Self, AppError> {
+    fn from_spec(spec: &GenerationSpecRecord) -> Result<Self, AppError> {
         let profile_id = spec.target_entity_id.ok_or_else(|| {
             AppError::InvalidArgument(format!(
                 "Galgame 立绘差分生成意图缺少 target_entity_id: {}",
@@ -584,7 +584,7 @@ impl GalgamePortraitSpecPlan {
 }
 
 fn validate_visual_spec(
-    spec: &generation_spec::Model,
+    spec: &GenerationSpecRecord,
     plan: &GalgameVisualSpecPlan,
     target: &GalgameTargetContext,
 ) -> Result<(), AppError> {
@@ -641,7 +641,7 @@ fn validate_visual_spec(
 }
 
 fn validate_string_equals(
-    spec: &generation_spec::Model,
+    spec: &GenerationSpecRecord,
     value: &Value,
     field: &str,
     expected: &str,
@@ -658,7 +658,7 @@ fn validate_string_equals(
 }
 
 fn validate_i64_equals(
-    spec: &generation_spec::Model,
+    spec: &GenerationSpecRecord,
     value: &Value,
     field: &str,
     expected: i64,
@@ -675,7 +675,7 @@ fn validate_i64_equals(
 }
 
 fn validate_request_snapshot(
-    spec: &generation_spec::Model,
+    spec: &GenerationSpecRecord,
     target_id: i64,
     media_asset_id: i64,
     snapshot: Option<&Value>,
@@ -832,6 +832,7 @@ fn validate_input(input: &RunGalgameAssetGenerationInput) -> Result<(), AppError
 #[cfg(test)]
 mod tests {
     use super::*;
+    use a4n_db_models::models::generation::generation_spec;
     use serde_json::json;
 
     fn spec(

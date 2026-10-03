@@ -2,9 +2,9 @@ use std::collections::{BTreeSet, HashMap, HashSet};
 
 use a4n_db_models::models::{
     galgame::{galgame_line, galgame_scene, galgame_script},
-    generation::generation_spec,
     project::source_snapshot_chapter,
 };
+use a4n_domain::generation::GenerationSpecRecord;
 use sea_orm::{
     ColumnTrait, DatabaseConnection, EntityTrait, FromQueryResult, QueryFilter, QuerySelect,
 };
@@ -47,7 +47,7 @@ struct PortraitSourceSnapshotChapterRecord {
 
 pub(in crate::galgame) async fn validate_galgame_portrait_spec_source_lines(
     db: &DatabaseConnection,
-    spec: &generation_spec::Model,
+    spec: &GenerationSpecRecord,
     input: &GalgamePortraitSpecTargetInput,
     project_id: i64,
     root_project_id: i64,

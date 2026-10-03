@@ -43,6 +43,18 @@ where
         .map(|profiles| profiles.into_iter().map(character_profile_record).collect())
 }
 
+pub async fn profile_record_by_id<C>(
+    db: &C,
+    profile_id: i64,
+) -> Result<Option<CharacterProfileRecord>, sea_orm::DbErr>
+where
+    C: ConnectionTrait,
+{
+    profile_by_id(db, profile_id)
+        .await
+        .map(|row| row.map(character_profile_record))
+}
+
 pub(crate) async fn referenced_profile_ids<C: ConnectionTrait>(
     db: &C,
     project_id: i64,

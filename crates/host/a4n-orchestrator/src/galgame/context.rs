@@ -1,6 +1,8 @@
 use a4n_db::project::ProjectFamilyContext;
-use a4n_db_models::models::galgame::{galgame_line, galgame_scene};
-use a4n_domain::project::ProjectKind;
+use a4n_domain::{
+    galgame::{GalgameLineRecord, GalgameSceneRecord},
+    project::ProjectKind,
+};
 use a4n_error::AppError;
 
 use super::{
@@ -27,7 +29,7 @@ impl OrchestratorContext {
         &self,
         project_id: i64,
         scene_id: i64,
-    ) -> Result<galgame_scene::Model, AppError> {
+    ) -> Result<GalgameSceneRecord, AppError> {
         validate_positive_id(project_id, "project_id")?;
         validate_positive_id(scene_id, "scene_id")?;
         a4n_db::galgame::galgame_scene_in_project_record(
@@ -43,7 +45,7 @@ impl OrchestratorContext {
         &self,
         project_id: i64,
         line_id: i64,
-    ) -> Result<galgame_line::Model, AppError> {
+    ) -> Result<GalgameLineRecord, AppError> {
         validate_positive_id(project_id, "project_id")?;
         validate_positive_id(line_id, "line_id")?;
         a4n_db::galgame::galgame_line_in_project_record(

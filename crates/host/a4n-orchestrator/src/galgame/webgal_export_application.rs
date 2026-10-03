@@ -2,8 +2,10 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use a4n_api_contract::export::ExportFileData;
 use a4n_archive_core::{ArchiveEntry, write_zip};
-use a4n_db_models::models::character::character_portrait;
-use a4n_domain::galgame::{GalgameFacingV2, GalgameStageLayerV2};
+use a4n_domain::{
+    character::CharacterPortraitRecord,
+    galgame::{GalgameFacingV2, GalgameStageLayerV2},
+};
 use a4n_error::AppError;
 use base64::Engine as _;
 
@@ -79,7 +81,7 @@ impl OrchestratorContext {
 fn build_webgal_package(
     data_dir: &Path,
     detail: &GalgameScriptDetail,
-    portraits: &[character_portrait::Model],
+    portraits: &[CharacterPortraitRecord],
 ) -> Result<Vec<u8>, AppError> {
     let scene_file_by_id = detail
         .scenes
@@ -395,7 +397,7 @@ fn webgal_cast_figure<'a>(
 
 fn webgal_export_assets(
     detail: &GalgameScriptDetail,
-    portraits: &[character_portrait::Model],
+    portraits: &[CharacterPortraitRecord],
 ) -> Result<WebgalExportAssets, AppError> {
     let mut assets = WebgalExportAssets::default();
     for item in &detail.media_bindings {

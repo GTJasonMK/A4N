@@ -144,7 +144,8 @@ pub(in crate::galgame) use media::{
 
 mod script_records;
 pub(crate) use script_records::{
-    GalgameScriptCleanupResult, delete_galgame_script_records_for_project,
+    GalgameScriptCleanupResult, delete_galgame_script_records_for_project, line_record,
+    scene_record,
 };
 pub use script_records::{
     delete_galgame_line_with_generation_media_graph_record, insert_galgame_line_record_transaction,

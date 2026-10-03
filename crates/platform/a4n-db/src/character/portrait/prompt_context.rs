@@ -32,7 +32,7 @@ where
         .await
         .map_err(CharacterPortraitRecordError::Database)?;
     Ok(PortraitPromptProfileRows {
-        profile,
+        profile: super::record_mapping::character_profile_record_from_model(profile),
         project_context,
     })
 }
@@ -75,7 +75,7 @@ where
     let project_context = project_context?;
 
     Ok(PortraitNamedPromptProfileRows {
-        profile,
+        profile: super::record_mapping::character_profile_record_from_model(profile),
         existing_portrait_count,
         project_context,
     })

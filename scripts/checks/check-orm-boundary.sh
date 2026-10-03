@@ -104,9 +104,36 @@ check_source \
     "crates/host/a4n-orchestrator/src/source_sync" \
     '(?:source_sync_(?:run|conflict)::Model|a4n_db_models::models::source_sync)'
 
+# Galgame generation, portrait, script mutation, and video-studio transfer
+# owners expose domain projections. ORM models remain adapter/test details.
+check_source \
+    "Galgame context exposes ORM models" \
+    "crates/host/a4n-orchestrator/src/context/galgame.rs" \
+    '(?:a4n_db_models::|(?:generation_spec|prompt_artifact|character_portrait|generated_image)::Model)'
+check_source \
+    "Galgame script mutation exposes ORM models" \
+    "crates/host/a4n-orchestrator/src/galgame/mutations" \
+    '(?:galgame_(?:line|scene|choice)::Model|a4n_db_models::models::galgame)'
+check_source \
+    "Galgame script owner exposes ORM models" \
+    "crates/host/a4n-orchestrator/src/galgame/context.rs" \
+    '(?:galgame_(?:line|scene|choice)::Model|a4n_db_models::models::galgame)'
+check_source \
+    "Galgame script record owner exposes ORM models" \
+    "crates/host/a4n-orchestrator/src/galgame/script_records.rs" \
+    '(?:galgame_(?:line|scene|choice)::Model|a4n_db_models::models::galgame)'
+check_source \
+    "Portrait application exposes ORM models" \
+    "crates/host/a4n-orchestrator/src/portrait" \
+    '(?:character_portrait::Model|protagonist_profile::Model|a4n_db_models::models::character)'
+check_source \
+    "Video-studio package exposes transfer ORM models" \
+    "crates/host/a4n-orchestrator/src/project/video_studio_package" \
+    '(?:generation_spec::Model|prompt_artifact::Model|generated_image::Model|generated_video::Model|media_asset::Model|media_provenance::Model|media_binding::Model|video_segment::Model|assembly_timeline::Model|assembly_clip::Model)'
+
 if ((violations > 0)); then
     echo "ORM boundary failed with $violations violation group(s)." >&2
     exit 1
 fi
 
-echo "ORM boundary passed for migrated Core, Optimize, Project Family, Provider, Timeline, Publication, Scene Profile, and Source Sync slices."
+echo "ORM boundary passed for migrated Core, Optimize, Project Family, Provider, Timeline, Publication, Scene Profile, Source Sync, Galgame, Portrait, and Video Studio slices."

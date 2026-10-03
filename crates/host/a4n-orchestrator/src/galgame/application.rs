@@ -116,7 +116,7 @@ impl OrchestratorContext {
     ) -> Result<super::GalgameLine, AppError> {
         self.verify_galgame_project_access(user_id, project_id, ProjectAccessRole::Editor)
             .await?;
-        super::read_models::galgame_line_from_model(
+        super::read_models::galgame_line_from_record(
             self.insert_galgame_line(project_id, input).await?,
         )
     }
@@ -129,7 +129,7 @@ impl OrchestratorContext {
     ) -> Result<super::GalgameLine, AppError> {
         self.verify_galgame_project_access(user_id, project_id, ProjectAccessRole::Editor)
             .await?;
-        super::read_models::galgame_line_from_model(
+        super::read_models::galgame_line_from_record(
             self.update_galgame_line(project_id, input).await?,
         )
     }
@@ -142,7 +142,7 @@ impl OrchestratorContext {
     ) -> Result<super::GalgameScene, AppError> {
         self.verify_galgame_project_access(user_id, project_id, ProjectAccessRole::Editor)
             .await?;
-        super::read_models::galgame_scene_from_model(
+        super::read_models::galgame_scene_from_record(
             self.update_galgame_scene(project_id, input).await?,
         )
     }
@@ -159,7 +159,7 @@ impl OrchestratorContext {
             .update_galgame_choices(project_id, input)
             .await?
             .into_iter()
-            .map(super::read_models::galgame_choice_from_model)
+            .map(super::read_models::galgame_choice_from_record)
             .collect())
     }
 
@@ -174,7 +174,7 @@ impl OrchestratorContext {
         self.reorder_galgame_lines(project_id, input)
             .await?
             .into_iter()
-            .map(super::read_models::galgame_line_from_model)
+            .map(super::read_models::galgame_line_from_record)
             .collect()
     }
 
