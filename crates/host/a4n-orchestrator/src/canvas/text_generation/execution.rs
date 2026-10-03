@@ -46,12 +46,18 @@ impl OrchestratorContext {
         &self,
         input: CanvasTextNodeExecutionInput<'_>,
     ) -> Result<CanvasRunSummary, AppError> {
+        let document = self
+            .canvas_document_with_workflow_text_asset_snapshot(
+                input.document,
+                input.shared_run.map(|run| run.workflow_run_id),
+                input.node.id,
+            )
+            .await?;
         let checkpoints = self
             .canvas_text_source_checkpoints(input.shared_run.map(|run| run.workflow_run_id))
             .await?;
-        let rendered =
-            build_canvas_rendered_prompt(input.node, input.document, checkpoints.as_deref())
-                .map_err(AppError::InvalidArgument)?;
+        let rendered = build_canvas_rendered_prompt(input.node, &document, checkpoints.as_deref())
+            .map_err(AppError::InvalidArgument)?;
         let step_key = crate::canvas::canvas_node_step_key(input.node.id)
             .map_err(AppError::InvalidArgument)?;
         let input_json = json!({
@@ -137,12 +143,18 @@ impl OrchestratorContext {
         input: CanvasTextNodeExecutionInput<'_>,
         llm_port: &dyn CanvasTextGenerationLlmPort,
     ) -> Result<CanvasRunSummary, AppError> {
+        let document = self
+            .canvas_document_with_workflow_text_asset_snapshot(
+                input.document,
+                input.shared_run.map(|run| run.workflow_run_id),
+                input.node.id,
+            )
+            .await?;
         let checkpoints = self
             .canvas_text_source_checkpoints(input.shared_run.map(|run| run.workflow_run_id))
             .await?;
-        let llm_input =
-            build_canvas_llm_text_input(input.node, input.document, checkpoints.as_deref())
-                .map_err(AppError::InvalidArgument)?;
+        let llm_input = build_canvas_llm_text_input(input.node, &document, checkpoints.as_deref())
+            .map_err(AppError::InvalidArgument)?;
         let step_key = crate::canvas::canvas_node_step_key(input.node.id)
             .map_err(AppError::InvalidArgument)?;
         let input_json = json!({

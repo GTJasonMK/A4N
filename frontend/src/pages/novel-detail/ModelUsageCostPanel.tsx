@@ -1,9 +1,17 @@
 import React, { useEffect, useRef, useState } from "react";
-import { RefreshCw } from "lucide-react";
-import { getModelUsageReport, type ModelUsageReport } from "../../api/modelUsage";
+import { Eye, RefreshCw } from "lucide-react";
+import {
+  getModelUsageReport,
+  getModelUsageRequest,
+  type ModelUsageReport,
+  type ModelUsageRequest,
+} from "../../api/modelUsage";
 import { extractErrorMessage } from "../../api";
 import { BookIconButton } from "../../components/ui/BookButton";
 import { LoadingSpinner } from "../../components/ui/LoadingSpinner";
+import { RequestPreviewModal } from "../../components/feedback/RequestPreviewModal";
+import { useToast } from "../../components/feedback/Toast";
+import type { ModelRequestPreview } from "../../api/requestPreview";
 import { formatDateTime, formatNumber, useI18n, type MessageKey } from "../../i18n";
 import { getOperationStatusLabel } from "../../utils/workflowPresentation";
 
@@ -18,6 +26,7 @@ const CAPABILITY_LABELS: Record<string, MessageKey> = {
 
 export const ModelUsageCostPanel: React.FC<{ projectId: number | null }> = ({ projectId }) => {
   const { t, locale } = useI18n();
+  const { addToast } = useToast();
   const tRef = useRef(t);
   tRef.current = t;
   const [result, setResult] = useState<{ projectId: number | null; report: ModelUsageReport } | null>(null);
@@ -25,6 +34,10 @@ export const ModelUsageCostPanel: React.FC<{ projectId: number | null }> = ({ pr
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const requestRef = useRef(0);
+  const requestPreviewRef = useRef(0);
+  const [requestModalOpen, setRequestModalOpen] = useState(false);
+  const [requestLoading, setRequestLoading] = useState(false);
+  const [requestPreview, setRequestPreview] = useState<ModelRequestPreview | null>(null);
 
   const refresh = async () => {
     const request = ++requestRef.current;
@@ -42,10 +55,42 @@ export const ModelUsageCostPanel: React.FC<{ projectId: number | null }> = ({ pr
     }
   };
 
+  const viewRequest = async (id: number) => {
+    if (requestLoading) return;
+    const requestSeq = ++requestPreviewRef.current;
+    setRequestModalOpen(true);
+    setRequestLoading(true);
+    setRequestPreview(null);
+    try {
+      const request = await getModelUsageRequest({ id });
+      if (requestSeq === requestPreviewRef.current) setRequestPreview(requestPreviewData(request));
+    } catch (error) {
+      if (requestSeq === requestPreviewRef.current) {
+        setRequestModalOpen(false);
+        addToast(extractErrorMessage(error, tRef.current("novel.costRequestLoadFailed")), "error");
+      }
+    } finally {
+      if (requestSeq === requestPreviewRef.current) setRequestLoading(false);
+    }
+  };
+
   useEffect(() => {
+    setRequestModalOpen(false);
+    setRequestLoading(false);
+    setRequestPreview(null);
     void refresh();
-    return () => { requestRef.current += 1; };
+    return () => {
+      requestRef.current += 1;
+      requestPreviewRef.current += 1;
+    };
   }, [projectId]);
+
+  const closeRequestModal = () => {
+    requestPreviewRef.current += 1;
+    setRequestModalOpen(false);
+    setRequestLoading(false);
+    setRequestPreview(null);
+  };
 
   if (loading && !report) {
     return <LoadingSpinner size="md" text={t("novel.costLoading")} />;
@@ -109,7 +154,7 @@ export const ModelUsageCostPanel: React.FC<{ projectId: number | null }> = ({ pr
             </p>
           )}
           <div className="custom-scrollbar overflow-x-auto border-y border-book-border/40" role="region" tabIndex={0} aria-label={t("novel.costTitle")}>
-            <table className="w-full min-w-[680px] text-left text-small">
+            <table className="w-full min-w-[760px] text-left text-small">
               <thead className="text-book-text-muted">
                 <tr className="border-b border-book-border/40">
                   <th className="px-2 py-2 font-medium">{t("novel.costAmount")}</th>
@@ -117,6 +162,7 @@ export const ModelUsageCostPanel: React.FC<{ projectId: number | null }> = ({ pr
                   <th className="px-2 py-2 font-medium">{t("novel.costCapability")}</th>
                   <th className="px-2 py-2 font-medium">{t("novel.costModel")}</th>
                   <th className="px-2 py-2 font-medium">{t("novel.costTime")}</th>
+                  <th className="px-2 py-2 text-right font-medium">{t("novel.costRequest")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -131,12 +177,27 @@ export const ModelUsageCostPanel: React.FC<{ projectId: number | null }> = ({ pr
                       <div className={entry.status === "failed" ? "text-error" : undefined}>{getOperationStatusLabel(entry.status, locale)}</div>
                       <div className="text-caption">{entry.confidence === "reported" ? t("novel.costReported") : entry.confidence === "partial" ? t("novel.costPartial") : entry.confidence === "unpriced" ? t("novel.costUnpriced") : entry.confidence}</div>
                     </td>
-                    <td className="px-2 py-2 text-book-text-main">{CAPABILITY_LABELS[entry.capability] ? t(CAPABILITY_LABELS[entry.capability]) : entry.capability}</td>
+                    <td className="px-2 py-2 text-book-text-main">
+                      <div>{CAPABILITY_LABELS[entry.capability] ? t(CAPABILITY_LABELS[entry.capability]) : entry.capability}</div>
+                      <div className="text-caption text-book-text-muted">{entry.workflow} / {entry.stepKey}</div>
+                    </td>
                     <td className="max-w-[240px] truncate px-2 py-2 text-book-text-muted" title={`${entry.provider ?? ""} · ${entry.model ?? ""}`}>
                       {entry.provider ?? "-"} · {entry.model ?? "-"}
                     </td>
                     <td className="whitespace-nowrap px-2 py-2 text-book-text-muted">
                       {formatDateTime(entry.startedAt, locale)}
+                    </td>
+                    <td className="px-2 py-1 text-right">
+                      {entry.requestAvailable ? (
+                        <BookIconButton
+                          label={t("novel.costViewRequest")}
+                          size="sm"
+                          disabled={requestLoading}
+                          onClick={() => void viewRequest(entry.id)}
+                        >
+                          <Eye size={14} />
+                        </BookIconButton>
+                      ) : <span aria-label={t("novel.costRequestUnavailable")}>-</span>}
                     </td>
                   </tr>
                 ))}
@@ -145,9 +206,46 @@ export const ModelUsageCostPanel: React.FC<{ projectId: number | null }> = ({ pr
           </div>
         </>
       )}
+      <RequestPreviewModal
+        open={requestModalOpen}
+        loading={requestLoading}
+        data={requestPreview}
+        recorded
+        fallbackTitle={t("novel.costRequestTitle")}
+        onClose={closeRequestModal}
+      />
     </section>
   );
 };
+
+function requestPreviewData(request: ModelUsageRequest): ModelRequestPreview {
+  const requestText = JSON.stringify(request.requestJson);
+  const title = `${request.workflow} / ${request.stepKey}`;
+  const totalChars = Array.from(requestText).length;
+  return {
+    workflow: request.workflow,
+    title,
+    ready_step_count: 1,
+    total_chars: totalChars,
+    steps: [{
+      key: request.requestId,
+      title,
+      kind: request.capability,
+      prompt_name: null,
+      state: "ready",
+      note: [request.provider, request.model, request.status, request.startedAt].filter(Boolean).join(" · "),
+      system_prompt: null,
+      user_prompt: null,
+      messages: null,
+      request: request.requestJson,
+      context_manifest: null,
+      context_plan: null,
+      context_pack_refs: null,
+      total_chars: totalChars,
+      char_counts: null,
+    }],
+  };
+}
 
 function formatMicros(value: string, locale: string): string {
   const amount = Number(value) / 1_000_000;

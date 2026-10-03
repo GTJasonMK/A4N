@@ -118,6 +118,16 @@ impl From<crate::canvas::CanvasDbError> for VideoDbError {
                 ),
                 operation: "保存画布".to_string(),
             },
+            crate::canvas::CanvasDbError::TextAssetVersionConflict {
+                canvas_text_asset_id,
+                expected_version,
+                current_version,
+            } => VideoDbError::InvalidState {
+                current: format!(
+                    "canvas_text_asset_version_conflict:asset_id={canvas_text_asset_id},expected={expected_version},current={current_version}"
+                ),
+                operation: "保存文本素材".to_string(),
+            },
             crate::canvas::CanvasDbError::Database(err) => VideoDbError::Database(err),
         }
     }

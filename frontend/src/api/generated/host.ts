@@ -52,6 +52,7 @@ export const HOST_API_COMMANDS = [
   "create_profile",
   "create_project",
   "create_scene_profile",
+  "create_standalone_comic_project",
   "create_theme",
   "create_user",
   "decline_project_invite",
@@ -112,6 +113,7 @@ export const HOST_API_COMMANDS = [
   "export_txt_data",
   "export_video_studio_project_data",
   "forward_project_status",
+  "generate_canvas_text_asset_draft",
   "generate_chapter_analysis",
   "generate_chapter_scene",
   "generate_media_adaptation_plan",
@@ -143,6 +145,7 @@ export const HOST_API_COMMANDS = [
   "get_manga_pipeline_status",
   "get_media_authoring_workspace",
   "get_model_usage_report",
+  "get_model_usage_request",
   "get_optimize_session",
   "get_package_operation",
   "get_package_overview",
@@ -173,6 +176,7 @@ export const HOST_API_COMMANDS = [
   "import_galgame_audio",
   "import_project_bundle_upload",
   "import_project_family_upload",
+  "import_project_text_asset_upload",
   "import_project_text_upload",
   "import_theme",
   "import_theme_package",
@@ -187,6 +191,8 @@ export const HOST_API_COMMANDS = [
   "list_all_users",
   "list_behaviors",
   "list_blueprint_versions",
+  "list_canvas_text_asset_versions",
+  "list_canvas_text_assets",
   "list_chapter_analyses",
   "list_chapter_index",
   "list_chapter_outlines",
@@ -248,10 +254,12 @@ export const HOST_API_COMMANDS = [
   "poll_video_job",
   "prepare_chapter_generation_rag_embedding",
   "prepare_optimization_analysis_session",
+  "prepare_standalone_comic_source",
   "preview_apply_beat_mapping_request",
   "preview_batch_generate_part_outlines_request",
   "preview_batch_images_request",
   "preview_canvas_node_request",
+  "preview_canvas_text_asset_draft_request",
   "preview_chapter_analysis_request",
   "preview_chapter_prompt",
   "preview_chapter_scene_request",
@@ -481,6 +489,7 @@ export const RUNTIME_CONFIG_POLICIES: Readonly<Record<string, RuntimeConfigPolic
   "delete_latest_parts": "full",
   "delete_scene_profile": "full",
   "discover_character_profiles": "full",
+  "generate_canvas_text_asset_draft": "full",
   "generate_chapter_analysis": "full",
   "generate_chapter_scene": "full",
   "generate_media_adaptation_plan": "full",
@@ -495,6 +504,7 @@ export const RUNTIME_CONFIG_POLICIES: Readonly<Record<string, RuntimeConfigPolic
   "preview_batch_generate_part_outlines_request": "without_secrets",
   "preview_batch_images_request": "without_secrets",
   "preview_canvas_node_request": "without_secrets",
+  "preview_canvas_text_asset_draft_request": "full",
   "preview_chapter_analysis_request": "without_secrets",
   "preview_chapter_prompt": "without_secrets",
   "preview_chapter_scene_request": "without_secrets",
@@ -2107,10 +2117,13 @@ export interface ModelUsageEntry {
   meter: unknown;
   model: string | null;
   provider: string | null;
+  requestAvailable: boolean;
   requestId: string;
   source: string | null;
   startedAt: string;
   status: string;
+  stepKey: string;
+  workflow: string;
 }
 
 export interface ModelUsageReport {
@@ -2123,6 +2136,23 @@ export interface ModelUsageReport {
   unpricedCalls: number;
   unsettledCalls: number;
   until: string;
+}
+
+export interface ModelUsageRequestInput {
+  id: number;
+}
+
+export interface ModelUsageRequest {
+  capability: string;
+  id: number;
+  model: string | null;
+  provider: string | null;
+  requestId: string;
+  requestJson: unknown;
+  startedAt: string;
+  status: string;
+  stepKey: string;
+  workflow: string;
 }
 
 export interface ListImagesByProjectInput {
@@ -2325,6 +2355,26 @@ export interface MangaPipelineStartInput {
   project_id: number;
   resume_from_checkpoint?: boolean;
   stop_after?: MangaPipelineStopAfter | null;
+}
+
+export interface PrepareStandaloneComicSourceInput {
+  asset_id: number;
+  end_section: number;
+  project_id: number;
+  start_section: number;
+  version: number;
+}
+
+export interface MangaStandaloneSourceSummary {
+  asset_id: number;
+  chapter_id: number;
+  chapter_number: number;
+  content: string;
+  content_sha256: string;
+  end_section: number;
+  start_section: number;
+  title: string | null;
+  version: number;
 }
 
 export type MangaPipelineStopAfter = "page_slots" | "page_content" | "page_adaptation" | "storyboard" | "page_planning" | "drawing_prompt" | "image";
@@ -3388,6 +3438,7 @@ export interface CanvasGraphInput {
 
 export interface CanvasTextAssetInput {
   content: string;
+  expected_version?: number | null;
   id?: number | null;
   text_kind: string;
   title: string;
@@ -3395,8 +3446,32 @@ export interface CanvasTextAssetInput {
 
 export interface CanvasTextAssetSummary {
   content: string;
+  content_hash: string;
+  current_version: number;
   id: number;
+  project_id: number;
   text_kind: string;
+  title: string;
+  updated_at: string;
+}
+
+export interface CanvasTextAssetVersionSummary {
+  content: string;
+  content_hash: string;
+  created_at: string;
+  version: number;
+}
+
+export interface CanvasTextAssetDraftInput {
+  instruction: string;
+  llm_config_id?: number | null;
+  project_id: number;
+  source_asset_id?: number | null;
+  source_version?: number | null;
+}
+
+export interface CanvasTextAssetDraftSummary {
+  content: string;
 }
 
 export interface CanvasMediaAssetSummary {
@@ -3439,6 +3514,15 @@ export interface SaveCanvasGraphInput {
 export interface SaveCanvasTextAssetInput {
   project_id: number;
   text_asset: CanvasTextAssetInput;
+}
+
+export interface ListCanvasTextAssetsInput {
+  project_id: number;
+}
+
+export interface ListCanvasTextAssetVersionsInput {
+  asset_id: number;
+  project_id: number;
 }
 
 export interface PreviewCanvasNodeRequestInput {
@@ -3632,7 +3716,7 @@ export interface ProjectProgressSummary {
 
 export type ProjectKind = "text" | "comic" | "video" | "galgame";
 
-export type ProjectSourceMode = "self" | "derived" | "freeform";
+export type ProjectSourceMode = "self" | "derived" | "freeform" | "standalone";
 
 export const PROJECT_STATUSES = ["draft", "blueprint_ready", "part_outlines_ready", "chapter_outlines_ready", "writing", "completed"] as const;
 export type ProjectStatus = (typeof PROJECT_STATUSES)[number];
@@ -3808,6 +3892,11 @@ export interface CreateProjectInput {
 }
 
 export interface CreateFreeformVideoProjectInput {
+  description?: string | null;
+  title: string;
+}
+
+export interface CreateStandaloneComicProjectInput {
   description?: string | null;
   title: string;
 }

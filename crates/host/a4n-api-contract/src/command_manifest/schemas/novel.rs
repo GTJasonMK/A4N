@@ -87,6 +87,9 @@ pub(crate) fn args_source_sync_project() -> Value {
 pub(crate) fn args_create_freeform_video_project() -> Value {
     strict_typed_input_schema::<crate::project::CreateFreeformVideoProjectInput>()
 }
+pub(crate) fn args_create_standalone_comic_project() -> Value {
+    strict_typed_input_schema::<crate::project::CreateStandaloneComicProjectInput>()
+}
 pub(crate) fn args_create_optimization_analysis_session() -> Value {
     strict_runtime_typed_input_schema::<crate::optimize::AnalyzeChapterInput>()
 }

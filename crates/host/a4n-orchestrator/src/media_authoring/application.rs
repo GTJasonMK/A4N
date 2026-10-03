@@ -1,5 +1,6 @@
 use a4n_api_contract::media_authoring::*;
 use a4n_domain::collaboration::ProjectAccessRole;
+use a4n_domain::project::ProjectSourceMode;
 use a4n_error::AppError;
 use serde_json::Value;
 
@@ -23,6 +24,32 @@ impl OrchestratorContext {
     > {
         self.verify_project_permission(project_id, user_id, role)
             .await?;
+        let project = self
+            .project_by_id(project_id)
+            .await?
+            .ok_or_else(|| AppError::NotFound(format!("项目不存在: {project_id}")))?;
+        let source_mode = project
+            .source_mode()
+            .map_err(|error| AppError::InvalidArgument(format!("项目 {project_id}: {error}")))?;
+        if source_mode == ProjectSourceMode::Standalone {
+            let chapter_id = chapter_id.ok_or_else(|| {
+                AppError::InvalidArgument("独立漫画改编必须先选择文本来源".into())
+            })?;
+            let source = a4n_db::project::resolve_chapter_source(
+                self.database.connection(),
+                project_id,
+                chapter_id,
+            )
+            .await
+            .map_err(crate::shooting_script::errors::resolve_source_error)?;
+            let snapshot_id = source
+                .source_snapshot_id
+                .ok_or_else(|| AppError::InvalidState {
+                    current: "standalone_comic_snapshot_missing".into(),
+                    operation: "读取独立漫画文本来源".into(),
+                })?;
+            return Ok((AdaptationTarget::Manga, snapshot_id, vec![source]));
+        }
         let family = self.derived_project_family_context(project_id).await?;
         self.verify_project_permission(family.root_project.id, user_id, ProjectAccessRole::Viewer)
             .await?;

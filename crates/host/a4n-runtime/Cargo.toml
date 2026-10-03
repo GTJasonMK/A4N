@@ -17,7 +17,7 @@ embedded-capabilities = [
 ]
 embedded-transforms = ["dep:a4n-media-processing-core", "dep:a4n-export-core", "dep:a4n-import-core"]
 embedded-prompt-git = ["dep:a4n-prompt-git"]
-embedded-llm-provider = ["dep:a4n-llm-http"]
+embedded-llm-provider = []
 local-embedding = ["dep:a4n-embedding-fastembed"]
 embedded-rag-index = ["dep:a4n-rag-index"]
 embedded-media-providers = [
@@ -67,7 +67,7 @@ a4n-llm-context = { workspace = true }
 a4n-llm-client = { workspace = true }
 a4n-llm-sidecar-contract = { workspace = true }
 a4n-llm-config = { workspace = true }
-a4n-llm-http = { workspace = true, optional = true }
+a4n-llm-http = { workspace = true }
 a4n-media = { workspace = true }
 a4n-media-client = { workspace = true }
 a4n-media-contract = { workspace = true }

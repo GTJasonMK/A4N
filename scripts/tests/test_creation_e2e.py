@@ -9,7 +9,7 @@ from run_creation_e2e import (
     FULL_GENERATION_SUITES, ROOT, RunnerError, STAGES, acceptance_passed,
     acceptance_result, files_fingerprint, frontend_fingerprint,
     full_generation_matrix_report, read_all_workflows_report, read_suite_report,
-    selected_suites, source_fingerprint, stop_postgres,
+    selected_suites, source_fingerprint, stop_owned_workers, stop_postgres,
 )
 from run_browser_full_project_e2e import secure_mkdir, stop_process, tail
 
@@ -158,6 +158,33 @@ class CreationAcceptanceTest(unittest.TestCase):
         with patch("run_browser_full_project_e2e.os.killpg"), self.assertRaises(RunnerError):
             stop_process(process, log)
         log.close.assert_called_once()
+
+    def test_worker_cleanup_tolerates_process_exit_during_environment_read(self):
+        root = self.scratch()
+        process = root / "proc" / "12345"
+        process.mkdir(parents=True)
+        (process / "cmdline").write_bytes(b"/usr/bin/chromium\0")
+        binary_dir = root / "bin"
+        binary_dir.mkdir()
+        browser_artifacts = root / "browser"
+        browser_artifacts.mkdir()
+        original_iterdir = Path.iterdir
+        original_read_bytes = Path.read_bytes
+
+        def iter_processes(path):
+            if path == Path("/proc"):
+                return iter((process,))
+            return original_iterdir(path)
+
+        def read_process_file(path):
+            if path == process / "environ":
+                raise ProcessLookupError("process exited during cleanup")
+            return original_read_bytes(path)
+
+        with patch("run_creation_e2e.Path.iterdir", iter_processes), patch(
+            "run_creation_e2e.Path.read_bytes", read_process_file
+        ):
+            stop_owned_workers(binary_dir, browser_artifacts)
 
     def test_postgres_is_removed_even_when_its_log_cannot_be_opened(self):
         path = self.scratch() / "missing" / "postgres.log"

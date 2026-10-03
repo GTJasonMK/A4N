@@ -342,27 +342,66 @@ impl OrchestratorContext {
         project_id: i64,
         required: ProjectAccessRole,
     ) -> Result<(), AppError> {
-        if project_id <= 0 {
-            return Err(AppError::InvalidArgument("项目 ID 必须大于 0".to_string()));
-        }
-        if self.project_kind(project_id).await? == "text" {
-            self.verify_project_permission(project_id, user_id, required)
-                .await?;
-            return Ok(());
-        }
-        let family = self.derived_project_family_context(project_id).await?;
-        let (project_result, root_project_result) = futures::join!(
-            self.verify_project_permission(family.project.id, user_id, required),
-            self.verify_project_permission(family.root_project.id, user_id, required),
-        );
-        project_result?;
-        root_project_result?;
-        Ok(())
+        self.verify_project_or_derived_family_access_for_role_validated(
+            user_id, project_id, required,
+        )
+        .await
     }
 }
 
 #[async_trait::async_trait]
 impl a4n_api_contract::manga::MangaPipelineExecutionApplicationPort for OrchestratorContext {
+    async fn prepare_standalone_source(
+        &self,
+        user_id: i64,
+        input: a4n_api_contract::manga::PrepareStandaloneComicSourceInput,
+    ) -> Result<a4n_api_contract::manga::MangaStandaloneSourceSummary, AppError> {
+        self.verify_project_permission(input.project_id, user_id, ProjectAccessRole::Editor)
+            .await?;
+        let chapter = a4n_db::project::prepare_standalone_comic_source_chapter(
+            self.database.connection(),
+            a4n_db::project::PrepareStandaloneComicSourceDbInput {
+                project_id: input.project_id,
+                asset_id: input.asset_id,
+                version: input.version,
+                start_section: input.start_section,
+                end_section: input.end_section,
+            },
+        )
+        .await
+        .map_err(|error| match error {
+            a4n_db::project::StandaloneComicSourceDbError::InvalidArgument(message) => {
+                AppError::InvalidArgument(message)
+            }
+            a4n_db::project::StandaloneComicSourceDbError::InvalidState(message) => {
+                AppError::InvalidState {
+                    current: message,
+                    operation: "准备独立漫画文本来源".into(),
+                }
+            }
+            a4n_db::project::StandaloneComicSourceDbError::NotFound(message) => {
+                AppError::NotFound(message)
+            }
+            a4n_db::project::StandaloneComicSourceDbError::Forbidden(message) => {
+                AppError::Forbidden(message)
+            }
+            a4n_db::project::StandaloneComicSourceDbError::Database(error) => {
+                AppError::Database(error)
+            }
+        })?;
+        Ok(a4n_api_contract::manga::MangaStandaloneSourceSummary {
+            chapter_id: chapter.id,
+            chapter_number: chapter.chapter_number,
+            title: chapter.title,
+            content_sha256: a4n_domain::source_text_hash(&chapter.content),
+            content: chapter.content,
+            asset_id: input.asset_id,
+            version: input.version,
+            start_section: input.start_section,
+            end_section: input.end_section,
+        })
+    }
+
     async fn start_task(
         &self,
         user_id: i64,

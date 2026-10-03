@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { ChevronRight, Film, FolderOpen, Plus, Sparkles, Upload } from "lucide-react";
+import { ChevronRight, Film, FolderOpen, PanelsTopLeft, Plus, Sparkles, Upload } from "lucide-react";
 import { LoadingSpinner } from "../../components/ui/LoadingSpinner";
 import { BookButton } from "../../components/ui/BookButton";
 import { Modal } from "../../components/ui/Modal";
@@ -14,7 +14,7 @@ import { usePackagePreferences } from "../../store/packagePreferences";
 import { confirmDialog } from "../../components/feedback/ConfirmDialog";
 import { useNovelDetailDirtyRegistry } from "../novel-detail/novelDetailDirty";
 
-export type CreateMode = "ai" | "free" | "video_canvas";
+export type CreateMode = "ai" | "free" | "video_canvas" | "comic_workspace";
 
 interface ProjectCreationDialogProps {
   open: boolean;
@@ -49,6 +49,12 @@ const CREATE_MODE_OPTIONS: Array<{
     labelKey: "novel.createModeCanvas",
     descriptionKey: "novel.createModeCanvasDescription",
     icon: <Film size={14} />,
+  },
+  {
+    id: "comic_workspace",
+    labelKey: "novel.createModeComic",
+    descriptionKey: "novel.createModeComicDescription",
+    icon: <PanelsTopLeft size={14} />,
   },
 ];
 

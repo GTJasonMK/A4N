@@ -82,6 +82,11 @@ impl SidecarEmbeddingProvider {
                 provider: Some(model.backend.clone()),
                 model: Some(model.model.clone()),
                 pricing: model.pricing.clone(),
+                request_json: crate::dynamic_embedding::embedding_request_snapshot(
+                    &model.model,
+                    &payload.texts,
+                    payload.batch_size,
+                ),
             })
             .await?;
         let client = self.client.clone();

@@ -52,6 +52,8 @@ pub(crate) fn canvas_text_asset_record(row: canvas_text_asset::Model) -> CanvasT
         text_kind: row.text_kind,
         content: row.content,
         content_hash: row.content_hash,
+        current_version: row.current_version,
+        versions: Vec::new(),
         created_at: row.created_at,
         updated_at: row.updated_at,
     }

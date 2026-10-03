@@ -22,6 +22,7 @@ import {
   Bot,
   Eye,
   Film,
+  FileText,
   ListPlus,
   Play,
   RefreshCw,
@@ -36,7 +37,9 @@ import type { ModelRequestPreview } from "../api/requestPreview";
 import {
   getCanvasGraph,
   getCanvasNodeContracts,
+  listCanvasTextAssets,
   type CanvasGraphDocument,
+  type CanvasTextAssetSummary,
 } from "../api/canvas";
 import { listImageConfigs } from "../api/image";
 import { getProject, type NovelProject } from "../api/project";
@@ -59,7 +62,9 @@ import { useNovelDetailDirty } from "./novel-detail/novelDetailDirty";
 import { DomainAgentConsole } from "../components/agent/DomainAgentConsole";
 import { useContextMenu } from "../components/ui/ContextMenu";
 import { CanvasEmptyState } from "./video-studio/CanvasEmptyState";
+import { ProjectTextMaterialsPanel } from "./derived/ProjectTextMaterialsPanel";
 import { CanvasWorkflowPanel } from "./video-studio/CanvasWorkflowPanel";
+import { initializeVideoStarterGraph } from "./video-studio/canvasStarterTemplate";
 import {
   STUDIO_NODE_TYPES,
   buildNodeTemplateGroups,
@@ -174,6 +179,7 @@ export const VideoStudioCanvas: React.FC = () => {
   const [configOptionsStatus, setConfigOptionsStatus] =
     useState<StudioConfigLoadStatusByKind>({ llm: "loading", image: "loading", video: "loading" });
   const [configLoadError, setConfigLoadError] = useState<string | null>(null);
+  const [textAssets, setTextAssets] = useState<CanvasTextAssetSummary[]>([]);
   const [flowInstance, setFlowInstance] = useState<ReactFlowInstance<
     StudioNode,
     StudioEdge
@@ -186,6 +192,8 @@ export const VideoStudioCanvas: React.FC = () => {
     useState<StudioNode | null>(null);
   const [mobileNodeLibraryOpen, setMobileNodeLibraryOpen] = useState(false);
   const [mobileInspectorOpen, setMobileInspectorOpen] = useState(false);
+  const [textMaterialsOpen, setTextMaterialsOpen] = useState(false);
+  const [textMaterialsDirty, setTextMaterialsDirty] = useState(false);
   const [agentConsoleOpen, setAgentConsoleOpen] = useState(false);
   const [miniMapVisible, setMiniMapVisible] = useState(false);
   const requestRef = useRef(0);
@@ -194,6 +202,7 @@ export const VideoStudioCanvas: React.FC = () => {
   const workflowDiscoveryInFlightRef = useRef(false);
   const workflowRuntimeRefreshSignatureRef = useRef<string | null>(null);
   const configRefreshRef = useRef(0);
+  const previousFlowNodeCountRef = useRef(0);
   const {
     leftSidebarWidth,
     rightSidebarWidth,
@@ -305,6 +314,10 @@ export const VideoStudioCanvas: React.FC = () => {
     project?.my_role === "editor";
   const canvasWriteBusy = saving || importing;
   const canvasReady = !loading && loadError == null && document != null && nodeContracts.length > 0;
+  const hasRunnableNodes = useMemo(
+    () => nodes.some((node) => studioNodeContract(nodeContractsByKind, node.data.nodeKind)?.runnable),
+    [nodeContractsByKind, nodes],
+  );
   const canvasMutationDisabled = !canEdit || canvasWriteBusy || !canvasReady || workflowLive;
   useNovelDetailDirty(`video-canvas:${projectId}`, dirty);
 
@@ -386,6 +399,19 @@ export const VideoStudioCanvas: React.FC = () => {
       }
     }
   }, [addToast]);
+
+  const refreshCanvasTextAssets = useCallback(async () => {
+    const assets = await listCanvasTextAssets(projectId);
+    setTextAssets(assets);
+    return assets;
+  }, [projectId]);
+
+  useEffect(() => {
+    if (!Number.isSafeInteger(projectId) || projectId <= 0) return;
+    void refreshCanvasTextAssets().catch((error) =>
+      addToast(extractErrorMessage(error, translatorRef.current("novel.textMaterialsLoadFailed")), "error"),
+    );
+  }, [addToast, projectId, refreshCanvasTextAssets]);
 
   const load = useCallback(async () => {
     const requestId = requestRef.current + 1;
@@ -481,6 +507,34 @@ export const VideoStudioCanvas: React.FC = () => {
       dialogType: "warning",
     }))) return;
     await load();
+  };
+
+  const handleUseTextToVideoTemplate = async () => {
+    if (
+      !project ||
+      !document ||
+      document.nodes.length > 0 ||
+      canvasMutationDisabled ||
+      dirty ||
+      saving ||
+      importing
+    ) return;
+    setSaving(true);
+    try {
+      const created = await initializeVideoStarterGraph(
+        projectId,
+        t("video.canvas.defaultRewriteInstruction"),
+      );
+      await load();
+      addToast(
+        t(created ? "video.canvas.templateAdded" : "video.canvas.templateAlreadyExists"),
+        created ? "success" : "info",
+      );
+    } catch (error) {
+      addToast(extractErrorMessage(error, t("video.canvas.templateFailed")), "error");
+    } finally {
+      setSaving(false);
+    }
   };
 
   useEffect(() => {
@@ -614,6 +668,21 @@ export const VideoStudioCanvas: React.FC = () => {
       duration: 300,
     });
   }, [flowInstance, selectCanvasNode]);
+
+  useEffect(() => {
+    if (!flowInstance) return;
+    const previousCount = previousFlowNodeCountRef.current;
+    previousFlowNodeCountRef.current = nodes.length;
+    if (previousCount !== 0 || nodes.length === 0 || initialViewport !== undefined) return;
+    const frame = window.requestAnimationFrame(() => {
+      void flowInstance.fitView({
+        padding: isMobileLayout ? 0.2 : 0.25,
+        maxZoom: isMobileLayout ? 0.8 : 1,
+        duration: 180,
+      });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [flowInstance, initialViewport, isMobileLayout, nodes.length]);
 
   const headerActionItems = useMemo<DropdownItem[]>(() => {
     const importDisabled = !canvasReady || canvasWriteBusy || !canEdit;
@@ -770,6 +839,7 @@ export const VideoStudioCanvas: React.FC = () => {
               disabled={canvasMutationDisabled}
               configOptions={configOptions}
               configOptionsStatus={configOptionsStatus}
+              textAssets={textAssets}
               onChange={updateSelectedConfig}
               onRefChange={updateSelectedRef}
               onMoveAssembleClip={moveAssembleClip}
@@ -807,9 +877,9 @@ export const VideoStudioCanvas: React.FC = () => {
   return (
     <StudioNodeContractsProvider contracts={nodeContractsByKind}>
       <div className="h-full min-h-0 flex flex-col bg-book-bg">
-        <UnsavedNavigationGuard dirty={dirty} name={t("video.canvasProject")} action={t("common.leavePage")} />
+        <UnsavedNavigationGuard dirty={dirty || textMaterialsDirty} name={t("video.canvasProject")} action={t("common.leavePage")} />
         <PageHeader
-          className="shrink-0"
+          className="shrink-0 a4n-video-canvas-header"
           leading={<BackButton iconOnly title={t("a11y.back")} onClick={() => navigate(project ? getProjectStudioBackRoute(project) : "/")} />}
           icon={<Film size={15} />}
           title={project?.title || t("video.canvasProject")}
@@ -849,6 +919,15 @@ export const VideoStudioCanvas: React.FC = () => {
                 <Bot size={14} />
                 <span className="hidden sm:inline">{t("agent.domain.domainAgent")}</span>
               </BookButton>
+              <BookIconButton
+                label={t("novel.textMaterialsTitle")}
+                onClick={() => setTextMaterialsOpen(true)}
+                disabled={!project}
+                variant="secondary"
+                size="sm"
+              >
+                <FileText size={14} />
+              </BookIconButton>
               {!leftSidebarVisible ? (
                   <BookIconButton
                     label={t("video.openNodeLibrary")}
@@ -893,6 +972,7 @@ export const VideoStudioCanvas: React.FC = () => {
                   disabled={
                     !document ||
                     !canvasReady ||
+                    !hasRunnableNodes ||
                     canvasWriteBusy ||
                     !canEdit ||
                     workflowSubmitting ||
@@ -995,7 +1075,7 @@ export const VideoStudioCanvas: React.FC = () => {
                   fitView={initialViewport === undefined}
                   fitViewOptions={{ padding: 0.25, maxZoom: 1 }}
                   defaultViewport={initialViewport}
-                  minZoom={0.35}
+                  minZoom={isMobileLayout ? 0.25 : 0.35}
                   maxZoom={1.4}
                   deleteKeyCode={
                     canvasMutationDisabled ? null : ["Delete", "Backspace"]
@@ -1032,8 +1112,11 @@ export const VideoStudioCanvas: React.FC = () => {
                 {nodes.length === 0 ? (
                   <CanvasEmptyState
                     disabled={canvasMutationDisabled}
+                    showTextToVideoTemplate={project?.source_mode === "freeform"}
+                    templateDisabled={saving || importing || dirty}
                     mobile={isMobileLayout}
                     onOpenNodeLibrary={() => setMobileNodeLibraryOpen(true)}
+                    onUseTextToVideoTemplate={() => void handleUseTextToVideoTemplate()}
                   />
                 ) : null}
               </>
@@ -1090,6 +1173,36 @@ export const VideoStudioCanvas: React.FC = () => {
             />
           </Suspense>
         ) : null}
+        <Modal
+          isOpen={textMaterialsOpen}
+          onClose={() => {
+            void (async () => {
+              if (textMaterialsDirty && !await confirmDialog({
+                title: t("novel.textMaterialsDiscardTitle"),
+                message: t("novel.textMaterialsDiscardChanges"),
+              })) return;
+              setTextMaterialsDirty(false);
+              setTextMaterialsOpen(false);
+              void refreshCanvasTextAssets().catch((error) =>
+                addToast(extractErrorMessage(error, t("novel.textMaterialsLoadFailed")), "error"),
+              );
+            })();
+          }}
+          title={t("novel.textMaterialsTitle")}
+          subtitle={project?.title}
+          maxWidthClassName="max-w-5xl"
+          bodyClassName="flex min-h-0 flex-1 overflow-hidden p-3"
+          closeOnBackdrop={!textMaterialsDirty}
+          closeOnEscape={!textMaterialsDirty}
+        >
+          {project ? (
+            <ProjectTextMaterialsPanel
+              projectId={project.id}
+              canEdit={canEdit}
+              onDirtyChange={setTextMaterialsDirty}
+            />
+          ) : null}
+        </Modal>
         {contentPreviewNode ? (
           <Suspense fallback={<LoadingSpinner size="md" text={t("common.loading")} />}>
             <CanvasNodeContentPreviewDialog

@@ -84,6 +84,9 @@ fn source_snapshot_id_for_identity(
         ProjectSourceMode::Freeform => Err(ProjectMutationError::InvalidArgument(
             "自由视频项目没有源文本快照章节".to_string(),
         )),
+        ProjectSourceMode::Standalone => Err(ProjectMutationError::InvalidArgument(
+            "独立漫画项目没有源文本快照章节".to_string(),
+        )),
         ProjectSourceMode::Derived => source_snapshot_id.ok_or_else(|| {
             ProjectMutationError::NotFound(format!("派生项目缺少源文本快照: {}", project_id))
         }),

@@ -51,6 +51,7 @@ pub(super) async fn up(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
     create_entity_table!(manager, schema, canvas_node::Entity);
     create_entity_table!(manager, schema, canvas_edge::Entity);
     create_entity_table!(manager, schema, canvas_text_asset::Entity);
+    create_entity_table!(manager, schema, canvas_text_asset_version::Entity);
     create_entity_table!(manager, schema, project_source_snapshot::Entity);
     create_entity_table!(manager, schema, source_snapshot_chapter::Entity);
     create_entity_table!(manager, schema, source_snapshot_outline::Entity);
@@ -89,6 +90,16 @@ pub(super) async fn up(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
         canvas_text_asset::Entity,
         [canvas_text_asset::Column::ProjectId]
     );
+    create_entity_index!(
+        manager,
+        "uidx_canvas_text_asset_version",
+        canvas_text_asset_version::Entity,
+        [
+            canvas_text_asset_version::Column::CanvasTextAssetId,
+            canvas_text_asset_version::Column::Version
+        ],
+        unique
+    );
     create_entity_table!(manager, schema, text_anchor::Entity);
 
     create_entity_table!(manager, schema, part_outline::Entity);
@@ -116,6 +127,7 @@ pub(super) async fn up(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
         [chapter_shooting_script::Column::SourceSnapshotChapterId]
     );
     create_entity_table!(manager, schema, chapter_manga_prompt::Entity);
+    create_entity_table!(manager, schema, standalone_comic_text_source::Entity);
     create_entity_table!(manager, schema, chapter_video_prompt::Entity);
 
     create_entity_table!(manager, schema, protagonist_profile::Entity);
@@ -293,6 +305,7 @@ pub(super) async fn down(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
     drop_entity_table!(manager, attribute_event::Entity);
     drop_entity_table!(manager, protagonist_profile::Entity);
     drop_entity_table!(manager, chapter_video_prompt::Entity);
+    drop_entity_table!(manager, standalone_comic_text_source::Entity);
     drop_entity_table!(manager, chapter_manga_prompt::Entity);
     drop_entity_table!(manager, chapter_shooting_script::Entity);
     drop_entity_table!(manager, chapter_visual_plan::Entity);

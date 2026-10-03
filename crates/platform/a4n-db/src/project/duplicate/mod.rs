@@ -1,6 +1,7 @@
 mod derived;
 mod freeform;
 mod shared;
+mod standalone_comic;
 mod text;
 
 use a4n_domain::project::ProjectMediaCopyError;
@@ -20,4 +21,5 @@ pub enum ProjectDuplicateError {
 
 pub use derived::duplicate_derived_project_record;
 pub use freeform::duplicate_freeform_project_record;
+pub use standalone_comic::duplicate_standalone_comic_project_record;
 pub use text::duplicate_text_project_record;

@@ -11,6 +11,8 @@ pub const PROJECT_MUTATION_CREATE_OPERATION: &str = "project.mutation.create";
 pub const PROJECT_MUTATION_CREATE_DERIVED_OPERATION: &str = "project.mutation.create_derived";
 pub const PROJECT_MUTATION_CREATE_FREEFORM_VIDEO_OPERATION: &str =
     "project.mutation.create_freeform_video";
+pub const PROJECT_MUTATION_CREATE_STANDALONE_COMIC_OPERATION: &str =
+    "project.mutation.create_standalone_comic";
 pub const PROJECT_MUTATION_UPDATE_OPERATION: &str = "project.mutation.update";
 pub const PROJECT_MUTATION_CAPABILITY: &str = "project.mutation";
 
@@ -36,6 +38,13 @@ pub struct CreateDerivedProjectInput {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 pub struct CreateFreeformVideoProjectInput {
+    pub title: String,
+    pub description: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct CreateStandaloneComicProjectInput {
     pub title: String,
     pub description: Option<String>,
 }

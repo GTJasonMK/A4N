@@ -20,7 +20,11 @@ export function authoringStageLabel(workspace: MediaAuthoringWorkspace | null, k
   return completed === scopes.length ? t("common.mediaAuthoring.adopted") : `${completed}/${scopes.length}`;
 }
 
-export function useMediaAuthoring(projectId: number, enabled = true) {
+export function useMediaAuthoring(
+  projectId: number,
+  enabled = true,
+  chapterId: number | null = null,
+) {
   const { t } = useI18n();
   const [workspace, setWorkspace] = useState<MediaAuthoringWorkspace | null>(null);
   const [loading, setLoading] = useState(false);
@@ -38,7 +42,7 @@ export function useMediaAuthoring(projectId: number, enabled = true) {
     setLoading(true);
     setError(null);
     try {
-      const value = await getMediaAuthoringWorkspace({ project_id: projectId, chapter_id: null });
+      const value = await getMediaAuthoringWorkspace({ project_id: projectId, chapter_id: chapterId });
       if (id === request.current) setWorkspace(value);
     } catch (error) {
       if (id === request.current) {
@@ -49,7 +53,7 @@ export function useMediaAuthoring(projectId: number, enabled = true) {
     } finally {
       if (id === request.current) setLoading(false);
     }
-  }, [enabled, projectId, t]);
+  }, [chapterId, enabled, projectId, t]);
   useLayoutEffect(() => {
     setWorkspace(null);
     void reload().catch(() => { /* The request error remains visible in the stage. */ });

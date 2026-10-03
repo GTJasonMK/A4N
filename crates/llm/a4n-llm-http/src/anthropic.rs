@@ -48,12 +48,31 @@ impl AnthropicLlmProvider {
         })
     }
 
-    fn request_body(&self, request: &ChatRequest) -> Result<Value, AppError> {
-        let mut body = self.extra_body.clone().unwrap_or_default();
-        body.insert("model".into(), json!(self.model));
+    pub(super) fn request_body(&self, request: &ChatRequest) -> Result<Value, AppError> {
+        Self::request_body_with_config(&self.model, self.extra_body.as_ref(), &self.caps, request)
+    }
+
+    pub(super) fn request_body_preview(
+        model: &str,
+        extra_body: Option<Value>,
+        capabilities: ModelCapabilities,
+        request: &ChatRequest,
+    ) -> Result<Value, AppError> {
+        let extra_body = a4n_llm_provider_contract::normalize_extra_body(extra_body)?;
+        Self::request_body_with_config(model, extra_body.as_ref(), &capabilities, request)
+    }
+
+    fn request_body_with_config(
+        model: &str,
+        extra_body: Option<&Map<String, Value>>,
+        capabilities: &ModelCapabilities,
+        request: &ChatRequest,
+    ) -> Result<Value, AppError> {
+        let mut body = extra_body.cloned().unwrap_or_default();
+        body.insert("model".into(), json!(model));
         body.insert(
             "max_tokens".into(),
-            json!(request.max_tokens.unwrap_or(self.caps.max_output_tokens)),
+            json!(request.max_tokens.unwrap_or(capabilities.max_output_tokens)),
         );
         body.insert("stream".into(), Value::Bool(true));
         if let Some(temperature) = request.temperature {

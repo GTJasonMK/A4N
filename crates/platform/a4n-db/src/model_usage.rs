@@ -48,6 +48,7 @@ where
         amount_micros: Set(None),
         meter_json: Set(json!({})),
         pricing_snapshot_json: Set(serde_json::to_value(pricing).map_err(AppError::Serialization)?),
+        request_json: Set(input.request_json),
         error_kind: Set(None),
         error_message: Set(None),
         started_at: Set(now),
@@ -97,12 +98,12 @@ where
     Ok(())
 }
 
-pub async fn list_model_usage_records<C>(
+pub async fn list_model_usage_summaries<C>(
     db: &C,
     project_id: Option<i64>,
     since: chrono::NaiveDateTime,
     limit: u64,
-) -> Result<Vec<model_usage_record::Model>, AppError>
+) -> Result<Vec<ModelUsageSummaryRecord>, AppError>
 where
     C: ConnectionTrait,
 {
@@ -112,6 +113,28 @@ where
         ));
     }
     let mut query = model_usage_record::Entity::find()
+        .select_only()
+        .column(model_usage_record::Column::Id)
+        .column(model_usage_record::Column::RequestId)
+        .column(model_usage_record::Column::Capability)
+        .column(model_usage_record::Column::Workflow)
+        .column(model_usage_record::Column::StepKey)
+        .column(model_usage_record::Column::Provider)
+        .column(model_usage_record::Column::Model)
+        .column_as(
+            Expr::col(model_usage_record::Column::RequestJson).is_not_null(),
+            "request_available",
+        )
+        .column(model_usage_record::Column::Currency)
+        .column(model_usage_record::Column::AmountMicros)
+        .column(model_usage_record::Column::Confidence)
+        .column(model_usage_record::Column::Status)
+        .column(model_usage_record::Column::MeterJson)
+        .column(model_usage_record::Column::Source)
+        .column(model_usage_record::Column::ErrorKind)
+        .column(model_usage_record::Column::ErrorMessage)
+        .column(model_usage_record::Column::StartedAt)
+        .column(model_usage_record::Column::CompletedAt)
         .filter(model_usage_record::Column::StartedAt.gte(since))
         .order_by_desc(model_usage_record::Column::StartedAt)
         .limit(limit);
@@ -127,7 +150,51 @@ where
                 .or(model_usage_record::Column::RootProjectId.eq(project_id)),
         );
     }
-    query.all(db).await.map_err(AppError::Database)
+    query
+        .into_model::<ModelUsageSummaryRecord>()
+        .all(db)
+        .await
+        .map_err(AppError::Database)
+}
+
+#[derive(Debug, FromQueryResult)]
+pub struct ModelUsageSummaryRecord {
+    pub id: i64,
+    pub request_id: String,
+    pub capability: String,
+    pub workflow: String,
+    pub step_key: String,
+    pub provider: Option<String>,
+    pub model: Option<String>,
+    pub request_available: bool,
+    pub currency: String,
+    pub amount_micros: Option<i64>,
+    pub confidence: String,
+    pub status: String,
+    pub meter_json: serde_json::Value,
+    pub source: Option<String>,
+    pub error_kind: Option<String>,
+    pub error_message: Option<String>,
+    pub started_at: chrono::NaiveDateTime,
+    pub completed_at: Option<chrono::NaiveDateTime>,
+}
+
+pub async fn model_usage_record_by_id<C>(
+    db: &C,
+    id: i64,
+) -> Result<Option<model_usage_record::Model>, AppError>
+where
+    C: ConnectionTrait,
+{
+    if id <= 0 {
+        return Err(AppError::InvalidArgument(
+            "模型成本记录 id 必须为正整数".to_string(),
+        ));
+    }
+    model_usage_record::Entity::find_by_id(id)
+        .one(db)
+        .await
+        .map_err(AppError::Database)
 }
 
 #[derive(Debug, FromQueryResult)]

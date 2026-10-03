@@ -605,6 +605,8 @@ async fn video_studio_import_batches_canvas_text_assets_and_preserves_mapping_or
             text_kind: "prompt".to_string(),
             content: format!("内容 {index}"),
             content_hash: format!("hash-{index}"),
+            current_version: 1,
+            versions: Vec::new(),
             created_at: now,
             updated_at: now,
         })

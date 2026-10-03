@@ -8,7 +8,9 @@ use a4n_db_models::models::{
         video_gen_config,
     },
     asset::{object_profile, profile_primary_material},
-    canvas::{canvas_edge, canvas_graph, canvas_node, canvas_text_asset},
+    canvas::{
+        canvas_edge, canvas_graph, canvas_node, canvas_text_asset, canvas_text_asset_version,
+    },
     chapter::{
         chapter, chapter_manga_prompt, chapter_outline, chapter_outline_provenance, chapter_scene,
         chapter_shooting_script, chapter_video_prompt, chapter_visual_plan, part_outline,
@@ -28,7 +30,7 @@ use a4n_db_models::models::{
         blueprint_character, blueprint_relationship, blueprint_version, import_review_queue,
         novel_blueprint, novel_project, profile_evidence, project_source_snapshot,
         project_status_history, source_snapshot_chapter, source_snapshot_outline,
-        source_snapshot_profile, text_anchor,
+        source_snapshot_profile, standalone_comic_text_source, text_anchor,
     },
     scene::{scene_entity_state, scene_occurrence, scene_profile, scene_transition},
     source_sync::{source_sync_conflict, source_sync_decision, source_sync_run},

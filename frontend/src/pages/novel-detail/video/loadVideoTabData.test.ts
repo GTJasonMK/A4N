@@ -139,13 +139,23 @@ describe("video tab loading", () => {
     expect(mocks.loadVideoSegmentPlanDraftDetail).not.toHaveBeenCalled();
   });
 
-  it("loads the newest workflow and restores each segment recipe independently", async () => {
+  it("loads the newest resumable shared plan and ignores other video plan modes", async () => {
     mocks.listWorkflowRuns.mockResolvedValue([
+      {
+        id: 13,
+        project_id: 19,
+        chapter_id: 3,
+        workflow_kind: "video_segment_plan",
+        mode: "targeted_continuity_segment",
+        status: "running",
+        can_resume: true,
+      },
       {
         id: 8,
         project_id: 19,
         chapter_id: 3,
         workflow_kind: "video_segment_plan",
+        mode: "shared_segment_plan",
         status: "cancelled",
         can_resume: true,
       },
@@ -231,7 +241,7 @@ describe("video tab loading", () => {
       chapter_id: 3,
       workflow_kind: "video_segment_plan",
       resumable_only: false,
-      limit: 1,
+      limit: 200,
     });
     expect(mocks.loadVideoSegmentPlanDraftDetail).toHaveBeenCalledWith(
       19,
@@ -252,6 +262,7 @@ describe("video tab loading", () => {
         project_id: 19,
         chapter_id: 3,
         workflow_kind: "video_segment_plan",
+        mode: "shared_segment_plan",
         status: "completed",
         can_resume: false,
       },
@@ -268,6 +279,7 @@ describe("video tab loading", () => {
         project_id: 19,
         chapter_id: 3,
         workflow_kind: "video_segment_plan",
+        mode: "shared_segment_plan",
         status: "failed",
         can_resume: true,
       },
@@ -301,7 +313,7 @@ describe("video tab loading", () => {
 
   it("rejects damaged resume options instead of using current form defaults", async () => {
     mocks.listWorkflowRuns.mockResolvedValue([
-      { id: 11, status: "cancelled", can_resume: true },
+      { id: 11, mode: "shared_segment_plan", status: "cancelled", can_resume: true },
     ]);
     mocks.loadVideoSegmentPlanDraftDetail.mockResolvedValue({
       run: {

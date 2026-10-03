@@ -89,6 +89,22 @@ impl CanvasVideoGenerationHostPort for RuntimeVideoProviderHostPort<'_> {
         .await
         .map_err(host_error)?;
         let duration_seconds = input.request.duration_secs.to_string();
+        let request_json = match self
+            .provider_request_body(VideoProviderRequestInput {
+                user_id: input.user_id,
+                project_id: input.project_id,
+                config: input.config.clone(),
+                request: input.request.clone(),
+                provider_idempotency_key_sha256: None,
+            })
+            .await
+        {
+            Ok(body) => Some(body.request),
+            Err(error) => {
+                tracing::warn!(backend = %input.config.backend, %error, "Could not capture canvas video request snapshot");
+                None
+            }
+        };
         let cost_record = self
             .state
             .provider_runtime()
@@ -108,6 +124,7 @@ impl CanvasVideoGenerationHostPort for RuntimeVideoProviderHostPort<'_> {
                 provider: Some(input.config.backend.clone()),
                 model: Some(input.config.model.clone()),
                 pricing: input.config.pricing.clone(),
+                request_json,
             })
             .await
             .map_err(|error| host_error(error.to_string()))?;

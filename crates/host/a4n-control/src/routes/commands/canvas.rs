@@ -12,6 +12,10 @@ pub(super) fn is_canvas_web_command(cmd: &str) -> bool {
             | "get_canvas_node_contracts"
             | "save_canvas_graph"
             | "save_canvas_text_asset"
+            | "list_canvas_text_assets"
+            | "list_canvas_text_asset_versions"
+            | "preview_canvas_text_asset_draft_request"
+            | "generate_canvas_text_asset_draft"
             | "preview_canvas_node_request"
             | "run_canvas_graph"
             | "run_canvas_node"
@@ -48,6 +52,28 @@ pub(super) async fn run_canvas_web_command(
         "get_canvas_node_contracts" => get_canvas_node_contracts(state, user_id, args).await,
         "save_canvas_graph" => save_canvas_graph(state, user_id, args).await,
         "save_canvas_text_asset" => save_canvas_text_asset(state, user_id, args).await,
+        "list_canvas_text_assets" => list_canvas_text_assets(state, user_id, args).await,
+        "list_canvas_text_asset_versions" => {
+            list_canvas_text_asset_versions(state, user_id, args).await
+        }
+        "preview_canvas_text_asset_draft_request" => to_value(
+            canvas_workflow_actions::preview_canvas_text_asset_draft_request(
+                state.runtime(),
+                user_id,
+                command_input(args, cmd)?,
+            )
+            .await
+            .map_err(|error| ApiError::bad_request(error.to_string()))?,
+        ),
+        "generate_canvas_text_asset_draft" => to_value(
+            canvas_workflow_actions::generate_canvas_text_asset_draft(
+                state.runtime(),
+                user_id,
+                command_input(args, cmd)?,
+            )
+            .await
+            .map_err(|error| ApiError::bad_request(error.to_string()))?,
+        ),
         "preview_canvas_node_request" => preview_canvas_node_request(state, user_id, args).await,
         "run_canvas_graph" => run_canvas_graph(state, user_id, args).await,
         "run_canvas_node" => run_canvas_node(state, user_id, args).await,
@@ -116,6 +142,38 @@ async fn save_canvas_text_asset(
             state.runtime(),
             user_id,
             command_input(args, "save_canvas_text_asset")?,
+        )
+        .await
+        .map_err(ApiError::bad_request)?,
+    )
+}
+
+async fn list_canvas_text_assets(
+    state: &ServerState,
+    user_id: i64,
+    args: &Value,
+) -> Result<Value, ApiError> {
+    to_value(
+        canvas_workflow_actions::list_canvas_text_assets(
+            state.runtime(),
+            user_id,
+            command_input(args, "list_canvas_text_assets")?,
+        )
+        .await
+        .map_err(ApiError::bad_request)?,
+    )
+}
+
+async fn list_canvas_text_asset_versions(
+    state: &ServerState,
+    user_id: i64,
+    args: &Value,
+) -> Result<Value, ApiError> {
+    to_value(
+        canvas_workflow_actions::list_canvas_text_asset_versions(
+            state.runtime(),
+            user_id,
+            command_input(args, "list_canvas_text_asset_versions")?,
         )
         .await
         .map_err(ApiError::bad_request)?,

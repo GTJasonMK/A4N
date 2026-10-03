@@ -19,6 +19,7 @@ use super::super::PROJECT_KIND_TEXT;
 use a4n_db_models::models::project::{
     novel_project, project_source_snapshot, source_snapshot_chapter,
 };
+use a4n_domain::project::ProjectSourceMode;
 use sea_orm::sea_query::{Alias, Expr};
 use sea_orm::{
     ColumnTrait, ConnectionTrait, DbBackend, DbErr, EntityTrait, Linked, QueryFilter, QuerySelect,
@@ -59,7 +60,18 @@ where
     C: ConnectionTrait,
 {
     let (project, root_project) = project_family_access_with_root_row(db, project_id).await?;
-    if project.project_kind == PROJECT_KIND_TEXT {
+    let source_mode = ProjectSourceMode::from_identity(
+        &project.project_kind,
+        project.root_project_id,
+        project.source_snapshot_id,
+    )
+    .map_err(|error| {
+        ProjectFamilyDbError::InvalidArgument(format!("项目 {}: {error}", project.id))
+    })?;
+    if matches!(
+        source_mode,
+        ProjectSourceMode::Self_ | ProjectSourceMode::Freeform | ProjectSourceMode::Standalone
+    ) {
         return Ok((project.id, None));
     }
     let root_project_id = project.root_project_id.ok_or_else(|| {

@@ -8,7 +8,10 @@ use a4n_canvas_contract::{
 };
 use a4n_db::{
     DatabaseConnection,
-    canvas::{CanvasGraphRecordDocument, CanvasGraphRecordInput, CanvasNodeRecordInput},
+    canvas::{
+        CanvasEdgeRecordInput, CanvasGraphRecordDocument, CanvasGraphRecordInput,
+        CanvasNodeRecordInput,
+    },
     project::{CreateFreeformVideoProjectParams, create_freeform_video_project_record},
 };
 use a4n_db_models::models::{canvas::canvas_graph, generation::workflow_run};
@@ -323,6 +326,153 @@ async fn canvas_graph_resume_skips_completed_checkpoints_and_finishes_pending_no
     assert_eq!(summary.status, WORKFLOW_STATUS_COMPLETED);
     assert_eq!(run.status, WORKFLOW_STATUS_COMPLETED);
     assert_eq!(host_port.executed_node_ids(), vec![pending_node_id]);
+}
+
+#[tokio::test]
+async fn canvas_graph_run_keeps_the_source_text_version_when_resumed() {
+    let (database, context) = setup_context().await;
+    let project = create_freeform_video_project_record(
+        database.as_ref(),
+        1,
+        CreateFreeformVideoProjectParams {
+            title: "Canvas text snapshot test".to_string(),
+            description: String::new(),
+        },
+    )
+    .await
+    .expect("测试项目应创建成功");
+    let asset = context
+        .upsert_canvas_text_asset_record(
+            project.id,
+            a4n_domain::canvas::CanvasTextAssetRecordInput {
+                id: None,
+                expected_version: None,
+                title: "剧本".to_string(),
+                text_kind: "script".to_string(),
+                content: "第一版正文".to_string(),
+            },
+            chrono::Utc::now().naive_utc(),
+        )
+        .await
+        .expect("文本素材应创建成功");
+    let mut source = record_node("source", "TextInputNode");
+    source.ref_type = Some("canvas_text_asset".to_string());
+    source.ref_id = Some(asset.id);
+    let document = context
+        .save_canvas_graph_record(
+            project.id,
+            CanvasGraphRecordInput {
+                id: None,
+                expected_version: None,
+                name: Some("文本来源工作流".to_string()),
+                graph_kind: Some("video_studio".to_string()),
+                viewport_json: None,
+                nodes: vec![source, record_node("rewrite", "LlmTextNode")],
+                edges: vec![CanvasEdgeRecordInput {
+                    source_client_id: "source".to_string(),
+                    target_client_id: "rewrite".to_string(),
+                    source_port: "text".to_string(),
+                    target_port: "input".to_string(),
+                    role: "context".to_string(),
+                    config_json: Some(json!({})),
+                }],
+            },
+            chrono::Utc::now().naive_utc(),
+        )
+        .await
+        .expect("测试画布应保存成功");
+    let host_port = TestGraphHostPort::default();
+    let prepared = context
+        .prepare_canvas_graph_run_validated(
+            CanvasGraphRunPreparationInput {
+                user_id: 1,
+                project_id: project.id,
+                graph_id: document.graph.id,
+                target_node_id: None,
+            },
+            &host_port,
+        )
+        .await
+        .expect("工作流应使用文本素材版本准备成功");
+    let run = workflow_run::Entity::find_by_id(prepared.workflow_run_id)
+        .one(database.as_ref())
+        .await
+        .expect("应可读取工作流")
+        .expect("工作流应存在");
+    let snapshot = run
+        .input_fingerprint_json
+        .as_ref()
+        .and_then(|input| input.get("canvas_text_asset_snapshot"))
+        .and_then(serde_json::Value::as_array)
+        .expect("工作流应保存文本素材快照");
+    assert_eq!(snapshot.len(), 1);
+    assert_eq!(snapshot[0]["id"], asset.id);
+    assert_eq!(snapshot[0]["current_version"], 1);
+    assert_eq!(snapshot[0]["content"], "第一版正文");
+
+    context
+        .upsert_canvas_text_asset_record(
+            project.id,
+            a4n_domain::canvas::CanvasTextAssetRecordInput {
+                id: Some(asset.id),
+                expected_version: Some(1),
+                title: asset.title,
+                text_kind: "script".to_string(),
+                content: "第二版正文".to_string(),
+            },
+            chrono::Utc::now().naive_utc(),
+        )
+        .await
+        .expect("新文本版本应保存成功");
+    let current_document = context
+        .get_or_create_canvas_graph_record(
+            project.id,
+            Some(document.graph.id),
+            chrono::Utc::now().naive_utc(),
+        )
+        .await
+        .expect("应可读取更新后的画布");
+    let rewrite_node_id = document
+        .nodes
+        .iter()
+        .find(|node| node.node_kind == "LlmTextNode")
+        .expect("改写节点应存在")
+        .id;
+    let pinned_document = context
+        .canvas_document_with_workflow_text_asset_snapshot(
+            &current_document,
+            Some(prepared.workflow_run_id),
+            rewrite_node_id,
+        )
+        .await
+        .expect("节点应能读取运行开始时的文本快照");
+    assert_eq!(pinned_document.text_assets[0].current_version, 1);
+    assert_eq!(pinned_document.text_assets[0].content, "第一版正文");
+
+    context
+        .fail_workflow_run_validated(prepared.workflow_run_id, "模拟恢复")
+        .await
+        .expect("工作流应进入可恢复状态");
+    let resumed = context
+        .prepare_canvas_graph_resume_validated(
+            CanvasGraphResumePreparationInput {
+                user_id: 1,
+                workflow_run_id: prepared.workflow_run_id,
+            },
+            &host_port,
+        )
+        .await
+        .expect("续跑应保留原文本素材快照");
+    let resumed_document = context
+        .canvas_document_with_workflow_text_asset_snapshot(
+            &current_document,
+            Some(resumed.workflow_run_id),
+            rewrite_node_id,
+        )
+        .await
+        .expect("续跑节点应仍读取原文本快照");
+    assert_eq!(resumed_document.text_assets[0].current_version, 1);
+    assert_eq!(resumed_document.text_assets[0].content, "第一版正文");
 }
 
 #[tokio::test]

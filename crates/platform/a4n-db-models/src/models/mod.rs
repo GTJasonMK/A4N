@@ -41,6 +41,7 @@ pub mod project {
     pub mod source_snapshot_chapter;
     pub mod source_snapshot_outline;
     pub mod source_snapshot_profile;
+    pub mod standalone_comic_text_source;
     pub mod text_anchor;
 }
 
@@ -49,6 +50,7 @@ pub mod canvas {
     pub mod canvas_graph;
     pub mod canvas_node;
     pub mod canvas_text_asset;
+    pub mod canvas_text_asset_version;
 }
 
 pub mod generation {

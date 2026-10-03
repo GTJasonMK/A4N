@@ -9,8 +9,9 @@ use a4n_domain::{
 };
 use a4n_project_mutation_worker_contract::{
     CreateDerivedProjectInput, CreateFreeformVideoProjectInput, CreateProjectInput,
-    PROJECT_MUTATION_CAPABILITY, PROJECT_MUTATION_CREATE_DERIVED_OPERATION,
-    PROJECT_MUTATION_CREATE_FREEFORM_VIDEO_OPERATION, PROJECT_MUTATION_CREATE_OPERATION,
+    CreateStandaloneComicProjectInput, PROJECT_MUTATION_CAPABILITY,
+    PROJECT_MUTATION_CREATE_DERIVED_OPERATION, PROJECT_MUTATION_CREATE_FREEFORM_VIDEO_OPERATION,
+    PROJECT_MUTATION_CREATE_OPERATION, PROJECT_MUTATION_CREATE_STANDALONE_COMIC_OPERATION,
     PROJECT_MUTATION_UPDATE_OPERATION, PROJECT_MUTATION_WORKER_CONTRACT_VERSION,
     PROJECT_MUTATION_WORKER_ID, ProjectSummary, UpdateProjectInput,
 };
@@ -83,6 +84,10 @@ impl ProjectMutationWorker {
             .route(
                 "/v1/commands/project.mutation.create_freeform_video",
                 post(create_freeform_video),
+            )
+            .route(
+                "/v1/commands/project.mutation.create_standalone_comic",
+                post(create_standalone_comic),
             )
             .route("/v1/commands/project.mutation.update", post(update))
             .with_state(self.state.clone())
@@ -186,6 +191,17 @@ async fn create_freeform_video(
 ) -> Response {
     command_response(&state, &headers, request, |request| {
         state.create_freeform_video(request)
+    })
+    .await
+}
+
+async fn create_standalone_comic(
+    State(state): State<WorkerState>,
+    headers: HeaderMap,
+    Json(request): Json<WorkerEnvelope<CreateStandaloneComicProjectInput>>,
+) -> Response {
+    command_response(&state, &headers, request, |request| {
+        state.create_standalone_comic(request)
     })
     .await
 }

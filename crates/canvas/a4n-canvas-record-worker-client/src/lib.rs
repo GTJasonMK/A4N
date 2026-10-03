@@ -3,12 +3,14 @@
 use a4n_api_contract::canvas::{
     CanvasGraphDocument, CanvasGraphEditResult, CanvasGraphReadResult, CanvasGraphSaveResult,
     CanvasMutationApplicationPort, CanvasReadApplicationPort, CanvasTextAssetSummary,
-    EditCanvasGraphInput, GetCanvasGraphInput, ReadCanvasGraphInput, SaveCanvasGraphInput,
-    SaveCanvasTextAssetInput,
+    CanvasTextAssetVersionSummary, EditCanvasGraphInput, GetCanvasGraphInput,
+    ListCanvasTextAssetVersionsInput, ListCanvasTextAssetsInput, ReadCanvasGraphInput,
+    SaveCanvasGraphInput, SaveCanvasTextAssetInput,
 };
 use a4n_canvas_record_worker_contract::{
     CANVAS_GRAPH_EDIT_OPERATION, CANVAS_GRAPH_GET_OPERATION, CANVAS_GRAPH_READ_OPERATION,
-    CANVAS_GRAPH_SAVE_OPERATION, CANVAS_RECORD_WORKER_ID, CANVAS_TEXT_ASSET_SAVE_OPERATION,
+    CANVAS_GRAPH_SAVE_OPERATION, CANVAS_RECORD_WORKER_ID, CANVAS_TEXT_ASSET_LIST_OPERATION,
+    CANVAS_TEXT_ASSET_SAVE_OPERATION, CANVAS_TEXT_ASSET_VERSIONS_OPERATION,
 };
 use a4n_error::AppError;
 use a4n_worker_client::{HttpWorkerClient, WorkerClientError};

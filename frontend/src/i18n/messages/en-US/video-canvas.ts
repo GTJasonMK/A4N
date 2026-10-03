@@ -1,5 +1,10 @@
 export const videoCanvas = {
   canvas: {
+    useTextToVideoTemplate: "Start with a text-to-video workflow",
+    templateAdded: "Added the text-to-video workflow. Add source text and check the model settings.",
+    templateAlreadyExists: "The canvas changed elsewhere. The latest workflow has been loaded.",
+    templateFailed: "Could not create the text-to-video workflow",
+    defaultRewriteInstruction: "Rewrite the input as a concise shot script for short-video generation. Describe visuals, actions, character relationships, and necessary dialogue in shot order without adding unrelated plot.",
     category: { input: "Input nodes", operation: "Operation nodes", probe: "Probe nodes", output: "Output nodes" },
     node: {
       textInput: "Text input", imageInput: "Image input", videoInput: "Video input", audioInput: "Audio input",
@@ -37,7 +42,7 @@ export const videoCanvas = {
       filePath: "File path", thumbnailPath: "Thumbnail path", outputPortsReady: "Available output ports will appear after configuration.",
       terminalOutput: "This terminal node will show the final delivery result after it runs.", viewContent: "View content",
       operationOutput: "Operation nodes only pass through runtime output; final results appear in output nodes.", edgeDescription: "From {source} to {target}",
-      connectionType: "Connection type", sourcePort: "Source port", targetPort: "Target port", order: "Order", text: "Text", title: "Title",
+      connectionType: "Connection type", sourcePort: "Source port", targetPort: "Target port", order: "Order", text: "Text", textSource: "Text source", inlineText: "Inline text", textAssetVersion: "Version {version}", unavailableTextAsset: "The selected text material is unavailable.", title: "Title",
       displayMode: "Display mode", summary: "Summary", detail: "Detail", template: "Template", textType: "Text type", canvasPrompt: "Canvas prompt",
       videoText: "Video text", imageText: "Image text", llmConfig: "LLM configuration", instruction: "Instruction", outputType: "Output type",
       shotScript: "Shot script", storyboard: "Storyboard", visualDescription: "Visual description", dialogue: "Dialogue", rhythmPlan: "Rhythm plan",

@@ -24,4 +24,32 @@ impl CanvasReadApplicationPort for CanvasRecordWorkerClient {
         )
         .await
     }
+
+    async fn list_text_assets(
+        &self,
+        user_id: i64,
+        input: ListCanvasTextAssetsInput,
+    ) -> Result<Vec<CanvasTextAssetSummary>, AppError> {
+        self.command(
+            user_id,
+            input.project_id,
+            CANVAS_TEXT_ASSET_LIST_OPERATION,
+            input,
+        )
+        .await
+    }
+
+    async fn list_text_asset_versions(
+        &self,
+        user_id: i64,
+        input: ListCanvasTextAssetVersionsInput,
+    ) -> Result<Vec<CanvasTextAssetVersionSummary>, AppError> {
+        self.command(
+            user_id,
+            input.project_id,
+            CANVAS_TEXT_ASSET_VERSIONS_OPERATION,
+            input,
+        )
+        .await
+    }
 }

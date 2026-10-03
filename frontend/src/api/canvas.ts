@@ -13,7 +13,12 @@ import type {
   CanvasRunSummary,
   CanvasTextAssetInput,
   CanvasTextAssetSummary,
+  CanvasTextAssetVersionSummary,
+  CanvasTextAssetDraftInput,
+  CanvasTextAssetDraftSummary,
   GetCanvasGraphInput,
+  ListCanvasTextAssetVersionsInput,
+  ListCanvasTextAssetsInput,
   GetCanvasNodeContractsInput,
   ImportCanvasMediaInput as GeneratedImportCanvasMediaInput,
   ImportedCanvasMedia as GeneratedImportedCanvasMedia,
@@ -41,6 +46,8 @@ export type {
   CanvasNodeContract,
   CanvasPortContract,
   CanvasRunSummary,
+  CanvasTextAssetSummary,
+  CanvasTextAssetVersionSummary,
 };
 
 type CanvasMediaUploadSource = {
@@ -131,6 +138,33 @@ export async function saveCanvasTextAsset(
       text_asset: textAsset,
     } satisfies SaveCanvasTextAssetInput,
   });
+}
+
+export async function listCanvasTextAssets(projectId: number): Promise<CanvasTextAssetSummary[]> {
+  return apiInvoke<CanvasTextAssetSummary[]>("list_canvas_text_assets", {
+    input: { project_id: projectId } satisfies ListCanvasTextAssetsInput,
+  });
+}
+
+export async function listCanvasTextAssetVersions(
+  projectId: number,
+  assetId: number,
+): Promise<CanvasTextAssetVersionSummary[]> {
+  return apiInvoke<CanvasTextAssetVersionSummary[]>("list_canvas_text_asset_versions", {
+    input: { project_id: projectId, asset_id: assetId } satisfies ListCanvasTextAssetVersionsInput,
+  });
+}
+
+export async function previewCanvasTextAssetDraftRequest(
+  input: CanvasTextAssetDraftInput,
+): Promise<ModelRequestPreview> {
+  return apiInvoke<ModelRequestPreview>("preview_canvas_text_asset_draft_request", { input });
+}
+
+export async function generateCanvasTextAssetDraft(
+  input: CanvasTextAssetDraftInput,
+): Promise<CanvasTextAssetDraftSummary> {
+  return apiInvoke<CanvasTextAssetDraftSummary>("generate_canvas_text_asset_draft", { input });
 }
 
 export async function previewCanvasNodeRequest(

@@ -11,10 +11,11 @@ use super::{AssetDependencyGraph, load_asset_graph_scope, scope::AssetGraphScope
 pub use self::detail::asset_dependency_graph_node_detail;
 pub(super) use self::records::{
     BlueprintGraphRow, BlueprintVersionGraphRow, ChapterGraphRow, ChapterOutlineGraphRow,
-    CharacterProfileGraphRow, ConversationGraphRow, GeneratedImageGraphRow, GeneratedVideoGraphRow,
-    GenerationSpecGraphRow, MangaPromptGraphRow, MediaAssetGraphRow, ObjectProfileGraphRow,
-    PartOutlineGraphRow, PortraitGraphRow, PromptArtifactGraphRow, SceneProfileGraphRow,
-    ShootingScriptGraphRow, VideoPromptGraphRow, VisualPlanGraphRow,
+    CharacterProfileGraphRow, ComicTextSourceGraphRow, ConversationGraphRow,
+    GeneratedImageGraphRow, GeneratedVideoGraphRow, GenerationSpecGraphRow, MangaPromptGraphRow,
+    MediaAssetGraphRow, ObjectProfileGraphRow, PartOutlineGraphRow, PortraitGraphRow,
+    PromptArtifactGraphRow, SceneProfileGraphRow, ShootingScriptGraphRow, VideoPromptGraphRow,
+    VisualPlanGraphRow,
 };
 
 /// 资产依赖图（项目族范围）。

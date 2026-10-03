@@ -94,6 +94,8 @@ pub struct CanvasGraphInput {
 pub struct CanvasTextAssetInput {
     #[schemars(range(min = 1))]
     pub id: Option<i64>,
+    #[schemars(range(min = 1))]
+    pub expected_version: Option<i32>,
     pub title: String,
     pub text_kind: String,
     pub content: String,
@@ -102,7 +104,55 @@ pub struct CanvasTextAssetInput {
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
 pub struct CanvasTextAssetSummary {
     pub id: i64,
+    pub project_id: i64,
+    pub title: String,
     pub text_kind: String,
+    pub content: String,
+    pub content_hash: String,
+    pub current_version: i32,
+    pub updated_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct ListCanvasTextAssetsInput {
+    #[schemars(range(min = 1))]
+    pub project_id: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct ListCanvasTextAssetVersionsInput {
+    #[schemars(range(min = 1))]
+    pub project_id: i64,
+    #[schemars(range(min = 1))]
+    pub asset_id: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+pub struct CanvasTextAssetVersionSummary {
+    pub version: i32,
+    pub content: String,
+    pub content_hash: String,
+    pub created_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct CanvasTextAssetDraftInput {
+    #[schemars(range(min = 1))]
+    pub project_id: i64,
+    pub llm_config_id: Option<i64>,
+    #[schemars(length(min = 1))]
+    pub instruction: String,
+    #[schemars(range(min = 1))]
+    pub source_asset_id: Option<i64>,
+    #[schemars(range(min = 1))]
+    pub source_version: Option<i32>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+pub struct CanvasTextAssetDraftSummary {
     pub content: String,
 }
 
@@ -377,6 +427,18 @@ pub trait CanvasReadApplicationPort: Send + Sync {
         user_id: i64,
         input: ReadCanvasGraphInput,
     ) -> Result<CanvasGraphReadResult, a4n_error::AppError>;
+
+    async fn list_text_assets(
+        &self,
+        user_id: i64,
+        input: ListCanvasTextAssetsInput,
+    ) -> Result<Vec<CanvasTextAssetSummary>, a4n_error::AppError>;
+
+    async fn list_text_asset_versions(
+        &self,
+        user_id: i64,
+        input: ListCanvasTextAssetVersionsInput,
+    ) -> Result<Vec<CanvasTextAssetVersionSummary>, a4n_error::AppError>;
 }
 
 /// Host-facing Canvas mutation boundary.

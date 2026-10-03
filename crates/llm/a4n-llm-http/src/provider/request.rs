@@ -1,7 +1,9 @@
 use std::time::Duration;
 
 use a4n_error::AppError;
-use a4n_llm_provider_contract::{ChatRequest, MessageRole};
+use a4n_llm_provider_contract::{
+    ChatRequest, MessageRole, ModelCapabilities, normalize_extra_body,
+};
 use serde_json::{Map, Value, json};
 
 use crate::cache::{apply_openai_cache_options, openai_content_with_images};
@@ -37,11 +39,47 @@ impl HttpLlmProvider {
     }
 
     /// 构建请求。
-    pub(crate) fn build_request(
+    pub(crate) fn request_body(
         &self,
         request: &ChatRequest,
         stream: bool,
-    ) -> Result<reqwest::RequestBuilder, AppError> {
+    ) -> Result<Value, AppError> {
+        Self::request_body_with_config(
+            &self.model,
+            self.extra_body.as_ref(),
+            &self.caps,
+            self.replay_reasoning,
+            request,
+            stream,
+        )
+    }
+
+    pub(crate) fn request_body_preview(
+        model: &str,
+        extra_body: Option<Value>,
+        capabilities: ModelCapabilities,
+        replay_reasoning: bool,
+        request: &ChatRequest,
+    ) -> Result<Value, AppError> {
+        let extra_body = normalize_extra_body(extra_body)?;
+        Self::request_body_with_config(
+            model,
+            extra_body.as_ref(),
+            &capabilities,
+            replay_reasoning,
+            request,
+            true,
+        )
+    }
+
+    fn request_body_with_config(
+        model: &str,
+        extra_body: Option<&Map<String, Value>>,
+        capabilities: &ModelCapabilities,
+        replay_reasoning: bool,
+        request: &ChatRequest,
+        stream: bool,
+    ) -> Result<Value, AppError> {
         let messages: Vec<OpenAiMessage> = request
             .messages
             .iter()
@@ -73,7 +111,7 @@ impl HttpLlmProvider {
                     tool_call_id: message.tool_call_id.clone(),
                     // Thinking-mode tools require the field even when the
                     // provider chose a tool without emitting any reasoning.
-                    reasoning_content: (self.replay_reasoning
+                    reasoning_content: (replay_reasoning
                         && message
                             .tool_calls
                             .as_ref()
@@ -93,11 +131,11 @@ impl HttpLlmProvider {
             })
             .collect::<Result<_, AppError>>()?;
 
-        let mut body = self.extra_body.clone().unwrap_or_default();
-        body.insert("model".into(), Value::String(self.model.clone()));
+        let mut body = extra_body.cloned().unwrap_or_default();
+        body.insert("model".into(), Value::String(model.to_string()));
         body.insert("messages".into(), json!(messages));
         body.insert("n".into(), json!(1));
-        let model = self.model.rsplit('/').next().unwrap_or(self.model.as_str());
+        let model = model.rsplit('/').next().unwrap_or(model);
         let o_series = matches!(model.split('-').next(), Some("o1" | "o3" | "o4"));
         // o-series uses a completion budget including reasoning and does not
         // accept the generic workflow sampling temperature.
@@ -111,7 +149,7 @@ impl HttpLlmProvider {
                 "max_tokens"
             }
             .to_string(),
-            json!(request.max_tokens.unwrap_or(self.caps.max_output_tokens)),
+            json!(request.max_tokens.unwrap_or(capabilities.max_output_tokens)),
         );
         apply_openai_cache_options(request, &mut body)?;
         insert_optional(
@@ -129,10 +167,19 @@ impl HttpLlmProvider {
             }
         }
 
+        Ok(Value::Object(body))
+    }
+
+    pub(crate) fn build_request(
+        &self,
+        request: &ChatRequest,
+        stream: bool,
+    ) -> Result<reqwest::RequestBuilder, AppError> {
+        let body = self.request_body(request, stream)?;
         let mut request_builder = self
             .client
             .post(format!("{}/chat/completions", self.base_url))
-            .json(&Value::Object(body));
+            .json(&body);
 
         if let Some(api_key) = &self.api_key {
             request_builder = request_builder.header("Authorization", format!("Bearer {api_key}"));

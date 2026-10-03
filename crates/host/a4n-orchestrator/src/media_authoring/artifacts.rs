@@ -15,12 +15,14 @@ impl crate::OrchestratorContext {
         project_id: i64,
         target: AdaptationTarget,
         snapshot_id: i64,
+        chapter_id: Option<i64>,
         documents: &[AuthoringDocumentView],
     ) -> Result<Vec<MediaAuthoringArtifactView>, AppError> {
         let sources = a4n_db::media_authoring::authoring_artifact_sources(
             self.database.connection(),
             project_id,
             target,
+            chapter_id,
         )
         .await
         .map_err(super::authoring_error)?;

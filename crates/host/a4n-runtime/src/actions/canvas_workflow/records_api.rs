@@ -5,6 +5,7 @@ use super::{
 use crate::{AppState, actions::app_error_message};
 use a4n_api_contract::canvas::{
     CanvasGraphDocument, CanvasGraphSaveResult, CanvasTextAssetSummary,
+    CanvasTextAssetVersionSummary, ListCanvasTextAssetVersionsInput, ListCanvasTextAssetsInput,
 };
 
 pub async fn get_canvas_graph(
@@ -15,6 +16,30 @@ pub async fn get_canvas_graph(
     state
         .canvas_read_application()
         .get_graph(user_id, input)
+        .await
+        .map_err(app_error_message)
+}
+
+pub async fn list_canvas_text_assets(
+    state: &AppState,
+    user_id: i64,
+    input: ListCanvasTextAssetsInput,
+) -> Result<Vec<CanvasTextAssetSummary>, String> {
+    state
+        .canvas_read_application()
+        .list_text_assets(user_id, input)
+        .await
+        .map_err(app_error_message)
+}
+
+pub async fn list_canvas_text_asset_versions(
+    state: &AppState,
+    user_id: i64,
+    input: ListCanvasTextAssetVersionsInput,
+) -> Result<Vec<CanvasTextAssetVersionSummary>, String> {
+    state
+        .canvas_read_application()
+        .list_text_asset_versions(user_id, input)
         .await
         .map_err(app_error_message)
 }

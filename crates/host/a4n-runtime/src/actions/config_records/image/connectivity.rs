@@ -1,6 +1,7 @@
 use super::super::shared::validate_runtime_snapshot_config_id;
 use crate::actions::request_preview::{
-    ModelRequestPreview, image_provider_request_step, model_request_preview, provider_request_step,
+    ModelRequestPreview, ModelRequestPreviewStep, image_provider_request_step,
+    model_request_preview, provider_request_step,
 };
 use crate::{AppState, actions::app_error_message};
 use a4n_api_contract::config::ImageConfigForConnectivityTest;
@@ -21,6 +22,14 @@ pub async fn test_image_config(
 ) -> Result<(), String> {
     let config = resolve_image_config_for_connectivity_test(state, user_id, config_id).await?;
     let request = build_image_connectivity_test_request(&config)?;
+    let request_json = match image_connectivity_request_step(state, &config, request.clone()).await
+    {
+        Ok(step) => step.request,
+        Err(error) => {
+            tracing::warn!(backend = %config.backend, %error, "Could not capture image connectivity request snapshot");
+            None
+        }
+    };
     let cost_record = state
         .provider_runtime()
         .start_model_usage(ModelUsageRecordStart {
@@ -39,6 +48,7 @@ pub async fn test_image_config(
             provider: Some(config.backend.clone()),
             model: Some(config.model.clone()),
             pricing: config.pricing.clone(),
+            request_json,
         })
         .await
         .map_err(|error| error.to_string())?;
@@ -98,45 +108,50 @@ pub async fn preview_test_image_config_request(
 ) -> Result<ModelRequestPreview, String> {
     let config = resolve_image_config_for_connectivity_test(state, user_id, config_id).await?;
     let request = build_image_connectivity_test_request(&config)?;
+    let step = image_connectivity_request_step(state, &config, request).await?;
+    Ok(model_request_preview(
+        "image_config_connectivity_test",
+        "图片配置测试请求预览",
+        vec![step],
+    ))
+}
+
+async fn image_connectivity_request_step(
+    state: &AppState,
+    config: &ImageProviderConfig,
+    request: ImageGenerationRequest,
+) -> Result<ModelRequestPreviewStep, String> {
     if state.runtime_profile().uses_sidecars() {
         let provider_request = crate::sidecar_clients::preview_image_provider_request(
             state.capabilities().image.clone(),
-            &config,
+            config,
             request,
             None,
             None,
         )
         .await?;
-        return Ok(model_request_preview(
-            "image_config_connectivity_test",
-            "图片配置测试请求预览",
-            vec![provider_request_step(
-                "image_connectivity_test",
-                "图片连接测试 provider 请求",
-                "image_provider_request",
-                None,
-                "ready",
-                Some(
-                    "由 image sidecar 生成真实 provider 请求体；固定连接测试请求，不包含参考图"
-                        .to_string(),
-                ),
-                &provider_request,
-            )?],
-        ));
-    }
-    Ok(model_request_preview(
-        "image_config_connectivity_test",
-        "图片配置测试请求预览",
-        vec![image_provider_request_step(
+        return provider_request_step(
             "image_connectivity_test",
             "图片连接测试 provider 请求",
+            "image_provider_request",
             None,
             "ready",
-            Some("固定连接测试请求，不包含参考图".to_string()),
-            &config.backend,
-            request,
-        )?],
-    ))
+            Some(
+                "由 image sidecar 生成真实 provider 请求体；固定连接测试请求，不包含参考图"
+                    .to_string(),
+            ),
+            &provider_request,
+        );
+    }
+    image_provider_request_step(
+        "image_connectivity_test",
+        "图片连接测试 provider 请求",
+        None,
+        "ready",
+        Some("固定连接测试请求，不包含参考图".to_string()),
+        &config.backend,
+        request,
+    )
 }
 
 async fn resolve_image_config_for_connectivity_test(

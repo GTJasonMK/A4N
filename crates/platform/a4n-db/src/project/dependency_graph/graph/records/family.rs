@@ -5,18 +5,20 @@ use a4n_db_models::models::{
         chapter_video_prompt,
     },
     character::character_portrait,
+    project::standalone_comic_text_source,
 };
 use a4n_error::AppError;
 use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QueryOrder, QuerySelect};
 
 use super::{
-    GeneratedImageGraphRow, GeneratedVideoGraphRow, MangaPromptGraphRow, PortraitGraphRow,
-    VideoPromptGraphRow,
+    ComicTextSourceGraphRow, GeneratedImageGraphRow, GeneratedVideoGraphRow, MangaPromptGraphRow,
+    PortraitGraphRow, VideoPromptGraphRow,
 };
 
 pub(super) struct FamilyAssetGraphRecords {
     pub(super) portraits: Vec<PortraitGraphRow>,
     pub(super) manga_prompts: Vec<MangaPromptGraphRow>,
+    pub(super) comic_text_sources: Vec<ComicTextSourceGraphRow>,
     pub(super) video_prompts: Vec<VideoPromptGraphRow>,
     pub(super) generated_images: Vec<GeneratedImageGraphRow>,
     pub(super) generated_videos: Vec<GeneratedVideoGraphRow>,
@@ -30,6 +32,7 @@ pub(super) async fn load_family_asset_graph_records(
     let (
         portraits_result,
         manga_prompts_result,
+        comic_text_sources_result,
         video_prompts_result,
         generated_images_result,
         generated_videos_result,
@@ -53,6 +56,21 @@ pub(super) async fn load_family_asset_graph_records(
             .order_by_asc(chapter_manga_prompt::Column::PageNumber)
             .order_by_asc(chapter_manga_prompt::Column::Id)
             .into_model::<MangaPromptGraphRow>()
+            .all(db),
+        standalone_comic_text_source::Entity::find()
+            .select_only()
+            .column(standalone_comic_text_source::Column::ChapterId)
+            .column(standalone_comic_text_source::Column::CanvasTextAssetId)
+            .column(standalone_comic_text_source::Column::TextAssetVersion)
+            .column(standalone_comic_text_source::Column::StartSectionIndex)
+            .column(standalone_comic_text_source::Column::EndSectionIndex)
+            .column(standalone_comic_text_source::Column::SourceTitle)
+            .filter(
+                standalone_comic_text_source::Column::ProjectId
+                    .is_in(family_project_ids.iter().copied()),
+            )
+            .order_by_asc(standalone_comic_text_source::Column::Id)
+            .into_model::<ComicTextSourceGraphRow>()
             .all(db),
         chapter_video_prompt::Entity::find()
             .select_only()
@@ -82,6 +100,7 @@ pub(super) async fn load_family_asset_graph_records(
     );
     let portraits = portraits_result.map_err(AppError::Database)?;
     let manga_prompts = manga_prompts_result.map_err(AppError::Database)?;
+    let comic_text_sources = comic_text_sources_result.map_err(AppError::Database)?;
     let video_prompts = video_prompts_result.map_err(AppError::Database)?;
     let generated_images = generated_images_result.map_err(AppError::Database)?;
     let generated_videos = generated_videos_result.map_err(AppError::Database)?;
@@ -89,6 +108,7 @@ pub(super) async fn load_family_asset_graph_records(
     Ok(FamilyAssetGraphRecords {
         portraits,
         manga_prompts,
+        comic_text_sources,
         video_prompts,
         generated_images,
         generated_videos,

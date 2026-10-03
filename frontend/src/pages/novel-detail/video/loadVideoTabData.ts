@@ -227,10 +227,14 @@ export const loadVideoSegmentPlanDraft = async (
     chapter_id: chapterId,
     workflow_kind: "video_segment_plan",
     resumable_only: false,
-    limit: 1,
+    limit: 200,
   });
-  const run = runs[0];
-  if (!run || (run.status !== "running" && !run.can_resume)) return null;
+  const run = runs.find(
+    (candidate) =>
+      candidate.mode === VIDEO_WORKFLOW_MODE_SHARED_SEGMENT_PLAN &&
+      (candidate.status === "running" || candidate.can_resume),
+  );
+  if (!run) return null;
   const [detailResult, resumeResult] = await Promise.allSettled([
     loadVideoSegmentPlanDraftDetail(projectId, chapterId, run.id),
     run.status === "running"

@@ -190,7 +190,7 @@ def stop_owned_workers(binary_dir: Path, browser_artifacts: Path | None = None) 
                 try:
                     marker = f"A4N_BROWSER_E2E_ARTIFACT_DIR={browser_artifacts}".encode()
                     is_browser = marker in (process / "environ").read_bytes().split(b"\0")
-                except (FileNotFoundError, PermissionError):
+                except (FileNotFoundError, PermissionError, ProcessLookupError):
                     pass
             if executable and (Path(executable).parent == binary_dir or is_browser):
                 owned.append(int(process.name))

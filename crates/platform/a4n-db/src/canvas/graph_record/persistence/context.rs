@@ -3,7 +3,7 @@ use a4n_domain::project::ProjectSourceMode;
 use sea_orm::{ConnectionTrait, EntityTrait, FromQueryResult, QuerySelect};
 
 use super::GRAPH_KIND_VIDEO_STUDIO;
-use crate::canvas::{CanvasDbError, PROJECT_KIND_VIDEO};
+use crate::canvas::{CanvasDbError, PROJECT_KIND_COMIC, PROJECT_KIND_VIDEO};
 
 const GRAPH_KIND_DERIVED_VIDEO: &str = "derived_video";
 const GRAPH_KIND_TEMPLATE: &str = "template";
@@ -47,6 +47,37 @@ where
     Ok(project)
 }
 
+pub(super) async fn require_canvas_text_asset_project_record<C>(
+    db: &C,
+    project_id: i64,
+) -> Result<CanvasProjectIdentity, CanvasDbError>
+where
+    C: ConnectionTrait,
+{
+    let project = novel_project::Entity::find_by_id(project_id)
+        .select_only()
+        .column(novel_project::Column::Id)
+        .column(novel_project::Column::ProjectKind)
+        .column(novel_project::Column::RootProjectId)
+        .column(novel_project::Column::SourceSnapshotId)
+        .into_model::<CanvasProjectIdentity>()
+        .one(db)
+        .await?
+        .ok_or_else(|| CanvasDbError::NotFound(format!("项目不存在: {project_id}")))?;
+    if project.project_kind != PROJECT_KIND_VIDEO && project.project_kind != PROJECT_KIND_COMIC {
+        return Err(CanvasDbError::InvalidArgument(
+            "项目文本素材仅支持视频和漫画项目".to_string(),
+        ));
+    }
+    ProjectSourceMode::from_identity(
+        &project.project_kind,
+        project.root_project_id,
+        project.source_snapshot_id,
+    )
+    .map_err(|error| CanvasDbError::InvalidArgument(format!("项目 {project_id}: {error}")))?;
+    Ok(project)
+}
+
 pub(super) fn normalize_canvas_record_graph_kind(
     value: &str,
 ) -> Result<&'static str, CanvasDbError> {
@@ -72,6 +103,9 @@ pub(super) fn default_canvas_record_graph_kind(
     {
         ProjectSourceMode::Derived => Ok(GRAPH_KIND_DERIVED_VIDEO),
         ProjectSourceMode::Freeform => Ok(GRAPH_KIND_VIDEO_STUDIO),
+        ProjectSourceMode::Standalone => Err(CanvasDbError::InvalidArgument(
+            "独立漫画项目不支持视频画布".to_string(),
+        )),
         ProjectSourceMode::Self_ => Err(CanvasDbError::InvalidArgument(
             "视频画布不支持文本项目".to_string(),
         )),

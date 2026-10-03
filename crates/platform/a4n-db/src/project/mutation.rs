@@ -5,11 +5,15 @@ mod rules;
 mod updates;
 
 pub use contracts::{
-    CreateFreeformVideoProjectParams, CreateProjectRecordInput, PROJECT_KIND_TEXT,
-    PROJECT_KIND_VIDEO, ProjectMutationError, SOURCE_SYNC_CURRENT, UpdateProjectRecordInput,
+    CreateFreeformVideoProjectParams, CreateProjectRecordInput, CreateStandaloneComicProjectParams,
+    PROJECT_KIND_COMIC, PROJECT_KIND_TEXT, PROJECT_KIND_VIDEO, ProjectMutationError,
+    SOURCE_SYNC_CURRENT, UpdateProjectRecordInput,
 };
 pub(crate) use contracts::{SOURCE_SYNC_CONFLICT, SOURCE_SYNC_DETACHED, SOURCE_SYNC_ROOT_UPDATED};
-pub use creation::{create_freeform_video_project_record, create_project_record};
+pub use creation::{
+    create_freeform_video_project_record, create_project_record,
+    create_standalone_comic_project_record,
+};
 pub use queries::{project_by_id_record, project_ids, project_summary_by_id_record};
 pub use rules::{
     is_valid_source_sync_status, normalize_derived_project_kind, normalize_project_kind,

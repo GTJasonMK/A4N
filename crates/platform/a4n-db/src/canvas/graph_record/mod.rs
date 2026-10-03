@@ -5,6 +5,7 @@ mod types;
 mod validation;
 
 pub use persistence::{
+    canvas_text_asset_versions_record, canvas_text_assets_by_project_record,
     get_or_create_canvas_graph_record, save_canvas_graph_record, upsert_canvas_text_asset_record,
 };
 pub use types::{

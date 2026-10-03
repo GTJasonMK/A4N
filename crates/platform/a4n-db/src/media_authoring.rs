@@ -3,7 +3,7 @@
 
 use a4n_db_models::models::project::{
     media_authoring_document as document, novel_project, project_source_snapshot,
-    source_snapshot_chapter,
+    source_snapshot_chapter, standalone_comic_text_source,
 };
 use a4n_domain::manga::{
     MangaPageGenerationLayoutV3, MangaPageGenerationLayoutV4, MangaPagePromptSourceSummary,
@@ -61,6 +61,7 @@ pub async fn authoring_artifact_sources<C: ConnectionTrait>(
     db: &C,
     project_id: i64,
     target: a4n_domain::media_authoring::AdaptationTarget,
+    chapter_id: Option<i64>,
 ) -> Result<Vec<AuthoringArtifactSource>, AuthoringDocumentError> {
     use a4n_db_models::models::{
         chapter::chapter_manga_prompt,
@@ -68,10 +69,12 @@ pub async fn authoring_artifact_sources<C: ConnectionTrait>(
     };
     match target {
         a4n_domain::media_authoring::AdaptationTarget::Manga => {
-            let rows = chapter_manga_prompt::Entity::find()
-                .filter(chapter_manga_prompt::Column::ProjectId.eq(project_id))
-                .all(db)
-                .await?;
+            let mut query = chapter_manga_prompt::Entity::find()
+                .filter(chapter_manga_prompt::Column::ProjectId.eq(project_id));
+            if let Some(chapter_id) = chapter_id {
+                query = query.filter(chapter_manga_prompt::Column::ChapterId.eq(chapter_id));
+            }
+            let rows = query.all(db).await?;
             rows.into_iter()
                 .map(|row| {
                     let layout = row.layout.ok_or_else(|| {
@@ -465,9 +468,16 @@ async fn validate_owner_and_sources<C: ConnectionTrait>(
             project.lifecycle_gate
         )));
     }
-    if !accepted || project.root_project_id.is_none() || project.source_snapshot_id.is_none() {
+    let standalone_comic = project.project_kind == "comic"
+        && project.root_project_id.is_none()
+        && project.source_snapshot_id.is_none();
+    let expected_root_project_id = project.root_project_id.unwrap_or(project.id);
+    if !accepted
+        || (!standalone_comic
+            && (project.root_project_id.is_none() || project.source_snapshot_id.is_none()))
+    {
         return Err(AuthoringDocumentError::InvalidArgument(
-            "文档类型与派生项目不匹配".into(),
+            "文档类型与项目来源不匹配".into(),
         ));
     }
     if inputs.sources.is_empty()
@@ -484,7 +494,8 @@ async fn validate_owner_and_sources<C: ConnectionTrait>(
         .one(db)
         .await?
         .ok_or_else(|| AuthoringDocumentError::InvalidArgument("创作文档基准快照不存在".into()))?;
-    if Some(snapshot.root_project_id) != project.root_project_id
+    if snapshot.root_project_id != expected_root_project_id
+        || (!standalone_comic && project.source_snapshot_id != Some(snapshot_id))
         || (kind != AuthoringDocumentKind::GalgameBranchPlan
             && inputs.sources[0].source_snapshot_id != snapshot_id)
     {
@@ -503,7 +514,7 @@ async fn validate_owner_and_sources<C: ConnectionTrait>(
             .one(db)
             .await?
             .ok_or_else(|| AuthoringDocumentError::InvalidArgument("原文快照章节不存在".into()))?;
-        if Some(source.root_project_id) != project.root_project_id
+        if source.root_project_id != expected_root_project_id
             || row.root_project_id != source.root_project_id
             || row.snapshot_id != source.source_snapshot_id
             || row.source_chapter_id != source.source_chapter_id
@@ -513,6 +524,28 @@ async fn validate_owner_and_sources<C: ConnectionTrait>(
             return Err(AuthoringDocumentError::InvalidArgument(
                 "创作文档原文来源不一致".into(),
             ));
+        }
+        if standalone_comic {
+            let mapped_source = standalone_comic_text_source::Entity::find()
+                .filter(standalone_comic_text_source::Column::ProjectId.eq(project.id))
+                .filter(
+                    standalone_comic_text_source::Column::ChapterId.eq(source.source_chapter_id),
+                )
+                .filter(
+                    standalone_comic_text_source::Column::SourceSnapshotId
+                        .eq(source.source_snapshot_id),
+                )
+                .filter(
+                    standalone_comic_text_source::Column::SourceSnapshotChapterId
+                        .eq(source.source_snapshot_chapter_id),
+                )
+                .one(db)
+                .await?;
+            if mapped_source.is_none() {
+                return Err(AuthoringDocumentError::InvalidArgument(
+                    "独立漫画改编来源不属于当前素材版本".into(),
+                ));
+            }
         }
     }
     validate_adopted_authoring_dependencies(db, project_id, &inputs.dependencies).await?;

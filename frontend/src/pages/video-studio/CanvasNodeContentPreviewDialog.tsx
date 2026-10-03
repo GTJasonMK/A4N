@@ -14,9 +14,11 @@ import { nodeDisplayTitle, nodeKindMeta } from "./StudioCanvasNode";
 import { configNumber, configObject, configPositiveNumber, configText } from "./canvasConfig";
 import { isOutputNodeKind, isProbeNodeKind, nodeHasProviderRequest } from "./canvasNodeKinds";
 import {
+  CANVAS_REF_TYPE_TEXT_ASSET,
   nodeGeneratedImageRefId,
   nodeGeneratedVideoRefId,
   nodeMediaAssetRefId,
+  nodeRefId,
 } from "./canvasNodeRefs";
 import type { StudioNode } from "./types";
 
@@ -307,7 +309,9 @@ function nodeContentMetadataRows(
 ): Array<[string, string]> {
   const config = node.data.config;
   const rows: Array<[string, string]> = [[t("video.canvas.preview.type"), contentTypeLabel(dataType, t)]];
-  const canvasTextAssetId = configPositiveNumber(config, "canvas_text_asset_id");
+  const canvasTextAssetId =
+    nodeRefId(node.data, CANVAS_REF_TYPE_TEXT_ASSET) ??
+    configPositiveNumber(config, "canvas_text_asset_id");
   const generatedImageId =
     configPositiveNumber(config, "generated_image_id") ??
     nodeGeneratedImageRefId(node.data);

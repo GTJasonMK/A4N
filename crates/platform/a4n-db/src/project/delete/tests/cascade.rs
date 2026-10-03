@@ -47,6 +47,7 @@ async fn project_delete_removes_canvas_dependencies_only_in_its_project() {
         text_kind: Set("freeform".into()),
         content: Set("测试正文".into()),
         content_hash: Set(a4n_domain::source_text_hash("测试正文")),
+        current_version: Set(1),
         created_at: Set(now),
         updated_at: Set(now),
         ..Default::default()

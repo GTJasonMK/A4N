@@ -17,7 +17,9 @@ pub(in crate::collaboration) fn validate_collaboration_root_identity(
         .map_err(|error| {
             CollaborationDbError::InvalidArgument(format!("项目 {}: {error}", project_id))
         })? {
-        ProjectSourceMode::Self_ | ProjectSourceMode::Freeform => Ok(()),
+        ProjectSourceMode::Self_ | ProjectSourceMode::Freeform | ProjectSourceMode::Standalone => {
+            Ok(())
+        }
         ProjectSourceMode::Derived => Err(CollaborationDbError::InvalidArgument(
             "协作权限只能绑定到文本根项目或自由视频项目".to_string(),
         )),

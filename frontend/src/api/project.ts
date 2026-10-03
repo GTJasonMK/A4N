@@ -5,6 +5,7 @@ import type {
   AssetGraphNodeDetail,
   CreateDerivedProjectInput,
   CreateFreeformVideoProjectInput,
+  CreateStandaloneComicProjectInput,
   CreateProjectInput,
   ExportProjectBundleDataInput,
   ExportProjectPackageData,
@@ -197,6 +198,12 @@ export async function createFreeformVideoProject(
   return apiInvoke<NovelProject>("create_freeform_video_project", {
     input,
   });
+}
+
+export async function createStandaloneComicProject(
+  input: CreateStandaloneComicProjectInput,
+): Promise<NovelProject> {
+  return apiInvoke<NovelProject>("create_standalone_comic_project", { input });
 }
 
 export async function listSourceSnapshotChapters(projectId: Id): Promise<SourceSnapshotChapterSummary[]> {
