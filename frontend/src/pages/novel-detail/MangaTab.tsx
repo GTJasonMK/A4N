@@ -252,7 +252,9 @@ export const MangaTab: React.FC<MangaTabProps> = ({
   const [portraits, setPortraits] = useState<Portrait[]>([]);
   const [projectImages, setProjectImages] = useState<GeneratedImage[]>([]);
   const [projectImagesLoading, setProjectImagesLoading] = useState(false);
+  const [projectImagesError, setProjectImagesError] = useState<string | null>(null);
   const [characterAssetsLoading, setCharacterAssetsLoading] = useState(false);
+  const [characterAssetsError, setCharacterAssetsError] = useState<string | null>(null);
   const [requestPreviewOpen, setRequestPreviewOpen] = useState(false);
   const [requestPreviewLoading, setRequestPreviewLoading] = useState(false);
   const [requestPreviewData, setRequestPreviewData] =
@@ -449,6 +451,7 @@ export const MangaTab: React.FC<MangaTabProps> = ({
       )
     ) {
       setCharacterAssetsLoading(true);
+      setCharacterAssetsError(null);
     }
     try {
       const [profilesResult, portraitsResult] = await Promise.allSettled([
@@ -463,26 +466,26 @@ export const MangaTab: React.FC<MangaTabProps> = ({
         )
       )
         return false;
+      const assetErrors: string[] = [];
       if (profilesResult.status === "fulfilled") {
         setProfiles(profilesResult.value);
       } else {
+        const message = extractErrorMessage(profilesResult.reason, t("comic.loadCharacterAssetsFailed"));
+        assetErrors.push(message);
         if (notify) {
-          addToast(
-            extractErrorMessage(profilesResult.reason, t("comic.loadCharacterAssetsFailed")),
-            "error",
-          );
+          addToast(message, "error");
         }
       }
       if (portraitsResult.status === "fulfilled") {
         setPortraits(portraitsResult.value);
       } else {
+        const message = extractErrorMessage(portraitsResult.reason, t("comic.loadCharacterAssetsFailed"));
+        assetErrors.push(message);
         if (notify) {
-          addToast(
-            extractErrorMessage(portraitsResult.reason, t("comic.loadCharacterAssetsFailed")),
-            "error",
-          );
+          addToast(message, "error");
         }
       }
+      setCharacterAssetsError(assetErrors.length > 0 ? assetErrors.join(" · ") : null);
       return profilesResult.status === "fulfilled" && portraitsResult.status === "fulfilled";
     } finally {
       if (
@@ -512,6 +515,7 @@ export const MangaTab: React.FC<MangaTabProps> = ({
       )
     ) {
       setProjectImagesLoading(true);
+      setProjectImagesError(null);
     }
     try {
       const images =
@@ -529,6 +533,7 @@ export const MangaTab: React.FC<MangaTabProps> = ({
       const byId = new Map<number, GeneratedImage>();
       for (const image of images) byId.set(image.id, image);
       setProjectImages([...byId.values()]);
+      setProjectImagesError(null);
       return true;
     } catch (err) {
       if (
@@ -538,7 +543,9 @@ export const MangaTab: React.FC<MangaTabProps> = ({
           requestSeq,
         )
       ) {
-        addToast(extractErrorMessage(err, t("comic.loadProjectImagesFailed")), "error");
+        const message = extractErrorMessage(err, t("comic.loadProjectImagesFailed"));
+        setProjectImagesError(message);
+        addToast(message, "error");
       }
       return false;
     } finally {
@@ -807,7 +814,9 @@ export const MangaTab: React.FC<MangaTabProps> = ({
     setProfiles([]);
     setPortraits([]);
     setProjectImages([]);
+    setProjectImagesError(null);
     setProjectImagesLoading(false);
+    setCharacterAssetsError(null);
     setCharacterAssetsLoading(false);
     setPagePromptsLoading(false);
     setActing(null);
@@ -1223,6 +1232,7 @@ export const MangaTab: React.FC<MangaTabProps> = ({
   };
 
   const selectedStatus = selectedChapter ? statuses[selectedChapter.id] : null;
+  const assetsError = [characterAssetsError, projectImagesError].filter(Boolean).join(" · ") || null;
   useEffect(() => {
     if (staged && selectedStatus?.pipeline_status === "completed") {
       void authoring.reload().catch(() => { /* Stage read errors are shown by the authoring panel. */ });
@@ -1378,6 +1388,7 @@ export const MangaTab: React.FC<MangaTabProps> = ({
         pagePrompts={pagePrompts}
         pagePromptsLoading={pagePromptsLoading}
         pagePromptsError={pagePromptsError}
+        assetsError={assetsError}
         currentContentHash={currentContentHash}
         characterAssetsLoading={characterAssetsLoading}
         projectImagesLoading={projectImagesLoading}
@@ -1456,6 +1467,12 @@ export const MangaTab: React.FC<MangaTabProps> = ({
         onRetryPagePrompts={() => {
           if (!selectedChapter) return;
           void loadPagePrompts(selectedChapter.id).catch(() => undefined);
+        }}
+        onRetryAssets={() => {
+          void Promise.all([
+            loadCharacterAssets(projectId, characterAssetProjectId),
+            loadProjectImages(projectId, imageSourceProjectIds, imageSourceKey),
+          ]);
         }}
       />}
       </div>

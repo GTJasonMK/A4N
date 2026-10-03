@@ -53,6 +53,7 @@ interface MangaPagePromptListProps {
   prompts: MangaPagePromptSummary[];
   promptsLoading: boolean;
   pagePromptsError?: string | null;
+  assetsError?: string | null;
   currentContentHash: string | null;
   chapterLocked?: boolean;
   generatingPageNumber?: number | null;
@@ -73,6 +74,7 @@ interface MangaPagePromptListProps {
   onOptimizePrompt?: (prompt: MangaPagePromptSummary) => void | Promise<void>;
   onDeletePrompt?: (prompt: MangaPagePromptSummary) => void | Promise<void>;
   onRetryPagePrompts?: () => void;
+  onRetryAssets?: () => void;
 }
 
 type MangaPagePlanView = "page_content" | "page_adaptation" | "storyboard";
@@ -200,6 +202,7 @@ export const MangaPagePromptList: React.FC<MangaPagePromptListProps> = ({
   prompts,
   promptsLoading,
   pagePromptsError = null,
+  assetsError = null,
   currentContentHash,
   chapterLocked = false,
   generatingPageNumber = null,
@@ -218,6 +221,7 @@ export const MangaPagePromptList: React.FC<MangaPagePromptListProps> = ({
   onOptimizePrompt,
   onDeletePrompt,
   onRetryPagePrompts,
+  onRetryAssets,
 }) => {
   const { t } = useI18n();
   const pagePromptLabels = useMemo<MangaPagePromptLabels>(() => ({
@@ -402,12 +406,16 @@ export const MangaPagePromptList: React.FC<MangaPagePromptListProps> = ({
   }
 
   if (pagePrompts.length === 0) {
+    const readError = [pagePromptsError, assetsError].filter(Boolean).join(" · ");
     return (
       <div className="flex h-full min-h-0 flex-col gap-3">
-        {pagePromptsError ? (
+        {readError ? (
           <div role="alert" className="flex flex-wrap items-center gap-3 rounded-xl border border-error/40 bg-error-bg px-3 py-2 text-small text-error">
-            <span className="min-w-0 flex-1">{pagePromptsError}</span>
-            {onRetryPagePrompts ? <BookButton size="sm" variant="secondary" onClick={onRetryPagePrompts}>
+            <span className="min-w-0 flex-1">{readError}</span>
+            {(onRetryPagePrompts || onRetryAssets) ? <BookButton size="sm" variant="secondary" onClick={() => {
+              onRetryPagePrompts?.();
+              onRetryAssets?.();
+            }}>
               <RefreshCw size={12} /> {t("common.retry")}
             </BookButton> : null}
           </div>
@@ -586,10 +594,13 @@ export const MangaPagePromptList: React.FC<MangaPagePromptListProps> = ({
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      {pagePromptsError ? (
+      {[pagePromptsError, assetsError].some(Boolean) ? (
         <div role="alert" className="mb-3 flex shrink-0 flex-wrap items-center gap-3 rounded-xl border border-error/40 bg-error-bg px-3 py-2 text-small text-error">
-          <span className="min-w-0 flex-1">{pagePromptsError}</span>
-          {onRetryPagePrompts ? <BookButton size="sm" variant="secondary" onClick={onRetryPagePrompts}>
+          <span className="min-w-0 flex-1">{[pagePromptsError, assetsError].filter(Boolean).join(" · ")}</span>
+          {(onRetryPagePrompts || onRetryAssets) ? <BookButton size="sm" variant="secondary" onClick={() => {
+            onRetryPagePrompts?.();
+            onRetryAssets?.();
+          }}>
             <RefreshCw size={12} /> {t("common.retry")}
           </BookButton> : null}
         </div>
