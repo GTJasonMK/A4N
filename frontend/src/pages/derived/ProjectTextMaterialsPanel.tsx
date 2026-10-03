@@ -14,6 +14,7 @@ import type { LlmConfigSummary } from "../../api/config/types";
 import { importProjectTextAssetUpload } from "../../api/import";
 import { LoadingSpinner } from "../../components/ui/LoadingSpinner";
 import { BookButton, BookIconButton } from "../../components/ui/BookButton";
+import { ThemedSelect } from "../../components/ui/ThemedSelect";
 import { confirmDialog } from "../../components/feedback/ConfirmDialog";
 import { useToast } from "../../components/feedback/Toast";
 import { extractErrorMessage } from "../../api";
@@ -365,10 +366,16 @@ export const ProjectTextMaterialsPanel: React.FC<ProjectTextMaterialsPanelProps>
           <div className="flex flex-wrap items-end gap-2 border-b border-book-border/70 pb-3">
             <label className="min-w-44 flex-1 text-small text-book-text-muted">
               {t("novel.textMaterialsLlmConfig")}
-              <select value={llmConfigId ?? "default"} onChange={(event) => setLlmConfigId(event.target.value === "default" ? null : Number(event.target.value))} disabled={!canEdit || requestPreviewLoading || generatingDraft} className="mt-1 w-full rounded border border-book-border bg-book-bg-paper px-2 py-2 text-sm text-book-text-main">
+              <ThemedSelect
+                aria-label={t("novel.textMaterialsLlmConfig")}
+                value={llmConfigId ?? "default"}
+                onChange={(value) => setLlmConfigId(value === "default" ? null : Number(value))}
+                disabled={!canEdit || requestPreviewLoading || generatingDraft}
+                className="pyqt-input mt-1 w-full min-w-0 text-sm"
+              >
                 <option value="default">{t("novel.textMaterialsUseDefaultConfig")}</option>
                 {llmConfigs.map((config) => <option key={config.id} value={config.id}>{config.name}</option>)}
-              </select>
+              </ThemedSelect>
             </label>
             <BookButton size="sm" variant="secondary" onClick={() => void prepareDraft()} disabled={!canEdit || !aiInstruction.trim() || requestPreviewLoading || generatingDraft || dirty}>
               {requestPreviewLoading ? <LoadingSpinner size="sm" /> : <Sparkles size={14} />}
@@ -397,15 +404,27 @@ export const ProjectTextMaterialsPanel: React.FC<ProjectTextMaterialsPanelProps>
             <div className="flex flex-wrap items-end gap-2 border-t border-book-border/70 pt-3">
               <label className="min-w-0 flex-1 text-small text-book-text-muted">
                 {t("novel.textMaterialsFrom")}
-                <select value={startSection} onChange={(event) => setStartSection(Number(event.target.value))} className="mt-1 w-full rounded border border-book-border bg-book-bg-paper px-2 py-2 text-sm text-book-text-main">
+                <ThemedSelect
+                  aria-label={t("novel.textMaterialsFrom")}
+                  value={startSection}
+                  onChange={(value) => setStartSection(Number(value))}
+                  disabled={!canEdit}
+                  className="pyqt-input mt-1 w-full min-w-0 text-sm"
+                >
                   {sections.map((section, index) => <option key={`${index}:${section.start}`} value={index}>{section.title}</option>)}
-                </select>
+                </ThemedSelect>
               </label>
               <label className="min-w-0 flex-1 text-small text-book-text-muted">
                 {t("novel.textMaterialsTo")}
-                <select value={endSection} onChange={(event) => setEndSection(Number(event.target.value))} className="mt-1 w-full rounded border border-book-border bg-book-bg-paper px-2 py-2 text-sm text-book-text-main">
+                <ThemedSelect
+                  aria-label={t("novel.textMaterialsTo")}
+                  value={endSection}
+                  onChange={(value) => setEndSection(Number(value))}
+                  disabled={!canEdit}
+                  className="pyqt-input mt-1 w-full min-w-0 text-sm"
+                >
                   {sections.map((section, index) => <option key={`${index}:${section.start}`} value={index}>{section.title}</option>)}
-                </select>
+                </ThemedSelect>
               </label>
               <BookButton variant="secondary" size="sm" onClick={selectSource} disabled={dirty || startSection > endSection}>
                 <ArrowRight size={14} />{selectedSource?.assetId === selected.id && selectedSource.version === (sourceVersion ?? selected.current_version) && selectedSource.startSection === startSection && selectedSource.endSection === endSection ? t("novel.textMaterialsSourceSelected") : t("novel.textMaterialsUseSource")}
