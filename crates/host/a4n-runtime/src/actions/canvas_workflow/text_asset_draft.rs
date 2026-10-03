@@ -1,7 +1,7 @@
 use a4n_api_contract::canvas::{CanvasTextAssetDraftInput, CanvasTextAssetDraftSummary};
 use a4n_api_contract::request_preview::ModelRequestPreview;
 use a4n_error::AppError;
-use a4n_llm_provider_contract::provider::ChatRequest;
+use a4n_llm_provider_contract::provider::{ChatRequest, LlmTraceContext};
 
 use crate::{
     AppState,
@@ -111,10 +111,18 @@ async fn build_request(
     };
     let source_message = source.map_or_else(String::new, |text| format!("\n\n参考素材：\n{text}"));
     let user_prompt = format!("指令：\n{instruction}{source_message}\n\n只返回正文。",);
-    Ok(ChatRequest::system_user(
-        SYSTEM_PROMPT,
-        user_prompt,
-        None,
-        None,
+    Ok(ChatRequest::system_user(SYSTEM_PROMPT, user_prompt, None, None).with_trace_context(
+        LlmTraceContext {
+            project_id: Some(input.project_id),
+            root_project_id: None,
+            workflow: "canvas_text_asset_draft".to_string(),
+            step_key: "generate".to_string(),
+            generation_run_id: None,
+            workflow_run_id: None,
+            call_key: Some(format!("project_{}:text_asset_draft", input.project_id)),
+            input_fingerprint_sha256: None,
+            context_plan_json: None,
+            context_pack_refs_json: None,
+        },
     ))
 }
