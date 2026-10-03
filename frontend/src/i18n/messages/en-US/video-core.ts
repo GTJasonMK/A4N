@@ -228,6 +228,7 @@ export const videoCore = {
   canvasLoading: "Loading canvas",
   inspectorLoading: "Loading properties panel",
   cancelRunRequested: "Canvas task cancellation requested",
+  cancelRunAlreadyFinished: "The Canvas task has already finished",
   cancelRunFailed: "Failed to cancel canvas task",
   resumeRunSuccess: "Canvas task resumed",
   resumeRunFailed: "Failed to resume canvas",

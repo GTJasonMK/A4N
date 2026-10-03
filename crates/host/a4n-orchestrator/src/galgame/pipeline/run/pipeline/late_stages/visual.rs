@@ -28,10 +28,15 @@ pub(super) async fn run_visual_planning_stage(
             stage.message(),
         )
         .await?;
-    let user_prompt =
-        galgame_visual_planning_user_message(&early.scenes_json, &early.lines_staged_json)?;
-    let request_user_prompt =
-        galgame_visual_planning_session_user_message(&early.lines_staged_json)?;
+    let user_prompt = galgame_visual_planning_user_message(
+        &early.scenes_json,
+        &early.lines_staged_json,
+        execution.source_markers,
+    )?;
+    let request_user_prompt = galgame_visual_planning_session_user_message(
+        &early.lines_staged_json,
+        execution.source_markers,
+    )?;
     let (_, visual_plan) = execution
         .service
         .run_galgame_llm_stage(
@@ -46,6 +51,7 @@ pub(super) async fn run_visual_planning_stage(
                 user_prompt,
                 request_user_prompt,
                 shared_adaptation_projection: &early.scenes_json,
+                source_markers: execution.source_markers,
                 restore_from_checkpoint: execution.should_restore(stage),
                 restore_required: execution.restore_required(stage),
             },

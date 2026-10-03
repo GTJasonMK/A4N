@@ -23,7 +23,8 @@ pub(super) async fn run_galgame_scene_regeneration_stages(
         script::run_script_adaptation_stage(service, input, prepared, &branch, prompt_renderer)
             .await?;
     let staging =
-        staging::run_character_staging_stage(service, input, &script, prompt_renderer).await?;
+        staging::run_character_staging_stage(service, input, prepared, &script, prompt_renderer)
+            .await?;
     let (visual_plan_json, visual_plan) = visual::run_visual_planning_stage(
         service,
         input,

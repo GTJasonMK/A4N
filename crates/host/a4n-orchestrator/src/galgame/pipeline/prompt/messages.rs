@@ -2,7 +2,9 @@ use a4n_error::AppError;
 use a4n_prompt::request::build_json_task_user_message;
 use serde_json::{Value, json};
 
+use super::source::marked_galgame_prompt_chapters;
 use super::{super::super::GalgameSpeakerProfile, contracts::GalgamePipelinePromptChapter};
+use crate::source_markers::SourceMarkerMap;
 
 const JSON_RESPONSE_REQUIREMENT: &str =
     "只返回 output_contract 要求的严格 JSON 对象，不要输出 Markdown、代码块、解释文字或额外字段";
@@ -11,22 +13,26 @@ pub fn galgame_script_adaptation_user_message(
     chapters: &[GalgamePipelinePromptChapter],
     adaptation_projection: &Value,
     branch_design: &Value,
+    source_markers: &SourceMarkerMap,
 ) -> Result<String, AppError> {
     build_galgame_script_adaptation_user_message(
         chapters,
         adaptation_projection.clone(),
         branch_design,
+        source_markers,
     )
 }
 
 pub(in crate::galgame) fn galgame_script_adaptation_session_user_message(
     chapters: &[GalgamePipelinePromptChapter],
     branch_design: &Value,
+    source_markers: &SourceMarkerMap,
 ) -> Result<String, AppError> {
     build_galgame_script_adaptation_user_message(
         chapters,
         shared_adaptation_projection_ref(),
         branch_design,
+        source_markers,
     )
 }
 
@@ -34,12 +40,13 @@ fn build_galgame_script_adaptation_user_message(
     chapters: &[GalgamePipelinePromptChapter],
     adaptation_projection: Value,
     branch_design: &Value,
+    source_markers: &SourceMarkerMap,
 ) -> Result<String, AppError> {
     build_galgame_step_user_message(
         "galgame_script_adaptation",
         "把本项目改编单元、节拍和分支设计改编为主线及真实支线剧本行",
         json!({
-            "chapters": chapters,
+            "chapters": marked_galgame_prompt_chapters(chapters, source_markers)?,
             "previous_steps": {
                 "adaptation_projection": adaptation_projection,
                 "branch_design": branch_design,
@@ -51,15 +58,17 @@ fn build_galgame_script_adaptation_user_message(
             "line_types": ["dialogue", "narration", "monologue", "stage_direction"],
             "beat_ref_rule": "每个主线和支线行必须携带 beat_ref: {source_chapter_id, unit_id, beat_id}，分别取自 adaptation_projection 场景的 source_chapter_id、unit_id 和 beats[].id；同一本地节拍可改编为多行，主线不得倒序",
             "branch_rule": "branch_scene_lines 必须与 branch_design.options[].branch_id 一一对应并输出真实可演出的多行支线；禁止把 branch_objective 或 dramatic_action 直接压成单条摘要旁白",
-            "source_span_rule": "每行明确保留 origin。source/adapted 的 source_span_ids 至少 1 个，必须来自对应本地节拍及 input.chapters[].source_spans[].id；added 必须为空数组；historical 仅沿用输入中的历史节拍及其已知引用，不得编造依据",
+            "source_span_rule": "每行明确保留 origin。source/adapted 的 source_span_ids 至少 1 个，必须原样复制 input.chapters[].content 中的十进制来源短标记；added 必须为空数组；historical 仅沿用输入中的历史节拍及其已知引用，不得编造依据",
             "index_rule": "scene_lines[].lines[].index 从 1 开始连续递增"
         }),
+        source_markers,
     )
 }
 
 pub fn galgame_character_staging_user_message(
     script_adaptation: &Value,
     speaker_profiles: &[GalgameSpeakerProfile],
+    source_markers: &SourceMarkerMap,
 ) -> Result<String, AppError> {
     build_galgame_step_user_message(
         "galgame_character_staging",
@@ -81,28 +90,37 @@ pub fn galgame_character_staging_user_message(
             "layer_values": ["back", "middle", "front"],
             "source_span_rule": "必须原样保留每行 origin 与 source_span_ids，包括 added 和无原文依据的 historical 行的空数组；不得自造原文引用"
         }),
+        source_markers,
     )
 }
 
 pub fn galgame_visual_planning_user_message(
     adaptation_projection: &Value,
     character_staging: &Value,
+    source_markers: &SourceMarkerMap,
 ) -> Result<String, AppError> {
-    build_galgame_visual_planning_user_message(adaptation_projection.clone(), character_staging)
+    build_galgame_visual_planning_user_message(
+        adaptation_projection.clone(),
+        character_staging,
+        source_markers,
+    )
 }
 
 pub(in crate::galgame) fn galgame_visual_planning_session_user_message(
     character_staging: &Value,
+    source_markers: &SourceMarkerMap,
 ) -> Result<String, AppError> {
     build_galgame_visual_planning_user_message(
         shared_adaptation_projection_ref(),
         character_staging,
+        source_markers,
     )
 }
 
 fn build_galgame_visual_planning_user_message(
     adaptation_projection: Value,
     character_staging: &Value,
+    source_markers: &SourceMarkerMap,
 ) -> Result<String, AppError> {
     build_galgame_step_user_message(
         "galgame_visual_planning",
@@ -120,21 +138,26 @@ fn build_galgame_visual_planning_user_message(
             "event_cg_rule": "event_cgs[].line_index 必须引用输入剧本行；普通对白不要生成 CG",
             "importance_values": ["normal", "high", "critical"]
         }),
+        source_markers,
     )
 }
 
 pub fn galgame_branch_design_user_message(
     adaptation_projection: &Value,
+    source_markers: &SourceMarkerMap,
 ) -> Result<String, AppError> {
-    build_galgame_branch_design_user_message(adaptation_projection.clone())
+    build_galgame_branch_design_user_message(adaptation_projection.clone(), source_markers)
 }
 
-pub(in crate::galgame) fn galgame_branch_design_session_user_message() -> Result<String, AppError> {
-    build_galgame_branch_design_user_message(shared_adaptation_projection_ref())
+pub(in crate::galgame) fn galgame_branch_design_session_user_message(
+    source_markers: &SourceMarkerMap,
+) -> Result<String, AppError> {
+    build_galgame_branch_design_user_message(shared_adaptation_projection_ref(), source_markers)
 }
 
 fn build_galgame_branch_design_user_message(
     adaptation_projection: Value,
+    source_markers: &SourceMarkerMap,
 ) -> Result<String, AppError> {
     build_galgame_step_user_message(
         "galgame_branch_design",
@@ -148,6 +171,7 @@ fn build_galgame_branch_design_user_message(
             "choice_rule": "after_beat_ref 引用输入的 source_chapter_id、unit_id、beat_id。每个选择点 2 到 3 个选项；branch_id 全局唯一；每个选项定义 dramatic_action、reaction 和 player_knowledge，并通过 returns_to: {source_chapter_id, unit_id} 返回输入数组中位于选择点之后的主线单元",
             "phase": "可返回空 choices 数组；非空 choices 会持久化为 choice 行、branch 场与 galgame_choice 选项"
         }),
+        source_markers,
     )
 }
 
@@ -159,8 +183,18 @@ fn build_galgame_step_user_message(
     prompt_name: &str,
     instruction: &str,
     input: Value,
-    output_contract: Value,
+    mut output_contract: Value,
+    source_markers: &SourceMarkerMap,
 ) -> Result<String, AppError> {
+    let input = source_markers.encode_input(&input)?;
+    if let Some(contract) = output_contract.as_object_mut() {
+        contract.insert(
+            "source_marker_rule".into(),
+            Value::String(
+                "所有原文引用字段只能原样返回 input 中实际提供的十进制来源短标记；不得输出原始 ID 或正文中的普通井号文本。".into(),
+            ),
+        );
+    }
     build_json_task_user_message(
         "执行 Galgame 管线步骤",
         JSON_RESPONSE_REQUIREMENT,

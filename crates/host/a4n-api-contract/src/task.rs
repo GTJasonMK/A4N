@@ -70,7 +70,8 @@ pub trait TaskQueueStatsApplicationPort: Send + Sync {
 /// callers submit only the durable task identity.
 #[async_trait::async_trait]
 pub trait TaskCancellationPort: Send + Sync {
-    async fn cancel(&self, task_id: &str) -> Result<(), a4n_error::AppError>;
+    /// Returns true only when a persisted task transitioned to cancelled.
+    async fn cancel(&self, task_id: &str) -> Result<bool, a4n_error::AppError>;
 }
 
 #[derive(Serialize, JsonSchema)]

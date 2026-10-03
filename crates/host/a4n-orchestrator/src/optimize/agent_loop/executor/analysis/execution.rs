@@ -45,12 +45,11 @@ impl OrchestratorContext {
                         request_event_label: "Agent Loop",
                         parse_error_label: "Agent Loop",
                         parse_final: &|arguments| {
-                            let context =
-                                crate::optimize::runtime_tools::observed_evidence_context(
-                                    &analysis_context,
-                                    &observations,
-                                )?;
-                            super::finalization::parse_final_analysis_output(arguments, &context)
+                            super::finalization::parse_final_analysis_output(
+                                arguments,
+                                &analysis_context,
+                                &observations,
+                            )
                         },
                         workflow_run_id,
                         generation,

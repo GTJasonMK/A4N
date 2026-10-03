@@ -19,6 +19,7 @@ import {
 import { useToast } from "../../components/feedback/Toast";
 import { BookIconButton } from "../../components/ui/BookButton";
 import { useAuthStore } from "../../store/auth";
+import { useDirty } from "../../components/navigation/dirtyRegistry";
 import { ActiveWorkflowsPanel } from "./queue/ActiveWorkflowsPanel";
 import { QueueInfoCard } from "./queue/QueueInfoCard";
 import { QueueStatsGrid } from "./queue/QueueStatsGrid";
@@ -48,12 +49,10 @@ export const QueueTab: React.FC = () => {
   const [workflowRuns, setWorkflowRuns] = useState<WorkflowRunSummary[]>([]);
   const [loadErrors, setLoadErrors] = useState<QueueLoadError[]>([]);
   const [resumingWorkflowRunIds, setResumingWorkflowRunIds] = useState<Set<number>>(() => new Set());
-  const [cancellingWorkflowIds, setCancellingWorkflowIds] = useState<Set<string>>(() => new Set());
   const mountedRef = useRef(true);
   const tasksRef = useRef(tasks);
   const workflowsRef = useRef(workflows);
   const cancellingTaskIdsRef = useRef(cancellingTaskIds);
-  const cancellingWorkflowIdsRef = useRef(cancellingWorkflowIds);
   const resumingWorkflowRunIdsRef = useRef(resumingWorkflowRunIds);
   const refreshSeqRef = useRef(0);
   const refreshBusyRef = useRef(false);
@@ -61,8 +60,17 @@ export const QueueTab: React.FC = () => {
   tasksRef.current = tasks;
   workflowsRef.current = workflows;
   cancellingTaskIdsRef.current = cancellingTaskIds;
-  cancellingWorkflowIdsRef.current = cancellingWorkflowIds;
   resumingWorkflowRunIdsRef.current = resumingWorkflowRunIds;
+  const queueOperationInFlight =
+    cancellingTaskIds.size > 0 || resumingWorkflowRunIds.size > 0;
+  useDirty(
+    "settings-queue-operations",
+    queueOperationInFlight,
+    undefined,
+    () =>
+      cancellingTaskIdsRef.current.size === 0 &&
+      resumingWorkflowRunIdsRef.current.size === 0,
+  );
 
   useEffect(() => {
     mountedRef.current = true;
@@ -147,20 +155,6 @@ export const QueueTab: React.FC = () => {
     setCancellingTaskIds(next);
   };
 
-  const markWorkflowCancelling = (taskId: string) => {
-    const next = new Set(cancellingWorkflowIdsRef.current);
-    next.add(taskId);
-    cancellingWorkflowIdsRef.current = next;
-    setCancellingWorkflowIds(next);
-  };
-
-  const clearWorkflowCancelling = (taskId: string) => {
-    const next = new Set(cancellingWorkflowIdsRef.current);
-    next.delete(taskId);
-    cancellingWorkflowIdsRef.current = next;
-    setCancellingWorkflowIds(next);
-  };
-
   const markWorkflowRunResuming = (runId: number) => {
     const next = new Set(resumingWorkflowRunIdsRef.current);
     next.add(runId);
@@ -183,11 +177,16 @@ export const QueueTab: React.FC = () => {
     }
     markTaskCancelling(taskId);
     try {
-      await cancelTask(taskId);
+      const cancelled = await cancelTask(taskId);
       if (!mountedRef.current) return;
-      const refreshed = await refresh({ force: true });
-      if (!refreshed) return;
-      addToast(t("settingsQueue.taskCancelled"), "success");
+      await refresh({ force: true });
+      if (!mountedRef.current) return;
+      addToast(
+        cancelled
+          ? t("settingsQueue.taskCancelled")
+          : t("settingsQueue.alreadyFinished"),
+        cancelled ? "success" : "info",
+      );
     } catch (err) {
       if (!mountedRef.current) return;
       addToast(extractErrorMessage(err, t("settingsQueue.cancelTaskFailed")), "error");
@@ -197,23 +196,28 @@ export const QueueTab: React.FC = () => {
   };
 
   const handleCancelWorkflow = async (taskId: string) => {
-    if (cancellingWorkflowIdsRef.current.has(taskId)) return;
+    if (cancellingTaskIdsRef.current.has(taskId)) return;
     if (!workflowsRef.current.some((workflow) => workflow.task_id === taskId)) {
       addToast(t("settingsQueue.workflowMissing"), "info");
       return;
     }
-    markWorkflowCancelling(taskId);
+    markTaskCancelling(taskId);
     try {
-      await cancelWorkflow({ task_id: taskId, workflow_run_id: null });
+      const cancelled = await cancelWorkflow({ task_id: taskId, workflow_run_id: null });
       if (!mountedRef.current) return;
-      const refreshed = await refresh({ force: true });
-      if (!refreshed) return;
-      addToast(t("settingsQueue.workflowCancelled"), "success");
+      await refresh({ force: true });
+      if (!mountedRef.current) return;
+      addToast(
+        cancelled
+          ? t("settingsQueue.workflowCancelled")
+          : t("settingsQueue.alreadyFinished"),
+        cancelled ? "success" : "info",
+      );
     } catch (err) {
       if (!mountedRef.current) return;
       addToast(extractErrorMessage(err, t("settingsQueue.cancelWorkflowFailed")), "error");
     } finally {
-      if (mountedRef.current) clearWorkflowCancelling(taskId);
+      if (mountedRef.current) clearTaskCancelling(taskId);
     }
   };
 
@@ -223,8 +227,8 @@ export const QueueTab: React.FC = () => {
     try {
       await resumeWorkflowRun(run.id);
       if (!mountedRef.current) return;
-      const refreshed = await refresh({ force: true });
-      if (!refreshed) return;
+      await refresh({ force: true });
+      if (!mountedRef.current) return;
       addToast(t("settingsQueue.workflowResumed"), "success");
     } catch (err) {
       if (!mountedRef.current) return;
@@ -284,7 +288,7 @@ export const QueueTab: React.FC = () => {
       <ActiveWorkflowsPanel
         workflows={workflows}
         loading={loading}
-        cancellingTaskIds={cancellingWorkflowIds}
+        cancellingTaskIds={cancellingTaskIds}
         onCancel={(taskId) => void handleCancelWorkflow(taskId)}
       />
 

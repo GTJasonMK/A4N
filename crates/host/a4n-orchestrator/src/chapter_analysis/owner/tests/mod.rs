@@ -1,4 +1,4 @@
-use a4n_domain::source_spans::{source_span_prompt_values, source_spans_for_chapters};
+use a4n_domain::source_spans::source_spans_for_chapters;
 use a4n_domain::source_text_hash;
 use a4n_error::AppError;
 use serde_json::{Value, json};

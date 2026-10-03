@@ -7,7 +7,7 @@ use super::super::access::{
     require_admin_for_unscoped_task, verify_task_access, verify_task_history_access,
 };
 
-pub async fn cancel_task(state: &AppState, user_id: i64, task_id: &str) -> Result<(), String> {
+pub async fn cancel_task(state: &AppState, user_id: i64, task_id: &str) -> Result<bool, String> {
     let task_id = normalize_task_id(task_id).map_err(|error| error.to_string())?;
     verify_task_access(state, user_id, &task_id).await?;
     state

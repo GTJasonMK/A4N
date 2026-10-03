@@ -24,6 +24,7 @@ impl OrchestratorContext {
             page_plan,
             page_index,
             extraction_summary,
+            source_markers,
             restore_from_checkpoint,
             cancel_token,
             stream_reporter,
@@ -37,6 +38,7 @@ impl OrchestratorContext {
             page_adaptation,
             extraction_summary,
             reference_assets,
+            source_markers,
         )?;
         let call_order = manga_page_pipeline_call_order(page_index, 2)?;
         let (trace, page_prompt) = self

@@ -83,7 +83,7 @@ async fn generation_task_status_and_workflow_owner_update_together() {
     )
     .await
     .unwrap();
-    let task_id = queue
+    let workflow_task_id = queue
         .submit_internal(
             TaskKind::TextGeneration,
             TaskPriority::Medium,
@@ -94,8 +94,11 @@ async fn generation_task_status_and_workflow_owner_update_together() {
         .await
         .unwrap();
 
-    let permit = queue
-        .acquire_task_with_cancel(&task_id, tokio_util::sync::CancellationToken::new())
+    let workflow_permit = queue
+        .acquire_task_with_cancel(
+            &workflow_task_id,
+            tokio_util::sync::CancellationToken::new(),
+        )
         .await
         .unwrap()
         .unwrap();
@@ -104,11 +107,54 @@ async fn generation_task_status_and_workflow_owner_update_together() {
         .await
         .unwrap()
         .unwrap();
-    assert_eq!(running.active_task_id.as_deref(), Some(task_id.as_str()));
+    assert_eq!(
+        running.active_task_id.as_deref(),
+        Some(workflow_task_id.as_str())
+    );
 
-    permit.complete();
+    let child_task_id = queue
+        .submit_internal(
+            TaskKind::ImageGeneration,
+            TaskPriority::Medium,
+            Some(7),
+            None,
+            Some(&TaskWorkflowContext::new(workflow.id).unwrap()),
+        )
+        .await
+        .unwrap();
+    let child_permit = queue
+        .acquire_task_with_cancel(&child_task_id, tokio_util::sync::CancellationToken::new())
+        .await
+        .unwrap()
+        .unwrap();
+    let child_running = workflow_run::Entity::find_by_id(workflow.id)
+        .one(db.as_ref())
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        child_running.active_task_id.as_deref(),
+        Some(child_task_id.as_str())
+    );
+
+    child_permit.complete();
     queue
-        .update_status(&task_id, "completed", None)
+        .update_status(&child_task_id, "completed", None)
+        .await
+        .unwrap();
+    let child_completed = workflow_run::Entity::find_by_id(workflow.id)
+        .one(db.as_ref())
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        child_completed.active_task_id.as_deref(),
+        Some(workflow_task_id.as_str())
+    );
+
+    workflow_permit.complete();
+    queue
+        .update_status(&workflow_task_id, "completed", None)
         .await
         .unwrap();
     let completed = workflow_run::Entity::find_by_id(workflow.id)

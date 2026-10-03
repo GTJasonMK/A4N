@@ -3,11 +3,65 @@ use a4n_db::galgame::{
     GalgamePipelinePromptTextAnchorRecord,
 };
 use a4n_error::AppError;
+use serde_json::Value;
+
+use crate::source_markers::SourceMarkerMap;
 
 use super::{
     super::super::{GalgamePipelineSourceSpan, GalgameSpeakerProfile},
     contracts::{GalgamePipelinePromptChapter, GalgamePipelinePromptSourceSpan},
 };
+
+pub(crate) fn galgame_source_markers(
+    chapters: &[GalgamePipelinePromptChapter],
+) -> Result<SourceMarkerMap, AppError> {
+    let chapter_values = serde_json::to_value(chapters)?;
+    SourceMarkerMap::from_ids_and_values(
+        chapters
+            .iter()
+            .flat_map(|chapter| chapter.source_spans.iter().map(|span| span.id.clone())),
+        std::iter::once(&chapter_values),
+    )
+}
+
+pub(super) fn marked_galgame_prompt_chapters(
+    chapters: &[GalgamePipelinePromptChapter],
+    source_markers: &SourceMarkerMap,
+) -> Result<Value, AppError> {
+    let mut marked = serde_json::to_value(chapters)?;
+    let Some(marked_chapters) = marked.as_array_mut() else {
+        return Err(AppError::InvalidArgument(
+            "Galgame prompt chapters 必须是数组".into(),
+        ));
+    };
+    for (marked_chapter, chapter) in marked_chapters.iter_mut().zip(chapters) {
+        let ranges = chapter
+            .source_spans
+            .iter()
+            .map(|span| {
+                Ok((
+                    span.id.clone(),
+                    usize::try_from(span.start_offset).map_err(|_| {
+                        AppError::InvalidArgument(format!(
+                            "Galgame source span {} 起点无效",
+                            span.id
+                        ))
+                    })?,
+                    usize::try_from(span.end_offset).map_err(|_| {
+                        AppError::InvalidArgument(format!(
+                            "Galgame source span {} 终点无效",
+                            span.id
+                        ))
+                    })?,
+                    span.text.clone(),
+                ))
+            })
+            .collect::<Result<Vec<_>, AppError>>()?;
+        let marked_content = source_markers.mark_ranges(&chapter.content, ranges)?;
+        marked_chapter["content"] = Value::String(marked_content);
+    }
+    Ok(marked)
+}
 
 pub fn galgame_prompt_chapter_from_snapshot(
     chapter: &GalgamePipelinePromptChapterSourceRecord,

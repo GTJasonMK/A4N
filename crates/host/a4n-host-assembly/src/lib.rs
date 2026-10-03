@@ -430,11 +430,13 @@ impl a4n_api_contract::workflow::WorkflowCancellationPort for WorkflowCancellati
         self.lifecycle.mark_running(workflow_run_id).await
     }
 
-    async fn cancel(&self, workflow_run_id: i64, reason: &str) -> Result<(), AppError> {
+    async fn cancel(&self, workflow_run_id: i64, reason: &str) -> Result<bool, AppError> {
         let cancellation = self.lifecycle.cancel(workflow_run_id, reason).await?;
+        let cancelled = cancellation.cancelled;
         self.side_effects
             .apply_cancellation_side_effects(cancellation, reason)
-            .await
+            .await?;
+        Ok(cancelled)
     }
 
     async fn resume_with_active_task(

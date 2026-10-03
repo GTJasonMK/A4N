@@ -25,11 +25,12 @@ pub(super) async fn run_speech_selection_stage(
         characters_json.clone(),
         events_json.clone(),
         &context.source_spans,
+        &context.source_markers,
         context.reference_assets.clone(),
     )?;
     let (speech_trace, speech_json) = context
         .service
-        .render_and_validate_manga_call(
+        .render_and_validate_manga_call_with_markers(
             MangaRenderTraceInput {
                 prompt_renderer: context.prompt_renderer,
                 prompt_name: "manga_speech_selection",
@@ -48,6 +49,7 @@ pub(super) async fn run_speech_selection_stage(
                 stream_id: "raw_json".to_string(),
                 stream_reporter: context.stream_reporter,
             },
+            &context.source_markers,
             |value| {
                 validate_manga_speech_selection_source_span_ids(
                     value,

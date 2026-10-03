@@ -39,7 +39,7 @@ name: galgame_character_staging
             "hold": false,
             "player_knowledge": ["角色主动掩饰紧张"]
           },
-          "source_span_ids": ["ch1:p1"]
+          "source_span_ids": ["#0"]
         }
       ]
     }
@@ -73,6 +73,8 @@ name: galgame_character_staging
 }
 
 ## 规则
+
+输入中已有的来源引用是十进制短标记；只能原样保留这些标记，不要还原或编造原始 ID。
 
 - 只能使用输入人物档案中的 `profile_id`；无法可靠绑定时 `speaker_profile_id` 为 null，并保留 `speaker_name`。
 - 必须始终输出 `scene_lines` 和 `branch_scene_lines`；没有支线时显式输出空数组，不得省略字段。

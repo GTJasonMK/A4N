@@ -62,7 +62,7 @@ name: content_optimization
 - 复杂判断先 `think`，明确目标、已知事实、信息缺口和下一步；简单明确的下一步可以直接 `run_tool`。
 - 不要臆造未获取的信息；需要正文、蓝图、章纲、角色或前后文时先调用 `get_project_information`。
 - 至少通过 `get_project_information` 读取 `current_chapter` 后，才可以 `final`。
-- `get_project_information(mode=read, source=current_chapter)` 返回的 `source_spans` 是后端从当前章节正文切出的原文候选；final issue 的证据只能选择其中一个 `id`。
+- `get_project_information(mode=read, source=current_chapter)` 返回的正文会在来源片段前标注十进制短标签；`source_span_ids` 列表给出本次读取可引用的标签。只从本轮成功读取的列表中选择证据。
 - 工具调用应服务于问题判断；不为凑步骤调用无关工具。
 - 工具返回 `success=false` 时，把失败视为观察：如果能通过修改参数、换用信息源或换用工具产生新观察，可以继续；否则在 `final` 中基于已知事实说明失败点。
 - 没有确实存在的问题时，`final.arguments.issues` 返回空数组。
@@ -90,7 +90,7 @@ name: content_optimization
         "id": "issue-001",
         "tool": "edit_article",
         "arguments": {
-          "evidence_span_id": "ch1:s2:f1",
+          "evidence_span_id": "#0",
           "goal": "期望通过局部文章补丁解决的目标"
         },
         "description": "问题描述，包含为什么需要处理",
@@ -108,7 +108,7 @@ name: content_optimization
 | issues[].id | 字符串 | 必须存在且非空；使用 `issue-001`、`issue-002` 递增 |
 | issues[].tool | 字符串 | 必须存在且非空；正文修改类问题使用 `edit_article` |
 | issues[].arguments | 对象 | 必须存在；包含 `evidence_span_id` 和 `goal` |
-| issues[].arguments.evidence_span_id | 字符串 | 必须从已读取的 `current_chapter.source_spans` 中选择一个 id；不要输出 `evidence` 原文 |
+| issues[].arguments.evidence_span_id | 字符串 | 必须原样复制本轮成功读取的 `source_span_ids` 中一个短标签；不要输出原始 ID 或 `evidence` 原文 |
 | issues[].arguments.goal | 字符串 | 期望通过局部文章补丁解决的目标 |
 | issues[].description | 字符串 | 必须存在且非空，说明问题和处理目标 |
 | issues[].severity | 字符串 | `info`、`minor`、`major` 或 `critical` |
@@ -116,7 +116,7 @@ name: content_optimization
 硬性要求：
 
 - 不要输出 `arguments.evidence`，不要自己抄写或改写原文证据。
-- `evidence_span_id` 是选择题，只能来自本轮读取到的 `current_chapter.source_spans`。
+- `evidence_span_id` 是选择题，只能来自本轮读取到的 `source_span_ids`；正文中的普通井号不是来源标记。
 - 如果问题跨多个片段，选择最能证明问题存在的主要 span，把综合判断写入 `description` 或 `goal`。
 
 # 本次权限与能力

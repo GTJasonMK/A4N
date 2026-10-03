@@ -18,7 +18,7 @@ name: manga_speech_selection
       "index": 0,
       "speaker": "角色名",
       "content": "不超过30字",
-      "source_span_id": "ch1:s3:f1",
+      "source_span_id": "#0",
       "emotion": "neutral",
       "target": null,
       "beat_ref": {"unit_id": "unit-1", "beat_id": "beat-1"},
@@ -30,7 +30,7 @@ name: manga_speech_selection
     {
       "index": 0,
       "content": "不超过40字",
-      "source_span_id": "ch1:s1:f1",
+      "source_span_id": "#1",
       "narration_type": "time",
       "beat_ref": {"unit_id": "unit-1", "beat_id": "beat-1"},
       "position": "top"
@@ -42,7 +42,7 @@ name: manga_speech_selection
 
 - `dialogues` 最多 24 条，`narrations` 最多 8 条。
 - 同一事件最多保留 2 条 dialogue/thought。
-- `source_span_id` 必须来自对应改编节拍已有的原文引用。`added` 节拍必须明确填 `null`；没有原文依据的 `historical` 节拍也可填 `null`。不可省略字段或伪造引用。
+- `source_span_id` 必须原样复制对应改编节拍已有的十进制来源短标记。`added` 节拍必须明确填 `null`；没有原文依据的 `historical` 节拍也可填 `null`。不可省略字段或伪造引用。
 - `beat_ref` 必须原样引用输入 `events[].beat_ref`，不得使用临时事件序号。
 - 只保留推动剧情、揭示信息、塑造角色或无法由画面表达的内容。
 - 对白选择必须服务漫画表演弧线：优先保留会改变角色目标、关系距离、隐藏信息或读者理解的短句；能通过表情、视线、手势、沉默或站位表达的解释性台词应删除或压缩为旁白/内心独白。

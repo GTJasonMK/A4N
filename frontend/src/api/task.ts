@@ -23,8 +23,8 @@ export type { QueueStatsSummary, TaskInfoSummary };
  */
 
 /** 后端 cancel_task(task_id) */
-export async function cancelTask(taskId: string): Promise<void> {
-  return apiInvoke<void>("cancel_task", { taskId } satisfies CancelTaskInput);
+export async function cancelTask(taskId: string): Promise<boolean> {
+  return apiInvoke<boolean>("cancel_task", { taskId } satisfies CancelTaskInput);
 }
 
 // ============================================================================

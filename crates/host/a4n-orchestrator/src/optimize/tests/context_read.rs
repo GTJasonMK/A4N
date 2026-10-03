@@ -78,11 +78,33 @@ async fn agent_context_keeps_chapter_evidence_and_never_recovers_invalid_permiss
     )
     .await
     .unwrap();
-    assert_eq!(page["content"]["paragraphs"][0]["content"], "第二段。");
+    assert_eq!(page["content"]["paragraphs"][0]["content"], "#1 第二段。");
     assert_eq!(
-        page["content"]["paragraphs"][0]["source_spans"][0]["text"],
-        "第二段"
+        page["content"]["paragraphs"][0]["source_span_ids"],
+        json!(["#1"])
     );
+    assert!(!page.to_string().contains("ch1:s"));
+
+    for path in ["", "/content"] {
+        let error = read_project_context(
+            &context,
+            user_id,
+            project.id,
+            chapter.id,
+            ReadOptimizationContextInput {
+                source: "current_chapter".into(),
+                selection: OptimizationContextSelection::Paths {
+                    paths: vec![path.into()],
+                },
+                include: vec!["content".into()],
+                cursor: None,
+                expected_hash: None,
+            },
+        )
+        .await
+        .unwrap_err();
+        assert!(error.to_string().contains("paragraphs"));
+    }
 
     let mut permissions = default_agent_permissions();
     permissions.read_project_detail = false;

@@ -25,6 +25,7 @@ from run_browser_full_project_e2e import (
     tail,
 )
 from run_cli_contract_e2e import Cli, checked, secure_json
+from run_all_workflows_e2e import FIXTURE_PATHS
 
 ROOT = Path(__file__).resolve().parents[2]
 STAGES = ("inspiration", "blueprint", "outline", "chapter", "analysis", "director", "shooting", "segments", "media")
@@ -35,6 +36,21 @@ SUITES = {
     "director": ("run_director_timeline_cli_e2e.py", set(STAGES[5:])),
     "shooting": ("run_shooting_async_cli_e2e.py", {"shooting", "segments"}),
 }
+FULL_GENERATION_SUITES = {
+    "media_authoring": "run_media_authoring_cli_e2e.py",
+    "character_sync_resume": "run_character_sync_resume_cli_e2e.py",
+    "scene_sync": "run_scene_sync_cli_e2e.py",
+    "agent_delegation": "run_agent_cli_e2e.py",
+    "agent_domains": "run_agent_domains_cli_e2e.py",
+    "specialized_agent": "run_specialized_agent_cli_e2e.py",
+    "llm_lifecycle": "run_llm_lifecycle_cli_e2e.py",
+    "llm_cache": "run_llm_cache_cli_e2e.py",
+    "image_publication": "run_image_publication_cli_e2e.py",
+    "image_checkpoint_recovery": "run_image_checkpoint_recovery_cli_e2e.py",
+    "portrait_generation": "run_portrait_generation_cli_e2e.py",
+    "all_workflows": "run_all_workflows_e2e.py",
+}
+POST_BROWSER_SUITES = {"image_checkpoint_recovery", "all_workflows"}
 BINARIES = ("a4n", "a4n-server", "a4n-migration", "a4n-novel-planning-worker")
 EMBEDDING_DIMENSION = 384
 
@@ -140,7 +156,23 @@ def selected_suites(stages: set[str]) -> list[str]:
     unknown = stages - set(STAGES)
     if unknown or not stages:
         raise RunnerError(f"无效阶段：{sorted(unknown) if unknown else '空'}")
-    return [name for name, (_, covered) in SUITES.items() if stages & covered]
+    selected = [name for name, (_, covered) in SUITES.items() if stages & covered]
+    if stages == set(STAGES):
+        selected.extend(FULL_GENERATION_SUITES)
+    return selected
+
+
+def full_generation_matrix_report(suites: dict) -> dict:
+    failed = [
+        name
+        for name in FULL_GENERATION_SUITES
+        if suites.get(name, {}).get("success") is not True
+    ]
+    return {
+        "status": "failed" if failed else "passed",
+        "required_suites": list(FULL_GENERATION_SUITES),
+        "failed_suites": failed,
+    }
 
 
 def stop_owned_workers(binary_dir: Path, browser_artifacts: Path | None = None) -> None:
@@ -199,10 +231,12 @@ def acceptance_result(stages: set[str], suites: dict, browser: dict) -> dict:
 
 
 def acceptance_passed(report: dict) -> bool:
+    generation_matrix = report.get("generation_matrix", {}).get("status", "not_requested")
     return (report.get("browser", {}).get("exit_code") == 0
             and bool(report.get("stages")) and bool(report.get("suites"))
             and all(stage["status"] == "passed" for stage in report["stages"].values())
-            and all(suite["success"] is True for suite in report["suites"].values()))
+            and all(suite["success"] is True for suite in report["suites"].values())
+            and generation_matrix in {"passed", "not_requested"})
 
 
 def read_suite_report(path: Path, exit_code: int) -> dict:
@@ -217,6 +251,46 @@ def read_suite_report(path: Path, exit_code: int) -> dict:
             result["error"] = "测试组超过 1800 秒" if exit_code == 124 else value.get("error") or "测试组未成功完成或未产生检查"
     except (OSError, ValueError, RunnerError) as error:
         result["error"] = f"无法读取测试组结果：{error}"
+    return result
+
+
+def read_all_workflows_report(path: Path, exit_code: int) -> dict:
+    result = {"success": False, "exit_code": exit_code, "report": str(path), "checks": []}
+    try:
+        value = json.loads(path.read_text())
+        fixtures = value.get("fixtures") if isinstance(value, dict) else None
+        coverage = fixtures.get("paths") if isinstance(fixtures, dict) else None
+        paths = coverage.get("paths") if isinstance(coverage, dict) else None
+        if not isinstance(paths, dict):
+            raise RunnerError("全工作流报告缺少 fixtures.paths.paths")
+        missing = sorted(set(FIXTURE_PATHS) - set(paths))
+        if missing:
+            raise RunnerError(f"全工作流报告缺少业务路径：{missing}")
+        malformed = [name for name in FIXTURE_PATHS if not isinstance(paths[name], dict)]
+        if malformed:
+            raise RunnerError(f"全工作流报告业务路径格式错误：{malformed}")
+        result["checks"] = [
+            {"path": name, "status": paths[name].get("status")}
+            for name in FIXTURE_PATHS
+        ]
+        failed = [
+            name
+            for name in FIXTURE_PATHS
+            if paths[name].get("status") != "passed"
+        ]
+        result["success"] = (
+            exit_code == 0
+            and value.get("success") is True
+            and value.get("mode") == "fixture_only"
+            and fixtures.get("enabled") is True
+            and fixtures.get("only") is True
+            and coverage.get("complete") is True
+            and not failed
+        )
+        if not result["success"]:
+            result["error"] = value.get("fatal_error") or f"全工作流 fixture 未完整通过：{failed}"
+    except (OSError, ValueError, RunnerError) as error:
+        result["error"] = f"无法读取全工作流结果：{error}"
     return result
 
 
@@ -249,7 +323,20 @@ def main() -> int:
     if not report_dir.is_relative_to(ROOT):
         raise RunnerError("报告和运行数据必须位于当前工作树内")
     secure_mkdir(report_dir)
-    report = {"success": False, "run_id": run_id, "requested_stages": sorted(stages), "suites": {}, "stages": {stage: {"status": "not_run"} for stage in sorted(stages)}, "failures": []}
+    full_generation_run = stages == set(STAGES)
+    report = {
+        "success": False,
+        "run_id": run_id,
+        "requested_stages": sorted(stages),
+        "suites": {},
+        "stages": {stage: {"status": "not_run"} for stage in sorted(stages)},
+        "generation_matrix": {
+            "status": "not_run" if full_generation_run else "not_requested",
+            "required_suites": list(FULL_GENERATION_SUITES) if full_generation_run else [],
+            "failed_suites": [],
+        },
+        "failures": [],
+    }
     processes = []
     browser_tmp = None
     container = "a4n-creation-e2e-" + run_id.lower()
@@ -281,7 +368,8 @@ def main() -> int:
         pgdata = secure_mkdir(data / "postgres")
         with (report_dir / "postgres.log").open("w") as log:
             subprocess.run(["docker", "run", "-d", "--name", container, "-e", "POSTGRES_PASSWORD", "-e", "POSTGRES_USER=a4n_e2e", "-e", "POSTGRES_DB=a4n_e2e",
-                            "-p", "127.0.0.1::5432", "--mount", f"type=bind,src={pgdata},dst=/var/lib/postgresql/data", args.postgres_image],
+                            "-p", "127.0.0.1::5432", "--mount", f"type=bind,src={pgdata},dst=/var/lib/postgresql/data", args.postgres_image,
+                            "-c", "max_connections=300"],
                            env=pg_env, stdout=log, stderr=subprocess.STDOUT, check=True)
             postgres_started = True
             for _ in range(100):
@@ -349,12 +437,30 @@ def main() -> int:
         for package in ("ai-workflow", "vector-rag", "video", "manga", "agent", "canvas", "export", "external-import", "galgame"):
             checked(cli, ["call", "start_package_lifecycle", "--args", "-", "--allow-destructive"], "enable " + package,
                     json.dumps({"input": {"package_id": package, "action": "enable", "operation_id": str(uuid.uuid4())}}))
-        for name in suites:
-            script, _ = SUITES[name]
+        def execute_suite(name: str) -> None:
+            script = SUITES[name][0] if name in SUITES else FULL_GENERATION_SUITES[name]
             output = report_dir / (name + ".json")
-            command = [sys.executable, str(source / "scripts/tests" / script), "--a4n", str(binaries / "a4n"), "--server", server_url,
-                       "--username", username, "--provider-url", provider_url, "--provider-log", str(request_log), "--report", str(output)]
-            if name in {"checkpoints", "facts"}:
+            command = [sys.executable, str(source / "scripts/tests" / script)]
+            if name == "all_workflows":
+                command += [
+                    "--a4n", str(binaries / "a4n"), "--server", server_url,
+                    "--username", username, "--password-env", "A4N_PASSWORD",
+                    "--report", str(output), "--execute-writes", "--allow-destructive", "--fixture-only",
+                    "--embedding-dimension", str(EMBEDDING_DIMENSION),
+                    "--timeout", "120",
+                ]
+            elif name == "image_checkpoint_recovery":
+                command += [
+                    "--a4n", str(binaries / "a4n"), "--server", server_url,
+                    "--username", username, "--data-dir", str(data), "--report", str(output),
+                ]
+            else:
+                command += [
+                    "--a4n", str(binaries / "a4n"), "--server", server_url,
+                    "--username", username, "--provider-url", provider_url,
+                    "--provider-log", str(request_log), "--report", str(output),
+                ]
+            if name in {"checkpoints", "facts", "scene_sync", "agent_delegation"}:
                 command += ["--embedding-dimension", str(EMBEDDING_DIMENSION)]
             if name == "authoring":
                 command += ["--through-stage", max(stages & SUITES[name][1], key=STAGES.index)]
@@ -363,9 +469,17 @@ def main() -> int:
                     exit_code = subprocess.run(command, cwd=source, env=env, stdout=log, stderr=subprocess.STDOUT, timeout=1800).returncode
                 except subprocess.TimeoutExpired:
                     exit_code = 124
-            report["suites"][name] = read_suite_report(output, exit_code)
+            report["suites"][name] = (
+                read_all_workflows_report(output, exit_code)
+                if name == "all_workflows"
+                else read_suite_report(output, exit_code)
+            )
             write_report(report_dir / "report.json", report)
             print(json.dumps({"suite": name, "success": report["suites"][name]["success"]}), flush=True)
+
+        for name in suites:
+            if name not in POST_BROWSER_SUITES:
+                execute_suite(name)
         browser_tmp = Path(tempfile.mkdtemp(prefix="ce-", dir=ROOT.parent))
         browser_env = {**env, "TMPDIR": str(browser_tmp),
                        "A4N_BROWSER_E2E_USERNAME": username, "A4N_BROWSER_E2E_PASSWORD": password,
@@ -382,8 +496,13 @@ def main() -> int:
         report["browser"] = {"exit_code": browser_exit, "report": str(browser_path)}
         if browser_exit != 0:
             report["failures"].append("浏览器验收失败：" + tail(report_dir / "browser.log", 2000))
+        for name in suites:
+            if name in POST_BROWSER_SUITES:
+                execute_suite(name)
         report["stages"] = acceptance_result(stages, report["suites"], browser_checks)
         report["provider"] = provider_audit(request_log, required_paths={"/chat/completions"})
+        if full_generation_run:
+            report["generation_matrix"] = full_generation_matrix_report(report["suites"])
         report["success"] = acceptance_passed(report)
     except (Exception, KeyboardInterrupt) as error:
         report["failures"].append(f"{type(error).__name__}: {error}")

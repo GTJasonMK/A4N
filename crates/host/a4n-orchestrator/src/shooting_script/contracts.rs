@@ -1,4 +1,5 @@
 use crate::chapter_visual_plan::DirectorScriptPlan;
+use crate::source_markers::SourceMarkerMap;
 use a4n_db::{
     chapter_visual_plan::ParsedChapterVisualPlan, shooting_script::ParsedChapterShootingScript,
 };
@@ -152,6 +153,7 @@ pub struct ResolvedChapterShootingScript {
 pub(super) struct PreparedChapterShootingScriptRequest {
     pub(super) source: ResolvedChapterSource,
     pub(super) source_spans: Vec<SourceSpan>,
+    pub(super) source_markers: SourceMarkerMap,
     pub(super) input_fingerprint_sha256: String,
     pub(super) existing: Option<ParsedChapterShootingScript>,
     pub(super) visual_plan: ParsedChapterVisualPlan,

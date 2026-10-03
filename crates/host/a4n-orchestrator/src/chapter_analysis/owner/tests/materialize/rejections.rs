@@ -5,7 +5,7 @@ fn materialize_analysis_rejects_legacy_foreshadowing_evidence() {
     let mut ch = sample_chapter();
     ch.content = "林岚走进旧城，墙上刻着隐藏标记。".to_string();
     let spans = source_spans_for_chapters(std::slice::from_ref(&ch));
-    let marker_span = source_span_prompt_values(&spans)
+    let marker_span = source_span_records(&spans)
         .iter()
         .find(|span| span["text"] == "墙上刻着隐藏标记")
         .and_then(|span| span["id"].as_str())
@@ -53,7 +53,7 @@ fn materialize_analysis_rejects_unknown_metadata_entity_field() {
     let mut ch = sample_chapter();
     ch.content = "林岚走进旧城，墙上刻着隐藏标记。".to_string();
     let spans = source_spans_for_chapters(std::slice::from_ref(&ch));
-    let marker_span = source_span_prompt_values(&spans)
+    let marker_span = source_span_records(&spans)
         .iter()
         .find(|span| span["text"] == "墙上刻着隐藏标记")
         .and_then(|span| span["id"].as_str())

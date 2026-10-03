@@ -228,6 +228,7 @@ export const videoCore = {
   canvasLoading: "加载画布",
   inspectorLoading: "加载属性面板",
   cancelRunRequested: "已请求取消画布任务",
+  cancelRunAlreadyFinished: "画布任务已结束",
   cancelRunFailed: "取消画布任务失败",
   resumeRunSuccess: "已继续运行画布任务",
   resumeRunFailed: "继续运行失败",

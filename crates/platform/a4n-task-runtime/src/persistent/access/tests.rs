@@ -25,14 +25,16 @@ async fn completed_task_preserves_memory_and_database_terminal_status() {
         .await
         .unwrap();
 
-    queue.cancel(&task_id).await.unwrap();
+    assert!(!queue.cancel(&task_id).await.unwrap());
 
     drop(queue);
     let queue = PersistentTaskQueue::new(db.clone()).await.unwrap();
-    queue
-        .cancel(&task_id)
-        .await
-        .expect("取消已无内存缓存的终态任务仍须幂等");
+    assert!(
+        !queue
+            .cancel(&task_id)
+            .await
+            .expect("取消已无内存缓存的终态任务仍须幂等")
+    );
 
     let row = task_queue::Entity::find_by_id(task_id)
         .one(db.as_ref())
@@ -57,12 +59,13 @@ async fn mark_done_after_running_cancel_preserves_cancelled_status() {
         .unwrap()
         .unwrap();
 
-    queue.cancel(&task_id).await.unwrap();
+    assert!(queue.cancel(&task_id).await.unwrap());
     permit.complete();
     queue
         .update_status(&task_id, "completed", None)
         .await
         .unwrap();
+    assert!(!queue.cancel(&task_id).await.unwrap());
 
     let row = task_queue::Entity::find_by_id(task_id)
         .one(db.as_ref())

@@ -2,9 +2,9 @@ use std::collections::{HashMap, HashSet};
 
 use serde_json::{Value, json};
 
+use crate::source_markers::SourceMarkerMap;
 use a4n_domain::media_authoring::AdaptationBeatRef;
 use a4n_domain::source_spans::SourceSpan;
-use a4n_domain::source_spans::source_span_prompt_value;
 use a4n_error::AppError;
 
 pub(super) fn push_unique_source_span_id(
@@ -42,6 +42,7 @@ fn push_unique_source_span_ids_from_array(
 pub(super) fn event_source_span_windows(
     events_json: &Value,
     source_spans: &[SourceSpan],
+    source_markers: &SourceMarkerMap,
 ) -> Result<Value, AppError> {
     let mut windows = Vec::new();
     let mut available_source_span_ids = Vec::new();
@@ -81,9 +82,13 @@ pub(super) fn event_source_span_windows(
                         "漫画改编事件[{event_index}] 引用了不存在的 source_span_id: {id}"
                     ))
                 })?;
-            text_parts.push(span.text.clone());
+            text_parts.push(format!(
+                "{} {}",
+                source_markers.marker_for(&span.id)?,
+                span.text
+            ));
             if seen_available.insert(span.id.clone()) {
-                available_source_span_ids.push(source_span_prompt_value(span));
+                available_source_span_ids.push(span.id.clone());
             }
         }
         let raw_ref = event
@@ -102,6 +107,6 @@ pub(super) fn event_source_span_windows(
 
     Ok(json!({
         "source_windows": windows,
-        "available_source_spans": available_source_span_ids
+        "available_source_span_ids": available_source_span_ids
     }))
 }

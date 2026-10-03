@@ -17,11 +17,12 @@ pub(super) async fn run_character_binding_stage(
         &context.chapter_content,
         events_json.clone(),
         &context.source_spans,
+        &context.source_markers,
         context.reference_assets.clone(),
     )?;
     let (characters_trace, characters_stage_json) = context
         .service
-        .render_and_validate_manga_call(
+        .render_and_validate_manga_call_with_markers(
             MangaRenderTraceInput {
                 prompt_renderer: context.prompt_renderer,
                 prompt_name: "manga_character_binding",
@@ -40,6 +41,7 @@ pub(super) async fn run_character_binding_stage(
                 stream_id: "raw_json".to_string(),
                 stream_reporter: context.stream_reporter,
             },
+            &context.source_markers,
             |value| {
                 validate_manga_character_binding_source_span_ids(value, &context.source_spans)?;
                 Ok(value.clone())

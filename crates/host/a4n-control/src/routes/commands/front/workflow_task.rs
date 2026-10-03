@@ -83,10 +83,11 @@ pub(in crate::routes::commands) async fn cancel_workflow(
     args: &Value,
 ) -> Result<Value, ApiError> {
     let input: CancelWorkflowInput = strict_command_input(args, "cancel_workflow")?;
-    task_records_actions::cancel_workflow(state.runtime(), user_id, input)
-        .await
-        .map_err(ApiError::bad_request)?;
-    to_value(())
+    let cancellation_requested =
+        task_records_actions::cancel_workflow(state.runtime(), user_id, input)
+            .await
+            .map_err(ApiError::bad_request)?;
+    to_value(cancellation_requested)
 }
 
 pub(in crate::routes::commands) async fn cancel_task(
@@ -96,10 +97,10 @@ pub(in crate::routes::commands) async fn cancel_task(
 ) -> Result<Value, ApiError> {
     let input = serde_json::from_value::<CancelTaskInput>(args.clone())
         .map_err(|error| ApiError::bad_request(format!("cancel_task 参数无效: {error}")))?;
-    task_records_actions::cancel_task(state.runtime(), user_id, &input.task_id)
+    let cancelled = task_records_actions::cancel_task(state.runtime(), user_id, &input.task_id)
         .await
         .map_err(ApiError::bad_request)?;
-    to_value(())
+    to_value(cancelled)
 }
 
 pub(in crate::routes::commands) async fn cancel_generation_task(

@@ -268,7 +268,7 @@ impl MediaAuthoringApplicationPort for OrchestratorContext {
     ) -> Result<Value, AppError> {
         let (target, source, inputs, existing) =
             self.prepare_adaptation_request(user_id, &input).await?;
-        let user = self
+        let (user, _) = self
             .adaptation_user_prompt(
                 &source,
                 target,

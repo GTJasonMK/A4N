@@ -30,6 +30,7 @@ pub(super) async fn preview_visual(
         user_content: manga_visual_anchor_extraction_user_message(
             events_json.clone(),
             &context.source_spans,
+            &context.source_markers,
         )?,
         temperature: 0.3,
     })

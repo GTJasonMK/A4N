@@ -45,8 +45,8 @@ export interface ProgressTaskOptions {
   cancelLabel?: string;
   runningHint?: React.ReactNode;
   formatProgress?: (current: number, total: number, percent: number) => React.ReactNode;
-  /** generation 任务传 generationClient.cancel，Host workflow 传 cancelWorkflowTask。 */
-  cancelTask?: (taskId: string) => Promise<void>;
+  /** generation 取消返回 void；Host workflow 返回是否仍可取消。 */
+  cancelTask?: (taskId: string) => Promise<boolean | void>;
   /** Host workflow 使用轮询；generation task 使用事件订阅。 */
   pollTaskProgress?: boolean;
   /** 是否显示固定速率的模型流预览。 */
@@ -181,7 +181,7 @@ function useProgressTaskController(): ProgressTaskController {
   const [progressTask, setProgressTask] = useState<ProgressTaskState>(createProgressTaskState);
   const [activeTaskId, setActiveTaskId] = useState<string | null>(null);
   const [cancelling, setCancelling] = useState(false);
-  const cancelTaskRef = useRef<((taskId: string) => Promise<void>) | null>(null);
+  const cancelTaskRef = useRef<((taskId: string) => Promise<boolean | void>) | null>(null);
   const cancellingRef = useRef(false);
   const activeRunRef = useRef<string | null>(null);
 
@@ -363,7 +363,19 @@ function useProgressTaskController(): ProgressTaskController {
       if (!cancelTask) {
         throw new Error(t("workflow.cancelTaskMissing"));
       }
-      await cancelTask(activeTaskId);
+      const cancellationRequested = await cancelTask(activeTaskId);
+      if (cancellationRequested === false) {
+        if (activeRunRef.current !== requestedRun) return;
+        setProgressTask((prev) => ({
+          ...prev,
+          message: t("workflow.alreadyFinished"),
+          meta: null,
+          error: null,
+        }));
+        setActiveTaskId(null);
+        cancellingRef.current = false;
+        setCancelling(false);
+      }
     } catch (err) {
       if (activeRunRef.current !== requestedRun) return;
       const errorMessage = extractErrorMessage(err, t("workflow.stopFailed"));

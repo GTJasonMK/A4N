@@ -231,7 +231,7 @@ def main():
             assert analysis["warnings"] == [], analysis
             analyzed = call("list_chapters", {"projectId": project_id}, raw=True)[0]
             assert analyzed["analysis_data"], "analysis did not persist its structured result"
-            sources = [re.sub(r"⟦ch\d+:s\d+:f\d+⟧", "", value["content"])
+            sources = [re.sub(r"#\d+ ", "", value["content"])
                        for value in embedded_json_objects(wire_since(before)) if isinstance(value.get("content"), str)]
             assert edited_content in sources, "analysis source must equal the saved body after removing source markers"
             assert analyzed["content"] == edited_content, "analysis must not rewrite the saved body"

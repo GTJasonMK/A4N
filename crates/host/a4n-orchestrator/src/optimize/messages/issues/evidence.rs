@@ -1,15 +1,21 @@
 use std::collections::HashMap;
 
 use a4n_error::AppError;
-use serde_json::Value;
+use serde_json::{Value, json};
 
 use super::super::OptimizeIssue;
+use crate::optimize::runtime_tools::current_chapter_source_markers;
 
 pub(in crate::optimize) fn materialize_optimization_issue_evidence(
     mut issues: Vec<OptimizeIssue>,
-    analysis_context: &Value,
+    source_context: &Value,
+    observed_context: &Value,
 ) -> Result<Vec<OptimizeIssue>, AppError> {
-    let source_spans = analysis_context
+    let chapter = source_context
+        .get("current_chapter")
+        .ok_or_else(|| AppError::InvalidArgument("缺少 current_chapter".into()))?;
+    let source_markers = current_chapter_source_markers(chapter)?;
+    let source_spans = observed_context
         .get("current_chapter")
         .and_then(|value| value.get("source_spans"))
         .and_then(Value::as_array)
@@ -46,9 +52,13 @@ pub(in crate::optimize) fn materialize_optimization_issue_evidence(
             .ok_or_else(|| {
                 AppError::InvalidArgument(format!("issue {idx} arguments 缺少 evidence_span_id"))
             })?;
-        let evidence =
-            resolve_optimization_source_span_text(&source_spans_by_id, &evidence_span_id)
-                .map_err(|err| AppError::InvalidArgument(format!("issue {idx} {err}")))?;
+        let decoded =
+            source_markers.decode_output(&json!({"evidence_span_id": evidence_span_id}))?;
+        let evidence_span_id = decoded["evidence_span_id"].as_str().ok_or_else(|| {
+            AppError::InvalidArgument(format!("issue {idx} evidence_span_id 无效"))
+        })?;
+        let evidence = resolve_optimization_source_span_text(&source_spans_by_id, evidence_span_id)
+            .map_err(|err| AppError::InvalidArgument(format!("issue {idx} {err}")))?;
         arguments.remove("evidence_span_id");
         arguments.insert("evidence".to_string(), Value::String(evidence));
     }

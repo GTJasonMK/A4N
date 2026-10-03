@@ -72,3 +72,35 @@ async fn context_pack_batch_reads_and_reuses_identity_rows() {
         .expect("context pack count must succeed");
     assert_eq!(count, 2);
 }
+
+#[tokio::test]
+async fn concurrent_context_pack_batches_reuse_identity_rows() {
+    let db = a4n_migration::test_support::connect_test_database().await;
+    let project = create_project_record(
+        &db,
+        CreateProjectRecordInput {
+            user_id: 1,
+            title: format!("并发上下文包读取 {}", uuid::Uuid::new_v4()),
+            description: String::new(),
+            project_type: "novel_long".to_string(),
+        },
+    )
+    .await
+    .expect("project must be created");
+    let shared = input(project.id, "shared");
+
+    let (first, second) = tokio::join!(
+        record_or_reuse_context_pack_references(&db, vec![shared.clone()]),
+        record_or_reuse_context_pack_references(&db, vec![shared]),
+    );
+    let first = first.expect("first context pack request must succeed");
+    let second = second.expect("concurrent context pack request must reuse the inserted row");
+
+    assert_eq!(first[0].id, second[0].id);
+    let count = llm_context_pack::Entity::find()
+        .filter(llm_context_pack::Column::ProjectId.eq(project.id))
+        .count(&db)
+        .await
+        .expect("context pack count must succeed");
+    assert_eq!(count, 1);
+}

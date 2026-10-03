@@ -1,18 +1,17 @@
 use a4n_domain::chapter::ChapterRecord;
-use a4n_domain::{
-    source_spans::{SourceSpan, source_span_prompt_text},
-    source_text_hash,
-};
+use a4n_domain::{source_spans::SourceSpan, source_text_hash};
 use a4n_error::AppError;
 use a4n_llm_context::{COMPRESSION_FULL_RAW, LlmContextLedger, LlmContextLedgerPackDraft};
 use serde_json::json;
 
 use crate::chapter_analysis::owner::prompt::chapter_display_title;
+use crate::source_markers::SourceMarkerMap;
 
 pub fn add_chapter_analysis_source_pack(
     ledger: &mut LlmContextLedger,
     ch: &ChapterRecord,
     source_spans: &[SourceSpan],
+    source_markers: &SourceMarkerMap,
 ) -> Result<(), AppError> {
     let content_sha256 = source_text_hash(&ch.content);
     let chapter_title = chapter_display_title(ch);
@@ -26,7 +25,7 @@ pub fn add_chapter_analysis_source_pack(
             "source_span_count": source_spans.len(),
         })),
         config_identity_json: json!({
-            "ledger_version": "chapter_analysis_context_v1",
+            "ledger_version": "chapter_analysis_context_v2",
             "kind": "chapter_source",
             "content_sha256": content_sha256,
             "source_span_count": source_spans.len(),
@@ -38,9 +37,7 @@ pub fn add_chapter_analysis_source_pack(
             json!({
                 "chapter_number": ch.chapter_number,
                 "chapter_title": chapter_title,
-                "content": source_span_prompt_text(&ch.content, source_spans)
-                    .map_err(AppError::InvalidArgument)?,
-                "source_reference_format": "⟦id⟧标注其后原文片段的来源 ID；标记不属于原文，标点和段落均保留。",
+                "content": source_markers.mark_text(&ch.content, source_spans)?,
             }),
         )],
     })

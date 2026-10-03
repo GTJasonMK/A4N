@@ -51,11 +51,24 @@ fn parse_optimization_issues_accepts_canonical_array_only() {
 
 #[test]
 fn materialize_optimization_issue_evidence_uses_source_span_id() {
+    let source_context = json!({"current_chapter": {
+        "chapter_number": 1,
+        "content": "前文出现。决定进入旧城。",
+        "source_spans": [
+            {"id": "ch1:s1:f1", "text": "前文出现", "paragraph_index": 1},
+            {"id": "ch1:s2:f1", "text": "决定进入旧城", "paragraph_index": 1}
+        ]
+    }});
+    let markers = crate::optimize::runtime_tools::current_chapter_source_markers(
+        &source_context["current_chapter"],
+    )
+    .unwrap();
+    let evidence_marker = markers.marker_for("ch1:s2:f1").unwrap();
     let issues = parse_optimization_issues(&json!([{
         "id": "issue-001",
         "tool": "edit_article",
         "arguments": {
-            "evidence_span_id": "ch1:s2:f2",
+            "evidence_span_id": evidence_marker,
             "goal": "补足行动动机"
         },
         "description": "动机不足",
@@ -64,13 +77,11 @@ fn materialize_optimization_issue_evidence_uses_source_span_id() {
     .expect("canonical model issues should parse before materialization");
     let materialized = materialize_optimization_issue_evidence(
         issues,
+        &source_context,
         &json!({
-            "current_chapter": {
-                "source_spans": [
-                    {"id": "ch1:s2:f1", "text": "主角收到旧信"},
-                    {"id": "ch1:s2:f2", "text": "决定进入旧城"}
-                ]
-            }
+            "current_chapter": {"source_spans": [
+                {"id": "ch1:s2:f1", "text": "决定进入旧城"}
+            ]}
         }),
     )
     .expect("source span id should be materialized");
@@ -94,10 +105,12 @@ fn materialize_optimization_issue_evidence_rejects_legacy_evidence() {
     .expect("shape parser should not validate model boundary evidence");
     let err = materialize_optimization_issue_evidence(
         issues,
+        &json!({"current_chapter": {
+            "chapter_number": 1,
+            "content": "决定进入旧城。"
+        }}),
         &json!({
-            "current_chapter": {
-                "source_spans": [{"id": "ch1:s2:f2", "text": "决定进入旧城"}]
-            }
+            "current_chapter": {"source_spans": []}
         }),
     )
     .expect_err("legacy evidence must be rejected at model boundary");
@@ -107,11 +120,19 @@ fn materialize_optimization_issue_evidence_rejects_legacy_evidence() {
 
 #[test]
 fn materialize_optimization_issue_evidence_rejects_unknown_argument_fields() {
+    let source_context = json!({"current_chapter": {
+        "chapter_number": 1,
+        "content": "决定进入旧城。"
+    }});
+    let markers = crate::optimize::runtime_tools::current_chapter_source_markers(
+        &source_context["current_chapter"],
+    )
+    .unwrap();
     let issues = parse_optimization_issues(&json!([{
         "id": "issue-001",
         "tool": "edit_article",
         "arguments": {
-            "evidence_span_id": "ch1:s2:f2",
+            "evidence_span_id": markers.marker_for("ch1:s1:f1").unwrap(),
             "goal": "补足行动动机",
             "old_text": "模型不应在 issue 阶段输出补丁字段"
         },
@@ -121,11 +142,8 @@ fn materialize_optimization_issue_evidence_rejects_unknown_argument_fields() {
     .expect("shape parser should parse issue before materialization");
     let err = materialize_optimization_issue_evidence(
         issues,
-        &json!({
-            "current_chapter": {
-                "source_spans": [{"id": "ch1:s2:f2", "text": "决定进入旧城"}]
-            }
-        }),
+        &source_context,
+        &json!({"current_chapter": {"source_spans": []}}),
     )
     .expect_err("issue arguments must reject unknown model-owned fields");
 
@@ -134,11 +152,23 @@ fn materialize_optimization_issue_evidence_rejects_unknown_argument_fields() {
 
 #[test]
 fn materialize_optimization_issue_evidence_rejects_unknown_span_id() {
+    let source_context = json!({"current_chapter": {
+        "chapter_number": 1,
+        "content": "已有文本。未知引用。",
+        "source_spans": [
+            {"id": "ch1:s1:f1", "text": "已有文本", "paragraph_index": 1},
+            {"id": "ch1:s2:f1", "text": "未知引用", "paragraph_index": 1}
+        ]
+    }});
+    let markers = crate::optimize::runtime_tools::current_chapter_source_markers(
+        &source_context["current_chapter"],
+    )
+    .unwrap();
     let issues = parse_optimization_issues(&json!([{
         "id": "issue-001",
         "tool": "edit_article",
         "arguments": {
-            "evidence_span_id": "ch1:s9:f9",
+            "evidence_span_id": markers.marker_for("ch1:s2:f1").unwrap(),
             "goal": "补足行动动机"
         },
         "description": "动机不足",
@@ -147,11 +177,10 @@ fn materialize_optimization_issue_evidence_rejects_unknown_span_id() {
     .expect("shape parser should accept issue before materialization");
     let err = materialize_optimization_issue_evidence(
         issues,
-        &json!({
-            "current_chapter": {
-                "source_spans": [{"id": "ch1:s2:f2", "text": "决定进入旧城"}]
-            }
-        }),
+        &source_context,
+        &json!({"current_chapter": {"source_spans": [
+            {"id": "ch1:s1:f1", "text": "已有文本"}
+        ]}}),
     )
     .expect_err("unknown span id must fail visibly");
 

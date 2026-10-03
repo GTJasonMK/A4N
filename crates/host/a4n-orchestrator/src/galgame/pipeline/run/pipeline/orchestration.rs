@@ -1,5 +1,6 @@
 use a4n_error::AppError;
 
+use crate::galgame::pipeline::prompt::galgame_source_markers;
 use crate::galgame::{GalgamePipelineRunOptions, GalgameScriptDetail, OrchestratorContext};
 use a4n_prompt::rendering::PromptRenderer;
 
@@ -18,12 +19,14 @@ impl OrchestratorContext {
     ) -> Result<Option<GalgameScriptDetail>, AppError> {
         let prompt_context =
             prepare_galgame_pipeline(self, project_id, &options, prompt_renderer).await?;
+        let source_markers = galgame_source_markers(&prompt_context.chapters)?;
         let execution = GalgamePipelineExecution {
             service: self,
             project_id,
             prompt_renderer,
             options: &options,
             prompt_context: &prompt_context,
+            source_markers: &source_markers,
         };
         let Some(early) = run_galgame_pipeline_early_stages(&execution).await? else {
             return Ok(None);

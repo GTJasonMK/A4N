@@ -1,6 +1,5 @@
 use a4n_chapter_analysis::CHAPTER_ANALYSIS_STAGE_FACTS;
 use a4n_domain::chapter::ChapterRecord;
-use a4n_domain::source_spans::SourceSpan;
 use a4n_error::AppError;
 use a4n_llm_provider_contract::provider::ChatRequest;
 use serde_json::json;
@@ -14,13 +13,11 @@ use crate::chapter_analysis::owner::{
 pub async fn build_chapter_fact_extraction_request(
     ch: &ChapterRecord,
     prompt_renderer: &dyn PromptRenderer,
-    source_spans: &[SourceSpan],
 ) -> Result<ChatRequest, AppError> {
     let chapter_title = chapter_display_title(ch);
     let input = json!({
         "chapter_title": chapter_title,
         "content": ch.content,
-        "source_spans": a4n_domain::source_spans::source_span_prompt_values(source_spans),
     });
     build_chapter_analysis_stage_request(
         ch,
@@ -31,7 +28,7 @@ pub async fn build_chapter_fact_extraction_request(
         json!({
             "format": "json_object",
             "required_fields": ["characters", "locations", "items", "event_candidates", "foreshadowing_candidates", "world_facts"],
-            "source_span_rule": "所有 source_span_ids 和 original_text_span_id 必须选择 chapter_analysis_source.content 中 ⟦id⟧ 标记的 ID，不包含括号"
+            "source_span_rule": "所有 source_span_ids 和 original_text_span_id 必须原样复制 chapter_analysis_source.content 中实际出现的十进制来源短标记，不要输出原始 ID"
         }),
     )
     .await

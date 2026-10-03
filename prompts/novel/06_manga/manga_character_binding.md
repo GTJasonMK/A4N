@@ -21,7 +21,7 @@ name: manga_character_binding
       "role": "protagonist",
       "gender": "male",
       "age_description": "青年",
-      "source_span_ids": ["ch1:s1:f1"]
+      "source_span_ids": ["#0"]
     }
   }
 }
@@ -30,7 +30,7 @@ name: manga_character_binding
 
 - 角色必须来自本章正文或 `events[].participants`。
 - 立绘参考只用于身份和外观一致性，不得用来编造本章未出现的角色行为。
-- `source_span_ids` 必须来自输入 `chapter.source_spans[].id`。
+- `source_span_ids` 必须原样复制输入 `chapter.content` 中实际出现的十进制来源短标记。
 - `role` 使用 protagonist/antagonist/supporting/minor/background。
 - `gender` 使用 male/female/unknown。
 - 没有明确外观时，用正文和立绘参考保守总结，不要写“模糊角色”。

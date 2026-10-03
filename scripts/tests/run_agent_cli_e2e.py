@@ -28,6 +28,7 @@ from run_cli_contract_e2e import (
     secure_json,
     start_provider,
 )
+from mock_openai.fixtures.entities import source_marker_pairs
 from specialized_agent_fixture import GENERAL_MARKER, observation_data
 
 
@@ -53,6 +54,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--password-env", default="A4N_PASSWORD")
     parser.add_argument("--report", type=Path)
     parser.add_argument("--provider-url")
+    parser.add_argument("--provider-log", type=Path)
+    parser.add_argument("--embedding-dimension", type=int, default=8)
     parser.add_argument(
         "--provider-script",
         type=Path,
@@ -205,13 +208,18 @@ def main() -> int:
             checked(cli, ["health"], "health")
             checked(cli, ["capabilities", "check"], "capabilities check")
 
-            provider, provider_log = start_provider(args, report_path.parent, run_id)
+            provider, provider_log = start_provider(
+                args, report_path.parent, run_id, request_log_path=args.provider_log
+            )
             report["provider_url"] = provider.base_url
             report["provider_contract"] = check_provider_contract(
-                provider.base_url, args.command_timeout
+                provider.base_url, args.command_timeout, args.embedding_dimension
             )
             runtime_path = work / "runtime-config.json"
-            secure_json(runtime_path, runtime_snapshot(provider.base_url))
+            secure_json(
+                runtime_path,
+                runtime_snapshot(provider.base_url, embedding_dimension=args.embedding_dimension),
+            )
             checked(
                 cli,
                 ["config", "runtime", "set", "--input", f"@{runtime_path}"],
@@ -411,11 +419,17 @@ def main() -> int:
                        if row["run_id"] in child_ids
                        for call in (row.get("metadata") or {}).get("tool_calls", []) if call["name"] == "edit_article"]
             assert len(patches) == 2 and patches[0] != patches[1] and "没有立即拆开" in patches[1], patches
+            expected_patch = "".join(text for _, text in source_marker_pairs(patches[1])) or patches[1]
             delivered_patch_ids = {ref["id"] for ref in revised_delegation["result_refs"] if ref["kind"] == "optimization_patch_set"}
             actual_patches = [patch for row in revision_parent["messages"] if row["run_id"] == revision_run_id
                               and (row.get("metadata") or {}).get("tool") == "list_optimize_patch_sets"
                               for patch in observation_data(row) if str(patch["id"]) in delivered_patch_ids]
-            assert any(patch["patches"][0]["new_text"] == patches[1] for patch in actual_patches), actual_patches
+            delivered_patch = next(
+                (patch["patches"][0] for patch in actual_patches if patch.get("patches")),
+                None,
+            )
+            assert delivered_patch is not None and delivered_patch["new_text"] == expected_patch, actual_patches
+            assert not source_marker_pairs(delivered_patch["new_text"])
             current = data(checked(cli, ["chapter", "get", str(chapter_id)], "verify revised proposal")[0], "chapter")
             assert current["content"] == chapter_value["content"]
             secure_json(report_path.parent / "revision-parent.json", revision_parent)

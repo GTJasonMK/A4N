@@ -27,10 +27,13 @@ pub(super) async fn prepare_galgame_llm_stage(
             Some(input.project_id),
         )
         .await?;
+    let shared_adaptation_projection = input
+        .source_markers
+        .encode_input(input.shared_adaptation_projection)?;
     let request_messages = galgame_pipeline_session_messages(
         session_prompt,
         stage_prompt.clone(),
-        input.shared_adaptation_projection,
+        &shared_adaptation_projection,
         input.request_user_prompt.clone(),
     )?;
     let mut fingerprint_json = json!({
@@ -43,8 +46,7 @@ pub(super) async fn prepare_galgame_llm_stage(
         "temperature": 0.25,
     });
     if input.stage == crate::galgame::GalgamePipelineStartStage::CharacterStaging {
-        fingerprint_json["shared_adaptation_projection"] =
-            input.shared_adaptation_projection.clone();
+        fingerprint_json["shared_adaptation_projection"] = shared_adaptation_projection;
     }
     let input_fingerprint_sha256 =
         workflow::llm_call_checkpoint_fingerprint_sha256(&fingerprint_json)

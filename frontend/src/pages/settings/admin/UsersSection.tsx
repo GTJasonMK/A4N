@@ -152,15 +152,20 @@ export const UsersSection: React.FC<{ currentUserId: number }> = ({
       applyUsers,
       "settingsAdmin.loadUsersFailed",
     );
-  const reportReloadFailure = (refreshed: boolean): boolean => {
-    if (refreshed) return true;
-    addToast(t("settingsAdmin.loadFailed"), "error");
-    return false;
-  };
+  const mutationInFlight = [...actingKeys].some((key) => key.startsWith("write:"));
+  useDirty(
+    "settings-admin-mutations",
+    mutationInFlight,
+    undefined,
+    () => ![...actingKeysRef.current].some((key) => key.startsWith("write:")),
+  );
 
   useEffect(() => {
-    actingKeysRef.current = new Set();
-    setActingKeys(new Set());
+    const writes = new Set(
+      [...actingKeysRef.current].filter((key) => key.startsWith("write:")),
+    );
+    actingKeysRef.current = writes;
+    setActingKeys(writes);
     setCreateOpen(false);
     setCreateForm(emptyCreateUserForm);
     createFormVersionRef.current += 1;
@@ -251,9 +256,8 @@ export const UsersSection: React.FC<{ currentUserId: number }> = ({
     try {
       await createAdminUser(input);
       if (!isCurrentUser(requestCurrentUserId)) return;
-      const refreshed = await reload();
+      await reload();
       if (!isCurrentUser(requestCurrentUserId)) return;
-      if (!reportReloadFailure(refreshed)) return;
       if (createFormVersionRef.current === requestFormVersion && createOpen) {
         addToast(t("settingsAdmin.userCreated"), "success");
         resetCreate();
@@ -271,7 +275,9 @@ export const UsersSection: React.FC<{ currentUserId: number }> = ({
   const handleCreateInviteCode = async () => {
     const requestCurrentUserId = currentUserId;
     const actionKey = "create-invite-code";
+    const mutationKey = `write:${actionKey}`;
     if (!tryStartAction(actionKey)) return;
+    let mutationStarted = false;
     try {
       const code = await promptDialog({
         title: t("settingsAdmin.createInviteCode"),
@@ -288,16 +294,18 @@ export const UsersSection: React.FC<{ currentUserId: number }> = ({
         return;
       }
       if (!isCurrentUser(requestCurrentUserId)) return;
+      if (!tryStartAction(mutationKey)) return;
+      mutationStarted = true;
       await createInviteCode({ code: trimmedCode });
       if (!isCurrentUser(requestCurrentUserId)) return;
-      const refreshed = await reload();
+      await reload();
       if (!isCurrentUser(requestCurrentUserId)) return;
-      if (!reportReloadFailure(refreshed)) return;
       addToast(t("settingsAdmin.inviteCreated"), "success");
     } catch (err) {
       if (!isCurrentUser(requestCurrentUserId)) return;
       addToast(extractErrorMessage(err, t("settingsAdmin.createInviteFailed")), "error");
     } finally {
+      if (mutationStarted) finishAction(mutationKey);
       if (isCurrentUser(requestCurrentUserId)) finishAction(actionKey);
     }
   };
@@ -305,7 +313,9 @@ export const UsersSection: React.FC<{ currentUserId: number }> = ({
   const handleRole = async (u: UserSummary) => {
     const requestCurrentUserId = currentUserId;
     const actionKey = `role-${u.id}`;
+    const mutationKey = `write:${actionKey}`;
     if (!tryStartAction(actionKey)) return;
+    let mutationStarted = false;
     try {
       const next = await promptDialog({
         title: t("settingsAdmin.changeUserRole"),
@@ -327,6 +337,8 @@ export const UsersSection: React.FC<{ currentUserId: number }> = ({
         return;
       }
       if (role === u.role) return;
+      if (!tryStartAction(mutationKey)) return;
+      mutationStarted = true;
       const updated = await updateUserRole(u.id, role);
       if (!isCurrentUser(requestCurrentUserId)) return;
       if (updated.id === requestCurrentUserId) {
@@ -336,14 +348,14 @@ export const UsersSection: React.FC<{ currentUserId: number }> = ({
           return;
         }
       }
-      const refreshed = await reload();
+      await reload();
       if (!isCurrentUser(requestCurrentUserId)) return;
-      if (!reportReloadFailure(refreshed)) return;
       addToast(t("settingsAdmin.roleUpdated"), "success");
     } catch (err) {
       if (!isCurrentUser(requestCurrentUserId)) return;
       addToast(extractErrorMessage(err, t("settingsAdmin.updateFailed")), "error");
     } finally {
+      if (mutationStarted) finishAction(mutationKey);
       if (isCurrentUser(requestCurrentUserId)) finishAction(actionKey);
     }
   };
@@ -355,7 +367,9 @@ export const UsersSection: React.FC<{ currentUserId: number }> = ({
     }
     const requestCurrentUserId = currentUserId;
     const actionKey = `del-${u.id}`;
+    const mutationKey = `write:${actionKey}`;
     if (!tryStartAction(actionKey)) return;
+    let mutationStarted = false;
     try {
       const ok = await confirmDialog({
         title: t("settingsAdmin.disableUser"),
@@ -365,16 +379,18 @@ export const UsersSection: React.FC<{ currentUserId: number }> = ({
       });
       if (!ok) return;
       if (!isCurrentUser(requestCurrentUserId)) return;
+      if (!tryStartAction(mutationKey)) return;
+      mutationStarted = true;
       await disableUser(u.id);
       if (!isCurrentUser(requestCurrentUserId)) return;
-      const refreshed = await reload();
+      await reload();
       if (!isCurrentUser(requestCurrentUserId)) return;
-      if (!reportReloadFailure(refreshed)) return;
       addToast(t("settingsAdmin.disabled"), "success");
     } catch (err) {
       if (!isCurrentUser(requestCurrentUserId)) return;
       addToast(extractErrorMessage(err, t("settingsAdmin.disableFailed")), "error");
     } finally {
+      if (mutationStarted) finishAction(mutationKey);
       if (isCurrentUser(requestCurrentUserId)) finishAction(actionKey);
     }
   };

@@ -4,7 +4,9 @@ name: chapter_media_adaptation_plan
 
 你负责把原作章节改编为指定媒介的叙事计划。输入中的 target 为 manga 或 galgame。
 
-以当前 chapter 与 source_spans 为原作依据。video_reference 是可选的已冻结参考，可以借鉴场景取舍、动作、对白意图和人物关系；不要把镜头时长、机位或声音要求当成漫画或游戏的硬约束。参考使用了其他原作版本时，不得把它的原文引用当作当前原文证据。
+以当前 `chapter.content` 中带短标签的原文为依据，不提供完整 `source_spans` 记录。`video_reference` 是可选的已冻结参考，可以借鉴场景取舍、动作、对白意图和人物关系；不要把镜头时长、机位或声音要求当成漫画或游戏的硬约束。参考使用了其他原作版本时，不得把它的原文引用当作当前原文证据。
+
+来源字段只能原样返回正文中出现的短标签，不能返回内部长 ID。
 
 输出严格 JSON，不含 Markdown。顶层必须且只能包含：
 - schema_version：固定为 "adaptation_plan_v1"。
@@ -21,7 +23,7 @@ name: chapter_media_adaptation_plan
 - participants：角色名称数组，沿用原作名称。
 - dramatic_question、objective、obstacle：戏剧问题、目标、阻力。
 - entry_state、exit_state：可观察的入场与离场状态。
-- source_span_ids：当前 source_spans 中的 ID；source、adapted 类型至少一项，added 类型必须为空。单元的引用必须覆盖其所有节拍引用。
+- source_span_ids：当前正文中实际出现的短来源标签；source、adapted 类型至少一项，added 类型必须为空。单元的引用必须覆盖其所有节拍引用。
 - beats：非空节拍数组。
 
 每个 beat 必须且只能包含：
@@ -34,7 +36,7 @@ name: chapter_media_adaptation_plan
 - reaction：反应字符串或 null。
 - dialogue_intent：对白意图字符串或 null。
 - entry_state、exit_state：动作前后状态。
-- source_span_ids：当前原文引用；规则与 unit 相同。
+- source_span_ids：当前正文的短原文来源标签；规则与 unit 相同。
 
 漫画计划突出可画出的因果、人物反应和阅读节奏，分页留给后续阶段。
 Galgame 计划突出人物目标、对话推进和适合玩家参与的矛盾，具体选项与分支留给后续阶段。

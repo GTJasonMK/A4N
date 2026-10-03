@@ -8,6 +8,7 @@ use serde_json::Value;
 use tokio_util::sync::CancellationToken;
 
 use super::super::super::prompt::MangaPromptGenerationTrace;
+use crate::source_markers::SourceMarkerMap;
 
 pub(in crate::manga::pipeline::run) struct SinglePageDrawingPromptInput<'a> {
     pub(in crate::manga::pipeline::run) chapter_id: i64,
@@ -21,6 +22,7 @@ pub(in crate::manga::pipeline::run) struct SinglePageDrawingPromptInput<'a> {
     pub(in crate::manga::pipeline::run) page_plan: &'a MangaPageV4,
     pub(in crate::manga::pipeline::run) page_index: usize,
     pub(in crate::manga::pipeline::run) extraction_summary: &'a Value,
+    pub(in crate::manga::pipeline::run) source_markers: &'a SourceMarkerMap,
     pub(in crate::manga::pipeline::run) restore_from_checkpoint: bool,
     pub(in crate::manga::pipeline::run) cancel_token: Option<&'a CancellationToken>,
     pub(in crate::manga::pipeline::run) stream_reporter:

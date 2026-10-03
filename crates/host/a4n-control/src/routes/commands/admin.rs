@@ -65,10 +65,10 @@ admin_web_json_command!(list_pending_tasks, |state, user_id, args| {
     admin_records_actions::list_pending_tasks_for_admin(state.runtime(), user_id).await?
 });
 
-admin_web_unit_command!(cancel_admin_task, |state, user_id, args| {
+admin_web_json_command!(cancel_admin_task, |state, user_id, args| {
     reject_unknown_command_args(args, "cancel_admin_task", &["taskId"])?;
     let task_id = string_arg(args, "taskId")?;
-    admin_records_actions::cancel_admin_task_for_admin(state.runtime(), user_id, &task_id).await?;
+    admin_records_actions::cancel_admin_task_for_admin(state.runtime(), user_id, &task_id).await?
 });
 
 admin_web_value_command!(health_check, |state, user_id, args| {

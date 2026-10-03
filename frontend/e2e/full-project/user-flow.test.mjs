@@ -100,3 +100,54 @@ test("browser acceptance exposes hidden failures, redacts credentials, and rejec
     rmSync(directory, { recursive: true });
   }
 });
+
+test("browser acceptance allows only the final expired poll after live progress was read", async () => {
+  const originalFetch = globalThis.fetch;
+  const taskId = "chapter-analysis-78-e2e";
+  const progressUrl = "http://localhost/api/commands/get_workflow_progress_events";
+  const request = (requestId) => ({
+    method: "Network.requestWillBeSent",
+    params: {
+      requestId,
+      request: {
+        url: progressUrl,
+        postData: JSON.stringify({ input: { task_id: taskId } }),
+      },
+    },
+  });
+  const response = (requestId, status) => ({
+    method: "Network.responseReceived",
+    params: { requestId, response: { url: progressUrl, status } },
+  });
+  const performanceLogs = [request("ok"), response("ok", 200), request("expired"), response("expired", 400)]
+    .map((message) => ({ message: JSON.stringify({ message }) }));
+  const browserLogs = [
+    {
+      level: "SEVERE",
+      source: "network",
+      message: `${progressUrl} - Failed to load resource: the server responded with a status of 400 (Bad Request)`,
+    },
+    {
+      level: "SEVERE",
+      source: "console-api",
+      message: `[apiInvoke] get_workflow_progress_events task_id=${taskId}`,
+    },
+  ];
+  const directory = mkdtempSync(new URL("../../../data/browser-progress-poll-", import.meta.url));
+  globalThis.browser = { sessionId: "test", options: { protocol: "http", hostname: "localhost", port: 1, path: "/" } };
+  globalThis.fetch = async (_url, options) => ({
+    ok: true,
+    json: async () => ({
+      value: JSON.parse(options.body).type === "browser" ? browserLogs : performanceLogs,
+    }),
+  });
+  try {
+    assert.deepEqual(await captureBrowserDiagnostics(join(directory, "terminal")), []);
+    performanceLogs.splice(0, 2);
+    assert.ok((await captureBrowserDiagnostics(join(directory, "missing"))).length > 0);
+  } finally {
+    globalThis.fetch = originalFetch;
+    delete globalThis.browser;
+    rmSync(directory, { recursive: true });
+  }
+});

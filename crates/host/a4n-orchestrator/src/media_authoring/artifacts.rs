@@ -47,17 +47,20 @@ fn artifact_views(
     let mut chapters = BTreeMap::new();
     for source in sources {
         match source {
-            AuthoringArtifactSource::MangaPage { chapter_id, layout } => {
+            AuthoringArtifactSource::MangaPage {
+                chapter_id,
+                source,
+                page_plan_ref,
+            } => {
                 let entry = chapters.entry(chapter_id).or_insert((0, false));
                 entry.0 += 1;
-                entry.1 |= layout.source.source_snapshot_id != Some(snapshot_id)
+                entry.1 |= source.source_snapshot_id != Some(snapshot_id)
                     || !matches(&AuthoringDocumentRef {
-                        id: layout.source.adaptation_plan_id,
-                        revision: layout.source.adaptation_plan_revision,
-                        sha256: layout.source.adaptation_plan_sha256,
+                        id: source.adaptation_plan_id,
+                        revision: source.adaptation_plan_revision,
+                        sha256: source.adaptation_plan_sha256,
                     })
-                    || layout
-                        .page_plan_ref
+                    || page_plan_ref
                         .as_ref()
                         .is_none_or(|reference| !matches(reference));
             }

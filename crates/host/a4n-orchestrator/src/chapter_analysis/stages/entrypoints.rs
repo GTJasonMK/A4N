@@ -1,5 +1,5 @@
 use a4n_domain::chapter::ChapterRecord;
-use a4n_domain::source_spans::SourceSpan;
+use a4n_domain::source_spans::{SourceSpan, source_spans_for_chapters};
 use a4n_error::AppError;
 use a4n_prompt::rendering::PromptRenderer;
 use serde_json::Value;
@@ -16,6 +16,7 @@ use super::contracts::{
     CHARACTER_STATE_STAGE, ExecutedChapterAnalysisStage, FACTS_STAGE, FORESHADOWING_STAGE,
     SUMMARY_STAGE,
 };
+use crate::source_markers::SourceMarkerMap;
 
 impl OrchestratorContext {
     pub(in crate::chapter_analysis) async fn execute_chapter_analysis_facts_stage(
@@ -26,13 +27,14 @@ impl OrchestratorContext {
         progress: &mut ChapterAnalysisProgress<'_>,
         workflow_run_id: i64,
     ) -> Result<ExecutedChapterAnalysisStage, AppError> {
-        let request =
-            build_chapter_fact_extraction_request(chapter, prompt_renderer, source_spans).await?;
+        let request = build_chapter_fact_extraction_request(chapter, prompt_renderer).await?;
+        let source_markers = SourceMarkerMap::from_source_spans(source_spans)?;
         self.execute_chapter_analysis_stage(
             request,
             progress,
             workflow_run_id,
             FACTS_STAGE,
+            &source_markers,
             |output| validate_chapter_fact_extraction(output, source_spans),
         )
         .await
@@ -48,11 +50,13 @@ impl OrchestratorContext {
     ) -> Result<ExecutedChapterAnalysisStage, AppError> {
         let request =
             build_chapter_summary_synthesis_request(chapter, prompt_renderer, facts).await?;
+        let source_markers = chapter_source_markers(chapter)?;
         self.execute_chapter_analysis_stage(
             request,
             progress,
             workflow_run_id,
             SUMMARY_STAGE,
+            &source_markers,
             validate_chapter_summary_synthesis,
         )
         .await
@@ -68,11 +72,13 @@ impl OrchestratorContext {
     ) -> Result<ExecutedChapterAnalysisStage, AppError> {
         let request =
             build_chapter_character_state_request(chapter, prompt_renderer, facts).await?;
+        let source_markers = chapter_source_markers(chapter)?;
         self.execute_chapter_analysis_stage(
             request,
             progress,
             workflow_run_id,
             CHARACTER_STATE_STAGE,
+            &source_markers,
             validate_chapter_character_state,
         )
         .await
@@ -98,13 +104,20 @@ impl OrchestratorContext {
             &resolution_context,
         )
         .await?;
+        let source_markers = chapter_source_markers(chapter)?;
         self.execute_chapter_analysis_stage(
             request,
             progress,
             workflow_run_id,
             FORESHADOWING_STAGE,
+            &source_markers,
             |output| validate_chapter_foreshadowing_events(output, facts, &resolution_context),
         )
         .await
     }
+}
+
+fn chapter_source_markers(chapter: &ChapterRecord) -> Result<SourceMarkerMap, AppError> {
+    let spans = source_spans_for_chapters(std::slice::from_ref(chapter));
+    SourceMarkerMap::from_source_spans(&spans)
 }

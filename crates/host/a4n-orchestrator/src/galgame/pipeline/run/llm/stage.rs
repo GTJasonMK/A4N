@@ -3,6 +3,7 @@ use a4n_llm_provider_contract::provider::ChatMessage;
 use serde_json::Value;
 
 use crate::galgame::{GalgamePipelineStartStage, OrchestratorContext};
+use crate::source_markers::SourceMarkerMap;
 use a4n_prompt::rendering::PromptRenderer;
 
 use super::super::progress::ensure_galgame_pipeline_not_cancelled;
@@ -26,6 +27,7 @@ pub(in crate::galgame::pipeline::run) struct GalgameLlmStageInput<'a> {
     pub(in crate::galgame::pipeline::run) user_prompt: String,
     pub(in crate::galgame::pipeline::run) request_user_prompt: String,
     pub(in crate::galgame::pipeline::run) shared_adaptation_projection: &'a Value,
+    pub(in crate::galgame::pipeline::run) source_markers: &'a SourceMarkerMap,
     pub(in crate::galgame::pipeline::run) restore_from_checkpoint: bool,
     pub(in crate::galgame::pipeline::run) restore_required: bool,
 }
@@ -40,7 +42,7 @@ impl OrchestratorContext {
     pub(in crate::galgame::pipeline::run) async fn run_galgame_llm_stage<T, F>(
         &self,
         input: GalgameLlmStageInput<'_>,
-        validate: F,
+        validate_canonical: F,
     ) -> Result<(Value, T), AppError>
     where
         T: serde::Serialize,
@@ -50,12 +52,14 @@ impl OrchestratorContext {
         self.mark_workflow_current_step(input.workflow_run_id, input.stage.key())
             .await?;
 
+        let validate_marked =
+            |value| validate_canonical(input.source_markers.decode_output(&value)?);
         let prepared = prepare_galgame_llm_stage(&input).await?;
         if let Some(restored) =
-            restore_galgame_llm_stage(self, &input, &prepared, &validate).await?
+            restore_galgame_llm_stage(self, &input, &prepared, &validate_marked).await?
         {
             return Ok(restored);
         }
-        execute_galgame_llm_stage(self, &input, prepared, validate).await
+        execute_galgame_llm_stage(self, &input, prepared, validate_marked).await
     }
 }

@@ -3,7 +3,8 @@ use serde_json::Value;
 
 use crate::galgame::{
     GalgameBranchDesign, GalgameCharacterStaging, GalgameSceneRegenerationInput, GalgameVisualPlan,
-    OrchestratorContext, galgame_visual_planning_user_message, visual_plan_from_value,
+    OrchestratorContext, galgame_source_markers, galgame_visual_planning_user_message,
+    visual_plan_from_value,
 };
 use a4n_prompt::rendering::PromptRenderer;
 
@@ -19,6 +20,7 @@ pub(super) async fn run_visual_planning_stage(
     branch: &GalgameBranchDesign,
     prompt_renderer: &dyn PromptRenderer,
 ) -> Result<(Value, GalgameVisualPlan), AppError> {
+    let source_markers = galgame_source_markers(std::slice::from_ref(&prepared.prompt_chapter))?;
     service
         .run_workflow_llm_once(
             WorkflowLlmOnceInput {
@@ -34,10 +36,12 @@ pub(super) async fn run_visual_planning_stage(
                 user_prompt: galgame_visual_planning_user_message(
                     &prepared.scenes_json,
                     &staging.0,
+                    &source_markers,
                 )?,
                 cancel_token: None,
             },
             |value| {
+                let value = source_markers.decode_output(&value)?;
                 let parsed = visual_plan_from_value(value, "galgame_visual_planning")?;
                 ensure_single_regenerated_visual_plan(&parsed)?;
                 crate::galgame::build_galgame_script_persist_plan(

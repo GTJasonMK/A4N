@@ -249,7 +249,9 @@ pub trait WorkflowTaskLookupApplicationPort: Send + Sync {
 pub trait WorkflowCancellationPort: Send + Sync {
     async fn mark_running(&self, workflow_run_id: i64) -> Result<(), a4n_error::AppError>;
 
-    async fn cancel(&self, workflow_run_id: i64, reason: &str) -> Result<(), a4n_error::AppError>;
+    /// Returns whether the workflow transitioned to cancelled.
+    async fn cancel(&self, workflow_run_id: i64, reason: &str)
+    -> Result<bool, a4n_error::AppError>;
 
     async fn resume_with_active_task(
         &self,

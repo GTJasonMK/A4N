@@ -158,9 +158,10 @@ def optimization_fixture(body, messages):
             hit = results["find"]["matches"][0]
             return fixture_call("read_match", "read_project_context", {
                 "source": hit["source"], "expected_hash": hit["resource"]["hash"],
-                "selection": {"kind": "paths", "paths": [hit["path"]]}, "include": ["content"],
+                "selection": {"kind": "paragraphs", "indexes": [2]}, "include": ["content"],
             })
-        if "第二段" not in results["read_match"]["content"][0]["value"]:
+        matched_paragraph = results["read_match"]["content"]["paragraphs"][0]["content"]
+        if "第二段" not in matched_paragraph:
             raise ValueError("search result did not read back its matching source")
         if "read_second" not in results:
             return fixture_call("read_second", "read_project_context", {
@@ -168,9 +169,15 @@ def optimization_fixture(body, messages):
                 "include": ["content", "source_spans"],
             })
         paragraph = results["read_second"]["content"]["paragraphs"][0]
-        if paragraph["content"] != "第二段。" or paragraph["source_spans"][0]["text"] != "第二段":
+        span_ids = paragraph["source_span_ids"]
+        if (
+            "第二段。" not in paragraph["content"]
+            or not isinstance(span_ids, list)
+            or not span_ids
+            or not all(isinstance(span_id, str) and span_id.startswith("#") for span_id in span_ids)
+        ):
             raise ValueError("paragraph text and evidence must come from the same source range")
-        return {"content": "搜索路径可以读取，第二段与引用一致。"}
+        return {"content": "搜索选中第二段，正文和短标签引用一致。"}
     if "inspect_project_context" not in observations:
         return fixture_call("inspect_context", "inspect_project_context", {"source": "current_chapter"})
     if "read_project_context" not in observations:

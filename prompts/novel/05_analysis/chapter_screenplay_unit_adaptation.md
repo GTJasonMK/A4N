@@ -14,7 +14,7 @@ name: chapter_screenplay_unit_adaptation
 
 - `fact_index` 从 1 连续递增。
 - `shot_id` 必须逐字复制当前 `locked_visual_unit.shots` 中实际承载该事实的 `segment_id`；每个事实只能归属一个镜头。无法归属到镜头的事实不要输出，不能留空或猜测。
-- `source_span_ids` 只填写实际依据的当前 unit 正文 ID，导演新增的情节允许为 `[]`；`user_addition_ids` 采用 `director:{segment_id}`，只能引用本单元镜头。两种来源至少一种非空，禁止用正文 ID 冒充导演新增事实。
+- `source_span_ids` 只原样填写实际依据的当前 unit 正文十进制短标记，导演新增的情节允许为 `[]`；`user_addition_ids` 采用 `director:{segment_id}`，只能引用本单元镜头。两种来源至少一种非空，禁止用正文标记冒充导演新增事实。
 - `actor` 只能为 `null`，或逐字复制当前 unit `participants` 中的一个数组项；禁止拼接多个 participant（如 `A与B`、`A、B`）。
 - 同一动作涉及多个 participant 时，按 participant 拆成多个 performance fact；若 participant 本身是群体名，可原样作为一个数组项使用。
 - 只输出当前 unit 的事实，不得重复相邻 unit 的事实。

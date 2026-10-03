@@ -13,11 +13,15 @@ pub(super) async fn run_item_extraction_stage(
     speech_json: &Value,
     visual_json: &Value,
 ) -> Result<Value, AppError> {
-    let items_user = manga_item_extraction_user_message(speech_json.clone(), visual_json.clone())?;
+    let items_user = manga_item_extraction_user_message(
+        speech_json.clone(),
+        visual_json.clone(),
+        &context.source_markers,
+    )?;
     let allowed_source_span_ids = manga_item_available_source_span_ids(speech_json, visual_json)?;
     let (items_trace, items_json) = context
         .service
-        .render_and_validate_manga_call(
+        .render_and_validate_manga_call_with_markers(
             MangaRenderTraceInput {
                 prompt_renderer: context.prompt_renderer,
                 prompt_name: "manga_item_extraction",
@@ -36,6 +40,7 @@ pub(super) async fn run_item_extraction_stage(
                 stream_id: "raw_json".to_string(),
                 stream_reporter: context.stream_reporter,
             },
+            &context.source_markers,
             |value| {
                 validate_manga_item_extraction_source_span_ids(
                     value,

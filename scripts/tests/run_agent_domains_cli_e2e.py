@@ -138,7 +138,7 @@ def main():
             _, context_result = finish(context_thread["id"], context_run)
             context_tools = [row["tool_name"] for row in context_result["executions"] if row["run_id"] == context_run and row["kind"] == "tool_call" and row["status"] == "succeeded"]
             assert context_tools == ["search_project_context", "read_project_context", "read_project_context"], context_tools
-            report["checks"].append("native context search paths roundtrip through reads; selected paragraph and evidence agree across CRLF and blank lines")
+            report["checks"].append("context search selects the matching paragraph; text and short-marker evidence agree across CRLF and blank lines")
 
             permissions = {name: False for name in ("read_project_detail", "read_blueprint", "read_outlines", "read_character_profiles", "read_foreshadowing", "automatic_writeback")}
             chat = call("create_optimization_chat_session", {"project_id": project["id"], "chapter_number": 2, "name": "完整长历史", "permissions": permissions})

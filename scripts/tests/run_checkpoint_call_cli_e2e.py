@@ -83,19 +83,60 @@ def main():
                 return project["id"]
 
             def shooting_source(title, unit_count, shots_per_unit=1):
-                project_id = new_project(title)
+                root_project_id = new_project(title)
                 shot_prompt = "林岚留下齿轮暗记，进入地下机房。"
                 chapter = checked(cli, ["chapter", "import", "--number", "1", "--title", "雨夜来信", "--content", chapter_body_response() + "\n\n" + shot_prompt], "chapter")[0]["data"]
                 chapter_id = chapter["id"]
-                scenes = [call("create_scene_profile", {"project_id": project_id, "profile": {
+                profiles = call("list_profiles", {"project_id": root_project_id})
+                if not isinstance(profiles, list):
+                    raise RunnerError("checkpoint manga fixture did not receive character profiles")
+                for character_name in ("林岚", "周衡"):
+                    profile = next(
+                        (
+                            row
+                            for row in profiles
+                            if isinstance(row, dict)
+                            and str(row.get("name", "")).strip() == character_name
+                        ),
+                        None,
+                    )
+                    if profile is None:
+                        profile = call("create_profile", {
+                            "project_id": root_project_id,
+                            "name": character_name,
+                            "base_attributes": {
+                                "explicit_attributes": {},
+                                "implicit_attributes": {},
+                                "social_attributes": {},
+                            },
+                        })
+                    profile_id = profile.get("profile_id", profile.get("id"))
+                    if not isinstance(profile_id, int) or profile_id <= 0:
+                        raise RunnerError(f"checkpoint manga fixture profile ID invalid: {character_name}")
+                    call("upload_portrait", {
+                        "project_id": root_project_id,
+                        "profile_id": profile_id,
+                        "file_name": f"checkpoint-{profile_id}.png",
+                        "mime_type": "image/png",
+                        "data_base64": PNG_1X1_BASE64,
+                        "portrait_type": "face",
+                        "prompt": f"{character_name} 的漫画参考立绘",
+                        "set_primary": True,
+                    })
+                scenes = [call("create_scene_profile", {"project_id": root_project_id, "profile": {
                     "name": name, "scene_type": "room", "importance": "primary", "base_description": name,
                     "visual_description": "门与挂钟形成清晰关系", "spatial_layout": "通道通向机房", "atmosphere": "安静",
                     "first_seen_chapter": 1, "last_seen_chapter": 1, "image_prompt_seed": name,
                 }})["profile"] for name in ("旧车站通道", "地下机房")[:unit_count]]
-                image = call("upload_image", {"project_id": project_id, "file_name": "checkpoint.png", "mime_type": "image/png",
+                image = call("upload_image", {"project_id": root_project_id, "file_name": "checkpoint.png", "mime_type": "image/png",
                     "data_base64": PNG_1X1_BASE64, "image_type": "chapter_reference", "prompt": "测试参考图",
                     "chapter_id": chapter_id, "panel_id": None, "metadata_json": None})
-                source = {"project_id": project_id, "source_chapter_id": chapter_id}
+                video_project = call("create_derived_project", {
+                    "root_project_id": root_project_id, "derived_kind": "video", "title": title + " 视频",
+                    "description": "chapter generation fixture", "start_chapter": 1, "end_chapter": 1,
+                })
+                report["projects"].append(video_project["id"])
+                source = {"project_id": video_project["id"], "source_chapter_id": chapter_id}
                 plan = call("get_chapter_visual_plan", source)["starter_plan"]
                 shot_count = unit_count * shots_per_unit
                 plan["points"] = [{"id": f"point-{index}", "at_ms": index * 5000, "label": "边界", "description": "门口画面",
@@ -105,7 +146,7 @@ def main():
                     "use_end_point_image": False} for index in range(shot_count)]
                 draft = call("save_chapter_visual_plan_draft", {**source, "authoring_mode": "manual", "record_id": None, "expected_revision": None, "plan": plan})
                 confirmed = call("confirm_chapter_visual_plan", {**source, "record_id": draft["record"]["id"], "expected_revision": draft["record"]["revision"]}, True)
-                return {**source, "visual_plan_id": confirmed["visual_plan"]["record"]["id"]}, chapter_id
+                return {**source, "visual_plan_id": confirmed["visual_plan"]["record"]["id"]}, chapter_id, root_project_id
 
             def detail(project_id, kind):
                 runs = call("list_workflow_runs", {"project_id": project_id, "workflow_kind": kind, "chapter_id": None, "status": None, "resumable_only": False, "limit": 20})
@@ -114,7 +155,7 @@ def main():
 
             model()
             for fault, expected, prefix in [("shooting-layout", "slugline", 0), ("shooting-adaptation", "actor", 1), ("shooting-design", "lens_intent", 2)]:
-                source, _ = shooting_source(fault, 2)
+                source, _, _ = shooting_source(fault, 2)
                 model(fault)
                 before = len(calls())
                 error = shooting(source, expected)
@@ -128,7 +169,7 @@ def main():
                 assert len(calls()) - before == 6 - prefix, (fault, len(calls()) - before)
                 report["checks"].append({"fault": fault, "error": error, "reused_calls": prefix, "retry_calls": 6 - prefix})
 
-            source, _ = shooting_source("shooting second-shot checkpoint", 1, shots_per_unit=3)
+            source, _, _ = shooting_source("shooting second-shot checkpoint", 1, shots_per_unit=3)
             model("shooting-design-second-shot")
             before = len(calls())
             shooting(source, "lens_intent")
@@ -144,7 +185,7 @@ def main():
             assert len(calls()) - before == 2, len(calls()) - before
             report["checks"].append({"fault": "shooting-design-second-shot", "reused_calls": 3, "retry_calls": 2})
 
-            video_source, video_chapter_id = shooting_source("video strict JSON checkpoint", 2)
+            video_source, video_chapter_id, _ = shooting_source("video strict JSON checkpoint", 2)
             shooting(video_source)
             video_request = {"project_id": video_source["project_id"], "operation": {
                 "kind": "prompt_segment_plan", "chapter_id": video_chapter_id, "options": {
@@ -179,53 +220,132 @@ def main():
             assert len(calls()) - before == 2, len(calls()) - before
             report["checks"].append({"fault": "blueprint-characters", "reused_calls": 2, "retry_calls": 2})
 
-            source, chapter_id = shooting_source("derived media checkpoint boundary", 1)
+            source, chapter_id, root_project_id = shooting_source("derived media checkpoint boundary", 1)
             shooting(source)
-            for name in ("林岚", "周衡"):
-                call("create_profile", {"project_id": source["project_id"], "name": name,
-                    "base_attributes": {"explicit_attributes": {}, "implicit_attributes": {}, "social_attributes": {}}})
 
-            def derived(kind, title):
-                project = call("create_derived_project", {"root_project_id": source["project_id"], "derived_kind": kind, "title": title,
+            def derived(kind, title, parent_project_id):
+                project = call("create_derived_project", {"root_project_id": parent_project_id, "derived_kind": kind, "title": title,
                     "description": "isolated checkpoint fixture", "start_chapter": 1, "end_chapter": 1})
                 report["projects"].append(project["id"])
                 return project["id"]
 
-            for fault, expected, prefix in [("galgame-branch", "after_beat_ref", 0), ("galgame-script", "拍摄节拍", 1), ("galgame-staging", "原剧本行", 2), ("galgame-visual", "scene_index", 3)]:
-                project_id = derived("galgame", fault)
+            for fault, expected, prefix in [("galgame-branch", "after_beat_ref", 0), ("galgame-script", "未知改编节拍", 1), ("galgame-staging", "原剧本行", 2), ("galgame-visual", "背景引用的改编场景不存在", 3)]:
+                project_id = derived("galgame", fault, root_project_id)
                 value = {"project_id": project_id, "task_id": str(uuid.uuid4()), "resume_from_checkpoint": True, "start_from_stage": None}
                 model(fault)
                 before = len(calls())
                 error = reject("start_galgame_pipeline", value, expected)
-                assert len(calls()) - before == prefix + 1, (fault, len(calls()) - before)
+                assert len(calls()) - before == prefix + 2, (fault, len(calls()) - before)
                 model()
                 before = len(calls())
                 call("start_galgame_pipeline", {**value, "task_id": str(uuid.uuid4())})
                 assert len(calls()) - before == 4 - prefix, (fault, len(calls()) - before)
                 report["checks"].append({"fault": fault, "error": error, "reused_calls": prefix, "retry_calls": 4 - prefix})
 
-            def manga_result(project_id, expected=None, previous=None):
+            def manga_result(project_id, expected=None, previous=None, expected_task=None):
                 deadline = time.monotonic() + 60
+                last_binding_error = None
+                last_binding_task_status = None
                 while time.monotonic() < deadline:
-                    result = call("get_manga_pipeline_status", {"project_id": project_id, "chapter_id": chapter_id})
+                    try:
+                        result = call("get_manga_pipeline_status", {
+                            "project_id": project_id,
+                            "chapter_id": chapter_id,
+                        })
+                    except RunnerError as error:
+                        if (
+                            expected_task is not None
+                            and any(
+                                message in str(error)
+                                for message in (
+                                    "缺少活动 Generation Task",
+                                    "generation task checkpoint 不存在",
+                                )
+                            )
+                        ):
+                            task_result = checked(
+                                cli,
+                                [
+                                    "task",
+                                    "get",
+                                    expected_task["task_id"],
+                                    "--attempt",
+                                    str(expected_task["attempt"]),
+                                ],
+                                "Manga task while workflow binding",
+                            )[0]["data"]
+                            task_handle = task_result.get("handle")
+                            if not isinstance(task_handle, dict):
+                                raise RunnerError(
+                                    "Manga task status 缺少 handle: "
+                                    f"{task_result}"
+                                ) from error
+                            task_status = task_handle.get("status")
+                            if task_status not in {
+                                "completed", "failed", "cancelled", "interrupted"
+                            }:
+                                last_binding_error = str(error)
+                                last_binding_task_status = task_status
+                                time.sleep(0.1)
+                                continue
+                        try:
+                            runs = call("list_workflow_runs", {
+                                "project_id": project_id,
+                                "chapter_id": chapter_id,
+                                "workflow_kind": "manga_pipeline",
+                                "status": None,
+                                "resumable_only": False,
+                                "limit": 20,
+                            })
+                            workflows = [
+                                {
+                                    "id": run.get("id"),
+                                    "status": run.get("status"),
+                                    "active_task_id": run.get("active_task_id"),
+                                }
+                                for run in runs
+                            ]
+                        except RunnerError as diagnostic_error:
+                            workflows = f"diagnostic failed: {diagnostic_error}"
+                        expected_id = expected_task.get("task_id") if expected_task else None
+                        raise RunnerError(
+                            f"{error}; expected_generation_task={expected_id}; "
+                            f"manga_workflows={workflows}"
+                        ) from error
                     # Wait for the resumed task to publish a new terminal summary.
                     if result == previous:
                         time.sleep(0.1)
                         continue
                     previous = None
+                    task_handle = result.get("task_handle")
+                    if (
+                        result.get("pipeline_status") == "running"
+                        and expected_task is not None
+                        and isinstance(task_handle, dict)
+                        and task_handle.get("task_id") != expected_task.get("task_id")
+                    ):
+                        raise RunnerError(
+                            "fixture Manga pipeline task identity mismatch: "
+                            f"started={expected_task.get('task_id')}, "
+                            f"status={task_handle.get('task_id')}"
+                        )
                     if result["pipeline_status"] in {"completed", "failed", "cancelled"}:
                         assert result["pipeline_status"] == ("failed" if expected else "completed"), result
                         if expected:
                             assert expected in json.dumps(result, ensure_ascii=False), result
                         return result
                     time.sleep(0.1)
-                raise RunnerError("manga fixture did not terminate")
+                raise RunnerError(
+                    "manga fixture did not terminate; "
+                    f"last_binding_task_status={last_binding_task_status}; "
+                    f"last_binding_error={last_binding_error}"
+                )
 
             early_faults = [
-                ("manga-speech", 1, "不存在的拍摄节拍"),
-                ("manga-visual", 2, "不存在的拍摄节拍"),
-                ("manga-items", 3, "不存在的拍摄节拍"),
-                ("manga-slots", 5, "不存在的改编节拍"),
+                ("manga-speech", 2, "不存在的改编节拍"),
+                ("manga-visual", 3, "不存在的改编节拍"),
+                ("manga-items", 4, "不存在的改编节拍"),
+                ("manga-slots", 6, "不存在的改编节拍"),
             ]
             early_fault_names = {name for name, _, _ in early_faults}
             page_faults = [
@@ -233,10 +353,15 @@ def main():
                 ("manga-storyboard", "page_number 必须等于"),
                 ("manga-drawing", "image_prompt"),
             ]
-            for fault, prefix, expected in [*early_faults, *((name, 6, message) for name, message in page_faults)]:
-                manga_source, chapter_id = shooting_source(fault, 1)
+            for fault, prefix, expected in [*early_faults, *((name, 7, message) for name, message in page_faults)]:
+                manga_source, chapter_id, root_project_id = shooting_source(fault, 1)
                 shooting(manga_source)
-                project_id = manga_source["project_id"]
+                manga_project = call("create_derived_project", {
+                    "root_project_id": root_project_id, "derived_kind": "comic", "title": fault + " 漫画",
+                    "description": "isolated checkpoint fixture", "start_chapter": 1, "end_chapter": 1,
+                })
+                report["projects"].append(manga_project["id"])
+                project_id = manga_project["id"]
                 value = {
                     "project_id": project_id,
                     "chapter_number": 1,
@@ -244,8 +369,10 @@ def main():
                 }
                 model(fault)
                 before = len(calls())
-                call("start_manga_pipeline", value)
-                failed = manga_result(project_id, expected)
+                started = call("start_manga_pipeline", {
+                    **value, "meta": {"start_request_id": str(uuid.uuid4())},
+                })
+                failed = manga_result(project_id, expected, expected_task=started)
                 start_calls = len(calls()) - before
                 if fault in early_fault_names:
                     assert start_calls == prefix + 1, (fault, start_calls)
@@ -253,7 +380,7 @@ def main():
                     assert start_calls > prefix, (fault, start_calls)
                 pages_before_resume = call("list_manga_page_prompts", {"project_id": project_id, "chapter_id": chapter_id})
                 if fault in early_fault_names:
-                    expected_retry_calls = 6 + 3 * 2 - prefix
+                    expected_retry_calls = 7 + 3 * 2 - prefix
                 else:
                     expected_retry_calls = sum(
                         page.get("page_adaptation") is None
@@ -263,18 +390,25 @@ def main():
                     )
                 model()
                 before = len(calls())
-                call("resume_manga_pipeline", value)
-                manga_result(project_id, previous=failed)
+                resumed = call("resume_manga_pipeline", {
+                    **value, "meta": {"start_request_id": str(uuid.uuid4())},
+                })
+                manga_result(project_id, previous=failed, expected_task=resumed)
                 pages = call("list_manga_page_prompts", {"project_id": project_id, "chapter_id": chapter_id})
                 assert pages and len(calls()) - before == expected_retry_calls, (fault, len(calls()) - before, expected_retry_calls, len(pages))
                 assert all(page["page_adaptation"] and page["page_plan"] and page["drawing_prompt"] for page in pages)
                 report["checks"].append({"fault": fault, "reused_calls": start_calls, "retry_calls": len(calls()) - before})
 
-            value = {"prompt_id": pages[0]["id"], "instruction": "增强画面构图", "downstream_strategy": "reject"}
+            page_before_optimization = pages[0]
+            generated_image_id = page_before_optimization.get("generated_image_id")
+            if not isinstance(generated_image_id, int) or generated_image_id <= 0:
+                raise RunnerError("checkpoint Manga optimization fixture has no generated image")
+            value = {"prompt_id": page_before_optimization["id"], "instruction": "增强画面构图", "downstream_strategy": "keep_downstream"}
             model("manga-optimization")
             reject("optimize_manga_prompt", value, "image_prompt")
             model()
-            call("optimize_manga_prompt", value)
+            optimized_page = call("optimize_manga_prompt", value)
+            assert optimized_page["generated_image_id"] == generated_image_id, optimized_page
             optimized = detail(project_id, "manga_prompt_optimization")
             assert optimized["run"]["status"] == "completed", optimized
             assert len(optimized["checkpoints"]) == 1 and optimized["checkpoints"][0]["status"] == "completed", optimized
@@ -282,14 +416,14 @@ def main():
 
             permissions = {"read_project_detail": True, "read_blueprint": True, "read_outlines": True,
                 "read_character_profiles": True, "read_foreshadowing": True, "automatic_writeback": False}
-            session = call("create_optimization_analysis_session", {"project_id": project_id, "chapter_number": 1,
+            session = call("create_optimization_analysis_session", {"project_id": root_project_id, "chapter_number": 1,
                 "name": "checkpoint validation", "mode": "quick", "permissions": permissions})
             model("optimization-final")
             before = len(calls())
             first = call("start_optimize_analysis_generation", {"session_id": session["id"], "meta": {"start_request_id": str(uuid.uuid4())}})
             task(first, "missing-span")
             failed_calls = len(calls()) - before
-            failed = detail(project_id, None)
+            failed = detail(root_project_id, None)
             assert sum(item["status"] == "completed" for item in failed["checkpoints"]) == failed_calls - 1, failed
             model()
             before = len(calls())
@@ -310,7 +444,7 @@ def main():
             assert len(calls()) - before == 1, len(calls()) - before
             report["checks"].append({"fault": "optimization-patch", "retry_calls": 1})
             before_images = len(provider_log_entries(args.provider_log))
-            image_result = task(call("start_image_generation", {"project_id": project_id,
+            image_result = task(call("start_image_generation", {"project_id": root_project_id,
                 "meta": {"start_request_id": str(uuid.uuid4())}, "operation": {
                     "kind": "scene", "prompt": "安静的室内场景，清晰的门口与通道", "config_id": 900002,
                     "chapter_id": chapter_id, "width": 1024, "height": 1024}}))

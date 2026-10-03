@@ -1,6 +1,13 @@
-use a4n_domain::{source_spans::source_spans_for_content, source_text_hash};
+use std::collections::{HashMap, HashSet};
+
+use a4n_domain::{
+    source_spans::{SourceSpan, source_spans_for_content},
+    source_text_hash,
+};
 use a4n_error::AppError;
 use serde_json::{Value, json};
+
+use crate::source_markers::SourceMarkerMap;
 
 const MAX_READ_BYTES: usize = 16 * 1024;
 
@@ -26,13 +33,20 @@ pub(super) fn read_source(
             ));
         }
     };
+    if source == "current_chapter"
+        && (path == "/source_spans" || path.starts_with("/source_spans/"))
+    {
+        return Err(AppError::InvalidArgument(
+            "请读取 current_chapter 正文；来源标记随正文返回，不能直接读取内部 span 记录".into(),
+        ));
+    }
     let selected = value
         .pointer(path)
         .ok_or_else(|| AppError::InvalidArgument(format!("信息源不存在路径: {path}")))?;
     let offset = unsigned(arguments, "offset", 0)?;
-    let chapter = source == "current_chapter" && path.is_empty();
-    let text = if chapter {
-        selected.get("content").and_then(Value::as_str)
+    let chapter_content = source == "current_chapter" && (path.is_empty() || path == "/content");
+    let text = if chapter_content {
+        value.get("content").and_then(Value::as_str)
     } else {
         selected.as_str()
     };
@@ -46,19 +60,30 @@ pub(super) fn read_source(
             .skip(offset)
             .take(end - offset)
             .collect::<String>();
-        let content = if chapter {
-            let chapter_number = selected
-                .get("chapter_number")
-                .and_then(Value::as_i64)
-                .and_then(|number| i32::try_from(number).ok())
-                .ok_or_else(|| {
-                    AppError::InvalidArgument("current_chapter 缺少 chapter_number".into())
-                })?;
-            let spans = source_spans_for_content(0, chapter_number, text).into_iter()
+        let content = if chapter_content {
+            let (all_source_spans, marker_map) = current_chapter_source_data(value)?;
+            let source_spans = all_source_spans
+                .into_iter()
                 .filter(|span| span.char_start >= offset && span.char_end <= end)
-                .map(|span| json!({"id": span.id, "text": span.text, "paragraph_index": span.paragraph_index}))
                 .collect::<Vec<_>>();
-            json!({"chapter_number": chapter_number, "content": page, "source_spans": spans})
+            let ranges = source_spans
+                .iter()
+                .map(|span| {
+                    (
+                        span.id.clone(),
+                        span.char_start - offset,
+                        span.char_end - offset,
+                        span.text.clone(),
+                    )
+                })
+                .collect::<Vec<_>>();
+            let marked_content = marker_map.mark_ranges(&page, ranges)?;
+            let content = marker_map.encode_input(&json!({
+                "chapter_number": value["chapter_number"],
+                "content": marked_content,
+                "source_span_ids": source_spans.iter().map(|span| span.id.as_str()).collect::<Vec<_>>(),
+            }))?;
+            content
         } else {
             json!(page)
         };
@@ -133,6 +158,30 @@ pub(in crate::optimize) fn source_hash(value: &Value) -> Result<String, AppError
     Ok(source_text_hash(&serde_json::to_string(value)?))
 }
 
+pub(in crate::optimize) fn current_chapter_source_data(
+    chapter: &Value,
+) -> Result<(Vec<SourceSpan>, SourceMarkerMap), AppError> {
+    let content = chapter
+        .get("content")
+        .and_then(Value::as_str)
+        .ok_or_else(|| AppError::InvalidArgument("current_chapter 缺少正文".into()))?;
+    let chapter_number = chapter
+        .get("chapter_number")
+        .and_then(Value::as_i64)
+        .and_then(|number| i32::try_from(number).ok())
+        .ok_or_else(|| AppError::InvalidArgument("current_chapter 缺少 chapter_number".into()))?;
+    let source_spans = source_spans_for_content(0, chapter_number, content);
+    let source_markers =
+        SourceMarkerMap::from_spans_and_values(&source_spans, std::iter::once(chapter))?;
+    Ok((source_spans, source_markers))
+}
+
+pub(in crate::optimize) fn current_chapter_source_markers(
+    chapter: &Value,
+) -> Result<SourceMarkerMap, AppError> {
+    current_chapter_source_data(chapter).map(|(_, source_markers)| source_markers)
+}
+
 /// Evidence is restricted to complete spans actually returned by a successful
 /// read of this snapshot. A search snippet or partial sentence is not evidence.
 pub(in crate::optimize) fn observed_evidence_context(
@@ -143,7 +192,13 @@ pub(in crate::optimize) fn observed_evidence_context(
         .get("current_chapter")
         .ok_or_else(|| AppError::InvalidArgument("缺少 current_chapter".into()))?;
     let hash = source_hash(chapter)?;
+    let (source_spans, source_markers) = current_chapter_source_data(chapter)?;
+    let source_spans_by_id = source_spans
+        .iter()
+        .map(|span| (span.id.as_str(), span))
+        .collect::<HashMap<_, _>>();
     let mut spans = Vec::new();
+    let mut seen = HashSet::new();
     for observation in observations {
         if observation.get("success").and_then(Value::as_bool) != Some(true) {
             continue;
@@ -157,15 +212,28 @@ pub(in crate::optimize) fn observed_evidence_context(
         {
             continue;
         }
-        if let Some(read) = result
-            .pointer("/content/source_spans")
+        let Some(read_ids) = result
+            .pointer("/content/source_span_ids")
             .and_then(Value::as_array)
-        {
-            spans.extend(read.iter().cloned());
-        } else if result.get("path").and_then(Value::as_str) == Some("/source_spans")
-            && let Some(read) = result.get("content").and_then(Value::as_array)
-        {
-            spans.extend(read.iter().cloned());
+        else {
+            continue;
+        };
+        let decoded = source_markers.decode_output(&json!({"source_span_ids": read_ids}))?;
+        for id in decoded["source_span_ids"].as_array().into_iter().flatten() {
+            let Some(id) = id.as_str() else {
+                continue;
+            };
+            if !seen.insert(id.to_string()) {
+                continue;
+            }
+            let span = source_spans_by_id.get(id).ok_or_else(|| {
+                AppError::InvalidArgument(format!("已读取的 source_span_id 不在当前章节中: {id}"))
+            })?;
+            spans.push(json!({
+                "id": span.id,
+                "text": span.text,
+                "paragraph_index": span.paragraph_index,
+            }));
         }
     }
     Ok(json!({"current_chapter": {"source_spans": spans}}))

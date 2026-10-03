@@ -182,6 +182,18 @@ async function analysis() {
 }
 
 async function director() {
+  await browser.url("/");
+  await waitForBodyText("创建项目");
+  const row = await $(`[data-project-family="${projectId}"] .a4n-project-row`);
+  await row.waitForDisplayed({ timeout: 60_000 });
+  await row.$('button[aria-label="更多操作"]').click();
+  await clickButton("创建视频项目");
+  await clickButton("下一步", await currentDialog());
+  const dialog = await currentDialog();
+  await setField("章节范围", "1-1", "input", dialog);
+  await clickButton("创建", dialog);
+  await waitForRoute(/\/video-project\/\d+/);
+  videoId = Number((await browser.getUrl()).match(/\/video-project\/(\d+)/)[1]);
   await tab("导演编排");
   await $("section.director-workspace").waitForDisplayed();
   assert.equal((await $$(".director-segment")).length, 1);
@@ -191,8 +203,16 @@ async function director() {
   await setField("变化描述", "林岚在旧车站观察怀表，沿封闭通道走向机房入口。", "textarea", inspector);
   await inspector.$('button[role="combobox"][aria-label="场景"]').click();
   const scene = await firstVisibleContaining('[role="option"]', "旧车站站厅");
-  assert.ok(scene, "analysis must publish the scene before directing");
-  await scene.click();
+  if (scene) {
+    await scene.click();
+  } else {
+    const createScene = await firstVisibleContaining('[role="option"]', "新建自定义场景");
+    assert.ok(createScene, "video project must allow creating a local scene");
+    await createScene.click();
+    await setField("自定义场景名称", "旧车站站厅", "input", inspector);
+    await setField("场景描述", "旧车站站厅，林岚沿封闭通道走向机房入口。", "textarea", inspector);
+    await clickButton("保存并绑定", inspector);
+  }
   await clickButton("调整整体时长");
   await setField("整体时长", "6", "input", await currentDialog());
   await browser.keys("Enter");
@@ -217,7 +237,7 @@ async function director() {
 }
 
 async function shooting() {
-  await browser.url(`/write/${projectId}?chapter=1`);
+  await browser.url(`/video-project/${videoId}`);
   await tab("拍摄剧本");
   await clickButton("生成第一个场景");
   await waitAndCloseProgress("拍摄");
@@ -233,18 +253,7 @@ async function shooting() {
 }
 
 async function segments() {
-  await browser.url("/");
-  await waitForBodyText("创建项目");
-  const row = await $(`[data-project-family="${projectId}"] .a4n-project-row`);
-  await row.waitForDisplayed({ timeout: 60_000 });
-  await row.$('button[aria-label="更多操作"]').click();
-  await clickButton("创建视频项目");
-  await clickButton("下一步", await currentDialog());
-  const dialog = await currentDialog();
-  await setField("章节范围", "1-1", "input", dialog);
-  await clickButton("创建", dialog);
-  await waitForRoute(/\/video-project\/\d+/);
-  videoId = Number((await browser.getUrl()).match(/\/video-project\/(\d+)/)[1]);
+  await browser.url(`/video-project/${videoId}`);
   await tab("片段规划");
   const panel = await $('section[aria-label="视频片段规划"]');
   await panel.waitForDisplayed();

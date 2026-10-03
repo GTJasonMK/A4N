@@ -29,7 +29,7 @@ name: chapter_foreshadowing_events
       {
         "id": null,
         "description": "伏笔描述",
-        "original_text_span_id": "ch1:s3:f1",
+        "original_text_span_id": "#0",
         "category": "plot_twist",
         "priority": "high",
         "related_entities": ["相关角色或物品"]
@@ -39,7 +39,7 @@ name: chapter_foreshadowing_events
       {
         "id": "42",
         "resolution": "本章揭示门后的脚步声来自一直暗中守护主角的旧友",
-        "source_span_ids": ["ch1:s4:f1"]
+        "source_span_ids": ["#1"]
       }
     ],
     "progressed": [],
@@ -51,7 +51,7 @@ name: chapter_foreshadowing_events
       "description": "事件描述",
       "importance": "high",
       "involved_characters": ["角色1"],
-      "source_span_ids": ["ch1:s4:f1"]
+      "source_span_ids": ["#1"]
     }
   ]
 }
@@ -60,8 +60,8 @@ name: chapter_foreshadowing_events
 
 - `planted` 从 `facts.foreshadowing_candidates` 中筛选，字段名保持最终分析结构要求。
 - 已有同一伏笔时，`planted.id` 使用已有 ID 字符串；全新伏笔为 null。不要因为描述改写或补充细节创建重复条目。
-- `progressed` 记录尚未完全回收的推进或正文明确否定的线索，每项为 `{"id":"已有ID","status":"partially_revealed或abandoned","resolution":"变化说明","source_span_ids":["事实候选中的ID"]}`。空缺或本章没提到不能当作 abandoned。
-- `resolved` 和 `progressed` 都必须提供原文 `source_span_ids`，同一 ID 每章只出现一次。传闻、猜测不能当作回收或否定事实。
+- `progressed` 记录尚未完全回收的推进或正文明确否定的线索，每项为 `{"id":"已有ID","status":"partially_revealed或abandoned","resolution":"变化说明","source_span_ids":["事实候选中的短标记"]}`。空缺或本章没提到不能当作 abandoned。
+- `resolved` 和 `progressed` 都必须原样保留事实候选提供的十进制来源短标记，同一 ID 每章只出现一次。传闻、猜测不能当作回收或否定事实。
 - `key_events` 从 `facts.event_candidates` 中筛选，字段名保持最终分析结构要求。
 - `resolved` 只填写本章正文确实已经回收的旧伏笔；`id` 必须原样取自 `pending_foreshadowing`，`resolution` 简洁说明本章如何完成回收。
 - `pending_foreshadowing` 中 `payoff_chapter` 等于当前章的记录表示上一次分析曾认定它在本章回收。重新分析时必须依据当前正文重新判断：仍成立就保留在 `resolved`，不再成立就不要输出。
@@ -75,7 +75,7 @@ name: chapter_foreshadowing_events
 
 - 不要输出 `metadata`、`summaries`、`character_states`。
 - 不要输出自由原文证据；只输出候选中的 source span id。
-- 不要编造、改写或重复输出 `pending_foreshadowing` 中不存在的伏笔 id。
+- 不要编造、改写或重复输出 `pending_foreshadowing` 中不存在的伏笔 id；来源引用必须使用输入中提供的短标记。
 - 不要输出 Markdown、代码块、解释文字或额外字段。
 
 <!-- @include _partials/json_only_rule.md -->

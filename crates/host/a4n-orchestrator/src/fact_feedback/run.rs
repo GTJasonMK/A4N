@@ -267,6 +267,7 @@ impl OrchestratorContext {
                 &response.message.content,
                 FACT_CONSOLIDATION_PROMPT,
             )?;
+            let value = prepared.source_markers.decode_output(&value)?;
             let output = parse_output(value.clone())?;
             self.save_completed_llm_call_checkpoint(CompletedLlmCallCheckpointInput {
                 workflow_run_id: run.id,

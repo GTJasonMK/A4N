@@ -1,6 +1,6 @@
 use a4n_domain::manga::{
-    MangaPageGenerationLayoutV3, MangaPagePromptSourceSummary, MangaReferenceAssetKind,
-    MangaReferenceBindingSummary,
+    MangaPageGenerationLayoutV3, MangaPageGenerationLayoutV4, MangaPagePromptSourceSummary,
+    MangaReferenceAssetKind, MangaReferenceBindingSummary,
 };
 use serde_json::Value;
 
@@ -14,6 +14,26 @@ pub(in crate::project::family::import) fn remap_manga_page_layout(
     expected_page_number: u32,
     label: &str,
 ) -> Result<Value, ProjectFamilyImportError> {
+    if value.get("schema_version").and_then(Value::as_str) == Some("manga_page_generation_v4") {
+        let mut layout: MangaPageGenerationLayoutV4 = serde_json::from_value(value.clone())
+            .map_err(|error| {
+                ProjectFamilyImportError::invalid_package(format!("{label} 无效: {error}"))
+            })?;
+        layout.validate(expected_page_number).map_err(|error| {
+            ProjectFamilyImportError::invalid_package(format!("{label} 无效: {error}"))
+        })?;
+        remap_manga_page_references(
+            &mut layout.source,
+            &mut layout.page_plan_ref,
+            &mut layout.reference_bindings,
+            maps,
+            label,
+        )?;
+        return serde_json::to_value(layout).map_err(|error| {
+            ProjectFamilyImportError::invalid_package(format!("{label} 序列化失败: {error}"))
+        });
+    }
+
     let mut layout: MangaPageGenerationLayoutV3 =
         serde_json::from_value(value.clone()).map_err(|error| {
             ProjectFamilyImportError::invalid_package(format!("{label} 无效: {error}"))
@@ -22,8 +42,27 @@ pub(in crate::project::family::import) fn remap_manga_page_layout(
         ProjectFamilyImportError::invalid_package(format!("{label} 无效: {error}"))
     })?;
 
-    remap_manga_page_source(&mut layout.source, maps, label)?;
-    if let Some(reference) = layout.page_plan_ref.as_mut() {
+    remap_manga_page_references(
+        &mut layout.source,
+        &mut layout.page_plan_ref,
+        &mut layout.reference_bindings,
+        maps,
+        label,
+    )?;
+    serde_json::to_value(layout).map_err(|error| {
+        ProjectFamilyImportError::invalid_package(format!("{label} 序列化失败: {error}"))
+    })
+}
+
+fn remap_manga_page_references(
+    source: &mut MangaPagePromptSourceSummary,
+    page_plan_ref: &mut Option<a4n_domain::media_authoring::AuthoringDocumentRef>,
+    reference_bindings: &mut [MangaReferenceBindingSummary],
+    maps: &ImportIdMaps,
+    label: &str,
+) -> Result<(), ProjectFamilyImportError> {
+    remap_manga_page_source(source, maps, label)?;
+    if let Some(reference) = page_plan_ref.as_mut() {
         let old = reference.id;
         reference.id = map_required(&maps.authoring_document_ids, old, "漫画分页计划")?;
         reference.sha256 = maps
@@ -32,10 +71,7 @@ pub(in crate::project::family::import) fn remap_manga_page_layout(
             .cloned()
             .ok_or_else(|| ProjectFamilyImportError::invalid_package("漫画分页计划哈希映射缺失"))?;
     }
-    remap_manga_reference_bindings(&mut layout.reference_bindings, maps, label)?;
-    serde_json::to_value(layout).map_err(|error| {
-        ProjectFamilyImportError::invalid_package(format!("{label} 序列化失败: {error}"))
-    })
+    remap_manga_reference_bindings(reference_bindings, maps, label)
 }
 
 pub(in crate::project::family::import) fn remap_manga_reference_bindings_value(
@@ -168,4 +204,77 @@ fn remap_manga_reference_bindings(
         })?;
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn remap_manga_page_layout_preserves_v4_intermediate_pipeline() {
+        let mut maps = ImportIdMaps::default();
+        maps.project_ids.insert(1, 10);
+        maps.chapter_ids.insert(2, 20);
+        maps.authoring_document_ids.insert(3, 30);
+        maps.authoring_document_sha256s
+            .insert(3, "remapped-plan-sha256".into());
+
+        let layout = json!({
+            "schema_version": "manga_page_generation_v4",
+            "page_id": "page-0001",
+            "page_number": 1,
+            "page_plan_ref": null,
+            "pipeline": {
+                "schema_version": "manga_page_pipeline_state_v1",
+                "page_id": "page-0001",
+                "status": "pending",
+                "stage": "content",
+                "attempt": 1,
+                "source_fingerprint": "content-sha256",
+                "stage_fingerprints": {},
+                "page_content": {
+                    "summary": "本页内容",
+                    "source_span_ids": [],
+                    "beat_refs": [{"unit_id": "unit-1", "beat_id": "beat-1"}],
+                    "action": "角色抬头",
+                    "reaction": null,
+                    "dialogue_intent": null,
+                    "entry_state": "平静",
+                    "exit_state": "紧张"
+                },
+                "page_adaptation": null,
+                "storyboard": null,
+                "drawing_prompt": null,
+                "image": null,
+                "error": null
+            },
+            "reference_bindings": [],
+            "prompt_fingerprint": {},
+            "source": {
+                "root_project_id": 1,
+                "source_chapter_id": 2,
+                "source_snapshot_id": null,
+                "source_snapshot_chapter_id": null,
+                "source_revision_key": "live:2:content-sha256",
+                "content_sha256": "content-sha256",
+                "adaptation_plan_id": 3,
+                "adaptation_plan_revision": 1,
+                "adaptation_plan_sha256": "plan-sha256"
+            }
+        });
+
+        let remapped = remap_manga_page_layout(&layout, &maps, 1, "fixture").unwrap();
+
+        assert_eq!(remapped["schema_version"], "manga_page_generation_v4");
+        assert_eq!(remapped["source"]["root_project_id"], 10);
+        assert_eq!(remapped["source"]["source_chapter_id"], 20);
+        assert_eq!(remapped["source"]["adaptation_plan_id"], 30);
+        assert_eq!(
+            remapped["source"]["source_revision_key"],
+            "live:20:content-sha256"
+        );
+        assert_eq!(remapped["pipeline"]["stage"], "content");
+        assert_eq!(remapped["pipeline"]["page_content"]["summary"], "本页内容");
+    }
 }

@@ -1,10 +1,11 @@
 use std::collections::HashMap;
 
-use a4n_domain::source_spans::{source_span_prompt_values, source_spans_for_content};
+use a4n_domain::source_spans::source_spans_for_content;
 use a4n_error::AppError;
 use serde_json::json;
 
 use crate::OrchestratorContext;
+use crate::source_markers::SourceMarkerMap;
 
 use super::ChapterShootingScriptSourceInput;
 use super::contracts::{
@@ -40,6 +41,7 @@ impl OrchestratorContext {
                 source.source_chapter_id
             )));
         }
+        let source_markers = SourceMarkerMap::from_source_spans(&source_spans)?;
         let visual_plan_projection =
             crate::chapter_visual_plan::project_visual_plan_for_shooting_script(
                 &visual_plan.plan,
@@ -71,7 +73,7 @@ impl OrchestratorContext {
                 &HashMap::new(),
                 Some(input.project_id),
             )?)?;
-        let user_payload = json!({
+        let mut user_payload = json!({
             "source": {
                 "root_project_id": source.root_project_id,
                 "source_chapter_id": source.source_chapter_id,
@@ -83,8 +85,10 @@ impl OrchestratorContext {
                 "content_sha256": source.content_sha256,
                 "source_revision_key": source.source_revision_key,
             },
-            "source_spans": source_span_prompt_values(&source_spans),
         });
+        user_payload["source"]["content"] =
+            serde_json::Value::String(source_markers.mark_text(&source.content, &source_spans)?);
+        let user_payload = source_markers.encode_input(&user_payload)?;
         let input_fingerprint_json = json!({
             "workflow": CHAPTER_SHOOTING_SCRIPT_WORKFLOW,
             "shot_ids": &input.shot_ids,
@@ -117,6 +121,7 @@ impl OrchestratorContext {
         Ok(PreparedChapterShootingScriptRequest {
             source,
             source_spans,
+            source_markers,
             input_fingerprint_sha256,
             existing,
             visual_plan,

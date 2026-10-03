@@ -10,6 +10,7 @@ import {
   getTaskHistory,
   getTaskProgressEvents,
 } from "./task";
+import { cancelAdminTask } from "./admin/tasks";
 import {
   cancelWorkflow,
   cancelWorkflowTask,
@@ -22,18 +23,22 @@ import {
 
 beforeEach(() => {
   mocks.apiInvoke.mockReset();
-  mocks.apiInvoke.mockImplementation((command: string) =>
-    Promise.resolve(
-      command === "get_workflow_progress_events"
-        ? { events: [], stream_text: null }
-        : null,
-    ),
-  );
+  mocks.apiInvoke.mockImplementation((command: string) => {
+    if (command === "cancel_task" || command === "cancel_admin_task") {
+      return Promise.resolve(true);
+    }
+    if (command === "cancel_workflow") return Promise.resolve(false);
+    if (command === "get_workflow_progress_events") {
+      return Promise.resolve({ events: [], stream_text: null });
+    }
+    return Promise.resolve(null);
+  });
 });
 
 describe("task and workflow host contracts", () => {
   it("uses generated inputs without caller-controlled user identity", async () => {
-    await cancelTask("task-1");
+    await expect(cancelTask("task-1")).resolves.toBe(true);
+    await expect(cancelAdminTask("admin-task-1")).resolves.toBe(true);
     await getQueueStats();
     await getTaskHistory(7, 0, 30);
     await getTaskProgressEvents("task-1", 20);
@@ -42,11 +47,12 @@ describe("task and workflow host contracts", () => {
     await getWorkflowRunDetail(9, true);
     await resumeWorkflowRun(9);
     await getWorkflowRunProgressEvents(9, 20);
-    await cancelWorkflowTask("task-1");
-    await cancelWorkflow({ task_id: null, workflow_run_id: 9 });
+    await expect(cancelWorkflowTask("task-1")).resolves.toBe(false);
+    await expect(cancelWorkflow({ task_id: null, workflow_run_id: 9 })).resolves.toBe(false);
 
     expect(mocks.apiInvoke.mock.calls).toEqual([
       ["cancel_task", { taskId: "task-1" }],
+      ["cancel_admin_task", { taskId: "admin-task-1" }],
       ["get_queue_stats"],
       ["get_task_history", { projectId: 7, offset: 0, limit: 30 }],
       [

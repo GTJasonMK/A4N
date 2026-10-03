@@ -36,6 +36,7 @@ pub(super) async fn preview_items(
         user_content: manga_item_extraction_user_message(
             input.speech_json.clone(),
             input.visual_json.clone(),
+            &context.source_markers,
         )?,
         temperature: 0.3,
     })

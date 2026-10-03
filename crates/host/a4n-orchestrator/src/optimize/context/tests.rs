@@ -47,7 +47,7 @@ fn context_manifest_returns_empty_contract_for_non_object_input() {
 }
 
 #[test]
-fn chapter_projection_trims_optional_text_and_exposes_source_spans_only_for_current_chapter() {
+fn chapter_projection_trims_optional_text_without_copying_derived_source_spans() {
     let timestamp = chrono::NaiveDate::from_ymd_opt(2026, 7, 13)
         .unwrap()
         .and_hms_opt(12, 0, 0)
@@ -73,7 +73,7 @@ fn chapter_projection_trims_optional_text_and_exposes_source_spans_only_for_curr
     assert_eq!(current["title"], json!("旧城回声"));
     assert_eq!(current["summary"], json!("主角听见回声。"));
     assert_eq!(current["status"], json!("completed"));
-    assert!(!current["source_spans"].as_array().unwrap().is_empty());
+    assert!(current.get("source_spans").is_none());
 
     let neighboring = optimization_chapter_summary_context(&OptimizationChapterSummaryRecord {
         chapter_number: chapter.chapter_number,

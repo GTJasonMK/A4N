@@ -37,6 +37,7 @@ pub(super) async fn preview_speech(
             input.characters_json.clone(),
             input.events_json.clone(),
             &context.source_spans,
+            &context.source_markers,
             input.reference_assets.clone(),
         )?,
         temperature: 0.3,

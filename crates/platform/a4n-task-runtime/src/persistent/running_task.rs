@@ -31,6 +31,7 @@ impl RunningTask {
         a4n_db::queue::update_task_status(self.db.as_ref(), &task_id, "completed", None)
             .await
             .map_err(queue_db_error)
+            .map(|_| ())
     }
 
     pub async fn fail(mut self, error: &str) -> Result<(), AppError> {
@@ -40,6 +41,7 @@ impl RunningTask {
         a4n_db::queue::update_task_status(self.db.as_ref(), &task_id, "failed", Some(error))
             .await
             .map_err(queue_db_error)
+            .map(|_| ())
     }
 
     pub async fn cancel(mut self) -> Result<(), AppError> {
@@ -49,6 +51,7 @@ impl RunningTask {
         a4n_db::queue::update_task_status(self.db.as_ref(), &task_id, "cancelled", None)
             .await
             .map_err(queue_db_error)
+            .map(|_| ())
     }
 
     pub(in crate::persistent) async fn finish<T>(

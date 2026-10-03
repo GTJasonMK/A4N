@@ -13,7 +13,7 @@ pub(super) async fn list_pending_tasks(
         .map_err(|error| error.to_string())
 }
 
-pub(super) async fn cancel_admin_task(state: &AppState, task_id: &str) -> Result<(), String> {
+pub(super) async fn cancel_admin_task(state: &AppState, task_id: &str) -> Result<bool, String> {
     state
         .task_cancellation_application()
         .cancel(task_id)

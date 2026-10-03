@@ -83,6 +83,7 @@ pub(super) async fn generate_shooting_scene(
                 progress,
                 stream_reporter,
                 cancel_token,
+                Some(&prepared.source_markers),
                 |output| validate_design_shot(output, unit, planned_shot, &facts, prepared),
             )
             .await?;

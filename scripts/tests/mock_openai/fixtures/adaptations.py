@@ -6,19 +6,24 @@ import json
 import re
 from typing import Any
 
-from mock_openai.fixtures.entities import source_span_id
+from mock_openai.fixtures.entities import source_marker_pairs, source_span_id
 from mock_openai.fixtures.reverse import embedded_json_objects
 from mock_openai.prompt_parsing import json_task_payload
 from mock_openai.protocol import UnhandledPromptError
 
 
 def media_adaptation_response(combined: str) -> dict[str, Any]:
-    payloads = [value for value in embedded_json_objects(combined)
-                if value.get("target") in {"manga", "galgame"} and "chapter" in value and "source_spans" in value]
+    payloads = [
+        value
+        for value in embedded_json_objects(combined)
+        if value.get("target") in {"manga", "galgame"}
+        and isinstance(value.get("chapter"), dict)
+        and isinstance(value["chapter"].get("content"), str)
+    ]
     if not payloads:
         raise UnhandledPromptError("adaptation prompt contains no source chapter")
     payload = payloads[-1]
-    spans = [span["id"] for span in payload["source_spans"]]
+    spans = [marker for marker, _ in source_marker_pairs(payload["chapter"]["content"])]
     if not spans:
         raise UnhandledPromptError("adaptation prompt contains no source evidence")
     result = {
@@ -105,13 +110,12 @@ def galgame_branch_design_response(combined: str) -> dict[str, Any]:
     }
 
 
-def galgame_source_span_id(
-    source_spans: list[dict[str, Any]], phrase: str, fallback_index: int
-) -> str:
-    for span in source_spans:
-        if phrase in str(span.get("text", "")):
-            return str(span["id"])
-    return str(source_spans[fallback_index]["id"])
+def galgame_source_span_id(chapter_content: str, phrase: str, fallback_index: int) -> str:
+    source_spans = source_marker_pairs(chapter_content)
+    for marker, text in source_spans:
+        if phrase in text:
+            return marker
+    return source_spans[fallback_index][0]
 
 
 def galgame_script_adaptation_response(combined: str) -> dict[str, Any]:
@@ -120,11 +124,12 @@ def galgame_script_adaptation_response(combined: str) -> dict[str, Any]:
     scene = scenes[0]
     branch_design = galgame_shared_step(combined, "branch_design")
     beat_ref = galgame_beat_ref(scene)
-    source_spans = task_input["chapters"][0]["source_spans"]
-    first_span = galgame_source_span_id(source_spans, "雨", 0)
-    zhou_span = galgame_source_span_id(source_spans, "十年前", min(3, len(source_spans) - 1))
-    watch_span = galgame_source_span_id(source_spans, "怀表", 0)
-    final_span = galgame_source_span_id(source_spans, "十八分钟", len(source_spans) - 1)
+    chapter_content = task_input["chapters"][0]["content"]
+    source_spans = source_marker_pairs(chapter_content)
+    first_span = galgame_source_span_id(chapter_content, "雨", 0)
+    zhou_span = galgame_source_span_id(chapter_content, "十年前", min(3, len(source_spans) - 1))
+    watch_span = galgame_source_span_id(chapter_content, "怀表", 0)
+    final_span = galgame_source_span_id(chapter_content, "十八分钟", len(source_spans) - 1)
     branch_lines = []
     for choice in branch_design["choices"]:
         for option in choice["options"]:
@@ -371,7 +376,7 @@ def manga_available_source_span_ids(combined: str) -> list[str]:
     matches = re.findall(
         r'"available_source_span_ids"\s*:\s*\[(.*?)\]', combined, re.DOTALL
     )
-    source_span_ids = re.findall(r'"(ch\d+:s\d+:f\d+)"', matches[-1]) if matches else []
+    source_span_ids = re.findall(r'"(#\d+)"', matches[-1]) if matches else []
     if not source_span_ids:
         raise UnhandledPromptError("manga prompt contains no available source span ids")
     return source_span_ids

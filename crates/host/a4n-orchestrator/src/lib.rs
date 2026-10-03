@@ -38,6 +38,7 @@ pub(crate) mod prompt_records;
 pub mod rag;
 pub(crate) mod scene_profile;
 pub(crate) mod shooting_script;
+pub(crate) mod source_markers;
 pub(crate) mod source_sync;
 mod structured_llm;
 mod text_anchor;

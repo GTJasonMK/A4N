@@ -14,18 +14,30 @@ def annotated_source_pairs(combined: str) -> list[tuple[str, str]]:
         content = value.get("content")
         if not isinstance(content, str):
             continue
-        markers = list(re.finditer(r"⟦(ch\d+:s\d+:f\d+|\d+)⟧", content))
+        markers = list(re.finditer(r"⟦(\d+)⟧", content))
         for index, marker in enumerate(markers):
             end = markers[index + 1].start() if index + 1 < len(markers) else len(content)
             pairs.append((marker.group(1), content[marker.end():end]))
     return list(dict.fromkeys(pairs))
 
+
+def source_marker_pairs(content: str) -> list[tuple[str, str]]:
+    markers = list(re.finditer(r"#(\d+) ", content))
+    pairs = []
+    for index, marker in enumerate(markers):
+        end = markers[index + 1].start() if index + 1 < len(markers) else len(content)
+        pairs.append((f"#{marker.group(1)}", content[marker.end() : end].strip()))
+    return pairs
+
+
 def source_span_pairs(combined: str) -> list[tuple[str, str]]:
-    annotated = [(identifier, quote) for identifier, quote in annotated_source_pairs(combined) if identifier.startswith("ch")]
-    structured = [(value["id"], value["text"]) for value in embedded_json_objects(combined)
-                  if isinstance(value.get("id"), str) and re.fullmatch(r"ch\d+:s\d+:f\d+", value["id"])
-                  and isinstance(value.get("text"), str)]
-    return list(dict.fromkeys([*annotated, *structured]))
+    marked = []
+    for value in embedded_json_objects(combined):
+        for key in ("content", "text", "source"):
+            content = value.get(key)
+            if isinstance(content, str):
+                marked.extend(source_marker_pairs(content))
+    return list(dict.fromkeys(marked))
 
 
 def source_span_id(combined: str, phrase: str, fallback_index: int = 0) -> str:
@@ -609,12 +621,8 @@ def chapter_analysis_foreshadowing_response(combined: str) -> dict[str, Any]:
 
 
 def optimization_analysis_response(combined: str) -> dict[str, Any]:
-    span_match = re.search(
-        r'"source_spans"\s*:\s*\[\s*\{\s*"id"\s*:\s*"([^"]+)"',
-        combined,
-        re.DOTALL,
-    )
-    if span_match:
+    source_spans = source_span_pairs(combined)
+    if source_spans:
         return {
             "thought": "已读取当前正文，可以基于可追溯片段给出局部问题。",
             "public_update": None,
@@ -625,7 +633,7 @@ def optimization_analysis_response(combined: str) -> dict[str, Any]:
                         "id": "issue-clarity-1",
                         "tool": "edit_article",
                         "arguments": {
-                            "evidence_span_id": span_match.group(1),
+                            "evidence_span_id": source_spans[-1][0],
                             "goal": "把林岚进入地下机房的决定写得更具动作性，并保留对周衡的不信任。",
                         },
                         "description": "结尾决定略偏概述，可增加一个可见动作强化悬疑推进。",

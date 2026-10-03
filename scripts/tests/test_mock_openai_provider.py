@@ -65,12 +65,12 @@ class MockOpenAIProviderTest(unittest.TestCase):
         from mock_openai.fixtures.fact_feedback import fact_feedback_response
         from mock_openai.fixtures.story import chapter_body_response
 
-        annotated = json.dumps({"content": "⟦ch1:s1:f1⟧记忆城每年有七个季节。"}, ensure_ascii=False)
+        annotated = json.dumps({"content": "#0 记忆城每年有七个季节。"}, ensure_ascii=False)
         result = fact_feedback_response("chapter_fact_extraction\n" + annotated)
-        self.assertEqual(result["world_facts"][0]["source_span_ids"], ["ch1:s1:f1"])
-        structured = json.dumps({"id": "ch2:s1:f1", "text": "记忆城每年有六个季节。"}, ensure_ascii=False)
+        self.assertEqual(result["world_facts"][0]["source_span_ids"], ["#0"])
+        structured = json.dumps({"id": "ch2:s1:f1", "text": "#1 记忆城每年有六个季节。"}, ensure_ascii=False)
         result = fact_feedback_response("chapter_fact_extraction\n" + structured)
-        self.assertEqual(result["world_facts"][0]["source_span_ids"], ["ch2:s1:f1"])
+        self.assertEqual(result["world_facts"][0]["source_span_ids"], ["#1"])
         self.assertGreater(len(chapter_body_response()), 800)
 
     def test_creation_journey_exercises_all_inspiration_controls(self) -> None:
@@ -106,8 +106,8 @@ class MockOpenAIProviderTest(unittest.TestCase):
     def test_source_markers_are_read_from_actual_context_content(self) -> None:
         from mock_openai.fixtures.entities import source_span_pairs, text_anchor_id
 
-        source = json.dumps({"content": "“⟦ch2:s3:f1⟧别走！”她说。\n⟦ch2:s4:f1⟧门关上了。"}, ensure_ascii=False)
-        self.assertEqual([identifier for identifier, _ in source_span_pairs(source)], ["ch2:s3:f1", "ch2:s4:f1"])
+        source = json.dumps({"content": "“#0 别走！”她说。\n#1 门关上了。"}, ensure_ascii=False)
+        self.assertEqual([identifier for identifier, _ in source_span_pairs(source)], ["#0", "#1"])
         anchors = json.dumps({"content": "⟦41⟧林岚握住怀表。\n⟦42⟧周衡转身。"}, ensure_ascii=False)
         self.assertEqual(text_anchor_id(anchors, "握住怀表"), 41)
         with self.assertRaises(ValueError):
@@ -763,17 +763,13 @@ class MockOpenAIProviderTest(unittest.TestCase):
 
     def test_shooting_adaptation_cites_only_matching_sources_in_the_unit(self) -> None:
         context = {
-            "source_spans": [
-                {"id": "ch1:s1:f1", "paragraph_index": 1, "text": "走进机房"},
-                {"id": "ch1:s2:f1", "paragraph_index": 2, "text": "观察钟表"},
-                {"id": "ch1:s3:f1", "paragraph_index": 3, "text": "走进机房"},
-            ],
+            "source": "#0 走进机房\n#1 观察钟表\n#2 走进机房",
             "unit": {"narrative_unit_index": 1, "participants": ["林岚"],
-                     "source_span_ids": ["ch1:s1:f1", "ch1:s2:f1", "ch1:s99:f1"]},
+                     "source_span_ids": ["#0", "#1", "#99"]},
             "locked_visual_unit": {"shots": [{"segment_id": "shot-1", "prompt": "林岚走进机房。"}]},
         }
         output = shooting_adaptation_response(json.dumps(context, ensure_ascii=False))
-        self.assertEqual(output["performance_facts"][0]["source_span_ids"], ["ch1:s1:f1"])
+        self.assertEqual(output["performance_facts"][0]["source_span_ids"], ["#0"])
         context["locked_visual_unit"]["shots"][0]["prompt"] = "林岚观察星空。"
         output = shooting_adaptation_response(json.dumps(context, ensure_ascii=False))
         self.assertEqual(output["performance_facts"][0]["source_span_ids"], [])
@@ -792,7 +788,7 @@ class MockOpenAIProviderTest(unittest.TestCase):
                         {
                             "task": {"prompt_name": "manga_item_extraction"},
                             "input": {
-                                "available_source_span_ids": ["ch1:s26:f2"],
+                                "available_source_span_ids": ["#0"],
                                 "adaptation_plan": {
                                     "events": [
                                         {
@@ -811,7 +807,7 @@ class MockOpenAIProviderTest(unittest.TestCase):
             ]
         }
         response = json.loads(response_for(body))
-        self.assertEqual(response["items"][0]["source_span_ids"], ["ch1:s26:f2"])
+        self.assertEqual(response["items"][0]["source_span_ids"], ["#0"])
         self.assertEqual(
             response["items"][0]["first_appearance_beat_ref"],
             {"unit_id": "station", "beat_id": "evidence"},
@@ -825,7 +821,7 @@ class MockOpenAIProviderTest(unittest.TestCase):
                 "content": json.dumps({
                     "task": {"prompt_name": "manga_page_slots"},
                     "input": {
-                        "source_spans": [{"id": "ch1:s1:f1", "text": "林岚在通道检查怀表。"}],
+                        "source": "#0 林岚在通道检查怀表。",
                         "adaptation_plan": {"units": [{"beats": [beat_ref]}]},
                     },
                 }, ensure_ascii=False),
@@ -834,6 +830,8 @@ class MockOpenAIProviderTest(unittest.TestCase):
         slots = json.loads(response_for(slots_request))
         self.assertEqual(slots["schema_version"], "manga_page_slots_v1")
         self.assertEqual(len(slots["pages"]), 2)
+        self.assertEqual(slots["pages"][0]["content"]["source_span_ids"], ["#0"])
+        self.assertEqual(slots["pages"][1]["content"]["source_span_ids"], ["#0"])
         self.assertEqual(
             slots["pages"][1]["content"]["entry_state"],
             slots["pages"][0]["content"]["exit_state"],

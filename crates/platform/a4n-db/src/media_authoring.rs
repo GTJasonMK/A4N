@@ -44,7 +44,8 @@ pub struct SaveAuthoringDocument {
 pub enum AuthoringArtifactSource {
     MangaPage {
         chapter_id: i64,
-        layout: a4n_domain::manga::MangaPageGenerationLayoutV3,
+        source: a4n_domain::manga::MangaPagePromptSourceSummary,
+        page_plan_ref: Option<a4n_domain::media_authoring::AuthoringDocumentRef>,
     },
     GalgameScript {
         source_snapshot_id: i64,
@@ -73,18 +74,34 @@ pub async fn authoring_artifact_sources<C: ConnectionTrait>(
                     let layout = row.layout.ok_or_else(|| {
                         AuthoringDocumentError::InvalidState(format!("漫画页 {} 缺少布局", row.id))
                     })?;
-                    let layout: a4n_domain::manga::MangaPageGenerationLayoutV3 =
-                        serde_json::from_value(layout).map_err(|error| {
-                            AuthoringDocumentError::InvalidState(error.to_string())
-                        })?;
-                    layout
-                        .validate(u32::try_from(row.page_number).map_err(|error| {
-                            AuthoringDocumentError::InvalidState(error.to_string())
-                        })?)
+                    let page_number = u32::try_from(row.page_number)
                         .map_err(|error| AuthoringDocumentError::InvalidState(error.to_string()))?;
+                    let (source, page_plan_ref) =
+                        if layout.get("schema_version").and_then(Value::as_str)
+                            == Some("manga_page_generation_v4")
+                        {
+                            let layout: a4n_domain::manga::MangaPageGenerationLayoutV4 =
+                                serde_json::from_value(layout).map_err(|error| {
+                                    AuthoringDocumentError::InvalidState(error.to_string())
+                                })?;
+                            layout.validate(page_number).map_err(|error| {
+                                AuthoringDocumentError::InvalidState(error.to_string())
+                            })?;
+                            (layout.source, layout.page_plan_ref)
+                        } else {
+                            let layout: a4n_domain::manga::MangaPageGenerationLayoutV3 =
+                                serde_json::from_value(layout).map_err(|error| {
+                                    AuthoringDocumentError::InvalidState(error.to_string())
+                                })?;
+                            layout.validate(page_number).map_err(|error| {
+                                AuthoringDocumentError::InvalidState(error.to_string())
+                            })?;
+                            (layout.source, layout.page_plan_ref)
+                        };
                     Ok(AuthoringArtifactSource::MangaPage {
                         chapter_id: row.chapter_id,
-                        layout,
+                        source,
+                        page_plan_ref,
                     })
                 })
                 .collect()

@@ -21,7 +21,7 @@ impl a4n_api_contract::task::TaskQueueStatsApplicationPort for OrchestratorConte
 
 #[async_trait::async_trait]
 impl a4n_api_contract::task::TaskCancellationPort for OrchestratorContext {
-    async fn cancel(&self, task_id: &str) -> Result<(), AppError> {
+    async fn cancel(&self, task_id: &str) -> Result<bool, AppError> {
         self.queue_cancel(task_id).await
     }
 }

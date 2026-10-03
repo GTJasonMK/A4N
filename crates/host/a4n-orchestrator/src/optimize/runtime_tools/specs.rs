@@ -20,7 +20,7 @@ pub(crate) fn optimization_runtime_tool_specs() -> Vec<Value> {
                         "mode": {
                             "type": "string",
                             "enum": ["read", "search"],
-                            "description": "read 有界读取快照；current_chapter 默认返回正文字符页及完整 source_spans，其他对象返回字段索引。search 返回关键词片段，不能替代完整证据。"
+                            "description": "read 有界读取快照；current_chapter 返回带 ASCII 井号十进制标签的正文页和短 source_span_ids 列表，不返回内部 span ID。search 返回关键词片段，不能替代完整证据。"
                         },
                         "source": {
                             "type": "string",
@@ -43,7 +43,7 @@ pub(crate) fn optimization_runtime_tool_specs() -> Vec<Value> {
                         },
                         "path": {
                             "type": "string",
-                            "description": "read 的 JSON pointer，如 /summary 或 /source_spans；省略则读来源根。"
+                            "description": "read 的 JSON pointer，如 /summary；省略则读来源根。current_chapter 的根路径或 /content 会返回带来源短标签的正文和 source_span_ids；禁止读取 /source_spans。"
                         },
                         "expected_hash": {
                             "type": "string",

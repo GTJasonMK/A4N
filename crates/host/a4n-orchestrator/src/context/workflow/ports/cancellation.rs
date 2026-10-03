@@ -10,10 +10,10 @@ impl WorkflowCancellationPort for OrchestratorContext {
             .map(|_| ())
     }
 
-    async fn cancel(&self, workflow_run_id: i64, reason: &str) -> Result<(), AppError> {
+    async fn cancel(&self, workflow_run_id: i64, reason: &str) -> Result<bool, AppError> {
         self.cancel_workflow_run_and_interrupt_videos(workflow_run_id, reason)
             .await
-            .map(|_| ())
+            .map(|result| result.cancelled)
     }
 
     async fn resume_with_active_task(

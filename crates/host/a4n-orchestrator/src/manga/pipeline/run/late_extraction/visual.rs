@@ -12,11 +12,14 @@ pub(super) async fn run_visual_anchor_stage(
     context: &MangaRunContext<'_>,
     events_json: &Value,
 ) -> Result<Value, AppError> {
-    let visual_user =
-        manga_visual_anchor_extraction_user_message(events_json.clone(), &context.source_spans)?;
+    let visual_user = manga_visual_anchor_extraction_user_message(
+        events_json.clone(),
+        &context.source_spans,
+        &context.source_markers,
+    )?;
     let (visual_trace, visual_json) = context
         .service
-        .render_and_validate_manga_call(
+        .render_and_validate_manga_call_with_markers(
             MangaRenderTraceInput {
                 prompt_renderer: context.prompt_renderer,
                 prompt_name: "manga_visual_anchor_extraction",
@@ -35,6 +38,7 @@ pub(super) async fn run_visual_anchor_stage(
                 stream_id: "raw_json".to_string(),
                 stream_reporter: context.stream_reporter,
             },
+            &context.source_markers,
             |value| {
                 validate_manga_visual_anchor_source_span_ids(
                     value,

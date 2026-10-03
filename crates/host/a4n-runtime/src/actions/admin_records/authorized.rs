@@ -43,7 +43,7 @@ admin_record_command!(
 );
 
 admin_record_command!(
-    cancel_admin_task_for_admin(task_id: &str) -> (),
+    cancel_admin_task_for_admin(task_id: &str) -> bool,
     AdminPermission::ManageSettings,
     |state, caller_user_id| tasks::cancel_admin_task(state, task_id),
 );

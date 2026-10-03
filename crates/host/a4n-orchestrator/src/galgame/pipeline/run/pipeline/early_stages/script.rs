@@ -37,10 +37,12 @@ pub(super) async fn run_script_adaptation_stage(
         &execution.prompt_context.chapters,
         scenes_json,
         branch_plan_json,
+        execution.source_markers,
     )?;
     let request_user_prompt = galgame_script_adaptation_session_user_message(
         &execution.prompt_context.chapters,
         branch_plan_json,
+        execution.source_markers,
     )?;
     let output = execution
         .service
@@ -56,6 +58,7 @@ pub(super) async fn run_script_adaptation_stage(
                 user_prompt,
                 request_user_prompt,
                 shared_adaptation_projection: scenes_json,
+                source_markers: execution.source_markers,
                 restore_from_checkpoint: execution.should_restore(stage),
                 restore_required: execution.restore_required(stage),
             },

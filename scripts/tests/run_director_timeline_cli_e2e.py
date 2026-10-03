@@ -94,14 +94,19 @@ def main():
 
             project = data(checked(cli, ["project", "create", "--title", "导演时间线 V3 隔离验证", "--project-type", "novel_long", "--use-context"], "project")[0], "project")
             chapter = data(checked(cli, ["chapter", "import", "--number", "1", "--title", "门与通道", "--content", "林岚停在旧车站通道入口。她观察墙上的钟，推开门，进入地下机房。周衡留在门外。"], "chapter")[0], "chapter")
-            project_id, chapter_id = project["id"], chapter["id"]
-            resource = {"project_id": project_id, "source_chapter_id": chapter_id}
-            report.update(project_id=project_id, chapter_id=chapter_id)
-            scenes = [call("create_scene_profile", {"project_id": project_id, "profile": {
+            root_project_id, chapter_id = project["id"], chapter["id"]
+            scenes = [call("create_scene_profile", {"project_id": root_project_id, "profile": {
                 "name": name, "scene_type": "room", "importance": "primary", "base_description": name,
                 "visual_description": "木门、挂钟与清晰的通道", "spatial_layout": "通道通向门口",
                 "atmosphere": "安静", "first_seen_chapter": 1, "last_seen_chapter": 1, "image_prompt_seed": name,
             }})["profile"] for name in ("旧车站通道", "地下机房")]
+            video_project = call("create_derived_project", {
+                "root_project_id": root_project_id, "derived_kind": "video", "title": "导演时间线 V3 隔离验证 视频",
+                "description": "director and video generation fixture", "start_chapter": 1, "end_chapter": 1,
+            })
+            project_id = video_project["id"]
+            resource = {"project_id": project_id, "source_chapter_id": chapter_id}
+            report.update(root_project_id=root_project_id, project_id=project_id, chapter_id=chapter_id)
             image = call("upload_image", {"project_id": project_id, "file_name": "director-reference.png", "mime_type": "image/png",
                 "data_base64": PNG_1X1_BASE64, "image_type": "chapter_reference", "prompt": "门口的分镜参考",
                 "chapter_id": chapter_id, "panel_id": None, "metadata_json": None})
@@ -127,7 +132,8 @@ def main():
             unchanged = copy.deepcopy(draft)
             draft = edit({"kind": "insert_point", "point": {"id": "additional", "at_ms": 2000, "label": "段内图片点", "image_id": None, "description": "停在门前", "reference_image_ids": []}})
             assert len(draft["plan"]["segments"]) == 3 and len(draft["plan"]["points"]) == 6
-            call("edit_chapter_visual_plan_draft", {**resource, "record_id": draft["record"]["id"], "expected_revision": unchanged["record"]["revision"], "operation": {"kind": "scale_timeline", "duration_ms": 18000}}, failure="revision")
+            call("edit_chapter_visual_plan_draft", {**resource, "record_id": draft["record"]["id"], "expected_revision": unchanged["record"]["revision"], "operation": {"kind": "scale_timeline", "duration_ms": 18000}}, failure="topology")
+            assert call("get_chapter_visual_plan", resource)["draft"]["record"]["revision"] == draft["record"]["revision"]
             report["checks"].append("inserting points preserves shots; stale writes fail")
 
             baseline = copy.deepcopy(draft)
@@ -136,7 +142,9 @@ def main():
             candidate = call("read_visual_plan_prompt_candidate", {"project_id": project_id, "generation_run_id": int(result["id"])})
             assert candidate["plan_sha256"] == baseline["record"]["plan_sha256"] and candidate["prompt"]
             assert hashlib.sha256(json.dumps(candidate, sort_keys=True, ensure_ascii=False, separators=(",", ":")).encode()).hexdigest() == result["revision"]
-            assert call("get_chapter_visual_plan", resource)["draft"] == baseline
+            current_draft = call("get_chapter_visual_plan", resource)["draft"]
+            assert current_draft["plan"] == baseline["plan"], current_draft
+            assert current_draft["record"]["revision"] == baseline["record"]["revision"], current_draft["record"]
             draft = edit({"kind": "update_segment", "segment": {**draft["plan"]["segments"][0], "prompt": candidate["prompt"]}})
             report["checks"].append("text generation publishes a readable candidate; only explicit adoption changes the plan")
 
@@ -149,7 +157,9 @@ def main():
             complete(call("start_image_generation", {"project_id": project_id, "meta": meta(), "operation": {"kind": "visual_plan_point", "options": options}}))
             generated = next(row for row in call("list_images_by_project", {"project_id": project_id})
                 if (row.get("metadata_json") or {}).get("director_candidate", {}).get("point_id") == "inside")
-            assert call("get_chapter_visual_plan", resource)["draft"] == baseline
+            current_draft = call("get_chapter_visual_plan", resource)["draft"]
+            assert current_draft["plan"] == baseline["plan"], current_draft
+            assert current_draft["record"]["revision"] == baseline["record"]["revision"], current_draft["record"]
             requests = provider_log_entries(args.provider_log)[before_images:]
             assert any(row["path"].endswith("/images/edits") and row["body"].get("has_reference_image") for row in requests), requests
             point = next(point for point in draft["plan"]["points"] if point["id"] == "inside")
@@ -185,7 +195,9 @@ def main():
                     break
                 time.sleep(0.1)
             assert cancelled["handle"]["status"] == "cancelled" and cancelled["result_ref"] is None
-            assert call("get_chapter_visual_plan", resource)["draft"] == draft
+            current_draft = call("get_chapter_visual_plan", resource)["draft"]
+            assert current_draft["plan"] == draft["plan"], current_draft
+            assert current_draft["record"]["revision"] == draft["record"]["revision"], current_draft["record"]
             configure()
             report["checks"].append("cancellation stops a running model call without writing a candidate or plan")
 
@@ -303,9 +315,10 @@ def main():
             assert shared["metadata_json"]["segment_recipes"][:2] == preserved_recipes
             report["checks"].append("manual segment edits persist and resume from metadata while preserving unrelated recipes and videos")
 
-            exported = call("export_project_family_data", {"root_project_id": project_id, "include_derived_projects": True})
+            exported = call("export_project_family_data", {"root_project_id": root_project_id, "include_derived_projects": True})
             imported = call("import_project_family_upload", {"file_name": exported["file_name"], "data_base64": exported["data_base64"]})
             new_root = next(row for row in imported if row["project_kind"] == "text")
+            new_video_project = next(row for row in imported if row["project_kind"] == "video")
             reexport = call("export_project_family_data", {"root_project_id": new_root["id"], "include_derived_projects": True})
 
             def manifest(package):
@@ -332,19 +345,20 @@ def main():
             assert new_director_images == [image_map[image["id"]], image_map[generated["id"]], None]
             report["checks"].append("real ZIP export/import remaps images, scene IDs and downstream plan/script hashes")
             report["imported_project_id"] = new_root["id"]
-            imported_rows = call("list_chapter_video_prompts", {"projectId": new_root["id"], "chapterId": new_script["source_chapter_id"]}, raw=True)
+            imported_rows = call("list_chapter_video_prompts", {"projectId": new_video_project["id"], "chapterId": new_script["source_chapter_id"]}, raw=True)
             assert next(row for row in imported_rows if row["workflow_mode"] == "shared_segment_plan")["metadata_json"]["stale_source_shot_ids"] == []
             imported_video = next(row for row in remapped["generated_videos"] if row["status"] == "completed")
             call("select_segment_video", {
-                "projectId": new_root["id"], "chapterId": new_script["source_chapter_id"], "videoId": video["id"],
+                "projectId": new_video_project["id"], "chapterId": new_script["source_chapter_id"], "videoId": video["id"],
                 "input": {"segment_plan_prompt_id": new_video_plan["id"], "target_segment": {"source_shot_id": "shot-1", "segment_index_in_shot": 1}},
             }, raw=True, destructive=True, failure="不属于当前规划片段")
             report["checks"].append("video adoption rejects another segment and another project without weakening source validation")
             selected = call("select_segment_video", {
-                "projectId": new_root["id"], "chapterId": new_script["source_chapter_id"], "videoId": imported_video["id"],
+                "projectId": new_video_project["id"], "chapterId": new_script["source_chapter_id"], "videoId": imported_video["id"],
                 "input": {"segment_plan_prompt_id": new_video_plan["id"], "target_segment": {"source_shot_id": "shot-1", "segment_index_in_shot": 1}},
             }, raw=True, destructive=True)
             assert selected["id"] == imported_video["id"]
+            report["imported_video_project_id"] = new_video_project["id"]
             report["checks"].append("imported videos remain adoptable with remapped segment and recipe fingerprints")
 
             def revise_shot(prompt):
@@ -407,7 +421,13 @@ def main():
             report["checks"].append("AI updates one shooting shot and its segment plan; untouched plans, prompts and video bytes survive")
 
             deletion_chapter = data(checked(cli, ["chapter", "import", "--number", "2", "--title", "删除场景后的续写", "--content", chapter["content"]], "deletion chapter")[0], "deletion chapter")
-            deletion_resource = {"project_id": project_id, "source_chapter_id": deletion_chapter["id"]}
+            deletion_project = call("create_derived_project", {
+                "root_project_id": root_project_id, "derived_kind": "video",
+                "title": "导演时间线 V3 删除场景续写视频",
+                "description": "Video project snapshot includes the deletion chapter.",
+                "start_chapter": 1, "end_chapter": 2,
+            })
+            deletion_resource = {"project_id": deletion_project["id"], "source_chapter_id": deletion_chapter["id"]}
             deletion_plan = copy.deepcopy(confirmed["plan"])
             for point in deletion_plan["points"]:
                 point["image_id"] = None

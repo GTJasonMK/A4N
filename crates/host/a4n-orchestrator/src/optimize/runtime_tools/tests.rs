@@ -38,14 +38,17 @@ fn paged_reads_preserve_text_and_only_expose_read_evidence() {
         &context,
     )
     .unwrap();
-    assert_eq!(first["content"]["content"], "第一句。");
+    assert_eq!(first["content"]["content"], "#0 第一句。");
     assert_eq!(first["next_offset"], 4);
     assert_eq!(
-        first["content"]["source_spans"].as_array().unwrap().len(),
+        first["content"]["source_span_ids"]
+            .as_array()
+            .unwrap()
+            .len(),
         1
     );
     let second = execute_get_project_information(json!({"mode": "read", "source": "current_chapter", "offset": 4, "limit": 4, "expected_hash": first["resource"]["hash"]}), &context).unwrap();
-    assert_eq!(second["content"]["content"], "第二句。");
+    assert_eq!(second["content"]["content"], "#1 第二句。");
     let observed =
         observed_evidence_context(&context, &[json!({"success": true, "result": first})]).unwrap();
     assert_eq!(
@@ -80,6 +83,13 @@ fn paged_reads_preserve_text_and_only_expose_read_evidence() {
         )
         .is_err()
     );
+    assert!(
+        execute_get_project_information(
+            json!({"mode": "read", "source": "current_chapter", "path": "/source_spans"}),
+            &context
+        )
+        .is_err()
+    );
     let stale = observed_evidence_context(
         &json!({"current_chapter": {"chapter_number": 1, "content": "新正文"}}),
         &[json!({"success": true, "result": second})],
@@ -94,9 +104,43 @@ fn paged_reads_preserve_text_and_only_expose_read_evidence() {
 }
 
 #[test]
+fn read_source_avoids_marker_collisions_and_preserves_literal_hashes() {
+    let context = json!({"current_chapter": {
+        "chapter_number": 1,
+        "content": "#0开头。下一句。"
+    }});
+    let result = execute_get_project_information(
+        json!({"mode": "read", "source": "current_chapter"}),
+        &context,
+    )
+    .unwrap();
+
+    assert_eq!(result["content"]["content"], "#1 #0开头。#2 下一句。");
+    assert_eq!(result["content"]["source_span_ids"], json!(["#1", "#2"]));
+    assert!(result["content"]["source_marker_protocol"].is_string());
+    assert!(!result.to_string().contains("ch1:s1:f1"));
+
+    let path_read = execute_get_project_information(
+        json!({"mode": "read", "source": "current_chapter", "path": "/content"}),
+        &context,
+    )
+    .unwrap();
+    assert_eq!(
+        path_read["content"]["content"],
+        result["content"]["content"]
+    );
+    assert_eq!(
+        path_read["content"]["source_span_ids"],
+        result["content"]["source_span_ids"]
+    );
+    assert!(!path_read.to_string().contains("ch1:s1:f1"));
+}
+
+#[test]
 fn information_tool_searches_across_sources() {
     let context = json!({
         "current_chapter": {
+            "chapter_number": 1,
             "content": "陈恪进入旧城。"
         },
         "previous_chapters": [{
@@ -123,7 +167,11 @@ fn information_tool_searches_across_sources() {
             &context,
         )
         .unwrap();
-        assert!(read["content"].as_str().unwrap().contains("旧城"));
+        let content = read["content"]
+            .as_str()
+            .or_else(|| read["content"]["content"].as_str())
+            .unwrap();
+        assert!(content.contains("旧城"));
     }
 }
 

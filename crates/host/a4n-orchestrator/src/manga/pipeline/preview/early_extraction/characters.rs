@@ -33,6 +33,7 @@ pub(super) async fn preview_characters(
             &context.chapter_content,
             events_json.clone(),
             &context.source_spans,
+            &context.source_markers,
             reference_assets.clone(),
         )?,
         temperature: 0.3,

@@ -123,6 +123,7 @@ async fn preview_page_adaptation(
             manga_page_adaptation_source(&context.adaptation, content),
             previous_content,
             next_content,
+            &context.source_markers,
         )?,
         temperature: 0.3,
     })
@@ -188,6 +189,7 @@ async fn preview_page_storyboard(
             adaptation_beats,
             extraction_summary,
             &context.reference_assets,
+            &context.source_markers,
         )?,
         temperature: 0.3,
     })
@@ -247,6 +249,7 @@ async fn preview_page_drawing_prompt(
             adaptation,
             extraction_summary,
             &context.reference_assets,
+            &context.source_markers,
         )?,
         temperature: 0.5,
     })

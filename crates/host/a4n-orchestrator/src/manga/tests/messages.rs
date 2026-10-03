@@ -7,6 +7,7 @@ use serde_json::Value;
 
 use super::*;
 use crate::manga::pipeline::prompt::{MangaLlmCallInput, prepare_manga_llm_call};
+use crate::source_markers::SourceMarkerMap;
 use a4n_llm_context::{
     LlmContextManifest, context_aware_system_user_request, preview_context_aware_chat_request,
 };
@@ -132,10 +133,12 @@ fn manga_speech_selection_user_message_uses_event_windows() {
         .expect("dialogue span")
         .id
         .clone();
+    let source_markers = SourceMarkerMap::from_source_spans(&source_spans).unwrap();
     let message = manga_speech_selection_user_message(
         json!({"林晓雨": {"name": "林晓雨"}}),
         json!([{"beat_ref": {"unit_id": "unit-1", "beat_id": "beat-1"}, "description": "林晓雨与陌生人对话", "source_span_ids": [span_id]}]),
         &source_spans,
+        &source_markers,
         json!({"character_portraits": []}),
     )
     .expect("speech selection prompt should serialize");
@@ -149,8 +152,9 @@ fn manga_speech_selection_user_message_uses_event_windows() {
         })
         .unwrap();
     assert_eq!(chapter["source_windows"].as_array().unwrap().len(), 1);
+    assert!(!chapter.get("available_source_spans").is_some());
     assert!(
-        !chapter["available_source_spans"]
+        !chapter["available_source_span_ids"]
             .as_array()
             .unwrap()
             .is_empty()
@@ -159,7 +163,7 @@ fn manga_speech_selection_user_message_uses_event_windows() {
 
     assert!(!message.contains(r#""content": "林晓雨低声说，你好。她忽然意识到这不是巧合。""#));
     assert!(message.contains(r#""source_span_rule""#));
-    assert!(message.contains("input.chapter.available_source_spans"));
+    assert!(message.contains("input.chapter.available_source_span_ids"));
     assert!(!message.contains("input.chapter.source_spans"));
     assert!(!message.contains(r#""chapter_id""#));
     assert!(!message.contains(r#""chapter_number""#));
@@ -178,9 +182,11 @@ fn manga_visual_anchor_extraction_user_message_uses_event_windows() {
         .expect("scene span")
         .id
         .clone();
+    let source_markers = SourceMarkerMap::from_source_spans(&source_spans).unwrap();
     let message = manga_visual_anchor_extraction_user_message(
         json!([{"beat_ref": {"unit_id": "unit-1", "beat_id": "beat-1"}, "description": "林晓雨推门", "source_span_ids": [span_id]}]),
         &source_spans,
+        &source_markers,
     )
     .expect("visual anchor prompt should serialize");
     let chapter = message
@@ -193,8 +199,9 @@ fn manga_visual_anchor_extraction_user_message_uses_event_windows() {
         })
         .unwrap();
     assert_eq!(chapter["source_windows"].as_array().unwrap().len(), 1);
+    assert!(!chapter.get("available_source_spans").is_some());
     assert!(
-        !chapter["available_source_spans"]
+        !chapter["available_source_span_ids"]
             .as_array()
             .unwrap()
             .is_empty()
@@ -203,7 +210,7 @@ fn manga_visual_anchor_extraction_user_message_uses_event_windows() {
 
     assert!(!message.contains(r#""content": "林晓雨推开门。陌生人站在雨里。""#));
     assert!(message.contains(r#""source_span_rule""#));
-    assert!(message.contains("input.chapter.available_source_spans"));
+    assert!(message.contains("input.chapter.available_source_span_ids"));
     assert!(!message.contains("input.chapter.source_spans"));
     assert!(!message.contains(r#""chapter_id""#));
     assert!(!message.contains(r#""chapter_number""#));

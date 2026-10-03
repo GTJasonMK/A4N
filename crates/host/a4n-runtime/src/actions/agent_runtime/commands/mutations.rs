@@ -68,6 +68,7 @@ pub async fn cancel_agent_owned_workflow(
         .workflow_cancellation_application()
         .cancel(workflow_run_id, reason)
         .await
+        .map(|_| ())
 }
 
 pub async fn ensure_main_thread(

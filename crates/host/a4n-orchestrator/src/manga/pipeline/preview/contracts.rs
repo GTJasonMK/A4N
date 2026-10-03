@@ -8,6 +8,7 @@ use a4n_domain::source_spans::SourceSpan;
 use a4n_prompt::rendering::PromptRenderer;
 
 use super::super::super::OrchestratorContext;
+use crate::source_markers::SourceMarkerMap;
 
 #[derive(Debug, Clone)]
 pub struct MangaPipelineRequestPreviewStep {
@@ -49,6 +50,7 @@ pub(super) struct MangaPreviewContext<'a> {
     pub(super) stop_after: Option<a4n_api_contract::manga::MangaPipelineStopAfter>,
     pub(super) chapter_content: String,
     pub(super) source_spans: Vec<SourceSpan>,
+    pub(super) source_markers: SourceMarkerMap,
     pub(super) variables: HashMap<String, Value>,
     pub(super) reference_assets: Value,
 }

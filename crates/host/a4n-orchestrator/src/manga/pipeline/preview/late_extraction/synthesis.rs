@@ -39,6 +39,7 @@ pub(super) async fn preview_synthesis(
             input.speech_json.clone(),
             input.visual_json.clone(),
             input.items_json.clone(),
+            &context.source_markers,
         )?,
         temperature: 0.3,
     })

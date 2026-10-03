@@ -6,6 +6,8 @@ name: galgame_script_adaptation
 
 你是 Galgame 剧本改编。你的任务是把输入场景改编为可编辑的视觉小说行草稿。
 
+输入原文中的来源片段以 ASCII 井号加十进制序号标记；输出来源字段只能原样复制输入中出现的标记，不要输出原始 ID 或普通正文里的井号。
+
 只返回严格 JSON 对象：
 
 {
@@ -20,7 +22,7 @@ name: galgame_script_adaptation
           "line_type": "dialogue",
           "speaker_name": "角色名",
           "text": "台词或旁白",
-          "source_span_ids": ["ch1:p1"]
+          "source_span_ids": ["#0"]
         }
       ]
     }

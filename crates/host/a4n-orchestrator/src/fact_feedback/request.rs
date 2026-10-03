@@ -2,6 +2,7 @@ use a4n_db::fact_feedback::{FeedbackSource, current_feedback_sources, feedback_c
 use a4n_domain::fact_feedback::{
     FactAssertion, FactSourceRevision, pending_fact_sources, world_setting_document,
 };
+use a4n_domain::source_spans::source_spans_for_chapters;
 use a4n_error::AppError;
 use a4n_llm_context::{
     COMPRESSION_FULL_RAW, LlmContextLedger, LlmContextLedgerPackDraft,
@@ -13,13 +14,14 @@ use serde_json::{Value, json};
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 use super::{FACT_CONSOLIDATION_KIND, FACT_CONSOLIDATION_PROMPT, feedback_error};
-use crate::OrchestratorContext;
+use crate::{OrchestratorContext, source_markers::SourceMarkerMap};
 
 pub(super) struct PreparedConsolidation {
     pub sources: Vec<FactSourceRevision>,
     pub expected_blueprint_version: Option<String>,
     pub request: ChatRequest,
     pub fingerprint: Value,
+    pub source_markers: SourceMarkerMap,
 }
 
 impl OrchestratorContext {
@@ -81,18 +83,31 @@ impl OrchestratorContext {
                 .filter(|source| pending_ids.contains(&source.chapter.id))
                 .collect()
         };
-        let chapters = selected.iter().map(|source| {
-            let spans = a4n_domain::source_spans::source_spans_for_chapters(std::slice::from_ref(&source.chapter));
-            Ok(json!({
-                "id": source.chapter.id, "chapter_number": source.chapter.chapter_number,
-                "title": source.chapter.title,
-                "content": a4n_domain::source_spans::source_span_prompt_text(&source.chapter.content, &spans).map_err(AppError::InvalidArgument)?,
-                "world_facts": source.world_facts,
-            }))
-        }).collect::<Result<Vec<_>, AppError>>()?;
-        let source_data = json!({
+        let spans_by_chapter = selected
+            .iter()
+            .map(|source| source_spans_for_chapters(std::slice::from_ref(&source.chapter)))
+            .collect::<Vec<_>>();
+        let all_spans = spans_by_chapter
+            .iter()
+            .flatten()
+            .cloned()
+            .collect::<Vec<_>>();
+        let source_markers = SourceMarkerMap::from_source_spans(&all_spans)?;
+        let chapters = selected
+            .iter()
+            .zip(&spans_by_chapter)
+            .map(|(source, spans)| {
+                Ok(json!({
+                    "id": source.chapter.id, "chapter_number": source.chapter.chapter_number,
+                    "title": source.chapter.title,
+                    "content": source_markers.mark_text(&source.chapter.content, spans)?,
+                    "world_facts": source.world_facts,
+                }))
+            })
+            .collect::<Result<Vec<_>, AppError>>()?;
+        let source_data = source_markers.encode_input(&json!({
             "chapters": chapters,
-        });
+        }))?;
         let blueprint_data = rows.blueprint.as_ref().map(|blueprint| {
             json!({
                 "id": blueprint.id, "version": blueprint.current_version,
@@ -160,6 +175,7 @@ impl OrchestratorContext {
             expected_blueprint_version,
             request,
             fingerprint,
+            source_markers,
         }))
     }
 }

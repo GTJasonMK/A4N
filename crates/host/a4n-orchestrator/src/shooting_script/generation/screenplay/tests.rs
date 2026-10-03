@@ -36,6 +36,8 @@ fn prepared() -> PreparedChapterShootingScriptRequest {
         source_revision_key: "revision".into(),
     };
     let source_spans = source_spans_for_content(3, 1, &content);
+    let source_markers = crate::source_markers::SourceMarkerMap::from_source_spans(&source_spans)
+        .expect("source markers");
     let visual_plan = crate::shooting_script::contracts::visual_plan_fixture(&source);
     let visual_plan_projection =
         crate::chapter_visual_plan::project_visual_plan_for_shooting_script(
@@ -46,6 +48,7 @@ fn prepared() -> PreparedChapterShootingScriptRequest {
     PreparedChapterShootingScriptRequest {
         source,
         source_spans,
+        source_markers,
         input_fingerprint_sha256: "fingerprint".into(),
         existing: None,
         visual_plan,

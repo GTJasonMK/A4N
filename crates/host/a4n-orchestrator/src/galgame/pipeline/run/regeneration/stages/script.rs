@@ -3,7 +3,8 @@ use serde_json::Value;
 
 use crate::galgame::{
     GalgameBranchDesign, GalgameSceneRegenerationInput, GalgameScriptAdaptation,
-    OrchestratorContext, galgame_script_adaptation_user_message, script_adaptation_from_value,
+    OrchestratorContext, galgame_script_adaptation_user_message, galgame_source_markers,
+    script_adaptation_from_value,
 };
 use a4n_prompt::rendering::PromptRenderer;
 
@@ -18,6 +19,7 @@ pub(super) async fn run_script_adaptation_stage(
     branch: &(Value, GalgameBranchDesign),
     prompt_renderer: &dyn PromptRenderer,
 ) -> Result<(Value, GalgameScriptAdaptation), AppError> {
+    let source_markers = galgame_source_markers(std::slice::from_ref(&prepared.prompt_chapter))?;
     service
         .run_workflow_llm_once(
             WorkflowLlmOnceInput {
@@ -34,10 +36,12 @@ pub(super) async fn run_script_adaptation_stage(
                     std::slice::from_ref(&prepared.prompt_chapter),
                     &prepared.scenes_json,
                     &branch.0,
+                    &source_markers,
                 )?,
                 cancel_token: None,
             },
             |value| {
+                let value = source_markers.decode_output(&value)?;
                 let parsed = script_adaptation_from_value(value, "galgame_script_adaptation")?;
                 ensure_single_regenerated_scene_lines(&parsed)?;
                 crate::galgame::pipeline::persist::validate_galgame_script_adaptation(

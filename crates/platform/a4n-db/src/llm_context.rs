@@ -3,6 +3,7 @@ use a4n_domain::llm::{ContextPackReference, RecordOrReuseContextPackInput};
 use chrono::Utc;
 use sea_orm::{
     ColumnTrait, Condition, ConnectionTrait, DbErr, EntityTrait, QueryFilter, QuerySelect, Set,
+    sea_query::OnConflict,
 };
 use std::collections::{HashMap, HashSet};
 
@@ -207,22 +208,40 @@ where
     C: ConnectionTrait,
 {
     let expected = pending_inputs.len();
-    let inserted = llm_context_pack::Entity::insert_many(
+    let lookup = context_pack_lookup_condition(&pending_inputs);
+    llm_context_pack::Entity::insert_many(
         pending_inputs
             .into_iter()
             .map(context_pack_active_model)
             .collect::<Result<Vec<_>, _>>()?,
     )
-    .exec_with_returning_many(db)
+    .on_conflict(
+        OnConflict::columns([
+            llm_context_pack::Column::ProjectId,
+            llm_context_pack::Column::Workflow,
+            llm_context_pack::Column::PackKind,
+            llm_context_pack::Column::CompressionLevel,
+            llm_context_pack::Column::ContentSha256,
+            llm_context_pack::Column::ConfigHash,
+        ])
+        .do_nothing()
+        .to_owned(),
+    )
+    .do_nothing()
+    .exec_without_returning(db)
     .await?;
-    if inserted.len() != expected {
+    let records = llm_context_pack::Entity::find()
+        .filter(lookup)
+        .all(db)
+        .await?;
+    if records.len() != expected {
         return Err(LlmContextPackDbError::InvalidArgument(format!(
-            "LLM 上下文包批量插入返回行数不一致: inserted={}, expected={}",
-            inserted.len(),
+            "LLM 上下文包并发插入后回读行数不一致: actual={}, expected={}",
+            records.len(),
             expected
         )));
     }
-    Ok(inserted)
+    Ok(records)
 }
 
 fn identity_key_model(model: &llm_context_pack::Model) -> ContextPackIdentity {

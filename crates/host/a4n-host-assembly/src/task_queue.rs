@@ -18,7 +18,7 @@ impl TaskQueueApplication {
 
 #[async_trait::async_trait]
 impl TaskCancellationPort for TaskQueueApplication {
-    async fn cancel(&self, task_id: &str) -> Result<(), AppError> {
+    async fn cancel(&self, task_id: &str) -> Result<bool, AppError> {
         self.queue.cancel(task_id).await
     }
 }

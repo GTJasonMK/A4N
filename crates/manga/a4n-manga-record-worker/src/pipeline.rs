@@ -1,4 +1,10 @@
-use std::collections::{HashMap, HashSet};
+use std::{
+    collections::{HashMap, HashSet},
+    time::Duration,
+};
+
+const WORKFLOW_STATUS_BINDING_READ_ATTEMPTS: usize = 12;
+const WORKFLOW_STATUS_BINDING_READ_DELAY: Duration = Duration::from_millis(50);
 
 use a4n_api_contract::{
     generation_tasks::{
@@ -145,41 +151,116 @@ impl WorkerState {
             })?;
             latest_runs.entry(chapter_id).or_insert(run);
         }
-        for run in latest_runs.values().filter(|run| run.status == "running") {
-            let task_id = run.active_task_id.as_deref().ok_or_else(|| {
-                WorkerFailure::invalid_request(format!(
-                    "漫画 workflow {} 缺少活动 Generation Task",
-                    run.id
-                ))
-            })?;
-            if active_handles.contains_key(task_id) {
-                continue;
+        let runs_to_resolve = latest_runs
+            .iter()
+            .map(|(chapter_id, run)| (*chapter_id, run.clone()))
+            .collect::<Vec<_>>();
+        for (chapter_id, mut run) in runs_to_resolve {
+            let mut resolved = false;
+            for binding_attempt in 0..WORKFLOW_STATUS_BINDING_READ_ATTEMPTS {
+                if run.status != "running" {
+                    resolved = true;
+                    break;
+                }
+                let Some(task_id) = run.active_task_id.clone() else {
+                    let latest = a4n_db::workflow::workflow_run_summary_by_id(
+                        self.database.connection(),
+                        run.id,
+                    )
+                    .await
+                    .map_err(workflow_error)?;
+                    if latest.status != run.status || latest.active_task_id != run.active_task_id {
+                        run = latest;
+                        latest_runs.insert(chapter_id, run.clone());
+                        continue;
+                    }
+                    if binding_attempt + 1 < WORKFLOW_STATUS_BINDING_READ_ATTEMPTS {
+                        tokio::time::sleep(WORKFLOW_STATUS_BINDING_READ_DELAY).await;
+                        continue;
+                    }
+                    return Err(WorkerFailure::invalid_request(format!(
+                        "漫画 workflow {} 缺少活动 Generation Task",
+                        run.id
+                    )));
+                };
+                if active_handles.contains_key(&task_id) {
+                    resolved = true;
+                    break;
+                }
+                let checkpoint = match a4n_db::generation::load_generation_task_checkpoint(
+                    self.database.connection(),
+                    &task_id,
+                )
+                .await
+                {
+                    Ok(checkpoint) => checkpoint,
+                    Err(error) => {
+                        let latest = a4n_db::workflow::workflow_run_summary_by_id(
+                            self.database.connection(),
+                            run.id,
+                        )
+                        .await
+                        .map_err(workflow_error)?;
+                        if latest.status != run.status
+                            || latest.active_task_id != run.active_task_id
+                        {
+                            run = latest;
+                            latest_runs.insert(chapter_id, run.clone());
+                            continue;
+                        }
+                        if binding_attempt + 1 < WORKFLOW_STATUS_BINDING_READ_ATTEMPTS {
+                            tokio::time::sleep(WORKFLOW_STATUS_BINDING_READ_DELAY).await;
+                            continue;
+                        }
+                        return Err(WorkerFailure::unavailable(error.to_string()));
+                    }
+                };
+                if (checkpoint.project_id != Some(project_id)
+                    && checkpoint.root_project_id != Some(project_id))
+                    || checkpoint.workflow_run_id != Some(run.id)
+                {
+                    let latest = a4n_db::workflow::workflow_run_summary_by_id(
+                        self.database.connection(),
+                        run.id,
+                    )
+                    .await
+                    .map_err(workflow_error)?;
+                    if latest.status != run.status || latest.active_task_id != run.active_task_id {
+                        run = latest;
+                        latest_runs.insert(chapter_id, run.clone());
+                        continue;
+                    }
+                    if binding_attempt + 1 < WORKFLOW_STATUS_BINDING_READ_ATTEMPTS {
+                        tokio::time::sleep(WORKFLOW_STATUS_BINDING_READ_DELAY).await;
+                        continue;
+                    }
+                    return Err(WorkerFailure::unavailable(format!(
+                        "漫画 workflow {} 与 Generation Task {task_id} 的归属不一致",
+                        run.id
+                    )));
+                }
+                let attempt = u32::try_from(checkpoint.attempt).map_err(|_| {
+                    WorkerFailure::invalid_request(format!(
+                        "Generation Task {task_id} 的 attempt 无效: {}",
+                        checkpoint.attempt
+                    ))
+                })?;
+                active_handles.insert(
+                    task_id.clone(),
+                    generation_task_handle_parts(task_id, attempt, &checkpoint.status)?,
+                );
+                resolved = true;
+                break;
             }
-            let checkpoint = a4n_db::generation::load_generation_task_checkpoint(
-                self.database.connection(),
-                task_id,
-            )
-            .await
-            .map_err(|error| WorkerFailure::unavailable(error.to_string()))?;
-            if (checkpoint.project_id != Some(project_id)
-                && checkpoint.root_project_id != Some(project_id))
-                || checkpoint.workflow_run_id != Some(run.id)
-            {
+            if run.status != "running" {
+                resolved = true;
+            }
+            if !resolved {
                 return Err(WorkerFailure::unavailable(format!(
-                    "漫画 workflow {} 与 Generation Task {task_id} 的归属不一致",
+                    "漫画 workflow {} 在任务绑定读取期间持续变化",
                     run.id
                 )));
             }
-            let attempt = u32::try_from(checkpoint.attempt).map_err(|_| {
-                WorkerFailure::invalid_request(format!(
-                    "Generation Task {task_id} 的 attempt 无效: {}",
-                    checkpoint.attempt
-                ))
-            })?;
-            active_handles.insert(
-                task_id.to_string(),
-                generation_task_handle_parts(task_id.to_string(), attempt, &checkpoint.status)?,
-            );
         }
         let run_ids = latest_runs.values().map(|run| run.id).collect::<Vec<_>>();
         let checkpoints = a4n_db::workflow::workflow_checkpoint_statuses_for_runs(

@@ -10,6 +10,7 @@ use serde_json::{Value, json};
 use super::super::OrchestratorContext;
 use super::super::context::build_content_optimization_context;
 use super::super::permissions::{default_agent_permissions, optimization_permissions_from_session};
+use super::read::current_chapter_source_data;
 use super::search::search_context;
 use super::source_hash;
 
@@ -132,6 +133,17 @@ pub(in crate::optimize) async fn read_project_context(
             indexes.sort_unstable();
             indexes.dedup();
             read_chapter_paragraphs(value, &indexes, &include)?
+        }
+        (OptimizationContextSelection::Paths { paths }, "current_chapter") => {
+            if paths
+                .iter()
+                .any(|path| path.is_empty() || path == "/content")
+            {
+                return Err(AppError::InvalidArgument(
+                    "current_chapter 正文请通过 paragraphs 选择读取，以返回来源短标签".into(),
+                ));
+            }
+            read_paths(value, paths, &include)?
         }
         (OptimizationContextSelection::Paths { paths }, _) => read_paths(value, paths, &include)?,
         (OptimizationContextSelection::Items { indexes }, _) => read_items(value, indexes)?,
@@ -315,10 +327,7 @@ fn read_chapter_paragraphs(
         .and_then(Value::as_str)
         .ok_or_else(|| AppError::InvalidArgument("current_chapter 缺少正文".into()))?;
     let ranges = source_paragraph_ranges(content);
-    let spans = value
-        .get("source_spans")
-        .and_then(Value::as_array)
-        .ok_or_else(|| AppError::InvalidArgument("current_chapter 缺少原文引用".into()))?;
+    let (spans, source_markers) = current_chapter_source_data(value)?;
     let mut paragraphs = Vec::new();
     for index in indexes.iter().copied() {
         let Some((start, end)) = ranges.get(index as usize - 1).copied() else {
@@ -326,23 +335,43 @@ fn read_chapter_paragraphs(
                 "paragraph index 超出范围: {index}"
             )));
         };
+        let paragraph_char_start = content[..start].chars().count();
+        let paragraph_spans = spans
+            .iter()
+            .filter(|span| span.paragraph_index == index as usize)
+            .collect::<Vec<_>>();
         let mut paragraph = json!({"index": index});
         if include.contains(&"content") {
-            paragraph["content"] = Value::String(content[start..end].to_string());
+            let marker_ranges = paragraph_spans
+                .iter()
+                .map(|span| {
+                    (
+                        span.id.clone(),
+                        span.char_start - paragraph_char_start,
+                        span.char_end - paragraph_char_start,
+                        span.text.clone(),
+                    )
+                })
+                .collect::<Vec<_>>();
+            paragraph["content"] =
+                Value::String(source_markers.mark_ranges(&content[start..end], marker_ranges)?);
         }
         if include.contains(&"source_spans") {
-            paragraph["source_spans"] = Value::Array(
-                spans
+            paragraph["source_span_ids"] = json!(
+                paragraph_spans
                     .iter()
-                    .filter(|span| {
-                        span.get("paragraph_index").and_then(Value::as_u64) == Some(index as u64)
-                    })
-                    .cloned()
-                    .collect(),
+                    .map(|span| span.id.as_str())
+                    .collect::<Vec<_>>()
             );
         }
         paragraphs.push(paragraph);
-        let candidate = json!({"paragraphs": paragraphs});
+        let candidate = source_markers.encode_input(&json!({
+            "kind": "selected_paragraphs",
+            "chapter_number": value.get("chapter_number"),
+            "paragraphs": &paragraphs,
+            "complete": false,
+            "next_cursor": "paragraph:4294967295",
+        }))?;
         if serde_json::to_vec(&candidate)?.len() > CONTEXT_RESULT_BYTES {
             // Always make progress for an oversized single paragraph. The
             // Agent execution owner stores the complete result and exposes its
@@ -364,13 +393,14 @@ fn read_chapter_paragraphs(
         .copied()
         .find(|index| u64::from(*index) > last)
         .map(|index| format!("paragraph:{index}"));
-    Ok(json!({
+    let result = json!({
         "kind": "selected_paragraphs",
         "chapter_number": value.get("chapter_number"),
         "paragraphs": paragraphs,
         "complete": next.is_none(),
         "next_cursor": next,
-    }))
+    });
+    source_markers.encode_input(&result)
 }
 
 fn paragraph_cursor(cursor: Option<&str>) -> Result<u32, AppError> {
@@ -502,28 +532,29 @@ fn preview(value: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{inspect_source, read_chapter_paragraphs, read_paths};
-    use a4n_domain::source_spans::{source_span_prompt_values, source_spans_for_content};
+    use super::{CONTEXT_RESULT_BYTES, inspect_source, read_chapter_paragraphs, read_paths};
     use serde_json::{Value, json};
 
     fn chapter_value(content: &str) -> Value {
-        json!({"chapter_number": 3, "content": content,
-               "source_spans": source_span_prompt_values(&source_spans_for_content(7, 3, content))})
+        json!({"chapter_number": 3, "content": content})
     }
 
     #[test]
     fn selected_paragraph_returns_its_own_evidence() {
         let value = chapter_value("\r\n第一段。\r\n第二段。\r\n\r\n第三段。");
         let page = read_chapter_paragraphs(&value, &[2], &["content", "source_spans"]).unwrap();
-        assert_eq!(page["paragraphs"][0]["content"], "第二段。");
-        assert_eq!(page["paragraphs"][0]["source_spans"][0]["text"], "第二段");
-        assert_eq!(
-            page["paragraphs"][0]["source_spans"][0]["paragraph_index"],
-            2
-        );
-        assert!(
-            read_chapter_paragraphs(&json!({"content": "无引用"}), &[1], &["content"]).is_err()
-        );
+        assert_eq!(page["paragraphs"][0]["content"], "#1 第二段。");
+        assert_eq!(page["paragraphs"][0]["source_span_ids"], json!(["#1"]));
+        assert!(page["source_marker_protocol"].is_string());
+        assert!(!page.to_string().contains("ch3:s"));
+
+        let unindexed = read_chapter_paragraphs(
+            &chapter_value("无引用。"),
+            &[1],
+            &["content", "source_spans"],
+        )
+        .unwrap();
+        assert_eq!(unindexed["paragraphs"][0]["content"], "#0 无引用。");
     }
 
     #[test]
@@ -532,7 +563,8 @@ mod tests {
         let value = chapter_value(&content);
         let result = read_chapter_paragraphs(&value, &(1..=500).collect::<Vec<_>>(), &["content"])
             .expect("paragraph read should be bounded");
-        assert_eq!(result["paragraphs"][0]["content"], "中文段落。");
+        assert_eq!(result["paragraphs"][0]["content"], "#0 中文段落。");
+        assert!(serde_json::to_vec(&result).unwrap().len() <= CONTEXT_RESULT_BYTES);
         assert_eq!(result["complete"], false);
         assert!(
             result["next_cursor"]
@@ -546,7 +578,9 @@ mod tests {
         let text = format!("{}末尾约束", "长段落。".repeat(4000));
         let value = chapter_value(&text);
         let page = read_chapter_paragraphs(&value, &[1], &["content", "source_spans"]).unwrap();
-        assert_eq!(page["paragraphs"][0]["content"], value["content"]);
+        let marked_content = page["paragraphs"][0]["content"].as_str().unwrap();
+        assert!(marked_content.starts_with("#0 长段落。"));
+        assert!(marked_content.ends_with("末尾约束"));
         assert_eq!(page["complete"], true);
         let end = inspect_source("current_chapter", &value, Some("paragraph:2")).unwrap();
         assert_eq!(end["complete"], true);

@@ -56,7 +56,16 @@ export const config = {
     await browser.sendCommand("Page.addScriptToEvaluateOnNewDocument", {
       source: `(() => {
         const original = console.error.bind(console);
-        console.error = (...args) => original(...args, new Error("Browser error stack").stack);
+        const printable = (value) => {
+          if (value instanceof Error) return value.stack ?? value.message;
+          if (!value || typeof value !== "object") return value;
+          try {
+            return JSON.stringify(value, (key, item) => /password|token|secret|api[_-]?key|base64|authorization/i.test(key) ? "[REDACTED]" : item);
+          } catch {
+            return String(value);
+          }
+        };
+        console.error = (...args) => original(...args.map(printable), new Error("Browser error stack").stack);
       })();`,
     });
     await browser.sendCommand("Browser.setDownloadBehavior", {

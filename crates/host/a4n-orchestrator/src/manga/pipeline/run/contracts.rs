@@ -13,6 +13,7 @@ use a4n_prompt::rendering::PromptRenderer;
 
 use super::super::super::{MangaPipelineStage, OrchestratorContext};
 use super::super::state::{MANGA_PIPELINE_TOTAL_STEPS, manga_pipeline_stage_status};
+use crate::source_markers::SourceMarkerMap;
 
 pub(super) struct MangaRunContext<'a> {
     pub(super) service: &'a OrchestratorContext,
@@ -34,6 +35,7 @@ pub(super) struct MangaRunContext<'a> {
     pub(super) stream_reporter: Option<&'a (dyn Fn(&str, &str) + Send + Sync)>,
     pub(super) chapter_content: String,
     pub(super) source_spans: Vec<SourceSpan>,
+    pub(super) source_markers: SourceMarkerMap,
     pub(super) variables: HashMap<String, Value>,
     pub(super) reference_assets: Value,
     pub(super) source_metadata: MangaPagePromptSourceSummary,

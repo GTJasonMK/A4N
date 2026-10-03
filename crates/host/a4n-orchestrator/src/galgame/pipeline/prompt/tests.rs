@@ -10,8 +10,8 @@ use crate::galgame::GalgameSpeakerProfile;
 fn builds_prompt_chapter_from_snapshot_anchors() {
     let chapter = snapshot_chapter(20, 1, "雨夜车站。她回过头。");
     let anchors = vec![
-        text_anchor(101, 20, 2, 6, 11, "她回过头"),
-        text_anchor(100, 20, 1, 0, 5, "雨夜车站"),
+        text_anchor(101, 20, 2, 5, 9, "她回过头"),
+        text_anchor(100, 20, 1, 0, 4, "雨夜车站"),
     ];
 
     let prompt_chapter =
@@ -44,7 +44,7 @@ fn prompt_chapter_rejects_missing_snapshot_anchors_without_content_fallback() {
 fn builds_persist_source_spans_from_prompt_chapters() {
     let chapter = galgame_prompt_chapter_from_snapshot(
         &snapshot_chapter(20, 1, "雨夜车站。"),
-        &[text_anchor(100, 20, 1, 0, 5, "雨夜车站")],
+        &[text_anchor(100, 20, 1, 0, 4, "雨夜车站")],
     )
     .expect("prompt chapter");
 
@@ -57,17 +57,53 @@ fn builds_persist_source_spans_from_prompt_chapters() {
 
 #[test]
 fn character_staging_message_includes_speaker_profiles() {
+    let source_markers = galgame_source_markers(&[]).expect("source markers");
     let message = galgame_character_staging_user_message(
         &json!({"scene_lines": []}),
         &[GalgameSpeakerProfile {
             id: 7,
             name: "林晓雨".to_string(),
         }],
+        &source_markers,
     )
     .expect("message");
 
     assert!(message.contains("\"speaker_profiles\""));
     assert!(message.contains("\"林晓雨\""));
+}
+
+#[test]
+fn script_adaptation_uses_short_markers_without_colliding_with_source_text() {
+    let chapter = galgame_prompt_chapter_from_snapshot(
+        &snapshot_chapter(20, 1, "#0开头。"),
+        &[text_anchor(100, 20, 1, 0, 4, "#0开头")],
+    )
+    .expect("prompt chapter");
+    let source_markers =
+        galgame_source_markers(std::slice::from_ref(&chapter)).expect("source markers");
+
+    assert_eq!(source_markers.marker_for("ch1:ta100").unwrap(), "#1");
+    let message = galgame_script_adaptation_user_message(
+        std::slice::from_ref(&chapter),
+        &json!({"scenes": [{"source_span_ids": ["ch1:ta100"]}]}),
+        &json!({}),
+        &source_markers,
+    )
+    .expect("marked script adaptation message");
+    let payload: serde_json::Value =
+        serde_json::from_str(a4n_prompt::request::json_user_message_payload(&message).unwrap())
+            .unwrap();
+
+    assert_eq!(payload["input"]["chapters"][0]["content"], "#1 #0开头。");
+    assert!(
+        payload["input"]["chapters"][0]
+            .get("source_spans")
+            .is_none()
+    );
+    assert_eq!(
+        payload["input"]["previous_steps"]["adaptation_projection"]["scenes"][0]["source_span_ids"],
+        json!(["#1"])
+    );
 }
 
 fn snapshot_chapter(

@@ -89,8 +89,8 @@ pub(super) async fn run_branch_design_stage(
             stage.message(),
         )
         .await?;
-    let user_prompt = galgame_branch_design_user_message(scenes_json)?;
-    let request_user_prompt = galgame_branch_design_session_user_message()?;
+    let user_prompt = galgame_branch_design_user_message(scenes_json, execution.source_markers)?;
+    let request_user_prompt = galgame_branch_design_session_user_message(execution.source_markers)?;
     let output = execution
         .service
         .run_galgame_llm_stage(
@@ -105,6 +105,7 @@ pub(super) async fn run_branch_design_stage(
                 user_prompt,
                 request_user_prompt,
                 shared_adaptation_projection: scenes_json,
+                source_markers: execution.source_markers,
                 restore_from_checkpoint: execution.should_restore(stage),
                 restore_required: execution.restore_required(stage),
             },

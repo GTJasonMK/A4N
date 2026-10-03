@@ -14,6 +14,7 @@ use super::super::checkpoint::{
 use super::super::execution::ChapterAnalysisStageTrace;
 use super::super::{ChapterAnalysisProgress, OrchestratorContext};
 use super::contracts::{ChapterAnalysisStageSpec, ExecutedChapterAnalysisStage};
+use crate::source_markers::SourceMarkerMap;
 
 impl OrchestratorContext {
     pub(super) async fn execute_chapter_analysis_stage(
@@ -22,6 +23,7 @@ impl OrchestratorContext {
         progress: &mut ChapterAnalysisProgress<'_>,
         workflow_run_id: i64,
         spec: ChapterAnalysisStageSpec,
+        source_markers: &SourceMarkerMap,
         validate: impl Fn(&Value) -> Result<(), AppError>,
     ) -> Result<ExecutedChapterAnalysisStage, AppError> {
         self.mark_workflow_current_step(workflow_run_id, spec.step_key)
@@ -35,6 +37,7 @@ impl OrchestratorContext {
                 &checkpoint.parsed_output,
                 &checkpoint.response_content,
                 spec.context,
+                source_markers,
                 &validate,
             )?;
             progress.report(
@@ -49,6 +52,7 @@ impl OrchestratorContext {
             let output = parse_chapter_analysis_stage_output(
                 &response.response_content,
                 spec.context,
+                source_markers,
                 &validate,
             )?;
             self.save_completed_llm_call_checkpoint(CompletedLlmCallCheckpointInput {

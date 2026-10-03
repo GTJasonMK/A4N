@@ -29,6 +29,8 @@ pub(super) async fn preview_page_slots(
             extraction_summary.clone(),
             manga_page_slots_source(&context.adaptation),
             &context.source_spans,
+            &context.chapter_content,
+            &context.source_markers,
         )?,
         temperature: 0.3,
     })

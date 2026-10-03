@@ -12,7 +12,7 @@ name: chapter_fact_extraction
 
 共享上下文 `chapter_analysis_source` 提供章节标题和带来源标记的完整正文；当前任务提供本阶段要求。
 
-`chapter_analysis_source.content` 是唯一剧情来源，原文内用 `⟦id⟧` 标注其后片段的来源 ID，标记不属于小说正文。所有来源只能从这些标记选择 ID（不含括号），不要抄写原文证据，不要输出章节号、字符坐标或其他系统可推导字段。
+`chapter_analysis_source.content` 是唯一剧情来源；原文片段前的 ASCII 井号加十进制序号是来源标记，不属于小说正文。所有来源字段只能原样复制正文中实际出现的短标记，不要输出长 ID、抄写原文证据、章节号或字符坐标。
 
 ## 输出格式
 
@@ -22,19 +22,19 @@ name: chapter_fact_extraction
   "characters": [
     {
       "name": "角色名",
-      "source_span_ids": ["ch1:s1:f1"]
+      "source_span_ids": ["#0"]
     }
   ],
   "locations": [
     {
       "name": "地点名",
-      "source_span_ids": ["ch1:s2:f1"]
+      "source_span_ids": ["#1"]
     }
   ],
   "items": [
     {
       "name": "物品名",
-      "source_span_ids": ["ch1:s3:f1"]
+      "source_span_ids": ["#2"]
     }
   ],
   "event_candidates": [
@@ -44,7 +44,7 @@ name: chapter_fact_extraction
       "description": "关键事件短句",
       "importance": "high",
       "involved_characters": ["角色名"],
-      "source_span_ids": ["ch1:s4:f1"]
+      "source_span_ids": ["#3"]
     }
   ],
   "world_facts": [
@@ -53,7 +53,7 @@ name: chapter_fact_extraction
       "subject": "施法代价",
       "statement": "施法会损失一段记忆",
       "assertion": "observed",
-      "source_span_ids": ["ch1:s5:f1"]
+      "source_span_ids": ["#4"]
     }
   ],
   "foreshadowing_candidates": [
@@ -63,7 +63,7 @@ name: chapter_fact_extraction
       "category": "plot_twist",
       "priority": "medium",
       "related_entities": ["角色或物品"],
-      "original_text_span_id": "ch1:s5:f1"
+      "original_text_span_id": "#4"
     }
   ]
 }

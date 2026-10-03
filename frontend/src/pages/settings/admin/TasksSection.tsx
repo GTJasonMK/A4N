@@ -17,6 +17,7 @@ import {
 } from "../../../utils/workflowPresentation";
 import { useAdminSectionLoader } from "./useAdminSectionLoader";
 import { formatDateTime, useI18n } from "../../../i18n";
+import { useDirty } from "../../../components/navigation/dirtyRegistry";
 
 export const TasksSection: React.FC = () => {
   const { addToast } = useToast();
@@ -34,6 +35,12 @@ export const TasksSection: React.FC = () => {
     useAdminSectionLoader("admin-tasks", loadTasks, setTasks, "settingsAdmin.loadFailed", {
       intervalMs: 5000,
     });
+  useDirty(
+    "settings-admin-task-cancellation",
+    cancellingIds.size > 0,
+    undefined,
+    () => cancellingIdsRef.current.size === 0,
+  );
 
   const setTaskCancelling = (id: string, value: boolean) => {
     const next = new Set(cancellingIdsRef.current);
@@ -51,15 +58,16 @@ export const TasksSection: React.FC = () => {
     }
     setTaskCancelling(id, true);
     try {
-      await cancelAdminTask(id);
+      const cancelled = await cancelAdminTask(id);
       if (!isCurrentScope("admin-tasks")) return;
-      const refreshed = await reload();
+      await reload();
       if (!isCurrentScope("admin-tasks")) return;
-      if (!refreshed) {
-        addToast(t("settingsAdmin.loadFailed"), "error");
-        return;
-      }
-      addToast(t("settingsAdmin.taskCancelled"), "success");
+      addToast(
+        cancelled
+          ? t("settingsAdmin.taskCancelled")
+          : t("settingsAdmin.taskAlreadyFinished"),
+        cancelled ? "success" : "info",
+      );
     } catch (err) {
       if (!isCurrentScope("admin-tasks")) return;
       addToast(extractErrorMessage(err, t("settingsAdmin.cancelFailed")), "error");

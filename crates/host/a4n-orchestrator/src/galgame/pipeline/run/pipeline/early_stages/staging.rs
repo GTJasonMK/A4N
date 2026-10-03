@@ -34,6 +34,7 @@ pub(super) async fn run_character_staging_stage(
     let user_prompt = galgame_character_staging_user_message(
         lines_draft_json,
         &execution.prompt_context.speaker_profiles,
+        execution.source_markers,
     )?;
     let request_user_prompt = user_prompt.clone();
     let output = execution
@@ -50,6 +51,7 @@ pub(super) async fn run_character_staging_stage(
                 user_prompt,
                 request_user_prompt,
                 shared_adaptation_projection: scenes_json,
+                source_markers: execution.source_markers,
                 restore_from_checkpoint: execution.should_restore(stage),
                 restore_required: execution.restore_required(stage),
             },

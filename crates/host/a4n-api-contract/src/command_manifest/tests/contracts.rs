@@ -423,6 +423,15 @@
             "list_manga_pipeline_statuses",
             "cancel_manga_pipeline",
         ]);
+        for command in ["start_manga_pipeline", "resume_manga_pipeline"] {
+            let descriptor = command_descriptor(command).unwrap();
+            assert_eq!(descriptor.result_schema["type"], "object", "{command}");
+            assert_eq!(
+                descriptor.result_schema["properties"]["task_id"]["type"],
+                "string",
+                "{command}"
+            );
+        }
     }
 
     #[test]

@@ -27,7 +27,7 @@ impl OrchestratorContext {
             .await
     }
 
-    pub(crate) async fn queue_cancel(&self, task_id: &str) -> Result<(), AppError> {
+    pub(crate) async fn queue_cancel(&self, task_id: &str) -> Result<bool, AppError> {
         self.task_queue.cancel(task_id).await
     }
 

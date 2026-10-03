@@ -1,7 +1,6 @@
 """Deterministic expository chapters for cadence and recovery tests."""
-import re
 from .reverse import embedded_json_objects
-from .entities import chapter_analysis_foreshadowing_response, source_span_pairs
+from .entities import chapter_analysis_foreshadowing_response, source_marker_pairs, source_span_pairs
 
 
 def identity_feedback_response(combined: str) -> dict:
@@ -26,16 +25,27 @@ def fact_feedback_response(combined: str, invalid: bool = False) -> dict:
         if not blueprint:
             return {"changes": []}
         current = blueprint["world_setting"].get("culture_and_society", {}).get("calendar")
-        applicable = [span for span in spans if "每年有" in span["text"]]
-        latest = max(applicable, key=lambda span: int(re.match(r"ch(\d+)", span["id"])[1]))
-        value = calendar_fact(latest["text"])
+        applicable = []
+        for chapter in objects:
+            if not isinstance(chapter.get("chapter_number"), int):
+                continue
+            content = chapter.get("content")
+            if not isinstance(content, str):
+                continue
+            applicable.extend(
+                (chapter["chapter_number"], marker, text)
+                for marker, text in source_marker_pairs(content)
+                if "每年有" in text
+            )
+        latest = max(applicable, key=lambda item: item[0])
+        value = calendar_fact(latest[2])
         if current == value:
             return {"changes": []}
         return {"changes": [{
             "material_kind": "world_setting", "target_id": blueprint["id"],
             "path": "/culture_and_society/calendar", "operation": "replace",
             "before": current, "after": value, "reason": "正文明确说明记忆城的历法",
-            "source_span_ids": ["ch999:s1:f1" if invalid else latest["id"]],
+            "source_span_ids": ["#999999" if invalid else latest[1]],
         }]}
     if "chapter_fact_extraction" in combined:
         span = next(span for span in spans if "每年有" in span["text"])

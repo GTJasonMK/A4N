@@ -52,6 +52,7 @@ pub(in crate::shooting_script::generation) async fn generate_screenplay_adaptati
             progress,
             stream_reporter,
             cancel_token,
+            Some(&prepared.source_markers),
             |output| {
                 validate_unit_adaptation(
                     output,

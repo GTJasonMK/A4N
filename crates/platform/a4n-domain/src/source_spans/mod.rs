@@ -14,8 +14,8 @@ pub use anchors::{
     anchor_quotes_in_exact_chapter, anchor_quotes_with_chapter_numbers, text_anchor_prompt_values,
 };
 pub use evidence::{
-    source_span_context_excerpt, source_span_prompt_excerpt, source_span_prompt_text,
-    source_span_prompt_value, source_span_prompt_values, text_anchor_prompt_text,
+    source_marker_text, source_span_context_excerpt, source_span_marker_excerpt,
+    source_span_marker_text, text_anchor_prompt_text,
 };
 pub use metadata::{
     ChapterSourceContext, metadata_source_content_sha256, source_metadata,
@@ -112,30 +112,7 @@ mod tests {
     }
 
     #[test]
-    fn annotated_source_preserves_original_text_and_rejects_stale_ranges() {
-        let content = "“别走！”她说。\n\n雨落下来，🌧️打湿窗台。";
-        let mut spans = source_spans_for_content(7, 3, content);
-        let annotated = source_span_prompt_text(content, &spans).expect("valid source");
-        let restored = spans.iter().fold(annotated.clone(), |text, span| {
-            text.replace(&format!("⟦{}⟧", span.id), "")
-        });
-        assert_eq!(restored, content);
-        assert!(annotated.contains("！”"));
-        assert!(annotated.contains("\n\n"));
-        assert!(
-            annotated.len()
-                < serde_json::to_string(&source_span_prompt_values(&spans))
-                    .unwrap()
-                    .len()
-        );
-        spans[0].text = "已变更".to_string();
-        assert!(source_span_prompt_text(content, &spans).is_err());
-        spans[0].char_end = usize::MAX;
-        assert!(source_span_prompt_text(content, &spans).is_err());
-    }
-
-    #[test]
-    fn scoped_excerpt_keeps_quoted_paragraphs_without_unrelated_story() {
+    fn scoped_context_excerpt_keeps_quoted_paragraphs_without_unrelated_story() {
         let text = "“别走！”她说。\n\n不相关的往事。\n\n🌧️雨落下来，门关上了。";
         let spans = source_spans_for_content(7, 2, text);
         let selected = spans
@@ -143,18 +120,10 @@ mod tests {
             .filter(|span| span.text == "别走" || span.text.contains("雨落下来"))
             .cloned()
             .collect::<Vec<_>>();
-        let excerpt = source_span_prompt_excerpt(text, &selected).unwrap();
-        assert!(excerpt.contains("！”她说。"));
-        assert!(excerpt.contains("门关上了。"));
-        assert!(!excerpt.contains("不相关的往事"));
         let plain = source_span_context_excerpt(text, &selected).unwrap();
         assert!(plain.contains("“别走！”她说。"));
         assert!(!plain.contains("⟦"));
         assert!(!plain.contains("不相关的往事"));
-        for span in &selected {
-            assert_eq!(excerpt.matches(&format!("⟦{}⟧", span.id)).count(), 1);
-        }
-        assert_eq!(source_span_prompt_excerpt(text, &[]).unwrap(), "");
     }
 
     #[test]
@@ -195,13 +164,8 @@ mod tests {
                 source_span_context_excerpt(&text, selected).unwrap(),
                 "“别走！”她说。"
             );
-            assert_eq!(
-                source_span_prompt_excerpt(&text, selected).unwrap(),
-                format!("“⟦{}⟧别走！”她说。", span.id),
-            );
             let overlapping = [span.clone(), span.clone()];
             assert!(source_span_context_excerpt(&text, &overlapping).is_err());
-            assert!(source_span_prompt_excerpt(&text, &overlapping).is_err());
         }
     }
 

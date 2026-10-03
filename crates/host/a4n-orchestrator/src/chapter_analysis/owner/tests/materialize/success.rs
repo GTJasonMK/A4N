@@ -5,7 +5,7 @@ fn materialize_analysis_uses_source_span_ids_for_quotes() {
     let mut ch = sample_chapter();
     ch.content = "林岚走进旧城，墙上刻着隐藏标记。".to_string();
     let spans = source_spans_for_chapters(std::slice::from_ref(&ch));
-    let prompt_values = source_span_prompt_values(&spans);
+    let prompt_values = source_span_records(&spans);
     let marker_span = prompt_values
         .iter()
         .find(|span| span["text"] == "墙上刻着隐藏标记")
@@ -72,7 +72,7 @@ fn materialize_analysis_allows_freeform_metadata_tags_and_tone() {
     let mut ch = sample_chapter();
     ch.content = "林岚在旧城醒来，发现自己回到了三年前。".to_string();
     let spans = source_spans_for_chapters(std::slice::from_ref(&ch));
-    let marker_span = source_span_prompt_values(&spans)
+    let marker_span = source_span_records(&spans)
         .iter()
         .find(|span| span["text"] == "发现自己回到了三年前")
         .and_then(|span| span["id"].as_str())

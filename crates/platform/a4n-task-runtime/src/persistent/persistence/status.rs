@@ -10,7 +10,7 @@ impl PersistentTaskQueue {
         task_id: &str,
         status: &str,
         error: Option<&str>,
-    ) -> Result<(), AppError> {
+    ) -> Result<bool, AppError> {
         a4n_db::queue::update_task_status(self.db.as_ref(), task_id, status, error)
             .await
             .map_err(queue_db_error)

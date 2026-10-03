@@ -7,8 +7,6 @@ use a4n_db::{
 };
 use a4n_domain::chapter::{ChapterRecord, PartOutlineRecord};
 use a4n_domain::project::{OptimizationCharacterProfileRecord, ProjectOptimizationContextRecord};
-use a4n_domain::source_spans::source_span_prompt_values;
-use a4n_domain::source_spans::source_spans_for_chapters;
 
 pub(super) fn optimization_project_context(project: &ProjectOptimizationContextRecord) -> Value {
     json!({
@@ -27,7 +25,6 @@ pub(super) fn optimization_project_context(project: &ProjectOptimizationContextR
 }
 
 pub(super) fn optimization_chapter_context(ch: &ChapterRecord) -> Value {
-    let source_spans = source_spans_for_chapters(std::slice::from_ref(ch));
     json!({
         "chapter_number": ch.chapter_number,
         "content": ch.content,
@@ -35,7 +32,6 @@ pub(super) fn optimization_chapter_context(ch: &ChapterRecord) -> Value {
         "summary": optimization_chapter_summary_parts(ch.analysis_data.as_ref(), ch.summary.as_deref()),
         "word_count": ch.word_count,
         "status": ch.status,
-        "source_spans": source_span_prompt_values(&source_spans),
     })
 }
 

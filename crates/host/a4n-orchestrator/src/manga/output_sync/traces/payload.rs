@@ -7,7 +7,7 @@ use a4n_domain::manga::MangaPagePromptRecord;
 use a4n_error::AppError;
 use serde_json::json;
 
-use super::super::super::layout_rules::manga_page_generation_layout;
+use super::super::super::layout_rules::manga_page_pipeline_layout;
 use super::super::super::pipeline::prompt::MangaPromptGenerationTrace;
 use super::contracts::MangaPageGenerationTraceRecord;
 
@@ -15,7 +15,7 @@ pub(super) fn build_manga_page_generation_trace_record(
     row: &MangaPagePromptRecord,
     trace: MangaPromptGenerationTrace,
 ) -> Result<MangaPageGenerationTraceRecord, AppError> {
-    let layout = manga_page_generation_layout(row).map_err(AppError::InvalidArgument)?;
+    let layout = manga_page_pipeline_layout(row).map_err(AppError::InvalidArgument)?;
     let source_refs_json = Some(json!({ "source": layout.source }));
     let media_refs_json = Some(json!({
         "reference_bindings": layout.reference_bindings,
@@ -85,4 +85,101 @@ pub(super) fn build_manga_page_generation_trace_record(
             attempt: None,
         },
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn trace_accepts_page_layout_before_storyboard_is_generated() {
+        let now = chrono::Utc::now().naive_utc();
+        let row = MangaPagePromptRecord {
+            id: 11,
+            chapter_id: 22,
+            project_id: 33,
+            prompt_type: MANGA_PAGE_PROMPT_TYPE.to_string(),
+            page_number: 1,
+            image_prompt: String::new(),
+            dialogue_text: None,
+            characters_in_frame: None,
+            layout: Some(json!({
+                "schema_version": "manga_page_generation_v4",
+                "page_id": "page-0001",
+                "page_number": 1,
+                "page_plan_ref": null,
+                "pipeline": {
+                    "schema_version": "manga_page_pipeline_state_v1",
+                    "page_id": "page-0001",
+                    "status": "pending",
+                    "stage": "storyboard",
+                    "attempt": 1,
+                    "source_fingerprint": "content-sha256",
+                    "stage_fingerprints": {},
+                    "page_content": {
+                        "summary": "本页内容",
+                        "source_span_ids": [],
+                        "beat_refs": [{"unit_id": "unit-1", "beat_id": "beat-1"}],
+                        "action": "角色抬头",
+                        "reaction": null,
+                        "dialogue_intent": null,
+                        "entry_state": "平静",
+                        "exit_state": "紧张"
+                    },
+                    "page_adaptation": {
+                        "visual_intent": "表现角色的迟疑",
+                        "continuity_requirements": [],
+                        "retained_details": [],
+                        "omitted_details": [],
+                        "beat_refs": [{"unit_id": "unit-1", "beat_id": "beat-1"}]
+                    },
+                    "storyboard": null,
+                    "drawing_prompt": null,
+                    "image": null,
+                    "error": null
+                },
+                "reference_bindings": [],
+                "prompt_fingerprint": {},
+                "source": {
+                    "root_project_id": 33,
+                    "source_chapter_id": 22,
+                    "source_snapshot_id": null,
+                    "source_snapshot_chapter_id": null,
+                    "source_revision_key": "live:22:content-sha256",
+                    "content_sha256": "content-sha256",
+                    "adaptation_plan_id": 3,
+                    "adaptation_plan_revision": 1,
+                    "adaptation_plan_sha256": "plan-sha256"
+                }
+            })),
+            generated_image_id: None,
+            status: "pending".to_string(),
+            created_at: now,
+            updated_at: now,
+        };
+        let trace = MangaPromptGenerationTrace {
+            prompt_name: "manga_page_adaptation_plan".to_string(),
+            request_json: json!({}),
+            messages_json: json!([]),
+            response_text: "{}".to_string(),
+            workflow_run_id: 44,
+            call_key: "manga-page-1-adaptation".to_string(),
+            call_order: 1,
+            input_fingerprint_json: json!({}),
+            usage: None,
+            finish_reason: None,
+        };
+
+        let record = build_manga_page_generation_trace_record(&row, trace).unwrap();
+
+        assert_eq!(
+            record.run.source_refs_json.as_ref().unwrap()["source"]["adaptation_plan_id"],
+            3
+        );
+        assert_eq!(
+            record.run.media_refs_json.as_ref().unwrap()["reference_bindings"],
+            json!([])
+        );
+    }
 }

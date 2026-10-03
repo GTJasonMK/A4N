@@ -17,6 +17,7 @@ use super::super::contracts::MangaRunContext;
 use super::super::early_extraction::run_early_extraction;
 use super::super::late_extraction::run_late_extraction;
 use super::super::page_slots::run_page_slots;
+use crate::source_markers::SourceMarkerMap;
 
 impl OrchestratorContext {
     pub(crate) async fn generate_page_prompts(
@@ -72,6 +73,7 @@ impl OrchestratorContext {
         let chapter_content = source.content.clone();
         let source_spans =
             source_spans_for_content(chapter_id, source.chapter_number, &chapter_content);
+        let source_markers = SourceMarkerMap::from_source_spans(&source_spans)?;
         let source_metadata = MangaPagePromptSourceSummary {
             root_project_id: source.root_project_id,
             source_chapter_id: source.source_chapter_id,
@@ -115,6 +117,7 @@ impl OrchestratorContext {
             stream_reporter,
             chapter_content,
             source_spans,
+            source_markers,
             variables,
             reference_assets,
             source_metadata,

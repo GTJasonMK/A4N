@@ -695,6 +695,97 @@ mod video_prompt_generation_tests {
         );
         assert_eq!(session.checkpoint_candidate().checkpoint_revision, 2);
 
+        let resume_meta = GenerationStartRequestMeta {
+            start_request_id: uuid::Uuid::new_v4().to_string(),
+            retry_of_task_id: None,
+        };
+        let resume_start = context
+            .generation
+            .reserve_root_generation_task(RootGenerationTaskReservationInput {
+                requested_by_user_id: user_id,
+                meta: &resume_meta,
+                business_key_json: serde_json::json!({"version": 1, "test": "workflow-resume-binding"}),
+                input_fingerprint_json: serde_json::json!({"test": "workflow-resume-binding"}),
+                task_kind: TaskKind::LlmCall,
+                priority: TaskPriority::High,
+                delivery_mode: GenerationDeliveryMode::Stream,
+                batch_policy: None,
+                project_id: project.id,
+                task_scope: "video_prompt_generation",
+                target: GenerationTargetRef {
+                    kind: "video_prompt_segment_plan".to_string(),
+                    id: "workflow-resume-binding-test".to_string(),
+                    revision: None,
+                },
+            })
+            .await
+            .unwrap();
+        assert!(resume_start.should_run);
+        let resumable = context
+            .begin_workflow_run_validated(crate::workflow::UpsertWorkflowRunInput {
+                business_key: "workflow-resume-binding-cancellation".to_string(),
+                workflow_kind: "video_prompts".to_string(),
+                project_id: Some(project.id),
+                root_project_id: Some(project.id),
+                source_snapshot_id: None,
+                scope_table: Some("chapter".to_string()),
+                scope_id: Some(2),
+                chapter_id: Some(2),
+                mode: Some("storyboard".to_string()),
+                input_fingerprint_json: Some(serde_json::json!({"version": 1})),
+                status: crate::workflow::WORKFLOW_STATUS_RUNNING.to_string(),
+                current_step_key: Some("video_prompts".to_string()),
+                active_task_id: None,
+                can_resume: false,
+                resume_block_reason: None,
+                error_message: None,
+            })
+            .await
+            .unwrap();
+        context
+            .fail_workflow_run_validated(resumable.id, "initial execution failed")
+            .await
+            .unwrap();
+        let resumed = context
+            .resume_workflow_run_with_active_task_validated(
+                resumable.id,
+                &resume_start.handle.task_id,
+            )
+            .await
+            .unwrap();
+        assert_eq!(
+            resumed.active_task_id.as_deref(),
+            Some(resume_start.handle.task_id.as_str())
+        );
+        let resumed_session = context
+            .generation
+            .session(&resume_start.handle.task_id, resume_start.handle.attempt)
+            .unwrap()
+            .unwrap();
+        assert_eq!(
+            resumed_session.snapshot().started.workflow_run_id,
+            Some(resumable.id)
+        );
+        assert_eq!(
+            resumed_session.checkpoint_candidate().checkpoint_revision,
+            2
+        );
+        let resumed_execution = context
+            .generation
+            .acquire_task_execution(&resume_start.handle)
+            .await
+            .unwrap()
+            .unwrap();
+        context
+            .request_generation_cancel(
+                user_id,
+                &resume_start.handle.task_id,
+                resume_start.handle.attempt,
+            )
+            .await
+            .unwrap();
+        drop(resumed_execution);
+
         let execution = context
             .generation
             .acquire_task_execution(&start.handle)

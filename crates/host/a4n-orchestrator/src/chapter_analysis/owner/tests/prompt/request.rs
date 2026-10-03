@@ -2,6 +2,7 @@ use std::collections::HashMap;
 
 use a4n_prompt::rendering::PromptRenderer;
 use async_trait::async_trait;
+use crate::source_markers::SourceMarkerMap;
 
 use crate::chapter_analysis::owner::requests::{
     build_chapter_analysis_initial_request, build_chapter_character_state_request,
@@ -63,14 +64,22 @@ fn chapter_fact_prompt_input_omits_system_derived_source_span_fields() {
     let mut ch = sample_chapter();
     ch.content = "林岚走进旧城，墙上刻着隐藏标记。".to_string();
     let spans = source_spans_for_chapters(std::slice::from_ref(&ch));
+    let source_markers = SourceMarkerMap::from_source_spans(&spans).unwrap();
+    let input = source_markers
+        .encode_input(&json!({
+            "chapter_title": "第三章",
+            "content": source_markers.mark_text(&ch.content, &spans).unwrap(),
+            "source_spans": spans.iter().map(|span| json!({
+                "id": span.id,
+                "paragraph_index": span.paragraph_index,
+                "text": span.text,
+            })).collect::<Vec<_>>()
+        }))
+        .unwrap();
     let message = build_chapter_analysis_stage_user_message(
         "chapter_fact_extraction",
         "抽取事实",
-        json!({
-            "chapter_title": "第三章",
-            "content": ch.content,
-            "source_spans": source_span_prompt_values(&spans)
-        }),
+        input,
         json!({
             "format": "json_object",
             "required_fields": ["characters"]
@@ -86,8 +95,10 @@ fn chapter_fact_prompt_input_omits_system_derived_source_span_fields() {
     let payload: serde_json::Value =
         serde_json::from_str(a4n_prompt::request::json_user_message_payload(&message).unwrap())
             .unwrap();
-    assert_eq!(payload["input"]["source_spans"][0]["id"], "ch3:s1:f1");
-    assert_eq!(payload["input"]["source_spans"][0]["text"], "林岚走进旧城");
+    assert!(payload["input"].get("source_spans").is_none());
+    assert!(payload["input"]["content"].as_str().unwrap().starts_with("#0 林岚"));
+    assert!(payload["input"]["source_marker_protocol"].is_string());
+    assert!(!message.contains("ch3:s1:f1"));
 }
 
 #[tokio::test]
@@ -110,7 +121,7 @@ async fn chapter_analysis_stages_share_one_source_prefix_without_losing_stage_pr
         "related_characters": []
     }]);
     let requests = [
-        build_chapter_fact_extraction_request(&chapter, &ChapterSessionPromptRenderer, &spans)
+        build_chapter_fact_extraction_request(&chapter, &ChapterSessionPromptRenderer)
             .await
             .expect("facts request"),
         build_chapter_summary_synthesis_request(&chapter, &ChapterSessionPromptRenderer, &facts)
@@ -135,8 +146,13 @@ async fn chapter_analysis_stages_share_one_source_prefix_without_losing_stage_pr
     let source = &variants[0]["canonical_content_json"];
     assert!(source.get("source_spans").is_none(), "正文只发送一份");
     let mut restored = source["content"].as_str().unwrap().to_string();
+    let source_markers = crate::source_markers::SourceMarkerMap::from_source_spans(&spans)
+        .expect("source markers");
     for span in &spans {
-        restored = restored.replace(&format!("⟦{}⟧", span.id), "");
+        restored = restored.replace(
+            &format!("{} ", source_markers.marker_for(&span.id).unwrap()),
+            "",
+        );
     }
     assert_eq!(restored, chapter.content);
 

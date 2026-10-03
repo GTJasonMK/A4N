@@ -30,12 +30,13 @@ pub(super) enum TaskStatusTimestampUpdate {
     Completed,
 }
 
+/// Returns false for an already-terminal row and true when a non-terminal row was updated.
 pub async fn update_task_status(
     db: &DatabaseConnection,
     task_id: &str,
     status: &str,
     error: Option<&str>,
-) -> Result<(), QueueDbError> {
+) -> Result<bool, QueueDbError> {
     let tx = db.begin().await?;
     let mut query = task_queue::Entity::find_by_id(task_id.to_string())
         .select_only()
@@ -56,7 +57,7 @@ pub async fn update_task_status(
             return Err(QueueDbError::Cancelled);
         }
         tx.commit().await?;
-        return Ok(());
+        return Ok(false);
     }
 
     let workflow_run_id = task.workflow_run_id;
@@ -96,7 +97,7 @@ pub async fn update_task_status(
         sync_workflow_active_task(&tx, workflow_run_id, task_id, status, now).await?;
     }
     tx.commit().await?;
-    Ok(())
+    Ok(true)
 }
 
 /// 将启动恢复发现的多个普通队列任务一次性标记为 interrupted。
@@ -258,7 +259,19 @@ where
     }
     let next_active_task_id = match status {
         "pending" | "running" => Some(task_id.to_string()),
-        _ if run.active_task_id.as_deref() == Some(task_id) => None,
+        _ if run.active_task_id.as_deref() == Some(task_id) => {
+            task_queue::Entity::find()
+                .select_only()
+                .column(task_queue::Column::Id)
+                .filter(task_queue::Column::WorkflowRunId.eq(workflow_run_id))
+                .filter(task_queue::Column::Id.ne(task_id))
+                .filter(task_queue::Column::Status.is_in(["pending", "running"]))
+                .order_by_asc(task_queue::Column::CreatedAt)
+                .order_by_asc(task_queue::Column::Id)
+                .into_tuple::<String>()
+                .one(db)
+                .await?
+        }
         _ => return Ok(()),
     };
     let updated = workflow_run::Entity::update_many()

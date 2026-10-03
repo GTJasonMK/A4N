@@ -729,7 +729,7 @@ export function useCanvasWorkflowActions({
     if ((!taskId && !workflowRunId) || cancellingWorkflow) return;
     setCancellingWorkflow(true);
     try {
-      await cancelWorkflow({
+      const cancelled = await cancelWorkflow({
         task_id: taskId,
         workflow_run_id: workflowRunId,
       });
@@ -737,7 +737,10 @@ export function useCanvasWorkflowActions({
         const refreshed = await loadWorkflowStatus(workflowRunId);
         if (!refreshed) addToast(currentT()("video.loadCanvasRunsFailed"), "error");
       }
-      addToast(currentT()("video.cancelRunRequested"), "info");
+      addToast(
+        currentT()(cancelled ? "video.cancelRunRequested" : "video.cancelRunAlreadyFinished"),
+        "info",
+      );
     } catch (err) {
       addToast(extractErrorMessage(err, currentT()("video.cancelRunFailed")), "error");
     } finally {

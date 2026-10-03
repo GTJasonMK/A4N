@@ -38,6 +38,32 @@ export async function captureBrowserDiagnostics(prefix) {
     writeFileSync(`${prefix}-${type}.json`, JSON.stringify(redact(entries), null, 2));
     logs[type] = entries;
   }
+  const progressTaskByRequestId = new Map();
+  const progressResponseStatuses = new Map();
+  for (const entry of logs.performance) {
+    if (entry.url.endsWith("/api/commands/get_workflow_progress_events")) {
+      if (entry.method === "Network.requestWillBeSent") {
+        const taskId = entry.data?.input?.task_id;
+        if (typeof taskId === "string") progressTaskByRequestId.set(entry.requestId, taskId);
+      } else if (entry.method === "Network.responseReceived") {
+        const taskId = progressTaskByRequestId.get(entry.requestId);
+        if (taskId) {
+          const statuses = progressResponseStatuses.get(taskId) ?? [];
+          statuses.push({ requestId: entry.requestId, status: entry.status });
+          progressResponseStatuses.set(taskId, statuses);
+        }
+      }
+    }
+  }
+  const ignoredTerminalProgressRequests = new Set();
+  const ignoredTerminalProgressTasks = new Set();
+  for (const [taskId, statuses] of progressResponseStatuses) {
+    if (statuses.at(-1)?.status === 400 && statuses.at(-2)?.status === 200) {
+      // A completed synchronous host command may evict its transient task before the final auxiliary poll returns.
+      ignoredTerminalProgressRequests.add(statuses.at(-1).requestId);
+      ignoredTerminalProgressTasks.add(taskId);
+    }
+  }
   // A replay cursor outside retention explicitly negotiates a snapshot with HTTP 409.
   // Only a successful snapshot of that same task/attempt proves this recovery completed.
   const recoveries = logs.performance.flatMap((entry, index) => {
@@ -48,9 +74,25 @@ export async function captureBrowserDiagnostics(prefix) {
   });
   writeFileSync(`${prefix}-recoveries.json`, JSON.stringify(recoveries, null, 2));
   const recovered = new Set(recoveries.map((entry) => entry.requestId));
-  const errors = logs.performance.filter((entry) => entry.status >= 400 && !recovered.has(entry.requestId));
+  const errors = logs.performance.filter((entry) =>
+    entry.status >= 400
+    && !recovered.has(entry.requestId)
+    && !ignoredTerminalProgressRequests.has(entry.requestId));
   errors.push(...logs.browser.filter((entry) => {
     if (entry.level !== "SEVERE") return false;
+    if (
+      entry.source === "console-api"
+      && entry.message.includes("get_workflow_progress_events")
+      && [...ignoredTerminalProgressTasks].some((taskId) => entry.message.includes(taskId))
+    ) return false;
+    if (
+      entry.source === "network"
+      && entry.message.includes("/api/commands/get_workflow_progress_events")
+      && ignoredTerminalProgressRequests.size > 0
+      && logs.performance
+        .filter((row) => row.url.endsWith("/api/commands/get_workflow_progress_events") && row.status >= 400)
+        .every((row) => ignoredTerminalProgressRequests.has(row.requestId))
+    ) return false;
     if (entry.source !== "network" || !entry.message.includes("status of 409")) return true;
     const address = /^https?:\/\/\S+/.exec(entry.message)?.[0];
     if (!address) return true;

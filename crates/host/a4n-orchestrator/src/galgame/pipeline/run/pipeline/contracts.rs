@@ -5,6 +5,7 @@ use crate::galgame::{
     GalgamePipelinePromptContext, GalgamePipelineRunOptions, GalgamePipelineStartStage,
     GalgameVisualPlan, OrchestratorContext, should_restore_galgame_stage_checkpoint,
 };
+use crate::source_markers::SourceMarkerMap;
 use a4n_prompt::rendering::PromptRenderer;
 
 pub(super) struct GalgamePipelineExecution<'a> {
@@ -13,6 +14,7 @@ pub(super) struct GalgamePipelineExecution<'a> {
     pub(super) prompt_renderer: &'a dyn PromptRenderer,
     pub(super) options: &'a GalgamePipelineRunOptions,
     pub(super) prompt_context: &'a GalgamePipelinePromptContext,
+    pub(super) source_markers: &'a SourceMarkerMap,
 }
 
 impl GalgamePipelineExecution<'_> {

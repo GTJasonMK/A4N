@@ -46,7 +46,7 @@ name: chapter_shooting_design_unit
   "shot_index": 1,
   "shot_id": "逐字复制对应 locked_visual_unit.shots[].segment_id",
   "title": "非空字符串",
-  "source_span_ids": ["实际引用的正文 ID；仅来源于导演描述时为 []"],
+  "source_span_ids": ["当前 shot 正文前实际出现的短来源标签；仅来源于导演描述时为 []"],
   "user_addition_ids": ["director:对应的 segment_id"],
   "coverage": "must_show",
   "narrative_purpose": "非空字符串",
@@ -86,7 +86,7 @@ name: chapter_shooting_design_unit
     {
   "beat_index": 1,
   "beat_id": "当前响应内唯一的临时 ID",
-  "source_span_ids": ["实际引用的当前 shot 正文 ID；没有时为 []"],
+  "source_span_ids": ["当前 shot 正文前实际出现的短来源标签；没有时为 []"],
   "user_addition_ids": ["来自导演事实时填写 director:当前 segment_id，否则为 []"],
   "actor": "participants 中的角色名或 null",
   "objective": "非空字符串",

@@ -15,7 +15,8 @@ use super::{
     adaptation_projection_from_value, branch_design_from_value, character_staging_from_value,
     galgame_adaptation_projection, galgame_branch_design_user_message,
     galgame_character_staging_user_message, galgame_script_adaptation_user_message,
-    galgame_visual_planning_user_message, script_adaptation_from_value, visual_plan_from_value,
+    galgame_source_markers, galgame_visual_planning_user_message, script_adaptation_from_value,
+    visual_plan_from_value,
 };
 
 const CHECKPOINT_SCENES: &str = "scenes";
@@ -157,6 +158,7 @@ impl OrchestratorContext {
         script_adaptation: Option<&Value>,
         character_staging: Option<&Value>,
     ) -> Result<Vec<GalgamePipelinePreviewRequest>, AppError> {
+        let source_markers = galgame_source_markers(&context.chapters)?;
         let stage_filter = |stage: GalgamePipelineStartStage| {
             start_from_stage
                 .map(|start| stage.order() >= start.order())
@@ -168,7 +170,7 @@ impl OrchestratorContext {
                 "branch_design",
                 "分支设计",
                 "galgame_branch_design",
-                galgame_branch_design_user_message(adaptation_projection)?,
+                galgame_branch_design_user_message(adaptation_projection, &source_markers)?,
             ));
         }
         if stage_filter(GalgamePipelineStartStage::ScriptAdaptation)
@@ -182,6 +184,7 @@ impl OrchestratorContext {
                     &context.chapters,
                     adaptation_projection,
                     branch_design,
+                    &source_markers,
                 )?,
             ));
         }
@@ -195,6 +198,7 @@ impl OrchestratorContext {
                 galgame_character_staging_user_message(
                     script_adaptation,
                     &context.speaker_profiles,
+                    &source_markers,
                 )?,
             ));
         }
@@ -205,7 +209,11 @@ impl OrchestratorContext {
                 "visual_planning",
                 "视觉资产规划",
                 "galgame_visual_planning",
-                galgame_visual_planning_user_message(adaptation_projection, character_staging)?,
+                galgame_visual_planning_user_message(
+                    adaptation_projection,
+                    character_staging,
+                    &source_markers,
+                )?,
             ));
         }
         futures::future::join_all(pending.into_iter().map(

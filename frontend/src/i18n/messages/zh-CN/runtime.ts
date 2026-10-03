@@ -21,6 +21,7 @@ export const workflow = {
   keepWindowOpen: "生成过程中请保持当前窗口打开",
   stopping: "正在停止…",
   cancelRequested: "已发送停止任务请求，正在等待后端确认…",
+  alreadyFinished: "该任务已结束",
   cancelTaskMissing: "任务未提供取消函数；请在 runProgressTask 中传入 cancelTask",
   stopFailed: "停止任务失败",
   progress: "生成进度",

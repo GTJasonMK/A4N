@@ -29,6 +29,7 @@ pub(super) async fn run_comic_synthesis_stage(
         speech_json.clone(),
         visual_json.clone(),
         items_json.clone(),
+        &context.source_markers,
     )?;
     let (comic_synthesis_trace, synthesis_json) = context
         .service

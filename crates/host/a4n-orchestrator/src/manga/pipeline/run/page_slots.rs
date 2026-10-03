@@ -21,10 +21,12 @@ pub(super) async fn run_page_slots(
         extraction_summary.clone(),
         manga_page_slots_source(&context.adaptation),
         &context.source_spans,
+        &context.chapter_content,
+        &context.source_markers,
     )?;
     let (trace, slots) = context
         .service
-        .render_and_validate_manga_call(
+        .render_and_validate_manga_call_with_markers(
             MangaRenderTraceInput {
                 prompt_renderer: context.prompt_renderer,
                 prompt_name: "manga_page_slots",
@@ -40,6 +42,7 @@ pub(super) async fn run_page_slots(
                 stream_id: "raw_json".to_string(),
                 stream_reporter: context.stream_reporter,
             },
+            &context.source_markers,
             |value| {
                 parse_manga_page_slots(
                     value,

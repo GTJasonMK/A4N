@@ -14,6 +14,7 @@ use crate::{
 use super::contracts::{
     ShootingScriptProgressReporter, ShootingScriptStageResult, ShootingScriptStreamReporter,
 };
+use crate::source_markers::SourceMarkerMap;
 
 mod persistence;
 mod raw_call;
@@ -33,6 +34,7 @@ impl OrchestratorContext {
         progress: ShootingScriptProgressReporter<'_>,
         stream_reporter: ShootingScriptStreamReporter<'_>,
         cancel_token: &CancellationToken,
+        source_markers: Option<&SourceMarkerMap>,
         validate_output: impl Fn(&T) -> Result<(), AppError>,
     ) -> Result<ShootingScriptStageResult<T>, AppError>
     where
@@ -67,6 +69,7 @@ impl OrchestratorContext {
             label,
             step_key,
             raw.upgraded_contract,
+            source_markers,
         );
         let output = parsed.and_then(|output| {
             validate_output(&output)?;
@@ -83,12 +86,9 @@ impl OrchestratorContext {
             }
             Ok(output)
         });
-        let output = if restored {
-            self.validate_llm_call_output(workflow_run_id, step_key, &fingerprint_json, output)
-                .await?
-        } else {
-            output?
-        };
+        let output = self
+            .validate_llm_call_output(workflow_run_id, step_key, &fingerprint_json, output)
+            .await?;
         if !restored || response_only_checkpoint {
             self.persist_parsed_shooting_call(
                 workflow_run_id,
@@ -111,10 +111,22 @@ fn parse_shooting_script_output<T>(
     label: &str,
     call_key: &str,
     upgraded_contract: bool,
+    source_markers: Option<&SourceMarkerMap>,
 ) -> Result<T, AppError>
 where
     T: DeserializeOwned,
 {
+    if let Some(source_markers) = source_markers {
+        let value: serde_json::Value = parse_strict_json_response(raw, label)?;
+        let mut value = source_markers.decode_output(&value)?;
+        if upgraded_contract {
+            a4n_domain::shooting_script::compat::HashUpgrades::default()
+                .upgrade_embedded(&mut value)
+                .map_err(AppError::InvalidArgument)?;
+            normalize_preserved_sound_arrays(&mut value, call_key);
+        }
+        return serde_json::from_value::<T>(value).map_err(AppError::Serialization);
+    }
     if upgraded_contract {
         let mut value = parse_strict_json_response::<serde_json::Value>(raw, label)?;
         a4n_domain::shooting_script::compat::HashUpgrades::default()
@@ -212,6 +224,7 @@ mod tests {
             "拍摄设计镜头",
             "test-call",
             false,
+            None,
         )
         .expect("string arrays at preserved_sound are normalized before deserialization");
 
@@ -237,6 +250,7 @@ mod tests {
             "拍摄设计镜头",
             "test-call",
             false,
+            None,
         )
         .expect_err("non-string array entries still violate the field contract");
 

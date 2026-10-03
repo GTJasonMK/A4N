@@ -14,11 +14,12 @@ use super::super::access::{
 
 const USER_CANCELLED_WORKFLOW_REASON: &str = "用户取消工作流";
 
+/// Returns true when a cancellation was applied or recorded for a not-yet-bound task.
 pub async fn cancel_workflow(
     state: &AppState,
     user_id: i64,
     input: CancelWorkflowInput,
-) -> Result<(), String> {
+) -> Result<bool, String> {
     let task_id = input
         .task_id
         .as_deref()
@@ -32,6 +33,7 @@ pub async fn cancel_workflow(
     }
 
     let mut workflows = BTreeMap::new();
+    let mut cancellation_requested = false;
     if let Some(workflow_run_id) = input.workflow_run_id {
         let run = authorized_workflow_run(state, user_id, workflow_run_id).await?;
         workflows.insert(run.id, run);
@@ -72,11 +74,12 @@ pub async fn cancel_workflow(
 
         if persisted_task.is_none() && task_handle.is_none() && !task_has_linked_workflow {
             state.task_manager().cancel_or_remember(task_id, user_id);
+            cancellation_requested = true;
         }
     }
 
     for run in workflows.values() {
-        state
+        cancellation_requested |= state
             .workflow_cancellation_application()
             .cancel(run.id, USER_CANCELLED_WORKFLOW_REASON)
             .await
@@ -91,16 +94,17 @@ pub async fn cancel_workflow(
     {
         if task_handle.is_some() {
             state.task_manager().cancel(task_id);
+            cancellation_requested = true;
         }
         if persisted_task.is_some() {
-            state
+            cancellation_requested |= state
                 .task_cancellation_application()
                 .cancel(task_id)
                 .await
                 .map_err(app_error_message)?;
         }
     }
-    Ok(())
+    Ok(cancellation_requested)
 }
 
 async fn authorized_workflow_run(

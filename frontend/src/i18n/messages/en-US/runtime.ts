@@ -21,6 +21,7 @@ export const workflow = {
   keepWindowOpen: "Keep this window open while generation runs",
   stopping: "Stopping…",
   cancelRequested: "Stop requested; waiting for backend confirmation…",
+  alreadyFinished: "This task has already finished",
   cancelTaskMissing: "The task did not provide a cancel function; pass cancelTask to runProgressTask",
   stopFailed: "Failed to stop task",
   progress: "Generation progress",

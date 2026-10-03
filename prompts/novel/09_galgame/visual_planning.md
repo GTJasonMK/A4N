@@ -14,7 +14,7 @@ name: galgame_visual_planning
       "scene_index": 1,
       "background_note": "背景图需求描述",
       "scene_profile_id": null,
-      "source_span_ids": ["ch1:p1"]
+      "source_span_ids": ["#0"]
     }
   ],
   "event_cgs": [
@@ -23,12 +23,14 @@ name: galgame_visual_planning
       "line_index": 3,
       "cg_note": "事件 CG 画面描述",
       "importance": "high",
-      "source_span_ids": ["ch1:p2"]
+      "source_span_ids": ["#1"]
     }
   ]
 }
 
 ## 规则
+
+输入中已有的来源引用是十进制短标记；只能原样保留这些标记，不要还原或编造原始 ID。
 
 - 必须始终输出 `backgrounds` 和 `event_cgs`；没有事件 CG 时 `event_cgs` 显式输出空数组，不得省略字段。
 - 每个场景必须有一个 `backgrounds` 条目。

@@ -38,7 +38,7 @@ pub async fn build_chapter_foreshadowing_events_request(
         json!({
             "format": "json_object",
             "required_fields": ["foreshadowing", "key_events"],
-            "source_span_rule": "planted 和 key_events 只能使用 facts 中已有的 source span id",
+            "source_span_rule": "planted 和 key_events 只能原样复制 facts 中已有的十进制来源短标记",
             "resolution_rule": "resolved 只能引用 pending_foreshadowing 中已有的 id"
         }),
     )

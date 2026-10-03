@@ -8,14 +8,14 @@ use a4n_domain::{
         AdaptationPlanV1, AdaptationTarget, AuthoringDocumentInputs, AuthoringDocumentKind,
         AuthoringDocumentRecord, AuthoringDocumentStatus, AuthoringSourceRef,
     },
-    source_spans::{source_span_prompt_values, source_spans_for_content},
+    source_spans::source_spans_for_content,
 };
 use a4n_error::AppError;
 use a4n_prompt::rendering::PromptRenderer;
 use serde_json::json;
 use tokio_util::sync::CancellationToken;
 
-use crate::{OrchestratorContext, workflow::WorkflowLlmOnceInput};
+use crate::{OrchestratorContext, source_markers::SourceMarkerMap, workflow::WorkflowLlmOnceInput};
 
 const DEFAULT_INSTRUCTION: &str = "按目标媒介独立改编，保留原作关键因果和人物动机";
 mod application;
@@ -81,7 +81,7 @@ impl OrchestratorContext {
             video_reference: None,
             dependencies: Vec::new(),
         };
-        let user = self
+        let (user, _) = self
             .adaptation_user_prompt(source, target, &inputs, DEFAULT_INSTRUCTION, None)
             .await?;
         let system = renderer
@@ -177,7 +177,7 @@ impl OrchestratorContext {
             .iter()
             .map(|span| span.id.clone())
             .collect::<BTreeSet<_>>();
-        let user_prompt = self
+        let (user_prompt, source_markers) = self
             .adaptation_user_prompt(
                 source,
                 input.target,
@@ -203,6 +203,7 @@ impl OrchestratorContext {
                 },
                 input.stream_reporter,
                 |value| {
+                    let value = source_markers.decode_output(&value)?;
                     let plan: AdaptationPlanV1 = serde_json::from_value(value)?;
                     if plan.target != input.target {
                         return Err(AppError::InvalidArgument("改编计划的目标媒介不一致".into()));
@@ -244,7 +245,7 @@ impl OrchestratorContext {
         inputs: &AuthoringDocumentInputs,
         instruction: &str,
         previous_plan_id: Option<i64>,
-    ) -> Result<String, AppError> {
+    ) -> Result<(String, SourceMarkerMap), AppError> {
         let previous = match previous_plan_id {
             Some(id) => Some(
                 records::authoring_document(
@@ -279,15 +280,20 @@ impl OrchestratorContext {
             source.chapter_number,
             &source.content,
         );
-        Ok(serde_json::to_string(&json!({
+        let mut payload = json!({
             "target": target,
             "instruction": instruction,
             "source": inputs.sources,
             "chapter": {"number": source.chapter_number, "title": source.title, "content": source.content},
-            "source_spans": source_span_prompt_values(&spans),
             "video_reference": inputs.video_reference,
             "previous_plan": previous.map(|record| record.document),
-        }))?)
+        });
+        let source_markers =
+            SourceMarkerMap::from_spans_and_values(&spans, std::iter::once(&payload))?;
+        payload["chapter"]["content"] =
+            serde_json::Value::String(source_markers.mark_text(&source.content, &spans)?);
+        let payload = source_markers.encode_input(&payload)?;
+        Ok((serde_json::to_string(&payload)?, source_markers))
     }
 }
 

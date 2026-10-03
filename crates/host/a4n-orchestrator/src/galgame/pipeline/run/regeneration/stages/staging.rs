@@ -4,18 +4,22 @@ use serde_json::Value;
 use crate::galgame::{
     GalgameCharacterStaging, GalgameSceneRegenerationInput, GalgameScriptAdaptation,
     OrchestratorContext, character_staging_from_value, galgame_character_staging_user_message,
+    galgame_source_markers,
 };
 use a4n_prompt::rendering::PromptRenderer;
 
 use super::super::super::validation::ensure_single_regenerated_staged_lines;
+use super::super::contracts::PreparedGalgameSceneRegeneration;
 use crate::workflow::WorkflowLlmOnceInput;
 
 pub(super) async fn run_character_staging_stage(
     service: &OrchestratorContext,
     input: &GalgameSceneRegenerationInput,
+    prepared: &PreparedGalgameSceneRegeneration,
     script: &(Value, GalgameScriptAdaptation),
     prompt_renderer: &dyn PromptRenderer,
 ) -> Result<(Value, GalgameCharacterStaging), AppError> {
+    let source_markers = galgame_source_markers(std::slice::from_ref(&prepared.prompt_chapter))?;
     service
         .run_workflow_llm_once(
             WorkflowLlmOnceInput {
@@ -31,10 +35,12 @@ pub(super) async fn run_character_staging_stage(
                 user_prompt: galgame_character_staging_user_message(
                     &script.0,
                     &input.speaker_profiles,
+                    &source_markers,
                 )?,
                 cancel_token: None,
             },
             |value| {
+                let value = source_markers.decode_output(&value)?;
                 let parsed = character_staging_from_value(value, "galgame_character_staging")?;
                 ensure_single_regenerated_staged_lines(&parsed)?;
                 crate::galgame::pipeline::persist::validate_galgame_staging(

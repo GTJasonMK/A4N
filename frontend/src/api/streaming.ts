@@ -67,12 +67,12 @@ export async function getWorkflowRunProgressEvents(
   return response.events;
 }
 
-export async function cancelWorkflow(input: CancelWorkflowInput): Promise<void> {
-  return apiInvoke<void>("cancel_workflow", {
+export async function cancelWorkflow(input: CancelWorkflowInput): Promise<boolean> {
+  return apiInvoke<boolean>("cancel_workflow", {
     input,
   });
 }
 
-export function cancelWorkflowTask(taskId: string): Promise<void> {
+export function cancelWorkflowTask(taskId: string): Promise<boolean> {
   return cancelWorkflow({ task_id: taskId, workflow_run_id: null });
 }

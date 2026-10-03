@@ -410,7 +410,7 @@ pub fn synthetic_agent_tool_descriptor(
             "Inspect the available optimization context, including chapter paragraphs, object fields and array items, so the model can choose what to read.".into()
         }
         "read_project_context" => {
-            "Read the model-selected project context paths, chapter paragraphs or array items with a stable source hash and complete evidence spans.".into()
+            "Read context fields or selected chapter paragraphs; use paragraph selection for current_chapter body, which carries short source markers and an optional marker-ID list. Raw root/content paths are rejected.".into()
         }
         "search_project_context" => {
             "Search the accessible optimization context and return selectors that can be passed to read_project_context.".into()

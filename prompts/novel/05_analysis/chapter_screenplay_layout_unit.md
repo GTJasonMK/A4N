@@ -8,7 +8,7 @@ name: chapter_screenplay_layout_unit
 
 `schema_version` 固定为 `screenplay_layout_unit_detail_v2`。`narrative_unit_index` 必须等于当前任务值。`participants` 和 `source_span_ids` 为 string[]。其余文本字段为非空 string。
 
-`source_span_ids` 只选择当前导演单元实际涉及的原文 `⟦id⟧` 标记（不含括号），必须去重，不要复制全章候选 ID。后续改编只会收到这些引用所在的完整段落，因此应包含理解当前动作、人物状态和对白所必需的来源；不得引入其他单元或后续情节。仅依据用户导演新增内容时允许 `[]`，不要捏造正文依据。
+`source_span_ids` 只选择当前导演单元正文前实际出现的十进制来源短标记，必须原样复制并去重，不要复制全章候选。后续改编只会收到这些引用所在的完整段落，因此应包含理解当前动作、人物状态和对白所必需的来源；不得引入其他单元或后续情节。仅依据用户导演新增内容时允许 `[]`，不要捏造正文依据。
 
 `transition_contracts` 为 object[]；没有转场时输出 `[]`。每项必须包含：`to_narrative_unit_index` 正整数、`transition_type` 枚举、`preserved_action` string|null、`preserved_sound` string|null、`preserved_knowledge` string[]、`required_cut_point` string|null。`transition_type` 只能是 `continuous`、`hard_cut`、`match_cut`、`whip_pan`、`action_wipe`、`sound_bridge`、`dissolve`、`fade`、`focus_transition`、`morph`。数组即使只有一项也必须保留 `[]`。
 

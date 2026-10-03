@@ -3,6 +3,8 @@ use a4n_llm_provider_contract::provider::ChatRequest;
 use serde::de::DeserializeOwned;
 use tokio_util::sync::CancellationToken;
 
+use crate::source_markers::SourceMarkerMap;
+
 pub(crate) use a4n_llm_structured_stream::StructuredLlmProgress;
 pub(crate) use a4n_llm_structured_stream::StructuredLlmStreamResult;
 
@@ -39,6 +41,19 @@ where
             json_response_preview(trimmed)
         ))
     })
+}
+
+pub(crate) fn parse_source_marked_json_response<T>(
+    raw: &str,
+    context: &str,
+    markers: &SourceMarkerMap,
+) -> Result<T, AppError>
+where
+    T: DeserializeOwned,
+{
+    let value: serde_json::Value = parse_strict_json_response(raw, context)?;
+    let value = markers.decode_output(&value)?;
+    serde_json::from_value(value).map_err(AppError::Serialization)
 }
 
 pub(crate) fn ensure_checkpoint_parsed_output_matches<T: PartialEq + ?Sized>(

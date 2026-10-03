@@ -11,6 +11,7 @@ use super::contracts::{MangaPipelineRequestPreviewStep, MangaPreviewContext};
 use super::early_extraction::preview_early_extraction;
 use super::late_extraction::preview_late_extraction;
 use super::planning::preview_planning;
+use crate::source_markers::SourceMarkerMap;
 
 impl OrchestratorContext {
     pub(crate) async fn preview_generate_page_prompt_requests(
@@ -51,6 +52,7 @@ impl OrchestratorContext {
         let chapter_content = source.content.clone();
         let source_spans =
             source_spans_for_content(chapter_id, source.chapter_number, &chapter_content);
+        let source_markers = SourceMarkerMap::from_source_spans(&source_spans)?;
         let reference_assets = manga_reference_assets_json(&character_portraits);
         let context = MangaPreviewContext {
             service: self,
@@ -63,6 +65,7 @@ impl OrchestratorContext {
             stop_after,
             chapter_content,
             source_spans,
+            source_markers,
             variables: HashMap::new(),
             reference_assets,
         };

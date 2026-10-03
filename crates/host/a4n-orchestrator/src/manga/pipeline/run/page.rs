@@ -578,6 +578,7 @@ async fn process_manga_page_stages(
             adaptation_plan,
             work.previous_content.as_ref(),
             work.next_content.as_ref(),
+            &context.source_markers,
         )?;
         let (trace, adaptation) = context
             .service
@@ -674,6 +675,7 @@ async fn process_manga_page_stages(
             adaptation_beats,
             extraction_summary,
             &context.reference_assets,
+            &context.source_markers,
         )?;
         let (trace, storyboard) = context
             .service
@@ -785,6 +787,7 @@ async fn process_manga_page_stages(
                 page_plan: &storyboard,
                 page_index: work.page_index,
                 extraction_summary,
+                source_markers: &context.source_markers,
                 restore_from_checkpoint: context.resume_from_checkpoint,
                 cancel_token: context.cancel_token,
                 stream_reporter: context.stream_reporter,

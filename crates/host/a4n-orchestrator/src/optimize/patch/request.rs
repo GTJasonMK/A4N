@@ -91,9 +91,8 @@ fn build_content_optimization_patch_context_manifest(
         .get_mut("current_chapter")
         .and_then(serde_json::Value::as_object_mut)
     {
-        // 问题证据已物化为原文；补丁定位使用前面的完整正文，不再发送一份分句正文。
+        // 补丁定位使用前面的完整正文，不再发送一份重复正文。
         chapter.remove("content");
-        chapter.remove("source_spans");
     }
     let has_blueprint = project_context.get("blueprint").is_some();
     if let Some(project) = project_context

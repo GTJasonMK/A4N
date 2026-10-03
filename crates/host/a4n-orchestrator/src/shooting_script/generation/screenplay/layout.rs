@@ -135,6 +135,7 @@ pub(in crate::shooting_script::generation) async fn generate_screenplay_layout_u
             progress,
             stream_reporter,
             cancel_token,
+            Some(&prepared.source_markers),
             |output| {
                 validate_layout_unit_detail(
                     output,
