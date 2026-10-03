@@ -280,7 +280,7 @@ export const ProjectTextMaterialsPanel: React.FC<ProjectTextMaterialsPanelProps>
   };
 
   const generateDraft = async () => {
-    if (!draftReviewed || !draftInput || !canEdit || generatingDraft) return;
+    if (!draftInput || !canEdit || generatingDraft) return;
     setGeneratingDraft(true);
     try {
       const draft = await generateCanvasTextAssetDraft(draftInput);
@@ -452,6 +452,10 @@ export const ProjectTextMaterialsPanel: React.FC<ProjectTextMaterialsPanelProps>
         open={requestPreviewOpen}
         loading={requestPreviewLoading}
         data={requestPreview}
+        confirmLabel={t("novel.textMaterialsGenerateDraft")}
+        confirmDisabled={!draftInput}
+        confirmBusy={generatingDraft}
+        onConfirm={() => void generateDraft()}
         onClose={() => {
           setRequestPreviewOpen(false);
           setDraftReviewed(Boolean(requestPreview && draftInput));

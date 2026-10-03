@@ -19,6 +19,10 @@ interface RequestPreviewModalProps {
   data: ModelRequestPreview | null;
   recorded?: boolean;
   fallbackTitle?: string;
+  confirmBusy?: boolean;
+  confirmDisabled?: boolean;
+  confirmLabel?: string;
+  onConfirm?: () => void | Promise<void>;
   onClose: () => void;
 }
 
@@ -379,6 +383,10 @@ export const RequestPreviewModal: React.FC<RequestPreviewModalProps> = ({
   data,
   recorded = false,
   fallbackTitle,
+  confirmBusy = false,
+  confirmDisabled = false,
+  confirmLabel,
+  onConfirm,
   onClose,
 }) => {
   const [copied, setCopied] = useState(false);
@@ -464,16 +472,30 @@ export const RequestPreviewModal: React.FC<RequestPreviewModalProps> = ({
       maxWidthClassName="max-w-[min(94vw,72rem)]"
       zIndexClassName="z-[80]"
       footer={
-        <BookButton
-          variant="secondary"
-          size="sm"
-          onClick={() => void copyText(allText)}
-          disabled={!allText}
-          className="!min-h-8 !text-xs"
-        >
-          <Clipboard size={12} />
-          {copied ? t("feedback.copiedAll") : t("feedback.copyAll")}
-        </BookButton>
+        <div className="flex w-full items-center justify-end gap-2">
+          <BookButton
+            variant="secondary"
+            size="sm"
+            onClick={() => void copyText(allText)}
+            disabled={!allText}
+            className="!min-h-8 !text-xs"
+          >
+            <Clipboard size={12} />
+            {copied ? t("feedback.copiedAll") : t("feedback.copyAll")}
+          </BookButton>
+          {confirmLabel && onConfirm ? (
+            <BookButton
+              variant="primary"
+              size="sm"
+              onClick={() => void onConfirm()}
+              disabled={confirmDisabled || confirmBusy}
+              className="!min-h-8 !text-xs"
+            >
+              {confirmBusy ? <LoadingSpinner size="sm" /> : <CheckCircle2 size={12} />}
+              {confirmLabel}
+            </BookButton>
+          ) : null}
+        </div>
       }
     >
       {loading ? (
