@@ -29,6 +29,13 @@ impl OrchestratorContext {
         host_port: &dyn ImageGenerationHostPort,
         progress: &ImageGenerationProgress<'_>,
     ) -> Result<a4n_api_contract::canvas::CanvasRunSummary, AppError> {
+        let document = self
+            .canvas_document_with_workflow_text_asset_snapshot(
+                input.document,
+                input.shared_run.map(|run| run.workflow_run_id),
+                input.node.id,
+            )
+            .await?;
         let checkpoints = match input.shared_run {
             Some(run) => Some(
                 self.workflow_checkpoint_summaries(run.workflow_run_id)
@@ -37,7 +44,7 @@ impl OrchestratorContext {
             None => None,
         };
         let image_input =
-            build_canvas_image_node_input(input.node, input.document, checkpoints.as_deref())
+            build_canvas_image_node_input(input.node, &document, checkpoints.as_deref())
                 .map_err(AppError::InvalidArgument)?;
         let step_key = crate::canvas::canvas_node_step_key(input.node.id)
             .map_err(AppError::InvalidArgument)?;

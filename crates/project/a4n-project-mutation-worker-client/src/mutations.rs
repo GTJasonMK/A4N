@@ -1,13 +1,16 @@
 use a4n_api_contract::project::{
     CreateDerivedProjectInput, CreateFreeformVideoProjectInput, CreateProjectInput,
+    CreateStandaloneComicProjectInput,
     ProjectMutationApplicationPort, ProjectSummary, UpdateProjectInput,
 };
 use a4n_error::AppError;
 use a4n_project_mutation_worker_contract::{
     CreateDerivedProjectInput as WorkerCreateDerivedProjectInput,
     CreateFreeformVideoProjectInput as WorkerCreateFreeformVideoProjectInput,
+    CreateStandaloneComicProjectInput as WorkerCreateStandaloneComicProjectInput,
     CreateProjectInput as WorkerCreateProjectInput, PROJECT_MUTATION_CREATE_DERIVED_OPERATION,
     PROJECT_MUTATION_CREATE_FREEFORM_VIDEO_OPERATION, PROJECT_MUTATION_CREATE_OPERATION,
+    PROJECT_MUTATION_CREATE_STANDALONE_COMIC_OPERATION,
     PROJECT_MUTATION_UPDATE_OPERATION, UpdateProjectInput as WorkerUpdateProjectInput,
 };
 
@@ -65,6 +68,23 @@ impl ProjectMutationApplicationPort for ProjectMutationWorkerClient {
             None,
             PROJECT_MUTATION_CREATE_FREEFORM_VIDEO_OPERATION,
             WorkerCreateFreeformVideoProjectInput {
+                title: input.title,
+                description: input.description,
+            },
+        )
+        .await
+    }
+
+    async fn create_standalone_comic(
+        &self,
+        user_id: i64,
+        input: CreateStandaloneComicProjectInput,
+    ) -> Result<ProjectSummary, AppError> {
+        self.command(
+            user_id,
+            None,
+            PROJECT_MUTATION_CREATE_STANDALONE_COMIC_OPERATION,
+            WorkerCreateStandaloneComicProjectInput {
                 title: input.title,
                 description: input.description,
             },

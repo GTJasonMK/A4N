@@ -54,6 +54,7 @@ command_specs! {
     "create_embedding_config" => args_create_embedding_config, result_create_embedding_config, "settings", identity(ADMIN_IDENTITY), context(NO_CONTEXT), secrets(PROVIDER_SECRET_POINTERS), capabilities(CAPABILITIES_EMBEDDING);
     "create_foreshadowing" => args_create_foreshadowing, result_foreshadowing_write, "profile", secrets(RUNTIME_SECRET_POINTERS), runtime(RuntimeConfigPolicy::Full);
     "create_freeform_video_project" => args_create_freeform_video_project, result_create_project, "project", context(NO_CONTEXT), references(REFERENCES_PROJECT_IDS), capabilities(CAPABILITIES_VIDEO);
+    "create_standalone_comic_project" => args_create_standalone_comic_project, result_create_project, "project", context(NO_CONTEXT), references(REFERENCES_PROJECT_IDS);
     "create_invite_code" => args_create_invite_code, result_invite_code, "collaboration", identity(ADMIN_IDENTITY);
     "create_llm_config" => args_create_llm_config, result_create_llm_config, "settings", identity(ADMIN_IDENTITY), context(NO_CONTEXT), secrets(PROVIDER_SECRET_POINTERS);
     "create_object_profile" => args_create_object_profile, result_object_profile_mutation, "profile";
@@ -153,6 +154,7 @@ command_specs! {
     "get_manga_pipeline_status" => args_cancel_manga_pipeline, result_get_manga_pipeline_status, "manga", context(NO_CONTEXT), effect(READ_EFFECT), execution("workflow");
     "get_media_authoring_workspace" => args_media_authoring, result_media_authoring_workspace, "media_authoring", context(NO_CONTEXT), effect(READ_EFFECT);
     "get_model_usage_report" => args_get_model_usage_report, result_get_model_usage_report, "cost", effect(READ_EFFECT);
+    "get_model_usage_request" => args_get_model_usage_request, result_get_model_usage_request, "cost", effect(READ_EFFECT);
     "get_optimize_session" => args_optimize_session, result_optimization_session, "optimize", context(NO_CONTEXT), effect(READ_EFFECT);
     "get_package_operation" => args_get_package_operation, result_package_lifecycle, "system", identity(ADMIN_IDENTITY), effect(READ_EFFECT);
     "get_package_overview" => empty_args_schema, result_package_overview, "system", context(NO_CONTEXT), effect(READ_EFFECT);
@@ -184,6 +186,7 @@ command_specs! {
     "import_project_bundle_upload" => args_import_project_bundle_upload, result_project_bundle_import_report, "import", context(NO_CONTEXT), file_inputs(FILE_INPUTS_SET_BASE64_SET_TEXT), capabilities(CAPABILITIES_IMPORT);
     "import_project_family_upload" => args_import_project_family_upload, result_project_summaries, "import", context(NO_CONTEXT), file_inputs(FILE_INPUTS_SET_BASE64_SET_TEXT), capabilities(CAPABILITIES_IMPORT);
     "import_project_text_upload" => args_import_project_text_upload, result_import_reviews, "import", context(NO_CONTEXT), file_inputs(FILE_INPUTS_SET_BASE64_SET_TEXT), capabilities(CAPABILITIES_IMPORT);
+    "import_project_text_asset_upload" => args_import_project_text_upload, result_save_canvas_text_asset, "import", context(NO_CONTEXT), file_inputs(FILE_INPUTS_SET_BASE64_SET_TEXT), capabilities(CAPABILITIES_IMPORT);
     "import_theme" => args_create_theme, result_activate_theme, "import", context(NO_CONTEXT), file_inputs(FILE_INPUTS_SET_BASE64_SET_TEXT), capabilities(CAPABILITIES_IMPORT);
     "import_theme_package" => args_theme_package_upload, result_activate_theme, "import", context(NO_CONTEXT), file_inputs(FILE_INPUTS_SET_BASE64_SET_TEXT), capabilities(CAPABILITIES_IMPORT);
     "import_video_studio_project_upload" => args_import_video_studio_project_upload, result_create_project, "import", context(NO_CONTEXT), file_inputs(FILE_INPUTS_SET_BASE64_SET_TEXT), capabilities(CAPABILITIES_VIDEO_IMPORT);
@@ -258,6 +261,7 @@ command_specs! {
     "poll_video_job" => args_poll_video_job, result_generated_video, "video", context(NO_CONTEXT), effect(READ_EFFECT), secrets(RUNTIME_SECRET_POINTERS), capabilities(CAPABILITIES_VIDEO), runtime(RuntimeConfigPolicy::Full);
     "prepare_chapter_generation_rag_embedding" => args_prepare_chapter_generation_rag_embedding, result_prepare_chapter_generation_rag_embedding, "rag", context(PROJECT_CONTEXT), effect(READ_EFFECT), secrets(RUNTIME_SECRET_POINTERS), capabilities(CAPABILITIES_EMBEDDING_RAG), runtime(RuntimeConfigPolicy::Full);
     "prepare_optimization_analysis_session" => args_prepare_optimization_analysis_session, result_optimization_session, "optimize", context(NO_CONTEXT), secrets(RUNTIME_SECRET_POINTERS), runtime(RuntimeConfigPolicy::Full);
+    "prepare_standalone_comic_source" => args_prepare_standalone_comic_source, result_prepare_standalone_comic_source, "manga", context(NO_CONTEXT), idempotency("safe");
     "preview_apply_beat_mapping_request" => args_apply_beat_mapping, result_model_request_preview, "system", context(NO_CONTEXT), effect(READ_EFFECT), runtime(RuntimeConfigPolicy::WithoutSecrets);
     "preview_batch_generate_part_outlines_request" => args_batch_generate_part_outlines, result_model_request_preview, "outline", context(NO_CONTEXT), effect(READ_EFFECT), runtime(RuntimeConfigPolicy::WithoutSecrets);
     "preview_batch_images_request" => args_preview_batch_images_request, result_model_request_preview, "asset", context(NO_CONTEXT), effect(READ_EFFECT), capabilities(CAPABILITIES_IMAGE), runtime(RuntimeConfigPolicy::WithoutSecrets);
@@ -366,6 +370,10 @@ command_specs! {
     "save_blueprint" => args_save_blueprint, result_blueprint_mutation, "blueprint", context(NO_CONTEXT), secrets(RUNTIME_SECRET_POINTERS), runtime(RuntimeConfigPolicy::Full);
     "save_canvas_graph" => args_save_canvas_graph, result_save_canvas_graph, "canvas", context(NO_CONTEXT);
     "save_canvas_text_asset" => args_save_canvas_text_asset, result_save_canvas_text_asset, "canvas", context(NO_CONTEXT);
+    "list_canvas_text_assets" => args_list_canvas_text_assets, result_canvas_text_assets, "canvas", context(NO_CONTEXT), effect(READ_EFFECT);
+    "list_canvas_text_asset_versions" => args_list_canvas_text_asset_versions, result_canvas_text_asset_versions, "canvas", context(NO_CONTEXT), effect(READ_EFFECT);
+    "preview_canvas_text_asset_draft_request" => args_canvas_text_asset_draft, result_model_request_preview, "canvas", context(NO_CONTEXT), effect(READ_EFFECT), secrets(RUNTIME_SECRET_POINTERS), capabilities(CAPABILITIES_PROMPT_LLM), runtime(RuntimeConfigPolicy::Full);
+    "generate_canvas_text_asset_draft" => args_canvas_text_asset_draft, result_canvas_text_asset_draft, "canvas", context(NO_CONTEXT), secrets(RUNTIME_SECRET_POINTERS), capabilities(CAPABILITIES_PROMPT_LLM), runtime(RuntimeConfigPolicy::Full);
     "save_chapter_outline" => args_save_chapter_outline, result_save_chapter_outline, "outline", context(NO_CONTEXT), secrets(RUNTIME_SECRET_POINTERS), runtime(RuntimeConfigPolicy::Full);
     "save_chapter_visual_plan_draft" => args_save_chapter_visual_plan_draft, result_chapter_visual_plan, "chapter", references(REFERENCES_PROJECT_IDS), idempotency("operation_id");
     "save_media_authoring_document" => args_save_authoring_document, result_authoring_document, "media_authoring", context(NO_CONTEXT);

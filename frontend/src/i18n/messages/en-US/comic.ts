@@ -9,6 +9,8 @@ export const comic = {
   noEditPermission: "Your account cannot edit this comic project.",
   loadingChapters: "Loading chapters…",
   loadChaptersFailed: "Failed to load chapters",
+  prepareSourceFailed: "Failed to prepare the comic text source",
+  sourceSelectionSaveFailed: "Failed to save the text source selection",
   loadPipelineStatusFailed: "Failed to load comic pipeline status",
   loadPagePromptsFailed: "Failed to load full-page prompts",
   loadCharacterAssetsFailed: "Failed to load character portraits",

@@ -5,6 +5,23 @@ use super::super::super::{
     ApiError, ServerState, command_input, manga_pipeline_actions, manga_records_actions, to_value,
 };
 
+pub(in crate::routes::commands) async fn prepare_standalone_comic_source(
+    state: &ServerState,
+    user_id: i64,
+    args: &Value,
+) -> Result<Value, ApiError> {
+    let input: manga_pipeline_actions::PrepareStandaloneComicSourceInput =
+        command_input(args, "prepare_standalone_comic_source")?;
+    let source = manga_pipeline_actions::prepare_standalone_comic_source(
+        state.runtime(),
+        user_id,
+        input,
+    )
+    .await
+    .map_err(ApiError::bad_request)?;
+    to_value(source)
+}
+
 pub(in crate::routes::commands) async fn get_manga_pipeline_status(
     state: &ServerState,
     user_id: i64,

@@ -122,7 +122,7 @@ fn topological_canvas_node_ids(document: &CanvasGraphRecordDocument) -> Result<V
     Ok(order)
 }
 
-fn upstream_canvas_node_ids(
+pub(crate) fn upstream_canvas_node_ids(
     document: &CanvasGraphRecordDocument,
     target_node_id: i64,
 ) -> Result<BTreeSet<i64>, String> {

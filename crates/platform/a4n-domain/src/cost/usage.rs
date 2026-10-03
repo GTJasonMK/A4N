@@ -18,6 +18,7 @@ pub struct ModelUsageRecordStart {
     pub provider: Option<String>,
     pub model: Option<String>,
     pub pricing: PricingPlan,
+    pub request_json: Option<serde_json::Value>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

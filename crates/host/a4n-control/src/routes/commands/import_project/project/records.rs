@@ -8,7 +8,7 @@ use crate::routes::commands::{
 };
 use a4n_api_contract::project::{
     CreateDerivedProjectInput, CreateFreeformVideoProjectInput, CreateProjectInput,
-    UpdateProjectInput,
+    CreateStandaloneComicProjectInput, UpdateProjectInput,
 };
 use serde_json::Value;
 
@@ -53,6 +53,11 @@ project_web_input_value_command!(
     create_freeform_video_project,
     CreateFreeformVideoProjectInput,
     project_records_actions::create_freeform_video_project
+);
+project_web_input_value_command!(
+    create_standalone_comic_project,
+    CreateStandaloneComicProjectInput,
+    project_records_actions::create_standalone_comic_project
 );
 project_web_project_value_command!(get_project, project_records_actions::get_project_summary);
 project_web_project_value_command!(

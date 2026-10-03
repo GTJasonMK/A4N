@@ -30,6 +30,8 @@ pub struct Model {
     pub meter_json: serde_json::Value,
     #[sea_orm(column_type = "JsonBinary")]
     pub pricing_snapshot_json: serde_json::Value,
+    #[sea_orm(column_type = "JsonBinary")]
+    pub request_json: Option<serde_json::Value>,
     #[sea_orm(column_type = "Text")]
     pub error_kind: Option<String>,
     #[sea_orm(column_type = "Text")]

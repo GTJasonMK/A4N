@@ -9,7 +9,8 @@ use super::super::{
     export_markdown_data, export_pdf_data, export_txt_data, get_current_user,
     get_generation_call_analytics, get_implicit_review, get_log_dir, get_model_usage_report,
     get_queue_stats, get_snapshot, get_task_history, get_workflow_progress_events,
-    get_workflow_run_detail, import_project_text_upload, list_active_workflows, list_behaviors,
+    get_workflow_run_detail, import_project_text_asset_upload, import_project_text_upload,
+    list_active_workflows, list_behaviors,
     list_deletion_marks, list_import_queue, list_parts, list_profiles, list_sessions,
     list_snapshots, list_workflow_runs, modify_profile_attribute, package,
     prepare_optimization_analysis_session, preview_check_implicit_update_request,
@@ -120,6 +121,9 @@ pub(super) async fn try_dispatch(
             preview_send_optimization_message_request(state, user_id, args).await?
         }
         "import_project_text_upload" => import_project_text_upload(state, user_id, args).await?,
+        "import_project_text_asset_upload" => {
+            import_project_text_asset_upload(state, user_id, args).await?
+        }
         "list_import_queue" => list_import_queue(state, user_id, args).await?,
         "delete_import_review" => delete_import_review(state, user_id, args).await?,
         "accept_import_review" => accept_import_review(state, user_id, args).await?,

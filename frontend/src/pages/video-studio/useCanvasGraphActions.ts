@@ -15,7 +15,6 @@ import type { StudioConfigOptionsByKind } from "./canvasConfig";
 import {
   canvasNodePosition,
   changeCanvasNodeReference,
-  clearCanvasNodeRuntimeResult,
   invalidateCanvasRuntimeResults,
   defaultConfigForNode,
   mergeCanvasDocumentRuntimeResults,
@@ -388,28 +387,29 @@ export function useCanvasGraphActions({
   const updateSelectedConfig = (patch: Record<string, unknown>) => {
     if (!selectedNode || canvasMutationDisabled) return;
     const invalidatesRuntimeResults = Object.keys(patch).some((key) => key !== "title");
-    const base = invalidatesRuntimeResults ? clearCanvasNodeRuntimeResult(selectedNode) : selectedNode;
-    const nextConfig = {
-      ...base.data.config,
-      ...patch,
-    };
-    for (const [key, value] of Object.entries(patch)) {
-      if (value === undefined) delete nextConfig[key];
-    }
-    const nextLabel =
-      typeof patch.title === "string"
-        ? patch.title.trim() || nodeKindMeta(selectedNode.data.nodeKind, t).label
-        : selectedNode.data.label;
-    const nextData = {
-      ...base.data,
-      label: nextLabel,
-      config: nextConfig,
-    };
+    const selectedNodeId = selectedNode.id;
     setNodes((items) => {
       const next = invalidatesRuntimeResults
-        ? invalidateCanvasRuntimeResults(items, edges, [selectedNode.id])
+        ? invalidateCanvasRuntimeResults(items, edges, [selectedNodeId])
         : items;
-      return next.map((node) => node.id === selectedNode.id ? { ...node, data: nextData } : node);
+      return next.map((node) => {
+        if (node.id !== selectedNodeId) return node;
+        const nextConfig = { ...node.data.config, ...patch };
+        for (const [key, value] of Object.entries(patch)) {
+          if (value === undefined) delete nextConfig[key];
+        }
+        return {
+          ...node,
+          data: {
+            ...node.data,
+            label:
+              typeof patch.title === "string"
+                ? patch.title.trim() || nodeKindMeta(node.data.nodeKind, t).label
+                : node.data.label,
+            config: nextConfig,
+          },
+        };
+      });
     });
     if (
       selectedNode.data.nodeKind === "GenerateVideoNode" &&
@@ -419,6 +419,10 @@ export function useCanvasGraphActions({
         nodeContractsByKind,
         selectedNode.data.nodeKind,
       );
+      const nextData = {
+        ...selectedNode.data,
+        config: { ...selectedNode.data.config, ...patch },
+      };
       const activeInputIds = new Set(
         contract
           ? studioNodeInputPortsForData(nextData, contract).map(
@@ -440,15 +444,14 @@ export function useCanvasGraphActions({
   const updateSelectedRef = (refType: string | null, refId: number | null) => {
     if (!selectedNode || canvasMutationDisabled) return;
     if (selectedNode.data.refType === refType && selectedNode.data.refId === refId) return;
-    const changed = changeCanvasNodeReference(
-      clearCanvasNodeRuntimeResult(selectedNode),
-      refType,
-      refId,
-    );
-    if (changed === selectedNode) return;
+    const selectedNodeId = selectedNode.id;
     setNodes((items) => {
-      const next = invalidateCanvasRuntimeResults(items, edges, [selectedNode.id]);
-      return next.map((node) => node.id === selectedNode.id ? changed : node);
+      const next = invalidateCanvasRuntimeResults(items, edges, [selectedNodeId]);
+      return next.map((node) =>
+        node.id === selectedNodeId
+          ? changeCanvasNodeReference(node, refType, refId)
+          : node,
+      );
     });
     setDirty(true);
   };

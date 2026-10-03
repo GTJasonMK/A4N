@@ -1,22 +1,55 @@
 use a4n_error::AppError;
 use a4n_llm_provider_contract::{ChatRequest, LlmProtocolKind};
 use reqwest::{RequestBuilder, Url};
+use serde_json::{Map, Value};
 
 use super::HttpLlmProvider;
 use crate::native::{gemini, responses};
 
 impl HttpLlmProvider {
+    pub(crate) fn native_request_body(
+        &self,
+        request: &ChatRequest,
+    ) -> Result<serde_json::Value, AppError> {
+        Self::native_request_body_with_config(
+            self.protocol,
+            &self.model,
+            self.extra_body.clone().unwrap_or_default(),
+            request,
+        )
+    }
+
+    pub(crate) fn native_request_body_preview(
+        protocol: LlmProtocolKind,
+        model: &str,
+        extra_body: Option<Value>,
+        request: &ChatRequest,
+    ) -> Result<Value, AppError> {
+        let extra_body =
+            a4n_llm_provider_contract::normalize_extra_body(extra_body)?.unwrap_or_default();
+        Self::native_request_body_with_config(protocol, model, extra_body, request)
+    }
+
+    fn native_request_body_with_config(
+        protocol: LlmProtocolKind,
+        model: &str,
+        extra_body: Map<String, Value>,
+        request: &ChatRequest,
+    ) -> Result<Value, AppError> {
+        match protocol {
+            LlmProtocolKind::OpenAiResponses => responses::request_body(request, model, extra_body),
+            LlmProtocolKind::GeminiGenerateContent => gemini::request_body(request, extra_body),
+            _ => Err(AppError::ConfigError("不支持的原生 LLM 协议".into())),
+        }
+    }
+
     pub(super) fn build_native_request(
         &self,
         request: &ChatRequest,
     ) -> Result<RequestBuilder, AppError> {
         let mut builder = match self.protocol {
             LlmProtocolKind::OpenAiResponses => {
-                let body = responses::request_body(
-                    request,
-                    &self.model,
-                    self.extra_body.clone().unwrap_or_default(),
-                )?;
+                let body = self.native_request_body(request)?;
                 let mut builder = self
                     .client
                     .post(format!("{}/responses", self.base_url))
@@ -36,8 +69,7 @@ impl HttpLlmProvider {
                     .push("models")
                     .push(&format!("{model}:streamGenerateContent"));
                 url.query_pairs_mut().append_pair("alt", "sse");
-                let body =
-                    gemini::request_body(request, self.extra_body.clone().unwrap_or_default())?;
+                let body = self.native_request_body(request)?;
                 let mut builder = self.client.post(url).json(&body);
                 if let Some(key) = &self.api_key {
                     builder = builder.header("x-goog-api-key", key);

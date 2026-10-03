@@ -12,7 +12,8 @@ pub(super) use image::{
 pub(super) use manga::{
     bind_manga_reference_image, cancel_manga_pipeline, delete_manga_by_chapter,
     delete_manga_prompt, get_manga_pipeline_status, list_manga_page_prompts,
-    list_manga_pipeline_statuses, optimize_manga_prompt, preview_resume_manga_pipeline_request,
+    list_manga_pipeline_statuses, optimize_manga_prompt, prepare_standalone_comic_source,
+    preview_resume_manga_pipeline_request,
     preview_start_manga_pipeline_request, resume_manga_pipeline, start_manga_pipeline,
     update_manga_prompt,
 };

@@ -68,6 +68,13 @@ impl<'state> RuntimeVideoProviderHostPort<'state> {
         .map_err(host_error)?;
         let cost_config = input.config.clone();
         let duration_seconds = input.request.duration_secs.to_string();
+        let request_json = match self.provider_request_body(input.clone()).await {
+            Ok(body) => Some(body.request),
+            Err(error) => {
+                tracing::warn!(backend = %cost_config.backend, %error, "Could not capture video request snapshot");
+                None
+            }
+        };
         let cost_record = self
             .state
             .provider_runtime()
@@ -87,6 +94,7 @@ impl<'state> RuntimeVideoProviderHostPort<'state> {
                 provider: Some(cost_config.backend.clone()),
                 model: Some(cost_config.model.clone()),
                 pricing: cost_config.pricing.clone(),
+                request_json,
             })
             .await
             .map_err(|error| host_error(error.to_string()))?;

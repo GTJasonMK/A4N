@@ -136,6 +136,9 @@ pub(crate) fn args_get_generation_call_analytics() -> Value {
 pub(crate) fn args_get_model_usage_report() -> Value {
     strict_typed_input_schema::<crate::cost::ModelUsageReportInput>()
 }
+pub(crate) fn args_get_model_usage_request() -> Value {
+    strict_typed_input_schema::<crate::cost::ModelUsageRequestInput>()
+}
 pub(crate) fn args_get_package_operation() -> Value {
     strict_typed_input_schema::<crate::package::GetPackageOperationInput>()
 }
@@ -348,6 +351,9 @@ pub(crate) fn result_get_generation_call_analytics() -> Value {
 }
 pub(crate) fn result_get_model_usage_report() -> Value {
     typed_schema::<crate::cost::ModelUsageReport>()
+}
+pub(crate) fn result_get_model_usage_request() -> Value {
+    typed_schema::<crate::cost::ModelUsageRequest>()
 }
 pub(crate) fn result_web_search() -> Value {
     typed_schema::<crate::web_search::WebSearchResult>()

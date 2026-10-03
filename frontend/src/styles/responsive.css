@@ -36,6 +36,17 @@
 }
 
 @media (max-width: 767px) {
+  .a4n-video-canvas-header .a4n-app-page-header__actions {
+    box-sizing: border-box;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    flex: 1 1 100%;
+    margin-left: 0;
+    justify-content: flex-end;
+    gap: 4px;
+  }
+
   /* 写作桌移动端把身份行与操作行分开，避免项目标题被操作按钮挤成一个字。 */
   .a4n-app-page-header--desk {
     align-items: center;

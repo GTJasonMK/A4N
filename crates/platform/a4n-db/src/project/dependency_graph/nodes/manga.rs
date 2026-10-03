@@ -3,7 +3,7 @@ use std::collections::BTreeSet;
 use serde_json::json;
 
 use crate::project::dependency_graph::graph::{
-    ChapterGraphRow, GeneratedImageGraphRow, MangaPromptGraphRow,
+    ChapterGraphRow, ComicTextSourceGraphRow, GeneratedImageGraphRow, MangaPromptGraphRow,
 };
 use crate::project::dependency_graph::{GraphBuilder, NodeSeedMetadata, node};
 
@@ -11,8 +11,42 @@ pub(in crate::project::dependency_graph) fn add_manga_nodes(
     graph: &mut GraphBuilder,
     chapters: &[ChapterGraphRow],
     manga_prompts: &[MangaPromptGraphRow],
+    comic_text_sources: &[ComicTextSourceGraphRow],
     generated_images: &[GeneratedImageGraphRow],
 ) {
+    if !comic_text_sources.is_empty() {
+        graph.add_node(node(
+            "comic_text_sources",
+            "source",
+            "standalone_comic_text_source",
+            "漫画文本来源",
+            comic_text_sources.len() as u64,
+            7,
+            NodeSeedMetadata {
+                status: None,
+                editable: true,
+                needs_visualization: false,
+                visualized: true,
+                summary: Some("独立漫画固定使用的文本素材版本与标题范围。".to_string()),
+                details: json!({
+                    "sources": comic_text_sources.iter().map(|source| json!({
+                        "chapter_id": source.chapter_id,
+                        "asset_id": source.canvas_text_asset_id,
+                        "version": source.text_asset_version,
+                        "start_section": source.start_section_index,
+                        "end_section": source.end_section_index,
+                        "title": source.source_title,
+                    })).collect::<Vec<_>>(),
+                }),
+            },
+        ));
+        graph.add_edge(
+            "comic_text_sources",
+            "chapters",
+            "freezes",
+            comic_text_sources.len() as u64,
+        );
+    }
     let prompt_stats = manga_prompt_stats(manga_prompts);
     graph.add_node(node(
         "manga_prompts",

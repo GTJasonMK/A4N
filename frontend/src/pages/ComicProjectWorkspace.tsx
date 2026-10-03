@@ -74,12 +74,7 @@ export const ComicProjectWorkspace: React.FC = () => {
     }
     setLoading(true);
     try {
-      const [projectResult, chaptersResult] = await Promise.allSettled([
-        getProject(projectId),
-        listSourceSnapshotChapters(projectId),
-      ]);
-      if (projectResult.status === "rejected") throw projectResult.reason;
-      const item = projectResult.value;
+      const item = await getProject(projectId);
       if (refreshRequestRef.current !== requestId) return false;
       if (item.project_kind !== "comic") {
         addToast(translatorRef.current("comic.notComicProject"), "error");
@@ -88,17 +83,22 @@ export const ComicProjectWorkspace: React.FC = () => {
       }
       if (refreshRequestRef.current !== requestId) return false;
       setProject(item);
-      if (chaptersResult.status === "fulfilled") {
-        setChapters(chaptersResult.value);
+      if (item.source_mode === "derived") {
+        try {
+          setChapters(await listSourceSnapshotChapters(projectId));
+        } catch (error) {
+          const message = extractErrorMessage(
+            error,
+            translatorRef.current("comic.loadProjectFailed"),
+          );
+          setLoadError(message);
+          setChapters([]);
+          return false;
+        }
       } else {
-        const message = extractErrorMessage(
-          chaptersResult.reason,
-          translatorRef.current("comic.loadProjectFailed"),
-        );
-        setLoadError(message);
         setChapters([]);
       }
-      return chaptersResult.status === "fulfilled";
+      return true;
     } catch (err) {
       if (refreshRequestRef.current === requestId) {
         const message = extractErrorMessage(err, translatorRef.current("comic.loadProjectFailed"));
@@ -141,12 +141,14 @@ export const ComicProjectWorkspace: React.FC = () => {
         title={project?.title || t("novel.comicProject")}
         subtitle={
           project
-            ? getDerivedProjectSubtitle(project, subtitleLabels)
+            ? project.source_mode === "standalone"
+              ? t("comic.projectWorkspace")
+              : getDerivedProjectSubtitle(project, subtitleLabels)
             : loading ? t("video.sourceLoading") : null
         }
         actions={
           <>
-            {canEditProject ? (
+            {canEditProject && project?.source_mode === "derived" ? (
               <BookIconButton
                 label={t("comic.syncSource")}
                 onClick={() => { void (async () => { if (await confirmDiscardMediaChanges(workspaceDirty || dirtyRegistry.hasDirty(), t)) setSourceSyncOpen(true); })(); }}
@@ -162,7 +164,7 @@ export const ComicProjectWorkspace: React.FC = () => {
       />
 
       {project ? (
-        <SourceSyncDialog
+        project.source_mode === "derived" ? <SourceSyncDialog
           open={sourceSyncOpen}
           projectId={project.id}
           projectTitle={project.title}
@@ -170,7 +172,7 @@ export const ComicProjectWorkspace: React.FC = () => {
           canEditSourceSync={canEditProject}
           onClose={() => setSourceSyncOpen(false)}
           onChanged={refresh}
-        />
+        /> : null
       ) : null}
 
       <section aria-label={t("comic.workspace")} className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden a4n-page-container lg:overflow-hidden custom-scrollbar">
@@ -189,8 +191,10 @@ export const ComicProjectWorkspace: React.FC = () => {
           </div>
         ) : loadError ? null : project ? (
           <MangaTab
+            key={project.id}
             projectId={project.id}
             canEditManga={canEditProject}
+            standalone={project.source_mode === "standalone"}
             onDirtyChange={setWorkspaceDirty}
             snapshotChapters={chapters}
             assetProjectId={project.root_project_id ?? project.id}

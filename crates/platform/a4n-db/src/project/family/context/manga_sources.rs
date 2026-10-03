@@ -1,7 +1,10 @@
 use super::contracts::{ChapterMangaSourceSummary, ProjectFamilyAccessRow, ProjectFamilyDbError};
 use super::project_family_access_row;
-use a4n_db_models::models::{chapter::chapter, project::source_snapshot_chapter};
-use a4n_domain::project::ProjectKind;
+use a4n_db_models::models::{
+    chapter::chapter,
+    project::{source_snapshot_chapter, standalone_comic_text_source},
+};
+use a4n_domain::project::{ProjectKind, ProjectSourceMode};
 use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QuerySelect};
 use std::collections::HashMap;
 
@@ -17,8 +20,27 @@ pub async fn chapter_manga_source_by_id(
             text_chapter_manga_source_by_id(db, chapter_id, project_id, require_content).await
         }
         Some(ProjectKind::Comic) => {
-            comic_snapshot_manga_source_by_source_chapter(db, &project, chapter_id, require_content)
-                .await
+            match comic_project_source_mode(&project)? {
+                ProjectSourceMode::Derived => {
+                    comic_snapshot_manga_source_by_source_chapter(
+                        db,
+                        &project,
+                        chapter_id,
+                        require_content,
+                    )
+                    .await
+                }
+                ProjectSourceMode::Standalone => {
+                    standalone_comic_manga_source_by_id(
+                        db,
+                        &project,
+                        chapter_id,
+                        require_content,
+                    )
+                    .await
+                }
+                _ => Err(invalid_comic_mode(project_id)),
+            }
         }
         _ => Err(ProjectFamilyDbError::InvalidArgument(format!(
             "项目 {project_id} 不是文本项目或漫画项目: {}",
@@ -61,8 +83,27 @@ pub async fn chapter_manga_source_by_number(
             )
         }
         Some(ProjectKind::Comic) => {
-            comic_snapshot_manga_source_by_number(db, &project, chapter_number, require_content)
-                .await
+            match comic_project_source_mode(&project)? {
+                ProjectSourceMode::Derived => {
+                    comic_snapshot_manga_source_by_number(
+                        db,
+                        &project,
+                        chapter_number,
+                        require_content,
+                    )
+                    .await
+                }
+                ProjectSourceMode::Standalone => {
+                    standalone_comic_manga_source_by_number(
+                        db,
+                        &project,
+                        chapter_number,
+                        require_content,
+                    )
+                    .await
+                }
+                _ => Err(invalid_comic_mode(project_id)),
+            }
         }
         _ => Err(ProjectFamilyDbError::InvalidArgument(format!(
             "项目 {project_id} 不是文本项目或漫画项目: {}",
@@ -121,28 +162,66 @@ pub async fn chapter_manga_sources_by_ids(
             }
         }
         Some(ProjectKind::Comic) => {
-            let snapshot_id = comic_project_source_snapshot_id(&project)?;
-            let chapters = source_snapshot_chapter::Entity::find()
-                .select_only()
-                .column(source_snapshot_chapter::Column::SourceChapterId)
-                .column(source_snapshot_chapter::Column::ChapterNumber)
-                .column(source_snapshot_chapter::Column::Content)
-                .filter(source_snapshot_chapter::Column::SnapshotId.eq(snapshot_id))
-                .filter(
-                    source_snapshot_chapter::Column::SourceChapterId
-                        .is_in(chapter_ids.iter().copied()),
-                )
-                .into_tuple::<(i64, i32, String)>()
-                .all(db)
-                .await?;
-            for (chapter_id, chapter_number, content) in chapters {
-                let source = snapshot_chapter_manga_source_fields(
-                    chapter_id,
-                    chapter_number,
-                    content,
-                    require_content,
-                )?;
-                sources.insert(source.chapter_id, source);
+            match comic_project_source_mode(&project)? {
+                ProjectSourceMode::Derived => {
+                    let snapshot_id = comic_project_source_snapshot_id(&project)?;
+                    let chapters = source_snapshot_chapter::Entity::find()
+                        .select_only()
+                        .column(source_snapshot_chapter::Column::SourceChapterId)
+                        .column(source_snapshot_chapter::Column::ChapterNumber)
+                        .column(source_snapshot_chapter::Column::Content)
+                        .filter(source_snapshot_chapter::Column::SnapshotId.eq(snapshot_id))
+                        .filter(
+                            source_snapshot_chapter::Column::SourceChapterId
+                                .is_in(chapter_ids.iter().copied()),
+                        )
+                        .into_tuple::<(i64, i32, String)>()
+                        .all(db)
+                        .await?;
+                    for (chapter_id, chapter_number, content) in chapters {
+                        let source = snapshot_chapter_manga_source_fields(
+                            chapter_id,
+                            chapter_number,
+                            content,
+                            require_content,
+                        )?;
+                        sources.insert(source.chapter_id, source);
+                    }
+                }
+                ProjectSourceMode::Standalone => {
+                    let chapters = chapter::Entity::find_current()
+                        .filter(chapter::Column::ProjectId.eq(project_id))
+                        .filter(chapter::Column::Id.is_in(chapter_ids.iter().copied()))
+                        .all(db)
+                        .await?;
+                    let source_chapter_ids = standalone_comic_text_source::Entity::find()
+                        .select_only()
+                        .column(standalone_comic_text_source::Column::ChapterId)
+                        .filter(standalone_comic_text_source::Column::ProjectId.eq(project_id))
+                        .filter(
+                            standalone_comic_text_source::Column::ChapterId
+                                .is_in(chapter_ids.iter().copied()),
+                        )
+                        .into_tuple::<i64>()
+                        .all(db)
+                        .await?
+                        .into_iter()
+                        .collect::<std::collections::HashSet<_>>();
+                    for chapter in chapters {
+                        if !source_chapter_ids.contains(&chapter.id) {
+                            continue;
+                        }
+                        let source = standalone_comic_manga_source_fields(
+                            chapter.id,
+                            chapter.chapter_number,
+                            chapter.content,
+                            chapter.status,
+                            require_content,
+                        )?;
+                        sources.insert(source.chapter_id, source);
+                    }
+                }
+                _ => return Err(invalid_comic_mode(project_id)),
             }
         }
         _ => {
@@ -267,6 +346,113 @@ fn comic_project_source_snapshot_id(
 ) -> Result<i64, ProjectFamilyDbError> {
     project.source_snapshot_id.ok_or_else(|| {
         ProjectFamilyDbError::InvalidArgument(format!("漫画项目缺少源文本快照: {}", project.id))
+    })
+}
+
+fn comic_project_source_mode(
+    project: &ProjectFamilyAccessRow,
+) -> Result<ProjectSourceMode, ProjectFamilyDbError> {
+    ProjectSourceMode::from_identity(
+        &project.project_kind,
+        project.root_project_id,
+        project.source_snapshot_id,
+    )
+    .map_err(|error| {
+        ProjectFamilyDbError::InvalidArgument(format!("项目 {}: {error}", project.id))
+    })
+}
+
+fn invalid_comic_mode(project_id: i64) -> ProjectFamilyDbError {
+    ProjectFamilyDbError::InvalidArgument(format!(
+        "漫画项目 {project_id} 的来源模式无效"
+    ))
+}
+
+async fn standalone_comic_manga_source_by_number(
+    db: &DatabaseConnection,
+    project: &ProjectFamilyAccessRow,
+    chapter_number: i32,
+    require_content: bool,
+) -> Result<ChapterMangaSourceSummary, ProjectFamilyDbError> {
+    let chapter = chapter::Entity::find_current()
+        .filter(chapter::Column::ProjectId.eq(project.id))
+        .filter(chapter::Column::ChapterNumber.eq(chapter_number))
+        .one(db)
+        .await?
+        .ok_or_else(|| {
+            ProjectFamilyDbError::NotFound(format!(
+                "独立漫画项目 {} 第 {chapter_number} 个文本来源不存在",
+                project.id
+            ))
+        })?;
+    standalone_comic_manga_source_by_id(
+        db,
+        project,
+        chapter.id,
+        require_content,
+    )
+    .await
+}
+
+async fn standalone_comic_manga_source_by_id(
+    db: &DatabaseConnection,
+    project: &ProjectFamilyAccessRow,
+    chapter_id: i64,
+    require_content: bool,
+) -> Result<ChapterMangaSourceSummary, ProjectFamilyDbError> {
+    let chapter = chapter::Entity::find_current()
+        .filter(chapter::Column::ProjectId.eq(project.id))
+        .filter(chapter::Column::Id.eq(chapter_id))
+        .one(db)
+        .await?
+        .ok_or_else(|| {
+            ProjectFamilyDbError::NotFound(format!(
+                "独立漫画项目 {} 文本来源章节不存在: {chapter_id}",
+                project.id
+            ))
+        })?;
+    let source = standalone_comic_text_source::Entity::find()
+        .filter(standalone_comic_text_source::Column::ProjectId.eq(project.id))
+        .filter(standalone_comic_text_source::Column::ChapterId.eq(chapter_id))
+        .one(db)
+        .await?
+        .ok_or_else(|| {
+            ProjectFamilyDbError::NotFound(format!(
+                "独立漫画项目 {} 未包含来源章节 {chapter_id}",
+                project.id
+            ))
+        })?;
+    if a4n_domain::source_text_hash(&chapter.content) != source.content_hash {
+        return Err(ProjectFamilyDbError::InvalidArgument(format!(
+            "独立漫画来源章节 {chapter_id} 内容哈希不匹配"
+        )));
+    }
+    standalone_comic_manga_source_fields(
+        chapter.id,
+        chapter.chapter_number,
+        chapter.content,
+        chapter.status,
+        require_content,
+    )
+}
+
+fn standalone_comic_manga_source_fields(
+    chapter_id: i64,
+    chapter_number: i32,
+    content: String,
+    status: String,
+    require_content: bool,
+) -> Result<ChapterMangaSourceSummary, ProjectFamilyDbError> {
+    if require_content && content.trim().is_empty() {
+        return Err(ProjectFamilyDbError::InvalidArgument(
+            "独立漫画文本来源为空，无法生成整页漫画提示词".to_string(),
+        ));
+    }
+    Ok(ChapterMangaSourceSummary {
+        chapter_id,
+        chapter_number,
+        status,
+        content,
     })
 }
 

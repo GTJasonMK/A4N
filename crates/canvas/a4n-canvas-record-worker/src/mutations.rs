@@ -126,11 +126,17 @@ impl WorkerState {
         )
         .await?;
         let input = request.payload;
+        if input.text_asset.id.is_some() && input.text_asset.expected_version.is_none() {
+            return Err(WorkerFailure::invalid_request(
+                "更新文本素材必须提供 expected_version",
+            ));
+        }
         let record = a4n_db::canvas::upsert_canvas_text_asset_record(
             self.database.connection(),
             input.project_id,
             CanvasTextAssetRecordInput {
                 id: input.text_asset.id,
+                expected_version: input.text_asset.expected_version,
                 title: input.text_asset.title,
                 text_kind: input.text_asset.text_kind,
                 content: input.text_asset.content,
@@ -141,8 +147,13 @@ impl WorkerState {
         .map_err(canvas_db_error)?;
         Ok(CanvasTextAssetSummary {
             id: record.id,
+            project_id: record.project_id,
+            title: record.title,
             text_kind: record.text_kind,
             content: record.content,
+            content_hash: record.content_hash,
+            current_version: record.current_version,
+            updated_at: record.updated_at.to_string(),
         })
     }
 }

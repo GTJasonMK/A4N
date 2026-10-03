@@ -100,6 +100,9 @@ where
         ProjectSourceMode::Self_ => Err(CanvasDbError::InvalidArgument(
             "画布媒体资产不支持文本项目".to_string(),
         )),
+        ProjectSourceMode::Standalone => Err(CanvasDbError::InvalidArgument(
+            "画布媒体资产不支持独立漫画项目".to_string(),
+        )),
     }
 }
 

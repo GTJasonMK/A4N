@@ -3,6 +3,7 @@ use sea_orm::DbErr;
 
 pub const PROJECT_KIND_TEXT: &str = ProjectKind::Text.as_str();
 pub const PROJECT_KIND_VIDEO: &str = ProjectKind::Video.as_str();
+pub const PROJECT_KIND_COMIC: &str = ProjectKind::Comic.as_str();
 pub(crate) const PROJECT_TYPE_NOVEL_LONG: &str = "novel_long";
 pub(super) const PROJECT_TYPE_NOVEL_SHORT: &str = "novel_short";
 pub(super) const PROJECT_TYPE_SCRIPT: &str = "script";
@@ -21,6 +22,12 @@ pub struct CreateProjectRecordInput {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CreateFreeformVideoProjectParams {
+    pub title: String,
+    pub description: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CreateStandaloneComicProjectParams {
     pub title: String,
     pub description: String,
 }

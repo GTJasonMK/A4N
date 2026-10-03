@@ -19,6 +19,16 @@ pub(crate) fn canvas_db_error(error: a4n_db::canvas::CanvasDbError) -> AppError 
             ),
             operation: "保存画布".to_string(),
         },
+        a4n_db::canvas::CanvasDbError::TextAssetVersionConflict {
+            canvas_text_asset_id,
+            expected_version,
+            current_version,
+        } => AppError::InvalidState {
+            current: format!(
+                "canvas_text_asset_version_conflict:asset_id={canvas_text_asset_id},expected={expected_version},current={current_version}"
+            ),
+            operation: "保存文本素材".to_string(),
+        },
         a4n_db::canvas::CanvasDbError::Database(error) => AppError::Database(error),
     }
 }

@@ -30,6 +30,8 @@ pub(crate) struct ProjectBundlePackage {
     pub root_project_id: i64,
     pub family: Option<ProjectFamilyPackage>,
     pub canvas_projects: Vec<VideoStudioProjectPackage>,
+    #[serde(default)]
+    pub standalone_comics: Vec<a4n_db::project::bundle::StandaloneComicProjectBundle>,
     pub history: ProjectBundleHistoryRows,
     pub provider_slots: Vec<ProjectBundleProviderSlot>,
     pub media_files: Vec<MediaFileEntry>,
@@ -121,13 +123,24 @@ impl ProjectBundlePackage {
         if self.root_project_id <= 0 {
             return Err("项目包 root_project_id 必须大于 0".to_string());
         }
-        if self.family.is_none() && self.canvas_projects.is_empty() {
-            return Err("项目包至少需要一个项目族或画布项目".to_string());
+        if self.family.is_none()
+            && self.canvas_projects.is_empty()
+            && self.standalone_comics.is_empty()
+        {
+            return Err("项目包至少需要一个项目族、画布项目或独立漫画项目".to_string());
         }
         if let Some(family) = &self.family
             && family.root_project_id != self.root_project_id
         {
             return Err("项目包根项目与项目族根项目不一致".to_string());
+        }
+        if !self.standalone_comics.is_empty()
+            && (self.standalone_comics.len() != 1
+                || self.family.is_some()
+                || !self.canvas_projects.is_empty()
+                || self.standalone_comics[0].project.id != self.root_project_id)
+        {
+            return Err("独立漫画项目包不能与其他项目族或画布项目混装".to_string());
         }
         let mut family_project_ids = HashSet::new();
         if let Some(family) = &self.family {
@@ -145,6 +158,12 @@ impl ProjectBundlePackage {
             if !canvas_project_ids.insert(canvas.project.id) {
                 return Err(format!("画布项目重复: {}", canvas.project.id));
             }
+        }
+        for comic in &self.standalone_comics {
+            if !canvas_project_ids.insert(comic.project.id) {
+                return Err(format!("项目包项目重复: {}", comic.project.id));
+            }
+            a4n_db::project::bundle::validate_standalone_comic_project_bundle(comic)?;
         }
         validate_canvas_ids(
             self.canvas_projects
@@ -190,6 +209,7 @@ pub(crate) fn assemble_project_bundle(
     mode: &str,
     family: Option<ProjectFamilyPackage>,
     canvas_projects: Vec<VideoStudioProjectPackage>,
+    standalone_comics: Vec<a4n_db::project::bundle::StandaloneComicProjectBundle>,
     history: ProjectBundleHistoryRows,
     media_files: Vec<MediaFileEntry>,
 ) -> Result<ProjectBundlePackage, String> {
@@ -202,6 +222,7 @@ pub(crate) fn assemble_project_bundle(
         root_project_id,
         family,
         canvas_projects,
+        standalone_comics,
         history,
         provider_slots,
         media_files,
@@ -481,6 +502,7 @@ mod tests {
             root_project_id: 1,
             family: None,
             canvas_projects: Vec::new(),
+            standalone_comics: Vec::new(),
             history: ProjectBundleHistoryRows::default(),
             provider_slots: Vec::new(),
             media_files: Vec::new(),

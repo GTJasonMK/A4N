@@ -11,9 +11,22 @@ export function ToastContainer() {
   const { toasts, removeToast } = useToast();
   const { t } = useI18n();
   const [mobileTop, setMobileTop] = useState<number | null>(88);
+  const [canvasAnchor, setCanvasAnchor] = useState<{ left: number; bottom: number } | null>(null);
 
   useLayoutEffect(() => {
     const updatePosition = () => {
+      const isCanvasPage = document.querySelector(".a4n-video-canvas-header") != null;
+      const flowRect = document.querySelector<HTMLElement>(".a4n-studio-flow")?.getBoundingClientRect();
+      const toastWidth = Math.min(window.innerWidth * 0.92, 368);
+      const nextCanvasAnchor = isCanvasPage && window.innerWidth >= 640 && flowRect && flowRect.width > 0
+        ? {
+            left: Math.max(flowRect.left + 12, flowRect.right - toastWidth - 12),
+            bottom: Math.max(12, window.innerHeight - flowRect.bottom + 12),
+          }
+        : null;
+      setCanvasAnchor((current) => current?.left === nextCanvasAnchor?.left && current?.bottom === nextCanvasAnchor?.bottom
+        ? current
+        : nextCanvasAnchor);
       const candidates = [
         ...document.querySelectorAll<HTMLElement>(".a4n-page-header"),
         ...document.querySelectorAll<HTMLElement>(".a4n-settings-layout > div:first-child"),
@@ -88,7 +101,15 @@ export function ToastContainer() {
     <div
       aria-live="polite"
       aria-relevant="additions removals"
-      style={mobileTop == null ? undefined : { "--a4n-toast-mobile-top": `${mobileTop}px` } as CSSProperties}
+      style={{
+        ...(mobileTop == null ? {} : { "--a4n-toast-mobile-top": `${mobileTop}px` }),
+        ...(canvasAnchor ? {
+          left: `${canvasAnchor.left}px`,
+          right: "auto",
+          bottom: `${canvasAnchor.bottom}px`,
+          top: "auto",
+        } : {}),
+      } as CSSProperties}
       className={`a4n-toast-container pointer-events-none fixed inset-x-3 ${mobileTop == null ? "bottom-3 top-auto" : "top-[var(--a4n-toast-mobile-top)]"} z-[110] flex flex-col items-end gap-2 sm:inset-x-auto sm:bottom-3 sm:left-3 sm:top-auto sm:w-[min(92vw,23rem)]`}
     >
       {toasts.map((toast) => (

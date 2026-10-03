@@ -2,6 +2,69 @@ use super::*;
 use crate::graph::{canvas_graph_document, read_canvas_graph};
 
 impl WorkerState {
+    pub(super) async fn list_text_assets(
+        &self,
+        request: WorkerEnvelope<ListCanvasTextAssetsInput>,
+    ) -> Result<Vec<CanvasTextAssetSummary>, WorkerFailure> {
+        let user_id = user_id(&request)?;
+        validate_project_scope(&request, request.payload.project_id)?;
+        self.verify_project_permission(
+            request.payload.project_id,
+            user_id,
+            ProjectAccessRole::Viewer,
+        )
+        .await?;
+        let assets = a4n_db::canvas::canvas_text_assets_by_project_record(
+            self.database.connection(),
+            request.payload.project_id,
+        )
+        .await
+        .map_err(canvas_db_error)?;
+        Ok(assets
+            .into_iter()
+            .map(|asset| CanvasTextAssetSummary {
+                id: asset.id,
+                project_id: asset.project_id,
+                title: asset.title,
+                text_kind: asset.text_kind,
+                content: asset.content,
+                content_hash: asset.content_hash,
+                current_version: asset.current_version,
+                updated_at: asset.updated_at.to_string(),
+            })
+            .collect())
+    }
+
+    pub(super) async fn list_text_asset_versions(
+        &self,
+        request: WorkerEnvelope<ListCanvasTextAssetVersionsInput>,
+    ) -> Result<Vec<CanvasTextAssetVersionSummary>, WorkerFailure> {
+        let user_id = user_id(&request)?;
+        validate_project_scope(&request, request.payload.project_id)?;
+        self.verify_project_permission(
+            request.payload.project_id,
+            user_id,
+            ProjectAccessRole::Viewer,
+        )
+        .await?;
+        let versions = a4n_db::canvas::canvas_text_asset_versions_record(
+            self.database.connection(),
+            request.payload.project_id,
+            request.payload.asset_id,
+        )
+        .await
+        .map_err(canvas_db_error)?;
+        Ok(versions
+            .into_iter()
+            .map(|version| CanvasTextAssetVersionSummary {
+                version: version.version,
+                content: version.content,
+                content_hash: version.content_hash,
+                created_at: version.created_at.to_string(),
+            })
+            .collect())
+    }
+
     pub(super) async fn get_graph(
         &self,
         request: WorkerEnvelope<GetCanvasGraphInput>,

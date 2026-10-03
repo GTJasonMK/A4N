@@ -11,6 +11,7 @@ use serde_json::Value;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CanvasTextAssetRecordInput {
     pub id: Option<i64>,
+    pub expected_version: Option<i32>,
     pub title: String,
     pub text_kind: String,
     pub content: String,
@@ -62,8 +63,25 @@ pub struct CanvasTextAssetRecord {
     pub text_kind: String,
     pub content: String,
     pub content_hash: String,
+    #[serde(default = "initial_canvas_text_asset_version")]
+    pub current_version: i32,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub versions: Vec<CanvasTextAssetVersionRecord>,
     pub created_at: chrono::NaiveDateTime,
     pub updated_at: chrono::NaiveDateTime,
+}
+
+fn initial_canvas_text_asset_version() -> i32 {
+    1
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct CanvasTextAssetVersionRecord {
+    pub canvas_text_asset_id: i64,
+    pub version: i32,
+    pub content: String,
+    pub content_hash: String,
+    pub created_at: chrono::NaiveDateTime,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

@@ -10,7 +10,11 @@ use serde_json::{Value, json};
 
 use crate::{
     OrchestratorContext,
-    canvas::{WORKFLOW_KIND_VIDEO_CANVAS_GRAPH, canvas_node_step_key},
+    canvas::{
+        CANVAS_TEXT_ASSET_SNAPSHOT_KEY, WORKFLOW_KIND_VIDEO_CANVAS_GRAPH, canvas_node_step_key,
+        canvas_source_snapshot_node_ids, capture_canvas_text_asset_snapshot,
+        validate_canvas_text_asset_snapshot,
+    },
     workflow::WORKFLOW_STATUS_COMPLETED,
 };
 
@@ -43,6 +47,9 @@ impl OrchestratorContext {
         if runnable_node_ids.is_empty() {
             return Err("画布中没有可执行的操作节点".to_string());
         }
+        let source_node_ids =
+            canvas_source_snapshot_node_ids(&document, input.target_node_id, None)?;
+        let text_asset_snapshot = capture_canvas_text_asset_snapshot(&document, &source_node_ids)?;
         let graph_input_json = json!({
             "project_id": input.project_id,
             "graph_id": input.graph_id,
@@ -50,6 +57,7 @@ impl OrchestratorContext {
             "graph_version": document.graph.version,
             "target_node_id": input.target_node_id,
             "runnable_node_ids": runnable_node_ids,
+            (CANVAS_TEXT_ASSET_SNAPSHOT_KEY): text_asset_snapshot,
         });
         let first_step_key = runnable_node_ids
             .first()
@@ -98,6 +106,9 @@ impl OrchestratorContext {
         if !is_runnable_canvas_node(node) {
             return Err(unsupported_canvas_node_execution_error(&node.node_kind));
         }
+        let source_node_ids =
+            canvas_source_snapshot_node_ids(&document, None, Some(input.node_id))?;
+        let text_asset_snapshot = capture_canvas_text_asset_snapshot(&document, &source_node_ids)?;
         let step_key = canvas_node_step_key(input.node_id)?;
         let graph_input_json = json!({
             "project_id": input.project_id,
@@ -107,6 +118,7 @@ impl OrchestratorContext {
             "node_id": input.node_id,
             "mode": "single_node",
             "runnable_node_ids": [input.node_id],
+            (CANVAS_TEXT_ASSET_SNAPSHOT_KEY): text_asset_snapshot,
         });
         let graph_run = self
             .begin_canvas_single_node_workflow_validated(
@@ -184,6 +196,13 @@ impl OrchestratorContext {
                 document.graph.version
             ));
         }
+        let source_node_ids =
+            canvas_source_snapshot_node_ids(&document, target_node_id, single_node_id)?;
+        let input_json = run
+            .input_fingerprint_json
+            .as_ref()
+            .and_then(|value| value.get(CANVAS_TEXT_ASSET_SNAPSHOT_KEY));
+        validate_canvas_text_asset_snapshot(input_json, &document, &source_node_ids)?;
         validate_canvas_output_target(&document, target_node_id)?;
         if let Some(single_node_id) = single_node_id {
             let node = document

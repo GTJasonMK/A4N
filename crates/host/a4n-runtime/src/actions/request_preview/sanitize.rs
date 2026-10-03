@@ -1,6 +1,6 @@
 use serde_json::{Value, json};
 
-pub(super) fn sanitize_preview_value(value: Value) -> Value {
+pub(crate) fn sanitize_preview_value(value: Value) -> Value {
     match value {
         Value::String(text) => Value::String(redact_data_uris_in_text(&text)),
         Value::Array(values) => {

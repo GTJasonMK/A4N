@@ -34,8 +34,11 @@ pub struct ModelUsageEntry {
     pub id: i64,
     pub request_id: String,
     pub capability: String,
+    pub workflow: String,
+    pub step_key: String,
     pub provider: Option<String>,
     pub model: Option<String>,
+    pub request_available: bool,
     pub currency: String,
     pub amount_micros: Option<String>,
     pub confidence: String,
@@ -46,6 +49,27 @@ pub struct ModelUsageEntry {
     pub error_message: Option<String>,
     pub started_at: String,
     pub completed_at: Option<String>,
+}
+
+#[derive(Debug, Clone, Deserialize, JsonSchema, PartialEq, Eq)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
+pub struct ModelUsageRequestInput {
+    pub id: i64,
+}
+
+#[derive(Debug, Clone, Serialize, JsonSchema, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct ModelUsageRequest {
+    pub id: i64,
+    pub request_id: String,
+    pub capability: String,
+    pub workflow: String,
+    pub step_key: String,
+    pub provider: Option<String>,
+    pub model: Option<String>,
+    pub status: String,
+    pub started_at: String,
+    pub request_json: serde_json::Value,
 }
 
 #[derive(Debug, Clone, Serialize, JsonSchema, PartialEq, Eq)]
@@ -69,4 +93,10 @@ pub trait ModelUsageReadApplicationPort: Send + Sync {
         caller_user_id: i64,
         input: ModelUsageReportInput,
     ) -> Result<ModelUsageReport, a4n_error::AppError>;
+
+    async fn model_usage_request(
+        &self,
+        caller_user_id: i64,
+        input: ModelUsageRequestInput,
+    ) -> Result<ModelUsageRequest, a4n_error::AppError>;
 }

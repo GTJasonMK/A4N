@@ -1,6 +1,7 @@
 mod contracts;
 mod live;
 mod snapshot;
+mod standalone;
 #[cfg(test)]
 mod tests;
 
@@ -14,6 +15,7 @@ use std::collections::HashMap;
 use self::{
     live::resolve_live_source,
     snapshot::{resolve_snapshot_source, snapshot_source_from_chapter},
+    standalone::resolve_standalone_source,
 };
 use super::super::validate_positive_i64;
 
@@ -160,6 +162,9 @@ async fn resolve_chapter_source_for_kind<C: ConnectionTrait>(
         ProjectSourceMode::Self_ => resolve_live_source(db, &project, source_chapter_id).await,
         ProjectSourceMode::Derived => {
             resolve_snapshot_source(db, &project, source_chapter_id).await
+        }
+        ProjectSourceMode::Standalone => {
+            resolve_standalone_source(db, &project, source_chapter_id).await
         }
         ProjectSourceMode::Freeform => Err(ResolveChapterSourceError::InvalidArgument(format!(
             "自由视频项目 {project_id} 没有章节来源"

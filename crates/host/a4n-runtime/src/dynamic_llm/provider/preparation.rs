@@ -96,6 +96,13 @@ impl DynamicLlmProvider {
                 provider: Some(model.model.provider.clone()),
                 model: Some(model.model.model.clone()),
                 pricing: model.model.pricing.clone(),
+                request_json: Some(a4n_llm_http::request_body_preview(
+                    &model.model.provider,
+                    &model.model.model,
+                    model.model.extra_body_json.clone(),
+                    model.capabilities.clone(),
+                    &request,
+                )?),
             })
             .await?;
         let task = match self

@@ -48,6 +48,13 @@ impl DynamicLlmProvider {
                 provider: Some(resolved_model.model.provider.clone()),
                 model: Some(resolved_model.model.model.clone()),
                 pricing: resolved_model.model.pricing.clone(),
+                request_json: Some(a4n_llm_http::request_body_preview(
+                    &resolved_model.model.provider,
+                    &resolved_model.model.model,
+                    resolved_model.model.extra_body_json.clone(),
+                    resolved_model.capabilities.clone(),
+                    &request,
+                )?),
             })
             .await?;
         let probe_result = match tokio::time::timeout(LLM_CALL_TOTAL_TIMEOUT, async {

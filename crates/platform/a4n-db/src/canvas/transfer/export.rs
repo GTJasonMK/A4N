@@ -5,7 +5,9 @@ use crate::canvas::{
 };
 use a4n_db_models::models::{
     ai::{generated_image, generated_video},
-    canvas::{canvas_edge, canvas_graph, canvas_node, canvas_text_asset},
+    canvas::{
+        canvas_edge, canvas_graph, canvas_node, canvas_text_asset, canvas_text_asset_version,
+    },
     generation::{generation_spec, prompt_artifact},
     media::{media_asset, media_binding, media_provenance},
     video_project::{assembly_clip, assembly_timeline, video_segment},
@@ -185,6 +187,38 @@ where
         },
     );
     let canvas_text_assets = canvas_text_assets?;
+    let asset_ids = canvas_text_assets.iter().map(|asset| asset.id).collect::<Vec<_>>();
+    let version_rows = if asset_ids.is_empty() {
+        Vec::new()
+    } else {
+        canvas_text_asset_version::Entity::find()
+            .filter(canvas_text_asset_version::Column::CanvasTextAssetId.is_in(asset_ids))
+            .order_by_asc(canvas_text_asset_version::Column::CanvasTextAssetId)
+            .order_by_asc(canvas_text_asset_version::Column::Version)
+            .all(db)
+            .await?
+    };
+    let mut versions_by_asset = std::collections::HashMap::new();
+    for version in version_rows {
+        versions_by_asset
+            .entry(version.canvas_text_asset_id)
+            .or_insert_with(Vec::new)
+            .push(a4n_domain::canvas::CanvasTextAssetVersionRecord {
+                canvas_text_asset_id: version.canvas_text_asset_id,
+                version: version.version,
+                content: version.content,
+                content_hash: version.content_hash,
+                created_at: version.created_at,
+            });
+    }
+    let canvas_text_assets = canvas_text_assets
+        .into_iter()
+        .map(|asset| {
+            let mut record = canvas_text_asset_record(asset);
+            record.versions = versions_by_asset.remove(&record.id).unwrap_or_default();
+            record
+        })
+        .collect::<Vec<_>>();
     let (generation_specs, prompt_artifacts) = generation_and_prompt?;
     let generated_images = generated_images?;
     let generated_videos = generated_videos?;
@@ -196,10 +230,7 @@ where
         canvas_graphs: canvas_graphs.into_iter().map(canvas_graph_record).collect(),
         canvas_nodes: canvas_nodes.into_iter().map(canvas_node_record).collect(),
         canvas_edges: canvas_edges.into_iter().map(canvas_edge_record).collect(),
-        canvas_text_assets: canvas_text_assets
-            .into_iter()
-            .map(canvas_text_asset_record)
-            .collect(),
+        canvas_text_assets,
         generation_specs,
         prompt_artifacts,
         generated_images,

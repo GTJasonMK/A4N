@@ -5,10 +5,13 @@ use std::{env, future::Future, net::SocketAddr, sync::Arc};
 use a4n_canvas_record_worker_contract::{
     CANVAS_GRAPH_EDIT_OPERATION, CANVAS_GRAPH_GET_OPERATION, CANVAS_GRAPH_MUTATION_CAPABILITY,
     CANVAS_GRAPH_READ_CAPABILITY, CANVAS_GRAPH_READ_OPERATION, CANVAS_GRAPH_SAVE_OPERATION,
+    CANVAS_TEXT_ASSET_LIST_OPERATION, CANVAS_TEXT_ASSET_VERSIONS_OPERATION,
     CANVAS_RECORD_WORKER_CONTRACT_VERSION, CANVAS_RECORD_WORKER_ID,
     CANVAS_TEXT_ASSET_SAVE_OPERATION, CanvasGraphDocument, CanvasGraphEditResult,
-    CanvasGraphReadResult, CanvasGraphSaveResult, CanvasTextAssetSummary, EditCanvasGraphInput,
-    GetCanvasGraphInput, ReadCanvasGraphInput, SaveCanvasGraphInput, SaveCanvasTextAssetInput,
+    CanvasGraphReadResult, CanvasGraphSaveResult, CanvasTextAssetSummary,
+    CanvasTextAssetVersionSummary, EditCanvasGraphInput, GetCanvasGraphInput,
+    ListCanvasTextAssetVersionsInput, ListCanvasTextAssetsInput, ReadCanvasGraphInput,
+    SaveCanvasGraphInput, SaveCanvasTextAssetInput,
 };
 use a4n_db::DbHandle;
 use a4n_db::canvas::CanvasDbError;
@@ -89,6 +92,11 @@ impl CanvasRecordWorker {
             .route("/v1/commands/canvas.graph.read", post(read_graph))
             .route("/v1/commands/canvas.graph.save", post(save_graph))
             .route("/v1/commands/canvas.graph.edit", post(edit_graph))
+            .route("/v1/commands/canvas.text_asset.list", post(list_text_assets))
+            .route(
+                "/v1/commands/canvas.text_asset.versions",
+                post(list_text_asset_versions),
+            )
             .route("/v1/commands/canvas.text_asset.save", post(save_text_asset))
             .with_state(self.state.clone())
     }
@@ -260,6 +268,36 @@ async fn save_text_asset(
     .await
 }
 
+async fn list_text_assets(
+    State(state): State<WorkerState>,
+    headers: HeaderMap,
+    Json(request): Json<WorkerEnvelope<ListCanvasTextAssetsInput>>,
+) -> Response {
+    dispatch(
+        state,
+        headers,
+        request,
+        CANVAS_TEXT_ASSET_LIST_OPERATION,
+        |state, request| async move { state.list_text_assets(request).await },
+    )
+    .await
+}
+
+async fn list_text_asset_versions(
+    State(state): State<WorkerState>,
+    headers: HeaderMap,
+    Json(request): Json<WorkerEnvelope<ListCanvasTextAssetVersionsInput>>,
+) -> Response {
+    dispatch(
+        state,
+        headers,
+        request,
+        CANVAS_TEXT_ASSET_VERSIONS_OPERATION,
+        |state, request| async move { state.list_text_asset_versions(request).await },
+    )
+    .await
+}
+
 async fn dispatch<T, O, F, Fut>(
     state: WorkerState,
     headers: HeaderMap,
@@ -381,6 +419,13 @@ fn canvas_db_error(error: CanvasDbError) -> WorkerFailure {
             current_version,
         } => WorkerFailure::conflict(format!(
             "canvas_graph_version_conflict:graph_id={graph_id},expected={expected_version},current={current_version}"
+        )),
+        CanvasDbError::TextAssetVersionConflict {
+            canvas_text_asset_id,
+            expected_version,
+            current_version,
+        } => WorkerFailure::conflict(format!(
+            "canvas_text_asset_version_conflict:asset_id={canvas_text_asset_id},expected={expected_version},current={current_version}"
         )),
         CanvasDbError::Database(error) => WorkerFailure::unavailable(error.to_string()),
     }

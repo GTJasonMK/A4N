@@ -61,6 +61,16 @@ pub(in crate::project::dependency_graph) struct MangaPromptGraphRow {
 }
 
 #[derive(Debug, FromQueryResult)]
+pub(in crate::project::dependency_graph) struct ComicTextSourceGraphRow {
+    pub(in crate::project::dependency_graph) chapter_id: i64,
+    pub(in crate::project::dependency_graph) canvas_text_asset_id: i64,
+    pub(in crate::project::dependency_graph) text_asset_version: i32,
+    pub(in crate::project::dependency_graph) start_section_index: i32,
+    pub(in crate::project::dependency_graph) end_section_index: i32,
+    pub(in crate::project::dependency_graph) source_title: String,
+}
+
+#[derive(Debug, FromQueryResult)]
 pub(in crate::project::dependency_graph) struct GeneratedImageGraphRow {
     pub(in crate::project::dependency_graph) image_type: String,
     pub(in crate::project::dependency_graph) metadata_json: Option<serde_json::Value>,
@@ -157,6 +167,7 @@ pub(super) struct AssetGraphRecords {
     pub(super) scene_profiles: Vec<SceneProfileGraphRow>,
     pub(super) portraits: Vec<PortraitGraphRow>,
     pub(super) manga_prompts: Vec<MangaPromptGraphRow>,
+    pub(super) comic_text_sources: Vec<ComicTextSourceGraphRow>,
     pub(super) video_prompts: Vec<VideoPromptGraphRow>,
     pub(super) generated_images: Vec<GeneratedImageGraphRow>,
     pub(super) generated_videos: Vec<GeneratedVideoGraphRow>,
@@ -195,6 +206,7 @@ impl AssetGraphRecords {
         let FamilyAssetGraphRecords {
             portraits,
             manga_prompts,
+            comic_text_sources,
             video_prompts,
             generated_images,
             generated_videos,
@@ -220,6 +232,7 @@ impl AssetGraphRecords {
             scene_profiles,
             portraits,
             manga_prompts,
+            comic_text_sources,
             video_prompts,
             generated_images,
             generated_videos,

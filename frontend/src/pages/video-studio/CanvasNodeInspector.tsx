@@ -41,6 +41,7 @@ import {
   CANVAS_REF_TYPE_GENERATED_IMAGE,
   CANVAS_REF_TYPE_GENERATED_VIDEO,
   CANVAS_REF_TYPE_MEDIA_ASSET,
+  CANVAS_REF_TYPE_TEXT_ASSET,
   defaultRefTypeForNode,
   nodeGeneratedImageRefId,
   nodeGeneratedVideoRefId,
@@ -55,6 +56,7 @@ import {
   useStudioNodeContract,
 } from "./nodeContracts";
 import type { StudioEdge, StudioNode } from "./types";
+import type { CanvasTextAssetSummary } from "../../api/canvas";
 
 const INSPECTOR_CONTROL_CLASS =
   "pyqt-input mt-1 w-full !px-2.5 !py-1.5 text-xs";
@@ -69,6 +71,7 @@ interface NodeConfigEditorProps {
   onMoveAssembleClip: (edgeId: string, direction: -1 | 1) => void;
   configOptions: StudioConfigOptionsByKind;
   configOptionsStatus: StudioConfigLoadStatusByKind;
+  textAssets: CanvasTextAssetSummary[];
 }
 
 interface NodeInspectorProps extends NodeConfigEditorProps {
@@ -86,6 +89,7 @@ export const NodeInspector: React.FC<NodeInspectorProps> = ({
   onMoveAssembleClip,
   configOptions,
   configOptionsStatus,
+  textAssets,
   onPreviewContent,
 }) => {
   const { t } = useI18n();
@@ -124,6 +128,7 @@ export const NodeInspector: React.FC<NodeInspectorProps> = ({
           onMoveAssembleClip={onMoveAssembleClip}
           configOptions={configOptions}
           configOptionsStatus={configOptionsStatus}
+          textAssets={textAssets}
         />
       </InspectorSection>
       <InspectorSection title={t("video.canvas.inspector.output")}>
@@ -374,6 +379,7 @@ const NodeConfigEditor: React.FC<NodeConfigEditorProps> = ({
   onMoveAssembleClip,
   configOptions,
   configOptionsStatus,
+  textAssets,
 }) => {
   const { t } = useI18n();
   const config = node.data.config;
@@ -391,17 +397,57 @@ const NodeConfigEditor: React.FC<NodeConfigEditorProps> = ({
     );
   }
   if (node.data.nodeKind === "TextInputNode") {
+    const linkedAssetId =
+      nodeRefId(node.data, CANVAS_REF_TYPE_TEXT_ASSET) ??
+      configPositiveNumber(config, "canvas_text_asset_id");
+    const linkedAsset = textAssets.find((asset) => asset.id === linkedAssetId) ?? null;
     return (
-      <label className="block text-caption text-book-text-muted">
-        {t("video.canvas.inspector.text")}
-        <textarea
-          value={configText(config, "content")}
-          onChange={(event) => onChange({ content: event.target.value, title: firstLine(event.target.value) })}
-          disabled={disabled}
-          rows={6}
-          className={INSPECTOR_TEXTAREA_CLASS}
-        />
-      </label>
+      <div className="space-y-2">
+        <label className="block text-caption text-book-text-muted">
+          {t("video.canvas.inspector.textSource")}
+          <ThemedSelect
+            value={linkedAssetId ? String(linkedAssetId) : "inline"}
+            disabled={disabled}
+            onChange={(value) => {
+              if (value === "inline") {
+                onRefChange(null, null);
+                onChange({ canvas_text_asset_id: undefined, content: "" });
+                return;
+              }
+              const asset = textAssets.find((candidate) => candidate.id === Number(value));
+              if (!asset) return;
+              onRefChange(CANVAS_REF_TYPE_TEXT_ASSET, asset.id);
+              onChange({ canvas_text_asset_id: undefined, content: undefined, title: asset.title });
+            }}
+            className={INSPECTOR_CONTROL_CLASS}
+          >
+            <option value="inline">{t("video.canvas.inspector.inlineText")}</option>
+            {textAssets.map((asset) => (
+              <option key={asset.id} value={asset.id}>
+                {asset.title} · {t("video.canvas.inspector.textAssetVersion", { version: asset.current_version })}
+              </option>
+            ))}
+          </ThemedSelect>
+        </label>
+        {linkedAsset ? (
+          <p role="status" className="text-small text-book-text-muted">
+            {linkedAsset.title} · {t("video.canvas.inspector.textAssetVersion", { version: linkedAsset.current_version })}
+          </p>
+        ) : linkedAssetId ? (
+          <p role="alert" className="text-small text-error">{t("video.canvas.inspector.unavailableTextAsset")}</p>
+        ) : (
+          <label className="block text-caption text-book-text-muted">
+            {t("video.canvas.inspector.text")}
+            <textarea
+              value={configText(config, "content")}
+              onChange={(event) => onChange({ content: event.target.value, title: firstLine(event.target.value) })}
+              disabled={disabled}
+              rows={6}
+              className={INSPECTOR_TEXTAREA_CLASS}
+            />
+          </label>
+        )}
+      </div>
     );
   }
   if (isProbeNodeKind(node.data.nodeKind)) {

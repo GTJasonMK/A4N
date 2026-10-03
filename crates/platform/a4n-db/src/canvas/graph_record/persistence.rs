@@ -10,4 +10,7 @@ mod topology;
 
 pub use document::get_or_create_canvas_graph_record;
 pub use save::save_canvas_graph_record;
-pub use text_assets::upsert_canvas_text_asset_record;
+pub use text_assets::{
+    canvas_text_asset_versions_record, canvas_text_assets_by_project_record,
+    upsert_canvas_text_asset_record,
+};

@@ -7,11 +7,21 @@
 use std::collections::{HashMap, HashSet};
 
 use a4n_db_models::models::{
+    canvas::{canvas_text_asset, canvas_text_asset_version},
+    chapter::chapter,
     generation::{
         generation_run, generation_run_target, llm_call_trace, model_usage_record,
         workflow_checkpoint, workflow_progress_event, workflow_run,
     },
+    project::{
+        novel_project, project_source_snapshot, source_snapshot_chapter,
+        standalone_comic_text_source,
+    },
     user::{conversation, message},
+};
+use a4n_domain::{
+    canvas::CanvasTextAssetRecord,
+    project::{ProjectRecord, ProjectSourceMode},
 };
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, Condition, ConnectionTrait, DatabaseConnection, EntityTrait,
@@ -57,6 +67,373 @@ pub struct ProjectBundleHistoryImportSummary {
     pub workflow_runs_imported: usize,
     pub workflow_runs_marked_interrupted: usize,
     pub generation_runs_imported: usize,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct StandaloneComicTextSourceBundleRow {
+    pub source: standalone_comic_text_source::Model,
+    pub chapter: chapter::Model,
+    pub snapshot: project_source_snapshot::Model,
+    pub snapshot_chapter: source_snapshot_chapter::Model,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct StandaloneComicProjectBundle {
+    pub project: ProjectRecord,
+    pub text_assets: Vec<CanvasTextAssetRecord>,
+    pub sources: Vec<StandaloneComicTextSourceBundleRow>,
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum StandaloneComicProjectBundleError {
+    #[error("{0}")]
+    Invalid(String),
+    #[error("{0}")]
+    NotFound(String),
+    #[error(transparent)]
+    Database(#[from] sea_orm::DbErr),
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct StandaloneComicProjectImportMaps {
+    pub project_id: i64,
+    pub entity_ids: ProjectBundleEntityIdMaps,
+}
+
+pub async fn export_standalone_comic_project_bundle(
+    db: &DatabaseConnection,
+    project_id: i64,
+) -> Result<StandaloneComicProjectBundle, StandaloneComicProjectBundleError> {
+    let project = crate::project::project_by_id_record(db, project_id)
+        .await
+        .map_err(|error| StandaloneComicProjectBundleError::Invalid(error.to_string()))?
+        .ok_or_else(|| {
+            StandaloneComicProjectBundleError::NotFound(format!("项目不存在: {project_id}"))
+        })?;
+    if project.source_mode().map_err(|error| {
+        StandaloneComicProjectBundleError::Invalid(error.to_string())
+    })? != ProjectSourceMode::Standalone
+    {
+        return Err(StandaloneComicProjectBundleError::Invalid(
+            "项目包只支持独立漫画来源".to_string(),
+        ));
+    }
+
+    let mut text_assets = crate::canvas::canvas_text_assets_by_project_record(db, project_id)
+        .await
+        .map_err(|error| StandaloneComicProjectBundleError::Invalid(error.to_string()))?;
+    for asset in &mut text_assets {
+        asset.versions = crate::canvas::canvas_text_asset_versions_record(db, project_id, asset.id)
+            .await
+            .map_err(|error| StandaloneComicProjectBundleError::Invalid(error.to_string()))?;
+    }
+
+    let source_rows = standalone_comic_text_source::Entity::find()
+        .filter(standalone_comic_text_source::Column::ProjectId.eq(project_id))
+        .order_by_asc(standalone_comic_text_source::Column::Id)
+        .all(db)
+        .await?;
+    let mut sources = Vec::with_capacity(source_rows.len());
+    for source in source_rows {
+        let (chapter, snapshot, snapshot_chapter) = futures::try_join!(
+            chapter::Entity::find_by_id(source.chapter_id).one(db),
+            project_source_snapshot::Entity::find_by_id(source.source_snapshot_id).one(db),
+            source_snapshot_chapter::Entity::find_by_id(source.source_snapshot_chapter_id).one(db),
+        )?;
+        sources.push(StandaloneComicTextSourceBundleRow {
+            source,
+            chapter: chapter.ok_or_else(|| {
+                StandaloneComicProjectBundleError::NotFound("漫画文本来源章节不存在".into())
+            })?,
+            snapshot: snapshot.ok_or_else(|| {
+                StandaloneComicProjectBundleError::NotFound("漫画文本来源快照不存在".into())
+            })?,
+            snapshot_chapter: snapshot_chapter.ok_or_else(|| {
+                StandaloneComicProjectBundleError::NotFound("漫画文本来源快照章节不存在".into())
+            })?,
+        });
+    }
+    let package = StandaloneComicProjectBundle {
+        project,
+        text_assets,
+        sources,
+    };
+    validate_standalone_comic_project_bundle(&package)
+        .map_err(StandaloneComicProjectBundleError::Invalid)?;
+    Ok(package)
+}
+
+pub async fn import_standalone_comic_project_bundle(
+    db: &DatabaseConnection,
+    package: &StandaloneComicProjectBundle,
+    user_id: i64,
+) -> Result<StandaloneComicProjectImportMaps, StandaloneComicProjectBundleError> {
+    validate_standalone_comic_project_bundle(package)
+        .map_err(StandaloneComicProjectBundleError::Invalid)?;
+    if user_id <= 0 {
+        return Err(StandaloneComicProjectBundleError::Invalid(
+            "user_id 必须大于 0".to_string(),
+        ));
+    }
+    let txn = db.begin().await?;
+    let original = crate::project::project_record_into_model(package.project.clone());
+    let now = chrono::Utc::now().naive_utc();
+    let project = novel_project::ActiveModel {
+        user_id: Set(user_id),
+        title: Set(original.title.clone()),
+        description: Set(original.description.clone()),
+        project_type: Set(original.project_type.clone()),
+        project_kind: Set("comic".to_string()),
+        root_project_id: Set(None),
+        source_snapshot_id: Set(None),
+        source_sync_status: Set(crate::project::SOURCE_SYNC_CURRENT.to_string()),
+        status: Set(original.status.clone()),
+        target_chapters: Set(original.target_chapters),
+        current_chapter: Set(0),
+        total_chapters: Set(None),
+        chapters_per_part: Set(None),
+        avatar_svg: Set(original.avatar_svg.clone()),
+        avatar_animal: Set(original.avatar_animal.clone()),
+        raw_blueprint: Set(None),
+        import_analysis_progress: Set(None),
+        export_config: Set(original.export_config.clone()),
+        created_at: Set(now),
+        updated_at: Set(now),
+        ..Default::default()
+    }
+    .insert(&txn)
+    .await?;
+
+    let mut maps = ProjectBundleEntityIdMaps::default();
+    maps.project_ids.insert(package.project.id, project.id);
+    maps.root_project_ids.insert(package.project.id, project.id);
+    let mut asset_ids = HashMap::new();
+    for asset in &package.text_assets {
+        let copied = canvas_text_asset::ActiveModel {
+            project_id: Set(project.id),
+            title: Set(asset.title.clone()),
+            text_kind: Set(asset.text_kind.clone()),
+            content: Set(asset.content.clone()),
+            content_hash: Set(asset.content_hash.clone()),
+            current_version: Set(asset.current_version),
+            created_at: Set(now),
+            updated_at: Set(now),
+            ..Default::default()
+        }
+        .insert(&txn)
+        .await?;
+        asset_ids.insert(asset.id, copied.id);
+        maps.entity_ids
+            .entry("canvas_text_asset".to_string())
+            .or_default()
+            .insert(asset.id, copied.id);
+        for version in &asset.versions {
+            canvas_text_asset_version::ActiveModel {
+                canvas_text_asset_id: Set(copied.id),
+                version: Set(version.version),
+                content: Set(version.content.clone()),
+                content_hash: Set(version.content_hash.clone()),
+                created_at: Set(version.created_at),
+                ..Default::default()
+            }
+            .insert(&txn)
+            .await?;
+        }
+    }
+
+    for row in &package.sources {
+        let asset_id = *asset_ids
+            .get(&row.source.canvas_text_asset_id)
+            .ok_or_else(|| {
+                StandaloneComicProjectBundleError::Invalid(format!(
+                    "素材 ID 缺少导入映射: {}",
+                    row.source.canvas_text_asset_id
+                ))
+            })?;
+        let mut analysis_data = row.chapter.analysis_data.clone().unwrap_or_else(|| json!({}));
+        if let Some(object) = analysis_data.as_object_mut() {
+            object.insert("text_asset_id".into(), json!(asset_id));
+        }
+        let copied_chapter = chapter::ActiveModel {
+            project_id: Set(project.id),
+            outline_id: Set(None),
+            chapter_number: Set(row.chapter.chapter_number),
+            title: Set(row.chapter.title.clone()),
+            content: Set(row.chapter.content.clone()),
+            word_count: Set(row.chapter.word_count),
+            status: Set(chapter::STATUS_COMPLETED.to_string()),
+            summary: Set(row.chapter.summary.clone()),
+            style_tags: Set(row.chapter.style_tags.clone()),
+            analysis_data: Set(Some(analysis_data.clone())),
+            created_at: Set(now),
+            updated_at: Set(now),
+            ..Default::default()
+        }
+        .insert(&txn)
+        .await?;
+        maps.chapter_ids
+            .insert(row.chapter.id, copied_chapter.id);
+        maps.entity_ids
+            .entry("chapter".to_string())
+            .or_default()
+            .insert(row.chapter.id, copied_chapter.id);
+
+        let copied_snapshot = project_source_snapshot::ActiveModel {
+            root_project_id: Set(project.id),
+            source_version_hash: Set(row.snapshot.source_version_hash.clone()),
+            blueprint_version_id: Set(None),
+            chapter_scope_json: Set(row.snapshot.chapter_scope_json.clone()),
+            chapter_hashes_json: Set(row.snapshot.chapter_hashes_json.clone()),
+            profile_hashes_json: Set(row.snapshot.profile_hashes_json.clone()),
+            created_at: Set(now),
+            ..Default::default()
+        }
+        .insert(&txn)
+        .await?;
+        maps.source_snapshot_ids
+            .insert(row.snapshot.id, copied_snapshot.id);
+
+        let copied_snapshot_chapter = source_snapshot_chapter::ActiveModel {
+            snapshot_id: Set(copied_snapshot.id),
+            root_project_id: Set(project.id),
+            source_chapter_id: Set(copied_chapter.id),
+            chapter_number: Set(row.snapshot_chapter.chapter_number),
+            title: Set(row.snapshot_chapter.title.clone()),
+            content: Set(row.snapshot_chapter.content.clone()),
+            summary: Set(row.snapshot_chapter.summary.clone()),
+            analysis_data_json: Set(Some(analysis_data)),
+            content_hash: Set(row.snapshot_chapter.content_hash.clone()),
+            analysis_hash: Set(row.snapshot_chapter.analysis_hash.clone()),
+            ..Default::default()
+        }
+        .insert(&txn)
+        .await?;
+        maps.source_snapshot_chapter_ids
+            .insert(row.snapshot_chapter.id, copied_snapshot_chapter.id);
+
+        let copied_source = standalone_comic_text_source::ActiveModel {
+            project_id: Set(project.id),
+            chapter_id: Set(copied_chapter.id),
+            source_snapshot_id: Set(copied_snapshot.id),
+            source_snapshot_chapter_id: Set(copied_snapshot_chapter.id),
+            canvas_text_asset_id: Set(asset_id),
+            text_asset_version: Set(row.source.text_asset_version),
+            start_section_index: Set(row.source.start_section_index),
+            end_section_index: Set(row.source.end_section_index),
+            source_title: Set(row.source.source_title.clone()),
+            content_hash: Set(row.source.content_hash.clone()),
+            created_at: Set(now),
+            ..Default::default()
+        }
+        .insert(&txn)
+        .await?;
+        maps.entity_ids
+            .entry("standalone_comic_text_source".to_string())
+            .or_default()
+            .insert(row.source.id, copied_source.id);
+    }
+    txn.commit().await?;
+    Ok(StandaloneComicProjectImportMaps {
+        project_id: project.id,
+        entity_ids: maps,
+    })
+}
+
+pub fn validate_standalone_comic_project_bundle(
+    package: &StandaloneComicProjectBundle,
+) -> Result<(), String> {
+    if package
+        .project
+        .source_mode()
+        .map_err(|error| error.to_string())?
+        != ProjectSourceMode::Standalone
+    {
+        return Err("独立漫画项目包项目来源无效".to_string());
+    }
+    let project_id = package.project.id;
+    let assets = package
+        .text_assets
+        .iter()
+        .map(|asset| (asset.id, asset))
+        .collect::<HashMap<_, _>>();
+    if assets.len() != package.text_assets.len()
+        || package
+            .text_assets
+            .iter()
+            .any(|asset| asset.project_id != project_id)
+    {
+        return Err("独立漫画项目包文本素材身份重复或项目不匹配".to_string());
+    }
+    for asset in &package.text_assets {
+        let versions = asset
+            .versions
+            .iter()
+            .map(|version| (version.version, version))
+            .collect::<HashMap<_, _>>();
+        if asset.id <= 0
+            || asset.current_version <= 0
+            || versions.len() != asset.versions.len()
+            || asset.versions.iter().any(|version| {
+                version.version <= 0
+                    || version.content_hash != a4n_domain::source_text_hash(&version.content)
+            })
+        {
+            return Err(format!(
+                "独立漫画项目包文本素材版本无效: asset_id={}",
+                asset.id
+            ));
+        }
+        let current = versions.get(&asset.current_version).ok_or_else(|| {
+            format!("独立漫画项目包素材缺少当前版本: asset_id={}", asset.id)
+        })?;
+        if current.content != asset.content || current.content_hash != asset.content_hash {
+            return Err(format!(
+                "独立漫画项目包素材当前版本与正文不一致: asset_id={}",
+                asset.id
+            ));
+        }
+    }
+    let mut source_ids = HashSet::new();
+    for row in &package.sources {
+        let source = &row.source;
+        let versions = assets
+            .get(&source.canvas_text_asset_id)
+            .filter(|asset| asset.project_id == project_id)
+            .ok_or_else(|| format!("漫画来源引用了不存在的文本素材: {}", source.canvas_text_asset_id))?
+            .versions
+            .iter()
+            .map(|version| (version.version, version))
+            .collect::<HashMap<_, _>>();
+        let version = versions.get(&source.text_asset_version).ok_or_else(|| {
+            format!("漫画来源引用了不存在的文本素材版本: {}/{}", source.canvas_text_asset_id, source.text_asset_version)
+        })?;
+        let (selected_content, selected_title) = crate::project::standalone_comic_source::select_text_sections(
+            &version.content,
+            source.start_section_index,
+            source.end_section_index,
+        )
+        .map_err(|error| error.to_string())?;
+        if source.project_id != project_id
+            || source.chapter_id != row.chapter.id
+            || source.source_snapshot_id != row.snapshot.id
+            || source.source_snapshot_chapter_id != row.snapshot_chapter.id
+            || row.chapter.project_id != project_id
+            || row.chapter.content != selected_content
+            || row.chapter.title.as_deref() != Some(selected_title.as_str())
+            || row.snapshot.root_project_id != project_id
+            || row.snapshot.source_version_hash != source.content_hash
+            || row.snapshot_chapter.snapshot_id != row.snapshot.id
+            || row.snapshot_chapter.root_project_id != project_id
+            || row.snapshot_chapter.source_chapter_id != row.chapter.id
+            || row.snapshot_chapter.content != row.chapter.content
+            || source.content_hash != a4n_domain::source_text_hash(&row.chapter.content)
+            || row.snapshot_chapter.content_hash != source.content_hash
+            || !source_ids.insert((source.canvas_text_asset_id, source.text_asset_version, source.start_section_index, source.end_section_index))
+        {
+            return Err(format!("独立漫画文本来源快照无效: chapter_id={}", row.chapter.id));
+        }
+    }
+    Ok(())
 }
 
 fn selected_project_scope<C: ColumnTrait>(project_id: C, project_ids: &[i64]) -> Condition {

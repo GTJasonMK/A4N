@@ -3,7 +3,8 @@ use super::super::{
     delete_manga_by_chapter, delete_manga_prompt, get_manga_pipeline_status,
     list_manga_page_prompts, list_manga_pipeline_statuses, optimize_manga_prompt,
     preview_resume_manga_pipeline_request, preview_start_manga_pipeline_request,
-    resume_manga_pipeline, start_manga_pipeline, update_manga_prompt,
+    prepare_standalone_comic_source, resume_manga_pipeline, start_manga_pipeline,
+    update_manga_prompt,
 };
 use serde_json::Value;
 
@@ -26,6 +27,9 @@ pub(super) async fn try_dispatch(
         }
         "cancel_manga_pipeline" => cancel_manga_pipeline(state, user_id, args).await?,
         "start_manga_pipeline" => start_manga_pipeline(state, user_id, args).await?,
+        "prepare_standalone_comic_source" => {
+            prepare_standalone_comic_source(state, user_id, args).await?
+        }
         "resume_manga_pipeline" => resume_manga_pipeline(state, user_id, args).await?,
         "preview_start_manga_pipeline_request" => {
             preview_start_manga_pipeline_request(state, user_id, args).await?

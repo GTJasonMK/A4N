@@ -167,6 +167,27 @@ impl PortraitGenerationHostPort for RuntimePortraitGenerationHostPort<'_> {
         };
         let provider_backend = config.backend.clone();
         let request_json = serde_json::to_value(&request)?;
+        let request_body_snapshot =
+            match crate::actions::image_generation::image_generation_preview_step(
+                self.state.runtime_profile(),
+                self.state.capabilities().image.clone(),
+                self.state.project_access_application(),
+                project_id,
+                "portrait_generation",
+                "Portrait image provider request",
+                None,
+                None,
+                &config,
+                request.clone(),
+            )
+            .await
+            {
+                Ok(preview) => preview.request,
+                Err(error) => {
+                    tracing::warn!(backend = %config.backend, %error, "Could not capture portrait image request snapshot");
+                    None
+                }
+            };
         let root_project_id = crate::actions::sidecar_root_project_id(self.state, project_id)
             .await
             .map_err(host_error)?;
@@ -189,6 +210,7 @@ impl PortraitGenerationHostPort for RuntimePortraitGenerationHostPort<'_> {
                 provider: Some(config.backend.clone()),
                 model: Some(config.model.clone()),
                 pricing: config.pricing.clone(),
+                request_json: request_body_snapshot,
             })
             .await
             .map_err(|error| host_error(error.to_string()))?;

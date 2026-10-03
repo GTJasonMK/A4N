@@ -3,6 +3,7 @@ use crate::AppState;
 use crate::actions::access;
 use a4n_api_contract::project::{
     CreateDerivedProjectInput, CreateFreeformVideoProjectInput, CreateProjectInput,
+    CreateStandaloneComicProjectInput,
     ProjectGeneratedDataResetResponse, ProjectSummary, UpdateProjectInput,
 };
 
@@ -43,6 +44,18 @@ pub async fn create_freeform_video_project(
         .await
         .map_err(|error| error.to_string())?;
     Ok(project)
+}
+
+pub async fn create_standalone_comic_project(
+    state: &AppState,
+    user_id: i64,
+    input: CreateStandaloneComicProjectInput,
+) -> Result<ProjectSummary, String> {
+    state
+        .project_mutation_application()
+        .create_standalone_comic(user_id, input)
+        .await
+        .map_err(|error| error.to_string())
 }
 
 pub async fn update_project(

@@ -81,6 +81,26 @@ impl ImageGenerationHostPort for RuntimeImageGenerationHostPort<'_> {
         let root_project_id = crate::actions::sidecar_root_project_id(self.state, input.project_id)
             .await
             .map_err(host_error)?;
+        let request_json = match super::preview::image_generation_preview_step(
+            self.state.runtime_profile(),
+            self.state.capabilities().image.clone(),
+            self.state.project_access_application(),
+            input.project_id,
+            "image_generation",
+            "Image provider request",
+            None,
+            None,
+            &input.config,
+            input.request.clone(),
+        )
+        .await
+        {
+            Ok(preview) => preview.request,
+            Err(error) => {
+                tracing::warn!(backend = %input.config.backend, %error, "Could not capture image request snapshot");
+                None
+            }
+        };
         let cost_record = self
             .state
             .provider_runtime()
@@ -100,6 +120,7 @@ impl ImageGenerationHostPort for RuntimeImageGenerationHostPort<'_> {
                 provider: Some(input.config.backend.clone()),
                 model: Some(input.config.model.clone()),
                 pricing: input.config.pricing.clone(),
+                request_json,
             })
             .await
             .map_err(|error| host_error(error.to_string()))?;

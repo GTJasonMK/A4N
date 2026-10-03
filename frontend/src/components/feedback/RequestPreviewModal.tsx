@@ -17,6 +17,7 @@ interface RequestPreviewModalProps {
   open: boolean;
   loading: boolean;
   data: ModelRequestPreview | null;
+  recorded?: boolean;
   fallbackTitle?: string;
   onClose: () => void;
 }
@@ -216,8 +217,9 @@ const PromptBlock: React.FC<{
 
 const StepView: React.FC<{
   step: ModelRequestPreviewStep;
+  recorded: boolean;
   onCopy: (text: string) => void;
-}> = ({ step, onCopy }) => {
+}> = ({ step, recorded, onCopy }) => {
   const { locale, t } = useI18n();
   const request = normalizedPreviewValue(step.request);
   const contextManifest = normalizedPreviewValue(step.context_manifest);
@@ -259,13 +261,20 @@ const StepView: React.FC<{
         <span className="min-w-0 flex-1 truncate font-semibold text-book-text-main">
           {step.title}
         </span>
-        <span className={`inline-flex shrink-0 items-center gap-1 text-small ${stateClass(step.state)}`}>
-          {stateIcon(step.state)}
-          {stateLabel(step.state, t)}
-        </span>
+        {recorded ? (
+          <span className="inline-flex shrink-0 items-center gap-1 text-small text-success">
+            <CheckCircle2 size={11} />
+            {t("feedback.requestRecordedState")}
+          </span>
+        ) : (
+          <span className={`inline-flex shrink-0 items-center gap-1 text-small ${stateClass(step.state)}`}>
+            {stateIcon(step.state)}
+            {stateLabel(step.state, t)}
+          </span>
+        )}
       </div>
       {step.note && (
-        <div className="mb-3 rounded-[var(--pyqt-radius-lg)] border border-warning/30 bg-warning/10 px-3 py-2.5 text-xs leading-relaxed text-warning">
+        <div className={`mb-3 rounded-[var(--pyqt-radius-lg)] border px-3 py-2.5 text-xs leading-relaxed ${recorded ? "border-book-border/50 bg-book-bg-secondary/45 text-book-text-muted" : "border-warning/30 bg-warning/10 text-warning"}`}>
           {step.note}
         </div>
       )}
@@ -319,7 +328,7 @@ const StepView: React.FC<{
         </div>
       )}
       {requestJson.trim() && (
-        <details className="mt-3 text-caption text-book-text-muted">
+        <details open={recorded} className="mt-3 text-caption text-book-text-muted">
           <summary className="w-fit cursor-pointer hover:text-book-text-main">{t("feedback.fullRequest")}</summary>
           <div className="mt-2">
             <PromptBlock
@@ -368,6 +377,7 @@ export const RequestPreviewModal: React.FC<RequestPreviewModalProps> = ({
   open,
   loading,
   data,
+  recorded = false,
   fallbackTitle,
   onClose,
 }) => {
@@ -445,11 +455,11 @@ export const RequestPreviewModal: React.FC<RequestPreviewModalProps> = ({
       title={data?.title ?? fallbackTitle ?? t("feedback.requestPreviewTitle")}
       subtitle={
         data
-          ? t("feedback.requestPreviewReady", {
+          ? t(recorded ? "feedback.requestRecorded" : "feedback.requestPreviewReady", {
               ready: formatNumber(data.ready_step_count, locale),
               total: formatNumber(data.steps.length, locale),
             })
-          : t("feedback.requestPreviewSubtitle")
+          : t(recorded ? "feedback.requestRecordedLoading" : "feedback.requestPreviewSubtitle")
       }
       maxWidthClassName="max-w-[min(94vw,72rem)]"
       zIndexClassName="z-[80]"
@@ -471,7 +481,7 @@ export const RequestPreviewModal: React.FC<RequestPreviewModalProps> = ({
       ) : data ? (
         <div className="flex min-w-0 flex-col gap-3">
           {data.steps.map((step) => (
-            <StepView key={step.key} step={step} onCopy={copyText} />
+            <StepView key={step.key} step={step} recorded={recorded} onCopy={copyText} />
           ))}
         </div>
       ) : (

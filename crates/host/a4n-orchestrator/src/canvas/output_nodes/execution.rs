@@ -23,13 +23,16 @@ impl OrchestratorContext {
         data_type: CanvasOutputDataType,
         consumer_label: &str,
     ) -> Result<CanvasOutputValue, AppError> {
+        let document = self
+            .canvas_document_with_workflow_text_asset_snapshot(document, workflow_run_id, node.id)
+            .await?;
         let checkpoints = match workflow_run_id {
             Some(run_id) => Some(self.workflow_checkpoint_summaries(run_id).await?),
             None => None,
         };
         let output = collect_canvas_output_value(
             node,
-            document,
+            &document,
             checkpoints.as_deref(),
             data_type,
             consumer_label,
@@ -47,6 +50,13 @@ impl OrchestratorContext {
     ) -> Result<a4n_api_contract::canvas::CanvasRunSummary, AppError> {
         let data_type = CanvasOutputDataType::from_output_node_kind(&input.node.node_kind)
             .map_err(AppError::InvalidArgument)?;
+        let document = self
+            .canvas_document_with_workflow_text_asset_snapshot(
+                input.document,
+                input.shared_run.map(|run| run.workflow_run_id),
+                input.node.id,
+            )
+            .await?;
         let checkpoints = match input.shared_run {
             Some(run) => Some(
                 self.workflow_checkpoint_summaries(run.workflow_run_id)
@@ -56,7 +66,7 @@ impl OrchestratorContext {
         };
         let output = collect_canvas_output_value(
             input.node,
-            input.document,
+            &document,
             checkpoints.as_deref(),
             data_type,
             &input.node.node_kind,
@@ -137,6 +147,7 @@ impl OrchestratorContext {
                         CanvasTextAssetRecordInput {
                             id: source_canvas_text_asset_id(node)
                                 .map_err(AppError::InvalidArgument)?,
+                            expected_version: None,
                             title,
                             text_kind: "canvas_output".to_string(),
                             content: text.to_string(),

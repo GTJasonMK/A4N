@@ -1,6 +1,8 @@
-use a4n_db_models::models::canvas::canvas_text_asset;
+use a4n_db_models::models::canvas::{canvas_text_asset, canvas_text_asset_version};
 use chrono::NaiveDateTime;
-use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QueryOrder, Set};
+use sea_orm::{
+    ActiveModelTrait, ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QueryOrder, Set,
+};
 use std::collections::HashMap;
 
 use crate::project::duplicate::ProjectDuplicateError;
@@ -31,6 +33,7 @@ where
             text_kind: Set(asset.text_kind.clone()),
             content: Set(asset.content.clone()),
             content_hash: Set(asset.content_hash.clone()),
+            current_version: Set(asset.current_version),
             created_at: Set(now),
             updated_at: Set(now),
             ..Default::default()
@@ -49,6 +52,35 @@ where
     let mut id_map = HashMap::new();
     for (asset, row) in assets.iter().zip(inserted) {
         id_map.insert(asset.id, row.id);
+        let mut versions = canvas_text_asset_version::Entity::find()
+            .filter(canvas_text_asset_version::Column::CanvasTextAssetId.eq(asset.id))
+            .order_by_asc(canvas_text_asset_version::Column::Version)
+            .all(db)
+            .await
+            .map_err(ProjectDuplicateError::Database)?;
+        if versions.is_empty() {
+            versions.push(canvas_text_asset_version::Model {
+                id: 0,
+                canvas_text_asset_id: asset.id,
+                version: asset.current_version,
+                content: asset.content.clone(),
+                content_hash: asset.content_hash.clone(),
+                created_at: asset.created_at,
+            });
+        }
+        for version in versions {
+            canvas_text_asset_version::ActiveModel {
+                canvas_text_asset_id: Set(row.id),
+                version: Set(version.version),
+                content: Set(version.content),
+                content_hash: Set(version.content_hash),
+                created_at: Set(now),
+                ..Default::default()
+            }
+            .insert(db)
+            .await
+            .map_err(ProjectDuplicateError::Database)?;
+        }
     }
     Ok(id_map)
 }
@@ -90,6 +122,7 @@ mod tests {
                 text_kind: Set("prompt".to_string()),
                 content: Set(format!("内容 {index}")),
                 content_hash: Set(format!("hash-{index}")),
+                current_version: Set(1),
                 created_at: Set(now),
                 updated_at: Set(now),
                 ..Default::default()

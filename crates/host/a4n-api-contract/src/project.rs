@@ -189,6 +189,12 @@ pub trait ProjectMutationApplicationPort: Send + Sync {
         input: CreateFreeformVideoProjectInput,
     ) -> Result<ProjectSummary, a4n_error::AppError>;
 
+    async fn create_standalone_comic(
+        &self,
+        user_id: i64,
+        input: CreateStandaloneComicProjectInput,
+    ) -> Result<ProjectSummary, a4n_error::AppError>;
+
     async fn update(
         &self,
         user_id: i64,
@@ -225,6 +231,13 @@ pub struct CreateProjectInput {
 #[derive(Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct CreateFreeformVideoProjectInput {
+    pub title: String,
+    pub description: Option<String>,
+}
+
+#[derive(Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct CreateStandaloneComicProjectInput {
     pub title: String,
     pub description: Option<String>,
 }

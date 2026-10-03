@@ -537,6 +537,10 @@ export function useCanvasWorkflowActions({
       addToast(t("video.saveBeforeRun"), "info");
       return;
     }
+    if (!nodes.some((node) => studioNodeContract(nodeContractsByKind, node.data.nodeKind)?.runnable)) {
+      addToast(t("video.noRunnableCanvasNodes"), "info");
+      return;
+    }
     if (canResumeCurrentCanvasRun) {
       await resumeActiveWorkflow();
       return;
@@ -670,7 +674,7 @@ export function useCanvasWorkflowActions({
       {
         label: t("video.runCanvasTitle"),
         icon: <Play size={13} />,
-        disabled: !document || canvasMutationDisabled || workflowSubmitting,
+        disabled: !document || canvasMutationDisabled || workflowSubmitting || !nodes.some((node) => studioNodeContract(nodeContractsByKind, node.data.nodeKind)?.runnable),
         onClick: () => void runGraph(),
       },
       { divider: true },
@@ -680,6 +684,8 @@ export function useCanvasWorkflowActions({
       canvasMutationDisabled,
       document,
       mediaImportMenuItems,
+      nodeContractsByKind,
+      nodes,
       runGraph,
       workflowSubmitting,
       t,

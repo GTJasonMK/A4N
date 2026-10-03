@@ -97,7 +97,7 @@ impl BinaryIntegrityVerifier {
             .map(|entry| entry.name.clone())
             .collect::<HashSet<_>>();
         let selected_service_names = if manifest.services.is_empty() {
-            catalog_services.clone()
+            catalog_services
         } else {
             let selected = manifest.services.iter().cloned().collect::<HashSet<_>>();
             if selected.len() != manifest.services.len()

@@ -33,7 +33,8 @@ pub(super) use export::{
 };
 pub(super) use import::{
     accept_import_review, batch_accept_reviews, cancel_import_analysis, check_import_dedup,
-    delete_import_review, get_project_import_analysis_progress, import_project_text_upload,
+    delete_import_review, get_project_import_analysis_progress, import_project_text_asset_upload,
+    import_project_text_upload,
     list_import_queue, preview_import_project_analysis_request, reject_import_review,
     run_import_project_analysis,
 };
@@ -60,6 +61,7 @@ pub(super) use portrait::{
 };
 pub(super) use project::{
     accept_project_invite, create_derived_project, create_freeform_video_project, create_project,
+    create_standalone_comic_project,
     decline_project_invite, delete_project, duplicate_project, export_derived_project_data,
     export_project_bundle_data, export_project_family_data, export_video_studio_project_data,
     forward_project_status, get_project, get_project_asset_dependency_graph,

@@ -76,7 +76,13 @@ impl MediaAuthoringApplicationPort for OrchestratorContext {
             })
             .collect::<Result<_, AppError>>()?;
         let artifacts = self
-            .authoring_artifact_views(input.project_id, target, snapshot_id, &documents)
+            .authoring_artifact_views(
+                input.project_id,
+                target,
+                snapshot_id,
+                input.chapter_id,
+                &documents,
+            )
             .await?;
         Ok(MediaAuthoringWorkspace {
             target,
