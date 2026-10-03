@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { FileText,
   ImagePlus,
   Link2,
@@ -45,12 +45,14 @@ import {
 } from "./mangaTabUtils";
 import { useI18n } from "../../../i18n";
 import { useNovelDetailDirty } from "../novelDetailDirty";
+import { getScrollRailCue, scrollRailItemIntoView } from "../../../utils/scrollRail";
 
 interface MangaPagePromptListProps {
   stageMode?: MangaPageWorkspaceStage;
   onDirtyChange?: (dirty: boolean) => void;
   prompts: MangaPagePromptSummary[];
   promptsLoading: boolean;
+  pagePromptsError?: string | null;
   currentContentHash: string | null;
   chapterLocked?: boolean;
   generatingPageNumber?: number | null;
@@ -70,6 +72,7 @@ interface MangaPagePromptListProps {
   onUpdatePrompt?: (promptId: number, imagePrompt: string) => void | Promise<void>;
   onOptimizePrompt?: (prompt: MangaPagePromptSummary) => void | Promise<void>;
   onDeletePrompt?: (prompt: MangaPagePromptSummary) => void | Promise<void>;
+  onRetryPagePrompts?: () => void;
 }
 
 type MangaPagePlanView = "page_content" | "page_adaptation" | "storyboard";
@@ -196,6 +199,7 @@ export const MangaPagePromptList: React.FC<MangaPagePromptListProps> = ({
   onDirtyChange,
   prompts,
   promptsLoading,
+  pagePromptsError = null,
   currentContentHash,
   chapterLocked = false,
   generatingPageNumber = null,
@@ -213,6 +217,7 @@ export const MangaPagePromptList: React.FC<MangaPagePromptListProps> = ({
   onUpdatePrompt,
   onOptimizePrompt,
   onDeletePrompt,
+  onRetryPagePrompts,
 }) => {
   const { t } = useI18n();
   const pagePromptLabels = useMemo<MangaPagePromptLabels>(() => ({
@@ -263,6 +268,10 @@ export const MangaPagePromptList: React.FC<MangaPagePromptListProps> = ({
     [currentContentHash, pagePromptLabels, prompts],
   );
   const [selectedPage, setSelectedPage] = useState<number | null>(null);
+  const pageRailRef = useRef<HTMLElement | null>(null);
+  const activePageButtonRef = useRef<HTMLButtonElement | null>(null);
+  const [pageRailHasBefore, setPageRailHasBefore] = useState(false);
+  const [pageRailHasMore, setPageRailHasMore] = useState(false);
   const [detailView, setDetailView] = useState<MangaPageDetailView | null>(null);
   const [promptDrafts, setPromptDrafts] = useState<Record<number, string>>({});
   const [promptSaving, setPromptSaving] = useState(false);
@@ -289,6 +298,31 @@ export const MangaPagePromptList: React.FC<MangaPagePromptListProps> = ({
 
   const activePage =
     pagePrompts.find((page) => page.pageNumber === selectedPage) ?? pagePrompts[0] ?? null;
+
+  useEffect(() => {
+    const rail = pageRailRef.current;
+    if (!rail) return;
+    const updateCue = () => {
+      const cue = getScrollRailCue(rail);
+      setPageRailHasBefore(cue.hasBefore);
+      setPageRailHasMore(cue.hasMore);
+    };
+    const frame = window.requestAnimationFrame(() => {
+      scrollRailItemIntoView(rail, activePageButtonRef.current, "smooth");
+      updateCue();
+    });
+    rail.addEventListener("scroll", updateCue, { passive: true });
+    window.addEventListener("resize", updateCue);
+    const resizeObserver =
+      typeof ResizeObserver === "undefined" ? null : new ResizeObserver(updateCue);
+    resizeObserver?.observe(rail);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      rail.removeEventListener("scroll", updateCue);
+      window.removeEventListener("resize", updateCue);
+      resizeObserver?.disconnect();
+    };
+  }, [activePage?.pageNumber, pagePrompts.length]);
   const activeDetailView: MangaPageDetailView = stageMode === "page_plan"
     ? "page_content"
     : stageMode === "page_adaptation"
@@ -369,8 +403,18 @@ export const MangaPagePromptList: React.FC<MangaPagePromptListProps> = ({
 
   if (pagePrompts.length === 0) {
     return (
-      <div className="flex h-full min-h-0 items-center justify-center">
-        <EmptyHint text={t("comic.prompt.empty")} />
+      <div className="flex h-full min-h-0 flex-col gap-3">
+        {pagePromptsError ? (
+          <div role="alert" className="flex flex-wrap items-center gap-3 rounded-xl border border-error/40 bg-error-bg px-3 py-2 text-small text-error">
+            <span className="min-w-0 flex-1">{pagePromptsError}</span>
+            {onRetryPagePrompts ? <BookButton size="sm" variant="secondary" onClick={onRetryPagePrompts}>
+              <RefreshCw size={12} /> {t("common.retry")}
+            </BookButton> : null}
+          </div>
+        ) : null}
+        <div className="flex min-h-0 flex-1 items-center justify-center">
+          <EmptyHint text={t("comic.prompt.empty")} />
+        </div>
       </div>
     );
   }
@@ -542,73 +586,86 @@ export const MangaPagePromptList: React.FC<MangaPagePromptListProps> = ({
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-        <div className="mb-3 shrink-0">
-          <p
-            className={`mt-1 text-small leading-relaxed ${
-              pipelineFailed > 0 || staleCount > 0
-                ? "text-warning"
-                : pipelineCompleted > 0
-                  ? "text-book-text-sub"
-                  : "text-book-text-muted"
-            }`}
-          >
-            {pageSummaryParts.join(" · ")}
-          </p>
+      {pagePromptsError ? (
+        <div role="alert" className="mb-3 flex shrink-0 flex-wrap items-center gap-3 rounded-xl border border-error/40 bg-error-bg px-3 py-2 text-small text-error">
+          <span className="min-w-0 flex-1">{pagePromptsError}</span>
+          {onRetryPagePrompts ? <BookButton size="sm" variant="secondary" onClick={onRetryPagePrompts}>
+            <RefreshCw size={12} /> {t("common.retry")}
+          </BookButton> : null}
         </div>
-
-        <div
-          className={`grid min-h-0 grid-cols-1 content-start gap-3 xl:flex-1 xl:content-stretch ${
-            hasMultiplePages ? "xl:grid-cols-[180px_minmax(0,1fr)]" : ""
+      ) : null}
+      <div className="mb-3 shrink-0">
+        <p
+          className={`mt-1 text-small leading-relaxed ${
+            pipelineFailed > 0 || staleCount > 0
+              ? "text-warning"
+              : pipelineCompleted > 0
+                ? "text-book-text-sub"
+                : "text-book-text-muted"
           }`}
         >
-          {hasMultiplePages ? (
-            <nav
-              aria-label={t("comic.prompt.listLabel")}
-              className="a4n-media-page-rail-surface min-w-0 overflow-x-auto pb-1 xl:min-h-0 xl:overflow-x-hidden xl:overflow-y-auto xl:overscroll-contain xl:p-1 custom-scrollbar"
-            >
-              <div className="flex min-w-max gap-1.5 xl:min-w-0 xl:flex-col xl:gap-1 xl:overflow-hidden">
-                {pagePrompts.map((page) => {
-                  const selected = page.pageNumber === activePage?.pageNumber;
-                  const imageLabel =
-                      page.prompt.generated_image_id != null
-                      ? t("comic.prompt.generatedStatus")
-                      : t("comic.prompt.pendingStatus");
-                  const pageStatus = statusLabel(page.prompt.status, t);
-                  const pageMeta = [
-                    page.pipelineStage ? mangaPageStageLabel(page.pipelineStage, t) : "",
-                    page.pipelineStatus ? statusLabel(page.pipelineStatus, t) : "",
-                    imageLabel,
-                    page.prompt.status !== "completed" && page.prompt.status !== "pending" ? pageStatus : "",
-                    page.promptCount > 1 ? t("comic.prompt.recordCount", { count: page.promptCount }) : "",
-                    page.sourceStale ? t("comic.prompt.staleStatus") : "",
-                    promptDrafts[page.prompt.id] !== undefined && promptDrafts[page.prompt.id] !== page.prompt.image_prompt
-                      ? t("common.unsavedChangesTitle") : "",
-                  ].filter(Boolean);
-                  return (
-                    <button
-                      key={page.pageNumber}
-                      type="button"
-                      onClick={() => setSelectedPage(page.pageNumber)}
-                      aria-current={selected ? "true" : undefined}
-                      data-active={selected ? "1" : undefined}
-                      className="a4n-sidebar-item min-w-[8.75rem] text-xs xl:min-w-0"
-                    >
-                      <span className="block text-xs font-semibold">{t("comic.prompt.pageHeading", { page: page.pageNumber })}</span>
-                      <div
-                        className={`mt-0.5 truncate text-caption ${
-                          selected ? "text-book-primary" : "text-book-text-muted"
-                        }`}
-                      >
-                        {pageMeta.join(" · ")}
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-            </nav>
-          ) : null}
+          {pageSummaryParts.join(" · ")}
+        </p>
+      </div>
 
-          <section className="min-h-0 min-w-0 overflow-visible xl:overflow-y-auto xl:overscroll-contain custom-scrollbar">
+      <div
+        className={`grid min-h-0 grid-cols-1 content-start gap-3 xl:flex-1 xl:content-stretch ${
+          hasMultiplePages ? "xl:grid-cols-[180px_minmax(0,1fr)]" : ""
+        }`}
+      >
+        {hasMultiplePages ? (
+          <nav
+            ref={pageRailRef}
+            aria-label={t("comic.prompt.listLabel")}
+            aria-describedby="comic-page-list-scroll-hint"
+            data-has-before={pageRailHasBefore ? "true" : undefined}
+            data-has-more={pageRailHasMore ? "true" : undefined}
+            className="a4n-tab-rail-wrap a4n-tab-rail-wrap--canvas a4n-media-page-rail-surface a4n-mobile-scroll-rail flex min-w-0 w-full gap-1.5 overflow-x-auto pb-1 xl:min-h-0 xl:flex-col xl:gap-1 xl:overflow-x-hidden xl:overflow-y-auto xl:overscroll-contain xl:p-1 custom-scrollbar"
+          >
+            {pagePrompts.map((page) => {
+              const selected = page.pageNumber === activePage?.pageNumber;
+              const imageLabel = page.prompt.generated_image_id != null
+                ? t("comic.prompt.generatedStatus")
+                : t("comic.prompt.pendingStatus");
+              const pageStatus = statusLabel(page.prompt.status, t);
+              const pageMeta = [
+                page.pipelineStage ? mangaPageStageLabel(page.pipelineStage, t) : "",
+                page.pipelineStatus ? statusLabel(page.pipelineStatus, t) : "",
+                imageLabel,
+                page.prompt.status !== "completed" && page.prompt.status !== "pending" ? pageStatus : "",
+                page.promptCount > 1 ? t("comic.prompt.recordCount", { count: page.promptCount }) : "",
+                page.sourceStale ? t("comic.prompt.staleStatus") : "",
+                promptDrafts[page.prompt.id] !== undefined && promptDrafts[page.prompt.id] !== page.prompt.image_prompt
+                  ? t("common.unsavedChangesTitle") : "",
+              ].filter(Boolean);
+              return (
+                <button
+                  ref={selected ? activePageButtonRef : undefined}
+                  key={page.pageNumber}
+                  type="button"
+                  onClick={() => setSelectedPage(page.pageNumber)}
+                  aria-current={selected ? "true" : undefined}
+                  data-active={selected ? "1" : undefined}
+                  className="a4n-sidebar-item min-w-[8.75rem] shrink-0 text-xs xl:min-w-0"
+                >
+                  <span className="block text-xs font-semibold">{t("comic.prompt.pageHeading", { page: page.pageNumber })}</span>
+                  <div
+                    className={`mt-0.5 truncate text-caption ${
+                      selected ? "text-book-primary" : "text-book-text-muted"
+                    }`}
+                  >
+                    {pageMeta.join(" · ")}
+                  </div>
+                </button>
+              );
+            })}
+            <span id="comic-page-list-scroll-hint" className="sr-only">
+              {t("comic.prompt.pageRailScrollHint")}
+            </span>
+          </nav>
+        ) : null}
+
+        <section className="min-h-0 min-w-0 overflow-visible xl:overflow-y-auto xl:overscroll-contain custom-scrollbar">
             {activePage ? (
               <article className="a4n-flat-surface min-w-0 overflow-hidden">
                 <header className="border-b border-book-border/40 p-3">
@@ -629,7 +686,7 @@ export const MangaPagePromptList: React.FC<MangaPagePromptListProps> = ({
                         ].filter(Boolean).join(" · ")}
                       </p>
                     </div>
-                    <div className="flex items-center justify-end gap-2">
+                    <div className="flex flex-wrap items-center justify-end gap-2">
                       {generatingPageNumber === activePage.pageNumber &&
                       activePage.prompt.generated_image_id != null &&
                       !activePage.sourceStale ? (
@@ -805,7 +862,7 @@ export const MangaPagePromptList: React.FC<MangaPagePromptListProps> = ({
                 </div>
               </article>
             ) : null}
-          </section>
+        </section>
         </div>
     </div>
   );

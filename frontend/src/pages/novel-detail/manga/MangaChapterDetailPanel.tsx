@@ -68,6 +68,7 @@ interface MangaChapterDetailPanelProps {
   selectedStatus: MangaPipelineStatusSummary | null | undefined;
   pagePrompts: MangaPagePromptSummary[];
   pagePromptsLoading: boolean;
+  pagePromptsError: string | null;
   currentContentHash: string | null;
   characterAssetsLoading: boolean;
   projectImagesLoading: boolean;
@@ -97,6 +98,7 @@ interface MangaChapterDetailPanelProps {
   onCancelPipeline: () => void;
   onDeleteManga: () => void;
   onPagePromptsChanged: () => Promise<boolean>;
+  onRetryPagePrompts: () => void;
 }
 
 type NoticeTone = "ok" | "warning" | "danger" | "muted";
@@ -124,6 +126,7 @@ export function MangaChapterDetailPanel({
   selectedStatus,
   pagePrompts,
   pagePromptsLoading,
+  pagePromptsError,
   currentContentHash,
   characterAssetsLoading,
   projectImagesLoading,
@@ -147,6 +150,7 @@ export function MangaChapterDetailPanel({
   onCancelPipeline,
   onDeleteManga,
   onPagePromptsChanged,
+  onRetryPagePrompts,
 }: MangaChapterDetailPanelProps) {
   const addToast = useToast((state) => state.addToast);
   const { t } = useI18n();
@@ -1012,6 +1016,7 @@ export function MangaChapterDetailPanel({
                 onDirtyChange={onDirtyChange}
                 prompts={pagePrompts}
                 promptsLoading={pagePromptsLoading}
+                pagePromptsError={pagePromptsError}
                 currentContentHash={currentContentHash}
                 chapterLocked={
                   selectedChapterGenerating || !selectedChapterReady
@@ -1031,6 +1036,7 @@ export function MangaChapterDetailPanel({
                 onUpdatePrompt={handleUpdatePrompt}
                 onOptimizePrompt={handleOptimizePrompt}
                 onDeletePrompt={handleDeletePrompt}
+                onRetryPagePrompts={onRetryPagePrompts}
               />
             </div>
           </>

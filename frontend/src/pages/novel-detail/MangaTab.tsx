@@ -6,7 +6,7 @@ import React, {
   useRef,
   useState,
 } from "react";
-import { Clapperboard, FileText, ImagePlus, Images, PanelTop } from "lucide-react";
+import { Clapperboard, FileText, ImagePlus, Images, PanelTop, RefreshCw } from "lucide-react";
 import { LoadingSpinner } from "../../components/ui/LoadingSpinner";
 import { useToast } from "../../components/feedback/Toast";
 import { confirmDialog } from "../../components/feedback/ConfirmDialog";
@@ -168,6 +168,7 @@ export const MangaTab: React.FC<MangaTabProps> = ({
     Record<number, MangaPipelineStatusSummary | null>
   >({});
   const [loading, setLoading] = useState(true);
+  const [chapterLoadError, setChapterLoadError] = useState<string | null>(null);
   const [acting, setActing] = useState<string | null>(null);
   const [selectedChapter, setSelectedChapter] = useState<ChapterRow | null>(
     fixedChapter ?? null,
@@ -180,6 +181,7 @@ export const MangaTab: React.FC<MangaTabProps> = ({
   const outputState = authoring.workspace?.artifacts.find((artifact) => artifact.kind === "manga_pages" && artifact.source_chapter_id === selectedChapter?.id);
   const [pagePrompts, setPagePrompts] = useState<MangaPagePromptSummary[]>([]);
   const [pagePromptsLoading, setPagePromptsLoading] = useState(false);
+  const [pagePromptsError, setPagePromptsError] = useState<string | null>(null);
   const [currentContentHash, setCurrentContentHash] = useState<string | null>(
     null,
   );
@@ -558,6 +560,7 @@ export const MangaTab: React.FC<MangaTabProps> = ({
     resetRequestPreview();
     setSelectedChapter(null);
     setPagePrompts([]);
+    setPagePromptsError(null);
     setCurrentContentHash(null);
   };
 
@@ -566,6 +569,7 @@ export const MangaTab: React.FC<MangaTabProps> = ({
     resetRequestPreview();
     setSelectedChapter(row);
     setPagePrompts([]);
+    setPagePromptsError(null);
     setCurrentContentHash(row.content_hash ?? null);
     void loadPagePrompts(row.id, projectId).catch((err) =>
       addToast(extractErrorMessage(err, t("comic.loadPagePromptsFailed")), "error"),
@@ -586,6 +590,7 @@ export const MangaTab: React.FC<MangaTabProps> = ({
     if (showLoading) setLoading(true);
     resetChapterDetail();
     setChapters([]);
+    setChapterLoadError(null);
     setStatuses({});
     try {
       const source = await prepareStandaloneComicSource(
@@ -613,7 +618,9 @@ export const MangaTab: React.FC<MangaTabProps> = ({
       return true;
     } catch (error) {
       if (isProjectCurrent(requestProjectId) && standaloneSourceLoadSeqRef.current === requestSeq) {
-        addToast(extractErrorMessage(error, t("comic.prepareSourceFailed")), "error");
+        const message = extractErrorMessage(error, t("comic.prepareSourceFailed"));
+        setChapterLoadError(message);
+        addToast(message, "error");
       }
       return false;
     } finally {
@@ -626,6 +633,12 @@ export const MangaTab: React.FC<MangaTabProps> = ({
 
   const selectMangaTextSource = (selection: MangaTextSourceSelection) => {
     if (!ensureCanEditManga()) return;
+    if (
+      selectedTextSource?.assetId === selection.assetId &&
+      selectedTextSource.version === selection.version &&
+      selectedTextSource.startSection === selection.startSection &&
+      selectedTextSource.endSection === selection.endSection
+    ) return;
     if (isMutationBusy()) {
       addToast(t("common.operationInProgress"), "info");
       return;
@@ -679,6 +692,7 @@ export const MangaTab: React.FC<MangaTabProps> = ({
       chapterLoadSeqRef.current === requestSeq
     ) {
       setLoading(true);
+      setChapterLoadError(null);
     }
     try {
       const rows: ChapterRow[] = snapshotChapters
@@ -711,6 +725,7 @@ export const MangaTab: React.FC<MangaTabProps> = ({
         rows.find((row) => row.id === previousChapterId) ??
         (snapshotChapters || rows.length === 1 ? rows[0] ?? null : null);
       setChapters(rows);
+      setChapterLoadError(null);
       setStatuses({});
       selectedChapterIdRef.current = nextSelectedChapter?.id ?? null;
       setSelectedChapter(nextSelectedChapter);
@@ -752,7 +767,9 @@ export const MangaTab: React.FC<MangaTabProps> = ({
         isProjectCurrent(requestProjectId) &&
         chapterLoadSeqRef.current === requestSeq
       ) {
-        addToast(extractErrorMessage(err, t("comic.loadChaptersFailed")), "error");
+        const message = extractErrorMessage(err, t("comic.loadChaptersFailed"));
+        setChapterLoadError(message);
+        addToast(message, "error");
       }
     } finally {
       if (
@@ -779,6 +796,7 @@ export const MangaTab: React.FC<MangaTabProps> = ({
     setChapters([]);
     setStatuses({});
     setPagePrompts([]);
+    setPagePromptsError(null);
     setCurrentContentHash(null);
     setProfiles([]);
     setPortraits([]);
@@ -820,6 +838,7 @@ export const MangaTab: React.FC<MangaTabProps> = ({
     if (showLoading && isChapterCurrent(requestProjectId, chapterId)) {
       setPagePromptsLoading(true);
     }
+    if (isChapterCurrent(requestProjectId, chapterId)) setPagePromptsError(null);
     try {
       const data = await listMangaPagePrompts(requestProjectId, chapterId);
       if (
@@ -829,7 +848,16 @@ export const MangaTab: React.FC<MangaTabProps> = ({
         return false;
       }
       setPagePrompts(data);
+      setPagePromptsError(null);
       return true;
+    } catch (error) {
+      if (
+        isChapterCurrent(requestProjectId, chapterId) &&
+        pagePromptsLoadSeqRef.current === requestSeq
+      ) {
+        setPagePromptsError(extractErrorMessage(error, t("comic.loadPagePromptsFailed")));
+      }
+      throw error;
     } finally {
       if (
         isChapterCurrent(requestProjectId, chapterId) &&
@@ -868,7 +896,8 @@ export const MangaTab: React.FC<MangaTabProps> = ({
   }, [addToast, selectedChapter?.content, selectedChapter?.id]);
 
   const handleSelect = async (row: ChapterRow) => {
-    if (selectedChapter?.id === row.id || await confirmLeaveStage()) openChapterDetail(row);
+    if (selectedChapter?.id === row.id) return;
+    if (await confirmLeaveStage()) openChapterDetail(row);
   };
 
   const wrapAct = async (
@@ -1247,13 +1276,23 @@ export const MangaTab: React.FC<MangaTabProps> = ({
 
   if (!standalone && !isSingleMode && chapters.length === 0) {
     return (
-      <div className="content-main">
-        <MangaChapterList
-          chapters={chapters}
-          statuses={statuses}
-          selectedChapter={selectedChapter}
-          onSelect={handleSelect}
-        />
+      <div className="flex min-h-0 flex-1 flex-col gap-3">
+        {chapterLoadError ? (
+          <div role="alert" className="flex flex-wrap items-center gap-3 rounded-xl border border-error/40 bg-error-bg px-3 py-2 text-small text-error">
+            <span className="min-w-0 flex-1">{chapterLoadError}</span>
+            <BookButton variant="secondary" size="sm" onClick={() => void loadChapters(projectId)} disabled={loading}>
+              <RefreshCw size={12} /> {t("common.retry")}
+            </BookButton>
+          </div>
+        ) : null}
+        <div className="content-main">
+          <MangaChapterList
+            chapters={chapters}
+            statuses={statuses}
+            selectedChapter={selectedChapter}
+            onSelect={handleSelect}
+          />
+        </div>
       </div>
     );
   }
@@ -1274,6 +1313,14 @@ export const MangaTab: React.FC<MangaTabProps> = ({
           {t("common.mediaAuthoring.outputsStale")}
         </p>
       )}
+      {chapterLoadError ? (
+        <div role="alert" className="flex shrink-0 flex-wrap items-center gap-3 rounded-xl border border-error/40 bg-error-bg px-3 py-2 text-small text-error">
+          <span className="min-w-0 flex-1">{chapterLoadError}</span>
+          <BookButton variant="secondary" size="sm" onClick={() => void loadChapters(projectId)} disabled={loading || standaloneSourceLoading}>
+            <RefreshCw size={12} /> {t("common.retry")}
+          </BookButton>
+        </div>
+      ) : null}
       {authoring.error && workspaceStage !== "adaptation" ? (
         <p role="alert" className="shrink-0 rounded-xl border border-error/40 bg-error-bg px-3 py-2 text-small text-error">
           {authoring.error}
@@ -1316,6 +1363,7 @@ export const MangaTab: React.FC<MangaTabProps> = ({
         selectedStatus={selectedStatus}
         pagePrompts={pagePrompts}
         pagePromptsLoading={pagePromptsLoading}
+        pagePromptsError={pagePromptsError}
         currentContentHash={currentContentHash}
         characterAssetsLoading={characterAssetsLoading}
         projectImagesLoading={projectImagesLoading}
@@ -1390,6 +1438,10 @@ export const MangaTab: React.FC<MangaTabProps> = ({
             }),
           ]);
           return promptsOk && imagesOk;
+        }}
+        onRetryPagePrompts={() => {
+          if (!selectedChapter) return;
+          void loadPagePrompts(selectedChapter.id).catch(() => undefined);
         }}
       />}
       </div>

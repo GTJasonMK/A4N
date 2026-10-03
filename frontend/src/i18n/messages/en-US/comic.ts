@@ -153,6 +153,7 @@ export const comic = {
     staleStatus: "Needs update",
     recordCount: "{count} records",
     pageHeading: "Page {page}",
+    pageRailScrollHint: "Scroll horizontally to see more pages",
     pageContent: "Page content",
     pageAction: "Main action",
     pageReaction: "Character reaction",

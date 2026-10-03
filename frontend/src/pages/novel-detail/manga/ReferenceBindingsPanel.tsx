@@ -86,7 +86,7 @@ export const ReferenceBindingsPanel: React.FC<{
             className="py-3"
           >
             <div className="flex items-start gap-2">
-              <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-book-border/50 bg-book-bg-tertiary text-caption text-book-text-muted">
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-md border border-book-border/50 bg-book-bg-tertiary text-caption text-book-text-muted">
                 {previewSrc ? (
                   <ZoomableImage
                     src={previewSrc}

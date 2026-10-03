@@ -306,7 +306,8 @@
     font-size: 1.25rem;
   }
 
-  .a4n-tab-rail-wrap .tab-bar {
+  .a4n-tab-rail-wrap:is(.tab-bar, .a4n-mobile-scroll-rail),
+  .a4n-tab-rail-wrap :is(.tab-bar, .a4n-mobile-scroll-rail) {
     scroll-padding-inline: var(--a4n-tab-rail-edge-space);
     scroll-snap-type: none;
     padding-right: var(--a4n-tab-rail-edge-space);

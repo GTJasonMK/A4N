@@ -153,6 +153,7 @@ export const comic = {
     staleStatus: "需更新",
     recordCount: "{count} 条记录",
     pageHeading: "第 {page} 页",
+    pageRailScrollHint: "页面列表可横向滑动查看更多页面",
     pageContent: "页面内容",
     pageAction: "主要动作",
     pageReaction: "角色反应",
