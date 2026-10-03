@@ -115,7 +115,7 @@ export const ReferenceBindingsPanel: React.FC<{
               </div>
             </div>
 
-            <div className="mt-2 grid grid-cols-[minmax(0,1fr)_auto] gap-1.5">
+            <div className="mt-2 grid gap-1.5 sm:grid-cols-[minmax(0,1fr)_auto]">
               <ThemedSelect
                 aria-label={`${binding.characterName} · ${t("comic.prompt.selectAsset")}`}
                 value={selectedKey}
@@ -139,6 +139,7 @@ export const ReferenceBindingsPanel: React.FC<{
               <BookButton
                 size="sm"
                 variant="secondary"
+                className="w-full sm:w-auto"
                 disabled={bindDisabled}
                 onClick={() => {
                   if (!selected || !onBindReferenceImage) return;

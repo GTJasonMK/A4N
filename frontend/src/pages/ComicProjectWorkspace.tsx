@@ -14,6 +14,7 @@ import { BookButton, BookIconButton } from "../components/ui/BookButton";
 import { BackButton } from "../components/ui/BackButton";
 import { DerivedProjectHeader } from "../components/shell/DerivedProjectHeader";
 import { MangaTab } from "./novel-detail/MangaTab";
+import { EmptyHint } from "./novel-detail/shared";
 import { SourceSyncDialog } from "./derived/SourceSyncDialog";
 import { getDerivedProjectSubtitle } from "../utils/projectRouting";
 import { useI18n } from "../i18n";
@@ -189,7 +190,9 @@ export const ComicProjectWorkspace: React.FC = () => {
             <LoadingSpinner size="sm" />
             {t("comic.loadingProject")}
           </div>
-        ) : loadError ? null : project ? (
+        ) : loadError ? null : project && !canEditProject ? (
+          <EmptyHint text={t("comic.noEditPermission")} />
+        ) : project ? (
           <MangaTab
             key={project.id}
             projectId={project.id}

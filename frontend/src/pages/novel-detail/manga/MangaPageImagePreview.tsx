@@ -1,4 +1,5 @@
 import React from "react";
+import { Image as ImageIcon } from "lucide-react";
 import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
 import { ZoomableImage } from "../../../components/ui/ImageLightbox";
 import type { GeneratedImage } from "../../../api/image";
@@ -35,7 +36,8 @@ export const MangaPageImagePreview: React.FC<{
   }
 
   return (
-    <div className="flex min-h-[360px] items-center justify-center bg-book-bg-tertiary/40 p-4 text-xs text-book-text-muted">
+    <div className="flex min-h-[360px] flex-col items-center justify-center gap-2 bg-book-bg-tertiary/40 p-4 text-center text-xs text-book-text-muted">
+      <ImageIcon size={20} aria-hidden="true" />
       {loading ? (
         <span className="inline-flex items-center gap-2">
           <LoadingSpinner size="sm" />

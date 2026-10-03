@@ -564,9 +564,9 @@ export const MangaPagePromptList: React.FC<MangaPagePromptListProps> = ({
           {hasMultiplePages ? (
             <nav
               aria-label={t("comic.prompt.listLabel")}
-              className="min-w-0 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden xl:min-h-0 xl:overflow-x-hidden xl:overflow-y-auto xl:border-r xl:border-book-border/50 xl:pb-0 xl:pr-2"
+              className="a4n-media-page-rail-surface min-w-0 overflow-x-auto pb-1 xl:min-h-0 xl:overflow-x-hidden xl:overflow-y-auto xl:overscroll-contain xl:p-1 custom-scrollbar"
             >
-              <div className="flex min-w-max gap-1.5 xl:min-w-0 xl:flex-col xl:gap-1 xl:overflow-hidden xl:rounded-[var(--pyqt-radius-md)] xl:border xl:border-book-border/50 xl:bg-book-bg-paper/30 xl:p-1">
+              <div className="flex min-w-max gap-1.5 xl:min-w-0 xl:flex-col xl:gap-1 xl:overflow-hidden">
                 {pagePrompts.map((page) => {
                   const selected = page.pageNumber === activePage?.pageNumber;
                   const imageLabel =
@@ -608,7 +608,7 @@ export const MangaPagePromptList: React.FC<MangaPagePromptListProps> = ({
             </nav>
           ) : null}
 
-          <section className="min-h-0 overflow-visible xl:overflow-y-auto custom-scrollbar">
+          <section className="min-h-0 min-w-0 overflow-visible xl:overflow-y-auto xl:overscroll-contain custom-scrollbar">
             {activePage ? (
               <article className="a4n-flat-surface min-w-0 overflow-hidden">
                 <header className="border-b border-book-border/40 p-3">

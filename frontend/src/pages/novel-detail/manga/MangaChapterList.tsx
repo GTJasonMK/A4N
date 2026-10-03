@@ -53,7 +53,10 @@ export const MangaChapterList: React.FC<MangaChapterListProps> = ({
   }
 
   return (
-    <nav aria-label={t("comic.chapterListLabel")} className="flex min-h-0 min-w-0 flex-col">
+    <nav
+      aria-label={t("comic.chapterListLabel")}
+      className="a4n-media-sidebar-surface flex min-h-0 min-w-0 flex-col md:max-h-full md:overflow-hidden md:p-2"
+    >
       <label className="mb-3 flex min-w-0 items-center gap-2 border-b border-book-border/45 pb-3 text-xs md:hidden">
         <span className="shrink-0 font-medium text-book-text-muted">{t("novel.chapters")}</span>
         <ThemedSelect
@@ -77,7 +80,7 @@ export const MangaChapterList: React.FC<MangaChapterListProps> = ({
         <h2 className="text-xs font-semibold text-book-text-main">{t("novel.chapters")}</h2>
         <span className="text-small text-book-text-muted">{t("comic.chapterCount", { count: chapters.length })}</span>
       </div>
-      <ul className="a4n-flat-surface flex w-full min-w-0 gap-1.5 overflow-x-auto p-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden md:flex-1 md:flex-col md:gap-1 md:overflow-x-hidden md:overflow-y-auto md:custom-scrollbar">
+      <ul className="flex w-full min-w-0 gap-1.5 overflow-x-auto p-1 md:min-h-0 md:flex-1 md:flex-col md:gap-1 md:overflow-x-hidden md:overflow-y-auto md:overscroll-contain md:p-0 custom-scrollbar">
         {chapters.map((chapter) => {
           const status = statuses[chapter.id];
           const total =

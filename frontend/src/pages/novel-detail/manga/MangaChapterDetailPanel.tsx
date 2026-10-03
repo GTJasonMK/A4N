@@ -46,7 +46,7 @@ import {
 import { useProgressTask } from "../../../hooks/useProgressTask";
 import { isCancelledOperation } from "../../../utils/cancellation";
 import { chooseDownstreamConflictStrategy } from "../dependencyConflict";
-import { isChapterGenerating, type ChapterRow } from "../shared";
+import { EmptyHint, isChapterGenerating, type ChapterRow } from "../shared";
 import { MangaPagePromptList } from "./MangaPagePromptList";
 import { explainMangaPipelineAiConfigError } from "./mangaPipelineErrors";
 import {
@@ -899,14 +899,16 @@ export function MangaChapterDetailPanel({
         className={
           isSingleMode
             ? "flex h-full min-h-0 min-w-0 flex-col"
-            : "flex min-h-[60vh] min-w-0 flex-col md:h-full md:min-h-0 md:overflow-y-auto md:overscroll-contain"
+            : "flex min-h-[60vh] min-w-0 flex-col md:h-full md:min-h-0 md:overflow-y-auto md:overscroll-contain custom-scrollbar"
         }
       >
         {!selectedChapter ? (
-          <div className="m-auto text-sm text-book-text-muted">
-            {isSingleMode
-              ? t("comic.chapter.noSelectionSingle")
-              : t("comic.chapter.noSelection")}
+          <div className="a4n-flat-surface flex min-h-[180px] flex-1 items-center justify-center">
+            <EmptyHint
+              text={isSingleMode
+                ? t("comic.chapter.noSelectionSingle")
+                : t("comic.chapter.noSelection")}
+            />
           </div>
         ) : (
           <>
@@ -932,7 +934,7 @@ export function MangaChapterDetailPanel({
                   />
                 </div>}
                 {canEditManga ? (
-                  <div className="flex items-center justify-end gap-2">
+                  <div className="flex flex-wrap items-center justify-end gap-2">
                     {pipelineMenuItems.length > 0 ? (
                       <Dropdown items={pipelineMenuItems} />
                     ) : null}
@@ -1004,7 +1006,7 @@ export function MangaChapterDetailPanel({
               </div>
             </header>
 
-            <div className="mt-3 min-h-0 flex-1">
+            <div className="mt-3 min-h-0 min-w-0 flex-1">
               <MangaPagePromptList
                 stageMode={stageMode}
                 onDirtyChange={onDirtyChange}
