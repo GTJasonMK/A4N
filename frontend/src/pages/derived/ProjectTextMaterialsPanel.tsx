@@ -381,12 +381,10 @@ export const ProjectTextMaterialsPanel: React.FC<ProjectTextMaterialsPanelProps>
               {requestPreviewLoading ? <LoadingSpinner size="sm" /> : <Sparkles size={14} />}
               {t("novel.textMaterialsPreviewDraft")}
             </BookButton>
-            {draftReviewed ? (
-              <BookButton size="sm" variant="primary" onClick={() => void generateDraft()} disabled={generatingDraft}>
-                {generatingDraft ? <LoadingSpinner size="sm" /> : <Sparkles size={14} />}
-                {t("novel.textMaterialsGenerateDraft")}
-              </BookButton>
-            ) : null}
+            <BookButton size="sm" variant="primary" onClick={() => void generateDraft()} disabled={!draftReviewed || !draftInput || generatingDraft}>
+              {generatingDraft ? <LoadingSpinner size="sm" /> : <Sparkles size={14} />}
+              {t("novel.textMaterialsGenerateDraft")}
+            </BookButton>
           </div>
           <label className="block text-small text-book-text-muted">
             {t("novel.textMaterialsInstruction")}
