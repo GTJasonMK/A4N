@@ -62,7 +62,7 @@ fn artifact_views(
                     })
                     || page_plan_ref
                         .as_ref()
-                        .is_none_or(|reference| !matches(reference));
+                        .is_some_and(|reference| !matches(reference));
             }
             AuthoringArtifactSource::GalgameScript {
                 source_snapshot_id,

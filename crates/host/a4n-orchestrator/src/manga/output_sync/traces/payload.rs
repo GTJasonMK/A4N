@@ -7,7 +7,7 @@ use a4n_domain::manga::MangaPagePromptRecord;
 use a4n_error::AppError;
 use serde_json::json;
 
-use super::super::super::layout_rules::manga_page_pipeline_layout;
+use super::super::super::layout_rules::{manga_page_generation_layout, manga_page_pipeline_layout};
 use super::super::super::pipeline::prompt::MangaPromptGenerationTrace;
 use super::contracts::MangaPageGenerationTraceRecord;
 
@@ -15,10 +15,22 @@ pub(super) fn build_manga_page_generation_trace_record(
     row: &MangaPagePromptRecord,
     trace: MangaPromptGenerationTrace,
 ) -> Result<MangaPageGenerationTraceRecord, AppError> {
-    let layout = manga_page_pipeline_layout(row).map_err(AppError::InvalidArgument)?;
-    let source_refs_json = Some(json!({ "source": layout.source }));
+    let (source, reference_bindings) = if row
+        .layout
+        .as_ref()
+        .and_then(|layout| layout.get("schema_version"))
+        .and_then(serde_json::Value::as_str)
+        == Some("manga_page_generation_v4")
+    {
+        let layout = manga_page_pipeline_layout(row).map_err(AppError::InvalidArgument)?;
+        (layout.source, layout.reference_bindings)
+    } else {
+        let layout = manga_page_generation_layout(row).map_err(AppError::InvalidArgument)?;
+        (layout.source, layout.reference_bindings)
+    };
+    let source_refs_json = Some(json!({ "source": source }));
     let media_refs_json = Some(json!({
-        "reference_bindings": layout.reference_bindings,
+        "reference_bindings": reference_bindings,
     }));
     let input_fingerprint_json = trace.input_fingerprint_json.clone();
     let output_json = json!({

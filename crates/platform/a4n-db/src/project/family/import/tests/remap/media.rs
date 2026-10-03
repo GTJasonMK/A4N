@@ -143,6 +143,99 @@ fn manga_generated_image_metadata_and_source_paths_remap() {
 }
 
 #[test]
+fn manga_page_generation_v4_layout_remaps_project_documents_and_images() {
+    let mut maps = ImportIdMaps::default();
+    maps.project_ids.insert(33, 133);
+    maps.chapter_ids.insert(22, 122);
+    maps.authoring_document_ids.insert(71, 171);
+    maps.authoring_document_ids.insert(72, 172);
+    maps.authoring_document_sha256s.insert(71, "d".repeat(64));
+    maps.authoring_document_sha256s.insert(72, "b".repeat(64));
+    maps.generated_image_ids.insert(30, 130);
+    maps.generated_image_paths
+        .insert(30, "images/generated/130.png".to_string());
+
+    let remapped = remap_manga_page_layout(
+        &json!({
+            "schema_version": "manga_page_generation_v4",
+            "page_id": "page-0001",
+            "page_number": 1,
+            "page_plan_ref": {"id": 72, "revision": 2, "sha256": "a".repeat(64)},
+            "pipeline": {
+                "schema_version": "manga_page_pipeline_state_v1",
+                "page_id": "page-0001",
+                "status": "pending",
+                "stage": "adaptation",
+                "attempt": 1,
+                "source_fingerprint": "content-sha256",
+                "stage_fingerprints": {},
+                "page_content": {
+                    "summary": "林岚进入旧车站。",
+                    "source_span_ids": [],
+                    "beat_refs": [{"unit_id": "station", "beat_id": "arrival"}],
+                    "action": "核对怀表。",
+                    "reaction": null,
+                    "dialogue_intent": null,
+                    "entry_state": "站在入口。",
+                    "exit_state": "进入通道。"
+                },
+                "page_adaptation": null,
+                "storyboard": null,
+                "drawing_prompt": null,
+                "image": null,
+                "error": null
+            },
+            "reference_bindings": [{
+                "character_name": "林岚",
+                "bound_asset": {
+                    "asset_kind": "generated_image",
+                    "asset_id": 30,
+                    "image_path": "images/generated/old.png"
+                }
+            }],
+            "prompt_fingerprint": {},
+            "source": {
+                "root_project_id": 33,
+                "source_chapter_id": 22,
+                "source_snapshot_id": null,
+                "source_snapshot_chapter_id": null,
+                "source_revision_key": "live:22:content-sha256",
+                "content_sha256": "content-sha256",
+                "adaptation_plan_id": 71,
+                "adaptation_plan_revision": 1,
+                "adaptation_plan_sha256": "c".repeat(64)
+            }
+        }),
+        &maps,
+        1,
+        "manga page",
+    )
+    .expect("v4 manga layouts should be remapped without downgrading their schema");
+
+    assert_eq!(
+        remapped["schema_version"],
+        json!("manga_page_generation_v4")
+    );
+    assert_eq!(remapped["page_id"], json!("page-0001"));
+    assert_eq!(remapped["page_plan_ref"]["id"], json!(172));
+    assert_eq!(remapped["page_plan_ref"]["sha256"], json!("b".repeat(64)));
+    assert_eq!(remapped["source"]["root_project_id"], json!(133));
+    assert_eq!(remapped["source"]["source_chapter_id"], json!(122));
+    assert_eq!(
+        remapped["source"]["source_revision_key"],
+        json!("live:122:content-sha256")
+    );
+    assert_eq!(
+        remapped["reference_bindings"][0]["bound_asset"]["asset_id"],
+        json!(130)
+    );
+    assert_eq!(
+        remapped["reference_bindings"][0]["bound_asset"]["image_path"],
+        json!("images/generated/130.png")
+    );
+}
+
+#[test]
 fn media_request_snapshot_rejects_target_id_without_kind() {
     let error =
         remap_media_request_snapshot(Some(&json!({"target_entity_id": 20})), &Default::default())

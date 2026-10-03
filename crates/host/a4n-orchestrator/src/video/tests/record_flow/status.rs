@@ -576,7 +576,7 @@ async fn video_record_application_returns_validated_reference_images() {
             &service,
             1,
             project.id,
-            chapter.id,
+            Some(chapter.id),
             Some(&json!([image.id])),
         )
         .await

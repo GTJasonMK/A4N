@@ -77,7 +77,7 @@ pub struct CanvasVideoResolvedImages {
 pub struct ChapterVideoImageInput {
     pub user_id: i64,
     pub project_id: i64,
-    pub chapter_id: i64,
+    pub chapter_id: Option<i64>,
     pub mode: VideoProviderValidationMode,
     pub transport: ProviderImageInputTransport,
     pub reference_image_ids: Vec<i64>,

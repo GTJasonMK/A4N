@@ -148,7 +148,7 @@ pub async fn portrait_reference_images_by_ids<C: ConnectionTrait>(
 pub async fn validated_video_reference_image_records<C: ConnectionTrait>(
     db: &C,
     project_id: i64,
-    chapter_id: i64,
+    chapter_id: Option<i64>,
     reference_image_ids_json: Option<&Value>,
 ) -> Result<Vec<GeneratedImageRecord>, VideoDbError> {
     super::validated_video_reference_image_records(

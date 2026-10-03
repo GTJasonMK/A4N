@@ -50,6 +50,42 @@ def main():
                 return {"project_id": project["id"], "graph_id": graph["graph"]["id"],
                         "node_id": next(node["id"] for node in graph["nodes"] if node["node_kind"] == "LlmTextNode")}
 
+            def canvas_generation_chain(label):
+                project = call(cli, "create_freeform_video_project", {"title": label, "description": "full Canvas generation fixture"})
+                nodes = [
+                    ("source", "TextInputNode", {"content": "雨夜里，角色推开仓库门。"}),
+                    ("llm", "LlmTextNode", {"instruction": "改写为可执行的画面提示词", "output_kind": "canvas_prompt", "max_tokens": 4096}),
+                    ("image", "GenerateImageNode", {"image_config_id": 900002, "width": 1024, "height": 1024}),
+                    ("video", "GenerateVideoNode", {"video_config_id": 900003, "input_mode": "first_frame", "width": 1280, "height": 720, "duration_secs": 1, "fps": 24}),
+                ]
+                edges = [
+                    ("source", "llm", "text", "input", "context"),
+                    ("llm", "image", "text", "text", "context"),
+                    ("llm", "video", "text", "text", "context"),
+                    ("image", "video", "image", "first_frame", "first_frame"),
+                ]
+                saved = call(cli, "save_canvas_graph", {
+                    "project_id": project["id"], "expected_version": None,
+                    "graph": {
+                        "id": None, "name": label, "graph_kind": "video_studio", "viewport_json": None,
+                        "nodes": [
+                            {"client_id": client_id, "node_kind": kind, "ref_type": None, "ref_id": None,
+                             "config_json": config, "position_json": {"x": index * 200, "y": 0}, "state": "idle"}
+                            for index, (client_id, kind, config) in enumerate(nodes)
+                        ],
+                        "edges": [
+                            {"source_client_id": source, "target_client_id": target, "source_port": source_port,
+                             "target_port": target_port, "role": role, "config_json": {}}
+                            for source, target, source_port, target_port, role in edges
+                        ],
+                    },
+                })
+                return {
+                    "project_id": project["id"],
+                    "graph_id": saved["graph"]["id"],
+                    "node_ids": {node["node_kind"].removesuffix("Node").lower(): node["id"] for node in saved["nodes"]},
+                }
+
             def workflow(client, workflow_id):
                 deadline = time.monotonic() + 60
                 while time.monotonic() < deadline:
@@ -64,6 +100,49 @@ def main():
             run = call(cli, "run_canvas_node", resource)
             assert workflow(cli, run["workflow_run_id"])["status"] == "completed"
             report["checks"].append("Canvas completes through the configured model with max_concurrent=1")
+
+            chain = canvas_generation_chain("Canvas LLM to image to video")
+            provider_start = len(provider_log_entries(args.provider_log))
+            run = call(cli, "run_canvas_graph", {"project_id": chain["project_id"], "graph_id": chain["graph_id"], "target_node_id": None})
+            final_run = workflow(cli, run["workflow_run_id"])
+            assert final_run["status"] == "completed", final_run
+            document = call(cli, "get_canvas_graph", {"project_id": chain["project_id"], "graph_id": chain["graph_id"]})
+            nodes = {node["node_kind"].removesuffix("Node").lower(): node for node in document["nodes"]}
+            llm_node, image_node, video_node = nodes["llmtext"], nodes["generateimage"], nodes["generatevideo"]
+            llm_text = llm_node["config_json"].get("text")
+            assert llm_node["state"] == image_node["state"] == video_node["state"] == "completed", nodes
+            assert llm_node["config_json"].get("canvas_runtime_result") is True and isinstance(llm_text, str) and llm_text.strip(), llm_node
+            assert llm_node["config_json"].get("prompt_artifact_id") and llm_node["ref_type"] == "prompt_artifact", llm_node
+            image_config, video_config = image_node["config_json"], video_node["config_json"]
+            image_id, video_id = image_config.get("generated_image_id"), video_config.get("generated_video_id")
+            assert isinstance(image_id, int) and image_config.get("file_path"), image_node
+            assert isinstance(video_id, int) and video_config.get("file_path"), video_node
+            images = call(cli, "list_images_by_project", {"project_id": chain["project_id"]})
+            image = next(row for row in images if row["id"] == image_id)
+            assert image["prompt"] == llm_text and image["file_path"] == image_config["file_path"], image
+
+            detail = call(cli, "get_workflow_run_detail", {"workflow_run_id": run["workflow_run_id"], "include_generation_runs": False})
+            assert detail["run"]["status"] == "completed", detail
+            checkpoints = {row["step_key"]: row for row in detail["checkpoints"]}
+            llm_checkpoint = checkpoints[f"canvas_node:{chain['node_ids']['llmtext']}"]
+            image_checkpoint = checkpoints[f"canvas_node:{chain['node_ids']['generateimage']}"]
+            video_checkpoint = checkpoints[f"canvas_node:{chain['node_ids']['generatevideo']}"]
+            assert all(row["status"] == "completed" for row in (llm_checkpoint, image_checkpoint, video_checkpoint)), checkpoints
+            assert llm_checkpoint["artifacts_json"]["prompt_artifact_id"] == llm_node["config_json"]["prompt_artifact_id"]
+            assert image_checkpoint["artifacts_json"]["generated_image_id"] == image_id
+            assert video_checkpoint["input_fingerprint_json"]["first_frame_image_id"] == image_id
+            assert video_checkpoint["input_fingerprint_json"]["prompt"] == llm_text
+            assert video_checkpoint["artifacts_json"]["generated_video_id"] == video_id
+            assert video_checkpoint["artifacts_json"]["file_path"] == video_config["file_path"]
+            requests = provider_log_entries(args.provider_log)[provider_start:]
+            llm_requests = [row for row in requests if row.get("body", {}).get("model") == "a4n-llm-lifecycle-ok" and isinstance(row.get("body", {}).get("messages"), list)]
+            image_requests = [row for row in requests if row.get("path", "").endswith(("/images/generations", "/images/edits"))]
+            video_requests = [row for row in requests if row.get("path", "").endswith(("/videos", "/videos/generations"))]
+            assert len(llm_requests) == len(image_requests) == len(video_requests) == 1, requests
+            assert "雨夜里，角色推开仓库门。" in json.dumps(llm_requests[0]["body"]["messages"], ensure_ascii=False)
+            assert image_requests[0]["body"].get("prompt") == llm_text, image_requests
+            assert video_requests[0]["body"].get("prompt") == llm_text, video_requests
+            report["checks"].append("Canvas graph runs LLM, generated image and first-frame video in dependency order; all Provider calls, generated records and checkpoints read back")
 
             resource = canvas(bare, "LLM missing personal configuration")
             before = len(provider_log_entries(args.provider_log))

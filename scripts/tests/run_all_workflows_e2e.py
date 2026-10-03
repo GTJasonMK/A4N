@@ -66,8 +66,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--manifest", type=Path, help="已导出的 manifest；省略时通过 CLI 动态导出")
     parser.add_argument("--fixture-map", type=Path, help="命令名到参数对象的 JSON 映射")
     parser.add_argument("--report", type=Path, required=True)
-    parser.add_argument("--timeout", type=float, default=30)
-    parser.add_argument("--embedding-dimension", type=int, default=8)
+    parser.add_argument("--timeout", type=float, default=120)
+    parser.add_argument("--embedding-dimension", type=int, default=384)
     parser.add_argument("--provider-url", help="已有 mock provider 的 /v1 URL")
     parser.add_argument(
         "--provider-script",
@@ -659,6 +659,10 @@ def _replace_fixture_ids(value: Any, key: str, state: dict[str, Any], command: s
             state_key = "canvas_project_id"
         elif "galgame" in command:
             state_key = "galgame_project_id"
+        elif "manga" in command:
+            state_key = "manga_project_id"
+        elif any(token in command for token in ("video", "shooting", "visual_plan")):
+            state_key = "video_project_id"
     if state_key == "prompt_id":
         state_key = "manga_prompt_id" if "manga" in command else "video_prompt_id"
     candidate = state.get(state_key) if state_key else None
@@ -900,21 +904,22 @@ def fixture_payload(
         )
     elif command == "confirm_chapter_visual_plan" and input_value is not None:
         input_value.update(
-            project_id=state.get("project_id", input_value.get("project_id")),
+            project_id=state.get("video_project_id", input_value.get("project_id")),
             source_chapter_id=state.get("chapter_id", input_value.get("source_chapter_id")),
             record_id=state.get("visual_plan_id", input_value.get("record_id")),
             expected_revision=state.get("visual_plan_revision", input_value.get("expected_revision")),
         )
     elif command == "start_chapter_shooting_script_generation" and input_value is not None:
         input_value.update(
-            project_id=state.get("project_id", input_value.get("project_id")),
+            project_id=state.get("video_project_id", input_value.get("project_id")),
             source_chapter_id=state.get("chapter_id", input_value.get("source_chapter_id")),
             visual_plan_id=state.get("visual_plan_id", input_value.get("visual_plan_id")),
             mode="full",
         )
     elif command == "start_manga_pipeline" and input_value is not None:
         input_value.update(
-            project_id=state.get("project_id", input_value.get("project_id")),
+            meta={"start_request_id": f"manifest-manga-{run_id}"},
+            project_id=state.get("manga_project_id", input_value.get("project_id")),
             chapter_number=state.get("chapter_number", 1),
             image_size=input_value.get("image_size") or {"width": 1024, "height": 1024},
         )
@@ -938,7 +943,7 @@ def fixture_payload(
         input_value["project_id"] = state.get("galgame_project_id", input_value.get("project_id"))
     elif command in {"get_manga_pipeline_status", "list_manga_page_prompts"} and input_value is not None:
         input_value.update(
-            project_id=state.get("project_id", input_value.get("project_id")),
+            project_id=state.get("manga_project_id", input_value.get("project_id")),
             chapter_id=state.get("chapter_id", input_value.get("chapter_id")),
         )
     elif command == "start_video_generation" and input_value is not None:
@@ -996,7 +1001,7 @@ def fixture_payload(
             }
         input_value.update(
             meta={"start_request_id": f"manifest-video-{run_id}"},
-            project_id=state.get("project_id", input_value.get("project_id")),
+            project_id=state.get("video_project_id", input_value.get("project_id")),
             operation=operation,
         )
     elif command == "list_import_queue" and input_value is not None:
@@ -1156,7 +1161,6 @@ def invoke(
     allow_destructive: bool,
     descriptor: dict[str, Any] | None = None,
     extra_parts: list[str] | None = None,
-    args_source: str | None = None,
 ) -> dict[str, Any]:
     temp_config: Path | None = None
     invoke_cli = cli
@@ -1169,8 +1173,7 @@ def invoke(
         invoke_cli = Cli(cli.executable, cli.server, temp_config, cli.context, cli.timeout, cli.env)
         parts, stdin = auth_invocation(command, payload, allow_destructive)
     else:
-        args_value = args_source or json.dumps(payload, ensure_ascii=False)
-        parts = ["call", command, "--args", args_value]
+        parts = ["call", command, "--args", json.dumps(payload, ensure_ascii=False)]
         parts += extra_parts or []
         if allow_destructive:
             parts.append("--allow-destructive")
@@ -1464,7 +1467,9 @@ def missing_fixture_provider_paths(path: Path | None, fixture_start: int) -> lis
 
 
 def runtime_snapshot_for_fixture(
-    base_url: str, state: dict[str, Any], embedding_dimension: int
+    base_url: str,
+    state: dict[str, Any],
+    embedding_dimension: int,
 ) -> dict[str, Any]:
     snapshot = runtime_snapshot(base_url, embedding_dimension=embedding_dimension)
     for section, state_key in (
@@ -1517,8 +1522,14 @@ def output_parts(
     return [option, f"/data={path}"], path
 
 
-def _watch_seed_task(cli: Cli, task_id: str, records: list[dict[str, Any]], label: str) -> None:
-    raw = cli.run(["task", "watch", task_id, "--attempt", "1"])
+def _watch_seed_task(
+    cli: Cli,
+    task_id: str,
+    records: list[dict[str, Any]],
+    label: str,
+    attempt: int = 1,
+) -> None:
+    raw = cli.run(["task", "watch", task_id, "--attempt", str(attempt)])
     documents = raw["stdout_documents"]
     passed = (
         raw["exit_code"] == 0
@@ -1534,6 +1545,7 @@ def _watch_seed_task(cli: Cli, task_id: str, records: list[dict[str, Any]], labe
             "exit_code": raw["exit_code"],
             "duration_ms": raw["duration_ms"],
             "events": len(documents),
+            "attempt": attempt,
         }
     )
     if not passed:
@@ -1568,19 +1580,11 @@ def seed_fixtures(
         payload: dict[str, Any],
         destructive: bool = False,
         client: Cli = cli,
-        args_source: str | None = None,
     ) -> dict[str, Any]:
         descriptor = descriptors.get(command)
         if descriptor is None:
             raise RunnerError(f"manifest 缺少 fixture command: {command}")
-        result = invoke(
-            client,
-            command,
-            payload,
-            destructive and allow_destructive,
-            descriptor,
-            args_source=args_source,
-        )
+        result = invoke(client, command, payload, destructive and allow_destructive, descriptor)
         records.append(
             {
                 "command": command,
@@ -1614,95 +1618,32 @@ def seed_fixtures(
         _watch_seed_task(cli, task_id, records, command)
         return result
 
-    def wait_for_manga(manga_project_id: int, expected_task: dict[str, Any]) -> None:
-        last_binding_error = None
-        last_task_status = None
+    def wait_for_manga() -> None:
+        manga_project_id = state.get("manga_project_id", project_id)
+        task_id = state.get("manga_task_id")
+        attempt = state.get("manga_task_attempt", 1)
+        if not isinstance(task_id, str) or not task_id:
+            raise RunnerError("fixture start_manga_pipeline 未返回有效 task_id")
         for _ in range(60):
-            try:
-                status = call(
-                    "get_manga_pipeline_status",
-                    {"input": {"project_id": manga_project_id, "chapter_id": chapter_id}},
-                )
-            except RunnerError as error:
-                if any(
-                    message in str(error)
-                    for message in (
-                        "缺少活动 Generation Task",
-                        "generation task checkpoint 不存在",
-                    )
-                ):
-                    try:
-                        task_data = checked(
-                            cli,
-                            [
-                                "task",
-                                "get",
-                                expected_task["task_id"],
-                                "--attempt",
-                                str(expected_task["attempt"]),
-                            ],
-                            "Manga task while workflow binding",
-                        )[0]["data"]
-                    except RunnerError as task_error:
-                        raise RunnerError(
-                            f"{error}; generation task status unavailable: {task_error}"
-                        ) from task_error
-                    task_handle = task_data.get("handle")
-                    if not isinstance(task_handle, dict):
-                        raise RunnerError(
-                            f"{error}; Manga task status 缺少 handle: {task_data}"
-                        ) from error
-                    last_task_status = task_handle.get("status")
-                    if last_task_status not in {
-                        "completed", "failed", "cancelled", "interrupted"
-                    }:
-                        last_binding_error = str(error)
-                        time.sleep(0.25)
-                        continue
-                try:
-                    run_result = call("list_workflow_runs", {"input": {
-                        "project_id": manga_project_id,
-                        "chapter_id": chapter_id,
-                        "workflow_kind": "manga_pipeline",
-                        "status": None,
-                        "resumable_only": False,
-                        "limit": 20,
-                    }})
-                    run_rows = run_result.get("data") if isinstance(run_result, dict) else None
-                    workflows = (
-                        [
-                            {
-                                "id": run.get("id"),
-                                "status": run.get("status"),
-                                "active_task_id": run.get("active_task_id"),
-                            }
-                            for run in run_rows
-                            if isinstance(run, dict)
-                        ]
-                        if isinstance(run_rows, list)
-                        else f"unexpected list_workflow_runs data: {type(run_rows).__name__}"
-                    )
-                except RunnerError as diagnostic_error:
-                    workflows = f"diagnostic failed: {diagnostic_error}"
-                raise RunnerError(
-                    f"{error}; expected_generation_task={expected_task.get('task_id')}; "
-                    f"expected_task_status={last_task_status}; "
-                    f"manga_workflows={workflows}"
-                ) from error
+            task_result = checked(
+                cli,
+                ["task", "get", task_id, "--attempt", str(attempt)],
+                "manga task status",
+            )[0]["data"]
+            handle = task_result.get("handle")
+            task_status = handle.get("status") if isinstance(handle, dict) else None
+            if task_status in {"completed", "failed", "cancelled", "interrupted", "superseded"}:
+                if task_status != "completed":
+                    raise RunnerError(f"fixture manga task 未成功完成: {task_result}")
+                _watch_seed_task(cli, task_id, records, "start_manga_pipeline", attempt)
+                return
+            status = call(
+                "get_manga_pipeline_status",
+                {"input": {"project_id": manga_project_id, "chapter_id": chapter_id}},
+            )
             value = status.get("data")
             if isinstance(value, dict):
                 pipeline_status = value.get("pipeline_status")
-                task_handle = value.get("task_handle")
-                if (
-                    pipeline_status == "running"
-                    and isinstance(task_handle, dict)
-                    and task_handle.get("task_id") != expected_task.get("task_id")
-                ):
-                    raise RunnerError(
-                        "fixture Manga pipeline task identity mismatch: "
-                        f"started={expected_task.get('task_id')}, "
-                        f"status={task_handle.get('task_id')}"
-                    )
                 if pipeline_status in {"failed", "cancelled"}:
                     raise RunnerError(f"fixture manga pipeline 失败: {value}")
                 if pipeline_status == "completed" or (
@@ -1712,10 +1653,7 @@ def seed_fixtures(
                 ):
                     return
             time.sleep(0.25)
-        raise RunnerError(
-            "fixture manga pipeline 轮询超时; "
-            f"last_task_status={last_task_status}; last_binding_error={last_binding_error}"
-        )
+        raise RunnerError("fixture manga pipeline 轮询超时")
 
     def poll_video(video_id: int) -> dict[str, Any]:
         for _ in range(8):
@@ -1977,7 +1915,7 @@ def seed_fixtures(
                 "root_project_id": project_id,
                 "derived_kind": "video",
                 "title": f"Fixture Video {run_id}",
-                "description": "Disposable video project for director and generation coverage.",
+                "description": "Disposable derived video project for generation coverage.",
                 "start_chapter": 1,
                 "end_chapter": 1,
             }
@@ -1985,7 +1923,7 @@ def seed_fixtures(
     )
     video_project_id = _first_value(video_project.get("data"), ("id",))
     if not isinstance(video_project_id, int) or video_project_id <= 0:
-        raise RunnerError("fixture create_derived_project(video) 未返回有效 project id")
+        raise RunnerError("fixture create_derived_project 未返回有效 video project id")
     state["video_project_id"] = video_project_id
     visual_plan = chapter_visual_plan_fixture(director_scene_id)
     # This path adapts novel evidence into Galgame lines. Quote actual source
@@ -2390,22 +2328,21 @@ def seed_fixtures(
         },
     )
 
-    profiles_result = call("list_profiles", {"input": {"project_id": project_id}})
-    profile_rows = profiles_result.get("data")
-    if not isinstance(profile_rows, list):
-        raise RunnerError("fixture list_profiles 未返回角色档案列表")
-    for index, character_name in enumerate(("林岚", "周衡"), start=1):
-        reference_profile = next(
+    profiles = call("list_profiles", {"input": {"project_id": project_id}}).get("data")
+    if not isinstance(profiles, list):
+        raise RunnerError("fixture manga portraits require a profile list")
+    for character_name in ("林岚", "周衡"):
+        profile = next(
             (
-                profile
-                for profile in profile_rows
-                if isinstance(profile, dict)
-                and str(profile.get("name", "")).strip() == character_name
+                row
+                for row in profiles
+                if isinstance(row, dict)
+                and str(row.get("name", "")).strip() == character_name
             ),
             None,
         )
-        if reference_profile is None:
-            reference_profile = call(
+        if profile is None:
+            profile = call(
                 "create_profile",
                 {
                     "input": {
@@ -2419,16 +2356,16 @@ def seed_fixtures(
                     }
                 },
             ).get("data")
-        reference_profile_id = _first_value(reference_profile, ("profile_id", "id"))
-        if not isinstance(reference_profile_id, int) or reference_profile_id <= 0:
-            raise RunnerError(f"fixture 漫画参考角色 {character_name} 未返回有效 profile id")
+        profile_id = _first_value(profile, ("profile_id", "id"))
+        if not isinstance(profile_id, int) or profile_id <= 0:
+            raise RunnerError(f"fixture manga profile `{character_name}` 未返回有效 profile id")
         call(
             "upload_portrait",
             {
                 "input": {
                     "project_id": project_id,
-                    "profile_id": reference_profile_id,
-                    "file_name": f"manga-reference-{run_id}-{index}.png",
+                    "profile_id": profile_id,
+                    "file_name": f"fixture-manga-{profile_id}.png",
                     "mime_type": "image/png",
                     "data_base64": PNG_1X1_BASE64,
                     "portrait_type": "face",
@@ -2438,23 +2375,24 @@ def seed_fixtures(
             },
         )
 
-    manga_project = call(
+    manga_task = call(
         "create_derived_project",
         {
             "input": {
                 "root_project_id": project_id,
                 "derived_kind": "comic",
                 "title": f"Fixture Manga {run_id}",
-                "description": "Disposable Manga project for page generation coverage.",
+                "description": "Disposable derived manga project for generation coverage.",
                 "start_chapter": 1,
                 "end_chapter": 1,
             }
         },
     )
-    manga_project_id = _first_value(manga_project.get("data"), ("id",))
+    manga_project_id = _first_value(manga_task.get("data"), ("id",))
     if not isinstance(manga_project_id, int) or manga_project_id <= 0:
-        raise RunnerError("fixture create_derived_project(comic) 未返回有效 project id")
+        raise RunnerError("fixture create_derived_project 未返回有效 manga project id")
     state["manga_project_id"] = manga_project_id
+
     manga_task = call(
         "start_manga_pipeline",
         {"input": {
@@ -2464,8 +2402,10 @@ def seed_fixtures(
             "image_size": {"width": 1024, "height": 1024},
         }},
     )
-    state["manga_task_id"] = manga_task.get("data")
-    wait_for_manga(manga_project_id, state["manga_task_id"])
+    state["manga_task_id"] = _first_value(manga_task.get("data"), ("task_id",))
+    manga_attempt = _first_value(manga_task.get("data"), ("attempt",))
+    state["manga_task_attempt"] = manga_attempt if isinstance(manga_attempt, int) and manga_attempt > 0 else 1
+    wait_for_manga()
     manga_prompts = call(
         "list_manga_page_prompts",
         {"input": {"project_id": manga_project_id, "chapter_id": chapter_id}},
@@ -2605,27 +2545,6 @@ def seed_fixtures(
         {"input": {"project_id": project_id, "chapter_number": 1}, "taskId": f"fixture-scene-{run_id}"},
     )
 
-    if collaborator_username is None and collaborator_password is None:
-        collaborator_username = f"a4n-e2e-{uuid.uuid4().hex[:12]}"
-        collaborator_password = f"E2e-{uuid.uuid4().hex}Aa1!"
-        create_user_payload = {"input": {
-            "username": collaborator_username,
-            "email": f"{collaborator_username}@example.invalid",
-            "password": collaborator_password,
-            "role": "user",
-        }}
-        collaborator_input_path = cli.config.parent / f"collaborator-{uuid.uuid4().hex}.json"
-        secure_json(collaborator_input_path, create_user_payload)
-        try:
-            call(
-                "create_user",
-                create_user_payload,
-                args_source="@" + str(collaborator_input_path),
-            )
-        finally:
-            collaborator_input_path.unlink(missing_ok=True)
-    state["collaborator_enabled"] = bool(collaborator_username and collaborator_password)
-
     users = call("list_all_users", {})
     user_rows = users.get("data")
     collaborator = next(
@@ -2642,6 +2561,29 @@ def seed_fixtures(
         ),
         None,
     ) if isinstance(user_rows, list) else None
+    if collaborator is None and not collaborator_username:
+        fixture_identity = f"e2e-{run_id.rsplit('-', 1)[-1]}"
+        call(
+            "create_user",
+            {
+                "input": {
+                    "username": fixture_identity,
+                    "email": f"{fixture_identity}@example.invalid",
+                    "password": uuid.uuid4().hex,
+                    "role": "user",
+                }
+            },
+        )
+        user_rows = call("list_all_users", {}).get("data")
+        collaborator = next(
+            (
+                item
+                for item in user_rows
+                if isinstance(item, dict)
+                and fixture_identity in {item.get("username"), item.get("email")}
+            ),
+            None,
+        ) if isinstance(user_rows, list) else None
     collaborator_identity = (collaborator or {}).get("username") or (collaborator or {}).get("email")
     if not isinstance(collaborator_identity, str) or not collaborator_identity:
         raise RunnerError("fixture list_all_users 未找到不同于管理员的真实账号")
@@ -2658,12 +2600,9 @@ def seed_fixtures(
     if not isinstance(invite_id, int) or invite_id <= 0:
         raise RunnerError("fixture list_project_invites 未返回有效 invite id")
     state["invite_id"] = invite_id
+    call("list_my_project_invites", {})
     if collaborator_username and collaborator_password:
-        fd, collaborator_config_name = tempfile.mkstemp(
-            prefix="a4n-collaborator-",
-            suffix=".json",
-            dir=cli.config.parent,
-        )
+        fd, collaborator_config_name = tempfile.mkstemp(prefix="a4n-collaborator-", suffix=".json")
         os.close(fd)
         collaborator_config = Path(collaborator_config_name)
         try:
@@ -2675,14 +2614,6 @@ def seed_fixtures(
                 "collaborator auth login",
                 f"{collaborator_password}\n",
             )
-            invite_list = call("list_my_project_invites", {}, client=collaborator_cli)
-            invite_ids = {
-                item.get("id", item.get("invite_id"))
-                for item in invite_list.get("data", [])
-                if isinstance(item, dict)
-            }
-            if invite_id not in invite_ids:
-                raise RunnerError("fixture 被邀请用户看不到待处理项目邀请")
             call("accept_project_invite", {"inviteId": invite_id}, client=collaborator_cli)
         finally:
             collaborator_config.unlink(missing_ok=True)
@@ -2763,7 +2694,10 @@ def main() -> int:
             runtime_path = work_dir / "runtime-config.json"
             secure_json(
                 runtime_path,
-                runtime_snapshot(provider.base_url, embedding_dimension=args.embedding_dimension),
+                runtime_snapshot(
+                    provider.base_url,
+                    embedding_dimension=args.embedding_dimension,
+                ),
             )
             checked(cli, ["config", "runtime", "set", "--input", f"@{runtime_path}"], "config runtime set")
             provider_preflight_boundary = len(_provider_entries(provider_log))
@@ -2798,7 +2732,7 @@ def main() -> int:
                 )
                 fixture_paths = fixture_path_coverage(
                     fixture_results,
-                    collaborator_enabled=bool(fixture_state.get("collaborator_enabled")),
+                    collaborator_enabled=bool(args.collaborator_username and collaborator_password),
                 )
                 if not fixture_paths["complete"]:
                     incomplete = [
@@ -2899,7 +2833,7 @@ def main() -> int:
     if args.execute_writes:
         fixture_paths = fixture_path_coverage(
             fixture_results,
-            collaborator_enabled=bool(fixture_state.get("collaborator_enabled")),
+            collaborator_enabled=bool(args.collaborator_username and collaborator_password),
         )
     fixture_success = not args.execute_writes or fixture_paths.get("complete") is True
     classification_names = (

@@ -261,7 +261,7 @@ def read_all_workflows_report(path: Path, exit_code: int) -> dict:
         fixtures = value.get("fixtures") if isinstance(value, dict) else None
         coverage = fixtures.get("paths") if isinstance(fixtures, dict) else None
         paths = coverage.get("paths") if isinstance(coverage, dict) else None
-        if not isinstance(paths, dict):
+        if not isinstance(coverage, dict) or not isinstance(paths, dict):
             raise RunnerError("全工作流报告缺少 fixtures.paths.paths")
         missing = sorted(set(FIXTURE_PATHS) - set(paths))
         if missing:
@@ -460,7 +460,7 @@ def main() -> int:
                     "--username", username, "--provider-url", provider_url,
                     "--provider-log", str(request_log), "--report", str(output),
                 ]
-            if name in {"checkpoints", "facts", "scene_sync", "agent_delegation"}:
+            if name in {"checkpoints", "facts", "scene_sync", "agent_delegation", "media_authoring"}:
                 command += ["--embedding-dimension", str(EMBEDDING_DIMENSION)]
             if name == "authoring":
                 command += ["--through-stage", max(stages & SUITES[name][1], key=STAGES.index)]

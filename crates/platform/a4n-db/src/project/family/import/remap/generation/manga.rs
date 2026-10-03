@@ -1,6 +1,9 @@
-use a4n_domain::manga::{
-    MangaPageGenerationLayoutV3, MangaPageGenerationLayoutV4, MangaPagePromptSourceSummary,
-    MangaReferenceAssetKind, MangaReferenceBindingSummary,
+use a4n_domain::{
+    manga::{
+        MangaPageGenerationLayoutV3, MangaPageGenerationLayoutV4, MangaPagePromptSourceSummary,
+        MangaReferenceAssetKind, MangaReferenceBindingSummary,
+    },
+    media_authoring::AuthoringDocumentRef,
 };
 use serde_json::Value;
 
@@ -14,55 +17,72 @@ pub(in crate::project::family::import) fn remap_manga_page_layout(
     expected_page_number: u32,
     label: &str,
 ) -> Result<Value, ProjectFamilyImportError> {
-    if value.get("schema_version").and_then(Value::as_str) == Some("manga_page_generation_v4") {
-        let mut layout: MangaPageGenerationLayoutV4 = serde_json::from_value(value.clone())
-            .map_err(|error| {
+    match value.get("schema_version").and_then(Value::as_str) {
+        Some("manga_page_generation_v4") => {
+            let mut layout: MangaPageGenerationLayoutV4 = serde_json::from_value(value.clone())
+                .map_err(|error| {
+                    ProjectFamilyImportError::invalid_package(format!("{label} 无效: {error}"))
+                })?;
+            layout.validate(expected_page_number).map_err(|error| {
                 ProjectFamilyImportError::invalid_package(format!("{label} 无效: {error}"))
             })?;
-        layout.validate(expected_page_number).map_err(|error| {
-            ProjectFamilyImportError::invalid_package(format!("{label} 无效: {error}"))
-        })?;
-        remap_manga_page_references(
-            &mut layout.source,
-            &mut layout.page_plan_ref,
-            &mut layout.reference_bindings,
-            maps,
-            label,
-        )?;
-        return serde_json::to_value(layout).map_err(|error| {
-            ProjectFamilyImportError::invalid_package(format!("{label} 序列化失败: {error}"))
-        });
+            remap_manga_page_references(
+                &mut layout.source,
+                &mut layout.page_plan_ref,
+                &mut layout.reference_bindings,
+                maps,
+                label,
+            )?;
+            remap_manga_page_pipeline(&mut layout, maps, label)?;
+            layout.validate(expected_page_number).map_err(|error| {
+                ProjectFamilyImportError::invalid_package(format!(
+                    "重映射后的 {label} 无效: {error}"
+                ))
+            })?;
+            serde_json::to_value(layout).map_err(|error| {
+                ProjectFamilyImportError::invalid_package(format!("{label} 序列化失败: {error}"))
+            })
+        }
+        Some("manga_page_generation_v3") => {
+            let mut layout: MangaPageGenerationLayoutV3 = serde_json::from_value(value.clone())
+                .map_err(|error| {
+                    ProjectFamilyImportError::invalid_package(format!("{label} 无效: {error}"))
+                })?;
+            layout.validate(expected_page_number).map_err(|error| {
+                ProjectFamilyImportError::invalid_package(format!("{label} 无效: {error}"))
+            })?;
+            remap_manga_page_references(
+                &mut layout.source,
+                &mut layout.page_plan_ref,
+                &mut layout.reference_bindings,
+                maps,
+                label,
+            )?;
+            layout.validate(expected_page_number).map_err(|error| {
+                ProjectFamilyImportError::invalid_package(format!(
+                    "重映射后的 {label} 无效: {error}"
+                ))
+            })?;
+            serde_json::to_value(layout).map_err(|error| {
+                ProjectFamilyImportError::invalid_package(format!("{label} 序列化失败: {error}"))
+            })
+        }
+        schema => Err(ProjectFamilyImportError::invalid_package(format!(
+            "{label} schema_version 不支持: {}",
+            schema.unwrap_or("<missing>")
+        ))),
     }
-
-    let mut layout: MangaPageGenerationLayoutV3 =
-        serde_json::from_value(value.clone()).map_err(|error| {
-            ProjectFamilyImportError::invalid_package(format!("{label} 无效: {error}"))
-        })?;
-    layout.validate(expected_page_number).map_err(|error| {
-        ProjectFamilyImportError::invalid_package(format!("{label} 无效: {error}"))
-    })?;
-
-    remap_manga_page_references(
-        &mut layout.source,
-        &mut layout.page_plan_ref,
-        &mut layout.reference_bindings,
-        maps,
-        label,
-    )?;
-    serde_json::to_value(layout).map_err(|error| {
-        ProjectFamilyImportError::invalid_package(format!("{label} 序列化失败: {error}"))
-    })
 }
 
 fn remap_manga_page_references(
     source: &mut MangaPagePromptSourceSummary,
-    page_plan_ref: &mut Option<a4n_domain::media_authoring::AuthoringDocumentRef>,
+    page_plan_ref: &mut Option<AuthoringDocumentRef>,
     reference_bindings: &mut [MangaReferenceBindingSummary],
     maps: &ImportIdMaps,
     label: &str,
 ) -> Result<(), ProjectFamilyImportError> {
     remap_manga_page_source(source, maps, label)?;
-    if let Some(reference) = page_plan_ref.as_mut() {
+    if let Some(reference) = page_plan_ref {
         let old = reference.id;
         reference.id = map_required(&maps.authoring_document_ids, old, "漫画分页计划")?;
         reference.sha256 = maps
@@ -72,6 +92,21 @@ fn remap_manga_page_references(
             .ok_or_else(|| ProjectFamilyImportError::invalid_package("漫画分页计划哈希映射缺失"))?;
     }
     remap_manga_reference_bindings(reference_bindings, maps, label)
+}
+
+fn remap_manga_page_pipeline(
+    layout: &mut MangaPageGenerationLayoutV4,
+    maps: &ImportIdMaps,
+    label: &str,
+) -> Result<(), ProjectFamilyImportError> {
+    if let Some(image) = layout.pipeline.image.as_mut() {
+        image.generated_image_id = map_required(
+            &maps.generated_image_ids,
+            image.generated_image_id,
+            &format!("{label}.pipeline.image.generated_image_id"),
+        )?;
+    }
+    Ok(())
 }
 
 pub(in crate::project::family::import) fn remap_manga_reference_bindings_value(

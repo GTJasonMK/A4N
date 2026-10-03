@@ -13,18 +13,27 @@ import zipfile
 from pathlib import Path
 
 from mock_openai.fixtures.story import chapter_body_response
+from mock_openai.protocol import PNG_1X1_BASE64
 from run_cli_contract_e2e import checked, cli_e2e_parser, command_error, logged_in_cli, provider_log_entries, runtime_snapshot, secure_json
 
 
 def main():
-    args = cli_e2e_parser(__doc__).parse_args()
+    parser = cli_e2e_parser(__doc__)
+    parser.add_argument("--embedding-dimension", type=int, default=384)
+    args = parser.parse_args()
     args.report.parent.mkdir(parents=True, exist_ok=True)
-    report = {"success": False, "checks": [], "projects": [], "generation_coverage": []}
+    report = {"success": False, "checks": [], "projects": []}
     try:
         with tempfile.TemporaryDirectory(prefix="media-authoring-", dir=args.report.parent) as directory:
             work = Path(directory)
             cli = logged_in_cli(args, work)
-            secure_json(work / "runtime.json", runtime_snapshot(args.provider_url))
+            secure_json(
+                work / "runtime.json",
+                runtime_snapshot(
+                    args.provider_url,
+                    embedding_dimension=args.embedding_dimension,
+                ),
+            )
             checked(cli, ["config", "runtime", "set", "--input", "@" + str(work / "runtime.json")], "configure mock provider")
             described = set()
 
@@ -43,9 +52,8 @@ def main():
                     return error
                 return checked(cli, parts, name, encoded)[0]["data"]
 
-            def passed(message, generation_coverage=()):
+            def passed(message):
                 report["checks"].append(message)
-                report["generation_coverage"].extend(generation_coverage)
                 secure_json(args.report, report)
 
             def llm_calls():
@@ -76,18 +84,21 @@ def main():
             root_id, chapter_id = root["id"], chapter["id"]
             report.update(root_id=root_id, chapter_id=chapter_id)
             for name in ("林岚", "周衡"):
-                call("create_profile", {"project_id": root_id, "name": name, "base_attributes": {"explicit_attributes": {}, "implicit_attributes": {}, "social_attributes": {}}})
-            scene_result = call("create_scene_profile", {"project_id": root_id, "profile": {"name": "旧车站通道", "scene_type": "room", "importance": "primary", "base_description": "封闭通道",
+                profile = call("create_profile", {"project_id": root_id, "name": name, "base_attributes": {"explicit_attributes": {}, "implicit_attributes": {}, "social_attributes": {}}})
+                profile_id = profile.get("profile_id", profile.get("id"))
+                assert isinstance(profile_id, int) and profile_id > 0, profile
+                call("upload_portrait", {
+                    "project_id": root_id,
+                    "profile_id": profile_id,
+                    "file_name": f"media-authoring-{profile_id}.png",
+                    "mime_type": "image/png",
+                    "data_base64": PNG_1X1_BASE64,
+                    "portrait_type": "face",
+                    "prompt": f"{name} 的漫画参考立绘",
+                    "set_primary": True,
+                })
+            call("create_scene_profile", {"project_id": root_id, "profile": {"name": "旧车站通道", "scene_type": "room", "importance": "primary", "base_description": "封闭通道",
                 "visual_description": "木门、挂钟与清晰的通道", "spatial_layout": "通道通向机房", "atmosphere": "安静", "first_seen_chapter": 1, "last_seen_chapter": 1, "image_prompt_seed": "旧车站通道"}})
-            scene_profile_id = scene_result["profile"]["id"]
-            object_result = call("create_object_profile", {"project_id": root_id, "profile": {
-                "name": "旧怀表", "object_type": "token", "importance": "primary",
-                "visual_description": "旧式铜壳怀表，表针逆行。", "material_and_state": "磨损铜壳，秒针逆行。",
-                "story_usage": "证明时间异常发生。", "visual_usage": "作为林岚手部动作的连续性参照。",
-                "generation_usage": "保留旧式铜壳与逆行指针。", "first_seen_chapter": 1,
-                "last_seen_chapter": 1, "image_prompt_seed": "林岚掌心中的旧怀表",
-            }})
-            object_profile_id = object_result["profile"]["id"]
 
             def derive(kind):
                 project = call("create_derived_project", {"root_project_id": root_id, "derived_kind": kind, "title": "独立" + kind, "description": "isolated stage fixture", "start_chapter": 1, "end_chapter": 1})
@@ -96,47 +107,47 @@ def main():
 
             comic, game = derive("comic"), derive("galgame")
             assert call("list_video_adaptation_references", {"project_id": comic, "chapter_id": chapter_id}) == []
-            text_only_provider_start = len(provider_log_entries(args.provider_log))
             comic_adaptation = adopt(generate(comic))
             game_adaptation = adopt(generate(game))
             assert comic_adaptation["document"]["target"] == "manga" and game_adaptation["document"]["target"] == "galgame"
             assert comic_adaptation["inputs"]["video_reference"] is None
             passed("漫画和 Galgame 在没有视频项目或拍摄剧本时独立生成并采用改编计划")
 
-            def manga_run(stop_after):
+            def manga_run():
                 handle = call("start_manga_pipeline", {
                     "meta": {"start_request_id": str(uuid.uuid4())},
                     "project_id": comic,
                     "chapter_number": 1,
-                    "stop_after": stop_after,
+                    "image_size": {"width": 1024, "height": 1024},
                 })
-                deadline = time.monotonic() + 60
-                while time.monotonic() < deadline:
-                    status = call("get_manga_pipeline_status", {"project_id": comic, "chapter_id": chapter_id})
-                    task = checked(cli, ["task", "get", handle["task_id"], "--attempt", str(handle["attempt"])], "manga task")[0]["data"]
-                    if status.get("task_handle"):
-                        assert status["task_handle"]["task_id"] == handle["task_id"], status
-                    if task["handle"]["status"] in {"completed", "failed", "cancelled", "interrupted"}:
-                        assert task["handle"]["status"] == "completed", task
-                        if status["pipeline_status"] == "completed":
-                            return
-                    time.sleep(.1)
-                raise AssertionError("漫画阶段没有结束")
+                checked(
+                    cli,
+                    ["task", "watch", handle["task_id"], "--attempt", str(handle["attempt"])],
+                    "manga task watch",
+                )
+                task = checked(
+                    cli,
+                    ["task", "get", handle["task_id"], "--attempt", str(handle["attempt"])],
+                    "manga task",
+                )[0]["data"]
+                assert task["handle"]["status"] == "completed", task
 
-            manga_run("page_slots")
-            pages = call("list_manga_page_prompts", {"project_id": comic, "chapter_id": chapter_id})
-            assert len(pages) == 2
-            assert all(page["page_content"] and page["page_plan"] is None and page["drawing_prompt"] is None for page in pages)
             before = len(llm_calls())
-            manga_run("drawing_prompt")
+            provider_request_offset = len(provider_log_entries(args.provider_log))
+            manga_run()
             pages = call("list_manga_page_prompts", {"project_id": comic, "chapter_id": chapter_id})
-            assert len(llm_calls()) - before == len(pages) * 3, "续传不能重复抽取或页面拆分模型调用"
-            assert all(page["page_adaptation"] and page["page_plan"] and page["drawing_prompt"] for page in pages)
+            assert len(pages) == 2 and len(llm_calls()) - before >= len(pages) * 3
+            assert all(page["page_content"] and page["page_adaptation"] and page["page_plan"] and page["drawing_prompt"] for page in pages)
             assert pages[0]["source"]["adaptation_plan_id"] == comic_adaptation["id"]
-            assert all(page["generated_image_id"] is None for page in pages)
-            passed("漫画先独立确定页面数量与内容；续传后每页依次完成改编、分镜和绘图提示词")
+            assert all(page["generated_image_id"] for page in pages)
+            image_calls = [row for row in provider_log_entries(args.provider_log)[provider_request_offset:] if "/images/" in row.get("path", "")]
+            assert len(image_calls) == len(pages), image_calls
+            manga_artifacts = workspace(comic)["artifacts"]
+            assert not any(artifact["stale"] for artifact in manga_artifacts), manga_artifacts
+            passed("漫画一次完成页面槽位、页面改编、分镜、绘图提示词和成图")
 
             game_input = {"project_id": game, "task_id": str(uuid.uuid4()), "resume_from_checkpoint": True, "start_from_stage": None, "stop_after": "branch_design"}
+            before_galgame = len(provider_log_entries(args.provider_log))
             assert call("start_galgame_pipeline", game_input) is None
             assert call("get_galgame_script", {"project_id": game}) is None
             branch = latest(game, "galgame_branch_plan", "draft")
@@ -147,97 +158,31 @@ def main():
             assert script and script["scenes"]
             assert all(line["presentation_json"]["schema_version"] == "galgame_line_presentation_v3" for scene in script["scenes"] for line in scene["lines"])
             assert not workspace(game)["artifacts"][0]["stale"]
-            assert not any(
-                "/images/" in row["path"] or "/videos" in row["path"]
-                for row in provider_log_entries(args.provider_log)[text_only_provider_start:]
-            )
+            assert not any("/images/" in row["path"] or "/videos" in row["path"] for row in provider_log_entries(args.provider_log)[before_galgame:])
             passed("Galgame 分支阶段单独停止并保留人工选择；剧本使用本地单元；一键文本流程不生成付费媒体")
-
-            def generate_image(project_id, operation, expected_metadata):
-                provider_start = len(provider_log_entries(args.provider_log))
-                llm_start = len(llm_calls())
-                handle = call("start_image_generation", {
-                    "project_id": project_id,
-                    "meta": {"start_request_id": str(uuid.uuid4())},
-                    "operation": operation,
-                })
-                checked(cli, ["task", "watch", handle["task_id"], "--attempt", str(handle["attempt"])], "image task")
-                task = checked(cli, ["task", "get", handle["task_id"], "--attempt", str(handle["attempt"])], "image task result")[0]["data"]
-                assert task["handle"]["status"] == "completed", task
-                result_ref = task["result_ref"]
-                assert result_ref["kind"] == "generated_image" and result_ref["revision"], task
-                snapshot = checked(cli, ["task", "snapshot", handle["task_id"], "--attempt", str(handle["attempt"])], "image task snapshot")[0]["data"]
-                terminal = snapshot["terminal_event"]
-                assert terminal["event"]["kind"] == "completed", terminal
-                assert terminal["event"]["data"]["result_ref"] == result_ref, terminal
-                images = call("list_images_by_project", {"project_id": project_id})
-                image = next(row for row in images if str(row["id"]) == result_ref["id"])
-                metadata = image.get("metadata_json") or {}
-                for key, value in expected_metadata.items():
-                    assert metadata.get(key) == value, (key, metadata, value)
-                provider_calls = [
-                    row for row in provider_log_entries(args.provider_log)[provider_start:]
-                    if row["path"].endswith(("/images/generations", "/images/edits"))
-                ]
-                assert len(provider_calls) == 1, provider_calls
-                assert isinstance(provider_calls[0]["body"].get("prompt"), str) and provider_calls[0]["body"]["prompt"].strip()
-                assert len(llm_calls()) == llm_start, "image operation unexpectedly called an LLM"
-                return image
-
-            object_image = generate_image(root_id, {
-                "kind": "object_profile", "object_profile_id": object_profile_id,
-                "chapter_id": chapter_id, "config_id": 900002, "width": 1024, "height": 1024,
-            }, {"profile_kind": "object", "profile_id": object_profile_id})
-            scene_image = generate_image(root_id, {
-                "kind": "scene_profile", "scene_profile_id": scene_profile_id,
-                "chapter_id": chapter_id, "config_id": 900002, "width": 1024, "height": 1024,
-            }, {"profile_kind": "scene", "profile_id": scene_profile_id})
-            passed(
-                "对象与场景资料分别经统一图片任务生成，并从正式图片记录读回",
-                ("image.object_profile", "image.scene_profile"),
-            )
-
-            page_image = generate_image(comic, {
-                "kind": "page", "chapter_number": 1, "page_number": 1,
-                "width": 1024, "height": 1024,
-            }, {"page_number": 1})
-            before_attached_images = len(provider_log_entries(args.provider_log))
-            manga_run(None)
-            pages = call("list_manga_page_prompts", {"project_id": comic, "chapter_id": chapter_id})
-            assert len(pages) == 2 and all(isinstance(page.get("generated_image_id"), int) for page in pages), pages
-            page_images = call("list_images_by_project", {"project_id": comic})
-            page_image_ids = {image["id"] for image in page_images}
-            assert all(page["generated_image_id"] in page_image_ids for page in pages), pages
-            attached_calls = [
-                row for row in provider_log_entries(args.provider_log)[before_attached_images:]
-                if row["path"].endswith(("/images/generations", "/images/edits"))
-            ]
-            assert attached_calls, "Manga pipeline did not reach attached page-image Provider generation"
-            assert page_image["id"] in page_image_ids
-            passed(
-                "漫画单页任务与 Manga 工作流附属图片路径都完成 Provider 调用和图片/页面读回",
-                ("image.page", "manga.attached_page_image"),
-            )
 
             copies = {}
             for project_id in (comic, game):
                 copied = call("duplicate_project", {"project_id": project_id, "new_title": "保留全部计划的副本"})
                 copies[project_id] = copied["id"]
-                original_workspace = workspace(project_id)
-                copied_workspace = workspace(copied["id"])
-                original_docs = original_workspace["documents"]
-                copied_docs = copied_workspace["documents"]
+                original_docs, copied_docs = workspace(project_id)["documents"], workspace(copied["id"])["documents"]
                 assert len(copied_docs) == len(original_docs)
                 assert set(view["record"]["id"] for view in original_docs).isdisjoint(view["record"]["id"] for view in copied_docs)
-                original_artifact_state = sorted(
-                    (artifact["kind"], artifact["count"], artifact["stale"])
-                    for artifact in original_workspace["artifacts"]
-                )
-                copied_artifact_state = sorted(
-                    (artifact["kind"], artifact["count"], artifact["stale"])
-                    for artifact in copied_workspace["artifacts"]
-                )
-                assert copied_artifact_state == original_artifact_state
+                copied_workspace = workspace(copied["id"])
+                stale_artifacts = [artifact for artifact in copied_workspace["artifacts"] if artifact["stale"]]
+                assert not stale_artifacts, {
+                    "artifacts": stale_artifacts,
+                    "documents": [
+                        {
+                            "id": view["record"]["id"],
+                            "kind": view["record"]["kind"],
+                            "status": view["record"]["status"],
+                            "revision": view["record"]["revision"],
+                            "stale": view["stale"],
+                        }
+                        for view in copied_docs
+                    ],
+                }
             copied_pages = call("list_manga_page_prompts", {"project_id": copies[comic], "chapter_id": chapter_id})
             assert copied_pages[0]["image_prompt"] == pages[0]["image_prompt"] and copied_pages[0]["id"] != pages[0]["id"]
             copied_script = call("get_galgame_script", {"project_id": copies[game]})

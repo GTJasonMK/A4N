@@ -69,7 +69,9 @@ impl WorkerState {
         let user_id = user_id(&request)?;
         let input = request.payload;
         positive(input.project_id, "project_id")?;
-        positive(input.chapter_id, "chapter_id")?;
+        if let Some(chapter_id) = input.chapter_id {
+            positive(chapter_id, "chapter_id")?;
+        }
         verify_project_permission(
             &self.database,
             input.project_id,
