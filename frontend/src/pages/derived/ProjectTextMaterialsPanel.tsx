@@ -22,6 +22,7 @@ import { useI18n } from "../../i18n";
 import type { ModelRequestPreview } from "../../api/requestPreview";
 import { RequestPreviewModal } from "../../components/feedback/RequestPreviewModal";
 import { pickLocalFile, readFileAsBase64 } from "../../utils/fileUpload";
+import { EmptyHint } from "../novel-detail/shared";
 
 export interface ProjectTextSourceSelection {
   assetId: number;
@@ -347,20 +348,21 @@ export const ProjectTextMaterialsPanel: React.FC<ProjectTextMaterialsPanelProps>
         </div>
       ) : null}
       <div className="grid min-h-0 flex-1 grid-cols-1 md:grid-cols-[220px_minmax(0,1fr)]">
-        <nav aria-label={t("novel.textMaterialsTitle")} className="max-h-36 overflow-y-auto border-b border-book-border/70 md:max-h-none md:border-b-0 md:border-r">
+        <nav aria-label={t("novel.textMaterialsTitle")} className="max-h-36 overflow-y-auto border-b border-book-border/70 bg-book-bg-paper/25 p-1 md:max-h-none md:border-b-0 md:border-r custom-scrollbar">
           {loading ? <div className="p-3"><LoadingSpinner size="sm" /></div> : assets.map((asset) => (
             <button
               key={asset.id}
               type="button"
               aria-pressed={selectedId === asset.id}
               onClick={() => void chooseAsset(asset)}
-              className={`block w-full truncate border-b border-book-border/40 px-3 py-2 text-left text-sm ${selectedId === asset.id ? "bg-book-primary/10 text-book-primary" : "text-book-text-main hover:bg-book-bg-tertiary/40"}`}
+              data-active={selectedId === asset.id ? "1" : undefined}
+              className="a4n-sidebar-item block w-full truncate text-left text-sm"
             >
               <span className="block truncate">{asset.title}</span>
               <span className="text-small text-book-text-muted">{t("novel.textMaterialsVersion", { version: asset.current_version })}</span>
             </button>
           ))}
-          {!loading && assets.length === 0 ? <p className="px-3 py-4 text-small text-book-text-muted">{t("novel.textMaterialsEmpty")}</p> : null}
+          {!loading && assets.length === 0 ? <EmptyHint text={t("novel.textMaterialsEmpty")} /> : null}
         </nav>
         <div className="flex min-h-0 min-w-0 flex-col gap-3 overflow-y-auto p-3">
           <div className="flex flex-wrap items-end gap-2 border-b border-book-border/70 pb-3">
