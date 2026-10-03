@@ -51,7 +51,7 @@ impl OrchestratorContext {
         let discovered_total = discovered.len();
         let source_chapters = chapters
             .iter()
-            .map(a4n_db::project::chapter_source_snapshot_from_model)
+            .map(|chapter| chapter.source_snapshot())
             .collect::<Vec<_>>();
         let mut pending_evidence = BTreeMap::<(i64, i64), TextAnchorEvidenceInput>::new();
         let tx = self
@@ -159,6 +159,12 @@ impl OrchestratorContext {
                         profile.id,
                         &character,
                     )?;
+                    let profile = a4n_db::character::profile_record_by_id(&tx, profile.id)
+                        .await
+                        .map_err(AppError::Database)?
+                        .ok_or_else(|| {
+                            AppError::NotFound(format!("角色档案已写入但无法读取: {}", profile.id))
+                        })?;
                     created.push(profile_for_result(&profile).map_err(AppError::InvalidArgument)?);
                 }
                 Err(a4n_db::character::CharacterProfileCreateError::AlreadyExists { .. }) => {

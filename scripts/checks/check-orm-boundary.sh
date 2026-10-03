@@ -126,6 +126,13 @@ check_source \
     "Portrait application exposes ORM models" \
     "crates/host/a4n-orchestrator/src/portrait" \
     '(?:character_portrait::Model|protagonist_profile::Model|a4n_db_models::models::character)'
+for discovery_file in \
+    contracts.rs execution.rs request.rs output.rs rules.rs workflow.rs; do
+    check_source \
+        "Character discovery pure owner exposes ORM models: $discovery_file" \
+        "crates/host/a4n-orchestrator/src/character/discovery/$discovery_file" \
+        '(?:a4n_db_models::|(?:chapter|text_anchor|protagonist_profile)::Model|DatabaseTransaction|sea_orm::)'
+done
 check_source \
     "Video-studio package exposes transfer ORM models" \
     "crates/host/a4n-orchestrator/src/project/video_studio_package" \

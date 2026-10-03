@@ -1,9 +1,9 @@
 use std::collections::HashMap;
 
-use a4n_db_models::models::{
-    chapter::chapter, character::protagonist_profile, project::text_anchor,
-};
 use a4n_domain::source_spans::text_anchor_prompt_text;
+use a4n_domain::{
+    chapter::ChapterRecord, character::CharacterProfileRecord, text_anchor::TextAnchorRecord,
+};
 use a4n_error::AppError;
 use a4n_llm_context::{
     ContextAwareJsonLlmRequestInput, PACK_KIND_PROFILE_SYNC_SOURCE_CONTEXT,
@@ -21,9 +21,9 @@ pub(super) async fn build_character_discovery_request(
     prompt_renderer: &dyn PromptRenderer,
     project_id: i64,
     chapter_number: Option<i32>,
-    chapters: &[chapter::Model],
-    text_anchors: &[text_anchor::Model],
-    existing_profiles: &[protagonist_profile::Model],
+    chapters: &[ChapterRecord],
+    text_anchors: &[TextAnchorRecord],
+    existing_profiles: &[CharacterProfileRecord],
 ) -> Result<ChatRequest, AppError> {
     let existing_prompt_profiles = existing_profiles
         .iter()
@@ -82,8 +82,8 @@ pub(super) fn build_character_discovery_manifest_user_prompt() -> Result<String,
 
 pub(super) fn character_discovery_stable_context(
     existing_profiles: &[Value],
-    chapters: &[chapter::Model],
-    text_anchors: &[text_anchor::Model],
+    chapters: &[ChapterRecord],
+    text_anchors: &[TextAnchorRecord],
 ) -> Result<Value, AppError> {
     let chapter_data = chapters.iter().map(|chapter| {
         Ok(json!({

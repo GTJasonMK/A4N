@@ -17,8 +17,8 @@ pub(crate) use a4n_character_host_contract::{
     CHARACTER_DISCOVERY_CALL_KEY, CHARACTER_DISCOVERY_KIND, CHARACTER_DISCOVERY_PROGRESS_TOTAL,
 };
 
-pub use context::character_llm_chapter_context;
-pub use identity::{character_identity_key, profile_character_keys};
+pub use context::character_llm_chapter_context_model;
+pub use identity::{character_identity_key, profile_character_keys_model};
 
 #[cfg(test)]
 mod tests;

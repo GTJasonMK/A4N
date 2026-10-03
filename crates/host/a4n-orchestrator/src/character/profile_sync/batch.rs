@@ -21,7 +21,8 @@ use super::super::{
     CharacterProfileSyncApplicationInput, CharacterProfileSyncPreviewStep,
     CharacterProfileSyncProgress, CharacterProfileSyncStageTracePort, CharacterProfileSyncSubject,
     CharacterSyncRangeMode, character_identity_key, character_profile_skipped_result,
-    profile_character_keys, profile_first_seen_chapter, validate_character_sync_target_chapter,
+    profile_character_keys_model, profile_first_seen_chapter,
+    validate_character_sync_target_chapter,
 };
 use super::CharacterProfileSyncAnchorCache;
 
@@ -172,12 +173,12 @@ impl OrchestratorContext {
         let profiles = self.protagonist_profiles_for_project(project_id).await?;
         let all_profile_keys = profiles
             .iter()
-            .flat_map(|profile| profile_character_keys(profile).into_iter())
+            .flat_map(|profile| profile_character_keys_model(profile).into_iter())
             .collect::<BTreeSet<_>>();
         let matched_profiles = profiles
             .into_iter()
             .filter(|profile| {
-                profile_character_keys(profile)
+                profile_character_keys_model(profile)
                     .iter()
                     .any(|key| sync_character_keys.contains(key))
             })

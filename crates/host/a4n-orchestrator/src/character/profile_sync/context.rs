@@ -13,7 +13,7 @@ use crate::OrchestratorContext;
 
 use super::{
     super::{
-        CharacterProfileSyncStageInput, CharacterSyncRangeMode, character_llm_chapter_context,
+        CharacterProfileSyncStageInput, CharacterSyncRangeMode,
         character_sync_range_with_first_seen, profile_first_seen_chapter,
         validate_character_sync_target_chapter, validate_contiguous_character_sync_range,
     },
@@ -287,7 +287,7 @@ fn character_profile_sync_chapter_context(
     chapter: &chapter::Model,
     anchors: &[text_anchor::Model],
 ) -> Result<Value, AppError> {
-    let mut context = character_llm_chapter_context(chapter);
+    let mut context = crate::character::character_llm_chapter_context_model(chapter);
     if let Some(object) = context.as_object_mut() {
         object.insert(
             "content".to_string(),

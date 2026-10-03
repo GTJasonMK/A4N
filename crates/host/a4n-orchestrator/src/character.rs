@@ -226,7 +226,7 @@ impl CharacterProfileSyncApplicationPort for crate::OrchestratorContext {
 }
 pub(crate) use discovery::{CHARACTER_DISCOVERY_CALL_KEY, CHARACTER_DISCOVERY_KIND};
 pub(crate) use discovery::{
-    character_identity_key, character_llm_chapter_context, profile_character_keys,
+    character_identity_key, character_llm_chapter_context_model, profile_character_keys_model,
 };
 pub(crate) use implicit_classification::CharacterImplicitClassificationInput;
 pub(crate) use implicit_review::CharacterSyncImplicitReviewInput;

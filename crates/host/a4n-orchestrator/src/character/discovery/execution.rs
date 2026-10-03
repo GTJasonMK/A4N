@@ -131,8 +131,8 @@ impl OrchestratorContext {
         AppError,
     > {
         let (available_chapters, existing_profiles) = futures::join!(
-            self.character_sync_chapters(input.project_id),
-            self.protagonist_profiles_for_project(input.project_id),
+            self.character_sync_chapter_records(input.project_id),
+            self.profile_records_by_project(input.project_id),
         );
         let available_chapters = available_chapters?;
         let chapters = select_character_discovery_chapters(
@@ -158,11 +158,11 @@ impl OrchestratorContext {
             .collect::<Vec<_>>();
         let anchor_groups = match anchor_mode {
             ChapterAnchorMode::EnsureCurrent => {
-                self.ensure_chapter_content_anchor_records_batch(input.project_id, &chapter_ids)
+                self.ensure_chapter_content_anchor_record_batch(input.project_id, &chapter_ids)
                     .await?
             }
             ChapterAnchorMode::RequireExistingCurrent => {
-                self.require_current_chapter_content_anchors_for_preview_batch(
+                self.require_current_chapter_content_anchor_records_for_preview_batch(
                     input.project_id,
                     &chapter_ids,
                 )
@@ -198,8 +198,8 @@ impl OrchestratorContext {
         project_id: i64,
         chapter_number: Option<i32>,
         request: &a4n_llm_provider_contract::provider::ChatRequest,
-        chapters: &[a4n_db_models::models::chapter::chapter::Model],
-        text_anchors: &[a4n_db_models::models::project::text_anchor::Model],
+        chapters: &[a4n_domain::chapter::ChapterRecord],
+        text_anchors: &[a4n_domain::text_anchor::TextAnchorRecord],
         progress: Option<CharacterDiscoveryProgress<'_>>,
     ) -> Result<CharacterDiscoveryCallResult, AppError> {
         report_character_discovery_progress(progress, 10, "正在构造角色发现提示词")?;
@@ -346,8 +346,8 @@ pub(super) fn report_character_discovery_progress(
 fn parse_and_validate_character_discovery_content(
     content: &str,
     analyzed_chapters: &BTreeSet<i32>,
-    chapters: &[a4n_db_models::models::chapter::chapter::Model],
-    text_anchors: &[a4n_db_models::models::project::text_anchor::Model],
+    chapters: &[a4n_domain::chapter::ChapterRecord],
+    text_anchors: &[a4n_domain::text_anchor::TextAnchorRecord],
 ) -> Result<Vec<Value>, AppError> {
     let discovered = parse_character_discovery_output(content, chapters, text_anchors)
         .map_err(AppError::InvalidArgument)?;

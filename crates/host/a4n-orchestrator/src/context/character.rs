@@ -56,6 +56,15 @@ impl CharacterApplication {
             .map_err(AppError::Database)
     }
 
+    async fn profile_records_by_project(
+        &self,
+        project_id: i64,
+    ) -> Result<Vec<CharacterProfileRecord>, AppError> {
+        a4n_db::character::profile_records_by_project(self.database.connection(), project_id)
+            .await
+            .map_err(AppError::Database)
+    }
+
     async fn profile_record_by_id(
         &self,
         profile_id: i64,
@@ -373,6 +382,13 @@ impl OrchestratorContext {
         self.character
             .profile_by_project_name(project_id, name)
             .await
+    }
+
+    pub(crate) async fn profile_records_by_project(
+        &self,
+        project_id: i64,
+    ) -> Result<Vec<CharacterProfileRecord>, AppError> {
+        self.character.profile_records_by_project(project_id).await
     }
 
     pub(crate) async fn profile_record_by_id(
