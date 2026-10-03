@@ -390,15 +390,15 @@ export const ProjectTextMaterialsPanel: React.FC<ProjectTextMaterialsPanelProps>
           </div>
           <label className="block text-small text-book-text-muted">
             {t("novel.textMaterialsInstruction")}
-            <textarea value={aiInstruction} onChange={(event) => { setAiInstruction(event.target.value); setDraftInput(null); setDraftReviewed(false); setRequestPreview(null); }} disabled={!canEdit || requestPreviewLoading || generatingDraft} rows={3} className="mt-1 w-full resize-y rounded border border-book-border bg-book-bg-paper px-2.5 py-2 text-sm leading-relaxed text-book-text-main" />
+            <textarea value={aiInstruction} onChange={(event) => { setAiInstruction(event.target.value); setDraftInput(null); setDraftReviewed(false); setRequestPreview(null); }} disabled={!canEdit || requestPreviewLoading || generatingDraft} rows={3} className="pyqt-input mt-1 w-full resize-y text-sm leading-relaxed" />
           </label>
           <label className="block text-small text-book-text-muted">
             {t("novel.textMaterialsName")}
-            <input value={title} onChange={(event) => setTitle(event.target.value)} disabled={!canEdit || loading} className="mt-1 w-full rounded border border-book-border bg-book-bg-paper px-2.5 py-2 text-sm text-book-text-main" />
+            <input value={title} onChange={(event) => setTitle(event.target.value)} disabled={!canEdit || loading} className="pyqt-input mt-1 w-full text-sm" />
           </label>
           <label className="flex min-h-48 flex-1 flex-col text-small text-book-text-muted">
             {t("novel.textMaterialsContent")}
-            <textarea value={content} onChange={(event) => setContent(event.target.value)} disabled={!canEdit || loading} rows={12} className="mt-1 min-h-48 flex-1 resize-y rounded border border-book-border bg-book-bg-paper px-2.5 py-2 text-sm leading-relaxed text-book-text-main" />
+            <textarea value={content} onChange={(event) => setContent(event.target.value)} disabled={!canEdit || loading} rows={12} className="pyqt-input mt-1 min-h-48 flex-1 resize-y text-sm leading-relaxed" />
           </label>
           {onSelectSource && selected ? (
             <div className="flex flex-wrap items-end gap-2 border-t border-book-border/70 pt-3">
