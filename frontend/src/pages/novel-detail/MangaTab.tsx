@@ -1262,15 +1262,23 @@ export const MangaTab: React.FC<MangaTabProps> = ({
         }}>
         {canEditManga && <BookButton size="sm" variant="secondary" disabled={!selectedChapter || standaloneSourceLoading || selectedStatus?.pipeline_status === "running" || selectedStatus?.can_cancel || acting != null} onClick={() => void handleRunPipeline("start")}>{t("common.mediaAuthoring.oneClick")}</BookButton>}
       </MediaStageHeader>}
-      {outputState?.stale && (workspaceStage === "prompts" || workspaceStage === "images") && <p role="status" className="text-xs text-warning">{t("common.mediaAuthoring.outputsStale")}</p>}
-      {authoring.error && workspaceStage !== "adaptation" && <p role="alert" className="text-xs text-error">{authoring.error}</p>}
+      {outputState?.stale && (workspaceStage === "prompts" || workspaceStage === "images") && (
+        <p role="status" className="shrink-0 rounded-xl border border-warning/40 bg-warning-bg px-3 py-2 text-small text-warning">
+          {t("common.mediaAuthoring.outputsStale")}
+        </p>
+      )}
+      {authoring.error && workspaceStage !== "adaptation" ? (
+        <p role="alert" className="shrink-0 rounded-xl border border-error/40 bg-error-bg px-3 py-2 text-small text-error">
+          {authoring.error}
+        </p>
+      ) : null}
       <div
       className={
         isSingleMode
           ? "flex min-h-0 flex-1 flex-col"
           : showChapterNavigation
-            ? "content-wide grid min-h-0 flex-1 grid-cols-1 gap-3 md:h-full md:grid-cols-[220px_minmax(0,1fr)] md:gap-4"
-            : "content-wide flex min-h-0 flex-1 flex-col md:h-full"
+            ? "grid min-h-0 flex-1 grid-cols-1 gap-3 md:h-full md:grid-cols-[220px_minmax(0,1fr)] md:gap-4"
+            : "flex min-h-0 flex-1 flex-col md:h-full"
       }
     >
       {/* 章节列表（仅完整模式） */}
