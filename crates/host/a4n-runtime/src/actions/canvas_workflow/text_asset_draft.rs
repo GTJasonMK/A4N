@@ -22,7 +22,8 @@ pub async fn preview_canvas_text_asset_draft_request(
 ) -> Result<ModelRequestPreview, AppError> {
     let request = build_request(state, user_id, &input).await?;
     let model = state
-        .provider_runtime()
+        .dynamic_llm_provider_for_profile()
+        .map_err(|error| AppError::LlmError(error.to_string()))?
         .resolve_llm_config(input.llm_config_id)
         .await
         .map_err(|error| AppError::LlmError(error.to_string()))?;

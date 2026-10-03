@@ -345,6 +345,64 @@ async fn remote_identity_without_snapshot_never_resolves_server_credentials() {
 }
 
 #[tokio::test]
+async fn snapshot_llm_config_id_resolves_without_server_lookup_for_preview() {
+    let port = Arc::new(TestProviderPort::default());
+    let provider = DynamicLlmProvider::new(crate::provider_runtime::DynamicProviderFacade::new(
+        port.clone(),
+        crate::RuntimeRole::Host,
+    ));
+    let snapshot = crate::runtime_config::RuntimeConfigSnapshot {
+        schema_version: 2,
+        llm: None,
+        llm_configs: vec![crate::runtime_config::RuntimeLlmConfig {
+            id: 3,
+            name: "snapshot-llm".to_string(),
+            provider: "openai".to_string(),
+            base_url: "https://example.test/v1".to_string(),
+            api_key_encrypted: Some("snapshot-key".to_string()),
+            model: "snapshot-model".to_string(),
+            max_concurrent: 1,
+            timeout_secs: 30,
+            max_context_tokens: 16_384,
+            max_output_tokens: 2_048,
+            agent_protocol: "native_tool_calling".to_string(),
+            extra_body_json: None,
+            is_default: true,
+            pricing: Default::default(),
+        }],
+        image: None,
+        image_configs: Vec::new(),
+        video: None,
+        video_configs: Vec::new(),
+        embedding: None,
+        web_search: None,
+        web_fetch: None,
+        llm_default_source: None,
+        image_default_source: None,
+        video_default_source: None,
+        system_llm_api_key_encrypted: None,
+        system_image_api_key_encrypted: None,
+        system_video_api_key_encrypted: None,
+        client_context: None,
+    };
+
+    let config = crate::runtime_config::request_scope(
+        7,
+        Some(snapshot),
+        provider.resolve_llm_config(Some(3)),
+    )
+    .await
+    .expect("snapshot LLM config should resolve");
+
+    assert_eq!(config.id, 3);
+    assert_eq!(config.model, "snapshot-model");
+    assert_eq!(
+        port.resolutions.load(std::sync::atomic::Ordering::SeqCst),
+        0
+    );
+}
+
+#[tokio::test]
 async fn desktop_host_uses_its_persisted_model_for_authenticated_native_requests() {
     let port = Arc::new(TestProviderPort::default());
     let provider = DynamicLlmProvider::new(crate::provider_runtime::DynamicProviderFacade::new(

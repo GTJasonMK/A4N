@@ -10,6 +10,13 @@ use super::super::contracts::{DynamicLlmProvider, ResolvedLlmModel};
 use crate::runtime_config;
 
 impl DynamicLlmProvider {
+    pub(crate) async fn resolve_llm_config(
+        &self,
+        config_id: Option<i64>,
+    ) -> Result<LlmProviderConfig, AppError> {
+        self.resolve_model_by_id(config_id).await
+    }
+
     pub(crate) async fn agent_protocol_for_config_id(
         &self,
         config_id: Option<i64>,
