@@ -6,6 +6,7 @@ import React, {
   useRef,
   useState,
 } from "react";
+import { Clapperboard, FileText, ImagePlus, Images, PanelTop } from "lucide-react";
 import { LoadingSpinner } from "../../components/ui/LoadingSpinner";
 import { useToast } from "../../components/feedback/Toast";
 import { confirmDialog } from "../../components/feedback/ConfirmDialog";
@@ -192,30 +193,35 @@ export const MangaTab: React.FC<MangaTabProps> = ({
         : undefined;
     const pagePromptsStale = countStaleMangaPagePrompts(pagePrompts, currentContentHash) > 0;
     return [
-      { id: "materials" as const, label: t("common.mediaAuthoring.materials") },
+      { id: "materials" as const, label: t("common.mediaAuthoring.materials"), icon: <ImagePlus size={13} /> },
       {
         id: "adaptation" as const,
         label: t("common.mediaAuthoring.adaptation"),
+        icon: <FileText size={13} />,
         status: authoringStageLabel(authoring.workspace, "adaptation_plan", selectedChapter?.id, t),
       },
       {
         id: "page_plan" as const,
         label: t("comic.pipelineStages.pagination"),
+        icon: <PanelTop size={13} />,
         status: stageProgress(pagePrompts.filter((page) => page.page_content != null).length),
       },
       {
         id: "page_adaptation" as const,
         label: t("comic.pipelineStages.pageAdaptation"),
+        icon: <FileText size={13} />,
         status: stageProgress(pagePrompts.filter((page) => page.page_adaptation != null).length),
       },
       {
         id: "storyboard" as const,
         label: t("comic.pipelineStages.storyboard"),
+        icon: <Clapperboard size={13} />,
         status: stageProgress(pagePrompts.filter((page) => page.page_plan != null).length),
       },
       {
         id: "prompts" as const,
         label: t("common.mediaAuthoring.pagePrompts"),
+        icon: <FileText size={13} />,
         status: outputState?.stale || pagePromptsStale
           ? t("common.mediaAuthoring.needsUpdate")
           : stageProgress(pagePrompts.filter((page) => page.drawing_prompt != null).length),
@@ -223,6 +229,7 @@ export const MangaTab: React.FC<MangaTabProps> = ({
       {
         id: "images" as const,
         label: t("common.mediaAuthoring.images"),
+        icon: <Images size={13} />,
         status: outputState?.stale || pagePromptsStale
           ? t("common.mediaAuthoring.needsUpdate")
           : stageProgress(pagePrompts.filter((page) => page.generated_image_id != null).length),
