@@ -1252,7 +1252,7 @@ export const MangaTab: React.FC<MangaTabProps> = ({
   }
 
   return (
-    <div className="flex min-h-0 flex-col gap-3 lg:h-full">
+    <div className="flex min-h-0 flex-1 flex-col gap-3 lg:h-full">
       {staged && <MediaStageHeader id={stageId} label={t("common.mediaAuthoring.stages")} tabs={stageTabs} activeTab={workspaceStage}
         onTabChange={async (stage) => {
           if (!await confirmLeaveStage()) return false;
@@ -1267,10 +1267,10 @@ export const MangaTab: React.FC<MangaTabProps> = ({
       <div
       className={
         isSingleMode
-          ? "h-full"
+          ? "flex min-h-0 flex-1 flex-col"
           : showChapterNavigation
-            ? "content-wide grid grid-cols-1 gap-3 lg:h-full lg:min-h-0 lg:grid-cols-[220px_minmax(0,1fr)] lg:gap-4"
-            : "content-wide lg:h-full lg:min-h-0"
+            ? "content-wide grid min-h-0 flex-1 grid-cols-1 gap-3 lg:h-full lg:grid-cols-[220px_minmax(0,1fr)] lg:gap-4"
+            : "content-wide flex min-h-0 flex-1 flex-col lg:h-full"
       }
     >
       {/* 章节列表（仅完整模式） */}
@@ -1283,7 +1283,7 @@ export const MangaTab: React.FC<MangaTabProps> = ({
         />
       )}
 
-      <div id={staged ? `${stageId}-panel` : undefined} role={staged ? "tabpanel" : undefined} aria-labelledby={staged ? `${stageId}-tab-${workspaceStage}` : undefined} className="flex min-h-0 min-w-0 flex-col">
+      <div id={staged ? `${stageId}-panel` : undefined} role={staged ? "tabpanel" : undefined} aria-labelledby={staged ? `${stageId}-tab-${workspaceStage}` : undefined} className="flex min-h-0 min-w-0 flex-1 flex-col">
       {workspaceStage === "adaptation" ? <MediaAuthoringPanel
         key={`${projectId}:${selectedChapter?.id}:${workspaceStage}:${discardVersion}`} projectId={projectId} kind="adaptation_plan"
         workspace={authoring.workspace} loading={authoring.loading} error={authoring.error} chapterId={selectedChapter?.id ?? null}
