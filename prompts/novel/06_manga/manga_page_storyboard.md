@@ -34,7 +34,16 @@ name: manga_page_storyboard
       "reaction": null,
       "spatial_relationship": "角色、道具和环境的相对位置",
       "continuity_from_previous": null,
-      "text_layers": []
+      "text_layers": [
+        {
+          "layer_index": 1,
+          "kind": "dialogue",
+          "speaker": "角色名",
+          "text": "原文中的对白",
+          "placement": "top_left",
+          "avoid_covering": ["角色面部"]
+        }
+      ]
     }
   ]
 }
@@ -43,7 +52,7 @@ name: manga_page_storyboard
 
 - `page_number` 必须等于输入页码。页面 `beat_refs` 必须覆盖 `page_adaptation.beat_refs`；画格节拍只能来自页面 `beat_refs`。
 - 每页至少一个画格且只能有一个 `size=dominant`，并与 `dominant_panel_number` 一致。
-- 画格编号、文字层编号从 1 连续递增。画格功能、大小、景别、角度、构图、动作、反应、空间关系和连续性都要具体。
+- `panel_number` 和每格 `text_layers[].layer_index` 都从 1 连续递增；文字层字段名必须是 `layer_index`，不要输出 `layer_number`。画格功能、大小、景别、角度、构图、动作、反应、空间关系和连续性都要具体。
 - 每条对白/想法/旁白/音效都放入 `text_layers`，不得编造原文没有的台词。
 - 对话有现场听者时，要安排听者同框或可观察的反应。
 - `entry_state`、`exit_state` 原样复制 `page_content`。不要替换相邻页已经确定的动作结果。
