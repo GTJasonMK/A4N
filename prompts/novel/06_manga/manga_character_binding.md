@@ -29,6 +29,7 @@ name: manga_character_binding
 ## 规则
 
 - 角色必须来自本章正文或 `events[].participants`。
+- 第一人称叙述中的“我/我们”是叙述视角，不要直接用作角色名；能从上下文确认对应已有立绘角色时，沿用 `reference_assets.character_portraits[].character_name` 中的规范名。无法确认时使用稳定的叙述者称呼，不要猜测其对应的已有角色。
 - 立绘参考只用于身份和外观一致性，不得用来编造本章未出现的角色行为。
 - `source_span_ids` 必须原样复制输入 `chapter.content` 中实际出现的十进制来源短标记。
 - `role` 使用 protagonist/antagonist/supporting/minor/background。

@@ -201,6 +201,38 @@ async fn insert_project_and_profile(
 }
 
 #[tokio::test]
+async fn portrait_generation_start_rejects_unknown_character_before_queueing() {
+    let (database, context) = setup_context().await;
+    let (project, _) = insert_project_and_profile(database.as_ref()).await;
+    let input = a4n_api_contract::portrait::StartPortraitGenerationInput {
+        meta: a4n_api_contract::generation_tasks::GenerationStartRequestMeta {
+            start_request_id: uuid::Uuid::new_v4().to_string(),
+            retry_of_task_id: None,
+        },
+        project_id: project.id,
+        operation: a4n_api_contract::portrait::PortraitGenerationOperation::Generate {
+            character_name: "我".to_string(),
+            style: None,
+            expression: None,
+            pose: None,
+            reference_image_ids: Vec::new(),
+            width: 1024,
+            height: 1536,
+        },
+    };
+
+    let error = context
+        .validate_portrait_generation_start(project.user_id, &input)
+        .await
+        .expect_err("项目不存在的角色不能创建立绘生成任务");
+
+    assert!(matches!(
+        error,
+        AppError::NotFound(message) if message.contains("我")
+    ));
+}
+
+#[tokio::test]
 async fn portrait_application_rejects_cancellation_before_provider() {
     let (_database, context) = setup_context().await;
     let host = TestPortraitHost::default();

@@ -51,6 +51,7 @@ name: manga_page_storyboard
 规则：
 
 - `page_number` 必须等于输入页码。页面 `beat_refs` 必须覆盖 `page_adaptation.beat_refs`；画格节拍只能来自页面 `beat_refs`。
+- `panels[].participants` 和 `text_layers[].speaker` 使用输入 `characters` 中的稳定角色名；不要把“我/我们/你/你们”等人称代词当作角色名。第一人称对白、想法或旁白应使用可确认的角色规范名；无法确认时复用 `characters` 中稳定的叙述者称呼。
 - 每页至少一个画格且只能有一个 `size=dominant`，并与 `dominant_panel_number` 一致。
 - `panel_number` 和每格 `text_layers[].layer_index` 都从 1 连续递增；文字层字段名必须是 `layer_index`，不要输出 `layer_number`。画格功能、大小、景别、角度、构图、动作、反应、空间关系和连续性都要具体。
 - 每条对白/想法/旁白/音效都放入 `text_layers`，不得编造原文没有的台词。

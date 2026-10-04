@@ -72,6 +72,8 @@ impl OrchestratorContext {
                         "character_name 不能为空".to_string(),
                     ));
                 }
+                self.portrait_named_prompt_profile_rows(input.project_id, character_name)
+                    .await?;
                 validate_reference_image_ids(reference_image_ids)
                     .map_err(AppError::InvalidArgument)?;
                 if expression

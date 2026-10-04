@@ -28,6 +28,19 @@ pub(crate) fn manga_page_pipeline_layout(
     )
 }
 
+pub(crate) fn unbound_image_reference_character_name(
+    layout: &MangaPageGenerationLayoutV4,
+) -> Option<&str> {
+    if layout.pipeline.stage < a4n_domain::manga::MangaPagePipelineStage::DrawingPrompt {
+        return None;
+    }
+    layout
+        .reference_bindings
+        .iter()
+        .find(|binding| binding.bound_asset.is_none())
+        .map(|binding| binding.character_name.as_str())
+}
+
 fn bind_reference_asset_in_bindings(
     bindings: &mut [MangaReferenceBindingSummary],
     character_name: &str,
@@ -93,8 +106,8 @@ pub(crate) fn resolve_manga_prompt_downstream_conflict(
 mod tests {
     use super::*;
     use a4n_domain::manga::{
-        MangaPageGenerationLayoutV4, MangaPageGenerationSchemaVersion, MangaReferenceAssetKind,
-        MangaReferenceBindingSummary,
+        MangaPageGenerationLayoutV4, MangaPageGenerationSchemaVersion, MangaPagePipelineStage,
+        MangaReferenceAssetKind, MangaReferenceBindingSummary,
     };
     use serde_json::json;
 
@@ -151,7 +164,7 @@ mod tests {
 
     #[test]
     fn bind_updates_v4_without_downgrading_pipeline() {
-        let layout: MangaPageGenerationLayoutV4 = serde_json::from_value(json!({
+        let mut layout: MangaPageGenerationLayoutV4 = serde_json::from_value(json!({
             "schema_version": "manga_page_generation_v4",
             "page_id": "page-0001",
             "page_number": 1,
@@ -186,6 +199,12 @@ mod tests {
             }
         }))
         .expect("valid v4 layout fixture");
+        assert_eq!(unbound_image_reference_character_name(&layout), None);
+        layout.pipeline.stage = MangaPagePipelineStage::DrawingPrompt;
+        assert_eq!(
+            unbound_image_reference_character_name(&layout),
+            Some("hero")
+        );
         let bound = MangaBoundReferenceAsset {
             asset_kind: MangaReferenceAssetKind::GeneratedImage,
             asset_id: 7,
@@ -204,6 +223,7 @@ mod tests {
                 .asset_id,
             7
         );
+        assert_eq!(unbound_image_reference_character_name(&updated), None);
     }
 
     fn layout_fixture(

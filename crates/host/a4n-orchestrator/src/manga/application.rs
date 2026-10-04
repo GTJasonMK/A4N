@@ -96,16 +96,52 @@ impl OrchestratorContext {
             .chapter_manga_source_by_number(project_id, chapter_number, true)
             .await?;
         ensure_manga_source_can_write(&source, "启动漫画流水线")?;
-        if let Some(page_number) = page_number {
-            let page_number = i32::try_from(page_number)
-                .map_err(|_| AppError::InvalidArgument("漫画页码超出 i32 范围".into()))?;
+        let requested_page_number = page_number
+            .map(|page_number| {
+                i32::try_from(page_number)
+                    .map_err(|_| AppError::InvalidArgument("漫画页码超出 i32 范围".into()))
+            })
+            .transpose()?;
+        let check_image_references = matches!(
+            stop_after,
+            Some(a4n_api_contract::manga::MangaPipelineStopAfter::Image) | None
+        );
+        if requested_page_number.is_some() || check_image_references {
             let pages = self
                 .manga_page_prompts_by_chapter(project_id, source.chapter_id)
                 .await?;
-            if !pages.iter().any(|page| page.page_number == page_number) {
-                return Err(AppError::InvalidArgument(format!(
-                    "漫画第 {page_number} 页不存在，无法启动单页流水线"
-                )));
+            if let Some(page_number) = requested_page_number {
+                if !pages.iter().any(|page| page.page_number == page_number) {
+                    return Err(AppError::InvalidArgument(format!(
+                        "漫画第 {page_number} 页不存在，无法启动单页流水线"
+                    )));
+                }
+            }
+            if check_image_references {
+                for page in pages.iter().filter(|page| {
+                    requested_page_number.map_or(true, |number| page.page_number == number)
+                }) {
+                    let is_pipeline_layout = page
+                        .layout
+                        .as_ref()
+                        .and_then(|layout| layout.get("schema_version"))
+                        .and_then(|version| version.as_str())
+                        == Some("manga_page_generation_v4");
+                    if !is_pipeline_layout {
+                        continue;
+                    }
+                    let layout = super::layout_rules::manga_page_pipeline_layout(page)
+                        .map_err(AppError::InvalidArgument)?;
+                    let Some(character_name) =
+                        super::layout_rules::unbound_image_reference_character_name(&layout)
+                    else {
+                        continue;
+                    };
+                    return Err(AppError::InvalidArgument(format!(
+                        "漫画第 {} 页参考图“{}”尚未绑定，请先在页面参考绑定中选择角色立绘或项目图片",
+                        page.page_number, character_name
+                    )));
+                }
             }
         }
         if manga_stop_after_includes_storyboard(stop_after) {
