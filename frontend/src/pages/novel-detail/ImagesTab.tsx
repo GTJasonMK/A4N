@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState, type ChangeEvent } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useToast } from "../../components/feedback/Toast";
 import { confirmDialog } from "../../components/feedback/ConfirmDialog";
 import { promptDialog } from "../../components/feedback/PromptDialog";
@@ -37,7 +37,6 @@ import { readFileAsBase64 } from "../../utils/fileUpload";
 import {
   isSupportedImageMime,
   MAX_UPLOAD_IMAGE_BYTES,
-  supportedImageAccept,
 } from "../../utils/imageUpload";
 import { ImageActionDialog } from "./images/ImageActionDialog";
 import { ImageGalleryPanel } from "./images/ImageGalleryPanel";
@@ -118,8 +117,6 @@ export const ImagesTab: React.FC<ImagesTabProps> = ({
   const actionBusyRef = useRef(false);
   const previewSeqRef = useRef(0);
   const previewBusyRef = useRef(false);
-  const importFileInputRef = useRef<HTMLInputElement | null>(null);
-
   activeScopeRef.current = scopeKey;
   allImagesRef.current = allImages;
   objectProfilesRef.current = objectProfiles;
@@ -700,30 +697,12 @@ export const ImagesTab: React.FC<ImagesTabProps> = ({
     }
   };
 
-  const handlePickImportImage = () => {
+  const handleImportImageFile = async (file: File) => {
     if (!ensureCanEditImages()) return;
-    if (importBusy || actionBusyRef.current) {
-      addToast(t("novel.imageLibrary.operationInProgress"), "error");
-      return;
-    }
-    const input = importFileInputRef.current;
-    if (!input) return;
-    if (typeof input.showPicker === "function") input.showPicker();
-    else input.click();
-  };
-
-  const handleImportImageFile = async (event: ChangeEvent<HTMLInputElement>) => {
-    if (!ensureCanEditImages()) {
-      event.currentTarget.value = "";
-      return;
-    }
     const requestScope = scopeKey;
     const requestProjectId = projectId;
     const requestChapterScoped = chapterScoped;
     const requestChapter = chapter;
-    const file = event.currentTarget.files?.[0] ?? null;
-    event.currentTarget.value = "";
-    if (!file) return;
     if (!isSupportedImageMime(file.type)) {
       addToast(t("novel.imageLibrary.unsupportedFormat"), "error");
       return;
@@ -912,21 +891,11 @@ export const ImagesTab: React.FC<ImagesTabProps> = ({
         onFavoriteOnlyChange={setFavOnly}
         onRefresh={() => void load()}
         onOpenTools={() => setToolsOpen(true)}
-        onImportImage={handlePickImportImage}
+        onImportImageFile={(file) => void handleImportImageFile(file)}
         onToggleFavorite={(image) => void handleToggleFavorite(image)}
         onOpenActions={handleOpenImageActions}
         contentHashError={chapterContentHashError}
       />
-      <input
-        ref={importFileInputRef}
-        type="file"
-        accept={supportedImageAccept()}
-        className="sr-only"
-        tabIndex={-1}
-        aria-hidden="true"
-        onChange={(event) => void handleImportImageFile(event)}
-      />
-
       <ImageGenerationDialog
         open={canEditImages && toolsOpen}
         chapter={chapter}

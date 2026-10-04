@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, type ChangeEvent } from "react";
 import {
   AlertTriangle,
   Camera,
@@ -6,14 +6,14 @@ import {
   RefreshCw,
   Star,
 } from "lucide-react";
-import { BookButton } from "../../../components/ui/BookButton";
-import { Dropdown } from "../../../components/ui/Dropdown";
+import { BookButton, BookIconButton } from "../../../components/ui/BookButton";
 import { ImageZoomButton } from "../../../components/ui/ImageLightbox";
 import { SegmentedControl } from "../../../components/ui/SegmentedControl";
 import type { GeneratedImage } from "../../../api/image";
 import { EmptyHint, type ChapterRow } from "../shared";
 import { toMediaSrc } from "../../../utils/mediaSrc";
 import { formatNumber, useI18n } from "../../../i18n";
+import { supportedImageAccept } from "../../../utils/imageUpload";
 import {
   CHAPTER_SCOPE_OPTIONS,
   compareGroupKey,
@@ -43,7 +43,7 @@ interface ImageGalleryPanelProps {
   onFavoriteOnlyChange: (enabled: boolean) => void;
   onRefresh: () => void;
   onOpenTools: () => void;
-  onImportImage: () => void;
+  onImportImageFile: (file: File) => void;
   onToggleFavorite: (image: GeneratedImage) => void;
   onOpenActions: (image: GeneratedImage) => void;
 }
@@ -67,7 +67,7 @@ export function ImageGalleryPanel({
   onFavoriteOnlyChange,
   onRefresh,
   onOpenTools,
-  onImportImage,
+  onImportImageFile,
   onToggleFavorite,
   onOpenActions,
 }: ImageGalleryPanelProps) {
@@ -231,27 +231,44 @@ export function ImageGalleryPanel({
           ) : (
             <span aria-hidden="true" />
           )}
-          <div className="flex w-full items-center gap-2 sm:w-auto sm:shrink-0">
-            <Dropdown
-              items={[
-                {
-                  label: loading ? t("novel.imageLibrary.refreshing") : t("novel.imageLibrary.refresh"),
-                  icon: <RefreshCw size={12} className={loading ? "animate-spin" : undefined} />,
-                  onClick: onRefresh,
-                  disabled: loading,
-                },
-                ...(canEditImages
-                  ? [
-                      {
-                        label: importBusy ? t("novel.imageLibrary.importing") : t("novel.imageLibrary.import"),
-                        icon: <ImagePlus size={12} />,
-                        onClick: onImportImage,
-                        disabled: importBusy,
-                      },
-                    ]
-                  : []),
-              ]}
-            />
+          <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:shrink-0">
+            <BookIconButton
+              label={loading ? t("novel.imageLibrary.refreshing") : t("novel.imageLibrary.refresh")}
+              size="sm"
+              onClick={onRefresh}
+              disabled={loading}
+              className="shrink-0"
+            >
+              <RefreshCw size={12} className={loading ? "animate-spin" : undefined} />
+            </BookIconButton>
+            {canEditImages ? (
+              <span className="relative min-w-0 flex-1 rounded-lg focus-within:ring-2 focus-within:ring-book-border sm:flex-none">
+                <BookButton
+                  variant="secondary"
+                  size="sm"
+                  disabled={importBusy}
+                  aria-hidden="true"
+                  tabIndex={-1}
+                  className="pointer-events-none w-full !text-xs"
+                >
+                  <ImagePlus size={12} />
+                  {importBusy ? t("novel.imageLibrary.importing") : t("novel.imageLibrary.import")}
+                </BookButton>
+                <input
+                  type="file"
+                  accept={supportedImageAccept()}
+                  aria-label={t("novel.imageLibrary.import")}
+                  disabled={importBusy}
+                  className="absolute inset-0 h-full w-full cursor-pointer opacity-0 disabled:cursor-not-allowed"
+                  onChange={(event: ChangeEvent<HTMLInputElement>) => {
+                    const input = event.currentTarget;
+                    const file = input.files?.[0];
+                    input.value = "";
+                    if (file) onImportImageFile(file);
+                  }}
+                />
+              </span>
+            ) : null}
             {canEditImages ? (
               <BookButton
                 variant="primary"
