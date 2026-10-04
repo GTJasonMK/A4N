@@ -83,13 +83,18 @@ async function openComic(page = 1, view = "prompt", chapter = 1) {
     const stage = await $(`button[id="comic-stages-2-tab-${view === "image" ? "images" : "prompts"}"]`);
     if (await stage.getAttribute("aria-selected") !== "true") await stage.click();
   }
-  const chapterButtons = await $('nav[aria-label="漫画章节"]').$$("button");
+  const chapterButtons = await $('nav[aria-label="漫画章节"]').$$("ul > li > button");
   assert.equal(chapterButtons.length, 3, "The comic audit needs all three source chapters");
   await chapterButtons[chapter - 1].click();
   await $('nav[aria-label="漫画页列表"]').waitForDisplayed();
   await selectComicPage(page);
   const detailView = await buttonText(view === "image" ? "成图" : "提示词与参考图");
   if (await detailView.isExisting()) await detailView.click();
+  if (view === "image") {
+    await browser.execute((selector) => {
+      document.querySelector(selector)?.scrollIntoView({ block: "center" });
+    }, `${comicPage} img`);
+  }
   await ready();
 }
 
@@ -577,7 +582,49 @@ async function capture(entry, width, suffix = "") {
 }
 
 const cases = [
-  { id: "MC01", title: "漫画来源章节", task: "辨认三个来源章节及其生成状态", open: () => openRoute("/comic-project/2"), expected: ["雨夜来信", "纸上的地图", "黎明的站台"], count: ['nav[aria-label="漫画章节"] button', 3], note: "窄屏章节轨道隐藏滚动条，检查末章发现性。" },
+  { id: "MC01", title: "漫画来源章节", task: "辨认三个来源章节及其生成状态", open: () => openRoute("/comic-project/2"), expected: ["雨夜来信", "纸上的地图", "黎明的站台"], count: ['nav[aria-label="漫画章节"] ul > li > button', 3], note: "窄屏章节轨道隐藏滚动条，检查末章发现性。" },
+  {
+    id: "MC15",
+    title: "漫画素材切换刷新",
+    task: "离开基础素材后刷新角色立绘和项目图片候选",
+    open: async () => {
+      await browser.url("/");
+      await browser.execute(() => localStorage.setItem("a4n:comic:2:stage", "materials"));
+      await openRoute("/comic-project/2");
+      await $('nav[aria-label="漫画章节"]').waitForDisplayed();
+      const readCounts = () => browser.execute(() => {
+        const commands = ["list_profiles", "list_portraits_by_project", "list_images_by_projects"];
+        return Object.fromEntries(commands.map(command => [
+          command,
+          window.__uiAudit.requests.filter(request => request.command === command).length,
+        ]));
+      });
+      await browser.waitUntil(async () =>
+        Object.values(await readCounts()).every(count => count > 0),
+      );
+      const before = await readCounts();
+      const chapterButtons = await $('nav[aria-label="漫画章节"]').$$("ul > li > button");
+      await chapterButtons[0].click();
+      await ready();
+      if (await browser.execute(() => innerWidth) < 640) {
+        const stageSelect = await $('[role="combobox"][id="comic-stages-2-select"]');
+        await stageSelect.click();
+        const option = await $(`//*[@role="option" and contains(normalize-space(.), ${JSON.stringify("页面提示词")})]`);
+        await option.waitForClickable();
+        await option.click();
+      } else {
+        await $('button[id="comic-stages-2-tab-prompts"]').click();
+      }
+      await $('nav[aria-label="漫画页列表"]').waitForDisplayed();
+      await browser.waitUntil(async () => {
+        const after = await readCounts();
+        return Object.keys(before).every(command => after[command] > before[command]);
+      });
+    },
+    expected: ["参考图绑定", "林岚"],
+    count: ['nav[aria-label="漫画页列表"] button', 6],
+    note: "离开素材阶段后，角色档案、立绘和项目图片候选都应读取最新数据。",
+  },
   { id: "MC02", title: "漫画整页提示词与参考", task: "从选页进入提示词、角色参考与布局信息", open: () => openComic(), expected: ["参考图绑定", "林岚", "周衡"], count: ['nav[aria-label="漫画页列表"] button', 6], note: "检查章节状态、页状态与操作栏是否挤压正文。" },
   { id: "MC03", title: "漫画提示词编辑", task: "修改提示词并确认保存入口及取消恢复", open: async () => { await openComic(); await openMenu(comicPrompt, "编辑提示词"); await $(`${comicPrompt} textarea`).addValue("\n审查草稿"); }, expected: ["保存", "取消"], after: async () => { await $(comicPrompt).$('.//button[normalize-space()="取消"]').click(); assert.equal(await $(`${comicPrompt} textarea`).isExisting(), false); return { cancelled: true }; }, note: "保留草稿取消，不触发下游写回。" },
   { id: "MC04", title: "漫画缺失角色参考", task: "查看第4页缺失的角色绑定及候选", open: () => openComic(4), expected: ["参考图绑定", "周衡"], tail: '(//nav[@aria-label="漫画页列表"]/following-sibling::section/article//button[@role="combobox"])[last()]', note: "候选选择后的图像是否仍显示旧绑定，需要视觉复核。" },
@@ -626,10 +673,11 @@ const cases = [
   }, note: "几何检查覆盖舞台与Modal裁切边界和原比例；真实放大、重置及焦点返回，不以decoded代替完整显示。" },
   { id: "MC07", title: "漫画失败与续跑", task: "定位失败章节并识别恢复操作", open: () => openComic(4, "prompt", 2), expected: ["第4页", "继续"], note: "错误必须保留，续跑入口不能只剩颜色提示。" },
   { id: "MC08", title: "漫画末页可达", task: "通过横向轨道选择第6页并查看过期内容", open: () => openComic(6), expected: ["第一次选择", "需更新"], after: async () => {
-    assert.equal(await $('nav[aria-label="漫画页列表"] button:last-child').getAttribute("aria-current"), "true");
+    const selectedPage = await $('nav[aria-label="漫画页列表"] button[aria-current="true"]');
+    assert((await selectedPage.getText()).includes("第 6 页"));
     assert.equal(await $(`${comicPrompt} pre`).getText(), comicFixture(6).image_prompt);
     return { selectedPage: 6, promptId: 21006, currentTextMatches: true };
-  }, note: "末页通过真实 wheel 后点击，核对当前页完整文字与过期状态；不依赖已删除的重复区块标题。" },
+  }, note: "末页通过真实 wheel 后点击，核对当前页完整文字与过期状态。" },
   { id: "MC09", title: "漫画图片请求", task: "从页操作打开生成请求预览", open: async () => { await openComic(); await openMenu(`${comicPage} > header`, "查看生成图片请求"); await $(dialog).waitForDisplayed(); }, scope: dialog, expected: ["模型请求", "生成"], note: "预览按既有合同展示，不发送生成请求。" },
   { id: "MC10", title: "漫画优化指令", task: "为第3页输入多行优化指令并取消", open: async () => {
     await openComic(3);
@@ -1153,7 +1201,7 @@ describe("Populated media pages and task dialogs", () => {
     await browser.url("/");
     await browser.execute(() => localStorage.setItem("a4n:comic:2:stage", "prompts"));
     await openRoute("/comic-project/2");
-    const chapterButtons = await $('nav[aria-label="漫画章节"]').$$("button");
+    const chapterButtons = await $('nav[aria-label="漫画章节"]').$$("ul > li > button");
     await chapterButtons[0].click();
     await $('nav[aria-label="漫画页列表"]').waitForDisplayed();
     await selectComicPage(3);

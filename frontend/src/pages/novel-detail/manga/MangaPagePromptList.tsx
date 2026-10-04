@@ -1,5 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { FileText,
+import {
+  Eye,
+  FileText,
   ImagePlus,
   Link2,
   MessageSquareText,
@@ -10,7 +12,7 @@ import { FileText,
   Users,
   Wand2,
   X,
-  Eye, } from "lucide-react";
+} from "lucide-react";
 import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
 import type { CharacterProfile } from "../../../api/character";
 import type { GeneratedImage } from "../../../api/image";
@@ -52,8 +54,7 @@ interface MangaPagePromptListProps {
   onDirtyChange?: (dirty: boolean) => void;
   prompts: MangaPagePromptSummary[];
   promptsLoading: boolean;
-  pagePromptsError?: string | null;
-  assetsError?: string | null;
+  pagePromptsError: string | null;
   currentContentHash: string | null;
   chapterLocked?: boolean;
   generatingPageNumber?: number | null;
@@ -73,8 +74,7 @@ interface MangaPagePromptListProps {
   onUpdatePrompt?: (promptId: number, imagePrompt: string) => void | Promise<void>;
   onOptimizePrompt?: (prompt: MangaPagePromptSummary) => void | Promise<void>;
   onDeletePrompt?: (prompt: MangaPagePromptSummary) => void | Promise<void>;
-  onRetryPagePrompts?: () => void;
-  onRetryAssets?: () => void;
+  onRetryPagePrompts: () => void;
 }
 
 type MangaPagePlanView = "page_content" | "page_adaptation" | "storyboard";
@@ -201,8 +201,7 @@ export const MangaPagePromptList: React.FC<MangaPagePromptListProps> = ({
   onDirtyChange,
   prompts,
   promptsLoading,
-  pagePromptsError = null,
-  assetsError = null,
+  pagePromptsError,
   currentContentHash,
   chapterLocked = false,
   generatingPageNumber = null,
@@ -221,7 +220,6 @@ export const MangaPagePromptList: React.FC<MangaPagePromptListProps> = ({
   onOptimizePrompt,
   onDeletePrompt,
   onRetryPagePrompts,
-  onRetryAssets,
 }) => {
   const { t } = useI18n();
   const pagePromptLabels = useMemo<MangaPagePromptLabels>(() => ({
@@ -397,7 +395,7 @@ export const MangaPagePromptList: React.FC<MangaPagePromptListProps> = ({
       ? t("comic.prompt.available")
       : t("comic.prompt.expired")
     : t("comic.prompt.none");
-  if (promptsLoading) {
+  if (promptsLoading && prompts.length === 0) {
     return (
       <div className="flex h-full min-h-0 items-center justify-center gap-2 text-xs text-book-text-muted">
         <LoadingSpinner size="sm" /> {t("comic.prompt.loading")}
@@ -406,18 +404,14 @@ export const MangaPagePromptList: React.FC<MangaPagePromptListProps> = ({
   }
 
   if (pagePrompts.length === 0) {
-    const readError = [pagePromptsError, assetsError].filter(Boolean).join(" · ");
     return (
       <div className="flex h-full min-h-0 flex-col gap-3">
-        {readError ? (
+        {pagePromptsError ? (
           <div role="alert" className="flex flex-wrap items-center gap-3 rounded-xl border border-error/40 bg-error-bg px-3 py-2 text-small text-error">
-            <span className="min-w-0 flex-1">{readError}</span>
-            {(onRetryPagePrompts || onRetryAssets) ? <BookButton size="sm" variant="secondary" onClick={() => {
-              onRetryPagePrompts?.();
-              onRetryAssets?.();
-            }}>
+            <span className="min-w-0 flex-1">{pagePromptsError}</span>
+            <BookButton size="sm" variant="secondary" onClick={onRetryPagePrompts}>
               <RefreshCw size={12} /> {t("common.retry")}
-            </BookButton> : null}
+            </BookButton>
           </div>
         ) : null}
         <div className="flex min-h-0 flex-1 items-center justify-center">
@@ -594,15 +588,12 @@ export const MangaPagePromptList: React.FC<MangaPagePromptListProps> = ({
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      {[pagePromptsError, assetsError].some(Boolean) ? (
+      {pagePromptsError ? (
         <div role="alert" className="mb-3 flex shrink-0 flex-wrap items-center gap-3 rounded-xl border border-error/40 bg-error-bg px-3 py-2 text-small text-error">
-          <span className="min-w-0 flex-1">{[pagePromptsError, assetsError].filter(Boolean).join(" · ")}</span>
-          {(onRetryPagePrompts || onRetryAssets) ? <BookButton size="sm" variant="secondary" onClick={() => {
-            onRetryPagePrompts?.();
-            onRetryAssets?.();
-          }}>
+          <span className="min-w-0 flex-1">{pagePromptsError}</span>
+          <BookButton size="sm" variant="secondary" onClick={onRetryPagePrompts}>
             <RefreshCw size={12} /> {t("common.retry")}
-          </BookButton> : null}
+          </BookButton>
         </div>
       ) : null}
       <div className="mb-3 shrink-0">

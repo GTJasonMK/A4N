@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { AlertTriangle, CheckCircle2, Clock3 } from "lucide-react";
 import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
 import type { MangaPipelineStatusSummary } from "../../../api/manga";
@@ -6,7 +6,7 @@ import { nonEmptyText } from "../../../utils/text";
 import { EmptyHint, type ChapterRow } from "../shared";
 import { mangaStageLabel } from "./mangaTabUtils";
 import { useI18n } from "../../../i18n";
-import { ThemedSelect } from "../../../components/ui/ThemedSelect";
+import { getScrollRailCue, scrollRailItemIntoView } from "../../../utils/scrollRail";
 
 interface MangaChapterListProps {
   chapters: ChapterRow[];
@@ -44,6 +44,36 @@ export const MangaChapterList: React.FC<MangaChapterListProps> = ({
   onSelect,
 }) => {
   const { t } = useI18n();
+  const railRef = useRef<HTMLUListElement>(null);
+  const selectedButtonRef = useRef<HTMLButtonElement>(null);
+  const [hasBefore, setHasBefore] = useState(false);
+  const [hasMore, setHasMore] = useState(false);
+
+  useEffect(() => {
+    const rail = railRef.current;
+    if (!rail) return;
+    const updateCue = () => {
+      const cue = getScrollRailCue(rail);
+      setHasBefore(cue.hasBefore);
+      setHasMore(cue.hasMore);
+    };
+    const frame = window.requestAnimationFrame(() => {
+      scrollRailItemIntoView(rail, selectedButtonRef.current, "smooth");
+      updateCue();
+    });
+    rail.addEventListener("scroll", updateCue, { passive: true });
+    window.addEventListener("resize", updateCue);
+    const resizeObserver =
+      typeof ResizeObserver === "undefined" ? null : new ResizeObserver(updateCue);
+    resizeObserver?.observe(rail);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      rail.removeEventListener("scroll", updateCue);
+      window.removeEventListener("resize", updateCue);
+      resizeObserver?.disconnect();
+    };
+  }, [chapters.length, selectedChapter?.id]);
+
   if (chapters.length === 0) {
     return (
       <div className="a4n-flat-surface p-3">
@@ -55,32 +85,19 @@ export const MangaChapterList: React.FC<MangaChapterListProps> = ({
   return (
     <nav
       aria-label={t("comic.chapterListLabel")}
+      aria-describedby="comic-chapter-list-scroll-hint"
       className="a4n-media-sidebar-surface flex min-h-0 min-w-0 flex-col md:max-h-full md:overflow-hidden md:p-2"
     >
-      <label className="mb-3 flex min-w-0 items-center gap-2 border-b border-book-border/45 pb-3 text-xs md:hidden">
-        <span className="shrink-0 font-medium text-book-text-muted">{t("novel.chapters")}</span>
-        <ThemedSelect
-          aria-label={t("comic.chapterListLabel")}
-          value={selectedChapter?.id ?? ""}
-          onChange={(value) => {
-            const chapter = chapters.find((item) => String(item.id) === value);
-            if (chapter) onSelect(chapter);
-          }}
-          className="pyqt-input h-9 min-w-0 flex-1 !px-2 !py-1.5 text-xs"
-        >
-          {chapters.map((chapter) => (
-            <option key={chapter.id} value={chapter.id}>
-              {t("comic.chapterNumber", { number: chapter.chapter_number })}
-              {nonEmptyText(chapter.title) ? ` · ${nonEmptyText(chapter.title)}` : ""}
-            </option>
-          ))}
-        </ThemedSelect>
-      </label>
-      <div className="mb-2 hidden shrink-0 items-baseline gap-2 px-2 md:flex">
+      <div className="mb-2 flex shrink-0 items-baseline gap-2 px-1 md:px-2">
         <h2 className="text-xs font-semibold text-book-text-main">{t("novel.chapters")}</h2>
         <span className="text-small text-book-text-muted">{t("comic.chapterCount", { count: chapters.length })}</span>
       </div>
-      <ul className="flex w-full min-w-0 gap-1.5 overflow-x-auto p-1 md:min-h-0 md:flex-1 md:flex-col md:gap-1 md:overflow-x-hidden md:overflow-y-auto md:overscroll-contain md:p-0 custom-scrollbar">
+      <ul
+        ref={railRef}
+        data-has-before={hasBefore ? "true" : undefined}
+        data-has-more={hasMore ? "true" : undefined}
+        className="a4n-tab-rail-wrap a4n-tab-rail-wrap--canvas a4n-mobile-scroll-rail flex w-full min-w-0 gap-1.5 overflow-x-auto p-1 md:min-h-0 md:flex-1 md:flex-col md:gap-1 md:overflow-x-hidden md:overflow-y-auto md:overscroll-contain md:p-0 custom-scrollbar"
+      >
         {chapters.map((chapter) => {
           const status = statuses[chapter.id];
           const total =
@@ -94,6 +111,7 @@ export const MangaChapterList: React.FC<MangaChapterListProps> = ({
           return (
             <li key={chapter.id}>
               <button
+                ref={isSelected ? selectedButtonRef : undefined}
                 type="button"
                 onClick={() => onSelect(chapter)}
                 aria-current={isSelected ? "true" : undefined}
@@ -156,6 +174,9 @@ export const MangaChapterList: React.FC<MangaChapterListProps> = ({
           );
         })}
       </ul>
+      <span id="comic-chapter-list-scroll-hint" className="sr-only">
+        {t("comic.chapterRailScrollHint")}
+      </span>
     </nav>
   );
 };

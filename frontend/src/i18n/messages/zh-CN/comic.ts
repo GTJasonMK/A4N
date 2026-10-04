@@ -48,6 +48,7 @@ export const comic = {
   deleteArtifactsMessage: "删除本章全部漫画提示词与相关产物？此操作不可撤销。",
   deletedArtifacts: "已删除本章漫画产物",
   chapterListLabel: "漫画章节",
+  chapterRailScrollHint: "章节轨道可横向滚动查看更多章节。",
   chapterCount: "{count} 章",
   chapterNumber: "第 {number} 章",
   resumable: "可续传",

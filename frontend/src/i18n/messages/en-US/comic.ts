@@ -48,6 +48,7 @@ export const comic = {
   deleteArtifactsMessage: "Delete all comic prompts and related artifacts for this chapter? This cannot be undone.",
   deletedArtifacts: "Deleted comic artifacts for this chapter",
   chapterListLabel: "Comic chapters",
+  chapterRailScrollHint: "Scroll the chapter rail horizontally to see more chapters.",
   chapterCount: "{count} chapters",
   chapterNumber: "Chapter {number}",
   resumable: "Resumable",
